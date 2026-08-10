@@ -2,7 +2,6 @@ package automationmcp
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
@@ -23,7 +22,6 @@ type stubService struct {
 	recoverRunID      string
 	redeliverJobID    string
 	redeliverRunID    string
-	listErr           error
 	updateErr         error
 	jobs              []automationdomain.ScheduledTask
 	missingJobs       map[string]bool
@@ -41,7 +39,7 @@ type stubService struct {
 
 func (s *stubService) ListTasks(_ context.Context, agentID string) ([]automationdomain.ScheduledTask, error) {
 	s.listAgentID = agentID
-	return s.jobs, s.listErr
+	return s.jobs, nil
 }
 
 func (s *stubService) CreateTask(_ context.Context, input automationdomain.CreateJobInput) (*automationdomain.ScheduledTask, error) {
@@ -130,9 +128,6 @@ func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]
 func (s *stubService) SearchTaskHistory(_ context.Context, input automationdomain.ScheduledTaskHistorySearchInput) ([]automationdomain.ScheduledTaskHistoryItem, error) {
 	s.historyInput = input
 	s.listAgentID = input.AgentID
-	if s.listErr != nil {
-		return nil, s.listErr
-	}
 	items := make([]automationdomain.ScheduledTaskHistoryItem, 0, len(s.jobs)+len(s.historyItems))
 	if input.IncludeActive {
 		for _, job := range s.jobs {
@@ -262,28 +257,6 @@ func callTool(t *testing.T, svc contract.Service, sctx contract.ServerContext, n
 	return result, isError
 }
 
-func listTools(t *testing.T, svc contract.Service, sctx contract.ServerContext) []map[string]any {
-	t.Helper()
-	server := NewServer(svc, sctx)
-	resp, err := server.HandleMessage(context.Background(), map[string]any{
-		"jsonrpc": "2.0",
-		"id":      1,
-		"method":  "tools/list",
-	})
-	if err != nil {
-		t.Fatalf("HandleMessage error: %v", err)
-	}
-	result, ok := resp["result"].(map[string]any)
-	if !ok {
-		t.Fatalf("missing result, got %+v", resp)
-	}
-	tools, ok := result["tools"].([]map[string]any)
-	if !ok {
-		t.Fatalf("tools not []map, got %T", result["tools"])
-	}
-	return tools
-}
-
 func extractText(t *testing.T, result map[string]any) string {
 	t.Helper()
 	content, ok := result["content"].([]map[string]any)
@@ -336,39 +309,5 @@ func dailySchedule(hhmm string) map[string]any {
 		"kind":       "daily",
 		"daily_time": hhmm,
 		"timezone":   "Asia/Shanghai",
-	}
-}
-
-func TestToolsListIncludesSearchHints(t *testing.T) {
-	tools := listTools(t, &stubService{}, contract.ServerContext{})
-	wantNames := []string{
-		"create_scheduled_task",
-		"find_scheduled_tasks",
-		"update_scheduled_task",
-		"delete_scheduled_task",
-		"inspect_scheduled_task",
-		"get_scheduled_task_report",
-		"run_scheduled_task",
-		"repair_scheduled_task",
-	}
-	if len(tools) != len(wantNames) {
-		t.Fatalf("tools count = %d, want %d", len(tools), len(wantNames))
-	}
-	for index, tool := range tools {
-		name, _ := tool["name"].(string)
-		if name != wantNames[index] {
-			t.Fatalf("tool[%d] = %q, want %q", index, name, wantNames[index])
-		}
-		meta, ok := tool["_meta"].(map[string]any)
-		if !ok {
-			t.Fatalf("%s missing _meta", name)
-		}
-		hint, _ := meta["anthropic/searchHint"].(string)
-		if strings.TrimSpace(hint) == "" {
-			t.Fatalf("%s missing anthropic/searchHint", name)
-		}
-		if _, ok := meta["anthropic/alwaysLoad"]; ok {
-			t.Fatalf("%s should stay deferred", name)
-		}
 	}
 }

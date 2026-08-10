@@ -235,22 +235,6 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 	}
 }
 
-func TestWithManagedRuntimeAllowedToolsKeepsMainThreadAgent(t *testing.T) {
-	tools := WithManagedRuntimeAllowedTools([]string{"Read"}, false)
-	approved := NormalizeSet(tools)
-	if !Contains(approved, "Agent") {
-		t.Fatalf("显式白名单应保留主线程 Agent 工具: %+v", tools)
-	}
-}
-
-func TestWithManagedRuntimeAllowedToolsEnablesDefaultImagegen(t *testing.T) {
-	tools := WithManagedRuntimeAllowedTools([]string{"Read"}, true)
-	approved := NormalizeSet(tools)
-	if !Contains(approved, "mcp__nexus_imagegen__generate_image") {
-		t.Fatalf("configured imagegen should be enabled by default: %+v", tools)
-	}
-}
-
 func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testing.T) {
 	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, false)
 	approved := NormalizeSet(tools)

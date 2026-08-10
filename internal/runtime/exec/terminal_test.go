@@ -4,11 +4,53 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+func TestTerminalRoundResultReturnsErrorMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		message protocol.Message
+		want    string
+	}{
+		{
+			name: "result text",
+			message: protocol.Message{
+				"role":     "result",
+				"subtype":  "error",
+				"is_error": true,
+				"result":   "Failed to authenticate. API Error: 401",
+			},
+			want: "Failed to authenticate. API Error: 401",
+		},
+		{
+			name: "errors array",
+			message: protocol.Message{
+				"role":     "result",
+				"subtype":  "error",
+				"is_error": true,
+				"errors":   []any{"client: stream closed before result message"},
+			},
+			want: "client: stream closed before result message",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := terminalRoundResult(RoundMapResult{
+				DurableMessages: []protocol.Message{test.message},
+				TerminalStatus:  "error",
+				ResultSubtype:   "error",
+			}, nil, nil, time.Time{})
+			if result.TerminalStatus != "error" || result.ResultSubtype != "error" || result.ErrorMessage != test.want {
+				t.Fatalf("result = %#v, want terminal error %q", result, test.want)
+			}
+		})
+	}
+}
 
 func TestExecuteRoundCompletesFromTerminalAssistantWhenResultMissing(t *testing.T) {
 	client := &fakeRoundExecutionClient{

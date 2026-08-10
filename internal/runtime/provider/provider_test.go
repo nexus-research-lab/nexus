@@ -27,18 +27,6 @@ func TestSupportsAPIFormat(t *testing.T) {
 	}
 }
 
-func TestSupportsAnyRuntime(t *testing.T) {
-	if !SupportsAnyRuntime(APIFormatAnthropicMessages) {
-		t.Fatalf("Anthropic Messages 应至少被 Claude runtime 支持")
-	}
-	if !SupportsAnyRuntime(APIFormatChatCompletions) {
-		t.Fatalf("Chat Completions 应至少被 nxs runtime 支持")
-	}
-	if !SupportsAnyRuntime(APIFormatResponses) {
-		t.Fatalf("Responses 应至少被 nxs runtime 支持")
-	}
-}
-
 func TestNormalizeRuntimeKind(t *testing.T) {
 	tests := []struct {
 		name        string

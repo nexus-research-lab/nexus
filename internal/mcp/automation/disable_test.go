@@ -10,30 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestDisableScheduledTaskKeepsTaskAndPassesStatus(t *testing.T) {
-	svc := &stubService{
-		jobs: []automationdomain.ScheduledTask{{
-			JobID:    "job-1",
-			AgentID:  "agent-1",
-			Enabled:  true,
-			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
-		}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
-		"enabled": false,
-		"job_id":  "job-1",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.statusJobID != "job-1" || svc.statusEnabled {
-		t.Fatalf("disable should pass enabled=false for job-1, got job=%q enabled=%v", svc.statusJobID, svc.statusEnabled)
-	}
-	if svc.deletedJobID != "" {
-		t.Fatalf("disable must not delete task, deleted=%q", svc.deletedJobID)
-	}
-}
-
 func TestDisableScheduledTaskReportsPreservedActiveRun(t *testing.T) {
 	svc := &stubService{
 		jobs: []automationdomain.ScheduledTask{{

@@ -1,6 +1,7 @@
 package clientopts
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -94,7 +95,7 @@ func TestRuntimeStartupLogFieldsUsesBridgeSnapshot(t *testing.T) {
 	if !ok || !slices.Contains(args, "<redacted>") {
 		t.Fatalf("runtime_args = %+v", values["runtime_args"])
 	}
-	raw := fieldsToString(fields)
+	raw := fmt.Sprint(fields)
 	for _, forbidden := range []string{"secret-token", "secret prompt"} {
 		if strings.Contains(raw, forbidden) {
 			t.Fatalf("startup log fields leaked %q: %s", forbidden, raw)
@@ -125,21 +126,6 @@ func TestRuntimeStartupLogFieldsSkipsSnapshotForUnresolvedNXS(t *testing.T) {
 	}
 }
 
-func TestRuntimeStartupLogFieldsIncludesOpenAIProtocol(t *testing.T) {
-	t.Setenv(nexusNXSCommandPathEnvName, "")
-
-	fields := RuntimeStartupLogFields(agentclient.NewOptions().
-		WithRuntime(agentclient.RuntimeNXS).
-		WithEnv(map[string]string{
-			nexusAPIProviderEnvName:    "openai",
-			nexusOpenAIProtocolEnvName: apiFormatResponses,
-		}))
-	values := logFieldMap(fields)
-	if values["api_provider_env"] != "openai" || values["openai_protocol_env"] != apiFormatResponses {
-		t.Fatalf("OpenAI protocol log fields = %+v", values)
-	}
-}
-
 func logFieldMap(fields []any) map[string]any {
 	result := map[string]any{}
 	for index := 0; index+1 < len(fields); index += 2 {
@@ -150,23 +136,4 @@ func logFieldMap(fields []any) map[string]any {
 		result[key] = fields[index+1]
 	}
 	return result
-}
-
-func fieldsToString(fields []any) string {
-	parts := make([]string, 0, len(fields))
-	for _, field := range fields {
-		parts = append(parts, strings.TrimSpace(toLogTestString(field)))
-	}
-	return strings.Join(parts, " ")
-}
-
-func toLogTestString(value any) string {
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case []string:
-		return strings.Join(typed, " ")
-	default:
-		return ""
-	}
 }

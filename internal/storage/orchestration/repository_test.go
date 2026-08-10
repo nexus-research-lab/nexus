@@ -1423,7 +1423,7 @@ func newRepositoryTestStore(t *testing.T) *Repository {
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
 	}
-	if err = goose.Up(migrationDB, orchestrationMigrationDir(t, "sqlite")); err != nil {
+	if err = goose.Up(migrationDB, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}
 	if err = migrationDB.Close(); err != nil {
@@ -1836,5 +1836,23 @@ func testMeta(suffix string) CommandMeta {
 		EventID:   "event-" + suffix,
 		ActorKind: protocol.ExecutionActorSystem,
 		ActorID:   "test",
+	}
+}
+
+func TestIsTransientMutationError(t *testing.T) {
+	for _, err := range []error{
+		ErrVersionConflict,
+		fmt.Errorf("wrapped: %w", ErrVersionConflict),
+		errors.New("database is locked (SQLITE_BUSY)"),
+		errors.New("database table is locked"),
+		errors.New("SQLITE_LOCKED: shared cache conflict"),
+	} {
+		if !IsTransientMutationError(err) {
+			t.Fatalf("error %q was not classified as transient", err)
+		}
+	}
+	if IsTransientMutationError(ErrInvariant) ||
+		IsTransientMutationError(errors.New("constraint failed")) {
+		t.Fatal("deterministic invariant error was classified as transient")
 	}
 }

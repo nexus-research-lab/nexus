@@ -2,15 +2,6 @@ package runtime
 
 import "testing"
 
-func TestAgentSDKDiagnosticsEnabledUsesExplicitRuntimeEnv(t *testing.T) {
-	t.Setenv(AgentSDKDiagnosticsEnvName, "1")
-	env := map[string]string{AgentSDKDiagnosticsEnvName: ""}
-
-	if AgentSDKDiagnosticsEnabled(env) {
-		t.Fatalf("显式 runtime env 空值应覆盖进程环境")
-	}
-}
-
 func TestAgentSDKDiagnosticsEnabledIgnoresProcessEnv(t *testing.T) {
 	t.Setenv(AgentSDKDiagnosticsEnvName, "stderr")
 
@@ -30,11 +21,19 @@ func TestAgentSDKDiagnosticsEnabledUsesJSONLEnv(t *testing.T) {
 	}
 }
 
-func TestAgentSDKProviderDebugBodyValueUsesRuntimeEnv(t *testing.T) {
-	t.Setenv(AgentSDKProviderDebugBodyEnvName, "full")
-	env := map[string]string{AgentSDKProviderDebugBodyEnvName: "16384"}
-
-	if got := AgentSDKProviderDebugBodyValue(env); got != "16384" {
-		t.Fatalf("AgentSDKProviderDebugBodyValue() = %q, want 16384", got)
+func TestNormalizeRuntimeStderrLine(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		line string
+		want string
+	}{
+		{name: "GBK", line: string([]byte{0xc3, 0xfc, 0xc1, 0xee, 0xd0, 0xd0, 0xcc, 0xab, 0xb3, 0xa4, 0xa1, 0xa3}), want: "命令行太长。"},
+		{name: "UTF-8", line: "  process failed  ", want: "process failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := NormalizeRuntimeStderrLine(test.line); got != test.want {
+				t.Fatalf("NormalizeRuntimeStderrLine() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }

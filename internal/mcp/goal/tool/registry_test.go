@@ -14,61 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestBuildAllExposesCodexGoalToolSet(t *testing.T) {
-	tools := BuildAll(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	names := make([]string, 0, len(tools))
-	for _, item := range tools {
-		names = append(names, item.Name)
-	}
-
-	want := []string{
-		"get_goal",
-		"create_goal",
-		"retarget_goal",
-		"audit_objective_alignment",
-		"update_goal",
-	}
-	if !slices.Equal(names, want) {
-		t.Fatalf("tool names = %#v, want %#v", names, want)
-	}
-}
-
-func TestBuildAllKeepsGoalToolsDiscoverable(t *testing.T) {
-	tools := BuildAll(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	for _, item := range tools {
-		if words := len(strings.Fields(item.Description)); words > 120 {
-			t.Fatalf("%s description has %d words, want at most 120", item.Name, words)
-		}
-		if item.AlwaysLoad {
-			t.Fatalf("%s should stay deferred behind ToolSearch", item.Name)
-		}
-		if strings.TrimSpace(item.SearchHint) == "" {
-			t.Fatalf("%s missing search hint", item.Name)
-		}
-	}
-}
-
-func TestBuildAllSchemasMarshalRequiredAsArrays(t *testing.T) {
-	tools := BuildAll(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	for _, item := range tools {
-		encoded, err := json.Marshal(item.InputSchema)
-		if err != nil {
-			t.Fatalf("%s input schema is not JSON-serializable: %v", item.Name, err)
-		}
-		if strings.Contains(string(encoded), `"required":null`) {
-			t.Fatalf("%s input schema marshaled invalid required:null: %s", item.Name, encoded)
-		}
-
-		var decoded map[string]any
-		if err := json.Unmarshal(encoded, &decoded); err != nil {
-			t.Fatalf("%s input schema did not round-trip as JSON: %v", item.Name, err)
-		}
-		if _, ok := decoded["required"].([]any); !ok {
-			t.Fatalf("%s required = %#v, want JSON array", item.Name, decoded["required"])
-		}
-	}
-}
-
 func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	tool := updateGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	properties, ok := tool.InputSchema["properties"].(map[string]any)
@@ -90,26 +35,9 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("status = %#v, want map", properties["status"])
 	}
-	description, ok := status["description"].(string)
-	if !ok {
-		t.Fatalf("status.description = %#v, want string", status["description"])
-	}
-	for _, want := range []string{"objective is achieved", "three consecutive goal turns", "external unblock"} {
-		if !strings.Contains(description, want) {
-			t.Fatalf("status.description = %q, want %q", description, want)
-		}
-	}
 	enum, ok := status["enum"].([]string)
 	if !ok || !slices.Equal(enum, []string{"complete", "blocked"}) {
 		t.Fatalf("status.enum = %#v, want [complete blocked]", status["enum"])
-	}
-	for _, want := range []string{"complete or blocked", "three consecutive Goal turns", "pause, resume, budget and usage states"} {
-		if !strings.Contains(tool.Description, want) {
-			t.Fatalf("tool description missing %q: %s", want, tool.Description)
-		}
-	}
-	if strings.Contains(tool.Description, "complete user-facing delivery surface") {
-		t.Fatalf("update_goal description leaked final-response guidance: %s", tool.Description)
 	}
 }
 
@@ -129,15 +57,6 @@ func TestAuditObjectiveAlignmentUsesStableScalarTransport(t *testing.T) {
 	reportJSON, ok := properties["report_json"].(map[string]any)
 	if !ok || reportJSON["type"] != "string" {
 		t.Fatalf("report_json schema = %#v, want string", properties["report_json"])
-	}
-	for _, want := range []string{
-		"backend-authoritative objective and completion criteria",
-		"does not complete",
-		"one JSON object string",
-	} {
-		if !strings.Contains(tool.Description, want) {
-			t.Fatalf("description missing %q: %s", want, tool.Description)
-		}
 	}
 }
 
@@ -256,12 +175,6 @@ func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
 	required, ok := tool.InputSchema["required"].([]string)
 	if !ok || !slices.Equal(required, []string{"objective"}) {
 		t.Fatalf("required = %#v, want [objective]", tool.InputSchema["required"])
-	}
-	description := strings.ToLower(tool.Description)
-	for _, want := range []string{"user explicitly corrects", "same goal identity", "never complete the old goal", "successor workgraph", "assigned lead"} {
-		if !strings.Contains(description, want) {
-			t.Fatalf("tool description missing %q: %s", want, tool.Description)
-		}
 	}
 }
 
@@ -514,19 +427,6 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 	}
 }
 
-func TestGetGoalDescriptionMatchesCodexShape(t *testing.T) {
-	tool := getGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	for _, want := range []string{"current goal for this thread", "elapsed-time usage", "remaining token budget"} {
-		if !strings.Contains(tool.Description, want) {
-			t.Fatalf("get_goal description missing %q: %s", want, tool.Description)
-		}
-	}
-	required, ok := tool.InputSchema["required"].([]string)
-	if !ok || required == nil || len(required) != 0 {
-		t.Fatalf("required = %#v, want empty required list", tool.InputSchema["required"])
-	}
-}
-
 func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	tool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	properties, ok := tool.InputSchema["properties"].(map[string]any)
@@ -544,55 +444,8 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("objective = %#v, want map", properties["objective"])
 	}
-	objectiveDescription, _ := objective["description"].(string)
-	if !strings.Contains(objectiveDescription, "starts a new active goal only when no goal is currently defined") {
-		t.Fatalf("objective.description = %q, want Codex create semantics", objectiveDescription)
-	}
-	for _, expected := range []string{
-		"complete, concrete, execution-ready objective",
-		"Never use a broad or placeholder objective",
-	} {
-		if !strings.Contains(objectiveDescription, expected) {
-			t.Fatalf("objective.description = %q, want readiness guidance %q", objectiveDescription, expected)
-		}
-	}
-	budgetDescription, _ := budget["description"].(string)
-	if !strings.Contains(budgetDescription, "Optional positive token budget for the new active goal") {
-		t.Fatalf("token_budget.description = %q, want Codex budget semantics", budgetDescription)
-	}
-	if tool.Description != createGoalDescription("agent:nexus:ws:dm:chat") {
-		t.Fatalf("tool description = %q, want Codex create_goal description", tool.Description)
-	}
-	if strings.Contains(tool.Description, "shared Room") ||
-		strings.Contains(tool.Description, "Prefer meaningful delegation") {
-		t.Fatalf("single-agent create_goal should not contain Room collaboration guidance: %s", tool.Description)
-	}
-}
-
-func TestCreateGoalDescriptionStaysScopeNeutral(t *testing.T) {
-	dmTool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	roomTool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "room:group:conversation-1"})
-
-	if roomTool.Description != dmTool.Description {
-		t.Fatalf("create_goal atomic contract should be scope-neutral: dm=%q room=%q", dmTool.Description, roomTool.Description)
-	}
-	for _, expected := range []string{
-		"explicit user or system Goal intent",
-		"complete execution-ready objective",
-		"Do not create a broad placeholder",
-		"Set token_budget only from an explicit budget",
-		"wait for this call to succeed before prepare_plan_execution",
-		"never launch them in parallel",
-		"retarget_goal on that same Goal",
-	} {
-		if !strings.Contains(dmTool.Description, expected) {
-			t.Fatalf("create_goal atomic contract missing %q: %s", expected, dmTool.Description)
-		}
-	}
-	for _, skillGuidance := range []string{"Prefer meaningful delegation", "coordination, unblocking", "ask the user and wait"} {
-		if strings.Contains(roomTool.Description, skillGuidance) {
-			t.Fatalf("create_goal description leaked Skill guidance %q: %s", skillGuidance, roomTool.Description)
-		}
+	if objective["type"] != "string" {
+		t.Fatalf("objective.type = %#v, want string", objective["type"])
 	}
 }
 

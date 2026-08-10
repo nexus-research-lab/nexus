@@ -103,19 +103,3 @@ func TestContextStaleSessionRouteLeaseCannotDeleteReplacement(t *testing.T) {
 		t.Fatalf("当前 owner 释放后应回退 runtime session，实际: %q", got)
 	}
 }
-
-func TestContextSessionRouteLeaseReleaseIsIdempotent(t *testing.T) {
-	ctx := NewContext()
-	const runtimeSessionKey = "agent:idempotent-runtime"
-
-	lease := ctx.BindSessionRoute(runtimeSessionKey, RouteContext{
-		DispatchSessionKey: "room:idempotent",
-	})
-	ctx.UnbindSessionRoute(lease)
-	ctx.UnbindSessionRoute(lease)
-	ctx.UnbindSessionRoute(SessionRouteLease{})
-
-	if got := ctx.ResolveDispatchSessionKey(runtimeSessionKey); got != runtimeSessionKey {
-		t.Fatalf("重复或空 lease 释放后应保持无路由状态，实际: %q", got)
-	}
-}

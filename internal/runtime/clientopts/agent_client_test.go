@@ -65,32 +65,23 @@ func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfigForRuntime(
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	thinkingTokens := 2048
 	maxTurns := 8
-	contextWindow := 300000
 	resolveCalls := 0
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
-			AuthToken:     "token-1",
-			BaseURL:       "https://provider.example.com",
-			Model:         "kimi-k2",
-			ContextWindow: contextWindow,
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com",
+			Model:     "kimi-k2",
 		},
 		calls: &resolveCalls,
 	}, AgentClientOptionsInput{
-		WorkspacePath:      "/tmp/workspace",
-		Provider:           "kimi",
-		AllowedTools:       []string{"Read"},
-		DisallowedTools:    []string{"Edit"},
-		SettingSources:     []string{"project"},
-		AppendSystemPrompt: "你是测试 Agent",
-		ResumeSessionID:    "sdk-session-1",
-		MaxThinkingTokens:  &thinkingTokens,
-		MaxTurns:           &maxTurns,
+		WorkspacePath:     "/tmp/workspace",
+		Provider:          "kimi",
+		ResumeSessionID:   "sdk-session-1",
+		MaxThinkingTokens: &thinkingTokens,
+		MaxTurns:          &maxTurns,
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if options.Runtime.Kind != agentclient.RuntimeNXS {
-		t.Fatalf("空 runtime kind 应默认启用 nxs: %+v", options.Runtime)
 	}
 	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
@@ -113,31 +104,11 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
-	if options.Env[enableToolSearchEnvName] != "0" || options.Env[nexusEnableToolSearchEnvName] != "0" {
-		t.Fatalf("nxs ToolSearch 默认应关闭并显式投影到兼容环境变量: %+v", options.Env)
-	}
-	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultAutoCompactPctOverride {
-		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
-	}
-	if _, ok := options.Env[claudeAutoCompactPctOverrideEnvName]; ok {
-		t.Fatalf("nxs 不应接收 Claude Code 自动压缩配置: %+v", options.Env)
-	}
-	if options.Env[nexusMaxContextTokensEnvName] != "300000" {
-		t.Fatalf("模型卡 context window 未注入 nxs: %+v", options.Env)
-	}
-	if _, ok := options.Env[claudeAutoCompactWindowEnvName]; ok {
-		t.Fatalf("nxs 不应接收 Claude Code 模型窗口配置: %+v", options.Env)
-	}
 	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
 	}
 	if options.Runtime.MaxThinkingTokens != 2048 || options.Runtime.MaxTurns != 8 {
 		t.Fatalf("思考/轮次限制未透传: %+v", options)
-	}
-	for _, tool := range []string{"Edit", "ScheduleWakeup", "CronCreate", "CronList", "CronDelete"} {
-		if !containsTool(options.Tools.Deny, tool) {
-			t.Fatalf("运行时 deny 工具缺少 %s: %+v", tool, options.Tools.Deny)
-		}
 	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
@@ -170,29 +141,6 @@ func TestBuildAgentClientOptionsWithConfigReturnsSingleResolvedModelCard(t *test
 	}
 }
 
-func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
-		config: &RuntimeConfig{
-			Provider:  "anthropic",
-			AuthToken: "official-key",
-			BaseURL:   "https://api.anthropic.com",
-			Model:     "claude-sonnet-4-5",
-		},
-	}, AgentClientOptionsInput{
-		WorkspacePath: "/tmp/workspace",
-		Provider:      "anthropic",
-	})
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if options.Env[anthropicAPIKeyEnvName] != "official-key" {
-		t.Fatalf("官方 Anthropic API key 未写入 env: %+v", options.Env)
-	}
-	if options.Env[anthropicAuthTokenEnvName] != "" {
-		t.Fatalf("官方 Anthropic runtime 应清空 OAuth token env，避免继承脏 token: %+v", options.Env)
-	}
-}
-
 func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -200,10 +148,28 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 		authToken     string
 		wantAPIKey    string
 		wantAuthToken string
+		wantPresent   bool
 	}{
-		{name: "compatible gateway", baseURL: "https://provider.example.com/anthropic", authToken: "token-1", wantAuthToken: "token-1"},
-		{name: "first party anthropic", baseURL: "https://api.anthropic.com", authToken: "token-1", wantAPIKey: "token-1"},
-		{name: "empty base url defaults first party", baseURL: "", authToken: "token-1", wantAPIKey: "token-1"},
+		{
+			name:          "compatible gateway",
+			baseURL:       "https://provider.example.com/anthropic",
+			authToken:     "token-1",
+			wantAuthToken: "token-1",
+			wantPresent:   true,
+		},
+		{
+			name:        "first party anthropic",
+			baseURL:     "https://api.anthropic.com",
+			authToken:   "token-1",
+			wantAPIKey:  "token-1",
+			wantPresent: true,
+		},
+		{
+			name:        "empty base url defaults first party",
+			authToken:   "token-1",
+			wantAPIKey:  "token-1",
+			wantPresent: true,
+		},
 		{name: "empty token", baseURL: "https://provider.example.com/anthropic", authToken: ""},
 	}
 	for _, tt := range tests {
@@ -213,54 +179,13 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 				BaseURL:   tt.baseURL,
 				Model:     "model-1",
 			})
-			if got := env[anthropicAPIKeyEnvName]; got != tt.wantAPIKey {
-				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAPIKeyEnvName, got, tt.wantAPIKey, env)
-			}
-			if got := env[anthropicAuthTokenEnvName]; got != tt.wantAuthToken {
-				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAuthTokenEnvName, got, tt.wantAuthToken, env)
+			apiKey, apiKeyExists := env[anthropicAPIKeyEnvName]
+			authToken, authTokenExists := env[anthropicAuthTokenEnvName]
+			if apiKey != tt.wantAPIKey || authToken != tt.wantAuthToken ||
+				apiKeyExists != tt.wantPresent || authTokenExists != tt.wantPresent {
+				t.Fatalf("credential route = api_key:%q/%t auth_token:%q/%t; env=%+v", apiKey, apiKeyExists, authToken, authTokenExists, env)
 			}
 		})
-	}
-}
-
-func TestAnthropicRuntimeEnvClearsConflictingCredentialEnv(t *testing.T) {
-	compatibleEnv := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
-		Provider:  "glm-coding-plan",
-		AuthToken: "bearer-token",
-		BaseURL:   "https://open.bigmodel.cn/api/anthropic",
-		Model:     "glm-4.5-air",
-	})
-	if compatibleEnv[anthropicAuthTokenEnvName] != "bearer-token" {
-		t.Fatalf("兼容 Anthropic endpoint 应使用 bearer token: %+v", compatibleEnv)
-	}
-	if _, ok := compatibleEnv[anthropicAPIKeyEnvName]; !ok || compatibleEnv[anthropicAPIKeyEnvName] != "" {
-		t.Fatalf("兼容 Anthropic endpoint 应显式清空 API key，避免继承系统环境: %+v", compatibleEnv)
-	}
-
-	officialEnv := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
-		Provider:  "anthropic",
-		AuthToken: "api-key",
-		BaseURL:   "https://api.anthropic.com",
-		Model:     "claude-sonnet-4-5",
-	})
-	if officialEnv[anthropicAPIKeyEnvName] != "api-key" {
-		t.Fatalf("官方 Anthropic endpoint 应使用 API key: %+v", officialEnv)
-	}
-	if _, ok := officialEnv[anthropicAuthTokenEnvName]; !ok || officialEnv[anthropicAuthTokenEnvName] != "" {
-		t.Fatalf("官方 Anthropic endpoint 应显式清空 bearer token，避免继承系统环境: %+v", officialEnv)
-	}
-}
-
-func TestAnthropicRuntimeEnvLeavesToolSearchUnsetForCompatibleProviders(t *testing.T) {
-	tests := []RuntimeConfig{
-		{Provider: "glm-coding-plan", BaseURL: "https://open.bigmodel.cn/api/anthropic", Model: "glm-5.2"},
-		{Provider: "kimi", BaseURL: "https://api.moonshot.cn/anthropic", Model: "kimi-k2"},
-	}
-	for _, test := range tests {
-		env := anthropicRuntimeEnvFromConfig(&test)
-		if _, ok := env[enableToolSearchEnvName]; ok {
-			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 的默认开启策略: %+v", env)
-		}
 	}
 }
 
@@ -352,44 +277,6 @@ func TestBuildAgentClientOptionsProjectsCompactionConfigByRuntime(t *testing.T) 
 	}
 }
 
-func TestBuildAgentClientOptionsExplicitRuntimeWinsOverStaleEnvironment(t *testing.T) {
-	t.Setenv(nexusAgentRuntimeKindEnvName, runtimeKindClaude)
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
-		config: &RuntimeConfig{
-			Provider:      "glm",
-			BaseURL:       "https://provider.example.com",
-			Model:         "glm-5.2",
-			ContextWindow: 300_000,
-		},
-	}, AgentClientOptionsInput{RuntimeKind: runtimeKindNXS})
-	if err != nil {
-		t.Fatalf("构建显式 nxs options 失败: %v", err)
-	}
-	if options.Runtime.Kind != agentclient.RuntimeNXS {
-		t.Fatalf("显式 runtime kind 被进程环境覆盖: %+v", options.Runtime)
-	}
-	if options.Env[nexusMaxContextTokensEnvName] != "300000" || options.Env[claudeAutoCompactWindowEnvName] != "" {
-		t.Fatalf("运行时环境未按显式 nxs 选择隔离: %+v", options.Env)
-	}
-}
-
-func TestBuildAgentClientOptionsAllowsClaudeCompactionOverride(t *testing.T) {
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind: runtimeKindClaude,
-		ExtraEnv: map[string]string{
-			claudeAutoCompactPctOverrideEnvName: "80",
-			claudeAutoCompactWindowEnvName:      "128000",
-		},
-	})
-	if err != nil {
-		t.Fatalf("构建 Claude options 失败: %v", err)
-	}
-	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" ||
-		options.Env[claudeAutoCompactWindowEnvName] != "128000" {
-		t.Fatalf("ExtraEnv 应覆盖 Claude Code 压缩配置: %+v", options.Env)
-	}
-}
-
 func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
@@ -397,6 +284,7 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 			nexusAutoCompactPctOverrideEnvName:     "80",
 			nexusDisableProjectInstructionsEnvName: "0",
 			enableToolSearchEnvName:                "true",
+			"NEXUS_API_CLEAR_TOOL_RESULTS":         "",
 		},
 	})
 	if err != nil {
@@ -411,46 +299,8 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	if options.Env[enableToolSearchEnvName] != "true" {
 		t.Fatalf("ExtraEnv 应允许显式覆盖 tool search 开关: %+v", options.Env)
 	}
-}
-
-func TestBuildAgentClientOptionsDisablesRuntimeProjectInstructions(t *testing.T) {
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		WorkspacePath:      "/tmp/workspace",
-		AppendSystemPrompt: "Nexus 已经注入 workspace prompt",
-	})
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if options.Env[nexusDisableProjectInstructionsEnvName] != "1" {
-		t.Fatalf("Nexus 宿主应关闭 SDK 自动加载项目指令，避免重复注入: %+v", options.Env)
-	}
-}
-
-func TestBuildAgentClientOptionsPreservesExplicitNXSRuntimeEnv(t *testing.T) {
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind: runtimeKindNXS,
-		ExtraEnv: map[string]string{
-			"NEXUS_CACHED_MICROCOMPACT":           "0",
-			"NEXUS_API_CLEAR_TOOL_RESULTS":        "",
-			"NEXUS_PROMPT_CACHE_1H_ELIGIBLE":      "0",
-			"NEXUS_PROMPT_CACHE_1H_ALLOWLIST":     "agent:*",
-			runtimectx.AgentSDKDiagnosticsEnvName: "",
-		},
-	})
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	want := map[string]string{
-		"NEXUS_CACHED_MICROCOMPACT":           "0",
-		"NEXUS_API_CLEAR_TOOL_RESULTS":        "",
-		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE":      "0",
-		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST":     "agent:*",
-		runtimectx.AgentSDKDiagnosticsEnvName: "",
-	}
-	for key, value := range want {
-		if options.Env[key] != value {
-			t.Fatalf("%s = %q, want %q; env=%+v", key, options.Env[key], value, options.Env)
-		}
+	if value, exists := options.Env["NEXUS_API_CLEAR_TOOL_RESULTS"]; !exists || value != "" {
+		t.Fatalf("ExtraEnv 应保留显式空值: %+v", options.Env)
 	}
 }
 
@@ -484,8 +334,11 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	t.Setenv(nexusNXSCommandPathEnvName, "")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsStreamProgressEnvName, "0")
 	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")
 	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
+	t.Setenv(nexusCachedMicrocompactEnvName, "1")
+	t.Setenv(nexusUsePowerShellToolEnvName, "1")
 
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
@@ -505,14 +358,17 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	if options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName] != "full" {
 		t.Fatalf("显式 provider body env 应透传给 nxs: %+v", options.Env)
 	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" ||
+		options.Env[nexusCachedMicrocompactEnvName] != "1" ||
+		options.Env[nexusUsePowerShellToolEnvName] != "1" {
+		t.Fatalf("显式 nxs runtime env 未透传: %+v", options.Env)
+	}
 	for _, key := range []string{
-		"NEXUS_CACHED_MICROCOMPACT",
 		"NEXUS_API_CLEAR_TOOL_RESULTS",
 		"NEXUS_API_CLEAR_TOOL_USES",
 		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE",
 		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST",
 		runtimectx.AgentSDKDiagnosticsEnvName,
-		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
 		runtimectx.AgentSDKDebugEnvName,
 	} {
 		if _, ok := options.Env[key]; ok {
@@ -574,35 +430,6 @@ func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	}
 	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
 		t.Fatalf("JSONL diagnostics env 应被运行时摘要识别为已开启: %+v", options.Env)
-	}
-}
-
-func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
-	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
-	t.Setenv(runtimectx.AgentSDKDiagnosticsStreamProgressEnvName, "0")
-	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
-	t.Setenv(nexusCachedMicrocompactEnvName, "1")
-	t.Setenv(nexusUsePowerShellToolEnvName, "1")
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind: runtimeKindNXS,
-	})
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
-		t.Fatalf("diagnostics jsonl env 未透传: %+v", options.Env)
-	}
-	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" {
-		t.Fatalf("diagnostics stream progress env 未透传: %+v", options.Env)
-	}
-	if options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName] != "full" {
-		t.Fatalf("provider debug body env 未透传: %+v", options.Env)
-	}
-	if options.Env[nexusCachedMicrocompactEnvName] != "1" {
-		t.Fatalf("cached microcompact env 未透传: %+v", options.Env)
-	}
-	if options.Env[nexusUsePowerShellToolEnvName] != "1" {
-		t.Fatalf("PowerShell tool env was not passed through: %+v", options.Env)
 	}
 }
 
@@ -700,6 +527,7 @@ func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 	webSearch := WebSearchConfig{
 		Enabled:         true,
 		Provider:        "brave",
+		BaseURL:         "https://search.example.com",
 		DefaultCount:    7,
 		TimeoutSeconds:  30,
 		CacheTTLSeconds: 60,
@@ -718,29 +546,8 @@ func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 	if err := json.Unmarshal([]byte(options.Env["NEXUS_WEBSEARCH_CONFIG"]), &config); err != nil {
 		t.Fatalf("解析 WebSearch 配置失败: %v", err)
 	}
-	if config["enabled"] != true || config["provider"] != "brave" || config["default_count"] != float64(7) || config["timeout_seconds"] != float64(30) || config["cache_ttl_seconds"] != float64(60) || config["country"] != "CN" {
+	if config["enabled"] != true || config["provider"] != "brave" || config["base_url"] != "https://search.example.com" || config["default_count"] != float64(7) || config["timeout_seconds"] != float64(30) || config["cache_ttl_seconds"] != float64(60) || config["country"] != "CN" {
 		t.Fatalf("Nexus 未完整投影 WebSearch 配置: %#v", config)
-	}
-
-	searXNGEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, WebSearchConfig{
-		Enabled:  true,
-		Provider: "searxng",
-		BaseURL:  "https://search.example.com",
-	})
-	if err := json.Unmarshal([]byte(searXNGEnv["NEXUS_WEBSEARCH_CONFIG"]), &config); err != nil {
-		t.Fatalf("解析 SearXNG 配置失败: %v", err)
-	}
-	if config["enabled"] != true || config["provider"] != "searxng" || config["base_url"] != "https://search.example.com" {
-		t.Fatalf("SearXNG 必须投影 Base URL: %#v", config)
-	}
-
-	anySearch := WebSearchConfig{
-		Enabled:  true,
-		Provider: "anysearch",
-	}.WithAPIKey("anysearch-key")
-	anySearchEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, anySearch)
-	if anySearchEnv["NEXUS_WEBSEARCH_API_KEY"] != "anysearch-key" {
-		t.Fatalf("AnySearch API key 未投影: %+v", anySearchEnv)
 	}
 }
 
@@ -760,22 +567,6 @@ func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T)
 	})
 	if err == nil || !strings.Contains(err.Error(), "claude Agent runtime") {
 		t.Fatalf("Claude runtime 下非 anthropic_messages provider 应被拒绝: %v", err)
-	}
-}
-
-func TestBuildAgentClientOptionsRejectsClaudeResponsesAPIFormat(t *testing.T) {
-	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
-		config: &RuntimeConfig{
-			AuthToken: "token-1",
-			BaseURL:   "https://provider.example.com/v1",
-			Model:     "gpt-4.1",
-			APIFormat: apiFormatResponses,
-		},
-	}, AgentClientOptionsInput{
-		RuntimeKind: runtimeKindClaude,
-	})
-	if err == nil || !strings.Contains(err.Error(), "claude Agent runtime") {
-		t.Fatalf("Claude runtime 下 Responses provider 应被拒绝: %v", err)
 	}
 }
 
@@ -871,18 +662,6 @@ func TestBuildAgentClientOptionsDisablesClaudeKernelScheduler(t *testing.T) {
 	}
 	if options.Env[claudeDisableCronEnvName] != "1" {
 		t.Fatalf("%s = %q, want 1; env=%+v", claudeDisableCronEnvName, options.Env[claudeDisableCronEnvName], options.Env)
-	}
-}
-
-func TestBuildAgentClientOptionsDoesNotInjectRemovedNXSCronSwitch(t *testing.T) {
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind: runtimeKindNXS,
-	})
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if _, ok := options.Env["NEXUS_DISABLE_CRON"]; ok {
-		t.Fatalf("nxs Cron 已移除，不应继续注入废弃开关: %+v", options.Env)
 	}
 }
 

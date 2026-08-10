@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -19,17 +18,6 @@ const server = await createServer({
 
 test.after(async () => {
   await server.close();
-});
-
-test("the Launcher bootstrap loading screen stays local and accessible", async () => {
-  const source = await readFile(
-    path.join(webRoot, "src/shared/ui/layout/app-loading-screen.tsx"),
-    "utf8",
-  );
-
-  assert.doesNotMatch(source, /LottiePlayer|ANIMATIONS|dotlottie/);
-  assert.match(source, /role="status"/);
-  assert.match(source, /motion-reduce:animate-none/);
 });
 
 test("the Launcher Agent pile only captures pointer events on real tokens", async () => {

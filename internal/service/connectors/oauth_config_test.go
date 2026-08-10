@@ -203,34 +203,6 @@ func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
 	}
 }
 
-func TestServiceShopifyRequiresShop(t *testing.T) {
-	t.Skip("Shopify 目前在 catalog 中为 coming_soon，已暂停对外发布；如需恢复请先把 status 改回 available")
-	cfg := newConnectorsTestConfig(t)
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	service := NewService(cfg, db)
-	ctx := context.Background()
-
-	_, err = service.GetAuthURL(ctx, auth.SystemUserID, "shopify", "", nil)
-	if err == nil || !strings.Contains(err.Error(), "shop 参数缺失") {
-		t.Fatalf("expected missing shop error, got %v", err)
-	}
-
-	authURL, err := service.GetAuthURL(ctx, auth.SystemUserID, "shopify", "", map[string]string{"shop": "demo"})
-	if err != nil {
-		t.Fatalf("生成 Shopify 授权地址失败: %v", err)
-	}
-	if !strings.HasPrefix(authURL.AuthURL, "https://demo.myshopify.com/admin/oauth/authorize") {
-		t.Fatalf("Shopify 授权地址未替换 shop: %s", authURL.AuthURL)
-	}
-}
-
 func TestServiceRejectsRedirectURIOutsideAllowedOrigins(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)

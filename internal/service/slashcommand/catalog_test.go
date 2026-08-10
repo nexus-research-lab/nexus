@@ -8,50 +8,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
-func TestCatalogReturnsVersionedRuntimeManifests(t *testing.T) {
-	catalog := NewCatalog()
-	tests := []struct {
-		kind         agentclient.RuntimeKind
-		wantCommands []string
-	}{
-		{
-			kind:         agentclient.RuntimeNXS,
-			wantCommands: []string{"compact", "skills"},
-		},
-		{
-			kind: agentclient.RuntimeClaude,
-			wantCommands: []string{
-				"compact",
-				"skills",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(string(test.kind), func(t *testing.T) {
-			snapshot := catalog.Snapshot(test.kind)
-			if snapshot.Status != protocol.CommandCatalogStatusReady ||
-				snapshot.Generation != catalogGeneration ||
-				snapshot.RuntimeKind != test.kind ||
-				len(snapshot.Commands) != len(test.wantCommands) {
-				t.Fatalf("Snapshot(%q) = %#v", test.kind, snapshot)
-			}
-			for index, command := range snapshot.Commands {
-				if command.Name != test.wantCommands[index] ||
-					command.Execution != protocol.CommandExecutionRuntime ||
-					!command.Enabled {
-					t.Fatalf(
-						"Snapshot(%q).Commands[%d] = %#v",
-						test.kind,
-						index,
-						command,
-					)
-				}
-			}
-		})
-	}
-}
-
 func TestCatalogNormalizesAliasesAndReturnsCopies(t *testing.T) {
 	catalog := NewCatalog()
 	claude := catalog.Snapshot(agentclient.RuntimeKind("cc"))

@@ -16,9 +16,6 @@ func TestPairingApprovalNoticeTextIncludesPairingID(t *testing.T) {
 	if strings.Contains(text, "处理失败") {
 		t.Fatalf("配对提醒不应包含处理失败: %q", text)
 	}
-}
-
-func TestPairingApprovalNoticeTextIgnoresOtherErrors(t *testing.T) {
 	if got := PairingApprovalNoticeText(nil); got != "" {
 		t.Fatalf("nil error should not produce notice: %q", got)
 	}

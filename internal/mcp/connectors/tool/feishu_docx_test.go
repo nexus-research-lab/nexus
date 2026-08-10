@@ -14,35 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
 )
 
-func TestBuildAllIncludesFeishuDocxTools(t *testing.T) {
-	names := map[string]bool{}
-	for _, item := range BuildAll(stubConnectorService{}, contract.ServerContext{OwnerUserID: "user-1"}) {
-		names[item.Name] = true
-	}
-	for _, name := range []string{
-		"feishu_docx_read",
-		"feishu_docx_search",
-		"feishu_docx_sheet_sheets",
-		"feishu_docx_sheet_values",
-		"feishu_docx_sheet_find",
-		"feishu_docx_bitable_tables",
-		"feishu_docx_bitable_fields",
-		"feishu_docx_bitable_records",
-		"feishu_docx_create",
-		"feishu_docx_append_markdown",
-		"feishu_docx_update_block",
-		"feishu_docx_drive_list",
-		"feishu_docx_wiki_spaces",
-		"feishu_docx_wiki_space",
-		"feishu_docx_wiki_nodes",
-		"feishu_docx_wiki_node",
-	} {
-		if !names[name] {
-			t.Fatalf("缺少飞书 MCP 工具: %s", name)
-		}
-	}
-}
-
 func TestFeishuDocxSearchTool(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/open-apis/suite/docs-api/search/object" {

@@ -3,6 +3,8 @@ package room
 import (
 	"testing"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -58,5 +60,47 @@ func TestServerPendingSlotsEventIsDurableWhileClientAckIsEphemeral(
 	)
 	if clientEvent.DeliveryMode != "ephemeral" {
 		t.Fatalf("client ACK delivery = %q, want ephemeral", clientEvent.DeliveryMode)
+	}
+}
+
+func TestSlotMessageMapperAddsRoomContextWithoutDMStreamLifecycle(t *testing.T) {
+	mapper := NewSlotMessageMapper(
+		"chat:conversation:shared:test",
+		"room-1",
+		"conversation-1",
+		"agent-1",
+		"slot-1",
+		"round-1",
+		"agent-round-1",
+	)
+	events, messages, status, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type": "message_start",
+			"message": map[string]any{
+				"id":    "assistant-1",
+				"model": "test-model",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("映射 Room 流事件失败: %v", err)
+	}
+	if len(messages) != 0 || status != "" {
+		t.Fatalf("流开始不应产生持久消息或终态: messages=%+v status=%q", messages, status)
+	}
+	if len(events) != 1 || events[0].EventType != protocol.EventTypeStream {
+		t.Fatalf("Room 不应补充 DM stream_start: %+v", events)
+	}
+	event := events[0]
+	if event.SessionKey != "chat:conversation:shared:test" ||
+		event.RoomID != "room-1" ||
+		event.ConversationID != "conversation-1" ||
+		event.AgentID != "agent-1" ||
+		event.RoundID != "round-1" ||
+		event.AgentRoundID != "agent-round-1" ||
+		event.MessageID != "assistant-1" {
+		t.Fatalf("Room 事件身份不完整: %+v", event)
 	}
 }

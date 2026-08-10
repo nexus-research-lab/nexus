@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -41,5 +42,49 @@ func TestPrettyHandlerRendersSDKSummaryCompactly(t *testing.T) {
 	if strings.Contains(output, "session_key=") ||
 		strings.Contains(output, "sdk_message_type=") {
 		t.Fatalf("仍输出了冗余字段: %s", output)
+	}
+}
+
+func TestPreviewText(t *testing.T) {
+	t.Parallel()
+
+	if got := PreviewText("  第一行\n第二行\t第三行  ", 20); got != "第一行 第二行 第三行" {
+		t.Fatalf("预览文本未压平空白: %q", got)
+	}
+	if got := PreviewText("一二三四五", 3); got != "一二三..." {
+		t.Fatalf("预览文本未按 rune 截断: %q", got)
+	}
+	if got := PreviewText("  ", 10); got != "" {
+		t.Fatalf("空文本应返回空字符串: %q", got)
+	}
+}
+
+func TestPickAccess(t *testing.T) {
+	fields := []field{
+		{key: "method", value: "GET"},
+		{key: "status", value: "200"},
+		{key: "request", value: "health"},
+	}
+	access, rest := pickAccess(fields)
+	if access != nil {
+		t.Fatalf("缺少 path 时不应识别为 access log: %+v", access)
+	}
+	if !reflect.DeepEqual(rest, fields) {
+		t.Fatalf("普通日志字段应保持原顺序，实际 %+v", rest)
+	}
+	fields = []field{
+		{key: "method", value: "POST"},
+		{key: "status", value: "201"},
+		{key: "path", value: "/v1/tasks"},
+		{key: "remote_ip", value: "10.0.0.8"},
+		{key: "request_id", value: "request-1"},
+	}
+	access, rest = pickAccess(fields)
+	if access == nil || access.method != "POST" || access.status != 201 || access.path != "/v1/tasks" {
+		t.Fatalf("access log 提取错误: %+v", access)
+	}
+	expected := []field{{key: "request_id", value: "request-1"}, {key: "ip", value: "10.0.0.8"}}
+	if !reflect.DeepEqual(rest, expected) {
+		t.Fatalf("剩余字段错误: %+v", rest)
 	}
 }

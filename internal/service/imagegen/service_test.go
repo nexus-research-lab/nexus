@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
@@ -272,5 +273,42 @@ func TestGenerateImageNormalizesImage2PixelSizeBeforeRequest(t *testing.T) {
 	}
 	if result.Size != "1920x1088" {
 		t.Fatalf("result size 未同步规整后尺寸: %+v", result)
+	}
+}
+
+func TestResolveImageConfigSelectsProviderModel(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		preference bool
+	}{
+		{name: "preference default", preference: true},
+		{name: "explicit selection"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resolver := &fakeProviderResolver{config: &providercfg.ImageConfig{
+				Provider:  "image-provider",
+				AuthToken: "token",
+				BaseURL:   "https://image.example.com/v1/images",
+				Model:     "image-model",
+			}}
+			service := NewService(resolver, "")
+			provider, model := "image-provider", "image-model"
+			if test.preference {
+				provider, model = "", ""
+				service.SetPreferences(fakePreferencesService{prefs: preferencessvc.Preferences{
+					DefaultImageModelSelection: preferencessvc.ModelSelection{
+						Provider: "image-provider",
+						Model:    "image-model",
+					},
+				}})
+			}
+			config, err := service.resolveImageConfig(context.Background(), provider, model)
+			if err != nil {
+				t.Fatalf("解析图片模型失败: %v", err)
+			}
+			if config.Model != "image-model" || resolver.provider != "image-provider" || resolver.model != "image-model" {
+				t.Fatalf("图片模型选择错误: config=%+v provider=%s model=%s", config, resolver.provider, resolver.model)
+			}
+		})
 	}
 }

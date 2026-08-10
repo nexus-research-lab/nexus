@@ -3,6 +3,8 @@ package dm
 import (
 	"testing"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -69,5 +71,46 @@ func TestRoomBackedSessionKeepsLocalContextUsage(t *testing.T) {
 	}
 	if SessionsEqual(current, roomSession) {
 		t.Fatal("context usage 变化必须触发本地 overlay 刷新")
+	}
+}
+
+func TestMessageMapperAddsDMContextAndStreamLifecycle(t *testing.T) {
+	mapper := NewMessageMapper(
+		"agent:nexus:ws:dm:test",
+		"nexus",
+		"round-1",
+		"agent-round-1",
+		"user-message-1",
+	)
+	events, messages, status, subtype, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type": "message_start",
+			"message": map[string]any{
+				"id":    "assistant-1",
+				"model": "test-model",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("映射 DM 流事件失败: %v", err)
+	}
+	if len(messages) != 0 || status != "" || subtype != "" {
+		t.Fatalf("流开始不应产生持久消息或终态: messages=%+v status=%q subtype=%q", messages, status, subtype)
+	}
+	if len(events) != 2 ||
+		events[0].EventType != protocol.EventTypeStreamStart ||
+		events[1].EventType != protocol.EventTypeStream {
+		t.Fatalf("DM 应补充 stream_start: %+v", events)
+	}
+	for _, event := range events {
+		if event.SessionKey != "agent:nexus:ws:dm:test" ||
+			event.AgentID != "nexus" ||
+			event.RoundID != "round-1" ||
+			event.AgentRoundID != "agent-round-1" ||
+			event.MessageID != "assistant-1" {
+			t.Fatalf("DM 事件身份不完整: %+v", event)
+		}
 	}
 }

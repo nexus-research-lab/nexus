@@ -780,3 +780,14 @@ func TestServiceRejectsOversizedObjective(t *testing.T) {
 		t.Fatal("Update oversized objective error = nil, want ErrGoalInvalidInput")
 	}
 }
+
+func TestServiceDisabled(t *testing.T) {
+	service := NewService(config.Config{}, newMemoryRepository())
+	_, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "disabled",
+	})
+	if !errors.Is(err, ErrGoalDisabled) {
+		t.Fatalf("Create disabled error = %v, want ErrGoalDisabled", err)
+	}
+}

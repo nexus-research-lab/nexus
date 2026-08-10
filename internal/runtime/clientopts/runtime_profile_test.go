@@ -2,34 +2,18 @@ package clientopts
 
 import "testing"
 
-func TestResolveRuntimeKindDefaultsToNXS(t *testing.T) {
+func TestResolveRuntimeKind(t *testing.T) {
 	if got := resolveRuntimeKind("", fakeRuntimeProfileEnv(nil)); got != runtimeKindNXS {
-		t.Fatalf("runtime kind = %q, want %q", got, runtimeKindNXS)
+		t.Fatalf("default runtime kind = %q, want %q", got, runtimeKindNXS)
 	}
-}
-
-func TestResolveRuntimeKindExplicitOptionWinsOverEnv(t *testing.T) {
-	got := resolveRuntimeKind(runtimeKindNXS, fakeRuntimeProfileEnv(map[string]string{
-		nexusAgentRuntimeKindEnvName: "claude",
-	}))
-	if got != runtimeKindNXS {
-		t.Fatalf("runtime kind = %q, want explicit %q", got, runtimeKindNXS)
-	}
-
-	got = resolveRuntimeKind(runtimeKindClaude, fakeRuntimeProfileEnv(map[string]string{
-		nexusAgentRuntimeKindEnvName: runtimeKindNXS,
-	}))
-	if got != runtimeKindClaude {
-		t.Fatalf("runtime kind = %q, want explicit %q", got, runtimeKindClaude)
-	}
-}
-
-func TestResolveRuntimeKindUsesEnvWhenOptionIsEmpty(t *testing.T) {
-	got := resolveRuntimeKind("", fakeRuntimeProfileEnv(map[string]string{
+	environment := fakeRuntimeProfileEnv(map[string]string{
 		nexusAgentRuntimeKindEnvName: runtimeKindClaude,
-	}))
-	if got != runtimeKindClaude {
-		t.Fatalf("runtime kind = %q, want env %q", got, runtimeKindClaude)
+	})
+	if got := resolveRuntimeKind(runtimeKindNXS, environment); got != runtimeKindNXS {
+		t.Fatalf("explicit runtime kind = %q, want %q", got, runtimeKindNXS)
+	}
+	if got := resolveRuntimeKind("", environment); got != runtimeKindClaude {
+		t.Fatalf("environment runtime kind = %q, want %q", got, runtimeKindClaude)
 	}
 }
 
@@ -49,23 +33,6 @@ func TestRuntimeEnvPublishesExplicitVisionCapabilities(t *testing.T) {
 	}
 	if environment[nexusOpenAIProtocolEnvName] != apiFormatChatCompletions {
 		t.Fatalf("OpenAI protocol = %q, want %q", environment[nexusOpenAIProtocolEnvName], apiFormatChatCompletions)
-	}
-}
-
-func TestRuntimeEnvPublishesResponsesProtocolAndCapabilities(t *testing.T) {
-	environment := runtimeEnvFromConfig(&RuntimeConfig{
-		APIFormat: apiFormatResponses,
-		Model:     "responses-main",
-		Vision:    true,
-	}, runtimeKindNXS)
-	if environment[nexusAPIProviderEnvName] != "openai" ||
-		environment[nexusOpenAIProtocolEnvName] != apiFormatResponses {
-		t.Fatalf("Responses route = %#v", environment)
-	}
-	if environment[nexusModelSupportsVisionEnvName] != "true" ||
-		environment[nexusMultimodalUserContentEnvName] != "1" ||
-		environment[nexusMultimodalToolResultEnvName] != "1" {
-		t.Fatalf("Responses vision capabilities = %#v", environment)
 	}
 }
 

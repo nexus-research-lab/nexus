@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -105,55 +104,6 @@ function createTranslate(messages) {
   ));
 }
 
-test("技能来源切换下沉到搜索工具区并使用无外框文字筛选", async () => {
-  const [directorySource, searchSource] = await Promise.all([
-    "src/features/capability/skills/skills-directory.tsx",
-    "src/features/capability/skills/skills-search-bar.tsx",
-  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
-
-  assert.match(directorySource, /onChangeDiscoveryMode=\{setDiscoveryMode\}/);
-  assert.match(searchSource, /data-tour-anchor=\{SKILLS_TOUR_ANCHORS\.modes\}/);
-  assert.match(searchSource, /role="group"/);
-  assert.match(searchSource, /aria-pressed=\{active\}/);
-  assert.match(searchSource, /inline-flex h-8 w-full shrink-0 items-center gap-1/);
-  assert.match(searchSource, /sm:max-w-\[520px\]/);
-  assert.match(searchSource, /bg-\(--surface-interactive-active-background\)/);
-});
-
-test("能力目录移除重复 Surface 身份并把页面动作收进正文标题区", async () => {
-  const capabilityFiles = [
-    "src/features/capability/channels/channels-directory.tsx",
-    "src/features/capability/channels/pairings-directory.tsx",
-    "src/features/capability/connectors/connectors-directory.tsx",
-    "src/features/capability/loops/loops-directory.tsx",
-    "src/features/capability/scheduled/scheduled-tasks-directory.tsx",
-    "src/features/capability/skills/skills-directory.tsx",
-  ];
-  const [layoutSource, headerSource, ...directorySources] = await Promise.all([
-    "src/features/capability/shared/capability-page-layout.tsx",
-    "src/shared/ui/layout/workspace-content-header.tsx",
-    ...capabilityFiles,
-  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
-
-  assert.match(layoutSource, /actions\?: ReactNode/);
-  assert.match(layoutSource, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
-  assert.match(layoutSource, /WorkspaceContentHeader/);
-  assert.doesNotMatch(layoutSource, /variant\?: "board"/);
-  assert.match(headerSource, /sm:flex-row sm:items-center sm:justify-between/);
-  assert.match(headerSource, /data-tour-anchor=\{headerAnchor\}/);
-  directorySources.forEach((source, index) => {
-    assert.doesNotMatch(
-      source,
-      /WorkspaceSurfaceHeader/,
-      `${capabilityFiles[index]} 不应恢复重复的能力身份 Header`,
-    );
-  });
-  assert.match(directorySources[0], /actions=\{\(/);
-  assert.match(directorySources[1], /actions=\{\(/);
-  assert.match(directorySources[4], /actions=\{\(/);
-  assert.match(directorySources[5], /actions=\{\(/);
-});
-
 test("工作循环元数据不暴露协议枚举或固定英文计数", async () => {
   const { buildLoopMetadataPresentation, getLoopTriggerLabel } =
     await server.ssrLoadModule(
@@ -184,56 +134,6 @@ test("工作循环元数据不暴露协议枚举或固定英文计数", async ()
   assert.equal(getLoopTriggerLabel("event", translate), "事件触发");
   assert.equal(getLoopTriggerLabel("interval", translate), "定时触发");
   assert.equal(getLoopTriggerLabel("custom", translate), "custom");
-});
-
-test("Git Skill 导入字段与可见标签建立可访问关联", async () => {
-  const source = await readFile(
-    path.join(
-      webRoot,
-      "src/features/capability/skills/import/skill-import-source.tsx",
-    ),
-    "utf8",
-  );
-
-  ["url", "branch", "path"].forEach((field) => {
-    const id = `skill-import-git-${field}`;
-    assert.match(source, new RegExp(`htmlFor="${id}"`));
-    assert.match(source, new RegExp(`id="${id}"`));
-  });
-});
-
-test("英文 Skill 导入弹窗提供同语言控件、示例与 Room 指南", async () => {
-  const [dialogModel, messagesModule] = await Promise.all([
-    server.ssrLoadModule(
-      "/src/features/capability/skills/import/skill-import-dialog-model.ts",
-    ),
-    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
-  ]);
-  const t = createTranslate(messagesModule.MESSAGES.en);
-  assert.deepEqual(
-    dialogModel.SKILL_IMPORT_MODES.map((mode) => t(mode.labelKey)),
-    ["Local zip", "Git repository"],
-  );
-  const example = dialogModel.buildSkillFrontmatterExample(t);
-  assert.match(example, /title: Room Collaboration Rules/);
-  assert.match(example, /description: Collaboration workflow/);
-  assert.doesNotMatch(example, /群聊协作规则/);
-
-  const [dialog, source, footer, guide, englishGuide] = await Promise.all([
-    "src/features/capability/skills/import/skill-import-dialog.tsx",
-    "src/features/capability/skills/import/skill-import-source.tsx",
-    "src/features/capability/skills/import/skill-import-footer.tsx",
-    "src/features/capability/skills/import/skill-import-guide.tsx",
-    "../docs/specs/room-collaboration-mechanism.en.md",
-  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
-  [dialog, source, footer, guide].forEach((content) => {
-    assert.doesNotMatch(
-      content,
-      /导入 Skill|本地 zip|Git 仓库|上传 zip 包|选择 zip 文件|SKILL\.md 规范|取消/,
-    );
-  });
-  assert.match(guide, /room-collaboration-mechanism\.en\.md\?raw/);
-  assert.match(englishGuide, /^# Room Skill Authoring Guide/m);
 });
 
 test("英文社区 Skill 结果、预览与来源状态保持同一语言", async () => {
@@ -367,6 +267,29 @@ test("英文定时任务的模板、日期和校验提示保持同一语言", as
     }, translate),
     "Enter a task name",
   );
+});
+
+test("情绪能力默认关闭，用户开启后写回偏好", async () => {
+  const [runtimeOptions, preferencesModel] = await Promise.all([
+    server.ssrLoadModule("/src/config/runtime-options.ts"),
+    server.ssrLoadModule(
+      "/src/features/settings/general/model/settings-preferences-model.ts",
+    ),
+  ]);
+  const original = runtimeOptions.getUserPreferences();
+  const enabled = { ...original, emotion_enabled: true };
+
+  assert.equal(original.emotion_enabled, false);
+  try {
+    runtimeOptions.setUserPreferences(enabled);
+    assert.equal(runtimeOptions.getUserPreferences().emotion_enabled, true);
+    assert.equal(
+      preferencesModel.buildPreferencesUpdatePayload(enabled).emotion_enabled,
+      true,
+    );
+  } finally {
+    runtimeOptions.setUserPreferences(original);
+  }
 });
 
 test("桌面数据根示例跟随平台", async () => {

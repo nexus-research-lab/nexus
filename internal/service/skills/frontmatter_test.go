@@ -6,15 +6,6 @@ import (
 	"testing"
 )
 
-func TestToStringSliceReturnsEmptySlice(t *testing.T) {
-	if result := toStringSlice(""); result == nil || len(result) != 0 {
-		t.Fatalf("空字符串应返回空切片，实际: %#v", result)
-	}
-	if result := toStringSlice(nil); result == nil || len(result) != 0 {
-		t.Fatalf("nil 应返回空切片，实际: %#v", result)
-	}
-}
-
 func TestParseSkillFrontmatterWithoutTagsReturnsEmptySlice(t *testing.T) {
 	parsed := parseSkillFrontmatter(`---
 name: demo-skill

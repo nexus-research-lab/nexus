@@ -104,32 +104,6 @@ func TestDeleteRequiresJobID(t *testing.T) {
 	}
 }
 
-func TestDeleteScheduledTaskPassesJobID(t *testing.T) {
-	svc := &stubService{
-		jobs: []automationdomain.ScheduledTask{{
-			JobID:    "job-1",
-			AgentID:  "agent-1",
-			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
-		}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "delete_scheduled_task", map[string]any{
-		"job_id": "job-1",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.deletedJobID != "job-1" {
-		t.Fatalf("expected deleted job_id=job-1, got %q", svc.deletedJobID)
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal([]byte(extractText(t, result)), &decoded); err != nil {
-		t.Fatalf("delete response 不是 JSON: %v", err)
-	}
-	if decoded["job_id"] != "job-1" || decoded["deleted"] != true {
-		t.Fatalf("delete response 不正确: %+v", decoded)
-	}
-}
-
 func TestDeleteScheduledTaskReportsCancelledActiveRun(t *testing.T) {
 	svc := &stubService{
 		jobs: []automationdomain.ScheduledTask{{

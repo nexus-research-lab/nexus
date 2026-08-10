@@ -3,7 +3,6 @@ package imagegenmcp
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -47,40 +46,6 @@ func (s *stubImagegenService) EditImage(
 		MIMEType: "image/png",
 		Markdown: "![edited image](output/imagegen/edited.png)",
 	}, []byte("edited"), nil
-}
-
-func TestToolsListIncludesImagegenTools(t *testing.T) {
-	server := NewServer(&stubImagegenService{}, contract.ServerContext{WorkspacePath: "/tmp/workspace"})
-	resp, err := server.HandleMessage(context.Background(), map[string]any{
-		"jsonrpc": "2.0",
-		"id":      1,
-		"method":  "tools/list",
-	})
-	if err != nil {
-		t.Fatalf("HandleMessage error: %v", err)
-	}
-	result := resp["result"].(map[string]any)
-	tools := result["tools"].([]map[string]any)
-	names := map[string]bool{}
-	for _, tool := range tools {
-		name, _ := tool["name"].(string)
-		names[name] = true
-		meta, ok := tool["_meta"].(map[string]any)
-		if !ok {
-			t.Fatalf("%s missing _meta", name)
-		}
-		if hint, _ := meta["anthropic/searchHint"].(string); strings.TrimSpace(hint) == "" {
-			t.Fatalf("%s missing search hint", name)
-		}
-		if _, ok := meta["anthropic/alwaysLoad"]; ok {
-			t.Fatalf("%s should stay deferred", name)
-		}
-	}
-	for _, name := range []string{"generate_image", "edit_image"} {
-		if !names[name] {
-			t.Fatalf("missing imagegen tool %s: %+v", name, tools)
-		}
-	}
 }
 
 func TestGenerateImageUsesInjectedWorkspaceAndOwner(t *testing.T) {

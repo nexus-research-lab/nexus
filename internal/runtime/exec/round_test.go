@@ -590,130 +590,6 @@ func TestExecuteRoundPreservesTerminalUsageWhenLocalProcessingFails(t *testing.T
 	}
 }
 
-func TestExecuteRoundReturnsTerminalErrorMessage(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-error",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
-	close(client.messages)
-
-	mapper := &fakeRoundExecutionMapper{
-		results: []RoundMapResult{{
-			DurableMessages: []protocol.Message{
-				{
-					"message_id": "result-error",
-					"role":       "result",
-					"subtype":    "error",
-					"is_error":   true,
-					"result":     "Failed to authenticate. API Error: 401",
-				},
-			},
-			TerminalStatus: "error",
-			ResultSubtype:  "error",
-		}},
-	}
-
-	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "continue",
-		Client: client,
-		Mapper: mapper,
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if result.TerminalStatus != "error" || result.ResultSubtype != "error" {
-		t.Fatalf("result = %+v, want terminal error", result)
-	}
-	if result.ErrorMessage != "Failed to authenticate. API Error: 401" {
-		t.Fatalf("ErrorMessage = %q", result.ErrorMessage)
-	}
-}
-
-func TestExecuteRoundReturnsTerminalErrorMessageFromErrorsArray(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-error",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
-	close(client.messages)
-
-	mapper := &fakeRoundExecutionMapper{
-		results: []RoundMapResult{{
-			DurableMessages: []protocol.Message{
-				{
-					"message_id": "result-error",
-					"role":       "result",
-					"subtype":    "error",
-					"is_error":   true,
-					"errors":     []any{"client: stream closed before result message"},
-				},
-			},
-			TerminalStatus: "error",
-			ResultSubtype:  "error",
-		}},
-	}
-
-	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "continue",
-		Client: client,
-		Mapper: mapper,
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if result.ErrorMessage != "client: stream closed before result message" {
-		t.Fatalf("ErrorMessage = %q", result.ErrorMessage)
-	}
-}
-
-func TestExecuteRoundUsesStructuredContent(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-structured",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeResult,
-		SessionID: client.sessionID,
-		UUID:      "result-structured",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "success",
-		},
-	}
-	close(client.messages)
-	mapper := &fakeRoundExecutionMapper{
-		results: []RoundMapResult{{
-			TerminalStatus: "finished",
-			ResultSubtype:  "success",
-		}},
-	}
-	content := []map[string]any{
-		{"type": "text", "text": "描述图片"},
-		{
-			"type": "image",
-			"source": map[string]any{
-				"type":       "base64",
-				"media_type": "image/png",
-				"data":       "ZmFrZQ==",
-			},
-		},
-	}
-
-	if _, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Content: content,
-		Client:  client,
-		Mapper:  mapper,
-	}); err != nil {
-		t.Fatalf("ExecuteRound 结构化输入失败: %v", err)
-	}
-	if len(client.queryPrompts) != 0 {
-		t.Fatalf("结构化输入不应走纯文本 Query: %+v", client.queryPrompts)
-	}
-	if len(client.queryContent) != 1 {
-		t.Fatalf("结构化输入未走 QueryContent: %+v", client.queryContent)
-	}
-}
-
 func TestExecuteRoundKeepsAtomicSlashInputFreeOfContext(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-command",
@@ -1086,8 +962,11 @@ func TestExecuteRoundReturnsInterruptedWhenStreamAbortedAfterToolUse(t *testing.
 func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",
-		waitErr:   errors.New("exit status 1"),
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+		streamErr: errors.New(
+			"client: read message failed: process: decode stdout JSON message failed: unexpected EOF",
+		),
+		waitErr:  errors.New("exit status 1"),
+		messages: make(chan sdkprotocol.ReceivedMessage, 1),
 	}
 	client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeAssistant,
@@ -1121,30 +1000,6 @@ func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	if !strings.Contains(streamErr.WaitError, "exit status 1") {
 		t.Fatalf("stream close 缺少 wait error: %+v", streamErr)
 	}
-}
-
-func TestExecuteRoundReturnsStreamReadErrorDiagnostics(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		streamErr: errors.New(
-			"client: read message failed: process: decode stdout JSON message failed: unexpected EOF",
-		),
-		messages: make(chan sdkprotocol.ReceivedMessage),
-	}
-	close(client.messages)
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "你好",
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{},
-	})
-	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
-		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
-	}
-	var streamErr *RoundStreamClosedError
-	if !errors.As(err, &streamErr) {
-		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
-	}
 	if !strings.Contains(streamErr.ReadError, "decode stdout JSON message failed") {
 		t.Fatalf("stream close 缺少 read error: %+v", streamErr)
 	}
@@ -1156,7 +1011,7 @@ func TestExecuteRoundReturnsStreamReadErrorDiagnostics(t *testing.T) {
 func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 4),
+		messages:  make(chan sdkprotocol.ReceivedMessage, 6),
 	}
 	client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
@@ -1196,13 +1051,15 @@ func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
 		Type:      sdkprotocol.MessageTypeTaskProgress,
 		SessionID: "sdk-session-1",
 	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeToolUseSummary}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeUnknown}
 	close(client.messages)
 
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Query:  "需要工具",
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{}, {}, {}, {}},
+			results: []RoundMapResult{{}, {}, {}, {}, {}, {}},
 		},
 	})
 	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
@@ -1215,18 +1072,18 @@ func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
 	stop := streamErr.LastStreamStop
 	if !stop.Observed ||
 		stop.MessageIndex != 3 ||
-		stop.MessagesAfter != 1 ||
+		stop.MessagesAfter != 3 ||
 		stop.ProgressMessagesAfter != 1 ||
 		stop.ConversationMessagesAfter != 0 ||
-		stop.PassiveMessagesAfter != 0 ||
-		stop.UnknownMessagesAfter != 0 ||
+		stop.PassiveMessagesAfter != 1 ||
+		stop.UnknownMessagesAfter != 1 ||
 		stop.StopReason != "tool_use" ||
 		stop.SessionID != "sdk-session-1" ||
 		stop.MessageID != "assistant-1" ||
 		stop.Model != "kimi-k2.6" {
 		t.Fatalf("message_stop 诊断字段不正确: %+v", stop)
 	}
-	if !strings.Contains(err.Error(), "messages_after_last_stream_stop=1") {
+	if !strings.Contains(err.Error(), "messages_after_last_stream_stop=3") {
 		t.Fatalf("错误字符串缺少 message_stop 诊断: %v", err)
 	}
 	if !strings.Contains(err.Error(), "progress_after_last_stream_stop=1") {
@@ -1235,59 +1092,6 @@ func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
 	fields := RoundStreamStopDiagnosticLogFields(stop)
 	if len(fields) == 0 {
 		t.Fatalf("message_stop 日志字段为空: %+v", stop)
-	}
-}
-
-func TestExecuteRoundClassifiesMessagesAfterLastStreamStop(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 6),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeStreamEvent,
-		SessionID: "sdk-session-1",
-		Stream: &sdkprotocol.StreamEvent{
-			Event: map[string]any{
-				"type": "message_delta",
-				"delta": map[string]any{
-					"stop_reason": "tool_use",
-				},
-			},
-		},
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeStreamEvent,
-		SessionID: "sdk-session-1",
-		Stream: &sdkprotocol.StreamEvent{
-			Event: map[string]any{"type": "message_stop"},
-		},
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeToolProgress}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeToolUseSummary}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeUnknown}
-	close(client.messages)
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "需要工具",
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{}, {}, {}, {}, {}},
-		},
-	})
-	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
-		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
-	}
-	var streamErr *RoundStreamClosedError
-	if !errors.As(err, &streamErr) {
-		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
-	}
-	stop := streamErr.LastStreamStop
-	if stop.MessagesAfter != 3 ||
-		stop.ProgressMessagesAfter != 1 ||
-		stop.PassiveMessagesAfter != 1 ||
-		stop.UnknownMessagesAfter != 1 ||
-		stop.ConversationMessagesAfter != 0 {
-		t.Fatalf("message_stop 后消息分类不正确: %+v", stop)
 	}
 }
 

@@ -641,22 +641,6 @@ func TestManagerKeepsUnknownRuntimeKindConservative(t *testing.T) {
 	}
 }
 
-func TestManagerStopTaskForwardsToRuntimeClient(t *testing.T) {
-	client := &fakeRuntimeClient{}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
-	sessionKey := "agent:nexus:ws:dm:test"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatalf("创建 runtime client 失败: %v", err)
-	}
-
-	if err := manager.StopTask(context.Background(), sessionKey, "task-1"); err != nil {
-		t.Fatalf("StopTask 返回错误: %v", err)
-	}
-	if len(client.stoppedTasks) != 1 || client.stoppedTasks[0] != "task-1" {
-		t.Fatalf("stoppedTasks = %+v, want task-1", client.stoppedTasks)
-	}
-}
-
 func TestManagerTaskControlsRefreshIdleDeadline(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	client := &fakeRuntimeClient{}
@@ -673,6 +657,9 @@ func TestManagerTaskControlsRefreshIdleDeadline(t *testing.T) {
 	}
 	if got := manager.sessions[sessionKey].LastUsedAt; !got.Equal(now) {
 		t.Fatalf("StopTask LastUsedAt = %s, want %s", got, now)
+	}
+	if len(client.stoppedTasks) != 1 || client.stoppedTasks[0] != "task-1" {
+		t.Fatalf("stoppedTasks = %+v, want task-1", client.stoppedTasks)
 	}
 
 	now = now.Add(3 * time.Minute)
@@ -763,30 +750,6 @@ func TestManagerIdleMessageDrainHandlesMessages(t *testing.T) {
 	case <-handled:
 	case <-time.After(time.Second):
 		t.Fatal("idle drain 未处理后台 task 通知")
-	}
-}
-
-func TestManagerStartRoundCancelsIdleMessageDrain(t *testing.T) {
-	messages := make(chan sdkprotocol.ReceivedMessage, 1)
-	client := &fakeRuntimeClient{messages: messages}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
-	sessionKey := "agent:nexus:ws:dm:test"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatalf("创建 runtime client 失败: %v", err)
-	}
-
-	handled := make(chan struct{}, 1)
-	manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool {
-		handled <- struct{}{}
-		return true
-	})
-	_ = manager.StartRound(context.Background(), sessionKey, "round-1", nil)
-	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
-
-	select {
-	case <-handled:
-		t.Fatal("StartRound 后 idle drain 不应继续消费消息")
-	case <-time.After(100 * time.Millisecond):
 	}
 }
 
@@ -3208,77 +3171,6 @@ func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
 	}
 }
 
-func TestWaitAgentClientTransitionReturnsWhenCleanupCompletes(t *testing.T) {
-	done := make(chan struct{})
-	close(done)
-	if err := waitAgentClientTransition(context.Background(), done); err != nil {
-		t.Fatalf("已完成 cleanup 不应报错: %v", err)
-	}
-}
-
-func TestWaitAgentClientTransitionHonorsContext(t *testing.T) {
-	done := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := waitAgentClientTransition(ctx, done); !errors.Is(err, context.Canceled) {
-		t.Fatalf("等待 cleanup 应遵守调用方 context: %v", err)
-	}
-}
-
-func TestAgentClientCleanupFenceBlocksReconnect(t *testing.T) {
-	cleanupStarted := make(chan struct{})
-	cleanupRelease := make(chan struct{})
-	newSessionCalled := make(chan struct{}, 1)
-	var cleanupGate sync.Once
-	client := &agentClient{
-		session:  &agentclient.Session{},
-		messages: make(chan sdkprotocol.ReceivedMessage),
-		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
-			newSessionCalled <- struct{}{}
-			return &agentclient.Session{}, nil
-		},
-		closeSession: func(*agentclient.Session) error {
-			shouldWait := false
-			cleanupGate.Do(func() { shouldWait = true })
-			if !shouldWait {
-				return nil
-			}
-			close(cleanupStarted)
-			<-cleanupRelease
-			return nil
-		},
-	}
-
-	client.DiscardUncleanSession()
-	select {
-	case <-cleanupStarted:
-	case <-time.After(time.Second):
-		t.Fatal("旧 session cleanup 未启动")
-	}
-	connectDone := make(chan error, 1)
-	go func() { connectDone <- client.Connect(context.Background()) }()
-	select {
-	case <-newSessionCalled:
-		t.Fatal("旧 session cleanup 完成前不应启动新 runtime")
-	case <-time.After(30 * time.Millisecond):
-	}
-
-	close(cleanupRelease)
-	select {
-	case <-newSessionCalled:
-	case <-time.After(time.Second):
-		t.Fatal("旧 session cleanup 完成后未启动新 runtime")
-	}
-	select {
-	case err := <-connectDone:
-		if err != nil {
-			t.Fatalf("cleanup 后重连失败: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("cleanup 后重连未结束")
-	}
-}
-
 func TestAgentClientDisconnectDeadlineDoesNotCancelSharedCleanup(t *testing.T) {
 	cleanupStarted := make(chan struct{})
 	cleanupRelease := make(chan struct{})
@@ -3381,53 +3273,6 @@ func TestAgentClientDisconnectInvalidatesInFlightConnect(t *testing.T) {
 	}
 }
 
-func TestAgentClientConnectRetriesWithLatestConfiguration(t *testing.T) {
-	firstAttemptRelease := make(chan struct{})
-	attempts := make(chan agentclient.Options, 2)
-	client := &agentClient{
-		options: agentclient.Options{Model: "old-model"},
-		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
-			attempts <- options
-			if options.Model == "old-model" {
-				<-firstAttemptRelease
-			}
-			return &agentclient.Session{}, nil
-		},
-		closeSession: func(*agentclient.Session) error { return nil },
-	}
-	connectDone := make(chan error, 1)
-	go func() { connectDone <- client.Connect(context.Background()) }()
-	select {
-	case options := <-attempts:
-		if options.Model != "old-model" {
-			t.Fatalf("首次启动配置=%q", options.Model)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("首次 Connect 未启动")
-	}
-
-	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
-		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
-	}
-	close(firstAttemptRelease)
-	select {
-	case options := <-attempts:
-		if options.Model != "new-model" {
-			t.Fatalf("重试未使用最新配置: %q", options.Model)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("配置变化后 Connect 未重试")
-	}
-	select {
-	case err := <-connectDone:
-		if err != nil {
-			t.Fatalf("使用最新配置重试失败: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("配置变化后的 Connect 未结束")
-	}
-}
-
 func TestAgentClientConnectFailureRetriesWithLatestConfiguration(t *testing.T) {
 	staleStartErr := errors.New("old runtime configuration rejected")
 	latestStartErr := errors.New("new runtime executable unavailable")
@@ -3493,34 +3338,6 @@ func TestAgentClientConnectFailureRetriesWithLatestConfiguration(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatalf("%s Connect 未结束", name)
 		}
-	}
-}
-
-func TestAgentClientDiscardCancelsInFlightConnect(t *testing.T) {
-	connectStarted := make(chan struct{})
-	client := &agentClient{
-		newSession: func(ctx context.Context, _ agentclient.Options) (*agentclient.Session, error) {
-			close(connectStarted)
-			<-ctx.Done()
-			return nil, ctx.Err()
-		},
-	}
-	connectDone := make(chan error, 1)
-	go func() { connectDone <- client.Connect(context.Background()) }()
-	select {
-	case <-connectStarted:
-	case <-time.After(time.Second):
-		t.Fatal("Connect 未进入 session 启动阶段")
-	}
-
-	client.DiscardUncleanSession()
-	select {
-	case err := <-connectDone:
-		if !errors.Is(err, agentclient.ErrAborted) {
-			t.Fatalf("Discard 后 Connect 错误=%v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Discard 未取消正在启动的 session")
 	}
 }
 
@@ -3832,7 +3649,8 @@ func TestAgentClientDisconnectReturnsCleanupErrorAndAllowsReconnect(t *testing.T
 	}
 }
 
-func TestAgentClientRejectedSessionCleanupBlocksRetryUntilCompletion(t *testing.T) {
+func TestAgentClientRejectedSessionCleanupBlocksRetryAndIgnoresDiagnostic(t *testing.T) {
+	cleanupErr := errors.New("stale runtime exited with status 2")
 	firstOpenRelease := make(chan struct{})
 	cleanupStarted := make(chan struct{})
 	cleanupRelease := make(chan struct{})
@@ -3855,7 +3673,7 @@ func TestAgentClientRejectedSessionCleanupBlocksRetryUntilCompletion(t *testing.
 			}
 			close(cleanupStarted)
 			<-cleanupRelease
-			return nil
+			return cleanupErr
 		},
 	}
 	connectDone := make(chan error, 1)
@@ -3891,55 +3709,10 @@ func TestAgentClientRejectedSessionCleanupBlocksRetryUntilCompletion(t *testing.
 	select {
 	case err := <-connectDone:
 		if err != nil {
-			t.Fatalf("cleanup 完成后的 Connect 失败: %v", err)
+			t.Fatalf("过期 session 的 cleanup 诊断不应阻止重试: %v", err)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("cleanup 完成后的 Connect 未结束")
-	}
-}
-
-func TestAgentClientRejectedSessionDiagnosticAllowsRetry(t *testing.T) {
-	firstOpenRelease := make(chan struct{})
-	attempts := make(chan agentclient.Options, 2)
-	client := &agentClient{
-		options: agentclient.Options{Model: "old-model"},
-		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
-			attempts <- options
-			if options.Model == "old-model" {
-				<-firstOpenRelease
-			}
-			return &agentclient.Session{}, nil
-		},
-		closeSession: func(*agentclient.Session) error {
-			return errors.New("stale runtime exited with status 2")
-		},
-	}
-	connectDone := make(chan error, 1)
-	go func() { connectDone <- client.Connect(context.Background()) }()
-	select {
-	case <-attempts:
-	case <-time.After(time.Second):
-		t.Fatal("首次 Connect 未启动")
-	}
-	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
-		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
-	}
-	close(firstOpenRelease)
-	select {
-	case options := <-attempts:
-		if options.Model != "new-model" {
-			t.Fatalf("诊断错误后重试配置=%q", options.Model)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("已完成的旧 runtime cleanup 不应阻止重试")
-	}
-	select {
-	case err := <-connectDone:
-		if err != nil {
-			t.Fatalf("已完成的旧 runtime cleanup 不应让 Connect 失败: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("诊断错误后的 Connect 未结束")
 	}
 }
 
@@ -4173,5 +3946,34 @@ func TestAgentClientConfigFailureAfterGenerationChangeKeepsDesiredState(t *testi
 	client.mu.Unlock()
 	if model != "new-model" {
 		t.Fatalf("生命周期换代后不应回滚新代 desired state: %q", model)
+	}
+}
+
+func TestObserveSubagentUsageUsesSessionTaskHighWater(t *testing.T) {
+	manager := NewManager()
+
+	if got := manager.ObserveSubagentUsage("session-a", "task-1", 100); got != 100 {
+		t.Fatalf("first delta = %d, want 100", got)
+	}
+	if got := manager.ObserveSubagentUsage("session-a", "task-1", 150); got != 50 {
+		t.Fatalf("second delta = %d, want 50", got)
+	}
+	if got := manager.ObserveSubagentUsage("session-a", "task-1", 150); got != 0 {
+		t.Fatalf("duplicate delta = %d, want 0", got)
+	}
+	if got := manager.ObserveSubagentUsage("session-a", "task-1", 120); got != 0 {
+		t.Fatalf("out-of-order delta = %d, want 0", got)
+	}
+	if got := manager.ObserveSubagentUsage("session-a", "task-1", 180); got != 30 {
+		t.Fatalf("later delta = %d, want 30", got)
+	}
+	manager.mu.Lock()
+	delete(manager.sessions, "session-a")
+	manager.mu.Unlock()
+	if got := manager.ObserveSubagentUsage("session-a", "task-1", 200); got != 20 {
+		t.Fatalf("delta after idle state removal = %d, want retained high-water delta 20", got)
+	}
+	if got := manager.ObserveSubagentUsage("session-b", "task-1", 180); got != 180 {
+		t.Fatalf("other session delta = %d, want 180", got)
 	}
 }

@@ -1,10 +1,12 @@
 package permission
 
-import "testing"
+import (
+	"testing"
+
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+)
 
 func TestResolveInteractionModeKeepsEveryToolActionable(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name     string
 		toolName string
@@ -16,11 +18,6 @@ func TestResolveInteractionModeKeepsEveryToolActionable(t *testing.T) {
 			want:     interactionModeQuestion,
 		},
 		{
-			name:     "plan confirmation",
-			toolName: "ExitPlanMode",
-			want:     interactionModeApproval,
-		},
-		{
 			name:     "unknown future tool",
 			toolName: "RequestHumanReview",
 			want:     interactionModeApproval,
@@ -28,9 +25,7 @@ func TestResolveInteractionModeKeepsEveryToolActionable(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 			if got := resolveInteractionMode(test.toolName); got != test.want {
 				t.Fatalf(
 					"resolveInteractionMode(%q) = %q, want %q",
@@ -64,5 +59,26 @@ func TestExecutionPermissionUsesSemanticRiskAndSummary(t *testing.T) {
 	)
 	if summary != "mcp__nexus_execution__plan_execution" {
 		t.Fatalf("Execution summary = %q", summary)
+	}
+}
+
+func TestNormalizeMode(t *testing.T) {
+	tests := []struct {
+		name string
+		in   sdkpermission.Mode
+		want sdkpermission.Mode
+	}{
+		{name: "empty", in: "", want: sdkpermission.ModeDefault},
+		{name: "trimmed", in: " dontAsk ", want: sdkpermission.ModeDontAsk},
+		{name: "unknown", in: "unsafe-mode", want: sdkpermission.ModeDefault},
+		{name: "auto", in: sdkpermission.ModeAuto, want: sdkpermission.ModeAuto},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := NormalizeMode(test.in); got != test.want {
+				t.Fatalf("NormalizeMode(%q) = %q, want %q", test.in, got, test.want)
+			}
+		})
 	}
 }

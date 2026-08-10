@@ -2,10 +2,14 @@ package agent
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	shared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 func TestSessionKeyPathParamDecodesEscapedSessionKey(t *testing.T) {
@@ -44,5 +48,19 @@ func TestSessionKeyPathParamDecodesEscapedSessionKey(t *testing.T) {
 				t.Fatalf("sessionKeyPathParam() = %q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+func TestWriteSubagentTaskErrorDistinguishesUnsupportedRuntime(t *testing.T) {
+	handler := &Handlers{api: shared.NewAPI(nil)}
+	recorder := httptest.NewRecorder()
+
+	handler.writeSubagentTaskError(recorder, sessionpkg.ErrSubagentOperationUnsupported)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", recorder.Code)
+	}
+	if body := recorder.Body.String(); !strings.Contains(body, "当前运行时不支持该操作") || strings.Contains(body, "已结束") {
+		t.Fatalf("unsupported response = %s", body)
 	}
 }

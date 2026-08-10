@@ -26,11 +26,6 @@ func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T
 			}
 		})
 	}
-}
-
-func TestParseMutationResultEnvelopeRejectsUnrecognizedOutput(t *testing.T) {
-	t.Parallel()
-
 	if result, ok := ParseMutationResultEnvelope(
 		map[string]any{"outcome": "maybe", "message": "not a stable envelope"},
 		"ordinary tool output",

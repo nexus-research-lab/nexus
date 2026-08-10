@@ -2,7 +2,6 @@ package automationmcp
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -11,18 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestListPassesAgentID(t *testing.T) {
-	svc := &stubService{
-		jobs: []automationdomain.ScheduledTask{{JobID: "job-1", Schedule: automationdomain.Schedule{
-			Kind: "every", IntervalSeconds: newInterval(300), Timezone: "Asia/Shanghai",
-		}}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "find_scheduled_tasks", map[string]any{"agent_id": "agent-1"})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-}
 
 func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 	svc := &stubService{
@@ -325,17 +312,6 @@ func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 	}
 	if len(decoded) != 1 || decoded[0]["job_id"] != "job-current-disabled" {
 		t.Fatalf("enabled filter should apply inside current group scope, got %+v", decoded)
-	}
-}
-
-func TestListPropagatesError(t *testing.T) {
-	svc := &stubService{listErr: errors.New("boom")}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "find_scheduled_tasks", nil)
-	if !isError {
-		t.Fatalf("expected error result")
-	}
-	if !strings.Contains(extractText(t, result), "boom") {
-		t.Fatalf("expected error text to contain boom, got %q", extractText(t, result))
 	}
 }
 

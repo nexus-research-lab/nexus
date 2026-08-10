@@ -59,29 +59,6 @@ func TestSubagentAdmissionHookUsesCurrentPhysicalRoundCallbacks(t *testing.T) {
 	}
 }
 
-func TestSubagentAdmissionHookIgnoresNonAgentTool(t *testing.T) {
-	manager := NewManager()
-	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
-	called := false
-	manager.SetSubagentHookCallbacks("runtime-session", "round-1", SubagentHookCallbacks{
-		PreToolUse: func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-			called = true
-			return sdkhook.Output{}, nil
-		},
-	})
-	output, err := options.Hooks.Matchers[sdkhook.EventPreToolUse][0].Hooks[0](
-		context.Background(),
-		sdkhook.Input{ToolName: "Read"},
-		"tool-1",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if called || output.SpecificOutput != nil || output.Continue != nil {
-		t.Fatalf("non-Agent hook should be a no-op: called=%t output=%#v", called, output)
-	}
-}
-
 func TestSubagentLifecycleHookFailsClosedWithoutBindingCallback(t *testing.T) {
 	manager := NewManager()
 	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")

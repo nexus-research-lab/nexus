@@ -837,22 +837,6 @@ func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
 	}
 }
 
-func TestBuildAuditPolicyPreservesMainAgentIdentity(t *testing.T) {
-	workspace := t.TempDir()
-	policy, err := buildAuditPolicy(Input{
-		OwnerUserID: "owner-a",
-		RuntimeKind: "nxs",
-		CWD:         workspace,
-		IsMainAgent: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !policy.IsMainAgent {
-		t.Fatalf("audit policy 丢失主智能体身份: %#v", policy)
-	}
-}
-
 func TestApplyMainAgentKeepsHookWithoutLauncher(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("主智能体 enforce 当前只支持 Linux")

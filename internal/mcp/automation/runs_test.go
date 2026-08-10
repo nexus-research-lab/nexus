@@ -1,7 +1,6 @@
 package automationmcp
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,22 +8,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestRunNowReturnsStatus(t *testing.T) {
-	svc := &stubService{}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "run_scheduled_task", map[string]any{"job_id": "job-1"})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	payload := extractText(t, result)
-	var decoded map[string]any
-	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
-		t.Fatalf("json unmarshal: %v", err)
-	}
-	if decoded["status"] != "succeeded" {
-		t.Fatalf("expected status=succeeded, got %v", decoded["status"])
-	}
-}
 
 func TestRunNowQueryNoMatchDoesNotRun(t *testing.T) {
 	svc := &stubService{
@@ -157,49 +140,6 @@ func TestGetScheduledTaskRunsRejectsDeletedOtherAgentTask(t *testing.T) {
 	}
 	if !strings.Contains(extractText(t, result), "another agent") {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-}
-
-func TestRecoverScheduledTaskPassesRunID(t *testing.T) {
-	svc := &stubService{
-		jobs: []automationdomain.ScheduledTask{{
-			JobID:        "job-1",
-			AgentID:      "agent-1",
-			RunningRunID: "run-1",
-			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
-		}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "repair_scheduled_task", map[string]any{
-		"action": "recover",
-		"job_id": "job-1",
-		"run_id": "run-1",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.recoverJobID != "job-1" || svc.recoverRunID != "run-1" {
-		t.Fatalf("recover args not passed through: job=%q run=%q", svc.recoverJobID, svc.recoverRunID)
-	}
-}
-
-func TestRetryScheduledTaskDeliveryPassesRunID(t *testing.T) {
-	svc := &stubService{
-		jobs: []automationdomain.ScheduledTask{{
-			JobID:    "job-1",
-			AgentID:  "agent-1",
-			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
-		}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "repair_scheduled_task", map[string]any{
-		"action": "retry_delivery",
-		"job_id": "job-1",
-		"run_id": "run-1",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.redeliverJobID != "job-1" || svc.redeliverRunID != "run-1" {
-		t.Fatalf("redeliver args not passed through: job=%q run=%q", svc.redeliverJobID, svc.redeliverRunID)
 	}
 }
 

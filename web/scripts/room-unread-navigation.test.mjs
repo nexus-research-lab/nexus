@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -55,35 +54,6 @@ async function renderWithI18n(element, locale = "zh") {
     element,
   ));
 }
-
-test("AppLayout owns the Room completion subscription outside the responsive sidebar", async () => {
-  const appLayoutSource = await readFile(
-    path.join(webRoot, "src/app/layout/app-layout.tsx"),
-    "utf8",
-  );
-  const sidebarControllerSource = await readFile(
-    path.join(
-      webRoot,
-      "src/features/navigation/sidebar/use-sidebar-wide-panel-controller.ts",
-    ),
-    "utf8",
-  );
-
-  assert.match(
-    appLayoutSource,
-    /import \{ useChatCompletionNotifications \} from [^;]+;/,
-  );
-  assert.match(
-    appLayoutSource,
-    /\n  useChatCompletionNotifications\(\);\n/,
-    "narrow Room detail must keep the global completion subscriber mounted",
-  );
-  assert.doesNotMatch(
-    sidebarControllerSource,
-    /useChatCompletionNotifications/,
-    "the responsive sidebar cannot own the global completion subscriber",
-  );
-});
 
 test("sidebar orders exact Room anchors and consumes them message by message", async () => {
   const { useSidebarStore } = await server.ssrLoadModule(

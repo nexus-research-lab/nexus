@@ -1,80 +1,67 @@
 package automation
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
-func TestParseHeartbeatTasksReadsTasksBlock(t *testing.T) {
-	tasks := ParseHeartbeatTasks("tasks:\n- name: inbox\n  interval: 30m\n  prompt: \"check inbox\"\n")
-	if len(tasks) != 1 {
-		t.Fatalf("期望 1 个任务，实际 %d", len(tasks))
+func TestParseHeartbeatTasks(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want []HeartbeatTask
+	}{
+		{
+			name: "task block",
+			text: "tasks:\n- name: inbox\n  interval: 30m\n  prompt: \"check inbox\"\n",
+			want: []HeartbeatTask{{Name: "inbox", Interval: "30m", Prompt: "check inbox"}},
+		},
+		{
+			name: "other sections",
+			text: "title: heartbeat\nnotes: keep this short\ntasks:\n- name: sync\n  interval: 15m\n  prompt: run sync\n\nsummary: done\n",
+			want: []HeartbeatTask{{Name: "sync", Interval: "15m", Prompt: "run sync"}},
+		},
+		{
+			name: "indented fields",
+			text: "tasks:\n-\n  name: backlog\n  interval: 1h\n  prompt: review backlog\n",
+			want: []HeartbeatTask{{Name: "backlog", Interval: "1h", Prompt: "review backlog"}},
+		},
+		{
+			name: "multiline prompt",
+			text: "tasks:\n- name: report\n  interval: 1h\n  prompt: |\n    gather metrics\n    and summarize\n",
+			want: []HeartbeatTask{{Name: "report", Interval: "1h", Prompt: "gather metrics\nand summarize"}},
+		},
+		{
+			name: "next task after multiline prompt",
+			text: "tasks:\n- name: report\n  prompt: |\n    gather metrics\n- name: inbox\n  prompt: check inbox\nsummary: done\n",
+			want: []HeartbeatTask{{Name: "report", Prompt: "gather metrics"}, {Name: "inbox", Prompt: "check inbox"}},
+		},
 	}
-	if tasks[0].Name != "inbox" || tasks[0].Interval != "30m" || tasks[0].Prompt != "check inbox" {
-		t.Fatalf("任务解析错误: %+v", tasks[0])
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := ParseHeartbeatTasks(test.text); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("ParseHeartbeatTasks() = %+v, want %+v", got, test.want)
+			}
+		})
 	}
 }
 
-func TestParseHeartbeatTasksIgnoresNonTaskSections(t *testing.T) {
-	tasks := ParseHeartbeatTasks(
-		"title: heartbeat\n" +
-			"notes: keep this short\n" +
-			"tasks:\n" +
-			"- name: sync\n" +
-			"  interval: 15m\n" +
-			"  prompt: run sync\n" +
-			"\n" +
-			"summary: done\n",
-	)
-	if len(tasks) != 1 || tasks[0].Name != "sync" {
-		t.Fatalf("任务段解析错误: %+v", tasks)
+func TestFilterHeartbeatResponse(t *testing.T) {
+	tests := []struct {
+		response      string
+		ackMaxChars   int
+		shouldDeliver bool
+		text          string
+	}{
+		{response: "HEARTBEAT_OK", ackMaxChars: 300},
+		{response: "HEARTBEAT_OK\nwarn", ackMaxChars: 4},
+		{response: "HEARTBEAT_OK\nwarn", ackMaxChars: 3, shouldDeliver: true, text: "warn"},
+		{response: "HEARTBEAT_OK\nalert: disk space is low", ackMaxChars: 8, shouldDeliver: true, text: "alert: disk space is low"},
 	}
-}
-
-func TestParseHeartbeatTasksSupportsIndentedFields(t *testing.T) {
-	tasks := ParseHeartbeatTasks(
-		"tasks:\n" +
-			"-\n" +
-			"  name: backlog\n" +
-			"  interval: 1h\n" +
-			"  prompt: review backlog\n",
-	)
-	if len(tasks) != 1 {
-		t.Fatalf("期望 1 个任务，实际 %d", len(tasks))
-	}
-	if tasks[0].Name != "backlog" || tasks[0].Interval != "1h" || tasks[0].Prompt != "review backlog" {
-		t.Fatalf("缩进字段解析错误: %+v", tasks[0])
-	}
-}
-
-func TestParseHeartbeatTasksSupportsMultilinePrompt(t *testing.T) {
-	tasks := ParseHeartbeatTasks(
-		"tasks:\n" +
-			"- name: report\n" +
-			"  interval: 1h\n" +
-			"  prompt: |\n" +
-			"    gather metrics\n" +
-			"    and summarize\n",
-	)
-	if len(tasks) != 1 {
-		t.Fatalf("期望 1 个任务，实际 %d", len(tasks))
-	}
-	if tasks[0].Prompt != "gather metrics\nand summarize" {
-		t.Fatalf("多行 prompt 解析错误: %q", tasks[0].Prompt)
-	}
-}
-
-func TestParseHeartbeatTasksContinuesAfterMultilinePrompt(t *testing.T) {
-	tasks := ParseHeartbeatTasks(
-		"tasks:\n" +
-			"- name: report\n" +
-			"  prompt: |\n" +
-			"    gather metrics\n" +
-			"- name: inbox\n" +
-			"  prompt: check inbox\n" +
-			"summary: done\n",
-	)
-	if len(tasks) != 2 {
-		t.Fatalf("期望连续解析 2 个任务，实际 %d: %+v", len(tasks), tasks)
-	}
-	if tasks[0].Prompt != "gather metrics" || tasks[1].Name != "inbox" {
-		t.Fatalf("多行块结束后的任务解析错误: %+v", tasks)
+	for _, test := range tests {
+		result := FilterHeartbeatResponse(test.response, test.ackMaxChars)
+		if result.ShouldDeliver != test.shouldDeliver || result.Text != test.text {
+			t.Fatalf("FilterHeartbeatResponse(%q, %d) = %+v", test.response, test.ackMaxChars, result)
+		}
 	}
 }

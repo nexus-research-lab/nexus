@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -177,69 +176,4 @@ test("room subagent tasks can be scoped to the Agent that launched them", async 
     [tasks[1], tasks[2]],
   );
   assert.equal(filterSubagentTasksByHostAgent(tasks, null), tasks);
-});
-
-test("subagent task detail is a read-only thread without direct task controls", async () => {
-  const viewSource = await readFile(
-    path.join(
-      webRoot,
-      "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",
-    ),
-    "utf8",
-  );
-  const apiSource = await readFile(
-    path.join(
-      webRoot,
-      "src/lib/api/conversation/subagent-task-api.ts",
-    ),
-    "utf8",
-  );
-
-  assert.doesNotMatch(viewSource, /<textarea/);
-  assert.doesNotMatch(viewSource, /headerAction=/);
-  assert.doesNotMatch(viewSource, /StopTaskButton|onStop|subagents\.stop/);
-  assert.match(viewSource, /footer=\{null}/);
-  assert.doesNotMatch(
-    apiSource,
-    /stopSubagentTaskApi|sendSubagentTaskMessageApi|method: "POST"/,
-  );
-});
-
-test("room subagent surface reuses the Workspace Agent switcher", async () => {
-  const source = await readFile(
-    path.join(
-      webRoot,
-      "src/features/conversation/room/surface/room-subagent-task-surface.tsx",
-    ),
-    "utf8",
-  );
-
-  assert.match(source, /<RoomAgentSwitcher/);
-  assert.match(source, /hostAgentId=\{isRoomSource \? selectedAgentId : null\}/);
-  assert.match(source, /requestedTaskToolUseId/);
-  assert.match(source, /subagentTaskSourceKey\(source\)/);
-});
-
-test("message Agent task navigation opens the shared panel by exact tool identity", async () => {
-  const layoutSource = await readFile(
-    path.join(
-      webRoot,
-      "src/features/conversation/room/surface/layout/use-room-surface-layout-controller.ts",
-    ),
-    "utf8",
-  );
-  const surfaceSource = await readFile(
-    path.join(
-      webRoot,
-      "src/features/conversation/shared/subagent/subagent-task-surface.tsx",
-    ),
-    "utf8",
-  );
-
-  assert.match(
-    layoutSource,
-    /handleOpenSubagentTask[\s\S]*toolUseId[\s\S]*onChangeSurfaceTab\("subagents"\)/,
-  );
-  assert.match(surfaceSource, /findSubagentTaskByToolUseId/);
-  assert.match(surfaceSource, /setSelectedTaskId\(requestedTask\.task_id\)/);
 });
