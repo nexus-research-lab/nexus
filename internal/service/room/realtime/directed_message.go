@@ -1,3 +1,6 @@
+// INPUT: Room 成员的定向消息请求、reply route 与实时 Room 权限聚合。
+// OUTPUT: 经私聊开关、成员和 authority epoch 校验的私域记录与唤醒。
+// POS: Room 私域消息创建、回复投影和唤醒编排边界。
 package realtime
 
 import (
@@ -96,6 +99,12 @@ func (s *Service) resolveDirectedMessageContext(
 	}
 	if contextValue.Room.RoomType != protocol.RoomTypeGroup {
 		return nil, errors.New("room directed message 仅支持 group room")
+	}
+	// Runtime 注入的工具列表和 permission handler 只负责体验层热重载。
+	// 安全撤销必须以每次调用时重新读取到的 Room 真相源为准，避免旧 slot
+	// 在 private_messages_enabled 关闭后继续使用已经注入的工具。
+	if !contextValue.Room.PrivateMessagesEnabled {
+		return nil, errors.New("Room private messaging is disabled")
 	}
 	return contextValue, nil
 }
@@ -419,6 +428,9 @@ func (s *Service) recordRoomDirectedMessageReply(
 	if replyRoute.Mode != protocol.RoomReplyRoutePrivate {
 		return nil
 	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		return err
+	}
 	recipients := normalizeRoomDirectedMessageRecipients(replyRoute.Recipients)
 	if len(recipients) == 0 {
 		return nil
@@ -443,7 +455,13 @@ func (s *Service) recordRoomDirectedMessageReply(
 		HopIndex:        roundValue.HopIndex,
 		Timestamp:       time.Now().UnixMilli(),
 	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		return err
+	}
 	if err := s.directedMessages.AppendMessage(roundValue.OwnerUserID, message); err != nil {
+		return err
+	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 		return err
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, newRoomDirectedMessageEvent(message))

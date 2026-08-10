@@ -36,6 +36,75 @@ func TestRouterRegisterAndStartLetsNewChannelAdoptReplaced(t *testing.T) {
 	}
 }
 
+func TestRouterFailedHotReplacementKeepsReadyChannel(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	current := &recordingDeliveryChannel{channelType: ChannelTypeTelegram}
+	if err := router.RegisterAndStartForOwner(context.Background(), "owner-a", current); err != nil {
+		t.Fatalf("注册当前通道失败: %v", err)
+	}
+	candidate := &recordingDeliveryChannel{
+		channelType: ChannelTypeTelegram,
+		startErr:    fmt.Errorf("candidate start failed"),
+	}
+	err := router.RegisterAndStartForOwner(context.Background(), "owner-a", candidate)
+	if err == nil || err.Error() != "candidate start failed" {
+		t.Fatalf("候选启动失败必须返回调用者: %v", err)
+	}
+	if got := router.GetForOwner("owner-a", ChannelTypeTelegram); got != current {
+		t.Fatalf("失败候选不应替换当前实例: got=%T", got)
+	}
+	if !router.IsReadyForOwner("owner-a", ChannelTypeTelegram) {
+		t.Fatal("失败热替换后当前实例应保持 ready")
+	}
+	if current.stops != 0 || candidate.stops != 1 {
+		t.Fatalf("失败候选应自行清理且不得停止当前实例: current=%d candidate=%d", current.stops, candidate.stops)
+	}
+}
+
+func TestRouterStaleStartCompletionCannotOverwriteNewGeneration(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	release := make(chan struct{})
+	stale := &blockingDeliveryChannel{
+		recordingDeliveryChannel: recordingDeliveryChannel{
+			channelType: ChannelTypeTelegram,
+			startErr:    fmt.Errorf("stale generation failed"),
+		},
+		startEntered: make(chan struct{}),
+		startRelease: release,
+	}
+	router.RegisterForOwner("owner-a", stale)
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- router.Start(context.Background())
+	}()
+	<-stale.startEntered
+
+	current := &recordingDeliveryChannel{channelType: ChannelTypeTelegram}
+	if err := router.RegisterAndStartForOwner(context.Background(), "owner-a", current); err != nil {
+		t.Fatalf("注册新 generation 失败: %v", err)
+	}
+	close(release)
+	if err := <-startDone; err != nil {
+		t.Fatalf("router 启动失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	if got := router.GetForOwner("owner-a", ChannelTypeTelegram); got != current {
+		t.Fatalf("旧 generation 完成后不应覆盖新实例: got=%T", got)
+	}
+	if !router.IsReadyForOwner("owner-a", ChannelTypeTelegram) {
+		t.Fatal("旧 generation 的失败结果不应把新实例标成未就绪")
+	}
+}
+
 func TestNewRouterHonorsChannelEnabledFlags(t *testing.T) {
 	db := newChannelTestDB(t)
 	router := NewRouter(config.Config{

@@ -17,11 +17,8 @@ func TestToolPolicyKeepsPrivateMessagesOptIn(t *testing.T) {
 		t.Fatalf("Room 私信工具不应默认加入显式白名单: %+v", allowedTools)
 	}
 	allowedTools = roomAllowedTools([]string{"Read"}, true)
-	if !slices.Contains(allowedTools, roomSendDirectedMessageTool) {
-		t.Fatalf("Room 私信工具开启后应加入显式白名单: %+v", allowedTools)
-	}
-	if !slices.Contains(allowedTools, roomPublishPublicMessageTool) {
-		t.Fatalf("Room 特殊流程公区工具开启后应加入显式白名单: %+v", allowedTools)
+	if !slices.Equal(allowedTools, []string{"Read"}) {
+		t.Fatalf("Room 私信开关不能扩大 Agent 显式白名单: %+v", allowedTools)
 	}
 
 	disallowedTools := roomDisallowedTools(nil, false)
@@ -37,8 +34,8 @@ func TestToolPolicyKeepsPrivateMessagesOptIn(t *testing.T) {
 	}
 
 	disallowedTools = roomDisallowedTools([]string{"nexus_room.send_directed_message"}, true)
-	if slices.Contains(disallowedTools, "nexus_room.send_directed_message") {
-		t.Fatalf("Room 私信开启后应移除旧的私信 deny 形态: %+v", disallowedTools)
+	if !slices.Contains(disallowedTools, "nexus_room.send_directed_message") {
+		t.Fatalf("Room 私信开启后仍必须保留 Agent deny: %+v", disallowedTools)
 	}
 }
 
@@ -49,7 +46,7 @@ func TestPermissionHandlerKeepsPrivateMessagesOptIn(t *testing.T) {
 		return sdkpermission.Deny("denied", false), nil
 	}
 
-	defaultHandler := withRoomPermissionPolicy(next, false)
+	defaultHandler := withRoomPermissionPolicy(next, false, nil, nil)
 	publicDecision, err := defaultHandler(context.Background(), sdkpermission.Request{ToolName: roomPublishPublicMessageTool})
 	if err != nil || publicDecision.Behavior != sdkpermission.BehaviorDeny || called != 0 {
 		t.Fatalf("普通 Room 主动公区工具应直接拒绝: decision=%+v called=%d err=%v", publicDecision, called, err)
@@ -60,7 +57,7 @@ func TestPermissionHandlerKeepsPrivateMessagesOptIn(t *testing.T) {
 		t.Fatalf("Room 私信工具默认应直接拒绝: decision=%+v called=%d err=%v", privateDecision, called, err)
 	}
 
-	enabledHandler := withRoomPermissionPolicy(next, true)
+	enabledHandler := withRoomPermissionPolicy(next, true, nil, nil)
 	privateDecision, err = enabledHandler(context.Background(), sdkpermission.Request{ToolName: roomSendDirectedMessageTool})
 	if err != nil || privateDecision.Behavior != sdkpermission.BehaviorAllow || called != 0 {
 		t.Fatalf("Room 私信工具开启后应直接放行: decision=%+v called=%d err=%v", privateDecision, called, err)
@@ -68,5 +65,17 @@ func TestPermissionHandlerKeepsPrivateMessagesOptIn(t *testing.T) {
 	publicDecision, err = enabledHandler(context.Background(), sdkpermission.Request{ToolName: roomPublishPublicMessageTool})
 	if err != nil || publicDecision.Behavior != sdkpermission.BehaviorAllow || called != 0 {
 		t.Fatalf("特殊流程公区工具开启后应直接放行: decision=%+v called=%d err=%v", publicDecision, called, err)
+	}
+
+	deniedHandler := withRoomPermissionPolicy(next, true, nil, []string{"nexus_room"})
+	privateDecision, err = deniedHandler(context.Background(), sdkpermission.Request{ToolName: roomSendDirectedMessageTool})
+	if err != nil || privateDecision.Behavior != sdkpermission.BehaviorDeny || called != 0 {
+		t.Fatalf("Agent broad deny 必须覆盖 Room 私信开关: decision=%+v called=%d err=%v", privateDecision, called, err)
+	}
+
+	restrictedHandler := withRoomPermissionPolicy(next, true, []string{"Read"}, nil)
+	publicDecision, err = restrictedHandler(context.Background(), sdkpermission.Request{ToolName: roomPublishPublicMessageTool})
+	if err != nil || publicDecision.Behavior != sdkpermission.BehaviorDeny || called != 0 {
+		t.Fatalf("Room 私信开关不能扩大 Agent allowlist: decision=%+v called=%d err=%v", publicDecision, called, err)
 	}
 }

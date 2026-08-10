@@ -1,3 +1,6 @@
+// INPUT: 多个个人微信账号 runtime 及被热替换的上一代实例。
+// OUTPUT: 多账号生命周期、投递，以及仅复用仍存在且凭据一致的旧连接。
+// POS: 个人微信多账号 DeliveryChannel，承担热替换时账号级资源交接。
 package adapters
 
 import (
@@ -80,21 +83,27 @@ func (c *PersonalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced channe
 		return false
 	}
 	adopted := false
-	stale := make([]*PersonalWeixinChannel, 0)
+	staleOld := make([]*PersonalWeixinChannel, 0)
+	replacedCandidates := make([]*PersonalWeixinChannel, 0)
 	c.mu.Lock()
 	for key, account := range accounts {
 		if key == "" || account == nil {
 			continue
 		}
-		if current := c.accounts[key]; current != nil && strings.TrimSpace(current.token) != strings.TrimSpace(account.token) {
-			stale = append(stale, account)
+		current := c.accounts[key]
+		if current == nil || strings.TrimSpace(current.token) != strings.TrimSpace(account.token) {
+			staleOld = append(staleOld, account)
 			continue
 		}
 		c.accounts[key] = account
+		replacedCandidates = append(replacedCandidates, current)
 		adopted = true
 	}
 	c.mu.Unlock()
-	for _, account := range stale {
+	for _, account := range replacedCandidates {
+		_ = account.Stop(context.Background())
+	}
+	for _, account := range staleOld {
 		_ = account.Stop(context.Background())
 	}
 	return adopted

@@ -56,8 +56,9 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
-		Name:     "测试 Room",
+		AgentIDs:               []string{amy.AgentID, devin.AgentID},
+		Name:                   "测试 Room",
+		PrivateMessagesEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
@@ -128,6 +129,53 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceRechecksPrivateMessagingAtCallTime(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID: "user-room-private-revocation", Username: "room-owner", Role: authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:               []string{amy.AgentID, devin.AgentID},
+		Name:                   "撤权测试 Room",
+		PrivateMessagesEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	disabled := false
+	if _, err = roomService.UpdateRoom(ctx, roomContext.Room.ID, protocol.UpdateRoomRequest{
+		PrivateMessagesEnabled: &disabled,
+	}); err != nil {
+		t.Fatalf("关闭私域消息失败: %v", err)
+	}
+
+	service := realtimesvc.NewService(
+		cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext(),
+	)
+	request := protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID, Recipients: []string{devin.AgentID},
+		Content: "旧 runtime 不应继续发送", ReplyRoute: protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone},
+	}
+	if _, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, request); err == nil ||
+		!strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("关闭后旧 directed message 调用应被 service 拒绝，实际 err=%v", err)
+	}
+	if _, err = service.HandlePublicMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomPublicMessageRequest{
+		SourceAgentID: amy.AgentID, Content: "旧 runtime 不应继续主动广播",
+	}); err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("关闭后旧 public message 调用应被 service 拒绝，实际 err=%v", err)
+	}
+}
+
 func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -145,8 +193,9 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
-		Name:     "测试 Room",
+		AgentIDs:               []string{amy.AgentID, devin.AgentID},
+		Name:                   "测试 Room",
+		PrivateMessagesEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
@@ -390,8 +439,9 @@ func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
-		Name:     "狼人杀测试 Room",
+		AgentIDs:               []string{amy.AgentID, devin.AgentID},
+		Name:                   "狼人杀测试 Room",
+		PrivateMessagesEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
@@ -480,8 +530,9 @@ func TestRealtimeServiceRejectsInvalidDirectedMessageRoute(t *testing.T) {
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
-		Name:     "测试 Room",
+		AgentIDs:               []string{amy.AgentID, devin.AgentID},
+		Name:                   "测试 Room",
+		PrivateMessagesEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)

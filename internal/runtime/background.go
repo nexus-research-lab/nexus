@@ -46,6 +46,14 @@ func (m *Manager) startBackgroundTask(
 		m.mu.Unlock()
 		return false
 	}
+	if err := m.runtimeAgentAdmissionErrorLocked(
+		sessionKey,
+		ownerUserID,
+		runtimeSessionAgentID(sessionKey),
+	); err != nil {
+		m.mu.Unlock()
+		return false
+	}
 	// 队列接力可能发生在首个 runtime client 建立之前。先登记一个
 	// 无 client 的 session 状态，才能把这段会写盘的工作纳入同一生命周期。
 	state := m.ensureStateLocked(sessionKey)

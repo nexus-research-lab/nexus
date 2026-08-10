@@ -308,6 +308,48 @@ func WithMalformedInputDeny(handler sdkpermission.Handler) sdkpermission.Handler
 	}
 }
 
+// WithNexusControlPlaneDeny prevents a runtime without owner-main DM authority
+// from reaching Nexus' host CLI through a shell request. The authoritative
+// boundary is paired with removing the CLI path and owner scope from that
+// runtime's environment; this guard also rejects explicit bypass attempts.
+func WithNexusControlPlaneDeny(handler sdkpermission.Handler, denied bool) sdkpermission.Handler {
+	if handler == nil || !denied {
+		return handler
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if isNexusControlPlaneShellRequest(request) {
+			return sdkpermission.Deny(
+				"Nexus control-plane CLI is unavailable in this runtime context; use the scoped Nexus MCP tools",
+				false,
+			), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+func isNexusControlPlaneShellRequest(request sdkpermission.Request) bool {
+	if !MatchesItem(request.ToolName, "Bash") {
+		return false
+	}
+	command := strings.ToLower(strings.TrimSpace(stringInput(request.Input, "command")))
+	if command == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"nexusctl",
+		"nexus_ctl",
+		"nexus-ctl",
+		"nexusctl_command_path",
+		"cmd/nexusctl",
+		"cmd\\nexusctl",
+	} {
+		if strings.Contains(command, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // WithManagedGoalAllowedTools 预授权 Goal MCP 工具，保留用户原有工具设置。
 func WithManagedGoalAllowedTools(tools []string) []string {
 	if len(NormalizeSet(tools)) == 0 {

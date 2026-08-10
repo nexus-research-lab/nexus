@@ -47,7 +47,9 @@ type fakeRuntimeClient struct {
 	taskMessages       []fakeTaskMessage
 	stopTaskErr        error
 	permissionModes    []sdkpermission.Mode
+	permissionModeErr  error
 	environmentUpdates []map[string]string
+	environmentErr     error
 	hookResponseAck    bool
 	messages           <-chan sdkprotocol.ReceivedMessage
 	receiveStarted     chan struct{}
@@ -166,7 +168,7 @@ func (c *fakeRuntimeClient) RemoveMessages(context.Context, []string) error { re
 
 func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermission.Mode) error {
 	c.permissionModes = append(c.permissionModes, mode)
-	return nil
+	return c.permissionModeErr
 }
 
 func (c *fakeRuntimeClient) Retire() {}
@@ -187,7 +189,7 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 
 func (c *fakeRuntimeClient) UpdateEnvironment(_ context.Context, environment map[string]string) error {
 	c.environmentUpdates = append(c.environmentUpdates, maps.Clone(environment))
-	return nil
+	return c.environmentErr
 }
 
 func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
@@ -445,6 +447,12 @@ type runtimeClientResult struct {
 	err    error
 }
 
+type runtimeFactoryFunc func(agentclient.Options) Client
+
+func (f runtimeFactoryFunc) New(options agentclient.Options) Client {
+	return f(options)
+}
+
 func TestManagerSetPermissionModeForAgentUpdatesMatchingClients(t *testing.T) {
 	manager := NewManager()
 	matching := &fakeRuntimeClient{}
@@ -460,6 +468,30 @@ func TestManagerSetPermissionModeForAgentUpdatesMatchingClients(t *testing.T) {
 	}
 	if len(other.permissionModes) != 0 {
 		t.Fatalf("other permission modes = %#v，期望空", other.permissionModes)
+	}
+}
+
+func TestManagerSetPermissionModeClosesFailedRuntimeAndContinues(t *testing.T) {
+	manager := NewManager()
+	failed := &fakeRuntimeClient{permissionModeErr: errors.New("unsupported live update")}
+	succeeded := &fakeRuntimeClient{}
+	failedSession := "agent:agent-a:conversation:failed"
+	succeededSession := "agent:agent-a:conversation:succeeded"
+	manager.sessions[failedSession] = &sessionState{Client: failed}
+	manager.sessions[succeededSession] = &sessionState{Client: succeeded}
+
+	err := manager.SetPermissionModeForAgent(context.Background(), "agent-a", sdkpermission.ModePlan)
+	if err == nil || !strings.Contains(err.Error(), "已关闭旧 runtime") {
+		t.Fatalf("SetPermissionModeForAgent() error = %v", err)
+	}
+	if failed.disconnectCalls != 1 || manager.sessions[failedSession] != nil {
+		t.Fatalf("failed runtime was not removed safely: disconnect=%d state=%+v", failed.disconnectCalls, manager.sessions[failedSession])
+	}
+	if len(succeeded.permissionModes) != 1 || succeeded.permissionModes[0] != sdkpermission.ModePlan {
+		t.Fatalf("later matching runtime was not updated: %#v", succeeded.permissionModes)
+	}
+	if manager.sessions[succeededSession] == nil {
+		t.Fatal("successfully updated runtime should remain active")
 	}
 }
 
@@ -512,6 +544,34 @@ func TestManagerUpdateEnvironmentForAgentRejectsManagedIdentity(t *testing.T) {
 	}
 }
 
+func TestManagerUpdateEnvironmentAttemptsEveryMatchingRuntime(t *testing.T) {
+	manager := NewManager()
+	failed := &fakeRuntimeClient{environmentErr: errors.New("environment update failed")}
+	succeeded := &fakeRuntimeClient{}
+	manager.sessions["agent:agent-a:ws:dm:failed"] = &sessionState{
+		Client: failed, RuntimeKind: agentclient.RuntimeNXS,
+	}
+	manager.sessions["agent:agent-a:ws:group:succeeded"] = &sessionState{
+		Client: succeeded, RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	err := manager.UpdateEnvironmentForAgent(
+		context.Background(),
+		"agent-a",
+		map[string]string{"NEXUS_WEBSEARCH_CONFIG": `{"enabled":false}`},
+	)
+	if err == nil {
+		t.Fatal("UpdateEnvironmentForAgent should return the failed runtime error")
+	}
+	if len(failed.environmentUpdates) != 1 || len(succeeded.environmentUpdates) != 1 {
+		t.Fatalf(
+			"all matching runtimes must be attempted: failed=%d succeeded=%d",
+			len(failed.environmentUpdates),
+			len(succeeded.environmentUpdates),
+		)
+	}
+}
+
 func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	client := &fakeRuntimeClient{}
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
@@ -524,7 +584,7 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 		t.Fatalf("首次创建 client 失败: %v", err)
 	}
 	second, err := manager.GetOrCreate(context.Background(), "agent:nexus:ws:dm:test", agentclient.Options{
-		CWD: "/tmp/b",
+		CWD: "/tmp/a",
 		Env: map[string]string{"NEXUS_OPENAI_PROTOCOL": "responses"},
 		Runtime: agentclient.RuntimeOptions{
 			PermissionMode: sdkpermission.ModeAcceptEdits,
@@ -540,7 +600,7 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	if client.reconfigureCalls != 1 {
 		t.Fatalf("期望调用一次 Reconfigure，实际 %d", client.reconfigureCalls)
 	}
-	if client.lastOptions.CWD != "/tmp/b" {
+	if client.lastOptions.CWD != "/tmp/a" {
 		t.Fatalf("Reconfigure 未收到最新配置: %+v", client.lastOptions)
 	}
 	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
@@ -548,6 +608,130 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Env["NEXUS_OPENAI_PROTOCOL"] != "responses" {
 		t.Fatalf("Reconfigure 未收到 Responses 协议更新: %+v", client.lastOptions.Env)
+	}
+}
+
+func TestManagerReplacesRuntimeWhenProcessPolicyChanges(t *testing.T) {
+	stale := &fakeRuntimeClient{}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{
+		clients: []*fakeRuntimeClient{stale, fresh},
+	})
+	sessionKey := "agent:nexus:ws:dm:process-policy"
+	firstOptions := agentclient.Options{
+		CLIPath: "/opt/nexus/nxs",
+		CWD:     "/srv/nexus/users/owner/workspace",
+		Env: map[string]string{
+			"NEXUS_RUNTIME_USER_ID":        "owner",
+			"NEXUS_RUNTIME_ISOLATION_MODE": "enforce",
+			"NEXUS_OPENAI_PROTOCOL":        "chat_completions",
+		},
+	}
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, firstOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextOptions := firstOptions
+	nextOptions.CWD = "/srv/nexus/users/owner/other-workspace"
+	nextOptions.Env = maps.Clone(firstOptions.Env)
+	nextOptions.Env["NEXUS_OPENAI_PROTOCOL"] = "responses"
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, nextOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != stale || second != fresh {
+		t.Fatalf("process policy change did not replace runtime: first=%T second=%T", first, second)
+	}
+	if stale.reconfigureCalls != 0 || stale.disconnectCalls != 1 {
+		t.Fatalf(
+			"unsafe runtime should be replaced before Reconfigure: reconfigure=%d disconnect=%d",
+			stale.reconfigureCalls,
+			stale.disconnectCalls,
+		)
+	}
+}
+
+func TestManagerDisconnectsCandidateThatLosesConcurrentReplacement(t *testing.T) {
+	stale := &fakeRuntimeClient{}
+	winner := &fakeRuntimeClient{}
+	loser := &fakeRuntimeClient{}
+	manager := NewManager()
+	sessionKey := "agent:nexus:ws:dm:concurrent-replacement"
+	expectedState := &sessionState{Client: stale}
+	manager.sessions[sessionKey] = expectedState
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer startup.Close()
+
+	candidateCreated := make(chan struct{})
+	releaseCandidate := make(chan struct{})
+	result := make(chan Client, 1)
+	resultErr := make(chan error, 1)
+	go func() {
+		client, replaceErr := manager.replaceRuntimeClient(
+			context.Background(),
+			startup,
+			sessionKey,
+			expectedState,
+			stale,
+			agentclient.Options{},
+			runtimeFactoryFunc(func(agentclient.Options) Client {
+				close(candidateCreated)
+				<-releaseCandidate
+				return loser
+			}),
+		)
+		result <- client
+		resultErr <- replaceErr
+	}()
+	<-candidateCreated
+	manager.mu.Lock()
+	manager.sessions[sessionKey].Client = winner
+	manager.mu.Unlock()
+	close(releaseCandidate)
+
+	if replaceErr := <-resultErr; !errors.Is(replaceErr, errRuntimeClientChanged) {
+		t.Fatalf("replace error = %v, want errRuntimeClientChanged", replaceErr)
+	}
+	if client := <-result; client != nil {
+		t.Fatalf("失去替换事务的候选不应返回 client: got=%T", client)
+	}
+	if loser.disconnectCalls != 1 {
+		t.Fatalf("失去竞赛的候选 runtime 未关闭: disconnect=%d", loser.disconnectCalls)
+	}
+	if stale.disconnectCalls != 0 || winner.disconnectCalls != 0 {
+		t.Fatalf(
+			"并发竞赛不应关闭 stale/winner: stale=%d winner=%d",
+			stale.disconnectCalls,
+			winner.disconnectCalls,
+		)
+	}
+}
+
+func TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange(t *testing.T) {
+	base := agentclient.Options{
+		CWD: "/srv/nexus/users/owner/workspace",
+		Env: map[string]string{
+			"NEXUS_RUNTIME_USER_ID":        "owner",
+			"NEXUS_RUNTIME_ISOLATION_MODE": "enforce",
+			"OPENAI_API_KEY":               "old-secret",
+		},
+	}
+	providerUpdate := base
+	providerUpdate.Env = maps.Clone(base.Env)
+	providerUpdate.Env["OPENAI_API_KEY"] = "new-secret"
+	if managedRuntimeProcessPolicyFingerprint(base) !=
+		managedRuntimeProcessPolicyFingerprint(providerUpdate) {
+		t.Fatal("provider credential hot update unexpectedly changed process-policy fingerprint")
+	}
+	isolationUpdate := base
+	isolationUpdate.Env = maps.Clone(base.Env)
+	isolationUpdate.Env["NEXUS_RUNTIME_ISOLATION_MODE"] = "audit"
+	if managedRuntimeProcessPolicyFingerprint(base) ==
+		managedRuntimeProcessPolicyFingerprint(isolationUpdate) {
+		t.Fatal("isolation change did not change process-policy fingerprint")
 	}
 }
 

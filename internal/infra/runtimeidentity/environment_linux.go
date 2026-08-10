@@ -1,5 +1,8 @@
 //go:build linux
 
+// INPUT: launcher 继承环境、root-owned 配置与已复核的 owner policy。
+// OUTPUT: 不含宿主秘密或原始 Nexus CLI capability 的最小 runtime 环境。
+// POS: Linux launcher 降权 exec 前的最终环境收口边界。
 package runtimeidentity
 
 import (
@@ -106,9 +109,7 @@ func sanitizedRuntimeEnvironment(
 	runtimeRoot := runtimeRootForPolicy(config, policy.OwnerUserID)
 	homeRoot := policy.Identity.HomeDir
 	tempRoot := policy.Identity.TempDir
-	runtimeBinRoot := filepath.Join(config.StateRoot, "app", ".agents", "bin")
 	pathValue := strings.Join([]string{
-		runtimeBinRoot,
 		filepath.Join(homeRoot, ".local", "bin"),
 		"/usr/local/sbin",
 		"/usr/local/bin",
@@ -130,9 +131,6 @@ func sanitizedRuntimeEnvironment(
 		"NEXUS_RUNTIME_ISOLATION":     "enforced",
 		"NEXUS_RUNTIME_SCOPE_MODE":    "user_scoped",
 		"NEXUS_RUNTIME_USER_ID":       policy.OwnerUserID,
-		"NEXUSCTL_USER_ID":            policy.OwnerUserID,
-		"NEXUSCTL_COMMAND_PATH":       filepath.Join(runtimeBinRoot, "nexusctl"),
-		"NEXUSCTL_WORKSPACE_PATH":     policy.CWD,
 		"PATH":                        pathValue,
 		"PWD":                         policy.CWD,
 		"SHELL":                       "/bin/bash",
@@ -192,7 +190,7 @@ func explicitRuntimeEnvironment(name string, explicitNames map[string]struct{}) 
 	if _, ok := explicitNames[name]; !ok {
 		return false
 	}
-	if _, blocked := blockedRuntimeEnvironment[name]; blocked {
+	if blockedRuntimeEnvironmentName(name) {
 		return false
 	}
 	if strings.HasPrefix(name, "LD_") {
@@ -210,6 +208,16 @@ func explicitRuntimeEnvironment(name string, explicitNames map[string]struct{}) 
 		}
 	}
 	return false
+}
+
+func blockedRuntimeEnvironmentName(name string) bool {
+	if _, blocked := blockedRuntimeEnvironment[name]; blocked {
+		return true
+	}
+	return name == "NEXUSCTL" ||
+		name == "NEXUS_CLI" ||
+		strings.HasPrefix(name, "NEXUSCTL_") ||
+		strings.HasPrefix(name, "NEXUS_CLI_")
 }
 
 func safeInheritedRuntimeEnvironment(name string) bool {

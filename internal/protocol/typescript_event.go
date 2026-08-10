@@ -30,6 +30,8 @@ export type EventType =
   | 'goal_cleared'
   | 'permission_request'
   | 'permission_request_resolved'
+  | 'channel_authorization'
+  | 'channel_authorization_result'
   | 'agent_runtime_event'
   | 'workspace_event'
   | 'directory_changed'
@@ -92,6 +94,27 @@ export interface SessionStatusData {
 
 export interface RuntimeStatusData {
   status: 'compacting' | null;
+}
+
+export type ChannelAuthorizationKind = 'qr_code' | 'verification_code';
+
+export interface ChannelAuthorizationData {
+  flow_id: string;
+  presentation_token: string;
+  kind: ChannelAuthorizationKind;
+  channel_type: string;
+  account_binding: string;
+  qr_payload?: string;
+  qr_payload_type?: string;
+  prompt: string;
+  expires_at: string;
+}
+
+export interface ChannelAuthorizationResultData {
+  flow_id: string;
+  accepted: boolean;
+  status?: string;
+  message: string;
 }
 
 export type CommandCatalogStatus = 'cold' | 'ready' | 'unavailable';

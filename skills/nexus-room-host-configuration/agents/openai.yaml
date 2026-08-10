@@ -1,0 +1,3 @@
+interface:
+  display_name: "Nexus Room Host Configuration"
+  short_description: "Configure the current Room as its host"

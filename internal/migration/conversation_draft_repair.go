@@ -16,13 +16,16 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
+	"github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 )
 
 const (
@@ -205,6 +208,14 @@ func applyDesktopLegacyConversationDraftRepair(
 		agentService,
 		roomrepo.NewSQLRepository(cfg.DatabaseDriver, db),
 	)
+	runtimeManager := runtimectx.NewManager()
+	sessionService := sessionsvc.NewService(
+		cfg,
+		agentService,
+		sessionrepo.NewSQLRepository(cfg.DatabaseDriver, db),
+	)
+	sessionService.SetRuntimeManager(runtimeManager)
+	roomService.SetSessionArtifactDeletionCoordinator(sessionService)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	roomService.SetGoalCleaner(goalService)
 

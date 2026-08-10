@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Room/成员/对话写入命令与可选 configuration_version。
+// OUTPUT: Room-first 锁顺序下的聚合 CRUD、版本/epoch 推进和 conversation 上下文。
+// POS: Room 仓储 mutation 主链；所有既有 Room 写入必须先取得 Room 行锁。
 package roomrepo
 
 import (
@@ -281,8 +284,12 @@ func (r *SQLRepository) CreateRoom(ctx context.Context, bundle CreateRoomBundle)
 	defer tx.Rollback()
 
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar, skill_names, host_agent_id, host_auto_reply_enabled, private_messages_enabled)
-VALUES (%s)`, r.dialect.BindList(10)),
+INSERT INTO rooms (
+    id, owner_user_id, room_type, name, description, avatar, skill_names,
+    host_agent_id, host_auto_reply_enabled, private_messages_enabled,
+    configuration_version, authority_epoch
+)
+VALUES (%s)`, r.dialect.BindList(12)),
 		bundle.Room.ID,
 		bundle.Room.OwnerUserID,
 		bundle.Room.RoomType,
@@ -293,6 +300,8 @@ VALUES (%s)`, r.dialect.BindList(10)),
 		NullIfEmpty(bundle.Room.HostAgentID),
 		bundle.Room.HostAutoReplyEnabled,
 		bundle.Room.PrivateMessagesEnabled,
+		initialRoomVersion(bundle.Room.ConfigurationVersion),
+		initialRoomVersion(bundle.Room.AuthorityEpoch),
 	); err != nil {
 		return nil, err
 	}
@@ -362,11 +371,39 @@ func (r *SQLRepository) UpdateRoom(
 	}
 	defer tx.Rollback()
 
-	roomValue, err := r.loadRoom(ctx, tx, ownerUserID, roomID)
+	roomValue, err := r.lockRoomForMutation(ctx, tx, ownerUserID, roomID)
 	if err != nil || roomValue == nil {
 		return nil, err
 	}
-	for _, update := range patch.RoomColumnUpdates() {
+	if err = validateExpectedConfigurationVersion(*roomValue, patch.ExpectedConfigurationVersion); err != nil {
+		return nil, err
+	}
+	if err = r.validateLockedRoomHostPatch(ctx, tx, *roomValue, patch); err != nil {
+		return nil, err
+	}
+	roomUpdates := patch.RoomColumnUpdates()
+	for _, update := range roomUpdates {
+		if update.Column == "host_agent_id" {
+			query := fmt.Sprintf(`
+UPDATE rooms
+SET host_agent_id = %s,
+    authority_epoch = authority_epoch + CASE
+        WHEN COALESCE(host_agent_id, '') <> COALESCE(%s, '') THEN 1
+        ELSE 0
+    END,
+    updated_at = %s
+WHERE id = %s AND owner_user_id = %s`,
+				r.dialect.Bind(1),
+				r.dialect.Bind(2),
+				r.dialect.CurrentTimestamp(),
+				r.dialect.Bind(3),
+				r.dialect.Bind(4),
+			)
+			if _, err = tx.ExecContext(ctx, query, update.Value, update.Value, roomID, ownerUserID); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		query := fmt.Sprintf(`UPDATE rooms SET %s = %s, updated_at = %s WHERE id = %s AND owner_user_id = %s`,
 			update.Column,
 			r.dialect.Bind(1),
@@ -388,6 +425,18 @@ func (r *SQLRepository) UpdateRoom(
 			return nil, err
 		}
 	}
+	if len(roomUpdates) > 0 || patch.Title != nil {
+		if _, err = tx.ExecContext(ctx, `
+UPDATE rooms
+SET configuration_version = configuration_version + 1,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(1)+` AND owner_user_id = `+r.dialect.Bind(2),
+			roomID,
+			ownerUserID,
+		); err != nil {
+			return nil, err
+		}
+	}
 
 	if err = tx.Commit(); err != nil {
 		return nil, err
@@ -404,14 +453,38 @@ func (r *SQLRepository) UpdateRoom(
 
 // AddRoomMember 向房间追加成员。
 func (r *SQLRepository) AddRoomMember(ctx context.Context, ownerUserID string, roomID string, agent AgentRuntimeRef) (*protocol.ConversationContextAggregate, error) {
+	return r.addRoomMember(ctx, ownerUserID, roomID, agent, nil)
+}
+
+// AddRoomMemberAtVersion 使用 Room configuration_version CAS 追加成员。
+func (r *SQLRepository) AddRoomMemberAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	agent AgentRuntimeRef,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	return r.addRoomMember(ctx, ownerUserID, roomID, agent, &expectedVersion)
+}
+
+func (r *SQLRepository) addRoomMember(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	agent AgentRuntimeRef,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	roomAggregate, err := r.getRoomAggregate(ctx, tx, ownerUserID, roomID)
+	roomAggregate, err := r.getLockedRoomAggregate(ctx, tx, ownerUserID, roomID)
 	if err != nil || roomAggregate == nil {
+		return nil, err
+	}
+	if err = validateExpectedConfigurationVersion(roomAggregate.Room, expectedVersion); err != nil {
 		return nil, err
 	}
 	if roomAggregate.Room.RoomType != protocol.RoomTypeGroup {
@@ -451,6 +524,16 @@ VALUES (`+r.dialect.Bind(1)+`, `+r.dialect.Bind(2)+`, 'agent', NULL, `+r.dialect
 			return nil, err
 		}
 	}
+	if _, err = tx.ExecContext(ctx, `
+UPDATE rooms
+SET configuration_version = configuration_version + 1,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(1)+` AND owner_user_id = `+r.dialect.Bind(2),
+		roomID,
+		ownerUserID,
+	); err != nil {
+		return nil, err
+	}
 
 	mainConversation := PickMainConversation(conversations)
 	if err = tx.Commit(); err != nil {
@@ -464,14 +547,38 @@ VALUES (`+r.dialect.Bind(1)+`, `+r.dialect.Bind(2)+`, 'agent', NULL, `+r.dialect
 
 // RemoveRoomMember 从房间移除成员。
 func (r *SQLRepository) RemoveRoomMember(ctx context.Context, ownerUserID string, roomID string, agentID string) (*protocol.ConversationContextAggregate, error) {
+	return r.removeRoomMember(ctx, ownerUserID, roomID, agentID, nil)
+}
+
+// RemoveRoomMemberAtVersion 使用 Room configuration_version CAS 移除成员。
+func (r *SQLRepository) RemoveRoomMemberAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	agentID string,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	return r.removeRoomMember(ctx, ownerUserID, roomID, agentID, &expectedVersion)
+}
+
+func (r *SQLRepository) removeRoomMember(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	agentID string,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	roomAggregate, err := r.getRoomAggregate(ctx, tx, ownerUserID, roomID)
+	roomAggregate, err := r.getLockedRoomAggregate(ctx, tx, ownerUserID, roomID)
 	if err != nil || roomAggregate == nil {
+		return nil, err
+	}
+	if err = validateExpectedConfigurationVersion(roomAggregate.Room, expectedVersion); err != nil {
 		return nil, err
 	}
 	removable, err := validateRoomAgentRemoval(*roomAggregate, agentID)
@@ -521,37 +628,83 @@ func (r *SQLRepository) removeRoomAgent(
 	room protocol.RoomAggregate,
 	agentID string,
 ) error {
-	if _, err := tx.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 DELETE FROM members
 WHERE room_id = `+r.dialect.Bind(1)+` AND member_type = 'agent' AND member_agent_id = `+r.dialect.Bind(2),
 		room.Room.ID,
 		agentID,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
-	if room.Room.HostAgentID == agentID {
-		if _, err := tx.ExecContext(ctx, `
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("room member not found")
+	}
+	query := `
 UPDATE rooms
-SET host_agent_id = NULL,
-    host_auto_reply_enabled = `+r.dialect.FalseValue()+`,
-    updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(1)+` AND owner_user_id = `+r.dialect.Bind(2), room.Room.ID, ownerUserID); err != nil {
-			return err
-		}
+SET host_agent_id = CASE
+        WHEN host_agent_id = ` + r.dialect.Bind(1) + ` THEN NULL
+        ELSE host_agent_id
+    END,
+    host_auto_reply_enabled = CASE
+        WHEN host_agent_id = ` + r.dialect.Bind(2) + ` THEN ` + r.dialect.FalseValue() + `
+        ELSE host_auto_reply_enabled
+    END,
+    configuration_version = configuration_version + 1,
+	    authority_epoch = authority_epoch + 1,
+	    updated_at = ` + r.dialect.CurrentTimestamp() + `
+WHERE id = ` + r.dialect.Bind(3) + ` AND owner_user_id = ` + r.dialect.Bind(4)
+	args := []any{agentID, agentID, room.Room.ID, ownerUserID}
+	_, err = tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
 	}
 	return r.deleteRoomAgentSessionDependents(ctx, tx, room.Room.ID, agentID)
 }
 
+func initialRoomVersion(value int64) int64 {
+	if value < 1 {
+		return 1
+	}
+	return value
+}
+
 // DeleteRoom 删除房间。
 func (r *SQLRepository) DeleteRoom(ctx context.Context, ownerUserID string, roomID string) (bool, error) {
+	return r.deleteRoom(ctx, ownerUserID, roomID, nil)
+}
+
+// DeleteRoomAtVersion 使用 Room configuration_version CAS 删除房间。
+func (r *SQLRepository) DeleteRoomAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	expectedVersion int64,
+) (bool, error) {
+	return r.deleteRoom(ctx, ownerUserID, roomID, &expectedVersion)
+}
+
+func (r *SQLRepository) deleteRoom(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	expectedVersion *int64,
+) (bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
 	}
 	defer tx.Rollback()
 
-	roomValue, err := r.loadRoom(ctx, tx, ownerUserID, roomID)
+	roomValue, err := r.lockRoomForMutation(ctx, tx, ownerUserID, roomID)
 	if err != nil || roomValue == nil {
+		return false, err
+	}
+	if err = validateExpectedConfigurationVersion(*roomValue, expectedVersion); err != nil {
 		return false, err
 	}
 	if err = r.deleteRoomDependents(ctx, tx, roomID); err != nil {
@@ -579,13 +732,17 @@ func (r *SQLRepository) CreateConversation(ctx context.Context, bundle CreateCon
 	}
 	defer tx.Rollback()
 
-	ownerUserID, err := r.lookupRoomOwnerUserID(ctx, tx, bundle.RoomID)
-	if err != nil {
+	roomValue, err := r.lockRoomForMutation(ctx, tx, bundle.OwnerUserID, bundle.RoomID)
+	if err != nil || roomValue == nil {
 		return nil, err
 	}
-	if ownerUserID == "" {
-		return nil, nil
+	if err = validateExpectedConfigurationVersion(
+		*roomValue,
+		bundle.ExpectedConfigurationVersion,
+	); err != nil {
+		return nil, err
 	}
+	ownerUserID := roomValue.OwnerUserID
 
 	conversationID := bundle.Conversation.ID
 	if bundle.Conversation.IsDraft {
@@ -655,6 +812,14 @@ INSERT INTO sessions (
 			return nil, err
 		}
 	}
+	if err = r.advanceRoomConfigurationVersion(
+		ctx,
+		tx,
+		ownerUserID,
+		bundle.RoomID,
+	); err != nil {
+		return nil, err
+	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -682,17 +847,56 @@ LIMIT 1`, roomID)
 
 // UpdateConversation 更新话题标题。
 func (r *SQLRepository) UpdateConversation(ctx context.Context, ownerUserID string, roomID string, conversationID string, title string) (*protocol.ConversationContextAggregate, error) {
-	result, err := r.db.ExecContext(ctx, `
+	return r.updateConversation(ctx, ownerUserID, roomID, conversationID, title, nil)
+}
+
+// UpdateConversationAtVersion 仅在 Room configuration_version 匹配时更新话题标题。
+func (r *SQLRepository) UpdateConversationAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	conversationID string,
+	title string,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	return r.updateConversation(
+		ctx,
+		ownerUserID,
+		roomID,
+		conversationID,
+		title,
+		&expectedVersion,
+	)
+}
+
+func (r *SQLRepository) updateConversation(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	conversationID string,
+	title string,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	roomValue, err := r.lockRoomForMutation(ctx, tx, ownerUserID, roomID)
+	if err != nil || roomValue == nil {
+		return nil, err
+	}
+	if err = validateExpectedConfigurationVersion(*roomValue, expectedVersion); err != nil {
+		return nil, err
+	}
+	result, err := tx.ExecContext(ctx, `
 UPDATE conversations
 SET title = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(2)+` AND room_id = `+r.dialect.Bind(3)+` AND EXISTS (
-    SELECT 1 FROM rooms WHERE id = `+r.dialect.Bind(4)+` AND owner_user_id = `+r.dialect.Bind(5)+`
-)`,
+WHERE id = `+r.dialect.Bind(2)+` AND room_id = `+r.dialect.Bind(3),
 		NullIfEmpty(title),
 		conversationID,
 		roomID,
-		roomID,
-		ownerUserID,
 	)
 	if err != nil {
 		return nil, err
@@ -704,6 +908,12 @@ WHERE id = `+r.dialect.Bind(2)+` AND room_id = `+r.dialect.Bind(3)+` AND EXISTS 
 	if affected == 0 {
 		return nil, nil
 	}
+	if err = r.advanceRoomConfigurationVersion(ctx, tx, ownerUserID, roomID); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
 	return r.getContextByConversation(ctx, ownerUserID, roomID, conversationID)
 }
 
@@ -714,12 +924,23 @@ func (r *SQLRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	roomID, err := r.lookupSessionRoomID(ctx, tx, sessionID)
+	if err != nil || roomID == "" {
+		return err
+	}
+	roomValue, err := r.lockRoomForMutation(ctx, tx, "", roomID)
+	if err != nil || roomValue == nil {
+		return err
+	}
 	var currentSDKSessionID sql.NullString
 	var optionsJSON string
 	err = tx.QueryRowContext(ctx, `
 SELECT sdk_session_id, options_json
 FROM sessions
-WHERE id = `+r.dialect.Bind(1), sessionID).Scan(&currentSDKSessionID, &optionsJSON)
+WHERE id = `+r.dialect.Bind(1)+`
+  AND conversation_id IN (
+      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(2)+`
+  )`, sessionID, roomID).Scan(&currentSDKSessionID, &optionsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -739,10 +960,14 @@ UPDATE sessions
 SET sdk_session_id = `+r.dialect.Bind(1)+`,
     options_json = `+r.dialect.Bind(2)+`,
     updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(3),
+WHERE id = `+r.dialect.Bind(3)+`
+  AND conversation_id IN (
+      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(4)+`
+  )`,
 		NullIfEmpty(sdkSessionID),
 		optionsJSON,
 		sessionID,
+		roomID,
 	)
 	if err != nil {
 		return err
@@ -775,12 +1000,26 @@ func (r *SQLRepository) updateConversationActivity(
 	if activityAt.IsZero() {
 		activityAt = time.Now().UTC()
 	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	roomID, err := r.lookupConversationRoomID(ctx, tx, conversationID)
+	if err != nil || roomID == "" {
+		return err
+	}
+	roomValue, err := r.lockRoomForMutation(ctx, tx, "", roomID)
+	if err != nil || roomValue == nil {
+		return err
+	}
 	activityValue := r.dialect.TimestampValue(activityAt)
 	draftUpdate := ""
 	if markStarted {
 		draftUpdate = "    is_draft = " + r.dialect.FalseValue() + ",\n"
 	}
-	_, err := r.db.ExecContext(ctx, `
+	if _, err = tx.ExecContext(ctx, `
 UPDATE conversations
 SET
 `+draftUpdate+`
@@ -792,12 +1031,15 @@ SET
         WHEN updated_at < `+r.dialect.Bind(3)+` THEN `+r.dialect.Bind(4)+`
         ELSE updated_at
     END
-WHERE id = `+r.dialect.Bind(5),
+WHERE id = `+r.dialect.Bind(5)+` AND room_id = `+r.dialect.Bind(6),
 		activityValue,
 		activityValue,
 		activityValue,
 		activityValue,
 		conversationID,
-	)
-	return err
+		roomID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

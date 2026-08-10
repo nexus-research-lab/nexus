@@ -41,6 +41,8 @@ const (
 	EventTypeGoalCleared                 EventType = "goal_cleared"
 	EventTypePermissionRequest           EventType = "permission_request"
 	EventTypePermissionRequestResolved   EventType = "permission_request_resolved"
+	EventTypeChannelAuthorization        EventType = "channel_authorization"
+	EventTypeChannelAuthorizationResult  EventType = "channel_authorization_result"
 	EventTypeAgentRuntimeEvent           EventType = "agent_runtime_event"
 	EventTypeWorkspaceEvent              EventType = "workspace_event"
 	EventTypeDirectoryChanged            EventType = "directory_changed"
@@ -140,6 +142,28 @@ type RuntimeStatusData struct {
 	Status *RuntimeStatus `json:"status"`
 }
 
+// ChannelAuthorizationData 只承载原生 UI 所需的人类展示材料。
+// principal、Agent、session、round 与 runtime lease 绑定永不进入 wire。
+type ChannelAuthorizationData struct {
+	FlowID            string    `json:"flow_id"`
+	PresentationToken string    `json:"presentation_token"`
+	Kind              string    `json:"kind"`
+	ChannelType       string    `json:"channel_type"`
+	AccountBinding    string    `json:"account_binding"`
+	QRPayload         string    `json:"qr_payload,omitempty"`
+	QRPayloadType     string    `json:"qr_payload_type,omitempty"`
+	Prompt            string    `json:"prompt"`
+	ExpiresAt         time.Time `json:"expires_at"`
+}
+
+// ChannelAuthorizationResultData 是验证码控制提交的无敏感值 ACK。
+type ChannelAuthorizationResultData struct {
+	FlowID   string `json:"flow_id"`
+	Accepted bool   `json:"accepted"`
+	Status   string `json:"status,omitempty"`
+	Message  string `json:"message"`
+}
+
 // CommandCatalogStatus 表示当前 session 命令目录的加载状态。
 type CommandCatalogStatus string
 
@@ -203,6 +227,47 @@ func NewErrorEvent(sessionKey string, message string) EventMessage {
 func NewPongEvent(sessionKey string) EventMessage {
 	event := NewEvent(EventTypePong, map[string]any{})
 	event.SessionKey = sessionKey
+	return event
+}
+
+// NewChannelAuthorizationEvent 构造只投递给原始认证会话的原生授权卡事件。
+func NewChannelAuthorizationEvent(
+	sessionKey string,
+	data ChannelAuthorizationData,
+) EventMessage {
+	event := NewEvent(EventTypeChannelAuthorization, map[string]any{
+		"flow_id":            data.FlowID,
+		"presentation_token": data.PresentationToken,
+		"kind":               data.Kind,
+		"channel_type":       data.ChannelType,
+		"account_binding":    data.AccountBinding,
+		"prompt":             data.Prompt,
+		"expires_at":         data.ExpiresAt,
+	})
+	if strings.TrimSpace(data.QRPayload) != "" {
+		event.Data["qr_payload"] = data.QRPayload
+	}
+	if strings.TrimSpace(data.QRPayloadType) != "" {
+		event.Data["qr_payload_type"] = data.QRPayloadType
+	}
+	event.SessionKey = strings.TrimSpace(sessionKey)
+	return event
+}
+
+// NewChannelAuthorizationResultEvent 构造不回显验证码的控制提交结果。
+func NewChannelAuthorizationResultEvent(
+	sessionKey string,
+	data ChannelAuthorizationResultData,
+) EventMessage {
+	event := NewEvent(EventTypeChannelAuthorizationResult, map[string]any{
+		"flow_id":  data.FlowID,
+		"accepted": data.Accepted,
+		"message":  data.Message,
+	})
+	if strings.TrimSpace(data.Status) != "" {
+		event.Data["status"] = strings.TrimSpace(data.Status)
+	}
+	event.SessionKey = strings.TrimSpace(sessionKey)
 	return event
 }
 

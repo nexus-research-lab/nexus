@@ -125,6 +125,7 @@ func TestStructuredRoomSlotCompletionSettlesRootAttemptWithoutSemanticSubmission
 		"",
 		"",
 	)
+	authorizeRoomExecutionTestSlot(service, roundValue, slot)
 	execution := &slotExecution{
 		service: service,
 		ctx:     context.Background(),
@@ -247,6 +248,7 @@ func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
 		"",
 		"",
 	)
+	authorizeRoomExecutionTestSlot(service, roundValue, slot)
 
 	service.handleSlotFailure(
 		context.Background(),
@@ -266,6 +268,32 @@ func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
 	if slot.getStatus() != "error" {
 		t.Fatalf("slot status = %q", slot.getStatus())
 	}
+}
+
+func authorizeRoomExecutionTestSlot(
+	service *Service,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID:                     roundValue.RoomID,
+			RoomType:               protocol.RoomTypeGroup,
+			PrivateMessagesEnabled: true,
+			AuthorityEpoch:         1,
+		},
+		Conversation: protocol.ConversationRecord{
+			ID:     roundValue.ConversationID,
+			RoomID: roundValue.RoomID,
+		},
+		Members: []protocol.MemberRecord{{
+			MemberType:    protocol.MemberTypeAgent,
+			MemberAgentID: slot.AgentID,
+		}},
+	}
+	service.rooms = &authorityFenceRoomStore{contextValue: contextValue}
+	roundValue.Context = cloneAuthorityFenceContext(contextValue)
+	roundValue.AuthorityEpoch = contextValue.Room.AuthorityEpoch
 }
 
 func TestStructuredRoomSlotTerminalizerFailureIsReturnedToCompletion(t *testing.T) {

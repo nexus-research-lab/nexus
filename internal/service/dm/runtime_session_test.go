@@ -192,7 +192,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
 
@@ -287,6 +287,7 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 			SessionKey:     sessionKey,
 			PermissionMode: sdkpermission.ModeDefault,
 		},
+		false,
 	); err != nil {
 		t.Fatalf("构建主智能体 runtime client 失败: %v", err)
 	}

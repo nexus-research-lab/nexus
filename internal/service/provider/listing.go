@@ -30,6 +30,25 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	return result, nil
 }
 
+// ListPrivate 返回当前 owner 自己管理的私有 Provider 配置。
+//
+// 对话配置控制面必须使用本入口；公共订阅 Provider 只能由人类运营界面管理。
+func (s *Service) ListPrivate(ctx context.Context) ([]Record, error) {
+	items, err := s.listPrivateAndNormalize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Record, 0, len(items))
+	for _, item := range items {
+		record, recordErr := s.recordForScopedItem(ctx, item)
+		if recordErr != nil {
+			return nil, recordErr
+		}
+		result = append(result, *record)
+	}
+	return result, nil
+}
+
 // ListPublic 返回订阅运营页管理的公共 Provider 配置列表。
 func (s *Service) ListPublic(ctx context.Context) ([]Record, error) {
 	if err := requirePublicProviderManagement(ctx); err != nil {

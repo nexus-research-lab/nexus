@@ -121,6 +121,10 @@ var (
 	ErrJobNotFound = errors.New("scheduled task not found")
 	// ErrRunNotFound 表示任务运行记录不存在。
 	ErrRunNotFound = errors.New("scheduled task run not found")
+	// ErrConfigurationVersionConflict 表示配置已被其他写入推进。
+	ErrConfigurationVersionConflict = errors.New("automation configuration version conflict")
+	// ErrCreateRequestConflict 表示同一个创建幂等键被用于不同意图。
+	ErrCreateRequestConflict = errors.New("scheduled task create request conflicts with an existing intent")
 	// ErrHeartbeatConfigInvalid 表示 heartbeat 配置非法。
 	ErrHeartbeatConfigInvalid = errors.New("heartbeat config is invalid")
 )

@@ -223,7 +223,14 @@ func TestRoomAckRuntimeDurableOutputWaitsForAppliedAck(t *testing.T) {
 	if _, err = runtimeManager.GetOrCreate(context.Background(), runtimeSessionKey, agentclient.Options{}); err != nil {
 		t.Fatalf("创建 ACK runtime 失败: %v", err)
 	}
-	service := &Service{inputQueue: store, runtime: runtimeManager}
+	roomStore := &authorityFenceRoomStore{contextValue: &protocol.ConversationContextAggregate{
+		Room:         protocol.RoomRecord{ID: location.RoomID},
+		Conversation: protocol.ConversationRecord{ID: location.ConversationID, RoomID: location.RoomID},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-ack"},
+		},
+	}}
+	service := &Service{inputQueue: store, runtime: runtimeManager, rooms: roomStore}
 	slot := &activeRoomSlot{
 		AgentID:           "agent-ack",
 		AgentRoundID:      "agent-round-ack",
@@ -234,8 +241,11 @@ func TestRoomAckRuntimeDurableOutputWaitsForAppliedAck(t *testing.T) {
 	execution := &slotExecution{
 		service: service,
 		ctx:     context.Background(),
-		round:   &activeRoomRound{},
-		slot:    slot,
+		round: &activeRoomRound{
+			RoomID:         location.RoomID,
+			ConversationID: location.ConversationID,
+		},
+		slot: slot,
 	}
 	if err = execution.handleDurableMessage(protocol.Message{
 		"message_id": "assistant-before-applied-ack",

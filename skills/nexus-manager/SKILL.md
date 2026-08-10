@@ -9,6 +9,11 @@ description: 管理 Nexus 的用户账号、Agent、Room、Workspace 与 Skill �
 
 ## 执行契约
 
+Nexus 产品配置不走本 CLI。Provider、Agent runtime options、偏好、Channel、Connector 凭据和 Skill 来源使用 `nexus_config` MCP：先 inspect/plan，再按 revision apply，最后核对 checks；主机启动配置只允许脱敏检查，真正变更走部署环境或原生桌面状态根迁移。不得直接编辑 Nexus 数据库或产品配置文件。
+
+CLI 工具：优先使用环境变量 `NEXUSCTL_COMMAND_PATH` 指向的命令；示例里的 `nexusctl` 只是简写。
+不要搜索 `cmd/nexusctl`，也不要手写 `go run ./cmd/nexusctl`，运行时入口已经注入。
+
 - 主智能体直接调用宿主注入的 `"$NEXUSCTL_COMMAND_PATH" --json ...`。只有入口变量没有注入时才使用 `nexusctl`。
 - 宿主注入的当前 owner 与 Agent workspace 是唯一作用域来源。命令前不要拼接环境变量，不要自行选择作用域，不要直接读写数据库、state 或 runtime 目录。
 - 普通 Agent 在 `runtime isolation=enforce` 下不能调用控制面；改用对应的内置 Nexus 工具/宿主 API，或明确报告当前部署不可用。不要通过源码搜索、`go run` 或改环境变量绕过。

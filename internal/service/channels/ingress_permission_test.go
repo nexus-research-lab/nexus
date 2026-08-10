@@ -12,6 +12,29 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
+func TestScheduledTaskMutationToolMatchesRuntimeWrappers(t *testing.T) {
+	for _, toolName := range []string{
+		"create_scheduled_task",
+		"mcp__nexus_automation__delete_scheduled_task",
+		"nexus_automation.update_scheduled_task",
+		"nexus_automation/run_scheduled_task",
+		"custom_wrapper__repair_scheduled_task",
+	} {
+		if !isScheduledTaskMutationTool(toolName) {
+			t.Fatalf("mutation wrapper %q was not denied", toolName)
+		}
+	}
+	for _, toolName := range []string{
+		"find_scheduled_tasks",
+		"mcp__nexus_automation__inspect_scheduled_task",
+		"mcp__nexus_automation__get_scheduled_task_report",
+	} {
+		if isScheduledTaskMutationTool(toolName) {
+			t.Fatalf("read tool %q was classified as a mutation", toolName)
+		}
+	}
+}
+
 func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
@@ -83,7 +106,7 @@ func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *test
 	}
 }
 
-func TestIngressServiceAcceptTelegramAllowsScheduledTaskToolsOnly(t *testing.T) {
+func TestIngressServiceAcceptTelegramAllowsScheduledTaskQueriesButDeniesMutations(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -133,8 +156,8 @@ func TestIngressServiceAcceptTelegramAllowsScheduledTaskToolsOnly(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create_scheduled_task 权限处理失败: %v", err)
 	}
-	if createTaskDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("telegram ingress 的 create_scheduled_task 应自动允许: %+v", createTaskDecision)
+	if createTaskDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("telegram ingress 的 create_scheduled_task 必须拒绝: %+v", createTaskDecision)
 	}
 
 	mcpDeleteTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
@@ -144,8 +167,8 @@ func TestIngressServiceAcceptTelegramAllowsScheduledTaskToolsOnly(t *testing.T) 
 	if err != nil {
 		t.Fatalf("mcp delete_scheduled_task 权限处理失败: %v", err)
 	}
-	if mcpDeleteTaskDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("telegram ingress 的 nexus_automation delete_scheduled_task 应自动允许: %+v", mcpDeleteTaskDecision)
+	if mcpDeleteTaskDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("telegram ingress 的 nexus_automation delete_scheduled_task 必须拒绝: %+v", mcpDeleteTaskDecision)
 	}
 
 	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
@@ -160,7 +183,7 @@ func TestIngressServiceAcceptTelegramAllowsScheduledTaskToolsOnly(t *testing.T) 
 	}
 }
 
-func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.T) {
+func TestIngressServiceAutoApproveToolsCannotOpenAutomationMutations(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -189,8 +212,8 @@ func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.
 	if err != nil {
 		t.Fatalf("nexus_automation 权限处理失败: %v", err)
 	}
-	if decision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("auto_approve_tools=nexus_automation 应允许 MCP 前缀工具: %+v", decision)
+	if decision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("auto_approve_tools=nexus_automation 不能开放 mutation: %+v", decision)
 	}
 	historyDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "mcp__nexus_automation__find_scheduled_tasks",
@@ -201,5 +224,42 @@ func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.
 	}
 	if historyDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("auto_approve_tools=nexus_automation 应允许历史搜索工具: %+v", historyDecision)
+	}
+}
+
+func TestIngressServiceAutoApproveAllCannotOpenAutomationMutations(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+
+	if _, err := service.Accept(context.Background(), IngressRequest{
+		Channel:        "feishu",
+		ChatType:       "group",
+		Ref:            "oc_group_123",
+		Content:        "创建并立即运行一个定时任务",
+		AutoApproveAll: true,
+	}); err != nil {
+		t.Fatalf("Accept 失败: %v", err)
+	}
+	for _, toolName := range []string{
+		"create_scheduled_task",
+		"mcp__nexus_automation__update_scheduled_task",
+		"mcp__nexus_automation__run_scheduled_task",
+	} {
+		decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+			ToolName: toolName,
+			Input:    map[string]any{"job_id": "job-1"},
+		})
+		if err != nil {
+			t.Fatalf("%s permission error: %v", toolName, err)
+		}
+		if decision.Behavior != sdkpermission.BehaviorDeny {
+			t.Fatalf("auto_approve_all 不能开放 %s: %+v", toolName, decision)
+		}
 	}
 }

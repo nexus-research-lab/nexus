@@ -1,3 +1,6 @@
+// INPUT: OAuth 目录/provider、owner 凭据、redirect allowlist 与一次性 callback state。
+// OUTPUT: 普通 UI 或 opaque 对话 flow 绑定的授权 URL、state 消费和 CAS callback 分流。
+// POS: Connector 浏览器 OAuth 协议编排；受控 flow 的终态下沉 AuthorizationControl。
 package connectors
 
 import (
@@ -16,6 +19,18 @@ import (
 
 // GetAuthURL 生成 OAuth 授权地址。
 func (s *Service) GetAuthURL(ctx context.Context, ownerUserID string, connectorID string, redirectURI string, extras map[string]string) (*AuthURLResult, error) {
+	return s.getAuthURL(ctx, ownerUserID, connectorID, redirectURI, extras, "")
+}
+
+// getAuthURL 为受控对话流程额外绑定 opaque flow_id；普通 HTTP/UI 流程传空。
+func (s *Service) getAuthURL(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	redirectURI string,
+	extras map[string]string,
+	controlFlowID string,
+) (*AuthURLResult, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	if err := s.purgeExpiredStates(ctx); err != nil {
 		return nil, err
@@ -49,15 +64,16 @@ func (s *Service) GetAuthURL(ctx context.Context, ownerUserID string, connectorI
 		return nil, err
 	}
 	if err = s.insertState(ctx, stateRow{
-		OwnerUserID:  ownerUserID,
-		State:        state,
-		ConnectorID:  entry.ConnectorID,
-		CodeVerifier: verifier,
-		RedirectURI:  resolvedRedirectURI,
-		RedirectKind: oauthRedirectKind(resolvedRedirectURI),
-		ShopDomain:   normalizedExtras["shop"],
-		ExtraJSON:    string(extraJSON),
-		ExpiresAt:    time.Now().Add(s.oauthStateTTL()),
+		OwnerUserID:   ownerUserID,
+		State:         state,
+		ConnectorID:   entry.ConnectorID,
+		CodeVerifier:  verifier,
+		RedirectURI:   resolvedRedirectURI,
+		RedirectKind:  oauthRedirectKind(resolvedRedirectURI),
+		ShopDomain:    normalizedExtras["shop"],
+		ExtraJSON:     string(extraJSON),
+		ControlFlowID: strings.TrimSpace(controlFlowID),
+		ExpiresAt:     time.Now().Add(s.oauthStateTTL()),
 	}); err != nil {
 		return nil, err
 	}
@@ -121,6 +137,12 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string,
 	state, err := s.consumeValidOAuthState(ctx, ownerUserID, request.State)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(state.ControlFlowID) != "" {
+		if s.authorizationControl == nil {
+			return nil, errors.New("Connector 对话授权控制器未装配")
+		}
+		return s.authorizationControl.completeOAuthCallback(ctx, *state, request)
 	}
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, state.OwnerUserID)
 	entry, ok := getConnector(state.ConnectorID)
@@ -193,7 +215,7 @@ func (s *Service) validateOAuthCallbackRedirect(state stateRow, raw string) erro
 func (s *Service) insertState(ctx context.Context, row stateRow) error {
 	ownerUserID := normalizeConnectorOwnerUserID(ctx, row.OwnerUserID)
 	query := fmt.Sprintf(
-		"INSERT INTO connector_oauth_states (owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+		"INSERT INTO connector_oauth_states (owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, control_flow_id, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
 		s.bind(1),
 		s.bind(2),
 		s.bind(3),
@@ -203,6 +225,7 @@ func (s *Service) insertState(ctx context.Context, row stateRow) error {
 		s.bind(7),
 		s.bind(8),
 		s.bind(9),
+		s.bind(10),
 	)
 	_, err := s.db.ExecContext(
 		ctx,
@@ -215,6 +238,7 @@ func (s *Service) insertState(ctx context.Context, row stateRow) error {
 		connectorFirstNonEmpty(row.RedirectKind, oauthRedirectKind(row.RedirectURI)),
 		emptyStringAsNil(row.ShopDomain),
 		emptyStringAsNil(row.ExtraJSON),
+		emptyStringAsNil(row.ControlFlowID),
 		row.ExpiresAt,
 	)
 	return err
@@ -226,14 +250,14 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 	}
 	normalizedOwnerUserID := strings.TrimSpace(ownerUserID)
 	query := fmt.Sprintf(
-		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at",
+		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, control_flow_id, expires_at",
 		s.bind(1),
 	)
 	args := []any{strings.TrimSpace(state)}
 	if normalizedOwnerUserID != "" {
 		normalizedOwnerUserID = normalizeConnectorOwnerUserID(ctx, normalizedOwnerUserID)
 		query = fmt.Sprintf(
-			"DELETE FROM connector_oauth_states WHERE owner_user_id = %s AND state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at",
+			"DELETE FROM connector_oauth_states WHERE owner_user_id = %s AND state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, control_flow_id, expires_at",
 			s.bind(1),
 			s.bind(2),
 		)
@@ -244,6 +268,7 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 	var redirectKind sql.NullString
 	var shopDomain sql.NullString
 	var extraJSON sql.NullString
+	var controlFlowID sql.NullString
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(
 		&row.OwnerUserID,
 		&row.State,
@@ -253,6 +278,7 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 		&redirectKind,
 		&shopDomain,
 		&extraJSON,
+		&controlFlowID,
 		&row.ExpiresAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -265,7 +291,25 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 	row.RedirectKind = connectorFirstNonEmpty(redirectKind.String, oauthRedirectKind(row.RedirectURI))
 	row.ShopDomain = shopDomain.String
 	row.ExtraJSON = extraJSON.String
+	row.ControlFlowID = controlFlowID.String
 	return &row, nil
+}
+
+func (s *Service) deleteOAuthStatesForControlFlow(
+	ctx context.Context,
+	ownerUserID string,
+	controlFlowID string,
+) error {
+	query := fmt.Sprintf(
+		"DELETE FROM connector_oauth_states WHERE owner_user_id = %s AND control_flow_id = %s",
+		s.bind(1), s.bind(2),
+	)
+	_, err := s.db.ExecContext(
+		ctx, query,
+		normalizeConnectorOwnerUserID(ctx, ownerUserID),
+		strings.TrimSpace(controlFlowID),
+	)
+	return err
 }
 
 func (s *Service) purgeExpiredStates(ctx context.Context) error {

@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
 	_ "modernc.org/sqlite"
 )
@@ -174,6 +176,143 @@ func TestServiceAccessTokenBearer(t *testing.T) {
 	}
 	if !state.AuthRequired || !state.AccessTokenEnabled {
 		t.Fatalf("ACCESS_TOKEN 状态不正确: %+v", state)
+	}
+}
+
+func TestVerifyInteractiveHumanRequiresLivePasswordSession(t *testing.T) {
+	cfg, db := newAuthTestDB(t)
+	service := NewServiceWithDB(cfg, db)
+	ctx := context.Background()
+	owner, err := service.InitOwner(ctx, InitOwnerInput{
+		Username: "admin",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	login, err := service.Login(ctx, LoginInput{
+		Username: "admin",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil)
+	request.AddCookie(&http.Cookie{Name: service.CookieName(), Value: login.SessionToken})
+	principal, _, err := service.InspectRequest(ctx, request)
+	if err != nil || principal == nil || principal.SessionID == nil {
+		t.Fatalf("resolve password principal: principal=%+v err=%v", principal, err)
+	}
+	verified, err := service.VerifyInteractiveHuman(ctx, principal)
+	if err != nil || verified == nil || verified.UserID != owner.UserID ||
+		verified.Role != RoleOwner || verified.AuthMethod != AuthMethodPassword {
+		t.Fatalf("verify active password human: principal=%+v err=%v", verified, err)
+	}
+	if role, roleErr := service.ResolveActivePrincipalRole(ctx, owner.UserID); roleErr != nil ||
+		role != RoleOwner {
+		t.Fatalf("resolve active principal role: role=%q err=%v", role, roleErr)
+	}
+	if err = service.Logout(ctx, login.SessionToken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.VerifyInteractiveHuman(ctx, principal); err == nil {
+		t.Fatal("revoked password session approved a destructive configuration change")
+	}
+	if _, err = service.VerifyInteractiveHuman(ctx, &Principal{
+		UserID: owner.UserID, Role: RoleOwner, AuthMethod: AuthMethodBearer,
+	}); err == nil {
+		t.Fatal("bearer principal approved a destructive configuration change")
+	}
+}
+
+func TestBoundInteractiveHumanLeaseSerializesLogout(t *testing.T) {
+	cfg, db := newAuthTestDB(t)
+	service := NewServiceWithDB(cfg, db)
+	ctx := context.Background()
+	owner, err := service.InitOwner(ctx, InitOwnerInput{
+		Username: "admin",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	login, err := service.Login(ctx, LoginInput{
+		Username: "admin",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil)
+	request.AddCookie(&http.Cookie{Name: service.CookieName(), Value: login.SessionToken})
+	principal, _, err := service.InspectRequest(ctx, request)
+	if err != nil || principal == nil || principal.SessionID == nil {
+		t.Fatalf("resolve password principal: principal=%+v err=%v", principal, err)
+	}
+	verified, release, err := service.AcquireBoundInteractiveHumanLease(
+		ctx,
+		owner.UserID,
+		AuthMethodPassword,
+		*principal.SessionID,
+	)
+	if err != nil || verified == nil || release == nil {
+		t.Fatalf("acquire human lease: principal=%+v release=%v err=%v", verified, release != nil, err)
+	}
+
+	logoutDone := make(chan error, 1)
+	go func() {
+		logoutDone <- service.Logout(ctx, login.SessionToken)
+	}()
+	select {
+	case logoutErr := <-logoutDone:
+		t.Fatalf("logout crossed active human lease: %v", logoutErr)
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+	select {
+	case logoutErr := <-logoutDone:
+		if logoutErr != nil {
+			t.Fatalf("logout after release: %v", logoutErr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("logout did not resume after human lease release")
+	}
+	if _, err = service.VerifyBoundInteractiveHuman(
+		ctx,
+		owner.UserID,
+		AuthMethodPassword,
+		*principal.SessionID,
+	); err == nil {
+		t.Fatal("released and revoked password session remained valid")
+	}
+}
+
+func TestVerifyInteractiveHumanRequiresDesktopSessionEvidence(t *testing.T) {
+	cfg, db := newAuthTestDB(t)
+	cfg.AppMode = "desktop"
+	service := NewServiceWithDB(cfg, db)
+	ctx := context.Background()
+	principal, _, err := service.InspectRequest(
+		ctx,
+		httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil),
+	)
+	if err != nil || principal == nil || principal.AuthMethod != AuthMethodLocal {
+		t.Fatalf("resolve desktop principal: principal=%+v err=%v", principal, err)
+	}
+	if _, err = service.VerifyInteractiveHuman(ctx, principal); err == nil {
+		t.Fatal("desktop local principal without session token evidence was accepted")
+	}
+	wrongEvidence := authctx.WithInteractiveHumanEvidence(ctx, "forged")
+	if _, err = service.VerifyInteractiveHuman(wrongEvidence, principal); err == nil {
+		t.Fatal("unknown desktop evidence was accepted")
+	}
+	verified, err := service.VerifyInteractiveHuman(
+		authctx.WithInteractiveHumanEvidence(ctx, "desktop_session_token"),
+		principal,
+	)
+	if err != nil || verified == nil || verified.UserID != SystemUserID ||
+		verified.Role != RoleOwner {
+		t.Fatalf("verify desktop human: principal=%+v err=%v", verified, err)
 	}
 }
 

@@ -39,6 +39,12 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 
 	api := handlershared.NewAPI(logger)
 	websocketHandler := newWebSocketHandler(api, appServices, cfg)
+	if appServices.ChannelAuthorization != nil {
+		appServices.ChannelAuthorization.SetHumanPresenter(websocketHandler)
+		websocketHandler.SetChannelAuthorizationController(
+			appServices.ChannelAuthorization,
+		)
+	}
 	configureExternalSessionNotifier(appServices, websocketHandler, logger)
 	configureRealtimeInvalidation(appServices, websocketHandler)
 

@@ -16,8 +16,14 @@ func runNow(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		SearchHint:  searchHintRunScheduledTask,
 		InputSchema: jobIDSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
+			if err := requireTrustedInteractiveMutation(sctx); err != nil {
+				return render.Error(err), nil
+			}
 			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
 			if err != nil {
+				return render.Error(err), nil
+			}
+			if err = requireAgentExecutionTaskMutation(scope.Job); err != nil {
 				return render.Error(err), nil
 			}
 			result, err := svc.RunTaskNow(scope.Context, scope.JobID)

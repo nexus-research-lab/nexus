@@ -4,28 +4,29 @@ import "time"
 
 // ScheduledTask 表示对外暴露的定时任务视图。
 type ScheduledTask struct {
-	JobID              string         `json:"job_id"`
-	OwnerUserID        string         `json:"-"`
-	Name               string         `json:"name"`
-	AgentID            string         `json:"agent_id"`
-	Schedule           Schedule       `json:"schedule"`
-	Instruction        string         `json:"instruction"`
-	ExecutionKind      string         `json:"execution_kind,omitempty"`
-	SessionTarget      SessionTarget  `json:"session_target"`
-	Delivery           DeliveryTarget `json:"delivery"`
-	Source             Source         `json:"source"`
-	OverlapPolicy      string         `json:"overlap_policy,omitempty"`
-	ExpiresAt          *time.Time     `json:"expires_at,omitempty"`
-	Enabled            bool           `json:"enabled"`
-	NextRunAt          *time.Time     `json:"next_run_at,omitempty"`
-	Running            bool           `json:"running"`
-	RunningRunID       string         `json:"running_run_id,omitempty"`
-	RunningStartedAt   *time.Time     `json:"running_started_at,omitempty"`
-	LastRunAt          *time.Time     `json:"last_run_at,omitempty"`
-	LastRunStatus      string         `json:"last_run_status,omitempty"`
-	FailureStreak      int            `json:"failure_streak,omitempty"`
-	LastError          *string        `json:"last_error,omitempty"`
-	LastDeliveryStatus string         `json:"last_delivery_status,omitempty"`
+	JobID                string         `json:"job_id"`
+	OwnerUserID          string         `json:"-"`
+	Name                 string         `json:"name"`
+	AgentID              string         `json:"agent_id"`
+	Schedule             Schedule       `json:"schedule"`
+	Instruction          string         `json:"instruction"`
+	ExecutionKind        string         `json:"execution_kind,omitempty"`
+	SessionTarget        SessionTarget  `json:"session_target"`
+	Delivery             DeliveryTarget `json:"delivery"`
+	Source               Source         `json:"source"`
+	OverlapPolicy        string         `json:"overlap_policy,omitempty"`
+	ExpiresAt            *time.Time     `json:"expires_at,omitempty"`
+	Enabled              bool           `json:"enabled"`
+	NextRunAt            *time.Time     `json:"next_run_at,omitempty"`
+	Running              bool           `json:"running"`
+	RunningRunID         string         `json:"running_run_id,omitempty"`
+	RunningStartedAt     *time.Time     `json:"running_started_at,omitempty"`
+	LastRunAt            *time.Time     `json:"last_run_at,omitempty"`
+	LastRunStatus        string         `json:"last_run_status,omitempty"`
+	FailureStreak        int            `json:"failure_streak,omitempty"`
+	LastError            *string        `json:"last_error,omitempty"`
+	LastDeliveryStatus   string         `json:"last_delivery_status,omitempty"`
+	ConfigurationVersion int64          `json:"configuration_version"`
 }
 
 // ScheduledTaskRun 表示 run ledger 条目。

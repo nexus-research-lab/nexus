@@ -19,6 +19,9 @@ func TestRoomServicePromotesFallbackWhenDeletingMainConversation(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService.SetSessionArtifactDeletionCoordinator(
+		&fakeRoomSessionArtifactDeletionCoordinator{},
+	)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "主对话删除助手A")

@@ -13,24 +13,26 @@ import (
 )
 
 type sessionState struct {
-	Client                 Client
-	StartupGeneration      uint64
-	ContextUsageByAgent    map[string]protocol.ContextUsageData
-	Rounds                 roundRegistry
-	BackgroundTasks        map[uint64]context.CancelFunc
-	BackgroundDone         chan struct{}
-	NextBackgroundTaskID   uint64
-	Closing                bool
-	CloseDone              chan struct{}
-	GuidedInputs           []GuidedInput
-	SubagentHooks          map[string]SubagentHookCallbacks
-	SubagentHookBindings   map[string]subagentHookBinding
-	NextSubagentBindingSeq uint64
-	IdleMessageDrain       *idleMessageDrain
-	RuntimeKind            agentclient.RuntimeKind
-	OwnerUserID            string
-	HasSubagentHistory     bool
-	LastUsedAt             time.Time
+	Client                   Client
+	StartupGeneration        uint64
+	ContextUsageByAgent      map[string]protocol.ContextUsageData
+	AgentID                  string
+	Rounds                   roundRegistry
+	BackgroundTasks          map[uint64]context.CancelFunc
+	BackgroundDone           chan struct{}
+	NextBackgroundTaskID     uint64
+	Closing                  bool
+	CloseDone                chan struct{}
+	GuidedInputs             []GuidedInput
+	SubagentHooks            map[string]SubagentHookCallbacks
+	SubagentHookBindings     map[string]subagentHookBinding
+	NextSubagentBindingSeq   uint64
+	IdleMessageDrain         *idleMessageDrain
+	RuntimeKind              agentclient.RuntimeKind
+	OwnerUserID              string
+	ProcessPolicyFingerprint string
+	HasSubagentHistory       bool
+	LastUsedAt               time.Time
 }
 
 type sessionStartupGate struct {
@@ -42,13 +44,17 @@ type sessionStartupGate struct {
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
 type Manager struct {
-	mu                 sync.RWMutex
-	sessions           map[string]*sessionState
-	startupGates       map[string]*sessionStartupGate
-	factory            Factory
-	now                func() time.Time
-	ownerProcessReaper OwnerProcessReaper
-	owners             map[string]*ownerLifecycle
+	mu                    sync.RWMutex
+	sessions              map[string]*sessionState
+	startupGates          map[string]*sessionStartupGate
+	revokedAgents         map[agentRuntimeIdentity]struct{}
+	revokedSessionKeys    map[string]struct{}
+	sessionDeletionBlocks map[string]uint64
+	nextSessionDeletionID uint64
+	factory               Factory
+	now                   func() time.Time
+	ownerProcessReaper    OwnerProcessReaper
+	owners                map[string]*ownerLifecycle
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
 	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
 	subagentUsageTotals map[string]int64
@@ -70,12 +76,15 @@ func NewManagerWithFactory(factory Factory) *Manager {
 		factory = defaultFactory{}
 	}
 	return &Manager{
-		sessions:            make(map[string]*sessionState),
-		startupGates:        make(map[string]*sessionStartupGate),
-		factory:             factory,
-		now:                 time.Now,
-		owners:              make(map[string]*ownerLifecycle),
-		subagentUsageTotals: make(map[string]int64),
+		sessions:              make(map[string]*sessionState),
+		startupGates:          make(map[string]*sessionStartupGate),
+		revokedAgents:         make(map[agentRuntimeIdentity]struct{}),
+		revokedSessionKeys:    make(map[string]struct{}),
+		sessionDeletionBlocks: make(map[string]uint64),
+		factory:               factory,
+		now:                   time.Now,
+		owners:                make(map[string]*ownerLifecycle),
+		subagentUsageTotals:   make(map[string]int64),
 	}
 }
 

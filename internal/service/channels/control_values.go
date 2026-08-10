@@ -18,6 +18,17 @@ func validateChannelConfigInput(
 	secrets map[string]string,
 	hasExistingCredentials bool,
 ) error {
+	for _, field := range catalog.CredentialFields {
+		if !field.Secret {
+			continue
+		}
+		if _, present := publicConfig[field.Key]; present {
+			return fmt.Errorf(
+				"%s is secret and must be supplied through the credentials channel",
+				field.Key,
+			)
+		}
+	}
 	if publicKey, secretKey, ok := channelManualCredentialPair(catalog.ChannelType); ok {
 		hasPublic := strings.TrimSpace(publicConfig[publicKey]) != ""
 		hasSecret := strings.TrimSpace(secrets[secretKey]) != "" || hasExistingCredentials
@@ -109,6 +120,13 @@ func normalizeStringMap(values map[string]string) map[string]string {
 
 func publicChannelConfigForView(channelType string, values map[string]string) map[string]string {
 	result := normalizeStringMap(values)
+	if catalog, ok := channelCatalogByType(channelType); ok {
+		for _, field := range catalog.CredentialFields {
+			if field.Secret {
+				delete(result, field.Key)
+			}
+		}
+	}
 	if normalizeIMChannelType(channelType) == ChannelTypeWeixinPersonal {
 		delete(result, "account_id")
 		delete(result, "user_id")

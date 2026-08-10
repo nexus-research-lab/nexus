@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 const (
@@ -70,6 +72,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		}
 	}
 	starters := []func(context.Context) (func(), error){
+		s.startSessionDeletionRecovery,
 		s.startChannels,
 		s.startAutomation,
 		s.startRoomDelayedWakes,
@@ -370,6 +373,45 @@ func executionDispatchWorkerID() string {
 		host = "unknown-host"
 	}
 	return fmt.Sprintf("nexus:%s:%d", strings.TrimSpace(host), os.Getpid())
+}
+
+func (s *Server) startSessionDeletionRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Core == nil || s.services.Core.Session == nil {
+		return nil, nil
+	}
+	sessionService := s.services.Core.Session
+	reconciled, err := sessionService.ReconcilePendingDeletions(ctx)
+	if sessionsvc.SessionDeletionRecoveryScanFailed(err) {
+		return nil, err
+	}
+	if err != nil {
+		s.api.BaseLogger().Warn("Session 删除恢复尚未完成，已保留 admission fence",
+			"reconciled", reconciled,
+			"err", err,
+		)
+	} else if reconciled > 0 {
+		s.api.BaseLogger().Info("Session 删除恢复完成", "reconciled", reconciled)
+	}
+	runCtx, stop := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				reconciled, reconcileErr := sessionService.ReconcilePendingDeletions(runCtx)
+				if reconcileErr != nil && !errors.Is(reconcileErr, context.Canceled) {
+					s.api.BaseLogger().Warn("Session 删除周期恢复未完成",
+						"reconciled", reconciled,
+						"err", reconcileErr,
+					)
+				}
+			}
+		}
+	}()
+	return stop, nil
 }
 
 func (s *Server) startRoomPublicHandoffs(ctx context.Context) (func(), error) {

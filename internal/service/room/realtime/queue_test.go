@@ -4,20 +4,163 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
+
+func TestRealtimeDirectUserQueueKeepsConfigurationContextAfterAdmissionClaim(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: authctx.SystemUserID, Role: authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
+	host := createTestAgent(t, agentService, ctx, "Queue Host")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:    []string{host.AgentID},
+		HostAgentID: host.AgentID,
+		Name:        "queue provenance",
+		Title:       "main",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := newFakeRoomClient()
+	prompts := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) error {
+		prompts <- prompt
+		go sendFakeAssistantResult(client, "room-queue-provenance", "done")
+		return nil
+	}
+	runtimeManager := runtimectx.NewManager()
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(cfg, db))
+	sources := make(chan string, 1)
+	bindings := make(chan authctx.QueuedHumanPrincipalBinding, 1)
+	service.SetMCPServerBuilder(func(
+		ctx context.Context,
+		_ *protocol.Agent,
+		_ string,
+		_ string,
+		sourceContextType string,
+		_ string,
+		_ string,
+		_ *atomic.Int64,
+		_ sdkpermission.Mode,
+	) map[string]sdkmcp.ServerConfig {
+		sources <- sourceContextType
+		if binding, ok := authctx.QueuedHumanPrincipalBindingFromContext(ctx); ok {
+			bindings <- binding
+		}
+		return nil
+	})
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
+		roomContext.Conversation.ID,
+		host.AgentID,
+		roomContext.Room.RoomType,
+	)
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if closeErr := runtimeManager.CloseSession(cleanupCtx, runtimeSessionKey); closeErr != nil &&
+			!runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			t.Errorf("clean up Room provenance runtime: %v", closeErr)
+		}
+	})
+	result, err := service.HandleInputQueue(ctx, realtimesvc.InputQueueRequest{
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		ClientMessageID:             "client-room-queue-provenance",
+		Action:                      "enqueue",
+		Content:                     "update the room settings safely",
+		TargetAgentIDs:              []string{host.AgentID},
+		TrustedConfigurationContext: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case source := <-sources:
+		if source != "room" {
+			t.Fatalf("configuration source = %q, want room", source)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Room configuration source")
+	}
+	select {
+	case binding := <-bindings:
+		if binding.UserID != authctx.SystemUserID ||
+			binding.AuthMethod != authctx.AuthMethodLocal ||
+			binding.SessionID != "" {
+			t.Fatalf("queued Room human binding = %+v", binding)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for queued Room human binding")
+	}
+	select {
+	case prompt := <-prompts:
+		if !strings.Contains(prompt, "update the room settings safely") {
+			t.Fatalf("Room queued prompt = %q", prompt)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Room queued prompt")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	status := ""
+	for time.Now().Before(deadline) {
+		queryErr := db.QueryRow(
+			`SELECT status FROM configuration_queue_admissions
+WHERE queue_item_id = ? AND scope = 'room'`,
+			result.ItemID,
+		).Scan(&status)
+		if queryErr == nil && status == queueadmissionstore.StatusConsumed {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status != queueadmissionstore.StatusConsumed {
+		t.Fatalf("Room queue admission status = %q, want consumed", status)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for service.CountRunningTasks(host.AgentID) != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if running := service.CountRunningTasks(host.AgentID); running != 0 {
+		t.Fatalf("Room queue round did not settle: running=%d", running)
+	}
+}
 
 func TestRealtimeServiceDoesNotExecuteDMThroughRoomRecovery(t *testing.T) {
 	cfg := newRoomTestConfig(t)
@@ -798,13 +941,14 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	})
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "@助手甲 等工具结果回来后优先看错误日志",
-		RoundID:        "room-round-guide-2",
-		UserMessageID:  "msg-room-guide-2",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		Content:                     "@助手甲 等工具结果回来后优先看错误日志",
+		RoundID:                     "room-round-guide-2",
+		UserMessageID:               "msg-room-guide-2",
+		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("Room 引导消息失败: %v", err)
 	}

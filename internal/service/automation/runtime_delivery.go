@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -47,6 +48,14 @@ func (s *Service) deliverJobObservation(
 	executionSessionKey string,
 	observation automationexec.ExecutionObservation,
 ) jobDeliveryResult {
+	currentJob, err := s.authorizedDeliveryJob(ctx, job)
+	if err != nil {
+		return jobDeliveryResult{
+			Status: automationdomain.DeliveryStatusFailed,
+			Error:  errorPointer(fmt.Errorf("automation delivery authority check failed: %w", err)),
+		}
+	}
+	job = currentJob
 	deliveryMode := strings.TrimSpace(job.Delivery.Mode)
 	deliveryChannel := strings.TrimSpace(job.Delivery.Channel)
 	deliveryTo := strings.TrimSpace(job.Delivery.To)

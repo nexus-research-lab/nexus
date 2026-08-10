@@ -1,3 +1,6 @@
+// INPUT: pairing 查询条件、完整创建行与人工字段 patch。
+// OUTPUT: owner 隔离的 pairing 行，人工更新不覆盖 ingress 维护字段。
+// POS: Pairing SQL 真相源，区分创建 upsert 与字段级更新语义。
 package channels
 
 import (
@@ -48,12 +51,21 @@ WHERE owner_user_id = ` + s.bind(1)
 }
 
 func (s *ControlService) getPairingRow(ctx context.Context, ownerUserID string, pairingID string) (*pairingRow, error) {
+	return s.getPairingRowFrom(ctx, s.db, ownerUserID, pairingID)
+}
+
+func (s *ControlService) getPairingRowFrom(
+	ctx context.Context,
+	store channelStore,
+	ownerUserID string,
+	pairingID string,
+) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
 	       agent_id, status, source, last_message_at, created_at, updated_at
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + " AND pairing_id = " + s.bind(2)
-	item, err := scanPairingScanner(s.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID)))
+	item, err := scanPairingScanner(store.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID)))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -62,6 +74,30 @@ WHERE owner_user_id = ` + s.bind(1) + " AND pairing_id = " + s.bind(2)
 
 func (s *ControlService) findPairingByTarget(
 	ctx context.Context,
+	ownerUserID string,
+	channelType string,
+	accountID string,
+	chatType string,
+	externalRef string,
+	threadID string,
+	status string,
+) (*pairingRow, error) {
+	return s.findPairingByTargetFrom(
+		ctx,
+		s.db,
+		ownerUserID,
+		channelType,
+		accountID,
+		chatType,
+		externalRef,
+		threadID,
+		status,
+	)
+}
+
+func (s *ControlService) findPairingByTargetFrom(
+	ctx context.Context,
+	store channelStore,
 	ownerUserID string,
 	channelType string,
 	accountID string,
@@ -82,7 +118,7 @@ WHERE owner_user_id = ` + s.bind(1) + `
 	  AND thread_id = ` + s.bind(6) + `
 	  AND status = ` + s.bind(7) + `
 	LIMIT 1`
-	item, err := scanPairingScanner(s.db.QueryRowContext(
+	item, err := scanPairingScanner(store.QueryRowContext(
 		ctx,
 		query,
 		strings.TrimSpace(ownerUserID),
@@ -100,29 +136,99 @@ WHERE owner_user_id = ` + s.bind(1) + `
 }
 
 func (s *ControlService) upsertPairingRowAndReload(ctx context.Context, row pairingRow) (*pairingRow, error) {
-	if err := s.upsertPairingRow(ctx, row); err != nil {
-		return nil, err
-	}
-	created, err := s.findPairingByTarget(
-		ctx,
-		row.OwnerUserID,
-		row.ChannelType,
-		row.AccountID,
-		row.ChatType,
-		row.ExternalRef,
-		row.ThreadID,
-		row.Status,
-	)
+	return s.upsertPairingRowAndReloadAtVersion(ctx, row, 0)
+}
+
+func (s *ControlService) upsertPairingRowAndReloadAtVersion(
+	ctx context.Context,
+	row pairingRow,
+	expectedVersion int64,
+) (*pairingRow, error) {
+	unlockControl := s.lockControlMutation(row.OwnerUserID)
+	defer unlockControl()
+	unlockPairing := s.lockPairingMutation(row.OwnerUserID)
+	defer unlockPairing()
+
+	var created *pairingRow
+	_, err := s.withChannelControlMutation(ctx, row.OwnerUserID, expectedVersion, func(tx *sql.Tx) error {
+		if writeErr := s.upsertPairingRowWith(ctx, tx, row); writeErr != nil {
+			return writeErr
+		}
+		var loadErr error
+		created, loadErr = s.findPairingByTargetFrom(
+			ctx,
+			tx,
+			row.OwnerUserID,
+			row.ChannelType,
+			row.AccountID,
+			row.ChatType,
+			row.ExternalRef,
+			row.ThreadID,
+			row.Status,
+		)
+		if loadErr != nil {
+			return loadErr
+		}
+		if created == nil {
+			return ErrPairingNotFound
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-	if created == nil {
-		return nil, ErrPairingNotFound
+		return nil, channelControlVersionError(expectedVersion, err)
 	}
 	return created, nil
 }
 
-func (s *ControlService) upsertPairingRow(ctx context.Context, row pairingRow) error {
+func (s *ControlService) patchPairingRowWith(
+	ctx context.Context,
+	store channelStore,
+	ownerUserID string,
+	pairingID string,
+	request UpdatePairingRequest,
+) (*pairingRow, error) {
+	setClauses := make([]string, 0, 4)
+	args := make([]any, 0, 5)
+	if request.AgentID != nil {
+		args = append(args, strings.TrimSpace(*request.AgentID))
+		setClauses = append(setClauses, "agent_id = "+s.bind(len(args)))
+	}
+	if request.Status != nil {
+		args = append(args, strings.TrimSpace(*request.Status))
+		setClauses = append(setClauses, "status = "+s.bind(len(args)))
+	}
+	if request.ExternalName != nil {
+		externalName := strings.TrimSpace(*request.ExternalName)
+		var value any
+		if externalName != "" {
+			value = externalName
+		}
+		args = append(args, value)
+		setClauses = append(setClauses, "external_name = "+s.bind(len(args)))
+	}
+	if len(setClauses) == 0 {
+		return s.getPairingRowFrom(ctx, store, ownerUserID, pairingID)
+	}
+	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
+	args = append(args, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID))
+	query := "UPDATE im_pairings SET " + strings.Join(setClauses, ", ") +
+		" WHERE owner_user_id = " + s.bind(len(args)-1) +
+		" AND pairing_id = " + s.bind(len(args))
+	result, err := store.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, nil
+	}
+	return s.getPairingRowFrom(ctx, store, ownerUserID, pairingID)
+}
+
+func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channelStore, row pairingRow) error {
 	if strings.TrimSpace(row.PairingID) == "" {
 		row.PairingID = s.idFactory("pair")
 	}
@@ -139,7 +245,7 @@ func (s *ControlService) upsertPairingRow(ctx context.Context, row pairingRow) e
     source = EXCLUDED.source,
     last_message_at = COALESCE(EXCLUDED.last_message_at, im_pairings.last_message_at),
     updated_at = CURRENT_TIMESTAMP`
-		_, err := s.db.ExecContext(
+		_, err := store.ExecContext(
 			ctx,
 			query,
 			row.PairingID,
@@ -169,7 +275,7 @@ func (s *ControlService) upsertPairingRow(ctx context.Context, row pairingRow) e
     source = excluded.source,
     last_message_at = COALESCE(excluded.last_message_at, im_pairings.last_message_at),
     updated_at = CURRENT_TIMESTAMP`
-	_, err := s.db.ExecContext(
+	_, err := store.ExecContext(
 		ctx,
 		query,
 		row.PairingID,

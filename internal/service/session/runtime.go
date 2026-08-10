@@ -50,7 +50,7 @@ func (s *Service) reconcileWorkspaceSessionRuntimeState(
 	if reconciled.IsActive || (normalized.Status == reconciled.Status && normalized.IsActive == reconciled.IsActive) {
 		return reconciled, nil
 	}
-	updated, err := s.ownerFiles(ctx).UpsertSession(
+	updated, err := s.ownerFiles(ctx).PatchSessionRuntime(
 		workspacePath,
 		closePersistedSessionMeta(reconciled),
 	)

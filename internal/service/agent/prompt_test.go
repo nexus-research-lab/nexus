@@ -416,6 +416,8 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for Nexus user accounts, members, Rooms, DMs, workspaces, and skills")
+	assertPromptContains(t, prompt, "Use `nexus_config` for Nexus settings")
+	assertPromptContains(t, prompt, "Configuration changes follow one workflow")
 	assertPromptContains(t, prompt, "account registration, user listing, and password resets")
 	assertPromptContains(t, prompt, "the host-injected current owner and workspace are authoritative")
 	assertPromptContains(t, prompt, "do not prepend environment assignments or add scope-selection arguments")

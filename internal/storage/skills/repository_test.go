@@ -3,7 +3,9 @@ package skills
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -112,6 +114,142 @@ func TestRepositoryStoresSourcesAndImportedSkills(t *testing.T) {
 	}
 }
 
+func TestCatalogMutationVersionCASAndRollback(t *testing.T) {
+	db, err := sql.Open(
+		"sqlite",
+		filepath.Join(t.TempDir(), "skills-version.db")+"?_pragma=busy_timeout(5000)",
+	)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	createSkillRepositoryTestSchema(t, db)
+	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
+	ctx := context.Background()
+
+	version, err := repository.CatalogVersion(ctx, "owner-a")
+	if err != nil || version != 1 {
+		t.Fatalf("初始 catalog version = %d, err=%v, want 1", version, err)
+	}
+	expected := int64(1)
+	mutation, err := repository.BeginCatalogMutation(ctx, "owner-a", &expected, true)
+	if err != nil {
+		t.Fatalf("开始 catalog mutation 失败: %v", err)
+	}
+	if mutation.Version() != 2 {
+		t.Fatalf("transaction version = %d, want 2", mutation.Version())
+	}
+	if err = mutation.UpsertSource(ctx, SourceEntity{
+		OwnerUserID: "owner-a",
+		SourceID:    "source-a",
+		Name:        "Source A",
+		Kind:        "url",
+		URL:         "https://example.com/a",
+		Trust:       "community",
+		Enabled:     true,
+	}); err != nil {
+		t.Fatalf("mutation 写来源失败: %v", err)
+	}
+	if err = mutation.Commit(); err != nil {
+		t.Fatalf("提交 catalog mutation 失败: %v", err)
+	}
+	version, err = repository.CatalogVersion(ctx, "owner-a")
+	if err != nil || version != 2 {
+		t.Fatalf("提交后 catalog version = %d, err=%v, want 2", version, err)
+	}
+	if _, err = repository.BeginCatalogMutation(ctx, "owner-a", &expected, true); !errors.Is(err, ErrCatalogVersionConflict) {
+		t.Fatalf("过期 expected version error = %v, want conflict", err)
+	}
+
+	expected = 2
+	mutation, err = repository.BeginCatalogMutation(ctx, "owner-a", &expected, true)
+	if err != nil {
+		t.Fatalf("开始待回滚 mutation 失败: %v", err)
+	}
+	source, err := mutation.GetSource(ctx, "source-a")
+	if err != nil || source == nil {
+		t.Fatalf("transaction 读取来源失败: source=%+v err=%v", source, err)
+	}
+	source.Enabled = false
+	if err = mutation.UpsertSource(ctx, *source); err != nil {
+		t.Fatalf("transaction 更新来源失败: %v", err)
+	}
+	if err = mutation.Rollback(); err != nil {
+		t.Fatalf("回滚 catalog mutation 失败: %v", err)
+	}
+	version, err = repository.CatalogVersion(ctx, "owner-a")
+	if err != nil || version != 2 {
+		t.Fatalf("回滚后 catalog version = %d, err=%v, want 2", version, err)
+	}
+	stored, err := repository.GetSource(ctx, "owner-a", "source-a")
+	if err != nil || stored == nil || !stored.Enabled {
+		t.Fatalf("回滚后来源不正确: source=%+v err=%v", stored, err)
+	}
+}
+
+func TestCatalogMutationConcurrentCASHasSingleWinner(t *testing.T) {
+	db, err := sql.Open(
+		"sqlite",
+		filepath.Join(t.TempDir(), "skills-race.db")+"?_pragma=busy_timeout(5000)",
+	)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	createSkillRepositoryTestSchema(t, db)
+	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
+	ctx := context.Background()
+	if _, err = repository.CatalogVersion(ctx, "owner-a"); err != nil {
+		t.Fatalf("初始化 catalog version 失败: %v", err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			expected := int64(1)
+			mutation, beginErr := repository.BeginCatalogMutation(
+				ctx,
+				"owner-a",
+				&expected,
+				true,
+			)
+			if beginErr != nil {
+				results <- beginErr
+				return
+			}
+			results <- mutation.Commit()
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(results)
+
+	successes := 0
+	conflicts := 0
+	for result := range results {
+		switch {
+		case result == nil:
+			successes++
+		case errors.Is(result, ErrCatalogVersionConflict):
+			conflicts++
+		default:
+			t.Fatalf("并发 CAS 返回未知错误: %v", result)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("并发 CAS successes=%d conflicts=%d, want 1/1", successes, conflicts)
+	}
+	version, err := repository.CatalogVersion(ctx, "owner-a")
+	if err != nil || version != 2 {
+		t.Fatalf("并发 CAS 后 version=%d err=%v, want 2", version, err)
+	}
+}
+
 func createSkillRepositoryTestSchema(t *testing.T, db *sql.DB) {
 	t.Helper()
 	statements := []string{
@@ -167,6 +305,11 @@ func createSkillRepositoryTestSchema(t *testing.T, db *sql.DB) {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 			PRIMARY KEY (owner_user_id, skill_name)
+		)`,
+		`CREATE TABLE skill_catalog_versions (
+			owner_user_id TEXT PRIMARY KEY,
+			version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 	}
 	for _, statement := range statements {

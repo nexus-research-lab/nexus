@@ -27,6 +27,9 @@ func TestRoomServiceLifecycle(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService.SetSessionArtifactDeletionCoordinator(
+		noopSessionArtifactDeletionCoordinator{},
+	)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
@@ -350,6 +353,9 @@ func TestRoomServiceClosesConversationRuntime(t *testing.T) {
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	runtimeCloser := &fakeRoomRuntimeCloser{}
 	roomService.SetRuntimeManager(runtimeCloser)
+	roomService.SetSessionArtifactDeletionCoordinator(
+		noopSessionArtifactDeletionCoordinator{},
+	)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")

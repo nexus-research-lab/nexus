@@ -213,10 +213,11 @@ func deliveryFromSessionKey(sessionKey string) automationdomain.DeliveryTarget {
 		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
 	return automationdomain.DeliveryTarget{
-		Mode:     automationdomain.DeliveryModeExplicit,
-		Channel:  channel,
-		To:       parsed.Ref,
-		ThreadID: parsed.ThreadID,
+		Mode:      automationdomain.DeliveryModeExplicit,
+		Channel:   channel,
+		To:        parsed.Ref,
+		AccountID: parsed.AccountID,
+		ThreadID:  parsed.ThreadID,
 	}.Normalized()
 }
 

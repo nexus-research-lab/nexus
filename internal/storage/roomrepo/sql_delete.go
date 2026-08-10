@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Room/conversation 删除意图。
+// OUTPUT: Room-first 锁顺序下完成的依赖清理、删除结果与回退 conversation。
+// POS: Room 删除事务编排；取得 Room 锁后才允许触碰 rounds/messages/sessions/conversations。
 package roomrepo
 
 import (
@@ -10,31 +13,60 @@ import (
 
 // DeleteConversation 删除对话并返回回退上下文。
 func (r *SQLRepository) DeleteConversation(ctx context.Context, ownerUserID string, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
+	return r.deleteConversation(ctx, ownerUserID, roomID, conversationID, nil)
+}
+
+// DeleteConversationAtVersion 仅在 Room configuration_version 匹配时删除对话。
+func (r *SQLRepository) DeleteConversationAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	conversationID string,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	return r.deleteConversation(
+		ctx,
+		ownerUserID,
+		roomID,
+		conversationID,
+		&expectedVersion,
+	)
+}
+
+func (r *SQLRepository) deleteConversation(
+	ctx context.Context,
+	ownerUserID string,
+	roomID string,
+	conversationID string,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 	deletion := conversationDeletion{
-		repository:     r,
-		ctx:            ctx,
-		tx:             tx,
-		ownerUserID:    ownerUserID,
-		roomID:         roomID,
-		conversationID: conversationID,
+		repository:      r,
+		ctx:             ctx,
+		tx:              tx,
+		ownerUserID:     ownerUserID,
+		roomID:          roomID,
+		conversationID:  conversationID,
+		expectedVersion: expectedVersion,
 	}
 	return deletion.run()
 }
 
 type conversationDeletion struct {
-	repository     *SQLRepository
-	ctx            context.Context
-	tx             *sql.Tx
-	ownerUserID    string
-	roomID         string
-	conversationID string
-	fallbackID     string
-	promotionType  string
+	repository      *SQLRepository
+	ctx             context.Context
+	tx              *sql.Tx
+	ownerUserID     string
+	roomID          string
+	conversationID  string
+	expectedVersion *int64
+	fallbackID      string
+	promotionType   string
 }
 
 func (d *conversationDeletion) run() (*protocol.ConversationContextAggregate, error) {
@@ -56,8 +88,11 @@ func (d *conversationDeletion) run() (*protocol.ConversationContextAggregate, er
 }
 
 func (d *conversationDeletion) prepare() (bool, error) {
-	roomValue, err := d.repository.loadRoom(d.ctx, d.tx, d.ownerUserID, d.roomID)
+	roomValue, err := d.repository.lockRoomForMutation(d.ctx, d.tx, d.ownerUserID, d.roomID)
 	if err != nil || roomValue == nil {
+		return false, err
+	}
+	if err = validateExpectedConfigurationVersion(*roomValue, d.expectedVersion); err != nil {
 		return false, err
 	}
 	conversations, err := d.repository.listConversations(d.ctx, d.tx, d.roomID)
@@ -161,7 +196,18 @@ WHERE id = `+d.repository.dialect.Bind(2)+` AND room_id = `+d.repository.dialect
 		return false, err
 	}
 	affected, err := result.RowsAffected()
-	return affected > 0, err
+	if err != nil || affected == 0 {
+		return false, err
+	}
+	if err = d.repository.advanceRoomConfigurationVersion(
+		d.ctx,
+		d.tx,
+		d.ownerUserID,
+		d.roomID,
+	); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *SQLRepository) deleteRoomDependents(ctx context.Context, tx *sql.Tx, roomID string) error {

@@ -1,9 +1,13 @@
+// INPUT: Provider 模型发现、模型 patch、默认模型目标与期望 configuration_version。
+// OUTPUT: 单次 Provider 聚合事务后的模型目录和模型记录。
+// POS: 模型、默认选择与 Provider configuration_version 的服务级一致性边界。
 package provider
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
@@ -17,7 +21,23 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
-	return s.fetchModelsForItem(ctx, *item)
+	return s.fetchModelsForItem(ctx, *item, item.ConfigurationVersion)
+}
+
+// FetchModelsAtVersion 在远端读取后，以 Provider 聚合版本 CAS 合并模型目录。
+func (s *Service) FetchModelsAtVersion(
+	ctx context.Context,
+	provider string,
+	expectedVersion int64,
+) (*FetchModelsResult, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	return s.fetchModelsForItem(ctx, *item, expectedVersion)
 }
 
 // FetchPublicModels 从公共 Provider 拉取模型列表。
@@ -26,10 +46,14 @@ func (s *Service) FetchPublicModels(ctx context.Context, provider string) (*Fetc
 	if err != nil {
 		return nil, err
 	}
-	return s.fetchModelsForItem(ctx, *item)
+	return s.fetchModelsForItem(ctx, *item, item.ConfigurationVersion)
 }
 
-func (s *Service) fetchModelsForItem(ctx context.Context, item providerstore.Entity) (*FetchModelsResult, error) {
+func (s *Service) fetchModelsForItem(
+	ctx context.Context,
+	item providerstore.Entity,
+	expectedVersion int64,
+) (*FetchModelsResult, error) {
 	models, err := s.fetchRemoteModels(ctx, item)
 	if err != nil {
 		return nil, err
@@ -63,10 +87,48 @@ func (s *Service) fetchModelsForItem(ctx context.Context, item providerstore.Ent
 	if len(entities) == 0 {
 		return nil, errors.New("远端没有返回可用模型")
 	}
-	if err = s.repository.UpsertModels(ctx, entities); err != nil {
+	shouldAutoDefault, err := s.shouldAutoDefaultDiscoveredModel(ctx, item)
+	if err != nil {
 		return nil, err
 	}
-	if err = s.autoDefaultDiscoveredModel(ctx, item, models); err != nil {
+	_, err = s.repository.WithProviderMutation(
+		ctx,
+		item.ID,
+		expectedVersion,
+		func(mutation *providerstore.Mutation) error {
+			if upsertErr := mutation.UpsertModels(ctx, entities); upsertErr != nil {
+				return upsertErr
+			}
+			if !shouldAutoDefault {
+				return nil
+			}
+			hasDefault, defaultErr := mutation.HasDefaultModelInScope(ctx)
+			if defaultErr != nil || hasDefault {
+				return defaultErr
+			}
+			savedModels, listErr := mutation.ListModels(ctx)
+			if listErr != nil {
+				return listErr
+			}
+			modelID := firstRemoteModelID(models)
+			if preferred := preferredEnabledModel(savedModels, nil); preferred != nil {
+				modelID = normalizeModelID(preferred.ModelID)
+			}
+			if modelID == "" {
+				return nil
+			}
+			if defaultErr = mutation.UpdateDefaultModel(ctx, modelID, s.now()); defaultErr != nil {
+				return defaultErr
+			}
+			s.loggerFor(ctx).Info(
+				"自动设置 Provider 默认模型",
+				"provider", item.Provider,
+				"model", modelID,
+			)
+			return nil
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 	saved, err := s.modelsForRecord(ctx, item.ID)
@@ -89,7 +151,25 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
-	return s.updateModelForItem(ctx, *item, modelID, input)
+	return s.updateModelForItem(ctx, *item, modelID, input, item.ConfigurationVersion)
+}
+
+// UpdateModelAtVersion 以 Provider 聚合版本 CAS 更新模型卡。
+func (s *Service) UpdateModelAtVersion(
+	ctx context.Context,
+	provider string,
+	modelID string,
+	input UpdateModelInput,
+	expectedVersion int64,
+) (*ModelRecord, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	return s.updateModelForItem(ctx, *item, modelID, input, expectedVersion)
 }
 
 // UpdatePublicModel 更新公共 Provider 的模型卡。
@@ -103,7 +183,7 @@ func (s *Service) UpdatePublicModel(
 	if err != nil {
 		return nil, err
 	}
-	return s.updateModelForItem(ctx, *item, modelID, input)
+	return s.updateModelForItem(ctx, *item, modelID, input, item.ConfigurationVersion)
 }
 
 func (s *Service) updateModelForItem(
@@ -111,6 +191,7 @@ func (s *Service) updateModelForItem(
 	item providerstore.Entity,
 	modelID string,
 	input UpdateModelInput,
+	expectedVersion int64,
 ) (*ModelRecord, error) {
 	update := modelUpdate{
 		service: s,
@@ -119,39 +200,55 @@ func (s *Service) updateModelForItem(
 		modelID: normalizeModelID(modelID),
 		input:   input,
 	}
-	return update.run()
+	return update.run(expectedVersion)
 }
 
 type modelUpdate struct {
-	service *Service
-	ctx     context.Context
-	item    providerstore.Entity
-	modelID string
-	input   UpdateModelInput
-	model   *providerstore.ModelEntity
+	service  *Service
+	ctx      context.Context
+	item     providerstore.Entity
+	modelID  string
+	input    UpdateModelInput
+	model    *providerstore.ModelEntity
+	mutation *providerstore.Mutation
 }
 
-func (u *modelUpdate) run() (*ModelRecord, error) {
+func (u *modelUpdate) run(expectedVersion int64) (*ModelRecord, error) {
 	if u.modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
-	if err := u.load(); err != nil {
-		return nil, err
-	}
-	if err := u.validateDefaultCandidate(); err != nil {
-		return nil, err
-	}
-	if err := u.persist(); err != nil {
-		return nil, err
-	}
-	if err := u.promoteDefault(); err != nil {
+	_, err := u.service.repository.WithProviderMutation(
+		u.ctx,
+		u.item.ID,
+		expectedVersion,
+		func(mutation *providerstore.Mutation) error {
+			u.mutation = mutation
+			if loadErr := u.load(); loadErr != nil {
+				return loadErr
+			}
+			if validateErr := u.validateDefaultCandidate(); validateErr != nil {
+				return validateErr
+			}
+			if persistErr := u.persist(); persistErr != nil {
+				return persistErr
+			}
+			return u.promoteDefault()
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 	return u.loadRecord()
 }
 
 func (u *modelUpdate) load() error {
-	model, err := u.service.getModelByID(u.ctx, u.item.ID, u.modelID)
+	model, err := u.mutation.GetModel(u.ctx, u.modelID)
+	if err == nil && model == nil {
+		escaped := url.PathEscape(u.modelID)
+		if escaped != u.modelID {
+			model, err = u.mutation.GetModel(u.ctx, escaped)
+		}
+	}
 	u.model = model
 	return err
 }
@@ -185,12 +282,12 @@ func (u *modelUpdate) defaultCandidate() providerstore.ModelEntity {
 func (u *modelUpdate) persist() error {
 	if u.model == nil {
 		u.model = u.newModel()
-		return u.service.repository.UpsertModels(u.ctx, []providerstore.ModelEntity{*u.model})
+		return u.mutation.UpsertModels(u.ctx, []providerstore.ModelEntity{*u.model})
 	}
 	if err := u.applyToExistingModel(); err != nil {
 		return err
 	}
-	return u.service.repository.UpdateModel(u.ctx, *u.model)
+	return u.mutation.UpdateModel(u.ctx, *u.model)
 }
 
 func (u *modelUpdate) newModel() *providerstore.ModelEntity {
@@ -243,7 +340,7 @@ func (u *modelUpdate) promoteDefault() error {
 	if !u.input.IsDefault {
 		return nil
 	}
-	return u.service.repository.UpdateDefaultModel(u.ctx, u.item.ID, u.model.ModelID, u.service.now())
+	return u.mutation.UpdateDefaultModel(u.ctx, u.model.ModelID, u.service.now())
 }
 
 func (u *modelUpdate) loadRecord() (*ModelRecord, error) {
@@ -267,29 +364,62 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
+	return s.setDefaultModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
+}
+
+// SetDefaultModelAtVersion 以 Provider 聚合版本 CAS 切换默认模型。
+func (s *Service) SetDefaultModelAtVersion(
+	ctx context.Context,
+	provider string,
+	modelID string,
+	expectedVersion int64,
+) (*ModelRecord, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	return s.setDefaultModelForItem(ctx, *item, modelID, expectedVersion)
+}
+
+func (s *Service) setDefaultModelForItem(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+	expectedVersion int64,
+) (*ModelRecord, error) {
 	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
-	model, err := s.getModelByID(ctx, item.ID, modelID)
+	_, err := s.repository.WithProviderMutation(
+		ctx,
+		item.ID,
+		expectedVersion,
+		func(mutation *providerstore.Mutation) error {
+			model, loadErr := mutation.GetModel(ctx, modelID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if model == nil {
+				return fmt.Errorf("模型不存在: %s", modelID)
+			}
+			identityChanged := normalizeModelEntityIdentity(model, modelID)
+			if !canSetDefaultModel(item, *model) {
+				return fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
+			}
+			if identityChanged {
+				model.UpdatedAt = s.now()
+				if updateErr := mutation.UpdateModel(ctx, *model); updateErr != nil {
+					return updateErr
+				}
+			}
+			return mutation.UpdateDefaultModel(ctx, model.ModelID, s.now())
+		},
+	)
 	if err != nil {
-		return nil, err
-	}
-	if model == nil {
-		return nil, fmt.Errorf("模型不存在: %s", modelID)
-	}
-	identityChanged := normalizeModelEntityIdentity(model, modelID)
-	if !canSetDefaultModel(*item, *model) {
-		return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
-	}
-	if identityChanged {
-		model.UpdatedAt = s.now()
-		if err = s.repository.UpdateModel(ctx, *model); err != nil {
-			return nil, err
-		}
-	}
-	now := s.now()
-	if err = s.repository.UpdateDefaultModel(ctx, item.ID, model.ModelID, now); err != nil {
 		return nil, err
 	}
 	updated, err := s.getModelByID(ctx, item.ID, modelID)

@@ -1,3 +1,6 @@
+// INPUT: 人类或 Agent actor 的任务 CRUD 请求及当前持久化任务。
+// OUTPUT: 校验、持久化、运行态与审计同步后的任务结果。
+// POS: scheduled task 配置写入与 script capability 的事务边界。
 package automation
 
 import (
@@ -52,8 +55,14 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
+
 	normalized := input.Normalized()
 	if err := normalized.Validate(); err != nil {
+		return nil, err
+	}
+	if err := rejectAgentScriptCreate(ctx, normalized); err != nil {
 		return nil, err
 	}
 	if err := s.validateTaskExpiration(normalized.ExpiresAt); err != nil {
@@ -65,6 +74,35 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 	ownerUserID, err := s.resolveTaskOwnerUserID(ctx, normalized.AgentID)
 	if err != nil {
 		return nil, err
+	}
+	deliveryCandidate := automationdomain.ScheduledTask{
+		OwnerUserID: ownerUserID,
+		AgentID:     normalized.AgentID,
+		Delivery:    normalized.Delivery,
+		Source:      normalized.Source,
+	}
+	if err = s.prepareTaskDeliveryMutation(ctx, &deliveryCandidate, true); err != nil {
+		return nil, err
+	}
+	normalized.Source = deliveryCandidate.Source
+	intentDigest := ""
+	if normalized.RequestID != "" {
+		intentDigest = taskCreateIntentDigest(normalized)
+		replayed, found, replayErr := s.repository.GetScheduledTaskCreateReplay(
+			ctx,
+			ownerUserID,
+			normalized.RequestID,
+			normalized.AgentID,
+			intentDigest,
+		)
+		if replayErr != nil {
+			return nil, replayErr
+		}
+		if found {
+			state := s.ensureJobState(*replayed)
+			result := s.scheduledTaskRuntimeSnapshot(*replayed, state)
+			return &result, nil
+		}
 	}
 	if err = s.validateTaskCapacity(ctx, ownerUserID, normalized.Enabled); err != nil {
 		return nil, err
@@ -85,42 +123,96 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 		ExpiresAt:     cloneTimePointer(normalized.ExpiresAt),
 		Enabled:       normalized.Enabled,
 	}
-	created, err := s.repository.UpsertScheduledTask(ctx, job)
+	var (
+		created    *automationdomain.ScheduledTask
+		createdNew = true
+	)
+	if normalized.RequestID != "" {
+		created, createdNew, err = s.repository.CreateScheduledTaskIdempotent(
+			ctx,
+			job,
+			normalized.RequestID,
+			intentDigest,
+		)
+	} else {
+		created, err = s.repository.UpsertScheduledTask(ctx, job)
+	}
 	if err != nil {
 		return nil, err
 	}
 	state := s.ensureJobState(*created)
-	s.persistJobRuntime(ctx, jobRuntimeUpdateFromState(created.JobID, state))
-	s.recordTaskEvent(ctx, automationdomain.TaskEventActionCreate, *created, "", taskEventJobSnapshot(*created))
-	result := scheduledTaskWithRuntime(*created, state)
+	s.persistJobRuntime(ctx, s.jobRuntimeUpdateSnapshot(created.JobID, state))
+	if createdNew {
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionCreate, *created, "", taskEventJobSnapshot(*created))
+	}
+	result := s.scheduledTaskRuntimeSnapshot(*created, state)
 	return &result, nil
 }
 
 // UpdateTask 更新任务。
 func (s *Service) UpdateTask(ctx context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.ScheduledTask, error) {
+	return s.updateTask(ctx, jobID, input, nil)
+}
+
+// UpdateTaskAtVersion 更新对话在读取阶段看到的精确版本。
+func (s *Service) UpdateTaskAtVersion(
+	ctx context.Context,
+	jobID string,
+	expectedVersion int64,
+	input automationdomain.UpdateJobInput,
+) (*automationdomain.ScheduledTask, error) {
+	return s.updateTask(ctx, jobID, input, &expectedVersion)
+}
+
+func (s *Service) updateTask(
+	ctx context.Context,
+	jobID string,
+	input automationdomain.UpdateJobInput,
+	expectedVersion *int64,
+) (*automationdomain.ScheduledTask, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
+
 	current, err := s.loadRequiredScheduledTask(ctx, jobID)
 	if err != nil {
 		return nil, err
+	}
+	if expectedVersion != nil &&
+		(*expectedVersion < 1 || current.ConfigurationVersion != *expectedVersion) {
+		return nil, automationdomain.ErrConfigurationVersionConflict
 	}
 	next, err := s.applyTaskUpdate(*current, input)
 	if err != nil {
 		return nil, err
 	}
+	if err = rejectAgentScriptControl(ctx, *current, next); err != nil {
+		return nil, err
+	}
+	if input.Delivery != nil || input.Source != nil {
+		if err = s.prepareTaskDeliveryMutation(ctx, &next, input.Delivery != nil); err != nil {
+			return nil, err
+		}
+	}
 	if err = s.validateTaskUpdate(ctx, *current, next); err != nil {
 		return nil, err
 	}
-	updated, err := s.repository.UpsertScheduledTask(ctx, next)
+	var updated *automationdomain.ScheduledTask
+	if expectedVersion != nil {
+		updated, err = s.repository.UpdateScheduledTaskAtVersion(ctx, next, *expectedVersion)
+	} else {
+		updated, err = s.repository.UpsertScheduledTask(ctx, next)
+	}
 	if err != nil {
 		return nil, err
 	}
 	state := s.ensureJobState(*updated)
-	s.persistJobRuntime(ctx, jobRuntimeUpdateFromState(updated.JobID, state))
+	s.persistJobRuntime(ctx, s.jobRuntimeUpdateSnapshot(updated.JobID, state))
 	eventRunID := updateTaskEventRunID(input, *current)
 	s.recordTaskEvent(ctx, updateTaskEventAction(input, *updated), *updated, eventRunID, updateTaskEventDetail(input, *current, *updated))
-	result := scheduledTaskWithRuntime(*updated, state)
+	result := s.scheduledTaskRuntimeSnapshot(*updated, state)
 	return &result, nil
 }
 
@@ -227,19 +319,64 @@ func (s *Service) UpdateTaskStatus(ctx context.Context, jobID string, enabled bo
 
 // DeleteTask 删除任务，并返回是否取消了删除时仍活跃的 run。
 func (s *Service) DeleteTask(ctx context.Context, jobID string) (*automationdomain.DeleteJobResult, error) {
+	return s.deleteTask(ctx, jobID, nil)
+}
+
+// DeleteTaskAtVersion 删除对话在 lookup 阶段实际核对过的任务版本。
+func (s *Service) DeleteTaskAtVersion(
+	ctx context.Context,
+	jobID string,
+	expectedVersion int64,
+) (*automationdomain.DeleteJobResult, error) {
+	return s.deleteTask(ctx, jobID, &expectedVersion)
+}
+
+func (s *Service) deleteTask(
+	ctx context.Context,
+	jobID string,
+	expectedVersion *int64,
+) (*automationdomain.DeleteJobResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
+
 	current, err := s.loadRequiredScheduledTask(ctx, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
-	return s.applyScheduledTaskDeletion(ctx, *current)
+	if err = rejectAgentScriptControl(ctx, *current); err != nil {
+		return nil, err
+	}
+	if expectedVersion != nil &&
+		(*expectedVersion < 1 || current.ConfigurationVersion != *expectedVersion) {
+		return nil, automationdomain.ErrConfigurationVersionConflict
+	}
+	if expectedVersion != nil {
+		if err = s.repository.DeleteScheduledTaskAtVersion(
+			ctx,
+			current.OwnerUserID,
+			current.JobID,
+			*expectedVersion,
+		); err != nil {
+			return nil, err
+		}
+	}
+	result, err := s.applyScheduledTaskDeletion(ctx, *current, expectedVersion != nil)
+	if err != nil && expectedVersion != nil {
+		s.mu.Lock()
+		delete(s.jobStates, current.JobID)
+		s.mu.Unlock()
+		return nil, &TaskDeletionReconcileError{cause: err}
+	}
+	return result, err
 }
 
 func (s *Service) applyScheduledTaskDeletion(
 	ctx context.Context,
 	current automationdomain.ScheduledTask,
+	persistenceCommitted bool,
 ) (*automationdomain.DeleteJobResult, error) {
 	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, current)
 	if err != nil {
@@ -249,11 +386,15 @@ func (s *Service) applyScheduledTaskDeletion(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.cleanupIsolatedAutomationSessions(ctx, current); err != nil {
-		return nil, err
+	if !skipIsolatedAutomationSessionCleanup(ctx) {
+		if err = s.cleanupIsolatedAutomationSessions(ctx, current); err != nil {
+			return nil, err
+		}
 	}
-	if err = s.repository.DeleteScheduledTask(ctx, current.OwnerUserID, current.JobID); err != nil {
-		return nil, err
+	if !persistenceCommitted {
+		if err = s.repository.DeleteScheduledTask(ctx, current.OwnerUserID, current.JobID); err != nil {
+			return nil, err
+		}
 	}
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
@@ -270,6 +411,25 @@ func (s *Service) applyScheduledTaskDeletion(
 		result.CancelledRunID = cancelledRunID
 	}
 	return result, nil
+}
+
+// TaskDeletionReconcileError 表示版本化删除已提交，但外围清理仍需重试。
+type TaskDeletionReconcileError struct {
+	cause error
+}
+
+func (e *TaskDeletionReconcileError) Error() string {
+	return "定时任务已删除，但关联运行态清理需要 reconcile: " + e.cause.Error()
+}
+
+func (e *TaskDeletionReconcileError) Unwrap() error {
+	return e.cause
+}
+
+// TaskDeletionCommitted 判断删除错误是否发生在持久化提交之后。
+func TaskDeletionCommitted(err error) bool {
+	var committed *TaskDeletionReconcileError
+	return errors.As(err, &committed)
 }
 
 func (s *Service) deadLetterDeletedTaskPendingDeliveries(ctx context.Context, job automationdomain.ScheduledTask) ([]string, error) {

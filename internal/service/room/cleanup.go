@@ -1,3 +1,6 @@
+// INPUT: 已提交删除的 Room/Conversation 上下文、overlay transcript 引用与成员过滤。
+// OUTPUT: 带持久 tombstone 的成员 Session 删除、完整 transcript lineage 与公共 ledger 清理。
+// POS: Room 删除提交后的外围清理阶段；禁止直接删除 Agent Session 目录。
 package room
 
 import (
@@ -9,6 +12,16 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
+type sessionArtifactLineageDeletionCoordinator interface {
+	DeleteSessionArtifactsWithTranscripts(
+		context.Context,
+		string,
+		string,
+		string,
+		[]string,
+	) error
+}
+
 func (s *Service) cleanupConversationArtifacts(
 	ctx context.Context,
 	contexts []protocol.ConversationContextAggregate,
@@ -18,18 +31,20 @@ func (s *Service) cleanupConversationArtifacts(
 ) error {
 	errs := make([]error, 0)
 	workspaceByOwnerAgent := make(map[string]string)
+	cleanupCtx := context.WithoutCancel(ctx)
 	for _, contextValue := range contexts {
 		ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
 		ownerFiles := s.files.ForOwner(ownerUserID)
 		ownerHistory := s.history.ForOwner(ownerUserID)
 		artifacts := make(map[string]*roomSessionArtifacts)
+		contextErrorCount := len(errs)
+
 		for _, sessionValue := range contextValue.Sessions {
 			if len(agentFilter) > 0 {
 				if _, ok := agentFilter[sessionValue.AgentID]; !ok {
 					continue
 				}
 			}
-
 			sessionKey := protocol.BuildRoomAgentSessionKey(
 				contextValue.Conversation.ID,
 				sessionValue.AgentID,
@@ -39,7 +54,7 @@ func (s *Service) cleanupConversationArtifacts(
 			workspacePath := workspaceByOwnerAgent[workspaceKey]
 			if workspacePath == "" {
 				resolvedPath, err := s.resolveAgentWorkspacePath(
-					ctx,
+					cleanupCtx,
 					ownerUserID,
 					sessionValue.AgentID,
 				)
@@ -51,12 +66,13 @@ func (s *Service) cleanupConversationArtifacts(
 				workspaceByOwnerAgent[workspaceKey] = workspacePath
 			}
 			artifact := ensureRoomSessionArtifacts(artifacts, workspacePath, sessionKey)
-			for _, transcriptSessionID := range protocol.RoomSessionTranscriptIDs(sessionValue) {
-				artifact.transcriptSessionIDs[transcriptSessionID] = struct{}{}
-			}
+			artifact.transcriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+				artifact.transcriptSessionIDs,
+				protocol.RoomSessionTranscriptIDs(sessionValue),
+			)
 		}
 		for _, reference := range transcriptReferences {
-			if reference.ConversationID != contextValue.Conversation.ID {
+			if strings.TrimSpace(reference.ConversationID) != strings.TrimSpace(contextValue.Conversation.ID) {
 				continue
 			}
 			if len(agentFilter) > 0 {
@@ -69,27 +85,80 @@ func (s *Service) cleanupConversationArtifacts(
 				reference.WorkspacePath,
 				reference.PrivateSessionKey,
 			)
-			artifact.transcriptSessionIDs[reference.SessionID] = struct{}{}
+			artifact.transcriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+				artifact.transcriptSessionIDs,
+				[]string{reference.SessionID},
+			)
 		}
-		for _, artifact := range artifacts {
-			transcriptFailed := false
-			for transcriptSessionID := range artifact.transcriptSessionIDs {
-				if _, err := ownerHistory.DeleteTranscriptSession(
-					artifact.workspacePath,
-					transcriptSessionID,
-				); err != nil {
-					errs = append(errs, err)
-					transcriptFailed = true
+
+		if len(artifacts) > 0 && s.sessionArtifacts == nil {
+			for _, artifact := range artifacts {
+				item, _, findErr := ownerFiles.FindSession(
+					[]string{artifact.workspacePath},
+					artifact.sessionKey,
+				)
+				if findErr != nil {
+					errs = append(errs, findErr)
+					continue
+				}
+				if item != nil {
+					errs = append(errs, ErrSessionArtifactDeletionCoordinatorUnavailable)
+					continue
+				}
+				for _, transcriptSessionID := range artifact.transcriptSessionIDs {
+					if _, err := ownerHistory.DeleteTranscriptSession(
+						artifact.workspacePath,
+						transcriptSessionID,
+					); err != nil {
+						errs = append(errs, err)
+					}
 				}
 			}
-			if transcriptFailed {
-				continue
-			}
-			if _, err := ownerFiles.DeleteSession(artifact.workspacePath, artifact.sessionKey); err != nil {
-				errs = append(errs, err)
+		} else {
+			for _, artifact := range artifacts {
+				if artifact.workspacePath == "" || artifact.sessionKey == "" {
+					continue
+				}
+				if lineageCoordinator, ok := s.sessionArtifacts.(sessionArtifactLineageDeletionCoordinator); ok {
+					if err := lineageCoordinator.DeleteSessionArtifactsWithTranscripts(
+						cleanupCtx,
+						ownerUserID,
+						artifact.workspacePath,
+						artifact.sessionKey,
+						artifact.transcriptSessionIDs,
+					); err != nil {
+						errs = append(errs, err)
+					}
+					continue
+				}
+
+				cleanupSessionID := ""
+				if len(artifact.transcriptSessionIDs) > 0 {
+					cleanupSessionID = artifact.transcriptSessionIDs[0]
+				}
+				if err := s.sessionArtifacts.DeleteSessionArtifacts(
+					cleanupCtx,
+					ownerUserID,
+					artifact.workspacePath,
+					artifact.sessionKey,
+					cleanupSessionID,
+				); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				if len(artifact.transcriptSessionIDs) > 1 {
+					for _, transcriptSessionID := range artifact.transcriptSessionIDs[1:] {
+						if _, err := ownerHistory.DeleteTranscriptSession(
+							artifact.workspacePath,
+							transcriptSessionID,
+						); err != nil {
+							errs = append(errs, err)
+						}
+					}
+				}
 			}
 		}
-		if deleteSharedLog && len(errs) == 0 {
+		if deleteSharedLog && len(errs) == contextErrorCount {
 			if _, err := ownerFiles.DeleteRoomConversation(
 				ownerUserID,
 				contextValue.Conversation.ID,
@@ -103,7 +172,7 @@ func (s *Service) cleanupConversationArtifacts(
 
 type roomSessionArtifacts struct {
 	sessionKey           string
-	transcriptSessionIDs map[string]struct{}
+	transcriptSessionIDs []string
 	workspacePath        string
 }
 
@@ -117,9 +186,8 @@ func ensureRoomSessionArtifacts(
 	key := workspacePath + "\x00" + sessionKey
 	if items[key] == nil {
 		items[key] = &roomSessionArtifacts{
-			sessionKey:           sessionKey,
-			transcriptSessionIDs: make(map[string]struct{}),
-			workspacePath:        workspacePath,
+			sessionKey:    sessionKey,
+			workspacePath: workspacePath,
 		}
 	}
 	return items[key]

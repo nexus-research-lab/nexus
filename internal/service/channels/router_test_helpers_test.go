@@ -75,12 +75,36 @@ func (s *stubPermissionSender) Events() []protocol.EventMessage {
 type recordingDeliveryChannel struct {
 	channelType string
 	startErr    error
+	stopErr     error
 
 	mu      sync.Mutex
 	starts  int
 	stops   int
 	targets []DeliveryTarget
 	texts   []string
+}
+
+type blockingDeliveryChannel struct {
+	recordingDeliveryChannel
+	startEntered chan struct{}
+	startRelease <-chan struct{}
+	startOnce    sync.Once
+}
+
+func (c *blockingDeliveryChannel) Start(ctx context.Context) error {
+	c.mu.Lock()
+	c.starts++
+	startErr := c.startErr
+	c.mu.Unlock()
+	c.startOnce.Do(func() {
+		close(c.startEntered)
+	})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.startRelease:
+		return startErr
+	}
 }
 
 func (c *recordingDeliveryChannel) ChannelType() string {
@@ -98,7 +122,7 @@ func (c *recordingDeliveryChannel) Stop(context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.stops++
-	return nil
+	return c.stopErr
 }
 
 func (c *recordingDeliveryChannel) SendDeliveryMessage(_ context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
@@ -179,6 +203,11 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	schema := `
+	CREATE TABLE channel_control_versions (
+	    owner_user_id VARCHAR(64) NOT NULL PRIMARY KEY,
+	    version INTEGER NOT NULL DEFAULT 1,
+	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+	);
 	CREATE TABLE automation_delivery_routes (
 	    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
 	    agent_id VARCHAR(64) NOT NULL,

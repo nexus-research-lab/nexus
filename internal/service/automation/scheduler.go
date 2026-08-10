@@ -165,7 +165,7 @@ func (s *Service) recoverStaleRunningJob(ctx context.Context, job automationdoma
 	message := fmt.Sprintf("自动化任务运行超过 %s 未完成，调度器已自动释放运行占用", timeout)
 	recovered := s.recoverJobRuntimeAsCancelled(ctx, job, message)
 	state := s.replaceJobRuntimeState(recovered)
-	result := scheduledTaskWithRuntime(recovered, state)
+	result := s.scheduledTaskRuntimeSnapshot(recovered, state)
 	s.recordTaskEvent(ctx, automationdomain.TaskEventActionRecover, result, runID, map[string]any{
 		"recovered_run_id": runID,
 		"reason":           "timeout",

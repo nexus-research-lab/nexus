@@ -9,4 +9,7 @@ const (
 	searchHintTaskReport          = "定时任务 scheduled task report 今日 发送 投递 运行 报告"
 	searchHintRunScheduledTask    = "定时任务 scheduled task run now 立即执行 补跑 验证"
 	searchHintRepairTask          = "定时任务 scheduled task repair recover retry delivery 卡住 补发"
+	searchHintGetHeartbeat        = "heartbeat 心跳 get status inspect 查看 配置 状态"
+	searchHintUpdateHeartbeat     = "heartbeat 心跳 update enable disable interval 修改 启用 停用"
+	searchHintWakeHeartbeat       = "heartbeat 心跳 wake now 唤醒 立即 下一次"
 )

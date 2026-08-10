@@ -30,13 +30,13 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 	}
 	logger := s.loggerFor(ctx).With("agent_id", agentID, "reason", reason)
 	sessionKey := automationexec.BuildMainSessionKey(agentID)
-	state, err := s.ensureHeartbeatState(ctx, agentID)
-	if err != nil {
+	if _, err := s.ensureHeartbeatState(ctx, agentID); err != nil {
 		logger.Error("heartbeat 状态初始化失败", "err", err)
 		s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
 		return
 	}
 
+	configValue := automationdomain.HeartbeatConfig{}
 	s.mu.Lock()
 	if runtime := s.heartbeatState[agentID]; runtime != nil {
 		if runtime.Running {
@@ -46,9 +46,15 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		}
 		runtime.Running = true
 		runtime.PendingWake = false
-		state = runtime
+		configValue = runtime.Config
 	}
 	s.mu.Unlock()
+	if strings.TrimSpace(configValue.AgentID) == "" {
+		err := errors.New("heartbeat runtime state not found")
+		logger.Error("heartbeat 状态初始化失败", "err", err)
+		s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
+		return
+	}
 	immediateWakeRequests, deferredWakeRequests := s.takeWakeRequests(agentID, sessionKey)
 
 	events, err := s.claimSystemEvents(ctx, agentID)
@@ -113,7 +119,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		if observation.Status == automationdomain.RunStatusSucceeded {
 			finishedAt := s.nowFn()
 			s.markEventsProcessed(events)
-			deliveryError := s.deliverHeartbeatObservation(ctx, agentID, state.Config, observation)
+			deliveryError := s.deliverHeartbeatObservation(ctx, agentID, configValue, observation)
 			if deliveryError != nil {
 				logger.Error("heartbeat 执行完成但投递失败",
 					"status", observation.Status,

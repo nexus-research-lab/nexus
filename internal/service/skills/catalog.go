@@ -1,3 +1,6 @@
+// INPUT: owner 可见 Skill 来源、目标 Agent 与 workspace 已部署目录。
+// OUTPUT: 基于同一次 Agent 读取的目录、installed 投影与 runtime_version 状态。
+// POS: Skills 目录聚合及配置控制面写前/写后状态证明的数据边界。
 package skills
 
 import (
@@ -17,26 +20,36 @@ import (
 )
 
 func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (map[string]catalogRecord, map[string]bool, bool, error) {
-	records, err := s.loadCatalogRecords(ctx)
+	records, enabledNames, agentValue, err := s.catalogWithAgentSnapshot(ctx, agentID)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	if err = s.populateAgentUsageCounts(ctx, records); err != nil {
 		return nil, nil, false, err
 	}
+	return records, enabledNames, agentValue != nil && agentValue.IsMain, nil
+}
+
+func (s *Service) catalogWithAgentSnapshot(
+	ctx context.Context,
+	agentID string,
+) (map[string]catalogRecord, map[string]bool, *protocol.Agent, error) {
+	records, err := s.loadCatalogRecords(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	enabledNames := map[string]bool{}
-	isMainAgent := false
+	var agentValue *protocol.Agent
 	if strings.TrimSpace(agentID) != "" {
-		agentValue, err := s.ensureAgent(ctx, agentID)
+		agentValue, err = s.ensureAgent(ctx, agentID)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, nil, nil, err
 		}
-		isMainAgent = agentValue.IsMain
 		enabledNames = enabledSkillNames(agentValue, records)
 		disabled := disabledSkillNames(agentValue)
 		workspaceRoot, err := s.openAgentWorkspace(agentValue)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, nil, nil, err
 		}
 		defer workspaceRoot.Close()
 		s.addWorkspaceLocalRecords(
@@ -47,7 +60,7 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 			disabled,
 		)
 	}
-	return records, enabledNames, isMainAgent, nil
+	return records, enabledNames, agentValue, nil
 }
 
 // populateAgentUsageCounts 为全局目录投影每个 Skill 的 Agent 使用数。

@@ -1,3 +1,6 @@
+// INPUT: owner scope、Agent 仓储记录、可选期望 runtime 版本与 SQL 方言。
+// OUTPUT: owner 隔离 CRUD、runtime_version CAS，以及含 Channel version/account/pairing 的原子删除。
+// POS: Agent 持久化的跨方言事务边界；级联顺序在提交前保持可核验。
 package agentrepo
 
 import (
@@ -177,7 +180,7 @@ func (r *SQLRepository) UpdateAgent(ctx context.Context, record UpdateRecord) (*
 	}
 	defer tx.Rollback()
 
-	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
+	agentResult, err := tx.ExecContext(ctx, fmt.Sprintf(`
 UPDATE agents
 SET name = %s, workspace_path = %s, avatar = %s, description = %s, vibe_tags = %s, updated_at = %s
 WHERE id = %s AND owner_user_id = %s`,
@@ -197,8 +200,16 @@ WHERE id = %s AND owner_user_id = %s`,
 		record.VibeTagsJSON,
 		record.AgentID,
 		record.OwnerUserID,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
+	}
+	affected, err := agentResult.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, nil
 	}
 
 	if _, err = tx.ExecContext(ctx, `
@@ -211,10 +222,12 @@ WHERE agent_id = `+r.dialect.Bind(2),
 		return nil, err
 	}
 
-	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
+	runtimeQuery := fmt.Sprintf(`
 UPDATE runtimes
 SET provider = %s, model = %s, permission_mode = %s, allowed_tools_json = %s, disallowed_tools_json = %s,
-    mcp_servers_json = %s, skill_ids_json = %s, disabled_skill_ids_json = %s, max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s, updated_at = %s
+    mcp_servers_json = %s, skill_ids_json = %s, disabled_skill_ids_json = %s,
+    max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s,
+    runtime_version = runtime_version + 1, updated_at = %s
 WHERE agent_id = %s`,
 		r.dialect.Bind(1),
 		r.dialect.Bind(2),
@@ -229,7 +242,8 @@ WHERE agent_id = %s`,
 		r.dialect.Bind(11),
 		r.dialect.CurrentTimestamp(),
 		r.dialect.Bind(12),
-	),
+	)
+	runtimeArgs := []any{
 		nullIfEmpty(record.Provider),
 		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
@@ -242,8 +256,24 @@ WHERE agent_id = %s`,
 		record.MaxThinkingTokens,
 		record.SettingSourcesJSON,
 		record.AgentID,
-	); err != nil {
+	}
+	if record.ExpectedRuntimeVersion != nil {
+		runtimeQuery += ` AND runtime_version = ` + r.dialect.Bind(13)
+		runtimeArgs = append(runtimeArgs, *record.ExpectedRuntimeVersion)
+	}
+	runtimeResult, err := tx.ExecContext(ctx, runtimeQuery, runtimeArgs...)
+	if err != nil {
 		return nil, err
+	}
+	affected, err = runtimeResult.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		if record.ExpectedRuntimeVersion != nil {
+			return nil, ErrRuntimeVersionConflict
+		}
+		return nil, sql.ErrNoRows
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -264,6 +294,7 @@ func (r *SQLRepository) UpdateAgentSkillSelection(
 UPDATE runtimes
 SET skill_ids_json = %s,
     disabled_skill_ids_json = %s,
+    runtime_version = runtime_version + 1,
     updated_at = %s
 WHERE agent_id = %s`,
 		r.dialect.Bind(1),
@@ -290,15 +321,141 @@ WHERE agent_id = %s`,
 	return r.GetAgent(ctx, agentID, ownerUserID)
 }
 
+// UpdateAgentSkillIDsAtVersion 仅在 runtime_version 匹配时更新全局 Skill 绑定列。
+func (r *SQLRepository) UpdateAgentSkillIDsAtVersion(
+	ctx context.Context,
+	agentID string,
+	ownerUserID string,
+	skillIDsJSON string,
+	expectedRuntimeVersion int64,
+) (*protocol.Agent, error) {
+	return r.updateAgentSkillColumnAtVersion(
+		ctx,
+		agentID,
+		ownerUserID,
+		"skill_ids_json",
+		skillIDsJSON,
+		expectedRuntimeVersion,
+	)
+}
+
+// UpdateAgentDisabledSkillIDsAtVersion 仅在版本匹配时更新 workspace Skill 停用列。
+func (r *SQLRepository) UpdateAgentDisabledSkillIDsAtVersion(
+	ctx context.Context,
+	agentID string,
+	ownerUserID string,
+	disabledSkillIDsJSON string,
+	expectedRuntimeVersion int64,
+) (*protocol.Agent, error) {
+	return r.updateAgentSkillColumnAtVersion(
+		ctx,
+		agentID,
+		ownerUserID,
+		"disabled_skill_ids_json",
+		disabledSkillIDsJSON,
+		expectedRuntimeVersion,
+	)
+}
+
+func (r *SQLRepository) updateAgentSkillColumnAtVersion(
+	ctx context.Context,
+	agentID string,
+	ownerUserID string,
+	column string,
+	valueJSON string,
+	expectedRuntimeVersion int64,
+) (*protocol.Agent, error) {
+	query := fmt.Sprintf(`
+UPDATE runtimes
+SET %s = %s,
+    runtime_version = runtime_version + 1,
+    updated_at = %s
+WHERE agent_id = %s`,
+		column,
+		r.dialect.Bind(1),
+		r.dialect.CurrentTimestamp(),
+		r.dialect.Bind(2),
+	)
+	args := []any{valueJSON, agentID}
+	if strings.TrimSpace(ownerUserID) != "" {
+		query += ` AND agent_id IN (SELECT id FROM agents WHERE owner_user_id = ` + r.dialect.Bind(3) + `)`
+		args = append(args, ownerUserID)
+	}
+	query += ` AND runtime_version = ` + r.dialect.Bind(len(args)+1)
+	args = append(args, expectedRuntimeVersion)
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, ErrRuntimeVersionConflict
+	}
+	return r.GetAgent(ctx, agentID, ownerUserID)
+}
+
 // DeleteAgent 删除 Agent 及其数据库依赖记录。
 func (r *SQLRepository) DeleteAgent(ctx context.Context, agentID string, ownerUserID string) error {
+	return r.deleteAgent(ctx, agentID, ownerUserID, nil)
+}
+
+// DeleteAgentAtVersion 仅在 runtime_version 仍等于计划版本时删除 Agent。
+func (r *SQLRepository) DeleteAgentAtVersion(
+	ctx context.Context,
+	agentID string,
+	ownerUserID string,
+	expectedRuntimeVersion int64,
+) error {
+	return r.deleteAgent(ctx, agentID, ownerUserID, &expectedRuntimeVersion)
+}
+
+func (r *SQLRepository) deleteAgent(
+	ctx context.Context,
+	agentID string,
+	ownerUserID string,
+	expectedRuntimeVersion *int64,
+) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err = r.deleteAgentDependents(ctx, tx, agentID); err != nil {
+	if expectedRuntimeVersion != nil {
+		query := `
+UPDATE runtimes
+SET runtime_version = runtime_version
+WHERE agent_id = ` + r.dialect.Bind(1) + `
+  AND runtime_version = ` + r.dialect.Bind(2)
+		args := []any{agentID, *expectedRuntimeVersion}
+		if ownerUserID != "" {
+			query += `
+  AND agent_id IN (
+      SELECT id
+      FROM agents
+      WHERE owner_user_id = ` + r.dialect.Bind(3) + `
+  )`
+			args = append(args, ownerUserID)
+		}
+		result, lockErr := tx.ExecContext(ctx, query, args...)
+		if lockErr != nil {
+			return lockErr
+		}
+		affected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return rowsErr
+		}
+		if affected != 1 {
+			return ErrRuntimeVersionConflict
+		}
+	}
+	if err = r.advanceChannelControlVersionForAgentDeletion(ctx, tx, ownerUserID); err != nil {
+		return err
+	}
+	if err = r.deleteAgentDependents(ctx, tx, agentID, ownerUserID); err != nil {
 		return err
 	}
 
@@ -308,8 +465,16 @@ func (r *SQLRepository) DeleteAgent(ctx context.Context, agentID string, ownerUs
 		args = append(args, ownerUserID)
 		query += ` AND owner_user_id = ` + r.dialect.Bind(2)
 	}
-	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
 		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return sql.ErrNoRows
 	}
 	return tx.Commit()
 }
@@ -352,7 +517,8 @@ SELECT
     COALESCE(rt.disabled_skill_ids_json, '[]'),
     rt.max_turns,
     rt.max_thinking_tokens,
-    COALESCE(rt.setting_sources_json, '[]')
+    COALESCE(rt.setting_sources_json, '[]'),
+    COALESCE(rt.runtime_version, 0)
 FROM agents a
 LEFT JOIN profiles p ON p.agent_id = a.id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id`, r.dialect.JSONText("a.vibe_tags"))
@@ -370,7 +536,35 @@ func scanAgents(rows *sql.Rows, capacity int) ([]protocol.Agent, error) {
 	return result, rows.Err()
 }
 
-func (r *SQLRepository) deleteAgentDependents(ctx context.Context, tx *sql.Tx, agentID string) error {
+func (r *SQLRepository) advanceChannelControlVersionForAgentDeletion(
+	ctx context.Context,
+	tx *sql.Tx,
+	ownerUserID string,
+) error {
+	if ownerUserID == "" {
+		return nil
+	}
+	insertQuery := `
+INSERT INTO channel_control_versions (owner_user_id, version, updated_at)
+VALUES (` + r.dialect.Bind(1) + `, 1, ` + r.dialect.CurrentTimestamp() + `)
+ON CONFLICT (owner_user_id) DO NOTHING`
+	if _, err := tx.ExecContext(ctx, insertQuery, ownerUserID); err != nil {
+		return err
+	}
+	updateQuery := `
+UPDATE channel_control_versions
+SET version = version + 1, updated_at = ` + r.dialect.CurrentTimestamp() + `
+WHERE owner_user_id = ` + r.dialect.Bind(1)
+	_, err := tx.ExecContext(ctx, updateQuery, ownerUserID)
+	return err
+}
+
+func (r *SQLRepository) deleteAgentDependents(
+	ctx context.Context,
+	tx *sql.Tx,
+	agentID string,
+	ownerUserID string,
+) error {
 	statements := []struct {
 		query string
 		args  []any
@@ -388,16 +582,45 @@ WHERE job_id IN (SELECT job_id FROM automation_scheduled_tasks WHERE agent_id = 
 		{query: `DELETE FROM automation_delivery_routes WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `DELETE FROM automation_heartbeat_states WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `DELETE FROM im_ingress_messages WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
-		{query: `DELETE FROM im_pairings WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
-		{query: `DELETE FROM im_channel_configs WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
+		{query: `
+DELETE FROM im_pairings
+WHERE agent_id = ` + r.dialect.Bind(1) + `
+  AND owner_user_id = ` + r.dialect.Bind(2), args: []any{agentID, ownerUserID}},
+		{query: `
+DELETE FROM im_channel_accounts
+WHERE owner_user_id = ` + r.dialect.Bind(1) + `
+  AND EXISTS (
+      SELECT 1
+      FROM im_channel_configs
+      WHERE im_channel_configs.owner_user_id = im_channel_accounts.owner_user_id
+        AND im_channel_configs.channel_type = im_channel_accounts.channel_type
+        AND im_channel_configs.agent_id = ` + r.dialect.Bind(2) + `
+  )`, args: []any{ownerUserID, agentID}},
+		{query: `
+DELETE FROM im_channel_configs
+WHERE agent_id = ` + r.dialect.Bind(1) + `
+  AND owner_user_id = ` + r.dialect.Bind(2), args: []any{agentID, ownerUserID}},
 		{query: `DELETE FROM contacts WHERE owner_agent_id = ` + r.dialect.Bind(1) + ` OR contact_agent_id = ` + r.dialect.Bind(2), args: []any{agentID, agentID}},
-		{query: `DELETE FROM members WHERE member_type = 'agent' AND member_agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `
 UPDATE rooms
-SET host_agent_id = NULL,
-    host_auto_reply_enabled = ` + r.dialect.FalseValue() + `,
+SET host_agent_id = CASE
+        WHEN host_agent_id = ` + r.dialect.Bind(1) + ` THEN NULL
+        ELSE host_agent_id
+    END,
+    host_auto_reply_enabled = CASE
+        WHEN host_agent_id = ` + r.dialect.Bind(2) + ` THEN ` + r.dialect.FalseValue() + `
+        ELSE host_auto_reply_enabled
+    END,
+    configuration_version = configuration_version + 1,
+    authority_epoch = authority_epoch + 1,
     updated_at = ` + r.dialect.CurrentTimestamp() + `
-WHERE host_agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
+WHERE host_agent_id = ` + r.dialect.Bind(3) + `
+   OR id IN (
+       SELECT room_id
+       FROM members
+       WHERE member_type = 'agent' AND member_agent_id = ` + r.dialect.Bind(4) + `
+   )`, args: []any{agentID, agentID, agentID, agentID}},
+		{query: `DELETE FROM members WHERE member_type = 'agent' AND member_agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `DELETE FROM rounds WHERE session_id IN (SELECT id FROM sessions WHERE agent_id = ` + r.dialect.Bind(1) + `)`, args: []any{agentID}},
 		{query: `
 UPDATE messages

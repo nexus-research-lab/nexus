@@ -111,6 +111,64 @@ INSERT INTO automation_cron_runs (
 	}
 }
 
+func TestSQLiteAutomationConfigurationVersionMigration(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "nexus.db"))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	if err = goose.Up(db, automationMigrationDir(t)); err != nil {
+		t.Fatalf("执行 migration 失败: %v", err)
+	}
+	for _, target := range []struct {
+		table  string
+		column string
+	}{
+		{table: "automation_scheduled_tasks", column: "configuration_version"},
+		{table: "automation_heartbeat_states", column: "configuration_version"},
+	} {
+		rows, queryErr := db.Query("PRAGMA table_info(" + target.table + ")")
+		if queryErr != nil {
+			t.Fatalf("读取 %s schema: %v", target.table, queryErr)
+		}
+		found := false
+		for rows.Next() {
+			var cid int
+			var name string
+			var columnType string
+			var notNull int
+			var defaultValue sql.NullString
+			var primaryKey int
+			if scanErr := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); scanErr != nil {
+				_ = rows.Close()
+				t.Fatalf("扫描 %s schema: %v", target.table, scanErr)
+			}
+			if name == target.column {
+				found = notNull == 1 && defaultValue.Valid && defaultValue.String == "1"
+			}
+		}
+		_ = rows.Close()
+		if !found {
+			t.Fatalf("%s.%s missing required default/version constraint", target.table, target.column)
+		}
+	}
+	if _, err = db.Exec(`
+INSERT INTO automation_task_create_requests (
+    owner_user_id, request_id, job_id, agent_id, intent_digest
+) VALUES ('owner', 'request', 'job', 'agent', 'digest')`); err != nil {
+		t.Fatalf("写入 automation_task_create_requests: %v", err)
+	}
+	if _, err = db.Exec(`
+INSERT INTO automation_task_create_requests (
+    owner_user_id, request_id, job_id, agent_id, intent_digest
+) VALUES ('owner', 'request', 'other-job', 'agent', 'other-digest')`); err == nil {
+		t.Fatal("owner/request_id unique boundary was not enforced")
+	}
+}
+
 func automationMigrationDir(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)

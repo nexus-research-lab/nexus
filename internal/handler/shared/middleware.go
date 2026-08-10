@@ -239,18 +239,43 @@ func ClientIP(request *http.Request) string {
 	return strings.TrimSpace(request.RemoteAddr)
 }
 
-// sanitizeQueryForLog 脱敏 URL 查询字符串中的 token 类参数，防止凭证写入访问日志。
+// sanitizeQueryForLog 脱敏 URL 查询字符串中的凭据和授权回调材料。
+// desktop_route 会嵌套原 OAuth callback 的 code/state，因此必须整体隐藏。
 func sanitizeQueryForLog(rawQuery string) string {
 	values, err := url.ParseQuery(rawQuery)
 	if err != nil {
 		return "[unparseable]"
 	}
-	for _, key := range []string{"access_token", "token", "api_key", "secret", "password"} {
-		if values.Has(key) {
+	for key := range values {
+		if sensitiveQueryLogKey(key) {
 			values.Set(key, "[redacted]")
 		}
 	}
 	return values.Encode()
+}
+
+func sensitiveQueryLogKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "access_token",
+		"refresh_token",
+		"id_token",
+		"token",
+		"api_key",
+		"client_secret",
+		"secret",
+		"password",
+		"code",
+		"authorization_code",
+		"device_code",
+		"user_code",
+		"verification_code",
+		"presentation_token",
+		"state",
+		"desktop_route":
+		return true
+	default:
+		return false
+	}
 }
 
 func generateRequestID() string {

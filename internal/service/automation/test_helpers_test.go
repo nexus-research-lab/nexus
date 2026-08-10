@@ -347,22 +347,50 @@ func (f *fakeDeliveryRouter) OwnerUserIDs() []string {
 	return result
 }
 
-type fakeRuntimeSessionCloser struct {
-	mu    sync.Mutex
-	calls []string
+type sessionArtifactDeletionCall struct {
+	ownerUserID      string
+	workspacePath    string
+	sessionKey       string
+	cleanupSessionID string
 }
 
-func (f *fakeRuntimeSessionCloser) CloseSession(_ context.Context, sessionKey string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls = append(f.calls, sessionKey)
-	return nil
+type fakeSessionArtifactDeletionCoordinator struct {
+	mu       sync.Mutex
+	calls    []sessionArtifactDeletionCall
+	err      error
+	deleteFn func(context.Context, sessionArtifactDeletionCall) error
 }
 
-func (f *fakeRuntimeSessionCloser) Calls() []string {
+func (f *fakeSessionArtifactDeletionCoordinator) DeleteSessionArtifacts(
+	ctx context.Context,
+	ownerUserID string,
+	workspacePath string,
+	sessionKey string,
+	cleanupSessionID string,
+) error {
+	call := sessionArtifactDeletionCall{
+		ownerUserID:      ownerUserID,
+		workspacePath:    workspacePath,
+		sessionKey:       sessionKey,
+		cleanupSessionID: cleanupSessionID,
+	}
+	f.mu.Lock()
+	f.calls = append(f.calls, call)
+	deleteFn := f.deleteFn
+	err := f.err
+	f.mu.Unlock()
+	if deleteFn != nil {
+		if deleteErr := deleteFn(ctx, call); deleteErr != nil {
+			return deleteErr
+		}
+	}
+	return err
+}
+
+func (f *fakeSessionArtifactDeletionCoordinator) Calls() []sessionArtifactDeletionCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	result := make([]string, len(f.calls))
+	result := make([]sessionArtifactDeletionCall, len(f.calls))
 	copy(result, f.calls)
 	return result
 }
@@ -423,6 +451,7 @@ CREATE TABLE automation_scheduled_tasks (
     failure_streak INTEGER NOT NULL DEFAULT 0,
     last_error TEXT,
     last_delivery_status VARCHAR(32),
+    configuration_version INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -472,8 +501,18 @@ CREATE TABLE automation_heartbeat_states (
     ack_max_chars INTEGER NOT NULL,
     last_heartbeat_at DATETIME,
     last_ack_at DATETIME,
+    configuration_version INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE automation_task_create_requests (
+    owner_user_id VARCHAR(64) NOT NULL,
+    request_id VARCHAR(128) NOT NULL,
+    job_id VARCHAR(64) NOT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    intent_digest VARCHAR(64) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (owner_user_id, request_id)
 );
 CREATE TABLE automation_delivery_routes (
     route_id VARCHAR(64) NOT NULL PRIMARY KEY,

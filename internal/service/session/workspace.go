@@ -37,6 +37,33 @@ func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]
 	return result, nil
 }
 
+// listMutableWorkspaceSessions 是配置 inspect 的纯读投影。它可以根据 Manager
+// 展示实时 active/closed 状态，但绝不为了“修复”展示状态而写回 meta 或推进版本。
+func (s *Service) listMutableWorkspaceSessions(ctx context.Context) ([]protocol.Session, error) {
+	workspacePaths, err := s.resolveWorkspacePaths(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	result := make([]protocol.Session, 0)
+	for _, workspacePath := range workspacePaths {
+		items, listErr := s.ownerFiles(ctx).ListSessions(workspacePath)
+		if listErr != nil {
+			return nil, listErr
+		}
+		for _, item := range items {
+			projected := s.applyRuntimeStateToSession(item)
+			if shouldHideWorkspaceSession(projected) {
+				continue
+			}
+			result = append(result, projected)
+		}
+	}
+	slices.SortFunc(result, func(left protocol.Session, right protocol.Session) int {
+		return right.LastActivity.Compare(left.LastActivity)
+	})
+	return result, nil
+}
+
 func (s *Service) listAgents(ctx context.Context, agentID string) ([]*protocol.Agent, error) {
 	if strings.TrimSpace(agentID) != "" {
 		agentValue, err := s.agentService.GetAgent(ctx, agentID)

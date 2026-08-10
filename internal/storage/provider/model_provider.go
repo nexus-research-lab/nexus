@@ -1,3 +1,6 @@
+// INPUT: provider/provider_models/runtimes 表字段。
+// OUTPUT: 仓储内部实体，包括 Provider 聚合 configuration_version。
+// POS: Provider SQL 仓储的持久化模型契约。
 package provider
 
 import "time"
@@ -19,8 +22,10 @@ type Entity struct {
 	LastTestStatus string
 	LastTestError  string
 	LastTestAt     *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// ConfigurationVersion 是 Provider 及其模型/测试状态共享的单调 CAS 版本。
+	ConfigurationVersion int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // ModelEntity 表示 provider_models 表的一行模型卡记录。

@@ -82,5 +82,8 @@ func normalizeSession(item protocol.Session) protocol.Session {
 	item.CreatedAt = item.CreatedAt.UTC()
 	item.LastActivity = item.LastActivity.UTC()
 	item.IsActive = item.Status == "active"
+	if item.ConfigurationVersion < 1 {
+		item.ConfigurationVersion = 1
+	}
 	return item
 }

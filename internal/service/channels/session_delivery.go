@@ -259,7 +259,7 @@ func (c *sessionDeliveryChannel) persistMessage(
 	}
 	sessionValue.Status = "closed"
 	sessionValue.IsActive = false
-	updated, err := c.files.ForOwner(ownerUserID).UpsertSession(workspacePath, sessionValue)
+	updated, err := c.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, sessionValue)
 	if err != nil {
 		return protocol.Session{}, err
 	}

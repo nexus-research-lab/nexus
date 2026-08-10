@@ -161,6 +161,46 @@ func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
 	}
 }
 
+func TestNexusControlPlaneDenyBlocksShellBypass(t *testing.T) {
+	fallbackCalls := 0
+	handler := WithNexusControlPlaneDeny(func(
+		_ context.Context,
+		request sdkpermission.Request,
+	) (sdkpermission.Decision, error) {
+		fallbackCalls++
+		return sdkpermission.Allow(request.Input, nil), nil
+	}, true)
+
+	for _, command := range []string{
+		`"$NEXUSCTL_COMMAND_PATH" agent list`,
+		"nexusctl room list",
+		"go run ./cmd/nexusctl user list",
+		"NEXUS-CTL channel list",
+	} {
+		decision, err := handler(context.Background(), sdkpermission.Request{
+			ToolName: "Bash",
+			Input:    map[string]any{"command": command},
+		})
+		if err != nil {
+			t.Fatalf("control-plane deny error: %v", err)
+		}
+		if decision.Behavior != sdkpermission.BehaviorDeny {
+			t.Fatalf("command %q was not denied: %+v", command, decision)
+		}
+	}
+	if fallbackCalls != 0 {
+		t.Fatalf("denied control-plane commands reached fallback %d times", fallbackCalls)
+	}
+
+	decision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": "go test ./..."},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 1 {
+		t.Fatalf("ordinary shell command should reach fallback: decision=%+v err=%v calls=%d", decision, err, fallbackCalls)
+	}
+}
+
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)

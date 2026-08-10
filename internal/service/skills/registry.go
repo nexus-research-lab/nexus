@@ -1,3 +1,6 @@
+// INPUT: owner confined Skill registry、导入数据库记录与历史文件 catalog。
+// OUTPUT: DB/FS 同构的外部 Skill 投影及一次性版本化历史 backfill。
+// POS: owner 全局 Skill registry 的读取、兼容迁移与持久实体映射层。
 package skills
 
 import (
@@ -154,6 +157,7 @@ func (s *Service) backfillImportedSkillRecords(
 	if err != nil {
 		return err
 	}
+	entities := make([]skillstore.ImportedSkillEntity, 0)
 	for _, record := range fileRecords {
 		if existing, getErr := s.skillStore.GetImportedSkill(ctx, authctx.OwnerUserID(ctx), record.Detail.Name); getErr != nil {
 			return getErr
@@ -176,69 +180,53 @@ func (s *Service) backfillImportedSkillRecords(
 			Recommendation: record.Detail.Recommendation,
 			ReadmeMarkdown: record.Detail.ReadmeMarkdown,
 		}
-		if err = s.upsertImportedSkillRecordAt(
-			ctx,
+		payload, readErr := readSkillFileAtOwnerPath(
 			ownerRoot,
+			record.SourcePath,
+			"SKILL.md",
+		)
+		if readErr != nil {
+			return readErr
+		}
+		sum := sha256.Sum256(payload)
+		entities = append(entities, s.importedSkillEntity(
+			ctx,
 			record.SourcePath,
 			manifest,
 			parsed,
-		); err != nil {
-			return err
-		}
+			hex.EncodeToString(sum[:]),
+		))
 	}
-	return nil
-}
-
-func (s *Service) upsertImportedSkillRecord(ctx context.Context, skillDir string, manifest externalManifest, parsed frontmatterData) error {
-	return s.upsertImportedSkillRecordWithHash(
+	if len(entities) == 0 {
+		return nil
+	}
+	_, err = s.withCatalogMutation(
 		ctx,
-		skillDir,
-		manifest,
-		parsed,
-		hashSkillContent(skillDir),
+		nil,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			for _, entity := range entities {
+				if upsertErr := mutation.UpsertImportedSkill(ctx, entity); upsertErr != nil {
+					return upsertErr
+				}
+			}
+			return nil
+		},
 	)
+	return err
 }
 
-func (s *Service) upsertImportedSkillRecordAt(
-	ctx context.Context,
-	ownerRoot *confinedfs.Root,
-	skillPath string,
-	manifest externalManifest,
-	parsed frontmatterData,
-) error {
-	relativePath, err := relativeSkillPath(ownerRoot, skillPath)
-	if err != nil {
-		return err
-	}
-	payload, err := readSkillFileAtOwnerPath(ownerRoot, skillPath, "SKILL.md")
-	if err != nil {
-		return err
-	}
-	sum := sha256.Sum256(payload)
-	return s.upsertImportedSkillRecordWithHash(
-		ctx,
-		filepath.Join(ownerRoot.Name(), filepath.FromSlash(relativePath)),
-		manifest,
-		parsed,
-		hex.EncodeToString(sum[:]),
-	)
-}
-
-func (s *Service) upsertImportedSkillRecordWithHash(
+func (s *Service) importedSkillEntity(
 	ctx context.Context,
 	skillDir string,
 	manifest externalManifest,
 	parsed frontmatterData,
 	contentHash string,
-) error {
-	if s.skillStore == nil {
-		return nil
-	}
-	ownerUserID := authctx.OwnerUserID(ctx)
+) skillstore.ImportedSkillEntity {
 	now := time.Now().UTC()
 	canonicalName := filepath.Base(filepath.Clean(skillDir))
-	entity := skillstore.ImportedSkillEntity{
-		OwnerUserID:    ownerUserID,
+	return skillstore.ImportedSkillEntity{
+		OwnerUserID:    authctx.OwnerUserID(ctx),
 		SkillName:      canonicalName,
 		Title:          firstNonEmpty(manifest.Title, parsed.Title, parsed.Name, canonicalName),
 		Description:    firstNonEmpty(manifest.Description, parsed.Description),
@@ -265,7 +253,6 @@ func (s *Service) upsertImportedSkillRecordWithHash(
 		ContentHash:    contentHash,
 		LastImportedAt: &now,
 	}
-	return s.skillStore.UpsertImportedSkill(ctx, entity)
 }
 
 func (s *Service) importedSkillSourceID(manifest externalManifest) string {

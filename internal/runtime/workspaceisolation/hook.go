@@ -168,6 +168,36 @@ func withWorkspacePolicyHook(
 	return options
 }
 
+// withRawNexusctlDenyHook closes the control-plane gap when path isolation is
+// disabled. Audit/enforce use the full workspace policy callback instead.
+func withRawNexusctlDenyHook(options agentclient.Options) agentclient.Options {
+	hooks := cloneHookMatchers(options.Hooks.Matchers)
+	hooks[sdkhook.EventPreToolUse] = append(
+		hooks[sdkhook.EventPreToolUse],
+		sdkhook.Matcher{Hooks: []sdkhook.Callback{func(
+			_ context.Context,
+			input sdkhook.Input,
+			_ string,
+		) (sdkhook.Output, error) {
+			toolName := normalizedToolName(input.ToolName)
+			if toolName != "bash" && toolName != "shell" && toolName != "powershell" {
+				return allowWorkspacePolicyOutput(), nil
+			}
+			toolInput, ok := input.ToolInput.(map[string]any)
+			if !ok {
+				return allowWorkspacePolicyOutput(), nil
+			}
+			command, ok := stringInput(toolInput, "command")
+			if !ok || forbiddenNexusctlScope(Policy{}, command, shellSyntaxFor(toolName)) == "" {
+				return allowWorkspacePolicyOutput(), nil
+			}
+			return denyWorkspacePolicyOutput(true, ""), nil
+		}}},
+	)
+	options.Hooks.Matchers = hooks
+	return options
+}
+
 func workspacePolicyCallback(mode Mode, policy Policy) sdkhook.Callback {
 	return func(_ context.Context, input sdkhook.Input, toolUseID string) (sdkhook.Output, error) {
 		violation := inspectToolAccess(policy, input)
@@ -185,7 +215,7 @@ func workspacePolicyCallback(mode Mode, policy Policy) sdkhook.Callback {
 			"is_main_agent", policy.IsMainAgent,
 			"mode", string(mode),
 		)
-		if mode == ModeAudit {
+		if mode == ModeAudit && !violation.terminal {
 			return allowWorkspacePolicyOutput(), nil
 		}
 		return denyWorkspacePolicyOutput(violation.terminal, violation.publicReason), nil

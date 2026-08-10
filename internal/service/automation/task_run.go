@@ -1,3 +1,6 @@
+// INPUT: 手动运行、投递重试、运行恢复请求及当前任务/run 状态。
+// OUTPUT: 受 owner 与 script capability 约束的执行、投递或恢复结果。
+// POS: scheduled task 主动执行和修复的 service 最终边界。
 package automation
 
 import (
@@ -17,6 +20,9 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*automationdoma
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
+
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, strings.TrimSpace(jobID))
 	if err != nil {
@@ -24,6 +30,9 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*automationdoma
 	}
 	if job == nil {
 		return nil, automationdomain.ErrJobNotFound
+	}
+	if err = rejectAgentScriptControl(ctx, *job); err != nil {
+		return nil, err
 	}
 	s.loggerFor(ctx).Info("手动触发自动化任务",
 		"job_id", job.JobID,
@@ -70,6 +79,8 @@ func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]automationd
 
 // RetryRunDelivery 只重试某次 run 的结果投递，不重新执行任务本身。
 func (s *Service) RetryRunDelivery(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error) {
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
 	return s.retryRunDelivery(ctx, jobID, runID, true)
 }
 
@@ -108,6 +119,9 @@ func (s *Service) loadDeliveryRetry(ctx context.Context, ownerUserID string, job
 	}
 	if job == nil {
 		return nil, nil, automationdomain.ErrJobNotFound
+	}
+	if err = rejectAgentScriptControl(ctx, *job); err != nil {
+		return nil, nil, err
 	}
 	run, err := s.repository.GetRun(ctx, ownerUserID, job.JobID, strings.TrimSpace(runID))
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && run == nil) {
@@ -174,12 +188,18 @@ func (s *Service) loadRetriedRun(ctx context.Context, ownerUserID string, jobID 
 
 // RecoverTaskRunningRun 手动释放任务当前运行占用，并把未完成 run 标记为取消。
 func (s *Service) RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTask, error) {
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
+
 	current, err := s.GetTask(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
 	if current == nil {
 		return nil, automationdomain.ErrJobNotFound
+	}
+	if err = rejectAgentScriptControl(ctx, *current); err != nil {
+		return nil, err
 	}
 	currentRunID := strings.TrimSpace(current.RunningRunID)
 	if currentRunID == "" {
@@ -195,7 +215,7 @@ func (s *Service) RecoverTaskRunningRun(ctx context.Context, jobID string, runID
 	}
 	recovered := s.recoverJobRuntimeAsCancelled(ctx, *current, message)
 	state := s.replaceJobRuntimeState(recovered)
-	result := scheduledTaskWithRuntime(recovered, state)
+	result := s.scheduledTaskRuntimeSnapshot(recovered, state)
 	s.recordTaskEvent(ctx, automationdomain.TaskEventActionRecover, result, currentRunID, map[string]any{"recovered_run_id": currentRunID})
 	return &result, nil
 }

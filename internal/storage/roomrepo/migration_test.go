@@ -95,8 +95,8 @@ INSERT INTO conversations (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 71 {
-		t.Fatalf("goose version = %d, want 71", version)
+	if version != 85 {
+		t.Fatalf("goose version = %d, want 85", version)
 	}
 
 	if err = goose.DownTo(db, migrationDir, 56); err != nil {
@@ -112,6 +112,17 @@ WHERE name = 'is_draft'
 	}
 	if draftColumnCount != 0 {
 		t.Fatalf("is_draft column count after rollback = %d, want 0", draftColumnCount)
+	}
+	if err = goose.Up(db, migrationDir); err != nil {
+		t.Fatalf("reapply migrations after full rollback: %v", err)
+	}
+	if err = db.QueryRow(
+		"SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1",
+	).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 85 {
+		t.Fatalf("goose version after reapply = %d, want 85", version)
 	}
 }
 

@@ -55,3 +55,15 @@ type SessionRecord struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
+
+// ActiveSessionIdentity 是按 session_id 重新核验人类交互时所需的最小状态。
+type ActiveSessionIdentity struct {
+	SessionID   string
+	UserID      string
+	AuthMethod  string
+	Username    string
+	DisplayName string
+	Role        string
+	Status      string
+	Avatar      string
+}

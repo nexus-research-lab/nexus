@@ -1,3 +1,6 @@
+// INPUT: Room、成员、Agent、对话与 session SQL 查询行。
+// OUTPUT: 含 configuration_version、authority_epoch 的 protocol Room 投影及聚合选择结果。
+// POS: Room 仓储查询结果到跨边界协议模型的统一扫描层。
 package roomrepo
 
 import (
@@ -31,6 +34,8 @@ func ScanRoomRecord(scanner Scanner) (protocol.RoomRecord, error) {
 		&item.HostAgentID,
 		&item.HostAutoReplyEnabled,
 		&item.PrivateMessagesEnabled,
+		&item.ConfigurationVersion,
+		&item.AuthorityEpoch,
 		&createdAt,
 		&updatedAt,
 	)

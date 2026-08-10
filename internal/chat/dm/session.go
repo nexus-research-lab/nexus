@@ -10,6 +10,7 @@ import (
 // MergeRoomBackedSession 合并 Room 索引会话与本地 overlay 会话。
 func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Session) protocol.Session {
 	merged := roomSession
+	merged.ConfigurationVersion = current.ConfigurationVersion
 	if strings.TrimSpace(StringPointerValue(merged.SessionID)) == "" && current.SessionID != nil {
 		merged.SessionID = current.SessionID
 	}

@@ -1,3 +1,6 @@
+// INPUT: owner 外部来源配置、来源健康结果与可选 expected catalog version。
+// OUTPUT: 默认来源初始化、版本化系统/私有来源更新与不递增功能版本的健康元数据。
+// POS: Skill marketplace 来源配置的 owner mutation 边界。
 package skills
 
 import (
@@ -15,7 +18,20 @@ func (s *Service) recordExternalSourceCheck(ctx context.Context, source external
 	if s.skillStore == nil || strings.TrimSpace(source.Key) == "" {
 		return
 	}
-	if err := s.skillStore.RecordSourceCheck(ctx, authctx.OwnerUserID(ctx), source.Key, time.Now().UTC(), lastError); err != nil {
+	_, err := s.withCatalogMutation(
+		ctx,
+		nil,
+		false,
+		func(mutation *skillstore.CatalogMutation) error {
+			return mutation.RecordSourceCheck(
+				ctx,
+				source.Key,
+				time.Now().UTC(),
+				lastError,
+			)
+		},
+	)
+	if err != nil {
 		slog.WarnContext(ctx, "记录 skill 来源检查状态失败", "source", source.Name, "err", err)
 	}
 }
@@ -50,6 +66,25 @@ func (s *Service) ListExternalSkillSources(ctx context.Context) ([]ExternalSkill
 
 // UpdateExternalSkillSource 更新当前用户的 skill 来源配置。
 func (s *Service) UpdateExternalSkillSource(ctx context.Context, sourceID string, request ExternalSkillSourceRequest) (*ExternalSkillSourceInfo, error) {
+	return s.updateExternalSkillSource(ctx, sourceID, request, nil)
+}
+
+// UpdateExternalSkillSourceAtVersion 仅在 owner catalog version 匹配时更新来源配置。
+func (s *Service) UpdateExternalSkillSourceAtVersion(
+	ctx context.Context,
+	sourceID string,
+	request ExternalSkillSourceRequest,
+	expectedVersion int64,
+) (*ExternalSkillSourceInfo, error) {
+	return s.updateExternalSkillSource(ctx, sourceID, request, &expectedVersion)
+}
+
+func (s *Service) updateExternalSkillSource(
+	ctx context.Context,
+	sourceID string,
+	request ExternalSkillSourceRequest,
+	expectedVersion *int64,
+) (*ExternalSkillSourceInfo, error) {
 	sourceID = strings.TrimSpace(sourceID)
 	if s.skillStore == nil {
 		return nil, errors.New("skill source store not configured")
@@ -70,7 +105,7 @@ func (s *Service) UpdateExternalSkillSource(ctx context.Context, sourceID string
 		if existing.Kind != externalSourceKindPrivateRegistry {
 			return nil, errors.New("不支持修改该用户来源类型")
 		}
-		return s.updatePrivateSkillSource(ctx, *existing, request)
+		return s.updatePrivateSkillSource(ctx, *existing, request, expectedVersion)
 	}
 	if _, ok := configuredExternalSourceIDs(configuredSources)[sourceID]; !ok {
 		return nil, errors.New("skill source not found")
@@ -78,16 +113,29 @@ func (s *Service) UpdateExternalSkillSource(ctx context.Context, sourceID string
 	if request.Name != nil || request.AuthType != nil || request.Token != nil {
 		return nil, errors.New("系统来源只允许修改启用状态")
 	}
-	enabled := existing.Enabled
-	if request.Enabled != nil {
-		enabled = *request.Enabled
-	}
-	entity := *existing
-	entity.Enabled = enabled
-	if err = s.skillStore.UpsertSource(ctx, entity); err != nil {
-		return nil, err
-	}
-	row, err := s.skillStore.GetSource(ctx, ownerUserID, existing.SourceID)
+	var row *skillstore.SourceEntity
+	_, err = s.withCatalogMutation(
+		ctx,
+		expectedVersion,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			current, loadErr := mutation.GetSource(ctx, sourceID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if current == nil || sourceManagedBy(*current) != externalSourceManagedBySystem {
+				return errors.New("skill source not found")
+			}
+			if request.Enabled != nil {
+				current.Enabled = *request.Enabled
+			}
+			if updateErr := mutation.UpsertSource(ctx, *current); updateErr != nil {
+				return updateErr
+			}
+			row = current
+			return nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -148,23 +196,31 @@ func (s *Service) ensureConfiguredSkillSources(ctx context.Context, sources []ex
 		return nil
 	}
 	ownerUserID := authctx.OwnerUserID(ctx)
-	for _, source := range sources {
-		if err := s.skillStore.EnsureSource(ctx, skillstore.SourceEntity{
-			OwnerUserID: ownerUserID,
-			SourceID:    source.Key,
-			Name:        source.Name,
-			Kind:        source.Kind,
-			URL:         source.URL,
-			Trust:       firstNonEmpty(source.Trust, externalSourceTrustCommunity),
-			ManagedBy:   externalSourceManagedBySystem,
-			AuthType:    externalSourceAuthNone,
-			Enabled:     source.Enabled,
-			SortOrder:   source.SortOrder,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := s.withCatalogMutation(
+		ctx,
+		nil,
+		false,
+		func(mutation *skillstore.CatalogMutation) error {
+			for _, source := range sources {
+				if ensureErr := mutation.EnsureSource(ctx, skillstore.SourceEntity{
+					OwnerUserID: ownerUserID,
+					SourceID:    source.Key,
+					Name:        source.Name,
+					Kind:        source.Kind,
+					URL:         source.URL,
+					Trust:       firstNonEmpty(source.Trust, externalSourceTrustCommunity),
+					ManagedBy:   externalSourceManagedBySystem,
+					AuthType:    externalSourceAuthNone,
+					Enabled:     source.Enabled,
+					SortOrder:   source.SortOrder,
+				}); ensureErr != nil {
+					return ensureErr
+				}
+			}
+			return nil
+		},
+	)
+	return err
 }
 
 func externalSkillSourceInfoFromSource(source externalSkillSource) ExternalSkillSourceInfo {

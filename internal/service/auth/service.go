@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -26,11 +27,14 @@ var (
 
 // Service 提供统一认证能力。
 type Service struct {
-	config       config.Config
-	repository   *authstore.Repository
-	now          func() time.Time
-	idFactory    func(string) string
-	tokenFactory func() (string, error)
+	config            config.Config
+	repository        *authstore.Repository
+	now               func() time.Time
+	idFactory         func(string) string
+	tokenFactory      func() (string, error)
+	runtimeTransition RuntimeTransitionCoordinator
+	initOwnerMu       sync.Mutex
+	humanSessionMu    sync.RWMutex
 }
 
 // NewServiceWithDB 使用共享 DB 创建认证服务。

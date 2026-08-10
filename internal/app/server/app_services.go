@@ -16,7 +16,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
+	channelauthorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -26,6 +28,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
+	nexusmanagersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
@@ -38,39 +41,43 @@ import (
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
+	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 )
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
 type AppServices struct {
-	DB                *sql.DB
-	Core              *CoreServices
-	Auth              *authsvc.Service
-	Provider          *providercfg.Service
-	Subscription      *subscriptionsvc.Service
-	Workspace         *workspacepkg.Service
-	ProjectPermission *projectpermissionsvc.Service
-	Skills            *skillsvc.Service
-	Connectors        *connectorsvc.Service
-	Launcher          *launcher.Service
-	Title             *titlegen.Service
-	Usage             *usagesvc.Service
-	Preferences       *preferencessvc.Service
-	Permission        *permissionctx.Context
-	Runtime           *runtimectx.Manager
-	Channels          *channels.Router
-	ChannelControl    *channels.ControlService
-	DM                *dmsvc.Service
-	Ingress           *channels.IngressService
-	RoomRealtime      *roomrealtime.Service
-	Automation        *automationsvc.Service
-	Imagegen          *imagegensvc.Service
-	Goal              *goalsvc.Service
-	Orchestration     *orchestrationsvc.Service
-	Loops             *loopsvc.Service
-	MemoryMaintenance *memorymaintenancesvc.Coordinator
-	SlashCatalog      *slashcommandsvc.Catalog
-	SlashRegistry     *slashcommandsvc.Registry
-	ownsDB            bool
+	DB                     *sql.DB
+	Core                   *CoreServices
+	Auth                   *authsvc.Service
+	Provider               *providercfg.Service
+	Subscription           *subscriptionsvc.Service
+	Workspace              *workspacepkg.Service
+	ProjectPermission      *projectpermissionsvc.Service
+	Skills                 *skillsvc.Service
+	Connectors             *connectorsvc.Service
+	ConnectorAuthorization *connectorsvc.AuthorizationControl
+	Configuration          *configurationsvc.Service
+	Launcher               *launcher.Service
+	Title                  *titlegen.Service
+	Usage                  *usagesvc.Service
+	Preferences            *preferencessvc.Service
+	Permission             *permissionctx.Context
+	Runtime                *runtimectx.Manager
+	Channels               *channels.Router
+	ChannelControl         *channels.ControlService
+	ChannelAuthorization   *channelauthorizationsvc.Service
+	DM                     *dmsvc.Service
+	Ingress                *channels.IngressService
+	RoomRealtime           *roomrealtime.Service
+	Automation             *automationsvc.Service
+	Imagegen               *imagegensvc.Service
+	Goal                   *goalsvc.Service
+	Orchestration          *orchestrationsvc.Service
+	Loops                  *loopsvc.Service
+	MemoryMaintenance      *memorymaintenancesvc.Coordinator
+	SlashCatalog           *slashcommandsvc.Catalog
+	SlashRegistry          *slashcommandsvc.Registry
+	ownsDB                 bool
 }
 
 // Close 等待仍可能写入 workspace 的标题任务结束，并释放容器自行打开的数据库。
@@ -79,6 +86,9 @@ func (s *AppServices) Close(ctx context.Context) error {
 		return nil
 	}
 	var closeErrors []error
+	if s.ChannelAuthorization != nil {
+		closeErrors = append(closeErrors, s.ChannelAuthorization.Close(ctx))
+	}
 	if s.Title != nil {
 		closeErrors = append(closeErrors, s.Title.Close(ctx))
 	}
@@ -152,6 +162,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
 		LauncherPath: cfg.RuntimeLauncherPath,
 	})
+	runtimeTransition := newRuntimeAuthTransition(runtimeManager)
+	authService.SetRuntimeTransitionCoordinator(runtimeTransition)
 	projectPermissionService.SetRuntimeSessionCloser(runtimeManager)
 	goalService.SetPreviewFiller(titleService)
 	goalObjectiveService := goalobjectivesvc.NewService(providerService, preferencesService)
@@ -166,6 +178,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
 	channelRouter.SetLogger(logger.With("component", "channels"))
 	channelControl := channels.NewControlService(cfg, db, core.Agent, channelRouter)
+	core.Room.SetSessionArtifactDeletionCoordinator(core.Session)
+	core.Agent.SetDeletionCoordinator(newAgentDeletionCoordinator(channelControl, runtimeManager))
+	queueAdmissionRepository := queueadmissionstore.NewRepository(cfg, db)
 	dmService := dmsvc.NewService(cfg, core.Agent, runtimeManager, permission)
 	dmService.SetLogger(logger.With("component", "dm"))
 	dmService.SetProviderResolver(providerService)
@@ -175,6 +190,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetExecutionContextProvider(orchestrationService)
 	dmService.SetSubagentAdmissionProvider(orchestrationService)
+	dmService.SetRuntimeAdmissionResolver(authService)
+	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	dmService.SetTitleGenerator(titleService)
@@ -192,6 +209,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetExecutionContextProvider(orchestrationService)
 	roomRealtime.SetSubagentAdmissionProvider(orchestrationService)
+	roomRealtime.SetRuntimeAdmissionResolver(authService)
+	roomRealtime.SetQueueAdmissionStore(queueAdmissionRepository)
 	roomRealtime.SetTitleGenerator(titleService)
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
@@ -213,13 +232,58 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		workspaceService,
 		channelRouter,
 	)
-	automationService.SetRuntimeSessionCloser(runtimeManager)
+	automationService.SetSessionArtifactDeletionCoordinator(core.Session)
 	core.Deletion.SetTaskCleaner(automationService)
 	core.Agent.SetDeletionLifecycle(core.Session, automationService)
 	automationService.SetProviderResolver(providerService)
 	automationService.SetLogger(logger.With("component", "automation"))
-	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService)
+	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
+	configurationService := configurationsvc.NewService(
+		cfg,
+		db,
+		core.Agent,
+		providerService,
+		preferencesService,
+		channelControl,
+		connectorService,
+		skillService,
+		runtimeManager,
+	)
+	configurationService.SetSessionControl(core.Session)
+	configurationService.SetRoomControl(core.Room, roomRealtime)
+	configurationService.SetPrincipalVerifiers(authService, authService)
+	connectorAuthorization, err := connectorsvc.NewAuthorizationControl(
+		connectorService,
+		core.Agent,
+		runtimeManager,
+		authService,
+		authService,
+	)
+	if err != nil {
+		logger.Warn("Connector 对话授权未启用", "err", err)
+		connectorAuthorization = nil
+	}
+	channelAuthorization := channelauthorizationsvc.NewService(
+		cfg,
+		db,
+		configurationService,
+		authService,
+		channelControl,
+		nil,
+	)
+	if err := channelAuthorization.Initialize(context.Background()); err != nil {
+		logger.Warn("Channel 对话授权未启用", "err", err)
+		_ = channelAuthorization.Close(context.Background())
+		channelAuthorization = nil
+	}
+	if channelAuthorization != nil {
+		channelControl.SetChannelLoginAuthorizationCommitGuard(channelAuthorization)
+	}
+	permission.SetHumanToolApprovalRecorder(humanToolApprovalRouter{
+		configuration: configurationService,
+		connector:     connectorAuthorization,
+	})
 	slashCommandCatalog := slashcommandsvc.NewCatalog()
 	slashCommandRegistry := slashcommandsvc.NewRegistry()
 	if err := slashcommandsvc.RegisterModelCommand(
@@ -235,16 +299,25 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		panic(err)
 	}
 
-	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
-	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)
+	// 把内置配置、资源管理、自动化、授权、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
+	nexusManagerService := nexusmanagersvc.NewService(core.Agent, core.Room, core.Session, workspaceService, runtimeManager)
+	nexusManagerBuilder := newNexusManagerMCPBuilder(nexusManagerService, core.Agent)
+	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
+	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
+	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
 	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	executionBuilder := newExecutionMCPBuilder(orchestrationService)
 	mcpBuilder := combinedMCPBuilder(
+		configurationBuilder,
+		nexusManagerBuilder,
 		automationBuilder,
 		connectorBuilder,
+		connectorAuthorizationBuilder,
+		channelAuthorizationBuilder,
 		goalBuilder,
 		contextOnlyMCPBuilder(imagegenBuilder),
 		roundContextMCPBuilder(roomBuilder),
@@ -257,34 +330,37 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	warnIfProviderMissing(providerService, logger)
 
 	return &AppServices{
-		DB:                db,
-		Core:              core,
-		Auth:              authService,
-		Provider:          providerService,
-		Subscription:      subscriptionService,
-		Preferences:       preferencesService,
-		Workspace:         workspaceService,
-		ProjectPermission: projectPermissionService,
-		Skills:            skillService,
-		Connectors:        connectorService,
-		Launcher:          launcherService,
-		Title:             titleService,
-		Usage:             usageService,
-		Permission:        permission,
-		Runtime:           runtimeManager,
-		Channels:          channelRouter,
-		ChannelControl:    channelControl,
-		DM:                dmService,
-		Ingress:           ingressService,
-		RoomRealtime:      roomRealtime,
-		Automation:        automationService,
-		Imagegen:          imagegenService,
-		Goal:              goalService,
-		Orchestration:     orchestrationService,
-		Loops:             loopService,
-		MemoryMaintenance: memoryMaintenance,
-		SlashCatalog:      slashCommandCatalog,
-		SlashRegistry:     slashCommandRegistry,
+		DB:                     db,
+		Core:                   core,
+		Auth:                   authService,
+		Provider:               providerService,
+		Subscription:           subscriptionService,
+		Preferences:            preferencesService,
+		Workspace:              workspaceService,
+		ProjectPermission:      projectPermissionService,
+		Skills:                 skillService,
+		Connectors:             connectorService,
+		ConnectorAuthorization: connectorAuthorization,
+		Configuration:          configurationService,
+		Launcher:               launcherService,
+		Title:                  titleService,
+		Usage:                  usageService,
+		Permission:             permission,
+		Runtime:                runtimeManager,
+		Channels:               channelRouter,
+		ChannelControl:         channelControl,
+		ChannelAuthorization:   channelAuthorization,
+		DM:                     dmService,
+		Ingress:                ingressService,
+		RoomRealtime:           roomRealtime,
+		Automation:             automationService,
+		Imagegen:               imagegenService,
+		Goal:                   goalService,
+		Orchestration:          orchestrationService,
+		Loops:                  loopService,
+		MemoryMaintenance:      memoryMaintenance,
+		SlashCatalog:           slashCommandCatalog,
+		SlashRegistry:          slashCommandRegistry,
 	}
 }
 

@@ -137,6 +137,7 @@ func (s *IngressService) dispatchIngress(ctx context.Context, request normalized
 		AgentID:              request.agentID,
 		Content:              request.content,
 		RoundID:              request.roundID,
+		ExecutionOrigin:      "channel",
 		PermissionMode:       request.permissionMode,
 		BroadcastUserMessage: true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{

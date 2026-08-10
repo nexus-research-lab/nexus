@@ -3,8 +3,8 @@
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - handlers.go：Handlers 及核心路由。
-//   - imagegen_defaults.go：图片生成默认偏好 handler。
+//   - handlers.go：Handlers、核心路由及 Preferences 条件回滚的 WebSearch 热同步。
+//   - imagegen_defaults.go：在 Preferences owner 锁内完成的图片生成默认偏好投影。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package core

@@ -332,6 +332,9 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	service.SetGoalContextProvider(goalProvider)
 
 	sessionKey := protocol.BuildAgentSessionKey(cfg.DefaultAgentID, protocol.SessionChannelWebSocketSegment, "dm", "plan-context", "")
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	parsed := protocol.ParseSessionKey(sessionKey)
 	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
 	if err != nil {
@@ -340,7 +343,7 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	preparation, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModePlan,
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("构建 plan mode runtime client 失败: %v", err)
 	}
@@ -379,6 +382,9 @@ func TestServiceEnsureClientDoesNotBindAmbientBudgetLimitedGoal(t *testing.T) {
 	service.SetGoalContextProvider(goalProvider)
 
 	sessionKey := protocol.BuildAgentSessionKey(cfg.DefaultAgentID, protocol.SessionChannelWebSocketSegment, "dm", "budget-limited", "")
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	parsed := protocol.ParseSessionKey(sessionKey)
 	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
 	if err != nil {
@@ -387,7 +393,7 @@ func TestServiceEnsureClientDoesNotBindAmbientBudgetLimitedGoal(t *testing.T) {
 	preparation, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
@@ -411,6 +417,9 @@ func TestServiceDuplicateGoalContinuationDispatchKeepsClaimedCount(t *testing.T)
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
 	sessionKey := "agent:nexus:ws:dm:duplicate-goal-continuation"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	plan := protocol.GoalContinuation{
 		Goal: protocol.Goal{
 			ID:         "goal-duplicate-dispatch",
@@ -481,6 +490,9 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
 	sessionKey := "agent:nexus:ws:dm:claim-before-launch"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	plan := protocol.GoalContinuation{
 		Goal: protocol.Goal{
 			ID:         "goal-claim-before-launch",
@@ -585,6 +597,9 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
 	sessionKey := "agent:nexus:ws:dm:retarget-after-claim"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	plan := protocol.GoalContinuation{
 		Goal: protocol.Goal{
 			ID:         "goal-retarget-after-claim",
@@ -696,6 +711,9 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sessionKey := "agent:nexus:ws:dm:test-goal-defer-queue"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	normalizedSessionKey, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, cfg.DefaultAgentID)
 	if err != nil {
 		t.Fatal(err)

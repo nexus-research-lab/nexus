@@ -1,3 +1,6 @@
+// INPUT: 用户级偏好、局部更新请求与 runtime/WebSearch 约束。
+// OUTPUT: 带单调 version 的规范化 Preferences 及字段校验。
+// POS: Preferences 文件真相源的数据契约；version 只由 Service 写入推进。
 package preferences
 
 import (
@@ -13,6 +16,7 @@ import (
 
 // Preferences 表示当前用户的界面与运行默认偏好。
 type Preferences struct {
+	Version                         int64                       `json:"version"`
 	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
 	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
@@ -139,6 +143,7 @@ type ModelSelection struct {
 // DefaultPreferences 返回系统默认偏好。
 func DefaultPreferences() Preferences {
 	return normalizePreferences(Preferences{
+		Version:                   1,
 		ChatDefaultDeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 		AgentRuntimeKind:          "nxs",
 		RuntimeSettings: RuntimeSettings{
@@ -155,6 +160,10 @@ func DefaultPreferences() Preferences {
 }
 
 func normalizePreferences(item Preferences) Preferences {
+	version := item.Version
+	if version < 1 {
+		version = 1
+	}
 	policy := item.ChatDefaultDeliveryPolicy
 	if policy == "" {
 		policy = protocol.ChatDeliveryPolicyQueue
@@ -187,6 +196,7 @@ func normalizePreferences(item Preferences) Preferences {
 	webSearch.APIKeyConfigured = webSearch.apiKey != ""
 	webSearch.APIKeyMasked = maskWebSearchAPIKey(webSearch.apiKey)
 	return Preferences{
+		Version:                         version,
 		ChatDefaultDeliveryPolicy:       policy,
 		AgentRuntimeKind:                runtimeKind,
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,

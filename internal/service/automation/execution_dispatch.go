@@ -1,3 +1,6 @@
+// INPUT: ScheduledTask、目标 DM/Room session、执行 sink 与调度权限上下文。
+// OUTPUT: 标记 automation 非交互来源的 runtime 派发、事件观测与 sink 绑定。
+// POS: automation 执行计划进入 DM/Room runtime 的可信来源分界。
 package automation
 
 import (
@@ -90,6 +93,7 @@ func (s *Service) dispatchJobToSession(
 			SessionKey:        sessionKey,
 			ConversationID:    parsed.ConversationID,
 			Content:           job.Instruction,
+			ExecutionOrigin:   "automation",
 			TargetAgentIDs:    []string{strings.TrimSpace(job.AgentID)},
 			RoundID:           roundID,
 			PermissionMode:    sdkpermission.ModeDefault,
@@ -104,6 +108,7 @@ func (s *Service) dispatchJobToSession(
 		SessionKey:        sessionKey,
 		AgentID:           firstNonEmpty(job.AgentID, parsed.AgentID),
 		Content:           job.Instruction,
+		ExecutionOrigin:   "automation",
 		RoundID:           roundID,
 		PermissionMode:    sdkpermission.ModeDefault,
 		PermissionHandler: permissionHandler,

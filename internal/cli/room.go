@@ -170,7 +170,16 @@ func newRoomUpdateCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request := protocol.UpdateRoomRequest{Name: name, Description: description, Title: title}
+			request := protocol.UpdateRoomRequest{}
+			if cmd.Flags().Changed("name") {
+				request.Name = &name
+			}
+			if cmd.Flags().Changed("description") {
+				request.Description = &description
+			}
+			if cmd.Flags().Changed("title") {
+				request.Title = &title
+			}
 			if cmd.Flags().Changed("skill-name") {
 				request.SkillNames = &skillNames
 			}
