@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Repaired databases that had already applied the scheduled-task permission pipeline under its former migration 71 by recognizing only the complete legacy schema, preserving tasks, runs, and approval requests, recording it as migration 86, and replaying the official private-Skill migration 71 in order; legacy tasks still receive their permission-policy compatibility backfill on startup.
 - Restored the request-scoped configuration-secret draft boundary so conversational approvals keep secret values in memory, clear them on request changes, and submit only complete server-declared slots.
 - Routed Automation, Workspace, and Goal operations to their specialized conversation tools while keeping Agent, Room, Session, Provider, Channel, Connector, Skill, preference, and emotion changes behind one inspect → plan → native approval → CAS apply → verify workflow instead of direct database or config-file edits.
 - Closed the main-Agent-in-Group-Room configuration bypass and made Room tool inheritance monotonic: a Room policy can no longer remove an Agent deny or expand an explicit Agent allowlist.

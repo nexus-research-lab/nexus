@@ -2,7 +2,9 @@ package automation
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -621,6 +623,160 @@ func TestPermissionPipelineSeparatesFeishuGrantFromOAuthReadiness(t *testing.T) 
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil || len(runs) != 1 || runs[0].RunID != *result.RunID || runs[0].Attempts != 3 {
 		t.Fatalf("Feishu 重连应继续同一 logical run: runs=%+v err=%v", runs, err)
+	}
+}
+
+func TestLegacyScheduledTaskPermissionBackfillPreservesTaskAndCreatesRequest(t *testing.T) {
+	db := newAutomationTestDB(t)
+	createdBy := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	task, err := createdBy.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name:        "旧版飞书任务",
+		AgentID:     "agent-legacy",
+		Instruction: "读取飞书文档并总结",
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
+		},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("创建兼容测试任务失败: %v", err)
+	}
+	resetTaskPermissionPolicyToLegacy(t, db, task.JobID)
+
+	permission := permissionctx.NewContext()
+	dm := &fakeDMRunner{
+		permission:   permission,
+		requiredTool: "mcp__nexus_connectors__feishu_docx_read",
+	}
+	recovered := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		dm,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	if err = recovered.bootstrapRuntime(context.Background()); err != nil {
+		t.Fatalf("旧任务权限策略回填失败: %v", err)
+	}
+	persisted, err := recovered.repository.GetScheduledTask(
+		context.Background(), task.OwnerUserID, task.JobID,
+	)
+	if err != nil || persisted == nil {
+		t.Fatalf("读取回填后的旧任务失败: task=%+v err=%v", persisted, err)
+	}
+	if persisted.JobID != task.JobID || persisted.Name != task.Name ||
+		persisted.AgentID != task.AgentID || persisted.Instruction != task.Instruction ||
+		!reflect.DeepEqual(persisted.Schedule.Normalized(), task.Schedule.Normalized()) {
+		t.Fatalf("权限回填改变了旧任务定义: before=%+v after=%+v", task, persisted)
+	}
+	if persisted.PermissionPolicy.Revision != 1 ||
+		persisted.PermissionState != automationdomain.TaskPermissionStateReady {
+		t.Fatalf("旧任务权限策略未初始化: %+v", persisted)
+	}
+
+	result, err := recovered.RunTaskNow(context.Background(), task.JobID)
+	if err != nil || result.RunID == nil {
+		t.Fatalf("回填后的旧任务无法运行: result=%+v err=%v", result, err)
+	}
+	ownerCtx := contextForOwner(context.Background(), task.OwnerUserID)
+	waitFor(t, 2*time.Second, func() bool {
+		requests, listErr := recovered.ListPermissionRequests(
+			ownerCtx,
+			automationdomain.PermissionRequestStatusPending,
+			task.JobID,
+		)
+		return listErr == nil && len(requests) == 1
+	})
+	requests, err := recovered.ListPermissionRequests(
+		ownerCtx,
+		automationdomain.PermissionRequestStatusPending,
+		task.JobID,
+	)
+	if err != nil || len(requests) != 1 ||
+		requests[0].Capability.ToolName != "mcp__nexus_connectors__feishu_docx_read" ||
+		requests[0].PolicyRevision != 1 {
+		t.Fatalf("旧任务未进入持久权限确认链路: requests=%+v err=%v", requests, err)
+	}
+}
+
+func TestLegacyScriptTaskPermissionBackfillKeepsExactScriptGrant(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name:          "旧版脚本任务",
+		AgentID:       "agent-legacy-script",
+		Instruction:   "printf legacy-script",
+		ExecutionKind: automationdomain.ExecutionKindScript,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("创建旧脚本兼容测试任务失败: %v", err)
+	}
+	resetTaskPermissionPolicyToLegacy(t, db, task.JobID)
+	if err = service.bootstrapRuntime(context.Background()); err != nil {
+		t.Fatalf("旧脚本权限策略回填失败: %v", err)
+	}
+	persisted, err := service.repository.GetScheduledTask(
+		context.Background(), task.OwnerUserID, task.JobID,
+	)
+	if err != nil || persisted == nil {
+		t.Fatalf("读取回填后的旧脚本失败: task=%+v err=%v", persisted, err)
+	}
+	if len(persisted.PermissionPolicy.Grants) != 1 {
+		t.Fatalf("旧脚本应只有一个精确兼容授权: %+v", persisted.PermissionPolicy.Grants)
+	}
+	grant := persisted.PermissionPolicy.Grants[0]
+	if grant.Source != automationdomain.PermissionGrantSourceLegacyCompat ||
+		!permissionGrantMatches(grant, buildScriptPermissionCapability(*persisted)) {
+		t.Fatalf("旧脚本未获得 hash-bound legacy grant: %+v", grant)
+	}
+}
+
+func resetTaskPermissionPolicyToLegacy(t *testing.T, db *sql.DB, jobID string) {
+	t.Helper()
+	if _, err := db.Exec(`
+UPDATE automation_scheduled_tasks
+SET permission_policy_json = '{}',
+    permission_policy_revision = 0,
+    permission_state = 'uninitialized',
+    pending_permission_request_id = NULL
+WHERE job_id = ?
+`, jobID); err != nil {
+		t.Fatal(err)
 	}
 }
 

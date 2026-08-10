@@ -38,6 +38,8 @@ Script permission is bound to an exact content hash plus owner and Agent. Direct
 
 Existing tasks are lazily backfilled from their current Agent defaults. Existing script tasks receive a hash-bound compatibility grant, preserving behavior after migration. New permissions therefore do not silently disable previously working automations.
 
+Early development builds shipped this schema as migration 71 before the permission pipeline moved to 86 and migration 71 was assigned to private Skill sources. Startup recognizes only the complete legacy permission schema, moves its Goose ledger entry to 86 without rewriting task, run, or approval data, and replays the official migration 71 with `allow-missing`. A partially present permission schema is rejected instead of being marked complete.
+
 ## User interaction API
 
 - `GET /capability/scheduled/permission-requests?status=actionable`

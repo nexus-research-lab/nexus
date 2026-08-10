@@ -77,12 +77,24 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("read migration version after compatibility repair: %w", err)
 		}
-		allowMissing, err = migration.RepairLegacyPrivateSkillMigrationCollision(
+		automationPermissionReplay, repairErr := migration.RepairLegacyAutomationPermissionMigrationCollision(
 			context.Background(), cfg.DatabaseDriver, db, version, logger,
 		)
-		if err != nil {
-			return fmt.Errorf("repair private Skill migration version collision: %w", err)
+		if repairErr != nil {
+			return fmt.Errorf("repair automation permission migration version collision: %w", repairErr)
 		}
+		allowMissing = allowMissing || automationPermissionReplay
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after automation permission repair: %w", err)
+		}
+		privateSkillReplay, repairErr := migration.RepairLegacyPrivateSkillMigrationCollision(
+			context.Background(), cfg.DatabaseDriver, db, version, logger,
+		)
+		if repairErr != nil {
+			return fmt.Errorf("repair private Skill migration version collision: %w", repairErr)
+		}
+		allowMissing = allowMissing || privateSkillReplay
 		version, err = goose.GetDBVersion(db)
 		if err != nil {
 			return fmt.Errorf("read migration version after private Skill repair: %w", err)
@@ -114,7 +126,20 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	if allowMissing {
 		version, err = goose.GetDBVersion(db)
 		if err != nil {
-			return fmt.Errorf("read migration version after Execution replay: %w", err)
+			return fmt.Errorf("read migration version after compatibility replay: %w", err)
+		}
+		automationPending, repairErr := migration.RepairLegacyAutomationPermissionMigrationCollision(
+			context.Background(), cfg.DatabaseDriver, db, version, logger,
+		)
+		if repairErr != nil {
+			return fmt.Errorf("finalize automation permission migration collision repair: %w", repairErr)
+		}
+		if automationPending {
+			return errors.New("automation permission migration collision repair remains incomplete")
+		}
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after automation permission repair finalization: %w", err)
 		}
 		pending, repairErr := migration.RepairLegacyPrivateSkillMigrationCollision(
 			context.Background(), cfg.DatabaseDriver, db, version, logger,
