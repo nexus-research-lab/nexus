@@ -20,6 +20,7 @@ import (
 
 func TestConfigurationControlPlaneAppliesAndVerifiesPreferenceChange(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, "state"))
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, "config"))
 	cfg := config.Config{
 		DatabaseDriver:  "sqlite",

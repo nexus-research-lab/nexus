@@ -53,6 +53,7 @@ func (*recordingRoomRuntime) InterruptAgentTasks(context.Context, string, string
 func newScopedConfigurationFixture(t *testing.T) scopedConfigurationFixture {
 	t.Helper()
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, "state"))
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, "config"))
 	cfg := config.Config{
 		DatabaseDriver:          "sqlite",
