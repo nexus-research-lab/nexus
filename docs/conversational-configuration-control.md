@@ -249,7 +249,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 
 | 变更 | 持久化后生效 | 活跃执行处理 |
 |---|---|---|
-| 初始化 owner / 启用服务端认证 | admission gate 完成撤销后原子提交；后续启动立即要求 `enforce` | 阻断新启动，取消并排空在途 DM/Room/AutoDream admission，关闭 system owner 的既有 session/round；任一步失败都不提交认证 |
+| 初始化 owner / 启用服务端认证 | admission gate 完成撤销后原子提交；后续启动按 `NEXUS_RUNTIME_ISOLATION_MODE` 选择隔离模式 | 阻断新启动，取消并排空在途 DM/Room/AutoDream admission，关闭 system owner 的既有 session/round；任一步失败都不提交认证 |
 | Agent 名称、头像、描述、标签 | UI/目录立即；prompt 下一轮 | 当前输出保持本轮身份快照 |
 | Agent `permission_mode` | 当前 DM 与 Room runtime 立即同步 | 后续工具授权立刻使用新模式 |
 | Agent Provider/model、运行上限、tools、Skills、MCP | 下一轮重建 client options | 不在半轮中替换模型或工具表 |

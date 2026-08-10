@@ -33,11 +33,6 @@ func Apply(
 	if err != nil {
 		return agentclient.Options{}, err
 	}
-	if input.RequireEnforce && mode != ModeEnforce {
-		return agentclient.Options{}, errors.New(
-			"authenticated Agent runtime requires runtime isolation enforce mode",
-		)
-	}
 	if mode == ModeOff {
 		if !input.IsMainAgent {
 			options = withRawNexusctlDenyHook(options)

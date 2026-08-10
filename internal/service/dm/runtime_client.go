@@ -49,7 +49,6 @@ func (s *Service) ensureClient(
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
-	runtimeIsolationRequired bool,
 ) (dmClientPreparation, error) {
 	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
 	if err != nil {
@@ -209,7 +208,6 @@ func (s *Service) ensureClient(
 		WebSearch:                  runtimeSelection.WebSearch,
 		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
-		RuntimeIsolationRequired:   runtimeIsolationRequired,
 	})
 	if err != nil {
 		return dmClientPreparation{}, err

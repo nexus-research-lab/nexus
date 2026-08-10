@@ -88,7 +88,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			Reason: "runtime_not_nxs",
 		}, nil
 	}
-	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		ownerContext,
 		r.admission,
 	)
@@ -108,22 +108,21 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		}, nil
 	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:            agentValue.WorkspacePath,
-		OwnerUserID:              agentValue.OwnerUserID,
-		IsMainAgent:              agentValue.IsMain,
-		RuntimeKind:              selection.RuntimeKind,
-		Provider:                 provider,
-		Model:                    model,
-		PermissionMode:           sdkpermission.ModeAcceptEdits,
-		SkillIDs:                 runtimeSkillNames,
-		DisabledSkillIDs:         runtimeDisabledSkillNames,
-		SkillDirectories:         workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
-		SettingSources:           ensureProjectSettingsSource(agentValue.Options.SettingSources),
-		ToolSearchEnabled:        selection.ToolSearchEnabled,
-		WebSearch:                selection.WebSearch,
-		RuntimeIsolationMode:     r.config.RuntimeIsolationMode,
-		RuntimeLauncherPath:      r.config.RuntimeLauncherPath,
-		RuntimeIsolationRequired: runtimeIsolationRequired,
+		WorkspacePath:        agentValue.WorkspacePath,
+		OwnerUserID:          agentValue.OwnerUserID,
+		IsMainAgent:          agentValue.IsMain,
+		RuntimeKind:          selection.RuntimeKind,
+		Provider:             provider,
+		Model:                model,
+		PermissionMode:       sdkpermission.ModeAcceptEdits,
+		SkillIDs:             runtimeSkillNames,
+		DisabledSkillIDs:     runtimeDisabledSkillNames,
+		SkillDirectories:     workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
+		SettingSources:       ensureProjectSettingsSource(agentValue.Options.SettingSources),
+		ToolSearchEnabled:    selection.ToolSearchEnabled,
+		WebSearch:            selection.WebSearch,
+		RuntimeIsolationMode: r.config.RuntimeIsolationMode,
+		RuntimeLauncherPath:  r.config.RuntimeLauncherPath,
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",

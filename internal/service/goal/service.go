@@ -156,7 +156,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	return created, nil
 }
 
-// reserveExternalGoalExecution 为外部 Room Goal 预留稳定 Execution。
+// reserveExternalGoalExecution 为外部 Goal 预留稳定 Execution。
 func reserveExternalGoalExecution(metadata map[string]any, goalID string) map[string]any {
 	metadata = cloneMap(metadata)
 	if metadata == nil {
@@ -170,19 +170,17 @@ func reserveExternalGoalExecution(metadata map[string]any, goalID string) map[st
 	return metadata
 }
 
-// ensureExternalGoalExecutionReservation 为历史外部 Room Goal 补齐缺失的稳定 reservation。
+// ensureExternalGoalExecutionReservation 为历史外部 Goal 补齐缺失的稳定 reservation。
 func (s *Service) ensureExternalGoalExecutionReservation(
 	ctx context.Context,
 	item *protocol.Goal,
 ) (*protocol.Goal, error) {
-	if item == nil || !protocol.IsRoomSharedSessionKey(item.SessionKey) ||
-		strings.TrimSpace(item.CreatedBy) == "model" ||
+	if item == nil || strings.TrimSpace(item.CreatedBy) == "model" ||
 		protocol.GoalReservedExecutionID(*item) != "" {
 		return item, nil
 	}
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if !protocol.IsRoomSharedSessionKey(current.SessionKey) ||
-			strings.TrimSpace(current.CreatedBy) == "model" ||
+		if strings.TrimSpace(current.CreatedBy) == "model" ||
 			protocol.GoalReservedExecutionID(*current) != "" {
 			return current, nil
 		}

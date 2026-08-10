@@ -249,7 +249,7 @@ func TestDMPrepareRuntimeKeepsSlashCommandPayloadClean(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareChatExecution() error = %v", err)
 	}
-	preparation, err := execution.prepareRuntime(false)
+	preparation, err := execution.prepareRuntime()
 	if err != nil {
 		t.Fatalf("prepareRuntime() error = %v", err)
 	}
@@ -282,7 +282,7 @@ func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareChatExecution() error = %v", err)
 	}
-	_, err = execution.prepareRuntime(false)
+	_, err = execution.prepareRuntime()
 	var target slashCommandAttachmentError
 	if !errors.As(err, &target) {
 		t.Fatalf("prepareRuntime() error = %v, want slash attachment error", err)

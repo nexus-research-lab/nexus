@@ -19,11 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept the expanded task panel centered over its summary and prevented the Composer Goal label from wrapping vertically in narrow layouts.
 - Repaired databases that had already applied the scheduled-task permission pipeline under its former migration 71 by recognizing only the complete legacy schema, preserving tasks, runs, and approval requests, recording it as migration 86, and replaying the official private-Skill migration 71 in order; legacy tasks still receive their permission-policy compatibility backfill on startup.
 - Restored the request-scoped configuration-secret draft boundary so conversational approvals keep secret values in memory, clear them on request changes, and submit only complete server-declared slots.
 - Routed Automation, Workspace, and Goal operations to their specialized conversation tools while keeping Agent, Room, Session, Provider, Channel, Connector, Skill, preference, and emotion changes behind one inspect → plan → native approval → CAS apply → verify workflow instead of direct database or config-file edits.
 - Closed the main-Agent-in-Group-Room configuration bypass and made Room tool inheritance monotonic: a Room policy can no longer remove an Agent deny or expand an explicit Agent allowlist.
-- Recovered a stable Execution identity when an external Room Goal continues, allowing it to start instead of failing before runtime launch.
+- Recovered a stable Execution identity when an external Goal continues, allowing DM and Room Goals to start instead of failing before runtime launch.
+- Made `NEXUS_RUNTIME_ISOLATION_MODE` the sole runtime isolation selector, so authenticated local Web development can deliberately use `off` or `audit` while `enforce` retains its platform and launcher checks.
+- Hid composed runtime-owned Execution and Goal context carriers from DM history while preserving hidden continuation round alignment, eliminating leaked internal prompts and phantom empty replies.
 - Completed Session, Room, Agent, scheduled-task, and imported-Skill cleanup across runtime, SQL, and owner-scoped files; transcript lineage stays in existing Session metadata so deletion leaves no orphaned data.
 - Closed an Agent runtime before deleting its session and removed the complete owner-scoped transcript artifact graph, including summaries and unshared Subagent transcripts, so deleted sessions no longer leave runtime data behind.
 - Drained the exact blocked DM or Room attempt before resuming an approved scheduled task, denied every later tool from that blocked attempt, bound approval and explicit retry to the rendered job/run/request/policy snapshot, and carried the same evidence boundary through Main Session events; task cards now keep permission state as the primary attention reason, expose actions only with a matching actionable request, move technical detail behind one entry, hide the prior permission error while the resumed attempt is active, and animate the running identity without overriding reduced-motion preferences.

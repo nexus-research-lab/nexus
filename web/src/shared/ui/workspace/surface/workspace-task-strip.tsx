@@ -166,7 +166,7 @@ export function WorkspaceTaskPanel({
       </button>
       {isExpanded ? (
         <div
-          className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0"
+          className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2"
         >
           <section
             aria-label={t("tasks.label")}

@@ -161,6 +161,7 @@ func TestServiceRunAutoResumeOnceIgnoresStaleDispatchAfterRetarget(t *testing.T)
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:stale-auto-resume",
 		Objective:  "Analyze M3 and M4",
+		CreatedBy:  "model",
 	})
 	if err != nil {
 		t.Fatal(err)

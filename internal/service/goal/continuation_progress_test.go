@@ -106,6 +106,7 @@ func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
 		Objective:  "Finish with a proper Goal update",
+		CreatedBy:  "model",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -159,6 +160,7 @@ func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
 		Objective:  "Finish with a proper Goal update",
+		CreatedBy:  "model",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -307,6 +309,7 @@ func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *t
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
 		Objective:  "Finish with a proper Goal update",
+		CreatedBy:  "model",
 	})
 	if err != nil {
 		t.Fatal(err)

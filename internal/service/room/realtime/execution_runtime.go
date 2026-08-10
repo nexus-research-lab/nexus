@@ -105,9 +105,7 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	return "", nil
 }
 
-func (e *slotExecution) prepareRuntimeClient(
-	runtimeIsolationRequired bool,
-) (runtimectx.Client, error) {
+func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if e.round == nil {
 		return nil, errors.New("room round is required")
 	}
@@ -120,7 +118,7 @@ func (e *slotExecution) prepareRuntimeClient(
 	if err := workspacepkg.EnsureInitializedForAgent(e.service.config, *e.agent); err != nil {
 		return nil, err
 	}
-	runtimeValue, err := e.prepareRuntime(runtimeIsolationRequired)
+	runtimeValue, err := e.prepareRuntime()
 	if err != nil {
 		return nil, err
 	}
@@ -136,9 +134,7 @@ func (e *slotExecution) prepareRuntimeClient(
 	return client, nil
 }
 
-func (e *slotExecution) prepareRuntime(
-	runtimeIsolationRequired bool,
-) (preparedSlotRuntime, error) {
+func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	prompt, permissionMode, err := e.buildRuntimePrompt()
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -208,7 +204,6 @@ func (e *slotExecution) prepareRuntime(
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
-		RuntimeIsolationRequired:   runtimeIsolationRequired,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err

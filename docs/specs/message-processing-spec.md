@@ -182,9 +182,9 @@ Room shared 不再保存完整正文副本，而是：
 
 - API 返回的是“可展示历史”
 - 不是原始文件逐行回放
-- runtime 的 `is_meta` user、Skill 完整正文和其他内部 carrier 必须在可见 round
-  投影前过滤；旧版 `<internal_context source="explicit_skill">` 包装只用于兼容读取，
-  不能重新显示或进入模型历史
+- runtime 的 `is_meta` user、Skill 完整正文、连续的 Execution / Goal
+  `<internal_context>` carrier 和其他内部 carrier 必须在可见 round 投影前过滤；
+  旧版 `<internal_context source="explicit_skill">` 包装只用于兼容读取，不能重新显示或进入模型历史
 - marker 对齐按 transcript user 槽位逐个消费；空槽位不能跳过后借用下一轮 marker，
   否则刷新后旧的 unknown/内部消息会窃取新 Slash 的 round 身份
 - runtime command metadata 统一还原为原始 `/name args`；它与 overlay marker 相同

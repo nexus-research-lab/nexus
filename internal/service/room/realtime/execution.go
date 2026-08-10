@@ -203,7 +203,7 @@ func (s *Service) runSlot(
 	})
 	defer s.permission.UnbindSessionRoute(routeLease)
 
-	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		execution.ctx,
 		s.admission,
 	)
@@ -214,7 +214,7 @@ func (s *Service) runSlot(
 	defer admission.Release()
 	execution.ctx = admission.Context()
 
-	client, err := execution.prepareRuntimeClient(runtimeIsolationRequired)
+	client, err := execution.prepareRuntimeClient()
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
 		return

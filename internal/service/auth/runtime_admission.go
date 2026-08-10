@@ -22,25 +22,24 @@ func (s *Service) SetRuntimeTransitionCoordinator(coordinator RuntimeTransitionC
 	s.runtimeTransition = coordinator
 }
 
-// BeginAgentRuntimeAdmission 在同一转场 lease 内读取实时认证状态。
+// BeginAgentRuntimeAdmission 在同一转场 lease 内确认认证状态可读取。
 //
-// owner 初始化提交前会阻断并撤销所有旧 lease；提交后新 admission 才能
-// 看到 AuthRequired=true。desktop 本地免登录仍由 GetState 投影为 false。
+// owner 初始化提交前会阻断并撤销所有旧 lease；提交后的新 admission 才能继续启动。
 func (s *Service) BeginAgentRuntimeAdmission(
 	ctx context.Context,
-) (*runtimeadmission.Lease, bool, error) {
+) (*runtimeadmission.Lease, error) {
 	lease := runtimeadmission.NewDetachedLease(ctx)
 	var err error
 	if s.runtimeTransition != nil {
 		lease, err = s.runtimeTransition.BeginRuntimeAdmission(ctx)
 		if err != nil {
-			return nil, true, err
+			return nil, err
 		}
 	}
-	state, err := s.GetState(lease.Context())
+	_, err = s.GetState(lease.Context())
 	if err != nil {
 		lease.Release()
-		return nil, true, err
+		return nil, err
 	}
-	return lease, state.AuthRequired, nil
+	return lease, nil
 }

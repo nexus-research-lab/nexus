@@ -482,8 +482,8 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - 为 nxs/Claude 注入同一个用户级 `<user_root>`，共用固定的 `projects` 子目录；
 - nxs/Claude 都通过同一身份启动；
 - App 和 Web 都通过同一个 `UserScope` 进入 launcher；
-- 通过 `NEXUS_RUNTIME_ISOLATION_MODE=enforce` 仅对 Linux server 开启；`audit` 只启用
-  Hook 和日志，`off` 保持兼容行为。
+- `NEXUS_RUNTIME_ISOLATION_MODE` 是 runtime isolation 的唯一选择：`enforce` 仅在 Linux
+  server 上可用；`audit` 只启用 Hook 和日志，`off` 保持兼容行为。认证状态不覆盖该配置。
 
 ### Phase 2：存量迁移（已实现启动迁移，目标部署仍需验收）
 

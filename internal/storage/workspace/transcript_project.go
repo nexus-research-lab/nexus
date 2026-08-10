@@ -261,7 +261,46 @@ func sanitizeTranscriptUserContent(content string) string {
 		message.IsInternalExplicitSkillPrompt(trimmed) {
 		return ""
 	}
+	trimmed, _, _ = stripLeadingTranscriptInternalContexts(trimmed)
 	return stripTranscriptRuntimeContext(trimmed)
+}
+
+func stripLeadingTranscriptInternalContexts(content string) (string, bool, bool) {
+	original := strings.TrimSpace(content)
+	remaining := original
+	stripped := false
+	hasGoal := false
+	for {
+		remaining = strings.TrimSpace(remaining)
+		var closeTag string
+		switch {
+		case strings.HasPrefix(remaining, "<internal_context "):
+			closeTag = "</internal_context>"
+		case strings.HasPrefix(remaining, "<codex_internal_context "):
+			closeTag = "</codex_internal_context>"
+		default:
+			return remaining, stripped, hasGoal
+		}
+
+		openEnd := strings.IndexByte(remaining, '>')
+		if openEnd < 0 {
+			return original, false, false
+		}
+		closeOffset := strings.Index(remaining[openEnd+1:], closeTag)
+		if closeOffset < 0 {
+			return original, false, false
+		}
+		if strings.Contains(remaining[:openEnd+1], `source="goal"`) {
+			hasGoal = true
+		}
+		remaining = remaining[openEnd+1+closeOffset+len(closeTag):]
+		stripped = true
+	}
+}
+
+func isTranscriptInternalContextOnly(content string) bool {
+	remaining, stripped, _ := stripLeadingTranscriptInternalContexts(content)
+	return stripped && strings.TrimSpace(remaining) == ""
 }
 
 func stripTranscriptRuntimeContext(content string) string {

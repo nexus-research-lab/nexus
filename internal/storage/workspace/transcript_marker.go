@@ -187,19 +187,18 @@ func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {
 		return false
 	}
 	return transcriptUserContent(entry) != "" ||
+		isTranscriptGoalContextOnlyUserTurn(entry) ||
 		message.IsInternalExplicitSkillPrompt(transcriptRawUserContent(entry))
 }
 
 func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {
-	content := strings.TrimSpace(transcriptUserContent(entry))
+	content := strings.TrimSpace(transcriptRawUserContent(entry))
 	if strings.HasPrefix(content, "<goal_context>") &&
 		strings.HasSuffix(content, "</goal_context>") {
 		return true
 	}
-	return (strings.HasPrefix(content, "<internal_context source=\"goal\">") &&
-		strings.HasSuffix(content, "</internal_context>")) ||
-		(strings.HasPrefix(content, "<codex_internal_context source=\"goal\">") &&
-			strings.HasSuffix(content, "</codex_internal_context>"))
+	remaining, stripped, hasGoal := stripLeadingTranscriptInternalContexts(content)
+	return stripped && hasGoal && strings.TrimSpace(remaining) == ""
 }
 
 func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) transcriptRoundMarker {

@@ -69,7 +69,8 @@ func shouldSkipInternalHistoryRow(row protocol.Message) bool {
 		content := stringFromAny(row["content"])
 		return message.IsInternalTranscriptInterruptPrompt(content) ||
 			message.IsInternalTranscriptContinuationPrompt(content) ||
-			message.IsInternalExplicitSkillPrompt(content)
+			message.IsInternalExplicitSkillPrompt(content) ||
+			isTranscriptInternalContextOnly(content)
 	default:
 		return false
 	}

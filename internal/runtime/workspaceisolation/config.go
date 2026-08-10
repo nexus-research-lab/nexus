@@ -56,7 +56,4 @@ type Input struct {
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
 	// 主智能体是 owner-scoped 控制面主体；普通 Agent 永远不继承该能力。
 	IsMainAgent bool
-	// RequireEnforce 表示认证域已确认当前部署必须提供 OS 级用户隔离。
-	// 该事实由宿主动态解析，不能由 Agent 或请求参数关闭。
-	RequireEnforce bool
 }

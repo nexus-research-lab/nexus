@@ -77,9 +77,6 @@ type AgentClientOptionsInput struct {
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
-	// RuntimeIsolationRequired 是认证服务动态确认的部署边界；
-	// true 时 workspace isolation 必须真正进入 Linux enforce。
-	RuntimeIsolationRequired bool
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -207,12 +204,11 @@ func BuildAgentClientOptionsWithConfig(
 			LauncherPath: input.RuntimeLauncherPath,
 		},
 		workspaceisolation.Input{
-			OwnerUserID:    ownerUserID,
-			IsMainAgent:    input.IsMainAgent,
-			RuntimeKind:    effectiveRuntimeKind,
-			CWD:            input.WorkspacePath,
-			ReadRoots:      input.SkillDirectories,
-			RequireEnforce: input.RuntimeIsolationRequired,
+			OwnerUserID: ownerUserID,
+			IsMainAgent: input.IsMainAgent,
+			RuntimeKind: effectiveRuntimeKind,
+			CWD:         input.WorkspacePath,
+			ReadRoots:   input.SkillDirectories,
 		},
 	)
 	if err != nil {

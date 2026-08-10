@@ -63,19 +63,16 @@ func (f *fakeRuntimeTransitionCoordinator) callCount() int {
 	return f.enableCalls
 }
 
-func TestAgentRuntimeAdmissionTracksLiveAuthState(t *testing.T) {
+func TestAgentRuntimeAdmissionAllowsInitializedAuth(t *testing.T) {
 	cfg, db := newAuthTestDB(t)
 	service := NewServiceWithDB(cfg, db)
 	ctx := context.Background()
 
-	lease, required, err := service.BeginAgentRuntimeAdmission(ctx)
+	lease, err := service.BeginAgentRuntimeAdmission(ctx)
 	if err != nil {
 		t.Fatalf("读取初始 runtime admission 失败: %v", err)
 	}
 	lease.Release()
-	if required {
-		t.Fatal("未完成 owner 初始化的本地部署不应要求多用户 runtime isolation")
-	}
 
 	if _, err = service.InitOwner(ctx, InitOwnerInput{
 		Username: "admin",
@@ -83,26 +80,11 @@ func TestAgentRuntimeAdmissionTracksLiveAuthState(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("初始化 owner 失败: %v", err)
 	}
-	lease, required, err = service.BeginAgentRuntimeAdmission(ctx)
+	lease, err = service.BeginAgentRuntimeAdmission(ctx)
 	if err != nil {
 		t.Fatalf("读取 owner 初始化后的 runtime admission 失败: %v", err)
 	}
 	lease.Release()
-	if !required {
-		t.Fatal("启用认证后必须立即要求 Agent runtime enforce isolation")
-	}
-
-	desktopCfg := cfg
-	desktopCfg.AppMode = "desktop"
-	desktopService := NewServiceWithDB(desktopCfg, db)
-	lease, required, err = desktopService.BeginAgentRuntimeAdmission(ctx)
-	if err != nil {
-		t.Fatalf("读取 desktop runtime admission 失败: %v", err)
-	}
-	lease.Release()
-	if required {
-		t.Fatal("desktop 本地单用户模式不应强制 Linux runtime identity")
-	}
 }
 
 func TestInitOwnerRequiresRuntimeTransitionBeforeEnablingServerAuth(t *testing.T) {
@@ -204,12 +186,9 @@ func TestInitOwnerTransitionMakesWaitingAdmissionObserveAuthenticatedState(t *te
 	transition := newGateRuntimeTransitionCoordinator()
 	service.SetRuntimeTransitionCoordinator(transition)
 
-	preAuthLease, required, err := service.BeginAgentRuntimeAdmission(context.Background())
+	preAuthLease, err := service.BeginAgentRuntimeAdmission(context.Background())
 	if err != nil {
 		t.Fatal(err)
-	}
-	if required {
-		t.Fatal("owner 初始化前 admission 不应要求认证隔离")
 	}
 
 	initDone := make(chan error, 1)
@@ -227,14 +206,13 @@ func TestInitOwnerTransitionMakesWaitingAdmissionObserveAuthenticatedState(t *te
 	}
 
 	type admissionResult struct {
-		lease    *runtimeadmission.Lease
-		required bool
-		err      error
+		lease *runtimeadmission.Lease
+		err   error
 	}
 	waiting := make(chan admissionResult, 1)
 	go func() {
-		lease, waitingRequired, waitingErr := service.BeginAgentRuntimeAdmission(context.Background())
-		waiting <- admissionResult{lease: lease, required: waitingRequired, err: waitingErr}
+		lease, waitingErr := service.BeginAgentRuntimeAdmission(context.Background())
+		waiting <- admissionResult{lease: lease, err: waitingErr}
 	}()
 	select {
 	case result := <-waiting:
@@ -259,8 +237,8 @@ func TestInitOwnerTransitionMakesWaitingAdmissionObserveAuthenticatedState(t *te
 		if result.lease != nil {
 			result.lease.Release()
 		}
-		if result.err != nil || !result.required {
-			t.Fatalf("认证提交后的 admission = %+v, want required", result)
+		if result.err != nil {
+			t.Fatalf("认证提交后的 admission = %+v", result)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("认证提交后未放行等待中的 admission")

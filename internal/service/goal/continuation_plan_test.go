@@ -293,6 +293,7 @@ func TestServiceClaimContinuationRejectsRetargetAfterValidation(t *testing.T) {
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:claim-retarget",
 		Objective:  "Analyze M3 and M4",
+		CreatedBy:  "model",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -385,6 +386,7 @@ func TestServiceGoalContinuationStillCurrentRejectsStaleGoal(t *testing.T) {
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
 		Objective:  "Skip stale continuation",
+		CreatedBy:  "model",
 	})
 	if err != nil {
 		t.Fatal(err)

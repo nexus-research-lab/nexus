@@ -36,8 +36,13 @@ func TestAgentHistoryStoreHidesGoalContextOnlyTranscriptTurn(t *testing.T) {
 			"sessionId": sessionID,
 			"timestamp": "2026-05-22T10:00:00.000Z",
 			"message": map[string]any{
-				"role":    "user",
-				"content": "<goal_context>\nContinue working toward the active thread goal.\n</goal_context>",
+				"role": "user",
+				"content": "<internal_context source=\"execution\">\n" +
+					"execution facts\n" +
+					"</internal_context>\n\n" +
+					"<internal_context source=\"goal\">\n" +
+					"Continue working toward the active thread goal.\n" +
+					"</internal_context>",
 			},
 		},
 		{
@@ -154,6 +159,8 @@ func TestTranscriptGoalContextOnlyUserTurnRecognizesInternalContextTags(t *testi
 	for name, content := range map[string]string{
 		"internal": "<internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</internal_context>",
 		"legacy":   "<codex_internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</codex_internal_context>",
+		"execution_and_goal": "<internal_context source=\"execution\">\nexecution facts\n</internal_context>\n\n" +
+			"<internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</internal_context>",
 	} {
 		entry := map[string]any{
 			"message": map[string]any{
@@ -164,5 +171,14 @@ func TestTranscriptGoalContextOnlyUserTurnRecognizesInternalContextTags(t *testi
 		if !isTranscriptGoalContextOnlyUserTurn(entry) {
 			t.Fatalf("%s Goal context turn was not recognized: %#v", name, entry)
 		}
+	}
+}
+
+func TestSanitizeTranscriptUserContentStripsInternalContextPrefix(t *testing.T) {
+	content := "<internal_context source=\"execution\">\nexecution facts\n</internal_context>\n\n" +
+		"<internal_context source=\"goal\">\ngoal facts\n</internal_context>\n\n" +
+		"用户正文"
+	if got := sanitizeTranscriptUserContent(content); got != "用户正文" {
+		t.Fatalf("内部 context 前缀不应进入用户正文: %q", got)
 	}
 }

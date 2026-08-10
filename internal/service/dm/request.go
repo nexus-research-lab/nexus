@@ -230,7 +230,7 @@ func (e *dmChatExecution) prepareRunner() error {
 		return err
 	}
 	admissionBaseContext := e.ctx
-	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
 		e.service.admission,
 	)
@@ -240,7 +240,7 @@ func (e *dmChatExecution) prepareRunner() error {
 	defer admission.Release()
 	e.ctx = admission.Context()
 
-	preparation, err := e.prepareRuntime(runtimeIsolationRequired)
+	preparation, err := e.prepareRuntime()
 	if err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func (e *dmChatExecution) acceptAndLaunch() error {
 
 func (e *dmChatExecution) runAcceptedRound() {
 	admissionBaseContext := e.ctx
-	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
 		e.service.admission,
 	)
@@ -298,7 +298,7 @@ func (e *dmChatExecution) runAcceptedRound() {
 		return
 	}
 	e.ctx = admission.Context()
-	preparation, err := e.prepareRuntime(runtimeIsolationRequired)
+	preparation, err := e.prepareRuntime()
 	e.ctx = admissionBaseContext
 	admission.Release()
 	if err != nil {
@@ -327,7 +327,7 @@ func (e *dmChatExecution) interruptRunningRound() error {
 	return e.service.interruptSession(e.ctx, e.sessionKey, "收到新的用户消息，上一轮已停止")
 }
 
-func (e *dmChatExecution) prepareRuntime(runtimeIsolationRequired bool) (dmRuntimePreparation, error) {
+func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	runtimeCtx := e.runtimeContext()
 	slashInput := conversationsvc.IsSlashCommandInput(e.request.Content)
 	if slashInput && len(e.request.Attachments) > 0 {
@@ -347,7 +347,6 @@ func (e *dmChatExecution) prepareRuntime(runtimeIsolationRequired bool) (dmRunti
 		e.agent,
 		e.session,
 		e.request,
-		runtimeIsolationRequired,
 	)
 	if err != nil {
 		e.service.loggerFor(runtimeCtx).Error("DM runtime client 初始化失败",

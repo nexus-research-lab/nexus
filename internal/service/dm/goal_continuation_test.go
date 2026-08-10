@@ -343,7 +343,7 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	preparation, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModePlan,
-	}, false)
+	})
 	if err != nil {
 		t.Fatalf("构建 plan mode runtime client 失败: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestServiceEnsureClientDoesNotBindAmbientBudgetLimitedGoal(t *testing.T) {
 	preparation, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
-	}, false)
+	})
 	if err != nil {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}

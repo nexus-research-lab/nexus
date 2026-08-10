@@ -36,7 +36,7 @@ export function ComposerGoalModeIndicator({
   return (
     <span className="nexus-chat-composer-goal-mode flex min-w-0 flex-1 items-center gap-1.5 font-semibold text-(--primary)">
       <Target className="h-3.5 w-3.5 shrink-0" />
-      <span>{t("composer.goal_mode")}</span>
+      <span className="shrink-0 whitespace-nowrap">{t("composer.goal_mode")}</span>
       <span className="nexus-chat-composer-goal-scope truncate font-medium text-(--text-muted)">
         {scopeLabel}
       </span>
