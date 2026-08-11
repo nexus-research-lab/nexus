@@ -93,7 +93,6 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	cfg.SkillsDefaultSourcesEnabled = false
 	cfg.SkillsAPIURL = ""
 	cfg.SkillsSourceURLs = "Public Test|" + server.URL + "/public-index.json"
-	cfg.ConnectorCredentialsKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
@@ -130,8 +129,8 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取私有来源记录失败: %v", err)
 	}
-	if storedSource == nil || storedSource.CredentialsEncrypted == "" || storedSource.CredentialsEncrypted == token {
-		t.Fatalf("私有来源 Token 未加密持久化: %+v", storedSource)
+	if storedSource == nil || storedSource.CredentialsEncrypted != token {
+		t.Fatalf("私有来源 Token 未按明文持久化: %+v", storedSource)
 	}
 	secondOwnerContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "owner-b"})
 	secondOwnerSource, err := service.CreateExternalSkillSource(secondOwnerContext, CreateExternalSkillSourceRequest{
@@ -150,7 +149,7 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取第二个 owner 来源失败: %v", err)
 	}
-	if secondOwnerStoredSource == nil || secondOwnerStoredSource.CredentialsEncrypted == storedSource.CredentialsEncrypted {
+	if secondOwnerStoredSource == nil || secondOwnerStoredSource.CredentialsEncrypted != secondOwnerToken {
 		t.Fatalf("不同 owner 的来源凭据未隔离: %+v", secondOwnerStoredSource)
 	}
 

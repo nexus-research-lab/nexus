@@ -266,24 +266,16 @@ func sourceManagedBy(entity skillstore.SourceEntity) string {
 
 func (s *Service) externalSkillSourceFromEntity(entity skillstore.SourceEntity) externalSkillSource {
 	source := externalSkillSource{
-		Key:       entity.SourceID,
-		Name:      entity.Name,
-		Kind:      entity.Kind,
-		URL:       entity.URL,
-		Trust:     entity.Trust,
-		Enabled:   entity.Enabled,
-		SortOrder: entity.SortOrder,
-		ManagedBy: sourceManagedBy(entity),
-		AuthType:  firstNonEmpty(entity.AuthType, externalSourceAuthNone),
+		Key:        entity.SourceID,
+		Name:       entity.Name,
+		Kind:       entity.Kind,
+		URL:        entity.URL,
+		Trust:      entity.Trust,
+		Enabled:    entity.Enabled,
+		SortOrder:  entity.SortOrder,
+		ManagedBy:  sourceManagedBy(entity),
+		AuthType:   firstNonEmpty(entity.AuthType, externalSourceAuthNone),
+		Credential: strings.TrimSpace(entity.CredentialsEncrypted),
 	}
-	if strings.TrimSpace(entity.CredentialsEncrypted) == "" {
-		return source
-	}
-	credential, err := s.decryptPrivateSourceCredential(entity.CredentialsEncrypted)
-	if err != nil {
-		source.CredentialError = err.Error()
-		return source
-	}
-	source.Credential = credential
 	return source
 }

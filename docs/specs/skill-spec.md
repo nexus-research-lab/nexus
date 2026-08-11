@@ -524,7 +524,7 @@ artifact_sha256
 | --- | --- |
 | `managed_by` | `system` 或 `user`；只有 `user` 来源可删除 |
 | `auth_type` | `none` 或 `bearer` |
-| `credentials_encrypted` | AES-GCM 加密后的凭据，空值表示无认证 |
+| `credentials_encrypted` | 服务端保存的 Bearer Token 明文（沿用旧字段名），空值表示无认证 |
 
 `imported_skills` 增加：
 
@@ -544,8 +544,8 @@ artifact_sha256
 ### 10.8 凭据和出站安全
 
 - 第一版只支持 `none` 和 `bearer`；
-- token 复用 Nexus 已有 AES-GCM 凭据加密能力与
-  `CONNECTOR_CREDENTIALS_KEY`，不新增第二套密钥；
+- token 暂与 Provider 历史存储模型一致，由服务端明文保存，不依赖
+  `CONNECTOR_CREDENTIALS_KEY`，后续一并迁移到统一 SecretStore；
 - 前端永远不接收 token，搜索、预览、导入和更新都由 Go 服务端添加
   `Authorization` 头；
 - 来源 base URL、搜索 URL 与 `download_url` 必须保持同源；Nexus 不跟随远端重定向；

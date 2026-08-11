@@ -153,17 +153,16 @@ type ExternalSkillPreviewResponse struct {
 }
 
 type externalSkillSource struct {
-	Key             string
-	Name            string
-	Kind            string
-	URL             string
-	Trust           string
-	Enabled         bool
-	SortOrder       int
-	ManagedBy       string
-	AuthType        string
-	Credential      string
-	CredentialError string
+	Key        string
+	Name       string
+	Kind       string
+	URL        string
+	Trust      string
+	Enabled    bool
+	SortOrder  int
+	ManagedBy  string
+	AuthType   string
+	Credential string
 }
 
 // SkillActionFailure 表示单个技能动作失败结果。

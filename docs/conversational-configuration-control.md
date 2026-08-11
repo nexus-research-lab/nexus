@@ -297,7 +297,7 @@ Channel 热重载以 `owner_user_id + channel_type` 为串行边界。配置、�
 日志和审计只保留 slot/`configured` 状态。Channel catalog 中标记为 secret 的字段还会
 被普通 config JSON 拒绝，公开视图也会过滤历史脏数据中的同名字段。
 
-Channel 和 Connector 凭据继续使用既有加密仓储。Provider `auth_token` 与 Agent 自定义 MCP 中的秘密目前仍沿用历史存储模型，后续必须迁移到统一 SecretStore；迁移前后的控制面协议都不得返回明文，也不能把 hash 当作可恢复值。
+Channel 和 Connector 凭据继续使用既有加密仓储。Provider `auth_token`、私有 Skill 来源 Token 与 Agent 自定义 MCP 中的秘密目前仍沿用历史存储模型，后续必须迁移到统一 SecretStore；迁移前后的控制面协议都不得返回明文，也不能把 hash 当作可恢复值。
 
 ### 真人授权与 human-only 管理面
 
@@ -355,7 +355,7 @@ Provider 连通测试可能产生费用或外部流量，因此普通 `verify=tr
 
 对话控制面解决的是安全操作协议，不会强行把所有历史存储改造成统一 JSON。底层继续推进两项独立工作：
 
-1. 把 Provider `auth_token` 与 Agent `mcp_servers` 中的用户秘密迁移到统一加密 SecretStore，并保留明确的轮换和撤销状态。
+1. 把 Provider `auth_token`、私有 Skill 来源 Token 与 Agent `mcp_servers` 中的用户秘密迁移到统一加密 SecretStore，并保留明确的轮换和撤销状态。
 2. 为包含外部副作用的领域完善 reconcile worker 和状态恢复；秘密变更、OAuth 与 Channel 连接不提供伪安全的一键回滚，而是重新授权或显式重配。
 
 控制面已经用服务端身份绑定、资源 CAS、幂等 apply、写后核对、输出栅栏和全链路脱敏封住对话配置的关键边界；存储演进不能绕过这些约束。

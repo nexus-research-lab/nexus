@@ -1,4 +1,4 @@
-// INPUT: owner-scoped private registry requests、加密凭据服务与 owner catalog version。
+// INPUT: owner-scoped private registry requests、来源凭据与 owner catalog version。
 // OUTPUT: 经远端验证的私有来源 CRUD、搜索/导入与 reconcile-aware 结果。
 // POS: skills 私有 registry 边界；网络校验在短事务外完成，功能写入在 catalog CAS 事务内提交。
 package skills
@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 )
@@ -95,10 +94,6 @@ func (s *Service) createExternalSkillSource(
 	if authType == externalSourceAuthBearer && token == "" {
 		return nil, errors.New("Bearer Token 不能为空")
 	}
-	encrypted, err := s.encryptPrivateSourceCredential(authType, token)
-	if err != nil {
-		return nil, err
-	}
 	sourceID := buildSkillSourceID(externalSourceKindPrivateRegistry, baseURL)
 	ownerUserID := authctx.OwnerUserID(ctx)
 	remoteSource := externalSkillSource{
@@ -116,6 +111,7 @@ func (s *Service) createExternalSkillSource(
 	if _, err = s.queryPrivateRegistry(ctx, remoteSource, "", "", 1); err != nil {
 		return nil, fmt.Errorf("验证私有来源失败: %w", err)
 	}
+	// ponytail: 暂沿用旧列明文存储，统一 SecretStore 落地后替换。
 	entity := skillstore.SourceEntity{
 		OwnerUserID:          ownerUserID,
 		SourceID:             sourceID,
@@ -125,7 +121,7 @@ func (s *Service) createExternalSkillSource(
 		Trust:                externalSourceTrustPrivate,
 		ManagedBy:            externalSourceManagedByUser,
 		AuthType:             authType,
-		CredentialsEncrypted: encrypted,
+		CredentialsEncrypted: token,
 		Enabled:              true,
 		SortOrder:            1000,
 	}
@@ -254,23 +250,15 @@ func (s *Service) preparePrivateSkillSourceUpdate(
 		if authType == externalSourceAuthBearer {
 			if request.Token != nil && strings.TrimSpace(*request.Token) != "" {
 				token = strings.TrimSpace(*request.Token)
-			} else if strings.TrimSpace(entity.CredentialsEncrypted) != "" {
-				var decryptErr error
-				token, decryptErr = s.decryptPrivateSourceCredential(entity.CredentialsEncrypted)
-				if decryptErr != nil {
-					return skillstore.SourceEntity{}, "", false, decryptErr
-				}
+			} else {
+				token = strings.TrimSpace(entity.CredentialsEncrypted)
 			}
 			if token == "" {
 				return skillstore.SourceEntity{}, "", false, errors.New("Bearer Token 不能为空")
 			}
 		}
-		encrypted, encryptErr := s.encryptPrivateSourceCredential(authType, token)
-		if encryptErr != nil {
-			return skillstore.SourceEntity{}, "", false, encryptErr
-		}
 		entity.AuthType = authType
-		entity.CredentialsEncrypted = encrypted
+		entity.CredentialsEncrypted = token
 		entity.LastError = ""
 	}
 	return entity, token, authChanged, nil
@@ -720,9 +708,6 @@ func (s *Service) privateSkillSource(ctx context.Context, sourceID string) (exte
 	if !source.Enabled {
 		return externalSkillSource{}, errors.New("该私有来源已停用")
 	}
-	if source.CredentialError != "" {
-		return externalSkillSource{}, errors.New(source.CredentialError)
-	}
 	return source, nil
 }
 
@@ -737,33 +722,7 @@ func normalizePrivateSourceAuthType(value string) (string, error) {
 	}
 }
 
-func (s *Service) encryptPrivateSourceCredential(authType string, token string) (string, error) {
-	if authType == externalSourceAuthNone {
-		return "", nil
-	}
-	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
-	if err != nil {
-		return "", fmt.Errorf("保存私有来源 Token 失败: %w", err)
-	}
-	return credentials.EncryptPayload(key, []byte(strings.TrimSpace(token)))
-}
-
-func (s *Service) decryptPrivateSourceCredential(payload string) (string, error) {
-	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
-	if err != nil {
-		return "", fmt.Errorf("读取私有来源 Token 失败: %w", err)
-	}
-	decrypted, err := credentials.DecryptPayload(key, payload)
-	if err != nil {
-		return "", errors.New("读取私有来源 Token 失败")
-	}
-	return string(decrypted), nil
-}
-
 func privateRegistryRequest(ctx context.Context, source externalSkillSource, method string, requestURL string) (*http.Request, error) {
-	if source.CredentialError != "" {
-		return nil, errors.New(source.CredentialError)
-	}
 	if _, err := resolvePrivateRegistryURL(source.URL, requestURL); err != nil {
 		return nil, err
 	}
