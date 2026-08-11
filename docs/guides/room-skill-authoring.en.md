@@ -4,7 +4,7 @@
 
 This guide is for Skill authors. It explains how to express business collaboration rules as an executable Room Skill.
 
-Communication fields, visibility, and wake-up constraints are defined by the [Room collaboration protocol](./room-collaboration-spec.md). This guide does not duplicate those implementation details.
+Communication fields, visibility, and wake-up constraints are defined by the [Room collaboration protocol](../specs/room-collaboration-spec.md). This guide does not duplicate those implementation details.
 
 ## 2. When to use a Room Skill
 

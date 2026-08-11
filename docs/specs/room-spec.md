@@ -10,9 +10,9 @@
 - [Session Key 规范](./session-key-spec.md)：共享会话键、Agent 私有会话键和恢复键。
 - [Room 协作协议](./room-collaboration-spec.md)：公区、私域、唤醒和回复投影。
 - [Execution Orchestration 协议](./execution-orchestration-spec.md)：Plan、Work Item、Assignment、验收与 Goal 持续性边界。
-- [Room Skill 编写指南](./room-collaboration-mechanism.md)：面向 Skill 作者的最小行为规则。
+- [Room Skill 编写指南](../guides/room-skill-authoring.md)：面向 Skill 作者的最小行为规则。
 
-本文描述 Room 的当前领域边界，以及已经确认的 P0 持久化、派发和投影约束；具体实现可以分阶段落地，但不得偏离这些边界。
+本文描述 Room 当前已经落地的领域边界、持久化、派发和投影约束。
 
 ## 2. 模块范围
 

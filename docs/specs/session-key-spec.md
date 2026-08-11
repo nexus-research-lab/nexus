@@ -27,8 +27,9 @@
 
 ### 2.3 `sdk_session_id`
 
-- `cc` runtime 的 resume 标识
+- runtime 返回的 transcript / resume 标识
 - 用于恢复单个 agent 私有运行时
+- 当前 nxs 与 Claude Code runtime 都通过 bridge 返回该标识
 - 不对外承担 UI 路由语义
 
 ### 2.4 `room_session_id`
@@ -46,7 +47,7 @@
 格式：
 
 ```text
-agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]
+agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]
 ```
 
 用途：
@@ -58,7 +59,7 @@ agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]
 特点：
 
 - 可以绑定一个 `sdk_session_id`
-- 历史真相源是 `cc transcript + Nexus overlay`
+- 历史真相源是 `runtime transcript + Nexus overlay`
 - 其中 `assistant` 来自 transcript，`result` 来自 overlay
 
 ### 3.2 Room 共享会话
@@ -134,6 +135,16 @@ room:group:<conversation_id>
 - `fs + group`：飞书 chat_id
 - `internal + dm`：内部保留值
 
+### 4.5 `account_id`
+
+外部通道同时配置多个账号时，使用 `acct:<account_id>` 把同一联系人或群聊隔离到
+具体连接账号。该段位于 `chat_type` 与 `ref` 之间；没有多账号歧义的会话不添加。
+
+### 4.6 `thread_id`
+
+需要区分通道内 thread/topic 时，在末尾追加 `topic:<thread_id>`。`ref` 允许包含冒号，
+但不能跨过保留的 `:topic:` 边界。
+
 ## 5. 真相源与边界
 
 ### 5.1 路由主键
@@ -157,7 +168,10 @@ room:group:<conversation_id>
 
 - 前端不手拼
 - 后端不手拼
-- 新能力优先扩展 builder，不改已有字符串形状
+- 普通 Agent key 使用 `BuildAgentSessionKey`
+- 多账号外部通道使用 `BuildAgentAccountSessionKey`
+- Room 共享流和成员运行时分别使用 `BuildRoomSharedSessionKey`、`BuildRoomAgentSessionKey`
+- 解析和校验统一使用 `ParseSessionKey`、`RequireStructuredSessionKey`
 
 ## 7. 当前实现约束
 

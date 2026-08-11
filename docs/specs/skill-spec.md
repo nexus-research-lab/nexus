@@ -543,9 +543,9 @@ artifact_sha256
 
 ### 10.8 凭据和出站安全
 
-- 第一版只支持 `none` 和 `bearer`；
-- token 暂与 Provider 历史存储模型一致，由服务端明文保存，不依赖
-  `CONNECTOR_CREDENTIALS_KEY`，后续一并迁移到统一 SecretStore；
+- 当前只支持 `none` 和 `bearer`；
+- bearer token 沿用 Provider 存储模型，由服务端明文保存，不依赖
+  `CONNECTOR_CREDENTIALS_KEY`；该边界必须在 UI 和部署文档中明确；
 - 前端永远不接收 token，搜索、预览、导入和更新都由 Go 服务端添加
   `Authorization` 头；
 - 来源 base URL、搜索 URL 与 `download_url` 必须保持同源；Nexus 不跟随远端重定向；

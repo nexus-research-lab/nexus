@@ -6,7 +6,7 @@
   项目成员管理 UI、Landlock launcher、主要宿主文件 broker 的 confined-fd
   边界和 opt-in per-user cgroup 回收已实现；默认仍为 `off`，原生 Linux 上需
   显式启用 `enforce` 并完成部署验收
-- 日期：2026-07-24
+- 核对日期：2026-08-11
 - 适用范围：Linux 服务端多用户部署
 - 当前结论：以操作系统 UID/GID 为主边界，项目组/ACL 负责显式协作，runtime hook 和最终路径校验负责策略收口；`.nexus` 是统一状态根，`app/` 保存 Nexus 宿主数据，runtime 配置和会话按用户独立存放
 
@@ -30,11 +30,11 @@ macOS 无法执行 setuid、POSIX ACL 和 Landlock，发布前仍需在目标 Li
 
 - 防御宿主 root、容器运行时、内核或文件系统本身被攻破。
 - 用文件权限替代 HTTP、WebSocket、`nexusctl` 和 storage 层的 owner 授权。
-- 第一阶段实现每个 Agent 一个操作系统用户。
-- 第一阶段不隔离网络、CPU、内存、PID namespace 或设备 ioctl；这些属于后续
-  sandbox/cgroup/容器能力。Landlock 只负责 runtime 进程的文件系统访问集合。
+- 不实现每个 Agent 一个操作系统用户。
+- 不承诺网络、CPU、内存、PID namespace 或设备 ioctl 隔离。Landlock 只负责
+  runtime 进程的文件系统访问集合；cgroup 仅在显式配置时负责 owner 进程树回收。
 - 在 macOS/Windows 桌面端强制创建本地系统用户。
-- 第一阶段引入独立的组织/成员层级；本阶段的租户边界就是 `owner_user_id`。
+- 不定义独立的组织/成员层级；当前租户边界是 `owner_user_id`。
 
 ## 3. 威胁模型
 
@@ -101,7 +101,7 @@ RuntimeIdentity
 - `owner_user_id` 是所有控制面查询、workspace、Agent、Room、凭据、Skill、automation 和 runtime 目录的统一归属键。
 - Web 登录用户直接生成 `UserScope`；App 启动时自动绑定现有 `SystemUserID` 对应的本地用户，仍然生成同一个 `UserScope`。
 - `surface` 不能被业务层当作授权条件；不得出现“桌面走 system scope、Web 走 owner scope”的双轨逻辑。
-- 如果未来需要 Agent 级隔离，再引入 per-agent UID 或 Landlock policy，不改变本规范的用户级基线。
+- 当前不提供 Agent 级 UID 隔离；用户级身份是本规范的安全基线。
 
 ### 5.2 身份启动
 
@@ -225,7 +225,7 @@ nxs 和 Claude 都固定使用同一个 `<user_root>/projects`。Claude 不能�
 
 bridge 可以继续把 `CLAUDE_CONFIG_DIR` 与 `NEXUS_CONFIG_DIR` 保持同步，但同步源必须是宿主按 `owner_user_id` 计算出的 `<user_root>`，不能继承 server 的 `.nexus/app` host root。
 
-`NEXUS_CONFIG_DIR` 的语义需要拆成两层：
+`NEXUS_CONFIG_DIR` 的语义分成两层：
 
 - server 进程的宿主路径由 `appfs.AppDir()` 计算为 `.nexus/app`；`NEXUS_STATE_ROOT`
   是状态根的唯一新配置，`NEXUS_CONFIG_DIR` 只作为旧版本状态根输入兼容。
@@ -234,7 +234,7 @@ bridge 可以继续把 `CLAUDE_CONFIG_DIR` 与 `NEXUS_CONFIG_DIR` 保持同步�
 
 宿主读取 transcript 时不能继续只依赖 server 进程全局的 `NEXUS_CONFIG_DIR`。Agent/session 必须携带或可推导自己的 `RuntimeConfigDir`，`AgentHistoryStore` 从该用户级 `<user_root>/projects` 读取。
 
-第一阶段已完成以下调整：
+关键实现入口：
 
 - `nexus/internal/service/agent/workspace.go` / `ready.go`
 - `nexus/internal/storage/workspace/transcript_path.go`
@@ -458,15 +458,15 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 | 部署形态 | 本规范状态 | 说明 |
 | --- | --- | --- |
 | 原生 Linux 服务端 | 首选 | POSIX UID/GID、setgid、ACL 和 launcher 可控 |
-| Linux Docker + state volume | 支持目标 | 可继续使用单一 `.nexus` volume，但 `app/` 与 `users/` 必须是不同权限子树 |
+| Linux Docker + state volume | 条件支持 | 可继续使用单一 `.nexus` volume，但 `app/` 与 `users/` 必须是不同权限子树 |
 | Linux Docker + 宿主 bind mount | 条件支持 | 必须验证宿主 UID/GID、ACL、备份和恢复语义 |
 | Docker Desktop macOS/Windows bind mount | 暂不承诺 | 文件共享层的 UID/GID 语义和性能需单独验证 |
 | Nexus macOS/Windows 桌面端 | 保持单用户 | 不为本地用户创建额外系统账号 |
-| 每用户独立容器/VM | 更高隔离档 | 作为 hostile-tenant 部署选项，不是第一阶段默认方案 |
+| 每用户独立容器/VM | 当前合同外 | 可由部署方作为额外 hostile-tenant 隔离层 |
 
-## 12. 迁移与发布阶段
+## 12. 当前交付状态
 
-### Phase 0：收口现有旁路
+### 12.1 基础控制面（已实现）
 
 - 服务端和 runtime 环境改为 allowlist；
 - 修复 app API 和 `nexusctl` 的 owner 授权；
@@ -474,7 +474,7 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - 禁止安全关键环境变量覆盖 policy；
 - 记录越界尝试，不改变现有数据布局。
 
-### Phase 1：Linux per-user identity（已实现，默认关闭）
+### 12.2 Linux per-user identity（已实现，默认关闭）
 
 - 建立 `owner_user_id -> RuntimeIdentity` 映射；
 - 实现受控 launcher/worker；
@@ -485,7 +485,7 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - `NEXUS_RUNTIME_ISOLATION_MODE` 是 runtime isolation 的唯一选择：`enforce` 仅在 Linux
   server 上可用；`audit` 只启用 Hook 和日志，`off` 保持兼容行为。认证状态不覆盖该配置。
 
-### Phase 2：存量迁移（已实现启动迁移，目标部署仍需验收）
+### 12.3 存量迁移（启动迁移已实现，目标部署仍需验收）
 
 - 停止受影响 runtime；
 - 为每个用户创建 identity 和 `users/<owner_user_id>`；
@@ -494,7 +494,7 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - 迁移失败时保留原目录，不覆盖原数据；
 - 完成双用户负向访问测试后再切换默认根。
 
-### Phase 3：项目协作与纵深隔离（已实现，Linux 现场验收待完成）
+### 12.4 项目协作与纵深隔离（已实现，Linux 现场验收待完成）
 
 - launcher 已提供 `project-ensure` / `project-grant` / `project-list`，HTTP
   控制面按角色和项目成员过滤；
@@ -504,10 +504,9 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
   runtime；session key 同时绑定 owner，拒绝跨 owner 复用；
 - 运营设置已提供项目创建和成员 `read` / `write` / `none` 管理 UI；前端仅按
   角色调整交互，最终授权仍由服务端 owner/admin 规则判定；
-- cgroup 仍需在目标 Linux 部署中显式配置并完成现场验收；
-- 根据部署需求评估 per-user worker container。
+- cgroup 仍需在目标 Linux 部署中显式配置并完成现场验收。
 
-### Phase 4：owner 进程树回收（已实现，配置启用后生效）
+### 12.5 owner 进程树回收（已实现，配置启用后生效）
 
 - launcher 支持 cgroup v2 的 per-user 子 cgroup，并在 runtime `exec` 前写入
   `cgroup.procs`；
@@ -516,7 +515,7 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
   并在回收期间阻止新的同 owner session 插入；
 - 默认不创建 cgroup；将 `cgroup_root` 指向 root-owned cgroup v2 子目录并设置
   `cgroup_required=true` 后，能力缺失会 fail closed；
-- worker container、PID namespace 与部署级 seccomp 仍属于后续工作。
+- worker container、PID namespace 与部署级 seccomp 不属于当前合同。
 
 ## 13. 验收标准
 
@@ -554,21 +553,19 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - cgroup v2 启用时，关闭 owner 或撤销项目成员关系后，父进程及其
   double-fork 子进程均从目标 cgroup 消失。
 
-## 14. 已决策与后续工作
+## 14. 已决策与部署限制
 
 1. 已决定仅对原生 Linux / 可靠 Linux volume 承诺 `enforce`；Docker Desktop 保持
    `off/audit` 兼容档。
-2. 已采用 root-owned setuid launcher；后续可评估独立 worker/container，但不改变
-   当前 UID/GID 合同。
+2. 已采用 root-owned setuid launcher；独立 worker/container 不属于当前合同。
 3. 项目协作采用“项目 GID + named-user ACL”的混合模型：write 成员加入项目组，
    read 成员只写 named ACL。
 4. 同一用户的不同 Agent 共享用户私有组；项目组只按当前启动票据授予。
 5. `app/` 与 `users/` 继续共用 `.nexus` volume，但由 launcher 收紧宿主 app 子树。
 6. 现有系统包 broker/sudo 合同暂不在本变更扩大，runtime 不能通过 launcher 获得
    额外 sudo 权限。
-7. 后续必须补项目成员 UI、Linux hostile-tenant 集成验收，以及需要时的
-   PID namespace、worker container 和部署级 seccomp profile；cgroup v2 回收
-   已实现但仍需目标内核现场验收。
+7. Linux hostile-tenant 与 cgroup v2 仍需在目标内核现场验收；PID namespace、
+   worker container 和部署级 seccomp profile 不属于当前合同。
 
 ## 15. 参考
 

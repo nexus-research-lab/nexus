@@ -4,8 +4,8 @@ import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale } from "@/shared/i18n/messages";
 
-import roomCollaborationMechanismEnglishMarkdown from "../../../../../../docs/specs/room-collaboration-mechanism.en.md?raw";
-import roomCollaborationMechanismChineseMarkdown from "../../../../../../docs/specs/room-collaboration-mechanism.md?raw";
+import roomCollaborationMechanismEnglishMarkdown from "../../../../../../docs/guides/room-skill-authoring.en.md?raw";
+import roomCollaborationMechanismChineseMarkdown from "../../../../../../docs/guides/room-skill-authoring.md?raw";
 import { buildSkillFrontmatterExample } from "./skill-import-dialog-model";
 
 const ROOM_COLLABORATION_GUIDES: Record<Locale, {
@@ -14,11 +14,11 @@ const ROOM_COLLABORATION_GUIDES: Record<Locale, {
 }> = {
   en: {
     content: roomCollaborationMechanismEnglishMarkdown,
-    fileName: "room-collaboration-mechanism.en.md",
+    fileName: "room-skill-authoring.en.md",
   },
   zh: {
     content: roomCollaborationMechanismChineseMarkdown,
-    fileName: "room-collaboration-mechanism.md",
+    fileName: "room-skill-authoring.md",
   },
 };
 

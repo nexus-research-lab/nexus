@@ -237,7 +237,8 @@ RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile
 
 COPY web/ ./
-COPY docs/specs/room-collaboration-mechanism.md /src/docs/specs/room-collaboration-mechanism.md
+COPY docs/guides/room-skill-authoring.en.md /src/docs/guides/room-skill-authoring.en.md
+COPY docs/guides/room-skill-authoring.md /src/docs/guides/room-skill-authoring.md
 RUN pnpm run build
 
 FROM runtime-base AS runtime

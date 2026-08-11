@@ -101,11 +101,7 @@ round 状态立即收口，不能把 Composer 留在“回复中”；确认消�
 atomic Slash 发送前会清理 bridge 尚未消费的旧隐藏上下文；Skill 正文由 runtime
 在本轮内部生成，不进入产品侧 buffer。
 
-## 后续扩展
+## 维护规则
 
 - runtime 固定指令变化时，在升级 Nexus 支持的 runtime 版本时同步更新静态清单
   和目录测试；项目 Skill、插件命令等动态内容不进入产品补全。
-- 若 Room 需要 runtime Slash，按选中 Agent 的 runtime 选择同一份静态清单，
-  不得为了目录创建 Agent slot runtime session。
-- Host handler 若需要持久化消息或 round 状态，应返回带规范 session/round 身份的
-  产品事件，由 handler 统一补齐缺省 session key。

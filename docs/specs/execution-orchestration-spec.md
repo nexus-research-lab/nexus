@@ -1349,47 +1349,7 @@ room realtime -> narrow handoff/attempt interface
 - Goal service 仍拥有 Goal 生命周期，只委托 Orchestration 提供 execution readiness。
 - MCP 注册保持薄装配，不承载业务状态机。
 
-## 19. 分阶段交付
-
-### 阶段一：语义与状态
-
-- 固定本文协议。
-- 增加 protocol、migration、repository 和 Orchestration Service。
-- 实现 Plan、Work Item、Assignment、Attempt、Submission、Review 状态机。
-- 实现首次 Execution + active Plan 创建、transient replacement 和 abandonment 的原子 SQL commands。
-- 实现 immutable Spec/Plan membership、Acceptance、幂等 event ledger 与 Dispatch outbox。
-- 实现所有 Attempt interruption path 共用的 same-transaction Cancellation outbox capture。
-- 不依赖 Prompt 正确性证明状态约束。
-
-### 阶段二：模型控制面
-
-- 注入统一 stable execution contract。
-- DM 与 Room 都使用 static/dynamic prompt 分层。
-- 增加 `<nexus_execution_context>`。
-- 增加 `execution_transition` flag-level affordance，区分普通 replan、replacement 与 abandonment。
-- 增加 execution MCP 工具。
-- SDK Task/Todo 只做投影适配。
-
-### 阶段三：运行时闭环
-
-- 绑定 subagent Attempt。
-- 绑定 Room handoff 与 Assignment。
-- 实现裸 `@` 准入。
-- 实现 failure/retry/takeover/recovery。
-- 用 SQL terminal state + WorkBinding admission fence 拒绝 replacement/abandonment 后的迟到 Room/runtime 工作，并幂等 reconciliation workspace ledger。
-- 用 lease/retry/recovery consumer 精确中断旧 Room slot/DM runtime round，证明延迟 cancellation 不会命中 successor。
-- 实现 adaptive Goal promotion。
-- 用 WorkGraph 替换粗粒度 Room collaboration completion evidence。
-- 接入 Goal completion readiness。
-
-### 阶段四：UI 投影
-
-- 已用同一 runtime graph/read model 投影单 Agent、DM 和 Room 工作图。
-- 默认只显示 Agent、Subagent、关键 Gate 与折叠后的 Tool group；边只表达方向，详情点击节点再看。
-- Lead/creator 的 coordinate、integrate、review、takeover 和 delivery run 与成员节点使用同一语义。
-- UI 不定义新状态，也不要求用户逐节点确认。
-
-## 20. 必须通过的行为场景
+## 19. 必须通过的行为场景
 
 1. 单个原子任务不创建多余 Plan 或 Goal。
 2. 多步单 Agent 任务建立 Plan，但可在单轮完成而不保留 Goal。
@@ -1455,7 +1415,7 @@ room realtime -> narrow handoff/attempt interface
 62. 已有 planless Execution 可以用 `operation: replan` 和 empty base-Plan fence 原子创建首个 Plan；document 携带任何 `existing_work_item_id` 都被拒绝。
 63. Goal-bound Plan materialization 成功但 confirmation 暂时失败或 confirmer 未实现时，proposal 持久化 `materialized + confirmation=pending`；Goal completion/continuation fail closed，reconciler 只重试 confirmation。
 
-## 21. 非目标
+## 20. 非目标
 
 本文当前不规定：
 

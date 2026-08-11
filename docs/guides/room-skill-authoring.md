@@ -4,7 +4,7 @@
 
 本文面向 Skill 作者，只说明如何把业务协作规则写成可执行的 Room Skill。
 
-通信字段、可见性和唤醒约束以 [Room 协作协议](./room-collaboration-spec.md) 为准；本文不复制协议实现细节。
+通信字段、可见性和唤醒约束以 [Room 协作协议](../specs/room-collaboration-spec.md) 为准；本文不复制协议实现细节。
 
 ## 2. 什么时候使用 Room Skill
 

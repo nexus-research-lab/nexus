@@ -22,8 +22,8 @@ RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile
 
 COPY web/ ./
-COPY docs/specs/room-collaboration-mechanism.en.md /app/docs/specs/room-collaboration-mechanism.en.md
-COPY docs/specs/room-collaboration-mechanism.md /app/docs/specs/room-collaboration-mechanism.md
+COPY docs/guides/room-skill-authoring.en.md /app/docs/guides/room-skill-authoring.en.md
+COPY docs/guides/room-skill-authoring.md /app/docs/guides/room-skill-authoring.md
 RUN pnpm run build
 
 FROM nginx:1.28-alpine AS runner

@@ -600,9 +600,9 @@ Agent 应只对真实独立分支 fan-out；后端严格执行已声明 dependen
 
 测试作为确定性 ToolNode，因为它决定路由并产生 canonical evidence。普通文件读取仍留在 Coder 详情。Verifier 失败时形成有界回边，每次返回新的 Node Run。
 
-## 15. 与现有实现的迁移边界
+## 15. 当前实现边界
 
-### 15.1 保留
+### 15.1 沿用的领域模型
 
 - Execution/Plan/Work Item/Assignment/Attempt/Submission/Acceptance 状态机。
 - WorkGraph hard dependency readiness。
@@ -610,7 +610,7 @@ Agent 应只对真实独立分支 fan-out；后端严格执行已声明 dependen
 - SDK Task/Todo 的局部进度语义。
 - Subagent child Attempt 与 exact parent binding。
 
-### 15.2 修正
+### 15.2 当前投影规则
 
 - `parent_work_item_id` 从 readiness/layout edge 中移除，只作为 group containment。
 - Execution Graph UI 不再把每个 Work Item 渲染成一张文字密集卡片。
@@ -619,7 +619,7 @@ Agent 应只对真实独立分支 fan-out；后端严格执行已声明 dependen
 - 状态消息从 Agent final output 移到 Execution Event/UI projection。
 - Agent runtime 在 Tool Result/child result 后继续自己的 Loop；WorkGraph scheduler 在 Acceptance、dispatch 和显式 graph mutation 后推进 Ready 工作，不依赖用户逐步确认。
 
-### 15.3 新增
+### 15.3 Graph Run 扩展
 
 - canonical Graph Run event model；
 - Tool Run 与 promoted ToolNode projection；

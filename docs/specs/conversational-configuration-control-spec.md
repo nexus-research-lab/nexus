@@ -2,7 +2,7 @@
 
 ## 目标与原则
 
-Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Channel、Connector、Automation 等状态在数据库中，用户偏好和 WebSearch 凭据在用户配置目录，主机启动参数来自部署环境，桌面状态根由原生宿主离线迁移。因此，“像 Hermes 一样通过对话配置一切”指的是让智能体安全操作真实配置能力，而不是允许模型随意读写文件、执行 SQL，或维护一份会与数据库漂移的影子 JSON。
+Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Channel、Connector、Automation 等状态在数据库中，用户偏好和 WebSearch 凭据在用户配置目录，主机启动参数来自部署环境，桌面状态根由原生宿主离线迁移。因此，通过对话配置 Nexus 指的是让智能体安全操作真实配置能力，而不是允许模型随意读写文件、执行 SQL，或维护一份会与数据库漂移的影子 JSON。
 
 本控制面把这些异构真相源投影成一棵可发现、可脱敏读取、可计划、可审计的虚拟配置树。每个写操作仍调用对应领域服务，让 Web UI、HTTP API 与对话入口复用同一套校验、级联、加密和 runtime reconcile 规则。它遵守五项原则：
 
@@ -22,7 +22,7 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `emotion` | 当前 Agent workspace 的版本化 `.agents/emotion.json` | `nexus_config` | 基础/上下文情绪下一轮投影；fatigue 只读 |
 | `channels` | 数据库 + 加密凭据 | `nexus_config`；扫码/验证码走 `nexus_channel_authorization` | 版本 CAS 后热重载，失败条件回滚 |
 | `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexus_config`；OAuth/Device 走 `nexus_connector_auth` | 下一会话或重新授权 |
-| `skills` | 数据库 + 加密私有来源凭据 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexus_config` | 来源、目录和导入结果立即；Agent 在下一轮加载 Skill 内容与安装选择 |
+| `skills` | 数据库 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexus_config` | 来源、目录和导入结果立即；Agent 在下一轮加载 Skill 内容与安装选择 |
 | `host` | 部署环境 + 原生桌面宿主 | `nexus_config` 脱敏检查；变更走对应人类控制面 | 外部变更后重启 |
 | `sessions` | owner-confined Agent workspace session meta + runtime 不可写的 host-only owner lifecycle ledger | `nexus_config` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
 | `rooms` | 数据库 + Room runtime | `nexus_config` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
@@ -40,10 +40,8 @@ Goal、Automation 与当前 Agent workspace 保留各自的专用工具，因为
 
 Goal 的创建、读取、明确改写目标和模型终态继续由 `nexus_goal` 完成。当前自动批准的
 `nexus_goal` family 只承载这些模型侧安全操作；暂停、恢复、预算和清除会触发 usage
-结算、continuation 与当前 round 中断，绝不能直接追加到这个自动批准 family，也不得
-伪装成 `nexus_config` 普通字段更新。未来如开放对话发起，必须使用独立 human-bound
-Goal 生命周期控制面，重新绑定当前认证 principal/session/round、目标 revision 和原生
-真人批准；在该控制面完成前，这些动作只保留给当前认证的人类界面。
+结算、continuation 与当前 round 中断，不属于对话工具，只保留给当前认证的人类界面，
+也不得伪装成 `nexus_config` 普通字段更新。
 
 浏览器主题、界面语言以及 onboarding/tour 的完成、忽略和重置同样不是
 owner/Agent/Room 配置。它们只存在于当前浏览器 `localStorage` 或桌面本地持久状态，
@@ -297,7 +295,9 @@ Channel 热重载以 `owner_user_id + channel_type` 为串行边界。配置、�
 日志和审计只保留 slot/`configured` 状态。Channel catalog 中标记为 secret 的字段还会
 被普通 config JSON 拒绝，公开视图也会过滤历史脏数据中的同名字段。
 
-Channel 和 Connector 凭据继续使用既有加密仓储。Provider `auth_token`、私有 Skill 来源 Token 与 Agent 自定义 MCP 中的秘密目前仍沿用历史存储模型，后续必须迁移到统一 SecretStore；迁移前后的控制面协议都不得返回明文，也不能把 hash 当作可恢复值。
+Channel 和 Connector 凭据使用既有加密仓储。Provider `auth_token`、私有 Skill 来源
+Token 与 Agent 自定义 MCP 中的秘密仍沿用各自现有存储模型，尚未进入统一加密存储；
+控制面协议不得返回这些明文，也不能把 hash 当作可恢复值。
 
 ### 真人授权与 human-only 管理面
 
@@ -333,8 +333,6 @@ workspace 与 scope mode 都由宿主固定，Hook 拒绝环境变量或命令�
 - stdio、HTTP 和 SSE 配置在进入 runtime 前严格解析；未知类型、SDK 内部 server、`nexus_*` 保留名和内置 server 冲突会被拒绝。
 - 修改后的 MCP 配置从下一轮生效，当前半轮不会动态替换工具集合。
 
-未来 SecretStore 负责加密、轮换、引用和删除语义；它不会改变 owner/Agent/Room 权限矩阵，也不会允许 Room 继承 owner 密钥。
-
 ## 工具与审计
 
 - `inspect_nexus_configuration`：发现调用者可见域，读取脱敏状态、access、scope、revision、state version 和 checks。
@@ -351,11 +349,8 @@ workspace 与 scope mode 都由宿主固定，Hook 拒绝环境变量或命令�
 
 Provider 连通测试可能产生费用或外部流量，因此普通 `verify=true` 不发网络请求；必须显式 plan/apply `test_provider` 或 `test_model`。更新输入采用 merge-patch 语义：未提供字段保持原值，显式数组替换数组，可清除字段按契约清除。Provider 目标计划公开的是单调 `configuration_version` 而不是凭据内容；apply 后必须重新读取并证明版本从 plan 值精确推进一次，删除则直接证明目标不存在。
 
-## 存储演进边界
+## 当前存储限制
 
-对话控制面解决的是安全操作协议，不会强行把所有历史存储改造成统一 JSON。底层继续推进两项独立工作：
-
-1. 把 Provider `auth_token`、私有 Skill 来源 Token 与 Agent `mcp_servers` 中的用户秘密迁移到统一加密 SecretStore，并保留明确的轮换和撤销状态。
-2. 为包含外部副作用的领域完善 reconcile worker 和状态恢复；秘密变更、OAuth 与 Channel 连接不提供伪安全的一键回滚，而是重新授权或显式重配。
-
-控制面已经用服务端身份绑定、资源 CAS、幂等 apply、写后核对、输出栅栏和全链路脱敏封住对话配置的关键边界；存储演进不能绕过这些约束。
+- Provider `auth_token`、私有 Skill 来源 Token 与 Agent `mcp_servers` 中的用户秘密尚未使用统一加密存储。
+- 包含外部副作用的秘密变更、OAuth 与 Channel 连接不承诺一键回滚；失败后使用重新授权、显式重配或 `reconcile_required` 收口。
+- 这些限制不改变服务端身份绑定、资源 CAS、幂等 apply、写后核对、输出栅栏和全链路脱敏要求。

@@ -21,7 +21,7 @@
 
 - 某个 assistant turn 的 durable 消息
 - 可能包含 thinking、tool、text 等内容
-- assistant 正文真相源只来自 `cc transcript`
+- assistant 正文真相源只来自 runtime transcript
 
 ### 2.3 result message
 
@@ -36,6 +36,25 @@
 
 - 一次用户输入触发的一轮业务对话
 - 当前历史分页、状态收口都按 round 处理
+
+### 2.5 身份边界
+
+| 字段 | 生成方 | 语义 |
+| --- | --- | --- |
+| `client_request_id` | Web | 一次发送尝试的 ACK / timeout 关联，不是业务主键 |
+| `client_message_id` | Web | optimistic 用户消息与幂等重试身份 |
+| `round_id` | Nexus | 一次用户输入的根业务轮次，由后端生成 |
+| `message_id` | Nexus / runtime | durable 消息身份，不能复用为 round |
+| `agent_round_id` | Nexus | Room 内单个 Agent slot 的执行身份，与 root round 独立 |
+
+前端不得发送或拼接 canonical `round_id`，也不得从 `message_id`、前缀或 Agent 名称
+反推 root round。`agent_round_id` 必须使用显式字段，不能编码进 `round_id` 后缀。
+
+### 2.6 投影归属
+
+- bridge 只传递 runtime message、stream、session 与控制事件，不持有 UI turn 模型。
+- Nexus 后端负责 transcript、overlay、共享消息和实时状态的产品级归一化。
+- Web 只负责折叠、虚拟列表、搜索和 viewport 加载，不从多个旁路状态猜生命周期。
 
 ## 3. 实时链路
 
@@ -85,7 +104,7 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 
 当前真相源是：
 
-- `cc transcript`
+- runtime transcript
 - `overlay.jsonl`
 
 其中：
@@ -108,7 +127,7 @@ DM / 私有 session 主要保存：
 - `result` 只能来自 overlay
 - transcript 里的 `MessageTypeResult` 不参与历史投影
 
-### 4.3 cc transcript 的终态规则
+### 4.3 runtime transcript 的终态规则
 
 对 transcript assistant 来说，终态只认 `message.stop_reason`：
 
