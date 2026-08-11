@@ -240,7 +240,7 @@ func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
 }
 
 func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
-	if observation.Recoverable {
+	if observation.Recoverable || observation.IsError {
 		return false
 	}
 	if observation.MutationOutcome == protocol.MutationResultRejected ||
@@ -248,10 +248,10 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 		return false
 	}
 	switch CanonicalToolName(observation.ToolName) {
-	case "", "update_goal":
+	case "", "get_goal", "get_execution", "update_goal":
 		return false
 	case "retarget_goal":
-		return !observation.IsError
+		return true
 	}
 	switch normalizeString(observation.ErrorCode) {
 	case string(sdkpermission.ErrorCodeRequestTimeout):

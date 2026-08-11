@@ -42,6 +42,7 @@ type ThreadGoalSetParams struct {
 	Objective   *string                `json:"objective,omitempty"`
 	Status      *ThreadGoalStatus      `json:"status,omitempty"`
 	TokenBudget protocol.OptionalInt64 `json:"tokenBudget,omitempty"`
+	OwnerUserID string                 `json:"-"`
 }
 
 // ThreadGoalSetResponse 对齐 Codex app-server 的 thread/goal/set 响应。
@@ -61,7 +62,8 @@ type ThreadGoalGetResponse struct {
 
 // ThreadGoalClearParams 对齐 Codex app-server 的 thread/goal/clear 参数。
 type ThreadGoalClearParams struct {
-	ThreadID string `json:"threadId"`
+	ThreadID    string `json:"threadId"`
+	OwnerUserID string `json:"-"`
 }
 
 // ThreadGoalClearResponse 对齐 Codex app-server 的 thread/goal/clear 响应。

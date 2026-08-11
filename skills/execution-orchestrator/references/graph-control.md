@@ -11,11 +11,11 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 ## Plan Document 传输
 
-需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 交给 `prepare_plan_execution`，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。如果还需新建 Goal，先等待 `create_goal` 成功，再准备绑定它的 Plan；不要并行调用二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。active Goal 下的 fresh `create` 只能省略 root `objective`，服务端会继承 exact Goal objective；每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变 Goal 先调用 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
+需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 交给 `prepare_plan_execution`，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。fresh Goal-free `create` 明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 成功，再准备绑定它的 Plan；不要并行调用二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先调用 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
 
-每个 Work Item 必填且只能使用精确字段名 `logical_key`、`kind`、`subject`、`objective`、`deliverable`；可选字段为 `existing_work_item_id`、`acceptance_criteria`、`required`、`terminal`、`parent_logical_key`、`depends_on`、`soft_depends_on`、`input_refs`、`output_scopes`、`shared_output_scopes`。不要写 `dependencies`、`description`、`acceptance` 或 `scopes`：它们不是别名，会被 strict parser 拒绝。`kind` 只能是 `produce`、`review`、`verify` 或 `integrate`；依赖字段是 logical key 的 string sequence；输出范围必须使用 `file:<path>`、`dir:<path>` 或 `semantic:<key>`。
+Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`prepare_plan_execution` 的工具 schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
 
-先按下面的完整形状一次写完，再提交；不要根据单个报错逐字段删改：
+下面只是一个最小 create 示例，不是第二份 schema：
 
 ```yaml
 nexus_plan: 1
@@ -23,9 +23,6 @@ operation: create
 objective: "Deliver the requested outcome"
 completion_criteria:
   - "The requested outcome is delivered and verified"
-revision_reason: ""
-supersede_active_work: false
-replacement_reason: ""
 items:
   - logical_key: produce
     kind: produce
@@ -36,16 +33,11 @@ items:
       - "The deliverable satisfies the requested scope"
     required: true
     terminal: true
-    parent_logical_key: ""
-    depends_on: []
-    soft_depends_on: []
-    input_refs: []
     output_scopes:
       - "semantic:requested-outcome"
-    shared_output_scopes: []
 ```
 
-`existing_work_item_id` 只在 replan 复用既有 Work Item identity 时填写。不要把对象或数组直接作为工具参数，不要发送 placeholder、fragment 或多份 YAML document，也不要自行猜测旧字段或枚举。
+`replan` / `replace` 的复用、依赖、输出 scope 和 active-work 条件以当轮 contract 为准。不要把对象或数组直接作为工具参数，不要发送 placeholder、fragment 或多份 YAML document，也不要自行猜测旧字段或枚举。
 
 ## 并行与依赖
 

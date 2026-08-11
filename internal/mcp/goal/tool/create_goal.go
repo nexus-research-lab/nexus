@@ -49,14 +49,14 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if err != nil {
 				return createGoalErrorResult(err), nil
 			}
-			sctx.StoreGoalObjectiveRevision(item.ObjectiveRevision())
+			sctx.StoreGoalMutationAuthority(*item)
 			return structuredResult("goal created", goalPayload(item)), nil
 		},
 	}
 }
 
 const (
-	createGoalBaseDescription = "Create one active Goal only after explicit user or system Goal intent and a complete execution-ready objective. Do not create a broad placeholder while material clarification is still required. Set token_budget only from an explicit budget. If a managed WorkGraph is also required, wait for this call to succeed before prepare_plan_execution; never launch them in parallel. The call fails when a current Goal exists; explicit objective correction uses retarget_goal on that same Goal."
+	createGoalBaseDescription = "Create one active Goal only after explicit user or system Goal intent and a complete execution-ready objective. Do not create a broad placeholder while material clarification is still required. Set token_budget only from an explicit budget. When a compatible transient WorkGraph already exists, this call binds that existing Execution to the new Goal; do not create a second graph. When neither exists and a WorkGraph is also required, wait for this call to succeed before prepare_plan_execution; never launch them in parallel. The call fails when a current Goal exists; explicit objective correction uses retarget_goal on that same Goal."
 )
 
 func createGoalDescription(_ string) string {

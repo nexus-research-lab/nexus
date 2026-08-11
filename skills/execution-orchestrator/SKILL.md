@@ -9,7 +9,7 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 
 稳定语义只有一句：
 
-> Goal 决定持续追求什么；Plan 决定工作怎样展开；Work Item 决定谁交付什么；子智能体帮助一个 Agent 完成自己的工作项；Room 负责让多个 Agent 的工作项可见地交接和协同。
+> Goal 决定持续追求什么；Plan 决定工作怎样展开；Work Item 决定谁交付什么；子智能体帮助一个 Agent 完成自己的工作项；Room 负责让多个 Agent 的工作项可见地交接和协同。Goal 与 WorkGraph 分别独立选择，只在确实同时需要持续性与责任拓扑时绑定。
 
 ## 使用步骤
 
@@ -42,6 +42,7 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 ## 稳定边界
 
 - 复杂度是结构评估信号，不是固定路由：可拆分但仍由当前 Agent 负责的工作优先考虑 Subagent；需要持久 owner、交付、依赖、验收或恢复拓扑时才进入 WorkGraph。
+- 创建 Goal 不意味着创建 Execution/Plan；创建 WorkGraph 也不因 session 中恰好有 active Goal 就自动绑定。只信 exact Goal context 和明确绑定意图。
 - Room coordinator 根据任务实际结构判断是否需要持久成员责任；用户有没有说“协作”、Room 人数和 `@` 数量都不单独决定建图。
 - 普通聊天、brainstorm、投票和一次性帮助可以只走消息，不必建图。
 - 一旦 Lead 自己选择把不同交付交给持久 Room 成员，并声明依赖、并行、汇总或验收，责任边界已经成立；必须先建图并发布，再按刷新后的上下文 Assignment，不能用裸 `@` 代替。

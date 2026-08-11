@@ -1,16 +1,29 @@
 "use client";
 
+/**
+ * INPUT: current session key, owner-scoped Goal REST resource and server-derived binding read view.
+ * OUTPUT: race-safe Goal/binding snapshot plus serialized lifecycle command transactions.
+ * POS: Goal panel resource owner; WorkGraph binding is never inferred from Goal metadata.
+ */
+
 import { useCallback, useRef, useState } from "react";
 
-import { getCurrentGoalApi } from "@/lib/api/conversation/goal-api";
+import {
+  getCurrentGoalApi,
+  getGoalExecutionBindingApi,
+} from "@/lib/api/conversation/goal-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
 import { getErrorMessage } from "@/lib/error-message";
-import type { Goal } from "@/types/conversation/goal";
+import type {
+  Goal,
+  GoalExecutionBinding,
+} from "@/types/conversation/goal";
 
 import type { GoalCommandPhase } from "./goal-model";
 
 interface GoalSnapshot {
   available: boolean;
+  binding: GoalExecutionBinding | null;
   error: string | null;
   goal: Goal | null;
   loading: boolean;
@@ -41,6 +54,7 @@ interface GoalResourceOptions {
 function emptySnapshot(sessionKey: string | null): GoalSnapshot {
   return {
     available: true,
+    binding: null,
     error: null,
     goal: null,
     loading: Boolean(sessionKey),
@@ -70,6 +84,7 @@ export function useGoalResource({
     ? snapshot
     : emptySnapshot(sessionKey);
   const goal = visibleSnapshot.goal;
+  const executionBinding = visibleSnapshot.binding;
   const currentCommand = command?.sessionKey === sessionKey ? command : null;
 
   const refresh = useCallback(async () => {
@@ -87,18 +102,64 @@ export function useGoalResource({
     requestVersionRef.current = requestVersion;
     setSnapshot((current) => ({
       available: true,
+      binding: current.sessionKey === sessionKey ? current.binding : null,
       error: null,
       goal: current.sessionKey === sessionKey ? current.goal : null,
       loading: true,
       sessionKey,
     }));
+    let current: Goal | null;
     try {
-      const current = await getCurrentGoalApi(sessionKey);
+      current = await getCurrentGoalApi(sessionKey);
+      if (requestVersionRef.current !== requestVersion) {
+        return;
+      }
+      if (!current) {
+        setSnapshot({
+          available: true,
+          binding: null,
+          error: null,
+          goal: null,
+          loading: false,
+          sessionKey,
+        });
+        return;
+      }
+    } catch (error) {
+      if (requestVersionRef.current !== requestVersion) {
+        return;
+      }
+      if (hasStatus(error, 403) || hasStatus(error, 404)) {
+        const available = !hasStatus(error, 403);
+        setSnapshot({
+          available,
+          binding: null,
+          error: null,
+          goal: null,
+          loading: false,
+          sessionKey,
+        });
+        return;
+      }
+      setSnapshot((previous) => previous.sessionKey === sessionKey
+        ? {
+            ...previous,
+            binding: null,
+            error: getErrorMessage(error, "Goal 状态读取失败"),
+            loading: false,
+          }
+        : previous);
+      return;
+    }
+
+    try {
+      const binding = await getGoalExecutionBindingApi(current.id);
       if (requestVersionRef.current !== requestVersion) {
         return;
       }
       setSnapshot({
         available: true,
+        binding,
         error: null,
         goal: current,
         loading: false,
@@ -112,6 +173,7 @@ export function useGoalResource({
         const available = !hasStatus(error, 403);
         setSnapshot({
           available,
+          binding: null,
           error: null,
           goal: null,
           loading: false,
@@ -119,13 +181,14 @@ export function useGoalResource({
         });
         return;
       }
-      setSnapshot((current) => current.sessionKey === sessionKey
-        ? {
-            ...current,
-            error: getErrorMessage(error, "Goal 状态读取失败"),
-            loading: false,
-          }
-        : current);
+      setSnapshot({
+        available: true,
+        binding: null,
+        error: getErrorMessage(error, "Goal 与工作图绑定状态读取失败"),
+        goal: current,
+        loading: false,
+        sessionKey,
+      });
     }
   }, [sessionKey]);
 
@@ -165,13 +228,19 @@ export function useGoalResource({
     }
     setSnapshot({
       available: true,
+      binding: updated && visibleSnapshot.goal?.id === updated.id
+        ? visibleSnapshot.binding
+        : null,
       error: null,
       goal: updated,
       loading: false,
       sessionKey: transaction.command.sessionKey,
     });
+    if (updated) {
+      deferredRefreshRef.current = transaction.command.sessionKey;
+    }
     return true;
-  }, []);
+  }, [visibleSnapshot.binding, visibleSnapshot.goal?.id]);
 
   const rejectCommand = useCallback((
     transaction: GoalCommandTransaction,
@@ -230,6 +299,7 @@ export function useGoalResource({
   return {
     available: visibleSnapshot.available,
     error: visibleSnapshot.error,
+    executionBinding,
     goal,
     isLoading: visibleSnapshot.loading || currentCommand !== null,
     phase: currentCommand?.phase ?? null,

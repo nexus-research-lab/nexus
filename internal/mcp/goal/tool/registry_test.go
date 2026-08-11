@@ -12,7 +12,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
+
+func testGoalAuthority(goalID string, revision int64) *runtimectx.GoalAuthorityState {
+	return runtimectx.NewGoalAuthorityState(goalID, revision, "")
+}
 
 func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	tool := updateGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
@@ -76,6 +81,9 @@ func TestAuditObjectiveAlignmentBindsCurrentGoalRoundAgentAndRevision(t *testing
 			SessionKey: "agent:nexus:ws:dm:chat",
 			Objective:  "Ship parity",
 			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(7),
+			},
 		},
 		alignmentRecord: &protocol.GoalObjectiveAlignmentRecord{
 			ID:                "alignment-1",
@@ -88,10 +96,10 @@ func TestAuditObjectiveAlignmentBindsCurrentGoalRoundAgentAndRevision(t *testing
 		},
 	}
 	tool := auditObjectiveAlignment(svc, contract.ServerContext{
-		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
-		CurrentRoundID:        "round-audit",
-		CurrentAgentID:        "agent-1",
-		GoalObjectiveRevision: contract.NewGoalObjectiveRevision(7),
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-audit",
+		CurrentAgentID:    "agent-1",
+		GoalAuthority:     testGoalAuthority("goal-1", 7),
 	})
 
 	result, err := tool.Handler(
@@ -179,18 +187,28 @@ func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
 }
 
 func TestRetargetGoalBindsCurrentSessionAndRound(t *testing.T) {
-	revision := contract.NewGoalObjectiveRevision(7)
+	authority := testGoalAuthority("goal-1", 7)
 	svc := &fakeRetargetGoalService{retargeted: &protocol.Goal{
 		ID:         "goal-1",
 		SessionKey: "agent:nexus:ws:dm:chat",
 		Objective:  "Analyze M4 and M5",
 		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(8),
+		},
+	}, current: &protocol.Goal{
+		ID:         "goal-1",
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(7),
+		},
 	}}
 	tool := retargetGoal(svc, contract.ServerContext{
-		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
-		CurrentRoundID:        "round-correction",
-		CurrentAgentID:        "agent-1",
-		GoalObjectiveRevision: revision,
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-correction",
+		CurrentAgentID:    "agent-1",
+		GoalAuthority:     authority,
 	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Analyze M4 and M5"})
@@ -233,8 +251,8 @@ func TestRetargetGoalInPlanModeDoesNotMutateState(t *testing.T) {
 }
 
 func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.T) {
-	revision := contract.NewGoalObjectiveRevision(1)
-	otherSlotRevision := contract.NewGoalObjectiveRevision(1)
+	authority := testGoalAuthority("goal-1", 1)
+	otherSlotAuthority := testGoalAuthority("goal-1", 1)
 	svc := &fakeRetargetGoalService{
 		current: &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusActive},
 		retargeted: &protocol.Goal{
@@ -247,16 +265,18 @@ func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.
 		completed: &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusComplete},
 	}
 	sctx := contract.ServerContext{
-		CurrentSessionKey:     "room:group:chat",
-		CurrentRoundID:        "round-correction",
-		CurrentAgentID:        "agent-1",
-		GoalObjectiveRevision: revision,
+		CurrentSessionKey: "room:group:chat",
+		CurrentRoundID:    "round-correction",
+		CurrentAgentID:    "agent-1",
+		GoalAuthority:     authority,
 	}
 	if result, err := retargetGoal(svc, sctx).Handler(context.Background(), map[string]any{"objective": "Corrected objective"}); err != nil || result.IsError {
 		t.Fatalf("retarget result = %#v err=%v", result, err)
 	}
-	sctx.StoreGoalObjectiveRevision(1)
-	if got := revision.Load(); got != 2 {
+	if authority.Bind("goal-1", 1, "") {
+		t.Fatal("older revision unexpectedly replaced the retargeted authority")
+	}
+	if got := authority.ObjectiveRevisionState().Load(); got != 2 {
 		t.Fatalf("revision regressed to %d after an older adoption, want 2", got)
 	}
 	if result, err := updateGoal(svc, sctx).Handler(context.Background(), map[string]any{"status": "complete"}); err != nil || result.IsError {
@@ -268,18 +288,18 @@ func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.
 	if svc.completedRequest.AgentID != "agent-1" {
 		t.Fatalf("completed agent = %q, want agent-1", svc.completedRequest.AgentID)
 	}
-	if otherSlotRevision.Load() != 1 {
-		t.Fatalf("other slot revision = %d, want unchanged 1", otherSlotRevision.Load())
+	if otherSlotAuthority.ObjectiveRevisionState().Load() != 1 {
+		t.Fatalf("other slot revision = %d, want unchanged 1", otherSlotAuthority.ObjectiveRevisionState().Load())
 	}
 }
 
 func TestUpdateGoalKeepsInFlightRevisionAndUsesAdoptedRevisionNext(t *testing.T) {
-	revision := contract.NewGoalObjectiveRevision(1)
+	authority := testGoalAuthority("goal-1", 1)
 	sctx := contract.ServerContext{
-		CurrentSessionKey:     "room:group:chat",
-		CurrentRoundID:        "round-recipient",
-		CurrentAgentID:        "agent-recipient",
-		GoalObjectiveRevision: revision,
+		CurrentSessionKey: "room:group:chat",
+		CurrentRoundID:    "round-recipient",
+		CurrentAgentID:    "agent-recipient",
+		GoalAuthority:     authority,
 	}
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -300,7 +320,7 @@ func TestUpdateGoalKeepsInFlightRevisionAndUsesAdoptedRevisionNext(t *testing.T)
 		resultCh <- handlerResult{result: result, err: err}
 	}()
 	<-started
-	revision.Store(2)
+	authority.ObjectiveRevisionState().Store(2)
 	close(release)
 	oldResult := <-resultCh
 	if oldResult.err != nil || !oldResult.result.IsError {
@@ -311,7 +331,14 @@ func TestUpdateGoalKeepsInFlightRevisionAndUsesAdoptedRevisionNext(t *testing.T)
 	}
 
 	newCall := &fakeUpdateGoalService{
-		current:          &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusActive},
+		current: &protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "room:group:chat",
+			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(2),
+			},
+		},
 		completed:        &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusComplete},
 		requiredRevision: 2,
 	}
@@ -326,7 +353,11 @@ func TestUpdateGoalKeepsInFlightRevisionAndUsesAdoptedRevisionNext(t *testing.T)
 
 func TestUpdateGoalRejectsInvalidStatusBeforeLoadingCurrent(t *testing.T) {
 	svc := &fakeUpdateGoalService{}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-1"})
+	tool := updateGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-1",
+		GoalAuthority:     testGoalAuthority("goal-1", 1),
+	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "paused"})
 	if err != nil {
@@ -346,7 +377,11 @@ func TestUpdateGoalRejectsInvalidStatusBeforeLoadingCurrent(t *testing.T) {
 
 func TestUpdateGoalNoCurrentGoalUsesCodexModelMessage(t *testing.T) {
 	svc := &fakeUpdateGoalService{currentErr: errors.New("goal not found")}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-1"})
+	tool := updateGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-1",
+		GoalAuthority:     testGoalAuthority("goal-1", 1),
+	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
 	if err != nil {
@@ -375,7 +410,11 @@ func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
 			Status:     protocol.GoalStatusComplete,
 		},
 	}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-1"})
+	tool := updateGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-1",
+		GoalAuthority:     testGoalAuthority("goal-1", 1),
+	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
 	if err != nil {
@@ -403,7 +442,12 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 			Status:     protocol.GoalStatusBlocked,
 		},
 	}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-2", CurrentAgentID: "agent-2"})
+	tool := updateGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-2",
+		CurrentAgentID:    "agent-2",
+		GoalAuthority:     testGoalAuthority("goal-1", 1),
+	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "blocked"})
 	if err != nil {
@@ -451,13 +495,13 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 
 func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 	svc := &fakeCreateGoalService{}
-	revision := contract.NewGoalObjectiveRevision(0)
+	authority := runtimectx.NewGoalAuthorityState("", 0, "")
 	tool := createGoal(svc, contract.ServerContext{
-		OwnerUserID:           "owner-1",
-		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
-		CurrentRoundID:        "round-create",
-		CurrentAgentID:        "agent-1",
-		GoalObjectiveRevision: revision,
+		OwnerUserID:       "owner-1",
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-create",
+		CurrentAgentID:    "agent-1",
+		GoalAuthority:     authority,
 	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Ship parity"})
@@ -474,8 +518,9 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 		svc.createInput.AgentID != "agent-1" {
 		t.Fatalf("create input = %#v, want current owner, session, and round", svc.createInput)
 	}
-	if got := revision.Load(); got != 1 {
-		t.Fatalf("revision after create = %d, want 1", got)
+	createdAuthority, ok := authority.Load()
+	if !ok || createdAuthority.GoalID != "goal-1" || createdAuthority.ObjectiveRevision != 1 {
+		t.Fatalf("authority after create = %#v, ok=%t", createdAuthority, ok)
 	}
 }
 
@@ -710,6 +755,9 @@ func (s *fakeRetargetGoalService) CurrentOptional(context.Context, string) (*pro
 func (s *fakeRetargetGoalService) RetargetByModel(_ context.Context, sessionKey string, request protocol.RetargetGoalRequest) (*protocol.Goal, error) {
 	s.sessionKey = sessionKey
 	s.request = request
+	if s.err == nil && s.retargeted != nil {
+		s.current = s.retargeted
+	}
 	return s.retargeted, s.err
 }
 

@@ -1,5 +1,5 @@
 // INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、最终 usage fence 与 continuation 数据。
-// OUTPUT: Goal 领域协议、显式 Goal 的稳定 Execution 预留身份、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
+// OUTPUT: Goal 领域协议、显式 Goal 的稳定 Execution 预留身份与 server-owned binding phase/只读投影、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
@@ -34,6 +34,37 @@ const (
 	GoalUpdateSourceExternal GoalUpdateSource = "external"
 )
 
+// GoalExecutionBindingState separates a future Execution reservation from a
+// prepared binding and a binding confirmed after the authoritative Execution
+// mutation. Standalone and conflict are resolver results and are never stored
+// in Goal metadata.
+type GoalExecutionBindingState string
+
+const (
+	GoalExecutionBindingStateStandalone GoalExecutionBindingState = "standalone"
+	GoalExecutionBindingStateReserved   GoalExecutionBindingState = "reserved"
+	GoalExecutionBindingStatePending    GoalExecutionBindingState = "pending"
+	GoalExecutionBindingStateConfirmed  GoalExecutionBindingState = "confirmed"
+	GoalExecutionBindingStateConflict   GoalExecutionBindingState = "conflict"
+)
+
+// GoalExecutionBindingResolution is the shared Goal/Execution binding read
+// model. ReservedExecutionID is provenance only; ExecutionID is populated only
+// for an exact authoritative binding.
+type GoalExecutionBindingResolution struct {
+	State               GoalExecutionBindingState `json:"state"`
+	ReservedExecutionID string                    `json:"reserved_execution_id,omitempty"`
+	ExecutionID         string                    `json:"execution_id,omitempty"`
+}
+
+// GoalExecutionBindingView is the owner-scoped HTTP read model. It never
+// exposes reservation provenance; ExecutionID is present only after the
+// server proves one exact confirmed bilateral binding.
+type GoalExecutionBindingView struct {
+	State       GoalExecutionBindingState `json:"state"`
+	ExecutionID string                    `json:"execution_id,omitempty"`
+}
+
 const (
 	GoalMetadataRoomGoalScope                         = "room_goal_scope"
 	GoalMetadataRoomGoalCreatorAgentID                = "room_goal_creator_agent_id"
@@ -49,15 +80,19 @@ const (
 	GoalMetadataRoomGoalCollaborationRequirementRound = "room_goal_collaboration_requirement_round_id"
 	GoalMetadataObjectiveRevision                     = "objective_revision"
 	// GoalMetadataOwnerUserID is server-owned authorization provenance for
-	// owner-scoped Goal mutations. Request metadata cannot replace it.
-	GoalMetadataOwnerUserID        = "owner_user_id"
-	GoalMetadataExecutionID        = "execution_id"
-	GoalMetadataPromotionCommand   = "promotion_command"
-	GoalMetadataActivationOrigin   = "activation_origin"
-	GoalMetadataActivationReason   = "activation_reason"
-	GoalMetadataCompletionCriteria = "completion_criteria"
-	GoalMetadataObjectiveAlignment = "objective_alignment"
-	GoalMetadataExplicitCommand    = "explicit_goal_command"
+	// owner-scoped Goal reads and mutations. Request metadata cannot replace it.
+	GoalMetadataOwnerUserID = "owner_user_id"
+	GoalMetadataExecutionID = "execution_id"
+	// GoalMetadataExecutionBindingState is server-owned. Only reserved,
+	// pending and confirmed are persisted; standalone/conflict are derived by
+	// the binding resolver.
+	GoalMetadataExecutionBindingState = "execution_binding_state"
+	GoalMetadataPromotionCommand      = "promotion_command"
+	GoalMetadataActivationOrigin      = "activation_origin"
+	GoalMetadataActivationReason      = "activation_reason"
+	GoalMetadataCompletionCriteria    = "completion_criteria"
+	GoalMetadataObjectiveAlignment    = "objective_alignment"
+	GoalMetadataExplicitCommand       = "explicit_goal_command"
 	// GoalMetadataObjectiveTransition is server-owned durable state for a
 	// Goal objective revision rebase. User metadata updates must never replace
 	// or remove it.
@@ -271,6 +306,26 @@ func GoalReservedExecutionID(goal Goal) string {
 	))
 }
 
+// GoalExecutionBindingStateFromGoal reads the persisted server-owned phase.
+// Missing phase is a standalone/legacy record; malformed or resolver-only
+// values fail closed as conflict.
+func GoalExecutionBindingStateFromGoal(goal Goal) GoalExecutionBindingState {
+	state := GoalExecutionBindingState(GoalMetadataString(
+		goal.Metadata,
+		GoalMetadataExecutionBindingState,
+	))
+	switch state {
+	case GoalExecutionBindingStateReserved,
+		GoalExecutionBindingStatePending,
+		GoalExecutionBindingStateConfirmed:
+		return state
+	case "":
+		return GoalExecutionBindingStateStandalone
+	default:
+		return GoalExecutionBindingStateConflict
+	}
+}
+
 // GoalMetadataBool 从 Goal metadata 中读取布尔值。
 func GoalMetadataBool(metadata map[string]any, key string) bool {
 	value, ok := metadata[strings.TrimSpace(key)]
@@ -364,6 +419,7 @@ func (v *OptionalInt64) UnmarshalJSON(data []byte) error {
 // GoalContinuation 表示一次由系统触发的隐藏 Goal 续跑输入。
 type GoalContinuation struct {
 	Goal           Goal              `json:"goal"`
+	ExecutionID    string            `json:"execution_id,omitempty"`
 	RoundID        string            `json:"round_id"`
 	Prompt         string            `json:"prompt"`
 	HiddenFromUser bool              `json:"hidden_from_user"`
@@ -378,6 +434,7 @@ type CreateGoalRequest struct {
 	Objective       string         `json:"objective"`
 	TokenBudget     *int64         `json:"token_budget,omitempty"`
 	ReplaceExisting bool           `json:"replace_existing,omitempty"`
+	RoomLeadAgentID string         `json:"room_lead_agent_id,omitempty"`
 	CreatedBy       string         `json:"created_by,omitempty"`
 	RoundID         string         `json:"round_id,omitempty"`
 	OwnerUserID     string         `json:"owner_user_id,omitempty"`
@@ -398,6 +455,7 @@ type RetargetGoalRequest struct {
 	Objective                 string `json:"objective"`
 	RoundID                   string `json:"round_id,omitempty"`
 	AgentID                   string `json:"-"`
+	ExpectedGoalID            string `json:"-"`
 	ExpectedObjectiveRevision int64  `json:"-"`
 }
 

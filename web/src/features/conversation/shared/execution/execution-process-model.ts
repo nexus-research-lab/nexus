@@ -99,6 +99,19 @@ export interface ExecutionNodeSummary {
   totalCount: number;
 }
 
+export interface ExecutionWorkGraphHeaderModel {
+  acceptedCount: number;
+  completionBlockers: string[];
+  nodeCurrent: number | null;
+  currentNodeId: string | null;
+  nodeTotal: number;
+  planRevision: number | null;
+  requiredCount: number;
+  status: ExecutionStatus;
+  statusLabelKey: TranslationKey;
+  summary: string;
+}
+
 /**
  * plan_execution 只有在原子写入 active Plan 与非空 Work Items 后才算
  * 成功创建工作图。普通对话轮次的 runtime 观测节点不能触发任何
@@ -185,6 +198,34 @@ export function resolveExecutionNodeSummary(
       || execution.objective.trim(),
     totalCount,
   };
+}
+
+/**
+ * 图级状态必须来自 Execution/Plan/验收读模型。节点位置只作为次级导航
+ * 提示，不能覆盖 waiting、terminal 或 superseded 等 Execution 生命周期。
+ */
+export function resolveExecutionWorkGraphHeaderModel(
+  execution: ExecutionView,
+): ExecutionWorkGraphHeaderModel {
+  const nodeSummary = resolveExecutionNodeSummary(execution);
+  return {
+    acceptedCount: nonNegativeExecutionCount(execution.progress.accepted),
+    completionBlockers: (execution.completion_blockers ?? [])
+      .map((blocker) => blocker.trim())
+      .filter(Boolean),
+    currentNodeId: nodeSummary.currentNode?.id ?? null,
+    nodeCurrent: nodeSummary.currentStep > 0 ? nodeSummary.currentStep : null,
+    nodeTotal: nonNegativeExecutionCount(nodeSummary.totalCount),
+    planRevision: execution.plan?.revision ?? null,
+    requiredCount: nonNegativeExecutionCount(execution.progress.required),
+    status: execution.status,
+    statusLabelKey: EXECUTION_STATUS_LABEL_KEY[execution.status],
+    summary: nodeSummary.summary,
+  };
+}
+
+function nonNegativeExecutionCount(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }
 
 /**

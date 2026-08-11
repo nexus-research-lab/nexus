@@ -1,4 +1,4 @@
-// INPUT: trusted Room coordinator identity、physical round identity 与 explicit get/plan 或 resolved ReviewBinding transition。
+// INPUT: trusted Room coordinator identity、physical round identity 与 explicit get/materialized Plan、exact Goal continuation 或 resolved ReviewBinding transition。
 // OUTPUT: round-scoped Coordination capability 的 mint、review-to-coordination 升级、检查与释放。
 // POS: conversation substrate 到 Execution coordination overlay 的后端准入边界。
 package orchestration
@@ -10,8 +10,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// ActivateRuntimeCoordination 把显式 get_execution 读取升级为当前物理 round
-// 的协调 capability。普通 round-start context、聊天正文或 coordinator 名称都不调用它。
+// ActivateRuntimeCoordination 在显式 get 或受信 mutation/continuation 边界把当前
+// 物理 round 升级为协调 capability。隐式 round-start context、聊天正文或 coordinator 名称都不调用它。
 func (s *Service) ActivateRuntimeCoordination(
 	_ context.Context,
 	actor ActorContext,
@@ -193,7 +193,7 @@ func (s *Service) requireRuntimeCoordination(
 	}
 	return domainError(
 		ErrorCodeConversationOnly,
-		"this Room round is conversational; call get_execution to inspect current responsibility, or prepare_plan_execution then plan_execution to enter coordination before other Execution mutations",
+		"this Room round is conversational; call get_execution to inspect and enter current coordination, or prepare_plan_execution then plan_execution to materialize a revised Plan before other Execution mutations",
 	)
 }
 

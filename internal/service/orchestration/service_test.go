@@ -1595,6 +1595,8 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 	}
 	service := testService(repository)
 	service.SetGoalPromotionGateway(gateway)
+	confirmation := &confirmingGoalBindingGateway{}
+	service.SetExplicitGoalBindingGateway(confirmation)
 	actor := coordinatorActor()
 	actor.RootRoundID = "round-after-boundary"
 	input := PromoteExecutionToGoalInput{
@@ -1609,7 +1611,7 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 	}
 	if first.Outcome != MutationRejected ||
 		first.ReasonCode != ErrorCodeStaleExecution ||
-		!strings.Contains(first.Message, "retry with the same command_id") {
+		!strings.Contains(first.Message, "retry with the same semantic arguments") {
 		t.Fatalf("first result = %#v", first)
 	}
 	second, err := service.PromoteExecutionToGoal(context.Background(), actor, input)
@@ -1623,6 +1625,11 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 		gatewayCommands[0] != "tool-promote:promote-goal" ||
 		gatewayCommands[1] != gatewayCommands[0] {
 		t.Fatalf("gateway commands = %#v", gatewayCommands)
+	}
+	if confirmation.confirmCalls != 1 ||
+		confirmation.lastConfirmation.ExecutionID != snapshot.Execution.ID ||
+		confirmation.lastConfirmation.GoalID != "goal-stable" {
+		t.Fatalf("Goal confirmation = %#v", confirmation)
 	}
 }
 
@@ -1661,6 +1668,8 @@ func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
 		},
 	}
 	service := testService(repository)
+	confirmation := &confirmingGoalBindingGateway{}
+	service.SetExplicitGoalBindingGateway(confirmation)
 	service.SetGoalPromotionGateway(goalPromotionGatewayFunc(func(
 		context.Context,
 		GoalPromotionRequest,
@@ -1691,6 +1700,10 @@ func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
 		result.Snapshot.Execution.GoalID != "goal-agent-choice" ||
 		!gatewayCalled {
 		t.Fatalf("result=%#v gatewayCalled=%t", result, gatewayCalled)
+	}
+	if confirmation.confirmCalls != 1 ||
+		confirmation.lastConfirmation.GoalID != "goal-agent-choice" {
+		t.Fatalf("Goal confirmation = %#v", confirmation)
 	}
 }
 

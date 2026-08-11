@@ -1,5 +1,5 @@
 // INPUT: structured Room slot 的 trusted WorkBinding、物理 runtime identity 与终态证据。
-// OUTPUT: root Attempt 的幂等、CAS 保护终态写入，不隐式创建 Submission 或 Acceptance。
+// OUTPUT: root Attempt 的幂等、CAS 保护终态写入及 session 失效事实，不隐式创建 Submission 或 Acceptance。
 // POS: Room runtime 生命周期到 Execution Attempt 状态机的原子终态桥。
 package orchestration
 
@@ -73,6 +73,7 @@ func (s *Service) FinishRoomAttempt(
 		}
 		if attempt.Status != protocol.WorkAttemptStatusPending &&
 			attempt.Status != protocol.WorkAttemptStatusRunning {
+			s.invalidateSnapshot(ctx, snapshot)
 			return nil
 		}
 
@@ -115,7 +116,7 @@ func (s *Service) FinishRoomAttempt(
 			strings.TrimSpace(actor.AgentRoundID),
 			terminal.AgentRoundID,
 		)
-		_, finishErr := s.repository.FinishAttempt(
+		updated, finishErr := s.repository.FinishAttempt(
 			ctx,
 			orchestrationstore.FinishAttemptCommand{
 				ExpectedExecutionVersion: snapshot.Execution.Version,
@@ -131,6 +132,9 @@ func (s *Service) FinishRoomAttempt(
 		if errors.Is(finishErr, orchestrationstore.ErrVersionConflict) ||
 			errors.Is(finishErr, orchestrationstore.ErrInvariant) {
 			continue
+		}
+		if finishErr == nil {
+			s.invalidateSnapshot(ctx, updated)
 		}
 		return finishErr
 	}

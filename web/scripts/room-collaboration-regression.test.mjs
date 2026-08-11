@@ -116,7 +116,7 @@ test("Goal status shows one exact token total without budget progress", async ()
     isGenerating: false,
   }).usageLabel, "62,762 tokens");
 
-  const html = renderToStaticMarkup(React.createElement(GoalStatusStrip, {
+  const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
     canResume: false,
     compact: false,
     disabled: false,
@@ -171,6 +171,103 @@ test("Goal status marks legacy reconstructed actual usage as estimated", async (
     isGenerating: false,
   });
   assert.equal(model.usageLabel, "≈220 tokens");
+});
+
+test("Goal clear follows the server-derived WorkGraph binding state", async () => {
+  const {
+    buildGoalControllerProjection,
+    resolveGoalBindingBadgeModel,
+    resolveGoalClearDisabledReason,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const goal = {
+    id: "goal-binding",
+    session_key: "agent:nexus:ws:dm:binding",
+    objective: "Keep binding authority on the server",
+    status: "active",
+    continuation_count: 0,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-08-11T00:00:00Z",
+    updated_at: "2026-08-11T00:00:00Z",
+  };
+
+  assert.match(resolveGoalClearDisabledReason(null), /正在确认/);
+  for (const state of ["standalone", "reserved"]) {
+    assert.equal(resolveGoalClearDisabledReason({ state }), null);
+    assert.deepEqual(buildGoalControllerProjection({
+      dialog: { goal, kind: "clear" },
+      draft: null,
+      executionBinding: { state },
+      goal,
+      phase: null,
+    }).dialog, { goal, kind: "clear" });
+  }
+  for (const state of ["pending", "confirmed", "conflict"]) {
+    const reason = resolveGoalClearDisabledReason({ state });
+    assert.equal(typeof reason, "string");
+    const projection = buildGoalControllerProjection({
+      dialog: { goal, kind: "clear" },
+      draft: null,
+      executionBinding: { state },
+      goal,
+      phase: null,
+    });
+    assert.equal(projection.clearDisabledReason, reason);
+    assert.deepEqual(projection.dialog, { kind: "none" });
+  }
+
+  const bindingCases = [
+    [{ state: "standalone" }, "standalone", "独立 Goal"],
+    [{ state: "reserved" }, "reserved", "独立 Goal"],
+    [{ state: "pending" }, "pending", "关联确认中"],
+    [{ execution_id: "execution-binding", state: "confirmed" }, "confirmed", "已关联工作图"],
+    [{ state: "conflict" }, "conflict", "关联冲突"],
+    [null, "unavailable", "关联状态不可用"],
+  ];
+  for (const [binding, displayState, label] of bindingCases) {
+    const badge = resolveGoalBindingBadgeModel(binding);
+    assert.equal(badge.state, displayState);
+    const clearDisabledReason = resolveGoalClearDisabledReason(binding);
+    const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
+      canResume: false,
+      clearDisabledReason,
+      compact: false,
+      disabled: false,
+      error: null,
+      executionBinding: binding,
+      goal,
+      isGenerating: false,
+      isLoading: false,
+      scopeLabel: "Goal",
+      onClearRequest: () => {},
+      onEdit: () => {},
+      onPause: () => {},
+      onRefresh: () => {},
+      onResume: () => {},
+    }));
+    assert.match(html, /data-goal-binding-state=/);
+    assert.match(html, new RegExp(`data-goal-binding-state="${displayState}"`));
+    assert.match(html, new RegExp(`>${label}<`));
+    assert.match(html, />运行中</);
+    assert.ok(
+      html.indexOf("运行中") < html.indexOf(label),
+      "Goal lifecycle must remain primary to the WorkGraph binding badge",
+    );
+    if (clearDisabledReason) {
+      assert.match(html, /disabled=""/);
+      assert.match(html, new RegExp(`aria-label="清除：${clearDisabledReason}`));
+    }
+    if (displayState === "reserved") {
+      assert.match(html, /当前仍是独立 Goal/);
+      assert.match(html, /不表示工作图已存在或一定会创建/);
+      assert.doesNotMatch(html, />已关联工作图</);
+    }
+  }
 });
 
 test("会话标签只按稳定宽度约束进入溢出态", async () => {

@@ -2,13 +2,12 @@
 
 /**
  * INPUT: 移动端 Room 会话、任务快照、导航与 Overlay 命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并仅在托管 Plan 成功创建后暴露移动端工作图。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并常驻暴露可打开统一空态的移动端工作图。
  * POS: Room 移动端 Surface 的主装配层。
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { hasManagedExecutionGraph } from "@/features/conversation/shared/execution/execution-process-model";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -148,9 +147,6 @@ export function RoomMobileSurface({
     toolUseId: null as string | null,
   });
   const isDm = currentRoomType === "dm";
-  const workgraphAvailable = hasManagedExecutionGraph(
-    executionResource.execution,
-  );
   const subagentTaskSource = useMemo(
     () => resolveRoomSubagentTaskSource({
       conversationId,
@@ -212,11 +208,6 @@ export function RoomMobileSurface({
       setActiveAuxiliaryTab("workspace");
     }
   };
-  useEffect(() => {
-    if (activeAuxiliaryTab === "workgraph" && !workgraphAvailable) {
-      setActiveAuxiliaryTab(null);
-    }
-  }, [activeAuxiliaryTab, workgraphAvailable]);
   const chatSurface = (
     <RoomChatSurface
       conversationId={conversationId}
@@ -268,7 +259,6 @@ export function RoomMobileSurface({
               triggerVariant="history"
             />
             <RoomMobileActionsMenu
-              canOpenWorkgraph={workgraphAvailable}
               canOpenSubagents={subagentTaskSource !== null}
               onCreateConversation={onCreateConversation}
               onManageMembers={!isDm && roomId

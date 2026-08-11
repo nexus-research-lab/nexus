@@ -153,10 +153,13 @@ func TestGoalReservedExecutionIdentityIsSealedAndReused(t *testing.T) {
 	}})
 	actor := coordinatorActor()
 	actor.RootRoundID = "round-goal-reserved"
+	actor.GoalID = "goal-1"
+	actor.GoalObjectiveRevision = 4
 
 	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
 		CommandID:    "tool-prepare-goal-reserved",
 		PlanDocument: createPlanProposalDocument,
+		GoalBinding:  PlanGoalBindingCurrent,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -177,8 +180,62 @@ func TestGoalReservedExecutionIdentityIsSealedAndReused(t *testing.T) {
 	}
 	if result.ExecutionID != "execution-goal-reserved" ||
 		repository.proposal.ReservedExecutionID != "execution-goal-reserved" ||
-		result.Snapshot.Execution.ReplacesExecutionID != "execution-goal-predecessor" {
+		result.Snapshot.Execution.ReplacesExecutionID != "execution-goal-predecessor" ||
+		result.GoalAuthority == nil ||
+		result.GoalAuthority.GoalID != "goal-1" ||
+		result.GoalAuthority.ObjectiveRevision != 4 ||
+		result.GoalAuthority.ExecutionID != "execution-goal-reserved" {
 		t.Fatalf("result=%#v proposal=%#v", result, repository.proposal)
+	}
+}
+
+func TestGoalBoundMaterializationDoesNotMintAuthorityWhileConfirmationIsPending(t *testing.T) {
+	main := &fakeRepository{}
+	main.createWithPlan = func(
+		_ context.Context,
+		command orchestrationstore.CreateWithPlanCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		main.snapshot = snapshotFromInitialPlan(command.Execution, command.Plan)
+		return main.snapshot, nil
+	}
+	repository := &planProposalTestRepository{fakeRepository: main}
+	service := testService(repository)
+	confirmationErr := errors.New("Goal confirmation unavailable")
+	service.SetExplicitGoalBindingGateway(&proposalGoalGateway{
+		activation: ExplicitGoalActivation{
+			GoalID:                "goal-pending",
+			GoalObjectiveRevision: 2,
+			Objective:             "Deliver the exact persistent Goal objective",
+			ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
+			ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
+			ReservedExecutionID:   "execution-pending",
+		},
+		confirmationErr: confirmationErr,
+	})
+	actor := coordinatorActor()
+	actor.RootRoundID = "round-goal-pending"
+	actor.GoalID = "goal-pending"
+	actor.GoalObjectiveRevision = 2
+	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
+		CommandID:    "prepare-goal-pending",
+		PlanDocument: createPlanProposalDocument,
+		GoalBinding:  PlanGoalBindingCurrent,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.MaterializePlanExecution(context.Background(), actor, MaterializePlanExecutionInput{
+		ProposalID:     proposal.ID,
+		ProposalDigest: proposal.ContentDigest,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied || result.Snapshot == nil ||
+		result.GoalAuthority != nil ||
+		repository.proposal.ConfirmationState != protocol.ExecutionPlanProposalConfirmationPending ||
+		!strings.Contains(result.Message, "confirmation will retry") {
+		t.Fatalf("pending confirmation result=%#v proposal=%#v", result, repository.proposal)
 	}
 }
 
@@ -212,16 +269,19 @@ func TestGoalBoundCreateCanonicalizesPlanObjectiveFromActivation(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
 			service := testService(repository)
-			service.SetExplicitGoalBindingGateway(&proposalGoalGateway{activation: ExplicitGoalActivation{
+			gateway := &proposalGoalGateway{activation: ExplicitGoalActivation{
 				GoalID:                "goal-canonical",
 				GoalObjectiveRevision: 3,
 				Objective:             canonicalObjective,
 				ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
 				ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
 				ReservedExecutionID:   "execution-canonical",
-			}})
+			}}
+			service.SetExplicitGoalBindingGateway(gateway)
 			actor := coordinatorActor()
 			actor.RootRoundID = "round-canonical-" + strings.ReplaceAll(testCase.name, " ", "-")
+			actor.GoalID = "goal-canonical"
+			actor.GoalObjectiveRevision = 3
 
 			proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
 				CommandID:    "prepare-canonical-" + strings.ReplaceAll(testCase.name, " ", "-"),
@@ -234,6 +294,11 @@ func TestGoalBoundCreateCanonicalizesPlanObjectiveFromActivation(t *testing.T) {
 				proposal.GoalID != "goal-canonical" ||
 				proposal.GoalObjectiveRevision != 3 {
 				t.Fatalf("sealed proposal boundary = %#v", proposal)
+			}
+			if gateway.resolveCalls != 1 ||
+				gateway.lastActivationRequest.ExistingGoalID != actor.GoalID ||
+				gateway.lastActivationRequest.GoalObjectiveRevision != actor.GoalObjectiveRevision {
+				t.Fatalf("exact Goal authority request = %#v calls=%d", gateway.lastActivationRequest, gateway.resolveCalls)
 			}
 			wantDigest, err := protocol.DigestExecutionPlanProposalImmutable(*proposal)
 			if err != nil || proposal.ContentDigest != wantDigest {
@@ -265,6 +330,114 @@ func TestGoalFreeCreateStillRequiresDocumentObjective(t *testing.T) {
 	}
 }
 
+func TestGoalBindingCurrentRequiresExactRoundAuthority(t *testing.T) {
+	repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
+	service := testService(repository)
+	gateway := &switchingProposalGoalGateway{active: &ExplicitGoalActivation{
+		GoalID:                "goal-ambient",
+		GoalObjectiveRevision: 2,
+		Objective:             "Ambient Goal must not grant authority",
+		ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
+		ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
+		ReservedExecutionID:   "execution-ambient",
+	}}
+	service.SetExplicitGoalBindingGateway(gateway)
+	actor := coordinatorActor()
+	actor.RootRoundID = "round-current-without-authority"
+
+	_, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
+		CommandID:    "prepare-current-without-authority",
+		PlanDocument: createPlanProposalDocument,
+		GoalBinding:  PlanGoalBindingCurrent,
+	})
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeGoalBindingConflict {
+		t.Fatalf("PreparePlanExecution() error = %v, want Goal binding conflict", err)
+	}
+	if gateway.resolveCalls != 0 || repository.proposal != nil {
+		t.Fatalf("untrusted current resolved ambient Goal or sealed proposal: calls=%d proposal=%#v",
+			gateway.resolveCalls, repository.proposal)
+	}
+}
+
+func TestGoalBindingNoneOverridesExactRoundAuthority(t *testing.T) {
+	repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
+	service := testService(repository)
+	gateway := &proposalGoalGateway{activation: ExplicitGoalActivation{
+		GoalID:                "goal-exact",
+		GoalObjectiveRevision: 7,
+		Objective:             "Exact Goal intentionally excluded",
+		ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
+		ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
+		ReservedExecutionID:   "execution-exact",
+	}}
+	service.SetExplicitGoalBindingGateway(gateway)
+	actor := coordinatorActor()
+	actor.RootRoundID = "round-explicit-goal-free"
+	actor.GoalID = "goal-exact"
+	actor.GoalObjectiveRevision = 7
+
+	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
+		CommandID:    "prepare-explicit-goal-free",
+		PlanDocument: createPlanProposalDocument,
+		GoalBinding:  PlanGoalBindingNone,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proposal.GoalID != "" || proposal.GoalObjectiveRevision != 0 || gateway.resolveCalls != 0 {
+		t.Fatalf("explicit Goal-free proposal = %#v resolver_calls=%d", proposal, gateway.resolveCalls)
+	}
+}
+
+func TestPlanGoalBindingIntentRejectsOperationBoundaryChanges(t *testing.T) {
+	replanDocument := strings.Replace(
+		createPlanProposalDocument,
+		"operation: create\nobjective: Deliver a verified report\ncompletion_criteria:\n  - report.md exists and verification passes\n",
+		"operation: replan\nrevision_reason: preserve the current boundary\n",
+		1,
+	)
+	replaceDocument := strings.Replace(
+		createPlanProposalDocument,
+		"operation: create\n",
+		"operation: replace\nreplacement_reason: user requested a different transient objective\n",
+		1,
+	)
+	for _, testCase := range []struct {
+		name        string
+		document    string
+		goalBinding PlanGoalBindingIntent
+	}{
+		{name: "create cannot inherit", document: createPlanProposalDocument, goalBinding: PlanGoalBindingInherit},
+		{name: "replan cannot detach", document: replanDocument, goalBinding: PlanGoalBindingNone},
+		{name: "replan cannot bind current", document: replanDocument, goalBinding: PlanGoalBindingCurrent},
+		{name: "replace cannot detach", document: replaceDocument, goalBinding: PlanGoalBindingNone},
+		{name: "replace cannot bind current", document: replaceDocument, goalBinding: PlanGoalBindingCurrent},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			repository := &planProposalTestRepository{fakeRepository: &fakeRepository{snapshot: executionSnapshot()}}
+			service := testService(repository)
+			actor := coordinatorActor()
+			actor.RootRoundID = "round-" + strings.ReplaceAll(testCase.name, " ", "-")
+			actor.GoalID = "goal-exact"
+			actor.GoalObjectiveRevision = 3
+
+			_, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
+				CommandID:    "prepare-" + strings.ReplaceAll(testCase.name, " ", "-"),
+				PlanDocument: testCase.document,
+				GoalBinding:  testCase.goalBinding,
+			})
+			var domainErr *DomainError
+			if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeInvalidInput {
+				t.Fatalf("PreparePlanExecution() error = %v, want invalid input", err)
+			}
+			if repository.proposal != nil {
+				t.Fatalf("invalid boundary intent sealed proposal %#v", repository.proposal)
+			}
+		})
+	}
+}
+
 func TestGoalBoundCreateRejectsCanonicalObjectiveDriftBeforeMaterialization(t *testing.T) {
 	createCalls := 0
 	main := &fakeRepository{
@@ -286,10 +459,13 @@ func TestGoalBoundCreateRejectsCanonicalObjectiveDriftBeforeMaterialization(t *t
 	service.SetExplicitGoalBindingGateway(gateway)
 	actor := coordinatorActor()
 	actor.RootRoundID = "round-objective-fence"
+	actor.GoalID = "goal-objective-fence"
+	actor.GoalObjectiveRevision = 5
 
 	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
 		CommandID:    "prepare-objective-fence",
 		PlanDocument: createPlanProposalDocument,
+		GoalBinding:  PlanGoalBindingCurrent,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -308,17 +484,27 @@ func TestGoalBoundCreateRejectsCanonicalObjectiveDriftBeforeMaterialization(t *t
 	}
 }
 
-func TestGoalFreeProposalRejectsAmbientGoalAppearingBeforeCommit(t *testing.T) {
+func TestGoalFreeProposalIgnoresAmbientGoalWithoutExactAuthority(t *testing.T) {
 	createCalls := 0
-	main := &fakeRepository{
-		createWithPlan: func(context.Context, orchestrationstore.CreateWithPlanCommand) (*protocol.ExecutionSnapshot, error) {
-			createCalls++
-			return nil, nil
-		},
+	main := &fakeRepository{}
+	main.createWithPlan = func(
+		_ context.Context,
+		command orchestrationstore.CreateWithPlanCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		createCalls++
+		main.snapshot = snapshotFromInitialPlan(command.Execution, command.Plan)
+		return main.snapshot, nil
 	}
 	repository := &planProposalTestRepository{fakeRepository: main}
 	service := testService(repository)
-	gateway := &switchingProposalGoalGateway{}
+	gateway := &switchingProposalGoalGateway{active: &ExplicitGoalActivation{
+		GoalID:                "goal-ambient",
+		GoalObjectiveRevision: 1,
+		Objective:             "Ambient Goal objective",
+		ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
+		ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
+		ReservedExecutionID:   "execution-ambient",
+	}}
 	service.SetExplicitGoalBindingGateway(gateway)
 	actor := coordinatorActor()
 	actor.RootRoundID = "round-goal-free-fence"
@@ -333,13 +519,8 @@ func TestGoalFreeProposalRejectsAmbientGoalAppearingBeforeCommit(t *testing.T) {
 	if proposal.GoalID != "" {
 		t.Fatalf("proposal unexpectedly bound Goal %q", proposal.GoalID)
 	}
-	gateway.active = &ExplicitGoalActivation{
-		GoalID:                "goal-late",
-		GoalObjectiveRevision: 1,
-		Objective:             "Late Goal objective",
-		ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
-		ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
-		ReservedExecutionID:   "execution-late",
+	if gateway.resolveCalls != 0 {
+		t.Fatalf("Goal-free prepare resolved ambient Goal %d times", gateway.resolveCalls)
 	}
 	result, err := service.MaterializePlanExecution(context.Background(), actor, MaterializePlanExecutionInput{
 		ProposalID:     proposal.ID,
@@ -348,9 +529,11 @@ func TestGoalFreeProposalRejectsAmbientGoalAppearingBeforeCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodePlanProposalStale ||
-		createCalls != 0 || gateway.prepareCalls != 0 ||
-		repository.proposal.Status != protocol.ExecutionPlanProposalStatusBlocked {
+	if result.Outcome != MutationApplied || result.Snapshot == nil ||
+		result.Snapshot.Execution.GoalID != "" || createCalls != 1 ||
+		result.GoalAuthority != nil ||
+		gateway.resolveCalls != 0 || gateway.prepareCalls != 0 ||
+		repository.proposal.Status != protocol.ExecutionPlanProposalStatusMaterialized {
 		t.Fatalf("result=%#v proposal=%#v create_calls=%d prepare_calls=%d",
 			result, repository.proposal, createCalls, gateway.prepareCalls)
 	}
@@ -384,6 +567,7 @@ func TestReplanProposalCreatesFirstPlanForExistingPlanlessExecution(t *testing.T
 	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
 		CommandID:    "tool-prepare-planless",
 		PlanDocument: document,
+		GoalBinding:  PlanGoalBindingInherit,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -764,11 +948,15 @@ func planProposalTestAccessMatches(
 }
 
 type proposalGoalGateway struct {
-	activation ExplicitGoalActivation
+	activation            ExplicitGoalActivation
+	confirmationErr       error
+	resolveCalls          int
+	lastActivationRequest ExplicitGoalActivationRequest
 }
 
 type switchingProposalGoalGateway struct {
 	active       *ExplicitGoalActivation
+	resolveCalls int
 	prepareCalls int
 }
 
@@ -776,6 +964,7 @@ func (g *switchingProposalGoalGateway) ResolveExplicitGoalActivation(
 	_ context.Context,
 	_ ExplicitGoalActivationRequest,
 ) (*ExplicitGoalActivation, error) {
+	g.resolveCalls++
 	if g.active == nil {
 		return nil, nil
 	}
@@ -793,8 +982,10 @@ func (g *switchingProposalGoalGateway) PrepareExplicitGoalBinding(
 
 func (g *proposalGoalGateway) ResolveExplicitGoalActivation(
 	_ context.Context,
-	_ ExplicitGoalActivationRequest,
+	request ExplicitGoalActivationRequest,
 ) (*ExplicitGoalActivation, error) {
+	g.resolveCalls++
+	g.lastActivationRequest = request
 	activation := g.activation
 	return &activation, nil
 }
@@ -817,5 +1008,5 @@ func (g *proposalGoalGateway) ConfirmGoalExecutionBinding(
 	context.Context,
 	GoalExecutionBindingConfirmation,
 ) error {
-	return nil
+	return g.confirmationErr
 }

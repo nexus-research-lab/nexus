@@ -220,15 +220,8 @@ func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64, bool) {
-	if s.goals == nil {
-		return "", "", 0, false
-	}
-	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
-	if err != nil {
-		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
-			return "", "", 0, false
-		}
-		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
+	goalContext, goal, ok := s.goalRuntimeSnapshot(ctx, sessionKey)
+	if !ok {
 		return "", "", 0, false
 	}
 	goalID := ""
@@ -237,10 +230,28 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 		goalID = strings.TrimSpace(goal.ID)
 		objectiveRevision = goal.ObjectiveRevision()
 	}
-	if strings.TrimSpace(goalContext) == "" {
-		return "", goalID, objectiveRevision, true
+	return goalContext, goalID, objectiveRevision, true
+}
+
+func (s *Service) goalRuntimeSnapshot(
+	ctx context.Context,
+	sessionKey string,
+) (string, *protocol.Goal, bool) {
+	if s.goals == nil {
+		return "", nil, false
 	}
-	return strings.TrimSpace(goalContext), goalID, objectiveRevision, true
+	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
+	if err != nil {
+		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
+			return "", nil, false
+		}
+		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
+		return "", nil, false
+	}
+	if strings.TrimSpace(goalContext) == "" {
+		return "", goal, true
+	}
+	return strings.TrimSpace(goalContext), goal, true
 }
 
 func (s *Service) recordGoalContinuationProgressForSlot(
@@ -1193,12 +1204,22 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	goalID = strings.TrimSpace(goal.ID)
 	goalSessionKey = strings.TrimSpace(goal.SessionKey)
 	s.bindRoomGoalUsageForScope(slot, goalSessionKey, goalID)
+	executionID := ""
+	switch protocol.GoalExecutionBindingStateFromGoal(*goal) {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+	case protocol.GoalExecutionBindingStateConfirmed:
+		executionID = protocol.GoalReservedExecutionID(*goal)
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return goalID, goalSessionKey
+	}
 	s.grantRoomGoalMutationAuthorityForScope(
 		slot,
 		goalSessionKey,
 		goalID,
 		goal.ObjectiveRevision(),
-		protocol.GoalReservedExecutionID(*goal),
+		executionID,
 		roomGoalAuthorityModelCreate,
 	)
 	return goalID, goalSessionKey

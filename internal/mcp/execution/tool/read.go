@@ -1,6 +1,6 @@
 // INPUT: 可选 explicit Execution id 与 session-bound actor identity。
-// OUTPUT: current/explicit 权威状态的紧凑 actor-specific context 及其 revision。
-// POS: 十二工具集合中的只读恢复入口。
+// OUTPUT: current/explicit 权威状态的紧凑 actor-specific context；verified current coordinator 同时进入当前 physical round 的临时 coordination scope。
+// POS: 十二工具集合中的显式恢复/协调入口；不改 durable graph，但会建立 round-local capability，不能标记 ReadOnly。
 package tool
 
 import (
@@ -16,13 +16,9 @@ func getExecution(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 	return sdktool.Tool{
 		Name: "get_execution",
 		Description: "Read the compact authoritative actor-specific view of the current Execution, or one explicit Execution by id. " +
-			"It includes the graph digest, owned work, dependencies, reviews, blockers and allowed next actions without exposing the internal Snapshot.",
+			"It includes the graph digest, owned work, dependencies, reviews, blockers and allowed next actions without exposing the internal Snapshot. For the verified coordinator of the current WorkGraph, this explicit call also enters that physical round's temporary coordination scope; it does not mutate the durable graph.",
 		SearchHint:  "execution status work item assignment dependency review blocker",
 		InputSchema: getExecutionSchema(),
-		Annotations: &sdktool.ToolAnnotations{
-			ReadOnlyHint: true,
-			ReadOnly:     true,
-		},
 		ContextHandler: func(
 			ctx context.Context,
 			input map[string]any,

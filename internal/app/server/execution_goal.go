@@ -1,5 +1,5 @@
 // INPUT: 已通过 Orchestration policy 的权威 Execution snapshot、当前 actor 与 Goal 配置。
-// OUTPUT: 幂等创建或复用的 adaptive Goal identity/revision。
+// OUTPUT: 幂等创建或复用且在 SQL BindGoal 前保持 pending 的 adaptive Goal identity/revision。
 // POS: Execution Orchestration 到 Goal 生命周期服务的应用层防腐适配器。
 package server
 
@@ -27,6 +27,37 @@ type executionGoalPromotionGateway struct {
 
 type executionGoalCompletionReadiness struct {
 	orchestration *orchestrationsvc.Service
+}
+
+func (r executionGoalCompletionReadiness) ResolveGoalExecutionBinding(
+	ctx context.Context,
+	goal protocol.Goal,
+) (protocol.GoalExecutionBindingResolution, error) {
+	if r.orchestration == nil {
+		return protocol.GoalExecutionBindingResolution{
+			State: protocol.GoalExecutionBindingStateStandalone,
+		}, nil
+	}
+	return r.orchestration.ResolveGoalExecutionBinding(ctx, goal)
+}
+
+func (r executionGoalCompletionReadiness) ValidateGoalRevisionOwner(
+	ctx context.Context,
+	executionID string,
+	goalID string,
+	goalObjectiveRevision int64,
+	expectedOwnerUserID string,
+) (bool, error) {
+	if r.orchestration == nil {
+		return false, errors.New("Execution Goal owner verifier is unavailable")
+	}
+	return r.orchestration.ValidateGoalRevisionOwner(
+		ctx,
+		executionID,
+		goalID,
+		goalObjectiveRevision,
+		expectedOwnerUserID,
+	)
 }
 
 func (r executionGoalCompletionReadiness) ExecutionGoalCompletionBlocker(
@@ -148,7 +179,10 @@ func (g *executionGoalPromotionGateway) PromoteExecution(
 		OwnerUserID:     strings.TrimSpace(execution.OwnerUserID),
 		AgentID:         strings.TrimSpace(request.Actor.AgentID),
 		Metadata: map[string]any{
-			protocol.GoalMetadataExecutionID:        executionID,
+			protocol.GoalMetadataExecutionID: executionID,
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStatePending,
+			),
 			protocol.GoalMetadataPromotionCommand:   commandID,
 			protocol.GoalMetadataActivationOrigin:   string(protocol.GoalActivationOriginAdaptivePromoted),
 			protocol.GoalMetadataActivationReason:   string(request.Proposal.ActivationReason),
@@ -184,8 +218,12 @@ func bindingForExistingExecutionGoal(
 	objective string,
 	fallbackReason protocol.GoalActivationReason,
 ) (orchestrationsvc.GoalPromotionBinding, error) {
+	bindingState := protocol.GoalExecutionBindingStateFromGoal(goal)
 	if protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataExecutionID) !=
 		strings.TrimSpace(executionID) ||
+		(bindingState != protocol.GoalExecutionBindingStateStandalone &&
+			bindingState != protocol.GoalExecutionBindingStatePending &&
+			bindingState != protocol.GoalExecutionBindingStateConfirmed) ||
 		protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataActivationOrigin) !=
 			string(protocol.GoalActivationOriginAdaptivePromoted) ||
 		strings.TrimSpace(goal.Objective) != strings.TrimSpace(objective) {

@@ -3,6 +3,8 @@ package realtime
 import (
 	"context"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -10,6 +12,8 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -34,7 +38,7 @@ func grantTestRoomGoalAuthority(
 	})
 }
 
-func TestRoomGoalMutationAuthorityRequiresExecutionBinding(t *testing.T) {
+func TestRoomGoalMutationAuthorityAllowsGoalOnlyAuthority(t *testing.T) {
 	authority := roomGoalMutationAuthority{
 		SessionKey:        "room:group:conversation-1",
 		GoalID:            "goal-room",
@@ -42,8 +46,8 @@ func TestRoomGoalMutationAuthorityRequiresExecutionBinding(t *testing.T) {
 		RootRoundID:       "round-1",
 		Source:            roomGoalAuthorityExplicitRound,
 	}
-	if authority.valid() {
-		t.Fatal("Goal authority without Execution identity was accepted")
+	if !authority.valid() {
+		t.Fatal("Goal-only authority was rejected")
 	}
 	authority.ExecutionID = "execution-room"
 	if !authority.valid() {
@@ -51,7 +55,105 @@ func TestRoomGoalMutationAuthorityRequiresExecutionBinding(t *testing.T) {
 	}
 }
 
-func TestRoomGoalContinuationRequestRequiresExecutionBinding(t *testing.T) {
+func TestRoomGoalMutationAuthorityRejectedGrantPreservesSharedState(t *testing.T) {
+	base := roomGoalMutationAuthority{
+		SessionKey:        "room:group:conversation-1",
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+		RootRoundID:       "round-1",
+		Source:            roomGoalAuthorityExplicitRound,
+	}
+	tests := map[string]roomGoalMutationAuthority{
+		"higher objective revision": func() roomGoalMutationAuthority {
+			candidate := base
+			candidate.ObjectiveRevision = 2
+			return candidate
+		}(),
+		"adds execution fence": func() roomGoalMutationAuthority {
+			candidate := base
+			candidate.ExecutionID = "execution-room"
+			return candidate
+		}(),
+		"replaces execution fence": func() roomGoalMutationAuthority {
+			candidate := base
+			candidate.ExecutionID = "execution-other"
+			return candidate
+		}(),
+	}
+
+	for name, rejected := range tests {
+		t.Run(name, func(t *testing.T) {
+			slot := &activeRoomSlot{}
+			initial := base
+			if name == "replaces execution fence" {
+				initial.ExecutionID = "execution-room"
+			}
+			if !slot.grantGoalMutationAuthority(initial) {
+				t.Fatal("grant initial Room Goal authority")
+			}
+			if slot.grantGoalMutationAuthority(rejected) {
+				t.Fatalf("grantGoalMutationAuthority(%+v) = true, want rejection", rejected)
+			}
+			if got := slot.goalMutationAuthority(); got != initial {
+				t.Fatalf("fixed authority = %+v, want %+v", got, initial)
+			}
+			shared, ok := slot.ensureGoalAuthorityState().Load()
+			if !ok || shared.GoalID != initial.GoalID ||
+				shared.ObjectiveRevision != initial.ObjectiveRevision ||
+				shared.ExecutionID != initial.ExecutionID {
+				t.Fatalf("shared authority after rejection = %+v, ok=%t, want %+v", shared, ok, initial)
+			}
+		})
+	}
+}
+
+func TestRoomGoalMutationAuthorityConcurrentRejectedGrantsPreserveSharedState(t *testing.T) {
+	base := roomGoalMutationAuthority{
+		SessionKey:        "room:group:conversation-1",
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+		ExecutionID:       "execution-room",
+		RootRoundID:       "round-1",
+		Source:            roomGoalAuthorityExplicitRound,
+	}
+	slot := &activeRoomSlot{}
+	if !slot.grantGoalMutationAuthority(base) {
+		t.Fatal("grant initial Room Goal authority")
+	}
+
+	start := make(chan struct{})
+	results := make(chan bool, 2)
+	var wait sync.WaitGroup
+	for _, revision := range []int64{2, 3} {
+		candidate := base
+		candidate.ObjectiveRevision = revision
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			results <- slot.grantGoalMutationAuthority(candidate)
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(results)
+	for granted := range results {
+		if granted {
+			t.Fatal("concurrent incompatible Room Goal authority was granted")
+		}
+	}
+	if got := slot.goalMutationAuthority(); got != base {
+		t.Fatalf("fixed authority after concurrent rejections = %+v, want %+v", got, base)
+	}
+	shared, ok := slot.ensureGoalAuthorityState().Load()
+	if !ok || shared.GoalID != base.GoalID ||
+		shared.ObjectiveRevision != base.ObjectiveRevision ||
+		shared.ExecutionID != base.ExecutionID {
+		t.Fatalf("shared authority after concurrent rejections = %+v, ok=%t, want %+v", shared, ok, base)
+	}
+}
+
+func TestRoomGoalContinuationRequestAllowsGoalOnlyAuthority(t *testing.T) {
 	request := ChatRequest{
 		SessionKey:            "room:group:conversation-1",
 		ConversationID:        "conversation-1",
@@ -63,12 +165,77 @@ func TestRoomGoalContinuationRequestRequiresExecutionBinding(t *testing.T) {
 			Purpose: "goal_continuation",
 		},
 	}
-	if _, _, err := (&Service{}).validateChatRequest(request); err == nil {
-		t.Fatal("Goal continuation request without Execution identity was accepted")
+	if _, _, err := (&Service{}).validateChatRequest(request); err != nil {
+		t.Fatalf("Goal-only continuation request rejected: %v", err)
 	}
 	request.ExecutionID = "execution-room"
 	if _, _, err := (&Service{}).validateChatRequest(request); err != nil {
-		t.Fatalf("complete Goal continuation request rejected: %v", err)
+		t.Fatalf("Goal-bound continuation request rejected: %v", err)
+	}
+}
+
+func TestRoomGoalAndExecutionMCPShareOneAuthorityState(t *testing.T) {
+	slot := &activeRoomSlot{
+		AgentID:           "agent-lead",
+		AgentRoundID:      "agent-round-1",
+		RuntimeSessionKey: "agent:agent-lead:ws:group:conversation-1",
+	}
+	if !slot.grantGoalMutationAuthority(roomGoalMutationAuthority{
+		SessionKey:        "room:group:conversation-1",
+		GoalID:            "goal-room",
+		ObjectiveRevision: 3,
+		RootRoundID:       "root-round-1",
+		Source:            roomGoalAuthorityExplicitRound,
+	}) {
+		t.Fatal("grant Goal-only Room authority")
+	}
+	var goalAuthority *runtimectx.GoalAuthorityState
+	var executionAuthority *runtimectx.GoalAuthorityState
+	service := &Service{
+		mcpServers: func(
+			ctx context.Context,
+			_ *protocol.Agent,
+			_ string,
+			_ string,
+			_ string,
+			_ string,
+			_ string,
+			_ *atomic.Int64,
+			_ sdkpermission.Mode,
+		) map[string]sdkmcp.ServerConfig {
+			goalAuthority = runtimectx.GoalAuthorityStateFromContext(ctx)
+			return nil
+		},
+		executionMCPServers: func(
+			_ context.Context,
+			runtimeContext runtimectx.ExecutionToolContext,
+		) map[string]sdkmcp.ServerConfig {
+			executionAuthority = runtimeContext.GoalAuthority
+			return nil
+		},
+	}
+	execution := &slotExecution{
+		ctx:     context.Background(),
+		service: service,
+		agent:   &protocol.Agent{AgentID: "agent-lead", OwnerUserID: "owner-1"},
+		round: &activeRoomRound{
+			SessionKey:         "room:group:conversation-1",
+			RoomID:             "room-1",
+			ConversationID:     "conversation-1",
+			CoordinatorAgentID: "agent-lead",
+			RootRoundID:        "root-round-1",
+		},
+		slot: slot,
+	}
+	execution.runtimeMCPServers(sdkpermission.ModeDefault)
+	if goalAuthority == nil || executionAuthority != goalAuthority ||
+		goalAuthority != slot.ensureGoalAuthorityState() {
+		t.Fatal("Room Goal and Execution MCP did not share one slot authority state")
+	}
+	authority, ok := goalAuthority.Load()
+	if !ok || authority.GoalID != "goal-room" || authority.ObjectiveRevision != 3 ||
+		authority.ExecutionID != "" {
+		t.Fatalf("Room Goal-only authority = %#v, ok=%t", authority, ok)
 	}
 }
 
@@ -156,10 +323,10 @@ func TestBuildRoomGoalCollaborationContextRequiresPublicDelegation(t *testing.T)
 		"Lead agent for this continuation: 负责人 (agent_id=agent-lead)",
 		"@Alpha (agent_id=agent-alpha)",
 		"@Beta (agent_id=agent-beta)",
-		"assess task complexity, separable work, and member fit",
-		"meaningful independent deliverable rather than ceremonial work",
-		"must @ exactly one target",
-		"do not independently duplicate that deliverable",
+		"assess task complexity, separable work, member fit",
+		"@mention is conversation-only",
+		"use assign_work for one distinct Ready Work Item",
+		"do not duplicate that deliverable",
 		"coordination, unblocking, integration, and verification",
 		"Do not call the Goal update tool in the same turn",
 		"Completion requires room-visible collaborator evidence",
@@ -228,20 +395,18 @@ func TestGoalContinuationTargetAgentIDUsesHostWithoutAutoReply(t *testing.T) {
 
 type fakeRoomGoalLeadReconciler struct {
 	*fakeRoomGoalContextProvider
-	current           *protocol.Goal
-	assignedGoalID    string
-	assignedAgentID   string
-	assignedAgentName string
+	current         *protocol.Goal
+	assignedGoalID  string
+	assignedAgentID string
 }
 
 func (f *fakeRoomGoalLeadReconciler) CurrentOptional(context.Context, string) (*protocol.Goal, error) {
 	return f.current, nil
 }
 
-func (f *fakeRoomGoalLeadReconciler) SetRoomGoalLead(_ context.Context, goalID string, agentID string, agentName string) (*protocol.Goal, error) {
+func (f *fakeRoomGoalLeadReconciler) SetRoomGoalLead(_ context.Context, goalID string, agentID string) (*protocol.Goal, error) {
 	f.assignedGoalID = goalID
 	f.assignedAgentID = agentID
-	f.assignedAgentName = agentName
 	return f.current, nil
 }
 
@@ -270,8 +435,8 @@ func TestReconcileRoomGoalLeadUsesValidRoomHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if goalProvider.assignedGoalID != "goal-room" || goalProvider.assignedAgentID != "agent-host" || goalProvider.assignedAgentName != "Host" {
-		t.Fatalf("lead assignment = goal:%q agent:%q name:%q", goalProvider.assignedGoalID, goalProvider.assignedAgentID, goalProvider.assignedAgentName)
+	if goalProvider.assignedGoalID != "goal-room" || goalProvider.assignedAgentID != "agent-host" {
+		t.Fatalf("lead assignment = goal:%q agent:%q", goalProvider.assignedGoalID, goalProvider.assignedAgentID)
 	}
 }
 
@@ -364,22 +529,6 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *t
 	defer goalProvider.mu.Unlock()
 	if goalProvider.planCalls != 1 || goalProvider.releaseCalls != 1 {
 		t.Fatalf("planCalls=%d releaseCalls=%d, want released deferred room continuation", goalProvider.planCalls, goalProvider.releaseCalls)
-	}
-}
-
-func TestExactGoalContinuationExecutionIDRecoversLegacyExplicitReservation(t *testing.T) {
-	const commandID = "explicit_goal_legacy_room"
-	plan := protocol.GoalContinuation{Goal: protocol.Goal{Metadata: map[string]any{
-		protocol.GoalMetadataExplicitCommand:  commandID,
-		protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
-		protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
-	}}}
-	executionID, err := exactGoalContinuationExecutionID(plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if expected := protocol.ExplicitGoalReservedExecutionID(commandID); executionID != expected {
-		t.Fatalf("legacy continuation execution = %q, want %q", executionID, expected)
 	}
 }
 

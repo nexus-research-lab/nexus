@@ -117,12 +117,20 @@ func TestServicePlanContinuationRepairsLegacyExternalGoalReservation(t *testing.
 			if got := protocol.GoalReservedExecutionID(plan.Goal); got != wantExecutionID {
 				t.Fatalf("plan execution = %q, want %q", got, wantExecutionID)
 			}
+			if got := protocol.GoalExecutionBindingStateFromGoal(plan.Goal); got !=
+				protocol.GoalExecutionBindingStateReserved {
+				t.Fatalf("plan binding state = %q, want reserved", got)
+			}
 			stored, err := repo.GetGoal(context.Background(), legacy.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if stored == nil || protocol.GoalReservedExecutionID(*stored) != wantExecutionID {
 				t.Fatalf("stored = %#v, want persisted execution reservation", stored)
+			}
+			if got := protocol.GoalExecutionBindingStateFromGoal(*stored); got !=
+				protocol.GoalExecutionBindingStateReserved {
+				t.Fatalf("stored binding state = %q, want reserved", got)
 			}
 		})
 	}
@@ -546,6 +554,7 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "room:group:conversation-1",
 		Objective:  "完成房间协作目标",
+		AgentID:    "agent-lead",
 		Metadata: map[string]any{
 			protocol.GoalMetadataRoomGoalScope:                 "room",
 			protocol.GoalMetadataRoomGoalLeadAgentID:           "agent-lead",
@@ -670,11 +679,36 @@ func TestServiceCompleteByModelRequiresExecutionReadinessForDMGoal(t *testing.T)
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:execution-readiness",
 		Objective:  "complete every required Work Item",
+		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-readiness",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
+			protocol.GoalMetadataCompletionCriteria: []string{"all required Work Items accepted"},
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{}); !errors.Is(err, ErrGoalInvalidState) {
+	const roundID = "round-execution-readiness"
+	if _, err = service.AuditObjectiveAlignmentByModel(ctx, created.ID, protocol.AuditGoalObjectiveAlignmentRequest{
+		Report: protocol.ObjectiveAlignmentReport{
+			Decision: protocol.ObjectiveAlignmentAligned,
+			CriteriaResults: []protocol.ObjectiveAlignmentCriterionResult{{
+				Criterion: "all required Work Items accepted",
+				Status:    protocol.ObjectiveAlignmentCriterionSatisfied,
+				Evidence: []protocol.ObjectiveAlignmentEvidence{{
+					Ref: "workgraph:execution-readiness", Claim: "the completion attempt reached the WorkGraph readiness gate",
+				}},
+			}},
+			Summary: "Objective alignment is established; Execution readiness remains authoritative.",
+		},
+		RoundID: roundID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	completion := protocol.CompleteGoalRequest{RoundID: roundID}
+	if _, err = service.CompleteByModel(ctx, created.ID, completion); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("CompleteByModel error = %v, want Execution readiness rejection", err)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
@@ -686,7 +720,7 @@ func TestServiceCompleteByModelRequiresExecutionReadinessForDMGoal(t *testing.T)
 	}
 
 	readiness.blocker = ""
-	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{})
+	completed, err := service.CompleteByModel(ctx, created.ID, completion)
 	if err != nil {
 		t.Fatal(err)
 	}

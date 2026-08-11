@@ -154,7 +154,7 @@ func buildManagedSkillUsageSection(scope promptBuildScope) string {
 			"- 信息足够后，把已确认的关键要求合并成完整、具体的 objective，再创建 Goal 并按该 objective 执行。",
 			"- 只有用户明确纠正当前 active Goal 的 objective 时才调用 retarget_goal；必须保留同一 Goal，绝不能先完成旧 Goal 再创建新 Goal。",
 			"- token_budget 只有用户明确给出预算时才传；暂停、恢复、清理、预算限制和用量限制由用户或系统控制。",
-			"- 完成托管 Goal 前，必须先用 audit_objective_alignment 对服务端给出的 objective 与 completion criteria 提交逐项证据；只有当前 objective revision、当前 round 的 aligned 审计可紧接着调用 update_goal(complete)。审计不改变 Goal 生命周期。",
+			"- 只有 Goal 与 managed WorkGraph 已 confirmed 绑定时，完成前才必须用 audit_objective_alignment 对服务端给出的 objective 与 completion criteria 提交逐项证据；只有当前 objective revision、当前 round 的 aligned 审计可紧接着调用 update_goal(complete)。Goal-only 与 reserved Goal 不要求该审计；审计本身不改变 Goal 生命周期。",
 			"- update_goal(complete) 只负责内部状态收口；工具成功后的最终回复才是用户交付面，必须独立、完整地呈现 objective 要求的成果。文本类交付直接给出完整正文；文件、实现、研究或外部操作类交付给出准确产物位置、核心结果和必要验证。",
 			"- 最终回复以成果本身为重点，不得用“Goal 已完成”或简短总结代替结果，也不要让用户回看过程消息拼凑交付物；完成状态最多作为次要说明或省略。",
 			"- 同一阻塞条件连续出现且无法推进时，才可标记 blocked。",

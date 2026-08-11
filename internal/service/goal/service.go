@@ -1,5 +1,5 @@
 // INPUT: Goal 创建/读取、model round durable usage scope、Room creator/lead 身份、用户更新请求与 Execution/Room 终态 readiness。
-// OUTPUT: 原子持久化 Goal/created 事件/usage scope、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
+// OUTPUT: owner 授权先于 runtime accounting 的原子 Goal/created 事件/usage scope、future Execution reserved phase、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
@@ -37,6 +37,7 @@ type Service struct {
 	externalMutation    externalMutationAccountant
 	runtimeInterrupt    runtimeInterrupter
 	executionCompletion executionGoalCompletionReadiness
+	sessionOwnership    GoalSessionOwnershipVerifier
 	roomCompletion      roomGoalCompletionReadiness
 	continuations       ContinuationDispatcher
 	wallClock           *goalWallClockAccounting
@@ -64,6 +65,22 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
+	runtimeAgentID := strings.TrimSpace(request.AgentID)
+	ownershipAgentID := runtimeAgentID
+	if protocol.IsRoomSharedSessionKey(sessionKey) && ownershipAgentID == "" {
+		ownershipAgentID = strings.TrimSpace(request.RoomLeadAgentID)
+	}
+	ownerUserID, verifiedAgentID, verifiedAgentName, err := s.verifyGoalSessionOwnership(
+		ctx,
+		sessionKey,
+		request.OwnerUserID,
+		ownershipAgentID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	request.OwnerUserID = ownerUserID
+	request.AgentID = runtimeAgentID
 	if protocol.IsRoomSharedSessionKey(sessionKey) && strings.TrimSpace(request.CreatedBy) == "model" && strings.TrimSpace(request.AgentID) == "" {
 		return nil, newGoalInvalidInputError("model-created Room Goal requires the current agent identity")
 	}
@@ -99,8 +116,15 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		delete(metadata, protocol.GoalMetadataObjectiveRevision)
 		delete(metadata, protocol.GoalMetadataObjectiveAlignment)
 	}
-	metadata = initializeRoomGoalOwnershipMetadata(sessionKey, metadata, request.AgentID)
-	ownerUserID := strings.TrimSpace(request.OwnerUserID)
+	metadata = initializeRoomGoalOwnershipMetadata(
+		sessionKey,
+		metadata,
+		request.AgentID,
+		verifiedRoomAgentName(request.AgentID, verifiedAgentID, verifiedAgentName),
+		verifiedRoomLeadAgentID(request.AgentID, verifiedAgentID),
+		verifiedAgentName,
+	)
+	ownerUserID = strings.TrimSpace(request.OwnerUserID)
 	if ownerUserID == "" {
 		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
 	}
@@ -165,6 +189,8 @@ func reserveExternalGoalExecution(metadata map[string]any, goalID string) map[st
 	commandID := "external_goal_" + strings.TrimSpace(goalID)
 	metadata[protocol.GoalMetadataExplicitCommand] = commandID
 	metadata[protocol.GoalMetadataExecutionID] = protocol.ExplicitGoalReservedExecutionID(commandID)
+	metadata[protocol.GoalMetadataExecutionBindingState] =
+		string(protocol.GoalExecutionBindingStateReserved)
 	metadata[protocol.GoalMetadataActivationOrigin] = string(protocol.GoalActivationOriginUserExplicit)
 	metadata[protocol.GoalMetadataActivationReason] = string(protocol.GoalActivationReasonPersistenceRequested)
 	return metadata
@@ -269,20 +295,50 @@ func (s *Service) CurrentOptional(ctx context.Context, sessionKey string) (*prot
 	return item, nil
 }
 
+// CurrentOptionalForOwner returns the current Goal only when its durable owner
+// provenance exactly matches the authenticated caller. Ownerless legacy rows
+// are claimed once only after session and Execution provenance are proven.
+func (s *Service) CurrentOptionalForOwner(
+	ctx context.Context,
+	sessionKey string,
+	ownerUserID string,
+) (*protocol.Goal, error) {
+	item, err := s.CurrentOptional(ctx, sessionKey)
+	if err != nil || item == nil {
+		return item, err
+	}
+	return s.authorizeOwnerScopedGoal(ctx, item, ownerUserID)
+}
+
 // Update 更新当前 Goal 文本、预算或 metadata。
 func (s *Service) Update(ctx context.Context, goalID string, request protocol.UpdateGoalRequest) (*protocol.Goal, error) {
-	if err := s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
-		return nil, err
-	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
 	}
-	if err = authorizeGoalOwner(*item, request.OwnerUserID); err != nil {
+	item, err = s.authorizeGoalMutation(ctx, item, request.OwnerUserID)
+	if err != nil {
 		return nil, err
 	}
-	if request.Objective != nil &&
-		(s.objectiveRetarget != nil || goalHasManagedExecutionBinding(*item)) {
+	if err = s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
+		return nil, err
+	}
+	item, err = s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	item, err = s.authorizeGoalMutation(ctx, item, request.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	managedBinding := false
+	if request.Objective != nil {
+		managedBinding, err = s.goalHasManagedExecutionBinding(ctx, *item)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if request.Objective != nil && managedBinding {
 		requestedObjective, objectiveErr := normalizeObjective(*request.Objective)
 		if objectiveErr != nil {
 			return nil, objectiveErr
@@ -316,6 +372,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 				request.Objective = nil
 				if !request.TokenBudget.Present && request.Metadata == nil {
 					s.updatePreviewFromGoal(ctx, *retargeted, request.OwnerUserID)
+					s.maybeDispatchActiveGoalContinuation(ctx, *retargeted)
 					return retargeted, nil
 				}
 				updated, updateErr := s.Update(ctx, retargeted.ID, request)
@@ -325,7 +382,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 				s.updatePreviewFromGoal(ctx, *updated, request.OwnerUserID)
 				return updated, nil
 			}
-			if item.Objective != objective && goalHasManagedExecutionBinding(*item) {
+			if item.Objective != objective {
 				return nil, fmt.Errorf(
 					"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
 					ErrGoalInvalidState,
@@ -466,6 +523,14 @@ func (s *Service) reconcileUpdatedGoalBudget(ctx context.Context, updated *proto
 
 // Pause 暂停 active Goal。
 func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, error) {
+	item, err := s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return nil, err
+	}
 	paused, err := s.changeStatus(ctx, goalID, protocol.GoalStatusPaused, protocol.GoalUpdateSourceUser, "paused", "", nil)
 	if err != nil {
 		return nil, err
@@ -476,10 +541,22 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 
 // Resume 恢复 paused/blocked/usage_limited Goal；预算耗尽时需要先调整预算。
 func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, error) {
-	if err := s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
+	item, err := s.loadMutableGoal(ctx, goalID)
+	if err != nil {
 		return nil, err
 	}
-	item, err := s.loadMutableGoal(ctx, goalID)
+	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if err = s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
+		return nil, err
+	}
+	item, err = s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -501,12 +578,27 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 
 // Clear 删除当前 Goal。
 func (s *Service) Clear(ctx context.Context, goalID string) (bool, error) {
-	if err := s.prepareExternalMutationAtSettlementBoundary(ctx, strings.TrimSpace(goalID)); err != nil {
-		return false, err
-	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return false, err
 	}
-	return s.deleteGoal(ctx, *item, protocol.GoalUpdateSourceUser)
+	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return false, err
+	}
+	if err = s.ensureGoalClearAllowed(ctx, *item); err != nil {
+		return false, err
+	}
+	if err := s.prepareExternalMutationAtSettlementBoundary(ctx, strings.TrimSpace(goalID)); err != nil {
+		return false, err
+	}
+	item, err = s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return false, err
+	}
+	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return false, err
+	}
+	return s.clearGoal(ctx, *item, protocol.GoalUpdateSourceUser)
 }

@@ -262,7 +262,7 @@ type currentGoalProvider interface {
 }
 
 type roomGoalLeadSetter interface {
-	SetRoomGoalLead(context.Context, string, string, string) (*protocol.Goal, error)
+	SetRoomGoalLead(context.Context, string, string) (*protocol.Goal, error)
 }
 
 func (s *Service) reconcileRoomGoalLead(
@@ -291,7 +291,7 @@ func (s *Service) reconcileRoomGoalLead(
 	if goalsvc.RoomLeadAgentID(*goal) == leadAgentID && goalsvc.RoomLeadAgentName(*goal) == leadName {
 		return nil
 	}
-	_, err = setter.SetRoomGoalLead(ctx, goal.ID, leadAgentID, leadName)
+	_, err = setter.SetRoomGoalLead(ctx, goal.ID, leadAgentID)
 	return err
 }
 
@@ -430,9 +430,6 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	if err != nil || validated == nil {
 		return err
 	}
-	if _, err = exactGoalContinuationExecutionID(*validated); err != nil {
-		return err
-	}
 	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
 		return err
 	}
@@ -449,10 +446,6 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
 		return errors.New("room goal continuation requires a room session key")
 	}
-	executionID, err := exactGoalContinuationExecutionID(plan)
-	if err != nil {
-		return err
-	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
 	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
 	if collaborationContext != "" {
@@ -464,7 +457,7 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 		GoalContext:           goalContext,
 		GoalID:                plan.Goal.ID,
 		GoalObjectiveRevision: plan.Goal.ObjectiveRevision(),
-		ExecutionID:           executionID,
+		ExecutionID:           strings.TrimSpace(plan.ExecutionID),
 		TargetAgentIDs:        targetAgentIDs,
 		CoordinatorAgentID:    firstRoomTargetAgentID(targetAgentIDs),
 		RoundID:               plan.RoundID,
@@ -472,14 +465,6 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 		Internal:              true,
 		InputOptions:          goalContinuationInputOptions(plan),
 	})
-}
-
-func exactGoalContinuationExecutionID(plan protocol.GoalContinuation) (string, error) {
-	executionID := protocol.GoalReservedExecutionID(plan.Goal)
-	if strings.TrimSpace(executionID) == "" {
-		return "", errors.New("room goal continuation requires an exact execution binding")
-	}
-	return strings.TrimSpace(executionID), nil
 }
 
 func (s *Service) goalContinuationDispatchTarget(
@@ -564,12 +549,12 @@ func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgen
 Room Goal collaboration requirement:
 - This Room Goal has multiple members. Visible collaboration is a required part of completing the Goal, not optional polish.
 - Lead agent for this continuation: %s (agent_id=%s).
-- Available public delegation targets:
+- Available conversation targets:
 %s
-- Before choosing a target, assess task complexity, separable work, and member fit. Delegate a meaningful independent deliverable rather than ceremonial work.
-- If the room-visible history does not already contain a substantive reply from at least one non-lead member for this Goal, your public reply for this turn must @ exactly one target above and assign a concrete deliverable.
-- Once work is delegated, do not independently duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only if the member is unavailable, blocked, or failed, or urgency requires it.
-- Do not call the Goal update tool in the same turn as the first public delegation.
+- Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment.
+- If the room-visible history lacks a substantive non-lead reply, either @ exactly one target for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable.
+- Once accountable work is assigned, do not duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only through the managed control path when necessary.
+- Do not call the Goal update tool in the same turn as the first collaboration request or Assignment.
 - Do not mark the Room Goal complete using only your own private work. Completion requires room-visible collaborator evidence plus your final audit.
 `, leadName, leadAgentID, strings.Join(lines, "\n")))
 }

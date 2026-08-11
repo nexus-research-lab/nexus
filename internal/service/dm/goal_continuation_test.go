@@ -287,7 +287,7 @@ func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *
 	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
 }
 
-func TestDMGoalContinuationRequestRequiresExecutionBinding(t *testing.T) {
+func TestDMGoalContinuationRequestAllowsGoalOnlyAuthority(t *testing.T) {
 	request := Request{
 		SessionKey:            "agent:nexus:ws:dm:goal-binding",
 		GoalContext:           "continue",
@@ -298,12 +298,12 @@ func TestDMGoalContinuationRequestRequiresExecutionBinding(t *testing.T) {
 			Purpose: "goal_continuation",
 		},
 	}
-	if _, _, err := (&Service{}).validateRequest(request); err == nil {
-		t.Fatal("Goal continuation request without Execution identity was accepted")
+	if _, _, err := (&Service{}).validateRequest(request); err != nil {
+		t.Fatalf("Goal-only continuation request rejected: %v", err)
 	}
 	request.ExecutionID = "execution-dm"
 	if _, _, err := (&Service{}).validateRequest(request); err != nil {
-		t.Fatalf("complete Goal continuation request rejected: %v", err)
+		t.Fatalf("Goal-bound continuation request rejected: %v", err)
 	}
 }
 
@@ -504,6 +504,7 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 				protocol.GoalMetadataExecutionID:       "execution-claim-before-launch",
 			},
 		},
+		ExecutionID:    "execution-claim-before-launch",
 		RoundID:        "goal_continuation_claim_before_launch",
 		Prompt:         "continue the old objective",
 		HiddenFromUser: true,
@@ -527,8 +528,10 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	}
 	service.SetGoalContextProvider(goalProvider)
 	revisionState := make(chan *atomic.Int64, 1)
+	goalAuthorityState := make(chan *runtimectx.GoalAuthorityState, 1)
+	executionAuthorityState := make(chan *runtimectx.GoalAuthorityState, 1)
 	service.SetMCPServerBuilder(func(
-		_ context.Context,
+		ctx context.Context,
 		_ *protocol.Agent,
 		_ string,
 		_ string,
@@ -545,6 +548,14 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 			t.Errorf("MCP builder observed claimCalls=%d, want claim before launch", claimCalls)
 		}
 		revisionState <- revision
+		goalAuthorityState <- runtimectx.GoalAuthorityStateFromContext(ctx)
+		return nil
+	})
+	service.SetExecutionMCPServerBuilder(func(
+		_ context.Context,
+		runtimeContext runtimectx.ExecutionToolContext,
+	) map[string]sdkmcp.ServerConfig {
+		executionAuthorityState <- runtimeContext.GoalAuthority
 		return nil
 	})
 
@@ -559,6 +570,28 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	}
 	if state == nil || state.Load() != plan.Goal.ObjectiveRevision() {
 		t.Fatalf("runtime revision = %v, want plan revision %d", state, plan.Goal.ObjectiveRevision())
+	}
+	var goalAuthority *runtimectx.GoalAuthorityState
+	select {
+	case goalAuthority = <-goalAuthorityState:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Goal MCP did not receive runtime authority")
+	}
+	var executionAuthority *runtimectx.GoalAuthorityState
+	select {
+	case executionAuthority = <-executionAuthorityState:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Execution MCP did not receive runtime authority")
+	}
+	if goalAuthority == nil || executionAuthority != goalAuthority ||
+		state != goalAuthority.ObjectiveRevisionState() {
+		t.Fatal("DM Goal and Execution MCP did not share one round authority state")
+	}
+	authority, ok := goalAuthority.Load()
+	if !ok || authority.GoalID != plan.Goal.ID ||
+		authority.ObjectiveRevision != plan.Goal.ObjectiveRevision() ||
+		authority.ExecutionID != plan.ExecutionID {
+		t.Fatalf("DM continuation authority = %#v, ok=%t", authority, ok)
 	}
 	select {
 	case <-queryStarted:

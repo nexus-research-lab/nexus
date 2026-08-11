@@ -1,3 +1,6 @@
+// INPUT: 已认证 WebSocket owner、app-server JSON-RPC request 与 Goal service。
+// OUTPUT: owner-scoped thread/goal set/get/clear response、带稳定 conflict reason_code 的错误和成功后订阅登记。
+// POS: WebSocket app-server Goal transport；授权成功前不得注册订阅或产生 Goal 副作用。
 package websocket
 
 import (
@@ -8,6 +11,7 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
@@ -60,12 +64,17 @@ func (h *Handler) handleThreadGoalSetRPC(
 	if !h.decodeAppServerRPCParams(ctx, sender, request, &params) {
 		return
 	}
-	h.registerAppServerGoalRPCSender(params.ThreadID, sender)
+	params.OwnerUserID = authsvc.OwnerUserID(ctx)
 	item, err := h.goals.SetFromThreadGoalParams(goalsvc.WithActiveGoalContinuationSuppressed(ctx), params)
 	if err != nil {
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
 		return
 	}
+	h.registerAppServerGoalRPCSender(
+		protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataOwnerUserID),
+		params.ThreadID,
+		sender,
+	)
 	goal := goalappserver.ThreadGoalFromGoal(*item)
 	h.sendAppServerRPCResponse(ctx, sender, request.ID, goalappserver.ThreadGoalSetResponse{Goal: goal})
 	h.broadcastThreadGoalSetNotification(ctx, sender, *item, goal)
@@ -81,11 +90,14 @@ func (h *Handler) handleThreadGoalGetRPC(
 	if !h.decodeAppServerRPCParams(ctx, sender, request, &params) {
 		return
 	}
-	h.registerAppServerGoalRPCSender(params.ThreadID, sender)
-	item, err := h.goals.CurrentOptional(ctx, params.ThreadID)
+	ownerUserID := authsvc.OwnerUserID(ctx)
+	item, err := h.goals.CurrentOptionalForOwner(ctx, params.ThreadID, ownerUserID)
 	if err != nil {
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
 		return
+	}
+	if item != nil {
+		h.registerAppServerGoalRPCSender(ownerUserID, params.ThreadID, sender)
 	}
 	h.sendAppServerRPCResponse(ctx, sender, request.ID, goalappserver.ThreadGoalGetResponse{
 		Goal: goalappserver.ThreadGoalPointerFromGoal(item),
@@ -101,7 +113,7 @@ func (h *Handler) handleThreadGoalClearRPC(
 	if !h.decodeAppServerRPCParams(ctx, sender, request, &params) {
 		return
 	}
-	h.registerAppServerGoalRPCSender(params.ThreadID, sender)
+	params.OwnerUserID = authsvc.OwnerUserID(ctx)
 	cleared, err := h.goals.ClearFromThreadGoalParams(ctx, params)
 	if err != nil {
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
@@ -109,7 +121,7 @@ func (h *Handler) handleThreadGoalClearRPC(
 	}
 	h.sendAppServerRPCResponse(ctx, sender, request.ID, goalappserver.ThreadGoalClearResponse{Cleared: cleared})
 	if cleared {
-		h.broadcastAppServerGoalNotification(ctx, sender, params.ThreadID, goalappserver.AppServerJSONRPCNotification{
+		h.broadcastAppServerGoalNotification(ctx, sender, params.OwnerUserID, params.ThreadID, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/cleared",
 			Params: goalappserver.ThreadGoalClearedNotification{
 				ThreadID: params.ThreadID,
@@ -156,18 +168,42 @@ func (h *Handler) sendGoalRPCError(
 	id goalappserver.AppServerRequestID,
 	err error,
 ) {
-	code := goalappserver.AppServerRPCInternalErrorCode
+	h.sendAppServerRPCError(ctx, sender, id, appServerGoalRPCError(err))
+}
+
+func appServerGoalRPCError(err error) goalappserver.AppServerRPCErrorBody {
 	message := strings.TrimSpace(err.Error())
+	switch {
+	case errors.Is(err, goalsvc.ErrGoalRevisionStale):
+		return goalappserver.NewAppServerRPCConflictError(
+			message,
+			goalappserver.AppServerRPCReasonRevisionStale,
+		)
+	case errors.Is(err, goalsvc.ErrGoalExecutionBindingConflict):
+		return goalappserver.NewAppServerRPCConflictError(
+			message,
+			goalappserver.AppServerRPCReasonExecutionBindingConflict,
+		)
+	case errors.Is(err, goalsvc.ErrGoalVersionStale):
+		return goalappserver.NewAppServerRPCConflictError(
+			message,
+			goalappserver.AppServerRPCReasonVersionStale,
+		)
+	case errors.Is(err, goalsvc.ErrGoalConflict):
+		return goalappserver.NewAppServerRPCConflictError(
+			message,
+			goalappserver.AppServerRPCReasonConflict,
+		)
+	}
+	code := goalappserver.AppServerRPCInternalErrorCode
 	if errors.Is(err, goalsvc.ErrGoalDisabled) ||
 		errors.Is(err, goalsvc.ErrGoalInvalidInput) ||
 		errors.Is(err, goalsvc.ErrGoalInvalidState) ||
 		errors.Is(err, goalsvc.ErrGoalForbidden) ||
-		errors.Is(err, goalsvc.ErrGoalNotFound) ||
-		errors.Is(err, goalsvc.ErrGoalConflict) ||
-		errors.Is(err, goalsvc.ErrGoalVersionStale) {
+		errors.Is(err, goalsvc.ErrGoalNotFound) {
 		code = goalappserver.AppServerRPCInvalidRequestCode
 	}
-	h.sendAppServerRPCError(ctx, sender, id, goalappserver.NewAppServerRPCError(code, message))
+	return goalappserver.NewAppServerRPCError(code, message)
 }
 
 func (h *Handler) sendAppServerRPCResponse(
@@ -200,6 +236,7 @@ func (h *Handler) sendAppServerRPCError(
 func (h *Handler) broadcastAppServerGoalNotification(
 	ctx context.Context,
 	current *handlershared.WebSocketSender,
+	ownerUserID string,
 	threadID string,
 	notification goalappserver.AppServerJSONRPCNotification,
 ) {
@@ -207,7 +244,7 @@ func (h *Handler) broadcastAppServerGoalNotification(
 		_ = current.SendJSON(ctx, notification)
 		return
 	}
-	h.goalRPCSubs.Broadcast(ctx, threadID, current, notification)
+	h.goalRPCSubs.Broadcast(ctx, ownerUserID, threadID, current, notification)
 }
 
 func (h *Handler) broadcastThreadGoalSetNotification(
@@ -217,8 +254,9 @@ func (h *Handler) broadcastThreadGoalSetNotification(
 	goal goalappserver.ThreadGoal,
 ) {
 	threadID := strings.TrimSpace(item.SessionKey)
+	ownerUserID := protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataOwnerUserID)
 	if protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusComplete {
-		h.broadcastAppServerGoalNotification(ctx, current, threadID, goalappserver.AppServerJSONRPCNotification{
+		h.broadcastAppServerGoalNotification(ctx, current, ownerUserID, threadID, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/cleared",
 			Params: goalappserver.ThreadGoalClearedNotification{
 				ThreadID: threadID,
@@ -226,7 +264,7 @@ func (h *Handler) broadcastThreadGoalSetNotification(
 		})
 		return
 	}
-	h.broadcastAppServerGoalNotification(ctx, current, threadID, goalappserver.AppServerJSONRPCNotification{
+	h.broadcastAppServerGoalNotification(ctx, current, ownerUserID, threadID, goalappserver.AppServerJSONRPCNotification{
 		Method: "thread/goal/updated",
 		Params: goalappserver.ThreadGoalUpdatedNotification{
 			ThreadID: threadID,
@@ -236,9 +274,13 @@ func (h *Handler) broadcastThreadGoalSetNotification(
 	})
 }
 
-func (h *Handler) registerAppServerGoalRPCSender(threadID string, sender *handlershared.WebSocketSender) {
+func (h *Handler) registerAppServerGoalRPCSender(
+	ownerUserID string,
+	threadID string,
+	sender *handlershared.WebSocketSender,
+) {
 	if h.goalRPCSubs == nil {
 		return
 	}
-	h.goalRPCSubs.Register(threadID, sender)
+	h.goalRPCSubs.Register(ownerUserID, threadID, sender)
 }

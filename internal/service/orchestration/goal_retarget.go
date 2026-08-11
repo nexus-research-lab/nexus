@@ -1,5 +1,5 @@
 // INPUT: trusted Goal objective transition with exact old/new revision and reserved successor identity.
-// OUTPUT: terminal old Goal-bound WorkGraph or replayed terminal snapshot.
+// OUTPUT: terminal old Goal-bound WorkGraph or replayed terminal snapshot, plus post-commit session invalidation.
 // POS: internal application-service bridge used only by the Goal retarget coordinator.
 package orchestration
 
@@ -142,7 +142,7 @@ func (s *Service) SupersedeGoalRevision(
 			"old Execution belongs to another owner",
 		)
 	}
-	return s.repository.SupersedeGoalRevision(ctx, orchestrationstore.SupersedeGoalRevisionCommand{
+	updated, supersedeErr := s.repository.SupersedeGoalRevision(ctx, orchestrationstore.SupersedeGoalRevisionCommand{
 		ExecutionID:              snapshot.Execution.ID,
 		ExpectedExecutionVersion: snapshot.Execution.Version,
 		ExpectedOwnerUserID:      strings.TrimSpace(input.ExpectedOwnerUserID),
@@ -153,4 +153,8 @@ func (s *Service) SupersedeGoalRevision(
 		Reason:                   strings.TrimSpace(input.Reason),
 		Meta:                     s.commandMeta(actor, input.CommandID, "goal-retarget-supersede"),
 	})
+	if supersedeErr == nil {
+		s.invalidateSnapshot(ctx, updated)
+	}
+	return updated, supersedeErr
 }

@@ -5,7 +5,7 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 
 # Goal Manager
 
-管理当前会话已经选定的长程 objective。是否需要 Goal 的结构选择由 `execution-orchestrator` 负责；本 Skill 不把普通任务、提醒、Room action 或一次性协作升级为 Goal。
+管理当前会话已经选定的长程 objective。是否需要 Goal 的结构选择由 `execution-orchestrator` 负责；本 Skill 不把普通任务、提醒、Room action 或一次性协作升级为 Goal，也不把已选定的 Goal 自动升级为 WorkGraph。
 
 Skill 只加载使用规则，不替代工具调用。根据当前工具列表使用完整 MCP 名称或裸名：
 

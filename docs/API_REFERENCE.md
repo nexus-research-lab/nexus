@@ -19,9 +19,10 @@
 - [12. Channel 通道与配对](#12-channel-通道与配对)
 - [13. Scheduled Tasks 定时任务](#13-scheduled-tasks-定时任务)
 - [14. Heartbeat 心跳自动化](#14-heartbeat-心跳自动化)
-- [15. Goal 目标](#15-goal-目标)
-- [16. Admin 订阅管理](#16-admin-订阅管理)
-- [17. WebSocket 实时通信](#17-websocket-实时通信)
+- [15. Execution WorkGraph](#15-execution-workgraph)
+- [16. Goal 目标](#16-goal-目标)
+- [17. Admin 订阅管理](#17-admin-订阅管理)
+- [18. WebSocket 实时通信](#18-websocket-实时通信)
 - [附：路径前缀与别名](#附路径前缀与别名)
 
 ---
@@ -472,26 +473,82 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 15. Goal 目标
+## 15. Execution WorkGraph
+
+| 方法 | 路径 | 说明 | 参数 | 前端函数 |
+|------|------|------|------|---------|
+| GET | `/executions/latest` | 读取当前或最近一次 managed WorkGraph 的安全只读投影 | query: `session_key`（必填） | `getLatestExecutionApi` |
+
+该接口只公开 **managed WorkGraph**。managed 的最低条件是 durable Execution 拥有 active Plan，且该 Plan 至少包含一个 Work Item。查询顺序为：
+
+1. 同一 authenticated owner / `session_key` 下最近的未终结 managed Execution；
+2. 若不存在，返回最近一次 managed Execution，供 UI 回看 terminal 结果；
+3. 若该 session 从未创建 managed WorkGraph，返回 `data: null`。
+
+普通 runtime-only round、Goal-only continuation 和 planless Execution 都不属于公共 WorkGraph：它们不能让该接口返回非空，也不能覆盖已经保留的最近一次 managed WorkGraph。
+
+非空响应为 `ExecutionView`，包含 Execution/Plan、进度、完整用户可见 Work Items，以及只读 `graph`：
+
+```jsonc
+{
+  "data": {
+    "id": "execution-id",
+    "session_key": "session-key",
+    "scope_kind": "dm",
+    "status": "active",
+    "plan": { "id": "plan-id", "revision": 1, "status": "active" },
+    "progress": { "total": 2, "running": 1, "waiting": 1 },
+    "work_items": [/* responsibility / attempt / delivery projection */],
+    "graph": {
+      "nodes": [/* agent | subagent | tool | gate */],
+      "edges": [/* dependency | dispatch | coordination | spawn | invoke | guard | review | loop_back | retry */],
+      "runtime_node_total": 12,
+      "runtime_edge_total": 11,
+      "runtime_nodes_truncated": false,
+      "runtime_edges_truncated": false
+    }
+  }
+}
+```
+
+`graph` 只包含有界、脱敏的 NodeRun 摘要与结构化 Artifact 引用，不暴露 command、lease、runtime capability identity、凭证或完整 Tool I/O。total 与 truncated 字段描述 runtime 投影是否完整；前端不得把截断结果展示为完整实时图。该端点没有创建 Plan、分派、重试或状态推进能力。
+
+错误状态：缺少 `session_key` 或领域参数无效返回 `422`；Execution 服务未装配返回 `503`；读取失败返回 `500`。认证规则沿用全局约定。
+
+成功的 Plan、Assignment、Attempt、Submission、Review、block/resume/takeover、Goal binding、terminal reconciliation 与 Runtime Graph 写入会向已绑定同一 authenticated owner + `session_key` 的会话连接发送 `execution_invalidated`；每次成功 `bind_session` 也会发送一个空 identity fence，以恢复断线期间错过的 ephemeral 通知。事件 `data` 固定包含 `execution_id` 与 `version`；撤销、替换、尚无可读图，或 Runtime Graph 写入没有推进 Execution aggregate revision 时，相应值可以是空字符串或 `0`，客户端始终必须按 envelope 的 `session_key` 重新读取本端点，不能把 payload 当作增量图。密集或幂等通知可合并，事件本身不授予 mutation 能力。
+
+---
+
+## 16. Goal 目标
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
 | GET | `/goals/current` | 当前目标（query: `session_key`） | — | `getCurrentGoalApi` |
-| POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, metadata? }` | `createGoalApi` |
+| POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, room_lead_agent_id?, metadata? }` | `createGoalApi` |
 | GET | `/goals/{goal_id}/usage` | 按 ID 查询目标的聚合 usage 与 finalization fence | — | `getGoalUsageApi` |
+| GET | `/goals/{goal_id}/execution-binding` | owner-scoped、server-derived 的 Goal/Execution binding 状态 | — | `getGoalExecutionBindingApi` |
 | PATCH | `/goals/{goal_id}` | 更新目标 | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
 | POST | `/goals/{goal_id}/pause` | 暂停 | — | `pauseGoalApi` |
 | POST | `/goals/{goal_id}/resume` | 恢复 | — | `resumeGoalApi` |
 | POST | `/goals/{goal_id}/clear` | 清除 | — | `clearGoalApi` |
 | GET | `/goals/{goal_id}/events` | 目标事件流 | — | — |
 
+`room_lead_agent_id` 只用于 Room Goal 创建。服务端按认证 owner 与当前 Room 成员目录重新验证并解析负责人名称；`metadata` 不能写入或覆盖 Room creator、lead 或 scope 身份。
+
+`POST /goals` 携 `replace_existing: true` 与 `PATCH /goals/{goal_id}` 携
+`objective` 都进入同一 objective retarget 语义：保留 Goal ID 与累计 usage，
+`standalone`/`reserved` 原位推进 objective revision；`confirmed` 进入 successor
+Execution/Plan saga；`pending`/`conflict` 返回冲突或非法状态，不会旁路绑定 fence。
+
+`GET /goals/{goal_id}/execution-binding` 从 durable Goal 与 Execution 的中央 resolver 即时计算，不新增持久化，也不允许客户端解析 Goal metadata 猜测绑定。返回 `state: standalone | reserved | pending | confirmed | conflict`；只有服务端证明一条 exact bilateral confirmed binding 时才返回 `execution_id`，reserved candidate identity 不对外暴露。clear 服务只接受 `standalone`/`reserved`，其余状态 fail closed。
+
+Goal HTTP 的并发与绑定冲突（`goal conflict`、version/objective revision stale、Execution binding conflict）统一返回 `409`；invalid input/state（包括已确认绑定下禁止 clear）返回 `422`。
+
 `Goal.usage` 同时暴露两套不可混用的 token 口径：
 
 - `actual_tokens`：runtime/provider 实际处理总量，包含未缓存输入、cache creation/read、输出与 reasoning。provider terminal usage 显式携带 `total_tokens` 时采用其非负值，显式 `0` 也是精确值；缺少 total 时才按可用 breakdown 保守估算，并设置 `actual_tokens_estimated=true`。逐 turn actual 按消息身份去重，terminal 时再用本轮累计真值对账并持久化；terminal provider usage 一旦收到，即使后续本地投影或持久化步骤失败，也不会退化为缺失值。
 - `budget_tokens`：Goal 预算计量，严格为 `max(input_tokens, 0) + max(output_tokens, 0)`；cache creation/read 与 reasoning 不额外进入预算。`token_budget`、剩余预算和 `budget_limited` 均使用此值。
 - `total_tokens`：为旧客户端保留的 `budget_tokens` 别名。
-
-预算口径只用于内部控制、兼容与审计。默认 Goal 状态条只显示一个 `actual_tokens` 数字，估算值以 `≈` 标记；完成但尚未 `usage_finalized` 的 Goal 隐藏 token，finalized 后才显示最终值。预算、耗时和结算明细不在默认界面展示。
 
 `GET /goals/{goal_id}/usage` 返回 `GoalUsageReport`。完成 Goal 不再出现在 `/goals/current` 中，但仍可用原 `goal_id` 查询；同 session 后续创建的新 Goal 不会继承旧 Goal 的 terminal usage。`status=complete` 只表示业务目标已完成，不代表用量已经冻结；`usage_finalized=true` 才是聚合值权威且不再接受迟到增量的唯一 fence。
 
@@ -501,7 +558,11 @@ DM 按当前 round 聚合 parent 与 child；Room 聚合同一 root round（包�
 
 当前 nxs child 适配器会在没有可信 child usage 时填充 `total_tokens: 0`；这个 `0` 是“未知”的占位值，不是 provider terminal 的精确零。child 只有终态消息中的正 total 才记为 authoritative terminal evidence；progress 的正 total 仍可进入 actual checkpoint，但若随后 terminal 为 `0` 或未提供 total，证据仍记为 unavailable，Goal 保持 `usage_finalized=false`。因此 provider terminal 的显式零可以精确结算，但不能把 nxs child 的占位零当作同一种证据。Claude Code 后台任务同样不会在缺少可验证累计语义时被冒充为精确增量。
 
-`update_goal(complete)` 的结构化结果返回 `completionUsageCheckpointReport`、`goalId` 与 `usageFinalized: false`；旧 `completionBudgetReport` 字段保留为同值兼容别名。两个 report 字段只承载模型完成后的 result-first 交付指引，不是需要原样展示的 token 报告。工具成功后的最终 assistant 回复是用户交付面，必须独立、完整地满足 objective：文本本身是交付物时直接展示完整正文；成果位于文件、产物或外部状态时给出准确位置、核心结果和必要验证。Goal 完成状态只能作为结果后的次要说明或省略，不能用状态回执或简短总结替代成果；同样不要求复述 actual/budget token、耗时或“最终回复稍后结算”的 caveat。最终 assistant 回复的 usage 仍会在当前 round terminal 后按固定 `goal_id` 写回已完成 Goal；需要精确审计的调用方随后按 `goalId` 查询 `/goals/{goal_id}/usage`，并以 `usage_finalized=true` 作为最终聚合已冻结的唯一依据。
+`update_goal(complete)` 的结构化结果返回 `completionUsageCheckpointReport`、
+`goalId` 与 `usageFinalized: false`；旧 `completionBudgetReport` 为兼容别名。
+当前 round terminal 后仍可能按固定 `goal_id` 写回迟到 usage。需要精确审计的
+调用方随后查询 `/goals/{goal_id}/usage`，并只把
+`usage_finalized=true` 视为聚合冻结。
 
 ### App-Server 线程目标 RPC
 
@@ -511,11 +572,29 @@ DM 按当前 round 聚合 parent 与 child；Room 聚合同一 root round（包�
 | POST | `/app-server/thread/goal/get` | 获取线程目标 |
 | POST | `/app-server/thread/goal/clear` | 清除线程目标 |
 
-App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `budgetTokens`、`actualTokens` 与 `actualTokensEstimated`。
+App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `budgetTokens`、`actualTokens` 与 `actualTokensEstimated`。WebSocket `thread/goal/*` RPC 的并发与绑定冲突使用 JSON-RPC server-error code `-32009`（不是 HTTP 409），并在 `error.data.reason_code` 返回稳定分类：`conflict`、`version_stale`、`revision_stale` 或 `execution_binding_conflict`；invalid state 仍返回 `-32600`，未知服务错误才返回 `-32603`。
+
+WebSocket 使用独立 JSON-RPC envelope，不是上述 HTTP 路径的别名：
+
+```json
+{"jsonrpc":"2.0","id":"request-1","method":"thread/goal/get","params":{"threadId":"agent:..."}}
+```
+
+| `method` | `params` | `result` |
+| --- | --- | --- |
+| `thread/goal/set` | `{ threadId, objective?, status?, tokenBudget? }` | `{ goal: ThreadGoal }` |
+| `thread/goal/get` | `{ threadId }` | `{ goal: ThreadGoal \| null }` |
+| `thread/goal/clear` | `{ threadId }` | `{ cleared: boolean }` |
+
+成功的 `set`/非空 `get` 才为该 authenticated owner + thread 注册 Goal RPC
+订阅；失败请求不会订阅。后续通知为
+`{ method: "thread/goal/updated", params: { threadId, turnId, goal } }` 或
+`{ method: "thread/goal/cleared", params: { threadId } }`。订阅按 owner 与
+thread 双重隔离。
 
 ---
 
-## 16. Admin 订阅管理
+## 17. Admin 订阅管理
 
 > 仅管理员可见。
 
@@ -545,7 +624,7 @@ App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `bud
 
 ---
 
-## 17. WebSocket 实时通信
+## 18. WebSocket 实时通信
 
 ### 连接
 
@@ -575,7 +654,8 @@ App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `bud
 | `input_queue` | 输入队列操作 | `session_key`, `action`/`action_type`, `client_request_id?`, `client_message_id?`, `item_id?`, `content?`, `attachments?`, `ordered_ids?`, `delivery_policy` |
 | `permission_response` | 权限请求响应 | 由权限运行时约定 |
 
-> 带 `method` 字段的消息会进入 App-Server RPC 通道（`handleAppServerRPC`），用于 Goal 等线程级 RPC。
+> 带 `method` 字段的消息会进入 App-Server RPC 通道（`handleAppServerRPC`）。
+> 当前 `thread/goal/set|get|clear` 的 params、result、订阅和通知契约见第 16 节。
 
 ### `chat` 消息字段说明
 
@@ -594,6 +674,7 @@ App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `bud
 - `input_queue_ack` — 用户入队请求持久化确认，仅向请求连接单播；回传 `client_request_id`、稳定 `client_message_id`、canonical `item_id` 与 `duplicate`。共享队列当前状态仍由 `input_queue` 快照表达。
 - `round_status` — 轮次状态变更（`running` / `finished` / `interrupted` / `error`）；失败终态可在 `data.message` 携带可展示原因。
 - `runtime_status` — Runtime 瞬时阶段；`status: "compacting"` 表示正在压缩上下文，`status: null` 清除该阶段。
+- `execution_invalidated` — owner + session 双重隔离的 managed WorkGraph 读取失效通知；只投递给已 `bind_session` 的匹配连接，前端收到后重新调用 `GET /executions/latest`，30 秒轮询仅作为 active 图的断线恢复兜底。
 - `gateway_error` — 网关错误（`error_type` 含 `chat_error` / `interrupt_error` / `input_queue_error` / `not_implemented` / `unknown_message_type` / `permission_request_not_found` 等）。
 - Room / Workspace / App Event 订阅渠道推送的实时事件（房间消息、工作区文件变更、应用级事件）。
 - Goal 事件广播（经 `goal_event_broadcaster` 推送到 `goalRPCSubs`）。

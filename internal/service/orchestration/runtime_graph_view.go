@@ -1,57 +1,15 @@
-// INPUT: durable Runtime Graph 与可选 managed ExecutionView。
-// OUTPUT: planless 单智能体图，或按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet、保持每个 Tool NodeRun 独立且按结构事实分层可见性的 WorkGraph 运行层。
-// POS: Runtime NodeRun 到 icon-first Graph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
+// INPUT: durable Runtime Graph 与 managed ExecutionView。
+// OUTPUT: 按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet、保持每个 Tool NodeRun 独立且按结构事实分层可见性的 WorkGraph 运行层。
+// POS: Runtime NodeRun 到 managed WorkGraph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
 package orchestration
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func (s *Service) getPlanlessRuntimeGraphView(
-	ctx context.Context,
-	ownerUserID string,
-	sessionKey string,
-) (*protocol.ExecutionView, error) {
-	repository, ok := s.repository.(runtimeGraphRepository)
-	if !ok || repository == nil {
-		return nil, nil
-	}
-	graph, err := repository.GetRuntimeGraph(ctx, ownerUserID, sessionKey, "", "")
-	if err != nil || len(graph.Nodes) == 0 {
-		return nil, err
-	}
-	result := &protocol.ExecutionView{
-		ID:         graph.GraphID,
-		SessionKey: sessionKey,
-		Status:     protocol.ExecutionStatusCompleted,
-		Version:    1,
-	}
-	for index, node := range graph.Nodes {
-		if index == 0 || node.StartedAt.Before(result.CreatedAt) {
-			result.CreatedAt = node.StartedAt
-		}
-		if node.UpdatedAt.After(result.UpdatedAt) {
-			result.UpdatedAt = node.UpdatedAt
-		}
-		if node.Status == protocol.ExecutionRuntimeNodeRunning {
-			result.Status = protocol.ExecutionStatusActive
-			result.CompletedAt = nil
-			continue
-		}
-		if node.FinishedAt != nil &&
-			(result.CompletedAt == nil || node.FinishedAt.After(*result.CompletedAt)) {
-			finishedAt := node.FinishedAt.UTC()
-			result.CompletedAt = &finishedAt
-		}
-	}
-	mergeExecutionRuntimeGraph(result, graph)
-	return result, nil
-}
 
 func mergeExecutionRuntimeGraph(
 	view *protocol.ExecutionView,

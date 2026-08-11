@@ -1,3 +1,8 @@
+/**
+ * INPUT: session-scoped WebSocket protocol events 与当前 conversation handler context。
+ * OUTPUT: 仅将 envelope session 匹配的 execution_invalidated/Goal/round/runtime 事件投影到资源回调与本地状态。
+ * POS: agent transport 的会话事件路由表；不猜测跨 session 活动。
+ */
 import { readString } from "@/lib/unknown-value";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { AssistantMessageStatus } from "@/types/conversation/message/entity";
@@ -143,6 +148,13 @@ const handleGoalEvent = withCurrentSessionEvent((event, context) => {
   );
 });
 
+const handleExecutionInvalidated = withCurrentSessionEvent((event, context) => {
+  context.callbacks.onRoomEvent(
+    event.event_type,
+    (event.data ?? {}) as RoomEventPayload,
+  );
+});
+
 const handleRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseRoundStatusEventPayload(event.data);
   if (payload) {
@@ -187,6 +199,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   command_catalog: handleCommandCatalog,
   context_usage: handleContextUsage,
   error: handleErrorEvent,
+  execution_invalidated: handleExecutionInvalidated,
   goal_cleared: handleGoalEvent,
   goal_continuation: handleGoalEvent,
   goal_created: handleGoalEvent,

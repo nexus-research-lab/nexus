@@ -83,15 +83,23 @@ func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *test
 		t.Fatalf("限制 allowlist 时仍应允许加载托管 Goal skill: %+v", goalSkillDecision)
 	}
 
-	goalDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_goal__create_goal",
-		Input:    map[string]any{"objective": "完成发送问题排查"},
-	})
-	if err != nil {
-		t.Fatalf("Goal 工具权限处理失败: %v", err)
-	}
-	if goalDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("限制 allowlist 时仍应允许托管 Goal 工具: %+v", goalDecision)
+	for _, toolName := range []string{
+		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_goal__create_goal",
+		"mcp__nexus_goal__retarget_goal",
+		"mcp__nexus_goal__audit_objective_alignment",
+		"mcp__nexus_goal__update_goal",
+	} {
+		goalDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+			ToolName: toolName,
+			Input:    map[string]any{"objective": "完成发送问题排查"},
+		})
+		if err != nil {
+			t.Fatalf("%s 权限处理失败: %v", toolName, err)
+		}
+		if goalDecision.Behavior != sdkpermission.BehaviorAllow {
+			t.Fatalf("限制 allowlist 时仍应允许托管 Goal 工具 %s: %+v", toolName, goalDecision)
+		}
 	}
 
 	readDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{

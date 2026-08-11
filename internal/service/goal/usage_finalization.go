@@ -37,6 +37,35 @@ func (s *Service) UsageByGoalID(ctx context.Context, goalID string) (*protocol.G
 	return &report, nil
 }
 
+// UsageByGoalIDForOwner returns final usage only to the Goal's authenticated
+// owner. The unscoped variant remains reserved for trusted in-process flows.
+func (s *Service) UsageByGoalIDForOwner(
+	ctx context.Context,
+	goalID string,
+	ownerUserID string,
+) (*protocol.GoalUsageReport, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	goalID = strings.TrimSpace(goalID)
+	if goalID == "" {
+		return nil, ErrGoalInvalidInput
+	}
+	item, err := s.repo.GetGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	item, err = s.authorizeOwnerScopedGoal(ctx, item, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	report := item.UsageReport()
+	return &report, nil
+}
+
 // FinalizeUsageForGoal 在 parent terminal 与 child drain 全部完成后，
 // 原子写入尚未持久化的最终增量，并冻结该 Goal 的 usage。
 func (s *Service) FinalizeUsageForGoal(
