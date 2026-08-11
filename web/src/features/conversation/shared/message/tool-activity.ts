@@ -30,7 +30,13 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   block_work: "标记工作阻塞",
   resume_work: "恢复工作项",
   take_over_work: "接管工作项",
+  audit_execution_alignment: "审计执行对齐",
   promote_execution_to_goal: "升级为 Goal",
+  get_goal: "读取 Goal",
+  create_goal: "创建 Goal",
+  retarget_goal: "调整 Goal 目标",
+  audit_objective_alignment: "审计 Goal 对齐",
+  update_goal: "更新 Goal 状态",
 };
 
 const TOOL_TITLE_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
@@ -48,6 +54,23 @@ const TOOL_TITLE_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
   WebFetch: "message.tool_web_fetch",
   WebSearch: "message.tool_web_search",
   Write: "message.tool_write",
+  get_execution: "message.tool_execution_get",
+  prepare_plan_execution: "message.tool_execution_prepare_plan",
+  plan_execution: "message.tool_execution_commit_plan",
+  abandon_execution: "message.tool_execution_abandon",
+  assign_work: "message.tool_execution_assign_work",
+  submit_work: "message.tool_execution_submit_work",
+  review_work: "message.tool_execution_review_work",
+  block_work: "message.tool_execution_block_work",
+  resume_work: "message.tool_execution_resume_work",
+  take_over_work: "message.tool_execution_take_over_work",
+  audit_execution_alignment: "message.tool_execution_audit_alignment",
+  promote_execution_to_goal: "message.tool_execution_promote_to_goal",
+  get_goal: "message.tool_goal_get",
+  create_goal: "message.tool_goal_create",
+  retarget_goal: "message.tool_goal_retarget",
+  audit_objective_alignment: "message.tool_goal_audit_alignment",
+  update_goal: "message.tool_goal_update",
 };
 
 const INPUT_SUMMARY_KEYS = [
@@ -68,12 +91,20 @@ const INPUT_SUMMARY_KEYS = [
 const COMMAND_SUMMARY_LIMIT = 50;
 
 export function getToolTitle(toolName: string): string {
-  const semanticToolName = getExecutionToolLeaf(toolName);
+  const semanticToolName = getSemanticToolName(toolName);
   return TOOL_TITLE_MAP[semanticToolName] ?? TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
 export function getToolTitleKey(toolName: string): TranslationKey | null {
-  return TOOL_TITLE_KEY_MAP[toolName] ?? null;
+  return TOOL_TITLE_KEY_MAP[getSemanticToolName(toolName)] ?? null;
+}
+
+export function getLocalizedToolTitle(
+  toolName: string,
+  t: (key: TranslationKey) => string,
+): string {
+  const titleKey = getToolTitleKey(toolName);
+  return titleKey ? t(titleKey) : getToolTitle(toolName);
 }
 
 export function getToolInputSummary(input: unknown): string | null {
@@ -113,9 +144,16 @@ function formatCommandSummary(command: string): string {
   return `$ ${command.slice(0, COMMAND_SUMMARY_LIMIT)}${suffix}`;
 }
 
-function getExecutionToolLeaf(toolName: string): string {
-  const prefix = "mcp__nexus_execution__";
-  return toolName.startsWith(prefix) ? toolName.slice(prefix.length) : toolName;
+const NEXUS_TOOL_PREFIXES = [
+  "mcp__nexus_execution__",
+  "mcp__nexus_goal__",
+] as const;
+
+function getSemanticToolName(toolName: string): string {
+  const prefix = NEXUS_TOOL_PREFIXES.find((candidate) => (
+    toolName.startsWith(candidate)
+  ));
+  return prefix ? toolName.slice(prefix.length) : toolName;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

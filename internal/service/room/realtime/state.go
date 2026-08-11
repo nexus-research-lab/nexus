@@ -59,7 +59,6 @@ type roomGoalMutationAuthority struct {
 func (a roomGoalMutationAuthority) valid() bool {
 	return strings.TrimSpace(a.SessionKey) != "" &&
 		strings.TrimSpace(a.GoalID) != "" &&
-		strings.TrimSpace(a.ExecutionID) != "" &&
 		a.ObjectiveRevision > 0 &&
 		a.Source != ""
 }
@@ -72,6 +71,8 @@ type roomSlotGoalState struct {
 	idForUsage           string
 	childIDForUsage      string
 	mutationAuthority    roomGoalMutationAuthority
+	authorityOnce        sync.Once
+	authorityState       *runtimectx.GoalAuthorityState
 	objectiveRevision    atomic.Int64
 	runtimeIgnored       bool
 	usage                *goalsvc.RuntimeUsageAccumulator
@@ -168,6 +169,21 @@ func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int6
 		}
 	}
 	return state
+}
+
+func (s *activeRoomSlot) ensureGoalAuthorityState() *runtimectx.GoalAuthorityState {
+	if s == nil {
+		return nil
+	}
+	goalState := &s.mutable.goal
+	goalState.authorityOnce.Do(func() {
+		goalState.authorityState = runtimectx.NewGoalAuthorityStateWithRevision(
+			"",
+			"",
+			&goalState.objectiveRevision,
+		)
+	})
+	return goalState.authorityState
 }
 
 func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
@@ -690,6 +706,9 @@ func (slot *activeRoomSlot) clearGoalUsage() {
 	slot.mutable.goal.mutationAuthority = roomGoalMutationAuthority{}
 	slot.mutable.goal.usageClaimPending = false
 	slot.mutable.goal.terminalSettled = false
+	if authority := slot.ensureGoalAuthorityState(); authority != nil {
+		authority.Clear()
+	}
 	slot.mutable.goal.mu.Unlock()
 }
 
@@ -1272,6 +1291,15 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 	slot.mutable.goal.mu.Lock()
 	current := slot.mutable.goal.mutationAuthority
 	if current.valid() && current != authority {
+		slot.mutable.goal.mu.Unlock()
+		return false
+	}
+	shared := slot.ensureGoalAuthorityState()
+	if shared == nil || !shared.Bind(
+		authority.GoalID,
+		authority.ObjectiveRevision,
+		authority.ExecutionID,
+	) {
 		slot.mutable.goal.mu.Unlock()
 		return false
 	}

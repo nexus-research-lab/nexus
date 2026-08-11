@@ -1,3 +1,6 @@
+// INPUT: WebSocket 请求、共享服务依赖与各 owner/session subscription registry。
+// OUTPUT: 认证连接生命周期、协议命令路由，以及 Room/Goal/Execution 实时事件投递。
+// POS: HTTP WebSocket transport 入口；不拥有任何业务 mutation 规则。
 package websocket
 
 import (
@@ -30,24 +33,25 @@ const (
 
 // Handler 封装 WebSocket 生命周期与控制消息分发。
 type Handler struct {
-	api                  *handlershared.API
-	roomService          *roompkg.Service
-	roomRealtime         roomRealtimeService
-	dm                   *dmsvc.Service
-	goals                *goalsvc.Service
-	permission           *permissionctx.Context
-	runtime              *runtimectx.Manager
-	contextUsage         contextUsageSnapshotProvider
-	channels             *channelspkg.Router
-	hostCommands         *slashcommandsvc.Registry
-	commandCatalog       *slashcommandsvc.Catalog
-	runtimeKindResolver  func(context.Context, string) (agentclient.RuntimeKind, error)
-	roomSubs             *roomSubscriptionRegistry
-	workspaceSubs        *workspaceSubscriptionRegistry
-	appEventSubs         *appEventSubscriptionRegistry
-	goalRPCSubs          *appServerGoalRPCRegistry
-	channelAuthorization *channelAuthorizationTransport
-	allowedOrigins       []string
+	api                    *handlershared.API
+	roomService            *roompkg.Service
+	roomRealtime           roomRealtimeService
+	dm                     *dmsvc.Service
+	goals                  *goalsvc.Service
+	permission             *permissionctx.Context
+	runtime                *runtimectx.Manager
+	contextUsage           contextUsageSnapshotProvider
+	channels               *channelspkg.Router
+	hostCommands           *slashcommandsvc.Registry
+	commandCatalog         *slashcommandsvc.Catalog
+	runtimeKindResolver    func(context.Context, string) (agentclient.RuntimeKind, error)
+	roomSubs               *roomSubscriptionRegistry
+	workspaceSubs          *workspaceSubscriptionRegistry
+	appEventSubs           *appEventSubscriptionRegistry
+	goalRPCSubs            *appServerGoalRPCRegistry
+	executionInvalidations *executionInvalidationRegistry
+	channelAuthorization   *channelAuthorizationTransport
+	allowedOrigins         []string
 }
 
 // roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。
@@ -82,24 +86,25 @@ func NewHandler(
 		hostCommands = slashcommandsvc.NewRegistry()
 	}
 	handler := &Handler{
-		api:                  api,
-		roomService:          roomService,
-		roomRealtime:         roomRealtime,
-		dm:                   dm,
-		goals:                goals,
-		permission:           permission,
-		runtime:              runtime,
-		contextUsage:         contextUsage,
-		channels:             channels,
-		hostCommands:         hostCommands,
-		commandCatalog:       commandCatalog,
-		runtimeKindResolver:  runtimeKindResolver,
-		roomSubs:             newRoomSubscriptionRegistry(128),
-		workspaceSubs:        newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
-		appEventSubs:         newAppEventSubscriptionRegistry(),
-		goalRPCSubs:          newAppServerGoalRPCRegistry(),
-		channelAuthorization: newChannelAuthorizationTransport(),
-		allowedOrigins:       allowedOrigins,
+		api:                    api,
+		roomService:            roomService,
+		roomRealtime:           roomRealtime,
+		dm:                     dm,
+		goals:                  goals,
+		permission:             permission,
+		runtime:                runtime,
+		contextUsage:           contextUsage,
+		channels:               channels,
+		hostCommands:           hostCommands,
+		commandCatalog:         commandCatalog,
+		runtimeKindResolver:    runtimeKindResolver,
+		roomSubs:               newRoomSubscriptionRegistry(128),
+		workspaceSubs:          newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		appEventSubs:           newAppEventSubscriptionRegistry(),
+		goalRPCSubs:            newAppServerGoalRPCRegistry(),
+		executionInvalidations: newExecutionInvalidationRegistry(),
+		channelAuthorization:   newChannelAuthorizationTransport(),
+		allowedOrigins:         allowedOrigins,
 	}
 	if roomRealtime != nil {
 		roomRealtime.SetRoomBroadcaster(handler.roomSubs)
@@ -153,6 +158,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		}
 		if h.goalRPCSubs != nil {
 			h.goalRPCSubs.UnregisterSender(sender)
+		}
+		if h.executionInvalidations != nil {
+			h.executionInvalidations.UnregisterSender(sender)
 		}
 		_ = connection.Close(websocket.StatusNormalClosure, "closed")
 		h.broadcastSessionStatus(request.Context(), h.permission.UnregisterSender(sender)...)

@@ -121,6 +121,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	providerService.SetLogger(logger.With("component", "provider"))
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	goalService.SetSessionOwnershipVerifier(newGoalSessionOwnershipVerifier(
+		core.Agent,
+		core.Room,
+	))
 	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
 	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
 		executionSubagentToolHistory{sessions: core.Session},
@@ -308,7 +312,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
-	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
+	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	executionBuilder := newExecutionMCPBuilder(orchestrationService)

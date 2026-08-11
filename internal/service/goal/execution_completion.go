@@ -15,6 +15,13 @@ type executionGoalCompletionReadiness interface {
 	ExecutionGoalCompletionBlocker(context.Context, protocol.Goal) (string, error)
 }
 
+type executionGoalBindingResolver interface {
+	ResolveGoalExecutionBinding(
+		context.Context,
+		protocol.Goal,
+	) (protocol.GoalExecutionBindingResolution, error)
+}
+
 // SetExecutionGoalCompletionReadiness 注入 WorkGraph 审计，防止模型或系统旁路提前完成 Goal。
 func (s *Service) SetExecutionGoalCompletionReadiness(readiness executionGoalCompletionReadiness) {
 	s.executionCompletion = readiness
@@ -39,14 +46,30 @@ func (s *Service) ensureExecutionGoalCompletionReady(
 			transition.Phase,
 		)
 	}
-	if s.executionCompletion == nil {
-		if goalRequiresExecutionCompletionAudit(item) {
-			return fmt.Errorf(
-				"%w: Execution completion audit is unavailable for a bound Goal",
-				ErrGoalInvalidState,
-			)
-		}
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return fmt.Errorf("resolve Goal Execution binding: %w", err)
+	}
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
 		return nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return fmt.Errorf(
+			"%w: Goal Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
+	case protocol.GoalExecutionBindingStateConfirmed:
+	default:
+		return fmt.Errorf("%w: Goal Execution binding state is unknown", ErrGoalInvalidState)
+	}
+	if s.executionCompletion == nil {
+		return fmt.Errorf(
+			"%w: Execution completion audit is unavailable for a Goal with a confirmed managed WorkGraph binding",
+			ErrGoalInvalidState,
+		)
 	}
 	blocker, err := s.executionCompletion.ExecutionGoalCompletionBlocker(ctx, item)
 	if err != nil {
@@ -58,22 +81,40 @@ func (s *Service) ensureExecutionGoalCompletionReady(
 	return nil
 }
 
-func goalRequiresExecutionCompletionAudit(item protocol.Goal) bool {
-	if protocol.GoalMetadataString(
-		item.Metadata,
-		protocol.GoalMetadataExecutionID,
-	) != "" {
-		return true
+func (s *Service) resolveGoalExecutionBinding(
+	ctx context.Context,
+	item protocol.Goal,
+) (protocol.GoalExecutionBindingResolution, error) {
+	if resolver, ok := s.executionCompletion.(executionGoalBindingResolver); ok {
+		return resolver.ResolveGoalExecutionBinding(ctx, item)
 	}
-	switch protocol.GoalActivationOrigin(protocol.GoalMetadataString(
-		item.Metadata,
-		protocol.GoalMetadataActivationOrigin,
-	)) {
-	case protocol.GoalActivationOriginUserExplicit,
-		protocol.GoalActivationOriginAdaptiveInitial,
-		protocol.GoalActivationOriginAdaptivePromoted:
-		return true
+	resolution := protocol.GoalExecutionBindingResolution{
+		State:               protocol.GoalExecutionBindingStateStandalone,
+		ReservedExecutionID: protocol.GoalReservedExecutionID(item),
+	}
+	switch protocol.GoalExecutionBindingStateFromGoal(item) {
+	case protocol.GoalExecutionBindingStateConfirmed:
+		resolution.State = protocol.GoalExecutionBindingStateConfirmed
+		resolution.ExecutionID = resolution.ReservedExecutionID
+	case protocol.GoalExecutionBindingStatePending:
+		resolution.State = protocol.GoalExecutionBindingStatePending
+	case protocol.GoalExecutionBindingStateReserved:
+		resolution.State = protocol.GoalExecutionBindingStateReserved
+	case protocol.GoalExecutionBindingStateStandalone:
+		// Compatibility for focused service tests and pre-phase data. Production
+		// wiring always uses the database-backed resolver above.
+		if resolution.ReservedExecutionID != "" {
+			if len(goalMetadataStrings(item.Metadata, protocol.GoalMetadataCompletionCriteria)) > 0 {
+				resolution.State = protocol.GoalExecutionBindingStateConfirmed
+				resolution.ExecutionID = resolution.ReservedExecutionID
+			} else {
+				resolution.State = protocol.GoalExecutionBindingStateReserved
+			}
+		}
+	case protocol.GoalExecutionBindingStateConflict:
+		resolution.State = protocol.GoalExecutionBindingStateConflict
 	default:
-		return false
+		resolution.State = protocol.GoalExecutionBindingStateConflict
 	}
+	return resolution, nil
 }

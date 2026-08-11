@@ -1,6 +1,6 @@
-// INPUT: active Goal、上一轮结果与当前 session 可调度状态。
-// OUTPUT: 带版本约束的 continuation plan 或明确的延迟/终止决定。
-// POS: Goal 自动续跑计划与最终有效性校验的唯一入口。
+// INPUT: active Goal、上一轮结果、objective transition 与当前 session 可调度状态。
+// OUTPUT: 带版本约束的普通 Goal continuation、awaiting_plan 专用 successor-planning continuation，或明确的延迟/终止决定。
+// POS: Goal 自动续跑与 Goal-bound successor 规划的唯一计划和最终有效性校验入口。
 package goal
 
 import (
@@ -74,8 +74,11 @@ func releaseContinuationPlan(ctx context.Context, provider ContinuationPlanProvi
 }
 
 const (
-	goalContinuationPurpose                 = "goal_continuation"
-	goalContinuationReservationsMetadataKey = "continuation_reservation_round_ids"
+	goalContinuationPurpose                       = "goal_continuation"
+	goalObjectiveTransitionPlanningPurpose        = "goal_objective_transition_planning"
+	goalContinuationReservationsMetadataKey       = "continuation_reservation_round_ids"
+	goalTransitionContinuationIDMetadataKey       = "goal_transition_id"
+	goalTransitionSuccessorExecutionIDMetadataKey = "successor_execution_id"
 )
 
 //go:embed templates/continuation.md
@@ -133,8 +136,34 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
+	if transition, ok := objectiveTransitionAwaitingPlan(*item); ok {
+		if s.goalBudgetExhausted(*item) {
+			_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
+			return nil, err
+		}
+		if max := s.config.GoalMaxContinuationsPerRun; max > 0 && item.ContinuationCount >= max {
+			_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", previousRoundID, "Goal transition planning continuation limit reached")
+			return nil, err
+		}
+		return s.reserveContinuationPlanForLoadedGoal(
+			ctx,
+			item,
+			previousRoundID,
+			"",
+			goalObjectiveTransitionPlanningPurpose,
+			buildObjectiveTransitionPlanningPrompt(*item, transition),
+			map[string]string{
+				goalTransitionContinuationIDMetadataKey:       transition.ID,
+				goalTransitionSuccessorExecutionIDMetadataKey: transition.SuccessorExecutionID,
+			},
+		)
+	}
 	if GoalObjectiveTransitionPending(*item) {
 		return nil, nil
+	}
+	executionID, bindingErr := s.goalContinuationExecutionID(ctx, *item)
+	if bindingErr != nil {
+		return nil, bindingErr
 	}
 	if s.goalBudgetExhausted(*item) {
 		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
@@ -170,6 +199,26 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 		return nil, err
 	}
 
+	return s.reserveContinuationPlanForLoadedGoal(
+		ctx,
+		item,
+		previousRoundID,
+		executionID,
+		goalContinuationPurpose,
+		buildContinuationPrompt(*item, previousRoundID, executionID != ""),
+		nil,
+	)
+}
+
+func (s *Service) reserveContinuationPlanForLoadedGoal(
+	ctx context.Context,
+	item *protocol.Goal,
+	previousRoundID string,
+	executionID string,
+	purpose string,
+	prompt string,
+	extraMetadata map[string]string,
+) (*protocol.GoalContinuation, error) {
 	roundID := s.idFactory("goal_continuation")
 	expectedVersion := item.Version
 	now := s.nowFn()
@@ -185,25 +234,35 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	if err != nil {
 		return nil, err
 	}
-	payload := map[string]any{"continuation_count": updated.ContinuationCount}
+	payload := map[string]any{
+		"continuation_count": updated.ContinuationCount,
+		"purpose":            strings.TrimSpace(purpose),
+	}
 	if previous := strings.TrimSpace(previousRoundID); previous != "" {
 		payload["previous_round_id"] = previous
 	}
 	if err := s.appendEvent(ctx, *updated, "continuation_scheduled", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
 		return nil, err
 	}
+	metadata := map[string]string{
+		"goal_id":           updated.ID,
+		"session_key":       updated.SessionKey,
+		"previous_round_id": strings.TrimSpace(previousRoundID),
+	}
+	for key, value := range extraMetadata {
+		if key = strings.TrimSpace(key); key != "" {
+			metadata[key] = strings.TrimSpace(value)
+		}
+	}
 	return &protocol.GoalContinuation{
 		Goal:           *updated,
+		ExecutionID:    strings.TrimSpace(executionID),
 		RoundID:        roundID,
-		Prompt:         buildContinuationPrompt(*updated, previousRoundID),
+		Prompt:         strings.TrimSpace(prompt),
 		HiddenFromUser: true,
 		Synthetic:      true,
-		Purpose:        goalContinuationPurpose,
-		Metadata: map[string]string{
-			"goal_id":           updated.ID,
-			"session_key":       updated.SessionKey,
-			"previous_round_id": strings.TrimSpace(previousRoundID),
-		},
+		Purpose:        strings.TrimSpace(purpose),
+		Metadata:       metadata,
 	}, nil
 }
 
@@ -234,11 +293,19 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return false, nil
 	}
+	if plan.Purpose == goalObjectiveTransitionPlanningPurpose {
+		return objectiveTransitionPlanningContinuationMatches(*item, plan), nil
+	}
 	if GoalObjectiveTransitionPending(*item) {
 		return false, nil
 	}
+	executionID, bindingErr := s.goalContinuationExecutionID(ctx, *item)
+	if bindingErr != nil {
+		return false, bindingErr
+	}
 	return item.ID == goalID &&
 		objectiveRevisionMatches(*item, plan.Goal.ObjectiveRevision()) &&
+		executionID == strings.TrimSpace(plan.ExecutionID) &&
 		hasContinuationReservation(item.Metadata, plan.RoundID), nil
 }
 
@@ -260,14 +327,72 @@ func (s *Service) ClaimContinuationPlan(ctx context.Context, plan protocol.GoalC
 	}
 	expectedRevision := plan.Goal.ObjectiveRevision()
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if plan.Purpose == goalObjectiveTransitionPlanningPurpose {
+			if !objectiveTransitionPlanningContinuationMatches(*current, plan) {
+				return nil, ErrGoalRevisionStale
+			}
+			return s.claimContinuationPlanForLoadedGoal(ctx, current, plan.RoundID)
+		}
 		if pendingErr := rejectPendingObjectiveTransition(*current, "claim Goal continuation"); pendingErr != nil {
 			return nil, pendingErr
 		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}
+		executionID, bindingErr := s.goalContinuationExecutionID(ctx, *current)
+		if bindingErr != nil {
+			return nil, bindingErr
+		}
+		if executionID != strings.TrimSpace(plan.ExecutionID) {
+			return nil, ErrGoalRevisionStale
+		}
 		return s.claimContinuationPlanForLoadedGoal(ctx, current, plan.RoundID)
 	})
+}
+
+func objectiveTransitionPlanningContinuationMatches(
+	item protocol.Goal,
+	plan protocol.GoalContinuation,
+) bool {
+	transition, ok := objectiveTransitionAwaitingPlan(item)
+	if !ok || strings.TrimSpace(plan.ExecutionID) != "" ||
+		item.ID != continuationPlanGoalID(plan) ||
+		!objectiveRevisionMatches(item, plan.Goal.ObjectiveRevision()) ||
+		!hasContinuationReservation(item.Metadata, plan.RoundID) {
+		return false
+	}
+	if plan.Metadata == nil {
+		return false
+	}
+	return strings.TrimSpace(plan.Metadata[goalTransitionContinuationIDMetadataKey]) == transition.ID &&
+		strings.TrimSpace(plan.Metadata[goalTransitionSuccessorExecutionIDMetadataKey]) ==
+			transition.SuccessorExecutionID
+}
+
+func (s *Service) goalContinuationExecutionID(
+	ctx context.Context,
+	item protocol.Goal,
+) (string, error) {
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return "", fmt.Errorf("resolve Goal Execution binding: %w", err)
+	}
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+		return "", nil
+	case protocol.GoalExecutionBindingStateConfirmed:
+		return strings.TrimSpace(resolution.ExecutionID), nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return "", fmt.Errorf(
+			"%w: Goal Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
+	default:
+		return "", fmt.Errorf("%w: Goal Execution binding state is unknown", ErrGoalInvalidState)
+	}
 }
 
 func (s *Service) claimContinuationPlanForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
@@ -459,7 +584,7 @@ func (s *Service) limitForSystem(
 	return s.persistTransition(ctx, item, status, protocol.GoalUpdateSourceSystem, eventType, roundID, payload)
 }
 
-func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string {
+func buildContinuationPrompt(item protocol.Goal, previousRoundID string, confirmedManagedBinding bool) string {
 	objective := escapeGoalPromptText(strings.TrimSpace(item.Objective))
 	tokenBudget := "none"
 	if item.TokenBudget != nil {
@@ -474,11 +599,34 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string 
 		"room_goal_lead_note":          buildRoomGoalLeadNote(item),
 		"objective_alignment_criteria": buildObjectiveAlignmentCriteria(item),
 		"objective_alignment_contract": objectivealignment.PromptContract(),
-		"completion_tool_retry_note":   buildCompletionToolRetryNote(item),
+		"completion_tool_retry_note":   buildCompletionToolRetryNote(item, confirmedManagedBinding),
 		"tokens_used":                  fmt.Sprintf("%d", item.Usage.BudgetTokens()),
 		"token_budget":                 tokenBudget,
 		"remaining_tokens":             remainingTokens,
 	})
+}
+
+func buildObjectiveTransitionPlanningPrompt(
+	item protocol.Goal,
+	transition ObjectiveTransition,
+) string {
+	return strings.TrimSpace(fmt.Sprintf(`
+Continue the active Goal after its objective was explicitly retargeted.
+
+Goal objective:
+%s
+
+The predecessor WorkGraph is already fenced. Build the fresh successor WorkGraph now:
+1. Call prepare_plan_execution once with one complete Nexus Plan Document and goal_binding=current.
+2. Commit exactly the returned proposal_id and proposal_digest with plan_execution.
+3. Do not reuse, mutate, or resume the superseded predecessor Execution.
+4. Do not call retarget_goal again unless the user changes the objective again.
+
+The backend owns successor identity %s. Do not put that identity into tool input.
+`,
+		escapeGoalPromptText(strings.TrimSpace(item.Objective)),
+		escapeGoalPromptText(strings.TrimSpace(transition.SuccessorExecutionID)),
+	))
 }
 
 func buildObjectiveAlignmentCriteria(item protocol.Goal) string {
@@ -517,18 +665,25 @@ func buildRoomGoalLeadNote(item protocol.Goal) string {
 Room Goal lead:
 - This is a shared Room Goal. You are the assigned lead agent: %s.
 - The Goal belongs to the room, not to your private session. You are responsible for driving coordination, evidence gathering, final audit, and completion.
-- Follow all Room rules and member roles. When another member should act, make the final reply a normal public Room message that @mentions exactly that member and states a concrete deliverable.
-- Public @ delegation is visible to the user and should be the default for ordinary collaboration. Use private Room directed messages only for secrets, private reminders, hidden collection, or explicitly private work.
+- Follow all Room rules and member roles. A public @mention only requests a conversational or untracked one-off contribution; it never creates an Assignment, WorkBinding, or completion evidence by itself.
+- When another member must own an accountable deliverable, materialize or continue the managed WorkGraph and use assign_work. Use @ only when a conversational contribution is sufficient.
 - For a multi-member Room Goal, visible collaboration is part of completion. If the runtime provides a Room Goal collaboration requirement, satisfy it before attempting completion.
-- If room-visible history does not already show substantive work from a non-lead member for this Goal, your next public reply should @ exactly one non-lead member with a concrete deliverable and you must not call the Goal update tool in that same turn.
-- If a public @ delegation is the right next step, make that @ message your public reply for this turn and do not mark the Goal complete yet.
+- If room-visible history does not already show substantive work from a non-lead member, choose the least costly correct route: @ exactly one member for a genuinely untracked contribution, or assign one distinct Ready Work Item through the managed graph. Do not call the Goal update tool in that same turn.
+- If a public @ request is the right next step, make it the public reply for this turn and do not mark the Goal complete yet.
 - When delegated work returns, inspect the room-visible evidence, continue or delegate again if needed, and only mark the Goal complete after the full room objective is verified.
 `, leadLabel))
 }
 
-func buildCompletionToolRetryNote(item protocol.Goal) string {
+func buildCompletionToolRetryNote(item protocol.Goal, confirmedManagedBinding bool) string {
 	if goalCompletionToolRetryCount(item.Metadata) <= 0 {
 		return ""
+	}
+	if !confirmedManagedBinding {
+		return strings.TrimSpace(
+			"Completion finalization retry:\n" +
+				"- A previous goal-continuation response stated that the objective was complete but did not call the Goal update tool.\n" +
+				"- This Goal has no confirmed managed WorkGraph binding, so call `mcp__nexus_goal__update_goal` with status \"complete\" before any final response. Do not manufacture an alignment audit or WorkGraph just to close it.",
+		)
 	}
 	return strings.TrimSpace(
 		"Completion finalization retry:\n" +

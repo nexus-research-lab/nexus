@@ -3,7 +3,7 @@
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - handlers.go：按 owner/session 返回当前或最近一次 managed ExecutionView；只有从未创建正式图时才回退 planless 诊断投影。
+//   - handlers.go：按 owner/session 返回当前或最近一次 managed ExecutionView；普通 runtime-only round 不进入公共 WorkGraph 读取面。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查 internal/protocol/execution_view.go 与 AGENTS.md（L1）
 package execution

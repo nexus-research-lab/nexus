@@ -135,6 +135,9 @@ func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
 			t.Fatalf("retry prompt missing %q: %s", want, retry.Prompt)
 		}
 	}
+	if !strings.Contains(retry.Prompt, "Do not manufacture an alignment audit or WorkGraph") {
+		t.Fatalf("Goal-only retry must state the direct completion boundary: %s", retry.Prompt)
+	}
 	current, err := service.Current(ctx, created.SessionKey)
 	if err != nil {
 		t.Fatal(err)
@@ -276,11 +279,34 @@ func TestServiceCompletionToolMissCannotBypassExecutionReadiness(t *testing.T) {
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:completion-bypass",
 		Objective:  "Finish the accepted WorkGraph",
+		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-completion-bypass",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
+			protocol.GoalMetadataCompletionCriteria: []string{"accepted WorkGraph delivered"},
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.AuditObjectiveAlignmentByModel(ctx, created.ID, protocol.AuditGoalObjectiveAlignmentRequest{
+		Report: protocol.ObjectiveAlignmentReport{
+			Decision: protocol.ObjectiveAlignmentAligned,
+			CriteriaResults: []protocol.ObjectiveAlignmentCriterionResult{{
+				Criterion: "accepted WorkGraph delivered",
+				Status:    protocol.ObjectiveAlignmentCriterionSatisfied,
+				Evidence: []protocol.ObjectiveAlignmentEvidence{{
+					Ref: "workgraph:execution-completion-bypass", Claim: "the Goal reached the Execution readiness gate",
+				}},
+			}},
+			Summary: "Objective alignment is satisfied independently of Execution readiness.",
+		},
+		RoundID: "round-miss-2",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {

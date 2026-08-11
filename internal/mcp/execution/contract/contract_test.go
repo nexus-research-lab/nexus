@@ -4,7 +4,36 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
+
+func TestServerContextActorReadsGoalAuthorityDynamically(t *testing.T) {
+	authority := runtimectx.NewGoalAuthorityState("", 0, "")
+	serverContext := ServerContext{
+		OwnerUserID:     "owner-1",
+		AgentID:         "agent-1",
+		ScopeSessionKey: "agent:agent-1:ws:dm:conversation-1",
+		GoalAuthority:   authority,
+	}
+	if actor := serverContext.Actor(); actor.GoalID != "" || actor.GoalObjectiveRevision != 0 {
+		t.Fatalf("ordinary round actor Goal authority = %+v", actor)
+	}
+	if !authority.Bind("goal-1", 1, "") {
+		t.Fatal("bind Goal authority")
+	}
+	actor := serverContext.Actor()
+	if actor.GoalID != "goal-1" || actor.GoalObjectiveRevision != 1 {
+		t.Fatalf("Actor did not observe create_goal authority: %+v", actor)
+	}
+	if !authority.Bind("goal-1", 2, "execution-2") {
+		t.Fatal("advance Goal authority")
+	}
+	actor = serverContext.Actor()
+	if actor.GoalID != "goal-1" || actor.GoalObjectiveRevision != 2 ||
+		actor.ExecutionID != "execution-2" {
+		t.Fatalf("Actor did not observe retargeted authority: %+v", actor)
+	}
+}
 
 func TestServerContextActorClonesTrustedWorkBinding(t *testing.T) {
 	binding := &protocol.ExecutionWorkBinding{

@@ -95,7 +95,7 @@ export function RoomSettingsForm({
           checked={state.hostAutoReplyEnabled}
           className="mt-1.5"
           disabled={!state.hostAgentId || isCreating}
-          label="未 @ 时由群主接管，可回答或委派"
+          label="未 @ 时由群主接管，可回答或协调"
           onChange={setters.setHostAutoReplyEnabled}
         />
         <RoomSettingCheckbox

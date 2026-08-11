@@ -1,5 +1,5 @@
 // INPUT: active Goal 的 complete/blocked 状态变更与工具调用起点的 objective revision。
-// OUTPUT: 经 Room lead 授权并审计后的 Goal 终态工具结果，以及 complete 后 result-first 最终交付契约。
+// OUTPUT: 经 Room lead/revision 授权的 Goal 终态工具结果；complete 另受 alignment/readiness 硬门槛，blocked 的三轮规则属于模型行为约束。
 // POS: Goal MCP 生命周期入口与用户成果收口边界；objective 纠正由 retarget_goal 负责。
 package tool
 
@@ -19,8 +19,8 @@ type updateGoalInput struct {
 
 const updateGoalDescription = "Update the existing goal.\n" +
 	"Use it only to mark the Goal complete or blocked; objective correction uses retarget_goal, and pause, resume, budget and usage states belong to the user or system.\n" +
-	"Complete requires the objective to be achieved with no required work remaining. A managed Goal also requires an aligned Objective Alignment report for the current revision and round, plus backend WorkGraph and Room readiness.\n" +
-	"Blocked requires the same concrete blocker for at least three consecutive Goal turns with no meaningful progress possible without user input or external change. A shared Room Goal may be updated only by its assigned lead."
+	"Complete requires the objective to be achieved with no required work remaining. Only a Goal whose managed WorkGraph binding is confirmed also requires an aligned Objective Alignment report for the current revision and round, plus backend WorkGraph readiness; Goal-only and reserved Goals do not. Room readiness remains independently enforced.\n" +
+	"Model policy permits blocked only after the same concrete blocker has persisted for at least three consecutive Goal turns with no meaningful progress possible without user input or external change; the backend authorizes identity and revision but does not infer that history from this status-only call. A shared Room Goal may be updated only by its assigned lead."
 
 const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the same blocker has repeated for at least three consecutive goal turns and progress is impossible without user input or external unblock."
 
@@ -45,7 +45,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if sctx.PlanMode {
 				return planModeGoalMutationResult("update_goal"), nil
 			}
-			current, err := svc.Current(ctx, sctx.CurrentSessionKey)
+			current, err := currentGoalForMutation(ctx, svc, sctx, expectedRevision)
 			if err != nil {
 				return updateGoalCurrentErrorResult(err), nil
 			}

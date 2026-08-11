@@ -1,5 +1,5 @@
 // INPUT: Agent 选择的 persistence reason 与权威 Execution snapshot。
-// OUTPUT: 权限/状态允许时绑定 Goal，否则返回结构化拒绝。
+// OUTPUT: 权限/状态允许时绑定 Goal 并升级同轮共享 authority，否则返回结构化拒绝。
 // POS: Agent 决定是否需要 Goal；adapter 隐藏身份、版本和绑定细节。
 package tool
 
@@ -37,7 +37,35 @@ func promoteExecutionToGoal(svc contract.Service, sctx contract.ServerContext) s
 				ObjectiveProposal: parsed.ObjectiveProposal,
 				ActivationReason:  parsed.ActivationReason,
 			})
+			if err == nil && bindMutationGoalAuthority(sctx, response) {
+				// Promotion changes WorkGraph-only into Goal+WorkGraph in this
+				// physical round. Refresh the actor so the returned execution
+				// context and every following Goal/Execution tool observe the
+				// same exact Goal fence.
+				actor = sctx.Actor()
+			}
 			return serviceMutation(ctx, svc, actor, response, err), nil
 		},
 	}
+}
+
+func bindMutationGoalAuthority(
+	sctx contract.ServerContext,
+	result orchestration.MutationResult,
+) bool {
+	if result.Outcome != orchestration.MutationApplied &&
+		result.Outcome != orchestration.MutationNoOp ||
+		result.GoalAuthority == nil {
+		return false
+	}
+	receipt := result.GoalAuthority
+	if receipt.GoalID == "" || receipt.ObjectiveRevision <= 0 ||
+		receipt.ExecutionID == "" {
+		return false
+	}
+	return sctx.GoalAuthority.Bind(
+		receipt.GoalID,
+		receipt.ObjectiveRevision,
+		receipt.ExecutionID,
+	)
 }

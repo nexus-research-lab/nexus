@@ -32,6 +32,10 @@ func TestExplicitCreateGoalBindsCompatibleCurrentExecutionIdempotently(t *testin
 	); got != "execution-current" {
 		t.Fatalf("Goal execution metadata = %q", got)
 	}
+	if got := protocol.GoalExecutionBindingStateFromGoal(*created); got !=
+		protocol.GoalExecutionBindingStatePending {
+		t.Fatalf("Goal binding state = %q, want pending before SQL bind confirmation", got)
+	}
 	if got := protocol.GoalMetadataString(
 		created.Metadata,
 		protocol.GoalMetadataActivationOrigin,
@@ -74,6 +78,10 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 		protocol.GoalMetadataExecutionID,
 	); got != expectedExecutionID {
 		t.Fatalf("new Goal reservation = %q, want %q", got, expectedExecutionID)
+	}
+	if got := protocol.GoalExecutionBindingStateFromGoal(*created); got !=
+		protocol.GoalExecutionBindingStateReserved {
+		t.Fatalf("new Goal binding state = %q, want reserved", got)
 	}
 	activation, err := coordinator.ResolveExplicitGoalActivation(
 		context.Background(),
@@ -120,6 +128,10 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 		protocol.GoalMetadataExecutionID,
 	); got != expectedExecutionID {
 		t.Fatalf("reserved Goal execution metadata = %q", got)
+	}
+	if got := protocol.GoalExecutionBindingStateFromGoal(*goals.current); got !=
+		protocol.GoalExecutionBindingStatePending {
+		t.Fatalf("prepared Goal binding state = %q, want pending", got)
 	}
 
 	// A retry after Execution creation failed reuses the durable reserved ID
@@ -760,6 +772,8 @@ func (s *stubExplicitGoalLifecycleService) BindExplicitExecution(
 	}
 	s.current.Metadata = cloneExplicitGoalMetadata(s.current.Metadata)
 	s.current.Metadata[protocol.GoalMetadataExecutionID] = binding.ExecutionID
+	s.current.Metadata[protocol.GoalMetadataExecutionBindingState] =
+		string(protocol.GoalExecutionBindingStatePending)
 	s.current.Metadata[protocol.GoalMetadataCompletionCriteria] = append(
 		[]string(nil),
 		binding.CompletionCriteria...,
@@ -864,6 +878,8 @@ func (s *stubExplicitGoalLifecycleService) CommitObjectiveRetarget(
 	s.current.Metadata = cloneExplicitGoalMetadata(s.current.Metadata)
 	s.current.Metadata[protocol.GoalMetadataObjectiveRevision] = transition.NewRevision
 	s.current.Metadata[protocol.GoalMetadataExecutionID] = transition.SuccessorExecutionID
+	s.current.Metadata[protocol.GoalMetadataExecutionBindingState] =
+		string(protocol.GoalExecutionBindingStateReserved)
 	delete(s.current.Metadata, protocol.GoalMetadataCompletionCriteria)
 	s.current.Metadata[protocol.GoalMetadataObjectiveTransition] = map[string]any{
 		"transition_id":          transition.ID,
@@ -899,27 +915,28 @@ func (s *stubExplicitGoalLifecycleService) ConfirmObjectiveExecutionBinding(
 		return nil, goalsvc.ErrGoalExecutionBindingConflict
 	}
 	transition, ok := goalsvc.ObjectiveTransitionFromGoal(*s.current)
-	if !ok {
-		return cloneExplicitGoal(s.current), nil
-	}
 	s.current.Metadata = cloneExplicitGoalMetadata(s.current.Metadata)
+	s.current.Metadata[protocol.GoalMetadataExecutionBindingState] =
+		string(protocol.GoalExecutionBindingStateConfirmed)
 	s.current.Metadata[protocol.GoalMetadataCompletionCriteria] = append(
 		[]string(nil),
 		completionCriteria...,
 	)
-	s.current.Metadata[protocol.GoalMetadataObjectiveTransition] = map[string]any{
-		"transition_id":          transition.ID,
-		"command_id":             transition.CommandID,
-		"phase":                  string(goalsvc.ObjectiveTransitionBound),
-		"old_revision":           transition.OldRevision,
-		"new_revision":           transition.NewRevision,
-		"old_execution_id":       transition.OldExecutionID,
-		"old_execution_fenced":   transition.OldExecutionFenced,
-		"successor_execution_id": transition.SuccessorExecutionID,
-		"requested_objective":    transition.RequestedObjective,
-		"target_objective":       transition.TargetObjective,
-		"reason":                 transition.Reason,
-		"source":                 string(transition.Source),
+	if ok {
+		s.current.Metadata[protocol.GoalMetadataObjectiveTransition] = map[string]any{
+			"transition_id":          transition.ID,
+			"command_id":             transition.CommandID,
+			"phase":                  string(goalsvc.ObjectiveTransitionBound),
+			"old_revision":           transition.OldRevision,
+			"new_revision":           transition.NewRevision,
+			"old_execution_id":       transition.OldExecutionID,
+			"old_execution_fenced":   transition.OldExecutionFenced,
+			"successor_execution_id": transition.SuccessorExecutionID,
+			"requested_objective":    transition.RequestedObjective,
+			"target_objective":       transition.TargetObjective,
+			"reason":                 transition.Reason,
+			"source":                 string(transition.Source),
+		}
 	}
 	s.current.Version++
 	return cloneExplicitGoal(s.current), nil
@@ -1011,6 +1028,7 @@ func explicitGoalCreateRequest() protocol.CreateGoalRequest {
 		AgentID:     "agent-1",
 		Metadata: map[string]any{
 			"created_via": "goal_tool",
+			protocol.GoalMetadataExecutionBindingState: "confirmed",
 		},
 	}
 }

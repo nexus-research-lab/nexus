@@ -1,5 +1,5 @@
-// INPUT: DM session、稳定 execution contract、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层，并经 Manager 身份复核、带真实 MCP round lease、诊断、权限和 PostToolUse hooks 的换代安全 runtime client。
+// INPUT: DM session、稳定 execution contract、exact Goal authority、Agent runtime 配置与 guidance 队列位置。
+// OUTPUT: static/dynamic prompt 分层，并让 Goal/Execution MCP 共用同一 round authority 的换代安全 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -122,13 +122,20 @@ func (s *Service) ensureClient(
 		goalIDForUsage = explicitGoalID
 		objectiveRevision = explicitGoalRevision
 	}
-	goalObjectiveRevision := &atomic.Int64{}
-	goalObjectiveRevision.Store(objectiveRevision)
+	goalAuthority := runtimectx.NewGoalAuthorityState(
+		goalIDForUsage,
+		objectiveRevision,
+		strings.TrimSpace(request.ExecutionID),
+	)
+	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
-		mcpContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
+		mcpContext := runtimectx.WithGoalAuthorityState(
+			runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID),
+			goalAuthority,
+		)
 		mcpServers = s.mcpServers(
 			mcpContext,
 			agentValue,
@@ -143,18 +150,17 @@ func (s *Service) ensureClient(
 	}
 	if s.executionMCPServers != nil {
 		overlay := s.executionMCPServers(ctx, runtimectx.ExecutionToolContext{
-			Agent:                 agentValue,
-			ScopeSessionKey:       sessionKey,
-			RuntimeSessionKey:     sessionKey,
-			ExecutionID:           strings.TrimSpace(request.ExecutionID),
-			CoordinatorAgentID:    agentValue.AgentID,
-			RootRoundID:           request.RoundID,
-			AgentRoundID:          request.AgentRoundID,
-			SourceContextType:     "agent",
-			SourceContextID:       agentValue.AgentID,
-			PermissionMode:        permissionMode,
-			GoalID:                goalIDForUsage,
-			GoalObjectiveRevision: goalObjectiveRevision,
+			Agent:              agentValue,
+			ScopeSessionKey:    sessionKey,
+			RuntimeSessionKey:  sessionKey,
+			ExecutionID:        strings.TrimSpace(request.ExecutionID),
+			CoordinatorAgentID: agentValue.AgentID,
+			RootRoundID:        request.RoundID,
+			AgentRoundID:       request.AgentRoundID,
+			SourceContextType:  "agent",
+			SourceContextID:    agentValue.AgentID,
+			PermissionMode:     permissionMode,
+			GoalAuthority:      goalAuthority,
 		})
 		if len(overlay) > 0 && mcpServers == nil {
 			mcpServers = make(map[string]sdkmcp.ServerConfig, len(overlay))

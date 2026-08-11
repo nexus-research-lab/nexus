@@ -109,6 +109,7 @@ func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
 		ContextStatus:    result.ContextStatus,
 		Changed:          result.Changed,
 		NextActions:      result.NextActions,
+		GoalConfirmation: result.GoalConfirmation,
 	})
 }
 
@@ -116,15 +117,16 @@ func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
 // 继续留在 service result 供同进程协调、HTTP/UI 和测试使用；不能与已经由它
 // 派生出的 execution_context 重复发送给模型。
 type executionMutationResult struct {
-	Outcome          orchestration.MutationOutcome `json:"outcome"`
-	ReasonCode       orchestration.ErrorCode       `json:"reason_code,omitempty"`
-	Message          string                        `json:"message,omitempty"`
-	ExecutionID      string                        `json:"execution_id,omitempty"`
-	SnapshotRevision int64                         `json:"snapshot_revision,omitempty"`
-	ExecutionContext string                        `json:"execution_context,omitempty"`
-	ContextStatus    string                        `json:"context_status,omitempty"`
-	Changed          []string                      `json:"changed,omitempty"`
-	NextActions      []orchestration.NextAction    `json:"next_actions,omitempty"`
+	Outcome          orchestration.MutationOutcome        `json:"outcome"`
+	ReasonCode       orchestration.ErrorCode              `json:"reason_code,omitempty"`
+	Message          string                               `json:"message,omitempty"`
+	ExecutionID      string                               `json:"execution_id,omitempty"`
+	SnapshotRevision int64                                `json:"snapshot_revision,omitempty"`
+	ExecutionContext string                               `json:"execution_context,omitempty"`
+	ContextStatus    string                               `json:"context_status,omitempty"`
+	Changed          []string                             `json:"changed,omitempty"`
+	NextActions      []orchestration.NextAction           `json:"next_actions,omitempty"`
+	GoalConfirmation orchestration.GoalConfirmationStatus `json:"goal_confirmation_status,omitempty"`
 }
 
 type executionRuntimeContextReader interface {

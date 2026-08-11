@@ -10,7 +10,8 @@
 //   - command_catalog.go：在 bind_session 时选择 Nexus 内置的 runtime 清单，合并
 //     Nexus host 命令，并把安全权威目录投影到共享或私有 Composer。
 //   - goal_rpc_handler.go / goal_rpc_registry.go / goal_event_broadcaster.go：
-//     Codex app-server Goal RPC、pending call 注册与事件广播。
+//     Codex app-server Goal RPC、并发/绑定冲突的稳定 server-error reason_code、授权成功后的 owner/thread 双重隔离订阅注册与事件广播。
+//   - execution_invalidation.go：只把 orchestration 成功 mutation 投影为 owner/session 双重隔离的 WorkGraph 失效事件。
 //   - app_event_subscription.go / room_subscription_registry.go / workspace_*.go：
 //     房间、工作区、事件订阅的引用状态转换与 runtime 快照广播。
 //   - live_workspace.go：实时工作区推送。

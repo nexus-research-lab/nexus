@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 func TestResolveGoalMCPSessionKey(t *testing.T) {
@@ -112,20 +113,17 @@ func TestGoalMCPBuilderPassesAgentOwnerToCreateGoal(t *testing.T) {
 	agents := &stubGoalMCPAgentResolver{
 		record: &protocol.Agent{AgentID: "agent-1", OwnerUserID: "owner-1"},
 	}
-	builder := newGoalMCPBuilder(
-		config.Config{GoalEnabled: true},
-		svc,
-		nil,
-	)
+	builder := newGoalMCPBuilder(config.Config{GoalEnabled: true}, svc)
+	authority := runtimectx.NewGoalAuthorityState("", 0, "")
 	servers := builder(
-		context.Background(),
+		runtimectx.WithGoalAuthorityState(context.Background(), authority),
 		agents.record,
 		"agent:agent-1:ws:dm:conversation-1",
 		" round-1 ",
 		"agent",
 		"agent-1",
 		"Agent",
-		goalmcpcontract.NewGoalObjectiveRevision(1),
+		authority.ObjectiveRevisionState(),
 		sdkpermission.ModeDefault,
 	)
 	serverConfig, ok := servers[goalmcpcontract.ServerName].(sdkmcp.SDKServerConfig)
@@ -151,5 +149,10 @@ func TestGoalMCPBuilderPassesAgentOwnerToCreateGoal(t *testing.T) {
 		svc.createRequest.AgentID != "agent-1" ||
 		svc.createRequest.RoundID != "round-1" {
 		t.Fatalf("create request = %+v, want resolved owner and normalized runtime identity", svc.createRequest)
+	}
+	createdAuthority, ok := authority.Load()
+	if !ok || createdAuthority.GoalID != "goal-1" ||
+		createdAuthority.ObjectiveRevision != 1 || createdAuthority.ExecutionID != "" {
+		t.Fatalf("authority after create_goal = %#v, ok=%t", createdAuthority, ok)
 	}
 }

@@ -1,5 +1,5 @@
 // INPUT: sealed proposal id+digest 与当前 trusted runtime identity。
-// OUTPUT: proposal 的幂等原子 materialization、恢复回执或 exact-fence 拒绝。
+// OUTPUT: proposal 的幂等原子 materialization、确认后的同轮 Goal authority、恢复回执或 exact-fence 拒绝。
 // POS: 模型唯一的权威 Plan 提交入口；不再接收 WorkGraph object/array。
 package tool
 
@@ -56,6 +56,9 @@ func planExecution(
 			)
 			if err != nil {
 				return transportErrorResult(err), nil
+			}
+			if bindMutationGoalAuthority(sctx, result) {
+				actor = sctx.Actor()
 			}
 			contextActor := actor
 			if result.Snapshot != nil &&

@@ -1,5 +1,5 @@
 // INPUT: active explicit Goal、持久化或可确定性恢复的预留 Execution identity、objective revision 与 completion criteria。
-// OUTPUT: 幂等 CAS 持久化的 Goal -> Execution metadata 及 execution_bound 审计事件。
+// OUTPUT: 幂等 CAS 持久化的 Goal -> Execution pending metadata 及 execution_binding_pending 审计事件。
 // POS: Goal 侧反向 binding 真相入口；Execution aggregate 的正向 binding 由 orchestration.BindGoal 管理。
 package goal
 
@@ -23,7 +23,8 @@ type ExplicitExecutionBinding struct {
 	RoundID                   string
 }
 
-// BindExplicitExecution 给 explicit Goal 原子写入反向 Execution binding。
+// BindExplicitExecution 在权威 Execution mutation 前给 explicit Goal 原子写入
+// pending 反向 binding。只有 ConfirmObjectiveExecutionBinding 能写 confirmed。
 //
 // 同一个 binding 重试返回当前 Goal；不同 Execution、provenance 或 completion
 // criteria 不能覆盖已有 metadata，必须由更高层显式处理 recovery/retarget。
@@ -61,6 +62,13 @@ func (s *Service) BindExplicitExecution(
 				ErrGoalExecutionBindingConflict,
 			)
 		}
+		bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+		if bindingState == protocol.GoalExecutionBindingStateConflict {
+			return nil, fmt.Errorf(
+				"%w: Goal carries an invalid Execution binding state",
+				ErrGoalExecutionBindingConflict,
+			)
+		}
 		existingExecutionID := protocol.GoalReservedExecutionID(*current)
 		if existingExecutionID != "" && existingExecutionID != executionID {
 			return nil, fmt.Errorf(
@@ -95,11 +103,24 @@ func (s *Service) BindExplicitExecution(
 				ErrGoalExecutionBindingConflict,
 			)
 		}
-		if existingExecutionID == executionID &&
-			(len(existingCriteria) > 0 || len(criteria) == 0) &&
-			(!transitioning || transition.Phase == ObjectiveTransitionBindingReserved ||
-				transition.Phase == ObjectiveTransitionBound) {
-			return current, nil
+		criteriaMatch := slices.Equal(existingCriteria, criteria)
+		if existingExecutionID == executionID && criteriaMatch {
+			switch bindingState {
+			case protocol.GoalExecutionBindingStatePending:
+				if !transitioning || transition.Phase == ObjectiveTransitionBindingReserved {
+					return current, nil
+				}
+			case protocol.GoalExecutionBindingStateConfirmed:
+				if !transitioning || transition.Phase == ObjectiveTransitionBound {
+					return current, nil
+				}
+			}
+		}
+		if bindingState == protocol.GoalExecutionBindingStateConfirmed {
+			return nil, fmt.Errorf(
+				"%w: confirmed Goal binding cannot be prepared again with different metadata",
+				ErrGoalExecutionBindingConflict,
+			)
 		}
 
 		expectedVersion := current.Version
@@ -112,6 +133,8 @@ func (s *Service) BindExplicitExecution(
 		// must never authorize completion.
 		delete(current.Metadata, protocol.GoalMetadataObjectiveAlignment)
 		current.Metadata[protocol.GoalMetadataExecutionID] = executionID
+		current.Metadata[protocol.GoalMetadataExecutionBindingState] =
+			string(protocol.GoalExecutionBindingStatePending)
 		if len(criteria) == 0 {
 			delete(current.Metadata, protocol.GoalMetadataCompletionCriteria)
 		} else {
@@ -141,12 +164,13 @@ func (s *Service) BindExplicitExecution(
 		if eventErr := s.appendEvent(
 			ctx,
 			*updated,
-			"execution_bound",
+			"execution_binding_pending",
 			protocol.GoalUpdateSourceSystem,
 			strings.TrimSpace(binding.RoundID),
 			map[string]any{
 				"execution_id":      executionID,
 				"activation_origin": string(activationOrigin),
+				"binding_state":     string(protocol.GoalExecutionBindingStatePending),
 			},
 		); eventErr != nil {
 			return nil, eventErr

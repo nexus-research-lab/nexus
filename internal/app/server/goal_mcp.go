@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime Agent/owner/session/round 与 Goal 服务。
-// OUTPUT: 绑定当前 owner 与 DM runner/Room slot 共用 Goal objective revision 状态的 MCP server。
+// INPUT: 当前 runtime Agent/owner/session/round、runtime-owned Goal authority 与 Goal 服务。
+// OUTPUT: 绑定当前 owner 及 exact Goal/revision/可选 Execution capability 的 MCP server。
 // POS: nexus_goal MCP 的应用装配入口。
 package server
 
@@ -15,17 +15,13 @@ import (
 	goalmcp "github.com/nexus-research-lab/nexus/internal/mcp/goal"
 	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 )
-
-type goalObjectiveRevisionStateProvider interface {
-	GoalObjectiveRevisionState(sessionKey string, roundID string, agentID string, initial int64) *atomic.Int64
-}
 
 func newGoalMCPBuilder(
 	cfg config.Config,
 	svc goalmcpcontract.Service,
-	revisions goalObjectiveRevisionStateProvider,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
@@ -35,45 +31,27 @@ func newGoalMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
-		goalObjectiveRevision *atomic.Int64,
+		_ *atomic.Int64,
 		permissionMode sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		goalSessionKey := resolveGoalMCPSessionKey(sessionKey, sourceContextType)
 		if !cfg.GoalEnabled || svc == nil || goalSessionKey == "" {
 			return nil
 		}
+		authority := runtimectx.GoalAuthorityStateFromContext(ctx)
+		if authority == nil {
+			authority = runtimectx.NewGoalAuthorityState("", 0, "")
+		}
 		sctx := goalmcpcontract.ServerContext{
 			CurrentSessionKey: goalSessionKey,
 			CurrentRoundID:    strings.TrimSpace(roundID),
+			GoalAuthority:     authority,
 			PlanMode: runtimepermission.NormalizeMode(permissionMode) ==
 				sdkpermission.ModePlan,
 		}
 		if agentValue != nil {
 			sctx.CurrentAgentID = strings.TrimSpace(agentValue.AgentID)
 			sctx.OwnerUserID = strings.TrimSpace(agentValue.OwnerUserID)
-		}
-		if goalObjectiveRevision != nil {
-			sctx.GoalObjectiveRevision = goalObjectiveRevision
-		} else {
-			current, err := svc.CurrentOptional(ctx, goalSessionKey)
-			if err != nil {
-				return nil
-			}
-			revision := int64(1)
-			if current != nil {
-				revision = current.ObjectiveRevision()
-			}
-			if revisions != nil && protocol.IsRoomSharedSessionKey(goalSessionKey) {
-				sctx.GoalObjectiveRevision = revisions.GoalObjectiveRevisionState(
-					goalSessionKey,
-					strings.TrimSpace(roundID),
-					sctx.CurrentAgentID,
-					revision,
-				)
-			}
-			if sctx.GoalObjectiveRevision == nil {
-				sctx.GoalObjectiveRevision = goalmcpcontract.NewGoalObjectiveRevision(revision)
-			}
 		}
 		return map[string]sdkmcp.ServerConfig{
 			goalmcpcontract.ServerName: sdkmcp.SDKServerConfig{

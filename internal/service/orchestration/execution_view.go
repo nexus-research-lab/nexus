@@ -25,9 +25,9 @@ type workGraphAttemptRepository interface {
 	ListWorkGraphChildAttempts(context.Context, string) ([]protocol.WorkAttempt, error)
 }
 
-// GetLatestView 返回 session 当前 Execution；没有未终结 Execution 时保留最近一次
-// terminal 结果，且后续 planless runtime round 不得覆盖这张正式 WorkGraph。
-// 只有从未创建过 managed Execution 时才回退到 runtime-only 诊断图。
+// GetLatestView 返回 session 当前 managed WorkGraph；没有未终结 Execution 时保留
+// 最近一次 terminal 结果。普通 runtime-only round 不属于公共 WorkGraph 读取面，
+// 既不会覆盖已有正式图，也不会在从未创建 WorkGraph 时冒充图内容。
 func (s *Service) GetLatestView(
 	ctx context.Context,
 	ownerUserID string,
@@ -68,7 +68,7 @@ func (s *Service) GetLatestView(
 		}
 	}
 	if execution == nil {
-		return s.getPlanlessRuntimeGraphView(ctx, ownerUserID, sessionKey)
+		return nil, nil
 	}
 	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
 	if err != nil || snapshot == nil {
@@ -77,6 +77,9 @@ func (s *Service) GetLatestView(
 	if snapshot.Execution.OwnerUserID != ownerUserID ||
 		snapshot.Execution.SessionKey != sessionKey {
 		return nil, domainError(ErrorCodeWrongOwner, "Execution is outside the requested owner/session")
+	}
+	if snapshot.Plan == nil || len(snapshot.WorkItems) == 0 {
+		return nil, nil
 	}
 	if snapshot.Plan != nil {
 		if repository, ok := s.repository.(workGraphAttemptRepository); ok {

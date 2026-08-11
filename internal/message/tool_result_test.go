@@ -50,7 +50,11 @@ func TestAssistantHasCountedToolProgress(t *testing.T) {
 		want        bool
 		wantOutcome protocol.MutationResultOutcome
 	}{
-		{name: "ordinary failure", toolName: "read_file", isError: true, want: true},
+		{name: "ordinary failure", toolName: "read_file", isError: true},
+		{name: "ordinary successful evidence", toolName: "read_file", want: true},
+		{name: "get goal is control-plane read", toolName: "mcp__nexus_goal__get_goal"},
+		{name: "get execution is control-plane read", toolName: "mcp__nexus_execution__get_execution"},
+		{name: "successful alignment audit", toolName: "mcp__nexus_execution__audit_execution_alignment", want: true},
 		{name: "update goal", toolName: "update_goal"},
 		{name: "qualified update goal", toolName: "mcp__nexus_goal__update_goal"},
 		{name: "retarget goal", toolName: "retarget_goal", want: true},
@@ -100,6 +104,42 @@ func TestAssistantHasCountedToolProgress(t *testing.T) {
 				if len(results) != 1 || results[0].MutationOutcome != test.wantOutcome {
 					t.Fatalf("AssistantToolResults() = %+v", results)
 				}
+			}
+		})
+	}
+}
+
+func TestWorkGraphAndGoalToolProgressClassificationIsComplete(t *testing.T) {
+	tests := map[string]bool{
+		"mcp__nexus_execution__get_execution":             false,
+		"mcp__nexus_execution__prepare_plan_execution":    true,
+		"mcp__nexus_execution__plan_execution":            true,
+		"mcp__nexus_execution__abandon_execution":         true,
+		"mcp__nexus_execution__assign_work":               true,
+		"mcp__nexus_execution__submit_work":               true,
+		"mcp__nexus_execution__review_work":               true,
+		"mcp__nexus_execution__block_work":                true,
+		"mcp__nexus_execution__resume_work":               true,
+		"mcp__nexus_execution__take_over_work":            true,
+		"mcp__nexus_execution__audit_execution_alignment": true,
+		"mcp__nexus_execution__promote_execution_to_goal": true,
+		"mcp__nexus_goal__get_goal":                       false,
+		"mcp__nexus_goal__create_goal":                    true,
+		"mcp__nexus_goal__retarget_goal":                  true,
+		"mcp__nexus_goal__audit_objective_alignment":      true,
+		"mcp__nexus_goal__update_goal":                    false,
+	}
+	for toolName, want := range tests {
+		t.Run(toolName, func(t *testing.T) {
+			message := protocol.Message{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "tool_use", "id": "tool-1", "name": toolName},
+					{"type": "tool_result", "tool_use_id": "tool-1"},
+				},
+			}
+			if got := AssistantHasCountedToolProgress(message); got != want {
+				t.Fatalf("AssistantHasCountedToolProgress(%s) = %t, want %t", toolName, got, want)
 			}
 		})
 	}

@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff/精确停止易失锚点与历史窗口解析状态
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff/精确停止易失锚点、execution invalidation payload 与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -190,6 +190,8 @@ export interface RoomEventPayload {
   room_id?: string;
   conversation_id?: string;
   agent_id?: string;
+  execution_id?: string;
+  version?: number;
   paused?: boolean;
   agent_name?: string;
   message_id?: string;

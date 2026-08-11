@@ -1,4 +1,15 @@
-import type { Goal, GoalStatus } from "@/types/conversation/goal";
+/**
+ * INPUT: Goal state, server-derived Execution binding and UI command phase.
+ * OUTPUT: Goal lifecycle plus server-derived WorkGraph binding badges, clear capability, form and controller projections.
+ * POS: Goal panel pure model; metadata never participates in WorkGraph binding decisions.
+ */
+import type {
+  Goal,
+  GoalExecutionBinding,
+  GoalExecutionBindingState,
+  GoalStatus,
+} from "@/types/conversation/goal";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { COMPOSER_COMPACT_LANE_CLASS_NAME } from "../composer/composer-styles";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
@@ -17,6 +28,7 @@ export type GoalDialog =
 
 export interface GoalControllerProjection {
   canResume: boolean;
+  clearDisabledReason: string | null;
   dialog: GoalDialog;
   draft: GoalDraft | null;
   loadingLabel: string | null;
@@ -45,8 +57,10 @@ export type GoalStatusAction =
   | "clear";
 
 export interface GoalStatusStripModel {
+  actionDisabledReasons: Partial<Record<GoalStatusAction, string>>;
   actions: GoalStatusAction[];
   attentionMessage: string | null;
+  bindingBadge: GoalBindingBadgeModel;
   isExecuting: boolean;
   statusLabel: string;
   statusTitle: string;
@@ -56,10 +70,23 @@ export interface GoalStatusStripModel {
 
 interface GoalStatusProjectionInput {
   canResume: boolean;
+  clearDisabledReason?: string | null;
   continuationHold: GoalContinuationHold | null;
   error: string | null;
+  executionBinding?: GoalExecutionBinding | null;
   goal: Goal;
   isGenerating: boolean;
+}
+
+export type GoalBindingDisplayState =
+  | GoalExecutionBindingState
+  | "unavailable";
+
+export interface GoalBindingBadgeModel {
+  labelKey: TranslationKey;
+  state: GoalBindingDisplayState;
+  titleKey: TranslationKey;
+  tone: "conflict" | "confirmed" | "neutral" | "pending" | "unavailable";
 }
 
 interface VisibleGoalStatus {
@@ -136,6 +163,48 @@ const GOAL_STATUS_TONE: Record<GoalStatus, GoalStatusTone> = {
   complete: COMPLETE_TONE,
   paused: PAUSED_TONE,
   usage_limited: LIMITED_TONE,
+};
+
+const GOAL_BINDING_BADGE: Record<
+  GoalBindingDisplayState,
+  GoalBindingBadgeModel
+> = {
+  standalone: {
+    labelKey: "goal.binding_standalone",
+    state: "standalone",
+    titleKey: "goal.binding_standalone_title",
+    tone: "neutral",
+  },
+  reserved: {
+    labelKey: "goal.binding_standalone",
+    state: "reserved",
+    titleKey: "goal.binding_reserved_title",
+    tone: "neutral",
+  },
+  pending: {
+    labelKey: "goal.binding_pending",
+    state: "pending",
+    titleKey: "goal.binding_pending_title",
+    tone: "pending",
+  },
+  confirmed: {
+    labelKey: "goal.binding_confirmed",
+    state: "confirmed",
+    titleKey: "goal.binding_confirmed_title",
+    tone: "confirmed",
+  },
+  conflict: {
+    labelKey: "goal.binding_conflict",
+    state: "conflict",
+    titleKey: "goal.binding_conflict_title",
+    tone: "conflict",
+  },
+  unavailable: {
+    labelKey: "goal.binding_unavailable",
+    state: "unavailable",
+    titleKey: "goal.binding_unavailable_title",
+    tone: "unavailable",
+  },
 };
 
 const ACTIVE_STATUS_OVERRIDES: GoalStatusOverride[] = [
@@ -225,16 +294,26 @@ export function buildGoalStatusStripModel(
   const visibleStatus = resolveVisibleGoalStatus(activeInput);
 
   return {
+    actionDisabledReasons: input.clearDisabledReason
+      ? { clear: input.clearDisabledReason }
+      : {},
     actions: GOAL_ACTION_RULES.filter((rule) => rule.visible(activeInput)).map(
       (rule) => rule.action,
     ),
     attentionMessage: input.error ?? input.goal.last_error ?? null,
+    bindingBadge: resolveGoalBindingBadgeModel(input.executionBinding ?? null),
     isExecuting: input.isGenerating && input.goal.status === "active",
     statusLabel: visibleStatus.label,
     statusTitle: activeContinuationHold?.detail ?? visibleStatus.label,
     tone: goalStatusTone(visibleStatus.status),
     usageLabel: buildGoalUsageLabel(input.goal),
   };
+}
+
+export function resolveGoalBindingBadgeModel(
+  binding: GoalExecutionBinding | null,
+): GoalBindingBadgeModel {
+  return GOAL_BINDING_BADGE[binding?.state ?? "unavailable"];
 }
 
 function resolveVisibleGoalStatus(
@@ -300,6 +379,7 @@ export function buildGoalDraftFormModel({
 }
 
 export function buildGoalControllerProjection({
+  executionBinding,
   dialog,
   draft,
   goal,
@@ -307,15 +387,39 @@ export function buildGoalControllerProjection({
 }: {
   dialog: GoalDialog;
   draft: GoalDraft | null;
+  executionBinding: GoalExecutionBinding | null;
   goal: Goal | null;
   phase: GoalCommandPhase | null;
 }): GoalControllerProjection {
+  const clearDisabledReason = goal
+    ? resolveGoalClearDisabledReason(executionBinding)
+    : null;
   return {
     canResume: goal ? canResumeGoal(goal) : false,
-    dialog: visibleGoalDialog(dialog, goal),
+    clearDisabledReason,
+    dialog: visibleGoalDialog(dialog, goal, clearDisabledReason === null),
     draft: draft?.goalId === goal?.id ? draft : null,
     loadingLabel: phase === "updating" ? "正在更新目标" : null,
   };
+}
+
+export function resolveGoalClearDisabledReason(
+  binding: GoalExecutionBinding | null,
+): string | null {
+  if (!binding) {
+    return "正在确认 Goal 与工作图的绑定状态，暂时不能清除。";
+  }
+  switch (binding.state) {
+    case "standalone":
+    case "reserved":
+      return null;
+    case "pending":
+      return "Goal 与工作图的绑定正在确认，暂时不能清除。";
+    case "confirmed":
+      return "Goal 已绑定工作图，请先完成或终止工作图。";
+    case "conflict":
+      return "Goal 与工作图的绑定存在冲突，请刷新后检查工作图。";
+  }
 }
 
 export function createGoalDraft(goal: Goal): GoalDraft {
@@ -349,8 +453,14 @@ function canResumeGoal(goal: Goal): boolean {
 function visibleGoalDialog(
   dialog: GoalDialog,
   goal: Goal | null,
+  clearAllowed: boolean,
 ): GoalDialog {
-  if (dialog.kind !== "clear" || !goal || dialog.goal.id !== goal.id) {
+  if (
+    dialog.kind !== "clear"
+    || !goal
+    || dialog.goal.id !== goal.id
+    || !clearAllowed
+  ) {
     return EMPTY_GOAL_DIALOG;
   }
   return dialog;

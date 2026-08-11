@@ -156,10 +156,15 @@ AutoDream is not a user automation. Nexus owns the clock, process lifecycle, con
 | **Agent** | A workspace member with identity, workspace, skills, and runtime-managed memory files |
 | **Room** | A collaboration space where agents and humans work in a shared context |
 | **DM** | A persistent conversation with a single agent, preserving full runtime state |
+| **Goal** | A durable objective that can continue across rounds without requiring a WorkGraph |
+| **WorkGraph** | A managed, persisted responsibility graph built from an Execution and a materialized Plan |
+| **Runtime Graph** | Internal evidence of Agent, Subagent, Tool, Gate, and retry activity; it is not itself a WorkGraph |
 | **Workspace** | An isolated file directory where each agent stores its work output |
 | **Skill** | A capability extension installed on an agent — built-in or custom |
 | **Connector** | Manages OAuth app configurations and external service account connections |
 | **Main Agent** | A reserved system agent responsible for default entry and platform-level orchestration |
+
+Goal-only work, Goal-free WorkGraphs, and Goal-bound WorkGraphs are distinct modes. A Goal is not proof that a managed graph exists, and ordinary runtime activity is not promoted to the WorkGraph canvas. See the current [Execution orchestration specification](./docs/specs/execution-orchestration-spec.md) and [Execution graph projection specification](./docs/specs/execution-graph-spec.md).
 
 ---
 

@@ -468,6 +468,24 @@ VALUES (?, ?, ?, 'active')`,
 	if goalExecution == nil || goalExecution.ID != snapshot.Execution.ID {
 		t.Fatalf("Goal Execution = %#v, want %s", goalExecution, snapshot.Execution.ID)
 	}
+	other, err := repository.Create(ctx, createTestCommand("binding-conflict"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repository.BindGoal(ctx, BindGoalCommand{
+		ExpectedExecutionVersion: other.Execution.Version,
+		Execution: protocol.Execution{
+			ID:                    other.Execution.ID,
+			GoalID:                "goal-binding",
+			GoalObjectiveRevision: 1,
+			GoalActivationOrigin:  protocol.GoalActivationOriginAdaptivePromoted,
+			GoalActivationReason:  protocol.GoalActivationReasonContextBoundary,
+		},
+		Meta: testMeta("bind-goal-conflict"),
+	})
+	if !errors.Is(err, ErrCommandConflict) {
+		t.Fatalf("second Goal revision binding error = %v, want command conflict", err)
+	}
 	plan := testPlanCommand("binding", snapshot.Execution.Version, "block", "", 1)
 	plan.Dependencies = []protocol.ExecutionPlanDependency{{
 		WorkItemID:          "work-block-2",
@@ -504,6 +522,58 @@ VALUES (?, ?, ?, 'active')`,
 	}
 	if replayed.Execution.Version != snapshot.Execution.Version {
 		t.Fatalf("replayed block version = %d, want %d", replayed.Execution.Version, snapshot.Execution.Version)
+	}
+}
+
+func TestRepositoryAcceptsEveryGoalActivationReason(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	reasons := []protocol.GoalActivationReason{
+		protocol.GoalActivationReasonPersistenceRequested,
+		protocol.GoalActivationReasonObservedBoundary,
+		protocol.GoalActivationReasonRoomDependencyChain,
+		protocol.GoalActivationReasonExternalWait,
+		protocol.GoalActivationReasonScheduledRetry,
+		protocol.GoalActivationReasonContextBoundary,
+		protocol.GoalActivationReasonRecoveryRequired,
+		protocol.GoalActivationReasonSubstantialComplexity,
+	}
+	for index, reason := range reasons {
+		reason := reason
+		t.Run(string(reason), func(t *testing.T) {
+			suffix := fmt.Sprintf("activation-reason-%d", index)
+			snapshot, err := repository.Create(ctx, createTestCommand(suffix))
+			if err != nil {
+				t.Fatal(err)
+			}
+			goalID := "goal-" + suffix
+			if _, err = repository.db.Exec(`
+INSERT INTO session_goals (goal_id, session_key, objective, status)
+VALUES (?, ?, ?, 'active')`, goalID, snapshot.Execution.SessionKey, "persist reason"); err != nil {
+				t.Fatal(err)
+			}
+			bound, err := repository.BindGoal(ctx, BindGoalCommand{
+				ExpectedExecutionVersion: snapshot.Execution.Version,
+				Execution: protocol.Execution{
+					ID:                    snapshot.Execution.ID,
+					GoalID:                goalID,
+					GoalObjectiveRevision: 1,
+					GoalActivationOrigin:  protocol.GoalActivationOriginAdaptivePromoted,
+					GoalActivationReason:  reason,
+				},
+				Meta: testMeta("bind-" + suffix),
+			})
+			if err != nil {
+				t.Fatalf("BindGoal(%q): %v", reason, err)
+			}
+			if bound.Execution.GoalActivationReason != reason {
+				t.Fatalf(
+					"persisted activation reason = %q, want %q",
+					bound.Execution.GoalActivationReason,
+					reason,
+				)
+			}
+		})
 	}
 }
 
@@ -1436,6 +1506,29 @@ func newRepositoryTestStore(t *testing.T) *Repository {
 	}
 	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
+	foreignKeyRows, err := db.Query("PRAGMA foreign_key_check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if foreignKeyRows.Next() {
+		var table, parent string
+		var rowID, foreignKeyID int64
+		if err = foreignKeyRows.Scan(&table, &rowID, &parent, &foreignKeyID); err != nil {
+			_ = foreignKeyRows.Close()
+			t.Fatal(err)
+		}
+		_ = foreignKeyRows.Close()
+		t.Fatalf(
+			"orchestration migrations left broken foreign key: table=%s row=%d parent=%s fk=%d",
+			table,
+			rowID,
+			parent,
+			foreignKeyID,
+		)
+	}
+	if err = foreignKeyRows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	repository := NewSQLRepository("sqlite", db)
 	current := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	repository.now = func() time.Time {

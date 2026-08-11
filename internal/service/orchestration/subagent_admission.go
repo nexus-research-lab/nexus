@@ -1,5 +1,5 @@
 // INPUT: 当前 actor 的权威 Execution snapshot 与 SDK Agent hook identity。
-// OUTPUT: 可选的 tool_use_id child Attempt 绑定、runtime-only 放行、生命周期校验、durable parent-exit deadline 与终态持久化。
+// OUTPUT: 可选的 tool_use_id child Attempt 绑定、runtime-only 放行、生命周期校验、durable parent-exit deadline、终态持久化与对应 session 失效事实。
 // POS: 原生 Agent 工具的运行准入与可选 managed WorkGraph 记账边界；策略选择不由状态机强制。
 package orchestration
 
@@ -141,6 +141,7 @@ func (s *Service) AdmitSubagentLaunch(
 		}
 		if toolUseID != "" {
 			if existing := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); existing != nil {
+				s.invalidateSnapshot(ctx, snapshot)
 				return allowedSubagentAdmission(bindingFromAttempt(*existing)), nil
 			}
 		}
@@ -174,6 +175,7 @@ func (s *Service) AdmitSubagentLaunch(
 			if startErr != nil {
 				return SubagentAdmissionResult{}, startErr
 			}
+			s.invalidateSnapshot(ctx, updated)
 			snapshot = updated
 			assignment = findAssignmentByID(snapshot, assignment.ID)
 			parent = findAttemptByID(snapshot, parent.ID)
@@ -230,6 +232,7 @@ func (s *Service) AdmitSubagentLaunch(
 		if startErr != nil {
 			return SubagentAdmissionResult{}, startErr
 		}
+		s.invalidateSnapshot(ctx, updated)
 		return allowedSubagentAdmission(bindingForAttempt(updated, child.ID)), nil
 	}
 	snapshot, err := s.optionalSubagentSnapshot(ctx, actor)
@@ -240,6 +243,7 @@ func (s *Service) AdmitSubagentLaunch(
 		return allowedRuntimeOnlySubagentAdmission(), nil
 	}
 	if child := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); child != nil {
+		s.invalidateSnapshot(ctx, snapshot)
 		return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
 	}
 	return rejectedSubagentAdmission(domainError(
@@ -292,6 +296,7 @@ func (s *Service) ObserveSubagentStart(
 	if resolveErr != nil {
 		return allowedRuntimeOnlySubagentAdmission(), nil
 	}
+	s.invalidateSnapshot(ctx, snapshot)
 	return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
 }
 
@@ -322,6 +327,7 @@ func (s *Service) ObserveSubagentStop(
 		child, resolveErr := resolveActiveSubagentBinding(snapshot, actor.AgentID, input.ToolUseID)
 		if resolveErr != nil {
 			if stopped := matchingTerminalSubagentAttempt(snapshot, actor.AgentID, input); stopped != nil {
+				s.invalidateSnapshot(ctx, snapshot)
 				return allowedSubagentAdmission(bindingFromAttempt(*stopped)), nil
 			}
 			return allowedRuntimeOnlySubagentAdmission(), nil
@@ -370,6 +376,7 @@ func (s *Service) ObserveSubagentStop(
 		if finishErr != nil {
 			return SubagentAdmissionResult{}, finishErr
 		}
+		s.invalidateSnapshot(ctx, updated)
 		return allowedSubagentAdmission(bindingForAttempt(updated, child.ID)), nil
 	}
 	return rejectedSubagentAdmission(domainError(
@@ -419,6 +426,7 @@ func (s *Service) ObserveSubagentParentRoundExit(
 				actor.AgentID,
 				lifecycle,
 			); stopped != nil {
+				s.invalidateSnapshot(ctx, snapshot)
 				return allowedSubagentAdmission(bindingFromAttempt(*stopped)), nil
 			}
 			return allowedRuntimeOnlySubagentAdmission(), nil
@@ -461,6 +469,7 @@ func (s *Service) ObserveSubagentParentRoundExit(
 		if scheduleErr != nil {
 			return SubagentAdmissionResult{}, scheduleErr
 		}
+		s.invalidateSnapshot(ctx, updated)
 		return allowedSubagentAdmission(bindingForAttempt(updated, child.ID)), nil
 	}
 	return rejectedSubagentAdmission(domainError(
@@ -506,7 +515,7 @@ func (s *Service) ReconcileExpiredSubagents(
 		terminal.Status = protocol.WorkAttemptStatusInterrupted
 		terminal.FailureReason =
 			"parent runtime round ended before subagent lifecycle completed"
-		_, finishErr := s.repository.FinishAttempt(
+		updated, finishErr := s.repository.FinishAttempt(
 			ctx,
 			orchestrationstore.FinishAttemptCommand{
 				ExpectedExecutionVersion: snapshot.Execution.Version,
@@ -533,6 +542,7 @@ func (s *Service) ReconcileExpiredSubagents(
 		if finishErr != nil {
 			return result, finishErr
 		}
+		s.invalidateSnapshot(ctx, updated)
 		result.Reconciled++
 	}
 	return result, nil

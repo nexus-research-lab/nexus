@@ -1,5 +1,5 @@
 // INPUT: Attempt physical cancellation outbox、typed runtime target 与 consumer receipt。
-// OUTPUT: 独立 lease/retry/recovery drain，诚实区分 provider/local cancellation、no-op 与 unsupported。
+// OUTPUT: 独立 lease/retry/recovery drain，诚实区分 provider/local cancellation、no-op 与 unsupported，并广播 outbox 状态变更后的 session 失效事实。
 // POS: SQL terminal state 与 Room/DM runtime interruption 之间的 durable application bridge。
 package orchestration
 
@@ -66,6 +66,7 @@ type cancellationDispatchOutboxRepository interface {
 		time.Time,
 		string,
 	) (*protocol.ExecutionCancellationDispatch, error)
+	GetSnapshot(context.Context, string) (*protocol.ExecutionSnapshot, error)
 }
 
 // CancellationDispatchRunResult 汇总一次有界 cancellation outbox drain。
@@ -123,6 +124,8 @@ func (s *Service) DispatchPendingCancellations(
 			continue
 		}
 		result.Claimed++
+		// Claim is itself durable and visible in the WorkGraph cancellation state.
+		s.invalidateExecutionID(ctx, candidate.ExecutionID)
 		status, deliveryErr := s.deliverClaimedCancellation(
 			ctx,
 			repository,
@@ -131,6 +134,7 @@ func (s *Service) DispatchPendingCancellations(
 		)
 		if deliveryErr != nil {
 			result.Retried++
+			s.invalidateExecutionID(ctx, candidate.ExecutionID)
 			continue
 		}
 		switch status {
@@ -141,6 +145,7 @@ func (s *Service) DispatchPendingCancellations(
 		case protocol.ExecutionCancellationDispatchUnsupported:
 			result.Unsupported++
 		}
+		s.invalidateExecutionID(ctx, candidate.ExecutionID)
 	}
 	return result, nil
 }

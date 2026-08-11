@@ -828,12 +828,10 @@ func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t 
 	}
 }
 
-func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
+func TestGetLatestViewDoesNotExposePlanlessRuntimeGraphAsWorkGraph(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
-	rootID := "runtime-agent-1"
-	toolID := "runtime-tool-1"
 	repository := &runtimeGraphRepositoryFake{
 		fakeRepository: &fakeRepository{},
 		graph: protocol.ExecutionRuntimeGraph{
@@ -865,7 +863,7 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 			Edges: []protocol.ExecutionRuntimeEdgeRun{{
 				ID: "runtime-edge-1", GraphID: "round:round-1",
 				OwnerUserID: "owner-1", SessionKey: "session-1",
-				SourceNodeID: rootID, TargetNodeID: toolID,
+				SourceNodeID: "runtime-agent-1", TargetNodeID: "runtime-tool-1",
 				Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now,
 			}},
 		},
@@ -878,28 +876,8 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view == nil || view.Plan != nil || len(view.WorkItems) != 0 ||
-		view.ID != "round:round-1" || view.Status != protocol.ExecutionStatusActive {
-		t.Fatalf("unexpected planless view: %+v", view)
-	}
-	if len(view.Graph.Nodes) != 2 || len(view.Graph.Edges) != 1 {
-		t.Fatalf("unexpected planless graph: %+v", view.Graph)
-	}
-	if view.Graph.RuntimeNodeTotal != 40 || view.Graph.RuntimeEdgeTotal != 50 ||
-		!view.Graph.RuntimeNodesTruncated || !view.Graph.RuntimeEdgesTruncated {
-		t.Fatalf("planless graph hid projection completeness: %+v", view.Graph)
-	}
-	projectedEdge := view.Graph.Edges[0]
-	if projectedEdge.SourceNodeRunID != rootID || projectedEdge.TargetNodeRunID != toolID ||
-		projectedEdge.CreatedAt == nil || !projectedEdge.CreatedAt.Equal(now) {
-		t.Fatalf("runtime edge lost exact observation identity: %+v", projectedEdge)
-	}
-	tool := graphNodeByID(view.Graph.Nodes, toolID)
-	if tool.Kind != protocol.ExecutionGraphNodeTool ||
-		tool.Visibility != protocol.ExecutionGraphNodeNested ||
-		tool.ParentNodeID != rootID ||
-		tool.LifecycleStatus != "running" {
-		t.Fatalf("unexpected planless tool projection: %+v", tool)
+	if view != nil {
+		t.Fatalf("planless runtime graph leaked through WorkGraph read surface: %+v", view)
 	}
 }
 
@@ -1326,7 +1304,9 @@ func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *te
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 11, 0, 0, 0, time.UTC)
-	snapshot := executionSnapshot()
+	// Public WorkGraph reads are managed-only. Give the audited Execution a
+	// real Plan/Work Item instead of relying on the removed planless view.
+	snapshot := assignedExecutionSnapshot()
 	snapshot.Execution.RootRoundID = "round-1"
 	snapshot.Execution.Objective = "Ship the verified report"
 	snapshot.Execution.CompletionCriteria = []string{"report is verified"}

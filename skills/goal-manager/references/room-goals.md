@@ -10,7 +10,7 @@ Room Goal 属于整个 Room。创建者或当前 assigned lead 负责推进、�
 
 ## 协作与分工
 
-创建 Goal 后，根据独立交付、成员能力、依赖和审核价值决定是否拆 WorkGraph；不要只因为 Room 里有人就机械分派。需要持久责任时使用 Work Item + Assignment，实质上下文和结果仍通过 Room 消息、`@` 或产物传递。
+创建 Goal 后，根据独立交付、成员能力、依赖和审核价值决定是否拆 WorkGraph；不要只因为 Room 里有人就机械分派。需要持久责任时使用 Work Item + Assignment，实质上下文和结果通过 Room 消息或产物传递，Submission/Review 由受管链路回交。`@` 只唤起对话或一次性帮助，不建立责任。
 
 分派后不要重复生产同一交付物。Lead 应聚焦自己的责任、协调、解阻、整合和验证；只有任务原子、其他成员没有净收益或 Lead 自己就是明确 owner 时才整体直接执行。
 

@@ -1,7 +1,7 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 右侧或移动端辅助面中的紧凑 WorkGraph 主视图。
- * POS: 底部节点轨迹之外的完整图入口；只消费同一权威资源，不另起轮询或状态机。
+ * OUTPUT: 固定展示 Execution/Plan/必需验收进度的 WorkGraph 主视图，节点位置仅作次级提示。
+ * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
 
@@ -10,16 +10,28 @@ import { CircleAlert, LoaderCircle, RotateCw, Workflow } from "lucide-react";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import type { ExecutionStatus } from "@/types/conversation/execution";
 
 import {
-  EXECUTION_STATUS_LABEL_KEY,
   hasExecutionGraph,
   hasManagedExecutionGraph,
-  resolveExecutionNodeSummary,
+  resolveExecutionWorkGraphHeaderModel,
   type ExecutionAgentDirectory,
+  type ExecutionWorkGraphHeaderModel,
 } from "./execution-process-model";
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
+
+const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, string> = {
+  active: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
+  waiting: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
+  paused: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
+  completed: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
+  failed: "border-destructive/20 bg-destructive/10 text-destructive",
+  cancelled: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+  superseded: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+};
 
 export function ExecutionWorkGraphSurface({
   directory,
@@ -39,7 +51,9 @@ export function ExecutionWorkGraphSurface({
   const execution = hasManagedExecutionGraph(resource.execution)
     ? resource.execution
     : null;
-  const summary = execution ? resolveExecutionNodeSummary(execution) : null;
+  const header = execution
+    ? resolveExecutionWorkGraphHeaderModel(execution)
+    : null;
   const hasNodes = hasExecutionGraph(execution);
   const runtimeProjectionPartial = Boolean(
     execution?.graph?.runtime_nodes_truncated
@@ -58,21 +72,14 @@ export function ExecutionWorkGraphSurface({
       data-execution-workgraph-partial={runtimeProjectionPartial ? "true" : undefined}
       data-execution-last-successful-at={lastSuccessfulAt ?? undefined}
     >
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3">
-        <Workflow className="h-4 w-4 shrink-0 text-(--icon-muted)" />
-        <span className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)">
-          {summary?.summary || t("execution.label")}
-        </span>
-        {execution ? (
-          <span className="shrink-0 text-compact tabular-nums text-(--text-soft)">
-            {summary && summary.totalCount > 0
-              ? t("execution.node_progress", {
-                  current: summary.currentStep,
-                  total: summary.totalCount,
-                })
-              : t(EXECUTION_STATUS_LABEL_KEY[execution.status])}
-          </span>
-        ) : null}
+      <header className="flex min-h-14 shrink-0 items-start gap-2 border-b dialog-divider px-3 py-2">
+        <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-(--icon-muted)" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-compact font-semibold text-(--text-strong)">
+            {header?.summary || t("execution.label")}
+          </div>
+          {header ? <ExecutionWorkGraphHeaderMeta model={header} /> : null}
+        </div>
         {runtimeProjectionPartial ? (
           <span
             aria-label={t("execution.surface_partial", {
@@ -114,7 +121,7 @@ export function ExecutionWorkGraphSurface({
 
       {execution && hasNodes ? (
         <ExecutionWorkGraphCanvas
-          currentId={summary?.currentNode?.id ?? null}
+          currentId={header?.currentNodeId ?? null}
           directory={directory}
           execution={execution}
           key={execution.id}
@@ -142,5 +149,65 @@ export function ExecutionWorkGraphSurface({
         </div>
       )}
     </section>
+  );
+}
+
+function ExecutionWorkGraphHeaderMeta({
+  model,
+}: {
+  model: ExecutionWorkGraphHeaderModel;
+}) {
+  const { t } = useI18n();
+  const blockerTitle = model.completionBlockers.join(" · ");
+  return (
+    <div
+      className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4 text-(--text-soft)"
+      data-execution-header-status={model.status}
+      data-execution-plan-revision={model.planRevision ?? undefined}
+      data-execution-progress-accepted={model.acceptedCount}
+      data-execution-progress-required={model.requiredCount}
+    >
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 font-semibold",
+          EXECUTION_HEADER_STATUS_TONE[model.status],
+        )}
+      >
+        {t(model.statusLabelKey)}
+      </span>
+      {model.planRevision !== null ? (
+        <span className="shrink-0 tabular-nums" data-execution-plan>
+          {t("execution.plan_revision", { revision: model.planRevision })}
+        </span>
+      ) : null}
+      <span className="shrink-0 tabular-nums" data-execution-required-progress>
+        {t("execution.progress", {
+          accepted: model.acceptedCount,
+          required: model.requiredCount,
+        })}
+      </span>
+      {model.completionBlockers.length > 0 ? (
+        <span
+          className="inline-flex max-w-48 shrink items-center truncate rounded-[6px] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] px-1.5 font-medium text-(--warning)"
+          data-execution-completion-blockers={model.completionBlockers.length}
+          title={blockerTitle}
+        >
+          {t("execution.completion_blockers_count", {
+            count: model.completionBlockers.length,
+          })}
+        </span>
+      ) : null}
+      {model.nodeCurrent !== null && model.nodeTotal > 0 ? (
+        <span
+          className="hidden min-w-0 truncate text-(--text-muted) sm:inline"
+          data-execution-node-progress
+        >
+          {t("execution.node_progress", {
+            current: model.nodeCurrent,
+            total: model.nodeTotal,
+          })}
+        </span>
+      ) : null}
+    </div>
   );
 }

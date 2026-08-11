@@ -131,17 +131,34 @@ func (s *Service) AuditObjectiveAlignmentByModel(
 }
 
 func (s *Service) ensureGoalObjectiveAlignmentReady(
+	ctx context.Context,
 	item protocol.Goal,
 	agentID string,
 	roundID string,
 ) error {
-	if !goalRequiresExecutionCompletionAudit(item) {
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return fmt.Errorf("%w: resolve Goal Execution binding: %v", ErrGoalInvalidState, err)
+	}
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
 		return nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return fmt.Errorf(
+			"%w: Goal Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
+	case protocol.GoalExecutionBindingStateConfirmed:
+	default:
+		return fmt.Errorf("%w: Goal Execution binding state is unknown", ErrGoalInvalidState)
 	}
 	record, ok := objectiveAlignmentRecordFromGoal(item)
 	if !ok {
 		return fmt.Errorf(
-			"%w: managed Goal completion requires an objective alignment audit in the current round",
+			"%w: a Goal with a confirmed managed WorkGraph binding requires an objective alignment audit in the current round",
 			ErrGoalInvalidState,
 		)
 	}

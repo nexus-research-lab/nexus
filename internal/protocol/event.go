@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK 与执行/待确认活动快照事件。
+// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK、执行/待确认活动快照与 owner/session WorkGraph 失效事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -39,6 +39,7 @@ const (
 	EventTypeGoalProgress                EventType = "goal_progress"
 	EventTypeGoalContinuation            EventType = "goal_continuation"
 	EventTypeGoalCleared                 EventType = "goal_cleared"
+	EventTypeExecutionInvalidated        EventType = "execution_invalidated"
 	EventTypePermissionRequest           EventType = "permission_request"
 	EventTypePermissionRequestResolved   EventType = "permission_request_resolved"
 	EventTypeChannelAuthorization        EventType = "channel_authorization"
@@ -142,6 +143,14 @@ type RuntimeStatusData struct {
 	Status *RuntimeStatus `json:"status"`
 }
 
+// ExecutionInvalidationData 告知同 owner/session 的读取方重新拉取最新
+// managed WorkGraph。ExecutionID 可在撤销或尚无图时为空；Version 为 0
+// 表示调用方不能提供单个 Execution 的版本，但事件仍使目标 session 失效。
+type ExecutionInvalidationData struct {
+	ExecutionID string `json:"execution_id"`
+	Version     int64  `json:"version"`
+}
+
 // ChannelAuthorizationData 只承载原生 UI 所需的人类展示材料。
 // principal、Agent、session、round 与 runtime lease 绑定永不进入 wire。
 type ChannelAuthorizationData struct {
@@ -227,6 +236,19 @@ func NewErrorEvent(sessionKey string, message string) EventMessage {
 func NewPongEvent(sessionKey string) EventMessage {
 	event := NewEvent(EventTypePong, map[string]any{})
 	event.SessionKey = sessionKey
+	return event
+}
+
+// NewExecutionInvalidatedEvent 构造 session-scoped WorkGraph 失效通知。
+func NewExecutionInvalidatedEvent(
+	sessionKey string,
+	data ExecutionInvalidationData,
+) EventMessage {
+	event := NewEvent(EventTypeExecutionInvalidated, map[string]any{
+		"execution_id": strings.TrimSpace(data.ExecutionID),
+		"version":      data.Version,
+	})
+	event.SessionKey = strings.TrimSpace(sessionKey)
 	return event
 }
 

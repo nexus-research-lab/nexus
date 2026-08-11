@@ -89,7 +89,11 @@ export function useRoomGoalComposer({
     setRefreshSequence((value) => value + 1);
   }, []);
   const createGoal = useCallback(
-    async (objective: string, metadata: Record<string, unknown>) => {
+    async (
+      objective: string,
+      metadata: Record<string, unknown>,
+      roomLeadAgentId: string,
+    ) => {
       if (!sessionKey) {
         throw new Error(t("room.goal_session_not_ready"));
       }
@@ -97,6 +101,7 @@ export function useRoomGoalComposer({
         metadata,
         objective,
         replace_existing: true,
+        room_lead_agent_id: roomLeadAgentId,
         session_key: sessionKey,
         token_budget: null,
       });
@@ -116,7 +121,8 @@ export function useRoomGoalComposer({
       const leadAgent = requireLeadAgentId();
       await createGoal(
         objective,
-        buildRoomGoalMetadata(roomMembers, leadAgent),
+        buildRoomGoalMetadata(roomMembers),
+        leadAgent,
       );
     },
     [createGoal, requireLeadAgentId, roomMembers],
@@ -126,7 +132,8 @@ export function useRoomGoalComposer({
       const leadAgent = requireLeadAgentId();
       await createGoal(
         buildRoomLoopGoalObjective(loop),
-        buildRoomLoopGoalMetadata(roomMembers, leadAgent, loop),
+        buildRoomLoopGoalMetadata(roomMembers, loop),
+        leadAgent,
       );
     },
     [createGoal, requireLeadAgentId, roomMembers],

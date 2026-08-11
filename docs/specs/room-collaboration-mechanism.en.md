@@ -31,12 +31,12 @@ Give each member role an observable responsibility: who initiates, executes, rev
 Publish only facts every member needs in the public area:
 
 - Goals and confirmed decisions.
-- Action requests assigned to a specific member.
+- One-off conversation requests that do not require durable ownership or acceptance.
 - Milestone progress, blockers, and final conclusions.
 
 Do not publish unconfirmed drafts, repeated acknowledgements, or empty agreement. Use a real, non-code `@member` only when action is required. Use an ordinary name when describing a plan, example, or status so the mention does not wake the agent.
 
-`@member` identifies an action target, not a speaking order. When agents work in parallel, the Skill must not assume which one finishes first. Nexus dispatches each source slot independently and shows public messages in their actual publish order.
+`@member` is conversation wake/handoff only. It creates no Work Item, Assignment, Submission, or Acceptance, and it does not define speaking order. Durable ownership, dependencies, delivery, and acceptance require a WorkGraph whose responsibility is established by `assign_work`. When agents work in parallel, the Skill must not assume which one finishes first. Nexus dispatches each source slot independently and shows public messages in their actual publish order.
 
 ### 3.4 Private collaboration
 
@@ -65,7 +65,8 @@ Nexus does not decide when the discussion is complete and does not automatically
 | Scenario | Action |
 | --- | --- |
 | Ordinary public reply | Return the final reply directly; do not call a Room tool. |
-| Public handoff | Include a real, non-code `@member` in the final reply. |
+| One-off public conversation request or wake | Include a real, non-code `@member` in the final reply; it does not establish tracked responsibility. |
+| Accountable delivery, dependency, or acceptance | Use WorkGraph and `assign_work`; return through `submit_work` / `review_work` instead of using `@` as a substitute. |
 | Private send or multi-member collection | Use `send_directed_message` and specify recipients, wake behavior, and `reply_route`. |
 | Return a private result to the host | Use `reply_route=private`; set `wake_policy=immediate` when needed. |
 | Let the host continue publicly from a private result | Set `next_reply_route=public` on the private route. |

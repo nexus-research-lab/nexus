@@ -23,7 +23,7 @@ type auditObjectiveAlignmentInput struct {
 
 var auditObjectiveAlignmentDescription = strings.TrimSpace(
 	"Audit the current Goal against its backend-authoritative objective and completion criteria.\n" +
-		"Use this immediately before attempting managed Goal completion, after inspecting current authoritative evidence.\n" +
+		"Use this immediately before completing a Goal whose managed WorkGraph binding is confirmed, after inspecting current authoritative evidence. Goal-only and reserved Goals do not require this audit.\n" +
 		"This tool records a three-state evidence report; it does not complete, block, retarget, or otherwise transition the Goal.\n" +
 		"Submit report_json as one JSON object string, not as nested tool arguments. " +
 		objectivealignment.ReportJSONDescription,
@@ -59,7 +59,7 @@ func auditObjectiveAlignment(
 			if sctx.PlanMode {
 				return planModeGoalMutationResult("audit_objective_alignment"), nil
 			}
-			current, err := svc.Current(ctx, sctx.CurrentSessionKey)
+			current, err := currentGoalForMutation(ctx, svc, sctx, expectedRevision)
 			if err != nil {
 				return updateGoalCurrentErrorResult(err), nil
 			}

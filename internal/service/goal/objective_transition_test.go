@@ -3,6 +3,7 @@ package goal
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -21,7 +22,10 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 		Objective:  "old objective",
 		CreatedBy:  "model",
 		Metadata: map[string]any{
-			protocol.GoalMetadataExecutionID:        "execution-old",
+			protocol.GoalMetadataExecutionID: "execution-old",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
 			protocol.GoalMetadataActivationOrigin:   string(protocol.GoalActivationOriginAdaptivePromoted),
 			protocol.GoalMetadataActivationReason:   string(protocol.GoalActivationReasonObservedBoundary),
 			protocol.GoalMetadataCompletionCriteria: []string{"old accepted"},
@@ -129,6 +133,10 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 		protocol.GoalMetadataString(committed.Metadata, protocol.GoalMetadataExecutionID) != "execution-new" {
 		t.Fatalf("committed Goal = %#v transition=%#v", committed, transition)
 	}
+	if got := protocol.GoalExecutionBindingStateFromGoal(*committed); got !=
+		protocol.GoalExecutionBindingStateReserved {
+		t.Fatalf("committed binding state = %q, want reserved", got)
+	}
 	if _, exists := committed.Metadata[protocol.GoalMetadataCompletionCriteria]; exists {
 		t.Fatalf("committed Goal retained old criteria: %#v", committed.Metadata)
 	}
@@ -147,8 +155,38 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 	}); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("app-server completion during rebase error = %v", err)
 	}
-	if plan, planErr := service.PlanContinuationForSession(ctx, committed.SessionKey, "round-old"); planErr != nil || plan != nil {
-		t.Fatalf("pending transition continuation = %#v, err=%v", plan, planErr)
+	planning, planErr := service.PlanContinuationForSession(ctx, committed.SessionKey, "round-old")
+	if planErr != nil || planning == nil ||
+		planning.Purpose != goalObjectiveTransitionPlanningPurpose ||
+		planning.ExecutionID != "" ||
+		!strings.Contains(planning.Prompt, "goal_binding=current") ||
+		planning.Metadata[goalTransitionContinuationIDMetadataKey] != transition.ID {
+		t.Fatalf("transition planning continuation = %#v, err=%v", planning, planErr)
+	}
+	stillCurrent, err := service.GoalContinuationStillCurrent(ctx, *planning)
+	if err != nil || !stillCurrent {
+		t.Fatalf("transition planning continuation current=%t err=%v", stillCurrent, err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *planning); err != nil {
+		t.Fatalf("claim transition planning continuation: %v", err)
+	}
+	failedPlanning, err := service.RecordContinuationFailure(
+		ctx,
+		committed.ID,
+		planning.RoundID,
+		"runtime start failed",
+		committed.ObjectiveRevision(),
+	)
+	if err != nil || failedPlanning.EmptyProgressCount != 1 {
+		t.Fatalf("record planning failure = %#v, err=%v", failedPlanning, err)
+	}
+	retryPlanning, err := service.PlanContinuationForSession(ctx, committed.SessionKey, planning.RoundID)
+	if err != nil || retryPlanning == nil ||
+		retryPlanning.Purpose != goalObjectiveTransitionPlanningPurpose {
+		t.Fatalf("retry transition planning continuation = %#v, err=%v", retryPlanning, err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *retryPlanning); err != nil {
+		t.Fatalf("claim retry transition planning continuation: %v", err)
 	}
 	reserved, err := service.BindExplicitExecution(ctx, ExplicitExecutionBinding{
 		GoalID:                    committed.ID,
@@ -162,6 +200,13 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 	transition, ok = ObjectiveTransitionFromGoal(*reserved)
 	if !ok || transition.Phase != ObjectiveTransitionBindingReserved {
 		t.Fatalf("reserved transition = %#v", transition)
+	}
+	if got := protocol.GoalExecutionBindingStateFromGoal(*reserved); got !=
+		protocol.GoalExecutionBindingStatePending {
+		t.Fatalf("prepared successor binding state = %q, want pending", got)
+	}
+	if plan, pendingErr := service.PlanContinuationForSession(ctx, reserved.SessionKey, "planning-round"); pendingErr != nil || plan != nil {
+		t.Fatalf("binding-reserved transition continuation = %#v, err=%v", plan, pendingErr)
 	}
 	bound, err := service.ConfirmObjectiveExecutionBinding(
 		ctx,
@@ -177,6 +222,10 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 	if !ok || transition.Phase != ObjectiveTransitionBound {
 		t.Fatalf("bound transition = %#v", transition)
 	}
+	if got := protocol.GoalExecutionBindingStateFromGoal(*bound); got !=
+		protocol.GoalExecutionBindingStateConfirmed {
+		t.Fatalf("bound successor state = %q, want confirmed", got)
+	}
 	metadataUpdated, err := service.Update(ctx, bound.ID, protocol.UpdateGoalRequest{
 		Metadata: map[string]any{"user_note": "keep"},
 	})
@@ -184,6 +233,8 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 		t.Fatal(err)
 	}
 	if protocol.GoalMetadataString(metadataUpdated.Metadata, protocol.GoalMetadataExecutionID) != "execution-new" ||
+		protocol.GoalExecutionBindingStateFromGoal(*metadataUpdated) !=
+			protocol.GoalExecutionBindingStateConfirmed ||
 		protocol.GoalMetadataString(metadataUpdated.Metadata, protocol.GoalMetadataActivationOrigin) !=
 			string(protocol.GoalActivationOriginAdaptivePromoted) {
 		t.Fatalf("user metadata update removed server binding: %#v", metadataUpdated.Metadata)
@@ -267,7 +318,10 @@ func TestAllGoalObjectiveMutationSurfacesUseRetargetCoordinator(t *testing.T) {
 				Objective:   "Original objective",
 				OwnerUserID: ownerUserID,
 				Metadata: map[string]any{
-					protocol.GoalMetadataExecutionID:        "execution-old",
+					protocol.GoalMetadataExecutionID: "execution-old",
+					protocol.GoalMetadataExecutionBindingState: string(
+						protocol.GoalExecutionBindingStateConfirmed,
+					),
 					protocol.GoalMetadataActivationOrigin:   string(protocol.GoalActivationOriginAdaptivePromoted),
 					protocol.GoalMetadataActivationReason:   string(protocol.GoalActivationReasonObservedBoundary),
 					protocol.GoalMetadataCompletionCriteria: []string{"old accepted"},
@@ -298,6 +352,150 @@ func TestAllGoalObjectiveMutationSurfacesUseRetargetCoordinator(t *testing.T) {
 	}
 }
 
+func TestUserObjectiveRetargetEntrypointsDispatchSuccessorPlanning(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(context.Context, *Service, protocol.Goal, string) (*protocol.Goal, error)
+	}{
+		{
+			name: "HTTP PATCH",
+			mutate: func(ctx context.Context, service *Service, item protocol.Goal, objective string) (*protocol.Goal, error) {
+				return service.Update(ctx, item.ID, protocol.UpdateGoalRequest{
+					Objective:   &objective,
+					OwnerUserID: "owner-1",
+				})
+			},
+		},
+		{
+			name: "app-server set",
+			mutate: func(ctx context.Context, service *Service, item protocol.Goal, objective string) (*protocol.Goal, error) {
+				return service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
+					ThreadID:    item.SessionKey,
+					Objective:   &objective,
+					OwnerUserID: "owner-1",
+				})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := newMemoryRepository()
+			service := NewService(config.Config{
+				GoalEnabled:             true,
+				GoalAutoContinueEnabled: true,
+			}, repo)
+			service.nowFn = fixedClock()
+			service.idFactory = sequentialID()
+			created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+				SessionKey:  "agent:nexus:ws:dm:retarget-dispatch",
+				Objective:   "Original objective",
+				CreatedBy:   "model",
+				OwnerUserID: "owner-1",
+				Metadata: map[string]any{
+					protocol.GoalMetadataExecutionID: "execution-old",
+					protocol.GoalMetadataExecutionBindingState: string(
+						protocol.GoalExecutionBindingStateConfirmed,
+					),
+					protocol.GoalMetadataActivationOrigin:   string(protocol.GoalActivationOriginAdaptivePromoted),
+					protocol.GoalMetadataActivationReason:   string(protocol.GoalActivationReasonObservedBoundary),
+					protocol.GoalMetadataCompletionCriteria: []string{"old accepted"},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			service.SetObjectiveRetargetCoordinator(&awaitingPlanObjectiveRetargetCoordinator{
+				service: service,
+			})
+			dispatcher := &fakeContinuationDispatcher{}
+			service.SetContinuationDispatcher(dispatcher)
+
+			updated, err := test.mutate(context.Background(), service, *created, "Replacement objective")
+			if err != nil {
+				t.Fatal(err)
+			}
+			transition, ok := ObjectiveTransitionFromGoal(*updated)
+			if !ok || transition.Phase != ObjectiveTransitionAwaitingPlan ||
+				len(dispatcher.plans) != 1 {
+				t.Fatalf("updated=%#v transition=%#v plans=%#v", updated, transition, dispatcher.plans)
+			}
+			plan := dispatcher.plans[0]
+			if plan.Purpose != goalObjectiveTransitionPlanningPurpose ||
+				plan.ExecutionID != "" ||
+				plan.Goal.ID != updated.ID ||
+				plan.Goal.ObjectiveRevision() != updated.ObjectiveRevision() ||
+				!strings.Contains(plan.Prompt, "goal_binding=current") {
+				t.Fatalf("successor planning plan = %#v", plan)
+			}
+		})
+	}
+}
+
+func TestReservedGoalObjectiveMutationSurfacesReviseInPlace(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(context.Context, *Service, protocol.Goal, string) (*protocol.Goal, error)
+	}{
+		{
+			name: "model MCP",
+			mutate: func(ctx context.Context, service *Service, item protocol.Goal, objective string) (*protocol.Goal, error) {
+				return service.RetargetByModel(ctx, item.SessionKey, protocol.RetargetGoalRequest{
+					Objective: objective, ExpectedGoalID: item.ID,
+					ExpectedObjectiveRevision: item.ObjectiveRevision(),
+				})
+			},
+		},
+		{
+			name: "HTTP PATCH",
+			mutate: func(ctx context.Context, service *Service, item protocol.Goal, objective string) (*protocol.Goal, error) {
+				return service.Update(ctx, item.ID, protocol.UpdateGoalRequest{
+					Objective: &objective, OwnerUserID: "owner-routing",
+				})
+			},
+		},
+		{
+			name: "app-server thread goal set",
+			mutate: func(ctx context.Context, service *Service, item protocol.Goal, objective string) (*protocol.Goal, error) {
+				return service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
+					ThreadID: item.SessionKey, Objective: &objective, OwnerUserID: "owner-routing",
+				})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := newMemoryRepository()
+			service := NewService(config.Config{GoalEnabled: true}, repo)
+			service.nowFn = fixedClock()
+			service.idFactory = sequentialID()
+			coordinator := &recordingObjectiveRetargetCoordinator{}
+			service.SetObjectiveRetargetCoordinator(coordinator)
+			created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+				SessionKey: "agent:nexus:ws:dm:reserved-routing-" + strings.ReplaceAll(test.name, " ", "-"),
+				Objective:  "Original objective", CreatedBy: "model", OwnerUserID: "owner-routing",
+				Metadata: map[string]any{
+					protocol.GoalMetadataExecutionID: "execution-reserved",
+					protocol.GoalMetadataExecutionBindingState: string(
+						protocol.GoalExecutionBindingStateReserved,
+					),
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			updated, err := test.mutate(context.Background(), service, *created, "Revised objective")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if updated.ID != created.ID || updated.Objective != "Revised objective" ||
+				updated.ObjectiveRevision() != created.ObjectiveRevision()+1 {
+				t.Fatalf("updated = %#v, want same Goal with next objective revision", updated)
+			}
+			if len(coordinator.commands) != 0 {
+				t.Fatalf("coordinator commands = %#v, want none for reserved Goal", coordinator.commands)
+			}
+		})
+	}
+}
+
 func TestObjectiveRetargetRetryUsesPersistedRequestedObjectiveBeforeRewritingAgain(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -317,8 +515,13 @@ func TestObjectiveRetargetRetryUsesPersistedRequestedObjectiveBeforeRewritingAga
 		Objective:  "Original objective",
 		CreatedBy:  "model",
 		Metadata: map[string]any{
-			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginAdaptiveInitial),
-			protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonContextBoundary),
+			protocol.GoalMetadataExecutionID: "execution-rewrite-retry",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
+			protocol.GoalMetadataActivationOrigin:   string(protocol.GoalActivationOriginAdaptiveInitial),
+			protocol.GoalMetadataActivationReason:   string(protocol.GoalActivationReasonContextBoundary),
+			protocol.GoalMetadataCompletionCriteria: []string{"original objective accepted"},
 		},
 	})
 	if err != nil {
@@ -384,6 +587,24 @@ type localObjectiveRetargetCoordinator struct {
 	calls   int
 }
 
+type awaitingPlanObjectiveRetargetCoordinator struct {
+	service *Service
+}
+
+func (c *awaitingPlanObjectiveRetargetCoordinator) RetargetGoalObjective(
+	ctx context.Context,
+	command ObjectiveRetargetCommand,
+) (*protocol.Goal, error) {
+	command.CommandID = "awaiting-plan-command"
+	command.TransitionID = "awaiting-plan-transition"
+	command.SuccessorExecutionID = "execution-successor"
+	prepared, err := c.service.PrepareObjectiveRetarget(ctx, command)
+	if err != nil {
+		return nil, err
+	}
+	return c.service.CommitObjectiveRetarget(ctx, prepared.ID, command.TransitionID)
+}
+
 func (c *localObjectiveRetargetCoordinator) RetargetGoalObjective(
 	ctx context.Context,
 	command ObjectiveRetargetCommand,
@@ -396,7 +617,26 @@ func (c *localObjectiveRetargetCoordinator) RetargetGoalObjective(
 	if err != nil {
 		return nil, err
 	}
-	return c.service.CommitObjectiveRetarget(ctx, prepared.ID, command.TransitionID)
+	committed, err := c.service.CommitObjectiveRetarget(ctx, prepared.ID, command.TransitionID)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := c.service.BindExplicitExecution(ctx, ExplicitExecutionBinding{
+		GoalID:                    committed.ID,
+		ExpectedObjectiveRevision: committed.ObjectiveRevision(),
+		ExecutionID:               command.SuccessorExecutionID,
+		CompletionCriteria:        []string{"successor objective accepted"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return c.service.ConfirmObjectiveExecutionBinding(
+		ctx,
+		pending.ID,
+		pending.ObjectiveRevision(),
+		command.SuccessorExecutionID,
+		[]string{"successor objective accepted"},
+	)
 }
 
 type driftingObjectiveRewriter struct {

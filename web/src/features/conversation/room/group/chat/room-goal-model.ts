@@ -3,7 +3,6 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { Goal } from "@/types/conversation/goal";
 
 const ROOM_GOAL_LEAD_AGENT_ID_KEY = "room_goal_lead_agent_id";
-const ROOM_GOAL_LEAD_AGENT_NAME_KEY = "room_goal_lead_agent_name";
 const ROOM_GOAL_COLLABORATION_REQUIRED_KEY =
   "room_goal_collaboration_required";
 const ROOM_GOAL_SCOPE_KEY = "room_goal_scope";
@@ -56,25 +55,20 @@ export function resolveRoomGoalLeadAgentId(
 }
 
 export function buildRoomGoalMetadata(
-  roomMembers: Agent[],
-  leadAgentId: string,
+	roomMembers: Agent[],
 ): Record<string, unknown> {
-  const leadAgent = roomMembers.find((agent) => agent.agent_id === leadAgentId);
-  return {
-    [ROOM_GOAL_SCOPE_KEY]: "room",
-    [ROOM_GOAL_LEAD_AGENT_ID_KEY]: leadAgentId,
-    [ROOM_GOAL_LEAD_AGENT_NAME_KEY]: leadAgent?.name ?? "",
-    [ROOM_GOAL_COLLABORATION_REQUIRED_KEY]: roomMembers.length > 1,
-  };
+	return {
+		[ROOM_GOAL_SCOPE_KEY]: "room",
+		[ROOM_GOAL_COLLABORATION_REQUIRED_KEY]: roomMembers.length > 1,
+	};
 }
 
 export function buildRoomLoopGoalMetadata(
-  roomMembers: Agent[],
-  leadAgentId: string,
-  loop: LoopCatalogItem,
+	roomMembers: Agent[],
+	loop: LoopCatalogItem,
 ): Record<string, unknown> {
-  return {
-    ...buildRoomGoalMetadata(roomMembers, leadAgentId),
+	return {
+		...buildRoomGoalMetadata(roomMembers),
     [ROOM_GOAL_LOOP_SLUG_KEY]: loop.slug,
     [ROOM_GOAL_LOOP_TITLE_KEY]: loop.title,
   };
@@ -104,7 +98,7 @@ export function buildRoomLoopGoalObjective(loop: LoopCatalogItem): string {
     ...(loop.guardrails.length > 0 ? loop.guardrails.map((item) => `- ${item}`) : ["- 每轮先检查退出条件；满足后再标记 Goal complete。"]),
     "",
     "Room 协作规则",
-    "- 负责人推进整体闭环；需要其他成员时，用 Room @ 委派具体交付物。",
+    "- 负责人推进整体闭环；一次性对话帮助可用 Room @ 唤起成员，需要可追责交付时必须通过 WorkGraph Assignment 分派。",
     "- 验证失败时，把失败信息作为反馈继续修；不要把未验证的进展当完成。",
     "- 完成前必须有当前证据证明退出条件成立。",
   ].filter((line) => line.trim() !== "");

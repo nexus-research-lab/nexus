@@ -79,8 +79,10 @@ func (s *Service) RecordGoalActivity(ctx context.Context, goalID string, roundID
 
 func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool, expectedRevision int64) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if err := rejectPendingObjectiveTransition(*current, "record continuation progress"); err != nil {
-			return nil, err
+		if _, planning := objectiveTransitionAwaitingPlan(*current); !planning {
+			if err := rejectPendingObjectiveTransition(*current, "record continuation progress"); err != nil {
+				return nil, err
+			}
 		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
@@ -91,8 +93,10 @@ func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *p
 
 func (s *Service) recordContinuationFailureForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string, expectedRevision int64) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if err := rejectPendingObjectiveTransition(*current, "record continuation failure"); err != nil {
-			return nil, err
+		if _, planning := objectiveTransitionAwaitingPlan(*current); !planning {
+			if err := rejectPendingObjectiveTransition(*current, "record continuation failure"); err != nil {
+				return nil, err
+			}
 		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
@@ -230,6 +234,7 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 		return s.noteEmptyContinuationProgress(ctx, item, roundID, "Room Goal completion requires room-visible non-lead collaboration")
 	}
 	if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
+		ctx,
 		*item,
 		RoomLeadAgentID(*item),
 		roundID,

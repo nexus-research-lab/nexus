@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * INPUT: Goal status projection inputs, server-derived clear reason and action callbacks.
+ * OUTPUT: accessible Goal status strip with primary lifecycle and secondary WorkGraph binding state.
+ * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
+ */
+
 import type { ReactNode } from "react";
 import {
   CircleSlash,
@@ -12,9 +18,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
-import type { Goal } from "@/types/conversation/goal";
+import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   buildGoalStatusStripModel,
@@ -30,10 +37,12 @@ import {
 
 interface GoalStatusStripProps {
   canResume: boolean;
+  clearDisabledReason?: string | null;
   compact: boolean;
   continuationHold?: GoalContinuationHold | null;
   disabled: boolean;
   error: string | null;
+  executionBinding?: GoalExecutionBinding | null;
   goal: Goal;
   isGenerating: boolean;
   isLoading: boolean;
@@ -76,12 +85,25 @@ const GOAL_ACTION_PRESENTATION: Record<
   },
 };
 
+const GOAL_BINDING_BADGE_TONE: Record<
+  GoalStatusStripModel["bindingBadge"]["tone"],
+  string
+> = {
+  conflict: "border-destructive/20 bg-destructive/10 text-destructive",
+  confirmed: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
+  neutral: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-muted)",
+  pending: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
+  unavailable: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+};
+
 export function GoalStatusStrip({
   canResume,
+  clearDisabledReason = null,
   compact,
   continuationHold = null,
   disabled,
   error,
+  executionBinding = null,
   goal,
   isGenerating,
   isLoading,
@@ -95,8 +117,10 @@ export function GoalStatusStrip({
 }: GoalStatusStripProps) {
   const model = buildGoalStatusStripModel({
     canResume,
+    clearDisabledReason,
     continuationHold,
     error,
+    executionBinding,
     goal,
     isGenerating,
   });
@@ -126,6 +150,7 @@ export function GoalStatusStrip({
           <GoalUsage label={model.usageLabel} />
           <GoalStatusActions
             actions={model.actions}
+            actionDisabledReasons={model.actionDisabledReasons}
             disabled={disabled}
             handlers={actionHandlers}
             isLoading={isLoading}
@@ -166,6 +191,7 @@ function GoalStatusSummary({
         >
           {model.statusLabel}
         </span>
+        <GoalBindingBadge model={model.bindingBadge} />
         <GoalExecutionState model={model} />
         {statusExtra}
       </div>
@@ -176,6 +202,28 @@ function GoalStatusSummary({
         {objective}
       </div>
     </div>
+  );
+}
+
+function GoalBindingBadge({
+  model,
+}: {
+  model: GoalStatusStripModel["bindingBadge"];
+}) {
+  const { t } = useI18n();
+  const title = t(model.titleKey);
+  return (
+    <span
+      aria-label={title}
+      className={cn(
+        "inline-flex max-w-32 shrink-0 items-center truncate rounded-[6px] border px-1.5 py-0.5 text-2xs font-medium leading-none",
+        GOAL_BINDING_BADGE_TONE[model.tone],
+      )}
+      data-goal-binding-state={model.state}
+      title={title}
+    >
+      {t(model.labelKey)}
+    </span>
   );
 }
 
@@ -199,11 +247,13 @@ function GoalUsage({ label }: { label: string | null }) {
 }
 
 function GoalStatusActions({
+  actionDisabledReasons,
   actions,
   disabled,
   handlers,
   isLoading,
 }: {
+  actionDisabledReasons: GoalStatusStripModel["actionDisabledReasons"];
   actions: GoalStatusAction[];
   disabled: boolean;
   handlers: GoalActionHandlers;
@@ -214,14 +264,19 @@ function GoalStatusActions({
     <div className="ml-auto flex shrink-0 items-center gap-1">
       {actions.map((action) => {
         const presentation = GOAL_ACTION_PRESENTATION[action];
+        const disabledReason = actionDisabledReasons[action];
         const { Icon } = presentation;
         return (
           <UiIconButton
             key={action}
-            aria-label={presentation.label}
-            disabled={presentation.requiresIdle && unavailable}
+            aria-label={disabledReason
+              ? `${presentation.label}：${disabledReason}`
+              : presentation.label}
+            disabled={Boolean(disabledReason) || (
+              presentation.requiresIdle && unavailable
+            )}
             size="sm"
-            title={presentation.label}
+            title={disabledReason ?? presentation.label}
             tone={presentation.tone}
             type="button"
             variant="ghost"

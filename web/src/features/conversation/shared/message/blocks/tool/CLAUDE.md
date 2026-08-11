@@ -1,6 +1,6 @@
 # 工具执行块
 
-- `tool-block-model.ts` 只组装唯一执行阶段、权限详情和结果摘要，并向 Composer 紧凑确认面暴露同一必要参数与可读权限建议投影；工具标题、状态和权限字段由 i18n 上下文一次投影，模型不得保存固定语言，也不得为 `status` 再维护运行中、待确认等镜像布尔值。消息级执行已停止且缺少 provider `tool_result` 时必须显式投影 `stopped`，不得继续显示 running。
+- `tool-block-model.ts` 只组装唯一执行阶段、权限详情和结果摘要，并向 Composer 紧凑确认面暴露同一必要参数与可读权限建议投影；工具标题只能调用 `tool-activity.ts` 的统一 i18n resolver，状态和权限字段也由 i18n 上下文一次投影，模型不得保存固定语言或回退显示 raw MCP 名，也不得为 `status` 再维护运行中、待确认等镜像布尔值。消息级执行已停止且缺少 provider `tool_result` 时必须显式投影 `stopped`，不得继续显示 running。
 - `use-tool-block-controller.ts` 管理展开、复制和权限选择；主组件只编排头部、进度、结果与权限详情。
 - `header/` 由纯投影统一解释可点击性、详情回退和动作能力，具体视图只渲染窄状态。
 - `subagent-task-tool-entry.tsx` 只把 Agent/Task 启动投影成固定宽度的单行任务入口：头部用精确 `tool_use_id` 生成子智能体曲线头像，中间任务名必须截断，尾部只保留执行状态；点击把同一工具身份和调用者交给上游子智能体面板。不得重复通用工具卡的 Agent 标题、状态徽标、live tool 文案或蓝色进度面。待权限确认时继续复用完整 ToolBlock，不能绕开 Composer 的唯一决策面。

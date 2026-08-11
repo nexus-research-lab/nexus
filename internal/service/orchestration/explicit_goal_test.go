@@ -78,21 +78,16 @@ func TestEnsureBindsCurrentTransientExecutionToExplicitGoal(t *testing.T) {
 		},
 	}
 	service := testService(repository)
-	service.SetExplicitGoalBindingGateway(explicitGoalGatewayFunc(func(
-		_ context.Context,
-		request ExplicitGoalBindingRequest,
-	) (*ExplicitGoalBinding, error) {
-		if !request.ExistingExecution || request.CandidateExecutionID != snapshot.Execution.ID {
-			t.Fatalf("binding request = %#v", request)
-		}
-		return &ExplicitGoalBinding{
+	gateway := &confirmingGoalBindingGateway{
+		binding: ExplicitGoalBinding{
 			ExecutionID:           snapshot.Execution.ID,
 			GoalID:                "goal-explicit",
 			GoalObjectiveRevision: 1,
 			ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
 			ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
-		}, nil
-	}))
+		},
+	}
+	service.SetExplicitGoalBindingGateway(gateway)
 	result, err := service.Ensure(context.Background(), coordinatorActor(), EnsureInput{
 		CommandID: "create-goal-command",
 	})
@@ -104,6 +99,10 @@ func TestEnsureBindsCurrentTransientExecutionToExplicitGoal(t *testing.T) {
 		bound.Meta.CommandID != "create-goal-command:bind-explicit-goal" ||
 		bound.Execution.GoalID != "goal-explicit" {
 		t.Fatalf("result=%#v command=%#v", result, bound)
+	}
+	if gateway.prepareCalls != 1 || gateway.confirmCalls != 1 ||
+		gateway.lastConfirmation.ExecutionID != snapshot.Execution.ID {
+		t.Fatalf("binding gateway = %#v", gateway)
 	}
 }
 
@@ -253,7 +252,7 @@ func TestGoalRevisionSuccessorPlanModeDoesNotReserveOrCreateState(t *testing.T) 
 	}
 }
 
-func TestGoalExecutionCompletionBlockerFailsClosedForExplicitBinding(t *testing.T) {
+func TestGoalExecutionCompletionBlockerSeparatesReservationFromConfirmedBinding(t *testing.T) {
 	service := testService(&fakeRepository{})
 	blocker, err := service.GoalExecutionCompletionBlocker(context.Background(), protocol.Goal{
 		ID:         "goal-explicit",
@@ -265,8 +264,8 @@ func TestGoalExecutionCompletionBlockerFailsClosedForExplicitBinding(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if blocker != "execution_binding_pending:explicit" {
-		t.Fatalf("blocker = %q", blocker)
+	if blocker != "" {
+		t.Fatalf("unbound explicit Goal blocker = %q, want empty", blocker)
 	}
 	legacyGoal := protocol.Goal{
 		ID:         "goal-explicit-legacy",
@@ -281,9 +280,8 @@ func TestGoalExecutionCompletionBlockerFailsClosedForExplicitBinding(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedLegacyID := protocol.ExplicitGoalReservedExecutionID("explicit_goal_legacy")
-	if blocker != "execution_binding_missing:"+expectedLegacyID {
-		t.Fatalf("legacy blocker = %q", blocker)
+	if blocker != "" {
+		t.Fatalf("legacy reserved Goal blocker = %q, want empty", blocker)
 	}
 
 	snapshot := executionSnapshot()
@@ -295,7 +293,10 @@ func TestGoalExecutionCompletionBlockerFailsClosedForExplicitBinding(t *testing.
 		ID:         "goal-explicit",
 		SessionKey: "session-1",
 		Metadata: map[string]any{
-			protocol.GoalMetadataExecutionID:      snapshot.Execution.ID,
+			protocol.GoalMetadataExecutionID: snapshot.Execution.ID,
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
 			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
 		},
 	}

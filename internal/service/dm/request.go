@@ -773,10 +773,9 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	if request.Internal &&
 		strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" &&
 		(strings.TrimSpace(request.GoalID) == "" ||
-			request.GoalObjectiveRevision <= 0 ||
-			strings.TrimSpace(request.ExecutionID) == "") {
+			request.GoalObjectiveRevision <= 0) {
 		return "", protocol.SessionKey{}, errors.New(
-			"goal continuation requires exact goal, objective revision, and execution binding",
+			"goal continuation requires exact goal and objective revision",
 		)
 	}
 

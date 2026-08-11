@@ -1,5 +1,5 @@
 // INPUT: 模型语义字段和 execution domain enums。
-// OUTPUT: Plan 两阶段工具只暴露 scalar string，其余工具保留有界集合；全部隐藏 fencing/idempotency。
+// OUTPUT: Plan 两阶段工具暴露 document/reference scalar 及显式 Goal binding enum，其余工具保留有界集合；全部隐藏 identity/fencing/idempotency。
 // POS: nexus_execution 工具的模型调用协议。
 package tool
 
@@ -76,13 +76,19 @@ func getExecutionSchema() map[string]any {
 func preparePlanExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"plan_document": nonEmptyStringProperty(planDocumentSchemaDescription()),
+		"goal_binding": enumProperty(
+			"Goal boundary intent. For operation: create, use current only to bind the exact Goal authority granted to this round, or none for a Goal-free WorkGraph. Omit to use current only when this round already has exact Goal id+revision authority; otherwise omission means none. For operation: replan or replace, use inherit or omit because those operations preserve the current Execution boundary.",
+			string(orchestration.PlanGoalBindingNone),
+			string(orchestration.PlanGoalBindingCurrent),
+			string(orchestration.PlanGoalBindingInherit),
+		),
 	}, "plan_document")
 }
 
 func planDocumentSchemaDescription() string {
 	contract := orchestration.ExecutionPlanDocumentSchemaContract()
 	return fmt.Sprintf(
-		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call; never launch them in parallel. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
+		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call, then set goal_binding to current; never launch them in parallel. Use none for a Goal-free create. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
 		contract.Version,
 		strings.Join(contract.ParserRequiredRootFields, ", "),
 		strings.Join(contract.AllowedRootFields, ", "),

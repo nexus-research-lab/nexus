@@ -1,5 +1,5 @@
 // INPUT: trusted objective-retarget intent, Goal objective revision fence and reserved successor Execution identity.
-// OUTPUT: durable prepare/awaiting_plan/binding_reserved/bound Goal metadata and replay-safe phase transitions.
+// OUTPUT: durable prepare/awaiting_plan/binding_reserved/bound transition metadata、reserved/pending/confirmed Execution binding state 与 replay-safe phase transitions.
 // POS: Goal-side half of the cross-service Goal objective revision / Execution rebase saga.
 package goal
 
@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -122,6 +123,16 @@ func GoalObjectiveTransitionPending(item protocol.Goal) bool {
 	}
 	transition, ok := ObjectiveTransitionFromGoal(item)
 	return !ok || transition.Phase != ObjectiveTransitionBound
+}
+
+func objectiveTransitionAwaitingPlan(
+	item protocol.Goal,
+) (ObjectiveTransition, bool) {
+	transition, ok := ObjectiveTransitionFromGoal(item)
+	return transition, ok &&
+		transition.Phase == ObjectiveTransitionAwaitingPlan &&
+		item.ObjectiveRevision() == transition.NewRevision &&
+		strings.TrimSpace(item.Objective) == transition.TargetObjective
 }
 
 func rejectPendingObjectiveTransition(item protocol.Goal, operation string) error {
@@ -322,6 +333,8 @@ func (s *Service) CommitObjectiveRetarget(
 		}
 		current.Metadata[protocol.GoalMetadataObjectiveRevision] = transition.NewRevision
 		current.Metadata[protocol.GoalMetadataExecutionID] = transition.SuccessorExecutionID
+		current.Metadata[protocol.GoalMetadataExecutionBindingState] =
+			string(protocol.GoalExecutionBindingStateReserved)
 		delete(current.Metadata, protocol.GoalMetadataCompletionCriteria)
 		transition.Phase = ObjectiveTransitionAwaitingPlan
 		current.Metadata[protocol.GoalMetadataObjectiveTransition] = objectiveTransitionMetadata(transition)
@@ -345,8 +358,9 @@ func (s *Service) CommitObjectiveRetarget(
 	})
 }
 
-// ConfirmObjectiveExecutionBinding finishes the saga after the successor
-// Execution and first Plan were atomically created.
+// ConfirmObjectiveExecutionBinding records the authoritative boundary after an
+// existing Execution bind or successor Execution+Plan mutation is durable.
+// It also confirms an initial binding that has no objective transition.
 func (s *Service) ConfirmObjectiveExecutionBinding(
 	ctx context.Context,
 	goalID string,
@@ -354,11 +368,17 @@ func (s *Service) ConfirmObjectiveExecutionBinding(
 	executionID string,
 	completionCriteria []string,
 ) (*protocol.Goal, error) {
+	goalID = strings.TrimSpace(goalID)
+	executionID = strings.TrimSpace(executionID)
+	if goalID == "" || executionID == "" || expectedObjectiveRevision <= 0 {
+		return nil, newGoalInvalidInputError(
+			"goal id, execution id and expected objective revision are required for binding confirmation",
+		)
+	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
 	}
-	executionID = strings.TrimSpace(executionID)
 	criteria := normalizeExecutionCompletionCriteria(completionCriteria)
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
 		if current.ObjectiveRevision() != expectedObjectiveRevision {
@@ -367,26 +387,78 @@ func (s *Service) ConfirmObjectiveExecutionBinding(
 		if protocol.GoalMetadataString(current.Metadata, protocol.GoalMetadataExecutionID) != executionID {
 			return nil, ErrGoalExecutionBindingConflict
 		}
+		bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+		if bindingState == protocol.GoalExecutionBindingStateReserved ||
+			bindingState == protocol.GoalExecutionBindingStateConflict {
+			return nil, fmt.Errorf(
+				"%w: Goal binding is not pending confirmation",
+				ErrGoalExecutionBindingConflict,
+			)
+		}
+		existingCriteria := goalMetadataStrings(
+			current.Metadata,
+			protocol.GoalMetadataCompletionCriteria,
+		)
+		if _, present := current.Metadata[protocol.GoalMetadataCompletionCriteria]; present &&
+			existingCriteria == nil {
+			return nil, fmt.Errorf(
+				"%w: stored completion criteria are malformed",
+				ErrGoalExecutionBindingConflict,
+			)
+		}
+		if len(existingCriteria) > 0 && !slices.Equal(existingCriteria, criteria) {
+			return nil, fmt.Errorf(
+				"%w: confirmed completion criteria differ from the prepared binding",
+				ErrGoalExecutionBindingConflict,
+			)
+		}
 		transition, ok := ObjectiveTransitionFromGoal(*current)
-		if !ok {
-			return current, nil
-		}
-		if transition.SuccessorExecutionID != executionID ||
-			transition.NewRevision != expectedObjectiveRevision {
+		if ok {
+			if transition.SuccessorExecutionID != executionID ||
+				transition.NewRevision != expectedObjectiveRevision {
+				return nil, ErrGoalExecutionBindingConflict
+			}
+			if transition.Phase == ObjectiveTransitionBound &&
+				bindingState == protocol.GoalExecutionBindingStateConfirmed &&
+				slices.Equal(existingCriteria, criteria) {
+				return current, nil
+			}
+			if transition.Phase != ObjectiveTransitionBindingReserved {
+				return nil, fmt.Errorf(
+					"%w: Goal successor binding is not pending confirmation",
+					ErrGoalExecutionBindingConflict,
+				)
+			}
+		} else if bindingState == protocol.GoalExecutionBindingStateConfirmed {
+			if slices.Equal(existingCriteria, criteria) {
+				return current, nil
+			}
 			return nil, ErrGoalExecutionBindingConflict
-		}
-		if transition.Phase == ObjectiveTransitionBound {
-			return current, nil
-		}
-		if transition.Phase != ObjectiveTransitionBindingReserved {
-			return nil, fmt.Errorf("%w: Goal successor binding is not reserved", ErrGoalExecutionBindingConflict)
 		}
 		expectedVersion := current.Version
 		current.Metadata = cloneMap(current.Metadata)
+		if current.Metadata == nil {
+			current.Metadata = map[string]any{}
+		}
 		delete(current.Metadata, protocol.GoalMetadataObjectiveAlignment)
-		current.Metadata[protocol.GoalMetadataCompletionCriteria] = append([]string(nil), criteria...)
-		transition.Phase = ObjectiveTransitionBound
-		current.Metadata[protocol.GoalMetadataObjectiveTransition] = objectiveTransitionMetadata(transition)
+		current.Metadata[protocol.GoalMetadataExecutionBindingState] =
+			string(protocol.GoalExecutionBindingStateConfirmed)
+		if len(criteria) == 0 {
+			delete(current.Metadata, protocol.GoalMetadataCompletionCriteria)
+		} else {
+			current.Metadata[protocol.GoalMetadataCompletionCriteria] = append([]string(nil), criteria...)
+		}
+		eventType := "execution_bound"
+		eventPayload := map[string]any{
+			"execution_id":  executionID,
+			"binding_state": string(protocol.GoalExecutionBindingStateConfirmed),
+		}
+		if ok {
+			transition.Phase = ObjectiveTransitionBound
+			current.Metadata[protocol.GoalMetadataObjectiveTransition] = objectiveTransitionMetadata(transition)
+			eventType = "execution_rebase_bound"
+			eventPayload["transition_id"] = transition.ID
+		}
 		current.Version++
 		current.UpdatedAt = s.nowFn()
 		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
@@ -396,10 +468,14 @@ func (s *Service) ConfirmObjectiveExecutionBinding(
 		if updateErr != nil {
 			return nil, updateErr
 		}
-		if eventErr := s.appendEvent(ctx, *updated, "execution_rebase_bound", protocol.GoalUpdateSourceSystem, "", map[string]any{
-			"transition_id": transition.ID,
-			"execution_id":  executionID,
-		}); eventErr != nil {
+		if eventErr := s.appendEvent(
+			ctx,
+			*updated,
+			eventType,
+			protocol.GoalUpdateSourceSystem,
+			"",
+			eventPayload,
+		); eventErr != nil {
 			return nil, eventErr
 		}
 		return updated, nil
@@ -491,6 +567,7 @@ func preserveServerOwnedGoalMetadata(
 	for _, key := range []string{
 		protocol.GoalMetadataOwnerUserID,
 		protocol.GoalMetadataExecutionID,
+		protocol.GoalMetadataExecutionBindingState,
 		protocol.GoalMetadataPromotionCommand,
 		protocol.GoalMetadataActivationOrigin,
 		protocol.GoalMetadataActivationReason,
@@ -519,6 +596,18 @@ func authorizeGoalOwner(item protocol.Goal, ownerUserID string) error {
 	)
 	if storedOwnerUserID != "" && storedOwnerUserID != ownerUserID {
 		return fmt.Errorf("%w: Goal belongs to another owner", ErrGoalForbidden)
+	}
+	return nil
+}
+
+func authorizeGoalReader(item protocol.Goal, ownerUserID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	storedOwnerUserID := protocol.GoalMetadataString(
+		item.Metadata,
+		protocol.GoalMetadataOwnerUserID,
+	)
+	if ownerUserID == "" || storedOwnerUserID == "" || storedOwnerUserID != ownerUserID {
+		return fmt.Errorf("%w: Goal owner provenance does not match", ErrGoalForbidden)
 	}
 	return nil
 }
