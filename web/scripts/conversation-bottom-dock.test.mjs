@@ -513,6 +513,47 @@ test("TodoWrite normalizes persisted task aliases and rejects malformed items", 
   ]);
 });
 
+test("a new conversation round hides the previous successful TodoWrite plan", async () => {
+  const { projectConversationTodos } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const sessionKey = "agent:lucy:ws:dm:slides";
+  const todos = projectConversationTodos([
+    {
+      agent_id: "lucy",
+      content: [{
+        id: "old-todo-write",
+        input: {
+          todos: [{
+            activeForm: "构建文档",
+            content: "构建 PDF 并验证",
+            status: "completed",
+          }],
+        },
+        name: "TodoWrite",
+        type: "tool_use",
+      }],
+      message_id: "old-assistant",
+      result_summary: { is_error: false },
+      role: "assistant",
+      round_id: "old-round",
+      session_key: sessionKey,
+      timestamp: 1,
+    },
+    {
+      agent_id: "lucy",
+      content: "用 PPT 试试",
+      message_id: "new-user",
+      role: "user",
+      round_id: "new-round",
+      session_key: sessionKey,
+      timestamp: 2,
+    },
+  ], sessionKey);
+
+  assert.deepEqual(todos, []);
+});
+
 test("Composer growth is capped and collapsed file tools show only the leaf name", async () => {
   const {
     COMPOSER_TEXTAREA_MAX_HEIGHT_PX,

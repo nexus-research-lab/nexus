@@ -14,6 +14,7 @@
 ## 不变量
 
 - 只处理与当前 session 等价的消息；旧 Todo/runtime 事件按轮次投影，新 Task List 按 session 持续投影。
+- 新的可见对话轮次开始后，上一轮 TodoWrite 计划必须立即退出任务条，不等待新轮次再次写计划。
 - Task List 只消费当前最新 runtime session，避免 Room 多 Agent 或 runtime 重建后串入旧任务文件。
 - Room 每个 Agent 独立选择自己的最新 runtime session；进程最近事件位置只用于默认来源选择，不得改变成员目录顺序。
 - WorkGraph 只能消费同时具备 Agent 与 Agent round 身份的 Task run；缺失关联键的本地任务继续留在 legacy 进程，不得猜挂到节点。

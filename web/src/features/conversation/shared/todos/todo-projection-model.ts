@@ -252,13 +252,12 @@ function buildTodoRoundProjection(
   const shouldHidePlan =
     round.plan.length === 0 ||
     round.latestSummary?.isError === true ||
-    (!round.latestSummary &&
-      hasLaterConversationRound(
-        messages,
-        sessionKey,
-        round.planMessageIndex,
-        roundId,
-      ));
+    hasLaterConversationRound(
+      messages,
+      sessionKey,
+      round.planMessageIndex,
+      roundId,
+    );
   return {
     completeRuntimeTasks: false,
     kind: shouldHidePlan ? "hidden" : "plan",
