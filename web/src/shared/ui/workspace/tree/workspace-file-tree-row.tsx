@@ -67,8 +67,6 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         className={presentation.rowClassName}
         onContextMenu={handleContextMenu}
       >
-        <WorkspaceTreeSelectionIndicator visible={presentation.isSelected} />
-
         <button
           className="flex min-w-0 flex-1 items-center gap-1.25 py-1.25 text-left"
           onClick={handleClick}
@@ -105,18 +103,6 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
     </div>
   );
 });
-
-function WorkspaceTreeSelectionIndicator({ visible }: { visible: boolean }) {
-  if (!visible) {
-    return null;
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="absolute left-1 top-2 bottom-2 w-px rounded-full bg-[color:color-mix(in_srgb,var(--primary)_72%,white_28%)]"
-    />
-  );
-}
 
 function WorkspaceTreeExpandIndicator({
   className,

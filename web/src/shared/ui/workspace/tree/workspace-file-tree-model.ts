@@ -214,7 +214,7 @@ export function getWorkspaceFileTreeRowPresentation({
 }): WorkspaceFileTreeRowPresentation {
   const isActive = entry.path === activePath;
   const isDirectoryTarget = entry.is_dir && entry.path === focusedDirectoryPath;
-  const isSelected = isActive || isDirectoryTarget;
+  const isSelected = !entry.is_dir && isActive;
   return {
     actionsVisible: isSelected,
     chevronClassName: cn(
@@ -230,10 +230,10 @@ export function getWorkspaceFileTreeRowPresentation({
     ),
     paddingLeft: 8 + depth * 12,
     rowClassName: cn(
-      "group relative flex min-w-full w-max items-center radius-control-md pr-2 text-left transition-colors hover:bg-(--surface-interactive-hover-background)",
+      "group relative flex min-w-full w-max items-center radius-control-md pr-2 text-left transition-colors",
       isSelected
-        ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
-        : "text-(--text-default)",
+        ? "bg-(--surface-sidebar-active-background) text-(--text-strong)"
+        : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     ),
     showChildren: entry.is_dir && isOpen,
   };
