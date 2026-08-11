@@ -1,6 +1,6 @@
-// INPUT: Nexus 版本内置的 nxs/Claude runtime Slash 指令清单。
-// OUTPUT: 按 runtime kind 选择的只读命令快照。
-// POS: 固定 runtime 指令的唯一真相源；不启动 runtime，也不绑定业务 session。
+// INPUT: Nexus 版本内置的 runtime 指令与产品提示型 Slash 指令。
+// OUTPUT: 按 runtime kind 选择的只读命令快照与运行时提示展开。
+// POS: 固定 Slash 指令的唯一真相源；不启动 runtime，也不绑定业务 session。
 package slashcommand
 
 import (
@@ -11,7 +11,10 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
-const catalogGeneration = 4
+const (
+	catalogGeneration    = 5
+	visualizeCommandName = "visualize"
+)
 
 // RuntimeCatalogSnapshot 是当前 Nexus 版本内置的单个 runtime 指令快照。
 type RuntimeCatalogSnapshot struct {
@@ -106,6 +109,27 @@ func newRuntimeCommand(
 		Execution:    protocol.CommandExecutionRuntime,
 		Enabled:      true,
 	}
+}
+
+// VisualizeCommandDescriptor 返回产品内置的 Generative UI 入口。
+func VisualizeCommandDescriptor() protocol.CommandDescriptor {
+	return newRuntimeCommand(
+		visualizeCommandName,
+		"Create an interactive visual with Generative UI",
+		"<request>",
+	)
+}
+
+// ExpandVisualizePrompt 仅在投递 runtime 时把 /visualize 展开为简短提示。
+func ExpandVisualizePrompt(content string) string {
+	name, arguments, ok := parseInvocation(content)
+	if !ok || name != visualizeCommandName {
+		return content
+	}
+	if arguments == "" {
+		return "Use Generative UI to create a relevant interactive visual from the current conversation."
+	}
+	return "Use Generative UI to create an interactive visual for the following request:\n\n" + arguments
 }
 
 func normalizeRuntimeKind(kind agentclient.RuntimeKind) agentclient.RuntimeKind {

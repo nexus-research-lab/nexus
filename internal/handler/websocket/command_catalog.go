@@ -166,6 +166,9 @@ func projectCommandCatalog(
 	hostCommands []protocol.CommandDescriptor,
 ) protocol.CommandCatalogData {
 	commands := projectHostCommands(hostCommands)
+	if command, ok := projectRuntimeCommand(slashcommandsvc.VisualizeCommandDescriptor()); ok {
+		commands = append(commands, command)
+	}
 	if snapshot.Status == protocol.CommandCatalogStatusReady {
 		for _, command := range snapshot.Commands {
 			if descriptor, ok := projectRuntimeCommand(command); ok {

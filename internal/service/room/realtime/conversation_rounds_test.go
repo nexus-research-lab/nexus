@@ -1,10 +1,48 @@
 package realtime
 
 import (
+	"context"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestRoomChatExecutionBuildRoundUsesRuntimeTriggerText(t *testing.T) {
+	const runtimePrompt = "Use Generative UI to create an interactive visual"
+	execution := roomChatExecution{
+		ctx: context.Background(),
+		request: ChatRequest{
+			Content:       "/visualize quarterly revenue",
+			RoundID:       "round-visualize",
+			UserMessageID: "message-visualize",
+		},
+		runtimeTriggerText: runtimePrompt,
+		contextValue: &protocol.ConversationContextAggregate{
+			Room: protocol.RoomRecord{RoomType: protocol.RoomTypeGroup},
+			Sessions: []protocol.SessionRecord{{
+				ID:      "session-visualize",
+				AgentID: "agent-visualize",
+			}},
+		},
+		agentByID: map[string]*protocol.Agent{
+			"agent-visualize": {
+				AgentID:       "agent-visualize",
+				WorkspacePath: "agent-visualize",
+			},
+		},
+		targetAgentIDs: []string{"agent-visualize"},
+		userMessage:    protocol.Message{"timestamp": int64(1)},
+	}
+
+	roundValue, _ := execution.buildRound()
+	for _, slot := range roundValue.Slots {
+		if slot.Trigger.Content != runtimePrompt {
+			t.Fatalf("Room trigger = %q, want runtime-only prompt", slot.Trigger.Content)
+		}
+		return
+	}
+	t.Fatal("Room round has no slot")
+}
 
 func TestGetActiveRoundSnapshotKeepsPerSlotRootAcrossConcurrentRounds(
 	t *testing.T,

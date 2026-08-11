@@ -8,6 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -25,7 +26,7 @@ func (s *Service) renderRuntimeContentWithAttachments(
 ) (conversationsvc.RuntimeContent, error) {
 	return conversationsvc.RenderRuntimeContentWithAttachments(
 		ctx,
-		content,
+		slashcommandsvc.ExpandVisualizePrompt(content),
 		attachments,
 		s.resolveRuntimeAttachmentPath,
 	)

@@ -29,3 +29,22 @@ func TestCatalogRejectsUnknownRuntimeKind(t *testing.T) {
 		t.Fatalf("unknown snapshot = %#v, want unavailable", snapshot)
 	}
 }
+
+func TestVisualizeCommandExpandsOnlyRuntimePrompt(t *testing.T) {
+	descriptor := VisualizeCommandDescriptor()
+	if descriptor.Name != "visualize" ||
+		descriptor.ArgumentHint != "<request>" ||
+		descriptor.Execution != protocol.CommandExecutionRuntime ||
+		!descriptor.Enabled {
+		t.Fatalf("visualize descriptor = %#v", descriptor)
+	}
+
+	const raw = "/visualize quarterly revenue"
+	want := "Use Generative UI to create an interactive visual for the following request:\n\nquarterly revenue"
+	if got := ExpandVisualizePrompt(raw); got != want {
+		t.Fatalf("ExpandVisualizePrompt(%q) = %q, want %q", raw, got, want)
+	}
+	if got := ExpandVisualizePrompt("/model nxs/default"); got != "/model nxs/default" {
+		t.Fatalf("unrelated command changed to %q", got)
+	}
+}

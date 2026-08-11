@@ -41,7 +41,7 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 		data.RuntimeKind != "nxs" ||
 		data.AgentID != "agent-a" ||
 		!strings.HasPrefix(data.Revision, "commands-") ||
-		len(data.Commands) != 3 {
+		len(data.Commands) != 4 {
 		t.Fatalf("catalog = %#v, want scoped ready snapshot", data)
 	}
 	compact := data.Commands[0]
@@ -64,6 +64,12 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 		!review.Enabled {
 		t.Fatalf("review = %#v, want enabled runtime prompt", review)
 	}
+	visualize := data.Commands[3]
+	if visualize.Name != "visualize" ||
+		visualize.Execution != protocol.CommandExecutionRuntime ||
+		!visualize.Enabled {
+		t.Fatalf("visualize = %#v, want product runtime prompt", visualize)
+	}
 }
 
 func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T) {
@@ -81,9 +87,10 @@ func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T
 
 	if data.Status != protocol.CommandCatalogStatusUnavailable ||
 		!strings.HasPrefix(data.Revision, "commands-") ||
-		len(data.Commands) != 1 ||
-		data.Commands[0].Name != "goal" {
-		t.Fatalf("catalog = %#v, want host-only unavailable snapshot", data)
+		len(data.Commands) != 2 ||
+		data.Commands[0].Name != "goal" ||
+		data.Commands[1].Name != "visualize" {
+		t.Fatalf("catalog = %#v, want host and product prompts without runtime catalog", data)
 	}
 }
 
@@ -102,7 +109,7 @@ func TestProjectCommandCatalogKeepsModelOwnedByNexusHost(t *testing.T) {
 		Enabled:     true,
 	}})
 
-	if len(data.Commands) != 1 ||
+	if len(data.Commands) != 2 ||
 		data.Commands[0].Execution != protocol.CommandExecutionHost ||
 		data.Commands[0].Description != "Nexus model" {
 		t.Fatalf("catalog = %#v, want Nexus host command to reserve /model", data)

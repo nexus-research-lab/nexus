@@ -19,8 +19,8 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 | nxs / Claude Code | 解析收到的 `/name args` 普通用户文本；解析并展开各自的 Skill Slash | 维护 Nexus Composer 目录；识别或执行 Nexus host 指令 |
 | `nexus-agent-sdk-bridge` | 统一普通文本发送和单轮隐藏上下文清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
-| Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单；注册、校验、按 DM/Room 作用域匹配和执行 host 指令 | 读取 runtime 私有 metadata；绑定 session |
-| WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/runtime 描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
+| Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单和产品提示型指令；注册、校验、按 DM/Room 作用域匹配和执行 host 指令 | 读取 runtime 私有 metadata；绑定 session |
+| WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime 描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
 | Web Composer | 只消费当前 session 的完整快照，选择后发送原始 Slash 文本 | 启动 runtime、查询目录、判断命令归属 |
 
 Host 命令先进入合并结果，因此与 runtime 同名时 Nexus host 命令保留该名称，
@@ -32,11 +32,13 @@ canonical 名称。
 - nxs runtime：`compact`、`skills`
 - Claude Code runtime：`compact`、`skills`
 - Nexus host：`model`
+- Nexus 产品提示：`visualize`
 
-两个 runtime 在 Composer 中最终都展示 `compact`、`model` 与 `skills` 三个核心
-入口，但三者的执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
+两个 runtime 在 Composer 中最终都展示 `compact`、`model`、`skills` 与 `visualize`
+四个核心入口，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
 校验并持久化 Agent 的 Provider/模型选择，`skills` 由 Composer 打开完整 Skill
-选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime。
+选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime；
+`visualize` 由 Nexus 在投递 runtime 时展开为简短的 Generative UI 提示。
 nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公开 Slash 指令；
 需要立即释放上下文时统一使用 `/compact [instructions]`。
 
@@ -62,8 +64,9 @@ runtime 的错误或透传语义。
 
 `cold` 只作为前端切换 session 后等待后端快照的本地哨兵；已知 runtime 的绑定
 事件直接为 `ready`。`unavailable` 只表示当前 Nexus 版本没有对应 runtime 清单。
-后端不再产生 `starting`，因为目录没有同步阶段。Room 当前只公开 host 作用域，
-runtime 命令暂不投影，因此不应通过 Room 目录事件启动或绑定 Room runtime。
+后端不再产生 `starting`，因为目录没有同步阶段。Room 当前公开 host 作用域和产品
+提示型指令，普通 runtime 命令暂不投影，因此不应通过 Room 目录事件启动或绑定
+Room runtime。
 
 ## 执行
 
@@ -79,6 +82,8 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
 - `/skills` 选择器选中具体 Skill 后仍发送原始 `/skill-name args`；bridge 把它当
   普通 user message，nxs 或 Claude Code 在 runtime 内解析并读取自身可访问的
   `SKILL.md`；
+- `/visualize [request]` 在 Composer 和用户时间线中保留原始 Slash 文本，仅在
+  DM/Room 的 runtime 投递边界展开为一段简短的 Generative UI 提示；
 - inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为
   tool result、普通用户正文或 Nexus next-turn context；`context: fork` 由 runtime
   自己执行并只回写本地结果。

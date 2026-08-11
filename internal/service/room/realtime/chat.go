@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"maps"
 	"slices"
@@ -189,8 +190,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	}
 	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments)
-	if err != nil {
+	if _, err = s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments); err != nil {
 		return nil, err
 	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
@@ -282,7 +282,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		conversationID:     conversationID,
 		contextValue:       contextValue,
 		attachments:        attachments,
-		runtimeTriggerText: runtimeContent.PlainText(),
+		runtimeTriggerText: slashcommandsvc.ExpandVisualizePrompt(request.Content),
 		agentNameByID:      agentNameByID,
 		agentByID:          agentByID,
 		targetAgentIDs:     targetAgentIDs,
@@ -642,7 +642,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 
 	initialTrigger := roomTrigger{
 		TriggerType: initialRoomTriggerType(e.request, e.targetResolution),
-		Content:     strings.TrimSpace(e.request.Content),
+		Content:     strings.TrimSpace(e.runtimeTriggerText),
 		MessageID:   e.request.UserMessageID,
 	}
 	activeRound := &activeRoomRound{

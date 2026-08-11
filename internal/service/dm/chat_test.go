@@ -229,7 +229,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
-func TestDMPrepareRuntimeKeepsSlashCommandPayloadClean(t *testing.T) {
+func TestDMPrepareRuntimeHandlesSlashCommandPayloads(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -258,6 +258,29 @@ func TestDMPrepareRuntimeKeepsSlashCommandPayloadClean(t *testing.T) {
 	}
 	if !preparation.atomicInput {
 		t.Fatal("Slash runtime payload must be marked atomic")
+	}
+
+	const rawVisualize = "/visualize quarterly revenue"
+	visualizeExecution, err := service.prepareChatExecution(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    rawVisualize,
+	})
+	if err != nil {
+		t.Fatalf("prepareChatExecution(/visualize) error = %v", err)
+	}
+	visualizePreparation, err := visualizeExecution.prepareRuntime()
+	if err != nil {
+		t.Fatalf("prepareRuntime(/visualize) error = %v", err)
+	}
+	wantVisualize := "Use Generative UI to create an interactive visual for the following request:\n\nquarterly revenue"
+	if got := visualizePreparation.content.PlainText(); got != wantVisualize {
+		t.Fatalf("/visualize runtime payload = %q, want %q", got, wantVisualize)
+	}
+	if visualizeExecution.request.Content != rawVisualize {
+		t.Fatalf("display payload = %q, want raw Slash input", visualizeExecution.request.Content)
+	}
+	if !visualizePreparation.atomicInput {
+		t.Fatal("/visualize runtime payload must be marked atomic")
 	}
 }
 
