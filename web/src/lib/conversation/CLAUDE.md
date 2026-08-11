@@ -10,6 +10,7 @@
 - `configuration-secret-permission.ts` 将敏感配置草稿绑定到精确权限 request，并只选择服务端声明且完整填写的槽位。
 - `message-protocol.ts` 在事件边界通过统一身份字段集合解码消息实体与流式载荷，并补齐信封提供的 Session 身份；消息恢复边界只接受 `durable`、`ephemeral` 与 `transient` 三种值。
 - `live-stream-reveal.ts` 用本地 Symbol 连接实时 reducer 与 Markdown 首帧；标记不得进入持久协议，历史与恢复快照不得获得重播身份。
+- `generative-ui.ts` 统一识别内建 `show_widget` 在各 runtime 中的包装名，供消息投影与虚拟列表估高共用。
 - 仅由单一 Feature 消费的展示能力规则必须归还所属 Feature，不得以通用 helper 名义放入基础协议。
 - 基础协议可以依赖 `types/` 和浏览器事件，不得依赖 `features/`、Store 或 React 视图。
 - `types/` 只声明协议，不得反向调用本目录的解析函数。

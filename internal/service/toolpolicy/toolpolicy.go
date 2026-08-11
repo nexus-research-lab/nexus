@@ -83,6 +83,27 @@ var managedExecutionAllowedTools = []string{
 	"promote_execution_to_goal",
 }
 
+var managedVisualizeAllowedTools = []string{
+	"nexus_visualize",
+	"mcp__nexus_visualize__visualize_read_me",
+	"mcp__nexus_visualize__show_widget",
+	"visualize_read_me",
+	"show_widget",
+}
+
+var managedVisualizeToolNames = map[string]struct{}{
+	"visualize_read_me": {},
+	"show_widget":       {},
+	"mcp__nexus_visualize__visualize_read_me": {},
+	"mcp__nexus_visualize__show_widget":       {},
+	"nexus_visualize__visualize_read_me":      {},
+	"nexus_visualize__show_widget":            {},
+	"nexus_visualize.visualize_read_me":       {},
+	"nexus_visualize.show_widget":             {},
+	"nexus_visualize/visualize_read_me":       {},
+	"nexus_visualize/show_widget":             {},
+}
+
 var managedImagegenAllowedTools = []string{
 	"nexus_imagegen",
 	"mcp__nexus_imagegen__generate_image",
@@ -168,6 +189,7 @@ var managedToolFamilyPrefixes = map[string][]string{
 	"nexus_execution":  {"mcp__nexus_execution__", "nexus_execution__", "nexus_execution."},
 	"nexus_goal":       {"mcp__nexus_goal__", "nexus_goal__", "nexus_goal."},
 	"nexus_room":       {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
+	"nexus_visualize":  {"mcp__nexus_visualize__", "nexus_visualize__", "nexus_visualize."},
 	"nexus_imagegen":   {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
 }
 
@@ -252,6 +274,12 @@ func IsManagedExecutionTool(toolName string) bool {
 	return false
 }
 
+// IsManagedVisualizeTool 判断请求是否命中 Nexus 托管的生成式 UI 工具。
+func IsManagedVisualizeTool(toolName string) bool {
+	_, ok := managedVisualizeToolNames[strings.TrimSpace(toolName)]
+	return ok
+}
+
 // WithManagedGoalAutoApproval 让隐藏续跑和模型自启动 Goal 时不被内置 Goal 工具确认卡住。
 func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
 	if handler == nil {
@@ -265,15 +293,15 @@ func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Ha
 	}
 }
 
-// WithManagedRuntimeAutoApproval 放行后端仍会按 WorkBinding、actor role 与
-// allowed_actions 二次授权的 Nexus 语义工具，避免内部状态机被通用权限卡中断。
+// WithManagedRuntimeAutoApproval 放行 Nexus 托管语义工具与只在沙箱前端生效的
+// 生成式 UI 工具，避免内部能力被通用权限卡中断。
 func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
 	handler = WithManagedGoalAutoApproval(handler)
 	if handler == nil {
 		return nil
 	}
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if IsManagedExecutionTool(request.ToolName) {
+		if IsManagedExecutionTool(request.ToolName) || IsManagedVisualizeTool(request.ToolName) {
 			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
 		}
 		return handler(ctx, request)
@@ -387,6 +415,7 @@ func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool)
 	}
 	result = WithManagedExecutionAllowedTools(result)
 	result = appendDistinctTools(result, managedMainThreadAllowedTools...)
+	result = appendDistinctTools(result, managedVisualizeAllowedTools...)
 	if !imagegenDefaultEnabled {
 		return withoutManagedImagegenAllowedTools(result)
 	}

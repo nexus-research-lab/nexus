@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from "react";
 
+import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -15,8 +16,10 @@ import type {
   ToolUseContent,
 } from "@/types/conversation/message/content";
 
+import { GenerativeUIBlock } from "../../../blocks/tool/generative-ui-block";
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
+import { isRejectedToolResult } from "../../../tool-result-semantic-model";
 import type { PendingInteractionOwner } from "../../message-item-projection";
 import type { UnresolvedToolStatus } from "./content-renderer-contract";
 import {
@@ -59,6 +62,16 @@ export function ContentToolBlock({
     context.pendingPermission,
     context.projection,
   );
+  const failed = state.result?.is_error
+    || (state.result ? isRejectedToolResult(state.result) : false);
+  if (isGenerativeUIWidgetToolName(block.name) && !failed) {
+    return (
+      <GenerativeUIBlock
+        complete={Boolean(state.result)}
+        toolUse={block}
+      />
+    );
+  }
   return renderStandardToolBlock(block, context, state);
 }
 

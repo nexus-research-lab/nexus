@@ -5,7 +5,7 @@ L3 | 父级: `web/src/hooks/CLAUDE.md`
 ## 成员清单
 
 - `use-assistant-content-merge.ts`: 合并并去重一轮内多条 Assistant 消息的内容块，维护流式输出索引
-- `use-message-height.ts`: 将消息一次投影为可见文本和工具块指标，批量估算虚拟列表轮次高度
+- `use-message-height.ts`: 将消息一次投影为可见文本和工具块指标，批量估算虚拟列表轮次高度；生成式 UI 使用独立固定基线
 - `use-session-loader.ts`: 加载 Session 消息并管理请求生命周期
 - `use-session-round-index.ts`: 从 Session 消息投影轮次索引
 

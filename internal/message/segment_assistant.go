@@ -19,8 +19,8 @@ type AssistantSegment struct {
 	usage      map[string]any
 	timestamp  int64
 	streamSlot map[int]int
-	// toolInputJSON 按逻辑块保存流式 input_json_delta，避免把半截 JSON
-	// 混进对外 content_block；解析成功后才更新 tool_use.input。
+	// toolInputJSON 按逻辑块保存流式 input_json_delta；普通工具只在完整
+	// JSON 可解析后更新 input，show_widget 额外投影已到达的字符串字段。
 	toolInputJSON map[int]string
 }
 
@@ -112,17 +112,109 @@ func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, boo
 		}
 		partial := s.toolInputJSON[logicalIndex] + rawString(delta["partial_json"])
 		s.toolInputJSON[logicalIndex] = partial
-		input := map[string]any{}
-		if strings.TrimSpace(partial) != "" && json.Unmarshal([]byte(partial), &input) == nil {
-			block["input"] = input
-		} else if block["input"] == nil {
-			block["input"] = map[string]any{}
-		}
+		applyToolInputProjection(block, partial)
 	default:
 		return logicalIndex, false
 	}
 	s.content[logicalIndex] = block
 	return logicalIndex, true
+}
+
+func applyToolInputProjection(block map[string]any, partial string) {
+	input := map[string]any{}
+	if strings.TrimSpace(partial) != "" && json.Unmarshal([]byte(partial), &input) == nil {
+		block["input"] = input
+		return
+	}
+	if isVisualizeShowWidgetTool(normalizeString(block["name"])) {
+		for _, field := range []string{"title", "widget_code"} {
+			if value, ok := decodePartialJSONStringField(partial, field); ok {
+				input[field] = value
+			}
+		}
+	}
+	if len(input) > 0 {
+		block["input"] = input
+	} else if block["input"] == nil {
+		block["input"] = map[string]any{}
+	}
+}
+
+func isVisualizeShowWidgetTool(name string) bool {
+	switch strings.TrimSpace(name) {
+	case "show_widget",
+		"mcp__nexus_visualize__show_widget",
+		"nexus_visualize__show_widget",
+		"nexus_visualize.show_widget",
+		"nexus_visualize/show_widget":
+		return true
+	default:
+		return false
+	}
+}
+
+func decodePartialJSONStringField(raw string, field string) (string, bool) {
+	marker, _ := json.Marshal(field)
+	searchStart := 0
+	for searchStart < len(raw) {
+		index := strings.Index(raw[searchStart:], string(marker))
+		if index < 0 {
+			return "", false
+		}
+		index += searchStart
+		cursor := skipJSONSpace(raw, index+len(marker))
+		if cursor < len(raw) && raw[cursor] == ':' {
+			cursor = skipJSONSpace(raw, cursor+1)
+			if cursor < len(raw) && raw[cursor] == '"' {
+				return decodeJSONStringPrefix(raw, cursor)
+			}
+		}
+		searchStart = index + len(marker)
+	}
+	return "", false
+}
+
+func jsonStringEnd(raw string, start int) (int, bool) {
+	for index := start + 1; index < len(raw); index++ {
+		switch raw[index] {
+		case '\\':
+			index++
+		case '"':
+			return index + 1, true
+		}
+	}
+	return len(raw), false
+}
+
+func skipJSONSpace(raw string, start int) int {
+	for start < len(raw) {
+		switch raw[start] {
+		case ' ', '\n', '\r', '\t':
+			start++
+		default:
+			return start
+		}
+	}
+	return start
+}
+
+func decodeJSONStringPrefix(raw string, start int) (string, bool) {
+	if end, complete := jsonStringEnd(raw, start); complete {
+		var value string
+		if json.Unmarshal([]byte(raw[start:end]), &value) == nil {
+			return value, true
+		}
+		return "", false
+	}
+	// JSON escape 最长为 \uXXXX；最多回退 6 bytes 就能丢弃未完成转义。
+	for trim := 0; trim <= 6 && len(raw)-trim > start; trim++ {
+		var value string
+		candidate := raw[start:len(raw)-trim] + `"`
+		if json.Unmarshal([]byte(candidate), &value) == nil {
+			return value, true
+		}
+	}
+	return "", false
 }
 
 // UpdateMeta 更新消息级元信息。

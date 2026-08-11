@@ -109,6 +109,22 @@ func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
 	}
 }
 
+func TestManagedVisualizeToolOnlyMatchesBuiltInServer(t *testing.T) {
+	for _, toolName := range []string{
+		"visualize_read_me",
+		"show_widget",
+		"mcp__nexus_visualize__show_widget",
+		"nexus_visualize.visualize_read_me",
+	} {
+		if !IsManagedVisualizeTool(toolName) {
+			t.Fatalf("expected managed visualize tool to match %q", toolName)
+		}
+	}
+	if IsManagedVisualizeTool("mcp__external__show_widget") {
+		t.Fatal("external show_widget must not inherit managed auto-approval")
+	}
+}
+
 func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 	fallbackCalled := false
 	handler := WithManagedGoalAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -139,7 +155,7 @@ func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 	}
 }
 
-func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
+func TestManagedRuntimeAutoApprovalIncludesExecutionAndVisualize(t *testing.T) {
 	fallbackCalled := false
 	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		fallbackCalled = true
@@ -158,6 +174,14 @@ func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
 	}
 	if decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
 		t.Fatalf("Execution 权限应由托管策略放行: %+v fallback=%v", decision, fallbackCalled)
+	}
+
+	decision, err = handler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_visualize__show_widget",
+		Input:    map[string]any{"title": "图解"},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
+		t.Fatalf("生成式 UI 权限应由托管策略放行: %+v err=%v fallback=%v", decision, err, fallbackCalled)
 	}
 }
 
@@ -266,6 +290,8 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		"mcp__nexus_goal__get_goal",
 		"mcp__nexus_execution__prepare_plan_execution",
 		"mcp__nexus_execution__plan_execution",
+		"mcp__nexus_visualize__visualize_read_me",
+		"mcp__nexus_visualize__show_widget",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
 	} {

@@ -1,4 +1,6 @@
 import { prepare, layout } from "@chenglou/pretext";
+
+import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import type { ContentBlock } from "@/types/conversation/message/content";
 import type { Message } from "@/types/conversation/message/entity";
@@ -66,8 +68,8 @@ const CONTENT_BLOCK_METRIC_COLLECTORS = {
   },
   thinking: ignoreHeightMetrics,
   tool_result: ignoreHeightMetrics,
-  tool_use: (_block, metrics) => {
-    metrics.toolBlockCount += 1;
+  tool_use: (block, metrics) => {
+    metrics.toolBlockCount += isGenerativeUIWidgetToolName(block.name) ? 6 : 1;
   },
   tool_use_error: ignoreHeightMetrics,
   unsupported: ignoreHeightMetrics,

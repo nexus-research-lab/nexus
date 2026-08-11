@@ -300,7 +300,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		panic(err)
 	}
 
-	// 把内置配置、资源管理、自动化、授权、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	// 把内置配置、资源管理、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
 	nexusManagerService := nexusmanagersvc.NewService(core.Agent, core.Room, core.Session, workspaceService, runtimeManager)
 	nexusManagerBuilder := newNexusManagerMCPBuilder(nexusManagerService, core.Agent)
@@ -309,6 +309,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
 	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
+	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	executionBuilder := newExecutionMCPBuilder(orchestrationService)
@@ -320,6 +321,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		connectorAuthorizationBuilder,
 		channelAuthorizationBuilder,
 		goalBuilder,
+		contextOnlyMCPBuilder(visualizeBuilder),
 		contextOnlyMCPBuilder(imagegenBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)

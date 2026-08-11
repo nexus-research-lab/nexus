@@ -4,6 +4,7 @@
 - `use-tool-block-controller.ts` 管理展开、复制和权限选择；主组件只编排头部、进度、结果与权限详情。
 - `header/` 由纯投影统一解释可点击性、详情回退和动作能力，具体视图只渲染窄状态。
 - `subagent-task-tool-entry.tsx` 只把 Agent/Task 启动投影成固定宽度的单行任务入口：头部用精确 `tool_use_id` 生成子智能体曲线头像，中间任务名必须截断，尾部只保留执行状态；点击把同一工具身份和调用者交给上游子智能体面板。不得重复通用工具卡的 Agent 标题、状态徽标、live tool 文案或蓝色进度面。待权限确认时继续复用完整 ToolBlock，不能绕开 Composer 的唯一决策面。
+- `generative-ui-block.tsx` 与 `generative-ui-document.ts` 把内建 `show_widget` 投影为对话内 iframe；流式阶段只更新无脚本 DOM，真实脚本仅在工具结果成功后随最终文档执行。iframe 只允许脚本且不得获得宿主同源权限，网络与 CDN 资源保持开放。
 - 权限字段标签由模型一次投影，头部色彩和详情滚动布局由具体视图持有，视图不得读取模型内部目录。Composer 持有操作时，DM/Room 正文里的待确认工具只使用中性静态证据样式，不得以 warning 色或脉冲争夺确认按钮的视觉焦点。
 - 文件工具在折叠态只展示路径末级文件名，展开态与 Composer 权限确认保留完整路径，紧凑阅读不能牺牲授权判断所需上下文。
 - 工具输入按 `unknown` 收窄，不把协议边界的动态值扩散为 `any`。

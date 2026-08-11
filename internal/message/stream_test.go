@@ -189,6 +189,64 @@ func TestProcessorStreamsToolUseAndPreservesParentToolUseID(t *testing.T) {
 	}
 }
 
+func TestProcessorStreamsVisualizeWidgetCodeBeforeInputJSONCompletes(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-widget-stream"}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":    "message_start",
+			"message": map[string]any{"id": "assistant-widget-stream"},
+		}},
+	})
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_start",
+			"index": 0,
+			"content_block": map[string]any{
+				"type":  "tool_use",
+				"id":    "widget-1",
+				"name":  "mcp__nexus_visualize__show_widget",
+				"input": map[string]any{},
+			},
+		}},
+	})
+
+	partial := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_delta",
+			"index": 0,
+			"delta": map[string]any{
+				"type":         "input_json_delta",
+				"partial_json": `{"i_have_seen_read_me":true,"title":"增长曲线","widget_code":"<div class=\"chart\">\u4e`,
+			},
+		}},
+	})
+	block, _ := partial.StreamEvents[0].Data["content_block"].(map[string]any)
+	input, _ := block["input"].(map[string]any)
+	if input["title"] != "增长曲线" || input["widget_code"] != `<div class="chart">` {
+		t.Fatalf("partial widget input = %+v", input)
+	}
+
+	complete := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_delta",
+			"index": 0,
+			"delta": map[string]any{
+				"type":         "input_json_delta",
+				"partial_json": `2d</div>"}`,
+			},
+		}},
+	})
+	block, _ = complete.StreamEvents[0].Data["content_block"].(map[string]any)
+	input, _ = block["input"].(map[string]any)
+	if input["i_have_seen_read_me"] != true || input["widget_code"] != `<div class="chart">中</div>` {
+		t.Fatalf("complete widget input = %+v", input)
+	}
+}
+
 func TestProcessorPreservesStreamParentOnFinalAssistantSnapshot(t *testing.T) {
 	parentToolUseID := "agent-call-parent"
 	processor := NewProcessor(MessageContext{
