@@ -2,9 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const HTML_PREVIEW_WIDTH = 1920;
-const HTML_PREVIEW_HEIGHT = 1080;
-const HTML_PREVIEW_PADDING = 32;
 const HTML_PREVIEW_COMMIT_INTERVAL_MS = 250;
 
 const HTML_PREVIEW_STORAGE_SHIM = `<script>
@@ -159,43 +156,8 @@ export function HtmlFilePreview({
   isStreaming?: boolean;
   title: string;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
   const { has_committedContent, is_waiting_for_head: isWaitingForHead, preview_document: previewDocument } =
     useHtmlPreviewDocument(content, isStreaming);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) {
-      return;
-    }
-
-    const updateScale = (width: number, height: number) => {
-      const availableWidth = Math.max(width - HTML_PREVIEW_PADDING, 1);
-      const availableHeight = Math.max(height - HTML_PREVIEW_PADDING, 1);
-      setScale(
-        Math.min(
-          availableWidth / HTML_PREVIEW_WIDTH,
-          availableHeight / HTML_PREVIEW_HEIGHT,
-          1,
-        ),
-      );
-    };
-
-    const bounds = el.getBoundingClientRect();
-    updateScale(bounds.width, bounds.height);
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
-        return;
-      }
-      updateScale(entry.contentRect.width, entry.contentRect.height);
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   if (!has_committedContent && isWaitingForHead) {
     return (
@@ -208,33 +170,11 @@ export function HtmlFilePreview({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="soft-scrollbar flex h-full min-h-0 w-full items-start justify-center overflow-auto bg-(--surface-panel-subtle-background) p-4"
-    >
-      <div
-        className="shrink-0 overflow-hidden rounded-[10px] border border-(--surface-paper-border) bg-(--surface-paper-background) shadow-(--surface-paper-shadow)"
-        style={{
-          height: HTML_PREVIEW_HEIGHT * scale,
-          width: HTML_PREVIEW_WIDTH * scale,
-        }}
-      >
-        <div
-          style={{
-            height: HTML_PREVIEW_HEIGHT,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            width: HTML_PREVIEW_WIDTH,
-          }}
-        >
-          <iframe
-            className="h-full w-full bg-(--surface-paper-background)"
-            sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
-            srcDoc={previewDocument}
-            title={title}
-          />
-        </div>
-      </div>
-    </div>
+    <iframe
+      className="block h-full min-h-0 w-full border-0 bg-(--surface-paper-background)"
+      sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+      srcDoc={previewDocument}
+      title={title}
+    />
   );
 }
