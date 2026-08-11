@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored the startup cat animation as a lightweight local animated WebP without reintroducing the Lottie runtime or WASM loading path.
 - Sorted Agent directories with newly created Agents first while keeping the Nexus main Agent pinned.
 
 ### Fixed

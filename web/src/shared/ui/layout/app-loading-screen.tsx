@@ -18,14 +18,19 @@ export function AppLoadingState({
       className={cn("flex flex-col items-center gap-3 px-12 py-10 text-center", className)}
       role="status"
     >
-      <div
-        aria-hidden="true"
-        className={cn("relative grid place-items-center", animationClassName)}
-      >
-        <div className="absolute h-14 w-14 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]" />
-        <div className="absolute h-14 w-14 animate-spin rounded-full border-2 border-transparent border-t-primary motion-reduce:animate-none" />
-        <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_16px_color-mix(in_srgb,var(--primary)_48%,transparent)]" />
-      </div>
+      <picture className={cn("block", animationClassName)}>
+        <source
+          media="(prefers-reduced-motion: reduce)"
+          srcSet="/lotties/cat-loading-static.webp"
+          type="image/webp"
+        />
+        <img
+          alt=""
+          className="h-full w-full object-contain"
+          decoding="async"
+          src="/lotties/cat-loading.webp"
+        />
+      </picture>
       <p className="text-sm text-(--text-muted)">{message}</p>
     </div>
   );
