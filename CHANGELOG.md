@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Sorted Agent directories with newly created Agents first while keeping the Nexus main Agent pinned.
+
 ### Fixed
 
 - Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.

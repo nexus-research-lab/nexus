@@ -28,7 +28,7 @@ func NewSQLRepository(driver string, db *sql.DB) *SQLRepository {
 	}
 }
 
-// ListActiveAgents 返回所有活跃 Agent。
+// ListActiveAgents 返回主智能体优先、其余按新建优先排列的活跃 Agent。
 func (r *SQLRepository) ListActiveAgents(ctx context.Context, ownerUserID string) ([]protocol.Agent, error) {
 	query := r.agentSelect() + `
 WHERE a.status = 'active'`
@@ -37,8 +37,9 @@ WHERE a.status = 'active'`
 		query += ` AND a.owner_user_id = ` + r.dialect.Bind(1)
 		args = append(args, ownerUserID)
 	}
+	// ponytail: SQLite 创建时间精确到秒；同秒批量创建成为真实需求时再引入持久化序号。
 	query += `
-ORDER BY a.is_main DESC, a.created_at ASC`
+ORDER BY a.is_main DESC, a.created_at DESC`
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

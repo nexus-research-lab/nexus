@@ -123,6 +123,51 @@ func TestSQLRepositorySkillSelectionCompareAndSwap(t *testing.T) {
 	}
 }
 
+func TestSQLRepositoryListsMainAgentThenNewestAgents(t *testing.T) {
+	db := newAgentRepositoryTestDB(t)
+	repository := NewSQLRepository("sqlite", db)
+	ctx := context.Background()
+
+	main := testCreateRecord()
+	main.AgentID = "agent-main"
+	main.ProfileID = "profile-main"
+	main.RuntimeID = "runtime-main"
+	main.IsMain = true
+	older := testCreateRecord()
+	older.AgentID = "agent-older"
+	older.ProfileID = "profile-older"
+	older.RuntimeID = "runtime-older"
+	newer := testCreateRecord()
+	newer.AgentID = "agent-newer"
+	newer.ProfileID = "profile-newer"
+	newer.RuntimeID = "runtime-newer"
+	for _, record := range []CreateRecord{main, older, newer} {
+		if _, err := repository.CreateAgent(ctx, record); err != nil {
+			t.Fatalf("CreateAgent(%q) error = %v", record.AgentID, err)
+		}
+	}
+	if _, err := db.Exec(`
+UPDATE agents
+SET created_at = CASE id
+    WHEN 'agent-main' THEN '2026-08-09 00:00:00'
+    WHEN 'agent-older' THEN '2026-08-10 00:00:00'
+    WHEN 'agent-newer' THEN '2026-08-11 00:00:00'
+END`); err != nil {
+		t.Fatalf("set agent creation times: %v", err)
+	}
+
+	agents, err := repository.ListActiveAgents(ctx, older.OwnerUserID)
+	if err != nil {
+		t.Fatalf("ListActiveAgents() error = %v", err)
+	}
+	if len(agents) != 3 {
+		t.Fatalf("agent count = %d, want 3", len(agents))
+	}
+	if agents[0].AgentID != main.AgentID || agents[1].AgentID != newer.AgentID || agents[2].AgentID != older.AgentID {
+		t.Fatalf("agent order = %v, want [%s %s %s]", []string{agents[0].AgentID, agents[1].AgentID, agents[2].AgentID}, main.AgentID, newer.AgentID, older.AgentID)
+	}
+}
+
 func newAgentRepositoryTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
