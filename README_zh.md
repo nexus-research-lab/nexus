@@ -15,7 +15,7 @@
 ---
 
 <div align="center">
-<img src="./docs/image/nexus.gif" alt="Nexus 工作台" width="100%">
+<img src="docs/images/nexus.gif" alt="Nexus 工作台" width="100%">
 </div>
 
 ---
@@ -32,6 +32,19 @@ Nexus 是面向企业、科研团队及开发者的多智能体协作平台。�
 * 灵活扩展能力：Skill 插件扩展和 Connector 集成外部服务（GitHub、Gmail 等）
 
 Nexus 将智能体管理、任务协作和外部服务连接整合于一个统一平台，构建现代化的 AI 协同生态。
+
+---
+
+## 技术架构
+
+<div align="center">
+<img src="./docs/images/nexus-architecture-diagram.svg" alt="Nexus 总体技术架构" width="100%">
+</div>
+
+<p align="center">
+  <a href="./docs/nexus-architecture-blueprint.md">技术架构</a> ·
+  <a href="./docs/README.md">文档索引</a>
+</p>
 
 ---
 
@@ -53,17 +66,16 @@ Nexus 将智能体管理、任务协作和外部服务连接整合于一个统�
 
 ### 选择 Agent runtime 后端
 
-Nexus 支持两种 Agent runtime 后端：`nxs`（Nexus 原生）和 `claude`（Claude Code）。`nxs` 作为默认后端随 Nexus 提供，可通过 Anthropic Messages、OpenAI Chat Completions 或 OpenAI Responses 协议直连 LLM API。Nexus 主智能体保留宿主注入并锁定到当前 owner/workspace 的 `nexusctl` 控制面路径，runtime policy 会拒绝作用域覆盖；普通 Agent runtime 不获得原始 `nexusctl` 能力，只通过受作用域的内置 MCP 操作 Nexus。Responses Provider 仅可用于 `nxs`；Nexus 保留产品侧 Provider 身份，并向 runtime 投影 `NEXUS_API_PROVIDER=openai` 与 `NEXUS_OPENAI_PROTOCOL=responses`。完整映射与本地测试方式见 [OpenAI Responses runtime 集成](./docs/specs/openai-responses-runtime-spec.md)。
+Nexus 支持 `nxs` 与 `claude` 两种 Agent runtime。官方 Nexus 发布包默认携带
+闭源的 `nxs` runtime 可执行程序，其 Go 实现不属于本开源仓库；Product 只把它
+当作公开 Agent SDK Bridge 契约后的可替换子进程。
 
-Provider 模型测试既接受 API base URL，也接受已经包含 operation path 的完整 URL；解析请求路径时会保留 query 参数。Responses 探测请求显式使用 `store=false`，并至少使用 16 个输出 token，以兼容上游参数下限。Azure OpenAI 以 `/openai` 结尾的资源根和 Foundry project endpoint 会自动归一化为 `/openai/v1/responses`；旧的 `/deployments/...`、`/images/generations` 和 `/chat/completions` operation URL 不能作为 Responses Base URL，选择时会返回可操作的配置错误。
+`nxs` 支持 Anthropic Messages、OpenAI Chat Completions 与 OpenAI Responses。
+Responses Provider 仅适用于 `nxs`，公开集成边界见
+[OpenAI Responses runtime 集成](./docs/specs/openai-responses-runtime-spec.md)。
 
-`claude` 后端通过 Claude Code 运行 Agent。使用该后端时，需单独安装 Claude Code，将 Agent runtime 切换为 `claude`，并确保 `claude` 在后端机器的 `PATH` 中可用。
-
-平台 Skill 由 nxs 与 Claude 共用一份全局兼容源。Agent 只保存选中的 `skill_ids`；运行时分别通过 `.agents/skills` 和 `.claude/skills` 入口读取，同一平台 Skill 不会复制到每个 Agent 工作区。
-
-第三方导入 Skill 直接写入当前 owner 的 workspace 源：普通用户位于
-`~/.nexus/users/<owner>/workspace/.agents/skills`，系统 owner 位于
-`~/.nexus/users/__system__/workspace/.agents/skills`；Agent 只保存 `external:<skill_id>` 引用。
+`claude` 后端通过 Claude Code 运行 Agent。使用时需单独安装 Claude Code，选择
+`claude` runtime，并确保后端机器能够执行该命令。
 
 ```bash
 # macOS / Linux / WSL

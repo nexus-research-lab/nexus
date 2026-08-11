@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<!-- Adapted from diagram-design by Cathryn Lavery, MIT; source commit a157f7616473d966d6f433cf0b4d4f1880603504. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus 总体技术架构</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper: #f9f9f7;
+      --paper-2: #f3f3f0;
+      --ink: #131313;
+      --muted: #5f5e5a;
+      --soft: #6d6b67;
+      --rule-solid: #e5e5e2;
+      --accent: #5b72ff;
+      --link: #2d5da8;
+      --font-sans: "Geist", system-ui, sans-serif;
+      --font-serif: "Instrument Serif", serif;
+      --font-mono: "Geist Mono", ui-monospace, monospace;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 48px 32px 32px;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    .frame {
+      width: calc(100vw - 64px);
+      max-width: 1280px;
+      min-width: 0;
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 800px;
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 400;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .diagram-shell {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 32px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 960px;
+    }
+
+    .colophon {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--rule-solid);
+      color: var(--soft);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 32px 20px 24px; }
+      .frame { width: calc(100vw - 40px); }
+      h1 { font-size: 24px; line-height: 1.2; }
+      .subtitle { font-size: 12px; }
+      .colophon { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <header>
+      <p class="eyebrow">Nexus · System Architecture</p>
+      <h1>产品控制面与 Agent Runtime 的进程边界</h1>
+      <p class="subtitle">Product 持有身份、协作与调度，Runtime 持有模型调用、工具循环、会话压缩与文件记忆。Bridge 以公开协议隔离两侧实现，默认 nxs 以闭源可执行程序分发。</p>
+    </header>
+
+    <div class="diagram-shell">
+      <svg viewBox="0 0 1200 592" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="diagram-title diagram-description">
+        <title id="diagram-title">Nexus 总体技术架构</title>
+        <desc id="diagram-description">用户从 Web、桌面端或外部通道进入 Nexus Product。Product 持有业务数据库并通过 Agent SDK Bridge 控制独立 Runtime 子进程。默认 nxs Runtime 是闭源发行物，访问模型 Provider、Agent 工作区和会话记录，流式消息再经 Bridge 返回 Product。</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+          </marker>
+        </defs>
+
+        <rect width="1200" height="592" fill="#f9f9f7"/>
+
+        <!-- 区域先于连线和节点绘制。 -->
+        <rect x="224" y="104" width="448" height="376" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <rect x="244" y="108" width="104" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="296" y="120" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">PRODUCT PLANE</text>
+
+        <rect x="680" y="104" width="320" height="376" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <rect x="700" y="108" width="104" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="752" y="120" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">RUNTIME PLANE</text>
+
+        <!-- 连线先于节点绘制。 -->
+        <line x1="192" y1="248" x2="264" y2="248" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <path d="M 264 280 H 228 Q 220 280 220 288 V 408 Q 220 416 212 416 H 192" fill="none" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+        <line x1="424" y1="248" x2="488" y2="248" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <line x1="488" y1="288" x2="424" y2="288" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+        <line x1="632" y1="248" x2="720" y2="248" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="720" y1="288" x2="632" y2="288" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+        <line x1="344" y1="304" x2="344" y2="376" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="756" y1="304" x2="756" y2="376" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="916" y1="304" x2="916" y2="376" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="960" y1="248" x2="1032" y2="248" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+        <!-- 连线标签与线条保持至少 8px 可见间距。 -->
+        <rect x="204" y="228" width="48" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="228" y="236" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HTTP · WS</text>
+
+        <rect x="228" y="340" width="56" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="256" y="348" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CONNECT</text>
+
+        <rect x="428" y="228" width="56" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="456" y="236" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CONTROL</text>
+
+        <rect x="436" y="268" width="40" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="456" y="276" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">EVENTS</text>
+
+        <rect x="640" y="228" width="72" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="676" y="236" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">STREAM JSON</text>
+
+        <rect x="648" y="268" width="56" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="676" y="276" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">MESSAGES</text>
+
+        <rect x="352" y="332" width="32" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="368" y="340" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQL</text>
+
+        <rect x="972" y="228" width="48" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="996" y="236" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">MODEL API</text>
+
+        <!-- 用户入口 -->
+        <rect x="32" y="224" width="160" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="32" y="224" width="160" height="80" rx="8" fill="rgba(95,94,90,0.10)" stroke="#6d6b67" stroke-width="1"/>
+        <rect x="44" y="236" width="40" height="16" rx="4" fill="transparent" stroke="rgba(109,107,103,0.40)" stroke-width="0.8"/>
+        <text x="64" y="248" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">INPUT</text>
+        <text x="112" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">用户入口</text>
+        <text x="112" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">WEB · DESKTOP · IM</text>
+
+        <!-- 外部服务 -->
+        <rect x="32" y="376" width="160" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="32" y="376" width="160" height="80" rx="8" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+        <rect x="44" y="388" width="32" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.30)" stroke-width="0.8"/>
+        <text x="60" y="400" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">EXT</text>
+        <text x="112" y="420" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">外部服务</text>
+        <text x="112" y="440" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CONNECTORS · CHANNELS</text>
+
+        <!-- Nexus Product -->
+        <rect x="264" y="224" width="160" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="264" y="224" width="160" height="80" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+        <rect x="276" y="236" width="40" height="16" rx="4" fill="transparent" stroke="rgba(91,114,255,0.50)" stroke-width="0.8"/>
+        <text x="296" y="248" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HOST</text>
+        <text x="344" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Nexus Product</text>
+        <text x="344" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">GO · REACT · WEBSOCKET</text>
+
+        <!-- Bridge -->
+        <rect x="488" y="224" width="144" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="488" y="224" width="144" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <rect x="500" y="236" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+        <text x="520" y="248" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">WIRE</text>
+        <text x="560" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Agent SDK Bridge</text>
+        <text x="560" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CLIENT · CAPABILITY</text>
+
+        <!-- 产品数据库 -->
+        <rect x="280" y="376" width="128" height="72" rx="8" fill="#f9f9f7"/>
+        <rect x="280" y="376" width="128" height="72" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <rect x="292" y="388" width="32" height="16" rx="4" fill="transparent" stroke="rgba(95,94,90,0.50)" stroke-width="0.8"/>
+        <text x="308" y="400" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DB</text>
+        <text x="344" y="420" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">产品数据库</text>
+        <text x="344" y="436" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQLITE · POSTGRES</text>
+
+        <!-- Runtime -->
+        <rect x="720" y="224" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="720" y="224" width="240" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <rect x="732" y="236" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+        <text x="752" y="248" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PROC</text>
+        <text x="840" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Agent Runtime 子进程</text>
+        <text x="840" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">NXS CLOSED BINARY · CLAUDE CODE</text>
+
+        <!-- Agent 工作区 -->
+        <rect x="692" y="376" width="128" height="72" rx="8" fill="#f9f9f7"/>
+        <rect x="692" y="376" width="128" height="72" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <rect x="704" y="388" width="40" height="16" rx="4" fill="transparent" stroke="rgba(95,94,90,0.50)" stroke-width="0.8"/>
+        <text x="724" y="400" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">FILES</text>
+        <text x="756" y="420" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Agent 工作区</text>
+        <text x="756" y="436" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">MEMORY · OUTPUT</text>
+
+        <!-- Runtime 会话 -->
+        <rect x="852" y="376" width="128" height="72" rx="8" fill="#f9f9f7"/>
+        <rect x="852" y="376" width="128" height="72" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <rect x="864" y="388" width="32" height="16" rx="4" fill="transparent" stroke="rgba(95,94,90,0.50)" stroke-width="0.8"/>
+        <text x="880" y="400" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">LOG</text>
+        <text x="916" y="420" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Runtime 会话</text>
+        <text x="916" y="436" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">TRANSCRIPT · COMPACT</text>
+
+        <!-- 模型 Provider -->
+        <rect x="1032" y="224" width="144" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="1032" y="224" width="144" height="80" rx="8" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+        <rect x="1044" y="236" width="32" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.30)" stroke-width="0.8"/>
+        <text x="1060" y="248" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">API</text>
+        <text x="1104" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">模型 Provider</text>
+        <text x="1104" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ANTHROPIC · OPENAI</text>
+
+        <!-- 图例位于图面下方。 -->
+        <line x1="32" y1="512" x2="1168" y2="512" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <text x="32" y="532" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">LEGEND</text>
+
+        <rect x="32" y="548" width="16" height="12" rx="4" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1"/>
+        <text x="56" y="560" fill="#5f5e5a" font-size="12" font-family="'Geist', system-ui, sans-serif">产品焦点</text>
+
+        <rect x="224" y="548" width="16" height="12" rx="4" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="248" y="560" fill="#5f5e5a" font-size="12" font-family="'Geist', system-ui, sans-serif">进程与服务</text>
+
+        <rect x="416" y="548" width="16" height="12" rx="4" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <text x="440" y="560" fill="#5f5e5a" font-size="12" font-family="'Geist', system-ui, sans-serif">持久状态</text>
+
+        <rect x="592" y="548" width="16" height="12" rx="4" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+        <text x="616" y="560" fill="#5f5e5a" font-size="12" font-family="'Geist', system-ui, sans-serif">外部系统</text>
+
+        <line x1="784" y1="556" x2="820" y2="556" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <text x="832" y="560" fill="#5f5e5a" font-size="12" font-family="'Geist', system-ui, sans-serif">外部请求</text>
+
+        <line x1="992" y1="556" x2="1028" y2="556" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <text x="1040" y="560" fill="#5f5e5a" font-size="12" font-family="'Geist', system-ui, sans-serif">返回事件</text>
+      </svg>
+    </div>
+
+    <footer class="colophon">
+      <span>PRODUCT OWNS COLLABORATION</span>
+      <span>RUNTIME OWNS EXECUTION</span>
+    </footer>
+  </main>
+</body>
+</html>

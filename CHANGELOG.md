@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
+
 ### Changed
 
+- Reorganized the open-source documentation around current architecture, operations, and maintainer contracts; removed the drifting hand-maintained API catalog and clarified the closed-source runtime boundary.
 - Restored the startup cat animation as a lightweight local animated WebP without reintroducing the Lottie runtime or WASM loading path.
 - Sorted Agent directories with newly created Agents first while keeping the Nexus main Agent pinned.
 

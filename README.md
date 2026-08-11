@@ -15,7 +15,7 @@
 ---
 
 <div align="center">
-<img src="./docs/image/nexus.gif" alt="Nexus workspace" width="100%">
+<img src="docs/images/nexus.gif" alt="Nexus workspace" width="100%">
 </div>
 
 ---
@@ -35,6 +35,19 @@ Nexus brings agent management, task collaboration, and external service connecti
 
 ---
 
+## Architecture
+
+<div align="center">
+<img src="./docs/images/nexus-architecture-diagram.svg" alt="Nexus technical architecture" width="100%">
+</div>
+
+<p align="center">
+  <a href="./docs/nexus-architecture-blueprint.md">Architecture guide</a> ·
+  <a href="./docs/README.md">Documentation index</a>
+</p>
+
+---
+
 ## Features
 
 | **Category** | **Capabilities** | **Benefit** |
@@ -51,13 +64,19 @@ Nexus brings agent management, task collaboration, and external service connecti
 
 ### Choose an Agent runtime backend
 
-Nexus supports two Agent runtime backends: `nxs` (native Nexus) and `claude` (Claude Code). `nxs` is bundled as the default backend and talks to LLM APIs directly through Anthropic Messages, OpenAI Chat Completions, or OpenAI Responses. The Nexus main Agent retains a host-provided `nexusctl` control-plane path pinned to its current owner and workspace; runtime policy rejects scope overrides. Ordinary Agent runtimes receive no raw `nexusctl` capability and use scoped built-in MCP tools for Nexus operations. Responses Providers are available only to `nxs`; Nexus keeps the product Provider identity separate while projecting `NEXUS_API_PROVIDER=openai` and `NEXUS_OPENAI_PROTOCOL=responses` to the runtime. See [OpenAI Responses runtime integration](./docs/specs/openai-responses-runtime-spec.md) for the mapping and local test procedure.
+Nexus supports two Agent runtime backends: `nxs` and `claude`. Official Nexus
+releases bundle `nxs` as the default closed-source runtime executable; its Go
+implementation is not part of this repository. The product treats it as a
+replaceable subprocess behind the open-source Agent SDK Bridge contract.
 
-Provider model tests accept either an API base URL or an already-complete operation URL and preserve query parameters when resolving the request path. Responses probes use `store=false` and at least 16 output tokens for backend compatibility. Azure OpenAI resource roots ending in `/openai` and Foundry project endpoints are normalized to `/openai/v1/responses`; legacy `/deployments/...`, `/images/generations`, and `/chat/completions` operation URLs are rejected for Responses with an actionable configuration error.
+`nxs` supports Anthropic Messages, OpenAI Chat Completions, and OpenAI
+Responses. Responses Providers are available only to `nxs`; see the
+[OpenAI Responses runtime guide](./docs/specs/openai-responses-runtime-spec.md)
+for the public integration boundary.
 
-The `claude` backend runs agents through Claude Code. To use it, install Claude Code separately, switch the agent runtime to `claude`, and make sure `claude` is available in the backend machine's `PATH`.
-
-Platform Skills use one global compatibility root shared by both backends. Agent records persist selected `skill_ids`; nxs and Claude Code receive the same platform Skill source through their respective discovery adapters.
+The `claude` backend runs agents through Claude Code. Install Claude Code
+separately, select the `claude` runtime, and make sure the executable is
+available on the backend machine.
 
 ```bash
 # macOS / Linux / WSL

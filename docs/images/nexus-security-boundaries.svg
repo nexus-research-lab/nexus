@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1200 560" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="security-title security-description">
+  <title id="security-title">Nexus 四层安全边界</title>
+  <desc id="security-description">安全边界从部署入口逐层收窄到 owner 作用域、Runtime 身份和受限文件与控制面能力。宿主凭据不写入 Agent 工作区，所有路径访问都被约束在明确根目录内。</desc>
+
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+    </marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="560" fill="#f9f9f7"/>
+
+  <!-- 外层入口边界。 -->
+  <rect x="32" y="48" width="1136" height="448" rx="8" fill="rgba(19,19,19,0.01)" stroke="rgba(19,19,19,0.24)" stroke-width="0.8"/>
+  <rect x="56" y="52" width="152" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="132" y="64" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">DEPLOYMENT ENTRY</text>
+  <text x="1128" y="76" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">SERVER SESSION · DESKTOP TOKEN</text>
+
+  <!-- Owner 边界。 -->
+  <rect x="80" y="96" width="1040" height="352" rx="8" fill="rgba(19,19,19,0.015)" stroke="rgba(19,19,19,0.32)" stroke-width="0.8"/>
+  <rect x="104" y="100" width="112" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="160" y="112" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">OWNER SCOPE</text>
+  <text x="1080" y="124" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">~/.NEXUS/USERS/&lt;OWNER&gt;</text>
+
+  <!-- Runtime 身份边界。 -->
+  <rect x="128" y="144" width="944" height="256" rx="8" fill="rgba(19,19,19,0.02)" stroke="#5f5e5a" stroke-width="1"/>
+  <rect x="152" y="148" width="136" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="220" y="160" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">RUNTIME IDENTITY</text>
+  <text x="1032" y="172" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">UID/GID · ACL · CGROUP · LANDLOCK</text>
+
+  <!-- 最内层受限能力。 -->
+  <rect x="176" y="192" width="848" height="160" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2" stroke-dasharray="4,4"/>
+  <rect x="200" y="196" width="152" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="276" y="208" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">CONFINED CAPABILITY</text>
+  <text x="600" y="256" fill="#131313" font-size="16" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">受限文件与控制面访问</text>
+  <text x="600" y="284" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CONFINEDFS · OS.ROOT · SCOPED MCP</text>
+  <text x="600" y="308" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">NO RAW HOST SECRETS · NO PATH ESCAPE</text>
+
+  <text x="600" y="476" fill="#5f5e5a" font-size="12" font-family="'Instrument Serif', serif" font-style="italic" text-anchor="middle">凭据只在 Runtime 启动时注入，不写入 Agent workspace。</text>
+</svg>

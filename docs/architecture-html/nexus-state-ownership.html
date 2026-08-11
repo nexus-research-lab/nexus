@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<!-- Adapted from diagram-design by Cathryn Lavery, MIT; source commit a157f7616473d966d6f433cf0b4d4f1880603504. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus 状态权威与恢复责任</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper: #f9f9f7;
+      --paper-2: #f3f3f0;
+      --ink: #131313;
+      --muted: #5f5e5a;
+      --soft: #6d6b67;
+      --rule-solid: #e5e5e2;
+      --accent: #5b72ff;
+      --link: #2d5da8;
+      --font-sans: "Geist", system-ui, sans-serif;
+      --font-serif: "Instrument Serif", serif;
+      --font-mono: "Geist Mono", ui-monospace, monospace;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 48px 32px 32px;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    .frame {
+      width: calc(100vw - 64px);
+      max-width: 1280px;
+      min-width: 0;
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 880px;
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 400;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      max-width: 800px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .diagram-shell {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 32px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 960px;
+    }
+
+    .colophon {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--rule-solid);
+      color: var(--soft);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 32px 20px 24px; }
+      .frame { width: calc(100vw - 40px); }
+      h1 { font-size: 24px; line-height: 1.2; }
+      .colophon { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <header>
+      <p class="eyebrow">Nexus · State Ownership</p>
+      <h1>谁写入证据，谁负责恢复</h1>
+      <p class="subtitle">Product 恢复协作与调度，Runtime 恢复 Agent 执行，Frontend 只消费权威快照重建界面。</p>
+    </header>
+
+    <div class="diagram-shell">
+      <svg viewBox="0 0 1200 540" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="state-title state-description">
+        <title id="state-title">Nexus 状态权威与恢复责任</title>
+        <desc id="state-description">Product 和 Runtime 分别持有业务协作证据与 Agent 执行证据。Frontend 不持有业务权威，只消费服务端快照重建界面。</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+          </marker>
+        </defs>
+
+        <rect width="1200" height="540" fill="#f9f9f7"/>
+
+        <text x="152" y="76" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">AUTHORITY</text>
+        <text x="600" y="76" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">DURABLE EVIDENCE</text>
+        <text x="1048" y="76" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">RECOVERY OUTCOME</text>
+
+        <!-- 三条恢复路径互不交叉。 -->
+        <line x1="272" y1="152" x2="408" y2="152" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <line x1="792" y1="152" x2="928" y2="152" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="272" y1="280" x2="408" y2="280" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <line x1="792" y1="280" x2="928" y2="280" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="272" y1="408" x2="408" y2="408" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <line x1="792" y1="408" x2="928" y2="408" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+        <rect x="300" y="132" width="80" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="340" y="140" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">WRITES</text>
+        <rect x="820" y="132" width="80" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="860" y="140" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">RESTORES</text>
+
+        <rect x="300" y="260" width="80" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="340" y="268" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">WRITES</text>
+        <rect x="820" y="260" width="80" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="860" y="268" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">RESTORES</text>
+
+        <rect x="292" y="388" width="96" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="340" y="396" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">READS</text>
+        <rect x="812" y="388" width="96" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="860" y="396" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">REBUILDS</text>
+
+        <!-- Product authority -->
+        <rect x="32" y="112" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="32" y="112" width="240" height="80" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+        <text x="152" y="148" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Product 权威</text>
+        <text x="152" y="168" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">COLLABORATION · SCHEDULING</text>
+
+        <rect x="408" y="112" width="384" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="408" y="112" width="384" height="80" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <text x="600" y="148" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">业务与协作证据</text>
+        <text x="600" y="168" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DB · ROOM LEDGER · OUTBOX · SECRETS</text>
+
+        <rect x="928" y="112" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="928" y="112" width="240" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="1048" y="148" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">恢复协作与调度</text>
+        <text x="1048" y="168" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ROOM · GOAL · EXECUTION</text>
+
+        <!-- Runtime authority -->
+        <rect x="32" y="240" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="32" y="240" width="240" height="80" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+        <text x="152" y="276" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Runtime 权威</text>
+        <text x="152" y="296" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">AGENT LOOP · MEMORY</text>
+
+        <rect x="408" y="240" width="384" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="408" y="240" width="384" height="80" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <text x="600" y="276" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">执行与记忆证据</text>
+        <text x="600" y="296" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">TRANSCRIPT · WORKSPACE · DEBUG LOG</text>
+
+        <rect x="928" y="240" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="928" y="240" width="240" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="1048" y="276" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">恢复 Agent loop</text>
+        <text x="1048" y="296" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">FORK · COMPACT · MEMORY</text>
+
+        <!-- Frontend consumer -->
+        <rect x="32" y="368" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="32" y="368" width="240" height="80" rx="8" fill="rgba(95,94,90,0.10)" stroke="#6d6b67" stroke-width="1"/>
+        <text x="152" y="404" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Frontend 消费者</text>
+        <text x="152" y="424" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">NO BUSINESS AUTHORITY</text>
+
+        <rect x="408" y="368" width="384" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="408" y="368" width="384" height="80" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <text x="600" y="404" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">服务端 Session Snapshot</text>
+        <text x="600" y="424" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DURABLE · EPHEMERAL · TRANSIENT</text>
+
+        <rect x="928" y="368" width="240" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="928" y="368" width="240" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="1048" y="404" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">仅重建前端视图</text>
+        <text x="1048" y="424" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SNAPSHOT OVERRIDES GUESS</text>
+
+        <line x1="32" y1="484" x2="1168" y2="484" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <text x="600" y="512" fill="#5f5e5a" font-size="12" font-family="'Instrument Serif', serif" font-style="italic" text-anchor="middle">故障恢复遵循权威归属，临时流式进度缺失不改变最终业务事实。</text>
+      </svg>
+    </div>
+
+    <footer class="colophon">
+      <span>NEXUS ARCHITECTURE · 2026-08-11</span>
+      <span>AUTHORITY · EVIDENCE · RECOVERY</span>
+    </footer>
+  </main>
+</body>
+</html>

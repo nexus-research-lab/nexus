@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1200 520" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="layers-title layers-description">
+  <title id="layers-title">Nexus Product 后端分层</title>
+  <desc id="layers-description">五层结构自上而下依次为接入与体验、协议与边界、领域服务、Runtime 协调、基础设施与持久化。依赖方向向下，领域服务是业务规则的核心。</desc>
+
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+    </marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="520" fill="#f9f9f7"/>
+
+  <text x="32" y="88" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">DEPENDENCIES</text>
+  <line x1="112" y1="104" x2="112" y2="400" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- 五层采用统一宽度，层级本身表达依赖。 -->
+  <rect x="176" y="72" width="920" height="72" fill="#ffffff" stroke="rgba(19,19,19,0.10)" stroke-width="1"/>
+  <text x="208" y="116" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">L5</text>
+  <text x="280" y="116" fill="#131313" font-size="16" font-weight="600" font-family="'Geist', system-ui, sans-serif">接入与体验</text>
+  <text x="1064" y="116" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">DESKTOP · REACT WEB · CHANNELS</text>
+
+  <rect x="176" y="144" width="920" height="72" fill="#f3f3f0" stroke="rgba(19,19,19,0.10)" stroke-width="1"/>
+  <text x="208" y="188" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">L4</text>
+  <text x="280" y="188" fill="#131313" font-size="16" font-weight="600" font-family="'Geist', system-ui, sans-serif">协议与边界</text>
+  <text x="1064" y="188" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">HTTP · WEBSOCKET · AUTH · PROTOCOL</text>
+
+  <rect x="176" y="216" width="920" height="72" fill="#f9f9f7"/>
+  <rect x="176" y="216" width="920" height="72" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+  <text x="208" y="260" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">L3</text>
+  <text x="280" y="260" fill="#131313" font-size="16" font-weight="600" font-family="'Geist', system-ui, sans-serif">领域服务</text>
+  <text x="1064" y="260" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">DM · ROOM · GOAL · EXECUTION · AUTOMATION</text>
+
+  <rect x="176" y="288" width="920" height="72" fill="#ffffff" stroke="rgba(19,19,19,0.10)" stroke-width="1"/>
+  <text x="208" y="332" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">L2</text>
+  <text x="280" y="332" fill="#131313" font-size="16" font-weight="600" font-family="'Geist', system-ui, sans-serif">Runtime 协调</text>
+  <text x="1064" y="332" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">MANAGER · SESSION · MESSAGE PROJECTION</text>
+
+  <rect x="176" y="360" width="920" height="72" fill="#f3f3f0" stroke="rgba(19,19,19,0.10)" stroke-width="1"/>
+  <text x="208" y="404" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">L1</text>
+  <text x="280" y="404" fill="#131313" font-size="16" font-weight="600" font-family="'Geist', system-ui, sans-serif">基础设施与持久化</text>
+  <text x="1064" y="404" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="end">REPOSITORY · MIGRATIONS · ENCRYPTION</text>
+
+  <rect x="176" y="72" width="920" height="360" fill="none" stroke="#5f5e5a" stroke-width="1"/>
+  <line x1="176" y1="468" x2="1096" y2="468" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+  <text x="636" y="496" fill="#5f5e5a" font-size="12" font-family="'Instrument Serif', serif" font-style="italic" text-anchor="middle">入口只做协调，业务规则收敛在领域服务，持久化细节向下隔离。</text>
+</svg>

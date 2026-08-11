@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<!-- Adapted from diagram-design by Cathryn Lavery, MIT; source commit a157f7616473d966d6f433cf0b4d4f1880603504. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus 故障恢复判定流程</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper: #f9f9f7;
+      --paper-2: #f3f3f0;
+      --ink: #131313;
+      --muted: #5f5e5a;
+      --soft: #6d6b67;
+      --rule-solid: #e5e5e2;
+      --accent: #5b72ff;
+      --link: #2d5da8;
+      --font-sans: "Geist", system-ui, sans-serif;
+      --font-serif: "Instrument Serif", serif;
+      --font-mono: "Geist Mono", ui-monospace, monospace;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 48px 32px 32px;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    .frame {
+      width: calc(100vw - 64px);
+      max-width: 1280px;
+      min-width: 0;
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 800px;
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 400;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .diagram-shell {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 32px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 960px;
+    }
+
+    .colophon {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--rule-solid);
+      color: var(--soft);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 32px 20px 24px; }
+      .frame { width: calc(100vw - 40px); }
+      h1 { font-size: 24px; line-height: 1.2; }
+      .subtitle { font-size: 12px; }
+      .colophon { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <header>
+      <p class="eyebrow">Nexus · Recovery Flow</p>
+      <h1>恢复遵循权威状态，而不是界面猜测</h1>
+      <p class="subtitle">Product 先恢复持久业务状态，再决定复用 Runtime Transcript 或启动新回合，最后广播权威快照。</p>
+    </header>
+
+    <div class="diagram-shell">
+      <svg viewBox="0 0 1200 700" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="recovery-title recovery-description">
+        <title id="recovery-title">Nexus 故障恢复判定流程</title>
+        <desc id="recovery-description">连接或 Runtime 中断后，Product 先恢复持久状态和稳定身份，再判断 Runtime Transcript 是否可恢复。无论恢复旧会话还是启动新回合，最终都由权威 Session Snapshot 重建前端状态。</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+          </marker>
+        </defs>
+
+        <rect width="1200" height="700" fill="#f9f9f7"/>
+
+        <!-- 主恢复路径。 -->
+        <line x1="440" y1="80" x2="440" y2="112" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="440" y1="184" x2="440" y2="216" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="440" y1="328" x2="440" y2="376" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="536" y1="272" x2="664" y2="272" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <line x1="440" y1="448" x2="440" y2="484" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <path d="M 816 308 V 472 Q 816 480 808 480 H 448" fill="none" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <line x1="440" y1="492" x2="440" y2="520" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <line x1="440" y1="592" x2="440" y2="624" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+        <rect x="448" y="340" width="40" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="468" y="348" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">NO</text>
+        <rect x="572" y="252" width="48" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="596" y="260" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">YES</text>
+
+        <!-- Start -->
+        <rect x="320" y="32" width="240" height="48" rx="24" fill="rgba(95,94,90,0.10)" stroke="#6d6b67" stroke-width="1"/>
+        <text x="440" y="60" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">连接或 Runtime 中断</text>
+
+        <!-- Product recovery -->
+        <rect x="280" y="112" width="320" height="72" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="440" y="144" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">恢复 Product 持久状态</text>
+        <text x="440" y="164" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SESSION · ROUND · OUTBOX · ATTEMPT</text>
+
+        <!-- Decision -->
+        <polygon points="440,216 536,272 440,328 344,272" fill="#f9f9f7" stroke="#131313" stroke-width="1"/>
+        <text x="440" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">存在可恢复</text>
+        <text x="440" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">TRANSCRIPT?</text>
+
+        <!-- Recovery branches -->
+        <rect x="664" y="236" width="304" height="72" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="816" y="268" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">恢复 / Fork / Compact</text>
+        <text x="816" y="288" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">REUSE RUNTIME SESSION</text>
+
+        <rect x="296" y="376" width="288" height="72" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="440" y="408" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">启动新的 Runtime Round</text>
+        <text x="440" y="428" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">FRESH EXECUTION</text>
+
+        <!-- Merge -->
+        <circle cx="440" cy="488" r="4" fill="#131313"/>
+
+        <!-- Authoritative rebuild -->
+        <rect x="280" y="520" width="320" height="72" rx="8" fill="#f9f9f7"/>
+        <rect x="280" y="520" width="320" height="72" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+        <text x="440" y="552" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">广播权威 Session Snapshot</text>
+        <text x="440" y="572" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SERVER STATE OVERRIDES GUESS</text>
+
+        <rect x="320" y="624" width="240" height="48" rx="24" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+        <text x="440" y="652" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Frontend 重建运行态</text>
+      </svg>
+    </div>
+
+    <footer class="colophon">
+      <span>NEXUS ARCHITECTURE · 2026-08-11</span>
+      <span>DURABLE STATE · TRANSCRIPT · SNAPSHOT</span>
+    </footer>
+  </main>
+</body>
+</html>

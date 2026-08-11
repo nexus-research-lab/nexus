@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1200 600" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="deployment-title deployment-description">
+  <title id="deployment-title">Nexus 三种运行形态</title>
+  <desc id="deployment-description">图中并列展示桌面 App、Docker 服务和源码服务。三种形态复用 React Web 与 Go 后端，差异在宿主入口、进程组织和数据库部署。</desc>
+
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+    </marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="600" fill="#f9f9f7"/>
+
+  <!-- 三种部署边界。 -->
+  <rect x="32" y="64" width="352" height="448" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+  <rect x="52" y="68" width="96" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="100" y="80" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">DESKTOP APP</text>
+
+  <rect x="424" y="64" width="352" height="448" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+  <rect x="444" y="68" width="104" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="496" y="80" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">DOCKER SERVICE</text>
+
+  <rect x="816" y="64" width="352" height="448" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+  <rect x="836" y="68" width="104" height="16" rx="4" fill="#f9f9f7"/>
+  <text x="888" y="80" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">SOURCE SERVICE</text>
+
+  <!-- 连线先于节点绘制。 -->
+  <line x1="208" y1="184" x2="208" y2="248" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <line x1="208" y1="320" x2="208" y2="384" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="600" y1="184" x2="600" y2="248" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <line x1="600" y1="320" x2="600" y2="384" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="992" y1="184" x2="992" y2="248" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <line x1="992" y1="320" x2="992" y2="384" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- 竖向连线标签位于线条右侧。 -->
+  <rect x="216" y="204" width="72" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="252" y="212" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">LOOPBACK</text>
+  <rect x="216" y="340" width="32" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="232" y="348" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQL</text>
+
+  <rect x="608" y="204" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="632" y="212" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PROXY</text>
+  <rect x="608" y="340" width="32" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="624" y="348" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQL</text>
+
+  <rect x="1000" y="204" width="64" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="1032" y="212" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HTTP · WS</text>
+  <rect x="1000" y="340" width="32" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="1016" y="348" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQL</text>
+
+  <!-- Desktop -->
+  <rect x="80" y="112" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="80" y="112" width="256" height="72" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+  <rect x="92" y="124" width="40" height="16" rx="4" fill="transparent" stroke="rgba(91,114,255,0.50)" stroke-width="0.8"/>
+  <text x="112" y="136" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HOST</text>
+  <text x="208" y="152" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">原生桌面壳 + WebView</text>
+  <text x="208" y="168" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">APPKIT · WPF</text>
+
+  <rect x="80" y="248" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="80" y="248" width="256" height="72" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <rect x="92" y="260" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+  <text x="112" y="272" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PROC</text>
+  <text x="208" y="288" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">nexus-server Sidecar</text>
+  <text x="208" y="304" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">RANDOM PORT · SESSION TOKEN</text>
+
+  <rect x="80" y="384" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="80" y="384" width="256" height="72" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+  <rect x="92" y="396" width="32" height="16" rx="4" fill="transparent" stroke="rgba(95,94,90,0.50)" stroke-width="0.8"/>
+  <text x="108" y="408" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DB</text>
+  <text x="208" y="424" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">本地状态</text>
+  <text x="208" y="440" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQLITE · ~/.NEXUS</text>
+
+  <!-- Docker -->
+  <rect x="472" y="112" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="472" y="112" width="256" height="72" rx="8" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+  <rect x="484" y="124" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.30)" stroke-width="0.8"/>
+  <text x="504" y="136" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">EDGE</text>
+  <text x="600" y="152" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Nginx + Web 静态资源</text>
+  <text x="600" y="168" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HTTP · WEBSOCKET PROXY</text>
+
+  <rect x="472" y="248" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="472" y="248" width="256" height="72" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <rect x="484" y="260" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+  <text x="504" y="272" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PROC</text>
+  <text x="600" y="288" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">nexus-server 服务</text>
+  <text x="600" y="304" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">:8010 · SINGLE WORKER</text>
+
+  <rect x="472" y="384" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="472" y="384" width="256" height="72" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+  <rect x="484" y="396" width="32" height="16" rx="4" fill="transparent" stroke="rgba(95,94,90,0.50)" stroke-width="0.8"/>
+  <text x="500" y="408" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DB</text>
+  <text x="600" y="424" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">服务端数据库</text>
+  <text x="600" y="440" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQLITE · POSTGRESQL</text>
+
+  <!-- Source -->
+  <rect x="864" y="112" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="864" y="112" width="256" height="72" rx="8" fill="rgba(95,94,90,0.10)" stroke="#6d6b67" stroke-width="1"/>
+  <rect x="876" y="124" width="40" height="16" rx="4" fill="transparent" stroke="rgba(109,107,103,0.40)" stroke-width="0.8"/>
+  <text x="896" y="136" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">INPUT</text>
+  <text x="992" y="152" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">浏览器 + React 开发入口</text>
+  <text x="992" y="168" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">VITE · WEB ASSETS</text>
+
+  <rect x="864" y="248" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="864" y="248" width="256" height="72" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <rect x="876" y="260" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+  <text x="896" y="272" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PROC</text>
+  <text x="992" y="288" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">nexus-server 进程</text>
+  <text x="992" y="304" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SOURCE BUILD</text>
+
+  <rect x="864" y="384" width="256" height="72" rx="8" fill="#f9f9f7"/>
+  <rect x="864" y="384" width="256" height="72" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+  <rect x="876" y="396" width="32" height="16" rx="4" fill="transparent" stroke="rgba(95,94,90,0.50)" stroke-width="0.8"/>
+  <text x="892" y="408" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DB</text>
+  <text x="992" y="424" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">开发数据库</text>
+  <text x="992" y="440" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SQLITE · POSTGRESQL</text>
+
+  <line x1="32" y1="544" x2="1168" y2="544" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+  <text x="600" y="572" fill="#5f5e5a" font-size="12" font-family="'Instrument Serif', serif" font-style="italic" text-anchor="middle">共享 React Web 与 Go 后端，差异只在宿主、入口和数据库部署。</text>
+</svg>

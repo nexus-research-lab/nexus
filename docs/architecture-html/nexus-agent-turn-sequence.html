@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<!-- Adapted from diagram-design by Cathryn Lavery, MIT; source commit a157f7616473d966d6f433cf0b4d4f1880603504. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Agent 回合时序</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper: #f9f9f7;
+      --paper-2: #f3f3f0;
+      --ink: #131313;
+      --muted: #5f5e5a;
+      --soft: #6d6b67;
+      --rule-solid: #e5e5e2;
+      --accent: #5b72ff;
+      --link: #2d5da8;
+      --font-sans: "Geist", system-ui, sans-serif;
+      --font-serif: "Instrument Serif", serif;
+      --font-mono: "Geist Mono", ui-monospace, monospace;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 48px 32px 32px;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    .frame {
+      width: calc(100vw - 64px);
+      max-width: 1280px;
+      min-width: 0;
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 880px;
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 400;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      max-width: 800px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .diagram-shell {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 32px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 960px;
+    }
+
+    .colophon {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--rule-solid);
+      color: var(--soft);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 32px 20px 24px; }
+      .frame { width: calc(100vw - 40px); }
+      h1 { font-size: 24px; line-height: 1.2; }
+      .colophon { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <header>
+      <p class="eyebrow">Nexus · Agent Turn Sequence</p>
+      <h1>一次 Agent 回合如何穿过进程边界</h1>
+      <p class="subtitle">Product 解析身份、Session 与策略，Bridge 传输公开协议，Runtime 独立完成模型调用和工具循环，再把类型化事件沿原路径返回。</p>
+    </header>
+
+    <div class="diagram-shell">
+      <svg viewBox="0 0 1200 680" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="sequence-title sequence-description">
+        <title id="sequence-title">Nexus Agent 回合时序</title>
+        <desc id="sequence-description">用户输入依次经过 Product、Bridge 与独立 Runtime。Runtime 请求模型并执行工具循环，流式消息沿原路径返回，Product 投影为事件和快照后推送给用户界面。</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+          </marker>
+        </defs>
+
+        <rect width="1200" height="680" fill="#f9f9f7"/>
+
+        <!-- Lifeline 与 activation bar 先绘制。 -->
+        <line x1="112" y1="104" x2="112" y2="644" stroke="rgba(19,19,19,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="352" y1="104" x2="352" y2="644" stroke="rgba(19,19,19,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="600" y1="104" x2="600" y2="644" stroke="rgba(19,19,19,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="848" y1="104" x2="848" y2="644" stroke="rgba(19,19,19,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="1088" y1="104" x2="1088" y2="644" stroke="rgba(19,19,19,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <rect x="108" y="152" width="8" height="464" fill="rgba(95,94,90,0.10)" stroke="#5f5e5a" stroke-width="0.8"/>
+        <rect x="348" y="152" width="8" height="464" fill="rgba(95,94,90,0.10)" stroke="#5f5e5a" stroke-width="0.8"/>
+        <rect x="596" y="248" width="8" height="320" fill="rgba(95,94,90,0.10)" stroke="#5f5e5a" stroke-width="0.8"/>
+        <rect x="844" y="296" width="8" height="224" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="0.8"/>
+        <rect x="1084" y="344" width="8" height="64" fill="rgba(95,94,90,0.10)" stroke="#5f5e5a" stroke-width="0.8"/>
+
+        <!-- 时间自上而下。 -->
+        <text x="16" y="124" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">TIME ↓</text>
+
+        <!-- 消息线与标签。 -->
+        <line x1="116" y1="152" x2="348" y2="152" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <rect x="176" y="132" width="112" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="232" y="140" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">USER MESSAGE</text>
+
+        <path d="M 356 200 H 424 Q 432 200 432 208 V 220 Q 432 228 424 228 H 356" fill="none" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="440" y="204" width="152" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="516" y="216" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">IDENTITY · SESSION · POLICY</text>
+
+        <line x1="356" y1="248" x2="596" y2="248" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <rect x="424" y="228" width="104" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="476" y="236" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SESSION INPUT</text>
+
+        <line x1="604" y1="296" x2="844" y2="296" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="664" y="276" width="120" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="724" y="284" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">STREAM JSON</text>
+
+        <line x1="852" y1="344" x2="1084" y2="344" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <rect x="916" y="324" width="104" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="968" y="332" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">MODEL REQUEST</text>
+
+        <line x1="1084" y1="408" x2="852" y2="408" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+        <rect x="920" y="388" width="96" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="968" y="396" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">MODEL STREAM</text>
+
+        <path d="M 852 456 H 912 Q 920 456 920 464 V 480 Q 920 488 912 488 H 852" fill="none" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="928" y="460" width="144" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="1000" y="472" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">TOOLS · PERMISSION · HOOK</text>
+
+        <line x1="844" y1="520" x2="604" y2="520" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+        <rect x="668" y="500" width="112" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="724" y="508" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SDK MESSAGES</text>
+
+        <line x1="596" y1="568" x2="356" y2="568" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+        <rect x="420" y="548" width="112" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="476" y="556" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">TYPED EVENTS</text>
+
+        <line x1="348" y1="616" x2="116" y2="616" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <rect x="168" y="596" width="128" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="232" y="604" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SNAPSHOT · RESULT</text>
+
+        <!-- Actors 最后绘制，避免 lifeline 穿透节点。 -->
+        <rect x="32" y="40" width="160" height="64" rx="8" fill="#f9f9f7"/>
+        <rect x="32" y="40" width="160" height="64" rx="8" fill="rgba(95,94,90,0.10)" stroke="#6d6b67" stroke-width="1"/>
+        <text x="112" y="68" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">用户 / Web</text>
+        <text x="112" y="88" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HTTP · WEBSOCKET</text>
+
+        <rect x="272" y="40" width="160" height="64" rx="8" fill="#f9f9f7"/>
+        <rect x="272" y="40" width="160" height="64" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="352" y="68" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Nexus Product</text>
+        <text x="352" y="88" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CONTROL PLANE</text>
+
+        <rect x="520" y="40" width="160" height="64" rx="8" fill="#f9f9f7"/>
+        <rect x="520" y="40" width="160" height="64" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <text x="600" y="68" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Agent SDK Bridge</text>
+        <text x="600" y="88" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">WIRE CONTRACT</text>
+
+        <rect x="768" y="40" width="160" height="64" rx="8" fill="#f9f9f7"/>
+        <rect x="768" y="40" width="160" height="64" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+        <text x="848" y="68" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Agent Runtime</text>
+        <text x="848" y="88" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">AGENT LOOP</text>
+
+        <rect x="1008" y="40" width="160" height="64" rx="8" fill="#f9f9f7"/>
+        <rect x="1008" y="40" width="160" height="64" rx="8" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+        <text x="1088" y="68" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">模型 Provider</text>
+        <text x="1088" y="88" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ANTHROPIC · OPENAI</text>
+      </svg>
+    </div>
+
+    <footer class="colophon">
+      <span>NEXUS ARCHITECTURE · 2026-08-11</span>
+      <span>PRODUCT → BRIDGE → RUNTIME</span>
+    </footer>
+  </main>
+</body>
+</html>

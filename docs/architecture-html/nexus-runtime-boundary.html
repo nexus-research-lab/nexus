@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<!-- Adapted from diagram-design by Cathryn Lavery, MIT; source commit a157f7616473d966d6f433cf0b4d4f1880603504. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Runtime 公开边界</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper: #f9f9f7;
+      --paper-2: #f3f3f0;
+      --ink: #131313;
+      --muted: #5f5e5a;
+      --soft: #6d6b67;
+      --rule-solid: #e5e5e2;
+      --accent: #5b72ff;
+      --link: #2d5da8;
+      --font-sans: "Geist", system-ui, sans-serif;
+      --font-serif: "Instrument Serif", serif;
+      --font-mono: "Geist Mono", ui-monospace, monospace;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 48px 32px 32px;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    .frame {
+      width: calc(100vw - 64px);
+      max-width: 1280px;
+      min-width: 0;
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 800px;
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 400;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .diagram-shell {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 32px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 960px;
+    }
+
+    .colophon {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--rule-solid);
+      color: var(--soft);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 32px 20px 24px; }
+      .frame { width: calc(100vw - 40px); }
+      h1 { font-size: 24px; line-height: 1.2; }
+      .subtitle { font-size: 12px; }
+      .colophon { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <header>
+      <p class="eyebrow">Nexus · Runtime Boundary</p>
+      <h1>公开 Bridge 如何隔离闭源 Runtime</h1>
+      <p class="subtitle">Product 只依赖 Bridge 契约。Runtime 负责执行并声明 Capability，产品不会按实现名称猜测能力。</p>
+    </header>
+
+    <div class="diagram-shell">
+      <svg viewBox="0 0 1200 520" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="runtime-title runtime-description">
+        <title id="runtime-title">Nexus Runtime 公开边界</title>
+        <desc id="runtime-description">Product 通过公开 Agent SDK Bridge 启动和控制独立 Runtime。Runtime 反向声明 Capability，Bridge 投影统一类型，Product 只按协商结果启用功能，不依赖闭源实现源码。</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+          </marker>
+        </defs>
+
+        <rect width="1200" height="520" fill="#f9f9f7"/>
+
+        <!-- 三个实现边界。 -->
+        <rect x="32" y="64" width="352" height="344" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <rect x="52" y="68" width="104" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="104" y="80" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">PRODUCT</text>
+
+        <rect x="424" y="64" width="352" height="344" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <rect x="444" y="68" width="112" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="500" y="80" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">PUBLIC BRIDGE</text>
+
+        <rect x="816" y="64" width="352" height="344" rx="8" fill="rgba(19,19,19,0.02)" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <rect x="836" y="68" width="112" height="16" rx="4" fill="#f9f9f7"/>
+        <text x="892" y="80" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">RUNTIME PROCESS</text>
+
+        <!-- 生命周期向右，能力声明向左。 -->
+        <line x1="352" y1="160" x2="456" y2="160" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <line x1="744" y1="160" x2="848" y2="160" stroke="#2d5da8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <line x1="848" y1="328" x2="744" y2="328" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <line x1="456" y1="328" x2="352" y2="328" stroke="#5f5e5a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+        <rect x="368" y="140" width="72" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="404" y="148" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CONTROL</text>
+        <rect x="760" y="140" width="72" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="796" y="148" fill="#2d5da8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">STREAM JSON</text>
+        <rect x="760" y="308" width="72" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="796" y="316" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">DECLARES</text>
+        <rect x="368" y="308" width="72" height="12" rx="4" fill="#f9f9f7"/>
+        <text x="404" y="316" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ENABLES</text>
+
+        <!-- Product -->
+        <rect x="64" y="120" width="288" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="64" y="120" width="288" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <rect x="76" y="132" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+        <text x="96" y="144" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HOST</text>
+        <text x="208" y="164" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Runtime Manager</text>
+        <text x="208" y="184" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SESSION · ROUND · PROCESS</text>
+
+        <rect x="64" y="288" width="288" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="64" y="288" width="288" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <rect x="76" y="300" width="48" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+        <text x="100" y="312" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">GATE</text>
+        <text x="208" y="332" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">产品能力开关</text>
+        <text x="208" y="352" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">FEATURE GATES</text>
+
+        <!-- Bridge -->
+        <rect x="456" y="120" width="288" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="456" y="120" width="288" height="80" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+        <rect x="468" y="132" width="48" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.40)" stroke-width="0.8"/>
+        <text x="492" y="144" fill="#131313" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CLIENT</text>
+        <text x="600" y="164" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Bridge Client / Session</text>
+        <text x="600" y="184" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PUBLIC GO API</text>
+
+        <rect x="456" y="288" width="288" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="456" y="288" width="288" height="80" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+        <rect x="468" y="300" width="48" height="16" rx="4" fill="transparent" stroke="rgba(91,114,255,0.50)" stroke-width="0.8"/>
+        <text x="492" y="312" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">WIRE</text>
+        <text x="600" y="332" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">标准化 Capability</text>
+        <text x="600" y="352" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">NORMALIZED CONTRACT</text>
+
+        <!-- Runtime -->
+        <rect x="848" y="120" width="288" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="848" y="120" width="288" height="80" rx="8" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+        <rect x="860" y="132" width="40" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.30)" stroke-width="0.8"/>
+        <text x="880" y="144" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">PROC</text>
+        <text x="992" y="164" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Runtime 子进程</text>
+        <text x="992" y="184" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">NXS CLOSED · CLAUDE CODE</text>
+
+        <rect x="848" y="288" width="288" height="80" rx="8" fill="#f9f9f7"/>
+        <rect x="848" y="288" width="288" height="80" rx="8" fill="rgba(19,19,19,0.03)" stroke="rgba(19,19,19,0.30)" stroke-width="1"/>
+        <rect x="860" y="300" width="48" height="16" rx="4" fill="transparent" stroke="rgba(19,19,19,0.30)" stroke-width="0.8"/>
+        <text x="884" y="312" fill="#6d6b67" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">INIT</text>
+        <text x="992" y="332" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">运行时能力声明</text>
+        <text x="992" y="352" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">INITIALIZE · CAPABILITY</text>
+
+        <line x1="32" y1="452" x2="1168" y2="452" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+        <text x="600" y="480" fill="#5f5e5a" font-size="12" font-family="'Instrument Serif', serif" font-style="italic" text-anchor="middle">Product 从不按 Runtime 名称猜能力，Capability 协商结果才是真相。</text>
+      </svg>
+    </div>
+
+    <footer class="colophon">
+      <span>NEXUS ARCHITECTURE · 2026-08-11</span>
+      <span>PRODUCT · BRIDGE · RUNTIME</span>
+    </footer>
+  </main>
+</body>
+</html>

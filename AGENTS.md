@@ -42,7 +42,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   app/        - HTTP 服务装配与生命周期
   mcp/ connectors/ workspace/ - 能力域
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
-docs/       - 跨切面设计文档
+docs/       - 开源文档入口；README.md 是索引，images/ 保存图片与导出 SVG，operations/ 面向运维，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>
 ```
 
