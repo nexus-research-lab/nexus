@@ -251,6 +251,56 @@ func repairRuntimeACL(config launcherConfig, value *identity) error {
 	})
 }
 
+// prepareRuntimeArgFiles 让 bridge 以宿主身份生成的敏感参数只对当前 runtime 私有组可读。
+// 宿主进程不属于动态私有组，不能依赖 setgid 继承；launcher 必须在降权前收口归属。
+func prepareRuntimeArgFiles(
+	config launcherConfig,
+	policy preparedPolicy,
+	args []string,
+) error {
+	root := filepath.Join(
+		runtimeRootForPolicy(config, policy.OwnerUserID),
+		"runtime",
+		"arg-files",
+	)
+	for _, argument := range args {
+		path := filepath.Clean(argument)
+		if !filepath.IsAbs(argument) || filepath.Dir(path) != root {
+			continue
+		}
+		if err := prepareRuntimeArgFile(
+			path,
+			config.HostUID,
+			policy.Identity.PrivateGID,
+		); err != nil {
+			return fmt.Errorf("准备 runtime 参数文件 %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+func prepareRuntimeArgFile(path string, hostUID int, privateGID int) error {
+	fd, err := openPathNoSymlink(path, false)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(fd)
+	var stat unix.Stat_t
+	if err = unix.Fstat(fd, &stat); err != nil {
+		return err
+	}
+	if stat.Nlink != 1 {
+		return errors.New("runtime 参数文件不能是硬链接")
+	}
+	if err = unix.Fchown(fd, hostUID, privateGID); err != nil {
+		return err
+	}
+	if err = clearPOSIXACLFD(fd, false); err != nil {
+		return err
+	}
+	return unix.Fchmod(fd, 0o640)
+}
+
 // ensureHostStateLayout 将宿主代 Room 状态固定在 runtime 之外。
 //
 // state 根由 root/host group 持有，runtime 私有组没有任何访问位；这样

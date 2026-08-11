@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.
+- Fixed Linux-isolated runtimes failing to read host-generated MCP configuration files while keeping those files private.
 
 ## [0.1.35] - 2026-08-10
 

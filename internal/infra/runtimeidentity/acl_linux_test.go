@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -86,15 +87,62 @@ func TestEnsureIdentityLayoutRepairsManagedWorkspaceACL(t *testing.T) {
 	}
 }
 
+func TestPrepareRuntimeArgFilesGrantsPrivateGroup(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("runtime 参数文件归属测试需要 root 执行 fchown")
+	}
+	const (
+		hostUID    = 1001
+		hostGID    = 1001
+		runtimeUID = 20001
+		owner      = "user-arg-file-test"
+	)
+	config := launcherConfig{
+		StateRoot: t.TempDir(),
+		HostUID:   hostUID,
+		HostGID:   hostGID,
+	}
+	root := filepath.Join(
+		appfs.UserRuntimeRootAt(config.StateRoot, owner),
+		"runtime",
+		"arg-files",
+	)
+	if err := os.MkdirAll(root, 0o750); err != nil {
+		t.Fatalf("创建 runtime 参数目录失败: %v", err)
+	}
+	path := filepath.Join(root, "mcp-config-test.json")
+	if err := os.WriteFile(path, []byte(`{"mcpServers":{}}`), 0o640); err != nil {
+		t.Fatalf("创建 runtime 参数文件失败: %v", err)
+	}
+	if err := os.Chown(root, hostUID, runtimeUID); err != nil {
+		t.Fatalf("设置 runtime 参数目录初始归属失败: %v", err)
+	}
+	if err := os.Chown(path, hostUID, hostGID); err != nil {
+		t.Fatalf("设置 runtime 参数文件初始归属失败: %v", err)
+	}
+
+	policy := preparedPolicy{
+		OwnerUserID: owner,
+		Identity: preparedIdentity{
+			PrivateGID: runtimeUID,
+		},
+	}
+	if err := prepareRuntimeArgFiles(config, policy, []string{"--mcp-config", path}); err != nil {
+		t.Fatalf("prepareRuntimeArgFiles() error = %v", err)
+	}
+	assertManagedWorkspaceMode(t, root, hostUID, runtimeUID, 0o750)
+	assertManagedWorkspaceMode(t, path, hostUID, runtimeUID, 0o640)
+}
+
 func assertManagedWorkspaceMode(t *testing.T, path string, uid int, gid int, mode os.FileMode) {
 	t.Helper()
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("Stat(%q) error = %v", path, err)
 	}
-	stat, ok := info.Sys().(*unix.Stat_t)
+	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		t.Fatalf("Stat(%q) 未返回 unix.Stat_t", path)
+		t.Fatalf("Stat(%q) 未返回 syscall.Stat_t", path)
 	}
 	if int(stat.Uid) != uid || int(stat.Gid) != gid || info.Mode().Perm() != mode {
 		t.Fatalf(

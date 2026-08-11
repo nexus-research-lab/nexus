@@ -573,6 +573,10 @@ func runRuntime(
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
+	if err = prepareRuntimeArgFiles(config, policy, args); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
 	syscall.Umask(0o007)
 	landlockABIValue, err := applyLandlock(config, policy, executable)
 	if err != nil {
