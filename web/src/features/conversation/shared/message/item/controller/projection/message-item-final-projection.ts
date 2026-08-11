@@ -10,6 +10,7 @@ import type {
   ResultSummary,
 } from "@/types/conversation/message/entity";
 import type { ContentBlock } from "@/types/conversation/message/content";
+import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { extractTextFromContentBlocks } from "../../../message-content-model";
 import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
@@ -38,6 +39,7 @@ interface FinalAssistantContentContext {
   fallbackFinalAssistantContent: ContentBlock[] | null;
   finalAssistantTurn: AssistantTurnEntry | null;
   finalTailEntries: OrderedAssistantEntry[];
+  generativeUIContent: ContentBlock[];
   resultText: string | null;
 }
 
@@ -82,20 +84,26 @@ export function resolveMessageItemFinalProjection({
     finalAssistantTurn,
     visibleOrderedAssistantEntries,
   );
+  const generativeUIEntries = resolveGenerativeUIEntries(
+    visibleOrderedAssistantEntries,
+  );
   const archivedProcessProjection = buildArchivedProcessProjection({
     finalAssistantTurn,
     finalTailEntries,
+    generativeUIEntries,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
   });
   const fallbackFinalAssistantContent = resolveFallbackFinalAssistantContent(
     finalAssistantTurn,
     finalTailEntries,
+    generativeUIEntries,
   );
   const fallbackFinalAssistantStreamingIndexes =
     resolveFallbackFinalAssistantStreamingIndexes(
       finalAssistantTurn,
       finalTailEntries,
+      generativeUIEntries,
       streamingBlockIndexes,
     );
 
@@ -113,6 +121,7 @@ export function resolveMessageItemFinalProjection({
     fallbackFinalAssistantContent,
     finalAssistantTurn,
     finalTailEntries,
+    generativeUIContent: generativeUIEntries.map((entry) => entry.block),
     resultSummary,
   });
   const finalAssistantStreamingIndexes = resolveFinalStreamingIndexes(
@@ -121,10 +130,11 @@ export function resolveMessageItemFinalProjection({
     fallbackFinalAssistantStreamingIndexes,
   );
   const finalAssistantText = resolveFinalAssistantText(finalAssistantContent);
-	const finalAssistantMentions = resolveFinalAssistantMentions(
-		assistantMessages,
-		finalAssistantTurn?.messageId ?? null,
-	);
+  const finalAssistantMentions = resolveFinalAssistantMentions(
+    assistantMessages,
+    finalAssistantTurn?.messageId ?? null,
+    generativeUIEntries.length,
+  );
 
   return {
     directOrderedProjection,
@@ -137,17 +147,21 @@ export function resolveMessageItemFinalProjection({
 }
 
 function resolveFinalAssistantMentions(
-	assistantMessages: Message[],
-	messageId: string | null,
+  assistantMessages: Message[],
+  messageId: string | null,
+  contentBlockOffset: number,
 ): AgentMention[] {
-	if (!messageId) {
-		return [];
-	}
-	const message = assistantMessages.find(
-		(value): value is AssistantMessage =>
-			value.role === "assistant" && value.message_id === messageId,
-	);
-	return message?.agent_mentions ?? [];
+  if (!messageId) {
+    return [];
+  }
+  const message = assistantMessages.find(
+    (value): value is AssistantMessage =>
+      value.role === "assistant" && value.message_id === messageId,
+  );
+  return (message?.agent_mentions ?? []).map((mention) => ({
+    ...mention,
+    content_block_index: mention.content_block_index + contentBlockOffset,
+  }));
 }
 
 function resolveDirectOrderedProjection(
@@ -250,22 +264,30 @@ function resolveFinalTailEntries(
 function buildArchivedProcessProjection({
   finalAssistantTurn,
   finalTailEntries,
+  generativeUIEntries,
   streamingBlockIndexes,
   visibleOrderedAssistantEntries,
 }: {
   finalAssistantTurn: AssistantTurnEntry | null;
   finalTailEntries: OrderedAssistantEntry[];
+  generativeUIEntries: OrderedAssistantEntry[];
   streamingBlockIndexes: Set<number>;
   visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }) {
+  const generativeUIIndexes = new Set(
+    generativeUIEntries.map((entry) => entry.mergedIndex),
+  );
+  const processEntries = visibleOrderedAssistantEntries.filter(
+    (entry) => !generativeUIIndexes.has(entry.mergedIndex),
+  );
   // 最终回复由独立区域渲染（tail / turn 文本 / result 摘要），
-  // 过程链无条件剥离它，避免同一段答案在过程和最终各出现一次。
+  // 生成式 UI 也属于答案本体；过程链无条件剥离，避免重复渲染。
   if (finalTailEntries.length > 0) {
     const tailIndexes = new Set(
       finalTailEntries.map((entry) => entry.mergedIndex),
     );
     return projectionFromOrderedEntries(
-      visibleOrderedAssistantEntries.filter(
+      processEntries.filter(
         (entry) => !tailIndexes.has(entry.mergedIndex),
       ),
       streamingBlockIndexes,
@@ -275,10 +297,10 @@ function buildArchivedProcessProjection({
   if (finalAssistantTurn && finalAssistantTurn.textContent.length > 0) {
     const finalAssistantTextMergedIndexes = textEntryIndexesForTurn(
       finalAssistantTurn,
-      visibleOrderedAssistantEntries,
+      processEntries,
     );
     return projectionFromOrderedEntries(
-      visibleOrderedAssistantEntries.filter(
+      processEntries.filter(
         (entry) =>
           entry.sourceMessageId !== finalAssistantTurn.messageId ||
           !finalAssistantTextMergedIndexes.has(entry.mergedIndex),
@@ -288,7 +310,7 @@ function buildArchivedProcessProjection({
   }
 
   return projectionFromOrderedEntries(
-    visibleOrderedAssistantEntries,
+    processEntries,
     streamingBlockIndexes,
   );
 }
@@ -296,43 +318,58 @@ function buildArchivedProcessProjection({
 function resolveFallbackFinalAssistantContent(
   finalAssistantTurn: AssistantTurnEntry | null,
   finalTailEntries: OrderedAssistantEntry[],
+  generativeUIEntries: OrderedAssistantEntry[],
 ) {
+  const generativeUIContent = generativeUIEntries.map((entry) => entry.block);
+  const promotedBlocks = new Set(generativeUIContent);
+  let fallbackContent: ContentBlock[] | null = null;
   if (finalTailEntries.length > 0) {
-    return finalTailEntries.map((entry) => entry.block);
+    fallbackContent = finalTailEntries.map((entry) => entry.block);
+  } else if (finalAssistantTurn?.textContent.length) {
+    fallbackContent = finalAssistantTurn.textContent;
+  } else if (finalAssistantTurn?.content.length) {
+    fallbackContent = finalAssistantTurn.content.filter(
+      (block) => !promotedBlocks.has(block),
+    );
   }
-  if (!finalAssistantTurn) {
-    return null;
-  }
-  if (finalAssistantTurn.textContent.length > 0) {
-    return finalAssistantTurn.textContent;
-  }
-  if (finalAssistantTurn.content.length > 0) {
-    return finalAssistantTurn.content;
-  }
-  return null;
+  return generativeUIContent.length > 0
+    ? [...generativeUIContent, ...(fallbackContent ?? [])]
+    : fallbackContent;
 }
 
 function resolveFallbackFinalAssistantStreamingIndexes(
   finalAssistantTurn: AssistantTurnEntry | null,
   finalTailEntries: OrderedAssistantEntry[],
+  generativeUIEntries: OrderedAssistantEntry[],
   streamingBlockIndexes: Set<number>,
 ) {
+  const nextIndexes = new Set<number>();
+  generativeUIEntries.forEach((entry, index) => {
+    if (streamingBlockIndexes.has(entry.mergedIndex)) {
+      nextIndexes.add(index);
+    }
+  });
+  const offset = generativeUIEntries.length;
   if (finalTailEntries.length > 0) {
-    const nextIndexes = new Set<number>();
     finalTailEntries.forEach((entry, index) => {
       if (streamingBlockIndexes.has(entry.mergedIndex)) {
-        nextIndexes.add(index);
+        nextIndexes.add(offset + index);
       }
     });
     return nextIndexes;
   }
   if (!finalAssistantTurn) {
-    return new Set<number>();
+    return nextIndexes;
   }
   if (finalAssistantTurn.textContent.length > 0) {
-    return finalAssistantTurn.textStreamingIndexes;
+    finalAssistantTurn.textStreamingIndexes.forEach(
+      (index) => nextIndexes.add(offset + index),
+    );
+    return nextIndexes;
   }
-  return finalAssistantTurn.streamingIndexes;
+  return generativeUIEntries.length > 0
+    ? nextIndexes
+    : finalAssistantTurn.streamingIndexes;
 }
 
 function resolveFinalAssistantContent({
@@ -340,18 +377,21 @@ function resolveFinalAssistantContent({
   fallbackFinalAssistantContent,
   finalAssistantTurn,
   finalTailEntries,
+  generativeUIContent,
   resultSummary,
 }: {
   assistantContentMode: AssistantContentMode;
   fallbackFinalAssistantContent: ContentBlock[] | null;
   finalAssistantTurn: AssistantTurnEntry | null;
   finalTailEntries: OrderedAssistantEntry[];
+  generativeUIContent: ContentBlock[];
   resultSummary: ResultSummary | undefined;
 }) {
   return FINAL_ASSISTANT_CONTENT_RESOLVERS[assistantContentMode]({
     fallbackFinalAssistantContent,
     finalAssistantTurn,
     finalTailEntries,
+    generativeUIContent,
     resultText: getResultSummaryDisplayText(resultSummary),
   });
 }
@@ -359,16 +399,40 @@ function resolveFinalAssistantContent({
 function resolveArchivedFinalAssistantContent({
   finalAssistantTurn,
   finalTailEntries,
+  generativeUIContent,
   resultText,
 }: FinalAssistantContentContext): string | ContentBlock[] | null {
   // 归档回复优先使用已从过程链剥离的正文，result 只补齐缺失正文。
-  if (finalTailEntries.length > 0) {
-    return finalTailEntries.map((entry) => entry.block);
+  const narrativeContent = finalTailEntries.length > 0
+    ? finalTailEntries.map((entry) => entry.block)
+    : finalAssistantTurn?.textContent.length
+    ? finalAssistantTurn.textContent
+    : null;
+  if (generativeUIContent.length > 0) {
+    return [
+      ...generativeUIContent,
+      ...(narrativeContent ?? (resultText
+        ? [{ type: "text" as const, text: resultText }]
+        : [])),
+    ];
   }
-  if (finalAssistantTurn?.textContent.length) {
-    return finalAssistantTurn.textContent;
-  }
-  return resultText || null;
+  return narrativeContent ?? resultText ?? null;
+}
+
+function resolveGenerativeUIEntries(
+  entries: OrderedAssistantEntry[],
+): OrderedAssistantEntry[] {
+  const toolUseIds = new Set(
+    entries.flatMap(({ block }) => (
+      block.type === "tool_use" && isGenerativeUIWidgetToolName(block.name)
+        ? [block.id]
+        : []
+    )),
+  );
+  return entries.filter(({ block }) => (
+    (block.type === "tool_use" && toolUseIds.has(block.id))
+    || (block.type === "tool_result" && toolUseIds.has(block.tool_use_id))
+  ));
 }
 
 export function resolveRoomResultFinalAssistantContent({

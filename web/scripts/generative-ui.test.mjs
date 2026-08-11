@@ -18,27 +18,33 @@ const server = await createServer({
 
 test.after(async () => server.close());
 
-test("生成式 UI 流式空壳不执行模型脚本，完成文档才包含完整代码", async () => {
-  const {
-    buildGenerativeUIFinalDocument,
-    buildGenerativeUIShellDocument,
-  } = await server.ssrLoadModule(
+test("生成式 UI 流式 DOM 可交互，完成文档才执行模型脚本", async () => {
+  const { buildGenerativeUIShellDocument } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/blocks/tool/generative-ui-document.ts",
   );
-  const widget = `<button>运行</button><script>window.widgetReady = true;</script>`;
-  const shell = buildGenerativeUIShellDocument(false);
-  const finalDocument = buildGenerativeUIFinalDocument(widget, true);
+  const shell = buildGenerativeUIShellDocument("light");
+  const bridge = shell.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 
+  assert.ok(bridge);
+  assert.doesNotThrow(() => new Function(bridge));
+  assert.match(shell, /htmlparser2@9\.1\.0/);
+  assert.match(shell, /domhandler@5\.0\.3/);
+  assert.match(shell, /dom-serializer@2\.0\.0/);
   assert.match(shell, /morphdom@2\.7\.4/);
-  assert.match(shell, /id="nexus-widget-root" inert/);
-  assert.doesNotMatch(shell, /window\.widgetReady/);
-  assert.match(finalDocument, /window\.widgetReady/);
-  assert.match(finalDocument, /--nexus-background: #0e151f/);
+  assert.match(shell, /id="nexus-widget-root"><\/main>/);
+  assert.doesNotMatch(shell, /\binert\b/);
+  assert.doesNotMatch(shell, /startsWith\("on"\)/);
+  assert.match(shell, /scripts-loading/);
+  assert.match(shell, /pointer-events: none/);
+  assert.match(shell, /data\.final === true/);
+  assert.match(shell, /script\[src\]:not\(\[data-executed\]\)/);
+  assert.match(shell, /await executeScripts\(current\)/);
+  assert.match(shell, /--nexus-background: #fcfcfb/);
 });
 
-test("show_widget 在 DM live 中保持独立内容段", async () => {
-  const { projectDmToolRunSegments } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+test("show_widget 从工具过程提升到最终回复", async () => {
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
   );
   const widget = {
     type: "tool_use",
@@ -46,15 +52,78 @@ test("show_widget 在 DM live 中保持独立内容段", async () => {
     name: "mcp__nexus_visualize__show_widget",
     input: { title: "曲线", widget_code: "<svg />" },
   };
-  const [segment] = projectDmToolRunSegments({
-    interactiveToolUseIds: new Set(),
-    live: true,
-    projection: { content: [widget], streamingIndexes: new Set([0]) },
-    responseResumed: false,
+  const result = {
+    type: "tool_result",
+    tool_use_id: widget.id,
+    content: '{"rendered":true}',
+  };
+  const finalText = { type: "text", text: "可以拖动年份查看变化。" };
+  const toolMessage = {
+    role: "assistant",
+    message_id: "assistant-widget",
+    parent_id: "user-1",
+    content: [widget, result],
+  };
+  const finalMessage = {
+    role: "assistant",
+    message_id: "assistant-final",
+    parent_id: "user-1",
+    content: [finalText],
+    agent_mentions: [{
+      agent_id: "agent-2",
+      content_block_index: 0,
+      end_rune: 2,
+      label: "同事",
+      start_rune: 0,
+    }],
+  };
+  const orderedEntries = [
+    [widget, toolMessage.message_id],
+    [result, toolMessage.message_id],
+    [finalText, finalMessage.message_id],
+  ].map(([block, sourceMessageId], mergedIndex) => ({
+    block,
+    mergedIndex,
+    sourceMessageId,
+    sourceOrder: mergedIndex,
+  }));
+  const projection = resolveMessageItemFinalProjection({
+    assistantContentMode: "dm_live",
+    assistantMessages: [toolMessage, finalMessage],
+    orderedProjection: {
+      content: [widget, result, finalText],
+      streamingIndexes: new Set([2]),
+    },
+    resultSummary: undefined,
+    roundId: "round-1",
+    userMessageId: "user-1",
+    streamingBlockIndexes: new Set([2]),
+    visibleAssistantTurns: [
+      {
+        content: [widget, result],
+        messageId: toolMessage.message_id,
+        streamingIndexes: new Set(),
+        textContent: [],
+        textStreamingIndexes: new Set(),
+      },
+      {
+        content: [finalText],
+        messageId: finalMessage.message_id,
+        streamingIndexes: new Set([0]),
+        textContent: [finalText],
+        textStreamingIndexes: new Set([0]),
+      },
+    ],
+    visibleOrderedAssistantEntries: orderedEntries,
   });
 
-  assert.equal(segment.kind, "content");
-  assert.equal(segment.id, "interactive-tool:widget-1");
+  assert.deepEqual(
+    projection.finalAssistantContent.map((block) => block.type),
+    ["tool_use", "tool_result", "text"],
+  );
+  assert.deepEqual(projection.directOrderedProjection.content, []);
+  assert.deepEqual([...projection.finalAssistantStreamingIndexes], [2]);
+  assert.equal(projection.finalAssistantMentions[0].content_block_index, 2);
 });
 
 test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
@@ -101,5 +170,7 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
 
   assert.match(markup, /data-generative-ui="true"/);
   assert.match(markup, /sandbox="allow-scripts"/);
+  assert.match(markup, /rounded-\[8px\]/);
+  assert.doesNotMatch(markup, /rounded-2xl/);
   assert.doesNotMatch(markup, /allow-same-origin/);
 });

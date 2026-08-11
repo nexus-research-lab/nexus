@@ -24,20 +24,32 @@ Widget contract
 - Inline the widget's CSS and JavaScript. SVG, Canvas, DOM, Web Components, and external CDN libraries are supported.
 - Network access and external resources are allowed without a domain allowlist. Prefer established HTTPS CDNs.
 - The fragment runs in an isolated iframe and cannot access the Nexus page, cookies, storage, or parent DOM.
-- Scripts run after the complete tool input arrives. Build the initial layout in HTML/CSS so streaming remains useful before JavaScript starts.
+- Completed markup and inline interactions remain live while streaming, but script elements run only after the complete tool input arrives. Put scripts after the markup and keep native controls useful before script initialization.
 - Make the layout responsive at 320px width and avoid fixed viewport dimensions.
 - Use accessible labels, keyboard-operable controls, visible focus, and reduced-motion fallbacks.
 - Keep interaction local to the widget. Do not assume a host API or postMessage bridge.
 
+Nexus visual language
+- Make the visual feel native to the surrounding answer: flat, quiet, compact, and content-first.
+- Keep the outermost background transparent. Use neutral surfaces, one-pixel borders, and 8px or 12px radii; avoid gradients, glass, glow, heavy shadows, and decorative hero layouts.
+- Use only 400 and 500 font weights. Body text is 14px to 16px, labels are at least 12px, and controls are compact rather than oversized.
+- Use the accent color only for selection, focus, or the primary data series. Prefer one neutral ramp and at most two categorical color ramps.
+- Put explanations, introductions, and summaries in the normal assistant response. widget_code contains the visual and its local controls, not duplicate prose or a second page title.
+- Let content determine height. Do not create nested scrolling, fixed-position overlays, or viewport-sized shells.
+
 Theme variables
 - --nexus-background
 - --nexus-surface
+- --nexus-surface-hover
 - --nexus-text
 - --nexus-muted
 - --nexus-border
 - --nexus-accent
 - --nexus-accent-contrast
 - --nexus-font-sans
+- --nexus-font-mono
+- --nexus-radius-md
+- --nexus-radius-lg
 
 Use these variables for the main palette, then derive secondary colors with color-mix().`
 

@@ -3,7 +3,6 @@
  * OUTPUT: 以首个 tool_use.id 稳定标识的连续工具段，以及保持原顺序的非工具内容段。
  * POS: 单智能体 live 过程压缩的纯投影边界；不解释 Room、权限动作或具体视图。
  */
-import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import type {
   ContentBlock,
   ToolUseContent,
@@ -245,7 +244,6 @@ function isInteractiveToolUse(
 ): boolean {
   return (
     block.name === ASK_USER_QUESTION_TOOL_NAME
-    || isGenerativeUIWidgetToolName(block.name)
     || interactiveToolUseIds.has(block.id)
   );
 }

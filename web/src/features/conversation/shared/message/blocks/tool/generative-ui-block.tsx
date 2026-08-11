@@ -18,7 +18,6 @@ import { useTheme } from "@/shared/theme/theme-context";
 import type { ToolUseContent } from "@/types/conversation/message/content";
 
 import {
-  buildGenerativeUIFinalDocument,
   buildGenerativeUIShellDocument,
   GENERATIVE_UI_MESSAGE_SOURCE,
   GENERATIVE_UI_RESIZE_MESSAGE,
@@ -45,30 +44,31 @@ export function GenerativeUIBlock({
   const widgetCode = typeof input.widget_code === "string"
     ? input.widget_code
     : "";
-  const dark = theme === "dark" || theme === "rain";
+  const visualTheme = theme === "sunny" ? "light" : theme;
   const shellDocument = useMemo(
-    () => buildGenerativeUIShellDocument(dark),
-    [dark],
-  );
-  const finalDocument = useMemo(
-    () => buildGenerativeUIFinalDocument(widgetCode, dark),
-    [dark, widgetCode],
+    () => buildGenerativeUIShellDocument(visualTheme),
+    [visualTheme],
   );
 
-  const sendStreamingUpdate = useCallback(() => {
-    if (complete || !widgetCode) {
+  const sendWidgetUpdate = useCallback(() => {
+    if (!widgetCode) {
       return;
     }
     frameRef.current?.contentWindow?.postMessage({
       type: GENERATIVE_UI_UPDATE_MESSAGE,
+      final: complete,
       html: widgetCode,
     }, "*");
   }, [complete, widgetCode]);
 
   useEffect(() => {
-    const timer = window.setTimeout(sendStreamingUpdate, UPDATE_DELAY_MS);
+    if (complete) {
+      sendWidgetUpdate();
+      return;
+    }
+    const timer = window.setTimeout(sendWidgetUpdate, UPDATE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [sendStreamingUpdate]);
+  }, [complete, sendWidgetUpdate]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -94,36 +94,34 @@ export function GenerativeUIBlock({
   return (
     <section
       aria-busy={!complete}
-      className="min-w-0 overflow-hidden rounded-2xl border border-(--surface-card-border) bg-(--surface-paper-background)"
+      className="my-3 min-w-0 overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-transparent"
       data-generative-ui="true"
     >
-      <header className="flex h-10 items-center gap-2 border-b border-(--content-divider-color) px-3">
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-(--text-strong)">
+      <header className="flex min-h-9 items-center gap-2 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2">
+        <Sparkles aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+        <span className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-default)">
           {title || toolUse.name}
         </span>
         {!complete ? (
           <span
             aria-hidden="true"
-            className="h-1.5 w-1.5 rounded-full bg-primary motion-safe:animate-pulse"
+            className="h-1.5 w-1.5 rounded-full bg-(--icon-muted) motion-safe:animate-pulse"
           />
         ) : null}
       </header>
       {widgetCode ? (
         <iframe
-          className="block w-full border-0 bg-(--surface-paper-background)"
+          className="block w-full border-0 bg-(--surface-panel-background)"
           loading="lazy"
-          onLoad={sendStreamingUpdate}
+          onLoad={sendWidgetUpdate}
           ref={frameRef}
           sandbox="allow-scripts"
-          srcDoc={complete ? finalDocument : shellDocument}
+          srcDoc={shellDocument}
           style={{ height }}
           title={title || toolUse.name}
         />
       ) : (
-        <div className="h-[180px] bg-(--surface-panel-subtle-background) motion-safe:animate-pulse" />
+        <div className="h-[180px] bg-(--surface-panel-background) motion-safe:animate-pulse" />
       )}
     </section>
   );
