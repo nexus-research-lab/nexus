@@ -30,6 +30,7 @@ import {
 interface RoomWorkspaceViewProps {
   activeWorkspacePath: string | null;
   agentId: string;
+  composerDraftScopeKey: string | null;
   compact?: boolean;
   isDm: boolean;
   roomMembers: Agent[];
@@ -39,6 +40,7 @@ interface RoomWorkspaceViewProps {
 export function RoomWorkspaceView({
   activeWorkspacePath,
   agentId,
+  composerDraftScopeKey,
   compact = false,
   isDm,
   roomMembers,
@@ -57,9 +59,11 @@ export function RoomWorkspaceView({
   const controller = useRoomWorkspaceController({
     activeWorkspacePath,
     agentId,
+    composerDraftScopeKey,
     isDm,
     onOpenWorkspaceFile,
     fileInputRef,
+    roomMembers,
   });
 
   const togglePreviewFocus = () => {

@@ -1,5 +1,6 @@
 import { useCallback, type ChangeEvent } from "react";
 
+import type { DesktopWorkspaceFileOpenTarget } from "@/lib/desktop-bridge/desktop-bridge";
 import type {
   WorkspaceEntryMutationResponse,
   WorkspaceEntryRenameResponse,
@@ -26,6 +27,13 @@ interface WorkspaceEntryCommands {
     entry: WorkspaceFileEntry,
   ) => Promise<WorkspaceEntryMutationResponse | null>;
   downloadEntry: (entry: WorkspaceFileEntry) => Promise<true | null>;
+  openEntry: (
+    entry: WorkspaceFileEntry,
+    target: DesktopWorkspaceFileOpenTarget,
+    applicationPath?: string,
+  ) => Promise<true | null>;
+  copyEntryPath: (entry: WorkspaceFileEntry) => Promise<true | null>;
+  addEntryToChat: (entry: WorkspaceFileEntry) => Promise<true | null>;
   renameEntry: (
     entry: WorkspaceFileEntry,
     name: string,
@@ -73,8 +81,11 @@ export function useWorkspaceEntryTransactions({
 }: UseWorkspaceEntryTransactionsOptions) {
   const {
     createEntry,
+    addEntryToChat,
+    copyEntryPath,
     deleteEntry,
     downloadEntry,
+    openEntry,
     renameEntry,
     uploadFiles,
   } = commands;
@@ -138,6 +149,24 @@ export function useWorkspaceEntryTransactions({
       await downloadEntry(contextEntry);
     }
   }, [contextEntry, downloadEntry]);
+  const handleOpenContextEntry = useCallback(async (
+    target: DesktopWorkspaceFileOpenTarget,
+    applicationPath?: string,
+  ): Promise<void> => {
+    if (contextEntry && !contextEntry.is_dir) {
+      await openEntry(contextEntry, target, applicationPath);
+    }
+  }, [contextEntry, openEntry]);
+  const handleCopyContextEntryPath = useCallback(async (): Promise<void> => {
+    if (contextEntry && !contextEntry.is_dir) {
+      await copyEntryPath(contextEntry);
+    }
+  }, [contextEntry, copyEntryPath]);
+  const handleAddContextEntryToChat = useCallback(async (): Promise<void> => {
+    if (contextEntry && !contextEntry.is_dir) {
+      await addEntryToChat(contextEntry);
+    }
+  }, [addEntryToChat, contextEntry]);
   const handleFileSelect = useCallback(async (
     event: ChangeEvent<HTMLInputElement>,
   ): Promise<void> => {
@@ -152,7 +181,10 @@ export function useWorkspaceEntryTransactions({
 
   return {
     handleConfirmDelete,
+    handleAddContextEntryToChat,
+    handleCopyContextEntryPath,
     handleDownloadContextEntry,
+    handleOpenContextEntry,
     handleFileSelect,
     handlePromptConfirm,
   };

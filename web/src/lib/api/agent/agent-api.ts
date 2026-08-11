@@ -242,6 +242,30 @@ function normalizeDownloadFileName(path: string, fileName?: string): string {
   return normalizedPath.split("/").filter(Boolean).at(-1) || "download";
 }
 
+/** 将已有 workspace 文件读取为 Composer 可直接复用的浏览器 File。 */
+export async function loadWorkspaceFileApi(
+  agentId: string,
+  path: string,
+  fileName?: string,
+): Promise<File> {
+  const url = getWorkspaceFileDownloadUrl(agentId, path);
+  const headers = new Headers();
+  applyDesktopRequestHeaders(url, headers);
+  const response = await fetch(url, {
+    credentials: "include",
+    headers,
+    method: "GET",
+  });
+  if (!response.ok) {
+    throw new Error(`读取文件失败: ${response.status} ${response.statusText}`);
+  }
+  const blob = await response.blob();
+  return new File([blob], normalizeDownloadFileName(path, fileName), {
+    lastModified: Date.now(),
+    type: blob.type,
+  });
+}
+
 /** 桌面端在文件夹中定位，浏览器端下载文件，避免 HTML 触发桌面壳顶层导航。 */
 export async function downloadWorkspaceFileApi(
   agentId: string,
@@ -253,24 +277,11 @@ export async function downloadWorkspaceFileApi(
     return;
   }
 
-  const url = getWorkspaceFileDownloadUrl(agentId, path);
-  const resolvedFileName = normalizeDownloadFileName(path, fileName);
-  const headers = new Headers();
-  applyDesktopRequestHeaders(url, headers);
-  const response = await fetch(url, {
-    credentials: "include",
-    headers,
-    method: "GET",
-  });
-  if (!response.ok) {
-    throw new Error(`下载失败: ${response.status} ${response.statusText}`);
-  }
-
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
+  const file = await loadWorkspaceFileApi(agentId, path, fileName);
+  const objectUrl = URL.createObjectURL(file);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
-  anchor.download = resolvedFileName;
+  anchor.download = file.name;
   anchor.style.display = "none";
   document.body.appendChild(anchor);
   anchor.click();

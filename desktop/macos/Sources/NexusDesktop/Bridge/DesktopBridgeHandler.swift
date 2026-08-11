@@ -90,6 +90,16 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       let rawURL = request.stringPayload("url")
       try openExternalURL(rawURL)
       return ["opened": true]
+    case "app.get_workspace_file_applications":
+      return try DesktopWorkspaceFileActions.applicationsPayload(
+        for: request.stringPayload("path")
+      )
+    case "app.open_workspace_file":
+      return try DesktopWorkspaceFileActions.openPayload(
+        path: request.stringPayload("path"),
+        target: request.stringPayload("target"),
+        applicationPath: request.stringPayload("application_path")
+      )
     case "app.export_logs":
       return try exportLogs()
     case "app.open_route":

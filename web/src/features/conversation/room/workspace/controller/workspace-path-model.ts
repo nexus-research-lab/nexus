@@ -26,6 +26,18 @@ export function joinWorkspacePath(parentPath: string | null, name: string): stri
   return parentPath ? `${parentPath}/${name}` : name;
 }
 
+export function joinLocalWorkspacePath(
+  workspaceRoot: string,
+  relativePath: string,
+): string {
+  const normalizedRoot = workspaceRoot.trim().replace(/[\\/]+$/, "");
+  if (!normalizedRoot) {
+    return relativePath;
+  }
+  const separator = normalizedRoot.includes("\\") ? "\\" : "/";
+  return `${normalizedRoot}${separator}${relativePath.replace(/[\\/]+/g, separator)}`;
+}
+
 export function isWorkspacePathWithin(path: string | null, parentPath: string): boolean {
   return Boolean(path && (path === parentPath || path.startsWith(`${parentPath}/`)));
 }

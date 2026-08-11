@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { hasManagedExecutionGraph } from "@/features/conversation/shared/execution/execution-process-model";
+import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -31,6 +32,7 @@ import type {
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
+import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 
 import { GroupThreadContextProvider } from "../../group/thread/group-thread-context";
 import { RoomHistoryMenu } from "../history/room-history-menu";
@@ -148,6 +150,16 @@ export function RoomMobileSurface({
     toolUseId: null as string | null,
   });
   const isDm = currentRoomType === "dm";
+  const composerSessionKey = isDm
+    ? currentAgentSessionIdentity?.session_key?.trim() || null
+    : conversationId
+    ? buildRoomSharedSessionKey(conversationId)
+    : null;
+  const composerDraftScopeKey = buildComposerDraftScopeKey({
+    agentId: isDm ? currentAgent.agent_id : null,
+    roomId: isDm ? null : roomId,
+    sessionKey: composerSessionKey,
+  });
   const workgraphAvailable = hasManagedExecutionGraph(
     executionResource.execution,
   );
@@ -315,6 +327,7 @@ export function RoomMobileSurface({
       <RoomMobileAuxiliaryOverlay
         activeTab={activeAuxiliaryTab}
         activeWorkspacePath={activeWorkspacePath}
+        composerDraftScopeKey={composerDraftScopeKey}
         conversationId={conversationId}
         currentAgent={currentAgent}
         executionResource={executionResource}

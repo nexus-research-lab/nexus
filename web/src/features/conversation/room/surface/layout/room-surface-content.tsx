@@ -8,6 +8,8 @@
 
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
+import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 
 import { RoomChatSurface } from "../room-chat-surface";
 import { RoomSurfaceAuxiliaryPanel } from "./room-surface-auxiliary-panel";
@@ -67,6 +69,16 @@ export function RoomSurfaceContent({
   surfaceSplitRef,
 }: RoomSurfaceContentProps) {
   const isDm = currentRoomType === "dm";
+  const composerSessionKey = isDm
+    ? currentAgentSessionIdentity?.session_key?.trim() || null
+    : conversationId
+    ? buildRoomSharedSessionKey(conversationId)
+    : null;
+  const composerDraftScopeKey = buildComposerDraftScopeKey({
+    agentId: isDm ? currentAgent.agent_id : null,
+    roomId: isDm ? null : roomId,
+    sessionKey: composerSessionKey,
+  });
   const layout = useRoomSurfaceLayoutController({
     activeSurfaceTab,
     conversationId,
@@ -160,6 +172,7 @@ export function RoomSurfaceContent({
                 activeSurfaceTab={activeSurfaceTab}
                 activeWorkspacePath={activeWorkspacePath}
                 conversationId={conversationId}
+                composerDraftScopeKey={composerDraftScopeKey}
                 currentAgent={currentAgent}
                 executionResource={executionResource}
                 executionTaskRuns={executionTaskRuns}

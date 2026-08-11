@@ -58,6 +58,8 @@ internal sealed class DesktopBridgeHandler
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
+                "app.get_workspace_file_applications" => GetWorkspaceFileApplications(payload),
+                "app.open_workspace_file" => OpenWorkspaceFile(payload),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
                 "app.start_update" => new { status = updateStarter() },
@@ -128,6 +130,58 @@ internal sealed class DesktopBridgeHandler
             UseShellExecute = true,
         });
         return new { opened = true };
+    }
+
+    private static object GetWorkspaceFileApplications(JsonElement payload)
+    {
+        _ = ValidatedWorkspaceFilePath(StringPayload(payload, "path"));
+        return new
+        {
+            default_application = (object?)null,
+            applications = Array.Empty<object>(),
+        };
+    }
+
+    private static object OpenWorkspaceFile(JsonElement payload)
+    {
+        string filePath = ValidatedWorkspaceFilePath(StringPayload(payload, "path"));
+        string target = StringPayload(payload, "target");
+        ProcessStartInfo startInfo = target switch
+        {
+            "default" => new ProcessStartInfo
+            {
+                FileName = filePath,
+                UseShellExecute = true,
+            },
+            "file_manager" => ExplorerSelection(filePath),
+            _ => throw new NotSupportedException("当前平台不支持该文件打开方式。"),
+        };
+        Process.Start(startInfo);
+        return new { opened = true };
+    }
+
+    private static ProcessStartInfo ExplorerSelection(string filePath)
+    {
+        ProcessStartInfo startInfo = new("explorer.exe")
+        {
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add("/select," + filePath);
+        return startInfo;
+    }
+
+    private static string ValidatedWorkspaceFilePath(string rawPath)
+    {
+        string filePath = Path.GetFullPath(rawPath.Trim());
+        string usersRoot = Path.GetFullPath(DesktopPaths.UsersDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!filePath.StartsWith(usersRoot, StringComparison.OrdinalIgnoreCase)
+            || !File.Exists(filePath))
+        {
+            throw new ArgumentException("工作区文件路径无效。");
+        }
+        return filePath;
     }
 
     private static object RelocateStateRoot(JsonElement payload)

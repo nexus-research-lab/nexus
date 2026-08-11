@@ -8,7 +8,7 @@ Room Workspace 的状态与命令边界。
 - `interaction/` 分离菜单/Prompt 状态、路径导航和条目事务。
 - `use-workspace-agent-scope.ts` 负责 Room Agent 选择与外部打开请求协议。
 - `use-workspace-files-resource.ts` 负责当前 Agent 的文件快照和加载错误。
-- `use-workspace-commands.ts` 负责上传、创建、重命名、删除和下载/定位事务。
+- `use-workspace-commands.ts` 负责上传、创建、重命名、删除、下载/定位，以及桌面文件打开、复制路径和加入聊天事务。
 - `use-room-workspace-controller.ts` 只编排上述能力，并按 `agent/browser/dialogs/fileInput` 消费者返回具体控制面。
 
 ## 不变量

@@ -20,6 +20,7 @@ export type RoomMobileAuxiliaryTab = "about" | "workgraph" | "workspace";
 interface RoomMobileAuxiliaryOverlayProps {
   activeTab: RoomMobileAuxiliaryTab | null;
   activeWorkspacePath: string | null;
+  composerDraftScopeKey: string | null;
   conversationId: string | null;
   currentAgent: Agent;
   executionResource: ExecutionResource;
@@ -47,6 +48,7 @@ interface RoomMobileAuxiliaryOverlayProps {
 export function RoomMobileAuxiliaryOverlay({
   activeTab,
   activeWorkspacePath,
+  composerDraftScopeKey,
   conversationId,
   currentAgent,
   executionResource,
@@ -103,6 +105,7 @@ export function RoomMobileAuxiliaryOverlay({
           <RoomWorkspaceView
             activeWorkspacePath={activeWorkspacePath}
             agentId={currentAgent.agent_id}
+            composerDraftScopeKey={composerDraftScopeKey}
             compact
             isDm={isDm}
             onOpenWorkspaceFile={onOpenWorkspaceFile}

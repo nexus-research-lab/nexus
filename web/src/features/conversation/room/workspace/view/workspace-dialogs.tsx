@@ -3,6 +3,10 @@ import {
   PromptDialog,
 } from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type {
+  DesktopFileApplicationsResult,
+  DesktopWorkspaceFileOpenTarget,
+} from "@/lib/desktop-bridge/desktop-bridge";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 import type {
@@ -23,7 +27,18 @@ interface WorkspaceDialogsController {
   openRenamePrompt: (entry: WorkspaceFileEntry) => void;
   handlePromptConfirm: (value: string) => Promise<void>;
   handleConfirmDelete: () => Promise<void>;
+  handleAddContextEntryToChat: () => Promise<void>;
+  handleCopyContextEntryPath: () => Promise<void>;
   handleDownloadContextEntry: () => Promise<void>;
+  handleOpenContextEntry: (
+    target: DesktopWorkspaceFileOpenTarget,
+    applicationPath?: string,
+  ) => Promise<void>;
+  openApplications: {
+    isLoading: boolean;
+    path: string;
+    result: DesktopFileApplicationsResult | null;
+  } | null;
   openDeletePrompt: (entry: WorkspaceFileEntry) => void;
 }
 
@@ -46,6 +61,9 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
   const {t} = useI18n();
   const contextEntry = controller.contextMenu.entry;
   const contextDirectory = contextEntry?.is_dir ? contextEntry.path : null;
+  const openApplications = controller.openApplications?.path === contextEntry?.path
+    ? controller.openApplications
+    : null;
   const promptCopy = PROMPT_COPY_BY_MODE[controller.promptState?.mode ?? "rename"];
 
   return (
@@ -53,13 +71,20 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
       <WorkspaceContextMenu
         canCreateChildren={contextEntry === null || contextEntry.is_dir}
         entry={contextEntry}
+        isLoadingOpenApplications={openApplications?.isLoading ?? false}
+        onAddToChat={() => void controller.handleAddContextEntryToChat()}
         onClose={controller.closeContextMenu}
+        onCopyPath={() => void controller.handleCopyContextEntryPath()}
         onCreateFile={() => controller.openCreatePrompt("file", contextDirectory)}
         onCreateFolder={() => controller.openCreatePrompt("directory", contextDirectory)}
         onDelete={() => contextEntry && controller.openDeletePrompt(contextEntry)}
         onDownload={() => void controller.handleDownloadContextEntry()}
+        onOpen={(target, applicationPath) => (
+          void controller.handleOpenContextEntry(target, applicationPath)
+        )}
         onRename={() => contextEntry && controller.openRenamePrompt(contextEntry)}
         onUpload={() => controller.handleUploadClick(contextDirectory)}
+        openApplications={openApplications?.result ?? null}
         position={controller.contextMenu.position}
       />
 

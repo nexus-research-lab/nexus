@@ -1,3 +1,4 @@
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 export interface WorkspaceContextMenuState {
@@ -39,11 +40,14 @@ export function resolveWorkspaceMenuPosition(
   entry: WorkspaceFileEntry | null,
 ): { x: number; y: number } {
   const target = entry ? (entry.is_dir ? "directory" : "file") : "root";
+  const isDesktopFile = target === "file" && isDesktopRuntime();
+  const menuHeight = isDesktopFile ? 250 : MENU_HEIGHT_BY_TARGET[target];
+  const menuWidth = isDesktopFile ? 200 : 180;
   return {
-    x: Math.max(0, Math.min(clientPosition.x, viewport.width - 180)),
+    x: Math.max(0, Math.min(clientPosition.x, viewport.width - menuWidth)),
     y: Math.max(
       0,
-      Math.min(clientPosition.y, viewport.height - MENU_HEIGHT_BY_TARGET[target]),
+      Math.min(clientPosition.y, viewport.height - menuHeight),
     ),
   };
 }

@@ -31,6 +31,7 @@ interface RoomSurfaceAuxiliaryPanelProps {
   activeSurfaceTab: RoomSurfaceTabKey;
   activeWorkspacePath: string | null;
   conversationId: string | null;
+  composerDraftScopeKey: string | null;
   currentAgent: Agent;
   executionResource: ExecutionResource;
   executionTaskRuns: ConversationTaskRun[];
@@ -67,6 +68,7 @@ export function RoomSurfaceAuxiliaryPanel({
   activeSurfaceTab,
   activeWorkspacePath,
   conversationId,
+  composerDraftScopeKey,
   currentAgent,
   executionResource,
   executionTaskRuns,
@@ -108,6 +110,7 @@ export function RoomSurfaceAuxiliaryPanel({
         <RoomWorkspaceView
           activeWorkspacePath={activeWorkspacePath}
           agentId={currentAgent.agent_id}
+          composerDraftScopeKey={composerDraftScopeKey}
           isDm={isDm}
           roomMembers={roomMembers}
           onOpenWorkspaceFile={onOpenWorkspaceFile}

@@ -4,6 +4,8 @@ type DesktopBridgeKind =
   | "app.choose_state_root"
   | "app.relocate_state_root"
   | "app.open_external_url"
+  | "app.get_workspace_file_applications"
+  | "app.open_workspace_file"
   | "app.export_logs"
   | "app.open_route"
   | "app.start_update"
@@ -33,6 +35,22 @@ export interface DesktopExportLogsResult {
   cancelled: boolean;
   path?: string;
 }
+
+export interface DesktopFileApplication {
+  name: string;
+  path: string;
+}
+
+export interface DesktopFileApplicationsResult {
+  applications: DesktopFileApplication[];
+  default_application?: DesktopFileApplication | null;
+}
+
+export type DesktopWorkspaceFileOpenTarget =
+  | "default"
+  | "file_manager"
+  | "terminal"
+  | "application";
 
 export interface DesktopStateRootStatus {
   current_path: string;
@@ -107,6 +125,30 @@ export async function openDesktopExternalURL(url: string): Promise<void> {
     "app.open_external_url",
     { url },
   );
+}
+
+export async function getDesktopWorkspaceFileApplications(
+  path: string,
+): Promise<DesktopFileApplicationsResult> {
+  return invokeDesktopBridge<
+    { path: string },
+    DesktopFileApplicationsResult
+  >("app.get_workspace_file_applications", { path });
+}
+
+export async function openDesktopWorkspaceFile(
+  path: string,
+  target: DesktopWorkspaceFileOpenTarget,
+  applicationPath?: string,
+): Promise<void> {
+  await invokeDesktopBridge<
+    { application_path: string; path: string; target: DesktopWorkspaceFileOpenTarget },
+    { opened: boolean }
+  >("app.open_workspace_file", {
+    application_path: applicationPath ?? "",
+    path,
+    target,
+  });
 }
 
 export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {

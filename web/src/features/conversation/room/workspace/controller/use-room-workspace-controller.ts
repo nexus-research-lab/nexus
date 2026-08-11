@@ -1,4 +1,7 @@
-import { useCallback, type RefObject } from "react";
+import { useCallback, type MouseEvent, type RefObject } from "react";
+
+import { isDesktopRuntime } from "@/config/desktop-runtime";
+import type { Agent, WorkspaceFileEntry } from "@/types/agent/agent";
 
 import { useWorkspaceAgentScope } from "./use-workspace-agent-scope";
 import { useWorkspaceCommands } from "./use-workspace-commands";
@@ -10,23 +13,32 @@ import { useWorkspaceNavigation } from "./interaction/use-workspace-navigation";
 interface UseRoomWorkspaceControllerOptions {
   activeWorkspacePath: string | null;
   agentId: string;
+  composerDraftScopeKey: string | null;
   fileInputRef: RefObject<HTMLInputElement | null>;
   isDm: boolean;
   onOpenWorkspaceFile: (path: string | null) => void;
+  roomMembers: Agent[];
 }
 
 export function useRoomWorkspaceController({
   activeWorkspacePath,
   agentId,
+  composerDraftScopeKey,
   fileInputRef,
   isDm,
   onOpenWorkspaceFile,
+  roomMembers,
 }: UseRoomWorkspaceControllerOptions) {
   const agent = useWorkspaceAgentScope({ agentId, isDm, onOpenWorkspaceFile });
+  const workspaceRoot = roomMembers.find(
+    (member) => member.agent_id === agent.viewAgentId,
+  )?.workspace_path ?? "";
   const resource = useWorkspaceFilesResource(agent.viewAgentId);
   const commands = useWorkspaceCommands({
     agentId: agent.viewAgentId,
+    composerDraftScopeKey,
     refreshFiles: resource.reload,
+    workspaceRoot,
   });
   const navigation = useWorkspaceNavigation({
     activeWorkspacePath,
@@ -61,6 +73,17 @@ export function useRoomWorkspaceController({
     clearResourceError();
     clearCommandError();
   }, [clearCommandError, clearResourceError]);
+  const loadOpenApplications = commands.loadOpenApplications;
+  const openContextMenu = interaction.openContextMenu;
+  const handleContextMenu = useCallback((
+    event: MouseEvent,
+    entry: WorkspaceFileEntry,
+  ) => {
+    openContextMenu(event, entry);
+    if (isDesktopRuntime() && !entry.is_dir) {
+      void loadOpenApplications(entry);
+    }
+  }, [loadOpenApplications, openContextMenu]);
 
   return {
     agent: {
@@ -75,7 +98,7 @@ export function useRoomWorkspaceController({
       focusedDirectoryPath: navigation.focusedDirectoryPath,
       handleClickDirectory: navigation.focusDirectory,
       handleClickFile: navigation.openFile,
-      handleContextMenu: interaction.openContextMenu,
+      handleContextMenu,
       handleRootContextMenu: interaction.openRootContextMenu,
       handleUploadClick: interaction.openUpload,
       isLoadingFiles: resource.isLoading,
@@ -91,7 +114,11 @@ export function useRoomWorkspaceController({
       contextMenu: interaction.contextMenu,
       deleteTarget: interaction.deleteTarget,
       handleConfirmDelete: transactions.handleConfirmDelete,
+      handleAddContextEntryToChat: transactions.handleAddContextEntryToChat,
+      handleCopyContextEntryPath: transactions.handleCopyContextEntryPath,
       handleDownloadContextEntry: transactions.handleDownloadContextEntry,
+      handleOpenContextEntry: transactions.handleOpenContextEntry,
+      openApplications: commands.openApplications,
       handlePromptConfirm: transactions.handlePromptConfirm,
       handleUploadClick: interaction.openUpload,
       openCreatePrompt: interaction.openCreatePrompt,
