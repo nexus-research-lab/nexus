@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made the WorkGraph partial warning apply only after runtime visibility projection, so hidden detail activity no longer consumes canvas capacity or reports a false truncation while display-worthy overflow still remains explicit.
 - Made Execution-to-Goal confirmation recoverable across crashes and restarts with a transactionally persisted exact binding receipt, background reconciliation, and idempotent finalization; adaptive promotion now reports durable `applied`/`noop` plus an explicit pending confirmation and retry action instead of a misleading transport failure.
 - Made `prepare_plan_execution` Goal binding explicit with `none`, `current`, and `inherit`, so Goal-free WorkGraphs never absorb an ambient session Goal and Goal-bound proposals require exact round Goal authority.
 - Separated Goal-only, Goal-free WorkGraph, and confirmed Goal-bound WorkGraph lifecycles across REST, app-server, MCP, DM, and Room entry points: reserved identities no longer trigger managed gates, pending/conflicting bindings fail closed, confirmed bindings retain WorkGraph completion and retarget coordination, user retargets automatically dispatch an exact successor-planning continuation, and Goal/Execution tools share one exact per-round authority that upgrades only from a confirmed service receipt without ambient Goal discovery.

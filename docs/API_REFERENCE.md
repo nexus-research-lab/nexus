@@ -511,7 +511,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 }
 ```
 
-`graph` 只包含有界、脱敏的 NodeRun 摘要与结构化 Artifact 引用，不暴露 command、lease、runtime capability identity、凭证或完整 Tool I/O。total 与 truncated 字段描述 runtime 投影是否完整；前端不得把截断结果展示为完整实时图。该端点没有创建 Plan、分派、重试或状态推进能力。
+`graph` 只包含有界、脱敏的 NodeRun 摘要与结构化 Artifact 引用，不暴露 command、lease、runtime capability identity、凭证或完整 Tool I/O。`runtime_*_total` 与 `runtime_*_truncated` 只描述 visibility 判定后本应进入主图的 runtime 节点/边是否完整；节点检查器内的 `detail` 历史不占主图配额，也不触发 partial。前端不得把真实截断结果展示为完整实时图。该端点没有创建 Plan、分派、重试或状态推进能力。
 
 错误状态：缺少 `session_key` 或领域参数无效返回 `422`；Execution 服务未装配返回 `503`；读取失败返回 `500`。认证规则沿用全局约定。
 

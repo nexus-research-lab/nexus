@@ -143,7 +143,7 @@ export const enConversationMessages = {
   "execution.surface_empty": "No work graph for this conversation yet",
   "execution.surface_error": "The work graph is temporarily unavailable",
   "execution.refresh": "Refresh work graph",
-  "execution.surface_partial": "Some runtime facts are outside this view; {count} runtime nodes were observed",
+  "execution.surface_partial": "The work graph omits some display-worthy runtime facts; {nodes} runtime nodes and {edges} runtime edges belong on the canvas",
   "execution.surface_partial_short": "Partial",
   "execution.surface_stale": "Showing the last successfully synchronized work graph",
   "execution.surface_stale_at": "Showing the last successfully synchronized work graph ({time})",

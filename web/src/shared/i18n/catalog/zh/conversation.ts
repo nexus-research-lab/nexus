@@ -140,7 +140,7 @@ export const zhConversationMessages = {
   "execution.surface_empty": "当前会话还没有工作图",
   "execution.surface_error": "工作图暂时不可用",
   "execution.refresh": "刷新工作图",
-  "execution.surface_partial": "当前显示部分运行事实；共观测到 {count} 个运行节点",
+  "execution.surface_partial": "工作图未展示全部应显示的运行事实；应进入主图的运行节点共 {nodes} 个、运行连线 {edges} 条",
   "execution.surface_partial_short": "部分",
   "execution.surface_stale": "当前显示的是上次成功同步的工作图",
   "execution.surface_stale_at": "当前显示的是上次成功同步的工作图（{time}）",

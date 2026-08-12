@@ -83,11 +83,13 @@ export function ExecutionWorkGraphSurface({
         {runtimeProjectionPartial ? (
           <span
             aria-label={t("execution.surface_partial", {
-              count: execution?.graph?.runtime_node_total ?? 0,
+              nodes: execution?.graph?.runtime_node_total ?? 0,
+              edges: execution?.graph?.runtime_edge_total ?? 0,
             })}
             className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
             title={t("execution.surface_partial", {
-              count: execution?.graph?.runtime_node_total ?? 0,
+              nodes: execution?.graph?.runtime_node_total ?? 0,
+              edges: execution?.graph?.runtime_edge_total ?? 0,
             })}
           >
             <CircleAlert aria-hidden="true" className="h-3 w-3" />
