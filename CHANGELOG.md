@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed `NotebookEdit` from Agent pre-authorization controls and retired existing saved selections.
 - Aligned every Agent detail tab to the standard inset content gutter while keeping memory and communication on one shared split-view axis.
 - Tightened the add-friend picker and standardized add-friend and group-chat actions on clear Lucide action icons.
 - Collapsed long user messages by default with controls to reveal or hide the full content.
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned the expanded sidebar toggle with the directory action controls below it.
 - Kept the Agent contact Composer available before the first Session so owners can manually start a friend conversation.
 - Stopped replies to owner-authored Agent contact messages from waking the represented Agent for an extra round while preserving normal Agent-initiated reply routing.
 - Preserved the active Agent detail tab while switching contacts.
