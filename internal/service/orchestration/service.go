@@ -1,5 +1,5 @@
 // INPUT: 当前 owner/session/actor/structured WorkBinding/ReviewBinding/round coordination 身份、Execution ensure/read 请求、explicit Goal gateway 与 SQL Repository port。
-// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 review-to-coordination 的 Execution snapshot。
+// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 review-to-coordination 的 Execution snapshot，以及提交后的只读投影失效事实。
 // POS: Execution Orchestration 应用服务入口；模型语义 command 见 commands.go。
 package orchestration
 
@@ -91,6 +91,7 @@ type EnsureInput struct {
 type Service struct {
 	repository             Repository
 	planProposals          PlanProposalRepository
+	goalConfirmations      GoalConfirmationRepository
 	subagentToolHistory    RuntimeGraphSubagentToolHistoryProvider
 	goalPromotionGateway   GoalPromotionGateway
 	explicitGoalGateway    ExplicitGoalBindingGateway
@@ -98,6 +99,8 @@ type Service struct {
 	dispatchConsumer       ExecutionDispatchConsumer
 	reviewDispatchConsumer ExecutionReviewDispatchConsumer
 	cancellationConsumer   ExecutionCancellationConsumer
+	invalidationMu         sync.RWMutex
+	invalidationSink       ExecutionInvalidationSink
 	coordinationMu         sync.RWMutex
 	coordinationRounds     map[string]string
 	now                    func() time.Time
@@ -107,9 +110,11 @@ type Service struct {
 // NewService 创建 Execution Orchestration 应用服务。
 func NewService(repository Repository) *Service {
 	planProposals, _ := repository.(PlanProposalRepository)
+	goalConfirmations, _ := repository.(GoalConfirmationRepository)
 	return &Service{
 		repository:         repository,
 		planProposals:      planProposals,
+		goalConfirmations:  goalConfirmations,
 		coordinationRounds: make(map[string]string),
 		now:                time.Now,
 		newID:              newOrchestrationID,
@@ -121,7 +126,8 @@ func (s *Service) Ensure(
 	ctx context.Context,
 	actor ActorContext,
 	input EnsureInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}
@@ -296,10 +302,24 @@ func (s *Service) Ensure(
 	if err != nil {
 		return s.storageMutationResult(nil, err, nil)
 	}
-	return AppliedResult(snapshot, []string{"execution:" + snapshot.Execution.ID}, []NextAction{{
+	result := AppliedResult(snapshot, []string{"execution:" + snapshot.Execution.ID}, []NextAction{{
 		Tool:   "prepare_plan_execution",
 		Reason: "prepare and seal the complete WorkGraph when coordinated delivery is required",
-	}}), nil
+	}})
+	if strings.TrimSpace(snapshot.Execution.GoalID) == "" {
+		return result, nil
+	}
+	if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
+		return withPendingGoalConfirmation(
+			result,
+			"Execution is durable; reverse Goal binding confirmation is pending and will retry automatically.",
+			NextAction{
+				Tool:   "get_execution",
+				Reason: "continue from the durable Execution while background reconciliation confirms the Goal binding",
+			},
+		), nil
+	}
+	return withConfirmedGoalAuthority(result), nil
 }
 
 func validateNewExecutionProposal(

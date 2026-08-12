@@ -81,8 +81,8 @@ func TestTrustedQueuedRoomContextDoesNotPropagateToAgentHandoffs(t *testing.T) {
 		t.Fatal("direct queued user trust must be consumed by one runtime hop")
 	}
 	agentHandoff := newPublicMentionRound(userRound, "room:group:conversation-1", "agent-handoff")
-	if got := roomMCPSourceContextType(agentHandoff); got != "room_untrusted" {
-		t.Fatalf("agent handoff source = %q, want room_untrusted", got)
+	if got := roomMCPSourceContextType(agentHandoff); got != "room_handoff" {
+		t.Fatalf("agent handoff source = %q, want room_handoff", got)
 	}
 }
 

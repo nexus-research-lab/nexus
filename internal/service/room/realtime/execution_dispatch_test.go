@@ -139,16 +139,16 @@ func TestStaleStructuredWorkWakeIsTerminalNotRetriedAsConversation(t *testing.T)
 func TestStructuredHandoffRecoveryRequiresExactQueueCapability(t *testing.T) {
 	binding := testRoomExecutionWorkBinding()
 	handoff := workspacestore.RoomPublicHandoff{
-		HandoffID:      "execution_dispatch_dispatch-1",
-		OwnerUserID:    "owner-1",
-		ConversationID: "conversation-1",
-		RoomID:         "room-1",
-		RootRoundID:    "execution_dispatch_dispatch-1",
+		HandoffID:       "execution_dispatch_dispatch-1",
+		OwnerUserID:     "owner-1",
+		ConversationID:  "conversation-1",
+		RoomID:          "room-1",
+		RootRoundID:     "execution_dispatch_dispatch-1",
 		SourceMessageID: "execution_dispatch_dispatch-1",
-		SourceAgentID:  "agent-lead",
-		TargetAgentID:  "agent-worker",
-		Content:        "deliver the evidence",
-		WorkBinding:    binding,
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-worker",
+		Content:         "deliver the evidence",
+		WorkBinding:     binding,
 	}
 	item := protocol.InputQueueItem{
 		ID:              handoff.HandoffID,
@@ -167,16 +167,16 @@ func TestStructuredHandoffRecoveryRequiresExactQueueCapability(t *testing.T) {
 		RootRoundID:     handoff.RootRoundID,
 		WorkBinding:     binding,
 	}
-	if !inputQueueItemMatchesStructuredHandoff(item, handoff) {
+	if !inputQueueItemMatchesDurableHandoff(item, handoff) {
 		t.Fatal("exact structured queue item did not match durable handoff")
 	}
 	item.WorkBinding = nil
-	if inputQueueItemMatchesStructuredHandoff(item, handoff) {
+	if inputQueueItemMatchesDurableHandoff(item, handoff) {
 		t.Fatal("ordinary queue item suppressed structured handoff recovery")
 	}
 	item.WorkBinding = binding
 	item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
-	if inputQueueItemMatchesStructuredHandoff(item, handoff) {
+	if inputQueueItemMatchesDurableHandoff(item, handoff) {
 		t.Fatal("guided queue item suppressed structured handoff recovery")
 	}
 }

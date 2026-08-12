@@ -5,9 +5,7 @@ package goal
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -98,16 +96,10 @@ func (s *Service) AuditObjectiveAlignmentByModel(
 		current.Metadata[protocol.GoalMetadataObjectiveAlignment] = record
 		current.Version++
 		current.UpdatedAt = record.AuditedAt
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(
+		updated, updateErr := s.persistGoalUpdateWithEvent(
 			ctx,
-			*updated,
+			*current,
+			expectedVersion,
 			"objective_alignment_audited",
 			protocol.GoalUpdateSourceModel,
 			roundID,
@@ -118,8 +110,9 @@ func (s *Service) AuditObjectiveAlignmentByModel(
 				"report":             record.Report,
 				"source_agent_id":    record.AgentID,
 			},
-		); eventErr != nil {
-			return nil, eventErr
+		)
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		saved = record
 		return updated, nil
@@ -131,17 +124,34 @@ func (s *Service) AuditObjectiveAlignmentByModel(
 }
 
 func (s *Service) ensureGoalObjectiveAlignmentReady(
+	ctx context.Context,
 	item protocol.Goal,
 	agentID string,
 	roundID string,
 ) error {
-	if !goalRequiresExecutionCompletionAudit(item) {
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return fmt.Errorf("%w: resolve Goal Execution binding: %v", ErrGoalInvalidState, err)
+	}
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
 		return nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return fmt.Errorf(
+			"%w: Goal Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
+	case protocol.GoalExecutionBindingStateConfirmed:
+	default:
+		return fmt.Errorf("%w: Goal Execution binding state is unknown", ErrGoalInvalidState)
 	}
 	record, ok := objectiveAlignmentRecordFromGoal(item)
 	if !ok {
 		return fmt.Errorf(
-			"%w: managed Goal completion requires an objective alignment audit in the current round",
+			"%w: a Goal with a confirmed managed WorkGraph binding requires an objective alignment audit in the current round",
 			ErrGoalInvalidState,
 		)
 	}

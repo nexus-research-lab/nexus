@@ -1,11 +1,19 @@
+// INPUT: Room directed message、host-only Goal collaboration attribution 与消费 cursor。
+// OUTPUT: owner/conversation 隔离且可跨重启恢复的私域消息及 cursor。
+// POS: Room 私域消息持久化真相源；Goal attribution 只参与宿主调度，不授权目标 Agent。
 package workspace
 
 import (
 	"errors"
+	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
+	"reflect"
 	"slices"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -21,10 +29,20 @@ type RoomDirectedMessageCursor struct {
 	Timestamp            int64
 }
 
+// RoomDirectedMessageRecoveryRecord keeps the durable owner provenance needed
+// when startup repair scans every Room conversation for an attributed wake
+// whose handoff ledger write was interrupted.
+type RoomDirectedMessageRecoveryRecord struct {
+	OwnerPathSegment string
+	OwnerUserID      string
+	Message          protocol.RoomDirectedMessageRecord
+}
+
 // RoomDirectedMessageStore 负责 Room directed message 的 append-only 读写。
 type RoomDirectedMessageStore struct {
 	paths *Store
 	files *SessionFileStore
+	mu    sync.Mutex
 }
 
 // NewRoomDirectedMessageStore 创建 Room directed message 存储。
@@ -41,15 +59,136 @@ func (s *RoomDirectedMessageStore) AppendMessage(
 	ownerUserID string,
 	message protocol.RoomDirectedMessageRecord,
 ) error {
-	return s.files.appendRoomJSONL(
+	_, _, err := s.AppendMessageIfAbsent(ownerUserID, message)
+	return err
+}
+
+// AppendMessageIfAbsent 按 message_id 持久接受一条私域消息。
+// 同一逻辑工具调用重试时返回首次事实；相同 ID 的不同语义会 fail closed。
+func (s *RoomDirectedMessageStore) AppendMessageIfAbsent(
+	ownerUserID string,
+	message protocol.RoomDirectedMessageRecord,
+) (protocol.RoomDirectedMessageRecord, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	message.MessageID = strings.TrimSpace(message.MessageID)
+	if message.MessageID == "" {
+		return protocol.RoomDirectedMessageRecord{}, false, errors.New("message_id is required")
+	}
+	messages, err := s.readMessagesLocked(ownerUserID, message.ConversationID)
+	if err != nil {
+		return protocol.RoomDirectedMessageRecord{}, false, err
+	}
+	for _, existing := range messages {
+		if strings.TrimSpace(existing.MessageID) != message.MessageID {
+			continue
+		}
+		if !roomDirectedMessageSameIntent(existing, message) {
+			return protocol.RoomDirectedMessageRecord{}, false, errors.New("room directed message idempotency conflict")
+		}
+		return existing, false, nil
+	}
+	row := roomDirectedMessageToRow(message)
+	row["owner_user_id"] = strings.TrimSpace(ownerUserID)
+	if err = s.files.appendRoomJSONL(
 		ownerUserID,
 		s.paths.RoomConversationMessagesPath(ownerUserID, message.ConversationID),
-		roomDirectedMessageToRow(message),
-	)
+		row,
+	); err != nil {
+		return protocol.RoomDirectedMessageRecord{}, false, err
+	}
+	return message, true, nil
+}
+
+// GoalCollaborationMessagesAll scans durable directed-message facts that can
+// repair an interrupted message -> handoff write. It does not decide whether
+// the recorded Goal revision is still current; the service layer owns that
+// lifecycle check before recreating any wake.
+func (s *RoomDirectedMessageStore) GoalCollaborationMessagesAll() ([]RoomDirectedMessageRecoveryRecord, error) {
+	owners, err := listRoomOwnerPathSegments(s.paths.StateRoot)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RoomDirectedMessageRecoveryRecord, 0)
+	for _, ownerPathSegment := range owners {
+		roomRootPath := s.paths.RoomConversationRoot(ownerPathSegment)
+		root, openErr := s.files.openRoomRoot(ownerPathSegment, false)
+		if errors.Is(openErr, os.ErrNotExist) {
+			continue
+		}
+		if openErr != nil {
+			return nil, openErr
+		}
+		entries, readDirErr := fs.ReadDir(root.FS(), ".")
+		_ = root.Close()
+		if readDirErr != nil {
+			return nil, readDirErr
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			rows, readErr := s.files.readRoomJSONL(
+				ownerPathSegment,
+				filepath.Join(roomRootPath, entry.Name(), "directed_messages.jsonl"),
+			)
+			if errors.Is(readErr, os.ErrNotExist) {
+				continue
+			}
+			if readErr != nil {
+				return nil, readErr
+			}
+			for _, row := range rows {
+				ownerUserID := ""
+				if persistedOwnerUserID := strings.TrimSpace(stringFromAny(row["owner_user_id"])); persistedOwnerUserID != "" {
+					var ok bool
+					ownerUserID, ok = roomLedgerOwnerUserID(
+						ownerPathSegment,
+						persistedOwnerUserID,
+					)
+					if !ok {
+						continue
+					}
+				}
+				message := roomDirectedMessageFromRow(row)
+				if strings.TrimSpace(message.MessageID) == "" ||
+					protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) == nil ||
+					(message.WakePolicy != protocol.RoomWakePolicyImmediate &&
+						message.WakePolicy != protocol.RoomWakePolicyDelayed) ||
+					filepath.Base(s.paths.RoomConversationDir(ownerPathSegment, message.ConversationID)) != entry.Name() {
+					continue
+				}
+				result = append(result, RoomDirectedMessageRecoveryRecord{
+					OwnerPathSegment: ownerPathSegment,
+					OwnerUserID:      ownerUserID,
+					Message:          message,
+				})
+			}
+		}
+	}
+	sort.SliceStable(result, func(i int, j int) bool {
+		if result[i].Message.Timestamp != result[j].Message.Timestamp {
+			return result[i].Message.Timestamp < result[j].Message.Timestamp
+		}
+		if result[i].OwnerUserID != result[j].OwnerUserID {
+			return result[i].OwnerUserID < result[j].OwnerUserID
+		}
+		return result[i].Message.MessageID < result[j].Message.MessageID
+	})
+	return result, nil
 }
 
 // ReadMessages 读取指定对话的全部 Room directed message。
 func (s *RoomDirectedMessageStore) ReadMessages(
+	ownerUserID string,
+	conversationID string,
+) ([]protocol.RoomDirectedMessageRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.readMessagesLocked(ownerUserID, conversationID)
+}
+
+func (s *RoomDirectedMessageStore) readMessagesLocked(
 	ownerUserID string,
 	conversationID string,
 ) ([]protocol.RoomDirectedMessageRecord, error) {
@@ -76,6 +215,17 @@ func (s *RoomDirectedMessageStore) ReadMessages(
 		messages = append(messages, message)
 	}
 	return messages, nil
+}
+
+func roomDirectedMessageSameIntent(
+	left protocol.RoomDirectedMessageRecord,
+	right protocol.RoomDirectedMessageRecord,
+) bool {
+	left.Timestamp = 0
+	right.Timestamp = 0
+	left.GoalCollaborationBinding = protocol.NormalizeGoalCollaborationBinding(left.GoalCollaborationBinding)
+	right.GoalCollaborationBinding = protocol.NormalizeGoalCollaborationBinding(right.GoalCollaborationBinding)
+	return reflect.DeepEqual(left, right)
 }
 
 // ReadContextMessages 读取对目标 agent 可见的近期 directed message。
@@ -281,6 +431,9 @@ func roomDirectedMessageToRow(message protocol.RoomDirectedMessageRecord) map[st
 	if strings.TrimSpace(message.CausedByRoundID) != "" {
 		row["caused_by_round_id"] = strings.TrimSpace(message.CausedByRoundID)
 	}
+	if binding := protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding); binding != nil {
+		row["goal_collaboration_binding"] = binding
+	}
 	if message.HopIndex > 0 {
 		row["hop_index"] = message.HopIndex
 	}
@@ -316,21 +469,22 @@ func roomDirectedMessageCursorFromRow(row map[string]any) RoomDirectedMessageCur
 
 func roomDirectedMessageFromRow(row map[string]any) protocol.RoomDirectedMessageRecord {
 	return protocol.RoomDirectedMessageRecord{
-		MessageID:       stringFromAny(row["message_id"]),
-		RoomID:          stringFromAny(row["room_id"]),
-		ConversationID:  stringFromAny(row["conversation_id"]),
-		SourceAgentID:   stringFromAny(row["source_agent_id"]),
-		Recipients:      stringSliceFromAny(row["recipients"]),
-		WakeTargets:     stringSliceFromAny(row["wake_targets"]),
-		Content:         stringFromAny(row["content"]),
-		WakePolicy:      protocol.RoomWakePolicy(stringFromAny(row["wake_policy"])),
-		ReplyRoute:      roomReplyRouteFromAny(row["reply_route"]),
-		DelaySeconds:    int(protocol.Int64FromAny(row["delay_seconds"])),
-		CorrelationID:   stringFromAny(row["correlation_id"]),
-		RootRoundID:     stringFromAny(row["root_round_id"]),
-		CausedByRoundID: stringFromAny(row["caused_by_round_id"]),
-		HopIndex:        int(protocol.Int64FromAny(row["hop_index"])),
-		Timestamp:       protocol.Int64FromAny(row["timestamp"]),
+		MessageID:                stringFromAny(row["message_id"]),
+		RoomID:                   stringFromAny(row["room_id"]),
+		ConversationID:           stringFromAny(row["conversation_id"]),
+		SourceAgentID:            stringFromAny(row["source_agent_id"]),
+		Recipients:               stringSliceFromAny(row["recipients"]),
+		WakeTargets:              stringSliceFromAny(row["wake_targets"]),
+		Content:                  stringFromAny(row["content"]),
+		WakePolicy:               protocol.RoomWakePolicy(stringFromAny(row["wake_policy"])),
+		ReplyRoute:               roomReplyRouteFromAny(row["reply_route"]),
+		DelaySeconds:             int(protocol.Int64FromAny(row["delay_seconds"])),
+		CorrelationID:            stringFromAny(row["correlation_id"]),
+		RootRoundID:              stringFromAny(row["root_round_id"]),
+		CausedByRoundID:          stringFromAny(row["caused_by_round_id"]),
+		GoalCollaborationBinding: goalCollaborationBindingFromAny(row["goal_collaboration_binding"]),
+		HopIndex:                 int(protocol.Int64FromAny(row["hop_index"])),
+		Timestamp:                protocol.Int64FromAny(row["timestamp"]),
 	}
 }
 

@@ -1,5 +1,5 @@
 // INPUT: 已由 message 投影生成的 workspace_file_artifact 内容块与 exact runtime identity。
-// OUTPUT: 回挂到对应 Tool NodeRun 的有界结构化 Artifact 引用。
+// OUTPUT: 回挂到对应 Tool NodeRun 的有界结构化 Artifact 引用与 durable 写后的 session 失效事实。
 // POS: durable 消息 Artifact 与 Runtime Graph 的事实关联层；不读取文件、不推断交付，也不触发后续路线。
 package orchestration
 
@@ -38,6 +38,9 @@ func (s *Service) ObserveRuntimeArtifacts(
 	if err != nil {
 		return err
 	}
+	// Preserve visibility of any artifact prefix committed before a later
+	// artifact write fails.
+	defer s.invalidateActor(ctx, actor)
 	now := s.now().UTC()
 	for toolUseID, artifacts := range artifactsByToolUseID {
 		for _, artifact := range artifacts {

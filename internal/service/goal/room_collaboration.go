@@ -5,8 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
@@ -82,16 +80,10 @@ func (s *Service) recordRoomGoalCollaborationRequiredForLoadedGoal(ctx context.C
 	}
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := s.appendEvent(ctx, *updated, "room_collaboration_required", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "room_collaboration_required", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
 		"reason": "multi-member Room Goal requires room-visible non-lead collaboration before completion",
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	return updated, nil
@@ -121,16 +113,10 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx context.C
 	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationObservedAt] = s.nowFn().UTC().Format(time.RFC3339)
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := s.appendEvent(ctx, *updated, "room_collaboration_observed", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "room_collaboration_observed", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
 		"agent_id": agentID,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	return updated, nil

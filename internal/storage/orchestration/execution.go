@@ -105,6 +105,9 @@ INSERT INTO executions (
 		}
 		return nil, err
 	}
+	if err = r.ensureGoalConfirmationReceiptTx(ctx, tx, item); err != nil {
+		return nil, err
+	}
 	event := protocol.ExecutionEvent{
 		ID:             command.Meta.EventID,
 		ExecutionID:    item.ID,
@@ -240,6 +243,30 @@ LIMIT 1`,
 	return &item, nil
 }
 
+// FindByGoalRevision 返回与指定 Goal objective revision 绑定的最近 Execution，
+// 包含 terminal 状态，供 Goal binding inspector 校验历史双向绑定。
+func (r *Repository) FindByGoalRevision(
+	ctx context.Context,
+	goalID string,
+	goalObjectiveRevision int64,
+) (*protocol.Execution, error) {
+	item, err := scanExecution(r.db.QueryRowContext(ctx, r.executionSelect()+`
+WHERE goal_id = `+r.bind(1)+`
+  AND goal_objective_revision = `+r.bind(2)+`
+ORDER BY updated_at DESC, execution_id DESC
+LIMIT 1`,
+		strings.TrimSpace(goalID),
+		goalObjectiveRevision,
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 // BindGoal 无损绑定 Goal identity，不重建 Plan 或 Work Item。
 func (r *Repository) BindGoal(ctx context.Context, command BindGoalCommand) (*protocol.ExecutionSnapshot, error) {
 	item := command.Execution
@@ -258,6 +285,29 @@ func (r *Repository) BindGoal(ctx context.Context, command BindGoalCommand) (*pr
 	if mutation.replayed {
 		return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{})
 	}
+	// Binding an existing transient Execution must acquire the same unique
+	// Goal-revision identity claim as CreateWithPlan. Otherwise two existing
+	// Executions could race to bind one Goal revision through different paths.
+	storedExecution, loadErr := r.getExecution(ctx, mutation.tx, item.ID)
+	if loadErr != nil || storedExecution == nil {
+		r.abortMutation(mutation)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		return nil, sql.ErrNoRows
+	}
+	claimExecution := item
+	claimExecution.OwnerUserID = storedExecution.OwnerUserID
+	if err = r.claimGoalExecutionMaterialization(
+		ctx,
+		mutation.tx,
+		claimExecution,
+		command.Meta.CommandID,
+		timeOr(command.Meta.CreatedAt, r.currentTime()),
+	); err != nil {
+		r.abortMutation(mutation)
+		return nil, err
+	}
 	result, err := mutation.tx.ExecContext(ctx, `
 UPDATE executions
 SET goal_id = `+r.bind(1)+`,
@@ -275,6 +325,14 @@ WHERE execution_id = `+r.bind(5)+`
 		return nil, err
 	}
 	if err = requireOne(result); err != nil {
+		r.abortMutation(mutation)
+		return nil, err
+	}
+	storedExecution.GoalID = item.GoalID
+	storedExecution.GoalObjectiveRevision = item.GoalObjectiveRevision
+	storedExecution.GoalActivationOrigin = item.GoalActivationOrigin
+	storedExecution.GoalActivationReason = item.GoalActivationReason
+	if err = r.ensureGoalConfirmationReceiptTx(ctx, mutation.tx, *storedExecution); err != nil {
 		r.abortMutation(mutation)
 		return nil, err
 	}

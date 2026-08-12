@@ -11,7 +11,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
-import { getToolTitleKey } from "../../../tool-activity";
+import { getLocalizedToolTitle } from "../../../tool-activity";
 import { shouldShowAssistantTimeline } from "../../message-item-projection";
 import type {
   ProcessSummaryDetail,
@@ -152,8 +152,7 @@ function formatProcessDetail(
   if (detail.kind === "text") {
     return detail.text;
   }
-  const titleKey = getToolTitleKey(detail.toolName);
-  const title = titleKey ? t(titleKey) : detail.toolName;
+  const title = getLocalizedToolTitle(detail.toolName, t);
   return detail.detail
     ? t("message.process_tool_detail", { detail: detail.detail, title })
     : title;

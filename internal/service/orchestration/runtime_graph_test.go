@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -705,8 +706,127 @@ func TestRuntimeGraphViewFiltersHistoricalProgressFacet(t *testing.T) {
 	})
 
 	if len(view.Graph.Nodes) != 1 || view.Graph.Nodes[0].ID != "runtime-agent" ||
-		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 2 {
+		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 1 {
 		t.Fatalf("historical progress facet leaked into graph: %+v", view.Graph)
+	}
+}
+
+func TestRuntimeGraphViewAppliesPartialAfterCanvasVisibility(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 12, 9, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-1"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary, WorkItemID: "work-1",
+		}}},
+	}
+	runtimeGraph := protocol.ExecutionRuntimeGraph{
+		NodeTotal:      protocol.ExecutionRuntimeGraphNodeProjectionLimit + 46,
+		NodesTruncated: true,
+		Nodes: []protocol.ExecutionRuntimeNodeRun{{
+			ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+			Metadata: map[string]any{"execution_lane": "work", "work_item_id": "work-1"},
+		}},
+	}
+	for index := 0; index < 300; index++ {
+		observedAt := now.Add(time.Duration(index+1) * time.Second)
+		nodeID := fmt.Sprintf("detail-read-%03d", index)
+		runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+			ID: nodeID, Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: nodeID, ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Name: "Read", Status: protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: observedAt, UpdatedAt: observedAt,
+		})
+		runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + nodeID, SourceNodeID: "runtime-agent", TargetNodeID: nodeID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: observedAt,
+		})
+	}
+	failureAt := now.Add(-time.Minute)
+	runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+		ID: "visible-failure", Kind: protocol.ExecutionRuntimeNodeTool,
+		SubjectID: "visible-failure", ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+		Name: "internal-check", Status: protocol.ExecutionRuntimeNodeFailed,
+		StartedAt: failureAt, UpdatedAt: failureAt,
+	})
+	runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+		ID: "edge-visible-failure", SourceNodeID: "runtime-agent", TargetNodeID: "visible-failure",
+		Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: failureAt,
+	})
+
+	mergeExecutionRuntimeGraph(view, runtimeGraph)
+
+	if view.Graph.RuntimeNodeTotal != 1 || view.Graph.RuntimeNodesTruncated ||
+		view.Graph.RuntimeEdgeTotal != 1 || view.Graph.RuntimeEdgesTruncated {
+		t.Fatalf(
+			"hidden detail facts marked canvas partial: nodes=%d node_partial=%v edges=%d edge_partial=%v",
+			view.Graph.RuntimeNodeTotal,
+			view.Graph.RuntimeNodesTruncated,
+			view.Graph.RuntimeEdgeTotal,
+			view.Graph.RuntimeEdgesTruncated,
+		)
+	}
+	visibleFailure := false
+	for _, node := range view.Graph.Nodes {
+		if node.ID == "visible-failure" {
+			visibleFailure = node.Visibility == protocol.ExecutionGraphNodeNested
+		}
+	}
+	if !visibleFailure {
+		t.Fatalf("early display-worthy failure was not preserved: %+v", view.Graph.Nodes)
+	}
+}
+
+func TestRuntimeGraphViewMarksPartialOnlyWhenCanvasNodesAreOmitted(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-1"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary, WorkItemID: "work-1",
+		}}},
+	}
+	runtimeGraph := protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{{
+		ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+		SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		Metadata: map[string]any{"execution_lane": "work", "work_item_id": "work-1"},
+	}}}
+	for index := 0; index <= protocol.ExecutionRuntimeGraphNodeProjectionLimit; index++ {
+		observedAt := now.Add(time.Duration(index+1) * time.Second)
+		nodeID := fmt.Sprintf("visible-failure-%03d", index)
+		runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+			ID: nodeID, Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: nodeID, ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Name: "Read", Status: protocol.ExecutionRuntimeNodeFailed,
+			StartedAt: observedAt, UpdatedAt: observedAt,
+		})
+		runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + nodeID, SourceNodeID: "runtime-agent", TargetNodeID: nodeID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: observedAt,
+		})
+	}
+
+	mergeExecutionRuntimeGraph(view, runtimeGraph)
+
+	if view.Graph.RuntimeNodeTotal != protocol.ExecutionRuntimeGraphNodeProjectionLimit+1 ||
+		!view.Graph.RuntimeNodesTruncated {
+		t.Fatalf("display-worthy overflow was not marked partial: %+v", view.Graph)
+	}
+	canvasRuntimeNodes := 0
+	for _, node := range view.Graph.Nodes {
+		if node.ID != "work-1" && node.Visibility != protocol.ExecutionGraphNodeDetail {
+			canvasRuntimeNodes++
+		}
+	}
+	if canvasRuntimeNodes != protocol.ExecutionRuntimeGraphNodeProjectionLimit {
+		t.Fatalf("canvas runtime nodes = %d, want %d", canvasRuntimeNodes, protocol.ExecutionRuntimeGraphNodeProjectionLimit)
 	}
 }
 
@@ -828,12 +948,10 @@ func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t 
 	}
 }
 
-func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
+func TestGetLatestViewDoesNotExposePlanlessRuntimeGraphAsWorkGraph(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
-	rootID := "runtime-agent-1"
-	toolID := "runtime-tool-1"
 	repository := &runtimeGraphRepositoryFake{
 		fakeRepository: &fakeRepository{},
 		graph: protocol.ExecutionRuntimeGraph{
@@ -865,7 +983,7 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 			Edges: []protocol.ExecutionRuntimeEdgeRun{{
 				ID: "runtime-edge-1", GraphID: "round:round-1",
 				OwnerUserID: "owner-1", SessionKey: "session-1",
-				SourceNodeID: rootID, TargetNodeID: toolID,
+				SourceNodeID: "runtime-agent-1", TargetNodeID: "runtime-tool-1",
 				Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now,
 			}},
 		},
@@ -878,28 +996,8 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view == nil || view.Plan != nil || len(view.WorkItems) != 0 ||
-		view.ID != "round:round-1" || view.Status != protocol.ExecutionStatusActive {
-		t.Fatalf("unexpected planless view: %+v", view)
-	}
-	if len(view.Graph.Nodes) != 2 || len(view.Graph.Edges) != 1 {
-		t.Fatalf("unexpected planless graph: %+v", view.Graph)
-	}
-	if view.Graph.RuntimeNodeTotal != 40 || view.Graph.RuntimeEdgeTotal != 50 ||
-		!view.Graph.RuntimeNodesTruncated || !view.Graph.RuntimeEdgesTruncated {
-		t.Fatalf("planless graph hid projection completeness: %+v", view.Graph)
-	}
-	projectedEdge := view.Graph.Edges[0]
-	if projectedEdge.SourceNodeRunID != rootID || projectedEdge.TargetNodeRunID != toolID ||
-		projectedEdge.CreatedAt == nil || !projectedEdge.CreatedAt.Equal(now) {
-		t.Fatalf("runtime edge lost exact observation identity: %+v", projectedEdge)
-	}
-	tool := graphNodeByID(view.Graph.Nodes, toolID)
-	if tool.Kind != protocol.ExecutionGraphNodeTool ||
-		tool.Visibility != protocol.ExecutionGraphNodeNested ||
-		tool.ParentNodeID != rootID ||
-		tool.LifecycleStatus != "running" {
-		t.Fatalf("unexpected planless tool projection: %+v", tool)
+	if view != nil {
+		t.Fatalf("planless runtime graph leaked through WorkGraph read surface: %+v", view)
 	}
 }
 
@@ -1326,7 +1424,9 @@ func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *te
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 11, 0, 0, 0, time.UTC)
-	snapshot := executionSnapshot()
+	// Public WorkGraph reads are managed-only. Give the audited Execution a
+	// real Plan/Work Item instead of relying on the removed planless view.
+	snapshot := assignedExecutionSnapshot()
 	snapshot.Execution.RootRoundID = "round-1"
 	snapshot.Execution.Objective = "Ship the verified report"
 	snapshot.Execution.CompletionCriteria = []string{"report is verified"}

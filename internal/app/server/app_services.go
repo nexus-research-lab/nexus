@@ -123,6 +123,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	providerService.SetLogger(logger.With("component", "provider"))
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	goalService.SetSessionOwnershipVerifier(newGoalSessionOwnershipVerifier(
+		core.Agent,
+		core.Room,
+	))
 	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
 	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
 		executionSubagentToolHistory{sessions: core.Session},
@@ -157,6 +161,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()
 	goalService.SetEventBroadcaster(permission)
+	core.Session.SetGoalCompletionUsageProvider(goalService)
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
@@ -306,6 +311,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
 		panic(err)
 	}
+	if err := slashcommandsvc.RegisterGoalCommand(
+		slashCommandRegistry,
+		slashcommandsvc.GoalCommandDependencies{Executor: goalCommandRouter{
+			dm:    dmService,
+			room:  roomRealtime,
+			goals: goalService,
+		}},
+	); err != nil {
+		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
+		panic(err)
+	}
 
 	// 把内置配置、资源管理、平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
@@ -317,7 +333,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
-	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
+	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator)
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)

@@ -28,8 +28,8 @@ func (s *Service) rewriteCreateObjective(ctx context.Context, request protocol.C
 	if metadata == nil {
 		metadata = map[string]any{}
 	}
-	metadata["source_objective"] = objective
-	metadata["objective_normalized"] = true
+	metadata[protocol.GoalMetadataSourceObjective] = objective
+	metadata[protocol.GoalMetadataObjectiveNormalized] = true
 	return rewritten, metadata
 }
 
@@ -41,8 +41,8 @@ func (s *Service) rewriteUpdateObjective(ctx context.Context, request protocol.U
 	if payload == nil {
 		payload = map[string]any{}
 	}
-	payload["source_objective"] = objective
-	payload["objective_normalized"] = true
+	payload[protocol.GoalMetadataSourceObjective] = objective
+	payload[protocol.GoalMetadataObjectiveNormalized] = true
 	return rewritten, payload
 }
 

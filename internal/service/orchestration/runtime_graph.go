@@ -1,5 +1,5 @@
 // INPUT: Nexus actor/round identity 与 Bridge 自动派生的 runtime lifecycle 事件。
-// OUTPUT: fail-open 的 Agent/Tool/Subagent NodeRun、运行边与 WorkGraph 合并投影。
+// OUTPUT: fail-open 的 Agent/Tool/Subagent NodeRun、运行边、WorkGraph 合并投影与每段 durable 写后的 session 失效事实。
 // POS: 模型不可见的运行观测层；不要求模型调用 MCP 汇报工具或子智能体状态。
 package orchestration
 
@@ -27,6 +27,14 @@ type runtimeGraphRepository interface {
 
 // BeginRuntimeRound 建立 planless 与 managed Execution 共用的 root AgentRun。
 func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) error {
+	return s.beginRuntimeRound(ctx, actor, true)
+}
+
+func (s *Service) beginRuntimeRound(
+	ctx context.Context,
+	actor ActorContext,
+	emitInvalidation bool,
+) error {
 	repository, ok := s.repository.(runtimeGraphRepository)
 	if !ok || repository == nil {
 		return nil
@@ -34,6 +42,11 @@ func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) err
 	identity, err := runtimeGraphIdentityFromActor(actor)
 	if err != nil {
 		return err
+	}
+	if emitInvalidation {
+		// Runtime graph writes are individually durable. Refresh even when a later
+		// statement fails so an already-committed prefix never remains invisible.
+		defer s.invalidateActor(ctx, actor)
 	}
 	now := s.now().UTC()
 	descriptor := runtimeAgentNodeDescriptor(actor)
@@ -47,7 +60,7 @@ func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) err
 	); err != nil {
 		return err
 	}
-	return repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
+	if err = repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
 		ID:             runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeAgent, identity.AgentRoundID),
 		GraphID:        identity.GraphID,
 		OwnerUserID:    identity.OwnerUserID,
@@ -65,7 +78,10 @@ func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) err
 		StartedAt:      now,
 		UpdatedAt:      now,
 		Metadata:       descriptor.Metadata,
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ObserveRuntimeMessage 持久化 Bridge 的确定性 lifecycle；写失败由调用方记录，
@@ -87,7 +103,8 @@ func (s *Service) ObserveRuntimeMessage(
 	if len(events) == 0 {
 		return nil
 	}
-	if err = s.BeginRuntimeRound(ctx, actor); err != nil {
+	defer s.invalidateActor(ctx, actor)
+	if err = s.beginRuntimeRound(ctx, actor, false); err != nil {
 		return err
 	}
 	now := s.now().UTC()
@@ -342,6 +359,7 @@ func (s *Service) FinishRuntimeRound(
 	if err != nil {
 		return err
 	}
+	defer s.invalidateActor(ctx, actor)
 	now := s.now().UTC()
 	status := normalizeRuntimeGraphTerminalStatus(terminalStatus, failureReason)
 	descriptor := runtimeAgentNodeDescriptor(actor)
@@ -372,14 +390,17 @@ func (s *Service) FinishRuntimeRound(
 	}); err != nil {
 		return err
 	}
-	return repository.FinishRuntimeGraphRound(
+	if err = repository.FinishRuntimeGraphRound(
 		ctx,
 		identity.OwnerUserID,
 		identity.SessionKey,
 		identity.AgentRoundID,
 		status,
 		now,
-	)
+	); err != nil {
+		return err
+	}
+	return nil
 }
 
 type runtimeAgentDescriptor struct {

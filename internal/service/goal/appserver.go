@@ -6,6 +6,7 @@ package goal
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -26,10 +27,28 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappse
 		return nil, err
 	}
 	if current == nil {
+		ownerUserID, trustedAgentID, trustedAgentName, ownershipErr := s.verifyGoalSessionOwnership(
+			ctx,
+			sessionKey,
+			request.OwnerUserID,
+			"",
+		)
+		if ownershipErr != nil {
+			return nil, ownershipErr
+		}
+		request.OwnerUserID = ownerUserID
 		if err := s.preflightGoalCreate(sessionKey, ""); err != nil {
 			return nil, err
 		}
-		created, createdEvent, err := s.createFromThreadGoalParams(ctx, sessionKey, targetStatus, hasStatus, request)
+		created, createdEvent, err := s.createFromThreadGoalParams(
+			ctx,
+			sessionKey,
+			targetStatus,
+			hasStatus,
+			request,
+			trustedAgentID,
+			trustedAgentName,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -46,6 +65,10 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappse
 		s.maybeDispatchActiveGoalContinuation(ctx, *created)
 		return created, nil
 	}
+	current, err = s.authorizeGoalMutation(ctx, current, request.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
 	prepare := s.prepareExternalMutation
 	if hasStatus && externalStatusUsesSettlementBoundary(protocol.GoalUpdateSourceExternal, targetStatus) {
 		prepare = s.prepareExternalMutationAtSettlementBoundary
@@ -59,6 +82,10 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappse
 	}
 	if refreshed == nil {
 		return nil, ErrGoalNotFound
+	}
+	refreshed, err = s.authorizeGoalMutation(ctx, refreshed, request.OwnerUserID)
+	if err != nil {
+		return nil, err
 	}
 	updated, err := s.updateFromThreadGoalParams(ctx, *refreshed, targetStatus, hasStatus, request)
 	if err != nil {
@@ -84,6 +111,13 @@ func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request goalapp
 	if current == nil {
 		return false, nil
 	}
+	current, err = s.authorizeGoalMutation(ctx, current, request.OwnerUserID)
+	if err != nil {
+		return false, err
+	}
+	if err = s.ensureGoalClearAllowed(ctx, *current); err != nil {
+		return false, err
+	}
 	if err := s.prepareExternalMutationAtSettlementBoundary(ctx, current.ID); err != nil {
 		return false, err
 	}
@@ -94,7 +128,11 @@ func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request goalapp
 	if refreshed == nil {
 		return false, nil
 	}
-	deleted, err := s.deleteGoal(ctx, *refreshed, protocol.GoalUpdateSourceExternal)
+	refreshed, err = s.authorizeGoalMutation(ctx, refreshed, request.OwnerUserID)
+	if err != nil {
+		return false, err
+	}
+	deleted, err := s.clearGoal(ctx, *refreshed, protocol.GoalUpdateSourceExternal)
 	if err != nil {
 		return false, err
 	}
@@ -107,6 +145,8 @@ func (s *Service) createFromThreadGoalParams(
 	targetStatus protocol.GoalStatus,
 	hasStatus bool,
 	request goalappserver.ThreadGoalSetParams,
+	trustedAgentID string,
+	trustedAgentName string,
 ) (*protocol.Goal, protocol.GoalEvent, error) {
 	if request.Objective == nil {
 		return nil, protocol.GoalEvent{}, newGoalNotFoundError(fmt.Sprintf(
@@ -126,6 +166,20 @@ func (s *Service) createFromThreadGoalParams(
 			"created_via": "thread_goal_set",
 		},
 	}, objective)
+	metadata = initializeRoomGoalOwnershipMetadata(
+		sessionKey,
+		metadata,
+		trustedAgentID,
+		trustedAgentName,
+		trustedAgentID,
+		trustedAgentName,
+	)
+	if ownerUserID := strings.TrimSpace(request.OwnerUserID); ownerUserID != "" {
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		metadata[protocol.GoalMetadataOwnerUserID] = ownerUserID
+	}
 	tokenBudget, err := normalizeThreadGoalBudget(request.TokenBudget)
 	if err != nil {
 		return nil, protocol.GoalEvent{}, err
@@ -148,20 +202,17 @@ func (s *Service) createFromThreadGoalParams(
 		Metadata:    metadata,
 	}
 	applyInitialGoalStatusTime(&item, now)
-	created, err := s.repo.CreateGoal(ctx, item)
-	if err != nil {
-		return nil, protocol.GoalEvent{}, err
-	}
 	createdEvent := s.newGoalEvent(
-		*created,
+		item,
 		"created",
 		protocol.GoalUpdateSourceExternal,
 		"",
-		map[string]any{"objective": created.Objective},
+		map[string]any{"objective": item.Objective},
 		now,
 	)
-	if err := s.repo.AppendEvent(ctx, createdEvent); err != nil {
-		return nil, protocol.GoalEvent{}, err
+	created, err := s.repo.CreateGoalWithEvent(ctx, item, createdEvent)
+	if err != nil {
+		return nil, protocol.GoalEvent{}, s.classifyGoalCreateError(ctx, item, err)
 	}
 	return created, createdEvent, nil
 }
@@ -182,8 +233,15 @@ func (s *Service) updateFromThreadGoalParams(
 	hasStatus bool,
 	request goalappserver.ThreadGoalSetParams,
 ) (*protocol.Goal, error) {
-	if request.Objective != nil &&
-		(s.objectiveRetarget != nil || goalHasManagedExecutionBinding(item)) {
+	managedBinding := false
+	if request.Objective != nil {
+		var bindingErr error
+		managedBinding, bindingErr = s.goalHasManagedExecutionBinding(ctx, item)
+		if bindingErr != nil {
+			return nil, bindingErr
+		}
+	}
+	if request.Objective != nil && managedBinding {
 		requestedObjective, err := normalizeObjective(*request.Objective)
 		if err != nil {
 			return nil, err
@@ -209,6 +267,7 @@ func (s *Service) updateFromThreadGoalParams(
 					Reason:                    "app-server updated the Goal objective",
 					ExpectedObjectiveRevision: item.ObjectiveRevision(),
 					Source:                    protocol.GoalUpdateSourceExternal,
+					OwnerUserID:               strings.TrimSpace(request.OwnerUserID),
 				})
 				if retargetErr != nil {
 					return nil, retargetErr
@@ -218,7 +277,7 @@ func (s *Service) updateFromThreadGoalParams(
 				if !request.TokenBudget.Present && !hasStatus {
 					return &item, nil
 				}
-			} else if item.Objective != objective && goalHasManagedExecutionBinding(item) {
+			} else if item.Objective != objective {
 				return nil, fmt.Errorf(
 					"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
 					ErrGoalInvalidState,
@@ -238,8 +297,11 @@ func (s *Service) updateFromThreadGoalParams(
 		objective, payload = s.rewriteUpdateObjective(ctx, protocol.UpdateGoalRequest{Objective: &objective}, item.SessionKey, objective, payload)
 		if item.Objective != objective {
 			item.Objective = objective
+			advanceObjectiveRevision(&item)
+			resetGoalContinuationForObjectiveReplacement(&item)
 			valueChanged = true
 			payload["objective_updated"] = true
+			payload["objective_revision"] = item.ObjectiveRevision()
 		}
 	}
 	if request.TokenBudget.Present {

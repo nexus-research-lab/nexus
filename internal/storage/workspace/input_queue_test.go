@@ -285,6 +285,40 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreRestoresGoalCollaborationBinding(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  filepath.Join(root, "agent"),
+		SessionKey:     "agent:peer:ws:group:conversation-goal-binding",
+		ConversationID: "conversation-goal-binding",
+	}
+	store := NewInputQueueStore(root)
+	_, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:             "item-goal-binding",
+		Scope:          protocol.InputQueueScopeRoom,
+		ConversationID: location.ConversationID,
+		AgentID:        "agent-peer",
+		TargetAgentIDs: []string{"agent-peer"},
+		Source:         protocol.InputQueueSourceAgentPublicMention,
+		Content:        "continue the collaboration",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID:            "goal-room",
+			ObjectiveRevision: 4,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := NewInputQueueStore(root).Snapshot(location)
+	if err != nil || len(items) != 1 || items[0].GoalCollaborationBinding == nil ||
+		items[0].GoalCollaborationBinding.GoalID != "goal-room" ||
+		items[0].GoalCollaborationBinding.ObjectiveRevision != 4 {
+		t.Fatalf("Goal collaboration binding was not restored: items=%+v err=%v", items, err)
+	}
+}
+
 func TestInputQueueStoreSeparatesDMAndRoomScopesAtSameSessionPath(t *testing.T) {
 	root := t.TempDir()
 	store := NewInputQueueStore(root)

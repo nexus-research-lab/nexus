@@ -10,7 +10,9 @@ func TestStablePromptDefinesExecutionBoundaries(t *testing.T) {
 	for _, expected := range []string{
 		"Deliver the task itself first",
 		"Goal determines what persists",
-		"Create a requested Goal before preparing its WorkGraph",
+		"Choose Goal and WorkGraph independently",
+		"neither implies the other",
+		"create the requested Goal before preparing its WorkGraph",
 		"never in parallel",
 		"Before substantial execution, every Agent assesses atomicity",
 		"Use native subagents only when their benefit exceeds",

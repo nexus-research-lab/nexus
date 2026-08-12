@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * INPUT: 当前 Room/DM conversation identity、共享聊天 surface 与 session-scoped realtime events。
+ * OUTPUT: 聊天/工作区/WorkGraph 共用布局，以及只由 execution_invalidated 驱动的 ExecutionResource revision。
+ * POS: Room 页面桌面与移动 Surface 的资源组合根；不从 message/round/Goal 活动猜测图变化。
+ */
 import { useCallback, useState } from "react";
 
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
@@ -8,6 +13,7 @@ import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -44,6 +50,7 @@ interface RoomSurfaceShellProps {
   surfaceSplitRef: React.RefObject<HTMLElement | null>;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation: FinalConversationReplacementHandler;
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
@@ -84,6 +91,7 @@ export function RoomSurfaceShell({
   surfaceSplitRef,
   onBackToDirectory,
   onCreateConversation,
+  onReplaceFinalConversation,
   onSelectConversation,
   onCloseConversation,
   onDeleteConversation,
@@ -106,14 +114,7 @@ export function RoomSurfaceShell({
   const [executionEventRevision, setExecutionEventRevision] = useState(0);
   const handleRoomEvent = useCallback<NonNullable<RoomSurfaceShellProps["onRoomEvent"]>>(
     (eventType, data) => {
-      if (
-        eventType === "message"
-        || eventType === "round_status"
-        || eventType === "agent_round_status"
-        || eventType === "session_status"
-        || eventType.startsWith("goal_")
-        || eventType.endsWith("_resync_required")
-      ) {
+      if (eventType === "execution_invalidated") {
         setExecutionEventRevision((current) => current + 1);
       }
       onRoomEvent?.(eventType, data);
@@ -137,12 +138,7 @@ export function RoomSurfaceShell({
     ? executionTaskRunState.runs
     : [];
   const executionResource = useExecutionResource({
-    activityKey: [
-      currentRoomConversation?.message_count ?? 0,
-      currentRoomConversation?.last_activity_at ?? 0,
-      currentRoomConversation?.is_active ?? false,
-      executionEventRevision,
-    ].join(":"),
+    invalidationKey: executionEventRevision,
     sessionKey: executionSessionKey,
   });
   const handleExecutionTaskRunsChange = useCallback((runs: ConversationTaskRun[]) => {
@@ -154,6 +150,17 @@ export function RoomSurfaceShell({
     setActiveSurfaceTab("chat");
     return nextConversationId;
   }, [onCreateConversation]);
+
+  const handleReplaceFinalConversationInShell = useCallback<FinalConversationReplacementHandler>((
+    conversation,
+    commitConversation,
+  ) => onReplaceFinalConversation(
+    conversation,
+    (conversationId) => {
+      setActiveSurfaceTab("chat");
+      commitConversation(conversationId);
+    },
+  ), [onReplaceFinalConversation]);
 
   const handleOpenWorkspaceFileInShell = useCallback((path: string | null, workspaceAgentId?: string | null) => {
     onOpenWorkspaceFile(path, workspaceAgentId);
@@ -240,6 +247,7 @@ export function RoomSurfaceShell({
       onChangeSurfaceTab={setActiveSurfaceTab}
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={handleCreateConversationInShell}
+      onReplaceFinalConversation={handleReplaceFinalConversationInShell}
       onCloseConversation={onCloseConversation}
       onDeleteConversation={onDeleteConversation}
       onOpenWorkspaceFile={handleOpenWorkspaceFileInShell}

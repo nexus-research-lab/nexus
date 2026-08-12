@@ -1,4 +1,15 @@
-import type { Goal, GoalStatus } from "@/types/conversation/goal";
+/**
+ * INPUT: Goal state, server-derived Execution binding and UI command phase.
+ * OUTPUT: Goal lifecycle plus meaningful server-derived WorkGraph binding badges, clear capability, form and controller projections.
+ * POS: Goal panel pure model; metadata never participates in WorkGraph binding decisions.
+ */
+import type {
+  Goal,
+  GoalExecutionBinding,
+  GoalExecutionBindingState,
+  GoalStatus,
+} from "@/types/conversation/goal";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { COMPOSER_COMPACT_LANE_CLASS_NAME } from "../composer/composer-styles";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
@@ -17,6 +28,7 @@ export type GoalDialog =
 
 export interface GoalControllerProjection {
   canResume: boolean;
+  clearDisabledReason: string | null;
   dialog: GoalDialog;
   draft: GoalDraft | null;
   loadingLabel: string | null;
@@ -45,8 +57,11 @@ export type GoalStatusAction =
   | "clear";
 
 export interface GoalStatusStripModel {
+  actionDisabledReasons: Partial<Record<GoalStatusAction, string>>;
   actions: GoalStatusAction[];
   attentionMessage: string | null;
+  attentionTone: "danger" | "warning" | null;
+  bindingBadge: GoalBindingBadgeModel | null;
   isExecuting: boolean;
   statusLabel: string;
   statusTitle: string;
@@ -56,20 +71,27 @@ export interface GoalStatusStripModel {
 
 interface GoalStatusProjectionInput {
   canResume: boolean;
+  clearDisabledReason?: string | null;
   continuationHold: GoalContinuationHold | null;
   error: string | null;
+  executionBinding?: GoalExecutionBinding | null;
   goal: Goal;
   isGenerating: boolean;
 }
 
-interface VisibleGoalStatus {
-  label: string;
-  status: GoalStatus;
+export type GoalBindingDisplayState =
+  | Exclude<GoalExecutionBindingState, "standalone" | "reserved">
+  | "unavailable";
+
+export interface GoalBindingBadgeModel {
+  labelKey: TranslationKey;
+  state: GoalBindingDisplayState;
+  titleKey: TranslationKey;
+  tone: "conflict" | "confirmed" | "pending" | "unavailable";
 }
 
-interface GoalStatusOverride {
+interface VisibleGoalStatus {
   label: string;
-  matches: (input: GoalStatusProjectionInput) => boolean;
   status: GoalStatus;
 }
 
@@ -138,19 +160,39 @@ const GOAL_STATUS_TONE: Record<GoalStatus, GoalStatusTone> = {
   usage_limited: LIMITED_TONE,
 };
 
-const ACTIVE_STATUS_OVERRIDES: GoalStatusOverride[] = [
-  {
-    label: "需处理",
-    matches: ({ goal }) => Boolean(goal.last_error),
-    status: "blocked",
+const GOAL_BINDING_BADGE: Record<
+  GoalBindingDisplayState,
+  GoalBindingBadgeModel
+> = {
+  pending: {
+    labelKey: "goal.binding_pending",
+    state: "pending",
+    titleKey: "goal.binding_pending_title",
+    tone: "pending",
   },
-  {
-    label: "待继续",
-    matches: ({ continuationHold, goal }) =>
-      continuationHold !== null || (goal.empty_progress_count ?? 0) > 0,
-    status: "paused",
+  confirmed: {
+    labelKey: "goal.binding_confirmed",
+    state: "confirmed",
+    titleKey: "goal.binding_confirmed_title",
+    tone: "confirmed",
   },
-];
+  conflict: {
+    labelKey: "goal.binding_conflict",
+    state: "conflict",
+    titleKey: "goal.binding_conflict_title",
+    tone: "conflict",
+  },
+  unavailable: {
+    labelKey: "goal.binding_unavailable",
+    state: "unavailable",
+    titleKey: "goal.binding_unavailable_title",
+    tone: "unavailable",
+  },
+};
+
+const EMPTY_PROGRESS_LABEL = "自动续跑已停止";
+const EMPTY_PROGRESS_MESSAGE =
+  "上一轮未产生可计入进展，系统已停止自动续跑；这不是 Agent 主动暂停。";
 
 const GOAL_ACTION_RULES: GoalActionRule[] = [
   { action: "refresh", visible: () => true },
@@ -183,16 +225,17 @@ export function goalActualTokens(goal: Goal | null): number {
   if (!usage) {
     return 0;
   }
-  if (usage.actual_tokens !== undefined) {
-    return positiveTokenCount(usage.actual_tokens);
-  }
   const hasBreakdown = [
     usage.input_tokens,
     usage.output_tokens,
     usage.cache_creation_input_tokens,
     usage.cache_read_input_tokens,
     usage.reasoning_tokens,
-  ].some((value) => value !== undefined && value !== 0);
+  ].some((value) => Number.isFinite(value) && (value ?? 0) > 0);
+  const explicitActual = positiveTokenCount(usage.actual_tokens);
+  if (usage.actual_tokens !== undefined && (explicitActual > 0 || !hasBreakdown)) {
+    return explicitActual;
+  }
   if (!hasBreakdown) {
     return positiveTokenCount(usage.total_tokens);
   }
@@ -209,7 +252,8 @@ function goalActualTokensEstimated(goal: Goal): boolean {
   const usage = goal.usage;
   return goalActualTokens(goal) > 0
     && (usage?.actual_tokens_estimated === true
-      || usage?.actual_tokens === undefined);
+      || usage?.actual_tokens === undefined
+      || positiveTokenCount(usage.actual_tokens) === 0);
 }
 
 function goalStatusTone(status: GoalStatus): GoalStatusTone {
@@ -225,28 +269,97 @@ export function buildGoalStatusStripModel(
   const visibleStatus = resolveVisibleGoalStatus(activeInput);
 
   return {
+    actionDisabledReasons: input.clearDisabledReason
+      ? { clear: input.clearDisabledReason }
+      : {},
     actions: GOAL_ACTION_RULES.filter((rule) => rule.visible(activeInput)).map(
       (rule) => rule.action,
     ),
-    attentionMessage: input.error ?? input.goal.last_error ?? null,
+    attentionMessage: resolveGoalAttentionMessage(activeInput),
+    attentionTone: resolveGoalAttentionTone(activeInput),
+    bindingBadge: resolveGoalBindingBadgeModel(input.executionBinding ?? null),
     isExecuting: input.isGenerating && input.goal.status === "active",
     statusLabel: visibleStatus.label,
-    statusTitle: activeContinuationHold?.detail ?? visibleStatus.label,
+    statusTitle: resolveGoalStatusTitle(activeInput, visibleStatus),
     tone: goalStatusTone(visibleStatus.status),
     usageLabel: buildGoalUsageLabel(input.goal),
   };
 }
 
+export function resolveGoalBindingBadgeModel(
+  binding: GoalExecutionBinding | null,
+): GoalBindingBadgeModel | null {
+  if (binding?.state === "standalone" || binding?.state === "reserved") {
+    return null;
+  }
+  return GOAL_BINDING_BADGE[binding?.state ?? "unavailable"];
+}
+
 function resolveVisibleGoalStatus(
   input: GoalStatusProjectionInput,
 ): VisibleGoalStatus {
-  const override = isIdleActiveGoal(input)
-    ? ACTIVE_STATUS_OVERRIDES.find((candidate) => candidate.matches(input))
-    : null;
+  if (!isIdleActiveGoal(input)) {
+    return {
+      label: GOAL_STATUS_LABEL[input.goal.status],
+      status: input.goal.status,
+    };
+  }
+  if (input.goal.last_error) {
+    return { label: "需处理", status: "blocked" };
+  }
+  if (input.continuationHold) {
+    return { label: input.continuationHold.label, status: "paused" };
+  }
+  if ((input.goal.empty_progress_count ?? 0) > 0) {
+    return { label: EMPTY_PROGRESS_LABEL, status: "paused" };
+  }
   return {
-    label: override?.label ?? GOAL_STATUS_LABEL[input.goal.status],
-    status: override?.status ?? input.goal.status,
+    label: GOAL_STATUS_LABEL[input.goal.status],
+    status: input.goal.status,
   };
+}
+
+function resolveGoalStatusTitle(
+  input: GoalStatusProjectionInput,
+  visibleStatus: VisibleGoalStatus,
+): string {
+  if (input.continuationHold) {
+    return input.continuationHold.detail;
+  }
+  if (input.goal.status === "active" &&
+    (input.goal.empty_progress_count ?? 0) > 0 &&
+    !input.isGenerating) {
+    return `${EMPTY_PROGRESS_MESSAGE} 点击“继续”可重试。`;
+  }
+  return visibleStatus.label;
+}
+
+function resolveGoalAttentionMessage(
+  input: GoalStatusProjectionInput,
+): string | null {
+  if (input.error || input.goal.last_error) {
+    return input.error ?? input.goal.last_error ?? null;
+  }
+  if (input.goal.status === "active" &&
+    (input.goal.empty_progress_count ?? 0) > 0 &&
+    !input.isGenerating) {
+    return EMPTY_PROGRESS_MESSAGE;
+  }
+  return null;
+}
+
+function resolveGoalAttentionTone(
+  input: GoalStatusProjectionInput,
+): GoalStatusStripModel["attentionTone"] {
+  if (input.error || input.goal.last_error) {
+    return "danger";
+  }
+  if (input.goal.status === "active" &&
+    (input.goal.empty_progress_count ?? 0) > 0 &&
+    !input.isGenerating) {
+    return "warning";
+  }
+  return null;
 }
 
 function isIdleActiveGoal(input: GoalStatusProjectionInput): boolean {
@@ -300,6 +413,7 @@ export function buildGoalDraftFormModel({
 }
 
 export function buildGoalControllerProjection({
+  executionBinding,
   dialog,
   draft,
   goal,
@@ -307,15 +421,39 @@ export function buildGoalControllerProjection({
 }: {
   dialog: GoalDialog;
   draft: GoalDraft | null;
+  executionBinding: GoalExecutionBinding | null;
   goal: Goal | null;
   phase: GoalCommandPhase | null;
 }): GoalControllerProjection {
+  const clearDisabledReason = goal
+    ? resolveGoalClearDisabledReason(executionBinding)
+    : null;
   return {
     canResume: goal ? canResumeGoal(goal) : false,
-    dialog: visibleGoalDialog(dialog, goal),
+    clearDisabledReason,
+    dialog: visibleGoalDialog(dialog, goal, clearDisabledReason === null),
     draft: draft?.goalId === goal?.id ? draft : null,
     loadingLabel: phase === "updating" ? "正在更新目标" : null,
   };
+}
+
+export function resolveGoalClearDisabledReason(
+  binding: GoalExecutionBinding | null,
+): string | null {
+  if (!binding) {
+    return "正在确认 Goal 与工作图的绑定状态，暂时不能清除。";
+  }
+  switch (binding.state) {
+    case "standalone":
+    case "reserved":
+      return null;
+    case "pending":
+      return "Goal 与工作图的绑定正在确认，暂时不能清除。";
+    case "confirmed":
+      return "Goal 已绑定工作图，请先完成或终止工作图。";
+    case "conflict":
+      return "Goal 与工作图的绑定存在冲突，请刷新后检查工作图。";
+  }
 }
 
 export function createGoalDraft(goal: Goal): GoalDraft {
@@ -349,8 +487,14 @@ function canResumeGoal(goal: Goal): boolean {
 function visibleGoalDialog(
   dialog: GoalDialog,
   goal: Goal | null,
+  clearAllowed: boolean,
 ): GoalDialog {
-  if (dialog.kind !== "clear" || !goal || dialog.goal.id !== goal.id) {
+  if (
+    dialog.kind !== "clear"
+    || !goal
+    || dialog.goal.id !== goal.id
+    || !clearAllowed
+  ) {
     return EMPTY_GOAL_DIALOG;
   }
   return dialog;

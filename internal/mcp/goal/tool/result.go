@@ -1,5 +1,5 @@
 // INPUT: Goal 工具结果、状态与 actual/budget usage。
-// OUTPUT: 完整 MCP structured 投影、Codex 兼容 text 投影及 result-first 完成交付指引。
+// OUTPUT: Codex 兼容的 Goal 投影，以及只在完成收据中出现的宿主结算字段与 result-first 交付指引。
 // POS: Goal MCP 工具的稳定输出边界。
 package tool
 
@@ -122,12 +122,9 @@ type goalPayloadOptions struct {
 
 func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map[string]any {
 	payload := map[string]any{
-		"goal":                            toolGoalValue(item),
-		"goalId":                          nil,
-		"remainingTokens":                 nil,
-		"usageFinalized":                  nil,
-		"completionUsageCheckpointReport": nil,
-		"completionBudgetReport":          nil,
+		"goal":                   toolGoalValue(item),
+		"remainingTokens":        nil,
+		"completionBudgetReport": nil,
 	}
 	if item == nil {
 		return payload

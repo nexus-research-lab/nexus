@@ -1,5 +1,5 @@
 // INPUT: Assignment target preflight、current Spec/accepted dependency、raw Room wake、SQL Dispatch lease 与 Room delivery receipt。
-// OUTPUT: 先授权后持久化的目标边界、超限 fail-closed 的可执行 WorkContract、重复唤醒栅栏与区分永久/瞬时失败的 outbox 消费循环。
+// OUTPUT: 先授权后持久化的目标边界、超限 fail-closed 的可执行 WorkContract、重复唤醒栅栏、区分永久/瞬时失败的 outbox 消费循环与状态变更后的 session 失效事实。
 // POS: orchestration 不依赖 Room realtime 的消费侧端口，聊天 @ 不得绕过 structured Dispatch。
 package orchestration
 
@@ -429,6 +429,7 @@ func (s *Service) ActivateRoomAttempt(
 			return domainError(ErrorCodeSubagentBindingMissing, "Room Assignment root Attempt is missing")
 		}
 		if attempt.Status == protocol.WorkAttemptStatusRunning {
+			s.invalidateSnapshot(ctx, snapshot)
 			return nil
 		}
 		if attempt.Status != protocol.WorkAttemptStatusPending {
@@ -445,7 +446,7 @@ func (s *Service) ActivateRoomAttempt(
 		running.RuntimeRoundID = strings.TrimSpace(actor.RuntimeRoundID)
 		running.RootRoundID = strings.TrimSpace(actor.RootRoundID)
 		running.AgentRoundID = strings.TrimSpace(actor.AgentRoundID)
-		_, startErr := s.repository.StartAttempt(ctx, orchestrationstore.StartAttemptCommand{
+		updated, startErr := s.repository.StartAttempt(ctx, orchestrationstore.StartAttemptCommand{
 			ExpectedExecutionVersion:  snapshot.Execution.Version,
 			ExpectedAssignmentVersion: assignment.Version,
 			ExpectedAttemptVersion:    attempt.Version,
@@ -459,6 +460,9 @@ func (s *Service) ActivateRoomAttempt(
 		if errors.Is(startErr, orchestrationstore.ErrVersionConflict) ||
 			errors.Is(startErr, orchestrationstore.ErrInvariant) {
 			continue
+		}
+		if startErr == nil {
+			s.invalidateSnapshot(ctx, updated)
 		}
 		return startErr
 	}
@@ -555,6 +559,8 @@ func (s *Service) DispatchPending(
 			return result, claimErr
 		}
 		result.Claimed++
+		// Claim is itself durable and visible in the WorkGraph dispatch state.
+		s.invalidateExecutionID(ctx, candidate.ExecutionID)
 		delivered, deliveryErr := s.deliverClaimedDispatch(
 			ctx,
 			repository,
@@ -563,6 +569,7 @@ func (s *Service) DispatchPending(
 		)
 		if deliveryErr != nil {
 			result.Retried++
+			s.invalidateExecutionID(ctx, candidate.ExecutionID)
 			continue
 		}
 		if delivered {
@@ -570,6 +577,7 @@ func (s *Service) DispatchPending(
 		} else {
 			result.Cancelled++
 		}
+		s.invalidateExecutionID(ctx, candidate.ExecutionID)
 	}
 	return result, nil
 }

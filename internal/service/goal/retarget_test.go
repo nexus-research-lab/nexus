@@ -227,6 +227,23 @@ func (r *concurrentRetargetRepository) UpdateGoal(ctx context.Context, item prot
 	return r.memoryRepository.UpdateGoal(ctx, item, expectedVersion)
 }
 
+func (r *concurrentRetargetRepository) UpdateGoalWithEvents(
+	ctx context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	events []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	if item.Objective == r.blockedObjective {
+		r.blockOnce.Do(func() {
+			close(r.updateStarted)
+			<-r.releaseUpdate
+		})
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.memoryRepository.UpdateGoalWithEvents(ctx, item, expectedVersion, events)
+}
+
 func (r *concurrentRetargetRepository) AppendEvent(ctx context.Context, event protocol.GoalEvent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -245,6 +262,7 @@ func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-1"),
 		Objective:  "Analyze M3 and M4",
+		AgentID:    "agent-lead",
 		Metadata: map[string]any{
 			protocol.GoalMetadataRoomGoalLeadAgentID:                   "agent-lead",
 			protocol.GoalMetadataRoomGoalCollaborationRequired:         true,
@@ -354,10 +372,14 @@ func TestServiceRoomGoalModelMutationsRequireLeadAgent(t *testing.T) {
 	if err != nil || RoomLeadAgentID(*replaced) != "agent-lead" || protocol.GoalMetadataString(replaced.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID) != "agent-lead" {
 		t.Fatalf("user replacement ownership = %#v err=%v", replaced, err)
 	}
-	reassigned, err := service.SetRoomGoalLead(ctx, replaced.ID, "agent-peer", "Peer")
+	service.SetSessionOwnershipVerifier(staticGoalSessionOwnershipVerifier{
+		trustedAgentID: "agent-peer", trustedAgentName: "Peer",
+	})
+	reassigned, err := service.SetRoomGoalLead(ctx, replaced.ID, "agent-peer")
 	if err != nil || RoomLeadAgentID(*reassigned) != "agent-peer" || RoomLeadAgentName(*reassigned) != "Peer" || protocol.GoalMetadataString(reassigned.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID) != "agent-lead" {
 		t.Fatalf("reassigned ownership = %#v err=%v", reassigned, err)
 	}
+	service.SetSessionOwnershipVerifier(nil)
 	legacy, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: protocol.BuildRoomSharedSessionKey("legacy-ownership"),
 		Objective:  "Legacy objective",
@@ -374,7 +396,10 @@ func TestServiceRoomGoalModelMutationsRequireLeadAgent(t *testing.T) {
 	if _, err = service.RetargetByModel(ctx, legacy.SessionKey, protocol.RetargetGoalRequest{Objective: "Claimed objective", AgentID: "agent-host"}); !errors.Is(err, ErrGoalForbidden) {
 		t.Fatalf("ownerless legacy retarget error = %v, want ErrGoalForbidden", err)
 	}
-	if _, err = service.SetRoomGoalLead(ctx, legacy.ID, "agent-host", "Host"); err != nil {
+	service.SetSessionOwnershipVerifier(staticGoalSessionOwnershipVerifier{
+		trustedAgentID: "agent-host", trustedAgentName: "Host",
+	})
+	if _, err = service.SetRoomGoalLead(ctx, legacy.ID, "agent-host"); err != nil {
 		t.Fatal(err)
 	}
 	metadataUpdated, err := service.Update(ctx, legacy.ID, protocol.UpdateGoalRequest{Metadata: map[string]any{

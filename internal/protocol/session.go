@@ -1,5 +1,5 @@
-// INPUT: Agent workspace meta 或 Room SQL 投影中的会话身份、展示状态与资源版本。
-// OUTPUT: 对外统一 Session 视图；workspace session 的 configuration_version 用于 CAS。
+// INPUT: Agent workspace runtime meta 与 Room SQL 身份、标题、配置投影。
+// OUTPUT: 按字段所有权单调合并的 Session 视图；workspace session 的 configuration_version 用于 CAS。
 // POS: Session HTTP、目录与 nexus_config 之间的协议模型；Room 生命周期版本仍归 rooms 域。
 package protocol
 

@@ -2,6 +2,8 @@ package goal
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -19,13 +21,30 @@ func (s *Service) SetEventBroadcaster(broadcaster eventBroadcaster) {
 	s.events = broadcaster
 }
 
-func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType string, source protocol.GoalUpdateSource, roundID string, payload map[string]any) error {
+func (s *Service) persistGoalUpdateWithEvent(
+	ctx context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	eventType string,
+	source protocol.GoalUpdateSource,
+	roundID string,
+	payload map[string]any,
+) (*protocol.Goal, error) {
 	event := s.newGoalEvent(item, eventType, source, roundID, payload, s.nowFn())
-	if err := s.repo.AppendEvent(ctx, event); err != nil {
-		return err
+	updated, err := s.repo.UpdateGoalWithEvents(
+		ctx,
+		item,
+		expectedVersion,
+		[]protocol.GoalEvent{event},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGoalVersionStale
 	}
-	s.publishGoalEvent(ctx, item, event)
-	return nil
+	if err != nil {
+		return nil, err
+	}
+	s.publishGoalEvent(ctx, *updated, event)
+	return updated, nil
 }
 
 func (s *Service) newGoalEvent(
@@ -118,7 +137,7 @@ func protocolGoalEventType(eventType string) (protocol.EventType, bool) {
 		return protocol.EventTypeGoalCleared, true
 	case "usage_recorded", "usage_finalized", "objective_alignment_audited":
 		return protocol.EventTypeGoalProgress, true
-	case "continuation_scheduled", "continuation_deferred", "continuation_suppressed", "continuation_failed", "continuation_reset", "completion_tool_retry":
+	case "continuation_scheduled", "continuation_deferred", "continuation_suppressed", "continuation_failed", "continuation_reset", "room_collaboration_handback", "completion_tool_retry":
 		return protocol.EventTypeGoalContinuation, true
 	case "paused", "resumed", "completed", "blocked", "budget_limited", "usage_limited":
 		return protocol.EventTypeGoalStatusChanged, true

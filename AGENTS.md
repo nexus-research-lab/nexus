@@ -17,7 +17,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 ## L1 — 文档地图
 
 代码是机器相，注释是语义相，两相必须同构：任一相变化必须在另一相显现，否则视为未完成。
-本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。
+本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、MCP schema/parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
 
 `nexus` — 用户运行的多 agent 桌面/网页应用；Go 后端 + React web。
 技术栈: Go + net/http + WebSocket + SQLite/goose + React19 + Vite + Zustand
@@ -75,6 +75,10 @@ cmd -> app -> handler -> service -> domain/storage
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态与待确认人工交互只按 Room ID 投影；DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
+- Goal Composer 的“设定 Goal”和文本 `/goal` 必须进入同一个宿主控制命令：先写 Goal，再持久化一条完成态、用户可见但不进入模型的 `/goal <objective>` 控制记录，最后才启动 Goal continuation。不得把 Goal objective 当普通 chat prompt 直接执行；新会话标题与 started/message count 必须由 Goal/控制记录独立建立，不能依赖首个模型回复。
+- 模型通过 `create_goal` 创建的 Goal 必须把经服务端验证的当前 Agent 持久化为负责人；后续新物理 round 只为该负责人解析启动时的 exact Goal/objective revision，并且该快照只进入 `nexus_goal`，不得泄漏为 ambient Execution/WorkGraph authority。Room 协作者只能读 Goal 和交付证据；旧 round、旧 revision、后台/外部来源仍必须 fail closed。
+- Room Goal continuation 发出的公区 `@` 或带 wake 的 directed message 必须携带宿主持有的精确 Goal ID/objective revision 协作归因，跨 directed-message fact、handoff ledger、InputQueue 和重启恢复保持；私域消息与 handoff 的两阶段写入必须可从前者按当前 revision 幂等修复。副作用工具重试使用 host-only command identity；immediate/delayed wake 都必须先 schedule、成功入队后 complete，并可在线及重启恢复。该归因只用于等待协作者终态、记录可见证据并重新调度一轮有权限的 continuation，绝不能授予目标 conversation round Goal mutation authority。Goal-attributed handoff 不得折叠为 busy slot 的普通 guide；target terminal 与 Goal handback 必须作为两个 durable 阶段恢复，handback 只解除旧 source 的空进展抑制，不重置 continuation 次数上限。历史无归因数据只能由当前 Goal 的精确 suppression 审计事件、完整终态 root 与同 root 公开证据联合修复，禁止从正文或时间邻近猜测。
+- Room-backed Session 中，SQL 只拥有 Room 身份、标题与配置，workspace/Room ledger 拥有运行历史进度；统一读模型必须单调合并。旧 SQL `messages` 计数只能作为兼容下限，禁止覆盖 canonical Goal 控制记录、标题、最近活动、消息数、上下文占用或 transcript lineage。
 - Room 首条未读定位必须以完成事件的精确消息身份映射到稳定 `agent_round` 节点，并按真实到达顺序排队；Agent 回复可能插入旧 root，禁止用 Feed 尾部或 DOM 索引猜测未读边界，DM 继续沿用自身的回到底部行为。
 - 定时任务创建时把来源 Session 的有效 permission mode（无覆盖则取 Agent）和 Agent 工具 allow/deny 复制为独立任务快照；后续修改任务不回写 Agent，Agent 配置变化也不隐式改写任务。单个 Session 删除时，引用任务必须保留、停用并进入 `rebind_required`，只有执行与投递的全部失效绑定被替换后才能重新启用；Agent/Room 整体删除仍级联删除任务，删除恢复必须重放同一失效投影。
 - IM 来源的定时任务只持久化结构化会话键与可长期复用的通道上下文；创建 `Source` 只作不可变 provenance，最近一次明确配置投递的可信 Agent/页面/CLI 授权必须独立保存在非公开 `DeliveryGrant`，旧任务升级时从 Source 精确复制而不改写来源。callback `req_id`/stream 只用于当前即时回复。普通 Agent 的 Automation MCP 只表达 `context_mode=current|isolated` 与 `deliver_result`，动态 schema 隐藏 execution/reply 枚举及 channel/account/target/thread/session 等宿主路由参数，create/update 必须从可信 `ServerContext` 自动绑定且忽略模型伪造值；底层完整枚举仅供数据库、旧任务兼容与 owner main 高级控制。每个 run 固化开始时的投递目标，首次投递使用该快照；用户修正通道后重试使用任务最新目标。结果先以 run_id 幂等投影到逻辑 Nexus 会话，再发送外部 IM 并关联平台回执；正文不承担来源或授权语义。创建、执行投递、审批与重试都必须重新验证 active pairing。企业微信延迟结果使用主动消息命令；IM 权限通知只向用户展示 session-scoped `/y`（本次允许）、`/a`（持续允许）、`/d`（拒绝），历史 `/approve`、`/always`、`/deny` 只作兼容别名，内部请求 ID 不属于用户协议；无 ID 命令只有在当前会话跨普通 runtime 与 Automation 合计恰有一个待确认请求时才执行，多个请求必须 fail closed，且命令不进入 Agent 对话。catalog 中所有外部 IM 的 active-paired 私聊都是同一 Agent 的 transport：共享该 Agent 的 Skill、当前 permission mode、工具 allow/deny 和同 Agent Automation CRUD；普通 runtime 工具确认也通过同一 session 的无 ID Slash 回到唯一 pending request。浏览器查看外部 IM session 只能订阅，不得注入 Web host Slash 或覆盖 IM 投递 route；群聊、失效配对及跨 Agent/owner 控制继续 fail closed。

@@ -1,6 +1,6 @@
-// INPUT: 单个完整 Nexus Plan Document string 与 trusted current scope/round identity。
-// OUTPUT: strict validation 后的 sealed proposal id、full-fence digest 与 commit 指引。
-// POS: Provider 稳定文本传输到 durable non-authoritative proposal 的模型适配入口。
+// INPUT: 单个完整 Nexus Plan Document string、显式 Goal binding intent 与 trusted current scope/round identity。
+// OUTPUT: strict validation 后的 sealed proposal id、Goal boundary、full-fence digest 与 commit 指引。
+// POS: Provider 稳定文本传输到 durable non-authoritative proposal 的模型适配入口；模型不能提交 Goal identity。
 package tool
 
 import (
@@ -29,12 +29,12 @@ func preparePlanExecution(
 	guard := selectPlanTransportGuard(guards)
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Validate and durably seal one complete Nexus Plan Document v1 without mutating state. " +
+		Description: "Validate and durably seal one complete Nexus Plan Document v1 without mutating the authoritative Execution, Plan, Goal, Assignment, or Attempt. The sealed proposal itself is durable but non-authoritative until plan_execution commits it. " +
 			"Pass one YAML string with nexus_plan: 1; operation create, replan, or replace; and item kind produce, review, verify, or integrate. " +
 			"Every item requires exact keys logical_key, kind, subject, objective, and deliverable. See plan_document schema for the complete parser-backed fields and example, including acceptance_criteria, depends_on, and file:<path>, dir:<path>, or semantic:<key> scopes. " +
-			"For a Goal-bound graph, finish create_goal first; never launch it in parallel with preparation. Active-Goal create may omit only root objective; every create/replace requires completion_criteria. Replan preserves the current boundary. Change Goal via retarget_goal. " +
-			"Unknown keys and aliases are rejected. On success, call plan_execution with the returned receipt. Plan Mode may prepare.",
-		SearchHint:  "prepare validate plan document yaml work graph proposal depends_on acceptance_criteria",
+			"For a Goal-bound create, finish create_goal first and set goal_binding=current; never launch it in parallel with preparation. current uses only this round's exact Goal authority and is rejected without it. Use goal_binding=none for a Goal-free create. If omitted, create binds current only when exact Goal authority is already present; it never discovers an ambient session Goal. Replan/replace must inherit the existing Execution boundary. Active-Goal create may omit only root objective; every create/replace requires completion_criteria. Change Goal via retarget_goal. " +
+			"Unknown keys and aliases are rejected. On success, call plan_execution with the returned receipt. Plan Mode may prepare, but plan_execution is disabled until Plan Mode is exited.",
+		SearchHint:  "prepare validate plan document yaml work graph goal binding goal-free proposal depends_on acceptance_criteria",
 		InputSchema: preparePlanExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
 		ContextHandler: func(
@@ -64,6 +64,7 @@ func preparePlanExecution(
 				orchestration.PreparePlanExecutionInput{
 					CommandID:    prepareCommandID,
 					PlanDocument: parsed.PlanDocument,
+					GoalBinding:  parsed.GoalBinding,
 				},
 			)
 			if err != nil {
@@ -79,6 +80,12 @@ func preparePlanExecution(
 				}
 				return transportErrorResult(err), nil
 			}
+			nextActionReason := "pass this exact proposal_id and proposal_digest to atomically materialize the sealed Plan"
+			message := "Complete Plan proposal is sealed; commit it without changing the document."
+			if sctx.PlanMode {
+				nextActionReason = "leave Plan Mode, then pass this exact proposal_id and proposal_digest to materialize the sealed Plan"
+				message = "Complete Plan proposal is sealed; leave Plan Mode before committing the unchanged receipt."
+			}
 			return jsonResult(map[string]any{
 				"outcome":                    "prepared",
 				"proposal_id":                proposal.ID,
@@ -90,17 +97,31 @@ func preparePlanExecution(
 				"base_plan_id":               emptyStringToNil(proposal.BasePlanID),
 				"goal_id":                    emptyStringToNil(proposal.GoalID),
 				"goal_objective_revision":    proposal.GoalObjectiveRevision,
+				"goal_binding":               planProposalGoalBinding(proposal),
 				"objective_source":           planProposalObjectiveSource(proposal),
 				"completion_criteria_source": planProposalCompletionCriteriaSource(proposal),
 				"item_count":                 len(proposal.Document.Items),
-				"message":                    "Complete Plan proposal is sealed; commit it without changing the document.",
+				"message":                    message,
 				"next_actions": []orchestration.NextAction{{
 					Tool:   "plan_execution",
-					Reason: "pass this exact proposal_id and proposal_digest to atomically materialize the sealed Plan",
+					Reason: nextActionReason,
 				}},
 			}), nil
 		},
 	}
+}
+
+func planProposalGoalBinding(proposal *protocol.ExecutionPlanProposal) orchestration.PlanGoalBindingIntent {
+	if proposal == nil {
+		return ""
+	}
+	if proposal.Document.Operation != protocol.ExecutionPlanProposalCreate {
+		return orchestration.PlanGoalBindingInherit
+	}
+	if strings.TrimSpace(proposal.GoalID) != "" && proposal.GoalObjectiveRevision > 0 {
+		return orchestration.PlanGoalBindingCurrent
+	}
+	return orchestration.PlanGoalBindingNone
 }
 
 type planDocumentRepairResult struct {

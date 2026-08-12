@@ -1,5 +1,5 @@
 // INPUT: bridge provider usage 与动态 runtime usage JSON。
-// OUTPUT: 保留 provider actual total 的 Goal actual/budget 双口径 usage。
+// OUTPUT: 校验 provider actual total 并保留 breakdown 的 Goal actual/budget 双口径 usage。
 // POS: SDK token 协议到 Nexus Goal accounting 的转换边界。
 package runtime
 
@@ -82,7 +82,13 @@ func rawTokenUsageProviderTotal(raw map[string]any) (int64, bool) {
 		if !parsedOK {
 			return 0, false
 		}
-		return max(parsed.TotalTokens, 0), true
+		total := max(parsed.TotalTokens, 0)
+		// 有正数 breakdown 时，provider total=0 是自相矛盾的占位/缺省值，
+		// 不能把已经观察到的 Goal 用量覆盖成权威零。
+		if total == 0 && rawTokenUsageHasPositiveBreakdown(raw) {
+			return 0, false
+		}
+		return total, true
 	}
 	return 0, false
 }
@@ -180,6 +186,15 @@ func rawTokenUsageHasBreakdown(raw map[string]any) bool {
 		}
 	}
 	return false
+}
+
+func rawTokenUsageHasPositiveBreakdown(raw map[string]any) bool {
+	usage := providerRawGoalUsageBreakdown(raw)
+	return usage.InputTokens > 0 ||
+		usage.OutputTokens > 0 ||
+		usage.CacheCreationInputTokens > 0 ||
+		usage.CacheReadInputTokens > 0 ||
+		usage.ReasoningTokens > 0
 }
 
 func supplementGoalUsageFromNestedRaw(goalUsage *protocol.GoalUsage, raw map[string]any) {

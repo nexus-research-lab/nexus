@@ -5,6 +5,67 @@ package protocol
 
 import "strings"
 
+const GoalCompletionReceiptField = "goal_completion_receipt"
+
+// GoalCompletionReceipt 是宿主附着到完成回复的内部结算收据。
+// GoalID/RoundID 只用于精确归属和历史合并；展示层不得直接呈现它们。
+// 指针字段区分“权威零值”和“尚不可得”，未知项必须省略。
+type GoalCompletionReceipt struct {
+	GoalID          string `json:"goal_id"`
+	RoundID         string `json:"round_id"`
+	TimeUsedSeconds *int64 `json:"time_used_seconds,omitempty"`
+	ActualTokens    *int64 `json:"actual_tokens,omitempty"`
+}
+
+// Equal 比较收据的稳定身份与可展示结算字段。
+func (r GoalCompletionReceipt) Equal(other GoalCompletionReceipt) bool {
+	return strings.TrimSpace(r.GoalID) == strings.TrimSpace(other.GoalID) &&
+		strings.TrimSpace(r.RoundID) == strings.TrimSpace(other.RoundID) &&
+		equalOptionalInt64(r.TimeUsedSeconds, other.TimeUsedSeconds) &&
+		equalOptionalInt64(r.ActualTokens, other.ActualTokens)
+}
+
+// GoalCompletionReceiptFromAny 解码 durable JSON 或进程内强类型收据。
+func GoalCompletionReceiptFromAny(value any) (GoalCompletionReceipt, bool) {
+	switch typed := value.(type) {
+	case GoalCompletionReceipt:
+		return typed, strings.TrimSpace(typed.GoalID) != "" && strings.TrimSpace(typed.RoundID) != ""
+	case *GoalCompletionReceipt:
+		if typed == nil {
+			return GoalCompletionReceipt{}, false
+		}
+		return *typed, strings.TrimSpace(typed.GoalID) != "" && strings.TrimSpace(typed.RoundID) != ""
+	case map[string]any:
+		receipt := GoalCompletionReceipt{
+			GoalID:  strings.TrimSpace(stringValueFromAny(typed["goal_id"])),
+			RoundID: strings.TrimSpace(stringValueFromAny(typed["round_id"])),
+		}
+		if _, ok := typed["time_used_seconds"]; ok {
+			seconds := max(Int64FromAny(typed["time_used_seconds"]), 0)
+			receipt.TimeUsedSeconds = &seconds
+		}
+		if _, ok := typed["actual_tokens"]; ok {
+			tokens := max(Int64FromAny(typed["actual_tokens"]), 0)
+			receipt.ActualTokens = &tokens
+		}
+		return receipt, receipt.GoalID != "" && receipt.RoundID != ""
+	default:
+		return GoalCompletionReceipt{}, false
+	}
+}
+
+func stringValueFromAny(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+func equalOptionalInt64(left *int64, right *int64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
 // Message 表示历史消息行。
 type Message map[string]any
 

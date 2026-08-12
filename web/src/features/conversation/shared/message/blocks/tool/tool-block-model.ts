@@ -12,7 +12,7 @@ import type { ToolResultContent } from "@/types/conversation/message/content";
 import {
   getCompactToolInputSummary,
   getToolInputSummary,
-  getToolTitleKey,
+  getLocalizedToolTitle as resolveLocalizedToolTitle,
 } from "../../tool-activity";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
 import type {
@@ -533,6 +533,5 @@ function getLocalizedToolTitle(
   toolName: string,
   { t }: ToolBlockLocalization,
 ): string {
-  const titleKey = getToolTitleKey(toolName);
-  return titleKey ? t(titleKey) : toolName;
+  return resolveLocalizedToolTitle(toolName, t);
 }

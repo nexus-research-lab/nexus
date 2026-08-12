@@ -5,6 +5,8 @@ package realtime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -40,13 +42,29 @@ func (s *Service) HandleDirectedMessage(
 	if s.directedMessages == nil {
 		return nil, errors.New("room directed message store is not configured")
 	}
-	if err = s.directedMessages.AppendMessage(contextValue.Room.OwnerUserID, *message); err != nil {
+	stored, inserted, err := s.directedMessages.AppendMessageIfAbsent(
+		contextValue.Room.OwnerUserID,
+		*message,
+	)
+	if err != nil {
+		return nil, err
+	}
+	message = &stored
+	if err = s.ensureGoalDirectedMessageHandoffs(
+		contextValue,
+		*message,
+	); err != nil {
+		if retryErr := s.scheduleRoomDirectedMessageWakeRetry(ctx, *message); retryErr != nil {
+			return nil, errors.Join(err, retryErr)
+		}
 		return nil, err
 	}
 	s.touchSharedConversationActivity(ctx, message.ConversationID, time.UnixMilli(message.Timestamp).UTC())
 
-	event := newRoomDirectedMessageEvent(*message)
-	s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
+	if inserted {
+		event := newRoomDirectedMessageEvent(*message)
+		s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
+	}
 	s.loggerFor(ctx).Info("Room directed message 已创建",
 		"room_id", message.RoomID,
 		"conversation_id", message.ConversationID,
@@ -71,13 +89,158 @@ func (s *Service) HandleDirectedMessage(
 			"delay_seconds", message.DelaySeconds,
 			"err", err,
 		)
+		if retryErr := s.scheduleRoomDirectedMessageWakeRetry(ctx, *message); retryErr != nil {
+			s.loggerFor(ctx).Error("持久化 Room directed message 唤醒重试失败",
+				"room_id", message.RoomID,
+				"conversation_id", message.ConversationID,
+				"message_id", message.MessageID,
+				"err", retryErr,
+			)
+			err = errors.Join(err, retryErr)
+		}
 		return message, fmt.Errorf(
 			"directed message %s 已持久化，但唤醒未启动: %w",
 			message.MessageID,
 			err,
 		)
+	} else if s.goalDirectedMessageHandoffInFlight(
+		contextValue.Room.OwnerUserID,
+		message.ConversationID,
+		message.GoalCollaborationBinding,
+	) {
+		s.markActiveGoalCollaborationPending(
+			message.ConversationID,
+			message.SourceAgentID,
+			request.RootRoundID,
+			message.GoalCollaborationBinding,
+		)
 	}
 	return message, nil
+}
+
+func (s *Service) markActiveGoalCollaborationPending(
+	conversationID string,
+	sourceAgentID string,
+	rootRoundID string,
+	binding *protocol.GoalCollaborationBinding,
+) {
+	if s == nil || protocol.NormalizeGoalCollaborationBinding(binding) == nil {
+		return
+	}
+	conversationID = strings.TrimSpace(conversationID)
+	sourceAgentID = strings.TrimSpace(sourceAgentID)
+	rootRoundID = strings.TrimSpace(rootRoundID)
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil ||
+			(rootRoundID != "" && roomRootRoundID(roundValue) != rootRoundID) {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || strings.TrimSpace(slot.AgentID) != sourceAgentID {
+				continue
+			}
+			if candidate := goalCollaborationBindingForSlot(roundValue, slot); candidate != nil &&
+				*candidate == *protocol.NormalizeGoalCollaborationBinding(binding) {
+				slot.markPendingGoalCollaboration()
+			}
+		}
+	}
+}
+
+// ensureGoalDirectedMessageHandoffs records every exact Goal-attributed wake
+// before queue dispatch. Plain directed messages remain append-only messages;
+// only Goal continuation work needs a target-terminal recovery fence.
+func (s *Service) ensureGoalDirectedMessageHandoffs(
+	contextValue *protocol.ConversationContextAggregate,
+	message protocol.RoomDirectedMessageRecord,
+) error {
+	binding := protocol.NormalizeGoalCollaborationBinding(
+		message.GoalCollaborationBinding,
+	)
+	if s == nil || s.publicHandoffs == nil || contextValue == nil ||
+		binding == nil || message.WakePolicy == protocol.RoomWakePolicyNone {
+		return nil
+	}
+	for _, targetAgentID := range roomDirectedMessageWakeTargetAgentIDs(message) {
+		targetAgentID = strings.TrimSpace(targetAgentID)
+		if targetAgentID == "" || targetAgentID == strings.TrimSpace(message.SourceAgentID) ||
+			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
+			continue
+		}
+		handoffID := roomDirectedGoalHandoffID(
+			message.ConversationID,
+			message.MessageID,
+			targetAgentID,
+		)
+		if _, _, err := s.publicHandoffs.Detect(
+			contextValue.Room.OwnerUserID,
+			workspacestore.RoomPublicHandoff{
+				HandoffID:          handoffID,
+				ConversationID:     message.ConversationID,
+				RoomID:             message.RoomID,
+				RootRoundID:        firstNonEmptyString(message.RootRoundID, message.MessageID),
+				SourceAgentRoundID: firstNonEmptyString(message.CausedByRoundID, message.RootRoundID, message.MessageID),
+				SourceMessageID:    message.MessageID,
+				SourceAgentID:      message.SourceAgentID,
+				TargetAgentID:      targetAgentID,
+				Content:            roomDirectedMessageWakePrompt,
+				ReplyRoute:         message.ReplyRoute,
+				QueueSource:        protocol.InputQueueSourceAgentRoomMessage,
+				GoalCollaborationBinding: cloneGoalCollaborationBinding(
+					binding,
+				),
+				HopIndex: message.HopIndex,
+			},
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) terminalizeGoalDirectedMessageHandoffs(
+	contextValue *protocol.ConversationContextAggregate,
+	message protocol.RoomDirectedMessageRecord,
+	status string,
+) error {
+	if contextValue == nil {
+		return nil
+	}
+	return s.terminalizeGoalDirectedMessageHandoffsForOwner(
+		contextValue.Room.OwnerUserID,
+		message,
+		status,
+	)
+}
+
+func (s *Service) terminalizeGoalDirectedMessageHandoffsForOwner(
+	ownerUserID string,
+	message protocol.RoomDirectedMessageRecord,
+	status string,
+) error {
+	if s == nil || s.publicHandoffs == nil ||
+		protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) == nil {
+		return nil
+	}
+	for _, targetAgentID := range roomDirectedMessageWakeTargetAgentIDs(message) {
+		targetAgentID = strings.TrimSpace(targetAgentID)
+		if targetAgentID == "" || targetAgentID == strings.TrimSpace(message.SourceAgentID) {
+			continue
+		}
+		if err := s.publicHandoffs.MarkTerminal(
+			ownerUserID,
+			message.ConversationID,
+			roomDirectedGoalHandoffID(
+				message.ConversationID,
+				message.MessageID,
+				targetAgentID,
+			),
+			status,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) resolveDirectedMessageContext(
@@ -93,7 +256,7 @@ func (s *Service) resolveDirectedMessageContext(
 	// 安全撤销必须以每次调用时重新读取到的 Room 真相源为准，避免旧 slot
 	// 在 private_messages_enabled 关闭后继续使用已经注入的工具。
 	if !contextValue.Room.PrivateMessagesEnabled {
-		return nil, errors.New("Room private messaging is disabled")
+		return nil, roomsvc.ErrPrivateMessagingDisabled
 	}
 	return contextValue, nil
 }
@@ -174,23 +337,47 @@ func (s *Service) buildRoomDirectedMessageRecord(
 		sourceAgentID,
 		request.RootRoundID,
 	)
+	goalCollaborationBinding := s.goalCollaborationBindingForActiveRound(
+		contextValue.Conversation.ID,
+		sourceAgentID,
+		request.RootRoundID,
+	)
+	messageID := newRealtimeID()
+	if commandID := strings.TrimSpace(request.CommandID); commandID != "" {
+		messageID = roomDirectedMessageCommandID(
+			contextValue.Conversation.ID,
+			sourceAgentID,
+			commandID,
+		)
+	}
 	return &protocol.RoomDirectedMessageRecord{
-		MessageID:       newRealtimeID(),
-		RoomID:          contextValue.Room.ID,
-		ConversationID:  contextValue.Conversation.ID,
-		SourceAgentID:   sourceAgentID,
-		Recipients:      recipients,
-		WakeTargets:     wakeTargets,
-		Content:         content,
-		WakePolicy:      wakePolicy,
-		ReplyRoute:      replyRoute,
-		DelaySeconds:    request.DelaySeconds,
-		CorrelationID:   strings.TrimSpace(request.CorrelationID),
-		RootRoundID:     rootRoundID,
-		CausedByRoundID: causedByRoundID,
-		HopIndex:        hopIndex,
-		Timestamp:       time.Now().UnixMilli(),
+		MessageID:                messageID,
+		RoomID:                   contextValue.Room.ID,
+		ConversationID:           contextValue.Conversation.ID,
+		SourceAgentID:            sourceAgentID,
+		Recipients:               recipients,
+		WakeTargets:              wakeTargets,
+		Content:                  content,
+		WakePolicy:               wakePolicy,
+		ReplyRoute:               replyRoute,
+		DelaySeconds:             request.DelaySeconds,
+		CorrelationID:            strings.TrimSpace(request.CorrelationID),
+		RootRoundID:              rootRoundID,
+		CausedByRoundID:          causedByRoundID,
+		HopIndex:                 hopIndex,
+		GoalCollaborationBinding: goalCollaborationBinding,
+		Timestamp:                time.Now().UnixMilli(),
 	}, nil
+}
+
+func roomDirectedMessageCommandID(conversationID string, sourceAgentID string, commandID string) string {
+	digest := sha256.Sum256([]byte(strings.Join([]string{
+		"directed_message",
+		strings.TrimSpace(conversationID),
+		strings.TrimSpace(sourceAgentID),
+		strings.TrimSpace(commandID),
+	}, "\x00")))
+	return "rdm_" + hex.EncodeToString(digest[:12])
 }
 
 func normalizeRoomDirectedMessageRecipients(values []string) []string {
@@ -471,7 +658,10 @@ func (s *Service) recordRoomDirectedMessageReply(
 		RootRoundID:     roomRootRoundID(roundValue),
 		CausedByRoundID: strings.TrimSpace(roundValue.RoundID),
 		HopIndex:        roundValue.HopIndex,
-		Timestamp:       time.Now().UnixMilli(),
+		GoalCollaborationBinding: cloneGoalCollaborationBinding(
+			slot.goalCollaborationBinding(),
+		),
+		Timestamp: time.Now().UnixMilli(),
 	}
 	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 		return err
@@ -534,6 +724,9 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 	if len(targetAgentIDs) == 0 {
 		return nil
 	}
+	if err := s.ensureGoalDirectedMessageHandoffs(contextValue, message); err != nil {
+		return err
+	}
 	locations, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
 	if err != nil {
 		return err
@@ -541,11 +734,53 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 	now := time.Now()
 	accepted := false
 	for _, targetAgentID := range targetAgentIDs {
+		handoffID := ""
+		if protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) != nil {
+			handoffID = roomDirectedGoalHandoffID(
+				message.ConversationID,
+				message.MessageID,
+				targetAgentID,
+			)
+		}
 		location, exists := locations[targetAgentID]
 		if !exists {
+			if handoffID != "" && s.publicHandoffs != nil {
+				if err := s.publicHandoffs.MarkTerminal(
+					contextValue.Room.OwnerUserID,
+					message.ConversationID,
+					handoffID,
+					"error",
+				); err != nil {
+					return err
+				}
+			}
 			continue
 		}
-		_, inserted, enqueueErr := s.inputQueue.EnqueueBounded(location.Location, protocol.InputQueueItem{
+		if handoffID != "" && s.publicHandoffs != nil {
+			handoff, exists, getErr := s.publicHandoffs.Get(
+				contextValue.Room.OwnerUserID,
+				message.ConversationID,
+				handoffID,
+			)
+			if getErr != nil {
+				return getErr
+			}
+			if exists && roomPublicHandoffIsTerminal(handoff.Status) {
+				continue
+			}
+			if exists && roomPublicHandoffIsInFlight(handoff.Status) {
+				accepted = true
+				continue
+			}
+			if err := s.publicHandoffs.MarkSourceFinished(
+				contextValue.Room.OwnerUserID,
+				message.ConversationID,
+				handoffID,
+			); err != nil {
+				return err
+			}
+		}
+		items, _, enqueueErr := s.inputQueue.EnqueueBounded(location.Location, protocol.InputQueueItem{
 			Scope:           protocol.InputQueueScopeRoom,
 			SessionKey:      location.Location.SessionKey,
 			RoomID:          message.RoomID,
@@ -553,6 +788,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 			AgentID:         targetAgentID,
 			SourceAgentID:   strings.TrimSpace(message.SourceAgentID),
 			SourceMessageID: strings.TrimSpace(message.MessageID),
+			HandoffID:       handoffID,
 			TargetAgentIDs:  []string{targetAgentID},
 			Source:          protocol.InputQueueSourceAgentRoomMessage,
 			Content:         wakeContent,
@@ -561,12 +797,41 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 			OwnerUserID:     authctx.OwnerUserID(ctx),
 			RootRoundID:     firstNonEmptyString(message.RootRoundID, message.MessageID),
 			HopIndex:        message.HopIndex,
-			ExpiresAt:       now.Add(roomDirectedWakeQueueTTL).UnixMilli(),
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				message.GoalCollaborationBinding,
+			),
+			ExpiresAt: now.Add(roomDirectedWakeQueueTTL).UnixMilli(),
 		}, roomDirectedWakeQueueCapacity)
 		if enqueueErr != nil {
 			return enqueueErr
 		}
-		accepted = accepted || inserted
+		if handoffID != "" && s.publicHandoffs != nil {
+			queueItemID := ""
+			for _, item := range items {
+				if strings.TrimSpace(item.HandoffID) == handoffID {
+					queueItemID = item.ID
+					break
+				}
+			}
+			if queueItemID == "" {
+				return errors.New("Goal-attributed directed wake was not persisted in the target queue")
+			}
+			if err := s.publicHandoffs.MarkQueued(
+				contextValue.Room.OwnerUserID,
+				message.ConversationID,
+				handoffID,
+				queueItemID,
+			); err != nil {
+				s.loggerFor(ctx).Warn(
+					"记录 Goal directed wake 排队状态失败，保留 source_finished 恢复边",
+					"conversation_id", message.ConversationID,
+					"handoff_id", handoffID,
+					"queue_item_id", queueItemID,
+					"err", err,
+				)
+			}
+		}
+		accepted = true
 	}
 	if !accepted {
 		return nil
@@ -632,7 +897,56 @@ func (s *Service) startRoomDirectedMessageWake(
 	if message.WakePolicy == protocol.RoomWakePolicyDelayed {
 		return s.scheduleRoomDirectedMessageWake(ctx, message)
 	}
-	return s.runRoomDirectedMessageWake(ctx, contextValue, message)
+	return s.runPersistedImmediateRoomDirectedMessageWake(ctx, contextValue, message)
+}
+
+func (s *Service) runPersistedImmediateRoomDirectedMessageWake(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	message protocol.RoomDirectedMessageRecord,
+) error {
+	if s.directedWakes == nil {
+		return errors.New("room directed wake store is not configured")
+	}
+	wake := workspacestore.RoomDirectedMessageWake{
+		WakeID:      strings.TrimSpace(message.MessageID),
+		OwnerUserID: authctx.OwnerUserID(ctx),
+		Message:     message,
+		DueAt:       time.Now().UnixMilli(),
+		CreatedAt:   time.Now().UnixMilli(),
+	}
+	_, err := s.directedWakes.ScheduleIfAbsent(wake)
+	if err != nil {
+		return err
+	}
+	pending, pendingErr := s.roomDirectedMessageWakePending(wake.OwnerUserID, wake.WakeID)
+	if pendingErr != nil {
+		return pendingErr
+	}
+	if !pending {
+		return nil
+	}
+	if err = s.runRoomDirectedMessageWake(ctx, contextValue, message); err != nil {
+		return err
+	}
+	return s.directedWakes.Complete(wake.OwnerUserID, wake.WakeID)
+}
+
+func (s *Service) goalDirectedMessageHandoffInFlight(
+	ownerUserID string,
+	conversationID string,
+	binding *protocol.GoalCollaborationBinding,
+) bool {
+	binding = protocol.NormalizeGoalCollaborationBinding(binding)
+	if s == nil || s.publicHandoffs == nil || binding == nil {
+		return false
+	}
+	inFlight, err := s.publicHandoffs.GoalCollaborationInFlight(
+		ownerUserID,
+		conversationID,
+		*binding,
+	)
+	return err == nil && inFlight
 }
 
 func (s *Service) runRoomDirectedMessageWake(
@@ -640,6 +954,38 @@ func (s *Service) runRoomDirectedMessageWake(
 	contextValue *protocol.ConversationContextAggregate,
 	message protocol.RoomDirectedMessageRecord,
 ) error {
+	if contextValue == nil {
+		return errors.New("Room directed wake context is required")
+	}
+	memberAgentIDs := roomdomain.ListAgentIDs(contextValue.Members)
+	if !slices.Contains(memberAgentIDs, strings.TrimSpace(message.SourceAgentID)) {
+		return roomsvc.ErrRoomMemberNotFound
+	}
+	if err := validateRoomDirectedMessageRecipients(
+		roomDirectedMessageWakeTargetAgentIDs(message),
+		memberAgentIDs,
+	); err != nil {
+		return err
+	}
+	if binding := protocol.NormalizeGoalCollaborationBinding(
+		message.GoalCollaborationBinding,
+	); binding != nil {
+		current, err := s.roomGoalCollaborationBindingIsCurrent(
+			ctx,
+			message.ConversationID,
+			binding,
+		)
+		if err != nil {
+			return err
+		}
+		if !current {
+			return s.terminalizeGoalDirectedMessageHandoffs(
+				contextValue,
+				message,
+				"interrupted",
+			)
+		}
+	}
 	return s.enqueueRoomDirectedMessageWake(ctx, contextValue, message)
 }
 
@@ -658,10 +1004,17 @@ func (s *Service) scheduleRoomDirectedMessageWake(ctx context.Context, message p
 		DueAt:       time.Now().Add(delay).UnixMilli(),
 		CreatedAt:   time.Now().UnixMilli(),
 	}
-	if err := s.directedWakes.Schedule(wake); err != nil {
+	_, err := s.directedWakes.ScheduleIfAbsent(wake)
+	if err != nil {
 		return err
 	}
-	s.schedulePersistedRoomDirectedWake(wake, delay)
+	pending, err := s.roomDirectedMessageWakePending(wake.OwnerUserID, wake.WakeID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		s.schedulePersistedRoomDirectedWake(wake, delay)
+	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(message.ConversationID)
 	s.broadcastSharedEventWithTimeout(ctx, sessionKey, message.RoomID, newRoomDirectedMessageScheduledWakeEvent(message))
 	s.loggerFor(ctx).Info("Room directed message 延迟唤醒已计划",
@@ -674,7 +1027,63 @@ func (s *Service) scheduleRoomDirectedMessageWake(ctx context.Context, message p
 	return nil
 }
 
-// StartDelayedWakeScheduler 恢复宕机前未完成的 Room 延迟唤醒。
+func (s *Service) scheduleRoomDirectedMessageWakeRetry(
+	ctx context.Context,
+	message protocol.RoomDirectedMessageRecord,
+) error {
+	if message.WakePolicy == protocol.RoomWakePolicyNone || s.directedWakes == nil {
+		return nil
+	}
+	dueAt := time.Now().Add(roomDirectedMessageWakeRetryDelay)
+	if message.WakePolicy == protocol.RoomWakePolicyDelayed {
+		requestedDueAt := time.UnixMilli(message.Timestamp).Add(
+			time.Duration(message.DelaySeconds) * time.Second,
+		)
+		if requestedDueAt.After(dueAt) {
+			dueAt = requestedDueAt
+		}
+	}
+	wake := workspacestore.RoomDirectedMessageWake{
+		WakeID:      strings.TrimSpace(message.MessageID),
+		OwnerUserID: authctx.OwnerUserID(ctx),
+		Message:     message,
+		DueAt:       dueAt.UnixMilli(),
+		CreatedAt:   time.Now().UnixMilli(),
+	}
+	_, err := s.directedWakes.ScheduleIfAbsent(wake)
+	if err != nil {
+		return err
+	}
+	pending, err := s.roomDirectedMessageWakePending(wake.OwnerUserID, wake.WakeID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		delay := time.Until(dueAt)
+		if delay < 0 {
+			delay = 0
+		}
+		s.schedulePersistedRoomDirectedWake(wake, delay)
+	}
+	return nil
+}
+
+func (s *Service) roomDirectedMessageWakePending(ownerUserID string, wakeID string) (bool, error) {
+	pending, err := s.directedWakes.Pending(ownerUserID)
+	if err != nil {
+		return false, err
+	}
+	wakeID = strings.TrimSpace(wakeID)
+	for _, wake := range pending {
+		if strings.TrimSpace(wake.WakeID) == wakeID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// StartDelayedWakeScheduler 恢复宕机前未完成的 Room immediate/delayed wake。
+// 名称保留兼容，语义已经覆盖两类持久唤醒。
 func (s *Service) StartDelayedWakeScheduler(context.Context) (func(), error) {
 	if s.directedWakes == nil {
 		return nil, nil
@@ -712,15 +1121,38 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		UserID:     strings.TrimSpace(wake.OwnerUserID),
 		Username:   strings.TrimSpace(wake.OwnerUserID),
 		Role:       authctx.RoleOwner,
-		AuthMethod: "room_directed_message_delayed",
+		AuthMethod: "room_directed_message_wake",
 	})
 	message := wake.Message
 	contextValue, err := s.resolveDirectedMessageContext(wakeCtx, message.RoomID, message.ConversationID)
 	if err == nil {
 		err = s.runRoomDirectedMessageWake(wakeCtx, contextValue, message)
 	}
+	if isTerminalRoomDirectedWakeError(err) {
+		if terminalErr := s.terminalizeGoalDirectedMessageHandoffsForOwner(
+			wake.OwnerUserID,
+			message,
+			"interrupted",
+		); terminalErr != nil {
+			err = errors.Join(err, terminalErr)
+		} else if completeErr := s.directedWakes.Complete(
+			wake.OwnerUserID,
+			wake.WakeID,
+		); completeErr != nil {
+			err = completeErr
+		} else {
+			s.loggerFor(wakeCtx).Info(
+				"Room directed message 唤醒因持久权限真相终止",
+				"room_id", message.RoomID,
+				"conversation_id", message.ConversationID,
+				"message_id", message.MessageID,
+				"reason", err,
+			)
+			return
+		}
+	}
 	if err != nil {
-		s.loggerFor(wakeCtx).Error("执行 Room directed message 延迟唤醒失败，稍后重试",
+		s.loggerFor(wakeCtx).Error("执行 Room directed message 唤醒失败，稍后重试",
 			"room_id", message.RoomID,
 			"conversation_id", message.ConversationID,
 			"message_id", message.MessageID,
@@ -730,20 +1162,29 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		return
 	}
 	if err = s.directedWakes.Complete(wake.OwnerUserID, wake.WakeID); err != nil {
-		s.loggerFor(wakeCtx).Error("记录 Room directed message 延迟唤醒完成失败", "wake_id", wake.WakeID, "err", err)
+		s.loggerFor(wakeCtx).Error("记录 Room directed message 唤醒完成失败", "wake_id", wake.WakeID, "err", err)
 	}
+}
+
+func isTerminalRoomDirectedWakeError(err error) bool {
+	return errors.Is(err, roomsvc.ErrRoomNotFound) ||
+		errors.Is(err, roomsvc.ErrConversationNotFound) ||
+		errors.Is(err, roomsvc.ErrRoomMemberNotFound) ||
+		errors.Is(err, roomsvc.ErrPrivateMessagingDisabled)
 }
 
 func (s *Service) stopRoomWakeSchedulers() {
 	s.wakeTimers.Stop()
 }
 
+const roomDirectedMessageWakePrompt = "A Room directed message was delivered to you. Read the content projected in <room_directed_messages> and answer according to reply_route."
+
 func roomDirectedMessageWakeContent(message protocol.RoomDirectedMessageRecord) (string, bool) {
 	if message.WakePolicy != protocol.RoomWakePolicyImmediate &&
 		message.WakePolicy != protocol.RoomWakePolicyDelayed {
 		return "", false
 	}
-	return "A Room directed message was delivered to you. Read the content projected in <room_directed_messages> and answer according to reply_route.", true
+	return roomDirectedMessageWakePrompt, true
 }
 
 func roomDirectedMessageWakeTargetAgentIDs(message protocol.RoomDirectedMessageRecord) []string {
@@ -754,7 +1195,7 @@ func roomDirectedMessageWakeTargetAgentIDs(message protocol.RoomDirectedMessageR
 	return normalizeRoomAgentIDs(targets)
 }
 
-// INPUT: delayed wake 和短窗口 dispatch 的唯一键计时任务。
+// INPUT: immediate/delayed wake retry 和短窗口 dispatch 的唯一键计时任务。
 // OUTPUT: 去重调度、回调前释放与统一停机。
 // POS: Room 唤醒计时器的封装边界，避免 Service 持有多组锁和 map。
 type roomWakeTimerRegistry struct {

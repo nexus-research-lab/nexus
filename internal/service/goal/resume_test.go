@@ -9,6 +9,46 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+func TestServiceRepairCurrentGoalPreviewsUsesDurableOwner(t *testing.T) {
+	repo := newMemoryRepository()
+	repo.goals["goal-current"] = protocol.Goal{
+		ID:         "goal-current",
+		SessionKey: "agent:nexus:ws:dm:conversation-current",
+		Objective:  "Repair current Goal title",
+		Status:     protocol.GoalStatusPaused,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: "owner-current",
+		},
+	}
+	repo.goals["goal-complete"] = protocol.Goal{
+		ID:         "goal-complete",
+		SessionKey: "agent:nexus:ws:dm:conversation-complete",
+		Objective:  "Do not replay completed Goal title",
+		Status:     protocol.GoalStatusComplete,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: "owner-complete",
+		},
+	}
+	repo.goals["goal-ownerless"] = protocol.Goal{
+		ID:         "goal-ownerless",
+		SessionKey: "agent:nexus:ws:dm:conversation-ownerless",
+		Objective:  "Do not guess legacy owner",
+		Status:     protocol.GoalStatusActive,
+	}
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	preview := &fakePreviewFiller{}
+	service.SetPreviewFiller(preview)
+
+	if err := service.RepairCurrentGoalPreviews(context.Background()); err != nil {
+		t.Fatalf("RepairCurrentGoalPreviews() error = %v", err)
+	}
+	if len(preview.repairs) != 1 ||
+		preview.repairs[0].goal.ID != "goal-current" ||
+		preview.repairs[0].ownerUserID != "owner-current" {
+		t.Fatalf("preview repairs = %#v, want exact current Goal owner", preview.repairs)
+	}
+}
+
 func TestServiceRunAutoResumeOnceDispatchesActiveGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

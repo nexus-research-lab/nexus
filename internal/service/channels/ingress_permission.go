@@ -38,10 +38,11 @@ var scheduledTaskMutationTools = map[string]struct{}{
 }
 
 var defaultGoalApprovedTools = map[string]struct{}{
-	"create_goal":   {},
-	"get_goal":      {},
-	"retarget_goal": {},
-	"update_goal":   {},
+	"create_goal":               {},
+	"get_goal":                  {},
+	"retarget_goal":             {},
+	"audit_objective_alignment": {},
+	"update_goal":               {},
 }
 
 var defaultManagedSupportTools = map[string]struct{}{

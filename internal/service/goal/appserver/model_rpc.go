@@ -1,3 +1,6 @@
+// INPUT: Codex app-server thread/goal JSON-RPC request, response and transport error classification.
+// OUTPUT: stable request IDs plus invalid-request/internal/conflict envelopes with machine-readable reason codes.
+// POS: Goal app-server wire contract; domain errors are classified by the WebSocket transport adapter.
 package appserver
 
 import (
@@ -11,6 +14,15 @@ const (
 	AppServerRPCInvalidRequestCode int64 = -32600
 	AppServerRPCMethodNotFoundCode int64 = -32601
 	AppServerRPCInternalErrorCode  int64 = -32603
+	// AppServerRPCConflictCode belongs to the JSON-RPC server-error range and
+	// represents a retryable Goal concurrency or binding conflict. It is not an
+	// HTTP status code.
+	AppServerRPCConflictCode int64 = -32009
+
+	AppServerRPCReasonConflict                 = "conflict"
+	AppServerRPCReasonVersionStale             = "version_stale"
+	AppServerRPCReasonRevisionStale            = "revision_stale"
+	AppServerRPCReasonExecutionBindingConflict = "execution_binding_conflict"
 )
 
 // AppServerRequestID 保留 Codex app-server JSON-RPC id 的原始 string/number 表示。
@@ -79,6 +91,12 @@ type AppServerRPCErrorBody struct {
 	Data    any    `json:"data,omitempty"`
 }
 
+// AppServerRPCErrorData gives clients a stable branch key without requiring
+// them to parse the human-readable error message.
+type AppServerRPCErrorData struct {
+	ReasonCode string `json:"reason_code"`
+}
+
 type AppServerJSONRPCNotification struct {
 	Method string `json:"method"`
 	Params any    `json:"params,omitempty"`
@@ -86,4 +104,12 @@ type AppServerJSONRPCNotification struct {
 
 func NewAppServerRPCError(code int64, message string) AppServerRPCErrorBody {
 	return AppServerRPCErrorBody{Code: code, Message: message}
+}
+
+func NewAppServerRPCConflictError(message, reasonCode string) AppServerRPCErrorBody {
+	return AppServerRPCErrorBody{
+		Code:    AppServerRPCConflictCode,
+		Message: message,
+		Data:    AppServerRPCErrorData{ReasonCode: reasonCode},
+	}
 }

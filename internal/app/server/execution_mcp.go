@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime 的权威 Agent/scope/session/round/permission identity、trusted WorkBinding/ReviewBinding 与 Execution 服务。
-// OUTPUT: 绑定当前 round 权限角色及 structured Assignment/review capability 的 nexus_execution MCP overlay。
+// INPUT: 当前 runtime 的权威 Agent/scope/session/round/permission identity、trusted WorkBinding/ReviewBinding、共享 Goal authority 与 Execution 服务。
+// OUTPUT: 绑定当前 round 权限角色，并在每次 Actor 投影时读取 Goal identity 的 nexus_execution MCP overlay。
 // POS: DM/Room runtime 到 Execution Orchestration 模型工具的不可伪造应用装配边界。
 package server
 
@@ -107,7 +107,7 @@ func resolveExecutionMCPServerContext(
 		ExecutionID:       strings.TrimSpace(runtimeContext.ExecutionID),
 		WorkBinding:       cloneExecutionMCPWorkBinding(runtimeContext.WorkBinding),
 		ReviewBinding:     cloneExecutionMCPReviewBinding(runtimeContext.ReviewBinding),
-		GoalID:            strings.TrimSpace(runtimeContext.GoalID),
+		GoalAuthority:     runtimeContext.GoalAuthority,
 		RootRoundID:       strings.TrimSpace(runtimeContext.RootRoundID),
 		RuntimeRoundID:    runtimeRoundID,
 		AgentRoundID:      strings.TrimSpace(runtimeContext.AgentRoundID),
@@ -115,9 +115,6 @@ func resolveExecutionMCPServerContext(
 		ConversationID:    strings.TrimSpace(runtimeContext.ConversationID),
 		PlanMode: runtimepermission.NormalizeMode(runtimeContext.PermissionMode) ==
 			sdkpermission.ModePlan,
-	}
-	if runtimeContext.GoalObjectiveRevision != nil {
-		serverContext.GoalObjectiveRevision = runtimeContext.GoalObjectiveRevision.Load()
 	}
 	if scopeKind == protocol.ExecutionScopeRoom {
 		if serverContext.RoomID == "" || serverContext.ConversationID == "" {

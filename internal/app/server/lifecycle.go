@@ -1,5 +1,5 @@
-// INPUT: Server services, runtime managers, root lifecycle context、durable subagent deadline 与 orchestration dispatch state。
-// OUTPUT: 启动及周期恢复 child Attempt、lease，并在 successor dispatch 前优先 drain cancellation。
+// INPUT: Server services, runtime managers, root lifecycle context、durable Goal confirmation/subagent deadline 与 orchestration dispatch state。
+// OUTPUT: 启动及周期恢复 Goal binding、Plan proposal、child Attempt、lease，并在 successor dispatch 前优先 drain cancellation。
 // POS: 启动、监管和停止后台 orchestration 恢复器的应用生命周期边界。
 package server
 
@@ -29,6 +29,8 @@ const (
 	subagentReconcileBatch        = 32
 	planProposalReconcileInterval = 15 * time.Second
 	planProposalReconcileBatch    = 32
+	goalConfirmationInterval      = 15 * time.Second
+	goalConfirmationBatch         = 32
 )
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
@@ -75,8 +77,9 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startSessionDeletionRecovery,
 		s.startChannels,
 		s.startAutomation,
-		s.startRoomDelayedWakes,
 		s.startRoomPublicHandoffs,
+		s.startRoomDirectedWakes,
+		s.startGoalConfirmationRecovery,
 		s.startPlanProposalRecovery,
 		s.startSubagentReconciliation,
 		s.startExecutionDispatches,
@@ -105,6 +108,50 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startGoalConfirmationRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Orchestration == nil {
+		return nil, nil
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	reconcile := func() {
+		result, err := s.services.Orchestration.ReconcileGoalConfirmations(
+			workerCtx,
+			goalConfirmationBatch,
+		)
+		if err != nil {
+			s.api.BaseLogger().Warn("恢复 Execution Goal confirmation 失败", "err", err)
+		}
+		if result.Scanned > 0 {
+			s.api.BaseLogger().Info(
+				"恢复 Execution Goal confirmation",
+				"scanned", result.Scanned,
+				"confirmed", result.Confirmed,
+				"pending", result.Pending,
+				"failed", result.Failed,
+			)
+		}
+	}
+	reconcile()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(goalConfirmationInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-ticker.C:
+				reconcile()
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}, nil
 }
 
 func (s *Server) startPlanProposalRecovery(ctx context.Context) (func(), error) {
@@ -418,23 +465,23 @@ func (s *Server) startRoomPublicHandoffs(ctx context.Context) (func(), error) {
 	if s.services == nil || s.services.RoomRealtime == nil {
 		return nil, nil
 	}
-	s.api.BaseLogger().Info("启动 Room 公区 handoff 恢复器")
+	s.api.BaseLogger().Info("启动 Room handoff 恢复器")
 	stop, err := s.services.RoomRealtime.StartPublicHandoffReconciler(ctx)
 	if err != nil {
-		s.api.BaseLogger().Error("启动 Room 公区 handoff 恢复器失败", "err", err)
+		s.api.BaseLogger().Error("启动 Room handoff 恢复器失败", "err", err)
 		return nil, err
 	}
 	return stop, nil
 }
 
-func (s *Server) startRoomDelayedWakes(ctx context.Context) (func(), error) {
+func (s *Server) startRoomDirectedWakes(ctx context.Context) (func(), error) {
 	if s.services == nil || s.services.RoomRealtime == nil {
 		return nil, nil
 	}
-	s.api.BaseLogger().Info("启动 Room 延迟唤醒恢复器")
+	s.api.BaseLogger().Info("启动 Room directed wake 恢复器")
 	stop, err := s.services.RoomRealtime.StartDelayedWakeScheduler(ctx)
 	if err != nil {
-		s.api.BaseLogger().Error("启动 Room 延迟唤醒恢复器失败", "err", err)
+		s.api.BaseLogger().Error("启动 Room directed wake 恢复器失败", "err", err)
 		return nil, err
 	}
 	return stop, nil
@@ -492,6 +539,9 @@ func (s *Server) startGoalResume(ctx context.Context) (func(), error) {
 		return nil, nil
 	}
 	s.api.BaseLogger().Info("启动 Goal durable resume")
+	if err := s.services.Goal.RepairCurrentGoalPreviews(ctx); err != nil {
+		s.api.BaseLogger().Warn("Goal 会话标题恢复未完全成功", "err", err)
+	}
 	stop, err := s.services.Goal.StartAutoResume(
 		ctx,
 		newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),

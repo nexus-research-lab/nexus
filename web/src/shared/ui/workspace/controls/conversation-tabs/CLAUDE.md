@@ -1,7 +1,7 @@
 # conversation-tabs/ - Workspace 会话标签
 
 - `conversation-tabs-model.ts` 定义创建时间排序、打开集合、当前草稿判断、活动标签、关闭邻居、稳定溢出判定和宽度分配等纯模型；标签按 `created_at` 从旧到新稳定排列，激活或消息活动不得重排，打开集合按保留存活项、追加外部选中项、保证非空三阶段归约。标签层不得扫描、折叠或恢复历史草稿。溢出判定只依赖轨道宽度、固定边缘动作与标签最小可读宽度，不得读取宽度动画中的瞬时 DOM 溢出状态。
-- `use-conversation-tabs-controller.ts` 只维护浏览器式标签事务、按 Room 持久化快照和容器测量，不渲染样式。
+- `use-conversation-tabs-controller.ts` 只维护浏览器式标签事务、按 Room 持久化快照和容器测量，不渲染样式；`final-conversation-replacement.ts` 固定最后标签的替换顺序。已开始会话先确保 Room 唯一 draft 并原子切换，再后台停止旧 runtime；唯一 draft 可复用同一 ID，因此必须先等 runtime 关闭再重新提交。事务期间保留原正文，失败或较新导航不得落入无 Conversation 状态，外部 Session 跳过 runtime 关闭。
 - `use-conversation-tabs-scroll.ts` 维护标签带溢出测量、活动标签归位、宽度动画稳定后的二次边界校正、触控板滚动和鼠标拖拽；滚轮入口必须以非 passive 原生监听显式归一 `deltaX`/`deltaY`，不得依赖 WebView 的默认横向滚动。
 - `conversation-tabs-scroll-rail.tsx` 只渲染溢出时可操作的滚动轨道；轨道默认保持视觉静默，鼠标进入标签带时以中性色浮现，只有实际按下拖动或键盘聚焦时才增强为强调色。
 - `workspace-conversation-tabs.tsx` 只编排 Session 导航带；左侧接受业务提供的唯一历史入口，中央标签视口独立横向滚动，创建入口固定在右侧，窄宽度下两端动作不得随标签移出可视区。共享层不再维护一套与 Room 历史重复的会话纵览菜单。

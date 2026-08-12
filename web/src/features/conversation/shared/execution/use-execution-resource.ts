@@ -50,10 +50,10 @@ function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
 }
 
 export function useExecutionResource({
-  activityKey = null,
+  invalidationKey = null,
   sessionKey,
 }: {
-  activityKey?: number | string | null;
+  invalidationKey?: number | string | null;
   sessionKey: string | null;
 }): ExecutionResource {
   const [snapshot, setSnapshot] = useState<ExecutionResourceSnapshot>(() => (
@@ -124,7 +124,7 @@ export function useExecutionResource({
       void refresh(true);
     }, EXECUTION_INVALIDATION_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [activityKey, refresh, sessionKey]);
+  }, [invalidationKey, refresh, sessionKey]);
 
   useEffect(() => {
     const executionActive = rawExecution

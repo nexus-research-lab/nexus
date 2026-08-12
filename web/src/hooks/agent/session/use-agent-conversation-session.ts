@@ -86,7 +86,8 @@ export function useAgentConversationSession({
       }
 
       activeSessionKeyRef.current = normalizedKey;
-      cancelPendingRequestAcks("会话已切换，未确认的消息发送已取消");
+      // 普通会话切换不取消已发送请求；ACK registry 跨切换按
+      // client_request_id 完成原 Promise，Feed 仍只显示当前会话事件。
       clearLiveSessionState();
       resetHistoryPagination();
       setSessionKey((currentKey) => (
@@ -101,7 +102,6 @@ export function useAgentConversationSession({
     },
     [
       activeSessionKeyRef,
-      cancelPendingRequestAcks,
       clearLiveSessionState,
       resetHistoryPagination,
       resetRuntimeMachine,

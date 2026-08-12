@@ -23,6 +23,8 @@ var (
 	ErrConversationNotFound = errors.New("conversation not found")
 	// ErrRoomMemberNotFound 表示房间成员不存在。
 	ErrRoomMemberNotFound = errors.New("room member not found")
+	// ErrPrivateMessagingDisabled 表示 Room 私域通信能力已被 owner 撤销。
+	ErrPrivateMessagingDisabled = errors.New("Room private messaging is disabled")
 	// ErrSessionArtifactDeletionCoordinatorUnavailable 表示 Room artifact 删除缺少统一协调器。
 	ErrSessionArtifactDeletionCoordinatorUnavailable = errors.New(
 		"Room Session artifact 删除协调器未装配",

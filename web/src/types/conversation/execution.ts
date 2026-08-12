@@ -173,10 +173,10 @@ export interface ExecutionGraphEdgeView {
 export interface ExecutionGraphView {
   nodes?: ExecutionGraphNodeView[];
   edges?: ExecutionGraphEdgeView[];
-  runtime_node_total?: number;
-  runtime_edge_total?: number;
-  runtime_nodes_truncated?: boolean;
-  runtime_edges_truncated?: boolean;
+  runtime_node_total: number;
+  runtime_edge_total: number;
+  runtime_nodes_truncated: boolean;
+  runtime_edges_truncated: boolean;
 }
 
 export interface ExecutionSubmissionView {
@@ -245,7 +245,7 @@ export interface ExecutionWorkItemView {
 export interface ExecutionView {
   id: string;
   session_key: string;
-  scope_kind?: "dm" | "room";
+  scope_kind: "dm" | "room";
   room_id?: string;
   conversation_id?: string;
   coordinator_agent_id?: string;
@@ -258,7 +258,7 @@ export interface ExecutionView {
   plan?: ExecutionPlanView;
   progress: ExecutionProgressView;
   work_items?: ExecutionWorkItemView[];
-  graph?: ExecutionGraphView;
+  graph: ExecutionGraphView;
   completion_blockers?: string[];
   created_at: string;
   updated_at: string;
