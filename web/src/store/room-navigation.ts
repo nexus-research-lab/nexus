@@ -90,6 +90,7 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
         conversation_tabs_by_room: state.conversation_tabs_by_room,
       }),
       storage: createBrowserJsonStorage(),
+      // v3 曾短暂允许 active=null；v4 重新按非空标签契约清洗该快照。
       version: 4,
       migrate: (persistedState: unknown): PersistedRoomNavigationState => {
         const state = (persistedState ?? {}) as PersistedRoomNavigationState;

@@ -13,6 +13,7 @@ import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -49,10 +50,7 @@ interface RoomSurfaceShellProps {
   surfaceSplitRef: React.RefObject<HTMLElement | null>;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onReplaceFinalConversation: (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ) => Promise<string | null>;
+  onReplaceFinalConversation: FinalConversationReplacementHandler;
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
@@ -153,19 +151,16 @@ export function RoomSurfaceShell({
     return nextConversationId;
   }, [onCreateConversation]);
 
-  const handleReplaceFinalConversationInShell = useCallback(async (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ) => {
-    const nextConversationId = await onReplaceFinalConversation(
-      conversation,
-      commitConversation,
-    );
-    if (nextConversationId) {
+  const handleReplaceFinalConversationInShell = useCallback<FinalConversationReplacementHandler>((
+    conversation,
+    commitConversation,
+  ) => onReplaceFinalConversation(
+    conversation,
+    (conversationId) => {
       setActiveSurfaceTab("chat");
-    }
-    return nextConversationId;
-  }, [onReplaceFinalConversation]);
+      commitConversation(conversationId);
+    },
+  ), [onReplaceFinalConversation]);
 
   const handleOpenWorkspaceFileInShell = useCallback((path: string | null, workspaceAgentId?: string | null) => {
     onOpenWorkspaceFile(path, workspaceAgentId);

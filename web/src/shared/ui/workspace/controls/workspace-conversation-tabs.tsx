@@ -7,6 +7,7 @@ import { getExternalSessionConversationLabel } from "@/lib/conversation/external
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-scroll-rail";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import { useConversationTabsController } from "@/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-controller";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -19,10 +20,7 @@ interface WorkspaceConversationTabsProps {
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
-  onReplaceFinalConversation?: (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ) => Promise<string | null>;
+  onReplaceFinalConversation?: FinalConversationReplacementHandler;
 }
 
 const TRACK_CLASS_NAME =

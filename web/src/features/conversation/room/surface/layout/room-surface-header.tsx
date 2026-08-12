@@ -8,6 +8,7 @@ import type { Agent } from "@/types/agent/agent";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
@@ -26,10 +27,7 @@ interface RoomSurfaceHeaderProps {
   onCloseAuxiliaryPanel: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onReplaceFinalConversation: (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ) => Promise<string | null>;
+  onReplaceFinalConversation: FinalConversationReplacementHandler;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
