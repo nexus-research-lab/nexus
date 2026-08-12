@@ -140,6 +140,13 @@ test("Goal status shows one exact token total without budget progress", async ()
   };
 
   assert.equal(goalActualTokens(goal), 62_762);
+  assert.equal(goalActualTokens({
+    ...goal,
+    usage: {
+      ...goal.usage,
+      actual_tokens: 0,
+    },
+  }), 62_762, "矛盾的 actual_tokens=0 不能覆盖正数 breakdown");
   const model = buildGoalStatusStripModel({
     canResume: false,
     continuationHold: null,

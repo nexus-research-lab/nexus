@@ -312,7 +312,7 @@ func TestRepositoryUpdateGoalWithEventsIsAtomic(t *testing.T) {
 	}
 }
 
-func TestRepositoryPreservesAuthoritativeZeroActualTotal(t *testing.T) {
+func TestRepositoryRepairsZeroActualTotalThatContradictsBreakdown(t *testing.T) {
 	repository := newTestRepository(t)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 24, 9, 0, 0, 0, time.UTC)
@@ -346,11 +346,37 @@ WHERE goal_id = ?`,
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored == nil || stored.Usage.ActualTokens() != 0 || stored.Usage.ActualTokensAreEstimated() {
-		t.Fatalf("stored = %#v, want authoritative exact actual zero", stored)
+	if stored == nil || stored.Usage.ActualTokens() != 10 || !stored.Usage.ActualTokensAreEstimated() {
+		t.Fatalf("stored = %#v, want estimated actual 10 from breakdown", stored)
 	}
 	if stored.Usage.BudgetTokens() != 10 {
 		t.Fatalf("stored budget = %d, want 10", stored.Usage.BudgetTokens())
+	}
+}
+
+func TestRepositoryPreservesAuthoritativeZeroWithoutPositiveBreakdown(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 24, 9, 30, 0, 0, time.UTC)
+	created, err := repository.CreateGoal(ctx, protocol.Goal{
+		ID:         "goal-authoritative-zero-empty",
+		SessionKey: "agent:nexus:ws:dm:authoritative-zero-empty",
+		Objective:  "preserve zero usage",
+		Status:     protocol.GoalStatusComplete,
+		Version:    1,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := repository.GetGoal(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || stored.Usage.ActualTokens() != 0 || stored.Usage.ActualTokensAreEstimated() {
+		t.Fatalf("stored = %#v, want authoritative zero without positive breakdown", stored)
 	}
 }
 
@@ -751,6 +777,107 @@ func TestGoalEventOrphanCleanupMigrationKeepsDialectContract(t *testing.T) {
 			"where not exists",
 			"from session_goals",
 			"session_goals.goal_id = goal_events.goal_id",
+		} {
+			if !strings.Contains(sqlText, required) {
+				t.Fatalf("%s migration missing %q", dialect, required)
+			}
+		}
+	}
+}
+
+func TestGoalActualTokenZeroRepairMigration(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	applyGoalMigrationFiles(t, db,
+		"../../../db/migrations/sqlite/00025_session_goals.sql",
+		"../../../db/migrations/sqlite/00026_goal_codex_statuses.sql",
+		"../../../db/migrations/sqlite/00027_goal_budget_token_total.sql",
+		"../../../db/migrations/sqlite/00028_goal_remove_cleared_status.sql",
+		"../../../db/migrations/sqlite/00037_session_goals_compat.sql",
+		"../../../db/migrations/sqlite/00051_goal_token_totals.sql",
+		"../../../db/migrations/sqlite/00052_goal_usage_source_checkpoints.sql",
+		"../../../db/migrations/sqlite/00053_goal_usage_source_round_pending.sql",
+		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
+		"../../../db/migrations/sqlite/00055_goal_usage_source_baseline.sql",
+	)
+	if _, err := db.Exec(`INSERT INTO session_goals (
+		goal_id, session_key, objective, status,
+		token_used_input, token_used_output, token_used_cache_creation,
+		token_used_cache_read, token_used_reasoning, token_used_total,
+		token_used_actual_total, token_used_actual_estimated,
+		version, created_at, updated_at, metadata_json
+	) VALUES (
+		'goal-invalid-zero', 'room:group:zero-repair', 'repair all agents', 'complete',
+		111082, 7080, 0, 435968, 0, 118162, 0, 0,
+		1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'
+	), (
+		'goal-valid-zero', 'agent:nexus:ws:dm:valid-zero', 'keep zero', 'complete',
+		0, 0, 0, 0, 0, 0, 0, 0,
+		1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO goal_usage_parent_ledger (
+		owner_user_id, goal_session_key, scope_round_id, source_round_id,
+		token_used_input, token_used_output, token_used_cache_creation,
+		token_used_cache_read, token_used_reasoning, token_used_total,
+		token_used_actual_total, token_used_actual_estimated,
+		token_usage_observed, observed_at
+	) VALUES (
+		'owner', 'room:group:zero-repair', 'root', 'slot-a',
+		100, 20, 0, 80, 0, 120, 0, 0, 1, CURRENT_TIMESTAMP
+	)`); err != nil {
+		t.Fatal(err)
+	}
+
+	applyGoalMigrationFiles(t, db, "../../../db/migrations/sqlite/00089_goal_actual_token_zero_repair.sql")
+
+	var total int64
+	var estimated bool
+	if err := db.QueryRow(`SELECT token_used_actual_total, token_used_actual_estimated
+		FROM session_goals WHERE goal_id = 'goal-invalid-zero'`).Scan(&total, &estimated); err != nil {
+		t.Fatal(err)
+	}
+	if total != 554130 || !estimated {
+		t.Fatalf("repaired Goal actual = %d estimated=%v, want 554130/true", total, estimated)
+	}
+	if err := db.QueryRow(`SELECT token_used_actual_total, token_used_actual_estimated
+		FROM goal_usage_parent_ledger WHERE source_round_id = 'slot-a'`).Scan(&total, &estimated); err != nil {
+		t.Fatal(err)
+	}
+	if total != 200 || !estimated {
+		t.Fatalf("repaired parent actual = %d estimated=%v, want 200/true", total, estimated)
+	}
+	if err := db.QueryRow(`SELECT token_used_actual_total, token_used_actual_estimated
+		FROM session_goals WHERE goal_id = 'goal-valid-zero'`).Scan(&total, &estimated); err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || estimated {
+		t.Fatalf("valid zero = %d estimated=%v, want 0/false", total, estimated)
+	}
+}
+
+func TestGoalActualTokenZeroRepairMigrationsKeepDialectContract(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "postgres"} {
+		path := filepath.Join(
+			"../../../db/migrations",
+			dialect,
+			"00089_goal_actual_token_zero_repair.sql",
+		)
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlText := strings.ToLower(strings.Join(strings.Fields(string(body)), " "))
+		for _, required := range []string{
+			"update goal_usage_parent_ledger",
+			"update session_goals",
+			"token_used_actual_total = 0",
+			"token_used_actual_estimated",
+			"token_used_cache_read",
 		} {
 			if !strings.Contains(sqlText, required) {
 				t.Fatalf("%s migration missing %q", dialect, required)

@@ -597,7 +597,7 @@ Goal HTTP 的并发与绑定冲突（`goal conflict`、version/objective revisio
 
 `Goal.usage` 同时暴露两套不可混用的 token 口径：
 
-- `actual_tokens`：runtime/provider 实际处理总量，包含未缓存输入、cache creation/read、输出与 reasoning。provider terminal usage 显式携带 `total_tokens` 时采用其非负值，显式 `0` 也是精确值；缺少 total 时才按可用 breakdown 保守估算，并设置 `actual_tokens_estimated=true`。逐 turn actual 按消息身份去重，terminal 时再用本轮累计真值对账并持久化；terminal provider usage 一旦收到，即使后续本地投影或持久化步骤失败，也不会退化为缺失值。
+- `actual_tokens`：runtime/provider 实际处理总量，包含未缓存输入、cache creation/read、输出与 reasoning。provider terminal usage 显式携带一致的 `total_tokens` 时采用其非负值；显式 `0` 只有在所有 breakdown 也为零时才是精确值，若任一 breakdown 为正则把矛盾的零视为无效并按 breakdown 保守估算，同时设置 `actual_tokens_estimated=true`。逐 turn actual 按消息身份去重，terminal 时再用本轮累计真值对账并持久化；terminal provider usage 一旦收到，即使后续本地投影或持久化步骤失败，也不会退化为缺失值。
 - `budget_tokens`：Goal 预算计量，严格为 `max(input_tokens, 0) + max(output_tokens, 0)`；cache creation/read 与 reasoning 不额外进入预算。`token_budget`、剩余预算和 `budget_limited` 均使用此值。
 - `total_tokens`：为旧客户端保留的 `budget_tokens` 别名。
 

@@ -159,6 +159,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()
 	goalService.SetEventBroadcaster(permission)
+	core.Session.SetGoalCompletionUsageProvider(goalService)
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()

@@ -18,7 +18,7 @@
 //     guidance.go / contextual_input.go / input_options.go 同时承载协商后的 applied ACK 消费回调与输入选项剥离。
 //   - diagnostics_env.go / stderr_line.go：诊断开关、stderr 归一化。
 //   - goal_usage.go / subagent_usage.go / context_usage.go：Goal actual/budget token
-//     口径换算、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
+//     口径换算（含矛盾 provider 零 total 的 breakdown 回退）、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
 //     的归一化与按 Session/Agent 热缓存；跨进程恢复由 Session 服务负责。
 //   - round_timeout.go / text_util.go：跨 core/exec 共用的常量与小工具。
 //

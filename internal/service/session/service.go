@@ -1,3 +1,6 @@
+// INPUT: Session 存储、workspace history、runtime 与跨域只读依赖。
+// OUTPUT: owner-scoped Session 服务及其窄依赖注入契约。
+// POS: Session 业务服务装配与生命周期边界。
 package session
 
 import (
@@ -7,6 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
@@ -35,9 +39,20 @@ type Service struct {
 	runtime      *runtimectx.Manager
 	deletion     *deletionsvc.Coordinator
 	notifier     DirectoryNotifier
+	goalUsage    GoalCompletionUsageProvider
 
 	recoveryMu      sync.Mutex
 	recoveryBlocked map[string]struct{}
+}
+
+// GoalCompletionUsageProvider 提供历史完成收据的当前 Goal 聚合真相。
+type GoalCompletionUsageProvider interface {
+	UsageByGoalIDForOwner(context.Context, string, string) (*protocol.GoalUsageReport, error)
+}
+
+// SetGoalCompletionUsageProvider 注入 Goal 聚合读取器，用于修复历史收据中的旧结算值。
+func (s *Service) SetGoalCompletionUsageProvider(provider GoalCompletionUsageProvider) {
+	s.goalUsage = provider
 }
 
 // SetRuntimeManager 注入运行时管理器，用于历史读取与删除前关闭活跃会话。
