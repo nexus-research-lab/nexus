@@ -143,6 +143,7 @@ export function useMessageItemController({
       },
       footer: {
         copied: copiedAssistant,
+        goalCompletionReceipt: projection.goalCompletionReceipt,
         onCopy: display.canCopy ? handleCopyAssistant : undefined,
         stats: projection.stats,
         visible: display.footerVisible,

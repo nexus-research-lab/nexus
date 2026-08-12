@@ -9,7 +9,7 @@
 // 成员地图：
 //   - agent.go / skill.go：Agent 与 Skill 协议。
 //   - session*.go / conversation_turn.go / input_queue.go：会话、消息、轮次、
-//     上下文占用和输入队列。
+//     Goal 完成收据、上下文占用和输入队列。
 //   - room*.go：Room、成员、conversation draft、directed message 与 runtime slot。
 //   - goal*.go / objective_alignment.go：Goal 生命周期、objective revision、
 //     Execution binding 五态 resolution、用量与对齐审计。

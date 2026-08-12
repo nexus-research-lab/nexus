@@ -60,6 +60,8 @@
 
 同一个 `message_id` 的 durable snapshot 必须更新同一条消息投影，不能按 snapshot 数量追加多条气泡。`round_status`、`agent_round_status`、input queue 和 handoff 事件只更新状态投影，不直接变成正文消息。
 
+Goal 完成收据由宿主在成功的 `update_goal(complete)` 后生成，并以内部 `goal_id + round_id` 精确绑定到该轮最终 assistant 的同一 `message_id` durable snapshot；这两个绑定 ID 进入历史但不进入用户文案。收据始终可显示“Goal 已完成”，只在 Goal 聚合报告存在正耗时时附加耗时，只在 `usage_finalized=true` 时附加 actual token。结算仍在进行、Provider usage 永久不可得或查询失败时，未知 token 项必须完全省略，不得显示“结算中”“不可用”，也不得把未知值当成 0。后续结算成功可用同一消息快照静默原位补充。
+
 stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，但只有累计输入构成完整 JSON 后才更新可解释的工具参数。兼容网关漏发 `content_block_start` 时，处理器按 delta 类型建立临时块，随后由完整 assistant 快照原位替换，不能生成孤儿工具块或终止 round。嵌套调用通过 `parent_tool_use_id` 绑定父工具；事件未重复携带该字段时沿用本条 stream 在 `message_start` 建立的父链，新 assistant 段开始时必须重新取值，不能继承上一段的 parent。
 
 Bash / PowerShell 的运行中进度属于 ephemeral 状态：首次立即展示，此后最多每 30 秒更新一次，工具结束后由 durable tool result 收口。它不能进入 transcript 或在重连后变成历史正文。
@@ -91,7 +93,8 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 其中：
 
 - transcript 保存 agent 私有正文历史
-- overlay 只保存 Nexus 自己补的语义
+- overlay 只保存 Nexus 自己补的语义；允许用同 `message_id` 保存不改写正文的 assistant 补充快照
+- Goal 完成收据作为 Nexus 补充语义写入同 `message_id` 的 overlay assistant 快照，并在 compact 后合并回 transcript assistant
 - transcript 与 overlay 的职责必须严格分开，禁止混用
 
 ### 4.2 overlay 里保存什么
@@ -104,7 +107,7 @@ DM / 私有 session 主要保存：
 
 硬规则：
 
-- `assistant` 只能来自 transcript
+- assistant 正文只能来自 transcript；overlay assistant 只能携带同 `message_id` 的 Nexus 补充字段，并在 compact 时合并回原正文
 - `result` 只能来自 overlay
 - transcript 里的 `MessageTypeResult` 不参与历史投影
 

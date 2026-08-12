@@ -32,7 +32,79 @@ const (
 	MutationOutcomeMetadataKey    = "_nexus_mutation_outcome"
 	MutationMessageMetadataKey    = "_nexus_mutation_message"
 	MutationReasonCodeMetadataKey = "_nexus_mutation_reason_code"
+	GoalStatusMetadataKey         = "_nexus_goal_status"
 )
+
+// ParseGoalStatusResult 从 Goal 工具的 structured/text result 中读取权威状态。
+// 调用方仍须先确认该结果属于成功的 update_goal，避免把其他工具的 status
+// 字段误当成 Goal 生命周期。
+func ParseGoalStatusResult(values ...any) (GoalStatus, bool) {
+	for _, value := range values {
+		if status, ok := parseGoalStatusResult(value, 0); ok {
+			return status, true
+		}
+	}
+	return "", false
+}
+
+func parseGoalStatusResult(value any, depth int) (GoalStatus, bool) {
+	if value == nil || depth > 3 {
+		return "", false
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		if goal, ok := typed["goal"].(map[string]any); ok {
+			if status, ok := terminalGoalStatus(goal["status"]); ok {
+				return status, true
+			}
+		}
+		for _, key := range []string{
+			"structured_output",
+			"structured_content",
+			"structuredContent",
+			"content",
+			"text",
+		} {
+			if status, ok := parseGoalStatusResult(typed[key], depth+1); ok {
+				return status, true
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if status, ok := parseGoalStatusResult(item, depth+1); ok {
+				return status, true
+			}
+		}
+	case json.RawMessage:
+		return parseGoalStatusJSON([]byte(typed), depth+1)
+	case []byte:
+		return parseGoalStatusJSON(typed, depth+1)
+	case string:
+		return parseGoalStatusJSON([]byte(strings.TrimSpace(typed)), depth+1)
+	}
+	return "", false
+}
+
+func parseGoalStatusJSON(raw []byte, depth int) (GoalStatus, bool) {
+	if len(raw) == 0 || len(raw) > mutationResultJSONLimit {
+		return "", false
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return "", false
+	}
+	return parseGoalStatusResult(decoded, depth)
+}
+
+func terminalGoalStatus(value any) (GoalStatus, bool) {
+	status := NormalizeGoalStatus(GoalStatus(mutationResultString(value)))
+	switch status {
+	case GoalStatusComplete, GoalStatusBlocked:
+		return status, true
+	default:
+		return "", false
+	}
+}
 
 // ParseMutationResultEnvelope 按候选优先级识别显式 mutation envelope。
 // 它接受 structured output、被 JSON 字符串包裹的 text result，以及常见包装字段。

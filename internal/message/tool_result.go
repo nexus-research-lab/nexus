@@ -20,6 +20,7 @@ type ToolResultObservation struct {
 	ErrorCode       string
 	IsError         bool
 	MutationOutcome protocol.MutationResultOutcome
+	GoalStatus      protocol.GoalStatus
 	// Recoverable 表示只用于模型自愈的内部工具结果，不代表真实工具执行。
 	Recoverable bool
 }
@@ -94,24 +95,34 @@ func attachMutationResultMetadata(
 	block map[string]any,
 	structuredOutput map[string]any,
 ) {
-	result, ok := protocol.ParseMutationResultEnvelope(
+	result, hasMutationResult := protocol.ParseMutationResultEnvelope(
 		structuredOutput,
 		block["structured_output"],
 		block["content"],
 	)
-	if !ok {
+	goalStatus, hasGoalStatus := protocol.ParseGoalStatusResult(
+		structuredOutput,
+		block["structured_output"],
+		block["content"],
+	)
+	if !hasMutationResult && !hasGoalStatus {
 		return
 	}
 	metadata := mapValue(block["metadata"])
 	if metadata == nil {
-		metadata = make(map[string]any, 3)
+		metadata = make(map[string]any, 4)
 	}
-	metadata[protocol.MutationOutcomeMetadataKey] = string(result.Outcome)
-	if result.Message != "" {
-		metadata[protocol.MutationMessageMetadataKey] = result.Message
+	if hasMutationResult {
+		metadata[protocol.MutationOutcomeMetadataKey] = string(result.Outcome)
+		if result.Message != "" {
+			metadata[protocol.MutationMessageMetadataKey] = result.Message
+		}
+		if result.ReasonCode != "" {
+			metadata[protocol.MutationReasonCodeMetadataKey] = result.ReasonCode
+		}
 	}
-	if result.ReasonCode != "" {
-		metadata[protocol.MutationReasonCodeMetadataKey] = result.ReasonCode
+	if hasGoalStatus {
+		metadata[protocol.GoalStatusMetadataKey] = string(goalStatus)
 	}
 	block["metadata"] = metadata
 }
@@ -194,12 +205,18 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 			block["structured_output"],
 			block["content"],
 		)
+		goalStatus, _ := protocol.ParseGoalStatusResult(
+			map[string]any{"goal": map[string]any{"status": metadata[protocol.GoalStatusMetadataKey]}},
+			block["structured_output"],
+			block["content"],
+		)
 		observations = append(observations, ToolResultObservation{
 			ToolUseID:       toolUseID,
 			ToolName:        toolNames[toolUseID],
 			ErrorCode:       normalizeString(block["error_code"]),
 			IsError:         boolValue(block["is_error"]),
 			MutationOutcome: mutationResult.Outcome,
+			GoalStatus:      goalStatus,
 			Recoverable:     normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
 		})
 	}

@@ -9,6 +9,7 @@ import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-con
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import type {
   AssistantMessage,
+  GoalCompletionReceipt,
   Message,
   ResultSummary,
 } from "@/types/conversation/message/entity";
@@ -84,6 +85,9 @@ export function useMessageItemProjection({
     contentMerge.assistantMessages,
     identityAssistant,
   );
+  const goalCompletionReceipt = resolveGoalCompletionReceipt(
+    contentMerge.assistantMessages,
+  );
   const finalProjection = useMemo(
     () => resolveMessageItemFinalProjection({
       assistantContentMode,
@@ -156,6 +160,7 @@ export function useMessageItemProjection({
     ...permissionMatch,
     userMessages: contentMerge.userMessages,
     liveActivityState,
+    goalCompletionReceipt,
     processSummary,
     stats: buildMessageStats(contentMerge.resultSummary),
     timestamp: resolveMessageTimestamp(
@@ -164,6 +169,18 @@ export function useMessageItemProjection({
       contentMerge.resultSummary,
     ),
   };
+}
+
+function resolveGoalCompletionReceipt(
+  messages: readonly AssistantMessage[],
+): GoalCompletionReceipt | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const receipt = messages[index]?.goal_completion_receipt;
+    if (receipt?.goal_id?.trim() && receipt.round_id?.trim()) {
+      return receipt;
+    }
+  }
+  return null;
 }
 
 function collectVisibleToolUseIds(projection: {

@@ -86,6 +86,10 @@ type roundRunner struct {
 	goalUsageBindingMu          sync.Mutex
 	goalUsageMu                 sync.Mutex
 	goalLastAssistant           protocol.Message
+	goalCompletionCandidateID   string
+	goalCompletionAssistant     protocol.Message
+	goalCompletionReceipt       protocol.GoalCompletionReceipt
+	goalCompletionReceiptStored bool
 	goalToolProgress            bool
 	goalTerminalUsageSnapshot   goalsvc.RuntimeUsageSnapshot
 	goalTerminalUsageVersion    uint64
@@ -148,6 +152,8 @@ func (r *roundRunner) run(ctx context.Context) {
 	finalAssistant := r.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
 		r.deliverExternalAssistantReply(ownerCtx, finalAssistant)
+		r.rememberGoalCompletionAssistant(finalAssistant)
+		r.persistGoalCompletionReceipt(context.Background(), false)
 	}
 	r.recordGoalUsageLimit(result)
 	r.recordGoalContinuationProgress(result)

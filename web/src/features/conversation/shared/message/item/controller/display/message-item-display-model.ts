@@ -28,6 +28,7 @@ interface AssistantDisplayProjection {
   finalAssistantContent: string | readonly ContentBlock[] | null;
   finalAssistantStreamingIndexes: ReadonlySet<number>;
   finalAssistantText: string;
+  goalCompletionReceipt: unknown | null;
   liveActivityState: unknown | null;
   mergedContent: readonly ContentBlock[];
   processProjection: {
@@ -89,13 +90,15 @@ export function resolveAssistantDisplayState({
     finalVisible,
     footerVisible: resolveFooterVisible({
       canCopy,
+      hasGoalCompletionReceipt: Boolean(projection.goalCompletionReceipt),
       hasStats: Boolean(projection.stats),
-      isLoading,
+      isComplete: projection.streamStatus === "done",
       mode: assistantContentMode,
     }),
     hidden: !hasAssistantSurfaceContent({
       hasDirectContent: directVisible,
       hasFinalContent: finalVisible,
+      hasGoalCompletionReceipt: Boolean(projection.goalCompletionReceipt),
       hasLiveActivity: Boolean(projection.liveActivityState),
       hasPendingPermission: projection.pendingInteractionPermissions.length > 0,
       hasProcessContent: projection.processProjection.content.length > 0,
@@ -172,17 +175,23 @@ function resolveFinalStreaming(
 
 function resolveFooterVisible({
   canCopy,
+  hasGoalCompletionReceipt,
   hasStats,
-  isLoading,
+  isComplete,
   mode,
 }: {
   canCopy: boolean;
+  hasGoalCompletionReceipt: boolean;
   hasStats: boolean;
-  isLoading: boolean;
+  isComplete: boolean;
   mode: AssistantContentMode;
 }): boolean {
-  const hasCompletedCopy = [!isLoading, canCopy].every(Boolean);
-  const hasFooterContent = [hasStats, hasCompletedCopy].some(Boolean);
+  const hasCompletedCopy = [isComplete, canCopy].every(Boolean);
+  const hasFooterContent = [
+    isComplete && hasGoalCompletionReceipt,
+    hasStats,
+    hasCompletedCopy,
+  ].some(Boolean);
   return [FOOTER_MODES.has(mode), hasFooterContent].every(Boolean);
 }
 
@@ -227,6 +236,7 @@ function isEmptyStreamStatus(
 function hasAssistantSurfaceContent({
   hasDirectContent,
   hasFinalContent,
+  hasGoalCompletionReceipt,
   hasLiveActivity,
   hasPendingPermission,
   hasProcessContent,
@@ -235,6 +245,7 @@ function hasAssistantSurfaceContent({
 }: {
   hasDirectContent: boolean;
   hasFinalContent: boolean;
+  hasGoalCompletionReceipt: boolean;
   hasLiveActivity: boolean;
   hasPendingPermission: boolean;
   hasProcessContent: boolean;
@@ -244,6 +255,7 @@ function hasAssistantSurfaceContent({
   return [
     hasDirectContent,
     hasFinalContent,
+    hasGoalCompletionReceipt,
     hasLiveActivity,
     hasPendingPermission,
     hasProcessContent,

@@ -627,6 +627,13 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessage(
 		s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
 	}
 	if hasSuccessfulUpdate {
+		for _, observation := range observations {
+			if messageutil.CanonicalToolName(observation.ToolName) == "update_goal" &&
+				observation.GoalStatus == protocol.GoalStatusComplete {
+				slot.markGoalCompletionCandidate(slot.goalIDForUsage())
+				break
+			}
+		}
 		// update_goal 返回时各 slot 的 terminal usage 尚未齐全；只冻结 Goal
 		// 绑定，等每个 slot 的 round terminal 完成对账后再分别关闭。
 		s.beginRoomGoalUsageFinalizing(goalSessionKeyForSlot(slot))
@@ -854,10 +861,15 @@ type roomGoalUsageFinalizationProvider interface {
 func (s *Service) finalizeCompletedRoomGoalUsage(
 	ctx context.Context,
 	anchor *activeRoomRound,
-) bool {
+) (settled bool) {
 	if s == nil || s.goals == nil || anchor == nil {
 		return true
 	}
+	defer func() {
+		if settled {
+			s.persistRoomGoalCompletionReceipts(ctx, anchor, true)
+		}
+	}()
 	sessionKey := strings.TrimSpace(anchor.SessionKey)
 	goalRounds := make(map[string]string)
 	for _, slot := range anchor.Slots {

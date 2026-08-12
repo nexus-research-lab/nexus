@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - history_*.go / user_input_probe.go：分阶段历史投影与严格只读用户输入判定（compact / normalize / order / pagination / last-write round_index /
-//     turn projector / rewrite_tail / 按 Agent 执行轮配对的 result_summary / external_delivery / unfinished_round）。
+//     turn projector / rewrite_tail / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / unfinished_round）。
 //   - agent_history*.go：Agent 历史门面、读取、overlay 与共享模型。
 //   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试。
 //   - transcript_*.go：transcript cache、重复 UUID/自指链修复、reader、path、session、project、

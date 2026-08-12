@@ -346,6 +346,13 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		// update_goal 的 tool result 到达时，当前 provider turn 尚未生成最终回复。
 		// 保持本 round 的固定 Goal 绑定，直到 terminal usage 完成最终对账后再关闭。
 		r.goalUsageMu.Lock()
+		for _, observation := range observations {
+			if messageutil.CanonicalToolName(observation.ToolName) == "update_goal" &&
+				observation.GoalStatus == protocol.GoalStatusComplete {
+				r.goalCompletionCandidateID = strings.TrimSpace(r.goalIDForUsage)
+				break
+			}
+		}
 		if r.goalUsage != nil {
 			r.goalUsage.BeginFinalizing()
 		}
@@ -722,6 +729,7 @@ func (r *roundRunner) finalizeCompletedGoalUsageAfterSubagents(ctx context.Conte
 		if canClose {
 			r.closeGoalUsageIfNoTerminalSnapshotPending()
 		}
+		r.persistGoalCompletionReceipt(ctx, true)
 	}
 	return settled
 }
