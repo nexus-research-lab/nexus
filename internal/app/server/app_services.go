@@ -180,6 +180,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
 	channelRouter.SetLogger(logger.With("component", "channels"))
 	channelControl := channels.NewControlService(cfg, db, core.Agent, channelRouter)
+	core.Session.SetExternalSessionIdentityResolver(channelControl)
 	core.Room.SetSessionArtifactDeletionCoordinator(core.Session)
 	core.Agent.SetDeletionCoordinator(newAgentDeletionCoordinator(channelControl, runtimeManager))
 	queueAdmissionRepository := queueadmissionstore.NewRepository(cfg, db)
@@ -201,6 +202,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
+	ingressService.SetRuntimePermissionContext(permission)
 	channelRouter.SetIngress(ingressService)
 	roomRealtime := roomrealtime.NewService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
@@ -239,6 +241,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Agent.SetDeletionLifecycle(core.Session, automationService)
 	automationService.SetProviderResolver(providerService)
 	automationService.SetConnectorResolver(connectorService)
+	automationService.SetDeliveryGrantResolver(channelControl)
+	core.Session.SetTaskReferenceResolver(automationService)
+	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
@@ -316,7 +321,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	executionBuilder := newExecutionMCPBuilder(orchestrationService)
+	executionBuilder := combinedExecutionMCPBuilder(
+		newExecutionMCPBuilder(orchestrationService),
+		newAutomationExecutionMCPBuilder(automationService, cfg.DefaultTimezone),
+	)
 	mcpBuilder := combinedMCPBuilder(
 		configurationBuilder,
 		nexusManagerBuilder,

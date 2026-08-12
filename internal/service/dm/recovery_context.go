@@ -25,13 +25,16 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 		return nil
 	}
 	// AgentHistoryStore 已按当前 DM Agent 隔离，因此不再要求历史行携带 agent_id。
-	return conversationsvc.RoundRecoveryContextualInputs(history, "")
+	inputs := conversationsvc.AutomationDeliveryContextualInputs(history, e.request.RoundID)
+	return append(inputs, conversationsvc.RoundRecoveryContextualInputs(history, "")...)
 }
 
 func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {
 	if r.atomicInput {
 		return nil
 	}
-	inputs := goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)
+	inputs := r.transportContextualInputs()
+	inputs = append(inputs, runtimectx.AutomationRunContextualInputs(r.automationRun)...)
+	inputs = append(inputs, goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)...)
 	return append(inputs, r.recoveryContext...)
 }

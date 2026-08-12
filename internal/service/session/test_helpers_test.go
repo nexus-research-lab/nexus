@@ -151,6 +151,23 @@ func newSessionTestAgentService(t *testing.T, cfg config.Config) (*agentsvc.Serv
 	return agentService, db
 }
 
+func newSessionTestCoreServices(
+	t *testing.T,
+	cfg config.Config,
+) (*serverapp.CoreServices, *sql.DB) {
+	t.Helper()
+	db, err := serverapp.OpenDB(cfg)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("关闭测试数据库失败: %v", err)
+		}
+	})
+	return serverapp.NewCoreServicesWithDB(cfg, db), db
+}
+
 func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {
 	t.Helper()
 	projectDir := sessionTranscriptProjectDir(workspacePath)

@@ -46,6 +46,26 @@ func newExecutionMCPBuilder(
 	}
 }
 
+func combinedExecutionMCPBuilder(
+	builders ...runtimectx.ExecutionMCPServerBuilder,
+) runtimectx.ExecutionMCPServerBuilder {
+	return func(
+		ctx context.Context,
+		runtimeContext runtimectx.ExecutionToolContext,
+	) map[string]sdkmcp.ServerConfig {
+		merged := map[string]sdkmcp.ServerConfig{}
+		for _, builder := range builders {
+			if builder == nil {
+				continue
+			}
+			for name, server := range builder(ctx, runtimeContext) {
+				merged[name] = server
+			}
+		}
+		return merged
+	}
+}
+
 func resolveExecutionMCPServerContext(
 	ctx context.Context,
 	reader executionSnapshotReader,

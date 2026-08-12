@@ -110,7 +110,6 @@ export function useTaskDialogData({
     ),
     [agentNameById, agentSessions, form.targetType, roomContexts, t],
   );
-
   return {
     agentOptions,
     agents: resourceStatus(agents),

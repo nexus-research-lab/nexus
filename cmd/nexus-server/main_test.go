@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,7 +124,8 @@ INSERT INTO automation_permission_requests (
 	}
 	defer verified.Close()
 	version, err := goose.GetDBVersion(verified)
-	if err != nil || version != 86 {
+	wantVersion := latestServerMigrationVersion(t, migrationDir)
+	if err != nil || version != wantVersion {
 		t.Fatalf("migration version after repair = %d, err=%v", version, err)
 	}
 	for _, migrationVersion := range []int64{71, 86} {
@@ -146,6 +148,18 @@ WHERE request_id = 'request-legacy'
 `).Scan(&status); err != nil || status != "pending" {
 		t.Fatalf("legacy permission request changed: status=%q err=%v", status, err)
 	}
+}
+
+func latestServerMigrationVersion(t *testing.T, migrationDir string) int64 {
+	t.Helper()
+	migrations, err := goose.CollectMigrations(migrationDir, 0, math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(migrations) == 0 {
+		t.Fatal("no server migrations found")
+	}
+	return migrations[len(migrations)-1].Version
 }
 
 func applyLegacyAutomationPermissionSchema(t *testing.T, db *sql.DB, migrationDir string) {

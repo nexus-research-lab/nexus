@@ -21,6 +21,7 @@ test.after(async () => {
 function conversation(id, {
   draft,
   external = false,
+  externalIdentity = null,
   lastActivity = 0,
   title = id,
   type = "topic",
@@ -32,7 +33,11 @@ function conversation(id, {
     is_draft: draft,
     last_activity_at: lastActivity,
     options: external
-      ? { external_session: true, channel_type: "telegram" }
+      ? {
+          external_identity: externalIdentity,
+          external_session: true,
+          channel_type: "telegram",
+        }
       : {},
     room_id: "room-a",
     session_id: null,
@@ -110,6 +115,93 @@ test("滚动历史批量选择包含当前会话但排除外部 Session", async 
     ),
     stableSelection,
     "可选集合对象重建但内容不变时必须复用选择快照",
+  );
+});
+
+test("IM 历史会话展示账号身份且解绑后即使有任务引用也可单项删除", async () => {
+  const { buildRoomHistoryEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/history/room-history-model.ts",
+  );
+  const current = conversation("current-im", {
+    external: true,
+    externalIdentity: {
+      account_hint: "A1B2C3",
+      can_delete: false,
+      channel_type: "telegram",
+      current_pairing: true,
+      pairing_status: "active",
+    },
+    lastActivity: 30,
+  });
+  const referenced = conversation("referenced-im", {
+    external: true,
+    externalIdentity: {
+      account_hint: "D4E5F6",
+      can_delete: true,
+      channel_type: "telegram",
+      current_pairing: false,
+      pairing_status: "disabled",
+      task_reference_count: 2,
+    },
+    lastActivity: 20,
+  });
+  const historical = conversation("historical-im", {
+    external: true,
+    externalIdentity: {
+      account_hint: "112233",
+      can_delete: true,
+      channel_type: "telegram",
+      current_pairing: false,
+      pairing_status: "disabled",
+    },
+    lastActivity: 10,
+  });
+  const legacy = conversation("legacy-im", {
+    external: true,
+    externalIdentity: {
+      can_delete: true,
+      channel_type: "telegram",
+      current_pairing: false,
+      legacy_session_hint: "445566",
+      pairing_status: "disabled",
+    },
+    lastActivity: 5,
+  });
+  const entries = buildRoomHistoryEntries({
+    canManageConversations: true,
+    canUpdateConversationTitle: true,
+    conversations: [current, referenced, historical, legacy],
+    currentConversationId: current.conversation_id,
+  });
+
+  assert.deepEqual(entries.map((entry) => ({
+    canDelete: entry.canDelete,
+    label: entry.externalSessionLabel,
+  })), [
+    {canDelete: false, label: "Telegram · 账号 A1B2C3 · 当前"},
+    {canDelete: true, label: "Telegram · 账号 D4E5F6 · 历史 · 2 个任务"},
+    {canDelete: true, label: "Telegram · 账号 112233 · 历史"},
+    {canDelete: true, label: "Telegram · 旧会话 445566 · 历史"},
+  ]);
+  assert.equal(entries.every((entry) => entry.canBulkDelete === false), true);
+
+  const { buildRoomHistoryItemPresentation } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/history/room-history-item-model.ts",
+  );
+  const referencedPresentation = buildRoomHistoryItemPresentation(
+    entries[1],
+    {
+      isEditing: false,
+      isSelected: false,
+      isSelecting: false,
+    },
+    historyItemCopy(),
+  );
+  assert.deepEqual(referencedPresentation.actions, ["delete"]);
+  assert.equal(
+    referencedPresentation.actionsPersistent,
+    true,
+    "所有可删除的 IM 历史会话都必须常显删除入口，而不是依赖 hover",
   );
 });
 

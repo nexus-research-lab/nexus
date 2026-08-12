@@ -68,7 +68,7 @@ function executionSessionKey(task: ScheduledTaskItem): string {
   if (task.session_target.kind === "bound") {
     return task.session_target.bound_session_key;
   }
-  return task.source?.session_key || "";
+  return "";
 }
 
 function buildRoomTaskExecutorSelectionKey(task: ScheduledTaskItem): string {
@@ -173,11 +173,23 @@ function resolveReplyMode(
   if (task.execution_kind === "script" || task.delivery.mode === "none") {
     return "none";
   }
-  if (task.delivery.mode === "explicit"
-    && (!executionTarget || task.delivery.to !== executionTarget)) {
+  const replySessionKey = deliverySessionKey(task);
+  if (replySessionKey && (!executionTarget || replySessionKey !== executionTarget)) {
     return "selected";
   }
   return "execution";
+}
+
+function deliverySessionKey(task: ScheduledTaskItem): string {
+  const sessionKey = task.delivery.session_key?.trim() || "";
+  if (sessionKey) {
+    return sessionKey;
+  }
+  if (task.delivery.mode === "explicit"
+    && task.delivery.channel === "websocket") {
+    return task.delivery.to?.trim() || "";
+  }
+  return "";
 }
 
 const REPLY_SESSION_KEY_BUILDERS: Record<
@@ -193,13 +205,12 @@ function selectedReplySessionKey(
   targetType: TargetType,
   executionTarget: string,
 ): string {
-  if (task.delivery.mode !== "explicit"
-    || !task.delivery.to
-    || task.delivery.to === executionTarget) {
+  const replySessionKey = deliverySessionKey(task);
+  if (!replySessionKey || replySessionKey === executionTarget) {
     return "";
   }
   return REPLY_SESSION_KEY_BUILDERS[targetType](
-    task.delivery.to,
+    replySessionKey,
     task.agent_id,
   );
 }
@@ -224,6 +235,17 @@ function buildScriptReplyInitialState(): TaskReplyInitialState {
     replyMode: "none",
     selectedReplySessionKey: "",
   };
+}
+
+function needsSessionRebind(
+  task: ScheduledTaskItem,
+  issue: "delivery" | "execution",
+): boolean {
+  if (task.session_binding_state !== "rebind_required") {
+    return false;
+  }
+  const issues = task.session_binding_issues ?? [];
+  return issues.length === 0 || issues.includes(issue);
 }
 
 const REPLY_INITIALIZERS: Record<
@@ -299,6 +321,7 @@ export function buildDefaultTaskDialogInitialState(
       executionKind: "agent",
       executionMode: "temporary",
       instruction: preset?.instruction ?? "",
+      permissionMode: "copy",
       replyMode: "none",
       selectedAgentId: agentId,
       selectedReplySessionKey: "",
@@ -331,7 +354,14 @@ export function buildTaskDialogInitialState(
     enabled: task.enabled,
     expiresAt: buildExpirationInput(task, schedule.timezone),
     instruction: task.instruction,
+    permissionMode: task.permission_mode ?? "default",
     taskName: task.name,
+    selectedReplySessionKey: needsSessionRebind(task, "delivery")
+      ? ""
+      : reply.selectedReplySessionKey,
+    selectedSessionKey: needsSessionRebind(task, "execution")
+      ? ""
+      : execution.selectedSessionKey,
   };
   return { form, schedule };
 }

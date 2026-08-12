@@ -190,7 +190,7 @@ func (s *Service) deleteSession(
 	rawSessionKey string,
 	expectedConfigurationVersion *int64,
 ) (returnErr error) {
-	sessionKey, _, err := s.requireSessionKey(rawSessionKey)
+	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return err
 	}
@@ -209,6 +209,9 @@ func (s *Service) deleteSession(
 			*expectedConfigurationVersion,
 			item.ConfigurationVersion,
 		)
+	}
+	if err = s.validateExternalSessionDeletion(ctx, sessionKey, parsed); err != nil {
+		return err
 	}
 	if s.runtime == nil {
 		return errors.New("Session 删除缺少 runtime manager，不能安全确认热态已关闭")
@@ -285,7 +288,7 @@ func (s *Service) deleteSession(
 	cleanupCtx := context.WithoutCancel(ctx)
 	cleanupErrs := make([]error, 0)
 	if s.deletion != nil {
-		if cleanupErr := s.deletion.CleanupSessionReferences(
+		if cleanupErr := s.deletion.CleanupSessionReferencesPreservingTasks(
 			cleanupCtx,
 			authctx.OwnerUserID(ctx),
 			[]string{sessionKey},

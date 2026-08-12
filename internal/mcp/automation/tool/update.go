@@ -16,21 +16,30 @@ import (
 )
 
 const updateDescription = "按 job_id 或 query 局部更新定时任务字段。query 只在当前权限范围内唯一命中当前未删除任务时才会执行，多候选会要求用户确认。字段语义与 UI「编辑任务」对话框一致：" +
-	"name / instruction / execution_kind / schedule / execution_mode / reply_mode / selected_session_key / " +
-	"instruction_append / named_session_key / selected_reply_session_key / reply_agent_id / reply_session_key / reply_channel / reply_to / reply_account_id / reply_thread_id / overlap_policy / expires_at / clear_expires_at / enabled。只有提供的字段会被更新。" +
+	"name / instruction / execution_kind / permission_mode / schedule / context_mode / deliver_result / " +
+	"instruction_append / overlap_policy / expires_at / clear_expires_at / enabled。只有提供的字段会被更新。" +
 	"启用或停用直接设置 enabled；cancel_active_run=true 会隐含 enabled=false，并中断当前 active run。" +
 	"除了 job_id/query 之外必须至少提供一个要修改的字段。" +
 	"用户说“再加一条要求/补充任务细节”时优先用 instruction_append；只有明确要重写任务内容时才用 instruction。" +
 	"投递权限：普通 Agent 只能改为自身 Agent 会话/收件箱，Room 成员只能额外改回当前 Room，外部通道只能使用当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他 Agent 或任意已配置通道目标。新的可信会话 grant 会随修改持久化，实际投递前还会重读最新任务并复核当前权限。" +
-	"只改投递目标时不需要同时传 execution_mode；传 reply_channel/reply_to/reply_session_key 会默认按 reply_mode=channel 处理，当前会话是结构化外部 IM 群且 reply_channel 与当前通道一致时可省略 reply_to；" +
-	"当前内部 DM/Room 会话里传 reply_mode=selected 可省略 selected_reply_session_key；外部 IM 群改发当前群请用 reply_mode=channel；传 reply_agent_id 会默认按 reply_mode=agent 处理；reply_mode=agent 且不传 reply_agent_id 时默认投递到该任务所属 Agent 的定时任务收件箱。"
+	"context_mode 只决定是否复用当前上下文，deliver_result 只决定是否把结果送回当前可信会话。外部 IM 的 channel/account/target/thread/session 由 Nexus 自动绑定，模型不得填写或猜测路由字段。"
+
+func updateDescriptionForContext(sctx contract.ServerContext) string {
+	channel, chatType, ok := currentExternalIMSummary(sctx)
+	if !ok {
+		return updateDescription
+	}
+	return "当前可信调用来自 " + channel + " " + chatType +
+		"。把任务结果改回这里时只传 deliver_result=true；Nexus 会自动注入真实路由，绝不要填写或猜测 channel/account/chat/thread/session。" +
+		updateDescription
+}
 
 func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
 		Name:        "update_scheduled_task",
-		Description: updateDescription,
+		Description: updateDescriptionForContext(sctx),
 		SearchHint:  searchHintUpdateScheduledTask,
-		InputSchema: updateSchema(),
+		InputSchema: updateSchema(sctx),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if err := requireTrustedInteractiveMutation(sctx); err != nil {
 				return render.Error(err), nil
@@ -50,8 +59,10 @@ func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			}
 			semantic.ReassembleFlatSchedule(args)
 			semantic.ApplyDefaultTimezone(args, sctx)
+			semantic.ApplyIntentDefaults(args, sctx)
 			semantic.ApplyDeliveryFieldDefaults(args)
 			semantic.ApplySelectedReplyCurrentDefault(args, sctx)
+			semantic.BindCurrentExternalChannelReply(args, sctx)
 			input, err := buildUpdateInput(args, sctx, scope.Job)
 			if err != nil {
 				return render.Error(err), nil
@@ -172,6 +183,10 @@ func (b *scheduledTaskUpdateInputBuilder) applyBasicFields() error {
 			return errors.New("execution_kind=script is human-control-plane only and cannot be selected through an Agent conversation")
 		}
 		b.input.ExecutionKind = &s
+	}
+	if permissionMode, ok := b.args["permission_mode"]; ok {
+		s := automationdomain.NormalizePermissionMode(argx.StringOf(permissionMode))
+		b.input.PermissionMode = &s
 	}
 	if enabled, ok := b.args["enabled"]; ok {
 		value := argx.ParseBool(enabled)
@@ -303,6 +318,7 @@ func hasUpdateFields(input automationdomain.UpdateJobInput) bool {
 		input.Schedule != nil ||
 		input.Instruction != nil ||
 		input.ExecutionKind != nil ||
+		input.PermissionMode != nil ||
 		input.SessionTarget != nil ||
 		input.Delivery != nil ||
 		input.Source != nil ||

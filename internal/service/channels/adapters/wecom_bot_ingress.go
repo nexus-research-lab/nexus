@@ -48,11 +48,12 @@ func (c *WeComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 		RoundID:      parsed.MsgID,
 		ReqID:        parsed.MsgID,
 		Delivery: &channelcontract.DeliveryTarget{
-			Mode:      channelcontract.DeliveryModeExplicit,
-			Channel:   channelcontract.ChannelTypeWeChat,
-			To:        ref,
-			AccountID: parsed.ReqID,
-			ThreadID:  streamID,
+			Mode:           channelcontract.DeliveryModeExplicit,
+			Channel:        channelcontract.ChannelTypeWeChat,
+			To:             ref,
+			AccountID:      strings.TrimSpace(c.botID),
+			ReplyContextID: parsed.ReqID,
+			StreamID:       streamID,
 		},
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
 			Channel:           channelcontract.ChannelTypeWeChat,

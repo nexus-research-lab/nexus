@@ -53,6 +53,7 @@ interface OrderedContentProjectionOptions {
 
 interface AssistantIdentityProjection {
   assistantAgentId: string | null;
+  automationTaskName: string | null;
   firstAssistantMessageId: string | null;
   model: string | undefined;
   stopReason: string | null;
@@ -286,6 +287,7 @@ function projectAssistantIdentity(
   if (!identityAssistant) {
     return {
       assistantAgentId: null,
+      automationTaskName: null,
       firstAssistantMessageId: null,
       model: undefined,
       stopReason: null,
@@ -294,11 +296,20 @@ function projectAssistantIdentity(
   }
   return {
     assistantAgentId: identityAssistant.agent_id ?? null,
+    automationTaskName: resolveAutomationTaskName(identityAssistant),
     firstAssistantMessageId: messages[0]?.message_id ?? null,
     model: resolveAssistantModel(messages, identityAssistant),
     stopReason: identityAssistant.stop_reason ?? null,
     streamStatus: identityAssistant.stream_status ?? null,
   };
+}
+
+function resolveAutomationTaskName(message: AssistantMessage): string | null {
+  if (message.metadata?.source !== "automation_delivery") {
+    return null;
+  }
+  const taskName = message.metadata.task_name;
+  return typeof taskName === "string" && taskName.trim() ? taskName.trim() : "";
 }
 
 function selectAssistantIdentity(

@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"errors"
+	"strings"
 	"unicode/utf8"
 
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -24,12 +25,15 @@ func dmExternalReplyTarget(target *DeliveryTarget) *dmsvc.ExternalReplyTarget {
 		return nil
 	}
 	return &dmsvc.ExternalReplyTarget{
-		Mode:       normalized.Mode,
-		Channel:    normalized.Channel,
-		To:         normalized.To,
-		AccountID:  normalized.AccountID,
-		ThreadID:   normalized.ThreadID,
-		SessionKey: normalized.SessionKey,
+		Mode:           normalized.Mode,
+		Channel:        normalized.Channel,
+		To:             normalized.To,
+		AccountID:      normalized.AccountID,
+		ThreadID:       normalized.ThreadID,
+		SessionKey:     normalized.SessionKey,
+		ContextToken:   normalized.ContextToken,
+		ReplyContextID: normalized.ReplyContextID,
+		StreamID:       normalized.StreamID,
 	}
 }
 
@@ -65,6 +69,33 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		logger.Info("忽略重复外部通道消息")
 		return duplicate, nil
 	}
+	remembered, err := s.rememberIngressRoutes(ctx, normalized)
+	if err != nil {
+		logger.Error("记录通道回投目标失败", "err", err)
+		s.markIngressMessageFailed(ctx, claimed, normalized, err)
+		return nil, err
+	}
+	s.bindRuntimePermissionSession(normalized)
+
+	command, err := s.handleIngressCommand(ctx, normalized)
+	if err != nil {
+		logger.Error("处理通道控制命令失败", "err", err)
+		s.markIngressMessageFailed(ctx, claimed, normalized, err)
+		return nil, err
+	}
+	if command != nil {
+		if err = s.replyToIngressCommand(ctx, normalized, command.Reply); err != nil {
+			logger.Error("回投通道控制命令结果失败", "err", err)
+			s.markIngressMessageFailed(ctx, claimed, normalized, err)
+			return nil, err
+		}
+		if err = s.finishAcceptedIngress(ctx, claimed, normalized); err != nil {
+			logger.Error("标记通道控制命令幂等状态失败", "err", err)
+			return nil, err
+		}
+		s.notifyExternalSessionUpdated(ctx, normalized)
+		return acceptedIngressResult(normalized, remembered), nil
+	}
 
 	if err = s.dispatchIngress(ctx, normalized); err != nil {
 		logger.Error("下发通道消息失败", "err", err)
@@ -76,25 +107,66 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		return nil, err
 	}
 
-	remembered, err := s.rememberIngressRoutes(ctx, normalized)
-	if err != nil {
-		logger.Error("记录通道回投目标失败", "err", err)
-		return nil, err
-	}
 	logger.Info("通道消息已进入 DM 主链",
 		"remembered_delivery", remembered != nil,
 	)
 	s.notifyExternalSessionUpdated(ctx, normalized)
 
+	return acceptedIngressResult(normalized, remembered), nil
+}
+
+func acceptedIngressResult(request normalizedIngressRequest, remembered *DeliveryTarget) *IngressResult {
 	return &IngressResult{
-		Channel:            normalized.channelStored,
-		AgentID:            normalized.agentID,
-		SessionKey:         normalized.sessionKey,
-		RoundID:            normalized.roundID,
-		ReqID:              normalized.reqID,
+		Channel:            request.channelStored,
+		AgentID:            request.agentID,
+		SessionKey:         request.sessionKey,
+		RoundID:            request.roundID,
+		ReqID:              request.reqID,
 		RememberedDelivery: remembered,
-		Message:            normalized.message,
-	}, nil
+		Message:            request.message,
+	}
+}
+
+func (s *IngressService) handleIngressCommand(
+	ctx context.Context,
+	request normalizedIngressRequest,
+) (*IngressCommandResult, error) {
+	ingress := IngressCommandRequest{
+		OwnerUserID: request.ownerUserID,
+		AgentID:     request.agentID,
+		SessionKey:  request.sessionKey,
+		Content:     request.content,
+	}
+	if ambiguity, err := s.permissionCommandAmbiguity(
+		contextWithIngressOwner(ctx, request.ownerUserID),
+		ingress,
+	); err != nil || ambiguity != nil {
+		return ambiguity, err
+	}
+	if result := s.handleRuntimePermissionCommand(ctx, request); result != nil {
+		return result, nil
+	}
+	if s.commands == nil {
+		return nil, nil
+	}
+	result, err := s.commands.HandleIngressCommand(contextWithIngressOwner(ctx, request.ownerUserID), ingress)
+	if err != nil || !result.Handled {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (s *IngressService) replyToIngressCommand(ctx context.Context, request normalizedIngressRequest, reply string) error {
+	if strings.TrimSpace(reply) == "" || s.router == nil || request.rememberedTarget == nil {
+		return nil
+	}
+	_, err := s.router.DeliverMessage(
+		contextWithIngressOwner(ctx, request.ownerUserID),
+		request.agentID,
+		reply,
+		*request.rememberedTarget,
+	)
+	return err
 }
 
 func (s *IngressService) validateIngressDependencies() error {
@@ -133,13 +205,14 @@ func (s *IngressService) dispatchIngress(ctx context.Context, request normalized
 		return err
 	}
 	return s.dm.HandleChat(ownerCtx, dmsvc.Request{
-		SessionKey:           request.sessionKey,
-		AgentID:              request.agentID,
-		Content:              request.content,
-		RoundID:              request.roundID,
-		ExecutionOrigin:      "channel",
-		PermissionMode:       request.permissionMode,
-		BroadcastUserMessage: true,
+		SessionKey:                        request.sessionKey,
+		AgentID:                           request.agentID,
+		Content:                           request.content,
+		RoundID:                           request.roundID,
+		ExecutionOrigin:                   "channel",
+		TrustedExternalInteractiveContext: request.trustedExternalInteractive,
+		PermissionMode:                    request.permissionMode,
+		BroadcastUserMessage:              true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{
 			Metadata: channelmessage.RuntimeMetadata(request.message),
 		},

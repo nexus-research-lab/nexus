@@ -6,12 +6,12 @@ package automation
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 
@@ -37,71 +37,25 @@ func (s *Service) bindSink(sessionKey string, sink *automationexec.ExecutionSink
 	}
 }
 
-func buildScheduledTaskInstruction(job automationdomain.ScheduledTask) string {
-	marker := buildScheduledTaskMarker(job)
-	instruction := strings.TrimSpace(job.Instruction)
-	if instruction == "" {
-		return marker
-	}
-	return marker + " " + instruction
-}
-
-func buildPermissionResumeInstruction(
+func automationRunContext(
 	job automationdomain.ScheduledTask,
-	request *automationdomain.AutomationPermissionRequest,
-) string {
-	instruction := buildScheduledTaskInstruction(job)
-	if request == nil {
-		return instruction
+	runID string,
+	resumeAttempt *permissionResumeAttempt,
+) *protocol.AutomationRunContext {
+	binding := protocol.AutomationRunContext{
+		JobID:                    strings.TrimSpace(job.JobID),
+		RunID:                    strings.TrimSpace(runID),
+		JobName:                  strings.TrimSpace(job.Name),
+		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	}
-	toolName := normalizePermissionResumeLabel(request.Capability.ToolName)
-	if toolName == "" {
-		return instruction
+	if resumeAttempt != nil {
+		binding.ResumeToolName = strings.TrimSpace(resumeAttempt.toolName)
+		binding.ResumeResourceScope = strings.TrimSpace(resumeAttempt.resourceScope)
 	}
-	target := normalizePermissionResumeLabel(request.Capability.ResourceScope)
-	targetCopy := ""
-	if target != "" {
-		targetCopy = fmt.Sprintf("，目标仍为 `%s`", target)
+	if !binding.Valid() {
+		return nil
 	}
-	return fmt.Sprintf(
-		"%s\n\n[权限续跑] 用户已经处理上一轮的权限请求。请忽略上一轮的拒绝结论，并在本轮重新调用工具 `%s`%s，沿用原任务指定的参数。不得仅引用上一轮失败直接结束；收到这次工具调用的实际结果后再总结本次运行。",
-		instruction,
-		toolName,
-		targetCopy,
-	)
-}
-
-func normalizePermissionResumeLabel(value string) string {
-	cleaned := strings.NewReplacer(
-		"`", "",
-		"\r", " ",
-		"\n", " ",
-		"\t", " ",
-	).Replace(strings.TrimSpace(value))
-	return strings.Join(strings.Fields(cleaned), " ")
-}
-
-func buildScheduledTaskMarker(job automationdomain.ScheduledTask) string {
-	jobID := strings.TrimSpace(job.JobID)
-	if jobID == "" {
-		jobID = "unknown"
-	}
-	name := normalizeScheduledTaskMarkerLabel(job.Name)
-	if name == "" {
-		return "[scheduled-task:" + jobID + "]"
-	}
-	return "[scheduled-task:" + jobID + " " + name + "]"
-}
-
-func normalizeScheduledTaskMarkerLabel(value string) string {
-	cleaned := strings.NewReplacer(
-		"[", " ",
-		"]", " ",
-		"\r", " ",
-		"\n", " ",
-		"\t", " ",
-	).Replace(strings.TrimSpace(value))
-	return strings.Join(strings.Fields(cleaned), " ")
+	return &binding
 }
 
 func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roundID string, agentID string, instruction string) error {
@@ -129,6 +83,11 @@ func (s *Service) dispatchJobToSession(
 		RoundID:       strings.TrimSpace(roundID),
 		ResumeAttempt: resumeAttempt,
 	})
+	permissionMode := runtimepermission.NormalizeMode(sdkpermission.Mode(
+		automationdomain.NormalizePermissionMode(job.PermissionMode),
+	))
+	runtimeToolPolicy := taskRuntimeToolPolicy(job)
+	runContext := automationRunContext(job, runID, resumeAttempt)
 	if parsed.Kind == protocol.SessionKeyKindRoom {
 		if s.room == nil {
 			return errors.New("shared room session automation 暂不支持")
@@ -140,8 +99,10 @@ func (s *Service) dispatchJobToSession(
 			ExecutionOrigin:   "automation",
 			TargetAgentIDs:    []string{strings.TrimSpace(job.AgentID)},
 			RoundID:           roundID,
-			PermissionMode:    sdkpermission.ModeDefault,
+			PermissionMode:    permissionMode,
 			PermissionHandler: permissionHandler,
+			RuntimeToolPolicy: runtimeToolPolicy,
+			AutomationRun:     runContext,
 			EventObserver:     eventObserver,
 		})
 	}
@@ -154,8 +115,10 @@ func (s *Service) dispatchJobToSession(
 		Content:           job.Instruction,
 		ExecutionOrigin:   "automation",
 		RoundID:           roundID,
-		PermissionMode:    sdkpermission.ModeDefault,
+		PermissionMode:    permissionMode,
 		PermissionHandler: permissionHandler,
+		RuntimeToolPolicy: runtimeToolPolicy,
+		AutomationRun:     runContext,
 	})
 }
 
@@ -182,7 +145,7 @@ func (s *Service) enqueueMainSessionEvent(
 			"policy_revision":                    job.PermissionPolicy.Revision,
 			"permission_request_id":              strings.TrimSpace(permissionRequestID),
 			"permission_request_policy_revision": permissionRequestPolicyRevision,
-			"text":                               buildScheduledTaskInstruction(job),
+			"text":                               strings.TrimSpace(job.Instruction),
 			"trigger_kind":                       triggerKind,
 			"session_target_kind":                job.SessionTarget.Kind,
 		},

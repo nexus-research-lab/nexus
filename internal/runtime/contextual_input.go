@@ -39,9 +39,12 @@ type nextTurnContextClearer interface {
 }
 
 const (
-	contextOnlyTurnTrigger           = "Continue."
-	ContextualInputNameRoundRecovery = "round_recovery"
-	ContextualInputNameExecution     = "execution"
+	contextOnlyTurnTrigger                = "Continue."
+	ContextualInputNameRoundRecovery      = "round_recovery"
+	ContextualInputNameExecution          = "execution"
+	ContextualInputNameTransport          = "transport"
+	ContextualInputNameAutomation         = "automation"
+	ContextualInputNameAutomationDelivery = "automation_delivery"
 )
 
 func PrepareRoundContentWithContext(
@@ -178,8 +181,14 @@ func internalContextSourceName(name string) string {
 		return "goal"
 	case ContextualInputNameExecution:
 		return ContextualInputNameExecution
+	case ContextualInputNameTransport:
+		return ContextualInputNameTransport
 	case ContextualInputNameRoundRecovery:
 		return ContextualInputNameRoundRecovery
+	case ContextualInputNameAutomation:
+		return ContextualInputNameAutomation
+	case ContextualInputNameAutomationDelivery:
+		return ContextualInputNameAutomationDelivery
 	default:
 		return ""
 	}

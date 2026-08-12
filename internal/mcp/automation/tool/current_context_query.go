@@ -37,6 +37,9 @@ func bestMatchingScheduledTasksForToolQuery(
 	query string,
 	sctx contract.ServerContext,
 ) []automationdomain.ScheduledTask {
+	if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+		return filterScheduledTasksByJobID(jobs, currentJobID)
+	}
 	matches, hasCurrent := bestMatchingCurrentScheduledTasksForToolQuery(jobs, query, sctx)
 	if hasCurrent {
 		current, _ := currentTaskContextFromServerContext(sctx)
@@ -52,6 +55,9 @@ func filterScheduledTasksByToolQuery(
 	query string,
 	sctx contract.ServerContext,
 ) []automationdomain.ScheduledTask {
+	if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+		return filterScheduledTasksByJobID(jobs, currentJobID)
+	}
 	currentMatches, hasCurrent := currentScheduledTasksForToolQuery(jobs, query, sctx)
 	if hasCurrent {
 		if queryMentionsCurrentConversation(query) || len(currentMatches) > 0 {
@@ -59,6 +65,19 @@ func filterScheduledTasksByToolQuery(
 		}
 	}
 	return filterScheduledTasksByPlainQuery(jobs, query)
+}
+
+func filterScheduledTasksByJobID(
+	jobs []automationdomain.ScheduledTask,
+	jobID string,
+) []automationdomain.ScheduledTask {
+	jobID = strings.TrimSpace(jobID)
+	for _, job := range jobs {
+		if strings.TrimSpace(job.JobID) == jobID {
+			return []automationdomain.ScheduledTask{job}
+		}
+	}
+	return nil
 }
 
 func currentScheduledTasksForToolQuery(
@@ -137,7 +156,8 @@ func currentTaskContextFromServerContext(sctx contract.ServerContext) (currentTa
 	}
 	if parsed.Kind == protocol.SessionKeyKindAgent &&
 		current.channel != protocol.SessionChannelWebSocket &&
-		current.channel != protocol.SessionChannelInternalSegment {
+		current.channel != protocol.SessionChannelInternalSegment &&
+		current.channel != "automation" {
 		// 未知的新通道也按 external 处理，避免后续增加 adapter 时因为漏补枚举而
 		// 把群聊只读查询静默放大到整个 owner scope。
 		current.external = current.ref != ""

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/pressly/goose/v3"
@@ -166,6 +167,307 @@ INSERT INTO automation_task_create_requests (
     owner_user_id, request_id, job_id, agent_id, intent_digest
 ) VALUES ('owner', 'request', 'other-job', 'agent', 'other-digest')`); err == nil {
 		t.Fatal("owner/request_id unique boundary was not enforced")
+	}
+}
+
+func TestSQLiteAutomationDeliveryRouteMigrationPreservesPersonalWeixinContext(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "nexus.db"))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	dir := automationMigrationDir(t)
+	if err = goose.UpTo(db, dir, 86); err != nil {
+		t.Fatalf("迁移到旧投递路由 schema 失败: %v", err)
+	}
+	if _, err = db.Exec(`
+INSERT INTO automation_delivery_routes (
+    route_id, agent_id, session_key, mode, channel, "to", thread_id, enabled
+) VALUES (
+    'route-weixin', 'agent-weixin', 'agent:agent-weixin:weixin-personal:dm:user-1',
+    'explicit', 'weixin-personal', 'user-1', 'legacy-context-token', TRUE
+)`); err != nil {
+		t.Fatalf("写入旧个人微信路由失败: %v", err)
+	}
+
+	if err = goose.UpTo(db, dir, 93); err != nil {
+		t.Fatalf("执行投递路由 migration 失败: %v", err)
+	}
+	var runDeliverySnapshotColumn string
+	if err = db.QueryRow(`
+SELECT name
+FROM pragma_table_info('automation_task_runs')
+WHERE name = 'delivery_target_json'`).Scan(&runDeliverySnapshotColumn); err != nil {
+		t.Fatalf("run 投递快照字段未迁移: %v", err)
+	}
+	var threadID sql.NullString
+	var contextToken sql.NullString
+	if err = db.QueryRow(`
+SELECT thread_id, context_token
+FROM automation_delivery_routes
+WHERE route_id = 'route-weixin'`).Scan(&threadID, &contextToken); err != nil {
+		t.Fatalf("读取迁移后的个人微信路由失败: %v", err)
+	}
+	if threadID.Valid || !contextToken.Valid || contextToken.String != "legacy-context-token" {
+		t.Fatalf("旧 context token 未迁移到独立字段: thread=%+v context=%+v", threadID, contextToken)
+	}
+
+	if err = goose.DownTo(db, dir, 86); err != nil {
+		t.Fatalf("回滚投递路由 migration 失败: %v", err)
+	}
+	if err = db.QueryRow(`
+SELECT thread_id
+FROM automation_delivery_routes
+WHERE route_id = 'route-weixin'`).Scan(&threadID); err != nil {
+		t.Fatalf("读取回滚后的个人微信路由失败: %v", err)
+	}
+	if !threadID.Valid || threadID.String != "legacy-context-token" {
+		t.Fatalf("回滚后旧 context token 未恢复: %+v", threadID)
+	}
+}
+
+func TestSQLiteAutomationTaskModelCompatibilityMigrationPreservesLegacyTasks(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "nexus.db"))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	dir := automationMigrationDir(t)
+	if err = goose.UpTo(db, dir, 93); err != nil {
+		t.Fatalf("迁移到旧任务模型失败: %v", err)
+	}
+
+	insertTask := func(
+		jobID string,
+		deliveryMode string,
+		deliveryChannel any,
+		deliveryTo any,
+		deliverySessionKey any,
+		sourceSessionKey any,
+	) {
+		t.Helper()
+		_, insertErr := db.Exec(`
+INSERT INTO automation_scheduled_tasks (
+    job_id, owner_user_id, name, agent_id,
+    schedule_kind, interval_seconds, timezone, instruction, execution_kind,
+    session_target_kind, wake_mode,
+    delivery_mode, delivery_channel, delivery_to, delivery_session_key,
+    source_kind, source_session_key, overlap_policy, enabled,
+    permission_policy_json, permission_policy_revision, permission_state
+) VALUES (?, 'owner-1', ?, 'agent-1',
+          'every', 3600, 'Asia/Shanghai', ?, 'agent',
+          'isolated', 'next-heartbeat',
+          ?, ?, ?, ?,
+          'user_page', ?, 'skip', TRUE,
+          '{"version":1,"revision":7,"grants":[]}', 7, 'ready')`,
+			jobID,
+			"历史任务 "+jobID,
+			"保留历史指令 "+jobID,
+			deliveryMode,
+			deliveryChannel,
+			deliveryTo,
+			deliverySessionKey,
+			sourceSessionKey,
+		)
+		if insertErr != nil {
+			t.Fatalf("写入历史任务 %s 失败: %v", jobID, insertErr)
+		}
+	}
+
+	legacyExternal := "agent:agent-1:weixin-personal:dm:acct:account-old:contact-old"
+	legacyWeb := "agent:agent-1:ws:dm:web-chat"
+	legacySource := "agent:agent-1:fs:dm:acct:account-fs:chat-fs"
+	currentExternal := "agent:agent-1:tg:dm:acct:account-tg:chat-tg"
+	insertTask("legacy-external", "explicit", "websocket", legacyExternal, nil, nil)
+	insertTask("legacy-web", "explicit", "websocket", legacyWeb, nil, nil)
+	insertTask("legacy-last", "last", nil, nil, nil, legacySource)
+	insertTask("current", "last", nil, nil, currentExternal, nil)
+
+	if err = goose.UpTo(db, dir, 94); err != nil {
+		t.Fatalf("执行旧任务兼容 migration 失败: %v", err)
+	}
+
+	assertTask := func(
+		jobID string,
+		wantMode string,
+		wantChannel any,
+		wantTo any,
+		wantSessionKey string,
+	) {
+		t.Helper()
+		var (
+			name             string
+			instruction      string
+			mode             string
+			channel          sql.NullString
+			to               sql.NullString
+			sessionKey       sql.NullString
+			intervalSeconds  int
+			enabled          bool
+			permissionPolicy string
+			permissionMode   string
+		)
+		if queryErr := db.QueryRow(`
+SELECT name, instruction, delivery_mode, delivery_channel, delivery_to,
+       delivery_session_key, interval_seconds, enabled,
+       permission_policy_json, permission_mode
+FROM automation_scheduled_tasks
+WHERE job_id = ?`, jobID).Scan(
+			&name,
+			&instruction,
+			&mode,
+			&channel,
+			&to,
+			&sessionKey,
+			&intervalSeconds,
+			&enabled,
+			&permissionPolicy,
+			&permissionMode,
+		); queryErr != nil {
+			t.Fatalf("读取迁移任务 %s 失败: %v", jobID, queryErr)
+		}
+		if name != "历史任务 "+jobID || instruction != "保留历史指令 "+jobID ||
+			intervalSeconds != 3600 || !enabled || permissionMode != "default" ||
+			permissionPolicy != `{"version":1,"revision":7,"grants":[]}` {
+			t.Fatalf("任务 %s 的用户配置在迁移中被修改", jobID)
+		}
+		if mode != wantMode || sessionKey.String != wantSessionKey {
+			t.Fatalf("任务 %s 路由 = mode:%s session:%+v", jobID, mode, sessionKey)
+		}
+		if wantChannel == nil {
+			if channel.Valid {
+				t.Fatalf("任务 %s channel 应为空: %+v", jobID, channel)
+			}
+		} else if channel.String != wantChannel.(string) {
+			t.Fatalf("任务 %s channel = %q, want %q", jobID, channel.String, wantChannel)
+		}
+		if wantTo == nil {
+			if to.Valid {
+				t.Fatalf("任务 %s to 应为空: %+v", jobID, to)
+			}
+		} else if to.String != wantTo.(string) {
+			t.Fatalf("任务 %s to = %q, want %q", jobID, to.String, wantTo)
+		}
+	}
+
+	assertTask("legacy-external", "last", nil, nil, legacyExternal)
+	assertTask("legacy-web", "explicit", "websocket", legacyWeb, legacyWeb)
+	assertTask("legacy-last", "last", nil, nil, legacySource)
+	assertTask("current", "last", nil, nil, currentExternal)
+}
+
+func TestSQLiteAutomationDeliveryGrantMigrationCopiesLegacyProvenance(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "nexus.db"))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	dir := automationMigrationDir(t)
+	if err = goose.UpTo(db, dir, 95); err != nil {
+		t.Fatalf("迁移到旧 delivery grant schema 失败: %v", err)
+	}
+	_, err = db.Exec(`
+INSERT INTO automation_scheduled_tasks (
+    job_id, owner_user_id, name, agent_id,
+    schedule_kind, interval_seconds, timezone, instruction,
+    session_target_kind, wake_mode, delivery_mode,
+    source_kind, source_creator_agent_id, source_context_type,
+    source_context_id, source_context_label, source_session_key,
+    source_session_label, enabled
+) VALUES (
+    'legacy-agent-task', 'owner-1', '旧 Agent 任务', 'agent-1',
+    'every', 3600, 'Asia/Shanghai', '保持配置',
+    'isolated', 'next-heartbeat', 'none',
+    'agent', 'agent-1', 'agent',
+    'agent-1', 'Agent One', 'agent:agent-1:internal:dm:operator',
+    '创建会话', FALSE
+)`)
+	if err != nil {
+		t.Fatalf("写入 migration 前任务失败: %v", err)
+	}
+	if err = goose.UpTo(db, dir, 96); err != nil {
+		t.Fatalf("执行 delivery grant migration 失败: %v", err)
+	}
+	var grantJSON string
+	if err = db.QueryRow(`
+SELECT delivery_grant_json
+FROM automation_scheduled_tasks
+WHERE job_id = 'legacy-agent-task'`).Scan(&grantJSON); err != nil {
+		t.Fatalf("读取 delivery grant 失败: %v", err)
+	}
+	for _, fragment := range []string{
+		`"kind":"agent"`,
+		`"creator_agent_id":"agent-1"`,
+		`"context_label":"Agent One"`,
+		`"session_label":"创建会话"`,
+	} {
+		if !strings.Contains(grantJSON, fragment) {
+			t.Fatalf("delivery grant 未复制 legacy provenance %s: %s", fragment, grantJSON)
+		}
+	}
+}
+
+func TestSQLiteAutomationDeliveryRouteMigrationUpgradesNewerParallelLedger(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "nexus.db"))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	dir := automationMigrationDir(t)
+	if err = goose.UpTo(db, dir, 86); err != nil {
+		t.Fatalf("迁移到 Automation 权限 schema 失败: %v", err)
+	}
+	for version := int64(87); version <= 92; version++ {
+		if _, err = db.Exec(
+			"INSERT INTO goose_db_version (version_id, is_applied) VALUES (?, TRUE)",
+			version,
+		); err != nil {
+			t.Fatalf("模拟并行分支 migration %d 失败: %v", version, err)
+		}
+	}
+	if err = goose.Up(db, dir); err != nil {
+		t.Fatalf("从较新并行账本执行 Automation 投递 migration 失败: %v", err)
+	}
+	version, err := goose.GetDBVersion(db)
+	if err != nil {
+		t.Fatalf("读取 migration 版本失败: %v", err)
+	}
+	if version != 96 {
+		t.Fatalf("migration version = %d, want 96", version)
+	}
+	for _, target := range []struct {
+		table  string
+		column string
+	}{
+		{table: "automation_scheduled_tasks", column: "delivery_session_key"},
+		{table: "automation_scheduled_tasks", column: "permission_mode"},
+		{table: "automation_scheduled_tasks", column: "session_binding_state"},
+		{table: "automation_scheduled_tasks", column: "invalidated_session_keys_json"},
+		{table: "automation_scheduled_tasks", column: "delivery_grant_json"},
+		{table: "automation_task_runs", column: "delivery_target_json"},
+		{table: "automation_delivery_routes", column: "context_token"},
+		{table: "automation_permission_requests", column: "delivery_session_key"},
+	} {
+		var found string
+		if err = db.QueryRow(
+			"SELECT name FROM pragma_table_info(?) WHERE name = ?",
+			target.table,
+			target.column,
+		).Scan(&found); err != nil {
+			t.Fatalf("缺少升级字段 %s.%s: %v", target.table, target.column, err)
+		}
 	}
 }
 

@@ -93,14 +93,14 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 }
 
 func (s *IngressService) resolveIngressAgent(ctx context.Context, request IngressRequest) (string, error) {
-	if agentID := strings.TrimSpace(request.AgentID); agentID != "" {
-		return agentID, nil
-	}
 	if s.control != nil {
 		agentID, err := s.control.ResolveIngressAgent(ctx, request)
 		if err != nil || strings.TrimSpace(agentID) != "" {
 			return strings.TrimSpace(agentID), err
 		}
+	}
+	if agentID := strings.TrimSpace(request.AgentID); agentID != "" {
+		return agentID, nil
 	}
 	if s.agents == nil {
 		return "", errors.New("channel ingress 缺少默认 agent 解析器")

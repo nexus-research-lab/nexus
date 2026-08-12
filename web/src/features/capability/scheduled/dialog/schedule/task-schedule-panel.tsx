@@ -292,7 +292,7 @@ export function TaskSchedulePanel({
 
       <UiCheckboxRow
         checked={form.enabled}
-        label={t("capability.scheduled_dialog_enable_after_create")}
+        label={t("capability.scheduled_dialog_enabled")}
         onChange={formActions.setEnabled}
       />
 

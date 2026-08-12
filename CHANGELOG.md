@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
 - Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
 - Added desktop workspace file actions for system-aware opening, copying paths, and attaching files to the current chat.
+- Added selectable scheduled-task SDK permission modes to the create/edit dialog and Automation MCP create/update tools. New tasks copy the source session's effective mode and the Agent tool allow/deny policy by default, then keep an independent task snapshot.
+- Added owner- and session-scoped IM slash commands for durable scheduled-task permission approval, denial, connector retry, and task-level grants across Discord, Telegram, DingTalk, WeCom, personal Weixin, and Feishu.
+- Added same-Agent Skill and Automation mutation access for exactly active-paired external IM direct messages without granting cross-Agent owner authority.
+- Added session-scoped `/y`, `/a`, and `/d` handling for ordinary Agent and scheduled-task permission prompts in active-paired IM direct messages without exposing internal request IDs; historical long commands remain accepted as compatibility aliases, and ambiguous pending requests across both permission domains fail closed.
+- Added `IM · channel · account hint · current/history` identity markers to conversation history, open tabs, and scheduled-task session selectors so multiple accounts and stale sessions remain distinguishable without exposing raw platform IDs.
+- Added run-scoped delivery snapshots and structured Automation result projection into destination Nexus sessions, with idempotent run identities, platform receipt overlays, and continuation context for the next user turn.
 
 ### Changed
 
@@ -28,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restored the startup cat animation as a lightweight local animated WebP without reintroducing the Lottie runtime or WASM loading path.
 - Made HTML workspace previews fill the available pane and scroll like regular web pages instead of scaling a fixed-size canvas.
 - Sorted Agent directories with newly created Agents first while keeping the Nexus main Agent pinned.
+- Simplified scheduled-task creation to independent versus reused context and stored versus delivered results. Legacy main, dedicated, and execution-return modes remain editable only when an existing task already uses them.
+- Simplified ordinary Automation MCP creation and updates to `context_mode` plus `deliver_result`; full routing enums remain a storage and owner-main compatibility capability, while external IM identifiers stay host-owned.
+- Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
 
@@ -43,6 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.
 - Fixed Linux-isolated runtimes failing to read host-generated MCP configuration files while keeping those files private.
 - Clarified workspace file selection by removing its redundant blue bar, keeping active files distinct from hover, and leaving folders visually neutral.
+- Restored delayed scheduled-task delivery to every configured IM route, including proactive WeCom sends and personal Weixin expired-context recovery, with stable session routes, active-pairing revalidation, labeled permission/failure notices, and unmodified Agent result text.
+- Bound scheduled-task replies created or edited inside IM to the trusted current session automatically, hiding host-owned route identifiers from the model and ignoring guessed channel, account, target, thread, or session values across all supported IM transports.
+- Prevented explicit external-ingress Agent IDs from bypassing IM pairing resolution.
+- Kept Agent permission-mode changes effective in existing IM sessions, replacing the separate channel hard-deny with exact IM approval prompts; viewing an IM session in the web app no longer injects Web host commands, emits a false Agent-start failure, or replaces its delivery route.
+- Restored clear spacing between adjacent custom select-menu rows while keeping overlay height calculations aligned with the rendered layout.
+- Migrated legacy scheduled tasks that stored structured IM sessions inside explicit WebSocket targets into the current session-route model without changing names, instructions, schedules, enabled state, or permission snapshots; editing also preserves no-longer-listed historical routes.
+- Allowed explicitly unpaired IM sessions to be deleted while preserving dependent scheduled tasks: affected tasks are disabled and persistently marked for execution/delivery session rebinding, then can be re-enabled only after every deleted-session binding is replaced. Active pairings still fail closed.
+- Kept conversation titles and full IM account identities readable through a bottom horizontal history scroller, with persistent delete controls on every removable external session.
+- Separated immutable scheduled-task creation provenance from the latest trusted delivery grant, so browser and CLI edits preserve Agent-created history while legacy tasks remain editable without forged Agent context.
+- Removed unpaired and deleted IM sessions from scheduled-task selectors, cleared invalidated bindings when editing paused tasks, and replaced opaque internal errors with an explicit active-pairing validation message.
 
 ## [0.1.35] - 2026-08-10
 

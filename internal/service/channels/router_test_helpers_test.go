@@ -217,6 +217,7 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    "to" VARCHAR(255),
 	    account_id VARCHAR(64),
 	    thread_id VARCHAR(255),
+	    context_token TEXT,
 	    enabled BOOLEAN NOT NULL,
 	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL

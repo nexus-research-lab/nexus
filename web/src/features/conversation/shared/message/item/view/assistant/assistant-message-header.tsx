@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bot, Square } from "lucide-react";
+import { Bot, Clock3, Square } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
@@ -10,6 +10,7 @@ import { MessageAvatar } from "../../../ui/message-avatar";
 
 interface AssistantMessageHeaderProps {
   avatarUrl?: string | null;
+  automationTaskName?: string | null;
   canStop: boolean;
   compact: boolean;
   headerAction?: ReactNode;
@@ -28,6 +29,7 @@ const HEADER_LAYOUTS = {
 
 export function AssistantMessageHeader({
   avatarUrl,
+  automationTaskName,
   canStop,
   compact,
   headerAction,
@@ -57,6 +59,7 @@ export function AssistantMessageHeader({
       <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
         {displayName}
       </span>
+      <AssistantAutomationBadge taskName={automationTaskName} />
       {showMetadata ? (
         <>
           <AssistantTimestamp timestamp={timestamp} />
@@ -67,6 +70,22 @@ export function AssistantMessageHeader({
       <AssistantHeaderAction action={headerAction} />
       <AssistantStopAction canStop={canStop} onStop={onStop} />
     </div>
+  );
+}
+
+function AssistantAutomationBadge({ taskName }: { taskName?: string | null }) {
+  const { t } = useI18n();
+  if (taskName == null) {
+    return null;
+  }
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-[10px] font-medium leading-none text-(--text-muted)"
+      title={taskName || t("message.scheduled_task")}
+    >
+      <Clock3 className="h-2.5 w-2.5" />
+      {t("message.scheduled_task")}
+    </span>
   );
 }
 
