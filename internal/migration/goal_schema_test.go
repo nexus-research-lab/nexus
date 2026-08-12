@@ -40,7 +40,7 @@ func TestRepairLegacyGoalMigrationCollisionReplaysMainMigrations(t *testing.T) {
 	if err != nil || pending {
 		t.Fatalf("finalize legacy Goal collision: pending=%t err=%v", pending, err)
 	}
-	assertCurrentMigrationVersion(t, db, 99)
+	assertCurrentMigrationVersion(t, db, 100)
 	for _, version := range []int64{87, 93, 94, 95, 96, 97, 98, 99} {
 		assertMigrationApplied(t, db, version, true)
 	}
@@ -66,7 +66,7 @@ func TestRepairLegacyGoalMigrationCollisionLeavesCurrentMainUpgrade(t *testing.T
 	if err = goose.Up(db, migrationDir); err != nil {
 		t.Fatal(err)
 	}
-	assertCurrentMigrationVersion(t, db, 99)
+	assertCurrentMigrationVersion(t, db, 100)
 	assertLegacyGoalSchema(t, db)
 }
 
