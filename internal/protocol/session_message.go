@@ -25,6 +25,40 @@ func (r GoalCompletionReceipt) Equal(other GoalCompletionReceipt) bool {
 		equalOptionalInt64(r.ActualTokens, other.ActualTokens)
 }
 
+// GoalCompletionReceiptFromAny 解码 durable JSON 或进程内强类型收据。
+func GoalCompletionReceiptFromAny(value any) (GoalCompletionReceipt, bool) {
+	switch typed := value.(type) {
+	case GoalCompletionReceipt:
+		return typed, strings.TrimSpace(typed.GoalID) != "" && strings.TrimSpace(typed.RoundID) != ""
+	case *GoalCompletionReceipt:
+		if typed == nil {
+			return GoalCompletionReceipt{}, false
+		}
+		return *typed, strings.TrimSpace(typed.GoalID) != "" && strings.TrimSpace(typed.RoundID) != ""
+	case map[string]any:
+		receipt := GoalCompletionReceipt{
+			GoalID:  strings.TrimSpace(stringValueFromAny(typed["goal_id"])),
+			RoundID: strings.TrimSpace(stringValueFromAny(typed["round_id"])),
+		}
+		if _, ok := typed["time_used_seconds"]; ok {
+			seconds := max(Int64FromAny(typed["time_used_seconds"]), 0)
+			receipt.TimeUsedSeconds = &seconds
+		}
+		if _, ok := typed["actual_tokens"]; ok {
+			tokens := max(Int64FromAny(typed["actual_tokens"]), 0)
+			receipt.ActualTokens = &tokens
+		}
+		return receipt, receipt.GoalID != "" && receipt.RoundID != ""
+	default:
+		return GoalCompletionReceipt{}, false
+	}
+}
+
+func stringValueFromAny(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
 func equalOptionalInt64(left *int64, right *int64) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil

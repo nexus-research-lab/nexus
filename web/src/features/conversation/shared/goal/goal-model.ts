@@ -225,16 +225,17 @@ export function goalActualTokens(goal: Goal | null): number {
   if (!usage) {
     return 0;
   }
-  if (usage.actual_tokens !== undefined) {
-    return positiveTokenCount(usage.actual_tokens);
-  }
   const hasBreakdown = [
     usage.input_tokens,
     usage.output_tokens,
     usage.cache_creation_input_tokens,
     usage.cache_read_input_tokens,
     usage.reasoning_tokens,
-  ].some((value) => value !== undefined && value !== 0);
+  ].some((value) => Number.isFinite(value) && (value ?? 0) > 0);
+  const explicitActual = positiveTokenCount(usage.actual_tokens);
+  if (usage.actual_tokens !== undefined && (explicitActual > 0 || !hasBreakdown)) {
+    return explicitActual;
+  }
   if (!hasBreakdown) {
     return positiveTokenCount(usage.total_tokens);
   }
@@ -251,7 +252,8 @@ function goalActualTokensEstimated(goal: Goal): boolean {
   const usage = goal.usage;
   return goalActualTokens(goal) > 0
     && (usage?.actual_tokens_estimated === true
-      || usage?.actual_tokens === undefined);
+      || usage?.actual_tokens === undefined
+      || positiveTokenCount(usage.actual_tokens) === 0);
 }
 
 function goalStatusTone(status: GoalStatus): GoalStatusTone {

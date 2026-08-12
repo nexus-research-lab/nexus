@@ -96,7 +96,7 @@ func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 	item.Metadata = parseMap(metadataJSON)
 	item.Usage.BudgetTotalTokens = item.Usage.TotalTokens
 	item.Usage.BudgetTotalKnown = true
-	item.Usage.ActualTotalKnown = true
+	normalizeStoredActualTotal(&item.Usage)
 	return item, nil
 }
 
