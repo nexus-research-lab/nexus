@@ -336,7 +336,7 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
   assert.match(resolveGoalClearDisabledReason(null), /正在确认/);
   for (const state of ["standalone", "reserved"]) {
     assert.equal(resolveGoalClearDisabledReason({ state }), null);
-    assert.equal(resolveGoalBindingBadgeModel({ state }), null);
+    assert.equal(resolveGoalBindingBadgeModel({ state }).state, state);
     assert.deepEqual(buildGoalControllerProjection({
       dialog: { goal, kind: "clear" },
       draft: null,
@@ -361,7 +361,13 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
       onRefresh: () => {},
       onResume: () => {},
     }));
-    assert.doesNotMatch(html, /data-goal-binding-state=/);
+    assert.match(html, new RegExp(`data-goal-binding-state="${state}"`));
+    assert.match(html, />独立 Goal</);
+    assert.doesNotMatch(html, />已关联工作图</);
+    if (state === "reserved") {
+      assert.match(html, /当前仍是独立 Goal/);
+      assert.match(html, /不表示工作图已存在或一定会创建/);
+    }
   }
   for (const state of ["pending", "confirmed", "conflict"]) {
     const reason = resolveGoalClearDisabledReason({ state });
@@ -378,6 +384,8 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
   }
 
   const bindingCases = [
+    [{ state: "standalone" }, "standalone", "独立 Goal"],
+    [{ state: "reserved" }, "reserved", "独立 Goal"],
     [{ state: "pending" }, "pending", "关联确认中"],
     [{ execution_id: "execution-binding", state: "confirmed" }, "confirmed", "已关联工作图"],
     [{ state: "conflict" }, "conflict", "关联冲突"],

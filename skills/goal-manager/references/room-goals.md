@@ -6,7 +6,7 @@
 
 Room Goal 属于整个 Room。创建者或当前 assigned lead 负责推进、协调、验收、retarget 和最终状态更新，但 Lead 也是实际执行者，可以规划、研究、整合、自审、接管和交付。
 
-只有 Lead 可以通过模型工具 retarget 或更新 Room Goal 状态；其他成员应把证据、缺口或修改建议交给 Lead。
+只有 Lead 可以通过模型工具 retarget 或更新 Room Goal 状态；创建 Goal 的当前 Lead 以及后续明确分配的新 Lead，都会在自己的新物理 round 启动时取得当前 exact objective revision，完成/阻塞不要求用户再补发一条“继续”。该权限只属于 Goal MCP，不授予 WorkGraph mutation。其他成员应把证据、缺口或修改建议交给 Lead，公区 `@`/directed-message handoff 只回传证据与控制权，不继承 Goal mutation authority。
 
 ## 协作与分工
 

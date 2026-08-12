@@ -510,6 +510,24 @@ func (c *explicitGoalExecutionCoordinator) CurrentOptional(
 	return c.goals.CurrentOptional(ctx, sessionKey)
 }
 
+func (c *explicitGoalExecutionCoordinator) CurrentModelMutationAuthority(
+	ctx context.Context,
+	sessionKey string,
+	ownerUserID string,
+	agentID string,
+) (*protocol.Goal, error) {
+	resolver, ok := c.goals.(goalMCPMutationAuthorityResolver)
+	if !ok || resolver == nil {
+		return nil, errors.New("Goal model mutation authority resolver is unavailable")
+	}
+	return resolver.CurrentModelMutationAuthority(
+		ctx,
+		sessionKey,
+		ownerUserID,
+		agentID,
+	)
+}
+
 func (c *explicitGoalExecutionCoordinator) RetargetByModel(
 	ctx context.Context,
 	sessionKey string,

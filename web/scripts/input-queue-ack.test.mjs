@@ -25,6 +25,7 @@ test("request ACK registry handles ACK and error before waiter registration", as
     createPendingRequestAckRegistry,
     rejectPendingRequestAck,
     resolvePendingRequestAck,
+    trackPendingRequestAck,
     waitForRequestAck,
   } = await server.ssrLoadModule(
     "/src/hooks/agent/actions/use-pending-request-acks.ts",
@@ -34,6 +35,7 @@ test("request ACK registry handles ACK and error before waiter registration", as
   );
 
   const acknowledged = createPendingRequestAckRegistry();
+  trackPendingRequestAck(acknowledged, "req-ack-first");
   assert.equal(resolvePendingRequestAck(acknowledged, "req-ack-first"), false);
   await waitForRequestAck(
     acknowledged,
@@ -43,6 +45,7 @@ test("request ACK registry handles ACK and error before waiter registration", as
   );
 
   const rejected = createPendingRequestAckRegistry();
+  trackPendingRequestAck(rejected, "req-error-first");
   assert.equal(
     rejectPendingRequestAck(rejected, "req-error-first", "后端拒绝"),
     false,
@@ -59,6 +62,7 @@ test("request ACK registry handles ACK and error before waiter registration", as
 
   const unknown = createPendingRequestAckRegistry();
   const unknownError = new RequestAcceptanceUnknownError("受理状态未知");
+  trackPendingRequestAck(unknown, "req-unknown-first");
   assert.equal(
     rejectPendingRequestAck(unknown, "req-unknown-first", unknownError),
     false,
@@ -72,6 +76,108 @@ test("request ACK registry handles ACK and error before waiter registration", as
     ),
     (error) => error === unknownError,
     "early rejection must preserve its typed recovery outcome",
+  );
+
+  const foreign = createPendingRequestAckRegistry();
+  assert.equal(
+    resolvePendingRequestAck(foreign, "req-owned-by-another-hook"),
+    false,
+  );
+  assert.equal(foreign.settled.size, 0);
+  assert.equal(
+    rejectPendingRequestAck(
+      foreign,
+      "req-owned-by-another-hook",
+      "后端拒绝",
+    ),
+    false,
+  );
+  assert.equal(foreign.rejected.size, 0);
+});
+
+test("request ACK settles its original request after the view switches sessions", async () => {
+  const {
+    createPendingRequestAckRegistry,
+    rejectPendingRequestAck,
+    resolvePendingRequestAck,
+    trackPendingRequestAck,
+    waitForRequestAck,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-pending-request-acks.ts",
+  );
+  const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
+  );
+  const registry = createPendingRequestAckRegistry();
+  const oldRequestID = "req-old-session";
+  trackPendingRequestAck(registry, oldRequestID);
+  const accepted = waitForRequestAck(
+    registry,
+    oldRequestID,
+    () => assert.fail("the old-session ACK must settle by request identity"),
+    25,
+  );
+  const calls = [];
+  const context = {
+    runtime: {
+      rejectPendingRequestAck: (requestID, reason) => (
+        rejectPendingRequestAck(registry, requestID, reason)
+      ),
+      resolvePendingRequestAck: (requestID) => (
+        resolvePendingRequestAck(registry, requestID)
+      ),
+      trackChatAck: () => calls.push("project-current-feed"),
+    },
+    scope: {
+      isCurrentSessionEvent: (sessionKey) => sessionKey === "session-new",
+    },
+    state: {
+      setError: () => calls.push("show-current-error"),
+    },
+  };
+  AGENT_SESSION_EVENT_HANDLERS.chat_ack({
+    data: {
+      ack_timeout_ms: 10_000,
+      client_message_id: "local-msg-old",
+      client_request_id: oldRequestID,
+      pending: [],
+      pending_snapshot: false,
+      round_id: "round-old",
+      user_message_committed: true,
+      user_message_id: "message-old",
+    },
+    event_type: "chat_ack",
+    session_key: "session-old",
+  }, context);
+  await accepted;
+  assert.deepEqual(
+    calls,
+    [],
+    "an old ACK settles transport state without projecting into the new feed",
+  );
+
+  const rejectedRequestID = "req-rejected-old-session";
+  trackPendingRequestAck(registry, rejectedRequestID);
+  const rejected = waitForRequestAck(
+    registry,
+    rejectedRequestID,
+    () => assert.fail("the old-session rejection must settle by request identity"),
+    25,
+  );
+  AGENT_SESSION_EVENT_HANDLERS.error({
+    data: {
+      client_request_id: rejectedRequestID,
+      message: "Goal 已存在",
+      type: "chat",
+    },
+    event_type: "error",
+    session_key: "session-old",
+  }, context);
+  await assert.rejects(rejected, /Goal 已存在/);
+  assert.deepEqual(
+    calls,
+    [],
+    "an old rejection must not display an error in the newly selected session",
   );
 });
 
@@ -908,6 +1014,107 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
   useComposerDraftStore.setState({
     draft_revision: 0,
     drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+});
+
+test("Goal submission claims its original Session and restores only without newer input", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const firstScope = "room:goal-session-a";
+  const secondScope = "room:goal-session-b";
+  const updateDraft = useComposerDraftStore.getState().update_composer_draft;
+  updateDraft(firstScope, (current) => ({
+    ...current,
+    goalLeadAgentId: "agent-lead",
+    input: "完成第一条 Goal",
+    inputMode: "goal",
+  }));
+  updateDraft(secondScope, (current) => ({
+    ...current,
+    input: "另一个 Session 的消息",
+  }));
+
+  const firstRevision = useComposerDraftStore
+    .getState()
+    .drafts_by_scope[firstScope].revision;
+  const beginGoal = useComposerDraftStore.getState().begin_goal_submission;
+  const submission = beginGoal(firstScope, firstRevision);
+  assert.ok(submission);
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[firstScope],
+    undefined,
+    "the dispatched Goal must leave its original Composer immediately",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[secondScope].input,
+    "另一个 Session 的消息",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[firstScope],
+    submission.submissionId,
+  );
+
+  const failGoal = useComposerDraftStore.getState().fail_goal_submission;
+  assert.equal(failGoal(submission, "后端拒绝 Goal"), true);
+  const restored = useComposerDraftStore.getState().drafts_by_scope[firstScope];
+  assert.equal(restored.input, "完成第一条 Goal");
+  assert.equal(restored.inputMode, "goal");
+  assert.equal(restored.goalLeadAgentId, "agent-lead");
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[firstScope],
+    "后端拒绝 Goal",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[secondScope],
+    undefined,
+  );
+
+  const retry = beginGoal(firstScope, restored.revision);
+  assert.ok(retry);
+  updateDraft(firstScope, (current) => ({
+    ...current,
+    input: "请求期间的新输入",
+  }));
+  assert.equal(failGoal(retry, "迟到失败"), false);
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[firstScope].input,
+    "请求期间的新输入",
+    "a late failure must not overwrite newer input",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[firstScope],
+    undefined,
+    "a stale failure must not attach its error to newer input",
+  );
+
+  const latest = useComposerDraftStore.getState().drafts_by_scope[firstScope];
+  const success = beginGoal(firstScope, latest.revision);
+  assert.ok(success);
+  assert.equal(
+    useComposerDraftStore.getState().complete_goal_submission(success),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[firstScope],
+    undefined,
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
   });
 });
 

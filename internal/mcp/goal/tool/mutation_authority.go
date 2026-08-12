@@ -1,5 +1,5 @@
-// INPUT: 当前 Goal、MCP server 的 runtime-owned exact Goal/revision/可选 Execution capability。
-// OUTPUT: 仅允许当前物理 round 对其绑定的 Goal 状态链执行语义写入。
+// INPUT: 当前 Goal、MCP server 的 host-owned exact Goal/revision/可选 Execution capability。
+// OUTPUT: 仅允许当前物理 round 对其绑定的 Goal 状态链执行语义写入；负责人新 round 使用启动时私有快照。
 // POS: retarget/audit/update 共用的 runtime mutation authorization fence。
 package tool
 
@@ -20,7 +20,7 @@ func currentGoalForMutation(
 	authority, ok := sctx.GoalAuthority.Load()
 	if !ok || authority.ObjectiveRevision != expectedRevision {
 		return nil, fmt.Errorf(
-			"this round cannot mutate the current Goal because it has no exact Goal/revision capability; use the user Goal controls or a Goal-bound continuation",
+			"this round cannot mutate the current Goal because it has no exact Goal/revision capability; use the user Goal controls or continue with the responsible Goal Agent",
 		)
 	}
 	current, err := svc.Current(ctx, sctx.CurrentSessionKey)
@@ -53,7 +53,7 @@ func currentGoalForRetarget(
 	}
 	if !sctx.AllowUserRetarget {
 		return nil, 0, fmt.Errorf(
-			"this round cannot mutate the current Goal because it has no exact Goal/revision capability; use the user Goal controls or a Goal-bound continuation",
+			"this round cannot mutate the current Goal because it has no exact Goal/revision capability; use the user Goal controls or continue with the responsible Goal Agent",
 		)
 	}
 	current, err := svc.Current(ctx, sctx.CurrentSessionKey)

@@ -12,6 +12,14 @@ export interface PendingRequestAckRegistry {
   pending: Map<string, PendingRequestAck>;
   rejected: Map<string, Error>;
   settled: Set<string>;
+  tracked: Set<string>;
+}
+
+export class RequestAcceptanceUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RequestAcceptanceUnknownError";
+  }
 }
 
 export function createPendingRequestAckRegistry(): PendingRequestAckRegistry {
@@ -19,7 +27,30 @@ export function createPendingRequestAckRegistry(): PendingRequestAckRegistry {
     pending: new Map(),
     rejected: new Map(),
     settled: new Set(),
+    tracked: new Set(),
   };
+}
+
+export function trackPendingRequestAck(
+  registry: PendingRequestAckRegistry,
+  clientRequestId: string,
+): boolean {
+  const normalizedRequestId = clientRequestId.trim();
+  if (!normalizedRequestId) {
+    return false;
+  }
+  registry.tracked.add(normalizedRequestId);
+  return true;
+}
+
+function ownsPendingRequestAck(
+  registry: PendingRequestAckRegistry,
+  clientRequestId: string,
+): boolean {
+  return registry.tracked.has(clientRequestId)
+    || registry.pending.has(clientRequestId)
+    || registry.rejected.has(clientRequestId)
+    || registry.settled.has(clientRequestId);
 }
 
 export function resolvePendingRequestAck(
@@ -29,14 +60,20 @@ export function resolvePendingRequestAck(
   if (!clientRequestId) {
     return false;
   }
+  if (!ownsPendingRequestAck(registry, clientRequestId)) {
+    return false;
+  }
   registry.rejected.delete(clientRequestId);
   const pendingRequest = registry.pending.get(clientRequestId);
   if (!pendingRequest) {
+    registry.tracked.delete(clientRequestId);
     registry.settled.add(clientRequestId);
     return false;
   }
   globalThis.clearTimeout(pendingRequest.timeout_id);
   registry.pending.delete(clientRequestId);
+  registry.settled.delete(clientRequestId);
+  registry.tracked.delete(clientRequestId);
   pendingRequest.resolve();
   return true;
 }
@@ -46,15 +83,20 @@ export function rejectPendingRequestAck(
   clientRequestId: string,
   cause: string | Error,
 ): boolean {
+  if (!ownsPendingRequestAck(registry, clientRequestId)) {
+    return false;
+  }
   const error = cause instanceof Error ? cause : new Error(cause);
   registry.settled.delete(clientRequestId);
   const pendingRequest = registry.pending.get(clientRequestId);
   if (!pendingRequest) {
+    registry.tracked.delete(clientRequestId);
     registry.rejected.set(clientRequestId, error);
     return false;
   }
   globalThis.clearTimeout(pendingRequest.timeout_id);
   registry.pending.delete(clientRequestId);
+  registry.tracked.delete(clientRequestId);
   pendingRequest.reject(error);
   return true;
 }
@@ -75,11 +117,12 @@ export function cancelPendingRequestAcks(
     pendingRequest,
   ] of registry.pending.entries()) {
     globalThis.clearTimeout(pendingRequest.timeout_id);
-    pendingRequest.reject(new Error(reason));
+    pendingRequest.reject(new RequestAcceptanceUnknownError(reason));
     registry.pending.delete(clientRequestId);
   }
   registry.settled.clear();
   registry.rejected.clear();
+  registry.tracked.clear();
 }
 
 export function waitForRequestAck(
@@ -89,13 +132,16 @@ export function waitForRequestAck(
   timeoutMs = getMessageSendAckTimeoutMs(),
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
+    trackPendingRequestAck(registry, clientRequestId);
     if (registry.settled.delete(clientRequestId)) {
+      registry.tracked.delete(clientRequestId);
       resolve();
       return;
     }
     const rejectedError = registry.rejected.get(clientRequestId);
     if (rejectedError) {
       registry.rejected.delete(clientRequestId);
+      registry.tracked.delete(clientRequestId);
       reject(rejectedError);
       return;
     }
@@ -115,6 +161,10 @@ export function usePendingRequestAcks() {
 
   const resolveRequestAck = useCallback((clientRequestId?: string | null) => (
     resolvePendingRequestAck(registryRef.current, clientRequestId)
+  ), []);
+
+  const trackRequestAck = useCallback((clientRequestId: string) => (
+    trackPendingRequestAck(registryRef.current, clientRequestId)
   ), []);
 
   const rejectRequestAck = useCallback((
@@ -144,6 +194,7 @@ export function usePendingRequestAcks() {
     has_pending_request_ack: hasRequestAck,
     reject_pending_request_ack: rejectRequestAck,
     resolve_pending_request_ack: resolveRequestAck,
+    track_pending_request_ack: trackRequestAck,
     wait_for_request_ack: waitForAck,
   };
 }

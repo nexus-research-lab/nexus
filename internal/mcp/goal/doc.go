@@ -3,7 +3,7 @@
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go：NewServer 按当前会话上下文构建 Goal MCP server。
+//   - server.go：NewServer 按当前会话上下文与 host 已解析的 exact Goal-only authority 构建 Goal MCP server。
 //
 // 契约见 contract/，工具实现见 tool/。
 //

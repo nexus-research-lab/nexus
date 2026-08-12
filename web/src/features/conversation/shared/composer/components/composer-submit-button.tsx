@@ -80,7 +80,7 @@ function projectComposerSubmitButton(
     {
       active: [
         props.isPreparingAttachments,
-        props.isGoalCreating,
+        props.isGoalMode && props.isGoalCreating,
       ].some(Boolean),
       visual: "loading",
     },
