@@ -9,6 +9,7 @@ import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
@@ -27,10 +28,7 @@ interface GroupConversationHeaderProps {
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onReplaceFinalConversation: (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ) => Promise<string | null>;
+  onReplaceFinalConversation: FinalConversationReplacementHandler;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;

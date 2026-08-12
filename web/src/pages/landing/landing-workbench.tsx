@@ -239,6 +239,7 @@ function LandingWorkbenchMain() {
               <WorkspaceConversationTabs
                 conversationId="conv-landing"
                 conversations={demoConversations}
+                onCreateConversation={async () => "conv-new"}
                 onSelectConversation={() => undefined}
               />
             )}

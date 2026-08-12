@@ -18,6 +18,7 @@ import type {
   RoomConversationView,
 } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
@@ -50,10 +51,7 @@ export interface RoomSurfaceLayoutProps {
   onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onReplaceFinalConversation: (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ) => Promise<string | null>;
+  onReplaceFinalConversation: FinalConversationReplacementHandler;
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;

@@ -9,12 +9,14 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
-import { replaceFinalConversation as runFinalConversationReplacement } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import {
+  replaceFinalConversation as runFinalConversationReplacement,
+  type FinalConversationReplacementHandler,
+} from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import { useSidebarStore } from "@/store/sidebar";
-import type { RoomConversationView } from "@/types/conversation/conversation";
 
-export interface FinalConversationReplacementScope {
+interface FinalConversationReplacementScope {
   activeConversationId: string | null;
   currentEpoch: number;
   currentRoomId: string | null;
@@ -137,6 +139,9 @@ export function useRoomPageNavigation({
   }, [navigate, rememberLastActiveConversation, roomId]);
 
   const ensureConversation = useCallback(async (title?: string) => {
+    if (!roomId) {
+      return null;
+    }
     const normalizedTitle = title?.trim();
     const reusableConversationId = !normalizedTitle
       ? selectedDraftConversationId
@@ -144,27 +149,29 @@ export function useRoomPageNavigation({
     if (reusableConversationId) {
       return reusableConversationId;
     }
-    const scopeRoomId = roomId ?? "";
-    const currentTask = createConversationTasksRef.current.get(scopeRoomId);
+    const currentTask = createConversationTasksRef.current.get(roomId);
     if (currentTask) {
       return currentTask;
     }
     const task = createConversation(title);
-    createConversationTasksRef.current.set(scopeRoomId, task);
+    createConversationTasksRef.current.set(roomId, task);
     try {
       return await task;
     } finally {
-      if (createConversationTasksRef.current.get(scopeRoomId) === task) {
-        createConversationTasksRef.current.delete(scopeRoomId);
+      if (createConversationTasksRef.current.get(roomId) === task) {
+        createConversationTasksRef.current.delete(roomId);
       }
     }
   }, [createConversation, roomId, selectedDraftConversationId]);
 
   const handleCreateConversation = useCallback(async (title?: string) => {
-    const scopeRoomId = roomId ?? null;
+    if (!roomId) {
+      return null;
+    }
+    const scopeRoomId = roomId;
     const actionEpoch = ++navigationEpochRef.current;
     const conversationId = await ensureConversation(title);
-    if (!scopeRoomId || !conversationId) {
+    if (!conversationId) {
       return conversationId;
     }
     if (
@@ -178,16 +185,16 @@ export function useRoomPageNavigation({
     return conversationId;
   }, [ensureConversation, navigate, rememberLastActiveConversation, roomId]);
 
-  const replaceFinalConversation = useCallback(async (
-    conversation: RoomConversationView,
-    commitConversation: (conversationId: string) => boolean,
-  ): Promise<string | null> => {
+  const replaceFinalConversation = useCallback<FinalConversationReplacementHandler>(async (
+    conversation,
+    commitConversation,
+  ) => {
     const scopeRoomId = roomId ?? null;
     if (
       !scopeRoomId
       || createConversationTasksRef.current.has(scopeRoomId)
     ) {
-      return null;
+      return;
     }
     const expectedConversationId = conversation.conversation_id;
     const actionEpoch = ++navigationEpochRef.current;
@@ -206,7 +213,7 @@ export function useRoomPageNavigation({
       });
     };
 
-    return runFinalConversationReplacement({
+    await runFinalConversationReplacement({
       closeConversation,
       conversation,
       createConversation: () => ensureConversation(),

@@ -539,24 +539,20 @@ test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", as
     is_draft: false,
   };
 
-  assert.equal(
-    await replaceFinalConversation({
-      closeConversation: async (conversationId) => {
-        calls.push(`close:${conversationId}`);
-      },
-      commitConversation: (conversationId) => {
-        calls.push(`commit:${conversationId}`);
-        return true;
-      },
-      conversation: internalConversation,
-      createConversation: async () => {
-        calls.push("create");
-        return "fresh-draft";
-      },
-      isCurrent: () => true,
-    }),
-    "fresh-draft",
-  );
+  await replaceFinalConversation({
+    closeConversation: async (conversationId) => {
+      calls.push(`close:${conversationId}`);
+    },
+    commitConversation: (conversationId) => {
+      calls.push(`commit:${conversationId}`);
+    },
+    conversation: internalConversation,
+    createConversation: async () => {
+      calls.push("create");
+      return "fresh-draft";
+    },
+    isCurrent: () => true,
+  });
   assert.deepEqual(
     calls,
     ["create", "commit:fresh-draft", "close:old"],
@@ -564,24 +560,20 @@ test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", as
   );
 
   calls.length = 0;
-  assert.equal(
-    await replaceFinalConversation({
-      closeConversation: async (conversationId) => {
-        calls.push(`close:${conversationId}`);
-      },
-      commitConversation: (conversationId) => {
-        calls.push(`commit:${conversationId}`);
-        return true;
-      },
-      conversation: {...internalConversation, is_draft: true},
-      createConversation: async () => {
-        calls.push("create");
-        return "old";
-      },
-      isCurrent: () => true,
-    }),
-    "old",
-  );
+  await replaceFinalConversation({
+    closeConversation: async (conversationId) => {
+      calls.push(`close:${conversationId}`);
+    },
+    commitConversation: (conversationId) => {
+      calls.push(`commit:${conversationId}`);
+    },
+    conversation: {...internalConversation, is_draft: true},
+    createConversation: async () => {
+      calls.push("create");
+      return "old";
+    },
+    isCurrent: () => true,
+  });
   assert.deepEqual(
     calls,
     ["close:old", "create", "commit:old"],
@@ -589,25 +581,21 @@ test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", as
   );
 
   calls.length = 0;
-  assert.equal(
-    await replaceFinalConversation({
-      closeConversation: async () => {
-        calls.push("close");
-        throw new Error("runtime close failed");
-      },
-      commitConversation: () => {
-        calls.push("commit");
-        return true;
-      },
-      conversation: {...internalConversation, is_draft: true},
-      createConversation: async () => {
-        calls.push("create");
-        return "old";
-      },
-      isCurrent: () => true,
-    }),
-    null,
-  );
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+      throw new Error("runtime close failed");
+    },
+    commitConversation: () => {
+      calls.push("commit");
+    },
+    conversation: {...internalConversation, is_draft: true},
+    createConversation: async () => {
+      calls.push("create");
+      return "old";
+    },
+    isCurrent: () => true,
+  });
   assert.deepEqual(
     calls,
     ["close"],
@@ -615,28 +603,24 @@ test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", as
   );
 
   calls.length = 0;
-  assert.equal(
-    await replaceFinalConversation({
-      closeConversation: async () => {
-        calls.push("close");
-      },
-      commitConversation: (conversationId) => {
-        calls.push(`commit:${conversationId}`);
-        return true;
-      },
-      conversation: {
-        ...internalConversation,
-        conversation_id: "external-session:feishu",
-        options: { external_session: true },
-      },
-      createConversation: async () => {
-        calls.push("create");
-        return "internal-draft";
-      },
-      isCurrent: () => true,
-    }),
-    "internal-draft",
-  );
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+    },
+    commitConversation: (conversationId) => {
+      calls.push(`commit:${conversationId}`);
+    },
+    conversation: {
+      ...internalConversation,
+      conversation_id: "external-session:feishu",
+      options: { external_session: true },
+    },
+    createConversation: async () => {
+      calls.push("create");
+      return "internal-draft";
+    },
+    isCurrent: () => true,
+  });
   assert.deepEqual(
     calls,
     ["create", "commit:internal-draft"],
@@ -644,24 +628,20 @@ test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", as
   );
 
   calls.length = 0;
-  assert.equal(
-    await replaceFinalConversation({
-      closeConversation: async () => {
-        calls.push("close");
-      },
-      commitConversation: () => {
-        calls.push("commit");
-        return true;
-      },
-      conversation: internalConversation,
-      createConversation: async () => {
-        calls.push("create");
-        return null;
-      },
-      isCurrent: () => true,
-    }),
-    null,
-  );
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+    },
+    commitConversation: () => {
+      calls.push("commit");
+    },
+    conversation: internalConversation,
+    createConversation: async () => {
+      calls.push("create");
+      return null;
+    },
+    isCurrent: () => true,
+  });
   assert.deepEqual(
     calls,
     ["create"],
@@ -670,27 +650,23 @@ test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", as
 
   calls.length = 0;
   let currentCheckCount = 0;
-  assert.equal(
-    await replaceFinalConversation({
-      closeConversation: async () => {
-        calls.push("close");
-      },
-      commitConversation: () => {
-        calls.push("commit");
-        return true;
-      },
-      conversation: internalConversation,
-      createConversation: async () => {
-        calls.push("create");
-        return "fresh-draft";
-      },
-      isCurrent: () => {
-        currentCheckCount += 1;
-        return currentCheckCount === 1;
-      },
-    }),
-    null,
-  );
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+    },
+    commitConversation: () => {
+      calls.push("commit");
+    },
+    conversation: internalConversation,
+    createConversation: async () => {
+      calls.push("create");
+      return "fresh-draft";
+    },
+    isCurrent: () => {
+      currentCheckCount += 1;
+      return currentCheckCount === 1;
+    },
+  });
   assert.deepEqual(
     calls,
     ["create"],

@@ -1,6 +1,6 @@
 /**
  * INPUT: 最后一个已打开 Conversation、runtime close、draft ensure 与带作用域校验的提交命令。
- * OUTPUT: draft 会话先停后复用，已开始会话先切换后在后台停止的替换结果。
+ * OUTPUT: draft 会话先停后复用，已开始会话先切换后在后台停止的提交顺序。
  * POS: Workspace 最后标签的异步替换事务，不拥有具体 Store 或路由。
  */
 
@@ -8,12 +8,17 @@ import { isExternalSessionConversation } from "@/lib/conversation/external-sessi
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
 interface ReplaceFinalConversationOptions {
-  closeConversation?: (conversationId: string) => Promise<void>;
-  commitConversation: (conversationId: string) => boolean;
+  closeConversation: (conversationId: string) => Promise<void>;
+  commitConversation: (conversationId: string) => void;
   conversation: RoomConversationView;
   createConversation: () => Promise<string | null>;
   isCurrent: () => boolean;
 }
+
+export type FinalConversationReplacementHandler = (
+  conversation: RoomConversationView,
+  commitConversation: (conversationId: string) => void,
+) => Promise<void>;
 
 export async function replaceFinalConversation({
   closeConversation,
@@ -21,29 +26,27 @@ export async function replaceFinalConversation({
   conversation,
   createConversation,
   isCurrent,
-}: ReplaceFinalConversationOptions): Promise<string | null> {
+}: ReplaceFinalConversationOptions): Promise<void> {
   if (!isCurrent()) {
-    return null;
+    return;
   }
 
-  const shouldCloseRuntime = Boolean(
-    closeConversation && !isExternalSessionConversation(conversation),
-  );
+  const shouldCloseRuntime = !isExternalSessionConversation(conversation);
   const mustCloseBeforeCreate = shouldCloseRuntime && conversation.is_draft === true;
-  if (mustCloseBeforeCreate && closeConversation) {
+  if (mustCloseBeforeCreate) {
     try {
       await closeConversation(conversation.conversation_id);
     } catch {
-      return null;
+      return;
     }
     if (!isCurrent()) {
-      return null;
+      return;
     }
   }
 
   const replacementConversationId = await createConversation();
   if (!replacementConversationId || !isCurrent()) {
-    return null;
+    return;
   }
 
   const unexpectedlyReusedStartedConversation = (
@@ -51,28 +54,24 @@ export async function replaceFinalConversation({
     && !mustCloseBeforeCreate
     && replacementConversationId === conversation.conversation_id
   );
-  if (unexpectedlyReusedStartedConversation && closeConversation) {
+  if (unexpectedlyReusedStartedConversation) {
     try {
       await closeConversation(conversation.conversation_id);
     } catch {
-      return null;
+      return;
     }
     if (!isCurrent()) {
-      return null;
+      return;
     }
   }
 
-  if (!commitConversation(replacementConversationId)) {
-    return null;
-  }
+  commitConversation(replacementConversationId);
 
   if (
     shouldCloseRuntime
     && !mustCloseBeforeCreate
     && !unexpectedlyReusedStartedConversation
-    && closeConversation
   ) {
     void closeConversation(conversation.conversation_id).catch(() => undefined);
   }
-  return replacementConversationId;
 }
