@@ -1,21 +1,21 @@
+/**
+ * INPUT: 当前 DM Agent 权限与 Goal 事件刷新信号。
+ * OUTPUT: continuation hold 与 Goal 面板刷新序列。
+ * POS: DM Goal 展示控制器；Goal 创建由 Composer 的独立宿主控制链负责。
+ */
 import { useCallback, useMemo, useState } from "react";
 
 import {
   goalContinuationHoldForPermission,
   type GoalContinuationHold,
 } from "@/features/conversation/shared/goal/goal-continuation-hold";
-import { createGoalApi } from "@/lib/api/conversation/goal-api";
-import { useI18n } from "@/shared/i18n/i18n-context";
-
 interface UseDmGoalControllerOptions {
   agentName: string | null;
   permissionMode: string | null;
-  sessionKey: string | null;
 }
 
 export interface DmGoalControllerModel {
   continuationHold: GoalContinuationHold | null;
-  createGoal: (objective: string) => Promise<void>;
   refresh: () => void;
   refreshSequence: number;
 }
@@ -23,9 +23,7 @@ export interface DmGoalControllerModel {
 export function useDmGoalController({
   agentName,
   permissionMode,
-  sessionKey,
 }: UseDmGoalControllerOptions): DmGoalControllerModel {
-  const { t } = useI18n();
   const [refreshSequence, setRefreshSequence] = useState(0);
   const refresh = useCallback(() => {
     setRefreshSequence((value) => value + 1);
@@ -34,25 +32,8 @@ export function useDmGoalController({
     () => goalContinuationHoldForPermission(agentName, permissionMode),
     [agentName, permissionMode],
   );
-  const createGoal = useCallback(
-    async (objective: string): Promise<void> => {
-      if (!sessionKey) {
-        throw new Error(t("dm.goal_session_not_ready"));
-      }
-      await createGoalApi({
-        objective,
-        replace_existing: true,
-        session_key: sessionKey,
-        token_budget: null,
-      });
-      refresh();
-    },
-    [refresh, sessionKey, t],
-  );
-
   return {
     continuationHold,
-    createGoal,
     refresh,
     refreshSequence,
   };

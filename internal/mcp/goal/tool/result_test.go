@@ -142,6 +142,11 @@ func TestGoalPayloadOmitsCompletionBudgetReportOutsideCompletion(t *testing.T) {
 	if payload["completionBudgetReport"] != nil {
 		t.Fatalf("completionBudgetReport = %#v, want nil", payload["completionBudgetReport"])
 	}
+	for _, completionOnly := range []string{"goalId", "usageFinalized", "completionUsageCheckpointReport"} {
+		if value, exists := payload[completionOnly]; exists {
+			t.Fatalf("payload[%q] = %#v, want field omitted outside completion receipt", completionOnly, value)
+		}
+	}
 }
 
 func TestGoalCompletionPayloadIncludesStopInstructionWithoutUsageToReport(t *testing.T) {

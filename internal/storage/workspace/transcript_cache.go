@@ -104,6 +104,8 @@ func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) str
 		builder.WriteString("|")
 		builder.WriteString(strconv.FormatBool(marker.Synthetic))
 		builder.WriteString("|")
+		builder.WriteString(strconv.FormatBool(marker.ControlOnly))
+		builder.WriteString("|")
 		builder.WriteString(marker.Purpose)
 		builder.WriteString("\n")
 	}

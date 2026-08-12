@@ -1,3 +1,6 @@
+// INPUT: Goal 领域事件、owner-scoped session/thread identity 与 Nexus/app-server 订阅表。
+// OUTPUT: Nexus 事件广播及 owner 隔离的 thread/goal updated/cleared JSON-RPC 通知。
+// POS: Goal durable event 到 WebSocket 两种协议面的唯一通知投影；不向 ownerless 或跨 owner 订阅者广播。
 package websocket
 
 import (
@@ -48,12 +51,16 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 	if threadID == "" {
 		threadID = sessionKey
 	}
+	ownerUserID := protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataOwnerUserID)
+	if ownerUserID == "" {
+		return
+	}
 	if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusComplete {
 		// 完成后的 usage 结算仍写旧 Goal，但 app-server 通知只有 threadId，
 		// 无法区分 Goal generation。若此时已有新 Goal，重发 cleared 会误清新 Goal。
 		if event.EventType == protocol.EventTypeGoalStatusChanged ||
 			event.EventType == protocol.EventTypeGoalCleared {
-			b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
+			b.rpcSubscribers.Broadcast(ctx, ownerUserID, threadID, nil, goalappserver.AppServerJSONRPCNotification{
 				Method: "thread/goal/cleared",
 				Params: goalappserver.ThreadGoalClearedNotification{
 					ThreadID: threadID,
@@ -64,7 +71,7 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 	}
 	switch event.EventType {
 	case protocol.EventTypeGoalCleared:
-		b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
+		b.rpcSubscribers.Broadcast(ctx, ownerUserID, threadID, nil, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/cleared",
 			Params: goalappserver.ThreadGoalClearedNotification{
 				ThreadID: threadID,
@@ -76,7 +83,7 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 		protocol.EventTypeGoalUpdated,
 		protocol.EventTypeGoalProgress,
 		protocol.EventTypeGoalContinuation:
-		b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
+		b.rpcSubscribers.Broadcast(ctx, ownerUserID, threadID, nil, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/updated",
 			Params: goalappserver.ThreadGoalUpdatedNotification{
 				ThreadID: threadID,

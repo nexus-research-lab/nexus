@@ -19,7 +19,12 @@ func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdkt
 		Description: sendDirectedMessageDescription,
 		SearchHint:  "Room 私聊 私信 小范围讨论 directed message hidden private reply_route wake_policy",
 		InputSchema: sendDirectedMessageSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
+		ContextHandler: func(
+			ctx context.Context,
+			args map[string]any,
+			callContext *sdktool.CallContext,
+		) (sdktool.ToolResult, error) {
 			if svc == nil {
 				return errorResult(errRoomServiceMissing), nil
 			}
@@ -27,9 +32,14 @@ func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdkt
 			if err != nil {
 				return errorResult(err), nil
 			}
+			commandID, err := roomCommandID(sctx, callContext, "send_directed_message", args)
+			if err != nil {
+				return errorResult(err), nil
+			}
 			request := protocol.CreateRoomDirectedMessageRequest{
 				SourceAgentID: sourceAgentID,
 				RootRoundID:   sctx.CurrentRoundID,
+				CommandID:     commandID,
 				Recipients:    stringListArg(args, "recipients"),
 				WakeTargets:   stringListArg(args, "wake_targets"),
 				Content:       stringArg(args, "content"),

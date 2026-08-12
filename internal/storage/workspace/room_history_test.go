@@ -54,6 +54,58 @@ func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
 	}
 }
 
+func TestRoomHistoryStoreMessageCountTracksVisibleLedgerChanges(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+
+	history := NewRoomHistoryStore("")
+	conversationID := "conversation-count"
+	ownerUserID := "user-count"
+	if count, err := history.MessageCount(ownerUserID, conversationID); err != nil || count != 0 {
+		t.Fatalf("空 Room 消息数 = %d, err=%v", count, err)
+	}
+	for _, message := range []protocol.Message{
+		{
+			"message_id": "message-user",
+			"round_id":   "round-count",
+			"role":       "user",
+			"content":    "设定目标",
+			"timestamp":  int64(1000),
+		},
+		{
+			"message_id":  "message-assistant",
+			"round_id":    "round-count",
+			"role":        "assistant",
+			"content":     "处理中",
+			"is_complete": true,
+			"stop_reason": "end_turn",
+			"timestamp":   int64(1100),
+		},
+	} {
+		if err := history.AppendInlineMessage(ownerUserID, conversationID, message); err != nil {
+			t.Fatalf("写入 Room 消息失败: %v", err)
+		}
+	}
+	if count, err := history.MessageCount(ownerUserID, conversationID); err != nil || count != 2 {
+		t.Fatalf("Room 消息数 = %d, want 2, err=%v", count, err)
+	}
+	if err := history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
+		"message_id":  "message-assistant",
+		"round_id":    "round-count",
+		"role":        "assistant",
+		"content":     "已完成",
+		"is_complete": true,
+		"stop_reason": "end_turn",
+		"timestamp":   int64(1200),
+	}); err != nil {
+		t.Fatalf("写入 Room assistant 新快照失败: %v", err)
+	}
+	if count, err := history.MessageCount(ownerUserID, conversationID); err != nil || count != 2 {
+		t.Fatalf("重复 message_id 压缩后消息数 = %d, want 2, err=%v", count, err)
+	}
+}
+
 func TestRoomHistoryStoreRejectsTranscriptFromAnotherOwnerWorkspace(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)

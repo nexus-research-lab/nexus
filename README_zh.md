@@ -174,10 +174,15 @@ AutoDream 不属于用户 Automation。Nexus 负责时钟、进程生命周期�
 | **Agent** | 系统成员。有身份、工作区、技能和运行时维护的记忆文件 |
 | **Room** | 协作容器。Agent 和人在共享上下文里一起工作 |
 | **DM** | 与单个 Agent 的持续会话，运行状态完整保留 |
+| **Goal** | 可跨轮次持续推进的持久目标，不要求同时存在工作图 |
+| **工作图（WorkGraph）** | 由 Execution 与已物化 Plan 构成的、持久化的责任关系图 |
+| **运行图（Runtime Graph）** | Agent、Subagent、Tool、Gate 与重试活动的内部事实，不等同于工作图 |
 | **Workspace** | 每个 Agent 独立的文件目录，自主沉淀工作产出 |
 | **Skill** | Agent 可启用的能力扩展；平台内置项共享全局源，自定义项按文件模型管理 |
 | **Connector** | 管理 OAuth 应用配置与外部服务账号连接 |
 | **主智能体** | 系统保留 Agent，负责默认入口与平台级编排 |
+
+单独 Goal、无 Goal 工作图、Goal 绑定工作图是三种不同模式。存在 Goal 不代表已经存在受管工作图，普通运行活动也不会自动投影到工作图画布。当前语义见[执行编排规范](./docs/specs/execution-orchestration-spec.md)与[执行图投影规范](./docs/specs/execution-graph-spec.md)。
 
 ---
 

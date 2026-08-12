@@ -68,6 +68,7 @@ function ActiveRoomPage({
         onCloseConversation={actions.closeConversation}
         onDeleteConversation={navigation.deleteConversation}
         onCreateConversation={navigation.createConversation}
+        onReplaceFinalConversation={navigation.replaceFinalConversation}
         onOpenWorkspaceFile={workspace.handleOpenWorkspaceFile}
         onSaveAgentOptions={actions.saveAgentOptions}
         onUpdateConversationTitle={actions.updateConversationTitle}
@@ -164,6 +165,7 @@ export function RoomPage() {
     selectedConversationId: conversation.selectedId,
     selectedDraftConversationId,
     isHydrated: status.isHydrated,
+    closeConversation: actions.closeConversation,
     createConversation: actions.createConversation,
     deleteConversation: actions.deleteConversation,
   });

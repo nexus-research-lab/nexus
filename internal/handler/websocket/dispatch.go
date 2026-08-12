@@ -49,7 +49,7 @@ func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 		h.handleChannelAuthorizationCode(ctx, sender, inbound)
 	case "cancel_channel_authorization":
 		h.handleChannelAuthorizationCancel(ctx, sender, inbound)
-	case "chat", "chat_rewrite_last", "interrupt", "permission_response", "input_queue":
+	case "chat", "chat_rewrite_last", "interrupt", "permission_response", "input_queue", "set_goal":
 		h.handleControlMessage(ctx, sender, inbound, dispatcher)
 	default:
 		_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(

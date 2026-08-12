@@ -19,7 +19,7 @@ func TestPlanPreparationIsDurableButNotReadOnly(t *testing.T) {
 			(definition.Annotations.ReadOnly || definition.Annotations.ReadOnlyHint)
 	}
 	for name, wantReadOnly := range map[string]bool{
-		"get_execution":          true,
+		"get_execution":          false,
 		"prepare_plan_execution": false,
 		"plan_execution":         false,
 	} {
@@ -61,14 +61,17 @@ func TestExecutionToolSchemasHideFencingAndIdempotency(t *testing.T) {
 	}
 }
 
-func TestPlanToolSchemasExposeOnlyDocumentThenExactSealedReference(t *testing.T) {
+func TestPlanToolSchemasExposeDocumentGoalIntentThenExactSealedReference(t *testing.T) {
 	prepare := preparePlanExecution(nil, contract.ServerContext{})
 	commit := planExecution(nil, contract.ServerContext{})
 
 	prepareProperties := prepare.InputSchema["properties"].(map[string]any)
 	prepareRequired := prepare.InputSchema["required"].([]string)
-	if len(prepareProperties) != 1 ||
+	goalBinding := prepareProperties["goal_binding"].(map[string]any)
+	if len(prepareProperties) != 2 ||
 		prepareProperties["plan_document"].(map[string]any)["type"] != "string" ||
+		goalBinding["type"] != "string" ||
+		!slices.Equal(goalBinding["enum"].([]string), []string{"none", "current", "inherit"}) ||
 		!slices.Equal(prepareRequired, []string{"plan_document"}) {
 		t.Fatalf("prepare schema = %#v", prepare.InputSchema)
 	}

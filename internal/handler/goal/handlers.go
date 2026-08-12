@@ -1,3 +1,6 @@
+// INPUT: authenticated Goal HTTP create/read/update/lifecycle requests and user-controlled metadata.
+// OUTPUT: owner-scoped Goal responses plus a server-derived binding read view; client-owned metadata never decides WorkGraph state.
+// POS: Goal HTTP transport adapter; binding lifecycle authority remains in service/goal and orchestration.
 package goal
 
 import (
@@ -25,7 +28,11 @@ func New(api *handlershared.API, goals *goalsvc.Service) *Handlers {
 
 // HandleGetCurrentGoal 返回 session 当前 Goal。
 func (h *Handlers) HandleGetCurrentGoal(writer http.ResponseWriter, request *http.Request) {
-	goal, err := h.goals.CurrentOptional(request.Context(), request.URL.Query().Get("session_key"))
+	goal, err := h.goals.CurrentOptionalForOwner(
+		request.Context(),
+		request.URL.Query().Get("session_key"),
+		authsvc.OwnerUserID(request.Context()),
+	)
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
@@ -35,12 +42,39 @@ func (h *Handlers) HandleGetCurrentGoal(writer http.ResponseWriter, request *htt
 
 // HandleGetGoalUsage 返回指定 Goal 的聚合 usage 与 finalization fence。
 func (h *Handlers) HandleGetGoalUsage(writer http.ResponseWriter, request *http.Request) {
-	report, err := h.goals.UsageByGoalID(request.Context(), chi.URLParam(request, "goal_id"))
+	report, err := h.goals.UsageByGoalIDForOwner(
+		request.Context(),
+		chi.URLParam(request, "goal_id"),
+		authsvc.OwnerUserID(request.Context()),
+	)
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
 	}
 	h.api.WriteSuccess(writer, report)
+}
+
+// HandleGetGoalExecutionBinding returns the database-derived binding state for
+// the authenticated Goal owner. Reservation provenance remains server-only;
+// execution_id is exposed only for one confirmed exact bilateral binding.
+func (h *Handlers) HandleGetGoalExecutionBinding(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	resolution, err := h.goals.ExecutionBindingForOwner(
+		request.Context(),
+		chi.URLParam(request, "goal_id"),
+		authsvc.OwnerUserID(request.Context()),
+	)
+	if err != nil {
+		h.writeGoalError(writer, err)
+		return
+	}
+	view := protocol.GoalExecutionBindingView{State: resolution.State}
+	if resolution.State == protocol.GoalExecutionBindingStateConfirmed {
+		view.ExecutionID = resolution.ExecutionID
+	}
+	h.api.WriteSuccess(writer, view)
 }
 
 // HandleCreateGoal 创建当前 Goal。
@@ -50,14 +84,7 @@ func (h *Handlers) HandleCreateGoal(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	input.CreatedBy = "user"
-	for _, key := range []string{
-		protocol.GoalMetadataExecutionID,
-		protocol.GoalMetadataExplicitCommand,
-		protocol.GoalMetadataActivationOrigin,
-		protocol.GoalMetadataActivationReason,
-	} {
-		delete(input.Metadata, key)
-	}
+	input.AgentID = ""
 	input.OwnerUserID = authsvc.OwnerUserID(request.Context())
 	goal, err := h.goals.Create(request.Context(), input)
 	if err != nil {
@@ -114,7 +141,12 @@ func (h *Handlers) HandleClearGoal(writer http.ResponseWriter, request *http.Req
 
 // HandleGoalEvents 返回 Goal 审计事件。
 func (h *Handlers) HandleGoalEvents(writer http.ResponseWriter, request *http.Request) {
-	events, err := h.goals.Events(request.Context(), chi.URLParam(request, "goal_id"), 50)
+	events, err := h.goals.EventsForOwner(
+		request.Context(),
+		chi.URLParam(request, "goal_id"),
+		50,
+		authsvc.OwnerUserID(request.Context()),
+	)
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
@@ -127,10 +159,13 @@ func (h *Handlers) writeGoalError(writer http.ResponseWriter, err error) {
 	case errors.Is(err, goalsvc.ErrGoalDisabled):
 		h.api.WriteFailure(writer, http.StatusForbidden, "Goal 功能未启用")
 	case errors.Is(err, goalsvc.ErrGoalForbidden):
-		h.api.WriteFailure(writer, http.StatusForbidden, "当前智能体无权修改该 Goal")
+		h.api.WriteFailure(writer, http.StatusForbidden, "当前用户无权访问或修改该 Goal")
 	case errors.Is(err, goalsvc.ErrGoalNotFound):
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-	case errors.Is(err, goalsvc.ErrGoalConflict), errors.Is(err, goalsvc.ErrGoalVersionStale):
+	case errors.Is(err, goalsvc.ErrGoalConflict),
+		errors.Is(err, goalsvc.ErrGoalVersionStale),
+		errors.Is(err, goalsvc.ErrGoalRevisionStale),
+		errors.Is(err, goalsvc.ErrGoalExecutionBindingConflict):
 		h.api.WriteFailure(writer, http.StatusConflict, "请求冲突")
 	case errors.Is(err, goalsvc.ErrGoalInvalidInput), errors.Is(err, goalsvc.ErrGoalInvalidState):
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "请求无效")

@@ -11,6 +11,7 @@
 //   - agent_disabled_skill_schema.go：SQLite 旧版 00056 编号冲突的启动前 schema 与 Goose 账本兼容修复。
 //   - private_skill_schema.go：旧版私有 Skill 00061 与 Execution 迁移编号冲突的精确识别、账本迁移与顺序补跑。
 //   - automation_permission_schema.go：旧版定时任务权限 00071 与私有 Skill 00071/权限 00086 的完整 schema 识别、账本修复与顺序补跑。
+//   - goal_schema.go：旧 Goal 分支 00087-00089 与 main 联系人/Automation 迁移的完整 schema 识别、账本映射与顺序补跑。
 //   - execution_identity_claim_schema.go：补齐早期已应用 00061 但缺少 Goal/Execution identity claim table 的启动前兼容修复。
 //   - conversation_draft_repair.go：桌面 SQLite 升级期按 canonical 用户输入收口旧空白 Session，并以 started 标记阻止自动重扫。
 //   - runtime_identity.go：Linux owner 到 OS UID/GID、私有组与用户 ACL 的启动同步。
@@ -23,7 +24,7 @@
 //   - room_files.go：旧 app/rooms 到用户 state/rooms 与 workspace/.rooms 的 owner 级迁移。
 //   - room_files_hardlink_*.go：跨平台 Room 文件迁移硬链接校验。
 //
-// 暴露接口：RepairLegacyAgentDisabledSkillSchema、RepairLegacyPrivateSkillMigrationCollision、RepairLegacyAutomationPermissionMigrationCollision、RepairLegacyExecutionIdentityClaimSchema、RunStateLayout、RunWorkspaceLayout、MergeSkippedStateLayoutDatabase、MergeSkippedStateLayoutUsers、RunDesktopStateRootRebase、RunWorkspaceFiles、RunRoomFiles、RunDesktopLegacyConversationDraftRepair、RunRuntimeIdentitySync、RepairDesktopProviderScope。
+// 暴露接口：RepairLegacyAgentDisabledSkillSchema、RepairLegacyPrivateSkillMigrationCollision、RepairLegacyAutomationPermissionMigrationCollision、RepairLegacyGoalMigrationCollision、RepairLegacyExecutionIdentityClaimSchema、RunStateLayout、RunWorkspaceLayout、MergeSkippedStateLayoutDatabase、MergeSkippedStateLayoutUsers、RunDesktopStateRootRebase、RunWorkspaceFiles、RunRoomFiles、RunDesktopLegacyConversationDraftRepair、RunRuntimeIdentitySync、RepairDesktopProviderScope。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package migration

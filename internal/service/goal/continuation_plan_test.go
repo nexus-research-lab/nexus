@@ -51,7 +51,7 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		"Objective alignment contract:",
 		"mcp__nexus_goal__audit_objective_alignment",
 		"one scalar `report_json`",
-		"Only an `aligned` report saved for the current objective revision and current round",
+		"only an `aligned` report saved for the current objective revision and current round",
 		"complete user-facing delivery surface",
 		"include the full requested content",
 		"provide exact links or paths",
@@ -94,11 +94,15 @@ func TestServicePlanContinuationForRoomGoalIncludesLeadPrompt(t *testing.T) {
 	}, repo)
 	service.nowFn = fixedClock()
 	service.idFactory = sequentialID()
+	service.SetSessionOwnershipVerifier(staticGoalSessionOwnershipVerifier{
+		trustedAgentID: "agent-host", trustedAgentName: "主持人",
+	})
 	ctx := context.Background()
 
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "room:group:conversation-1",
 		Objective:  "完成房间协作",
+		AgentID:    "agent-host",
 		Metadata: map[string]any{
 			protocol.GoalMetadataRoomGoalScope:         "room",
 			protocol.GoalMetadataRoomGoalLeadAgentID:   "agent-host",
@@ -116,11 +120,11 @@ func TestServicePlanContinuationForRoomGoalIncludesLeadPrompt(t *testing.T) {
 		"Room Goal lead:",
 		"主持人 (agent-host)",
 		"This is a shared Room Goal",
-		"make the final reply a normal public Room message that @mentions exactly that member",
-		"Public @ delegation is visible to the user",
+		"A public @mention only requests a conversational or untracked one-off contribution",
+		"use assign_work",
 		"visible collaboration is part of completion",
-		"@ exactly one non-lead member",
-		"must not call the Goal update tool in that same turn",
+		"choose the least costly correct route",
+		"Do not call the Goal update tool in that same turn",
 		"only mark the Goal complete after the full room objective is verified",
 	} {
 		if plan == nil || !strings.Contains(plan.Prompt, want) {

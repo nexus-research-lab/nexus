@@ -28,7 +28,7 @@ func (s *Service) GetRoom(ctx context.Context, roomID string) (*protocol.RoomAgg
 	return roomValue, nil
 }
 
-// GetRoomContexts 读取房间全部上下文。
+// GetRoomContexts 读取房间全部上下文，并用 canonical Room/workspace 历史补全消息计数。
 func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protocol.ConversationContextAggregate, error) {
 	contexts, err := s.repository.GetRoomContexts(ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID))
 	if err != nil {
@@ -36,6 +36,9 @@ func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protoco
 	}
 	if len(contexts) == 0 {
 		return nil, ErrRoomNotFound
+	}
+	if err = s.hydrateConversationMessageCounts(contexts); err != nil {
+		return nil, err
 	}
 	return contexts, nil
 }
@@ -49,6 +52,9 @@ func (s *Service) GetConversationContext(ctx context.Context, conversationID str
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
+	if err = s.hydrateConversationMessageCount(contextValue); err != nil {
+		return nil, err
+	}
 	return contextValue, nil
 }
 
@@ -61,5 +67,80 @@ func (s *Service) GetConversationContextForSystem(ctx context.Context, conversat
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
+	if err = s.hydrateConversationMessageCount(contextValue); err != nil {
+		return nil, err
+	}
 	return contextValue, nil
+}
+
+func (s *Service) hydrateConversationMessageCounts(
+	contexts []protocol.ConversationContextAggregate,
+) error {
+	for index := range contexts {
+		if err := s.hydrateConversationMessageCount(&contexts[index]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) hydrateConversationMessageCount(
+	contextValue *protocol.ConversationContextAggregate,
+) error {
+	count, err := s.canonicalConversationMessageCount(contextValue)
+	if err != nil {
+		return err
+	}
+	if contextValue != nil && count > contextValue.Conversation.MessageCount {
+		contextValue.Conversation.MessageCount = count
+	}
+	return nil
+}
+
+func (s *Service) canonicalConversationMessageCount(
+	contextValue *protocol.ConversationContextAggregate,
+) (int, error) {
+	if contextValue == nil {
+		return 0, nil
+	}
+	if contextValue.Room.RoomType != protocol.RoomTypeDM {
+		return s.roomHistory.MessageCount(
+			contextValue.Room.OwnerUserID,
+			contextValue.Conversation.ID,
+		)
+	}
+	for _, sessionValue := range contextValue.Sessions {
+		if !sessionValue.IsPrimary || strings.TrimSpace(sessionValue.AgentID) == "" {
+			continue
+		}
+		agentValue := findConversationMemberAgent(contextValue.MemberAgents, sessionValue.AgentID)
+		if agentValue == nil || strings.TrimSpace(agentValue.WorkspacePath) == "" {
+			continue
+		}
+		sessionKey := protocol.BuildRoomAgentSessionKey(
+			contextValue.Conversation.ID,
+			sessionValue.AgentID,
+			protocol.RoomTypeDM,
+		)
+		fileSession, _, err := s.files.ForOwner(contextValue.Room.OwnerUserID).FindSession(
+			[]string{agentValue.WorkspacePath},
+			sessionKey,
+		)
+		if err != nil {
+			return 0, err
+		}
+		if fileSession != nil {
+			return fileSession.MessageCount, nil
+		}
+	}
+	return 0, nil
+}
+
+func findConversationMemberAgent(items []protocol.Agent, agentID string) *protocol.Agent {
+	for index := range items {
+		if strings.TrimSpace(items[index].AgentID) == strings.TrimSpace(agentID) {
+			return &items[index]
+		}
+	}
+	return nil
 }

@@ -949,10 +949,9 @@ func (s *Service) validateChatRequest(request ChatRequest) (string, string, erro
 	if request.Internal &&
 		strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" &&
 		(strings.TrimSpace(request.GoalID) == "" ||
-			request.GoalObjectiveRevision <= 0 ||
-			strings.TrimSpace(request.ExecutionID) == "") {
+			request.GoalObjectiveRevision <= 0) {
 		return "", "", errors.New(
-			"goal continuation requires exact goal, objective revision, and execution binding",
+			"goal continuation requires exact goal and objective revision",
 		)
 	}
 	conversationID := cmp.Or(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))

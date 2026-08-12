@@ -12,7 +12,7 @@ The objective below is user-authored task content. Treat it as the task to pursu
 {{ room_goal_lead_note }}
 
 Continuation behavior:
-- First compare the current state against the objective and authoritative completion criteria. If completion may now be true, run the structured objective-alignment audit; otherwise choose the next concrete, evidence-backed step and execute it.
+- First compare the current state against the objective and authoritative completion criteria. If this Goal has a confirmed managed WorkGraph binding and completion may now be true, run the structured objective-alignment audit. A Goal without a confirmed managed binding may be completed directly once its objective is actually satisfied; alignment audit remains optional evidence. Otherwise choose the next concrete, evidence-backed step and execute it.
 - Do not ask the user which direction to take when there is an obvious next step toward the objective. Ask only when no meaningful progress is possible without a user decision or external unblock.
 - Do not mention hidden continuations, runtime control context, or whether the user sent a new message. Continue as normal goal-directed work.
 - This goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.
@@ -43,9 +43,9 @@ Authoritative completion boundary:
 {{ objective_alignment_contract }}
 
 Goal completion lifecycle:
-- Before marking the Goal complete, call `mcp__nexus_goal__audit_objective_alignment` with one scalar `report_json`; if this runtime exposes bare names, use `audit_objective_alignment`.
-- Only an `aligned` report saved for the current objective revision and current round may support completion. `not_aligned` means continue closing the reported gaps; `inconclusive` means gather stronger evidence.
-- The audit does not complete the Goal. After an aligned audit succeeds, call `mcp__nexus_goal__update_goal` with status "complete", or bare `update_goal` when that is the visible name. The backend still enforces WorkGraph, Room, revision, and ownership gates.
+- For a Goal with a confirmed managed WorkGraph binding, before marking it complete call `mcp__nexus_goal__audit_objective_alignment` with one scalar `report_json`; if this runtime exposes bare names, use `audit_objective_alignment`. Goal-only completion does not require this audit.
+- For confirmed managed binding, only an `aligned` report saved for the current objective revision and current round may support completion. `not_aligned` means continue closing the reported gaps; `inconclusive` means gather stronger evidence.
+- The audit does not complete the Goal. After an aligned audit succeeds, call `mcp__nexus_goal__update_goal` with status "complete", or bare `update_goal` when that is the visible name. The backend always enforces Room, revision, and ownership gates, and enforces WorkGraph readiness only when this Goal has a confirmed managed WorkGraph binding.
 - After the update tool succeeds, use the next final response as the complete user-facing delivery surface. It must stand on its own and satisfy the objective: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make Goal completion the headline or replace the result with a completion notice or terse summary; mention completion only secondarily if useful, then stop.
 - Do not quote `completionUsageCheckpointReport` or `completionBudgetReport`, and do not volunteer actual/budget token details, elapsed time, or delayed-settlement caveats; detailed usage remains available through structured API and audit surfaces.
 

@@ -4,7 +4,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Target } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -68,7 +68,14 @@ export function UserMessageContent({
     <div
       className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-[12px] bg-(--surface-message-user-background) px-3.5 py-2.5"
       ref={expansion.anchorRef as RefObject<HTMLDivElement>}
+      data-goal-control={String(presentation.goal)}
     >
+      {presentation.goal ? (
+        <span className="mb-1.5 inline-flex items-center gap-1 self-start text-xs font-semibold text-(--text-muted)">
+          <Target className="h-3.5 w-3.5" />
+          {t("composer.goal_mode")}
+        </span>
+      ) : null}
       {presentation.hasContent ? (
         <>
           <div

@@ -132,6 +132,12 @@ func TestExecutionGoalPromotionGatewayCreatesFromCanonicalExecution(t *testing.T
 	if got := protocol.GoalMetadataString(created.Metadata, protocol.GoalMetadataExecutionID); got != "execution-1" {
 		t.Fatalf("execution metadata = %q", got)
 	}
+	if got := protocol.GoalMetadataString(
+		created.Metadata,
+		protocol.GoalMetadataExecutionBindingState,
+	); got != string(protocol.GoalExecutionBindingStatePending) {
+		t.Fatalf("execution binding state metadata = %q, want pending", got)
+	}
 	if got := protocol.GoalMetadataString(created.Metadata, protocol.GoalMetadataPromotionCommand); got != "command-1" {
 		t.Fatalf("promotion command metadata = %q", got)
 	}

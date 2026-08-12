@@ -193,6 +193,9 @@ func materializeRoundMarkerMessages(
 		if len(marker.Metadata) > 0 {
 			row["metadata"] = marker.Metadata
 		}
+		if marker.ControlOnly {
+			row["control_only"] = true
+		}
 		rows = append(rows, row)
 	}
 	return rows

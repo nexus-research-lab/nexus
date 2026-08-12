@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - service.go / query.go / history.go / external_identity.go：Service、查询、历史消息，以及
+//     按字段所有权合并 Room SQL/workspace 投影、按当前 Goal 聚合真相刷新完成收据、
 //     外部 IM 账号短标识、当前配对、任务引用影响与安全删除事实投影。
 //   - mutation.go / model.go / util.go：增删改、模型、辅助。
 //   - recovery.go：持久 tombstone 的启动/周期恢复，同时重放任务停用与跨域引用清理。

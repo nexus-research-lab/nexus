@@ -1,9 +1,14 @@
+// INPUT: Goal aggregate plus a structured DM or Room session key.
+// OUTPUT: Immediate fallback preview and asynchronous concise title targets for Goal-only conversations.
+// POS: Goal control title bridge; treats a durable Goal as first user intent without requiring a normal chat message.
 package titlegen
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -20,15 +25,18 @@ func (s *Service) FillEmptyPreviewFromGoal(ctx context.Context, sessionKey strin
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	updated, roomID, err := s.fillGoalPreview(ctx, parsed, sessionKey, nextTitle)
-	if err != nil || !updated {
-		return err
+	if updated {
+		conversationID := strings.TrimSpace(parsed.ConversationID)
+		if conversationID == "" {
+			conversationID = goalDMConversationID(parsed)
+		}
+		s.broadcastResync(ctx, Request{
+			SessionKey:         sessionKey,
+			ConversationID:     conversationID,
+			ConversationRoomID: roomID,
+		})
 	}
-	s.broadcastResync(ctx, Request{
-		SessionKey:         sessionKey,
-		ConversationID:     parsed.ConversationID,
-		ConversationRoomID: roomID,
-	})
-	return nil
+	return err
 }
 
 func (s *Service) fillGoalPreview(
@@ -40,8 +48,14 @@ func (s *Service) fillGoalPreview(
 	if parsed.Kind == protocol.SessionKeyKindRoom {
 		return s.fillRoomGoalPreview(ctx, parsed.ConversationID, title)
 	}
-	updated, err := s.fillSessionGoalPreview(ctx, sessionKey, title)
-	return updated, "", err
+	sessionUpdated, err := s.fillSessionGoalPreview(ctx, sessionKey, title)
+	sessionErr := err
+	conversationID := goalDMConversationID(parsed)
+	if conversationID == "" {
+		return sessionUpdated, "", sessionErr
+	}
+	conversationUpdated, roomID, conversationErr := s.fillRoomGoalPreview(ctx, conversationID, title)
+	return sessionUpdated || conversationUpdated, roomID, errors.Join(sessionErr, conversationErr)
 }
 
 func (s *Service) fillRoomGoalPreview(ctx context.Context, conversationID string, title string) (bool, string, error) {
@@ -66,6 +80,9 @@ func (s *Service) fillSessionGoalPreview(ctx context.Context, sessionKey string,
 	current, err := s.sessions.GetSession(ctx, sessionKey)
 	if err != nil || current == nil {
 		return false, err
+	}
+	if sessionUsesConversationTitle(current) {
+		return false, nil
 	}
 	if !isDefaultSessionTitle(current.Title) {
 		return false, nil
@@ -100,7 +117,55 @@ func (s *Service) ScheduleGoalTitleFromGoal(ctx context.Context, item protocol.G
 		request.ConversationMessageCount = 0
 	} else {
 		request.SessionMessageCount = 0
-		request.ConversationMessageCount = -1
+		if conversationID := goalDMConversationID(parsed); conversationID != "" {
+			request.ConversationID = conversationID
+			request.ConversationMessageCount = 0
+		} else {
+			request.ConversationMessageCount = -1
+		}
 	}
 	s.Schedule(ctx, request)
+}
+
+// RepairGoalTitleFromGoal replays the idempotent Goal title projection for a
+// durable Goal recovered after restart or a lost control response.
+func (s *Service) RepairGoalTitleFromGoal(
+	ctx context.Context,
+	item protocol.Goal,
+	ownerUserID string,
+) error {
+	if s == nil {
+		return nil
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx = authctx.WithPrincipal(context.WithoutCancel(ctx), &authctx.Principal{
+		UserID: ownerUserID,
+		Role:   authctx.RoleOwner,
+	})
+	fallbackTitle := goalFallbackTitle(item)
+	err := s.FillEmptyPreviewFromGoal(ctx, item.SessionKey, fallbackTitle)
+	s.ScheduleGoalTitleFromGoal(ctx, item, ownerUserID, fallbackTitle)
+	return err
+}
+
+func goalFallbackTitle(item protocol.Goal) string {
+	if title := protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataRoomGoalLoopTitle); title != "" {
+		return title
+	}
+	return strings.TrimSpace(item.Objective)
+}
+
+func goalDMConversationID(parsed protocol.SessionKey) string {
+	if parsed.Kind != protocol.SessionKeyKindAgent ||
+		protocol.NormalizeSessionKeyChannelSegment(parsed.Channel) != protocol.SessionChannelWebSocketSegment ||
+		strings.TrimSpace(parsed.ChatType) != "dm" {
+		return ""
+	}
+	return strings.TrimSpace(parsed.Ref)
 }

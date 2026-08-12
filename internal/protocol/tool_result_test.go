@@ -33,3 +33,47 @@ func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T
 		t.Fatalf("unexpected mutation result = %+v", result)
 	}
 }
+
+func TestParseGoalStatusResultReadsOnlyTerminalGoalStatus(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		value  any
+		want   GoalStatus
+		wantOK bool
+	}{
+		{name: "complete structured", value: map[string]any{"goal": map[string]any{"status": "complete"}}, want: GoalStatusComplete, wantOK: true},
+		{name: "blocked text", value: `{"goal":{"status":"blocked"}}`, want: GoalStatusBlocked, wantOK: true},
+		{name: "unrelated status", value: map[string]any{"status": "complete"}},
+		{name: "active goal", value: map[string]any{"goal": map[string]any{"status": "active"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := ParseGoalStatusResult(test.value)
+			if got != test.want || ok != test.wantOK {
+				t.Fatalf("ParseGoalStatusResult() = %q/%v, want %q/%v", got, ok, test.want, test.wantOK)
+			}
+		})
+	}
+}
+
+func TestParseGoalIDResultReadsOnlyExplicitGoalIdentity(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		value  any
+		want   string
+		wantOK bool
+	}{
+		{name: "camel case", value: map[string]any{"goalId": " goal-1 "}, want: "goal-1", wantOK: true},
+		{name: "snake case text", value: `{"goal_id":"goal-2"}`, want: "goal-2", wantOK: true},
+		{name: "nested goal identity", value: map[string]any{"goal": map[string]any{"id": "goal-3"}}, want: "goal-3", wantOK: true},
+		{name: "wrapped", value: map[string]any{"structuredContent": map[string]any{"goalId": "goal-4"}}, want: "goal-4", wantOK: true},
+		{name: "unrelated id", value: map[string]any{"id": "tool-1"}},
+		{name: "null goal id", value: map[string]any{"goalId": nil}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := ParseGoalIDResult(test.value)
+			if got != test.want || ok != test.wantOK {
+				t.Fatalf("ParseGoalIDResult() = %q/%v, want %q/%v", got, ok, test.want, test.wantOK)
+			}
+		})
+	}
+}

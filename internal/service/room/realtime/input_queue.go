@@ -316,6 +316,9 @@ func (s *Service) guideInputQueueItem(
 	if err = rejectGenericControlForBoundQueueItem(entry.Item, "guide"); err != nil {
 		return err
 	}
+	if protocol.NormalizeGoalCollaborationBinding(entry.Item.GoalCollaborationBinding) != nil {
+		return errors.New("Goal collaboration handoff must remain an independently attributable queued round")
+	}
 	if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
 		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
 			return err

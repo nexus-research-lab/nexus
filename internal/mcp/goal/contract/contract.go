@@ -1,13 +1,13 @@
-// INPUT: Goal MCP 工具所需的服务能力与当前 owner/agent/session/round runtime 上下文。
+// INPUT: Goal MCP 工具所需的服务能力、可信用户 retarget 来源，以及 runtime 共享的 exact Goal/revision/可选 Execution authority。
 // OUTPUT: create/get/retarget/objective-alignment/update 共用的窄服务契约与 durable usage scope owner。
 // POS: Goal MCP 工具与 service/goal 之间的消费侧接口。
 package contract
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 const ServerName = "nexus_goal"
@@ -25,38 +25,45 @@ type Service interface {
 
 // ServerContext 绑定当前运行时会话。
 type ServerContext struct {
-	OwnerUserID           string
-	CurrentSessionKey     string
-	CurrentRoundID        string
-	CurrentAgentID        string
-	GoalObjectiveRevision *atomic.Int64
-	PlanMode              bool
-}
-
-// NewGoalObjectiveRevision 创建可由同一 MCP server 内 retarget_goal 原子推进的 revision 状态。
-func NewGoalObjectiveRevision(value int64) *atomic.Int64 {
-	state := &atomic.Int64{}
-	state.Store(value)
-	return state
+	OwnerUserID       string
+	CurrentSessionKey string
+	CurrentRoundID    string
+	CurrentAgentID    string
+	GoalAuthority     *runtimectx.GoalAuthorityState
+	// AllowUserRetarget 只允许可信、可见的普通用户 round 在 retarget_goal
+	// 调用点读取一次当前精确 revision；不会授予其他 Goal/Execution mutation。
+	AllowUserRetarget bool
+	PlanMode          bool
 }
 
 // ExpectedGoalObjectiveRevision 返回当前 MCP server 绑定的 objective revision；0 表示不启用 fencing。
 func (c ServerContext) ExpectedGoalObjectiveRevision() int64 {
-	if c.GoalObjectiveRevision == nil {
+	authority, ok := c.GoalAuthority.Load()
+	if !ok {
 		return 0
 	}
-	return c.GoalObjectiveRevision.Load()
+	return authority.ObjectiveRevision
 }
 
-// StoreGoalObjectiveRevision 让成功 retarget 的调用方继续操作新 objective，同时不影响其他旧 slot。
-func (c ServerContext) StoreGoalObjectiveRevision(value int64) {
-	if c.GoalObjectiveRevision == nil || value <= 0 {
+// StoreGoalMutationAuthority 让当前 MCP server 在成功 create/retarget 后继续操作同一状态链。
+func (c ServerContext) StoreGoalMutationAuthority(item protocol.Goal) {
+	if c.GoalAuthority == nil {
 		return
 	}
-	for {
-		current := c.GoalObjectiveRevision.Load()
-		if value <= current || c.GoalObjectiveRevision.CompareAndSwap(current, value) {
-			return
-		}
+	executionID := ""
+	switch protocol.GoalExecutionBindingStateFromGoal(item) {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+	case protocol.GoalExecutionBindingStateConfirmed:
+		executionID = protocol.GoalReservedExecutionID(item)
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		c.GoalAuthority.Clear()
+		return
 	}
+	c.GoalAuthority.Bind(
+		item.ID,
+		item.ObjectiveRevision(),
+		executionID,
+	)
 }

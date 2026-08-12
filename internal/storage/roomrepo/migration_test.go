@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -263,4 +264,31 @@ func roomRepositoryMigrationDir(t *testing.T, dialect string) string {
 		t.Fatal("locate migration test file")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "db", "migrations", dialect)
+}
+
+func latestRoomRepositoryMigrationVersion(t *testing.T, migrationDir string) int64 {
+	t.Helper()
+	entries, err := os.ReadDir(migrationDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var latest int64
+	for _, entry := range entries {
+		name := entry.Name()
+		separator := strings.IndexByte(name, '_')
+		if entry.IsDir() || separator <= 0 || !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+		version, parseErr := strconv.ParseInt(name[:separator], 10, 64)
+		if parseErr != nil {
+			t.Fatalf("parse migration version from %q: %v", name, parseErr)
+		}
+		if version > latest {
+			latest = version
+		}
+	}
+	if latest == 0 {
+		t.Fatalf("no migrations found in %s", migrationDir)
+	}
+	return latest
 }

@@ -91,7 +91,7 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 }
 
 func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
-	if activeGoalContinuationSuppressed(ctx) || GoalObjectiveTransitionPending(item) {
+	if activeGoalContinuationSuppressed(ctx) || !goalAllowsContinuationDispatch(item) {
 		return
 	}
 	s.DispatchActiveGoalContinuation(ctx, item)
@@ -101,7 +101,7 @@ func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item 
 func (s *Service) DispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
 	if s == nil || s.continuations == nil ||
 		protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive ||
-		GoalObjectiveTransitionPending(item) {
+		!goalAllowsContinuationDispatch(item) {
 		return
 	}
 	_ = s.dispatchContinuationForGoal(ctx, item, s.continuations)
@@ -109,7 +109,7 @@ func (s *Service) DispatchActiveGoalContinuation(ctx context.Context, item proto
 
 func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol.Goal, dispatcher ContinuationDispatcher) error {
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive ||
-		GoalObjectiveTransitionPending(item) {
+		!goalAllowsContinuationDispatch(item) {
 		return nil
 	}
 	cleared, err := s.clearMissingGoalContinuationTarget(ctx, item, dispatcher)
@@ -134,6 +134,14 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 		return err
 	}
 	return s.dispatchPreparedContinuation(ctx, *plan, dispatcher)
+}
+
+func goalAllowsContinuationDispatch(item protocol.Goal) bool {
+	if !GoalObjectiveTransitionPending(item) {
+		return true
+	}
+	_, ok := objectiveTransitionAwaitingPlan(item)
+	return ok
 }
 
 func (s *Service) planAutoResumeContinuation(ctx context.Context, sessionKey string) (*protocol.GoalContinuation, error) {

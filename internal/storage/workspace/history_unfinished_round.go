@@ -30,6 +30,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 		ParentID        string
 		LastTimestampMS int64
 		HasResult       bool
+		ControlOnly     bool
 		TerminalStatus  roundTerminalStatus
 	}
 
@@ -56,6 +57,10 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 		if ts := messageTimestamp(row); ts > snapshot.LastTimestampMS {
 			snapshot.LastTimestampMS = ts
 		}
+		if terminalControlMessage(row) {
+			snapshot.ControlOnly = true
+			snapshot.TerminalStatus = roundStatusSuccess
+		}
 		if stringFromAny(row["role"]) == "result" {
 			snapshot.HasResult = true
 			snapshot.TerminalStatus = normalizeRoundStatusValue(row["subtype"])
@@ -69,7 +74,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 	result := make([]protocol.Message, 0, len(rows)+len(rounds))
 	result = append(result, rows...)
 	for roundID, snapshot := range rounds {
-		if snapshot == nil || snapshot.HasResult {
+		if snapshot == nil || snapshot.HasResult || snapshot.ControlOnly {
 			continue
 		}
 		if _, isActive := activeRoundIDs[roundID]; isActive {
@@ -113,6 +118,22 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 
 	sortHistoryRows(result)
 	return result
+}
+
+// terminalControlMessage 识别不进入 runtime 的宿主控制记录。goal_set metadata
+// 兼容 control_only 字段上线前已经持久化的 Goal 控制历史。
+func terminalControlMessage(row protocol.Message) bool {
+	if boolValueAny(row["control_only"]) {
+		return true
+	}
+	switch metadata := row["metadata"].(type) {
+	case map[string]string:
+		return strings.TrimSpace(metadata["subtype"]) == "goal_set"
+	case map[string]any:
+		return strings.TrimSpace(stringFromAny(metadata["subtype"])) == "goal_set"
+	default:
+		return false
+	}
 }
 
 func normalizeActiveRoundIDs(values []string) map[string]struct{} {

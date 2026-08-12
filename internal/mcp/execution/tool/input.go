@@ -1,16 +1,20 @@
-// INPUT: 十二个 execution tool 的模型可见 JSON 参数；Plan 通过单个 document string + sealed proposal reference 传输。
+// INPUT: 十二个 execution tool 的模型可见 JSON 参数；Plan 通过 document string、Goal binding 标量与 sealed proposal reference 传输。
 // OUTPUT: 严格解码且不含 command_id/snapshot_revision/runtime identity 的 typed semantic intent。
 // POS: MCP schema 与 service command 之间的无权限输入层；跨 Provider 传输后由领域层复核完整图。
 package tool
 
-import "github.com/nexus-research-lab/nexus/internal/protocol"
+import (
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
+)
 
 type getExecutionInput struct {
 	ExecutionID string `json:"execution_id,omitempty"`
 }
 
 type preparePlanExecutionInput struct {
-	PlanDocument string `json:"plan_document"`
+	PlanDocument string                              `json:"plan_document"`
+	GoalBinding  orchestration.PlanGoalBindingIntent `json:"goal_binding,omitempty"`
 }
 
 type planExecutionInput struct {

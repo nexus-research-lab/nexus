@@ -62,6 +62,7 @@ export function MessageUserSection({
     message.content,
     message,
   );
+  const canEdit = Boolean(onEditUserMessage) && !presentation.goal;
 
   return (
     <div
@@ -93,7 +94,7 @@ export function MessageUserSection({
                   agentMentions={message.agent_mentions}
                   agentMentionDirectory={agentMentionDirectory}
                   attachments={attachments}
-                  content={message.content}
+                  content={presentation.displayContent}
                   onOpenAgentContact={onOpenAgentContact}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   presentation={presentation}
@@ -103,11 +104,11 @@ export function MessageUserSection({
                   copied={copied}
                   onCopy={handleCopy}
                   onEdit={projectAvailableUserMessageAction(
-                    Boolean(onEditUserMessage),
+                    canEdit,
                     editor.start,
                   )}
                   onRerun={projectAvailableUserMessageAction(
-                    Boolean(onEditUserMessage),
+                    canEdit,
                     handleRerun,
                   )}
                   presentation={presentation}

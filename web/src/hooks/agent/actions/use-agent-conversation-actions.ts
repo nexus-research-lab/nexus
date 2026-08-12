@@ -8,12 +8,14 @@ import type {
   AgentConversationSendOptions,
 } from "@/types/agent/agent-conversation";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
+import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 
 import type { AgentConversationActionContext } from "./conversation-action-context";
 import {
   rewriteLastUserMessage,
   sendSessionMessage,
 } from "./conversation-chat-actions";
+import { setSessionGoal } from "./conversation-goal-actions";
 import {
   sendSessionPermissionResponse,
   stopSessionGeneration,
@@ -49,6 +51,7 @@ interface UseAgentConversationActionsParams {
     clientRequestId: string,
     error: unknown,
   ) => void;
+  trackPendingRequestAck: (clientRequestId: string) => boolean;
   trackOutboundRequest: (clientRequestId: string) => void;
   waitForRequestAck: (
     clientRequestId: string,
@@ -77,6 +80,7 @@ export function useAgentConversationActions({
   settleAgentRoundStop,
   settleChatAckWaitFailure,
   settleRequestAckWaitFailure,
+  trackPendingRequestAck,
   trackOutboundRequest,
   waitForRequestAck,
 }: UseAgentConversationActionsParams) {
@@ -98,6 +102,10 @@ export function useAgentConversationActions({
       settleFailure: SettleOutboundRequestFailure,
       timeoutMessage?: string,
     ): Promise<void> => {
+      // activeSessionKeyRef 会在视图切换时先于 React state 更新；优先读取它，
+      // 避免旧会话的 ACK 在切换窗口内被误判为当前会话结果。
+      const requestSessionKey = actionContextRef.current.activeSessionKeyRef.current
+        ?? actionContextRef.current.sessionKey;
       const request = await sendRequest();
       if (!request) {
         return;
@@ -107,6 +115,7 @@ export function useAgentConversationActions({
         client_message_id: clientMessageId,
         client_request_id: requestId,
       } = request;
+      trackPendingRequestAck(requestId);
       trackOutboundRequest(requestId);
 
       try {
@@ -118,7 +127,19 @@ export function useAgentConversationActions({
           );
         });
       } catch (error) {
-        settleFailure(request, error);
+        const currentSessionKey = actionContextRef.current.activeSessionKeyRef.current
+          ?? actionContextRef.current.sessionKey;
+        if (
+          !requestSessionKey
+          || !currentSessionKey
+          || areEquivalentSessionKeys(requestSessionKey, currentSessionKey)
+        ) {
+          settleFailure(request, error);
+        } else {
+          // 旧会话请求仍按 request ID 收口，但不得把错误或乐观消息
+          // 投影进用户已经切换到的新会话。
+          clearOutboundRequest(requestId);
+        }
         throw error;
       }
 
@@ -127,6 +148,7 @@ export function useAgentConversationActions({
     [
       clearOutboundRequest,
       handleRequestAckTimeout,
+      trackPendingRequestAck,
       trackOutboundRequest,
       waitForRequestAck,
     ],
@@ -138,6 +160,21 @@ export function useAgentConversationActions({
       options: AgentConversationSendOptions = {},
     ): Promise<void> => sendWithAck(
       () => sendSessionMessage(content, actionContextRef.current, options),
+      (request, error) => settleChatAckWaitFailure(
+        request.client_request_id,
+        request.client_message_id,
+        error,
+      ),
+    ),
+    [sendWithAck, settleChatAckWaitFailure],
+  );
+
+  const setGoal = useCallback(
+    (
+      objective: string,
+      options: Parameters<typeof setSessionGoal>[2] = {},
+    ): Promise<void> => sendWithAck(
+      () => setSessionGoal(objective, actionContextRef.current, options),
       (request, error) => settleChatAckWaitFailure(
         request.client_request_id,
         request.client_message_id,
@@ -285,6 +322,7 @@ export function useAgentConversationActions({
     rewriteLastMessage,
     sendMessage,
     sendPermissionResponse,
+    setGoal,
     stopGeneration,
   };
 }

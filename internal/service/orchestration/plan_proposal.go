@@ -1,6 +1,6 @@
-// INPUT: 单个 strict Nexus Plan Document、trusted actor/scope/Goal authority 与当前 Execution snapshot。
-// OUTPUT: 按 Goal/document/current Execution 选择并 canonicalize root boundary、跨 round 可恢复且绑定 exact target fence 的 sealed ExecutionPlanProposal。
-// POS: Provider 字符串传输与权威 Plan materialization 之间的非权威应用服务边界；Goal-bound create 的 transport objective 不具备权威性。
+// INPUT: 单个 strict Nexus Plan Document、显式 Goal binding intent、trusted actor/scope/Goal authority 与当前 Execution snapshot。
+// OUTPUT: 按 intent/document/current Execution 选择并 canonicalize root boundary、跨 round 可恢复且绑定 exact target fence 的 sealed ExecutionPlanProposal。
+// POS: Provider 字符串传输与权威 Plan materialization 之间的非权威应用服务边界；ambient Goal 不参与 proposal sealing。
 package orchestration
 
 import (
@@ -69,11 +69,22 @@ type PlanMaterializationReceiptReader interface {
 	) (string, error)
 }
 
-// PreparePlanExecutionInput 只接收 provider 能稳定传递的一段完整文本。
-// Target、scope、Goal 和 coordinator identity 全部从 trusted runtime 派生。
+// PlanGoalBindingIntent 控制 proposal 是否使用当前轮次的 exact Goal authority。
+// 模型不能提供 Goal identity；replan/replace 只能继承当前 Execution boundary。
+type PlanGoalBindingIntent string
+
+const (
+	PlanGoalBindingNone    PlanGoalBindingIntent = "none"
+	PlanGoalBindingCurrent PlanGoalBindingIntent = "current"
+	PlanGoalBindingInherit PlanGoalBindingIntent = "inherit"
+)
+
+// PreparePlanExecutionInput 接收 provider 能稳定传递的完整文本和一个有界标量 intent。
+// Target、scope、Goal identity 和 coordinator identity 全部从 trusted runtime 派生。
 type PreparePlanExecutionInput struct {
 	CommandID    string
 	PlanDocument string
+	GoalBinding  PlanGoalBindingIntent
 }
 
 // PreparePlanExecution 解析并 seal 一份完整 proposal；它可以在 Plan Mode 中
@@ -106,6 +117,10 @@ func (s *Service) PreparePlanExecution(
 		}
 		return nil, domainError(ErrorCodePlanDocumentInvalid, err.Error())
 	}
+	goalBinding, err := normalizePlanGoalBindingIntent(document.Operation, input.GoalBinding, actor)
+	if err != nil {
+		return nil, err
+	}
 
 	lookupActor := actor
 	lookupActor.ExecutionID = ""
@@ -114,7 +129,8 @@ func (s *Service) PreparePlanExecution(
 		return nil, err
 	}
 	var activation *ExplicitGoalActivation
-	if document.Operation == protocol.ExecutionPlanProposalCreate && snapshot == nil {
+	if document.Operation == protocol.ExecutionPlanProposalCreate &&
+		snapshot == nil && goalBinding == PlanGoalBindingCurrent {
 		activation, err = s.resolveProposalGoalActivation(ctx, actor)
 		if err != nil {
 			return nil, err
@@ -202,11 +218,11 @@ func (s *Service) resolveProposalGoalActivation(
 	ctx context.Context,
 	actor ActorContext,
 ) (*ExplicitGoalActivation, error) {
+	if !actorHasExactGoalAuthority(actor) {
+		return nil, nil
+	}
 	resolver, ok := s.explicitGoalGateway.(ExplicitGoalActivationResolver)
 	if !ok {
-		if strings.TrimSpace(actor.GoalID) == "" && actor.GoalObjectiveRevision <= 0 {
-			return nil, nil
-		}
 		return nil, domainError(ErrorCodeGoalBindingConflict,
 			"trusted Goal activation provenance is unavailable for Plan preparation")
 	}
@@ -223,12 +239,9 @@ func (s *Service) resolveProposalGoalActivation(
 		return nil, mapExplicitGoalGatewayError(err)
 	}
 	if activation == nil {
-		if strings.TrimSpace(actor.GoalID) == "" && actor.GoalObjectiveRevision <= 0 {
-			return nil, nil
-		}
 		return nil, domainError(
 			ErrorCodeGoalBindingConflict,
-			"active Goal disappeared during Plan preparation",
+			"exact Goal authority disappeared during Plan preparation",
 		)
 	}
 	activation.GoalID = strings.TrimSpace(activation.GoalID)
@@ -245,10 +258,72 @@ func (s *Service) resolveProposalGoalActivation(
 		activation.ReplacesExecutionID == activation.ReservedExecutionID {
 		return nil, domainError(
 			ErrorCodeGoalBindingConflict,
-			"active Goal changed or returned an incomplete Execution fence during Plan preparation",
+			"exact Goal authority changed or returned an incomplete Execution fence during Plan preparation",
 		)
 	}
 	return activation, nil
+}
+
+func normalizePlanGoalBindingIntent(
+	operation protocol.ExecutionPlanProposalOperation,
+	requested PlanGoalBindingIntent,
+	actor ActorContext,
+) (PlanGoalBindingIntent, error) {
+	requested = PlanGoalBindingIntent(strings.TrimSpace(string(requested)))
+	switch operation {
+	case protocol.ExecutionPlanProposalCreate:
+		if requested == "" {
+			if actorHasExactGoalAuthority(actor) {
+				return PlanGoalBindingCurrent, nil
+			}
+			return PlanGoalBindingNone, nil
+		}
+		switch requested {
+		case PlanGoalBindingNone:
+			return requested, nil
+		case PlanGoalBindingCurrent:
+			if !actorHasExactGoalAuthority(actor) {
+				return "", domainError(
+					ErrorCodeGoalBindingConflict,
+					"goal_binding current requires exact Goal id and objective revision authority in this round",
+				)
+			}
+			return requested, nil
+		case PlanGoalBindingInherit:
+			return "", domainError(
+				ErrorCodeInvalidInput,
+				"goal_binding inherit is unavailable for operation: create",
+			)
+		default:
+			return "", invalidPlanGoalBindingIntentError()
+		}
+
+	case protocol.ExecutionPlanProposalReplan, protocol.ExecutionPlanProposalReplace:
+		if requested == "" || requested == PlanGoalBindingInherit {
+			return PlanGoalBindingInherit, nil
+		}
+		if requested == PlanGoalBindingNone || requested == PlanGoalBindingCurrent {
+			return "", domainError(
+				ErrorCodeInvalidInput,
+				"operation: replan and operation: replace require goal_binding inherit",
+			)
+		}
+		return "", invalidPlanGoalBindingIntentError()
+
+	default:
+		return "", domainError(ErrorCodePlanDocumentInvalid, "unsupported plan operation")
+	}
+}
+
+func actorHasExactGoalAuthority(actor ActorContext) bool {
+	return strings.TrimSpace(actor.GoalID) != "" && actor.GoalObjectiveRevision > 0
+}
+
+func invalidPlanGoalBindingIntentError() error {
+	return domainError(
+		ErrorCodeInvalidInput,
+		"goal_binding must be none, current, or inherit",
+	)
 }
 
 func (s *Service) validatePreparedPlanProposal(

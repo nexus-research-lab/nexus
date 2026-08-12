@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -30,6 +31,14 @@ type RoomHistoryStore struct {
 	paths        *Store
 	files        *SessionFileStore
 	agentHistory *AgentHistoryStore
+	countMu      sync.Mutex
+	countByKey   map[string]roomHistoryCountSnapshot
+}
+
+type roomHistoryCountSnapshot struct {
+	fileSize       int64
+	modifiedUnixNS int64
+	count          int
 }
 
 // NewRoomHistoryStore 创建 Room 共享历史门面。
@@ -39,6 +48,7 @@ func NewRoomHistoryStore(root string) *RoomHistoryStore {
 		paths:        paths,
 		files:        newSessionFileStore(paths),
 		agentHistory: NewAgentHistoryStore(root),
+		countByKey:   make(map[string]roomHistoryCountSnapshot),
 	}
 }
 
@@ -89,6 +99,73 @@ func (s *RoomHistoryStore) ReadMessages(
 		return nil, err
 	}
 	return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+}
+
+// MessageCount 返回 Room 共享历史的可见消息数。
+// 计数以 JSONL ledger 为真相，按文件长度缓存；只有 ledger 变化时才重新投影。
+func (s *RoomHistoryStore) MessageCount(ownerUserID string, conversationID string) (int, error) {
+	path := s.paths.RoomConversationOverlayPath(ownerUserID, conversationID)
+	parent, name, err := s.files.openRoomFileParent(ownerUserID, path, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	info, err := parent.Lstat(name)
+	parent.Close()
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	cacheKey := strings.Join([]string{
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(conversationID),
+	}, "\x00")
+	s.countMu.Lock()
+	cached, ok := s.countByKey[cacheKey]
+	s.countMu.Unlock()
+	if ok && cached.fileSize == info.Size() && cached.modifiedUnixNS == info.ModTime().UnixNano() {
+		return cached.count, nil
+	}
+	rows, err := s.ReadMessages(ownerUserID, conversationID, nil)
+	if err != nil {
+		return 0, err
+	}
+	parent, name, err = s.files.openRoomFileParent(ownerUserID, path, false)
+	if err != nil {
+		return 0, err
+	}
+	latestInfo, err := parent.Lstat(name)
+	parent.Close()
+	if err != nil {
+		return 0, err
+	}
+	if latestInfo.Size() != info.Size() || latestInfo.ModTime() != info.ModTime() {
+		rows, err = s.ReadMessages(ownerUserID, conversationID, nil)
+		if err != nil {
+			return 0, err
+		}
+		parent, name, err = s.files.openRoomFileParent(ownerUserID, path, false)
+		if err != nil {
+			return 0, err
+		}
+		info, err = parent.Lstat(name)
+		parent.Close()
+		if err != nil {
+			return 0, err
+		}
+	}
+	s.countMu.Lock()
+	s.countByKey[cacheKey] = roomHistoryCountSnapshot{
+		fileSize:       info.Size(),
+		modifiedUnixNS: info.ModTime().UnixNano(),
+		count:          len(rows),
+	}
+	s.countMu.Unlock()
+	return len(rows), nil
 }
 
 // ListTranscriptReferences 在共享 overlay 删除前抽取所有历史 transcript 引用。

@@ -1,6 +1,13 @@
 package websocket
 
-import handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+
+	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
 
 func firstStringValue(values ...any) string {
 	for _, value := range values {
@@ -27,4 +34,27 @@ func stringSliceValue(value any) []string {
 		}
 	}
 	return result
+}
+
+func goalCommandOptionsValue(value any) (protocol.GoalCommandOptions, error) {
+	if value == nil {
+		return protocol.GoalCommandOptions{}, nil
+	}
+	if typed, ok := value.(protocol.GoalCommandOptions); ok {
+		return typed, nil
+	}
+	if _, ok := value.(map[string]any); !ok {
+		return protocol.GoalCommandOptions{}, errors.New("goal_options must be an object")
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return protocol.GoalCommandOptions{}, err
+	}
+	var result protocol.GoalCommandOptions
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&result); err != nil {
+		return protocol.GoalCommandOptions{}, err
+	}
+	return result, nil
 }

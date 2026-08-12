@@ -31,6 +31,21 @@ func (r *memoryRepository) CreateGoal(_ context.Context, item protocol.Goal) (*p
 	return cloneGoal(item), nil
 }
 
+func (r *memoryRepository) CreateGoalWithEvent(
+	_ context.Context,
+	item protocol.Goal,
+	event protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	for _, current := range r.goals {
+		if current.SessionKey == item.SessionKey && protocol.IsCurrentGoalStatus(current.Status) {
+			return nil, ErrGoalConflict
+		}
+	}
+	r.goals[item.ID] = item
+	r.events = append(r.events, event)
+	return cloneGoal(item), nil
+}
+
 func (r *memoryRepository) GetGoal(_ context.Context, goalID string) (*protocol.Goal, error) {
 	item, ok := r.goals[goalID]
 	if !ok {
@@ -52,6 +67,22 @@ func (r *memoryRepository) ListGoals(_ context.Context) ([]protocol.Goal, error)
 	items := make([]protocol.Goal, 0, len(r.goals))
 	for _, item := range r.goals {
 		items = append(items, item)
+	}
+	sort.Slice(items, func(i int, j int) bool {
+		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].ID < items[j].ID
+		}
+		return items[i].UpdatedAt.Before(items[j].UpdatedAt)
+	})
+	return items, nil
+}
+
+func (r *memoryRepository) ListCurrentGoals(_ context.Context) ([]protocol.Goal, error) {
+	items := make([]protocol.Goal, 0, len(r.goals))
+	for _, item := range r.goals {
+		if protocol.IsCurrentGoalStatus(item.Status) {
+			items = append(items, item)
+		}
 	}
 	sort.Slice(items, func(i int, j int) bool {
 		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
@@ -87,6 +118,21 @@ func (r *memoryRepository) UpdateGoal(_ context.Context, item protocol.Goal, exp
 		return nil, sql.ErrNoRows
 	}
 	r.goals[item.ID] = item
+	return cloneGoal(item), nil
+}
+
+func (r *memoryRepository) UpdateGoalWithEvents(
+	_ context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	events []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	current, ok := r.goals[item.ID]
+	if !ok || current.Version != expectedVersion {
+		return nil, sql.ErrNoRows
+	}
+	r.goals[item.ID] = item
+	r.events = append(r.events, events...)
 	return cloneGoal(item), nil
 }
 
@@ -156,6 +202,24 @@ func (r *staleOnceUsageRepository) UpdateGoal(ctx context.Context, item protocol
 	return r.memoryRepository.UpdateGoal(ctx, item, expectedVersion)
 }
 
+func (r *staleOnceUsageRepository) UpdateGoalWithEvents(
+	ctx context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	events []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	if !r.injected && item.ID == r.staleGoalID {
+		r.injected = true
+		current := r.goals[item.ID]
+		current.Usage = current.Usage.Add(r.concurrentUsage)
+		current.TimeUsedSeconds += r.concurrentUsage.RuntimeSeconds
+		current.Version++
+		r.goals[item.ID] = current
+		return nil, sql.ErrNoRows
+	}
+	return r.memoryRepository.UpdateGoalWithEvents(ctx, item, expectedVersion, events)
+}
+
 type staleOnceVersionRepository struct {
 	*memoryRepository
 	staleGoalID string
@@ -175,6 +239,25 @@ func (r *staleOnceVersionRepository) UpdateGoal(ctx context.Context, item protoc
 		return nil, sql.ErrNoRows
 	}
 	return r.memoryRepository.UpdateGoal(ctx, item, expectedVersion)
+}
+
+func (r *staleOnceVersionRepository) UpdateGoalWithEvents(
+	ctx context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	events []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	if !r.injected && item.ID == r.staleGoalID {
+		r.injected = true
+		current := r.goals[item.ID]
+		if r.mutate != nil {
+			current = r.mutate(current)
+		}
+		current.Version++
+		r.goals[item.ID] = current
+		return nil, sql.ErrNoRows
+	}
+	return r.memoryRepository.UpdateGoalWithEvents(ctx, item, expectedVersion, events)
 }
 
 func cloneGoal(item protocol.Goal) *protocol.Goal {
@@ -243,6 +326,7 @@ func (b *fakeGoalBroadcaster) BroadcastEvent(_ context.Context, _ string, event 
 type fakePreviewFiller struct {
 	items          []fakePreviewItem
 	titleSchedules []fakePreviewTitleSchedule
+	repairs        []fakePreviewRepair
 }
 
 type fakePreviewItem struct {
@@ -256,6 +340,11 @@ type fakePreviewTitleSchedule struct {
 	fallbackTitle string
 }
 
+type fakePreviewRepair struct {
+	goal        protocol.Goal
+	ownerUserID string
+}
+
 func (f *fakePreviewFiller) FillEmptyPreviewFromGoal(_ context.Context, sessionKey string, title string) error {
 	f.items = append(f.items, fakePreviewItem{sessionKey: sessionKey, title: title})
 	return nil
@@ -267,6 +356,11 @@ func (f *fakePreviewFiller) ScheduleGoalTitleFromGoal(_ context.Context, goal pr
 		ownerUserID:   ownerUserID,
 		fallbackTitle: fallbackTitle,
 	})
+}
+
+func (f *fakePreviewFiller) RepairGoalTitleFromGoal(_ context.Context, goal protocol.Goal, ownerUserID string) error {
+	f.repairs = append(f.repairs, fakePreviewRepair{goal: goal, ownerUserID: ownerUserID})
+	return nil
 }
 
 type fakeGuidanceDispatcher struct {

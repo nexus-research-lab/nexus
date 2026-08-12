@@ -14,7 +14,7 @@ import (
 
 const titleRequestTimeout = 45 * time.Second
 
-// Service 负责按首条用户消息异步生成会话标题。
+// Service 负责按首个用户意图（普通消息或 Goal 控制命令）异步生成会话标题。
 type Service struct {
 	providers providerResolver
 	prefs     preferencesService

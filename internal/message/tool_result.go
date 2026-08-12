@@ -20,6 +20,8 @@ type ToolResultObservation struct {
 	ErrorCode       string
 	IsError         bool
 	MutationOutcome protocol.MutationResultOutcome
+	GoalID          string
+	GoalStatus      protocol.GoalStatus
 	// Recoverable 表示只用于模型自愈的内部工具结果，不代表真实工具执行。
 	Recoverable bool
 }
@@ -94,24 +96,42 @@ func attachMutationResultMetadata(
 	block map[string]any,
 	structuredOutput map[string]any,
 ) {
-	result, ok := protocol.ParseMutationResultEnvelope(
+	result, hasMutationResult := protocol.ParseMutationResultEnvelope(
 		structuredOutput,
 		block["structured_output"],
 		block["content"],
 	)
-	if !ok {
+	goalStatus, hasGoalStatus := protocol.ParseGoalStatusResult(
+		structuredOutput,
+		block["structured_output"],
+		block["content"],
+	)
+	goalID, hasGoalID := protocol.ParseGoalIDResult(
+		structuredOutput,
+		block["structured_output"],
+		block["content"],
+	)
+	if !hasMutationResult && !hasGoalStatus && !hasGoalID {
 		return
 	}
 	metadata := mapValue(block["metadata"])
 	if metadata == nil {
-		metadata = make(map[string]any, 3)
+		metadata = make(map[string]any, 4)
 	}
-	metadata[protocol.MutationOutcomeMetadataKey] = string(result.Outcome)
-	if result.Message != "" {
-		metadata[protocol.MutationMessageMetadataKey] = result.Message
+	if hasMutationResult {
+		metadata[protocol.MutationOutcomeMetadataKey] = string(result.Outcome)
+		if result.Message != "" {
+			metadata[protocol.MutationMessageMetadataKey] = result.Message
+		}
+		if result.ReasonCode != "" {
+			metadata[protocol.MutationReasonCodeMetadataKey] = result.ReasonCode
+		}
 	}
-	if result.ReasonCode != "" {
-		metadata[protocol.MutationReasonCodeMetadataKey] = result.ReasonCode
+	if hasGoalStatus {
+		metadata[protocol.GoalStatusMetadataKey] = string(goalStatus)
+	}
+	if hasGoalID {
+		metadata[protocol.GoalIDMetadataKey] = goalID
 	}
 	block["metadata"] = metadata
 }
@@ -194,16 +214,57 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 			block["structured_output"],
 			block["content"],
 		)
+		goalStatus, _ := protocol.ParseGoalStatusResult(
+			map[string]any{"goal": map[string]any{"status": metadata[protocol.GoalStatusMetadataKey]}},
+			block["structured_output"],
+			block["content"],
+		)
+		goalID, _ := protocol.ParseGoalIDResult(
+			map[string]any{"goalId": metadata[protocol.GoalIDMetadataKey]},
+			block["structured_output"],
+			block["content"],
+		)
 		observations = append(observations, ToolResultObservation{
 			ToolUseID:       toolUseID,
 			ToolName:        toolNames[toolUseID],
 			ErrorCode:       normalizeString(block["error_code"]),
 			IsError:         boolValue(block["is_error"]),
 			MutationOutcome: mutationResult.Outcome,
+			GoalID:          goalID,
+			GoalStatus:      goalStatus,
 			Recoverable:     normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
 		})
 	}
 	return observations
+}
+
+// SuccessfulGoalCompletionID 返回当前消息里成功 complete 的精确 Goal ID。
+// 工具结果返回 identity 时以它为准；旧结果没有 identity 时才回退到宿主在
+// 同一物理 round 固定的 Goal binding。两者冲突时 fail closed。
+func SuccessfulGoalCompletionID(
+	observations []ToolResultObservation,
+	boundGoalID string,
+) string {
+	boundGoalID = strings.TrimSpace(boundGoalID)
+	for _, observation := range observations {
+		if observation.Recoverable || observation.IsError ||
+			observation.MutationOutcome == protocol.MutationResultRejected ||
+			CanonicalToolName(observation.ToolName) != "update_goal" ||
+			observation.GoalStatus != protocol.GoalStatusComplete {
+			continue
+		}
+		resultGoalID := strings.TrimSpace(observation.GoalID)
+		if resultGoalID != "" {
+			if boundGoalID != "" && boundGoalID != resultGoalID {
+				continue
+			}
+			return resultGoalID
+		}
+		if boundGoalID != "" {
+			return boundGoalID
+		}
+	}
+	return ""
 }
 
 // AssistantHasCountedToolProgress 判断 assistant 快照里是否包含应计为 Goal 进展的工具完成。
@@ -240,7 +301,7 @@ func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
 }
 
 func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
-	if observation.Recoverable {
+	if observation.Recoverable || observation.IsError {
 		return false
 	}
 	if observation.MutationOutcome == protocol.MutationResultRejected ||
@@ -248,10 +309,10 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 		return false
 	}
 	switch CanonicalToolName(observation.ToolName) {
-	case "", "update_goal":
+	case "", "get_goal", "get_execution", "update_goal":
 		return false
 	case "retarget_goal":
-		return !observation.IsError
+		return true
 	}
 	switch normalizeString(observation.ErrorCode) {
 	case string(sdkpermission.ErrorCodeRequestTimeout):

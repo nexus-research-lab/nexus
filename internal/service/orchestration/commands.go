@@ -1,5 +1,5 @@
 // INPUT: sealed proposal materializer 的内部 Plan primitive，以及模型的 Assignment、Submission、Acceptance、Block/Resume、Takeover 与 complete 意图。
-// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement 与统一 MutationResult。
+// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement、统一 MutationResult 与提交后 Execution 失效事实。
 // POS: 模型语义 command 到 Repository 原子 command 的应用层适配；不暴露 start_work。
 package orchestration
 
@@ -143,7 +143,8 @@ func (s *Service) PlanExecution(
 	ctx context.Context,
 	actor ActorContext,
 	input PlanExecutionInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}
@@ -655,7 +656,8 @@ func (s *Service) AssignWork(
 	ctx context.Context,
 	actor ActorContext,
 	input AssignWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -750,7 +752,8 @@ func (s *Service) SubmitWork(
 	ctx context.Context,
 	actor ActorContext,
 	input SubmitWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -846,6 +849,7 @@ func (s *Service) SubmitWork(
 		if startErr != nil {
 			return s.storageMutationResult(snapshot, startErr, nextActions(snapshot, actor))
 		}
+		s.invalidateSnapshot(ctx, updated)
 		snapshot = updated
 		assignment = findAssignmentByID(snapshot, assignment.ID)
 		attempt = currentOrSucceededAttempt(snapshot, assignment.ID)
@@ -860,6 +864,7 @@ func (s *Service) SubmitWork(
 		if startErr != nil {
 			return s.storageMutationResult(snapshot, startErr, nextActions(snapshot, actor))
 		}
+		s.invalidateSnapshot(ctx, updated)
 		snapshot = updated
 		assignment = findAssignmentByID(snapshot, assignment.ID)
 		attempt = findAttemptByID(snapshot, attempt.ID)
@@ -879,6 +884,7 @@ func (s *Service) SubmitWork(
 		if finishErr != nil {
 			return s.storageMutationResult(snapshot, finishErr, nextActions(snapshot, actor))
 		}
+		s.invalidateSnapshot(ctx, updated)
 		snapshot = updated
 		assignment = findAssignmentByID(snapshot, assignment.ID)
 		attempt = findAttemptByID(snapshot, attempt.ID)
@@ -886,7 +892,7 @@ func (s *Service) SubmitWork(
 	if assignment == nil || attempt == nil || attempt.Status != protocol.WorkAttemptStatusSucceeded {
 		return RejectedResult(snapshot, newDomainError(
 			ErrorCodeDuplicateAttempt,
-			"current Attempt is terminal but did not succeed; retry with a new command_id",
+			"current Attempt is terminal without success; refresh Execution context and use an allowed coordinator recovery action to create a fresh Attempt before submitting again",
 			work.LogicalKey,
 			"",
 		), nextActions(snapshot, actor)), nil
@@ -960,7 +966,8 @@ func (s *Service) ReviewWork(
 	ctx context.Context,
 	actor ActorContext,
 	input ReviewWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1143,7 +1150,8 @@ func (s *Service) BlockWork(
 	ctx context.Context,
 	actor ActorContext,
 	input BlockWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1222,7 +1230,8 @@ func (s *Service) ResumeWork(
 	ctx context.Context,
 	actor ActorContext,
 	input ResumeWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1316,7 +1325,8 @@ func (s *Service) TakeOverWork(
 	ctx context.Context,
 	actor ActorContext,
 	input TakeOverWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1403,7 +1413,8 @@ func (s *Service) CompleteIfReady(
 	ctx context.Context,
 	actor ActorContext,
 	input CompleteExecutionInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,

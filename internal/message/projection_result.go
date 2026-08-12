@@ -48,6 +48,52 @@ func AttachResultSummary(assistant protocol.Message, result protocol.Message) (p
 	return merged, true
 }
 
+// BuildGoalCompletionReceipt 从 complete Goal 的稳定聚合报告构造完成收据。
+// report 缺失时仍保留完成事实；只有 usage_finalized 才公开 actual token。
+func BuildGoalCompletionReceipt(
+	goalID string,
+	roundID string,
+	report *protocol.GoalUsageReport,
+) protocol.GoalCompletionReceipt {
+	receipt := protocol.GoalCompletionReceipt{
+		GoalID:  strings.TrimSpace(goalID),
+		RoundID: strings.TrimSpace(roundID),
+	}
+	if report == nil {
+		return receipt
+	}
+	if report.TimeUsedSeconds > 0 {
+		seconds := report.TimeUsedSeconds
+		receipt.TimeUsedSeconds = &seconds
+	}
+	if report.UsageFinalized {
+		tokens := report.Usage.ActualTokens()
+		receipt.ActualTokens = &tokens
+	}
+	return receipt
+}
+
+// AttachGoalCompletionReceipt 把收据挂到同一条最终 assistant 快照。
+func AttachGoalCompletionReceipt(
+	assistant protocol.Message,
+	receipt protocol.GoalCompletionReceipt,
+) (protocol.Message, bool) {
+	if protocol.MessageRole(assistant) != "assistant" ||
+		strings.TrimSpace(receipt.GoalID) == "" ||
+		strings.TrimSpace(receipt.RoundID) == "" ||
+		strings.TrimSpace(normalizeString(assistant["message_id"])) == "" {
+		return nil, false
+	}
+	messageRoundID := protocol.MessageRoundID(assistant)
+	agentRoundID := strings.TrimSpace(normalizeString(assistant["agent_round_id"]))
+	if receipt.RoundID != messageRoundID && receipt.RoundID != agentRoundID {
+		return nil, false
+	}
+	merged := protocol.Clone(assistant)
+	merged[protocol.GoalCompletionReceiptField] = receipt
+	return merged, true
+}
+
 // ProjectResultMessage 把 result 投影成前端统一使用的 assistant 终态形态。
 func ProjectResultMessage(assistant protocol.Message, result protocol.Message) protocol.Message {
 	if merged, ok := AttachResultSummary(assistant, result); ok {

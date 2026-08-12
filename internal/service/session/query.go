@@ -54,7 +54,7 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		if reconcileErr != nil {
 			return nil, reconcileErr
 		}
-		if shouldHideWorkspaceSession(reconciled) {
+		if protocol.IsRoomSharedSessionKey(reconciled.SessionKey) {
 			continue
 		}
 		filteredFileSessions = append(filteredFileSessions, reconciled)
@@ -86,7 +86,21 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 		return nil, err
 	}
 	if roomSession != nil {
-		normalized := s.applyRuntimeStateToSession(*roomSession)
+		workspacePaths, resolveErr := s.resolveWorkspacePaths(ctx, parsed.AgentID)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		workspacePath := resolveHistoryWorkspacePath(workspacePaths, parsed)
+		hydrated, hydrateErr := s.hydrateRoomHistorySession(
+			ctx,
+			workspacePath,
+			sessionKey,
+			*roomSession,
+		)
+		if hydrateErr != nil {
+			return nil, hydrateErr
+		}
+		normalized := s.applyRuntimeStateToSession(*hydrated)
 		projected, projectErr := s.projectExternalSessionIdentity(ctx, normalized)
 		if projectErr != nil {
 			return nil, projectErr

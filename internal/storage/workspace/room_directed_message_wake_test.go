@@ -37,6 +37,14 @@ func TestRoomDirectedMessageWakeStoreRestoresOnlyPendingWakes(t *testing.T) {
 	if err != nil || len(pending) != 0 {
 		t.Fatalf("已完成唤醒不应在重启后恢复: pending=%+v err=%v", pending, err)
 	}
+	inserted, err := store.ScheduleIfAbsent(wake)
+	if err != nil || inserted {
+		t.Fatalf("已完成 wake 的工具重试必须保持终态: inserted=%t err=%v", inserted, err)
+	}
+	pending, err = NewRoomDirectedMessageWakeStore(root).Pending(wake.OwnerUserID)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("工具重试不应复活已完成 wake: pending=%+v err=%v", pending, err)
+	}
 }
 
 func TestRoomDirectedMessageWakeStorePendingAllPreservesOriginalOwner(t *testing.T) {

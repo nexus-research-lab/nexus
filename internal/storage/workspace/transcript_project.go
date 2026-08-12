@@ -134,6 +134,7 @@ func projectTranscriptChainWithFilter(
 				marker.Content,
 				marker.Attachments,
 				marker.DeliveryPolicy,
+				marker.ControlOnly,
 				entryTimestamp,
 			)
 			if userMessage == nil {
@@ -193,6 +194,7 @@ func buildTranscriptUserMessage(
 	contentOverride string,
 	attachments []protocol.ChatAttachment,
 	deliveryPolicy string,
+	controlOnly bool,
 	timestamp int64,
 ) *protocol.Message {
 	content := firstNonEmpty(contentOverride, transcriptUserContent(entry))
@@ -220,6 +222,9 @@ func buildTranscriptUserMessage(
 	}
 	if strings.TrimSpace(deliveryPolicy) != "" {
 		payload["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
+	}
+	if controlOnly {
+		payload["control_only"] = true
 	}
 	if normalizedAttachments := protocol.NormalizeChatAttachments(attachments, agentID); len(normalizedAttachments) > 0 {
 		payload["attachments"] = normalizedAttachments

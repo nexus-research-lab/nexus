@@ -28,6 +28,7 @@ export type EventType =
   | 'goal_progress'
   | 'goal_continuation'
   | 'goal_cleared'
+  | 'execution_invalidated'
   | 'permission_request'
   | 'permission_request_resolved'
   | 'channel_authorization'
@@ -94,6 +95,11 @@ export interface SessionStatusData {
 
 export interface RuntimeStatusData {
   status: 'compacting' | null;
+}
+
+export interface ExecutionInvalidationData {
+  execution_id: string;
+  version: number;
 }
 
 export type ChannelAuthorizationKind = 'qr_code' | 'verification_code';

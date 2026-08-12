@@ -2,6 +2,7 @@ package automation
 
 import (
 	"database/sql"
+	"math"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -444,8 +445,13 @@ func TestSQLiteAutomationDeliveryRouteMigrationUpgradesNewerParallelLedger(t *te
 	if err != nil {
 		t.Fatalf("读取 migration 版本失败: %v", err)
 	}
-	if version != 96 {
-		t.Fatalf("migration version = %d, want 96", version)
+	migrations, err := goose.CollectMigrations(dir, 0, math.MaxInt64)
+	if err != nil || len(migrations) == 0 {
+		t.Fatalf("collect current migrations: %v", err)
+	}
+	wantVersion := migrations[len(migrations)-1].Version
+	if version != wantVersion {
+		t.Fatalf("migration version = %d, want %d", version, wantVersion)
 	}
 	for _, target := range []struct {
 		table  string

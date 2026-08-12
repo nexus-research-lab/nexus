@@ -3373,6 +3373,71 @@ test("DM live and terminal keep the final response on one content surface", asyn
   );
 });
 
+test("Goal 完成收据只在 assistant 真正终态后打开 footer", async () => {
+  const { resolveAssistantDisplayState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/display/message-item-display-model.ts",
+  );
+  const projection = (streamStatus) => ({
+    assistantMessages: [{}],
+    directOrderedProjection: { content: [] },
+    finalAssistantContent: [{ type: "text", text: "最终交付" }],
+    finalAssistantStreamingIndexes: new Set(),
+    finalAssistantText: "最终交付",
+    goalCompletionReceipt: { goal_id: "goal-hidden", round_id: "round-hidden" },
+    liveActivityState: null,
+    mergedContent: [{ type: "text", text: "最终交付" }],
+    pendingInteractionPermissions: [],
+    processProjection: { content: [] },
+    resultSummary: null,
+    stats: null,
+    streamStatus,
+    streamingBlockIndexes: new Set(),
+  });
+  const resolve = (streamStatus) => resolveAssistantDisplayState({
+    assistantContentMode: "dm_archived",
+    hasStopHandler: false,
+    isLastRound: true,
+    isLoading: streamStatus !== "done",
+    pendingPermissionCount: 0,
+    projection: projection(streamStatus),
+  });
+
+  assert.equal(resolve("streaming").footerVisible, false);
+  assert.equal(resolve("done").footerVisible, true);
+});
+
+test("迟到历史用 Goal 完成收据推进同一 assistant 快照", async () => {
+  const { mergeLoadedMessages } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+  const base = {
+    agent_id: "agent-1",
+    content: [{ type: "text", text: "最终交付" }],
+    is_complete: true,
+    message_id: "assistant-receipt-history",
+    role: "assistant",
+    round_id: "round-receipt-history",
+    session_key: "agent:agent-1:ws:dm:receipt-history",
+    stop_reason: "end_turn",
+    timestamp: 1000,
+  };
+  const merged = mergeLoadedMessages(
+    [{
+      ...base,
+      goal_completion_receipt: {
+        actual_tokens: 42,
+        goal_id: "goal-hidden",
+        round_id: base.round_id,
+      },
+    }],
+    [base],
+  );
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].goal_completion_receipt.actual_tokens, 42);
+  assert.equal(merged[0].content[0].text, "最终交付");
+});
+
 test("Room terminal result keeps public structure, hides thinking, and preserves monotonic text", async () => {
   const { resolveRoomResultFinalAssistantContent } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",

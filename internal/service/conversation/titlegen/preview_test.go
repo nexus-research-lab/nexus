@@ -33,6 +33,126 @@ func TestFillEmptyPreviewFromGoalUpdatesDefaultSessionTitle(t *testing.T) {
 	}
 }
 
+func TestFillEmptyPreviewFromGoalUpdatesDMConversationTitle(t *testing.T) {
+	t.Parallel()
+
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:ws:dm:conv_1": {
+				SessionKey: "agent:a:ws:dm:conv_1",
+				Title:      "Kevin",
+			},
+		},
+	}
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "Kevin",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: "",
+				},
+			},
+		},
+	}
+	events := &fakeEventBroadcaster{}
+	service := NewService(nil, sessionStore, roomStore, events)
+
+	if err := service.FillEmptyPreviewFromGoal(
+		context.Background(),
+		"agent:a:ws:dm:conv_1",
+		"调研 M3 芯片",
+	); err != nil {
+		t.Fatalf("FillEmptyPreviewFromGoal() error = %v", err)
+	}
+
+	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "Kevin" {
+		t.Fatalf("session title = %q, want existing Agent title", got)
+	}
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "调研 M3 芯片" {
+		t.Fatalf("conversation title = %q, want Goal fallback", got)
+	}
+	if len(events.events) != 1 ||
+		events.events[0].Data["room_id"] != "room_1" ||
+		events.events[0].Data["conversation_id"] != "conv_1" {
+		t.Fatalf("events = %#v, want DM conversation resync", events.events)
+	}
+}
+
+func TestFillEmptyPreviewFromGoalKeepsRoomBackedWorkspaceTitleProjection(t *testing.T) {
+	t.Parallel()
+
+	roomSessionID := "room-session-1"
+	roomID := "room_1"
+	conversationID := "conv_1"
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:ws:dm:conv_1": {
+				SessionKey:     "agent:a:ws:dm:conv_1",
+				Title:          "New Chat",
+				RoomSessionID:  &roomSessionID,
+				RoomID:         &roomID,
+				ConversationID: &conversationID,
+			},
+		},
+	}
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			conversationID: {
+				Room:         protocol.RoomRecord{ID: roomID, Name: "Kevin"},
+				Conversation: protocol.ConversationRecord{ID: conversationID, Title: ""},
+			},
+		},
+	}
+	service := NewService(nil, sessionStore, roomStore, &fakeEventBroadcaster{})
+
+	if err := service.FillEmptyPreviewFromGoal(
+		context.Background(),
+		"agent:a:ws:dm:conv_1",
+		"调研 M3 芯片",
+	); err != nil {
+		t.Fatalf("FillEmptyPreviewFromGoal() error = %v", err)
+	}
+	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "New Chat" {
+		t.Fatalf("workspace title = %q, want unchanged projection", got)
+	}
+	if got := roomStore.contexts[conversationID].Conversation.Title; got != "调研 M3 芯片" {
+		t.Fatalf("conversation title = %q, want Goal fallback", got)
+	}
+}
+
+func TestRepairGoalTitleFromGoalUsesDurableOwner(t *testing.T) {
+	t.Parallel()
+
+	const ownerUserID = "owner-recovery"
+	roomStore := &ownerRecordingRoomService{
+		fakeRoomService: fakeRoomService{contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room:         protocol.RoomRecord{ID: "room_1", Name: "Kevin"},
+				Conversation: protocol.ConversationRecord{ID: "conv_1", Title: ""},
+			},
+		}},
+	}
+	service := NewService(nil, nil, roomStore, &fakeEventBroadcaster{})
+
+	err := service.RepairGoalTitleFromGoal(context.Background(), protocol.Goal{
+		SessionKey: "agent:a:ws:dm:conv_1",
+		Objective:  "对 Apple M3 芯片的性能、架构和产品定位进行全面调研",
+	}, ownerUserID)
+	if err != nil {
+		t.Fatalf("RepairGoalTitleFromGoal() error = %v", err)
+	}
+	if roomStore.ownerUserID != ownerUserID {
+		t.Fatalf("room lookup owner = %q, want %q", roomStore.ownerUserID, ownerUserID)
+	}
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "对 Apple M3 芯片的性能、架构和产品定位进行全面调研" {
+		t.Fatalf("conversation title = %q, want canonical Goal fallback", got)
+	}
+}
+
 func TestFillEmptyPreviewFromGoalUpdatesDefaultRoomConversationTitle(t *testing.T) {
 	t.Parallel()
 

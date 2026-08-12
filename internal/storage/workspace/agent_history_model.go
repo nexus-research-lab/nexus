@@ -38,6 +38,7 @@ type transcriptRoundMarker struct {
 	DeliveryPolicy  string
 	HiddenFromUser  bool
 	Synthetic       bool
+	ControlOnly     bool
 	Purpose         string
 	Metadata        map[string]string
 }
@@ -57,8 +58,10 @@ type RoundMarkerOptions struct {
 	Attachments     []protocol.ChatAttachment
 	HiddenFromUser  bool
 	Synthetic       bool
-	Purpose         string
-	Metadata        map[string]string
+	// ControlOnly 表示该用户可见记录已经由宿主控制面完成，不等待 assistant/result 终态。
+	ControlOnly bool
+	Purpose     string
+	Metadata    map[string]string
 }
 
 // RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。

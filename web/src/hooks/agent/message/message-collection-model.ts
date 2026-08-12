@@ -218,6 +218,7 @@ function assistantSnapshotProgress(
     normalized.stop_reason ? 1 : 0,
     serializedSize(normalized.content),
     serializedSize(normalized.usage),
+    serializedSize(normalized.goal_completion_receipt),
     normalized.timestamp,
   ];
 }

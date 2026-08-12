@@ -1,4 +1,4 @@
-// Package titlegen 按首条用户消息异步生成会话标题。
+// Package titlegen 按首条普通用户消息或 Goal 控制意图异步生成会话标题。
 //
 // L2 | 父级: internal/service/conversation（L1 见 AGENTS.md）
 //

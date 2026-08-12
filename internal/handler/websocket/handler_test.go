@@ -11,8 +11,11 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -129,6 +132,230 @@ func TestWebSocketExternalIMSessionBindingDoesNotEmitHostCommandsOrStartupError(
 		return
 	}
 	t.Fatal("外部 IM session 未收到 command_catalog")
+}
+
+func TestWebSocketSetGoalUsesDurableControlRecordInsteadOfChatRound(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	cfg.GoalEnabled = true
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	ensureRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/nexus/v1/rooms/dm/"+cfg.DefaultAgentID,
+		nil,
+	)
+	ensureRecorder := httptest.NewRecorder()
+	server.Router().ServeHTTP(ensureRecorder, ensureRequest)
+	if ensureRecorder.Code != http.StatusOK {
+		t.Fatalf("创建 Goal DM conversation 失败: status=%d body=%s", ensureRecorder.Code, ensureRecorder.Body.String())
+	}
+	var ensured struct {
+		Data protocol.ConversationContextAggregate `json:"data"`
+	}
+	if err = json.Unmarshal(ensureRecorder.Body.Bytes(), &ensured); err != nil {
+		t.Fatalf("解析 Goal DM conversation 失败: %v", err)
+	}
+	conversationID := ensured.Data.Conversation.ID
+	if conversationID == "" {
+		t.Fatalf("创建 Goal DM conversation 返回空 ID: %s", ensureRecorder.Body.String())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(
+		ctx,
+		"ws"+strings.TrimPrefix(httpServer.URL, "http")+"/nexus/v1/chat/ws",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	sessionKey := protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		cfg.DefaultAgentID,
+		protocol.RoomTypeDM,
+	)
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "set_goal",
+		"session_key":       sessionKey,
+		"agent_id":          "nexus",
+		"objective":         "Verify dedicated Goal control",
+		"client_request_id": "request-set-goal",
+		"client_message_id": "client-set-goal",
+		"goal_options": map[string]any{
+			"replace_existing": true,
+			"token_budget":     nil,
+		},
+	}); err != nil {
+		t.Fatalf("发送 set_goal 失败: %v", err)
+	}
+
+	var ack protocol.EventMessage
+	for range 30 {
+		event := readEventMessage(t, conn)
+		if event.EventType == protocol.EventTypeError {
+			t.Fatalf("set_goal error = %+v", event)
+		}
+		if event.EventType == protocol.EventTypeChatAck &&
+			event.Data["client_request_id"] == "request-set-goal" {
+			ack = event
+			break
+		}
+	}
+	if ack.EventType != protocol.EventTypeChatAck || ack.Data["user_message_committed"] != true {
+		t.Fatalf("set_goal ack = %+v, want durable chat_ack", ack)
+	}
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	t.Cleanup(func() { _ = db.Close() })
+	var (
+		conversationTitle string
+		conversationDraft bool
+	)
+	if err = db.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(title, ''), is_draft FROM conversations WHERE id = ?`,
+		conversationID,
+	).Scan(&conversationTitle, &conversationDraft); err != nil {
+		t.Fatalf("读取 Goal conversation 标题失败: %v", err)
+	}
+	if strings.TrimSpace(conversationTitle) == "" || conversationTitle == "新会话" || conversationTitle == "New session" {
+		t.Fatalf("conversation title = %q, want Goal intent preview", conversationTitle)
+	}
+	if conversationDraft {
+		t.Fatal("conversation remains draft after durable Goal control")
+	}
+
+	ownerHistory := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
+	ownerSessions := workspacestore.NewSessionFileStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
+	workspacePath := agentsvc.ResolveWorkspacePath(cfg, authctx.SystemUserID, "nexus")
+	sessionItem, _, err := ownerSessions.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil || sessionItem == nil {
+		t.Fatalf("Goal control session = %#v error=%v", sessionItem, err)
+	}
+	if sessionItem.MessageCount < 1 || sessionItem.Title == "New Chat" {
+		t.Fatalf("session after Goal control = %#v, want started preview", sessionItem)
+	}
+	rows, err := ownerHistory.ReadMessages(workspacePath, *sessionItem, nil)
+	if err != nil {
+		t.Fatalf("读取 Goal control history 失败: %v", err)
+	}
+	found := false
+	controlRoundID, _ := ack.Data["round_id"].(string)
+	for _, row := range rows {
+		metadataSubtype := ""
+		switch metadata := row["metadata"].(type) {
+		case map[string]string:
+			metadataSubtype = metadata["subtype"]
+		case map[string]any:
+			metadataSubtype, _ = metadata["subtype"].(string)
+		}
+		if row["role"] == "user" &&
+			row["content"] == "/goal Verify dedicated Goal control" &&
+			metadataSubtype == "goal_set" &&
+			row["control_only"] == true {
+			found = true
+		}
+		if row["role"] == "assistant" && row["round_id"] == controlRoundID {
+			t.Fatalf("Goal control round 不应生成 assistant 终态: %#v", row)
+		}
+	}
+	if !found {
+		t.Fatalf("Goal control history = %#v, want durable goal_set user item", rows)
+	}
+}
+
+func TestWebSocketSlashGoalUsesSameDurableControlPath(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	cfg.GoalEnabled = true
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(
+		ctx,
+		"ws"+strings.TrimPrefix(httpServer.URL, "http")+"/nexus/v1/chat/ws",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	const (
+		sessionKey = "agent:nexus:ws:dm:slash-goal-control"
+		requestID  = "request-slash-goal"
+		content    = "/goal Verify shared Slash Goal control"
+	)
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "chat",
+		"session_key":       sessionKey,
+		"agent_id":          "nexus",
+		"content":           content,
+		"client_request_id": requestID,
+		"client_message_id": "client-slash-goal",
+	}); err != nil {
+		t.Fatalf("发送 /goal 失败: %v", err)
+	}
+
+	var ack protocol.EventMessage
+	for range 30 {
+		event := readEventMessage(t, conn)
+		if event.EventType == protocol.EventTypeError {
+			t.Fatalf("/goal error = %+v", event)
+		}
+		if event.EventType == protocol.EventTypeChatAck &&
+			event.Data["client_request_id"] == requestID {
+			ack = event
+			break
+		}
+	}
+	if ack.Data["user_message_committed"] != true {
+		t.Fatalf("/goal ack = %+v, want durable chat_ack", ack)
+	}
+
+	ownerHistory := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
+	ownerSessions := workspacestore.NewSessionFileStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
+	workspacePath := agentsvc.ResolveWorkspacePath(cfg, authctx.SystemUserID, "nexus")
+	sessionItem, _, err := ownerSessions.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil || sessionItem == nil {
+		t.Fatalf("Slash Goal session = %#v error=%v", sessionItem, err)
+	}
+	rows, err := ownerHistory.ReadMessages(workspacePath, *sessionItem, nil)
+	if err != nil {
+		t.Fatalf("读取 Slash Goal history 失败: %v", err)
+	}
+	controlRoundID, _ := ack.Data["round_id"].(string)
+	found := false
+	for _, row := range rows {
+		if row["role"] == "user" && row["content"] == content &&
+			row["control_only"] == true {
+			found = true
+		}
+		if row["role"] == "assistant" && row["round_id"] == controlRoundID {
+			t.Fatalf("Slash Goal control round 不应生成 assistant 终态: %#v", row)
+		}
+	}
+	if !found {
+		t.Fatalf("Slash Goal history = %#v, want the same durable control record", rows)
+	}
 }
 
 func TestWebSocketDispatchesRewriteLastToControlHandler(t *testing.T) {

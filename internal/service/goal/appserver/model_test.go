@@ -51,6 +51,27 @@ func TestAppServerRPCRequestIDPreservesStringAndInteger(t *testing.T) {
 	}
 }
 
+func TestAppServerRPCConflictErrorIncludesStableReasonCode(t *testing.T) {
+	payload, err := json.Marshal(NewAppServerRPCConflictError(
+		"goal execution binding conflict",
+		AppServerRPCReasonExecutionBindingConflict,
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Code int64                 `json:"code"`
+		Data AppServerRPCErrorData `json:"data"`
+	}
+	if err = json.Unmarshal(payload, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Code != AppServerRPCConflictCode ||
+		envelope.Data.ReasonCode != AppServerRPCReasonExecutionBindingConflict {
+		t.Fatalf("conflict payload = %s", string(payload))
+	}
+}
+
 func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 	budget := int64(100)
 	item := protocol.Goal{

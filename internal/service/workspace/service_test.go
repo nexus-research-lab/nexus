@@ -17,6 +17,7 @@ import (
 )
 
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
+	t.Setenv(nexusctlCommandPathEnvName, "")
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -193,7 +194,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("execution-orchestrator", "references", "graph-control.md"): {
 			"两层图",
 			"nexus_plan: 1",
-			"produce`、`review`、`verify` 或 `integrate",
+			"document_contract",
+			"Skill 不复制完整字段表",
 			"自审折叠在同一 Agent 节点",
 			"Goal 生命周期不是使用 Loop 的前提",
 		},

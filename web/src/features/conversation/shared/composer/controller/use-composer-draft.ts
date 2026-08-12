@@ -12,28 +12,28 @@ import type { ComposerLocalAttachment } from "../attachments/composer-local-atta
 import {
   EMPTY_COMPOSER_DRAFT,
   type ComposerDraftSnapshot,
+  type ComposerGoalSubmission,
   useComposerDraftStore,
 } from "../composer-draft-store";
 import type { ComposerInputMode } from "../composer-model";
 
 interface ComposerDraftTransientState {
-  goalError: string | null;
   isActionMenuOpen: boolean;
-  isGoalCreating: boolean;
   isLoopPickerOpen: boolean;
 }
 
 interface ComposerDraftState
-  extends ComposerDraftSnapshot, ComposerDraftTransientState {}
+  extends ComposerDraftSnapshot, ComposerDraftTransientState {
+  goalError: string | null;
+  isGoalCreating: boolean;
+}
 
 type DraftTransition = (
   state: ComposerDraftTransientState,
 ) => ComposerDraftTransientState;
 
 const INITIAL_DRAFT_STATE: ComposerDraftTransientState = {
-  goalError: null,
   isActionMenuOpen: false,
-  isGoalCreating: false,
   isLoopPickerOpen: false,
 };
 
@@ -47,14 +47,18 @@ export interface ComposerDraftController {
   state: ComposerDraftState;
   applyPrompt: (prompt: string, mode: ComposerInputMode) => void;
   cancelGoal: () => void;
+  beginGoalSubmission: () => ComposerGoalSubmission | null;
   claimMessageSubmission: () => ComposerDraftSnapshot | null;
-  resetAfterGoal: () => void;
+  completeGoalSubmission: (submission: ComposerGoalSubmission) => boolean;
+  failGoalSubmission: (
+    submission: ComposerGoalSubmission,
+    errorMessage: string,
+  ) => boolean;
   restoreFailedMessageSubmission: (
     submittedDraft: ComposerDraftSnapshot,
   ) => boolean;
   setActionMenuOpen: Dispatch<SetStateAction<boolean>>;
   setAttachments: Dispatch<SetStateAction<ComposerLocalAttachment[]>>;
-  setGoalCreating: Dispatch<SetStateAction<boolean>>;
   setGoalError: Dispatch<SetStateAction<string | null>>;
   setInput: Dispatch<SetStateAction<string>>;
   setLoopPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -68,11 +72,29 @@ export function useComposerDraft(
   const draftSnapshot = useComposerDraftStore(
     (state) => state.drafts_by_scope[draftScopeKey] ?? EMPTY_COMPOSER_DRAFT,
   );
+  const goalError = useComposerDraftStore(
+    (state) => state.goal_error_by_scope[draftScopeKey] ?? null,
+  );
+  const isGoalCreating = useComposerDraftStore(
+    (state) => Boolean(state.goal_submission_by_scope[draftScopeKey]),
+  );
+  const beginGoalSubmission = useComposerDraftStore(
+    (state) => state.begin_goal_submission,
+  );
   const claimComposerDraftForSubmission = useComposerDraftStore(
     (state) => state.claim_composer_draft_for_submission,
   );
   const restoreComposerDraftAfterFailedSubmission = useComposerDraftStore(
     (state) => state.restore_composer_draft_after_failed_submission,
+  );
+  const completeGoalSubmission = useComposerDraftStore(
+    (state) => state.complete_goal_submission,
+  );
+  const failGoalSubmission = useComposerDraftStore(
+    (state) => state.fail_goal_submission,
+  );
+  const setComposerGoalError = useComposerDraftStore(
+    (state) => state.set_goal_error,
   );
   const updateComposerDraft = useComposerDraftStore(
     (state) => state.update_composer_draft,
@@ -128,54 +150,42 @@ export function useComposerDraft(
       isLoopPickerOpen: resolveStateAction(action, current.isLoopPickerOpen),
     }));
   }, [transition]);
-  const setGoalCreating = useCallback<Dispatch<SetStateAction<boolean>>>((action) => {
-    transition((current) => ({
-      ...current,
-      isGoalCreating: resolveStateAction(action, current.isGoalCreating),
-    }));
-  }, [transition]);
   const setGoalError = useCallback<Dispatch<SetStateAction<string | null>>>((action) => {
-    transition((current) => ({
-      ...current,
-      goalError: resolveStateAction(action, current.goalError),
-    }));
-  }, [transition]);
+    const current = useComposerDraftStore
+      .getState()
+      .goal_error_by_scope[draftScopeKey] ?? null;
+    setComposerGoalError(
+      draftScopeKey,
+      resolveStateAction(action, current),
+    );
+  }, [draftScopeKey, setComposerGoalError]);
 
   const startGoal = useCallback(() => {
     setInputMode("goal");
-    transition((current) => ({
-      ...current,
-      goalError: null,
-      isActionMenuOpen: false,
-    }));
-  }, [setInputMode, transition]);
+    setGoalError(null);
+    transition((current) => ({ ...current, isActionMenuOpen: false }));
+  }, [setGoalError, setInputMode, transition]);
   const cancelGoal = useCallback(() => {
     setInputMode("message");
-    transition((current) => ({
-      ...current,
-      goalError: null,
-      isActionMenuOpen: false,
-    }));
-  }, [setInputMode, transition]);
+    setGoalError(null);
+    transition((current) => ({ ...current, isActionMenuOpen: false }));
+  }, [setGoalError, setInputMode, transition]);
   const applyPrompt = useCallback((prompt: string, mode: ComposerInputMode) => {
     updateComposerDraft(draftScopeKey, (current) => ({
       ...current,
       input: prompt,
       inputMode: mode,
     }));
-    transition((current) => ({
-      ...current,
-      goalError: null,
-    }));
-  }, [draftScopeKey, transition, updateComposerDraft]);
-  const claimMessageSubmission = useCallback(() => (
+    setGoalError(null);
+  }, [draftScopeKey, setGoalError, updateComposerDraft]);
+  const claimDraftSubmission = useCallback(() => (
     claimComposerDraftForSubmission(draftScopeKey, draftSnapshot.revision)
   ), [
     claimComposerDraftForSubmission,
     draftScopeKey,
     draftSnapshot.revision,
   ]);
-  const restoreFailedMessageSubmission = useCallback((
+  const restoreFailedDraftSubmission = useCallback((
     submittedDraft: ComposerDraftSnapshot,
   ) => restoreComposerDraftAfterFailedSubmission(
     draftScopeKey,
@@ -184,38 +194,27 @@ export function useComposerDraft(
     draftScopeKey,
     restoreComposerDraftAfterFailedSubmission,
   ]);
-  const resetAfterGoal = useCallback(() => {
-    const cleared = claimComposerDraftForSubmission(
-      draftScopeKey,
-      draftSnapshot.revision,
-    );
-    if (!cleared) {
-      return;
-    }
-    transition((current) => ({
-      ...current,
-      goalError: null,
-    }));
-  }, [
-    claimComposerDraftForSubmission,
+  const beginScopedGoalSubmission = useCallback(() => beginGoalSubmission(
     draftScopeKey,
     draftSnapshot.revision,
-    transition,
-  ]);
+  ), [beginGoalSubmission, draftScopeKey, draftSnapshot.revision]);
 
   return {
     state: {
       ...transientState,
       ...draftSnapshot,
+      goalError,
+      isGoalCreating,
     },
     applyPrompt,
+    beginGoalSubmission: beginScopedGoalSubmission,
     cancelGoal,
-    claimMessageSubmission,
-    resetAfterGoal,
-    restoreFailedMessageSubmission,
+    claimMessageSubmission: claimDraftSubmission,
+    completeGoalSubmission,
+    failGoalSubmission,
+    restoreFailedMessageSubmission: restoreFailedDraftSubmission,
     setActionMenuOpen,
     setAttachments,
-    setGoalCreating,
     setGoalError,
     setInput,
     setLoopPickerOpen,

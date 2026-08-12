@@ -389,6 +389,47 @@ func TestRepositoryRuntimeGraphKeepsRootAndLatestNodeWhenProjectionIsPartial(t *
 	}
 }
 
+func TestRepositoryWorkGraphRuntimeGraphDefersProjectionLimit(t *testing.T) {
+	t.Parallel()
+
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	startedAt := time.Date(2026, 8, 12, 8, 0, 0, 0, time.UTC)
+	root := protocol.ExecutionRuntimeNodeRun{
+		ID: "workgraph-runtime-root", GraphID: "round:workgraph-window",
+		OwnerUserID: "owner-workgraph-window", SessionKey: "session-workgraph-window",
+		Kind: protocol.ExecutionRuntimeNodeAgent, SubjectID: "agent-round-workgraph-window",
+		RootRoundID: "round-workgraph-window", RuntimeRoundID: "round-workgraph-window",
+		AgentRoundID: "agent-round-workgraph-window", AgentID: "agent-workgraph-window",
+		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: startedAt, UpdatedAt: startedAt,
+	}
+	if err := repository.UpsertRuntimeGraphNode(ctx, root); err != nil {
+		t.Fatal(err)
+	}
+	for index := 1; index <= protocol.ExecutionRuntimeGraphNodeProjectionLimit; index++ {
+		node := root
+		node.ID = fmt.Sprintf("workgraph-runtime-detail-%03d", index)
+		node.Kind = protocol.ExecutionRuntimeNodeTool
+		node.SubjectID = fmt.Sprintf("workgraph-detail-%03d", index)
+		node.ParentSubjectID = root.SubjectID
+		node.Name = "Read"
+		node.StartedAt = startedAt.Add(time.Duration(index) * time.Second)
+		node.UpdatedAt = node.StartedAt
+		if err := repository.UpsertRuntimeGraphNode(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	graph, err := repository.GetWorkGraphRuntimeGraph(ctx, root.OwnerUserID, root.SessionKey, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if graph.NodeTotal != protocol.ExecutionRuntimeGraphNodeProjectionLimit+1 ||
+		graph.NodesTruncated || len(graph.Nodes) != graph.NodeTotal {
+		t.Fatalf("workgraph visibility input was truncated: %+v", graph)
+	}
+}
+
 func TestRepositoryRuntimeGraphArtifactSurvivesArtifactBeforeToolNodeAndGraphPromotion(t *testing.T) {
 	t.Parallel()
 

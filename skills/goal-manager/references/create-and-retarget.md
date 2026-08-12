@@ -26,8 +26,12 @@
 1. 形成 execution-ready objective。
 2. 调用 `get_goal` 确认当前会话没有未结束 Goal。
 3. 调用 `create_goal`；只有用户明确给出预算时才传 `token_budget`。
-4. 如果还要建立绑定该 Goal 的 WorkGraph，必须等待 `create_goal` 成功后再调用 `prepare_plan_execution`；二者不是独立动作，不得放进同一个并行工具批次。Plan 会从 active Goal 继承 exact objective。
+4. 如果当前已经有 objective/owner/scope 兼容的 transient WorkGraph，`create_goal` 会把该 Execution 绑定到新 Goal，不得再创建第二张图。只有两者都尚不存在、且还要建立 WorkGraph 时，才等待 `create_goal` 成功后调用 `prepare_plan_execution`；在这个可选绑定分支中两步有因果顺序，不得放进同一个并行工具批次。Plan 会从 exact active Goal 继承 objective。
 5. 创建成功后用一句话确认目标，然后继续执行，不解释底层工具。
+
+如果用户说“设定/更改 Goal”而当前状态未知，先以 `get_goal` 结果分流：空结果进入上述创建流程；存在当前 Goal 才进入下方纠正流程。不要用 `update_goal` 试探或代替任一分支；它只收口 `complete` / `blocked`。
+
+第 4 步是可选分支，不是 Goal 创建的隐藏后续。Goal-only 直接继续 Agent Loop；reserved Execution ID 不代表 WorkGraph 已存在；已有兼容 transient WorkGraph 的自动绑定也不代表需要重新 prepare。
 
 ## 纠正 objective
 
@@ -36,6 +40,6 @@
 1. 调用 `get_goal` 确认 active Goal。
 2. 调用 `retarget_goal`，传入完整替代 objective。
 3. 保留同一 Goal 身份和累计用量，不先完成旧 Goal，也不创建新 Goal。
-4. 若工具返回 pending Goal/Execution rebase，按原 target 重试，或先按返回的 `prepare_plan_execution` 指引提交完整 successor Plan Document，再将其原样返回的 `proposal_id` 与 `proposal_digest` 交给 `plan_execution`。不得自行拼接或复用旧 WorkGraph。
+4. Goal-only retarget 应直接返回新 objective revision，仍保持 Goal-only。只有 context 明确证明当前 Goal 已绑定 managed WorkGraph，且工具返回 pending Goal/Execution rebase 时，才按原 target 重试，或先按返回的 `prepare_plan_execution` 指引提交完整 successor Plan Document，再将其原样返回的 `proposal_id` 与 `proposal_digest` 交给 `plan_execution`。MCP retarget 在当前 round 继续完成这两步；REST 或 app-server retarget 由后端启动专用 successor-planning continuation，用户无需再发一条消息。不得自行拼接或复用旧 WorkGraph；Goal-only 若被要求新建 successor Plan，应视为链路错误，不通过造图绕过。
 
 暂停、blocked 或 usage-limited Goal 的显式 retarget 由后端决定如何激活；budget-limited Goal 仍需要用户或控制面调整预算。

@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * INPUT: session-scoped Goal controller state and panel presentation props.
+ * OUTPUT: status, edit and clear-confirmation UI composed from controller authority.
+ * POS: Goal panel composition layer; it does not infer Execution binding or call APIs.
+ */
+
 import type { ReactNode } from "react";
 
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -92,10 +98,12 @@ function GoalPanelContent({
     <>
       <GoalStatusStrip
         canResume={controller.canResume}
+        clearDisabledReason={controller.clearDisabledReason}
         compact={compact}
         continuationHold={continuationHold}
         disabled={disabled}
         error={controller.error}
+        executionBinding={controller.executionBinding}
         goal={goal}
         isGenerating={isGenerating}
         isLoading={controller.isLoading}
