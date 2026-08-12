@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Styled leading Slash commands consistently in the Composer and sent user messages without changing their raw text.
+- Removed the Generative UI frame and tool icon so inline widgets blend into conversation content.
 - Reorganized the open-source documentation around current architecture, operations, and maintainer contracts; removed the drifting hand-maintained API catalog and clarified the closed-source runtime boundary.
 - Restored the startup cat animation as a lightweight local animated WebP without reintroducing the Lottie runtime or WASM loading path.
 - Made HTML workspace previews fill the available pane and scroll like regular web pages instead of scaling a fixed-size canvas.

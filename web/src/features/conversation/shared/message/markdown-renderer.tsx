@@ -35,6 +35,7 @@ import "katex/dist/katex.min.css";
 import { FileArtifactBlock } from "./blocks/artifact/file/file-artifact-block";
 import type { AgentMention } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "./agent-mention-chip";
+import { decorateLeadingSlashCommand } from "../slash-command-presentation";
 
 interface MarkdownRendererProps {
   content: string;
@@ -46,6 +47,7 @@ interface MarkdownRendererProps {
 	agentMentions?: AgentMention[];
 	agentMentionDirectory?: AgentMentionDirectory;
 	onOpenAgentContact?: (agentId: string) => void;
+  renderLeadingSlashCommand?: boolean;
 }
 
 export function MarkdownRenderer({
@@ -58,6 +60,7 @@ export function MarkdownRenderer({
 	agentMentions = [],
 	agentMentionDirectory,
 	onOpenAgentContact,
+  renderLeadingSlashCommand = false,
 }: MarkdownRendererProps) {
   const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
   const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
@@ -111,6 +114,7 @@ export function MarkdownRenderer({
           key={`${segment.type}:${index}`}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           agentMentions={agentMentions}
+          renderLeadingSlashCommand={renderLeadingSlashCommand && index === 0}
           resolveFilePath={resolveFilePath}
           segment={segment}
           shouldStream={shouldRenderStreaming}
@@ -131,6 +135,7 @@ interface MessageMarkdownSegmentProps {
   shouldStream: boolean;
   streamingComponents: Components;
   workspaceAgentId?: string | null;
+  renderLeadingSlashCommand: boolean;
 }
 
 function MessageMarkdownSegment({
@@ -142,6 +147,7 @@ function MessageMarkdownSegment({
   shouldStream,
   streamingComponents,
   workspaceAgentId,
+  renderLeadingSlashCommand,
 }: MessageMarkdownSegmentProps) {
   if (segment.type === "file_artifact") {
     return (
@@ -158,10 +164,16 @@ function MessageMarkdownSegment({
     return null;
   }
 
+  const contentWithMentions = decorateMarkdownMentions(
+    segment.text,
+    agentMentions,
+  );
   const sharedProps = {
     components,
     content: normalizeMarkdownContent(
-      decorateMarkdownMentions(segment.text, agentMentions),
+      renderLeadingSlashCommand
+        ? decorateLeadingSlashCommand(contentWithMentions)
+        : contentWithMentions,
       resolveFilePath,
       onOpenWorkspaceFile,
       { is_streaming: shouldStream },

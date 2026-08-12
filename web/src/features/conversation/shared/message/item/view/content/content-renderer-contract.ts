@@ -31,6 +31,7 @@ export interface ContentRendererProps {
   pendingInteractionOwner?: PendingInteractionOwner;
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   permissionReadOnlyReason?: string;
+  renderLeadingSlashCommand?: boolean;
   showTimelineDots?: boolean;
   streamingBlockIndexes?: ReadonlySet<number>;
   /** 执行已终止但 provider 未返回 tool_result 时的权威消息级收口。 */

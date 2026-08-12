@@ -26,6 +26,7 @@ function MarkdownContent({
   showTimelineDots = false,
 	workspaceAgentId,
 	onOpenAgentContact,
+  renderLeadingSlashCommand = false,
 }: {
 	agentMentions?: ContentRendererProps["agentMentions"];
 	agentMentionDirectory?: ContentRendererProps["agentMentionDirectory"];
@@ -36,6 +37,7 @@ function MarkdownContent({
   showTimelineDots?: boolean;
 	workspaceAgentId?: string | null;
 	onOpenAgentContact?: ContentRendererProps["onOpenAgentContact"];
+  renderLeadingSlashCommand?: boolean;
 }) {
   const markdown = (
     <MarkdownRenderer
@@ -46,6 +48,7 @@ function MarkdownContent({
       agentMentions={agentMentions}
       agentMentionDirectory={agentMentionDirectory}
       onOpenAgentContact={onOpenAgentContact}
+      renderLeadingSlashCommand={renderLeadingSlashCommand}
     />
   );
   if (!className) {

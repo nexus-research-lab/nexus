@@ -41,6 +41,7 @@ export function UserMessageContent({
           agentMentionDirectory={agentMentionDirectory}
           onOpenAgentContact={onOpenAgentContact}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          renderLeadingSlashCommand
           workspaceAgentId={workspaceAgentId}
         />
       ) : null}

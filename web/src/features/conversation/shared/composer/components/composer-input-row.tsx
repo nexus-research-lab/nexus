@@ -1,8 +1,10 @@
+import { useRef } from "react";
 import type {
   ClipboardEventHandler,
   KeyboardEvent,
   KeyboardEventHandler,
   RefObject,
+  UIEvent,
   WheelEvent,
 } from "react";
 
@@ -14,6 +16,8 @@ import type {
   CommandDescriptor,
 } from "@/types/generated/protocol";
 import type { SkillInfo } from "@/types/capability/skill";
+import { projectLeadingSlashCommand } from "../../slash-command-presentation";
+import { SlashCommandToken } from "../../slash-command-token";
 
 import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 import type { SlashModelOption } from "../slash-command-model";
@@ -82,6 +86,14 @@ export function ComposerInputRow({
   composerShellRef,
   textareaRef,
 }: ComposerInputRowProps) {
+  const slashCommandPresentation = projectLeadingSlashCommand(input.value);
+  const slashCommandMirrorRef = useRef<HTMLDivElement>(null);
+  const handleScroll = (event: UIEvent<HTMLTextAreaElement>) => {
+    if (slashCommandMirrorRef.current) {
+      slashCommandMirrorRef.current.scrollTop = event.currentTarget.scrollTop;
+    }
+  };
+
   return (
     <div className={cn("flex items-end gap-2", layout.paddingClassName)}>
       {slashCommand.active ? (
@@ -121,11 +133,28 @@ export function ComposerInputRow({
         />
       ) : null}
       <div className="relative min-w-0 flex-1">
+        {slashCommandPresentation ? (
+          <div
+            ref={slashCommandMirrorRef}
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-0 overflow-hidden px-1.5 py-1 text-base leading-6 whitespace-pre-wrap text-(--text-strong) [overflow-wrap:break-word]",
+              input.disabled && "opacity-(--disabled-opacity)",
+            )}
+            data-composer-slash-command="true"
+          >
+            <SlashCommandToken variant="composer">
+              {slashCommandPresentation.command}
+            </SlashCommandToken>
+            {slashCommandPresentation.remainder}
+          </div>
+        ) : null}
         <textarea
           ref={textareaRef}
           aria-label={input.placeholder}
           className={cn(
-            "multiline-cursor soft-scrollbar block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 text-(--text-strong) outline-none shadow-none ring-0",
+            "multiline-cursor soft-scrollbar relative z-10 block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 outline-none shadow-none ring-0",
+            slashCommandPresentation ? "text-transparent" : "text-(--text-strong)",
             "placeholder:text-(--text-soft)",
             "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
             "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
@@ -136,10 +165,16 @@ export function ComposerInputRow({
           onCompositionStart={input.onCompositionStart}
           onKeyDown={input.onKeyDown}
           onPaste={input.onPaste}
+          onScroll={handleScroll}
           onWheel={stopNestedTextareaWheel}
           placeholder={input.placeholder}
           rows={1}
-          style={{ maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX }}
+          style={{
+            caretColor: slashCommandPresentation
+              ? "var(--text-strong)"
+              : undefined,
+            maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
+          }}
           value={input.value}
         />
       </div>

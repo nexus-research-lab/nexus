@@ -12,7 +12,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { Sparkles } from "lucide-react";
 
 import { useTheme } from "@/shared/theme/theme-context";
 import type { ToolUseContent } from "@/types/conversation/message/content";
@@ -94,11 +93,10 @@ export function GenerativeUIBlock({
   return (
     <section
       aria-busy={!complete}
-      className="my-3 min-w-0 overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-transparent"
+      className="my-3 min-w-0 overflow-hidden rounded-[8px] bg-transparent"
       data-generative-ui="true"
     >
-      <header className="flex min-h-9 items-center gap-2 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2">
-        <Sparkles aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+      <header className="flex min-h-9 items-center gap-2 bg-(--surface-panel-background) px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-default)">
           {title || toolUse.name}
         </span>

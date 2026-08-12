@@ -13,6 +13,8 @@ import {
   AgentMentionChip,
   type AgentMentionDirectory,
 } from "@/features/conversation/shared/message/agent-mention-chip";
+import { isSlashCommandHref } from "@/features/conversation/shared/slash-command-presentation";
+import { SlashCommandToken } from "@/features/conversation/shared/slash-command-token";
 
 import { CodeBlock } from "../code/code-block";
 import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
@@ -80,6 +82,9 @@ function renderMarkdownLink({
   onOpenAgentContact?: (agentId: string) => void;
 }): ReactNode {
   const rawHref = String(href ?? "").trim();
+  if (isSlashCommandHref(rawHref)) {
+    return <SlashCommandToken>{children}</SlashCommandToken>;
+  }
   const agentMention = parseAgentMentionHref(rawHref);
   if (agentMention) {
     return (
