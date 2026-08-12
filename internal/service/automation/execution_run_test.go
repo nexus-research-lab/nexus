@@ -40,9 +40,10 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	)
 
 	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
-		Name:        "日报同步",
-		AgentID:     "agent-1",
-		Instruction: "整理今天的进展",
+		Name:           "日报同步",
+		AgentID:        "agent-1",
+		Instruction:    "整理今天的进展",
+		PermissionMode: automationdomain.PermissionModePlan,
 		Schedule: automationdomain.Schedule{
 			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
@@ -57,6 +58,9 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
+	}
+	if task.PermissionMode != automationdomain.PermissionModePlan {
+		t.Fatalf("permission_mode 未持久化: %+v", task)
 	}
 
 	result, err := service.RunTaskNow(context.Background(), task.JobID)
@@ -112,15 +116,20 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("期望 dm runner 收到 1 次请求，实际 %d", len(requests))
 	}
-	if !strings.HasPrefix(requests[0].Content, "[scheduled-task:"+task.JobID+" 日报同步] ") ||
-		!strings.Contains(requests[0].Content, "整理今天的进展") {
+	if requests[0].Content != "整理今天的进展" {
 		t.Fatalf("下发指令不正确: %s", requests[0].Content)
+	}
+	if requests[0].AutomationRun == nil ||
+		requests[0].AutomationRun.JobID != task.JobID ||
+		requests[0].AutomationRun.RunID != runs[0].RunID ||
+		requests[0].AutomationRun.JobName != task.Name {
+		t.Fatalf("定时任务身份应通过可信上下文下发: %+v", requests[0].AutomationRun)
 	}
 	if requests[0].PermissionHandler == nil {
 		t.Fatal("定时任务 DM 请求应使用非交互权限处理器")
 	}
-	if requests[0].PermissionMode != sdkpermission.ModeDefault {
-		t.Fatalf("定时任务 DM 请求应由后台权限处理器接管授权，实际 mode=%s", requests[0].PermissionMode)
+	if requests[0].PermissionMode != sdkpermission.ModePlan {
+		t.Fatalf("定时任务 DM 请求未透传任务 permission_mode，实际 mode=%s", requests[0].PermissionMode)
 	}
 	askDecision, err := requests[0].PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "AskUserQuestion"})
 	if err != nil {
@@ -301,11 +310,12 @@ func TestServiceRunTaskNowPersistsPermissionRequestAndResumesSameRun(t *testing.
 		t.Fatalf("allow_task 应自动恢复同一 logical run: %+v", decision)
 	}
 	dispatched := dm.Requests()
-	if len(dispatched) != 2 ||
-		!strings.Contains(dispatched[1].Content, "[权限续跑]") ||
-		!strings.Contains(dispatched[1].Content, "`WebSearch`") ||
-		!strings.Contains(dispatched[1].Content, "不得仅引用上一轮失败直接结束") {
-		t.Fatalf("审批后的新 attempt 必须显式要求重试原工具: %+v", dispatched)
+	if len(dispatched) != 2 || dispatched[1].Content != task.Instruction ||
+		dispatched[1].AutomationRun == nil ||
+		dispatched[1].AutomationRun.JobID != task.JobID ||
+		dispatched[1].AutomationRun.RunID != run.RunID ||
+		dispatched[1].AutomationRun.ResumeToolName != "WebSearch" {
+		t.Fatalf("审批后的新 attempt 必须通过可信上下文要求重试原工具: %+v", dispatched)
 	}
 
 	waitFor(t, 2*time.Second, func() bool {

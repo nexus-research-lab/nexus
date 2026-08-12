@@ -70,40 +70,7 @@ func (r *Repository) ListDueDeliveryRetries(ctx context.Context, now time.Time, 
 	if limit <= 0 {
 		limit = 20
 	}
-	query := `
-SELECT
-    run_id,
-    job_id,
-    owner_user_id,
-    status,
-    trigger_kind,
-    session_key,
-    round_id,
-    session_id,
-    message_count,
-    delivery_mode,
-    delivery_to,
-    delivery_status,
-    delivery_error,
-    delivered_at,
-    delivery_attempts,
-    delivery_next_attempt_at,
-    delivery_dead_letter_at,
-    scheduled_for,
-    started_at,
-    finished_at,
-    attempts,
-    error_message,
-    result_summary,
-    assistant_text,
-    result_text,
-    artifact_path,
-    permission_policy_revision,
-    block_state,
-    blocked_request_id,
-    effect_started,
-    created_at,
-    updated_at
+	query := `SELECT` + scheduledTaskRunSelectColumns + `
 FROM automation_task_runs
 WHERE delivery_status = ` + r.bind(1) + `
   AND delivery_dead_letter_at IS NULL

@@ -53,6 +53,7 @@ export function MessageAssistantSection({
           {showHeader ? (
             <AssistantMessageHeader
               avatarUrl={currentAgentAvatar}
+              automationTaskName={assistant.header.automationTaskName}
               canStop={assistant.header.canStop}
               compact={compact}
               headerAction={assistantHeaderAction}

@@ -96,14 +96,17 @@ export function SelectMenuView({
         type="button"
       >
         <SelectMenuTriggerContent isOpen={isOpen} label={label} leading={leading}>
-          <span
-            className={cn(
-              "min-w-0 font-semibold text-(--text-strong)",
-              presentation.triggerLabelClassName,
-            )}
-            title={presentation.activeLabel}
-          >
-            {presentation.activeLabel}
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span
+              className={cn(
+                "min-w-0 flex-1 font-semibold text-(--text-strong)",
+                presentation.triggerLabelClassName,
+              )}
+              title={presentation.activeLabel}
+            >
+              {presentation.activeLabel}
+            </span>
+            <SelectMenuOptionBadge label={presentation.activeBadge} />
           </span>
         </SelectMenuTriggerContent>
       </button>
@@ -165,7 +168,7 @@ function SelectMenuPortal({
     <SelectMenuPanel
       ariaLabel={ariaLabel}
       id={menuId}
-      layoutClassName="overflow-y-auto p-1"
+      layoutClassName="flex flex-col gap-1 overflow-y-auto p-1"
       menuClassName={menuClassName}
       panelRef={menuRef}
       placement={menuPlacement}
@@ -238,7 +241,19 @@ function SelectMenuOption({
       <span className={cn("min-w-0 flex-1", presentation.optionLabelClassName)}>
         {option.label}
       </span>
+      <SelectMenuOptionBadge label={option.badge ?? null} />
       {isActive ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--primary)" /> : null}
     </button>
+  );
+}
+
+function SelectMenuOptionBadge({ label }: { label: string | null }) {
+  if (!label) {
+    return null;
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium leading-none text-(--primary)">
+      {label}
+    </span>
   );
 }

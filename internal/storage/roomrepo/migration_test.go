@@ -2,6 +2,7 @@ package roomrepo
 
 import (
 	"database/sql"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -95,8 +96,13 @@ INSERT INTO conversations (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 86 {
-		t.Fatalf("goose version = %d, want 86", version)
+	migrations, err := goose.CollectMigrations(migrationDir, 0, math.MaxInt64)
+	if err != nil || len(migrations) == 0 {
+		t.Fatalf("collect current migrations: %v", err)
+	}
+	wantVersion := migrations[len(migrations)-1].Version
+	if version != wantVersion {
+		t.Fatalf("goose version = %d, want %d", version, wantVersion)
 	}
 
 	if err = goose.DownTo(db, migrationDir, 56); err != nil {
@@ -121,8 +127,8 @@ WHERE name = 'is_draft'
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 86 {
-		t.Fatalf("goose version after reapply = %d, want 86", version)
+	if version != wantVersion {
+		t.Fatalf("goose version after reapply = %d, want %d", version, wantVersion)
 	}
 }
 

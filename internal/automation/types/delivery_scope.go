@@ -29,9 +29,11 @@ func ValidateSelfScopedDeliveryTarget(
 	switch target.Mode {
 	case DeliveryModeNone:
 		return nil
+	case DeliveryModeLast:
+		return validateSelfScopedRouteSession(agentID, grantedSessionKey, target.SessionKey)
 	case DeliveryModeExplicit:
 	default:
-		return errors.New("self-scoped automation delivery requires none or an explicit target")
+		return errors.New("self-scoped automation delivery requires none, last, or an explicit target")
 	}
 
 	channel := protocol.NormalizeStoredChannelType(target.Channel)
@@ -47,6 +49,43 @@ func ValidateSelfScopedDeliveryTarget(
 		return validateGrantedExternalDelivery(agentID, grantedSessionKey, target, channel)
 	default:
 		return fmt.Errorf("self-scoped automation cannot deliver to channel %q", target.Channel)
+	}
+}
+
+func validateSelfScopedRouteSession(
+	agentID string,
+	grantedSessionKey string,
+	targetSessionKey string,
+) error {
+	targetSessionKey = strings.TrimSpace(targetSessionKey)
+	parsed := protocol.ParseSessionKey(targetSessionKey)
+	if !parsed.IsStructured {
+		return errors.New("self-scoped last delivery requires a structured session_key")
+	}
+	switch parsed.Kind {
+	case protocol.SessionKeyKindRoom:
+		if targetSessionKey != strings.TrimSpace(grantedSessionKey) {
+			return errors.New("Room automation delivery is limited to the current granted Room conversation")
+		}
+		return nil
+	case protocol.SessionKeyKindAgent:
+		if strings.TrimSpace(parsed.AgentID) != agentID {
+			return fmt.Errorf(
+				"agent %s cannot deliver automation output to another agent %s",
+				agentID,
+				strings.TrimSpace(parsed.AgentID),
+			)
+		}
+		channel := protocol.NormalizeStoredChannelType(parsed.Channel)
+		if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
+			return nil
+		}
+		if targetSessionKey != strings.TrimSpace(grantedSessionKey) {
+			return errors.New("external automation delivery is limited to the current explicitly granted conversation")
+		}
+		return nil
+	default:
+		return errors.New("last delivery session_key must identify an Agent or Room conversation")
 	}
 }
 

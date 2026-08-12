@@ -18,6 +18,22 @@ func searchTaskHistoryForToolQuery(
 	sctx contract.ServerContext,
 	input automationdomain.ScheduledTaskHistorySearchInput,
 ) ([]automationdomain.ScheduledTaskHistoryItem, error) {
+	if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+		input.Query = currentJobID
+		input.AgentID = strings.TrimSpace(sctx.CurrentAgentID)
+		items, err := svc.SearchTaskHistory(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		filtered := make([]automationdomain.ScheduledTaskHistoryItem, 0, 1)
+		for _, item := range items {
+			if strings.TrimSpace(item.JobID) == currentJobID {
+				filtered = append(filtered, item)
+				break
+			}
+		}
+		return filtered, nil
+	}
 	current, ok := currentTaskContextFromServerContext(sctx)
 	if !ok || (strings.TrimSpace(input.Query) == "" && !current.external) {
 		return svc.SearchTaskHistory(ctx, input)

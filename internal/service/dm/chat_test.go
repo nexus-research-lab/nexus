@@ -289,7 +289,7 @@ func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
 	}
 }
 
-func TestAuthorizeHostCommandChecksDMWebSocketScopeWithoutStartingRuntime(t *testing.T) {
+func TestAuthorizeDMSessionAccessSeparatesExternalViewingFromWebHostCommands(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -299,16 +299,30 @@ func TestAuthorizeHostCommandChecksDMWebSocketScopeWithoutStartingRuntime(t *tes
 	})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
 	sessionKey := "agent:nexus:ws:dm:host-command"
+	externalSessionKey := protocol.BuildAgentAccountSessionKey(
+		"nexus",
+		protocol.SessionChannelWeixinPersonal,
+		protocol.RoomTypeDM,
+		"account-a",
+		"user-a",
+		"",
+	)
 
+	if err := service.AuthorizeDMSessionAccess(context.Background(), sessionKey, "nexus"); err != nil {
+		t.Fatalf("AuthorizeDMSessionAccess(web) error = %v", err)
+	}
+	if err := service.AuthorizeDMSessionAccess(context.Background(), externalSessionKey, "nexus"); err != nil {
+		t.Fatalf("AuthorizeDMSessionAccess(IM) error = %v", err)
+	}
 	if err := service.AuthorizeHostCommand(context.Background(), sessionKey, "nexus"); err != nil {
 		t.Fatalf("AuthorizeHostCommand() error = %v", err)
 	}
-	if runtimeManager.HasSession(sessionKey) {
-		t.Fatal("host command authorization must not start a runtime")
+	if runtimeManager.HasSession(sessionKey) || runtimeManager.HasSession(externalSessionKey) {
+		t.Fatal("session access authorization must not start a runtime")
 	}
 	if err := service.AuthorizeHostCommand(
 		context.Background(),
-		"agent:nexus:tg:dm:host-command",
+		externalSessionKey,
 		"nexus",
 	); err == nil {
 		t.Fatal("external channel host command authorization must fail")
@@ -319,6 +333,13 @@ func TestAuthorizeHostCommandChecksDMWebSocketScopeWithoutStartingRuntime(t *tes
 		"another-agent",
 	); err == nil {
 		t.Fatal("mismatched agent_id host command authorization must fail")
+	}
+	if err := service.AuthorizeDMSessionAccess(
+		context.Background(),
+		externalSessionKey,
+		"another-agent",
+	); err == nil {
+		t.Fatal("mismatched agent_id session access authorization must fail")
 	}
 }
 

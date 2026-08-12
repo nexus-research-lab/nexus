@@ -2,7 +2,11 @@ package channels
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -11,6 +15,333 @@ import (
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
+
+func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *testing.T) {
+	channelTypes := []string{
+		ChannelTypeDiscord,
+		ChannelTypeTelegram,
+		ChannelTypeDingTalk,
+		ChannelTypeWeChat,
+		ChannelTypeWeixinPersonal,
+		ChannelTypeFeishu,
+	}
+	for index, channelType := range channelTypes {
+		t.Run(channelType, func(t *testing.T) {
+			cfg := newIngressTestConfig(t)
+			db := migrateIngressSQLite(t, cfg.DatabaseURL)
+			defer func() { _ = db.Close() }()
+
+			agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+			defaultAgent, err := agentService.GetDefaultAgent(context.Background())
+			if err != nil {
+				t.Fatalf("初始化默认 Agent 失败: %v", err)
+			}
+			target := fmt.Sprintf("paired-user-%d", index)
+			accountID := ""
+			if channelType == ChannelTypeWeixinPersonal {
+				accountID = "weixin-account"
+			}
+			if _, err = agentService.UpdateAgent(context.Background(), defaultAgent.AgentID, protocol.UpdateRequest{
+				Options: &protocol.Options{AllowedTools: []string{"nexus_automation"}},
+			}); err != nil {
+				t.Fatalf("配置 %s Agent 工具权限失败: %v", channelType, err)
+			}
+			handler := &fakeIngressDMHandler{}
+			router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+			control := NewControlService(cfg, db, agentService, router)
+			if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
+				ChannelType: channelType,
+				AccountID:   accountID,
+				ChatType:    protocol.RoomTypeDM,
+				ExternalRef: target,
+				AgentID:     defaultAgent.AgentID,
+				Status:      PairingStatusActive,
+			}); err != nil {
+				t.Fatalf("创建 %s pairing 失败: %v", channelType, err)
+			}
+			service := NewIngressService(cfg, agentService, handler, router)
+			service.SetControlService(control)
+
+			_, err = service.Accept(context.Background(), IngressRequest{
+				Channel:   channelType,
+				AccountID: accountID,
+				ChatType:  protocol.RoomTypeDM,
+				Ref:       target,
+				Content:   "创建一个每天提醒我的定时任务",
+				ReqID:     "paired-message",
+				Delivery: &DeliveryTarget{
+					Mode:      DeliveryModeExplicit,
+					Channel:   channelType,
+					To:        target,
+					AccountID: accountID,
+				},
+			})
+			if err != nil {
+				t.Fatalf("%s paired DM Accept 失败: %v", channelType, err)
+			}
+			if len(handler.requests) != 1 || !handler.requests[0].TrustedExternalInteractiveContext {
+				t.Fatalf("%s 未签发 paired interactive context: %+v", channelType, handler.requests)
+			}
+			decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+				ToolName: "mcp__nexus_automation__create_scheduled_task",
+				Input:    map[string]any{"name": "每日提醒"},
+			})
+			if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
+				t.Fatalf("%s paired DM 未获得同 Agent Automation mutation: decision=%+v err=%v", channelType, decision, err)
+			}
+		})
+	}
+}
+
+func TestPairedExternalDMRequestsRuntimePermissionAndResolvesBySlashAcrossChannels(t *testing.T) {
+	channelTypes := []string{
+		ChannelTypeDiscord,
+		ChannelTypeTelegram,
+		ChannelTypeDingTalk,
+		ChannelTypeWeChat,
+		ChannelTypeWeixinPersonal,
+		ChannelTypeFeishu,
+	}
+	for index, channelType := range channelTypes {
+		t.Run(channelType, func(t *testing.T) {
+			cfg := newIngressTestConfig(t)
+			db := migrateIngressSQLite(t, cfg.DatabaseURL)
+			defer func() { _ = db.Close() }()
+
+			agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+			defaultAgent, err := agentService.GetDefaultAgent(context.Background())
+			if err != nil {
+				t.Fatalf("初始化默认 Agent 失败: %v", err)
+			}
+			target := fmt.Sprintf("runtime-permission-user-%d", index)
+			accountID := ""
+			if channelType == ChannelTypeWeixinPersonal {
+				accountID = "runtime-permission-weixin-account"
+			}
+			permission := permissionctx.NewContext()
+			handler := &fakeIngressDMHandler{}
+			router := NewRouter(cfg, db, agentService, permission)
+			delivery := &recordingDeliveryChannel{channelType: channelType}
+			router.RegisterForOwner("", delivery)
+			if err = router.Start(context.Background()); err != nil {
+				t.Fatalf("启动 %s router 失败: %v", channelType, err)
+			}
+			defer router.Stop(context.Background())
+			control := NewControlService(cfg, db, agentService, router)
+			if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
+				ChannelType: channelType,
+				AccountID:   accountID,
+				ChatType:    protocol.RoomTypeDM,
+				ExternalRef: target,
+				AgentID:     defaultAgent.AgentID,
+				Status:      PairingStatusActive,
+			}); err != nil {
+				t.Fatalf("创建 %s pairing 失败: %v", channelType, err)
+			}
+			service := NewIngressService(cfg, agentService, handler, router)
+			service.SetControlService(control)
+			service.SetRuntimePermissionContext(permission)
+
+			initial, err := service.Accept(context.Background(), IngressRequest{
+				Channel:   channelType,
+				AccountID: accountID,
+				ChatType:  protocol.RoomTypeDM,
+				Ref:       target,
+				Content:   "请写入测试文件",
+				ReqID:     "runtime-permission-message",
+				Delivery: &DeliveryTarget{
+					Mode:      DeliveryModeExplicit,
+					Channel:   channelType,
+					To:        target,
+					AccountID: accountID,
+				},
+			})
+			if err != nil || initial == nil || len(handler.requests) != 1 {
+				t.Fatalf("%s 初始 ingress 失败: result=%+v requests=%+v err=%v", channelType, initial, handler.requests, err)
+			}
+
+			decisionCtx, cancelDecision := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancelDecision()
+			decisions := make(chan sdkpermission.Decision, 1)
+			go func() {
+				decision, _ := handler.requests[0].PermissionHandler(decisionCtx, sdkpermission.Request{
+					ToolName: "Write",
+					Input:    map[string]any{"file_path": "permission-test.txt"},
+				})
+				decisions <- decision
+			}()
+
+			notice := waitForRuntimePermissionNotice(t, delivery)
+			if !strings.Contains(notice, "/y：允许本次") || strings.Contains(notice, runtimePermissionRequestIDPrefix) {
+				t.Fatalf("%s 权限通知应隐藏内部 request ID: %q", channelType, notice)
+			}
+			if _, err = service.Accept(context.Background(), IngressRequest{
+				Channel:   channelType,
+				AccountID: accountID,
+				ChatType:  protocol.RoomTypeDM,
+				Ref:       target,
+				Content:   "/y",
+				ReqID:     "runtime-permission-approval",
+				Delivery: &DeliveryTarget{
+					Mode:      DeliveryModeExplicit,
+					Channel:   channelType,
+					To:        target,
+					AccountID: accountID,
+				},
+			}); err != nil {
+				t.Fatalf("%s /y 失败: %v", channelType, err)
+			}
+
+			select {
+			case decision := <-decisions:
+				if decision.Behavior != sdkpermission.BehaviorAllow {
+					t.Fatalf("%s /y 未释放 runtime: %+v", channelType, decision)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatalf("%s /y 后 runtime 仍在等待", channelType)
+			}
+			if len(handler.requests) != 1 {
+				t.Fatalf("%s 权限命令不应进入 Agent 对话: %+v", channelType, handler.requests)
+			}
+		})
+	}
+}
+
+func TestShortPermissionCommandRejectsRuntimeAndAutomationAmbiguity(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	defaultAgent, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("初始化默认 Agent 失败: %v", err)
+	}
+	permission := permissionctx.NewContext()
+	dm := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permission)
+	delivery := &recordingDeliveryChannel{channelType: ChannelTypeFeishu}
+	router.RegisterForOwner("", delivery)
+	if err = router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 channel router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+	control := NewControlService(cfg, db, agentService, router)
+	const target = "runtime-automation-ambiguity"
+	if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    protocol.RoomTypeDM,
+		ExternalRef: target,
+		AgentID:     defaultAgent.AgentID,
+		Status:      PairingStatusActive,
+	}); err != nil {
+		t.Fatalf("创建 pairing 失败: %v", err)
+	}
+	commands := &recordingIngressCommandHandler{
+		pendingCount: 1,
+		result: IngressCommandResult{
+			Handled: true,
+			Reply:   "不应执行",
+		},
+	}
+	service := NewIngressService(cfg, agentService, dm, router)
+	service.SetControlService(control)
+	service.SetRuntimePermissionContext(permission)
+
+	initial, err := service.Accept(context.Background(), IngressRequest{
+		Channel:  ChannelTypeFeishu,
+		ChatType: protocol.RoomTypeDM,
+		Ref:      target,
+		Content:  "触发普通工具权限",
+		ReqID:    "ambiguity-trigger",
+		Delivery: &DeliveryTarget{Mode: DeliveryModeExplicit, Channel: ChannelTypeFeishu, To: target},
+	})
+	if err != nil || initial == nil || len(dm.requests) != 1 {
+		t.Fatalf("初始 ingress 失败: requests=%+v err=%v", dm.requests, err)
+	}
+	service.SetCommandHandler(commands)
+	requestCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	decisions := make(chan sdkpermission.Decision, 1)
+	go func() {
+		decision, _ := dm.requests[0].PermissionHandler(requestCtx, sdkpermission.Request{ToolName: "Write"})
+		decisions <- decision
+	}()
+	_ = waitForRuntimePermissionNotice(t, delivery)
+
+	if _, err = service.Accept(context.Background(), IngressRequest{
+		Channel:  ChannelTypeFeishu,
+		ChatType: protocol.RoomTypeDM,
+		Ref:      target,
+		Content:  "/y",
+		ReqID:    "ambiguity-decision",
+		Delivery: &DeliveryTarget{Mode: DeliveryModeExplicit, Channel: ChannelTypeFeishu, To: target},
+	}); err != nil {
+		t.Fatalf("歧义 /y 处理失败: %v", err)
+	}
+	if got := permission.CountSessionPermissionRequests(initial.SessionKey, ""); got != 1 {
+		t.Fatalf("歧义 /y 不应消费 runtime 请求: pending=%d", got)
+	}
+	if len(commands.requests) != 0 {
+		t.Fatalf("歧义 /y 不应消费 Automation 请求: %+v", commands.requests)
+	}
+	select {
+	case decision := <-decisions:
+		t.Fatalf("歧义 /y 不应释放 runtime: %+v", decision)
+	case <-time.After(100 * time.Millisecond):
+	}
+	delivery.mu.Lock()
+	texts := append([]string(nil), delivery.texts...)
+	delivery.mu.Unlock()
+	if !slices.ContainsFunc(texts, func(text string) bool { return strings.Contains(text, "多个待确认请求") }) {
+		t.Fatalf("歧义 /y 未回投安全提示: %+v", texts)
+	}
+}
+
+func waitForRuntimePermissionNotice(t *testing.T, channel *recordingDeliveryChannel) string {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		channel.mu.Lock()
+		texts := append([]string(nil), channel.texts...)
+		channel.mu.Unlock()
+		for _, text := range texts {
+			if strings.Contains(text, "【Nexus 权限确认】") && strings.Contains(text, "/y：允许本次") {
+				return text
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("等待 IM runtime 权限通知超时")
+	return ""
+}
+
+func TestExternalIngressExplicitAgentIDCannotBypassPairing(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	defaultAgent, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("初始化默认 Agent 失败: %v", err)
+	}
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetControlService(NewControlService(cfg, db, agentService, router))
+
+	_, err = service.Accept(context.Background(), IngressRequest{
+		Channel:  ChannelTypeTelegram,
+		ChatType: protocol.RoomTypeDM,
+		Ref:      "unpaired-user",
+		AgentID:  defaultAgent.AgentID,
+		Content:  "尝试绕过 pairing",
+	})
+	if err == nil || len(handler.requests) != 0 {
+		t.Fatalf("显式 agent_id 不得绕过 pairing: err=%v requests=%+v", err, handler.requests)
+	}
+}
 
 func TestScheduledTaskMutationToolMatchesRuntimeWrappers(t *testing.T) {
 	for _, toolName := range []string{

@@ -663,6 +663,8 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		InputOptions:                      e.request.InputOptions,
 		PermissionMode:                    e.request.PermissionMode,
 		PermissionHandler:                 e.request.PermissionHandler,
+		RuntimeToolPolicy:                 cloneRuntimeToolPolicy(e.request.RuntimeToolPolicy),
+		AutomationRun:                     cloneAutomationRunContext(e.request.AutomationRun),
 		EventObserver:                     e.request.EventObserver,
 		GoalContext:                       strings.TrimSpace(e.request.GoalContext),
 		GoalID:                            strings.TrimSpace(e.request.GoalID),

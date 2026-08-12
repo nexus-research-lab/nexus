@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { deleteSessionApi } from "@/lib/api/conversation/session-api";
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
+import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import { useSidebarStore } from "@/store/sidebar";
 
@@ -49,6 +51,9 @@ export function useRoomPageNavigation({
   );
   const rememberLastActiveConversation = useRoomNavigationStore(
     (state) => state.remember_last_active_conversation,
+  );
+  const forgetConversation = useRoomNavigationStore(
+    (state) => state.forget_conversation,
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const queryInitialDraft = searchParams.get("initial")?.trim() || null;
@@ -107,6 +112,18 @@ export function useRoomPageNavigation({
 
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     const isDeletingSelectedConversation = conversationId === selectedConversationId;
+    const externalSessionKey = getExternalSessionKeyFromConversationId(conversationId);
+    if (externalSessionKey) {
+      await deleteSessionApi(externalSessionKey);
+      notifyRoomDirectoryUpdated();
+      if (roomId) {
+        forgetConversation(roomId, conversationId);
+      }
+      if (roomId && isDeletingSelectedConversation) {
+        navigate(AppRouteBuilders.room(roomId));
+      }
+      return null;
+    }
     const fallbackConversationId = await deleteConversation(conversationId);
     if (!roomId || !isDeletingSelectedConversation) {
       return fallbackConversationId;
@@ -123,6 +140,7 @@ export function useRoomPageNavigation({
     return fallbackConversationId;
   }, [
     deleteConversation,
+    forgetConversation,
     navigate,
     rememberLastActiveConversation,
     roomId,

@@ -106,3 +106,45 @@ func newAutomationMCPBuilder(
 		}
 	}
 }
+
+// newAutomationExecutionMCPBuilder 为后台 run 覆盖通用 Automation MCP。
+// 任务身份来自服务端签发的 ExecutionToolContext，不解析提示词或 session_key。
+func newAutomationExecutionMCPBuilder(
+	svc automationmcpcontract.Service,
+	defaultTimezone string,
+) runtimectx.ExecutionMCPServerBuilder {
+	return func(
+		_ context.Context,
+		runtimeContext runtimectx.ExecutionToolContext,
+	) map[string]sdkmcp.ServerConfig {
+		binding := runtimeContext.AutomationRun
+		agentValue := runtimeContext.Agent
+		if svc == nil || binding == nil || agentValue == nil {
+			return nil
+		}
+		normalized := binding.Normalized()
+		if !normalized.Valid() ||
+			strings.TrimSpace(agentValue.AgentID) == "" ||
+			strings.TrimSpace(agentValue.OwnerUserID) == "" {
+			return nil
+		}
+		sctx := automationmcpcontract.ServerContext{
+			CurrentAgentID:     strings.TrimSpace(agentValue.AgentID),
+			CurrentAgentName:   strings.TrimSpace(agentValue.Name),
+			OwnerUserID:        strings.TrimSpace(agentValue.OwnerUserID),
+			CurrentSessionKey:  strings.TrimSpace(runtimeContext.RuntimeSessionKey),
+			SourceContextType:  "automation_run",
+			SourceContextID:    normalized.JobID,
+			SourceContextLabel: normalized.JobName,
+			DefaultTimezone:    strings.TrimSpace(defaultTimezone),
+			CurrentJobID:       normalized.JobID,
+			CurrentRunID:       normalized.RunID,
+		}
+		return map[string]sdkmcp.ServerConfig{
+			automationmcpcontract.ServerName: sdkmcp.SDKServerConfig{
+				Name:     automationmcpcontract.ServerName,
+				Instance: automationmcp.NewServer(svc, sctx),
+			},
+		}
+	}
+}

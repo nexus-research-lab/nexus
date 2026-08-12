@@ -6,8 +6,8 @@
 // 持久化 codec 留在对应 internal/service/* 或 internal/storage/*。
 //
 // 成员清单（按域，本包整体即协议模型，故文件不再加 model_ 前缀）：
-//   - agent.go / skill.go：Agent 模型、平台/用户级外部 Skill 引用、显式停用名称与创建/更新协议。
-//   - session*.go：Session / Message / SessionKey 统一会话模型、持久化上下文占用快照与 transcript 原生消息边界。
+//   - agent.go / skill.go：Agent 模型、受控执行的 RuntimeToolPolicy 完整快照、平台/用户级外部 Skill 引用、显式停用名称与创建/更新协议。
+//   - session*.go：Session / Message / SessionKey 统一会话模型、外部 IM 账号短标识与当前/历史配对投影、持久化上下文占用快照及 transcript 原生消息边界。
 //   - room*.go：房间、成员持久 participation gate、每 Room 唯一未开始 conversation draft、directed message。
 //   - conversation_turn.go / event.go / goal*.go / objective_alignment.go / execution*.go / execution_plan_proposal.go / input_queue.go：
 //     对话投影、统一事件类型、Room member participation change、session-scoped command catalog、精确 interrupt 完成 ACK 与带 public handoff 关联的权威 runtime slot 快照、Goal 生命周期/objective revision、显式 Goal 的稳定 Execution 预留与旧记录确定性恢复、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照、持久接受 ACK 及互斥 work/review capability envelope 校验。
@@ -16,7 +16,7 @@
 //     event.go 同时承载 runtime 每轮结束后的 Agent session 上下文占用事件。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
-//   - identity.go / value.go / provider_failure.go / tool_result.go：ID 生成、跨边界值解码、稳定 Provider 失败分类，以及工具传输状态之外的显式 mutation 结果语义。
+//   - identity.go / value.go / provider_failure.go / tool_result.go / im_permission_command.go：ID 生成、跨边界值解码、稳定 Provider 失败分类、工具传输状态之外的显式 mutation 结果语义，以及普通 runtime/Automation 共用的 IM 权限短命令协议。
 //   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

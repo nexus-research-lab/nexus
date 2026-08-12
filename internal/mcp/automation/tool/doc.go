@@ -8,7 +8,8 @@
 //   - run.go / repair.go：立即执行与故障修复。
 //   - heartbeat.go：按 Agent 权限读取、CAS 更新 heartbeat，及独立的 wake 动作。
 //   - configuration_verify.go：scheduled task 写后重读与配置版本核验。
-//   - registry.go / metadata.go / schema.go：工具注册、检索元数据与输入契约。
+//   - registry.go / metadata.go / schema.go：工具注册、检索元数据，以及按可信会话
+//     动态隐藏宿主所有 IM 路由字段的输入契约。
 //   - scope.go / delivery_scope.go / current_context_query.go / history_context_query.go / report_context.go：
 //     可信写入、Agent 所有权、投递目标授权与外部会话只读边界。
 //

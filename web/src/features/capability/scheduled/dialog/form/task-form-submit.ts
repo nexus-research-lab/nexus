@@ -1,3 +1,4 @@
+import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   CreateScheduledTaskParams,
@@ -214,19 +215,25 @@ function buildDelivery(
     if (!selectedReplySession) {
       throw new Error(t("capability.scheduled_dialog_validation_reply_session"));
     }
-    return {
-      channel: "websocket",
-      mode: "explicit",
-      to: selectedReplySession.sessionKey,
-    };
+    return buildSessionDelivery(selectedReplySession.sessionKey);
   }
   if (!selectedSession) {
     return { mode: "none" };
   }
+  return buildSessionDelivery(selectedSession.sessionKey);
+}
+
+function buildSessionDelivery(sessionKey: string): ScheduledTaskDeliveryTarget {
+  if (isExternalSessionChannel(null, sessionKey)) {
+    return {
+      mode: "last",
+      session_key: sessionKey,
+    };
+  }
   return {
     channel: "websocket",
     mode: "explicit",
-    to: selectedSession.sessionKey,
+    to: sessionKey,
   };
 }
 
@@ -363,6 +370,9 @@ export function buildScheduledTaskPayload(
     expires_at: buildExpiresAt(form, schedule, t),
     instruction: form.instruction.trim(),
     name: form.taskName.trim(),
+    permission_mode: form.permissionMode === "copy"
+      ? undefined
+      : form.permissionMode,
     schedule: buildSchedule(schedule, t),
     source: buildSource(context, originalSource),
   };
@@ -376,8 +386,8 @@ export function buildScheduledTaskPayload(
   }
   return {
     ...common,
-      delivery: buildDelivery(context, t),
+    delivery: buildDelivery(context, t),
     execution_kind: "agent",
-      session_target: buildSessionTarget(context, t),
+    session_target: buildSessionTarget(context, t),
   };
 }

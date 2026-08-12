@@ -23,12 +23,15 @@ func (d dmExternalReplyDispatcher) DeliverExternalReply(
 		return dmsvc.ExternalReplyResult{}, errors.New("channel router is not configured")
 	}
 	result, err := d.router.DeliverMessage(ctx, agentID, text, channels.DeliveryTarget{
-		Mode:       target.Mode,
-		Channel:    target.Channel,
-		To:         target.To,
-		AccountID:  target.AccountID,
-		ThreadID:   target.ThreadID,
-		SessionKey: target.SessionKey,
+		Mode:           target.Mode,
+		Channel:        target.Channel,
+		To:             target.To,
+		AccountID:      target.AccountID,
+		ThreadID:       target.ThreadID,
+		SessionKey:     target.SessionKey,
+		ContextToken:   target.ContextToken,
+		ReplyContextID: target.ReplyContextID,
+		StreamID:       target.StreamID,
 	})
 	if err != nil {
 		return dmsvc.ExternalReplyResult{}, err
@@ -55,11 +58,14 @@ func (d dmExternalReplyDispatcher) SetExternalTyping(
 		return errors.New("channel router is not configured")
 	}
 	return d.router.SetTyping(ctx, agentID, channels.DeliveryTarget{
-		Mode:       target.Mode,
-		Channel:    target.Channel,
-		To:         target.To,
-		AccountID:  target.AccountID,
-		ThreadID:   target.ThreadID,
-		SessionKey: target.SessionKey,
+		Mode:           target.Mode,
+		Channel:        target.Channel,
+		To:             target.To,
+		AccountID:      target.AccountID,
+		ThreadID:       target.ThreadID,
+		SessionKey:     target.SessionKey,
+		ContextToken:   target.ContextToken,
+		ReplyContextID: target.ReplyContextID,
+		StreamID:       target.StreamID,
 	}, active)
 }

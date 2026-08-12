@@ -43,6 +43,9 @@ type DeliveryChannel = channelcontract.DeliveryChannel
 // DeliveryResult 表示一次通道投递的目标解析结果与平台回执。
 type DeliveryResult = channelcontract.DeliveryResult
 
+// AutomationDeliveryContext 表示调度器签发的一次任务结果投递身份。
+type AutomationDeliveryContext = channelcontract.AutomationDeliveryContext
+
 type agentScopedDeliveryChannel = channelcontract.AgentScopedDeliveryChannel
 
 type typingDeliveryChannel = channelcontract.TypingDeliveryChannel

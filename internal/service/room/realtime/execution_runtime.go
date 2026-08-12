@@ -173,6 +173,15 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		runtimeDisabledSkillNames,
 		configurationRoleSkill,
 	)
+	allowedTools, disallowedTools, snapshottedToolPolicy := roomRoundToolPolicy(e.round, e.agent)
+	allowedTools = roomAllowedTools(allowedTools, e.round.Context.Room.PrivateMessagesEnabled)
+	if !snapshottedToolPolicy {
+		allowedTools = toolpolicy.WithManagedRuntimeAllowedTools(
+			allowedTools,
+			e.service.runtimeImagegenDefaultEnabled(e.ctx),
+		)
+	}
+	disallowedTools = roomDisallowedTools(disallowedTools, e.round.Context.Room.PrivateMessagesEnabled)
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
@@ -184,8 +193,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		VisionModel:                selection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          e.runtimePermissionHandler(),
-		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
-		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
+		AllowedTools:               allowedTools,
+		DisallowedTools:            disallowedTools,
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.config, e.agent.OwnerUserID),
@@ -364,6 +373,7 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 		PermissionMode:        permissionMode,
 		GoalID:                e.slot.childGoalIDForUsage(),
 		GoalObjectiveRevision: e.slot.ensureGoalObjectiveRevision(0),
+		AutomationRun:         cloneAutomationRunContext(e.round.AutomationRun),
 	})
 	if len(overlay) > 0 && servers == nil {
 		servers = make(map[string]sdkmcp.ServerConfig, len(overlay))
@@ -401,11 +411,12 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 			return e.service.permission.RequestPermission(ctx, e.slot.RuntimeSessionKey, request)
 		}
 	}
+	allowedTools, disallowedTools, _ := roomRoundToolPolicy(e.round, e.agent)
 	handler = withRoomPermissionPolicy(
 		handler,
 		e.round.Context.Room.PrivateMessagesEnabled,
-		e.agent.Options.AllowedTools,
-		e.agent.Options.DisallowedTools,
+		allowedTools,
+		disallowedTools,
 	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)

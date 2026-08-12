@@ -3,6 +3,7 @@
 import {
   CircleAlert,
   History,
+  Link2Off,
   ShieldAlert,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ import { ScheduledTaskPermissionActions } from "./scheduled-task-permission-acti
 
 interface ScheduledTaskAttentionDialogProps {
   description: string | null;
+  isBindingAttention: boolean;
   isOpen: boolean;
   isPending: boolean;
   onClose: () => void;
@@ -50,6 +52,7 @@ function isWebResource(value: string): boolean {
 
 export function ScheduledTaskAttentionDialog({
   description,
+  isBindingAttention,
   isOpen,
   isPending,
   onClose,
@@ -97,18 +100,35 @@ export function ScheduledTaskAttentionDialog({
       >
         <UiDialogShell className="max-h-[86vh]" size="lg">
           <UiDialogHeader
-            icon={hasPermissionAttention
+            icon={isBindingAttention
+              ? <Link2Off className="h-4 w-4" />
+              : hasPermissionAttention
               ? <ShieldAlert className="h-4 w-4" />
               : <CircleAlert className="h-4 w-4" />}
-            iconClassName={hasPermissionAttention ? "text-(--warning)" : "text-(--destructive)"}
+            iconClassName={isBindingAttention || hasPermissionAttention ? "text-(--warning)" : "text-(--destructive)"}
             onClose={onClose}
             subtitle={task.name}
-            title={hasPermissionAttention ? title || "任务需要处理" : "最近运行异常"}
+            title={isBindingAttention || hasPermissionAttention ? title || "任务需要处理" : "最近运行异常"}
             titleId={titleId}
           />
 
           <UiDialogBody className="min-h-0 flex-1 space-y-5" scrollable>
-            {request ? (
+            {isBindingAttention ? (
+              <section aria-labelledby={`${titleId}-binding`}>
+                <h3
+                  className="text-xs font-semibold uppercase tracking-[0.08em] text-(--text-soft)"
+                  id={`${titleId}-binding`}
+                >
+                  当前状态
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-(--text-default)">
+                  {description}
+                </p>
+                <p className="mt-3 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3 text-xs leading-5 text-(--text-default)">
+                  原任务的名称、指令、调度和权限快照都已保留；选择有效会话并保存后即可重新启用。
+                </p>
+              </section>
+            ) : request ? (
               <section aria-labelledby={`${titleId}-request`}>
                 <div className="flex items-center justify-between gap-3">
                   <h3
@@ -227,7 +247,16 @@ export function ScheduledTaskAttentionDialog({
                 <History className="h-3.5 w-3.5" />
                 查看运行历史
               </UiButton>
-              {hasPermissionActions ? (
+              {isBindingAttention ? (
+                <UiButton
+                  onClick={() => closeThen(() => onEdit(task))}
+                  size="sm"
+                  tone="primary"
+                  variant="solid"
+                >
+                  重新绑定会话
+                </UiButton>
+              ) : hasPermissionActions ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <ScheduledTaskPermissionActions
                     isPending={isPending}

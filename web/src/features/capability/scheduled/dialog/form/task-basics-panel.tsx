@@ -21,6 +21,8 @@ interface TaskBasicsPanelProps {
   actions: TaskBasicsActions;
   data: TaskBasicsData;
   form: TaskFormDraft;
+  isEditing: boolean;
+  needsSessionRebind: boolean;
   nameRef: RefObject<HTMLInputElement | null>;
 }
 
@@ -28,6 +30,8 @@ export function TaskBasicsPanel({
   actions,
   data,
   form,
+  isEditing,
+  needsSessionRebind,
   nameRef,
 }: TaskBasicsPanelProps) {
   const { t } = useI18n();
@@ -69,7 +73,13 @@ export function TaskBasicsPanel({
         />
       </UiField>
 
-      <TaskBasicsAdvanced actions={actions} data={data} form={form} />
+      <TaskBasicsAdvanced
+        actions={actions}
+        data={data}
+        form={form}
+        isEditing={isEditing}
+        needsSessionRebind={needsSessionRebind}
+      />
     </div>
   );
 }

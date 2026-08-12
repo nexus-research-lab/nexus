@@ -1,6 +1,6 @@
-// INPUT: 外部 channel ingress 类型与模型工具请求。
-// OUTPUT: 按任务类型限定的默认批准工具集合。
-// POS: channel 入口的工具权限策略边界。
+// INPUT: 外部 channel ingress 配对信任、Agent 工具配置与模型工具请求。
+// OUTPUT: 普通外部来源的受限决策，或 active-paired 私聊的同 Agent 工具决策。
+// POS: pairing transport 身份与 Agent 工具权限相交的 channel 入口边界。
 package channels
 
 import (
@@ -64,7 +64,11 @@ func (s *IngressService) buildPermissionHandler(
 	agentValue *protocol.Agent,
 	request normalizedIngressRequest,
 ) sdkpermission.Handler {
+	if request.trustedExternalInteractive {
+		return s.buildPairedDMPermissionHandler(agentValue, request)
+	}
 	allowedByAgent := toolpolicy.NormalizeSet(agentValue.Options.AllowedTools)
+	deniedByAgent := toolpolicy.NormalizeSet(agentValue.Options.DisallowedTools)
 	approved := request.autoApproveTools
 	if request.channelStored == ChannelTypeInternal && len(approved) == 0 {
 		if len(allowedByAgent) > 0 {
@@ -82,6 +86,9 @@ func (s *IngressService) buildPermissionHandler(
 		// 否则 SDK 会卡在等待人工输入，导致整个会话超时。
 		if toolName == "AskUserQuestion" {
 			return sdkpermission.Deny("当前通道不支持交互式问题确认", true), nil
+		}
+		if toolpolicy.Contains(deniedByAgent, toolName) {
+			return sdkpermission.Deny("当前 agent 已禁止该工具", false), nil
 		}
 		// 外部 ingress 的内容并不等同于已认证的人类控制面请求。即使通道配置了
 		// autoApproveAll 或把整个 nexus_automation server 放入 allowlist，也只能
@@ -104,6 +111,34 @@ func (s *IngressService) buildPermissionHandler(
 			return sdkpermission.Deny("当前通道不允许自动授权该工具", false), nil
 		}
 		return sdkpermission.Allow(permissionRequest.Input, nil), nil
+	}
+}
+
+func (s *IngressService) buildPairedDMPermissionHandler(
+	agentValue *protocol.Agent,
+	request normalizedIngressRequest,
+) sdkpermission.Handler {
+	allowedByAgent := toolpolicy.NormalizeSet(agentValue.Options.AllowedTools)
+	deniedByAgent := toolpolicy.NormalizeSet(agentValue.Options.DisallowedTools)
+	approved := toolpolicy.MergeSets(request.autoApproveTools, allowedByAgent)
+	return func(ctx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
+		toolName := strings.TrimSpace(permissionRequest.ToolName)
+		if toolName == "" {
+			return sdkpermission.Deny("permission tool_name is required", true), nil
+		}
+		if toolName == "AskUserQuestion" {
+			return sdkpermission.Deny("当前 IM 通道不支持结构化问题回答", true), nil
+		}
+		if toolpolicy.Contains(deniedByAgent, toolName) {
+			return sdkpermission.Deny("当前 agent 已禁止该工具", false), nil
+		}
+		if request.autoApproveAll || toolpolicy.Contains(approved, toolName) {
+			return sdkpermission.Allow(permissionRequest.Input, nil), nil
+		}
+		if s.permission == nil {
+			return sdkpermission.Deny("当前 IM 权限确认通道不可用", false), nil
+		}
+		return s.permission.RequestPermission(ctx, request.sessionKey, permissionRequest)
 	}
 }
 

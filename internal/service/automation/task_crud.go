@@ -81,10 +81,10 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 		Delivery:    normalized.Delivery,
 		Source:      normalized.Source,
 	}
-	if err = s.prepareTaskDeliveryMutation(ctx, &deliveryCandidate, true); err != nil {
+	if err = s.prepareTaskDeliveryMutation(ctx, &deliveryCandidate, &normalized.Source); err != nil {
 		return nil, err
 	}
-	normalized.Source = deliveryCandidate.Source
+	deliveryGrant := deliveryCandidate.DeliveryGrant
 	intentDigest := ""
 	if normalized.RequestID != "" {
 		intentDigest = taskCreateIntentDigest(normalized)
@@ -109,29 +109,35 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 	}
 
 	job := automationdomain.ScheduledTask{
-		JobID:         s.idFactory("task"),
-		OwnerUserID:   ownerUserID,
-		Name:          normalized.Name,
-		AgentID:       normalized.AgentID,
-		Schedule:      normalized.Schedule,
-		Instruction:   normalized.Instruction,
-		ExecutionKind: normalized.ExecutionKind,
-		SessionTarget: normalized.SessionTarget,
-		Delivery:      normalized.Delivery,
-		Source:        normalized.Source,
-		OverlapPolicy: normalized.OverlapPolicy,
-		ExpiresAt:     cloneTimePointer(normalized.ExpiresAt),
-		Enabled:       normalized.Enabled,
+		JobID:               s.idFactory("task"),
+		OwnerUserID:         ownerUserID,
+		Name:                normalized.Name,
+		AgentID:             normalized.AgentID,
+		Schedule:            normalized.Schedule,
+		Instruction:         normalized.Instruction,
+		ExecutionKind:       normalized.ExecutionKind,
+		PermissionMode:      normalized.PermissionMode,
+		SessionTarget:       normalized.SessionTarget,
+		Delivery:            normalized.Delivery,
+		SessionBindingState: automationdomain.TaskSessionBindingStateReady,
+		Source:              normalized.Source,
+		DeliveryGrant:       deliveryGrant,
+		OverlapPolicy:       normalized.OverlapPolicy,
+		ExpiresAt:           cloneTimePointer(normalized.ExpiresAt),
+		Enabled:             normalized.Enabled,
 	}
-	policy, err := s.buildInitialTaskPermissionPolicy(
-		ctx,
-		job,
-		taskPermissionMutationIsDirectUser(ctx, job.Source.Kind),
-		false,
-	)
+	snapshot, err := s.resolveInitialTaskPermissionSnapshot(ctx, job)
 	if err != nil {
 		return nil, err
 	}
+	job.PermissionMode = snapshot.Mode
+	policy := s.buildTaskPermissionPolicyFromOptions(
+		ctx,
+		job,
+		snapshot.AgentOptions,
+		taskPermissionMutationIsDirectUser(ctx, job.Source.Kind),
+		false,
+	)
 	job.PermissionPolicy = policy
 	job.PermissionState = automationdomain.TaskPermissionStateReady
 	var (
@@ -207,8 +213,10 @@ func (s *Service) updateTask(
 	if err = rejectAgentScriptControl(ctx, *current, next); err != nil {
 		return nil, err
 	}
-	if input.Delivery != nil || input.Source != nil {
-		if err = s.prepareTaskDeliveryMutation(ctx, &next, input.Delivery != nil); err != nil {
+	deliveryChanged := input.Delivery != nil &&
+		next.Delivery.Normalized() != current.Delivery.Normalized()
+	if deliveryChanged {
+		if err = s.prepareTaskDeliveryMutation(ctx, &next, input.Source); err != nil {
 			return nil, err
 		}
 	}
@@ -273,11 +281,12 @@ func (s *Service) applyTaskUpdate(
 	applyOptionalValue(input.Schedule, func(value automationdomain.Schedule) { next.Schedule = value.Normalized() })
 	applyOptionalValue(input.Instruction, func(value string) { next.Instruction = strings.TrimSpace(value) })
 	applyOptionalValue(input.ExecutionKind, func(value string) { next.ExecutionKind = automationdomain.NormalizeExecutionKind(value) })
+	applyOptionalValue(input.PermissionMode, func(value string) { next.PermissionMode = automationdomain.NormalizePermissionMode(value) })
 	applyOptionalValue(input.SessionTarget, func(value automationdomain.SessionTarget) { next.SessionTarget = value.Normalized() })
 	applyOptionalValue(input.Delivery, func(value automationdomain.DeliveryTarget) { next.Delivery = value.Normalized() })
-	applyOptionalValue(input.Source, func(value automationdomain.Source) { next.Source = value.Normalized() })
 	applyOptionalValue(input.OverlapPolicy, func(value string) { next.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(value) })
 	applyOptionalValue(input.Enabled, func(value bool) { next.Enabled = value })
+	next = automationdomain.NormalizeScheduledTaskSessionBinding(next)
 	if err := s.applyTaskExpirationUpdate(&next, input); err != nil {
 		return automationdomain.ScheduledTask{}, err
 	}
@@ -317,6 +326,9 @@ func (s *Service) validateTaskUpdate(
 	current automationdomain.ScheduledTask,
 	next automationdomain.ScheduledTask,
 ) error {
+	if next.Enabled && next.SessionBindingState == automationdomain.TaskSessionBindingStateRebindRequired {
+		return automationdomain.ErrTaskSessionRebindRequired
+	}
 	if err := scheduledTaskCreateInput(next).Validate(); err != nil {
 		return err
 	}
@@ -334,17 +346,18 @@ func (s *Service) validateTaskUpdate(
 
 func scheduledTaskCreateInput(task automationdomain.ScheduledTask) automationdomain.CreateJobInput {
 	return automationdomain.CreateJobInput{
-		Name:          task.Name,
-		AgentID:       task.AgentID,
-		Schedule:      task.Schedule,
-		Instruction:   task.Instruction,
-		ExecutionKind: task.ExecutionKind,
-		SessionTarget: task.SessionTarget,
-		Delivery:      task.Delivery,
-		Source:        task.Source,
-		OverlapPolicy: task.OverlapPolicy,
-		ExpiresAt:     cloneTimePointer(task.ExpiresAt),
-		Enabled:       task.Enabled,
+		Name:           task.Name,
+		AgentID:        task.AgentID,
+		Schedule:       task.Schedule,
+		Instruction:    task.Instruction,
+		ExecutionKind:  task.ExecutionKind,
+		PermissionMode: task.PermissionMode,
+		SessionTarget:  task.SessionTarget,
+		Delivery:       task.Delivery,
+		Source:         task.Source,
+		OverlapPolicy:  task.OverlapPolicy,
+		ExpiresAt:      cloneTimePointer(task.ExpiresAt),
+		Enabled:        task.Enabled,
 	}
 }
 

@@ -28,6 +28,17 @@ type automationMCPFixture struct {
 	ServerContext contract.ServerContext
 }
 
+type allowAutomationDeliveryGrant struct{}
+
+func (allowAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
+	context.Context,
+	string,
+	string,
+	string,
+) error {
+	return nil
+}
+
 func newAutomationMCPFixture(t *testing.T, resultText string) automationMCPFixture {
 	t.Helper()
 	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
@@ -53,6 +64,7 @@ func newAutomationMCPFixture(t *testing.T, resultText string) automationMCPFixtu
 		&fakeWorkspaceReader{},
 		router,
 	)
+	service.SetDeliveryGrantResolver(allowAutomationDeliveryGrant{})
 	return automationMCPFixture{
 		WorkspacePath: workspacePath,
 		Permission:    permission,

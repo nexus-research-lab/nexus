@@ -30,7 +30,7 @@ func TestRepairLegacyAgentDisabledSkillSchemaAdvancesVersionCollision(t *testing
 		t.Fatalf("apply current migrations after compatibility repair: %v", err)
 	}
 
-	assertAgentDisabledSkillSchema(t, db, 86)
+	assertAgentDisabledSkillSchema(t, db, latestTestMigrationVersion(t))
 }
 
 func TestRepairLegacyAgentDisabledSkillSchemaKeepsLaterLegacyVersion(t *testing.T) {
@@ -60,7 +60,7 @@ func TestRepairLegacyAgentDisabledSkillSchemaKeepsLaterLegacyVersion(t *testing.
 		t.Fatalf("apply current migrations after later legacy version: %v", err)
 	}
 
-	assertAgentDisabledSkillSchema(t, db, 86)
+	assertAgentDisabledSkillSchema(t, db, latestTestMigrationVersion(t))
 }
 
 func TestRepairLegacyAgentDisabledSkillSchemaLeavesCurrentSchemaUntouched(t *testing.T) {
@@ -83,7 +83,7 @@ func TestRepairLegacyAgentDisabledSkillSchemaLeavesCurrentSchemaUntouched(t *tes
 		t.Fatalf("apply current migrations from current version 56: %v", err)
 	}
 
-	assertAgentDisabledSkillSchema(t, db, 86)
+	assertAgentDisabledSkillSchema(t, db, latestTestMigrationVersion(t))
 }
 
 func openAgentDisabledSkillMigrationTestDB(t *testing.T, name string) *sql.DB {

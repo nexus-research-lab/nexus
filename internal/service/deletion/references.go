@@ -18,6 +18,7 @@ type sessionGoalCleaner interface {
 
 type sessionTaskCleaner interface {
 	DeleteTasksForSessions(context.Context, string, []string) error
+	InvalidateTasksForDeletedSessions(context.Context, string, []string) error
 }
 
 // Coordinator 统一清理 Session 作用域的次级数据。
@@ -57,6 +58,26 @@ func (c *Coordinator) CleanupSessionReferences(
 	ownerUserID string,
 	sessionKeys []string,
 ) error {
+	return c.cleanupSessionReferences(ctx, ownerUserID, sessionKeys, true)
+}
+
+// CleanupSessionReferencesPreservingTasks 清理已删除 Session 的可重建引用，并把引用
+// 该 Session 的 Automation 任务停用、标记为等待重绑。Agent/Room 整体删除仍使用
+// 完整级联入口，因为其任务本身也失去所属执行主体。
+func (c *Coordinator) CleanupSessionReferencesPreservingTasks(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKeys []string,
+) error {
+	return c.cleanupSessionReferences(ctx, ownerUserID, sessionKeys, false)
+}
+
+func (c *Coordinator) cleanupSessionReferences(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKeys []string,
+	deleteTasks bool,
+) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
@@ -66,7 +87,15 @@ func (c *Coordinator) CleanupSessionReferences(
 		return nil
 	}
 	if c.tasks != nil {
-		if err := c.tasks.DeleteTasksForSessions(ctx, ownerUserID, sessionKeys); err != nil {
+		if deleteTasks {
+			if err := c.tasks.DeleteTasksForSessions(ctx, ownerUserID, sessionKeys); err != nil {
+				return err
+			}
+		} else if err := c.tasks.InvalidateTasksForDeletedSessions(
+			ctx,
+			ownerUserID,
+			sessionKeys,
+		); err != nil {
 			return err
 		}
 	}

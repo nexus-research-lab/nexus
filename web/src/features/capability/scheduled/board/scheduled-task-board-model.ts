@@ -50,7 +50,13 @@ export interface ScheduledTaskPermissionPresentation {
   title: string;
 }
 
+export interface ScheduledTaskBindingPresentation {
+  description: string;
+  title: string;
+}
+
 export interface ScheduledTaskCardPresentation {
+  binding: ScheduledTaskBindingPresentation | null;
   columnId: ScheduledTaskBoardColumnId;
   contextLabel: string;
   deleteDisabled: boolean;
@@ -148,6 +154,9 @@ export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] 
 ];
 
 function getTaskColumnId(task: ScheduledTaskItem): ScheduledTaskBoardColumnId {
+  if (task.session_binding_state === "rebind_required") {
+    return "attention";
+  }
   if (isActionablePermissionState(task.permission_state)) {
     return "attention";
   }
@@ -158,6 +167,24 @@ function getTaskColumnId(task: ScheduledTaskItem): ScheduledTaskBoardColumnId {
     return "attention";
   }
   return task.enabled ? "scheduled" : "stopped";
+}
+
+function getBindingPresentation(
+  task: ScheduledTaskItem,
+): ScheduledTaskBindingPresentation | null {
+  if (task.session_binding_state !== "rebind_required") {
+    return null;
+  }
+  const issues = new Set(task.session_binding_issues ?? []);
+  const description = issues.has("execution") && issues.has("delivery")
+    ? "执行会话和结果投递会话已删除。编辑任务并重新选择两个会话后才能恢复。"
+    : issues.has("delivery")
+      ? "结果投递会话已删除。编辑任务并重新选择投递会话后才能恢复。"
+      : "执行会话已删除。编辑任务并重新选择执行会话后才能恢复。";
+  return {
+    description,
+    title: "需要重新绑定会话",
+  };
 }
 
 function isActionablePermissionState(state: string | null | undefined): boolean {
@@ -261,6 +288,9 @@ function getTimingSummary(
     return `下次 ${formatScheduledDatetime(task.next_run_at, { emptyLabel: "等待安排" })}`;
   }
   if (columnId === "attention") {
+    if (task.session_binding_state === "rebind_required") {
+      return "任务已暂停 · 等待重新绑定";
+    }
     const permission = getPermissionPresentation(task);
     if (permission) {
       const requestedAt = Date.parse(task.pending_permission_request?.created_at ?? "");
@@ -280,12 +310,14 @@ export function getScheduledTaskCardPresentation(
   pending: ScheduledTaskCardPendingState,
 ): ScheduledTaskCardPresentation {
   const columnId = getTaskColumnId(task);
+  const binding = getBindingPresentation(task);
   const permission = getPermissionPresentation(task);
   const permissionBlocksRun = permission !== null && permission.state !== "denied";
   // last_error 描述上一段已经结束的执行；新 attempt 运行期间只呈现当前状态，
   // 若本次仍失败，完成快照会再带回新的诊断。
   const lastError = task.running ? null : task.last_error?.trim() || null;
   return {
+    binding,
     columnId,
     contextLabel: getContextLabel(task),
     deleteDisabled: pending.isDeleting,
@@ -293,8 +325,10 @@ export function getScheduledTaskCardPresentation(
     lastError,
     permission,
     runAction: {
-      disabled: pending.isRunning || pending.isPermissionPending || task.running || permissionBlocksRun,
-      title: permissionBlocksRun
+      disabled: pending.isRunning || pending.isPermissionPending || task.running || permissionBlocksRun || binding !== null,
+      title: binding
+        ? "请先重新绑定有效会话"
+        : permissionBlocksRun
         ? "请先处理任务权限"
         : task.running
           ? "任务当前正在运行"
@@ -303,9 +337,11 @@ export function getScheduledTaskCardPresentation(
     scheduleSummary: formatScheduledTaskSchedule(task.schedule),
     timingSummary: getTimingSummary(task, columnId),
     toggleAction: {
-      disabled: pending.isToggling,
-      label: task.enabled ? "暂停调度" : "恢复调度",
-      title: task.enabled ? "暂停后不再自动触发" : "恢复后重新参与调度",
+      disabled: pending.isToggling || binding !== null,
+      label: binding ? "等待重新绑定" : task.enabled ? "暂停调度" : "恢复调度",
+      title: binding
+        ? "编辑任务并替换所有已删除会话后才能恢复调度"
+        : task.enabled ? "暂停后不再自动触发" : "恢复后重新参与调度",
     },
   };
 }

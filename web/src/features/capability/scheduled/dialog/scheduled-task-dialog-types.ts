@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 
 import type {
   ScheduledTaskExecutionKind,
+  ScheduledTaskPermissionMode,
   ScheduledTaskSchedule,
 } from "@/types/capability/scheduled-task/task";
 
@@ -13,6 +14,7 @@ export type TargetType = "agent" | "room";
 export type ExecutionKind = ScheduledTaskExecutionKind;
 export type ExecutionMode = "dedicated" | "existing" | "main" | "temporary";
 export type ReplyMode = "execution" | "none" | "selected";
+export type PermissionMode = ScheduledTaskPermissionMode | "copy";
 
 export interface ChoiceDef<Value extends string> {
   key: Value;
@@ -20,6 +22,7 @@ export interface ChoiceDef<Value extends string> {
 }
 
 export interface TaskDialogLabelOption {
+  badge?: string | null;
   label: string;
   value: string;
 }
@@ -36,6 +39,7 @@ export interface TaskFormDraft {
   executionKind: ExecutionKind;
   executionMode: ExecutionMode;
   instruction: string;
+  permissionMode: PermissionMode;
   replyMode: ReplyMode;
   selectedAgentId: string;
   selectedReplySessionKey: string;

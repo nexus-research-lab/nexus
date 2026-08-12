@@ -33,6 +33,7 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 		"name": "新闻日报",
 		"agent_id": "nexus",
 		"schedule": {"kind": "every", "interval_seconds": 3600, "timezone": "UTC"},
+		"permission_mode": "plan",
 		"session_target": {"kind": "isolated"},
 		"delivery": {"mode": "none"},
 		"instruction": "搜索今天的重要新闻",
@@ -43,7 +44,8 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 	}
 	var created struct {
 		Data struct {
-			JobID string `json:"job_id"`
+			JobID          string `json:"job_id"`
+			PermissionMode string `json:"permission_mode"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(createRecorder.Body.Bytes(), &created); err != nil {
@@ -51,6 +53,31 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 	}
 	if created.Data.JobID == "" {
 		t.Fatalf("创建响应缺少 job_id: %s", createRecorder.Body.String())
+	}
+	if created.Data.PermissionMode != automationdomain.PermissionModePlan {
+		t.Fatalf("创建请求未保存 permission_mode: %+v", created.Data)
+	}
+
+	updateRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		fmt.Sprintf("/nexus/v1/capability/scheduled/tasks/%s", created.Data.JobID),
+		[]byte(`{"permission_mode":"dontAsk"}`),
+	)
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("更新权限模式状态码不正确: got=%d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	var updated struct {
+		Data struct {
+			PermissionMode string `json:"permission_mode"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(updateRecorder.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("解析更新响应失败: %v", err)
+	}
+	if updated.Data.PermissionMode != automationdomain.PermissionModeDontAsk {
+		t.Fatalf("更新请求未保存 permission_mode: %+v", updated.Data)
 	}
 
 	statusRecorder := serveAutomationJSON(
@@ -131,6 +158,139 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 	}
 	if report.Data.JobID != created.Data.JobID || report.Data.Totals.TaskCount != 1 || len(report.Data.Tasks) != 1 {
 		t.Fatalf("日报响应不完整: %+v", report.Data)
+	}
+}
+
+func TestScheduledTaskHTTPRejectsUnpairedIMRebindAsClientError(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	handlertest.CloseServer(t, server)
+
+	createRecorder := serveAutomationJSON(t, server, http.MethodPost, "/nexus/v1/capability/scheduled/tasks", []byte(`{
+		"name": "等待重绑",
+		"agent_id": "nexus",
+		"schedule": {"kind": "every", "interval_seconds": 3600, "timezone": "UTC"},
+		"session_target": {"kind": "isolated"},
+		"delivery": {"mode": "none"},
+		"instruction": "测试未配对目标",
+		"enabled": false
+	}`))
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf("创建任务失败: got=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var created struct {
+		Data struct {
+			JobID string `json:"job_id"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(createRecorder.Body.Bytes(), &created); err != nil || created.Data.JobID == "" {
+		t.Fatalf("解析创建响应失败: err=%v body=%s", err, createRecorder.Body.String())
+	}
+
+	unpairedSessionKey := protocol.BuildAgentAccountSessionKey(
+		"nexus",
+		protocol.SessionChannelWeixinPersonal,
+		"dm",
+		"removed-account",
+		"removed-contact",
+		"",
+	)
+	updateBody := []byte(fmt.Sprintf(`{
+		"delivery": {"mode": "last", "session_key": %q}
+	}`, unpairedSessionKey))
+	updateRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		fmt.Sprintf("/nexus/v1/capability/scheduled/tasks/%s", created.Data.JobID),
+		updateBody,
+	)
+	if updateRecorder.Code != http.StatusBadRequest ||
+		!strings.Contains(updateRecorder.Body.String(), automationdomain.ErrTaskDeliverySessionUnavailable.Error()) {
+		t.Fatalf("未配对 IM 重绑应返回明确客户端错误: got=%d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+}
+
+func TestScheduledTaskHTTPUpdatePreservesAgentCreatedProvenance(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	handlertest.CloseServer(t, server)
+
+	createRecorder := serveAutomationJSON(t, server, http.MethodPost, "/nexus/v1/capability/scheduled/tasks", []byte(`{
+		"name": "旧 Agent 任务",
+		"agent_id": "nexus",
+		"schedule": {"kind": "every", "interval_seconds": 3600, "timezone": "UTC"},
+		"session_target": {"kind": "isolated"},
+		"delivery": {"mode": "none"},
+		"instruction": "保持原配置",
+		"enabled": false
+	}`))
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf("创建任务失败: got=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var created struct {
+		Data struct {
+			JobID string `json:"job_id"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(createRecorder.Body.Bytes(), &created); err != nil || created.Data.JobID == "" {
+		t.Fatalf("解析创建响应失败: err=%v body=%s", err, createRecorder.Body.String())
+	}
+
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	_, err = db.Exec(`
+UPDATE automation_scheduled_tasks
+SET source_kind = 'agent',
+    source_creator_agent_id = 'nexus',
+    source_context_type = 'agent',
+    source_context_id = 'nexus',
+    source_context_label = 'Nexus',
+    delivery_grant_json = json_object(
+        'kind', 'agent',
+        'creator_agent_id', 'nexus',
+        'context_type', 'agent',
+        'context_id', 'nexus',
+        'context_label', 'Nexus'
+    )
+WHERE job_id = ?`, created.Data.JobID)
+	_ = db.Close()
+	if err != nil {
+		t.Fatalf("模拟旧 Agent 任务失败: %v", err)
+	}
+
+	updateRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		fmt.Sprintf("/nexus/v1/capability/scheduled/tasks/%s", created.Data.JobID),
+		[]byte(`{"name":"网页已修改","delivery":{"mode":"none"}}`),
+	)
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("网页编辑旧任务失败: got=%d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	var updated struct {
+		Data struct {
+			Name   string                  `json:"name"`
+			Source automationdomain.Source `json:"source"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(updateRecorder.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("解析更新响应失败: %v", err)
+	}
+	if updated.Data.Name != "网页已修改" ||
+		updated.Data.Source.Kind != automationdomain.SourceKindAgent ||
+		updated.Data.Source.CreatorAgentID != "nexus" {
+		t.Fatalf("网页更新破坏了创建 provenance: %+v", updated.Data)
 	}
 }
 

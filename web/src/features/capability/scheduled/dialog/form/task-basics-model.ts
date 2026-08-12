@@ -3,6 +3,7 @@ import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ExecutionKind,
   ExecutionMode,
+  PermissionMode,
   ReplyMode,
   TargetType,
   TaskDialogLabelOption,
@@ -11,6 +12,7 @@ import type {
 } from "../scheduled-task-dialog-types";
 import {
   buildExecutionModeOptions,
+  buildPermissionModeOptions,
   buildReplyModeOptions,
 } from "./task-form-options";
 
@@ -35,6 +37,7 @@ export interface TaskBasicsActions {
   setExpiresAt: (value: string) => void;
   setExecutionKind: (value: ExecutionKind) => void;
   setExecutionMode: (value: ExecutionMode) => void;
+  setPermissionMode: (value: PermissionMode) => void;
   setReplyMode: (value: ReplyMode) => void;
   setSelectedAgentId: (value: string) => void;
   setSelectedReplySessionKey: (value: string) => void;
@@ -196,6 +199,7 @@ export function buildTaskAdvancedSummary(
   }
   return [
     choiceLabel(buildExecutionModeOptions(t), form.executionMode),
+    choiceLabel(buildPermissionModeOptions(t), form.permissionMode),
     choiceLabel(buildReplyModeOptions(t), form.replyMode),
   ].join(" · ");
 }

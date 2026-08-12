@@ -18,12 +18,16 @@ func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) 
 		return nil, err
 	}
 	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
-	return mergeSessions(fileSessions, roomSessions), nil
+	return s.projectExternalSessionIdentities(ctx, mergeSessions(fileSessions, roomSessions))
 }
 
 // ListMutableSessions 只列出 owner workspace 中由 Session 域管理的 Agent 会话。
 func (s *Service) ListMutableSessions(ctx context.Context) ([]protocol.Session, error) {
-	return s.listMutableWorkspaceSessions(ctx)
+	items, err := s.listMutableWorkspaceSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.projectExternalSessionIdentities(ctx, items)
 }
 
 // ListAgentSessions 列出指定 Agent 的全部会话。
@@ -61,7 +65,10 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		return nil, err
 	}
 	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
-	return mergeSessions(filteredFileSessions, roomSessions), nil
+	return s.projectExternalSessionIdentities(
+		ctx,
+		mergeSessions(filteredFileSessions, roomSessions),
+	)
 }
 
 // GetSession 读取指定 session。
@@ -80,7 +87,11 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 	}
 	if roomSession != nil {
 		normalized := s.applyRuntimeStateToSession(*roomSession)
-		return &normalized, nil
+		projected, projectErr := s.projectExternalSessionIdentity(ctx, normalized)
+		if projectErr != nil {
+			return nil, projectErr
+		}
+		return &projected, nil
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
@@ -102,7 +113,11 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 	if err != nil {
 		return nil, err
 	}
-	return &normalized, nil
+	projected, err := s.projectExternalSessionIdentity(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	return &projected, nil
 }
 
 // GetMutableSession 读取 Session 域可变的 Agent workspace 会话。
@@ -118,5 +133,9 @@ func (s *Service) GetMutableSession(
 		return nil, ErrSessionNotFound
 	}
 	normalized := s.applyRuntimeStateToSession(*item)
-	return &normalized, nil
+	projected, err := s.projectExternalSessionIdentity(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	return &projected, nil
 }

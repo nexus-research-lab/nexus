@@ -94,7 +94,9 @@ export function buildRoomHistoryItemPresentation(
   return {
     actionLabels: copy.actionLabels,
     actions,
-    actionsPersistent: entry.isActive && actions.length > 0,
+    actionsPersistent: actions.length > 0 && (
+      entry.isActive || entry.externalSessionLabel !== null
+    ),
     activityLabel: formatRelativeTime(
       entry.conversation.last_activity_at,
       copy.locale,

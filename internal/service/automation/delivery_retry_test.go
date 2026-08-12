@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,10 +11,94 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
 	_ "modernc.org/sqlite"
 )
+
+func TestServiceRevalidatesIMPairingAtCreateDeliveryAndRetry(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	delivery := &fakeDeliveryRouter{err: fmt.Errorf("temporary IM send failure")}
+	grant := &mutableAutomationDeliveryGrant{allowed: true}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		&fakeDMRunner{permission: permission, resultText: "定时结果"},
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		delivery,
+	)
+	service.SetDeliveryGrantResolver(grant)
+	ownerCtx := contextForOwner(context.Background(), "user-1")
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		"agent-1",
+		protocol.SessionChannelWeixinPersonal,
+		"dm",
+		"weixin-account",
+		"weixin-user",
+		"",
+	)
+	create := func(name string) (*automationdomain.ScheduledTask, error) {
+		return service.CreateTask(ownerCtx, automationdomain.CreateJobInput{
+			Name:        name,
+			AgentID:     "agent-1",
+			Instruction: "执行后回传",
+			Schedule: automationdomain.Schedule{
+				Kind:            automationdomain.ScheduleKindEvery,
+				IntervalSeconds: intRef(3600),
+				Timezone:        "Asia/Shanghai",
+			},
+			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: name},
+			Delivery: automationdomain.DeliveryTarget{
+				Mode:       automationdomain.DeliveryModeLast,
+				SessionKey: sessionKey,
+			},
+			Source:  automationdomain.Source{Kind: automationdomain.SourceKindCLI, SessionKey: sessionKey},
+			Enabled: true,
+		})
+	}
+	task, err := create("pairing-runtime")
+	if err != nil {
+		t.Fatalf("active pairing 下创建任务失败: %v", err)
+	}
+	if _, err = service.RunTaskNow(ownerCtx, task.JobID); err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	var run automationdomain.ScheduledTaskRun
+	waitFor(t, 2*time.Second, func() bool {
+		runs, listErr := service.ListTaskRuns(ownerCtx, task.JobID)
+		if listErr != nil || len(runs) != 1 || runs[0].DeliveryStatus != automationdomain.DeliveryStatusFailed {
+			return false
+		}
+		run = runs[0]
+		return true
+	})
+	if calls := delivery.Calls(); len(calls) != 1 {
+		t.Fatalf("首次执行应尝试一次 IM 投递: %+v", calls)
+	}
+
+	grant.setAllowed(false)
+	if _, err = create("pairing-create-revoked"); !errors.Is(err, automationdomain.ErrTaskDeliverySessionUnavailable) {
+		t.Fatalf("pairing 撤销后新建任务必须 fail closed: %v", err)
+	}
+	delivery.err = nil
+	retried, err := service.RetryRunDelivery(ownerCtx, task.JobID, run.RunID)
+	if err != nil {
+		t.Fatalf("重试 ledger 更新失败: %v", err)
+	}
+	if retried.DeliveryStatus != automationdomain.DeliveryStatusFailed ||
+		retried.DeliveryError == nil ||
+		!strings.Contains(*retried.DeliveryError, automationdomain.ErrTaskDeliverySessionUnavailable.Error()) {
+		t.Fatalf("pairing 撤销后重试必须记录授权失败: %+v", retried)
+	}
+	if calls := delivery.Calls(); len(calls) != 1 {
+		t.Fatalf("撤销 pairing 后重试不得到达 IM adapter: %+v", calls)
+	}
+}
 
 func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	db := newAutomationTestDB(t)

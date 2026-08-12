@@ -15,11 +15,13 @@ export type UiSelectMenuSelectionDirection = -1 | 1;
 export interface UiSelectMenuOption {
   value: string;
   label: string;
+  badge?: string | null;
   disabled?: boolean;
 }
 
 export interface SelectMenuPresentation {
   activeLabel: string;
+  activeBadge: string | null;
   estimatedOptionHeight: number;
   heightClassName: string;
   optionButtonLayoutClassName: string;
@@ -31,6 +33,7 @@ export interface SelectMenuPresentation {
 }
 
 const SELECT_MENU_MAX_HEIGHT = 280;
+const SELECT_MENU_OPTION_GAP = 4;
 
 export const SELECT_MENU_SEARCH_ROW_HEIGHT = 44;
 
@@ -113,6 +116,7 @@ export function buildSelectMenuPresentation({
 
   return {
     activeLabel: options.find((option) => option.value === value)?.label ?? placeholder,
+    activeBadge: options.find((option) => option.value === value)?.badge ?? null,
     estimatedOptionHeight: Math.max(
       sizeConfig.estimatedOptionHeight,
       labelLayout.minimumOptionHeight,
@@ -153,7 +157,12 @@ export function resolveNextSelectMenuValue({
 export function estimateSelectMenuHeight(optionCount: number, optionHeight: number, extraHeight = 8): number {
   return Math.min(
     SELECT_MENU_MAX_HEIGHT,
-    Math.max(optionHeight + 8, optionCount * optionHeight + extraHeight),
+    Math.max(
+      optionHeight + 8,
+      optionCount * optionHeight
+        + Math.max(0, optionCount - 1) * SELECT_MENU_OPTION_GAP
+        + extraHeight,
+    ),
   );
 }
 

@@ -106,13 +106,21 @@ type Request struct {
 	TrustedConfigurationContext bool
 	// ExecutionOrigin 由服务端调度器写入；非空值不会获得持久配置 capability。
 	ExecutionOrigin string
+	// TrustedExternalInteractiveContext 仅由 channels ingress 在实时复核 active
+	// pairing 后设置；只提升同 Agent 私聊能力，不授予 owner-wide 控制面权限。
+	TrustedExternalInteractiveContext bool
 	// trustedQueuedConfigurationContext 只能由本包在成功 claim 宿主 DB
 	// admission 后设置，外部 Request 构造者无法伪造。
 	trustedQueuedConfigurationContext bool
 	InputOptions                      sdkprotocol.OutboundMessageOptions
 	PermissionMode                    sdkpermission.Mode
 	PermissionHandler                 sdkpermission.Handler
-	ExternalReplyTarget               *ExternalReplyTarget
+	// RuntimeToolPolicy 仅供 automation 等受控执行传入创建时权限快照。
+	// 普通会话为 nil，继续使用 Agent 当前工具配置。
+	RuntimeToolPolicy *protocol.RuntimeToolPolicy
+	// AutomationRun 只由 Automation 调度器签发，作为 runtime/MCP 的可信 run 身份。
+	AutomationRun       *protocol.AutomationRunContext
+	ExternalReplyTarget *ExternalReplyTarget
 }
 
 // RewriteRequest 表示一次 DM 最后一条用户消息重写请求。replacement round_id 由后端 mint。
@@ -180,12 +188,15 @@ type Service struct {
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
 type ExternalReplyTarget struct {
-	Mode       string
-	Channel    string
-	To         string
-	AccountID  string
-	ThreadID   string
-	SessionKey string
+	Mode           string
+	Channel        string
+	To             string
+	AccountID      string
+	ThreadID       string
+	SessionKey     string
+	ContextToken   string
+	ReplyContextID string
+	StreamID       string
 }
 
 // ExternalReplyResult 是外部 IM 回投后的最小可观测结果。

@@ -1,3 +1,6 @@
+// INPUT: 标准化的 Automation 任务、运行与系统事件领域对象。
+// OUTPUT: 跨 SQLite/Postgres 一致的参数化持久化语句与仓储实例。
+// POS: Automation storage 装配入口；字段顺序必须与 task 扫描和 migration 同构。
 package automation
 
 import (
@@ -36,6 +39,7 @@ INSERT INTO automation_scheduled_tasks (
     timezone,
     instruction,
     execution_kind,
+    permission_mode,
     session_target_kind,
     bound_session_key,
     named_session_key,
@@ -45,6 +49,9 @@ INSERT INTO automation_scheduled_tasks (
     delivery_to,
     delivery_account_id,
     delivery_thread_id,
+    delivery_session_key,
+    session_binding_state,
+    invalidated_session_keys_json,
     source_kind,
     source_creator_agent_id,
     source_context_type,
@@ -52,6 +59,7 @@ INSERT INTO automation_scheduled_tasks (
     source_context_label,
     source_session_key,
     source_session_label,
+    delivery_grant_json,
     overlap_policy,
     expires_at,
     enabled,
@@ -75,6 +83,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     timezone = EXCLUDED.timezone,
     instruction = EXCLUDED.instruction,
     execution_kind = EXCLUDED.execution_kind,
+    permission_mode = EXCLUDED.permission_mode,
     session_target_kind = EXCLUDED.session_target_kind,
     bound_session_key = EXCLUDED.bound_session_key,
     named_session_key = EXCLUDED.named_session_key,
@@ -84,6 +93,9 @@ ON CONFLICT(job_id) DO UPDATE SET
     delivery_to = EXCLUDED.delivery_to,
     delivery_account_id = EXCLUDED.delivery_account_id,
     delivery_thread_id = EXCLUDED.delivery_thread_id,
+    delivery_session_key = EXCLUDED.delivery_session_key,
+    session_binding_state = EXCLUDED.session_binding_state,
+    invalidated_session_keys_json = EXCLUDED.invalidated_session_keys_json,
     source_kind = EXCLUDED.source_kind,
     source_creator_agent_id = EXCLUDED.source_creator_agent_id,
     source_context_type = EXCLUDED.source_context_type,
@@ -91,6 +103,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     source_context_label = EXCLUDED.source_context_label,
     source_session_key = EXCLUDED.source_session_key,
     source_session_label = EXCLUDED.source_session_label,
+    delivery_grant_json = EXCLUDED.delivery_grant_json,
     overlap_policy = EXCLUDED.overlap_policy,
     expires_at = EXCLUDED.expires_at,
     enabled = EXCLUDED.enabled,
@@ -108,7 +121,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
-	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(34))
+	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(39))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_task_runs (
     run_id,
@@ -120,6 +133,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
     round_id,
     delivery_mode,
     delivery_to,
+    delivery_target_json,
     delivery_status,
     scheduled_for,
     attempts,
@@ -127,7 +141,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
     created_at,
     updated_at
 ) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(13),
+		repository.bindList(14),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
 		`UPDATE automation_task_runs

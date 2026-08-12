@@ -374,6 +374,47 @@ test("定时任务恢复运行后不把上一段权限错误当成当前异常",
   );
 });
 
+test("删除绑定会话后定时任务进入需处理并锁定执行和启用", async () => {
+  const boardModel = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/board/scheduled-task-board-model.ts",
+  );
+  const task = {
+    agent_id: "agent-1",
+    delivery: { mode: "last", session_key: "deleted-delivery" },
+    enabled: false,
+    execution_kind: "agent",
+    failure_streak: 0,
+    instruction: "发送工作简报",
+    job_id: "task-rebind",
+    name: "工作简报",
+    permission_state: "ready",
+    running: false,
+    schedule: {
+      interval_seconds: 3600,
+      kind: "every",
+      timezone: "Asia/Shanghai",
+    },
+    session_binding_issues: ["execution", "delivery"],
+    session_binding_state: "rebind_required",
+    session_target: { bound_session_key: "deleted-execution", kind: "bound" },
+    source: { kind: "agent" },
+  };
+  const presentation = boardModel.getScheduledTaskCardPresentation(task, {
+    isDeleting: false,
+    isPermissionPending: false,
+    isRunning: false,
+    isToggling: false,
+  });
+
+  assert.equal(presentation.columnId, "attention");
+  assert.equal(presentation.binding?.title, "需要重新绑定会话");
+  assert.match(presentation.binding?.description ?? "", /执行会话和结果投递会话/);
+  assert.equal(presentation.runAction.disabled, true);
+  assert.equal(presentation.toggleAction.disabled, true);
+  assert.equal(presentation.toggleAction.label, "等待重新绑定");
+  assert.equal(presentation.timingSummary, "任务已暂停 · 等待重新绑定");
+});
+
 test("桌面数据根示例跟随平台", async () => {
   const [model, messagesModule] = await Promise.all([
     server.ssrLoadModule(

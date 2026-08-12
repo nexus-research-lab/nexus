@@ -29,6 +29,27 @@ func TestUpdateCanDisableDeliveryWithoutExecutionMode(t *testing.T) {
 	}
 }
 
+func TestUpdateMapsPermissionMode(t *testing.T) {
+	svc := &stubService{jobs: []automationdomain.ScheduledTask{{
+		JobID:    "job-1",
+		AgentID:  "agent-1",
+		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+	}}}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+	}, "update_scheduled_task", map[string]any{
+		"job_id":          "job-1",
+		"permission_mode": "dontAsk",
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.updateInput.PermissionMode == nil || *svc.updateInput.PermissionMode != automationdomain.PermissionModeDontAsk {
+		t.Fatalf("update_scheduled_task 未透传 permission_mode: %+v", svc.updateInput)
+	}
+}
+
 func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -171,11 +192,10 @@ func TestUpdateCanRetargetDeliveryToCurrentExternalSession(t *testing.T) {
 	if svc.updateInput.SessionTarget != nil {
 		t.Fatalf("delivery-only update must not rewrite execution target, got %+v", svc.updateInput.SessionTarget)
 	}
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.updateInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected delivery retargeted to current feishu session, got %+v", svc.updateInput.Delivery)
+	if svc.updateInput.Delivery == nil {
+		t.Fatal("expected delivery retargeted to current feishu session")
 	}
+	requireLastDeliveryToSession(t, *svc.updateInput.Delivery, "agent:agent-1:fs:group:oc_group_123")
 }
 
 func TestUpdateCanFillPartialChannelTargetFromCurrentExternalSession(t *testing.T) {
@@ -207,15 +227,20 @@ func TestUpdateCanFillPartialChannelTargetFromCurrentExternalSession(t *testing.
 	if svc.updateInput.SessionTarget != nil {
 		t.Fatalf("delivery-only update must not rewrite execution target, got %+v", svc.updateInput.SessionTarget)
 	}
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.updateInput.Delivery.To != "oc_group_123" ||
-		svc.updateInput.Delivery.AccountID != "chat_id" {
-		t.Fatalf("expected partial feishu target filled from current session, got %+v", svc.updateInput.Delivery)
+	if svc.updateInput.Delivery == nil {
+		t.Fatal("expected partial feishu target filled from current session")
 	}
+	requireLastDeliveryToSession(t, *svc.updateInput.Delivery, protocol.BuildAgentAccountSessionKey(
+		"agent-1",
+		protocol.SessionChannelFeishu,
+		"group",
+		"chat_id",
+		"oc_group_123",
+		"",
+	))
 }
 
-func TestUpdateRejectsPartialChannelTargetWhenCurrentExternalSessionDiffers(t *testing.T) {
+func TestUpdateCurrentExternalSessionIgnoresModelSuppliedChannelTarget(t *testing.T) {
 	svc := &stubService{
 		jobs: []automationdomain.ScheduledTask{{
 			JobID:    "job-1",
@@ -228,17 +253,17 @@ func TestUpdateRejectsPartialChannelTargetWhenCurrentExternalSessionDiffers(t *t
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
 	}, "update_scheduled_task", map[string]any{
 		"job_id":        "job-1",
+		"reply_mode":    "channel",
 		"reply_channel": "telegram",
+		"reply_to":      "model-guessed-target",
 	})
-	if !isError {
-		t.Fatalf("expected mismatched channel target error, got %+v", result)
+	if isError {
+		t.Fatalf("current IM route should be host-bound, got %s", extractText(t, result))
 	}
-	if !strings.Contains(extractText(t, result), "reply_to") {
-		t.Fatalf("error should still ask for an explicit target, got %q", extractText(t, result))
+	if svc.updateInput.Delivery == nil {
+		t.Fatal("expected host-bound current IM delivery")
 	}
-	if svc.updateJobID != "" {
-		t.Fatalf("invalid partial channel update should not reach service, got job_id=%q", svc.updateJobID)
-	}
+	requireLastDeliveryToSession(t, *svc.updateInput.Delivery, "agent:agent-1:fs:group:oc_group_123")
 }
 
 func TestUpdateSelectedReplyDefaultsToCurrentConversation(t *testing.T) {
@@ -269,11 +294,10 @@ func TestUpdateSelectedReplyDefaultsToCurrentConversation(t *testing.T) {
 	if svc.updateInput.SessionTarget != nil {
 		t.Fatalf("delivery-only update must not rewrite execution target, got %+v", svc.updateInput.SessionTarget)
 	}
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-		svc.updateInput.Delivery.To != currentSessionKey {
-		t.Fatalf("expected selected delivery to current conversation, got %+v", svc.updateInput.Delivery)
+	if svc.updateInput.Delivery == nil {
+		t.Fatal("expected selected delivery to current conversation")
 	}
+	requireExplicitSessionDelivery(t, *svc.updateInput.Delivery, protocol.SessionChannelInternalSegment, currentSessionKey)
 }
 
 func TestUpdateSelectedReplyRequiresConversationTarget(t *testing.T) {
