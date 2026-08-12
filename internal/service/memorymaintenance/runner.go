@@ -82,12 +82,6 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
-	if strings.TrimSpace(selection.RuntimeKind) != "nxs" {
-		return agentclient.AutoDreamResult{
-			Status: agentclient.AutoDreamStatusSkipped,
-			Reason: "runtime_not_nxs",
-		}, nil
-	}
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		ownerContext,
 		r.admission,
@@ -111,7 +105,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		WorkspacePath:        agentValue.WorkspacePath,
 		OwnerUserID:          agentValue.OwnerUserID,
 		IsMainAgent:          agentValue.IsMain,
-		RuntimeKind:          selection.RuntimeKind,
+		RuntimeKind:          "nxs",
 		Provider:             provider,
 		Model:                model,
 		PermissionMode:       sdkpermission.ModeAcceptEdits,

@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Ran host-managed AutoDream through nxs for Claude Code foreground agents so long-term workspace memory maintenance no longer depends on the active chat runtime.
+- Aligned Claude Code's model-visible built-in tools with the nxs session defaults, keeping notebook, worktree, legacy search, and legacy todo tools out of normal conversations.
 - Reported generated-widget script failures in the conversation instead of silently leaving partial content, and tightened Canvas generation guidance to prevent blank renders.
 - Hid completed task plans as soon as a new conversation round starts instead of showing stale work until the next plan update.
 - Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.

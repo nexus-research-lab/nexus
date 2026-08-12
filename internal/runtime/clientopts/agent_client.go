@@ -28,6 +28,26 @@ var agentSessionDeniedTools = []string{
 	"CronDelete",
 }
 
+// claudeSessionAvailableTools 与 Nexus 当前 nxs 会话的默认模型可见工具保持一致。
+var claudeSessionAvailableTools = []string{
+	"Agent",
+	"AskUserQuestion",
+	"Bash",
+	"Edit",
+	"ExitPlanMode",
+	"Read",
+	"Skill",
+	"TaskCreate",
+	"TaskGet",
+	"TaskList",
+	"TaskOutput",
+	"TaskStop",
+	"TaskUpdate",
+	"WebFetch",
+	"WebSearch",
+	"Write",
+}
+
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
 	ResolveRuntimeConfig(context.Context, string, string) (*RuntimeConfig, error)
@@ -159,8 +179,9 @@ func BuildAgentClientOptionsWithConfig(
 			AppendDynamic: input.AppendSystemPromptDynamic,
 		},
 		Tools: agentclient.ToolOptions{
-			Allow: slices.Clone(input.AllowedTools),
-			Deny:  appendDistinctTools(input.DisallowedTools, agentSessionDeniedTools...),
+			Available: runtimeAvailableTools(effectiveRuntimeKind),
+			Allow:     slices.Clone(input.AllowedTools),
+			Deny:      appendDistinctTools(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
 			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
@@ -215,6 +236,13 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	return options, runtimeConfig, nil
+}
+
+func runtimeAvailableTools(runtimeKind string) []string {
+	if runtimeKind != runtimeKindClaude {
+		return nil
+	}
+	return slices.Clone(claudeSessionAvailableTools)
 }
 
 func cloneMCPServers(

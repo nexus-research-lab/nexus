@@ -212,6 +212,29 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsAlignsClaudeToolsWithNXSDefaults(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindClaude,
+	})
+	if err != nil {
+		t.Fatalf("构建 Claude options 失败: %v", err)
+	}
+	want := "Agent,AskUserQuestion,Bash,Edit,ExitPlanMode,Read,Skill,TaskCreate,TaskGet,TaskList,TaskOutput,TaskStop,TaskUpdate,WebFetch,WebSearch,Write"
+	if got := strings.Join(options.Tools.Available, ","); got != want {
+		t.Fatalf("Claude 可见工具 = %q, want %q", got, want)
+	}
+
+	nxsOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("构建 nxs options 失败: %v", err)
+	}
+	if nxsOptions.Tools.Available != nil {
+		t.Fatalf("nxs 应继续使用原生 catalog gate: %#v", nxsOptions.Tools.Available)
+	}
+}
+
 func TestBuildAgentClientOptionsKeepsClaudeSkillDiscoveryDynamic(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:      runtimeKindClaude,
