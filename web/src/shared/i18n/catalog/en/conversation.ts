@@ -494,6 +494,8 @@ export const enConversationMessages = {
   "message.edit": "Edit message",
   "message.copy": "Copy message",
   "message.edit_content": "Edit message content",
+  "message.show_more": "Show more",
+  "message.show_less": "Show less",
   "message.assistant_fallback": "Collaborator",
   "message.copy_reply": "Copy reply",
   "message.activity_compacting": "Compacting context",

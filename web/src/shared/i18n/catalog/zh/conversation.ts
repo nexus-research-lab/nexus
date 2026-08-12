@@ -491,6 +491,8 @@ export const zhConversationMessages = {
   "message.edit": "编辑消息",
   "message.copy": "复制消息",
   "message.edit_content": "编辑消息内容",
+  "message.show_more": "显示更多",
+  "message.show_less": "收起",
   "message.assistant_fallback": "协作成员",
   "message.copy_reply": "复制回答",
   "message.activity_compacting": "正在压缩上下文",

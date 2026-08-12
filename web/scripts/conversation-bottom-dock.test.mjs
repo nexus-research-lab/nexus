@@ -777,3 +777,21 @@ test("questions and plan confirmations use the same Composer replacement owner",
     /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="allow"/,
   );
 });
+
+test("long user messages collapse only after the visible height limit", async () => {
+  const {
+    isUserMessageContentCollapsible,
+    USER_MESSAGE_COLLAPSED_HEIGHT,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/user/user-message-model.ts",
+  );
+
+  assert.equal(
+    isUserMessageContentCollapsible(USER_MESSAGE_COLLAPSED_HEIGHT),
+    false,
+  );
+  assert.equal(
+    isUserMessageContentCollapsible(USER_MESSAGE_COLLAPSED_HEIGHT + 1),
+    true,
+  );
+});

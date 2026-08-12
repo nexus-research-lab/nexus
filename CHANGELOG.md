@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Collapsed long user messages by default with controls to reveal or hide the full content.
 - Loaded Generative UI guidance by visualization type and exposed theme-aware chart colors for more reliable Nexus-native widgets.
 - Styled leading Slash commands consistently in the Composer and sent user messages without changing their raw text.
 - Removed the Generative UI frame and tool icon so inline widgets blend into conversation content.

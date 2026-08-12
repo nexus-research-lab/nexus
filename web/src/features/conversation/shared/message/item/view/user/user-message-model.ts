@@ -14,6 +14,8 @@ export interface UserMessagePresentation extends UserMessageDensity {
   timestamp: string;
 }
 
+export const USER_MESSAGE_COLLAPSED_HEIGHT = 220;
+
 const USER_MESSAGE_DENSITY: Record<"compact" | "expanded", UserMessageDensity> = {
   compact: {
     contentClassName: "text-base leading-6 [&_.katex-display]:my-2",
@@ -48,4 +50,8 @@ export function projectAvailableUserMessageAction<Action>(
   action: Action,
 ): Action | undefined {
   return available ? action : undefined;
+}
+
+export function isUserMessageContentCollapsible(contentHeight: number): boolean {
+  return contentHeight > USER_MESSAGE_COLLAPSED_HEIGHT;
 }
