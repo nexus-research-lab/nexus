@@ -38,7 +38,6 @@ export const AVAILABLE_AGENT_TOOLS = [
   { name: "Bash", descriptionKey: "agent_options.advanced.tool.bash" },
   { name: "Edit", descriptionKey: "agent_options.advanced.tool.edit" },
   { name: "Write", descriptionKey: "agent_options.advanced.tool.write" },
-  { name: "NotebookEdit", descriptionKey: "agent_options.advanced.tool.notebook_edit" },
   { name: "WebFetch", descriptionKey: "agent_options.advanced.tool.web_fetch" },
   { name: "WebSearch", descriptionKey: "agent_options.advanced.tool.web_search" },
 ] as const;
@@ -58,6 +57,7 @@ const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
   LS: null,
   Read: null,
   TodoWrite: null,
+  NotebookEdit: null,
   KillShell: null,
   AskUserQuestion: null,
   Skill: null,
