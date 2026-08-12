@@ -25,20 +25,22 @@ export function ComposerFooter(props: ComposerFooterProps) {
       data-goal-mode={props.isGoalMode ? "true" : "false"}
     >
       <div className="nexus-chat-composer-footer-leading flex min-w-0 items-center gap-2 text-2xs text-(--text-soft)">
-        <ComposerFooterActions
-          actionButtonRef={props.actionButtonRef}
-          canCreateGoal={props.canCreateGoal}
-          canUseLoop={props.canUseLoop}
-          isActionMenuOpen={props.isActionMenuOpen}
-          isGoalCreating={props.isGoalCreating}
-          isGoalMode={props.isGoalMode}
-          isPreparingAttachments={props.isPreparingAttachments}
-          onActionMenuClose={props.onActionMenuClose}
-          onActionMenuToggle={props.onActionMenuToggle}
-          onAttachmentSelect={props.onAttachmentSelect}
-          onGoalToggle={props.onGoalToggle}
-          onLoopSelect={props.onLoopSelect}
-        />
+        {props.showActionMenu ? (
+          <ComposerFooterActions
+            actionButtonRef={props.actionButtonRef}
+            canCreateGoal={props.canCreateGoal}
+            canUseLoop={props.canUseLoop}
+            isActionMenuOpen={props.isActionMenuOpen}
+            isGoalCreating={props.isGoalCreating}
+            isGoalMode={props.isGoalMode}
+            isPreparingAttachments={props.isPreparingAttachments}
+            onActionMenuClose={props.onActionMenuClose}
+            onActionMenuToggle={props.onActionMenuToggle}
+            onAttachmentSelect={props.onAttachmentSelect}
+            onGoalToggle={props.onGoalToggle}
+            onLoopSelect={props.onLoopSelect}
+          />
+        ) : null}
         <ComposerSessionControls
           controller={props.sessionSettingsController}
           disabled={props.sessionSettingsDisabled}

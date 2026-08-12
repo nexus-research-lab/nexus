@@ -174,6 +174,11 @@ func TestRealtimeServiceRechecksPrivateMessagingAtCallTime(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "disabled") {
 		t.Fatalf("关闭后旧 public message 调用应被 service 拒绝，实际 err=%v", err)
 	}
+	if _, err = service.HandlePlatformPublicMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomPublicMessageRequest{
+		SourceAgentID: amy.AgentID, Content: "平台通讯群消息不依赖私域开关",
+	}); err != nil {
+		t.Fatalf("平台通讯群消息不应依赖私域开关: %v", err)
+	}
 }
 
 func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T) {

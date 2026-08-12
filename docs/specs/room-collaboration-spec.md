@@ -4,7 +4,7 @@
 
 本文是 Group Room 的当前通信协议。它只定义“谁能看到什么、谁何时运行、回复投到哪里”，不定义任何具体业务流程。
 
-Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。Plan、Work Item、Assignment、Submission 与 Acceptance 见 [Execution Orchestration 协议](./execution-orchestration-spec.md)；Room 只运输其可选 binding。本文不重复 Session Key、历史归一化和前端时间线规范；时间线的展示顺序与消息密度见 [消息处理规范](./message-processing-spec.md)。
+Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。好友与群通讯录、跨当前会话发送见 [Agent 平台通讯规范](./platform-communication-spec.md)。Plan、Work Item、Assignment、Submission 与 Acceptance 见 [Execution Orchestration 协议](./execution-orchestration-spec.md)；Room 只运输其可选 binding。本文不重复 Session Key、历史归一化和前端时间线规范；时间线的展示顺序与消息密度见 [消息处理规范](./message-processing-spec.md)。
 
 ## 2. 负责与不负责
 

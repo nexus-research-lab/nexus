@@ -1,7 +1,6 @@
-import { MessageSquarePlus } from "lucide-react";
+import { MessageCirclePlus, MessageSquarePlus } from "lucide-react";
 import { memo } from "react";
 
-import { CreateGroupChatIcon } from "@/features/conversation/room/members/create-group-chat-icon";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -36,7 +35,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             onClick={controller.create.open}
             title={t("home.create_room")}
           >
-            <CreateGroupChatIcon className="h-[22px] w-[22px]" />
+            <MessageCirclePlus className="h-[22px] w-[22px]" />
           </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}

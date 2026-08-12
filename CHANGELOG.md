@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added owner-scoped Agent address books and an Agent-perspective friend communication client with contact search/add and Room-backed Session switching, reusing the existing chat header, message, Composer, privacy, wake, queue, and reply-routing paths.
 - Added a `/visualize` Slash shortcut for invoking inline Generative UI without exposing its runtime prompt in the Composer.
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
 - Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
@@ -16,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned every Agent detail tab to the standard inset content gutter while keeping memory and communication on one shared split-view axis.
+- Tightened the add-friend picker and standardized add-friend and group-chat actions on clear Lucide action icons.
 - Collapsed long user messages by default with controls to reveal or hide the full content.
 - Loaded Generative UI guidance by visualization type and exposed theme-aware chart colors for more reliable Nexus-native widgets.
 - Styled leading Slash commands consistently in the Composer and sent user messages without changing their raw text.
@@ -27,8 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept the Agent contact Composer available before the first Session so owners can manually start a friend conversation.
+- Stopped replies to owner-authored Agent contact messages from waking the represented Agent for an extra round while preserving normal Agent-initiated reply routing.
+- Preserved the active Agent detail tab while switching contacts.
 - Ran host-managed AutoDream through nxs for Claude Code foreground agents so long-term workspace memory maintenance no longer depends on the active chat runtime.
 - Aligned Claude Code's model-visible built-in tools with the nxs session defaults, keeping notebook, worktree, legacy search, and legacy todo tools out of normal conversations.
+- Surfaced directed-message wake failures instead of reporting failed deliveries as queued.
 - Reported generated-widget script failures in the conversation instead of silently leaving partial content, and tightened Canvas generation guidance to prevent blank renders.
 - Hid completed task plans as soon as a new conversation round starts instead of showing stale work until the next plan update.
 - Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.

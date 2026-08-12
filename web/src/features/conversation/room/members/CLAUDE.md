@@ -5,7 +5,7 @@
 - `create-room-dialog.tsx` 只负责弹窗生命周期、区块组合和提交入口，消费已经完整化的具体参数。
 - `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 只维护与 `roomId` 绑定的打开状态。
 - `create-room-dialog-model.ts` 负责可选参数默认化、弹窗重建身份和创建/管理标签投影，不持有 React 状态。
-- `create-group-chat-icon.tsx` 统一创建群聊图形、透明图片资源和浅深主题对比度；消费者只决定尺寸与按钮交互。
+- 创建群聊入口与弹窗 Header 统一使用 Lucide `MessageCirclePlus`，直接表达“新建聊天”，不再维护单独位图图标。
 - `use-create-room-form.ts` 独占表单状态、不变量归一化和提交模型构造；成员移除后群主失效、暂停草稿只保留已选成员等联动必须在这里完成。
 - `room-settings-form.tsx`、`room-member-selector.tsx` 只负责各自视图和用户输入，不在渲染期修正状态；设置区以内容驱动的头像/名称与群主选项分组排布，不常驻渲染完整头像轨道；管理态成员行将增删与持久暂停/恢复呈现为两个独立动作。
 - `room-avatar-picker.tsx` 只组合 Room 当前头像和共享锚定图标选择器，保持与 Agent 身份页一致的“明确入口后展开”交互。

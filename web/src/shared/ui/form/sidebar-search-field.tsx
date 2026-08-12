@@ -30,7 +30,7 @@ export function SidebarSearchField({
   );
 }
 
-/** 中文注释：搜索区尾部动作是 ghost icon button —— 默认无底无边框，hover 才出现暖灰底，消费者只提供业务图标与命令。 */
+/** 中文注释：搜索区尾部动作与输入框同高，默认无底无边框，hover 才出现暖灰底。 */
 export function SidebarSearchAction({
   children,
   className,
@@ -42,7 +42,7 @@ export function SidebarSearchAction({
   return (
     <button
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-[8px] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]",
+        "flex h-9 w-9 items-center justify-center radius-control-md text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]",
         className,
       )}
       type={type}

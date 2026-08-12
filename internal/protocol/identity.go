@@ -38,3 +38,8 @@ func NewAssistantMessageID() string {
 func NewAgentRoundID() string {
 	return "agent_round_" + randomIDSuffix()
 }
+
+// NewContactID 生成 Agent 通讯录关系 id。
+func NewContactID() string {
+	return "contact_" + randomIDSuffix()
+}

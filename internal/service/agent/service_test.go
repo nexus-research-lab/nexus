@@ -52,6 +52,70 @@ func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 	}
 }
 
+func TestServiceManagesSymmetricAgentContacts(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _ := newAgentTestService(t, cfg)
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: "contact-owner", Role: authctx.RoleOwner,
+	})
+	amy, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "Amy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	devin, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "Devin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := service.AddAgentContact(ctx, amy.AgentID, protocol.CreateAgentContactRequest{
+		ContactAgentID: devin.AgentID, Alias: "开发搭档",
+	})
+	if err != nil {
+		t.Fatalf("AddAgentContact() error = %v", err)
+	}
+	if created.ContactAgentID != devin.AgentID || created.Alias != "开发搭档" {
+		t.Fatalf("created contact = %+v", created)
+	}
+	reverse, err := service.ListAgentContacts(ctx, devin.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reverse) != 1 || reverse[0].ContactAgentID != amy.AgentID || reverse[0].Alias != "" {
+		t.Fatalf("reverse contacts = %+v", reverse)
+	}
+	if _, err = service.AddAgentContact(ctx, devin.AgentID, protocol.CreateAgentContactRequest{
+		ContactAgentID: amy.AgentID, Alias: "产品搭档",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	forward, err := service.ListAgentContacts(ctx, amy.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forward) != 1 || forward[0].Alias != "开发搭档" {
+		t.Fatalf("peer alias update changed owner alias: %+v", forward)
+	}
+	mainAgent, err := service.GetDefaultAgent(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.AddAgentContact(ctx, mainAgent.AgentID, protocol.CreateAgentContactRequest{
+		ContactAgentID: amy.AgentID,
+	}); !errors.Is(err, agentpkg.ErrAgentContactUnsupported) {
+		t.Fatalf("main Agent contact error = %v", err)
+	}
+	if err = service.DeleteAgentContact(ctx, devin.AgentID, amy.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	for _, agentID := range []string{amy.AgentID, devin.AgentID} {
+		items, listErr := service.ListAgentContacts(ctx, agentID)
+		if listErr != nil || len(items) != 0 {
+			t.Fatalf("contacts after delete for %s = %+v, err = %v", agentID, items, listErr)
+		}
+	}
+}
+
 func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)

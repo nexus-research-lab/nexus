@@ -6,6 +6,7 @@ package realtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -70,11 +71,34 @@ func (s *Service) HandleDirectedMessage(
 			"delay_seconds", message.DelaySeconds,
 			"err", err,
 		)
+		return message, fmt.Errorf(
+			"directed message %s 已持久化，但唤醒未启动: %w",
+			message.MessageID,
+			err,
+		)
 	}
 	return message, nil
 }
 
 func (s *Service) resolveDirectedMessageContext(
+	ctx context.Context,
+	roomID string,
+	conversationID string,
+) (*protocol.ConversationContextAggregate, error) {
+	contextValue, err := s.resolveGroupMessageContext(ctx, roomID, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	// Runtime 注入的工具列表和 permission handler 只负责体验层热重载。
+	// 安全撤销必须以每次调用时重新读取到的 Room 真相源为准，避免旧 slot
+	// 在 private_messages_enabled 关闭后继续使用已经注入的工具。
+	if !contextValue.Room.PrivateMessagesEnabled {
+		return nil, errors.New("Room private messaging is disabled")
+	}
+	return contextValue, nil
+}
+
+func (s *Service) resolveGroupMessageContext(
 	ctx context.Context,
 	roomID string,
 	conversationID string,
@@ -98,13 +122,7 @@ func (s *Service) resolveDirectedMessageContext(
 		return nil, roomsvc.ErrConversationNotFound
 	}
 	if contextValue.Room.RoomType != protocol.RoomTypeGroup {
-		return nil, errors.New("room directed message 仅支持 group room")
-	}
-	// Runtime 注入的工具列表和 permission handler 只负责体验层热重载。
-	// 安全撤销必须以每次调用时重新读取到的 Room 真相源为准，避免旧 slot
-	// 在 private_messages_enabled 关闭后继续使用已经注入的工具。
-	if !contextValue.Room.PrivateMessagesEnabled {
-		return nil, errors.New("Room private messaging is disabled")
+		return nil, errors.New("Room message 仅支持 group room")
 	}
 	return contextValue, nil
 }

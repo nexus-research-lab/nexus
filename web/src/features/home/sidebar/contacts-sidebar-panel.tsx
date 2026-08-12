@@ -1,4 +1,4 @@
-import { UserPlus, Users2 } from "lucide-react";
+import { CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -82,7 +82,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
             onClick={openAgentCreation}
             title={t("contacts.new_agent")}
           >
-            <UserPlus className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
+            <CirclePlus className="h-[22px] w-[22px]" />
           </SidebarSearchAction>
         )}
         onChange={setQuery}

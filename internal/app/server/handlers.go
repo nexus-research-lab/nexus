@@ -64,6 +64,7 @@ func newHandlerSet(
 			services.Core.Session,
 			services.Runtime,
 			services.RoomRealtime,
+			services.Communication,
 			websocketHandler.BroadcastDirectoryChanged,
 			services.Preferences,
 		),

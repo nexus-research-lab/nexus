@@ -1,3 +1,6 @@
+// INPUT: Room runtime 身份、Room 当前配置与 realtime 通讯服务。
+// OUTPUT: 仅普通 Group Room 可见、按私域开关裁剪的 nexus_room MCP builder。
+// POS: Room 内协作工具装配边界；联系人内部通道只使用 nexus_comms/reply route。
 package server
 
 import (
@@ -47,6 +50,9 @@ func newRoomMCPBuilder(
 		}
 		if getRoom != nil && strings.TrimSpace(sctx.RoomID) != "" {
 			if record, err := getRoom(ctx, sctx.RoomID); err == nil && record != nil {
+				if record.Room.IsContactChannel {
+					return nil
+				}
 				sctx.PrivateMessagesEnabled = record.Room.PrivateMessagesEnabled
 			}
 		}

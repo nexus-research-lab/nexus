@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Room 创建请求、资料 patch 与内部联系人通道用途。
+// OUTPUT: 校验成员/配置后持久化的 Room 与主 conversation 聚合。
+// POS: Room 创建和资料变更业务主链；内部用途不能由 HTTP JSON 伪造。
 package room
 
 import (
@@ -92,6 +95,7 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 			HostAgentID:            hostAgentID,
 			HostAutoReplyEnabled:   hostAutoReplyEnabled,
 			PrivateMessagesEnabled: normalizedRoomType == protocol.RoomTypeGroup && request.PrivateMessagesEnabled,
+			IsContactChannel:       normalizedRoomType == protocol.RoomTypeGroup && request.IsContactChannel,
 		},
 		Members: roomdomain.BuildMembers(roomID, ownerUserID, normalizedAgentIDs),
 		Conversation: protocol.ConversationRecord{

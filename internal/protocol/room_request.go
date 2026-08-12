@@ -1,6 +1,6 @@
-// INPUT: HTTP/配置控制面发起的 Room 创建、资料、成员与对话变更意图。
-// OUTPUT: 带可选 configuration_version CAS 的 Room 请求协议。
-// POS: Room 写入命令及其乐观并发令牌的跨边界真相源。
+// INPUT: HTTP/配置控制面或平台通讯发起的 Room 创建、资料、成员与对话变更意图。
+// OUTPUT: 隔离内部联系人通道标记、带可选 configuration_version CAS 的 Room 请求协议。
+// POS: Room 写入命令、内部用途与乐观并发令牌的跨边界真相源。
 package protocol
 
 // CreateRoomRequest 表示创建房间请求。
@@ -14,6 +14,8 @@ type CreateRoomRequest struct {
 	HostAgentID            string   `json:"host_agent_id,omitempty"`
 	HostAutoReplyEnabled   bool     `json:"host_auto_reply_enabled,omitempty"`
 	PrivateMessagesEnabled bool     `json:"private_messages_enabled,omitempty"`
+	// IsContactChannel 只允许平台通讯服务设置，HTTP JSON 不能创建内部通道。
+	IsContactChannel bool `json:"-"`
 }
 
 // UpdateRoomRequest 表示更新房间请求。

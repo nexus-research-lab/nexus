@@ -34,6 +34,7 @@ func ScanRoomRecord(scanner Scanner) (protocol.RoomRecord, error) {
 		&item.HostAgentID,
 		&item.HostAutoReplyEnabled,
 		&item.PrivateMessagesEnabled,
+		&item.IsContactChannel,
 		&item.ConfigurationVersion,
 		&item.AuthorityEpoch,
 		&createdAt,

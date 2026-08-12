@@ -38,7 +38,7 @@ func TestRepairLegacyPrivateSkillMigrationCollision(t *testing.T) {
 	finalizePrivateSkillMigrationCollision(t, db)
 	assertMigrationApplied(t, db, 61, true)
 	assertMigrationApplied(t, db, 71, true)
-	assertCurrentMigrationVersion(t, db, 86)
+	assertCurrentMigrationVersion(t, db, 87)
 	assertMigrationTable(t, db, "executions")
 	assertPrivateSkillMigrationData(t, db)
 	for _, field := range privateSkillSchemaColumns {
@@ -81,7 +81,7 @@ func TestRepairLegacyPrivateSkillMigrationCollisionResumesBackfill(t *testing.T)
 		t.Fatalf("finish Execution migration replay: %v", err)
 	}
 	finalizePrivateSkillMigrationCollision(t, db)
-	assertCurrentMigrationVersion(t, db, 86)
+	assertCurrentMigrationVersion(t, db, 87)
 }
 
 func TestRepairLegacyPrivateSkillMigrationCollisionKeepsExecutionMigration(t *testing.T) {

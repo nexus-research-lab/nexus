@@ -2,6 +2,7 @@
 
 import {
   Agent,
+  AgentContact,
   AgentProfileTemplateResponse,
   ApiAgent,
   CreateAgentParams,
@@ -88,6 +89,45 @@ export const deleteAgentApi = async (
     {
       method: "DELETE",
     },
+  );
+};
+
+/** 获取指定普通 Agent 的好友通讯录。 */
+export const listAgentContactsApi = async (
+  agentId: string,
+): Promise<AgentContact[]> => {
+  return requestApi<AgentContact[]>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/contacts`,
+    { method: "GET" },
+  );
+};
+
+/** 创建双向好友关系，或更新当前 Agent 为好友设置的别名。 */
+export const upsertAgentContactApi = async (
+  agentId: string,
+  contactAgentId: string,
+  alias: string,
+): Promise<AgentContact> => {
+  return requestApi<AgentContact>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/contacts`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        contact_agent_id: contactAgentId,
+        alias: alias.trim(),
+      }),
+    },
+  );
+};
+
+/** 删除双方的好友关系，保留已有消息历史。 */
+export const deleteAgentContactApi = async (
+  agentId: string,
+  contactAgentId: string,
+): Promise<{ success: boolean }> => {
+  return requestApi<{ success: boolean }>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/contacts/${encodeURIComponent(contactAgentId)}`,
+    { method: "DELETE" },
   );
 };
 

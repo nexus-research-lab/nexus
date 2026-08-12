@@ -19,6 +19,8 @@ export interface ComposerPanelProps {
   compact: boolean;
   commandCatalog: CommandCatalogData;
   contextUsage: ContextUsageData | null;
+  /** 纯文本消费者可隐藏附件、Goal 与 Loop 动作入口。 */
+  showActionMenu?: boolean;
   contextUsageItems?: readonly ComposerContextUsageItem[];
   /**
    * DM/Room 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
