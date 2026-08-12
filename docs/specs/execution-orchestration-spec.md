@@ -409,6 +409,15 @@ control-plane transition.
 | `audit_execution_alignment` | Appends an optional visible three-state objective-alignment gate. It does not transition work, reroute, retry, start a Goal, or complete an Execution. |
 | `promote_execution_to_goal` | Binds a compatible transient Execution to a newly created durable Goal while preserving Plan and history. It enforces objective, state, configuration, authority, and exact binding fences; it does not copy the Plan. |
 
+A physical runtime round is an execution carrier, not an Assignment identity. One
+round may serially complete root Attempts for different self-owned Assignments in
+DM or Room coordination. The durable duplicate fence is therefore
+`runtime_session_key + runtime_round_id + agent_round_id + assignment_id` for root
+Attempts. A structured Room worker still receives one exact WorkBinding containing
+its Execution, Plan, Work Item, Assignment, Attempt, and Dispatch identities; sharing
+a physical round never grants access to a sibling Assignment. Child Attempts remain
+distinguished by `parent_attempt_id + tool_use_id`.
+
 If promotion commits the Execution binding but Goal-side confirmation is still
 recovering, the tool returns `outcome: applied` (or idempotent `noop`) with
 `goal_confirmation_status: pending` and an executable retry `next_action`. This

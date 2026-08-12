@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Allowed one DM or Room coordinator round to serially complete different self-owned WorkGraph Assignments without colliding on root Attempt runtime identity, while retaining an Assignment-scoped duplicate fence and the exact single-Assignment WorkBinding boundary for Room workers.
 - Renumbered the Goal/WorkGraph closure migrations after the local mainline's Agent-contact and Automation migrations, and added a fail-closed startup ledger repair for complete databases previously exercised on the unpublished Goal branch, so the merged mainline starts without duplicate Goose versions or silently skipped schema.
 - Removed null completion-receipt fields from non-terminal Goal MCP results, so `create_goal`, `get_goal`, retarget, audit, and blocked updates no longer imply that the durable Goal ID is generated only at completion; successful completion still returns the exact host-only ID needed for usage finalization.
 - Repaired Goal token accounting when providers returned `total_tokens: 0` alongside positive usage fields: new DM/Room parent totals now fall back to the complete breakdown, existing Goal and all-Agent parent ledgers are migrated, historical completion receipts refresh from the corrected aggregate, and genuine all-zero usage remains authoritative.

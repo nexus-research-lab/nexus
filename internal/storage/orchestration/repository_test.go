@@ -429,6 +429,114 @@ func TestRepositoryKeepsRootAttemptAlongsideConcurrentChildren(t *testing.T) {
 	}
 }
 
+func TestRepositoryScopesRootAttemptRoundIdentityToAssignment(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("assignment-round"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repository.WritePlan(
+		ctx,
+		testPlanCommand(
+			"assignment-round",
+			snapshot.Execution.Version,
+			"assignment-round",
+			"",
+			1,
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := 1; index <= 2; index++ {
+		suffix := fmt.Sprintf("assignment-round-%d", index)
+		snapshot, err = repository.Assign(
+			ctx,
+			assignTestCommand(
+				snapshot,
+				fmt.Sprintf("work-assignment-round-%d", index),
+				fmt.Sprintf("spec-assignment-round-%d", index),
+				suffix,
+				"agent-a",
+			),
+		)
+		if err != nil {
+			t.Fatalf("assign Work Item %d: %v", index, err)
+		}
+	}
+
+	const (
+		runtimeSessionKey = "agent:agent-a:ws:group:conversation-1"
+		runtimeRoundID    = "agent-round-shared"
+		agentRoundID      = "agent-round-shared"
+	)
+	for index := 1; index <= 2; index++ {
+		assignmentID := fmt.Sprintf("assignment-assignment-round-%d", index)
+		attemptID := fmt.Sprintf("attempt-assignment-round-%d", index)
+		assignment := findAssignment(t, snapshot, assignmentID)
+		attempt := findAttempt(t, snapshot, attemptID)
+		attempt.RuntimeSessionKey = runtimeSessionKey
+		attempt.RuntimeRoundID = runtimeRoundID
+		attempt.AgentRoundID = agentRoundID
+		snapshot, err = repository.StartAttempt(ctx, StartAttemptCommand{
+			ExpectedExecutionVersion:  snapshot.Execution.Version,
+			ExpectedAssignmentVersion: assignment.Version,
+			ExpectedAttemptVersion:    attempt.Version,
+			Attempt:                   attempt,
+			Meta:                      testMeta("start-" + attemptID),
+		})
+		if err != nil {
+			t.Fatalf("start different Assignment %d in shared round: %v", index, err)
+		}
+		snapshot = finishTestAttempt(
+			t,
+			ctx,
+			repository,
+			snapshot,
+			attemptID,
+			protocol.WorkAttemptStatusFailed,
+		)
+	}
+
+	assignment := findAssignment(t, snapshot, "assignment-assignment-round-2")
+	duplicate := protocol.WorkAttempt{
+		ID:                "attempt-assignment-round-2-retry",
+		ExecutionID:       assignment.ExecutionID,
+		PlanID:            assignment.PlanID,
+		WorkItemID:        assignment.WorkItemID,
+		SpecID:            assignment.SpecID,
+		AssignmentID:      assignment.ID,
+		ExecutorKind:      protocol.AttemptExecutorAgent,
+		ExecutorAgentID:   assignment.OwnerAgentID,
+		RuntimeSessionKey: runtimeSessionKey,
+		RuntimeRoundID:    runtimeRoundID,
+		AgentRoundID:      agentRoundID,
+		Status:            protocol.WorkAttemptStatusRunning,
+	}
+	if _, err = repository.StartAttempt(ctx, StartAttemptCommand{
+		ExpectedExecutionVersion:  snapshot.Execution.Version,
+		ExpectedAssignmentVersion: assignment.Version,
+		Attempt:                   duplicate,
+		Meta:                      testMeta("start-duplicate-assignment-round"),
+	}); err == nil {
+		t.Fatal("same Assignment created two root Attempts in one physical round")
+	}
+	current, getErr := repository.GetSnapshot(ctx, snapshot.Execution.ID)
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	duplicateCount := 0
+	for _, attempt := range current.Attempts {
+		if attempt.ID == duplicate.ID {
+			duplicateCount++
+		}
+	}
+	if current.Execution.Version != snapshot.Execution.Version || duplicateCount != 0 {
+		t.Fatalf("rejected duplicate changed snapshot: %#v", current)
+	}
+}
+
 func TestRepositoryBindGoalAndBlockWork(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()
