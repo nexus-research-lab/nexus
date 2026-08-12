@@ -53,7 +53,7 @@ func TestRepairLegacyAutomationPermissionMigrationCollisionReplaysPrivateSkill(t
 	}
 	assertMigrationApplied(t, db, 71, true)
 	assertMigrationApplied(t, db, 86, true)
-	assertCurrentMigrationVersion(t, db, 86)
+	assertCurrentMigrationVersion(t, db, 87)
 	assertLegacyAutomationPermissionRequest(t, db)
 	for _, field := range privateSkillSchemaColumns {
 		exists, columnErr := sqliteColumnExists(t.Context(), db, field.table, field.column)
@@ -82,7 +82,7 @@ func TestRepairLegacyAutomationPermissionMigrationCollisionLeavesOfficialUpgrade
 	if err = goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("apply official permission migration: %v", err)
 	}
-	assertCurrentMigrationVersion(t, db, 86)
+	assertCurrentMigrationVersion(t, db, 87)
 }
 
 func TestRepairLegacyAutomationPermissionMigrationCollisionRejectsPartialSchema(t *testing.T) {

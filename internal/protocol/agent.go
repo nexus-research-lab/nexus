@@ -1,6 +1,6 @@
-// INPUT: Agent 资料、runtime 选项以及带可选期望版本的创建/更新请求。
-// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent 模型与 runtime_version CAS 协议。
-// POS: Agent 配置资源及其乐观并发令牌的协议真相源。
+// INPUT: Agent 资料、联系人、runtime 选项以及带可选期望版本的创建/更新请求。
+// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent、联系人模型与 runtime_version CAS 协议。
+// POS: Agent 配置、同 owner 通讯录及其乐观并发令牌的协议真相源。
 package protocol
 
 import "time"
@@ -50,6 +50,26 @@ type Agent struct {
 	VibeTags       []string  `json:"vibe_tags,omitempty"`
 	SkillsCount    int       `json:"skills_count"`
 	OwnerUserID    string    `json:"-"`
+}
+
+// AgentContact 表示一个 Agent 通讯录中的同 owner 好友。
+type AgentContact struct {
+	ID             string    `json:"id"`
+	OwnerAgentID   string    `json:"owner_agent_id"`
+	ContactAgentID string    `json:"contact_agent_id"`
+	Alias          string    `json:"alias,omitempty"`
+	DirectRoomID   string    `json:"direct_room_id,omitempty"`
+	Name           string    `json:"name"`
+	DisplayName    string    `json:"display_name,omitempty"`
+	Avatar         string    `json:"avatar,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// CreateAgentContactRequest 表示创建或更新好友关系的请求。
+type CreateAgentContactRequest struct {
+	ContactAgentID string `json:"contact_agent_id"`
+	Alias          string `json:"alias,omitempty"`
 }
 
 // CreateRequest 表示创建 Agent 请求。

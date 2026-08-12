@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquareText, Users } from "lucide-react";
+import { MessageCirclePlus, MessageSquareText } from "lucide-react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -154,7 +154,7 @@ function ContactsAgentCompactCard({
           {chatLabel}
         </WorkspaceCatalogTextAction>
         <WorkspaceCatalogTextAction onClick={onCreateTeam}>
-          <Users className="h-3 w-3" />
+          <MessageCirclePlus className="h-3 w-3" />
           {createTeamLabel}
         </WorkspaceCatalogTextAction>
       </WorkspaceCatalogFooter>
@@ -237,7 +237,7 @@ function ContactsAgentComfortCard({
           {chatLabel}
         </WorkspaceCatalogTextAction>
         <WorkspaceCatalogTextAction onClick={onCreateTeam}>
-          <Users className="h-3 w-3" />
+          <MessageCirclePlus className="h-3 w-3" />
           {createTeamLabel}
         </WorkspaceCatalogTextAction>
       </WorkspaceCatalogFooter>

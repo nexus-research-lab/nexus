@@ -18,6 +18,7 @@ import (
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	channelauthorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
@@ -66,6 +67,7 @@ type AppServices struct {
 	Channels               *channels.Router
 	ChannelControl         *channels.ControlService
 	ChannelAuthorization   *channelauthorizationsvc.Service
+	Communication          *communicationsvc.Service
 	DM                     *dmsvc.Service
 	Ingress                *channels.IngressService
 	RoomRealtime           *roomrealtime.Service
@@ -300,10 +302,12 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		panic(err)
 	}
 
-	// 把内置配置、资源管理、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	// 把内置配置、资源管理、平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
 	nexusManagerService := nexusmanagersvc.NewService(core.Agent, core.Room, core.Session, workspaceService, runtimeManager)
 	nexusManagerBuilder := newNexusManagerMCPBuilder(nexusManagerService, core.Agent)
+	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
+	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
@@ -316,6 +320,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	mcpBuilder := combinedMCPBuilder(
 		configurationBuilder,
 		nexusManagerBuilder,
+		communicationBuilder,
 		automationBuilder,
 		connectorBuilder,
 		connectorAuthorizationBuilder,
@@ -353,6 +358,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Channels:               channelRouter,
 		ChannelControl:         channelControl,
 		ChannelAuthorization:   channelAuthorization,
+		Communication:          communicationService,
 		DM:                     dmService,
 		Ingress:                ingressService,
 		RoomRealtime:           roomRealtime,

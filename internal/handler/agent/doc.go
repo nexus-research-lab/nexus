@@ -4,6 +4,8 @@
 //
 // 成员清单：
 //   - handlers.go：Handlers 及 Agent CRUD 路由。
+//   - contacts.go：Agent 双向联系人管理路由。
+//   - communication.go：owner 以指定 Agent 视角打开联系人通道和发送消息。
 //   - session.go：会话相关 handler。
 //   - subagent_task.go：父会话可见子任务 handler。
 //

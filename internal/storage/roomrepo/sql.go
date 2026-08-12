@@ -88,7 +88,7 @@ WHERE a.id IN (%s)`, r.dialect.BindList(len(agentIDs)))
 func (r *SQLRepository) ListRecentRooms(ctx context.Context, ownerUserID string, limit int) ([]protocol.RoomAggregate, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
-		`SELECT id FROM rooms WHERE owner_user_id = `+r.dialect.Bind(1)+` ORDER BY updated_at DESC, created_at DESC LIMIT `+r.dialect.Bind(2),
+		`SELECT id FROM rooms WHERE owner_user_id = `+r.dialect.Bind(1)+` AND is_contact_channel = `+r.dialect.FalseValue()+` ORDER BY updated_at DESC, created_at DESC LIMIT `+r.dialect.Bind(2),
 		ownerUserID,
 		limit,
 	)
@@ -287,9 +287,9 @@ func (r *SQLRepository) CreateRoom(ctx context.Context, bundle CreateRoomBundle)
 INSERT INTO rooms (
     id, owner_user_id, room_type, name, description, avatar, skill_names,
     host_agent_id, host_auto_reply_enabled, private_messages_enabled,
-    configuration_version, authority_epoch
+    is_contact_channel, configuration_version, authority_epoch
 )
-VALUES (%s)`, r.dialect.BindList(12)),
+VALUES (%s)`, r.dialect.BindList(13)),
 		bundle.Room.ID,
 		bundle.Room.OwnerUserID,
 		bundle.Room.RoomType,
@@ -300,6 +300,7 @@ VALUES (%s)`, r.dialect.BindList(12)),
 		NullIfEmpty(bundle.Room.HostAgentID),
 		bundle.Room.HostAutoReplyEnabled,
 		bundle.Room.PrivateMessagesEnabled,
+		bundle.Room.IsContactChannel,
 		initialRoomVersion(bundle.Room.ConfigurationVersion),
 		initialRoomVersion(bundle.Room.AuthorityEpoch),
 	); err != nil {

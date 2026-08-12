@@ -81,7 +81,7 @@ src/
 - Room 页面数据资源必须绑定当前 `roomId`；模型只做投影，命令只返回当前作用域结果，会话快照只通过专用协议写回
 - Room 页面私有控制器归 `pages/room/controller/`，浏览器协调归 `pages/room/orchestration/`；领域 Feature 不读取路由，页面不解释服务端资源协议
 - Room 成员管理由页面命令层绑定作用域并按“添加成员 → 更新设置 → 暂停/恢复变化 → 移除成员”的依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删、参与状态和设置更新的散装回调
-- Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
+- Contacts 页面使用互斥编辑状态，Agent 目录与 Agent 视角通讯客户端的联系人、Session、消息和命令归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层、固定 48px 一级导航 Dock 和系统操作，Dock 图标交互面与 32px 聊天头像同尺度，只有目录可见性与外层宽度变化，路由/Store 同步只留在控制器
 - 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI
 - 能力、设置与联系人等管理页面共用 `shared/ui/layout/workspace-content-layout.ts` 定义的铺满内容面，并由单一 `--workspace-content-gutter` 在 20–32px 间随屏幕平滑调整；正文、共享 Surface Header、Agent 内联详情和横向滚动区必须保持同一左右基线。页面用 `workspace-content-header.tsx` 统一标题、单句说明与动作；能力目录由 `features/capability/shared/capability-page-layout.tsx` 组合筛选、分区节奏、三列间距、可见条目边框与无品牌资源时的方形身份图标，工作循环条目按稳定 `slug` 复用公共数学曲线头像。普通目录在桌面统一使用三列，窄窗逐级收拢；定时任务正式看板保持四列，宽度不足时横向滚动而不折成两列。不得再用 Surface Header 重复“图标 + 能力名”，作用于搜索结果的来源模式进入筛选工具区，窄屏复用应用返回栏而不重复身份标题。目录行只展示标题、一行说明和一行元数据，完整步骤与技术字段进入详情或折叠区；详情页继续使用适合长文阅读的窄版心

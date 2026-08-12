@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
@@ -28,13 +29,14 @@ type roomPermissionModeSetter interface {
 
 // Handlers 封装 Agent / Session 域 HTTP handlers。
 type Handlers struct {
-	api          *handlershared.API
-	agents       *agentpkg.Service
-	sessions     *sessionpkg.Service
-	runtime      *runtimectx.Manager
-	roomRealtime roomPermissionModeSetter
-	prefs        *preferencessvc.Service
-	directory    directoryBroadcaster
+	api           *handlershared.API
+	agents        *agentpkg.Service
+	sessions      *sessionpkg.Service
+	runtime       *runtimectx.Manager
+	roomRealtime  roomPermissionModeSetter
+	communication *communicationsvc.Service
+	prefs         *preferencessvc.Service
+	directory     directoryBroadcaster
 }
 
 // New 创建 Agent / Session 域 handlers。
@@ -44,6 +46,7 @@ func New(
 	sessions *sessionpkg.Service,
 	runtime *runtimectx.Manager,
 	roomRealtime roomPermissionModeSetter,
+	communication *communicationsvc.Service,
 	directory directoryBroadcaster,
 	prefs ...*preferencessvc.Service,
 ) *Handlers {
@@ -52,13 +55,14 @@ func New(
 		prefService = prefs[0]
 	}
 	return &Handlers{
-		api:          api,
-		agents:       agents,
-		sessions:     sessions,
-		runtime:      runtime,
-		roomRealtime: roomRealtime,
-		prefs:        prefService,
-		directory:    directory,
+		api:           api,
+		agents:        agents,
+		sessions:      sessions,
+		runtime:       runtime,
+		roomRealtime:  roomRealtime,
+		communication: communication,
+		prefs:         prefService,
+		directory:     directory,
 	}
 }
 

@@ -1,20 +1,19 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Check,
   CircleAlert,
   LoaderCircle,
+  MessageCirclePlus,
   MessageSquareText,
   Trash2,
-  Users,
 } from "lucide-react";
 
 import {
   AGENT_DETAIL_TABS,
   type AgentDetailTabKey,
 } from "@/features/agents/agent-detail-navigation";
-import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
 import {
   buildAgentOptionsEditSource,
@@ -30,7 +29,10 @@ import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { WORKSPACE_CONTENT_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import {
+  WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+  WORKSPACE_CONTENT_MAX_WIDTH_CLASS_NAME,
+} from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type {
   Agent,
@@ -39,13 +41,23 @@ import type {
   AgentOptions,
 } from "@/types/agent/agent";
 
+import {
+  AgentCommunicationView,
+  type AgentCommunicationViewState,
+} from "./agent-communication-view";
 import { ContactsAgentDetailActionsMenu } from "./contacts-agent-detail-actions-menu";
 
 interface ContactsAgentDetailProps {
   agent: Agent;
+  agents: Agent[];
+  communication: AgentCommunicationViewState;
+  onAddContact: (contactAgentId: string, alias: string) => Promise<boolean>;
+  onBackToCommunicationDirectory: () => void;
+  onCreateCommunicationConversation: (title?: string) => Promise<string | null>;
   onCreateTeam: (agentId: string) => void;
   onDeleteAgent: (agentId: string) => void;
   onOpenDirectRoom: (agentId: string) => void;
+  onRefreshCommunication: () => void;
   onSaveAgentOptions: (
     agentId: string,
     title: string,
@@ -56,23 +68,32 @@ interface ContactsAgentDetailProps {
     name: string,
     agentId?: string,
   ) => Promise<AgentNameValidationResult>;
+  onSelectCommunicationConversation: (conversationId: string) => void;
+  onSelectCommunicationContact: (contactAgentId: string) => void;
+  onSendCommunicationMessage: (content: string) => Promise<void>;
 }
 
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
+  agents,
+  communication,
+  onAddContact,
+  onBackToCommunicationDirectory,
+  onCreateCommunicationConversation,
   onCreateTeam,
   onDeleteAgent,
   onOpenDirectRoom,
+  onRefreshCommunication,
   onSaveAgentOptions,
   onValidateAgentName,
+  onSelectCommunicationContact,
+  onSelectCommunicationConversation,
+  onSendCommunicationMessage,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
-  const [activeTab, setActiveTab] = useResettableState<AgentDetailTabKey>(
-    "identity",
-    agent.agent_id,
-  );
+  const [activeTab, setActiveTab] = useState<AgentDetailTabKey>("identity");
   const [persistenceState, setPersistenceState] =
     useResettableState<AgentOptionsPersistenceState>({
       message: t("agent_options.auto_save"),
@@ -130,7 +151,7 @@ export function ContactsAgentDetail({
         size="sm"
         variant="ghost"
       >
-        <Users className="h-4 w-4" />
+        <MessageCirclePlus className="h-4 w-4" />
         {t("contacts.create_team")}
       </UiButton>
       <UiIconButton
@@ -163,6 +184,10 @@ export function ContactsAgentDetail({
         tabs={configTabs}
         trailing={trailing}
       />
+      <div
+        aria-hidden="true"
+        className="mx-[var(--workspace-content-gutter)] shrink-0 border-t border-(--divider-subtle-color)"
+      />
 
       <div className={cn(
         "min-h-0 flex-1 flex-col",
@@ -181,10 +206,28 @@ export function ContactsAgentDetail({
         />
       </div>
 
-      {activeTab === "private_domain" ? (
-        <AgentPrivateDomainView agent={agent} />
-      ) : activeTab === "memory" ? (
-        <AgentMemoryView agent={agent} />
+      {activeTab === "private_domain" || activeTab === "memory" ? (
+        <div className={cn(
+          WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+          "flex min-h-0 min-w-0 flex-1",
+        )}>
+          {activeTab === "private_domain" ? (
+            <AgentCommunicationView
+              agent={agent}
+              agents={agents}
+              onAddContact={onAddContact}
+              onBackToDirectory={onBackToCommunicationDirectory}
+              onCreateConversation={onCreateCommunicationConversation}
+              onRefresh={onRefreshCommunication}
+              onSelectContact={onSelectCommunicationContact}
+              onSelectConversation={onSelectCommunicationConversation}
+              onSendMessage={onSendCommunicationMessage}
+              state={communication}
+            />
+          ) : (
+            <AgentMemoryView agent={agent} />
+          )}
+        </div>
       ) : null}
     </div>
   );

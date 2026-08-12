@@ -50,15 +50,17 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pb-2 pt-2 sm:px-5 xl:px-6`,
       )}
     >
-      <input
-        ref={refs.fileInputRef}
-        accept={COMPOSER_ATTACHMENT_ACCEPT}
-        aria-label={t("composer.choose_attachment_file")}
-        className="hidden"
-        multiple
-        onChange={attachments.handleFileSelect}
-        type="file"
-      />
+      {props.showActionMenu !== false ? (
+        <input
+          ref={refs.fileInputRef}
+          accept={COMPOSER_ATTACHMENT_ACCEPT}
+          aria-label={t("composer.choose_attachment_file")}
+          className="hidden"
+          multiple
+          onChange={attachments.handleFileSelect}
+          type="file"
+        />
+      ) : null}
       {state.canUseLoop && !props.interactionSurface ? (
         <LoopPickerDialog
           isOpen={state.isLoopPickerOpen}
@@ -88,12 +90,14 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onReorderQueueMessages={props.onReorderQueueMessages}
               />
 
-              <ComposerAttachmentList
-                attachments={attachments.attachments}
-                onRemove={attachments.removeAttachment}
-                previewResetKey={props.draftScopeKey}
-                removeLabel={t("composer.remove_attachment")}
-              />
+              {props.showActionMenu !== false ? (
+                <ComposerAttachmentList
+                  attachments={attachments.attachments}
+                  onRemove={attachments.removeAttachment}
+                  previewResetKey={props.draftScopeKey}
+                  removeLabel={t("composer.remove_attachment")}
+                />
+              ) : null}
 
               <ComposerInputRow
                 input={{
@@ -102,7 +106,9 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   onCompositionEnd: actions.handleCompositionEnd,
                   onCompositionStart: actions.handleCompositionStart,
                   onKeyDown: actions.handleKeyDown,
-                  onPaste: attachments.handlePaste,
+                  onPaste: props.showActionMenu === false
+                    ? ignoreComposerPaste
+                    : attachments.handlePaste,
                   placeholder: state.resolvedPlaceholder,
                   value: state.input,
                 }}
@@ -177,6 +183,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 sessionSettingsDisabled={
                   props.isLoading || state.runtimeActivity !== null
                 }
+                showActionMenu={props.showActionMenu !== false}
                 showPoweredByNexus
                 submit={{
                   isDisabled: state.isSendDisabled,
@@ -203,3 +210,5 @@ ComposerPanelView.displayName = "ComposerPanelView";
 export function ComposerPanel(props: ComposerPanelProps) {
   return <ComposerPanelView {...props} />;
 }
+
+function ignoreComposerPaste(): void {}

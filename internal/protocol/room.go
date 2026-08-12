@@ -1,6 +1,6 @@
-// INPUT: Room、成员、对话与 session 的跨边界持久状态。
-// OUTPUT: 带 configuration_version 和 authority_epoch 的 Room 聚合协议。
-// POS: Room 配置版本、权限世代与对话投影的协议真相源。
+// INPUT: Room、内部联系人通道、成员、对话与 session 的跨边界持久状态。
+// OUTPUT: 带用途标记、configuration_version 和 authority_epoch 的 Room 聚合协议。
+// POS: Room 用途、配置版本、权限世代与对话投影的协议真相源。
 package protocol
 
 import (
@@ -35,7 +35,7 @@ type MemberRecord struct {
 	JoinedAt            time.Time `json:"joined_at,omitempty"`
 }
 
-// RoomRecord 表示房间记录。
+// RoomRecord 表示房间记录；IsContactChannel 是不进入普通目录的内部用途标记。
 type RoomRecord struct {
 	ID                     string    `json:"id"`
 	OwnerUserID            string    `json:"-"`
@@ -47,6 +47,7 @@ type RoomRecord struct {
 	HostAgentID            string    `json:"host_agent_id,omitempty"`
 	HostAutoReplyEnabled   bool      `json:"host_auto_reply_enabled"`
 	PrivateMessagesEnabled bool      `json:"private_messages_enabled"`
+	IsContactChannel       bool      `json:"-"`
 	ConfigurationVersion   int64     `json:"configuration_version"`
 	AuthorityEpoch         int64     `json:"authority_epoch"`
 	CreatedAt              time.Time `json:"created_at,omitempty"`

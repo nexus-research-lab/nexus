@@ -9,6 +9,7 @@
 - [消息处理规范](./message-processing-spec.md)：实时消息、历史投影和 round 分页。
 - [Session Key 规范](./session-key-spec.md)：共享会话键、Agent 私有会话键和恢复键。
 - [Room 协作协议](./room-collaboration-spec.md)：公区、私域、唤醒和回复投影。
+- [Agent 平台通讯规范](./platform-communication-spec.md)：好友/群通讯录与跨当前会话发送。
 - [Execution Orchestration 协议](./execution-orchestration-spec.md)：Plan、Work Item、Assignment、验收与 Goal 持续性边界。
 - [Room Skill 编写指南](../guides/room-skill-authoring.md)：面向 Skill 作者的最小行为规则。
 
@@ -24,6 +25,7 @@ Room 模块负责：
 - 公区输入、成员目标解析、Room round 和输入队列。
 - Group Room 的 directed message、私域上下文和唤醒。
 - Room 级配置：host 默认接管、Room Skill 和私域消息开关。
+- Agent 平台通讯复用的好友私信与群消息 transport。
 
 以下内容不属于本规范：
 
@@ -41,6 +43,8 @@ Room 是成员和 conversation 的容器。当前有两种类型：
 
 - `room`：多人协作 Room，可配置 host、Room Skill 和 directed message。
 - `dm`：单 Agent 直聊的 Room 外壳，不启用 Room Skill 或 directed message。
+
+好友私信通道仍是 `room` transport，但带内部 `is_contact_channel` 用途标记，不进入普通 Room 目录。该标记不是第三种 Room 类型，也不能由 HTTP 请求创建。
 
 ### 3.2 Member
 

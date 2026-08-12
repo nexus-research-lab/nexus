@@ -1,3 +1,6 @@
+// INPUT: Group Room 成员、目标 conversation 与公共正文。
+// OUTPUT: 公区持久消息、mention 注解及明确 @ 目标的唤醒。
+// POS: Agent 主动跨上下文群发时复用的 Room public feed 边界。
 package realtime
 
 import (
@@ -25,6 +28,30 @@ func (s *Service) HandlePublicMessage(
 	if err != nil {
 		return nil, err
 	}
+	return s.handlePublicMessage(ctx, contextValue, request, "nexus_room.publish_public_message")
+}
+
+// HandlePlatformPublicMessage 处理平台通讯能力发起的群消息，不依赖 Room 私域开关。
+func (s *Service) HandlePlatformPublicMessage(
+	ctx context.Context,
+	roomID string,
+	conversationID string,
+	request protocol.CreateRoomPublicMessageRequest,
+) (protocol.Message, error) {
+	contextValue, err := s.resolveGroupMessageContext(ctx, roomID, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	return s.handlePublicMessage(ctx, contextValue, request, "nexus_comms.send_message")
+}
+
+func (s *Service) handlePublicMessage(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	request protocol.CreateRoomPublicMessageRequest,
+	messageSource string,
+) (protocol.Message, error) {
+	var err error
 	content := roomdomain.StripFanoutMarkerText(request.Content)
 	if content == "" {
 		return nil, errors.New("content is required")
@@ -65,7 +92,7 @@ func (s *Service) HandlePublicMessage(
 		},
 		"is_complete":           true,
 		"stop_reason":           "room_public_message",
-		"room_message_source":   "nexus_room.publish_public_message",
+		"room_message_source":   messageSource,
 		"room_message_protocol": "public_feed",
 		"root_round_id":         rootRoundID,
 		"caused_by_round_id":    causedByRoundID,

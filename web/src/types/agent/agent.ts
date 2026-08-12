@@ -2,7 +2,7 @@
  * Agent 类型定义
  *
  * [INPUT]: 无外部依赖
- * [OUTPUT]: 对外提供 Agent / AgentOptions / ApiAgent / CreateAgentParams / UpdateAgentParams
+ * [OUTPUT]: 对外提供 Agent / AgentContact / AgentCommunicationSendResult / AgentOptions / ApiAgent / CreateAgentParams / UpdateAgentParams
  * [POS]: types 模块的 Agent 核心类型，被 agent-api.ts 和 agent store 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -47,6 +47,29 @@ export interface Agent {
     skills_count?: number | null;
     /** 仅在 Room member 投影中存在；全局 Agent 本身不拥有此状态。 */
     room_participation_paused?: boolean;
+}
+
+/** 普通 Agent 通讯录中的双向好友投影。 */
+export interface AgentContact {
+    id: string;
+    owner_agent_id: string;
+    contact_agent_id: string;
+    alias?: string;
+    direct_room_id?: string;
+    name: string;
+    display_name?: string;
+    avatar?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AgentCommunicationSendResult {
+    message_id: string;
+    status: string;
+    target_type: "agent" | "room";
+    target_id: string;
+    room_id: string;
+    conversation_id: string;
 }
 
 export interface AgentRuntimeStatus {

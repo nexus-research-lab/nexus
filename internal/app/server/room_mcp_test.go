@@ -109,3 +109,23 @@ func TestRoomMCPBuilderUsesRoomPrivateMessageSetting(t *testing.T) {
 		t.Fatalf("Room 开启私信时应暴露特殊流程的 publish_public_message: %+v", tools)
 	}
 }
+
+func TestRoomMCPBuilderSkipsInternalContactChannel(t *testing.T) {
+	builder := newRoomMCPBuilder(
+		stubRoomMCPService{},
+		func(context.Context, string) (*protocol.RoomAggregate, error) {
+			return &protocol.RoomAggregate{
+				Room: protocol.RoomRecord{IsContactChannel: true, PrivateMessagesEnabled: true},
+			}, nil
+		},
+	)
+	servers := builder(
+		context.Background(),
+		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "user-1"},
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		"round-1", "room", "room-1", "联系人通道",
+	)
+	if len(servers) != 0 {
+		t.Fatalf("联系人内部通道不应注入 nexus_room: %+v", servers)
+	}
+}

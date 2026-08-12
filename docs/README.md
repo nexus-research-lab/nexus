@@ -29,6 +29,7 @@
 
 ### 协作与执行
 
+- [Agent 平台通讯规范](./specs/platform-communication-spec.md)
 - [Room 模块规范](./specs/room-spec.md)
 - [Room 协作协议](./specs/room-collaboration-spec.md)
 - [执行编排协议](./specs/execution-orchestration-spec.md)

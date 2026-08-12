@@ -1,4 +1,4 @@
-import { MessageSquareText, MoreHorizontal, Trash2, Users } from "lucide-react";
+import { MessageCirclePlus, MessageSquareText, MoreHorizontal, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -29,7 +29,7 @@ export function ContactsAgentDetailActionsMenu({
       value: "chat",
     },
     {
-      icon: <Users className="h-4 w-4 text-(--icon-muted)" />,
+      icon: <MessageCirclePlus className="h-4 w-4 text-(--icon-muted)" />,
       label: t("contacts.create_team"),
       value: "team",
     },

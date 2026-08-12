@@ -13,6 +13,11 @@ type Repository interface {
 	ListAgentsByIDs(context.Context, string, []string) ([]protocol.Agent, error)
 	GetAgent(context.Context, string, string) (*protocol.Agent, error)
 	GetMainAgent(context.Context, string) (*protocol.Agent, error)
+	ListAgentContacts(context.Context, string, string) ([]protocol.AgentContact, error)
+	GetAgentContact(context.Context, string, string, string) (*protocol.AgentContact, error)
+	UpsertAgentContactPair(context.Context, agentrepo.ContactPairRecord) error
+	DeleteAgentContactPair(context.Context, string, string) error
+	SetAgentContactDirectRoom(context.Context, string, string, string) error
 	CreateAgent(context.Context, agentrepo.CreateRecord) (*protocol.Agent, error)
 	UpdateAgent(context.Context, agentrepo.UpdateRecord) (*protocol.Agent, error)
 	UpdateAgentSkillSelection(context.Context, string, string, string, string) (*protocol.Agent, error)

@@ -7,6 +7,10 @@ import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 
+import {
+  useAgentCommunication,
+  type AgentCommunicationResource,
+} from "./controller/use-agent-communication";
 import { useContactsPageController } from "./controller/use-contacts-page-controller";
 import {
   getContactsPagePresentation,
@@ -16,7 +20,7 @@ import { useContactsPageNavigation } from "./orchestration/use-contacts-page-nav
 
 type ContactsAgentDetailActions = Omit<
   ComponentProps<typeof ContactsAgentDetail>,
-  "agent"
+  "agent" | "agents" | "communication"
 >;
 
 type ContactsDirectoryActions = Omit<
@@ -37,6 +41,7 @@ export function ContactsPage() {
     closeAgentEditor: controller.editor.close,
     openCreateAgent: controller.editor.openCreate,
   });
+  const communication = useAgentCommunication(navigation.selectedAgent?.agent_id ?? null);
 
   const presentation = getContactsPagePresentation({
     contactCount: controller.contactAgents.length,
@@ -45,23 +50,38 @@ export function ContactsPage() {
     selectedAgent: navigation.selectedAgent,
   });
   const actions: ContactsPageActions = {
+    onAddContact: communication.addContact,
+    onBackToCommunicationDirectory: communication.clearSelection,
+    onCreateCommunicationConversation: communication.createConversation,
     onCreateAgent: controller.editor.openCreate,
     onCreateTeam: navigation.createTeam,
     onDeleteAgent: controller.requestDeleteAgent,
     onOpenAgent: navigation.openAgent,
     onOpenDirectRoom: navigation.openDirectRoom,
+    onRefreshCommunication: communication.refresh,
     onSaveAgentOptions: controller.saveAgentOptions,
+    onSelectCommunicationContact: communication.selectContact,
+    onSelectCommunicationConversation: communication.selectConversation,
+    onSendCommunicationMessage: communication.sendMessage,
     onValidateAgentName: controller.validateAgentName,
   };
 
   if (presentation.content.kind === "loading") {
-    return <ContactsPageContent actions={actions} agents={controller.contactAgents} state={presentation.content} />;
+    return (
+      <ContactsPageContent
+        actions={actions}
+        communication={communication}
+        agents={controller.contactAgents}
+        state={presentation.content}
+      />
+    );
   }
 
   return (
     <>
       <ContactsPageContent
         actions={actions}
+        communication={communication}
         agents={controller.contactAgents}
         state={presentation.content}
       />
@@ -91,10 +111,12 @@ export function ContactsPage() {
 
 function ContactsPageContent({
   actions,
+  communication,
   agents,
   state,
 }: {
   actions: ContactsPageActions;
+  communication: AgentCommunicationResource;
   agents: ComponentProps<typeof ContactsDirectory>["agents"];
   state: ContactsPageContentState;
 }) {
@@ -110,10 +132,19 @@ function ContactsPageContent({
         <WorkspacePageFrame contentPaddingClassName="p-0">
           <ContactsAgentDetail
             agent={state.agent}
+            agents={agents}
+            communication={communication}
+            onAddContact={actions.onAddContact}
+            onBackToCommunicationDirectory={actions.onBackToCommunicationDirectory}
+            onCreateCommunicationConversation={actions.onCreateCommunicationConversation}
             onCreateTeam={actions.onCreateTeam}
             onDeleteAgent={actions.onDeleteAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}
+            onRefreshCommunication={actions.onRefreshCommunication}
             onSaveAgentOptions={actions.onSaveAgentOptions}
+            onSelectCommunicationContact={actions.onSelectCommunicationContact}
+            onSelectCommunicationConversation={actions.onSelectCommunicationConversation}
+            onSendCommunicationMessage={actions.onSendCommunicationMessage}
             onValidateAgentName={actions.onValidateAgentName}
           />
         </WorkspacePageFrame>

@@ -39,6 +39,7 @@ export interface ComposerFooterProps {
   runtimeActivity: ComposerRuntimeActivity;
   sessionSettingsController: ComposerSessionSettingsController;
   sessionSettingsDisabled: boolean;
+  showActionMenu: boolean;
   showPoweredByNexus: boolean;
   submit: ComposerSubmitButtonProps;
 }
