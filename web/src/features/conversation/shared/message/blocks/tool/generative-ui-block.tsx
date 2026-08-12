@@ -1,7 +1,7 @@
 /**
  * INPUT: show_widget tool_use 与对应 tool_result 完成状态。
- * OUTPUT: 流式更新、完成后执行脚本的隔离 iframe。
- * POS: 对话内生成式 UI 视图；只接受 iframe 自身的高度消息。
+ * OUTPUT: 流式更新、完成后执行脚本并显式展示运行失败的隔离 iframe。
+ * POS: 对话内生成式 UI 视图；只接受 iframe 自身的高度与运行状态消息。
  */
 "use client";
 
@@ -18,7 +18,9 @@ import type { ToolUseContent } from "@/types/conversation/message/content";
 
 import {
   buildGenerativeUIShellDocument,
+  GENERATIVE_UI_ERROR_MESSAGE,
   GENERATIVE_UI_MESSAGE_SOURCE,
+  GENERATIVE_UI_READY_MESSAGE,
   GENERATIVE_UI_RESIZE_MESSAGE,
   GENERATIVE_UI_UPDATE_MESSAGE,
 } from "./generative-ui-document";
@@ -27,6 +29,11 @@ const UPDATE_DELAY_MS = 150;
 const INITIAL_HEIGHT = 320;
 const MIN_HEIGHT = 180;
 const MAX_HEIGHT = 4000;
+const MAX_ERROR_MESSAGE_LENGTH = 240;
+
+type RenderState =
+  | { status: "error"; message: string }
+  | { status: "loading" | "ready" };
 
 export function GenerativeUIBlock({
   complete,
@@ -38,6 +45,9 @@ export function GenerativeUIBlock({
   const { theme } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
+  const [renderState, setRenderState] = useState<RenderState>({
+    status: "loading",
+  });
   const input = toolUse.input ?? {};
   const title = typeof input.title === "string" ? input.title.trim() : "";
   const widgetCode = typeof input.widget_code === "string"
@@ -53,6 +63,7 @@ export function GenerativeUIBlock({
     if (!widgetCode) {
       return;
     }
+    setRenderState({ status: "loading" });
     frameRef.current?.contentWindow?.postMessage({
       type: GENERATIVE_UI_UPDATE_MESSAGE,
       final: complete,
@@ -75,38 +86,65 @@ export function GenerativeUIBlock({
         return;
       }
       const data = event.data as Record<string, unknown> | null;
-      if (
-        !data
-        || data.source !== GENERATIVE_UI_MESSAGE_SOURCE
-        || data.type !== GENERATIVE_UI_RESIZE_MESSAGE
-        || typeof data.height !== "number"
-        || !Number.isFinite(data.height)
-      ) {
+      if (!data || data.source !== GENERATIVE_UI_MESSAGE_SOURCE) {
         return;
       }
-      setHeight(Math.ceil(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, data.height))));
+      if (
+        data.type === GENERATIVE_UI_RESIZE_MESSAGE
+        && typeof data.height === "number"
+        && Number.isFinite(data.height)
+      ) {
+        setHeight(Math.ceil(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, data.height))));
+        return;
+      }
+      if (data.type === GENERATIVE_UI_READY_MESSAGE) {
+        setRenderState({ status: "ready" });
+        return;
+      }
+      if (data.type === GENERATIVE_UI_ERROR_MESSAGE) {
+        const message = typeof data.message === "string" && data.message.trim()
+          ? data.message.trim().slice(0, MAX_ERROR_MESSAGE_LENGTH)
+          : "Unknown widget error";
+        setRenderState({ status: "error", message });
+      }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
+  const loading = !complete || renderState.status === "loading";
+
   return (
     <section
-      aria-busy={!complete}
+      aria-busy={loading}
       className="my-3 min-w-0 overflow-hidden rounded-[8px] bg-transparent"
       data-generative-ui="true"
+      data-generative-ui-status={renderState.status}
     >
       <header className="flex min-h-9 items-center gap-2 bg-(--surface-panel-background) px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-default)">
           {title || toolUse.name}
         </span>
-        {!complete ? (
+        {loading ? (
           <span
             aria-hidden="true"
             className="h-1.5 w-1.5 rounded-full bg-(--icon-muted) motion-safe:animate-pulse"
           />
+        ) : renderState.status === "error" ? (
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 rounded-full bg-(--destructive)"
+          />
         ) : null}
       </header>
+      {renderState.status === "error" ? (
+        <div
+          className="border-y border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-3 py-2 font-mono text-xs leading-5 text-(--destructive)"
+          role="alert"
+        >
+          {renderState.message}
+        </div>
+      ) : null}
       {widgetCode ? (
         <iframe
           className="block w-full border-0 bg-(--surface-panel-background)"

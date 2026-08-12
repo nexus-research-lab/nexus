@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Loaded Generative UI guidance by visualization type and exposed theme-aware chart colors for more reliable Nexus-native widgets.
 - Styled leading Slash commands consistently in the Composer and sent user messages without changing their raw text.
 - Removed the Generative UI frame and tool icon so inline widgets blend into conversation content.
 - Reorganized the open-source documentation around current architecture, operations, and maintainer contracts; removed the drifting hand-maintained API catalog and clarified the closed-source runtime boundary.
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reported generated-widget script failures in the conversation instead of silently leaving partial content, and tightened Canvas generation guidance to prevent blank renders.
 - Hid completed task plans as soon as a new conversation round starts instead of showing stale work until the next plan update.
 - Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.
 - Fixed Linux-isolated runtimes failing to read host-generated MCP configuration files while keeping those files private.

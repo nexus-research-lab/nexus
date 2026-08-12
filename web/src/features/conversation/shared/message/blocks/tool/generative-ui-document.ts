@@ -1,10 +1,12 @@
 /**
  * INPUT: Nexus 主题与模型生成的 HTML fragment。
- * OUTPUT: 增量渲染并在终态执行脚本的稳定 iframe 文档。
+ * OUTPUT: 增量渲染、终态脚本执行与 ready/error 回报的稳定 iframe 文档。
  * POS: 生成式 UI 的唯一 HTML 装配边界；宿主页不直接接触模型生成 DOM。
  */
 
 export const GENERATIVE_UI_MESSAGE_SOURCE = "nexus-generative-ui";
+export const GENERATIVE_UI_ERROR_MESSAGE = "nexus-widget-error";
+export const GENERATIVE_UI_READY_MESSAGE = "nexus-widget-ready";
 export const GENERATIVE_UI_RESIZE_MESSAGE = "nexus-widget-resize";
 export const GENERATIVE_UI_UPDATE_MESSAGE = "nexus-widget-update";
 
@@ -23,13 +25,38 @@ const BRIDGE_SCRIPT = `<script>
   let parserState = null;
   let previousHtml = "";
   let rendererPromise = null;
+  let renderError = "";
 
-  const reportSize = () => {
+  const postStatus = (type, detail = {}) => {
     window.parent.postMessage({
       source: "${GENERATIVE_UI_MESSAGE_SOURCE}",
-      type: "${GENERATIVE_UI_RESIZE_MESSAGE}",
-      height: Math.ceil(document.documentElement.scrollHeight),
+      type,
+      ...detail,
     }, "*");
+  };
+
+  const reportError = (error) => {
+    const message = error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Unknown widget error";
+    renderError = message;
+    console.error("[Nexus widget] Render failed", error);
+    postStatus("${GENERATIVE_UI_ERROR_MESSAGE}", { message });
+  };
+
+  window.addEventListener("error", (event) => {
+    reportError(event.error ?? event.message);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    reportError(event.reason);
+  });
+
+  const reportSize = () => {
+    postStatus("${GENERATIVE_UI_RESIZE_MESSAGE}", {
+      height: Math.ceil(document.documentElement.scrollHeight),
+    });
   };
   const observe = () => {
     if (!document.body) return;
@@ -111,6 +138,12 @@ const BRIDGE_SCRIPT = `<script>
 
   const executeScripts = async (container) => {
     const javascriptTypes = /^(?:text\\/(?:javascript(?:1\\.[0-5])?|x-javascript|ecmascript|x-ecmascript|jscript|livescript)|application\\/(?:javascript|x-javascript|ecmascript|x-ecmascript))$/;
+    for (const script of Array.from(container.querySelectorAll("script:not([src])"))) {
+      const type = (script.getAttribute("type") ?? "").trim().toLowerCase();
+      if (type === "" || javascriptTypes.test(type)) {
+        new Function(script.textContent ?? "");
+      }
+    }
     const phases = [
       container.querySelectorAll("script[src]:not([data-executed])"),
       container.querySelectorAll("script:not([src]):not([data-executed])"),
@@ -133,9 +166,11 @@ const BRIDGE_SCRIPT = `<script>
           previous.replaceWith(script);
           continue;
         }
-        const loaded = new Promise((resolve) => {
+        const loaded = new Promise((resolve, reject) => {
           script.addEventListener("load", resolve, { once: true });
-          script.addEventListener("error", resolve, { once: true });
+          script.addEventListener("error", () => {
+            reject(new Error("Failed to load " + (previous.getAttribute("src") ?? "script")));
+          }, { once: true });
         });
         previous.replaceWith(script);
         await loaded;
@@ -144,16 +179,29 @@ const BRIDGE_SCRIPT = `<script>
   };
 
   const renderFinal = async (html) => {
-    if (finalized && finalizedHtml === html) return;
+    if (finalized && finalizedHtml === html) {
+      postStatus(
+        renderError ? "${GENERATIVE_UI_ERROR_MESSAGE}" : "${GENERATIVE_UI_READY_MESSAGE}",
+        renderError ? { message: renderError } : {},
+      );
+      return;
+    }
     finalized = true;
     finalizedHtml = html;
+    renderError = "";
     const current = root();
     if (!current) return;
     current.classList.remove("streaming");
     current.innerHTML = html;
-    await executeScripts(current);
-    current.classList.remove("scripts-loading");
-    requestAnimationFrame(reportSize);
+    try {
+      await executeScripts(current);
+      if (!renderError) {
+        postStatus("${GENERATIVE_UI_READY_MESSAGE}");
+      }
+    } finally {
+      current.classList.remove("scripts-loading");
+      requestAnimationFrame(reportSize);
+    }
   };
 
   window.addEventListener("message", (event) => {
@@ -162,9 +210,7 @@ const BRIDGE_SCRIPT = `<script>
       return;
     }
     if (data.final === true) {
-      void renderFinal(data.html).catch((error) => {
-        console.error("[Nexus widget] Final render failed", error);
-      });
+      void renderFinal(data.html).catch(reportError);
       return;
     }
     void renderPartial(data.html);
@@ -178,6 +224,11 @@ const THEME_PALETTES = {
     accentContrast: "#08111d",
     background: "#0e151f",
     border: "rgba(171, 189, 214, 0.10)",
+    chart1: "#8ea4ff",
+    chart2: "#5fd3c5",
+    chart3: "#f3b65f",
+    chart4: "#f08aaa",
+    chart5: "#aab7c6",
     muted: "rgba(165, 180, 198, 0.82)",
     surface: "rgba(255, 255, 255, 0.05)",
     surfaceHover: "rgba(255, 255, 255, 0.10)",
@@ -188,6 +239,11 @@ const THEME_PALETTES = {
     accentContrast: "#ffffff",
     background: "#fcfcfb",
     border: "rgba(11, 11, 11, 0.08)",
+    chart1: "#5b72ff",
+    chart2: "#0f8f83",
+    chart3: "#b7791f",
+    chart4: "#c75b7a",
+    chart5: "#64748b",
     muted: "#5f5e5a",
     surface: "#f3f3f0",
     surfaceHover: "#f0efec",
@@ -198,6 +254,11 @@ const THEME_PALETTES = {
     accentContrast: "#08111d",
     background: "#303a47",
     border: "rgba(205, 220, 240, 0.10)",
+    chart1: "#9ab7ff",
+    chart2: "#68d4ca",
+    chart3: "#f2bd70",
+    chart4: "#ee91ad",
+    chart5: "#b7c5d6",
     muted: "rgba(183, 197, 214, 0.84)",
     surface: "rgba(255, 255, 255, 0.06)",
     surfaceHover: "rgba(255, 255, 255, 0.11)",
@@ -219,6 +280,11 @@ function themeStyle(theme: GenerativeUITheme): string {
   --nexus-border: ${palette.border};
   --nexus-accent: ${palette.accent};
   --nexus-accent-contrast: ${palette.accentContrast};
+  --nexus-chart-1: ${palette.chart1};
+  --nexus-chart-2: ${palette.chart2};
+  --nexus-chart-3: ${palette.chart3};
+  --nexus-chart-4: ${palette.chart4};
+  --nexus-chart-5: ${palette.chart5};
   --nexus-font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --nexus-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --nexus-radius-md: 8px;

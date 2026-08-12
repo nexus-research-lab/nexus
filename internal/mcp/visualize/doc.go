@@ -3,7 +3,7 @@
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go：暴露按需设计指南与 show_widget 渲染确认工具。
+//   - server.go：按可视化类别装配设计指南，并暴露 show_widget 接收确认工具。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package visualize

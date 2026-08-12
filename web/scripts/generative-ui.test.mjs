@@ -37,9 +37,17 @@ test("生成式 UI 流式 DOM 可交互，完成文档才执行模型脚本", as
   assert.match(shell, /scripts-loading/);
   assert.match(shell, /pointer-events: none/);
   assert.match(shell, /data\.final === true/);
+  assert.match(shell, /nexus-widget-ready/);
+  assert.match(shell, /nexus-widget-error/);
+  assert.match(shell, /unhandledrejection/);
+  assert.match(shell, /Render failed/);
+  assert.match(shell, /new Function\(script\.textContent \?\? ""\)/);
+  assert.match(shell, /if \(!renderError\)/);
   assert.match(shell, /script\[src\]:not\(\[data-executed\]\)/);
   assert.match(shell, /await executeScripts\(current\)/);
   assert.match(shell, /--nexus-background: #fcfcfb/);
+  assert.match(shell, /--nexus-chart-1: #5b72ff/);
+  assert.match(shell, /--nexus-chart-5: #64748b/);
 });
 
 test("show_widget 从工具过程提升到最终回复", async () => {
@@ -55,7 +63,7 @@ test("show_widget 从工具过程提升到最终回复", async () => {
   const result = {
     type: "tool_result",
     tool_use_id: widget.id,
-    content: '{"rendered":true}',
+    content: '{"accepted":true}',
   };
   const finalText = { type: "text", text: "可以拖动年份查看变化。" };
   const toolMessage = {
@@ -142,7 +150,7 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
   const result = {
     type: "tool_result",
     tool_use_id: toolUse.id,
-    content: '{"rendered":true}',
+    content: '{"accepted":true}',
   };
   const markup = renderToStaticMarkup(
     React.createElement(
@@ -169,6 +177,7 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
   );
 
   assert.match(markup, /data-generative-ui="true"/);
+  assert.match(markup, /data-generative-ui-status="loading"/);
   assert.match(markup, /sandbox="allow-scripts"/);
   assert.match(markup, /rounded-\[8px\]/);
   assert.doesNotMatch(markup, /rounded-2xl/);
