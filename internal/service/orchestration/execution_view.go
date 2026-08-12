@@ -1,4 +1,4 @@
-// INPUT: owner/session 只读查询、当前或最近一次有界 ExecutionSnapshot 与 WorkGraph child Attempt 历史。
+// INPUT: owner/session 只读查询、当前或最近一次有界 ExecutionSnapshot、完整 WorkGraph child Attempt 历史与 visibility 投影前运行事实。
 // OUTPUT: 去除控制面 identity、保留每个 durable Subagent、按 Plan position 排序并派生交付阶段的 protocol.ExecutionView。
 // POS: Execution 状态机到 HTTP/DM/Room WorkGraph UI 的唯一展示投影。
 package orchestration
@@ -23,6 +23,10 @@ type managedExecutionViewRepository interface {
 
 type workGraphAttemptRepository interface {
 	ListWorkGraphChildAttempts(context.Context, string) ([]protocol.WorkAttempt, error)
+}
+
+type workGraphRuntimeRepository interface {
+	GetWorkGraphRuntimeGraph(context.Context, string, string, string, string) (protocol.ExecutionRuntimeGraph, error)
 }
 
 // GetLatestView 返回 session 当前 managed WorkGraph；没有未终结 Execution 时保留
@@ -95,13 +99,25 @@ func (s *Service) GetLatestView(
 		return nil, nil
 	}
 	if repository, ok := s.repository.(runtimeGraphRepository); ok {
-		runtimeGraph, graphErr := repository.GetRuntimeGraph(
-			ctx,
-			ownerUserID,
-			sessionKey,
-			execution.ID,
-			execution.RootRoundID,
-		)
+		var runtimeGraph protocol.ExecutionRuntimeGraph
+		var graphErr error
+		if workGraphRepository, available := s.repository.(workGraphRuntimeRepository); available {
+			runtimeGraph, graphErr = workGraphRepository.GetWorkGraphRuntimeGraph(
+				ctx,
+				ownerUserID,
+				sessionKey,
+				execution.ID,
+				execution.RootRoundID,
+			)
+		} else {
+			runtimeGraph, graphErr = repository.GetRuntimeGraph(
+				ctx,
+				ownerUserID,
+				sessionKey,
+				execution.ID,
+				execution.RootRoundID,
+			)
+		}
 		if graphErr != nil {
 			return nil, graphErr
 		}

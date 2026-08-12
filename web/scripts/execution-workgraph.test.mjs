@@ -427,6 +427,38 @@ test("WorkGraph surface keeps graph lifecycle, Plan and required acceptance abov
   }
 });
 
+test("WorkGraph partial warning names display-worthy canvas totals", async () => {
+  const { ExecutionWorkGraphSurface } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
+  );
+  const projected = structuredClone(execution);
+  projected.graph.runtime_node_total = 257;
+  projected.graph.runtime_edge_total = 513;
+  projected.graph.runtime_nodes_truncated = true;
+  projected.graph.runtime_edges_truncated = true;
+
+  const html = await renderWithI18n(React.createElement(
+    ExecutionWorkGraphSurface,
+    {
+      directory,
+      resource: {
+        dismiss: () => {},
+        error: null,
+        execution: projected,
+        isLoading: false,
+        isStale: false,
+        lastSuccessfulAt: Date.parse("2026-08-12T00:00:00Z"),
+        refresh: () => {},
+      },
+      taskRuns: [],
+    },
+  ));
+
+  assert.match(html, /data-execution-workgraph-partial="true"/);
+  assert.match(html, /工作图未展示全部应显示的运行事实/);
+  assert.match(html, /应进入主图的运行节点共 257 个、运行连线 513 条/);
+});
+
 test("WorkGraph layout reflows without treating containment as dependency", async () => {
   const { buildExecutionGraphLayout } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",

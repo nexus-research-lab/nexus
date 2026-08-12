@@ -166,6 +166,8 @@ type ExecutionGraphEdgeView struct {
 }
 
 // ExecutionGraphView 是 WorkGraph responsibility 与 WorkAttempt runtime 的确定性分层读模型。
+// runtime total / truncated 仅描述 visibility != detail 的主图运行投影；节点
+// 检查器内的 detail 历史不占主图配额，也不触发 partial。
 type ExecutionGraphView struct {
 	Nodes                 []ExecutionGraphNodeView `json:"nodes,omitempty"`
 	Edges                 []ExecutionGraphEdgeView `json:"edges,omitempty"`

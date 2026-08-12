@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -705,8 +706,127 @@ func TestRuntimeGraphViewFiltersHistoricalProgressFacet(t *testing.T) {
 	})
 
 	if len(view.Graph.Nodes) != 1 || view.Graph.Nodes[0].ID != "runtime-agent" ||
-		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 2 {
+		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 1 {
 		t.Fatalf("historical progress facet leaked into graph: %+v", view.Graph)
+	}
+}
+
+func TestRuntimeGraphViewAppliesPartialAfterCanvasVisibility(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 12, 9, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-1"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary, WorkItemID: "work-1",
+		}}},
+	}
+	runtimeGraph := protocol.ExecutionRuntimeGraph{
+		NodeTotal:      protocol.ExecutionRuntimeGraphNodeProjectionLimit + 46,
+		NodesTruncated: true,
+		Nodes: []protocol.ExecutionRuntimeNodeRun{{
+			ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+			Metadata: map[string]any{"execution_lane": "work", "work_item_id": "work-1"},
+		}},
+	}
+	for index := 0; index < 300; index++ {
+		observedAt := now.Add(time.Duration(index+1) * time.Second)
+		nodeID := fmt.Sprintf("detail-read-%03d", index)
+		runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+			ID: nodeID, Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: nodeID, ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Name: "Read", Status: protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: observedAt, UpdatedAt: observedAt,
+		})
+		runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + nodeID, SourceNodeID: "runtime-agent", TargetNodeID: nodeID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: observedAt,
+		})
+	}
+	failureAt := now.Add(-time.Minute)
+	runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+		ID: "visible-failure", Kind: protocol.ExecutionRuntimeNodeTool,
+		SubjectID: "visible-failure", ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+		Name: "internal-check", Status: protocol.ExecutionRuntimeNodeFailed,
+		StartedAt: failureAt, UpdatedAt: failureAt,
+	})
+	runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+		ID: "edge-visible-failure", SourceNodeID: "runtime-agent", TargetNodeID: "visible-failure",
+		Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: failureAt,
+	})
+
+	mergeExecutionRuntimeGraph(view, runtimeGraph)
+
+	if view.Graph.RuntimeNodeTotal != 1 || view.Graph.RuntimeNodesTruncated ||
+		view.Graph.RuntimeEdgeTotal != 1 || view.Graph.RuntimeEdgesTruncated {
+		t.Fatalf(
+			"hidden detail facts marked canvas partial: nodes=%d node_partial=%v edges=%d edge_partial=%v",
+			view.Graph.RuntimeNodeTotal,
+			view.Graph.RuntimeNodesTruncated,
+			view.Graph.RuntimeEdgeTotal,
+			view.Graph.RuntimeEdgesTruncated,
+		)
+	}
+	visibleFailure := false
+	for _, node := range view.Graph.Nodes {
+		if node.ID == "visible-failure" {
+			visibleFailure = node.Visibility == protocol.ExecutionGraphNodeNested
+		}
+	}
+	if !visibleFailure {
+		t.Fatalf("early display-worthy failure was not preserved: %+v", view.Graph.Nodes)
+	}
+}
+
+func TestRuntimeGraphViewMarksPartialOnlyWhenCanvasNodesAreOmitted(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-1"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary, WorkItemID: "work-1",
+		}}},
+	}
+	runtimeGraph := protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{{
+		ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+		SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		Metadata: map[string]any{"execution_lane": "work", "work_item_id": "work-1"},
+	}}}
+	for index := 0; index <= protocol.ExecutionRuntimeGraphNodeProjectionLimit; index++ {
+		observedAt := now.Add(time.Duration(index+1) * time.Second)
+		nodeID := fmt.Sprintf("visible-failure-%03d", index)
+		runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+			ID: nodeID, Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: nodeID, ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Name: "Read", Status: protocol.ExecutionRuntimeNodeFailed,
+			StartedAt: observedAt, UpdatedAt: observedAt,
+		})
+		runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + nodeID, SourceNodeID: "runtime-agent", TargetNodeID: nodeID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: observedAt,
+		})
+	}
+
+	mergeExecutionRuntimeGraph(view, runtimeGraph)
+
+	if view.Graph.RuntimeNodeTotal != protocol.ExecutionRuntimeGraphNodeProjectionLimit+1 ||
+		!view.Graph.RuntimeNodesTruncated {
+		t.Fatalf("display-worthy overflow was not marked partial: %+v", view.Graph)
+	}
+	canvasRuntimeNodes := 0
+	for _, node := range view.Graph.Nodes {
+		if node.ID != "work-1" && node.Visibility != protocol.ExecutionGraphNodeDetail {
+			canvasRuntimeNodes++
+		}
+	}
+	if canvasRuntimeNodes != protocol.ExecutionRuntimeGraphNodeProjectionLimit {
+		t.Fatalf("canvas runtime nodes = %d, want %d", canvasRuntimeNodes, protocol.ExecutionRuntimeGraphNodeProjectionLimit)
 	}
 }
 

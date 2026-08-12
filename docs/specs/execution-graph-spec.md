@@ -120,13 +120,15 @@ Runtime Graph 当前只持久化以下边：
 
 ### 4.5 投影上限
 
-Runtime Graph 的单次用户可见窗口当前上限为：
+WorkGraph 必须先完成产品可见性投影，再对主图窗口应用上限。当前上限为：
 
-- 256 个节点；
-- 512 条边；
+- 256 个 `visibility != detail` 的 runtime 主图节点；
+- 512 条连接主图节点的 runtime 边；
 - 每个 Tool NodeRun 16 个 Artifact。
 
-超出窗口时仍保留 durable 事实，但 read model 必须通过 total 与 truncated 字段明确表示部分投影，不能把截断结果伪装成完整图。
+普通成功的本地读取、查找等 `detail` 历史不占主图节点或边配额，也不能触发 partial。只有本应进入主图的节点或边超出上述窗口、实际未投影完整时，read model 才通过 total 与 truncated 字段明确表示部分投影；durable 事实仍然保留，不能把真实截断结果伪装成完整图。
+
+节点检查器使用独立的最近 256 条 `detail` 历史窗口。该窗口不属于主图完整性承诺，因此不会改变 `runtime_*_total` 或触发主图 partial；完整 durable 事实仍保留在存储层。
 
 ## 5. ExecutionGraphView 只读模型
 
@@ -134,8 +136,8 @@ Runtime Graph 的单次用户可见窗口当前上限为：
 
 - `nodes`：稳定责任节点及其 `runs` 历史；
 - `edges`：当前只读方向边；
-- `runtime_node_total` / `runtime_edge_total`；
-- `runtime_nodes_truncated` / `runtime_edges_truncated`。
+- `runtime_node_total` / `runtime_edge_total`：visibility 判定后本应进入主图的 runtime 节点/边总数；
+- `runtime_nodes_truncated` / `runtime_edges_truncated`：对应主图节点/边是否因窗口上限而未展示完整。
 
 前端不得把此对象回写为 Plan、Assignment、Attempt 或 runtime command。
 

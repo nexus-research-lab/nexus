@@ -6,12 +6,12 @@ package protocol
 import "time"
 
 const (
-	// ExecutionRuntimeGraphNodeProjectionLimit 是用户可见 Runtime Graph 的
-	// 单次节点窗口。它独立于模型执行契约的 32 项限制；超限必须通过 total /
-	// truncated 明示，并保留最新运行与根 Agent。
+	// ExecutionRuntimeGraphNodeProjectionLimit 是 WorkGraph visibility 判定后的
+	// 主图 runtime 节点窗口。它独立于模型执行契约的 32 项限制；只有应进入
+	// 主图的节点超限时，公共 read model 才通过 total / truncated 明示。
 	ExecutionRuntimeGraphNodeProjectionLimit = 256
-	// ExecutionRuntimeGraphEdgeProjectionLimit 为当前节点窗口保留足够的运行边，
-	// 包括 Agent 已经选择并实际发生的 retry / loop_back 控制返回。
+	// ExecutionRuntimeGraphEdgeProjectionLimit 是 WorkGraph visibility 判定后的
+	// 主图运行边窗口，包括 Agent 已经选择并实际发生的 retry / loop_back。
 	ExecutionRuntimeGraphEdgeProjectionLimit = 512
 	// ExecutionRuntimeGraphArtifactProjectionLimit 限制单个 Tool NodeRun 展示的
 	// exact Artifact 数量；durable 引用仍可继续积累并在后续产品能力中分页读取。
