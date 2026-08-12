@@ -81,6 +81,7 @@ type PlanDocumentSchemaContract struct {
 	RequiredItemFields        []string          `json:"required_item_fields"`
 	AllowedItemFields         []string          `json:"allowed_item_fields"`
 	OperationRequirements     map[string]string `json:"operation_requirements"`
+	OutputScopeRequirements   string            `json:"output_scope_requirements"`
 	CommonAliasCorrections    map[string]string `json:"common_alias_corrections"`
 	MinimalValidCreateExample string            `json:"minimal_valid_create_example"`
 }
@@ -99,6 +100,7 @@ func ExecutionPlanDocumentSchemaContract() PlanDocumentSchemaContract {
 			"replan":  "revision_reason is required; objective and completion_criteria inherit the immutable current Execution boundary; existing_work_item_id may reuse an unchanged Work Item",
 			"replace": "objective, completion_criteria, and replacement_reason are required; a Goal-bound Execution cannot be replaced",
 		},
+		OutputScopeRequirements: "output_scopes are exclusive by default; overlapping exclusive scopes are allowed only when one Work Item reaches the other through an all-hard depends_on path, which transfers ownership after upstream Acceptance; parallel, sibling, unrelated, and soft-only overlap must use distinct scopes, or shared_output_scopes only when concurrent writing is genuinely safe",
 		CommonAliasCorrections: map[string]string{
 			"dependencies": "depends_on or soft_depends_on",
 			"description":  "subject plus objective plus deliverable",

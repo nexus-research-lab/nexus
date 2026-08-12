@@ -57,6 +57,72 @@ func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.Ac
 	return snapshot, nil
 }
 
+func TestCompactExecutionToolContextKeepsAuthorityWithoutRuntimeHistory(t *testing.T) {
+	t.Parallel()
+
+	rendered := `<nexus_execution_context execution_version="9">
+  <graph_digest><nodes><node key="draft" /></nodes></graph_digest>
+  <runtime_facts available="true"><recent_nodes><node id="tool-1" /></recent_nodes></runtime_facts>
+  <assigned_work><item assignment_id="assignment-1"><objective>write</objective></item></assigned_work>
+  <allowed_actions><action>submit_work</action></allowed_actions>
+</nexus_execution_context>`
+	compact := compactExecutionToolContext(rendered)
+	if strings.Contains(compact, "runtime_facts") ||
+		!strings.Contains(compact, "assignment-1") ||
+		!strings.Contains(compact, "submit_work") ||
+		!strings.Contains(compact, "graph_digest") {
+		t.Fatalf("compact context = %s", compact)
+	}
+
+	oversized := strings.Replace(
+		rendered,
+		"<nodes><node key=\"draft\" /></nodes>",
+		"<nodes>"+strings.Repeat("x", executionToolContextInlineLimit)+"</nodes>",
+		1,
+	)
+	compact = compactExecutionToolContext(oversized)
+	if strings.Contains(compact, "graph_digest") ||
+		!strings.Contains(compact, "assignment-1") ||
+		len(compact) > executionToolContextInlineLimit {
+		t.Fatalf("oversized compact context length=%d value=%s", len(compact), compact)
+	}
+}
+
+func TestMutationResultKeepsControlIdentityInlineWhenContextIsTooLarge(t *testing.T) {
+	t.Parallel()
+
+	result := mutationResult(orchestration.MutationResult{
+		Outcome:          orchestration.MutationApplied,
+		ExecutionID:      "execution-1",
+		SnapshotRevision: 12,
+		ExecutionContext: strings.Repeat("x", executionToolResultInlineLimit),
+		ContextStatus:    "authoritative",
+		Changed: []string{
+			"assignment:assignment-1",
+			"attempt:attempt-1",
+		},
+	})
+	if result.IsError {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.StructuredContent["outcome"] != string(orchestration.MutationApplied) ||
+		result.StructuredContent["execution_id"] != "execution-1" ||
+		result.StructuredContent["context_status"] != "refresh_required" {
+		t.Fatalf("large mutation control envelope = %#v", result.StructuredContent)
+	}
+	if contextValue, exists := result.StructuredContent["execution_context"]; exists && contextValue != "" {
+		t.Fatalf("oversized execution context remained inline: %#v", contextValue)
+	}
+	changed, ok := result.StructuredContent["changed"].([]any)
+	if !ok || len(changed) != 2 {
+		t.Fatalf("changed identities were externalized: %#v", result.StructuredContent["changed"])
+	}
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) == 0 {
+		t.Fatalf("refresh recovery missing: %#v", result.StructuredContent["next_actions"])
+	}
+}
+
 func (s *fakeExecutionService) PreparePlanExecution(
 	_ context.Context,
 	actor orchestration.ActorContext,

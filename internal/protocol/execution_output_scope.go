@@ -1,6 +1,6 @@
-// INPUT: 模型或持久化命令声明的 Work Item output scope。
-// OUTPUT: typed canonical scope、跨平台 NFC/case-fold 比较键、稳定校验错误与唯一 overlap/conflict 判定。
-// POS: Execution Orchestration 的 output scope 语法真相源，供 service 与 storage 共同使用。
+// INPUT: 模型或持久化命令声明的 Work Item output scope 与 hard dependency 图。
+// OUTPUT: typed canonical scope、跨平台 NFC/case-fold 比较键、稳定校验错误与唯一 claim conflict 判定。
+// POS: Execution Orchestration 的 output scope 语法和顺序所有权真相源，供 service 与 storage 共同使用。
 package protocol
 
 import (
@@ -128,6 +128,55 @@ func WorkOutputScopesConflict(left, right WorkOutputScope) (bool, error) {
 	}
 	return normalizedLeft.Mode == WorkOutputScopeExclusive ||
 		normalizedRight.Mode == WorkOutputScopeExclusive, nil
+}
+
+// WorkOutputClaimsConflict 判断两个 Work Item 的 output claim 能否在同一 Plan
+// 中安全共存。hardDependencies 使用 downstream -> direct upstream；只允许包含
+// hard edge。重叠的 exclusive scope 通常冲突，但若一方经全 hard dependency
+// 路径依赖另一方，则 Acceptance gate 已保证两个责任不会同时 Ready，可把该
+// scope 视为按序移交。无依赖、兄弟分支与 soft-only 路径仍然冲突。
+func WorkOutputClaimsConflict(
+	leftOwnerID string,
+	leftScope WorkOutputScope,
+	rightOwnerID string,
+	rightScope WorkOutputScope,
+	hardDependencies map[string][]string,
+) (bool, error) {
+	conflict, err := WorkOutputScopesConflict(leftScope, rightScope)
+	if err != nil || !conflict {
+		return conflict, err
+	}
+	if leftOwnerID == "" || rightOwnerID == "" || leftOwnerID == rightOwnerID {
+		return true, nil
+	}
+	if transitivelyHardDependsOn(leftOwnerID, rightOwnerID, hardDependencies) ||
+		transitivelyHardDependsOn(rightOwnerID, leftOwnerID, hardDependencies) {
+		return false, nil
+	}
+	return true, nil
+}
+
+func transitivelyHardDependsOn(
+	downstream string,
+	upstream string,
+	hardDependencies map[string][]string,
+) bool {
+	seen := map[string]struct{}{downstream: {}}
+	pending := append([]string(nil), hardDependencies[downstream]...)
+	for len(pending) > 0 {
+		index := len(pending) - 1
+		candidate := pending[index]
+		pending = pending[:index]
+		if candidate == upstream {
+			return true
+		}
+		if _, visited := seen[candidate]; visited {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		pending = append(pending, hardDependencies[candidate]...)
+	}
+	return false
 }
 
 // WorkOutputScopeComparisonKey 返回冲突与同 Work Item 去重共用的比较键。

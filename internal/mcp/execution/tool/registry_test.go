@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
 func TestPlanPreparationIsDurableButNotReadOnly(t *testing.T) {
@@ -74,6 +75,13 @@ func TestPlanToolSchemasExposeDocumentGoalIntentThenExactSealedReference(t *test
 		!slices.Equal(goalBinding["enum"].([]string), []string{"none", "current", "inherit"}) ||
 		!slices.Equal(prepareRequired, []string{"plan_document"}) {
 		t.Fatalf("prepare schema = %#v", prepare.InputSchema)
+	}
+	planDocumentDescription := prepareProperties["plan_document"].(map[string]any)["description"].(string)
+	if !strings.Contains(
+		planDocumentDescription,
+		orchestration.ExecutionPlanDocumentSchemaContract().OutputScopeRequirements,
+	) {
+		t.Fatalf("prepare schema omits output scope handoff semantics: %s", planDocumentDescription)
 	}
 	commitProperties := commit.InputSchema["properties"].(map[string]any)
 	commitRequired := commit.InputSchema["required"].([]string)

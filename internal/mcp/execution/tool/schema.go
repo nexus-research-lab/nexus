@@ -88,7 +88,7 @@ func preparePlanExecutionSchema() map[string]any {
 func planDocumentSchemaDescription() string {
 	contract := orchestration.ExecutionPlanDocumentSchemaContract()
 	return fmt.Sprintf(
-		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call, then set goal_binding to current; never launch them in parallel. Use none for a Goal-free create. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
+		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Output scope requirements: %s. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call, then set goal_binding to current; never launch them in parallel. Use none for a Goal-free create. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
 		contract.Version,
 		strings.Join(contract.ParserRequiredRootFields, ", "),
 		strings.Join(contract.AllowedRootFields, ", "),
@@ -101,6 +101,7 @@ func planDocumentSchemaDescription() string {
 		contract.CommonAliasCorrections["description"],
 		contract.CommonAliasCorrections["acceptance"],
 		contract.CommonAliasCorrections["scopes"],
+		contract.OutputScopeRequirements,
 		contract.MinimalValidCreateExample,
 	)
 }

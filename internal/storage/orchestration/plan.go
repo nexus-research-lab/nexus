@@ -529,7 +529,7 @@ func normalizeAndValidatePlan(
 	if err := validateDependencyCycles(byID, edges); err != nil {
 		return nil, nil, err
 	}
-	if err := validateOutputClaims(items); err != nil {
+	if err := validateOutputClaims(items, normalizedDependencies); err != nil {
 		return nil, nil, err
 	}
 	return items, normalizedDependencies, nil
@@ -575,10 +575,22 @@ func validateDependencyCycles(nodes map[string]int, edges map[string][]string) e
 	return nil
 }
 
-func validateOutputClaims(items []PlanWorkItem) error {
+func validateOutputClaims(
+	items []PlanWorkItem,
+	dependencies []protocol.ExecutionPlanDependency,
+) error {
 	type claimOwner struct {
 		workItemID string
 		scope      protocol.WorkOutputScope
+	}
+	hardDependencies := make(map[string][]string, len(items))
+	for _, dependency := range dependencies {
+		if dependency.Kind == protocol.WorkDependencyHard {
+			hardDependencies[dependency.WorkItemID] = append(
+				hardDependencies[dependency.WorkItemID],
+				dependency.DependsOnWorkItemID,
+			)
+		}
 	}
 	claims := make([]claimOwner, 0)
 	seen := make(map[string]struct{})
@@ -601,7 +613,13 @@ func validateOutputClaims(items []PlanWorkItem) error {
 				if existing.workItemID == work.WorkItem.ID {
 					continue
 				}
-				conflict, err := protocol.WorkOutputScopesConflict(scope, existing.scope)
+				conflict, err := protocol.WorkOutputClaimsConflict(
+					work.WorkItem.ID,
+					scope,
+					existing.workItemID,
+					existing.scope,
+					hardDependencies,
+				)
 				if err != nil {
 					return fmt.Errorf("%w: invalid output claim %q: %v", ErrInvariant, claim.Scope, err)
 				}

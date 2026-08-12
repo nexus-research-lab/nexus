@@ -34,6 +34,40 @@ func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T
 	}
 }
 
+func TestParseMutationResultChangedReadsOnlyExplicitEnvelopeRefs(t *testing.T) {
+	t.Parallel()
+
+	got := ParseMutationResultChanged(map[string]any{
+		"structuredContent": map[string]any{
+			"outcome":      "applied",
+			"execution_id": "execution-1",
+			"changed": []any{
+				" assignment:assignment-1 ",
+				"attempt:attempt-1",
+				"assignment:assignment-1",
+			},
+		},
+	})
+	if len(got) != 2 || got[0] != "assignment:assignment-1" ||
+		got[1] != "attempt:attempt-1" {
+		t.Fatalf("ParseMutationResultChanged() = %#v", got)
+	}
+	envelope, ok := ParseMutationResultEnvelope(map[string]any{
+		"outcome":      "applied",
+		"execution_id": "execution-1",
+		"changed":      []string{"assignment:assignment-1"},
+	})
+	if !ok || envelope.ExecutionID != "execution-1" ||
+		len(envelope.Changed) != 1 || envelope.Changed[0] != "assignment:assignment-1" {
+		t.Fatalf("mutation identity envelope = %+v/%t", envelope, ok)
+	}
+	if refs := ParseMutationResultChanged(map[string]any{
+		"changed": []any{"assignment:untrusted"},
+	}); len(refs) != 0 {
+		t.Fatalf("non-envelope changed refs = %#v", refs)
+	}
+}
+
 func TestParseGoalStatusResultReadsOnlyTerminalGoalStatus(t *testing.T) {
 	for _, test := range []struct {
 		name   string

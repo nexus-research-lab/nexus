@@ -33,6 +33,8 @@ type runtimeGraphNodeEvidence struct {
 	durationMS       int64
 	retryOfSubjectID string
 	mutationOutcome  protocol.MutationResultOutcome
+	executionID      string
+	changed          []string
 	semanticFailed   bool
 }
 
@@ -175,6 +177,8 @@ func applyRuntimeToolResultEvidence(
 		)
 		if hasMutationResult {
 			evidence.mutationOutcome = mutationResult.Outcome
+			evidence.executionID = mutationResult.ExecutionID
+			evidence.changed = mutationResult.Changed
 		}
 		evidence.errorCode = firstNonEmpty(
 			mutationResult.ReasonCode,

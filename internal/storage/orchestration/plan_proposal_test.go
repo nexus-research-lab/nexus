@@ -174,6 +174,30 @@ func TestPlanProposalLifecycleRecoveryAndExactReplay(t *testing.T) {
 	}
 }
 
+func TestPlanProposalAllowsHardOrderedOutputScopeHandoff(t *testing.T) {
+	proposal := transientPlanProposal("scope-handoff")
+	proposal.Document.Items[0].OutputScopes = []protocol.WorkOutputScope{{
+		Scope: "file:output/workgraph-demo.md",
+	}}
+	proposal.Document.Items[1].OutputScopes = []protocol.WorkOutputScope{{
+		Scope: "file:output/workgraph-demo.md",
+	}}
+	if _, _, err := normalizeAndValidatePlanProposal(
+		proposal,
+		time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("hard-ordered proposal handoff rejected: %v", err)
+	}
+
+	proposal.Document.Items[1].DependsOn[0].Kind = protocol.WorkDependencySoft
+	if _, _, err := normalizeAndValidatePlanProposal(
+		proposal,
+		time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+	); !errors.Is(err, ErrInvariant) {
+		t.Fatalf("soft-only proposal overlap error = %v, want ErrInvariant", err)
+	}
+}
+
 func TestPlanProposalGoalReservedExecutionIsImmutableAndEnforced(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()

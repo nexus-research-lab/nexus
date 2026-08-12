@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Segmented tools inside one DM Agent round by their exact self Assignment and root Attempt, so serial WorkGraph nodes no longer collapse every Bash/Write/Edit/MCP action under the final node; Room Lead coordination and explicit member WorkBindings remain isolated. Execution mutation results now keep the small `outcome`/`execution_id`/`changed`/`next_actions` control envelope inline and omit recursive runtime history before SDK large-result externalization can erase those identities.
+- Allowed hard-dependency WorkGraph chains such as draft, review, and finalize to hand off the same exclusive output after upstream Acceptance, while continuing to reject overlapping outputs across parallel, sibling, unrelated, or soft-only responsibility paths.
 - Allowed one DM or Room coordinator round to serially complete different self-owned WorkGraph Assignments without colliding on root Attempt runtime identity, while retaining an Assignment-scoped duplicate fence and the exact single-Assignment WorkBinding boundary for Room workers.
 - Renumbered the Goal/WorkGraph closure migrations after the local mainline's Agent-contact and Automation migrations, and added a fail-closed startup ledger repair for complete databases previously exercised on the unpublished Goal branch, so the merged mainline starts without duplicate Goose versions or silently skipped schema.
 - Removed null completion-receipt fields from non-terminal Goal MCP results, so `create_goal`, `get_goal`, retarget, audit, and blocked updates no longer imply that the durable Goal ID is generated only at completion; successful completion still returns the exact host-only ID needed for usage finalization.

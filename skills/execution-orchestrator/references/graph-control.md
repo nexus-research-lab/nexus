@@ -48,7 +48,7 @@ items:
 - 希望多个独立 Work Item 真正并行时，把它们交给不同 Room Agent。若由同一 Agent 对整体交付负责，优先保留一个父 Work Item，并把局部分支交给不同 Subagent。
 - 多个并列 Work Item 分配给同一个 Agent 时，它们进入该 Agent 的串行队列；除非真实 child Subagent 已启动，否则状态与回复都不得称其为并行。
 - 没有合适的不同 Agent 或 Subagent 时允许串行执行；不要复制身份、伪造 Subagent 或用并列布局暗示不存在的并发。
-- 输出范围重叠时先明确唯一 owner 或共享规则，避免重复生产。
+- 输出范围重叠时先明确责任顺序：只有一方通过全 hard `depends_on` 路径等待另一方 Acceptance 时，才可把同一 exclusive scope 作为起草→定稿这类顺序移交；平行分支、兄弟节点、父子嵌套或 soft-only 关系仍需不同 scope。只有确实允许并发写入时才用 `shared_output_scopes`，不要用 semantic scope 掩盖实际会修改的文件。
 
 ## 动态扩展与 replan
 

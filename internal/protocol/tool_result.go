@@ -21,9 +21,11 @@ const (
 
 // MutationResultEnvelope 是模型工具结果里可稳定投影到 UI 与 loop guard 的紧凑语义。
 type MutationResultEnvelope struct {
-	Outcome    MutationResultOutcome
-	Message    string
-	ReasonCode string
+	Outcome     MutationResultOutcome
+	Message     string
+	ReasonCode  string
+	ExecutionID string
+	Changed     []string
 }
 
 // ToolResult metadata key 让新消息无需重复解析展示文本；历史消息仍可由
@@ -186,6 +188,16 @@ func ParseMutationResultEnvelope(values ...any) (MutationResultEnvelope, bool) {
 	return MutationResultEnvelope{}, false
 }
 
+// ParseMutationResultChanged extracts only the server-issued entity refs from
+// a mutation result. Callers must still resolve those refs against an
+// authoritative snapshot before treating them as WorkGraph identity.
+func ParseMutationResultChanged(values ...any) []string {
+	if result, ok := ParseMutationResultEnvelope(values...); ok {
+		return result.Changed
+	}
+	return nil
+}
+
 func parseMutationResultEnvelope(value any, depth int) (MutationResultEnvelope, bool) {
 	if value == nil || depth > 3 {
 		return MutationResultEnvelope{}, false
@@ -194,9 +206,11 @@ func parseMutationResultEnvelope(value any, depth int) (MutationResultEnvelope, 
 	case map[string]any:
 		if outcome, ok := mutationResultOutcome(typed["outcome"]); ok {
 			return MutationResultEnvelope{
-				Outcome:    outcome,
-				Message:    mutationResultString(typed["message"]),
-				ReasonCode: mutationResultString(typed["reason_code"]),
+				Outcome:     outcome,
+				Message:     mutationResultString(typed["message"]),
+				ReasonCode:  mutationResultString(typed["reason_code"]),
+				ExecutionID: mutationResultString(typed["execution_id"]),
+				Changed:     mutationResultStrings(typed["changed"]),
 			}, true
 		}
 		for _, key := range []string{
@@ -250,4 +264,33 @@ func mutationResultOutcome(value any) (MutationResultOutcome, bool) {
 func mutationResultString(value any) string {
 	typed, _ := value.(string)
 	return strings.TrimSpace(typed)
+}
+
+func mutationResultStrings(value any) []string {
+	var items []any
+	switch typed := value.(type) {
+	case []any:
+		items = typed
+	case []string:
+		items = make([]any, len(typed))
+		for index := range typed {
+			items[index] = typed[index]
+		}
+	default:
+		return nil
+	}
+	result := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		entityRef := mutationResultString(item)
+		if entityRef == "" {
+			continue
+		}
+		if _, duplicate := seen[entityRef]; duplicate {
+			continue
+		}
+		seen[entityRef] = struct{}{}
+		result = append(result, entityRef)
+	}
+	return result
 }
