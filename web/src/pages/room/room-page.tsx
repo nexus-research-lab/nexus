@@ -68,6 +68,7 @@ function ActiveRoomPage({
         onCloseConversation={actions.closeConversation}
         onDeleteConversation={navigation.deleteConversation}
         onCreateConversation={navigation.createConversation}
+        onReplaceFinalConversation={navigation.replaceFinalConversation}
         onOpenWorkspaceFile={workspace.handleOpenWorkspaceFile}
         onSaveAgentOptions={actions.saveAgentOptions}
         onUpdateConversationTitle={actions.updateConversationTitle}
@@ -130,7 +131,7 @@ export function RoomPage() {
       : undefined
   ));
   const preferredConversationIds = useMemo(() => {
-    if (!preferredConversationTabs?.active_conversation_id) {
+    if (!preferredConversationTabs) {
       return [];
     }
     return [
@@ -143,12 +144,6 @@ export function RoomPage() {
   const controller = useRoomPageController({
     roomId: params.roomId,
     conversationId: params.conversationId,
-    preserveEmptyConversationSelection: Boolean(
-      !params.conversationId
-      && !params.sessionKey
-      && preferredConversationTabs
-      && preferredConversationTabs.active_conversation_id === null
-    ),
     preferredConversationIds: params.conversationId || params.sessionKey
       ? []
       : preferredConversationIds,
@@ -170,6 +165,7 @@ export function RoomPage() {
     selectedConversationId: conversation.selectedId,
     selectedDraftConversationId,
     isHydrated: status.isHydrated,
+    closeConversation: actions.closeConversation,
     createConversation: actions.createConversation,
     deleteConversation: actions.deleteConversation,
   });

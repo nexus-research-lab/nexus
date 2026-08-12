@@ -78,7 +78,7 @@ interface RoomMobileSurfaceProps {
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => Promise<void>;
-  onSelectConversation: (conversationId: string | null) => void;
+  onSelectConversation: (conversationId: string) => void;
   onTodosChange: (todos: TodoItem[]) => void;
   onUpdateConversationTitle: (
     conversationId: string,

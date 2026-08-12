@@ -91,7 +91,6 @@ export function resolveSelectedConversationId(
   routeConversationId: string | null | undefined,
   roomConversations: RoomConversationView[],
   preferredConversationIds: readonly string[] = [],
-  preserveEmptySelection = false,
 ): string | null {
   const routeConversationExists = roomConversations.some(
     (conversation) => conversation.conversation_id === routeConversationId,
@@ -107,20 +106,13 @@ export function resolveSelectedConversationId(
       return preferredConversationId;
     }
   }
-  if (preserveEmptySelection) {
-    return null;
-  }
   return roomConversations[0]?.conversation_id ?? null;
 }
 
 export function resolveCurrentRoomContext(
   roomContexts: RoomContextAggregate[],
   selectedConversationId: string | null,
-  preserveEmptySelection = false,
 ): RoomContextAggregate | null {
-  if (!selectedConversationId && preserveEmptySelection) {
-    return null;
-  }
   return roomContexts.find(
     (context) => context.conversation.id === selectedConversationId,
   ) ?? roomContexts[0] ?? null;

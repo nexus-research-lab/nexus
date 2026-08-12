@@ -1,6 +1,6 @@
 # Room Surface
 
-- `room-chat-surface.tsx` 是 DM/Group 与 desktop/mobile 共用的聊天参数装配边界；布局和 Room Host 身份沿唯一上游保持显式。无活动 Conversation 时统一转入 `room-conversation-empty-state.tsx`，DM 不得继续挂载无 Session 的 Feed 或 Composer。
+- `room-chat-surface.tsx` 是 DM/Group 与 desktop/mobile 共用的聊天参数装配边界；布局和 Room Host 身份沿唯一上游保持显式。
 - `room-chat-error-boundary.tsx` 按会话身份隔离渲染错误，`room-chat-error-view.tsx` 只负责 i18n 回退视图。
 - `room-thread-empty-state.tsx` 为桌面和移动端 Thread 检查器提供同一个等待/无额外执行详情状态，禁止两端复制提示样式。
 - `header/` 保存 DM/Group 共用导航，`mobile/` 按头部、会话 Sheet 和全屏 Overlay 分离移动端职责。

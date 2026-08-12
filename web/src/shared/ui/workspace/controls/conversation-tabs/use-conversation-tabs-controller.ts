@@ -29,7 +29,11 @@ interface ConversationTabsControllerOptions {
   hasLeadingControl: boolean;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string | null) => void;
+  onReplaceFinalConversation?: (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => Promise<string | null>;
+  onSelectConversation: (conversationId: string) => void;
 }
 
 export function useConversationTabsController({
@@ -38,11 +42,14 @@ export function useConversationTabsController({
   hasLeadingControl,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
   onSelectConversation,
 }: ConversationTabsControllerOptions) {
   const trackRef = useRef<HTMLElement | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
+  const createTaskRef = useRef<Promise<string | null> | null>(null);
+  const replaceFinalTaskRef = useRef<Promise<void> | null>(null);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
   const hasCreateButton = Boolean(onCreateConversation);
@@ -73,13 +80,11 @@ export function useConversationTabsController({
       currentIds: initialOpenConversationIds,
       orderedIds: orderedConversationIds,
       pendingClosedId: pendingClosedActiveId,
-      preserveEmpty: persistedTabs?.active_conversation_id === null,
     }),
     [
       initialOpenConversationIds,
       orderedConversationIds,
       pendingClosedActiveId,
-      persistedTabs?.active_conversation_id,
       selectedConversationId,
     ],
   );
@@ -178,6 +183,9 @@ export function useConversationTabsController({
   };
 
   const selectConversation = (nextConversationId: string) => {
+    if (replaceFinalTaskRef.current) {
+      return;
+    }
     const nextOpenConversationIds = reconcileOpenConversationIds({
       conversationId: nextConversationId,
       currentIds: openConversationIds,
@@ -197,11 +205,90 @@ export function useConversationTabsController({
     onSelectConversation(nextConversationId);
   };
 
+  const createConversation = async (): Promise<string | null> => {
+    if (!onCreateConversation || replaceFinalTaskRef.current) {
+      return null;
+    }
+    if (createTaskRef.current) {
+      return createTaskRef.current;
+    }
+    const task = onCreateConversation();
+    createTaskRef.current = task;
+    setIsCreating(true);
+    try {
+      return await task;
+    } finally {
+      if (createTaskRef.current === task) {
+        createTaskRef.current = null;
+        setIsCreating(false);
+      }
+    }
+  };
+
+  const replaceFinalConversation = async (
+    targetConversationId: string,
+  ): Promise<void> => {
+    if (replaceFinalTaskRef.current) {
+      return replaceFinalTaskRef.current;
+    }
+    const targetConversation = conversationsById.get(targetConversationId);
+    if (
+      !roomId
+      || !onReplaceFinalConversation
+      || !targetConversation
+      || targetConversationId !== activeConversationId
+      || createTaskRef.current
+    ) {
+      return;
+    }
+
+    const task = (async () => {
+      setIsCreating(true);
+      const replacementConversationId = await onReplaceFinalConversation(
+        targetConversation,
+        (nextConversationId) => {
+          flushSync(() => {
+            saveRoomConversationTabs(
+              roomId,
+              [nextConversationId],
+              nextConversationId,
+            );
+            if (nextConversationId !== targetConversationId) {
+              setPendingClosedActiveId(targetConversationId);
+              setOptimisticActiveId(nextConversationId);
+            }
+          });
+          onSelectConversation(nextConversationId);
+          return true;
+        },
+      );
+      if (!replacementConversationId) {
+        return;
+      }
+    })();
+    replaceFinalTaskRef.current = task;
+    try {
+      await task;
+    } finally {
+      if (replaceFinalTaskRef.current === task) {
+        replaceFinalTaskRef.current = null;
+        if (!createTaskRef.current) {
+          setIsCreating(false);
+        }
+      }
+    }
+  };
+
   const closeConversation = (targetConversationId: string) => {
     const fallbackConversationId = getCloseFallbackConversationId(
       orderedConversations,
       targetConversationId,
     );
+    if (!fallbackConversationId && orderedConversations.length === 1) {
+      void replaceFinalConversation(targetConversationId).catch(() => undefined);
+      return;
+    }
+
     const nextOpenConversationIds = openConversationIds.filter(
       (id) => id !== targetConversationId,
     );
@@ -210,7 +297,7 @@ export function useConversationTabsController({
       : activeConversationId;
 
     flushSync(() => {
-      if (roomId) {
+      if (roomId && nextActiveConversationId) {
         saveRoomConversationTabs(
           roomId,
           nextOpenConversationIds,
@@ -220,33 +307,16 @@ export function useConversationTabsController({
       if (targetConversationId === activeConversationId && nextActiveConversationId) {
         setPendingClosedActiveId(targetConversationId);
         setOptimisticActiveId(nextActiveConversationId);
-      } else if (targetConversationId === activeConversationId) {
-        setPendingClosedActiveId(targetConversationId);
-        setOptimisticActiveId(null);
       }
     });
 
     if (targetConversationId === activeConversationId && nextActiveConversationId) {
       onSelectConversation(nextActiveConversationId);
-    } else if (targetConversationId === activeConversationId) {
-      onSelectConversation(null);
     }
 
     const targetConversation = conversationsById.get(targetConversationId);
     if (onCloseConversation && !isExternalSessionConversation(targetConversation)) {
       void onCloseConversation(targetConversationId).catch(() => undefined);
-    }
-  };
-
-  const createConversation = async () => {
-    if (!onCreateConversation || isCreating) {
-      return;
-    }
-    setIsCreating(true);
-    try {
-      await onCreateConversation();
-    } finally {
-      setIsCreating(false);
     }
   };
 

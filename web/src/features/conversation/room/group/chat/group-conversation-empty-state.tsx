@@ -1,14 +1,7 @@
 "use client";
 
-/**
- * INPUT: 当前 Room 类型与创建会话命令。
- * OUTPUT: DM/Group 共用的新会话空态入口。
- * POS: Room Surface 在用户明确关闭全部标签或尚无会话时展示的共享业务视图。
- */
-
 import { FolderKanban, MessageSquarePlus } from "lucide-react";
 
-import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
 import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
@@ -20,21 +13,20 @@ import {
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
-interface RoomConversationEmptyStateProps {
-  isDm: boolean;
+interface GroupConversationEmptyStateProps {
   onCreateConversation: (title?: string) => void | Promise<string | null>;
 }
 
-export function RoomConversationEmptyState({
-  isDm,
-  onCreateConversation,
-}: RoomConversationEmptyStateProps) {
+export function GroupConversationEmptyState({
+  onCreateConversation: onCreateConversation,
+}: GroupConversationEmptyStateProps) {
   const { t } = useI18n();
   const highlights = [
-    t("room.empty_conversation_highlight_context"),
-    t("room.empty_conversation_highlight_history"),
-    t("room.empty_conversation_highlight_workspace"),
+    t("room.empty_group_highlight_members"),
+    t("room.empty_group_highlight_context"),
+    t("room.empty_group_highlight_workspace"),
   ];
 
   return (
@@ -48,17 +40,17 @@ export function RoomConversationEmptyState({
               </WorkspaceIconFrame>
               <div>
                 <p className="text-xs font-medium text-(--text-muted)">
-                  {t(isDm ? "room.empty_conversation_tag_dm" : "room.empty_conversation_tag_group")}
+                  {t("room.empty_group_tag")}
                 </p>
                 <WorkspaceCatalogTitle as="h2" className="mt-1.5" size="lg">
-                  {t("room.empty_conversation_title")}
+                  {t("room.empty_group_title")}
                 </WorkspaceCatalogTitle>
               </div>
             </WorkspaceCatalogHeader>
 
             <WorkspaceCatalogBody className="mt-4">
               <WorkspaceCatalogDescription className="max-w-[32rem]" lines={3} size="md">
-                {t("room.empty_conversation_description")}
+                {t("room.empty_group_description")}
               </WorkspaceCatalogDescription>
             </WorkspaceCatalogBody>
 
@@ -71,14 +63,14 @@ export function RoomConversationEmptyState({
                 }}
               >
                 <MessageSquarePlus className="h-5 w-5" />
-                {t("room.empty_conversation_create_action")}
+                {t("room.empty_group_create_action")}
               </WorkspaceCatalogTextAction>
             </WorkspaceCatalogFooter>
           </div>
 
           <div className="min-w-0 flex-1 lg:max-w-[22rem]">
             <p className="mb-2 text-xs font-medium text-(--text-muted)">
-              {t("room.empty_conversation_highlight_label")}
+              {t("room.empty_group_highlight_label")}
             </p>
             <ul className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
               {highlights.map((highlight) => (

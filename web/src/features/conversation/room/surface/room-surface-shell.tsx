@@ -49,7 +49,11 @@ interface RoomSurfaceShellProps {
   surfaceSplitRef: React.RefObject<HTMLElement | null>;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string | null) => void;
+  onReplaceFinalConversation: (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => Promise<string | null>;
+  onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
@@ -89,6 +93,7 @@ export function RoomSurfaceShell({
   surfaceSplitRef,
   onBackToDirectory,
   onCreateConversation,
+  onReplaceFinalConversation,
   onSelectConversation,
   onCloseConversation,
   onDeleteConversation,
@@ -147,6 +152,20 @@ export function RoomSurfaceShell({
     setActiveSurfaceTab("chat");
     return nextConversationId;
   }, [onCreateConversation]);
+
+  const handleReplaceFinalConversationInShell = useCallback(async (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => {
+    const nextConversationId = await onReplaceFinalConversation(
+      conversation,
+      commitConversation,
+    );
+    if (nextConversationId) {
+      setActiveSurfaceTab("chat");
+    }
+    return nextConversationId;
+  }, [onReplaceFinalConversation]);
 
   const handleOpenWorkspaceFileInShell = useCallback((path: string | null, workspaceAgentId?: string | null) => {
     onOpenWorkspaceFile(path, workspaceAgentId);
@@ -233,6 +252,7 @@ export function RoomSurfaceShell({
       onChangeSurfaceTab={setActiveSurfaceTab}
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={handleCreateConversationInShell}
+      onReplaceFinalConversation={handleReplaceFinalConversationInShell}
       onCloseConversation={onCloseConversation}
       onDeleteConversation={onDeleteConversation}
       onOpenWorkspaceFile={handleOpenWorkspaceFileInShell}

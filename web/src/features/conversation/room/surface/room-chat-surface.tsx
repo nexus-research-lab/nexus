@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 Room/DM 身份、任务快照、runtime 与会话命令。
- * OUTPUT: 绑定错误边界后把空选择或任务快照投影到共享新会话入口及对应 DM/Group 聊天面板。
+ * OUTPUT: 绑定错误边界后把任务快照投影到对应 DM/Group 聊天面板。
  * POS: Room Surface 到两类聊天面板之间的窄适配层。
  */
 
@@ -21,7 +21,6 @@ import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import { RoomChatErrorBoundary } from "./room-chat-error-boundary";
-import { RoomConversationEmptyState } from "./room-conversation-empty-state";
 
 interface RoomChatSurfaceProps {
   currentAgent: Agent;
@@ -83,12 +82,7 @@ export function RoomChatSurface({
 
   return (
     <RoomChatErrorBoundary resetKey={`${currentRoomType}:${identityKey}`}>
-      {!conversationId ? (
-        <RoomConversationEmptyState
-          isDm={isDm}
-          onCreateConversation={onCreateConversation}
-        />
-      ) : isDm ? (
+      {isDm ? (
         <DmChatPanel
           currentAgent={currentAgent}
           executionResource={executionResource}

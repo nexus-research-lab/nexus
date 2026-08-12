@@ -22,8 +22,12 @@ interface DmConversationHeaderProps {
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation: (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string | null) => void;
+  onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
 }
 
@@ -36,6 +40,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   onChangeTab,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
@@ -78,6 +83,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
           )}
           onCloseConversation={onCloseConversation}
           onCreateConversation={onCreateConversation}
+          onReplaceFinalConversation={onReplaceFinalConversation}
           onSelectConversation={onSelectConversation}
           tourAnchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
         />

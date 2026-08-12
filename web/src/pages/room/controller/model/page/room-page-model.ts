@@ -57,7 +57,6 @@ export interface RoomPageModel {
 interface BuildRoomPageBaseModelOptions {
   agents: Agent[];
   conversationId?: string | null;
-  preserveEmptyConversationSelection?: boolean;
   preferredConversationIds?: readonly string[];
   roomContexts: RoomContextAggregate[];
   roomId?: string | null;
@@ -88,14 +87,11 @@ function getActiveRoomSession(
 function resolveCurrentAgent(
   roomMemberAgents: Agent[],
   activeRoomSession: RoomSessionRecord | null,
-  preserveEmptyConversationSelection: boolean,
 ): Agent | null {
   const activeAgentId = activeRoomSession?.agent_id;
-  const activeAgent = roomMemberAgents.find(
+  return roomMemberAgents.find(
     (agent) => agent.agent_id === activeAgentId,
   ) ?? null;
-  return activeAgent
-    ?? (preserveEmptyConversationSelection ? roomMemberAgents[0] ?? null : null);
 }
 
 function resolveAvailableRoomAgents(
@@ -113,7 +109,6 @@ function resolveAvailableRoomAgents(
 export function buildRoomPageBaseModel({
   agents,
   conversationId,
-  preserveEmptyConversationSelection = false,
   preferredConversationIds,
   roomContexts,
   roomId,
@@ -130,23 +125,17 @@ export function buildRoomPageBaseModel({
     conversationId,
     baseRoomConversations,
     preferredConversationIds,
-    preserveEmptyConversationSelection,
   );
   const currentRoomContext = resolveCurrentRoomContext(
     scopedRoomContexts,
     selectedBaseConversationId,
-    preserveEmptyConversationSelection,
   );
   const activeRoomSession = getActiveRoomSession(currentRoomContext);
   return {
     activeRoomSession,
     availableRoomAgents: resolveAvailableRoomAgents(agents, roomMemberAgents),
     baseRoomConversations,
-    currentAgent: resolveCurrentAgent(
-      roomMemberAgents,
-      activeRoomSession,
-      preserveEmptyConversationSelection,
-    ),
+    currentAgent: resolveCurrentAgent(roomMemberAgents, activeRoomSession),
     currentRoom: getCurrentRoom(scopedRoomContexts),
     currentRoomContext,
     roomMemberAgents,

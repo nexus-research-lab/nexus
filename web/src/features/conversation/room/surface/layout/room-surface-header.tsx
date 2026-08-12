@@ -26,10 +26,14 @@ interface RoomSurfaceHeaderProps {
   onCloseAuxiliaryPanel: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation: (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
-  onSelectConversation: (conversationId: string | null) => void;
+  onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId: string | null;
@@ -52,6 +56,7 @@ export function RoomSurfaceHeader({
   onCloseAuxiliaryPanel,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
   onDeleteConversation,
   onManageRoom,
   onOpenMemberManager,
@@ -74,6 +79,7 @@ export function RoomSurfaceHeader({
   };
   const header = isDm ? (
     <DmConversationHeader
+      key={roomId ?? "dm-header"}
       activeTab={activeSurfaceTab}
       conversationId={conversationId}
       conversations={conversations}
@@ -82,6 +88,7 @@ export function RoomSurfaceHeader({
       onChangeTab={handleToggleSurfaceTab}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
+      onReplaceFinalConversation={onReplaceFinalConversation}
       onDeleteConversation={onDeleteConversation}
       onSelectConversation={onSelectConversation}
       onUpdateConversationTitle={onUpdateConversationTitle}
@@ -97,6 +104,7 @@ export function RoomSurfaceHeader({
       onChangeTab={handleToggleSurfaceTab}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
+      onReplaceFinalConversation={onReplaceFinalConversation}
       onDeleteConversation={onDeleteConversation}
       onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
