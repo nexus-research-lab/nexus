@@ -548,3 +548,38 @@ func TestCompactMessagesMergesDurableUserWithoutMovingItAfterAssistant(t *testin
 		t.Fatalf("assistant must remain after the user: %+v", compacted)
 	}
 }
+
+func TestCompactMessagesMergesGoalCompletionReceiptIntoOriginalAssistant(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id": "assistant-1",
+			"role":       "assistant",
+			"round_id":   "round-1",
+			"content":    []map[string]any{{"type": "text", "text": "最终交付"}},
+			"timestamp":  int64(1000),
+		},
+		{
+			"message_id": "assistant-1",
+			"role":       "assistant",
+			"round_id":   "round-1",
+			protocol.GoalCompletionReceiptField: protocol.GoalCompletionReceipt{
+				GoalID: "goal-1", RoundID: "round-1", ActualTokens: int64TestPointer(42),
+			},
+			"timestamp": int64(1000),
+		},
+	}
+
+	compacted := compactMessages(rows)
+	if len(compacted) != 1 {
+		t.Fatalf("compacted = %+v, want one assistant", compacted)
+	}
+	if compacted[0][protocol.GoalCompletionReceiptField] == nil {
+		t.Fatalf("completion receipt was lost: %+v", compacted[0])
+	}
+	blocks := normalizeMessageContentBlocks(compacted[0]["content"])
+	if len(blocks) != 1 || stringFromAny(blocks[0]["text"]) != "最终交付" {
+		t.Fatalf("original assistant content was lost: %+v", compacted[0])
+	}
+}
+
+func int64TestPointer(value int64) *int64 { return &value }

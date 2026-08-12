@@ -78,6 +78,10 @@ type roomSlotGoalState struct {
 	usage                *goalsvc.RuntimeUsageAccumulator
 	usageStartedAt       time.Time
 	lastAssistant        protocol.Message
+	completionCandidateID   string
+	completionAssistant     protocol.Message
+	completionReceipt       protocol.GoalCompletionReceipt
+	completionReceiptStored bool
 	toolProgress         bool
 	subagentTasks        map[string]struct{}
 	subagentUsagePending map[string]roomSubagentUsageObservation
@@ -971,6 +975,58 @@ func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
 	return protocol.Clone(slot.mutable.goal.lastAssistant)
+}
+
+func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
+	if slot == nil || strings.TrimSpace(goalID) == "" {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.completionCandidateID = strings.TrimSpace(goalID)
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) rememberGoalCompletionAssistant(message protocol.Message) {
+	if slot == nil || protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	if slot.mutable.goal.completionCandidateID != "" {
+		slot.mutable.goal.completionAssistant = protocol.Clone(message)
+	}
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) goalCompletionReceiptSnapshot() (
+	string,
+	protocol.Message,
+	protocol.GoalCompletionReceipt,
+	bool,
+) {
+	if slot == nil {
+		return "", nil, protocol.GoalCompletionReceipt{}, false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return strings.TrimSpace(slot.mutable.goal.completionCandidateID),
+		protocol.Clone(slot.mutable.goal.completionAssistant),
+		slot.mutable.goal.completionReceipt,
+		slot.mutable.goal.completionReceiptStored
+}
+
+func (slot *activeRoomSlot) markGoalCompletionReceiptStored(
+	goalID string,
+	receipt protocol.GoalCompletionReceipt,
+) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	if strings.TrimSpace(slot.mutable.goal.completionCandidateID) == strings.TrimSpace(goalID) {
+		slot.mutable.goal.completionReceipt = receipt
+		slot.mutable.goal.completionReceiptStored = true
+	}
+	slot.mutable.goal.mu.Unlock()
 }
 
 func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message) {

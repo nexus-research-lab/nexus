@@ -15,8 +15,8 @@
 //   - input_queue*.go / guidance_input.go：持久输入队列、派发与运行中 guidance。
 //   - directed_message.go / public_*.go：公开消息、mention conversation handoff、
 //     visible context 与 wake 调度。@ 不创建 Assignment；正式责任只来自 assign_work。
-//   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / quota.go：
-//     Goal scope、continuation、终态和额度适配。
+//   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
+//     Goal scope、continuation、终态、附着最终回复的完成收据和额度适配。
 //
 // conversation 共享 queue、public wake、Goal continuation 与 Execution slot；锁必须
 // 保持 conversation-scoped。每个并行 slot 自带 round_id，聚合 RoundID 只作单 root

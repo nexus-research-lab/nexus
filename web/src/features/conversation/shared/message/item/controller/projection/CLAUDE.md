@@ -1,6 +1,6 @@
 # 消息投影
 
-- `use-message-item-projection.ts`: 按内容排序、最终回复、权限、活动和输出组装阶段编排纯投影；header 身份取最终 assistant/result，不从首条过程消息误取。
+- `use-message-item-projection.ts`: 按内容排序、最终回复、Goal 完成收据、权限、活动和输出组装阶段编排纯投影；header 身份取最终 assistant/result，不从首条过程消息误取。
 - `message-item-ordering.ts`: 投影可见内容块，关联系统事件并保持消息源顺序。
 - `message-item-system-events.ts`: 过滤系统消息并映射稳定展示元数据。
 - `message-item-final-projection.ts`: 按内容模式策略选择直接内容、过程和最终回复；DM live 与 archived 共用稳定 final 正文 surface，live direct 只保留终态可归档的过程；Room result 修正文本文字时保留非文本块顺序，缺少正文槽位时在过程末尾补入。

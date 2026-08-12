@@ -1566,3 +1566,50 @@ test("Room chat ACK with empty pending preserves the active slot", async () => {
     "权威 pending snapshot 才可以用空数组清除 slot",
   );
 });
+
+test("Goal 完成收据只展示已知结算项且不泄露内部绑定 ID", async () => {
+  const { AssistantMessageStats } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx",
+  );
+  const { formatGoalElapsed } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/goal-completion-receipt.ts",
+  );
+  const renderReceipt = async (receipt, locale = "zh") => renderWithI18n(
+    React.createElement(AssistantMessageStats, {
+      copied: false,
+      goalCompletionReceipt: receipt,
+      stats: null,
+      streaming: false,
+    }),
+    locale,
+  );
+
+  const completeOnly = await renderReceipt({
+    goal_id: "goal-hidden",
+    round_id: "round-hidden",
+  });
+  assert.match(completeOnly, /Goal 已完成/);
+  assert.doesNotMatch(completeOnly, /耗时|tokens|goal-hidden|round-hidden|结算中|不可用/);
+
+  const durationOnly = await renderReceipt({
+    goal_id: "goal-hidden",
+    round_id: "round-hidden",
+    time_used_seconds: 754,
+  });
+  assert.match(durationOnly, /Goal 已完成/);
+  assert.match(durationOnly, /耗时 12 分 34 秒/);
+  assert.doesNotMatch(durationOnly, /tokens|结算中|不可用/);
+
+  const complete = await renderReceipt({
+    goal_id: "goal-hidden",
+    round_id: "round-hidden",
+    time_used_seconds: 754,
+    actual_tokens: 62762,
+  });
+  assert.match(complete, /Goal 已完成/);
+  assert.match(complete, /耗时 12 分 34 秒/);
+  assert.match(complete, /使用 62,762 tokens/);
+  assert.doesNotMatch(complete, /goal-hidden|round-hidden|结算中|不可用/);
+  assert.equal(formatGoalElapsed(3605, "zh"), "1 小时 0 分");
+  assert.equal(formatGoalElapsed(86400, "zh"), "1 天 0 小时");
+});

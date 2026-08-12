@@ -39,6 +39,38 @@ func TestAssistantToolResultsMapsToolNames(t *testing.T) {
 	}
 }
 
+func TestAssistantToolResultsPreservesGoalTerminalStatus(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		content any
+		want    protocol.GoalStatus
+	}{
+		{
+			name:    "complete",
+			content: `{"goal":{"status":"complete"}}`,
+			want:    protocol.GoalStatusComplete,
+		},
+		{
+			name:    "blocked",
+			content: `{"goal":{"status":"blocked"}}`,
+			want:    protocol.GoalStatusBlocked,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			results := AssistantToolResults(protocol.Message{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "tool_use", "id": "tool-1", "name": "update_goal"},
+					{"type": "tool_result", "tool_use_id": "tool-1", "content": test.content},
+				},
+			})
+			if len(results) != 1 || results[0].GoalStatus != test.want {
+				t.Fatalf("AssistantToolResults() = %+v, want status %q", results, test.want)
+			}
+		})
+	}
+}
+
 func TestAssistantHasCountedToolProgress(t *testing.T) {
 	tests := []struct {
 		name        string
