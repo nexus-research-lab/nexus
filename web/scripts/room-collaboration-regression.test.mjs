@@ -21,6 +21,63 @@ test.after(async () => {
   await server.close();
 });
 
+test("Goal 控制记录保留 canonical /goal 命令并只隐藏展示前缀", async () => {
+  const { projectUserMessagePresentation } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/user/user-message-model.ts",
+  );
+  const timestamp = "2026-08-11T00:00:00Z";
+  const canonical = projectUserMessagePresentation(
+    false,
+    "/goal 修复 Goal 与 WorkGraph 状态一致性",
+    { metadata: { subtype: "goal_set" }, timestamp },
+  );
+  assert.equal(canonical.goal, true);
+  assert.equal(canonical.displayContent, "修复 Goal 与 WorkGraph 状态一致性");
+  assert.equal(canonical.hasContent, true);
+
+  const legacy = projectUserMessagePresentation(
+    false,
+    "兼容旧版 Goal 控制记录",
+    { metadata: { subtype: "goal_set" }, timestamp },
+  );
+  assert.equal(legacy.displayContent, "兼容旧版 Goal 控制记录");
+
+  const ordinary = projectUserMessagePresentation(
+    false,
+    "/goal 只是普通历史文本",
+    { timestamp },
+  );
+  assert.equal(ordinary.goal, false);
+  assert.equal(ordinary.displayContent, "/goal 只是普通历史文本");
+});
+
+test("手输 /goal 在 ACK 前也投影为 Goal 控制记录", async () => {
+  const { sendSessionMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/conversation-chat-actions.ts",
+  );
+  let messages = [];
+  await sendSessionMessage(
+    "/goal 保持 Slash 与按钮即时显示一致",
+    {
+      acknowledgePermissionRequest: () => {},
+      activeSessionKeyRef: { current: null },
+      identity: { agent_id: "nexus", chat_type: "dm" },
+      messages,
+      pendingPermissions: [],
+      sessionKey: "agent:nexus:ws:dm:goal-optimistic",
+      setError: () => {},
+      setMessages: (update) => {
+        messages = typeof update === "function" ? update(messages) : update;
+      },
+      setPendingPermissions: () => {},
+      wsSend: () => ({ disposition: "sent" }),
+      wsState: "connected",
+    },
+  );
+  assert.equal(messages.length, 1);
+  assert.deepEqual(messages[0].metadata, { subtype: "goal_set" });
+});
+
 async function loadI18nValue(locale = "zh") {
   const { MESSAGES } = await server.ssrLoadModule(
     "/src/shared/i18n/messages.ts",
@@ -173,6 +230,79 @@ test("Goal status marks legacy reconstructed actual usage as estimated", async (
   assert.equal(model.usageLabel, "≈220 tokens");
 });
 
+test("Goal status distinguishes auto-continuation suppression from an actual pause", async () => {
+  const { buildGoalStatusStripModel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const baseGoal = {
+    id: "goal-continuation-state",
+    session_key: "room:group:continuation-state",
+    objective: "Keep Room Goal continuation observable",
+    continuation_count: 1,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-08-12T00:00:00Z",
+    updated_at: "2026-08-12T00:00:00Z",
+  };
+  const suppressed = buildGoalStatusStripModel({
+    canResume: true,
+    continuationHold: null,
+    error: null,
+    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    isGenerating: false,
+  });
+  assert.equal(suppressed.statusLabel, "自动续跑已停止");
+  assert.equal(suppressed.attentionTone, "warning");
+  assert.match(suppressed.statusTitle, /不是 Agent 主动暂停/);
+  assert.match(suppressed.attentionMessage, /系统已停止自动续跑/);
+
+  const paused = buildGoalStatusStripModel({
+    canResume: true,
+    continuationHold: null,
+    error: null,
+    goal: { ...baseGoal, status: "paused" },
+    isGenerating: false,
+  });
+  assert.equal(paused.statusLabel, "已暂停");
+  assert.equal(paused.attentionMessage, null);
+  assert.equal(paused.attentionTone, null);
+
+  const held = buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: {
+      label: "等待规划完成",
+      detail: "Plan 模式结束后再继续执行。",
+    },
+    error: null,
+    goal: { ...baseGoal, status: "active" },
+    isGenerating: false,
+  });
+  assert.equal(held.statusLabel, "等待规划完成");
+  assert.equal(held.statusTitle, "Plan 模式结束后再继续执行。");
+
+  const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
+    canResume: true,
+    compact: false,
+    disabled: false,
+    error: null,
+    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    isGenerating: false,
+    isLoading: false,
+    scopeLabel: "房间 Goal",
+    onClearRequest: () => {},
+    onEdit: () => {},
+    onPause: () => {},
+    onRefresh: () => {},
+    onResume: () => {},
+  }));
+  assert.match(html, />自动续跑已停止</);
+  assert.match(html, /这不是 Agent 主动暂停/);
+  assert.match(html, /aria-label="继续"/);
+});
+
 test("Goal clear follows the server-derived WorkGraph binding state", async () => {
   const {
     buildGoalControllerProjection,
@@ -199,6 +329,7 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
   assert.match(resolveGoalClearDisabledReason(null), /正在确认/);
   for (const state of ["standalone", "reserved"]) {
     assert.equal(resolveGoalClearDisabledReason({ state }), null);
+    assert.equal(resolveGoalBindingBadgeModel({ state }), null);
     assert.deepEqual(buildGoalControllerProjection({
       dialog: { goal, kind: "clear" },
       draft: null,
@@ -206,6 +337,24 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
       goal,
       phase: null,
     }).dialog, { goal, kind: "clear" });
+    const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
+      canResume: false,
+      clearDisabledReason: null,
+      compact: false,
+      disabled: false,
+      error: null,
+      executionBinding: { state },
+      goal,
+      isGenerating: false,
+      isLoading: false,
+      scopeLabel: "Goal",
+      onClearRequest: () => {},
+      onEdit: () => {},
+      onPause: () => {},
+      onRefresh: () => {},
+      onResume: () => {},
+    }));
+    assert.doesNotMatch(html, /data-goal-binding-state=/);
   }
   for (const state of ["pending", "confirmed", "conflict"]) {
     const reason = resolveGoalClearDisabledReason({ state });
@@ -222,8 +371,6 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
   }
 
   const bindingCases = [
-    [{ state: "standalone" }, "standalone", "独立 Goal"],
-    [{ state: "reserved" }, "reserved", "独立 Goal"],
     [{ state: "pending" }, "pending", "关联确认中"],
     [{ execution_id: "execution-binding", state: "confirmed" }, "confirmed", "已关联工作图"],
     [{ state: "conflict" }, "conflict", "关联冲突"],
@@ -261,11 +408,6 @@ test("Goal clear follows the server-derived WorkGraph binding state", async () =
     if (clearDisabledReason) {
       assert.match(html, /disabled=""/);
       assert.match(html, new RegExp(`aria-label="清除：${clearDisabledReason}`));
-    }
-    if (displayState === "reserved") {
-      assert.match(html, /当前仍是独立 Goal/);
-      assert.match(html, /不表示工作图已存在或一定会创建/);
-      assert.doesNotMatch(html, />已关联工作图</);
     }
   }
 });

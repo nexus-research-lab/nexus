@@ -14,9 +14,12 @@
 //     runtime context、取消与 usage 对账。
 //   - input_queue*.go / guidance_input.go：持久输入队列、派发与运行中 guidance。
 //   - directed_message.go / public_*.go：公开消息、mention conversation handoff、
-//     visible context 与 wake 调度。@ 不创建 Assignment；正式责任只来自 assign_work。
+//     visible context、携带非授权 Goal revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
+//     两阶段写入修复、host command 幂等、immediate/delayed durable wake 调度与在线重试。
+//     @ 不创建 Assignment；正式责任只来自 assign_work。
+//   - goal_command.go：服务端验证 lead/协作门槛后写入共享 Goal 与完成态 public 控制记录；不占用普通 Agent slot。
 //   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
-//     Goal scope、continuation、终态、附着最终回复的完成收据和额度适配。
+//     Goal scope、协作终态回连、continuation、终态、附着最终回复的完成收据和额度适配。
 //
 // conversation 共享 queue、public wake、Goal continuation 与 Execution slot；锁必须
 // 保持 conversation-scoped。每个并行 slot 自带 round_id，聚合 RoundID 只作单 root

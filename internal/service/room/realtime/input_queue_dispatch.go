@@ -15,6 +15,53 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
+func (s *Service) pruneStaleGoalCollaborationQueueEntries(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	entries []roomInputQueueEntry,
+	currentGoal *protocol.Goal,
+) ([]roomInputQueueEntry, error) {
+	if s == nil || s.inputQueue == nil || contextValue == nil || len(entries) == 0 {
+		return entries, nil
+	}
+	kept := make([]roomInputQueueEntry, 0, len(entries))
+	changed := false
+	for _, entry := range entries {
+		binding := protocol.NormalizeGoalCollaborationBinding(
+			entry.Item.GoalCollaborationBinding,
+		)
+		if binding == nil || roomGoalCollaborationBindingMatchesGoal(currentGoal, binding) {
+			kept = append(kept, entry)
+			continue
+		}
+		if err := s.markRoomQueueHandoffTerminalStatus(
+			contextValue.Conversation.ID,
+			entry.Item,
+			"interrupted",
+		); err != nil {
+			return nil, err
+		}
+		if _, err := s.inputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
+			return nil, err
+		}
+		changed = true
+		s.loggerFor(ctx).Info(
+			"清理过期的 Room Goal collaboration queue",
+			"goal_id", binding.GoalID,
+			"objective_revision", binding.ObjectiveRevision,
+			"item_id", entry.Item.ID,
+			"handoff_id", entry.Item.HandoffID,
+		)
+	}
+	if changed {
+		if err := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+			s.loggerFor(ctx).Warn("广播 Room Goal queue 清理快照失败", "session_key", sessionKey, "err", err)
+		}
+	}
+	return kept, nil
+}
+
 func (s *Service) dispatchNextInputQueueItem(ctx context.Context, sessionKey string, roomID string, conversationID string) {
 	if strings.TrimSpace(sessionKey) == "" {
 		return
@@ -200,6 +247,25 @@ func (s *Service) dispatchInputQueueItemLocked(
 	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
 		return err
 	}
+	if binding := protocol.NormalizeGoalCollaborationBinding(
+		item.GoalCollaborationBinding,
+	); binding != nil {
+		current, err := s.roomGoalCollaborationBindingIsCurrent(
+			ctx,
+			conversationID,
+			binding,
+		)
+		if err != nil {
+			return err
+		}
+		if !current {
+			return s.markRoomQueueHandoffTerminalStatus(
+				conversationID,
+				item,
+				"interrupted",
+			)
+		}
+	}
 	dispatchCtx := contextWithExactQueueOwner(ctx, item.OwnerUserID)
 	claim, trustedQueue, err := s.claimTrustedRoomQueueAdmission(
 		dispatchCtx,
@@ -328,6 +394,9 @@ func (s *Service) dispatchRoomPublicTriggerQueueItem(
 			TargetAgentID: targetAgentID,
 			Content:       content,
 			MessageID:     strings.TrimSpace(item.SourceMessageID),
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				item.GoalCollaborationBinding,
+			),
 		})
 	}
 	parentRound := &activeRoomRound{
@@ -365,7 +434,11 @@ func (s *Service) dispatchAgentWakeQueueItem(
 	if err != nil {
 		return err
 	}
-	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
+	// Goal collaboration must remain an independently attributable target
+	// round. Folding it into an unrelated active slot would lose its single
+	// handoff identity and can terminalize the ledger before Goal handback.
+	if protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) == nil &&
+		protocol.ShouldGuideRunningRound(deliveryPolicy) {
 		guidedItem := item
 		guidedItem.ID = "queue_" + item.ID
 		guidedAgentIDs, err := s.guideActiveAgentSlots(
@@ -402,6 +475,9 @@ func (s *Service) dispatchAgentWakeQueueItem(
 			Content:       content,
 			MessageID:     cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
 			ReplyRoute:    item.ReplyRoute,
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				item.GoalCollaborationBinding,
+			),
 			WorkBinding:   cloneExecutionWorkBinding(item.WorkBinding),
 			ReviewBinding: cloneExecutionReviewBinding(item.ReviewBinding),
 		})
@@ -433,7 +509,9 @@ func (s *Service) logicalPublicHandoffRootRoundID(
 	fallback string,
 ) string {
 	rootRoundID := strings.TrimSpace(fallback)
-	if item.Source != protocol.InputQueueSourceAgentPublicMention ||
+	if (item.Source != protocol.InputQueueSourceAgentPublicMention &&
+		!(item.Source == protocol.InputQueueSourceAgentRoomMessage &&
+			protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) != nil)) ||
 		s == nil || s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
 		return rootRoundID
 	}

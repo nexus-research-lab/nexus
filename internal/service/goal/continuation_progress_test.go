@@ -48,6 +48,55 @@ func TestServiceRecordGoalActivityResetsContinuationRun(t *testing.T) {
 	}
 }
 
+func TestServiceRecordRoomGoalCollaborationHandbackClearsSuppressionWithoutResettingContinuationLimit(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-handback"),
+		Objective:  "Continue after Room collaboration",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-source")
+	if err != nil || plan == nil {
+		t.Fatalf("plan=%+v err=%v", plan, err)
+	}
+	if _, err := service.RecordContinuationProgress(
+		ctx,
+		created.ID,
+		plan.RoundID,
+		false,
+		created.ObjectiveRevision(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.RecordRoomGoalCollaborationHandback(
+		ctx,
+		created.ID,
+		"room-handoff-target",
+		created.ObjectiveRevision(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.EmptyProgressCount != 0 || updated.LastError != "" ||
+		updated.ContinuationCount != 1 {
+		t.Fatalf("updated=%+v, want suppression cleared and continuation count preserved", updated)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "room_collaboration_handback" ||
+		got.RoundID != "room-handoff-target" {
+		t.Fatalf("last event=%+v", got)
+	}
+}
+
 func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

@@ -1,5 +1,5 @@
 // INPUT: Goal 创建/读取、model round durable usage scope、Room creator/lead 身份、用户更新请求与 Execution/Room 终态 readiness。
-// OUTPUT: owner 授权先于 runtime accounting 的原子 Goal/created 事件/usage scope、future Execution reserved phase、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
+// OUTPUT: owner 授权先于 runtime accounting 的原子 Goal/created 事件/usage scope、统一清理外部 metadata、future Execution reserved phase、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
@@ -81,6 +81,16 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	}
 	request.OwnerUserID = ownerUserID
 	request.AgentID = runtimeAgentID
+	if strings.TrimSpace(request.CreatedBy) == "user" {
+		request.Metadata = sanitizeExternalGoalMetadata(request.Metadata)
+	}
+	if protocol.IsRoomSharedSessionKey(sessionKey) && request.RoomCollaborationRequired != nil {
+		if request.Metadata == nil {
+			request.Metadata = map[string]any{}
+		}
+		request.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired] =
+			*request.RoomCollaborationRequired
+	}
 	if protocol.IsRoomSharedSessionKey(sessionKey) && strings.TrimSpace(request.CreatedBy) == "model" && strings.TrimSpace(request.AgentID) == "" {
 		return nil, newGoalInvalidInputError("model-created Room Goal requires the current agent identity")
 	}
@@ -97,10 +107,14 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 			metadata = map[string]any{}
 		}
 		return s.Update(ctx, current.ID, protocol.UpdateGoalRequest{
-			Objective:   &objective,
-			TokenBudget: protocol.OptionalInt64{Present: true, Value: request.TokenBudget},
-			OwnerUserID: request.OwnerUserID,
-			Metadata:    metadata,
+			Objective:                 &objective,
+			TokenBudget:               protocol.OptionalInt64{Present: true, Value: request.TokenBudget},
+			OwnerUserID:               request.OwnerUserID,
+			Metadata:                  metadata,
+			RoomLeadAgentID:           verifiedRoomLeadAgentID(request.AgentID, verifiedAgentID),
+			RoomLeadAgentName:         verifiedAgentName,
+			RoomCollaborationRequired: request.RoomCollaborationRequired,
+			RoomCollaborationRoundID:  strings.TrimSpace(request.RoundID),
 		})
 	}
 	scopeRoundID := ""
@@ -180,6 +194,41 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	return created, nil
 }
 
+// sanitizeExternalGoalMetadata 在 Goal 服务信任边界统一移除所有只能由
+// owner/session、Execution binding、objective transition 或 Room runtime 写入的键。
+// Transport handler 不能成为这组不变量的唯一守门人。
+func sanitizeExternalGoalMetadata(metadata map[string]any) map[string]any {
+	metadata = cloneMap(metadata)
+	for _, key := range []string{
+		protocol.GoalMetadataOwnerUserID,
+		protocol.GoalMetadataSourceObjective,
+		protocol.GoalMetadataObjectiveNormalized,
+		protocol.GoalMetadataExecutionID,
+		protocol.GoalMetadataExecutionBindingState,
+		protocol.GoalMetadataPromotionCommand,
+		protocol.GoalMetadataActivationOrigin,
+		protocol.GoalMetadataActivationReason,
+		protocol.GoalMetadataCompletionCriteria,
+		protocol.GoalMetadataObjectiveAlignment,
+		protocol.GoalMetadataExplicitCommand,
+		protocol.GoalMetadataObjectiveTransition,
+		protocol.GoalMetadataObjectiveRevision,
+		protocol.GoalMetadataRoomGoalScope,
+		protocol.GoalMetadataRoomGoalCreatorAgentID,
+		protocol.GoalMetadataRoomGoalLeadAgentID,
+		protocol.GoalMetadataRoomGoalLeadAgentName,
+		protocol.GoalMetadataRoomGoalCollaborationRequired,
+		protocol.GoalMetadataRoomGoalCollaborationObserved,
+		protocol.GoalMetadataRoomGoalCollaborationAgentID,
+		protocol.GoalMetadataRoomGoalCollaborationRoundID,
+		protocol.GoalMetadataRoomGoalCollaborationObservedAt,
+		protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
+	} {
+		delete(metadata, key)
+	}
+	return metadata
+}
+
 // reserveExternalGoalExecution 为外部 Goal 预留稳定 Execution。
 func reserveExternalGoalExecution(metadata map[string]any, goalID string) map[string]any {
 	metadata = cloneMap(metadata)
@@ -249,7 +298,7 @@ func (s *Service) createGoalWithUsageScope(
 			UsageEventID:   s.idFactory("goal_event"),
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, s.classifyGoalCreateError(ctx, item, err)
 		}
 		if result.Goal == nil {
 			return nil, nil, fmt.Errorf("%w: scoped Goal creation returned no Goal", ErrGoalInvalidState)
@@ -257,14 +306,26 @@ func (s *Service) createGoalWithUsageScope(
 		return result.Goal, result.UsageEvent, nil
 	}
 
-	created, err := s.repo.CreateGoal(ctx, item)
+	created, err := s.repo.CreateGoalWithEvent(ctx, item, createdEvent)
 	if err != nil {
-		return nil, nil, err
-	}
-	if err := s.repo.AppendEvent(ctx, createdEvent); err != nil {
-		return nil, nil, err
+		return nil, nil, s.classifyGoalCreateError(ctx, item, err)
 	}
 	return created, nil, nil
+}
+
+// classifyGoalCreateError turns the storage-level unique race into the stable
+// domain conflict returned by the preflight path. Other transaction failures
+// retain their original cause.
+func (s *Service) classifyGoalCreateError(
+	ctx context.Context,
+	attempted protocol.Goal,
+	createErr error,
+) error {
+	current, readErr := s.repo.GetCurrentGoal(ctx, strings.TrimSpace(attempted.SessionKey))
+	if readErr == nil && current != nil && strings.TrimSpace(current.ID) != strings.TrimSpace(attempted.ID) {
+		return ErrGoalConflict
+	}
+	return createErr
 }
 
 // Current 返回 session 当前 Goal。
@@ -442,6 +503,7 @@ func (s *Service) buildGoalUpdateMutation(
 		mutation.changed = true
 		mutation.payload["metadata_updated"] = true
 	}
+	applyServerRoomGoalUpdate(item, request, &mutation)
 	if eventPayloadBool(mutation.payload, "objective_updated") {
 		item.Metadata = cloneMap(item.Metadata)
 		if item.Metadata == nil {

@@ -60,6 +60,15 @@ func (r *mutableGoalRepository) UpdateGoal(_ context.Context, item protocol.Goal
 	return &result, nil
 }
 
+func (r *mutableGoalRepository) UpdateGoalWithEvents(
+	ctx context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	_ []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	return r.UpdateGoal(ctx, item, expectedVersion)
+}
+
 func cloneGoalMetadataForTest(metadata map[string]any) map[string]any {
 	if metadata == nil {
 		return nil
@@ -127,7 +136,24 @@ func (r *createdGoalRepository) CreateGoal(_ context.Context, item protocol.Goal
 	return &item, nil
 }
 
+func (r *createdGoalRepository) CreateGoalWithEvent(
+	_ context.Context,
+	item protocol.Goal,
+	_ protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	r.created = &item
+	return &item, nil
+}
+
 func (emptyGoalRepository) CreateGoal(context.Context, protocol.Goal) (*protocol.Goal, error) {
+	return nil, nil
+}
+
+func (emptyGoalRepository) CreateGoalWithEvent(
+	context.Context,
+	protocol.Goal,
+	protocol.GoalEvent,
+) (*protocol.Goal, error) {
 	return nil, nil
 }
 
@@ -143,11 +169,24 @@ func (emptyGoalRepository) ListGoals(context.Context) ([]protocol.Goal, error) {
 	return nil, nil
 }
 
+func (emptyGoalRepository) ListCurrentGoals(context.Context) ([]protocol.Goal, error) {
+	return nil, nil
+}
+
 func (emptyGoalRepository) ListRunnableGoals(context.Context, int) ([]protocol.Goal, error) {
 	return nil, nil
 }
 
 func (emptyGoalRepository) UpdateGoal(context.Context, protocol.Goal, int64) (*protocol.Goal, error) {
+	return nil, nil
+}
+
+func (emptyGoalRepository) UpdateGoalWithEvents(
+	context.Context,
+	protocol.Goal,
+	int64,
+	[]protocol.GoalEvent,
+) (*protocol.Goal, error) {
 	return nil, nil
 }
 

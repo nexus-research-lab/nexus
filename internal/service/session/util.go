@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -23,12 +24,31 @@ func closePersistedSessionMeta(item protocol.Session) protocol.Session {
 
 func mergeSessions(fileSessions []protocol.Session, roomSessions []protocol.Session) []protocol.Session {
 	merged := make(map[string]protocol.Session, len(fileSessions)+len(roomSessions))
-	for _, item := range fileSessions {
-		merged[item.SessionKey] = normalizeSession(item)
-	}
+	roomByKey := make(map[string]protocol.Session, len(roomSessions))
 	for _, item := range roomSessions {
-		// Room SQL 视图必须覆盖文件侧同 key 残留，避免前端渲染重复会话。
-		merged[item.SessionKey] = normalizeSession(item)
+		normalized := normalizeSession(item)
+		roomByKey[normalized.SessionKey] = normalized
+		merged[normalized.SessionKey] = normalized
+	}
+	for _, item := range fileSessions {
+		normalized := normalizeSession(item)
+		if protocol.IsRoomSharedSessionKey(normalized.SessionKey) {
+			continue
+		}
+		if roomSession, ok := roomByKey[normalized.SessionKey]; ok {
+			// SQL owns Room identity/title/configuration. The workspace projection owns
+			// runtime progress such as message_count and transcript lineage.
+			merged[normalized.SessionKey] = normalizeSession(
+				dmdomain.MergeRoomBackedSession(normalized, roomSession),
+			)
+			continue
+		}
+		if normalized.RoomSessionID != nil && strings.TrimSpace(*normalized.RoomSessionID) != "" {
+			// A deleted Room may leave a recoverable workspace artifact. It must not
+			// reappear in the public directory without its authoritative SQL row.
+			continue
+		}
+		merged[normalized.SessionKey] = normalized
 	}
 
 	result := make([]protocol.Session, 0, len(merged))

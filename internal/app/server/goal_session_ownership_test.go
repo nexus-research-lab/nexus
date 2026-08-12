@@ -23,6 +23,15 @@ func (r *ownershipGoalRepository) CreateGoal(context.Context, protocol.Goal) (*p
 	return nil, errors.New("unexpected Goal persistence")
 }
 
+func (r *ownershipGoalRepository) CreateGoalWithEvent(
+	context.Context,
+	protocol.Goal,
+	protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	r.createCalls++
+	return nil, errors.New("unexpected Goal persistence")
+}
+
 func (*ownershipGoalRepository) GetGoal(context.Context, string) (*protocol.Goal, error) {
 	return nil, nil
 }
@@ -35,11 +44,24 @@ func (*ownershipGoalRepository) ListGoals(context.Context) ([]protocol.Goal, err
 	return nil, nil
 }
 
+func (*ownershipGoalRepository) ListCurrentGoals(context.Context) ([]protocol.Goal, error) {
+	return nil, nil
+}
+
 func (*ownershipGoalRepository) ListRunnableGoals(context.Context, int) ([]protocol.Goal, error) {
 	return nil, nil
 }
 
 func (*ownershipGoalRepository) UpdateGoal(context.Context, protocol.Goal, int64) (*protocol.Goal, error) {
+	return nil, nil
+}
+
+func (*ownershipGoalRepository) UpdateGoalWithEvents(
+	context.Context,
+	protocol.Goal,
+	int64,
+	[]protocol.GoalEvent,
+) (*protocol.Goal, error) {
 	return nil, nil
 }
 

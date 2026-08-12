@@ -257,6 +257,8 @@ ORDER BY s.last_activity_at DESC`,
 }
 
 func (r *SQLRepository) roomSessionSelect() string {
+	// messages 是历史导入兼容表。这里保留 COUNT 作为下限，service 必须再与
+	// owner workspace 的 runtime 进度合并，不能把它解释为实时消息真相。
 	return `
 SELECT
     s.id,

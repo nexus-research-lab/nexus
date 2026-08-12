@@ -25,7 +25,7 @@ func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]
 			if reconcileErr != nil {
 				return nil, reconcileErr
 			}
-			if shouldHideWorkspaceSession(reconciled) {
+			if protocol.IsRoomSharedSessionKey(reconciled.SessionKey) {
 				continue
 			}
 			result = append(result, reconciled)

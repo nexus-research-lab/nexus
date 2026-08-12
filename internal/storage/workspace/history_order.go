@@ -2,7 +2,6 @@ package workspace
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -43,12 +42,20 @@ func compareHistoryRowOrder(left protocol.Message, right protocol.Message) int {
 		}
 		return 1
 	}
-
-	leftMessageID := stringFromAny(left["message_id"])
-	rightMessageID := stringFromAny(right["message_id"])
-	if leftMessageID != rightMessageID {
-		return strings.Compare(leftMessageID, rightMessageID)
+	leftControl := terminalControlMessage(left)
+	rightControl := terminalControlMessage(right)
+	if leftControl != rightControl {
+		// Goal continuation 只有在 host control 已经 durable 后才允许启动；
+		// 两者落在同一毫秒时，这条因果关系比跨存储来源的合并顺序更可靠。
+		if leftControl {
+			return -1
+		}
+		return 1
 	}
+
+	// 不同 round 在同一毫秒且没有共同 display_order 时，保留各历史来源完成
+	// 合并后的稳定顺序。随机 message_id 的字典序不能反向重排用户控制记录
+	// 与随后启动的 Goal continuation。
 	return 0
 }
 

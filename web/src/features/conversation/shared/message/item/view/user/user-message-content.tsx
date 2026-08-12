@@ -1,4 +1,6 @@
 import { cn } from "@/shared/ui/class-name";
+import { Target } from "lucide-react";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { AgentMention } from "@/types/conversation/message/entity";
 
@@ -28,8 +30,18 @@ export function UserMessageContent({
   presentation,
   workspaceAgentId,
 }: UserMessageContentProps) {
+  const { t } = useI18n();
   return (
-    <div className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-[12px] bg-(--surface-message-user-background) px-3.5 py-2.5">
+    <div
+      className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-[12px] bg-(--surface-message-user-background) px-3.5 py-2.5"
+      data-goal-control={String(presentation.goal)}
+    >
+      {presentation.goal ? (
+        <span className="mb-1.5 inline-flex items-center gap-1 self-start text-xs font-semibold text-(--text-muted)">
+          <Target className="h-3.5 w-3.5" />
+          {t("composer.goal_mode")}
+        </span>
+      ) : null}
       {presentation.hasContent ? (
         <ContentRenderer
           className={cn(

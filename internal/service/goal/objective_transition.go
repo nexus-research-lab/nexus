@@ -5,8 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -214,16 +212,10 @@ func (s *Service) PrepareObjectiveRetarget(
 		)
 		current.Version++
 		current.UpdatedAt = s.nowFn()
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(
+		updated, updateErr := s.persistGoalUpdateWithEvent(
 			ctx,
-			*updated,
+			*current,
+			expectedVersion,
 			"objective_retarget_prepared",
 			command.Source,
 			strings.TrimSpace(command.RoundID),
@@ -233,8 +225,9 @@ func (s *Service) PrepareObjectiveRetarget(
 				"new_objective_revision": command.ExpectedObjectiveRevision + 1,
 				"successor_execution_id": command.SuccessorExecutionID,
 			},
-		); eventErr != nil {
-			return nil, eventErr
+		)
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		return updated, nil
 	})
@@ -276,16 +269,10 @@ func (s *Service) FenceObjectiveRetargetPredecessor(
 			objectiveTransitionMetadata(transition)
 		current.Version++
 		current.UpdatedAt = s.nowFn()
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(
+		updated, updateErr := s.persistGoalUpdateWithEvent(
 			ctx,
-			*updated,
+			*current,
+			expectedVersion,
 			"objective_predecessor_fenced",
 			protocol.GoalUpdateSourceSystem,
 			"",
@@ -293,8 +280,9 @@ func (s *Service) FenceObjectiveRetargetPredecessor(
 				"transition_id": transition.ID,
 				"execution_id":  executionID,
 			},
-		); eventErr != nil {
-			return nil, eventErr
+		)
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		return updated, nil
 	})
@@ -461,22 +449,17 @@ func (s *Service) ConfirmObjectiveExecutionBinding(
 		}
 		current.Version++
 		current.UpdatedAt = s.nowFn()
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(
+		updated, updateErr := s.persistGoalUpdateWithEvent(
 			ctx,
-			*updated,
+			*current,
+			expectedVersion,
 			eventType,
 			protocol.GoalUpdateSourceSystem,
 			"",
 			eventPayload,
-		); eventErr != nil {
-			return nil, eventErr
+		)
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		return updated, nil
 	})
@@ -566,6 +549,8 @@ func preserveServerOwnedGoalMetadata(
 	}
 	for _, key := range []string{
 		protocol.GoalMetadataOwnerUserID,
+		protocol.GoalMetadataSourceObjective,
+		protocol.GoalMetadataObjectiveNormalized,
 		protocol.GoalMetadataExecutionID,
 		protocol.GoalMetadataExecutionBindingState,
 		protocol.GoalMetadataPromotionCommand,
@@ -575,6 +560,12 @@ func preserveServerOwnedGoalMetadata(
 		protocol.GoalMetadataObjectiveAlignment,
 		protocol.GoalMetadataExplicitCommand,
 		protocol.GoalMetadataObjectiveTransition,
+		protocol.GoalMetadataRoomGoalCollaborationRequired,
+		protocol.GoalMetadataRoomGoalCollaborationObserved,
+		protocol.GoalMetadataRoomGoalCollaborationAgentID,
+		protocol.GoalMetadataRoomGoalCollaborationRoundID,
+		protocol.GoalMetadataRoomGoalCollaborationObservedAt,
+		protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
 	} {
 		if value, exists := current.Metadata[key]; exists {
 			replacement[key] = value

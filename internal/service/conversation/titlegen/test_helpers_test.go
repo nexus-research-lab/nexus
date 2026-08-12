@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -71,6 +72,19 @@ func (f *fakeRoomService) GetConversationContext(_ context.Context, conversation
 	}
 	value := *item
 	return &value, nil
+}
+
+type ownerRecordingRoomService struct {
+	fakeRoomService
+	ownerUserID string
+}
+
+func (f *ownerRecordingRoomService) GetConversationContext(
+	ctx context.Context,
+	conversationID string,
+) (*protocol.ConversationContextAggregate, error) {
+	f.ownerUserID = authctx.OwnerUserID(ctx)
+	return f.fakeRoomService.GetConversationContext(ctx, conversationID)
 }
 
 func (f *fakeRoomService) UpdateConversationTitle(

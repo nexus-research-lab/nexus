@@ -119,6 +119,9 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 	if options.Synthetic {
 		row["is_synthetic"] = true
 	}
+	if options.ControlOnly {
+		row["control_only"] = true
+	}
 	if purpose := strings.TrimSpace(options.Purpose); purpose != "" {
 		row["purpose"] = purpose
 	}
@@ -247,6 +250,7 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 				DeliveryPolicy:  stringFromAny(row["delivery_policy"]),
 				HiddenFromUser:  boolValueAny(row["hidden_from_user"]),
 				Synthetic:       boolValueAny(row["is_synthetic"]),
+				ControlOnly:     boolValueAny(row["control_only"]),
 				Purpose:         stringFromAny(row["purpose"]),
 				Metadata:        stringMapFromAny(row["metadata"]),
 			})

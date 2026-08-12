@@ -1,21 +1,16 @@
 /**
- * INPUT: Room 身份、成员、宿主 Agent、当前 Session 与 Goal 创建动作。
+ * INPUT: Room 身份、成员、宿主 Agent、当前 Session 与 Goal 事件刷新信号。
  * OUTPUT: 按 Session 隔离的 Goal 负责人选择、创建能力与刷新序列。
- * POS: Room Composer Goal 模式的领域控制器。
+ * POS: Room Composer Goal 负责人控制器；创建由独立宿主 Goal 控制链负责。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
-import { createGoalApi } from "@/lib/api/conversation/goal-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import {
-  buildRoomGoalMetadata,
-  buildRoomLoopGoalMetadata,
-  buildRoomLoopGoalObjective,
   resolveDefaultRoomGoalLead,
 } from "../../room-goal-model";
 
@@ -29,8 +24,6 @@ interface UseRoomGoalComposerOptions {
 export interface RoomGoalComposerModel {
   createDisabledReason: string | null;
   leadAgentId: string;
-  onCreateGoal: (objective: string) => Promise<void>;
-  onCreateLoopGoal: (loop: LoopCatalogItem) => Promise<void>;
   refresh: () => void;
   refreshSequence: number;
   setLeadAgentId: (agentId: string) => void;
@@ -60,13 +53,13 @@ export function useRoomGoalComposer({
     (state) => state.update_composer_draft,
   );
   const leadAgentId = storedLeadAgentId ?? defaultLeadAgentId;
+  const [refreshSequence, setRefreshSequence] = useState(0);
   const setLeadAgentId = useCallback((agentId: string) => {
     updateComposerDraft(draftScopeKey, (current) => ({
       ...current,
       goalLeadAgentId: agentId,
     }));
   }, [draftScopeKey, updateComposerDraft]);
-  const [refreshSequence, setRefreshSequence] = useState(0);
 
   useEffect(() => {
     if (storedLeadAgentId === null || storedLeadAgentId.trim() === "") {
@@ -88,56 +81,6 @@ export function useRoomGoalComposer({
   const refresh = useCallback(() => {
     setRefreshSequence((value) => value + 1);
   }, []);
-  const createGoal = useCallback(
-    async (
-      objective: string,
-      metadata: Record<string, unknown>,
-      roomLeadAgentId: string,
-    ) => {
-      if (!sessionKey) {
-        throw new Error(t("room.goal_session_not_ready"));
-      }
-      await createGoalApi({
-        metadata,
-        objective,
-        replace_existing: true,
-        room_lead_agent_id: roomLeadAgentId,
-        session_key: sessionKey,
-        token_budget: null,
-      });
-      refresh();
-    },
-    [refresh, sessionKey, t],
-  );
-  const requireLeadAgentId = useCallback(() => {
-    const normalized = leadAgentId.trim();
-    if (!normalized) {
-      throw new Error(t("room.goal_lead_required"));
-    }
-    return normalized;
-  }, [leadAgentId, t]);
-  const onCreateGoal = useCallback(
-    async (objective: string) => {
-      const leadAgent = requireLeadAgentId();
-      await createGoal(
-        objective,
-        buildRoomGoalMetadata(roomMembers),
-        leadAgent,
-      );
-    },
-    [createGoal, requireLeadAgentId, roomMembers],
-  );
-  const onCreateLoopGoal = useCallback(
-    async (loop: LoopCatalogItem) => {
-      const leadAgent = requireLeadAgentId();
-      await createGoal(
-        buildRoomLoopGoalObjective(loop),
-        buildRoomLoopGoalMetadata(roomMembers, loop),
-        leadAgent,
-      );
-    },
-    [createGoal, requireLeadAgentId, roomMembers],
-  );
 
   return {
     createDisabledReason: resolveCreateDisabledReason(
@@ -147,8 +90,6 @@ export function useRoomGoalComposer({
       t("room.goal_lead_required"),
     ),
     leadAgentId,
-    onCreateGoal,
-    onCreateLoopGoal,
     refresh,
     refreshSequence,
     setLeadAgentId,

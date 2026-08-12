@@ -77,8 +77,8 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startSessionDeletionRecovery,
 		s.startChannels,
 		s.startAutomation,
-		s.startRoomDelayedWakes,
 		s.startRoomPublicHandoffs,
+		s.startRoomDirectedWakes,
 		s.startGoalConfirmationRecovery,
 		s.startPlanProposalRecovery,
 		s.startSubagentReconciliation,
@@ -465,23 +465,23 @@ func (s *Server) startRoomPublicHandoffs(ctx context.Context) (func(), error) {
 	if s.services == nil || s.services.RoomRealtime == nil {
 		return nil, nil
 	}
-	s.api.BaseLogger().Info("启动 Room 公区 handoff 恢复器")
+	s.api.BaseLogger().Info("启动 Room handoff 恢复器")
 	stop, err := s.services.RoomRealtime.StartPublicHandoffReconciler(ctx)
 	if err != nil {
-		s.api.BaseLogger().Error("启动 Room 公区 handoff 恢复器失败", "err", err)
+		s.api.BaseLogger().Error("启动 Room handoff 恢复器失败", "err", err)
 		return nil, err
 	}
 	return stop, nil
 }
 
-func (s *Server) startRoomDelayedWakes(ctx context.Context) (func(), error) {
+func (s *Server) startRoomDirectedWakes(ctx context.Context) (func(), error) {
 	if s.services == nil || s.services.RoomRealtime == nil {
 		return nil, nil
 	}
-	s.api.BaseLogger().Info("启动 Room 延迟唤醒恢复器")
+	s.api.BaseLogger().Info("启动 Room directed wake 恢复器")
 	stop, err := s.services.RoomRealtime.StartDelayedWakeScheduler(ctx)
 	if err != nil {
-		s.api.BaseLogger().Error("启动 Room 延迟唤醒恢复器失败", "err", err)
+		s.api.BaseLogger().Error("启动 Room directed wake 恢复器失败", "err", err)
 		return nil, err
 	}
 	return stop, nil
@@ -539,6 +539,9 @@ func (s *Server) startGoalResume(ctx context.Context) (func(), error) {
 		return nil, nil
 	}
 	s.api.BaseLogger().Info("启动 Goal durable resume")
+	if err := s.services.Goal.RepairCurrentGoalPreviews(ctx); err != nil {
+		s.api.BaseLogger().Warn("Goal 会话标题恢复未完全成功", "err", err)
+	}
 	stop, err := s.services.Goal.StartAutoResume(
 		ctx,
 		newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),

@@ -14,6 +14,7 @@ import {
   rewriteLastUserMessage,
   sendSessionMessage,
 } from "./conversation-chat-actions";
+import { setSessionGoal } from "./conversation-goal-actions";
 import {
   sendSessionPermissionResponse,
   stopSessionGeneration,
@@ -138,6 +139,21 @@ export function useAgentConversationActions({
       options: AgentConversationSendOptions = {},
     ): Promise<void> => sendWithAck(
       () => sendSessionMessage(content, actionContextRef.current, options),
+      (request, error) => settleChatAckWaitFailure(
+        request.client_request_id,
+        request.client_message_id,
+        error,
+      ),
+    ),
+    [sendWithAck, settleChatAckWaitFailure],
+  );
+
+  const setGoal = useCallback(
+    (
+      objective: string,
+      options: Parameters<typeof setSessionGoal>[2] = {},
+    ): Promise<void> => sendWithAck(
+      () => setSessionGoal(objective, actionContextRef.current, options),
       (request, error) => settleChatAckWaitFailure(
         request.client_request_id,
         request.client_message_id,
@@ -285,6 +301,7 @@ export function useAgentConversationActions({
     rewriteLastMessage,
     sendMessage,
     sendPermissionResponse,
+    setGoal,
     stopGeneration,
   };
 }

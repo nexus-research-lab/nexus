@@ -1,6 +1,6 @@
 /**
  * INPUT: Goal state, server-derived Execution binding and UI command phase.
- * OUTPUT: Goal lifecycle plus server-derived WorkGraph binding badges, clear capability, form and controller projections.
+ * OUTPUT: Goal lifecycle plus meaningful server-derived WorkGraph binding badges, clear capability, form and controller projections.
  * POS: Goal panel pure model; metadata never participates in WorkGraph binding decisions.
  */
 import type {
@@ -60,7 +60,8 @@ export interface GoalStatusStripModel {
   actionDisabledReasons: Partial<Record<GoalStatusAction, string>>;
   actions: GoalStatusAction[];
   attentionMessage: string | null;
-  bindingBadge: GoalBindingBadgeModel;
+  attentionTone: "danger" | "warning" | null;
+  bindingBadge: GoalBindingBadgeModel | null;
   isExecuting: boolean;
   statusLabel: string;
   statusTitle: string;
@@ -79,24 +80,18 @@ interface GoalStatusProjectionInput {
 }
 
 export type GoalBindingDisplayState =
-  | GoalExecutionBindingState
+  | Exclude<GoalExecutionBindingState, "standalone" | "reserved">
   | "unavailable";
 
 export interface GoalBindingBadgeModel {
   labelKey: TranslationKey;
   state: GoalBindingDisplayState;
   titleKey: TranslationKey;
-  tone: "conflict" | "confirmed" | "neutral" | "pending" | "unavailable";
+  tone: "conflict" | "confirmed" | "pending" | "unavailable";
 }
 
 interface VisibleGoalStatus {
   label: string;
-  status: GoalStatus;
-}
-
-interface GoalStatusOverride {
-  label: string;
-  matches: (input: GoalStatusProjectionInput) => boolean;
   status: GoalStatus;
 }
 
@@ -169,18 +164,6 @@ const GOAL_BINDING_BADGE: Record<
   GoalBindingDisplayState,
   GoalBindingBadgeModel
 > = {
-  standalone: {
-    labelKey: "goal.binding_standalone",
-    state: "standalone",
-    titleKey: "goal.binding_standalone_title",
-    tone: "neutral",
-  },
-  reserved: {
-    labelKey: "goal.binding_standalone",
-    state: "reserved",
-    titleKey: "goal.binding_reserved_title",
-    tone: "neutral",
-  },
   pending: {
     labelKey: "goal.binding_pending",
     state: "pending",
@@ -207,19 +190,9 @@ const GOAL_BINDING_BADGE: Record<
   },
 };
 
-const ACTIVE_STATUS_OVERRIDES: GoalStatusOverride[] = [
-  {
-    label: "需处理",
-    matches: ({ goal }) => Boolean(goal.last_error),
-    status: "blocked",
-  },
-  {
-    label: "待继续",
-    matches: ({ continuationHold, goal }) =>
-      continuationHold !== null || (goal.empty_progress_count ?? 0) > 0,
-    status: "paused",
-  },
-];
+const EMPTY_PROGRESS_LABEL = "自动续跑已停止";
+const EMPTY_PROGRESS_MESSAGE =
+  "上一轮未产生可计入进展，系统已停止自动续跑；这不是 Agent 主动暂停。";
 
 const GOAL_ACTION_RULES: GoalActionRule[] = [
   { action: "refresh", visible: () => true },
@@ -300,11 +273,12 @@ export function buildGoalStatusStripModel(
     actions: GOAL_ACTION_RULES.filter((rule) => rule.visible(activeInput)).map(
       (rule) => rule.action,
     ),
-    attentionMessage: input.error ?? input.goal.last_error ?? null,
+    attentionMessage: resolveGoalAttentionMessage(activeInput),
+    attentionTone: resolveGoalAttentionTone(activeInput),
     bindingBadge: resolveGoalBindingBadgeModel(input.executionBinding ?? null),
     isExecuting: input.isGenerating && input.goal.status === "active",
     statusLabel: visibleStatus.label,
-    statusTitle: activeContinuationHold?.detail ?? visibleStatus.label,
+    statusTitle: resolveGoalStatusTitle(activeInput, visibleStatus),
     tone: goalStatusTone(visibleStatus.status),
     usageLabel: buildGoalUsageLabel(input.goal),
   };
@@ -312,20 +286,79 @@ export function buildGoalStatusStripModel(
 
 export function resolveGoalBindingBadgeModel(
   binding: GoalExecutionBinding | null,
-): GoalBindingBadgeModel {
-  return GOAL_BINDING_BADGE[binding?.state ?? "unavailable"];
+): GoalBindingBadgeModel | null {
+  const state = binding?.state ?? "unavailable";
+  if (state === "standalone" || state === "reserved") {
+    return null;
+  }
+  return GOAL_BINDING_BADGE[state];
 }
 
 function resolveVisibleGoalStatus(
   input: GoalStatusProjectionInput,
 ): VisibleGoalStatus {
-  const override = isIdleActiveGoal(input)
-    ? ACTIVE_STATUS_OVERRIDES.find((candidate) => candidate.matches(input))
-    : null;
+  if (!isIdleActiveGoal(input)) {
+    return {
+      label: GOAL_STATUS_LABEL[input.goal.status],
+      status: input.goal.status,
+    };
+  }
+  if (input.goal.last_error) {
+    return { label: "需处理", status: "blocked" };
+  }
+  if (input.continuationHold) {
+    return { label: input.continuationHold.label, status: "paused" };
+  }
+  if ((input.goal.empty_progress_count ?? 0) > 0) {
+    return { label: EMPTY_PROGRESS_LABEL, status: "paused" };
+  }
   return {
-    label: override?.label ?? GOAL_STATUS_LABEL[input.goal.status],
-    status: override?.status ?? input.goal.status,
+    label: GOAL_STATUS_LABEL[input.goal.status],
+    status: input.goal.status,
   };
+}
+
+function resolveGoalStatusTitle(
+  input: GoalStatusProjectionInput,
+  visibleStatus: VisibleGoalStatus,
+): string {
+  if (input.continuationHold) {
+    return input.continuationHold.detail;
+  }
+  if (input.goal.status === "active" &&
+    (input.goal.empty_progress_count ?? 0) > 0 &&
+    !input.isGenerating) {
+    return `${EMPTY_PROGRESS_MESSAGE} 点击“继续”可重试。`;
+  }
+  return visibleStatus.label;
+}
+
+function resolveGoalAttentionMessage(
+  input: GoalStatusProjectionInput,
+): string | null {
+  if (input.error || input.goal.last_error) {
+    return input.error ?? input.goal.last_error ?? null;
+  }
+  if (input.goal.status === "active" &&
+    (input.goal.empty_progress_count ?? 0) > 0 &&
+    !input.isGenerating) {
+    return EMPTY_PROGRESS_MESSAGE;
+  }
+  return null;
+}
+
+function resolveGoalAttentionTone(
+  input: GoalStatusProjectionInput,
+): GoalStatusStripModel["attentionTone"] {
+  if (input.error || input.goal.last_error) {
+    return "danger";
+  }
+  if (input.goal.status === "active" &&
+    (input.goal.empty_progress_count ?? 0) > 0 &&
+    !input.isGenerating) {
+    return "warning";
+  }
+  return null;
 }
 
 function isIdleActiveGoal(input: GoalStatusProjectionInput): boolean {

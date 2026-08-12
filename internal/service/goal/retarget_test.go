@@ -227,6 +227,23 @@ func (r *concurrentRetargetRepository) UpdateGoal(ctx context.Context, item prot
 	return r.memoryRepository.UpdateGoal(ctx, item, expectedVersion)
 }
 
+func (r *concurrentRetargetRepository) UpdateGoalWithEvents(
+	ctx context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	events []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	if item.Objective == r.blockedObjective {
+		r.blockOnce.Do(func() {
+			close(r.updateStarted)
+			<-r.releaseUpdate
+		})
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.memoryRepository.UpdateGoalWithEvents(ctx, item, expectedVersion, events)
+}
+
 func (r *concurrentRetargetRepository) AppendEvent(ctx context.Context, event protocol.GoalEvent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

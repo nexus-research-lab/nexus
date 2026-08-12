@@ -100,13 +100,7 @@ export interface ExecutionNodeSummary {
 }
 
 export interface ExecutionWorkGraphHeaderModel {
-  acceptedCount: number;
-  completionBlockers: string[];
-  nodeCurrent: number | null;
   currentNodeId: string | null;
-  nodeTotal: number;
-  planRevision: number | null;
-  requiredCount: number;
   status: ExecutionStatus;
   statusLabelKey: TranslationKey;
   summary: string;
@@ -201,31 +195,19 @@ export function resolveExecutionNodeSummary(
 }
 
 /**
- * 图级状态必须来自 Execution/Plan/验收读模型。节点位置只作为次级导航
- * 提示，不能覆盖 waiting、terminal 或 superseded 等 Execution 生命周期。
+ * 主视图标题只投影当前摘要与节点定位。生命周期状态留给 waiting、paused
+ * 和 terminal 等需要用户注意的顶栏提示，详细进度留在图与详情中。
  */
 export function resolveExecutionWorkGraphHeaderModel(
   execution: ExecutionView,
 ): ExecutionWorkGraphHeaderModel {
   const nodeSummary = resolveExecutionNodeSummary(execution);
   return {
-    acceptedCount: nonNegativeExecutionCount(execution.progress.accepted),
-    completionBlockers: (execution.completion_blockers ?? [])
-      .map((blocker) => blocker.trim())
-      .filter(Boolean),
     currentNodeId: nodeSummary.currentNode?.id ?? null,
-    nodeCurrent: nodeSummary.currentStep > 0 ? nodeSummary.currentStep : null,
-    nodeTotal: nonNegativeExecutionCount(nodeSummary.totalCount),
-    planRevision: execution.plan?.revision ?? null,
-    requiredCount: nonNegativeExecutionCount(execution.progress.required),
     status: execution.status,
     statusLabelKey: EXECUTION_STATUS_LABEL_KEY[execution.status],
     summary: nodeSummary.summary,
   };
-}
-
-function nonNegativeExecutionCount(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }
 
 /**

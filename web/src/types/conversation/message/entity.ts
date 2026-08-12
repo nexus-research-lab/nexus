@@ -38,6 +38,8 @@ interface BaseMessage {
   role: MessageRole;
   timestamp: number;
   display_order?: number;
+  /** Nexus durable control records use metadata.subtype without becoming model input. */
+  metadata?: Record<string, unknown>;
   /**
    * 实时投影的恢复边界：
    * durable 可恢复，ephemeral 随 round 收口，transient 仅保留在当前打开的时间线。

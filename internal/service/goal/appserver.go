@@ -202,20 +202,17 @@ func (s *Service) createFromThreadGoalParams(
 		Metadata:    metadata,
 	}
 	applyInitialGoalStatusTime(&item, now)
-	created, err := s.repo.CreateGoal(ctx, item)
-	if err != nil {
-		return nil, protocol.GoalEvent{}, err
-	}
 	createdEvent := s.newGoalEvent(
-		*created,
+		item,
 		"created",
 		protocol.GoalUpdateSourceExternal,
 		"",
-		map[string]any{"objective": created.Objective},
+		map[string]any{"objective": item.Objective},
 		now,
 	)
-	if err := s.repo.AppendEvent(ctx, createdEvent); err != nil {
-		return nil, protocol.GoalEvent{}, err
+	created, err := s.repo.CreateGoalWithEvent(ctx, item, createdEvent)
+	if err != nil {
+		return nil, protocol.GoalEvent{}, s.classifyGoalCreateError(ctx, item, err)
 	}
 	return created, createdEvent, nil
 }

@@ -37,3 +37,31 @@ func currentGoalForMutation(
 	}
 	return current, nil
 }
+
+// currentGoalForRetarget admits one intentionally narrow late bind: a trusted
+// visible user round may load the current exact revision only for retarget_goal.
+// Other Goal tools and every Execution tool remain ambient-unbound.
+func currentGoalForRetarget(
+	ctx context.Context,
+	svc contract.Service,
+	sctx contract.ServerContext,
+) (*protocol.Goal, int64, error) {
+	expectedRevision := sctx.ExpectedGoalObjectiveRevision()
+	if expectedRevision > 0 {
+		current, err := currentGoalForMutation(ctx, svc, sctx, expectedRevision)
+		return current, expectedRevision, err
+	}
+	if !sctx.AllowUserRetarget {
+		return nil, 0, fmt.Errorf(
+			"this round cannot mutate the current Goal because it has no exact Goal/revision capability; use the user Goal controls or a Goal-bound continuation",
+		)
+	}
+	current, err := svc.Current(ctx, sctx.CurrentSessionKey)
+	if err != nil {
+		return nil, 0, err
+	}
+	if current == nil || current.ObjectiveRevision() <= 0 {
+		return nil, 0, fmt.Errorf("the current Goal has no valid objective revision")
+	}
+	return current, current.ObjectiveRevision(), nil
+}

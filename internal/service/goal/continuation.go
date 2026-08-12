@@ -5,7 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -227,21 +226,15 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 	item.Version++
 	item.UpdatedAt = now
 	item.LastError = ""
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
 	payload := map[string]any{
-		"continuation_count": updated.ContinuationCount,
+		"continuation_count": item.ContinuationCount,
 		"purpose":            strings.TrimSpace(purpose),
 	}
 	if previous := strings.TrimSpace(previousRoundID); previous != "" {
 		payload["previous_round_id"] = previous
 	}
-	if err := s.appendEvent(ctx, *updated, "continuation_scheduled", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_scheduled", protocol.GoalUpdateSourceSystem, roundID, payload)
+	if err != nil {
 		return nil, err
 	}
 	metadata := map[string]string{
@@ -407,16 +400,10 @@ func (s *Service) claimContinuationPlanForLoadedGoal(ctx context.Context, item *
 	item.Metadata = metadata
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_started", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+		"continuation_count": item.ContinuationCount,
+	})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.appendEvent(ctx, *updated, "continuation_started", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
-		"continuation_count": updated.ContinuationCount,
-	}); err != nil {
 		return nil, err
 	}
 	return updated, nil
@@ -466,21 +453,15 @@ func (s *Service) releaseContinuationPlanForLoadedGoal(
 	item.ContinuationCount--
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		reason = "Goal continuation deferred before dispatch"
 	}
-	if err := s.appendEvent(ctx, *updated, "continuation_deferred", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
-		"continuation_count": updated.ContinuationCount,
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_deferred", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+		"continuation_count": item.ContinuationCount,
 		"reason":             reason,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	return updated, nil

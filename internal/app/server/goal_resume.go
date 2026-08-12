@@ -46,8 +46,16 @@ func (d *goalContinuationDispatcher) ShouldDeferGoalContinuation(ctx context.Con
 	if d == nil || sessionKey == "" {
 		return true
 	}
-	if d.runtime != nil && len(d.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
-		return true
+	if d.runtime != nil {
+		if len(d.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
+			return true
+		}
+		// runtime terminal 事件可能早于 Goal usage/result 收尾。此时 running
+		// 已为空，但 create guard 仍证明原 round 尚未退出；提前续跑会与它
+		// 并发创建/完成同一 Goal，造成 create/get/update 观察不一致。
+		if len(d.runtime.GoalAccountingCreateConflicts(sessionKey, "")) > 0 {
+			return true
+		}
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	switch parsed.Kind {

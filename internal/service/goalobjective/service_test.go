@@ -8,11 +8,24 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
+
+func TestRewriteTimeoutFitsRequestAckContract(t *testing.T) {
+	t.Parallel()
+
+	ackTimeout := time.Duration(protocol.RequestAckTimeoutMS) * time.Millisecond
+	if rewriteRequestTimeout >= ackTimeout {
+		t.Fatalf("rewrite request timeout = %s, must be below ACK timeout %s", rewriteRequestTimeout, ackTimeout)
+	}
+	if rewriteAttemptTimeout > rewriteRequestTimeout {
+		t.Fatalf("rewrite attempt timeout = %s, exceeds request timeout %s", rewriteAttemptTimeout, rewriteRequestTimeout)
+	}
+}
 
 func TestRewriteUsesBackgroundPreferenceAndSanitizesObjective(t *testing.T) {
 	t.Parallel()

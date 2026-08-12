@@ -7,6 +7,7 @@
 //   - model.go / scan.go：房间模型与行扫描。
 //
 // SQLRepository 根据 driver 选择 SQLDialect，不在上层复制 SQLite/PostgreSQL 门面。
+// messages 表仅保留 legacy import 与删除引用兼容；当前 Room/DM 历史位于 owner-scoped ledger，服务读模型不能把 COUNT(messages) 当作唯一实时真相。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package roomrepo

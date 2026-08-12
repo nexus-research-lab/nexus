@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -62,6 +63,24 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
+	if provider, ok := s.goals.(currentGoalProvider); ok {
+		currentGoal, goalErr := provider.CurrentOptional(ctx, sessionKey)
+		if goalErr != nil {
+			s.loggerFor(ctx).Warn("读取 Room Goal queue revision 失败", "session_key", sessionKey, "err", goalErr)
+			return true
+		}
+		entries, err = s.pruneStaleGoalCollaborationQueueEntries(
+			ctx,
+			sessionKey,
+			contextValue,
+			entries,
+			currentGoal,
+		)
+		if err != nil {
+			s.loggerFor(ctx).Warn("清理过期 Room Goal queue 失败", "session_key", sessionKey, "err", err)
+			return true
+		}
+	}
 	if len(entries) == 0 {
 		return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
 	}
@@ -111,6 +130,13 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 		return true
 	}
 	currentGoal := s.currentRoomGoalForSession(ctx, sessionKey)
+	if currentGoal != nil && s.roomGoalCollaborationInFlight(
+		ctx,
+		contextValue,
+		*currentGoal,
+	) {
+		return true
+	}
 	if targetAgentID := goalContinuationMemberTargetAgentID(
 		contextValue,
 		currentGoal,
@@ -156,6 +182,34 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 		permissionMode = override
 	}
 	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(permissionMode)
+}
+
+func (s *Service) roomGoalCollaborationInFlight(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	goal protocol.Goal,
+) bool {
+	if s == nil || s.publicHandoffs == nil || contextValue == nil {
+		return false
+	}
+	inFlight, err := s.publicHandoffs.GoalCollaborationInFlight(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		protocol.GoalCollaborationBinding{
+			GoalID:            goal.ID,
+			ObjectiveRevision: goal.ObjectiveRevision(),
+		},
+	)
+	if err != nil {
+		s.loggerFor(ctx).Warn(
+			"读取 Room Goal collaboration fence 失败，延后自动续跑",
+			"conversation_id", contextValue.Conversation.ID,
+			"goal_id", goal.ID,
+			"err", err,
+		)
+		return true
+	}
+	return inFlight
 }
 
 // GoalContinuationTargetMissing 判断共享 Room Goal 的 conversation 是否已被删除。
@@ -311,6 +365,50 @@ func (s *Service) currentRoomGoalForSession(ctx context.Context, sessionKey stri
 	return goal
 }
 
+// roomGoalCollaborationBindingIsCurrent is the fail-closed admission check for
+// durable Room collaboration work. Attribution survives longer than one
+// process and can therefore outlive a pause, terminal transition, or objective
+// retarget. Every wake/recovery boundary must re-read the canonical Goal before
+// turning that old fact into a new Agent round.
+func (s *Service) roomGoalCollaborationBindingIsCurrent(
+	ctx context.Context,
+	conversationID string,
+	binding *protocol.GoalCollaborationBinding,
+) (bool, error) {
+	binding = protocol.NormalizeGoalCollaborationBinding(binding)
+	if binding == nil {
+		return true, nil
+	}
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		return false, errors.New("conversation_id is required for Goal collaboration admission")
+	}
+	provider, ok := s.goals.(currentGoalProvider)
+	if !ok {
+		return false, errors.New("current Goal provider is required for Goal collaboration admission")
+	}
+	goal, err := provider.CurrentOptional(
+		ctx,
+		protocol.BuildRoomSharedSessionKey(conversationID),
+	)
+	if err != nil {
+		return false, fmt.Errorf("read current Room Goal for collaboration admission: %w", err)
+	}
+	return roomGoalCollaborationBindingMatchesGoal(goal, binding), nil
+}
+
+func roomGoalCollaborationBindingMatchesGoal(
+	goal *protocol.Goal,
+	binding *protocol.GoalCollaborationBinding,
+) bool {
+	binding = protocol.NormalizeGoalCollaborationBinding(binding)
+	return goal != nil && binding != nil &&
+		protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusActive &&
+		!goalsvc.GoalObjectiveTransitionPending(*goal) &&
+		strings.TrimSpace(goal.ID) == binding.GoalID &&
+		goal.ObjectiveRevision() == binding.ObjectiveRevision
+}
+
 func (s *Service) dispatchPostRoundWork(ctx context.Context, roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
@@ -319,12 +417,182 @@ func (s *Service) dispatchPostRoundWork(ctx context.Context, roundValue *activeR
 		return
 	}
 	if !roomRoundHasGoalAuthority(roundValue) {
+		if !s.reconcileRoomGoalCollaborationRound(ctx, roundValue) {
+			return
+		}
+	}
+	if roomRoundHasPendingGoalCollaboration(roundValue) {
 		return
 	}
 	if s.ShouldDeferGoalContinuation(ctx, roundValue.SessionKey) {
 		return
 	}
 	s.dispatchGoalContinuation(ctx, roundValue)
+}
+
+func roomRoundHasPendingGoalCollaboration(roundValue *activeRoomRound) bool {
+	if roundValue == nil {
+		return false
+	}
+	for _, slot := range roundValue.Slots {
+		if slot != nil && slot.hasPendingGoalCollaboration() {
+			return true
+		}
+	}
+	return false
+}
+
+// reconcileRoomGoalCollaborationRound reconnects one completed raw handoff to
+// its exact active Goal. The target round stays unbound: this path never grants
+// MCP Goal mutation authority and only a later continuation can mutate the
+// Goal. Error/no-reply terminal rounds still return control to that
+// continuation; handback only clears stale empty-progress suppression and
+// preserves continuation limits. Only public substantive output satisfies
+// Room collaboration evidence.
+func (s *Service) reconcileRoomGoalCollaborationRound(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+) bool {
+	if s == nil || s.goals == nil || roundValue == nil ||
+		!protocol.IsRoomSharedSessionKey(roundValue.SessionKey) {
+		return false
+	}
+	var binding *protocol.GoalCollaborationBinding
+	for _, slot := range roundValue.Slots {
+		candidate := slot.goalCollaborationBinding()
+		if candidate == nil {
+			continue
+		}
+		if binding != nil && *binding != *candidate {
+			return false
+		}
+		binding = candidate
+	}
+	if binding == nil {
+		return false
+	}
+	goal := s.currentRoomGoalForSession(ctx, roundValue.SessionKey)
+	if goal == nil || strings.TrimSpace(goal.ID) != binding.GoalID ||
+		goal.ObjectiveRevision() != binding.ObjectiveRevision {
+		s.markRoomGoalCollaborationRoundHandbackSettled(roundValue, binding)
+		return false
+	}
+	s.releaseActiveGoalCollaborationSources(roundValue, binding)
+	for _, slot := range roundValue.Slots {
+		if slot == nil || !slot.isTerminal() {
+			continue
+		}
+		candidate := slot.goalCollaborationBinding()
+		if candidate == nil || *candidate != *binding {
+			continue
+		}
+		lastAssistant := slot.lastGoalAssistantMessage()
+		if roomdomain.IsNoReplyAssistantMessage(lastAssistant) ||
+			strings.TrimSpace(messageutil.ExtractAssistantDisplayText(lastAssistant)) == "" {
+			continue
+		}
+		if slot.getStatus() == "finished" && roomSlotPublishesPublicOutput(slot) {
+			if _, err := s.goals.RecordRoomGoalCollaborationEvidence(
+				ctx,
+				binding.GoalID,
+				slot.AgentRoundID,
+				slot.AgentID,
+				binding.ObjectiveRevision,
+			); err != nil && !goalsvc.IsExpectedMutationError(err) {
+				s.loggerFor(ctx).Warn(
+					"记录 Room Goal handoff 协作证据失败",
+					"session_key", roundValue.SessionKey,
+					"goal_id", binding.GoalID,
+					"round_id", slot.AgentRoundID,
+					"agent_id", slot.AgentID,
+					"err", err,
+				)
+			}
+		}
+	}
+	if _, err := s.goals.RecordRoomGoalCollaborationHandback(
+		ctx,
+		binding.GoalID,
+		roundValue.RoundID,
+		binding.ObjectiveRevision,
+	); err != nil {
+		if !goalsvc.IsExpectedMutationError(err) {
+			s.loggerFor(ctx).Warn(
+				"恢复 Room Goal handoff 后续跑失败",
+				"session_key", roundValue.SessionKey,
+				"goal_id", binding.GoalID,
+				"round_id", roundValue.RoundID,
+				"err", err,
+			)
+		}
+		return false
+	}
+	s.markRoomGoalCollaborationRoundHandbackSettled(roundValue, binding)
+	return true
+}
+
+func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
+	roundValue *activeRoomRound,
+	binding *protocol.GoalCollaborationBinding,
+) {
+	if s == nil || s.publicHandoffs == nil || roundValue == nil ||
+		protocol.NormalizeGoalCollaborationBinding(binding) == nil {
+		return
+	}
+	for _, slot := range roundValue.Slots {
+		if slot == nil {
+			continue
+		}
+		candidate := slot.goalCollaborationBinding()
+		if candidate == nil || *candidate != *binding {
+			continue
+		}
+		handoffID := strings.TrimSpace(slot.handoffID())
+		if handoffID == "" {
+			continue
+		}
+		if err := s.publicHandoffs.MarkGoalHandbackSettled(
+			roundValue.OwnerUserID,
+			roundValue.ConversationID,
+			handoffID,
+		); err != nil {
+			s.loggerFor(context.Background()).Warn(
+				"记录 Room Goal handback 收口失败",
+				"conversation_id", roundValue.ConversationID,
+				"handoff_id", handoffID,
+				"err", err,
+			)
+		}
+	}
+}
+
+// releaseActiveGoalCollaborationSources closes the in-memory source barrier
+// for this exact root/revision. If the source is still running, its own
+// post-round path will continue later; if it already ended, this target round
+// becomes the continuation trigger.
+func (s *Service) releaseActiveGoalCollaborationSources(
+	roundValue *activeRoomRound,
+	binding *protocol.GoalCollaborationBinding,
+) {
+	if s == nil || roundValue == nil || binding == nil {
+		return
+	}
+	rootRoundID := roomRootRoundID(roundValue)
+	for _, candidateRound := range s.rounds.snapshotConversation(roundValue.ConversationID) {
+		if candidateRound == nil || candidateRound == roundValue ||
+			roomRootRoundID(candidateRound) != rootRoundID {
+			continue
+		}
+		for _, slot := range candidateRound.Slots {
+			if slot == nil || !slot.hasPendingGoalCollaboration() {
+				continue
+			}
+			candidate := goalCollaborationBindingForSlot(candidateRound, slot)
+			if candidate != nil && *candidate == *binding {
+				slot.clearPendingGoalCollaboration()
+			}
+		}
+	}
 }
 
 func roomRoundHasGoalAuthority(roundValue *activeRoomRound) bool {

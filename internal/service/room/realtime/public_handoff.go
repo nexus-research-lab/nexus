@@ -1,17 +1,23 @@
-// INPUT: Room 最终 assistant 公区消息、成员目录与 source slot 身份。
-// OUTPUT: 带 agent_mentions 标注的消息，以及保留 owner/root scope、可幂等恢复的 handoff ledger 记录。
-// POS: @ 解析、正文 span 与 handoff identity 的单一收口。
+// INPUT: Room 最终 assistant 公区消息、Goal-attributed directed wake、成员目录与 source slot 身份。
+// OUTPUT: 带 agent_mentions 标注的消息，以及保留 owner/root scope、路由来源且可幂等恢复的 handoff ledger 记录。
+// POS: @ 解析、directed wake 与 handoff identity 的单一持久恢复边界。
 package realtime
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"strings"
 )
@@ -209,7 +215,12 @@ func (s *Service) detectRoomMentionHandoffs(
 			SourceAgentID:      strings.TrimSpace(slot.AgentID),
 			TargetAgentID:      strings.TrimSpace(mention.AgentID),
 			Content:            content,
-			HopIndex:           roundValue.HopIndex,
+			QueueSource:        protocol.InputQueueSourceAgentPublicMention,
+			GoalCollaborationBinding: goalCollaborationBindingForSlot(
+				roundValue,
+				slot,
+			),
+			HopIndex: roundValue.HopIndex,
 		})
 		if err != nil {
 			return err
@@ -295,6 +306,21 @@ func roomPublicHandoffID(conversationID string, sourceMessageID string, targetAg
 	return "rh_" + hex.EncodeToString(digest[:12])
 }
 
+func roomDirectedGoalHandoffID(
+	conversationID string,
+	sourceMessageID string,
+	targetAgentID string,
+) string {
+	seed := fmt.Sprintf(
+		"directed_goal\x00%s\x00%s\x00%s",
+		strings.TrimSpace(conversationID),
+		strings.TrimSpace(sourceMessageID),
+		strings.TrimSpace(targetAgentID),
+	)
+	digest := sha256.Sum256([]byte(seed))
+	return "rh_" + hex.EncodeToString(digest[:12])
+}
+
 func (s *Service) markPublicHandoffTerminal(
 	ctx context.Context,
 	roundValue *activeRoomRound,
@@ -308,11 +334,17 @@ func (s *Service) markPublicHandoffTerminal(
 	if handoffID == "" {
 		return
 	}
-	if err := s.publicHandoffs.MarkTerminal(
+	lastAssistant := slot.lastGoalAssistantMessage()
+	hasSubstantiveOutput := !roomdomain.IsNoReplyAssistantMessage(lastAssistant) &&
+		strings.TrimSpace(messageutil.ExtractAssistantDisplayText(lastAssistant)) != ""
+	if err := s.publicHandoffs.MarkTerminalWithGoalOutcome(
 		roundValue.OwnerUserID,
 		roundValue.ConversationID,
 		handoffID,
 		status,
+		slot.AgentRoundID,
+		hasSubstantiveOutput,
+		roomSlotPublishesPublicOutput(slot),
 	); err != nil {
 		s.loggerFor(ctx).Warn("记录 Room handoff 终态失败", "handoff_id", handoffID, "status", status, "err", err)
 	}
@@ -341,10 +373,18 @@ func (s *Service) markRoomQueueHandoffTerminal(
 	conversationID string,
 	item protocol.InputQueueItem,
 ) error {
+	return s.markRoomQueueHandoffTerminalStatus(conversationID, item, "finished")
+}
+
+func (s *Service) markRoomQueueHandoffTerminalStatus(
+	conversationID string,
+	item protocol.InputQueueItem,
+	status string,
+) error {
 	if s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
 		return nil
 	}
-	return s.publicHandoffs.MarkTerminal(item.OwnerUserID, conversationID, item.HandoffID, "finished")
+	return s.publicHandoffs.MarkTerminal(item.OwnerUserID, conversationID, item.HandoffID, status)
 }
 
 // cancelRootPublicHandoffs 把 root 取消传播到 ledger 与尚未派发的 queue item。
@@ -392,7 +432,9 @@ func (s *Service) cancelRootPublicHandoffs(
 	}
 	changed := false
 	for _, entry := range entries {
-		if entry.Item.Source != protocol.InputQueueSourceAgentPublicMention {
+		goalDirected := entry.Item.Source == protocol.InputQueueSourceAgentRoomMessage &&
+			protocol.NormalizeGoalCollaborationBinding(entry.Item.GoalCollaborationBinding) != nil
+		if entry.Item.Source != protocol.InputQueueSourceAgentPublicMention && !goalDirected {
 			continue
 		}
 		if _, ok := cancelledIDs[strings.TrimSpace(entry.Item.HandoffID)]; !ok {
@@ -411,13 +453,19 @@ func (s *Service) cancelRootPublicHandoffs(
 	}
 }
 
-// INPUT: 进程启动时 handoff ledger 中尚未完成的 source_finished 记录。
+// INPUT: 进程启动时 directed-message 与 handoff ledger 中尚未完成的恢复事实。
 // OUTPUT: 重新进入统一 busy/idle 派发路径的 target wake。
-// POS: Room 公区协作的 durable recovery 边界。
-// StartPublicHandoffReconciler 恢复进程退出前已确认 source 成功但尚未启动的 handoff。
+// POS: Room 公区、structured Execution 与 Goal-directed 协作的 durable recovery 边界。
+// StartPublicHandoffReconciler 修补两阶段写入并恢复已确认 source 但尚未收口的 handoff。
 func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), error) {
 	if s == nil || s.publicHandoffs == nil || s.rooms == nil {
 		return nil, nil
+	}
+	if err := s.repairGoalDirectedMessageHandoffs(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.repairLegacyRoomGoalHandoffAttribution(ctx); err != nil {
+		return nil, err
 	}
 	pending, err := s.publicHandoffs.PendingAll()
 	if err != nil {
@@ -425,7 +473,7 @@ func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), err
 	}
 	for _, handoff := range pending {
 		if err := s.reconcilePublicHandoff(ctx, handoff); err != nil {
-			s.loggerFor(ctx).Warn("恢复 Room 公区 handoff 失败",
+			s.loggerFor(ctx).Warn("恢复 Room handoff 失败",
 				"conversation_id", handoff.ConversationID,
 				"handoff_id", handoff.HandoffID,
 				"err", err,
@@ -435,10 +483,223 @@ func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), err
 	return nil, nil
 }
 
+// repairLegacyRoomGoalHandoffAttribution repairs the bounded upgrade gap from
+// builds that persisted Room handoff roots before exact Goal attribution was
+// added. It never inspects model prose. A root is eligible only when the
+// current active Goal's latest non-usage audit event is the source Agent
+// round's continuation_suppressed event, the root is fully terminal, and a
+// non-lead terminal participant has a public substantive result in canonical
+// Room history.
+func (s *Service) repairLegacyRoomGoalHandoffAttribution(ctx context.Context) error {
+	if s == nil || s.publicHandoffs == nil || s.roomHistory == nil || s.goals == nil {
+		return nil
+	}
+	events, ok := s.goals.(goalEventProvider)
+	if !ok {
+		return nil
+	}
+	roots, err := s.publicHandoffs.LegacyUnattributedTerminalRootsAll()
+	if err != nil {
+		return err
+	}
+	for _, root := range roots {
+		if len(root) == 0 {
+			continue
+		}
+		head := root[0]
+		sessionKey := protocol.BuildRoomSharedSessionKey(head.ConversationID)
+		goal := s.currentRoomGoalForSession(ctx, sessionKey)
+		if goal == nil || goal.EmptyProgressCount <= 0 || goalsvc.RoomCollaborationObserved(*goal) {
+			continue
+		}
+		goalEvents, eventErr := events.Events(ctx, goal.ID, 200)
+		if eventErr != nil {
+			return eventErr
+		}
+		latest := latestRoomGoalStateEvent(goalEvents)
+		if latest == nil || latest.EventType != "continuation_suppressed" ||
+			!legacyHandoffRootMatchesSuppressedEvent(root, *latest) {
+			continue
+		}
+		messages, historyErr := s.roomHistory.ReadMessages(
+			head.OwnerUserID,
+			head.ConversationID,
+			nil,
+		)
+		if historyErr != nil {
+			return historyErr
+		}
+		evidenceAgentID, evidenceAgentRoundID := legacyHandoffRootPublicEvidence(
+			root,
+			messages,
+			goalsvc.RoomLeadAgentID(*goal),
+		)
+		if evidenceAgentID == "" || evidenceAgentRoundID == "" {
+			continue
+		}
+		if err := s.publicHandoffs.BindLegacyTerminalRootToGoal(
+			head.OwnerUserID,
+			head.ConversationID,
+			head.RootRoundID,
+			protocol.GoalCollaborationBinding{
+				GoalID:            goal.ID,
+				ObjectiveRevision: goal.ObjectiveRevision(),
+			},
+			evidenceAgentID,
+			evidenceAgentRoundID,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func latestRoomGoalStateEvent(events []protocol.GoalEvent) *protocol.GoalEvent {
+	var latest *protocol.GoalEvent
+	for index := range events {
+		candidate := &events[index]
+		if candidate.EventType == "usage_recorded" {
+			continue
+		}
+		if latest == nil || candidate.CreatedAt.After(latest.CreatedAt) ||
+			(candidate.CreatedAt.Equal(latest.CreatedAt) && candidate.ID > latest.ID) {
+			latest = candidate
+		}
+	}
+	return latest
+}
+
+func legacyHandoffRootMatchesSuppressedEvent(
+	root []workspacestore.RoomPublicHandoff,
+	event protocol.GoalEvent,
+) bool {
+	if len(root) == 0 || event.EventType != "continuation_suppressed" ||
+		strings.TrimSpace(event.RoundID) == "" {
+		return false
+	}
+	for _, handoff := range root {
+		if strings.TrimSpace(handoff.SourceAgentRoundID) == strings.TrimSpace(event.RoundID) {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyHandoffRootPublicEvidence(
+	root []workspacestore.RoomPublicHandoff,
+	messages []protocol.Message,
+	leadAgentID string,
+) (string, string) {
+	if len(root) == 0 {
+		return "", ""
+	}
+	leadAgentID = strings.TrimSpace(leadAgentID)
+	rootRoundID := strings.TrimSpace(root[0].RootRoundID)
+	targets := make(map[string]struct{})
+	for _, handoff := range root {
+		targetID := strings.TrimSpace(handoff.TargetAgentID)
+		if targetID != "" && targetID != leadAgentID && handoff.Status == "finished" {
+			targets[targetID] = struct{}{}
+		}
+	}
+	for index := len(messages) - 1; index >= 0; index-- {
+		message := messages[index]
+		if strings.TrimSpace(anyString(message["round_id"])) != rootRoundID {
+			continue
+		}
+		agentID := strings.TrimSpace(anyString(message["agent_id"]))
+		if _, ok := targets[agentID]; !ok {
+			continue
+		}
+		if !roomdomain.IsFinalPublicAssistantMessage(message) ||
+			roomdomain.IsNoReplyAssistantMessage(message) ||
+			strings.TrimSpace(roomdomain.ExtractAssistantResultText(message)) == "" {
+			continue
+		}
+		agentRoundID := strings.TrimSpace(anyString(message["agent_round_id"]))
+		if agentRoundID != "" {
+			return agentID, agentRoundID
+		}
+	}
+	return "", ""
+}
+
+// repairGoalDirectedMessageHandoffs closes the append-only two-store window in
+// which the private message reached disk but the matching handoff Detect did
+// not. Only the exact active Goal revision can be repaired; stale or terminal
+// Goal facts stay inert and never recreate collaborator work.
+func (s *Service) repairGoalDirectedMessageHandoffs(ctx context.Context) error {
+	if s == nil || s.directedMessages == nil || s.publicHandoffs == nil || s.rooms == nil {
+		return nil
+	}
+	records, err := s.directedMessages.GoalCollaborationMessagesAll()
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		message := record.Message
+		binding := protocol.NormalizeGoalCollaborationBinding(
+			message.GoalCollaborationBinding,
+		)
+		if binding == nil {
+			continue
+		}
+		contextValue, contextErr := s.rooms.GetConversationContextForSystem(
+			ctx,
+			message.ConversationID,
+		)
+		if contextErr != nil {
+			if errors.Is(contextErr, roomsvc.ErrRoomNotFound) ||
+				errors.Is(contextErr, roomsvc.ErrConversationNotFound) {
+				continue
+			}
+			return contextErr
+		}
+		if contextValue == nil {
+			continue
+		}
+		ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
+		if ownerUserID == "" ||
+			(record.OwnerUserID != "" && ownerUserID != strings.TrimSpace(record.OwnerUserID)) ||
+			appfs.UserPathSegment(ownerUserID) != strings.TrimSpace(record.OwnerPathSegment) ||
+			strings.TrimSpace(contextValue.Room.ID) != strings.TrimSpace(message.RoomID) {
+			continue
+		}
+		repairCtx := contextWithExactQueueOwner(ctx, ownerUserID)
+		goal := s.currentRoomGoalForSession(
+			repairCtx,
+			protocol.BuildRoomSharedSessionKey(message.ConversationID),
+		)
+		if goal == nil || strings.TrimSpace(goal.ID) != binding.GoalID ||
+			goal.ObjectiveRevision() != binding.ObjectiveRevision {
+			continue
+		}
+		if err := s.ensureGoalDirectedMessageHandoffs(
+			contextValue,
+			message,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspacestore.RoomPublicHandoff) error {
 	conversationID := strings.TrimSpace(handoff.ConversationID)
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil {
+		if errors.Is(err, roomsvc.ErrRoomNotFound) ||
+			errors.Is(err, roomsvc.ErrConversationNotFound) {
+			if markErr := s.publicHandoffs.MarkTerminal(
+				handoff.OwnerUserID,
+				conversationID,
+				handoff.HandoffID,
+				"interrupted",
+			); markErr != nil {
+				return markErr
+			}
+			return s.settleDiscardedGoalHandoff(handoff.OwnerUserID, conversationID, handoff)
+		}
 		return err
 	}
 	if contextValue == nil {
@@ -446,12 +707,50 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 	}
 	ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
 	if !roomdomain.IsMemberAgent(contextValue.Members, handoff.TargetAgentID) {
-		return s.publicHandoffs.MarkTerminal(
+		if err := s.publicHandoffs.MarkTerminal(
 			contextValue.Room.OwnerUserID,
 			conversationID,
 			handoff.HandoffID,
 			"error",
+		); err != nil {
+			return err
+		}
+		return s.settleDiscardedGoalHandoff(ownerUserID, conversationID, handoff)
+	}
+	if binding := protocol.NormalizeGoalCollaborationBinding(
+		handoff.GoalCollaborationBinding,
+	); binding != nil {
+		current, currentErr := s.roomGoalCollaborationBindingIsCurrent(
+			ctx,
+			conversationID,
+			binding,
 		)
+		if currentErr != nil {
+			return currentErr
+		}
+		if !current {
+			if err := s.deletePublicHandoffQueueItems(ctx, contextValue, handoff); err != nil {
+				return err
+			}
+			if err := s.publicHandoffs.MarkTerminal(
+				ownerUserID,
+				conversationID,
+				handoff.HandoffID,
+				"interrupted",
+			); err != nil {
+				return err
+			}
+			return s.settleDiscardedGoalHandoff(ownerUserID, conversationID, handoff)
+		}
+		if roomPublicHandoffIsTerminal(handoff.Status) {
+			return s.reconcileTerminalRoomGoalHandoff(
+				ctx,
+				ownerUserID,
+				conversationID,
+				handoff,
+				binding,
+			)
+		}
 	}
 	if handoff.Status == "queued" {
 		present, queueErr := s.publicHandoffQueueItemPresent(ctx, contextValue, handoff)
@@ -489,13 +788,27 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		}
 		handoff.Status = "source_finished"
 	}
+	if handoff.Status == "claimed" {
+		// PendingAll is a process-start scan: a claim from the prior process has
+		// no live owner even when its wall-clock TTL has not elapsed.
+		if err := s.publicHandoffs.ReleaseClaim(
+			contextValue.Room.OwnerUserID,
+			conversationID,
+			handoff.HandoffID,
+		); err != nil {
+			return err
+		}
+		handoff.Status = "source_finished"
+	}
 	if handoff.Status == "started" &&
-		(handoff.WorkBinding != nil || handoff.ReviewBinding != nil) {
+		(handoff.WorkBinding != nil || handoff.ReviewBinding != nil ||
+			protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding) != nil) {
 		// A process crash can happen after the target round is registered but
-		// before its runtime query activates the bound Attempt. Re-open only
-		// structured Execution handoffs; the exact binding keeps admission
+		// before its runtime query reaches a terminal result. Re-open only
+		// handoffs carrying a structured Execution binding or exact Goal
+		// collaboration attribution; the durable identity keeps admission
 		// idempotent and stale-safe.
-		if err := s.publicHandoffs.MarkSourceFinished(
+		if err := s.publicHandoffs.ReopenStartedForRecovery(
 			contextValue.Room.OwnerUserID,
 			conversationID,
 			handoff.HandoffID,
@@ -505,6 +818,14 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		handoff.Status = "source_finished"
 	}
 	if handoff.Status == "detected" {
+		if handoff.QueueSource == protocol.InputQueueSourceAgentRoomMessage &&
+			protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding) != nil {
+			return s.recoverGoalDirectedMessageHandoff(
+				ctx,
+				contextValue,
+				handoff,
+			)
+		}
 		if s.roomHistory == nil {
 			return nil
 		}
@@ -558,7 +879,12 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		Slots:              make(map[string]*activeRoomSlot),
 	}
 	triggerType := "public_mention"
-	queueSource := protocol.InputQueueSourceAgentPublicMention
+	queueSource := protocol.NormalizeInputQueueSource(string(handoff.QueueSource))
+	if queueSource == protocol.InputQueueSourceAgentRoomMessage {
+		triggerType = roomDirectedMessageTriggerType
+	} else {
+		queueSource = protocol.InputQueueSourceAgentPublicMention
+	}
 	if handoff.WorkBinding != nil {
 		triggerType = "execution_dispatch"
 		queueSource = protocol.InputQueueSourceAgentRoomMessage
@@ -575,6 +901,9 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		Content:       handoff.Content,
 		MessageID:     handoff.SourceMessageID,
 		ReplyRoute:    handoff.ReplyRoute,
+		GoalCollaborationBinding: cloneGoalCollaborationBinding(
+			handoff.GoalCollaborationBinding,
+		),
 		WorkBinding:   cloneExecutionWorkBinding(handoff.WorkBinding),
 		ReviewBinding: cloneExecutionReviewBinding(handoff.ReviewBinding),
 	}
@@ -588,6 +917,138 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		parentRound,
 		[]publicMentionWake{wake},
 		false,
+	)
+}
+
+func (s *Service) settleDiscardedGoalHandoff(
+	ownerUserID string,
+	conversationID string,
+	handoff workspacestore.RoomPublicHandoff,
+) error {
+	if protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding) == nil {
+		return nil
+	}
+	return s.publicHandoffs.MarkGoalHandbackSettled(
+		ownerUserID,
+		conversationID,
+		handoff.HandoffID,
+	)
+}
+
+func (s *Service) reconcileTerminalRoomGoalHandoff(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	handoff workspacestore.RoomPublicHandoff,
+	binding *protocol.GoalCollaborationBinding,
+) error {
+	if s == nil || s.goals == nil || binding == nil {
+		return errors.New("Goal provider is required for Room collaboration handback recovery")
+	}
+	if handoff.GoalPublicEvidence {
+		roundID := firstNonEmptyString(
+			handoff.TargetAgentRoundID,
+			handoff.TargetRoundID,
+			handoff.HandoffID,
+		)
+		if _, err := s.goals.RecordRoomGoalCollaborationEvidence(
+			ctx,
+			binding.GoalID,
+			roundID,
+			handoff.TargetAgentID,
+			binding.ObjectiveRevision,
+		); err != nil && !goalsvc.IsExpectedMutationError(err) {
+			return err
+		}
+	}
+	handbackRoundID := firstNonEmptyString(
+		handoff.TargetRoundID,
+		handoff.TargetAgentRoundID,
+		handoff.HandoffID,
+	)
+	if _, err := s.goals.RecordRoomGoalCollaborationHandback(
+		ctx,
+		binding.GoalID,
+		handbackRoundID,
+		binding.ObjectiveRevision,
+	); err != nil {
+		if goalsvc.IsExpectedMutationError(err) {
+			return s.settleDiscardedGoalHandoff(ownerUserID, conversationID, handoff)
+		}
+		return err
+	}
+	return s.publicHandoffs.MarkGoalHandbackSettled(
+		ownerUserID,
+		conversationID,
+		handoff.HandoffID,
+	)
+}
+
+func (s *Service) recoverGoalDirectedMessageHandoff(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	handoff workspacestore.RoomPublicHandoff,
+) error {
+	if s == nil || contextValue == nil || s.directedMessages == nil {
+		return nil
+	}
+	messages, err := s.directedMessages.ReadMessages(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+	)
+	if err != nil {
+		return err
+	}
+	var source *protocol.RoomDirectedMessageRecord
+	for index := range messages {
+		if strings.TrimSpace(messages[index].MessageID) ==
+			strings.TrimSpace(handoff.SourceMessageID) {
+			source = &messages[index]
+			break
+		}
+	}
+	if source == nil {
+		// Detect follows the directed-message append. A missing source means the
+		// ledger is incomplete or forged; keep the exact Goal fence closed.
+		return nil
+	}
+	if source.WakePolicy == protocol.RoomWakePolicyDelayed {
+		if s.directedWakes == nil {
+			return nil
+		}
+		pending, pendingErr := s.directedWakes.Pending(
+			contextValue.Room.OwnerUserID,
+		)
+		if pendingErr != nil {
+			return pendingErr
+		}
+		for _, wake := range pending {
+			if strings.TrimSpace(wake.WakeID) == strings.TrimSpace(source.MessageID) {
+				return nil
+			}
+		}
+		dueAt := source.Timestamp + int64(time.Duration(source.DelaySeconds)*time.Second/time.Millisecond)
+		wake := workspacestore.RoomDirectedMessageWake{
+			WakeID:      strings.TrimSpace(source.MessageID),
+			OwnerUserID: contextValue.Room.OwnerUserID,
+			Message:     *source,
+			DueAt:       dueAt,
+			CreatedAt:   source.Timestamp,
+		}
+		if err := s.directedWakes.Schedule(wake); err != nil {
+			return err
+		}
+		delay := time.Until(time.UnixMilli(dueAt))
+		if delay < 0 {
+			delay = 0
+		}
+		s.schedulePersistedRoomDirectedWake(wake, delay)
+		return nil
+	}
+	return s.runPersistedImmediateRoomDirectedMessageWake(
+		contextWithExactQueueOwner(ctx, contextValue.Room.OwnerUserID),
+		contextValue,
+		*source,
 	)
 }
 
@@ -612,13 +1073,15 @@ func (s *Service) publicHandoffQueueItemPresent(
 		return false, err
 	}
 	structured := handoff.WorkBinding != nil || handoff.ReviewBinding != nil
+	goalDirected := handoff.QueueSource == protocol.InputQueueSourceAgentRoomMessage &&
+		protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding) != nil
 	present := false
 	for _, item := range items {
 		if strings.TrimSpace(item.HandoffID) != strings.TrimSpace(handoff.HandoffID) &&
 			(strings.TrimSpace(handoff.QueueItemID) == "" || item.ID != handoff.QueueItemID) {
 			continue
 		}
-		if !structured || inputQueueItemMatchesStructuredHandoff(item, handoff) {
+		if (!structured && !goalDirected) || inputQueueItemMatchesDurableHandoff(item, handoff) {
 			present = true
 			continue
 		}
@@ -632,7 +1095,43 @@ func (s *Service) publicHandoffQueueItemPresent(
 	return present, nil
 }
 
-func inputQueueItemMatchesStructuredHandoff(
+// deletePublicHandoffQueueItems removes only rows owned by one durable
+// handoff identity. It is used when a Goal revision fence rejects startup
+// recovery, so stale collaboration cannot remain parked in a busy Agent's
+// queue and later reappear after another restart.
+func (s *Service) deletePublicHandoffQueueItems(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	handoff workspacestore.RoomPublicHandoff,
+) error {
+	if s.inputQueue == nil || contextValue == nil {
+		return nil
+	}
+	locations, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
+	if err != nil {
+		return err
+	}
+	location, ok := locations[strings.TrimSpace(handoff.TargetAgentID)]
+	if !ok {
+		return nil
+	}
+	items, err := s.inputQueue.Snapshot(location.Location)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if strings.TrimSpace(item.HandoffID) != strings.TrimSpace(handoff.HandoffID) &&
+			(strings.TrimSpace(handoff.QueueItemID) == "" || item.ID != handoff.QueueItemID) {
+			continue
+		}
+		if _, err = s.inputQueue.Delete(location.Location, item.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func inputQueueItemMatchesDurableHandoff(
 	item protocol.InputQueueItem,
 	handoff workspacestore.RoomPublicHandoff,
 ) bool {
@@ -655,12 +1154,22 @@ func inputQueueItemMatchesStructuredHandoff(
 		!reflect.DeepEqual(item.ReplyRoute, handoff.ReplyRoute) {
 		return false
 	}
+	if candidate := protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding); candidate == nil {
+		if protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding) != nil {
+			return false
+		}
+	} else if expected := protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding); expected == nil || *candidate != *expected {
+		return false
+	}
 	if handoff.WorkBinding != nil {
 		return item.ReviewBinding == nil &&
 			executionWorkBindingEqual(item.WorkBinding, handoff.WorkBinding)
 	}
-	return item.WorkBinding == nil &&
-		executionReviewBindingEqual(item.ReviewBinding, handoff.ReviewBinding)
+	if handoff.ReviewBinding != nil {
+		return item.WorkBinding == nil &&
+			executionReviewBindingEqual(item.ReviewBinding, handoff.ReviewBinding)
+	}
+	return item.WorkBinding == nil && item.ReviewBinding == nil
 }
 
 func roomHistoryContainsMessage(messages []protocol.Message, messageID string) bool {

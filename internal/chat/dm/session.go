@@ -1,7 +1,11 @@
+// INPUT: Room SQL session index and its Agent workspace runtime projection.
+// OUTPUT: One Room-backed Session whose database and workspace fields keep their declared ownership.
+// POS: DM domain merge boundary shared by chat execution and the public Session read model.
 package dm
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -11,9 +15,21 @@ import (
 func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Session) protocol.Session {
 	merged := roomSession
 	merged.ConfigurationVersion = current.ConfigurationVersion
+	if current.MessageCount > merged.MessageCount {
+		merged.MessageCount = current.MessageCount
+	}
+	if current.LastActivity.After(merged.LastActivity) {
+		merged.LastActivity = current.LastActivity
+	}
 	if strings.TrimSpace(StringPointerValue(merged.SessionID)) == "" && current.SessionID != nil {
 		merged.SessionID = current.SessionID
 	}
+	merged.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+		roomSession.TranscriptSessionIDs,
+		protocol.SessionTranscriptIDs(roomSession),
+		current.TranscriptSessionIDs,
+		protocol.SessionTranscriptIDs(current),
+	)
 	if current.ContextUsage != nil {
 		usage := *current.ContextUsage
 		merged.ContextUsage = &usage
@@ -48,6 +64,9 @@ func SessionsEqual(left protocol.Session, right protocol.Session) bool {
 		left.ChatType == right.ChatType &&
 		left.Status == right.Status &&
 		left.Title == right.Title &&
+		left.LastActivity.Equal(right.LastActivity) &&
+		left.MessageCount == right.MessageCount &&
+		slices.Equal(left.TranscriptSessionIDs, right.TranscriptSessionIDs) &&
 		reflect.DeepEqual(left.ContextUsage, right.ContextUsage) &&
 		reflect.DeepEqual(left.Options, right.Options)
 }

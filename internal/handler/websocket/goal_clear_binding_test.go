@@ -27,6 +27,14 @@ func (r *websocketClearGoalRepository) CreateGoal(context.Context, protocol.Goal
 	return nil, nil
 }
 
+func (r *websocketClearGoalRepository) CreateGoalWithEvent(
+	context.Context,
+	protocol.Goal,
+	protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	return nil, nil
+}
+
 func (r *websocketClearGoalRepository) GetGoal(_ context.Context, goalID string) (*protocol.Goal, error) {
 	if r.item == nil || r.item.ID != goalID {
 		return nil, nil
@@ -47,11 +55,24 @@ func (*websocketClearGoalRepository) ListGoals(context.Context) ([]protocol.Goal
 	return nil, nil
 }
 
+func (*websocketClearGoalRepository) ListCurrentGoals(context.Context) ([]protocol.Goal, error) {
+	return nil, nil
+}
+
 func (*websocketClearGoalRepository) ListRunnableGoals(context.Context, int) ([]protocol.Goal, error) {
 	return nil, nil
 }
 
 func (*websocketClearGoalRepository) UpdateGoal(context.Context, protocol.Goal, int64) (*protocol.Goal, error) {
+	return nil, nil
+}
+
+func (*websocketClearGoalRepository) UpdateGoalWithEvents(
+	context.Context,
+	protocol.Goal,
+	int64,
+	[]protocol.GoalEvent,
+) (*protocol.Goal, error) {
 	return nil, nil
 }
 

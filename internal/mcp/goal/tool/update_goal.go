@@ -17,8 +17,8 @@ type updateGoalInput struct {
 	Status string `json:"status"`
 }
 
-const updateGoalDescription = "Update the existing goal.\n" +
-	"Use it only to mark the Goal complete or blocked; objective correction uses retarget_goal, and pause, resume, budget and usage states belong to the user or system.\n" +
+const updateGoalDescription = "Update the terminal status of an existing current Goal. Never use this tool to create, set, or change a Goal objective.\n" +
+	"Use it only to mark the Goal complete or blocked; when explicit Goal intent exists but get_goal returns no current Goal, create_goal is the only creation path. Objective correction of an existing Goal uses retarget_goal, and pause, resume, budget and usage states belong to the user or system.\n" +
 	"Complete requires the objective to be achieved with no required work remaining. Only a Goal whose managed WorkGraph binding is confirmed also requires an aligned Objective Alignment report for the current revision and round, plus backend WorkGraph readiness; Goal-only and reserved Goals do not. Room readiness remains independently enforced.\n" +
 	"Model policy permits blocked only after the same concrete blocker has persisted for at least three consecutive Goal turns with no meaningful progress possible without user input or external change; the backend authorizes identity and revision but does not infer that history from this status-only call. A shared Room Goal may be updated only by its assigned lead."
 
@@ -63,7 +63,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 
 func updateGoalCurrentErrorResult(err error) sdktool.ToolResult {
 	if isGoalNotFoundError(err) {
-		return errorResultText("cannot update goal because this thread has no goal")
+		return errorResultText("cannot update goal because this thread has no current goal; do not retry update_goal—if the user explicitly requested a new Goal and its objective is execution-ready, use create_goal")
 	}
 	return errorResult(err)
 }

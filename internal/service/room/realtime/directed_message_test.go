@@ -129,6 +129,60 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceDirectedMessageCommandRetryIsIdempotent(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID: "user-room-directed-retry", Username: "owner", Role: authsvc.RoleOwner,
+	})
+	source := createTestAgent(t, agentService, ctx, "Source")
+	target := createTestAgent(t, agentService, ctx, "Target")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{source.AgentID, target.AgentID}, Name: "幂等 Room",
+		PrivateMessagesEnabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := realtimesvc.NewService(
+		cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext(),
+	)
+	broadcaster := &roomDirectedMessageBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+	request := protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: source.AgentID, CommandID: "tool-directed-retry-1",
+		Recipients: []string{target.AgentID}, Content: "只投递一次",
+		ReplyRoute: protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone},
+	}
+	first, err := service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, request)
+	if err != nil || replayed.MessageID != first.MessageID || replayed.Timestamp != first.Timestamp {
+		t.Fatalf("retry = %+v first=%+v err=%v", replayed, first, err)
+	}
+	store := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
+	messages, err := store.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID)
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("durable directed messages = %+v err=%v", messages, err)
+	}
+	created := 0
+	for _, event := range broadcaster.Events() {
+		if event.EventType == protocol.EventTypeRoomDirectedMessage && event.Data["event_kind"] == "created" {
+			created++
+		}
+	}
+	if created != 1 {
+		t.Fatalf("created events=%d, want 1", created)
+	}
+}
+
 func TestRealtimeServiceRechecksPrivateMessagingAtCallTime(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

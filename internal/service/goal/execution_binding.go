@@ -5,8 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -154,16 +152,10 @@ func (s *Service) BindExplicitExecution(
 		}
 		current.Version++
 		current.UpdatedAt = s.nowFn()
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(
+		updated, updateErr := s.persistGoalUpdateWithEvent(
 			ctx,
-			*updated,
+			*current,
+			expectedVersion,
 			"execution_binding_pending",
 			protocol.GoalUpdateSourceSystem,
 			strings.TrimSpace(binding.RoundID),
@@ -172,8 +164,9 @@ func (s *Service) BindExplicitExecution(
 				"activation_origin": string(activationOrigin),
 				"binding_state":     string(protocol.GoalExecutionBindingStatePending),
 			},
-		); eventErr != nil {
-			return nil, eventErr
+		)
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		return updated, nil
 	})

@@ -227,6 +227,70 @@ func TestRetargetGoalBindsCurrentSessionAndRound(t *testing.T) {
 	}
 }
 
+func TestRetargetGoalTrustedVisibleRoundLateBindsCurrentRevision(t *testing.T) {
+	authority := runtimectx.NewGoalAuthorityState("", 0, "")
+	svc := &fakeRetargetGoalService{
+		current: &protocol.Goal{
+			ID:         "goal-current",
+			SessionKey: "agent:nexus:ws:dm:chat",
+			Objective:  "Original objective",
+			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(3),
+			},
+		},
+		retargeted: &protocol.Goal{
+			ID:         "goal-current",
+			SessionKey: "agent:nexus:ws:dm:chat",
+			Objective:  "Corrected objective",
+			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(4),
+			},
+		},
+	}
+	result, err := retargetGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-user-correction",
+		CurrentAgentID:    "agent-1",
+		GoalAuthority:     authority,
+		AllowUserRetarget: true,
+	}).Handler(context.Background(), map[string]any{"objective": "Corrected objective"})
+	if err != nil || result.IsError {
+		t.Fatalf("retarget result = %#v err=%v, want success", result, err)
+	}
+	if svc.request.ExpectedObjectiveRevision != 3 ||
+		svc.request.RoundID != "round-user-correction" {
+		t.Fatalf("retarget request = %#v, want exact late-bound revision", svc.request)
+	}
+	bound, ok := authority.Load()
+	if !ok || bound.GoalID != "goal-current" || bound.ObjectiveRevision != 4 {
+		t.Fatalf("authority after retarget = %#v ok=%t", bound, ok)
+	}
+}
+
+func TestRetargetGoalUnboundNonUserRoundCannotLoadCurrentGoal(t *testing.T) {
+	svc := &fakeRetargetGoalService{current: &protocol.Goal{
+		ID:         "goal-current",
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(3),
+		},
+	}}
+	result, err := retargetGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-internal",
+		GoalAuthority:     runtimectx.NewGoalAuthorityState("", 0, ""),
+	}).Handler(context.Background(), map[string]any{"objective": "Forbidden objective"})
+	if err != nil || !result.IsError {
+		t.Fatalf("retarget result = %#v err=%v, want capability error", result, err)
+	}
+	if svc.sessionKey != "" || svc.request.Objective != "" {
+		t.Fatalf("retarget mutation = session:%q request:%#v, want none", svc.sessionKey, svc.request)
+	}
+}
+
 func TestRetargetGoalInPlanModeDoesNotMutateState(t *testing.T) {
 	svc := &fakeRetargetGoalService{
 		retargeted: &protocol.Goal{ID: "must-not-be-used"},
@@ -391,7 +455,7 @@ func TestUpdateGoalNoCurrentGoalUsesCodexModelMessage(t *testing.T) {
 		t.Fatalf("result = %#v, want MCP error", result)
 	}
 	text, _ := result.Content[0]["text"].(string)
-	want := "cannot update goal because this thread has no goal"
+	want := "cannot update goal because this thread has no current goal; do not retry update_goal—if the user explicitly requested a new Goal and its objective is execution-ready, use create_goal"
 	if text != want {
 		t.Fatalf("error text = %q, want %q", text, want)
 	}

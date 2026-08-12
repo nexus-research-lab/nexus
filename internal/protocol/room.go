@@ -140,7 +140,10 @@ type CreateRoomDirectedMessageRequest struct {
 	// SourceAgentID 只能由受控运行时注入，不能从 JSON body 写入。
 	SourceAgentID string `json:"-"`
 	// RootRoundID 由受控运行时注入，用于让工具触发的后续轮次继承因果链。
-	RootRoundID   string         `json:"-"`
+	RootRoundID string `json:"-"`
+	// CommandID 由受控运行时按 source round 与规范化工具输入生成。
+	// 同一逻辑调用的 transport/model retry 必须复用它，不能重复追加私域消息。
+	CommandID     string         `json:"-"`
 	Recipients    []string       `json:"recipients"`
 	WakeTargets   []string       `json:"wake_targets,omitempty"`
 	Content       string         `json:"content"`
@@ -176,5 +179,8 @@ type RoomDirectedMessageRecord struct {
 	RootRoundID     string         `json:"root_round_id,omitempty"`
 	CausedByRoundID string         `json:"caused_by_round_id,omitempty"`
 	HopIndex        int            `json:"hop_index,omitempty"`
-	Timestamp       int64          `json:"timestamp"`
+	// GoalCollaborationBinding preserves the exact Goal request across private
+	// wake, queue, and recovery. It is attribution, never target mutation authority.
+	GoalCollaborationBinding *GoalCollaborationBinding `json:"goal_collaboration_binding,omitempty"`
+	Timestamp                int64                     `json:"timestamp"`
 }
