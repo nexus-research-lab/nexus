@@ -33,6 +33,26 @@ func TestRunNowQueryNoMatchDoesNotRun(t *testing.T) {
 	}
 }
 
+func TestInspectScheduledTaskDefaultsToHostBoundAutomationJob(t *testing.T) {
+	svc := &stubService{jobs: []automationdomain.ScheduledTask{{
+		JobID:    "job-current-run",
+		Name:     "当前后台任务",
+		AgentID:  "agent-1",
+		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+	}}}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID: "agent-1",
+		CurrentJobID:   "job-current-run",
+		CurrentRunID:   "run-current",
+	}, "inspect_scheduled_task", map[string]any{})
+	if isError {
+		t.Fatalf("host-bound inspect should not require model-supplied job_id: %s", extractText(t, result))
+	}
+	if !strings.Contains(extractText(t, result), "job-current-run") {
+		t.Fatalf("host-bound inspect returned the wrong task: %s", extractText(t, result))
+	}
+}
+
 func TestGetScheduledTaskRunsAllowsDeletedOwnedTaskHistory(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},

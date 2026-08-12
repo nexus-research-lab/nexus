@@ -8,9 +8,12 @@ import (
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
+	"github.com/nexus-research-lab/nexus/internal/service/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -112,6 +115,72 @@ func TestSessionDeletionRecoveryCommitsCrashInterruptedDelete(t *testing.T) {
 		workspacestore.ErrSessionDeleted,
 	) {
 		t.Fatalf("recovered tombstone did not block late writer: %v", err)
+	}
+}
+
+func TestSessionDeletionRecoveryInvalidatesBoundAutomationTask(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+	core, db := newSessionTestCoreServices(t, cfg)
+	core.Session.SetRuntimeManager(runtimectx.NewManager())
+	automationService := automationsvc.NewService(cfg, db, core.Agent, nil, nil, nil, nil, nil)
+	core.Deletion.SetTaskCleaner(automationService)
+
+	ctx := context.Background()
+	agentValue, err := core.Agent.CreateAgent(ctx, protocol.CreateRequest{Name: "删除恢复任务助手"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWebSocket,
+		"dm",
+		"crash-task-recovery",
+		"",
+	)
+	created, err := core.Session.CreateSession(ctx, session.CreateRequest{
+		SessionKey: sessionKey,
+		Title:      "crash task recovery",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	interval := 300
+	task, err := automationService.CreateTask(ctx, automationdomain.CreateJobInput{
+		Name:        "崩溃恢复绑定任务",
+		AgentID:     agentValue.AgentID,
+		Schedule:    automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: &interval, Timezone: "UTC"},
+		Instruction: "run",
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
+			BoundSessionKey: sessionKey,
+			WakeMode:        automationdomain.WakeModeNow,
+		},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Source:   automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := workspacestore.NewSessionFileStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
+	if _, err = files.BeginSessionDeletion(
+		agentValue.WorkspacePath,
+		sessionKey,
+		created.ConfigurationVersion,
+		"",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reconciled, err := core.Session.ReconcilePendingDeletions(ctx)
+	if err != nil || reconciled != 1 {
+		t.Fatalf("ReconcilePendingDeletions() reconciled=%d err=%v", reconciled, err)
+	}
+	kept, err := automationService.GetTask(ctx, task.JobID)
+	if err != nil || kept == nil || kept.Enabled ||
+		kept.SessionBindingState != automationdomain.TaskSessionBindingStateRebindRequired {
+		t.Fatalf("恢复删除后任务未停用待重绑: task=%+v err=%v", kept, err)
 	}
 }
 

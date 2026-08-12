@@ -23,6 +23,10 @@ interface PersistedRoomNavigationState {
 
 interface RoomNavigationState {
   conversation_tabs_by_room: Record<string, RoomConversationTabsState>;
+  forget_conversation: (
+    roomId: string,
+    conversationId: string,
+  ) => void;
   remember_last_active_conversation: (
     roomId: string,
     conversationId: string,
@@ -38,6 +42,35 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
   persist(
     (set) => ({
       conversation_tabs_by_room: {},
+      forget_conversation: (roomId, conversationId) => set((state) => {
+        const normalizedRoomId = roomId.trim();
+        const normalizedConversationId = conversationId.trim();
+        const currentTabs = state.conversation_tabs_by_room[normalizedRoomId];
+        if (!normalizedRoomId || !normalizedConversationId || !currentTabs) {
+          return state;
+        }
+        const openConversationIds = currentTabs.open_conversation_ids.filter(
+          (id) => id !== normalizedConversationId,
+        );
+        if (openConversationIds.length === currentTabs.open_conversation_ids.length) {
+          return state;
+        }
+        const nextTabs = openConversationIds.length > 0
+          ? buildConversationTabsState(
+              openConversationIds,
+              currentTabs.active_conversation_id === normalizedConversationId
+                ? openConversationIds[openConversationIds.length - 1]
+                : currentTabs.active_conversation_id,
+            )
+          : null;
+        const nextTabsByRoom = {...state.conversation_tabs_by_room};
+        if (nextTabs) {
+          nextTabsByRoom[normalizedRoomId] = nextTabs;
+        } else {
+          delete nextTabsByRoom[normalizedRoomId];
+        }
+        return {conversation_tabs_by_room: nextTabsByRoom};
+      }),
       remember_last_active_conversation: (roomId, conversationId) => set((state) => {
         const normalizedRoomId = roomId.trim();
         const normalizedConversationId = conversationId.trim();

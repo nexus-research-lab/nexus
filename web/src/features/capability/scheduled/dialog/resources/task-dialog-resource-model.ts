@@ -1,3 +1,7 @@
+import {
+  getExternalSessionChannelLabel,
+  getExternalSessionDisplayLabel,
+} from "@/lib/conversation/external-session";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type {
   RoomAggregate,
@@ -154,15 +158,29 @@ function buildAgentSessionOptions(
   agentNameById: Map<string, string>,
   unnamedSessionLabel: string,
 ): TaskDialogSessionOption[] {
-  return sessions.map((session) => ({
-    agentId: session.agent_id,
-    label: formatSessionLabel(
-      session.title?.trim() || unnamedSessionLabel,
-      agentNameById.get(session.agent_id) || session.agent_id,
-    ),
-    sessionKey: session.session_key,
-    value: session.session_key,
-  }));
+  return sessions.filter((session) => {
+    const externalChannel = getExternalSessionChannelLabel(
+      session.channel_type,
+      session.session_key,
+    );
+    return !externalChannel || session.external_identity?.current_pairing === true;
+  }).map((session) => {
+    const channelLabel = getExternalSessionDisplayLabel(
+      session.channel_type,
+      session.session_key,
+      session.external_identity,
+    );
+    return {
+      agentId: session.agent_id,
+      badge: channelLabel ? `IM · ${channelLabel}` : null,
+      label: formatSessionLabel(
+        session.title?.trim() || unnamedSessionLabel,
+        agentNameById.get(session.agent_id) || session.agent_id,
+      ),
+      sessionKey: session.session_key,
+      value: session.session_key,
+    };
+  });
 }
 
 function buildRoomSessionOptions(

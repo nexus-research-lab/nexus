@@ -19,16 +19,17 @@ import (
 
 // Router 负责管理通道生命周期与统一投递。
 type Router struct {
-	mu             sync.RWMutex
-	deliveryRoutes *deliveryroute.Store
-	agents         agentWorkspaceResolver
-	channels       map[string]*registeredChannel
-	ingress        IngressAcceptor
-	running        bool
-	runCtx         context.Context
-	logger         *slog.Logger
-	routeLocks     sync.Map
-	nextGeneration uint64
+	mu              sync.RWMutex
+	deliveryRoutes  *deliveryroute.Store
+	agents          agentWorkspaceResolver
+	channels        map[string]*registeredChannel
+	ingress         IngressAcceptor
+	running         bool
+	runCtx          context.Context
+	logger          *slog.Logger
+	routeLocks      sync.Map
+	projectionLocks sync.Map
+	nextGeneration  uint64
 }
 
 type registeredChannel struct {

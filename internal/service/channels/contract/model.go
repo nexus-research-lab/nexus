@@ -37,12 +37,15 @@ const (
 
 // DeliveryTarget 表示通道无关的投递目标。
 type DeliveryTarget struct {
-	Mode       string `json:"mode"`
-	Channel    string `json:"channel,omitempty"`
-	To         string `json:"to,omitempty"`
-	AccountID  string `json:"account_id,omitempty"`
-	ThreadID   string `json:"thread_id,omitempty"`
-	SessionKey string `json:"session_key,omitempty"`
+	Mode           string `json:"mode"`
+	Channel        string `json:"channel,omitempty"`
+	To             string `json:"to,omitempty"`
+	AccountID      string `json:"account_id,omitempty"`
+	ThreadID       string `json:"thread_id,omitempty"`
+	SessionKey     string `json:"session_key,omitempty"`
+	ContextToken   string `json:"context_token,omitempty"`
+	ReplyContextID string `json:"reply_context_id,omitempty"`
+	StreamID       string `json:"stream_id,omitempty"`
 }
 
 // Normalized 返回带默认值的副本。
@@ -57,6 +60,9 @@ func (t DeliveryTarget) Normalized() DeliveryTarget {
 	result.AccountID = strings.TrimSpace(result.AccountID)
 	result.ThreadID = strings.TrimSpace(result.ThreadID)
 	result.SessionKey = strings.TrimSpace(result.SessionKey)
+	result.ContextToken = strings.TrimSpace(result.ContextToken)
+	result.ReplyContextID = strings.TrimSpace(result.ReplyContextID)
+	result.StreamID = strings.TrimSpace(result.StreamID)
 	if (result.Channel == ChannelTypeWebSocket || result.Channel == ChannelTypeInternal) && result.SessionKey == "" {
 		result.SessionKey = result.To
 	}
@@ -93,6 +99,40 @@ func (t DeliveryTarget) Validate() error {
 type DeliveryResult struct {
 	Target  DeliveryTarget          `json:"target"`
 	Receipt *channelmessage.Receipt `json:"receipt,omitempty"`
+}
+
+// AutomationDeliveryContext 是调度器签发的一次任务结果投递身份。
+//
+// Channel adapter 不消费这些字段；Router 用它把同一结果稳定投影到 Nexus
+// 会话并关联外部平台回执。模型正文和平台 callback 均不能构造此身份。
+type AutomationDeliveryContext struct {
+	JobID               string `json:"job_id"`
+	RunID               string `json:"run_id"`
+	TaskName            string `json:"task_name,omitempty"`
+	Instruction         string `json:"instruction,omitempty"`
+	ExecutionSessionKey string `json:"execution_session_key,omitempty"`
+	ExecutionRoundID    string `json:"execution_round_id,omitempty"`
+}
+
+// Normalized 返回去除传输噪声后的任务投递身份。
+func (c AutomationDeliveryContext) Normalized() AutomationDeliveryContext {
+	result := c
+	result.JobID = strings.TrimSpace(result.JobID)
+	result.RunID = strings.TrimSpace(result.RunID)
+	result.TaskName = strings.TrimSpace(result.TaskName)
+	result.Instruction = strings.TrimSpace(result.Instruction)
+	result.ExecutionSessionKey = strings.TrimSpace(result.ExecutionSessionKey)
+	result.ExecutionRoundID = strings.TrimSpace(result.ExecutionRoundID)
+	return result
+}
+
+// Validate 校验稳定投影所需的 run 身份。
+func (c AutomationDeliveryContext) Validate() error {
+	normalized := c.Normalized()
+	if normalized.JobID == "" || normalized.RunID == "" {
+		return errors.New("automation delivery requires job_id and run_id")
+	}
+	return nil
 }
 
 // NewDeliveryResult 返回规范化后的投递结果。

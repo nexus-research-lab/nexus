@@ -106,6 +106,8 @@ export interface AssistantMessage extends BaseMessage {
   result_summary?: ResultSummary;
   /** 服务端解析出的可点击 Agent mention span。 */
   agent_mentions?: AgentMention[];
+  /** 宿主生成消息的结构化来源；展示层不得依赖正文前缀识别定时任务。 */
+  metadata?: Record<string, unknown>;
   /** 前端流式状态，不属于后端持久化消息字段。 */
   stream_status?: AssistantMessageStatus;
 }

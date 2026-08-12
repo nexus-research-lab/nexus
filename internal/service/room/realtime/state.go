@@ -217,6 +217,8 @@ type activeRoomRound struct {
 	Cancel                      context.CancelFunc
 	PermissionMode              sdkpermission.Mode
 	PermissionHandler           sdkpermission.Handler
+	RuntimeToolPolicy           *protocol.RuntimeToolPolicy
+	AutomationRun               *protocol.AutomationRunContext
 	EventObserver               RoomEventObserver
 	GoalContext                 string
 	GoalID                      string

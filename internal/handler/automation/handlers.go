@@ -15,17 +15,18 @@ import (
 )
 
 type scheduledTaskCreatePayload struct {
-	Name          string                           `json:"name"`
-	AgentID       string                           `json:"agent_id"`
-	Schedule      automationdomain.Schedule        `json:"schedule"`
-	Instruction   string                           `json:"instruction"`
-	ExecutionKind string                           `json:"execution_kind,omitempty"`
-	SessionTarget *automationdomain.SessionTarget  `json:"session_target,omitempty"`
-	Delivery      *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
-	Source        *automationdomain.Source         `json:"source,omitempty"`
-	OverlapPolicy string                           `json:"overlap_policy,omitempty"`
-	ExpiresAt     *time.Time                       `json:"expires_at,omitempty"`
-	Enabled       *bool                            `json:"enabled,omitempty"`
+	Name           string                           `json:"name"`
+	AgentID        string                           `json:"agent_id"`
+	Schedule       automationdomain.Schedule        `json:"schedule"`
+	Instruction    string                           `json:"instruction"`
+	ExecutionKind  string                           `json:"execution_kind,omitempty"`
+	PermissionMode string                           `json:"permission_mode,omitempty"`
+	SessionTarget  *automationdomain.SessionTarget  `json:"session_target,omitempty"`
+	Delivery       *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
+	Source         *automationdomain.Source         `json:"source,omitempty"`
+	OverlapPolicy  string                           `json:"overlap_policy,omitempty"`
+	ExpiresAt      *time.Time                       `json:"expires_at,omitempty"`
+	Enabled        *bool                            `json:"enabled,omitempty"`
 }
 
 type scheduledTaskUpdatePayload struct {
@@ -33,9 +34,9 @@ type scheduledTaskUpdatePayload struct {
 	Schedule       *automationdomain.Schedule       `json:"schedule,omitempty"`
 	Instruction    *string                          `json:"instruction,omitempty"`
 	ExecutionKind  *string                          `json:"execution_kind,omitempty"`
+	PermissionMode *string                          `json:"permission_mode,omitempty"`
 	SessionTarget  *automationdomain.SessionTarget  `json:"session_target,omitempty"`
 	Delivery       *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
-	Source         *automationdomain.Source         `json:"source,omitempty"`
 	OverlapPolicy  *string                          `json:"overlap_policy,omitempty"`
 	ExpiresAt      *time.Time                       `json:"expires_at,omitempty"`
 	ClearExpiresAt bool                             `json:"clear_expires_at,omitempty"`
@@ -195,17 +196,18 @@ func (h *Handlers) HandleCreateScheduledTask(writer http.ResponseWriter, request
 		enabled = *payload.Enabled
 	}
 	item, err := h.automation.CreateTask(request.Context(), automationdomain.CreateJobInput{
-		Name:          payload.Name,
-		AgentID:       payload.AgentID,
-		Schedule:      payload.Schedule,
-		Instruction:   payload.Instruction,
-		ExecutionKind: payload.ExecutionKind,
-		SessionTarget: sessionTarget,
-		Delivery:      delivery,
-		Source:        source,
-		OverlapPolicy: payload.OverlapPolicy,
-		ExpiresAt:     payload.ExpiresAt,
-		Enabled:       enabled,
+		Name:           payload.Name,
+		AgentID:        payload.AgentID,
+		Schedule:       payload.Schedule,
+		Instruction:    payload.Instruction,
+		ExecutionKind:  payload.ExecutionKind,
+		PermissionMode: payload.PermissionMode,
+		SessionTarget:  sessionTarget,
+		Delivery:       delivery,
+		Source:         source,
+		OverlapPolicy:  payload.OverlapPolicy,
+		ExpiresAt:      payload.ExpiresAt,
+		Enabled:        enabled,
 	})
 	if err != nil {
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
@@ -223,14 +225,20 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
+	var deliveryGrant *automationdomain.Source
+	if payload.Delivery != nil {
+		source := automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
+		deliveryGrant = &source
+	}
 	item, err := h.automation.UpdateTask(request.Context(), chi.URLParam(request, "job_id"), automationdomain.UpdateJobInput{
 		Name:           payload.Name,
 		Schedule:       payload.Schedule,
 		Instruction:    payload.Instruction,
 		ExecutionKind:  payload.ExecutionKind,
+		PermissionMode: payload.PermissionMode,
 		SessionTarget:  payload.SessionTarget,
 		Delivery:       payload.Delivery,
-		Source:         payload.Source,
+		Source:         deliveryGrant,
 		OverlapPolicy:  payload.OverlapPolicy,
 		ExpiresAt:      payload.ExpiresAt,
 		ClearExpiresAt: payload.ClearExpiresAt,
@@ -239,6 +247,10 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if errors.Is(err, automationdomain.ErrTaskSessionRebindRequired) {
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
 			return
 		}
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
@@ -269,6 +281,10 @@ func (h *Handlers) HandleRunScheduledTask(writer http.ResponseWriter, request *h
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if errors.Is(err, automationdomain.ErrTaskSessionRebindRequired) {
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
 			return
 		}
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
@@ -311,6 +327,10 @@ func (h *Handlers) HandleUpdateScheduledTaskStatus(writer http.ResponseWriter, r
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if errors.Is(err, automationdomain.ErrTaskSessionRebindRequired) {
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
 			return
 		}
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
@@ -409,6 +429,10 @@ func (h *Handlers) HandleRetryScheduledTaskRunDelivery(writer http.ResponseWrite
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) || errors.Is(err, automationdomain.ErrRunNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if errors.Is(err, automationdomain.ErrTaskSessionRebindRequired) {
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
 			return
 		}
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {

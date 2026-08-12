@@ -96,6 +96,14 @@ func (h *Handlers) writeSessionTurns(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
+	if errors.Is(err, sessionpkg.ErrExternalSessionPairingActive) {
+		h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSessionMutationUnsupported) {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return

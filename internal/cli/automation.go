@@ -243,6 +243,8 @@ func (f scheduledTaskUpdateFlags) payload(command *cobra.Command, current *autom
 		delivery := current.Delivery
 		f.delivery.apply(command, &delivery)
 		payload.Delivery = &delivery
+		source := automationdomain.Source{Kind: automationdomain.SourceKindCLI}
+		payload.Source = &source
 	}
 	if command.Flags().Changed("enabled") {
 		payload.Enabled = &f.enabled

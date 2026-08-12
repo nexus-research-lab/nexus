@@ -59,6 +59,19 @@ func TestResolvePermissionModePrefersRequestThenSessionThenAgent(t *testing.T) {
 	}
 }
 
+func TestResolveDMRuntimeToolPolicyPrefersAutomationSnapshot(t *testing.T) {
+	allowed, denied := resolveDMRuntimeToolPolicy(protocol.Options{
+		AllowedTools:    []string{"Read"},
+		DisallowedTools: []string{"Bash"},
+	}, &protocol.RuntimeToolPolicy{
+		AllowedTools:    []string{"WebSearch"},
+		DisallowedTools: []string{"Write"},
+	}, true)
+	if !slices.Equal(allowed, []string{"WebSearch"}) || !slices.Equal(denied, []string{"Write"}) {
+		t.Fatalf("automation snapshot 未覆盖 Agent 当前工具配置: allow=%v deny=%v", allowed, denied)
+	}
+}
+
 func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)

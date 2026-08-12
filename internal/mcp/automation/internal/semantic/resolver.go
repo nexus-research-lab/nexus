@@ -102,46 +102,29 @@ func agentReply(args map[string]any, sctx contract.ServerContext, targetAgentID 
 }
 
 func channelReply(args map[string]any, sctx contract.ServerContext) (automationdomain.DeliveryTarget, error) {
+	// 当前外部 IM transport 的真实路由只来自宿主签发的 ServerContext。
+	// 模型即使受旧 schema 影响传入了错误通道，也不能覆盖当前 session。
+	if currentSessionKeyCanDeliverToExternalChannel(sctx.CurrentSessionKey) {
+		return deliveryFromSessionKey(sctx.CurrentSessionKey), nil
+	}
 	sessionKey := argx.FirstNonEmpty(argx.String(args, "reply_session_key"), argx.String(args, "selected_reply_session_key"))
 	if sessionKey != "" {
 		return deliveryFromSessionKey(sessionKey), nil
 	}
-	if !hasExplicitChannelReplyTarget(args) && currentSessionKeyCanDeliverToExternalChannel(sctx.CurrentSessionKey) {
-		return deliveryFromSessionKey(sctx.CurrentSessionKey), nil
-	}
 	delivery := automationdomain.DeliveryTarget{
-		Mode:      automationdomain.DeliveryModeExplicit,
 		Channel:   argx.FirstNonEmpty(argx.String(args, "reply_channel"), argx.String(args, "delivery_channel")),
 		To:        argx.FirstNonEmpty(argx.String(args, "reply_to"), argx.String(args, "delivery_to")),
 		AccountID: argx.FirstNonEmpty(argx.String(args, "reply_account_id"), argx.String(args, "delivery_account_id")),
 		ThreadID:  argx.FirstNonEmpty(argx.String(args, "reply_thread_id"), argx.String(args, "delivery_thread_id")),
 	}
-	if strings.TrimSpace(delivery.To) == "" {
-		if filled, ok := fillChannelReplyTargetFromCurrentSession(delivery, sctx.CurrentSessionKey); ok {
-			return filled.Normalized(), nil
-		}
+	if filled, ok := fillChannelReplyTargetFromCurrentSession(delivery, sctx.CurrentSessionKey); ok {
+		return filled.Normalized(), nil
 	}
-	if strings.TrimSpace(delivery.Channel) == "" {
-		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_channel or reply_session_key")
+	if sctx.IsMainAgent && strings.TrimSpace(delivery.Channel) != "" && strings.TrimSpace(delivery.To) != "" {
+		delivery.Mode = automationdomain.DeliveryModeExplicit
+		return delivery.Normalized(), nil
 	}
-	if strings.TrimSpace(delivery.To) == "" {
-		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_to or reply_session_key")
-	}
-	return delivery.Normalized(), nil
-}
-
-func hasExplicitChannelReplyTarget(args map[string]any) bool {
-	for _, key := range []string{
-		"reply_channel", "delivery_channel",
-		"reply_to", "delivery_to",
-		"reply_account_id", "delivery_account_id",
-		"reply_thread_id", "delivery_thread_id",
-	} {
-		if strings.TrimSpace(argx.String(args, key)) != "" {
-			return true
-		}
-	}
-	return false
+	return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires an authorized reply_session_key, or fields that exactly match the current external IM session")
 }
 
 func fillChannelReplyTargetFromCurrentSession(
@@ -151,27 +134,22 @@ func fillChannelReplyTargetFromCurrentSession(
 	if !currentSessionKeyCanDeliverToExternalChannel(currentSessionKey) {
 		return automationdomain.DeliveryTarget{}, false
 	}
-	current := deliveryFromSessionKey(currentSessionKey)
-	currentChannel := protocol.NormalizeStoredChannelType(current.Channel)
+	parsed := protocol.ParseSessionKey(currentSessionKey)
+	currentChannel := protocol.NormalizeStoredChannelType(parsed.Channel)
 	requestedChannel := protocol.NormalizeStoredChannelType(delivery.Channel)
 	if requestedChannel != "" && requestedChannel != currentChannel {
 		return automationdomain.DeliveryTarget{}, false
 	}
-	result := delivery
-	result.Mode = automationdomain.DeliveryModeExplicit
-	if strings.TrimSpace(result.Channel) == "" {
-		result.Channel = currentChannel
+	if to := strings.TrimSpace(delivery.To); to != "" && to != strings.TrimSpace(parsed.Ref) {
+		return automationdomain.DeliveryTarget{}, false
 	}
-	if strings.TrimSpace(result.To) == "" {
-		result.To = strings.TrimSpace(current.To)
+	if accountID := strings.TrimSpace(delivery.AccountID); accountID != "" && accountID != strings.TrimSpace(parsed.AccountID) {
+		return automationdomain.DeliveryTarget{}, false
 	}
-	if strings.TrimSpace(result.ThreadID) == "" {
-		result.ThreadID = strings.TrimSpace(current.ThreadID)
+	if threadID := strings.TrimSpace(delivery.ThreadID); threadID != "" && threadID != strings.TrimSpace(parsed.ThreadID) {
+		return automationdomain.DeliveryTarget{}, false
 	}
-	if strings.TrimSpace(result.AccountID) == "" {
-		result.AccountID = strings.TrimSpace(current.AccountID)
-	}
-	return result, true
+	return deliveryFromSessionKey(currentSessionKey), true
 }
 
 func currentSessionKeyCanDeliverToExternalChannel(sessionKey string) bool {
@@ -196,13 +174,20 @@ func deliveryFromSessionKey(sessionKey string) automationdomain.DeliveryTarget {
 	normalized := strings.TrimSpace(sessionKey)
 	parsed := protocol.ParseSessionKey(normalized)
 	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
-	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent || channel == "" {
+	if !parsed.IsStructured || channel == "" {
 		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
-	if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
-		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: channel, To: normalized}.Normalized()
+	if parsed.Kind != protocol.SessionKeyKindAgent {
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
 	switch channel {
+	case protocol.SessionChannelWebSocket,
+		protocol.SessionChannelInternalSegment:
+		return automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
+			Channel: channel,
+			To:      normalized,
+		}.Normalized()
 	case protocol.SessionChannelDiscord,
 		protocol.SessionChannelTelegram,
 		protocol.SessionChannelDingTalk,
@@ -213,11 +198,8 @@ func deliveryFromSessionKey(sessionKey string) automationdomain.DeliveryTarget {
 		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
 	return automationdomain.DeliveryTarget{
-		Mode:      automationdomain.DeliveryModeExplicit,
-		Channel:   channel,
-		To:        parsed.Ref,
-		AccountID: parsed.AccountID,
-		ThreadID:  parsed.ThreadID,
+		Mode:       automationdomain.DeliveryModeLast,
+		SessionKey: normalized,
 	}.Normalized()
 }
 

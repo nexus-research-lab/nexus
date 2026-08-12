@@ -199,10 +199,10 @@ func (r *Repository) CreatePermissionRequestAndBlockRun(
     request_id, owner_user_id, job_id, run_id, policy_revision, kind, status,
     tool_name, connector_id, effect, resource_scope, input_fingerprint,
     capability_json, input_summary_json, title, description, reason,
-    session_key, round_id, tool_use_id, resume_safe, created_at, updated_at
+    session_key, delivery_session_key, round_id, tool_use_id, resume_safe, created_at, updated_at
 ) VALUES (%s)
 ON CONFLICT DO NOTHING`,
-		r.bindList(21)+",CURRENT_TIMESTAMP,CURRENT_TIMESTAMP",
+		r.bindList(22)+",CURRENT_TIMESTAMP,CURRENT_TIMESTAMP",
 	)
 	result, err := tx.ExecContext(
 		ctx,
@@ -225,6 +225,7 @@ ON CONFLICT DO NOTHING`,
 		nullString(strings.TrimSpace(request.Description)),
 		nullString(strings.TrimSpace(request.Reason)),
 		nullString(strings.TrimSpace(request.SessionKey)),
+		nullString(strings.TrimSpace(request.DeliverySessionKey)),
 		nullString(strings.TrimSpace(request.RoundID)),
 		nullString(strings.TrimSpace(request.ToolUseID)),
 		request.ResumeSafe,
@@ -362,7 +363,7 @@ const permissionRequestSelectSQL = `
 SELECT
     request_id, owner_user_id, job_id, run_id, policy_revision, kind, status,
     decision, capability_json, input_summary_json, title, description, reason,
-    session_key, round_id, tool_use_id, resume_safe, resolved_by_user_id,
+    session_key, delivery_session_key, round_id, tool_use_id, resume_safe, resolved_by_user_id,
     created_at, updated_at, resolved_at
 FROM automation_permission_requests`
 
@@ -788,19 +789,20 @@ WHERE run_id = %s
 
 func scanAutomationPermissionRequest(scanner interface{ Scan(...any) error }) (*automationdomain.AutomationPermissionRequest, error) {
 	var (
-		item             automationdomain.AutomationPermissionRequest
-		runID            sql.NullString
-		decision         sql.NullString
-		capabilityJSON   string
-		inputSummaryJSON string
-		title            sql.NullString
-		description      sql.NullString
-		reason           sql.NullString
-		sessionKey       sql.NullString
-		roundID          sql.NullString
-		toolUseID        sql.NullString
-		resolvedByUserID sql.NullString
-		resolvedAt       sql.NullTime
+		item               automationdomain.AutomationPermissionRequest
+		runID              sql.NullString
+		decision           sql.NullString
+		capabilityJSON     string
+		inputSummaryJSON   string
+		title              sql.NullString
+		description        sql.NullString
+		reason             sql.NullString
+		sessionKey         sql.NullString
+		deliverySessionKey sql.NullString
+		roundID            sql.NullString
+		toolUseID          sql.NullString
+		resolvedByUserID   sql.NullString
+		resolvedAt         sql.NullTime
 	)
 	if err := scanner.Scan(
 		&item.RequestID,
@@ -817,6 +819,7 @@ func scanAutomationPermissionRequest(scanner interface{ Scan(...any) error }) (*
 		&description,
 		&reason,
 		&sessionKey,
+		&deliverySessionKey,
 		&roundID,
 		&toolUseID,
 		&item.ResumeSafe,
@@ -841,6 +844,7 @@ func scanAutomationPermissionRequest(scanner interface{ Scan(...any) error }) (*
 	item.Description = nullStringValue(description)
 	item.Reason = nullStringValue(reason)
 	item.SessionKey = nullStringValue(sessionKey)
+	item.DeliverySessionKey = nullStringValue(deliverySessionKey)
 	item.RoundID = nullStringValue(roundID)
 	item.ToolUseID = nullStringValue(toolUseID)
 	item.ResolvedByUserID = nullStringValue(resolvedByUserID)

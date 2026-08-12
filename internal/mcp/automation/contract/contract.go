@@ -23,8 +23,9 @@ type ServerContext struct {
 	OwnerUserID         string
 	CurrentSessionKey   string
 	CurrentSessionLabel string
-	// SourceContextType 只有精确的 "agent"/"room" 表示可信交互上下文；带
-	// channel/external/automation/queue/internal 等后缀的来源只能获得只读工具。
+	// SourceContextType 的 "agent"/"room" 与经过实时 pairing 复核的
+	// "agent_paired" 表示可信交互上下文；其他带 channel/external/
+	// automation/queue/internal 等后缀的来源只能获得只读工具。
 	// 该字段也影响 reply_mode=execution 的解析。
 	SourceContextType string
 	// SourceContextID/Label 对齐前端任务来源快照，用于让 Agent 创建的 Room 任务
@@ -36,6 +37,10 @@ type ServerContext struct {
 	IsMainAgent bool
 	// DefaultTimezone 是用户未显式指定 schedule.timezone 时使用的回退时区（IANA）。
 	DefaultTimezone string
+	// CurrentJobID/CurrentRunID 仅由 runtime Execution MCP overlay 从服务端
+	// AutomationRunContext 签发。后台任务的只读工具严格收窄到该任务。
+	CurrentJobID string
+	CurrentRunID string
 }
 
 // Service 是 MCP server 依赖的 automation 服务子集。

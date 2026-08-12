@@ -9,18 +9,19 @@ import (
 // CreateJobInput 表示创建请求。
 type CreateJobInput struct {
 	// RequestID 是对话工具签发的幂等键；HTTP/CLI 留空时保持原有每次创建语义。
-	RequestID     string         `json:"request_id,omitempty"`
-	Name          string         `json:"name"`
-	AgentID       string         `json:"agent_id"`
-	Schedule      Schedule       `json:"schedule"`
-	Instruction   string         `json:"instruction"`
-	ExecutionKind string         `json:"execution_kind,omitempty"`
-	SessionTarget SessionTarget  `json:"session_target"`
-	Delivery      DeliveryTarget `json:"delivery"`
-	Source        Source         `json:"source"`
-	OverlapPolicy string         `json:"overlap_policy,omitempty"`
-	ExpiresAt     *time.Time     `json:"expires_at,omitempty"`
-	Enabled       bool           `json:"enabled"`
+	RequestID      string         `json:"request_id,omitempty"`
+	Name           string         `json:"name"`
+	AgentID        string         `json:"agent_id"`
+	Schedule       Schedule       `json:"schedule"`
+	Instruction    string         `json:"instruction"`
+	ExecutionKind  string         `json:"execution_kind,omitempty"`
+	PermissionMode string         `json:"permission_mode,omitempty"`
+	SessionTarget  SessionTarget  `json:"session_target"`
+	Delivery       DeliveryTarget `json:"delivery"`
+	Source         Source         `json:"source"`
+	OverlapPolicy  string         `json:"overlap_policy,omitempty"`
+	ExpiresAt      *time.Time     `json:"expires_at,omitempty"`
+	Enabled        bool           `json:"enabled"`
 }
 
 // Validate 校验创建请求。
@@ -38,6 +39,9 @@ func (i CreateJobInput) Validate() error {
 		return errors.New("instruction is required")
 	}
 	if err := validateExecutionKind(i.ExecutionKind); err != nil {
+		return err
+	}
+	if err := validatePermissionMode(i.PermissionMode); err != nil {
 		return err
 	}
 	if err := i.Schedule.Normalized().Validate(); err != nil {
@@ -66,6 +70,9 @@ func (i CreateJobInput) Normalized() CreateJobInput {
 	result.AgentID = strings.TrimSpace(result.AgentID)
 	result.Instruction = strings.TrimSpace(result.Instruction)
 	result.ExecutionKind = NormalizeExecutionKind(result.ExecutionKind)
+	// 空值是“创建时复制当前 Session/Agent 权限”的显式语义，必须保留到
+	// automation service 解析；持久化任务本身仍只保存 SDK 支持的具体模式。
+	result.PermissionMode = strings.TrimSpace(result.PermissionMode)
 	result.Schedule = result.Schedule.Normalized()
 	result.SessionTarget = result.SessionTarget.Normalized()
 	result.Delivery = result.Delivery.Normalized()
@@ -120,11 +127,13 @@ type UpdateJobInput struct {
 	Schedule       *Schedule       `json:"schedule,omitempty"`
 	Instruction    *string         `json:"instruction,omitempty"`
 	ExecutionKind  *string         `json:"execution_kind,omitempty"`
+	PermissionMode *string         `json:"permission_mode,omitempty"`
 	SessionTarget  *SessionTarget  `json:"session_target,omitempty"`
 	Delivery       *DeliveryTarget `json:"delivery,omitempty"`
-	Source         *Source         `json:"source,omitempty"`
-	OverlapPolicy  *string         `json:"overlap_policy,omitempty"`
-	ExpiresAt      *time.Time      `json:"expires_at,omitempty"`
-	ClearExpiresAt bool            `json:"clear_expires_at,omitempty"`
-	Enabled        *bool           `json:"enabled,omitempty"`
+	// Source 是修改投递目标时由可信入口注入的瞬时 grant，不改写创建 provenance。
+	Source         *Source    `json:"source,omitempty"`
+	OverlapPolicy  *string    `json:"overlap_policy,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	ClearExpiresAt bool       `json:"clear_expires_at,omitempty"`
+	Enabled        *bool      `json:"enabled,omitempty"`
 }

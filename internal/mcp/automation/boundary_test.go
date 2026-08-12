@@ -42,6 +42,43 @@ func TestExternalAndBackgroundContextsOnlyExposeReadTools(t *testing.T) {
 	}
 }
 
+func TestPairedAgentContextExposesMutationsWithoutOwnerWideAuthority(t *testing.T) {
+	sctx := contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelTelegramSegment, protocol.RoomTypeDM, "user-1", ""),
+		SourceContextType: "agent_paired",
+		IsMainAgent:       true,
+	}
+	server := NewServer(&stubService{}, sctx)
+	response, err := server.HandleMessage(t.Context(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/list",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage error: %v", err)
+	}
+	result := response["result"].(map[string]any)
+	tools := result["tools"].([]map[string]any)
+	if len(tools) <= 4 || tools[0]["name"] != "create_scheduled_task" {
+		t.Fatalf("paired Agent DM 未获得完整 Automation 工具: %+v", tools)
+	}
+
+	svc := &stubService{}
+	_, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"request_id":     "paired-cross-agent",
+		"name":           "越权任务",
+		"agent_id":       "agent-2",
+		"instruction":    "不应创建",
+		"schedule":       intervalSchedule(1, "hours"),
+		"execution_mode": "temporary",
+		"reply_mode":     "none",
+	})
+	if !isError || svc.createInput.AgentID != "" {
+		t.Fatalf("paired main Agent 不得获得跨 Agent owner scope: input=%+v", svc.createInput)
+	}
+}
+
 func TestConversationalAutomationCannotCreateScriptTask(t *testing.T) {
 	svc := &stubService{}
 	_, isError := callTool(t, svc, contract.ServerContext{

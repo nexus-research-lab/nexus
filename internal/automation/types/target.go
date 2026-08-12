@@ -1,9 +1,13 @@
+// INPUT: 定时任务的执行会话、结果投递与可信来源配置。
+// OUTPUT: 可校验、可持久化并保持会话路由身份的领域目标模型。
+// POS: Automation 任务配置的线格式真相；service 与 MCP/HTTP DTO 共同消费。
 package types
 
 import (
 	"errors"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SessionTarget 表示执行目标会话。
@@ -72,11 +76,12 @@ func (t SessionTarget) Normalized() SessionTarget {
 
 // DeliveryTarget 表示自动化外部投递目标。
 type DeliveryTarget struct {
-	Mode      string `json:"mode"`
-	Channel   string `json:"channel,omitempty"`
-	To        string `json:"to,omitempty"`
-	AccountID string `json:"account_id,omitempty"`
-	ThreadID  string `json:"thread_id,omitempty"`
+	Mode       string `json:"mode"`
+	Channel    string `json:"channel,omitempty"`
+	To         string `json:"to,omitempty"`
+	AccountID  string `json:"account_id,omitempty"`
+	ThreadID   string `json:"thread_id,omitempty"`
+	SessionKey string `json:"session_key,omitempty"`
 }
 
 // Source 表示任务来源元数据。
@@ -94,10 +99,15 @@ type Source struct {
 func (d DeliveryTarget) Validate() error {
 	switch strings.TrimSpace(d.Mode) {
 	case "", DeliveryModeNone, DeliveryModeLast, DeliveryModeExplicit:
-		return nil
 	default:
 		return errors.New("delivery.mode must be one of none, last, explicit")
 	}
+	if strings.TrimSpace(d.SessionKey) != "" {
+		if _, err := protocol.RequireStructuredSessionKey(d.SessionKey); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Normalized 返回带默认值的投递目标副本。
@@ -111,6 +121,7 @@ func (d DeliveryTarget) Normalized() DeliveryTarget {
 	result.To = strings.TrimSpace(result.To)
 	result.AccountID = strings.TrimSpace(result.AccountID)
 	result.ThreadID = strings.TrimSpace(result.ThreadID)
+	result.SessionKey = strings.TrimSpace(result.SessionKey)
 	return result
 }
 

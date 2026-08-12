@@ -99,7 +99,7 @@ function ExternalSessionLabel({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium text-(--primary)">
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium text-(--primary)">
       IM · {label}
     </span>
   );
@@ -111,10 +111,10 @@ function RoomHistorySummary({
   presentation: RoomHistoryItemPresentation;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_78px] items-center gap-3">
-      <div className="flex min-w-0 items-center gap-2">
+    <div className="grid min-w-full w-max grid-cols-[max-content_78px] items-center gap-3">
+      <div className="flex min-w-max items-center gap-2">
         <p className={cn(
-          "min-w-0 truncate text-compact",
+          "whitespace-nowrap text-compact",
           presentation.state === "active"
             ? "font-semibold text-(--text-strong)"
             : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
@@ -244,6 +244,9 @@ function RoomHistoryItemActions({
   onDelete,
   presentation,
 }: ItemContentProps) {
+  if (presentation.actions.length === 0) {
+    return null;
+  }
   const actionHandlers: Record<RoomHistoryItemAction, (event: MouseEvent) => void> = {
     delete: (event) => {
       event.stopPropagation();
@@ -252,34 +255,32 @@ function RoomHistoryItemActions({
     rename: editor.start,
   };
   return (
-    <div className="absolute inset-y-0 right-2.5 grid place-items-center">
-      {presentation.actions.length > 0 ? (
-        <div className={cn(
-          "flex items-center gap-1 transition-opacity duration-(--motion-duration-fast)",
-          presentation.actionsPersistent
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
-        )}>
-          {presentation.actions.map((action) => {
-            const style = ACTION_STYLES[action];
-            const Icon = style.icon;
-            return (
-              <button
-                aria-label={presentation.actionLabels[action]}
-                className={cn(
-                  "inline-flex h-6 w-6 items-center justify-center rounded-[8px] focus-visible:opacity-100",
-                  style.className,
-                )}
-                key={action}
-                onClick={actionHandlers[action]}
-                type="button"
-              >
-                <Icon className="h-3 w-3" />
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+    <div className="sticky right-0 z-10 -my-1.5 ml-2 grid shrink-0 place-items-center self-stretch rounded-r-[10px] bg-inherit px-2.5">
+      <div className={cn(
+        "flex items-center gap-1 transition-opacity duration-(--motion-duration-fast)",
+        presentation.actionsPersistent
+          ? "opacity-100"
+          : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+      )}>
+        {presentation.actions.map((action) => {
+          const style = ACTION_STYLES[action];
+          const Icon = style.icon;
+          return (
+            <button
+              aria-label={presentation.actionLabels[action]}
+              className={cn(
+                "inline-flex h-6 w-6 items-center justify-center rounded-[8px] focus-visible:opacity-100",
+                style.className,
+              )}
+              key={action}
+              onClick={actionHandlers[action]}
+              type="button"
+            >
+              <Icon className="h-3 w-3" />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -291,14 +292,14 @@ export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
   return (
     <article
       className={cn(
-        "group relative w-full overflow-hidden rounded-[10px] px-2.5 py-1.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) ease-out",
+        "group relative flex min-w-full w-max items-stretch rounded-[10px] py-1.5 pl-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) ease-out",
         stateClassName,
         presentation.selection?.checked
           && "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--text-strong)",
       )}
     >
-      <div className="min-w-0">
-        <div className="min-w-0">
+      <div className="min-w-max flex-1">
+        <div className="min-w-max">
           <Content {...props} />
         </div>
       </div>

@@ -105,6 +105,7 @@ export function useMessageItemController({
       hidden: display.hidden,
       header: {
         agentId: projection.assistantAgentId,
+        automationTaskName: projection.automationTaskName,
         canStop: display.canStop,
         model: projection.model,
         stop: handleStopMessage,

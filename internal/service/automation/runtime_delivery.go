@@ -1,3 +1,6 @@
+// INPUT: 已完成执行的观测结果、任务投递配置与最新授权事实。
+// OUTPUT: 经会话路由解析后的通道投递结果、重试计划与可审计目标摘要。
+// POS: Automation 执行完成到 channels.Router 的唯一投递编排入口。
 package automation
 
 import (
@@ -27,12 +30,44 @@ type jobDeliveryResult struct {
 
 func toChannelDeliveryTarget(target automationdomain.DeliveryTarget) channels.DeliveryTarget {
 	return channels.DeliveryTarget{
-		Mode:      strings.TrimSpace(target.Mode),
-		Channel:   strings.TrimSpace(target.Channel),
-		To:        strings.TrimSpace(target.To),
-		AccountID: strings.TrimSpace(target.AccountID),
-		ThreadID:  strings.TrimSpace(target.ThreadID),
+		Mode:       strings.TrimSpace(target.Mode),
+		Channel:    strings.TrimSpace(target.Channel),
+		To:         strings.TrimSpace(target.To),
+		AccountID:  strings.TrimSpace(target.AccountID),
+		ThreadID:   strings.TrimSpace(target.ThreadID),
+		SessionKey: strings.TrimSpace(target.SessionKey),
 	}.Normalized()
+}
+
+func cloneDeliveryTargetPointer(target automationdomain.DeliveryTarget) *automationdomain.DeliveryTarget {
+	normalized := target.Normalized()
+	return &normalized
+}
+
+func deliveryTargetForRun(
+	job automationdomain.ScheduledTask,
+	run automationdomain.ScheduledTaskRun,
+) automationdomain.DeliveryTarget {
+	if run.DeliveryTarget != nil {
+		return run.DeliveryTarget.Normalized()
+	}
+	return job.Delivery.Normalized()
+}
+
+func (s *Service) persistedRunDeliveryTarget(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	runID string,
+) automationdomain.DeliveryTarget {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return job.Delivery.Normalized()
+	}
+	run, err := s.repository.GetRun(ctx, job.OwnerUserID, job.JobID, runID)
+	if err != nil || run == nil {
+		return job.Delivery.Normalized()
+	}
+	return deliveryTargetForRun(job, *run)
 }
 
 var deliveryRetryBackoffs = []time.Duration{
@@ -48,7 +83,17 @@ func (s *Service) deliverJobObservation(
 	executionSessionKey string,
 	observation automationexec.ExecutionObservation,
 ) jobDeliveryResult {
-	currentJob, err := s.authorizedDeliveryJob(ctx, job)
+	return s.deliverJobObservationToTarget(ctx, job, job.Delivery, executionSessionKey, observation)
+}
+
+func (s *Service) deliverJobObservationToTarget(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	targetSnapshot automationdomain.DeliveryTarget,
+	executionSessionKey string,
+	observation automationexec.ExecutionObservation,
+) jobDeliveryResult {
+	currentJob, err := s.authorizedDeliveryJobForTarget(ctx, job, targetSnapshot)
 	if err != nil {
 		return jobDeliveryResult{
 			Status: automationdomain.DeliveryStatusFailed,
@@ -56,9 +101,13 @@ func (s *Service) deliverJobObservation(
 		}
 	}
 	job = currentJob
-	deliveryMode := strings.TrimSpace(job.Delivery.Mode)
-	deliveryChannel := strings.TrimSpace(job.Delivery.Channel)
-	deliveryTo := strings.TrimSpace(job.Delivery.To)
+	if job.Delivery.Normalized().Mode == automationdomain.DeliveryModeNone {
+		return jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
+	}
+	targetSnapshot = targetSnapshot.Normalized()
+	deliveryMode := strings.TrimSpace(targetSnapshot.Mode)
+	deliveryChannel := strings.TrimSpace(targetSnapshot.Channel)
+	deliveryTo := strings.TrimSpace(targetSnapshot.To)
 	executionSessionKey = strings.TrimSpace(executionSessionKey)
 	if deliveryMode == "" || deliveryMode == automationdomain.DeliveryModeNone {
 		return jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
@@ -72,23 +121,52 @@ func (s *Service) deliverJobObservation(
 	if s.delivery == nil {
 		return jobDeliveryResult{Status: automationdomain.DeliveryStatusFailed, Error: stringPointer("delivery router is not configured")}
 	}
+	// Agent 的正常结果必须原样进入 IM；任务来源保留在结构化 run/delivery 元数据中，
+	// 不能用固定可见前缀污染用户要求的输出格式。
 	text := firstNonEmpty(observation.ResultText, observation.AssistantText)
 	if text == "" {
 		return jobDeliveryResult{Status: automationdomain.DeliveryStatusSkipped}
 	}
-	target := toChannelDeliveryTarget(job.Delivery)
-	if strings.TrimSpace(target.Mode) == channels.DeliveryModeLast {
+	target := toChannelDeliveryTarget(targetSnapshot)
+	if strings.TrimSpace(target.Mode) == channels.DeliveryModeLast &&
+		strings.TrimSpace(target.SessionKey) == "" {
 		target.SessionKey = strings.TrimSpace(job.Source.SessionKey)
 	}
 	deliveryCtx := contextForJobOwner(ctx, job)
-	delivered, err := s.delivery.DeliverMessage(
-		deliveryCtx,
-		job.AgentID,
-		text,
-		target,
-	)
+	var delivered channels.DeliveryResult
+	if enriched, ok := s.delivery.(automationResultDeliveryRouter); ok {
+		delivered, err = enriched.DeliverAutomationResult(
+			deliveryCtx,
+			job.AgentID,
+			text,
+			target,
+			channels.AutomationDeliveryContext{
+				JobID:               job.JobID,
+				RunID:               observation.RunID,
+				TaskName:            job.Name,
+				Instruction:         job.Instruction,
+				ExecutionSessionKey: executionSessionKey,
+				ExecutionRoundID:    observation.RoundID,
+			},
+		)
+	} else {
+		delivered, err = s.delivery.DeliverMessage(
+			deliveryCtx,
+			job.AgentID,
+			text,
+			target,
+		)
+	}
 	if err != nil {
-		return jobDeliveryResult{Status: automationdomain.DeliveryStatusFailed, Error: errorPointer(err)}
+		result := jobDeliveryResult{
+			Status:  automationdomain.DeliveryStatusFailed,
+			Error:   errorPointer(err),
+			Receipt: delivered.Receipt,
+		}
+		if strings.TrimSpace(delivered.Target.Mode) != "" {
+			result.Target = &delivered.Target
+		}
+		return result
 	}
 	return jobDeliveryResult{Status: automationdomain.DeliveryStatusSucceeded, Target: &delivered.Target, Receipt: delivered.Receipt}
 }

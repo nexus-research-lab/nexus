@@ -14,6 +14,7 @@ func TestRenderContextualInputBlockUsesInternalSourceEnvelope(t *testing.T) {
 	}{
 		{name: ContextualInputNameRoundRecovery, content: "Recorded terminal reason: content_filtered."},
 		{name: ContextualInputNameExecution, content: `<nexus_execution_context execution_version="4"></nexus_execution_context>`},
+		{name: ContextualInputNameTransport, content: `<nexus_transport_context transport="im" channel="weixin-personal" chat_type="dm" route_binding="host" />`},
 	} {
 		rendered := renderContextualInputBlock(NewContextualInputBlock(test.name, test.content, 0, nil))
 		if !strings.Contains(rendered, `<internal_context source="`+test.name+`">`) ||

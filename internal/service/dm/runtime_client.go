@@ -155,6 +155,7 @@ func (s *Service) ensureClient(
 			PermissionMode:        permissionMode,
 			GoalID:                goalIDForUsage,
 			GoalObjectiveRevision: goalObjectiveRevision,
+			AutomationRun:         cloneAutomationRunContext(request.AutomationRun),
 		})
 		if len(overlay) > 0 && mcpServers == nil {
 			mcpServers = make(map[string]sdkmcp.ServerConfig, len(overlay))
@@ -178,6 +179,11 @@ func (s *Service) ensureClient(
 	); err != nil {
 		return dmClientPreparation{}, err
 	}
+	allowedTools, disallowedTools := resolveDMRuntimeToolPolicy(
+		agentValue.Options,
+		request.RuntimeToolPolicy,
+		s.runtimeImagegenDefaultEnabled(ctx),
+	)
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
 		OwnerUserID:                agentValue.OwnerUserID,
@@ -189,8 +195,8 @@ func (s *Service) ensureClient(
 		VisionModel:                runtimeSelection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
-		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
-		DisallowedTools:            agentValue.Options.DisallowedTools,
+		AllowedTools:               allowedTools,
+		DisallowedTools:            disallowedTools,
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
@@ -315,6 +321,11 @@ func dmMCPSourceContextType(sessionKey string, agentID string, request Request) 
 		trustedDMWebSocketSession(sessionKey, agentID) {
 		return "agent"
 	}
+	if request.TrustedExternalInteractiveContext &&
+		strings.TrimSpace(request.ExecutionOrigin) == "channel" &&
+		trustedExternalDMSession(sessionKey, agentID) {
+		return "agent_paired"
+	}
 	switch {
 	case strings.TrimSpace(request.ExecutionOrigin) != "":
 		return "agent_" + strings.ToLower(strings.TrimSpace(request.ExecutionOrigin))
@@ -329,6 +340,20 @@ func dmMCPSourceContextType(sessionKey string, agentID string, request Request) 
 		return "agent_untrusted"
 	}
 	return "agent"
+}
+
+func trustedExternalDMSession(sessionKey string, agentID string) bool {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured ||
+		parsed.Kind != protocol.SessionKeyKindAgent ||
+		parsed.ChatType != protocol.RoomTypeDM ||
+		strings.TrimSpace(parsed.AgentID) != strings.TrimSpace(agentID) {
+		return false
+	}
+	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
+	return channel != "" &&
+		channel != protocol.SessionChannelWebSocket &&
+		channel != protocol.SessionChannelInternalSegment
 }
 
 func trustedDMWebSocketSession(sessionKey string, agentID string) bool {
@@ -355,6 +380,20 @@ func resolvePermissionMode(
 		return runtimepermission.NormalizeMode(sdkpermission.Mode(agentMode))
 	}
 	return sdkpermission.ModeDefault
+}
+
+func resolveDMRuntimeToolPolicy(
+	agentOptions protocol.Options,
+	snapshot *protocol.RuntimeToolPolicy,
+	imagegenDefaultEnabled bool,
+) ([]string, []string) {
+	if snapshot != nil {
+		return append([]string(nil), snapshot.AllowedTools...), append([]string(nil), snapshot.DisallowedTools...)
+	}
+	return toolpolicy.WithManagedRuntimeAllowedTools(
+		agentOptions.AllowedTools,
+		imagegenDefaultEnabled,
+	), append([]string(nil), agentOptions.DisallowedTools...)
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64) {

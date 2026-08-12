@@ -115,6 +115,8 @@ const (
 	TaskEventActionPermissionDenied = "permission_denied"
 	// TaskEventActionPermissionRetry 表示 connector 恢复或 owner 确认后重试被阻塞 run。
 	TaskEventActionPermissionRetry = "permission_retry"
+	// TaskEventActionSessionBindingInvalidated 表示 Session 删除后任务已停用并等待重绑。
+	TaskEventActionSessionBindingInvalidated = "session_binding_invalidated"
 
 	// HeartbeatTargetNone 表示不投递。
 	HeartbeatTargetNone = "none"

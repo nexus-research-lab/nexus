@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestCreateTaskRequestIDIsIdempotentBeforeCapacityCheck(t *testing.T) {
@@ -119,6 +121,139 @@ func TestScheduledTaskCASRejectsStaleUpdateAndDelete(t *testing.T) {
 	}
 	if persisted != nil {
 		t.Fatalf("task still exists after versioned delete: %+v", persisted)
+	}
+}
+
+func TestScheduledTaskUpdateAcceptsUnchangedHistoricalIMDelivery(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	grant := &mutableAutomationDeliveryGrant{allowed: true}
+	service.SetDeliveryGrantResolver(grant)
+	input := automationConfigurationTaskInput("historical-im")
+	input.Source = automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
+	input.Delivery = automationdomain.DeliveryTarget{
+		Mode:       automationdomain.DeliveryModeLast,
+		SessionKey: "agent:agent-1:weixin-personal:dm:acct:old-account:old-contact",
+	}
+	created, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	grant.setAllowed(false)
+	updatedName := "historical-im-edited"
+	updated, err := service.UpdateTask(
+		context.Background(),
+		created.JobID,
+		automationdomain.UpdateJobInput{
+			Name:     &updatedName,
+			Delivery: &created.Delivery,
+			Source:   &created.Source,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unchanged historical IM route should remain editable: %v", err)
+	}
+	if updated.Name != updatedName || updated.Delivery != created.Delivery ||
+		updated.Source != created.Source {
+		t.Fatalf("historical task update changed route/source: %+v", updated)
+	}
+
+	changedDelivery := created.Delivery
+	changedDelivery.SessionKey = "agent:agent-1:weixin-personal:dm:acct:new-account:new-contact"
+	if _, err = service.UpdateTask(
+		context.Background(),
+		created.JobID,
+		automationdomain.UpdateJobInput{Delivery: &changedDelivery},
+	); !errors.Is(err, automationdomain.ErrTaskDeliverySessionUnavailable) {
+		t.Fatalf("changed IM route must return the stable unavailable-session error, got %v", err)
+	}
+}
+
+func TestHumanUpdatePreservesAgentCreatedTaskProvenance(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	agentCtx := automationexec.WithActorAgentID(context.Background(), "agent-1")
+	source := automationdomain.Source{
+		Kind:           automationdomain.SourceKindAgent,
+		CreatorAgentID: "agent-1",
+		ContextType:    "agent",
+		ContextID:      "agent-1",
+		SessionKey: protocol.BuildAgentSessionKey(
+			"agent-1",
+			protocol.SessionChannelInternalSegment,
+			protocol.RoomTypeDM,
+			"operator",
+			"",
+		),
+		SessionLabel: "最初会话",
+	}
+	input := automationConfigurationTaskInput("agent-created")
+	input.Source = source
+	input.Delivery = automationdomain.DeliveryTarget{
+		Mode:    automationdomain.DeliveryModeExplicit,
+		Channel: protocol.SessionChannelInternalSegment,
+		To: protocol.BuildAgentSessionKey(
+			"agent-1",
+			protocol.SessionChannelInternalSegment,
+			protocol.RoomTypeDM,
+			protocol.AutomationInboxSessionRef,
+			"",
+		),
+	}
+	created, err := service.CreateTask(agentCtx, input)
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	updatedName := "human-edited"
+	updated, err := service.UpdateTask(
+		context.Background(),
+		created.JobID,
+		automationdomain.UpdateJobInput{Name: &updatedName},
+	)
+	if err != nil {
+		t.Fatalf("human control-plane update should not require Agent actor: %v", err)
+	}
+	if updated.Source != source.Normalized() {
+		t.Fatalf("creation provenance changed: got=%+v want=%+v", updated.Source, source.Normalized())
+	}
+	if updated.DeliveryGrant != source.Normalized() {
+		t.Fatalf("unchanged delivery grant changed: got=%+v want=%+v", updated.DeliveryGrant, source.Normalized())
+	}
+
+	none := automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}
+	pageSource := automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
+	updated, err = service.UpdateTask(
+		context.Background(),
+		created.JobID,
+		automationdomain.UpdateJobInput{Delivery: &none, Source: &pageSource},
+	)
+	if err != nil {
+		t.Fatalf("human delivery update: %v", err)
+	}
+	if updated.Source != source.Normalized() {
+		t.Fatalf("delivery edit rewrote creation provenance: %+v", updated.Source)
+	}
+	if updated.DeliveryGrant.Kind != automationdomain.SourceKindUserPage ||
+		updated.DeliveryGrant.CreatorAgentID != "" {
+		t.Fatalf("delivery grant did not transfer to page control plane: %+v", updated.DeliveryGrant)
 	}
 }
 

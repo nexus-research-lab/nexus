@@ -11,6 +11,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
@@ -127,28 +128,38 @@ func (c *WeComBotChannel) Stop(context.Context) error {
 func (c *WeComBotChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(target.To) == "" {
-		return channelcontract.DeliveryResult{}, fmt.Errorf("wechat bot delivery target requires to")
+		return channelcontract.NewDeliveryResult(normalized, nil), fmt.Errorf("wechat bot delivery target requires to")
 	}
-	reqID := strings.TrimSpace(target.AccountID)
-	if reqID == "" {
-		return channelcontract.DeliveryResult{}, fmt.Errorf("wechat bot delivery requires callback req_id")
+	if accountID := strings.TrimSpace(normalized.AccountID); accountID != "" && accountID != c.botID {
+		return channelcontract.NewDeliveryResult(normalized, nil), fmt.Errorf("wechat bot delivery account does not match configured bot")
 	}
-	streamID := channelcontract.FirstNonEmpty(target.ThreadID, target.To)
-	if streamID == "" {
-		return channelcontract.DeliveryResult{}, fmt.Errorf("wechat bot delivery requires stream id")
-	}
-
 	chunks := channeltransport.SplitText(strings.TrimSpace(text), 3800)
 	if len(chunks) == 0 {
 		return channelcontract.NewDeliveryResult(normalized, nil), nil
 	}
+	parts := make([]channelmessage.ReceiptPart, 0, len(chunks))
+	replyReqID := strings.TrimSpace(normalized.ReplyContextID)
+	streamID := strings.TrimSpace(normalized.StreamID)
 	for index, chunk := range chunks {
-		frame := weComBotStreamResponseFrame(reqID, streamID, chunk, index == len(chunks)-1)
-		if err := c.writeReplyFrame(ctx, reqID, frame); err != nil {
-			return channelcontract.DeliveryResult{}, err
+		reqID := replyReqID
+		var frame weComBotCommandFrame
+		if reqID != "" && streamID != "" {
+			frame = weComBotStreamResponseFrame(reqID, streamID, chunk, index == len(chunks)-1)
+		} else {
+			reqID = channelcontract.NewID("aibot_send")
+			frame = weComBotProactiveMessageFrame(reqID, normalized.To, chunk)
 		}
+		if err := c.writeReplyFrame(ctx, reqID, frame); err != nil {
+			return channelcontract.NewDeliveryResult(normalized, nil), err
+		}
+		parts = append(parts, channelmessage.TextPart(reqID))
 	}
-	return channelcontract.NewDeliveryResult(normalized, nil), nil
+	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  channelcontract.ChannelTypeWeChat,
+		Target:   normalized.To,
+		ThreadID: normalized.ThreadID,
+		Parts:    parts,
+	})), nil
 }
 
 func (c *WeComBotChannel) currentIngress() channelcontract.IngressAcceptor {

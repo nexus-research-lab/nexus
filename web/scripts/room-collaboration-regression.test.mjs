@@ -886,6 +886,31 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
   );
 });
 
+test("删除外部 IM Session 会从持久化标签栏移除旧身份", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  useRoomNavigationStore.setState({conversation_tabs_by_room: {}});
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    "room-im",
+    ["local", "external-session:agent:a:tg:dm:old"],
+    "external-session:agent:a:tg:dm:old",
+  );
+
+  useRoomNavigationStore.getState().forget_conversation(
+    "room-im",
+    "external-session:agent:a:tg:dm:old",
+  );
+
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room["room-im"],
+    {
+      active_conversation_id: "local",
+      open_conversation_ids: ["local"],
+    },
+  );
+});
+
 test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {
   const {
     buildRoomConversationViews,
