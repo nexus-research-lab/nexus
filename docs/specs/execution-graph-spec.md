@@ -67,7 +67,11 @@ Runtime Graph 来自 provider-neutral runtime lifecycle 和 Nexus round boundary
 - Tool use ID、child session/task identity；
 - Runtime Graph 的 subject 与 parent subject identity。
 
+`AgentRoundID` 只表示一个物理 Agent round 的外层容器，不是 Work Item ownership identity。同一个 DM coordinator round 串行承担多个自分配 Work Item 时，每次成功 `assign_work` 建立新的内部执行段；该段必须由服务端 mutation envelope 中的 exact Execution/Assignment/Attempt refs 回查权威 snapshot 后，持久化为 `execution_id + work_item_id + assignment_id + attempt_id`，后续 Tool 才能归入对应责任节点。Room 不使用这条 DM 自分配推断：Lead 的协调 round 保持 coordinator lane，成员工作与审核只认 durable WorkBinding/ReviewBinding。
+
 禁止按工具名、自然语言、消息位置、DOM 顺序或时间邻近猜测归属、重试和责任。
+
+历史兼容只允许一种 fail-closed 修复：同一 Agent round 内，一个成功 `assign_work` 的 exact start/finish 生命周期区间必须唯一包含一个 durable root Attempt 的创建事实，且该 Attempt 也只能被一个这样的区间命中。它是封闭因果区间校验，不是“找最近时间”；任一侧多解时不得恢复执行段。
 
 ## 4. Runtime Graph 数据模型
 
@@ -146,6 +150,7 @@ WorkGraph 必须先完成产品可见性投影，再对主图窗口应用上限�
 View 使用与 Runtime Graph 相同的四种 kind：`agent`、`subagent`、`tool`、`gate`。
 
 - Agent 节点以 Work Item 为稳定责任身份；同一 Agent 承担不同 Work Item 时是不同节点。
+- 一个 Agent round 可以作为多个串行 Assignment/Attempt 执行段的外层容器；Tool 必须优先按 exact 执行段归属，不能因头像、Agent ID 或共享 AgentRoundID 被全部折叠到最后一个 Work Item。
 - 每个 durable child Attempt 都拥有独立 Subagent 节点，不能按父 Agent 或头像合并。
 - Tool 节点对应独立 Tool NodeRun。
 - Gate 节点必须来自 durable review binding/dispatch 或已观测 runtime Gate，不能从文本猜测。

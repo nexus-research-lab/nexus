@@ -4,6 +4,7 @@
 package orchestration
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -25,6 +26,9 @@ func mergeExecutionRuntimeGraph(
 	if len(runtimeGraph.Nodes) == 0 {
 		return
 	}
+	for index := range runtimeGraph.Nodes {
+		runtimeGraph.Nodes[index].Metadata = maps.Clone(runtimeGraph.Nodes[index].Metadata)
+	}
 	runtimeGraph.Nodes = slices.DeleteFunc(
 		slices.Clone(runtimeGraph.Nodes),
 		isRuntimeGraphProgressFacet,
@@ -32,7 +36,7 @@ func mergeExecutionRuntimeGraph(
 	if len(runtimeGraph.Nodes) == 0 {
 		return
 	}
-	agentNodeByRound := make(map[string]string)
+	agentNodeByRound := firstAssignedWorkItemNodeByAgentRound(view.WorkItems)
 	agentNodeByWorkItem := make(map[string]string)
 	reviewNodeByWorkItem := make(map[string]string)
 	subagentNodeByTask := make(map[string]string)
@@ -49,7 +53,9 @@ func mergeExecutionRuntimeGraph(
 			reviewNodeByWorkItem[node.WorkItemID] = node.ID
 		}
 		if node.Kind == protocol.ExecutionGraphNodeAgent && node.AgentRoundID != "" {
-			agentNodeByRound[node.AgentRoundID] = node.ID
+			if agentNodeByRound[node.AgentRoundID] == "" {
+				agentNodeByRound[node.AgentRoundID] = node.ID
+			}
 		}
 		if node.Kind == protocol.ExecutionGraphNodeSubagent && node.SubjectID != "" {
 			subagentNodeByTask[node.SubjectID] = node.ID
@@ -82,6 +88,7 @@ func mergeExecutionRuntimeGraph(
 		}
 		return strings.Compare(left.ID, right.ID)
 	})
+	recoverDMSelfAssignmentRuntimeSegments(view, runtimeGraph.Nodes)
 	managedExecution := len(view.WorkItems) > 0
 	allowedAgentRound := make(map[string]struct{})
 	if managedExecution {
@@ -207,10 +214,24 @@ func mergeExecutionRuntimeGraph(
 	for _, runtimeEdge := range runtimeGraph.Edges {
 		sourceID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.SourceNodeID], runtimeEdge.SourceNodeID)
 		targetID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.TargetNodeID], runtimeEdge.TargetNodeID)
+		if runtimeEdge.Kind == protocol.ExecutionRuntimeEdgeLoopBack {
+			sourceRuntimeNode := runtimeNodeByID[runtimeEdge.SourceNodeID]
+			workItemID := runtimeExecutionSegmentWorkItemID(sourceRuntimeNode)
+			if segmentOwnerID := agentNodeByWorkItem[workItemID]; segmentOwnerID != "" {
+				targetID = segmentOwnerID
+			}
+		}
 		if runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeLoopBack &&
 			runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeRetry {
 			targetRuntimeNode := runtimeNodeByID[runtimeEdge.TargetNodeID]
-			if exactParentID := parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)]; exactParentID != "" && exactParentID != targetID {
+			segmentOwnerID := ""
+			if workItemID := runtimeExecutionSegmentWorkItemID(targetRuntimeNode); workItemID != "" {
+				if segmentOwnerID = agentNodeByWorkItem[workItemID]; segmentOwnerID != "" && segmentOwnerID != targetID {
+					sourceID = segmentOwnerID
+				}
+			}
+			if exactParentID := parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)]; exactParentID != "" && exactParentID != targetID &&
+				(segmentOwnerID == "" || exactParentID != agentNodeByRound[targetRuntimeNode.AgentRoundID]) {
 				sourceID = exactParentID
 			}
 		}
@@ -275,6 +296,12 @@ func mergeExecutionRuntimeGraph(
 			continue
 		}
 		sourceID := parentNodeBySubject[strings.TrimSpace(runtimeNode.ParentSubjectID)]
+		if workItemID := runtimeExecutionSegmentWorkItemID(runtimeNode); workItemID != "" {
+			segmentOwnerID := agentNodeByWorkItem[workItemID]
+			if segmentOwnerID != "" && (sourceID == "" || sourceID == agentNodeByRound[runtimeNode.AgentRoundID]) {
+				sourceID = segmentOwnerID
+			}
+		}
 		if sourceID == "" {
 			sourceID = agentNodeByRound[runtimeNode.AgentRoundID]
 		}
@@ -312,6 +339,60 @@ func mergeExecutionRuntimeGraph(
 		runtimeProjectedNodeIDs,
 		runtimeProjectedEdgeIDs,
 	)
+}
+
+// firstAssignedWorkItemNodeByAgentRound resolves the outer physical round to
+// the first durable root Attempt created in that round. This is only the
+// fallback owner for pre-assignment coordination tools; exact execution
+// segment metadata still wins for every tool after assign_work.
+type runtimeRoundOwnerCandidate struct {
+	workItemID string
+	createdAt  time.Time
+	position   int
+}
+
+func firstAssignedWorkItemNodeByAgentRound(
+	items []protocol.ExecutionWorkItemView,
+) map[string]string {
+	candidates := make(map[string]runtimeRoundOwnerCandidate)
+	for _, item := range items {
+		for _, attempt := range item.Attempts {
+			roundID := strings.TrimSpace(attempt.AgentRoundID)
+			if strings.TrimSpace(attempt.ParentAttemptID) != "" || roundID == "" {
+				continue
+			}
+			incoming := runtimeRoundOwnerCandidate{
+				workItemID: item.ID,
+				createdAt:  attempt.CreatedAt,
+				position:   item.Position,
+			}
+			current, exists := candidates[roundID]
+			if !exists || runtimeRoundOwnerCandidateEarlier(incoming, current) {
+				candidates[roundID] = incoming
+			}
+		}
+	}
+	result := make(map[string]string, len(candidates))
+	for roundID, candidate := range candidates {
+		result[roundID] = candidate.workItemID
+	}
+	return result
+}
+
+func runtimeRoundOwnerCandidateEarlier(
+	left runtimeRoundOwnerCandidate,
+	right runtimeRoundOwnerCandidate,
+) bool {
+	switch {
+	case left.createdAt.IsZero() != right.createdAt.IsZero():
+		return !left.createdAt.IsZero()
+	case !left.createdAt.IsZero() && !left.createdAt.Equal(right.createdAt):
+		return left.createdAt.Before(right.createdAt)
+	case left.position != right.position:
+		return left.position < right.position
+	default:
+		return strings.Compare(left.workItemID, right.workItemID) < 0
+	}
 }
 
 const executionRuntimeGraphDetailProjectionLimit = 256
@@ -895,6 +976,7 @@ func projectRuntimeGraphNode(
 		ID:               item.ID,
 		Kind:             kind,
 		Visibility:       visibility,
+		WorkItemID:       runtimeExecutionSegmentWorkItemID(item),
 		AgentID:          item.AgentID,
 		AgentRoundID:     item.AgentRoundID,
 		SubjectID:        item.SubjectID,

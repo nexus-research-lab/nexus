@@ -211,6 +211,14 @@ Dependencies are revision-scoped:
 Output claims are either exclusive or shared. Exclusive claims prevent two active
 responsibility chains from owning the same declared output.
 
+An all-hard dependency path makes overlapping exclusive claims an ordered
+ownership handoff rather than concurrent ownership: every downstream Work Item
+remains locked until the upstream Submission is accepted, so a later draft,
+integration, or finalization step may truthfully declare the same file, directory,
+or semantic output. Unrelated branches, siblings, parent nesting, and soft-only
+dependency paths do not provide that gate and still conflict unless every
+overlapping claim is explicitly shared.
+
 ### 3.4 Mutable Work Item state and derived lifecycle
 
 The stored mutable Work Item state is limited to:

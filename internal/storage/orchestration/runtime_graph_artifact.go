@@ -5,6 +5,7 @@ package orchestration
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -27,6 +28,31 @@ func (r *Repository) UpsertRuntimeGraphArtifact(
 	if err != nil {
 		return err
 	}
+	executionID := strings.TrimSpace(item.ExecutionID)
+	if executionID == "" {
+		var inherited sql.NullString
+		err = r.db.QueryRowContext(ctx, `
+SELECT execution_id
+FROM runtime_graph_node_runs
+WHERE owner_user_id = `+r.bind(1)+`
+  AND session_key = `+r.bind(2)+`
+  AND agent_round_id = `+r.bind(3)+`
+  AND node_kind = 'tool'
+  AND subject_id = `+r.bind(4)+`
+ORDER BY updated_at DESC, node_run_id DESC
+LIMIT 1`,
+			item.OwnerUserID,
+			item.SessionKey,
+			item.AgentRoundID,
+			item.ToolUseID,
+		).Scan(&inherited)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		if inherited.Valid {
+			executionID = strings.TrimSpace(inherited.String)
+		}
+	}
 	_, err = r.db.ExecContext(ctx, `
 INSERT INTO runtime_graph_artifact_refs (
     artifact_ref_id, graph_id, owner_user_id, session_key, execution_id,
@@ -38,6 +64,7 @@ INSERT INTO runtime_graph_artifact_refs (
 		r.bind(10)+`, `+r.bind(11)+`
 )
 ON CONFLICT (artifact_ref_id) DO UPDATE SET
+	execution_id = COALESCE(runtime_graph_artifact_refs.execution_id, excluded.execution_id),
     artifact_json = excluded.artifact_json,
     updated_at = CASE
         WHEN excluded.updated_at > runtime_graph_artifact_refs.updated_at
@@ -48,7 +75,7 @@ ON CONFLICT (artifact_ref_id) DO UPDATE SET
 		item.GraphID,
 		item.OwnerUserID,
 		item.SessionKey,
-		nullString(item.ExecutionID),
+		nullString(executionID),
 		item.RootRoundID,
 		item.AgentRoundID,
 		item.ToolUseID,

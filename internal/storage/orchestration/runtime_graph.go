@@ -1,5 +1,5 @@
 // INPUT: provider-neutral Runtime NodeRun / EdgeRun 与 owner/session 查询边界。
-// OUTPUT: 幂等 upsert、内部观测用有界运行图，以及可见性投影前的完整 WorkGraph 运行事实。
+// OUTPUT: 幂等 upsert、物理 round 的单 Execution 绑定、内部观测用有界运行图，以及可见性投影前的完整 WorkGraph 运行事实。
 // POS: Execution Orchestration Repository 中不参与 command CAS 的观测事实存储。
 package orchestration
 
@@ -109,6 +109,102 @@ ON CONFLICT (node_run_id) DO UPDATE SET
 		metadataJSON,
 	)
 	return err
+}
+
+// BindRuntimeGraphRoundExecution 在一次经服务端验证的 DM assign_work
+// 首次返回 Execution 身份后，把同一物理 Agent round 中先行落库的计划、
+// 分配工具及 Artifact 绑到该 Execution。已有其他 Execution 的 round
+// 不允许改绑，以免跨 WorkGraph 污染。
+func (r *Repository) BindRuntimeGraphRoundExecution(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	agentRoundID string,
+	executionID string,
+) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	agentRoundID = strings.TrimSpace(agentRoundID)
+	executionID = strings.TrimSpace(executionID)
+	if ownerUserID == "" || sessionKey == "" || agentRoundID == "" || executionID == "" {
+		return fmt.Errorf("%w: runtime graph round execution binding is incomplete", ErrInvariant)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, table := range []string{
+		"runtime_graph_node_runs",
+		"runtime_graph_artifact_refs",
+	} {
+		var conflicts int
+		query := fmt.Sprintf(`
+SELECT COUNT(*)
+FROM %s
+WHERE owner_user_id = %s
+  AND session_key = %s
+  AND agent_round_id = %s
+  AND execution_id IS NOT NULL
+  AND execution_id <> %s`,
+			table,
+			r.bind(1),
+			r.bind(2),
+			r.bind(3),
+			r.bind(4),
+		)
+		if err = tx.QueryRowContext(
+			ctx,
+			query,
+			ownerUserID,
+			sessionKey,
+			agentRoundID,
+			executionID,
+		).Scan(&conflicts); err != nil {
+			return err
+		}
+		if conflicts > 0 {
+			return fmt.Errorf(
+				"%w: runtime graph round %q is already bound to another execution",
+				ErrInvariant,
+				agentRoundID,
+			)
+		}
+	}
+
+	for _, table := range []string{
+		"runtime_graph_node_runs",
+		"runtime_graph_artifact_refs",
+	} {
+		query := fmt.Sprintf(`
+UPDATE %s
+SET execution_id = %s
+WHERE owner_user_id = %s
+  AND session_key = %s
+  AND agent_round_id = %s
+  AND (execution_id IS NULL OR execution_id = %s)`,
+			table,
+			r.bind(1),
+			r.bind(2),
+			r.bind(3),
+			r.bind(4),
+			r.bind(5),
+		)
+		if _, err = tx.ExecContext(
+			ctx,
+			query,
+			executionID,
+			ownerUserID,
+			sessionKey,
+			agentRoundID,
+			executionID,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // UpsertRuntimeGraphEdge 幂等记录一个已存在 NodeRun 间的运行边。

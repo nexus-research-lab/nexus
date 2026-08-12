@@ -44,6 +44,7 @@ func TestNormalizeAndValidatePlanDraftOutputScopeConflictMatrix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			draft := validPlanDraft()
+			draft.Items[1].DependsOn = nil
 			draft.Items[0].OutputScopes = []protocol.WorkOutputScope{{
 				Scope: test.left,
 				Mode:  test.leftMode,
@@ -62,6 +63,26 @@ func TestNormalizeAndValidatePlanDraftOutputScopeConflictMatrix(t *testing.T) {
 			assertDomainErrorCode(t, err, test.wantCode)
 		})
 	}
+}
+
+func TestNormalizeAndValidatePlanDraftAllowsHardOrderedOutputScopeHandoff(t *testing.T) {
+	draft := validPlanDraft()
+	draft.Items[0].OutputScopes = []protocol.WorkOutputScope{{
+		Scope: "file:output/workgraph-demo.md",
+	}}
+	draft.Items[2].OutputScopes = []protocol.WorkOutputScope{{
+		Scope: "file:output/workgraph-demo.md",
+	}}
+	if _, err := NormalizeAndValidatePlanDraft(draft); err != nil {
+		t.Fatalf("transitive hard dependency handoff rejected: %v", err)
+	}
+
+	draft.Items[1].DependsOn[0].Kind = protocol.WorkDependencySoft
+	assertDomainErrorCode(
+		t,
+		ValidatePlanDraft(draft),
+		ErrorCodeOutputScopeConflict,
+	)
 }
 
 func TestNormalizeAndValidatePlanDraftRejectsInvalidOutputScopeMatrix(t *testing.T) {

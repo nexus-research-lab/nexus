@@ -213,6 +213,51 @@ items:
 	}
 }
 
+func TestParseExecutionPlanDocumentAllowsDraftReviewFinalizeFileHandoff(t *testing.T) {
+	t.Parallel()
+	const source = `nexus_plan: 1
+operation: create
+objective: Produce a reviewed demonstration document
+completion_criteria:
+  - The final document exists
+items:
+  - logical_key: draft
+    kind: produce
+    subject: Draft document
+    objective: Write the initial document
+    deliverable: output/workgraph-demo.md
+    output_scopes:
+      - file:output/workgraph-demo.md
+  - logical_key: review
+    kind: review
+    subject: Review document
+    objective: Review the accepted draft
+    deliverable: Review verdict
+    depends_on:
+      - draft
+    output_scopes:
+      - semantic:review-verdict
+  - logical_key: finalize
+    kind: integrate
+    subject: Finalize document
+    objective: Apply the accepted review
+    deliverable: output/workgraph-demo.md
+    terminal: true
+    depends_on:
+      - review
+    output_scopes:
+      - file:output/workgraph-demo.md
+`
+	document, _, err := ParseExecutionPlanDocument(source)
+	if err != nil {
+		t.Fatalf("hard-ordered file handoff rejected: %v", err)
+	}
+	if len(document.Items) != 3 ||
+		document.Items[0].OutputScopes[0].Scope != document.Items[2].OutputScopes[0].Scope {
+		t.Fatalf("parsed handoff document = %#v", document)
+	}
+}
+
 func TestParseExecutionPlanDocumentPreservesReplanBoundaryPresence(t *testing.T) {
 	t.Parallel()
 

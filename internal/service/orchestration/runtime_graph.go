@@ -20,6 +20,7 @@ type runtimeGraphRepository interface {
 	UpsertRuntimeGraphNode(context.Context, protocol.ExecutionRuntimeNodeRun) error
 	UpsertRuntimeGraphEdge(context.Context, protocol.ExecutionRuntimeEdgeRun) error
 	UpsertRuntimeGraphArtifact(context.Context, protocol.ExecutionRuntimeArtifactRef) error
+	BindRuntimeGraphRoundExecution(context.Context, string, string, string, string) error
 	ReconcileRuntimeGraphAgent(context.Context, string, string, string, string, time.Time) error
 	FinishRuntimeGraphRound(context.Context, string, string, string, protocol.ExecutionRuntimeNodeStatus, time.Time) error
 	GetRuntimeGraph(context.Context, string, string, string, string) (protocol.ExecutionRuntimeGraph, error)
@@ -123,6 +124,7 @@ func (s *Service) ObserveRuntimeMessage(
 		): rootNodeID,
 	}
 	runtimeNodeByID := make(map[string]protocol.ExecutionRuntimeNodeRun)
+	activeSegment := runtimeExecutionSegmentFromActor(actor)
 	if graph, graphErr := repository.GetRuntimeGraph(
 		ctx,
 		identity.OwnerUserID,
@@ -134,6 +136,9 @@ func (s *Service) ObserveRuntimeMessage(
 		for _, node := range graph.Nodes {
 			nodeByKindSubject[runtimeGraphKindSubjectKey(node.Kind, node.SubjectID)] = node.ID
 			runtimeNodeByID[node.ID] = node
+		}
+		if !activeSegment.valid() && actor.ScopeKind == protocol.ExecutionScopeDM {
+			activeSegment = latestRuntimeExecutionSegment(graph.Nodes, identity)
 		}
 	}
 	for _, event := range events {
@@ -179,12 +184,49 @@ func (s *Service) ObserveRuntimeMessage(
 		if evidence.mutationOutcome != "" {
 			metadata["mutation_outcome"] = string(evidence.mutationOutcome)
 		}
+		if activeSegment.valid() {
+			applyRuntimeExecutionSegment(metadata, activeSegment)
+		}
+		if segment := s.runtimeExecutionSegmentFromMutation(
+			ctx,
+			actor,
+			identity,
+			firstNonEmpty(event.Name, previousNode.Name),
+			evidence,
+		); segment.valid() {
+			if err = repository.BindRuntimeGraphRoundExecution(
+				ctx,
+				identity.OwnerUserID,
+				identity.SessionKey,
+				identity.AgentRoundID,
+				segment.ExecutionID,
+			); err != nil {
+				return err
+			}
+			activeSegment = segment
+			applyRuntimeExecutionSegment(metadata, segment)
+			metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryAssign
+		} else if actor.ScopeKind == protocol.ExecutionScopeDM &&
+			nodeKind == protocol.ExecutionRuntimeNodeTool &&
+			runtimeGraphCanonicalToolLeaf(firstNonEmpty(event.Name, previousNode.Name)) == "assignwork" &&
+			event.Phase == sdkprotocol.RuntimeLifecycleFinished &&
+			status == protocol.ExecutionRuntimeNodeSucceeded {
+			clearRuntimeExecutionSegment(metadata)
+			metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryUnresolved
+			activeSegment = runtimeExecutionSegment{}
+		}
+		name := firstNonEmpty(event.Name, previousNode.Name)
+		description := firstNonEmpty(event.Description, previousNode.Description)
+		startedAt := now
+		if !previousNode.StartedAt.IsZero() {
+			startedAt = previousNode.StartedAt
+		}
 		nodeRun := protocol.ExecutionRuntimeNodeRun{
 			ID:               nodeID,
 			GraphID:          identity.GraphID,
 			OwnerUserID:      identity.OwnerUserID,
 			SessionKey:       identity.SessionKey,
-			ExecutionID:      identity.ExecutionID,
+			ExecutionID:      firstNonEmpty(identity.ExecutionID, activeSegment.ExecutionID),
 			Kind:             nodeKind,
 			SubjectID:        strings.TrimSpace(event.SubjectID),
 			ParentSubjectID:  strings.TrimSpace(event.ParentSubjectID),
@@ -192,8 +234,8 @@ func (s *Service) ObserveRuntimeMessage(
 			RuntimeRoundID:   identity.RuntimeRoundID,
 			AgentRoundID:     identity.AgentRoundID,
 			AgentID:          firstNonEmpty(event.AgentID, identity.AgentID),
-			Name:             event.Name,
-			Description:      event.Description,
+			Name:             name,
+			Description:      description,
 			Status:           status,
 			Failed:           status == protocol.ExecutionRuntimeNodeFailed,
 			ResultSummary:    evidence.resultSummary,
@@ -201,7 +243,7 @@ func (s *Service) ObserveRuntimeMessage(
 			ErrorSummary:     evidence.errorSummary,
 			SummaryTruncated: evidence.summaryTruncated,
 			DurationMS:       evidence.durationMS,
-			StartedAt:        now,
+			StartedAt:        startedAt,
 			UpdatedAt:        now,
 			FinishedAt:       finishedAt,
 			Metadata:         metadata,

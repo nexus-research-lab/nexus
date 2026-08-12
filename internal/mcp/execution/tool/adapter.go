@@ -99,7 +99,7 @@ func jsonResult(payload any) sdktool.ToolResult {
 }
 
 func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
-	return jsonResult(executionMutationResult{
+	payload := executionMutationResult{
 		Outcome:          result.Outcome,
 		ReasonCode:       result.ReasonCode,
 		Message:          result.Message,
@@ -110,7 +110,21 @@ func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
 		Changed:          result.Changed,
 		NextActions:      result.NextActions,
 		GoalConfirmation: result.GoalConfirmation,
-	})
+	}
+	if encoded, err := json.Marshal(payload); err == nil &&
+		len(encoded) > executionToolResultInlineLimit && payload.ExecutionContext != "" {
+		// Control identity must remain inline even when the refreshed context is
+		// unusually large. Otherwise SDK externalization replaces outcome,
+		// changed and next_actions with only a file pointer, and the runtime can
+		// no longer correlate this exact mutation with its WorkGraph segment.
+		result.ExecutionContext = ""
+		result.ContextStatus = "refresh_required"
+		result = withGetExecutionRecovery(result)
+		payload.ExecutionContext = result.ExecutionContext
+		payload.ContextStatus = result.ContextStatus
+		payload.NextActions = result.NextActions
+	}
+	return jsonResult(payload)
 }
 
 // executionMutationResult 是 MCP 模型面的唯一 mutation 投影。完整 Snapshot
@@ -135,6 +149,11 @@ type executionRuntimeContextReader interface {
 		orchestration.ActorContext,
 	) (string, error)
 }
+
+const (
+	executionToolContextInlineLimit = 12 * 1024
+	executionToolResultInlineLimit  = 15 * 1024
+)
 
 func withFreshExecutionContext(
 	ctx context.Context,
@@ -166,6 +185,11 @@ func withFreshExecutionContext(
 	}
 	rendered, err := reader.RuntimeContext(ctx, actor)
 	if err != nil || strings.TrimSpace(rendered) == "" {
+		result.ContextStatus = "refresh_required"
+		return withGetExecutionRecovery(result)
+	}
+	rendered = compactExecutionToolContext(rendered)
+	if rendered == "" {
 		result.ContextStatus = "refresh_required"
 		return withGetExecutionRecovery(result)
 	}
@@ -208,11 +232,58 @@ func snapshotResult(
 	if reader, ok := any(svc).(executionRuntimeContextReader); ok {
 		if rendered, err := reader.RuntimeContext(ctx, actor); err == nil &&
 			strings.TrimSpace(rendered) != "" {
-			payload["execution_context"] = rendered
-			payload["context_status"] = "authoritative"
+			if rendered = compactExecutionToolContext(rendered); rendered != "" {
+				payload["execution_context"] = rendered
+				payload["context_status"] = "authoritative"
+			}
 		}
 	}
 	return jsonResult(payload)
+}
+
+// compactExecutionToolContext keeps the current authority/action contract
+// inline while removing observed Runtime Graph history that is already
+// available through the WorkGraph read model. Re-embedding that history after
+// every mutation makes the result recursively grow until the runtime has to
+// externalize even the small outcome/next_actions control envelope.
+func compactExecutionToolContext(rendered string) string {
+	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "runtime_facts"))
+	if len(rendered) <= executionToolContextInlineLimit {
+		return rendered
+	}
+	// The graph digest is useful orientation, but the actionable assigned,
+	// ready and review sections below it are the required continuation state.
+	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "graph_digest"))
+	if len(rendered) <= executionToolContextInlineLimit {
+		return rendered
+	}
+	return ""
+}
+
+func removeExecutionContextElement(rendered string, element string) string {
+	startMarker := "<" + element
+	start := strings.Index(rendered, startMarker)
+	if start < 0 {
+		return rendered
+	}
+	if start > 0 && rendered[start-1] == '\n' {
+		start--
+	}
+	openingEndOffset := strings.Index(rendered[start:], ">")
+	if openingEndOffset < 0 {
+		return rendered
+	}
+	openingEnd := start + openingEndOffset
+	if openingEnd > start && rendered[openingEnd-1] == '/' {
+		return rendered[:start] + rendered[openingEnd+1:]
+	}
+	closeMarker := "</" + element + ">"
+	closeOffset := strings.Index(rendered[openingEnd+1:], closeMarker)
+	if closeOffset < 0 {
+		return rendered
+	}
+	end := openingEnd + 1 + closeOffset + len(closeMarker)
+	return rendered[:start] + rendered[end:]
 }
 
 func rejectedResult(message string, actions ...orchestration.NextAction) sdktool.ToolResult {
