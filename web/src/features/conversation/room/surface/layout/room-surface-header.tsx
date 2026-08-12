@@ -29,7 +29,7 @@ interface RoomSurfaceHeaderProps {
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string | null) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId: string | null;

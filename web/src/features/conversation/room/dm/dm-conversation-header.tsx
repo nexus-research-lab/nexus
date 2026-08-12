@@ -23,7 +23,7 @@ interface DmConversationHeaderProps {
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string | null) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
 }
 

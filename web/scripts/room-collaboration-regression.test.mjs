@@ -507,6 +507,27 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
   );
 });
 
+test("关闭全部会话后 DM 与群聊共用新会话空态", async () => {
+  const { RoomConversationEmptyState } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/room-conversation-empty-state.tsx",
+  );
+  const createConversation = () => null;
+  const dmHtml = await renderWithI18n(React.createElement(
+    RoomConversationEmptyState,
+    { isDm: true, onCreateConversation: createConversation },
+  ));
+  const groupHtml = await renderWithI18n(React.createElement(
+    RoomConversationEmptyState,
+    { isDm: false, onCreateConversation: createConversation },
+  ));
+
+  assert.match(dmHtml, /单聊/);
+  assert.match(groupHtml, /群聊/);
+  assert.match(dmHtml, /发起新会话/);
+  assert.match(dmHtml, /关闭标签不会删除历史/);
+  assert.match(dmHtml, /创建会话/);
+});
+
 test("会话标签显式映射滚轮与触控板并在边界放行", async () => {
   const { scrollConversationTabsByWheel } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-scroll.ts",
@@ -918,6 +939,7 @@ test("Room Agent 面板用最新目录覆盖上下文中的旧模型快照", asy
 
 test("会话标签首次只打开活动项并按创建时间插入主动选择项", async () => {
   const {
+    getCloseFallbackConversationId,
     getConversationIdsByCreationTime,
     getInitialOpenConversationIds,
     reconcileOpenConversationIds,
@@ -1039,6 +1061,25 @@ test("会话标签首次只打开活动项并按创建时间插入主动选择�
     ["historical-draft", "selected-draft", "started"],
     "标签视图不得自行折叠或删除历史草稿",
   );
+  assert.deepEqual(
+    reconcileOpenConversationIds({
+      conversationId: "third",
+      currentIds: [],
+      preserveEmpty: true,
+      orderedIds,
+      pendingClosedId: "third",
+    }),
+    [],
+    "关闭最后标签后的显式空集合不得被尚未更新的旧路由补回",
+  );
+  assert.equal(
+    getCloseFallbackConversationId(
+      [{ conversation_id: "only" }],
+      "only",
+    ),
+    null,
+    "关闭唯一标签时必须进入空选择，而不是回退到自身",
+  );
   assert.equal(
     shouldPersistConversationTabs({
       activeConversationId: "second",
@@ -1078,6 +1119,25 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
       },
     },
     "旧版最后活动项应迁移成单标签，而不是把历史全部打开",
+  );
+  assert.deepEqual(
+    await migrate({
+      conversation_tabs_by_room: {
+        "empty-room": {
+          active_conversation_id: null,
+          open_conversation_ids: [],
+        },
+      },
+    }, 2),
+    {
+      conversation_tabs_by_room: {
+        "empty-room": {
+          active_conversation_id: null,
+          open_conversation_ids: [],
+        },
+      },
+    },
+    "迁移必须保留用户显式关闭全部标签的空状态",
   );
 
   useRoomNavigationStore.setState({ conversation_tabs_by_room: {} });
@@ -1123,16 +1183,47 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
     },
     "关闭的标签不得在后续进入或持久化恢复时自动补回",
   );
+
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    roomId,
+    [],
+    null,
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: null,
+      open_conversation_ids: [],
+    },
+    "关闭最后标签时应持久化显式空状态",
+  );
+
+  useRoomNavigationStore.getState().remember_last_active_conversation(
+    roomId,
+    "third",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "third",
+      open_conversation_ids: ["third"],
+    },
+    "从历史显式选择会话后应从空状态重新打开该标签",
+  );
 });
 
 test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {
   const {
     buildRoomConversationViews,
+    resolveCurrentRoomContext,
     resolveSelectedConversationId,
   } = await server.ssrLoadModule(
     "/src/pages/room/controller/model/room-conversation-model.ts",
   );
-  const { buildRoomPageModel } = await server.ssrLoadModule(
+  const {
+    buildRoomPageBaseModel,
+    buildRoomPageModel,
+  } = await server.ssrLoadModule(
     "/src/pages/room/controller/model/page/room-page-model.ts",
   );
   const conversations = [
@@ -1163,6 +1254,100 @@ test("Room 无显式会话路由时优先恢复用户最后活动项", async () 
     ),
     "remembered",
     "活动标签失效时应优先恢复仍然有效的已打开标签",
+  );
+  assert.equal(
+    resolveSelectedConversationId(null, conversations, [], true),
+    null,
+    "显式空标签状态不得自动选择最新会话",
+  );
+  assert.equal(
+    resolveCurrentRoomContext(
+      conversations.map((conversation) => ({
+        conversation: { id: conversation.conversation_id },
+      })),
+      null,
+      true,
+    ),
+    null,
+    "显式空选择不得回退到任一 Room 上下文",
+  );
+  const shellAgent = {
+    agent_id: "agent-a",
+    avatar: null,
+    created_at: 0,
+    description: null,
+    name: "Agent A",
+    options: {},
+    skills_count: null,
+    status: "active",
+    vibe_tags: [],
+    workspace_path: "",
+  };
+  const emptySelectionContext = {
+    conversation: {
+      conversation_type: "topic",
+      created_at: "2026-07-27T00:00:00Z",
+      id: "existing-conversation",
+      room_id: "room-a",
+      title: "Existing",
+    },
+    member_agents: [shellAgent],
+    members: [{
+      id: "member-a",
+      member_agent_id: "agent-a",
+      member_type: "agent",
+      participation_paused: false,
+      room_id: "room-a",
+    }],
+    room: {
+      description: "",
+      host_auto_reply_enabled: false,
+      id: "room-a",
+      name: "Smoke",
+      private_messages_enabled: false,
+      room_type: "dm",
+      skill_names: [],
+    },
+    sessions: [{
+      agent_id: "agent-a",
+      branch_key: "main",
+      conversation_id: "existing-conversation",
+      id: "session-a",
+      is_primary: true,
+      options: {},
+      runtime_id: "runtime-a",
+      status: "active",
+      version_no: 1,
+    }],
+  };
+  const emptySelectionBase = buildRoomPageBaseModel({
+    agents: [shellAgent],
+    preserveEmptyConversationSelection: true,
+    preferredConversationIds: [],
+    roomContexts: [emptySelectionContext],
+    roomId: "room-a",
+  });
+  assert.equal(emptySelectionBase.currentRoom.id, "room-a");
+  assert.equal(emptySelectionBase.currentAgent.agent_id, "agent-a");
+  assert.equal(emptySelectionBase.currentRoomContext, null);
+  assert.equal(emptySelectionBase.activeRoomSession, null);
+  assert.equal(emptySelectionBase.selectedBaseConversationId, null);
+  const emptySelectionPage = buildRoomPageModel({
+    base: emptySelectionBase,
+    externalAgentSessions: [],
+    externalRoomConversations: [],
+    isSelectionReady: true,
+    preferredConversationIds: [],
+    routeRoomId: "room-a",
+    routeSessionKey: null,
+  });
+  assert.equal(emptySelectionPage.conversation.selectedId, null);
+  assert.equal(emptySelectionPage.conversation.current, null);
+  assert.equal(emptySelectionPage.agent.sessionIdentity, null);
+  assert.equal(
+    emptySelectionPage.agent.current.agent_id,
+    "agent-a",
+    "明确空选择仍应保留 Room/Agent 壳层来展示新会话页",
   );
   const untitledViews = buildRoomConversationViews([{
     conversation: {

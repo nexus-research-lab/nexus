@@ -16,7 +16,7 @@ interface WorkspaceConversationTabsProps {
   conversationId: string | null;
   leadingControl?: ReactNode;
   tourAnchor?: string;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string | null) => void;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
 }
@@ -71,7 +71,7 @@ export function WorkspaceConversationTabs({
 
             return (
               <WorkspaceConversationTab
-                canClose={controller.orderedConversations.length > 1}
+                canClose
                 closeLabel={t("room.close_conversation")}
                 conversationId={conversationId}
                 externalSessionLabel={getExternalSessionConversationLabel(conversation)}

@@ -49,7 +49,7 @@ interface RoomSurfaceShellProps {
   surfaceSplitRef: React.RefObject<HTMLElement | null>;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string | null) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;

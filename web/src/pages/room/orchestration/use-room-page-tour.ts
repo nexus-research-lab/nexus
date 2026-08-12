@@ -27,13 +27,12 @@ export function useRoomPageTour({
 }: UseRoomPageTourOptions) {
   const {t} = useI18n();
   const tour = useMemo(() => {
-    const tourKind: keyof typeof TOUR_BUILDERS | null = !roomType
-      ? null
-      : roomType === "dm"
-        ? "dm"
-        : hasConversation
-          ? "room"
-          : "empty";
+    let tourKind: keyof typeof TOUR_BUILDERS | null = null;
+    if (roomType && hasConversation) {
+      tourKind = roomType === "dm" ? "dm" : "room";
+    } else if (roomType && roomType !== "dm") {
+      tourKind = "empty";
+    }
     return tourKind ? TOUR_BUILDERS[tourKind](t) : null;
   }, [hasConversation, roomType, t]);
 

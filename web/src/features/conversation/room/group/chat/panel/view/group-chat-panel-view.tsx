@@ -26,10 +26,10 @@ import {
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import type { Agent } from "@/types/agent/agent";
+import { RoomConversationEmptyState } from "@/features/conversation/room/surface/room-conversation-empty-state";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
 import type { GroupConversationFeedProps } from "../../feed/group-conversation-feed-model";
-import { GroupConversationEmptyState } from "../../group-conversation-empty-state";
 import { RoomGoalPanel } from "../../room-goal-panel";
 import {
   RoomGoalLeadControl,
@@ -67,7 +67,8 @@ export function GroupChatPanelView({
   return (
     <ConversationPanelLayout>
       {!model.sessionKey ? (
-        <GroupConversationEmptyState
+        <RoomConversationEmptyState
+          isDm={false}
           onCreateConversation={model.onCreateConversation}
         />
       ) : (
