@@ -29,7 +29,7 @@ interface ConversationTabsControllerOptions {
   hasLeadingControl: boolean;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string | null) => void;
 }
 
 export function useConversationTabsController({
@@ -73,11 +73,13 @@ export function useConversationTabsController({
       currentIds: initialOpenConversationIds,
       orderedIds: orderedConversationIds,
       pendingClosedId: pendingClosedActiveId,
+      preserveEmpty: persistedTabs?.active_conversation_id === null,
     }),
     [
       initialOpenConversationIds,
       orderedConversationIds,
       pendingClosedActiveId,
+      persistedTabs?.active_conversation_id,
       selectedConversationId,
     ],
   );
@@ -196,10 +198,6 @@ export function useConversationTabsController({
   };
 
   const closeConversation = (targetConversationId: string) => {
-    if (orderedConversations.length <= 1) {
-      return;
-    }
-
     const fallbackConversationId = getCloseFallbackConversationId(
       orderedConversations,
       targetConversationId,
@@ -212,7 +210,7 @@ export function useConversationTabsController({
       : activeConversationId;
 
     flushSync(() => {
-      if (roomId && nextActiveConversationId) {
+      if (roomId) {
         saveRoomConversationTabs(
           roomId,
           nextOpenConversationIds,
@@ -222,11 +220,16 @@ export function useConversationTabsController({
       if (targetConversationId === activeConversationId && nextActiveConversationId) {
         setPendingClosedActiveId(targetConversationId);
         setOptimisticActiveId(nextActiveConversationId);
+      } else if (targetConversationId === activeConversationId) {
+        setPendingClosedActiveId(targetConversationId);
+        setOptimisticActiveId(null);
       }
     });
 
     if (targetConversationId === activeConversationId && nextActiveConversationId) {
       onSelectConversation(nextActiveConversationId);
+    } else if (targetConversationId === activeConversationId) {
+      onSelectConversation(null);
     }
 
     const targetConversation = conversationsById.get(targetConversationId);

@@ -65,11 +65,16 @@ export function useRoomPageNavigation({
     setSearchParams(nextSearchParams, {replace: true});
   }, [queryInitialDraft, searchParams, setSearchParams]);
 
-  const selectConversation = useCallback((conversationId: string) => {
-    if (roomId) {
-      rememberLastActiveConversation(roomId, conversationId);
-      navigate(buildConversationRoute(roomId, conversationId));
+  const selectConversation = useCallback((conversationId: string | null) => {
+    if (!roomId) {
+      return;
     }
+    if (!conversationId) {
+      navigate(AppRouteBuilders.room(roomId));
+      return;
+    }
+    rememberLastActiveConversation(roomId, conversationId);
+    navigate(buildConversationRoute(roomId, conversationId));
   }, [navigate, rememberLastActiveConversation, roomId]);
 
   const handleCreateConversation = useCallback(async (title?: string) => {

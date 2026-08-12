@@ -130,7 +130,7 @@ export function RoomPage() {
       : undefined
   ));
   const preferredConversationIds = useMemo(() => {
-    if (!preferredConversationTabs) {
+    if (!preferredConversationTabs?.active_conversation_id) {
       return [];
     }
     return [
@@ -143,6 +143,12 @@ export function RoomPage() {
   const controller = useRoomPageController({
     roomId: params.roomId,
     conversationId: params.conversationId,
+    preserveEmptyConversationSelection: Boolean(
+      !params.conversationId
+      && !params.sessionKey
+      && preferredConversationTabs
+      && preferredConversationTabs.active_conversation_id === null
+    ),
     preferredConversationIds: params.conversationId || params.sessionKey
       ? []
       : preferredConversationIds,

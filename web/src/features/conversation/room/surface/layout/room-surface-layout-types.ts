@@ -50,7 +50,7 @@ export interface RoomSurfaceLayoutProps {
   onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string | null) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
