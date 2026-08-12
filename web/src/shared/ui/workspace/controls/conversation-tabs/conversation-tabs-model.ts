@@ -79,13 +79,11 @@ export function getInitialOpenConversationIds(
 export function reconcileOpenConversationIds({
   conversationId,
   currentIds,
-  preserveEmpty,
   orderedIds,
   pendingClosedId,
 }: {
   conversationId: string | null;
   currentIds: string[];
-  preserveEmpty?: boolean;
   orderedIds: string[];
   pendingClosedId: string | null;
 }): string[] {
@@ -101,7 +99,6 @@ export function reconcileOpenConversationIds({
     selectedIds,
     selectedId,
     orderedIds,
-    preserveEmpty === true,
   );
   const resolvedIds = sortConversationIdsByReference(ensuredIds, orderedIds);
 
@@ -151,9 +148,8 @@ function ensureOpenConversationId(
   currentIds: string[],
   selectedId: string | null,
   recentIds: string[],
-  preserveEmpty: boolean,
 ): string[] {
-  if (currentIds.length > 0 || preserveEmpty) {
+  if (currentIds.length > 0) {
     return currentIds;
   }
   const fallbackId = selectedId ?? recentIds[0] ?? null;

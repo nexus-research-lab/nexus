@@ -514,25 +514,214 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
   );
 });
 
-test("关闭全部会话后 DM 与群聊共用新会话空态", async () => {
-  const { RoomConversationEmptyState } = await server.ssrLoadModule(
-    "/src/features/conversation/room/surface/room-conversation-empty-state.tsx",
+test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", async () => {
+  const { replaceFinalConversation } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement.ts",
   );
-  const createConversation = () => null;
-  const dmHtml = await renderWithI18n(React.createElement(
-    RoomConversationEmptyState,
-    { isDm: true, onCreateConversation: createConversation },
-  ));
-  const groupHtml = await renderWithI18n(React.createElement(
-    RoomConversationEmptyState,
-    { isDm: false, onCreateConversation: createConversation },
-  ));
+  const calls = [];
+  const internalConversation = {
+    conversation_id: "old",
+    created_at: 1,
+    last_activity_at: 1,
+    options: {},
+    room_id: "room-a",
+    session_id: null,
+    session_key: "room:old",
+    title: "Old",
+    is_draft: false,
+  };
 
-  assert.match(dmHtml, /单聊/);
-  assert.match(groupHtml, /群聊/);
-  assert.match(dmHtml, /发起新会话/);
-  assert.match(dmHtml, /关闭标签不会删除历史/);
-  assert.match(dmHtml, /创建会话/);
+  assert.equal(
+    await replaceFinalConversation({
+      closeConversation: async (conversationId) => {
+        calls.push(`close:${conversationId}`);
+      },
+      commitConversation: (conversationId) => {
+        calls.push(`commit:${conversationId}`);
+        return true;
+      },
+      conversation: internalConversation,
+      createConversation: async () => {
+        calls.push("create");
+        return "fresh-draft";
+      },
+      isCurrent: () => true,
+    }),
+    "fresh-draft",
+  );
+  assert.deepEqual(
+    calls,
+    ["create", "commit:fresh-draft", "close:old"],
+    "已开始会话的替换 ID 必然不同，应先切到输入框再后台关旧 runtime",
+  );
+
+  calls.length = 0;
+  assert.equal(
+    await replaceFinalConversation({
+      closeConversation: async (conversationId) => {
+        calls.push(`close:${conversationId}`);
+      },
+      commitConversation: (conversationId) => {
+        calls.push(`commit:${conversationId}`);
+        return true;
+      },
+      conversation: {...internalConversation, is_draft: true},
+      createConversation: async () => {
+        calls.push("create");
+        return "old";
+      },
+      isCurrent: () => true,
+    }),
+    "old",
+  );
+  assert.deepEqual(
+    calls,
+    ["close:old", "create", "commit:old"],
+    "当唯一 draft 被复用时必须先等 close，避免迟到的中断破坏新输入",
+  );
+
+  calls.length = 0;
+  assert.equal(
+    await replaceFinalConversation({
+      closeConversation: async () => {
+        calls.push("close");
+        throw new Error("runtime close failed");
+      },
+      commitConversation: () => {
+        calls.push("commit");
+        return true;
+      },
+      conversation: {...internalConversation, is_draft: true},
+      createConversation: async () => {
+        calls.push("create");
+        return "old";
+      },
+      isCurrent: () => true,
+    }),
+    null,
+  );
+  assert.deepEqual(
+    calls,
+    ["close"],
+    "唯一 draft 的 runtime 未确认停止时不得复用同一 ID",
+  );
+
+  calls.length = 0;
+  assert.equal(
+    await replaceFinalConversation({
+      closeConversation: async () => {
+        calls.push("close");
+      },
+      commitConversation: (conversationId) => {
+        calls.push(`commit:${conversationId}`);
+        return true;
+      },
+      conversation: {
+        ...internalConversation,
+        conversation_id: "external-session:feishu",
+        options: { external_session: true },
+      },
+      createConversation: async () => {
+        calls.push("create");
+        return "internal-draft";
+      },
+      isCurrent: () => true,
+    }),
+    "internal-draft",
+  );
+  assert.deepEqual(
+    calls,
+    ["create", "commit:internal-draft"],
+    "外部 Session 关闭最后标签时不得调用 Room runtime close",
+  );
+
+  calls.length = 0;
+  assert.equal(
+    await replaceFinalConversation({
+      closeConversation: async () => {
+        calls.push("close");
+      },
+      commitConversation: () => {
+        calls.push("commit");
+        return true;
+      },
+      conversation: internalConversation,
+      createConversation: async () => {
+        calls.push("create");
+        return null;
+      },
+      isCurrent: () => true,
+    }),
+    null,
+  );
+  assert.deepEqual(
+    calls,
+    ["create"],
+    "ensure 失败必须保留旧标签与 runtime",
+  );
+
+  calls.length = 0;
+  let currentCheckCount = 0;
+  assert.equal(
+    await replaceFinalConversation({
+      closeConversation: async () => {
+        calls.push("close");
+      },
+      commitConversation: () => {
+        calls.push("commit");
+        return true;
+      },
+      conversation: internalConversation,
+      createConversation: async () => {
+        calls.push("create");
+        return "fresh-draft";
+      },
+      isCurrent: () => {
+        currentCheckCount += 1;
+        return currentCheckCount === 1;
+      },
+    }),
+    null,
+  );
+  assert.deepEqual(
+    calls,
+    ["create"],
+    "ensure 期间选中历史会话或切换 Room 后，旧事务不得覆盖新导航",
+  );
+});
+
+test("最后标签替换只能在原 Room 的原导航 revision 提交", async () => {
+  const { isFinalConversationReplacementCurrent } = await server.ssrLoadModule(
+    "/src/pages/room/orchestration/use-room-page-navigation.ts",
+  );
+  const currentScope = {
+    activeConversationId: "old",
+    currentEpoch: 4,
+    currentRoomId: "room-a",
+    expectedConversationId: "old",
+    expectedEpoch: 4,
+    expectedRoomId: "room-a",
+    openConversationIds: ["old"],
+    selectedConversationId: "old",
+  };
+
+  assert.equal(isFinalConversationReplacementCurrent(currentScope), true);
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    selectedConversationId: "history",
+  }), false);
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    currentRoomId: "room-b",
+  }), false);
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    currentEpoch: 6,
+  }), false, "切走再切回的 ABA 也必须使旧事务过期");
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    openConversationIds: ["old", "history"],
+  }), false, "等待期间打开历史标签后不得精确覆盖集合");
 });
 
 test("会话标签显式映射滚轮与触控板并在边界放行", async () => {
@@ -1068,24 +1257,13 @@ test("会话标签首次只打开活动项并按创建时间插入主动选择�
     ["historical-draft", "selected-draft", "started"],
     "标签视图不得自行折叠或删除历史草稿",
   );
-  assert.deepEqual(
-    reconcileOpenConversationIds({
-      conversationId: "third",
-      currentIds: [],
-      preserveEmpty: true,
-      orderedIds,
-      pendingClosedId: "third",
-    }),
-    [],
-    "关闭最后标签后的显式空集合不得被尚未更新的旧路由补回",
-  );
   assert.equal(
     getCloseFallbackConversationId(
       [{ conversation_id: "only" }],
       "only",
     ),
     null,
-    "关闭唯一标签时必须进入空选择，而不是回退到自身",
+    "关闭唯一标签没有相邻回退项，应由控制器确保新 draft 来替换",
   );
   assert.equal(
     shouldPersistConversationTabs({
@@ -1135,16 +1313,9 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
           open_conversation_ids: [],
         },
       },
-    }, 2),
-    {
-      conversation_tabs_by_room: {
-        "empty-room": {
-          active_conversation_id: null,
-          open_conversation_ids: [],
-        },
-      },
-    },
-    "迁移必须保留用户显式关闭全部标签的空状态",
+    }, 3),
+    { conversation_tabs_by_room: {} },
+    "v3 错误空快照必须在 v4 丢弃，重新进入时恢复有效会话",
   );
 
   useRoomNavigationStore.setState({ conversation_tabs_by_room: {} });
@@ -1191,32 +1362,6 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
     "关闭的标签不得在后续进入或持久化恢复时自动补回",
   );
 
-  useRoomNavigationStore.getState().save_room_conversation_tabs(
-    roomId,
-    [],
-    null,
-  );
-  assert.deepEqual(
-    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
-    {
-      active_conversation_id: null,
-      open_conversation_ids: [],
-    },
-    "关闭最后标签时应持久化显式空状态",
-  );
-
-  useRoomNavigationStore.getState().remember_last_active_conversation(
-    roomId,
-    "third",
-  );
-  assert.deepEqual(
-    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
-    {
-      active_conversation_id: "third",
-      open_conversation_ids: ["third"],
-    },
-    "从历史显式选择会话后应从空状态重新打开该标签",
-  );
 });
 
 test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {
@@ -1227,10 +1372,7 @@ test("Room 无显式会话路由时优先恢复用户最后活动项", async () 
   } = await server.ssrLoadModule(
     "/src/pages/room/controller/model/room-conversation-model.ts",
   );
-  const {
-    buildRoomPageBaseModel,
-    buildRoomPageModel,
-  } = await server.ssrLoadModule(
+  const { buildRoomPageModel } = await server.ssrLoadModule(
     "/src/pages/room/controller/model/page/room-page-model.ts",
   );
   const conversations = [
@@ -1263,98 +1405,19 @@ test("Room 无显式会话路由时优先恢复用户最后活动项", async () 
     "活动标签失效时应优先恢复仍然有效的已打开标签",
   );
   assert.equal(
-    resolveSelectedConversationId(null, conversations, [], true),
-    null,
-    "显式空标签状态不得自动选择最新会话",
+    resolveSelectedConversationId(null, conversations, []),
+    "latest",
+    "没有有效恢复偏好时应进入当前有效会话，不保留无 Conversation 页面",
   );
-  assert.equal(
+  assert.deepEqual(
     resolveCurrentRoomContext(
       conversations.map((conversation) => ({
         conversation: { id: conversation.conversation_id },
       })),
       null,
-      true,
     ),
-    null,
-    "显式空选择不得回退到任一 Room 上下文",
-  );
-  const shellAgent = {
-    agent_id: "agent-a",
-    avatar: null,
-    created_at: 0,
-    description: null,
-    name: "Agent A",
-    options: {},
-    skills_count: null,
-    status: "active",
-    vibe_tags: [],
-    workspace_path: "",
-  };
-  const emptySelectionContext = {
-    conversation: {
-      conversation_type: "topic",
-      created_at: "2026-07-27T00:00:00Z",
-      id: "existing-conversation",
-      room_id: "room-a",
-      title: "Existing",
-    },
-    member_agents: [shellAgent],
-    members: [{
-      id: "member-a",
-      member_agent_id: "agent-a",
-      member_type: "agent",
-      participation_paused: false,
-      room_id: "room-a",
-    }],
-    room: {
-      description: "",
-      host_auto_reply_enabled: false,
-      id: "room-a",
-      name: "Smoke",
-      private_messages_enabled: false,
-      room_type: "dm",
-      skill_names: [],
-    },
-    sessions: [{
-      agent_id: "agent-a",
-      branch_key: "main",
-      conversation_id: "existing-conversation",
-      id: "session-a",
-      is_primary: true,
-      options: {},
-      runtime_id: "runtime-a",
-      status: "active",
-      version_no: 1,
-    }],
-  };
-  const emptySelectionBase = buildRoomPageBaseModel({
-    agents: [shellAgent],
-    preserveEmptyConversationSelection: true,
-    preferredConversationIds: [],
-    roomContexts: [emptySelectionContext],
-    roomId: "room-a",
-  });
-  assert.equal(emptySelectionBase.currentRoom.id, "room-a");
-  assert.equal(emptySelectionBase.currentAgent.agent_id, "agent-a");
-  assert.equal(emptySelectionBase.currentRoomContext, null);
-  assert.equal(emptySelectionBase.activeRoomSession, null);
-  assert.equal(emptySelectionBase.selectedBaseConversationId, null);
-  const emptySelectionPage = buildRoomPageModel({
-    base: emptySelectionBase,
-    externalAgentSessions: [],
-    externalRoomConversations: [],
-    isSelectionReady: true,
-    preferredConversationIds: [],
-    routeRoomId: "room-a",
-    routeSessionKey: null,
-  });
-  assert.equal(emptySelectionPage.conversation.selectedId, null);
-  assert.equal(emptySelectionPage.conversation.current, null);
-  assert.equal(emptySelectionPage.agent.sessionIdentity, null);
-  assert.equal(
-    emptySelectionPage.agent.current.agent_id,
-    "agent-a",
-    "明确空选择仍应保留 Room/Agent 壳层来展示新会话页",
+    { conversation: { id: "latest" } },
+    "页面模型必须始终回退到有效 Room 上下文",
   );
   const untitledViews = buildRoomConversationViews([{
     conversation: {

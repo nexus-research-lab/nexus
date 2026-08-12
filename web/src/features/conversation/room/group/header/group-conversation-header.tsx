@@ -27,10 +27,14 @@ interface GroupConversationHeaderProps {
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation: (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
-  onSelectConversation: (conversationId: string | null) => void;
+  onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId?: string | null;
@@ -50,6 +54,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   onChangeTab,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
   onDeleteConversation,
   onManageRoom,
   onOpenMemberManager,
@@ -124,6 +129,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             )}
             onCloseConversation={onCloseConversation}
             onCreateConversation={onCreateConversation}
+            onReplaceFinalConversation={onReplaceFinalConversation}
             onSelectConversation={onSelectConversation}
             tourAnchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
           />

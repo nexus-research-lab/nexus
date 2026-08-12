@@ -33,7 +33,7 @@ src/
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - Agent 目录 Store 只保留静态目录与当前选择；运行态事件只在会话/工作区链路中消费，不回写 Agent 目录状态
 - WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列；Room/DM 的 Session bind 由共享通道内部的逻辑租约统一引用计数并在重连后重放，单个组件 cleanup 不得直接解绑仍被其他消费者使用的 Session
-- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，首次进入只打开恢复目标，历史会话只在用户显式选择后加入；非空快照的活动标签必须属于打开集合，`active=null` 与空集合表示用户明确关闭全部并进入新会话页，视图不得直接修正集合状态
+- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，首次进入只打开恢复目标，历史会话只在用户显式选择后加入；活动标签必须属于打开集合，视图不得直接修正集合状态
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层

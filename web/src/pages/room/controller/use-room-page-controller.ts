@@ -16,7 +16,6 @@ import { useRoomPageData } from "./use-room-page-data";
 export function useRoomPageController({
   roomId,
   conversationId,
-  preserveEmptyConversationSelection,
   preferredConversationIds,
   sessionKey,
 }: RoomPageControllerOptions) {
@@ -33,7 +32,6 @@ export function useRoomPageController({
   const model = useRoomPageModel({
     agents,
     conversationId,
-    preserveEmptyConversationSelection,
     preferredConversationIds,
     roomContexts: data.roomContexts,
     roomId,

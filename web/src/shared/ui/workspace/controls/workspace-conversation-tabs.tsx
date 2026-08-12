@@ -16,9 +16,13 @@ interface WorkspaceConversationTabsProps {
   conversationId: string | null;
   leadingControl?: ReactNode;
   tourAnchor?: string;
-  onSelectConversation: (conversationId: string | null) => void;
+  onSelectConversation: (conversationId: string) => void;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation?: (
+    conversation: RoomConversationView,
+    commitConversation: (conversationId: string) => boolean,
+  ) => Promise<string | null>;
 }
 
 const TRACK_CLASS_NAME =
@@ -32,6 +36,7 @@ export function WorkspaceConversationTabs({
   onSelectConversation,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
 }: WorkspaceConversationTabsProps) {
   const { t } = useI18n();
   const controller = useConversationTabsController({
@@ -40,6 +45,7 @@ export function WorkspaceConversationTabs({
     hasLeadingControl: Boolean(leadingControl),
     onCloseConversation,
     onCreateConversation,
+    onReplaceFinalConversation,
     onSelectConversation,
   });
 
@@ -71,7 +77,7 @@ export function WorkspaceConversationTabs({
 
             return (
               <WorkspaceConversationTab
-                canClose
+                canClose={controller.orderedConversations.length > 1 || Boolean(onReplaceFinalConversation)}
                 closeLabel={t("room.close_conversation")}
                 conversationId={conversationId}
                 externalSessionLabel={getExternalSessionConversationLabel(conversation)}

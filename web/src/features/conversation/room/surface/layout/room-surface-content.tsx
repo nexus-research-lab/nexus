@@ -44,6 +44,7 @@ export function RoomSurfaceContent({
   onCloseConversation,
   onConversationSnapshotChange,
   onCreateConversation,
+  onReplaceFinalConversation,
   onDeleteConversation,
   onExecutionTaskRunsChange,
   onInitialDraftConsumed,
@@ -102,6 +103,7 @@ export function RoomSurfaceContent({
               onCloseAuxiliaryPanel={layout.handleCloseAuxiliaryPanel}
               onCloseConversation={onCloseConversation}
               onCreateConversation={onCreateConversation}
+              onReplaceFinalConversation={onReplaceFinalConversation}
               onDeleteConversation={onDeleteConversation}
               onManageRoom={onManageRoom}
               onOpenMemberManager={onOpenMemberManager}

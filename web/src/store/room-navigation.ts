@@ -2,7 +2,7 @@
  * Room 导航偏好 Store
  *
  * [INPUT]: Room 内显式会话选择、标签打开集合与有效会话路由
- * [OUTPUT]: 按 Room 持久化标签顺序、活动 Conversation 与明确关闭全部的空快照
+ * [OUTPUT]: 按 Room 持久化用户离开时的标签顺序和活动 Conversation
  * [POS]: store 模块的页面导航工作区状态，不参与服务端会话排序
  */
 
@@ -12,7 +12,7 @@ import { persist } from "zustand/middleware";
 import { createBrowserJsonStorage } from "@/lib/storage/browser-storage";
 
 export interface RoomConversationTabsState {
-  active_conversation_id: string | null;
+  active_conversation_id: string;
   open_conversation_ids: string[];
 }
 
@@ -30,7 +30,7 @@ interface RoomNavigationState {
   save_room_conversation_tabs: (
     roomId: string,
     openConversationIds: readonly string[],
-    activeConversationId: string | null,
+    activeConversationId: string,
   ) => void;
 }
 
@@ -49,7 +49,7 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
           currentTabs?.open_conversation_ids ?? [],
           normalizedConversationId,
         );
-        if (areConversationTabsEqual(currentTabs, nextTabs)) {
+        if (!nextTabs || areConversationTabsEqual(currentTabs, nextTabs)) {
           return state;
         }
         return {
@@ -69,7 +69,7 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
           openConversationIds,
           activeConversationId,
         );
-        if (!normalizedRoomId) {
+        if (!normalizedRoomId || !nextTabs) {
           return state;
         }
         const currentTabs = state.conversation_tabs_by_room[normalizedRoomId];
@@ -90,7 +90,7 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
         conversation_tabs_by_room: state.conversation_tabs_by_room,
       }),
       storage: createBrowserJsonStorage(),
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown): PersistedRoomNavigationState => {
         const state = (persistedState ?? {}) as PersistedRoomNavigationState;
         const conversationTabsByRoom = normalizePersistedConversationTabs(
@@ -101,7 +101,7 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
         )) {
           const normalizedRoomId = roomId.trim();
           const tabs = buildConversationTabsState([], conversationId);
-          if (normalizedRoomId && !conversationTabsByRoom[normalizedRoomId]) {
+          if (normalizedRoomId && tabs && !conversationTabsByRoom[normalizedRoomId]) {
             conversationTabsByRoom[normalizedRoomId] = tabs;
           }
         }
@@ -113,18 +113,15 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
 
 function buildConversationTabsState(
   openConversationIds: readonly string[],
-  activeConversationId: string | null,
-): RoomConversationTabsState {
+  activeConversationId: string,
+): RoomConversationTabsState | null {
+  const normalizedActiveId = activeConversationId.trim();
+  if (!normalizedActiveId) {
+    return null;
+  }
   const normalizedOpenIds = [...new Set(
     openConversationIds.map((id) => id.trim()).filter(Boolean),
   )];
-  const normalizedActiveId = activeConversationId?.trim() || null;
-  if (!normalizedActiveId) {
-    return {
-      active_conversation_id: null,
-      open_conversation_ids: [],
-    };
-  }
   if (!normalizedOpenIds.includes(normalizedActiveId)) {
     normalizedOpenIds.push(normalizedActiveId);
   }
@@ -140,20 +137,15 @@ function normalizePersistedConversationTabs(
   const normalizedTabsByRoom: Record<string, RoomConversationTabsState> = {};
   for (const [roomId, tabs] of Object.entries(tabsByRoom ?? {})) {
     const normalizedRoomId = roomId.trim();
-    let activeConversationId: string | null | undefined;
-    if (typeof tabs?.active_conversation_id === "string") {
-      activeConversationId = tabs.active_conversation_id;
-    } else if (tabs?.active_conversation_id === null) {
-      activeConversationId = null;
-    }
-    if (!normalizedRoomId || activeConversationId === undefined) {
-      continue;
-    }
-    const normalizedTabs = buildConversationTabsState(
+    const normalizedTabs = tabs && buildConversationTabsState(
       Array.isArray(tabs.open_conversation_ids) ? tabs.open_conversation_ids : [],
-      activeConversationId,
+      typeof tabs.active_conversation_id === "string"
+        ? tabs.active_conversation_id
+        : "",
     );
-    normalizedTabsByRoom[normalizedRoomId] = normalizedTabs;
+    if (normalizedRoomId && normalizedTabs) {
+      normalizedTabsByRoom[normalizedRoomId] = normalizedTabs;
+    }
   }
   return normalizedTabsByRoom;
 }
@@ -162,8 +154,7 @@ function areConversationTabsEqual(
   currentTabs: RoomConversationTabsState | undefined,
   nextTabs: RoomConversationTabsState,
 ): boolean {
-  return currentTabs !== undefined
-    && currentTabs.active_conversation_id === nextTabs.active_conversation_id
+  return currentTabs?.active_conversation_id === nextTabs.active_conversation_id
     && currentTabs.open_conversation_ids.length === nextTabs.open_conversation_ids.length
     && currentTabs.open_conversation_ids.every(
       (id, index) => id === nextTabs.open_conversation_ids[index],

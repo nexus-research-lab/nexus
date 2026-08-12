@@ -14,7 +14,6 @@ import {
 interface UseRoomPageModelOptions {
   agents: Agent[];
   conversationId?: string | null;
-  preserveEmptyConversationSelection?: boolean;
   preferredConversationIds?: readonly string[];
   roomContexts: RoomContextAggregate[];
   roomId?: string | null;
@@ -40,7 +39,6 @@ function getExternalRoomType(base: ReturnType<typeof buildRoomPageBaseModel>): s
 export function useRoomPageModel({
   agents,
   conversationId,
-  preserveEmptyConversationSelection = false,
   preferredConversationIds = [],
   roomContexts,
   roomId,
@@ -50,19 +48,11 @@ export function useRoomPageModel({
     () => buildRoomPageBaseModel({
       agents,
       conversationId,
-      preserveEmptyConversationSelection,
       preferredConversationIds,
       roomContexts,
       roomId,
     }),
-    [
-      agents,
-      conversationId,
-      preserveEmptyConversationSelection,
-      preferredConversationIds,
-      roomContexts,
-      roomId,
-    ],
+    [agents, conversationId, preferredConversationIds, roomContexts, roomId],
   );
   const routeSessionKey = normalizeRouteSessionKey(sessionKey);
   const externalSessions = useRoomExternalSessions({
