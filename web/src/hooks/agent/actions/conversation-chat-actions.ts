@@ -20,7 +20,9 @@ import {
 
 export type OutboundChatRequest = OutboundRequestDescriptor;
 
-function buildOptimisticUserMessage(
+const GOAL_HOST_COMMAND_PATTERN = /^\s*\/goal(?:\s+|$)/i;
+
+export function buildOptimisticUserMessage(
   content: string,
   actionContext: ResolvedConversationActionContext,
   request: OutboundChatRequest,
@@ -78,12 +80,17 @@ export async function sendSessionMessage(
   }
   const actionContext = requireConversationActionContext(context);
   const request = createOutboundRequestDescriptor();
-  const optimisticMessage = buildOptimisticUserMessage(
-    content,
-    actionContext,
-    request,
-    options,
-  );
+  const optimisticMessage = {
+    ...buildOptimisticUserMessage(
+      content,
+      actionContext,
+      request,
+      options,
+    ),
+    ...(!options.attachments?.length && GOAL_HOST_COMMAND_PATTERN.test(content)
+      ? { metadata: { subtype: "goal_set" } }
+      : {}),
+  };
   sendConversationCommand(
     context,
     buildChatCommand(content, actionContext, request, options),

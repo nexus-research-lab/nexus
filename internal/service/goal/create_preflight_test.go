@@ -12,6 +12,20 @@ import (
 	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
+type concurrentGoalCreateRepository struct {
+	*memoryRepository
+	winner protocol.Goal
+}
+
+func (r *concurrentGoalCreateRepository) CreateGoalWithEvent(
+	_ context.Context,
+	_ protocol.Goal,
+	_ protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	r.goals[r.winner.ID] = r.winner
+	return nil, errors.New("current Goal unique constraint")
+}
+
 func TestServiceCreatePreflightUsesModelScopeAndRunsBeforePersistence(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(testConfig(), repo)
@@ -82,6 +96,35 @@ func TestServiceCreatePreflightUsesWholeSessionForExternalGoal(t *testing.T) {
 	}
 	if len(repo.goals) != 0 {
 		t.Fatalf("goals = %#v, want no persistence before conflict", repo.goals)
+	}
+}
+
+func TestServiceCreateClassifiesConcurrentCurrentGoalInsertAsConflict(t *testing.T) {
+	sessionKey := "agent:nexus:ws:dm:create-concurrent-conflict"
+	repo := &concurrentGoalCreateRepository{
+		memoryRepository: newMemoryRepository(),
+		winner: protocol.Goal{
+			ID:         "goal-concurrent-winner",
+			SessionKey: sessionKey,
+			Objective:  "the concurrent winner",
+			Status:     protocol.GoalStatusActive,
+			Version:    1,
+		},
+	}
+	service := NewService(testConfig(), repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+
+	_, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey: sessionKey,
+		Objective:  "the losing concurrent request",
+		CreatedBy:  "user",
+	})
+	if !errors.Is(err, ErrGoalConflict) {
+		t.Fatalf("Create() error = %v, want ErrGoalConflict", err)
+	}
+	if len(repo.events) != 0 {
+		t.Fatalf("losing create events = %#v, want none", repo.events)
 	}
 }
 

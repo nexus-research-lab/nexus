@@ -55,6 +55,21 @@ func TestResolveGoalMCPSessionKey(t *testing.T) {
 	}
 }
 
+func TestAllowsTrustedUserGoalRetargetOnlyForVisibleUserSources(t *testing.T) {
+	for source, want := range map[string]bool{
+		"agent":           true,
+		"room":            true,
+		"agent_internal":  false,
+		"room_internal":   false,
+		"agent_untrusted": false,
+		"automation":      false,
+	} {
+		if got := allowsTrustedUserGoalRetarget(source); got != want {
+			t.Fatalf("allowsTrustedUserGoalRetarget(%q) = %t, want %t", source, got, want)
+		}
+	}
+}
+
 type stubGoalMCPAgentResolver struct {
 	record  *protocol.Agent
 	agentID string

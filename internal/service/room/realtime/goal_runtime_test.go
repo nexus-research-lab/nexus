@@ -6,12 +6,14 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1392,8 +1394,10 @@ type fakeRoomGoalContextProvider struct {
 	failures         []string
 	completionMisses []string
 	activities       []string
+	handbacks        []string
 	collabRequired   []string
 	collabEvidence   []string
+	events           []protocol.GoalEvent
 	plan             *protocol.GoalContinuation
 	planCalls        int
 	stillCurrent     bool
@@ -1409,6 +1413,12 @@ func (p *fakeRoomGoalContextProvider) RuntimeContext(_ context.Context, sessionK
 	}
 	value := *goal
 	return p.runtimeContexts[sessionKey], &value, nil
+}
+
+func (p *fakeRoomGoalContextProvider) CurrentOptional(_ context.Context, sessionKey string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return cloneRoomGoal(p.runtimeGoals[sessionKey]), nil
 }
 
 func (p *fakeRoomGoalContextProvider) RecordUsageForSession(_ context.Context, sessionKey string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
@@ -1471,6 +1481,13 @@ func (p *fakeRoomGoalContextProvider) RecordGoalActivity(_ context.Context, _ st
 	return nil, nil
 }
 
+func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationHandback(_ context.Context, _ string, roundID string, _ ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.handbacks = append(p.handbacks, strings.TrimSpace(roundID))
+	return nil, nil
+}
+
 func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationRequired(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -1483,6 +1500,22 @@ func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationEvidence(_ cont
 	defer p.mu.Unlock()
 	p.collabEvidence = append(p.collabEvidence, strings.TrimSpace(roundID)+":"+strings.TrimSpace(agentID))
 	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) Events(_ context.Context, goalID string, limit int) ([]protocol.GoalEvent, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	items := make([]protocol.GoalEvent, 0, len(p.events))
+	for _, event := range p.events {
+		if strings.TrimSpace(event.GoalID) != strings.TrimSpace(goalID) {
+			continue
+		}
+		items = append(items, event)
+		if limit > 0 && len(items) >= limit {
+			break
+		}
+	}
+	return items, nil
 }
 
 func (p *fakeRoomGoalContextProvider) PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error) {
@@ -1672,6 +1705,10 @@ func (p *cancellationGoalProvider) RecordCompletionToolMiss(context.Context, str
 }
 
 func (p *cancellationGoalProvider) RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error) {
+	return p.current, nil
+}
+
+func (p *cancellationGoalProvider) RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error) {
 	return p.current, nil
 }
 
@@ -1879,15 +1916,90 @@ func TestRoomGoalDelayedWakeBlockerClearsAfterWakeStarts(t *testing.T) {
 	}
 	service := &Service{directedWakes: store}
 
-	blocker, err := service.roomGoalDelayedWakeBlocker(wake.OwnerUserID, conversationID)
+	blocker, err := service.roomGoalDirectedWakeBlocker(wake.OwnerUserID, conversationID)
 	if err != nil || !strings.Contains(blocker, wake.WakeID) {
 		t.Fatalf("pending wake blocker = %q err=%v, want wake ID", blocker, err)
 	}
 	if err = store.Complete(wake.OwnerUserID, wake.WakeID); err != nil {
 		t.Fatal(err)
 	}
-	blocker, err = service.roomGoalDelayedWakeBlocker(wake.OwnerUserID, conversationID)
+	blocker, err = service.roomGoalDirectedWakeBlocker(wake.OwnerUserID, conversationID)
 	if err != nil || blocker != "" {
 		t.Fatalf("completed wake blocker = %q err=%v, want empty", blocker, err)
+	}
+}
+
+func TestRoomGoalDurableBlockersIgnoreRetargetedCollaborationRevision(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	const (
+		ownerUserID    = "owner-goal-stale-blockers"
+		conversationID = "conversation-goal-stale-blockers"
+		roomID         = "room-goal-stale-blockers"
+		targetAgentID  = "agent-goal-stale-blockers"
+	)
+	goal := &protocol.Goal{
+		ID:         "goal-stale-blockers",
+		SessionKey: protocol.BuildRoomSharedSessionKey(conversationID),
+		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(2),
+		},
+	}
+	binding := &protocol.GoalCollaborationBinding{
+		GoalID: goal.ID, ObjectiveRevision: 1,
+	}
+	wakeStore := workspacestore.NewRoomDirectedMessageWakeStore(root)
+	wake := workspacestore.RoomDirectedMessageWake{
+		WakeID: "wake-goal-stale-blockers", OwnerUserID: ownerUserID,
+		Message: protocol.RoomDirectedMessageRecord{
+			MessageID: "wake-goal-stale-blockers", RoomID: roomID,
+			ConversationID: conversationID, WakePolicy: protocol.RoomWakePolicyDelayed,
+			GoalCollaborationBinding: binding,
+		},
+		DueAt: time.Now().Add(time.Minute).UnixMilli(),
+	}
+	if err := wakeStore.Schedule(wake); err != nil {
+		t.Fatal(err)
+	}
+	queueStore := workspacestore.NewInputQueueStore(root)
+	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), targetAgentID)
+	location := workspacestore.InputQueueLocation{
+		OwnerUserID: ownerUserID, Scope: protocol.InputQueueScopeRoom,
+		WorkspacePath: workspacePath,
+		SessionKey: protocol.BuildRoomAgentSessionKey(
+			conversationID,
+			targetAgentID,
+			protocol.RoomTypeGroup,
+		),
+		RoomID: roomID, ConversationID: conversationID,
+	}
+	if _, err := queueStore.Enqueue(location, protocol.InputQueueItem{
+		ID: "queue-goal-stale-blockers", AgentID: targetAgentID,
+		TargetAgentIDs: []string{targetAgentID}, Source: protocol.InputQueueSourceAgentRoomMessage,
+		Content: "old revision", DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		GoalCollaborationBinding: binding,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	contextValue := &protocol.ConversationContextAggregate{
+		Room:         protocol.RoomRecord{ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{{
+			MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID,
+		}},
+		MemberAgents: []protocol.Agent{{AgentID: targetAgentID, WorkspacePath: workspacePath}},
+	}
+	service := &Service{directedWakes: wakeStore, inputQueue: queueStore}
+	if blocker, err := service.roomGoalInputQueueBlocker(
+		context.Background(), contextValue, goal,
+	); err != nil || blocker != "" {
+		t.Fatalf("retargeted queue blocker = %q err=%v, want empty", blocker, err)
+	}
+	if blocker, err := service.roomGoalDirectedWakeBlocker(
+		ownerUserID, conversationID, goal,
+	); err != nil || blocker != "" {
+		t.Fatalf("retargeted wake blocker = %q err=%v, want empty", blocker, err)
 	}
 }

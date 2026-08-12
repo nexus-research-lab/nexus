@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime Agent/owner/session/round、runtime-owned Goal authority 与 Goal 服务。
-// OUTPUT: 绑定当前 owner 及 exact Goal/revision/可选 Execution capability 的 MCP server。
+// INPUT: 当前 runtime Agent/owner/session/round、可信用户来源、runtime-owned Goal authority 与 Goal 服务。
+// OUTPUT: 绑定当前 owner、窄 retarget 来源及 exact Goal/revision/可选 Execution capability 的 MCP server。
 // POS: nexus_goal MCP 的应用装配入口。
 package server
 
@@ -46,6 +46,7 @@ func newGoalMCPBuilder(
 			CurrentSessionKey: goalSessionKey,
 			CurrentRoundID:    strings.TrimSpace(roundID),
 			GoalAuthority:     authority,
+			AllowUserRetarget: allowsTrustedUserGoalRetarget(sourceContextType),
 			PlanMode: runtimepermission.NormalizeMode(permissionMode) ==
 				sdkpermission.ModePlan,
 		}
@@ -59,6 +60,15 @@ func newGoalMCPBuilder(
 				Instance: goalmcp.NewServer(svc, sctx),
 			},
 		}
+	}
+}
+
+func allowsTrustedUserGoalRetarget(sourceContextType string) bool {
+	switch strings.TrimSpace(sourceContextType) {
+	case "agent", "room":
+		return true
+	default:
+		return false
 	}
 }
 

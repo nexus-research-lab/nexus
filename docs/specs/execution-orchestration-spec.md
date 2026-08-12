@@ -6,6 +6,7 @@ This document describes the control plane that Nexus implements today for Goal a
 managed WorkGraph execution. It defines:
 
 - the three supported product modes and the five Goal/Execution binding states;
+- the user-visible Goal control command and its continuation boundary;
 - the durable Plan and responsibility model;
 - the authority carried by coordinator, worker, reviewer, and Subagent rounds;
 - the atomic semantics of the 12 Execution tools and 5 Goal tools;
@@ -35,6 +36,7 @@ code-defined truth:
 | Execution MCP inputs, schemas, and registry | [`internal/mcp/execution/tool/input.go`](../../internal/mcp/execution/tool/input.go), [`schema.go`](../../internal/mcp/execution/tool/schema.go), [`registry.go`](../../internal/mcp/execution/tool/registry.go) |
 | Goal MCP registry and tool contracts | [`internal/mcp/goal/tool/registry.go`](../../internal/mcp/goal/tool/registry.go) |
 | Runtime responsibility and coordination authority | [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
+| UI/Slash Goal command dispatch and durable control history | [`internal/service/slashcommand/goal.go`](../../internal/service/slashcommand/goal.go), [`internal/service/dm/goal_command.go`](../../internal/service/dm/goal_command.go), [`internal/service/room/realtime/goal_command.go`](../../internal/service/room/realtime/goal_command.go) |
 
 Do not copy the complete Plan Document field list or MCP input schema into this
 document. When this document and those sources disagree on a field shape or enum,
@@ -90,6 +92,76 @@ Plan proposal row. Goal confirmation is idempotent, and the background reconcile
 marks the receipt `confirmed` only after the Goal-side reverse binding succeeds.
 The Plan proposal confirmation state remains its materialization-saga projection,
 not the sole recovery source.
+
+### 2.3 User Goal control command
+
+Composer Goal mode and the textual `/goal <objective>` command are two transports
+for one Nexus host command. The command is intercepted before runtime input and
+must not be interpreted as an ordinary model prompt. It performs these ordered
+stages:
+
+1. validate the authenticated DM or Room scope and, for Room, one current member
+   as Goal lead;
+2. best-effort normalize the objective inside a bounded portion of the request
+   ACK window, then create or explicitly replace the current Goal under the
+   current-Goal uniqueness, owner, objective-revision, and binding fences;
+3. append one user-visible, terminal control record whose canonical content is
+   `/goal <objective>` and whose subtype is `goal_set`;
+4. attempt to send the durable/transient `chat_ack` and terminal
+   `round_status=finished` for that host control round; and
+5. dispatch the active Goal continuation through the normal Goal state machine.
+
+The control record is not a runtime turn and never waits for an assistant/result
+terminal. It is still a real visible user record: it starts a draft conversation,
+increments the session message count, and gives a new Goal-only session enough
+durable state to receive an immediate fallback title. Goal title generation and
+Goal continuation therefore do not depend on a preceding ordinary user prompt or
+the first model response. For a standalone workspace session, that session is the
+title target; for a Room-backed WebSocket DM, its canonical SQL conversation is
+the single title target. The current canonical objective is the synchronous
+fallback and also drives the normal concise-title generator.
+Existing user-defined titles remain immutable. At process startup, current Goals
+with durable owner provenance replay this projection once, repairing a missing or
+fallback title after a crash or lost response without guessing a legacy owner.
+
+For Room-backed DM sessions, the SQL row owns Room identity, title, runtime settings,
+and draft state, while the Agent workspace session owns runtime message progress,
+last activity, context usage, and transcript lineage. The unified Session view
+merges those fields monotonically; it must not let the legacy SQL `messages` count
+replace a newer workspace snapshot. Group conversation `message_count` is rebuilt
+from the canonical shared Room ledger and cached by ledger file version. Existing
+rows in the legacy `messages` table remain a compatibility lower bound for imported
+data, not the live Room history truth source. Goal fallback and generated titles for
+a Room-backed DM therefore update the SQL conversation only; they must not attempt
+an unsupported workspace Session title mutation.
+
+Continuation is scheduled only after the first control response send has been
+attempted; socket delivery success is not a continuation prerequisite. When MCP
+`create_goal` creates a Goal inside an already-running visible model round, its
+hidden continuation is suppressed until that round has fully left both runtime
+and Goal usage accounting; a terminal UI event alone is not proof that accounting
+cleanup has finished.
+
+A Room Goal continuation may request a conversation-only contribution through a
+public `@member` or a directed-message wake. The host attaches the exact Goal ID
+and objective revision as collaboration attribution across the directed-message
+fact, handoff ledger, InputQueue, and restart recovery. Goal-directed wakes write
+their deterministic handoff edge before immediate or delayed dispatch; startup
+also scans attributed directed-message facts and repairs an interrupted
+message-to-handoff write only when that exact Goal revision is still active.
+The Room tool call also carries a host-generated idempotency identity derived
+from the SDK tool-use identity, with a source-round/canonical-input fallback.
+Retries therefore reuse the same directed-message and wake identity; immediate
+and delayed wakes are both scheduled durably before queue admission, retry
+online while pending, and remain complete after a late tool retry.
+This attribution is scheduling provenance, not
+`GoalAuthorityState`: the target round remains unable to call Goal mutation tools.
+The source continuation is not classified as empty while that attributed handoff
+is pending. When the target reaches a terminal state, substantive output resets
+the continuation run, public substantive output may satisfy the Room-visible
+collaboration evidence gate, and the host schedules a fresh authorized lead
+continuation. No-reply, error, interruption, stale-revision output, and private
+output never manufacture public collaboration evidence.
 
 ## 3. Durable aggregate
 
@@ -274,11 +346,14 @@ runtime capability and current SQL state.
 | Plan Mode | Read plus proposal preparation | May read state and call `prepare_plan_execution`; authoritative Execution/Goal mutation and Agent execution remain blocked. |
 
 External channel admission is a separate policy layer, not a substitute for these
-fences. An admitted external DM may use the five Goal tools by default, including
-alignment audit, because Goal-only operation is a supported product mode.
-Execution tools remain denied by default on channel ingress and require explicit
-channel/Agent approval. If admitted, they still receive only server-derived
-owner/session identity and must pass the same lane and SQL checks above.
+fences. An admitted external DM may expose the five Goal tools by default,
+including alignment audit, because Goal-only operation is a supported product
+mode; exposure does not grant mutation authority. Such calls still need an
+already-bound exact `GoalAuthorityState`, and external ingress cannot use the
+trusted-visible-user late-bind exception for `retarget_goal`. Execution tools
+remain denied by default on channel ingress and require explicit channel/Agent
+approval. If admitted, they still receive only server-derived owner/session
+identity and must pass the same lane and SQL checks above.
 
 `get_execution` does not mutate durable Execution or Plan state. On a verified
 current-coordinator read it mints an ephemeral `CoordinationBinding` for the
@@ -296,9 +371,14 @@ chain. They do not carry a caller-supplied Goal ID. If the Execution is
 Goal-bound, the backend derives and validates Goal identity from authoritative
 storage.
 
-Goal mutations require runtime-owned `GoalAuthorityState` containing the exact Goal
-ID and objective revision. An ambient current Goal, room membership, or visible
-Goal card is not sufficient authority.
+Goal mutations require an exact Goal ID and objective revision at the mutation
+boundary. Normally these come from runtime-owned `GoalAuthorityState`; an ambient
+current Goal, room membership, or visible Goal card is not sufficient authority.
+There is one narrow recovery lane: `retarget_goal` in a trusted visible user DM or
+Room round may read the current Goal once at tool invocation, bind its exact ID and
+revision into the request, and then pass the same service fences. This exception
+does not authorize `update_goal`, Objective Alignment, Execution mutation,
+internal continuations, external ingress, or Agent-to-Agent handoffs.
 
 ## 6. Execution tools
 
@@ -338,7 +418,7 @@ WorkGraph-specific gates apply only to a `confirmed` managed binding.
 | --- | --- |
 | `get_goal` | Reads the current optional Goal and usage state. It does not mutate Goal or Execution state. |
 | `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
-| `retarget_goal` | Applies an explicit user objective correction while preserving Goal identity and usage. `standalone`/`reserved` update the Goal revision directly; `confirmed` enters the successor rebase saga; `pending`/`conflict` fail closed. |
+| `retarget_goal` | Applies an explicit user objective correction while preserving Goal identity and usage. A trusted visible user round may late-bind the exact current Goal/revision only for this tool; every other source requires existing Goal authority. `standalone`/`reserved` update the Goal revision directly; `confirmed` enters the successor rebase saga; `pending`/`conflict` fail closed. |
 | `audit_objective_alignment` | Appends a three-state evidence report for the exact Goal revision and round without changing status. A Goal with a confirmed managed WorkGraph binding requires a current aligned report for completion; Goal-only and reserved Goals do not. |
 | `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. Completion rechecks revision, binding resolution, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. Pause, resume, and limit controls remain user/system operations. |
 
@@ -380,6 +460,32 @@ responsibility transition.
 Materialization, assignment, submit, review, block, resume, takeover, abandon, and
 terminal completion all re-read current state and enforce compare-and-set fences.
 Callers must treat conflicts as a need to refresh, not as permission to overwrite.
+
+Every Goal mutation that also emits Goal audit events updates the Goal row and
+appends those events in one Goal repository transaction. Creation additionally
+uses the partial unique current-Goal constraint; a concurrent winner is reported
+as the stable Goal conflict instead of leaking a database unique error. A failure
+before commit exposes neither the row version nor its events.
+
+The user-visible host control record lives in the owner-scoped workspace ledger,
+so it cannot share that SQL transaction. The Goal remains the authoritative state;
+`chat_ack.user_message_committed` reports only whether the control record is
+durable, and a failed ledger append must never be presented as a durable message.
+The ordered failure contract is:
+
+| Failure point | Goal SQL + events | visible `/goal` record | started/count | Goal title fallback | response | continuation |
+| --- | --- | --- | --- | --- | --- | --- |
+| validation or Goal SQL before commit | absent | absent | unchanged | unchanged | correlated command error | no |
+| workspace ledger append | committed | absent | unchanged | already attempted from the committed Goal | transient ACK + finished host round | yes |
+| conversation/session projection after ledger commit | committed | durable | may lag; this does not invalidate the record or Goal | already attempted from the committed Goal | durable ACK + finished host round | yes |
+| socket response delivery | committed | according to ledger result | according to durable writes | already attempted from the committed Goal | delivery may be lost | yes, after the send attempt |
+| normal path | committed | durable | started and count advanced | available immediately | durable ACK + finished host round | yes |
+
+For a standalone or reserved Goal, explicit replacement is one Goal row/event
+transition, including server-verified Room lead and collaboration metadata. A
+confirmed WorkGraph retarget is necessarily the durable successor saga defined
+above: the Goal identity is retained, while Execution/Plan move to a new successor;
+it is not a cross-service SQL transaction.
 
 ### 8.2 Idempotency
 
@@ -453,7 +559,9 @@ Implementations and callers must preserve all of the following:
 12. Runtime capability never substitutes for current SQL state, and SQL state
     never substitutes for exact runtime authority.
 13. Terminal and supersession fences reject late runtime results.
-14. Goal mutations use exact Goal authority and objective revision.
+14. Goal mutations use an exact Goal identity and objective revision; the trusted
+    visible-user `retarget_goal` recovery lane acquires both at invocation and does
+    not weaken any other mutation.
 15. Managed Subagents remain children of the bound Work Item responsibility chain.
 16. Plan revision and Goal retarget never silently carry responsibility history.
 17. Field shapes and enums come from protocol/parser/schema truth sources rather

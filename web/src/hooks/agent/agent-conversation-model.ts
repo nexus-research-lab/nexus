@@ -61,6 +61,7 @@ interface AgentConversationPublicActions {
   rewriteLastMessage: UseAgentConversationReturn["rewrite_last_user_message"];
   sendMessage: UseAgentConversationReturn["send_message"];
   sendPermissionResponse: UseAgentConversationReturn["send_permission_response"];
+  setGoal: UseAgentConversationReturn["set_goal"];
   stopGeneration: UseAgentConversationReturn["stop_generation"];
 }
 
@@ -143,6 +144,7 @@ export function buildAgentConversationResult({
     runtime_phase: runtime.snapshot.phase,
     send_message: actions.sendMessage,
     send_permission_response: actions.sendPermissionResponse,
+    set_goal: actions.setGoal,
     session_key: session.sessionKey,
     start_session: session.startSession,
     stop_generation: actions.stopGeneration,

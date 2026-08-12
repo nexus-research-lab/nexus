@@ -7,10 +7,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -461,6 +463,303 @@ func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
 	}
 }
 
+func TestRealtimeServicePostRoundWorkReconnectsAttributedCollaborationWithoutGrantingAuthority(t *testing.T) {
+	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-collaboration")
+	goalProvider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID:         "goal-room",
+				SessionKey: sessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}
+	service := &Service{goals: goalProvider}
+	slot := withRoomSlotStatus(&activeRoomSlot{
+		AgentID:      "agent-peer",
+		AgentRoundID: "room-mention-peer",
+	}, "finished")
+	slot.setGoalCollaborationBinding(&protocol.GoalCollaborationBinding{
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+	})
+	slot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+		"assistant-peer",
+		"协作核对已完成。",
+	))
+	roundValue := &activeRoomRound{
+		SessionKey:     sessionKey,
+		ConversationID: "conversation-collaboration",
+		RoundID:        "room-mention-round",
+		Slots:          map[string]*activeRoomSlot{"agent-peer": slot},
+	}
+
+	service.dispatchPostRoundWork(context.Background(), roundValue)
+
+	if slot.goalMutationAuthority().valid() {
+		t.Fatal("conversation handoff target unexpectedly received Goal mutation authority")
+	}
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.collabEvidence) != 1 ||
+		goalProvider.collabEvidence[0] != "room-mention-peer:agent-peer" {
+		t.Fatalf("collaboration evidence = %#v, want attributed peer reply", goalProvider.collabEvidence)
+	}
+	if len(goalProvider.activities) != 0 || len(goalProvider.handbacks) != 1 ||
+		goalProvider.handbacks[0] != "room-mention-round" {
+		t.Fatalf(
+			"activities=%#v handbacks=%#v, want only collaboration handback",
+			goalProvider.activities,
+			goalProvider.handbacks,
+		)
+	}
+	if goalProvider.planCalls != 1 {
+		t.Fatalf("planCalls = %d, want a fresh authorized Goal continuation", goalProvider.planCalls)
+	}
+}
+
+func TestRealtimeServicePostRoundWorkRejectsStaleCollaborationAttribution(t *testing.T) {
+	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-stale-collaboration")
+	goalProvider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID:         "goal-room",
+				SessionKey: sessionKey,
+				Status:     protocol.GoalStatusActive,
+				Metadata: map[string]any{
+					protocol.GoalMetadataObjectiveRevision: int64(2),
+				},
+			},
+		},
+	}
+	service := &Service{goals: goalProvider}
+	slot := withRoomSlotStatus(&activeRoomSlot{
+		AgentID:      "agent-peer",
+		AgentRoundID: "room-mention-peer-stale",
+	}, "finished")
+	slot.setGoalCollaborationBinding(&protocol.GoalCollaborationBinding{
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+	})
+	slot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+		"assistant-peer-stale",
+		"这是旧目标的结果。",
+	))
+
+	service.dispatchPostRoundWork(context.Background(), &activeRoomRound{
+		SessionKey:     sessionKey,
+		ConversationID: "conversation-stale-collaboration",
+		RoundID:        "room-mention-round-stale",
+		Slots:          map[string]*activeRoomSlot{"agent-peer": slot},
+	})
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.collabEvidence) != 0 ||
+		len(goalProvider.activities) != 0 ||
+		len(goalProvider.handbacks) != 0 ||
+		goalProvider.planCalls != 0 {
+		t.Fatalf(
+			"stale collaboration mutated Goal: evidence=%#v activities=%#v handbacks=%#v planCalls=%d",
+			goalProvider.collabEvidence,
+			goalProvider.activities,
+			goalProvider.handbacks,
+			goalProvider.planCalls,
+		)
+	}
+}
+
+func TestRealtimeServicePostRoundWorkReturnsControlAfterNoReplyWithoutClaimingEvidence(t *testing.T) {
+	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-no-reply-collaboration")
+	goalProvider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID:         "goal-room",
+				SessionKey: sessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}
+	service := &Service{goals: goalProvider}
+	slot := withRoomSlotStatus(&activeRoomSlot{
+		AgentID:      "agent-peer",
+		AgentRoundID: "room-mention-peer-no-reply",
+	}, "finished")
+	slot.setGoalCollaborationBinding(&protocol.GoalCollaborationBinding{
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+	})
+	slot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+		"assistant-peer-no-reply",
+		"<nexus_room_no_reply/>",
+	))
+
+	service.dispatchPostRoundWork(context.Background(), &activeRoomRound{
+		SessionKey:     sessionKey,
+		ConversationID: "conversation-no-reply-collaboration",
+		RoundID:        "room-mention-round-no-reply",
+		Slots:          map[string]*activeRoomSlot{"agent-peer": slot},
+	})
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.collabEvidence) != 0 || len(goalProvider.activities) != 0 ||
+		len(goalProvider.handbacks) != 1 ||
+		goalProvider.handbacks[0] != "room-mention-round-no-reply" {
+		t.Fatalf(
+			"no-reply handback mismatch: evidence=%#v activities=%#v handbacks=%#v",
+			goalProvider.collabEvidence,
+			goalProvider.activities,
+			goalProvider.handbacks,
+		)
+	}
+	if goalProvider.planCalls != 1 {
+		t.Fatalf("planCalls = %d, want control returned to Goal continuation", goalProvider.planCalls)
+	}
+}
+
+func TestRealtimeServiceCollaborationCompletionReleasesLiveSourceBarrier(t *testing.T) {
+	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-live-source")
+	binding := &protocol.GoalCollaborationBinding{
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+	}
+	sourceSlot := withRoomSlotStatus(&activeRoomSlot{
+		AgentID:      "agent-lead",
+		AgentRoundID: "goal-continuation-source",
+	}, "finished")
+	grantTestRoomGoalAuthority(sourceSlot, sessionKey, binding.GoalID)
+	sourceSlot.markPendingGoalCollaboration()
+	sourceRound := &activeRoomRound{
+		SessionKey:     sessionKey,
+		ConversationID: "conversation-live-source",
+		RoundID:        "goal-continuation-source",
+		RootRoundID:    "goal-root-live-source",
+		Slots:          map[string]*activeRoomSlot{"agent-lead": sourceSlot},
+	}
+	targetSlot := withRoomSlotStatus(&activeRoomSlot{
+		AgentID:      "agent-peer",
+		AgentRoundID: "room-mention-target",
+	}, "finished")
+	targetSlot.setGoalCollaborationBinding(binding)
+	targetSlot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+		"assistant-target",
+		"协作结果已完成。",
+	))
+	targetRound := &activeRoomRound{
+		SessionKey:     sessionKey,
+		ConversationID: "conversation-live-source",
+		RoundID:        "room-mention-target",
+		RootRoundID:    sourceRound.RootRoundID,
+		Slots:          map[string]*activeRoomSlot{"agent-peer": targetSlot},
+	}
+	goalProvider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID:         binding.GoalID,
+				SessionKey: sessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}
+	service := &Service{
+		goals: goalProvider,
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+			"source": sourceRound,
+			"target": targetRound,
+		}),
+	}
+
+	service.dispatchPostRoundWork(context.Background(), targetRound)
+
+	if sourceSlot.hasPendingGoalCollaboration() {
+		t.Fatal("completed target did not release the source Goal collaboration barrier")
+	}
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.planCalls != 1 {
+		t.Fatalf("planCalls = %d, want exactly one continuation from target completion", goalProvider.planCalls)
+	}
+}
+
+func TestRealtimeServicePostRoundWorkWaitsForAttributedPublicHandoff(t *testing.T) {
+	stateRoot := t.TempDir()
+	store := workspacestore.NewRoomPublicHandoffStore(stateRoot)
+	roundValue := &activeRoomRound{
+		SessionKey:     protocol.BuildRoomSharedSessionKey("conversation-pending-handoff"),
+		ConversationID: "conversation-pending-handoff",
+		OwnerUserID:    "owner-pending-handoff",
+		RoundID:        "goal-continuation-round",
+		RootRoundID:    "goal-root-round",
+	}
+	attachTestRoomGoalAuthority(roundValue, "goal-room")
+	_, _, err := store.Detect(roundValue.OwnerUserID, workspacestore.RoomPublicHandoff{
+		HandoffID:       "handoff-pending",
+		ConversationID:  roundValue.ConversationID,
+		RootRoundID:     roundValue.RootRoundID,
+		SourceMessageID: "assistant-source",
+		SourceAgentID:   "agent-goal-test",
+		TargetAgentID:   "agent-peer",
+		Content:         "请完成核对",
+		QueueSource:     protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID:            "goal-room",
+			ObjectiveRevision: 1,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &Service{goals: goalProvider, publicHandoffs: store}
+	for _, slot := range roundValue.Slots {
+		slot.markPendingGoalCollaboration()
+	}
+
+	service.dispatchPostRoundWork(context.Background(), roundValue)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.planCalls != 0 {
+		t.Fatalf("planCalls = %d, want source continuation parked behind handoff", goalProvider.planCalls)
+	}
+}
+
+func TestRoomGoalCollaborationSourceWithoutPendingAttributionIgnoresUnrelatedHandoffOnSameRoot(t *testing.T) {
+	stateRoot := t.TempDir()
+	store := workspacestore.NewRoomPublicHandoffStore(stateRoot)
+	roundValue := &activeRoomRound{
+		SessionKey:     protocol.BuildRoomSharedSessionKey("conversation-unrelated-handoff"),
+		ConversationID: "conversation-unrelated-handoff",
+		OwnerUserID:    "owner-unrelated-handoff",
+		RoundID:        "goal-continuation-round",
+		RootRoundID:    "goal-root-round",
+	}
+	attachTestRoomGoalAuthority(roundValue, "goal-room")
+	_, _, err := store.Detect(roundValue.OwnerUserID, workspacestore.RoomPublicHandoff{
+		HandoffID:       "handoff-unrelated",
+		ConversationID:  roundValue.ConversationID,
+		RootRoundID:     roundValue.RootRoundID,
+		SourceMessageID: "assistant-source",
+		SourceAgentID:   "agent-other",
+		TargetAgentID:   "agent-peer",
+		Content:         "普通对话交接",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &Service{goals: goalProvider, publicHandoffs: store}
+
+	service.dispatchPostRoundWork(context.Background(), roundValue)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.planCalls != 1 {
+		t.Fatalf("planCalls = %d, want unrelated handoff ignored", goalProvider.planCalls)
+	}
+}
+
 func TestRealtimeServiceReleasesSubagentWaitAndPlansRoomGoalContinuation(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &Service{
@@ -599,6 +898,67 @@ func TestShouldDeferGoalContinuationWhileCollaboratorSlotIsActive(t *testing.T) 
 	}
 }
 
+func TestRoomGoalCollaborationDurableFenceSurvivesRestart(t *testing.T) {
+	const conversationID = "conversation-durable-collaboration"
+	const ownerUserID = "owner-durable-collaboration"
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	store := workspacestore.NewRoomPublicHandoffStore(stateRoot)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID:       "handoff-durable-goal",
+		ConversationID:  conversationID,
+		RootRoundID:     "goal-root-durable",
+		SourceMessageID: "assistant-source-durable",
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-peer",
+		Content:         "请核对",
+		QueueSource:     protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID:            "goal-room",
+			ObjectiveRevision: 1,
+		},
+	}
+	if _, _, err := store.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	goalProvider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID:         "goal-room",
+				SessionKey: sessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID:          "room-durable-collaboration",
+			OwnerUserID: ownerUserID,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID},
+	}
+	service := &Service{goals: goalProvider, publicHandoffs: store}
+
+	if !service.shouldDeferGoalContinuationForTargetStateLocked(
+		context.Background(),
+		sessionKey,
+		contextValue,
+	) {
+		t.Fatal("durable Goal collaboration edge did not defer continuation after restart")
+	}
+	if err := store.MarkTerminal(ownerUserID, conversationID, handoff.HandoffID, "finished"); err != nil {
+		t.Fatal(err)
+	}
+	if service.shouldDeferGoalContinuationForTargetStateLocked(
+		context.Background(),
+		sessionKey,
+		contextValue,
+	) {
+		t.Fatal("terminal Goal collaboration edge still deferred continuation")
+	}
+}
+
 // Goal 续接进度测试。
 
 func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t *testing.T) {
@@ -642,6 +1002,70 @@ func TestRecordGoalContinuationProgressForRoomSlotDefersWhileSubagentRuns(t *tes
 
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
 		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
+	}
+}
+
+func TestRecordGoalContinuationProgressForRoomSlotDefersForPublicHandoff(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &Service{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "goal_continuation_handoff",
+	}
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
+	roundValue := &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+	finalAssistant := roomGoalTextAssistantMessage(
+		"assistant-handoff",
+		"@Analyst 请完成核对。",
+	)
+	finalAssistant["agent_mentions"] = []protocol.AgentMention{{
+		AgentID:   "agent-analyst",
+		HandoffID: "handoff-goal-1",
+	}}
+
+	service.recordGoalContinuationProgressForSlot(
+		context.Background(),
+		slot,
+		roundValue,
+		exec.RoundExecutionResult{},
+		finalAssistant,
+	)
+
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want public handoff to remain pending", progress)
+	}
+}
+
+func TestRecordGoalContinuationProgressForRoomSlotDoesNotDeferForUnrelatedPublicTool(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &Service{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "goal_continuation_public_tool",
+	}
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
+	slot.markPublicMessagePublished()
+	roundValue := &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	service.recordGoalContinuationProgressForSlot(
+		context.Background(),
+		slot,
+		roundValue,
+		exec.RoundExecutionResult{},
+		nil,
+	)
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || progress[0] {
+		t.Fatalf("progress = %#v, want public tool without a handoff to suppress empty continuation", progress)
 	}
 }
 

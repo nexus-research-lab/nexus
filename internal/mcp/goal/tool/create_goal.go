@@ -1,5 +1,5 @@
 // INPUT: create_goal 的 execution-ready objective/token budget 与当前 owner/agent/session/round。
-// OUTPUT: 向模型暴露创建前信息充分性与 Goal-before-Plan 顺序契约，并创建带 durable usage scope owner 的新 Goal，或返回指向 retarget_goal 的冲突提示。
+// OUTPUT: 抑制与当前可见 round 竞态的隐藏续跑，创建带 durable usage scope owner 的新 Goal，或返回指向 retarget_goal 的冲突提示。
 // POS: Goal MCP 创建入口与模型侧 readiness gate；已有 active Goal 不在此处改写。
 package tool
 
@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 type createGoalInput struct {
@@ -34,7 +35,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if sctx.PlanMode {
 				return planModeGoalMutationResult("create_goal"), nil
 			}
-			item, err := svc.Create(ctx, protocol.CreateGoalRequest{
+			item, err := svc.Create(goalsvc.WithActiveGoalContinuationSuppressed(ctx), protocol.CreateGoalRequest{
 				SessionKey:  sctx.CurrentSessionKey,
 				Objective:   parsed.Objective,
 				TokenBudget: parsed.TokenBudget,

@@ -174,19 +174,22 @@ func TestUserCreatedRoomGoalUsesVerifiedSelectedLead(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.idFactory = sequentialID()
+	collaborationRequired := true
 	verifier := &roomMemberGoalSessionOwnershipVerifier{members: map[string]string{
 		"agent-selected": "Directory Lead",
 	}}
 	service.SetSessionOwnershipVerifier(verifier)
 	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey:      protocol.BuildRoomSharedSessionKey("user-selected-lead"),
-		Objective:       "coordinate the Room",
-		CreatedBy:       "user",
-		RoomLeadAgentID: "agent-selected",
+		SessionKey:                protocol.BuildRoomSharedSessionKey("user-selected-lead"),
+		Objective:                 "coordinate the Room",
+		CreatedBy:                 "user",
+		RoomLeadAgentID:           "agent-selected",
+		RoomCollaborationRequired: &collaborationRequired,
 		Metadata: map[string]any{
-			protocol.GoalMetadataRoomGoalCreatorAgentID: "agent-forged",
-			protocol.GoalMetadataRoomGoalLeadAgentID:    "agent-forged",
-			protocol.GoalMetadataRoomGoalLeadAgentName:  "Forged Lead",
+			protocol.GoalMetadataRoomGoalCreatorAgentID:        "agent-forged",
+			protocol.GoalMetadataRoomGoalLeadAgentID:           "agent-forged",
+			protocol.GoalMetadataRoomGoalLeadAgentName:         "Forged Lead",
+			protocol.GoalMetadataRoomGoalCollaborationRequired: false,
 		},
 	})
 	if err != nil {
@@ -201,9 +204,67 @@ func TestUserCreatedRoomGoalUsesVerifiedSelectedLead(t *testing.T) {
 	if got := RoomLeadAgentName(*created); got != "Directory Lead" {
 		t.Fatalf("lead name = %q, want server directory value", got)
 	}
+	if !RoomCollaborationRequired(*created) {
+		t.Fatalf("Room collaboration requirement = %#v, want server-derived true", created.Metadata)
+	}
 	if len(verifier.requests) != 1 ||
 		verifier.requests[0].TrustedAgentID != "agent-selected" {
 		t.Fatalf("membership verification requests = %#v", verifier.requests)
+	}
+}
+
+func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	service.SetSessionOwnershipVerifier(&roomMemberGoalSessionOwnershipVerifier{members: map[string]string{
+		"agent-old": "Old Lead",
+		"agent-new": "New Lead",
+	}})
+	sessionKey := protocol.BuildRoomSharedSessionKey("user-replaced-lead")
+	initialCollaboration := false
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey:                sessionKey,
+		Objective:                 "old Room objective",
+		CreatedBy:                 "user",
+		RoomLeadAgentID:           "agent-old",
+		RoomCollaborationRequired: &initialCollaboration,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsBefore := len(repo.events)
+	replacementCollaboration := true
+	replaced, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey:                sessionKey,
+		Objective:                 "new Room objective",
+		CreatedBy:                 "user",
+		ReplaceExisting:           true,
+		RoomLeadAgentID:           "agent-new",
+		RoomCollaborationRequired: &replacementCollaboration,
+		RoundID:                   "goal-command-round",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replaced.ID != created.ID || replaced.Version != created.Version+1 {
+		t.Fatalf("replaced Goal = %#v, want same Goal and one version transition", replaced)
+	}
+	if replaced.Objective != "new Room objective" ||
+		RoomLeadAgentID(*replaced) != "agent-new" ||
+		RoomLeadAgentName(*replaced) != "New Lead" ||
+		!RoomCollaborationRequired(*replaced) {
+		t.Fatalf("replaced Room state = %#v, want verified lead and collaboration gate", replaced)
+	}
+	if got := protocol.GoalMetadataString(
+		replaced.Metadata,
+		protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
+	); got != "goal-command-round" {
+		t.Fatalf("collaboration requirement round = %q, want goal-command-round", got)
+	}
+	if len(repo.events) != eventsBefore+1 || repo.events[len(repo.events)-1].EventType != "updated" {
+		t.Fatalf("replacement events = %#v, want one atomic updated event", repo.events[eventsBefore:])
 	}
 }
 

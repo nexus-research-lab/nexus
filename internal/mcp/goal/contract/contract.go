@@ -1,4 +1,4 @@
-// INPUT: Goal MCP 工具所需的服务能力，以及 runtime 共享的 exact Goal/revision/可选 Execution authority。
+// INPUT: Goal MCP 工具所需的服务能力、可信用户 retarget 来源，以及 runtime 共享的 exact Goal/revision/可选 Execution authority。
 // OUTPUT: create/get/retarget/objective-alignment/update 共用的窄服务契约与 durable usage scope owner。
 // POS: Goal MCP 工具与 service/goal 之间的消费侧接口。
 package contract
@@ -30,6 +30,9 @@ type ServerContext struct {
 	CurrentRoundID    string
 	CurrentAgentID    string
 	GoalAuthority     *runtimectx.GoalAuthorityState
+	// AllowUserRetarget 只允许可信、可见的普通用户 round 在 retarget_goal
+	// 调用点读取一次当前精确 revision；不会授予其他 Goal/Execution mutation。
+	AllowUserRetarget bool
 	PlanMode          bool
 }
 

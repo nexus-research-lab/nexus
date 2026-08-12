@@ -21,7 +21,7 @@ Skill 只加载使用规则，不替代工具调用。根据当前工具列表�
 
 ## 使用步骤
 
-1. 读取当前 Goal context；需要确认状态、身份或剩余预算时调用 `get_goal`。
+1. 读取当前 Goal context；用户要求设定或更改 Goal、或状态未知时必须先调用 `get_goal`。
 2. 区分本次意图是创建、纠正、完成还是阻塞。普通补充、追问和模型自己的路线调整不等于 retarget。
 3. 只读取下面与当前生命周期动作对应的参考文件，并完整读完后再调用工具。
 4. 遵守工具返回的 objective revision、Execution transition 和 next action；不要凭文本模拟状态变化。
@@ -37,6 +37,7 @@ Skill 只加载使用规则，不替代工具调用。根据当前工具列表�
 
 - 创建前 objective 必须具体到可以执行；缺少会改变结果的信息时先询问，不创建占位 Goal。
 - 当前会话已有未结束 Goal 时不创建第二个；用户明确更换 objective 时 retarget 同一个 Goal。
+- `get_goal` 返回空时，显式 Goal 意图走 `create_goal`；返回现有 Goal 时，objective 纠正走 `retarget_goal`。`update_goal` 绝不用于设定或改写 objective。
 - `token_budget` 只在用户明确给出预算时设置。
 - 模型只能用 `update_goal` 标记 `complete` 或 `blocked`；暂停、恢复、预算和用量限制属于用户或系统控制面。
 - 提醒、定时和周期任务使用 Automation，不使用 Goal。

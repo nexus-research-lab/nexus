@@ -521,19 +521,70 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ## 16. Goal 目标
 
+Composer 的 Goal 模式不再调用 `POST /goals` 后自行拼接聊天，而是发送独立
+WebSocket `set_goal`；用户手输的 `/goal <objective>` 虽然使用 `chat` envelope，
+也会在 runtime 之前被同一个 Nexus host handler 截获。两条入口共享以下语义：
+
+1. 先创建或显式替换当前 Goal；
+2. 再持久化一条 canonical 内容为 `/goal <objective>`、`metadata.subtype=goal_set`
+   且 `control_only=true` 的完成态用户控制记录；
+3. 尝试返回 durable/transient `chat_ack` 和 `round_status=finished`；
+4. 在第一次控制响应发送尝试之后，通过 Goal continuation 状态机继续执行。
+
+这条控制记录不会进入模型，也不会等待 assistant/result；但它会使新会话进入
+started 状态、推进 message count，并让 Goal objective 立即提供标题兜底。Goal SQL
+与 owner workspace ledger 不是同一事务；Goal 是状态真相，ACK 的
+`user_message_committed` 精确表示控制记录是否已经 durable。客户端是否实际收到
+ACK 不构成 continuation 前提；若 Goal SQL 在 commit 前失败，则不会写控制记录或
+启动 continuation。若 Goal 已提交但 ledger 写入失败，则返回 transient ACK，
+不会把 `/goal` 显示成 durable 消息，但 continuation 仍可从权威 Goal 继续。
+
+Room Goal continuation 通过公区 `@` 或 directed-message wake 请求协作时，服务端会把
+精确 Goal ID/objective revision 作为 host-only 调度归因写入 directed-message、handoff、
+队列及恢复记录。Goal-directed wake 在 immediate/delayed 调度前建立确定性 handoff；
+启动恢复会从 directed-message 事实补建被崩溃打断的缺失 handoff，但仅限仍 active 的
+同一 Goal revision，旧 revision 不会被重新投递。
+`send_directed_message` 的幂等键由服务端从 SDK tool-use identity 生成，模型可写的
+`correlation_id` 仍只用于诊断。相同工具调用的重试复用同一 message/wake identity；
+immediate 与 delayed wake 都先持久化 schedule，成功入队后 complete，运行中失败会
+在线重试，已 complete 的 wake 不会因迟到重试重新运行。
+该字段不是客户端输入或模型能力，也不会给协作者的 conversation round 授予 Goal
+mutation authority。协作者终态后，服务端记录符合可见性要求的证据并重新调度一轮
+有权限的 lead continuation；重启期间未完成的归因 handoff 会继续阻止并发续跑。
+归因字段上线前留下的终态 root 仅在宿主事实可严格证明时升级：当前 Goal active，
+最新非 usage 审计事件是该 root source Agent round 的 `continuation_suppressed`，
+root 全部终态，并且 canonical Room history 中同 root 有非 Lead 的公开实质终态。
+恢复器不会读取模型正文来猜测 Goal 归属，也不会把用户取消或普通拒绝恢复成续跑。
+`Goal.status=paused` 只表示真实生命周期暂停；`status=active` 且
+`empty_progress_count>0` 表示系统因上一轮无可计入进展而停止自动续跑，前端会明确
+展示为“自动续跑已停止”，不能渲染成或描述成 Agent 主动暂停。
+
+`GET /sessions`、`GET /agents/{agent_id}/sessions` 与 Room context 返回合并读模型，
+不再把旧 SQL `messages` 表当作实时历史。Room-backed DM 的 Room 身份、标题与配置
+来自 SQL；`message_count`、最近活动、上下文占用与 transcript lineage 从 Agent
+workspace session 单调保留。群聊 conversation 的 `message_count` 从 canonical Room
+ledger 重建并按 ledger 文件版本缓存；旧 SQL message row 仅作为迁移数据的兼容下限。
+因此仅通过 Goal 启动的新会话在重连或刷新后仍保持标题、started 与非零消息进度。
+Room-backed DM 的 Goal 标题只更新权威 SQL conversation，不再尝试修改只负责 runtime
+进度的 workspace Session 投影。
+
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
 | GET | `/goals/current` | 当前目标（query: `session_key`） | — | `getCurrentGoalApi` |
-| POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, room_lead_agent_id?, metadata? }` | `createGoalApi` |
+| POST | `/goals` | 直接创建 Goal lifecycle 状态；API 调用方可显式替换当前 Goal，且不写 host control history | `{ session_key, objective, token_budget?, replace_existing?, room_lead_agent_id?, metadata? }` | `createGoalApi`（Composer 不使用） |
 | GET | `/goals/{goal_id}/usage` | 按 ID 查询目标的聚合 usage 与 finalization fence | — | `getGoalUsageApi` |
 | GET | `/goals/{goal_id}/execution-binding` | owner-scoped、server-derived 的 Goal/Execution binding 状态 | — | `getGoalExecutionBindingApi` |
-| PATCH | `/goals/{goal_id}` | 更新目标 | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
+| PATCH | `/goals/{goal_id}` | HTTP lifecycle update，可改 objective/budget/metadata；不是 MCP terminal-only `update_goal` | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
 | POST | `/goals/{goal_id}/pause` | 暂停 | — | `pauseGoalApi` |
 | POST | `/goals/{goal_id}/resume` | 恢复 | — | `resumeGoalApi` |
 | POST | `/goals/{goal_id}/clear` | 清除 | — | `clearGoalApi` |
 | GET | `/goals/{goal_id}/events` | 目标事件流 | — | — |
 
-`room_lead_agent_id` 只用于 Room Goal 创建。服务端按认证 owner 与当前 Room 成员目录重新验证并解析负责人名称；`metadata` 不能写入或覆盖 Room creator、lead 或 scope 身份。
+`POST /goals` 的 `replace_existing=true` 保留当前 Goal ID 与累计 usage。standalone/
+reserved Goal 在同一 Goal row/event 事务内原位更新；confirmed WorkGraph 则按
+successor saga 创建新的 Execution/Plan，不能理解为原位编辑既有 WorkGraph。
+
+`room_lead_agent_id` 只用于 Room Goal 创建。服务端按认证 owner 与当前 Room 成员目录重新验证并解析负责人名称；所有 user-created Goal 的 `metadata` 都会在 Goal service 信任边界移除 owner、Execution binding、objective transition/revision 和 Room runtime 键。Room 的 creator、lead、scope 与 collaboration-required 门槛只能由验证后的服务端事实建立。
 
 `POST /goals` 携 `replace_existing: true` 与 `PATCH /goals/{goal_id}` 携
 `objective` 都进入同一 objective retarget 语义：保留 Goal ID 与累计 usage，
@@ -565,6 +616,11 @@ DM 按当前 round 聚合 parent 与 child；Room 聚合同一 root round（包�
 `usage_finalized=true` 视为聚合冻结。
 
 ### App-Server 线程目标 RPC
+
+这些 HTTP/JSON-RPC 入口是 Codex app-server 状态协议兼容面：它们直接读写 Goal
+lifecycle，并可按 Goal 状态机触发 continuation，但不会追加 `/goal` host control
+record，也不承担 Composer 的 started/message-count/title 语义。需要用户可见 Goal
+控制记录的客户端必须使用 WebSocket `set_goal` 或文本 `/goal <objective>`。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -636,7 +692,7 @@ thread 双重隔离。
 
 ### 客户端 → 服务端消息
 
-消息体为 JSON，必含 `type` 字段。前端 `WebSocketClient.send` 支持离线排队的类型：`ping` / `bind_session` / `unbind_session` / `subscribe_room` / `unsubscribe_room` / `subscribe_workspace` / `unsubscribe_workspace` / `subscribe_app_events` / `unsubscribe_app_events`；业务消息（`chat` / `interrupt` / `permission_response` / `input_queue`）不排队，连接不可用时直接丢弃。
+消息体为 JSON，必含 `type` 字段。前端 `WebSocketClient.send` 支持离线排队的类型：`ping` / `bind_session` / `unbind_session` / `subscribe_room` / `unsubscribe_room` / `subscribe_workspace` / `unsubscribe_workspace` / `subscribe_app_events` / `unsubscribe_app_events`；业务消息（`chat` / `set_goal` / `interrupt` / `permission_response` / `input_queue`）不排队，连接不可用时直接丢弃。
 
 | `type` | 说明 | 关键字段 |
 |--------|------|---------|
@@ -650,6 +706,7 @@ thread 双重隔离。
 | `subscribe_app_events` | 订阅应用事件 | — |
 | `unsubscribe_app_events` | 取消订阅应用事件 | — |
 | `chat` | 发送对话消息 | `session_key`, `agent_id?`, `room_id?`, `conversation_id?`, `content`, `attachments?`, `client_request_id`, `client_message_id`, `delivery_policy` |
+| `set_goal` | Composer Goal 控制；与文本 `/goal` 共用 host handler | `session_key`, `objective`, `agent_id?`, `target_agent_ids?`, `client_request_id`, `client_message_id`, `goal_options?` |
 | `interrupt` | 中断当前轮次 | `session_key`, `round_id`（DM）/ `msg_id`（Room） |
 | `input_queue` | 输入队列操作 | `session_key`, `action`/`action_type`, `client_request_id?`, `client_message_id?`, `item_id?`, `content?`, `attachments?`, `ordered_ids?`, `delivery_policy` |
 | `permission_response` | 权限请求响应 | 由权限运行时约定 |
@@ -664,6 +721,11 @@ thread 双重隔离。
 - `client_request_id`：单次 WebSocket 发送尝试，用于匹配服务端 ACK 或错误事件。
 - `client_message_id`：逻辑消息身份；`input_queue enqueue` 在 ACK 未知后重试时必须复用，用于后端持久化幂等去重。
 - Room 会话额外支持 `room_id`、`conversation_id`、`agent_id`（附件归属 Agent）。
+- `chat.content` 匹配大小写不敏感的 `/goal <non-empty objective>` 命令语法时先走
+  Nexus host command，不进入普通 runtime；命令名和 objective 两侧空白会被裁剪，
+  空 objective 返回 `用法：/goal <objective>`，携带附件的 host Slash 会被拒绝；
+  `set_goal.goal_options` 支持 `token_budget?`、`replace_existing?` 与客户端可写
+  `metadata?`，Room 的 `target_agent_ids` 必须解析为一个经服务端成员校验的 lead。
 
 ### 服务端 → 客户端事件
 

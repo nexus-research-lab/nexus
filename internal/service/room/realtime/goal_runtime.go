@@ -302,13 +302,25 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		return
 	}
 	hasProgress := slotHasGoalToolProgress(slot)
-	if !hasProgress && slot.hasRunningSubagentTask() {
+	if !hasProgress && (slot.hasRunningSubagentTask() ||
+		slotHasPendingGoalCollaboration(slot, finalAssistant)) {
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 续跑进展失败", func() error {
 		_, err := s.goals.RecordContinuationProgress(ctx, goalID, slot.AgentRoundID, hasProgress, authority.ObjectiveRevision)
 		return err
 	}, "progressed", hasProgress)
+}
+
+func slotHasPendingGoalCollaboration(
+	slot *activeRoomSlot,
+	finalAssistant protocol.Message,
+) bool {
+	if slot == nil || !slot.goalMutationAuthority().valid() {
+		return false
+	}
+	return slot.hasPendingGoalCollaboration() ||
+		len(protocolAgentMentions(finalAssistant["agent_mentions"])) > 0
 }
 
 func (s *Service) recordSlotGoalMutation(
@@ -1810,10 +1822,10 @@ func (s *Service) RoomGoalCompletionBlocker(
 	if blocker := s.activeRoomGoalBlocker(goal.SessionKey, conversationID, callerAgentID, callerRoundID); blocker != "" {
 		return blocker, nil
 	}
-	if blocker, err := s.roomGoalInputQueueBlocker(ctx, contextValue); err != nil || blocker != "" {
+	if blocker, err := s.roomGoalInputQueueBlocker(ctx, contextValue, &goal); err != nil || blocker != "" {
 		return blocker, err
 	}
-	return s.roomGoalDelayedWakeBlocker(contextValue.Room.OwnerUserID, conversationID)
+	return s.roomGoalDirectedWakeBlocker(contextValue.Room.OwnerUserID, conversationID, &goal)
 }
 
 func (s *Service) activeRoomGoalBlocker(
@@ -1874,6 +1886,7 @@ func (s *Service) activeRoomGoalBlocker(
 func (s *Service) roomGoalInputQueueBlocker(
 	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,
+	goals ...*protocol.Goal,
 ) (string, error) {
 	if s.inputQueue == nil || contextValue == nil {
 		return "", nil
@@ -1885,12 +1898,28 @@ func (s *Service) roomGoalInputQueueBlocker(
 	if len(entries) == 0 {
 		return "", nil
 	}
-	// InputQueue replay 已排除 expired/deleted/dispatched 项。队列尚无 goal_id，
-	// 所以对同 conversation 的 active shared Goal 保守阻止，不会被日志历史永久卡住。
-	return fmt.Sprintf("Room input queue item %s has not been consumed", strings.TrimSpace(entries[0].Item.ID)), nil
+	var currentGoal *protocol.Goal
+	if len(goals) > 0 {
+		currentGoal = goals[0]
+	}
+	for _, entry := range entries {
+		binding := protocol.NormalizeGoalCollaborationBinding(
+			entry.Item.GoalCollaborationBinding,
+		)
+		if binding != nil && currentGoal != nil &&
+			!roomGoalCollaborationBindingMatchesGoal(currentGoal, binding) {
+			continue
+		}
+		return fmt.Sprintf("Room input queue item %s has not been consumed", strings.TrimSpace(entry.Item.ID)), nil
+	}
+	return "", nil
 }
 
-func (s *Service) roomGoalDelayedWakeBlocker(ownerUserID string, conversationID string) (string, error) {
+func (s *Service) roomGoalDirectedWakeBlocker(
+	ownerUserID string,
+	conversationID string,
+	goals ...*protocol.Goal,
+) (string, error) {
 	if s.directedWakes == nil {
 		return "", nil
 	}
@@ -1898,8 +1927,19 @@ func (s *Service) roomGoalDelayedWakeBlocker(ownerUserID string, conversationID 
 	if err != nil {
 		return "", err
 	}
+	var currentGoal *protocol.Goal
+	if len(goals) > 0 {
+		currentGoal = goals[0]
+	}
 	for _, wake := range pending {
 		if strings.TrimSpace(wake.Message.ConversationID) != strings.TrimSpace(conversationID) {
+			continue
+		}
+		binding := protocol.NormalizeGoalCollaborationBinding(
+			wake.Message.GoalCollaborationBinding,
+		)
+		if binding != nil && currentGoal != nil &&
+			!roomGoalCollaborationBindingMatchesGoal(currentGoal, binding) {
 			continue
 		}
 		return fmt.Sprintf("Room directed wake %s has not started", strings.TrimSpace(wake.WakeID)), nil

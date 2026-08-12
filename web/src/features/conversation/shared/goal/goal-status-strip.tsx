@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Goal status projection inputs, server-derived clear reason and action callbacks.
- * OUTPUT: accessible Goal status strip with primary lifecycle and secondary WorkGraph binding state.
+ * OUTPUT: accessible Goal status strip with primary lifecycle and only meaningful WorkGraph binding state.
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
 
@@ -31,6 +31,7 @@ import {
   GOAL_PANEL_ROW_CLASS_NAME,
   GOAL_PANEL_STRIP_CLASS_NAME,
   GOAL_PANEL_SURFACE_CLASS_NAME,
+  type GoalBindingBadgeModel,
   type GoalStatusAction,
   type GoalStatusStripModel,
 } from "./goal-model";
@@ -86,12 +87,11 @@ const GOAL_ACTION_PRESENTATION: Record<
 };
 
 const GOAL_BINDING_BADGE_TONE: Record<
-  GoalStatusStripModel["bindingBadge"]["tone"],
+  GoalBindingBadgeModel["tone"],
   string
 > = {
   conflict: "border-destructive/20 bg-destructive/10 text-destructive",
   confirmed: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
-  neutral: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-muted)",
   pending: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
   unavailable: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
 };
@@ -156,7 +156,10 @@ export function GoalStatusStrip({
             isLoading={isLoading}
           />
         </div>
-        <GoalAttentionMessage message={model.attentionMessage} />
+        <GoalAttentionMessage
+          message={model.attentionMessage}
+          tone={model.attentionTone}
+        />
       </div>
     </div>
   );
@@ -191,7 +194,7 @@ function GoalStatusSummary({
         >
           {model.statusLabel}
         </span>
-        <GoalBindingBadge model={model.bindingBadge} />
+        {model.bindingBadge ? <GoalBindingBadge model={model.bindingBadge} /> : null}
         <GoalExecutionState model={model} />
         {statusExtra}
       </div>
@@ -208,7 +211,7 @@ function GoalStatusSummary({
 function GoalBindingBadge({
   model,
 }: {
-  model: GoalStatusStripModel["bindingBadge"];
+  model: GoalBindingBadgeModel;
 }) {
   const { t } = useI18n();
   const title = t(model.titleKey);
@@ -295,12 +298,23 @@ function GoalStatusActions({
   );
 }
 
-function GoalAttentionMessage({ message }: { message: string | null }) {
+function GoalAttentionMessage({
+  message,
+  tone,
+}: {
+  message: string | null;
+  tone: GoalStatusStripModel["attentionTone"];
+}) {
   if (!message) {
     return null;
   }
   return (
-    <div className="ml-7 line-clamp-1 pb-1 text-xs leading-4 text-(--destructive)">
+    <div
+      className={cn(
+        "ml-7 line-clamp-1 pb-1 text-xs leading-4",
+        tone === "warning" ? "text-(--warning)" : "text-(--destructive)",
+      )}
+    >
       {message}
     </div>
   );

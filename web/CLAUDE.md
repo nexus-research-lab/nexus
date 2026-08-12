@@ -92,7 +92,7 @@ src/
 - 定时任务时间选择器共用 `capability/scheduled/pickers/time-picker-column.tsx`，锚点浮层复用 `shared/ui/overlay/`，不得在 Daily/SingleRun 中复制选项按钮
 - 定时任务目录只通过 `capability/scheduled/controller/` 读写任务；不得恢复混合 Heartbeat 的 Automation 控制器，命令结果必须先于后台刷新落地
 - 定时任务运行历史由 `capability/scheduled/history/` 分离 Job 作用域资源、动作事务和纯视图；弹窗壳层不得直接请求 API 或维护单项命令状态
-- Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口；状态条只显示实际 token 用量，预算只保留为编辑配置和运行限制，不投影为第二套用户用量。Goal 完成收据由宿主按 goal_id + round_id 附着到最终 assistant 并进入历史，但界面永不显示这两个 ID；只显示已知耗时和已 finalized 的 actual token，未知项直接省略，不显示结算中、不可用或伪造的 0
+- Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写既有状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口。Composer 创建使用独立 `set_goal`，并与文本 `/goal` 共用后端 host command、完成态控制记录与 ACK，不得复用普通 chat/runtime；状态条只显示实际 token 用量，预算只保留为编辑配置和运行限制，不投影为第二套用户用量。Goal 完成收据由宿主按 goal_id + round_id 附着到最终 assistant 并进入历史，但界面永不显示这两个 ID；只显示已知耗时和已 finalized 的 actual token，未知项直接省略，不显示结算中、不可用或伪造的 0
 - 桌面运行时只通过 `config/desktop-runtime/index.ts` 暴露稳定门面，消费者不得读取宿主原始全局对象或复制 URL 协议判断
 - 窗口手势面统一使用 `data-desktop-window-drag-region`。macOS 宿主以 4px 阈值仲裁短按与拖窗，让可见 Header、`/app` 主内容区顶部透明拖动面与原生 traffic lights 共面；Windows 使用 WebView2 原生 `app-region`，Header 空白区进入系统命中测试，标签、按钮、链接、编辑控件与显式排除项保持 `no-drag`。Windows 独立原生标题/菜单栏位于 WebView 上方，Web 不得为其预留右侧 caption 空域；除 macOS `/app` 的透明手势面外，页面不得重新添加顶部安全行或全宽点击遮罩。
 - 根启动入口只编排运行时配置与渲染阶段；普通入口先加载受保护的运行时配置，OAuth 公开回调入口必须显式跳过该预取并直接渲染 token 交换页；失败视图、chunk/auth 恢复、一次性重载和空白 watchdog 各自拥有独立边界

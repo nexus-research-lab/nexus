@@ -82,6 +82,13 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if current == nil || current.ID != item.ID || budgetLimited.Status != protocol.GoalStatusBudgetLimited {
 		t.Fatalf("current = %#v updated = %#v, want budget_limited current goal", current, budgetLimited)
 	}
+	currentGoals, err := repository.ListCurrentGoals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(currentGoals) != 1 || currentGoals[0].ID != item.ID {
+		t.Fatalf("current goals = %#v, want budget-limited goal-1", currentGoals)
+	}
 	budgetLimited.Status = protocol.GoalStatusComplete
 	budgetLimited.Version++
 	budgetLimited.UpdatedAt = now.Add(3 * time.Minute)
@@ -95,6 +102,13 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	}
 	if current != nil || completed.Status != protocol.GoalStatusComplete {
 		t.Fatalf("current = %#v updated = %#v, want completed goal no longer current", current, completed)
+	}
+	currentGoals, err = repository.ListCurrentGoals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(currentGoals) != 0 {
+		t.Fatalf("current goals = %#v, want completed goal excluded", currentGoals)
 	}
 	if _, err := repository.UpdateGoal(ctx, *updated, 1); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("stale update error = %v, want sql.ErrNoRows", err)
@@ -165,6 +179,136 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	}
 	if deleted {
 		t.Fatal("second DeleteGoal(goal-2) = true, want false")
+	}
+}
+
+func TestRepositoryCreateGoalWithEventIsAtomic(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 11, 9, 0, 0, 0, time.UTC)
+	first := protocol.Goal{
+		ID:         "goal-atomic-first",
+		SessionKey: "agent:nexus:ws:dm:atomic-first",
+		Objective:  "persist atomically",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	firstEvent := protocol.GoalEvent{
+		ID:         "event-atomic-created",
+		GoalID:     first.ID,
+		SessionKey: first.SessionKey,
+		EventType:  "created",
+		Source:     protocol.GoalUpdateSourceExternal,
+		CreatedAt:  now,
+	}
+	created, err := repository.CreateGoalWithEvent(ctx, first, firstEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.ID != first.ID {
+		t.Fatalf("created Goal = %#v, want %q", created, first.ID)
+	}
+	events, err := repository.ListEvents(ctx, first.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].ID != firstEvent.ID {
+		t.Fatalf("created events = %#v, want only %#v", events, firstEvent)
+	}
+
+	second := protocol.Goal{
+		ID:         "goal-atomic-rollback",
+		SessionKey: "agent:nexus:ws:dm:atomic-rollback",
+		Objective:  "roll back with event",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now.Add(time.Second),
+		UpdatedAt:  now.Add(time.Second),
+	}
+	duplicateEvent := protocol.GoalEvent{
+		ID:         firstEvent.ID,
+		GoalID:     second.ID,
+		SessionKey: second.SessionKey,
+		EventType:  "created",
+		Source:     protocol.GoalUpdateSourceExternal,
+		CreatedAt:  now.Add(time.Second),
+	}
+	if _, err := repository.CreateGoalWithEvent(ctx, second, duplicateEvent); err == nil {
+		t.Fatal("CreateGoalWithEvent duplicate event error = nil, want transaction failure")
+	}
+	rolledBack, err := repository.GetGoal(ctx, second.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rolledBack != nil {
+		t.Fatalf("rolled back Goal = %#v, want nil", rolledBack)
+	}
+}
+
+func TestRepositoryUpdateGoalWithEventsIsAtomic(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+	item := protocol.Goal{
+		ID:         "goal-update-atomic",
+		SessionKey: "agent:nexus:ws:dm:update-atomic",
+		Objective:  "preserve row and event agreement",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	createdEvent := protocol.GoalEvent{
+		ID:         "event-update-atomic-created",
+		GoalID:     item.ID,
+		SessionKey: item.SessionKey,
+		EventType:  "created",
+		Source:     protocol.GoalUpdateSourceExternal,
+		CreatedAt:  now,
+	}
+	created, err := repository.CreateGoalWithEvent(ctx, item, createdEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created.Status = protocol.GoalStatusPaused
+	created.Version++
+	created.UpdatedAt = now.Add(time.Second)
+	duplicateEvent := protocol.GoalEvent{
+		ID:         createdEvent.ID,
+		GoalID:     created.ID,
+		SessionKey: created.SessionKey,
+		EventType:  "paused",
+		Source:     protocol.GoalUpdateSourceUser,
+		CreatedAt:  created.UpdatedAt,
+	}
+	if _, err := repository.UpdateGoalWithEvents(ctx, *created, 1, []protocol.GoalEvent{duplicateEvent}); err == nil {
+		t.Fatal("UpdateGoalWithEvents duplicate event error = nil, want transaction failure")
+	}
+	rolledBack, err := repository.GetGoal(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rolledBack == nil || rolledBack.Version != 1 || rolledBack.Status != protocol.GoalStatusActive {
+		t.Fatalf("Goal after event failure = %#v, want active v1", rolledBack)
+	}
+
+	pausedEvent := duplicateEvent
+	pausedEvent.ID = "event-update-atomic-paused"
+	updated, err := repository.UpdateGoalWithEvents(ctx, *created, 1, []protocol.GoalEvent{pausedEvent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Version != 2 || updated.Status != protocol.GoalStatusPaused {
+		t.Fatalf("updated Goal = %#v, want paused v2", updated)
+	}
+	events, err := repository.ListEvents(ctx, item.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("Goal events = %#v, want created and paused", events)
 	}
 }
 
@@ -585,8 +729,8 @@ WHERE NOT EXISTS (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 86 {
-		t.Fatalf("goose version = %d, want 86", version)
+	if version < 58 {
+		t.Fatalf("goose version = %d, want orphan cleanup migration 58 or later", version)
 	}
 }
 

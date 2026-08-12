@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - handler.go / connection.go / dispatch.go / control.go / error.go / values.go：
-//     连接生命周期、消息分发、带请求身份 ACK（含精确 interrupt 完成确认）的控制动作表、错误与取值。
+//     连接生命周期、消息分发、带请求身份 ACK（含独立 set_goal 与精确 interrupt 完成确认）的控制动作表、错误与取值。
 //   - room_subscription_handler.go / session_binding.go / broadcast.go：
 //     房间订阅（含权威空 slot 快照清理）、会话绑定、Session 元数据与热缓存上下文快照按 Agent 重放、广播。
 //   - command_catalog.go：在 bind_session 时选择 Nexus 内置的 runtime 清单，合并

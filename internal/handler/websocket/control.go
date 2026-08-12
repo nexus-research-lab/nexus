@@ -105,6 +105,7 @@ var controlMessageHandlers = map[string]controlMessageHandler{
 	"interrupt":           (*controlMessage).handleInterrupt,
 	"input_queue":         (*controlMessage).handleInputQueue,
 	"permission_response": (*controlMessage).handlePermissionResponse,
+	"set_goal":            (*controlMessage).handleSetGoal,
 }
 
 func (m *controlMessage) dispatch() {
@@ -124,12 +125,14 @@ func (m *controlMessage) dispatch() {
 func (m *controlMessage) handleChat() {
 	clientRequestID, clientMessageID := m.clientIDs()
 	attachments := m.attachments()
-	if handled, err := m.executeHostCommand(
+	content := m.stringValue("content")
+	if handled, hostErr := m.executeHostCommand(
 		clientRequestID,
 		clientMessageID,
 		len(attachments),
+		content,
 	); handled {
-		m.reportChatFailure(clientRequestID, clientMessageID, err)
+		m.reportChatFailure(clientRequestID, clientMessageID, hostErr)
 		return
 	}
 	var err error
@@ -162,10 +165,32 @@ func (m *controlMessage) handleChat() {
 	m.reportChatFailure(clientRequestID, clientMessageID, err)
 }
 
+// handleSetGoal 把 Goal Composer 提交转成与 `/goal` 相同的 host command；
+// 它不会进入普通 chat/runtime 路径。
+func (m *controlMessage) handleSetGoal() {
+	clientRequestID, clientMessageID := m.clientIDs()
+	objective := strings.TrimSpace(m.stringValue("objective"))
+	if objective == "" {
+		m.reportChatFailure(clientRequestID, clientMessageID, errors.New("goal objective is required"))
+		return
+	}
+	handled, err := m.executeHostCommand(
+		clientRequestID,
+		clientMessageID,
+		0,
+		"/goal "+objective,
+	)
+	if !handled && err == nil {
+		err = errors.New("Goal command is unavailable")
+	}
+	m.reportChatFailure(clientRequestID, clientMessageID, err)
+}
+
 func (m *controlMessage) executeHostCommand(
 	clientRequestID string,
 	clientMessageID string,
 	attachmentCount int,
+	commandContent string,
 ) (bool, error) {
 	if m.handler.hostCommands == nil {
 		return false, nil
@@ -175,11 +200,25 @@ func (m *controlMessage) executeHostCommand(
 		scope = slashcommandsvc.ScopeRoom
 	}
 	roundID := protocol.NewRoundID()
+	userMessageID := protocol.NewUserMessageID()
+	goalOptions := protocol.GoalCommandOptions{}
+	if isGoalHostCommandContent(commandContent) {
+		var err error
+		goalOptions, err = goalCommandOptionsValue(m.inbound["goal_options"])
+		if err != nil {
+			return true, err
+		}
+	}
 	invocation := slashcommandsvc.Invocation{
 		SessionKey:      m.sessionKey,
 		AgentID:         firstStringValue(m.inbound["agent_id"], m.parsed.AgentID),
 		RoundID:         roundID,
-		Content:         m.stringValue("content"),
+		UserMessageID:   userMessageID,
+		ClientRequestID: clientRequestID,
+		ClientMessageID: clientMessageID,
+		Content:         strings.TrimSpace(commandContent),
+		TargetAgentIDs:  stringSliceValue(m.inbound["target_agent_ids"]),
+		GoalOptions:     goalOptions,
 		AttachmentCount: attachmentCount,
 	}
 	result, matched, err := m.handler.hostCommands.ExecuteAuthorized(
@@ -193,13 +232,21 @@ func (m *controlMessage) executeHostCommand(
 	if !matched || err != nil {
 		return matched, err
 	}
-	ack := protocol.NewTransientChatAckEvent(
-		m.sessionKey,
-		clientRequestID,
-		clientMessageID,
-		roundID,
-		protocol.NewUserMessageID(),
-	)
+	if result.AfterResponseAttempted != nil {
+		defer result.AfterResponseAttempted(context.WithoutCancel(m.ctx))
+	}
+	ack := protocol.NewTransientChatAckEvent(m.sessionKey, clientRequestID, clientMessageID, roundID, userMessageID)
+	if result.UserMessageCommitted {
+		ack = protocol.NewChatAckEvent(
+			m.sessionKey,
+			clientRequestID,
+			clientMessageID,
+			roundID,
+			userMessageID,
+			true,
+			nil,
+		)
+	}
 	if err = m.sender.SendEvent(m.ctx, ack); err != nil {
 		return true, err
 	}
@@ -229,6 +276,11 @@ func (m *controlMessage) executeHostCommand(
 		return true, err
 	}
 	return true, nil
+}
+
+func isGoalHostCommandContent(content string) bool {
+	fields := strings.Fields(strings.TrimSpace(content))
+	return len(fields) > 0 && strings.EqualFold(fields[0], "/goal")
 }
 
 func (h *Handler) authorizeHostCommand(

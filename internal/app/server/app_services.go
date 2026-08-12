@@ -303,6 +303,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
 		panic(err)
 	}
+	if err := slashcommandsvc.RegisterGoalCommand(
+		slashCommandRegistry,
+		slashcommandsvc.GoalCommandDependencies{Executor: goalCommandRouter{
+			dm:    dmService,
+			room:  roomRealtime,
+			goals: goalService,
+		}},
+	); err != nil {
+		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
+		panic(err)
+	}
 
 	// 把内置配置、资源管理、自动化、授权、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)

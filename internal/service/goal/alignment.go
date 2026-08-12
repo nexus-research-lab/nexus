@@ -5,9 +5,7 @@ package goal
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -98,16 +96,10 @@ func (s *Service) AuditObjectiveAlignmentByModel(
 		current.Metadata[protocol.GoalMetadataObjectiveAlignment] = record
 		current.Version++
 		current.UpdatedAt = record.AuditedAt
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(
+		updated, updateErr := s.persistGoalUpdateWithEvent(
 			ctx,
-			*updated,
+			*current,
+			expectedVersion,
 			"objective_alignment_audited",
 			protocol.GoalUpdateSourceModel,
 			roundID,
@@ -118,8 +110,9 @@ func (s *Service) AuditObjectiveAlignmentByModel(
 				"report":             record.Report,
 				"source_agent_id":    record.AgentID,
 			},
-		); eventErr != nil {
-			return nil, eventErr
+		)
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		saved = record
 		return updated, nil

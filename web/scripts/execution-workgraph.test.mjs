@@ -346,13 +346,7 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
     completion_blockers: [" waiting for final review ", ""],
   };
   assert.deepEqual(resolveExecutionWorkGraphHeaderModel(headerExecution), {
-    acceptedCount: 1,
-    completionBlockers: ["waiting for final review"],
     currentNodeId: "attempt-child",
-    nodeCurrent: 2,
-    nodeTotal: 3,
-    planRevision: 2,
-    requiredCount: 3,
     status: "active",
     statusLabelKey: "execution.status_active",
     summary: "实现 UI",
@@ -384,11 +378,12 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
   );
 });
 
-test("WorkGraph surface keeps graph lifecycle, Plan and required acceptance above node progress", async () => {
+test("WorkGraph surface keeps an active title-only header and one non-active lifecycle notice", async () => {
   const { ExecutionWorkGraphSurface } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
   );
   const statuses = [
+    ["active", null],
     ["waiting", "等待中"],
     ["completed", "已完成"],
     ["superseded", "已替换"],
@@ -414,16 +409,21 @@ test("WorkGraph surface keeps graph lifecycle, Plan and required acceptance abov
       },
     ));
     assert.match(html, new RegExp(`data-execution-header-status="${status}"`));
-    assert.match(html, new RegExp(`>${statusLabel}<`));
-    assert.match(html, />Plan v2</);
-    assert.match(html, />必需节点已验收 1\/3</);
-    assert.match(html, /data-execution-completion-blockers="1"/);
-    assert.match(html, />完成阻塞 · 1</);
-    assert.match(html, />第 2 \/ 3 节点</);
-    assert.ok(
-      html.indexOf(statusLabel) < html.indexOf("第 2 / 3 节点"),
-      "Execution lifecycle must remain primary to node navigation progress",
-    );
+    assert.match(html, />实现 UI</);
+    if (statusLabel) {
+      assert.match(
+        html,
+        new RegExp(`data-execution-header-notice-status="${status}"`),
+      );
+      assert.match(html, new RegExp(`>${statusLabel}<`));
+    } else {
+      assert.doesNotMatch(html, /data-execution-header-notice-status/);
+    }
+    assert.doesNotMatch(html, /data-execution-plan/);
+    assert.doesNotMatch(html, /data-execution-required-progress/);
+    assert.doesNotMatch(html, /data-execution-completion-blockers/);
+    assert.doesNotMatch(html, /data-execution-node-progress/);
+    assert.doesNotMatch(html, /Plan v2|必需节点已验收|完成阻塞|第 2 \/ 3 节点/);
   }
 });
 

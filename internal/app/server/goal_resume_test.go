@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 type fakeGoalContinuationDM struct {
@@ -82,6 +83,30 @@ func TestGoalContinuationDispatcherAsksRoomBeforeAutoContinuing(t *testing.T) {
 
 	if !dispatcher.ShouldDeferGoalContinuation(context.Background(), "room:group:conversation-1") {
 		t.Fatal("ShouldDeferGoalContinuation() = false, want room defer result")
+	}
+}
+
+func TestGoalContinuationDispatcherDefersUntilTerminalRoundAccountingCleanup(t *testing.T) {
+	const sessionKey = "agent:nexus:ws:dm:goal-accounting-cleanup"
+	runtime := runtimectx.NewManager()
+	runtime.RegisterGoalAccountingCreateGuard(sessionKey, "round-visible", "round-visible", func() bool {
+		return true
+	})
+	runtime.MarkRoundTerminal(sessionKey, "round-visible")
+	if got := runtime.GetRunningRoundIDs(sessionKey); len(got) != 0 {
+		t.Fatalf("running round ids = %#v, want terminal round absent", got)
+	}
+	dispatcher := &goalContinuationDispatcher{
+		runtime: runtime,
+		dm:      &fakeGoalContinuationDM{},
+	}
+	if !dispatcher.ShouldDeferGoalContinuation(context.Background(), sessionKey) {
+		t.Fatal("ShouldDeferGoalContinuation() = false while Goal accounting create guard is live")
+	}
+
+	runtime.MarkRoundFinished(sessionKey, "round-visible")
+	if dispatcher.ShouldDeferGoalContinuation(context.Background(), sessionKey) {
+		t.Fatal("ShouldDeferGoalContinuation() = true after terminal round cleanup")
 	}
 }
 

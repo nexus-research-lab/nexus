@@ -1,5 +1,5 @@
-// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、最终 usage fence 与 continuation 数据。
-// OUTPUT: Goal 领域协议、显式 Goal 的稳定 Execution 预留身份与 server-owned binding phase/只读投影、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
+// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、host Goal command、最终 usage fence 与 continuation 数据。
+// OUTPUT: Goal 领域协议、独立 Goal 控制请求、显式 Goal 的稳定 Execution 预留身份与 server-owned binding phase/只读投影、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
@@ -33,6 +33,34 @@ const (
 	GoalUpdateSourceSystem   GoalUpdateSource = "system"
 	GoalUpdateSourceExternal GoalUpdateSource = "external"
 )
+
+// GoalCollaborationBinding attributes a Room handoff to the exact Goal
+// revision that requested it. It is host scheduling provenance only and must
+// never be interpreted as Goal mutation authority by a target Agent round.
+type GoalCollaborationBinding struct {
+	GoalID            string `json:"goal_id"`
+	ObjectiveRevision int64  `json:"objective_revision"`
+}
+
+// NormalizeGoalCollaborationBinding returns one canonical attribution value.
+func NormalizeGoalCollaborationBinding(binding *GoalCollaborationBinding) *GoalCollaborationBinding {
+	if binding == nil {
+		return nil
+	}
+	result := &GoalCollaborationBinding{
+		GoalID:            strings.TrimSpace(binding.GoalID),
+		ObjectiveRevision: binding.ObjectiveRevision,
+	}
+	if !result.Valid() {
+		return nil
+	}
+	return result
+}
+
+// Valid reports whether the binding can safely fence one current Goal revision.
+func (b GoalCollaborationBinding) Valid() bool {
+	return strings.TrimSpace(b.GoalID) != "" && b.ObjectiveRevision > 0
+}
 
 // GoalExecutionBindingState separates a future Execution reservation from a
 // prepared binding and a binding confirmed after the authoritative Execution
@@ -79,6 +107,10 @@ const (
 	GoalMetadataRoomGoalCollaborationObservedAt       = "room_goal_collaboration_observed_at"
 	GoalMetadataRoomGoalCollaborationRequirementRound = "room_goal_collaboration_requirement_round_id"
 	GoalMetadataObjectiveRevision                     = "objective_revision"
+	// GoalMetadataSourceObjective preserves the user's original Goal intent when
+	// best-effort normalization expands it into the canonical objective.
+	GoalMetadataSourceObjective     = "source_objective"
+	GoalMetadataObjectiveNormalized = "objective_normalized"
 	// GoalMetadataOwnerUserID is server-owned authorization provenance for
 	// owner-scoped Goal reads and mutations. Request metadata cannot replace it.
 	GoalMetadataOwnerUserID = "owner_user_id"
@@ -428,18 +460,50 @@ type GoalContinuation struct {
 	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
+// GoalCommandOptions 是 UI set_goal 与 `/goal` 共用的可选控制参数。
+// Room lead 始终来自服务端验证过的 target_agent_ids，不放入 metadata。
+type GoalCommandOptions struct {
+	TokenBudget     *int64         `json:"token_budget,omitempty"`
+	ReplaceExisting *bool          `json:"replace_existing,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+}
+
+// GoalCommandRequest 是 host Goal command 进入 DM/Room 领域的稳定请求。
+// CommandContent 只用于持久化用户实际执行的控制记录；Objective 才是 Goal 正文。
+type GoalCommandRequest struct {
+	SessionKey      string
+	AgentID         string
+	Objective       string
+	CommandContent  string
+	RoundID         string
+	UserMessageID   string
+	ClientRequestID string
+	ClientMessageID string
+	TargetAgentIDs  []string
+	Options         GoalCommandOptions
+}
+
+// GoalCommandResult 返回 Goal 真相与控制记录是否已经 durable。
+type GoalCommandResult struct {
+	Goal                 Goal
+	UserMessageCommitted bool
+}
+
 // CreateGoalRequest 表示创建 Goal 的请求。
 type CreateGoalRequest struct {
-	SessionKey      string         `json:"session_key"`
-	Objective       string         `json:"objective"`
-	TokenBudget     *int64         `json:"token_budget,omitempty"`
-	ReplaceExisting bool           `json:"replace_existing,omitempty"`
-	RoomLeadAgentID string         `json:"room_lead_agent_id,omitempty"`
-	CreatedBy       string         `json:"created_by,omitempty"`
-	RoundID         string         `json:"round_id,omitempty"`
-	OwnerUserID     string         `json:"owner_user_id,omitempty"`
-	AgentID         string         `json:"-"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	SessionKey      string `json:"session_key"`
+	Objective       string `json:"objective"`
+	TokenBudget     *int64 `json:"token_budget,omitempty"`
+	ReplaceExisting bool   `json:"replace_existing,omitempty"`
+	RoomLeadAgentID string `json:"room_lead_agent_id,omitempty"`
+	CreatedBy       string `json:"created_by,omitempty"`
+	RoundID         string `json:"round_id,omitempty"`
+	OwnerUserID     string `json:"owner_user_id,omitempty"`
+	AgentID         string `json:"-"`
+	// RoomCollaborationRequired 只能由已验证 Room 上下文的服务层设置；
+	// transport JSON 不得伪造共享 Goal 的完成门槛。
+	RoomCollaborationRequired *bool          `json:"-"`
+	Metadata                  map[string]any `json:"metadata,omitempty"`
 }
 
 // UpdateGoalRequest 表示更新 Goal 的请求。
@@ -448,6 +512,12 @@ type UpdateGoalRequest struct {
 	TokenBudget OptionalInt64  `json:"token_budget,omitempty"`
 	OwnerUserID string         `json:"owner_user_id,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
+	// Room ownership/completion fields are server-derived command context.
+	// They are never accepted from HTTP or WebSocket JSON.
+	RoomLeadAgentID           string `json:"-"`
+	RoomLeadAgentName         string `json:"-"`
+	RoomCollaborationRequired *bool  `json:"-"`
+	RoomCollaborationRoundID  string `json:"-"`
 }
 
 // RetargetGoalRequest 表示模型基于用户明确纠正重定向当前 active Goal。

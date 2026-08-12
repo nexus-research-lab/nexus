@@ -3,9 +3,6 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { Goal } from "@/types/conversation/goal";
 
 const ROOM_GOAL_LEAD_AGENT_ID_KEY = "room_goal_lead_agent_id";
-const ROOM_GOAL_COLLABORATION_REQUIRED_KEY =
-  "room_goal_collaboration_required";
-const ROOM_GOAL_SCOPE_KEY = "room_goal_scope";
 const ROOM_GOAL_LOOP_SLUG_KEY = "room_goal_loop_slug";
 const ROOM_GOAL_LOOP_TITLE_KEY = "room_goal_loop_title";
 
@@ -54,21 +51,10 @@ export function resolveRoomGoalLeadAgentId(
   return fallbackAgentId;
 }
 
-export function buildRoomGoalMetadata(
-	roomMembers: Agent[],
-): Record<string, unknown> {
-	return {
-		[ROOM_GOAL_SCOPE_KEY]: "room",
-		[ROOM_GOAL_COLLABORATION_REQUIRED_KEY]: roomMembers.length > 1,
-	};
-}
-
 export function buildRoomLoopGoalMetadata(
-	roomMembers: Agent[],
-	loop: LoopCatalogItem,
+  loop: LoopCatalogItem,
 ): Record<string, unknown> {
-	return {
-		...buildRoomGoalMetadata(roomMembers),
+  return {
     [ROOM_GOAL_LOOP_SLUG_KEY]: loop.slug,
     [ROOM_GOAL_LOOP_TITLE_KEY]: loop.title,
   };

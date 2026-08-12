@@ -20,6 +20,11 @@ func TestRoomPublicHandoffStoreIsDurableAndIdempotent(t *testing.T) {
 		SourceAgentID:      "agent-a",
 		TargetAgentID:      "agent-b",
 		Content:            "请 @AgentB 继续",
+		QueueSource:        protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID:            "goal-room",
+			ObjectiveRevision: 3,
+		},
 	}
 
 	store := NewRoomPublicHandoffStore(root)
@@ -52,8 +57,14 @@ func TestRoomPublicHandoffStoreIsDurableAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pending) != 0 {
-		t.Fatalf("started handoff 不应出现在恢复队列: %+v", pending)
+	if len(pending) != 1 || pending[0].HandoffID != handoff.HandoffID {
+		t.Fatalf("Goal-attributed started handoff 应保持可恢复: %+v", pending)
+	}
+	stored, ok, err := reloaded.Get(testRoomOwnerUserID, conversationID, handoff.HandoffID)
+	if err != nil || !ok || stored.GoalCollaborationBinding == nil ||
+		stored.GoalCollaborationBinding.GoalID != "goal-room" ||
+		stored.GoalCollaborationBinding.ObjectiveRevision != 3 {
+		t.Fatalf("Goal collaboration binding was not restored: value=%+v ok=%v err=%v", stored, ok, err)
 	}
 	path := store.paths.RoomPublicHandoffsPath(testRoomOwnerUserID, conversationID)
 	if _, err := reloaded.files.readJSONL(path); err != nil {
@@ -61,11 +72,212 @@ func TestRoomPublicHandoffStoreIsDurableAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestRoomPublicHandoffRejectsInvalidGoalCollaborationBinding(t *testing.T) {
+	store := NewRoomPublicHandoffStore(t.TempDir())
+	_, _, err := store.Detect(testRoomOwnerUserID, RoomPublicHandoff{
+		HandoffID:       "rh_invalid_goal_binding",
+		ConversationID:  "conversation-handoff",
+		SourceMessageID: "message-invalid",
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-worker",
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-room",
+		},
+	})
+	if err == nil {
+		t.Fatal("incomplete Goal collaboration binding must be rejected")
+	}
+}
+
+func TestRoomPublicHandoffRejectsGoalBindingWithoutQueueSource(t *testing.T) {
+	store := NewRoomPublicHandoffStore(t.TempDir())
+	_, _, err := store.Detect(testRoomOwnerUserID, RoomPublicHandoff{
+		HandoffID: "handoff-goal-source", ConversationID: "conversation-goal-source",
+		SourceMessageID: "message-goal-source", SourceAgentID: "agent-source",
+		TargetAgentID: "agent-target", Content: "check",
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-room", ObjectiveRevision: 1,
+		},
+	})
+	if err == nil {
+		t.Fatal("Goal collaboration handoff without a queue source must fail closed")
+	}
+}
+
+func TestRoomPublicHandoffGoalCollaborationInFlightUsesExactRevision(t *testing.T) {
+	root := t.TempDir()
+	store := NewRoomPublicHandoffStore(root)
+	store.paths.StateRoot = root
+	conversationID := "conversation-goal-fence"
+	ownerUserID := testRoomOwnerUserID
+	handoff := RoomPublicHandoff{
+		HandoffID:       "rh_goal_fence",
+		ConversationID:  conversationID,
+		SourceMessageID: "message-goal-fence",
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-peer",
+		QueueSource:     protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID:            "goal-room",
+			ObjectiveRevision: 2,
+		},
+	}
+	if _, _, err := store.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	inFlight, err := store.GoalCollaborationInFlight(
+		ownerUserID,
+		conversationID,
+		*handoff.GoalCollaborationBinding,
+	)
+	if err != nil || !inFlight {
+		t.Fatalf("inFlight = %v err=%v, want exact revision fenced", inFlight, err)
+	}
+	inFlight, err = store.GoalCollaborationInFlight(
+		ownerUserID,
+		conversationID,
+		protocol.GoalCollaborationBinding{GoalID: "goal-room", ObjectiveRevision: 3},
+	)
+	if err != nil || inFlight {
+		t.Fatalf("inFlight = %v err=%v, want newer revision independent", inFlight, err)
+	}
+	if err := store.MarkTerminal(ownerUserID, conversationID, handoff.HandoffID, "finished"); err != nil {
+		t.Fatal(err)
+	}
+	inFlight, err = store.GoalCollaborationInFlight(
+		ownerUserID,
+		conversationID,
+		*handoff.GoalCollaborationBinding,
+	)
+	if err != nil || inFlight {
+		t.Fatalf("inFlight = %v err=%v, want terminal edge released", inFlight, err)
+	}
+}
+
+func TestRoomPublicHandoffTerminalGoalHandbackSurvivesRestartExactlyOnce(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	const conversationID = "conversation-goal-handback-recovery"
+	handoff := RoomPublicHandoff{
+		HandoffID:       "rh_goal_handback_recovery",
+		ConversationID:  conversationID,
+		SourceMessageID: "message-goal-handback-recovery",
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-peer",
+		QueueSource:     protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-room", ObjectiveRevision: 2,
+		},
+	}
+	store := NewRoomPublicHandoffStore(root)
+	if _, _, err := store.Detect(testRoomOwnerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSourceFinished(testRoomOwnerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	if _, claimed, err := store.Claim(testRoomOwnerUserID, conversationID, handoff.HandoffID); err != nil || !claimed {
+		t.Fatalf("claim=%t err=%v", claimed, err)
+	}
+	if err := store.MarkStarted(testRoomOwnerUserID, conversationID, handoff.HandoffID, "target-root-round"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkTerminalWithGoalOutcome(
+		testRoomOwnerUserID,
+		conversationID,
+		handoff.HandoffID,
+		"finished",
+		"target-agent-round",
+		true,
+		true,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := NewRoomPublicHandoffStore(root).PendingAll()
+	if err != nil || len(pending) != 1 || pending[0].HandoffID != handoff.HandoffID ||
+		pending[0].TargetRoundID != "target-root-round" ||
+		pending[0].TargetAgentRoundID != "target-agent-round" ||
+		!pending[0].GoalSubstantiveOutput || !pending[0].GoalPublicEvidence ||
+		!pending[0].GoalHandbackRequired ||
+		pending[0].GoalHandbackSettled {
+		t.Fatalf("pending terminal handback=%+v err=%v", pending, err)
+	}
+	if err := store.MarkGoalHandbackSettled(testRoomOwnerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = NewRoomPublicHandoffStore(root).PendingAll()
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("settled handback must not replay: pending=%+v err=%v", pending, err)
+	}
+}
+
+func TestRoomPublicHandoffGenericCancellationDoesNotScheduleGoalHandback(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	const conversationID = "conversation-goal-cancelled"
+	handoff := RoomPublicHandoff{
+		HandoffID:       "rh_goal_cancelled",
+		ConversationID:  conversationID,
+		RootRoundID:     "root-goal-cancelled",
+		SourceMessageID: "message-goal-cancelled",
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-peer",
+		QueueSource:     protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-room", ObjectiveRevision: 2,
+		},
+	}
+	store := NewRoomPublicHandoffStore(root)
+	if _, _, err := store.Detect(testRoomOwnerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSourceFinished(testRoomOwnerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CancelForRoot(testRoomOwnerUserID, conversationID, handoff.RootRoundID, "interrupted"); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := NewRoomPublicHandoffStore(root).PendingAll()
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("generic cancellation must not schedule Goal handback: pending=%+v err=%v", pending, err)
+	}
+}
+
+func TestRoomPublicHandoffPendingAllRecoversFreshClaimAfterRestart(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	handoff := RoomPublicHandoff{
+		HandoffID:       "rh-fresh-claim-restart",
+		ConversationID:  "conversation-fresh-claim-restart",
+		SourceMessageID: "message-fresh-claim-restart",
+		SourceAgentID:   "agent-a",
+		TargetAgentID:   "agent-b",
+	}
+	store := NewRoomPublicHandoffStore(root)
+	if _, _, err := store.Detect(testRoomOwnerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSourceFinished(testRoomOwnerUserID, handoff.ConversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	if _, claimed, err := store.Claim(testRoomOwnerUserID, handoff.ConversationID, handoff.HandoffID); err != nil || !claimed {
+		t.Fatalf("claim = %t err=%v", claimed, err)
+	}
+	pending, err := NewRoomPublicHandoffStore(root).PendingAll()
+	if err != nil || len(pending) != 1 || pending[0].Status != roomPublicHandoffActionClaimed {
+		t.Fatalf("fresh prior-process claim must recover immediately: pending=%+v err=%v", pending, err)
+	}
+}
+
 func TestRoomPublicHandoffRejectsIncompleteResponsibilityBinding(t *testing.T) {
 	store := NewRoomPublicHandoffStore(t.TempDir())
 	_, _, err := store.Detect(testRoomOwnerUserID, RoomPublicHandoff{
-		HandoffID:      "execution_dispatch_incomplete",
-		ConversationID: "conversation-handoff",
+		HandoffID:       "execution_dispatch_incomplete",
+		ConversationID:  "conversation-handoff",
 		SourceMessageID: "execution_dispatch_incomplete",
 		SourceAgentID:   "agent-lead",
 		TargetAgentID:   "agent-worker",

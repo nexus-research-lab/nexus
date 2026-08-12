@@ -28,7 +28,6 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 			"objective": stringProperty("Required. The replacement objective explicitly requested by the user for the existing current goal."),
 		}, "objective"),
 		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
-			expectedRevision := sctx.ExpectedGoalObjectiveRevision()
 			var parsed retargetGoalInput
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
@@ -36,7 +35,7 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 			if sctx.PlanMode {
 				return planModeGoalMutationResult("retarget_goal"), nil
 			}
-			current, err := currentGoalForMutation(ctx, svc, sctx, expectedRevision)
+			current, expectedRevision, err := currentGoalForRetarget(ctx, svc, sctx)
 			if err != nil {
 				if isGoalNotFoundError(err) {
 					return errorResultText("cannot retarget goal because this thread has no current goal"), nil

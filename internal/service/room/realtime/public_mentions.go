@@ -99,6 +99,9 @@ func (s *Service) collectPublicMentionWakes(
 		}
 		s.enqueuePublicMentionWake(roundValue, wake)
 	}
+	if goalCollaborationBindingForSlot(roundValue, slot) != nil {
+		slot.markPendingGoalCollaboration()
+	}
 	// source slot 完成即触发，不等待同一 root 的其他 slot。
 	s.startQueuedPublicMentionWakes(ctx, roundValue)
 	return nil
@@ -140,6 +143,10 @@ func publicMentionWakesFromMessage(
 			TargetAgentID: targetAgentID,
 			Content:       content,
 			MessageID:     messageID,
+			GoalCollaborationBinding: goalCollaborationBindingForSlot(
+				roundValue,
+				slot,
+			),
 		})
 	}
 	return result
@@ -262,6 +269,35 @@ func (s *Service) startPublicMentionRoundLocked(
 	ctx = contextWithExactQueueOwner(ctx, parentRound.OwnerUserID)
 	admittedWakes := make([]publicMentionWake, 0, len(wakes))
 	for _, wake := range wakes {
+		if binding := protocol.NormalizeGoalCollaborationBinding(
+			wake.GoalCollaborationBinding,
+		); binding != nil {
+			current, currentErr := s.roomGoalCollaborationBindingIsCurrent(
+				ctx,
+				parentRound.ConversationID,
+				binding,
+			)
+			if currentErr != nil {
+				return currentErr
+			}
+			if !current {
+				s.terminalizePublicMentionWakes(
+					ctx,
+					parentRound.OwnerUserID,
+					parentRound.ConversationID,
+					[]publicMentionWake{wake},
+					"interrupted",
+				)
+				s.loggerFor(ctx).Info(
+					"拒绝过期的 Room Goal collaboration wake",
+					"goal_id", binding.GoalID,
+					"objective_revision", binding.ObjectiveRevision,
+					"handoff_id", wake.HandoffID,
+					"target_agent_id", wake.TargetAgentID,
+				)
+				continue
+			}
+		}
 		if wake.ReviewBinding != nil {
 			if err := s.authorizeManagedExecutionReviewTarget(
 				ctx,
@@ -312,6 +348,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	}
 	wakes = admittedWakes
 	if len(wakes) == 0 {
+		s.resumeParentAfterRejectedGoalCollaboration(ctx, parentRound)
 		return nil
 	}
 	wakes, err = s.admitPublicMentionWakes(ctx, parentRound, wakes)
@@ -319,6 +356,7 @@ func (s *Service) startPublicMentionRoundLocked(
 		return err
 	}
 	if len(wakes) == 0 {
+		s.resumeParentAfterRejectedGoalCollaboration(ctx, parentRound)
 		return nil
 	}
 	// root admission 已经先处理幂等、self、fanout 与总量；hop 只作为
@@ -336,6 +374,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			"c", parentRound.ConversationID,
 			"root", roomRootRoundID(parentRound),
 		)
+		s.resumeParentAfterRejectedGoalCollaboration(ctx, parentRound)
 		return nil
 	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(parentRound.ConversationID)
@@ -367,7 +406,31 @@ func (s *Service) startPublicMentionRoundLocked(
 		}
 	}
 	wakes = claimedWakes
+	claimsTransferred := false
+	defer func() {
+		if claimsTransferred || s.publicHandoffs == nil {
+			return
+		}
+		for _, wake := range wakes {
+			handoffID := strings.TrimSpace(wake.HandoffID)
+			if handoffID == "" {
+				continue
+			}
+			if releaseErr := s.publicHandoffs.ReleaseClaim(
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				handoffID,
+			); releaseErr != nil {
+				s.loggerFor(ctx).Warn(
+					"释放未启动的 Room handoff claim 失败",
+					"handoff_id", handoffID,
+					"err", releaseErr,
+				)
+			}
+		}
+	}()
 	if len(wakes) == 0 {
+		s.resumeParentAfterRejectedGoalCollaboration(ctx, parentRound)
 		return nil
 	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
@@ -403,6 +466,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	}
 	if len(pendingSlots) == 0 {
 		s.logMissingPublicMentionSlots(ctx, sessionKey, contextValue, len(wakes))
+		s.resumeParentAfterRejectedGoalCollaboration(ctx, parentRound)
 		return nil
 	}
 	roundID := roomWakeRoundID(wakes)
@@ -424,6 +488,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	) {
 		return runtimectx.ErrRuntimeSessionClosing
 	}
+	claimsTransferred = true
 	if s.publicHandoffs != nil {
 		for _, wake := range wakes {
 			if strings.TrimSpace(wake.HandoffID) == "" {
@@ -440,6 +505,25 @@ func (s *Service) startPublicMentionRoundLocked(
 		}
 	}
 	return nil
+}
+
+func (s *Service) resumeParentAfterRejectedGoalCollaboration(
+	ctx context.Context,
+	parentRound *activeRoomRound,
+) {
+	if parentRound == nil || !roomRoundHasPendingGoalCollaboration(parentRound) {
+		return
+	}
+	for _, slot := range parentRound.Slots {
+		slot.clearPendingGoalCollaboration()
+	}
+	s.startSessionBackgroundTask(
+		parentRound.SessionKey,
+		parentRound.OwnerUserID,
+		func(taskCtx context.Context) {
+			s.dispatchPostRoundWork(taskCtx, parentRound)
+		},
+	)
 }
 
 func isPermanentExecutionAdmissionError(err error) bool {
@@ -875,6 +959,7 @@ func buildPublicMentionSlot(
 		WorkBinding:           cloneExecutionWorkBinding(wake.WorkBinding),
 		ReviewBinding:         cloneExecutionReviewBinding(wake.ReviewBinding),
 	}
+	slot.setGoalCollaborationBinding(wake.GoalCollaborationBinding)
 	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 	slot.setStatus("pending")
 	slot.setDeliveryMetadata(wake.ReplyRoute, wake.MessageID, wake.HandoffID)
@@ -992,6 +1077,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		rootRoundID := roomRootRoundID(parentRound)
 		if !participationPaused &&
 			queueSource == protocol.InputQueueSourceAgentPublicMention &&
+			protocol.NormalizeGoalCollaborationBinding(wake.GoalCollaborationBinding) == nil &&
 			s.supportsRoomGuidanceAck(busySlot) {
 			// 公区 @ 已经是目标 Agent 可见的新上下文。目标忙碌时先绑定它
 			// 当前 slot 的 PostToolUse hook；只有 hook 没有消费，slot 收尾才会
@@ -1029,8 +1115,11 @@ func (s *Service) queueBusyPublicMentionWakes(
 			OwnerUserID:     parentRound.OwnerUserID,
 			RootRoundID:     rootRoundID,
 			HopIndex:        parentRound.HopIndex,
-			WorkBinding:     cloneExecutionWorkBinding(wake.WorkBinding),
-			ReviewBinding:   cloneExecutionReviewBinding(wake.ReviewBinding),
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				wake.GoalCollaborationBinding,
+			),
+			WorkBinding:   cloneExecutionWorkBinding(wake.WorkBinding),
+			ReviewBinding: cloneExecutionReviewBinding(wake.ReviewBinding),
 		}
 		queueItems, inserted, err := s.inputQueue.EnqueueBounded(location.Location, queuedItem, 0)
 		if err != nil {

@@ -75,6 +75,9 @@ cmd -> app -> handler -> service -> domain/storage
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态与待确认人工交互只按 Room ID 投影；DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
+- Goal Composer 的“设定 Goal”和文本 `/goal` 必须进入同一个宿主控制命令：先写 Goal，再持久化一条完成态、用户可见但不进入模型的 `/goal <objective>` 控制记录，最后才启动 Goal continuation。不得把 Goal objective 当普通 chat prompt 直接执行；新会话标题与 started/message count 必须由 Goal/控制记录独立建立，不能依赖首个模型回复。
+- Room Goal continuation 发出的公区 `@` 或带 wake 的 directed message 必须携带宿主持有的精确 Goal ID/objective revision 协作归因，跨 directed-message fact、handoff ledger、InputQueue 和重启恢复保持；私域消息与 handoff 的两阶段写入必须可从前者按当前 revision 幂等修复。副作用工具重试使用 host-only command identity；immediate/delayed wake 都必须先 schedule、成功入队后 complete，并可在线及重启恢复。该归因只用于等待协作者终态、记录可见证据并重新调度一轮有权限的 continuation，绝不能授予目标 conversation round Goal mutation authority。Goal-attributed handoff 不得折叠为 busy slot 的普通 guide；target terminal 与 Goal handback 必须作为两个 durable 阶段恢复，handback 只解除旧 source 的空进展抑制，不重置 continuation 次数上限。历史无归因数据只能由当前 Goal 的精确 suppression 审计事件、完整终态 root 与同 root 公开证据联合修复，禁止从正文或时间邻近猜测。
+- Room-backed Session 中，SQL 只拥有 Room 身份、标题与配置，workspace/Room ledger 拥有运行历史进度；统一读模型必须单调合并。旧 SQL `messages` 计数只能作为兼容下限，禁止覆盖 canonical Goal 控制记录、标题、最近活动、消息数、上下文占用或 transcript lineage。
 - Room 首条未读定位必须以完成事件的精确消息身份映射到稳定 `agent_round` 节点，并按真实到达顺序排队；Agent 回复可能插入旧 root，禁止用 Feed 尾部或 DOM 索引猜测未读边界，DM 继续沿用自身的回到底部行为。
 
 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。

@@ -203,8 +203,13 @@ type goalContextProvider interface {
 	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
+	RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+}
+
+type goalEventProvider interface {
+	Events(context.Context, string, int) ([]protocol.GoalEvent, error)
 }
 
 type goalContinuationProvider interface {

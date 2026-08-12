@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -302,7 +303,7 @@ func (s *Service) hydrateRoomHistorySession(
 		return &roomSession, nil
 	}
 
-	merged := roomSession
+	merged := dmdomain.MergeRoomBackedSession(*fileSession, roomSession)
 	roomSessionID := strings.TrimSpace(stringPointerValue(roomSession.SessionID))
 	fileSessionID := strings.TrimSpace(stringPointerValue(fileSession.SessionID))
 	if roomSessionID == "" && fileSessionID != "" {

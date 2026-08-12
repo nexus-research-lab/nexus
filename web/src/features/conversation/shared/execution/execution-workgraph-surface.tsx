@@ -1,6 +1,6 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 固定展示 Execution/Plan/必需验收进度的 WorkGraph 主视图，节点位置仅作次级提示。
+ * OUTPUT: 以标题为主的 WorkGraph 主视图，仅在非 active 生命周期或投影异常时补充提示。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
@@ -18,7 +18,6 @@ import {
   hasManagedExecutionGraph,
   resolveExecutionWorkGraphHeaderModel,
   type ExecutionAgentDirectory,
-  type ExecutionWorkGraphHeaderModel,
 } from "./execution-process-model";
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
@@ -72,14 +71,25 @@ export function ExecutionWorkGraphSurface({
       data-execution-workgraph-partial={runtimeProjectionPartial ? "true" : undefined}
       data-execution-last-successful-at={lastSuccessfulAt ?? undefined}
     >
-      <header className="flex min-h-14 shrink-0 items-start gap-2 border-b dialog-divider px-3 py-2">
-        <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-(--icon-muted)" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-compact font-semibold text-(--text-strong)">
-            {header?.summary || t("execution.label")}
-          </div>
-          {header ? <ExecutionWorkGraphHeaderMeta model={header} /> : null}
+      <header
+        className="flex min-h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3 py-2"
+        data-execution-header-status={header?.status}
+      >
+        <Workflow className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+        <div className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)">
+          {header?.summary || t("execution.label")}
         </div>
+        {header && header.status !== "active" ? (
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 text-[11px] font-semibold leading-4",
+              EXECUTION_HEADER_STATUS_TONE[header.status],
+            )}
+            data-execution-header-notice-status={header.status}
+          >
+            {t(header.statusLabelKey)}
+          </span>
+        ) : null}
         {runtimeProjectionPartial ? (
           <span
             aria-label={t("execution.surface_partial", {
@@ -151,65 +161,5 @@ export function ExecutionWorkGraphSurface({
         </div>
       )}
     </section>
-  );
-}
-
-function ExecutionWorkGraphHeaderMeta({
-  model,
-}: {
-  model: ExecutionWorkGraphHeaderModel;
-}) {
-  const { t } = useI18n();
-  const blockerTitle = model.completionBlockers.join(" · ");
-  return (
-    <div
-      className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4 text-(--text-soft)"
-      data-execution-header-status={model.status}
-      data-execution-plan-revision={model.planRevision ?? undefined}
-      data-execution-progress-accepted={model.acceptedCount}
-      data-execution-progress-required={model.requiredCount}
-    >
-      <span
-        className={cn(
-          "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 font-semibold",
-          EXECUTION_HEADER_STATUS_TONE[model.status],
-        )}
-      >
-        {t(model.statusLabelKey)}
-      </span>
-      {model.planRevision !== null ? (
-        <span className="shrink-0 tabular-nums" data-execution-plan>
-          {t("execution.plan_revision", { revision: model.planRevision })}
-        </span>
-      ) : null}
-      <span className="shrink-0 tabular-nums" data-execution-required-progress>
-        {t("execution.progress", {
-          accepted: model.acceptedCount,
-          required: model.requiredCount,
-        })}
-      </span>
-      {model.completionBlockers.length > 0 ? (
-        <span
-          className="inline-flex max-w-48 shrink items-center truncate rounded-[6px] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] px-1.5 font-medium text-(--warning)"
-          data-execution-completion-blockers={model.completionBlockers.length}
-          title={blockerTitle}
-        >
-          {t("execution.completion_blockers_count", {
-            count: model.completionBlockers.length,
-          })}
-        </span>
-      ) : null}
-      {model.nodeCurrent !== null && model.nodeTotal > 0 ? (
-        <span
-          className="hidden min-w-0 truncate text-(--text-muted) sm:inline"
-          data-execution-node-progress
-        >
-          {t("execution.node_progress", {
-            current: model.nodeCurrent,
-            total: model.nodeTotal,
-          })}
-        </span>
-      ) : null}
-    </div>
   );
 }

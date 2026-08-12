@@ -45,6 +45,11 @@ func (s *Service) HandlePublicMessage(
 		sourceAgentID,
 		request.RootRoundID,
 	)
+	goalCollaborationBinding := s.goalCollaborationBindingForActiveRound(
+		contextValue.Conversation.ID,
+		sourceAgentID,
+		request.RootRoundID,
+	)
 	if rootRoundID == "" {
 		rootRoundID = messageID
 	}
@@ -80,7 +85,7 @@ func (s *Service) HandlePublicMessage(
 	if correlationID := strings.TrimSpace(request.CorrelationID); correlationID != "" {
 		message["correlation_id"] = correlationID
 	}
-	if err = s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs); err != nil {
+	if err = s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs, goalCollaborationBinding); err != nil {
 		return nil, err
 	}
 	if err = s.persistSharedInlineMessage(
@@ -111,7 +116,7 @@ func (s *Service) HandlePublicMessage(
 		"source_agent_id", sourceAgentID,
 		"content_chars", utf8.RuneCountInString(content),
 	)
-	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs); err != nil {
+	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs, goalCollaborationBinding); err != nil {
 		return nil, err
 	}
 	return message, nil
@@ -132,11 +137,52 @@ func (s *Service) MarkPublicMessagePublished(
 	agentID = strings.TrimSpace(agentID)
 	for _, slot := range roundValue.Slots {
 		if slot != nil && strings.TrimSpace(slot.AgentID) == agentID {
+			if slot.goalMutationAuthority().valid() &&
+				s.publicMessageHasGoalCollaboration(
+					roundValue.OwnerUserID,
+					roundValue.ConversationID,
+					roomRootRoundID(roundValue),
+					slot,
+				) {
+				slot.markPendingGoalCollaboration()
+			}
 			slot.markPublicMessagePublished()
 			return nil
 		}
 	}
 	return errors.New("active Room slot not found")
+}
+
+func (s *Service) publicMessageHasGoalCollaboration(
+	ownerUserID string,
+	conversationID string,
+	rootRoundID string,
+	slot *activeRoomSlot,
+) bool {
+	if s == nil || s.publicHandoffs == nil || slot == nil {
+		return false
+	}
+	binding := goalCollaborationBindingFromAuthority(slot.goalMutationAuthority())
+	if binding == nil {
+		return false
+	}
+	handoffs, err := s.publicHandoffs.ListRoot(
+		ownerUserID,
+		conversationID,
+		strings.TrimSpace(rootRoundID),
+	)
+	if err != nil {
+		return false
+	}
+	for _, handoff := range handoffs {
+		candidate := protocol.NormalizeGoalCollaborationBinding(
+			handoff.GoalCollaborationBinding,
+		)
+		if candidate != nil && *candidate == *binding {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) startPublicMessageMentionWakes(
@@ -148,6 +194,7 @@ func (s *Service) startPublicMessageMentionWakes(
 	rootRoundID string,
 	hopIndex int,
 	targetAgentIDs []string,
+	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) error {
 	if len(targetAgentIDs) == 0 {
 		return nil
@@ -190,6 +237,9 @@ func (s *Service) startPublicMessageMentionWakes(
 			TargetAgentID: targetAgentID,
 			Content:       strings.TrimSpace(content),
 			MessageID:     strings.TrimSpace(messageID),
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				goalCollaborationBinding,
+			),
 		})
 	}
 	return s.startPublicMentionRound(ctx, parentRound, wakes)
@@ -203,6 +253,7 @@ func (s *Service) detectPublicMessageHandoffs(
 	rootRoundID string,
 	hopIndex int,
 	targetAgentIDs []string,
+	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) error {
 	if s.publicHandoffs == nil || contextValue == nil {
 		return nil
@@ -224,9 +275,38 @@ func (s *Service) detectPublicMessageHandoffs(
 			SourceAgentID:      strings.TrimSpace(sourceAgentID),
 			TargetAgentID:      targetAgentID,
 			Content:            strings.TrimSpace(content),
-			HopIndex:           hopIndex,
+			QueueSource:        protocol.InputQueueSourceAgentPublicMention,
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				goalCollaborationBinding,
+			),
+			HopIndex: hopIndex,
 		}); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) goalCollaborationBindingForActiveRound(
+	conversationID string,
+	sourceAgentID string,
+	rootRoundID string,
+) *protocol.GoalCollaborationBinding {
+	conversationID = strings.TrimSpace(conversationID)
+	sourceAgentID = strings.TrimSpace(sourceAgentID)
+	rootRoundID = strings.TrimSpace(rootRoundID)
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil || strings.TrimSpace(roundValue.ConversationID) != conversationID {
+			continue
+		}
+		if rootRoundID != "" && roomRootRoundID(roundValue) != rootRoundID {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || strings.TrimSpace(slot.AgentID) != sourceAgentID {
+				continue
+			}
+			return goalCollaborationBindingForSlot(roundValue, slot)
 		}
 	}
 	return nil

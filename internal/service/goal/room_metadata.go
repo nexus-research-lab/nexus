@@ -5,8 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -187,18 +185,12 @@ func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID st
 		}
 		current.Version++
 		current.UpdatedAt = s.nowFn()
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(ctx, *updated, "room_lead_changed", protocol.GoalUpdateSourceSystem, "", map[string]any{
+		updated, updateErr := s.persistGoalUpdateWithEvent(ctx, *current, expectedVersion, "room_lead_changed", protocol.GoalUpdateSourceSystem, "", map[string]any{
 			"previous_agent_id": previousAgentID,
 			"agent_id":          agentID,
-		}); eventErr != nil {
-			return nil, eventErr
+		})
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		return updated, nil
 	})
