@@ -189,6 +189,34 @@ func TestRuntimeDreamRunnerSkipsUnavailableSelection(t *testing.T) {
 	}
 }
 
+func TestRuntimeDreamRunnerMaintainsClaudeAgentThroughNXS(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	cfg := config.Config{WorkspacePath: filepath.Join(stateRoot, "users")}
+	agentValue := protocol.Agent{
+		AgentID:       "claude-agent",
+		OwnerUserID:   "owner-1",
+		WorkspacePath: agentsvc.ResolveWorkspacePath(cfg, "owner-1", "claude-agent"),
+	}
+	if err := os.MkdirAll(agentValue.WorkspacePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace) error = %v", err)
+	}
+	prefs := fakePreferencesService{preferences: preferencessvc.Preferences{AgentRuntimeKind: "claude"}}
+	runner := &runtimeDreamRunner{
+		config:      cfg,
+		preferences: prefs,
+		selector:    runtimeselectionsvc.NewService(prefs),
+	}
+
+	result, err := runner.tryAutoDream(context.Background(), agentValue)
+	if err != nil {
+		t.Fatalf("tryAutoDream() error = %v", err)
+	}
+	if result.Reason != autoDreamProviderUnavailableReason {
+		t.Fatalf("tryAutoDream() reason = %q, want nxs maintenance to reach provider selection", result.Reason)
+	}
+}
+
 func TestDreamSessionCancellationForcesClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	closed := make(chan struct{})
