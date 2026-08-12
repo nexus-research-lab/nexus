@@ -91,36 +91,53 @@ func (c *PersonalWeixinChannel) SendDeliveryMessage(ctx context.Context, target 
 		return channelcontract.DeliveryResult{}, fmt.Errorf("personal weixin delivery target requires to")
 	}
 	parts := make([]channelmessage.ReceiptPart, 0)
+	contextToken := normalized.ContextToken
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4000) {
 		clientID := channelcontract.NewID("weixin")
-		request := map[string]any{
-			"base_info": c.client.baseInfo(),
-			"msg": personalWeixinMessage{
-				FromUserID:   "",
-				ToUserID:     strings.TrimSpace(target.To),
-				ClientID:     clientID,
-				MessageType:  personalWeixinMessageTypeBot,
-				MessageState: personalWeixinMessageStateEnd,
-				ContextToken: strings.TrimSpace(target.ThreadID),
-				ItemList: []personalWeixinMessageItem{{
-					Type: personalWeixinItemTypeText,
-					TextItem: personalWeixinTextItem{
-						Text: chunk,
-					},
-				}},
-			},
+		err := c.sendDeliveryChunk(ctx, normalized.To, contextToken, clientID, chunk)
+		if err != nil && contextToken != "" && IsPersonalWeixinContextExpired(err) {
+			contextToken = ""
+			normalized.ContextToken = ""
+			err = c.sendDeliveryChunk(ctx, normalized.To, "", clientID, chunk)
 		}
-		if err := c.client.post(ctx, "ilink/bot/sendmessage", request, nil); err != nil {
-			return channelcontract.DeliveryResult{}, err
+		if err != nil {
+			return channelcontract.NewDeliveryResult(normalized, nil), err
 		}
 		parts = append(parts, channelmessage.TextPart(clientID))
 	}
 	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
 		Channel:  channelcontract.ChannelTypeWeixinPersonal,
 		Target:   target.To,
-		ThreadID: target.ThreadID,
+		ThreadID: normalized.ThreadID,
 		Parts:    parts,
 	})), nil
+}
+
+func (c *PersonalWeixinChannel) sendDeliveryChunk(
+	ctx context.Context,
+	to string,
+	contextToken string,
+	clientID string,
+	text string,
+) error {
+	request := map[string]any{
+		"base_info": c.client.baseInfo(),
+		"msg": personalWeixinMessage{
+			FromUserID:   "",
+			ToUserID:     strings.TrimSpace(to),
+			ClientID:     clientID,
+			MessageType:  personalWeixinMessageTypeBot,
+			MessageState: personalWeixinMessageStateEnd,
+			ContextToken: strings.TrimSpace(contextToken),
+			ItemList: []personalWeixinMessageItem{{
+				Type: personalWeixinItemTypeText,
+				TextItem: personalWeixinTextItem{
+					Text: text,
+				},
+			}},
+		},
+	}
+	return c.client.post(ctx, "ilink/bot/sendmessage", request, nil)
 }
 
 func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {
@@ -131,7 +148,7 @@ func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target c
 	if to == "" {
 		return fmt.Errorf("personal weixin typing target requires to")
 	}
-	ticket, err := c.client.TypingTicket(ctx, to, strings.TrimSpace(target.ThreadID))
+	ticket, err := c.client.TypingTicket(ctx, to, strings.TrimSpace(target.ContextToken))
 	if err != nil {
 		return err
 	}
@@ -191,11 +208,11 @@ func (c *PersonalWeixinChannel) handleMessage(ctx context.Context, message perso
 		return
 	}
 	delivery := &channelcontract.DeliveryTarget{
-		Mode:      channelcontract.DeliveryModeExplicit,
-		Channel:   channelcontract.ChannelTypeWeixinPersonal,
-		To:        fromUserID,
-		AccountID: c.accountID,
-		ThreadID:  strings.TrimSpace(message.ContextToken),
+		Mode:         channelcontract.DeliveryModeExplicit,
+		Channel:      channelcontract.ChannelTypeWeixinPersonal,
+		To:           fromUserID,
+		AccountID:    c.accountID,
+		ContextToken: strings.TrimSpace(message.ContextToken),
 	}
 	messageID := personalWeixinInboundMessageID(message)
 	receivedAt := time.Time{}
@@ -219,7 +236,6 @@ func (c *PersonalWeixinChannel) handleMessage(ctx context.Context, message perso
 			Channel:           channelcontract.ChannelTypeWeixinPersonal,
 			Target:            fromUserID,
 			PlatformMessageID: messageID,
-			ThreadID:          strings.TrimSpace(message.ContextToken),
 			SenderID:          fromUserID,
 			SenderName:        fromUserID,
 			ChatType:          "dm",

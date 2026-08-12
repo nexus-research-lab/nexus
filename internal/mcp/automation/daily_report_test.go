@@ -100,6 +100,27 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 	}
 }
 
+func TestDailyReportDefaultsToHostBoundAutomationJob(t *testing.T) {
+	svc := &stubService{jobs: []automationdomain.ScheduledTask{{
+		JobID:    "job-current-run",
+		Name:     "当前后台任务",
+		AgentID:  "agent-1",
+		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+	}}}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:  "agent-1",
+		CurrentJobID:    "job-current-run",
+		CurrentRunID:    "run-current",
+		DefaultTimezone: "Asia/Shanghai",
+	}, "get_scheduled_task_report", map[string]any{})
+	if isError {
+		t.Fatalf("host-bound report should not require model-supplied job_id: %s", extractText(t, result))
+	}
+	if svc.dailyInput.JobID != "job-current-run" || svc.dailyInput.AgentID != "" {
+		t.Fatalf("host-bound report escaped the current task: %+v", svc.dailyInput)
+	}
+}
+
 func TestDailyReportAllowsDeletedOwnedTaskHistory(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},

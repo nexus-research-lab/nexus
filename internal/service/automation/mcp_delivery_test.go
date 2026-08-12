@@ -8,6 +8,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -27,6 +28,13 @@ func TestAutomationMCPCreateFromFeishuGroupDefaultsDeliveryToCurrentGroup(t *tes
 	sctx := fixture.ServerContext
 	sctx.CurrentSessionKey = feishuSessionKey
 	sctx.CurrentSessionLabel = "飞书群 oc_group_123"
+	if _, err := fixture.Router.RememberSessionRoute(ownerCtx, sctx.CurrentAgentID, feishuSessionKey, channels.DeliveryTarget{
+		Mode:    channels.DeliveryModeExplicit,
+		Channel: channels.ChannelTypeFeishu,
+		To:      "oc_group_123",
+	}); err != nil {
+		t.Fatalf("记录飞书会话回投路由失败: %v", err)
+	}
 
 	createResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "create_scheduled_task", map[string]any{
 		"name":              "飞书群每日新闻",
@@ -44,9 +52,8 @@ func TestAutomationMCPCreateFromFeishuGroupDefaultsDeliveryToCurrentGroup(t *tes
 		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
 	}
 	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
-	if created.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-		created.Delivery.Channel != protocol.SessionChannelFeishu ||
-		created.Delivery.To != "oc_group_123" {
+	if created.Delivery.Mode != automationdomain.DeliveryModeLast ||
+		created.Delivery.SessionKey != feishuSessionKey {
 		t.Fatalf("飞书群上下文创建任务应默认回投当前群: %+v", created.Delivery)
 	}
 	if created.Source.SessionKey != feishuSessionKey || created.Source.SessionLabel != "飞书群 oc_group_123" {

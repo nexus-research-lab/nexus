@@ -94,6 +94,8 @@ export function ScheduledTaskDialog({
               actions={controller.form.actions}
               data={controller.data}
               form={controller.form.draft}
+              isEditing={initialTask !== null}
+              needsSessionRebind={controller.needsSessionRebind}
               nameRef={controller.refs.nameRef}
             />
             <TaskSchedulePanel

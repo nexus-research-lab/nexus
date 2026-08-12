@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -585,8 +586,13 @@ WHERE NOT EXISTS (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 86 {
-		t.Fatalf("goose version = %d, want 86", version)
+	migrations, err := goose.CollectMigrations(migrationDir, 0, math.MaxInt64)
+	if err != nil || len(migrations) == 0 {
+		t.Fatalf("collect current migrations: %v", err)
+	}
+	wantVersion := migrations[len(migrations)-1].Version
+	if version != wantVersion {
+		t.Fatalf("goose version = %d, want %d", version, wantVersion)
 	}
 }
 

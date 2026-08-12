@@ -54,6 +54,20 @@ type deliveryRouter interface {
 	DeliverMessage(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryResult, error)
 }
 
+type automationResultDeliveryRouter interface {
+	DeliverAutomationResult(
+		context.Context,
+		string,
+		string,
+		channels.DeliveryTarget,
+		channels.AutomationDeliveryContext,
+	) (channels.DeliveryResult, error)
+}
+
+type deliveryGrantResolver interface {
+	ValidateAutomationDeliveryGrant(context.Context, string, string, string) error
+}
+
 type imagegenDefaultResolver interface {
 	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
 }
@@ -104,6 +118,7 @@ type Service struct {
 	connectors       connectorConnectionResolver
 	workspace        workspaceReader
 	delivery         deliveryRouter
+	deliveryGrants   deliveryGrantResolver
 	logger           *slog.Logger
 	sessionArtifacts SessionArtifactDeletionCoordinator
 	taskNotifier     TaskEventNotifier
@@ -129,6 +144,11 @@ type Service struct {
 	started               bool
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
+}
+
+// SetDeliveryGrantResolver 注入 IM pairing 的实时授权检查器。
+func (s *Service) SetDeliveryGrantResolver(resolver deliveryGrantResolver) {
+	s.deliveryGrants = resolver
 }
 
 // NewService 创建自动化服务。

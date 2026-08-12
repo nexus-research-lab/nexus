@@ -40,6 +40,38 @@ type personalWeixinConfigCacheEntry struct {
 	nextRetryAt  time.Time
 }
 
+// PersonalWeixinAPIError 保留 iLink 的结构化业务错误，供投递层区分
+// context_token 失效与限流、鉴权等不可安全降级的失败。
+type PersonalWeixinAPIError struct {
+	StatusCode int
+	Ret        int
+	ErrCode    int
+	ErrMsg     string
+}
+
+func (e *PersonalWeixinAPIError) Error() string {
+	if e == nil {
+		return "personal weixin request failed"
+	}
+	return fmt.Sprintf(
+		"personal weixin request failed: status=%d ret=%d errcode=%d errmsg=%s",
+		e.StatusCode,
+		e.Ret,
+		e.ErrCode,
+		strings.TrimSpace(e.ErrMsg),
+	)
+}
+
+// IsPersonalWeixinContextExpired 只识别 iLink 明确返回的上下文失效码。
+// HTTP 429 等传输/限流错误不能触发无 context_token 降级。
+func IsPersonalWeixinContextExpired(err error) bool {
+	var apiErr *PersonalWeixinAPIError
+	if !errors.As(err, &apiErr) || apiErr == nil || apiErr.StatusCode == http.StatusTooManyRequests {
+		return false
+	}
+	return apiErr.Ret == -2 || apiErr.ErrCode == -2
+}
+
 func NewPersonalWeixinIlinkClient(config PersonalWeixinClientConfig, client *http.Client) *PersonalWeixinIlinkClient {
 	if client == nil {
 		client = channeltransport.DefaultHTTPClient
@@ -250,21 +282,28 @@ func readPersonalWeixinResponse(response *http.Response, target any) error {
 	if err != nil {
 		return err
 	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("personal weixin request failed: status=%d body=%s", response.StatusCode, strings.TrimSpace(string(body)))
-	}
 	body = bytes.TrimSpace(body)
+	var status personalWeixinAPIStatus
+	if len(body) > 0 {
+		_ = json.Unmarshal(body, &status)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || status.Ret != 0 || status.ErrCode != 0 {
+		errMsg := strings.TrimSpace(status.ErrMsg)
+		if errMsg == "" {
+			errMsg = http.StatusText(response.StatusCode)
+		}
+		if errMsg == "" {
+			errMsg = "unexpected response"
+		}
+		return &PersonalWeixinAPIError{
+			StatusCode: response.StatusCode,
+			Ret:        status.Ret,
+			ErrCode:    status.ErrCode,
+			ErrMsg:     errMsg,
+		}
+	}
 	if len(body) == 0 {
 		return nil
-	}
-	var status personalWeixinAPIStatus
-	if err := json.Unmarshal(body, &status); err == nil && (status.Ret != 0 || status.ErrCode != 0) {
-		return fmt.Errorf(
-			"personal weixin request failed: ret=%d errcode=%d errmsg=%s",
-			status.Ret,
-			status.ErrCode,
-			strings.TrimSpace(status.ErrMsg),
-		)
 	}
 	if target == nil {
 		return nil

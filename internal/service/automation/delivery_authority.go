@@ -13,42 +13,45 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
 
-// prepareTaskDeliveryMutation 把 delivery 的授权来源固定到本次真实调用方。
+// prepareTaskDeliveryMutation 把 delivery grant 固定到本次真实调用方，同时保持
+// Source 作为不可变的创建 provenance。
 //
-// Agent 调用必须携带 MCP 从可信当前会话生成的 Source；人类 HTTP/CLI 调用没有
-// ActorAgentID，属于显式控制面 grant，并改写为非 Agent 来源，避免后台把旧 Agent
-// source 误当成仍然有效的 owner 权限。
+// Agent 调用必须携带 MCP 从可信当前会话生成的 Source；人类 HTTP/CLI 修改投递
+// 属于显式控制面 grant，不需要伪造最初创建任务的 Agent actor。
 func (s *Service) prepareTaskDeliveryMutation(
 	ctx context.Context,
 	task *automationdomain.ScheduledTask,
-	deliveryChanged bool,
+	grantSource *automationdomain.Source,
 ) error {
 	if task == nil {
 		return errors.New("automation delivery validation requires a task")
 	}
 	actorAgentID, agentActor := automationexec.ActorAgentID(ctx)
-	sourceKind := strings.TrimSpace(task.Source.Kind)
 	if agentActor {
-		if sourceKind != automationdomain.SourceKindAgent {
+		if grantSource == nil || strings.TrimSpace(grantSource.Kind) != automationdomain.SourceKindAgent {
 			return errors.New("Agent-origin automation mutation must use the trusted Agent source")
 		}
-		if strings.TrimSpace(task.Source.CreatorAgentID) != strings.TrimSpace(actorAgentID) {
+		if strings.TrimSpace(grantSource.CreatorAgentID) != strings.TrimSpace(actorAgentID) {
 			return errors.New("automation source creator does not match the trusted Agent actor")
 		}
-		return s.validateAgentOriginDelivery(ctx, *task)
+		task.DeliveryGrant = grantSource.Normalized()
+		if err := s.validateAgentOriginDeliveryGrant(ctx, *task); err != nil {
+			return err
+		}
+		return s.validatePersistentDeliveryGrant(ctx, *task)
 	}
-	if deliveryChanged && sourceKind == automationdomain.SourceKindAgent {
-		task.Source.Kind = automationdomain.SourceKindCLI
-		task.Source.CreatorAgentID = ""
-		task.Source = task.Source.Normalized()
-		sourceKind = task.Source.Kind
+	kind := automationdomain.SourceKindUserPage
+	if grantSource != nil {
+		switch strings.TrimSpace(grantSource.Kind) {
+		case automationdomain.SourceKindUserPage, automationdomain.SourceKindCLI:
+			kind = strings.TrimSpace(grantSource.Kind)
+		}
 	}
-	if sourceKind != automationdomain.SourceKindAgent {
-		return nil
-	}
-	return errors.New("Agent-origin automation mutation is missing the trusted actor context")
+	task.DeliveryGrant = automationdomain.Source{Kind: kind}.Normalized()
+	return s.validatePersistentDeliveryGrant(ctx, *task)
 }
 
 // authorizedDeliveryJob 重读最新任务，再验证 Agent-origin 的 owner/self/Room 权限。
@@ -56,6 +59,16 @@ func (s *Service) prepareTaskDeliveryMutation(
 func (s *Service) authorizedDeliveryJob(
 	ctx context.Context,
 	snapshot automationdomain.ScheduledTask,
+) (automationdomain.ScheduledTask, error) {
+	return s.authorizedDeliveryJobForTarget(ctx, snapshot, snapshot.Delivery)
+}
+
+// authorizedDeliveryJobForTarget 重读当前任务状态，但按 run 开始时冻结的逻辑目标
+// 复核权限。显式关闭任务投递会立即生效，普通路由编辑不会重定向已在运行的结果。
+func (s *Service) authorizedDeliveryJobForTarget(
+	ctx context.Context,
+	snapshot automationdomain.ScheduledTask,
+	target automationdomain.DeliveryTarget,
 ) (automationdomain.ScheduledTask, error) {
 	job := snapshot
 	if strings.TrimSpace(snapshot.JobID) != "" && snapshot.ConfigurationVersion > 0 {
@@ -72,23 +85,87 @@ func (s *Service) authorizedDeliveryJob(
 		}
 		job = *current
 	}
+	job = automationdomain.NormalizeScheduledTaskCompatibility(job)
+	if job.SessionBindingState == automationdomain.TaskSessionBindingStateRebindRequired {
+		return automationdomain.ScheduledTask{}, automationdomain.ErrTaskSessionRebindRequired
+	}
 	if job.Delivery.Normalized().Mode == automationdomain.DeliveryModeNone {
 		return job, nil
 	}
-	if strings.TrimSpace(job.Source.Kind) != automationdomain.SourceKindAgent {
-		return job, nil
+	job.Delivery = target.Normalized()
+	if strings.TrimSpace(job.DeliveryGrant.Kind) == automationdomain.SourceKindAgent {
+		if err := s.validateAgentOriginDeliveryGrant(contextForJobOwner(ctx, job), job); err != nil {
+			return automationdomain.ScheduledTask{}, err
+		}
 	}
-	if err := s.validateAgentOriginDelivery(contextForJobOwner(ctx, job), job); err != nil {
+	if err := s.validatePersistentDeliveryGrant(contextForJobOwner(ctx, job), job); err != nil {
 		return automationdomain.ScheduledTask{}, err
 	}
 	return job, nil
 }
 
-func (s *Service) validateAgentOriginDelivery(
+func (s *Service) validatePersistentDeliveryGrant(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,
 ) error {
-	creatorAgentID := strings.TrimSpace(job.Source.CreatorAgentID)
+	target := job.Delivery.Normalized()
+	if target.Mode == automationdomain.DeliveryModeNone {
+		return nil
+	}
+	sessionKey := strings.TrimSpace(target.SessionKey)
+	if sessionKey == "" && protocol.ParseSessionKey(target.To).IsStructured {
+		sessionKey = strings.TrimSpace(target.To)
+	}
+	// 旧任务的 explicit 外部目标没有 session_key；保留其既有控制面语义。
+	// 新建 IM 任务统一写 last+session_key，只有新模型才由 active pairing 实时约束。
+	if sessionKey == "" {
+		return nil
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent {
+		channel := protocol.NormalizeStoredChannelType(target.Channel)
+		if channel == "" || channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
+			return nil
+		}
+		return errors.New("external automation delivery requires a structured session_key grant")
+	}
+	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
+	if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
+		return nil
+	}
+	if strings.TrimSpace(parsed.AgentID) != strings.TrimSpace(job.AgentID) {
+		return errors.New("automation delivery session is bound to another Agent")
+	}
+	if s.deliveryGrants == nil {
+		return errors.New("automation IM delivery grant resolver is not configured")
+	}
+	err := s.deliveryGrants.ValidateAutomationDeliveryGrant(
+		ctx,
+		strings.TrimSpace(job.OwnerUserID),
+		strings.TrimSpace(job.AgentID),
+		sessionKey,
+	)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, channels.ErrExternalSessionGrantUnavailable) {
+		return err
+	}
+	s.loggerFor(ctx).Warn(
+		"定时任务 IM 投递目标未通过当前配对校验",
+		"agent_id", strings.TrimSpace(job.AgentID),
+		"job_id", strings.TrimSpace(job.JobID),
+		"err", err,
+	)
+	return automationdomain.ErrTaskDeliverySessionUnavailable
+}
+
+func (s *Service) validateAgentOriginDeliveryGrant(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+) error {
+	grant := job.DeliveryGrant.Normalized()
+	creatorAgentID := strings.TrimSpace(grant.CreatorAgentID)
 	if creatorAgentID == "" {
 		return errors.New("Agent-origin automation delivery is missing creator_agent_id")
 	}
@@ -108,7 +185,7 @@ func (s *Service) validateAgentOriginDelivery(
 	}
 	if err = automationdomain.ValidateSelfScopedDeliveryTarget(
 		job.AgentID,
-		job.Source.SessionKey,
+		grant.SessionKey,
 		job.Delivery,
 	); err != nil {
 		return err
@@ -121,11 +198,12 @@ func (s *Service) isCurrentOwnerMainDeliveryGrant(
 	job automationdomain.ScheduledTask,
 	creatorAgentID string,
 ) (bool, error) {
-	if strings.TrimSpace(job.Source.ContextType) != "agent" ||
-		strings.TrimSpace(job.Source.ContextID) != creatorAgentID {
+	grant := job.DeliveryGrant.Normalized()
+	if strings.TrimSpace(grant.ContextType) != "agent" ||
+		strings.TrimSpace(grant.ContextID) != creatorAgentID {
 		return false, nil
 	}
-	session := protocol.ParseSessionKey(job.Source.SessionKey)
+	session := protocol.ParseSessionKey(grant.SessionKey)
 	if !session.IsStructured ||
 		session.Kind != protocol.SessionKeyKindAgent ||
 		session.Channel != protocol.SessionChannelWebSocketSegment ||
@@ -163,7 +241,8 @@ func (s *Service) validateRoomDeliveryMembership(
 	if targetSession.Kind != protocol.SessionKeyKindRoom {
 		return nil
 	}
-	sourceSession := protocol.ParseSessionKey(job.Source.SessionKey)
+	grant := job.DeliveryGrant.Normalized()
+	sourceSession := protocol.ParseSessionKey(grant.SessionKey)
 	if sourceSession.Kind != protocol.SessionKeyKindRoom ||
 		sourceSession.ConversationID == "" ||
 		sourceSession.Raw != targetSession.Raw {
@@ -180,7 +259,7 @@ func (s *Service) validateRoomDeliveryMembership(
 		!roomdomain.IsMemberAgent(contextValue.Members, strings.TrimSpace(job.AgentID)) {
 		return errors.New("Automation delivery Agent is no longer a member of the granted Room")
 	}
-	sourceContextID := strings.TrimSpace(job.Source.ContextID)
+	sourceContextID := strings.TrimSpace(grant.ContextID)
 	if sourceContextID != "" &&
 		sourceContextID != strings.TrimSpace(contextValue.Room.ID) &&
 		sourceContextID != strings.TrimSpace(contextValue.Conversation.ID) {

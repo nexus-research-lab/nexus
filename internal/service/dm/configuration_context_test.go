@@ -46,6 +46,33 @@ func TestDMConfigurationContextRequiresTrustedWebSocketInput(t *testing.T) {
 			want:    "agent_channel",
 		},
 		{
+			name:    "active paired external dm",
+			session: externalSession,
+			request: Request{
+				ExecutionOrigin:                   "channel",
+				TrustedExternalInteractiveContext: true,
+			},
+			want: "agent_paired",
+		},
+		{
+			name:    "paired flag cannot upgrade websocket",
+			session: webSession,
+			request: Request{
+				ExecutionOrigin:                   "channel",
+				TrustedExternalInteractiveContext: true,
+			},
+			want: "agent_channel",
+		},
+		{
+			name:    "paired flag cannot upgrade external group",
+			session: protocol.BuildAgentSessionKey("worker", "telegram", protocol.RoomTypeGroup, "chat", ""),
+			request: Request{
+				ExecutionOrigin:                   "channel",
+				TrustedExternalInteractiveContext: true,
+			},
+			want: "agent_channel",
+		},
+		{
 			name:    "queue origin",
 			session: webSession,
 			request: Request{ExecutionOrigin: "queue"},

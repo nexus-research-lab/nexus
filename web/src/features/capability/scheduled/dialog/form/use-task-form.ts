@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import type {
   ExecutionKind,
   ExecutionMode,
+  PermissionMode,
   ReplyMode,
   TargetType,
   TaskFormDraft,
@@ -116,6 +117,7 @@ export function useTaskForm(
     setExecutionKind,
     setExecutionMode,
     setInstruction: (value: string) => setValue("instruction", value),
+    setPermissionMode: (value: PermissionMode) => setValue("permissionMode", value),
     setReplyMode,
     setSelectedAgentId,
     setSelectedReplySessionKey: (value: string) => setValue(

@@ -45,6 +45,15 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 
 	channelStored := protocol.NormalizeStoredChannelType(parsed.Channel)
 	accountID := strings.TrimSpace(parsed.AccountID)
+	trustedExternalInteractive, err := s.validateResolvedExternalIngress(
+		ownerCtx,
+		ownerUserID,
+		agentID,
+		parsed,
+	)
+	if err != nil {
+		return normalizedIngressRequest{}, err
+	}
 	rememberedTarget, err := s.resolveRememberedTarget(channelStored, parsed, request.Delivery)
 	if err != nil {
 		return normalizedIngressRequest{}, err
@@ -54,21 +63,41 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	message := migrateIngressMessage(request, channelStored, parsed, content, reqID)
 
 	return normalizedIngressRequest{
-		ownerUserID:      ownerUserID,
-		channelStored:    channelStored,
-		accountID:        accountID,
-		sessionKey:       sessionKey,
-		parsed:           parsed,
-		agentID:          agentID,
-		content:          content,
-		roundID:          roundID,
-		reqID:            reqID,
-		permissionMode:   sdkpermission.Mode(strings.TrimSpace(request.PermissionMode)),
-		autoApproveAll:   request.AutoApproveAll,
-		autoApproveTools: s.resolveApprovedTools(channelStored, request.AutoApproveTools),
-		rememberedTarget: rememberedTarget,
-		message:          message,
+		ownerUserID:                ownerUserID,
+		channelStored:              channelStored,
+		accountID:                  accountID,
+		sessionKey:                 sessionKey,
+		parsed:                     parsed,
+		agentID:                    agentID,
+		content:                    content,
+		roundID:                    roundID,
+		reqID:                      reqID,
+		permissionMode:             sdkpermission.Mode(strings.TrimSpace(request.PermissionMode)),
+		autoApproveAll:             request.AutoApproveAll,
+		autoApproveTools:           s.resolveApprovedTools(channelStored, request.AutoApproveTools),
+		trustedExternalInteractive: trustedExternalInteractive,
+		rememberedTarget:           rememberedTarget,
+		message:                    message,
 	}, nil
+}
+
+func (s *IngressService) validateResolvedExternalIngress(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+	parsed protocol.SessionKey,
+) (bool, error) {
+	channel := normalizeIMChannelType(parsed.Channel)
+	if channel == "" || channel == ChannelTypeInternal || channel == ChannelTypeWebSocket {
+		return false, nil
+	}
+	if s.control == nil {
+		return false, nil
+	}
+	if err := s.control.ValidateExternalSessionGrant(ctx, ownerUserID, agentID, parsed.Raw); err != nil {
+		return false, err
+	}
+	return protocol.NormalizeSessionChatType(parsed.ChatType) == protocol.RoomTypeDM, nil
 }
 
 func contextWithIngressOwner(ctx context.Context, ownerUserID string) context.Context {

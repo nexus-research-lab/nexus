@@ -88,7 +88,7 @@ src/
 - 工作循环的触发协议与统计值只由 `features/capability/loops/loop-presentation.ts` 投影为当前语言；目录和详情不得直接展示后端枚举或拼接固定英文单位
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；Nexus 内置 Skill 的双语说明统一由 `lib/skill-description.ts` 做只读展示投影，并由目录、详情、Agent、Room 与 Composer 复用；能力页已安装、更新与社区结果共用 `features/capability/skills/shared/skill-directory-card.tsx`，但已安装目录卡只保留名称、说明和真实动作，来源、作用域、标签与启用位置进入详情；所有 Skill 资源头像只通过 `shared/ui/display/seeded-avatar.tsx` 按稳定名称生成跨目录、详情和预览一致、圆心固定的静态数学曲线身份；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
-- 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，高级设置按字段职责组合；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员
+- 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，会话选择器复用外部 Session 真相源显示 `IM · 通道` 标识且不暴露 session key，只列当前 active pairing 与内部可用会话；已解绑、已删除或无法证明授权的外部会话不进入候选项，待重绑任务清空失效选择并显示状态提示。新建任务只展示独立运行/复用已有会话和保留/发送结果，main、dedicated、execution 等底层兼容模式仅在编辑使用这些模式的旧任务时出现；新建默认省略 permission_mode 以让后端原子复制当前 Session/Agent 权限，编辑只展示任务已持久化的具体 SDK mode；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员。Automation 投递消息只按结构化 metadata 渲染轻量来源徽标，不解析或改写正文
 - 定时任务时间选择器共用 `capability/scheduled/pickers/time-picker-column.tsx`，锚点浮层复用 `shared/ui/overlay/`，不得在 Daily/SingleRun 中复制选项按钮
 - 定时任务目录只通过 `capability/scheduled/controller/` 读写任务；不得恢复混合 Heartbeat 的 Automation 控制器，命令结果必须先于后台刷新落地
 - 定时任务运行历史由 `capability/scheduled/history/` 分离 Job 作用域资源、动作事务和纯视图；弹窗壳层不得直接请求 API 或维护单项命令状态
@@ -137,7 +137,7 @@ src/
 - Room Group Header 按成员头像、指南菜单和主装配分离；异步弹窗状态必须绑定 Room 身份，不能跨路由复用布尔状态
 - DM/Group Header 共用 `surface/header/` 的 Tab 定义与指南菜单；移动端只在 `surface/mobile/` 组合头部、会话 Sheet 和 Overlay，聊天主体必须复用 `room-chat-surface.tsx`
 - 聊天渲染错误边界归 Room Surface，并以会话身份作为 reset key；错误状态和硬编码回退文案不得跨会话、跨布局复制
-- Room 会话历史由 `features/conversation/room/surface/history/` 统一排序、外部 Session 能力、删除资格和标题编辑状态，基础协议层不保存展示专属规则
+- Room 会话历史由 `features/conversation/room/surface/history/` 统一排序、外部 Session 能力、删除资格和标题编辑状态；长标题与 IM 账号身份保持单行完整内容，由列表正文底部横向滚动承载，基础协议层不保存展示专属规则
 - 子智能体列表与线程资源必须绑定来源/任务作用域并拒绝旧请求写回；Room 调用者切换必须同步清理不属于新 Agent 的详情选择；任务详情只读展示 transcript，不提供发送或停止动作
 - 环境变量统一使用 `VITE_*` 前缀，通过 `import.meta.env` 读取
 

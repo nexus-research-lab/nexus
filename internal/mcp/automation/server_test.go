@@ -14,6 +14,33 @@ import (
 
 var automationToolRequestSequence atomic.Uint64
 
+func requireLastDeliveryToSession(t *testing.T, target automationdomain.DeliveryTarget, sessionKey string) {
+	t.Helper()
+	if target.Mode != automationdomain.DeliveryModeLast ||
+		target.SessionKey != sessionKey ||
+		target.Channel != "" ||
+		target.To != "" ||
+		target.AccountID != "" ||
+		target.ThreadID != "" {
+		t.Fatalf("expected delivery routed through current session %q, got %+v", sessionKey, target)
+	}
+}
+
+func requireExplicitSessionDelivery(
+	t *testing.T,
+	target automationdomain.DeliveryTarget,
+	channel string,
+	sessionKey string,
+) {
+	t.Helper()
+	if target.Mode != automationdomain.DeliveryModeExplicit ||
+		target.Channel != channel ||
+		target.To != sessionKey ||
+		target.SessionKey != "" {
+		t.Fatalf("expected explicit %s delivery to %q, got %+v", channel, sessionKey, target)
+	}
+}
+
 type stubService struct {
 	createInput       automationdomain.CreateJobInput
 	updateInput       automationdomain.UpdateJobInput

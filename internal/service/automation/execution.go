@@ -14,6 +14,10 @@ import (
 
 func (s *Service) startJobExecution(ctx context.Context, job automationdomain.ScheduledTask, triggerKind string, scheduledFor time.Time) (*automationdomain.ExecutionResult, error) {
 	ctx = contextForJobOwner(ctx, job)
+	job = automationdomain.NormalizeScheduledTaskSessionBinding(job)
+	if job.SessionBindingState == automationdomain.TaskSessionBindingStateRebindRequired {
+		return nil, automationdomain.ErrTaskSessionRebindRequired
+	}
 	job, err := s.ensureTaskPermissionPolicy(ctx, job)
 	if err != nil {
 		return nil, err
@@ -127,7 +131,9 @@ func (s *jobExecutionStarter) persistQueuedMainRun() error {
 		ScheduledFor:             &s.scheduledFor,
 		TriggerKind:              s.triggerKind,
 		SessionKey:               s.sessionKey,
-		DeliveryMode:             automationdomain.DeliveryModeNone,
+		DeliveryMode:             strings.TrimSpace(s.job.Delivery.Mode),
+		DeliveryTo:               deliveryTargetSummary(s.job.Delivery),
+		DeliveryTarget:           cloneDeliveryTargetPointer(s.job.Delivery),
 		Status:                   automationdomain.RunStatusQueuedToMain,
 		PermissionPolicyRevision: s.job.PermissionPolicy.Revision,
 	})
@@ -255,6 +261,7 @@ func (s *jobExecutionStarter) persistRunningRun() error {
 		RoundID:                  s.roundID,
 		DeliveryMode:             strings.TrimSpace(s.job.Delivery.Mode),
 		DeliveryTo:               deliveryTargetSummary(s.job.Delivery),
+		DeliveryTarget:           cloneDeliveryTargetPointer(s.job.Delivery),
 		PermissionPolicyRevision: s.job.PermissionPolicy.Revision,
 	}); err != nil {
 		return err
@@ -271,9 +278,7 @@ func (s *jobExecutionStarter) dispatchRuntime() error {
 	sink := automationexec.NewExecutionSink("automation:" + s.runID)
 	cleanup := s.service.bindSink(s.sessionKey, sink)
 	completeAttempt := s.service.registerPhysicalAttempt(s.runID, s.roundID)
-	dispatchJob := s.job
-	dispatchJob.Instruction = buildScheduledTaskInstruction(s.job)
-	err := s.service.dispatchJobToSession(s.ctx, dispatchJob, s.runID, s.sessionKey, s.roundID, roomEventObserverForSink(sink), nil)
+	err := s.service.dispatchJobToSession(s.ctx, s.job, s.runID, s.sessionKey, s.roundID, roomEventObserverForSink(sink), nil)
 	if err != nil {
 		completeAttempt()
 		cleanup()

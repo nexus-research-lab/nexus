@@ -75,6 +75,7 @@ type roundRunner struct {
 	mapper                      *dmdomain.MessageMapper
 	inputOptions                sdkprotocol.OutboundMessageOptions
 	internal                    bool
+	trustedExternalInteractive  bool
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
 	executionID                 string
@@ -87,6 +88,7 @@ type roundRunner struct {
 	goalUsageMu                 sync.Mutex
 	goalLastAssistant           protocol.Message
 	goalToolProgress            bool
+	automationRun               *protocol.AutomationRunContext
 	goalTerminalUsageSnapshot   goalsvc.RuntimeUsageSnapshot
 	goalTerminalUsageVersion    uint64
 	goalTerminalUsagePending    bool

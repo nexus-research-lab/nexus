@@ -1,5 +1,5 @@
-// INPUT: 当前 DM/Room round 的完整 actor、scope、permission、WorkBinding/ReviewBinding 与 runtime identity。
-// OUTPUT: 保留 producer/reviewer trusted capability 的 Execution MCP server 专用构造上下文。
+// INPUT: 当前 DM/Room round 的完整 actor、scope、permission、Automation/WorkBinding/ReviewBinding 与 runtime identity。
+// OUTPUT: 保留 Automation run、producer/reviewer trusted capability 的 Execution MCP server 专用构造上下文。
 // POS: 保持通用 MCPServerBuilder 稳定，同时给编排工具提供不丢失语义的 trusted round fence。
 package runtime
 
@@ -32,6 +32,7 @@ type ExecutionToolContext struct {
 	PermissionMode        sdkpermission.Mode
 	GoalID                string
 	GoalObjectiveRevision *atomic.Int64
+	AutomationRun         *protocol.AutomationRunContext
 }
 
 // ExecutionMCPServerBuilder 构造只服务当前 round identity 的 Execution MCP overlay。

@@ -1,5 +1,5 @@
 // INPUT: Agent 资料、runtime 选项以及带可选期望版本的创建/更新请求。
-// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent 模型与 runtime_version CAS 协议。
+// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent 模型、受控工具快照与 runtime_version CAS 协议。
 // POS: Agent 配置资源及其乐观并发令牌的协议真相源。
 package protocol
 
@@ -29,6 +29,13 @@ type Options struct {
 	// 只有显式停用时才进入此列表。
 	DisabledSkillIDs []string `json:"disabled_skill_ids,omitempty"`
 	SettingSources   []string `json:"setting_sources,omitempty"`
+}
+
+// RuntimeToolPolicy 是一次受控执行覆盖 Agent 工具配置的完整快照。
+// nil 指针表示继续读取 Agent 当前配置；非 nil 的空切片表示创建快照时未设置规则。
+type RuntimeToolPolicy struct {
+	AllowedTools    []string `json:"allowed_tools"`
+	DisallowedTools []string `json:"disallowed_tools"`
 }
 
 // Agent 表示对外 Agent 模型。

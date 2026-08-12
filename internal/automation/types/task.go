@@ -11,9 +11,14 @@ type ScheduledTask struct {
 	Schedule                   Schedule             `json:"schedule"`
 	Instruction                string               `json:"instruction"`
 	ExecutionKind              string               `json:"execution_kind,omitempty"`
+	PermissionMode             string               `json:"permission_mode"`
 	SessionTarget              SessionTarget        `json:"session_target"`
 	Delivery                   DeliveryTarget       `json:"delivery"`
+	SessionBindingState        string               `json:"session_binding_state"`
+	SessionBindingIssues       []string             `json:"session_binding_issues,omitempty"`
+	InvalidatedSessionKeys     []string             `json:"-"`
 	Source                     Source               `json:"source"`
+	DeliveryGrant              Source               `json:"-"`
 	OverlapPolicy              string               `json:"overlap_policy,omitempty"`
 	ExpiresAt                  *time.Time           `json:"expires_at,omitempty"`
 	Enabled                    bool                 `json:"enabled"`
@@ -34,38 +39,40 @@ type ScheduledTask struct {
 
 // ScheduledTaskRun 表示 run ledger 条目。
 type ScheduledTaskRun struct {
-	RunID                    string     `json:"run_id"`
-	JobID                    string     `json:"job_id"`
-	OwnerUserID              string     `json:"-"`
-	Status                   string     `json:"status"`
-	TriggerKind              string     `json:"trigger_kind,omitempty"`
-	SessionKey               string     `json:"session_key,omitempty"`
-	RoundID                  string     `json:"round_id,omitempty"`
-	SessionID                *string    `json:"session_id,omitempty"`
-	MessageCount             int        `json:"message_count,omitempty"`
-	DeliveryMode             string     `json:"delivery_mode,omitempty"`
-	DeliveryTo               string     `json:"delivery_to,omitempty"`
-	DeliveryStatus           string     `json:"delivery_status,omitempty"`
-	DeliveryError            *string    `json:"delivery_error,omitempty"`
-	DeliveredAt              *time.Time `json:"delivered_at,omitempty"`
-	DeliveryAttempts         int        `json:"delivery_attempts,omitempty"`
-	DeliveryNextAttemptAt    *time.Time `json:"delivery_next_attempt_at,omitempty"`
-	DeliveryDeadLetterAt     *time.Time `json:"delivery_dead_letter_at,omitempty"`
-	ScheduledFor             *time.Time `json:"scheduled_for,omitempty"`
-	StartedAt                *time.Time `json:"started_at,omitempty"`
-	FinishedAt               *time.Time `json:"finished_at,omitempty"`
-	Attempts                 int        `json:"attempts"`
-	ErrorMessage             *string    `json:"error_message,omitempty"`
-	ResultSummary            *string    `json:"result_summary,omitempty"`
-	AssistantText            *string    `json:"assistant_text,omitempty"`
-	ResultText               *string    `json:"result_text,omitempty"`
-	ArtifactPath             *string    `json:"artifact_path,omitempty"`
-	PermissionPolicyRevision int        `json:"permission_policy_revision,omitempty"`
-	BlockState               string     `json:"block_state,omitempty"`
-	BlockedRequestID         string     `json:"blocked_request_id,omitempty"`
-	EffectStarted            bool       `json:"effect_started,omitempty"`
-	CreatedAt                time.Time  `json:"created_at,omitempty"`
-	UpdatedAt                time.Time  `json:"updated_at,omitempty"`
+	RunID        string  `json:"run_id"`
+	JobID        string  `json:"job_id"`
+	OwnerUserID  string  `json:"-"`
+	Status       string  `json:"status"`
+	TriggerKind  string  `json:"trigger_kind,omitempty"`
+	SessionKey   string  `json:"session_key,omitempty"`
+	RoundID      string  `json:"round_id,omitempty"`
+	SessionID    *string `json:"session_id,omitempty"`
+	MessageCount int     `json:"message_count,omitempty"`
+	DeliveryMode string  `json:"delivery_mode,omitempty"`
+	DeliveryTo   string  `json:"delivery_to,omitempty"`
+	// DeliveryTarget 是本次 run 开始时冻结的逻辑投递目标；DeliveryTo 记录实际解析结果摘要。
+	DeliveryTarget           *DeliveryTarget `json:"delivery_target,omitempty"`
+	DeliveryStatus           string          `json:"delivery_status,omitempty"`
+	DeliveryError            *string         `json:"delivery_error,omitempty"`
+	DeliveredAt              *time.Time      `json:"delivered_at,omitempty"`
+	DeliveryAttempts         int             `json:"delivery_attempts,omitempty"`
+	DeliveryNextAttemptAt    *time.Time      `json:"delivery_next_attempt_at,omitempty"`
+	DeliveryDeadLetterAt     *time.Time      `json:"delivery_dead_letter_at,omitempty"`
+	ScheduledFor             *time.Time      `json:"scheduled_for,omitempty"`
+	StartedAt                *time.Time      `json:"started_at,omitempty"`
+	FinishedAt               *time.Time      `json:"finished_at,omitempty"`
+	Attempts                 int             `json:"attempts"`
+	ErrorMessage             *string         `json:"error_message,omitempty"`
+	ResultSummary            *string         `json:"result_summary,omitempty"`
+	AssistantText            *string         `json:"assistant_text,omitempty"`
+	ResultText               *string         `json:"result_text,omitempty"`
+	ArtifactPath             *string         `json:"artifact_path,omitempty"`
+	PermissionPolicyRevision int             `json:"permission_policy_revision,omitempty"`
+	BlockState               string          `json:"block_state,omitempty"`
+	BlockedRequestID         string          `json:"blocked_request_id,omitempty"`
+	EffectStarted            bool            `json:"effect_started,omitempty"`
+	CreatedAt                time.Time       `json:"created_at,omitempty"`
+	UpdatedAt                time.Time       `json:"updated_at,omitempty"`
 }
 
 // ScheduledTaskEvent 表示定时任务管理动作审计记录。

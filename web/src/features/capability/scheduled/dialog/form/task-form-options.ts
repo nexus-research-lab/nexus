@@ -1,9 +1,11 @@
+import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type {
   ChoiceDef,
   ExecutionKind,
   ExecutionMode,
+  PermissionMode,
   ReplyMode,
   TargetType,
 } from "../scheduled-task-dialog-types";
@@ -43,6 +45,35 @@ export function buildReplyModeOptions(t: Translate): ChoiceDef<ReplyMode>[] {
     { key: "execution", label: t("capability.scheduled_dialog_reply_execution") },
     { key: "selected", label: t("capability.scheduled_dialog_reply_selected") },
   ];
+}
+
+export function buildPermissionModeOptions(
+  t: Translate,
+  includeCopy = true,
+): ChoiceDef<PermissionMode>[] {
+  const persisted = AGENT_PERMISSION_MODES.map((option) => ({
+    key: option.value,
+    label: t(option.labelKey),
+  }));
+  return includeCopy
+    ? [{
+        key: "copy",
+        label: t("capability.scheduled_dialog_permission_copy"),
+      }, ...persisted]
+    : persisted;
+}
+
+export function getPermissionModeHelp(
+  permissionMode: PermissionMode,
+  t: Translate,
+): string {
+  if (permissionMode === "copy") {
+    return t("capability.scheduled_dialog_permission_copy_help");
+  }
+  const option = AGENT_PERMISSION_MODES.find(
+    (candidate) => candidate.value === permissionMode,
+  );
+  return option ? t(option.descriptionKey) : "";
 }
 
 export function getExecutionKindHelp(

@@ -342,16 +342,9 @@ func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) ma
 }
 
 func deserializePermissionUpdates(raw any) []sdkpermission.Update {
-	items, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
+	items := normalizeListOfMaps(raw)
 	result := make([]sdkpermission.Update, 0, len(items))
-	for _, item := range items {
-		payload, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, payload := range items {
 		updateType := normalizeString(payload["type"])
 		if updateType == "" {
 			continue
@@ -370,16 +363,9 @@ func deserializePermissionUpdates(raw any) []sdkpermission.Update {
 }
 
 func deserializePermissionRules(raw any) []sdkpermission.RuleValue {
-	items, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
+	items := normalizeListOfMaps(raw)
 	result := make([]sdkpermission.RuleValue, 0, len(items))
-	for _, item := range items {
-		payload, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, payload := range items {
 		toolName := firstNonEmpty(normalizeString(payload["tool_name"]), normalizeString(payload["toolName"]))
 		if toolName == "" {
 			continue
@@ -393,33 +379,39 @@ func deserializePermissionRules(raw any) []sdkpermission.RuleValue {
 }
 
 func normalizeListOfMaps(raw any) []map[string]any {
-	items, ok := raw.([]any)
-	if !ok {
+	switch items := raw.(type) {
+	case []map[string]any:
+		return items
+	case []any:
+		result := make([]map[string]any, 0, len(items))
+		for _, item := range items {
+			payload, ok := item.(map[string]any)
+			if ok {
+				result = append(result, payload)
+			}
+		}
+		return result
+	default:
 		return nil
 	}
-	result := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		payload, ok := item.(map[string]any)
-		if ok {
-			result = append(result, payload)
-		}
-	}
-	return result
 }
 
 func normalizeStringSlice(raw any) []string {
-	items, ok := raw.([]any)
-	if !ok {
+	switch items := raw.(type) {
+	case []string:
+		return slices.Clone(items)
+	case []any:
+		result := make([]string, 0, len(items))
+		for _, item := range items {
+			value := strings.TrimSpace(normalizeString(item))
+			if value != "" {
+				result = append(result, value)
+			}
+		}
+		return result
+	default:
 		return nil
 	}
-	result := make([]string, 0, len(items))
-	for _, item := range items {
-		value := strings.TrimSpace(normalizeString(item))
-		if value != "" {
-			result = append(result, value)
-		}
-	}
-	return result
 }
 
 func cloneMap(raw map[string]any) map[string]any {

@@ -10,6 +10,7 @@ import {
   CirclePause,
   Clock3,
   History,
+  Link2Off,
   LoaderCircle,
   MoreHorizontal,
   PauseCircle,
@@ -108,16 +109,20 @@ export function ScheduledTaskCard({
   const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const permissionRequest = task.pending_permission_request;
   const errorCopy = getScheduledTaskErrorCopy(presentation.lastError);
-  const attentionTitle = presentation.permission?.title ?? "最近运行异常";
-  const attentionDetail = presentation.permission
+  const attentionTitle = presentation.binding?.title
+    ?? presentation.permission?.title
+    ?? "最近运行异常";
+  const attentionDetail = presentation.binding?.description ?? (presentation.permission
     ? permissionRequest
       ? getScheduledPermissionCapabilityLabel(permissionRequest)
       : presentation.permission.description
-    : errorCopy?.summary ?? null;
-  const hasAttention = Boolean(presentation.permission || errorCopy);
+    : errorCopy?.summary ?? null);
+  const hasAttention = Boolean(presentation.binding || presentation.permission || errorCopy);
   const hasPermissionActions = presentation.permission !== null
     && hasScheduledTaskPermissionActions(task);
-  const AttentionIcon = presentation.permission ? ShieldAlert : CircleAlert;
+  const AttentionIcon = presentation.binding
+    ? Link2Off
+    : presentation.permission ? ShieldAlert : CircleAlert;
   const toggleIcon = task.enabled
     ? <PauseCircle className="h-3.5 w-3.5" />
     : <PlayCircle className="h-3.5 w-3.5" />;
@@ -222,7 +227,7 @@ export function ScheduledTaskCard({
           <div
             className={cn(
               "mt-2 overflow-hidden rounded-[6px] border",
-              presentation.permission
+              presentation.binding || presentation.permission
                 ? "border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]"
                 : "border-[color:color-mix(in_srgb,var(--destructive)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_3%,transparent)]",
             )}
@@ -236,7 +241,9 @@ export function ScheduledTaskCard({
               <AttentionIcon
                 className={cn(
                   "h-3.5 w-3.5 shrink-0",
-                  presentation.permission ? "text-(--warning)" : "text-(--destructive)",
+                  presentation.binding || presentation.permission
+                    ? "text-(--warning)"
+                    : "text-(--destructive)",
                 )}
               />
               <span className="min-w-0 flex-1">
@@ -296,7 +303,8 @@ export function ScheduledTaskCard({
       </article>
 
       <ScheduledTaskAttentionDialog
-        description={presentation.permission?.description ?? null}
+        description={presentation.binding?.description ?? presentation.permission?.description ?? null}
+        isBindingAttention={presentation.binding !== null}
         isOpen={isAttentionOpen}
         isPending={isPermissionPending}
         onClose={() => setIsAttentionOpen(false)}
@@ -306,7 +314,7 @@ export function ScheduledTaskCard({
         onPermissionDecision={onPermissionDecision}
         onPermissionResume={onPermissionResume}
         task={task}
-        title={presentation.permission?.title ?? null}
+        title={presentation.binding?.title ?? presentation.permission?.title ?? null}
       />
     </>
   );

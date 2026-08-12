@@ -1,6 +1,8 @@
 "use client";
 
-import { Settings2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
@@ -22,10 +24,12 @@ import {
 import {
   buildExecutionKindOptions,
   buildExecutionModeOptions,
+  buildPermissionModeOptions,
   buildReplyModeOptions,
   buildTargetTypeOptions,
   getExecutionKindHelp,
   getExecutionModeHelp,
+  getPermissionModeHelp,
   getReplyModeHelp,
 } from "./task-form-options";
 
@@ -33,6 +37,8 @@ interface TaskBasicsAdvancedProps {
   actions: TaskBasicsActions;
   data: TaskBasicsData;
   form: TaskFormDraft;
+  isEditing: boolean;
+  needsSessionRebind: boolean;
 }
 
 interface TaskChoiceFieldProps<Value extends string> {
@@ -149,18 +155,24 @@ function TaskDedicatedSessionField({
 function TaskExecutionModeField({
   actions,
   form,
-}: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
+  isEditing,
+}: Pick<TaskBasicsAdvancedProps, "actions" | "form" | "isEditing">) {
   const { t } = useI18n();
   if (form.executionKind !== "agent" || form.targetType !== "agent") {
     return null;
   }
+  const options = buildExecutionModeOptions(t).filter((option) => (
+    option.key === "existing"
+      || option.key === "temporary"
+      || (isEditing && option.key === form.executionMode)
+  ));
   return (
     <>
       <TaskChoiceField
         help={getExecutionModeHelp(form.executionMode, t)}
         label={t("capability.scheduled_dialog_execution_session")}
         onChange={actions.setExecutionMode}
-        options={buildExecutionModeOptions(t)}
+        options={options}
         value={form.executionMode}
       />
       <TaskDedicatedSessionField actions={actions} form={form} />
@@ -211,6 +223,11 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
   if (form.executionKind !== "agent") {
     return null;
   }
+  const options = buildReplyModeOptions(t).filter((option) => (
+    option.key === "none"
+      || option.key === "selected"
+      || (props.isEditing && option.key === form.replyMode)
+  ));
   return (
     <>
       <TaskChoiceField
@@ -220,11 +237,31 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
         )}
         label={t("capability.scheduled_dialog_delivery")}
         onChange={actions.setReplyMode}
-        options={buildReplyModeOptions(t)}
+        options={options}
         value={form.replyMode}
       />
       <TaskReplySessionField {...props} />
     </>
+  );
+}
+
+function TaskPermissionModeField({
+  actions,
+  form,
+  isEditing,
+}: Pick<TaskBasicsAdvancedProps, "actions" | "form" | "isEditing">) {
+  const { t } = useI18n();
+  if (form.executionKind !== "agent") {
+    return null;
+  }
+  return (
+    <TaskChoiceField
+      help={getPermissionModeHelp(form.permissionMode, t)}
+      label={t("capability.scheduled_dialog_permission_mode")}
+      onChange={actions.setPermissionMode}
+      options={buildPermissionModeOptions(t, !isEditing)}
+      value={form.permissionMode}
+    />
   );
 }
 
@@ -252,8 +289,18 @@ function TaskExpirationField({
 export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
   const { t } = useI18n();
   const { actions, form } = props;
+  const [isOpen, setIsOpen] = useState(props.needsSessionRebind);
+  useEffect(() => {
+    if (props.needsSessionRebind) {
+      setIsOpen(true);
+    }
+  }, [props.needsSessionRebind]);
   return (
-    <details className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5">
+    <details
+      className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5"
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      open={isOpen}
+    >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
         <span className="inline-flex items-center gap-2">
           <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
@@ -265,6 +312,22 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
       </summary>
 
       <div className="mt-4 flex flex-col gap-4 border-t border-(--divider-subtle-color) pt-4">
+        {props.needsSessionRebind ? (
+          <div
+            className="flex gap-2.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3"
+            role="status"
+          >
+            <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-(--text-strong)">
+                {t("capability.scheduled_dialog_session_rebind_required")}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-(--text-muted)">
+                {t("capability.scheduled_dialog_session_rebind_description")}
+              </p>
+            </div>
+          </div>
+        ) : null}
         <TaskChoiceField
           help={getExecutionKindHelp(form.executionKind, t)}
           label={t("capability.scheduled_dialog_execution_kind")}
@@ -273,8 +336,9 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
           value={form.executionKind}
         />
         <TaskTargetTypeField actions={actions} form={form} />
-        <TaskExecutionModeField actions={actions} form={form} />
+        <TaskExecutionModeField actions={actions} form={form} isEditing={props.isEditing} />
         <TaskExecutionSessionField {...props} />
+        <TaskPermissionModeField actions={actions} form={form} isEditing={props.isEditing} />
         <TaskDeliveryFields {...props} />
         <TaskExpirationField actions={actions} form={form} />
       </div>

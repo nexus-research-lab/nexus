@@ -59,6 +59,14 @@ export const getAgentSessionsApi = async (
   return result.map(transformApiAgentSession);
 };
 
+export async function deleteSessionApi(sessionKey: string): Promise<void> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  await requestApi<{ success: boolean }>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function getSessionMessagesApi(
   sessionKey: string,
   options: ConversationMessagesQuery = {},

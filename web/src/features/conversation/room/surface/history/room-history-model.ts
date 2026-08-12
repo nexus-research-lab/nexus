@@ -7,6 +7,7 @@
 import {
   getExternalSessionConversationLabel,
   isExternalSessionConversation,
+  isExternalSessionConversationDeletable,
 } from "@/lib/conversation/external-session";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
@@ -57,9 +58,10 @@ export function buildRoomHistoryEntries({
       const isExternalSession = isExternalSessionConversation(conversation);
       const isActive = conversation.conversation_id === currentConversationId;
       const canDelete = (
-        !isExternalSession
-        && canManageConversations
-        && localConversationCount > 1
+        canManageConversations
+        && (isExternalSession
+          ? isExternalSessionConversationDeletable(conversation)
+          : localConversationCount > 1)
       );
       return {
         conversation,

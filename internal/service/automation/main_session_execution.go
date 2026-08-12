@@ -154,13 +154,8 @@ func (s *Service) dispatchScheduledMainSessionEvent(
 	sink := automationexec.NewExecutionSink("automation:" + run.RunID)
 	cleanup := s.bindSink(sessionKey, sink)
 	completeAttempt := s.registerPhysicalAttempt(run.RunID, roundID)
-	dispatchJob := *job
-	dispatchJob.Instruction = buildScheduledTaskInstruction(*job)
 	resumeAttempt := newPermissionResumeAttempt(resumeRequest)
-	if resumeRequest != nil {
-		dispatchJob.Instruction = buildPermissionResumeInstruction(*job, resumeRequest)
-	}
-	if err = s.dispatchJobToSession(ctx, dispatchJob, run.RunID, sessionKey, roundID, roomEventObserverForSink(sink), resumeAttempt); err != nil {
+	if err = s.dispatchJobToSession(ctx, *job, run.RunID, sessionKey, roundID, roomEventObserverForSink(sink), resumeAttempt); err != nil {
 		completeAttempt()
 		cleanup()
 		sink.Close()

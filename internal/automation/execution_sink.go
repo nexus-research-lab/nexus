@@ -12,6 +12,8 @@ import (
 
 // ExecutionObservation 是自动化执行轮次的最终观测结果。
 type ExecutionObservation struct {
+	RunID         string
+	RoundID       string
 	Status        string
 	SessionID     *string
 	MessageCount  int

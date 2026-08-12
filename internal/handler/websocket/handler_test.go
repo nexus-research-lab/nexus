@@ -74,6 +74,63 @@ func TestWebSocketSessionBinding(t *testing.T) {
 	}
 }
 
+func TestWebSocketExternalIMSessionBindingDoesNotEmitHostCommandsOrStartupError(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		"nexus",
+		protocol.SessionChannelWeixinPersonal,
+		protocol.RoomTypeDM,
+		"account-a",
+		"user-a",
+		"",
+	)
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":        "bind_session",
+		"session_key": sessionKey,
+	}); err != nil {
+		t.Fatalf("绑定外部 IM session 失败: %v", err)
+	}
+
+	for range 8 {
+		event := readEventMessage(t, conn)
+		if event.EventType == protocol.EventTypeError {
+			t.Fatalf("查看外部 IM session 不应投影 Agent 启动错误: %+v", event)
+		}
+		if event.EventType != protocol.EventTypeCommandCatalog {
+			continue
+		}
+		commands, _ := event.Data["commands"].([]any)
+		for _, raw := range commands {
+			command, _ := raw.(map[string]any)
+			if command["execution"] == string(protocol.CommandExecutionHost) {
+				t.Fatalf("外部 IM catalog 不应注入 Web host 命令: %+v", command)
+			}
+		}
+		return
+	}
+	t.Fatal("外部 IM session 未收到 command_catalog")
+}
+
 func TestWebSocketDispatchesRewriteLastToControlHandler(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)

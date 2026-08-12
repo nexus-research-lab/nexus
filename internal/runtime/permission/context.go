@@ -1,4 +1,4 @@
-// INPUT: WebSocket sender、runtime session 路由 lease 与阻塞式人工交互命令。
+// INPUT: Session 事件 sender、runtime session 路由 lease 与阻塞式人工交互命令。
 // OUTPUT: sender/session 绑定、仅由当前 owner 释放的路由映射，以及请求广播与响应收口。
 // POS: runtime permission 的并发上下文与连接生命周期真相源。
 package permission
@@ -16,7 +16,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-// Sender 抽象出 WebSocket 级别的事件发送能力。
+// Sender 抽象出 session 级别的事件发送能力。
 type Sender interface {
 	Key() string
 	IsClosed() bool

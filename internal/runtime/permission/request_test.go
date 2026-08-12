@@ -165,6 +165,98 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 	}
 }
 
+func TestResolveSessionPermissionRequestAppliesSDKPersistenceSuggestion(t *testing.T) {
+	ctx := NewContext()
+	sessionKey := "agent:nexus:wx:dm:runtime-permission"
+	sender := newPermissionTestSender("im-permission-sender")
+	ctx.BindSession(sessionKey, sender)
+
+	decisions := make(chan sdkpermission.Decision, 1)
+	go func() {
+		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
+			ToolName: "Write",
+			Input:    map[string]any{"file_path": "notes.txt"},
+			PermissionSuggestions: []sdkpermission.Update{{
+				Type:        "addRules",
+				Behavior:    sdkpermission.BehaviorAllow,
+				Destination: sdkpermission.UpdateDestinationSession,
+				Rules: []sdkpermission.RuleValue{{
+					ToolName:    "Write",
+					RuleContent: "notes.txt",
+				}},
+			}},
+		})
+		decisions <- decision
+	}()
+
+	event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+	requestID, _ := event.Data["request_id"].(string)
+	resolution := ctx.ResolveSessionPermissionRequest(
+		t.Context(),
+		sessionKey,
+		"",
+		sdkpermission.BehaviorAllow,
+		true,
+	)
+	if !resolution.Found || !resolution.Resolved || !resolution.Persisted || !resolution.PersistenceSupported ||
+		resolution.RequestID != requestID || resolution.MatchingRequests != 1 {
+		t.Fatalf("持续允许没有解析同一 pending request: %+v", resolution)
+	}
+	select {
+	case decision := <-decisions:
+		if decision.Behavior != sdkpermission.BehaviorAllow || len(decision.UpdatedPermissions) != 1 ||
+			decision.UpdatedPermissions[0].Destination != sdkpermission.UpdateDestinationSession ||
+			len(decision.UpdatedPermissions[0].Rules) != 1 ||
+			decision.UpdatedPermissions[0].Rules[0].RuleContent != "notes.txt" {
+			t.Fatalf("SDK persistence suggestion 未原样返回: %+v", decision)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("持续允许后 runtime 未恢复")
+	}
+}
+
+func TestResolveSessionPermissionRequestWithoutIDRejectsAmbiguousSession(t *testing.T) {
+	ctx := NewContext()
+	sessionKey := "agent:nexus:wx:dm:ambiguous-runtime-permission"
+	sender := newPermissionTestSender("im-ambiguous-permission-sender")
+	ctx.BindSession(sessionKey, sender)
+	requestCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	for _, toolName := range []string{"Write", "Bash"} {
+		toolName := toolName
+		go func() {
+			_, _ = ctx.RequestPermission(requestCtx, sessionKey, sdkpermission.Request{ToolName: toolName})
+		}()
+	}
+	_ = readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+	_ = readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+	deadline := time.Now().Add(2 * time.Second)
+	for ctx.CountSessionPermissionRequests(sessionKey, "") != 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := ctx.CountSessionPermissionRequests(sessionKey, ""); got != 2 {
+		t.Fatalf("两个请求尚未都登记为 pending: got %d", got)
+	}
+
+	resolution := ctx.ResolveSessionPermissionRequest(
+		t.Context(),
+		sessionKey,
+		"",
+		sdkpermission.BehaviorAllow,
+		false,
+	)
+	if resolution.Found || resolution.Resolved || resolution.MatchingRequests != 2 {
+		t.Fatalf("无 ID 决策不得猜测同一 session 的多个请求: %+v", resolution)
+	}
+	if got := ctx.CountSessionPermissionRequests(sessionKey, ""); got != 2 {
+		t.Fatalf("只读 pending 计数 = %d; want 2", got)
+	}
+	if got := ctx.CountSessionPermissionRequests(sessionKey, "missing"); got != 0 {
+		t.Fatalf("未知请求只读 pending 计数 = %d; want 0", got)
+	}
+}
+
 func TestConfigurationPermissionAllowBindsExactRuntimeRoute(t *testing.T) {
 	permissionContext := NewContext()
 	runtimeSessionKey := "agent:worker:ws:group:conversation"

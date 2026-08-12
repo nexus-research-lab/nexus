@@ -6,6 +6,7 @@ import {
   createScheduledTaskApi,
   updateScheduledTaskApi,
 } from "@/lib/api/capability/scheduled-task-api";
+import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import {
   type I18nContextValue,
   useI18n,
@@ -55,10 +56,13 @@ function buildUpdatePayload(
   initialTask: ScheduledTaskItem,
   expiresAtDraft: string,
 ): UpdateScheduledTaskParams {
+  // source 是任务创建来源，不是可编辑配置。更新时保持原始 provenance，避免
+  // 历史 IM 会话已解绑后，修改名称或计划被误判成一次新的会话授权。
+  const { source: _source, ...configurationPayload } = payload;
   if (expiresAtDraft.trim() || initialTask.expires_at === null) {
-    return payload;
+    return configurationPayload;
   }
-  return { ...payload, clear_expires_at: true };
+  return { ...configurationPayload, clear_expires_at: true };
 }
 
 async function submitTaskDialog({
@@ -127,13 +131,26 @@ export function useTaskDialogController({
   const schedule = useTaskSchedule(initialState.schedule, clearError);
   const hydrateForm = form.hydrate;
   const hydrateSchedule = schedule.hydrate;
-  const data = useTaskDialogData({ form: form.draft, isOpen });
+  const data = useTaskDialogData({
+    form: form.draft,
+    isOpen,
+  });
   const selectedSession = data.sessionOptions.find(
     (option) => option.value === form.draft.selectedSessionKey,
   ) ?? null;
   const selectedReplySession = data.sessionOptions.find(
     (option) => option.value === form.draft.selectedReplySessionKey,
   ) ?? null;
+  const hasUnavailableExternalSession = !data.sessions.loading
+    && !data.sessions.error
+    && [form.draft.selectedSessionKey, form.draft.selectedReplySessionKey]
+      .some((sessionKey) => (
+        Boolean(sessionKey)
+        && isExternalSessionChannel(null, sessionKey)
+        && !data.sessionOptions.some((option) => option.value === sessionKey)
+      ));
+  const needsSessionRebind = initialTask?.session_binding_state === "rebind_required"
+    || hasUnavailableExternalSession;
 
   const submitContext = useMemo<TaskDialogSubmitContext>(() => ({
     agentOptions: data.agentOptions,
@@ -203,6 +220,7 @@ export function useTaskDialogController({
     form,
     handleSubmit,
     isSubmitting,
+    needsSessionRebind,
     refs,
     schedule,
   };

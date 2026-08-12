@@ -397,27 +397,37 @@ func (e *dmChatExecution) runtimeContext() context.Context {
 
 func (e *dmChatExecution) newRoundRunner() *roundRunner {
 	return &roundRunner{
-		service:               e.service,
-		workspacePath:         e.agent.WorkspacePath,
-		session:               e.session,
-		agent:                 e.agent,
-		sessionKey:            e.sessionKey,
-		roundID:               e.request.RoundID,
-		agentRoundID:          e.request.AgentRoundID,
-		userMessageID:         e.request.UserMessageID,
-		clientRequestID:       e.request.ClientRequestID,
-		content:               strings.TrimSpace(e.request.Content),
-		ownerUserID:           strings.TrimSpace(e.agent.OwnerUserID),
-		mapper:                dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
-		inputOptions:          e.request.InputOptions,
-		internal:              e.request.Internal,
-		externalReplyTarget:   e.request.ExternalReplyTarget,
-		executionID:           strings.TrimSpace(e.request.ExecutionID),
-		goalObjectiveRevision: &atomic.Int64{},
-		goalUsage:             goalsvc.NewRuntimeUsageAccumulator(false),
-		goalUsageStarted:      time.Now(),
-		permissionHandler:     e.request.PermissionHandler,
+		service:                    e.service,
+		workspacePath:              e.agent.WorkspacePath,
+		session:                    e.session,
+		agent:                      e.agent,
+		sessionKey:                 e.sessionKey,
+		roundID:                    e.request.RoundID,
+		agentRoundID:               e.request.AgentRoundID,
+		userMessageID:              e.request.UserMessageID,
+		clientRequestID:            e.request.ClientRequestID,
+		content:                    strings.TrimSpace(e.request.Content),
+		ownerUserID:                strings.TrimSpace(e.agent.OwnerUserID),
+		mapper:                     dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
+		inputOptions:               e.request.InputOptions,
+		internal:                   e.request.Internal,
+		trustedExternalInteractive: e.request.TrustedExternalInteractiveContext,
+		externalReplyTarget:        e.request.ExternalReplyTarget,
+		executionID:                strings.TrimSpace(e.request.ExecutionID),
+		goalObjectiveRevision:      &atomic.Int64{},
+		goalUsage:                  goalsvc.NewRuntimeUsageAccumulator(false),
+		goalUsageStarted:           time.Now(),
+		permissionHandler:          e.request.PermissionHandler,
+		automationRun:              cloneAutomationRunContext(e.request.AutomationRun),
 	}
+}
+
+func cloneAutomationRunContext(value *protocol.AutomationRunContext) *protocol.AutomationRunContext {
+	if value == nil {
+		return nil
+	}
+	result := value.Normalized()
+	return &result
 }
 
 func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {

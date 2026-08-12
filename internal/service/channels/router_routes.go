@@ -80,7 +80,9 @@ func (r *Router) RememberSessionRoute(ctx context.Context, agentID string, sessi
 // RememberWebSocketRoute 把当前浏览器会话注册成最近目标。
 func (r *Router) RememberWebSocketRoute(ctx context.Context, sessionKey string) error {
 	parsed := protocol.ParseSessionKey(sessionKey)
-	if parsed.Kind != protocol.SessionKeyKindAgent || strings.TrimSpace(parsed.AgentID) == "" {
+	if parsed.Kind != protocol.SessionKeyKindAgent ||
+		strings.TrimSpace(parsed.AgentID) == "" ||
+		protocol.NormalizeSessionKeyChannelSegment(parsed.Channel) != protocol.SessionChannelWebSocketSegment {
 		return nil
 	}
 	_, err := r.RememberRoute(ctx, parsed.AgentID, DeliveryTarget{
