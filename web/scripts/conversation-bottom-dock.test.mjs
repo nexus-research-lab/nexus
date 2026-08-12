@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -176,6 +177,54 @@ test("Composer 回复阶段只保留停止快捷键提示", async () => {
   assert.equal(projection.message, null);
   assert.equal(projection.frames, null);
   assert.equal(projection.hint, "[ESC 停止]");
+});
+
+test("Goal Composer separates lead control, runtime status, and submit rows", async () => {
+  const css = await fs.readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+  const goalLayoutStart = css.indexOf(
+    '.nexus-chat-composer-footer[data-goal-mode="true"] {',
+  );
+  const narrowLayoutStart = css.indexOf(
+    "@container nexus-chat-composer (max-width: 460px)",
+  );
+  assert.notEqual(goalLayoutStart, -1);
+  assert.notEqual(narrowLayoutStart, -1);
+
+  const goalLayout = css.slice(goalLayoutStart, narrowLayoutStart);
+  assert.match(
+    goalLayout,
+    /grid-template-columns:\s*minmax\(0, 1fr\) auto;/,
+  );
+  assert.match(goalLayout, /grid-template-areas:\s*"leading trailing";/);
+  assert.match(goalLayout, /align-items:\s*start;/);
+  assert.match(
+    goalLayout,
+    /\.nexus-chat-composer-footer-leading\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
+  );
+  assert.match(
+    goalLayout,
+    /\.nexus-chat-composer-runtime-status\s*\{[\s\S]*?flex-basis:\s*100%;/,
+  );
+  assert.match(
+    goalLayout,
+    /\.nexus-chat-composer-footer-brand\s*\{[\s\S]*?display:\s*none;/,
+  );
+
+  const narrowLayout = css.slice(
+    narrowLayoutStart,
+    css.indexOf(".input-shell.ui-search-input-shell", narrowLayoutStart),
+  );
+  assert.match(
+    narrowLayout,
+    /grid-template-areas:\s*"leading"\s*"trailing";/,
+  );
+  assert.match(
+    narrowLayout,
+    /\.nexus-chat-composer-submit\s*\{[\s\S]*?margin-inline-start:\s*auto;/,
+  );
 });
 
 test("anchored overlay end alignment follows the trigger without leaving the viewport", async () => {

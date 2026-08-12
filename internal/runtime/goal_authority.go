@@ -1,6 +1,6 @@
 // INPUT: runtime mint 的 exact Goal identity、objective revision 与可选 Execution identity。
 // OUTPUT: 同一物理 round 内 Goal/Execution MCP 共用的并发安全动态 authority 与 context 传递 helper。
-// POS: runtime identity 边界；普通 round 保持空状态，只有可信 continuation/WorkBinding 或成功 create_goal 才能写入。
+// POS: runtime identity 边界；共享状态普通 round 保持空，只有可信 continuation/WorkBinding 或成功 create_goal 才能写入；持久负责人新 round 使用 nexus_goal 私有副本。
 package runtime
 
 import (

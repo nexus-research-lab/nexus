@@ -92,6 +92,7 @@ const GOAL_BINDING_BADGE_TONE: Record<
 > = {
   conflict: "border-destructive/20 bg-destructive/10 text-destructive",
   confirmed: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
+  neutral: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
   pending: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
   unavailable: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
 };

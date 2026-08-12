@@ -1,5 +1,5 @@
 // INPUT: 已完成 Agent 输出中的显式公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 任意非 self 成员间幂等 handoff、同 Agent 串行 guide/queue/新轮唤醒，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
+// OUTPUT: 任意非 self 成员间幂等 handoff、同 Agent 串行 guide/queue/新轮唤醒、服务端分类的 handoff/queue 执行来源，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
 // POS: Room Agent 间公开协作的显式路由与纯资源护栏入口；不解释或限制业务协作拓扑。
 package realtime
 
@@ -818,18 +818,21 @@ func newPublicMentionRound(parentRound *activeRoomRound, sessionKey string, roun
 		OwnerUserID:                       parentRound.OwnerUserID,
 		AuthorityEpoch:                    contextValue.Room.AuthorityEpoch,
 		TrustedConfigurationContext:       parentRound.pendingTrustedQueueDispatch,
-		ExecutionOrigin:                   queueExecutionOrigin(parentRound.pendingTrustedQueueDispatch),
+		ExecutionOrigin:                   publicMentionExecutionOrigin(parentRound.pendingTrustedQueueDispatch),
 		trustedQueuedConfigurationContext: parentRound.pendingTrustedQueueDispatch,
 		Slots:                             make(map[string]*activeRoomSlot),
 		Done:                              make(chan struct{}),
 	}
 }
 
-func queueExecutionOrigin(trusted bool) string {
+func publicMentionExecutionOrigin(trusted bool) string {
 	if trusted {
 		return "queue"
 	}
-	return ""
+	// public mention 是宿主从已持久化的最终 assistant message 解析出的
+	// 协作 handoff。保留独立来源，让 Goal MCP 只给这一类负责人续轮恢复
+	// mutation authority，而不会把普通 queue/internal round 一并放开。
+	return "handoff"
 }
 
 func addPublicMentionSlots(

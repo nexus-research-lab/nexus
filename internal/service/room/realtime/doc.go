@@ -13,7 +13,7 @@
 //     Work/Review binding admission、Room dispatch、Attempt 终态、Goal authority、
 //     runtime context、取消与 usage 对账。
 //   - input_queue*.go / guidance_input.go：持久输入队列、派发与运行中 guidance。
-//   - directed_message.go / public_*.go：公开消息、mention conversation handoff、
+//   - directed_message.go / public_*.go：公开消息、服务端分类为 handoff（区别于 queue/internal）的 mention conversation handoff、
 //     visible context、携带非授权 Goal revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
 //     两阶段写入修复、host command 幂等、immediate/delayed durable wake 调度与在线重试。
 //     @ 不创建 Assignment；正式责任只来自 assign_work。

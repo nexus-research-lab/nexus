@@ -336,7 +336,7 @@ runtime capability and current SQL state.
 
 | Entry lane | Authority | Allowed control-plane behavior |
 | --- | --- | --- |
-| Unbound ordinary Room round | Conversation identity only | May chat and perform runtime-only activity; cannot create managed evidence or mutate a Work Item. |
+| Unbound ordinary Room round | Conversation identity plus, only for the durable Goal lead, a private start-of-round Goal revision snapshot | May chat and perform runtime-only activity; the Goal lead may mutate that exact Goal revision through `nexus_goal`, but cannot create managed evidence or mutate a Work Item without an Execution binding. |
 | Exact coordinator round | Ephemeral `CoordinationBinding` for one Execution and round | May inspect and coordinate that Execution according to current state and tool-specific rules. |
 | Exact worker round | `WorkBinding` for one responsibility chain | May act only on the bound Work Item and current Assignment/Attempt. |
 | Exact reviewer round | `ReviewBinding` for one Submission | May review only that immutable Submission. |
@@ -372,13 +372,22 @@ Goal-bound, the backend derives and validates Goal identity from authoritative
 storage.
 
 Goal mutations require an exact Goal ID and objective revision at the mutation
-boundary. Normally these come from runtime-owned `GoalAuthorityState`; an ambient
-current Goal, room membership, or visible Goal card is not sufficient authority.
-There is one narrow recovery lane: `retarget_goal` in a trusted visible user DM or
-Room round may read the current Goal once at tool invocation, bind its exact ID and
-revision into the request, and then pass the same service fences. This exception
-does not authorize `update_goal`, Objective Alignment, Execution mutation,
-internal continuations, external ingress, or Agent-to-Agent handoffs.
+boundary. An ambient current Goal, room membership, or visible Goal card is not
+sufficient authority. Host-minted continuation and WorkGraph rounds carry a
+shared runtime `GoalAuthorityState`. Separately, when a new physical round starts,
+the host may resolve the current Goal for its durable responsible Agent: the
+persisted Room lead, or the Agent encoded by a DM session key. That one exact
+start-of-round revision is copied into a private `nexus_goal` authority state; it
+is not written into the shared runtime context and therefore cannot become
+ambient Execution/WorkGraph authority. Another Room member, a mismatched DM
+Agent, a later revision, or a predecessor round still fails closed.
+
+There is also one narrow objective-correction recovery lane: `retarget_goal` in a
+trusted visible user DM or Room round may read the current Goal once at tool
+invocation, bind its exact ID and revision into the request, and then pass the
+same service fences. This source exception does not authorize `update_goal`,
+Objective Alignment, Execution mutation, internal continuations, external
+ingress, or Agent-to-Agent handoffs.
 
 ## 6. Execution tools
 
@@ -417,7 +426,7 @@ WorkGraph-specific gates apply only to a `confirmed` managed binding.
 | Tool | Atomic semantics |
 | --- | --- |
 | `get_goal` | Reads the current optional Goal and usage state. It does not mutate Goal or Execution state. |
-| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
+| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. A model-created Room Goal persists the server-verified creator as its lead; in DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
 | `retarget_goal` | Applies an explicit user objective correction while preserving Goal identity and usage. A trusted visible user round may late-bind the exact current Goal/revision only for this tool; every other source requires existing Goal authority. `standalone`/`reserved` update the Goal revision directly; `confirmed` enters the successor rebase saga; `pending`/`conflict` fail closed. |
 | `audit_objective_alignment` | Appends a three-state evidence report for the exact Goal revision and round without changing status. A Goal with a confirmed managed WorkGraph binding requires a current aligned report for completion; Goal-only and reserved Goals do not. |
 | `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. Completion rechecks revision, binding resolution, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. Pause, resume, and limit controls remain user/system operations. |
@@ -559,9 +568,11 @@ Implementations and callers must preserve all of the following:
 12. Runtime capability never substitutes for current SQL state, and SQL state
     never substitutes for exact runtime authority.
 13. Terminal and supersession fences reject late runtime results.
-14. Goal mutations use an exact Goal identity and objective revision; the trusted
-    visible-user `retarget_goal` recovery lane acquires both at invocation and does
-    not weaken any other mutation.
+14. Goal mutations use an exact Goal identity and objective revision. A durable
+    responsible Agent may receive only the current start-of-round revision in a
+    private `nexus_goal` state, while the trusted visible-user `retarget_goal`
+    recovery lane acquires both at invocation; neither path weakens Execution,
+    collaborator, stale-round, or stale-revision fences.
 15. Managed Subagents remain children of the bound Work Item responsibility chain.
 16. Plan revision and Goal retarget never silently carry responsibility history.
 17. Field shapes and enums come from protocol/parser/schema truth sources rather

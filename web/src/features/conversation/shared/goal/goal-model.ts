@@ -80,14 +80,14 @@ interface GoalStatusProjectionInput {
 }
 
 export type GoalBindingDisplayState =
-  | Exclude<GoalExecutionBindingState, "standalone" | "reserved">
+  | GoalExecutionBindingState
   | "unavailable";
 
 export interface GoalBindingBadgeModel {
   labelKey: TranslationKey;
   state: GoalBindingDisplayState;
   titleKey: TranslationKey;
-  tone: "conflict" | "confirmed" | "pending" | "unavailable";
+  tone: "conflict" | "confirmed" | "neutral" | "pending" | "unavailable";
 }
 
 interface VisibleGoalStatus {
@@ -164,6 +164,18 @@ const GOAL_BINDING_BADGE: Record<
   GoalBindingDisplayState,
   GoalBindingBadgeModel
 > = {
+  standalone: {
+    labelKey: "goal.binding_standalone",
+    state: "standalone",
+    titleKey: "goal.binding_standalone_title",
+    tone: "neutral",
+  },
+  reserved: {
+    labelKey: "goal.binding_standalone",
+    state: "reserved",
+    titleKey: "goal.binding_reserved_title",
+    tone: "neutral",
+  },
   pending: {
     labelKey: "goal.binding_pending",
     state: "pending",
@@ -288,12 +300,8 @@ export function buildGoalStatusStripModel(
 
 export function resolveGoalBindingBadgeModel(
   binding: GoalExecutionBinding | null,
-): GoalBindingBadgeModel | null {
-  const state = binding?.state ?? "unavailable";
-  if (state === "standalone" || state === "reserved") {
-    return null;
-  }
-  return GOAL_BINDING_BADGE[state];
+): GoalBindingBadgeModel {
+  return GOAL_BINDING_BADGE[binding?.state ?? "unavailable"];
 }
 
 function resolveVisibleGoalStatus(

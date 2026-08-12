@@ -586,6 +586,8 @@ successor saga 创建新的 Execution/Plan，不能理解为原位编辑既有 W
 
 `room_lead_agent_id` 只用于 Room Goal 创建。服务端按认证 owner 与当前 Room 成员目录重新验证并解析负责人名称；所有 user-created Goal 的 `metadata` 都会在 Goal service 信任边界移除 owner、Execution binding、objective transition/revision 和 Room runtime 键。Room 的 creator、lead、scope 与 collaboration-required 门槛只能由验证后的服务端事实建立。
 
+模型通过 `create_goal` 建立 Room Goal 时，服务端验证后的当前 Agent 同时成为 creator 与 lead；DM Goal 的负责人由 canonical Agent session key 决定。后续新物理 round 只有该负责人会在启动时获得一份私有的 exact Goal/objective revision 快照，用于 `retarget_goal`、`audit_objective_alignment` 和 `update_goal`。该快照不会写入共享 Execution authority，因此不能授权 WorkGraph mutation；其他 Room 成员、错误的 DM Agent、旧 round 或旧 revision 均会被拒绝。
+
 `POST /goals` 携 `replace_existing: true` 与 `PATCH /goals/{goal_id}` 携
 `objective` 都进入同一 objective retarget 语义：保留 Goal ID 与累计 usage，
 `standalone`/`reserved` 原位推进 objective revision；`confirmed` 进入 successor

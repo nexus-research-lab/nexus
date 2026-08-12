@@ -4,7 +4,7 @@ L4 | 父级: ../CLAUDE.md
 
 负责把用户意图转换为协议消息，并统一发送、ACK、超时和失败收口。这里不维护会话历史或 WebSocket 订阅状态。
 
-- `use-pending-request-acks.ts` 统一 chat / set_goal / input_queue / interrupt 的请求 ACK 注册、乱序到达和取消语义。
+- `use-pending-request-acks.ts` 统一 chat / set_goal / input_queue / interrupt 的请求 ACK 注册、所有权、乱序到达和取消语义；普通 Session 切换不取消已发送请求，只有本 Hook 预先追踪的 `client_request_id` 才能被事件收口，避免共享 Socket 的其他订阅者吞入外来 ACK。
 - `use-request-ack-failure.ts` 统一 ACK 超时后的正向证据恢复与重连；超时和快照缺失只能得到“状态未知”，不得据此回滚 chat optimistic 用户消息，只有后端显式拒绝才可清理；精确 interrupt 超时则恢复可重试停止状态。
 - `input-queue-actions.ts` 为 enqueue 发送稳定 `client_message_id` 与逐次 `client_request_id`，成功 ACK 前不算提交完成。
 - `conversation-goal-actions.ts` 把 Composer Goal 模式发送为独立 `set_goal`，并生成 canonical `/goal …` optimistic 控制记录；文本 `/goal` 的普通发送动作只做同 subtype 即时投影，是否命中仍由后端 host registry 决定。

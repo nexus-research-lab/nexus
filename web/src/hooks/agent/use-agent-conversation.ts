@@ -83,6 +83,7 @@ export function useAgentConversation(
     has_pending_request_ack: hasPendingRequestAck,
     reject_pending_request_ack: rejectPendingRequestAck,
     resolve_pending_request_ack: resolvePendingRequestAck,
+    track_pending_request_ack: trackPendingRequestAck,
     wait_for_request_ack: waitForRequestAck,
   } = usePendingRequestAcks();
 
@@ -279,6 +280,7 @@ export function useAgentConversation(
     settleAgentRoundStop,
     settleChatAckWaitFailure,
     settleRequestAckWaitFailure,
+    trackPendingRequestAck,
     trackOutboundRequest,
     waitForRequestAck,
   });
