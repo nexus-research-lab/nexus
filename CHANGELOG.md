@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed null completion-receipt fields from non-terminal Goal MCP results, so `create_goal`, `get_goal`, retarget, audit, and blocked updates no longer imply that the durable Goal ID is generated only at completion; successful completion still returns the exact host-only ID needed for usage finalization.
 - Repaired Goal token accounting when providers returned `total_tokens: 0` alongside positive usage fields: new DM/Room parent totals now fall back to the complete breakdown, existing Goal and all-Agent parent ledgers are migrated, historical completion receipts refresh from the corrected aggregate, and genuine all-zero usage remains authoritative.
 - Allowed the final Room or DM session tab to close directly into an ensured blank conversation with the normal Composer while preserving its history.
 - Prevented the Room Goal Composer lead selector from overlapping the stop shortcut by moving runtime status onto its own responsive row and stacking submit actions on very narrow shells.
