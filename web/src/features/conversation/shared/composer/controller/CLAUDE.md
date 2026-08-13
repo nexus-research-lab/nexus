@@ -5,7 +5,7 @@ L5 | 父级: web/src/features/conversation/shared/composer
 ## 职责
 
 - `use-composer-controller.ts`: 组合草稿、附件、提及、Slash 目录、历史和各动作协议
-- `use-composer-session-settings.ts`: 读取、缓存并更新 Session 覆盖，投影 Agent/全局继承结果；Room 模型入口打开时补齐成员摘要，保存期间阻止新一轮提交
+- `use-composer-session-settings.ts`: 读取、缓存并更新 Session 的模型、权限与 Connector 覆盖，投影 Agent/全局继承结果；Room 模型入口打开时补齐成员摘要，保存期间阻止新一轮提交
 - `use-composer-draft.ts`: 将正文、附件、输入模式、Goal 负责人和 Mention 目标绑定到包含 Session ID 的 Room/DM 内存草稿胶囊，并独立管理瞬时弹层状态
 - `use-composer-message-submit.ts`: 按资格判断、附件准备、投递和收尾阶段提交消息
 - `use-composer-goal-actions.ts`: 管理 Goal 与 Loop 动作

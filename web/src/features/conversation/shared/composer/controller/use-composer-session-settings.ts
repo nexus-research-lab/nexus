@@ -21,10 +21,12 @@ import {
   type SessionRuntimeSettings,
   updateSessionRuntimeSettingsApi,
 } from "@/lib/api/conversation/session-api";
+import { getConnectorsApi } from "@/lib/api/capability/connector-api";
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import { subscribeSessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ProviderOptionsResponse } from "@/types/capability/provider";
+import type { ConnectorInfo } from "@/types/capability/connector";
 
 import type {
   ComposerSessionSettingsScope,
@@ -32,6 +34,7 @@ import type {
 } from "../composer-model";
 
 const EMPTY_SETTINGS: SessionRuntimeSettings = {
+  connector_ids: null,
   model: "",
   permission_mode: "",
   provider: "",
@@ -50,6 +53,9 @@ export function useComposerSessionSettings(
   const [providerOptions, setProviderOptions] =
     useState<ProviderOptionsResponse | null>(null);
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
+  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
+  const [connectorsLoading, setConnectorsLoading] = useState(false);
+  const [connectorsError, setConnectorsError] = useState<string | null>(null);
   const [loadingSessionKeys, setLoadingSessionKeys] = useState<string[]>([]);
   const [savingSessionKey, setSavingSessionKey] = useState<string | null>(null);
   const [providerError, setProviderError] = useState<string | null>(null);
@@ -116,6 +122,40 @@ export function useComposerSessionSettings(
       active = false;
     };
   }, [preferencesRevision, scope?.runtimeKind, t]);
+
+  useEffect(() => {
+    if (!scope?.runtimeKind) {
+      setConnectors([]);
+      setConnectorsLoading(false);
+      setConnectorsError(null);
+      return undefined;
+    }
+    let active = true;
+    setConnectorsLoading(true);
+    setConnectorsError(null);
+    void getConnectorsApi({ status: "available" })
+      .then((items) => {
+        if (active) {
+          setConnectors(items.filter(
+            (connector) => connector.connection_state === "connected",
+          ));
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setConnectorsError(resolveErrorMessage(
+            error,
+            t("composer.connectors_load_failed"),
+          ));
+        }
+      })
+      .finally(() => {
+        if (active) setConnectorsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [scope?.runtimeKind, t]);
 
   useEffect(() => {
     const handlePreferencesChange = () => {
@@ -244,6 +284,8 @@ export function useComposerSessionSettings(
   );
   const effectivePermissionMode =
     settings.permission_mode || inheritedPermission;
+  const inheritedConnectorIds = target?.defaultConnectorIds ?? [];
+  const enabledConnectorIds = settings.connector_ids ?? inheritedConnectorIds;
   const sessionBusy = Boolean(
     target
     && (
@@ -277,6 +319,10 @@ export function useComposerSessionSettings(
   ]);
   return {
     busy: sessionBusy,
+    connectors,
+    connectorsError,
+    connectorsLoading,
+    enabledConnectorIds,
     ensureTargetsLoaded,
     error: settingsError ?? providerError,
     hasModelOverride: Boolean(settings.provider && settings.model),
@@ -319,6 +365,17 @@ export function useComposerSessionSettings(
       ...settings,
       permission_mode: permissionMode,
     }),
+    toggleConnector: (connectorId: string) => {
+      const nextConnectorIds = enabledConnectorIds.includes(connectorId)
+        ? enabledConnectorIds.filter((value) => value !== connectorId)
+        : [...enabledConnectorIds, connectorId];
+      return updateSettings({
+        ...settings,
+        connector_ids: sameStringSet(nextConnectorIds, inheritedConnectorIds)
+          ? null
+          : nextConnectorIds,
+      });
+    },
   };
 }
 
@@ -397,4 +454,9 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim()
     ? error.message
     : fallback;
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  return left.length === right.length
+    && left.every((value) => right.includes(value));
 }

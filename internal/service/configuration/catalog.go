@@ -410,7 +410,8 @@ func agentOptionsShape() map[string]any {
 	return map[string]any{
 		"provider": "string", "model": "string", "permission_mode": "default|acceptEdits|bypassPermissions|plan",
 		"allowed_tools": "string[]", "disallowed_tools": "string[]",
-		"max_turns": "optional integer", "max_thinking_tokens": "optional integer",
+		"connector_ids": "string[]; connected marketplace Connectors enabled by default for the Agent",
+		"max_turns":     "optional integer", "max_thinking_tokens": "optional integer",
 		"mcp_servers": map[string]any{
 			"<server_name>": map[string]any{
 				"type":          "stdio|http|sse string",

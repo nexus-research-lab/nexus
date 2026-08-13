@@ -8,9 +8,14 @@ import (
 
 // BuildAll 汇集全部 connector MCP 工具。
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool {
-	return []sdktool.Tool{
+	tools := []sdktool.Tool{
 		list(svc, sctx),
 		call(svc, sctx),
+	}
+	if !sctx.ConnectorEnabled("feishu-docx") {
+		return tools
+	}
+	return append(tools,
 		feishuDocxRead(svc, sctx),
 		feishuDocxSearch(svc, sctx),
 		feishuDocxSheetSheets(svc, sctx),
@@ -27,5 +32,5 @@ func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool 
 		feishuDocxWikiSpace(svc, sctx),
 		feishuDocxWikiNodes(svc, sctx),
 		feishuDocxWikiNode(svc, sctx),
-	}
+	)
 }

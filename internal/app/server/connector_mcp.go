@@ -16,6 +16,7 @@ import (
 	connectormcp "github.com/nexus-research-lab/nexus/internal/mcp/connectors"
 	connectormcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // newConnectorMCPBuilder 返回 DM/Room 实时链路所需的 connector MCPServerBuilder。
@@ -38,14 +39,25 @@ func newConnectorMCPBuilder(
 			strings.TrimSpace(agentValue.OwnerUserID) == "" {
 			return nil
 		}
+		enabledConnectorIDs := runtimectx.EnabledConnectorIDs(ctx)
+		enabledConnectorIDs = activeEnabledConnectorIDs(
+			ctx,
+			svc,
+			agentValue.OwnerUserID,
+			enabledConnectorIDs,
+		)
+		if len(enabledConnectorIDs) == 0 {
+			return nil
+		}
 		sctx := connectormcpcontract.ServerContext{
-			OwnerUserID:        agentValue.OwnerUserID,
-			CurrentAgentID:     agentValue.AgentID,
-			CurrentSessionKey:  sessionKey,
-			SourceContextType:  sourceContextType,
-			SourceContextID:    sourceContextID,
-			SourceContextLabel: sourceContextLabel,
-			IsMainAgent:        agentValue.IsMain,
+			OwnerUserID:         agentValue.OwnerUserID,
+			CurrentAgentID:      agentValue.AgentID,
+			CurrentSessionKey:   sessionKey,
+			SourceContextType:   sourceContextType,
+			SourceContextID:     sourceContextID,
+			SourceContextLabel:  sourceContextLabel,
+			IsMainAgent:         agentValue.IsMain,
+			EnabledConnectorIDs: enabledConnectorIDs,
 		}
 		servers := map[string]sdkmcp.ServerConfig{
 			connectormcpcontract.ServerName: sdkmcp.SDKServerConfig{
@@ -53,13 +65,55 @@ func newConnectorMCPBuilder(
 				Instance: connectormcp.NewServer(svc, sctx),
 			},
 		}
-		appendAmapMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
-		appendDidiMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
-		appendDingTalkAITableMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
-		appendTencentDocsMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
-		appendYuqueMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+		for _, connectorID := range enabledConnectorIDs {
+			switch connectorID {
+			case "amap":
+				appendAmapMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			case "didi":
+				appendDidiMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			case "dingtalk-ai-table":
+				appendDingTalkAITableMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			case "tencent-docs":
+				appendTencentDocsMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			case "yuque":
+				appendYuqueMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			}
+		}
 		return servers
 	}
+}
+
+func activeEnabledConnectorIDs(
+	ctx context.Context,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+	requested []string,
+) []string {
+	if len(requested) == 0 {
+		return nil
+	}
+	connections, err := svc.ListActiveConnections(ctx, ownerUserID)
+	if err != nil {
+		return nil
+	}
+	active := make(map[string]struct{}, len(connections))
+	for _, connection := range connections {
+		active[strings.TrimSpace(connection.ConnectorID)] = struct{}{}
+	}
+	result := make([]string, 0, len(requested))
+	seen := make(map[string]struct{}, len(requested))
+	for _, connectorID := range requested {
+		connectorID = strings.TrimSpace(connectorID)
+		if _, ok := active[connectorID]; !ok {
+			continue
+		}
+		if _, duplicate := seen[connectorID]; duplicate {
+			continue
+		}
+		seen[connectorID] = struct{}{}
+		result = append(result, connectorID)
+	}
+	return result
 }
 
 func appendAmapMCPServer(

@@ -18,6 +18,9 @@ type Options struct {
 	MaxTurns          *int           `json:"max_turns,omitempty"`
 	MaxThinkingTokens *int           `json:"max_thinking_tokens,omitempty"`
 	MCPServers        map[string]any `json:"mcp_servers,omitempty"`
+	// ConnectorIDs 保存默认挂载到该 Agent Session 的已连接 Connector。
+	// 空列表表示默认不挂载，Session 可显式覆盖。
+	ConnectorIDs []string `json:"connector_ids,omitempty"`
 	// SkillIDs 保存全局技能库中当前 Agent 已启用的引用；路径不进入协议。
 	//
 	// 平台和 ~/.agents/skills 使用 canonical name，用户导入来源使用

@@ -178,11 +178,15 @@ func normalizePreferences(item Preferences) Preferences {
 	options.Model = strings.TrimSpace(options.Model)
 	options.AllowedTools = normalizeStringSlice(options.AllowedTools)
 	options.DisallowedTools = normalizeStringSlice(options.DisallowedTools)
+	options.ConnectorIDs = normalizeStringSlice(options.ConnectorIDs)
 	if options.AllowedTools == nil {
 		options.AllowedTools = []string{}
 	}
 	if options.DisallowedTools == nil {
 		options.DisallowedTools = []string{}
+	}
+	if options.ConnectorIDs == nil {
+		options.ConnectorIDs = []string{}
 	}
 	if len(options.SettingSources) == 0 {
 		options.SettingSources = []string{"project"}

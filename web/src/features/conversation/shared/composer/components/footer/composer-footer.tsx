@@ -39,6 +39,8 @@ export function ComposerFooter(props: ComposerFooterProps) {
             onAttachmentSelect={props.onAttachmentSelect}
             onGoalToggle={props.onGoalToggle}
             onLoopSelect={props.onLoopSelect}
+            sessionSettingsController={props.sessionSettingsController}
+            sessionSettingsDisabled={props.sessionSettingsDisabled}
           />
         ) : null}
         <ComposerSessionControls

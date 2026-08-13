@@ -19,6 +19,7 @@ import {
   createAgentOptionsDraft,
 } from "./agent-options-draft";
 import { useAgentNameValidation } from "./use-agent-name-validation";
+import { useAgentConnectors } from "./use-agent-connectors";
 import { useAgentOptionsAutoSave } from "./use-agent-options-auto-save";
 import { useAgentOptionsDraft } from "./use-agent-options-draft";
 import { useAgentProfileTemplate } from "./use-agent-profile-template";
@@ -85,6 +86,10 @@ export function useAgentOptionsEditorController({
     onTabChange,
     scopeKey: commandScopeKey,
   });
+  const connectors = useAgentConnectors(
+    isActive && tabs.activeTab === "advanced",
+    t("agent_options.advanced.connector_load_failed"),
+  );
   const providerOptions = useAgentProviderOptions(
     isActive,
     t("agent_options.identity.provider_load_failed"),
@@ -144,7 +149,7 @@ export function useAgentOptionsEditorController({
       t,
     }),
     content: {
-      advanced: buildAdvancedProps(draftController),
+      advanced: buildAdvancedProps(draftController, connectors),
       identity: buildIdentityProps({
         draftController,
         profileTemplate,
@@ -293,14 +298,23 @@ function buildSkillsProps(
   };
 }
 
-function buildAdvancedProps({
-  draft,
-  toggleTool,
-  updateField,
-}: DraftController) {
+function buildAdvancedProps(
+  { draft, toggleTool, updateField }: DraftController,
+  connectors: ReturnType<typeof useAgentConnectors>,
+) {
   return {
     allowedTools: draft.allowedTools,
+    connectorIds: draft.connectorIds,
+    connectors: connectors.items,
+    connectorsError: connectors.error,
+    connectorsLoading: connectors.loading,
     onPermissionModeChange: (value: string) => updateField("permissionMode", value),
+    onToggleConnector: (connectorId: string) => updateField(
+      "connectorIds",
+      draft.connectorIds.includes(connectorId)
+        ? draft.connectorIds.filter((value) => value !== connectorId)
+        : [...draft.connectorIds, connectorId],
+    ),
     onToggleTool: toggleTool,
     permissionMode: draft.permissionMode,
   };

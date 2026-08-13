@@ -104,6 +104,7 @@ export function useDmChatComposerModel({
           targets: [{
             agentId: agent.agent_id,
             avatar: agent.avatar,
+            defaultConnectorIds: agent.options.connector_ids,
             defaultModel: agent.options.model,
             defaultPermissionMode: agent.options.permission_mode,
             defaultProvider: agent.options.provider,

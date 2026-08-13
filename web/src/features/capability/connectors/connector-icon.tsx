@@ -4,7 +4,7 @@ import { cn } from "@/shared/ui/class-name";
 
 import { getConnectorLetter } from "./connector-icons";
 
-type ConnectorIconSize = "md" | "lg";
+type ConnectorIconSize = "sm" | "md" | "lg";
 
 interface ConnectorIconProps {
   icon: string;
@@ -14,11 +14,13 @@ interface ConnectorIconProps {
 }
 
 const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
+  sm: "h-5 w-5 rounded-[5px] text-2xs",
   md: "h-9 w-9 rounded-[8px] text-compact",
   lg: "h-14 w-14 surface-radius-md text-md",
 };
 
 const ICON_MASK_SIZE_CLASS: Record<ConnectorIconSize, string> = {
+  sm: "h-3.5 w-3.5",
   md: "h-6 w-6",
   lg: "h-9 w-9",
 };

@@ -129,6 +129,13 @@ func (s *Service) ensureClient(
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
+		mcpContext = runtimectx.WithEnabledConnectorIDs(
+			mcpContext,
+			protocol.EffectiveSessionConnectorIDs(
+				agentValue.Options.ConnectorIDs,
+				sessionItem.Options,
+			),
+		)
 		mcpServers = s.mcpServers(
 			mcpContext,
 			agentValue,

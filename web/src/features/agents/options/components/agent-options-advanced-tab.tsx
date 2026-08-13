@@ -11,6 +11,7 @@ import {
   Check,
   FilePlus2,
   Globe2,
+  Loader2,
   Pencil,
   Search,
   Terminal,
@@ -22,6 +23,8 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
+import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
+import type { ConnectorInfo } from "@/types/capability/connector";
 import {
   AGENT_PERMISSION_MODES,
   AVAILABLE_AGENT_TOOLS,
@@ -33,6 +36,11 @@ interface AgentOptionsAdvancedTabProps {
   onPermissionModeChange: (mode: string) => void;
   allowedTools: string[];
   onToggleTool: (toolName: string, type: "allowed" | "disallowed") => void;
+  connectorIds: string[];
+  connectors: ConnectorInfo[];
+  connectorsError: string | null;
+  connectorsLoading: boolean;
+  onToggleConnector: (connectorId: string) => void;
 }
 
 const TOOL_ICONS: Record<
@@ -53,6 +61,11 @@ export function AgentOptionsAdvancedTab({
   onPermissionModeChange: onPermissionModeChange,
   allowedTools: allowedTools,
   onToggleTool: onToggleTool,
+  connectorIds,
+  connectors,
+  connectorsError,
+  connectorsLoading,
+  onToggleConnector,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
   const isBypassPermissionMode = permissionMode === "bypassPermissions";
@@ -124,6 +137,38 @@ export function AgentOptionsAdvancedTab({
           ))}
         </div>
       </section>
+
+      <section className="space-y-3">
+        <SectionHeader
+          description={t("agent_options.advanced.connector_access_hint")}
+          title={t("agent_options.advanced.connector_access")}
+          trailing={t("agent_options.advanced.enabled_connectors", {
+            count: connectorIds.length,
+          })}
+        />
+        {connectorsLoading ? (
+          <div className="flex h-16 items-center justify-center text-(--icon-muted)">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        ) : connectorsError ? (
+          <p className="text-xs text-(--destructive)">{connectorsError}</p>
+        ) : connectors.length === 0 ? (
+          <p className="text-xs text-(--text-soft)">
+            {t("agent_options.advanced.connector_empty")}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 [overflow-anchor:none]">
+            {connectors.map((connector) => (
+              <ConnectorAuthorizationRow
+                checked={connectorIds.includes(connector.connector_id)}
+                connector={connector}
+                key={connector.connector_id}
+                onToggle={() => onToggleConnector(connector.connector_id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -192,6 +237,53 @@ function ToolAuthorizationRow({
       <GlassSwitch
         aria-label={name}
         checked={checked}
+        onChange={onToggle}
+        size="xs"
+      />
+    </div>
+  );
+}
+
+function ConnectorAuthorizationRow({
+  checked,
+  connector,
+  onToggle,
+}: {
+  checked: boolean;
+  connector: ConnectorInfo;
+  onToggle: () => void;
+}) {
+  const { t } = useI18n();
+  const connected = connector.connection_state === "connected";
+  return (
+    <div
+      className={cn(
+        "grid min-h-[64px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
+        checked
+          ? SIDEBAR_SELECTION_CLASS_NAME
+          : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+        !connected && !checked && "opacity-(--disabled-opacity)",
+      )}
+    >
+      <ConnectorIcon
+        className="h-[30px] w-[30px] rounded-[8px]"
+        icon={connector.icon}
+        title={connector.title}
+      />
+      <span className="min-w-0">
+        <span className="block truncate text-compact font-semibold text-(--text-strong)">
+          {connector.title}
+        </span>
+        <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
+          {connected
+            ? connector.description
+            : t("agent_options.advanced.connector_disconnected")}
+        </span>
+      </span>
+      <GlassSwitch
+        aria-label={connector.title}
+        checked={checked}
+        disabled={!connected && !checked}
         onChange={onToggle}
         size="xs"
       />

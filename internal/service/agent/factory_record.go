@@ -57,6 +57,7 @@ func BuildCreateRecord(
 		AllowedToolsJSON:     mustJSONString(options.AllowedTools),
 		DisallowedToolsJSON:  mustJSONString(options.DisallowedTools),
 		MCPServersJSON:       mustJSONString(options.MCPServers),
+		ConnectorIDsJSON:     mustJSONString(options.ConnectorIDs),
 		SkillIDsJSON:         mustJSONString(options.SkillIDs),
 		DisabledSkillIDsJSON: mustJSONString(options.DisabledSkillIDs),
 		MaxTurns:             options.MaxTurns,
@@ -121,6 +122,7 @@ func defaultAgentOptions(isMain bool) protocol.Options {
 	}
 	return protocol.Options{
 		AllowedTools:     []string{},
+		ConnectorIDs:     []string{},
 		PermissionMode:   protocol.DefaultAgentPermissionMode,
 		SkillIDs:         skillIDs,
 		DisabledSkillIDs: []string{},
@@ -156,6 +158,9 @@ func mergeOptions(base protocol.Options, incoming protocol.Options) protocol.Opt
 	}
 	if incoming.MCPServers != nil {
 		result.MCPServers = incoming.MCPServers
+	}
+	if incoming.ConnectorIDs != nil {
+		result.ConnectorIDs = incoming.ConnectorIDs
 	}
 	if incoming.SkillIDs != nil {
 		result.SkillIDs = incoming.SkillIDs
