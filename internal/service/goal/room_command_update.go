@@ -1,5 +1,5 @@
-// INPUT: 服务端已验证的 Room lead/成员规模与同一次 Goal replace mutation。
-// OUTPUT: 与 objective/budget 同版本提交的 Room ownership 和协作完成门槛。
+// INPUT: 服务端已验证的 Room lead 与同一次 Goal replace mutation。
+// OUTPUT: 与 objective/budget 同版本提交的 Room ownership。
 // POS: UI `/goal` 与 set_goal 替换共享 Goal 时 server-only metadata 的合并边界。
 package goal
 
@@ -34,39 +34,5 @@ func applyServerRoomGoalUpdate(
 		}
 		mutation.changed = true
 		mutation.payload["room_lead_agent_id"] = leadAgentID
-	}
-	if request.RoomCollaborationRequired == nil {
-		return
-	}
-	item.Metadata = cloneMap(item.Metadata)
-	if item.Metadata == nil {
-		item.Metadata = map[string]any{}
-	}
-	required := *request.RoomCollaborationRequired
-	roundID := strings.TrimSpace(request.RoomCollaborationRoundID)
-	changed := RoomCollaborationRequired(*item) != required
-	if required {
-		item.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired] = true
-		if roundID != "" && protocol.GoalMetadataString(
-			item.Metadata,
-			protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
-		) != roundID {
-			item.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequirementRound] = roundID
-			changed = true
-		}
-	} else {
-		for _, key := range []string{
-			protocol.GoalMetadataRoomGoalCollaborationRequired,
-			protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
-		} {
-			if _, exists := item.Metadata[key]; exists {
-				delete(item.Metadata, key)
-				changed = true
-			}
-		}
-	}
-	if changed {
-		mutation.changed = true
-		mutation.payload["room_collaboration_required"] = required
 	}
 }

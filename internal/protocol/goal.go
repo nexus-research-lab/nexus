@@ -1,5 +1,5 @@
 // INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、host Goal command、最终 usage fence 与 continuation 数据。
-// OUTPUT: Goal 领域协议、独立 Goal 控制请求、显式 Goal 的稳定 Execution 预留身份与 server-owned binding phase/只读投影、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
+// OUTPUT: Goal 领域协议、独立 Goal 控制请求、Goal-only/managed Execution mode、server-derived continuation/binding 只读投影、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
@@ -22,6 +22,23 @@ const (
 	GoalStatusBlocked       GoalStatus = "blocked"
 	GoalStatusBudgetLimited GoalStatus = "budget_limited"
 	GoalStatusUsageLimited  GoalStatus = "usage_limited"
+)
+
+// GoalContinuationState separates Goal lifecycle from the automatic
+// continuation controller. An active Goal may be recovering or suspended
+// without pretending that the user paused the Goal itself.
+type GoalContinuationState string
+
+const (
+	GoalContinuationStateInactive   GoalContinuationState = "inactive"
+	GoalContinuationStateReady      GoalContinuationState = "ready"
+	GoalContinuationStateRecovering GoalContinuationState = "recovering"
+	GoalContinuationStateSuspended  GoalContinuationState = "suspended"
+
+	// GoalContinuationSuppressionThreshold is the consecutive no-progress
+	// count at which automatic continuation stops. The preceding empty turn is
+	// the one server-owned recovery opportunity.
+	GoalContinuationSuppressionThreshold = 2
 )
 
 // GoalUpdateSource 表示 Goal 状态变化来源。
@@ -76,6 +93,16 @@ const (
 	GoalExecutionBindingStateConflict   GoalExecutionBindingState = "conflict"
 )
 
+// GoalExecutionMode records whether a Goal is still independent or has
+// explicitly entered the managed WorkGraph lifecycle. It is orthogonal to the
+// binding phase: managed mode may be reserved, pending, or confirmed.
+type GoalExecutionMode string
+
+const (
+	GoalExecutionModeGoalOnly GoalExecutionMode = "goal_only"
+	GoalExecutionModeManaged  GoalExecutionMode = "managed"
+)
+
 // GoalExecutionBindingResolution is the shared Goal/Execution binding read
 // model. ReservedExecutionID is provenance only; ExecutionID is populated only
 // for an exact authoritative binding.
@@ -94,14 +121,16 @@ type GoalExecutionBindingView struct {
 }
 
 const (
-	GoalMetadataRoomGoalScope                 = "room_goal_scope"
-	GoalMetadataRoomGoalCreatorAgentID        = "room_goal_creator_agent_id"
-	GoalMetadataRoomGoalLeadAgentID           = "room_goal_lead_agent_id"
-	GoalMetadataRoomGoalLeadAgentName         = "room_goal_lead_agent_name"
-	GoalMetadataRoomGoalLoopSlug              = "room_goal_loop_slug"
-	GoalMetadataRoomGoalLoopTitle             = "room_goal_loop_title"
+	GoalMetadataRoomGoalScope          = "room_goal_scope"
+	GoalMetadataRoomGoalCreatorAgentID = "room_goal_creator_agent_id"
+	GoalMetadataRoomGoalLeadAgentID    = "room_goal_lead_agent_id"
+	GoalMetadataRoomGoalLeadAgentName  = "room_goal_lead_agent_name"
+	GoalMetadataRoomGoalLoopSlug       = "room_goal_loop_slug"
+	GoalMetadataRoomGoalLoopTitle      = "room_goal_loop_title"
+	// GoalMetadataRoomGoalCollaborationRequired is retained for historical
+	// decoding only. New code neither writes nor treats it as a completion gate.
 	GoalMetadataRoomGoalCollaborationRequired = "room_goal_collaboration_required"
-	// Collaboration evidence is monotonic for one durable Goal ID. The stored
+	// Collaboration evidence is optional audit context and monotonic for one durable Goal ID. The stored
 	// round/agent/revision provenance fences late writes; objective retarget does
 	// not erase an already observed public non-lead contribution.
 	GoalMetadataRoomGoalCollaborationObserved         = "room_goal_collaboration_observed"
@@ -118,6 +147,10 @@ const (
 	// owner-scoped Goal reads and mutations. Request metadata cannot replace it.
 	GoalMetadataOwnerUserID = "owner_user_id"
 	GoalMetadataExecutionID = "execution_id"
+	// GoalMetadataExecutionMode distinguishes new Goal-only records from legacy
+	// explicit Goals whose command identity implied an Execution reservation.
+	// User metadata cannot write this field.
+	GoalMetadataExecutionMode = "execution_mode"
 	// GoalMetadataExecutionBindingState is server-owned. Only reserved,
 	// pending and confirmed are persisted; standalone/conflict are derived by
 	// the binding resolver.
@@ -269,6 +302,36 @@ type Goal struct {
 	Metadata           map[string]any `json:"metadata,omitempty"`
 }
 
+// ContinuationState derives the automatic continuation controller state from
+// durable Goal fields. It is a read projection and is never persisted as a
+// second source of truth.
+func (g Goal) ContinuationState() GoalContinuationState {
+	if NormalizeGoalStatus(g.Status) != GoalStatusActive {
+		return GoalContinuationStateInactive
+	}
+	if strings.TrimSpace(g.LastError) != "" ||
+		g.EmptyProgressCount >= GoalContinuationSuppressionThreshold {
+		return GoalContinuationStateSuspended
+	}
+	if g.EmptyProgressCount > 0 {
+		return GoalContinuationStateRecovering
+	}
+	return GoalContinuationStateReady
+}
+
+// MarshalJSON publishes the server-derived continuation state with every Goal
+// REST and WebSocket projection without storing a denormalized state column.
+func (g Goal) MarshalJSON() ([]byte, error) {
+	type goalAlias Goal
+	return json.Marshal(struct {
+		*goalAlias
+		ContinuationState GoalContinuationState `json:"continuation_state"`
+	}{
+		goalAlias:         (*goalAlias)(&g),
+		ContinuationState: g.ContinuationState(),
+	})
+}
+
 // GoalUsageReport 表示按 Goal ID 查询的稳定聚合 usage。
 // UsageFinalized 为 true 时，Usage 不再接受迟到的 runtime 增量。
 type GoalUsageReport struct {
@@ -326,6 +389,10 @@ func ExplicitGoalReservedExecutionID(commandID string) string {
 // Explicit Goals created before create_goal stored execution_id recover the same
 // identity from their server-owned command instead of minting a new state chain.
 func GoalReservedExecutionID(goal Goal) string {
+	if GoalExecutionMode(GoalMetadataString(goal.Metadata, GoalMetadataExecutionMode)) ==
+		GoalExecutionModeGoalOnly {
+		return ""
+	}
 	if executionID := GoalMetadataString(goal.Metadata, GoalMetadataExecutionID); executionID != "" {
 		return executionID
 	}
@@ -494,20 +561,16 @@ type GoalCommandResult struct {
 
 // CreateGoalRequest 表示创建 Goal 的请求。
 type CreateGoalRequest struct {
-	SessionKey      string `json:"session_key"`
-	Objective       string `json:"objective"`
-	TokenBudget     *int64 `json:"token_budget,omitempty"`
-	ReplaceExisting bool   `json:"replace_existing,omitempty"`
-	RoomLeadAgentID string `json:"room_lead_agent_id,omitempty"`
-	CreatedBy       string `json:"created_by,omitempty"`
-	RoundID         string `json:"round_id,omitempty"`
-	OwnerUserID     string `json:"owner_user_id,omitempty"`
-	AgentID         string `json:"-"`
-	// RoomCollaborationRequired 只能由已验证 Room 上下文的服务层设置；
-	// transport JSON 不得伪造共享 Goal 的完成门槛。Goal 服务还会用
-	// owner-scoped session proof 补齐或加强它，complete 时重新验证当前成员。
-	RoomCollaborationRequired *bool          `json:"-"`
-	Metadata                  map[string]any `json:"metadata,omitempty"`
+	SessionKey      string         `json:"session_key"`
+	Objective       string         `json:"objective"`
+	TokenBudget     *int64         `json:"token_budget,omitempty"`
+	ReplaceExisting bool           `json:"replace_existing,omitempty"`
+	RoomLeadAgentID string         `json:"room_lead_agent_id,omitempty"`
+	CreatedBy       string         `json:"created_by,omitempty"`
+	RoundID         string         `json:"round_id,omitempty"`
+	OwnerUserID     string         `json:"owner_user_id,omitempty"`
+	AgentID         string         `json:"-"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 // UpdateGoalRequest 表示更新 Goal 的请求。
@@ -516,12 +579,10 @@ type UpdateGoalRequest struct {
 	TokenBudget OptionalInt64  `json:"token_budget,omitempty"`
 	OwnerUserID string         `json:"owner_user_id,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-	// Room ownership/completion fields are server-derived command context.
+	// Room ownership fields are server-derived command context.
 	// They are never accepted from HTTP or WebSocket JSON.
-	RoomLeadAgentID           string `json:"-"`
-	RoomLeadAgentName         string `json:"-"`
-	RoomCollaborationRequired *bool  `json:"-"`
-	RoomCollaborationRoundID  string `json:"-"`
+	RoomLeadAgentID   string `json:"-"`
+	RoomLeadAgentName string `json:"-"`
 }
 
 // RetargetGoalRequest 表示模型基于用户明确纠正重定向当前 active Goal。

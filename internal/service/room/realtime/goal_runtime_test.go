@@ -1391,11 +1391,11 @@ type fakeRoomGoalContextProvider struct {
 	usageLimitReason []string
 	usageLimitKeys   []string
 	progress         []bool
+	progressRevision []int64
 	failures         []string
 	completionMisses []string
 	activities       []string
 	handbacks        []string
-	collabRequired   []string
 	collabEvidence   []string
 	events           []protocol.GoalEvent
 	plan             *protocol.GoalContinuation
@@ -1453,10 +1453,13 @@ func (p *fakeRoomGoalContextProvider) UsageLimitForSession(_ context.Context, se
 	return nil, nil
 }
 
-func (p *fakeRoomGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool, _ ...int64) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool, revisions ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.progress = append(p.progress, progressed)
+	if len(revisions) > 0 {
+		p.progressRevision = append(p.progressRevision, revisions[0])
+	}
 	return nil, nil
 }
 
@@ -1485,13 +1488,6 @@ func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationHandback(_ cont
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.handbacks = append(p.handbacks, strings.TrimSpace(roundID))
-	return nil, nil
-}
-
-func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationRequired(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.collabRequired = append(p.collabRequired, strings.TrimSpace(roundID))
 	return nil, nil
 }
 
@@ -1566,6 +1562,12 @@ func (p *fakeRoomGoalContextProvider) recordedProgress() []bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]bool(nil), p.progress...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedProgressRevisions() []int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]int64(nil), p.progressRevision...)
 }
 
 func (p *fakeRoomGoalContextProvider) recordedFailures() []string {
@@ -1709,10 +1711,6 @@ func (p *cancellationGoalProvider) RecordGoalActivity(context.Context, string, s
 }
 
 func (p *cancellationGoalProvider) RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error) {
-	return p.current, nil
-}
-
-func (p *cancellationGoalProvider) RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error) {
 	return p.current, nil
 }
 
@@ -2004,7 +2002,7 @@ func TestRoomGoalDurableBlockersIgnoreRetargetedCollaborationRevision(t *testing
 	}
 }
 
-func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
+func TestRoomGoalCompletionReportIgnoresMemberCount(t *testing.T) {
 	contextValue := newAuthorityFenceContext()
 	contextValue.Room.OwnerUserID = "owner-completion-membership"
 	store := &authorityFenceRoomStore{contextValue: contextValue}
@@ -2024,8 +2022,8 @@ func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !report.CollaborationRequired || report.Blocker != "" {
-		t.Fatalf("report = %#v, want current multi-member collaboration requirement", report)
+	if report.Blocker != "" {
+		t.Fatalf("report = %#v, want member count not to create a blocker", report)
 	}
 
 	store.update(func(current *protocol.ConversationContextAggregate) {
@@ -2040,7 +2038,7 @@ func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.CollaborationRequired || report.Blocker != "" {
+	if report.Blocker != "" {
 		t.Fatalf("report = %#v, want single-Agent Room without dynamic requirement", report)
 	}
 }

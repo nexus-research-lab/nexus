@@ -313,7 +313,7 @@ func TestShouldBroadcastRoomChatAckForInternalGoalContinuation(t *testing.T) {
 	}
 }
 
-func TestBuildRoomGoalCollaborationContextRequiresPublicDelegation(t *testing.T) {
+func TestBuildRoomGoalCollaborationContextKeepsCollaborationOptional(t *testing.T) {
 	contextValue := buildRoomGoalCollaborationContext(map[string]string{
 		"agent-lead":  "负责人",
 		"agent-alpha": "Alpha",
@@ -321,17 +321,18 @@ func TestBuildRoomGoalCollaborationContextRequiresPublicDelegation(t *testing.T)
 	}, "agent-lead")
 
 	for _, expected := range []string{
-		"Visible collaboration is a required part",
+		"Room Goal collaboration options",
 		"Lead agent for this continuation: 负责人 (agent_id=agent-lead)",
 		"@Alpha (agent_id=agent-alpha)",
 		"@Beta (agent_id=agent-beta)",
 		"assess task complexity, separable work, member fit",
 		"@mention is conversation-only",
+		"substantive public reply",
+		"audit context, not a completion gate",
 		"use assign_work for one distinct Ready Work Item",
 		"do not duplicate that deliverable",
 		"coordination, unblocking, integration, and verification",
-		"Do not call the Goal update tool in the same turn",
-		"Completion requires room-visible collaborator evidence",
+		"explicitly cancel that work first",
 	} {
 		if !strings.Contains(contextValue, expected) {
 			t.Fatalf("collaboration context missing %q:\n%s", expected, contextValue)
@@ -339,6 +340,11 @@ func TestBuildRoomGoalCollaborationContextRequiresPublicDelegation(t *testing.T)
 	}
 	if strings.Contains(contextValue, "@负责人") {
 		t.Fatalf("collaboration context should not delegate to lead:\n%s", contextValue)
+	}
+	for _, forbidden := range []string{"Visible collaboration is a required part", "Completion requires room-visible collaborator evidence"} {
+		if strings.Contains(contextValue, forbidden) {
+			t.Fatalf("collaboration context must not contain completion gate %q:\n%s", forbidden, contextValue)
+		}
 	}
 }
 
@@ -980,6 +986,30 @@ func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || progress[0] {
 		t.Fatalf("progress = %#v, want one false continuation progress", progress)
+	}
+}
+
+func TestRecordGoalContinuationProgressUsesRetargetedBoundRevision(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &Service{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:retargeted",
+		AgentRoundID:      "goal_continuation_retargeted",
+	}
+	grantTestRoomGoalAuthority(slot, "room:group:retargeted", "goal-retargeted")
+	if !slot.ensureGoalAuthorityState().Bind("goal-retargeted", 2, "execution-retargeted") {
+		t.Fatal("bind retargeted Goal revision")
+	}
+	roundValue := &activeRoomRound{InputOptions: sdkprotocol.OutboundMessageOptions{
+		Purpose: "goal_continuation",
+	}}
+
+	service.recordGoalContinuationProgressForSlot(
+		context.Background(), slot, roundValue, exec.RoundExecutionResult{}, nil,
+	)
+
+	if revisions := goalProvider.recordedProgressRevisions(); len(revisions) != 1 || revisions[0] != 2 {
+		t.Fatalf("progress revisions = %#v, want [2]", revisions)
 	}
 }
 

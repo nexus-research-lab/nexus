@@ -310,7 +310,7 @@ function resolveVisibleGoalStatus(
   if (input.continuationHold) {
     return { label: input.continuationHold.label, status: "paused" };
   }
-  if ((input.goal.empty_progress_count ?? 0) > 0) {
+  if (goalContinuationSuppressed(input.goal)) {
     return { label: EMPTY_PROGRESS_LABEL, status: "paused" };
   }
   return {
@@ -327,7 +327,7 @@ function resolveGoalStatusTitle(
     return input.continuationHold.detail;
   }
   if (input.goal.status === "active" &&
-    (input.goal.empty_progress_count ?? 0) > 0 &&
+    goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
     return `${EMPTY_PROGRESS_MESSAGE} 点击“继续”可重试。`;
   }
@@ -341,7 +341,7 @@ function resolveGoalAttentionMessage(
     return input.error ?? input.goal.last_error ?? null;
   }
   if (input.goal.status === "active" &&
-    (input.goal.empty_progress_count ?? 0) > 0 &&
+    goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
     return EMPTY_PROGRESS_MESSAGE;
   }
@@ -355,7 +355,7 @@ function resolveGoalAttentionTone(
     return "danger";
   }
   if (input.goal.status === "active" &&
-    (input.goal.empty_progress_count ?? 0) > 0 &&
+    goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
     return "warning";
   }
@@ -481,7 +481,11 @@ function normalizeGoalBudget(value: string): number | null {
 
 function canResumeGoal(goal: Goal): boolean {
   return RESUMABLE_GOAL_STATUSES.has(goal.status)
-    || (goal.status === "active" && (goal.empty_progress_count ?? 0) > 0);
+    || (goal.status === "active" && goalContinuationSuppressed(goal));
+}
+
+function goalContinuationSuppressed(goal: Goal): boolean {
+  return goal.continuation_state === "suspended";
 }
 
 function visibleGoalDialog(

@@ -55,6 +55,16 @@ than inferred from session proximity.
 | WorkGraph-only | Execution with an active materialized Plan and non-empty Work Items, no Goal fence | The managed graph executes independently. An ambient Goal in the same session is irrelevant. |
 | Goal + WorkGraph | Active Goal and Execution with an exact confirmed bilateral binding | Goal objective/revision fences Plan authoring, retargeting, completion, and continuation. |
 
+Both model `create_goal` and the host Goal command create a `goal_only` Goal.
+They never reserve or bootstrap an Execution. A fresh Goal enters managed mode
+only when a sealed `goal_binding=current` Plan proposal begins materialization;
+that proposal owns the stable Execution identity, writes the Goal-side pending
+binding before the authoritative Execution/Plan mutation, and confirms the
+bilateral binding afterward. `goal_binding=none` never reads or mutates an
+ambient Goal. Historical `reserved` Goals and retarget successors remain
+recoverable, but they are compatibility/transition states rather than the
+default result of setting a Goal.
+
 An Execution row without an active materialized Plan is a bootstrap or
 reconciliation state. It is not a fourth public product mode and must not be
 presented as a managed WorkGraph.
@@ -83,6 +93,27 @@ binding from one side alone.
 Only `confirmed` means the managed graph can participate in Goal completion,
 retarget, and continuation. A reserved Execution ID does not imply that an
 Execution, active Plan, or Work Item exists.
+
+### 2.2.1 Goal continuation control state
+
+Goal lifecycle status and automatic continuation control are separate concerns.
+An active Goal remains `active` while its continuation loop is recovering or
+suppressed. Every Goal wire projection exposes the server-derived
+`continuation_state=inactive|ready|recovering|suspended`; clients must not
+reconstruct its threshold from `empty_progress_count`. The count remains a
+durable consecutive no-progress streak, not a paused lifecycle status:
+
+- the first empty continuation emits `continuation_recovery_scheduled` and gets
+  one recovery turn with an explicit execute-now boundary;
+- a second consecutive empty continuation emits `continuation_suppressed` and
+  stops automatic continuation until explicit Goal activity or Resume clears the
+  streak;
+- actual runtime/dispatch failure stores `last_error` and suppresses immediately;
+- any counted Goal mutation or explicit user activity clears the streak.
+
+Read-only inspection is not fabricated progress. The recovery turn exists so a
+legitimate inspect-then-mutate sequence is not stopped between those stages,
+while the second empty turn still closes a real loop.
 
 Every SQL mutation that first makes an Execution Goal-bound writes one exact
 `execution_goal_confirmations` pending receipt in the same transaction. The
@@ -158,10 +189,11 @@ This attribution is scheduling provenance, not
 `GoalAuthorityState`: the target round remains unable to call Goal mutation tools.
 The source continuation is not classified as empty while that attributed handoff
 is pending. When the target reaches a terminal state, substantive output resets
-the continuation run, public substantive output may satisfy the Room-visible
-collaboration evidence gate, and the host schedules a fresh authorized lead
-continuation. No-reply, error, interruption, stale-revision output, and private
-output never manufacture public collaboration evidence.
+the continuation run, public substantive output may be retained as Room-visible
+collaboration audit evidence, and the host schedules a fresh authorized lead
+continuation. This evidence never gates Goal completion. No-reply, error,
+interruption, stale-revision output, and private output never manufacture public
+collaboration evidence.
 
 ## 3. Durable aggregate
 
@@ -455,10 +487,10 @@ WorkGraph-specific gates apply only to a `confirmed` managed binding.
 | Tool | Atomic semantics |
 | --- | --- |
 | `get_goal` | Reads the current optional Goal and usage state. It does not mutate Goal or Execution state. |
-| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. A model-created Room Goal persists the server-verified creator as its lead and derives the multi-member collaboration requirement from the owner-scoped Room directory; in DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
+| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. A model-created Room Goal persists the server-verified creator as its lead; Room member count does not create a collaboration completion requirement. In DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
 | `retarget_goal` | Applies an explicit user objective correction while preserving Goal identity and usage. A trusted visible user round may late-bind the exact current Goal/revision only for this tool; every other source requires existing Goal authority. `standalone`/`reserved` update the Goal revision directly; `confirmed` enters the successor rebase saga; `pending`/`conflict` fail closed. |
 | `audit_objective_alignment` | Appends a three-state evidence report for the exact Goal revision and round without changing status. A Goal with a confirmed managed WorkGraph binding requires a current aligned report for completion; Goal-only and reserved Goals do not. |
-| `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. Completion rechecks revision, binding resolution, current Room membership/work readiness, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. A current multi-member Room always requires room-visible non-lead collaboration evidence even when a legacy or alternate creation path lacks the cached requirement metadata. Pause, resume, and limit controls remain user/system operations. |
+| `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. The current Room lead or DM Agent decides when the objective is satisfied. Completion rechecks revision, binding resolution, Room in-flight work readiness, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. Collaboration evidence is audit context and never a completion gate. Pause, resume, and limit controls remain user/system operations. |
 
 ### 7.1 Blocked policy boundary
 
@@ -480,23 +512,24 @@ Goal completion resolves binding first:
 - `confirmed` additionally requires the backend WorkGraph completion/readiness
   check (not `audit_execution_alignment`) and current Goal
   `audit_objective_alignment` evidence.
-- every Room Goal completion also reloads the owner-scoped Room member directory;
-  more than one distinct Agent member requires public, substantive non-lead
-  collaboration evidence from anywhere in the same durable Goal lifecycle.
-  Once observed for the same Goal ID, this evidence is monotonic across objective
-  retargets, consecutive lead rounds, lead reassignment, and temporary changes to
-  whether collaboration is required. Objective revision still fences late event
-  attribution, but does not invalidate an already committed collaboration fact.
-  The persisted requirement is a cached fence, not the sole source of
-  the current member fact.
-  App-server may create a Room Goal only in a non-complete state, so creation and
-  completion cannot be collapsed into one request that precedes this gate.
+- every Room Goal completion additionally checks active Room slots, attributed
+  handoffs, queues, and wakes so the lead cannot leave started Room work running
+  behind a completed Goal. Member count and collaboration evidence do not affect
+  completion eligibility. A public substantive non-lead reply may still be stored
+  as monotonic audit provenance for the durable Goal ID; objective revision fences
+  late writes without turning that provenance into authority or a gate.
 
 For a Goal with a confirmed managed WorkGraph binding, retarget is a successor saga rather than an in-place
 graph edit. It reserves the successor relationship, materializes a fresh
 Goal-fenced Execution/Plan, confirms the bilateral binding, and only then makes the
 successor authoritative. Existing Work Items and responsibility history remain on
-the predecessor and are not carried into the successor.
+the predecessor and are not carried into the successor. If acceptance has already
+made the predecessor Execution terminal while the durable Goal remains active, the
+retarget saga preserves that terminal status and graph verbatim, appends one
+idempotent old-revision-to-successor reservation event under an Execution-version
+CAS, and admits the fresh successor through that exact event. A terminal predecessor is therefore not a
+reason to trap an active Goal in a retry loop, and one old revision can never
+reserve two different successors.
 
 ## 8. Transactions, retries, and reconciliation
 

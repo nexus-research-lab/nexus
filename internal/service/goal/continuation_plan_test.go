@@ -122,9 +122,9 @@ func TestServicePlanContinuationForRoomGoalIncludesLeadPrompt(t *testing.T) {
 		"This is a shared Room Goal",
 		"A public @mention only requests a conversational or untracked one-off contribution",
 		"use assign_work",
-		"visible collaboration is part of completion",
-		"choose the least costly correct route",
-		"Do not call the Goal update tool in that same turn",
+		"current lead, you decide when its objective is satisfied",
+		"Collaboration evidence is optional audit context, not a completion requirement",
+		"wait for or explicitly cancel that in-flight handoff",
 		"only mark the Goal complete after the full room objective is verified",
 	} {
 		if plan == nil || !strings.Contains(plan.Prompt, want) {

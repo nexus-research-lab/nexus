@@ -716,9 +716,6 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
 	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
-	if collaborationContext != "" {
-		s.recordRoomGoalCollaborationRequired(ctx, plan.Goal.ID, plan.RoundID)
-	}
 	return s.handleChatLocked(ctx, ChatRequest{
 		SessionKey:            sessionKey,
 		ConversationID:        parsed.ConversationID,
@@ -762,23 +759,6 @@ func (s *Service) goalContinuationDispatchTarget(
 	return []string{targetAgentID}, buildRoomGoalCollaborationContext(agentNameByID, targetAgentID)
 }
 
-func (s *Service) recordRoomGoalCollaborationRequired(ctx context.Context, goalID string, roundID string) {
-	if s == nil || s.goals == nil || strings.TrimSpace(goalID) == "" {
-		return
-	}
-	if _, err := s.goals.RecordRoomGoalCollaborationRequired(ctx, goalID, roundID); err != nil &&
-		!errors.Is(err, goalsvc.ErrGoalDisabled) &&
-		!errors.Is(err, goalsvc.ErrGoalNotFound) &&
-		!errors.Is(err, goalsvc.ErrGoalInvalidState) &&
-		!errors.Is(err, goalsvc.ErrGoalVersionStale) {
-		s.loggerFor(ctx).Warn("标记 Room Goal 协作要求失败",
-			"goal_id", goalID,
-			"round_id", roundID,
-			"err", err,
-		)
-	}
-}
-
 func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgentID string) string {
 	leadAgentID = strings.TrimSpace(leadAgentID)
 	if leadAgentID == "" || len(agentNameByID) <= 1 {
@@ -814,16 +794,15 @@ func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgen
 	}
 	leadName := cmp.Or(strings.TrimSpace(agentNameByID[leadAgentID]), leadAgentID)
 	return strings.TrimSpace(fmt.Sprintf(`
-Room Goal collaboration requirement:
-- This Room Goal has multiple members. Visible collaboration is a required part of completing the Goal, not optional polish.
+Room Goal collaboration options:
 - Lead agent for this continuation: %s (agent_id=%s).
 - Available conversation targets:
 %s
-- Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment.
-- If the same Goal's room-visible collaboration chain lacks a substantive non-lead reply, either @ exactly one target for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable. A retarget or consecutive lead round does not erase earlier collaboration for that Goal.
+- Collaboration is optional. The current lead may complete the Goal when the objective is satisfied; non-lead evidence is audit context, not a completion gate.
+- Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment, but a substantive public reply to this Goal-attributed handoff is recorded as collaboration evidence.
+- Use @ for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable.
 - Once accountable work is assigned, do not duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only through the managed control path when necessary.
-- Do not call the Goal update tool in the same turn as the first collaboration request or Assignment.
-- Do not mark the Room Goal complete using only your own private work. Completion requires room-visible collaborator evidence plus your final audit.
+- Do not call the Goal update tool while an @ handoff, Assignment, queue item, or wake for this Goal is still running. Finish or explicitly cancel that work first.
 `, leadName, leadAgentID, strings.Join(lines, "\n")))
 }
 

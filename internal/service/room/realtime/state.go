@@ -65,27 +65,29 @@ func (a roomGoalMutationAuthority) valid() bool {
 		a.Source != ""
 }
 
-func goalCollaborationBindingFromAuthority(
-	authority roomGoalMutationAuthority,
-) *protocol.GoalCollaborationBinding {
-	if !authority.valid() {
-		return nil
-	}
-	return &protocol.GoalCollaborationBinding{
-		GoalID:            authority.GoalID,
-		ObjectiveRevision: authority.ObjectiveRevision,
-	}
-}
-
 func goalCollaborationBindingForSlot(
-	roundValue *activeRoomRound,
+	_ *activeRoomRound,
 	slot *activeRoomSlot,
 ) *protocol.GoalCollaborationBinding {
 	if slot == nil {
 		return nil
 	}
-	if binding := goalCollaborationBindingFromAuthority(slot.goalMutationAuthority()); binding != nil {
-		return binding
+	fixed := slot.goalMutationAuthority()
+	if fixed.valid() {
+		// Goal mutation authority fixes the physical round to one Goal identity,
+		// while its shared state advances only after a trusted retarget or
+		// consumed host steering. Collaboration attribution is not mutation
+		// authority, so snapshot the current exact revision without rewriting
+		// the immutable round capability.
+		shared, ok := slot.boundGoalAuthority()
+		if !ok || shared.GoalID != fixed.GoalID ||
+			shared.ObjectiveRevision < fixed.ObjectiveRevision {
+			return nil
+		}
+		return &protocol.GoalCollaborationBinding{
+			GoalID:            fixed.GoalID,
+			ObjectiveRevision: shared.ObjectiveRevision,
+		}
 	}
 	return slot.goalCollaborationBinding()
 }
@@ -96,7 +98,7 @@ func cloneGoalCollaborationBinding(
 	return protocol.NormalizeGoalCollaborationBinding(binding)
 }
 
-// roomSlotGoalState 负责 Goal accounting、固定 revision mutation capability 与协作进度。
+// roomSlotGoalState 负责 Goal accounting、固定起始 capability、服务端确认 revision 与协作进度。
 type roomSlotGoalState struct {
 	mu                      sync.RWMutex
 	sessionKey              string
@@ -243,6 +245,17 @@ func (s *activeRoomSlot) ensureGoalAuthorityState() *runtimectx.GoalAuthoritySta
 		)
 	})
 	return goalState.authorityState
+}
+
+func (s *activeRoomSlot) boundGoalAuthority() (runtimectx.GoalAuthority, bool) {
+	if s == nil {
+		return runtimectx.GoalAuthority{}, false
+	}
+	state := s.ensureGoalAuthorityState()
+	if state == nil {
+		return runtimectx.GoalAuthority{}, false
+	}
+	return state.LoadBound()
 }
 
 func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {

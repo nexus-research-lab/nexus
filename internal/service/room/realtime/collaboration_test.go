@@ -1082,6 +1082,7 @@ func TestAnnotatePublicAssistantMessageCreatesHandoffForEveryMention(t *testing.
 		slot,
 		message,
 		roomdomain.ExtractAssistantResultText(message),
+		nil,
 	)
 	if len(wakes) != 2 ||
 		wakes[0].TargetAgentID != "agent-amy" ||
@@ -1167,8 +1168,79 @@ func TestAnnotatePublicAssistantMessageStripsLegacyFanoutMarker(t *testing.T) {
 	if len(mentions) != 2 || mentions[0].HandoffID == "" || mentions[1].HandoffID == "" {
 		t.Fatalf("旧 marker 不应改变多 mention handoff: %+v", mentions)
 	}
-	if wakes := publicMentionWakesFromMessage(roundValue, slot, message, content); len(wakes) != 2 {
+	if wakes := publicMentionWakesFromMessage(roundValue, slot, message, content, nil); len(wakes) != 2 {
 		t.Fatalf("剥离旧 marker 后仍应唤醒两个目标: %+v", wakes)
+	}
+}
+
+func TestPublicMentionRetargetUsesBoundCurrentGoalRevision(t *testing.T) {
+	const (
+		ownerUserID    = "owner-retarget-mention"
+		conversationID = "conversation-retarget-mention"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	contextValue := &protocol.ConversationContextAggregate{
+		Conversation: protocol.ConversationRecord{ID: conversationID},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-lead"},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-analyst"},
+		},
+		MemberAgents: []protocol.Agent{
+			{AgentID: "agent-lead", Name: "Lead"},
+			{AgentID: "agent-analyst", Name: "Analyst"},
+		},
+	}
+	roundValue := &activeRoomRound{
+		OwnerUserID: ownerUserID, ConversationID: conversationID,
+		RoomID: "room-retarget-mention", RootRoundID: "root-retarget-mention",
+		Context: contextValue,
+	}
+	slot := &activeRoomSlot{AgentID: "agent-lead", AgentRoundID: "lead-round"}
+	grantTestRoomGoalAuthority(slot, protocol.BuildRoomSharedSessionKey(conversationID), "goal-retarget-mention")
+	if !slot.ensureGoalAuthorityState().Bind("goal-retarget-mention", 2, "execution-successor") {
+		t.Fatal("bind retargeted Goal revision")
+	}
+	message := protocol.Message{
+		"message_id": "message-retarget-mention", "role": "assistant", "is_complete": true,
+		"content": []map[string]any{{"type": "text", "text": "@Analyst 请核对新目标。"}},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(appfs.UsersRoot())
+	service := &Service{publicHandoffs: handoffs}
+	binding, err := service.annotatePublicAssistantMessageWithGoalBinding(roundValue, slot, message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding == nil || binding.GoalID != "goal-retarget-mention" || binding.ObjectiveRevision != 2 {
+		t.Fatalf("retargeted collaboration binding = %+v, want revision 2", binding)
+	}
+	wakes := publicMentionWakesFromMessage(
+		roundValue,
+		slot,
+		message,
+		roomdomain.ExtractAssistantResultText(message),
+		binding,
+	)
+	if len(wakes) != 1 || wakes[0].GoalCollaborationBinding == nil ||
+		wakes[0].GoalCollaborationBinding.ObjectiveRevision != 2 {
+		t.Fatalf("retargeted public wake = %+v, want revision 2", wakes)
+	}
+	mentions := protocolAgentMentions(message["agent_mentions"])
+	stored, exists, err := handoffs.Get(ownerUserID, conversationID, mentions[0].HandoffID)
+	if err != nil || !exists || stored.GoalCollaborationBinding == nil ||
+		stored.GoalCollaborationBinding.ObjectiveRevision != 2 {
+		t.Fatalf("retargeted handoff = %+v exists=%t err=%v", stored, exists, err)
+	}
+}
+
+func TestPublicMentionSteeringAloneDoesNotRetargetCollaboration(t *testing.T) {
+	slot := &activeRoomSlot{AgentID: "agent-lead", AgentRoundID: "lead-round"}
+	grantTestRoomGoalAuthority(slot, "room:group:steering", "goal-steering")
+	slot.adoptGoalObjectiveRevision(2)
+	binding := goalCollaborationBindingForSlot(nil, slot)
+	if binding == nil || binding.ObjectiveRevision != 1 {
+		t.Fatalf("steering-only collaboration binding = %+v, want confirmed revision 1", binding)
 	}
 }
 

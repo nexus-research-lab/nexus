@@ -255,7 +255,8 @@ func (s *Service) resolveProposalGoalActivation(
 		(actor.GoalObjectiveRevision > 0 &&
 			activation.GoalObjectiveRevision != actor.GoalObjectiveRevision) ||
 		(activation.ReplacesExecutionID != "" && activation.ReservedExecutionID == "") ||
-		activation.ReplacesExecutionID == activation.ReservedExecutionID {
+		(activation.ReservedExecutionID != "" &&
+			activation.ReplacesExecutionID == activation.ReservedExecutionID) {
 		return nil, domainError(
 			ErrorCodeGoalBindingConflict,
 			"exact Goal authority changed or returned an incomplete Execution fence during Plan preparation",

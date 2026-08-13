@@ -284,7 +284,7 @@ func TestServiceRetargetByModelPreservesGoalLifecycleCollaboration(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !RoomCollaborationRequired(*updated) || !RoomCollaborationObserved(*updated) {
+	if !RoomCollaborationObserved(*updated) {
 		t.Fatalf("collaboration metadata = %#v, want Goal-lifecycle evidence retained", updated.Metadata)
 	}
 	if len(dispatcher.items) != 1 || dispatcher.items[0].excludedAgentID != "agent-lead" || dispatcher.items[0].contextName != "goal" || dispatcher.items[0].objectiveRevision != updated.ObjectiveRevision() {

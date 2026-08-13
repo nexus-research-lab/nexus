@@ -208,7 +208,6 @@ type goalContextProvider interface {
 	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error)
-	RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 }
 

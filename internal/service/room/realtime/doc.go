@@ -13,10 +13,10 @@
 //     execution_context_usage.go 额外持久化每 Agent 终态上下文占用快照及 Session 元数据，并隔离中断控制值与展示文案；Automation slot 使用任务创建时工具策略覆盖而不回读 Agent 当前 allow/deny；精确 agent_round 中断对自然完成竞态保持幂等。
 //   - input_queue.go / input_queue_dispatch.go / guidance_input.go：持久化输入队列（受理/上下文/存储）、队列派发和运行中引导。
 //   - directed_message.go / public_*.go：公开消息、服务端分类为 handoff（区别于 queue/internal）的 mention conversation handoff、
-//     visible context、携带非授权 Goal revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
+//     visible context、由成功 Goal mutation receipt 派生且首次写 ledger 即固化的非授权 revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
 //     两阶段写入修复、host command 幂等、immediate/delayed durable wake 调度与在线重试。
 //     @ 不创建 Assignment；正式责任只来自 assign_work。
-//   - goal_command.go：服务端验证 lead/协作门槛后写入共享 Goal 与完成态 public 控制记录；不占用普通 Agent slot。
+//   - goal_command.go：服务端验证当前 lead 身份后写入共享 Goal 与完成态 public 控制记录；成员数量与协作审计事实不构成完成门槛，控制命令不占用普通 Agent slot。
 //   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
 //     Goal scope、complete 时的当前 Room 成员/工作一致读取、协作终态回连、continuation、终态、附着最终回复的完成收据和额度适配。
 //

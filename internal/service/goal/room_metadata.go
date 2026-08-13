@@ -1,5 +1,5 @@
 // INPUT: Room Goal metadata 与当前模型 Agent 身份。
-// OUTPUT: creator/lead 归属、权限校验与协作状态判定。
+// OUTPUT: creator/lead 归属、权限校验与协作审计状态判定。
 // POS: Room Goal metadata 业务语义的唯一解释入口。
 package goal
 
@@ -11,7 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// 这些函数把 Room Goal 存在 metadata 里的键解释成业务判定（谁是负责人、是否要求/已有协作证据）。
+// 这些函数把 Room Goal 存在 metadata 里的键解释成业务判定（谁是负责人、是否已有协作审计证据）。
 // protocol 只负责定义键的词汇（常量）和通用的 typed-map 取值；这层"读键 → 业务语义"的解释属于 goal 域。
 
 // RoomLeadAgentID 返回 Room Goal 的负责人 Agent。
@@ -152,7 +152,7 @@ func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID st
 			current.Metadata,
 			protocol.GoalMetadataOwnerUserID,
 		)
-		_, verifiedAgentID, agentName, _, verifyErr := s.verifyGoalSessionOwnership(
+		_, verifiedAgentID, agentName, verifyErr := s.verifyGoalSessionOwnership(
 			ctx,
 			current.SessionKey,
 			ownerUserID,
@@ -196,12 +196,7 @@ func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID st
 	})
 }
 
-// RoomCollaborationRequired 判断 Room Goal 是否要求非负责人可见协作。
-func RoomCollaborationRequired(goal protocol.Goal) bool {
-	return protocol.GoalMetadataBool(goal.Metadata, protocol.GoalMetadataRoomGoalCollaborationRequired)
-}
-
-// RoomCollaborationObserved 判断同一 Room Goal 生命周期内是否已有非负责人可见协作证据。
+// RoomCollaborationObserved 判断同一 Room Goal 生命周期内是否已有非负责人可见协作审计事实。
 func RoomCollaborationObserved(goal protocol.Goal) bool {
 	return protocol.GoalMetadataBool(goal.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
 }

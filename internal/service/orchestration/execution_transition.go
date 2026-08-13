@@ -130,6 +130,17 @@ func (s *Service) buildExecutionForPlan(
 		RootRoundID:         strings.TrimSpace(actor.RootRoundID),
 		Status:              protocol.ExecutionStatusActive,
 	}
+	if sealedGoalBinding != nil && strings.TrimSpace(sealedGoalBinding.GoalID) != "" &&
+		strings.TrimSpace(sealedGoalBinding.ExecutionID) == "" {
+		sealedGoalBinding = &ExplicitGoalBinding{
+			ExecutionID:           execution.ID,
+			GoalID:                sealedGoalBinding.GoalID,
+			GoalObjectiveRevision: sealedGoalBinding.GoalObjectiveRevision,
+			ActivationOrigin:      sealedGoalBinding.ActivationOrigin,
+			ActivationReason:      sealedGoalBinding.ActivationReason,
+			ReplacesExecutionID:   sealedGoalBinding.ReplacesExecutionID,
+		}
+	}
 	if scope == protocol.ExecutionScopeRoom {
 		execution.RoomID = strings.TrimSpace(actor.RoomID)
 		execution.ConversationID = strings.TrimSpace(actor.ConversationID)

@@ -55,10 +55,12 @@ type AbandonCommand struct {
 	Meta                     CommandMeta
 }
 
-// SupersedeGoalRevisionCommand terminalizes the old WorkGraph of one Goal
+// SupersedeGoalRevisionCommand closes the current WorkGraph of one Goal
 // objective revision while reserving the already-minted successor identity.
-// Unlike transient replacement it does not create the successor Plan in the
-// same transaction; the durable Goal transition drives that later step.
+// A graph that is already terminal keeps its exact status and history; only the
+// deterministic successor reservation event is appended. Unlike transient
+// replacement this command does not create the successor Plan in the same
+// transaction; the durable Goal transition drives that later step.
 type SupersedeGoalRevisionCommand struct {
 	ExecutionID              string
 	ExpectedExecutionVersion int64

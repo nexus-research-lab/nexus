@@ -15,6 +15,10 @@ import (
 const (
 	goalCompletionToolRetryMetadataKey = "completion_tool_retry_count"
 	goalCompletionToolMaxRetries       = 1
+	// One empty round is recoverable: the next hidden turn receives an explicit
+	// action boundary. A second consecutive empty round proves a real loop and
+	// suppresses automatic continuation until explicit activity or resume.
+	goalContinuationSuppressionThreshold = protocol.GoalContinuationSuppressionThreshold
 )
 
 // RecordContinuationProgress 记录上一轮 Goal 续跑是否产生了可计入的自主进展。
@@ -202,7 +206,10 @@ func (s *Service) recordContinuationFailureForLoadedGoal(ctx context.Context, it
 		reason = "Goal continuation runtime failed"
 	}
 	expectedVersion := item.Version
-	item.EmptyProgressCount++
+	item.EmptyProgressCount = max(
+		item.EmptyProgressCount+1,
+		goalContinuationSuppressionThreshold,
+	)
 	item.LastError = reason
 	item.Version++
 	item.UpdatedAt = s.nowFn()
@@ -259,18 +266,18 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 		RoomLeadAgentID(*item),
 		roundID,
 	); alignmentErr != nil {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, alignmentErr.Error())
+		return s.suppressContinuationProgress(ctx, item, roundID, alignmentErr.Error())
 	}
 	if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *item); readinessErr != nil {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
+		return s.suppressContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
-	if readinessErr := s.ensureRoomGoalCollaborationReady(
+	if _, readinessErr := s.ensureRoomGoalCompletionReady(
 		ctx,
 		*item,
 		RoomLeadAgentID(*item),
 		roundID,
 	); readinessErr != nil {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
+		return s.suppressContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
 	retryCount := goalCompletionToolRetryCount(item.Metadata)
 	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
@@ -388,12 +395,37 @@ func (s *Service) noteEmptyContinuationProgress(ctx context.Context, item *proto
 		"empty_progress_count": item.EmptyProgressCount,
 		"reason":               reason,
 	}
-	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_suppressed", protocol.GoalUpdateSourceSystem, roundID, payload)
+	eventType := "continuation_recovery_scheduled"
+	if goalContinuationSuppressed(*item) {
+		eventType = "continuation_suppressed"
+	}
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, eventType, protocol.GoalUpdateSourceSystem, roundID, payload)
 	if err != nil {
 		return nil, err
 	}
-	s.clearWallClockGoal(*updated)
+	if goalContinuationSuppressed(*updated) {
+		s.clearWallClockGoal(*updated)
+	} else {
+		s.markWallClockGoalActive(*updated)
+	}
 	return updated, nil
+}
+
+func (s *Service) suppressContinuationProgress(
+	ctx context.Context,
+	item *protocol.Goal,
+	roundID string,
+	reason string,
+) (*protocol.Goal, error) {
+	item.EmptyProgressCount = max(
+		item.EmptyProgressCount,
+		goalContinuationSuppressionThreshold-1,
+	)
+	return s.noteEmptyContinuationProgress(ctx, item, roundID, reason)
+}
+
+func goalContinuationSuppressed(item protocol.Goal) bool {
+	return item.ContinuationState() == protocol.GoalContinuationStateSuspended
 }
 
 func goalCompletionToolRetryCount(metadata map[string]any) int {

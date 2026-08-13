@@ -177,7 +177,7 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 		"runtime start failed",
 		committed.ObjectiveRevision(),
 	)
-	if err != nil || failedPlanning.EmptyProgressCount != 1 {
+	if err != nil || failedPlanning.EmptyProgressCount != goalContinuationSuppressionThreshold {
 		t.Fatalf("record planning failure = %#v, err=%v", failedPlanning, err)
 	}
 	retryPlanning, err := service.PlanContinuationForSession(ctx, committed.SessionKey, planning.RoundID)

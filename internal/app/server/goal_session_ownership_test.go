@@ -196,8 +196,7 @@ func TestGoalSessionOwnershipVerifierReturnsOnlyServerVerifiedRoomMember(t *test
 		t.Fatal(err)
 	}
 	if proof.TrustedAgentID != "agent-lead" ||
-		proof.TrustedAgentName != "Verified Lead" ||
-		!proof.RoomCollaborationRequired {
+		proof.TrustedAgentName != "Verified Lead" {
 		t.Fatalf("proof = %#v", proof)
 	}
 	if _, err = verifier.VerifyGoalSessionOwnership(ctx, goalsvc.GoalSessionOwnershipRequest{
