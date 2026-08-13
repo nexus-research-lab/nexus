@@ -498,6 +498,7 @@ export const enConversationMessages = {
   "message.show_less": "Show less",
   "message.assistant_fallback": "Collaborator",
   "message.copy_reply": "Copy reply",
+  "message.recalled_memories": "Referenced memories",
   "message.activity_compacting": "Compacting context",
   "message.activity_sending": "Sending",
   "message.activity_thinking": "Thinking",

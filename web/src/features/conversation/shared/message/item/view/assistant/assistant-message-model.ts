@@ -10,7 +10,10 @@ import type {
 } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message/content";
-import type { AgentMention } from "@/types/conversation/message/entity";
+import type {
+  AgentMention,
+  RecalledMemoryReference,
+} from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -48,6 +51,7 @@ export interface AssistantFinalState {
 
 export interface AssistantFooterState {
   copied: boolean;
+  memories: RecalledMemoryReference[];
   onCopy?: () => Promise<void>;
   stats: AssistantFooterStats | null;
   visible: boolean;

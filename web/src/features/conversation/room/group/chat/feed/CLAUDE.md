@@ -10,7 +10,7 @@
 - 不在普通与虚拟列表中分别实现加载、Room 卡片或普通消息判断。
 - Agent 身份目录、会话命令和运行阶段由面板投影完整提供，Feed 不维护假可选契约或空对象兼容分支。
 - Room 公区的普通轮次不投影运行态占位，真实回复出现后再进入时间线。
-- `memory_recalled` / `memory_saved` 等 Agent 私有执行上下文只进入对应 Thread，不得在公区生成独立 system 节点。
+- `memory_saved` 等 Agent 私有执行上下文只进入对应 Thread，不得在公区生成独立 system 节点；记忆召回保留模型 attachment，并仅在对应 Assistant 底部显示引用入口。
 - 同一 root 的 Agent 节点与 root 保持相邻并沿用稳定 slot 顺序；状态完成不得把已展示节点移到其他 root 前后。
 - 带精确 `agent_id + agent_round_id` 的 permission、slot 或 assistant message 任一先到，都必须直接建立同一个 `room-agent-round` 节点；不得先落 generic root 再搬入 Agent 节点。
 - 首条未读必须由完成事件的精确消息身份映射到稳定 `room-agent-round` node identity，并按 `room_seq` 排队；不能按 root、Feed 索引或当前 DOM 顺序重排。

@@ -14,4 +14,5 @@
 - 单消费者逻辑留在拥有它的 controller/view；禁止重新建立聚合 helper 或通过根 barrel 暴露内部模型。
 - `MessageItem` 由 `item/message-item.tsx` 直接公开，消费者不得绕回消息目录聚合出口。
 - 消息项控制器只返回按 User/Assistant 和视觉职责分组的具体状态；各视图在消费侧声明所需结构，不共享宽状态接口。
+- Assistant 快照合并必须单调保留 `recalled_memories`，历史载入的引用摘要不得被同进度 live 快照覆盖。
 - `item/view/message-item-streaming-layout.ts` 的防抖高度只在当前 Assistant turn 内单调增长；同一 `agent_round` 进入工具续轮或下一次正文时必须先恢复基线，禁止把旧正文高度带入新内容。

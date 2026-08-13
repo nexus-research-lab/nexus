@@ -495,6 +495,7 @@ export const zhConversationMessages = {
   "message.show_less": "收起",
   "message.assistant_fallback": "协作成员",
   "message.copy_reply": "复制回答",
+  "message.recalled_memories": "引用的记忆",
   "message.activity_compacting": "正在压缩上下文",
   "message.activity_sending": "正在发送",
   "message.activity_thinking": "正在思考",

@@ -10,6 +10,7 @@ import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversa
 import type {
   AssistantMessage,
   Message,
+  RecalledMemoryReference,
   ResultSummary,
 } from "@/types/conversation/message/entity";
 import type { ContentBlock } from "@/types/conversation/message/content";
@@ -146,6 +147,10 @@ export function useMessageItemProjection({
     }),
     [pendingPermissions.length, finalProjection.processProjection.content],
   );
+  const recalledMemories = useMemo(
+    () => collectRecalledMemoryReferences(contentMerge.assistantMessages),
+    [contentMerge.assistantMessages],
+  );
   return {
     assistantMessages: contentMerge.assistantMessages,
     mergedContent: contentMerge.mergedContent,
@@ -157,6 +162,7 @@ export function useMessageItemProjection({
     userMessages: contentMerge.userMessages,
     liveActivityState,
     processSummary,
+    recalledMemories,
     stats: buildMessageStats(contentMerge.resultSummary),
     timestamp: resolveMessageTimestamp(
       identityAssistant,
@@ -164,6 +170,29 @@ export function useMessageItemProjection({
       contentMerge.resultSummary,
     ),
   };
+}
+
+export function collectRecalledMemoryReferences(
+  messages: readonly AssistantMessage[],
+): RecalledMemoryReference[] {
+  const seen = new Set<string>();
+  const references: RecalledMemoryReference[] = [];
+  for (const message of messages) {
+    for (const reference of message.recalled_memories ?? []) {
+      const name = reference.name?.trim() ?? "";
+      const description = reference.description?.trim() ?? "";
+      if (!description) {
+        continue;
+      }
+      const key = `${name}\u0000${description}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      references.push({ description, name });
+    }
+  }
+  return references;
 }
 
 function collectVisibleToolUseIds(projection: {
