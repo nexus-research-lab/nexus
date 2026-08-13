@@ -123,6 +123,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	providerService.SetLogger(logger.With("component", "provider"))
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	goalService.SetSessionOwnershipVerifier(newGoalSessionOwnershipVerifier(
+		core.Agent,
+		core.Room,
+	))
 	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
 	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
 		executionSubagentToolHistory{sessions: core.Session},
@@ -157,6 +161,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()
 	goalService.SetEventBroadcaster(permission)
+	core.Session.SetGoalCompletionUsageProvider(goalService)
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
@@ -178,8 +183,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Room.SetRuntimeManager(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
+	channelRouter.SetSessionProjectionResolver(core.Session)
 	channelRouter.SetLogger(logger.With("component", "channels"))
 	channelControl := channels.NewControlService(cfg, db, core.Agent, channelRouter)
+	core.Session.SetExternalSessionIdentityResolver(channelControl)
 	core.Room.SetSessionArtifactDeletionCoordinator(core.Session)
 	core.Agent.SetDeletionCoordinator(newAgentDeletionCoordinator(channelControl, runtimeManager))
 	queueAdmissionRepository := queueadmissionstore.NewRepository(cfg, db)
@@ -201,6 +208,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
+	ingressService.SetRuntimePermissionContext(permission)
 	channelRouter.SetIngress(ingressService)
 	roomRealtime := roomrealtime.NewService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
@@ -235,10 +243,14 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelRouter,
 	)
 	automationService.SetSessionArtifactDeletionCoordinator(core.Session)
+	automationService.SetDeliverySessionResolver(core.Session)
 	core.Deletion.SetTaskCleaner(automationService)
 	core.Agent.SetDeletionLifecycle(core.Session, automationService)
 	automationService.SetProviderResolver(providerService)
 	automationService.SetConnectorResolver(connectorService)
+	automationService.SetDeliveryGrantResolver(channelControl)
+	core.Session.SetTaskReferenceResolver(automationService)
+	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
@@ -301,6 +313,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
 		panic(err)
 	}
+	if err := slashcommandsvc.RegisterGoalCommand(
+		slashCommandRegistry,
+		slashcommandsvc.GoalCommandDependencies{Executor: goalCommandRouter{
+			dm:    dmService,
+			room:  roomRealtime,
+			goals: goalService,
+		}},
+	); err != nil {
+		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
+		panic(err)
+	}
 
 	// 把内置配置、资源管理、平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
@@ -312,11 +335,14 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
-	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
+	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator)
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	executionBuilder := newExecutionMCPBuilder(orchestrationService)
+	executionBuilder := combinedExecutionMCPBuilder(
+		newExecutionMCPBuilder(orchestrationService),
+		newAutomationExecutionMCPBuilder(automationService, cfg.DefaultTimezone),
+	)
 	mcpBuilder := combinedMCPBuilder(
 		configurationBuilder,
 		nexusManagerBuilder,

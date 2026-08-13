@@ -19,9 +19,8 @@ func (r *Repository) CreateGoalWithUsageScope(
 	createdEvent protocol.GoalEvent,
 	binding protocol.GoalUsageScopeBinding,
 ) (protocol.GoalUsageScopeCreateResult, error) {
-	goal.ID = strings.TrimSpace(goal.ID)
-	goal.SessionKey = strings.TrimSpace(goal.SessionKey)
-	goal.Usage = goal.Usage.NormalizeTotals()
+	goal = normalizeGoalCreate(goal)
+	createdEvent = normalizeGoalCreateEvent(createdEvent)
 	binding = normalizeGoalUsageScopeBinding(binding)
 	if err := validateGoalUsageScopeCreate(goal, createdEvent, binding); err != nil {
 		return protocol.GoalUsageScopeCreateResult{}, err
@@ -114,8 +113,8 @@ func validateGoalUsageScopeCreate(
 	createdEvent protocol.GoalEvent,
 	binding protocol.GoalUsageScopeBinding,
 ) error {
-	if goal.ID == "" || goal.SessionKey == "" {
-		return fmt.Errorf("goal usage scope create goal identity is incomplete")
+	if err := validateGoalCreateEvent(goal, createdEvent); err != nil {
+		return err
 	}
 	if err := validateGoalUsageScopeBinding(binding); err != nil {
 		return err
@@ -128,12 +127,6 @@ func validateGoalUsageScopeCreate(
 			binding.GoalID,
 			binding.GoalSessionKey,
 		)
-	}
-	if strings.TrimSpace(createdEvent.ID) == "" ||
-		strings.TrimSpace(createdEvent.GoalID) != goal.ID ||
-		strings.TrimSpace(createdEvent.SessionKey) != goal.SessionKey ||
-		strings.TrimSpace(createdEvent.EventType) != "created" {
-		return fmt.Errorf("goal usage scope create event identity is invalid")
 	}
 	if binding.UsageEventID != "" && binding.UsageEventID == strings.TrimSpace(createdEvent.ID) {
 		return fmt.Errorf("goal usage scope create event ids must be distinct")

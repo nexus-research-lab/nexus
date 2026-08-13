@@ -71,6 +71,33 @@ func TestSessionServiceLifecycle(t *testing.T) {
 		t.Fatalf("创建直聊 room 失败: %v", err)
 	}
 	seedRoomConversationMessages(t, cfg, dmContext.Conversation.ID)
+	dmSessionKey := protocol.BuildRoomAgentSessionKey(
+		dmContext.Conversation.ID,
+		agentA.AgentID,
+		protocol.RoomTypeDM,
+	)
+	dmSessionStore := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	roomBacked, _, err := dmSessionStore.FindSession(
+		[]string{agentA.WorkspacePath},
+		dmSessionKey,
+	)
+	if err != nil {
+		t.Fatalf("读取 Room-backed workspace session 失败: %v", err)
+	}
+	if roomBacked == nil {
+		roomBacked = &protocol.Session{
+			SessionKey:     dmSessionKey,
+			AgentID:        agentA.AgentID,
+			ConversationID: &dmContext.Conversation.ID,
+			CreatedAt:      time.Now().UTC(),
+			Options:        map[string]any{},
+		}
+	}
+	roomBacked.MessageCount = 11
+	roomBacked.LastActivity = time.Now().UTC().Add(time.Minute)
+	if _, err = dmSessionStore.UpsertSession(agentA.WorkspacePath, *roomBacked); err != nil {
+		t.Fatalf("写入 Room-backed workspace 进度失败: %v", err)
+	}
 
 	sessions, err := sessionService.ListSessions(ctx)
 	if err != nil {
@@ -79,6 +106,10 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if len(sessions) < 2 {
 		t.Fatalf("session 列表未合并 room 视图: got=%d", len(sessions))
 	}
+	listedRoomSession := findSessionByKey(sessions, dmSessionKey)
+	if listedRoomSession == nil || listedRoomSession.MessageCount != 11 {
+		t.Fatalf("全部 session 列表未保留 workspace 消息进度: %+v", listedRoomSession)
+	}
 
 	agentSessions, err := sessionService.ListAgentSessions(ctx, agentA.AgentID)
 	if err != nil {
@@ -86,6 +117,14 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 	if len(agentSessions) < 2 {
 		t.Fatalf("agent sessions 数量不正确: got=%d", len(agentSessions))
+	}
+	listedRoomSession = findSessionByKey(agentSessions, dmSessionKey)
+	if listedRoomSession == nil || listedRoomSession.MessageCount != 11 {
+		t.Fatalf("Agent session 列表未保留 workspace 消息进度: %+v", listedRoomSession)
+	}
+	loadedRoomSession, err := sessionService.GetSession(ctx, dmSessionKey)
+	if err != nil || loadedRoomSession.MessageCount != 11 {
+		t.Fatalf("单 session 读取未保留 workspace 消息进度: item=%+v err=%v", loadedRoomSession, err)
 	}
 
 	messages, err := sessionService.GetSessionMessages(ctx, dmKey)

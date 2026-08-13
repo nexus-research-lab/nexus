@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -22,6 +24,34 @@ func roomAllowedTools(values []string, _ bool) []string {
 	// Room policy is a lower layer: it may disable communication, but cannot
 	// widen an explicit Agent allowlist. An empty allowlist remains unrestricted.
 	return slices.Clone(values)
+}
+
+func cloneRuntimeToolPolicy(policy *protocol.RuntimeToolPolicy) *protocol.RuntimeToolPolicy {
+	if policy == nil {
+		return nil
+	}
+	return &protocol.RuntimeToolPolicy{
+		AllowedTools:    slices.Clone(policy.AllowedTools),
+		DisallowedTools: slices.Clone(policy.DisallowedTools),
+	}
+}
+
+func cloneAutomationRunContext(value *protocol.AutomationRunContext) *protocol.AutomationRunContext {
+	if value == nil {
+		return nil
+	}
+	result := value.Normalized()
+	return &result
+}
+
+func roomRoundToolPolicy(round *activeRoomRound, agent *protocol.Agent) (allowed []string, denied []string, snapshotted bool) {
+	if round != nil && round.RuntimeToolPolicy != nil {
+		return slices.Clone(round.RuntimeToolPolicy.AllowedTools), slices.Clone(round.RuntimeToolPolicy.DisallowedTools), true
+	}
+	if agent == nil {
+		return nil, nil, false
+	}
+	return slices.Clone(agent.Options.AllowedTools), slices.Clone(agent.Options.DisallowedTools), false
 }
 
 func roomDisallowedTools(values []string, privateMessagesEnabled bool) []string {

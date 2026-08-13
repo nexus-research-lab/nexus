@@ -128,6 +128,70 @@ func TestWorkOutputScopesConflictMatrix(t *testing.T) {
 	}
 }
 
+func TestWorkOutputClaimsConflictHonorsOnlyHardDependencyOrdering(t *testing.T) {
+	scope := WorkOutputScope{
+		Scope: "file:output/report.md",
+		Mode:  WorkOutputScopeExclusive,
+	}
+	tests := []struct {
+		name             string
+		left             string
+		right            string
+		hardDependencies map[string][]string
+		want             bool
+	}{
+		{name: "unrelated owners conflict", left: "draft", right: "finalize", want: true},
+		{
+			name:             "direct hard handoff",
+			left:             "draft",
+			right:            "finalize",
+			hardDependencies: map[string][]string{"finalize": {"draft"}},
+		},
+		{
+			name:  "transitive hard handoff",
+			left:  "draft",
+			right: "finalize",
+			hardDependencies: map[string][]string{
+				"review":   {"draft"},
+				"finalize": {"review"},
+			},
+		},
+		{
+			name:             "reverse iteration still hands off",
+			left:             "finalize",
+			right:            "draft",
+			hardDependencies: map[string][]string{"finalize": {"draft"}},
+		},
+		{
+			name:  "siblings remain conflicting",
+			left:  "left-branch",
+			right: "right-branch",
+			hardDependencies: map[string][]string{
+				"left-branch":  {"source"},
+				"right-branch": {"source"},
+			},
+			want: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := WorkOutputClaimsConflict(
+				test.left,
+				scope,
+				test.right,
+				scope,
+				test.hardDependencies,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Fatalf("claim conflict = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
 func TestWorkOutputScopeComparisonKeyPreservesCanonicalDisplay(t *testing.T) {
 	scope := WorkOutputScope{
 		Scope: "file:Réports/Final.MD",

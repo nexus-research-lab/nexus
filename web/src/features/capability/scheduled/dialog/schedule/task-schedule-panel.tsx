@@ -131,9 +131,7 @@ export function TaskSchedulePanel({
   view,
 }: TaskSchedulePanelProps) {
   const { locale, t } = useI18n();
-  const instructionLabel = form.executionKind === "script"
-    ? t("capability.scheduled_dialog_script")
-    : t("capability.scheduled_dialog_instruction");
+  const instructionLabel = t("capability.scheduled_dialog_instruction");
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -282,9 +280,7 @@ export function TaskSchedulePanel({
           className="resize-none"
           id="task-instruction"
           onChange={(event) => formActions.setInstruction(event.target.value)}
-          placeholder={form.executionKind === "script"
-            ? t("capability.scheduled_dialog_script_placeholder")
-            : t("capability.scheduled_dialog_instruction_placeholder")}
+          placeholder={t("capability.scheduled_dialog_instruction_placeholder")}
           rows={4}
           value={form.instruction}
         />
@@ -292,7 +288,7 @@ export function TaskSchedulePanel({
 
       <UiCheckboxRow
         checked={form.enabled}
-        label={t("capability.scheduled_dialog_enable_after_create")}
+        label={t("capability.scheduled_dialog_enabled")}
         onChange={formActions.setEnabled}
       />
 

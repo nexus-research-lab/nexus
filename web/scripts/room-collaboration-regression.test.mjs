@@ -21,6 +21,63 @@ test.after(async () => {
   await server.close();
 });
 
+test("Goal 控制记录保留 canonical /goal 命令并只隐藏展示前缀", async () => {
+  const { projectUserMessagePresentation } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/user/user-message-model.ts",
+  );
+  const timestamp = "2026-08-11T00:00:00Z";
+  const canonical = projectUserMessagePresentation(
+    false,
+    "/goal 修复 Goal 与 WorkGraph 状态一致性",
+    { metadata: { subtype: "goal_set" }, timestamp },
+  );
+  assert.equal(canonical.goal, true);
+  assert.equal(canonical.displayContent, "修复 Goal 与 WorkGraph 状态一致性");
+  assert.equal(canonical.hasContent, true);
+
+  const legacy = projectUserMessagePresentation(
+    false,
+    "兼容旧版 Goal 控制记录",
+    { metadata: { subtype: "goal_set" }, timestamp },
+  );
+  assert.equal(legacy.displayContent, "兼容旧版 Goal 控制记录");
+
+  const ordinary = projectUserMessagePresentation(
+    false,
+    "/goal 只是普通历史文本",
+    { timestamp },
+  );
+  assert.equal(ordinary.goal, false);
+  assert.equal(ordinary.displayContent, "/goal 只是普通历史文本");
+});
+
+test("手输 /goal 在 ACK 前也投影为 Goal 控制记录", async () => {
+  const { sendSessionMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/conversation-chat-actions.ts",
+  );
+  let messages = [];
+  await sendSessionMessage(
+    "/goal 保持 Slash 与按钮即时显示一致",
+    {
+      acknowledgePermissionRequest: () => {},
+      activeSessionKeyRef: { current: null },
+      identity: { agent_id: "nexus", chat_type: "dm" },
+      messages,
+      pendingPermissions: [],
+      sessionKey: "agent:nexus:ws:dm:goal-optimistic",
+      setError: () => {},
+      setMessages: (update) => {
+        messages = typeof update === "function" ? update(messages) : update;
+      },
+      setPendingPermissions: () => {},
+      wsSend: () => ({ disposition: "sent" }),
+      wsState: "connected",
+    },
+  );
+  assert.equal(messages.length, 1);
+  assert.deepEqual(messages[0].metadata, { subtype: "goal_set" });
+});
+
 async function loadI18nValue(locale = "zh") {
   const { MESSAGES } = await server.ssrLoadModule(
     "/src/shared/i18n/messages.ts",
@@ -83,6 +140,13 @@ test("Goal status shows one exact token total without budget progress", async ()
   };
 
   assert.equal(goalActualTokens(goal), 62_762);
+  assert.equal(goalActualTokens({
+    ...goal,
+    usage: {
+      ...goal.usage,
+      actual_tokens: 0,
+    },
+  }), 62_762, "矛盾的 actual_tokens=0 不能覆盖正数 breakdown");
   const model = buildGoalStatusStripModel({
     canResume: false,
     continuationHold: null,
@@ -116,7 +180,7 @@ test("Goal status shows one exact token total without budget progress", async ()
     isGenerating: false,
   }).usageLabel, "62,762 tokens");
 
-  const html = renderToStaticMarkup(React.createElement(GoalStatusStrip, {
+  const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
     canResume: false,
     compact: false,
     disabled: false,
@@ -171,6 +235,190 @@ test("Goal status marks legacy reconstructed actual usage as estimated", async (
     isGenerating: false,
   });
   assert.equal(model.usageLabel, "≈220 tokens");
+});
+
+test("Goal status distinguishes auto-continuation suppression from an actual pause", async () => {
+  const { buildGoalStatusStripModel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const baseGoal = {
+    id: "goal-continuation-state",
+    session_key: "room:group:continuation-state",
+    objective: "Keep Room Goal continuation observable",
+    continuation_count: 1,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-08-12T00:00:00Z",
+    updated_at: "2026-08-12T00:00:00Z",
+  };
+  const suppressed = buildGoalStatusStripModel({
+    canResume: true,
+    continuationHold: null,
+    error: null,
+    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    isGenerating: false,
+  });
+  assert.equal(suppressed.statusLabel, "自动续跑已停止");
+  assert.equal(suppressed.attentionTone, "warning");
+  assert.match(suppressed.statusTitle, /不是 Agent 主动暂停/);
+  assert.match(suppressed.attentionMessage, /系统已停止自动续跑/);
+
+  const paused = buildGoalStatusStripModel({
+    canResume: true,
+    continuationHold: null,
+    error: null,
+    goal: { ...baseGoal, status: "paused" },
+    isGenerating: false,
+  });
+  assert.equal(paused.statusLabel, "已暂停");
+  assert.equal(paused.attentionMessage, null);
+  assert.equal(paused.attentionTone, null);
+
+  const held = buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: {
+      label: "等待规划完成",
+      detail: "Plan 模式结束后再继续执行。",
+    },
+    error: null,
+    goal: { ...baseGoal, status: "active" },
+    isGenerating: false,
+  });
+  assert.equal(held.statusLabel, "等待规划完成");
+  assert.equal(held.statusTitle, "Plan 模式结束后再继续执行。");
+
+  const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
+    canResume: true,
+    compact: false,
+    disabled: false,
+    error: null,
+    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    isGenerating: false,
+    isLoading: false,
+    scopeLabel: "房间 Goal",
+    onClearRequest: () => {},
+    onEdit: () => {},
+    onPause: () => {},
+    onRefresh: () => {},
+    onResume: () => {},
+  }));
+  assert.match(html, />自动续跑已停止</);
+  assert.match(html, /这不是 Agent 主动暂停/);
+  assert.match(html, /aria-label="继续"/);
+});
+
+test("Goal clear follows the server-derived WorkGraph binding state", async () => {
+  const {
+    buildGoalControllerProjection,
+    resolveGoalBindingBadgeModel,
+    resolveGoalClearDisabledReason,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const goal = {
+    id: "goal-binding",
+    session_key: "agent:nexus:ws:dm:binding",
+    objective: "Keep binding authority on the server",
+    status: "active",
+    continuation_count: 0,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-08-11T00:00:00Z",
+    updated_at: "2026-08-11T00:00:00Z",
+  };
+
+  assert.match(resolveGoalClearDisabledReason(null), /正在确认/);
+  for (const state of ["standalone", "reserved"]) {
+    assert.equal(resolveGoalClearDisabledReason({ state }), null);
+    assert.equal(resolveGoalBindingBadgeModel({ state }), null);
+    assert.deepEqual(buildGoalControllerProjection({
+      dialog: { goal, kind: "clear" },
+      draft: null,
+      executionBinding: { state },
+      goal,
+      phase: null,
+    }).dialog, { goal, kind: "clear" });
+    const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
+      canResume: false,
+      clearDisabledReason: null,
+      compact: false,
+      disabled: false,
+      error: null,
+      executionBinding: { state },
+      goal,
+      isGenerating: false,
+      isLoading: false,
+      scopeLabel: "Goal",
+      onClearRequest: () => {},
+      onEdit: () => {},
+      onPause: () => {},
+      onRefresh: () => {},
+      onResume: () => {},
+    }));
+    assert.doesNotMatch(html, /data-goal-binding-state=/);
+    assert.doesNotMatch(html, />独立 Goal</);
+    assert.doesNotMatch(html, />已关联工作图</);
+  }
+  for (const state of ["pending", "confirmed", "conflict"]) {
+    const reason = resolveGoalClearDisabledReason({ state });
+    assert.equal(typeof reason, "string");
+    const projection = buildGoalControllerProjection({
+      dialog: { goal, kind: "clear" },
+      draft: null,
+      executionBinding: { state },
+      goal,
+      phase: null,
+    });
+    assert.equal(projection.clearDisabledReason, reason);
+    assert.deepEqual(projection.dialog, { kind: "none" });
+  }
+
+  const bindingCases = [
+    [{ state: "pending" }, "pending", "关联确认中"],
+    [{ execution_id: "execution-binding", state: "confirmed" }, "confirmed", "已关联工作图"],
+    [{ state: "conflict" }, "conflict", "关联冲突"],
+    [null, "unavailable", "关联状态不可用"],
+  ];
+  for (const [binding, displayState, label] of bindingCases) {
+    const badge = resolveGoalBindingBadgeModel(binding);
+    assert.equal(badge.state, displayState);
+    const clearDisabledReason = resolveGoalClearDisabledReason(binding);
+    const html = await renderWithI18n(React.createElement(GoalStatusStrip, {
+      canResume: false,
+      clearDisabledReason,
+      compact: false,
+      disabled: false,
+      error: null,
+      executionBinding: binding,
+      goal,
+      isGenerating: false,
+      isLoading: false,
+      scopeLabel: "Goal",
+      onClearRequest: () => {},
+      onEdit: () => {},
+      onPause: () => {},
+      onRefresh: () => {},
+      onResume: () => {},
+    }));
+    assert.match(html, /data-goal-binding-state=/);
+    assert.match(html, new RegExp(`data-goal-binding-state="${displayState}"`));
+    assert.match(html, new RegExp(`>${label}<`));
+    assert.match(html, />运行中</);
+    assert.ok(
+      html.indexOf("运行中") < html.indexOf(label),
+      "Goal lifecycle must remain primary to the WorkGraph binding badge",
+    );
+    if (clearDisabledReason) {
+      assert.match(html, /disabled=""/);
+      assert.match(html, new RegExp(`aria-label="清除：${clearDisabledReason}`));
+    }
+  }
 });
 
 test("会话标签只按稳定宽度约束进入溢出态", async () => {
@@ -266,6 +514,192 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
     inactive.rootClassName,
     /\bworkspace-surface-header-active-tab\b/,
   );
+});
+
+test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", async () => {
+  const { replaceFinalConversation } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement.ts",
+  );
+  const calls = [];
+  const internalConversation = {
+    conversation_id: "old",
+    created_at: 1,
+    last_activity_at: 1,
+    options: {},
+    room_id: "room-a",
+    session_id: null,
+    session_key: "room:old",
+    title: "Old",
+    is_draft: false,
+  };
+
+  await replaceFinalConversation({
+    closeConversation: async (conversationId) => {
+      calls.push(`close:${conversationId}`);
+    },
+    commitConversation: (conversationId) => {
+      calls.push(`commit:${conversationId}`);
+    },
+    conversation: internalConversation,
+    createConversation: async () => {
+      calls.push("create");
+      return "fresh-draft";
+    },
+    isCurrent: () => true,
+  });
+  assert.deepEqual(
+    calls,
+    ["create", "commit:fresh-draft", "close:old"],
+    "已开始会话的替换 ID 必然不同，应先切到输入框再后台关旧 runtime",
+  );
+
+  calls.length = 0;
+  await replaceFinalConversation({
+    closeConversation: async (conversationId) => {
+      calls.push(`close:${conversationId}`);
+    },
+    commitConversation: (conversationId) => {
+      calls.push(`commit:${conversationId}`);
+    },
+    conversation: {...internalConversation, is_draft: true},
+    createConversation: async () => {
+      calls.push("create");
+      return "old";
+    },
+    isCurrent: () => true,
+  });
+  assert.deepEqual(
+    calls,
+    ["close:old", "create", "commit:old"],
+    "当唯一 draft 被复用时必须先等 close，避免迟到的中断破坏新输入",
+  );
+
+  calls.length = 0;
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+      throw new Error("runtime close failed");
+    },
+    commitConversation: () => {
+      calls.push("commit");
+    },
+    conversation: {...internalConversation, is_draft: true},
+    createConversation: async () => {
+      calls.push("create");
+      return "old";
+    },
+    isCurrent: () => true,
+  });
+  assert.deepEqual(
+    calls,
+    ["close"],
+    "唯一 draft 的 runtime 未确认停止时不得复用同一 ID",
+  );
+
+  calls.length = 0;
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+    },
+    commitConversation: (conversationId) => {
+      calls.push(`commit:${conversationId}`);
+    },
+    conversation: {
+      ...internalConversation,
+      conversation_id: "external-session:feishu",
+      options: { external_session: true },
+    },
+    createConversation: async () => {
+      calls.push("create");
+      return "internal-draft";
+    },
+    isCurrent: () => true,
+  });
+  assert.deepEqual(
+    calls,
+    ["create", "commit:internal-draft"],
+    "外部 Session 关闭最后标签时不得调用 Room runtime close",
+  );
+
+  calls.length = 0;
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+    },
+    commitConversation: () => {
+      calls.push("commit");
+    },
+    conversation: internalConversation,
+    createConversation: async () => {
+      calls.push("create");
+      return null;
+    },
+    isCurrent: () => true,
+  });
+  assert.deepEqual(
+    calls,
+    ["create"],
+    "ensure 失败必须保留旧标签与 runtime",
+  );
+
+  calls.length = 0;
+  let currentCheckCount = 0;
+  await replaceFinalConversation({
+    closeConversation: async () => {
+      calls.push("close");
+    },
+    commitConversation: () => {
+      calls.push("commit");
+    },
+    conversation: internalConversation,
+    createConversation: async () => {
+      calls.push("create");
+      return "fresh-draft";
+    },
+    isCurrent: () => {
+      currentCheckCount += 1;
+      return currentCheckCount === 1;
+    },
+  });
+  assert.deepEqual(
+    calls,
+    ["create"],
+    "ensure 期间选中历史会话或切换 Room 后，旧事务不得覆盖新导航",
+  );
+});
+
+test("最后标签替换只能在原 Room 的原导航 revision 提交", async () => {
+  const { isFinalConversationReplacementCurrent } = await server.ssrLoadModule(
+    "/src/pages/room/orchestration/use-room-page-navigation.ts",
+  );
+  const currentScope = {
+    activeConversationId: "old",
+    currentEpoch: 4,
+    currentRoomId: "room-a",
+    expectedConversationId: "old",
+    expectedEpoch: 4,
+    expectedRoomId: "room-a",
+    openConversationIds: ["old"],
+    selectedConversationId: "old",
+  };
+
+  assert.equal(isFinalConversationReplacementCurrent(currentScope), true);
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    selectedConversationId: "history",
+  }), false);
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    currentRoomId: "room-b",
+  }), false);
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    currentEpoch: 6,
+  }), false, "切走再切回的 ABA 也必须使旧事务过期");
+  assert.equal(isFinalConversationReplacementCurrent({
+    ...currentScope,
+    openConversationIds: ["old", "history"],
+  }), false, "等待期间打开历史标签后不得精确覆盖集合");
 });
 
 test("会话标签显式映射滚轮与触控板并在边界放行", async () => {
@@ -679,6 +1113,7 @@ test("Room Agent 面板用最新目录覆盖上下文中的旧模型快照", asy
 
 test("会话标签首次只打开活动项并按创建时间插入主动选择项", async () => {
   const {
+    getCloseFallbackConversationId,
     getConversationIdsByCreationTime,
     getInitialOpenConversationIds,
     reconcileOpenConversationIds,
@@ -801,6 +1236,14 @@ test("会话标签首次只打开活动项并按创建时间插入主动选择�
     "标签视图不得自行折叠或删除历史草稿",
   );
   assert.equal(
+    getCloseFallbackConversationId(
+      [{ conversation_id: "only" }],
+      "only",
+    ),
+    null,
+    "关闭唯一标签没有相邻回退项，应由控制器确保新 draft 来替换",
+  );
+  assert.equal(
     shouldPersistConversationTabs({
       activeConversationId: "second",
       routeConversationId: "third",
@@ -839,6 +1282,18 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
       },
     },
     "旧版最后活动项应迁移成单标签，而不是把历史全部打开",
+  );
+  assert.deepEqual(
+    await migrate({
+      conversation_tabs_by_room: {
+        "empty-room": {
+          active_conversation_id: null,
+          open_conversation_ids: [],
+        },
+      },
+    }, 3),
+    { conversation_tabs_by_room: {} },
+    "v3 错误空快照必须在 v4 丢弃，重新进入时恢复有效会话",
   );
 
   useRoomNavigationStore.setState({ conversation_tabs_by_room: {} });
@@ -884,11 +1339,38 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
     },
     "关闭的标签不得在后续进入或持久化恢复时自动补回",
   );
+
+});
+
+test("删除外部 IM Session 会从持久化标签栏移除旧身份", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  useRoomNavigationStore.setState({conversation_tabs_by_room: {}});
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    "room-im",
+    ["local", "external-session:agent:a:tg:dm:old"],
+    "external-session:agent:a:tg:dm:old",
+  );
+
+  useRoomNavigationStore.getState().forget_conversation(
+    "room-im",
+    "external-session:agent:a:tg:dm:old",
+  );
+
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room["room-im"],
+    {
+      active_conversation_id: "local",
+      open_conversation_ids: ["local"],
+    },
+  );
 });
 
 test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {
   const {
     buildRoomConversationViews,
+    resolveCurrentRoomContext,
     resolveSelectedConversationId,
   } = await server.ssrLoadModule(
     "/src/pages/room/controller/model/room-conversation-model.ts",
@@ -924,6 +1406,21 @@ test("Room 无显式会话路由时优先恢复用户最后活动项", async () 
     ),
     "remembered",
     "活动标签失效时应优先恢复仍然有效的已打开标签",
+  );
+  assert.equal(
+    resolveSelectedConversationId(null, conversations, []),
+    "latest",
+    "没有有效恢复偏好时应进入当前有效会话，不保留无 Conversation 页面",
+  );
+  assert.deepEqual(
+    resolveCurrentRoomContext(
+      conversations.map((conversation) => ({
+        conversation: { id: conversation.conversation_id },
+      })),
+      null,
+    ),
+    { conversation: { id: "latest" } },
+    "页面模型必须始终回退到有效 Room 上下文",
   );
   const untitledViews = buildRoomConversationViews([{
     conversation: {
@@ -1507,4 +2004,51 @@ test("Room chat ACK with empty pending preserves the active slot", async () => {
     [],
     "权威 pending snapshot 才可以用空数组清除 slot",
   );
+});
+
+test("Goal 完成收据只展示已知结算项且不泄露内部绑定 ID", async () => {
+  const { AssistantMessageStats } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx",
+  );
+  const { formatGoalElapsed } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/goal-completion-receipt.ts",
+  );
+  const renderReceipt = async (receipt, locale = "zh") => renderWithI18n(
+    React.createElement(AssistantMessageStats, {
+      copied: false,
+      goalCompletionReceipt: receipt,
+      stats: null,
+      streaming: false,
+    }),
+    locale,
+  );
+
+  const completeOnly = await renderReceipt({
+    goal_id: "goal-hidden",
+    round_id: "round-hidden",
+  });
+  assert.match(completeOnly, /Goal 已完成/);
+  assert.doesNotMatch(completeOnly, /耗时|tokens|goal-hidden|round-hidden|结算中|不可用/);
+
+  const durationOnly = await renderReceipt({
+    goal_id: "goal-hidden",
+    round_id: "round-hidden",
+    time_used_seconds: 754,
+  });
+  assert.match(durationOnly, /Goal 已完成/);
+  assert.match(durationOnly, /耗时 12 分 34 秒/);
+  assert.doesNotMatch(durationOnly, /tokens|结算中|不可用/);
+
+  const complete = await renderReceipt({
+    goal_id: "goal-hidden",
+    round_id: "round-hidden",
+    time_used_seconds: 754,
+    actual_tokens: 62762,
+  });
+  assert.match(complete, /Goal 已完成/);
+  assert.match(complete, /耗时 12 分 34 秒/);
+  assert.match(complete, /使用 62,762 tokens/);
+  assert.doesNotMatch(complete, /goal-hidden|round-hidden|结算中|不可用/);
+  assert.equal(formatGoalElapsed(3605, "zh"), "1 小时 0 分");
+  assert.equal(formatGoalElapsed(86400, "zh"), "1 天 0 小时");
 });

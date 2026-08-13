@@ -746,6 +746,9 @@ func TestRoomExplicitInputWinsGoalContinuationDispatchRace(t *testing.T) {
 	}
 	service.SetRoomBroadcaster(broadcaster)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	goalService.SetSessionOwnershipVerifier(testRoomGoalSessionOwnershipVerifier{
+		agentNames: map[string]string{memberAgent.AgentID: memberAgent.Name},
+	})
 	service.SetGoalContextProvider(goalService)
 	quota := &firstBlockingRoomQuotaChecker{
 		entered: make(chan struct{}),

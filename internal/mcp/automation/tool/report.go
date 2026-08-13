@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"strings"
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
@@ -19,6 +20,13 @@ func report(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		InputSchema: reportSchema(),
 		Annotations: &sdktool.ToolAnnotations{ReadOnly: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
+			if strings.TrimSpace(sctx.CurrentJobID) != "" &&
+				argx.String(args, "job_id") == "" &&
+				argx.String(args, "query") == "" &&
+				argx.String(args, "agent_id") == "" {
+				args = cloneToolArguments(args)
+				args["job_id"] = strings.TrimSpace(sctx.CurrentJobID)
+			}
 			if payload, handled, err := currentConversationDailyReport(ctx, svc, sctx, args); handled {
 				if err != nil {
 					return render.Error(err), nil
@@ -57,4 +65,12 @@ func report(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			return render.JSON(render.DecorateTimes(payload, payload.Timezone)), nil
 		},
 	}
+}
+
+func cloneToolArguments(args map[string]any) map[string]any {
+	result := make(map[string]any, len(args)+1)
+	for key, value := range args {
+		result[key] = value
+	}
+	return result
 }

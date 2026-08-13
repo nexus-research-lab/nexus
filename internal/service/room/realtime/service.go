@@ -99,7 +99,11 @@ type ChatRequest struct {
 	InputOptions                      sdkprotocol.OutboundMessageOptions
 	PermissionMode                    sdkpermission.Mode
 	PermissionHandler                 sdkpermission.Handler
-	EventObserver                     RoomEventObserver
+	// RuntimeToolPolicy 仅供 automation 等受控执行传入创建时权限快照。
+	RuntimeToolPolicy *protocol.RuntimeToolPolicy
+	// AutomationRun 只由 Automation 调度器签发，作为 runtime/MCP 的可信 run 身份。
+	AutomationRun *protocol.AutomationRunContext
+	EventObserver RoomEventObserver
 }
 
 // InterruptRequest 表示 Room 会话中断请求。按 root round + agent slot 定位执行对象。
@@ -203,8 +207,13 @@ type goalContextProvider interface {
 	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
+	RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+}
+
+type goalEventProvider interface {
+	Events(context.Context, string, int) ([]protocol.GoalEvent, error)
 }
 
 type goalContinuationProvider interface {

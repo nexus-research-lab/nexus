@@ -14,15 +14,16 @@ import (
 
 const titleRequestTimeout = 45 * time.Second
 
-// Service 负责按首条用户消息异步生成会话标题。
+// Service 负责按首个用户意图（普通消息或 Goal 控制命令）异步生成会话标题。
 type Service struct {
-	providers providerResolver
-	prefs     preferencesService
-	sessions  sessionService
-	rooms     roomService
-	events    eventBroadcaster
-	logger    *slog.Logger
-	llmClient *llm.Client
+	providers  providerResolver
+	prefs      preferencesService
+	sessions   sessionService
+	rooms      roomService
+	events     eventBroadcaster
+	roomEvents roomResyncBroadcaster
+	logger     *slog.Logger
+	llmClient  *llm.Client
 
 	runAsync func(func())
 
@@ -64,6 +65,14 @@ func NewService(
 		lifecycleCtx:    lifecycleCtx,
 		lifecycleCancel: lifecycleCancel,
 	}
+}
+
+// SetRoomResyncBroadcaster 注入 Room conversation 标题变更后的目录失效投影。
+func (s *Service) SetRoomResyncBroadcaster(broadcaster roomResyncBroadcaster) {
+	if s == nil {
+		return
+	}
+	s.roomEvents = broadcaster
 }
 
 // SetLogger 注入日志实例。

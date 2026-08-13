@@ -136,6 +136,30 @@ func TestNormalizeHistoryRowsMaterializesRunningAssistantWithoutStopReason(t *te
 	}
 }
 
+func TestNormalizeHistoryRowsTreatsHostControlRecordAsTerminal(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id":   "user-goal-control",
+			"session_key":  "agent:nexus:ws:dm:test-goal-control",
+			"agent_id":     "nexus",
+			"round_id":     "round-goal-control",
+			"role":         "user",
+			"content":      "修复 Goal 状态机",
+			"control_only": true,
+			"metadata":     map[string]string{"subtype": "goal_set"},
+			"timestamp":    int64(1000),
+		},
+	}
+
+	normalized := normalizeHistoryRows(rows, nil)
+	if len(normalized) != 1 {
+		t.Fatalf("host control round 不应物化 interrupted assistant: got=%d rows=%+v", len(normalized), normalized)
+	}
+	if stringFromAny(normalized[0]["message_id"]) != "user-goal-control" {
+		t.Fatalf("host control record 被错误改写: %+v", normalized[0])
+	}
+}
+
 func TestBuildRoomTranscriptReferenceRejectsResultRole(t *testing.T) {
 	row := buildRoomTranscriptReference(protocol.Message{
 		"message_id": "result-1",

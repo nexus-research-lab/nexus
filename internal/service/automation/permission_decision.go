@@ -171,9 +171,15 @@ func (s *Service) ResolvePermissionRequest(
 	}
 	if finishDenied {
 		s.finishDeniedPermissionRun(*job, request.RunID, resolvedAt, deniedMessage)
+		s.notifyAutomationPermissionDecision(ctx, *job, *resolved, "权限请求已拒绝，本次运行已停止。")
 		return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
 	}
 	if run == nil || !resumeSafe {
+		message := "权限请求已批准。"
+		if !resumeSafe {
+			message = "权限请求已批准；为避免重复外部副作用，请在 Nexus 中显式确认重试。"
+		}
+		s.notifyAutomationPermissionDecision(ctx, *job, *resolved, message)
 		return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
 	}
 	if resumeErr := s.resumePermissionBlockedRun(ctx, *job, *run, resolved); resumeErr != nil {
@@ -187,6 +193,7 @@ func (s *Service) ResolvePermissionRequest(
 		job.PermissionState = automationdomain.TaskPermissionStateReadyToRetry
 		job.PendingPermissionRequestID = request.RequestID
 		s.setJobPermissionState(job.JobID, job.PermissionState, request.RequestID)
+		s.notifyAutomationPermissionDecision(ctx, *job, *resolved, "权限已批准，但自动恢复失败；请在 Nexus 中显式重试。")
 		return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
 	}
 	result.ResumeStarted = true
@@ -194,6 +201,7 @@ func (s *Service) ResolvePermissionRequest(
 		"request_id": request.RequestID,
 		"automatic":  true,
 	})
+	s.notifyAutomationPermissionDecision(ctx, *job, *resolved, "权限请求已批准，任务已继续运行。")
 	return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
 }
 
@@ -455,10 +463,8 @@ func (s *Service) resumePermissionBlockedRun(
 	sink := automationexec.NewExecutionSink("automation:" + run.RunID)
 	cleanup := s.bindSink(sessionKey, sink)
 	completeAttempt := s.registerPhysicalAttempt(run.RunID, roundID)
-	dispatchJob := job
-	dispatchJob.Instruction = buildPermissionResumeInstruction(job, request)
 	resumeAttempt := newPermissionResumeAttempt(request)
-	if err = s.dispatchJobToSession(jobCtx, dispatchJob, run.RunID, sessionKey, roundID, roomEventObserverForSink(sink), resumeAttempt); err != nil {
+	if err = s.dispatchJobToSession(jobCtx, job, run.RunID, sessionKey, roundID, roomEventObserverForSink(sink), resumeAttempt); err != nil {
 		completeAttempt()
 		cleanup()
 		sink.Close()

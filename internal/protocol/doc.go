@@ -1,23 +1,36 @@
-// Package protocol 是跨 HTTP/WebSocket/前端/运行时边界共享的协议真相源。
+// Package protocol 是 HTTP、WebSocket、前端与 runtime 共享的 wire truth。
 //
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
-// 只放跨边界共享的协议模型、枚举、事件构造和代码生成输入；服务内部输入、仓储 DTO、
-// 持久化 codec 留在对应 internal/service/* 或 internal/storage/*。
+// 本包只定义跨边界模型、枚举、事件和代码生成输入。产品行为见
+// docs/specs；服务 command 与仓储 DTO 留在 internal/service 和
+// internal/storage，不能在本头部复制第二份业务规范。
 //
-// 成员清单（按域，本包整体即协议模型，故文件不再加 model_ 前缀）：
-//   - agent.go / agent_private.go / skill.go：Agent 模型、同 owner 联系人、可游标翻页的私域消息投影、平台/用户级外部 Skill 引用、显式停用名称与创建/更新协议。
-//   - session*.go：Session / Message / SessionKey 统一会话模型、持久化上下文占用快照与 transcript 原生消息边界。
-//   - room*.go：房间、联系人内部通道用途、成员持久 participation gate、每 Room 唯一未开始 conversation draft、directed message。
-//   - conversation_turn.go / event.go / goal*.go / objective_alignment.go / execution*.go / execution_plan_proposal.go / input_queue.go：
-//     对话投影、统一事件类型、Room member participation change、session-scoped command catalog、精确 interrupt 完成 ACK 与带 public handoff 关联的权威 runtime slot 快照、Goal 生命周期/objective revision、显式 Goal 的稳定 Execution 预留与旧记录确定性恢复、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照、持久接受 ACK 及互斥 work/review capability envelope 校验。
-//     objective_alignment.go 定义 Goal completion 与 Execution loop guard 共用、但不拥有任一生命周期的逐 criterion evidence、gap 和 aligned/not_aligned/inconclusive 三态审计协议。
-//     execution*.go 额外定义 Goal 可选绑定下的 Execution、typed predecessor successor linkage、immutable Plan revision、stable Work Item/spec、模型执行契约单一集合上限、固定 subagent reconciliation grace、typed canonical output scope 与跨平台保守比较键、Assignment、dispatch outbox、跨 Room queue/slot/runtime 的完整 WorkBinding、含 parent-exit reconciliation deadline 的 Attempt、exact-target cancellation outbox/Binding、immutable Submission、跨 Agent review-return outbox/ReviewBinding、append-only Acceptance、有序幂等事件协议，以及不暴露 capability identity 的 Web WorkGraph、review Gate 与带有界结果/错误摘要、NodeRun 历史、到达顺序无关 Artifact ref、显式 partial/total、可解释控制回边和 exact retry 关联的 provider-neutral Runtime NodeRun/EdgeRun 只读投影。execution_plan_proposal.go 定义独立于权威 Plan revision、已按 Goal/document/current Execution 补全 canonical root boundary 的 sealed proposal；digest 覆盖 trusted authority/round/target 与 Goal activation/reserved successor/predecessor，可变部分只保存 materialization receipt、CAS lease/retry 与 Goal confirmation 恢复状态。
-//     event.go 同时承载 runtime 每轮结束后的 Agent session 上下文占用事件。
-//   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
-//     聊天附件、工作区文件产物、投递策略。
-//   - identity.go / value.go / provider_failure.go / tool_result.go：ID 生成、跨边界值解码、稳定 Provider 失败分类，以及工具传输状态之外的显式 mutation 结果语义。
-//   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
+// 成员地图：
+//   - agent.go / agent_private.go / skill.go：Agent、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
+//   - session*.go / conversation_turn.go / input_queue.go：会话、消息、轮次、
+//     外部 IM 身份、Goal 完成收据、记忆引用、上下文占用和持久输入队列。
+//   - room*.go：Room、可按好友对恢复的联系人内部通道、成员 participation gate、
+//     唯一 conversation draft、directed message、public handoff 与 runtime slot。
+//   - goal*.go / objective_alignment.go：Goal 生命周期、独立 host Goal command、
+//     objective revision、非授权 Room collaboration attribution、Execution binding
+//     五态 resolution、用量与对齐审计。
+//   - execution*.go / execution_plan_proposal.go：Execution、Plan/Work Item、
+//     Assignment/Attempt/Submission/Acceptance、dispatch/cancellation、Runtime Graph
+//     与只读 WorkGraph view。当前语义见 docs/specs/execution-orchestration-spec.md
+//     和 docs/specs/execution-graph-spec.md。
+//   - automation_run.go / im_permission_command.go：受控 Automation 运行上下文与
+//     普通 runtime/Automation 共用的 IM 权限短命令。
+//   - event.go / typescript_event.go / generate.go：统一事件 envelope、session-scoped
+//     command catalog、interrupt ACK、owner/session WorkGraph 失效事件、上下文占用事件与前端 TS 生成。
+//   - attachment.go / workspace_file_artifact.go / delivery_policy.go：附件、
+//     文件产物与投递策略。
+//   - identity.go / value.go / provider_failure.go / tool_result.go：共享 ID、值解码、
+//     Provider 失败分类与 mutation outcome。
 //
-// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+// 主要暴露接口：Goal、ExecutionSnapshot/ExecutionView、ExecutionWorkBinding/
+// ExecutionReviewBinding、EventMessage 及 New*Event 构造器；精确字段以对应 Go
+// 类型为准，前端事件类型由 typescript_event.go 生成。
+//
+// [PROTOCOL]: wire 变化时更新本头部，并检查 docs/specs、docs/README.md 与 AGENTS.md。
 package protocol

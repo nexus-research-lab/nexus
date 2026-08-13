@@ -31,6 +31,10 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	if current == nil {
 		return nil, ErrGoalNotFound
 	}
+	if expectedGoalID := strings.TrimSpace(request.ExpectedGoalID); expectedGoalID != "" &&
+		current.ID != expectedGoalID {
+		return nil, ErrGoalRevisionStale
+	}
 	if err := authorizeRoomGoalModelMutation(*current, request.AgentID); err != nil {
 		return nil, err
 	}
@@ -53,7 +57,17 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	if !objectiveRevisionMatches(*current, request.ExpectedObjectiveRevision) {
 		return nil, ErrGoalRevisionStale
 	}
-	if s.objectiveRetarget != nil {
+	managed, bindingErr := s.goalHasManagedExecutionBinding(ctx, *current)
+	if bindingErr != nil {
+		return nil, bindingErr
+	}
+	if managed {
+		if s.objectiveRetarget == nil {
+			return nil, fmt.Errorf(
+				"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
+				ErrGoalInvalidState,
+			)
+		}
 		updated, coordinateErr := s.objectiveRetarget.RetargetGoalObjective(ctx, ObjectiveRetargetCommand{
 			Goal:                      *current,
 			RequestedObjective:        objective,
@@ -70,12 +84,6 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 		s.updatePreviewFromGoal(ctx, *updated, "")
 		return updated, nil
 	}
-	if goalHasManagedExecutionBinding(*current) {
-		return nil, fmt.Errorf(
-			"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
-			ErrGoalInvalidState,
-		)
-	}
 	updated, err := s.retryGoalMutation(ctx, current, func(latest *protocol.Goal) (*protocol.Goal, error) {
 		if !objectiveRevisionMatches(*latest, request.ExpectedObjectiveRevision) {
 			return nil, ErrGoalRevisionStale
@@ -89,20 +97,29 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	return updated, nil
 }
 
-func goalHasManagedExecutionBinding(item protocol.Goal) bool {
-	if protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataExecutionID) != "" {
-		return true
+func (s *Service) goalHasManagedExecutionBinding(
+	ctx context.Context,
+	item protocol.Goal,
+) (bool, error) {
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return false, fmt.Errorf("resolve Goal Execution binding: %w", err)
 	}
-	switch protocol.GoalActivationOrigin(protocol.GoalMetadataString(
-		item.Metadata,
-		protocol.GoalMetadataActivationOrigin,
-	)) {
-	case protocol.GoalActivationOriginUserExplicit,
-		protocol.GoalActivationOriginAdaptiveInitial,
-		protocol.GoalActivationOriginAdaptivePromoted:
-		return true
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+		return false, nil
+	case protocol.GoalExecutionBindingStateConfirmed:
+		return true, nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return false, fmt.Errorf(
+			"%w: Goal Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
 	default:
-		return false
+		return false, fmt.Errorf("%w: Goal Execution binding state is unknown", ErrGoalInvalidState)
 	}
 }
 

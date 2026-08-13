@@ -1,5 +1,5 @@
-// INPUT: host-only owner Session lifecycle records、runtime Manager 与 transcript store。
-// OUTPUT: 重启后 deleting/deleted 删除的确定性提交、清理和永久 admission fence。
+// INPUT: host-only owner Session lifecycle records、runtime Manager、跨域引用协调器与 transcript store。
+// OUTPUT: 重启后 deleting/deleted 删除的确定性提交、任务停用/引用清理和永久 admission fence。
 // POS: Session 删除崩溃恢复边界；在 Channel/Automation 等后台入口启动前至少执行一次。
 package session
 
@@ -102,6 +102,15 @@ func (s *Service) reconcilePendingDeletion(
 			item.ConfigurationVersion,
 		); err != nil {
 			return fmt.Errorf("提交残留目录删除: %w", err)
+		}
+	}
+	if s.deletion != nil {
+		if err := s.deletion.CleanupSessionReferencesPreservingTasks(
+			context.WithoutCancel(ctx),
+			item.OwnerUserID,
+			[]string{item.SessionKey},
+		); err != nil {
+			return fmt.Errorf("清理残留 Session 引用: %w", err)
 		}
 	}
 	cleanupSessionIDs := item.CleanupSessionIDs

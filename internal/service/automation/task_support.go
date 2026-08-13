@@ -162,6 +162,107 @@ func (s *Service) DeleteTasksForSessions(
 	return nil
 }
 
+// CountTasksReferencingSessions 返回每个结构化 Session 被现存任务引用的数量。
+// 禁用任务也计入：用户以后重新启用时仍需要原投递/执行上下文，不能因删除历史
+// Session 而静默损坏配置。
+func (s *Service) CountTasksReferencingSessions(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKeys []string,
+) (map[string]int, error) {
+	keySet := make(map[string]struct{}, len(sessionKeys))
+	result := make(map[string]int, len(sessionKeys))
+	for _, sessionKey := range sessionKeys {
+		sessionKey = strings.TrimSpace(sessionKey)
+		if sessionKey == "" {
+			continue
+		}
+		keySet[sessionKey] = struct{}{}
+		result[sessionKey] = 0
+	}
+	if len(keySet) == 0 {
+		return result, nil
+	}
+	items, err := s.repository.ListScheduledTasks(ctx, strings.TrimSpace(ownerUserID), "")
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		for sessionKey := range scheduledTaskReferencedSessionKeys(item, keySet) {
+			result[sessionKey]++
+		}
+	}
+	return result, nil
+}
+
+// InvalidateTasksForDeletedSessions 保留引用已删除 Session 的任务定义，但停止未来调度，
+// 直到执行和投递目标中的全部失效绑定都被用户或 Agent 重新分配。
+func (s *Service) InvalidateTasksForDeletedSessions(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKeys []string,
+) error {
+	if err := s.ensureReady(ctx); err != nil {
+		return err
+	}
+	s.taskControlMu.Lock()
+	defer s.taskControlMu.Unlock()
+
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	items, err := s.repository.ListScheduledTasks(ctx, ownerUserID, "")
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		invalidated, changed := automationdomain.InvalidateScheduledTaskSessions(item, sessionKeys)
+		if !changed {
+			continue
+		}
+		invalidated.PermissionPolicy = normalizeTaskPermissionPolicy(item.PermissionPolicy)
+		invalidated.PermissionPolicy.Revision++
+		invalidated.PermissionState = automationdomain.TaskPermissionStateReady
+		invalidated.PendingPermissionRequestID = ""
+		updated, updateErr := s.repository.UpdateScheduledTaskAtVersion(
+			contextForJobOwner(ctx, item),
+			invalidated,
+			item.ConfigurationVersion,
+		)
+		if updateErr != nil {
+			return updateErr
+		}
+		if updateErr = s.repository.SupersedePendingPermissionRequests(
+			ctx,
+			updated.OwnerUserID,
+			updated.JobID,
+		); updateErr != nil {
+			return updateErr
+		}
+		if updateErr = s.repository.CancelBlockedRunsForTaskRevision(
+			ctx,
+			updated.OwnerUserID,
+			updated.JobID,
+			updated.PermissionPolicy.Revision,
+			"任务绑定的 Session 已删除，请重新分配会话后再运行",
+		); updateErr != nil {
+			return updateErr
+		}
+		state := s.ensureJobState(*updated)
+		s.persistJobRuntime(ctx, s.jobRuntimeUpdateSnapshot(updated.JobID, state))
+		s.recordTaskEvent(
+			ctx,
+			automationdomain.TaskEventActionSessionBindingInvalidated,
+			*updated,
+			"",
+			map[string]any{
+				"enabled":                false,
+				"session_binding_state":  updated.SessionBindingState,
+				"session_binding_issues": updated.SessionBindingIssues,
+			},
+		)
+	}
+	return nil
+}
+
 // DeleteTasksForAgent 删除属于指定 Agent 的所有定时任务。
 func (s *Service) DeleteTasksForAgent(
 	ctx context.Context,
@@ -189,16 +290,26 @@ func scheduledTaskReferencesSession(
 	item automationdomain.ScheduledTask,
 	sessionKeys map[string]struct{},
 ) bool {
+	return len(scheduledTaskReferencedSessionKeys(item, sessionKeys)) > 0
+}
+
+func scheduledTaskReferencedSessionKeys(
+	item automationdomain.ScheduledTask,
+	sessionKeys map[string]struct{},
+) map[string]struct{} {
+	result := make(map[string]struct{})
 	for _, sessionKey := range []string{
 		item.SessionTarget.BoundSessionKey,
 		item.SessionTarget.NamedSessionKey,
-		item.Source.SessionKey,
+		item.Delivery.SessionKey,
+		item.Delivery.To,
 	} {
-		if _, exists := sessionKeys[strings.TrimSpace(sessionKey)]; exists {
-			return true
+		sessionKey = strings.TrimSpace(sessionKey)
+		if _, exists := sessionKeys[sessionKey]; exists {
+			result[sessionKey] = struct{}{}
 		}
 	}
-	return false
+	return result
 }
 
 func (s *Service) resolveAutomationWorkspacePath(ctx context.Context, agentID string) (string, error) {

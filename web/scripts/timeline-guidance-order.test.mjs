@@ -3108,6 +3108,116 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   assert.doesNotMatch(detailHtml, /next_actions/);
 });
 
+test("superseded WorkGraph result is muted and does not count as failure", async () => {
+  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
+  );
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { resolveToolBlockStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+  const { ToolBlockResult } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
+  );
+  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const { buildProcessSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const tool = {
+    type: "tool_use",
+    id: "tool-submit-superseded",
+    name: "mcp__nexus_execution__submit_work",
+    input: {
+      execution_id: "execution-old",
+      result_summary: "late predecessor result",
+    },
+  };
+  const result = {
+    type: "tool_result",
+    tool_use_id: tool.id,
+    is_error: false,
+    content: JSON.stringify({
+      message: "旧工作已被新目标替换；请停止当前轮次并等待新指派",
+      outcome: "superseded",
+      reason_code: "execution_terminal",
+    }),
+  };
+  const projection = {
+    content: [tool, result],
+    streamingIndexes: new Set(),
+  };
+  const [segment] = projectDmToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection,
+    responseResumed: true,
+  });
+  assert.equal(segment.phase, "superseded");
+  assert.equal(segment.supersededCount, 1);
+  assert.equal(segment.rejectedCount, 0);
+  assert.equal(segment.errorCount, 0);
+  assert.equal(resolveToolBlockStatus({ result }, false), "superseded");
+  assert.deepEqual(
+    buildProcessSummary({
+      pendingPermissionCount: 0,
+      processContent: [tool, result],
+    }).metrics,
+    [{ count: 1, kind: "action" }],
+  );
+
+  const provider = (child) => React.createElement(I18nProvider, null, child);
+  const dmHtml = renderToStaticMarkup(provider(React.createElement(
+    AssistantDmToolRuns,
+    {
+      activity: {
+        emptyStreamStatus: null,
+        showCursor: true,
+        standalone: false,
+        state: "executing",
+      },
+      environment: {
+        canRespondToPermissions: true,
+        hiddenToolNames: [],
+        mode: "dm_live",
+      },
+      generatedFilesLabel: "生成文件",
+      permissions: {
+        all: [],
+        matchedByToolUseId: new Map(),
+        owner: "content",
+        unmatched: [],
+      },
+      projection,
+      responseResumed: true,
+    },
+  )));
+  assert.match(dmHtml, /data-dm-tool-run-phase="superseded"/);
+  assert.match(dmHtml, /已被替换/);
+  assert.doesNotMatch(dmHtml, /执行失败|已拒绝/);
+
+  const roomHtml = renderToStaticMarkup(provider(React.createElement(
+    ContentRenderer,
+    { content: [tool, result] },
+  )));
+  assert.match(roomHtml, /已被替换/);
+  assert.match(roomHtml, /旧工作已被新目标替换/);
+  assert.doesNotMatch(roomHtml, /失败|已拒绝/);
+
+  const detailHtml = renderToStaticMarkup(provider(React.createElement(
+    ToolBlockResult,
+    { toolResult: result },
+  )));
+  assert.match(detailHtml, /data-tool-result-semantic-outcome="superseded"/);
+  assert.match(detailHtml, /execution_terminal/);
+});
+
 test("thinking and replying indicators render a real stepped frame track", async () => {
   const { MessageActivityStatus } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/message-activity-status.tsx",
@@ -3371,6 +3481,71 @@ test("DM live and terminal keep the final response on one content surface", asyn
     false,
     "the live process track must not duplicate or own the final response text",
   );
+});
+
+test("Goal 完成收据只在 assistant 真正终态后打开 footer", async () => {
+  const { resolveAssistantDisplayState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/display/message-item-display-model.ts",
+  );
+  const projection = (streamStatus) => ({
+    assistantMessages: [{}],
+    directOrderedProjection: { content: [] },
+    finalAssistantContent: [{ type: "text", text: "最终交付" }],
+    finalAssistantStreamingIndexes: new Set(),
+    finalAssistantText: "最终交付",
+    goalCompletionReceipt: { goal_id: "goal-hidden", round_id: "round-hidden" },
+    liveActivityState: null,
+    mergedContent: [{ type: "text", text: "最终交付" }],
+    pendingInteractionPermissions: [],
+    processProjection: { content: [] },
+    resultSummary: null,
+    stats: null,
+    streamStatus,
+    streamingBlockIndexes: new Set(),
+  });
+  const resolve = (streamStatus) => resolveAssistantDisplayState({
+    assistantContentMode: "dm_archived",
+    hasStopHandler: false,
+    isLastRound: true,
+    isLoading: streamStatus !== "done",
+    pendingPermissionCount: 0,
+    projection: projection(streamStatus),
+  });
+
+  assert.equal(resolve("streaming").footerVisible, false);
+  assert.equal(resolve("done").footerVisible, true);
+});
+
+test("迟到历史用 Goal 完成收据推进同一 assistant 快照", async () => {
+  const { mergeLoadedMessages } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+  const base = {
+    agent_id: "agent-1",
+    content: [{ type: "text", text: "最终交付" }],
+    is_complete: true,
+    message_id: "assistant-receipt-history",
+    role: "assistant",
+    round_id: "round-receipt-history",
+    session_key: "agent:agent-1:ws:dm:receipt-history",
+    stop_reason: "end_turn",
+    timestamp: 1000,
+  };
+  const merged = mergeLoadedMessages(
+    [{
+      ...base,
+      goal_completion_receipt: {
+        actual_tokens: 42,
+        goal_id: "goal-hidden",
+        round_id: base.round_id,
+      },
+    }],
+    [base],
+  );
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].goal_completion_receipt.actual_tokens, 42);
+  assert.equal(merged[0].content[0].text, "最终交付");
 });
 
 test("Room terminal result keeps public structure, hides thinking, and preserves monotonic text", async () => {

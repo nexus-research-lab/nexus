@@ -1,3 +1,6 @@
+// INPUT: authenticated WebSocket sender 与 structured bind/unbind_session 命令。
+// OUTPUT: permission、command catalog、context usage 及 owner/session Execution invalidation 租约。
+// POS: 会话绑定协议入口；只登记 transport scope，不读取或修改 WorkGraph。
 package websocket
 
 import (
@@ -5,6 +8,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -29,6 +33,9 @@ func (h *Handler) handleBindSession(
 		return
 	}
 	h.permission.BindSession(sessionKey, sender)
+	if h.executionInvalidations != nil {
+		h.executionInvalidations.Bind(authctx.OwnerUserID(ctx), sessionKey, sender)
+	}
 	if h.channels != nil {
 		_ = h.channels.RememberWebSocketRoute(ctx, sessionKey)
 	}
@@ -43,6 +50,12 @@ func (h *Handler) handleBindSession(
 		h.sendGatewayError(ctx, sender, sessionKey, "context_usage_replay_error", err, map[string]any{
 			"type": "bind_session",
 		})
+		return
+	}
+	// execution_invalidated is ephemeral. Rebinding therefore emits an empty
+	// identity fence so a graph created or terminalized while disconnected is
+	// re-read without falling back to conversation activity heuristics.
+	if err = sendExecutionInvalidationFence(ctx, sender, sessionKey); err != nil {
 		return
 	}
 	if parsed.Kind == protocol.SessionKeyKindAgent && h.dm != nil {
@@ -117,6 +130,9 @@ func (h *Handler) handleUnbindSession(
 		return
 	}
 	h.permission.UnbindSession(sessionKey, sender)
+	if h.executionInvalidations != nil {
+		h.executionInvalidations.Unbind(authctx.OwnerUserID(ctx), sessionKey, sender)
+	}
 	h.broadcastSessionStatus(ctx, sessionKey)
 }
 
@@ -126,9 +142,15 @@ func (h *Handler) ensureSessionBinding(
 	sessionKey string,
 ) {
 	if h.permission.IsBound(sessionKey, sender) {
+		if h.executionInvalidations != nil {
+			h.executionInvalidations.Bind(authctx.OwnerUserID(ctx), sessionKey, sender)
+		}
 		return
 	}
 	h.permission.BindSession(sessionKey, sender)
+	if h.executionInvalidations != nil {
+		h.executionInvalidations.Bind(authctx.OwnerUserID(ctx), sessionKey, sender)
+	}
 	h.broadcastSessionStatus(ctx, sessionKey)
 }
 

@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testing.T) {
@@ -119,6 +120,795 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 	}
 	if len(items) != 1 || items[0].OwnerUserID != ownerUserID {
 		t.Fatalf("recovered queue items = %#v, want owner %q", items, ownerUserID)
+	}
+}
+
+func TestPublicHandoffReconcilerRestoresGoalDirectedWakeAfterQueueDispatchCrash(t *testing.T) {
+	const (
+		ownerUserID    = "owner-goal-directed-recovery"
+		conversationID = "conversation-goal-directed-recovery"
+		roomID         = "room-goal-directed-recovery"
+		sourceAgentID  = "agent-goal-lead"
+		targetAgentID  = "agent-goal-peer"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		targetAgentID,
+		protocol.RoomTypeGroup,
+	)
+	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), targetAgentID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+			PrivateMessagesEnabled: true,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: sourceAgentID},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID},
+		},
+		MemberAgents: []protocol.Agent{
+			{AgentID: sourceAgentID},
+			{AgentID: targetAgentID, WorkspacePath: workspacePath},
+		},
+		Sessions: []protocol.SessionRecord{{
+			ID: "session-goal-directed-target", ConversationID: conversationID, AgentID: targetAgentID,
+		}},
+	}
+	message := protocol.RoomDirectedMessageRecord{
+		MessageID: "directed-goal-source", RoomID: roomID, ConversationID: conversationID,
+		SourceAgentID: sourceAgentID, Recipients: []string{targetAgentID},
+		WakeTargets: []string{targetAgentID}, Content: "private Goal evidence",
+		WakePolicy:  protocol.RoomWakePolicyImmediate,
+		ReplyRoute:  protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePrivate, Recipients: []string{sourceAgentID}},
+		RootRoundID: "goal-root", CausedByRoundID: "goal-source-round",
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{GoalID: "goal-room", ObjectiveRevision: 4},
+		Timestamp:                time.Now().UnixMilli(),
+	}
+	directed := workspacestore.NewRoomDirectedMessageStore(root)
+	if err := directed.AppendMessage(ownerUserID, message); err != nil {
+		t.Fatal(err)
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoffID := roomDirectedGoalHandoffID(conversationID, message.MessageID, targetAgentID)
+	if _, _, err := handoffs.Detect(ownerUserID, workspacestore.RoomPublicHandoff{
+		HandoffID: handoffID, ConversationID: conversationID, RoomID: roomID,
+		RootRoundID: message.RootRoundID, SourceAgentRoundID: message.CausedByRoundID,
+		SourceMessageID: message.MessageID, SourceAgentID: sourceAgentID,
+		TargetAgentID: targetAgentID, Content: roomDirectedMessageWakePrompt,
+		ReplyRoute: message.ReplyRoute, QueueSource: protocol.InputQueueSourceAgentRoomMessage,
+		GoalCollaborationBinding: message.GoalCollaborationBinding,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoffID); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkQueued(ownerUserID, conversationID, handoffID, "lost-queue-item"); err != nil {
+		t.Fatal(err)
+	}
+	rooms := &systemOnlyRoomContextStore{contextValue: contextValue}
+	busySlot := &activeRoomSlot{
+		AgentID:           targetAgentID,
+		AgentRoundID:      "busy-goal-directed-round",
+		RuntimeSessionKey: runtimeSessionKey,
+		WorkspacePath:     workspacePath,
+	}
+	busySlot.setStatus("running")
+	wakeTimers := newRoomWakeTimerRegistry()
+	defer wakeTimers.Stop()
+	service := &Service{
+		rooms: rooms, directedMessages: directed, publicHandoffs: handoffs,
+		inputQueue: workspacestore.NewInputQueueStore(root),
+		permission: permissionctx.NewContext(), wakeTimers: wakeTimers,
+		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
+			sharedSessionKey: {
+				ID: "goal-room", SessionKey: sharedSessionKey, Status: protocol.GoalStatusActive,
+				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(4)},
+			},
+		}},
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+			"busy-goal-directed": {
+				SessionKey: sharedSessionKey, RoomID: roomID,
+				ConversationID: conversationID, RootRoundID: "busy-goal-root",
+				Slots: map[string]*activeRoomSlot{"busy": busySlot},
+			},
+		}),
+	}
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	location := workspacestore.InputQueueLocation{
+		OwnerUserID: ownerUserID, Scope: protocol.InputQueueScopeRoom,
+		WorkspacePath: workspacePath,
+		SessionKey:    runtimeSessionKey,
+		RoomID:        roomID, ConversationID: conversationID,
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 || items[0].HandoffID != handoffID ||
+		items[0].GoalCollaborationBinding == nil ||
+		items[0].GoalCollaborationBinding.ObjectiveRevision != 4 {
+		t.Fatalf("recovered Goal directed queue = %+v err=%v", items, err)
+	}
+}
+
+func TestPublicHandoffReconcilerSettlesTerminalGoalHandbackAfterRestart(t *testing.T) {
+	const (
+		ownerUserID    = "owner-goal-handback-recovery"
+		conversationID = "conversation-goal-handback-recovery"
+		roomID         = "room-goal-handback-recovery"
+		targetAgentID  = "agent-goal-handback-peer"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{{
+			MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID,
+		}},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID: "handoff-terminal-goal-recovery", ConversationID: conversationID,
+		RoomID: roomID, RootRoundID: "goal-root-recovery",
+		SourceMessageID: "goal-source-recovery", SourceAgentID: "agent-goal-lead",
+		TargetAgentID: targetAgentID, Content: "recover finished collaborator",
+		QueueSource: protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-handback-recovery", ObjectiveRevision: 3,
+		},
+	}
+	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	if _, claimed, err := handoffs.Claim(ownerUserID, conversationID, handoff.HandoffID); err != nil || !claimed {
+		t.Fatalf("claim=%t err=%v", claimed, err)
+	}
+	if err := handoffs.MarkStarted(ownerUserID, conversationID, handoff.HandoffID, "target-root-recovery"); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkTerminalWithGoalOutcome(
+		ownerUserID,
+		conversationID,
+		handoff.HandoffID,
+		"finished",
+		"target-agent-recovery",
+		true,
+		true,
+	); err != nil {
+		t.Fatal(err)
+	}
+	provider := &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
+		sessionKey: {
+			ID: "goal-handback-recovery", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+			Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(3)},
+		},
+	}}
+	service := &Service{
+		rooms:            &systemOnlyRoomContextStore{contextValue: contextValue},
+		publicHandoffs:   handoffs,
+		directedMessages: workspacestore.NewRoomDirectedMessageStore(root),
+		goals:            provider,
+	}
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	provider.mu.Lock()
+	if len(provider.collabEvidence) != 1 ||
+		provider.collabEvidence[0] != "target-agent-recovery:"+targetAgentID ||
+		len(provider.handbacks) != 1 || provider.handbacks[0] != "target-root-recovery" {
+		provider.mu.Unlock()
+		t.Fatalf(
+			"evidence=%+v handbacks=%+v",
+			provider.collabEvidence,
+			provider.handbacks,
+		)
+	}
+	provider.mu.Unlock()
+	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
+	if err != nil || !exists || !stored.GoalHandbackSettled || stored.Status != "finished" {
+		t.Fatalf("stored=%+v exists=%t err=%v", stored, exists, err)
+	}
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	if len(provider.collabEvidence) != 1 || len(provider.handbacks) != 1 {
+		t.Fatalf("settled handback replayed: evidence=%+v handbacks=%+v", provider.collabEvidence, provider.handbacks)
+	}
+}
+
+func TestPublicHandoffReconcilerRepairsLegacySuppressedGoalRootFromHostFacts(t *testing.T) {
+	const (
+		ownerUserID        = "owner-legacy-goal-handback"
+		conversationID     = "conversation-legacy-goal-handback"
+		roomID             = "room-legacy-goal-handback"
+		goalID             = "goal-legacy-goal-handback"
+		leadAgentID        = "agent-legacy-goal-lead"
+		targetAgentID      = "agent-legacy-goal-peer"
+		rootRoundID        = "goal_continuation_legacy_root"
+		sourceAgentRoundID = "agent-round-legacy-source"
+		targetAgentRoundID = "agent-round-legacy-target"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: leadAgentID},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID},
+		},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID: "handoff-legacy-goal-handback", ConversationID: conversationID,
+		RoomID: roomID, RootRoundID: rootRoundID,
+		SourceAgentRoundID: sourceAgentRoundID,
+		SourceMessageID:    "message-legacy-goal-source", SourceAgentID: leadAgentID,
+		TargetAgentID: targetAgentID, Content: "legacy collaborator check",
+		QueueSource: protocol.InputQueueSourceAgentPublicMention,
+	}
+	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	if _, claimed, err := handoffs.Claim(ownerUserID, conversationID, handoff.HandoffID); err != nil || !claimed {
+		t.Fatalf("claim=%t err=%v", claimed, err)
+	}
+	if err := handoffs.MarkStarted(ownerUserID, conversationID, handoff.HandoffID, "legacy-target-root"); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkTerminal(ownerUserID, conversationID, handoff.HandoffID, "finished"); err != nil {
+		t.Fatal(err)
+	}
+	history := workspacestore.NewRoomHistoryStore(root)
+	if err := history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
+		"message_id": "assistant-legacy-target", "role": "assistant",
+		"round_id": rootRoundID, "agent_round_id": targetAgentRoundID,
+		"agent_id": targetAgentID, "is_complete": true,
+		"content":   []map[string]any{{"type": "text", "text": "核对完成，可以继续收尾。"}},
+		"timestamp": int64(200),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	provider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID: goalID, SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+				EmptyProgressCount: 1,
+				Metadata: map[string]any{
+					protocol.GoalMetadataObjectiveRevision:             int64(2),
+					protocol.GoalMetadataRoomGoalLeadAgentID:           leadAgentID,
+					protocol.GoalMetadataRoomGoalCollaborationRequired: true,
+				},
+			},
+		},
+		events: []protocol.GoalEvent{
+			{ID: "event-created", GoalID: goalID, EventType: "created", CreatedAt: now.Add(-time.Minute)},
+			{ID: "event-suppressed", GoalID: goalID, EventType: "continuation_suppressed", RoundID: sourceAgentRoundID, CreatedAt: now},
+		},
+	}
+	service := &Service{
+		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
+		publicHandoffs: handoffs, roomHistory: history,
+		directedMessages: workspacestore.NewRoomDirectedMessageStore(root),
+		goals:            provider,
+	}
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	provider.mu.Lock()
+	if len(provider.collabEvidence) != 1 ||
+		provider.collabEvidence[0] != targetAgentRoundID+":"+targetAgentID ||
+		len(provider.handbacks) != 1 {
+		provider.mu.Unlock()
+		t.Fatalf("evidence=%+v handbacks=%+v", provider.collabEvidence, provider.handbacks)
+	}
+	provider.mu.Unlock()
+	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
+	if err != nil || !exists || stored.GoalCollaborationBinding == nil ||
+		stored.GoalCollaborationBinding.GoalID != goalID ||
+		stored.GoalCollaborationBinding.ObjectiveRevision != 2 ||
+		!stored.GoalHandbackSettled {
+		t.Fatalf("stored=%+v exists=%t err=%v", stored, exists, err)
+	}
+}
+
+func TestPublicHandoffReconcilerDoesNotGuessLegacyGoalAttributionFromOldEvidence(t *testing.T) {
+	const (
+		ownerUserID        = "owner-legacy-goal-no-guess"
+		conversationID     = "conversation-legacy-goal-no-guess"
+		roomID             = "room-legacy-goal-no-guess"
+		goalID             = "goal-legacy-goal-no-guess"
+		leadAgentID        = "agent-legacy-no-guess-lead"
+		targetAgentID      = "agent-legacy-no-guess-peer"
+		rootRoundID        = "goal_continuation_no_guess"
+		sourceAgentRoundID = "agent-round-no-guess-source"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room:         protocol.RoomRecord{ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members:      []protocol.MemberRecord{{MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID}},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID: "handoff-legacy-no-guess", ConversationID: conversationID,
+		RoomID: roomID, RootRoundID: rootRoundID, SourceAgentRoundID: sourceAgentRoundID,
+		SourceMessageID: "message-legacy-no-guess", SourceAgentID: leadAgentID,
+		TargetAgentID: targetAgentID, Content: "ordinary terminal handoff",
+		QueueSource: protocol.InputQueueSourceAgentPublicMention,
+	}
+	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkTerminal(ownerUserID, conversationID, handoff.HandoffID, "finished"); err != nil {
+		t.Fatal(err)
+	}
+	history := workspacestore.NewRoomHistoryStore(root)
+	if err := history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
+		"message_id": "assistant-unrelated", "role": "assistant",
+		"round_id": "different-root", "agent_round_id": "different-agent-round",
+		"agent_id": targetAgentID, "is_complete": true,
+		"content": []map[string]any{{"type": "text", "text": "unrelated older reply"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	provider := &fakeRoomGoalContextProvider{
+		runtimeGoals: map[string]*protocol.Goal{sessionKey: {
+			ID: goalID, SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+			EmptyProgressCount: 1,
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision:   int64(1),
+				protocol.GoalMetadataRoomGoalLeadAgentID: leadAgentID,
+			},
+		}},
+		events: []protocol.GoalEvent{{
+			ID: "event-suppressed", GoalID: goalID, EventType: "continuation_suppressed",
+			RoundID: sourceAgentRoundID, CreatedAt: now,
+		}},
+	}
+	service := &Service{
+		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
+		publicHandoffs: handoffs, roomHistory: history,
+		directedMessages: workspacestore.NewRoomDirectedMessageStore(root), goals: provider,
+	}
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
+	if err != nil || !exists || stored.GoalCollaborationBinding != nil || stored.GoalHandbackSettled {
+		t.Fatalf("unproven legacy root was attributed: stored=%+v exists=%t err=%v", stored, exists, err)
+	}
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	if len(provider.collabEvidence) != 0 || len(provider.handbacks) != 0 {
+		t.Fatalf("unproven legacy root resumed Goal: evidence=%+v handbacks=%+v", provider.collabEvidence, provider.handbacks)
+	}
+}
+
+func TestGoalDirectedMessageRepairRebuildsOnlyCurrentMissingHandoff(t *testing.T) {
+	const (
+		ownerUserID    = "owner/goal-directed-repair"
+		conversationID = "conversation-goal-directed-repair"
+		roomID         = "room-goal-directed-repair"
+		sourceAgentID  = "agent-goal-repair-lead"
+		targetAgentID  = "agent-goal-repair-peer"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+			PrivateMessagesEnabled: true,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: sourceAgentID},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID},
+		},
+	}
+	directed := workspacestore.NewRoomDirectedMessageStore(root)
+	current := protocol.RoomDirectedMessageRecord{
+		MessageID: "directed-current-goal-repair", RoomID: roomID,
+		ConversationID: conversationID, SourceAgentID: sourceAgentID,
+		Recipients: []string{targetAgentID}, WakeTargets: []string{targetAgentID},
+		Content: "recover current Goal collaboration", WakePolicy: protocol.RoomWakePolicyDelayed,
+		DelaySeconds: 60, ReplyRoute: protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePublic},
+		RootRoundID: "goal-repair-root", CausedByRoundID: "goal-repair-source",
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-room-repair", ObjectiveRevision: 4,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	stale := current
+	stale.MessageID = "directed-stale-goal-repair"
+	stale.GoalCollaborationBinding = &protocol.GoalCollaborationBinding{
+		GoalID: "goal-room-repair", ObjectiveRevision: 3,
+	}
+	for _, message := range []protocol.RoomDirectedMessageRecord{current, stale} {
+		if err := directed.AppendMessage(ownerUserID, message); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	service := &Service{
+		rooms:            &systemOnlyRoomContextStore{contextValue: contextValue},
+		directedMessages: directed,
+		publicHandoffs:   handoffs,
+		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID: "goal-room-repair", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(4)},
+			},
+		}},
+	}
+	if err := service.repairGoalDirectedMessageHandoffs(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	currentID := roomDirectedGoalHandoffID(conversationID, current.MessageID, targetAgentID)
+	recovered, exists, err := handoffs.Get(ownerUserID, conversationID, currentID)
+	if err != nil || !exists || recovered.Status != "detected" ||
+		recovered.QueueSource != protocol.InputQueueSourceAgentRoomMessage ||
+		recovered.GoalCollaborationBinding == nil ||
+		recovered.GoalCollaborationBinding.ObjectiveRevision != 4 {
+		t.Fatalf("current directed Goal handoff = %+v exists=%t err=%v", recovered, exists, err)
+	}
+	staleID := roomDirectedGoalHandoffID(conversationID, stale.MessageID, targetAgentID)
+	if _, exists, err := handoffs.Get(ownerUserID, conversationID, staleID); err != nil || exists {
+		t.Fatalf("stale directed Goal handoff must stay inert: exists=%t err=%v", exists, err)
+	}
+}
+
+func TestGoalDirectedWakeConsumesRetargetedRevisionWithoutStartingAgent(t *testing.T) {
+	const (
+		ownerUserID    = "owner-goal-wake-stale"
+		conversationID = "conversation-goal-wake-stale"
+		roomID         = "room-goal-wake-stale"
+		sourceAgentID  = "agent-goal-wake-source"
+		targetAgentID  = "agent-goal-wake-target"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+			PrivateMessagesEnabled: true,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: sourceAgentID},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID},
+		},
+	}
+	message := protocol.RoomDirectedMessageRecord{
+		MessageID: "directed-goal-wake-stale", RoomID: roomID,
+		ConversationID: conversationID, SourceAgentID: sourceAgentID,
+		Recipients: []string{targetAgentID}, WakeTargets: []string{targetAgentID},
+		WakePolicy: protocol.RoomWakePolicyImmediate,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-wake-stale", ObjectiveRevision: 1,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoffID := roomDirectedGoalHandoffID(conversationID, message.MessageID, targetAgentID)
+	if _, _, err := handoffs.Detect(ownerUserID, workspacestore.RoomPublicHandoff{
+		HandoffID: handoffID, ConversationID: conversationID, RoomID: roomID,
+		RootRoundID: message.MessageID, SourceAgentRoundID: message.MessageID,
+		SourceMessageID: message.MessageID, SourceAgentID: sourceAgentID,
+		TargetAgentID: targetAgentID, Content: roomDirectedMessageWakePrompt,
+		QueueSource:              protocol.InputQueueSourceAgentRoomMessage,
+		GoalCollaborationBinding: message.GoalCollaborationBinding,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	wakes := workspacestore.NewRoomDirectedMessageWakeStore(root)
+	wake := workspacestore.RoomDirectedMessageWake{
+		WakeID: message.MessageID, OwnerUserID: ownerUserID, Message: message,
+		DueAt: time.Now().UnixMilli(), CreatedAt: time.Now().UnixMilli(),
+	}
+	if err := wakes.Schedule(wake); err != nil {
+		t.Fatal(err)
+	}
+	wakeTimers := newRoomWakeTimerRegistry()
+	defer wakeTimers.Stop()
+	service := &Service{
+		rooms:          &authorityFenceRoomStore{contextValue: contextValue},
+		directedWakes:  wakes,
+		publicHandoffs: handoffs,
+		wakeTimers:     wakeTimers,
+		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID: "goal-wake-stale", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
+			},
+		}},
+	}
+	service.executePersistedRoomDirectedWake(wake)
+	pending, err := wakes.Pending(ownerUserID)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending stale wake = %+v err=%v, want consumed", pending, err)
+	}
+	handoff, exists, err := handoffs.Get(ownerUserID, conversationID, handoffID)
+	if err != nil || !exists || handoff.Status != "interrupted" {
+		t.Fatalf("stale wake handoff = %+v exists=%t err=%v", handoff, exists, err)
+	}
+}
+
+func TestGoalCollaborationQueueDispatchConsumesRetargetedRevision(t *testing.T) {
+	const (
+		ownerUserID    = "owner-goal-queue-stale"
+		conversationID = "conversation-goal-queue-stale"
+		roomID         = "room-goal-queue-stale"
+		targetAgentID  = "agent-goal-queue-target"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoffID := "handoff-goal-queue-stale"
+	if _, _, err := handoffs.Detect(ownerUserID, workspacestore.RoomPublicHandoff{
+		HandoffID: handoffID, ConversationID: conversationID, RoomID: roomID,
+		RootRoundID: "root-goal-queue-stale", SourceMessageID: "source-goal-queue-stale",
+		SourceAgentID: "agent-goal-queue-source", TargetAgentID: targetAgentID,
+		Content: "old goal work", QueueSource: protocol.InputQueueSourceAgentRoomMessage,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-queue-stale", ObjectiveRevision: 1,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoffID); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkQueued(ownerUserID, conversationID, handoffID, "queue-goal-stale"); err != nil {
+		t.Fatal(err)
+	}
+	item := protocol.InputQueueItem{
+		ID: "queue-goal-stale", Scope: protocol.InputQueueScopeRoom,
+		RoomID: roomID, ConversationID: conversationID, AgentID: targetAgentID,
+		TargetAgentIDs: []string{targetAgentID}, Source: protocol.InputQueueSourceAgentRoomMessage,
+		SourceAgentID: "agent-goal-queue-source", SourceMessageID: "source-goal-queue-stale",
+		HandoffID: handoffID, Content: "old goal work", DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		OwnerUserID: ownerUserID,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-queue-stale", ObjectiveRevision: 1,
+		},
+	}
+	service := &Service{
+		publicHandoffs: handoffs,
+		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID: "goal-queue-stale", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
+			},
+		}},
+	}
+	if err := service.dispatchInputQueueItemLocked(
+		context.Background(), sessionKey, roomID, conversationID,
+		workspacestore.InputQueueLocation{}, item,
+	); err != nil {
+		t.Fatal(err)
+	}
+	handoff, exists, err := handoffs.Get(ownerUserID, conversationID, handoffID)
+	if err != nil || !exists || handoff.Status != "interrupted" {
+		t.Fatalf("stale queue handoff = %+v exists=%t err=%v", handoff, exists, err)
+	}
+}
+
+func TestGoalCollaborationBusyTargetRemainsQueuedInsteadOfGuided(t *testing.T) {
+	const (
+		ownerUserID    = "owner-goal-busy-queue"
+		conversationID = "conversation-goal-busy-queue"
+		roomID         = "room-goal-busy-queue"
+		targetAgentID  = "agent-goal-busy-target"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), targetAgentID)
+	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		targetAgentID,
+		protocol.RoomTypeGroup,
+	)
+	busySlot := withRoomSlotStatus(&activeRoomSlot{
+		AgentID: targetAgentID, AgentRoundID: "agent-round-busy-goal",
+		RuntimeSessionKey: runtimeSessionKey, WorkspacePath: workspacePath,
+	}, "running")
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{{
+			MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID,
+		}},
+		MemberAgents: []protocol.Agent{{AgentID: targetAgentID, WorkspacePath: workspacePath}},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID: "handoff-goal-busy-queue", ConversationID: conversationID,
+		RoomID: roomID, RootRoundID: "goal-root-busy-queue",
+		SourceMessageID: "goal-source-busy-queue", SourceAgentID: "agent-goal-lead",
+		TargetAgentID: targetAgentID, Content: "check the Goal in a separate round",
+		QueueSource: protocol.InputQueueSourceAgentPublicMention,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-busy-queue", ObjectiveRevision: 1,
+		},
+	}
+	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{
+		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
+		publicHandoffs: handoffs, inputQueue: workspacestore.NewInputQueueStore(root),
+		permission: permissionctx.NewContext(),
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+			"busy": {
+				SessionKey: protocol.BuildRoomSharedSessionKey(conversationID),
+				RoomID:     roomID, ConversationID: conversationID, RootRoundID: "other-root",
+				Slots: map[string]*activeRoomSlot{"busy": busySlot},
+			},
+		}),
+	}
+	parent := &activeRoomRound{
+		SessionKey: protocol.BuildRoomSharedSessionKey(conversationID),
+		RoomID:     roomID, ConversationID: conversationID, RootRoundID: handoff.RootRoundID,
+		OwnerUserID: ownerUserID, Context: contextValue,
+	}
+	ready, err := service.queueBusyPublicMentionWakes(
+		context.Background(),
+		parent,
+		parent.SessionKey,
+		[]publicMentionWake{{
+			HandoffID: handoff.HandoffID, QueueSource: handoff.QueueSource,
+			SourceAgentID: handoff.SourceAgentID, TargetAgentID: targetAgentID,
+			Content: handoff.Content, MessageID: handoff.SourceMessageID,
+			GoalCollaborationBinding: handoff.GoalCollaborationBinding,
+		}},
+	)
+	if err != nil || len(ready) != 0 {
+		t.Fatalf("ready=%+v err=%v", ready, err)
+	}
+	items, err := service.inputQueue.Snapshot(workspacestore.InputQueueLocation{
+		OwnerUserID: ownerUserID, Scope: protocol.InputQueueScopeRoom,
+		WorkspacePath: workspacePath, SessionKey: runtimeSessionKey,
+		RoomID: roomID, ConversationID: conversationID,
+	})
+	if err != nil || len(items) != 1 || items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		items[0].GoalCollaborationBinding == nil {
+		t.Fatalf("queued Goal handoff=%+v err=%v", items, err)
+	}
+	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
+	if err != nil || !exists || stored.Status != "queued" || stored.GoalHandbackSettled {
+		t.Fatalf("stored=%+v exists=%t err=%v", stored, exists, err)
+	}
+}
+
+func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
+	const (
+		ownerUserID    = "owner-goal-reconcile-stale"
+		conversationID = "conversation-goal-reconcile-stale"
+		roomID         = "room-goal-reconcile-stale"
+		targetAgentID  = "agent-goal-reconcile-target"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), targetAgentID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{{
+			MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID,
+		}},
+		MemberAgents: []protocol.Agent{{AgentID: targetAgentID, WorkspacePath: workspacePath}},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID: "handoff-goal-reconcile-stale", ConversationID: conversationID,
+		RoomID: roomID, RootRoundID: "root-goal-reconcile-stale",
+		SourceMessageID: "source-goal-reconcile-stale", SourceAgentID: "agent-source",
+		TargetAgentID: targetAgentID, Content: "old queued goal work",
+		QueueSource: protocol.InputQueueSourceAgentRoomMessage,
+		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
+			GoalID: "goal-reconcile-stale", ObjectiveRevision: 1,
+		},
+	}
+	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoff.HandoffID); err != nil {
+		t.Fatal(err)
+	}
+	queue := workspacestore.NewInputQueueStore(root)
+	location := workspacestore.InputQueueLocation{
+		OwnerUserID: ownerUserID, Scope: protocol.InputQueueScopeRoom,
+		WorkspacePath: workspacePath,
+		SessionKey:    protocol.BuildRoomAgentSessionKey(conversationID, targetAgentID, protocol.RoomTypeGroup),
+		RoomID:        roomID, ConversationID: conversationID,
+	}
+	item := protocol.InputQueueItem{
+		ID: "queue-goal-reconcile-stale", AgentID: targetAgentID,
+		TargetAgentIDs: []string{targetAgentID}, Source: protocol.InputQueueSourceAgentRoomMessage,
+		SourceAgentID: handoff.SourceAgentID, SourceMessageID: handoff.SourceMessageID,
+		HandoffID: handoff.HandoffID, Content: handoff.Content,
+		DeliveryPolicy:           protocol.ChatDeliveryPolicyQueue,
+		GoalCollaborationBinding: handoff.GoalCollaborationBinding,
+	}
+	if _, err := queue.Enqueue(location, item); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkQueued(ownerUserID, conversationID, handoff.HandoffID, item.ID); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{
+		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
+		publicHandoffs: handoffs, inputQueue: queue,
+		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
+			sessionKey: {
+				ID: "goal-reconcile-stale", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
+				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
+			},
+		}},
+	}
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	items, err := queue.Snapshot(location)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("stale startup queue = %+v err=%v, want deleted", items, err)
+	}
+	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
+	if err != nil || !exists || stored.Status != "interrupted" {
+		t.Fatalf("stale startup handoff = %+v exists=%t err=%v", stored, exists, err)
 	}
 }
 

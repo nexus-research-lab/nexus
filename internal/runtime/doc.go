@@ -14,11 +14,11 @@
 //     objective revision adoption 均随 round state 统一清理；interrupt.go 额外区分唯一运行
 //     round 的 provider interrupt 与 exact local context cancellation，并在 provider interrupt
 //     窗口阻止 successor admission，共享 session 不回退为可能误伤 successor 的 interrupt。
-//   - guidance.go / contextual_input.go / input_options.go / execution_tool_context.go / subagent_hook.go：轮内引导、隐藏上下文、含 structured WorkBinding/ReviewBinding 的 Execution MCP identity、由 runtime exact Goal authority mint 的协调 capability，以及按 parent round/tool_use_id 冻结 lifecycle callback 的 Agent tool 强准入、迟到事件、固定 grace deadline 持久化与进程内 fallback 路由。
+//   - guidance.go / contextual_input.go / input_options.go / execution_tool_context.go / work_binding_state.go / goal_authority.go / subagent_hook.go：轮内引导、隐藏上下文、含 structured WorkBinding/ReviewBinding 的 Execution MCP identity、Room self Assignment 由宿主 receipt 驱动的动态 WorkBinding、Goal/Execution MCP 共用且可由 create_goal 同轮推进的 exact Goal authority，以及按 parent round/tool_use_id 冻结 lifecycle callback 的 Agent tool 强准入、迟到事件、固定 grace deadline 持久化与进程内 fallback 路由。
 //     guidance.go / contextual_input.go / input_options.go 同时承载协商后的 applied ACK 消费回调与输入选项剥离。
 //   - diagnostics_env.go / stderr_line.go：诊断开关、stderr 归一化。
 //   - goal_usage.go / subagent_usage.go / context_usage.go：Goal actual/budget token
-//     口径换算、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
+//     口径换算（含矛盾 provider 零 total 的 breakdown 回退）、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
 //     的归一化与按 Session/Agent 热缓存；跨进程恢复由 Session 服务负责。
 //   - round_timeout.go / text_util.go：跨 core/exec 共用的常量与小工具。
 //

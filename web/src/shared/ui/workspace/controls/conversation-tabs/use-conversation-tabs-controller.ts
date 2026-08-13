@@ -21,6 +21,7 @@ import {
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
+import type { FinalConversationReplacementHandler } from "./final-conversation-replacement";
 import { useConversationTabsScroll } from "./use-conversation-tabs-scroll";
 
 interface ConversationTabsControllerOptions {
@@ -29,7 +30,13 @@ interface ConversationTabsControllerOptions {
   hasLeadingControl: boolean;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation?: FinalConversationReplacementHandler;
   onSelectConversation: (conversationId: string) => void;
+}
+
+interface PendingConversationAction {
+  kind: "create" | "replace";
+  task: Promise<void>;
 }
 
 export function useConversationTabsController({
@@ -38,11 +45,13 @@ export function useConversationTabsController({
   hasLeadingControl,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
   onSelectConversation,
 }: ConversationTabsControllerOptions) {
   const trackRef = useRef<HTMLElement | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
+  const pendingActionRef = useRef<PendingConversationAction | null>(null);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
   const hasCreateButton = Boolean(onCreateConversation);
@@ -166,16 +175,10 @@ export function useConversationTabsController({
     });
   }, [conversationId, conversationsById]);
 
-  const previewConversation = (nextConversationId: string) => {
-    if (nextConversationId === activeConversationId) {
+  const selectConversation = (nextConversationId: string) => {
+    if (pendingActionRef.current?.kind === "replace") {
       return;
     }
-    flushSync(() => {
-      setOptimisticActiveId(nextConversationId);
-    });
-  };
-
-  const selectConversation = (nextConversationId: string) => {
     const nextOpenConversationIds = reconcileOpenConversationIds({
       conversationId: nextConversationId,
       currentIds: openConversationIds,
@@ -195,15 +198,80 @@ export function useConversationTabsController({
     onSelectConversation(nextConversationId);
   };
 
-  const closeConversation = (targetConversationId: string) => {
-    if (orderedConversations.length <= 1) {
+  const createConversation = async (): Promise<void> => {
+    if (!onCreateConversation || pendingActionRef.current) {
+      return;
+    }
+    const task = onCreateConversation().then(() => undefined);
+    pendingActionRef.current = {kind: "create", task};
+    setIsCreating(true);
+    try {
+      await task;
+    } finally {
+      if (pendingActionRef.current?.task === task) {
+        pendingActionRef.current = null;
+        setIsCreating(false);
+      }
+    }
+  };
+
+  const replaceFinalConversation = async (
+    targetConversationId: string,
+  ): Promise<void> => {
+    if (pendingActionRef.current) {
+      return pendingActionRef.current.task;
+    }
+    const targetConversation = conversationsById.get(targetConversationId);
+    if (
+      !roomId
+      || !onReplaceFinalConversation
+      || !targetConversation
+      || targetConversationId !== activeConversationId
+    ) {
       return;
     }
 
+    const task = (async () => {
+      setIsCreating(true);
+      await onReplaceFinalConversation(
+        targetConversation,
+        (nextConversationId) => {
+          flushSync(() => {
+            saveRoomConversationTabs(
+              roomId,
+              [nextConversationId],
+              nextConversationId,
+            );
+            if (nextConversationId !== targetConversationId) {
+              setPendingClosedActiveId(targetConversationId);
+              setOptimisticActiveId(nextConversationId);
+            }
+          });
+          onSelectConversation(nextConversationId);
+        },
+      );
+    })();
+    pendingActionRef.current = {kind: "replace", task};
+    try {
+      await task;
+    } finally {
+      if (pendingActionRef.current?.task === task) {
+        pendingActionRef.current = null;
+        setIsCreating(false);
+      }
+    }
+  };
+
+  const closeConversation = (targetConversationId: string) => {
     const fallbackConversationId = getCloseFallbackConversationId(
       orderedConversations,
       targetConversationId,
     );
+    if (!fallbackConversationId && orderedConversations.length === 1) {
+      void replaceFinalConversation(targetConversationId).catch(() => undefined);
+      return;
+    }
+
     const nextOpenConversationIds = openConversationIds.filter(
       (id) => id !== targetConversationId,
     );
@@ -235,18 +303,6 @@ export function useConversationTabsController({
     }
   };
 
-  const createConversation = async () => {
-    if (!onCreateConversation || isCreating) {
-      return;
-    }
-    setIsCreating(true);
-    try {
-      await onCreateConversation();
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   return {
     activeConversationId,
     closeConversation,
@@ -254,7 +310,6 @@ export function useConversationTabsController({
     hasTabsOverflow,
     isCreating,
     orderedConversations,
-    previewConversation,
     selectConversation,
     tabsScroll,
     tabWidths,

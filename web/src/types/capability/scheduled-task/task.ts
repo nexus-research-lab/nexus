@@ -12,6 +12,14 @@ export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
 export type ScheduledTaskSourceContextType = "agent" | "room" | "chat";
 export type ScheduledTaskOverlapPolicy = "skip" | "allow";
 export type ScheduledTaskExecutionKind = "agent" | "script";
+export type ScheduledTaskSessionBindingState = "ready" | "rebind_required";
+export type ScheduledTaskSessionBindingIssue = "execution" | "delivery";
+export type ScheduledTaskPermissionMode =
+  | "default"
+  | "plan"
+  | "acceptEdits"
+  | "bypassPermissions"
+  | "dontAsk";
 
 export type ScheduledTaskSchedule =
   | {
@@ -68,6 +76,7 @@ export interface ScheduledTaskDeliveryTarget {
   to?: string | null;
   account_id?: string | null;
   thread_id?: string | null;
+  session_key?: string | null;
 }
 
 export interface ScheduledTaskSource {
@@ -82,13 +91,17 @@ export interface ScheduledTaskSource {
 
 export interface ApiScheduledTask {
   job_id: string;
+  configuration_version: number;
   name: string;
   agent_id: string;
   schedule: ScheduledTaskSchedule;
   instruction: string;
   execution_kind?: ScheduledTaskExecutionKind | null;
+  permission_mode?: ScheduledTaskPermissionMode | null;
   session_target: ScheduledTaskSessionTarget;
   delivery: ScheduledTaskDeliveryTarget;
+  session_binding_state?: ScheduledTaskSessionBindingState | string;
+  session_binding_issues?: Array<ScheduledTaskSessionBindingIssue | string>;
   source: ScheduledTaskSource;
   overlap_policy?: ScheduledTaskOverlapPolicy | null;
   expires_at?: string | null;
@@ -152,6 +165,7 @@ export interface CreateScheduledTaskParams {
   session_target?: ScheduledTaskSessionTarget;
   instruction: string;
   execution_kind?: ScheduledTaskExecutionKind;
+  permission_mode?: ScheduledTaskPermissionMode;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
   overlap_policy?: ScheduledTaskOverlapPolicy;
@@ -160,11 +174,13 @@ export interface CreateScheduledTaskParams {
 }
 
 export interface UpdateScheduledTaskParams {
+  expected_configuration_version?: number;
   name?: string;
   agent_id?: string;
   schedule?: ScheduledTaskSchedule;
   instruction?: string;
   execution_kind?: ScheduledTaskExecutionKind;
+  permission_mode?: ScheduledTaskPermissionMode | "";
   session_target?: ScheduledTaskSessionTarget;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;

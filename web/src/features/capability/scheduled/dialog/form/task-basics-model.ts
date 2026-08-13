@@ -1,8 +1,9 @@
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type {
-  ExecutionKind,
+  DeliveryTargetType,
   ExecutionMode,
+  PermissionMode,
   ReplyMode,
   TargetType,
   TaskDialogLabelOption,
@@ -11,6 +12,7 @@ import type {
 } from "../scheduled-task-dialog-types";
 import {
   buildExecutionModeOptions,
+  buildPermissionModeOptions,
   buildReplyModeOptions,
 } from "./task-form-options";
 
@@ -24,6 +26,9 @@ interface ResourceStatus {
 export interface TaskBasicsData {
   agentOptions: TaskDialogLabelOption[];
   agents: ResourceStatus;
+  deliveryRoomOptions: TaskDialogLabelOption[];
+  deliverySessionOptions: TaskDialogSessionOption[];
+  deliverySessions: ResourceStatus;
   roomOptions: TaskDialogLabelOption[];
   rooms: ResourceStatus;
   sessionOptions: TaskDialogSessionOption[];
@@ -32,14 +37,17 @@ export interface TaskBasicsData {
 
 export interface TaskBasicsActions {
   setDedicatedSessionKey: (value: string) => void;
+  setDeliveryTargetType: (value: DeliveryTargetType) => void;
   setExpiresAt: (value: string) => void;
-  setExecutionKind: (value: ExecutionKind) => void;
   setExecutionMode: (value: ExecutionMode) => void;
+  setPermissionMode: (value: PermissionMode) => void;
   setReplyMode: (value: ReplyMode) => void;
   setSelectedAgentId: (value: string) => void;
+  setSelectedDeliveryAgentId: (value: string) => void;
+  setSelectedDeliveryRoomId: (value: string) => void;
   setSelectedReplySessionKey: (value: string) => void;
   setSelectedRoomId: (value: string) => void;
-  setSelectedSessionKey: (value: string) => void;
+  setSelectedSessionKey: (value: string, agentId?: string) => void;
   setTargetType: (value: TargetType) => void;
   setTaskName: (value: string) => void;
 }
@@ -56,6 +64,10 @@ export interface TaskSelectPresentation {
 
 interface TaskTargetPresentation extends TaskSelectPresentation {
   targetType: TargetType;
+}
+
+interface TaskDeliveryTargetPresentation extends TaskSelectPresentation {
+  targetType: DeliveryTargetType;
 }
 
 interface TargetCopy {
@@ -94,14 +106,6 @@ function buildTargetCopy(t: Translate): Record<TargetType, TargetCopy> {
     },
   };
 }
-
-const TARGET_TYPE_BY_EXECUTION_KIND: Record<
-  ExecutionKind,
-  (form: TaskFormDraft) => TargetType
-> = {
-  agent: (form) => form.targetType,
-  script: () => "agent",
-};
 
 const TARGET_VALUE: Record<TargetType, (form: TaskFormDraft) => string> = {
   agent: (form) => form.selectedAgentId,
@@ -161,7 +165,7 @@ export function buildTaskTargetPresentation(
   data: TaskBasicsData,
   t: Translate,
 ): TaskTargetPresentation {
-  const targetType = TARGET_TYPE_BY_EXECUTION_KIND[form.executionKind](form);
+  const targetType = form.targetType;
   const copy = buildTargetCopy(t)[targetType];
   const source = TARGET_SOURCE[targetType](form, data);
   const placeholder = source.resource.loading
@@ -180,6 +184,42 @@ export function buildTaskTargetPresentation(
   };
 }
 
+export function buildTaskDeliveryTargetPresentation(
+  form: TaskFormDraft,
+  data: TaskBasicsData,
+  t: Translate,
+): TaskDeliveryTargetPresentation {
+  const targetType = form.deliveryTargetType;
+  const copy = buildTargetCopy(t)[targetType];
+  const source = targetType === "room"
+    ? {
+        options: data.deliveryRoomOptions,
+        resource: data.rooms,
+        value: form.selectedDeliveryRoomId,
+      }
+    : {
+        options: data.agentOptions,
+        resource: data.agents,
+        value: form.selectedDeliveryAgentId,
+      };
+  const placeholder = source.resource.loading
+    ? copy.loadingPlaceholder
+    : copy.emptyPlaceholder;
+  const label = t(targetType === "room"
+    ? "capability.scheduled_dialog_delivery_room"
+    : "capability.scheduled_dialog_delivery_agent");
+  return {
+    ariaLabel: label,
+    description: null,
+    disabled: source.resource.loading || source.options.length === 0,
+    error: source.resource.error,
+    label,
+    options: buildTaskSelectOptions(placeholder, source.options),
+    targetType,
+    value: source.value,
+  };
+}
+
 function choiceLabel<Value extends string>(
   options: Array<{ key: Value; label: string }>,
   value: Value,
@@ -191,11 +231,9 @@ export function buildTaskAdvancedSummary(
   form: TaskFormDraft,
   t: Translate,
 ): string {
-  if (form.executionKind === "script") {
-    return t("capability.scheduled_dialog_script");
-  }
   return [
     choiceLabel(buildExecutionModeOptions(t), form.executionMode),
+    choiceLabel(buildPermissionModeOptions(t), form.permissionMode),
     choiceLabel(buildReplyModeOptions(t), form.replyMode),
   ].join(" · ");
 }
@@ -270,19 +308,29 @@ export function buildReplySessionPresentation(
   data: TaskBasicsData,
   t: Translate,
 ): TaskSelectPresentation {
+  const hasRecipient = form.deliveryTargetType === "room"
+    ? Boolean(form.selectedDeliveryRoomId)
+    : Boolean(form.selectedDeliveryAgentId);
+  const emptyDescription = hasRecipient
+    && !data.deliverySessions.loading
+    && data.deliverySessionOptions.length === 0
+    ? t(form.deliveryTargetType === "room"
+        ? "capability.scheduled_dialog_no_room_delivery_sessions"
+        : "capability.scheduled_dialog_no_agent_delivery_sessions")
+    : null;
   return {
     ariaLabel: t("capability.scheduled_dialog_select_reply_session"),
-    description: null,
-    disabled: sessionSelectDisabled(data),
-    error: data.sessions.error,
-    label: t("capability.scheduled_dialog_reply_session"),
+    description: emptyDescription,
+    disabled: data.deliverySessions.loading || data.deliverySessionOptions.length === 0,
+    error: data.deliverySessions.error,
+    label: t("capability.scheduled_dialog_delivery_conversation"),
     options: buildTaskSelectOptions(
       sessionPlaceholder(
-        data.sessions.loading,
+        data.deliverySessions.loading,
         t("capability.scheduled_dialog_choose_reply_session"),
         t,
       ),
-      data.sessionOptions,
+      data.deliverySessionOptions,
     ),
     value: form.selectedReplySessionKey,
   };

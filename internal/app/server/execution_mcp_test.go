@@ -43,6 +43,7 @@ func (r *stubExecutionCurrentReader) GetSnapshot(
 
 func TestResolveExecutionMCPServerContextMapsDMIdentity(t *testing.T) {
 	reader := &stubExecutionCurrentReader{}
+	goalAuthority := runtimectx.NewGoalAuthorityState("", 0, "")
 	serverContext, ok := resolveExecutionMCPServerContext(
 		context.Background(),
 		reader,
@@ -58,6 +59,7 @@ func TestResolveExecutionMCPServerContextMapsDMIdentity(t *testing.T) {
 			SourceContextType: "agent",
 			SourceContextID:   "agent-lead",
 			PermissionMode:    sdkpermission.ModePlan,
+			GoalAuthority:     goalAuthority,
 		},
 	)
 	if !ok {
@@ -77,6 +79,13 @@ func TestResolveExecutionMCPServerContextMapsDMIdentity(t *testing.T) {
 	}
 	if reader.actor.AgentID != "" {
 		t.Fatalf("DM role should not require a snapshot lookup, got actor %+v", reader.actor)
+	}
+	if !goalAuthority.Bind("goal-created-in-round", 1, "") {
+		t.Fatal("bind same-round Goal authority")
+	}
+	actor := serverContext.Actor()
+	if actor.GoalID != "goal-created-in-round" || actor.GoalObjectiveRevision != 1 {
+		t.Fatalf("Execution MCP actor did not observe dynamic Goal authority: %+v", actor)
 	}
 }
 

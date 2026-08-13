@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -73,6 +74,19 @@ func (f *fakeRoomService) GetConversationContext(_ context.Context, conversation
 	return &value, nil
 }
 
+type ownerRecordingRoomService struct {
+	fakeRoomService
+	ownerUserID string
+}
+
+func (f *ownerRecordingRoomService) GetConversationContext(
+	ctx context.Context,
+	conversationID string,
+) (*protocol.ConversationContextAggregate, error) {
+	f.ownerUserID = authctx.OwnerUserID(ctx)
+	return f.fakeRoomService.GetConversationContext(ctx, conversationID)
+}
+
 func (f *fakeRoomService) UpdateConversationTitle(
 	_ context.Context,
 	_ string,
@@ -95,6 +109,23 @@ type fakeEventBroadcaster struct {
 func (f *fakeEventBroadcaster) BroadcastEvent(_ context.Context, _ string, event protocol.EventMessage) []error {
 	f.events = append(f.events, event)
 	return nil
+}
+
+type fakeRoomResyncBroadcaster struct {
+	roomID         string
+	conversationID string
+	reason         string
+}
+
+func (f *fakeRoomResyncBroadcaster) BroadcastRoomResyncRequired(
+	_ context.Context,
+	roomID string,
+	conversationID string,
+	reason string,
+) {
+	f.roomID = roomID
+	f.conversationID = conversationID
+	f.reason = reason
 }
 
 func stringValue(value any) string {

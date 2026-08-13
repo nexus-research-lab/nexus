@@ -12,7 +12,10 @@ import type {
 } from "@/types/conversation/message/content";
 
 import type { ToolBlockStatus } from "../../../blocks/tool/tool-block-types";
-import { isRejectedToolResult } from "../../../tool-result-semantic-model";
+import {
+  isRejectedToolResult,
+  isSupersededToolResult,
+} from "../../../tool-result-semantic-model";
 
 const API_RETRY_VISIBLE_ATTEMPT = 4;
 
@@ -85,7 +88,12 @@ export function resolveToolBlockStatus(
     if (toolUse.result.is_error) {
       return "error";
     }
-    return isRejectedToolResult(toolUse.result) ? "rejected" : "success";
+    if (isRejectedToolResult(toolUse.result)) {
+      return "rejected";
+    }
+    return isSupersededToolResult(toolUse.result)
+      ? "superseded"
+      : "success";
   }
   if (unresolvedToolStatus) {
     return unresolvedToolStatus;

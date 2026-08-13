@@ -109,6 +109,9 @@ func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID stri
 	if recordEvent && updated != nil {
 		s.recordTaskEvent(ctx, automationdomain.TaskEventActionRetryDelivery, *job, run.RunID, deliveryRetryTaskEventDetail(*updated))
 	}
+	if updated != nil && run.DeliveryDeadLetterAt == nil && updated.DeliveryDeadLetterAt != nil {
+		s.notifyAutomationDeliveryDeadLetter(ctx, *job, *updated)
+	}
 	return updated, nil
 }
 
@@ -122,6 +125,9 @@ func (s *Service) loadDeliveryRetry(ctx context.Context, ownerUserID string, job
 	}
 	if err = rejectAgentScriptControl(ctx, *job); err != nil {
 		return nil, nil, err
+	}
+	if job.SessionBindingState == automationdomain.TaskSessionBindingStateRebindRequired {
+		return nil, nil, automationdomain.ErrTaskSessionRebindRequired
 	}
 	run, err := s.repository.GetRun(ctx, ownerUserID, job.JobID, strings.TrimSpace(runID))
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && run == nil) {
@@ -146,16 +152,27 @@ func validateDeliveryRetry(run automationdomain.ScheduledTaskRun) error {
 
 func (s *Service) buildDeliveryRetryUpdate(ctx context.Context, job automationdomain.ScheduledTask, run automationdomain.ScheduledTaskRun) (automationstore.RunDeliveryUpdateInput, string) {
 	observation := automationexec.ExecutionObservation{
+		RunID:         run.RunID,
+		RoundID:       run.RoundID,
 		Status:        automationdomain.RunStatusSucceeded,
 		SessionID:     run.SessionID,
 		MessageCount:  run.MessageCount,
 		ResultText:    anyStringPointer(run.ResultText),
 		AssistantText: anyStringPointer(run.AssistantText),
 	}
-	deliveryResult := s.deliverJobObservation(contextForJobOwner(ctx, job), job, run.SessionKey, observation)
+	// 一次执行的首投递使用 run 启动时快照；进入 failed 后，用户对任务目标的
+	// 显式修正就是恢复动作，人工和到期重试都应使用当前目标，避免坏路由被永久冻结。
+	runDelivery := job.Delivery.Normalized()
+	deliveryResult := s.deliverJobObservationToTarget(
+		contextForJobOwner(ctx, job),
+		job,
+		runDelivery,
+		run.SessionKey,
+		observation,
+	)
 	deliveryStatus := deliveryResult.Status
 	deliveryError := deliveryResult.Error
-	deliveryTo := deliveryResult.deliveryTo(job.Delivery)
+	deliveryTo := deliveryResult.deliveryTo(runDelivery)
 	now := s.nowFn()
 	deliveredAt := deliveredAtForStatus(deliveryStatus, now)
 	attempted := deliveryAttempted(deliveryStatus)
@@ -166,7 +183,7 @@ func (s *Service) buildDeliveryRetryUpdate(ctx context.Context, job automationdo
 	nextDeliveryAttemptAt, deliveryDeadLetterAt := deliveryRetrySchedule(deliveryStatus, attemptsAfter, now)
 	return automationstore.RunDeliveryUpdateInput{
 		RunID:                 run.RunID,
-		DeliveryMode:          strings.TrimSpace(job.Delivery.Mode),
+		DeliveryMode:          strings.TrimSpace(runDelivery.Mode),
 		DeliveryTo:            deliveryTo,
 		DeliveryStatus:        deliveryStatus,
 		DeliveryError:         deliveryError,

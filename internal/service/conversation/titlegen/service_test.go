@@ -161,6 +161,8 @@ func TestScheduleReplacesGoalFallbackTitle(t *testing.T) {
 		roomStore,
 		&fakeEventBroadcaster{},
 	)
+	roomEvents := &fakeRoomResyncBroadcaster{}
+	service.SetRoomResyncBroadcaster(roomEvents)
 	service.runAsync = func(job func()) {
 		job()
 	}
@@ -177,6 +179,83 @@ func TestScheduleReplacesGoalFallbackTitle(t *testing.T) {
 
 	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "Knip 清理" {
 		t.Fatalf("conversation title = %q, want generated title", got)
+	}
+	if roomEvents.roomID != "room_1" || roomEvents.conversationID != "conv_1" || roomEvents.reason != "title_generated" {
+		t.Fatalf("Room resync = %+v, want generated title invalidation", roomEvents)
+	}
+}
+
+func TestScheduleGoalTitleFromGoalTargetsDMConversation(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "M3 芯片调研",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	const fallbackTitle = "对 Apple M3 芯片进行全面调研"
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:ws:dm:conv_1": {
+				SessionKey: "agent:a:ws:dm:conv_1",
+				Title:      "Kevin",
+			},
+		},
+	}
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "Kevin",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: fallbackTitle,
+				},
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "kimi",
+				AuthToken: "token-1",
+				BaseURL:   server.URL,
+				Model:     "kimi-k2.5",
+			},
+		},
+		sessionStore,
+		roomStore,
+		&fakeEventBroadcaster{},
+	)
+	roomEvents := &fakeRoomResyncBroadcaster{}
+	service.SetRoomResyncBroadcaster(roomEvents)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.ScheduleGoalTitleFromGoal(context.Background(), protocol.Goal{
+		SessionKey: "agent:a:ws:dm:conv_1",
+		Objective:  fallbackTitle,
+	}, "owner-1", fallbackTitle)
+
+	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "Kevin" {
+		t.Fatalf("session title = %q, want existing Agent title", got)
+	}
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "M3 芯片调研" {
+		t.Fatalf("conversation title = %q, want generated Goal title", got)
+	}
+	if roomEvents.roomID != "room_1" || roomEvents.conversationID != "conv_1" || roomEvents.reason != "title_generated" {
+		t.Fatalf("Room resync = %+v, want generated Goal title invalidation", roomEvents)
 	}
 }
 

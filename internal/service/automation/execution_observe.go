@@ -40,6 +40,8 @@ func (s *Service) observeJobRunWithCompletion(
 	waitCtx, cancel := context.WithTimeout(context.Background(), automationexec.WaitTimeout(0))
 	defer cancel()
 	observation := sink.WaitForRound(waitCtx, roundID)
+	observation.RunID = strings.TrimSpace(runID)
+	observation.RoundID = strings.TrimSpace(roundID)
 	if s.finishPermissionBlockedObservation(jobCtx, job, runID) {
 		return
 	}
@@ -56,12 +58,13 @@ func (s *Service) observeJobRunWithCompletion(
 		}
 	}
 	deliveryResult := jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
+	runDelivery := s.persistedRunDeliveryTarget(jobCtx, job, runID)
 	if status == automationdomain.RunStatusSucceeded {
-		deliveryResult = s.deliverJobObservation(jobCtx, job, sessionKey, observation)
+		deliveryResult = s.deliverJobObservationToTarget(jobCtx, job, runDelivery, sessionKey, observation)
 	}
 	deliveryStatus := deliveryResult.Status
 	deliveryError := deliveryResult.Error
-	deliveryTo := deliveryResult.deliveryTo(job.Delivery)
+	deliveryTo := deliveryResult.deliveryTo(runDelivery)
 	finishedAt := s.nowFn()
 	deliveredAt := deliveredAtForStatus(deliveryStatus, finishedAt)
 	deliveryAttemptsAfter := 0

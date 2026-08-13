@@ -99,34 +99,36 @@ type TaskPermissionGrant struct {
 
 // TaskPermissionPolicy 是任务级授权快照。Revision 同时持久化为独立列用于 CAS。
 type TaskPermissionPolicy struct {
-	Version  int                   `json:"version"`
-	Revision int                   `json:"revision"`
-	Grants   []TaskPermissionGrant `json:"grants"`
+	Version     int                   `json:"version"`
+	Revision    int                   `json:"revision"`
+	Grants      []TaskPermissionGrant `json:"grants"`
+	DeniedTools []string              `json:"denied_tools"`
 }
 
 // AutomationPermissionRequest 是后台任务需要用户交互时的持久事实。
 type AutomationPermissionRequest struct {
-	RequestID        string               `json:"request_id"`
-	OwnerUserID      string               `json:"-"`
-	JobID            string               `json:"job_id"`
-	RunID            string               `json:"run_id,omitempty"`
-	PolicyRevision   int                  `json:"policy_revision"`
-	Kind             string               `json:"kind"`
-	Status           string               `json:"status"`
-	Decision         string               `json:"decision,omitempty"`
-	Capability       PermissionCapability `json:"capability"`
-	InputSummary     map[string]any       `json:"input_summary,omitempty"`
-	Title            string               `json:"title,omitempty"`
-	Description      string               `json:"description,omitempty"`
-	Reason           string               `json:"reason,omitempty"`
-	SessionKey       string               `json:"session_key,omitempty"`
-	RoundID          string               `json:"round_id,omitempty"`
-	ToolUseID        string               `json:"tool_use_id,omitempty"`
-	ResumeSafe       bool                 `json:"resume_safe"`
-	ResolvedByUserID string               `json:"resolved_by_user_id,omitempty"`
-	CreatedAt        time.Time            `json:"created_at"`
-	UpdatedAt        time.Time            `json:"updated_at"`
-	ResolvedAt       *time.Time           `json:"resolved_at,omitempty"`
+	RequestID          string               `json:"request_id"`
+	OwnerUserID        string               `json:"-"`
+	JobID              string               `json:"job_id"`
+	RunID              string               `json:"run_id,omitempty"`
+	PolicyRevision     int                  `json:"policy_revision"`
+	Kind               string               `json:"kind"`
+	Status             string               `json:"status"`
+	Decision           string               `json:"decision,omitempty"`
+	Capability         PermissionCapability `json:"capability"`
+	InputSummary       map[string]any       `json:"input_summary,omitempty"`
+	Title              string               `json:"title,omitempty"`
+	Description        string               `json:"description,omitempty"`
+	Reason             string               `json:"reason,omitempty"`
+	SessionKey         string               `json:"session_key,omitempty"`
+	DeliverySessionKey string               `json:"delivery_session_key,omitempty"`
+	RoundID            string               `json:"round_id,omitempty"`
+	ToolUseID          string               `json:"tool_use_id,omitempty"`
+	ResumeSafe         bool                 `json:"resume_safe"`
+	ResolvedByUserID   string               `json:"resolved_by_user_id,omitempty"`
+	CreatedAt          time.Time            `json:"created_at"`
+	UpdatedAt          time.Time            `json:"updated_at"`
+	ResolvedAt         *time.Time           `json:"resolved_at,omitempty"`
 }
 
 // PermissionDecisionInput 是任务审批卡提交的决策与其看到的授权边界快照。

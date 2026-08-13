@@ -114,12 +114,6 @@ func resetGoalContinuationForObjectiveReplacement(item *protocol.Goal) {
 	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
 	item.Metadata = cloneMap(item.Metadata)
 	delete(item.Metadata, protocol.GoalMetadataObjectiveAlignment)
-	if protocol.IsRoomSharedSessionKey(item.SessionKey) {
-		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
-		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationAgentID)
-		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationRoundID)
-		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationObservedAt)
-	}
 }
 
 func canRetargetGoalStatus(status protocol.GoalStatus) bool {

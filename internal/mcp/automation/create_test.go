@@ -7,10 +7,9 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestCreateRejectsMissingDefaultContext(t *testing.T) {
+func TestCreateDefaultsWithoutCurrentConversationToIsolatedAndSilent(t *testing.T) {
 	tests := []struct {
 		name  string
 		input map[string]any
@@ -35,12 +34,14 @@ func TestCreateRejectsMissingDefaultContext(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, isError := callTool(t, &stubService{}, contract.ServerContext{CurrentAgentID: "agent-1"}, "create_scheduled_task", test.input)
-			if !isError {
-				t.Fatalf("expected error result, got %+v", result)
+			svc := &stubService{}
+			result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "create_scheduled_task", test.input)
+			if isError {
+				t.Fatalf("unexpected error: %s", extractText(t, result))
 			}
-			if !strings.Contains(extractText(t, result), "execution_mode") {
-				t.Fatalf("error must mention execution_mode: %s", extractText(t, result))
+			if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated ||
+				svc.createInput.Delivery.Mode != automationdomain.DeliveryModeNone {
+				t.Fatalf("no-current-session defaults should be isolated and silent: %+v", svc.createInput)
 			}
 		})
 	}
@@ -74,15 +75,78 @@ func TestCreateDefaultsCurrentExternalChannel(t *testing.T) {
 			if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 				t.Fatalf("expected temporary execution session from channel default, got %+v", svc.createInput.SessionTarget)
 			}
-			if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-				svc.createInput.Delivery.To != "oc_group_123" {
-				t.Fatalf("expected default delivery to current feishu group, got %+v", svc.createInput.Delivery)
-			}
+			requireLastDeliveryToSession(t, svc.createInput.Delivery, "agent:agent-1:fs:group:oc_group_123")
 		})
 	}
 }
 
-func TestCreateRejectsAmbiguousVisibleComplexTasks(t *testing.T) {
+func TestCreateMapsSimpleIntentFieldsToTrustedCurrentIM(t *testing.T) {
+	svc := &stubService{}
+	sessionKey := "agent:agent-1:fs:group:oc_group_123"
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: sessionKey,
+		SourceContextType: "agent",
+	}, "create_scheduled_task", map[string]any{
+		"name":           "独立日报",
+		"instruction":    "整理日报",
+		"context_mode":   "isolated",
+		"deliver_result": true,
+		"schedule":       dailySchedule("09:00"),
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
+		t.Fatalf("context_mode=isolated not mapped: %+v", svc.createInput.SessionTarget)
+	}
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
+}
+
+func TestCreateMapsPermissionMode(t *testing.T) {
+	svc := &stubService{}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+	}, "create_scheduled_task", map[string]any{
+		"name":            "规划任务",
+		"instruction":     "只规划执行步骤",
+		"execution_mode":  "temporary",
+		"permission_mode": "plan",
+		"reply_mode":      "none",
+		"schedule":        intervalSchedule(30, "minutes"),
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.createInput.PermissionMode != automationdomain.PermissionModePlan {
+		t.Fatalf("create_scheduled_task 未透传 permission_mode: %+v", svc.createInput)
+	}
+}
+
+func TestCreateOmittedPermissionModeDefersCopyToService(t *testing.T) {
+	svc := &stubService{}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+	}, "create_scheduled_task", map[string]any{
+		"name":           "复制当前权限",
+		"instruction":    "执行任务",
+		"execution_mode": "temporary",
+		"reply_mode":     "none",
+		"schedule":       intervalSchedule(30, "minutes"),
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.createInput.PermissionMode != "" {
+		t.Fatalf("MCP 省略 permission_mode 时必须保留 copy-on-create 语义: %+v", svc.createInput)
+	}
+}
+
+func TestCreateDefaultsComplexTasksFromCurrentConversation(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessionKey  string
@@ -117,7 +181,8 @@ func TestCreateRejectsAmbiguousVisibleComplexTasks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, isError := callTool(t, &stubService{}, contract.ServerContext{
+			svc := &stubService{}
+			result, isError := callTool(t, svc, contract.ServerContext{
 				CurrentAgentID:    "agent-1",
 				CurrentSessionKey: test.sessionKey,
 				SourceContextType: "agent",
@@ -126,15 +191,34 @@ func TestCreateRejectsAmbiguousVisibleComplexTasks(t *testing.T) {
 				"instruction": test.instruction,
 				"schedule":    dailySchedule("09:00"),
 			})
-			if !isError {
-				t.Fatalf("expected error result, got %+v", result)
+			if isError {
+				t.Fatalf("unexpected error: %s", extractText(t, result))
 			}
-			if !strings.Contains(extractText(t, result), "execution_mode") ||
-				!strings.Contains(extractText(t, result), "reply_mode") {
-				t.Fatalf("error must mention execution and reply modes: %s", extractText(t, result))
+			if containsAny(test.instruction, "不要推送", "静默") {
+				if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeNone {
+					t.Fatalf("explicit opt-out must remain silent: %+v", svc.createInput.Delivery)
+				}
+			} else if svc.createInput.Delivery.Mode == automationdomain.DeliveryModeNone {
+				t.Fatalf("current conversation should receive result by default: %+v", svc.createInput.Delivery)
+			}
+			if containsAny(test.instruction, "这个对话", "聊天记录") {
+				if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetBound {
+					t.Fatalf("chat-history task must reuse current context: %+v", svc.createInput.SessionTarget)
+				}
+			} else if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
+				t.Fatalf("standalone task should run isolated: %+v", svc.createInput.SessionTarget)
 			}
 		})
 	}
+}
+
+func containsAny(value string, candidates ...string) bool {
+	for _, candidate := range candidates {
+		if strings.Contains(value, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCreateDefaultsVisibleComplexTaskToCurrentConversation(t *testing.T) {
@@ -174,9 +258,8 @@ func TestCreateAllowsSimpleDefaultsWithJSONNumberAndDottedSchedule(t *testing.T)
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetBound ||
-		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
-		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
+		t.Fatalf("expected isolated target from ordinary default, got %+v", svc.createInput.SessionTarget)
 	}
 	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
@@ -234,11 +317,7 @@ func TestCreateExistingExecutionMatchesUIPayloadShape(t *testing.T) {
 	if input.SessionTarget.Kind != automationdomain.SessionTargetBound || input.SessionTarget.BoundSessionKey != sessionKey {
 		t.Fatalf("session target should match UI existing payload, got %+v", input.SessionTarget)
 	}
-	if input.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-		input.Delivery.Channel != "websocket" ||
-		input.Delivery.To != sessionKey {
-		t.Fatalf("delivery should match UI execution payload, got %+v", input.Delivery)
-	}
+	requireExplicitSessionDelivery(t, input.Delivery, "websocket", sessionKey)
 	if input.Source.Kind != automationdomain.SourceKindAgent || input.Source.ContextType != "agent" || input.Source.ContextID != "agent-1" {
 		t.Fatalf("source should preserve agent snapshot, got %+v", input.Source)
 	}

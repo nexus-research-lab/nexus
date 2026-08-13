@@ -1,3 +1,6 @@
+// INPUT: 与 automation task/run 查询字段顺序一致的 SQL scanner。
+// OUTPUT: 归一化的 ScheduledTask、ScheduledTaskRun 与 Heartbeat 领域快照。
+// POS: Automation storage 的单一扫描投影；新增持久字段必须在此同步接入。
 package automation
 
 import (
@@ -22,6 +25,8 @@ func scanScheduledTask(scanner interface {
 		deliveryTo                 sql.NullString
 		deliveryAccountID          sql.NullString
 		deliveryThreadID           sql.NullString
+		deliverySessionKey         sql.NullString
+		invalidatedSessionKeysJSON sql.NullString
 		sourceKind                 sql.NullString
 		sourceCreatorID            sql.NullString
 		sourceContextType          sql.NullString
@@ -29,6 +34,7 @@ func scanScheduledTask(scanner interface {
 		sourceContextLabel         sql.NullString
 		sourceSessionKey           sql.NullString
 		sourceSessionLabel         sql.NullString
+		deliveryGrantJSON          sql.NullString
 		expiresAt                  sql.NullTime
 		nextRunAt                  sql.NullTime
 		runningRunID               sql.NullString
@@ -53,6 +59,7 @@ func scanScheduledTask(scanner interface {
 		&item.Schedule.Timezone,
 		&item.Instruction,
 		&item.ExecutionKind,
+		&item.PermissionMode,
 		&item.SessionTarget.Kind,
 		&boundSessionKey,
 		&namedSessionKey,
@@ -62,6 +69,9 @@ func scanScheduledTask(scanner interface {
 		&deliveryTo,
 		&deliveryAccountID,
 		&deliveryThreadID,
+		&deliverySessionKey,
+		&item.SessionBindingState,
+		&invalidatedSessionKeysJSON,
 		&sourceKind,
 		&sourceCreatorID,
 		&sourceContextType,
@@ -69,6 +79,7 @@ func scanScheduledTask(scanner interface {
 		&sourceContextLabel,
 		&sourceSessionKey,
 		&sourceSessionLabel,
+		&deliveryGrantJSON,
 		&item.OverlapPolicy,
 		&expiresAt,
 		&item.Enabled,
@@ -93,12 +104,19 @@ func scanScheduledTask(scanner interface {
 	item.Schedule.IntervalSeconds = nullIntToPointer(intervalSeconds)
 	item.Schedule.CronExpression = nullStringToPointer(cronExpression)
 	item.ExecutionKind = automationdomain.NormalizeExecutionKind(item.ExecutionKind)
+	item.PermissionMode = automationdomain.NormalizePermissionMode(item.PermissionMode)
 	item.SessionTarget.BoundSessionKey = nullStringValue(boundSessionKey)
 	item.SessionTarget.NamedSessionKey = nullStringValue(namedSessionKey)
 	item.Delivery.Channel = nullStringValue(deliveryChannel)
 	item.Delivery.To = nullStringValue(deliveryTo)
 	item.Delivery.AccountID = nullStringValue(deliveryAccountID)
 	item.Delivery.ThreadID = nullStringValue(deliveryThreadID)
+	item.Delivery.SessionKey = nullStringValue(deliverySessionKey)
+	if raw := strings.TrimSpace(nullStringValue(invalidatedSessionKeysJSON)); raw != "" && raw != "[]" {
+		if decodeErr := json.Unmarshal([]byte(raw), &item.InvalidatedSessionKeys); decodeErr != nil {
+			return automationdomain.ScheduledTask{}, decodeErr
+		}
+	}
 	item.Source.Kind = nullStringValue(sourceKind)
 	item.Source.CreatorAgentID = nullStringValue(sourceCreatorID)
 	item.Source.ContextType = nullStringValue(sourceContextType)
@@ -107,6 +125,11 @@ func scanScheduledTask(scanner interface {
 	item.Source.SessionKey = nullStringValue(sourceSessionKey)
 	item.Source.SessionLabel = nullStringValue(sourceSessionLabel)
 	item.Source = item.Source.Normalized()
+	if raw := strings.TrimSpace(nullStringValue(deliveryGrantJSON)); raw != "" && raw != "{}" {
+		if decodeErr := json.Unmarshal([]byte(raw), &item.DeliveryGrant); decodeErr != nil {
+			return automationdomain.ScheduledTask{}, decodeErr
+		}
+	}
 	item.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(item.OverlapPolicy)
 	item.ExpiresAt = nullTimePointer(expiresAt)
 	item.NextRunAt = nullTimePointer(nextRunAt)
@@ -128,7 +151,7 @@ func scanScheduledTask(scanner interface {
 		item.PermissionPolicy.Revision = storedRevision
 	}
 	item.PendingPermissionRequestID = nullStringValue(pendingPermissionRequestID)
-	return item, nil
+	return automationdomain.NormalizeScheduledTaskCompatibility(item), nil
 }
 
 func scanScheduledTaskRow(row *sql.Row) (*automationdomain.ScheduledTask, error) {
@@ -149,6 +172,7 @@ func scanScheduledTaskRun(scanner interface {
 		sessionID             sql.NullString
 		deliveryMode          sql.NullString
 		deliveryTo            sql.NullString
+		deliveryTargetJSON    sql.NullString
 		deliveryStatus        sql.NullString
 		deliveryError         sql.NullString
 		deliveredAt           sql.NullTime
@@ -177,6 +201,7 @@ func scanScheduledTaskRun(scanner interface {
 		&item.MessageCount,
 		&deliveryMode,
 		&deliveryTo,
+		&deliveryTargetJSON,
 		&deliveryStatus,
 		&deliveryError,
 		&deliveredAt,
@@ -211,6 +236,14 @@ func scanScheduledTaskRun(scanner interface {
 	item.SessionID = nullStringToPointer(sessionID)
 	item.DeliveryMode = nullStringValue(deliveryMode)
 	item.DeliveryTo = nullStringValue(deliveryTo)
+	if raw := strings.TrimSpace(nullStringValue(deliveryTargetJSON)); raw != "" && raw != "{}" {
+		var target automationdomain.DeliveryTarget
+		if decodeErr := json.Unmarshal([]byte(raw), &target); decodeErr != nil {
+			return automationdomain.ScheduledTaskRun{}, decodeErr
+		}
+		target = target.Normalized()
+		item.DeliveryTarget = &target
+	}
 	item.DeliveryStatus = nullStringValue(deliveryStatus)
 	item.DeliveryError = nullStringToPointer(deliveryError)
 	item.DeliveredAt = nullTimePointer(deliveredAt)

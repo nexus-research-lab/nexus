@@ -136,6 +136,9 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	if svc.directedRequest.RootRoundID != "round-root-1" {
 		t.Fatalf("root round 应由运行时注入: %+v", svc.directedRequest)
 	}
+	if strings.TrimSpace(svc.directedRequest.CommandID) == "" {
+		t.Fatalf("command id 应由运行时注入: %+v", svc.directedRequest)
+	}
 	if svc.directedRequest.ReplyRoute.NextReplyRoute == nil ||
 		svc.directedRequest.ReplyRoute.NextReplyRoute.Mode != protocol.RoomReplyRoutePublic {
 		t.Fatalf("next_reply_route 未解析: %+v", svc.directedRequest.ReplyRoute)

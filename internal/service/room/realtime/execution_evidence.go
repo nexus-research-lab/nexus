@@ -46,7 +46,7 @@ func (e *slotExecution) observeExecutionPersistenceEvidence(
 	); err != nil {
 		e.logger.Error(
 			"记录 Room Execution context boundary 失败",
-			"execution_id", executionIDFromWorkBinding(e.slot.WorkBinding),
+			"execution_id", executionIDFromWorkBinding(e.slot.currentWorkBinding()),
 			"agent_round_id", e.slot.AgentRoundID,
 			"err", err,
 		)

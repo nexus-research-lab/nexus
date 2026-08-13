@@ -12,7 +12,8 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 	registry := newAppServerGoalRPCRegistry()
 	sender := &capturingRawSender{key: "rpc-1"}
 	threadID := "agent:nexus:ws:dm:goal-rpc"
-	registry.Register(threadID, sender)
+	ownerUserID := "owner-goal-rpc"
+	registry.Register(ownerUserID, threadID, sender)
 	nexus := &capturingNexusGoalBroadcaster{}
 	broadcaster := newGoalEventBroadcaster(nexus, registry)
 
@@ -20,6 +21,9 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 		SessionKey: threadID,
 		Objective:  "Finish parity",
 		Status:     protocol.GoalStatusComplete,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: ownerUserID,
+		},
 	}
 	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalStatusChanged, goal, map[string]any{
 		"source":   string(protocol.GoalUpdateSourceModel),
@@ -50,13 +54,17 @@ func TestGoalEventBroadcasterDoesNotClearNewGoalForCompletedGoalLateUsage(t *tes
 	registry := newAppServerGoalRPCRegistry()
 	sender := &capturingRawSender{key: "rpc-1"}
 	threadID := "agent:nexus:ws:dm:goal-rpc-late-usage"
-	registry.Register(threadID, sender)
+	ownerUserID := "owner-goal-rpc"
+	registry.Register(ownerUserID, threadID, sender)
 	broadcaster := newGoalEventBroadcaster(&capturingNexusGoalBroadcaster{}, registry)
 
 	goal := protocol.Goal{
 		SessionKey: threadID,
 		Objective:  "Finish parity",
 		Status:     protocol.GoalStatusComplete,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: ownerUserID,
+		},
 	}
 	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalProgress, goal, map[string]any{
 		"source":   string(protocol.GoalUpdateSourceSystem),
@@ -73,10 +81,18 @@ func TestGoalEventBroadcasterSkipsExternalSourceForRPCNotification(t *testing.T)
 	registry := newAppServerGoalRPCRegistry()
 	sender := &capturingRawSender{key: "rpc-1"}
 	threadID := "agent:nexus:ws:dm:goal-rpc"
-	registry.Register(threadID, sender)
+	ownerUserID := "owner-goal-rpc"
+	registry.Register(ownerUserID, threadID, sender)
 	broadcaster := newGoalEventBroadcaster(&capturingNexusGoalBroadcaster{}, registry)
 
-	goal := protocol.Goal{SessionKey: threadID, Objective: "External update", Status: protocol.GoalStatusActive}
+	goal := protocol.Goal{
+		SessionKey: threadID,
+		Objective:  "External update",
+		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: ownerUserID,
+		},
+	}
 	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalUpdated, goal, map[string]any{
 		"source": string(protocol.GoalUpdateSourceExternal),
 	})
@@ -91,7 +107,8 @@ func TestGoalEventBroadcasterSendsContinuationNotificationToRPCSubscribers(t *te
 	registry := newAppServerGoalRPCRegistry()
 	sender := &capturingRawSender{key: "rpc-1"}
 	threadID := "agent:nexus:ws:dm:goal-rpc"
-	registry.Register(threadID, sender)
+	ownerUserID := "owner-goal-rpc"
+	registry.Register(ownerUserID, threadID, sender)
 	broadcaster := newGoalEventBroadcaster(&capturingNexusGoalBroadcaster{}, registry)
 
 	goal := protocol.Goal{
@@ -101,6 +118,9 @@ func TestGoalEventBroadcasterSendsContinuationNotificationToRPCSubscribers(t *te
 		ContinuationCount:  2,
 		EmptyProgressCount: 1,
 		LastError:          "provider returned 401",
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: ownerUserID,
+		},
 	}
 	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalContinuation, goal, map[string]any{
 		"source":          string(protocol.GoalUpdateSourceSystem),
@@ -128,6 +148,46 @@ func TestGoalEventBroadcasterSendsContinuationNotificationToRPCSubscribers(t *te
 	}
 	if params.Goal.Status != goalappserver.ThreadGoalStatusActive {
 		t.Fatalf("notification goal = %#v", params.Goal)
+	}
+}
+
+func TestAppServerGoalRPCRegistryIsolatesSameThreadByOwner(t *testing.T) {
+	registry := newAppServerGoalRPCRegistry()
+	ownerSender := &capturingRawSender{key: "owner-rpc"}
+	otherSender := &capturingRawSender{key: "other-rpc"}
+	threadID := "agent:nexus:ws:dm:shared-thread-id"
+	registry.Register("owner-a", threadID, ownerSender)
+	registry.Register("owner-b", threadID, otherSender)
+
+	registry.Broadcast(context.Background(), "owner-a", threadID, nil, "owner-a-update")
+
+	if len(ownerSender.payloads) != 1 || ownerSender.payloads[0] != "owner-a-update" {
+		t.Fatalf("owner payloads = %#v, want owner-a update", ownerSender.payloads)
+	}
+	if len(otherSender.payloads) != 0 {
+		t.Fatalf("other owner payloads = %#v, want none", otherSender.payloads)
+	}
+}
+
+func TestGoalEventBroadcasterSkipsOwnerlessGoalForRPCNotification(t *testing.T) {
+	registry := newAppServerGoalRPCRegistry()
+	sender := &capturingRawSender{key: "rpc-ownerless"}
+	threadID := "agent:nexus:ws:dm:ownerless-goal"
+	registry.Register("owner-a", threadID, sender)
+	broadcaster := newGoalEventBroadcaster(&capturingNexusGoalBroadcaster{}, registry)
+	goal := protocol.Goal{
+		SessionKey: threadID,
+		Objective:  "Owner provenance is absent",
+		Status:     protocol.GoalStatusActive,
+	}
+	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalUpdated, goal, map[string]any{
+		"source": string(protocol.GoalUpdateSourceSystem),
+	})
+
+	broadcaster.BroadcastEvent(context.Background(), threadID, event)
+
+	if len(sender.payloads) != 0 {
+		t.Fatalf("ownerless Goal notifications = %#v, want none", sender.payloads)
 	}
 }
 

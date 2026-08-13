@@ -1,5 +1,5 @@
-// INPUT: owner 隔离的 DeliveryChannel 注册、生命周期与投递请求。
-// OUTPUT: generation 防护的热替换、就绪状态与统一消息投递。
+// INPUT: owner 隔离的 DeliveryChannel 注册、统一 Session 解析器、生命周期与投递请求。
+// OUTPUT: generation 防护的热替换、依赖继承、就绪状态与统一消息投递。
 // POS: Channels 运行态路由核心，旧实例的异步完成不得覆盖新实例。
 package channels
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 	deliveryroute "github.com/nexus-research-lab/nexus/internal/service/channels/deliveryroute"
@@ -19,16 +20,18 @@ import (
 
 // Router 负责管理通道生命周期与统一投递。
 type Router struct {
-	mu             sync.RWMutex
-	deliveryRoutes *deliveryroute.Store
-	agents         agentWorkspaceResolver
-	channels       map[string]*registeredChannel
-	ingress        IngressAcceptor
-	running        bool
-	runCtx         context.Context
-	logger         *slog.Logger
-	routeLocks     sync.Map
-	nextGeneration uint64
+	mu              sync.RWMutex
+	deliveryRoutes  *deliveryroute.Store
+	agents          agentWorkspaceResolver
+	sessions        sessionProjectionResolver
+	channels        map[string]*registeredChannel
+	ingress         IngressAcceptor
+	running         bool
+	runCtx          context.Context
+	logger          *slog.Logger
+	routeLocks      sync.Map
+	projectionLocks sync.Map
+	nextGeneration  uint64
 }
 
 type registeredChannel struct {
@@ -42,6 +45,10 @@ type registeredChannel struct {
 
 type loggerAwareChannel interface {
 	SetLogger(*slog.Logger)
+}
+
+type sessionProjectionResolver interface {
+	ResolveDeliverySession(context.Context, string) (*protocol.Session, error)
 }
 
 // NewRouter 创建通道路由器。
@@ -82,6 +89,20 @@ func (r *Router) SetLogger(logger *slog.Logger) {
 			continue
 		}
 		setChannelLogger(entry.channel, resolved)
+	}
+}
+
+// SetSessionProjectionResolver 注入统一 Session 读模型，用于在投递前解析并
+// 物化数据库拥有的 Room-backed DM/成员 Session。
+func (r *Router) SetSessionProjectionResolver(resolver sessionProjectionResolver) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sessions = resolver
+	for _, entry := range r.channels {
+		projector, ok := entry.channel.(*sessionDeliveryChannel)
+		if ok {
+			projector.sessions = resolver
+		}
 	}
 }
 

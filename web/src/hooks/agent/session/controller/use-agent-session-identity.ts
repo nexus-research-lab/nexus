@@ -53,10 +53,10 @@ export function useAgentSessionIdentity({
     roomSeqCursorRef.current = 0;
     resetHistoryPagination();
     clearLiveSessionState();
-    cancelPendingRequestAcks("会话上下文已切换，未确认的消息发送已取消");
+    // 已发出的请求继续由 client_request_id 收口。切换会话只清理当前
+    // 页面投影，不能把尚未到达的旧会话 ACK 伪装成发送失败。
     resetRuntimeMachine();
   }, [
-    cancelPendingRequestAcks,
     clearLiveSessionState,
     identity,
     resetHistoryPagination,

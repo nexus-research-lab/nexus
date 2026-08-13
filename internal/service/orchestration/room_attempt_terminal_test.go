@@ -101,3 +101,85 @@ func TestFinishRoomAttemptIsNoOpAfterRootAlreadyTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFinishRoomAttemptIsNoOpAfterRetargetClosedPredecessor(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Execution.Status = protocol.ExecutionStatusSuperseded
+	snapshot.Plan = nil
+	snapshot.PlanItems = nil
+	snapshot.WorkItems = nil
+	snapshot.WorkItemSpecs = nil
+	snapshot.Assignments = nil
+	snapshot.Dispatches = nil
+	snapshot.Attempts = nil
+	service := NewService(&fakeRepository{snapshot: snapshot})
+
+	if err := service.FinishRoomAttempt(
+		context.Background(),
+		structuredRoomMemberActor(binding),
+		RoomAttemptTerminalInput{
+			Binding: binding,
+			Status:  protocol.WorkAttemptStatusInterrupted,
+		},
+	); err != nil {
+		t.Fatalf("late predecessor settlement error = %v, want idempotent no-op", err)
+	}
+}
+
+func TestFinishRoomSelfAttemptRequiresExactDispatchlessBinding(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Assignments[0].OwnerAgentID = "agent-lead"
+	snapshot.Assignments[0].Strategy = protocol.AssignmentStrategySelf
+	snapshot.Attempts[0].ExecutorAgentID = "agent-lead"
+	snapshot.Attempts[0].DispatchID = ""
+	snapshot.Attempts[0].Status = protocol.WorkAttemptStatusPending
+	binding.DispatchID = ""
+	var captured orchestrationstore.FinishAttemptCommand
+	repository := &fakeRepository{
+		snapshot: snapshot,
+		finishAttempt: func(
+			_ context.Context,
+			command orchestrationstore.FinishAttemptCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			captured = command
+			updated := cloneExecutionSnapshot(snapshot)
+			updated.Execution.Version++
+			updated.Attempts[0] = command.Attempt
+			return updated, nil
+		},
+	}
+	service := NewService(repository)
+	actor := structuredRoomMemberActor(binding)
+	actor.AgentID = "agent-lead"
+	actor.Role = ExecutionActorCoordinator
+
+	if err := service.FinishRoomAttempt(
+		context.Background(),
+		actor,
+		RoomAttemptTerminalInput{
+			Binding:       binding,
+			Status:        protocol.WorkAttemptStatusFailed,
+			FailureReason: "runtime failed before submit_work",
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if captured.Attempt.ID != binding.AttemptID ||
+		captured.Attempt.Status != protocol.WorkAttemptStatusFailed {
+		t.Fatalf("self terminal command = %#v", captured)
+	}
+
+	stale := binding
+	stale.DispatchID = "dispatch-model-forged"
+	actor.WorkBinding = &stale
+	if err := service.FinishRoomAttempt(
+		context.Background(),
+		actor,
+		RoomAttemptTerminalInput{
+			Binding: stale,
+			Status:  protocol.WorkAttemptStatusInterrupted,
+		},
+	); err == nil {
+		t.Fatal("self Room Attempt accepted a forged Dispatch binding")
+	}
+}

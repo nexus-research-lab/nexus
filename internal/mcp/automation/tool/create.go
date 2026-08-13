@@ -20,24 +20,31 @@ const createDescription = "创建持久化定时任务（== UI「新建任务」
 	"single+run_at / daily+daily_time(+weekdays) / interval+interval_value+interval_unit / cron+expr(标准 5 段 cron 表达式，会被翻译回 daily 形态以保证 UI 可编辑；只支持 minute/hour 为单整数 + dom/month=* 的表达式)。" +
 	"schedule.timezone 缺省按服务器默认时区（通常 Asia/Shanghai）。" +
 	"对话入口只允许 execution_kind=agent；宿主脚本任务只能由人类控制面创建。" +
-	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected|agent|channel)。" +
-	"投递权限：普通 Agent 只能回到自身 Agent 会话/收件箱，Room 成员只能额外回到当前 Room，外部通道只能回到当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他 Agent 或任意已配置通道目标。任务实际投递前会按最新配置和当前主智能体/Room 成员身份再次校验。" +
-	"需要投递到某个智能体时，用 reply_mode=agent + reply_agent_id；缺省投递到任务目标智能体的定时任务收件箱。" +
-	"需要投递到 IM/外部通道时，用 reply_mode=channel + reply_channel/reply_to，或 reply_session_key（例如 agent:<agent_id>:fs:group:<chat_id> 或 agent:<agent_id>:weixin-personal:dm:<user_id>）；如果当前会话就是结构化外部 IM 群，可只传 reply_mode=channel，或只传匹配当前通道的 reply_channel，工具会默认投递回当前群；用户在当前群说“发到这个群/每天推送/每天发送/每天播报”时，工具也会默认 temporary+channel；但“不要推送/静默运行”不会触发该默认。" +
-	"当前 DM/Room 里，用户说“每天搜索新闻发给我/告诉我/通知我”这类独立重任务且不依赖当前聊天历史时，可省略 execution_mode/reply_mode，工具会默认 temporary+selected 回投当前会话；如果任务要总结当前对话/聊天记录，必须显式选择执行会话。" +
-	"短文本提醒类任务在当前会话中可缺省，工具会默认 existing+execution，让用户能看到提醒；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
+	"可选：context_mode(isolated|current) + deliver_result(boolean) + permission_mode(default|plan|acceptEdits|bypassPermissions|dontAsk)。" +
+	"context_mode 默认 isolated；只有任务明确需要读取当前聊天记录时才用 current。deliver_result 在当前会话中默认 true，无会话时默认 false。" +
+	"省略 permission_mode 时，会在创建瞬间复制当前 Session 的有效模式（无覆盖则复制 Agent 模式）以及 Agent 工具 allow/deny，之后任务与 Agent 配置相互独立；显式 permission_mode 会覆盖复制出的模式。bypassPermissions 会跳过 SDK 权限检查，只有用户明确要求时才选择。SDK 发出的额外任务权限请求仍由 Nexus 持久审批。" +
+	"投递权限：普通 Agent 只能回到自身真实会话，Room 成员只能额外回到当前 Room，外部通道只能回到当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他真实会话或任意已配置通道目标。任务实际投递前会按最新配置和当前主智能体/Room 成员身份再次校验。" +
+	"外部 IM 中只需表达 deliver_result；Nexus 根据可信入站上下文自动绑定 channel/account/target/thread/session，模型不得猜测或填写这些路由字段。" +
 	"任务到点后无人值守执行，instruction 必须自包含，所需工具必须预先授权，不能依赖 AskUserQuestion 补充信息。" +
-	"独立/临时执行但仍要让用户看到结果时，用 execution_mode=temporary + reply_mode=selected + selected_reply_session_key；只有用户明确要求后台静默时才用 reply_mode=none。" +
 	"overlap_policy 可选 skip|allow，缺省 skip。" +
-	"expires_at 可选 RFC3339 时间；到期后只停止后续触发，不中断正在执行的任务。" +
-	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
+	"expires_at 可选 RFC3339 时间；到期后只停止后续触发，不中断正在执行的任务。"
+
+func createDescriptionForContext(sctx contract.ServerContext) string {
+	channel, chatType, ok := currentExternalIMSummary(sctx)
+	if !ok {
+		return createDescription
+	}
+	return "当前可信调用来自 " + channel + " " + chatType +
+		"。结果是否回到这里仅由 deliver_result 控制；Nexus 会自动注入真实路由，绝不要填写或猜测 channel/account/chat/thread/session。" +
+		createDescription
+}
 
 func create(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
 		Name:        "create_scheduled_task",
-		Description: createDescription,
+		Description: createDescriptionForContext(sctx),
 		SearchHint:  searchHintCreateScheduledTask,
-		InputSchema: createSchema(),
+		InputSchema: createSchema(sctx),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if err := requireTrustedInteractiveMutation(sctx); err != nil {
 				return render.Error(err), nil
@@ -106,22 +113,23 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 	if err != nil {
 		return automationdomain.CreateJobInput{}, err
 	}
-	delivery, err := semantic.Delivery(args, sctx, agentID, executionMode, replyMode, sessionTarget)
+	delivery, err := semantic.Delivery(args, sctx, executionMode, replyMode, sessionTarget)
 	if err != nil {
 		return automationdomain.CreateJobInput{}, err
 	}
 	return automationdomain.CreateJobInput{
-		RequestID:     strings.TrimSpace(argx.String(args, "request_id")),
-		Name:          argx.String(args, "name"),
-		AgentID:       agentID,
-		Schedule:      schedule,
-		Instruction:   argx.String(args, "instruction"),
-		ExecutionKind: executionKind,
-		SessionTarget: sessionTarget,
-		Delivery:      delivery,
-		Source:        semantic.Source(sctx, agentID),
-		OverlapPolicy: argx.String(args, "overlap_policy"),
-		ExpiresAt:     expiresAt,
-		Enabled:       argx.Bool(args, "enabled", true),
+		RequestID:      strings.TrimSpace(argx.String(args, "request_id")),
+		Name:           argx.String(args, "name"),
+		AgentID:        agentID,
+		Schedule:       schedule,
+		Instruction:    argx.String(args, "instruction"),
+		ExecutionKind:  executionKind,
+		PermissionMode: strings.TrimSpace(argx.String(args, "permission_mode")),
+		SessionTarget:  sessionTarget,
+		Delivery:       delivery,
+		Source:         semantic.Source(sctx, agentID),
+		OverlapPolicy:  argx.String(args, "overlap_policy"),
+		ExpiresAt:      expiresAt,
+		Enabled:        argx.Bool(args, "enabled", true),
 	}, nil
 }

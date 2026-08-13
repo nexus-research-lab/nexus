@@ -138,7 +138,7 @@ func (s *Service) runSlot(
 			s.loggerFor(ctx).Error(
 				"Room structured root Attempt 缺少 Agent 配置时收口失败",
 				"dispatch_id",
-				executionDispatchID(slot.WorkBinding),
+				executionDispatchID(slot.currentWorkBinding()),
 				"err",
 				settleErr,
 			)
@@ -297,7 +297,20 @@ func (s *Service) runSlot(
 }
 
 func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
-	return roomOrchestrationActor(e.round, e.slot)
+	actor := roomOrchestrationActor(e.round, e.slot)
+	binding, bound := e.ensureWorkBindingState().Load()
+	actor.WorkBinding = binding
+	if bound {
+		actor.ExecutionID = binding.ExecutionID
+	}
+	return actor
+}
+
+func (e *slotExecution) ensureWorkBindingState() *runtimectx.WorkBindingState {
+	if e == nil || e.slot == nil {
+		return nil
+	}
+	return e.slot.ensureWorkBindingState()
 }
 
 func roomOrchestrationActor(
@@ -352,6 +365,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 				e.service.subagentAdmission,
 				orchestrationruntimehook.Context{
 					Actor:             actor,
+					ActorProvider:     e.orchestrationActor,
 					RuntimeSessionKey: e.slot.RuntimeSessionKey,
 					RoomSessionID:     e.slot.RoomSessionID,
 					Logger:            e.service.loggerFor(e.ctx),
@@ -385,8 +399,9 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 			return e.sendQueuedInputs(client)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			e.service.observeExecutionRuntimeGraph(actor, incoming)
-			e.observeExecutionPersistenceEvidence(actor, incoming)
+			currentActor := e.orchestrationActor()
+			e.service.observeExecutionRuntimeGraph(currentActor, incoming)
+			e.observeExecutionPersistenceEvidence(currentActor, incoming)
 			e.observeIncomingMessage(incoming)
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -400,7 +415,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		failureReason = executeErr.Error()
 	}
 	e.service.finishExecutionRuntimeGraph(
-		actor,
+		e.orchestrationActor(),
 		result.TerminalStatus,
 		failureReason,
 	)

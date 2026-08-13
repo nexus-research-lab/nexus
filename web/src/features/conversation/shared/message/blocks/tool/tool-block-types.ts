@@ -18,6 +18,7 @@ export type ToolBlockStatus =
   | "running"
   | "success"
   | "rejected"
+  | "superseded"
   | "error"
   | "stopped"
   | "waiting_permission";

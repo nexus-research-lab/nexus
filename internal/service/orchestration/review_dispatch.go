@@ -1,5 +1,5 @@
 // INPUT: Room Submission review-return outbox、Assignment 选择的 reviewer target 与 Room delivery receipt。
-// OUTPUT: 独立于 worker Dispatch 的 claim/retry/deliver loop 与迟到回交 admission。
+// OUTPUT: 独立于 worker Dispatch 的 claim/retry/deliver loop、迟到回交 admission 与 outbox 状态变更后的 session 失效事实。
 // POS: Submission commit 后可靠唤醒 reviewer，不依赖模型手写 @Coordinator。
 package orchestration
 
@@ -125,6 +125,8 @@ func (s *Service) DispatchPendingReviews(
 			continue
 		}
 		result.Claimed++
+		// Claim is itself durable and visible in the WorkGraph review state.
+		s.invalidateExecutionID(ctx, candidate.ExecutionID)
 		delivered, deliveryErr := s.deliverClaimedReviewDispatch(
 			ctx,
 			repository,
@@ -133,6 +135,7 @@ func (s *Service) DispatchPendingReviews(
 		)
 		if deliveryErr != nil {
 			result.Retried++
+			s.invalidateExecutionID(ctx, candidate.ExecutionID)
 			continue
 		}
 		if delivered {
@@ -140,6 +143,7 @@ func (s *Service) DispatchPendingReviews(
 		} else {
 			result.Cancelled++
 		}
+		s.invalidateExecutionID(ctx, candidate.ExecutionID)
 	}
 	return result, nil
 }

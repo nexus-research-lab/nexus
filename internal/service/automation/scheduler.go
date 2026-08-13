@@ -288,6 +288,9 @@ func (s *Service) collectScheduledTaskWorkLocked(
 }
 
 func isRunnableScheduledTaskState(state *automationexec.JobRuntimeState, now time.Time) bool {
+	if state.Job.SessionBindingState == automationdomain.TaskSessionBindingStateRebindRequired {
+		return false
+	}
 	permissionState := strings.TrimSpace(state.Job.PermissionState)
 	if permissionState != "" && permissionState != automationdomain.TaskPermissionStateReady {
 		return false

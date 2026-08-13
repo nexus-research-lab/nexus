@@ -293,6 +293,7 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
     normalizeExecutionNodeDisplayText,
     resolveExecutionPrimaryAgentNodes,
     resolveExecutionNodeSummary,
+    resolveExecutionWorkGraphHeaderModel,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-process-model.ts",
   );
@@ -340,6 +341,16 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
     summary: "实现 UI",
     totalCount: 3,
   });
+  const headerExecution = {
+    ...execution,
+    completion_blockers: [" waiting for final review ", ""],
+  };
+  assert.deepEqual(resolveExecutionWorkGraphHeaderModel(headerExecution), {
+    currentNodeId: "attempt-child",
+    status: "active",
+    statusLabelKey: "execution.status_active",
+    summary: "实现 UI",
+  });
   assert.equal(
     compactExecutionNodeObjective(
       "Researcher 收集与 Room 工作图相关的公开资料",
@@ -365,6 +376,87 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
     ),
     "Page failed",
   );
+});
+
+test("WorkGraph surface keeps an active title-only header and one non-active lifecycle notice", async () => {
+  const { ExecutionWorkGraphSurface } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
+  );
+  const statuses = [
+    ["active", null],
+    ["waiting", "等待中"],
+    ["completed", "已完成"],
+    ["superseded", "已替换"],
+  ];
+  for (const [status, statusLabel] of statuses) {
+    const projected = structuredClone(execution);
+    projected.status = status;
+    projected.completion_blockers = ["等待最终验收"];
+    const html = await renderWithI18n(React.createElement(
+      ExecutionWorkGraphSurface,
+      {
+        directory,
+        resource: {
+          dismiss: () => {},
+          error: null,
+          execution: projected,
+          isLoading: false,
+          isStale: false,
+          lastSuccessfulAt: Date.parse("2026-08-11T00:00:00Z"),
+          refresh: () => {},
+        },
+        taskRuns: [],
+      },
+    ));
+    assert.match(html, new RegExp(`data-execution-header-status="${status}"`));
+    assert.match(html, />实现 UI</);
+    if (statusLabel) {
+      assert.match(
+        html,
+        new RegExp(`data-execution-header-notice-status="${status}"`),
+      );
+      assert.match(html, new RegExp(`>${statusLabel}<`));
+    } else {
+      assert.doesNotMatch(html, /data-execution-header-notice-status/);
+    }
+    assert.doesNotMatch(html, /data-execution-plan/);
+    assert.doesNotMatch(html, /data-execution-required-progress/);
+    assert.doesNotMatch(html, /data-execution-completion-blockers/);
+    assert.doesNotMatch(html, /data-execution-node-progress/);
+    assert.doesNotMatch(html, /Plan v2|必需节点已验收|完成阻塞|第 2 \/ 3 节点/);
+  }
+});
+
+test("WorkGraph partial warning names display-worthy canvas totals", async () => {
+  const { ExecutionWorkGraphSurface } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
+  );
+  const projected = structuredClone(execution);
+  projected.graph.runtime_node_total = 257;
+  projected.graph.runtime_edge_total = 513;
+  projected.graph.runtime_nodes_truncated = true;
+  projected.graph.runtime_edges_truncated = true;
+
+  const html = await renderWithI18n(React.createElement(
+    ExecutionWorkGraphSurface,
+    {
+      directory,
+      resource: {
+        dismiss: () => {},
+        error: null,
+        execution: projected,
+        isLoading: false,
+        isStale: false,
+        lastSuccessfulAt: Date.parse("2026-08-12T00:00:00Z"),
+        refresh: () => {},
+      },
+      taskRuns: [],
+    },
+  ));
+
+  assert.match(html, /data-execution-workgraph-partial="true"/);
+  assert.match(html, /工作图未展示全部应显示的运行事实/);
+  assert.match(html, /应进入主图的运行节点共 257 个、运行连线 513 条/);
 });
 
 test("WorkGraph layout reflows without treating containment as dependency", async () => {
@@ -1358,18 +1450,74 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
   assert.equal(resolveExecutionWorkspaceReference("https://example.com/result"), null);
 });
 
-test("Execution MCP names render as semantic activity instead of raw transport names", async () => {
+const nexusToolTitles = [
+  ["mcp__nexus_execution__get_execution", "读取工作图"],
+  ["mcp__nexus_execution__prepare_plan_execution", "封存计划提案"],
+  ["mcp__nexus_execution__plan_execution", "提交计划提案"],
+  ["mcp__nexus_execution__abandon_execution", "终止当前执行"],
+  ["mcp__nexus_execution__assign_work", "指派工作项"],
+  ["mcp__nexus_execution__submit_work", "提交交付物"],
+  ["mcp__nexus_execution__review_work", "验收工作项"],
+  ["mcp__nexus_execution__block_work", "标记工作阻塞"],
+  ["mcp__nexus_execution__resume_work", "恢复工作项"],
+  ["mcp__nexus_execution__take_over_work", "接管工作项"],
+  ["mcp__nexus_execution__audit_execution_alignment", "审计执行对齐"],
+  ["mcp__nexus_execution__promote_execution_to_goal", "升级为 Goal"],
+  ["mcp__nexus_goal__get_goal", "读取 Goal"],
+  ["mcp__nexus_goal__create_goal", "创建 Goal"],
+  ["mcp__nexus_goal__retarget_goal", "调整 Goal 目标"],
+  ["mcp__nexus_goal__audit_objective_alignment", "审计 Goal 对齐"],
+  ["mcp__nexus_goal__update_goal", "更新 Goal 状态"],
+];
+
+test("Nexus execution and Goal MCP names render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
   const { getToolInputSummary, getToolTitle } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/tool-activity.ts",
   );
-  assert.equal(
-    getToolTitle("mcp__nexus_execution__prepare_plan_execution"),
-    "封存计划提案",
+  const { ToolBlock } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block.tsx",
   );
-  assert.equal(
-    getToolTitle("mcp__nexus_execution__plan_execution"),
-    "提交计划提案",
+  const { AssistantProcessCallchain } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
   );
+  for (const [toolName, expectedTitle] of nexusToolTitles) {
+    assert.equal(getToolTitle(toolName), expectedTitle);
+    const toolHtml = await renderWithI18n(React.createElement(ToolBlock, {
+      status: "success",
+      toolUse: {
+        id: `tool-${toolName}`,
+        input: {},
+        name: toolName,
+        type: "tool_use",
+      },
+    }));
+    assert.match(toolHtml, new RegExp(expectedTitle));
+    assert.doesNotMatch(toolHtml, /mcp__nexus_(?:execution|goal)__/);
+
+    const processHtml = await renderWithI18n(React.createElement(
+      AssistantProcessCallchain,
+      {
+        activity: {},
+        environment: {},
+        generatedFilesLabel: "",
+        permissions: {},
+        process: {
+          anchorRef: { current: null },
+          expanded: false,
+          projection: { content: [], streamingIndexes: new Set() },
+          summary: {
+            kind: "details",
+            latestDetail: { detail: null, kind: "tool", toolName },
+            metrics: [{ count: 1, kind: "action" }],
+          },
+          toggle: () => {},
+          visible: true,
+        },
+      },
+    ));
+    assert.match(processHtml, new RegExp(expectedTitle));
+    assert.doesNotMatch(processHtml, /mcp__nexus_(?:execution|goal)__/);
+  }
   assert.equal(
     getToolInputSummary({
       proposal_id: "proposal-secret",
@@ -1377,4 +1525,31 @@ test("Execution MCP names render as semantic activity instead of raw transport n
     }),
     null,
   );
+});
+
+test("Mobile actions keep WorkGraph enabled before a managed graph exists", async () => {
+  const { buildRoomMobileActionItems } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/mobile/room-mobile-actions-model.tsx",
+  );
+  const { UiActionMenuContent } = await server.ssrLoadModule(
+    "/src/shared/ui/menu/action-menu.tsx",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const items = buildRoomMobileActionItems({
+    canOpenSubagents: false,
+    includeMembers: false,
+    t: (key) => MESSAGES.zh[key] ?? key,
+  });
+  const workgraph = items.find((item) => item.value === "workgraph");
+  assert.ok(workgraph);
+  assert.equal(workgraph.disabled, undefined);
+
+  const html = await renderWithI18n(React.createElement(UiActionMenuContent, {
+    items,
+    onSelect: () => {},
+  }));
+  assert.match(html, /工作图/);
+  assert.equal((html.match(/role="menuitem"/g) ?? []).length, items.length);
 });

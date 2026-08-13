@@ -1,5 +1,5 @@
-// INPUT: owner+channel 维度的运行实例注册、热启动与注销请求。
-// OUTPUT: 每个路由键串行、候选先启动后发布且 generation 单调的注册表状态。
+// INPUT: owner+channel 维度的运行实例、Router 级 Session 解析器、热启动与注销请求。
+// OUTPUT: 继承统一依赖、每个路由键串行且 generation 单调的注册表状态。
 // POS: Router 的实例替换边界，阻止失败或过期候选污染当前路由。
 package channels
 
@@ -135,6 +135,7 @@ func (r *Router) newRegisteredChannel(ownerUserID string, channel DeliveryChanne
 	r.mu.Lock()
 	logger := r.logger
 	ingress := r.ingress
+	sessions := r.sessions
 	r.nextGeneration++
 	generation := r.nextGeneration
 	r.mu.Unlock()
@@ -148,6 +149,9 @@ func (r *Router) newRegisteredChannel(ownerUserID string, channel DeliveryChanne
 		started:     isAlwaysReadyChannel(channelType),
 	}
 	setChannelLogger(channel, logger)
+	if projector, ok := channel.(*sessionDeliveryChannel); ok {
+		projector.sessions = sessions
+	}
 	if aware, ok := channel.(ingressAwareChannel); ok {
 		aware.SetIngress(r.ingressForRegisteredChannel(entry, ingress))
 	}

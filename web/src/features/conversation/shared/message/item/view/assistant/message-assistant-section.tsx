@@ -53,6 +53,7 @@ export function MessageAssistantSection({
           {showHeader ? (
             <AssistantMessageHeader
               avatarUrl={currentAgentAvatar}
+              automationTaskName={assistant.header.automationTaskName}
               canStop={assistant.header.canStop}
               compact={compact}
               headerAction={assistantHeaderAction}
@@ -152,6 +153,7 @@ function AssistantFooter({
   return (
     <AssistantMessageStats
       copied={footer.copied}
+      goalCompletionReceipt={footer.goalCompletionReceipt}
       memories={footer.memories}
       onCopy={footer.onCopy}
       stats={footer.stats}

@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,10 +11,94 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
 	_ "modernc.org/sqlite"
 )
+
+func TestServiceRevalidatesIMPairingAtCreateDeliveryAndRetry(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	delivery := &fakeDeliveryRouter{err: fmt.Errorf("temporary IM send failure")}
+	grant := &mutableAutomationDeliveryGrant{allowed: true}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		&fakeDMRunner{permission: permission, resultText: "定时结果"},
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		delivery,
+	)
+	service.SetDeliveryGrantResolver(grant)
+	ownerCtx := contextForOwner(context.Background(), "user-1")
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		"agent-1",
+		protocol.SessionChannelWeixinPersonal,
+		"dm",
+		"weixin-account",
+		"weixin-user",
+		"",
+	)
+	create := func(name string) (*automationdomain.ScheduledTask, error) {
+		return service.CreateTask(ownerCtx, automationdomain.CreateJobInput{
+			Name:        name,
+			AgentID:     "agent-1",
+			Instruction: "执行后回传",
+			Schedule: automationdomain.Schedule{
+				Kind:            automationdomain.ScheduleKindEvery,
+				IntervalSeconds: intRef(3600),
+				Timezone:        "Asia/Shanghai",
+			},
+			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: name},
+			Delivery: automationdomain.DeliveryTarget{
+				Mode:       automationdomain.DeliveryModeLast,
+				SessionKey: sessionKey,
+			},
+			Source:  automationdomain.Source{Kind: automationdomain.SourceKindCLI, SessionKey: sessionKey},
+			Enabled: true,
+		})
+	}
+	task, err := create("pairing-runtime")
+	if err != nil {
+		t.Fatalf("active pairing 下创建任务失败: %v", err)
+	}
+	if _, err = service.RunTaskNow(ownerCtx, task.JobID); err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	var run automationdomain.ScheduledTaskRun
+	waitFor(t, 2*time.Second, func() bool {
+		runs, listErr := service.ListTaskRuns(ownerCtx, task.JobID)
+		if listErr != nil || len(runs) != 1 || runs[0].DeliveryStatus != automationdomain.DeliveryStatusFailed {
+			return false
+		}
+		run = runs[0]
+		return true
+	})
+	if calls := delivery.Calls(); len(calls) != 1 {
+		t.Fatalf("首次执行应尝试一次 IM 投递: %+v", calls)
+	}
+
+	grant.setAllowed(false)
+	if _, err = create("pairing-create-revoked"); !errors.Is(err, automationdomain.ErrTaskDeliverySessionUnavailable) {
+		t.Fatalf("pairing 撤销后新建任务必须 fail closed: %v", err)
+	}
+	delivery.err = nil
+	retried, err := service.RetryRunDelivery(ownerCtx, task.JobID, run.RunID)
+	if err != nil {
+		t.Fatalf("重试 ledger 更新失败: %v", err)
+	}
+	if retried.DeliveryStatus != automationdomain.DeliveryStatusFailed ||
+		retried.DeliveryError == nil ||
+		!strings.Contains(*retried.DeliveryError, automationdomain.ErrTaskDeliverySessionUnavailable.Error()) {
+		t.Fatalf("pairing 撤销后重试必须记录授权失败: %+v", retried)
+	}
+	if calls := delivery.Calls(); len(calls) != 1 {
+		t.Fatalf("撤销 pairing 后重试不得到达 IM adapter: %+v", calls)
+	}
+}
 
 func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	db := newAutomationTestDB(t)
@@ -39,12 +124,8 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 			Timezone:        "Asia/Shanghai",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "news"},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: "feishu",
-			To:      "oc_bad",
-		},
-		Enabled: true,
+		Delivery:      fakeStructuredDelivery("agent-1", "bad-delivery-session"),
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
@@ -88,11 +169,7 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 		t.Fatalf("last_delivery_status 未记录失败: %+v", updatedTask)
 	}
 
-	updatedDelivery := automationdomain.DeliveryTarget{
-		Mode:    automationdomain.DeliveryModeExplicit,
-		Channel: "feishu",
-		To:      "oc_good",
-	}
+	updatedDelivery := fakeStructuredDelivery("agent-1", "good-delivery-session")
 	if _, err = service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{Delivery: &updatedDelivery}); err != nil {
 		t.Fatalf("修正投递目标失败: %v", err)
 	}
@@ -108,11 +185,11 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	if redelivered.DeliveryStatus != automationdomain.DeliveryStatusSucceeded || redelivered.DeliveryError != nil || redelivered.DeliveredAt == nil {
 		t.Fatalf("重试投递后状态不正确: %+v", redelivered)
 	}
-	if redelivered.DeliveryTo != "explicit:feishu:oc_good" {
+	if redelivered.DeliveryTo != "explicit:internal:"+updatedDelivery.SessionKey {
 		t.Fatalf("重试投递应记录修正后的目标，实际 delivery_to=%q", redelivered.DeliveryTo)
 	}
 	calls := delivery.Calls()
-	if len(calls) < 2 || calls[len(calls)-1].To != "oc_good" {
+	if len(calls) < 2 || calls[len(calls)-1].To != updatedDelivery.SessionKey {
 		t.Fatalf("重试投递应使用修正后的目标，calls=%+v", calls)
 	}
 	if redelivered.DeliveryAttempts != 2 {
@@ -139,7 +216,7 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 		t.Fatalf("自动重试事件应关联 run 且 actor 为系统: %+v", autoRetryEvent)
 	}
 	if autoRetryEvent.Detail["delivery_status"] != automationdomain.DeliveryStatusSucceeded ||
-		autoRetryEvent.Detail["delivery_to"] != "explicit:feishu:oc_good" {
+		autoRetryEvent.Detail["delivery_to"] != "explicit:internal:"+updatedDelivery.SessionKey {
 		t.Fatalf("自动重试事件应记录投递结果和实际目标: %+v", autoRetryEvent.Detail)
 	}
 	if attempts, ok := autoRetryEvent.Detail["delivery_attempts"].(float64); !ok || int(attempts) != 2 {
@@ -172,12 +249,8 @@ func TestServiceRunDueOnceRetriesDueDelivery(t *testing.T) {
 			Timezone:        "UTC",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: "feishu",
-			To:      "oc_group",
-		},
-		Enabled: true,
+		Delivery:      fakeStructuredDelivery("agent-1", "auto-redelivery"),
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
@@ -230,11 +303,11 @@ INSERT INTO automation_task_runs (
 	if redelivered.DeliveryAttempts != 2 || redelivered.DeliveryError != nil || redelivered.DeliveryNextAttemptAt != nil {
 		t.Fatalf("调度 tick 自动重试后状态不正确: %+v", redelivered)
 	}
-	if redelivered.DeliveryTo != "explicit:feishu:oc_group" {
+	if redelivered.DeliveryTo != "explicit:internal:"+task.Delivery.SessionKey {
 		t.Fatalf("自动重试应使用任务当前投递目标，实际 delivery_to=%q", redelivered.DeliveryTo)
 	}
 	calls := delivery.Calls()
-	if len(calls) != 1 || calls[0].To != "oc_group" {
+	if len(calls) != 1 || calls[0].To != task.Delivery.SessionKey {
 		t.Fatalf("调度 tick 应自动投递到当前目标，calls=%+v", calls)
 	}
 	events, err := service.ListTaskEvents(context.Background(), task.JobID, 20)

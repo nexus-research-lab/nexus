@@ -12,6 +12,7 @@ import (
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 )
@@ -122,6 +123,62 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 	for _, contextValue := range contexts {
 		assertRoomMemberParticipation(t, contextValue.Members, agentA.AgentID, false)
 		assertRoomMemberParticipation(t, contextValue.Members, agentB.AgentID, false)
+	}
+}
+
+func TestRoomServiceHydratesConversationMessageCountFromCanonicalHistory(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "消息计数成员 A")
+	agentB := createTestAgent(t, agentService, ctx, "消息计数成员 B")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
+		Name:     "消息计数测试",
+	})
+	if err != nil {
+		t.Fatalf("创建 Room 失败: %v", err)
+	}
+	history := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	for _, message := range []protocol.Message{
+		{
+			"message_id": "count-user",
+			"round_id":   "count-round",
+			"role":       "user",
+			"content":    "/goal 校正消息计数",
+			"timestamp":  int64(1000),
+		},
+		{
+			"message_id":  "count-assistant",
+			"round_id":    "count-round",
+			"role":        "assistant",
+			"content":     "开始处理",
+			"is_complete": true,
+			"stop_reason": "end_turn",
+			"timestamp":   int64(1100),
+		},
+	} {
+		if err = history.AppendInlineMessage(
+			roomContext.Room.OwnerUserID,
+			roomContext.Conversation.ID,
+			message,
+		); err != nil {
+			t.Fatalf("写入 canonical Room 历史失败: %v", err)
+		}
+	}
+
+	loaded, err := roomService.GetConversationContext(ctx, roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取 Room conversation 失败: %v", err)
+	}
+	if loaded.Conversation.MessageCount != 2 {
+		t.Fatalf("conversation message_count = %d, want 2", loaded.Conversation.MessageCount)
 	}
 }
 

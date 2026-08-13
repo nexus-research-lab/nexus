@@ -1,6 +1,6 @@
-// INPUT: 带 canonical root boundary 的 sealed proposal id+digest、当前 trusted access identity 与 proposal recovery state。
-// OUTPUT: Goal ID/revision/objective/reservation exact-fence CAS、稳定 command/Execution identity、原子 Plan materialization 与 durable Goal confirmation receipt。
-// POS: ExecutionPlanProposal saga 的唯一权威提交和重放边界。
+// INPUT: 带 canonical root boundary 与显式/继承 Goal fence 的 sealed proposal id+digest、当前 trusted access identity 与 proposal recovery state。
+// OUTPUT: sealed Goal ID/revision/objective/reservation exact-fence CAS、稳定 command/Execution identity、原子 Plan materialization 与 durable Goal confirmation receipt。
+// POS: ExecutionPlanProposal saga 的唯一权威提交和重放边界；Goal-free seal 不重新发现 ambient Goal。
 package orchestration
 
 import (
@@ -383,7 +383,7 @@ func (s *Service) validateProposalTargetFence(
 		if !proposalGoalActivationMatches(proposal, activation) {
 			return nil, domainError(
 				ErrorCodePlanProposalStale,
-				"active Goal binding changed after this create proposal was sealed",
+				"exact Goal binding changed after this create proposal was sealed",
 			)
 		}
 		return nil, nil
@@ -586,6 +586,7 @@ func (s *Service) recordMaterializedPlanProposal(
 	}
 
 	if confirmationAlreadySucceeded {
+		result = withConfirmedGoalAuthority(result)
 		confirmed, markErr := s.markPlanProposalConfirmation(
 			ctx,
 			actor,
@@ -602,6 +603,7 @@ func (s *Service) recordMaterializedPlanProposal(
 	} else if confirmationErr == nil {
 		confirmationErr = s.confirmGoalExecutionBinding(ctx, snapshot)
 		if confirmationErr == nil {
+			result = withConfirmedGoalAuthority(result)
 			_, markErr := s.markPlanProposalConfirmation(
 				ctx,
 				actor,
@@ -627,6 +629,7 @@ func (s *Service) recordMaterializedPlanProposal(
 		&nextAttemptAt,
 	)
 	result.Message = "Execution and Plan are durable; Goal binding confirmation will retry automatically."
+	result.GoalConfirmation = GoalConfirmationPending
 	result.NextActions = appendUniqueNextAction(result.NextActions, NextAction{
 		Tool:   "get_execution",
 		Reason: "continue from the durable Execution while Goal confirmation recovers in the background",
@@ -711,9 +714,12 @@ func (s *Service) finishMaterializedPlanProposal(
 	if snapshot.Plan == nil || snapshot.Plan.ID != proposal.MaterializedPlanID {
 		message = "sealed Plan proposal was materialized; the Execution has since advanced to another Plan state"
 	}
+	goalBindingConfirmed := proposal.ConfirmationState ==
+		protocol.ExecutionPlanProposalConfirmationConfirmed
 	if proposal.ConfirmationState == protocol.ExecutionPlanProposalConfirmationPending {
 		confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot)
 		if confirmErr == nil {
+			goalBindingConfirmed = true
 			_, err = s.markPlanProposalConfirmation(
 				ctx,
 				actor,
@@ -741,6 +747,11 @@ func (s *Service) finishMaterializedPlanProposal(
 	}
 	result := NoOpResult(snapshot, message)
 	result.NextActions = nextActions(snapshot, actor)
+	if goalBindingConfirmed {
+		result = withConfirmedGoalAuthority(result)
+	} else if proposal.ConfirmationState == protocol.ExecutionPlanProposalConfirmationPending {
+		result.GoalConfirmation = GoalConfirmationPending
+	}
 	return result, nil
 }
 

@@ -62,7 +62,7 @@ func TestGoalUsageFromTokenUsagePreservesProviderActualTotal(t *testing.T) {
 	}
 }
 
-func TestGoalUsageFromRawPreservesProviderActualZero(t *testing.T) {
+func TestGoalUsageFromRawRejectsProviderZeroThatContradictsBreakdown(t *testing.T) {
 	usage, ok := GoalUsageFromRaw(map[string]any{
 		"input_tokens":            100,
 		"output_tokens":           20,
@@ -73,11 +73,29 @@ func TestGoalUsageFromRawPreservesProviderActualZero(t *testing.T) {
 		t.Fatal("GoalUsageFromRaw() ok = false, want true")
 	}
 
-	if !usage.ActualTotalKnown || usage.ActualTokens() != 0 || usage.ActualTokensAreEstimated() {
-		t.Fatalf("actual usage = %#v, want exact provider total 0", usage)
+	if !usage.ActualTotalKnown || usage.ActualTokens() != 200 || !usage.ActualTokensAreEstimated() {
+		t.Fatalf("actual usage = %#v, want estimated breakdown total 200", usage)
 	}
 	if usage.BudgetTokens() != 120 {
 		t.Fatalf("budget usage = %#v, want 120", usage)
+	}
+}
+
+func TestGoalUsageFromRawRejectsNestedProviderZeroThatContradictsBreakdown(t *testing.T) {
+	usage, present := GoalUsageFromRaw(map[string]any{
+		"input_tokens":  100,
+		"output_tokens": 20,
+		"total_tokens":  120,
+		"raw": map[string]any{
+			"input_tokens":            100,
+			"output_tokens":           20,
+			"cache_read_input_tokens": 80,
+			"total_tokens":            0,
+		},
+	})
+
+	if !present || usage.ActualTokens() != 200 || !usage.ActualTokensAreEstimated() {
+		t.Fatalf("nested provider usage = %#v, present = %v, want estimated actual 200", usage, present)
 	}
 }
 

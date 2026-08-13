@@ -34,6 +34,9 @@ func requireOwnedTaskScope(ctx context.Context, svc contract.Service, sctx contr
 	}
 	query := argx.String(args, "query")
 	if query == "" {
+		if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+			return requireOwnedTaskScopeForJob(ctx, svc, sctx, currentJobID)
+		}
 		return ownedTaskScope{}, errors.New("job_id or query is required")
 	}
 	return requireOwnedTaskScopeForQuery(ctx, svc, sctx, args, query)
@@ -42,6 +45,9 @@ func requireOwnedTaskScope(ctx context.Context, svc contract.Service, sctx contr
 func requireOwnedTaskScopeForJob(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (ownedTaskScope, error) {
 	scopedCtx := scopedToolContext(ctx, sctx)
 	normalizedJobID := strings.TrimSpace(jobID)
+	if err := ensureCurrentAutomationJobScope(sctx, normalizedJobID); err != nil {
+		return ownedTaskScope{}, err
+	}
 	job, err := ownedTaskInScope(scopedCtx, svc, sctx, normalizedJobID)
 	if err != nil {
 		return ownedTaskScope{}, err
@@ -56,6 +62,9 @@ func requireOwnedTaskScopeForQuery(
 	args map[string]any,
 	query string,
 ) (ownedTaskScope, error) {
+	if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+		return requireOwnedTaskScopeForJob(ctx, svc, sctx, currentJobID)
+	}
 	scopedCtx := scopedToolContext(ctx, sctx)
 	agentID, err := resolveListAgentID(sctx, argx.String(args, "agent_id"))
 	if err != nil {
@@ -87,6 +96,9 @@ func requireOwnedTaskHistoryScope(ctx context.Context, svc contract.Service, sct
 	}
 	query := argx.String(args, "query")
 	if query == "" {
+		if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+			return requireOwnedTaskHistoryScopeForJob(ctx, svc, sctx, currentJobID)
+		}
 		return taskHistoryScope{}, errors.New("job_id or query is required")
 	}
 	return requireOwnedTaskHistoryScopeForQuery(ctx, svc, sctx, args, query)
@@ -95,6 +107,9 @@ func requireOwnedTaskHistoryScope(ctx context.Context, svc contract.Service, sct
 func requireOwnedTaskHistoryScopeForJob(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (taskHistoryScope, error) {
 	scopedCtx := scopedToolContext(ctx, sctx)
 	normalizedJobID := strings.TrimSpace(jobID)
+	if err := ensureCurrentAutomationJobScope(sctx, normalizedJobID); err != nil {
+		return taskHistoryScope{}, err
+	}
 	job, err := svc.GetTask(scopedCtx, normalizedJobID)
 	if err != nil {
 		return taskHistoryScope{}, err
@@ -146,6 +161,9 @@ func requireOwnedTaskHistoryScopeForQuery(
 	args map[string]any,
 	query string,
 ) (taskHistoryScope, error) {
+	if currentJobID := strings.TrimSpace(sctx.CurrentJobID); currentJobID != "" {
+		return requireOwnedTaskHistoryScopeForJob(ctx, svc, sctx, currentJobID)
+	}
 	scopedCtx := scopedToolContext(ctx, sctx)
 	agentID, err := resolveListAgentID(sctx, argx.String(args, "agent_id"))
 	if err != nil {
@@ -172,6 +190,18 @@ func requireOwnedTaskHistoryScopeForQuery(
 	default:
 		return taskHistoryScope{}, fmt.Errorf("query %q matched multiple scheduled task history candidates; ask the user to choose one job_id: %s", strings.TrimSpace(query), describeTaskHistoryCandidates(items, 5))
 	}
+}
+
+func ensureCurrentAutomationJobScope(sctx contract.ServerContext, requestedJobID string) error {
+	currentJobID := strings.TrimSpace(sctx.CurrentJobID)
+	if currentJobID == "" || currentJobID == strings.TrimSpace(requestedJobID) {
+		return nil
+	}
+	return fmt.Errorf(
+		"scheduled task run %s is scoped to job %s",
+		strings.TrimSpace(sctx.CurrentRunID),
+		currentJobID,
+	)
 }
 
 func ownedTaskInScope(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (*automationdomain.ScheduledTask, error) {

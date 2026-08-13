@@ -37,12 +37,8 @@ func TestServiceAutoRetryDeliveryDeadLettersDisabledTask(t *testing.T) {
 			Timezone:        "UTC",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: "feishu",
-			To:      "oc_group",
-		},
-		Enabled: true,
+		Delivery:      fakeStructuredDelivery("agent-1", "paused-delivery"),
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
@@ -148,12 +144,8 @@ func TestDeleteTaskDeadLettersPendingDeliveryRetries(t *testing.T) {
 			Timezone:        "UTC",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: "feishu",
-			To:      "oc_group",
-		},
-		Enabled: true,
+		Delivery:      fakeStructuredDelivery("agent-1", "delete-with-failed-delivery"),
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
@@ -283,12 +275,8 @@ func TestServiceRetryRunDeliveryMarksDeadLetterAfterMaxAttempts(t *testing.T) {
 			Timezone:        "Asia/Shanghai",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: "feishu",
-			To:      "oc_group",
-		},
-		Enabled: true,
+		Delivery:      fakeStructuredDelivery("agent-1", "dead-letter"),
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
@@ -348,12 +336,8 @@ func TestServiceRetryRunDeliveryRejectsAlreadyDeliveredRun(t *testing.T) {
 			Timezone:        "Asia/Shanghai",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: "feishu",
-			To:      "oc_group",
-		},
-		Enabled: true,
+		Delivery:      fakeStructuredDelivery("agent-1", "already-delivered"),
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)

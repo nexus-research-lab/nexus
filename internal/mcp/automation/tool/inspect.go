@@ -15,7 +15,7 @@ import (
 func inspectTask(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
 		Name:        "inspect_scheduled_task",
-		Description: "检查单个定时任务。view=status 返回当前配置、健康摘要和最近观测；view=runs 返回运行历史；view=events 返回管理审计。runs/events 支持已删除任务。",
+		Description: "检查单个定时任务。后台定时运行中可省略 job_id/query，宿主会自动绑定当前任务。view=status 返回当前配置、健康摘要和最近观测；view=runs 返回运行历史；view=events 返回管理审计。runs/events 支持已删除任务。",
 		SearchHint:  searchHintInspectTask,
 		InputSchema: inspectSchema(),
 		Annotations: &sdktool.ToolAnnotations{

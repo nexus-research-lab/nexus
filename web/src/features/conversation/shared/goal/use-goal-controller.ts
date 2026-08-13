@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * INPUT: Goal/binding resource, UI draft/dialog state and user lifecycle actions.
+ * OUTPUT: Goal panel controller whose clear command is gated by server-derived binding state.
+ * POS: Goal interaction orchestrator; the backend remains the final mutation authority.
+ */
+
 import {
   type FormEvent,
   useCallback,
@@ -54,6 +60,7 @@ export function useGoalController({
   const {
     available,
     error,
+    executionBinding,
     goal,
     isLoading,
     phase,
@@ -63,12 +70,13 @@ export function useGoalController({
   const projection = buildGoalControllerProjection({
     dialog,
     draft,
+    executionBinding,
     goal,
     phase,
   });
 
   const clearGoal = useCallback(async () => {
-    if (!goal || disabled) {
+    if (!goal || disabled || projection.clearDisabledReason) {
       return;
     }
     const outcome = await runCommand(
@@ -82,7 +90,7 @@ export function useGoalController({
     if (outcome.ok && !outcome.goal) {
       setDraft(null);
     }
-  }, [disabled, goal, runCommand]);
+  }, [disabled, goal, projection.clearDisabledReason, runCommand]);
 
   const submit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
@@ -141,14 +149,20 @@ export function useGoalController({
       setObjective: (objective: string) => setDraft((current) => (
         updateGoalDraft(current, { objective })
       )),
-      startClearing: () => goal && setDialog({ goal, kind: "clear" }),
+      startClearing: () => {
+        if (goal && !projection.clearDisabledReason) {
+          setDialog({ goal, kind: "clear" });
+        }
+      },
       startEditing: () => goal && setDraft(createGoalDraft(goal)),
       submit,
     },
     canResume: projection.canResume,
+    clearDisabledReason: projection.clearDisabledReason,
     dialog: projection.dialog,
     draft: projection.draft,
     error,
+    executionBinding,
     goal,
     isAvailable: available,
     isLoading,

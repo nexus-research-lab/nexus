@@ -15,6 +15,11 @@ interface UseComposerGoalActionsOptions {
   onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;
 }
 
+function isRequestAcceptanceUnknown(error: unknown): boolean {
+  return error instanceof Error
+    && error.name === "RequestAcceptanceUnknownError";
+}
+
 export function useComposerGoalActions({
   closeMention,
   draft,
@@ -27,10 +32,11 @@ export function useComposerGoalActions({
 }: UseComposerGoalActionsOptions) {
   const {
     applyPrompt,
+    beginGoalSubmission,
     cancelGoal,
-    resetAfterGoal,
+    completeGoalSubmission,
+    failGoalSubmission,
     setActionMenuOpen,
-    setGoalCreating,
     setGoalError,
     setLoopPickerOpen,
     startGoal,
@@ -54,17 +60,36 @@ export function useComposerGoalActions({
       return;
     }
 
-    setGoalCreating(true);
-    setGoalError(null);
+    const submission = beginGoalSubmission();
+    if (!submission) {
+      return;
+    }
+
+    let createPromise: Promise<void>;
     try {
-      await onCreateGoal(objective);
-      resetAfterGoal();
+      createPromise = onCreateGoal(objective);
     } catch (error) {
-      setGoalError(
+      failGoalSubmission(
+        submission,
         error instanceof Error ? error.message : fallbackErrorMessage,
       );
-    } finally {
-      setGoalCreating(false);
+      return;
+    }
+    setGoalError(null);
+    try {
+      await createPromise;
+      completeGoalSubmission(submission);
+    } catch (error) {
+      if (isRequestAcceptanceUnknown(error)) {
+        // 超时或组件卸载只能说明 ACK 未知，不能把可能已创建的 Goal
+        // 重新塞回草稿，诱导用户重复提交。
+        completeGoalSubmission(submission);
+        return;
+      }
+      failGoalSubmission(
+        submission,
+        error instanceof Error ? error.message : fallbackErrorMessage,
+      );
     }
   }, [
     blockedReason,
@@ -72,8 +97,9 @@ export function useComposerGoalActions({
     isGoalCreating,
     fallbackErrorMessage,
     onCreateGoal,
-    resetAfterGoal,
-    setGoalCreating,
+    beginGoalSubmission,
+    completeGoalSubmission,
+    failGoalSubmission,
     setGoalError,
   ]);
 
@@ -124,13 +150,42 @@ export function useComposerGoalActions({
     }
     setGoalError(null);
     closeMention();
-    await onCreateLoopGoal(loop);
-    resetAfterGoal();
+    const submission = beginGoalSubmission();
+    if (!submission) {
+      return;
+    }
+    let createPromise: Promise<void>;
+    try {
+      createPromise = onCreateLoopGoal(loop);
+    } catch (error) {
+      failGoalSubmission(
+        submission,
+        error instanceof Error ? error.message : fallbackErrorMessage,
+      );
+      throw error;
+    }
+    try {
+      await createPromise;
+      completeGoalSubmission(submission);
+    } catch (error) {
+      if (isRequestAcceptanceUnknown(error)) {
+        completeGoalSubmission(submission);
+        return;
+      }
+      failGoalSubmission(
+        submission,
+        error instanceof Error ? error.message : fallbackErrorMessage,
+      );
+      throw error;
+    }
   }, [
     applyLoopPrompt,
+    beginGoalSubmission,
     closeMention,
+    completeGoalSubmission,
+    failGoalSubmission,
+    fallbackErrorMessage,
     onCreateLoopGoal,
-    resetAfterGoal,
     setGoalError,
   ]);
 

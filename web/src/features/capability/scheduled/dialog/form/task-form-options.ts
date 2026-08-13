@@ -1,9 +1,10 @@
+import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type {
   ChoiceDef,
-  ExecutionKind,
   ExecutionMode,
+  PermissionMode,
   ReplyMode,
   TargetType,
 } from "../scheduled-task-dialog-types";
@@ -17,12 +18,18 @@ export function buildTargetTypeOptions(t: Translate): ChoiceDef<TargetType>[] {
   ];
 }
 
-export function buildExecutionKindOptions(
+export function buildDeliveryTargetTypeOptions(
   t: Translate,
-): ChoiceDef<ExecutionKind>[] {
+): ChoiceDef<TargetType>[] {
   return [
-    { key: "agent", label: t("capability.scheduled_dialog_execution_kind_agent") },
-    { key: "script", label: t("capability.scheduled_dialog_execution_kind_script") },
+    {
+      key: "agent",
+      label: t("capability.scheduled_dialog_delivery_target_type_agent"),
+    },
+    {
+      key: "room",
+      label: t("capability.scheduled_dialog_delivery_target_type_room"),
+    },
   ];
 }
 
@@ -40,18 +47,37 @@ export function buildExecutionModeOptions(
 export function buildReplyModeOptions(t: Translate): ChoiceDef<ReplyMode>[] {
   return [
     { key: "none", label: t("capability.scheduled_dialog_reply_none") },
-    { key: "execution", label: t("capability.scheduled_dialog_reply_execution") },
     { key: "selected", label: t("capability.scheduled_dialog_reply_selected") },
   ];
 }
 
-export function getExecutionKindHelp(
-  executionKind: ExecutionKind,
+export function buildPermissionModeOptions(
+  t: Translate,
+  includeCopy = true,
+): ChoiceDef<PermissionMode>[] {
+  const persisted = AGENT_PERMISSION_MODES.map((option) => ({
+    key: option.value,
+    label: t(option.labelKey),
+  }));
+  return includeCopy
+    ? [{
+        key: "copy",
+        label: t("capability.scheduled_dialog_permission_copy"),
+      }, ...persisted]
+    : persisted;
+}
+
+export function getPermissionModeHelp(
+  permissionMode: PermissionMode,
   t: Translate,
 ): string {
-  return t(executionKind === "agent"
-    ? "capability.scheduled_dialog_execution_kind_agent_help"
-    : "capability.scheduled_dialog_execution_kind_script_help");
+  if (permissionMode === "copy") {
+    return t("capability.scheduled_dialog_permission_copy_help");
+  }
+  const option = AGENT_PERMISSION_MODES.find(
+    (candidate) => candidate.value === permissionMode,
+  );
+  return option ? t(option.descriptionKey) : "";
 }
 
 export function getExecutionModeHelp(
@@ -69,7 +95,6 @@ export function getExecutionModeHelp(
 
 export function getReplyModeHelp(replyMode: ReplyMode, t: Translate): string {
   const keys = {
-    execution: "capability.scheduled_dialog_reply_execution_help",
     none: "capability.scheduled_dialog_reply_none_help",
     selected: "capability.scheduled_dialog_reply_selected_help",
   } as const;

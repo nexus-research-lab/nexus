@@ -8,6 +8,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -27,6 +28,13 @@ func TestAutomationMCPCreateFromFeishuGroupDefaultsDeliveryToCurrentGroup(t *tes
 	sctx := fixture.ServerContext
 	sctx.CurrentSessionKey = feishuSessionKey
 	sctx.CurrentSessionLabel = "飞书群 oc_group_123"
+	if _, err := fixture.Router.RememberSessionRoute(ownerCtx, sctx.CurrentAgentID, feishuSessionKey, channels.DeliveryTarget{
+		Mode:    channels.DeliveryModeExplicit,
+		Channel: channels.ChannelTypeFeishu,
+		To:      "oc_group_123",
+	}); err != nil {
+		t.Fatalf("记录飞书会话回投路由失败: %v", err)
+	}
 
 	createResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "create_scheduled_task", map[string]any{
 		"name":              "飞书群每日新闻",
@@ -44,9 +52,8 @@ func TestAutomationMCPCreateFromFeishuGroupDefaultsDeliveryToCurrentGroup(t *tes
 		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
 	}
 	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
-	if created.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-		created.Delivery.Channel != protocol.SessionChannelFeishu ||
-		created.Delivery.To != "oc_group_123" {
+	if created.Delivery.Mode != automationdomain.DeliveryModeLast ||
+		created.Delivery.SessionKey != feishuSessionKey {
 		t.Fatalf("飞书群上下文创建任务应默认回投当前群: %+v", created.Delivery)
 	}
 	if created.Source.SessionKey != feishuSessionKey || created.Source.SessionLabel != "飞书群 oc_group_123" {
@@ -84,7 +91,7 @@ func TestAutomationMCPCreateFromFeishuGroupDefaultsDeliveryToCurrentGroup(t *tes
 	}
 }
 
-func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
+func TestAutomationMCPReportAndRetryFailedDeliveryToCurrentSession(t *testing.T) {
 	fixture := newAutomationMCPFixture(t, "今日新闻摘要")
 	ownerCtx := automationMCPTestOwnerContext(fixture.ServerContext.OwnerUserID)
 	now := time.Date(2026, 5, 22, 9, 0, 0, 0, time.UTC)
@@ -165,23 +172,18 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 		t.Fatalf("日报应直接指出失败投递 run 和补救工具: %+v", taskReport)
 	}
 
-	inboxKey := protocol.BuildAgentSessionKey(
-		"agent-1",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
+	recipientSessionKey := fixture.ServerContext.CurrentSessionKey
 	updateResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "update_scheduled_task", map[string]any{
-		"query":          "飞书新闻投递",
-		"reply_agent_id": "agent-1",
+		"query":                      "飞书新闻投递",
+		"reply_mode":                 "selected",
+		"selected_reply_session_key": recipientSessionKey,
 	})
 	if isError {
 		t.Fatalf("update_scheduled_task 修正投递目标不应失败: %s", automationMCPToolText(t, updateResult))
 	}
 	updated := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, updateResult)
-	if updated.Delivery.Channel != protocol.SessionChannelInternalSegment || updated.Delivery.To != inboxKey {
-		t.Fatalf("应把失败任务投递目标修正到自身 Agent 收件箱: %+v", updated.Delivery)
+	if updated.Delivery.Channel != protocol.SessionChannelInternalSegment || updated.Delivery.To != recipientSessionKey {
+		t.Fatalf("应把失败任务投递目标修正到真实当前会话: %+v", updated.Delivery)
 	}
 
 	retryResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "repair_scheduled_task", map[string]any{
@@ -196,7 +198,7 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	if redelivered.RunID != runID ||
 		redelivered.DeliveryStatus != automationdomain.DeliveryStatusSucceeded ||
 		redelivered.DeliveryError != nil ||
-		redelivered.DeliveryTo != "explicit:internal:"+inboxKey {
+		redelivered.DeliveryTo != "explicit:internal:"+recipientSessionKey {
 		t.Fatalf("重投递应复用原 run 并记录新的实际目标: %+v", redelivered)
 	}
 	if redelivered.DeliveryAttempts != 2 || redelivered.DeliveryNextAttemptAt != nil || redelivered.DeliveryDeadLetterAt != nil {
@@ -204,14 +206,14 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	}
 
 	store := workspacestore.NewSessionFileStore(fixture.WorkspacePath)
-	sessionValue, _, err := store.FindSession([]string{fixture.WorkspacePath}, inboxKey)
+	sessionValue, _, err := store.FindSession([]string{fixture.WorkspacePath}, recipientSessionKey)
 	if err != nil {
-		t.Fatalf("读取重投递智能体收件箱 session 失败: %v", err)
+		t.Fatalf("读取重投递真实当前 session 失败: %v", err)
 	}
 	if sessionValue == nil {
-		t.Fatal("重投递到智能体时应自动创建目标收件箱")
+		t.Fatal("重投递应写入真实当前 session")
 	}
-	assertDeliveredAgentMessage(t, fixture.WorkspacePath, *sessionValue, "今日新闻摘要", "重投递智能体收件箱")
+	assertDeliveredAgentMessage(t, fixture.WorkspacePath, *sessionValue, "今日新闻摘要", "重投递真实当前会话")
 
 	statusResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "inspect_scheduled_task", map[string]any{
 		"query":     "飞书新闻投递",

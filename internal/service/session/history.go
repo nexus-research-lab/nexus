@@ -1,3 +1,6 @@
+// INPUT: owner-scoped DM/Room 历史、活跃 round 身份与 finalized Goal usage report。
+// OUTPUT: 归一化消息历史、分页结果、最近回复摘要及按当前聚合真相刷新的 Goal 完成收据。
+// POS: Session 历史统一读取与兼容投影边界。
 package session
 
 import (
@@ -5,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -20,11 +24,15 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 		return nil, err
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		return s.roomHistory.ReadMessages(
+		items, readErr := s.roomHistory.ReadMessages(
 			authctx.OwnerUserID(ctx),
 			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
 		)
+		if readErr != nil {
+			return nil, readErr
+		}
+		return s.refreshGoalCompletionReceipts(ctx, items), nil
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
@@ -38,11 +46,15 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 	if sessionValue == nil {
 		return nil, ErrSessionNotFound
 	}
-	return s.ownerHistory(ctx).ReadMessages(
+	items, err := s.ownerHistory(ctx).ReadMessages(
 		workspacePath,
 		*sessionValue,
 		s.activeRoundIDs(sessionKey),
 	)
+	if err != nil {
+		return nil, err
+	}
+	return s.refreshGoalCompletionReceipts(ctx, items), nil
 }
 
 // GetSessionLatestReplyPreview 返回最近一条可见 assistant 回复的紧凑摘要。
@@ -121,6 +133,7 @@ func (s *Service) GetSessionMessagesPage(
 		if err != nil {
 			return nil, err
 		}
+		page.Items = s.refreshGoalCompletionReceipts(ctx, page.Items)
 		return &page, nil
 	}
 
@@ -148,7 +161,54 @@ func (s *Service) GetSessionMessagesPage(
 	if err != nil {
 		return nil, err
 	}
+	page.Items = s.refreshGoalCompletionReceipts(ctx, page.Items)
 	return &page, nil
+}
+
+func (s *Service) refreshGoalCompletionReceipts(
+	ctx context.Context,
+	items []protocol.Message,
+) []protocol.Message {
+	if s == nil || s.goalUsage == nil || len(items) == 0 {
+		return items
+	}
+	ownerUserID := authctx.OwnerUserID(ctx)
+	reports := make(map[string]*protocol.GoalUsageReport)
+	result := items
+	copied := false
+	for index := range items {
+		receipt, ok := protocol.GoalCompletionReceiptFromAny(
+			items[index][protocol.GoalCompletionReceiptField],
+		)
+		if !ok {
+			continue
+		}
+		report, loaded := reports[receipt.GoalID]
+		if !loaded {
+			value, err := s.goalUsage.UsageByGoalIDForOwner(ctx, receipt.GoalID, ownerUserID)
+			if err != nil || value == nil {
+				reports[receipt.GoalID] = nil
+				continue
+			}
+			report = value
+			reports[receipt.GoalID] = report
+		}
+		if report == nil || !report.UsageFinalized ||
+			protocol.NormalizeGoalStatus(report.Status) != protocol.GoalStatusComplete {
+			continue
+		}
+		updated := messageutil.BuildGoalCompletionReceipt(receipt.GoalID, receipt.RoundID, report)
+		if receipt.Equal(updated) {
+			continue
+		}
+		if !copied {
+			result = append([]protocol.Message(nil), items...)
+			copied = true
+		}
+		result[index] = protocol.Clone(items[index])
+		result[index][protocol.GoalCompletionReceiptField] = updated
+	}
+	return result
 }
 
 // GetSessionTurnsPage 读取 session 历史并投影为 ConversationTurn 分页。
@@ -302,7 +362,7 @@ func (s *Service) hydrateRoomHistorySession(
 		return &roomSession, nil
 	}
 
-	merged := roomSession
+	merged := dmdomain.MergeRoomBackedSession(*fileSession, roomSession)
 	roomSessionID := strings.TrimSpace(stringPointerValue(roomSession.SessionID))
 	fileSessionID := strings.TrimSpace(stringPointerValue(fileSession.SessionID))
 	if roomSessionID == "" && fileSessionID != "" {

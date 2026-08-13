@@ -99,6 +99,13 @@ export interface ExecutionNodeSummary {
   totalCount: number;
 }
 
+export interface ExecutionWorkGraphHeaderModel {
+  currentNodeId: string | null;
+  status: ExecutionStatus;
+  statusLabelKey: TranslationKey;
+  summary: string;
+}
+
 /**
  * plan_execution 只有在原子写入 active Plan 与非空 Work Items 后才算
  * 成功创建工作图。普通对话轮次的 runtime 观测节点不能触发任何
@@ -184,6 +191,22 @@ export function resolveExecutionNodeSummary(
       || currentNode?.name?.trim()
       || execution.objective.trim(),
     totalCount,
+  };
+}
+
+/**
+ * 主视图标题只投影当前摘要与节点定位。生命周期状态留给 waiting、paused
+ * 和 terminal 等需要用户注意的顶栏提示，详细进度留在图与详情中。
+ */
+export function resolveExecutionWorkGraphHeaderModel(
+  execution: ExecutionView,
+): ExecutionWorkGraphHeaderModel {
+  const nodeSummary = resolveExecutionNodeSummary(execution);
+  return {
+    currentNodeId: nodeSummary.currentNode?.id ?? null,
+    status: execution.status,
+    statusLabelKey: EXECUTION_STATUS_LABEL_KEY[execution.status],
+    summary: nodeSummary.summary,
   };
 }
 

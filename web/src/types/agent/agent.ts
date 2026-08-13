@@ -98,6 +98,18 @@ export interface ApiAgent {
 }
 
 /** API 响应中的 Agent 会话数据（后端格式） */
+export interface ExternalSessionIdentity {
+    channel_type: string;
+    account_hint?: string;
+    legacy_session_hint?: string;
+    account_status?: string;
+    peer_name?: string;
+    pairing_status: string;
+    current_pairing: boolean;
+    can_delete: boolean;
+    task_reference_count?: number;
+}
+
 export interface ApiAgentSession {
     session_key: string;
     agent_id: string;
@@ -113,6 +125,7 @@ export interface ApiAgentSession {
     title: string | null;
     message_count: number;
     options: Record<string, unknown> | null;
+    external_identity?: ExternalSessionIdentity | null;
 }
 
 /** 标准化的 Agent 会话数据结构 */
@@ -131,6 +144,7 @@ export interface AgentSession {
     title: string;
     message_count: number;
     options: Record<string, unknown>;
+    external_identity?: ExternalSessionIdentity | null;
 }
 
 // ==================== 操作参数 ====================

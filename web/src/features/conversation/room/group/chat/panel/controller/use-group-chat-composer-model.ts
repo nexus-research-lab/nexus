@@ -18,9 +18,14 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { buildRoomAgentSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
+import {
+  buildRoomLoopGoalMetadata,
+  buildRoomLoopGoalObjective,
+} from "../../room-goal-model";
 import { projectRoomPendingInputQueueItems } from "./group-chat-panel-projection";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 
@@ -39,6 +44,7 @@ type ComposerConversation = Pick<
   | "room_agent_execution_states"
   | "runtime_phase"
   | "send_message"
+  | "set_goal"
   | "stop_generation"
   | "stopping_agent_round_ids"
 >;
@@ -97,6 +103,7 @@ export function useGroupChatComposerModel({
   const {
     pending_agent_slots: pendingAgentSlots,
     room_agent_execution_states: roomAgentExecutionStates,
+    set_goal: setGoal,
     stop_generation: stopGeneration,
     stopping_agent_round_ids: stoppingAgentRoundIds,
   } = conversation;
@@ -120,6 +127,30 @@ export function useGroupChatComposerModel({
     stopGeneration,
     stoppingAgentRoundIds,
   ]);
+  const createGoal = useCallback(async (
+    objective: string,
+    metadata?: Record<string, unknown>,
+  ) => {
+    if (!sessionKey) {
+      throw new Error(t("room.goal_session_not_ready"));
+    }
+    const leadAgentId = goal.leadAgentId.trim();
+    if (!leadAgentId) {
+      throw new Error(t("room.goal_lead_required"));
+    }
+    await setGoal(objective, {
+      ...(metadata ? { metadata } : {}),
+      replace_existing: true,
+      target_agent_ids: [leadAgentId],
+      token_budget: null,
+    });
+  }, [goal.leadAgentId, sessionKey, setGoal, t]);
+  const createLoopGoal = useCallback(async (loop: LoopCatalogItem) => {
+    await createGoal(
+      buildRoomLoopGoalObjective(loop),
+      buildRoomLoopGoalMetadata(loop),
+    );
+  }, [createGoal]);
 
   return {
     commandCatalog: conversation.command_catalog,
@@ -140,8 +171,10 @@ export function useGroupChatComposerModel({
       conversation.input_queue_items,
     ),
     isLoading: conversation.is_loading,
-    onCreateGoal: sessionKey ? goal.onCreateGoal : undefined,
-    onCreateLoopGoal: sessionKey ? goal.onCreateLoopGoal : undefined,
+    onCreateGoal: sessionKey
+      ? (objective: string) => createGoal(objective)
+      : undefined,
+    onCreateLoopGoal: sessionKey ? createLoopGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,

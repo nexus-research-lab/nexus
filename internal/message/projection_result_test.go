@@ -63,6 +63,85 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 	}
 }
 
+func TestGoalCompletionReceiptOnlyExposesKnownSettlementValues(t *testing.T) {
+	seconds := int64(754)
+	tests := []struct {
+		name       string
+		report     *protocol.GoalUsageReport
+		wantTime   *int64
+		wantTokens *int64
+	}{
+		{name: "completion only"},
+		{
+			name: "duration without unavailable tokens",
+			report: &protocol.GoalUsageReport{
+				Status:          protocol.GoalStatusComplete,
+				TimeUsedSeconds: seconds,
+			},
+			wantTime: &seconds,
+		},
+		{
+			name: "finalized zero is authoritative",
+			report: &protocol.GoalUsageReport{
+				Status:         protocol.GoalStatusComplete,
+				UsageFinalized: true,
+			},
+			wantTokens: int64TestPointer(0),
+		},
+		{
+			name: "duration and finalized actual tokens",
+			report: &protocol.GoalUsageReport{
+				Status:          protocol.GoalStatusComplete,
+				TimeUsedSeconds: seconds,
+				UsageFinalized:  true,
+				Usage: protocol.GoalUsage{
+					ActualTotalTokens: 62762,
+					ActualTotalKnown:  true,
+				},
+			},
+			wantTime:   &seconds,
+			wantTokens: int64TestPointer(62762),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			receipt := BuildGoalCompletionReceipt("goal-1", "round-1", test.report)
+			if !optionalInt64Equal(receipt.TimeUsedSeconds, test.wantTime) ||
+				!optionalInt64Equal(receipt.ActualTokens, test.wantTokens) {
+				t.Fatalf("receipt = %+v, want time=%v tokens=%v", receipt, test.wantTime, test.wantTokens)
+			}
+		})
+	}
+}
+
+func TestAttachGoalCompletionReceiptRequiresExactRoundIdentity(t *testing.T) {
+	assistant := protocol.Message{
+		"message_id":     "assistant-final",
+		"role":           "assistant",
+		"round_id":       "root-round",
+		"agent_round_id": "agent-round",
+	}
+	receipt := protocol.GoalCompletionReceipt{GoalID: "goal-1", RoundID: "agent-round"}
+	attached, ok := AttachGoalCompletionReceipt(assistant, receipt)
+	if !ok || attached[protocol.GoalCompletionReceiptField] == nil {
+		t.Fatalf("exact receipt was not attached: %+v", attached)
+	}
+	receipt.RoundID = "other-round"
+	if attached, ok := AttachGoalCompletionReceipt(assistant, receipt); ok || attached != nil {
+		t.Fatalf("mismatched receipt was attached: %+v", attached)
+	}
+}
+
+func int64TestPointer(value int64) *int64 { return &value }
+
+func optionalInt64Equal(left *int64, right *int64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
 func TestBuildSyntheticAssistantFromInterruptedResultNormalizesDisplayText(t *testing.T) {
 	tests := map[string]struct {
 		result      string

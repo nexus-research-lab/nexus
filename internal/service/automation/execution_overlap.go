@@ -59,14 +59,15 @@ func (s *Service) recordSkippedOverlap(
 	runID := s.idFactory("run")
 	message := "previous run is still running; overlap_policy=skip"
 	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
-		RunID:        runID,
-		JobID:        job.JobID,
-		OwnerUserID:  job.OwnerUserID,
-		ScheduledFor: &scheduledFor,
-		TriggerKind:  triggerKind,
-		DeliveryMode: strings.TrimSpace(job.Delivery.Mode),
-		DeliveryTo:   deliveryTargetSummary(job.Delivery),
-		Status:       automationdomain.RunStatusSkipped,
+		RunID:          runID,
+		JobID:          job.JobID,
+		OwnerUserID:    job.OwnerUserID,
+		ScheduledFor:   &scheduledFor,
+		TriggerKind:    triggerKind,
+		DeliveryMode:   strings.TrimSpace(job.Delivery.Mode),
+		DeliveryTo:     deliveryTargetSummary(job.Delivery),
+		DeliveryTarget: cloneDeliveryTargetPointer(job.Delivery),
+		Status:         automationdomain.RunStatusSkipped,
 	}); err != nil {
 		return nil, err
 	}

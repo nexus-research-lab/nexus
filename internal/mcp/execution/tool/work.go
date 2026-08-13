@@ -45,6 +45,9 @@ func assignWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 				Instruction:      parsed.Instruction,
 				DispatchKind:     parsed.DispatchKind,
 			})
+			if err == nil && bindMutationWorkBinding(sctx, response) {
+				actor = sctx.Actor()
+			}
 			return serviceMutation(ctx, svc, actor, response, err), nil
 		},
 	}
@@ -125,6 +128,9 @@ func reviewWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 				CriteriaResults:  parsed.CriteriaResults,
 				Feedback:         parsed.Feedback,
 			})
+			if err == nil && applyMutationWorkBindingTransition(sctx, response) {
+				actor = sctx.Actor()
+			}
 			return serviceMutation(ctx, svc, actor, response, err), nil
 		},
 	}
@@ -226,9 +232,46 @@ func takeOverWork(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 				Instruction:      parsed.Instruction,
 				DispatchKind:     parsed.DispatchKind,
 			})
+			if err == nil && bindMutationWorkBinding(sctx, response) {
+				actor = sctx.Actor()
+			}
 			return serviceMutation(ctx, svc, actor, response, err), nil
 		},
 	}
+}
+
+func bindMutationWorkBinding(
+	sctx contract.ServerContext,
+	result orchestration.MutationResult,
+) bool {
+	if result.Outcome != orchestration.MutationApplied &&
+		result.Outcome != orchestration.MutationNoOp ||
+		sctx.ScopeKind != protocol.ExecutionScopeRoom ||
+		sctx.WorkBindingState == nil ||
+		result.WorkBinding == nil ||
+		result.WorkBinding.Clear ||
+		result.WorkBinding.Binding == nil {
+		return false
+	}
+	return sctx.WorkBindingState.Bind(result.WorkBinding.Binding)
+}
+
+func applyMutationWorkBindingTransition(
+	sctx contract.ServerContext,
+	result orchestration.MutationResult,
+) bool {
+	if bindMutationWorkBinding(sctx, result) {
+		return true
+	}
+	if result.Outcome != orchestration.MutationApplied &&
+		result.Outcome != orchestration.MutationNoOp ||
+		sctx.WorkBindingState == nil ||
+		result.WorkBinding == nil ||
+		!result.WorkBinding.Clear {
+		return false
+	}
+	sctx.WorkBindingState.Clear()
+	return true
 }
 
 func mutationEnvelope(
@@ -243,6 +286,9 @@ func mutationEnvelope(
 ) (*orchestrationSnapshot, string, *sdktool.ToolResult) {
 	snapshot, err := loadSnapshot(ctx, svc, actor, executionID)
 	if err != nil {
+		if result, ok := recoverableMutationRejection(err); ok {
+			return nil, "", &result
+		}
 		result := transportErrorResult(err)
 		return nil, "", &result
 	}

@@ -48,6 +48,22 @@ func (repository *latestExecutionViewRepository) GetRuntimeGraph(
 	return repository.managedGraph, nil
 }
 
+func (repository *latestExecutionViewRepository) GetWorkGraphRuntimeGraph(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+	executionRootRoundID string,
+) (protocol.ExecutionRuntimeGraph, error) {
+	return repository.GetRuntimeGraph(
+		ctx,
+		ownerUserID,
+		sessionKey,
+		executionID,
+		executionRootRoundID,
+	)
+}
+
 func (repository *latestExecutionViewRepository) ListWorkGraphChildAttempts(
 	context.Context,
 	string,

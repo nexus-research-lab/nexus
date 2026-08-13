@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
@@ -36,6 +38,21 @@ func TestToolPolicyKeepsPrivateMessagesOptIn(t *testing.T) {
 	disallowedTools = roomDisallowedTools([]string{"nexus_room.send_directed_message"}, true)
 	if !slices.Contains(disallowedTools, "nexus_room.send_directed_message") {
 		t.Fatalf("Room 私信开启后仍必须保留 Agent deny: %+v", disallowedTools)
+	}
+}
+
+func TestRoomRoundToolPolicyPrefersAutomationSnapshot(t *testing.T) {
+	round := &activeRoomRound{RuntimeToolPolicy: &protocol.RuntimeToolPolicy{
+		AllowedTools:    []string{"WebSearch"},
+		DisallowedTools: []string{"Write"},
+	}}
+	agentValue := &protocol.Agent{Options: protocol.Options{
+		AllowedTools:    []string{"Read"},
+		DisallowedTools: []string{"Bash"},
+	}}
+	allowed, denied, snapshotted := roomRoundToolPolicy(round, agentValue)
+	if !snapshotted || !slices.Equal(allowed, []string{"WebSearch"}) || !slices.Equal(denied, []string{"Write"}) {
+		t.Fatalf("Room automation snapshot 未覆盖 Agent 当前工具配置: allow=%v deny=%v snapshotted=%v", allowed, denied, snapshotted)
 	}
 }
 

@@ -173,6 +173,15 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		runtimeDisabledSkillNames,
 		configurationRoleSkill,
 	)
+	allowedTools, disallowedTools, snapshottedToolPolicy := roomRoundToolPolicy(e.round, e.agent)
+	allowedTools = roomAllowedTools(allowedTools, e.round.Context.Room.PrivateMessagesEnabled)
+	if !snapshottedToolPolicy {
+		allowedTools = toolpolicy.WithManagedRuntimeAllowedTools(
+			allowedTools,
+			e.service.runtimeImagegenDefaultEnabled(e.ctx),
+		)
+	}
+	disallowedTools = roomDisallowedTools(disallowedTools, e.round.Context.Room.PrivateMessagesEnabled)
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
@@ -184,8 +193,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		VisionModel:                selection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          e.runtimePermissionHandler(),
-		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
-		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
+		AllowedTools:               allowedTools,
+		DisallowedTools:            disallowedTools,
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.config, e.agent.OwnerUserID),
@@ -257,7 +266,22 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	if !e.slot.goalRuntimeIgnored() {
 		explicitGoalID := strings.TrimSpace(e.round.GoalID)
 		explicitRevision := e.round.GoalObjectiveRevision
-		if e.round.Internal && explicitGoalID != "" && explicitRevision > 0 {
+		if e.slot.WorkBinding != nil || e.slot.ReviewBinding != nil {
+			goalContext, authority, granted, bindingErr := e.service.resolveExecutionGoalMutationAuthority(
+				e.ctx,
+				e.orchestrationActor(),
+				e.round.RootRoundID,
+			)
+			if bindingErr != nil {
+				return roomRuntimePrompt{}, "", bindingErr
+			}
+			if granted {
+				if !e.slot.grantGoalMutationAuthority(authority) {
+					return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
+				}
+				e.slot.setGoalContext(goalContext)
+			}
+		} else if e.round.Internal && explicitGoalID != "" && explicitRevision > 0 {
 			goalContext, currentGoalID, currentRevision, ok := e.service.goalRuntimeContext(
 				e.ctx,
 				strings.TrimSpace(e.round.SessionKey),
@@ -282,33 +306,6 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 				return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
 			}
 			e.slot.setGoalContext(goalContext)
-		} else if e.slot.WorkBinding != nil || e.slot.ReviewBinding != nil {
-			binding, bindingErr := e.service.executionGoalBinding(e.ctx, e.orchestrationActor())
-			if bindingErr != nil {
-				return roomRuntimePrompt{}, "", bindingErr
-			}
-			if strings.TrimSpace(binding.GoalID) != "" {
-				goalContext, currentGoalID, currentRevision, ok := e.service.goalRuntimeContext(
-					e.ctx,
-					binding.SessionKey,
-				)
-				if !ok ||
-					currentGoalID != strings.TrimSpace(binding.GoalID) ||
-					currentRevision != binding.GoalObjectiveRevision {
-					return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
-				}
-				if !e.slot.grantGoalMutationAuthority(roomGoalMutationAuthority{
-					SessionKey:        binding.SessionKey,
-					GoalID:            binding.GoalID,
-					ObjectiveRevision: binding.GoalObjectiveRevision,
-					ExecutionID:       binding.ExecutionID,
-					RootRoundID:       strings.TrimSpace(e.round.RootRoundID),
-					Source:            roomGoalAuthorityExecutionBinding,
-				}) {
-					return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
-				}
-				e.slot.setGoalContext(goalContext)
-			}
 		}
 	}
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
@@ -318,13 +315,17 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 }
 
 func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
+	goalAuthority := e.slot.ensureGoalAuthorityState()
 	var servers map[string]sdkmcp.ServerConfig
 	if e.service.mcpServers != nil {
 		sourceContextType := roomMCPSourceContextType(e.round)
-		mcpContext := runtimectx.WithMCPRoundLease(
-			e.ctx,
-			e.slot.RuntimeSessionKey,
-			e.slot.AgentRoundID,
+		mcpContext := runtimectx.WithGoalAuthorityState(
+			runtimectx.WithMCPRoundLease(
+				e.ctx,
+				e.slot.RuntimeSessionKey,
+				e.slot.AgentRoundID,
+			),
+			goalAuthority,
 		)
 		mcpContext = runtimectx.WithEnabledConnectorIDs(
 			mcpContext,
@@ -359,18 +360,19 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 			),
 			e.round.ExecutionID,
 		),
-		WorkBinding:           cloneExecutionWorkBinding(e.slot.WorkBinding),
-		ReviewBinding:         cloneExecutionReviewBinding(e.slot.ReviewBinding),
-		CoordinatorAgentID:    strings.TrimSpace(e.round.CoordinatorAgentID),
-		RootRoundID:           e.round.RootRoundID,
-		AgentRoundID:          e.slot.AgentRoundID,
-		SourceContextType:     "room",
-		SourceContextID:       e.round.RoomID,
-		RoomID:                e.round.RoomID,
-		ConversationID:        e.round.ConversationID,
-		PermissionMode:        permissionMode,
-		GoalID:                e.slot.childGoalIDForUsage(),
-		GoalObjectiveRevision: e.slot.ensureGoalObjectiveRevision(0),
+		WorkBinding:        cloneExecutionWorkBinding(e.slot.WorkBinding),
+		WorkBindingState:   e.ensureWorkBindingState(),
+		ReviewBinding:      cloneExecutionReviewBinding(e.slot.ReviewBinding),
+		CoordinatorAgentID: strings.TrimSpace(e.round.CoordinatorAgentID),
+		RootRoundID:        e.round.RootRoundID,
+		AgentRoundID:       e.slot.AgentRoundID,
+		SourceContextType:  "room",
+		SourceContextID:    e.round.RoomID,
+		RoomID:             e.round.RoomID,
+		ConversationID:     e.round.ConversationID,
+		PermissionMode:     permissionMode,
+		GoalAuthority:      goalAuthority,
+		AutomationRun:      cloneAutomationRunContext(e.round.AutomationRun),
 	})
 	if len(overlay) > 0 && servers == nil {
 		servers = make(map[string]sdkmcp.ServerConfig, len(overlay))
@@ -408,11 +410,12 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 			return e.service.permission.RequestPermission(ctx, e.slot.RuntimeSessionKey, request)
 		}
 	}
+	allowedTools, disallowedTools, _ := roomRoundToolPolicy(e.round, e.agent)
 	handler = withRoomPermissionPolicy(
 		handler,
 		e.round.Context.Room.PrivateMessagesEnabled,
-		e.agent.Options.AllowedTools,
-		e.agent.Options.DisallowedTools,
+		allowedTools,
+		disallowedTools,
 	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)

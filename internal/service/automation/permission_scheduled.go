@@ -32,7 +32,8 @@ type scheduledPermissionScope struct {
 }
 
 type permissionResumeAttempt struct {
-	toolName string
+	toolName      string
+	resourceScope string
 
 	mu        sync.Mutex
 	attempted bool
@@ -47,7 +48,10 @@ func newPermissionResumeAttempt(request *automationdomain.AutomationPermissionRe
 	if toolName == "" {
 		return nil
 	}
-	return &permissionResumeAttempt{toolName: toolName}
+	return &permissionResumeAttempt{
+		toolName:      toolName,
+		resourceScope: strings.TrimSpace(request.Capability.ResourceScope),
+	}
 }
 
 func (a *permissionResumeAttempt) observe(request sdkpermission.Request, decision sdkpermission.Decision, err error) {
@@ -275,9 +279,13 @@ func (s *Service) blockScheduledPermissionRequest(
 				Description:    truncatePermissionText(description, 1000),
 				Reason:         truncatePermissionText(reason, 1000),
 				SessionKey:     strings.TrimSpace(scope.SessionKey),
-				RoundID:        strings.TrimSpace(scope.RoundID),
-				ToolUseID:      strings.TrimSpace(request.ToolUseID),
-				ResumeSafe:     !run.EffectStarted,
+				DeliverySessionKey: firstNonEmpty(
+					scope.Job.Delivery.SessionKey,
+					scope.Job.Source.SessionKey,
+				),
+				RoundID:    strings.TrimSpace(scope.RoundID),
+				ToolUseID:  strings.TrimSpace(request.ToolUseID),
+				ResumeSafe: !run.EffectStarted,
 			},
 			TaskState:  taskState,
 			BlockState: runBlockState,
@@ -307,6 +315,7 @@ func (s *Service) blockScheduledPermissionRequest(
 			scope.RunID,
 			detail,
 		)
+		s.notifyAutomationPermissionRequest(ctx, scope.Job, *pending)
 	}
 	return sdkpermission.DenyWithErrorCode(reason, errorCode, true), nil
 }

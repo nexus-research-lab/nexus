@@ -105,6 +105,7 @@ export function useMessageItemController({
       hidden: display.hidden,
       header: {
         agentId: projection.assistantAgentId,
+        automationTaskName: projection.automationTaskName,
         canStop: display.canStop,
         model: projection.model,
         stop: handleStopMessage,
@@ -143,6 +144,7 @@ export function useMessageItemController({
       },
       footer: {
         copied: copiedAssistant,
+        goalCompletionReceipt: projection.goalCompletionReceipt,
         memories: projection.recalledMemories,
         onCopy: display.canCopy ? handleCopyAssistant : undefined,
         stats: projection.stats,

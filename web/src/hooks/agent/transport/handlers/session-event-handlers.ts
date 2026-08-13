@@ -1,3 +1,8 @@
+/**
+ * INPUT: session-scoped WebSocket protocol events 与当前 conversation handler context。
+ * OUTPUT: envelope session 匹配的资源事件投影，以及跨视图切换仍按本地 client_request_id 所有权收口的 ACK/明确拒绝。
+ * POS: agent transport 的会话事件路由表；请求收口与当前页面投影分离，不猜测跨 session 活动。
+ */
 import { readString } from "@/lib/unknown-value";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { AssistantMessageStatus } from "@/types/conversation/message/entity";
@@ -42,6 +47,13 @@ const handleErrorEvent: AgentEventHandler = (event, context) => {
   if (isWorkspaceSubscriptionError(event)) {
     return;
   }
+  const message = readString(event.data, "message") ?? "Unknown error";
+  const clientRequestId = readString(event.data, "client_request_id") ?? "";
+  if (clientRequestId) {
+    // 请求归属由本地 mint 的 request ID 决定。即使用户已经切换页面，
+    // 旧会话的明确拒绝仍必须结束原 Promise，但不能污染当前会话 UI。
+    context.runtime.rejectPendingRequestAck(clientRequestId, message);
+  }
   const incomingSessionKey = event.session_key || null;
   if (
     incomingSessionKey
@@ -56,11 +68,6 @@ const handleErrorEvent: AgentEventHandler = (event, context) => {
   }
   if (event.message_id) {
     context.runtime.updateMessageStatus(event.message_id, "error", roundId);
-  }
-  const message = readString(event.data, "message") ?? "Unknown error";
-  const clientRequestId = readString(event.data, "client_request_id") ?? "";
-  if (clientRequestId) {
-    context.runtime.rejectPendingRequestAck(clientRequestId, message);
   }
   context.state.setError(message);
 };
@@ -122,21 +129,28 @@ const handleInputQueue = withCurrentSessionEvent((event, context) => {
   }
 });
 
-const handleInputQueueAck = withCurrentSessionEvent((event, context) => {
+const handleInputQueueAck: AgentEventHandler = (event, context) => {
   const ack = parseInputQueueAckData(event.data);
   if (ack?.accepted) {
     context.runtime.resolvePendingRequestAck(ack.client_request_id);
   }
-});
+};
 
-const handleInterruptAck = withCurrentSessionEvent((event, context) => {
+const handleInterruptAck: AgentEventHandler = (event, context) => {
   const ack = parseInterruptAckData(event.data);
   if (ack?.accepted) {
     context.runtime.resolvePendingRequestAck(ack.client_request_id);
   }
-});
+};
 
 const handleGoalEvent = withCurrentSessionEvent((event, context) => {
+  context.callbacks.onRoomEvent(
+    event.event_type,
+    (event.data ?? {}) as RoomEventPayload,
+  );
+});
+
+const handleExecutionInvalidated = withCurrentSessionEvent((event, context) => {
   context.callbacks.onRoomEvent(
     event.event_type,
     (event.data ?? {}) as RoomEventPayload,
@@ -159,12 +173,18 @@ const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
   context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
-const handleChatAck = withCurrentSessionEvent((event, context) => {
+const handleChatAck: AgentEventHandler = (event, context) => {
   const ack = parseChatAckData(event.data);
-  if (ack) {
-    context.runtime.trackChatAck(ack);
+  if (!ack) {
+    return;
   }
-});
+  if (context.scope.isCurrentSessionEvent(event.session_key || null)) {
+    context.runtime.trackChatAck(ack);
+    return;
+  }
+  // 会话切换只阻止旧消息投影进当前 Feed，不能吞掉旧请求的 ACK。
+  context.runtime.resolvePendingRequestAck(ack.client_request_id);
+};
 
 function createMessageStatusHandler(
   status: AssistantMessageStatus,
@@ -187,6 +207,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   command_catalog: handleCommandCatalog,
   context_usage: handleContextUsage,
   error: handleErrorEvent,
+  execution_invalidated: handleExecutionInvalidated,
   goal_cleared: handleGoalEvent,
   goal_continuation: handleGoalEvent,
   goal_created: handleGoalEvent,

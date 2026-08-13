@@ -43,6 +43,7 @@ function buildExternalRoomConversationViews({
       options: {
         channel_type: session.channel_type,
         chat_type: session.chat_type,
+        external_identity: session.external_identity,
         external_session: true,
       },
       created_at: session.created_at,
@@ -67,7 +68,8 @@ function areExternalAgentSessionsEqual(left: AgentSession[], right: AgentSession
       item.last_activity_at === other.last_activity_at &&
       item.title === other.title &&
       item.channel_type === other.channel_type &&
-      item.chat_type === other.chat_type;
+      item.chat_type === other.chat_type &&
+      JSON.stringify(item.external_identity) === JSON.stringify(other.external_identity);
   });
 }
 

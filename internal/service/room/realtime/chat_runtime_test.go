@@ -26,6 +26,21 @@ type fakeRoomQuotaChecker struct {
 	err error
 }
 
+type testRoomGoalSessionOwnershipVerifier struct {
+	agentNames map[string]string
+}
+
+func (v testRoomGoalSessionOwnershipVerifier) VerifyGoalSessionOwnership(
+	_ context.Context,
+	request goalsvc.GoalSessionOwnershipRequest,
+) (goalsvc.GoalSessionOwnershipProof, error) {
+	agentID := request.TrustedAgentID
+	return goalsvc.GoalSessionOwnershipProof{
+		TrustedAgentID:   agentID,
+		TrustedAgentName: v.agentNames[agentID],
+	}, nil
+}
+
 func TestRealtimeServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	cfg.GoalEnabled = true
@@ -57,6 +72,9 @@ func TestRealtimeServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded
 		factory,
 	)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	goalService.SetSessionOwnershipVerifier(testRoomGoalSessionOwnershipVerifier{
+		agentNames: map[string]string{memberAgent.AgentID: memberAgent.Name},
+	})
 	service.SetGoalContextProvider(goalService)
 	quotaErr := subscriptionsvc.QuotaExceededError{UsedTokens: 10, LimitTokens: 10}
 	service.SetQuotaChecker(fakeRoomQuotaChecker{err: quotaErr})

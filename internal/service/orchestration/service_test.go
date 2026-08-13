@@ -1595,6 +1595,8 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 	}
 	service := testService(repository)
 	service.SetGoalPromotionGateway(gateway)
+	confirmation := &confirmingGoalBindingGateway{}
+	service.SetExplicitGoalBindingGateway(confirmation)
 	actor := coordinatorActor()
 	actor.RootRoundID = "round-after-boundary"
 	input := PromoteExecutionToGoalInput{
@@ -1609,7 +1611,7 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 	}
 	if first.Outcome != MutationRejected ||
 		first.ReasonCode != ErrorCodeStaleExecution ||
-		!strings.Contains(first.Message, "retry with the same command_id") {
+		!strings.Contains(first.Message, "retry with the same semantic arguments") {
 		t.Fatalf("first result = %#v", first)
 	}
 	second, err := service.PromoteExecutionToGoal(context.Background(), actor, input)
@@ -1623,6 +1625,11 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 		gatewayCommands[0] != "tool-promote:promote-goal" ||
 		gatewayCommands[1] != gatewayCommands[0] {
 		t.Fatalf("gateway commands = %#v", gatewayCommands)
+	}
+	if confirmation.confirmCalls != 1 ||
+		confirmation.lastConfirmation.ExecutionID != snapshot.Execution.ID ||
+		confirmation.lastConfirmation.GoalID != "goal-stable" {
+		t.Fatalf("Goal confirmation = %#v", confirmation)
 	}
 }
 
@@ -1661,6 +1668,8 @@ func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
 		},
 	}
 	service := testService(repository)
+	confirmation := &confirmingGoalBindingGateway{}
+	service.SetExplicitGoalBindingGateway(confirmation)
 	service.SetGoalPromotionGateway(goalPromotionGatewayFunc(func(
 		context.Context,
 		GoalPromotionRequest,
@@ -1691,6 +1700,10 @@ func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
 		result.Snapshot.Execution.GoalID != "goal-agent-choice" ||
 		!gatewayCalled {
 		t.Fatalf("result=%#v gatewayCalled=%t", result, gatewayCalled)
+	}
+	if confirmation.confirmCalls != 1 ||
+		confirmation.lastConfirmation.GoalID != "goal-agent-choice" {
+		t.Fatalf("Goal confirmation = %#v", confirmation)
 	}
 }
 
@@ -2003,6 +2016,84 @@ func TestServiceGoalExecutionCompletionBlockerUsesObjectiveRevision(t *testing.T
 	}
 	if blocker != "execution_work_graph:execution-1:work_item:work-1:required_not_accepted" {
 		t.Fatalf("blocker = %q", blocker)
+	}
+}
+
+func TestRoomCoordinatorSelfAssignmentReturnsExplicitWorkBindingReceipt(t *testing.T) {
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Execution.ScopeKind = protocol.ExecutionScopeRoom
+	snapshot.Execution.RoomID = "room-1"
+	snapshot.Execution.ConversationID = "conversation-1"
+	snapshot.Assignments = nil
+	snapshot.Attempts = nil
+	snapshot.ReadyWorkItemIDs = []string{"work-1"}
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.assign = func(
+		_ context.Context,
+		command orchestrationstore.AssignCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		result := cloneExecutionSnapshot(snapshot)
+		result.Execution.Version++
+		result.Assignments = append(result.Assignments, command.Assignment)
+		result.Attempts = append(result.Attempts, *command.RootAttempt)
+		return result, nil
+	}
+	service := testService(repository)
+	actor := ActorContext{
+		OwnerUserID: snapshot.Execution.OwnerUserID,
+		SessionKey:  snapshot.Execution.SessionKey,
+		AgentID:     snapshot.Execution.CoordinatorAgentID,
+		Role:        ExecutionActorCoordinator, ActorKind: protocol.ExecutionActorAgent,
+		ScopeKind: protocol.ExecutionScopeRoom,
+		RoomID:    snapshot.Execution.RoomID, ConversationID: snapshot.Execution.ConversationID,
+		RootRoundID: "root-1", RuntimeRoundID: "runtime-1", AgentRoundID: "agent-round-1",
+	}
+	if err := service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID: snapshot.Execution.ID, SnapshotRevision: snapshot.Execution.Version,
+		CommandID: "assign-self-room", WorkItemID: "work-1",
+		TargetAgentID: actor.AgentID, Strategy: protocol.AssignmentStrategySelf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied || result.WorkBinding == nil ||
+		result.WorkBinding.Binding == nil || result.WorkBinding.Clear {
+		t.Fatalf("self assignment result = %#v", result)
+	}
+	binding := result.WorkBinding.Binding
+	if binding.ExecutionID != snapshot.Execution.ID || binding.WorkItemID != "work-1" ||
+		binding.AssignmentID == "" || binding.AttemptID == "" || binding.DispatchID != "" {
+		t.Fatalf("self WorkBinding receipt = %#v", binding)
+	}
+	repository.snapshot = result.Snapshot
+	replay, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID: result.Snapshot.Execution.ID, SnapshotRevision: result.Snapshot.Execution.Version,
+		CommandID: "assign-self-room-recover-receipt", WorkItemID: "work-1",
+		TargetAgentID: actor.AgentID, Strategy: protocol.AssignmentStrategySelf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay.Outcome != MutationNoOp || replay.WorkBinding == nil ||
+		replay.WorkBinding.Binding == nil ||
+		replay.WorkBinding.Binding.AssignmentID != binding.AssignmentID ||
+		replay.WorkBinding.Binding.AttemptID != binding.AttemptID {
+		t.Fatalf("self Assignment receipt recovery = %#v", replay)
+	}
+
+	dmSnapshot := cloneExecutionSnapshot(snapshot)
+	dmSnapshot.Execution.ScopeKind = protocol.ExecutionScopeDM
+	dmResult := AppliedResult(dmSnapshot, nil, nil)
+	dmResult = withRoomSelfWorkBindingReceipt(
+		coordinatorActor(),
+		dmResult,
+		"work-1",
+	)
+	if dmResult.WorkBinding != nil {
+		t.Fatalf("DM received Room WorkBinding receipt: %#v", dmResult.WorkBinding)
 	}
 }
 

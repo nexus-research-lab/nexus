@@ -5,8 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -144,14 +142,16 @@ func (s *Service) persistTransitionWithOptions(
 	case protocol.GoalStatusBlocked:
 		item.BlockedAt = &now
 	}
-	updated, err := s.repo.UpdateGoal(ctx, item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
+	updated, err := s.persistGoalUpdateWithEvent(
+		ctx,
+		item,
+		expectedVersion,
+		eventType,
+		source,
+		roundID,
+		payload,
+	)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.appendEvent(ctx, *updated, eventType, source, roundID, payload); err != nil {
 		return nil, err
 	}
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive {

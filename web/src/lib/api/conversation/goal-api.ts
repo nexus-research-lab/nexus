@@ -1,9 +1,15 @@
+/**
+ * INPUT: authenticated Goal identifiers, owner-scoped lifecycle payloads and session keys.
+ * OUTPUT: Goal resources plus the server-derived Goal/Execution binding read view.
+ * POS: Web Goal REST adapter; it never interprets Goal metadata as WorkGraph state.
+ */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
   ClearGoalResult,
   CreateGoalInput,
   Goal,
+  GoalExecutionBinding,
   GoalUsageReport,
   UpdateGoalInput,
 } from "@/types/conversation/goal";
@@ -29,6 +35,17 @@ export async function getGoalUsageApi(goalId: string): Promise<GoalUsageReport> 
   );
 }
 
+export async function getGoalExecutionBindingApi(
+  goalId: string,
+): Promise<GoalExecutionBinding> {
+  return requestApi<GoalExecutionBinding>(
+    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}/execution-binding`,
+    {
+      method: "GET",
+    },
+  );
+}
+
 export async function createGoalApi(input: CreateGoalInput): Promise<Goal> {
   return requestApi<Goal>(`${AGENT_API_BASE_URL}/goals`, {
     method: "POST",
@@ -37,6 +54,7 @@ export async function createGoalApi(input: CreateGoalInput): Promise<Goal> {
       objective: input.objective,
       token_budget: input.token_budget ?? null,
       replace_existing: input.replace_existing ?? false,
+      room_lead_agent_id: input.room_lead_agent_id ?? null,
       metadata: input.metadata ?? null,
     },
   });

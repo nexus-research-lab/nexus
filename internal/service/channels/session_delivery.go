@@ -1,3 +1,6 @@
+// INPUT: Agent Session 投递目标、统一 Session 读模型与 owner-confined workspace。
+// OUTPUT: 已存在或经精确身份校验后物化的 Session 投影，以及兼容历史收件箱的消息写入。
+// POS: 普通 Nexus/IM Session 主动投递边界；不得从裸 key 合成新的用户会话。
 package channels
 
 import (
@@ -25,6 +28,7 @@ type sessionDeliveryChannel struct {
 	channelType string
 	agents      agentWorkspaceResolver
 	permission  *permissionctx.Context
+	sessions    sessionProjectionResolver
 	files       *workspacestore.SessionFileStore
 	history     *workspacestore.AgentHistoryStore
 	roomHistory *workspacestore.RoomHistoryStore
@@ -128,7 +132,7 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 	}
 
 	now := time.Now().UTC()
-	sessionValue, err := c.ensureSession(ownerUserID, workspacePath, parsed, sessionKey, now)
+	sessionValue, err := c.ensureSession(ctx, ownerUserID, workspacePath, parsed, sessionKey, now)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +193,7 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 }
 
 func (c *sessionDeliveryChannel) ensureSession(
+	ctx context.Context,
 	ownerUserID string,
 	workspacePath string,
 	parsed protocol.SessionKey,
@@ -203,11 +208,21 @@ func (c *sessionDeliveryChannel) ensureSession(
 	if sessionValue != nil && strings.TrimSpace(foundPath) != "" {
 		return sessionValue, nil
 	}
+	resolved, err := c.materializeDeliverySession(ctx, files, workspacePath, parsed, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if resolved != nil {
+		return resolved, nil
+	}
 	if c.channelType != ChannelTypeInternal ||
-		protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelInternalSegment {
+		protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelInternalSegment ||
+		strings.TrimSpace(parsed.Ref) != protocol.AutomationInboxSessionRef {
 		return nil, fmt.Errorf("delivery target session is not available: %s", sessionKey)
 	}
 
+	// 普通内部/网页投递只接受已存在的真实 Session；仅为旧版明确的
+	// automation-inbox 保留延迟创建兼容。
 	session := protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      parsed.AgentID,
@@ -231,6 +246,37 @@ func (c *sessionDeliveryChannel) ensureSession(
 		return &session, nil
 	}
 	return created, nil
+}
+
+// materializeDeliverySession 是数据库 Room-backed Session 进入 workspace
+// 投影的唯一入口；只有统一读模型返回精确匹配的 Session 才会写入。
+func (c *sessionDeliveryChannel) materializeDeliverySession(
+	ctx context.Context,
+	files *workspacestore.SessionFileStore,
+	workspacePath string,
+	parsed protocol.SessionKey,
+	sessionKey string,
+) (*protocol.Session, error) {
+	if c.sessions == nil {
+		return nil, nil
+	}
+	resolved, err := c.sessions.ResolveDeliverySession(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if resolved == nil ||
+		strings.TrimSpace(resolved.SessionKey) != strings.TrimSpace(sessionKey) ||
+		strings.TrimSpace(resolved.AgentID) != strings.TrimSpace(parsed.AgentID) {
+		return nil, nil
+	}
+	materialized, err := files.UpsertSession(workspacePath, *resolved)
+	if err != nil {
+		return nil, err
+	}
+	if materialized != nil {
+		return materialized, nil
+	}
+	return resolved, nil
 }
 
 func internalSessionTitle(parsed protocol.SessionKey) string {

@@ -106,16 +106,26 @@ func (s *Service) buildInitialTaskPermissionPolicy(
 	if err != nil {
 		return automationdomain.TaskPermissionPolicy{}, err
 	}
+	return s.buildTaskPermissionPolicyFromOptions(ctx, job, options, allowDirectScript, legacyCompat), nil
+}
+
+func (s *Service) buildTaskPermissionPolicyFromOptions(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	options protocol.Options,
+	allowDirectScript bool,
+	legacyCompat bool,
+) automationdomain.TaskPermissionPolicy {
 	options.AllowedTools = toolpolicy.WithManagedRuntimeAllowedTools(
 		options.AllowedTools,
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
-	tools := append([]string(nil), options.AllowedTools...)
-	sort.Strings(tools)
+	tools := normalizedSortedToolNames(options.AllowedTools)
 	policy := automationdomain.TaskPermissionPolicy{
-		Version:  taskPermissionPolicyVersion,
-		Revision: 1,
-		Grants:   make([]automationdomain.TaskPermissionGrant, 0, len(tools)+1),
+		Version:     taskPermissionPolicyVersion,
+		Revision:    1,
+		Grants:      make([]automationdomain.TaskPermissionGrant, 0, len(tools)+1),
+		DeniedTools: normalizedSortedToolNames(options.DisallowedTools),
 	}
 	seen := make(map[string]struct{}, len(tools)+1)
 	for _, toolName := range tools {
@@ -144,7 +154,26 @@ func (s *Service) buildInitialTaskPermissionPolicy(
 		}
 		policy.Grants = append(policy.Grants, s.scriptPermissionGrant(job, source))
 	}
-	return normalizeTaskPermissionPolicy(policy), nil
+	return normalizeTaskPermissionPolicy(policy)
+}
+
+func normalizedSortedToolNames(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		key := strings.ToLower(value)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func (s *Service) taskAgentOptions(ctx context.Context, agentID string) (protocol.Options, error) {
@@ -169,6 +198,27 @@ func normalizeTaskPermissionPolicy(policy automationdomain.TaskPermissionPolicy)
 		policy.Grants = []automationdomain.TaskPermissionGrant{}
 	}
 	return policy
+}
+
+func taskRuntimeToolPolicy(job automationdomain.ScheduledTask) *protocol.RuntimeToolPolicy {
+	policy := normalizeTaskPermissionPolicy(job.PermissionPolicy)
+	// 旧策略没有 denied_tools 字段，继续沿用运行时读取 Agent 当前配置的兼容语义。
+	// 新任务即使没有 deny 也会持久化 []，因此能够与旧记录可靠区分。
+	if policy.DeniedTools == nil {
+		return nil
+	}
+	allowed := make([]string, 0, len(policy.Grants))
+	for _, grant := range policy.Grants {
+		if grant.Source != automationdomain.PermissionGrantSourceAgentSnapshot ||
+			strings.TrimSpace(grant.Capability.ToolName) == "" {
+			continue
+		}
+		allowed = append(allowed, grant.Capability.ToolName)
+	}
+	return &protocol.RuntimeToolPolicy{
+		AllowedTools:    normalizedSortedToolNames(allowed),
+		DisallowedTools: normalizedSortedToolNames(policy.DeniedTools),
+	}
 }
 
 func (s *Service) scriptPermissionGrant(job automationdomain.ScheduledTask, source string) automationdomain.TaskPermissionGrant {
@@ -231,6 +281,7 @@ func taskPermissionBoundaryChanged(before automationdomain.ScheduledTask, after 
 	return strings.TrimSpace(before.AgentID) != strings.TrimSpace(after.AgentID) ||
 		strings.TrimSpace(before.Instruction) != strings.TrimSpace(after.Instruction) ||
 		automationdomain.NormalizeExecutionKind(before.ExecutionKind) != automationdomain.NormalizeExecutionKind(after.ExecutionKind) ||
+		automationdomain.NormalizePermissionMode(before.PermissionMode) != automationdomain.NormalizePermissionMode(after.PermissionMode) ||
 		before.SessionTarget.Normalized() != after.SessionTarget.Normalized()
 }
 
@@ -239,25 +290,33 @@ func (s *Service) taskPolicyAllowsCapability(
 	job automationdomain.ScheduledTask,
 	capability automationdomain.PermissionCapability,
 ) (bool, bool, error) {
-	options, err := s.taskAgentOptions(ctx, job.AgentID)
-	if err != nil {
-		return false, false, err
-	}
-	options.AllowedTools = toolpolicy.WithManagedRuntimeAllowedTools(
-		options.AllowedTools,
-		s.runtimeImagegenDefaultEnabled(ctx),
-	)
-	disallowed := toolpolicy.NormalizeSet(options.DisallowedTools)
+	policy := normalizeTaskPermissionPolicy(job.PermissionPolicy)
+	disallowed := toolpolicy.NormalizeSet(policy.DeniedTools)
 	if toolpolicy.Contains(disallowed, capability.ToolName) {
 		return false, true, nil
 	}
-	currentDefaults := toolpolicy.NormalizeSet(options.AllowedTools)
-	for _, grant := range normalizeTaskPermissionPolicy(job.PermissionPolicy).Grants {
+	var legacyCurrentDefaults map[string]struct{}
+	if policy.DeniedTools == nil {
+		options, err := s.taskAgentOptions(ctx, job.AgentID)
+		if err != nil {
+			return false, false, err
+		}
+		options.AllowedTools = toolpolicy.WithManagedRuntimeAllowedTools(
+			options.AllowedTools,
+			s.runtimeImagegenDefaultEnabled(ctx),
+		)
+		if toolpolicy.Contains(toolpolicy.NormalizeSet(options.DisallowedTools), capability.ToolName) {
+			return false, true, nil
+		}
+		legacyCurrentDefaults = toolpolicy.NormalizeSet(options.AllowedTools)
+	}
+	for _, grant := range policy.Grants {
 		if !permissionGrantMatches(grant, capability) {
 			continue
 		}
-		if grant.Source == automationdomain.PermissionGrantSourceAgentSnapshot &&
-			!toolpolicy.Contains(currentDefaults, capability.ToolName) {
+		if legacyCurrentDefaults != nil &&
+			grant.Source == automationdomain.PermissionGrantSourceAgentSnapshot &&
+			!toolpolicy.Contains(legacyCurrentDefaults, capability.ToolName) {
 			continue
 		}
 		return true, false, nil

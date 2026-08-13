@@ -331,25 +331,47 @@ func (f *fakeWorkspaceReader) GetFile(_ context.Context, _ string, relativePath 
 type fakeDeliveryRouter struct {
 	mu           sync.Mutex
 	calls        []channels.DeliveryTarget
+	messages     []string
 	ownerUserIDs []string
 	err          error
 	receipt      *channelmessage.Receipt
 }
 
+func fakeStructuredDelivery(agentID string, ref string) automationdomain.DeliveryTarget {
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentID,
+		protocol.SessionChannelInternalSegment,
+		protocol.RoomTypeDM,
+		ref,
+		"",
+	)
+	return automationdomain.DeliveryTarget{
+		Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
+		To: sessionKey, SessionKey: sessionKey,
+	}
+}
+
 func (f *fakeDeliveryRouter) DeliverMessage(
 	ctx context.Context,
 	_ string,
-	_ string,
+	text string,
 	target channels.DeliveryTarget,
 ) (channels.DeliveryResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, target)
+	f.messages = append(f.messages, text)
 	f.ownerUserIDs = append(f.ownerUserIDs, authctx.OwnerUserID(ctx))
 	if f.err != nil {
 		return channels.DeliveryResult{}, f.err
 	}
 	return channels.DeliveryResult{Target: target, Receipt: f.receipt}, nil
+}
+
+func (f *fakeDeliveryRouter) Messages() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.messages)
 }
 
 func (f *fakeDeliveryRouter) Calls() []channels.DeliveryTarget {
@@ -454,6 +476,7 @@ CREATE TABLE automation_scheduled_tasks (
     timezone VARCHAR(64) NOT NULL,
     instruction TEXT NOT NULL,
     execution_kind VARCHAR(32) NOT NULL DEFAULT 'agent',
+    permission_mode VARCHAR(32) NOT NULL DEFAULT 'default',
     session_target_kind VARCHAR(32) NOT NULL,
     bound_session_key VARCHAR(255),
     named_session_key VARCHAR(255),
@@ -463,6 +486,10 @@ CREATE TABLE automation_scheduled_tasks (
     delivery_to VARCHAR(255),
     delivery_account_id VARCHAR(64),
     delivery_thread_id VARCHAR(255),
+    delivery_session_key VARCHAR(255),
+    session_binding_state VARCHAR(32) NOT NULL DEFAULT 'ready',
+    invalidated_session_keys_json TEXT NOT NULL DEFAULT '[]',
+	delivery_grant_json TEXT NOT NULL DEFAULT '{}',
     enabled BOOLEAN NOT NULL,
     next_run_at DATETIME,
     running_run_id VARCHAR(64),
@@ -492,6 +519,7 @@ CREATE TABLE automation_task_runs (
 	    message_count INTEGER NOT NULL DEFAULT 0,
 	    delivery_mode VARCHAR(32),
 	    delivery_to VARCHAR(255),
+	    delivery_target_json TEXT,
 	    delivery_status VARCHAR(32),
 	    delivery_error TEXT,
 	    delivered_at DATETIME,
@@ -534,6 +562,7 @@ CREATE TABLE automation_permission_requests (
     description TEXT,
     reason TEXT,
     session_key VARCHAR(255),
+    delivery_session_key VARCHAR(255),
     round_id VARCHAR(64),
     tool_use_id VARCHAR(255),
     resume_safe BOOLEAN NOT NULL DEFAULT 1,
@@ -583,6 +612,7 @@ CREATE TABLE automation_delivery_routes (
     "to" VARCHAR(255),
     account_id VARCHAR(64),
     thread_id VARCHAR(255),
+    context_token TEXT,
     enabled BOOLEAN NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
