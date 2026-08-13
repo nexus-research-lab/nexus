@@ -118,7 +118,7 @@
       "name": "docx",
       "category_key": "content-docs",
       "category_name": "内容与文档",
-      "recommendation": "适合 Word 文档生成、编辑与审阅。"
+      "recommendation": "适合读取、提取和分析 Word 文档，也能识别后缀与实际格式不一致的文件。"
     },
     {
       "name": "pptx",
