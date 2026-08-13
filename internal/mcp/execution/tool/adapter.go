@@ -99,7 +99,7 @@ func jsonResult(payload any) sdktool.ToolResult {
 }
 
 func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
-	return jsonResult(executionMutationResult{
+	payload := executionMutationResult{
 		Outcome:          result.Outcome,
 		ReasonCode:       result.ReasonCode,
 		Message:          result.Message,
@@ -109,22 +109,38 @@ func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
 		ContextStatus:    result.ContextStatus,
 		Changed:          result.Changed,
 		NextActions:      result.NextActions,
-	})
+		GoalConfirmation: result.GoalConfirmation,
+	}
+	if encoded, err := json.Marshal(payload); err == nil &&
+		len(encoded) > executionToolResultInlineLimit && payload.ExecutionContext != "" {
+		// Control identity must remain inline even when the refreshed context is
+		// unusually large. Otherwise SDK externalization replaces outcome,
+		// changed and next_actions with only a file pointer, and the runtime can
+		// no longer correlate this exact mutation with its WorkGraph segment.
+		result.ExecutionContext = ""
+		result.ContextStatus = "refresh_required"
+		result = withGetExecutionRecovery(result)
+		payload.ExecutionContext = result.ExecutionContext
+		payload.ContextStatus = result.ContextStatus
+		payload.NextActions = result.NextActions
+	}
+	return jsonResult(payload)
 }
 
 // executionMutationResult 是 MCP 模型面的唯一 mutation 投影。完整 Snapshot
 // 继续留在 service result 供同进程协调、HTTP/UI 和测试使用；不能与已经由它
 // 派生出的 execution_context 重复发送给模型。
 type executionMutationResult struct {
-	Outcome          orchestration.MutationOutcome `json:"outcome"`
-	ReasonCode       orchestration.ErrorCode       `json:"reason_code,omitempty"`
-	Message          string                        `json:"message,omitempty"`
-	ExecutionID      string                        `json:"execution_id,omitempty"`
-	SnapshotRevision int64                         `json:"snapshot_revision,omitempty"`
-	ExecutionContext string                        `json:"execution_context,omitempty"`
-	ContextStatus    string                        `json:"context_status,omitempty"`
-	Changed          []string                      `json:"changed,omitempty"`
-	NextActions      []orchestration.NextAction    `json:"next_actions,omitempty"`
+	Outcome          orchestration.MutationOutcome        `json:"outcome"`
+	ReasonCode       orchestration.ErrorCode              `json:"reason_code,omitempty"`
+	Message          string                               `json:"message,omitempty"`
+	ExecutionID      string                               `json:"execution_id,omitempty"`
+	SnapshotRevision int64                                `json:"snapshot_revision,omitempty"`
+	ExecutionContext string                               `json:"execution_context,omitempty"`
+	ContextStatus    string                               `json:"context_status,omitempty"`
+	Changed          []string                             `json:"changed,omitempty"`
+	NextActions      []orchestration.NextAction           `json:"next_actions,omitempty"`
+	GoalConfirmation orchestration.GoalConfirmationStatus `json:"goal_confirmation_status,omitempty"`
 }
 
 type executionRuntimeContextReader interface {
@@ -133,6 +149,11 @@ type executionRuntimeContextReader interface {
 		orchestration.ActorContext,
 	) (string, error)
 }
+
+const (
+	executionToolContextInlineLimit = 12 * 1024
+	executionToolResultInlineLimit  = 15 * 1024
+)
 
 func withFreshExecutionContext(
 	ctx context.Context,
@@ -164,6 +185,11 @@ func withFreshExecutionContext(
 	}
 	rendered, err := reader.RuntimeContext(ctx, actor)
 	if err != nil || strings.TrimSpace(rendered) == "" {
+		result.ContextStatus = "refresh_required"
+		return withGetExecutionRecovery(result)
+	}
+	rendered = compactExecutionToolContext(rendered)
+	if rendered == "" {
 		result.ContextStatus = "refresh_required"
 		return withGetExecutionRecovery(result)
 	}
@@ -206,15 +232,80 @@ func snapshotResult(
 	if reader, ok := any(svc).(executionRuntimeContextReader); ok {
 		if rendered, err := reader.RuntimeContext(ctx, actor); err == nil &&
 			strings.TrimSpace(rendered) != "" {
-			payload["execution_context"] = rendered
-			payload["context_status"] = "authoritative"
+			if rendered = compactExecutionToolContext(rendered); rendered != "" {
+				payload["execution_context"] = rendered
+				payload["context_status"] = "authoritative"
+			}
 		}
 	}
 	return jsonResult(payload)
 }
 
+// compactExecutionToolContext keeps the current authority/action contract
+// inline while removing observed Runtime Graph history that is already
+// available through the WorkGraph read model. Re-embedding that history after
+// every mutation makes the result recursively grow until the runtime has to
+// externalize even the small outcome/next_actions control envelope.
+func compactExecutionToolContext(rendered string) string {
+	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "runtime_facts"))
+	if len(rendered) <= executionToolContextInlineLimit {
+		return rendered
+	}
+	// The graph digest is useful orientation, but the actionable assigned,
+	// ready and review sections below it are the required continuation state.
+	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "graph_digest"))
+	if len(rendered) <= executionToolContextInlineLimit {
+		return rendered
+	}
+	return ""
+}
+
+func removeExecutionContextElement(rendered string, element string) string {
+	startMarker := "<" + element
+	start := strings.Index(rendered, startMarker)
+	if start < 0 {
+		return rendered
+	}
+	if start > 0 && rendered[start-1] == '\n' {
+		start--
+	}
+	openingEndOffset := strings.Index(rendered[start:], ">")
+	if openingEndOffset < 0 {
+		return rendered
+	}
+	openingEnd := start + openingEndOffset
+	if openingEnd > start && rendered[openingEnd-1] == '/' {
+		return rendered[:start] + rendered[openingEnd+1:]
+	}
+	closeMarker := "</" + element + ">"
+	closeOffset := strings.Index(rendered[openingEnd+1:], closeMarker)
+	if closeOffset < 0 {
+		return rendered
+	}
+	end := openingEnd + 1 + closeOffset + len(closeMarker)
+	return rendered[:start] + rendered[end:]
+}
+
 func rejectedResult(message string, actions ...orchestration.NextAction) sdktool.ToolResult {
 	return mutationResult(orchestration.RejectedResult(nil, errors.New(message), actions))
+}
+
+// recoverableMutationRejection 把已经到达服务端、但被当前权威状态拒绝的
+// stale/terminal command 留在业务 mutation 语义，避免把 retarget 竞态误报成
+// MCP transport failure。owner/session 等安全错误仍保持 IsError。
+func recoverableMutationRejection(err error) (sdktool.ToolResult, bool) {
+	var domainErr *orchestration.DomainError
+	if !errors.As(err, &domainErr) {
+		return sdktool.ToolResult{}, false
+	}
+	switch domainErr.Code {
+	case orchestration.ErrorCodeExecutionTerminal:
+		return mutationResult(orchestration.SupersededResult(nil, domainErr)), true
+	case orchestration.ErrorCodeStaleExecution:
+		return mutationResult(orchestration.RejectedResult(nil, domainErr, nil)), true
+	default:
+		return sdktool.ToolResult{}, false
+	}
 }
 
 func transportErrorResult(err error) sdktool.ToolResult {

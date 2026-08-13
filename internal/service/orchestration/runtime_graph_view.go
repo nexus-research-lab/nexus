@@ -1,57 +1,16 @@
-// INPUT: durable Runtime Graph 与可选 managed ExecutionView。
-// OUTPUT: planless 单智能体图，或按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet、保持每个 Tool NodeRun 独立且按结构事实分层可见性的 WorkGraph 运行层。
-// POS: Runtime NodeRun 到 icon-first Graph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
+// INPUT: durable Runtime Graph 与 managed ExecutionView。
+// OUTPUT: 按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet，并在可见性判定后限制公共 WorkGraph 主图窗口。
+// POS: Runtime NodeRun 到 managed WorkGraph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
 package orchestration
 
 import (
-	"context"
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func (s *Service) getPlanlessRuntimeGraphView(
-	ctx context.Context,
-	ownerUserID string,
-	sessionKey string,
-) (*protocol.ExecutionView, error) {
-	repository, ok := s.repository.(runtimeGraphRepository)
-	if !ok || repository == nil {
-		return nil, nil
-	}
-	graph, err := repository.GetRuntimeGraph(ctx, ownerUserID, sessionKey, "", "")
-	if err != nil || len(graph.Nodes) == 0 {
-		return nil, err
-	}
-	result := &protocol.ExecutionView{
-		ID:         graph.GraphID,
-		SessionKey: sessionKey,
-		Status:     protocol.ExecutionStatusCompleted,
-		Version:    1,
-	}
-	for index, node := range graph.Nodes {
-		if index == 0 || node.StartedAt.Before(result.CreatedAt) {
-			result.CreatedAt = node.StartedAt
-		}
-		if node.UpdatedAt.After(result.UpdatedAt) {
-			result.UpdatedAt = node.UpdatedAt
-		}
-		if node.Status == protocol.ExecutionRuntimeNodeRunning {
-			result.Status = protocol.ExecutionStatusActive
-			result.CompletedAt = nil
-			continue
-		}
-		if node.FinishedAt != nil &&
-			(result.CompletedAt == nil || node.FinishedAt.After(*result.CompletedAt)) {
-			finishedAt := node.FinishedAt.UTC()
-			result.CompletedAt = &finishedAt
-		}
-	}
-	mergeExecutionRuntimeGraph(result, graph)
-	return result, nil
-}
 
 func mergeExecutionRuntimeGraph(
 	view *protocol.ExecutionView,
@@ -60,12 +19,15 @@ func mergeExecutionRuntimeGraph(
 	if view == nil {
 		return
 	}
-	view.Graph.RuntimeNodeTotal = runtimeGraph.NodeTotal
-	view.Graph.RuntimeEdgeTotal = runtimeGraph.EdgeTotal
-	view.Graph.RuntimeNodesTruncated = runtimeGraph.NodesTruncated
-	view.Graph.RuntimeEdgesTruncated = runtimeGraph.EdgesTruncated
+	view.Graph.RuntimeNodeTotal = 0
+	view.Graph.RuntimeEdgeTotal = 0
+	view.Graph.RuntimeNodesTruncated = false
+	view.Graph.RuntimeEdgesTruncated = false
 	if len(runtimeGraph.Nodes) == 0 {
 		return
+	}
+	for index := range runtimeGraph.Nodes {
+		runtimeGraph.Nodes[index].Metadata = maps.Clone(runtimeGraph.Nodes[index].Metadata)
 	}
 	runtimeGraph.Nodes = slices.DeleteFunc(
 		slices.Clone(runtimeGraph.Nodes),
@@ -74,7 +36,7 @@ func mergeExecutionRuntimeGraph(
 	if len(runtimeGraph.Nodes) == 0 {
 		return
 	}
-	agentNodeByRound := make(map[string]string)
+	agentNodeByRound := firstAssignedWorkItemNodeByAgentRound(view.WorkItems)
 	agentNodeByWorkItem := make(map[string]string)
 	reviewNodeByWorkItem := make(map[string]string)
 	subagentNodeByTask := make(map[string]string)
@@ -91,7 +53,9 @@ func mergeExecutionRuntimeGraph(
 			reviewNodeByWorkItem[node.WorkItemID] = node.ID
 		}
 		if node.Kind == protocol.ExecutionGraphNodeAgent && node.AgentRoundID != "" {
-			agentNodeByRound[node.AgentRoundID] = node.ID
+			if agentNodeByRound[node.AgentRoundID] == "" {
+				agentNodeByRound[node.AgentRoundID] = node.ID
+			}
 		}
 		if node.Kind == protocol.ExecutionGraphNodeSubagent && node.SubjectID != "" {
 			subagentNodeByTask[node.SubjectID] = node.ID
@@ -124,6 +88,7 @@ func mergeExecutionRuntimeGraph(
 		}
 		return strings.Compare(left.ID, right.ID)
 	})
+	recoverDMSelfAssignmentRuntimeSegments(view, runtimeGraph.Nodes)
 	managedExecution := len(view.WorkItems) > 0
 	allowedAgentRound := make(map[string]struct{})
 	if managedExecution {
@@ -143,6 +108,8 @@ func mergeExecutionRuntimeGraph(
 		}
 	}
 	runtimeNodeProjection := make(map[string]string, len(runtimeGraph.Nodes))
+	runtimeProjectedNodeIDs := make(map[string]struct{}, len(runtimeGraph.Nodes))
+	runtimeProjectedEdgeIDs := make(map[string]struct{}, len(runtimeGraph.Edges))
 	promotedRuntimeNodeIDs := runtimeGraphPromotedNodeIDs(runtimeGraph)
 	runtimeSubagentLaunchNodeIDs := make(map[string]struct{})
 	for _, runtimeNode := range runtimeGraph.Nodes {
@@ -205,6 +172,7 @@ func mergeExecutionRuntimeGraph(
 		_, promoted := promotedRuntimeNodeIDs[runtimeNode.ID]
 		projected := projectRuntimeGraphNode(runtimeNode, len(view.Graph.Nodes), promoted)
 		runtimeNodeProjection[runtimeNode.ID] = projected.ID
+		runtimeProjectedNodeIDs[projected.ID] = struct{}{}
 		graphNodeByID[projected.ID] = len(view.Graph.Nodes)
 		view.Graph.Nodes = append(view.Graph.Nodes, projected)
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeAgent && runtimeNode.AgentRoundID != "" {
@@ -246,10 +214,24 @@ func mergeExecutionRuntimeGraph(
 	for _, runtimeEdge := range runtimeGraph.Edges {
 		sourceID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.SourceNodeID], runtimeEdge.SourceNodeID)
 		targetID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.TargetNodeID], runtimeEdge.TargetNodeID)
+		if runtimeEdge.Kind == protocol.ExecutionRuntimeEdgeLoopBack {
+			sourceRuntimeNode := runtimeNodeByID[runtimeEdge.SourceNodeID]
+			workItemID := runtimeExecutionSegmentWorkItemID(sourceRuntimeNode)
+			if segmentOwnerID := agentNodeByWorkItem[workItemID]; segmentOwnerID != "" {
+				targetID = segmentOwnerID
+			}
+		}
 		if runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeLoopBack &&
 			runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeRetry {
 			targetRuntimeNode := runtimeNodeByID[runtimeEdge.TargetNodeID]
-			if exactParentID := parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)]; exactParentID != "" && exactParentID != targetID {
+			segmentOwnerID := ""
+			if workItemID := runtimeExecutionSegmentWorkItemID(targetRuntimeNode); workItemID != "" {
+				if segmentOwnerID = agentNodeByWorkItem[workItemID]; segmentOwnerID != "" && segmentOwnerID != targetID {
+					sourceID = segmentOwnerID
+				}
+			}
+			if exactParentID := parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)]; exactParentID != "" && exactParentID != targetID &&
+				(segmentOwnerID == "" || exactParentID != agentNodeByRound[targetRuntimeNode.AgentRoundID]) {
 				sourceID = exactParentID
 			}
 		}
@@ -288,6 +270,7 @@ func mergeExecutionRuntimeGraph(
 		}
 		createdAt := runtimeEdge.CreatedAt.UTC()
 		existingEdges[key] = struct{}{}
+		runtimeProjectedEdgeIDs[runtimeEdge.ID] = struct{}{}
 		view.Graph.Edges = append(view.Graph.Edges, protocol.ExecutionGraphEdgeView{
 			ID:              runtimeEdge.ID,
 			Kind:            kind,
@@ -313,6 +296,12 @@ func mergeExecutionRuntimeGraph(
 			continue
 		}
 		sourceID := parentNodeBySubject[strings.TrimSpace(runtimeNode.ParentSubjectID)]
+		if workItemID := runtimeExecutionSegmentWorkItemID(runtimeNode); workItemID != "" {
+			segmentOwnerID := agentNodeByWorkItem[workItemID]
+			if segmentOwnerID != "" && (sourceID == "" || sourceID == agentNodeByRound[runtimeNode.AgentRoundID]) {
+				sourceID = segmentOwnerID
+			}
+		}
 		if sourceID == "" {
 			sourceID = agentNodeByRound[runtimeNode.AgentRoundID]
 		}
@@ -327,8 +316,10 @@ func mergeExecutionRuntimeGraph(
 		key := executionGraphEdgeKey(kind, sourceID, targetID)
 		if _, duplicate := existingEdges[key]; !duplicate {
 			existingEdges[key] = struct{}{}
+			derivedEdgeID := "derived:" + string(kind) + ":" + sourceID + ":" + targetID
+			runtimeProjectedEdgeIDs[derivedEdgeID] = struct{}{}
 			view.Graph.Edges = append(view.Graph.Edges, protocol.ExecutionGraphEdgeView{
-				ID:           "derived:" + string(kind) + ":" + sourceID + ":" + targetID,
+				ID:           derivedEdgeID,
 				Kind:         kind,
 				SourceNodeID: sourceID,
 				TargetNodeID: targetID,
@@ -343,6 +334,372 @@ func mergeExecutionRuntimeGraph(
 		existingEdges,
 		coordinatorNodeIDs,
 	)
+	applyExecutionRuntimeProjectionWindow(
+		view,
+		runtimeProjectedNodeIDs,
+		runtimeProjectedEdgeIDs,
+	)
+}
+
+// firstAssignedWorkItemNodeByAgentRound resolves the outer physical round to
+// the first durable root Attempt created in that round. This is only the
+// fallback owner for pre-assignment coordination tools; exact execution
+// segment metadata still wins for every tool after assign_work.
+type runtimeRoundOwnerCandidate struct {
+	workItemID string
+	createdAt  time.Time
+	position   int
+}
+
+func firstAssignedWorkItemNodeByAgentRound(
+	items []protocol.ExecutionWorkItemView,
+) map[string]string {
+	candidates := make(map[string]runtimeRoundOwnerCandidate)
+	for _, item := range items {
+		for _, attempt := range item.Attempts {
+			roundID := strings.TrimSpace(attempt.AgentRoundID)
+			if strings.TrimSpace(attempt.ParentAttemptID) != "" || roundID == "" {
+				continue
+			}
+			incoming := runtimeRoundOwnerCandidate{
+				workItemID: item.ID,
+				createdAt:  attempt.CreatedAt,
+				position:   item.Position,
+			}
+			current, exists := candidates[roundID]
+			if !exists || runtimeRoundOwnerCandidateEarlier(incoming, current) {
+				candidates[roundID] = incoming
+			}
+		}
+	}
+	result := make(map[string]string, len(candidates))
+	for roundID, candidate := range candidates {
+		result[roundID] = candidate.workItemID
+	}
+	return result
+}
+
+func runtimeRoundOwnerCandidateEarlier(
+	left runtimeRoundOwnerCandidate,
+	right runtimeRoundOwnerCandidate,
+) bool {
+	switch {
+	case left.createdAt.IsZero() != right.createdAt.IsZero():
+		return !left.createdAt.IsZero()
+	case !left.createdAt.IsZero() && !left.createdAt.Equal(right.createdAt):
+		return left.createdAt.Before(right.createdAt)
+	case left.position != right.position:
+		return left.position < right.position
+	default:
+		return strings.Compare(left.workItemID, right.workItemID) < 0
+	}
+}
+
+const executionRuntimeGraphDetailProjectionLimit = 256
+
+// applyExecutionRuntimeProjectionWindow 在 visibility 已经确定之后限制公共 WorkGraph。
+// detail 历史使用独立窗口，既不占主图节点配额，也不参与 partial / total 语义。
+func applyExecutionRuntimeProjectionWindow(
+	view *protocol.ExecutionView,
+	runtimeProjectedNodeIDs map[string]struct{},
+	runtimeProjectedEdgeIDs map[string]struct{},
+) {
+	if view == nil {
+		return
+	}
+	nodeByID := make(map[string]protocol.ExecutionGraphNodeView, len(view.Graph.Nodes))
+	canvasRuntimeNodeIDs := make([]string, 0, len(runtimeProjectedNodeIDs))
+	detailRuntimeNodeIDs := make([]string, 0, len(runtimeProjectedNodeIDs))
+	for _, node := range view.Graph.Nodes {
+		nodeByID[node.ID] = node
+		if _, runtimeProjected := runtimeProjectedNodeIDs[node.ID]; !runtimeProjected {
+			continue
+		}
+		if node.Visibility == protocol.ExecutionGraphNodeDetail {
+			detailRuntimeNodeIDs = append(detailRuntimeNodeIDs, node.ID)
+			continue
+		}
+		canvasRuntimeNodeIDs = append(canvasRuntimeNodeIDs, node.ID)
+	}
+	view.Graph.RuntimeNodeTotal = len(canvasRuntimeNodeIDs)
+	view.Graph.RuntimeNodesTruncated = len(canvasRuntimeNodeIDs) > protocol.ExecutionRuntimeGraphNodeProjectionLimit
+
+	keepCanvasNodeIDs := make(map[string]struct{}, min(
+		len(canvasRuntimeNodeIDs),
+		protocol.ExecutionRuntimeGraphNodeProjectionLimit,
+	))
+	if !view.Graph.RuntimeNodesTruncated {
+		for _, nodeID := range canvasRuntimeNodeIDs {
+			keepCanvasNodeIDs[nodeID] = struct{}{}
+		}
+	} else {
+		requiredNodeIDs := make([]string, 0)
+		for _, edge := range view.Graph.Edges {
+			if _, runtimeEdge := runtimeProjectedEdgeIDs[edge.ID]; runtimeEdge {
+				continue
+			}
+			if node, exists := nodeByID[edge.SourceNodeID]; exists &&
+				node.Visibility != protocol.ExecutionGraphNodeDetail {
+				if _, runtimeNode := runtimeProjectedNodeIDs[node.ID]; runtimeNode {
+					requiredNodeIDs = append(requiredNodeIDs, node.ID)
+				}
+			}
+			if node, exists := nodeByID[edge.TargetNodeID]; exists &&
+				node.Visibility != protocol.ExecutionGraphNodeDetail {
+				if _, runtimeNode := runtimeProjectedNodeIDs[node.ID]; runtimeNode {
+					requiredNodeIDs = append(requiredNodeIDs, node.ID)
+				}
+			}
+		}
+		selectExecutionRuntimeProjectionNodes(
+			requiredNodeIDs,
+			nodeByID,
+			runtimeProjectedNodeIDs,
+			keepCanvasNodeIDs,
+			protocol.ExecutionRuntimeGraphNodeProjectionLimit,
+		)
+		slices.SortFunc(canvasRuntimeNodeIDs, func(leftID, rightID string) int {
+			return compareExecutionGraphProjectionRecency(nodeByID[leftID], nodeByID[rightID])
+		})
+		selectExecutionRuntimeProjectionNodes(
+			canvasRuntimeNodeIDs,
+			nodeByID,
+			runtimeProjectedNodeIDs,
+			keepCanvasNodeIDs,
+			protocol.ExecutionRuntimeGraphNodeProjectionLimit,
+		)
+	}
+
+	keepNodeIDs := make(map[string]struct{}, len(view.Graph.Nodes))
+	for _, node := range view.Graph.Nodes {
+		if _, runtimeProjected := runtimeProjectedNodeIDs[node.ID]; !runtimeProjected {
+			keepNodeIDs[node.ID] = struct{}{}
+		}
+	}
+	for nodeID := range keepCanvasNodeIDs {
+		keepNodeIDs[nodeID] = struct{}{}
+	}
+	slices.SortFunc(detailRuntimeNodeIDs, func(leftID, rightID string) int {
+		return compareExecutionGraphProjectionRecency(nodeByID[leftID], nodeByID[rightID])
+	})
+	selectExecutionRuntimeDetailNodes(
+		detailRuntimeNodeIDs,
+		nodeByID,
+		runtimeProjectedNodeIDs,
+		keepNodeIDs,
+		executionRuntimeGraphDetailProjectionLimit,
+	)
+	allCanvasNodeIDs := make(map[string]struct{}, len(nodeByID))
+	for nodeID, node := range nodeByID {
+		if node.Visibility != protocol.ExecutionGraphNodeDetail {
+			allCanvasNodeIDs[nodeID] = struct{}{}
+		}
+	}
+	for _, edge := range view.Graph.Edges {
+		if _, runtimeProjected := runtimeProjectedEdgeIDs[edge.ID]; !runtimeProjected {
+			continue
+		}
+		_, sourceVisible := allCanvasNodeIDs[edge.SourceNodeID]
+		_, targetVisible := allCanvasNodeIDs[edge.TargetNodeID]
+		if sourceVisible && targetVisible {
+			view.Graph.RuntimeEdgeTotal++
+		}
+	}
+	view.Graph.RuntimeEdgesTruncated = view.Graph.RuntimeEdgeTotal > protocol.ExecutionRuntimeGraphEdgeProjectionLimit
+	view.Graph.Nodes = slices.DeleteFunc(view.Graph.Nodes, func(node protocol.ExecutionGraphNodeView) bool {
+		_, keep := keepNodeIDs[node.ID]
+		return !keep
+	})
+
+	visibleNodeIDs := make(map[string]struct{}, len(view.Graph.Nodes))
+	canvasNodeIDs := make(map[string]struct{}, len(view.Graph.Nodes))
+	for _, node := range view.Graph.Nodes {
+		visibleNodeIDs[node.ID] = struct{}{}
+		if node.Visibility != protocol.ExecutionGraphNodeDetail {
+			canvasNodeIDs[node.ID] = struct{}{}
+		}
+	}
+	view.Graph.Edges = slices.DeleteFunc(view.Graph.Edges, func(edge protocol.ExecutionGraphEdgeView) bool {
+		_, sourceExists := visibleNodeIDs[edge.SourceNodeID]
+		_, targetExists := visibleNodeIDs[edge.TargetNodeID]
+		return !sourceExists || !targetExists
+	})
+	if !view.Graph.RuntimeEdgesTruncated {
+		return
+	}
+	keepRuntimeEdgeIDs := selectExecutionRuntimeProjectionEdges(
+		view.Graph.Edges,
+		runtimeProjectedEdgeIDs,
+		canvasNodeIDs,
+		protocol.ExecutionRuntimeGraphEdgeProjectionLimit,
+	)
+	view.Graph.Edges = slices.DeleteFunc(view.Graph.Edges, func(edge protocol.ExecutionGraphEdgeView) bool {
+		if _, runtimeProjected := runtimeProjectedEdgeIDs[edge.ID]; !runtimeProjected {
+			return false
+		}
+		if _, sourceVisible := canvasNodeIDs[edge.SourceNodeID]; !sourceVisible {
+			return false
+		}
+		if _, targetVisible := canvasNodeIDs[edge.TargetNodeID]; !targetVisible {
+			return false
+		}
+		_, keep := keepRuntimeEdgeIDs[edge.ID]
+		return !keep
+	})
+}
+
+func selectExecutionRuntimeProjectionNodes(
+	candidateNodeIDs []string,
+	nodeByID map[string]protocol.ExecutionGraphNodeView,
+	runtimeProjectedNodeIDs map[string]struct{},
+	keepNodeIDs map[string]struct{},
+	limit int,
+) {
+	for _, candidateID := range candidateNodeIDs {
+		if len(keepNodeIDs) >= limit {
+			return
+		}
+		chain := make([]string, 0, 4)
+		seen := make(map[string]struct{})
+		for currentID := candidateID; currentID != ""; {
+			if _, duplicate := seen[currentID]; duplicate {
+				chain = nil
+				break
+			}
+			seen[currentID] = struct{}{}
+			node, exists := nodeByID[currentID]
+			if !exists || node.Visibility == protocol.ExecutionGraphNodeDetail {
+				break
+			}
+			if _, runtimeProjected := runtimeProjectedNodeIDs[currentID]; !runtimeProjected {
+				break
+			}
+			if _, alreadyKept := keepNodeIDs[currentID]; !alreadyKept {
+				chain = append(chain, currentID)
+			}
+			currentID = node.ParentNodeID
+		}
+		for index := len(chain) - 1; index >= 0 && len(keepNodeIDs) < limit; index-- {
+			keepNodeIDs[chain[index]] = struct{}{}
+		}
+	}
+}
+
+func selectExecutionRuntimeDetailNodes(
+	candidateNodeIDs []string,
+	nodeByID map[string]protocol.ExecutionGraphNodeView,
+	runtimeProjectedNodeIDs map[string]struct{},
+	keepNodeIDs map[string]struct{},
+	limit int,
+) {
+	keptDetailCount := 0
+	for _, candidateID := range candidateNodeIDs {
+		if keptDetailCount >= limit {
+			return
+		}
+		chain := make([]string, 0, 3)
+		seen := make(map[string]struct{})
+		connected := false
+		for currentID := candidateID; currentID != ""; {
+			if _, duplicate := seen[currentID]; duplicate {
+				chain = nil
+				break
+			}
+			seen[currentID] = struct{}{}
+			if _, alreadyKept := keepNodeIDs[currentID]; alreadyKept {
+				connected = true
+				break
+			}
+			node, exists := nodeByID[currentID]
+			if !exists || node.Visibility != protocol.ExecutionGraphNodeDetail {
+				break
+			}
+			if _, runtimeProjected := runtimeProjectedNodeIDs[currentID]; !runtimeProjected {
+				break
+			}
+			chain = append(chain, currentID)
+			currentID = node.ParentNodeID
+		}
+		if !connected || keptDetailCount+len(chain) > limit {
+			continue
+		}
+		for index := len(chain) - 1; index >= 0; index-- {
+			keepNodeIDs[chain[index]] = struct{}{}
+			keptDetailCount++
+		}
+	}
+}
+
+func selectExecutionRuntimeProjectionEdges(
+	edges []protocol.ExecutionGraphEdgeView,
+	runtimeProjectedEdgeIDs map[string]struct{},
+	canvasNodeIDs map[string]struct{},
+	limit int,
+) map[string]struct{} {
+	candidates := make([]protocol.ExecutionGraphEdgeView, 0, len(runtimeProjectedEdgeIDs))
+	for _, edge := range edges {
+		if _, runtimeProjected := runtimeProjectedEdgeIDs[edge.ID]; !runtimeProjected {
+			continue
+		}
+		_, sourceVisible := canvasNodeIDs[edge.SourceNodeID]
+		_, targetVisible := canvasNodeIDs[edge.TargetNodeID]
+		if sourceVisible && targetVisible {
+			candidates = append(candidates, edge)
+		}
+	}
+	slices.SortFunc(candidates, func(left, right protocol.ExecutionGraphEdgeView) int {
+		leftControl := left.Kind == protocol.ExecutionGraphEdgeLoopBack || left.Kind == protocol.ExecutionGraphEdgeRetry
+		rightControl := right.Kind == protocol.ExecutionGraphEdgeLoopBack || right.Kind == protocol.ExecutionGraphEdgeRetry
+		if leftControl != rightControl {
+			if leftControl {
+				return 1
+			}
+			return -1
+		}
+		if left.CreatedAt != nil && right.CreatedAt != nil && !left.CreatedAt.Equal(*right.CreatedAt) {
+			if left.CreatedAt.After(*right.CreatedAt) {
+				return -1
+			}
+			return 1
+		}
+		if left.CreatedAt != nil && right.CreatedAt == nil {
+			return -1
+		}
+		if left.CreatedAt == nil && right.CreatedAt != nil {
+			return 1
+		}
+		return strings.Compare(left.ID, right.ID)
+	})
+	keep := make(map[string]struct{}, min(len(candidates), limit))
+	for index, edge := range candidates {
+		if index >= limit {
+			break
+		}
+		keep[edge.ID] = struct{}{}
+	}
+	return keep
+}
+
+func compareExecutionGraphProjectionRecency(
+	left protocol.ExecutionGraphNodeView,
+	right protocol.ExecutionGraphNodeView,
+) int {
+	if left.StartedAt != nil && right.StartedAt != nil && !left.StartedAt.Equal(*right.StartedAt) {
+		if left.StartedAt.After(*right.StartedAt) {
+			return -1
+		}
+		return 1
+	}
+	if left.StartedAt != nil && right.StartedAt == nil {
+		return -1
+	}
+	if left.StartedAt == nil && right.StartedAt != nil {
+		return 1
+	}
+	if left.Position != right.Position {
+		return right.Position - left.Position
+	}
+	return strings.Compare(left.ID, right.ID)
 }
 
 // Review 的因果起点是成功 submit_work，而不是承载整轮工作的 Agent 头像。
@@ -619,6 +976,7 @@ func projectRuntimeGraphNode(
 		ID:               item.ID,
 		Kind:             kind,
 		Visibility:       visibility,
+		WorkItemID:       runtimeExecutionSegmentWorkItemID(item),
 		AgentID:          item.AgentID,
 		AgentRoundID:     item.AgentRoundID,
 		SubjectID:        item.SubjectID,

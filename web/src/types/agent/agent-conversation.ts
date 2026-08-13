@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff/精确停止易失锚点与历史窗口解析状态
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、独立 set_goal 控制参数、Room execution/handoff/精确停止易失锚点、execution invalidation payload 与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -101,7 +101,11 @@ export interface UseAgentConversationReturn {
   send_message: (
     content: string,
     options?: AgentConversationSendOptions,
-	  ) => Promise<void>;
+  ) => Promise<void>;
+  set_goal: (
+    objective: string,
+    options?: AgentConversationGoalOptions,
+  ) => Promise<void>;
   rewrite_last_user_message: (
     targetRoundId: string,
     content: string,
@@ -179,6 +183,14 @@ export interface AgentConversationSendOptions {
   target_agent_ids?: string[];
 }
 
+export interface AgentConversationGoalOptions {
+  metadata?: Record<string, unknown>;
+  replace_existing?: boolean;
+  /** Room Goal 的负责人候选；服务端仍会按当前 Room membership 重新验证。 */
+  target_agent_ids?: string[];
+  token_budget?: number | null;
+}
+
 export interface ConversationSnapshot {
   session_key: string;
   message_count: number;
@@ -190,6 +202,8 @@ export interface RoomEventPayload {
   room_id?: string;
   conversation_id?: string;
   agent_id?: string;
+  execution_id?: string;
+  version?: number;
   paused?: boolean;
   agent_name?: string;
   message_id?: string;

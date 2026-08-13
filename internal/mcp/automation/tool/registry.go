@@ -39,7 +39,7 @@ func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool 
 
 func isTrustedInteractiveSource(sctx contract.ServerContext) bool {
 	switch strings.TrimSpace(sctx.SourceContextType) {
-	case "agent", "room":
+	case "agent", "agent_paired", "room":
 		return true
 	default:
 		return false

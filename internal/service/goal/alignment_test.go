@@ -24,6 +24,10 @@ func TestManagedGoalCompletionRequiresCurrentRoundAlignedAudit(t *testing.T) {
 		SessionKey: "agent:nexus:ws:dm:alignment",
 		Objective:  "Ship a verified report",
 		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-alignment",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
 			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
 			protocol.GoalMetadataCompletionCriteria: []string{
 				"report delivered",
@@ -138,6 +142,10 @@ func TestManagedGoalCompletionRejectsNonAlignedOrStaleAudit(t *testing.T) {
 					SessionKey: "agent:nexus:ws:dm:" + strings.ReplaceAll(test.name, " ", "-"),
 					Objective:  "Ship report",
 					Metadata: map[string]any{
+						protocol.GoalMetadataExecutionID: "execution-" + strings.ReplaceAll(test.name, " ", "-"),
+						protocol.GoalMetadataExecutionBindingState: string(
+							protocol.GoalExecutionBindingStateConfirmed,
+						),
 						protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginAdaptiveInitial),
 						protocol.GoalMetadataCompletionCriteria: []string{
 							"report accepted",
@@ -208,6 +216,10 @@ func TestManagedGoalCompletionToolMissCannotBypassObjectiveAlignment(t *testing.
 		SessionKey: "agent:nexus:ws:dm:alignment-miss",
 		Objective:  "Ship a verified report",
 		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-alignment-miss",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
 			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
 			protocol.GoalMetadataCompletionCriteria: []string{
 				"report verified",
@@ -264,6 +276,10 @@ func TestManagedGoalCompletionToolMissCanUseSameRoundAlignedAudit(t *testing.T) 
 		SessionKey: "agent:nexus:ws:dm:aligned-miss",
 		Objective:  "Ship a verified report",
 		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-aligned-miss",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
 			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
 			protocol.GoalMetadataCompletionCriteria: []string{
 				"report verified",

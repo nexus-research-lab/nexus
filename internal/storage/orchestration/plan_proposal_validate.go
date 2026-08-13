@@ -511,6 +511,17 @@ func validateProposalOutputScopes(items []protocol.ExecutionPlanProposalItem) er
 		logicalKey string
 		scope      protocol.WorkOutputScope
 	}
+	hardDependencies := make(map[string][]string, len(items))
+	for _, item := range items {
+		for _, dependency := range item.DependsOn {
+			if dependency.Kind == protocol.WorkDependencyHard {
+				hardDependencies[item.LogicalKey] = append(
+					hardDependencies[item.LogicalKey],
+					dependency.LogicalKey,
+				)
+			}
+		}
+	}
 	claims := make([]claim, 0)
 	for _, item := range items {
 		seen := make(map[string]struct{}, len(item.OutputScopes))
@@ -524,7 +535,13 @@ func validateProposalOutputScopes(items []protocol.ExecutionPlanProposalItem) er
 			}
 			seen[key] = struct{}{}
 			for _, existing := range claims {
-				conflict, conflictErr := protocol.WorkOutputScopesConflict(scope, existing.scope)
+				conflict, conflictErr := protocol.WorkOutputClaimsConflict(
+					item.LogicalKey,
+					scope,
+					existing.logicalKey,
+					existing.scope,
+					hardDependencies,
+				)
 				if conflictErr != nil {
 					return proposalItemError(item.LogicalKey, conflictErr)
 				}

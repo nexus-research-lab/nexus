@@ -8,17 +8,22 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	"github.com/nexus-research-lab/nexus/internal/service/llm"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 const (
-	rewriteRequestTimeout = 30 * time.Second
-	rewriteAttemptTimeout = 15 * time.Second
-	rewriteMaxTokens      = 512
-	rewriteMaxRunes       = 4000
-	rewriteSystemPrompt   = `你是 Goal 目标整理器。
+	// Objective normalization is best effort and runs before the durable Goal ACK.
+	// Reserve two seconds for Goal/control-record persistence and socket delivery so
+	// a slow background model cannot violate the shared request ACK contract.
+	rewriteAckSafetyMargin = 2 * time.Second
+	rewriteRequestTimeout  = time.Duration(protocol.RequestAckTimeoutMS)*time.Millisecond - rewriteAckSafetyMargin
+	rewriteAttemptTimeout  = rewriteRequestTimeout
+	rewriteMaxTokens       = 512
+	rewriteMaxRunes        = 4000
+	rewriteSystemPrompt    = `你是 Goal 目标整理器。
 把用户提供的目标草稿改写为一个适合当前会话长程执行的 Goal objective。
 要求：
 1. 保留用户真实意图、最终状态、范围限制、验收条件、命名文件/分支/仓库/问题编号、交付物和重要上下文。

@@ -1,6 +1,6 @@
 /**
  * INPUT: 会话 session_key。
- * OUTPUT: 当前或最近一次 managed Execution WorkGraph；从未创建时可返回 planless 诊断投影。
+ * OUTPUT: 当前或最近一次 managed Execution WorkGraph；从未创建时返回 null。
  * POS: Execution 只读 HTTP 协议的 Web 客户端。
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";

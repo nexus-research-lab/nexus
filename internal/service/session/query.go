@@ -1,11 +1,28 @@
+// INPUT: owner-scoped workspace、SQL Room Session 与结构化 Session key 查询。
+// OUTPUT: 面向列表、配置校验和首次投递物化的统一 Session 视图。
+// POS: Session 目录读模型；数据库或 workspace 的持久化位置不构成产品可见性边界。
 package session
 
 import (
 	"context"
+	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// ResolveDeliverySession 以统一 Session 目录解析真实投递目标。不存在时返回
+// nil，使 Automation 配置校验与 channels 物化共用同一语义。
+func (s *Service) ResolveDeliverySession(
+	ctx context.Context,
+	rawSessionKey string,
+) (*protocol.Session, error) {
+	item, err := s.GetSession(ctx, rawSessionKey)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil, nil
+	}
+	return item, err
+}
 
 // ListSessions 列出全部会话视图。
 func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) {
@@ -18,12 +35,16 @@ func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) 
 		return nil, err
 	}
 	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
-	return mergeSessions(fileSessions, roomSessions), nil
+	return s.projectExternalSessionIdentities(ctx, mergeSessions(fileSessions, roomSessions))
 }
 
 // ListMutableSessions 只列出 owner workspace 中由 Session 域管理的 Agent 会话。
 func (s *Service) ListMutableSessions(ctx context.Context) ([]protocol.Session, error) {
-	return s.listMutableWorkspaceSessions(ctx)
+	items, err := s.listMutableWorkspaceSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.projectExternalSessionIdentities(ctx, items)
 }
 
 // ListAgentSessions 列出指定 Agent 的全部会话。
@@ -50,7 +71,7 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		if reconcileErr != nil {
 			return nil, reconcileErr
 		}
-		if shouldHideWorkspaceSession(reconciled) {
+		if protocol.IsRoomSharedSessionKey(reconciled.SessionKey) {
 			continue
 		}
 		filteredFileSessions = append(filteredFileSessions, reconciled)
@@ -61,7 +82,10 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		return nil, err
 	}
 	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
-	return mergeSessions(filteredFileSessions, roomSessions), nil
+	return s.projectExternalSessionIdentities(
+		ctx,
+		mergeSessions(filteredFileSessions, roomSessions),
+	)
 }
 
 // GetSession 读取指定 session。
@@ -79,8 +103,26 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 		return nil, err
 	}
 	if roomSession != nil {
-		normalized := s.applyRuntimeStateToSession(*roomSession)
-		return &normalized, nil
+		workspacePaths, resolveErr := s.resolveWorkspacePaths(ctx, parsed.AgentID)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		workspacePath := resolveHistoryWorkspacePath(workspacePaths, parsed)
+		hydrated, hydrateErr := s.hydrateRoomHistorySession(
+			ctx,
+			workspacePath,
+			sessionKey,
+			*roomSession,
+		)
+		if hydrateErr != nil {
+			return nil, hydrateErr
+		}
+		normalized := s.applyRuntimeStateToSession(*hydrated)
+		projected, projectErr := s.projectExternalSessionIdentity(ctx, normalized)
+		if projectErr != nil {
+			return nil, projectErr
+		}
+		return &projected, nil
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
@@ -102,7 +144,11 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 	if err != nil {
 		return nil, err
 	}
-	return &normalized, nil
+	projected, err := s.projectExternalSessionIdentity(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	return &projected, nil
 }
 
 // GetMutableSession 读取 Session 域可变的 Agent workspace 会话。
@@ -118,5 +164,9 @@ func (s *Service) GetMutableSession(
 		return nil, ErrSessionNotFound
 	}
 	normalized := s.applyRuntimeStateToSession(*item)
-	return &normalized, nil
+	projected, err := s.projectExternalSessionIdentity(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	return &projected, nil
 }

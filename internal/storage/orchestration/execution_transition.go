@@ -83,6 +83,9 @@ func (r *Repository) CreateWithPlan(
 	if err = r.insertExecutionRow(ctx, tx, execution, criteriaJSON, metadataJSON); err != nil {
 		return nil, err
 	}
+	if err = r.ensureGoalConfirmationReceiptTx(ctx, tx, execution); err != nil {
+		return nil, err
+	}
 	if err = r.persistInitialPlan(ctx, tx, plan, workItems, dependencies); err != nil {
 		return nil, err
 	}
@@ -212,6 +215,9 @@ WHERE execution_id = `+r.bind(2)+`
 		return nil, err
 	}
 	if err = r.insertExecutionRow(ctx, tx, successor, criteriaJSON, metadataJSON); err != nil {
+		return nil, err
+	}
+	if err = r.ensureGoalConfirmationReceiptTx(ctx, tx, successor); err != nil {
 		return nil, err
 	}
 	if err = r.persistInitialPlan(ctx, tx, plan, workItems, dependencies); err != nil {

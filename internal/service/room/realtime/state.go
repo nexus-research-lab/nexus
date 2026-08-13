@@ -33,6 +33,8 @@ type roomSlotRuntimeState struct {
 	errorMessage     string
 	done             chan struct{}
 	doneOnce         sync.Once
+	workBindingOnce  sync.Once
+	workBindingState *runtimectx.WorkBindingState
 }
 
 type roomGoalAuthoritySource string
@@ -59,33 +61,71 @@ type roomGoalMutationAuthority struct {
 func (a roomGoalMutationAuthority) valid() bool {
 	return strings.TrimSpace(a.SessionKey) != "" &&
 		strings.TrimSpace(a.GoalID) != "" &&
-		strings.TrimSpace(a.ExecutionID) != "" &&
 		a.ObjectiveRevision > 0 &&
 		a.Source != ""
 }
 
+func goalCollaborationBindingFromAuthority(
+	authority roomGoalMutationAuthority,
+) *protocol.GoalCollaborationBinding {
+	if !authority.valid() {
+		return nil
+	}
+	return &protocol.GoalCollaborationBinding{
+		GoalID:            authority.GoalID,
+		ObjectiveRevision: authority.ObjectiveRevision,
+	}
+}
+
+func goalCollaborationBindingForSlot(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+) *protocol.GoalCollaborationBinding {
+	if slot == nil {
+		return nil
+	}
+	if binding := goalCollaborationBindingFromAuthority(slot.goalMutationAuthority()); binding != nil {
+		return binding
+	}
+	return slot.goalCollaborationBinding()
+}
+
+func cloneGoalCollaborationBinding(
+	binding *protocol.GoalCollaborationBinding,
+) *protocol.GoalCollaborationBinding {
+	return protocol.NormalizeGoalCollaborationBinding(binding)
+}
+
 // roomSlotGoalState 负责 Goal accounting、固定 revision mutation capability 与协作进度。
 type roomSlotGoalState struct {
-	mu                   sync.RWMutex
-	sessionKey           string
-	context              string
-	idForUsage           string
-	childIDForUsage      string
-	mutationAuthority    roomGoalMutationAuthority
-	objectiveRevision    atomic.Int64
-	runtimeIgnored       bool
-	usage                *goalsvc.RuntimeUsageAccumulator
-	usageStartedAt       time.Time
-	lastAssistant        protocol.Message
-	toolProgress         bool
-	subagentTasks        map[string]struct{}
-	subagentUsagePending map[string]roomSubagentUsageObservation
-	usageRetrying        bool
-	subagentHistory      bool
-	usageClaimPending    bool
-	usageScopeConsumed   bool
-	terminalSettled      bool
-	resultUsageWritten   bool
+	mu                      sync.RWMutex
+	sessionKey              string
+	context                 string
+	idForUsage              string
+	childIDForUsage         string
+	collaborationBinding    *protocol.GoalCollaborationBinding
+	mutationAuthority       roomGoalMutationAuthority
+	authorityOnce           sync.Once
+	authorityState          *runtimectx.GoalAuthorityState
+	objectiveRevision       atomic.Int64
+	runtimeIgnored          bool
+	usage                   *goalsvc.RuntimeUsageAccumulator
+	usageStartedAt          time.Time
+	lastAssistant           protocol.Message
+	completionCandidateID   string
+	completionAssistant     protocol.Message
+	completionReceipt       protocol.GoalCompletionReceipt
+	completionReceiptStored bool
+	toolProgress            bool
+	pendingCollaboration    bool
+	subagentTasks           map[string]struct{}
+	subagentUsagePending    map[string]roomSubagentUsageObservation
+	usageRetrying           bool
+	subagentHistory         bool
+	usageClaimPending       bool
+	usageScopeConsumed      bool
+	terminalSettled         bool
+	resultUsageWritten      bool
 }
 
 // roomSubagentUsageObservation 是尚未确认持久化的 child checkpoint + lifecycle
@@ -156,6 +196,26 @@ type activeRoomSlot struct {
 	mutable               roomSlotMutableState
 }
 
+func (s *activeRoomSlot) ensureWorkBindingState() *runtimectx.WorkBindingState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.workBindingOnce.Do(func() {
+		runtimeState.workBindingState = runtimectx.NewWorkBindingState(s.WorkBinding)
+	})
+	return runtimeState.workBindingState
+}
+
+func (s *activeRoomSlot) currentWorkBinding() *protocol.ExecutionWorkBinding {
+	state := s.ensureWorkBindingState()
+	if state == nil {
+		return nil
+	}
+	binding, _ := state.Load()
+	return binding
+}
+
 func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int64 {
 	if s == nil {
 		return nil
@@ -168,6 +228,21 @@ func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int6
 		}
 	}
 	return state
+}
+
+func (s *activeRoomSlot) ensureGoalAuthorityState() *runtimectx.GoalAuthorityState {
+	if s == nil {
+		return nil
+	}
+	goalState := &s.mutable.goal
+	goalState.authorityOnce.Do(func() {
+		goalState.authorityState = runtimectx.NewGoalAuthorityStateWithRevision(
+			"",
+			"",
+			&goalState.objectiveRevision,
+		)
+	})
+	return goalState.authorityState
 }
 
 func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
@@ -217,6 +292,8 @@ type activeRoomRound struct {
 	Cancel                      context.CancelFunc
 	PermissionMode              sdkpermission.Mode
 	PermissionHandler           sdkpermission.Handler
+	RuntimeToolPolicy           *protocol.RuntimeToolPolicy
+	AutomationRun               *protocol.AutomationRunContext
 	EventObserver               RoomEventObserver
 	GoalContext                 string
 	GoalID                      string
@@ -232,16 +309,17 @@ type activeRoomRound struct {
 type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
-	HandoffID     string
-	TriggerType   string
-	QueueSource   protocol.InputQueueSource
-	SourceAgentID string
-	TargetAgentID string
-	Content       string
-	MessageID     string
-	ReplyRoute    protocol.RoomReplyRoute
-	WorkBinding   *protocol.ExecutionWorkBinding
-	ReviewBinding *protocol.ExecutionReviewBinding
+	HandoffID                string
+	TriggerType              string
+	QueueSource              protocol.InputQueueSource
+	SourceAgentID            string
+	TargetAgentID            string
+	Content                  string
+	MessageID                string
+	ReplyRoute               protocol.RoomReplyRoute
+	GoalCollaborationBinding *protocol.GoalCollaborationBinding
+	WorkBinding              *protocol.ExecutionWorkBinding
+	ReviewBinding            *protocol.ExecutionReviewBinding
 }
 
 type roomQueuedInput struct {
@@ -690,6 +768,9 @@ func (slot *activeRoomSlot) clearGoalUsage() {
 	slot.mutable.goal.mutationAuthority = roomGoalMutationAuthority{}
 	slot.mutable.goal.usageClaimPending = false
 	slot.mutable.goal.terminalSettled = false
+	if authority := slot.ensureGoalAuthorityState(); authority != nil {
+		authority.Clear()
+	}
 	slot.mutable.goal.mu.Unlock()
 }
 
@@ -954,6 +1035,58 @@ func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
 	return protocol.Clone(slot.mutable.goal.lastAssistant)
 }
 
+func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
+	if slot == nil || strings.TrimSpace(goalID) == "" {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.completionCandidateID = strings.TrimSpace(goalID)
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) rememberGoalCompletionAssistant(message protocol.Message) {
+	if slot == nil || protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	if slot.mutable.goal.completionCandidateID != "" {
+		slot.mutable.goal.completionAssistant = protocol.Clone(message)
+	}
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) goalCompletionReceiptSnapshot() (
+	string,
+	protocol.Message,
+	protocol.GoalCompletionReceipt,
+	bool,
+) {
+	if slot == nil {
+		return "", nil, protocol.GoalCompletionReceipt{}, false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return strings.TrimSpace(slot.mutable.goal.completionCandidateID),
+		protocol.Clone(slot.mutable.goal.completionAssistant),
+		slot.mutable.goal.completionReceipt,
+		slot.mutable.goal.completionReceiptStored
+}
+
+func (slot *activeRoomSlot) markGoalCompletionReceiptStored(
+	goalID string,
+	receipt protocol.GoalCompletionReceipt,
+) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	if strings.TrimSpace(slot.mutable.goal.completionCandidateID) == strings.TrimSpace(goalID) {
+		slot.mutable.goal.completionReceipt = receipt
+		slot.mutable.goal.completionReceiptStored = true
+	}
+	slot.mutable.goal.mu.Unlock()
+}
+
 func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message) {
 	if slot == nil {
 		return
@@ -1182,6 +1315,33 @@ func (slot *activeRoomSlot) markGoalToolProgress() {
 	slot.mutable.goal.mu.Unlock()
 }
 
+func (slot *activeRoomSlot) markPendingGoalCollaboration() {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.pendingCollaboration = true
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) hasPendingGoalCollaboration() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return slot.mutable.goal.pendingCollaboration
+}
+
+func (slot *activeRoomSlot) clearPendingGoalCollaboration() {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.pendingCollaboration = false
+	slot.mutable.goal.mu.Unlock()
+}
+
 func (slot *activeRoomSlot) hasGoalToolProgress() bool {
 	if slot == nil {
 		return false
@@ -1275,6 +1435,15 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 		slot.mutable.goal.mu.Unlock()
 		return false
 	}
+	shared := slot.ensureGoalAuthorityState()
+	if shared == nil || !shared.Bind(
+		authority.GoalID,
+		authority.ObjectiveRevision,
+		authority.ExecutionID,
+	) {
+		slot.mutable.goal.mu.Unlock()
+		return false
+	}
 	slot.mutable.goal.mutationAuthority = authority
 	slot.mutable.goal.sessionKey = authority.SessionKey
 	slot.mutable.goal.idForUsage = authority.GoalID
@@ -1292,6 +1461,26 @@ func (slot *activeRoomSlot) goalMutationAuthority() roomGoalMutationAuthority {
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
 	return slot.mutable.goal.mutationAuthority
+}
+
+func (slot *activeRoomSlot) setGoalCollaborationBinding(
+	binding *protocol.GoalCollaborationBinding,
+) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.collaborationBinding = cloneGoalCollaborationBinding(binding)
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) goalCollaborationBinding() *protocol.GoalCollaborationBinding {
+	if slot == nil {
+		return nil
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return cloneGoalCollaborationBinding(slot.mutable.goal.collaborationBinding)
 }
 
 // goalUsageScopeConsumed 是 slot/root scope 生命周期内的单调事实。清理或

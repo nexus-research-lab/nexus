@@ -15,11 +15,26 @@ const (
 	weComBotMessageCallbackCommand   = "aibot_msg_callback"
 	weComBotEventCallbackCommand     = "aibot_event_callback"
 	weComBotResponseCommand          = "aibot_respond_msg"
+	weComBotSendCommand              = "aibot_send_msg"
 )
 
 type weComBotHeaders struct {
 	ReqID       string `json:"req_id,omitempty"`
 	ReqIDCompat string `json:"reqId,omitempty"`
+}
+
+func weComBotProactiveMessageFrame(reqID string, chatID string, content string) weComBotCommandFrame {
+	return weComBotCommandFrame{
+		Cmd:     weComBotSendCommand,
+		Headers: weComBotHeaders{ReqID: strings.TrimSpace(reqID)},
+		Body: map[string]any{
+			"chatid":  strings.TrimSpace(chatID),
+			"msgtype": "markdown",
+			"markdown": map[string]any{
+				"content": content,
+			},
+		},
+	}
 }
 
 func (h weComBotHeaders) requestID() string {

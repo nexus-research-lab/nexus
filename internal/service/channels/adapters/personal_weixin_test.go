@@ -47,10 +47,10 @@ func TestPersonalWeixinChannelSendDeliveryMessage(t *testing.T) {
 		AccountID: "account-1",
 	}, server.Client())
 	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:     channelcontract.DeliveryModeExplicit,
-		Channel:  channelcontract.ChannelTypeWeixinPersonal,
-		To:       "wx-user-1",
-		ThreadID: "ctx-token-1",
+		Mode:         channelcontract.DeliveryModeExplicit,
+		Channel:      channelcontract.ChannelTypeWeixinPersonal,
+		To:           "wx-user-1",
+		ContextToken: "ctx-token-1",
 	}, "你好")
 	if err != nil {
 		t.Fatalf("个人微信回投失败: %v", err)
@@ -310,10 +310,10 @@ func TestPersonalWeixinChannelSendDeliveryTyping(t *testing.T) {
 		Token:   "token-1",
 	}, server.Client())
 	target := channelcontract.DeliveryTarget{
-		Mode:     channelcontract.DeliveryModeExplicit,
-		Channel:  channelcontract.ChannelTypeWeixinPersonal,
-		To:       "wx-user-1",
-		ThreadID: "ctx-token-1",
+		Mode:         channelcontract.DeliveryModeExplicit,
+		Channel:      channelcontract.ChannelTypeWeixinPersonal,
+		To:           "wx-user-1",
+		ContextToken: "ctx-token-1",
 	}
 
 	if err := channel.SendDeliveryTyping(context.Background(), target, true); err != nil {
@@ -390,6 +390,75 @@ func TestPersonalWeixinChannelSendDeliveryMessageChecksBusinessError(t *testing.
 	}
 }
 
+func TestPersonalWeixinChannelClearsOnlyExplicitlyExpiredContextAndRetriesOnce(t *testing.T) {
+	contextTokens := make([]string, 0, 2)
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析个人微信回投请求失败: %v", err)
+		}
+		message, _ := payload["msg"].(map[string]any)
+		contextTokens = append(contextTokens, strings.TrimSpace(firstString(message["context_token"])))
+		if len(contextTokens) == 1 {
+			return jsonResponse(`{"ret":-2,"errmsg":"context expired"}`), nil
+		}
+		return jsonResponse(`{"ret":0}`), nil
+	})}
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
+		BaseURL: "https://weixin.test",
+		Token:   "token-1",
+	}, client)
+	result, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:         channelcontract.DeliveryModeExplicit,
+		Channel:      channelcontract.ChannelTypeWeixinPersonal,
+		To:           "wx-user-1",
+		ContextToken: "stale-context",
+	}, "定时任务结果")
+	if err != nil {
+		t.Fatalf("明确 context 失效后无 token 主动重试应成功: %v", err)
+	}
+	if len(contextTokens) != 2 || contextTokens[0] != "stale-context" || contextTokens[1] != "" {
+		t.Fatalf("context_token 降级顺序不正确: %+v", contextTokens)
+	}
+	if result.Target.ContextToken != "" {
+		t.Fatalf("失效 context_token 必须从权威路由结果中清除: %+v", result.Target)
+	}
+}
+
+func TestPersonalWeixinChannelDoesNotClearContextOnRateLimit(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		response := jsonResponse(`{"ret":-2,"errmsg":"rate limited"}`)
+		response.StatusCode = http.StatusTooManyRequests
+		return response, nil
+	})}
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
+		BaseURL: "https://weixin.test",
+		Token:   "token-1",
+	}, client)
+	result, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:         channelcontract.DeliveryModeExplicit,
+		Channel:      channelcontract.ChannelTypeWeixinPersonal,
+		To:           "wx-user-1",
+		ContextToken: "still-valid-context",
+	}, "定时任务结果")
+	if err == nil {
+		t.Fatal("HTTP 429 应返回失败并交给 Automation 重试")
+	}
+	if calls != 1 {
+		t.Fatalf("HTTP 429 不得误判 context 失效后无 token 重发: calls=%d", calls)
+	}
+	if result.Target.ContextToken != "still-valid-context" {
+		t.Fatalf("限流不得清除稳定 context_token: %+v", result.Target)
+	}
+}
+
+func firstString(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
 func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 	ingress := &recordingPersonalWeixinIngress{}
 	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
@@ -425,7 +494,7 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 	if request.ThreadID != "" {
 		t.Fatalf("个人微信 session key 不应使用 context_token: %+v", request)
 	}
-	if request.Delivery == nil || request.Delivery.To != "wx-user-1" || request.Delivery.ThreadID != "ctx-token-1" {
+	if request.Delivery == nil || request.Delivery.To != "wx-user-1" || request.Delivery.ContextToken != "ctx-token-1" || request.Delivery.ThreadID != "" {
 		t.Fatalf("个人微信 remembered delivery 不正确: %+v", request.Delivery)
 	}
 	if !strings.Contains(request.Content, "检查今日任务") {
@@ -437,7 +506,7 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 	if request.Message == nil ||
 		request.Message.Channel != channelcontract.ChannelTypeWeixinPersonal ||
 		request.Message.PlatformMessageID != "42" ||
-		request.Message.ThreadID != "ctx-token-1" ||
+		request.Message.ThreadID != "" ||
 		request.Message.SenderID != "wx-user-1" ||
 		request.Message.Text != "检查今日任务" ||
 		request.Message.Metadata["client_id"] != "client-42" ||

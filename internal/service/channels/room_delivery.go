@@ -12,7 +12,47 @@ import (
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
-const roomDeliverySource = "automation_delivery"
+const roomDeliverySource = automationDeliverySource
+
+func (c *sessionDeliveryChannel) projectAutomationRoomResult(
+	ctx context.Context,
+	agentID string,
+	parsed protocol.SessionKey,
+	text string,
+	delivery AutomationDeliveryContext,
+) (*channelmessage.Receipt, error) {
+	conversationID := strings.TrimSpace(parsed.ConversationID)
+	if conversationID == "" {
+		return nil, errors.New("room delivery requires conversation_id")
+	}
+	if c.roomHistory == nil {
+		return nil, errors.New("session delivery 缺少 room history store")
+	}
+	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	if ownerUserID == "" {
+		return nil, errors.New("room delivery requires owner")
+	}
+	now := time.Now().UTC()
+	roundID, assistantID, _ := automationDeliveryMessageIDs(delivery.RunID)
+	assistantMessage := protocol.Message{
+		"message_id":      assistantID,
+		"session_key":     parsed.Raw,
+		"conversation_id": conversationID,
+		"agent_id":        strings.TrimSpace(agentID),
+		"round_id":        roundID,
+		"role":            "assistant",
+		"timestamp":       now.UnixMilli(),
+		"content":         []map[string]any{{"type": "text", "text": strings.TrimSpace(text)}},
+		"stop_reason":     "end_turn",
+		"is_complete":     true,
+		"metadata":        automationDeliveryMetadata(delivery),
+	}
+	if err := c.roomHistory.AppendInlineMessage(ownerUserID, conversationID, assistantMessage); err != nil {
+		return nil, err
+	}
+	c.broadcastRoomMessage(ctx, parsed.Raw, conversationID, strings.TrimSpace(agentID), roundID, assistantMessage)
+	return automationProjectionReceipt(c.channelType, parsed.Raw, conversationID, assistantID), nil
+}
 
 func (c *sessionDeliveryChannel) sendRoomDeliveryText(
 	ctx context.Context,

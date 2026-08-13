@@ -125,7 +125,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	}
 }
 
-func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
+func TestServiceRunTaskNowDeliversLegacyAgentAutomationInbox(t *testing.T) {
 	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
@@ -170,15 +170,24 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 			Kind:            automationdomain.SessionTargetNamed,
 			NamedSessionKey: "news",
 		},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: protocol.SessionChannelInternalSegment,
-			To:      inboxKey,
-		},
-		Enabled: true,
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:  true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	legacyTask := *task
+	legacyTask.Delivery = automationdomain.DeliveryTarget{
+		Mode:       automationdomain.DeliveryModeExplicit,
+		Channel:    protocol.SessionChannelInternalSegment,
+		To:         inboxKey,
+		SessionKey: inboxKey,
+	}
+	legacyTask.DeliveryGrant = automationdomain.Source{Kind: automationdomain.SourceKindUserPage}.Normalized()
+	task, err = service.repository.UpsertScheduledTask(context.Background(), legacyTask)
+	if err != nil {
+		t.Fatalf("准备历史收件箱任务失败: %v", err)
 	}
 
 	if _, err = service.RunTaskNow(context.Background(), task.JobID); err != nil {
@@ -211,7 +220,7 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 	assertRunDeliveredTo(t, service, task.JobID, "explicit:internal:"+inboxKey)
 }
 
-func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
+func TestAutomationMCPCreateRunAndInspectDeliversToCurrentSession(t *testing.T) {
 	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
@@ -246,21 +255,16 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 		SourceContextLabel:  "新闻智能体",
 		DefaultTimezone:     "Asia/Shanghai",
 	}
-	inboxKey := protocol.BuildAgentSessionKey(
-		"agent-1",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
+	recipientSessionKey := sctx.CurrentSessionKey
+	prepareAutomationDeliverySession(t, workspacePath, "user-1", "agent-1", recipientSessionKey)
 
 	createResult, isError := callAutomationMCPTool(t, service, sctx, "create_scheduled_task", map[string]any{
-		"name":              "新闻投递到智能体",
-		"instruction":       "每天搜索新闻并输出摘要",
-		"execution_mode":    "dedicated",
-		"named_session_key": "news-search",
-		"reply_mode":        "agent",
-		"reply_agent_id":    "agent-1",
+		"name":                       "新闻投递到智能体",
+		"instruction":                "每天搜索新闻并输出摘要",
+		"execution_mode":             "dedicated",
+		"named_session_key":          "news-search",
+		"reply_mode":                 "selected",
+		"selected_reply_session_key": recipientSessionKey,
 		"schedule": map[string]any{
 			"kind":       "daily",
 			"daily_time": "09:00",
@@ -276,8 +280,8 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	}
 	if created.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		created.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-		created.Delivery.To != inboxKey {
-		t.Fatalf("MCP reply_mode=agent 应解析为目标智能体收件箱，实际 %+v", created.Delivery)
+		created.Delivery.To != recipientSessionKey {
+		t.Fatalf("MCP selected 应绑定真实当前会话，实际 %+v", created.Delivery)
 	}
 	if created.Source.Kind != automationdomain.SourceKindAgent || created.Source.CreatorAgentID != "agent-1" {
 		t.Fatalf("MCP 创建任务应记录 Agent 来源，实际 %+v", created.Source)
@@ -304,18 +308,18 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	})
 
 	store := workspacestore.NewSessionFileStore(workspacePath)
-	sessionValue, _, err := store.FindSession([]string{workspacePath}, inboxKey)
+	sessionValue, _, err := store.FindSession([]string{workspacePath}, recipientSessionKey)
 	if err != nil {
-		t.Fatalf("读取 MCP 创建的智能体收件箱 session 失败: %v", err)
+		t.Fatalf("读取 MCP 真实当前 session 失败: %v", err)
 	}
 	if sessionValue == nil {
-		t.Fatal("MCP 创建并运行后应自动创建目标智能体收件箱")
+		t.Fatal("MCP 创建并运行后应写入真实当前会话")
 	}
 	if sessionValue.AgentID != "agent-1" {
-		t.Fatalf("MCP 投递收件箱应归属目标智能体，实际 %+v", sessionValue)
+		t.Fatalf("MCP 投递会话应归属目标智能体，实际 %+v", sessionValue)
 	}
-	assertDeliveredAgentMessage(t, workspacePath, *sessionValue, "今日新闻摘要", "MCP 智能体收件箱")
-	assertRunDeliveredToContext(t, ownerCtx, service, created.JobID, "explicit:internal:"+inboxKey)
+	assertDeliveredAgentMessage(t, workspacePath, *sessionValue, "今日新闻摘要", "MCP 真实当前会话")
+	assertRunDeliveredToContext(t, ownerCtx, service, created.JobID, "explicit:internal:"+recipientSessionKey)
 
 	statusResult, isError := callAutomationMCPTool(t, service, sctx, "inspect_scheduled_task", map[string]any{
 		"query":       "新闻投递到智能体",
@@ -329,7 +333,7 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	if status.Job.JobID != created.JobID || status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded {
 		t.Fatalf("MCP 状态应能看到任务最新投递成功，实际 %+v", status.Job)
 	}
-	if len(status.RecentRuns) == 0 || status.RecentRuns[0].DeliveryTo != "explicit:internal:"+inboxKey {
+	if len(status.RecentRuns) == 0 || status.RecentRuns[0].DeliveryTo != "explicit:internal:"+recipientSessionKey {
 		t.Fatalf("MCP 状态应返回最近投递目标，实际 %+v", status.RecentRuns)
 	}
 }

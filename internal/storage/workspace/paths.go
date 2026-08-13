@@ -87,12 +87,12 @@ func (s *Store) RoomConversationMessageCursorsPath(ownerUserID string, conversat
 	return filepath.Join(s.RoomConversationDir(ownerUserID, conversationID), "directed_message_cursors.jsonl")
 }
 
-// RoomPublicHandoffsPath 返回指定用户 Room 公区 handoff ledger 路径。
+// RoomPublicHandoffsPath 返回指定用户 Room handoff ledger 路径。
 func (s *Store) RoomPublicHandoffsPath(ownerUserID string, conversationID string) string {
 	return filepath.Join(s.RoomConversationDir(ownerUserID, conversationID), "public_handoffs.jsonl")
 }
 
-// RoomDirectedMessageWakesPath 返回指定用户的 Room 延迟唤醒日志路径。
+// RoomDirectedMessageWakesPath 返回指定用户的 Room immediate/delayed 唤醒日志路径。
 func (s *Store) RoomDirectedMessageWakesPath(ownerUserID string) string {
 	return filepath.Join(s.RoomConversationRoot(ownerUserID), "directed_message_wakes.jsonl")
 }

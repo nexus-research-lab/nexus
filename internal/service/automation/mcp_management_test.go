@@ -13,12 +13,12 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	ownerCtx := automationMCPTestOwnerContext(fixture.ServerContext.OwnerUserID)
 
 	createResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "create_scheduled_task", map[string]any{
-		"name":              "新闻投递到智能体",
-		"instruction":       "每天搜索新闻并输出摘要",
-		"execution_mode":    "dedicated",
-		"named_session_key": "news-search",
-		"reply_mode":        "agent",
-		"reply_agent_id":    "agent-1",
+		"name":                       "新闻投递到智能体",
+		"instruction":                "每天搜索新闻并输出摘要",
+		"execution_mode":             "dedicated",
+		"named_session_key":          "news-search",
+		"reply_mode":                 "selected",
+		"selected_reply_session_key": fixture.ServerContext.CurrentSessionKey,
 		"schedule": map[string]any{
 			"kind":       "daily",
 			"daily_time": "09:00",
@@ -30,18 +30,10 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	}
 	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
 
-	ownInboxKey := protocol.BuildAgentSessionKey(
-		"agent-1",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
 	updateResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{
-		"query":          "新闻投递到智能体",
-		"name":           "AI 新闻投递到智能体",
-		"instruction":    "每天搜索 AI 新闻并输出三条摘要",
-		"reply_agent_id": "agent-1",
+		"query":       "新闻投递到智能体",
+		"name":        "AI 新闻投递到智能体",
+		"instruction": "每天搜索 AI 新闻并输出三条摘要",
 		"schedule": map[string]any{
 			"kind":       "daily",
 			"daily_time": "10:30",
@@ -61,8 +53,8 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if updated.Schedule.CronExpression == nil || *updated.Schedule.CronExpression != "30 10 * * *" {
 		t.Fatalf("update 未写入新的 daily 调度: %+v", updated.Schedule)
 	}
-	if updated.Delivery.Channel != protocol.SessionChannelInternalSegment || updated.Delivery.To != ownInboxKey {
-		t.Fatalf("update 未保留自身 Agent 收件箱投递目标: %+v", updated.Delivery)
+	if updated.Delivery.To != fixture.ServerContext.CurrentSessionKey {
+		t.Fatalf("update 未保留自身真实当前会话投递目标: %+v", updated.Delivery)
 	}
 
 	disableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{

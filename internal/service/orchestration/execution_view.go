@@ -1,4 +1,4 @@
-// INPUT: owner/session 只读查询、当前或最近一次有界 ExecutionSnapshot 与 WorkGraph child Attempt 历史。
+// INPUT: owner/session 只读查询、当前或最近一次有界 ExecutionSnapshot、完整 WorkGraph child Attempt 历史与 visibility 投影前运行事实。
 // OUTPUT: 去除控制面 identity、保留每个 durable Subagent、按 Plan position 排序并派生交付阶段的 protocol.ExecutionView。
 // POS: Execution 状态机到 HTTP/DM/Room WorkGraph UI 的唯一展示投影。
 package orchestration
@@ -25,9 +25,13 @@ type workGraphAttemptRepository interface {
 	ListWorkGraphChildAttempts(context.Context, string) ([]protocol.WorkAttempt, error)
 }
 
-// GetLatestView 返回 session 当前 Execution；没有未终结 Execution 时保留最近一次
-// terminal 结果，且后续 planless runtime round 不得覆盖这张正式 WorkGraph。
-// 只有从未创建过 managed Execution 时才回退到 runtime-only 诊断图。
+type workGraphRuntimeRepository interface {
+	GetWorkGraphRuntimeGraph(context.Context, string, string, string, string) (protocol.ExecutionRuntimeGraph, error)
+}
+
+// GetLatestView 返回 session 当前 managed WorkGraph；没有未终结 Execution 时保留
+// 最近一次 terminal 结果。普通 runtime-only round 不属于公共 WorkGraph 读取面，
+// 既不会覆盖已有正式图，也不会在从未创建 WorkGraph 时冒充图内容。
 func (s *Service) GetLatestView(
 	ctx context.Context,
 	ownerUserID string,
@@ -68,7 +72,7 @@ func (s *Service) GetLatestView(
 		}
 	}
 	if execution == nil {
-		return s.getPlanlessRuntimeGraphView(ctx, ownerUserID, sessionKey)
+		return nil, nil
 	}
 	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
 	if err != nil || snapshot == nil {
@@ -77,6 +81,9 @@ func (s *Service) GetLatestView(
 	if snapshot.Execution.OwnerUserID != ownerUserID ||
 		snapshot.Execution.SessionKey != sessionKey {
 		return nil, domainError(ErrorCodeWrongOwner, "Execution is outside the requested owner/session")
+	}
+	if snapshot.Plan == nil || len(snapshot.WorkItems) == 0 {
+		return nil, nil
 	}
 	if snapshot.Plan != nil {
 		if repository, ok := s.repository.(workGraphAttemptRepository); ok {
@@ -92,13 +99,25 @@ func (s *Service) GetLatestView(
 		return nil, nil
 	}
 	if repository, ok := s.repository.(runtimeGraphRepository); ok {
-		runtimeGraph, graphErr := repository.GetRuntimeGraph(
-			ctx,
-			ownerUserID,
-			sessionKey,
-			execution.ID,
-			execution.RootRoundID,
-		)
+		var runtimeGraph protocol.ExecutionRuntimeGraph
+		var graphErr error
+		if workGraphRepository, available := s.repository.(workGraphRuntimeRepository); available {
+			runtimeGraph, graphErr = workGraphRepository.GetWorkGraphRuntimeGraph(
+				ctx,
+				ownerUserID,
+				sessionKey,
+				execution.ID,
+				execution.RootRoundID,
+			)
+		} else {
+			runtimeGraph, graphErr = repository.GetRuntimeGraph(
+				ctx,
+				ownerUserID,
+				sessionKey,
+				execution.ID,
+				execution.RootRoundID,
+			)
+		}
 		if graphErr != nil {
 			return nil, graphErr
 		}

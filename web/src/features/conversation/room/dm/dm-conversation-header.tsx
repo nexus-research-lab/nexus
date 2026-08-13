@@ -9,6 +9,7 @@ import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
+import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
@@ -22,6 +23,7 @@ interface DmConversationHeaderProps {
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onReplaceFinalConversation: FinalConversationReplacementHandler;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
@@ -36,6 +38,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   onChangeTab,
   onCloseConversation,
   onCreateConversation,
+  onReplaceFinalConversation,
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
@@ -78,6 +81,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
           )}
           onCloseConversation={onCloseConversation}
           onCreateConversation={onCreateConversation}
+          onReplaceFinalConversation={onReplaceFinalConversation}
           onSelectConversation={onSelectConversation}
           tourAnchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
         />

@@ -34,7 +34,6 @@ export function useDmChatPanelModel({
   const goal = useDmGoalController({
     agentName: currentAgent.name,
     permissionMode: currentAgent.options.permission_mode ?? null,
-    sessionKey,
   });
   const session = useDmChatSessionController({
     identity: sessionIdentity,
@@ -52,7 +51,6 @@ export function useDmChatPanelModel({
     conversation: session.conversation,
     goalScopeLabel,
     initialDraft: initialDraft ?? null,
-    onCreateGoal: goal.createGoal,
     onInitialDraftConsumed,
     scrollToBottom: session.scroll.scrollToBottom,
     sessionKey,

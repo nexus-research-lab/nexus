@@ -1,10 +1,10 @@
-// Package titlegen 按首条用户消息异步生成会话标题。
+// Package titlegen 按首条普通用户消息或 Goal 控制意图异步生成会话标题。
 //
 // L2 | 父级: internal/service/conversation（L1 见 AGENTS.md）
 //
 // 成员清单：
 //   - service.go：Service 生成编排。
-//   - request.go / contract.go：请求构造与契约（关闭 think、max_tokens 等）。
+//   - request.go / contract.go：请求构造、标题存储与 Session/Room 失效通知契约。
 //   - generation.go / title_rules.go：生成主逻辑与标题清洗规则。
 //   - apply.go / preview.go：落库与预览填充。
 //

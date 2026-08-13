@@ -1,5 +1,5 @@
 // INPUT: provider-neutral Runtime NodeRun / EdgeRun 与 owner/session 查询边界。
-// OUTPUT: 幂等 upsert、当前 Execution 或最近 planless round 的有界运行图。
+// OUTPUT: 幂等 upsert、物理 round 的单 Execution 绑定、内部观测用有界运行图，以及可见性投影前的完整 WorkGraph 运行事实。
 // POS: Execution Orchestration Repository 中不参与 command CAS 的观测事实存储。
 package orchestration
 
@@ -109,6 +109,102 @@ ON CONFLICT (node_run_id) DO UPDATE SET
 		metadataJSON,
 	)
 	return err
+}
+
+// BindRuntimeGraphRoundExecution 在一次经服务端验证的 DM assign_work
+// 首次返回 Execution 身份后，把同一物理 Agent round 中先行落库的计划、
+// 分配工具及 Artifact 绑到该 Execution。已有其他 Execution 的 round
+// 不允许改绑，以免跨 WorkGraph 污染。
+func (r *Repository) BindRuntimeGraphRoundExecution(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	agentRoundID string,
+	executionID string,
+) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	agentRoundID = strings.TrimSpace(agentRoundID)
+	executionID = strings.TrimSpace(executionID)
+	if ownerUserID == "" || sessionKey == "" || agentRoundID == "" || executionID == "" {
+		return fmt.Errorf("%w: runtime graph round execution binding is incomplete", ErrInvariant)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, table := range []string{
+		"runtime_graph_node_runs",
+		"runtime_graph_artifact_refs",
+	} {
+		var conflicts int
+		query := fmt.Sprintf(`
+SELECT COUNT(*)
+FROM %s
+WHERE owner_user_id = %s
+  AND session_key = %s
+  AND agent_round_id = %s
+  AND execution_id IS NOT NULL
+  AND execution_id <> %s`,
+			table,
+			r.bind(1),
+			r.bind(2),
+			r.bind(3),
+			r.bind(4),
+		)
+		if err = tx.QueryRowContext(
+			ctx,
+			query,
+			ownerUserID,
+			sessionKey,
+			agentRoundID,
+			executionID,
+		).Scan(&conflicts); err != nil {
+			return err
+		}
+		if conflicts > 0 {
+			return fmt.Errorf(
+				"%w: runtime graph round %q is already bound to another execution",
+				ErrInvariant,
+				agentRoundID,
+			)
+		}
+	}
+
+	for _, table := range []string{
+		"runtime_graph_node_runs",
+		"runtime_graph_artifact_refs",
+	} {
+		query := fmt.Sprintf(`
+UPDATE %s
+SET execution_id = %s
+WHERE owner_user_id = %s
+  AND session_key = %s
+  AND agent_round_id = %s
+  AND (execution_id IS NULL OR execution_id = %s)`,
+			table,
+			r.bind(1),
+			r.bind(2),
+			r.bind(3),
+			r.bind(4),
+			r.bind(5),
+		)
+		if _, err = tx.ExecContext(
+			ctx,
+			query,
+			executionID,
+			ownerUserID,
+			sessionKey,
+			agentRoundID,
+			executionID,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // UpsertRuntimeGraphEdge 幂等记录一个已存在 NodeRun 间的运行边。
@@ -230,15 +326,53 @@ WHERE owner_user_id = `+r.bind(6)+`
 	return err
 }
 
-// GetRuntimeGraph 返回当前 Execution 关联的运行层节点；没有 Execution 时返回
-// session 最近一次 root round。用户图使用独立的较大窗口，优先保留最新运行，
-// 超限时额外保留根 Agent 并通过 total / truncated 明示不完整性。
+// GetRuntimeGraph 返回当前 Execution 关联的有界运行层节点；没有 Execution 时返回
+// session 最近一次 root round。该窗口供运行观测与模型事实使用，优先保留最新
+// 运行，超限时额外保留根 Agent 并通过 total / truncated 明示不完整性。
 func (r *Repository) GetRuntimeGraph(
 	ctx context.Context,
 	ownerUserID string,
 	sessionKey string,
 	executionID string,
 	executionRootRoundID string,
+) (protocol.ExecutionRuntimeGraph, error) {
+	return r.getRuntimeGraph(
+		ctx,
+		ownerUserID,
+		sessionKey,
+		executionID,
+		executionRootRoundID,
+		true,
+	)
+}
+
+// GetWorkGraphRuntimeGraph 返回完整的当前 Execution 运行事实，由 service 在产品
+// 可见性判定完成后应用 WorkGraph 节点与连线上限。隐藏 detail 事实因此不会挤占
+// 主图窗口，也不会使公共 WorkGraph 被误标为 partial。
+func (r *Repository) GetWorkGraphRuntimeGraph(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+	executionRootRoundID string,
+) (protocol.ExecutionRuntimeGraph, error) {
+	return r.getRuntimeGraph(
+		ctx,
+		ownerUserID,
+		sessionKey,
+		executionID,
+		executionRootRoundID,
+		false,
+	)
+}
+
+func (r *Repository) getRuntimeGraph(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+	executionRootRoundID string,
+	bounded bool,
 ) (protocol.ExecutionRuntimeGraph, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -276,17 +410,18 @@ WHERE owner_user_id = %s AND session_key = %s AND %s`,
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&result.NodeTotal); err != nil {
 		return protocol.ExecutionRuntimeGraph{}, err
 	}
-	result.NodesTruncated = result.NodeTotal > protocol.ExecutionRuntimeGraphNodeProjectionLimit
+	result.NodesTruncated = bounded && result.NodeTotal > protocol.ExecutionRuntimeGraphNodeProjectionLimit
 	query := fmt.Sprintf(`%s
 WHERE owner_user_id = %s AND session_key = %s AND %s
-ORDER BY updated_at DESC, started_at DESC, node_run_id DESC
-LIMIT %d`,
+ORDER BY updated_at DESC, started_at DESC, node_run_id DESC`,
 		runtimeGraphNodeSelectColumns,
 		r.bind(1),
 		r.bind(2),
 		condition,
-		protocol.ExecutionRuntimeGraphNodeProjectionLimit,
 	)
+	if bounded {
+		query += fmt.Sprintf("\nLIMIT %d", protocol.ExecutionRuntimeGraphNodeProjectionLimit)
+	}
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return protocol.ExecutionRuntimeGraph{}, err
@@ -331,6 +466,7 @@ LIMIT %d`,
 		sessionKey,
 		graphIDs,
 		nodeIDs,
+		bounded,
 	)
 	if err != nil {
 		return protocol.ExecutionRuntimeGraph{}, err
@@ -394,12 +530,45 @@ func (r *Repository) listRuntimeGraphEdges(
 	sessionKey string,
 	graphIDs map[string]struct{},
 	nodeIDs map[string]struct{},
+	bounded bool,
 ) ([]protocol.ExecutionRuntimeEdgeRun, int, bool, error) {
 	ids := make([]string, 0, len(graphIDs))
 	for graphID := range graphIDs {
 		ids = append(ids, graphID)
 	}
 	slices.Sort(ids)
+	const graphBatchSize = 200
+	if !bounded && len(ids) > graphBatchSize {
+		result := make([]protocol.ExecutionRuntimeEdgeRun, 0)
+		total := 0
+		for start := 0; start < len(ids); start += graphBatchSize {
+			end := min(start+graphBatchSize, len(ids))
+			batchGraphIDs := make(map[string]struct{}, end-start)
+			for _, graphID := range ids[start:end] {
+				batchGraphIDs[graphID] = struct{}{}
+			}
+			batchEdges, batchTotal, _, err := r.listRuntimeGraphEdges(
+				ctx,
+				ownerUserID,
+				sessionKey,
+				batchGraphIDs,
+				nodeIDs,
+				false,
+			)
+			if err != nil {
+				return nil, 0, false, err
+			}
+			result = append(result, batchEdges...)
+			total += batchTotal
+		}
+		slices.SortFunc(result, func(left, right protocol.ExecutionRuntimeEdgeRun) int {
+			if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
+				return order
+			}
+			return strings.Compare(left.ID, right.ID)
+		})
+		return result, total, false, nil
+	}
 	placeholders := make([]string, len(ids))
 	args := make([]any, 0, 2+len(ids))
 	args = append(args, ownerUserID, sessionKey)
@@ -424,34 +593,39 @@ WHERE owner_user_id = %s AND session_key = %s
 	if len(selectedNodeIDs) == 0 {
 		return nil, total, total > 0, nil
 	}
-	edgeArgs := slices.Clone(args)
-	sourcePlaceholders := make([]string, len(selectedNodeIDs))
-	targetPlaceholders := make([]string, len(selectedNodeIDs))
-	for index, nodeID := range selectedNodeIDs {
-		sourcePlaceholders[index] = r.bind(len(edgeArgs) + 1)
-		edgeArgs = append(edgeArgs, nodeID)
-	}
-	for index, nodeID := range selectedNodeIDs {
-		targetPlaceholders[index] = r.bind(len(edgeArgs) + 1)
-		edgeArgs = append(edgeArgs, nodeID)
-	}
 	query := fmt.Sprintf(`
 SELECT edge_run_id, graph_id, owner_user_id, session_key,
        source_node_run_id, target_node_run_id, edge_kind, created_at
 FROM runtime_graph_edge_runs
 WHERE owner_user_id = %s AND session_key = %s
-  AND graph_id IN (%s)
-  AND source_node_run_id IN (%s)
-  AND target_node_run_id IN (%s)
-ORDER BY created_at DESC, edge_run_id DESC
-LIMIT %d`,
+  AND graph_id IN (%s)`,
 		r.bind(1),
 		r.bind(2),
 		strings.Join(placeholders, ", "),
-		strings.Join(sourcePlaceholders, ", "),
-		strings.Join(targetPlaceholders, ", "),
-		protocol.ExecutionRuntimeGraphEdgeProjectionLimit,
 	)
+	edgeArgs := slices.Clone(args)
+	if bounded {
+		sourcePlaceholders := make([]string, len(selectedNodeIDs))
+		targetPlaceholders := make([]string, len(selectedNodeIDs))
+		for index, nodeID := range selectedNodeIDs {
+			sourcePlaceholders[index] = r.bind(len(edgeArgs) + 1)
+			edgeArgs = append(edgeArgs, nodeID)
+		}
+		for index, nodeID := range selectedNodeIDs {
+			targetPlaceholders[index] = r.bind(len(edgeArgs) + 1)
+			edgeArgs = append(edgeArgs, nodeID)
+		}
+		query += fmt.Sprintf(`
+  AND source_node_run_id IN (%s)
+  AND target_node_run_id IN (%s)`,
+			strings.Join(sourcePlaceholders, ", "),
+			strings.Join(targetPlaceholders, ", "),
+		)
+	}
+	query += "\nORDER BY created_at DESC, edge_run_id DESC"
+	if bounded {
+		query += fmt.Sprintf("\nLIMIT %d", protocol.ExecutionRuntimeGraphEdgeProjectionLimit)
+	}
 	rows, err := r.db.QueryContext(ctx, query, edgeArgs...)
 	if err != nil {
 		return nil, 0, false, err
@@ -485,7 +659,7 @@ LIMIT %d`,
 		}
 		return strings.Compare(left.ID, right.ID)
 	})
-	return result, total, total > len(result), nil
+	return result, total, bounded && total > len(result), nil
 }
 
 func scanRuntimeGraphNode(

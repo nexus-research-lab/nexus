@@ -56,55 +56,27 @@ func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
 	}
 }
 
-func TestCreateOwnerMainCanDeliverToArbitraryChannel(t *testing.T) {
-	tests := []struct {
-		name  string
-		input map[string]any
-	}{
-		{
-			name: "explicit mode",
-			input: map[string]any{
-				"reply_mode":    "channel",
-				"reply_channel": "feishu",
-				"reply_to":      "oc_group_123",
-			},
-		},
-		{
-			name: "inferred mode",
-			input: map[string]any{
-				"reply_channel": "feishu",
-				"reply_to":      "oc_group_123",
-			},
-		},
+func TestCreateOwnerMainRequiresExistingSessionForChannelDelivery(t *testing.T) {
+	svc := &stubService{}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+		IsMainAgent:       true,
+	}, "create_scheduled_task", map[string]any{
+		"name":           "新闻日报",
+		"instruction":    "搜索今天的重要新闻并整理摘要",
+		"execution_mode": "temporary",
+		"reply_mode":     "channel",
+		"reply_channel":  "feishu",
+		"reply_to":       "oc_group_123",
+		"schedule":       dailySchedule("09:00"),
+	})
+	if !isError || !strings.Contains(extractText(t, result), "existing authorized reply_session_key") {
+		t.Fatalf("owner-main bare channel target should require a real session: %+v", result)
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			svc := &stubService{}
-			input := map[string]any{
-				"name":           "新闻日报",
-				"instruction":    "搜索今天的重要新闻并整理摘要",
-				"execution_mode": "temporary",
-				"schedule":       dailySchedule("09:00"),
-			}
-			for key, value := range test.input {
-				input[key] = value
-			}
-			result, isError := callTool(t, svc, contract.ServerContext{
-				CurrentAgentID:    "agent-1",
-				CurrentSessionKey: "agent:agent-1:ws:dm:current",
-				SourceContextType: "agent",
-				IsMainAgent:       true,
-			}, "create_scheduled_task", input)
-			if isError {
-				t.Fatalf("unexpected error: %s", extractText(t, result))
-			}
-			if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-				svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-				svc.createInput.Delivery.To != "oc_group_123" {
-				t.Fatalf("expected explicit feishu delivery, got %+v", svc.createInput.Delivery)
-			}
-		})
+	if svc.createInput.Name != "" {
+		t.Fatalf("rejected bare target reached service: %+v", svc.createInput)
 	}
 }
 
@@ -131,7 +103,7 @@ func TestCreateOrdinaryAgentRejectsArbitraryChannel(t *testing.T) {
 	}
 }
 
-func TestCreateCanDeliverToAgentInbox(t *testing.T) {
+func TestCreateRejectsSyntheticAgentInboxModes(t *testing.T) {
 	tests := []struct {
 		name  string
 		input map[string]any
@@ -148,6 +120,7 @@ func TestCreateCanDeliverToAgentInbox(t *testing.T) {
 			input: map[string]any{
 				"agent_id":       "agent-1",
 				"reply_agent_id": "agent-2",
+				"reply_mode":     "agent",
 			},
 		},
 	}
@@ -170,20 +143,11 @@ func TestCreateCanDeliverToAgentInbox(t *testing.T) {
 				SourceContextType: "agent",
 				IsMainAgent:       true,
 			}, "create_scheduled_task", input)
-			if isError {
-				t.Fatalf("unexpected error: %s", extractText(t, result))
+			if !isError {
+				t.Fatalf("synthetic Agent inbox mode should be rejected: %+v", result)
 			}
-			expectedSessionKey := protocol.BuildAgentSessionKey(
-				"agent-2",
-				protocol.SessionChannelInternalSegment,
-				"dm",
-				protocol.AutomationInboxSessionRef,
-				"",
-			)
-			if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-				svc.createInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-				svc.createInput.Delivery.To != expectedSessionKey {
-				t.Fatalf("expected internal agent delivery, got %+v", svc.createInput.Delivery)
+			if svc.createInput.Name != "" {
+				t.Fatalf("rejected synthetic inbox reached service: %+v", svc.createInput)
 			}
 		})
 	}
@@ -207,10 +171,7 @@ func TestCreateCanDeriveDeliveryFromExternalSessionKey(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected delivery derived from feishu session key, got %+v", svc.createInput.Delivery)
-	}
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
 }
 
 func TestCreateChannelReplyDefaultsToCurrentExternalSession(t *testing.T) {
@@ -230,9 +191,128 @@ func TestCreateChannelReplyDefaultsToCurrentExternalSession(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected delivery defaulted from current feishu session, got %+v", svc.createInput.Delivery)
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
+}
+
+func TestCreateCurrentExternalSessionHostBindsEveryIMChannel(t *testing.T) {
+	channels := []string{
+		protocol.SessionChannelDiscord,
+		protocol.SessionChannelTelegram,
+		protocol.SessionChannelDingTalk,
+		protocol.SessionChannelWeChat,
+		protocol.SessionChannelWeixinPersonal,
+		protocol.SessionChannelFeishu,
+	}
+	for _, channel := range channels {
+		t.Run(channel, func(t *testing.T) {
+			svc := &stubService{}
+			sessionKey := protocol.BuildAgentAccountSessionKey(
+				"agent-1",
+				channel,
+				protocol.RoomTypeDM,
+				"account-1",
+				"external-user",
+				"thread-1",
+			)
+			result, isError := callTool(t, svc, contract.ServerContext{
+				CurrentAgentID:    "agent-1",
+				CurrentSessionKey: sessionKey,
+				SourceContextType: "agent_paired",
+			}, "create_scheduled_task", map[string]any{
+				"name":             "当前 IM 回传",
+				"instruction":      "返回测试结果",
+				"execution_mode":   "temporary",
+				"reply_mode":       "channel",
+				"reply_channel":    "model-guessed-wrong-channel",
+				"reply_to":         "model-guessed-target",
+				"reply_account_id": "model-guessed-account",
+				"reply_thread_id":  "model-guessed-thread",
+				"schedule":         intervalSchedule(5, "minutes"),
+			})
+			if isError {
+				t.Fatalf("%s current IM route should be host-bound: %s", channel, extractText(t, result))
+			}
+			requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
+		})
+	}
+}
+
+func TestExternalIMAutomationSchemaHidesRouteIdentifiers(t *testing.T) {
+	sctx := contract.ServerContext{
+		CurrentAgentID: "agent-1",
+		CurrentSessionKey: protocol.BuildAgentAccountSessionKey(
+			"agent-1",
+			protocol.SessionChannelWeixinPersonal,
+			protocol.RoomTypeDM,
+			"account-1",
+			"external-user",
+			"",
+		),
+		SourceContextType: "agent_paired",
+	}
+	tools := listTools(t, &stubService{}, sctx)
+	matched := 0
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		if name != "create_scheduled_task" && name != "update_scheduled_task" {
+			continue
+		}
+		matched++
+		schema, _ := tool["inputSchema"].(map[string]any)
+		properties, _ := schema["properties"].(map[string]any)
+		for _, field := range []string{
+			"reply_session_key",
+			"reply_channel",
+			"reply_to",
+			"reply_account_id",
+			"reply_thread_id",
+		} {
+			if _, exists := properties[field]; exists {
+				t.Fatalf("%s schema must hide host-owned %s", name, field)
+			}
+		}
+		description, _ := tool["description"].(string)
+		if !strings.Contains(description, "weixin-personal") || !strings.Contains(description, "deliver_result") {
+			t.Fatalf("%s description missing safe current IM context: %q", name, description)
+		}
+		for _, field := range []string{"execution_mode", "reply_mode", "selected_session_key", "selected_reply_session_key"} {
+			if _, exists := properties[field]; exists {
+				t.Fatalf("%s ordinary IM schema must hide legacy routing field %s", name, field)
+			}
+		}
+	}
+	if matched != 2 {
+		t.Fatalf("matched %d create/update tools, want 2", matched)
+	}
+}
+
+func TestOwnerMainPrivateDMSchemaOnlyExposesExistingSessionRouting(t *testing.T) {
+	tools := listTools(t, &stubService{}, contract.ServerContext{
+		CurrentAgentID:    "main",
+		CurrentSessionKey: protocol.BuildAgentSessionKey("main", protocol.SessionChannelWebSocket, protocol.RoomTypeDM, "current", ""),
+		SourceContextType: "agent",
+		IsMainAgent:       true,
+	})
+	matched := 0
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		if name != "create_scheduled_task" && name != "update_scheduled_task" {
+			continue
+		}
+		matched++
+		schema, _ := tool["inputSchema"].(map[string]any)
+		properties, _ := schema["properties"].(map[string]any)
+		if _, exists := properties["reply_session_key"]; !exists {
+			t.Fatalf("%s owner-main schema missing existing reply_session_key", name)
+		}
+		for _, field := range []string{"reply_channel", "reply_to", "reply_account_id", "reply_thread_id"} {
+			if _, exists := properties[field]; exists {
+				t.Fatalf("%s owner-main schema must hide bare route field %s", name, field)
+			}
+		}
+	}
+	if matched != 2 {
+		t.Fatalf("matched %d create/update tools, want 2", matched)
 	}
 }
 
@@ -255,10 +335,7 @@ func TestCreateChannelReplyDefaultsMissingExecutionModeToTemporary(t *testing.T)
 	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 		t.Fatalf("expected temporary execution session from channel reply default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected delivery defaulted from current feishu session, got %+v", svc.createInput.Delivery)
-	}
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
 }
 
 func TestCreateChannelReplyFillsMissingTargetFromCurrentExternalSession(t *testing.T) {
@@ -288,14 +365,10 @@ func TestCreateChannelReplyFillsMissingTargetFromCurrentExternalSession(t *testi
 	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 		t.Fatalf("expected temporary execution session from channel reply default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" ||
-		svc.createInput.Delivery.AccountID != "chat_id" {
-		t.Fatalf("expected partial feishu target filled from current session, got %+v", svc.createInput.Delivery)
-	}
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
 }
 
-func TestCreateSimpleReminderDefaultsToCurrentExternalSession(t *testing.T) {
+func TestCreateSimpleReminderDefaultsToIsolatedExternalDelivery(t *testing.T) {
 	svc := &stubService{}
 	sessionKey := "agent:agent-1:fs:group:oc_group_123"
 	result, isError := callTool(t, svc, contract.ServerContext{
@@ -310,13 +383,10 @@ func TestCreateSimpleReminderDefaultsToCurrentExternalSession(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.BoundSessionKey != sessionKey {
-		t.Fatalf("expected execution session=%s, got %+v", sessionKey, svc.createInput.SessionTarget)
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
+		t.Fatalf("expected isolated execution, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected default delivery derived from current feishu session, got %+v", svc.createInput.Delivery)
-	}
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
 }
 
 func TestCreateExecutionReplyDerivesDeliveryFromExternalSession(t *testing.T) {
@@ -340,10 +410,7 @@ func TestCreateExecutionReplyDerivesDeliveryFromExternalSession(t *testing.T) {
 	if svc.createInput.SessionTarget.BoundSessionKey != sessionKey {
 		t.Fatalf("expected execution session=%s, got %+v", sessionKey, svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected execution delivery derived from feishu session, got %+v", svc.createInput.Delivery)
-	}
+	requireLastDeliveryToSession(t, svc.createInput.Delivery, sessionKey)
 }
 
 func TestCreateExecutionReplyTemporaryFromAgentContextFallsBackToNone(t *testing.T) {

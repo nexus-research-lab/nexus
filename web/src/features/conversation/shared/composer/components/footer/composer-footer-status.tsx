@@ -1,7 +1,7 @@
 /**
  * INPUT: Composer Goal 模式、runtime 活动态及其取消/负责人控件。
- * OUTPUT: 可在窄容器内收缩重排、但始终保留关键动作的 Footer 状态。
- * POS: Composer Footer 左侧状态投影。
+ * OUTPUT: 可在普通模式左列与 Goal 模式独立状态行间重排的 Footer 状态。
+ * POS: Composer Footer 的唯一运行状态投影。
  */
 
 import type { ReactNode } from "react";

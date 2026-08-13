@@ -9,6 +9,7 @@ import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-con
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import type {
   AssistantMessage,
+  GoalCompletionReceipt,
   Message,
   RecalledMemoryReference,
   ResultSummary,
@@ -54,6 +55,7 @@ interface OrderedContentProjectionOptions {
 
 interface AssistantIdentityProjection {
   assistantAgentId: string | null;
+  automationTaskName: string | null;
   firstAssistantMessageId: string | null;
   model: string | undefined;
   stopReason: string | null;
@@ -84,6 +86,9 @@ export function useMessageItemProjection({
   const assistantIdentity = projectAssistantIdentity(
     contentMerge.assistantMessages,
     identityAssistant,
+  );
+  const goalCompletionReceipt = resolveGoalCompletionReceipt(
+    contentMerge.assistantMessages,
   );
   const finalProjection = useMemo(
     () => resolveMessageItemFinalProjection({
@@ -161,6 +166,7 @@ export function useMessageItemProjection({
     ...permissionMatch,
     userMessages: contentMerge.userMessages,
     liveActivityState,
+    goalCompletionReceipt,
     processSummary,
     recalledMemories,
     stats: buildMessageStats(contentMerge.resultSummary),
@@ -170,6 +176,18 @@ export function useMessageItemProjection({
       contentMerge.resultSummary,
     ),
   };
+}
+
+function resolveGoalCompletionReceipt(
+  messages: readonly AssistantMessage[],
+): GoalCompletionReceipt | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const receipt = messages[index]?.goal_completion_receipt;
+    if (receipt?.goal_id?.trim() && receipt.round_id?.trim()) {
+      return receipt;
+    }
+  }
+  return null;
 }
 
 export function collectRecalledMemoryReferences(
@@ -315,6 +333,7 @@ function projectAssistantIdentity(
   if (!identityAssistant) {
     return {
       assistantAgentId: null,
+      automationTaskName: null,
       firstAssistantMessageId: null,
       model: undefined,
       stopReason: null,
@@ -323,11 +342,20 @@ function projectAssistantIdentity(
   }
   return {
     assistantAgentId: identityAssistant.agent_id ?? null,
+    automationTaskName: resolveAutomationTaskName(identityAssistant),
     firstAssistantMessageId: messages[0]?.message_id ?? null,
     model: resolveAssistantModel(messages, identityAssistant),
     stopReason: identityAssistant.stop_reason ?? null,
     streamStatus: identityAssistant.stream_status ?? null,
   };
+}
+
+function resolveAutomationTaskName(message: AssistantMessage): string | null {
+  if (message.metadata?.source !== "automation_delivery") {
+    return null;
+  }
+  const taskName = message.metadata.task_name;
+  return typeof taskName === "string" && taskName.trim() ? taskName.trim() : "";
 }
 
 function selectAssistantIdentity(

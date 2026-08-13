@@ -4,6 +4,7 @@ import { Pencil } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -53,6 +54,8 @@ export function ScheduledTaskDialog({
     return null;
   }
 
+  const isLegacyScriptTask = initialTask?.execution_kind === "script";
+
   const submitLabel = initialTask
     ? t("capability.scheduled_dialog_save")
     : t("capability.scheduled_dialog_create");
@@ -90,21 +93,35 @@ export function ScheduledTaskDialog({
             className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start"
             scrollable
           >
-            <TaskBasicsPanel
-              actions={controller.form.actions}
-              data={controller.data}
-              form={controller.form.draft}
-              nameRef={controller.refs.nameRef}
-            />
-            <TaskSchedulePanel
-              actions={controller.schedule.actions}
-              errorMessage={controller.errorMessage}
-              form={controller.form.draft}
-              formActions={controller.form.actions}
-              refs={controller.refs}
-              schedule={controller.schedule.draft}
-              view={controller.schedule.view}
-            />
+            {isLegacyScriptTask ? (
+              <div className="md:col-span-2">
+                <UiStateBlock
+                  description={t("capability.scheduled_dialog_legacy_script_description")}
+                  size="sm"
+                  title={t("capability.scheduled_dialog_legacy_script_title")}
+                />
+              </div>
+            ) : (
+              <TaskBasicsPanel
+                actions={controller.form.actions}
+                data={controller.data}
+                form={controller.form.draft}
+                isEditing={initialTask !== null}
+                needsSessionRebind={controller.needsSessionRebind}
+                nameRef={controller.refs.nameRef}
+              />
+            )}
+            {!isLegacyScriptTask ? (
+              <TaskSchedulePanel
+                actions={controller.schedule.actions}
+                errorMessage={controller.errorMessage}
+                form={controller.form.draft}
+                formActions={controller.form.actions}
+                refs={controller.refs}
+                schedule={controller.schedule.draft}
+                view={controller.schedule.view}
+              />
+            ) : null}
           </UiDialogBody>
 
           <UiDialogFooter>
@@ -115,23 +132,25 @@ export function ScheduledTaskDialog({
               type="button"
               variant="surface"
             >
-              {t("common.cancel")}
+              {t(isLegacyScriptTask ? "common.close" : "common.cancel")}
             </UiButton>
-            <UiButton
-              className="min-w-[124px]"
-              disabled={controller.isSubmitting}
-              onClick={() => void controller.handleSubmit()}
-              tone="primary"
-              type="button"
-              variant="solid"
-            >
-              {controller.isSubmitting ? submittingLabel : (
-                <>
-                  {initialTask ? <Pencil className="h-3.5 w-3.5" /> : null}
-                  {submitLabel}
-                </>
-              )}
-            </UiButton>
+            {!isLegacyScriptTask ? (
+              <UiButton
+                className="min-w-[124px]"
+                disabled={controller.isSubmitting}
+                onClick={() => void controller.handleSubmit()}
+                tone="primary"
+                type="button"
+                variant="solid"
+              >
+                {controller.isSubmitting ? submittingLabel : (
+                  <>
+                    {initialTask ? <Pencil className="h-3.5 w-3.5" /> : null}
+                    {submitLabel}
+                  </>
+                )}
+              </UiButton>
+            ) : null}
           </UiDialogFooter>
         </UiDialogShell>
       </UiDialogBackdrop>

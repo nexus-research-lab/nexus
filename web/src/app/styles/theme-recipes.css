@@ -769,6 +769,30 @@
     grid-area: trailing;
   }
 
+  /* Goal 控制比普通状态更密集：让控制/提交占第一行，状态独占第二行，
+     避免负责人选择器的不可收缩宽度覆盖停止提示。 */
+  .nexus-chat-composer-footer[data-goal-mode="true"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "leading trailing";
+    align-items: start;
+    row-gap: 0.25rem;
+  }
+
+  .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
+    flex-wrap: wrap;
+    overflow: visible;
+    row-gap: 0.25rem;
+  }
+
+  .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-brand {
+    display: none;
+  }
+
+  .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
   .nexus-chat-composer-submit {
     width: 2rem;
     padding-inline: 0;
@@ -802,17 +826,6 @@
       padding-inline: 0.75rem;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] {
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas: "leading trailing";
-    }
-
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
-      flex-wrap: wrap;
-      overflow: visible;
-      row-gap: 0.25rem;
-    }
-
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-lead {
       max-width: 9rem;
     }
@@ -826,13 +839,29 @@
       display: none;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
-      flex-basis: 100%;
-      padding-inline-start: 2.5rem;
-    }
   }
 
-  @container nexus-chat-composer (max-width: 420px) {
+  @container nexus-chat-composer (max-width: 460px) {
+    .nexus-chat-composer-footer[data-goal-mode="true"] {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        "leading"
+        "trailing";
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading,
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-trailing {
+      width: 100%;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-trailing {
+      justify-self: stretch;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-submit {
+      margin-inline-start: auto;
+    }
+
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
       display: none;
     }

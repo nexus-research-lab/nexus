@@ -309,7 +309,8 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	hasSuccessfulUpdate := false
 	for _, observation := range observations {
 		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected {
+			observation.MutationOutcome == protocol.MutationResultRejected ||
+			observation.MutationOutcome == protocol.MutationResultSuperseded {
 			continue
 		}
 		switch messageutil.CanonicalToolName(observation.ToolName) {
@@ -344,8 +345,15 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	r.recordGoalUsageSnapshot(context.Background(), snapshot)
 	if hasSuccessfulUpdate {
 		// update_goal 的 tool result 到达时，当前 provider turn 尚未生成最终回复。
-		// 保持本 round 的固定 Goal 绑定，直到 terminal usage 完成最终对账后再关闭。
+		// 优先使用结果返回的 exact Goal ID；旧 provider 才回退到本 round 固定
+		// binding。保持该绑定直到 terminal usage 完成最终对账后再关闭。
 		r.goalUsageMu.Lock()
+		if goalID := messageutil.SuccessfulGoalCompletionID(
+			observations,
+			r.goalIDForUsage,
+		); goalID != "" {
+			r.goalCompletionCandidateID = goalID
+		}
 		if r.goalUsage != nil {
 			r.goalUsage.BeginFinalizing()
 		}
@@ -722,6 +730,7 @@ func (r *roundRunner) finalizeCompletedGoalUsageAfterSubagents(ctx context.Conte
 		if canClose {
 			r.closeGoalUsageIfNoTerminalSnapshotPending()
 		}
+		r.persistGoalCompletionReceipt(ctx, true)
 	}
 	return settled
 }

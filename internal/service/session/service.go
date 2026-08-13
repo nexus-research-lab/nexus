@@ -1,3 +1,6 @@
+// INPUT: Session 存储、workspace history、runtime 与跨域只读依赖。
+// OUTPUT: owner-scoped Session 服务及其窄依赖注入契约。
+// POS: Session 业务服务装配与生命周期边界。
 package session
 
 import (
@@ -7,11 +10,20 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+type externalSessionIdentityResolver interface {
+	ResolveExternalSessionIdentity(context.Context, string, string) (*protocol.ExternalSessionIdentity, error)
+}
+
+type sessionTaskReferenceResolver interface {
+	CountTasksReferencingSessions(context.Context, string, []string) (map[string]int, error)
+}
 
 var (
 	// ErrSessionNotFound 表示 session 不存在。
@@ -22,22 +34,47 @@ var (
 	ErrSessionConfigurationVersionConflict = errors.New("session configuration version conflict")
 	// ErrSessionDeleted 表示 session 已进入持久删除栅栏，普通 writer 不得复活。
 	ErrSessionDeleted = errors.New("session is deleting or deleted")
+	// ErrExternalSessionPairingActive 表示外部 IM 会话仍由有效配对占用。
+	ErrExternalSessionPairingActive = errors.New("external IM session pairing is active")
 )
 
 // Service 负责编排文件会话与 Room SQL 会话视图。
 type Service struct {
-	config       config.Config
-	agentService *agentsvc.Service
-	repository   SQLRepository
-	files        *workspacestore.SessionFileStore
-	history      *workspacestore.AgentHistoryStore
-	roomHistory  *workspacestore.RoomHistoryStore
-	runtime      *runtimectx.Manager
-	deletion     *deletionsvc.Coordinator
-	notifier     DirectoryNotifier
+	config           config.Config
+	agentService     *agentsvc.Service
+	repository       SQLRepository
+	files            *workspacestore.SessionFileStore
+	history          *workspacestore.AgentHistoryStore
+	roomHistory      *workspacestore.RoomHistoryStore
+	runtime          *runtimectx.Manager
+	deletion         *deletionsvc.Coordinator
+	notifier         DirectoryNotifier
+	externalIdentity externalSessionIdentityResolver
+	taskReferences   sessionTaskReferenceResolver
+	goalUsage        GoalCompletionUsageProvider
 
 	recoveryMu      sync.Mutex
 	recoveryBlocked map[string]struct{}
+}
+
+// SetExternalSessionIdentityResolver 注入 IM pairing/account 的实时身份投影。
+func (s *Service) SetExternalSessionIdentityResolver(resolver externalSessionIdentityResolver) {
+	s.externalIdentity = resolver
+}
+
+// SetTaskReferenceResolver 注入定时任务引用计数，用于会话身份与删除影响展示。
+func (s *Service) SetTaskReferenceResolver(resolver sessionTaskReferenceResolver) {
+	s.taskReferences = resolver
+}
+
+// GoalCompletionUsageProvider 提供历史完成收据的当前 Goal 聚合真相。
+type GoalCompletionUsageProvider interface {
+	UsageByGoalIDForOwner(context.Context, string, string) (*protocol.GoalUsageReport, error)
+}
+
+// SetGoalCompletionUsageProvider 注入 Goal 聚合读取器，用于修复历史收据中的旧结算值。
+func (s *Service) SetGoalCompletionUsageProvider(provider GoalCompletionUsageProvider) {
+	s.goalUsage = provider
 }
 
 // SetRuntimeManager 注入运行时管理器，用于历史读取与删除前关闭活跃会话。

@@ -149,26 +149,32 @@ func deliveryRetryTaskEventDetail(run automationdomain.ScheduledTaskRun) map[str
 
 func taskEventJobSnapshot(job automationdomain.ScheduledTask) map[string]any {
 	detail := map[string]any{
-		"name":                  job.Name,
-		"instruction":           job.Instruction,
-		"enabled":               job.Enabled,
-		"schedule_kind":         job.Schedule.Kind,
-		"schedule_timezone":     job.Schedule.Timezone,
-		"execution_kind":        automationdomain.NormalizeExecutionKind(job.ExecutionKind),
-		"session_target_kind":   job.SessionTarget.Kind,
-		"delivery_mode":         job.Delivery.Mode,
-		"delivery_channel":      job.Delivery.Channel,
-		"delivery_to":           job.Delivery.To,
-		"delivery_account_id":   job.Delivery.AccountID,
-		"delivery_thread_id":    job.Delivery.ThreadID,
-		"source_kind":           job.Source.Kind,
-		"source_context_type":   job.Source.ContextType,
-		"source_context_id":     job.Source.ContextID,
-		"source_context_label":  job.Source.ContextLabel,
-		"source_session_key":    job.Source.SessionKey,
-		"source_session_label":  job.Source.SessionLabel,
-		"overlap_policy":        automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
-		"configuration_version": job.ConfigurationVersion,
+		"agent_id":               job.AgentID,
+		"name":                   job.Name,
+		"instruction":            job.Instruction,
+		"enabled":                job.Enabled,
+		"schedule_kind":          job.Schedule.Kind,
+		"schedule_timezone":      job.Schedule.Timezone,
+		"execution_kind":         automationdomain.NormalizeExecutionKind(job.ExecutionKind),
+		"permission_mode":        automationdomain.NormalizePermissionMode(job.PermissionMode),
+		"session_target_kind":    job.SessionTarget.Kind,
+		"delivery_mode":          job.Delivery.Mode,
+		"delivery_channel":       job.Delivery.Channel,
+		"delivery_to":            job.Delivery.To,
+		"delivery_session_key":   job.Delivery.SessionKey,
+		"session_binding_state":  job.SessionBindingState,
+		"session_binding_issues": job.SessionBindingIssues,
+		"delivery_account_id":    job.Delivery.AccountID,
+		"delivery_thread_id":     job.Delivery.ThreadID,
+		"source_kind":            job.Source.Kind,
+		"source_context_type":    job.Source.ContextType,
+		"source_context_id":      job.Source.ContextID,
+		"source_context_label":   job.Source.ContextLabel,
+		"source_session_key":     job.Source.SessionKey,
+		"source_session_label":   job.Source.SessionLabel,
+		"delivery_grant_kind":    job.DeliveryGrant.Kind,
+		"overlap_policy":         automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
+		"configuration_version":  job.ConfigurationVersion,
 	}
 	if job.Schedule.RunAt != nil {
 		detail["schedule_run_at"] = strings.TrimSpace(*job.Schedule.RunAt)
@@ -196,6 +202,9 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 	if input.Name != nil {
 		fields = append(fields, "name")
 	}
+	if input.AgentID != nil {
+		fields = append(fields, "agent_id")
+	}
 	if input.Schedule != nil {
 		fields = append(fields, "schedule")
 	}
@@ -205,6 +214,9 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 	if input.ExecutionKind != nil {
 		fields = append(fields, "execution_kind")
 	}
+	if input.PermissionMode != nil {
+		fields = append(fields, "permission_mode")
+	}
 	if input.SessionTarget != nil {
 		fields = append(fields, "session_target")
 	}
@@ -212,7 +224,7 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 		fields = append(fields, "delivery")
 	}
 	if input.Source != nil {
-		fields = append(fields, "source")
+		fields = append(fields, "delivery_grant")
 	}
 	if input.OverlapPolicy != nil {
 		fields = append(fields, "overlap_policy")
@@ -228,9 +240,11 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 
 func onlyEnabledChanged(input automationdomain.UpdateJobInput) bool {
 	return input.Name == nil &&
+		input.AgentID == nil &&
 		input.Schedule == nil &&
 		input.Instruction == nil &&
 		input.ExecutionKind == nil &&
+		input.PermissionMode == nil &&
 		input.SessionTarget == nil &&
 		input.Delivery == nil &&
 		input.Source == nil &&

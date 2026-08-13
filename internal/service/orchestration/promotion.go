@@ -1,5 +1,5 @@
 // INPUT: Agent 选择的 persistence reason 与通过权限/状态校验的 Execution snapshot。
-// OUTPUT: Goal identity/revision 和激活原因，供后续 BindGoal command 使用。
+// OUTPUT: Goal identity/revision 和激活原因，以及 SQL BindGoal 后的 durable Goal confirmation。
 // POS: Orchestration 到 Goal 服务的消费侧端口；本包不直接修改 Goal 状态。
 package orchestration
 
@@ -107,7 +107,8 @@ func (s *Service) PromoteExecutionToGoal(
 	ctx context.Context,
 	actor ActorContext,
 	input PromoteExecutionToGoalInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -126,7 +127,19 @@ func (s *Service) PromoteExecutionToGoal(
 		), nil), nil
 	}
 	if snapshot.Execution.GoalID != "" {
-		return NoOpResult(snapshot, "execution is already bound to a Goal"), nil
+		if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
+			return withPendingGoalConfirmation(
+				NoOpResult(snapshot, ""),
+				"Execution is already durably bound to the Goal; reverse binding confirmation is pending and will retry automatically.",
+				NextAction{
+					Tool:   "promote_execution_to_goal",
+					Reason: "retry the same promotion intent now, or continue while durable background reconciliation confirms the Goal binding",
+				},
+			), nil
+		}
+		return withConfirmedGoalAuthority(
+			NoOpResult(snapshot, "execution is already bound to a Goal"),
+		), nil
 	}
 	if snapshot.Execution.Status != protocol.ExecutionStatusActive &&
 		snapshot.Execution.Status != protocol.ExecutionStatusWaiting {
@@ -215,82 +228,77 @@ func (s *Service) PromoteExecutionToGoal(
 	if bindErr != nil {
 		retry := []NextAction{{
 			Tool:   "promote_execution_to_goal",
-			Reason: "Goal identity exists; retry with the same command_id to bind it without creating another Goal",
+			Reason: "Goal identity exists; retry with the same semantic arguments so the backend can reuse it and finish binding",
 		}}
 		result, knownErr := s.storageMutationResult(snapshot, bindErr, retry)
 		if knownErr != nil {
 			return MutationResult{}, knownErr
 		}
-		result.Message = "Goal identity exists but Execution binding did not commit; retry with the same command_id"
+		result.Message = "Goal identity exists but Execution binding did not commit; retry with the same semantic arguments"
 		return result, nil
 	}
-	return AppliedResult(updated, []string{
+	if confirmErr := s.confirmGoalExecutionBinding(ctx, updated); confirmErr != nil {
+		return withPendingGoalConfirmation(
+			AppliedResult(updated, []string{
+				"execution:" + updated.Execution.ID,
+				"goal:" + binding.GoalID,
+			}, nextActions(updated, actor)),
+			"Execution and Goal identity are durable; reverse binding confirmation is pending and will retry automatically.",
+			NextAction{
+				Tool:   "promote_execution_to_goal",
+				Reason: "retry the same promotion intent now, or continue while durable background reconciliation confirms the Goal binding",
+			},
+		), nil
+	}
+	return withConfirmedGoalAuthority(AppliedResult(updated, []string{
 		"execution:" + updated.Execution.ID,
 		"goal:" + binding.GoalID,
-	}, nextActions(updated, actor)), nil
+	}, nextActions(updated, actor))), nil
 }
 
 // GoalExecutionCompletionBlocker 返回 Goal 当前 objective revision 对应 WorkGraph 的完成阻塞。
-//
-// Legacy Goal 没有 binding metadata 时仍允许独立完成；一旦 Goal 声明 explicit
-// 或 adaptive binding provenance，缺失/冲突的 Execution 必须成为 blocker，不能旁路 WorkGraph。
+// future reservation 仍属于 Goal-only；只有 confirmed binding 才审计 WorkGraph，
+// pending/conflict 则 fail closed，避免半提交绑定被旁路。
 func (s *Service) GoalExecutionCompletionBlocker(
 	ctx context.Context,
 	goal protocol.Goal,
 ) (string, error) {
-	if s == nil || s.repository == nil {
-		return "", nil
-	}
-	if goal.ID == "" {
-		return "", nil
-	}
-	executionID := protocol.GoalReservedExecutionID(goal)
-	activationOrigin := protocol.GoalActivationOrigin(protocol.GoalMetadataString(
-		goal.Metadata,
-		protocol.GoalMetadataActivationOrigin,
-	))
-	if executionID != "" {
-		execution, err := s.repository.Get(ctx, executionID)
-		if err != nil {
-			return "", err
-		}
-		if execution == nil {
-			return "execution_binding_missing:" + executionID, nil
-		}
-		snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
-		if err != nil {
-			return "", err
-		}
-		if snapshot == nil {
-			return "execution_binding_missing:" + executionID, nil
-		}
-		return goalExecutionSnapshotBlocker(goal, snapshot), nil
-	}
-
-	execution, err := s.repository.FindCurrentByGoal(ctx, goal.ID, goal.ObjectiveRevision())
+	resolution, err := s.ResolveGoalExecutionBinding(ctx, goal)
 	if err != nil {
 		return "", err
 	}
-	if execution != nil {
-		snapshot, snapshotErr := s.repository.GetSnapshot(ctx, execution.ID)
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+		return "", nil
+	case protocol.GoalExecutionBindingStatePending:
+		return "execution_binding_pending:" + firstNonEmptyExecutionBindingID(resolution), nil
+	case protocol.GoalExecutionBindingStateConflict:
+		return "execution_binding_conflict:" + firstNonEmptyExecutionBindingID(resolution), nil
+	case protocol.GoalExecutionBindingStateConfirmed:
+		snapshot, snapshotErr := s.repository.GetSnapshot(ctx, resolution.ExecutionID)
 		if snapshotErr != nil {
 			return "", snapshotErr
 		}
 		if snapshot == nil {
-			return "execution_binding_missing:" + execution.ID, nil
+			return "execution_binding_missing:" + resolution.ExecutionID, nil
 		}
 		return goalExecutionSnapshotBlocker(goal, snapshot), nil
-	}
-	switch activationOrigin {
-	case protocol.GoalActivationOriginUserExplicit:
-		return "execution_binding_pending:explicit", nil
-	case protocol.GoalActivationOriginAdaptiveInitial,
-		protocol.GoalActivationOriginAdaptivePromoted:
-		return "execution_binding_missing:" + string(activationOrigin), nil
 	default:
-		// Goals created before Execution Orchestration remain valid legacy Goals.
-		return "", nil
+		return "execution_binding_conflict:unknown", nil
 	}
+}
+
+func firstNonEmptyExecutionBindingID(
+	resolution protocol.GoalExecutionBindingResolution,
+) string {
+	if value := strings.TrimSpace(resolution.ExecutionID); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(resolution.ReservedExecutionID); value != "" {
+		return value
+	}
+	return "unknown"
 }
 
 func goalExecutionSnapshotBlocker(

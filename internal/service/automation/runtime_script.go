@@ -85,6 +85,7 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 		TriggerKind:              triggerKind,
 		DeliveryMode:             strings.TrimSpace(job.Delivery.Mode),
 		DeliveryTo:               deliveryTargetSummary(job.Delivery),
+		DeliveryTarget:           cloneDeliveryTargetPointer(job.Delivery),
 		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	}); err != nil {
 		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
@@ -198,18 +199,20 @@ func (s *Service) observeScriptJob(job automationdomain.ScheduledTask, runID str
 		"execution_kind", automationdomain.ExecutionKindScript,
 	)
 	observation := s.runScriptJob(jobCtx, job, runID)
+	observation.RunID = strings.TrimSpace(runID)
 	status := observation.Status
 	if status == "" {
 		status = automationdomain.RunStatusFailed
 	}
 	errorMessage := cloneStringPointer(observation.ErrorMessage)
 	deliveryResult := jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
+	runDelivery := s.persistedRunDeliveryTarget(jobCtx, job, runID)
 	if status == automationdomain.RunStatusSucceeded {
-		deliveryResult = s.deliverJobObservation(jobCtx, job, "", observation)
+		deliveryResult = s.deliverJobObservationToTarget(jobCtx, job, runDelivery, "", observation)
 	}
 	deliveryStatus := deliveryResult.Status
 	deliveryError := deliveryResult.Error
-	deliveryTo := deliveryResult.deliveryTo(job.Delivery)
+	deliveryTo := deliveryResult.deliveryTo(runDelivery)
 	finishedAt := s.nowFn()
 	deliveredAt := deliveredAtForStatus(deliveryStatus, finishedAt)
 	deliveryAttemptsAfter := 0

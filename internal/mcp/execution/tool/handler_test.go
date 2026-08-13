@@ -10,11 +10,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/execution/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
 type fakeExecutionService struct {
 	current       func() *protocol.ExecutionSnapshot
+	snapshotError error
 	currentReads  int
 	snapshotReads int
 	prepare       func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
@@ -46,6 +48,9 @@ func (s *fakeExecutionService) GetCurrent(_ context.Context, _ orchestration.Act
 
 func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.ActorContext, executionID string) (*protocol.ExecutionSnapshot, error) {
 	s.snapshotReads++
+	if s.snapshotError != nil {
+		return nil, s.snapshotError
+	}
 	if s.current == nil {
 		return nil, nil
 	}
@@ -54,6 +59,98 @@ func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.Ac
 		return nil, nil
 	}
 	return snapshot, nil
+}
+
+func TestSubmitWorkProjectsRetargetedPredecessorAsSuperseded(t *testing.T) {
+	svc := &fakeExecutionService{snapshotError: &orchestration.DomainError{
+		Code:    orchestration.ErrorCodeExecutionTerminal,
+		Message: "the bound Room work was superseded; wait for a fresh Assignment",
+	}}
+	sctx := executionServerContext()
+	result, err := submitWork(svc, sctx).ContextHandler(
+		context.Background(),
+		map[string]any{
+			"execution_id":   "execution-retargeted",
+			"result_summary": "late predecessor result",
+		},
+		&sdktool.CallContext{ToolUseID: "tool-late-submit"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("result = %#v, terminal predecessor must not be a transport failure", result)
+	}
+	if result.StructuredContent["outcome"] != string(protocol.MutationResultSuperseded) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodeExecutionTerminal) {
+		t.Fatalf("structured result = %#v, want superseded semantic outcome", result.StructuredContent)
+	}
+}
+
+func TestCompactExecutionToolContextKeepsAuthorityWithoutRuntimeHistory(t *testing.T) {
+	t.Parallel()
+
+	rendered := `<nexus_execution_context execution_version="9">
+  <graph_digest><nodes><node key="draft" /></nodes></graph_digest>
+  <runtime_facts available="true"><recent_nodes><node id="tool-1" /></recent_nodes></runtime_facts>
+  <assigned_work><item assignment_id="assignment-1"><objective>write</objective></item></assigned_work>
+  <allowed_actions><action>submit_work</action></allowed_actions>
+</nexus_execution_context>`
+	compact := compactExecutionToolContext(rendered)
+	if strings.Contains(compact, "runtime_facts") ||
+		!strings.Contains(compact, "assignment-1") ||
+		!strings.Contains(compact, "submit_work") ||
+		!strings.Contains(compact, "graph_digest") {
+		t.Fatalf("compact context = %s", compact)
+	}
+
+	oversized := strings.Replace(
+		rendered,
+		"<nodes><node key=\"draft\" /></nodes>",
+		"<nodes>"+strings.Repeat("x", executionToolContextInlineLimit)+"</nodes>",
+		1,
+	)
+	compact = compactExecutionToolContext(oversized)
+	if strings.Contains(compact, "graph_digest") ||
+		!strings.Contains(compact, "assignment-1") ||
+		len(compact) > executionToolContextInlineLimit {
+		t.Fatalf("oversized compact context length=%d value=%s", len(compact), compact)
+	}
+}
+
+func TestMutationResultKeepsControlIdentityInlineWhenContextIsTooLarge(t *testing.T) {
+	t.Parallel()
+
+	result := mutationResult(orchestration.MutationResult{
+		Outcome:          orchestration.MutationApplied,
+		ExecutionID:      "execution-1",
+		SnapshotRevision: 12,
+		ExecutionContext: strings.Repeat("x", executionToolResultInlineLimit),
+		ContextStatus:    "authoritative",
+		Changed: []string{
+			"assignment:assignment-1",
+			"attempt:attempt-1",
+		},
+	})
+	if result.IsError {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.StructuredContent["outcome"] != string(orchestration.MutationApplied) ||
+		result.StructuredContent["execution_id"] != "execution-1" ||
+		result.StructuredContent["context_status"] != "refresh_required" {
+		t.Fatalf("large mutation control envelope = %#v", result.StructuredContent)
+	}
+	if contextValue, exists := result.StructuredContent["execution_context"]; exists && contextValue != "" {
+		t.Fatalf("oversized execution context remained inline: %#v", contextValue)
+	}
+	changed, ok := result.StructuredContent["changed"].([]any)
+	if !ok || len(changed) != 2 {
+		t.Fatalf("changed identities were externalized: %#v", result.StructuredContent["changed"])
+	}
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) == 0 {
+		t.Fatalf("refresh recovery missing: %#v", result.StructuredContent["next_actions"])
+	}
 }
 
 func (s *fakeExecutionService) PreparePlanExecution(
@@ -200,6 +297,100 @@ func TestGetExecutionMintsExplicitRuntimeCoordinationCapability(t *testing.T) {
 	}
 }
 
+func TestPromoteExecutionToGoalUpgradesSharedRoundAuthority(t *testing.T) {
+	current := executionSnapshot(9)
+	promoted := *current
+	promoted.Execution = current.Execution
+	promoted.Execution.GoalID = "goal-promoted"
+	promoted.Execution.GoalObjectiveRevision = 3
+	promoted.Execution.Version = 10
+
+	var contextActor orchestration.ActorContext
+	svc := &fakeExecutionService{
+		current: func() *protocol.ExecutionSnapshot { return current },
+		promote: func(orchestration.PromoteExecutionToGoalInput) orchestration.MutationResult {
+			result := orchestration.AppliedResult(
+				&promoted,
+				[]string{"goal:goal-promoted"},
+				nil,
+			)
+			result.GoalAuthority = &orchestration.GoalAuthorityReceipt{
+				GoalID:            promoted.Execution.GoalID,
+				ObjectiveRevision: promoted.Execution.GoalObjectiveRevision,
+				ExecutionID:       promoted.Execution.ID,
+			}
+			return result
+		},
+		contextActor: func(actor orchestration.ActorContext) {
+			contextActor = actor
+		},
+	}
+	sctx := executionServerContext()
+	sctx.GoalAuthority = runtimectx.NewGoalAuthorityState("", 0, "")
+	result, err := promoteExecutionToGoal(svc, sctx).ContextHandler(
+		context.Background(),
+		map[string]any{"activation_reason": "substantial_complexity"},
+		&sdktool.CallContext{ToolUseID: "tool-promote"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority, ok := sctx.GoalAuthority.Load()
+	if result.IsError || !ok ||
+		authority.GoalID != promoted.Execution.GoalID ||
+		authority.ObjectiveRevision != promoted.Execution.GoalObjectiveRevision ||
+		authority.ExecutionID != promoted.Execution.ID {
+		t.Fatalf("result=%#v authority=%+v ok=%t", result, authority, ok)
+	}
+	if contextActor.GoalID != authority.GoalID ||
+		contextActor.GoalObjectiveRevision != authority.ObjectiveRevision {
+		t.Fatalf("fresh context actor = %+v, authority = %+v", contextActor, authority)
+	}
+}
+
+func TestBindMutationGoalAuthorityRequiresConfirmedReceipt(t *testing.T) {
+	snapshot := executionSnapshot(2)
+	snapshot.Execution.GoalID = "goal-1"
+	snapshot.Execution.GoalObjectiveRevision = 4
+	for _, test := range []struct {
+		name    string
+		outcome orchestration.MutationOutcome
+		receipt bool
+		want    bool
+	}{
+		{name: "applied confirmed", outcome: orchestration.MutationApplied, receipt: true, want: true},
+		{name: "idempotent confirmation", outcome: orchestration.MutationNoOp, receipt: true, want: true},
+		{name: "applied confirmation pending", outcome: orchestration.MutationApplied, want: false},
+		{name: "rejected", outcome: orchestration.MutationRejected, want: false},
+		{name: "superseded", outcome: orchestration.MutationSuperseded, want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			authority := runtimectx.NewGoalAuthorityState("", 0, "")
+			result := orchestration.MutationResult{
+				Outcome:  test.outcome,
+				Snapshot: snapshot,
+			}
+			if test.receipt {
+				result.GoalAuthority = &orchestration.GoalAuthorityReceipt{
+					GoalID:            snapshot.Execution.GoalID,
+					ObjectiveRevision: snapshot.Execution.GoalObjectiveRevision,
+					ExecutionID:       snapshot.Execution.ID,
+				}
+			}
+			got := bindMutationGoalAuthority(contract.ServerContext{
+				GoalAuthority: authority,
+			}, result)
+			if got != test.want {
+				t.Fatalf("bind = %t, want %t", got, test.want)
+			}
+			loaded, ok := authority.Load()
+			if ok != test.want {
+				t.Fatalf("authority ok = %t, want %t; authority=%+v", ok, test.want, loaded)
+			}
+		})
+	}
+}
+
 func TestExecutionToolResultsDoNotDuplicateFullSnapshot(t *testing.T) {
 	snapshot := executionSnapshot(9)
 	for index := 0; index < 128; index++ {
@@ -318,11 +509,12 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 		},
 	}
 	sctx := executionServerContext()
-	sctx.GoalID = "goal-1"
-	sctx.GoalObjectiveRevision = 7
+	sctx.GoalAuthority = runtimectx.NewGoalAuthorityState("goal-1", 7, "")
+	toolInput := validPreparePlanToolInput()
+	toolInput["goal_binding"] = "current"
 	result, err := preparePlanExecution(svc, sctx).ContextHandler(
 		context.Background(),
-		validPreparePlanToolInput(),
+		toolInput,
 		&sdktool.CallContext{ToolUseID: "tool-prepare-plan"},
 	)
 	if err != nil {
@@ -332,15 +524,16 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 		t.Fatalf("result = %#v", result)
 	}
 	if capturedInput.CommandID != "tool-prepare-plan" ||
-		capturedInput.PlanDocument != validPlanDocument() {
+		capturedInput.PlanDocument != validPlanDocument() ||
+		capturedInput.GoalBinding != orchestration.PlanGoalBindingCurrent {
 		t.Fatalf("prepare input = %#v", capturedInput)
 	}
 	if capturedActor.OwnerUserID != sctx.OwnerUserID ||
 		capturedActor.SessionKey != sctx.ScopeSessionKey ||
 		capturedActor.AgentID != sctx.AgentID ||
 		capturedActor.RootRoundID != sctx.RootRoundID ||
-		capturedActor.GoalID != sctx.GoalID ||
-		capturedActor.GoalObjectiveRevision != sctx.GoalObjectiveRevision {
+		capturedActor.GoalID != "goal-1" ||
+		capturedActor.GoalObjectiveRevision != 7 {
 		t.Fatalf("trusted actor = %#v", capturedActor)
 	}
 	if svc.currentReads != 0 || svc.snapshotReads != 0 {
@@ -350,6 +543,7 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 		result.StructuredContent["proposal_id"] != proposal.ID ||
 		result.StructuredContent["proposal_digest"] != proposal.ContentDigest ||
 		result.StructuredContent["proposal_status"] != string(protocol.ExecutionPlanProposalStatusSealed) ||
+		result.StructuredContent["goal_binding"] != string(orchestration.PlanGoalBindingCurrent) ||
 		result.StructuredContent["objective_source"] != "goal" ||
 		result.StructuredContent["completion_criteria_source"] != "plan_document" ||
 		result.StructuredContent["item_count"] != float64(2) {
@@ -587,6 +781,53 @@ func TestPlanExecutionMaterializesExactSealedReference(t *testing.T) {
 	}
 }
 
+func TestPlanExecutionUpgradesGoalOnlyAuthorityAfterConfirmedMaterialization(t *testing.T) {
+	snapshot := executionSnapshot(4)
+	snapshot.Execution.GoalID = "goal-1"
+	snapshot.Execution.GoalObjectiveRevision = 7
+	result := orchestration.AppliedResult(snapshot, []string{"execution:execution-1"}, nil)
+	result.GoalAuthority = &orchestration.GoalAuthorityReceipt{
+		GoalID:            "goal-1",
+		ObjectiveRevision: 7,
+		ExecutionID:       snapshot.Execution.ID,
+	}
+	var contextActor orchestration.ActorContext
+	svc := &fakeExecutionService{
+		materialize: func(
+			orchestration.ActorContext,
+			orchestration.MaterializePlanExecutionInput,
+		) orchestration.MutationResult {
+			return result
+		},
+		contextActor: func(actor orchestration.ActorContext) {
+			contextActor = actor
+		},
+	}
+	sctx := executionServerContext()
+	sctx.GoalAuthority = runtimectx.NewGoalAuthorityState("goal-1", 7, "")
+	toolResult, err := planExecution(svc, sctx).ContextHandler(
+		context.Background(),
+		validPlanCommitToolInput(),
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority, ok := sctx.GoalAuthority.Load()
+	if toolResult.IsError || !ok ||
+		authority.ExecutionID != snapshot.Execution.ID ||
+		contextActor.ExecutionID != snapshot.Execution.ID ||
+		contextActor.GoalID != "goal-1" ||
+		contextActor.GoalObjectiveRevision != 7 {
+		t.Fatalf(
+			"result=%#v authority=%+v context_actor=%+v",
+			toolResult,
+			authority,
+			contextActor,
+		)
+	}
+}
+
 func TestResumeWorkPassesResolutionEvidenceAndLatestFence(t *testing.T) {
 	snapshot := executionSnapshot(7)
 	var resumed orchestration.ResumeWorkInput
@@ -668,6 +909,15 @@ func TestPlanModeCanPrepareButCommitKeepsTheSealedReference(t *testing.T) {
 	}
 	if prepared.IsError || prepared.StructuredContent["outcome"] != "prepared" || !preparedActor.PlanMode {
 		t.Fatalf("Plan Mode prepare = %#v actor=%#v", prepared, preparedActor)
+	}
+	preparedActions, ok := prepared.StructuredContent["next_actions"].([]any)
+	if !ok || len(preparedActions) != 1 {
+		t.Fatalf("Plan Mode prepare lost commit guidance: %#v", prepared.StructuredContent)
+	}
+	preparedAction, ok := preparedActions[0].(map[string]any)
+	preparedReason, reasonOK := preparedAction["reason"].(string)
+	if !ok || !reasonOK || !strings.Contains(preparedReason, "leave Plan Mode") {
+		t.Fatalf("Plan Mode prepare advertised an immediately callable commit: %#v", prepared.StructuredContent)
 	}
 	if committed.IsError || committed.StructuredContent["outcome"] != "rejected" ||
 		committed.StructuredContent["reason_code"] != string(orchestration.ErrorCodePlanMode) ||

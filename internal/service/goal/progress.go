@@ -1,4 +1,4 @@
-// INPUT: runtime round 进展、失败与 objective revision fence。
+// INPUT: runtime round 进展、失败、Room collaboration handback 与 objective revision fence。
 // OUTPUT: CAS 重试后的 Goal 进展状态和审计事件。
 // POS: Goal round 结果回写的唯一入口。
 package goal
@@ -77,10 +77,47 @@ func (s *Service) RecordGoalActivity(ctx context.Context, goalID string, roundID
 	return s.recordGoalActivityForGoal(ctx, item, strings.TrimSpace(roundID), firstExpectedObjectiveRevision(expectedRevision))
 }
 
+// RecordRoomGoalCollaborationHandback 记录 target Agent 已将控制权归还 host。
+// 它不把 target 输出冒充为新的模型工具进展，也不重置
+// ContinuationCount；只清除源 round 在旧实现中可能抢先写入的
+// empty-progress 抑制，让后续仍受正常续跑上限约束。
+func (s *Service) RecordRoomGoalCollaborationHandback(
+	ctx context.Context,
+	goalID string,
+	roundID string,
+	expectedRevision ...int64,
+) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if err := rejectPendingObjectiveTransition(*current, "record Room Goal collaboration handback"); err != nil {
+			return nil, err
+		}
+		if !objectiveRevisionMatches(*current, firstExpectedObjectiveRevision(expectedRevision)) {
+			return nil, ErrGoalRevisionStale
+		}
+		return s.recordRoomGoalCollaborationHandbackForLoadedGoal(
+			ctx,
+			current,
+			strings.TrimSpace(roundID),
+		)
+	})
+}
+
 func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool, expectedRevision int64) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if err := rejectPendingObjectiveTransition(*current, "record continuation progress"); err != nil {
-			return nil, err
+		if _, planning := objectiveTransitionAwaitingPlan(*current); !planning {
+			if err := rejectPendingObjectiveTransition(*current, "record continuation progress"); err != nil {
+				return nil, err
+			}
 		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
@@ -91,8 +128,10 @@ func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *p
 
 func (s *Service) recordContinuationFailureForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string, expectedRevision int64) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if err := rejectPendingObjectiveTransition(*current, "record continuation failure"); err != nil {
-			return nil, err
+		if _, planning := objectiveTransitionAwaitingPlan(*current); !planning {
+			if err := rejectPendingObjectiveTransition(*current, "record continuation failure"); err != nil {
+				return nil, err
+			}
 		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
@@ -167,18 +206,12 @@ func (s *Service) recordContinuationFailureForLoadedGoal(ctx context.Context, it
 	item.LastError = reason
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
 	payload := map[string]any{
-		"empty_progress_count": updated.EmptyProgressCount,
+		"empty_progress_count": item.EmptyProgressCount,
 		"reason":               reason,
 	}
-	if err := s.appendEvent(ctx, *updated, "continuation_failed", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_failed", protocol.GoalUpdateSourceSystem, roundID, payload)
+	if err != nil {
 		return nil, err
 	}
 	s.clearWallClockGoal(*updated)
@@ -207,18 +240,12 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 	item.LastError = ""
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
 	payload := map[string]any{
-		"retry_count": updated.Metadata[goalCompletionToolRetryMetadataKey],
+		"retry_count": item.Metadata[goalCompletionToolRetryMetadataKey],
 		"reason":      reason,
 	}
-	if err := s.appendEvent(ctx, *updated, "completion_tool_retry", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "completion_tool_retry", protocol.GoalUpdateSourceSystem, roundID, payload)
+	if err != nil {
 		return nil, err
 	}
 	s.markWallClockGoalActive(*updated)
@@ -226,10 +253,8 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 }
 
 func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
-	if roomGoalCompletionRequiresCollaboration(*item) {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, "Room Goal completion requires room-visible non-lead collaboration")
-	}
 	if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
+		ctx,
 		*item,
 		RoomLeadAgentID(*item),
 		roundID,
@@ -239,7 +264,7 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 	if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *item); readinessErr != nil {
 		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
-	if readinessErr := s.ensureRoomGoalCompletionReady(
+	if readinessErr := s.ensureRoomGoalCollaborationReady(
 		ctx,
 		*item,
 		RoomLeadAgentID(*item),
@@ -275,19 +300,52 @@ func (s *Service) recordGoalActivityForLoadedGoal(ctx context.Context, item *pro
 	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
+	payload := map[string]any{
+		"continuation_count":   item.ContinuationCount,
+		"empty_progress_count": item.EmptyProgressCount,
+		"reason":               "explicit goal activity reset continuation run",
 	}
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_reset", protocol.GoalUpdateSourceSystem, roundID, payload)
 	if err != nil {
 		return nil, err
 	}
-	payload := map[string]any{
-		"continuation_count":   updated.ContinuationCount,
-		"empty_progress_count": updated.EmptyProgressCount,
-		"reason":               "explicit goal activity reset continuation run",
+	s.markWallClockGoalActive(*updated)
+	return updated, nil
+}
+
+func (s *Service) recordRoomGoalCollaborationHandbackForLoadedGoal(
+	ctx context.Context,
+	item *protocol.Goal,
+	roundID string,
+) (*protocol.Goal, error) {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return item, nil
 	}
-	if err := s.appendEvent(ctx, *updated, "continuation_reset", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
+	if item.EmptyProgressCount == 0 &&
+		strings.TrimSpace(item.LastError) == "" &&
+		goalCompletionToolRetryCount(item.Metadata) == 0 {
+		return item, nil
+	}
+	expectedVersion := item.Version
+	item.EmptyProgressCount = 0
+	item.LastError = ""
+	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	item.Version++
+	item.UpdatedAt = s.nowFn()
+	updated, err := s.persistGoalUpdateWithEvent(
+		ctx,
+		*item,
+		expectedVersion,
+		"room_collaboration_handback",
+		protocol.GoalUpdateSourceSystem,
+		roundID,
+		map[string]any{
+			"continuation_count":   item.ContinuationCount,
+			"empty_progress_count": item.EmptyProgressCount,
+			"reason":               "Room collaboration target returned control to the Goal host",
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 	s.markWallClockGoalActive(*updated)
@@ -326,18 +384,12 @@ func (s *Service) noteEmptyContinuationProgress(ctx context.Context, item *proto
 	item.EmptyProgressCount++
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
 	payload := map[string]any{
-		"empty_progress_count": updated.EmptyProgressCount,
+		"empty_progress_count": item.EmptyProgressCount,
 		"reason":               reason,
 	}
-	if err := s.appendEvent(ctx, *updated, "continuation_suppressed", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_suppressed", protocol.GoalUpdateSourceSystem, roundID, payload)
+	if err != nil {
 		return nil, err
 	}
 	s.clearWallClockGoal(*updated)

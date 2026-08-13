@@ -5,8 +5,6 @@ package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -26,7 +24,14 @@ func RoomLeadAgentName(goal protocol.Goal) string {
 	return protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataRoomGoalLeadAgentName)
 }
 
-func initializeRoomGoalOwnershipMetadata(sessionKey string, metadata map[string]any, agentID string) map[string]any {
+func initializeRoomGoalOwnershipMetadata(
+	sessionKey string,
+	metadata map[string]any,
+	creatorAgentID string,
+	creatorAgentName string,
+	leadAgentID string,
+	leadAgentName string,
+) map[string]any {
 	if !protocol.IsRoomSharedSessionKey(sessionKey) {
 		return metadata
 	}
@@ -35,15 +40,43 @@ func initializeRoomGoalOwnershipMetadata(sessionKey string, metadata map[string]
 		metadata = map[string]any{}
 	}
 	metadata[protocol.GoalMetadataRoomGoalScope] = "room"
-	agentID = strings.TrimSpace(agentID)
-	if agentID == "" {
-		delete(metadata, protocol.GoalMetadataRoomGoalCreatorAgentID)
-		return metadata
-	}
-	metadata[protocol.GoalMetadataRoomGoalCreatorAgentID] = agentID
-	metadata[protocol.GoalMetadataRoomGoalLeadAgentID] = agentID
+	delete(metadata, protocol.GoalMetadataRoomGoalCreatorAgentID)
+	delete(metadata, protocol.GoalMetadataRoomGoalLeadAgentID)
 	delete(metadata, protocol.GoalMetadataRoomGoalLeadAgentName)
+	creatorAgentID = strings.TrimSpace(creatorAgentID)
+	if creatorAgentID != "" {
+		metadata[protocol.GoalMetadataRoomGoalCreatorAgentID] = creatorAgentID
+	}
+	leadAgentID = strings.TrimSpace(leadAgentID)
+	if leadAgentID == "" {
+		leadAgentID = creatorAgentID
+		leadAgentName = creatorAgentName
+	}
+	if leadAgentID != "" {
+		metadata[protocol.GoalMetadataRoomGoalLeadAgentID] = leadAgentID
+	}
+	if leadAgentName = strings.TrimSpace(leadAgentName); leadAgentName != "" {
+		metadata[protocol.GoalMetadataRoomGoalLeadAgentName] = leadAgentName
+	}
 	return metadata
+}
+
+func verifiedRoomLeadAgentID(runtimeAgentID string, verifiedAgentID string) string {
+	if runtimeAgentID = strings.TrimSpace(runtimeAgentID); runtimeAgentID != "" {
+		return runtimeAgentID
+	}
+	return strings.TrimSpace(verifiedAgentID)
+}
+
+func verifiedRoomAgentName(
+	runtimeAgentID string,
+	verifiedAgentID string,
+	verifiedAgentName string,
+) string {
+	if strings.TrimSpace(runtimeAgentID) != strings.TrimSpace(verifiedAgentID) {
+		return ""
+	}
+	return strings.TrimSpace(verifiedAgentName)
 }
 
 func preserveRoomGoalOwnershipMetadata(current protocol.Goal, replacement map[string]any) map[string]any {
@@ -56,25 +89,14 @@ func preserveRoomGoalOwnershipMetadata(current protocol.Goal, replacement map[st
 	}
 	for _, key := range []string{
 		protocol.GoalMetadataRoomGoalScope,
-	} {
-		if value, exists := current.Metadata[key]; exists {
-			replacement[key] = value
-		}
-	}
-	if creatorAgentID, exists := current.Metadata[protocol.GoalMetadataRoomGoalCreatorAgentID]; exists {
-		replacement[protocol.GoalMetadataRoomGoalCreatorAgentID] = creatorAgentID
-	} else {
-		delete(replacement, protocol.GoalMetadataRoomGoalCreatorAgentID)
-	}
-	for _, key := range []string{
+		protocol.GoalMetadataRoomGoalCreatorAgentID,
 		protocol.GoalMetadataRoomGoalLeadAgentID,
 		protocol.GoalMetadataRoomGoalLeadAgentName,
 	} {
-		if _, exists := replacement[key]; exists {
-			continue
-		}
 		if value, exists := current.Metadata[key]; exists {
 			replacement[key] = value
+		} else {
+			delete(replacement, key)
 		}
 	}
 	return replacement
@@ -98,10 +120,18 @@ func authorizeRoomGoalModelMutation(goal protocol.Goal, agentID string) error {
 	return nil
 }
 
-// SetRoomGoalLead 由 Room 编排层按成员目录设置或修复共享 Goal 负责人。
-func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID string, agentName string) (*protocol.Goal, error) {
+// SetRoomGoalLead 由 Room 编排层请求设置或修复共享 Goal 负责人。
+// Agent 的 Room 成员身份和展示名必须在 Goal 服务边界通过 owner-scoped
+// session ownership verifier 重新证明，不信任调用方携带的成员目录投影。
+func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID string) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
+	}
+	if s.sessionOwnership == nil {
+		return nil, fmt.Errorf(
+			"%w: Room Goal lead assignment requires the session ownership verifier",
+			ErrGoalForbidden,
+		)
 	}
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" {
@@ -118,7 +148,25 @@ func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID st
 		if !protocol.IsRoomSharedSessionKey(current.SessionKey) || !protocol.IsCurrentGoalStatus(current.Status) {
 			return nil, ErrGoalInvalidState
 		}
-		agentName = strings.TrimSpace(agentName)
+		ownerUserID := protocol.GoalMetadataString(
+			current.Metadata,
+			protocol.GoalMetadataOwnerUserID,
+		)
+		_, verifiedAgentID, agentName, _, verifyErr := s.verifyGoalSessionOwnership(
+			ctx,
+			current.SessionKey,
+			ownerUserID,
+			agentID,
+		)
+		if verifyErr != nil {
+			return nil, verifyErr
+		}
+		if verifiedAgentID != agentID {
+			return nil, fmt.Errorf(
+				"%w: Room Goal lead identity was not verified",
+				ErrGoalForbidden,
+			)
+		}
 		if RoomLeadAgentID(*current) == agentID && RoomLeadAgentName(*current) == agentName {
 			return current, nil
 		}
@@ -137,18 +185,12 @@ func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID st
 		}
 		current.Version++
 		current.UpdatedAt = s.nowFn()
-		updated, updateErr := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(updateErr, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if eventErr := s.appendEvent(ctx, *updated, "room_lead_changed", protocol.GoalUpdateSourceSystem, "", map[string]any{
+		updated, updateErr := s.persistGoalUpdateWithEvent(ctx, *current, expectedVersion, "room_lead_changed", protocol.GoalUpdateSourceSystem, "", map[string]any{
 			"previous_agent_id": previousAgentID,
 			"agent_id":          agentID,
-		}); eventErr != nil {
-			return nil, eventErr
+		})
+		if updateErr != nil {
+			return nil, updateErr
 		}
 		return updated, nil
 	})
@@ -159,7 +201,7 @@ func RoomCollaborationRequired(goal protocol.Goal) bool {
 	return protocol.GoalMetadataBool(goal.Metadata, protocol.GoalMetadataRoomGoalCollaborationRequired)
 }
 
-// RoomCollaborationObserved 判断 Room Goal 是否已有非负责人可见协作证据。
+// RoomCollaborationObserved 判断同一 Room Goal 生命周期内是否已有非负责人可见协作证据。
 func RoomCollaborationObserved(goal protocol.Goal) bool {
 	return protocol.GoalMetadataBool(goal.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
 }

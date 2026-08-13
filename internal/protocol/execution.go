@@ -365,8 +365,10 @@ const (
 //
 // RuntimeSessionKey 是 Nexus runtime manager key；RoomSessionID 是 SQL Room session row；
 // SDKSessionID 是 SDK resume identity。RuntimeRoundID 与 RootRoundID 不得互换。
-// Room round 三元组只唯一标识 root Attempt；同一物理 parent round 内的 child
-// Attempt 合法共享该三元组，并由 parent_attempt_id + tool_use_id 精确区分。
+// Runtime round 三元组与 AssignmentID 共同唯一标识 root Attempt；同一物理
+// round 可以串行承载不同 Assignment，但不能为同一 Assignment 重复建 root
+// Attempt。child Attempt 合法共享该身份，并由 parent_attempt_id + tool_use_id
+// 精确区分。
 type WorkAttempt struct {
 	ID                  string              `json:"id"`
 	ExecutionID         string              `json:"execution_id"`

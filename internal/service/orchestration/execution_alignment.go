@@ -1,5 +1,5 @@
 // INPUT: 当前 Execution 的权威 objective/criteria、Agent 的结构化审计报告与 runtime identity。
-// OUTPUT: 经共享契约校验的可选 Gate NodeRun；未对齐时只记录返回 Agent 的观测回边。
+// OUTPUT: 经共享契约校验的可选 Gate NodeRun、未对齐时返回 Agent 的观测回边，以及 durable 写后的 session 失效事实。
 // POS: Agent 自主执行策略与 Execution Runtime Graph 之间的语义观测适配；不完成、不重跑、不路由。
 package orchestration
 
@@ -28,7 +28,7 @@ func (s *Service) AuditExecutionAlignment(
 	ctx context.Context,
 	actor ActorContext,
 	input AuditExecutionAlignmentInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -64,11 +64,14 @@ func (s *Service) AuditExecutionAlignment(
 	if actor.RootRoundID == "" {
 		actor.RootRoundID = snapshot.Execution.RootRoundID
 	}
-	if err = s.BeginRuntimeRound(ctx, actor); err != nil {
-		return MutationResult{}, err
-	}
 	identity, err := runtimeGraphIdentityFromActor(actor)
 	if err != nil {
+		return MutationResult{}, err
+	}
+	// Gate node and edges are separate durable writes; expose a committed prefix
+	// even if a later edge fails.
+	defer s.invalidateActor(ctx, actor)
+	if err = s.beginRuntimeRound(ctx, actor, false); err != nil {
 		return MutationResult{}, err
 	}
 	now := s.now().UTC()

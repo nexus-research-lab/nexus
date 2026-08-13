@@ -25,8 +25,13 @@ type Invocation struct {
 	SessionKey      string
 	AgentID         string
 	RoundID         string
+	UserMessageID   string
+	ClientRequestID string
+	ClientMessageID string
 	Content         string
 	Arguments       string
+	TargetAgentIDs  []string
+	GoalOptions     protocol.GoalCommandOptions
 	AttachmentCount int
 }
 
@@ -38,8 +43,10 @@ type DirectoryInvalidation struct {
 
 // Result 承载宿主命令执行后需要直接返回当前客户端的瞬时事件。
 type Result struct {
-	Events                []protocol.EventMessage
-	DirectoryInvalidation *DirectoryInvalidation
+	Events                 []protocol.EventMessage
+	DirectoryInvalidation  *DirectoryInvalidation
+	UserMessageCommitted   bool
+	AfterResponseAttempted func(context.Context)
 }
 
 // Handler 执行一条 Nexus 自有命令。

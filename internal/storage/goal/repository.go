@@ -133,7 +133,16 @@ func (r *Repository) GetCurrentGoal(ctx context.Context, sessionKey string) (*pr
 
 // ListGoals 返回全部 Goal，用于资源删除时按结构化 session_key 做级联清理。
 func (r *Repository) ListGoals(ctx context.Context) ([]protocol.Goal, error) {
-	rows, err := r.db.QueryContext(ctx, goalSelectQuery("1 = 1 ORDER BY updated_at ASC, goal_id ASC"))
+	return r.listGoalsWhere(ctx, "1 = 1")
+}
+
+// ListCurrentGoals 返回每个 session 当前未终结的 Goal，用于启动投影恢复。
+func (r *Repository) ListCurrentGoals(ctx context.Context) ([]protocol.Goal, error) {
+	return r.listGoalsWhere(ctx, "status IN ('active', 'paused', 'blocked', 'budget_limited', 'usage_limited')")
+}
+
+func (r *Repository) listGoalsWhere(ctx context.Context, predicate string) ([]protocol.Goal, error) {
+	rows, err := r.db.QueryContext(ctx, goalSelectQuery(predicate+" ORDER BY updated_at ASC, goal_id ASC"))
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +191,19 @@ func (r *Repository) ListRunnableGoals(ctx context.Context, limit int) ([]protoc
 // UpdateGoal 以 optimistic version 更新 Goal。
 func (r *Repository) UpdateGoal(ctx context.Context, goal protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
 	goal.Usage = goal.Usage.NormalizeTotals()
+	if err := r.updateGoal(ctx, r.db, goal, expectedVersion); err != nil {
+		return nil, err
+	}
+	return r.GetGoal(ctx, goal.ID)
+}
+
+func (r *Repository) updateGoal(
+	ctx context.Context,
+	executor goalEventExecutor,
+	goal protocol.Goal,
+	expectedVersion int64,
+) error {
+	goal.Usage = goal.Usage.NormalizeTotals()
 	query := fmt.Sprintf(`UPDATE session_goals
 SET objective = %s,
     status = %s,
@@ -210,7 +232,7 @@ WHERE goal_id = %s AND version = %s`,
 		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19),
 		r.bind(20), r.bind(21), r.bind(22), r.bind(23), r.bind(24),
 	)
-	result, err := r.db.ExecContext(
+	result, err := executor.ExecContext(
 		ctx,
 		query,
 		goal.Objective,
@@ -239,13 +261,13 @@ WHERE goal_id = %s AND version = %s`,
 		expectedVersion,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	affected, err := result.RowsAffected()
 	if err == nil && affected == 0 {
-		return nil, sql.ErrNoRows
+		return sql.ErrNoRows
 	}
-	return r.GetGoal(ctx, goal.ID)
+	return err
 }
 
 // DeleteGoal 删除指定 Goal。

@@ -132,7 +132,7 @@ func TestServiceTaskStatusSummarizesHealthRunsAndEvents(t *testing.T) {
 			Timezone:        "Asia/Shanghai",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		Delivery:      fakeStructuredDelivery("agent-1", "observability"),
 		Source:        automationdomain.Source{Kind: automationdomain.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
 		Enabled:       true,
 	})

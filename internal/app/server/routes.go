@@ -265,6 +265,7 @@ func (s *Server) mountCapabilityRoutes() {
 func (s *Server) mountGoalRoutes() {
 	s.router.Get(s.prefixPath("/goals/current"), s.handlers.goal.HandleGetCurrentGoal)
 	s.router.Post(s.prefixPath("/goals"), s.handlers.goal.HandleCreateGoal)
+	s.router.Get(s.prefixPath("/goals/{goal_id}/execution-binding"), s.handlers.goal.HandleGetGoalExecutionBinding)
 	s.router.Get(s.prefixPath("/goals/{goal_id}/usage"), s.handlers.goal.HandleGetGoalUsage)
 	s.router.Patch(s.prefixPath("/goals/{goal_id}"), s.handlers.goal.HandleUpdateGoal)
 	s.router.Post(s.prefixPath("/goals/{goal_id}/pause"), s.handlers.goal.HandlePauseGoal)

@@ -3,7 +3,10 @@
 import { useMemo } from "react";
 
 import { getAgents } from "@/lib/api/agent/agent-api";
-import { getAgentSessionsApi } from "@/lib/api/conversation/session-api";
+import {
+  getAgentSessionsApi,
+  getAllSessionsApi,
+} from "@/lib/api/conversation/session-api";
 import {
   getRoomContexts,
   listRooms,
@@ -23,9 +26,13 @@ import type {
 import {
   buildAgentNameIndex,
   buildAgentOptions,
+  buildExecutionRoomOptions,
   buildRoomOptions,
+  buildRoomNameIndex,
+  buildTaskDialogDeliverySessionData,
   buildTaskDialogResourceKeys,
   buildTaskDialogSessionData,
+  resolveTaskDialogRoomId,
   resourceStatus,
 } from "./task-dialog-resource-model";
 import {
@@ -45,6 +52,10 @@ async function loadAgentSessions(agentId: string): Promise<AgentSession[]> {
   return getAgentSessionsApi(agentId);
 }
 
+async function loadAllSessions(): Promise<AgentSession[]> {
+  return getAllSessionsApi();
+}
+
 async function loadRoomContexts(
   roomId: string,
 ): Promise<RoomContextAggregate[]> {
@@ -54,8 +65,13 @@ async function loadRoomContexts(
 export interface TaskDialogData {
   agentOptions: TaskDialogLabelOption[];
   agents: DialogResourceStatus;
+  deliveryRoomOptions: TaskDialogLabelOption[];
   roomOptions: TaskDialogLabelOption[];
   rooms: DialogResourceStatus;
+  deliverySessionOptions: TaskDialogSessionOption[];
+  deliverySessions: DialogResourceStatus;
+  resolvedDeliveryRoomId: string;
+  resolvedExecutionRoomId: string;
   sessionOptions: TaskDialogSessionOption[];
   sessions: DialogResourceStatus;
 }
@@ -89,6 +105,11 @@ export function useTaskDialogData({
     loadRoomContexts,
     t("capability.scheduled_dialog_load_room_sessions_failed"),
   );
+  const allSessions = useDialogResource(
+    keys.allSessions,
+    loadAllSessions,
+    t("capability.scheduled_dialog_load_agent_sessions_failed"),
+  );
   const agentNameById = useMemo(
     () => buildAgentNameIndex(agents.items),
     [agents.items],
@@ -98,7 +119,15 @@ export function useTaskDialogData({
     [agents.items],
   );
   const roomOptions = useMemo(
+    () => buildExecutionRoomOptions(rooms.items),
+    [rooms.items],
+  );
+  const deliveryRoomOptions = useMemo(
     () => buildRoomOptions(rooms.items),
+    [rooms.items],
+  );
+  const roomNameById = useMemo(
+    () => buildRoomNameIndex(rooms.items),
     [rooms.items],
   );
   const sessionData = useMemo(
@@ -110,12 +139,32 @@ export function useTaskDialogData({
     ),
     [agentNameById, agentSessions, form.targetType, roomContexts, t],
   );
-
+  const deliverySessionData = useMemo(
+    () => buildTaskDialogDeliverySessionData(
+      form,
+      allSessions,
+      agentNameById,
+      roomNameById,
+      t("capability.scheduled_dialog_unnamed_session"),
+    ),
+    [agentNameById, allSessions, form, roomNameById, t],
+  );
+  const resolvedExecutionRoomId = form.targetType === "room"
+    ? resolveTaskDialogRoomId(allSessions.items, form.selectedSessionKey)
+    : "";
+  const resolvedDeliveryRoomId = form.deliveryTargetType === "room"
+    ? resolveTaskDialogRoomId(allSessions.items, form.selectedReplySessionKey)
+    : "";
   return {
     agentOptions,
     agents: resourceStatus(agents),
+    deliveryRoomOptions,
     roomOptions,
     rooms: resourceStatus(rooms),
+    deliverySessionOptions: deliverySessionData.options,
+    deliverySessions: deliverySessionData.status,
+    resolvedDeliveryRoomId,
+    resolvedExecutionRoomId,
     sessionOptions: sessionData.options,
     sessions: sessionData.status,
   };

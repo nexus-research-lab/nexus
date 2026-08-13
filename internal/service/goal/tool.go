@@ -1,5 +1,5 @@
-// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage、objective revision、Objective Alignment 与 Room completion readiness。
-// OUTPUT: 受负责人权限、状态机、revision/alignment fence 和未完成 Room 工作保护的 Goal 工具结果。
+// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage 与 objective revision；complete 另读取 Objective Alignment、Execution 与 Room readiness。
+// OUTPUT: 受负责人、状态机与 revision 保护的终态结果；complete 额外 fail-closed，blocked 的三轮判定由模型策略承担。
 // POS: Goal 模型生命周期工具的服务层入口。
 package goal
 
@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -82,6 +81,7 @@ func (s *Service) changeStatusByModel(
 		}
 		if requireRoomCollaboration {
 			if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
+				ctx,
 				*current,
 				agentID,
 				roundID,
@@ -91,12 +91,9 @@ func (s *Service) changeStatusByModel(
 			if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *current); readinessErr != nil {
 				return nil, readinessErr
 			}
-			if readinessErr := s.ensureRoomGoalCompletionReady(ctx, *current, agentID, roundID); readinessErr != nil {
+			if readinessErr := s.ensureRoomGoalCollaborationReady(ctx, *current, agentID, roundID); readinessErr != nil {
 				return nil, readinessErr
 			}
-		}
-		if requireRoomCollaboration && roomGoalCompletionRequiresCollaboration(*current) {
-			return nil, fmt.Errorf("%w: multi-member Room Goal requires a room-visible non-lead collaboration reply before completion", ErrGoalInvalidState)
 		}
 		return s.persistTransition(ctx, *current, status, protocol.GoalUpdateSourceModel, eventType, roundID, payload)
 	})
@@ -113,6 +110,31 @@ func (s *Service) Events(ctx context.Context, goalID string, limit int) ([]proto
 	}
 	if item == nil {
 		return nil, ErrGoalNotFound
+	}
+	return s.repo.ListEvents(ctx, item.ID, limit)
+}
+
+// EventsForOwner returns the audit trail only when durable Goal owner
+// provenance exactly matches the authenticated caller.
+func (s *Service) EventsForOwner(
+	ctx context.Context,
+	goalID string,
+	limit int,
+	ownerUserID string,
+) ([]protocol.GoalEvent, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	item, err = s.authorizeOwnerScopedGoal(ctx, item, ownerUserID)
+	if err != nil {
+		return nil, err
 	}
 	return s.repo.ListEvents(ctx, item.ID, limit)
 }

@@ -246,9 +246,9 @@ func TestPermissionApprovalDrainsPhysicalAttemptBeforeResume(t *testing.T) {
 	if resumedBeforeStop || len(dispatched) != 2 || dispatched[1].PermissionHandler == nil {
 		t.Fatalf("续跑在旧 attempt 前启动或丢失权限上下文: requests=%+v resumed_before_stop=%v", dispatched, resumedBeforeStop)
 	}
-	if !strings.Contains(dispatched[1].Content, "[权限续跑]") ||
-		!strings.Contains(dispatched[1].Content, "`mcp__nexus_connectors__feishu_docx_read`") {
-		t.Fatalf("续跑未明确要求重试触发审批的工具: %q", dispatched[1].Content)
+	if dispatched[1].AutomationRun == nil ||
+		dispatched[1].AutomationRun.ResumeToolName != "mcp__nexus_connectors__feishu_docx_read" {
+		t.Fatalf("续跑未通过可信上下文要求重试触发审批的工具: %+v", dispatched[1].AutomationRun)
 	}
 	if len(interrupts) != 1 || interrupts[0].RoundID != dispatched[0].RoundID {
 		t.Fatalf("没有精确停止触发审批的旧 round: interrupts=%+v requests=%+v", interrupts, dispatched)
@@ -914,9 +914,8 @@ func TestMainSessionPermissionRequestKeepsOriginalTaskRunContext(t *testing.T) {
 		dmRequests[0].RoundID == dmRequests[1].RoundID {
 		t.Fatalf("Main Session 每个 attempt 必须绑定独立 round 和 task permission handler: %+v", dmRequests)
 	}
-	if !strings.Contains(dmRequests[1].Content, "[权限续跑]") ||
-		!strings.Contains(dmRequests[1].Content, "`WebSearch`") {
-		t.Fatalf("Main Session 权限续跑未携带原审批工具: %q", dmRequests[1].Content)
+	if dmRequests[1].AutomationRun == nil || dmRequests[1].AutomationRun.ResumeToolName != "WebSearch" {
+		t.Fatalf("Main Session 权限续跑未携带原审批工具: %+v", dmRequests[1].AutomationRun)
 	}
 }
 

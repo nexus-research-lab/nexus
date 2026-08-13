@@ -48,12 +48,14 @@ Work Item 表达“谁交付什么”。同一 Agent 可以拥有多个节点；
 
 ### Tool
 
-Tool 是被观测的执行活动，不是模型手工维护的责任节点。普通短调用折叠在所属 Agent/Subagent 中；持续时间长、失败、影响控制流或对理解任务关键的调用才需要在图中突出。
+Tool 是被观测的执行活动，不是模型手工维护的责任节点。底层为每次调用保留独立 Node Run；失败后成功不会覆盖或折叠第一次事实，只有存在 exact retry identity 时才增加 `retry` 边。画布按用户可观察性把 Tool 放在 nested/detail 层级，WebSearch、WebFetch、命令、写入、浏览器与外部 capability 等有助于理解动作的调用可以显示；visibility 只影响展示，不删除运行事实。
 
 ## 可以组合，但不要套模板
 
 - 单 Agent 可以有 WorkGraph，也可以只用 Task 或 Subagent。
 - Room 可以只有聊天，不必因为多人参与而创建 Plan。
+- Goal 可以独立使用 Agent Loop、Task、Subagent 和 Runtime Graph，不需要 Execution/Plan。
+- WorkGraph 可以不带 Goal；只有同时需要跨 boundary 持续 objective 时才绑定 exact Goal revision。
 - 一个 Agent 节点内部可以同时有 Task、Tool 与多个 Subagent 分支。
 - Lead 可以自己承担 Work Item 并自审，不必制造另一个 reviewer。
 - 简单任务可能因外部等待而需要 Goal；复杂任务也可能在当前 round 直接完成而不需要 Goal。
@@ -62,7 +64,7 @@ Tool 是被观测的执行活动，不是模型手工维护的责任节点。普
 
 只有 objective 需要跨 round、上下文切换、外部等待、中断恢复、预算边界或高恢复成本继续存在时，才考虑 Goal。若当前受管 Execution 开放 `promote_execution_to_goal`，Agent 可以基于这些事实自适应提升；不要从 Plan 长度、Room、Subagent 或“看起来重要”推断持久化。
 
-一旦选择 Goal，加载 `goal-manager`，由它处理创建、纠正、完成和阻塞的生命周期细节。
+一旦选择 Goal，加载 `goal-manager`，由它处理创建、纠正、完成和阻塞的生命周期细节。不要因为 Goal 存在就补建 WorkGraph；两种结构必须分别通过自己的选择信号。
 
 ## 用例只是校验
 

@@ -1,5 +1,5 @@
 // INPUT: coordinator semantic abandon/replace intent and trusted current Execution identity.
-// OUTPUT: transient-only objective-boundary validation, successor construction, and stable mutation results.
+// OUTPUT: transient-only objective-boundary validation, successor construction, stable mutation results, and post-commit session invalidation.
 // POS: service authority boundary between ordinary replanning and whole-Execution lifecycle transitions.
 package orchestration
 
@@ -18,7 +18,8 @@ func (s *Service) AbandonExecution(
 	ctx context.Context,
 	actor ActorContext,
 	input AbandonExecutionInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}

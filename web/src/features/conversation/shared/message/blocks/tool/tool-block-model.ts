@@ -1,6 +1,6 @@
 /**
  * INPUT: Tool use/result、运行状态、权限请求与本地化上下文。
- * OUTPUT: 区分 transport error、semantic rejection 与 success 的工具卡片视图模型。
+ * OUTPUT: 区分 transport error、semantic rejection、superseded 与 success 的工具卡片视图模型。
  * POS: DM/Room 共用 ToolBlock 的纯展示投影，不决定 Agent 的恢复路线。
  */
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
@@ -12,7 +12,7 @@ import type { ToolResultContent } from "@/types/conversation/message/content";
 import {
   getCompactToolInputSummary,
   getToolInputSummary,
-  getToolTitleKey,
+  getLocalizedToolTitle as resolveLocalizedToolTitle,
 } from "../../tool-activity";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
 import type {
@@ -88,6 +88,11 @@ const STATUS_META: Readonly<Record<
     badgeClassName: "bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)",
     labelKey: "message.tool_status_rejected",
     tone: "error",
+  },
+  superseded: {
+    badgeClassName: "bg-(--surface-muted-background) text-(--text-muted)",
+    labelKey: "message.tool_status_superseded",
+    tone: "default",
   },
   stopped: {
     badgeClassName: "bg-(--surface-muted-background) text-(--text-muted)",
@@ -166,6 +171,7 @@ const WAITING_DETAIL_BY_STATUS: Readonly<Record<
   pending: () => null,
   running: () => null,
   rejected: () => null,
+  superseded: () => null,
   stopped: () => null,
   success: () => null,
   waiting_permission: (permission) => permission.fieldSummary,
@@ -209,19 +215,21 @@ export function buildToolBlockViewModel({
     localization,
   );
   const waitingDetail = WAITING_DETAIL_BY_STATUS[finalStatus](permission);
-  const rejectedDetail = finalStatus === "rejected" ? resultSummary : null;
+  const terminalDetail = ["rejected", "superseded"].includes(finalStatus)
+    ? resultSummary
+    : null;
 
   return {
     collapsedDetailText: firstText([
       waitingDetail,
-      rejectedDetail,
+      terminalDetail,
       collapsedInputSummary,
       resultSummary,
     ]),
     durationText: formatDuration(startTime, endTime),
     expandedDetailText: firstText([
       waitingDetail,
-      rejectedDetail,
+      terminalDetail,
       expandedInputDetail?.value.trim(),
       expandedInputSummary,
       resultSummary,
@@ -253,6 +261,10 @@ function resolveFinalStatus(
     {
       matches: projectToolResultMutation(result)?.outcome === "rejected",
       value: "rejected" as const,
+    },
+    {
+      matches: projectToolResultMutation(result)?.outcome === "superseded",
+      value: "superseded" as const,
     },
     { matches: true, value: status },
   ];
@@ -345,6 +357,9 @@ function getResultSummary(
   const mutation = projectToolResultMutation(result);
   if (mutation?.outcome === "rejected") {
     return mutation.message || t("message.tool_rejection_without_detail");
+  }
+  if (mutation?.outcome === "superseded") {
+    return mutation.message || t("message.tool_superseded_without_detail");
   }
   const content = result.content;
   if (typeof content === "string") {
@@ -533,6 +548,5 @@ function getLocalizedToolTitle(
   toolName: string,
   { t }: ToolBlockLocalization,
 ): string {
-  const titleKey = getToolTitleKey(toolName);
-  return titleKey ? t(titleKey) : toolName;
+  return resolveLocalizedToolTitle(toolName, t);
 }

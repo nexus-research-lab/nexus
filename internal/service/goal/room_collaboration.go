@@ -1,12 +1,10 @@
-// INPUT: Room Goal 协作要求、可见证据与 objective revision。
-// OUTPUT: revision 安全的协作 metadata 和审计事件。
-// POS: Room Goal 协作完成条件的唯一状态入口。
+// INPUT: Room Goal 协作要求、可见证据、稳定 Goal identity 与事件归因 revision。
+// OUTPUT: Goal 生命周期内单调累计、记录时 revision 安全的协作 metadata 和审计事件。
+// POS: Room Goal 协作完成条件的唯一状态入口；retarget 不会抹除已成立证据。
 package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
@@ -82,16 +80,10 @@ func (s *Service) recordRoomGoalCollaborationRequiredForLoadedGoal(ctx context.C
 	}
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := s.appendEvent(ctx, *updated, "room_collaboration_required", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "room_collaboration_required", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
 		"reason": "multi-member Room Goal requires room-visible non-lead collaboration before completion",
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	return updated, nil
@@ -121,23 +113,11 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx context.C
 	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationObservedAt] = s.nowFn().UTC().Format(time.RFC3339)
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrGoalVersionStale
-	}
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "room_collaboration_observed", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+		"agent_id": agentID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := s.appendEvent(ctx, *updated, "room_collaboration_observed", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
-		"agent_id": agentID,
-	}); err != nil {
-		return nil, err
-	}
 	return updated, nil
-}
-
-func roomGoalCompletionRequiresCollaboration(item protocol.Goal) bool {
-	return protocol.IsRoomSharedSessionKey(item.SessionKey) &&
-		RoomCollaborationRequired(item) &&
-		!RoomCollaborationObserved(item)
 }

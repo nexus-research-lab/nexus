@@ -3,6 +3,7 @@ package goal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -195,6 +196,66 @@ func TestRepositoryBoundRoomParentTerminalIsExactlyOnce(t *testing.T) {
 	}
 	if stored == nil || stored.Usage.ActualTokens() != 25 || stored.Version != 2 {
 		t.Fatalf("goal after bound retry = %#v, want actual=25 v2", stored)
+	}
+}
+
+func TestRepositoryRoomGoalAggregatesEveryParentWithContradictoryZeroTotals(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	sessionKey := "room:group:all-agent-zero-repair"
+	scopeID := "root-all-agent-zero-repair"
+
+	rows := []protocol.GoalUsage{
+		{InputTokens: 100, OutputTokens: 20, CacheReadInputTokens: 80, ActualTotalKnown: true},
+		{InputTokens: 50, OutputTokens: 10, CacheReadInputTokens: 40, ActualTotalKnown: true},
+	}
+	for index, usage := range rows {
+		snapshot := parentUsageSnapshot(
+			"owner-a",
+			sessionKey,
+			scopeID,
+			fmt.Sprintf("slot-%d", index+1),
+			usage,
+			true,
+			now.Add(time.Duration(index)*time.Second),
+		)
+		if _, err := repository.RecordUsageParentSnapshot(ctx, snapshot); err != nil {
+			t.Fatal(err)
+		}
+		// Reproduce rows written before this repair: breakdown survived while
+		// the provider zero was persisted as the authoritative actual total.
+		if _, err := repository.db.Exec(`UPDATE goal_usage_parent_ledger
+			SET token_used_actual_total = 0, token_used_actual_estimated = 0
+			WHERE owner_user_id = ? AND goal_session_key = ? AND scope_round_id = ? AND source_round_id = ?`,
+			"owner-a", sessionKey, scopeID, snapshot.SourceRoundID,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	goal := scopeTestGoal("goal-all-agent-zero-repair", sessionKey, now.Add(time.Minute))
+	result, err := repository.CreateGoalWithUsageScope(
+		ctx,
+		goal,
+		scopeTestCreatedEvent(goal, "event-all-agent-zero-repair", scopeID),
+		protocol.GoalUsageScopeBinding{
+			OwnerUserID:    "owner-a",
+			GoalSessionKey: sessionKey,
+			SourceKind:     protocol.GoalUsageSourceKindNXSTask,
+			ScopeRoundID:   scopeID,
+			GoalID:         goal.ID,
+			BoundAt:        goal.CreatedAt,
+			UsageEventID:   "event-all-agent-zero-repair-usage",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Goal == nil || result.Goal.Usage.ActualTokens() != 300 ||
+		result.Goal.Usage.BudgetTokens() != 180 ||
+		!result.Goal.Usage.ActualTokensAreEstimated() {
+		t.Fatalf("all-Agent aggregate = %#v, want estimated actual=300 budget=180", result)
 	}
 }
 

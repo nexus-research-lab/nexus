@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -20,10 +21,46 @@ type RunPendingInput struct {
 	RoundID                  string
 	DeliveryMode             string
 	DeliveryTo               string
+	DeliveryTarget           *automationdomain.DeliveryTarget
 	DeliveryStatus           string
 	Status                   string
 	PermissionPolicyRevision int
 }
+
+const scheduledTaskRunSelectColumns = `
+    run_id,
+    job_id,
+    owner_user_id,
+    status,
+    trigger_kind,
+    session_key,
+    round_id,
+    session_id,
+    message_count,
+    delivery_mode,
+    delivery_to,
+    delivery_target_json,
+    delivery_status,
+    delivery_error,
+    delivered_at,
+    delivery_attempts,
+    delivery_next_attempt_at,
+    delivery_dead_letter_at,
+    scheduled_for,
+    started_at,
+    finished_at,
+    attempts,
+    error_message,
+    result_summary,
+    assistant_text,
+    result_text,
+    artifact_path,
+    permission_policy_revision,
+    block_state,
+    blocked_request_id,
+    effect_started,
+    created_at,
+    updated_at`
 
 // RunFinishInput 表示结束 run ledger 的输入。
 type RunFinishInput struct {
@@ -48,40 +85,7 @@ type RunFinishInput struct {
 
 // ListRunsByJob 列出任务运行历史。ownerUserID 为空时表示全局作用域。
 func (r *Repository) ListRunsByJob(ctx context.Context, ownerUserID string, jobID string) ([]automationdomain.ScheduledTaskRun, error) {
-	query := `
-SELECT
-    run_id,
-    job_id,
-    owner_user_id,
-    status,
-    trigger_kind,
-    session_key,
-    round_id,
-    session_id,
-    message_count,
-    delivery_mode,
-    delivery_to,
-    delivery_status,
-    delivery_error,
-    delivered_at,
-    delivery_attempts,
-    delivery_next_attempt_at,
-    delivery_dead_letter_at,
-    scheduled_for,
-    started_at,
-    finished_at,
-    attempts,
-    error_message,
-    result_summary,
-    assistant_text,
-    result_text,
-    artifact_path,
-    permission_policy_revision,
-    block_state,
-    blocked_request_id,
-    effect_started,
-    created_at,
-    updated_at
+	query := `SELECT` + scheduledTaskRunSelectColumns + `
 FROM automation_task_runs
 WHERE job_id = ` + r.bind(1)
 	args := []any{strings.TrimSpace(jobID)}
@@ -110,40 +114,7 @@ ORDER BY created_at DESC, run_id DESC`
 
 // GetRun 读取一条任务运行历史。ownerUserID 为空时表示全局作用域。
 func (r *Repository) GetRun(ctx context.Context, ownerUserID string, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error) {
-	query := `
-SELECT
-    run_id,
-    job_id,
-    owner_user_id,
-    status,
-    trigger_kind,
-    session_key,
-    round_id,
-    session_id,
-    message_count,
-    delivery_mode,
-    delivery_to,
-    delivery_status,
-    delivery_error,
-    delivered_at,
-    delivery_attempts,
-    delivery_next_attempt_at,
-    delivery_dead_letter_at,
-    scheduled_for,
-    started_at,
-    finished_at,
-    attempts,
-    error_message,
-    result_summary,
-    assistant_text,
-    result_text,
-    artifact_path,
-    permission_policy_revision,
-    block_state,
-    blocked_request_id,
-    effect_started,
-    created_at,
-    updated_at
+	query := `SELECT` + scheduledTaskRunSelectColumns + `
 FROM automation_task_runs
 WHERE job_id = ` + r.bind(1) + `
   AND run_id = ` + r.bind(2)
@@ -165,7 +136,11 @@ func (r *Repository) InsertRunPending(ctx context.Context, input RunPendingInput
 	if status == "" {
 		status = automationdomain.RunStatusPending
 	}
-	_, err := r.execWithRetry(
+	deliveryTargetJSON, err := marshalRunDeliveryTarget(input.DeliveryTarget)
+	if err != nil {
+		return err
+	}
+	_, err = r.execWithRetry(
 		ctx,
 		r.insertRunPendingQuery,
 		strings.TrimSpace(input.RunID),
@@ -177,12 +152,25 @@ func (r *Repository) InsertRunPending(ctx context.Context, input RunPendingInput
 		nullString(strings.TrimSpace(input.RoundID)),
 		nullString(strings.TrimSpace(input.DeliveryMode)),
 		nullString(strings.TrimSpace(input.DeliveryTo)),
+		nullString(deliveryTargetJSON),
 		nullString(initialRunDeliveryStatus(input)),
 		input.ScheduledFor,
 		0,
 		input.PermissionPolicyRevision,
 	)
 	return err
+}
+
+func marshalRunDeliveryTarget(target *automationdomain.DeliveryTarget) (string, error) {
+	if target == nil {
+		return "", nil
+	}
+	normalized := target.Normalized()
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
 }
 
 // MarkRunRunning 标记 run 开始执行。

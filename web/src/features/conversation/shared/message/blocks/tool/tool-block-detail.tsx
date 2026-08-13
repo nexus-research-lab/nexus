@@ -1,6 +1,6 @@
 /**
  * INPUT: Provider 原生工具结果与可选工作区文件打开能力。
- * OUTPUT: 普通结果明细，或有界的 mutation 拒绝原因与稳定 reason code。
+ * OUTPUT: 普通结果明细，或有界的 mutation 拒绝/过期原因与稳定 reason code。
  * POS: ToolBlock 展开内容；完整原始结果仍由复制动作保留。
  */
 import type { PropsWithChildren } from "react";
@@ -65,6 +65,23 @@ function ToolResultContentView({
       >
         <p className="text-xs leading-5 text-(--destructive)">
           {mutation.message || t("message.tool_rejection_without_detail")}
+        </p>
+        {mutation.reasonCode ? (
+          <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
+            {mutation.reasonCode}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+  if (mutation?.outcome === "superseded") {
+    return (
+      <div
+        className="rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2"
+        data-tool-result-semantic-outcome="superseded"
+      >
+        <p className="text-xs leading-5 text-(--text-muted)">
+          {mutation.message || t("message.tool_superseded_without_detail")}
         </p>
         {mutation.reasonCode ? (
           <p className="mt-1 font-mono text-[10px] text-(--text-soft)">

@@ -35,7 +35,7 @@ func TestServiceDailyReportAggregatesExecutionAndDelivery(t *testing.T) {
 			Timezone:        "UTC",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		Delivery:      fakeStructuredDelivery("agent-1", "daily-report"),
 		Enabled:       true,
 	})
 	if err != nil {
@@ -172,7 +172,7 @@ func TestServiceDailyReportAndRunsSurviveDeletedTask(t *testing.T) {
 			Timezone:        "UTC",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		Delivery:      fakeStructuredDelivery("agent-1", "deleted-daily-report"),
 		Enabled:       true,
 	})
 	if err != nil {

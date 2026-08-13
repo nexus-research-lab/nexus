@@ -38,6 +38,8 @@ interface BaseMessage {
   role: MessageRole;
   timestamp: number;
   display_order?: number;
+  /** Nexus durable control records use metadata.subtype without becoming model input. */
+  metadata?: Record<string, unknown>;
   /**
    * 实时投影的恢复边界：
    * durable 可恢复，ephemeral 随 round 收口，transient 仅保留在当前打开的时间线。
@@ -101,6 +103,17 @@ export type AssistantMessageStatus =
   | "cancelled"
   | "error";
 
+export interface GoalCompletionReceipt {
+  /** 仅用于宿主精确绑定和历史合并，界面不得展示。 */
+  goal_id: string;
+  /** 仅用于宿主精确绑定和历史合并，界面不得展示。 */
+  round_id: string;
+  /** 缺失表示未知；不能投影成 0 或“不可用”。 */
+  time_used_seconds?: number;
+  /** 缺失表示 provider 用量尚未成为权威终值。 */
+  actual_tokens?: number;
+}
+
 export interface AssistantMessage extends BaseMessage {
   role: "assistant";
   content: ContentBlock[];
@@ -109,10 +122,13 @@ export interface AssistantMessage extends BaseMessage {
   model?: string;
   usage?: Usage;
   result_summary?: ResultSummary;
+  goal_completion_receipt?: GoalCompletionReceipt;
   /** 本轮实际注入模型的长期记忆摘要；正文和绝对路径不进入消息。 */
   recalled_memories?: RecalledMemoryReference[];
   /** 服务端解析出的可点击 Agent mention span。 */
   agent_mentions?: AgentMention[];
+  /** 宿主生成消息的结构化来源；展示层不得依赖正文前缀识别定时任务。 */
+  metadata?: Record<string, unknown>;
   /** 前端流式状态，不属于后端持久化消息字段。 */
   stream_status?: AssistantMessageStatus;
 }

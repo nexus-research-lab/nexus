@@ -1,6 +1,6 @@
 /**
  * INPUT: Composer 动作、运行态、输入元数据、Nexus 标注与提交投影。
- * OUTPUT: 按输入壳容器宽度在宽壳三列与窄壳双列间收敛的 Footer。
+ * OUTPUT: 普通模式按宽壳三列收敛；Goal 模式让控制/提交分栏并把状态隔离到下一行的 Footer。
  * POS: Composer 壳内唯一的底部动作与状态布局。
  */
 

@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ type runtimeGraphRepositoryFake struct {
 	nodes          []protocol.ExecutionRuntimeNodeRun
 	edges          []protocol.ExecutionRuntimeEdgeRun
 	artifacts      []protocol.ExecutionRuntimeArtifactRef
+	boundRoundID   string
+	boundExecution string
 	reconciled     int
 	finishedStatus protocol.ExecutionRuntimeNodeStatus
 	graph          protocol.ExecutionRuntimeGraph
@@ -55,6 +58,18 @@ func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphArtifact(
 	item protocol.ExecutionRuntimeArtifactRef,
 ) error {
 	f.artifacts = append(f.artifacts, item)
+	return nil
+}
+
+func (f *runtimeGraphRepositoryFake) BindRuntimeGraphRoundExecution(
+	_ context.Context,
+	_ string,
+	_ string,
+	agentRoundID string,
+	executionID string,
+) error {
+	f.boundRoundID = agentRoundID
+	f.boundExecution = executionID
 	return nil
 }
 
@@ -432,6 +447,369 @@ func TestRuntimeGraphNestsChildToolsUnderExactSubagentIdentity(t *testing.T) {
 	}
 }
 
+func TestRuntimeGraphPersistsDMSelfAssignmentSegmentAcrossTools(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 13, 16, 0, 0, 0, time.UTC)
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Execution.ScopeKind = protocol.ExecutionScopeDM
+	snapshot.Execution.CoordinatorAgentID = "agent-lead"
+	// The WorkGraph may have been created in an earlier physical round; the
+	// Assignment's root Attempt, not Execution creation time, binds this segment.
+	snapshot.Execution.RootRoundID = "round-before"
+	snapshot.Assignments[0].OwnerAgentID = "agent-lead"
+	snapshot.Assignments[0].Strategy = protocol.AssignmentStrategySelf
+	snapshot.Attempts[0].ExecutorAgentID = "agent-lead"
+	snapshot.Attempts[0].RootRoundID = "round-1"
+	snapshot.Attempts[0].RuntimeRoundID = "round-1"
+	snapshot.Attempts[0].AgentRoundID = "agent-round-1"
+	snapshot.Attempts[0].CreatedAt = now
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1",
+		// The managed Execution is created inside this already-running DM round,
+		// so the observer actor starts without an ExecutionID and adopts only the
+		// exact server-issued receipt after validating its snapshot.
+		ExecutionID: "", AgentID: "agent-lead",
+		Role: ExecutionActorCoordinator, ScopeKind: protocol.ExecutionScopeDM,
+		RootRoundID: "round-1", RuntimeRoundID: "round-1",
+		AgentRoundID: "agent-round-1",
+	}
+	identity, err := runtimeGraphIdentityFromActor(actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignNode := protocol.ExecutionRuntimeNodeRun{
+		ID:   runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeTool, "tool-assign"),
+		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign",
+		AgentRoundID: "agent-round-1", AgentID: "agent-lead",
+		Name:      "mcp__nexus_execution__assign_work",
+		Status:    protocol.ExecutionRuntimeNodeRunning,
+		StartedAt: now.Add(-time.Second), UpdatedAt: now.Add(-time.Second),
+	}
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{snapshot: snapshot},
+		graph:          protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{assignNode}},
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return now.Add(time.Second) }
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user", "uuid": "result-assign",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type": "tool_result", "tool_use_id": "tool-assign",
+				"content": `{"outcome":"applied","execution_id":"execution-1","changed":["assignment:assignment-1","attempt:attempt-1"]}`,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	finishedAssign := repository.nodes[len(repository.nodes)-1]
+	segment := runtimeExecutionSegmentFromNode(finishedAssign)
+	if !segment.valid() || segment.ExecutionID != "execution-1" ||
+		segment.WorkItemID != "work-1" || segment.AssignmentID != "assignment-1" ||
+		segment.AttemptID != "attempt-1" || segment.Source != "assign_work_receipt" {
+		t.Fatalf("persisted assign_work segment = %+v node=%+v", segment, finishedAssign)
+	}
+	if finishedAssign.ExecutionID != "execution-1" {
+		t.Fatalf("new in-round Execution identity was not adopted: %+v", finishedAssign)
+	}
+	if repository.boundRoundID != "agent-round-1" ||
+		repository.boundExecution != "execution-1" {
+		t.Fatalf(
+			"round binding = %q/%q, want agent-round-1/execution-1",
+			repository.boundRoundID,
+			repository.boundExecution,
+		)
+	}
+
+	// A later provider message has no WorkBinding of its own. It must inherit
+	// the exact persisted segment instead of falling back to AgentRoundID.
+	finishedAssign.Name = assignNode.Name
+	repository.graph = protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{finishedAssign}}
+	service.now = func() time.Time { return now.Add(2 * time.Second) }
+	nextMessage, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant", "uuid": "assistant-write",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use", "id": "tool-write", "name": "Write",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, nextMessage); err != nil {
+		t.Fatal(err)
+	}
+	writeSegment := runtimeExecutionSegmentFromNode(repository.nodes[len(repository.nodes)-1])
+	if writeSegment.ExecutionID != segment.ExecutionID ||
+		writeSegment.WorkItemID != segment.WorkItemID ||
+		writeSegment.AssignmentID != segment.AssignmentID ||
+		writeSegment.AttemptID != segment.AttemptID {
+		t.Fatalf("inherited Write segment = %+v, want %+v", writeSegment, segment)
+	}
+}
+
+func TestRuntimeGraphUnresolvedSuccessfulAssignmentStopsPreviousDMSegment(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 13, 16, 30, 0, 0, time.UTC)
+	identity := runtimeGraphIdentity{
+		ExecutionID: "execution-1", AgentRoundID: "agent-round-1", AgentID: "agent-1",
+	}
+	segment := runtimeExecutionSegment{
+		ExecutionID: "execution-1", WorkItemID: "work-a",
+		AssignmentID: "assignment-a", AttemptID: "attempt-a",
+		Source: "assign_work_receipt",
+	}
+	firstMetadata := make(map[string]any)
+	applyRuntimeExecutionSegment(firstMetadata, segment)
+	firstMetadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryAssign
+	unresolvedMetadata := map[string]any{
+		runtimeGraphSegmentBoundaryKey: runtimeGraphSegmentBoundaryUnresolved,
+	}
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "tool-assign-a", Kind: protocol.ExecutionRuntimeNodeTool,
+			AgentRoundID: "agent-round-1", AgentID: "agent-1",
+			Name:      "mcp__nexus_execution__assign_work",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now, UpdatedAt: now, Metadata: firstMetadata,
+		},
+		{
+			ID: "tool-assign-unknown", Kind: protocol.ExecutionRuntimeNodeTool,
+			AgentRoundID: "agent-round-1", AgentID: "agent-1",
+			Name:      "mcp__nexus_execution__assign_work",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(time.Second), UpdatedAt: now.Add(2 * time.Second),
+			Metadata: unresolvedMetadata,
+		},
+	}
+	if got := latestRuntimeExecutionSegment(nodes, identity); got.valid() {
+		t.Fatalf("unresolved successful assign leaked previous segment after restart: %+v", got)
+	}
+}
+
+func TestRuntimeGraphKeepsRoomWorkBindingExplicit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 13, 16, 45, 0, 0, time.UTC)
+	actor := ActorContext{
+		OwnerUserID: "owner-room", SessionKey: "session-room",
+		ExecutionID: "execution-room", AgentID: "agent-worker",
+		ScopeKind:   protocol.ExecutionScopeRoom,
+		RootRoundID: "round-room", RuntimeRoundID: "round-room",
+		AgentRoundID: "agent-round-room",
+		WorkBinding: &protocol.ExecutionWorkBinding{
+			ExecutionID: "execution-room", WorkItemID: "work-room",
+			AssignmentID: "assignment-room", AttemptID: "attempt-room",
+		},
+	}
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user", "uuid": "result-room-assign",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type": "tool_result", "tool_use_id": "tool-room-assign",
+				"content": `{"outcome":"applied","execution_id":"execution-room","changed":["assignment:assignment-other","attempt:attempt-other"]}`,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	node := repository.nodes[len(repository.nodes)-1]
+	segment := runtimeExecutionSegmentFromNode(node)
+	if !segment.valid() || segment.Source != "work_binding" ||
+		segment.WorkItemID != "work-room" ||
+		runtimeGraphMetadataString(node, runtimeGraphSegmentBoundaryKey) != "" {
+		t.Fatalf("Room WorkBinding was replaced by DM segment logic: %+v node=%+v", segment, node)
+	}
+	if repository.boundRoundID != "" || repository.boundExecution != "" {
+		t.Fatalf("Room round entered DM execution binding: %q/%q", repository.boundRoundID, repository.boundExecution)
+	}
+}
+
+func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 13, 17, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		ID: "execution-1", ScopeKind: protocol.ExecutionScopeDM,
+		WorkItems: []protocol.ExecutionWorkItemView{
+			{
+				ID: "work-b", Position: 1, OwnerAgentID: "agent-1",
+				Attempts: []protocol.ExecutionAttemptView{{
+					ID: "attempt-b", AssignmentID: "assignment-b",
+					ExecutorKind:    protocol.AttemptExecutorAgent,
+					ExecutorAgentID: "agent-1", AgentRoundID: "agent-round-1",
+					Status:    protocol.WorkAttemptStatusSucceeded,
+					CreatedAt: now.Add(6500 * time.Millisecond),
+				}},
+			},
+			{
+				ID: "work-c", Position: 2, OwnerAgentID: "agent-1",
+				Attempts: []protocol.ExecutionAttemptView{{
+					ID: "attempt-c", AssignmentID: "assignment-c",
+					ExecutorKind:    protocol.AttemptExecutorAgent,
+					ExecutorAgentID: "agent-1", AgentRoundID: "agent-round-1",
+					Status:    protocol.WorkAttemptStatusSucceeded,
+					CreatedAt: now.Add(10500 * time.Millisecond),
+				}},
+			},
+			{
+				ID: "work-a", Position: 0, OwnerAgentID: "agent-1",
+				Attempts: []protocol.ExecutionAttemptView{{
+					ID: "attempt-a", AssignmentID: "assignment-a",
+					ExecutorKind:    protocol.AttemptExecutorAgent,
+					ExecutorAgentID: "agent-1", AgentRoundID: "agent-round-1",
+					Status:    protocol.WorkAttemptStatusSucceeded,
+					CreatedAt: now.Add(2500 * time.Millisecond),
+				}},
+			},
+		},
+	}
+	view.Graph = projectExecutionGraphView(view.WorkItems)
+	finishedAt := func(offset time.Duration) *time.Time {
+		value := now.Add(offset)
+		return &value
+	}
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-root", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "agent-round-1", AgentRoundID: "agent-round-1", AgentID: "agent-1",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+			Metadata: map[string]any{"execution_lane": "coordination"},
+		},
+		{
+			ID: "tool-plan", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-plan",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Bash",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+		},
+		{
+			ID: "tool-assign-a", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-a",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "mcp__nexus_execution__assign_work",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(2 * time.Second),
+			UpdatedAt: now.Add(3 * time.Second), FinishedAt: finishedAt(3 * time.Second),
+		},
+		{
+			ID: "tool-write-a", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-write-a",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Write",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(4 * time.Second), UpdatedAt: now.Add(4 * time.Second),
+		},
+		{
+			ID: "tool-assign-b", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-b",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "mcp__nexus_execution__assign_work",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(6 * time.Second),
+			UpdatedAt: now.Add(7 * time.Second), FinishedAt: finishedAt(7 * time.Second),
+		},
+		{
+			ID: "tool-bash-b", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-bash-b",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Bash",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(8 * time.Second), UpdatedAt: now.Add(8 * time.Second),
+		},
+		{
+			ID: "tool-assign-c", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-c",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "mcp__nexus_execution__assign_work",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(10 * time.Second),
+			UpdatedAt: now.Add(11 * time.Second), FinishedAt: finishedAt(11 * time.Second),
+		},
+		{
+			ID: "tool-edit-c", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-edit-c",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Edit",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(12 * time.Second), UpdatedAt: now.Add(12 * time.Second),
+		},
+	}
+	edges := make([]protocol.ExecutionRuntimeEdgeRun, 0, len(nodes)-1)
+	for index := 1; index < len(nodes); index++ {
+		edges = append(edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: fmt.Sprintf("edge-%d", index), SourceNodeID: "runtime-root",
+			TargetNodeID: nodes[index].ID, Kind: protocol.ExecutionRuntimeEdgeInvoke,
+			CreatedAt: nodes[index].StartedAt,
+		})
+	}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: nodes, Edges: edges})
+
+	for nodeID, wantParent := range map[string]string{
+		"tool-plan": "work-a", "tool-assign-a": "work-a", "tool-write-a": "work-a",
+		"tool-assign-b": "work-b", "tool-bash-b": "work-b",
+		"tool-assign-c": "work-c", "tool-edit-c": "work-c",
+	} {
+		node := graphNodeByID(view.Graph.Nodes, nodeID)
+		if node.ID == "" || node.ParentNodeID != wantParent || node.WorkItemID != wantParent {
+			t.Fatalf("%s ownership = parent:%q work:%q, want %q; graph=%+v", nodeID, node.ParentNodeID, node.WorkItemID, wantParent, view.Graph)
+		}
+	}
+}
+
+func TestRuntimeGraphViewDoesNotInferDMSegmentsForRoomCoordinator(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 13, 18, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		ID: "execution-room", ScopeKind: protocol.ExecutionScopeRoom,
+		CoordinatorAgentID: "agent-lead",
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID: "work-a", Position: 0, OwnerAgentID: "agent-lead",
+			Attempts: []protocol.ExecutionAttemptView{{
+				ID: "attempt-a", AssignmentID: "assignment-a",
+				ExecutorKind:    protocol.AttemptExecutorAgent,
+				ExecutorAgentID: "agent-lead", AgentRoundID: "agent-round-1",
+				CreatedAt: now.Add(1500 * time.Millisecond),
+			}},
+		}},
+	}
+	view.Graph = projectExecutionGraphView(view.WorkItems)
+	projectExecutionCoordinatorNode(view)
+	finished := now.Add(2 * time.Second)
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: "runtime-root", Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "agent-round-1", AgentRoundID: "agent-round-1", AgentID: "agent-lead",
+				Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+				Metadata: map[string]any{"execution_lane": "coordination"},
+			},
+			{
+				ID: "tool-assign", Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "tool-assign", AgentRoundID: "agent-round-1", AgentID: "agent-lead",
+				Name: "mcp__nexus_execution__assign_work", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(time.Second), UpdatedAt: finished, FinishedAt: &finished,
+			},
+			{
+				ID: "tool-write", Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "tool-write", AgentRoundID: "agent-round-1", AgentID: "agent-lead",
+				Name: "Write", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(3 * time.Second), UpdatedAt: now.Add(3 * time.Second),
+			},
+		},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{
+			{ID: "edge-assign", SourceNodeID: "runtime-root", TargetNodeID: "tool-assign", Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now.Add(time.Second)},
+			{ID: "edge-write", SourceNodeID: "runtime-root", TargetNodeID: "tool-write", Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now.Add(3 * time.Second)},
+		},
+	})
+	write := graphNodeByID(view.Graph.Nodes, "tool-write")
+	if write.ParentNodeID != "coordinator:execution-room" || write.WorkItemID != "" {
+		t.Fatalf("Room coordination tool was rebound by DM inference: %+v", write)
+	}
+}
+
 func TestRuntimeGraphViewBindsLaunchToolsAndChildrenToSiblingSubagents(t *testing.T) {
 	t.Parallel()
 
@@ -705,8 +1083,127 @@ func TestRuntimeGraphViewFiltersHistoricalProgressFacet(t *testing.T) {
 	})
 
 	if len(view.Graph.Nodes) != 1 || view.Graph.Nodes[0].ID != "runtime-agent" ||
-		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 2 {
+		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 1 {
 		t.Fatalf("historical progress facet leaked into graph: %+v", view.Graph)
+	}
+}
+
+func TestRuntimeGraphViewAppliesPartialAfterCanvasVisibility(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 12, 9, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-1"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary, WorkItemID: "work-1",
+		}}},
+	}
+	runtimeGraph := protocol.ExecutionRuntimeGraph{
+		NodeTotal:      protocol.ExecutionRuntimeGraphNodeProjectionLimit + 46,
+		NodesTruncated: true,
+		Nodes: []protocol.ExecutionRuntimeNodeRun{{
+			ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+			Metadata: map[string]any{"execution_lane": "work", "work_item_id": "work-1"},
+		}},
+	}
+	for index := 0; index < 300; index++ {
+		observedAt := now.Add(time.Duration(index+1) * time.Second)
+		nodeID := fmt.Sprintf("detail-read-%03d", index)
+		runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+			ID: nodeID, Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: nodeID, ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Name: "Read", Status: protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: observedAt, UpdatedAt: observedAt,
+		})
+		runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + nodeID, SourceNodeID: "runtime-agent", TargetNodeID: nodeID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: observedAt,
+		})
+	}
+	failureAt := now.Add(-time.Minute)
+	runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+		ID: "visible-failure", Kind: protocol.ExecutionRuntimeNodeTool,
+		SubjectID: "visible-failure", ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+		Name: "internal-check", Status: protocol.ExecutionRuntimeNodeFailed,
+		StartedAt: failureAt, UpdatedAt: failureAt,
+	})
+	runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+		ID: "edge-visible-failure", SourceNodeID: "runtime-agent", TargetNodeID: "visible-failure",
+		Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: failureAt,
+	})
+
+	mergeExecutionRuntimeGraph(view, runtimeGraph)
+
+	if view.Graph.RuntimeNodeTotal != 1 || view.Graph.RuntimeNodesTruncated ||
+		view.Graph.RuntimeEdgeTotal != 1 || view.Graph.RuntimeEdgesTruncated {
+		t.Fatalf(
+			"hidden detail facts marked canvas partial: nodes=%d node_partial=%v edges=%d edge_partial=%v",
+			view.Graph.RuntimeNodeTotal,
+			view.Graph.RuntimeNodesTruncated,
+			view.Graph.RuntimeEdgeTotal,
+			view.Graph.RuntimeEdgesTruncated,
+		)
+	}
+	visibleFailure := false
+	for _, node := range view.Graph.Nodes {
+		if node.ID == "visible-failure" {
+			visibleFailure = node.Visibility == protocol.ExecutionGraphNodeNested
+		}
+	}
+	if !visibleFailure {
+		t.Fatalf("early display-worthy failure was not preserved: %+v", view.Graph.Nodes)
+	}
+}
+
+func TestRuntimeGraphViewMarksPartialOnlyWhenCanvasNodesAreOmitted(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-1"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary, WorkItemID: "work-1",
+		}}},
+	}
+	runtimeGraph := protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{{
+		ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+		SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		Metadata: map[string]any{"execution_lane": "work", "work_item_id": "work-1"},
+	}}}
+	for index := 0; index <= protocol.ExecutionRuntimeGraphNodeProjectionLimit; index++ {
+		observedAt := now.Add(time.Duration(index+1) * time.Second)
+		nodeID := fmt.Sprintf("visible-failure-%03d", index)
+		runtimeGraph.Nodes = append(runtimeGraph.Nodes, protocol.ExecutionRuntimeNodeRun{
+			ID: nodeID, Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: nodeID, ParentSubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+			Name: "Read", Status: protocol.ExecutionRuntimeNodeFailed,
+			StartedAt: observedAt, UpdatedAt: observedAt,
+		})
+		runtimeGraph.Edges = append(runtimeGraph.Edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + nodeID, SourceNodeID: "runtime-agent", TargetNodeID: nodeID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: observedAt,
+		})
+	}
+
+	mergeExecutionRuntimeGraph(view, runtimeGraph)
+
+	if view.Graph.RuntimeNodeTotal != protocol.ExecutionRuntimeGraphNodeProjectionLimit+1 ||
+		!view.Graph.RuntimeNodesTruncated {
+		t.Fatalf("display-worthy overflow was not marked partial: %+v", view.Graph)
+	}
+	canvasRuntimeNodes := 0
+	for _, node := range view.Graph.Nodes {
+		if node.ID != "work-1" && node.Visibility != protocol.ExecutionGraphNodeDetail {
+			canvasRuntimeNodes++
+		}
+	}
+	if canvasRuntimeNodes != protocol.ExecutionRuntimeGraphNodeProjectionLimit {
+		t.Fatalf("canvas runtime nodes = %d, want %d", canvasRuntimeNodes, protocol.ExecutionRuntimeGraphNodeProjectionLimit)
 	}
 }
 
@@ -828,12 +1325,10 @@ func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t 
 	}
 }
 
-func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
+func TestGetLatestViewDoesNotExposePlanlessRuntimeGraphAsWorkGraph(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
-	rootID := "runtime-agent-1"
-	toolID := "runtime-tool-1"
 	repository := &runtimeGraphRepositoryFake{
 		fakeRepository: &fakeRepository{},
 		graph: protocol.ExecutionRuntimeGraph{
@@ -865,7 +1360,7 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 			Edges: []protocol.ExecutionRuntimeEdgeRun{{
 				ID: "runtime-edge-1", GraphID: "round:round-1",
 				OwnerUserID: "owner-1", SessionKey: "session-1",
-				SourceNodeID: rootID, TargetNodeID: toolID,
+				SourceNodeID: "runtime-agent-1", TargetNodeID: "runtime-tool-1",
 				Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now,
 			}},
 		},
@@ -878,28 +1373,8 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view == nil || view.Plan != nil || len(view.WorkItems) != 0 ||
-		view.ID != "round:round-1" || view.Status != protocol.ExecutionStatusActive {
-		t.Fatalf("unexpected planless view: %+v", view)
-	}
-	if len(view.Graph.Nodes) != 2 || len(view.Graph.Edges) != 1 {
-		t.Fatalf("unexpected planless graph: %+v", view.Graph)
-	}
-	if view.Graph.RuntimeNodeTotal != 40 || view.Graph.RuntimeEdgeTotal != 50 ||
-		!view.Graph.RuntimeNodesTruncated || !view.Graph.RuntimeEdgesTruncated {
-		t.Fatalf("planless graph hid projection completeness: %+v", view.Graph)
-	}
-	projectedEdge := view.Graph.Edges[0]
-	if projectedEdge.SourceNodeRunID != rootID || projectedEdge.TargetNodeRunID != toolID ||
-		projectedEdge.CreatedAt == nil || !projectedEdge.CreatedAt.Equal(now) {
-		t.Fatalf("runtime edge lost exact observation identity: %+v", projectedEdge)
-	}
-	tool := graphNodeByID(view.Graph.Nodes, toolID)
-	if tool.Kind != protocol.ExecutionGraphNodeTool ||
-		tool.Visibility != protocol.ExecutionGraphNodeNested ||
-		tool.ParentNodeID != rootID ||
-		tool.LifecycleStatus != "running" {
-		t.Fatalf("unexpected planless tool projection: %+v", tool)
+	if view != nil {
+		t.Fatalf("planless runtime graph leaked through WorkGraph read surface: %+v", view)
 	}
 }
 
@@ -1326,7 +1801,9 @@ func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *te
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 11, 0, 0, 0, time.UTC)
-	snapshot := executionSnapshot()
+	// Public WorkGraph reads are managed-only. Give the audited Execution a
+	// real Plan/Work Item instead of relying on the removed planless view.
+	snapshot := assignedExecutionSnapshot()
 	snapshot.Execution.RootRoundID = "round-1"
 	snapshot.Execution.Objective = "Ship the verified report"
 	snapshot.Execution.CompletionCriteria = []string{"report is verified"}

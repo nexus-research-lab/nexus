@@ -88,11 +88,11 @@ src/
 - 工作循环的触发协议与统计值只由 `features/capability/loops/loop-presentation.ts` 投影为当前语言；目录和详情不得直接展示后端枚举或拼接固定英文单位
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；Nexus 内置 Skill 的双语说明统一由 `lib/skill-description.ts` 做只读展示投影，并由目录、详情、Agent、Room 与 Composer 复用；能力页已安装、更新与社区结果共用 `features/capability/skills/shared/skill-directory-card.tsx`，但已安装目录卡只保留名称、说明和真实动作，来源、作用域、标签与启用位置进入详情；所有 Skill 资源头像只通过 `shared/ui/display/seeded-avatar.tsx` 按稳定名称生成跨目录、详情和预览一致、圆心固定的静态数学曲线身份；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
-- 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，高级设置按字段职责组合；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员
+- 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，会话选择器复用外部 Session 真相源显示 `IM · 通道` 标识且不暴露 session key，只列当前 active pairing 与内部可用会话；已解绑、已删除或无法证明授权的外部会话不进入候选项，待重绑任务清空失效选择并显示状态提示。新建任务只展示独立运行/复用已有会话和保留/发送结果，main、dedicated、execution 等底层兼容模式仅在编辑使用这些模式的旧任务时出现；新建默认省略 permission_mode 以让后端原子复制当前 Session/Agent 权限，编辑只展示任务已持久化的具体 SDK mode；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员。Automation 投递消息只按结构化 metadata 渲染轻量来源徽标，不解析或改写正文
 - 定时任务时间选择器共用 `capability/scheduled/pickers/time-picker-column.tsx`，锚点浮层复用 `shared/ui/overlay/`，不得在 Daily/SingleRun 中复制选项按钮
 - 定时任务目录只通过 `capability/scheduled/controller/` 读写任务；不得恢复混合 Heartbeat 的 Automation 控制器，命令结果必须先于后台刷新落地
 - 定时任务运行历史由 `capability/scheduled/history/` 分离 Job 作用域资源、动作事务和纯视图；弹窗壳层不得直接请求 API 或维护单项命令状态
-- Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口；状态条只显示实际 token 用量，预算只保留为编辑配置和运行限制，不投影为第二套用户用量
+- Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写既有状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口。Composer 创建使用独立 `set_goal`，并与文本 `/goal` 共用后端 host command、完成态控制记录与 ACK，不得复用普通 chat/runtime；状态条只显示实际 token 用量，预算只保留为编辑配置和运行限制，不投影为第二套用户用量。Goal 完成收据由宿主按 goal_id + round_id 附着到最终 assistant 并进入历史，但界面永不显示这两个 ID；只显示已知耗时和已 finalized 的 actual token，未知项直接省略，不显示结算中、不可用或伪造的 0
 - 桌面运行时只通过 `config/desktop-runtime/index.ts` 暴露稳定门面，消费者不得读取宿主原始全局对象或复制 URL 协议判断
 - 窗口手势面统一使用 `data-desktop-window-drag-region`。macOS 宿主以 4px 阈值仲裁短按与拖窗，让可见 Header、`/app` 主内容区顶部透明拖动面与原生 traffic lights 共面；Windows 使用 WebView2 原生 `app-region`，Header 空白区进入系统命中测试，标签、按钮、链接、编辑控件与显式排除项保持 `no-drag`。Windows 独立原生标题/菜单栏位于 WebView 上方，Web 不得为其预留右侧 caption 空域；除 macOS `/app` 的透明手势面外，页面不得重新添加顶部安全行或全宽点击遮罩。
 - 根启动入口只编排运行时配置与渲染阶段；普通入口先加载受保护的运行时配置，OAuth 公开回调入口必须显式跳过该预取并直接渲染 token 交换页；失败视图、chunk/auth 恢复、一次性重载和空白 watchdog 各自拥有独立边界
@@ -104,7 +104,7 @@ src/
 - 连接器目录卡片的尾部动作只由 `capability/connectors/catalog/connector-card-model.ts` 投影；已连接项必须提供可访问的断开入口并复用控制器断开事务，详情页保留同一动作；飞书云文档的连接入口统一先选择官方扫码或手工兜底，官方扫码可在飞书选择已有应用或创建新应用，桌面端通过原生宿主、Web 端通过收到 App ID 后的延迟弹窗尝试拉起当前用户授权链接，Web 被浏览器拦截时必须显示明确的主按钮，手工 App ID / Secret 不得成为断开后静默复用的固定状态
 - Room 当前 Session 的 Agent execution 展示锚点只由 `hooks/agent/runtime/model/room-agent-execution-state.ts` 维护：首次批量恢复采用服务端 `display_order` 或 message/slot timestamp + index 建立 canonical 顺序，后续 permission、slot、stream、status、message fallback 证据统一换算到同一时间尺度，只能追加并接管既有节点；acknowledged tombstone 保持原 shell 但不再携带交互。精确停止由 runtime 易失层按 `agent_round_id` 维护 stopping，并由 terminal event / `interrupt_ack` 幂等收口；Timeline、Room Feed 与 Thread 只消费该投影，不得按完成顺序重排
 - MessageItem 的 Assistant 内容模式只由 `features/conversation/shared/message/item/message-item-projection.ts` 的穷尽策略同时选择 direct/final 正文 surface 与 pending interaction owner；DM 与 Room 的人工介入统一由 Composer 原位替换输入壳，消息和 Thread 只保留不可操作的等待证据。DM live/archive 的最终正文必须保持同一 React 子树；`view/content/content-renderer-model.ts` 让 live 空文本先挂载 Markdown 身份以承接首批流式正文，历史空文本不得占位
-- Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、分阶段消息投递、Goal/Loop、Session Connector 显式开关、有序键盘守卫，以及输入/运行时/模式/动作视图投影；未发送的正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成单一草稿胶囊，按包含 Session ID 的 Room/DM 内存作用域隔离，切换 Session 恢复各自待发送状态且不同聊天互相隔离；本地协议派发后立即认领并清空原修订草稿，ACK 失败只在没有新输入时恢复；textarea 高度只由浏览器真实排版在正文、原生 input/IME 与宽度变化时重测；输入历史仍按不含 Session ID 的逻辑聊天作用域共享；`components/{footer,pending-queue,loop-picker}/` 分别拥有展示和局部交互，面板只装配子域
+- Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、分阶段消息投递、Goal/Loop、Session Connector 显式开关、有序键盘守卫，以及输入/运行时/模式/动作视图投影；未发送的正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成单一草稿胶囊，按包含 Session ID 的 Room/DM 内存作用域隔离，切换 Session 恢复各自待发送状态且不同聊天互相隔离；本地协议派发后立即认领并清空原修订草稿，普通 Session 切换不取消已发请求，ACK/拒绝按本地拥有的 `client_request_id` 收口且只在原 Session 投影，明确失败只在没有新输入时恢复，受理未知不恢复；textarea 高度只由浏览器真实排版在正文、原生 input/IME 与宽度变化时重测；输入历史仍按不含 Session ID 的逻辑聊天作用域共享；`components/{footer,pending-queue,loop-picker}/` 分别拥有展示和局部交互，面板只装配子域
 - Composer 上方 WorkGraph 的展开宽度由活动 Dock 的本地空间约束，DAG 按自身实测宽度压缩层间距，只有低于最小可读间距时才横向滚动；禁止再用全窗口宽度推断被侧栏和辅助面板挤压后的聊天栏尺寸
 - 会话底部工作区由 `conversation/shared/conversation-panel-layout.tsx` 统一组合为一个以 Composer 为底座的向上工作栈：Goal/告警紧贴 Composer 形成第一层，权威 Execution 存在时由 WorkGraph 胶囊占据工作栈顶边并替代 legacy Task，Task 仅在 `executor_agent_id + agent_round_id` 精确命中 WorkAttempt 时展开于对应节点内部；否则当前会话 Task 继续以“当前步骤/总步数 · 当前摘要”显示，缺失关联键不得猜挂。普通聊天和裸 `@` 不得因参与人数被推断成 Plan。回到底部在同一行相邻显示且进程缺席时单独居中。透明 Dock 与中间包装不接收指针，只有真实按钮拥有局部热区；禁止再用透明 runway 拉开 Goal 与 Composer。只有进程或回到底部控件真实可见时才在消息尾部保留避让，隐藏时不制造空白；控件显隐和展开不得改变阅读 viewport 高度。进程数据沿 Room/DM 面板模型进入共享视图，不在 Room Surface 顶部另设状态条。Composer Footer 使用输入壳容器宽度收敛动作：宽壳居中显示 `Powered by Nexus`，窄壳隐藏品牌标注并把空间还给功能控件；窄壳 Goal 模式必须重排为两行并保留负责人、取消和提交动作，不以全窗口断点推导壳内密度
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
@@ -137,7 +137,7 @@ src/
 - Room Group Header 按成员头像、指南菜单和主装配分离；异步弹窗状态必须绑定 Room 身份，不能跨路由复用布尔状态
 - DM/Group Header 共用 `surface/header/` 的 Tab 定义与指南菜单；移动端只在 `surface/mobile/` 组合头部、会话 Sheet 和 Overlay，聊天主体必须复用 `room-chat-surface.tsx`
 - 聊天渲染错误边界归 Room Surface，并以会话身份作为 reset key；错误状态和硬编码回退文案不得跨会话、跨布局复制
-- Room 会话历史由 `features/conversation/room/surface/history/` 统一排序、外部 Session 能力、删除资格和标题编辑状态，基础协议层不保存展示专属规则
+- Room 会话历史由 `features/conversation/room/surface/history/` 统一排序、外部 Session 能力、删除资格和标题编辑状态；长标题与 IM 账号身份保持单行完整内容，由列表正文底部横向滚动承载，基础协议层不保存展示专属规则
 - 子智能体列表与线程资源必须绑定来源/任务作用域并拒绝旧请求写回；Room 调用者切换必须同步清理不属于新 Agent 的详情选择；任务详情只读展示 transcript，不提供发送或停止动作
 - 环境变量统一使用 `VITE_*` 前缀，通过 `import.meta.env` 读取
 

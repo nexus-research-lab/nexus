@@ -1,6 +1,7 @@
 import {
   BookOpenText,
   Check,
+  CircleCheck,
   Copy,
   type LucideIcon,
 } from "lucide-react";
@@ -20,9 +21,13 @@ import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
-import type { RecalledMemoryReference } from "@/types/conversation/message/entity";
+import type {
+  GoalCompletionReceipt,
+  RecalledMemoryReference,
+} from "@/types/conversation/message/entity";
 
 import type { AssistantFooterStats } from "./assistant-message-model";
+import { buildGoalCompletionReceiptItems } from "./goal-completion-receipt";
 
 interface CopyActionPresentation {
   className?: string;
@@ -36,20 +41,22 @@ const COPY_ACTION_PRESENTATION: Record<"copied" | "idle", CopyActionPresentation
 
 export function AssistantMessageStats({
   copied,
-  memories,
+  goalCompletionReceipt,
+  memories = [],
   model,
   onCopy,
   stats,
   streaming,
 }: {
   copied: boolean;
+  goalCompletionReceipt: GoalCompletionReceipt | null;
   memories: RecalledMemoryReference[];
   model?: string;
   onCopy?: () => Promise<void>;
   stats: AssistantFooterStats | null;
   streaming: boolean;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const statsItems = [
     stats?.duration,
     stats?.tokens,
@@ -59,47 +66,81 @@ export function AssistantMessageStats({
       : null,
   ].filter((item): item is string => Boolean(item));
   const modelName = model?.trim() || null;
+  const hasSecondaryMetadata = statsItems.length > 0 || Boolean(modelName);
+  const receiptItems = goalCompletionReceipt
+    ? buildGoalCompletionReceiptItems(goalCompletionReceipt, locale, t)
+    : [];
 
   return (
-    <div className={cn(
-      "nexus-chat-message-stats flex min-w-0 items-center justify-between gap-3 pt-1.5 text-xs text-(--text-muted)",
-    )}>
-      <div className="flex min-w-0 flex-1 items-center">
-        {statsItems.length > 0 ? (
-          <div className="nexus-chat-message-stat-list flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap leading-none">
-            {statsItems.map((item, index) => (
+    <div className="nexus-chat-message-stats min-w-0 pt-1.5 text-xs text-(--text-muted)">
+      {receiptItems.length > 0 ? (
+        <div
+          className="flex min-w-0 items-center gap-1.5 leading-none text-[color:color-mix(in_srgb,var(--success)_82%,var(--text-default)_18%)]"
+          data-goal-completion-receipt
+        >
+          <CircleCheck aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+          <div className="flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap font-medium">
+            {receiptItems.map((item, index) => (
               <span className="contents" key={`${item}-${index}`}>
-                {index > 0 ? (
-                  <span className="shrink-0 text-(--text-soft)/70">•</span>
-                ) : null}
-                <span className="min-w-0 truncate tabular-nums text-(--text-muted)">
-                  {item}
-                </span>
+                {index > 0 ? <span aria-hidden="true">·</span> : null}
+                <span className="truncate tabular-nums">{item}</span>
               </span>
             ))}
           </div>
-        ) : null}
-        {modelName ? (
-          <span
-            className={cn(
-              "flex shrink-0 items-center gap-x-1.5 whitespace-nowrap leading-none text-(--text-muted)",
-              statsItems.length > 0 && "ml-1.5",
-            )}
-          >
-            {statsItems.length > 0 ? (
-              <span className="text-(--text-soft)/70">•</span>
-            ) : null}
-            <span>{modelName}</span>
-          </span>
-        ) : null}
-      </div>
+          {!hasSecondaryMetadata ? (
+            <AssistantStatsTrailing
+              copied={copied}
+              memories={memories}
+              onCopy={onCopy}
+              streaming={streaming}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
-      <AssistantStatsTrailing
-        copied={copied}
-        memories={memories}
-        onCopy={onCopy}
-        streaming={streaming}
-      />
+      {hasSecondaryMetadata || receiptItems.length === 0 ? (
+        <div className={cn(
+          "flex min-w-0 items-center justify-between gap-3",
+          receiptItems.length > 0 && "pt-1.5",
+        )}>
+          <div className="flex min-w-0 flex-1 items-center">
+            {statsItems.length > 0 ? (
+              <div className="nexus-chat-message-stat-list flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap leading-none">
+                {statsItems.map((item, index) => (
+                  <span className="contents" key={`${item}-${index}`}>
+                    {index > 0 ? (
+                      <span className="shrink-0 text-(--text-soft)/70">•</span>
+                    ) : null}
+                    <span className="min-w-0 truncate tabular-nums text-(--text-muted)">
+                      {item}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {modelName ? (
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-x-1.5 whitespace-nowrap leading-none text-(--text-muted)",
+                  statsItems.length > 0 && "ml-1.5",
+                )}
+              >
+                {statsItems.length > 0 ? (
+                  <span className="text-(--text-soft)/70">•</span>
+                ) : null}
+                <span>{modelName}</span>
+              </span>
+            ) : null}
+          </div>
+
+          <AssistantStatsTrailing
+            copied={copied}
+            memories={memories}
+            onCopy={onCopy}
+            streaming={streaming}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

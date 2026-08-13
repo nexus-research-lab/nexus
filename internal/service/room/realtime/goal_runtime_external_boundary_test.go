@@ -225,6 +225,18 @@ func (r *roomGoalBoundaryRepository) CreateGoal(
 	return cloneRoomBoundaryGoal(item), nil
 }
 
+func (r *roomGoalBoundaryRepository) CreateGoalWithEvent(
+	_ context.Context,
+	item protocol.Goal,
+	event protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.goals[item.ID] = item
+	r.events = append(r.events, event)
+	return cloneRoomBoundaryGoal(item), nil
+}
+
 func (r *roomGoalBoundaryRepository) GetGoal(
 	_ context.Context,
 	goalID string,
@@ -264,6 +276,20 @@ func (r *roomGoalBoundaryRepository) ListGoals(
 	return items, nil
 }
 
+func (r *roomGoalBoundaryRepository) ListCurrentGoals(
+	_ context.Context,
+) ([]protocol.Goal, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	items := make([]protocol.Goal, 0, len(r.goals))
+	for _, item := range r.goals {
+		if protocol.IsCurrentGoalStatus(item.Status) {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
 func (r *roomGoalBoundaryRepository) ListRunnableGoals(
 	_ context.Context,
 	limit int,
@@ -294,6 +320,23 @@ func (r *roomGoalBoundaryRepository) UpdateGoal(
 		return nil, sql.ErrNoRows
 	}
 	r.goals[item.ID] = item
+	return cloneRoomBoundaryGoal(item), nil
+}
+
+func (r *roomGoalBoundaryRepository) UpdateGoalWithEvents(
+	_ context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	events []protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.goals[item.ID]
+	if !ok || current.Version != expectedVersion {
+		return nil, sql.ErrNoRows
+	}
+	r.goals[item.ID] = item
+	r.events = append(r.events, events...)
 	return cloneRoomBoundaryGoal(item), nil
 }
 

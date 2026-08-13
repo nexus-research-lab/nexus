@@ -1,5 +1,5 @@
 // INPUT: sealed proposal materializer 的内部 Plan primitive，以及模型的 Assignment、Submission、Acceptance、Block/Resume、Takeover 与 complete 意图。
-// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement 与统一 MutationResult。
+// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement、统一 MutationResult 与提交后 Execution 失效事实。
 // POS: 模型语义 command 到 Repository 原子 command 的应用层适配；不暴露 start_work。
 package orchestration
 
@@ -143,7 +143,8 @@ func (s *Service) PlanExecution(
 	ctx context.Context,
 	actor ActorContext,
 	input PlanExecutionInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}
@@ -655,7 +656,8 @@ func (s *Service) AssignWork(
 	ctx context.Context,
 	actor ActorContext,
 	input AssignWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -675,6 +677,10 @@ func (s *Service) AssignWork(
 		return RejectedResult(snapshot, resolveErr, nil), nil
 	}
 	if assignment := activeAssignmentForWork(snapshot, work.ID); assignment != nil {
+		if matchingRoomSelfAssignmentRequest(actor, snapshot, assignment, input) {
+			result := NoOpResult(snapshot, "work is already assigned to the current Room actor")
+			return withRoomSelfWorkBindingReceipt(actor, result, work.ID), nil
+		}
 		return RejectedResult(snapshot, newDomainError(
 			ErrorCodeDuplicateAssignment,
 			"Work Item already has a current Assignment",
@@ -742,7 +748,95 @@ func (s *Service) AssignWork(
 			}
 		}
 	}
-	return AppliedResult(updated, changed, nextActions(updated, actor)), nil
+	result := AppliedResult(updated, changed, nextActions(updated, actor))
+	return withRoomSelfWorkBindingReceipt(actor, result, work.ID), nil
+}
+
+func matchingRoomSelfAssignmentRequest(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+	assignment *protocol.WorkAssignment,
+	input AssignWorkInput,
+) bool {
+	if snapshot == nil || assignment == nil ||
+		snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
+		actor.ScopeKind != protocol.ExecutionScopeRoom ||
+		actor.WorkBinding != nil || actor.ReviewBinding != nil ||
+		assignment.Strategy != protocol.AssignmentStrategySelf ||
+		strings.TrimSpace(assignment.OwnerAgentID) != strings.TrimSpace(actor.AgentID) ||
+		strings.TrimSpace(input.TargetAgentID) != strings.TrimSpace(actor.AgentID) ||
+		(input.Strategy != "" && input.Strategy != protocol.AssignmentStrategySelf) ||
+		input.DispatchKind != "" {
+		return false
+	}
+	returnTo := strings.TrimSpace(input.ReturnToAgentID)
+	if returnTo == "" {
+		returnTo = strings.TrimSpace(snapshot.Execution.CoordinatorAgentID)
+	}
+	return returnTo != "" &&
+		returnTo == strings.TrimSpace(assignment.ReturnToAgentID)
+}
+
+func withRoomSelfWorkBindingReceipt(
+	actor ActorContext,
+	result MutationResult,
+	workItemID string,
+) MutationResult {
+	if result.Snapshot == nil ||
+		result.Snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
+		actor.ScopeKind != protocol.ExecutionScopeRoom ||
+		actor.WorkBinding != nil ||
+		actor.ReviewBinding != nil {
+		return result
+	}
+	assignment := activeAssignmentForWork(result.Snapshot, strings.TrimSpace(workItemID))
+	attempt := rootAttemptForAssignment(result.Snapshot, assignment)
+	if assignment == nil || attempt == nil || result.Snapshot.Plan == nil ||
+		assignment.Strategy != protocol.AssignmentStrategySelf ||
+		strings.TrimSpace(assignment.OwnerAgentID) != strings.TrimSpace(actor.AgentID) ||
+		assignment.ID != attempt.AssignmentID ||
+		assignment.ExecutionID != result.Snapshot.Execution.ID ||
+		assignment.PlanID != result.Snapshot.Plan.ID ||
+		assignment.WorkItemID != attempt.WorkItemID ||
+		assignment.SpecID != attempt.SpecID ||
+		strings.TrimSpace(attempt.DispatchID) != "" ||
+		attempt.ParentAttemptID != "" {
+		return result
+	}
+	result.WorkBinding = &WorkBindingReceipt{Binding: &protocol.ExecutionWorkBinding{
+		ExecutionID:  assignment.ExecutionID,
+		PlanID:       assignment.PlanID,
+		WorkItemID:   assignment.WorkItemID,
+		SpecID:       assignment.SpecID,
+		AssignmentID: assignment.ID,
+		AttemptID:    attempt.ID,
+	}}
+	return result
+}
+
+func rootAttemptForAssignment(
+	snapshot *protocol.ExecutionSnapshot,
+	assignment *protocol.WorkAssignment,
+) *protocol.WorkAttempt {
+	if snapshot == nil || assignment == nil {
+		return nil
+	}
+	var succeeded *protocol.WorkAttempt
+	for index := range snapshot.Attempts {
+		attempt := &snapshot.Attempts[index]
+		if attempt.AssignmentID != assignment.ID || attempt.ParentAttemptID != "" {
+			continue
+		}
+		if attempt.Status == protocol.WorkAttemptStatusPending ||
+			attempt.Status == protocol.WorkAttemptStatusRunning {
+			return attempt
+		}
+		if attempt.Status == protocol.WorkAttemptStatusSucceeded &&
+			(succeeded == nil || attempt.CreatedAt.After(succeeded.CreatedAt)) {
+			succeeded = attempt
+		}
+	}
+	return succeeded
 }
 
 // SubmitWork 透明启动并成功结束当前 root Attempt，然后记录 Submission。
@@ -750,7 +844,8 @@ func (s *Service) SubmitWork(
 	ctx context.Context,
 	actor ActorContext,
 	input SubmitWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -846,6 +941,7 @@ func (s *Service) SubmitWork(
 		if startErr != nil {
 			return s.storageMutationResult(snapshot, startErr, nextActions(snapshot, actor))
 		}
+		s.invalidateSnapshot(ctx, updated)
 		snapshot = updated
 		assignment = findAssignmentByID(snapshot, assignment.ID)
 		attempt = currentOrSucceededAttempt(snapshot, assignment.ID)
@@ -860,6 +956,7 @@ func (s *Service) SubmitWork(
 		if startErr != nil {
 			return s.storageMutationResult(snapshot, startErr, nextActions(snapshot, actor))
 		}
+		s.invalidateSnapshot(ctx, updated)
 		snapshot = updated
 		assignment = findAssignmentByID(snapshot, assignment.ID)
 		attempt = findAttemptByID(snapshot, attempt.ID)
@@ -879,6 +976,7 @@ func (s *Service) SubmitWork(
 		if finishErr != nil {
 			return s.storageMutationResult(snapshot, finishErr, nextActions(snapshot, actor))
 		}
+		s.invalidateSnapshot(ctx, updated)
 		snapshot = updated
 		assignment = findAssignmentByID(snapshot, assignment.ID)
 		attempt = findAttemptByID(snapshot, attempt.ID)
@@ -886,7 +984,7 @@ func (s *Service) SubmitWork(
 	if assignment == nil || attempt == nil || attempt.Status != protocol.WorkAttemptStatusSucceeded {
 		return RejectedResult(snapshot, newDomainError(
 			ErrorCodeDuplicateAttempt,
-			"current Attempt is terminal but did not succeed; retry with a new command_id",
+			"current Attempt is terminal without success; refresh Execution context and use an allowed coordinator recovery action to create a fresh Attempt before submitting again",
 			work.LogicalKey,
 			"",
 		), nextActions(snapshot, actor)), nil
@@ -960,7 +1058,8 @@ func (s *Service) ReviewWork(
 	ctx context.Context,
 	actor ActorContext,
 	input ReviewWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1143,7 +1242,8 @@ func (s *Service) BlockWork(
 	ctx context.Context,
 	actor ActorContext,
 	input BlockWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1222,7 +1322,8 @@ func (s *Service) ResumeWork(
 	ctx context.Context,
 	actor ActorContext,
 	input ResumeWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1316,7 +1417,8 @@ func (s *Service) TakeOverWork(
 	ctx context.Context,
 	actor ActorContext,
 	input TakeOverWorkInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1391,11 +1493,12 @@ func (s *Service) TakeOverWork(
 	if takeoverErr != nil {
 		return s.storageMutationResult(snapshot, takeoverErr, nextActions(snapshot, actor))
 	}
-	return AppliedResult(updated, []string{
+	result := AppliedResult(updated, []string{
 		"assignment:" + replacement.ID,
 		"assignment_released:" + current.ID,
 		"attempt:" + attempt.ID,
-	}, nextActions(updated, actor)), nil
+	}, nextActions(updated, actor))
+	return withRoomSelfWorkBindingReceipt(actor, result, work.ID), nil
 }
 
 // CompleteIfReady 完成 Execution；任何 blocker 都返回结构化 completion_blocked。
@@ -1403,7 +1506,8 @@ func (s *Service) CompleteIfReady(
 	ctx context.Context,
 	actor ActorContext,
 	input CompleteExecutionInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1458,6 +1562,10 @@ func (s *Service) mutableSnapshot(
 	if err != nil {
 		var domainErr *DomainError
 		if errors.As(err, &domainErr) {
+			if domainErr.Code == ErrorCodeExecutionTerminal {
+				result := SupersededResult(nil, err)
+				return nil, &result, nil
+			}
 			result := RejectedResult(nil, err, nil)
 			return nil, &result, nil
 		}

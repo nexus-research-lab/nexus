@@ -12,6 +12,7 @@ import type {
 import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   AgentMention,
+  GoalCompletionReceipt,
   RecalledMemoryReference,
 } from "@/types/conversation/message/entity";
 import type {
@@ -51,6 +52,7 @@ export interface AssistantFinalState {
 
 export interface AssistantFooterState {
   copied: boolean;
+  goalCompletionReceipt: GoalCompletionReceipt | null;
   memories: RecalledMemoryReference[];
   onCopy?: () => Promise<void>;
   stats: AssistantFooterStats | null;
@@ -66,6 +68,7 @@ export interface AssistantFooterStats {
 
 interface AssistantHeaderState {
   agentId: string | null;
+  automationTaskName: string | null;
   canStop: boolean;
   model: string | undefined;
   stop: () => void;

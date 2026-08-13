@@ -1,5 +1,5 @@
 // INPUT: trusted runtime/scheduler boundary observation and current actor fence.
-// OUTPUT: idempotent, auditable persistence evidence on the current Execution.
+// OUTPUT: idempotent, auditable persistence evidence on the current Execution and its session invalidation fact.
 // POS: runtime lifecycle facts enter adaptive Goal policy here, never through model booleans.
 package orchestration
 
@@ -74,7 +74,7 @@ func (s *Service) RecordPersistenceEvidence(
 			metadataBool(snapshot.Execution.Metadata, key) {
 			return nil
 		}
-		_, recordErr := recorder.RecordEvidence(ctx, orchestrationstore.RecordEvidenceCommand{
+		updated, recordErr := recorder.RecordEvidence(ctx, orchestrationstore.RecordEvidenceCommand{
 			ExecutionID:              snapshot.Execution.ID,
 			ExpectedExecutionVersion: snapshot.Execution.Version,
 			MetadataKey:              key,
@@ -85,6 +85,7 @@ func (s *Service) RecordPersistenceEvidence(
 			),
 		})
 		if recordErr == nil {
+			s.invalidateSnapshot(ctx, updated)
 			return nil
 		}
 		if !errors.Is(recordErr, orchestrationstore.ErrVersionConflict) {

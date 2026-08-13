@@ -41,6 +41,7 @@ export function transformApiAgentSession(api: ApiAgentSession): AgentSession {
     last_activity_at: toTimestamp(api.last_activity),
     message_count: api.message_count,
     options: api.options || {},
+    external_identity: api.external_identity ?? null,
     room_id: api.room_id ?? null,
     room_session_id: api.room_session_id ?? null,
     session_id: api.session_id,

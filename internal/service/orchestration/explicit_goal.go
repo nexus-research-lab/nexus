@@ -1,5 +1,5 @@
 // INPUT: 当前 active explicit Goal 的只读 authority fence、Execution snapshot 与幂等 command identity。
-// OUTPUT: 带 canonical Goal objective 的 proposal activation、Goal -> Execution 预留 binding，以及 transient Execution -> explicit Goal 的无损 CAS binding。
+// OUTPUT: 带 canonical Goal objective 的 proposal activation、Goal -> Execution pending binding、transient Execution -> explicit Goal 的无损 CAS binding/confirmation，以及提交后的 session 失效事实。
 // POS: 显式 Goal 与 Execution 共享状态链的领域协调边界；Plan transport 不拥有 Goal objective，Goal persistence 仍由应用层 gateway 负责。
 package orchestration
 
@@ -131,7 +131,8 @@ func (s *Service) BindExplicitGoal(
 	ctx context.Context,
 	actor ActorContext,
 	input BindExplicitGoalInput,
-) (MutationResult, error) {
+) (returned MutationResult, returnedErr error) {
+	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
 	if actor.PlanMode {
 		return RejectedResult(nil, planModeError(), nil), nil
 	}
@@ -191,6 +192,16 @@ func (s *Service) BindExplicitGoal(
 	}
 	if snapshot.Execution.GoalID != "" {
 		if executionHasExplicitGoalBinding(snapshot.Execution, binding) {
+			if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
+				return withPendingGoalConfirmation(
+					NoOpResult(snapshot, ""),
+					"Explicit Goal and Execution are durably bound; reverse binding confirmation is pending and will retry automatically.",
+					NextAction{
+						Tool:   "get_execution",
+						Reason: "continue from the durable Execution while background reconciliation confirms the Goal binding",
+					},
+				), nil
+			}
 			return s.activateRuntimeCoordinationResult(
 				ctx,
 				actor,
@@ -227,25 +238,6 @@ func (s *Service) prepareExplicitGoalBinding(
 		CompletionCriteria:    append([]string(nil), execution.CompletionCriteria...),
 		AgentID:               strings.TrimSpace(actor.AgentID),
 		RootRoundID:           strings.TrimSpace(actor.RootRoundID),
-	})
-}
-
-func (s *Service) confirmGoalExecutionBinding(
-	ctx context.Context,
-	snapshot *protocol.ExecutionSnapshot,
-) error {
-	if s == nil || snapshot == nil || strings.TrimSpace(snapshot.Execution.GoalID) == "" {
-		return nil
-	}
-	confirmer, ok := s.explicitGoalGateway.(goalExecutionBindingConfirmer)
-	if !ok {
-		return errors.New("Goal execution binding confirmation is unavailable")
-	}
-	return confirmer.ConfirmGoalExecutionBinding(ctx, GoalExecutionBindingConfirmation{
-		GoalID:                snapshot.Execution.GoalID,
-		GoalObjectiveRevision: snapshot.Execution.GoalObjectiveRevision,
-		ExecutionID:           snapshot.Execution.ID,
-		CompletionCriteria:    append([]string(nil), snapshot.Execution.CompletionCriteria...),
 	})
 }
 
@@ -295,6 +287,19 @@ func (s *Service) persistExplicitGoalBinding(
 	})
 	if bindErr != nil {
 		return s.storageMutationResult(snapshot, bindErr, nextActions(snapshot, actor))
+	}
+	if confirmErr := s.confirmGoalExecutionBinding(ctx, updated); confirmErr != nil {
+		return withPendingGoalConfirmation(
+			AppliedResult(updated, []string{
+				"execution:" + updated.Execution.ID,
+				"goal:" + binding.GoalID,
+			}, nextActions(updated, actor)),
+			"Explicit Goal and Execution are durable; reverse binding confirmation is pending and will retry automatically.",
+			NextAction{
+				Tool:   "get_execution",
+				Reason: "continue from the durable Execution while background reconciliation confirms the Goal binding",
+			},
+		), nil
 	}
 	return s.activateRuntimeCoordinationResult(
 		ctx,

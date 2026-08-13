@@ -32,6 +32,7 @@ const STATUS_ICON: Readonly<Record<
   error: { className: "", icon: X },
   pending: { className: "", icon: Sparkles },
   rejected: { className: "", icon: X },
+  superseded: { className: "", icon: Square },
   running: { className: "animate-spin", icon: LoaderCircle },
   stopped: { className: "", icon: Square },
   success: { className: "", icon: Check },

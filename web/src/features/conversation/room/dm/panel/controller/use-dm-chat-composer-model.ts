@@ -27,6 +27,7 @@ type ComposerConversation = Pick<
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
+  | "set_goal"
   | "stop_generation"
 >;
 
@@ -35,7 +36,6 @@ interface UseDmChatComposerModelOptions {
   conversation: ComposerConversation;
   goalScopeLabel: string;
   initialDraft: string | null;
-  onCreateGoal: (objective: string) => Promise<void>;
   onInitialDraftConsumed?: () => void;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sessionKey: string | null;
@@ -47,7 +47,6 @@ export function useDmChatComposerModel({
   conversation,
   goalScopeLabel,
   initialDraft,
-  onCreateGoal,
   onInitialDraftConsumed,
   scrollToBottom,
   sessionKey,
@@ -58,6 +57,7 @@ export function useDmChatComposerModel({
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
   const draftScopeKey = buildComposerDraftScopeKey({ agentId, sessionKey });
   const historyScopeKey = buildComposerHistoryScopeKey({ agentId });
+  const setGoal = conversation.set_goal;
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!agentId) {
@@ -77,6 +77,15 @@ export function useDmChatComposerModel({
     sendMessage: conversation.send_message,
     sessionKey,
   });
+  const createGoal = useCallback(async (objective: string) => {
+    if (!sessionKey) {
+      throw new Error(t("dm.goal_session_not_ready"));
+    }
+    await setGoal(objective, {
+      replace_existing: true,
+      token_budget: null,
+    });
+  }, [sessionKey, setGoal, t]);
 
   return {
     commandCatalog: conversation.command_catalog,
@@ -87,7 +96,7 @@ export function useDmChatComposerModel({
     historyScopeKey,
     inputQueueItems: conversation.input_queue_items,
     isLoading: conversation.is_loading,
-    onCreateGoal: sessionKey ? onCreateGoal : undefined,
+    onCreateGoal: sessionKey ? createGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,

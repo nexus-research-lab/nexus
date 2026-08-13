@@ -387,7 +387,7 @@ WHERE owner_user_id = ` + r.bind(1) + `
 	)
 	row.usage.TotalTokens = row.usage.BudgetTotalTokens
 	row.usage.BudgetTotalKnown = true
-	row.usage.ActualTotalKnown = true
+	normalizeStoredActualTotal(&row.usage)
 	return row, err
 }
 
@@ -492,7 +492,7 @@ ORDER BY source_round_id`
 		}
 		usage.TotalTokens = usage.BudgetTotalTokens
 		usage.BudgetTotalKnown = true
-		usage.ActualTotalKnown = true
+		normalizeStoredActualTotal(&usage)
 		total = total.Add(usage)
 		count++
 		if !tokenObserved {
@@ -780,6 +780,24 @@ func hasStoredGoalUsageTokens(usage protocol.GoalUsage) bool {
 		usage.ReasoningTokens > 0 ||
 		usage.BudgetTokens() > 0 ||
 		usage.ActualTokens() > 0
+}
+
+// normalizeStoredActualTotal 兼容已经把矛盾 provider total=0 落库的记录。
+// SQL 没有单独的 presence 列，因此零 breakdown 仍保留为权威零；只在存在
+// 正数分项时撤销这个 0 的权威性，并让协议层按 breakdown 回算。
+func normalizeStoredActualTotal(usage *protocol.GoalUsage) {
+	if usage == nil {
+		return
+	}
+	hasPositiveBreakdown := usage.InputTokens > 0 ||
+		usage.OutputTokens > 0 ||
+		usage.CacheCreationInputTokens > 0 ||
+		usage.CacheReadInputTokens > 0 ||
+		usage.ReasoningTokens > 0
+	usage.ActualTotalKnown = usage.ActualTotalTokens > 0 || !hasPositiveBreakdown
+	if usage.ActualTotalTokens <= 0 && hasPositiveBreakdown {
+		usage.ActualTokensEstimated = true
+	}
 }
 
 func isStoredGoalUsageZero(usage protocol.GoalUsage) bool {

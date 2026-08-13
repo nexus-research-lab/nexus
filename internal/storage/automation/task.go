@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Automation 任务查询、配置版本写入与领域目标字段。
+// OUTPUT: 完整 ScheduledTask 快照及带 CAS 的配置持久化结果。
+// POS: Automation task repository；SELECT/UPDATE 字段顺序与 scan_automation.go 同构。
 package automation
 
 import (
@@ -27,6 +30,7 @@ SELECT
     timezone,
     instruction,
     execution_kind,
+    permission_mode,
     session_target_kind,
     bound_session_key,
     named_session_key,
@@ -36,6 +40,9 @@ SELECT
     delivery_to,
     delivery_account_id,
     delivery_thread_id,
+    delivery_session_key,
+    session_binding_state,
+    invalidated_session_keys_json,
     source_kind,
     source_creator_agent_id,
     source_context_type,
@@ -43,6 +50,7 @@ SELECT
     source_context_label,
     source_session_key,
     source_session_label,
+    delivery_grant_json,
     overlap_policy,
     expires_at,
     enabled,
@@ -126,6 +134,7 @@ SELECT
     timezone,
     instruction,
     execution_kind,
+    permission_mode,
     session_target_kind,
     bound_session_key,
     named_session_key,
@@ -135,6 +144,9 @@ SELECT
     delivery_to,
     delivery_account_id,
     delivery_thread_id,
+    delivery_session_key,
+    session_binding_state,
+    invalidated_session_keys_json,
     source_kind,
     source_creator_agent_id,
     source_context_type,
@@ -142,6 +154,7 @@ SELECT
     source_context_label,
     source_session_key,
     source_session_label,
+    delivery_grant_json,
     overlap_policy,
     expires_at,
     enabled,
@@ -381,6 +394,7 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		"timezone",
 		"instruction",
 		"execution_kind",
+		"permission_mode",
 		"session_target_kind",
 		"bound_session_key",
 		"named_session_key",
@@ -390,6 +404,9 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		"delivery_to",
 		"delivery_account_id",
 		"delivery_thread_id",
+		"delivery_session_key",
+		"session_binding_state",
+		"invalidated_session_keys_json",
 		"source_kind",
 		"source_creator_agent_id",
 		"source_context_type",
@@ -397,6 +414,7 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		"source_context_label",
 		"source_session_key",
 		"source_session_label",
+		"delivery_grant_json",
 		"overlap_policy",
 		"expires_at",
 		"enabled",
@@ -492,7 +510,16 @@ func scheduledTaskUpsertArgs(job automationdomain.ScheduledTask) ([]any, error) 
 }
 
 func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, error) {
+	job = automationdomain.NormalizeScheduledTaskCompatibility(job)
 	permissionPolicyJSON, err := json.Marshal(job.PermissionPolicy)
+	if err != nil {
+		return nil, err
+	}
+	invalidatedSessionKeysJSON, err := json.Marshal(job.InvalidatedSessionKeys)
+	if err != nil {
+		return nil, err
+	}
+	deliveryGrantJSON, err := json.Marshal(job.DeliveryGrant)
 	if err != nil {
 		return nil, err
 	}
@@ -507,6 +534,7 @@ func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, err
 		job.Schedule.Timezone,
 		job.Instruction,
 		automationdomain.NormalizeExecutionKind(job.ExecutionKind),
+		automationdomain.NormalizePermissionMode(job.PermissionMode),
 		job.SessionTarget.Kind,
 		nullString(job.SessionTarget.BoundSessionKey),
 		nullString(job.SessionTarget.NamedSessionKey),
@@ -516,6 +544,9 @@ func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, err
 		nullString(job.Delivery.To),
 		nullString(job.Delivery.AccountID),
 		nullString(job.Delivery.ThreadID),
+		nullString(job.Delivery.SessionKey),
+		job.SessionBindingState,
+		string(invalidatedSessionKeysJSON),
 		job.Source.Kind,
 		nullString(job.Source.CreatorAgentID),
 		nullString(job.Source.ContextType),
@@ -523,6 +554,7 @@ func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, err
 		nullString(job.Source.ContextLabel),
 		nullString(job.Source.SessionKey),
 		nullString(job.Source.SessionLabel),
+		string(deliveryGrantJSON),
 		automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
 		nullableTime(job.ExpiresAt),
 		job.Enabled,

@@ -1,5 +1,5 @@
 // INPUT: Nexus actor/round identity 与 Bridge 自动派生的 runtime lifecycle 事件。
-// OUTPUT: fail-open 的 Agent/Tool/Subagent NodeRun、运行边与 WorkGraph 合并投影。
+// OUTPUT: fail-open 的 Agent/Tool/Subagent NodeRun、运行边、WorkGraph 合并投影与每段 durable 写后的 session 失效事实。
 // POS: 模型不可见的运行观测层；不要求模型调用 MCP 汇报工具或子智能体状态。
 package orchestration
 
@@ -20,6 +20,7 @@ type runtimeGraphRepository interface {
 	UpsertRuntimeGraphNode(context.Context, protocol.ExecutionRuntimeNodeRun) error
 	UpsertRuntimeGraphEdge(context.Context, protocol.ExecutionRuntimeEdgeRun) error
 	UpsertRuntimeGraphArtifact(context.Context, protocol.ExecutionRuntimeArtifactRef) error
+	BindRuntimeGraphRoundExecution(context.Context, string, string, string, string) error
 	ReconcileRuntimeGraphAgent(context.Context, string, string, string, string, time.Time) error
 	FinishRuntimeGraphRound(context.Context, string, string, string, protocol.ExecutionRuntimeNodeStatus, time.Time) error
 	GetRuntimeGraph(context.Context, string, string, string, string) (protocol.ExecutionRuntimeGraph, error)
@@ -27,6 +28,14 @@ type runtimeGraphRepository interface {
 
 // BeginRuntimeRound 建立 planless 与 managed Execution 共用的 root AgentRun。
 func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) error {
+	return s.beginRuntimeRound(ctx, actor, true)
+}
+
+func (s *Service) beginRuntimeRound(
+	ctx context.Context,
+	actor ActorContext,
+	emitInvalidation bool,
+) error {
 	repository, ok := s.repository.(runtimeGraphRepository)
 	if !ok || repository == nil {
 		return nil
@@ -34,6 +43,11 @@ func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) err
 	identity, err := runtimeGraphIdentityFromActor(actor)
 	if err != nil {
 		return err
+	}
+	if emitInvalidation {
+		// Runtime graph writes are individually durable. Refresh even when a later
+		// statement fails so an already-committed prefix never remains invisible.
+		defer s.invalidateActor(ctx, actor)
 	}
 	now := s.now().UTC()
 	descriptor := runtimeAgentNodeDescriptor(actor)
@@ -47,7 +61,7 @@ func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) err
 	); err != nil {
 		return err
 	}
-	return repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
+	if err = repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
 		ID:             runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeAgent, identity.AgentRoundID),
 		GraphID:        identity.GraphID,
 		OwnerUserID:    identity.OwnerUserID,
@@ -65,7 +79,10 @@ func (s *Service) BeginRuntimeRound(ctx context.Context, actor ActorContext) err
 		StartedAt:      now,
 		UpdatedAt:      now,
 		Metadata:       descriptor.Metadata,
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ObserveRuntimeMessage 持久化 Bridge 的确定性 lifecycle；写失败由调用方记录，
@@ -87,7 +104,8 @@ func (s *Service) ObserveRuntimeMessage(
 	if len(events) == 0 {
 		return nil
 	}
-	if err = s.BeginRuntimeRound(ctx, actor); err != nil {
+	defer s.invalidateActor(ctx, actor)
+	if err = s.beginRuntimeRound(ctx, actor, false); err != nil {
 		return err
 	}
 	now := s.now().UTC()
@@ -106,6 +124,7 @@ func (s *Service) ObserveRuntimeMessage(
 		): rootNodeID,
 	}
 	runtimeNodeByID := make(map[string]protocol.ExecutionRuntimeNodeRun)
+	activeSegment := runtimeExecutionSegmentFromActor(actor)
 	if graph, graphErr := repository.GetRuntimeGraph(
 		ctx,
 		identity.OwnerUserID,
@@ -117,6 +136,9 @@ func (s *Service) ObserveRuntimeMessage(
 		for _, node := range graph.Nodes {
 			nodeByKindSubject[runtimeGraphKindSubjectKey(node.Kind, node.SubjectID)] = node.ID
 			runtimeNodeByID[node.ID] = node
+		}
+		if !activeSegment.valid() && actor.ScopeKind == protocol.ExecutionScopeDM {
+			activeSegment = latestRuntimeExecutionSegment(graph.Nodes, identity)
 		}
 	}
 	for _, event := range events {
@@ -162,12 +184,49 @@ func (s *Service) ObserveRuntimeMessage(
 		if evidence.mutationOutcome != "" {
 			metadata["mutation_outcome"] = string(evidence.mutationOutcome)
 		}
+		if activeSegment.valid() {
+			applyRuntimeExecutionSegment(metadata, activeSegment)
+		}
+		if segment := s.runtimeExecutionSegmentFromMutation(
+			ctx,
+			actor,
+			identity,
+			firstNonEmpty(event.Name, previousNode.Name),
+			evidence,
+		); segment.valid() {
+			if err = repository.BindRuntimeGraphRoundExecution(
+				ctx,
+				identity.OwnerUserID,
+				identity.SessionKey,
+				identity.AgentRoundID,
+				segment.ExecutionID,
+			); err != nil {
+				return err
+			}
+			activeSegment = segment
+			applyRuntimeExecutionSegment(metadata, segment)
+			metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryAssign
+		} else if actor.ScopeKind == protocol.ExecutionScopeDM &&
+			nodeKind == protocol.ExecutionRuntimeNodeTool &&
+			runtimeGraphCanonicalToolLeaf(firstNonEmpty(event.Name, previousNode.Name)) == "assignwork" &&
+			event.Phase == sdkprotocol.RuntimeLifecycleFinished &&
+			status == protocol.ExecutionRuntimeNodeSucceeded {
+			clearRuntimeExecutionSegment(metadata)
+			metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryUnresolved
+			activeSegment = runtimeExecutionSegment{}
+		}
+		name := firstNonEmpty(event.Name, previousNode.Name)
+		description := firstNonEmpty(event.Description, previousNode.Description)
+		startedAt := now
+		if !previousNode.StartedAt.IsZero() {
+			startedAt = previousNode.StartedAt
+		}
 		nodeRun := protocol.ExecutionRuntimeNodeRun{
 			ID:               nodeID,
 			GraphID:          identity.GraphID,
 			OwnerUserID:      identity.OwnerUserID,
 			SessionKey:       identity.SessionKey,
-			ExecutionID:      identity.ExecutionID,
+			ExecutionID:      firstNonEmpty(identity.ExecutionID, activeSegment.ExecutionID),
 			Kind:             nodeKind,
 			SubjectID:        strings.TrimSpace(event.SubjectID),
 			ParentSubjectID:  strings.TrimSpace(event.ParentSubjectID),
@@ -175,8 +234,8 @@ func (s *Service) ObserveRuntimeMessage(
 			RuntimeRoundID:   identity.RuntimeRoundID,
 			AgentRoundID:     identity.AgentRoundID,
 			AgentID:          firstNonEmpty(event.AgentID, identity.AgentID),
-			Name:             event.Name,
-			Description:      event.Description,
+			Name:             name,
+			Description:      description,
 			Status:           status,
 			Failed:           status == protocol.ExecutionRuntimeNodeFailed,
 			ResultSummary:    evidence.resultSummary,
@@ -184,7 +243,7 @@ func (s *Service) ObserveRuntimeMessage(
 			ErrorSummary:     evidence.errorSummary,
 			SummaryTruncated: evidence.summaryTruncated,
 			DurationMS:       evidence.durationMS,
-			StartedAt:        now,
+			StartedAt:        startedAt,
 			UpdatedAt:        now,
 			FinishedAt:       finishedAt,
 			Metadata:         metadata,
@@ -342,6 +401,7 @@ func (s *Service) FinishRuntimeRound(
 	if err != nil {
 		return err
 	}
+	defer s.invalidateActor(ctx, actor)
 	now := s.now().UTC()
 	status := normalizeRuntimeGraphTerminalStatus(terminalStatus, failureReason)
 	descriptor := runtimeAgentNodeDescriptor(actor)
@@ -372,14 +432,17 @@ func (s *Service) FinishRuntimeRound(
 	}); err != nil {
 		return err
 	}
-	return repository.FinishRuntimeGraphRound(
+	if err = repository.FinishRuntimeGraphRound(
 		ctx,
 		identity.OwnerUserID,
 		identity.SessionKey,
 		identity.AgentRoundID,
 		status,
 		now,
-	)
+	); err != nil {
+		return err
+	}
+	return nil
 }
 
 type runtimeAgentDescriptor struct {

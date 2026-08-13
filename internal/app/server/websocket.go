@@ -1,3 +1,6 @@
+// INPUT: AppServices 单例、WebSocket transport 依赖与 runtime kind resolver。
+// OUTPUT: 已注入 Room/Goal broadcaster 及 ExecutionInvalidationSink 的 WebSocket handler。
+// POS: service 到 handler 的组合根；业务 service 不反向依赖 WebSocket。
 package server
 
 import (
@@ -17,7 +20,7 @@ func newWebSocketHandler(
 	services *AppServices,
 	cfg config.Config,
 ) *handlerwebsocket.Handler {
-	return handlerwebsocket.NewHandler(
+	handler := handlerwebsocket.NewHandler(
 		api,
 		services.Core.Room,
 		services.RoomRealtime,
@@ -34,6 +37,10 @@ func newWebSocketHandler(
 		services.SlashCatalog,
 		newRuntimeKindResolver(services),
 	)
+	if services != nil && services.Orchestration != nil {
+		services.Orchestration.SetExecutionInvalidationSink(handler)
+	}
+	return handler
 }
 
 func newRuntimeKindResolver(

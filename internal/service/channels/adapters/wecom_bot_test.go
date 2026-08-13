@@ -75,8 +75,9 @@ func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 	if accepted.Delivery == nil ||
 		accepted.Delivery.Channel != channelcontract.ChannelTypeWeChat ||
 		accepted.Delivery.To != "chat-1" ||
-		accepted.Delivery.AccountID != "callback-1" ||
-		!strings.HasPrefix(accepted.Delivery.ThreadID, "stream_") {
+		accepted.Delivery.AccountID != "bot-1" ||
+		accepted.Delivery.ReplyContextID != "callback-1" ||
+		!strings.HasPrefix(accepted.Delivery.StreamID, "stream_") {
 		t.Fatalf("企业微信智能机器人回投目标不正确: %+v", accepted.Delivery)
 	}
 	if accepted.Message == nil ||
@@ -85,7 +86,7 @@ func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 		accepted.Message.ChatType != "group" ||
 		accepted.Message.ThreadID != "" ||
 		accepted.Message.Metadata["req_id"] != "callback-1" ||
-		accepted.Message.Metadata["stream_id"] != accepted.Delivery.ThreadID {
+		accepted.Message.Metadata["stream_id"] != accepted.Delivery.StreamID {
 		t.Fatalf("企业微信智能机器人入站 envelope 不正确: %+v", accepted.Message)
 	}
 }
@@ -157,11 +158,12 @@ func TestWeComBotChannelSendDeliveryMessageUsesStreamReply(t *testing.T) {
 	channel.setSocket(socket, true)
 
 	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:      channelcontract.DeliveryModeExplicit,
-		Channel:   channelcontract.ChannelTypeWeChat,
-		To:        "chat-1",
-		AccountID: "callback-1",
-		ThreadID:  "stream-1",
+		Mode:           channelcontract.DeliveryModeExplicit,
+		Channel:        channelcontract.ChannelTypeWeChat,
+		To:             "chat-1",
+		AccountID:      "bot-1",
+		ReplyContextID: "callback-1",
+		StreamID:       "stream-1",
 	}, "今日日报正常")
 	if err != nil {
 		t.Fatalf("企业微信智能机器人回投失败: %v", err)
@@ -187,6 +189,50 @@ func TestWeComBotChannelSendDeliveryMessageUsesStreamReply(t *testing.T) {
 		stream["content"] != "今日日报正常" ||
 		stream["finish"] != true {
 		t.Fatalf("企业微信智能机器人 stream 回复不正确: %+v", frame)
+	}
+}
+
+func TestWeComBotChannelScheduledDeliveryUsesProactiveSendCommand(t *testing.T) {
+	socket := &fakeWeComBotSocket{}
+	channel := NewWeComBotChannel("bot-1", "secret-1")
+	socket.onWrite = func(frame map[string]any) {
+		headers, _ := frame["headers"].(map[string]any)
+		reqID, _ := headers["req_id"].(string)
+		channel.completePendingAck(reqID, 0, "ok")
+	}
+	channel.setSocket(socket, true)
+
+	result, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:      channelcontract.DeliveryModeExplicit,
+		Channel:   channelcontract.ChannelTypeWeChat,
+		To:        "chat-1",
+		AccountID: "bot-1",
+	}, "【Nexus 定时任务 · 日报】\n今日日报正常")
+	if err != nil {
+		t.Fatalf("企业微信定时任务主动推送失败: %v", err)
+	}
+	if len(socket.writes) != 1 {
+		t.Fatalf("企业微信主动推送 frame 数量不正确: %d", len(socket.writes))
+	}
+	frame := socket.writes[0]
+	if frame["cmd"] != weComBotSendCommand {
+		t.Fatalf("延迟投递必须使用 aibot_send_msg，而不是 callback 回复: %+v", frame)
+	}
+	headers, ok := frame["headers"].(map[string]any)
+	reqID, reqIDOK := headers["req_id"].(string)
+	if !ok || !reqIDOK || !strings.HasPrefix(reqID, "aibot_send_") {
+		t.Fatalf("主动推送应生成独立 req_id: %+v", frame)
+	}
+	body, ok := frame["body"].(map[string]any)
+	if !ok || body["chatid"] != "chat-1" || body["msgtype"] != "markdown" {
+		t.Fatalf("主动推送 body 不正确: %+v", frame)
+	}
+	markdown, ok := body["markdown"].(map[string]any)
+	if !ok || markdown["content"] != "【Nexus 定时任务 · 日报】\n今日日报正常" {
+		t.Fatalf("主动推送正文不正确: %+v", frame)
+	}
+	if result.Receipt == nil || result.Receipt.PrimaryPlatformMessageID == "" {
+		t.Fatalf("主动推送没有生成平台回执: %+v", result)
 	}
 }
 

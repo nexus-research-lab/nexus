@@ -43,6 +43,7 @@ INSERT INTO automation_delivery_routes (
     "to",
     account_id,
     thread_id,
+    context_token,
     enabled,
     created_at,
     updated_at
@@ -55,9 +56,10 @@ ON CONFLICT(route_id) DO UPDATE SET
     "to" = EXCLUDED."to",
     account_id = EXCLUDED.account_id,
     thread_id = EXCLUDED.thread_id,
+    context_token = EXCLUDED.context_token,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`,
-		store.bindList(9),
+		store.bindList(10),
 	)
 	store.latestRouteQuery = `
 SELECT
@@ -68,6 +70,7 @@ SELECT
     "to",
     account_id,
     thread_id,
+    context_token,
     enabled
 FROM automation_delivery_routes
 WHERE agent_id = ` + store.bind(1) + `
@@ -83,6 +86,7 @@ SELECT
     "to",
     account_id,
     thread_id,
+    context_token,
     enabled
 FROM automation_delivery_routes
 WHERE agent_id = ` + store.bind(1) + `
@@ -137,6 +141,9 @@ func normalizedRememberedTarget(row *rememberedRoute, err error) (*channelcontra
 	if normalized.Channel == "" || normalized.To == "" {
 		return nil, nil
 	}
+	if sessionKey := strings.TrimSpace(row.SessionKey); sessionKey != "" {
+		normalized.SessionKey = sessionKey
+	}
 	return &normalized, nil
 }
 
@@ -188,6 +195,7 @@ func (m *Store) rememberRoute(
 		channelcontract.NullableString(normalized.To),
 		channelcontract.NullableString(normalized.AccountID),
 		channelcontract.NullableString(normalized.ThreadID),
+		channelcontract.NullableString(normalized.ContextToken),
 		true,
 	)
 	if err != nil {
@@ -219,11 +227,12 @@ type sqlScanner interface {
 
 func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
 	var (
-		item      rememberedRoute
-		channel   sql.NullString
-		toValue   sql.NullString
-		accountID sql.NullString
-		threadID  sql.NullString
+		item         rememberedRoute
+		channel      sql.NullString
+		toValue      sql.NullString
+		accountID    sql.NullString
+		threadID     sql.NullString
+		contextToken sql.NullString
 	)
 	if err := row.Scan(
 		&item.RouteID,
@@ -233,6 +242,7 @@ func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
 		&toValue,
 		&accountID,
 		&threadID,
+		&contextToken,
 		&item.Enabled,
 	); err != nil {
 		return nil, err
@@ -242,6 +252,7 @@ func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
 	item.Target.To = channelcontract.NullStringValue(toValue)
 	item.Target.AccountID = channelcontract.NullStringValue(accountID)
 	item.Target.ThreadID = channelcontract.NullStringValue(threadID)
+	item.Target.ContextToken = channelcontract.NullStringValue(contextToken)
 	item.Target = item.Target.Normalized()
 	return &item, nil
 }

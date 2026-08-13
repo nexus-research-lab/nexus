@@ -1,27 +1,17 @@
 "use client";
 
-import {
-  Bot,
-  FolderTree,
-  Info,
-  MoreHorizontal,
-  Plus,
-  UsersRound,
-  Workflow,
-} from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  UiActionMenu,
-  type UiActionMenuItem,
-} from "@/shared/ui/menu/action-menu";
+import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+
+import { buildRoomMobileActionItems } from "./room-mobile-actions-model";
 
 type RoomMobileAuxiliaryTab = Exclude<RoomSurfaceTabKey, "chat">;
 
 interface RoomMobileActionsMenuProps {
-  canOpenWorkgraph: boolean;
   canOpenSubagents: boolean;
   onCreateConversation: () => Promise<string | null>;
   onManageMembers?: () => void;
@@ -29,7 +19,6 @@ interface RoomMobileActionsMenuProps {
 }
 
 export function RoomMobileActionsMenu({
-  canOpenWorkgraph,
   canOpenSubagents,
   onCreateConversation,
   onManageMembers,
@@ -38,40 +27,11 @@ export function RoomMobileActionsMenu({
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const items: UiActionMenuItem[] = [
-    {
-      icon: <Plus className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("room.new_conversation"),
-      tone: "primary",
-      value: "new_conversation",
-    },
-    ...(onManageMembers ? [{
-      icon: <UsersRound className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("room.members"),
-      value: "members",
-    }] : []),
-    ...(canOpenWorkgraph ? [{
-      icon: <Workflow className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("room.workgraph"),
-      value: "workgraph",
-    }] : []),
-    {
-      disabled: !canOpenSubagents,
-      icon: <Bot className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("subagents.label"),
-      value: "subagents",
-    },
-    {
-      icon: <FolderTree className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("room.workspace"),
-      value: "workspace",
-    },
-    {
-      icon: <Info className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("room.about"),
-      value: "about",
-    },
-  ];
+  const items = buildRoomMobileActionItems({
+    canOpenSubagents,
+    includeMembers: Boolean(onManageMembers),
+    t,
+  });
 
   return (
     <>

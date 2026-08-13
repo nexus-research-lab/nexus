@@ -123,6 +123,36 @@ func TestNormalizeAndValidatePlanOutputScopeConflictMatrix(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidatePlanAllowsHardOrderedOutputScopeHandoff(t *testing.T) {
+	command := testPlanCommand("scope-handoff", 1, "scope-handoff", "", 1)
+	for index := range command.WorkItems {
+		command.WorkItems[index].OutputClaims[0].Scope = "file:output/workgraph-demo.md"
+	}
+	command.Dependencies = []protocol.ExecutionPlanDependency{{
+		WorkItemID:          command.WorkItems[1].WorkItem.ID,
+		DependsOnWorkItemID: command.WorkItems[0].WorkItem.ID,
+		Kind:                protocol.WorkDependencyHard,
+	}}
+	if _, _, err := normalizeAndValidatePlan(
+		command.Plan,
+		command.WorkItems,
+		command.Dependencies,
+		time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("hard-ordered output handoff rejected: %v", err)
+	}
+
+	command.Dependencies[0].Kind = protocol.WorkDependencySoft
+	if _, _, err := normalizeAndValidatePlan(
+		command.Plan,
+		command.WorkItems,
+		command.Dependencies,
+		time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+	); !errors.Is(err, ErrInvariant) {
+		t.Fatalf("soft-only output overlap error = %v, want ErrInvariant", err)
+	}
+}
+
 func TestNormalizeAndValidatePlanRejectsCaseFoldedDuplicateOnSameWorkItem(t *testing.T) {
 	command := testPlanCommand("scope-case-duplicate", 1, "scope-case-duplicate", "", 1)
 	claim := command.WorkItems[0].OutputClaims[0]

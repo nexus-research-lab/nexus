@@ -371,8 +371,7 @@ func TestRunTaskNowForMainTargetEnqueuesScheduledTaskTextPayload(t *testing.T) {
 	if err = json.Unmarshal([]byte(rawPayload), &payload); err != nil {
 		t.Fatalf("解析 scheduled_task.trigger payload 失败: %v", err)
 	}
-	if !strings.HasPrefix(strings.TrimSpace(anyString(payload["text"])), "[scheduled-task:"+task.JobID+" Main payload] ") ||
-		!strings.Contains(strings.TrimSpace(anyString(payload["text"])), "follow up in main session") {
+	if strings.TrimSpace(anyString(payload["text"])) != "follow up in main session" {
 		t.Fatalf("scheduled_task.trigger payload.text 不正确: %v", payload)
 	}
 	if _, exists := payload["instruction"]; exists {

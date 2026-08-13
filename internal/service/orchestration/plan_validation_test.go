@@ -86,6 +86,7 @@ func TestValidatePlanDraftEnforcesTypedOutputScopeConflicts(t *testing.T) {
 	})
 	t.Run("duplicate produce", func(t *testing.T) {
 		draft := validPlanDraft()
+		draft.Items[1].DependsOn = nil
 		draft.Items[1].OutputScopes = []protocol.WorkOutputScope{{
 			Scope: "file:report/sources/facts.md",
 			Mode:  protocol.WorkOutputScopeShared,
@@ -112,6 +113,7 @@ func TestValidatePlanDraftEnforcesTypedOutputScopeConflicts(t *testing.T) {
 	})
 	t.Run("case-folded file", func(t *testing.T) {
 		draft := validPlanDraft()
+		draft.Items[1].DependsOn = nil
 		draft.Items[0].OutputScopes[0].Scope = "file:Report/Résumé.md"
 		draft.Items[1].OutputScopes[0].Scope = "file:report/re\u0301sume\u0301.MD"
 		assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeOutputScopeConflict)

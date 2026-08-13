@@ -66,23 +66,29 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取已同步图控制契约失败: %v", err)
 	}
-	for _, exactField := range []string{
+	for _, exampleField := range []string{
+		"nexus_plan",
+		"operation: create",
 		"logical_key",
 		"subject",
 		"objective",
 		"deliverable",
 		"acceptance_criteria",
-		"depends_on",
-		"soft_depends_on",
 		"output_scopes",
-		"shared_output_scopes",
 	} {
-		if !strings.Contains(string(graphControl), exactField) {
-			t.Fatalf("已同步图控制契约缺少精确字段 %q", exactField)
+		if !strings.Contains(string(graphControl), exampleField) {
+			t.Fatalf("已同步图控制指南缺少最小示例字段 %q", exampleField)
 		}
 	}
-	if !strings.Contains(string(graphControl), "不要根据单个报错逐字段删改") {
-		t.Fatal("已同步图控制契约缺少一次性完整修复指引")
+	for _, canonicalGuidance := range []string{
+		"prepare_plan_execution",
+		"document_contract",
+		"Skill 不复制完整字段表",
+		"不要根据单个报错逐字段删改",
+	} {
+		if !strings.Contains(string(graphControl), canonicalGuidance) {
+			t.Fatalf("已同步图控制指南缺少真相源指引 %q", canonicalGuidance)
+		}
 	}
 	linkPath := filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills")
 	if target, err := os.Readlink(linkPath); err == nil {

@@ -99,6 +99,17 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("read migration version after private Skill repair: %w", err)
 		}
+		goalMigrationReplay, repairErr := migration.RepairLegacyGoalMigrationCollision(
+			context.Background(), cfg.DatabaseDriver, db, logger,
+		)
+		if repairErr != nil {
+			return fmt.Errorf("repair Goal migration version collision: %w", repairErr)
+		}
+		allowMissing = allowMissing || goalMigrationReplay
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after Goal repair: %w", err)
+		}
 		if !allowMissing {
 			if err = migration.RepairLegacyExecutionIdentityClaimSchema(
 				context.Background(),
@@ -149,6 +160,15 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		}
 		if pending {
 			return errors.New("private Skill migration collision repair remains incomplete")
+		}
+		goalPending, repairErr := migration.RepairLegacyGoalMigrationCollision(
+			context.Background(), cfg.DatabaseDriver, db, logger,
+		)
+		if repairErr != nil {
+			return fmt.Errorf("finalize Goal migration collision repair: %w", repairErr)
+		}
+		if goalPending {
+			return errors.New("Goal migration collision repair remains incomplete")
 		}
 	}
 	return nil

@@ -37,14 +37,15 @@ func (s *Service) recordSkippedMisfire(
 	runID := s.idFactory("run")
 	message := "scheduled task missed its execution window; misfire_policy=skip"
 	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
-		RunID:        runID,
-		JobID:        job.JobID,
-		OwnerUserID:  job.OwnerUserID,
-		ScheduledFor: &scheduledFor,
-		TriggerKind:  automationdomain.TriggerKindMisfire,
-		DeliveryMode: job.Delivery.Mode,
-		DeliveryTo:   deliveryTargetSummary(job.Delivery),
-		Status:       automationdomain.RunStatusSkipped,
+		RunID:          runID,
+		JobID:          job.JobID,
+		OwnerUserID:    job.OwnerUserID,
+		ScheduledFor:   &scheduledFor,
+		TriggerKind:    automationdomain.TriggerKindMisfire,
+		DeliveryMode:   job.Delivery.Mode,
+		DeliveryTo:     deliveryTargetSummary(job.Delivery),
+		DeliveryTarget: cloneDeliveryTargetPointer(job.Delivery),
+		Status:         automationdomain.RunStatusSkipped,
 	}); err != nil {
 		return nil, err
 	}

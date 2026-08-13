@@ -1,5 +1,5 @@
 // INPUT: 领域 command 的应用结果、拒绝原因与最新 snapshot。
-// OUTPUT: 所有 execution MCP mutation 共用的可恢复结果 envelope。
+// OUTPUT: 所有 execution MCP mutation 共用的可恢复结果 envelope 与仅进程内使用的 confirmed Goal authority receipt。
 // POS: 服务状态机到模型工具结果的稳定语义边界。
 package orchestration
 
@@ -15,9 +15,10 @@ import (
 type MutationOutcome = protocol.MutationResultOutcome
 
 const (
-	MutationApplied  = protocol.MutationResultApplied
-	MutationNoOp     = protocol.MutationResultNoOp
-	MutationRejected = protocol.MutationResultRejected
+	MutationApplied    = protocol.MutationResultApplied
+	MutationNoOp       = protocol.MutationResultNoOp
+	MutationRejected   = protocol.MutationResultRejected
+	MutationSuperseded = protocol.MutationResultSuperseded
 )
 
 // NextAction 是基于最新 snapshot 的有序、非授权性恢复建议。
@@ -27,6 +28,32 @@ type NextAction struct {
 	LogicalKey string `json:"logical_key,omitempty"`
 	Reason     string `json:"reason"`
 }
+
+// GoalAuthorityReceipt proves that the Goal-side reverse binding and the
+// Execution-side forward binding are both durable for this exact revision.
+// It is an in-process capability receipt and is never projected to the model.
+type GoalAuthorityReceipt struct {
+	GoalID            string
+	ObjectiveRevision int64
+	ExecutionID       string
+}
+
+// WorkBindingReceipt 是 Room host 在持久化 self Assignment 后签发的进程内
+// capability receipt；Clear 表示责任已完成并回到同轮 coordination。
+// 两者都不投影给模型，DM 也不会消费该 receipt。
+type WorkBindingReceipt struct {
+	Binding *protocol.ExecutionWorkBinding
+	Clear   bool
+}
+
+// GoalConfirmationStatus is projected to the model only when a mutation
+// crosses the Execution/Goal durable confirmation boundary.
+type GoalConfirmationStatus string
+
+const (
+	GoalConfirmationPending   GoalConfirmationStatus = "pending"
+	GoalConfirmationConfirmed GoalConfirmationStatus = "confirmed"
+)
 
 // MutationResult 是 service 内部的统一 mutation 结果。Snapshot 支持同进程协调
 // 与非模型消费者；MCP adapter 必须只投影紧凑字段，不能把它与
@@ -41,7 +68,10 @@ type MutationResult struct {
 	ContextStatus    string                      `json:"context_status,omitempty"`
 	Changed          []string                    `json:"changed,omitempty"`
 	NextActions      []NextAction                `json:"next_actions,omitempty"`
+	GoalConfirmation GoalConfirmationStatus      `json:"goal_confirmation_status,omitempty"`
 	Snapshot         *protocol.ExecutionSnapshot `json:"snapshot,omitempty"`
+	GoalAuthority    *GoalAuthorityReceipt       `json:"-"`
+	WorkBinding      *WorkBindingReceipt         `json:"-"`
 }
 
 // AppliedResult 生成成功 mutation 的稳定 envelope。
@@ -87,6 +117,26 @@ func RejectedResult(
 	return result
 }
 
+// SupersededResult 表示 command 属于已经被 retarget/replace 关闭的旧责任。
+func SupersededResult(
+	snapshot *protocol.ExecutionSnapshot,
+	err error,
+) MutationResult {
+	result := mutationResultFromSnapshot(snapshot)
+	result.Outcome = MutationSuperseded
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) {
+		result.ReasonCode = domainErr.Code
+		result.Message = domainErr.Message
+		return result
+	}
+	result.ReasonCode = ErrorCodeExecutionTerminal
+	if err != nil {
+		result.Message = strings.TrimSpace(err.Error())
+	}
+	return result
+}
+
 func mutationResultFromSnapshot(snapshot *protocol.ExecutionSnapshot) MutationResult {
 	result := MutationResult{Snapshot: snapshot}
 	if snapshot == nil {
@@ -94,6 +144,36 @@ func mutationResultFromSnapshot(snapshot *protocol.ExecutionSnapshot) MutationRe
 	}
 	result.ExecutionID = snapshot.Execution.ID
 	result.SnapshotRevision = snapshot.Execution.Version
+	return result
+}
+
+func withConfirmedGoalAuthority(result MutationResult) MutationResult {
+	if result.Snapshot == nil {
+		return result
+	}
+	execution := result.Snapshot.Execution
+	if strings.TrimSpace(execution.ID) == "" ||
+		strings.TrimSpace(execution.GoalID) == "" ||
+		execution.GoalObjectiveRevision <= 0 {
+		return result
+	}
+	result.GoalAuthority = &GoalAuthorityReceipt{
+		GoalID:            strings.TrimSpace(execution.GoalID),
+		ObjectiveRevision: execution.GoalObjectiveRevision,
+		ExecutionID:       strings.TrimSpace(execution.ID),
+	}
+	result.GoalConfirmation = GoalConfirmationConfirmed
+	return result
+}
+
+func withPendingGoalConfirmation(
+	result MutationResult,
+	message string,
+	next NextAction,
+) MutationResult {
+	result.GoalConfirmation = GoalConfirmationPending
+	result.Message = strings.TrimSpace(message)
+	result.NextActions = normalizeNextActions(append(result.NextActions, next))
 	return result
 }
 

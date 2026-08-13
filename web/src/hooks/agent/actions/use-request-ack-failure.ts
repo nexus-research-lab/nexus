@@ -6,6 +6,9 @@ import type { Message } from "@/types/conversation/message/entity";
 import type { WebSocketState } from "@/types/system/websocket";
 
 import { removeFailedOutboundUserMessage } from "../runtime/model/conversation-runtime-reconciliation";
+import { RequestAcceptanceUnknownError } from "./use-pending-request-acks";
+
+export { RequestAcceptanceUnknownError } from "./use-pending-request-acks";
 
 interface UseRequestAckFailureOptions {
   clearOutboundRequest: (clientRequestId: string) => void;
@@ -36,13 +39,6 @@ export function hasAcceptedClientMessage(
 }
 
 export type RequestAckRecoveryOutcome = "accepted" | "unknown";
-
-export class RequestAcceptanceUnknownError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "RequestAcceptanceUnknownError";
-  }
-}
 
 interface RecoverRequestAckTimeoutOptions {
   clientMessageId: string;

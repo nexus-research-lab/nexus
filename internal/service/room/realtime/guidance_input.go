@@ -262,6 +262,17 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 			}
 		}
 		for _, item := range claimed {
+			if protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) != nil {
+				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
+				if restoreErr == nil {
+					pending.items = restored
+					s.rounds.putGuidance(slot, pending)
+				}
+				return errors.Join(
+					errors.New("Goal collaboration handoff cannot be acknowledged as ordinary Room guidance"),
+					restoreErr,
+				)
+			}
 			if err = s.markRoomQueueHandoffTerminal(roundValue.ConversationID, item); err != nil {
 				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
 				if restoreErr == nil {

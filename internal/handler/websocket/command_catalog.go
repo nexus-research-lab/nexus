@@ -54,10 +54,14 @@ func (h *Handler) commandCatalogData(
 		if err != nil {
 			return protocol.CommandCatalogData{}, err
 		}
+		hostCommands := []protocol.CommandDescriptor(nil)
+		if protocol.NormalizeSessionKeyChannelSegment(parsed.Channel) == protocol.SessionChannelWebSocketSegment {
+			hostCommands = h.hostCommandDescriptors(slashcommandsvc.ScopeDM)
+		}
 		return projectCommandCatalog(
 			snapshot,
 			agentID,
-			h.hostCommandDescriptors(slashcommandsvc.ScopeDM),
+			hostCommands,
 		), nil
 	case protocol.SessionKeyKindRoom:
 		return projectCommandCatalog(
@@ -85,7 +89,7 @@ func (h *Handler) resolveCommandCatalogAgent(
 			requestedAgentID != parsed.AgentID {
 			return "", errors.New("agent_id does not match session_key")
 		}
-		if err := h.dm.AuthorizeHostCommand(ctx, parsed.Raw, parsed.AgentID); err != nil {
+		if err := h.dm.AuthorizeDMSessionAccess(ctx, parsed.Raw, parsed.AgentID); err != nil {
 			return "", err
 		}
 		return parsed.AgentID, nil

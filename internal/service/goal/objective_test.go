@@ -27,8 +27,8 @@ func TestServiceCreateGoalRewritesObjectiveByDefault(t *testing.T) {
 	if created.Objective != "完成 Goal 对齐并验证关键路径" {
 		t.Fatalf("objective = %q", created.Objective)
 	}
-	if created.Metadata["source_objective"] != "把 goal 分支修到和 Codex 差不多" ||
-		created.Metadata["objective_normalized"] != true {
+	if created.Metadata[protocol.GoalMetadataSourceObjective] != "把 goal 分支修到和 Codex 差不多" ||
+		created.Metadata[protocol.GoalMetadataObjectiveNormalized] != true {
 		t.Fatalf("metadata = %#v, want source objective and normalized marker", created.Metadata)
 	}
 	if len(repo.events) != 1 || repo.events[0].Payload["objective"] != created.Objective {
@@ -87,6 +87,55 @@ func TestServiceCreateGoalKeepsModelObjective(t *testing.T) {
 	}
 }
 
+func TestServiceCreateUserGoalSanitizesServerOwnedMetadata(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:metadata-boundary",
+		Objective:   "验证 Goal metadata 信任边界",
+		CreatedBy:   "user",
+		OwnerUserID: "owner-verified",
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID:           "owner-forged",
+			protocol.GoalMetadataSourceObjective:       "forged title intent",
+			protocol.GoalMetadataObjectiveNormalized:   true,
+			protocol.GoalMetadataExecutionID:           "execution-forged",
+			protocol.GoalMetadataExecutionBindingState: string(protocol.GoalExecutionBindingStateConfirmed),
+			protocol.GoalMetadataObjectiveRevision:     int64(99),
+			protocol.GoalMetadataRoomGoalLeadAgentID:   "agent-forged",
+			protocol.GoalMetadataRoomGoalLoopTitle:     "保留用户可写循环标题",
+			"client_safe_key":                          "keep-me",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := protocol.GoalMetadataString(created.Metadata, protocol.GoalMetadataOwnerUserID); got != "owner-verified" {
+		t.Fatalf("owner provenance = %q, want verified owner", got)
+	}
+	for _, key := range []string{
+		protocol.GoalMetadataSourceObjective,
+		protocol.GoalMetadataObjectiveNormalized,
+		protocol.GoalMetadataExecutionID,
+		protocol.GoalMetadataExecutionBindingState,
+		protocol.GoalMetadataRoomGoalLeadAgentID,
+	} {
+		if _, exists := created.Metadata[key]; exists {
+			t.Fatalf("server-owned metadata %q survived external sanitization: %#v", key, created.Metadata)
+		}
+	}
+	if created.ObjectiveRevision() != 1 {
+		t.Fatalf("objective revision = %d, want server default 1", created.ObjectiveRevision())
+	}
+	if created.Metadata[protocol.GoalMetadataRoomGoalLoopTitle] != "保留用户可写循环标题" ||
+		created.Metadata["client_safe_key"] != "keep-me" {
+		t.Fatalf("safe metadata = %#v, want user values preserved", created.Metadata)
+	}
+}
+
 func TestServiceUpdateGoalRewritesObjectiveByDefault(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -115,8 +164,8 @@ func TestServiceUpdateGoalRewritesObjectiveByDefault(t *testing.T) {
 		t.Fatalf("objective = %q", updated.Objective)
 	}
 	if len(repo.events) != 2 ||
-		repo.events[1].Payload["source_objective"] != updatedObjective ||
-		repo.events[1].Payload["objective_normalized"] != true {
+		repo.events[1].Payload[protocol.GoalMetadataSourceObjective] != updatedObjective ||
+		repo.events[1].Payload[protocol.GoalMetadataObjectiveNormalized] != true {
 		t.Fatalf("events = %#v, want update event with rewrite markers", repo.events)
 	}
 }
@@ -140,8 +189,8 @@ func TestServiceThreadGoalSetRewritesObjectiveByDefault(t *testing.T) {
 		t.Fatalf("objective = %q", created.Objective)
 	}
 	if created.Metadata["created_via"] != "thread_goal_set" ||
-		created.Metadata["source_objective"] != objective ||
-		created.Metadata["objective_normalized"] != true {
+		created.Metadata[protocol.GoalMetadataSourceObjective] != objective ||
+		created.Metadata[protocol.GoalMetadataObjectiveNormalized] != true {
 		t.Fatalf("metadata = %#v, want app-server rewrite metadata", created.Metadata)
 	}
 }

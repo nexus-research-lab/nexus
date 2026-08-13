@@ -28,6 +28,10 @@ import {
 } from "@/shared/ui/overlay/overlay-styles";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { RoomConversationView } from "@/types/conversation/conversation";
+import {
+  getExternalSessionTaskReferenceCount,
+  isExternalSessionConversation,
+} from "@/lib/conversation/external-session";
 
 import { deleteRoomHistoryConversationBatch } from "./room-history-bulk-delete";
 import { RoomHistoryItem } from "./room-history-item";
@@ -333,9 +337,15 @@ export function RoomHistoryMenu({
             </div>
           ) : null}
 
-          <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+          <div
+            className="soft-scrollbar min-h-0 flex-1 overflow-auto overscroll-contain p-1.5"
+            data-room-history-scroll-viewport
+          >
             {entries.length > 0 ? (
-              <div className="space-y-1">
+              <div
+                className="min-w-full space-y-1 pb-1"
+                data-room-history-scroll-content
+              >
                 {entries.map((entry) => (
                   <RoomHistoryItem
                     entry={entry}
@@ -404,9 +414,16 @@ export function RoomHistoryMenu({
         cancelText={t("common.cancel")}
         confirmText={t("common.delete")}
         isOpen={Boolean(pendingDeleteConversation)}
-        message={t("room.delete_conversation_message", {
-          title: pendingDeleteConversation?.title?.trim() || t("room.new_conversation"),
-        })}
+        message={pendingDeleteConversation
+          && isExternalSessionConversation(pendingDeleteConversation)
+          && getExternalSessionTaskReferenceCount(pendingDeleteConversation) > 0
+          ? t("room.delete_external_session_with_tasks_message", {
+              count: getExternalSessionTaskReferenceCount(pendingDeleteConversation),
+              title: pendingDeleteConversation.title?.trim() || t("room.new_conversation"),
+            })
+          : t("room.delete_conversation_message", {
+              title: pendingDeleteConversation?.title?.trim() || t("room.new_conversation"),
+            })}
         onCancel={() => setPendingDeleteConversation(null)}
         onConfirm={() => {
           const target = pendingDeleteConversation;

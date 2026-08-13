@@ -15,7 +15,7 @@ func (s *Service) applySessionTitle(ctx context.Context, sessionKey string, titl
 	if err != nil {
 		return false, err
 	}
-	if current == nil || !canReplaceSessionTitle(current.Title, fallbackTitle) {
+	if current == nil || sessionUsesConversationTitle(current) || !canReplaceSessionTitle(current.Title, fallbackTitle) {
 		return false, nil
 	}
 	nextTitle := strings.TrimSpace(title)
@@ -40,7 +40,28 @@ func (s *Service) canAutoUpdateSession(ctx context.Context, sessionKey string, f
 	if current == nil {
 		return false, nil
 	}
+	if sessionUsesConversationTitle(current) {
+		return false, nil
+	}
 	return canReplaceSessionTitle(current.Title, fallbackTitle), nil
+}
+
+// sessionUsesConversationTitle 判断 Session 是否只是 Room conversation 的 Agent 投影。
+// 这类 Session 的标题权威在 SQL conversation，workspace 只保存 runtime 进度。
+func sessionUsesConversationTitle(current *protocol.Session) bool {
+	if current == nil {
+		return false
+	}
+	for _, value := range []*string{
+		current.RoomSessionID,
+		current.RoomID,
+		current.ConversationID,
+	} {
+		if value != nil && strings.TrimSpace(*value) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) applyConversationTitle(
@@ -99,16 +120,27 @@ func (s *Service) canAutoUpdateConversation(
 }
 
 func (s *Service) broadcastResync(ctx context.Context, request Request) {
+	roomID := strings.TrimSpace(request.ConversationRoomID)
+	conversationID := strings.TrimSpace(request.ConversationID)
+	if s.roomEvents != nil && roomID != "" && conversationID != "" {
+		s.roomEvents.BroadcastRoomResyncRequired(
+			ctx,
+			roomID,
+			conversationID,
+			"title_generated",
+		)
+		return
+	}
 	if s.events == nil || strings.TrimSpace(request.SessionKey) == "" {
 		return
 	}
 	data := map[string]any{
 		"reason": "title_generated",
 	}
-	if roomID := strings.TrimSpace(request.ConversationRoomID); roomID != "" {
+	if roomID != "" {
 		data["room_id"] = roomID
 	}
-	if conversationID := strings.TrimSpace(request.ConversationID); conversationID != "" {
+	if conversationID != "" {
 		data["conversation_id"] = conversationID
 	}
 	event := protocol.NewEvent(protocol.EventTypeSessionResyncRequired, data)

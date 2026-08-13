@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // JobRuntimeUpdateInput 表示定时任务调度运行态的持久化快照。
@@ -50,6 +52,8 @@ WHERE job_id = %s`,
 		r.bind(3),
 		r.bind(4),
 	)
+	args = append(args, automationdomain.TaskSessionBindingStateReady)
+	query += fmt.Sprintf(" AND session_binding_state = %s", r.bind(len(args)))
 	if !input.AllowDisabled {
 		args = append(args, true)
 		query += fmt.Sprintf(" AND enabled = %s", r.bind(len(args)))

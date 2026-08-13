@@ -2,6 +2,7 @@ package dm
 
 import (
 	"testing"
+	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
@@ -47,6 +48,36 @@ func TestRoomBackedSessionOptionsReplaceLocalOverlay(t *testing.T) {
 	if merged.Options[protocol.OptionRuntimeProvider] != "runtime-provider" ||
 		merged.Options[protocol.OptionRuntimeModel] != "runtime-model" {
 		t.Fatalf("Room Session 合并不应丢失本地 runtime 指纹: %+v", merged.Options)
+	}
+}
+
+func TestRoomBackedSessionKeepsMonotonicWorkspaceProgress(t *testing.T) {
+	older := time.Date(2026, time.August, 12, 1, 0, 0, 0, time.UTC)
+	newer := older.Add(5 * time.Minute)
+	fileSessionID := "550e8400-e29b-41d4-a716-446655440000"
+	current := protocol.Session{
+		SessionKey:           "agent:agent-a:ws:dm:conversation-a",
+		AgentID:              "agent-a",
+		SessionID:            &fileSessionID,
+		TranscriptSessionIDs: []string{fileSessionID},
+		LastActivity:         newer,
+		MessageCount:         17,
+		Options:              map[string]any{},
+	}
+	roomSession := current
+	roomSession.SessionID = nil
+	roomSession.TranscriptSessionIDs = nil
+	roomSession.LastActivity = older
+	roomSession.MessageCount = 0
+
+	merged := MergeRoomBackedSession(current, roomSession)
+	if merged.MessageCount != 17 || !merged.LastActivity.Equal(newer) {
+		t.Fatalf("Room SQL 不应降低 workspace 运行进度: %+v", merged)
+	}
+	if StringPointerValue(merged.SessionID) != fileSessionID ||
+		len(merged.TranscriptSessionIDs) != 1 ||
+		merged.TranscriptSessionIDs[0] != fileSessionID {
+		t.Fatalf("Room SQL 不应丢失 workspace transcript lineage: %+v", merged)
 	}
 }
 
