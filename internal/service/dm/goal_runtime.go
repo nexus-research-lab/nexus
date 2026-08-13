@@ -309,7 +309,8 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	hasSuccessfulUpdate := false
 	for _, observation := range observations {
 		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected {
+			observation.MutationOutcome == protocol.MutationResultRejected ||
+			observation.MutationOutcome == protocol.MutationResultSuperseded {
 			continue
 		}
 		switch messageutil.CanonicalToolName(observation.ToolName) {

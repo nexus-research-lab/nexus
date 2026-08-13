@@ -431,6 +431,12 @@ recovering, the tool returns `outcome: applied` (or idempotent `noop`) with
 `goal_confirmation_status: pending` and an executable retry `next_action`. This
 durable partial success is not a transport `IsError`.
 
+Mutation results distinguish business rejection from obsolete responsibility.
+When Goal retarget or Execution replacement has already closed the exact bound
+predecessor, a late worker command returns `outcome: superseded` with
+`reason_code: execution_terminal`. It is a successful transport carrying a muted
+stop-old-round signal, not a failed submission and not evidence of Goal progress.
+
 No tool may combine planning, assignment, execution, submission, and acceptance
 into one implicit mutation. Tool retries must use their stable receipt or
 idempotency identity where provided.
@@ -443,10 +449,10 @@ WorkGraph-specific gates apply only to a `confirmed` managed binding.
 | Tool | Atomic semantics |
 | --- | --- |
 | `get_goal` | Reads the current optional Goal and usage state. It does not mutate Goal or Execution state. |
-| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. A model-created Room Goal persists the server-verified creator as its lead; in DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
+| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. A model-created Room Goal persists the server-verified creator as its lead and derives the multi-member collaboration requirement from the owner-scoped Room directory; in DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
 | `retarget_goal` | Applies an explicit user objective correction while preserving Goal identity and usage. A trusted visible user round may late-bind the exact current Goal/revision only for this tool; every other source requires existing Goal authority. `standalone`/`reserved` update the Goal revision directly; `confirmed` enters the successor rebase saga; `pending`/`conflict` fail closed. |
 | `audit_objective_alignment` | Appends a three-state evidence report for the exact Goal revision and round without changing status. A Goal with a confirmed managed WorkGraph binding requires a current aligned report for completion; Goal-only and reserved Goals do not. |
-| `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. Completion rechecks revision, binding resolution, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. Pause, resume, and limit controls remain user/system operations. |
+| `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. Completion rechecks revision, binding resolution, current Room membership/work readiness, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. A current multi-member Room always requires room-visible non-lead collaboration evidence even when a legacy or alternate creation path lacks the cached requirement metadata. Pause, resume, and limit controls remain user/system operations. |
 
 ### 7.1 Blocked policy boundary
 
@@ -468,6 +474,17 @@ Goal completion resolves binding first:
 - `confirmed` additionally requires the backend WorkGraph completion/readiness
   check (not `audit_execution_alignment`) and current Goal
   `audit_objective_alignment` evidence.
+- every Room Goal completion also reloads the owner-scoped Room member directory;
+  more than one distinct Agent member requires public, substantive non-lead
+  collaboration evidence from anywhere in the same durable Goal lifecycle.
+  Once observed for the same Goal ID, this evidence is monotonic across objective
+  retargets, consecutive lead rounds, lead reassignment, and temporary changes to
+  whether collaboration is required. Objective revision still fences late event
+  attribution, but does not invalidate an already committed collaboration fact.
+  The persisted requirement is a cached fence, not the sole source of
+  the current member fact.
+  App-server may create a Room Goal only in a non-complete state, so creation and
+  completion cannot be collapsed into one request that precedes this gate.
 
 For a Goal with a confirmed managed WorkGraph binding, retarget is a successor saga rather than an in-place
 graph edit. It reserves the successor relationship, materializes a fresh
@@ -584,7 +601,11 @@ Implementations and callers must preserve all of the following:
     creates or revises a managed graph.
 12. Runtime capability never substitutes for current SQL state, and SQL state
     never substitutes for exact runtime authority.
-13. Terminal and supersession fences reject late runtime results.
+13. Terminal and supersession fences classify late semantic runtime results as
+    `superseded`, while other binding mismatches still reject fail closed. A
+    physical Room Attempt terminal callback that arrives after its exact
+    predecessor Execution was already atomically superseded is an idempotent
+    no-op; it cannot resurrect work or produce a second binding failure.
 14. Goal mutations use an exact Goal identity and objective revision. A durable
     responsible Agent may receive only the current start-of-round revision in a
     private `nexus_goal` state, while the trusted visible-user `retarget_goal`

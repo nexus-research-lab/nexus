@@ -183,6 +183,12 @@ func TestAssistantHasCountedToolProgress(t *testing.T) {
 			content:     `{"outcome":"rejected","reason_code":"invalid_input","message":"items is required"}`,
 			wantOutcome: protocol.MutationResultRejected,
 		},
+		{
+			name:        "superseded mutation",
+			toolName:    "mcp__nexus_execution__submit_work",
+			content:     `{"outcome":"superseded","reason_code":"execution_terminal","message":"old Assignment was replaced"}`,
+			wantOutcome: protocol.MutationResultSuperseded,
+		},
 	}
 
 	for _, test := range tests {

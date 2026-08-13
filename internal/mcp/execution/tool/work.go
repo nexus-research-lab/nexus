@@ -243,6 +243,9 @@ func mutationEnvelope(
 ) (*orchestrationSnapshot, string, *sdktool.ToolResult) {
 	snapshot, err := loadSnapshot(ctx, svc, actor, executionID)
 	if err != nil {
+		if result, ok := recoverableMutationRejection(err); ok {
+			return nil, "", &result
+		}
 		result := transportErrorResult(err)
 		return nil, "", &result
 	}

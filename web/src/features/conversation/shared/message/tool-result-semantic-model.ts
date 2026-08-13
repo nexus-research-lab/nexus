@@ -1,6 +1,6 @@
 /**
  * INPUT: Provider 原生 tool_result、宿主缓存的紧凑 metadata 与历史 JSON 文本。
- * OUTPUT: 与 Go protocol 一致的 applied/no_op/rejected mutation 语义。
+ * OUTPUT: 与 Go protocol 一致的 applied/no_op/rejected/superseded mutation 语义。
  * POS: DM、Room、Tool 卡片与过程摘要共用的只读投影；不决定 Agent 是否或如何重试。
  */
 import type { ToolResultContent } from "@/types/conversation/message/content";
@@ -10,13 +10,18 @@ const MUTATION_OUTCOMES = new Set<MutationResultOutcome>([
   "applied",
   "no_op",
   "rejected",
+  "superseded",
 ]);
 
 const MUTATION_OUTCOME_METADATA_KEY = "_nexus_mutation_outcome";
 const MUTATION_MESSAGE_METADATA_KEY = "_nexus_mutation_message";
 const MUTATION_REASON_CODE_METADATA_KEY = "_nexus_mutation_reason_code";
 
-export type MutationResultOutcome = "applied" | "no_op" | "rejected";
+export type MutationResultOutcome =
+  | "applied"
+  | "no_op"
+  | "rejected"
+  | "superseded";
 
 export interface MutationResultSemantic {
   message: string;
@@ -48,6 +53,12 @@ export function isRejectedToolResult(
   result: ToolResultContent | undefined,
 ): boolean {
   return projectToolResultMutation(result)?.outcome === "rejected";
+}
+
+export function isSupersededToolResult(
+  result: ToolResultContent | undefined,
+): boolean {
+  return projectToolResultMutation(result)?.outcome === "superseded";
 }
 
 function firstMutationResult(

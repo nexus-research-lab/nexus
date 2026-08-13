@@ -92,6 +92,8 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 若 source round 是精确授权的 Room Goal continuation，handoff 还会携带 host-only 的 Goal ID/objective revision 协作归因。它只把协作者终态回连到该 revision，绝不传播 `GoalAuthorityState`，因此 target 仍是普通 conversation round，不能调用 Goal mutation。归因必须随 Room handoff ledger、directed-message record、InputQueue 和恢复重放保持；Goal-directed message 落盘后、任何 immediate/delayed 调度前即用确定性 ID 建立 handoff。启动恢复还会反向扫描带归因的 directed-message 事实，只为仍处于 active 的精确 Goal revision 补建被崩溃打断的 message→handoff 写入；旧 revision 不会复活。同一协作者继续 `@` 或私域回交时可传播归因，但每一轮仍不获得 mutation authority。Goal-attributed handoff 不得降级为既有 busy slot 的普通 guide，必须保留可单独收口的 queue/target round 身份。ledger 把 target terminal 与 Goal handback 记为两个独立 durable 阶段：即使进程在两者之间崩溃，启动恢复也必须先恢复公开证据（如有）、清除旧源 round 错写的 empty-progress 抑制，再交给新的有权限 continuation。handback 不重置 continuation count，不能绕过自动续跑上限。终态的公开实质回复可记录 Room-visible Goal evidence；私域回复只恢复续跑，不满足公开证据；no-reply、失败、中断或已过期 revision 不记录证据。对归因字段上线前遗留的终态 root，启动器只在当前 active Goal 的最新非 usage 审计事件是该 root source Agent round 的 `continuation_suppressed`、root 内全部边已终态、且同 root 存在非 Lead 的公开实质终态时补写精确当前 revision；不得从消息正文、目标措辞或相邻时间猜测旧归因。
 
+多人 Room Goal 的“多人”以 owner-scoped Room 成员目录中的不同 Agent 身份为准。宿主在 Goal 创建时缓存协作要求，complete 时仍在同一 conversation 派发闸门内重读当前成员、queue、wake 与 active slot；因此 UI `set_goal`、文本 `/goal`、模型 `create_goal`、app-server 和旧 Goal 都不能因入口或 metadata 时序差异绕过非 Lead 的公区实质协作证据。已经缓存为 required 的 Goal 不会因成员后来减少而自动弱化当前 objective 的门槛。
+
 ### 4.3 @ mention 与消息注解
 
 解析成功的 `@` 必须同时写入消息注解，供历史恢复和前端渲染使用。注解不改变正文，不新增独立的 content block：

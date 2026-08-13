@@ -620,7 +620,8 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessage(
 	hasSuccessfulUpdate := false
 	for _, observation := range observations {
 		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected {
+			observation.MutationOutcome == protocol.MutationResultRejected ||
+			observation.MutationOutcome == protocol.MutationResultSuperseded {
 			continue
 		}
 		switch messageutil.CanonicalToolName(observation.ToolName) {
@@ -1790,23 +1791,24 @@ func normalizeGoalCancellationText(content string) string {
 	return builder.String()
 }
 
-// INPUT: 当前 Room Goal、调用方 Agent/root round、active slots 与 durable Room work。
-// OUTPUT: complete 前第一个 outstanding-work blocker；调用方主 slot 不阻塞自身。
+// INPUT: 当前 Room Goal、调用方 Agent/root round、当前成员、active slots 与 durable Room work。
+// OUTPUT: complete 前的当前多成员事实及第一个 outstanding-work blocker；调用方主 slot 不阻塞自身。
 // POS: Room 实时/持久化工作到 Goal 终态 gate 的唯一投影入口。
-// RoomGoalCompletionBlocker 返回阻止共享 Goal complete 的 Room 工作；空字符串表示已收敛。
-func (s *Service) RoomGoalCompletionBlocker(
+// RoomGoalCompletionReport 返回共享 Goal complete 的当前 Room 门禁事实。
+func (s *Service) RoomGoalCompletionReport(
 	ctx context.Context,
 	goal protocol.Goal,
 	callerAgentID string,
 	callerRoundID string,
-) (string, error) {
+) (goalsvc.RoomGoalCompletionReport, error) {
+	var report goalsvc.RoomGoalCompletionReport
 	if s == nil || !protocol.IsRoomSharedSessionKey(goal.SessionKey) {
-		return "", nil
+		return report, nil
 	}
 	parsed := protocol.ParseSessionKey(goal.SessionKey)
 	conversationID := strings.TrimSpace(parsed.ConversationID)
 	if conversationID == "" {
-		return "", nil
+		return report, nil
 	}
 
 	// 同一 conversation 的 queue、wake 和 active slot 必须在同一个派发闸门内观察，
@@ -1816,15 +1818,19 @@ func (s *Service) RoomGoalCompletionBlocker(
 
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil {
-		return "", err
+		return report, err
 	}
+	report.CollaborationRequired = roomdomain.HasMultipleAgentMembers(contextValue.Members)
 	if blocker := s.activeRoomGoalBlocker(goal.SessionKey, conversationID, callerAgentID, callerRoundID); blocker != "" {
-		return blocker, nil
+		report.Blocker = blocker
+		return report, nil
 	}
 	if blocker, err := s.roomGoalInputQueueBlocker(ctx, contextValue, &goal); err != nil || blocker != "" {
-		return blocker, err
+		report.Blocker = blocker
+		return report, err
 	}
-	return s.roomGoalDirectedWakeBlocker(contextValue.Room.OwnerUserID, conversationID, &goal)
+	report.Blocker, err = s.roomGoalDirectedWakeBlocker(contextValue.Room.OwnerUserID, conversationID, &goal)
+	return report, err
 }
 
 func (s *Service) activeRoomGoalBlocker(

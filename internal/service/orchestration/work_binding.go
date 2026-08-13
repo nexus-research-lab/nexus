@@ -125,12 +125,20 @@ func authorizeStructuredRoomWorkBinding(
 	snapshot *protocol.ExecutionSnapshot,
 	binding protocol.ExecutionWorkBinding,
 ) error {
-	if snapshot == nil || snapshot.Plan == nil {
+	if snapshot == nil {
 		return workBindingMismatch("structured Room WorkBinding has no active Execution Plan")
 	}
-	if snapshot.Execution.Status != protocol.ExecutionStatusActive &&
-		snapshot.Execution.Status != protocol.ExecutionStatusWaiting {
-		return workBindingMismatch("structured Room WorkBinding targets a terminal or paused Execution")
+	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		return domainError(
+			ErrorCodeExecutionTerminal,
+			"the bound Room work was superseded or closed; stop this old round and wait for a fresh Assignment",
+		)
+	}
+	if snapshot.Plan == nil {
+		return workBindingMismatch("structured Room WorkBinding has no active Execution Plan")
+	}
+	if snapshot.Execution.Status == protocol.ExecutionStatusPaused {
+		return workBindingMismatch("structured Room WorkBinding targets a paused Execution")
 	}
 	if !completeExecutionWorkBinding(binding) {
 		return workBindingMismatch("structured Room WorkBinding is incomplete")

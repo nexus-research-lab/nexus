@@ -2003,3 +2003,44 @@ func TestRoomGoalDurableBlockersIgnoreRetargetedCollaborationRevision(t *testing
 		t.Fatalf("retargeted wake blocker = %q err=%v, want empty", blocker, err)
 	}
 }
+
+func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
+	contextValue := newAuthorityFenceContext()
+	contextValue.Room.OwnerUserID = "owner-completion-membership"
+	store := &authorityFenceRoomStore{contextValue: contextValue}
+	service := &Service{rooms: store}
+	goal := protocol.Goal{
+		ID:         "goal-completion-membership",
+		SessionKey: protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
+		Status:     protocol.GoalStatusActive,
+	}
+
+	report, err := service.RoomGoalCompletionReport(
+		context.Background(),
+		goal,
+		"agent-a",
+		"round-lead",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.CollaborationRequired || report.Blocker != "" {
+		t.Fatalf("report = %#v, want current multi-member collaboration requirement", report)
+	}
+
+	store.update(func(current *protocol.ConversationContextAggregate) {
+		current.Members = current.Members[:1]
+	})
+	report, err = service.RoomGoalCompletionReport(
+		context.Background(),
+		goal,
+		"agent-a",
+		"round-lead",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.CollaborationRequired || report.Blocker != "" {
+		t.Fatalf("report = %#v, want single-Agent Room without dynamic requirement", report)
+	}
+}

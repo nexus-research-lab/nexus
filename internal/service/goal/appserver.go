@@ -27,7 +27,14 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappse
 		return nil, err
 	}
 	if current == nil {
-		ownerUserID, trustedAgentID, trustedAgentName, ownershipErr := s.verifyGoalSessionOwnership(
+		if hasStatus && targetStatus == protocol.GoalStatusComplete &&
+			protocol.IsRoomSharedSessionKey(sessionKey) {
+			return nil, fmt.Errorf(
+				"%w: a new Room Goal cannot be created directly in the complete state",
+				ErrGoalInvalidState,
+			)
+		}
+		ownerUserID, trustedAgentID, trustedAgentName, roomCollaborationRequired, ownershipErr := s.verifyGoalSessionOwnership(
 			ctx,
 			sessionKey,
 			request.OwnerUserID,
@@ -48,6 +55,7 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappse
 			request,
 			trustedAgentID,
 			trustedAgentName,
+			roomCollaborationRequired,
 		)
 		if err != nil {
 			return nil, err
@@ -147,6 +155,7 @@ func (s *Service) createFromThreadGoalParams(
 	request goalappserver.ThreadGoalSetParams,
 	trustedAgentID string,
 	trustedAgentName string,
+	roomCollaborationRequired bool,
 ) (*protocol.Goal, protocol.GoalEvent, error) {
 	if request.Objective == nil {
 		return nil, protocol.GoalEvent{}, newGoalNotFoundError(fmt.Sprintf(
@@ -174,6 +183,12 @@ func (s *Service) createFromThreadGoalParams(
 		trustedAgentID,
 		trustedAgentName,
 	)
+	if protocol.IsRoomSharedSessionKey(sessionKey) && roomCollaborationRequired {
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		metadata[protocol.GoalMetadataRoomGoalCollaborationRequired] = true
+	}
 	if ownerUserID := strings.TrimSpace(request.OwnerUserID); ownerUserID != "" {
 		if metadata == nil {
 			metadata = map[string]any{}
@@ -329,6 +344,9 @@ func (s *Service) updateFromThreadGoalParams(
 	nextStatus = statusAfterThreadGoalBudget(item, nextStatus, hasStatus)
 	if nextStatus == protocol.GoalStatusComplete &&
 		currentStatus != protocol.GoalStatusComplete {
+		if readinessErr := s.ensureRoomGoalCollaborationReady(ctx, item, "", ""); readinessErr != nil {
+			return nil, readinessErr
+		}
 		if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, item); readinessErr != nil {
 			return nil, readinessErr
 		}

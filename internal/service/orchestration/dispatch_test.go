@@ -487,8 +487,8 @@ func TestAuthorizeRoomRuntimeTargetRequiresManagedAssignmentAndExactBinding(t *t
 	terminalService := testService(&fakeRepository{snapshot: terminalSnapshot})
 	err = terminalService.AuthorizeRoomRuntimeTarget(context.Background(), actor, binding)
 	var terminalErr *DomainError
-	if !errors.As(err, &terminalErr) || terminalErr.Code != ErrorCodeWorkBindingMismatch {
-		t.Fatalf("terminal structured wake error = %v, want %s", err, ErrorCodeWorkBindingMismatch)
+	if !errors.As(err, &terminalErr) || terminalErr.Code != ErrorCodeExecutionTerminal {
+		t.Fatalf("terminal structured wake error = %v, want %s", err, ErrorCodeExecutionTerminal)
 	}
 	err = terminalService.AuthorizeRoomRuntimeTarget(context.Background(), coordinator, nil)
 	if err != nil {

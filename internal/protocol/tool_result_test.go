@@ -34,6 +34,18 @@ func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T
 	}
 }
 
+func TestParseMutationResultEnvelopeAcceptsSupersededOutcome(t *testing.T) {
+	got, ok := ParseMutationResultEnvelope(map[string]any{
+		"outcome":     "superseded",
+		"reason_code": "execution_terminal",
+		"message":     "the bound Room work was replaced",
+	})
+	if !ok || got.Outcome != MutationResultSuperseded ||
+		got.ReasonCode != "execution_terminal" {
+		t.Fatalf("ParseMutationResultEnvelope() = %+v/%t", got, ok)
+	}
+}
+
 func TestParseMutationResultChangedReadsOnlyExplicitEnvelopeRefs(t *testing.T) {
 	t.Parallel()
 

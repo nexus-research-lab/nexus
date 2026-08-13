@@ -70,7 +70,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if protocol.IsRoomSharedSessionKey(sessionKey) && ownershipAgentID == "" {
 		ownershipAgentID = strings.TrimSpace(request.RoomLeadAgentID)
 	}
-	ownerUserID, verifiedAgentID, verifiedAgentName, err := s.verifyGoalSessionOwnership(
+	ownerUserID, verifiedAgentID, verifiedAgentName, roomCollaborationRequired, err := s.verifyGoalSessionOwnership(
 		ctx,
 		sessionKey,
 		request.OwnerUserID,
@@ -78,6 +78,19 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	)
 	if err != nil {
 		return nil, err
+	}
+	if protocol.IsRoomSharedSessionKey(sessionKey) {
+		if request.RoomCollaborationRequired == nil {
+			_, explicitlySet := request.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired]
+			if !explicitlySet {
+				request.RoomCollaborationRequired = &roomCollaborationRequired
+			}
+		} else if !*request.RoomCollaborationRequired && roomCollaborationRequired {
+			return nil, fmt.Errorf(
+				"%w: Room Goal collaboration requirement conflicts with the verified member directory",
+				ErrGoalInvalidState,
+			)
+		}
 	}
 	request.OwnerUserID = ownerUserID
 	request.AgentID = runtimeAgentID

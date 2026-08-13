@@ -9,10 +9,18 @@ import type {
 } from "@/types/conversation/message/content";
 
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
-import { isRejectedToolResult } from "../../tool-result-semantic-model";
+import {
+  isRejectedToolResult,
+  isSupersededToolResult,
+} from "../../tool-result-semantic-model";
 import type { ContentProjection } from "../message-item-projection";
 
-export type DmToolRunPhase = "active" | "complete" | "error" | "rejected";
+export type DmToolRunPhase =
+  | "active"
+  | "complete"
+  | "error"
+  | "rejected"
+  | "superseded";
 
 export interface DmToolRunSegment {
   errorCount: number;
@@ -21,6 +29,7 @@ export interface DmToolRunSegment {
   phase: DmToolRunPhase;
   projection: ContentProjection;
   rejectedCount: number;
+  supersededCount: number;
   toolUseIds: string[];
   unresolvedToolUseCount: number;
 }
@@ -137,6 +146,10 @@ function buildToolRunSegment({
     run.indexes,
     projection.content,
   );
+  const supersededCount = countToolRunSupersessions(
+    run.indexes,
+    projection.content,
+  );
   const unresolvedToolUseCount = countUnresolvedToolUses(
     toolUseIds,
     run.indexes,
@@ -152,6 +165,8 @@ function buildToolRunSegment({
     ? "error"
     : rejectedCount > 0
     ? "rejected"
+    : supersededCount > 0
+    ? "superseded"
     : "complete";
   return {
     errorCount,
@@ -160,6 +175,7 @@ function buildToolRunSegment({
     phase,
     projection: selectProjectionIndexes(projection, run.indexes),
     rejectedCount,
+    supersededCount,
     toolUseIds,
     unresolvedToolUseCount,
   };
@@ -320,6 +336,20 @@ function countToolRunRejections(
   indexes.forEach((index) => {
     const block = content[index];
     if (block?.type === "tool_result" && isRejectedToolResult(block)) {
+      count += 1;
+    }
+  });
+  return count;
+}
+
+function countToolRunSupersessions(
+  indexes: ReadonlySet<number>,
+  content: readonly ContentBlock[],
+): number {
+  let count = 0;
+  indexes.forEach((index) => {
+    const block = content[index];
+    if (block?.type === "tool_result" && isSupersededToolResult(block)) {
       count += 1;
     }
   });

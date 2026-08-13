@@ -16,6 +16,7 @@ import (
 
 type fakeExecutionService struct {
 	current       func() *protocol.ExecutionSnapshot
+	snapshotError error
 	currentReads  int
 	snapshotReads int
 	prepare       func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
@@ -47,6 +48,9 @@ func (s *fakeExecutionService) GetCurrent(_ context.Context, _ orchestration.Act
 
 func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.ActorContext, executionID string) (*protocol.ExecutionSnapshot, error) {
 	s.snapshotReads++
+	if s.snapshotError != nil {
+		return nil, s.snapshotError
+	}
 	if s.current == nil {
 		return nil, nil
 	}
@@ -55,6 +59,32 @@ func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.Ac
 		return nil, nil
 	}
 	return snapshot, nil
+}
+
+func TestSubmitWorkProjectsRetargetedPredecessorAsSuperseded(t *testing.T) {
+	svc := &fakeExecutionService{snapshotError: &orchestration.DomainError{
+		Code:    orchestration.ErrorCodeExecutionTerminal,
+		Message: "the bound Room work was superseded; wait for a fresh Assignment",
+	}}
+	sctx := executionServerContext()
+	result, err := submitWork(svc, sctx).ContextHandler(
+		context.Background(),
+		map[string]any{
+			"execution_id":   "execution-retargeted",
+			"result_summary": "late predecessor result",
+		},
+		&sdktool.CallContext{ToolUseID: "tool-late-submit"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("result = %#v, terminal predecessor must not be a transport failure", result)
+	}
+	if result.StructuredContent["outcome"] != string(protocol.MutationResultSuperseded) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodeExecutionTerminal) {
+		t.Fatalf("structured result = %#v, want superseded semantic outcome", result.StructuredContent)
+	}
 }
 
 func TestCompactExecutionToolContextKeepsAuthorityWithoutRuntimeHistory(t *testing.T) {
@@ -332,6 +362,7 @@ func TestBindMutationGoalAuthorityRequiresConfirmedReceipt(t *testing.T) {
 		{name: "idempotent confirmation", outcome: orchestration.MutationNoOp, receipt: true, want: true},
 		{name: "applied confirmation pending", outcome: orchestration.MutationApplied, want: false},
 		{name: "rejected", outcome: orchestration.MutationRejected, want: false},
+		{name: "superseded", outcome: orchestration.MutationSuperseded, want: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			authority := runtimectx.NewGoalAuthorityState("", 0, "")

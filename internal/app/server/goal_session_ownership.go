@@ -75,8 +75,14 @@ func (v *goalSessionOwnershipVerifier) VerifyGoalSessionOwnership(
 			TrustedAgentName: goalSessionAgentName(targetAgent),
 		}, nil
 	case protocol.SessionKeyKindRoom:
-		if _, err = v.verifyRoomConversation(ownerContext, ownerUserID, parsed.ConversationID, trustedAgentID); err != nil {
-			return goalsvc.GoalSessionOwnershipProof{}, err
+		contextValue, roomErr := v.verifyRoomConversation(
+			ownerContext,
+			ownerUserID,
+			parsed.ConversationID,
+			trustedAgentID,
+		)
+		if roomErr != nil {
+			return goalsvc.GoalSessionOwnershipProof{}, roomErr
 		}
 		trustedAgentName := ""
 		if trustedAgentID != "" {
@@ -88,8 +94,9 @@ func (v *goalSessionOwnershipVerifier) VerifyGoalSessionOwnership(
 			trustedAgentName = goalSessionAgentName(agentValue)
 		}
 		return goalsvc.GoalSessionOwnershipProof{
-			TrustedAgentID:   trustedAgentID,
-			TrustedAgentName: trustedAgentName,
+			TrustedAgentID:            trustedAgentID,
+			TrustedAgentName:          trustedAgentName,
+			RoomCollaborationRequired: roomdomain.HasMultipleAgentMembers(contextValue.Members),
 		}, nil
 	default:
 		return goalsvc.GoalSessionOwnershipProof{}, errors.New("unsupported Goal session kind")

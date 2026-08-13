@@ -3108,6 +3108,116 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   assert.doesNotMatch(detailHtml, /next_actions/);
 });
 
+test("superseded WorkGraph result is muted and does not count as failure", async () => {
+  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
+  );
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { resolveToolBlockStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+  const { ToolBlockResult } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
+  );
+  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const { buildProcessSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const tool = {
+    type: "tool_use",
+    id: "tool-submit-superseded",
+    name: "mcp__nexus_execution__submit_work",
+    input: {
+      execution_id: "execution-old",
+      result_summary: "late predecessor result",
+    },
+  };
+  const result = {
+    type: "tool_result",
+    tool_use_id: tool.id,
+    is_error: false,
+    content: JSON.stringify({
+      message: "旧工作已被新目标替换；请停止当前轮次并等待新指派",
+      outcome: "superseded",
+      reason_code: "execution_terminal",
+    }),
+  };
+  const projection = {
+    content: [tool, result],
+    streamingIndexes: new Set(),
+  };
+  const [segment] = projectDmToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection,
+    responseResumed: true,
+  });
+  assert.equal(segment.phase, "superseded");
+  assert.equal(segment.supersededCount, 1);
+  assert.equal(segment.rejectedCount, 0);
+  assert.equal(segment.errorCount, 0);
+  assert.equal(resolveToolBlockStatus({ result }, false), "superseded");
+  assert.deepEqual(
+    buildProcessSummary({
+      pendingPermissionCount: 0,
+      processContent: [tool, result],
+    }).metrics,
+    [{ count: 1, kind: "action" }],
+  );
+
+  const provider = (child) => React.createElement(I18nProvider, null, child);
+  const dmHtml = renderToStaticMarkup(provider(React.createElement(
+    AssistantDmToolRuns,
+    {
+      activity: {
+        emptyStreamStatus: null,
+        showCursor: true,
+        standalone: false,
+        state: "executing",
+      },
+      environment: {
+        canRespondToPermissions: true,
+        hiddenToolNames: [],
+        mode: "dm_live",
+      },
+      generatedFilesLabel: "生成文件",
+      permissions: {
+        all: [],
+        matchedByToolUseId: new Map(),
+        owner: "content",
+        unmatched: [],
+      },
+      projection,
+      responseResumed: true,
+    },
+  )));
+  assert.match(dmHtml, /data-dm-tool-run-phase="superseded"/);
+  assert.match(dmHtml, /已被替换/);
+  assert.doesNotMatch(dmHtml, /执行失败|已拒绝/);
+
+  const roomHtml = renderToStaticMarkup(provider(React.createElement(
+    ContentRenderer,
+    { content: [tool, result] },
+  )));
+  assert.match(roomHtml, /已被替换/);
+  assert.match(roomHtml, /旧工作已被新目标替换/);
+  assert.doesNotMatch(roomHtml, /失败|已拒绝/);
+
+  const detailHtml = renderToStaticMarkup(provider(React.createElement(
+    ToolBlockResult,
+    { toolResult: result },
+  )));
+  assert.match(detailHtml, /data-tool-result-semantic-outcome="superseded"/);
+  assert.match(detailHtml, /execution_terminal/);
+});
+
 test("thinking and replying indicators render a real stepped frame track", async () => {
   const { MessageActivityStatus } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/message-activity-status.tsx",
