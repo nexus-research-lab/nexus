@@ -38,6 +38,8 @@ export const zhAgentMessages = {
   "agent_options.contact.alias": "备注",
   "agent_options.contact.alias_placeholder": "备注（仅当前 Agent 可见）",
   "agent_options.contact.add_friend": "添加好友",
+  "agent_options.contact.remove_friend": "删除好友",
+  "agent_options.contact.remove_friend_confirm": "确定删除好友 {name} 吗？已有 Room 和消息历史会保留。",
   "agent_options.contact.search_contacts": "搜索联系人",
   "agent_options.contact.search_agents": "搜索可添加的 Agent",
   "agent_options.contact.no_search_results": "没有匹配的联系人",

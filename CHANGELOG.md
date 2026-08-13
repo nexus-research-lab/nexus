@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added owner-scoped Agent address books and an Agent-perspective friend communication client with contact search/add and Room-backed Session switching, reusing the existing chat header, message, Composer, privacy, wake, queue, and reply-routing paths.
+- Added owner-scoped Agent address books and an Agent-perspective friend communication client with contact search/add/remove, Room-backed Session switching, and cursor-paged history, reusing the existing chat header, message, Composer, privacy, wake, queue, and reply-routing paths.
 - Added a `/visualize` Slash shortcut for invoking inline Generative UI without exposing its runtime prompt in the Composer.
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
 - Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Created friend contact Rooms only on the first message and restored preserved Rooms and history when the same Agents reconnect.
+- Refreshed friend directories and private messages from existing app and Room WebSocket events, with bounded polling only while disconnected.
 - Aligned the expanded sidebar toggle with the directory action controls below it.
 - Kept the Agent contact Composer available before the first Session so owners can manually start a friend conversation.
 - Stopped replies to owner-authored Agent contact messages from waking the represented Agent for an extra round while preserving normal Agent-initiated reply routing.

@@ -67,9 +67,16 @@ func (h *Handlers) parseAgentPrivateDomainQuery(
 	writer http.ResponseWriter,
 	request *http.Request,
 ) (roompkg.AgentPrivateDomainQuery, bool) {
+	beforeTimestamp, err := positiveQueryInt64(request, "before_timestamp")
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return roompkg.AgentPrivateDomainQuery{}, false
+	}
 	query := roompkg.AgentPrivateDomainQuery{
-		RoomID:         strings.TrimSpace(request.URL.Query().Get("room_id")),
-		ConversationID: strings.TrimSpace(request.URL.Query().Get("conversation_id")),
+		RoomID:          strings.TrimSpace(request.URL.Query().Get("room_id")),
+		ConversationID:  strings.TrimSpace(request.URL.Query().Get("conversation_id")),
+		BeforeMessageID: strings.TrimSpace(request.URL.Query().Get("before_message_id")),
+		BeforeTimestamp: beforeTimestamp,
 	}
 	if raw := strings.TrimSpace(request.URL.Query().Get("limit")); raw != "" {
 		limit, err := strconv.Atoi(raw)

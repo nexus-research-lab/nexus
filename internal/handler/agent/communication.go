@@ -14,7 +14,7 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
-// HandleOpenAgentContactChannel 打开好友共用的隐藏直聊 Room。
+// HandleOpenAgentContactChannel 打开或恢复好友已有的隐藏直聊 Room。
 func (h *Handlers) HandleOpenAgentContactChannel(writer http.ResponseWriter, request *http.Request) {
 	if h.communication == nil {
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "平台通讯服务不可用")

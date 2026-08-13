@@ -52,6 +52,8 @@ owner 可以在 Contacts 中切换到某个普通 Agent 的视角。此时 sourc
 
 Contacts 的 Agent 详情在“联络”栏目直接呈现好友私聊客户端：左侧只显示好友并支持搜索、添加同 owner 普通 Agent；右侧直接复用现有 Session、`MessageItem`、对话面板骨架和 `ComposerPanel`，以当前 Agent 身份查看与发送 directed message 私域投影。普通群聊继续使用现有“聊天”入口。
 
+私聊首屏读取最新一页；向上滚动继续按 `timestamp + message_id` 稳定游标加载更早事件并保持当前阅读位置。当前隐藏 Room 的新事件走现有 WebSocket，断线轮询只负责兜底，不能用扩大单次历史上限替代分页。
+
 群成员继续在 Room 设置中管理。当前控制面不复制 Agent 配置页、独立“联络记录”页、群聊目录、消息组件或另一套消息历史。
 
 一句话：通讯录属于 Nexus，消息仍属于 Room，SDK 不拥有成员协议。

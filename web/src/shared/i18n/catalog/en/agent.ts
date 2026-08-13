@@ -41,6 +41,8 @@ export const enAgentMessages = {
   "agent_options.contact.alias": "Note",
   "agent_options.contact.alias_placeholder": "Note (visible only to this Agent)",
   "agent_options.contact.add_friend": "Add friend",
+  "agent_options.contact.remove_friend": "Remove friend",
+  "agent_options.contact.remove_friend_confirm": "Remove {name} from friends? The existing Room and message history will be preserved.",
   "agent_options.contact.search_contacts": "Search contacts",
   "agent_options.contact.search_agents": "Search Agents to add",
   "agent_options.contact.no_search_results": "No matching contacts",

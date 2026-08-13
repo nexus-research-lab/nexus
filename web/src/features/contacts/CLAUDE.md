@@ -12,5 +12,7 @@
 - 视图回调由页面消费者定义，保持具体且不暴露整页控制器。
 - “联络”栏目由 `agent-communication-view.tsx` 直接呈现 Agent 视角的好友私聊客户端：左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；右侧必须用 `WorkspaceSurfaceHeader` 与 `WorkspaceConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。
 - 好友首次联络没有既有 Session 时也必须显示 Composer；首条手动消息由通讯发送接口原子确保隐藏通道，并用回执 Session 接续历史。
+- 好友私聊向上滚动时复用共享历史加载与前插锚定，按 `timestamp + message_id` 游标拉取更早消息，不得回退为扩大一次性 limit。
+- 联络 Header 可删除双向好友关系，但不得删除隐藏 Room 和消息历史；再次添加同一好友对时恢复原通道。
 - 联系人总侧栏用 `CirclePlus` 表达新建 Agent，Agent 联络通讯录用 `UserRoundPlus` 表达添加好友；两者尺寸一致但不得共用图形语义。
 - 侧栏“联系人”表达通讯录入口，目录页标题使用“智能体管理”表达创建和配置职责；不得再叠加 `Agents / AGENTS` 双重标题。

@@ -6,7 +6,7 @@
 // 持久化 codec 留在对应 internal/service/* 或 internal/storage/*。
 //
 // 成员清单（按域，本包整体即协议模型，故文件不再加 model_ 前缀）：
-//   - agent.go / skill.go：Agent 模型、同 owner 联系人、平台/用户级外部 Skill 引用、显式停用名称与创建/更新协议。
+//   - agent.go / agent_private.go / skill.go：Agent 模型、同 owner 联系人、可游标翻页的私域消息投影、平台/用户级外部 Skill 引用、显式停用名称与创建/更新协议。
 //   - session*.go：Session / Message / SessionKey 统一会话模型、持久化上下文占用快照与 transcript 原生消息边界。
 //   - room*.go：房间、联系人内部通道用途、成员持久 participation gate、每 Room 唯一未开始 conversation draft、directed message。
 //   - conversation_turn.go / event.go / goal*.go / objective_alignment.go / execution*.go / execution_plan_proposal.go / input_queue.go：

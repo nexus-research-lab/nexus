@@ -58,6 +58,9 @@ type AgentPrivateThreadPage struct {
 
 // AgentPrivateEventPage 表示私域线程事件列表响应。
 type AgentPrivateEventPage struct {
-	Thread AgentPrivateThread  `json:"thread"`
-	Items  []AgentPrivateEvent `json:"items"`
+	Thread              AgentPrivateThread  `json:"thread"`
+	Items               []AgentPrivateEvent `json:"items"`
+	HasMore             bool                `json:"has_more"`
+	NextBeforeMessageID *string             `json:"next_before_message_id,omitempty"`
+	NextBeforeTimestamp *int64              `json:"next_before_timestamp,omitempty"`
 }

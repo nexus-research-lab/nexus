@@ -33,6 +33,17 @@ test("联络只显示好友并复用现有聊天组件", async () => {
   assert.doesNotMatch(detail, /max-w-\[860px\]/);
   assert.match(detail, /mx-\[var\(--workspace-content-gutter\)\].*border-t/);
   assert.match(controller, /conversation_id: conversationId \?\? undefined/);
+  assert.match(controller, /deleteAgentContactApi/);
+  assert.match(controller, /ApiRequestError && loadError\.status === 404/);
+  assert.match(controller, /room_directed_message/);
+  assert.match(controller, /agent_contact_changed/);
+  assert.match(controller, /subscribe_room/);
+  assert.match(controller, /MESSAGE_FALLBACK_POLL_INTERVAL_MS = 30_000/);
+  assert.match(controller, /before_message_id: historyCursor\.beforeMessageId/);
+  assert.match(controller, /setHistoryPrependToken/);
+  assert.match(view, /remove_friend_confirm/);
+  assert.match(view, /useConversationHistoryLoader/);
+  assert.match(view, /useFollowScroll/);
   assert.doesNotMatch(view, /UiRoomAvatar|CommunicationBubble|roomMessages/);
   assert.doesNotMatch(view, /<header className=/);
   assert.doesNotMatch(view, /inset-x-\[var\(--workspace-content-gutter\)\]/);
