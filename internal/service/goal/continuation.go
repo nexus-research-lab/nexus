@@ -102,13 +102,6 @@ func (s *Service) PlanContinuationForSession(ctx context.Context, sessionKey str
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
-	item, err = s.ensureExternalGoalExecutionReservation(ctx, item)
-	if err != nil {
-		return nil, err
-	}
-	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
-		return nil, nil
-	}
 	return s.planContinuationForGoal(ctx, item, strings.TrimSpace(previousRoundID))
 }
 
@@ -168,7 +161,7 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
 		return nil, err
 	}
-	if item.EmptyProgressCount > 0 {
+	if goalContinuationSuppressed(*item) {
 		if goalCompletionToolRetryCount(item.Metadata) >= goalCompletionToolMaxRetries {
 			completed, err := s.completeAfterCompletionToolMissRetry(
 				ctx,
@@ -581,10 +574,23 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string, confirm
 		"objective_alignment_criteria": buildObjectiveAlignmentCriteria(item),
 		"objective_alignment_contract": objectivealignment.PromptContract(),
 		"completion_tool_retry_note":   buildCompletionToolRetryNote(item, confirmedManagedBinding),
+		"no_progress_recovery_note":    buildNoProgressRecoveryNote(item),
 		"tokens_used":                  fmt.Sprintf("%d", item.Usage.BudgetTokens()),
 		"token_budget":                 tokenBudget,
 		"remaining_tokens":             remainingTokens,
 	})
+}
+
+func buildNoProgressRecoveryNote(item protocol.Goal) string {
+	if item.EmptyProgressCount <= 0 || goalContinuationSuppressed(item) {
+		return ""
+	}
+	return strings.TrimSpace(`
+No-progress recovery boundary:
+- The immediately preceding continuation inspected or described state but produced no counted mutation or durable work.
+- This is the single automatic recovery turn. Execute the next concrete action now; do not merely announce what you will do next.
+- If no valid mutation is appropriate, gather new evidence, start an accountable handoff, or report the actual blocker through the normal blocked audit. A second empty turn stops automatic continuation.
+`)
 }
 
 func buildObjectiveTransitionPlanningPrompt(
@@ -645,13 +651,12 @@ func buildRoomGoalLeadNote(item protocol.Goal) string {
 	return strings.TrimSpace(fmt.Sprintf(`
 Room Goal lead:
 - This is a shared Room Goal. You are the assigned lead agent: %s.
-- The Goal belongs to the room, not to your private session. You are responsible for driving coordination, evidence gathering, final audit, and completion.
-- Follow all Room rules and member roles. A public @mention only requests a conversational or untracked one-off contribution; it never creates an Assignment, WorkBinding, or completion evidence by itself.
+- The Goal belongs to the room, not to your private session. As the current lead, you decide when its objective is satisfied and may complete it after the required readiness checks pass.
+- Follow all Room rules and member roles. A public @mention only requests a conversational or untracked one-off contribution; it never creates an Assignment or WorkBinding. A substantive public reply to a Goal-attributed handoff may be retained as collaboration audit evidence.
 - When another member must own an accountable deliverable, materialize or continue the managed WorkGraph and use assign_work. Use @ only when a conversational contribution is sufficient.
-- For a multi-member Room Goal, visible collaboration is part of completion. If the runtime provides a Room Goal collaboration requirement, satisfy it before attempting completion.
-- If the same Goal's room-visible collaboration chain does not already show substantive work from a non-lead member, choose the least costly correct route: @ exactly one member for a genuinely untracked contribution, or assign one distinct Ready Work Item through the managed graph. A retarget or consecutive lead round does not erase earlier collaboration for that Goal. Do not call the Goal update tool in that same turn.
-- If a public @ request is the right next step, make it the public reply for this turn and do not mark the Goal complete yet.
-- When delegated work returns, inspect the room-visible evidence, continue or delegate again if needed, and only mark the Goal complete after the full room objective is verified.
+- Collaboration evidence is optional audit context, not a completion requirement. Do not manufacture collaboration merely because the Room has multiple members.
+- If a public @ request is the right next step, make it the public reply for this turn and wait for or explicitly cancel that in-flight handoff before completing the Goal.
+- When delegated work returns, inspect the result, continue or delegate again if needed, and only mark the Goal complete after the full room objective is verified and no attributed Room work remains in flight.
 `, leadLabel))
 }
 

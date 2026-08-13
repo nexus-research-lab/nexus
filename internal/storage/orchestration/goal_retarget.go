@@ -1,5 +1,5 @@
 // INPUT: durable Goal objective transition and exact old Goal-bound Execution revision.
-// OUTPUT: replay-safe superseded old Execution graph with a reserved successor identity.
+// OUTPUT: replay-safe predecessor fence with a reserved successor identity；transient graph 被 supersede，既有 terminal graph 保持原终态。
 // POS: SQL half of the Goal objective revision rebase saga; successor Plan creation remains a later atomic command.
 package orchestration
 
@@ -86,16 +86,90 @@ func (r *Repository) SupersedeGoalRevision(
 		strings.TrimSpace(current.OwnerUserID) != command.ExpectedOwnerUserID {
 		return nil, fmt.Errorf("%w: old Execution belongs to another owner", ErrInvariant)
 	}
+	now := r.currentTime()
 	if !currentExecutionStatus(current.Status) {
-		return nil, fmt.Errorf(
-			"%w: terminal Goal revision has no matching objective-retarget supersede command",
-			ErrInvariant,
+		if !terminalExecutionStatus(current.Status) {
+			return nil, fmt.Errorf("%w: Goal revision predecessor status is invalid", ErrInvariant)
+		}
+		existingReservation, reservationErr := r.findGoalRevisionSupersedeEvent(
+			ctx,
+			tx,
+			command.ExecutionID,
+			command.GoalID,
 		)
+		if reservationErr != nil {
+			return nil, reservationErr
+		}
+		if existingReservation != nil {
+			return nil, fmt.Errorf(
+				"%w: terminal Goal revision already reserved another successor",
+				ErrInvariant,
+			)
+		}
+		if current.Version != command.ExpectedExecutionVersion {
+			return nil, ErrVersionConflict
+		}
+		// A terminal Execution is already physically closed. Preserve its
+		// status and graph history, but claim one aggregate version and append
+		// the deterministic supersede reservation required to admit the
+		// successor revision.
+		result, updateErr := tx.ExecContext(ctx, `
+UPDATE executions
+SET version = version + 1,
+    updated_at = `+r.bind(1)+`
+WHERE execution_id = `+r.bind(2)+`
+  AND version = `+r.bind(3)+`
+  AND goal_id = `+r.bind(4)+`
+  AND goal_objective_revision = `+r.bind(5)+`
+  AND status IN ('completed', 'failed', 'cancelled', 'superseded')`,
+			r.timestamp(now),
+			command.ExecutionID,
+			command.ExpectedExecutionVersion,
+			command.GoalID,
+			command.OldGoalObjectiveRevision,
+		)
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		if err = requireOne(result); err != nil {
+			if errors.Is(err, ErrVersionConflict) {
+				_ = tx.Rollback()
+				if existing, findErr := r.findEventByCommand(
+					ctx,
+					r.db,
+					command.ExecutionID,
+					command.Meta.CommandID,
+				); findErr != nil {
+					return nil, findErr
+				} else if existing != nil && goalRevisionSupersedeEventMatches(*existing, command) {
+					return r.GetSnapshot(ctx, command.ExecutionID)
+				}
+			}
+			return nil, err
+		}
+		payload := goalRevisionSupersedePayload(command)
+		payload["predecessor_status"] = string(current.Status)
+		payload["predecessor_preserved"] = true
+		event := executionEvent(
+			command.Meta,
+			command.ExecutionID,
+			protocol.ExecutionEventSuperseded,
+			command.ExecutionID,
+			current.Version+1,
+			payload,
+		)
+		event.GoalID = command.GoalID
+		if err = r.insertEvent(ctx, tx, event); err != nil {
+			return nil, err
+		}
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
+		return r.GetSnapshot(ctx, command.ExecutionID)
 	}
 	if current.Version != command.ExpectedExecutionVersion {
 		return nil, ErrVersionConflict
 	}
-	now := r.currentTime()
 	result, err := tx.ExecContext(ctx, `
 UPDATE executions
 SET status = 'superseded',
@@ -135,13 +209,7 @@ WHERE execution_id = `+r.bind(2)+`
 		protocol.ExecutionEventSuperseded,
 		command.ExecutionID,
 		command.ExpectedExecutionVersion+1,
-		map[string]any{
-			"reason":                      command.Reason,
-			"owner_user_id":               command.ExpectedOwnerUserID,
-			successorExecutionPayloadKey:  command.SuccessorExecutionID,
-			"old_goal_objective_revision": command.OldGoalObjectiveRevision,
-			"new_goal_objective_revision": command.NewGoalObjectiveRevision,
-		},
+		goalRevisionSupersedePayload(command),
 	)
 	event.GoalID = command.GoalID
 	if err = r.insertEvent(ctx, tx, event); err != nil {
@@ -151,6 +219,16 @@ WHERE execution_id = `+r.bind(2)+`
 		return nil, err
 	}
 	return r.GetSnapshot(ctx, command.ExecutionID)
+}
+
+func goalRevisionSupersedePayload(command SupersedeGoalRevisionCommand) map[string]any {
+	return map[string]any{
+		"reason":                      command.Reason,
+		"owner_user_id":               command.ExpectedOwnerUserID,
+		successorExecutionPayloadKey:  command.SuccessorExecutionID,
+		"old_goal_objective_revision": command.OldGoalObjectiveRevision,
+		"new_goal_objective_revision": command.NewGoalObjectiveRevision,
+	}
 }
 
 func metadataStringValue(metadata map[string]any, key string) string {
@@ -185,7 +263,7 @@ func (r *Repository) validateGoalRevisionSuccessor(
 	if predecessor == nil {
 		return fmt.Errorf("%w: Goal revision predecessor does not exist", ErrInvariant)
 	}
-	if predecessor.Status != protocol.ExecutionStatusSuperseded ||
+	if !terminalExecutionStatus(predecessor.Status) ||
 		predecessor.GoalID != successor.GoalID ||
 		predecessor.GoalObjectiveRevision <= 0 ||
 		successor.GoalObjectiveRevision != predecessor.GoalObjectiveRevision+1 ||
@@ -220,6 +298,18 @@ func (r *Repository) validateGoalRevisionSuccessor(
 		)
 	}
 	return nil
+}
+
+func terminalExecutionStatus(status protocol.ExecutionStatus) bool {
+	switch status {
+	case protocol.ExecutionStatusCompleted,
+		protocol.ExecutionStatusFailed,
+		protocol.ExecutionStatusCancelled,
+		protocol.ExecutionStatusSuperseded:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *Repository) findGoalRevisionSupersedeEvent(

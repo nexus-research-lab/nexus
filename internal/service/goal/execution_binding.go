@@ -1,4 +1,4 @@
-// INPUT: active explicit Goal、持久化或可确定性恢复的预留 Execution identity、objective revision 与 completion criteria。
+// INPUT: active explicit Goal、proposal-owned Execution identity、objective revision 与 completion criteria。
 // OUTPUT: 幂等 CAS 持久化的 Goal -> Execution pending metadata 及 execution_binding_pending 审计事件。
 // POS: Goal 侧反向 binding 真相入口；Execution aggregate 的正向 binding 由 orchestration.BindGoal 管理。
 package goal
@@ -54,13 +54,20 @@ func (s *Service) BindExplicitExecution(
 			current.Metadata,
 			protocol.GoalMetadataActivationReason,
 		))
+		bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+		if activationOrigin == "" && activationReason == "" &&
+			bindingState == protocol.GoalExecutionBindingStateStandalone {
+			// Exact goal_binding=current is the durable activation boundary for
+			// legacy Goal-only rows that predate explicit mode metadata.
+			activationOrigin = protocol.GoalActivationOriginUserExplicit
+			activationReason = protocol.GoalActivationReasonPersistenceRequested
+		}
 		if !managedGoalActivationOrigin(activationOrigin) || activationReason == "" {
 			return nil, fmt.Errorf(
 				"%w: Goal does not carry managed Execution activation provenance",
 				ErrGoalExecutionBindingConflict,
 			)
 		}
-		bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
 		if bindingState == protocol.GoalExecutionBindingStateConflict {
 			return nil, fmt.Errorf(
 				"%w: Goal carries an invalid Execution binding state",
@@ -130,6 +137,10 @@ func (s *Service) BindExplicitExecution(
 		// authoritative audit target. A report produced before this mutation
 		// must never authorize completion.
 		delete(current.Metadata, protocol.GoalMetadataObjectiveAlignment)
+		current.Metadata[protocol.GoalMetadataExecutionMode] =
+			string(protocol.GoalExecutionModeManaged)
+		current.Metadata[protocol.GoalMetadataActivationOrigin] = string(activationOrigin)
+		current.Metadata[protocol.GoalMetadataActivationReason] = string(activationReason)
 		current.Metadata[protocol.GoalMetadataExecutionID] = executionID
 		current.Metadata[protocol.GoalMetadataExecutionBindingState] =
 			string(protocol.GoalExecutionBindingStatePending)

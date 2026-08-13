@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -152,6 +153,182 @@ VALUES (?, ?, ?, 'active', ?)`,
 		Meta:      invalidCreate.Meta,
 	}); !errors.Is(err, ErrInvariant) {
 		t.Fatalf("invalid Goal successor error = %v, want ErrInvariant", err)
+	}
+}
+
+func TestRepositoryGoalRevisionRetargetPreservesCompletedPredecessor(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	oldCreate := createTestCommand("goal-revision-completed")
+	if _, err := repository.db.Exec(`
+INSERT INTO session_goals (goal_id, session_key, objective, status, metadata_json)
+VALUES (?, ?, ?, 'active', ?)`,
+		"goal-revision-completed",
+		oldCreate.Execution.SessionKey,
+		oldCreate.Execution.Objective,
+		`{"objective_revision":1,"activation_origin":"adaptive_promoted","activation_reason":"observed_boundary"}`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	oldCreate.Execution.GoalID = "goal-revision-completed"
+	oldCreate.Execution.GoalObjectiveRevision = 1
+	oldCreate.Execution.GoalActivationOrigin = protocol.GoalActivationOriginAdaptivePromoted
+	oldCreate.Execution.GoalActivationReason = protocol.GoalActivationReasonObservedBoundary
+	old, err := repository.CreateWithPlan(ctx, CreateWithPlanCommand{
+		Execution: oldCreate.Execution,
+		Plan:      testPlanCommand("goal-revision-completed", 1, "goal-revision-completed", "", 1),
+		Meta:      oldCreate.Meta,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repository.db.Exec(`
+UPDATE executions SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+WHERE execution_id = ?`, old.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := repository.GetSnapshot(ctx, old.Execution.ID)
+	if err != nil || completed.Execution.Status != protocol.ExecutionStatusCompleted {
+		t.Fatalf("completed predecessor = %+v err=%v", completed, err)
+	}
+	command := SupersedeGoalRevisionCommand{
+		ExecutionID:              completed.Execution.ID,
+		ExpectedExecutionVersion: completed.Execution.Version,
+		GoalID:                   completed.Execution.GoalID,
+		OldGoalObjectiveRevision: 1,
+		NewGoalObjectiveRevision: 2,
+		SuccessorExecutionID:     "execution-goal-revision-completed-new",
+		Reason:                   "user retargeted after terminal acceptance",
+		Meta:                     testMeta("goal-revision-completed-supersede"),
+	}
+	preserved, err := repository.SupersedeGoalRevision(ctx, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preserved.Execution.Status != protocol.ExecutionStatusCompleted ||
+		preserved.Execution.Version != completed.Execution.Version+1 {
+		t.Fatalf("terminal predecessor changed = %+v, want completed version %d", preserved.Execution, completed.Execution.Version+1)
+	}
+	replayed, err := repository.SupersedeGoalRevision(ctx, command)
+	if err != nil || replayed.Execution.Status != protocol.ExecutionStatusCompleted {
+		t.Fatalf("terminal supersede replay = %+v err=%v", replayed, err)
+	}
+	conflict := command
+	conflict.SuccessorExecutionID = "execution-goal-revision-completed-other"
+	conflict.Meta = testMeta("goal-revision-completed-conflict")
+	if _, err = repository.SupersedeGoalRevision(ctx, conflict); !errors.Is(err, ErrInvariant) {
+		t.Fatalf("second terminal successor reservation error = %v, want ErrInvariant", err)
+	}
+
+	successorCreate := createTestCommand("goal-revision-completed-new")
+	successorCreate.Execution.ID = command.SuccessorExecutionID
+	successorCreate.Execution.OwnerUserID = completed.Execution.OwnerUserID
+	successorCreate.Execution.SessionKey = completed.Execution.SessionKey
+	successorCreate.Execution.ScopeKind = completed.Execution.ScopeKind
+	successorCreate.Execution.RoomID = completed.Execution.RoomID
+	successorCreate.Execution.ConversationID = completed.Execution.ConversationID
+	successorCreate.Execution.GoalID = completed.Execution.GoalID
+	successorCreate.Execution.GoalObjectiveRevision = 2
+	successorCreate.Execution.GoalActivationOrigin = completed.Execution.GoalActivationOrigin
+	successorCreate.Execution.GoalActivationReason = completed.Execution.GoalActivationReason
+	successorCreate.Execution.ReplacesExecutionID = completed.Execution.ID
+	successorCreate.Execution.Objective = "retargeted after terminal acceptance"
+	successor, err := repository.CreateWithPlan(ctx, CreateWithPlanCommand{
+		Execution: successorCreate.Execution,
+		Plan:      testPlanCommand("goal-revision-completed-new", 1, "goal-revision-completed-new", "", 1),
+		Meta:      successorCreate.Meta,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if successor.Execution.GoalObjectiveRevision != 2 ||
+		successor.Execution.ReplacesExecutionID != completed.Execution.ID {
+		t.Fatalf("terminal predecessor successor = %+v", successor.Execution)
+	}
+}
+
+func TestRepositoryGoalRevisionTerminalReservationIsConcurrentAndIdempotent(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	oldCreate := createTestCommand("goal-revision-terminal-race")
+	if _, err := repository.db.Exec(`
+INSERT INTO session_goals (goal_id, session_key, objective, status, metadata_json)
+VALUES (?, ?, ?, 'active', ?)`,
+		"goal-revision-terminal-race",
+		oldCreate.Execution.SessionKey,
+		oldCreate.Execution.Objective,
+		`{"objective_revision":1,"activation_origin":"adaptive_promoted","activation_reason":"observed_boundary"}`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	oldCreate.Execution.GoalID = "goal-revision-terminal-race"
+	oldCreate.Execution.GoalObjectiveRevision = 1
+	oldCreate.Execution.GoalActivationOrigin = protocol.GoalActivationOriginAdaptivePromoted
+	oldCreate.Execution.GoalActivationReason = protocol.GoalActivationReasonObservedBoundary
+	old, err := repository.CreateWithPlan(ctx, CreateWithPlanCommand{
+		Execution: oldCreate.Execution,
+		Plan:      testPlanCommand("goal-revision-terminal-race", 1, "goal-revision-terminal-race", "", 1),
+		Meta:      oldCreate.Meta,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repository.db.Exec(`
+UPDATE executions SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+WHERE execution_id = ?`, old.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := repository.GetSnapshot(ctx, old.Execution.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := SupersedeGoalRevisionCommand{
+		ExecutionID:              completed.Execution.ID,
+		ExpectedExecutionVersion: completed.Execution.Version,
+		GoalID:                   completed.Execution.GoalID,
+		OldGoalObjectiveRevision: 1,
+		NewGoalObjectiveRevision: 2,
+		SuccessorExecutionID:     "execution-goal-revision-terminal-race-new",
+		Reason:                   "concurrent terminal retarget",
+		Meta:                     testMeta("goal-revision-terminal-race-supersede"),
+	}
+	start := make(chan struct{})
+	errorsByCall := make(chan error, 2)
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			_, callErr := repository.SupersedeGoalRevision(ctx, command)
+			errorsByCall <- callErr
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(errorsByCall)
+	for callErr := range errorsByCall {
+		if callErr != nil {
+			t.Fatalf("concurrent terminal retarget error = %v", callErr)
+		}
+	}
+	var reservations int
+	if err = repository.db.QueryRow(`
+SELECT COUNT(*) FROM execution_events
+WHERE execution_id = ? AND command_id = ? AND event_type = ?`,
+		command.ExecutionID,
+		command.Meta.CommandID,
+		protocol.ExecutionEventSuperseded,
+	).Scan(&reservations); err != nil {
+		t.Fatal(err)
+	}
+	if reservations != 1 {
+		t.Fatalf("terminal successor reservation events = %d, want 1", reservations)
+	}
+	stored, err := repository.GetSnapshot(ctx, command.ExecutionID)
+	if err != nil || stored.Execution.Status != protocol.ExecutionStatusCompleted ||
+		stored.Execution.Version != completed.Execution.Version+1 {
+		t.Fatalf("terminal predecessor after race = %+v err=%v", stored, err)
 	}
 }
 

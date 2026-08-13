@@ -177,7 +177,7 @@ func TestServiceRunAutoResumeOnceRecordsFailureWhenDispatchFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.ContinuationCount != 1 || current.EmptyProgressCount != 1 {
+	if current.ContinuationCount != 1 || current.EmptyProgressCount != goalContinuationSuppressionThreshold {
 		t.Fatalf("goal counts = continuation %d empty %d, want failed continuation recorded", current.ContinuationCount, current.EmptyProgressCount)
 	}
 	if current.LastError != dispatchErr.Error() {

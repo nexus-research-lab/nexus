@@ -60,14 +60,12 @@ func TestExplicitCreateGoalBindsCompatibleCurrentExecutionIdempotently(t *testin
 	}
 }
 
-func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.T) {
+func TestExplicitCreateGoalStaysStandaloneUntilPlanPreflightOwnsBinding(t *testing.T) {
 	request := explicitGoalCreateRequest()
 	goals := &stubExplicitGoalLifecycleService{}
 	executions := &stubExplicitExecutionService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
-	expectedExecutionID := protocol.ExplicitGoalReservedExecutionID(
-		explicitGoalCommandID(request, request.Objective),
-	)
+	const expectedExecutionID = "execution-proposal-owned"
 
 	created, err := coordinator.Create(context.Background(), request)
 	if err != nil {
@@ -76,12 +74,12 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if got := protocol.GoalMetadataString(
 		created.Metadata,
 		protocol.GoalMetadataExecutionID,
-	); got != expectedExecutionID {
-		t.Fatalf("new Goal reservation = %q, want %q", got, expectedExecutionID)
+	); got != "" {
+		t.Fatalf("new Goal reservation = %q, want none", got)
 	}
 	if got := protocol.GoalExecutionBindingStateFromGoal(*created); got !=
-		protocol.GoalExecutionBindingStateReserved {
-		t.Fatalf("new Goal binding state = %q, want reserved", got)
+		protocol.GoalExecutionBindingStateStandalone {
+		t.Fatalf("new Goal binding state = %q, want standalone", got)
 	}
 	activation, err := coordinator.ResolveExplicitGoalActivation(
 		context.Background(),
@@ -95,14 +93,14 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if activation == nil || activation.ReservedExecutionID != expectedExecutionID ||
+	if activation == nil || activation.ReservedExecutionID != "" ||
 		activation.Objective != request.Objective {
 		t.Fatalf("proposal activation = %#v", activation)
 	}
 	binding, err := coordinator.PrepareExplicitGoalBinding(
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
-			CandidateExecutionID: "execution-reserved",
+			CandidateExecutionID: expectedExecutionID,
 			OwnerUserID:          request.OwnerUserID,
 			SessionKey:           request.SessionKey,
 			ScopeKind:            protocol.ExecutionScopeDM,
@@ -134,8 +132,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 		t.Fatalf("prepared Goal binding state = %q, want pending", got)
 	}
 
-	// A retry after Execution creation failed reuses the durable reserved ID
-	// instead of minting a second state chain.
+	// A retry after Goal preflight reuses the now-durable proposal identity.
 	replayed, err := coordinator.PrepareExplicitGoalBinding(
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
@@ -370,6 +367,42 @@ func TestGoalObjectiveRetargetSagaRecoversEveryDurablePhase(t *testing.T) {
 				t.Fatalf("retarget replay=%#v transition=%#v", replayed, replayedTransition)
 			}
 		})
+	}
+}
+
+func TestGoalObjectiveRetargetCommitsAfterTerminalExecution(t *testing.T) {
+	goal := retargetSagaGoal()
+	oldGoal := *cloneExplicitGoal(goal)
+	completedExecution := retargetSagaExecution(goal)
+	completedExecution.Execution.Status = protocol.ExecutionStatusCompleted
+	executions := &stubExplicitExecutionService{current: completedExecution}
+	goals := &stubExplicitGoalLifecycleService{current: goal}
+	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
+	command := goalsvc.ObjectiveRetargetCommand{
+		Goal:                      oldGoal,
+		Objective:                 "Deliver a second verified phase",
+		Reason:                    "user extended the Goal after terminal acceptance",
+		ExpectedObjectiveRevision: oldGoal.ObjectiveRevision(),
+		Source:                    protocol.GoalUpdateSourceUser,
+		OwnerUserID:               "owner-1",
+	}
+
+	committed, err := coordinator.RetargetGoalObjective(context.Background(), command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transition, ok := goalsvc.ObjectiveTransitionFromGoal(*committed)
+	if !ok || transition.Phase != goalsvc.ObjectiveTransitionAwaitingPlan ||
+		committed.ObjectiveRevision() != oldGoal.ObjectiveRevision()+1 {
+		t.Fatalf("terminal retarget Goal=%#v transition=%#v", committed, transition)
+	}
+	if executions.current.Execution.Status != protocol.ExecutionStatusCompleted {
+		t.Fatalf("terminal predecessor status = %s, want completed", executions.current.Execution.Status)
+	}
+	if executions.lastSupersede.SuccessorExecutionID != transition.SuccessorExecutionID ||
+		executions.lastSupersede.OldGoalObjectiveRevision != transition.OldRevision ||
+		executions.lastSupersede.NewGoalObjectiveRevision != transition.NewRevision {
+		t.Fatalf("terminal predecessor reservation = %#v", executions.lastSupersede)
 	}
 }
 
@@ -772,6 +805,8 @@ func (s *stubExplicitGoalLifecycleService) BindExplicitExecution(
 	}
 	s.current.Metadata = cloneExplicitGoalMetadata(s.current.Metadata)
 	s.current.Metadata[protocol.GoalMetadataExecutionID] = binding.ExecutionID
+	s.current.Metadata[protocol.GoalMetadataExecutionMode] =
+		string(protocol.GoalExecutionModeManaged)
 	s.current.Metadata[protocol.GoalMetadataExecutionBindingState] =
 		string(protocol.GoalExecutionBindingStatePending)
 	s.current.Metadata[protocol.GoalMetadataCompletionCriteria] = append(
@@ -1011,7 +1046,10 @@ func (s *stubExplicitExecutionService) SupersedeGoalRevision(
 	if s.current == nil {
 		return nil, nil
 	}
-	if s.current.Execution.Status != protocol.ExecutionStatusSuperseded {
+	if s.current.Execution.Status != protocol.ExecutionStatusSuperseded &&
+		s.current.Execution.Status != protocol.ExecutionStatusCompleted &&
+		s.current.Execution.Status != protocol.ExecutionStatusFailed &&
+		s.current.Execution.Status != protocol.ExecutionStatusCancelled {
 		s.current.Execution.Status = protocol.ExecutionStatusSuperseded
 		s.current.Execution.Version++
 	}

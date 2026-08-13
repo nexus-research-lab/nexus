@@ -137,7 +137,7 @@ func protocolGoalEventType(eventType string) (protocol.EventType, bool) {
 		return protocol.EventTypeGoalCleared, true
 	case "usage_recorded", "usage_finalized", "objective_alignment_audited":
 		return protocol.EventTypeGoalProgress, true
-	case "continuation_scheduled", "continuation_deferred", "continuation_suppressed", "continuation_failed", "continuation_reset", "room_collaboration_handback", "completion_tool_retry":
+	case "continuation_scheduled", "continuation_deferred", "continuation_recovery_scheduled", "continuation_suppressed", "continuation_failed", "continuation_reset", "room_collaboration_handback", "completion_tool_retry":
 		return protocol.EventTypeGoalContinuation, true
 	case "paused", "resumed", "completed", "blocked", "budget_limited", "usage_limited":
 		return protocol.EventTypeGoalStatusChanged, true

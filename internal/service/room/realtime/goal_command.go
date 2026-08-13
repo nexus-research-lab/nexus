@@ -1,5 +1,5 @@
 // INPUT: 已授权 `/goal` 或 UI set_goal、Room member/lead 事实与 Goal service。
-// OUTPUT: 服务端验证 lead/协作要求后的 Goal、durable 公区控制记录与 draft 消费。
+// OUTPUT: 服务端验证 lead 后的 Goal、durable 公区控制记录与 draft 消费。
 // POS: Room Goal command 的 conversation 级串行业务边界；不创建普通模型 slot。
 package realtime
 
@@ -66,20 +66,18 @@ func (s *Service) SetGoalFromCommand(
 		replaceExisting = *request.Options.ReplaceExisting
 	}
 	leadAgentID := execution.targetAgentIDs[0]
-	collaborationRequired := roomdomain.HasMultipleAgentMembers(execution.contextValue.Members)
 	item, err := provider.Create(
 		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
 		protocol.CreateGoalRequest{
-			SessionKey:                execution.sessionKey,
-			Objective:                 strings.TrimSpace(request.Objective),
-			TokenBudget:               request.Options.TokenBudget,
-			ReplaceExisting:           replaceExisting,
-			CreatedBy:                 "user",
-			RoundID:                   execution.request.RoundID,
-			OwnerUserID:               authctx.OwnerUserID(ctx),
-			RoomLeadAgentID:           leadAgentID,
-			RoomCollaborationRequired: &collaborationRequired,
-			Metadata:                  request.Options.Metadata,
+			SessionKey:      execution.sessionKey,
+			Objective:       strings.TrimSpace(request.Objective),
+			TokenBudget:     request.Options.TokenBudget,
+			ReplaceExisting: replaceExisting,
+			CreatedBy:       "user",
+			RoundID:         execution.request.RoundID,
+			OwnerUserID:     authctx.OwnerUserID(ctx),
+			RoomLeadAgentID: leadAgentID,
+			Metadata:        request.Options.Metadata,
 		},
 	)
 	if err != nil {
@@ -88,8 +86,7 @@ func (s *Service) SetGoalFromCommand(
 	if item == nil || strings.TrimSpace(item.ID) == "" {
 		return protocol.GoalCommandResult{}, errors.New("Goal service returned an invalid Goal")
 	}
-	if goalsvc.RoomLeadAgentID(*item) != leadAgentID ||
-		goalsvc.RoomCollaborationRequired(*item) != collaborationRequired {
+	if goalsvc.RoomLeadAgentID(*item) != leadAgentID {
 		return protocol.GoalCommandResult{}, errors.New("Goal service returned inconsistent Room command state")
 	}
 	committed := execution.persistGoalCommandRecord(*item)

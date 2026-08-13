@@ -189,7 +189,7 @@ func (s *Service) publicMessageHasGoalCollaboration(
 	if s == nil || s.publicHandoffs == nil || slot == nil {
 		return false
 	}
-	binding := goalCollaborationBindingFromAuthority(slot.goalMutationAuthority())
+	binding := goalCollaborationBindingForSlot(nil, slot)
 	if binding == nil {
 		return false
 	}

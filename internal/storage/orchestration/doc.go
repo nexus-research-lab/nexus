@@ -5,7 +5,7 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //   - repository.go / commands.go / errors.go：事务、command 幂等、CAS 与稳定错误。
 //   - execution*.go / goal_retarget.go / evidence.go：Execution 创建、转换、Goal
-//     predecessor/successor binding、持久证据与 current/history 查询。
+//     predecessor/successor binding（含不改写既有 terminal predecessor 的幂等 successor reservation）、持久证据与 current/history 查询。
 //   - plan.go / plan_proposal*.go：immutable Plan 与 non-authoritative sealed proposal、
 //     materialization lease/receipt/recovery。
 //   - goal_confirmation.go：与 Goal-bound Execution mutation 同事务的 pending receipt、

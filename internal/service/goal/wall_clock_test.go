@@ -162,6 +162,9 @@ func TestServiceWallClockAccountingStopsWhileContinuationSuppressed(t *testing.T
 	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal-continuation-1", false); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal-continuation-2", false); err != nil {
+		t.Fatal(err)
+	}
 
 	clock.Advance(20 * time.Second)
 	objective := "Do not count idle continuation hold time, updated"

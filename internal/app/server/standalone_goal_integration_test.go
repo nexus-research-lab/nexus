@@ -49,7 +49,7 @@ func TestStandaloneExplicitGoalRetargetAndCompleteWithoutWorkGraph(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertReservedGoalWithoutExecution(t, db, *created)
+	assertStandaloneGoalWithoutExecution(t, db, *created)
 
 	retargeted, err := coordinator.RetargetByModel(
 		context.Background(),
@@ -68,7 +68,7 @@ func TestStandaloneExplicitGoalRetargetAndCompleteWithoutWorkGraph(t *testing.T)
 	if retargeted.ID != created.ID || retargeted.ObjectiveRevision() != 2 {
 		t.Fatalf("retargeted Goal = %#v", retargeted)
 	}
-	assertReservedGoalWithoutExecution(t, db, *retargeted)
+	assertStandaloneGoalWithoutExecution(t, db, *retargeted)
 
 	completed, err := coordinator.CompleteByModel(
 		context.Background(),
@@ -89,15 +89,15 @@ func TestStandaloneExplicitGoalRetargetAndCompleteWithoutWorkGraph(t *testing.T)
 	assertNoExecutionForGoal(t, db, completed.ID)
 }
 
-func assertReservedGoalWithoutExecution(
+func assertStandaloneGoalWithoutExecution(
 	t *testing.T,
 	db *sql.DB,
 	goal protocol.Goal,
 ) {
 	t.Helper()
 	if state := protocol.GoalExecutionBindingStateFromGoal(goal); state !=
-		protocol.GoalExecutionBindingStateReserved {
-		t.Fatalf("Goal binding state = %q, want reserved", state)
+		protocol.GoalExecutionBindingStateStandalone {
+		t.Fatalf("Goal binding state = %q, want standalone", state)
 	}
 	assertNoExecutionForGoal(t, db, goal.ID)
 }

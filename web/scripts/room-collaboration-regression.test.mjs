@@ -250,15 +250,37 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
     objective: "Keep Room Goal continuation observable",
     continuation_count: 1,
     empty_progress_count: 0,
+    continuation_state: "ready",
     version: 1,
     created_at: "2026-08-12T00:00:00Z",
     updated_at: "2026-08-12T00:00:00Z",
   };
+  const recovering = buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: {
+      ...baseGoal,
+      status: "active",
+      empty_progress_count: 1,
+      continuation_state: "recovering",
+    },
+    isGenerating: false,
+  });
+  assert.equal(recovering.statusLabel, "运行中");
+  assert.equal(recovering.attentionTone, null);
+  assert.equal(recovering.attentionMessage, null);
+
   const suppressed = buildGoalStatusStripModel({
     canResume: true,
     continuationHold: null,
     error: null,
-    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    goal: {
+      ...baseGoal,
+      status: "active",
+      empty_progress_count: 2,
+      continuation_state: "suspended",
+    },
     isGenerating: false,
   });
   assert.equal(suppressed.statusLabel, "自动续跑已停止");
@@ -270,7 +292,7 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
     canResume: true,
     continuationHold: null,
     error: null,
-    goal: { ...baseGoal, status: "paused" },
+    goal: { ...baseGoal, status: "paused", continuation_state: "inactive" },
     isGenerating: false,
   });
   assert.equal(paused.statusLabel, "已暂停");
@@ -295,7 +317,12 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
     compact: false,
     disabled: false,
     error: null,
-    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    goal: {
+      ...baseGoal,
+      status: "active",
+      empty_progress_count: 2,
+      continuation_state: "suspended",
+    },
     isGenerating: false,
     isLoading: false,
     scopeLabel: "房间 Goal",

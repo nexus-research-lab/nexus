@@ -1,6 +1,6 @@
 /**
  * INPUT: Goal REST responses and server-derived Goal/Execution binding view.
- * OUTPUT: DM/Room Goal resource, lifecycle and clear-gate types.
+ * OUTPUT: DM/Room Goal resource, server-derived continuation lifecycle and clear-gate types.
  * POS: Goal HTTP transport types; metadata is never a WorkGraph binding source.
  */
 export type GoalStatus =
@@ -10,6 +10,12 @@ export type GoalStatus =
   | "blocked"
   | "budget_limited"
   | "usage_limited";
+
+export type GoalContinuationState =
+  | "inactive"
+  | "ready"
+  | "recovering"
+  | "suspended";
 
 export interface GoalUsage {
   input_tokens?: number;
@@ -34,6 +40,7 @@ export interface Goal {
   time_used_seconds?: number;
   continuation_count: number;
   empty_progress_count: number;
+  continuation_state: GoalContinuationState;
   version: number;
   created_by?: string;
   created_at: string;

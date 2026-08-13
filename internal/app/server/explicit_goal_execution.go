@@ -313,6 +313,10 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 		current.Metadata,
 		protocol.GoalMetadataActivationOrigin,
 	))
+	bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+	if origin == "" && bindingState == protocol.GoalExecutionBindingStateStandalone {
+		origin = protocol.GoalActivationOriginUserExplicit
+	}
 	switch origin {
 	case protocol.GoalActivationOriginUserExplicit,
 		protocol.GoalActivationOriginAdaptiveInitial,
@@ -328,6 +332,9 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 		current.Metadata,
 		protocol.GoalMetadataActivationReason,
 	))
+	if activationReason == "" && bindingState == protocol.GoalExecutionBindingStateStandalone {
+		activationReason = protocol.GoalActivationReasonPersistenceRequested
+	}
 	if activationReason == "" {
 		return nil, fmt.Errorf(
 			"%w: active Goal has inconsistent activation reason",
@@ -444,6 +451,12 @@ func (c *explicitGoalExecutionCoordinator) ResolveExplicitGoalActivation(
 		current.Metadata,
 		protocol.GoalMetadataActivationReason,
 	))
+	bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+	if origin == "" && reason == "" &&
+		bindingState == protocol.GoalExecutionBindingStateStandalone {
+		origin = protocol.GoalActivationOriginUserExplicit
+		reason = protocol.GoalActivationReasonPersistenceRequested
+	}
 	switch origin {
 	case protocol.GoalActivationOriginUserExplicit,
 		protocol.GoalActivationOriginAdaptiveInitial,
@@ -864,17 +877,18 @@ func explicitGoalMetadata(
 		metadata[key] = value
 	}
 	delete(metadata, protocol.GoalMetadataPromotionCommand)
+	delete(metadata, protocol.GoalMetadataExecutionMode)
 	delete(metadata, protocol.GoalMetadataExecutionBindingState)
 	metadata[protocol.GoalMetadataExplicitCommand] = commandID
 	metadata[protocol.GoalMetadataActivationOrigin] = string(protocol.GoalActivationOriginUserExplicit)
 	metadata[protocol.GoalMetadataActivationReason] = string(protocol.GoalActivationReasonPersistenceRequested)
 	if snapshot == nil {
-		metadata[protocol.GoalMetadataExecutionID] = protocol.ExplicitGoalReservedExecutionID(commandID)
-		metadata[protocol.GoalMetadataExecutionBindingState] =
-			string(protocol.GoalExecutionBindingStateReserved)
+		metadata[protocol.GoalMetadataExecutionMode] = string(protocol.GoalExecutionModeGoalOnly)
+		delete(metadata, protocol.GoalMetadataExecutionID)
 		delete(metadata, protocol.GoalMetadataCompletionCriteria)
 		return metadata
 	}
+	metadata[protocol.GoalMetadataExecutionMode] = string(protocol.GoalExecutionModeManaged)
 	metadata[protocol.GoalMetadataExecutionID] = snapshot.Execution.ID
 	metadata[protocol.GoalMetadataExecutionBindingState] =
 		string(protocol.GoalExecutionBindingStatePending)
@@ -913,11 +927,8 @@ func explicitGoalRetryMatches(
 		protocol.GoalMetadataExecutionID,
 	)
 	if snapshot == nil {
-		expectedID := protocol.ExplicitGoalReservedExecutionID(commandID)
 		state := protocol.GoalExecutionBindingStateFromGoal(goal)
-		return (executionID == "" || executionID == expectedID) &&
-			(state == protocol.GoalExecutionBindingStateReserved ||
-				state == protocol.GoalExecutionBindingStateStandalone)
+		return executionID == "" && state == protocol.GoalExecutionBindingStateStandalone
 	}
 	if executionID != snapshot.Execution.ID {
 		return false

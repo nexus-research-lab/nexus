@@ -1,5 +1,5 @@
 // INPUT: runtime mint 的 exact Goal identity、objective revision 与可选 Execution identity。
-// OUTPUT: 同一物理 round 内 Goal/Execution MCP 共用的并发安全动态 authority 与 context 传递 helper。
+// OUTPUT: 同一物理 round 内 Goal/Execution MCP 共用的并发安全动态 authority、最近一次服务端确认的 revision 与 context 传递 helper。
 // POS: runtime identity 边界；共享状态普通 round 保持空，只有可信 continuation/WorkBinding 或成功 create_goal 才能写入；持久负责人新 round 使用 nexus_goal 私有副本。
 package runtime
 
@@ -24,6 +24,7 @@ type GoalAuthorityState struct {
 	mu                sync.RWMutex
 	goalID            string
 	executionID       string
+	boundRevision     int64
 	objectiveRevision *atomic.Int64
 }
 
@@ -48,6 +49,7 @@ func NewGoalAuthorityStateWithRevision(
 	if strings.TrimSpace(goalID) != "" && objectiveRevision.Load() > 0 {
 		state.goalID = strings.TrimSpace(goalID)
 		state.executionID = strings.TrimSpace(executionID)
+		state.boundRevision = objectiveRevision.Load()
 	}
 	return state
 }
@@ -63,6 +65,23 @@ func (s *GoalAuthorityState) Load() (GoalAuthority, bool) {
 	authority := GoalAuthority{
 		GoalID:            s.goalID,
 		ObjectiveRevision: s.objectiveRevision.Load(),
+		ExecutionID:       s.executionID,
+	}
+	return authority, authority.GoalID != "" && authority.ObjectiveRevision > 0
+}
+
+// LoadBound 返回最近一次由 Bind 确认的 exact Goal authority。共享 revision
+// 指针可被 steering 单调推进，但仅消费新上下文不能替代一次成功的服务端
+// mutation receipt；协作归因和 round 终态写入应读取此快照。
+func (s *GoalAuthorityState) LoadBound() (GoalAuthority, bool) {
+	if s == nil {
+		return GoalAuthority{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	authority := GoalAuthority{
+		GoalID:            s.goalID,
+		ObjectiveRevision: s.boundRevision,
 		ExecutionID:       s.executionID,
 	}
 	return authority, authority.GoalID != "" && authority.ObjectiveRevision > 0
@@ -85,15 +104,17 @@ func (s *GoalAuthorityState) Bind(goalID string, objectiveRevision int64, execut
 	if s.goalID != "" && s.goalID != goalID {
 		return false
 	}
-	if s.goalID == goalID && currentRevision > objectiveRevision {
+	if s.goalID == goalID &&
+		(currentRevision > objectiveRevision || s.boundRevision > objectiveRevision) {
 		return false
 	}
-	if s.goalID == goalID && currentRevision == objectiveRevision &&
+	if s.goalID == goalID && s.boundRevision == objectiveRevision &&
 		s.executionID != "" && s.executionID != executionID {
 		return false
 	}
 	s.goalID = goalID
 	s.executionID = executionID
+	s.boundRevision = objectiveRevision
 	s.objectiveRevision.Store(objectiveRevision)
 	return true
 }
@@ -106,6 +127,7 @@ func (s *GoalAuthorityState) Clear() {
 	s.mu.Lock()
 	s.goalID = ""
 	s.executionID = ""
+	s.boundRevision = 0
 	s.objectiveRevision.Store(0)
 	s.mu.Unlock()
 }
