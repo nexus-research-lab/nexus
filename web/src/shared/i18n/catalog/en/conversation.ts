@@ -207,6 +207,8 @@ export const enConversationMessages = {
   "composer.permission_allow_once": "Allow once",
   "composer.permission_allow_once_menu": "Allow this time only",
   "composer.permission_allow_once_description": "Does not change Agent permission rules",
+  "composer.permission_allow_task": "Always allow for this task",
+  "composer.permission_allow_task_description": "Adds this capability only to scheduled task {name}",
   "composer.permission_deny": "Deny",
   "composer.permission_configuration_secrets_title": "Required secrets",
   "composer.permission_configuration_secrets_description": "Values are sent only with this approval. They are not shown or added to the tool input.",

@@ -168,7 +168,11 @@ func (s *Service) ensureScriptRunPermission(
 				Title:          "定时任务请求执行工作区脚本",
 				Description:    "脚本会在目标 Agent workspace 中执行；授权与当前脚本内容哈希绑定，脚本修改后自动失效。",
 				Reason:         "需要 owner 确认工作区脚本执行",
-				ResumeSafe:     true,
+				DeliverySessionKey: firstNonEmpty(
+					job.Delivery.SessionKey,
+					job.Source.SessionKey,
+				),
+				ResumeSafe: true,
 			},
 			TaskState:  automationdomain.TaskPermissionStateAwaitingApproval,
 			BlockState: automationdomain.RunBlockStateAwaitingApproval,
@@ -186,6 +190,7 @@ func (s *Service) ensureScriptRunPermission(
 			"effect":       request.Capability.Effect,
 			"resume_safe":  request.ResumeSafe,
 		})
+		s.notifyAutomationPermissionRequest(ctx, job, *request)
 	}
 	return false, nil
 }

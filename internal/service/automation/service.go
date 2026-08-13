@@ -100,6 +100,11 @@ type TaskEventNotifier interface {
 	NotifyTaskEvent(context.Context, automationdomain.ScheduledTaskEvent)
 }
 
+// PermissionSessionEventNotifier 把 Automation 持久交互投影到结果接收 Session。
+type PermissionSessionEventNotifier interface {
+	NotifyAutomationPermissionEvent(context.Context, protocol.EventMessage)
+}
+
 // TaskEventNotifierFunc 适配函数式定时任务事件通知器。
 type TaskEventNotifierFunc func(context.Context, automationdomain.ScheduledTaskEvent)
 
@@ -112,21 +117,22 @@ func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event autom
 
 // Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
 type Service struct {
-	config           config.Config
-	repository       *automationstore.Repository
-	agents           agentAuthority
-	dm               dmRunner
-	room             roomRunner
-	permission       *permissionctx.Context
-	providers        imagegenDefaultResolver
-	connectors       connectorConnectionResolver
-	workspace        workspaceReader
-	delivery         deliveryRouter
-	deliveryGrants   deliveryGrantResolver
-	deliverySessions deliverySessionResolver
-	logger           *slog.Logger
-	sessionArtifacts SessionArtifactDeletionCoordinator
-	taskNotifier     TaskEventNotifier
+	config             config.Config
+	repository         *automationstore.Repository
+	agents             agentAuthority
+	dm                 dmRunner
+	room               roomRunner
+	permission         *permissionctx.Context
+	providers          imagegenDefaultResolver
+	connectors         connectorConnectionResolver
+	workspace          workspaceReader
+	delivery           deliveryRouter
+	deliveryGrants     deliveryGrantResolver
+	deliverySessions   deliverySessionResolver
+	logger             *slog.Logger
+	sessionArtifacts   SessionArtifactDeletionCoordinator
+	taskNotifier       TaskEventNotifier
+	permissionNotifier PermissionSessionEventNotifier
 
 	nowFn     func() time.Time
 	idFactory func(string) string
@@ -233,6 +239,11 @@ func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {
 // SetTaskEventNotifier 注入定时任务事件通知器。
 func (s *Service) SetTaskEventNotifier(notifier TaskEventNotifier) {
 	s.taskNotifier = notifier
+}
+
+// SetPermissionSessionEventNotifier 注入结果接收 DM/Room 的实时交互投影出口。
+func (s *Service) SetPermissionSessionEventNotifier(notifier PermissionSessionEventNotifier) {
+	s.permissionNotifier = notifier
 }
 
 // Start 启动后台调度循环。

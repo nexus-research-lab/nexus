@@ -230,12 +230,25 @@ func (s *Service) InvalidateTasksForDeletedSessions(
 		if updateErr != nil {
 			return updateErr
 		}
+		pendingRequests, updateErr := s.repository.ListPermissionRequests(
+			ctx,
+			updated.OwnerUserID,
+			automationdomain.PermissionRequestStatusPending,
+			updated.JobID,
+		)
+		if updateErr != nil {
+			return updateErr
+		}
 		if updateErr = s.repository.SupersedePendingPermissionRequests(
 			ctx,
 			updated.OwnerUserID,
 			updated.JobID,
 		); updateErr != nil {
 			return updateErr
+		}
+		for _, request := range pendingRequests {
+			request.Status = automationdomain.PermissionRequestStatusSuperseded
+			s.notifyAutomationPermissionSessionResolution(ctx, item, request)
 		}
 		if updateErr = s.repository.CancelBlockedRunsForTaskRevision(
 			ctx,

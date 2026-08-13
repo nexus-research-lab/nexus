@@ -40,6 +40,7 @@ func configureRealtimeInvalidation(
 				broadcaster.BroadcastScheduledTaskChanged(ctx, event)
 			},
 		))
+		services.Automation.SetPermissionSessionEventNotifier(broadcaster)
 	}
 	if services.Configuration != nil {
 		services.Configuration.SetNotifier(configurationRealtimeNotifier{broadcaster: broadcaster})

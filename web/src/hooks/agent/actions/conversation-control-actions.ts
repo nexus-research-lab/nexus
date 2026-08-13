@@ -139,6 +139,9 @@ function buildPermissionResponse(
     ...(configurationSecrets
       ? { configuration_secrets: configurationSecrets }
       : {}),
+    ...(pendingPermission.source === "automation"
+      ? { automation_scope: payload.automation_scope ?? "once" }
+      : {}),
     ...optionalFields,
   };
 }
