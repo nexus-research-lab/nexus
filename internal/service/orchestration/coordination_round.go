@@ -102,6 +102,7 @@ func (s *Service) activateReviewContinuationResult(
 	if err := s.mintRuntimeCoordination(actor, result.Snapshot.Execution.ID); err != nil {
 		return result
 	}
+	result.WorkBinding = &WorkBindingReceipt{Clear: true}
 	result.NextActions = nextActions(
 		result.Snapshot,
 		s.effectiveRuntimeCoordinationActor(actor, result.Snapshot),

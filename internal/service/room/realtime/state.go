@@ -33,6 +33,8 @@ type roomSlotRuntimeState struct {
 	errorMessage     string
 	done             chan struct{}
 	doneOnce         sync.Once
+	workBindingOnce  sync.Once
+	workBindingState *runtimectx.WorkBindingState
 }
 
 type roomGoalAuthoritySource string
@@ -192,6 +194,26 @@ type activeRoomSlot struct {
 	WorkBinding           *protocol.ExecutionWorkBinding
 	ReviewBinding         *protocol.ExecutionReviewBinding
 	mutable               roomSlotMutableState
+}
+
+func (s *activeRoomSlot) ensureWorkBindingState() *runtimectx.WorkBindingState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.workBindingOnce.Do(func() {
+		runtimeState.workBindingState = runtimectx.NewWorkBindingState(s.WorkBinding)
+	})
+	return runtimeState.workBindingState
+}
+
+func (s *activeRoomSlot) currentWorkBinding() *protocol.ExecutionWorkBinding {
+	state := s.ensureWorkBindingState()
+	if state == nil {
+		return nil
+	}
+	binding, _ := state.Load()
+	return binding
 }
 
 func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int64 {

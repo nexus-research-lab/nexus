@@ -20,6 +20,7 @@ type ExecutionToolContext struct {
 	RuntimeSessionKey  string
 	ExecutionID        string
 	WorkBinding        *protocol.ExecutionWorkBinding
+	WorkBindingState   *WorkBindingState
 	ReviewBinding      *protocol.ExecutionReviewBinding
 	CoordinatorAgentID string
 	RootRoundID        string

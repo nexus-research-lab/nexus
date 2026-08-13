@@ -38,6 +38,14 @@ type GoalAuthorityReceipt struct {
 	ExecutionID       string
 }
 
+// WorkBindingReceipt 是 Room host 在持久化 self Assignment 后签发的进程内
+// capability receipt；Clear 表示责任已完成并回到同轮 coordination。
+// 两者都不投影给模型，DM 也不会消费该 receipt。
+type WorkBindingReceipt struct {
+	Binding *protocol.ExecutionWorkBinding
+	Clear   bool
+}
+
 // GoalConfirmationStatus is projected to the model only when a mutation
 // crosses the Execution/Goal durable confirmation boundary.
 type GoalConfirmationStatus string
@@ -63,6 +71,7 @@ type MutationResult struct {
 	GoalConfirmation GoalConfirmationStatus      `json:"goal_confirmation_status,omitempty"`
 	Snapshot         *protocol.ExecutionSnapshot `json:"snapshot,omitempty"`
 	GoalAuthority    *GoalAuthorityReceipt       `json:"-"`
+	WorkBinding      *WorkBindingReceipt         `json:"-"`
 }
 
 // AppliedResult 生成成功 mutation 的稳定 envelope。

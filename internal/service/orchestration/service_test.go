@@ -2019,6 +2019,84 @@ func TestServiceGoalExecutionCompletionBlockerUsesObjectiveRevision(t *testing.T
 	}
 }
 
+func TestRoomCoordinatorSelfAssignmentReturnsExplicitWorkBindingReceipt(t *testing.T) {
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Execution.ScopeKind = protocol.ExecutionScopeRoom
+	snapshot.Execution.RoomID = "room-1"
+	snapshot.Execution.ConversationID = "conversation-1"
+	snapshot.Assignments = nil
+	snapshot.Attempts = nil
+	snapshot.ReadyWorkItemIDs = []string{"work-1"}
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.assign = func(
+		_ context.Context,
+		command orchestrationstore.AssignCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		result := cloneExecutionSnapshot(snapshot)
+		result.Execution.Version++
+		result.Assignments = append(result.Assignments, command.Assignment)
+		result.Attempts = append(result.Attempts, *command.RootAttempt)
+		return result, nil
+	}
+	service := testService(repository)
+	actor := ActorContext{
+		OwnerUserID: snapshot.Execution.OwnerUserID,
+		SessionKey:  snapshot.Execution.SessionKey,
+		AgentID:     snapshot.Execution.CoordinatorAgentID,
+		Role:        ExecutionActorCoordinator, ActorKind: protocol.ExecutionActorAgent,
+		ScopeKind: protocol.ExecutionScopeRoom,
+		RoomID:    snapshot.Execution.RoomID, ConversationID: snapshot.Execution.ConversationID,
+		RootRoundID: "root-1", RuntimeRoundID: "runtime-1", AgentRoundID: "agent-round-1",
+	}
+	if err := service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID: snapshot.Execution.ID, SnapshotRevision: snapshot.Execution.Version,
+		CommandID: "assign-self-room", WorkItemID: "work-1",
+		TargetAgentID: actor.AgentID, Strategy: protocol.AssignmentStrategySelf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied || result.WorkBinding == nil ||
+		result.WorkBinding.Binding == nil || result.WorkBinding.Clear {
+		t.Fatalf("self assignment result = %#v", result)
+	}
+	binding := result.WorkBinding.Binding
+	if binding.ExecutionID != snapshot.Execution.ID || binding.WorkItemID != "work-1" ||
+		binding.AssignmentID == "" || binding.AttemptID == "" || binding.DispatchID != "" {
+		t.Fatalf("self WorkBinding receipt = %#v", binding)
+	}
+	repository.snapshot = result.Snapshot
+	replay, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID: result.Snapshot.Execution.ID, SnapshotRevision: result.Snapshot.Execution.Version,
+		CommandID: "assign-self-room-recover-receipt", WorkItemID: "work-1",
+		TargetAgentID: actor.AgentID, Strategy: protocol.AssignmentStrategySelf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay.Outcome != MutationNoOp || replay.WorkBinding == nil ||
+		replay.WorkBinding.Binding == nil ||
+		replay.WorkBinding.Binding.AssignmentID != binding.AssignmentID ||
+		replay.WorkBinding.Binding.AttemptID != binding.AttemptID {
+		t.Fatalf("self Assignment receipt recovery = %#v", replay)
+	}
+
+	dmSnapshot := cloneExecutionSnapshot(snapshot)
+	dmSnapshot.Execution.ScopeKind = protocol.ExecutionScopeDM
+	dmResult := AppliedResult(dmSnapshot, nil, nil)
+	dmResult = withRoomSelfWorkBindingReceipt(
+		coordinatorActor(),
+		dmResult,
+		"work-1",
+	)
+	if dmResult.WorkBinding != nil {
+		t.Fatalf("DM received Room WorkBinding receipt: %#v", dmResult.WorkBinding)
+	}
+}
+
 func testService(repository Repository) *Service {
 	service := NewService(repository)
 	counts := make(map[string]int)

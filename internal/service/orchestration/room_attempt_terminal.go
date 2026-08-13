@@ -24,7 +24,7 @@ type RoomAttemptTerminalInput struct {
 	SDKSessionID      string
 }
 
-// FinishRoomAttempt 终结 structured Dispatch 的 root Attempt。正常 finished
+// FinishRoomAttempt 终结 structured Room WorkBinding 的 root Attempt。正常 finished
 // 只产生 Attempt succeeded；Submission 与 Acceptance 仍必须由模型语义工具创建。
 func (s *Service) FinishRoomAttempt(
 	ctx context.Context,
@@ -132,7 +132,9 @@ func (s *Service) FinishRoomAttempt(
 				Attempt:                  terminal,
 				Meta: s.commandMeta(
 					actor,
-					"room-attempt-terminal:"+binding.DispatchID+":"+string(input.Status),
+					"room-attempt-terminal:"+
+						firstNonEmpty(binding.DispatchID, binding.AttemptID)+":"+
+						string(input.Status),
 					"room-attempt-terminal",
 				),
 			},
@@ -173,21 +175,30 @@ func authorizeRoomAttemptTerminalBinding(
 		strings.TrimSpace(assignment.OwnerAgentID) != agentID {
 		return nil, workBindingMismatch("Room root Attempt Assignment binding is stale")
 	}
-	dispatchMatched := false
-	for _, dispatch := range snapshot.Dispatches {
-		if dispatch.ID == binding.DispatchID &&
-			dispatch.ExecutionID == binding.ExecutionID &&
-			dispatch.PlanID == binding.PlanID &&
-			dispatch.WorkItemID == binding.WorkItemID &&
-			dispatch.SpecID == binding.SpecID &&
-			dispatch.AssignmentID == binding.AssignmentID &&
-			strings.TrimSpace(dispatch.TargetAgentID) == agentID {
-			dispatchMatched = true
-			break
+	if assignment.Strategy == protocol.AssignmentStrategySelf {
+		if binding.DispatchID != "" {
+			return nil, workBindingMismatch("self Room root Attempt must not carry a Dispatch")
 		}
-	}
-	if !dispatchMatched {
-		return nil, workBindingMismatch("Room root Attempt Dispatch binding is stale")
+	} else {
+		if binding.DispatchID == "" {
+			return nil, workBindingMismatch("dispatched Room root Attempt is missing its Dispatch")
+		}
+		dispatchMatched := false
+		for _, dispatch := range snapshot.Dispatches {
+			if dispatch.ID == binding.DispatchID &&
+				dispatch.ExecutionID == binding.ExecutionID &&
+				dispatch.PlanID == binding.PlanID &&
+				dispatch.WorkItemID == binding.WorkItemID &&
+				dispatch.SpecID == binding.SpecID &&
+				dispatch.AssignmentID == binding.AssignmentID &&
+				strings.TrimSpace(dispatch.TargetAgentID) == agentID {
+				dispatchMatched = true
+				break
+			}
+		}
+		if !dispatchMatched {
+			return nil, workBindingMismatch("Room root Attempt Dispatch binding is stale")
+		}
 	}
 	attempt := findAttemptByID(snapshot, binding.AttemptID)
 	if attempt == nil ||

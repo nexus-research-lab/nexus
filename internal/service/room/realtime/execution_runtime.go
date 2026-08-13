@@ -354,6 +354,7 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 			e.round.ExecutionID,
 		),
 		WorkBinding:        cloneExecutionWorkBinding(e.slot.WorkBinding),
+		WorkBindingState:   e.ensureWorkBindingState(),
 		ReviewBinding:      cloneExecutionReviewBinding(e.slot.ReviewBinding),
 		CoordinatorAgentID: strings.TrimSpace(e.round.CoordinatorAgentID),
 		RootRoundID:        e.round.RootRoundID,

@@ -57,6 +57,7 @@ type ServerContext struct {
 	RuntimeSessionKey string
 	ExecutionID       string
 	WorkBinding       *protocol.ExecutionWorkBinding
+	WorkBindingState  *runtimectx.WorkBindingState
 	ReviewBinding     *protocol.ExecutionReviewBinding
 	GoalAuthority     *runtimectx.GoalAuthorityState
 	RootRoundID       string
@@ -72,7 +73,14 @@ type ServerContext struct {
 // boundary.
 func (c ServerContext) Actor() orchestration.ActorContext {
 	goalAuthority, _ := c.GoalAuthority.Load()
+	workBinding := cloneExecutionWorkBinding(c.WorkBinding)
+	if c.WorkBindingState != nil {
+		workBinding, _ = c.WorkBindingState.Load()
+	}
 	executionID := strings.TrimSpace(c.ExecutionID)
+	if workBinding != nil {
+		executionID = strings.TrimSpace(workBinding.ExecutionID)
+	}
 	if executionID == "" {
 		executionID = strings.TrimSpace(goalAuthority.ExecutionID)
 	}
@@ -80,7 +88,7 @@ func (c ServerContext) Actor() orchestration.ActorContext {
 		OwnerUserID:           strings.TrimSpace(c.OwnerUserID),
 		SessionKey:            strings.TrimSpace(c.ScopeSessionKey),
 		ExecutionID:           executionID,
-		WorkBinding:           cloneExecutionWorkBinding(c.WorkBinding),
+		WorkBinding:           workBinding,
 		ReviewBinding:         cloneExecutionReviewBinding(c.ReviewBinding),
 		GoalID:                goalAuthority.GoalID,
 		GoalObjectiveRevision: goalAuthority.ObjectiveRevision,

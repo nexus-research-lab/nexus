@@ -66,6 +66,42 @@ func TestStructuredRoomWorkBindingScopesSnapshotAndRejectsCrossAssignmentMutatio
 	}
 }
 
+func TestRoomSelfWorkBindingNeedsNoDispatchButStillScopesOneAssignment(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Assignments[0].Strategy = protocol.AssignmentStrategySelf
+	snapshot.Assignments[0].OwnerAgentID = snapshot.Execution.CoordinatorAgentID
+	snapshot.Assignments[0].ReturnToAgentID = snapshot.Execution.CoordinatorAgentID
+	snapshot.Dispatches = nil
+	snapshot.Attempts[0].DispatchID = ""
+	snapshot.Attempts[0].ExecutorAgentID = snapshot.Execution.CoordinatorAgentID
+	binding.DispatchID = ""
+	actor := structuredRoomMemberActor(binding)
+	actor.AgentID = snapshot.Execution.CoordinatorAgentID
+	actor.Role = ExecutionActorCoordinator
+
+	scoped, err := NewService(&fakeRepository{snapshot: snapshot}).GetSnapshot(
+		context.Background(),
+		actor,
+		binding.ExecutionID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scoped.Assignments) != 1 || scoped.Assignments[0].ID != binding.AssignmentID ||
+		len(scoped.Dispatches) != 0 || len(scoped.Attempts) != 1 {
+		t.Fatalf("self WorkBinding scope = %#v", scoped)
+	}
+
+	bad := binding
+	bad.DispatchID = "model-forged-dispatch"
+	actor.WorkBinding = &bad
+	if _, err = NewService(&fakeRepository{snapshot: snapshot}).GetSnapshot(
+		context.Background(), actor, binding.ExecutionID,
+	); err == nil || !strings.Contains(err.Error(), "must not carry a Dispatch") {
+		t.Fatalf("forged self dispatch error = %v", err)
+	}
+}
+
 func TestStructuredRoomWorkBindingFailsClosedForHistoricalDependencyOverflow(t *testing.T) {
 	snapshot, binding := structuredRoomWorkBindingSnapshot()
 	for index := 0; index < protocol.ExecutionProjectionCollectionLimit+1; index++ {
@@ -612,7 +648,12 @@ func TestRoomCoordinatorSelfReviewContinuesFromWorkBindingSameRound(t *testing.T
 	snapshot, binding := structuredRoomWorkBindingSnapshot()
 	snapshot.Assignments[0].OwnerAgentID = snapshot.Execution.CoordinatorAgentID
 	snapshot.Assignments[0].ReturnToAgentID = snapshot.Execution.CoordinatorAgentID
+	snapshot.Assignments[0].Strategy = protocol.AssignmentStrategySelf
 	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+	snapshot.Dispatches = nil
+	snapshot.Attempts[0].DispatchID = ""
+	snapshot.Attempts[0].ExecutorAgentID = snapshot.Execution.CoordinatorAgentID
+	binding.DispatchID = ""
 	snapshot.Submissions = []protocol.WorkSubmission{{
 		ID:               "submission-self-review",
 		ExecutionID:      binding.ExecutionID,
@@ -783,7 +824,7 @@ func TestRoomCoordinatorKeepsAuthorityWhileUnboundMemberStaysConversationOnly(t 
 	coordinator := structuredRoomMemberActor(binding)
 	coordinator.AgentID = snapshot.Execution.CoordinatorAgentID
 	coordinator.Role = ExecutionActorCoordinator
-	coordinator.WorkBinding = &protocol.ExecutionWorkBinding{ExecutionID: binding.ExecutionID}
+	coordinator.WorkBinding = nil
 	coordinatorSnapshot, err := service.GetSnapshot(
 		context.Background(),
 		coordinator,

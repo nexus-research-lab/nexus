@@ -245,7 +245,11 @@ Managed work uses an exact chain of durable and runtime identities:
 2. **Dispatch** is the durable Room delivery outbox when a Room member must be
    started or notified.
 3. **WorkBinding** is the runtime capability for the exact
-   Execution/Plan/Work Item/Assignment/Attempt chain.
+   Execution/Plan/Work Item/Assignment/Attempt chain. A dispatched Room member
+   receives it from the durable Dispatch/slot path. When the Room Lead assigns
+   work to itself, the host signs the binding from the committed self Assignment
+   mutation and installs it into that same physical round; Room membership or
+   coordinator identity alone never substitutes for this receipt.
 4. **Attempt** records one execution by an Agent or managed Subagent.
 5. **Submission** immutably records the delivered result.
 6. **Review Dispatch** selects and notifies a reviewer without creating a reviewer
@@ -419,7 +423,9 @@ control-plane transition.
 
 A physical runtime round is an execution carrier, not an Assignment identity. One
 round may serially complete root Attempts for different self-owned Assignments in
-DM or Room coordination. The durable duplicate fence is therefore
+DM or Room coordination. In Room, every self-owned interval still begins with a
+host-issued WorkBinding receipt and ends with an explicit responsibility transition;
+the Room path never adopts DM's implicit assignment inference. The durable duplicate fence is therefore
 `runtime_session_key + runtime_round_id + agent_round_id + assignment_id` for root
 Attempts. A structured Room worker still receives one exact WorkBinding containing
 its Execution, Plan, Work Item, Assignment, Attempt, and Dispatch identities; sharing
