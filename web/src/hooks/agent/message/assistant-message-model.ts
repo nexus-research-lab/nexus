@@ -223,6 +223,8 @@ export function mergeAssistantMessage(
       normalizedIncoming.is_complete ?? normalizedExisting.is_complete,
     result_summary:
       normalizedIncoming.result_summary ?? normalizedExisting.result_summary,
+    recalled_memories:
+      normalizedIncoming.recalled_memories ?? normalizedExisting.recalled_memories,
     stop_reason:
       normalizedIncoming.stop_reason ?? normalizedExisting.stop_reason,
     stream_status:

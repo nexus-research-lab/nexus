@@ -217,6 +217,7 @@ function assistantSnapshotProgress(
     normalized.result_summary ? 1 : 0,
     normalized.stop_reason ? 1 : 0,
     serializedSize(normalized.content),
+    serializedSize(normalized.recalled_memories),
     serializedSize(normalized.usage),
     normalized.timestamp,
   ];

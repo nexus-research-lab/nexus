@@ -1,7 +1,6 @@
 package message
 
 import (
-	"encoding/json"
 	"testing"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -127,36 +126,6 @@ func TestProcessorPreservesMemorySavedSystemEvent(t *testing.T) {
 	paths, ok := metadata["written_paths"].([]string)
 	if output.DurableMessages[0]["content"] != "长期记忆已保存" || !ok || len(paths) != 1 || paths[0] != "/memory/user.md" {
 		t.Fatalf("memory event = %#v", output.DurableMessages[0])
-	}
-}
-
-func TestProcessorProjectsMemoryRecallAsDurableStatus(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-memory-recall",
-	}, "sdk-session-memory")
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type:    sdkprotocol.MessageTypeSystem,
-		Subtype: "memory_recalled",
-		System: &sdkprotocol.SystemMessage{
-			Subtype: "memory_recalled",
-			Data: map[string]any{
-				"count": json.Number("2"),
-				"mode":  "local",
-			},
-		},
-	})
-	if len(output.DurableMessages) != 1 || len(output.EphemeralMessages) != 0 {
-		t.Fatalf("output = %#v, want one durable recall status", output)
-	}
-	message := output.DurableMessages[0]
-	if message["content"] != "已加载 2 条长期记忆" {
-		t.Fatalf("content = %#v", message["content"])
-	}
-	metadata, _ := message["metadata"].(map[string]any)
-	if metadata["subtype"] != "memory_recalled" || metadata["count"] != 2 || metadata["mode"] != "local" {
-		t.Fatalf("metadata = %#v", metadata)
 	}
 }
 

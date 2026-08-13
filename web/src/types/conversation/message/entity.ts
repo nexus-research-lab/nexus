@@ -89,6 +89,11 @@ export interface ResultSummary {
   is_error: boolean;
 }
 
+export interface RecalledMemoryReference {
+  description: string;
+  name: string;
+}
+
 export type AssistantMessageStatus =
   | "pending"
   | "streaming"
@@ -104,6 +109,8 @@ export interface AssistantMessage extends BaseMessage {
   model?: string;
   usage?: Usage;
   result_summary?: ResultSummary;
+  /** 本轮实际注入模型的长期记忆摘要；正文和绝对路径不进入消息。 */
+  recalled_memories?: RecalledMemoryReference[];
   /** 服务端解析出的可点击 Agent mention span。 */
   agent_mentions?: AgentMention[];
   /** 前端流式状态，不属于后端持久化消息字段。 */
