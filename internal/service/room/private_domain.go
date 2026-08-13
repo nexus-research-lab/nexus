@@ -92,14 +92,59 @@ func (s *Service) ListAgentPrivateEvents(
 		}
 		return cmp.Compare(left.MessageID, right.MessageID)
 	})
-	limit := privateview.EventLimit(query.Limit)
-	if len(events) > limit {
-		events = events[len(events)-limit:]
+	events, hasMore := paginatePrivateEvents(events, query)
+	var nextBeforeMessageID *string
+	var nextBeforeTimestamp *int64
+	if hasMore && len(events) > 0 {
+		messageID := events[0].MessageID
+		timestamp := events[0].Timestamp
+		nextBeforeMessageID = &messageID
+		nextBeforeTimestamp = &timestamp
 	}
 	return protocol.AgentPrivateEventPage{
-		Thread: builder.Thread,
-		Items:  events,
+		Thread:              builder.Thread,
+		Items:               events,
+		HasMore:             hasMore,
+		NextBeforeMessageID: nextBeforeMessageID,
+		NextBeforeTimestamp: nextBeforeTimestamp,
 	}, nil
+}
+
+func paginatePrivateEvents(
+	events []protocol.AgentPrivateEvent,
+	query AgentPrivateDomainQuery,
+) ([]protocol.AgentPrivateEvent, bool) {
+	end := privateEventPageEnd(events, query.BeforeMessageID, query.BeforeTimestamp)
+	start := max(0, end-privateview.EventLimit(query.Limit))
+	return slices.Clone(events[start:end]), start > 0
+}
+
+func privateEventPageEnd(
+	events []protocol.AgentPrivateEvent,
+	beforeMessageID string,
+	beforeTimestamp int64,
+) int {
+	beforeMessageID = strings.TrimSpace(beforeMessageID)
+	if beforeTimestamp <= 0 && beforeMessageID == "" {
+		return len(events)
+	}
+	for index, event := range events {
+		if beforeTimestamp <= 0 {
+			if event.MessageID == beforeMessageID {
+				return index
+			}
+			continue
+		}
+		if event.Timestamp > beforeTimestamp ||
+			(event.Timestamp == beforeTimestamp &&
+				(beforeMessageID == "" || event.MessageID >= beforeMessageID)) {
+			return index
+		}
+	}
+	if beforeTimestamp <= 0 {
+		return 0
+	}
+	return len(events)
 }
 
 func (s *Service) collectAgentPrivateDomain(

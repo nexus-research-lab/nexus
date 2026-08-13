@@ -46,7 +46,6 @@ interface TimelineNode {
 
 const ROOM_AGENT_NODE_PREFIX = "room-agent-round:";
 const ROOM_THREAD_ONLY_SYSTEM_SUBTYPES = new Set([
-  "memory_recalled",
   "memory_saved",
 ]);
 

@@ -46,6 +46,25 @@ interface ProjectRoomAgentActivityStateOptions {
   status: AgentRoundStatus;
 }
 
+/** 判断 Thread inspector 是否存在主 Feed 最终回复之外的内容。 */
+export function hasRoomAgentExecutionDetails(
+  messages: AssistantMessage[],
+): boolean {
+  const finalMessageIndex = messages.length - 1;
+  return messages.some((message, messageIndex) => message.content.some(
+    (block) => {
+      if (block.type === "text") {
+        return messageIndex < finalMessageIndex
+          && Boolean(stripRoomControlMarkers(block.text));
+      }
+      if (block.type === "thinking") {
+        return Boolean(stripRoomControlMarkers(block.thinking));
+      }
+      return true;
+    },
+  ));
+}
+
 /**
  * 公区只把 canonical execution/message/permission 证据翻译成共享活动词汇；
  * slot 身份、生命周期和终态仍由 RoomAgentExecutionState / round entry 决定。

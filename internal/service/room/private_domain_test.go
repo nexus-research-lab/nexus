@@ -114,6 +114,28 @@ func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
 		t.Fatalf("outgoing direct 私域事件内容不正确: %+v", *outgoing)
 	}
 
+	latestPage, err := roomService.ListAgentPrivateEvents(ctx, devin.AgentID, directThread.ThreadID, roomsvc.AgentPrivateDomainQuery{Limit: 1})
+	if err != nil {
+		t.Fatalf("读取最新一页私域事件失败: %v", err)
+	}
+	if !latestPage.HasMore || len(latestPage.Items) != 1 ||
+		latestPage.NextBeforeMessageID == nil || latestPage.NextBeforeTimestamp == nil ||
+		latestPage.Items[0].MessageID != eventPage.Items[1].MessageID {
+		t.Fatalf("最新私域事件分页不正确: %+v", latestPage)
+	}
+	olderPage, err := roomService.ListAgentPrivateEvents(ctx, devin.AgentID, directThread.ThreadID, roomsvc.AgentPrivateDomainQuery{
+		Limit:           1,
+		BeforeMessageID: *latestPage.NextBeforeMessageID,
+		BeforeTimestamp: *latestPage.NextBeforeTimestamp,
+	})
+	if err != nil {
+		t.Fatalf("读取更早一页私域事件失败: %v", err)
+	}
+	if olderPage.HasMore || len(olderPage.Items) != 1 ||
+		olderPage.Items[0].MessageID != eventPage.Items[0].MessageID {
+		t.Fatalf("更早私域事件分页不正确: %+v", olderPage)
+	}
+
 	samPage, err := roomService.ListAgentPrivateThreads(ctx, sam.AgentID, roomsvc.AgentPrivateDomainQuery{})
 	if err != nil {
 		t.Fatalf("读取 Sam 私域线程失败: %v", err)

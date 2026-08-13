@@ -54,10 +54,12 @@ interface ContactsAgentDetailProps {
   onAddContact: (contactAgentId: string, alias: string) => Promise<boolean>;
   onBackToCommunicationDirectory: () => void;
   onCreateCommunicationConversation: (title?: string) => Promise<string | null>;
+  onLoadOlderCommunicationMessages: () => Promise<boolean>;
   onCreateTeam: (agentId: string) => void;
   onDeleteAgent: (agentId: string) => void;
   onOpenDirectRoom: (agentId: string) => void;
   onRefreshCommunication: () => void;
+  onRemoveCommunicationContact: (contactAgentId: string) => Promise<boolean>;
   onSaveAgentOptions: (
     agentId: string,
     title: string,
@@ -81,10 +83,12 @@ export function ContactsAgentDetail({
   onAddContact,
   onBackToCommunicationDirectory,
   onCreateCommunicationConversation,
+  onLoadOlderCommunicationMessages,
   onCreateTeam,
   onDeleteAgent,
   onOpenDirectRoom,
   onRefreshCommunication,
+  onRemoveCommunicationContact,
   onSaveAgentOptions,
   onValidateAgentName,
   onSelectCommunicationContact,
@@ -218,7 +222,9 @@ export function ContactsAgentDetail({
               onAddContact={onAddContact}
               onBackToDirectory={onBackToCommunicationDirectory}
               onCreateConversation={onCreateCommunicationConversation}
+              onLoadOlderMessages={onLoadOlderCommunicationMessages}
               onRefresh={onRefreshCommunication}
+              onRemoveContact={onRemoveCommunicationContact}
               onSelectContact={onSelectCommunicationContact}
               onSelectConversation={onSelectCommunicationConversation}
               onSendMessage={onSendCommunicationMessage}

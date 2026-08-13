@@ -9,6 +9,7 @@ import type { AgentMentionDirectory } from "@/features/conversation/shared/messa
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { GroupRoundAgentCardModel } from "./group-round-card-model";
+import { isRoomAgentNoPublicReply } from "./group-agent-execution-model";
 import { GroupAgentExecutionShell } from "./group-agent-execution-shell";
 
 interface GroupAgentReplyProps {
@@ -43,6 +44,14 @@ export function GroupAgentReply({
   showAgentBoundary,
   agentMentionDirectory,
 }: GroupAgentReplyProps) {
+  if (isRoomAgentNoPublicReply(
+    entry.assistant_messages,
+    entry.result_summary,
+    entry.status,
+  )) {
+    return null;
+  }
+
   return (
     <GroupAgentExecutionShell
       agentAvatar={entry.agentAvatar}

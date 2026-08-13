@@ -11,6 +11,7 @@ import type {
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
+/** 打开或恢复已有好友直聊通道；首条发送前可能返回 404。 */
 export async function openAgentContactChannelApi(
   agentId: string,
   contactAgentId: string,

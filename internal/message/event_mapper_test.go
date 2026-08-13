@@ -146,3 +146,68 @@ func TestEventMapperKeepsEmptySuccessfulResultDurableWithoutEvent(t *testing.T) 
 		t.Fatalf("空 success result 映射不正确: %+v", result)
 	}
 }
+
+func TestEventMapperFinalizesInterruptedStreamContent(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{
+		Context: MessageContext{
+			AgentID:      "agent-1",
+			RoundID:      "round-interrupted",
+			AgentRoundID: "agent-round-interrupted",
+		},
+	})
+	mapper.SetMessageDecorator(func(message protocol.Message) {
+		message["decorated"] = true
+	})
+	stream := []sdkprotocol.ReceivedMessage{
+		{
+			Type: sdkprotocol.MessageTypeStreamEvent,
+			Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+				"type":    "message_start",
+				"message": map[string]any{"id": "assistant-interrupted"},
+			}},
+		},
+		{
+			Type: sdkprotocol.MessageTypeStreamEvent,
+			Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+				"type":  "content_block_start",
+				"index": 0,
+				"content_block": map[string]any{
+					"type": "thinking", "thinking": "先分析",
+				},
+			}},
+		},
+		{
+			Type: sdkprotocol.MessageTypeStreamEvent,
+			Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+				"type":  "content_block_delta",
+				"index": 0,
+				"delta": map[string]any{
+					"type": "thinking_delta", "thinking": "再决定",
+				},
+			}},
+		},
+	}
+	for _, incoming := range stream {
+		if _, err := mapper.Map(incoming); err != nil {
+			t.Fatalf("Map() error = %v", err)
+		}
+	}
+
+	partial := mapper.FinalizeInterruptedAssistant()
+	if partial["is_complete"] != true || partial["stop_reason"] != "cancelled" {
+		t.Fatalf("中断快照未收口: %+v", partial)
+	}
+	if partial["is_interrupted_partial"] != true {
+		t.Fatalf("中断快照必须进入 overlay: %+v", partial)
+	}
+	blocks := partial["content"].([]map[string]any)
+	if len(blocks) != 1 || blocks[0]["thinking"] != "先分析再决定" {
+		t.Fatalf("中断快照未保留流式内容: %+v", partial)
+	}
+	if partial["decorated"] != true || mapper.LastAssistantMessage()["decorated"] != true {
+		t.Fatalf("中断快照未经过场景装饰: %+v", partial)
+	}
+	if duplicate := mapper.FinalizeInterruptedAssistant(); duplicate != nil {
+		t.Fatalf("重复收口不应再次生成快照: %+v", duplicate)
+	}
+}

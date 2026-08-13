@@ -512,6 +512,7 @@ export const enConversationMessages = {
   "message.goal_completed": "Goal completed",
   "message.goal_elapsed": "Elapsed {duration}",
   "message.goal_tokens_used": "Used {count} tokens",
+  "message.recalled_memories": "Referenced memories",
   "message.activity_compacting": "Compacting context",
   "message.activity_sending": "Sending",
   "message.activity_thinking": "Thinking",

@@ -11,10 +11,11 @@ import {
   LoaderCircle,
   MessageCircle,
   RefreshCw,
+  Trash2,
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import {
@@ -25,6 +26,8 @@ import {
 } from "@/features/conversation/shared/conversation-panel-layout";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
+import { useConversationHistoryLoader } from "@/features/conversation/shared/timeline/use-history-loader";
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
@@ -33,6 +36,7 @@ import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -71,7 +75,10 @@ export interface AgentCommunicationViewState {
   conversationId: string | null;
   directEvents: AgentPrivateEvent[];
   error: string | null;
+  hasMoreHistory: boolean;
+  historyPrependToken: number;
   isDirectoryLoading: boolean;
+  isHistoryLoading: boolean;
   isMessagesLoading: boolean;
   isSending: boolean;
   pendingAgentId: string | null;
@@ -86,7 +93,9 @@ interface AgentCommunicationViewProps {
   onAddContact: (contactAgentId: string, alias: string) => Promise<boolean>;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onLoadOlderMessages: () => Promise<boolean>;
   onRefresh: () => void;
+  onRemoveContact: (contactAgentId: string) => Promise<boolean>;
   onSelectContact: (contactAgentId: string) => void;
   onSelectConversation: (conversationId: string) => void;
   onSendMessage: (content: string) => Promise<void>;
@@ -98,7 +107,9 @@ export function AgentCommunicationView({
   onAddContact,
   onBackToDirectory,
   onCreateConversation,
+  onLoadOlderMessages,
   onRefresh,
+  onRemoveContact,
   onSelectContact,
   onSelectConversation,
   onSendMessage,
@@ -107,6 +118,7 @@ export function AgentCommunicationView({
   const { t } = useI18n();
   const [query, setQuery] = useResettableState("", agent.agent_id);
   const [addDialogOpen, setAddDialogOpen] = useResettableState(false, agent.agent_id);
+  const [removeDialogOpen, setRemoveDialogOpen] = useResettableState(false, agent.agent_id);
   const agentsById = useMemo(
     () => new Map(agents.map((item) => [item.agent_id, item])),
     [agents],
@@ -197,6 +209,7 @@ export function AgentCommunicationView({
               onBack={onBackToDirectory}
               onCreateConversation={onCreateConversation}
               onRefresh={onRefresh}
+              onRemove={() => setRemoveDialogOpen(true)}
               onSelectConversation={onSelectConversation}
             />
             <ContactConversation
@@ -205,8 +218,12 @@ export function AgentCommunicationView({
               conversationId={state.conversationId}
               error={state.error}
               events={state.directEvents}
+              hasMoreHistory={state.hasMoreHistory}
+              historyPrependToken={state.historyPrependToken}
+              isHistoryLoading={state.isHistoryLoading}
               isLoading={state.isMessagesLoading}
               isSending={state.isSending}
+              onLoadOlderMessages={onLoadOlderMessages}
               onSend={onSendMessage}
               targetId={selectedContact.contact_agent_id}
             />
@@ -225,6 +242,24 @@ export function AgentCommunicationView({
           onClose={() => setAddDialogOpen(false)}
         />
       ) : null}
+      <ConfirmDialog
+        confirmText={t("agent_options.contact.remove_friend")}
+        isOpen={removeDialogOpen && selectedContact !== null}
+        message={selectedContact
+          ? t("agent_options.contact.remove_friend_confirm", { name: contactLabel(selectedContact) })
+          : ""}
+        onCancel={() => setRemoveDialogOpen(false)}
+        onConfirm={() => {
+          if (selectedContact) {
+            void onRemoveContact(selectedContact.contact_agent_id).then((removed) => {
+              if (removed) {
+                setRemoveDialogOpen(false);
+              }
+            });
+          }
+        }}
+        title={t("agent_options.contact.remove_friend")}
+      />
     </div>
   );
 }
@@ -272,6 +307,7 @@ function CommunicationHeader({
   onBack,
   onCreateConversation,
   onRefresh,
+  onRemove,
   onSelectConversation,
 }: {
   contact: AgentContact;
@@ -280,6 +316,7 @@ function CommunicationHeader({
   onBack: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onRefresh: () => void;
+  onRemove: () => void;
   onSelectConversation: (conversationId: string) => void;
 }) {
   const { t } = useI18n();
@@ -328,15 +365,27 @@ function CommunicationHeader({
           />
         )}
         trailing={(
-          <UiIconButton
-            aria-label={t("agent_options.contact.refresh")}
-            onClick={onRefresh}
-            size="sm"
-            title={t("agent_options.contact.refresh")}
-            variant="ghost"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </UiIconButton>
+          <div className="flex items-center gap-0.5">
+            <UiIconButton
+              aria-label={t("agent_options.contact.refresh")}
+              onClick={onRefresh}
+              size="sm"
+              title={t("agent_options.contact.refresh")}
+              variant="ghost"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </UiIconButton>
+            <UiIconButton
+              aria-label={t("agent_options.contact.remove_friend")}
+              onClick={onRemove}
+              size="sm"
+              title={t("agent_options.contact.remove_friend")}
+              tone="danger"
+              variant="ghost"
+            >
+              <Trash2 className="h-4 w-4" />
+            </UiIconButton>
+          </div>
         )}
       />
     </div>
@@ -349,8 +398,12 @@ function ContactConversation({
   conversationId,
   error,
   events,
+  hasMoreHistory,
+  historyPrependToken,
+  isHistoryLoading,
   isLoading,
   isSending,
+  onLoadOlderMessages,
   onSend,
   targetId,
 }: {
@@ -359,14 +412,17 @@ function ContactConversation({
   conversationId: string | null;
   error: string | null;
   events: AgentPrivateEvent[];
+  hasMoreHistory: boolean;
+  historyPrependToken: number;
+  isHistoryLoading: boolean;
   isLoading: boolean;
   isSending: boolean;
+  onLoadOlderMessages: () => Promise<boolean>;
   onSend: (content: string) => Promise<void>;
   targetId: string;
 }) {
   const { t } = useI18n();
   const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const messages = useMemo(
     () => events
       .filter((event) => Boolean(event.content?.trim()))
@@ -374,14 +430,32 @@ function ContactConversation({
       .map((event) => toConversationMessage(event, agent.agent_id)),
     [agent.agent_id, events],
   );
-  const lastMessageId = messages.at(-1)?.message_id ?? "";
-  useLayoutEffect(() => {
-    const viewport = scrollRef.current;
-    if (!viewport || !lastMessageId) {
-      return;
-    }
-    viewport.scrollTop = viewport.scrollHeight;
-  }, [lastMessageId]);
+  const sessionKey = conversationId
+    ? `contact:${agent.agent_id}:${targetId}:${conversationId}`
+    : null;
+  const scrollContentKey = [
+    messages[0]?.message_id ?? "",
+    messages.at(-1)?.message_id ?? "",
+    messages.length,
+  ].join(":");
+  const scroll = useFollowScroll({
+    contentKey: scrollContentKey,
+    historyPrependToken,
+    messageCount: messages.length,
+    sessionKey,
+    topologyKey: scrollContentKey,
+  });
+  const history = useConversationHistoryLoader({
+    cancelHistoryPrependRestore: scroll.cancelHistoryPrependRestore,
+    hasMoreHistory,
+    isHistoryLoading,
+    isLoading,
+    loadOlderMessages: onLoadOlderMessages,
+    messageCount: messages.length,
+    onScroll: scroll.onScroll,
+    prepareHistoryPrependRestore: scroll.prepareHistoryPrependRestore,
+    scrollRef: scroll.scrollRef,
+  });
 
   return (
     <ConversationPanelLayout>
@@ -391,8 +465,14 @@ function ContactConversation({
           isMobileLayout={isCompactLayout}
           viewport={{
             error,
-            isHistoryLoading: false,
-            scrollRef,
+            isHistoryLoading,
+            onPointerDown: scroll.onPointerDown,
+            onScroll: history.handleScroll,
+            onTouchEnd: scroll.onTouchEnd,
+            onTouchMove: scroll.onTouchMove,
+            onTouchStart: scroll.onTouchStart,
+            onWheel: scroll.onWheel,
+            scrollRef: scroll.scrollRef,
           }}
         >
           {isLoading && messages.length === 0 ? (
@@ -400,7 +480,10 @@ function ContactConversation({
           ) : messages.length === 0 ? (
             <EmptyState icon={MessageCircle} label={t("agent_options.contact.empty_messages")} />
           ) : (
-            <div className={`nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex min-h-full flex-col justify-end`}>
+            <div
+              className={`nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex min-h-full flex-col justify-end`}
+              ref={scroll.feedRef}
+            >
               {messages.map((message, index) => {
                 const source = agentsById.get(message.agent_id);
                 return (

@@ -158,10 +158,23 @@ function resolveFinalAssistantMentions(
     (value): value is AssistantMessage =>
       value.role === "assistant" && value.message_id === messageId,
   );
-  return (message?.agent_mentions ?? []).map((mention) => ({
-    ...mention,
-    content_block_index: mention.content_block_index + contentBlockOffset,
-  }));
+  if (!message) {
+    return [];
+  }
+  const textBlockIndexes = new Map<number, number>();
+  message.content.forEach((block, index) => {
+    if (block.type === "text" && block.text.trim()) {
+      textBlockIndexes.set(index, textBlockIndexes.size);
+    }
+  });
+  // 最终回复会剥离 thinking 等过程块，mention 必须同步投影到正文块索引。
+  return (message.agent_mentions ?? []).flatMap((mention) => {
+    const textBlockIndex = textBlockIndexes.get(mention.content_block_index);
+    return textBlockIndex == null ? [] : [{
+      ...mention,
+      content_block_index: textBlockIndex + contentBlockOffset,
+    }];
+  });
 }
 
 function resolveDirectOrderedProjection(

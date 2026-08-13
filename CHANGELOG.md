@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added owner-scoped Agent address books and an Agent-perspective friend communication client with contact search/add and Room-backed Session switching, reusing the existing chat header, message, Composer, privacy, wake, queue, and reply-routing paths.
+- Added a built-in Word-reading Skill that detects actual DOCX versus legacy DOC content, including mislabeled `.docx` uploads.
+- Added owner-scoped Agent address books and an Agent-perspective friend communication client with contact search/add/remove, Room-backed Session switching, and cursor-paged history, reusing the existing chat header, message, Composer, privacy, wake, queue, and reply-routing paths.
 - Added a `/visualize` Slash shortcut for invoking inline Generative UI without exposing its runtime prompt in the Composer.
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
 - Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the separate recalled-memory conversation event with a compact Assistant footer reference, while keeping recall itself on Claude Code-compatible attachments.
 - Removed `NotebookEdit` from Agent pre-authorization controls and retired existing saved selections.
 - Aligned every Agent detail tab to the standard inset content gutter while keeping memory and communication on one shared split-view axis.
 - Tightened the add-friend picker and standardized add-friend and group-chat actions on clear Lucide action icons.
@@ -67,6 +69,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made `prepare_plan_execution` Goal binding explicit with `none`, `current`, and `inherit`, so Goal-free WorkGraphs never absorb an ambient session Goal and Goal-bound proposals require exact round Goal authority.
 - Separated Goal-only, Goal-free WorkGraph, and confirmed Goal-bound WorkGraph lifecycles across REST, app-server, MCP, DM, and Room entry points: reserved identities no longer trigger managed gates, pending/conflicting bindings fail closed, confirmed bindings retain WorkGraph completion and retarget coordination, user retargets automatically dispatch an exact successor-planning continuation, and Goal/Execution tools share one exact per-round authority that upgrades only from a confirmed service receipt without ambient Goal discovery.
 - Scoped Goal current, usage, event, and app-server reads to durable server-owned Goal provenance; WebSocket Goal subscriptions are now registered only after successful authorization and isolated by both owner and thread, preventing rejected calls or colliding thread IDs from receiving another owner's updates.
+- Kept Agent mention chips attached to final replies after hidden thinking blocks were removed from the public message projection.
+- Kept successful internal Room no-reply turns out of the public feed, removing empty cards and their unnecessary rendering work during long autonomous chains.
+- Allowed long-running multi-stage Room collaboration to continue beyond the former 16-hop and 32-handoff guards.
+- Prevented Werewolf players from duplicating directed-message handbacks and advancing the host under the wrong reply route.
+- Prevented Werewolf setup, night transitions, and daybreak announcements from exposing private actors or actions; made the final living night actor return to daybreak and shortened public turns.
+- Cleared stale Room working indicators after the final automatic continuation finished under a logical root.
+- Preserved streamed Room execution details after stopping, hid empty Thread entry points, and kept Room communication tools available during automatic Agent continuations.
+- Created friend contact Rooms only on the first message and restored preserved Rooms and history when the same Agents reconnect.
+- Refreshed friend directories and private messages from existing app and Room WebSocket events, with bounded polling only while disconnected.
 - Aligned the expanded sidebar toggle with the directory action controls below it.
 - Kept the Agent contact Composer available before the first Session so owners can manually start a friend conversation.
 - Stopped replies to owner-authored Agent contact messages from waking the represented Agent for an extra round while preserving normal Agent-initiated reply routing.

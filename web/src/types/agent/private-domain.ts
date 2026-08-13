@@ -58,4 +58,7 @@ export interface AgentPrivateThreadPage {
 export interface AgentPrivateEventPage {
   thread: AgentPrivateThread;
   items: AgentPrivateEvent[];
+  has_more: boolean;
+  next_before_message_id?: string | null;
+  next_before_timestamp?: number | null;
 }

@@ -154,6 +154,7 @@ function AssistantFooter({
     <AssistantMessageStats
       copied={footer.copied}
       goalCompletionReceipt={footer.goalCompletionReceipt}
+      memories={footer.memories}
       onCopy={footer.onCopy}
       stats={footer.stats}
       streaming={activityShowCursor}

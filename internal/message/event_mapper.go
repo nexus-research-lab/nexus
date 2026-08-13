@@ -60,6 +60,11 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 		return EventMapResult{}, output.Err
 	}
 	NormalizeInterruptedOutput(&output, firstNonEmpty(interruptReason...))
+	if output.ResultSubtype == "interrupted" {
+		if partial := m.processor.FinalizeInterruptedAssistant(); len(partial) > 0 {
+			output.DurableMessages = append([]protocol.Message{partial}, output.DurableMessages...)
+		}
+	}
 
 	result := EventMapResult{
 		Events:          make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+len(output.EphemeralMessages)+2),
@@ -161,6 +166,16 @@ func (m *EventMapper) LastAssistantMessage() protocol.Message {
 		return nil
 	}
 	return protocol.Clone(m.lastAssistantMessage)
+}
+
+// FinalizeInterruptedAssistant 返回中断前已流出但尚无终态快照的 assistant。
+func (m *EventMapper) FinalizeInterruptedAssistant() protocol.Message {
+	partial := m.processor.FinalizeInterruptedAssistant()
+	if len(partial) == 0 {
+		return nil
+	}
+	m.decorateMessage(partial)
+	return m.rememberAssistantMessage(partial)
 }
 
 // ProjectResultMessage 将 result 投影回最近一条 assistant 快照。

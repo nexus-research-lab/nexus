@@ -1,6 +1,6 @@
-// INPUT: owner-scoped Room/成员/对话写入命令与可选 configuration_version。
-// OUTPUT: Room-first 锁顺序下的聚合 CRUD、版本/epoch 推进和 conversation 上下文。
-// POS: Room 仓储 mutation 主链；所有既有 Room 写入必须先取得 Room 行锁。
+// INPUT: owner-scoped Room 查询、成员/对话写入命令与可选 configuration_version。
+// OUTPUT: Room 聚合、联系人通道恢复、版本/epoch 推进和 conversation 上下文。
+// POS: Room 仓储 SQL 主链；所有既有 Room 写入必须先取得 Room 行锁。
 package roomrepo
 
 import (
@@ -273,6 +273,51 @@ WHERE r.room_type = 'dm'
 		contexts = append(contexts, roomContexts...)
 	}
 	return PickLatestConversationContext(contexts), nil
+}
+
+// FindContactRoomContext 查找恰好包含指定 Agent 对的联系人直聊上下文。
+func (r *SQLRepository) FindContactRoomContext(
+	ctx context.Context,
+	ownerUserID string,
+	firstAgentID string,
+	secondAgentID string,
+) (*protocol.ConversationContextAggregate, error) {
+	row := r.db.QueryRowContext(ctx, `
+SELECT r.id
+FROM rooms r
+WHERE r.room_type = 'room'
+  AND r.owner_user_id = `+r.dialect.Bind(1)+`
+  AND r.is_contact_channel = `+r.dialect.TrueValue()+`
+  AND r.private_messages_enabled = `+r.dialect.TrueValue()+`
+  AND EXISTS (
+      SELECT 1 FROM members m
+      WHERE m.room_id = r.id AND m.member_type = 'agent'
+        AND m.member_agent_id = `+r.dialect.Bind(2)+`
+  )
+  AND EXISTS (
+      SELECT 1 FROM members m
+      WHERE m.room_id = r.id AND m.member_type = 'agent'
+        AND m.member_agent_id = `+r.dialect.Bind(3)+`
+  )
+  AND (
+      SELECT COUNT(1) FROM members m
+      WHERE m.room_id = r.id AND m.member_type = 'agent'
+  ) = 2
+ORDER BY r.updated_at DESC, r.created_at DESC
+LIMIT 1`, ownerUserID, firstAgentID, secondAgentID)
+	var roomID string
+	if err := row.Scan(&roomID); errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	mainConversation, err := r.pickMainConversation(ctx, r.db, roomID)
+	if err != nil || mainConversation == nil {
+		return nil, err
+	}
+	return r.getContextByConversation(
+		ctx, ownerUserID, roomID, mainConversation.ID,
+	)
 }
 
 // CreateRoom 创建房间、主对话和初始会话。
