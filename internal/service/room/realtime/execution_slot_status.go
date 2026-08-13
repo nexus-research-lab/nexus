@@ -243,7 +243,7 @@ func (s *Service) handleSlotFailure(
 		s.loggerFor(ctx).Error(
 			"Room structured root Attempt 失败收口失败",
 			"dispatch_id",
-			executionDispatchID(slot.WorkBinding),
+			executionDispatchID(slot.currentWorkBinding()),
 			"err",
 			settleErr,
 		)
@@ -414,7 +414,7 @@ func (s *Service) handleSlotCancelled(
 		s.loggerFor(ctx).Error(
 			"Room structured root Attempt 中断收口失败",
 			"dispatch_id",
-			executionDispatchID(slot.WorkBinding),
+			executionDispatchID(slot.currentWorkBinding()),
 			"err",
 			settleErr,
 		)

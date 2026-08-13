@@ -53,7 +53,7 @@ func (s *Service) DeliverExecutionCancellation(
 		AttemptID:    binding.RuntimeAttemptID,
 		DispatchID:   binding.DispatchID,
 	}
-	if !executionWorkBindingEqual(slot.WorkBinding, expected) ||
+	if !executionWorkBindingEqual(slot.currentWorkBinding(), expected) ||
 		strings.TrimSpace(slot.RuntimeSessionKey) !=
 			strings.TrimSpace(binding.RuntimeSessionKey) {
 		return orchestrationsvc.ExecutionCancellationReceipt{

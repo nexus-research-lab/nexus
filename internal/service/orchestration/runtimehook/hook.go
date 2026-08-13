@@ -43,9 +43,17 @@ type Provider interface {
 // Context 保留不属于 ActorContext 的物理 runtime/Room session identity。
 type Context struct {
 	Actor             orchestration.ActorContext
+	ActorProvider     func() orchestration.ActorContext
 	RuntimeSessionKey string
 	RoomSessionID     string
 	Logger            *slog.Logger
+}
+
+func (c Context) currentActor() orchestration.ActorContext {
+	if c.ActorProvider != nil {
+		return c.ActorProvider()
+	}
+	return c.Actor
 }
 
 // Callbacks 把当前 round identity 闭包化；Manager 在 warm session 上动态替换它。
@@ -59,7 +67,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			input sdkhook.Input,
 			toolUseID string,
 		) (sdkhook.Output, error) {
-			result, err := provider.AdmitSubagentLaunch(ctx, value.Actor, orchestration.SubagentLaunchInput{
+			result, err := provider.AdmitSubagentLaunch(ctx, value.currentActor(), orchestration.SubagentLaunchInput{
 				ToolUseID:         firstValue(toolUseID, input.ToolUseID),
 				RuntimeSessionKey: value.RuntimeSessionKey,
 				RoomSessionID:     value.RoomSessionID,
@@ -72,7 +80,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			input sdkhook.Input,
 			toolUseID string,
 		) (sdkhook.Output, error) {
-			result, err := provider.ObserveSubagentStop(ctx, value.Actor, orchestration.SubagentLifecycleInput{
+			result, err := provider.ObserveSubagentStop(ctx, value.currentActor(), orchestration.SubagentLifecycleInput{
 				ToolUseID:    firstValue(toolUseID, input.ToolUseID),
 				SDKSessionID: input.SessionID,
 				SDKAgentID:   input.AgentID,
@@ -87,7 +95,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			input sdkhook.Input,
 			_ string,
 		) (sdkhook.Output, error) {
-			result, err := provider.ObserveSubagentStart(ctx, value.Actor, orchestration.SubagentLifecycleInput{
+			result, err := provider.ObserveSubagentStart(ctx, value.currentActor(), orchestration.SubagentLifecycleInput{
 				SDKSessionID: input.SessionID,
 				SDKAgentID:   input.AgentID,
 				AgentType:    input.AgentType,
@@ -99,7 +107,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			input sdkhook.Input,
 			_ string,
 		) (sdkhook.Output, error) {
-			result, err := provider.ObserveSubagentStop(ctx, value.Actor, orchestration.SubagentLifecycleInput{
+			result, err := provider.ObserveSubagentStop(ctx, value.currentActor(), orchestration.SubagentLifecycleInput{
 				SDKSessionID:         input.SessionID,
 				SDKAgentID:           input.AgentID,
 				AgentType:            input.AgentType,
@@ -116,7 +124,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 		) error {
 			result, err := provider.ObserveSubagentParentRoundExit(
 				ctx,
-				value.Actor,
+				value.currentActor(),
 				orchestration.SubagentParentRoundExitInput{
 					ToolUseID:           input.ToolUseID,
 					SDKSessionID:        input.SDKSessionID,

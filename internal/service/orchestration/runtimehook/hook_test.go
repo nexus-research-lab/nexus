@@ -11,6 +11,7 @@ import (
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
@@ -47,6 +48,31 @@ func TestCallbacksBindPreToolUseToHostIdentity(t *testing.T) {
 		provider.launch.RoomSessionID != "room-session" ||
 		provider.launch.SDKSessionID != "sdk-session" {
 		t.Fatalf("launch input = %#v", provider.launch)
+	}
+}
+
+func TestCallbacksReadDynamicActorAtEachSubagentBoundary(t *testing.T) {
+	provider := &fakeProvider{admitResult: orchestration.SubagentAdmissionResult{Allowed: true}}
+	current := orchestration.ActorContext{AgentID: "agent-lead"}
+	callbacks := Callbacks(provider, Context{
+		Actor:         orchestration.ActorContext{AgentID: "stale-agent"},
+		ActorProvider: func() orchestration.ActorContext { return current },
+	})
+	if _, err := callbacks.PreToolUse(context.Background(), sdkhook.Input{}, "tool-1"); err != nil {
+		t.Fatal(err)
+	}
+	if provider.actor.AgentID != "agent-lead" || provider.actor.WorkBinding != nil {
+		t.Fatalf("first dynamic actor = %+v", provider.actor)
+	}
+	current.WorkBinding = &protocol.ExecutionWorkBinding{
+		ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-1",
+		SpecID: "spec-1", AssignmentID: "assignment-1", AttemptID: "attempt-1",
+	}
+	if _, err := callbacks.PreToolUse(context.Background(), sdkhook.Input{}, "tool-2"); err != nil {
+		t.Fatal(err)
+	}
+	if provider.actor.WorkBinding == nil || provider.actor.WorkBinding.AssignmentID != "assignment-1" {
+		t.Fatalf("bound dynamic actor = %+v", provider.actor)
 	}
 }
 
@@ -165,13 +191,15 @@ type fakeProvider struct {
 	launch       orchestration.SubagentLaunchInput
 	start        orchestration.SubagentLifecycleInput
 	stop         orchestration.SubagentLifecycleInput
+	actor        orchestration.ActorContext
 }
 
 func (f *fakeProvider) AdmitSubagentLaunch(
 	_ context.Context,
-	_ orchestration.ActorContext,
+	actor orchestration.ActorContext,
 	input orchestration.SubagentLaunchInput,
 ) (orchestration.SubagentAdmissionResult, error) {
+	f.actor = actor
 	f.launch = input
 	return f.admitResult, f.admitErr
 }

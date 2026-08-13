@@ -61,6 +61,7 @@ func scopeSnapshotToTrustedWorkBinding(
 	if snapshot != nil &&
 		snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
 		actor.ScopeKind == protocol.ExecutionScopeRoom &&
+		actor.WorkBinding == nil &&
 		strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) ==
 			strings.TrimSpace(actor.AgentID) {
 		// 只有 Execution 自己记录的 coordinator 可以通过显式 read/plan
@@ -223,23 +224,32 @@ func authorizeStructuredRoomWorkBinding(
 		return workBindingMismatch("structured Room Assignment binding is stale")
 	}
 
-	dispatchMatched := false
-	for _, dispatch := range snapshot.Dispatches {
-		if dispatch.ID == binding.DispatchID &&
-			dispatch.ExecutionID == binding.ExecutionID &&
-			dispatch.PlanID == binding.PlanID &&
-			dispatch.WorkItemID == binding.WorkItemID &&
-			dispatch.SpecID == binding.SpecID &&
-			dispatch.AssignmentID == binding.AssignmentID &&
-			strings.TrimSpace(dispatch.TargetAgentID) == actorAgentID &&
-			dispatch.Status != protocol.ExecutionDispatchStatusCancelled &&
-			dispatch.Status != protocol.ExecutionDispatchStatusFailed {
-			dispatchMatched = true
-			break
+	if assignment.Strategy == protocol.AssignmentStrategySelf {
+		if binding.DispatchID != "" {
+			return workBindingMismatch("self Room WorkBinding must not carry a Dispatch")
 		}
-	}
-	if !dispatchMatched {
-		return workBindingMismatch("structured Room Dispatch binding is stale")
+	} else {
+		if binding.DispatchID == "" {
+			return workBindingMismatch("dispatched Room WorkBinding is missing its Dispatch")
+		}
+		dispatchMatched := false
+		for _, dispatch := range snapshot.Dispatches {
+			if dispatch.ID == binding.DispatchID &&
+				dispatch.ExecutionID == binding.ExecutionID &&
+				dispatch.PlanID == binding.PlanID &&
+				dispatch.WorkItemID == binding.WorkItemID &&
+				dispatch.SpecID == binding.SpecID &&
+				dispatch.AssignmentID == binding.AssignmentID &&
+				strings.TrimSpace(dispatch.TargetAgentID) == actorAgentID &&
+				dispatch.Status != protocol.ExecutionDispatchStatusCancelled &&
+				dispatch.Status != protocol.ExecutionDispatchStatusFailed {
+				dispatchMatched = true
+				break
+			}
+		}
+		if !dispatchMatched {
+			return workBindingMismatch("structured Room Dispatch binding is stale")
+		}
 	}
 
 	attemptMatched := false
@@ -576,8 +586,7 @@ func completeExecutionWorkBinding(binding protocol.ExecutionWorkBinding) bool {
 		binding.WorkItemID != "" &&
 		binding.SpecID != "" &&
 		binding.AssignmentID != "" &&
-		binding.AttemptID != "" &&
-		binding.DispatchID != ""
+		binding.AttemptID != ""
 }
 
 func workBindingMismatch(message string) error {

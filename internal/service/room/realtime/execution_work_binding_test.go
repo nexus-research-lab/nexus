@@ -72,6 +72,53 @@ func TestRoomRuntimeMCPContextClonesStructuredWorkBinding(t *testing.T) {
 	}
 }
 
+func TestRoomRuntimeSharesDynamicSelfWorkBindingWithMCPAndGraphActor(t *testing.T) {
+	var state *runtimectx.WorkBindingState
+	service := &Service{
+		executionMCPServers: func(
+			_ context.Context,
+			value runtimectx.ExecutionToolContext,
+		) map[string]sdkmcp.ServerConfig {
+			state = value.WorkBindingState
+			return nil
+		},
+	}
+	execution := &slotExecution{
+		service: service,
+		ctx:     context.Background(),
+		round: &activeRoomRound{
+			OwnerUserID: "owner-1", SessionKey: "room:group:conversation-1",
+			RoomID: "room-1", ConversationID: "conversation-1",
+			RootRoundID: "root-round-1", ExecutionID: "execution-1",
+			CoordinatorAgentID: "agent-lead",
+		},
+		slot: &activeRoomSlot{
+			AgentID: "agent-lead", AgentRoundID: "agent-round-1",
+			RuntimeSessionKey: "runtime-session-1",
+		},
+		agent: &protocol.Agent{AgentID: "agent-lead", OwnerUserID: "owner-1"},
+	}
+
+	execution.runtimeMCPServers("")
+	if state == nil || state != execution.ensureWorkBindingState() {
+		t.Fatalf("Execution MCP WorkBindingState = %#v", state)
+	}
+	if actor := execution.orchestrationActor(); actor.WorkBinding != nil {
+		t.Fatalf("ordinary Room coordinator actor = %+v", actor)
+	}
+	binding := &protocol.ExecutionWorkBinding{
+		ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-1",
+		SpecID: "spec-1", AssignmentID: "assignment-1", AttemptID: "attempt-1",
+	}
+	if !state.Bind(binding) {
+		t.Fatal("bind Room self WorkBinding")
+	}
+	actor := execution.orchestrationActor()
+	if actor.WorkBinding == nil || actor.WorkBinding.AssignmentID != "assignment-1" {
+		t.Fatalf("runtime graph actor did not observe WorkBinding: %+v", actor)
+	}
+}
+
 type roomAttemptTerminalizerFake struct {
 	calls  []orchestrationsvc.RoomAttemptTerminalInput
 	actors []orchestrationsvc.ActorContext
@@ -216,6 +263,44 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 				t.Fatalf("terminal settlement inherited cancelled slot context: %v", terminalizer.ctxErr)
 			}
 		})
+	}
+}
+
+func TestDynamicRoomSelfBindingFailureSettlesRootAttempt(t *testing.T) {
+	terminalizer := &roomAttemptTerminalizerFake{}
+	service := &Service{executionContext: terminalizer}
+	roundValue := &activeRoomRound{
+		SessionKey: "room:group:conversation-1", RoomID: "room-1",
+		ConversationID: "conversation-1", CoordinatorAgentID: "agent-lead",
+		RootRoundID: "root-round-1", OwnerUserID: "owner-1",
+	}
+	slot := &activeRoomSlot{
+		RoomSessionID: "room-session-1", AgentID: "agent-lead",
+		AgentRoundID: "agent-round-1", RuntimeSessionKey: "runtime-session-1",
+	}
+	binding := testRoomExecutionWorkBinding()
+	binding.DispatchID = ""
+	if !slot.ensureWorkBindingState().Bind(binding) {
+		t.Fatal("bind dynamic Room self WorkBinding")
+	}
+
+	if err := service.finishBoundRoomAttempt(
+		context.Background(),
+		roundValue,
+		slot,
+		"error",
+		"runtime failed before submit_work",
+	); err != nil {
+		t.Fatal(err)
+	}
+	assertRoomAttemptTerminalCall(
+		t,
+		terminalizer,
+		protocol.WorkAttemptStatusFailed,
+		"runtime failed before submit_work",
+	)
+	if terminalizer.calls[0].Binding.DispatchID != "" {
+		t.Fatalf("self WorkBinding terminal call = %#v", terminalizer.calls[0].Binding)
 	}
 }
 

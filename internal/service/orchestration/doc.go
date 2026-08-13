@@ -14,7 +14,8 @@
 //   - commands.go：Assignment、Attempt、Submission、Acceptance、
 //     Block/Resume/Takeover 与 completion。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /
-//     room_attempt_terminal.go：Room work、review 和 physical cancellation outbox。
+//     room_attempt_terminal.go：Room work、review 和 physical cancellation outbox，
+//     以及 dispatched/self WorkBinding 共用的 root Attempt 终态桥。
 //   - subagent_admission.go：Subagent admission、child Attempt 与 parent-exit 对账。
 //   - runtime_graph*.go / execution_view.go / context.go / execution_alignment.go：
 //     Runtime Graph 事实、actor context、目标对齐与 managed WorkGraph 只读投影。

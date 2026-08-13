@@ -19,7 +19,11 @@ func (s *Service) finishBoundRoomAttempt(
 	slotStatus string,
 	reason string,
 ) error {
-	if slot == nil || slot.WorkBinding == nil {
+	if slot == nil {
+		return nil
+	}
+	binding := slot.currentWorkBinding()
+	if binding == nil {
 		return nil
 	}
 	if s == nil || s.executionContext == nil {
@@ -49,10 +53,6 @@ func (s *Service) finishBoundRoomAttempt(
 		if strings.TrimSpace(reason) == "" {
 			reason = "Room slot failed"
 		}
-	}
-	binding := cloneExecutionWorkBinding(slot.WorkBinding)
-	if binding == nil {
-		return errors.New("managed Execution WorkBinding is unavailable")
 	}
 	actor := orchestrationsvc.ActorContext{
 		OwnerUserID:    roundValue.OwnerUserID,

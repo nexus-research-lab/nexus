@@ -106,6 +106,7 @@ func resolveExecutionMCPServerContext(
 		RuntimeSessionKey: strings.TrimSpace(runtimeContext.RuntimeSessionKey),
 		ExecutionID:       strings.TrimSpace(runtimeContext.ExecutionID),
 		WorkBinding:       cloneExecutionMCPWorkBinding(runtimeContext.WorkBinding),
+		WorkBindingState:  runtimeContext.WorkBindingState,
 		ReviewBinding:     cloneExecutionMCPReviewBinding(runtimeContext.ReviewBinding),
 		GoalAuthority:     runtimeContext.GoalAuthority,
 		RootRoundID:       strings.TrimSpace(runtimeContext.RootRoundID),
