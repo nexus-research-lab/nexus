@@ -204,6 +204,8 @@ export const zhConversationMessages = {
   "composer.permission_allow_once": "允许本次",
   "composer.permission_allow_once_menu": "仅允许本次",
   "composer.permission_allow_once_description": "不修改 Agent 权限规则",
+  "composer.permission_allow_task": "此任务始终允许",
+  "composer.permission_allow_task_description": "仅为定时任务「{name}」加入这项能力",
   "composer.permission_deny": "拒绝",
   "composer.permission_configuration_secrets_title": "必需的敏感配置",
   "composer.permission_configuration_secrets_description": "这些值仅随本次允许提交，不会显示或写入工具输入。",

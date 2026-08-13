@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -453,6 +454,32 @@ func (m *controlMessage) handleInputQueue() {
 func (m *controlMessage) handlePermissionResponse() {
 	if m.handler.permission.HandlePermissionResponse(m.ctx, m.sessionKey, m.inbound) {
 		return
+	}
+	if m.handler.automationPermissions != nil {
+		handled, err := m.handler.automationPermissions.ResolveSessionPermissionResponse(
+			m.ctx,
+			m.sessionKey,
+			m.inbound,
+		)
+		if err != nil {
+			errorType := "permission_response_error"
+			if errors.Is(err, automationdomain.ErrPermissionRequestResolved) ||
+				errors.Is(err, automationdomain.ErrPermissionRequestStale) {
+				errorType = "permission_request_not_found"
+			}
+			m.handler.sendGatewayError(
+				m.ctx,
+				m.sender,
+				m.sessionKey,
+				errorType,
+				err,
+				map[string]any{"type": m.msgType},
+			)
+			return
+		}
+		if handled {
+			return
+		}
 	}
 	_ = m.sender.SendEvent(m.ctx, m.handler.newGatewayErrorEvent(
 		m.sessionKey,

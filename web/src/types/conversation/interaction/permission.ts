@@ -37,6 +37,15 @@ export interface ConfigurationSecretSlot {
   path: string;
 }
 
+export interface AutomationPermissionContext {
+  allow_task: boolean;
+  job_id: string;
+  kind: string;
+  policy_revision: number;
+  run_id?: string;
+  task_name: string;
+}
+
 export type ConfigurationSecrets = Record<string, string>;
 
 export interface PendingPermission {
@@ -56,6 +65,8 @@ export interface PendingPermission {
   summary?: string;
   suggestions?: PermissionUpdate[];
   expires_at?: string;
+  source?: "automation";
+  automation?: AutomationPermissionContext;
 }
 
 export interface PermissionDecisionPayload {
@@ -64,6 +75,7 @@ export interface PermissionDecisionPayload {
   configuration_secrets?: ConfigurationSecrets;
   user_answers?: UserQuestionAnswer[];
   updated_permissions?: PermissionUpdate[];
+  automation_scope?: "once" | "task";
   message?: string;
   interrupt?: boolean;
 }

@@ -107,6 +107,19 @@ func (h *Handler) restoreRoomActivitySnapshot(
 	if h.permission != nil {
 		pendingInteractionRequestIDs = h.permission.PendingRequestIDsForRoom(roomID, conversationID)
 	}
+	if h.automationPermissions != nil {
+		requestIDs, err := h.automationPermissions.PendingPermissionRequestIDsForRoom(
+			ctx,
+			roomID,
+			conversationID,
+		)
+		if err == nil {
+			pendingInteractionRequestIDs = appendUniqueStrings(
+				pendingInteractionRequestIDs,
+				requestIDs...,
+			)
+		}
+	}
 	if strings.TrimSpace(conversationID) == "" {
 		event := protocol.NewChatPendingInteractionSnapshotEvent(pendingInteractionRequestIDs)
 		event.RoomID = roomID
@@ -139,4 +152,21 @@ func (h *Handler) restoreRoomActivitySnapshot(
 	event.ConversationID = conversationID
 	event.RoundID = roundID
 	_ = sender.SendEvent(ctx, event)
+}
+
+func appendUniqueStrings(values []string, candidates ...string) []string {
+	seen := make(map[string]struct{}, len(values)+len(candidates))
+	result := make([]string, 0, len(values)+len(candidates))
+	for _, value := range append(values, candidates...) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }

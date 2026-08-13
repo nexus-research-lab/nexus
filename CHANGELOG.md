@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Projected scheduled-task tool and legacy script permission requests into the configured result-recipient Nexus DM or Room, with reconnect-safe Composer approval for one run or the task and direct denial, so users no longer need to open the capability panel for ordinary confirmations.
 - Restored every real Agent destination Session in scheduled-task delivery selectors, including database-backed Nexus DMs and Room member Sessions, and materialized their verified workspace projections on first delivery instead of showing only IM targets.
 - Refreshed Room and DM conversation headers, tabs, and sidebar entries as soon as a Goal-generated title is stored by projecting the change through the Room and global directory invalidation paths.
 - Segmented tools inside one DM Agent round by their exact self Assignment and root Attempt, so serial WorkGraph nodes no longer collapse every Bash/Write/Edit/MCP action under the final node; Room Lead coordination and explicit member WorkBindings remain isolated. Execution mutation results now keep the small `outcome`/`execution_id`/`changed`/`next_actions` control envelope inline and omit recursive runtime history before SDK large-result externalization can erase those identities.

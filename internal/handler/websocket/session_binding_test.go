@@ -17,6 +17,33 @@ type contextUsageReplayProvider struct {
 	usages     map[string]protocol.ContextUsageData
 }
 
+type automationPermissionReplayProvider struct {
+	events []protocol.EventMessage
+}
+
+func (p automationPermissionReplayProvider) ListSessionPermissionEvents(
+	_ context.Context,
+	_ string,
+) ([]protocol.EventMessage, error) {
+	return append([]protocol.EventMessage(nil), p.events...), nil
+}
+
+func (automationPermissionReplayProvider) PendingPermissionRequestIDsForRoom(
+	context.Context,
+	string,
+	string,
+) ([]string, error) {
+	return nil, nil
+}
+
+func (automationPermissionReplayProvider) ResolveSessionPermissionResponse(
+	context.Context,
+	string,
+	map[string]any,
+) (bool, error) {
+	return false, nil
+}
+
 func (s *contextUsageReplaySender) SendEvent(
 	_ context.Context,
 	event protocol.EventMessage,
@@ -68,6 +95,32 @@ func TestReplayContextUsageSnapshotsRestoresBoundSession(t *testing.T) {
 		event.Data["percentage"] != 28.6 ||
 		event.Data["model"] != "glm-4.5-air" {
 		t.Fatalf("replayed event = %#v, want authoritative context usage", event)
+	}
+}
+
+func TestReplayAutomationPermissionRequestsRestoresBoundSession(t *testing.T) {
+	sessionKey := "agent:agent-a:ws:dm:conversation-a"
+	event := protocol.NewEvent(protocol.EventTypePermissionRequest, map[string]any{
+		"request_id": "automation-permission-1",
+		"tool_name":  "WebSearch",
+	})
+	event.SessionKey = sessionKey
+	handler := &Handler{automationPermissions: automationPermissionReplayProvider{
+		events: []protocol.EventMessage{event},
+	}}
+	sender := &contextUsageReplaySender{}
+
+	if err := handler.replayAutomationPermissionRequests(
+		context.Background(),
+		sender,
+		sessionKey,
+	); err != nil {
+		t.Fatalf("replayAutomationPermissionRequests() error = %v", err)
+	}
+	if len(sender.events) != 1 ||
+		sender.events[0].EventType != protocol.EventTypePermissionRequest ||
+		sender.events[0].Data["request_id"] != "automation-permission-1" {
+		t.Fatalf("replayed events = %+v", sender.events)
 	}
 }
 

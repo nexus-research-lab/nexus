@@ -52,6 +52,12 @@ func (h *Handler) handleBindSession(
 		})
 		return
 	}
+	if err = h.replayAutomationPermissionRequests(ctx, sender, sessionKey); err != nil {
+		h.sendGatewayError(ctx, sender, sessionKey, "automation_permission_replay_error", err, map[string]any{
+			"type": "bind_session",
+		})
+		return
+	}
 	// execution_invalidated is ephemeral. Rebinding therefore emits an empty
 	// identity fence so a graph created or terminalized while disconnected is
 	// re-read without falling back to conversation activity heuristics.
@@ -67,6 +73,26 @@ func (h *Handler) handleBindSession(
 
 type sessionEventSender interface {
 	SendEvent(context.Context, protocol.EventMessage) error
+}
+
+func (h *Handler) replayAutomationPermissionRequests(
+	ctx context.Context,
+	sender sessionEventSender,
+	sessionKey string,
+) error {
+	if h == nil || h.automationPermissions == nil || sender == nil {
+		return nil
+	}
+	events, err := h.automationPermissions.ListSessionPermissionEvents(ctx, sessionKey)
+	if err != nil {
+		return err
+	}
+	for _, event := range events {
+		if err = sender.SendEvent(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // replayContextUsageSnapshots 在重新绑定历史 Session 时恢复最后一次权威快照。

@@ -17,8 +17,8 @@
 //   - delivery_retry.go：投递重试；重试同样通过最新任务与动态权限复核。
 //   - runtime_*.go：执行工件 / 投递 / 脚本 / 进程运行态；desktop 脚本只继承
 //     必要系统环境并把 HOME/TEMP 收窄到任务 workspace/临时目录。
-//   - permission_snapshot.go / permission_policy.go / permission_scheduled.go / permission_decision.go：执行 Session/Agent 权限 copy-on-create、独立任务授权策略、运行时拦截、持久决策与安全恢复；创建来源只作 provenance。
-//   - permission_im_command.go / im_notification.go：只在会话内唯一请求上解析的无 ID `/y`、`/a`、`/d` IM 审批，以及带任务身份的控制面通知；普通结果保持原文。
+//   - permission_snapshot.go / permission_policy.go / permission_scheduled.go / permission_decision.go / permission_session.go：执行 Session/Agent 权限 copy-on-create、独立任务授权策略、运行时拦截、持久决策与安全恢复，并把待确认请求投影及重放到结果接收 DM/Room；创建来源只作 provenance。
+//   - permission_im_command.go / im_notification.go：只在会话内唯一请求上解析的无 ID `/y`、`/a`、`/d` IM 审批，以及面向 Nexus Session 与外部 IM、带任务身份的控制面通知；普通结果保持原文。
 //   - task_support.go：任务容量与 isolated Session 清理；Session 删除时保留任务、停用调度并持久标记待重绑，创建来源只保留 provenance。
 //   - summary_heartbeat_tasks.go：heartbeat 汇总。
 //
