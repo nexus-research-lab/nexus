@@ -7,12 +7,20 @@ package contract
 
 import (
 	"context"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // ServerName 是 Room 内建 MCP server 的注册名。
 const ServerName = "nexus_room"
+
+// IsRoomRuntimeSourceContextType 判断来源是否仍属于 Room runtime。
+// room_* 只降低配置写权限，不应切断当前 Room 成员的通讯能力。
+func IsRoomRuntimeSourceContextType(value string) bool {
+	normalized := strings.TrimSpace(value)
+	return normalized == "room" || strings.HasPrefix(normalized, "room_")
+}
 
 // ServerContext 承载当前 Room 成员运行时上下文。
 type ServerContext struct {

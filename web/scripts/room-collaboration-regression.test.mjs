@@ -1190,6 +1190,21 @@ test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
     "Room 全局交互快照不得清除 conversation 执行槽",
   );
   replaceRoomActivitySnapshot("group-room", "group-round-new", false, []);
+
+  updateRoomActivity("group-room", "runtime-round", "running");
+  updateRoomActivity(
+    "group-room",
+    "logical-root",
+    "running",
+    "agent_round",
+    "continued-slot",
+  );
+  updateRoomActivity("group-room", "runtime-round", "finished");
+  assert.deepEqual(
+    Object.fromEntries(getRoomActivity()),
+    {},
+    "最后一个 runtime round 结束时必须清理 logical root 下的孤儿 Agent 活动态",
+  );
 });
 
 test("聊天行不读取持久化 Agent active 状态", async () => {

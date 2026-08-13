@@ -577,6 +577,15 @@ func TestPublicHandoffAdmissionRejectsRootOverflow(t *testing.T) {
 	}
 }
 
+func TestPublicHandoffResourceGuardsAllowLongRoomWorkflows(t *testing.T) {
+	if roomMaxWakeHops < 64 {
+		t.Fatalf("Room 多阶段协作至少需要 64 次连续唤醒，当前为 %d", roomMaxWakeHops)
+	}
+	if roomMaxRootHandoffs < roomMaxWakeHops*2 {
+		t.Fatalf("root handoff 总量应覆盖连续唤醒与分支，hop=%d handoffs=%d", roomMaxWakeHops, roomMaxRootHandoffs)
+	}
+}
+
 // 公共提及队列测试。
 
 func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t *testing.T) {

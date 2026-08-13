@@ -152,6 +152,23 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	}
 }
 
+func TestSendDirectedMessageAllowsAutomaticRoomContinuation(t *testing.T) {
+	result, isError := callRoomTool(t, &stubRoomService{}, contract.ServerContext{
+		CurrentAgentID:         "agent-host",
+		CurrentRoundID:         "round-root-1",
+		RoomID:                 "room-1",
+		ConversationID:         "conversation-1",
+		SourceContextType:      "room_untrusted",
+		PrivateMessagesEnabled: true,
+	}, "send_directed_message", map[string]any{
+		"recipients": []any{"agent-amy"},
+		"content":    "继续当前回合",
+	})
+	if isError {
+		t.Fatalf("Room 自动续跑不应丢失通讯能力: %s", extractRoomText(t, result))
+	}
+}
+
 func callRoomTool(
 	t *testing.T,
 	svc contract.Service,

@@ -421,6 +421,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 
 	clientA := newFakeRoomClient()
 	clientA.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeRoomThinkingStream(clientA, "assistant-interrupted-a", "停止前的内部思考")
 		return nil
 	}
 	clientA.onInterrupt = func(_ context.Context) {
@@ -483,7 +484,19 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	}
 
 	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return countEventType(events, protocol.EventTypeStreamStart) >= 2
+		if countEventType(events, protocol.EventTypeStreamStart) < 2 {
+			return false
+		}
+		for _, observed := range events {
+			if observed.EventType != protocol.EventTypeStream {
+				continue
+			}
+			block, _ := observed.Data["content_block"].(map[string]any)
+			if block["type"] == "thinking" {
+				return true
+			}
+		}
+		return false
 	})
 
 	if err = service.HandleInterrupt(ctx, realtimesvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
@@ -530,14 +543,26 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
 	}
 	sharedInterrupted := 0
+	partialThinkingPreserved := false
 	for _, message := range sharedMessages {
 		summary, ok := message["result_summary"].(map[string]any)
 		if ok && summary["subtype"] == "interrupted" {
 			sharedInterrupted++
 		}
+		if message["role"] != "assistant" {
+			continue
+		}
+		for _, block := range roomContentBlocksFromPayload(t, message) {
+			if block["type"] == "thinking" && block["thinking"] == "停止前的内部思考" {
+				partialThinkingPreserved = true
+			}
+		}
 	}
 	if sharedInterrupted < 2 {
 		t.Fatalf("共享日志未完整落 interrupted result: %+v", sharedMessages)
+	}
+	if !partialThinkingPreserved {
+		t.Fatalf("共享日志未保留中断前的流式思考: %+v", sharedMessages)
 	}
 
 	for _, agentValue := range []*protocol.Agent{agentA, agentB} {
@@ -603,6 +628,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 
 	client := newFakeRoomClient()
 	client.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeRoomThinkingStream(client, "assistant-interrupted-closed-stream", "关流前的内部思考")
 		return nil
 	}
 	var closeOnce sync.Once
@@ -638,7 +664,16 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	}
 
 	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeStreamStart
+		for _, observed := range events {
+			if observed.EventType != protocol.EventTypeStream {
+				continue
+			}
+			block, _ := observed.Data["content_block"].(map[string]any)
+			if block["type"] == "thinking" {
+				return true
+			}
+		}
+		return false
 	})
 
 	if err = service.HandleInterrupt(ctx, realtimesvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
@@ -667,7 +702,15 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
 	}
 	foundInterrupted := false
+	partialThinkingPreserved := false
 	for _, message := range sharedMessages {
+		if message["role"] == "assistant" {
+			for _, block := range roomContentBlocksFromPayload(t, message) {
+				if block["type"] == "thinking" && block["thinking"] == "关流前的内部思考" {
+					partialThinkingPreserved = true
+				}
+			}
+		}
 		summary, ok := message["result_summary"].(map[string]any)
 		if !ok {
 			continue
@@ -684,5 +727,8 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	}
 	if !foundInterrupted {
 		t.Fatalf("共享日志未落 interrupted summary: %+v", sharedMessages)
+	}
+	if !partialThinkingPreserved {
+		t.Fatalf("共享日志未保留强制中断前的流式思考: %+v", sharedMessages)
 	}
 }

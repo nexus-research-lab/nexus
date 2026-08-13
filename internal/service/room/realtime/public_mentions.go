@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	// hop 是最后一道保险；更早的 root admission 只限制异常 fanout 与总量。
-	roomMaxWakeHops      = 16
+	// 多阶段 Room 会自然跨越数十次唤醒；这些上限只拦截失控链路。
+	roomMaxWakeHops      = 128
 	roomMaxHandoffFanout = 8
-	roomMaxRootHandoffs  = 32
+	roomMaxRootHandoffs  = 256
 )
 
 type pendingPublicMentionSlot struct {
