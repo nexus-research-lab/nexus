@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a built-in Word-reading Skill that detects actual DOCX versus legacy DOC content, including mislabeled `.docx` uploads.
 - Added owner-scoped Agent address books and an Agent-perspective friend communication client with contact search/add/remove, Room-backed Session switching, and cursor-paged history, reusing the existing chat header, message, Composer, privacy, wake, queue, and reply-routing paths.
 - Added a `/visualize` Slash shortcut for invoking inline Generative UI without exposing its runtime prompt in the Composer.
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
