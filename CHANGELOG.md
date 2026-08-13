@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Agent mention chips attached to final replies after hidden thinking blocks were removed from the public message projection.
+- Kept successful internal Room no-reply turns out of the public feed, removing empty cards and their unnecessary rendering work during long autonomous chains.
+- Allowed long-running multi-stage Room collaboration to continue beyond the former 16-hop and 32-handoff guards.
+- Prevented Werewolf players from duplicating directed-message handbacks and advancing the host under the wrong reply route.
+- Prevented Werewolf setup, night transitions, and daybreak announcements from exposing private actors or actions; made the final living night actor return to daybreak and shortened public turns.
+- Cleared stale Room working indicators after the final automatic continuation finished under a logical root.
+- Preserved streamed Room execution details after stopping, hid empty Thread entry points, and kept Room communication tools available during automatic Agent continuations.
 - Created friend contact Rooms only on the first message and restored preserved Rooms and history when the same Agents reconnect.
 - Refreshed friend directories and private messages from existing app and Room WebSocket events, with bounded polling only while disconnected.
 - Aligned the expanded sidebar toggle with the directory action controls below it.

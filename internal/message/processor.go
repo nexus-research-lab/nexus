@@ -87,6 +87,21 @@ func (p *Processor) SessionID() string {
 	return strings.TrimSpace(p.sessionID)
 }
 
+// FinalizeInterruptedAssistant 把中断前已流出的内容补成可持久化终态。
+func (p *Processor) FinalizeInterruptedAssistant() protocol.Message {
+	if !hasPublicAssistantContent(p.segment.normalizedContent()) {
+		return nil
+	}
+	p.segment.UpdateMeta("", nil, "cancelled")
+	durable := p.buildAssistantDurableMessage(true, true, p.parentToolUseID)
+	if durable == nil {
+		return nil
+	}
+	(*durable)["is_interrupted_partial"] = true
+	p.lastDurableAssistantSnapshot = protocol.Clone(*durable)
+	return protocol.Clone(*durable)
+}
+
 // Process 处理一条 SDK 消息。
 func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 	output := Output{}

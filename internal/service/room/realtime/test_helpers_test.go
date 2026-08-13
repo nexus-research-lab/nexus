@@ -103,6 +103,28 @@ func newFakeRoomClient() *fakeRoomClient {
 	}
 }
 
+func sendFakeRoomThinkingStream(client *fakeRoomClient, messageID string, thinking string) {
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: client.sessionID,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":    "message_start",
+			"message": map[string]any{"id": messageID},
+		}},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: client.sessionID,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_start",
+			"index": 0,
+			"content_block": map[string]any{
+				"type": "thinking", "thinking": thinking,
+			},
+		}},
+	}
+}
+
 func (c *fakeRoomClient) Connect(context.Context) error { return c.connectErr }
 
 func (c *fakeRoomClient) Query(ctx context.Context, prompt string) error {

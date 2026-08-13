@@ -28,7 +28,7 @@ func newRoomMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 	) map[string]sdkmcp.ServerConfig {
-		if svc == nil || strings.TrimSpace(sourceContextType) != "room" {
+		if svc == nil || !roommcpcontract.IsRoomRuntimeSourceContextType(sourceContextType) {
 			return nil
 		}
 		parsed := protocol.ParseSessionKey(sessionKey)
