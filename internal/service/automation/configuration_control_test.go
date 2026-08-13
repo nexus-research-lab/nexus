@@ -209,13 +209,7 @@ func TestHumanUpdatePreservesAgentCreatedTaskProvenance(t *testing.T) {
 	input.Delivery = automationdomain.DeliveryTarget{
 		Mode:    automationdomain.DeliveryModeExplicit,
 		Channel: protocol.SessionChannelInternalSegment,
-		To: protocol.BuildAgentSessionKey(
-			"agent-1",
-			protocol.SessionChannelInternalSegment,
-			protocol.RoomTypeDM,
-			protocol.AutomationInboxSessionRef,
-			"",
-		),
+		To:      source.SessionKey,
 	}
 	created, err := service.CreateTask(agentCtx, input)
 	if err != nil {

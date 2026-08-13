@@ -1,4 +1,4 @@
-// INPUT: automation 配置、持久化连接、Agent/Room/投递依赖与 Session artifact 删除协调器。
+// INPUT: automation 配置、持久化连接、Agent/Room/统一 Session/投递依赖与 artifact 删除协调器。
 // OUTPUT: 调度、任务控制、heartbeat、运行态编排与 isolated Session tombstone 清理服务。
 // POS: automation 服务的依赖装配与进程内状态根。
 package automation
@@ -68,6 +68,10 @@ type deliveryGrantResolver interface {
 	ValidateAutomationDeliveryGrant(context.Context, string, string, string) error
 }
 
+type deliverySessionResolver interface {
+	ResolveDeliverySession(context.Context, string) (*protocol.Session, error)
+}
+
 type imagegenDefaultResolver interface {
 	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
 }
@@ -119,6 +123,7 @@ type Service struct {
 	workspace        workspaceReader
 	delivery         deliveryRouter
 	deliveryGrants   deliveryGrantResolver
+	deliverySessions deliverySessionResolver
 	logger           *slog.Logger
 	sessionArtifacts SessionArtifactDeletionCoordinator
 	taskNotifier     TaskEventNotifier
@@ -149,6 +154,12 @@ type Service struct {
 // SetDeliveryGrantResolver 注入 IM pairing 的实时授权检查器。
 func (s *Service) SetDeliveryGrantResolver(resolver deliveryGrantResolver) {
 	s.deliveryGrants = resolver
+}
+
+// SetDeliverySessionResolver 注入 Nexus 统一 Session 读模型，使数据库拥有的
+// Room-backed DM/成员会话与 workspace/IM Session 共用同一存在性边界。
+func (s *Service) SetDeliverySessionResolver(resolver deliverySessionResolver) {
+	s.deliverySessions = resolver
 }
 
 // NewService 创建自动化服务。

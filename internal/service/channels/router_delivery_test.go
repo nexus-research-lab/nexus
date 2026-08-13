@@ -3,6 +3,8 @@ package channels
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -610,6 +612,42 @@ func TestRouterDeliverMessageCreatesInternalAutomationInbox(t *testing.T) {
 	}
 }
 
+func TestRouterDeliverMessageRejectsMissingOrdinaryInternalSession(t *testing.T) {
+	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
+	router := NewRouter(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspaceRoot},
+		newChannelTestDB(t),
+		&stubAgentResolver{agentByID: map[string]*protocol.Agent{
+			"agent-1": {
+				AgentID: "agent-1", OwnerUserID: authctx.SystemUserID,
+				WorkspacePath: workspacePath,
+			},
+		}},
+		nil,
+	)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	sessionKey := protocol.BuildAgentSessionKey(
+		"agent-1", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
+		"missing-real-session", "",
+	)
+	_, err := router.DeliverMessage(context.Background(), "agent-1", "不能创建隐藏会话", DeliveryTarget{
+		Mode: DeliveryModeExplicit, Channel: ChannelTypeInternal, To: sessionKey,
+	})
+	if err == nil || !strings.Contains(err.Error(), "delivery target session is not available") {
+		t.Fatalf("missing ordinary internal session must fail closed, got %v", err)
+	}
+	stored, _, findErr := workspacestore.NewSessionFileStore(workspaceRoot).
+		ForOwner(authctx.SystemUserID).
+		FindSession([]string{workspacePath}, sessionKey)
+	if findErr != nil || stored != nil {
+		t.Fatalf("missing session must not be synthesized: session=%+v err=%v", stored, findErr)
+	}
+}
+
 func TestRouterDeliverAutomationResultProjectsExternalSessionIdempotently(t *testing.T) {
 	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newChannelTestDB(t)
@@ -692,5 +730,155 @@ func TestRouterDeliverAutomationResultProjectsExternalSessionIdempotently(t *tes
 	externalDelivery, _ := messages[0]["external_delivery"].(map[string]any)
 	if externalDelivery["primary_platform_message_id"] != "platform-1" {
 		t.Fatalf("平台回执未关联到投影消息: %+v", messages[0])
+	}
+}
+
+func TestRouterDeliverAutomationResultRoutesToRecipientAgent(t *testing.T) {
+	workspaceRoot, producerWorkspace := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-a")
+	recipientWorkspace := filepath.Join(filepath.Dir(producerWorkspace), "agent-b")
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{agentByID: map[string]*protocol.Agent{
+		"agent-a": {AgentID: "agent-a", OwnerUserID: authctx.SystemUserID, WorkspacePath: producerWorkspace},
+		"agent-b": {AgentID: "agent-b", OwnerUserID: authctx.SystemUserID, WorkspacePath: recipientWorkspace},
+	}}
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspaceRoot}, db, resolver, nil)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	recipientSession := protocol.BuildAgentSessionKey(
+		"agent-b", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
+		"recipient-conversation", "",
+	)
+	files := workspacestore.NewSessionFileStore(workspaceRoot).ForOwner(authctx.SystemUserID)
+	now := time.Now().UTC()
+	if _, err := files.UpsertSession(recipientWorkspace, protocol.Session{
+		SessionKey:   recipientSession,
+		AgentID:      "agent-b",
+		ChannelType:  protocol.SessionChannelInternalSegment,
+		ChatType:     protocol.RoomTypeDM,
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "真实接收会话",
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("准备接收方真实会话失败: %v", err)
+	}
+	_, err := router.DeliverAutomationResult(
+		context.Background(),
+		"agent-a",
+		"A 生成的日报",
+		DeliveryTarget{
+			Mode: DeliveryModeExplicit, Channel: ChannelTypeInternal,
+			To: recipientSession, SessionKey: recipientSession,
+		},
+		AutomationDeliveryContext{
+			ProducerAgentID: "agent-a", JobID: "task-cross-agent", RunID: "run-cross-agent",
+			TaskName: "跨智能体日报", Instruction: "生成日报",
+		},
+	)
+	if err != nil {
+		t.Fatalf("跨智能体投递失败: %v", err)
+	}
+	recipientValue, _, err := files.FindSession([]string{recipientWorkspace}, recipientSession)
+	if err != nil || recipientValue == nil {
+		t.Fatalf("接收方真实会话不存在: session=%+v err=%v", recipientValue, err)
+	}
+	if producerValue, _, producerErr := files.FindSession([]string{producerWorkspace}, recipientSession); producerErr != nil || producerValue != nil {
+		t.Fatalf("结果不应写入执行方 workspace: session=%+v err=%v", producerValue, producerErr)
+	}
+	messages, err := workspacestore.NewAgentHistoryStore(workspaceRoot).
+		ForOwner(authctx.SystemUserID).
+		ReadMessages(recipientWorkspace, *recipientValue, nil)
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("读取接收方投影失败: messages=%+v err=%v", messages, err)
+	}
+	metadata, _ := messages[0]["metadata"].(map[string]any)
+	if stringValue(messages[0]["agent_id"]) != "agent-b" ||
+		metadata["producer_agent_id"] != "agent-a" {
+		t.Fatalf("执行方与接收方身份未分离: message=%+v", messages[0])
+	}
+}
+
+type databaseBackedDeliverySessionResolver struct {
+	session protocol.Session
+}
+
+func (r databaseBackedDeliverySessionResolver) ResolveDeliverySession(
+	_ context.Context,
+	sessionKey string,
+) (*protocol.Session, error) {
+	if strings.TrimSpace(sessionKey) != strings.TrimSpace(r.session.SessionKey) {
+		return nil, nil
+	}
+	result := r.session
+	return &result, nil
+}
+
+func TestRouterDeliverAutomationResultMaterializesDatabaseBackedDMSession(t *testing.T) {
+	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{agentByID: map[string]*protocol.Agent{
+		"agent-1": {
+			AgentID: "agent-1", OwnerUserID: authctx.SystemUserID, WorkspacePath: workspacePath,
+		},
+	}}
+	sessionKey := protocol.BuildRoomAgentSessionKey("dm-conversation-1", "agent-1", protocol.RoomTypeDM)
+	roomID := "dm-room-1"
+	conversationID := "dm-conversation-1"
+	roomSessionID := "dm-session-1"
+	now := time.Now().UTC()
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspaceRoot}, db, resolver, nil)
+	router.SetSessionProjectionResolver(databaseBackedDeliverySessionResolver{session: protocol.Session{
+		SessionKey:     sessionKey,
+		AgentID:        "agent-1",
+		RoomSessionID:  &roomSessionID,
+		RoomID:         &roomID,
+		ConversationID: &conversationID,
+		ChannelType:    protocol.SessionChannelWebSocket,
+		ChatType:       protocol.RoomTypeDM,
+		Status:         "active",
+		CreatedAt:      now,
+		LastActivity:   now,
+		Title:          "数据库 DM",
+		Options:        map[string]any{},
+		IsActive:       true,
+	}})
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	_, err := router.DeliverAutomationResult(
+		context.Background(),
+		"agent-1",
+		"数据库 DM 定时结果",
+		DeliveryTarget{
+			Mode: DeliveryModeExplicit, Channel: ChannelTypeWebSocket,
+			To: sessionKey, SessionKey: sessionKey,
+		},
+		AutomationDeliveryContext{JobID: "task-db-dm", RunID: "run-db-dm"},
+	)
+	if err != nil {
+		t.Fatalf("数据库 DM 投递失败: %v", err)
+	}
+
+	files := workspacestore.NewSessionFileStore(workspaceRoot).ForOwner(authctx.SystemUserID)
+	materialized, _, err := files.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil || materialized == nil {
+		t.Fatalf("数据库 DM 未物化为 workspace 投影: session=%+v err=%v", materialized, err)
+	}
+	if materialized.RoomSessionID == nil || *materialized.RoomSessionID != roomSessionID ||
+		materialized.RoomID == nil || *materialized.RoomID != roomID {
+		t.Fatalf("数据库 Session 身份未保留: %+v", materialized)
+	}
+	messages, err := workspacestore.NewAgentHistoryStore(workspaceRoot).
+		ForOwner(authctx.SystemUserID).
+		ReadMessages(workspacePath, *materialized, nil)
+	if err != nil || len(messages) != 1 || extractAssistantText(messages[0]) != "数据库 DM 定时结果" {
+		t.Fatalf("数据库 DM 投递历史不正确: messages=%+v err=%v", messages, err)
 	}
 }

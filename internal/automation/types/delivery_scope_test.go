@@ -24,18 +24,18 @@ func TestValidateSelfScopedDeliveryTarget(t *testing.T) {
 		"chat-1",
 		"thread-1",
 	)
-	ownInbox := protocol.BuildAgentSessionKey(
+	ownSession := protocol.BuildAgentSessionKey(
 		agentID,
 		protocol.SessionChannelInternalSegment,
 		"dm",
-		protocol.AutomationInboxSessionRef,
+		"selected-session",
 		"",
 	)
-	otherInbox := protocol.BuildAgentSessionKey(
+	otherSession := protocol.BuildAgentSessionKey(
 		"agent-2",
 		protocol.SessionChannelInternalSegment,
 		"dm",
-		protocol.AutomationInboxSessionRef,
+		"selected-session",
 		"",
 	)
 
@@ -51,10 +51,10 @@ func TestValidateSelfScopedDeliveryTarget(t *testing.T) {
 			target: DeliveryTarget{Mode: DeliveryModeNone},
 		},
 		{
-			name:  "own agent inbox",
+			name:  "own real agent session",
 			grant: currentDM,
 			target: DeliveryTarget{
-				Mode: DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment, To: ownInbox,
+				Mode: DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment, To: ownSession,
 			},
 		},
 		{
@@ -75,7 +75,7 @@ func TestValidateSelfScopedDeliveryTarget(t *testing.T) {
 		{
 			name:    "other agent",
 			grant:   currentDM,
-			target:  DeliveryTarget{Mode: DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment, To: otherInbox},
+			target:  DeliveryTarget{Mode: DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment, To: otherSession},
 			wantErr: true,
 		},
 		{

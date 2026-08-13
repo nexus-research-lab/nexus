@@ -59,10 +59,10 @@ func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMo
 }
 
 // Delivery 按 reply_mode 推导出底层 DeliveryTarget。
-func Delivery(args map[string]any, sctx contract.ServerContext, targetAgentID, executionMode, replyMode string, sessionTarget automationdomain.SessionTarget) (automationdomain.DeliveryTarget, error) {
+func Delivery(args map[string]any, sctx contract.ServerContext, executionMode, replyMode string, sessionTarget automationdomain.SessionTarget) (automationdomain.DeliveryTarget, error) {
 	switch replyMode {
 	case "":
-		return automationdomain.DeliveryTarget{}, errors.New("reply_mode is required (none / execution / selected / agent / channel)")
+		return automationdomain.DeliveryTarget{}, errors.New("reply_mode is required (none / execution / selected / channel)")
 	case "none":
 		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}.Normalized(), nil
 	case "execution":
@@ -73,32 +73,11 @@ func Delivery(args map[string]any, sctx contract.ServerContext, targetAgentID, e
 			return automationdomain.DeliveryTarget{}, errors.New("reply_mode=selected requires selected_reply_session_key. Ask the user in the current conversation to confirm which existing session should receive the result")
 		}
 		return deliveryFromSessionKey(to), nil
-	case "agent":
-		return agentReply(args, sctx, targetAgentID)
 	case "channel":
 		return channelReply(args, sctx)
 	default:
-		return automationdomain.DeliveryTarget{}, fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected / agent / channel)", replyMode)
+		return automationdomain.DeliveryTarget{}, fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected / channel)", replyMode)
 	}
-}
-
-func agentReply(args map[string]any, sctx contract.ServerContext, targetAgentID string) (automationdomain.DeliveryTarget, error) {
-	agentID := argx.FirstNonEmpty(argx.String(args, "reply_agent_id"), targetAgentID, sctx.CurrentAgentID)
-	if strings.TrimSpace(agentID) == "" {
-		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=agent requires reply_agent_id or an active target agent")
-	}
-	sessionKey := protocol.BuildAgentSessionKey(
-		strings.TrimSpace(agentID),
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
-	return automationdomain.DeliveryTarget{
-		Mode:    automationdomain.DeliveryModeExplicit,
-		Channel: protocol.SessionChannelInternalSegment,
-		To:      sessionKey,
-	}.Normalized(), nil
 }
 
 func channelReply(args map[string]any, sctx contract.ServerContext) (automationdomain.DeliveryTarget, error) {
@@ -120,11 +99,7 @@ func channelReply(args map[string]any, sctx contract.ServerContext) (automationd
 	if filled, ok := fillChannelReplyTargetFromCurrentSession(delivery, sctx.CurrentSessionKey); ok {
 		return filled.Normalized(), nil
 	}
-	if sctx.IsMainAgent && strings.TrimSpace(delivery.Channel) != "" && strings.TrimSpace(delivery.To) != "" {
-		delivery.Mode = automationdomain.DeliveryModeExplicit
-		return delivery.Normalized(), nil
-	}
-	return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires an authorized reply_session_key, or fields that exactly match the current external IM session")
+	return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires an existing authorized reply_session_key, or fields that exactly match the current external IM session")
 }
 
 func fillChannelReplyTargetFromCurrentSession(
@@ -241,6 +216,11 @@ func executionModeFromTarget(target automationdomain.SessionTarget) string {
 func ValidatePage(executionMode, replyMode string) error {
 	execMode := strings.TrimSpace(executionMode)
 	rplMode := strings.TrimSpace(replyMode)
+	switch rplMode {
+	case "", "none", "execution", "selected", "channel":
+	default:
+		return fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected / channel)", rplMode)
+	}
 	if execMode == "main" && rplMode != "" && rplMode != "none" {
 		return errors.New("execution_mode=main does not support reply_mode under page semantics. To run independently and send the result back here, use temporary + selected")
 	}

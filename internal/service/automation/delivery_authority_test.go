@@ -2,6 +2,8 @@ package automation
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +17,22 @@ import (
 type mutableAutomationAgentAuthority struct {
 	mu     sync.Mutex
 	agents map[string]protocol.Agent
+}
+
+type fakeAutomationDeliverySessionResolver struct {
+	sessions map[string]protocol.Session
+}
+
+func (f fakeAutomationDeliverySessionResolver) ResolveDeliverySession(
+	_ context.Context,
+	sessionKey string,
+) (*protocol.Session, error) {
+	item, ok := f.sessions[strings.TrimSpace(sessionKey)]
+	if !ok {
+		return nil, nil
+	}
+	result := item
+	return &result, nil
 }
 
 func (f *mutableAutomationAgentAuthority) EnsureReady(context.Context) error {
@@ -60,11 +78,11 @@ func TestServiceRejectsAgentOriginDeliveryToAnotherAgent(t *testing.T) {
 		"operator",
 		"",
 	)
-	otherInbox := protocol.BuildAgentSessionKey(
+	otherSession := protocol.BuildAgentSessionKey(
 		"agent-2",
 		protocol.SessionChannelInternalSegment,
 		protocol.RoomTypeDM,
-		protocol.AutomationInboxSessionRef,
+		"operator",
 		"",
 	)
 
@@ -84,7 +102,7 @@ func TestServiceRejectsAgentOriginDeliveryToAnotherAgent(t *testing.T) {
 		Delivery: automationdomain.DeliveryTarget{
 			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: protocol.SessionChannelInternalSegment,
-			To:      otherInbox,
+			To:      otherSession,
 		},
 		Source: automationdomain.Source{
 			Kind:           automationdomain.SourceKindAgent,
@@ -102,11 +120,11 @@ func TestServiceRejectsAgentOriginDeliveryToAnotherAgent(t *testing.T) {
 		t.Fatalf("unexpected cross-Agent delivery error: %v", err)
 	}
 
-	ownInbox := protocol.BuildAgentSessionKey(
+	ownSession := protocol.BuildAgentSessionKey(
 		"agent-1",
 		protocol.SessionChannelInternalSegment,
 		protocol.RoomTypeDM,
-		protocol.AutomationInboxSessionRef,
+		"operator",
 		"",
 	)
 	source := automationdomain.Source{
@@ -132,7 +150,7 @@ func TestServiceRejectsAgentOriginDeliveryToAnotherAgent(t *testing.T) {
 		Delivery: automationdomain.DeliveryTarget{
 			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: protocol.SessionChannelInternalSegment,
-			To:      ownInbox,
+			To:      ownSession,
 		},
 		Source:  source,
 		Enabled: true,
@@ -143,13 +161,13 @@ func TestServiceRejectsAgentOriginDeliveryToAnotherAgent(t *testing.T) {
 	crossDelivery := automationdomain.DeliveryTarget{
 		Mode:    automationdomain.DeliveryModeExplicit,
 		Channel: protocol.SessionChannelInternalSegment,
-		To:      otherInbox,
+		To:      otherSession,
 	}
 	if _, err = service.UpdateTask(agentCtx, created.JobID, automationdomain.UpdateJobInput{
 		Delivery: &crossDelivery,
 		Source:   &source,
 	}); err == nil || !strings.Contains(err.Error(), "another agent") {
-		t.Fatalf("Agent-origin update should reject another Agent inbox, got %v", err)
+		t.Fatalf("Agent-origin update should reject another Agent session, got %v", err)
 	}
 }
 
@@ -181,9 +199,7 @@ func TestServiceRejectsAgentActorWithForgedControlPlaneSource(t *testing.T) {
 			NamedSessionKey: "forged-source",
 		},
 		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: protocol.SessionChannelFeishu,
-			To:      "oc_ungranted",
+			Mode: automationdomain.DeliveryModeNone,
 		},
 		Source:  automationdomain.Source{Kind: automationdomain.SourceKindCLI},
 		Enabled: true,
@@ -196,26 +212,185 @@ func TestServiceRejectsAgentActorWithForgedControlPlaneSource(t *testing.T) {
 	}
 }
 
+func TestServiceAllowsPageDeliveryToAnotherSameOwnerAgent(t *testing.T) {
+	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-b")
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		newAutomationTestDB(t),
+		nil, nil, nil, nil, nil, nil,
+	)
+	service.agents = &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
+		"agent-a": {AgentID: "agent-a", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
+		"agent-b": {AgentID: "agent-b", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
+	}}
+	recipientSession := protocol.BuildAgentSessionKey(
+		"agent-b",
+		protocol.SessionChannelInternalSegment,
+		protocol.RoomTypeDM,
+		"recipient-session",
+		"",
+	)
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
+		recipientSession: {
+			SessionKey: recipientSession, AgentID: "agent-b", ChannelType: protocol.SessionChannelInternalSegment,
+		},
+	}})
+	created, err := service.CreateTask(automationMCPTestOwnerContext("user-1"), automationdomain.CreateJobInput{
+		Name: "A executes and B receives", AgentID: "agent-a", Instruction: "prepare report",
+		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
+			To: recipientSession, SessionKey: recipientSession,
+		},
+		Source:  automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("same-owner page delivery should be accepted: %v", err)
+	}
+	if created.AgentID != "agent-a" || created.Delivery.SessionKey != recipientSession ||
+		created.DeliveryGrant.Kind != automationdomain.SourceKindUserPage {
+		t.Fatalf("execution and recipient identity were collapsed: %+v", created)
+	}
+}
+
+func TestServiceRejectsNewLegacyInboxAndMissingRealSession(t *testing.T) {
+	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		newAutomationTestDB(t),
+		nil, nil, nil, nil, nil, nil,
+	)
+	service.agents = &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
+		"agent-1": {
+			AgentID: "agent-1", OwnerUserID: "user-1", Status: "active",
+			WorkspacePath: workspacePath,
+		},
+	}}
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{})
+	input := automationConfigurationTaskInput("real-session-required")
+	input.Source = automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
+	ownerCtx := automationMCPTestOwnerContext("user-1")
+
+	inboxKey := protocol.BuildAgentSessionKey(
+		"agent-1", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
+		protocol.AutomationInboxSessionRef, "",
+	)
+	input.Delivery = automationdomain.DeliveryTarget{
+		Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
+		To: inboxKey, SessionKey: inboxKey,
+	}
+	if _, err := service.CreateTask(ownerCtx, input); err == nil ||
+		!strings.Contains(err.Error(), "legacy-only") {
+		t.Fatalf("new synthetic inbox must be rejected, got %v", err)
+	}
+
+	missingKey := protocol.BuildAgentSessionKey(
+		"agent-1", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
+		"missing-real-session", "",
+	)
+	input.Delivery = automationdomain.DeliveryTarget{
+		Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
+		To: missingKey, SessionKey: missingKey,
+	}
+	if _, err := service.CreateTask(ownerCtx, input); !errors.Is(
+		err,
+		automationdomain.ErrTaskDeliverySessionUnavailable,
+	) {
+		t.Fatalf("missing real session must be rejected, got %v", err)
+	}
+}
+
+func TestServiceValidatesCrossAgentIMAgainstRecipientPairing(t *testing.T) {
+	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-b")
+	grant := &mutableAutomationDeliveryGrant{allowed: true}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		newAutomationTestDB(t),
+		nil, nil, nil, nil, nil, nil,
+	)
+	service.agents = &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
+		"agent-a": {AgentID: "agent-a", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
+		"agent-b": {AgentID: "agent-b", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
+	}}
+	service.SetDeliveryGrantResolver(grant)
+	recipientSession := protocol.BuildAgentSessionKey(
+		"agent-b", protocol.SessionChannelWeixinPersonal, protocol.RoomTypeDM,
+		"wx-user-b", "",
+	)
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
+		recipientSession: {
+			SessionKey: recipientSession, AgentID: "agent-b", ChannelType: protocol.SessionChannelWeixinPersonal,
+		},
+	}})
+	_, err := service.CreateTask(automationMCPTestOwnerContext("user-1"), automationdomain.CreateJobInput{
+		Name: "A executes and B receives on IM", AgentID: "agent-a", Instruction: "prepare report",
+		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeLast, SessionKey: recipientSession},
+		Source:        automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("cross-Agent IM delivery should validate recipient pairing: %v", err)
+	}
+	if got := grant.agentIDsSnapshot(); !slices.Equal(got, []string{"agent-b"}) {
+		t.Fatalf("pairing was checked against executor instead of recipient: %v", got)
+	}
+}
+
+func TestServiceRejectsPageDeliveryToCrossOwnerAgent(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil, nil, nil, nil, nil, nil,
+	)
+	service.agents = &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
+		"agent-a": {AgentID: "agent-a", OwnerUserID: "user-1", Status: "active"},
+		"agent-b": {AgentID: "agent-b", OwnerUserID: "user-2", Status: "active"},
+	}}
+	recipientSession := protocol.BuildAgentSessionKey(
+		"agent-b", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
+		"recipient-session", "",
+	)
+	_, err := service.CreateTask(automationMCPTestOwnerContext("user-1"), automationdomain.CreateJobInput{
+		Name: "cross owner", AgentID: "agent-a", Instruction: "prepare report",
+		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
+			To: recipientSession, SessionKey: recipientSession,
+		},
+		Source:  automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
+		Enabled: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "must be owned") {
+		t.Fatalf("cross-owner recipient must fail closed, got %v", err)
+	}
+}
+
 func TestServiceOwnerMainGrantIsRevalidatedBeforeDelivery(t *testing.T) {
 	db := newAutomationTestDB(t)
 	delivery := &fakeDeliveryRouter{}
+	workerWorkspace := newAutomationOwnerWorkspace(t, "user-1", "worker")
 	authority := &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
 		"main": {
 			AgentID:       "main",
 			OwnerUserID:   "user-1",
 			Status:        "active",
 			IsMain:        true,
-			WorkspacePath: t.TempDir(),
+			WorkspacePath: workerWorkspace,
 		},
 		"worker": {
 			AgentID:       "worker",
 			OwnerUserID:   "user-1",
 			Status:        "active",
-			WorkspacePath: t.TempDir(),
+			WorkspacePath: workerWorkspace,
 		},
 	}}
 	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workerWorkspace},
 		db,
 		nil,
 		nil,
@@ -234,6 +409,18 @@ func TestServiceOwnerMainGrantIsRevalidatedBeforeDelivery(t *testing.T) {
 		"owner",
 		"",
 	)
+	workerSession := protocol.BuildAgentSessionKey(
+		"worker",
+		protocol.SessionChannelInternalSegment,
+		protocol.RoomTypeDM,
+		"owner-selected",
+		"",
+	)
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
+		workerSession: {
+			SessionKey: workerSession, AgentID: "worker", ChannelType: protocol.SessionChannelInternalSegment,
+		},
+	}})
 
 	created, err := service.CreateTask(mainCtx, automationdomain.CreateJobInput{
 		Name:        "main-granted-channel",
@@ -249,9 +436,10 @@ func TestServiceOwnerMainGrantIsRevalidatedBeforeDelivery(t *testing.T) {
 			NamedSessionKey: "main-granted-channel",
 		},
 		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: protocol.SessionChannelFeishu,
-			To:      "oc_owner_selected",
+			Mode:       automationdomain.DeliveryModeExplicit,
+			Channel:    protocol.SessionChannelInternalSegment,
+			To:         workerSession,
+			SessionKey: workerSession,
 		},
 		Source: automationdomain.Source{
 			Kind:           automationdomain.SourceKindAgent,
@@ -305,13 +493,6 @@ func TestDeliverJobObservationUsesLatestTaskAfterStaleSnapshot(t *testing.T) {
 		"operator",
 		"",
 	)
-	inbox := protocol.BuildAgentSessionKey(
-		"agent-1",
-		protocol.SessionChannelInternalSegment,
-		protocol.RoomTypeDM,
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
 	created, err := service.CreateTask(agentCtx, automationdomain.CreateJobInput{
 		Name:        "stale-snapshot",
 		AgentID:     "agent-1",
@@ -328,7 +509,7 @@ func TestDeliverJobObservationUsesLatestTaskAfterStaleSnapshot(t *testing.T) {
 		Delivery: automationdomain.DeliveryTarget{
 			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: protocol.SessionChannelInternalSegment,
-			To:      inbox,
+			To:      sourceSession,
 		},
 		Source: automationdomain.Source{
 			Kind:           automationdomain.SourceKindAgent,

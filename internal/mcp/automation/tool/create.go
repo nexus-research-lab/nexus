@@ -23,7 +23,7 @@ const createDescription = "创建持久化定时任务（== UI「新建任务」
 	"可选：context_mode(isolated|current) + deliver_result(boolean) + permission_mode(default|plan|acceptEdits|bypassPermissions|dontAsk)。" +
 	"context_mode 默认 isolated；只有任务明确需要读取当前聊天记录时才用 current。deliver_result 在当前会话中默认 true，无会话时默认 false。" +
 	"省略 permission_mode 时，会在创建瞬间复制当前 Session 的有效模式（无覆盖则复制 Agent 模式）以及 Agent 工具 allow/deny，之后任务与 Agent 配置相互独立；显式 permission_mode 会覆盖复制出的模式。bypassPermissions 会跳过 SDK 权限检查，只有用户明确要求时才选择。SDK 发出的额外任务权限请求仍由 Nexus 持久审批。" +
-	"投递权限：普通 Agent 只能回到自身 Agent 会话/收件箱，Room 成员只能额外回到当前 Room，外部通道只能回到当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他 Agent 或任意已配置通道目标。任务实际投递前会按最新配置和当前主智能体/Room 成员身份再次校验。" +
+	"投递权限：普通 Agent 只能回到自身真实会话，Room 成员只能额外回到当前 Room，外部通道只能回到当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他真实会话或任意已配置通道目标。任务实际投递前会按最新配置和当前主智能体/Room 成员身份再次校验。" +
 	"外部 IM 中只需表达 deliver_result；Nexus 根据可信入站上下文自动绑定 channel/account/target/thread/session，模型不得猜测或填写这些路由字段。" +
 	"任务到点后无人值守执行，instruction 必须自包含，所需工具必须预先授权，不能依赖 AskUserQuestion 补充信息。" +
 	"overlap_policy 可选 skip|allow，缺省 skip。" +
@@ -113,7 +113,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 	if err != nil {
 		return automationdomain.CreateJobInput{}, err
 	}
-	delivery, err := semantic.Delivery(args, sctx, agentID, executionMode, replyMode, sessionTarget)
+	delivery, err := semantic.Delivery(args, sctx, executionMode, replyMode, sessionTarget)
 	if err != nil {
 		return automationdomain.CreateJobInput{}, err
 	}

@@ -1,4 +1,4 @@
-// INPUT: 新任务、来源 Session 与当前 Agent runtime 配置。
+// INPUT: 新任务、执行 Session 与当前 Agent runtime 配置。
 // OUTPUT: 创建时固化的具体 permission_mode 和完整工具权限快照。
 // POS: automation 创建语义中的 copy-on-create 边界；后续 Agent 变更不回写任务。
 package automation
@@ -40,7 +40,7 @@ func (s *Service) resolveInitialTaskPermissionSnapshot(
 	mode := strings.TrimSpace(job.PermissionMode)
 	if mode == "" {
 		var err error
-		mode, err = s.sourceSessionPermissionMode(ctx, job, agentValue)
+		mode, err = s.executionSessionPermissionMode(ctx, job, agentValue)
 		if err != nil {
 			return initialTaskPermissionSnapshot{}, err
 		}
@@ -54,12 +54,15 @@ func (s *Service) resolveInitialTaskPermissionSnapshot(
 	}, nil
 }
 
-func (s *Service) sourceSessionPermissionMode(
+func (s *Service) executionSessionPermissionMode(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,
 	agentValue *protocol.Agent,
 ) (string, error) {
-	sessionKey := strings.TrimSpace(job.Source.SessionKey)
+	if strings.TrimSpace(job.SessionTarget.Kind) != automationdomain.SessionTargetBound {
+		return "", nil
+	}
+	sessionKey := strings.TrimSpace(job.SessionTarget.BoundSessionKey)
 	if sessionKey == "" {
 		return "", nil
 	}

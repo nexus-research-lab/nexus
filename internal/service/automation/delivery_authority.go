@@ -1,5 +1,5 @@
-// INPUT: 持久化 ScheduledTask source/delivery、当前 Agent 身份与最新 Room 成员事实。
-// OUTPUT: Agent-origin 投递授权、并发更新后的最新可投递任务或明确拒绝。
+// INPUT: 持久化 ScheduledTask source/delivery、当前 Agent 身份、统一 Session 与 Room 成员事实。
+// OUTPUT: 真实接收 Session 校验、Agent-origin 投递授权与明确拒绝。
 // POS: Automation create/update 与实际 delivery/retry 的最终权限边界。
 package automation
 
@@ -29,6 +29,12 @@ func (s *Service) prepareTaskDeliveryMutation(
 	if task == nil {
 		return errors.New("automation delivery validation requires a task")
 	}
+	if isLegacyAutomationInboxDelivery(task.Delivery) {
+		return errors.New("the scheduled task inbox is legacy-only; select an existing Nexus, Room, or IM session")
+	}
+	if err := validateConfigurableDeliveryTarget(task.Delivery); err != nil {
+		return err
+	}
 	actorAgentID, agentActor := automationexec.ActorAgentID(ctx)
 	if agentActor {
 		if grantSource == nil || strings.TrimSpace(grantSource.Kind) != automationdomain.SourceKindAgent {
@@ -52,6 +58,45 @@ func (s *Service) prepareTaskDeliveryMutation(
 	}
 	task.DeliveryGrant = automationdomain.Source{Kind: kind}.Normalized()
 	return s.validatePersistentDeliveryGrant(ctx, *task)
+}
+
+func isLegacyAutomationInboxDelivery(target automationdomain.DeliveryTarget) bool {
+	normalized := target.Normalized()
+	sessionKey := strings.TrimSpace(normalized.SessionKey)
+	if sessionKey == "" && protocol.ParseSessionKey(normalized.To).IsStructured {
+		sessionKey = strings.TrimSpace(normalized.To)
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	return parsed.IsStructured &&
+		parsed.Kind == protocol.SessionKeyKindAgent &&
+		protocol.NormalizeStoredChannelType(parsed.Channel) == protocol.SessionChannelInternalSegment &&
+		strings.TrimSpace(parsed.Ref) == protocol.AutomationInboxSessionRef
+}
+
+// validateConfigurableDeliveryTarget 要求所有新建或改绑都指向结构化 Session。
+// 裸 channel/to 与不带 SessionKey 的 last 只属于已持久化旧任务的运行兼容。
+func validateConfigurableDeliveryTarget(target automationdomain.DeliveryTarget) error {
+	normalized := target.Normalized()
+	if normalized.Mode == automationdomain.DeliveryModeNone {
+		return nil
+	}
+	// `last` without a key is the long-standing "use the remembered route" runtime
+	// contract. It does not create a Session and remains valid for non-UI callers.
+	if normalized.Mode == automationdomain.DeliveryModeLast &&
+		strings.TrimSpace(normalized.SessionKey) == "" &&
+		strings.TrimSpace(normalized.To) == "" {
+		return nil
+	}
+	sessionKey := strings.TrimSpace(normalized.SessionKey)
+	if sessionKey == "" && protocol.ParseSessionKey(normalized.To).IsStructured {
+		sessionKey = strings.TrimSpace(normalized.To)
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured ||
+		(parsed.Kind != protocol.SessionKeyKindAgent && parsed.Kind != protocol.SessionKeyKindRoom) {
+		return automationdomain.ErrTaskDeliverySessionUnavailable
+	}
+	return nil
 }
 
 // authorizedDeliveryJob 重读最新任务，再验证 Agent-origin 的 owner/self/Room 权限。
@@ -122,27 +167,34 @@ func (s *Service) validatePersistentDeliveryGrant(
 		return nil
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.IsStructured && parsed.Kind == protocol.SessionKeyKindRoom {
+		return s.validateRoomDeliveryMembership(ctx, job)
+	}
 	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent {
-		channel := protocol.NormalizeStoredChannelType(target.Channel)
-		if channel == "" || channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
-			return nil
-		}
-		return errors.New("external automation delivery requires a structured session_key grant")
+		return automationdomain.ErrTaskDeliverySessionUnavailable
+	}
+	targetAgentID := strings.TrimSpace(parsed.AgentID)
+	if targetAgentID == "" {
+		return errors.New("automation delivery session is missing its target Agent")
+	}
+	targetAgent, err := s.requireSameOwnerDeliveryAgent(ctx, job, targetAgentID)
+	if err != nil {
+		return err
+	}
+	if err = s.validateExistingAgentDeliverySession(ctx, targetAgent, sessionKey); err != nil {
+		return err
 	}
 	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
 	if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
 		return nil
 	}
-	if strings.TrimSpace(parsed.AgentID) != strings.TrimSpace(job.AgentID) {
-		return errors.New("automation delivery session is bound to another Agent")
-	}
 	if s.deliveryGrants == nil {
 		return errors.New("automation IM delivery grant resolver is not configured")
 	}
-	err := s.deliveryGrants.ValidateAutomationDeliveryGrant(
+	err = s.deliveryGrants.ValidateAutomationDeliveryGrant(
 		ctx,
 		strings.TrimSpace(job.OwnerUserID),
-		strings.TrimSpace(job.AgentID),
+		targetAgentID,
 		sessionKey,
 	)
 	if err == nil {
@@ -153,11 +205,58 @@ func (s *Service) validatePersistentDeliveryGrant(
 	}
 	s.loggerFor(ctx).Warn(
 		"定时任务 IM 投递目标未通过当前配对校验",
-		"agent_id", strings.TrimSpace(job.AgentID),
+		"agent_id", targetAgentID,
 		"job_id", strings.TrimSpace(job.JobID),
 		"err", err,
 	)
 	return automationdomain.ErrTaskDeliverySessionUnavailable
+}
+
+// validateExistingAgentDeliverySession 保证新建/改绑只引用真实存在的 Nexus 会话。
+// 历史 automation-inbox 的运行兼容由 channels 投递层承担，配置写入路径不会进入这里。
+func (s *Service) validateExistingAgentDeliverySession(
+	ctx context.Context,
+	targetAgent *protocol.Agent,
+	sessionKey string,
+) error {
+	// 部分纯领域测试不装配 Agent store；生产服务始终有 targetAgent，仍在实际投递层
+	// 再次 fail closed。这里不为测试伪造 workspace 或 Session。
+	if targetAgent == nil {
+		return nil
+	}
+	if s.deliverySessions == nil {
+		return automationdomain.ErrTaskDeliverySessionUnavailable
+	}
+	stored, err := s.deliverySessions.ResolveDeliverySession(ctx, strings.TrimSpace(sessionKey))
+	if err != nil {
+		return automationdomain.ErrTaskDeliverySessionUnavailable
+	}
+	if stored == nil ||
+		strings.TrimSpace(stored.SessionKey) != strings.TrimSpace(sessionKey) ||
+		strings.TrimSpace(stored.AgentID) != strings.TrimSpace(targetAgent.AgentID) {
+		return automationdomain.ErrTaskDeliverySessionUnavailable
+	}
+	return nil
+}
+
+func (s *Service) requireSameOwnerDeliveryAgent(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	agentID string,
+) (*protocol.Agent, error) {
+	if s.agents == nil {
+		return nil, nil
+	}
+	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return nil, err
+	}
+	if agentValue == nil ||
+		(strings.TrimSpace(job.OwnerUserID) != "" &&
+			strings.TrimSpace(agentValue.OwnerUserID) != strings.TrimSpace(job.OwnerUserID)) {
+		return nil, errors.New("automation delivery target Agent must be owned by the task owner")
+	}
+	return agentValue, nil
 }
 
 func (s *Service) validateAgentOriginDeliveryGrant(
@@ -233,30 +332,38 @@ func (s *Service) validateRoomDeliveryMembership(
 	job automationdomain.ScheduledTask,
 ) error {
 	target := job.Delivery.Normalized()
-	if target.Mode != automationdomain.DeliveryModeExplicit ||
-		protocol.NormalizeStoredChannelType(target.Channel) != protocol.SessionChannelWebSocket {
-		return nil
+	targetSessionKey := strings.TrimSpace(target.SessionKey)
+	if targetSessionKey == "" {
+		targetSessionKey = strings.TrimSpace(target.To)
 	}
-	targetSession := protocol.ParseSessionKey(target.To)
+	targetSession := protocol.ParseSessionKey(targetSessionKey)
 	if targetSession.Kind != protocol.SessionKeyKindRoom {
 		return nil
 	}
 	grant := job.DeliveryGrant.Normalized()
+	if s.room == nil {
+		return errors.New("Room automation delivery cannot revalidate current membership")
+	}
+	contextValue, err := s.room.GetConversationContext(ctx, targetSession.ConversationID)
+	if err != nil {
+		return err
+	}
+	if contextValue == nil {
+		return errors.New("Automation delivery Room is no longer available")
+	}
+	// 人类控制面可以把同 owner Agent 的产物投递到另一个 Room；Room 是结果接收方，
+	// 不是执行身份。普通 Agent 自主创建的任务仍只能回到可信来源 Room，并且执行
+	// Agent 必须保持成员身份，防止模型借定时任务跨 Room 注入消息。
+	if grant.Kind != automationdomain.SourceKindAgent {
+		return nil
+	}
 	sourceSession := protocol.ParseSessionKey(grant.SessionKey)
 	if sourceSession.Kind != protocol.SessionKeyKindRoom ||
 		sourceSession.ConversationID == "" ||
 		sourceSession.Raw != targetSession.Raw {
 		return errors.New("Room automation delivery is not bound to its trusted source conversation")
 	}
-	if s.room == nil {
-		return errors.New("Room automation delivery cannot revalidate current membership")
-	}
-	contextValue, err := s.room.GetConversationContext(ctx, sourceSession.ConversationID)
-	if err != nil {
-		return err
-	}
-	if contextValue == nil ||
-		!roomdomain.IsMemberAgent(contextValue.Members, strings.TrimSpace(job.AgentID)) {
+	if !roomdomain.IsMemberAgent(contextValue.Members, strings.TrimSpace(job.AgentID)) {
 		return errors.New("Automation delivery Agent is no longer a member of the granted Room")
 	}
 	sourceContextID := strings.TrimSpace(grant.ContextID)

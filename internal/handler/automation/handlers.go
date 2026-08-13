@@ -30,17 +30,19 @@ type scheduledTaskCreatePayload struct {
 }
 
 type scheduledTaskUpdatePayload struct {
-	Name           *string                          `json:"name,omitempty"`
-	Schedule       *automationdomain.Schedule       `json:"schedule,omitempty"`
-	Instruction    *string                          `json:"instruction,omitempty"`
-	ExecutionKind  *string                          `json:"execution_kind,omitempty"`
-	PermissionMode *string                          `json:"permission_mode,omitempty"`
-	SessionTarget  *automationdomain.SessionTarget  `json:"session_target,omitempty"`
-	Delivery       *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
-	OverlapPolicy  *string                          `json:"overlap_policy,omitempty"`
-	ExpiresAt      *time.Time                       `json:"expires_at,omitempty"`
-	ClearExpiresAt bool                             `json:"clear_expires_at,omitempty"`
-	Enabled        *bool                            `json:"enabled,omitempty"`
+	ExpectedConfigurationVersion *int64                           `json:"expected_configuration_version,omitempty"`
+	Name                         *string                          `json:"name,omitempty"`
+	AgentID                      *string                          `json:"agent_id,omitempty"`
+	Schedule                     *automationdomain.Schedule       `json:"schedule,omitempty"`
+	Instruction                  *string                          `json:"instruction,omitempty"`
+	ExecutionKind                *string                          `json:"execution_kind,omitempty"`
+	PermissionMode               *string                          `json:"permission_mode,omitempty"`
+	SessionTarget                *automationdomain.SessionTarget  `json:"session_target,omitempty"`
+	Delivery                     *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
+	OverlapPolicy                *string                          `json:"overlap_policy,omitempty"`
+	ExpiresAt                    *time.Time                       `json:"expires_at,omitempty"`
+	ClearExpiresAt               bool                             `json:"clear_expires_at,omitempty"`
+	Enabled                      *bool                            `json:"enabled,omitempty"`
 }
 
 type scheduledTaskStatusPayload struct {
@@ -186,11 +188,11 @@ func (h *Handlers) HandleCreateScheduledTask(writer http.ResponseWriter, request
 	if payload.Delivery != nil {
 		delivery = *payload.Delivery
 	}
-	source := automationdomain.Source{}
-	if payload.Source != nil {
-		source = *payload.Source
+	if automationdomain.NormalizeExecutionKind(payload.ExecutionKind) == automationdomain.ExecutionKindScript {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "页面暂不支持创建脚本任务")
+		return
 	}
-	source.Kind = automationdomain.SourceKindUserPage
+	source := automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
 	enabled := true
 	if payload.Enabled != nil {
 		enabled = *payload.Enabled
@@ -225,13 +227,19 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
+	if payload.ExecutionKind != nil &&
+		automationdomain.NormalizeExecutionKind(*payload.ExecutionKind) == automationdomain.ExecutionKindScript {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "页面暂不支持创建或修改脚本任务")
+		return
+	}
 	var deliveryGrant *automationdomain.Source
 	if payload.Delivery != nil {
 		source := automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
 		deliveryGrant = &source
 	}
-	item, err := h.automation.UpdateTask(request.Context(), chi.URLParam(request, "job_id"), automationdomain.UpdateJobInput{
+	input := automationdomain.UpdateJobInput{
 		Name:           payload.Name,
+		AgentID:        payload.AgentID,
 		Schedule:       payload.Schedule,
 		Instruction:    payload.Instruction,
 		ExecutionKind:  payload.ExecutionKind,
@@ -243,7 +251,23 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 		ExpiresAt:      payload.ExpiresAt,
 		ClearExpiresAt: payload.ClearExpiresAt,
 		Enabled:        payload.Enabled,
-	})
+	}
+	var item *automationdomain.ScheduledTask
+	var err error
+	if payload.ExpectedConfigurationVersion != nil {
+		item, err = h.automation.UpdateTaskAtVersion(
+			request.Context(),
+			chi.URLParam(request, "job_id"),
+			*payload.ExpectedConfigurationVersion,
+			input,
+		)
+	} else {
+		item, err = h.automation.UpdateTask(
+			request.Context(),
+			chi.URLParam(request, "job_id"),
+			input,
+		)
+	}
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
@@ -251,6 +275,10 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 		}
 		if errors.Is(err, automationdomain.ErrTaskSessionRebindRequired) {
 			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+			return
+		}
+		if errors.Is(err, automationdomain.ErrConfigurationVersionConflict) {
+			h.api.WriteFailure(writer, http.StatusConflict, "任务配置已被其他操作修改，请重新打开后再保存")
 			return
 		}
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {

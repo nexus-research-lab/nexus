@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // DeliverMessage 按目标模式解析并完成消息投递，返回平台回执。
@@ -51,7 +53,7 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 // 外部平台失败时保留已经完成的会话投影，后续重试依靠稳定 run_id 更新同一条消息。
 func (r *Router) DeliverAutomationResult(
 	ctx context.Context,
-	agentID string,
+	producerAgentID string,
 	text string,
 	target DeliveryTarget,
 	delivery AutomationDeliveryContext,
@@ -61,11 +63,15 @@ func (r *Router) DeliverAutomationResult(
 		return DeliveryResult{}, err
 	}
 	normalized := target.Normalized()
+	if strings.TrimSpace(delivery.ProducerAgentID) == "" {
+		delivery.ProducerAgentID = strings.TrimSpace(producerAgentID)
+	}
+	routeAgentID := automationDeliveryRouteAgentID(normalized, producerAgentID)
 	routeSessionKey := strings.TrimSpace(normalized.SessionKey)
 	if strings.TrimSpace(text) == "" || normalized.Mode == DeliveryModeNone {
 		return DeliveryResult{Target: normalized}, nil
 	}
-	resolved, err := r.resolveDeliveryTarget(ctx, agentID, normalized)
+	resolved, err := r.resolveDeliveryTarget(ctx, routeAgentID, normalized)
 	if err != nil {
 		return DeliveryResult{}, err
 	}
@@ -76,47 +82,56 @@ func (r *Router) DeliverAutomationResult(
 		return DeliveryResult{}, err
 	}
 
-	unlock := r.lockAutomationProjection(agentID, delivery.RunID)
+	unlock := r.lockAutomationProjection(routeAgentID, delivery.RunID)
 	defer unlock()
-	projection, projectErr := r.projectAutomationResult(ctx, agentID, text, resolved, delivery)
+	projection, projectErr := r.projectAutomationResult(ctx, producerAgentID, text, resolved, delivery)
 	if projectErr != nil {
 		return DeliveryResult{Target: resolved}, projectErr
 	}
 	if isSessionDeliveryChannel(resolved.Channel) {
 		result := normalizeDeliveryResult(projection, resolved)
-		if err = r.rememberDeliveryTarget(ctx, agentID, routeSessionKey, result.Target); err != nil {
+		if err = r.rememberDeliveryTarget(ctx, routeAgentID, routeSessionKey, result.Target); err != nil {
 			return result, err
 		}
-		r.logDeliverySuccess(ctx, agentID, text, result)
+		r.logDeliverySuccess(ctx, routeAgentID, text, result)
 		return result, nil
 	}
 
-	result, sendErr := r.sendDelivery(ctx, agentID, text, resolved)
+	result, sendErr := r.sendDelivery(ctx, routeAgentID, text, resolved)
 	result = normalizeDeliveryResult(result, resolved)
 	if sendErr != nil {
 		if strings.TrimSpace(result.Target.Mode) != "" {
 			if validateErr := result.Target.Validate(); validateErr == nil {
-				if rememberErr := r.rememberDeliveryTarget(ctx, agentID, routeSessionKey, result.Target); rememberErr != nil {
+				if rememberErr := r.rememberDeliveryTarget(ctx, routeAgentID, routeSessionKey, result.Target); rememberErr != nil {
 					return result, errors.Join(sendErr, rememberErr)
 				}
 			}
 		}
 		return result, sendErr
 	}
-	if err = r.rememberDeliveryTarget(ctx, agentID, routeSessionKey, result.Target); err != nil {
+	if err = r.rememberDeliveryTarget(ctx, routeAgentID, routeSessionKey, result.Target); err != nil {
 		return DeliveryResult{}, err
 	}
-	if receiptErr := r.attachAutomationExternalReceipt(ctx, agentID, result, delivery); receiptErr != nil {
+	if receiptErr := r.attachAutomationExternalReceipt(ctx, routeAgentID, result, delivery); receiptErr != nil {
 		r.loggerFor(ctx).Warn("Automation 外部投递回执写入会话失败",
-			"agent_id", agentID,
+			"agent_id", routeAgentID,
 			"job_id", delivery.JobID,
 			"run_id", delivery.RunID,
 			"session_key", result.Target.SessionKey,
 			"err", receiptErr,
 		)
 	}
-	r.logDeliverySuccess(ctx, agentID, text, result)
+	r.logDeliverySuccess(ctx, routeAgentID, text, result)
 	return result, nil
+}
+
+func automationDeliveryRouteAgentID(target DeliveryTarget, fallback string) string {
+	parsed := protocol.ParseSessionKey(target.SessionKey)
+	if parsed.IsStructured && parsed.Kind == protocol.SessionKeyKindAgent &&
+		strings.TrimSpace(parsed.AgentID) != "" {
+		return strings.TrimSpace(parsed.AgentID)
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func (r *Router) lockAutomationProjection(agentID string, runID string) func() {

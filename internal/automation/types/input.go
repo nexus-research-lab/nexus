@@ -124,6 +124,7 @@ func validateExecutionKind(kind string) error {
 // UpdateJobInput 表示更新请求。
 type UpdateJobInput struct {
 	Name           *string         `json:"name,omitempty"`
+	AgentID        *string         `json:"agent_id,omitempty"`
 	Schedule       *Schedule       `json:"schedule,omitempty"`
 	Instruction    *string         `json:"instruction,omitempty"`
 	ExecutionKind  *string         `json:"execution_kind,omitempty"`

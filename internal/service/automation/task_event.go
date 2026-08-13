@@ -149,6 +149,7 @@ func deliveryRetryTaskEventDetail(run automationdomain.ScheduledTaskRun) map[str
 
 func taskEventJobSnapshot(job automationdomain.ScheduledTask) map[string]any {
 	detail := map[string]any{
+		"agent_id":               job.AgentID,
 		"name":                   job.Name,
 		"instruction":            job.Instruction,
 		"enabled":                job.Enabled,
@@ -160,6 +161,7 @@ func taskEventJobSnapshot(job automationdomain.ScheduledTask) map[string]any {
 		"delivery_mode":          job.Delivery.Mode,
 		"delivery_channel":       job.Delivery.Channel,
 		"delivery_to":            job.Delivery.To,
+		"delivery_session_key":   job.Delivery.SessionKey,
 		"session_binding_state":  job.SessionBindingState,
 		"session_binding_issues": job.SessionBindingIssues,
 		"delivery_account_id":    job.Delivery.AccountID,
@@ -200,6 +202,9 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 	if input.Name != nil {
 		fields = append(fields, "name")
 	}
+	if input.AgentID != nil {
+		fields = append(fields, "agent_id")
+	}
 	if input.Schedule != nil {
 		fields = append(fields, "schedule")
 	}
@@ -235,6 +240,7 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 
 func onlyEnabledChanged(input automationdomain.UpdateJobInput) bool {
 	return input.Name == nil &&
+		input.AgentID == nil &&
 		input.Schedule == nil &&
 		input.Instruction == nil &&
 		input.ExecutionKind == nil &&

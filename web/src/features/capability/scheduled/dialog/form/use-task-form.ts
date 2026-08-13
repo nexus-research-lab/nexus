@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import type {
-  ExecutionKind,
+  DeliveryTargetType,
   ExecutionMode,
   PermissionMode,
   ReplyMode,
@@ -9,14 +9,13 @@ import type {
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
 
-function clearContextSelection(
+function clearExecutionSelection(
   current: TaskFormDraft,
   patch: Partial<TaskFormDraft>,
 ): TaskFormDraft {
   return {
     ...current,
     ...patch,
-    selectedReplySessionKey: "",
     selectedSessionKey: "",
   };
 }
@@ -39,23 +38,10 @@ export function useTaskForm(
     onChange();
   }, [onChange]);
 
-  const setExecutionKind = useCallback((value: ExecutionKind) => {
-    setDraft((current) => value === "script"
-      ? clearContextSelection(current, {
-          dedicatedSessionKey: "",
-          executionKind: "script",
-          executionMode: "temporary",
-          replyMode: "none",
-          targetType: "agent",
-        })
-      : { ...current, executionKind: "agent" });
-    onChange();
-  }, [onChange]);
-
   const setTargetType = useCallback((value: TargetType) => {
     setDraft((current) => {
       const targetType = current.executionKind === "script" ? "agent" : value;
-      return clearContextSelection(current, {
+      return clearExecutionSelection(current, {
         executionMode: targetType === "room" ? "existing" : current.executionMode,
         selectedRoomId: targetType === "room" ? current.selectedRoomId : "",
         targetType,
@@ -83,14 +69,17 @@ export function useTaskForm(
   }, [onChange]);
 
   const setSelectedAgentId = useCallback((value: string) => {
-    setDraft((current) => clearContextSelection(current, {
+    setDraft((current) => clearExecutionSelection(current, {
+      permissionMode: value.trim() !== current.selectedAgentId.trim()
+        ? "copy"
+        : current.permissionMode,
       selectedAgentId: value,
     }));
     onChange();
   }, [onChange]);
 
   const setSelectedRoomId = useCallback((value: string) => {
-    setDraft((current) => clearContextSelection(current, {
+    setDraft((current) => clearExecutionSelection(current, {
       selectedRoomId: value,
     }));
     onChange();
@@ -110,30 +99,97 @@ export function useTaskForm(
     onChange();
   }, [onChange]);
 
+  const setDeliveryTargetType = useCallback((value: DeliveryTargetType) => {
+    setDraft((current) => ({
+      ...current,
+      deliveryTargetType: value,
+      selectedReplySessionKey: "",
+    }));
+    onChange();
+  }, [onChange]);
+
+  const setSelectedDeliveryAgentId = useCallback((value: string) => {
+    setDraft((current) => ({
+      ...current,
+      selectedDeliveryAgentId: value,
+      selectedReplySessionKey: "",
+    }));
+    onChange();
+  }, [onChange]);
+
+  const setSelectedDeliveryRoomId = useCallback((value: string) => {
+    setDraft((current) => ({
+      ...current,
+      selectedDeliveryRoomId: value,
+      selectedReplySessionKey: "",
+    }));
+    onChange();
+  }, [onChange]);
+
+  const setSelectedSessionKey = useCallback((value: string, agentId?: string) => {
+    const normalizedAgentId = agentId?.trim() || "";
+    setDraft((current) => ({
+      ...current,
+      permissionMode: normalizedAgentId
+        && normalizedAgentId !== current.selectedAgentId.trim()
+        ? "copy"
+        : current.permissionMode,
+      selectedAgentId: normalizedAgentId || current.selectedAgentId,
+      selectedSessionKey: value,
+    }));
+    onChange();
+  }, [onChange]);
+
+  const resolveSelectedRoomIds = useCallback((values: {
+    deliveryRoomId?: string;
+    executionRoomId?: string;
+  }) => {
+    setDraft((current) => {
+      const selectedDeliveryRoomId = current.selectedDeliveryRoomId
+        || values.deliveryRoomId?.trim()
+        || "";
+      const selectedRoomId = current.selectedRoomId
+        || values.executionRoomId?.trim()
+        || "";
+      if (selectedDeliveryRoomId === current.selectedDeliveryRoomId
+        && selectedRoomId === current.selectedRoomId) {
+        return current;
+      }
+      return { ...current, selectedDeliveryRoomId, selectedRoomId };
+    });
+  }, []);
+
   const actions = useMemo(() => ({
     setDedicatedSessionKey: (value: string) => setValue("dedicatedSessionKey", value),
+    setDeliveryTargetType,
     setEnabled: (value: boolean) => setValue("enabled", value),
     setExpiresAt: (value: string) => setValue("expiresAt", value),
-    setExecutionKind,
     setExecutionMode,
     setInstruction: (value: string) => setValue("instruction", value),
     setPermissionMode: (value: PermissionMode) => setValue("permissionMode", value),
     setReplyMode,
+    resolveSelectedRoomIds,
     setSelectedAgentId,
+    setSelectedDeliveryAgentId,
+    setSelectedDeliveryRoomId,
     setSelectedReplySessionKey: (value: string) => setValue(
       "selectedReplySessionKey",
       value,
     ),
     setSelectedRoomId,
-    setSelectedSessionKey: (value: string) => setValue("selectedSessionKey", value),
+    setSelectedSessionKey,
     setTargetType,
     setTaskName: (value: string) => setValue("taskName", value),
   }), [
-    setExecutionKind,
+    resolveSelectedRoomIds,
     setExecutionMode,
+    setDeliveryTargetType,
     setReplyMode,
     setSelectedAgentId,
+    setSelectedDeliveryAgentId,
+    setSelectedDeliveryRoomId,
     setSelectedRoomId,
+    setSelectedSessionKey,
     setTargetType,
     setValue,
   ]);

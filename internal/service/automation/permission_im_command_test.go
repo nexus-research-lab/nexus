@@ -17,24 +17,32 @@ import (
 )
 
 type mutableAutomationDeliveryGrant struct {
-	mu      sync.Mutex
-	allowed bool
-	calls   []string
+	mu       sync.Mutex
+	allowed  bool
+	agentIDs []string
+	calls    []string
 }
 
 func (g *mutableAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
 	_ context.Context,
 	_ string,
-	_ string,
+	agentID string,
 	sessionKey string,
 ) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.agentIDs = append(g.agentIDs, strings.TrimSpace(agentID))
 	g.calls = append(g.calls, sessionKey)
 	if !g.allowed {
 		return fmt.Errorf("%w: pairing revoked", channels.ErrExternalSessionGrantUnavailable)
 	}
 	return nil
+}
+
+func (g *mutableAutomationDeliveryGrant) agentIDsSnapshot() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return slices.Clone(g.agentIDs)
 }
 
 func (g *mutableAutomationDeliveryGrant) setAllowed(allowed bool) {

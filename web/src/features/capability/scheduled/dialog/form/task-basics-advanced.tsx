@@ -11,6 +11,7 @@ import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
   ChoiceDef,
+  TargetType,
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
 import {
@@ -22,12 +23,10 @@ import {
   type TaskSelectPresentation,
 } from "./task-basics-model";
 import {
-  buildExecutionKindOptions,
+  buildDeliveryTargetTypeOptions,
   buildExecutionModeOptions,
   buildPermissionModeOptions,
   buildReplyModeOptions,
-  buildTargetTypeOptions,
-  getExecutionKindHelp,
   getExecutionModeHelp,
   getPermissionModeHelp,
   getReplyModeHelp,
@@ -36,6 +35,8 @@ import {
 interface TaskBasicsAdvancedProps {
   actions: TaskBasicsActions;
   data: TaskBasicsData;
+  deliveryTarget: TaskSelectPresentation;
+  deliveryTargetActions: Record<TargetType, (value: string) => void>;
   form: TaskFormDraft;
   isEditing: boolean;
   needsSessionRebind: boolean;
@@ -111,20 +112,37 @@ function TaskSessionField({
   );
 }
 
-function TaskTargetTypeField({
+function TaskDeliveryTargetTypeField({
   actions,
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
-  if (form.executionKind !== "agent") {
+  if (form.executionKind !== "agent" || form.replyMode !== "selected") {
     return null;
   }
   return (
     <TaskChoiceField
-      label={t("capability.scheduled_dialog_send_to")}
-      onChange={actions.setTargetType}
-      options={buildTargetTypeOptions(t)}
-      value={form.targetType}
+      label={t("capability.scheduled_dialog_delivery_target_type")}
+      onChange={actions.setDeliveryTargetType}
+      options={buildDeliveryTargetTypeOptions(t)}
+      value={form.deliveryTargetType}
+    />
+  );
+}
+
+function TaskDeliveryTargetField({
+  deliveryTarget,
+  deliveryTargetActions,
+  form,
+}: TaskBasicsAdvancedProps) {
+  if (form.executionKind !== "agent" || form.replyMode !== "selected") {
+    return null;
+  }
+  return (
+    <TaskSessionField
+      id="task-delivery-target"
+      onChange={deliveryTargetActions[form.deliveryTargetType]}
+      presentation={deliveryTarget}
     />
   );
 }
@@ -193,7 +211,10 @@ function TaskExecutionSessionField({
   return (
     <TaskSessionField
       id="task-session-key"
-      onChange={actions.setSelectedSessionKey}
+      onChange={(value) => actions.setSelectedSessionKey(
+        value,
+        data.sessionOptions.find((option) => option.value === value)?.agentId,
+      )}
       presentation={presentation}
     />
   );
@@ -226,7 +247,6 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
   const options = buildReplyModeOptions(t).filter((option) => (
     option.key === "none"
       || option.key === "selected"
-      || (props.isEditing && option.key === form.replyMode)
   ));
   return (
     <>
@@ -240,6 +260,8 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
         options={options}
         value={form.replyMode}
       />
+      <TaskDeliveryTargetTypeField actions={actions} form={form} />
+      <TaskDeliveryTargetField {...props} />
       <TaskReplySessionField {...props} />
     </>
   );
@@ -248,8 +270,7 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
 function TaskPermissionModeField({
   actions,
   form,
-  isEditing,
-}: Pick<TaskBasicsAdvancedProps, "actions" | "form" | "isEditing">) {
+}: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
   if (form.executionKind !== "agent") {
     return null;
@@ -259,7 +280,7 @@ function TaskPermissionModeField({
       help={getPermissionModeHelp(form.permissionMode, t)}
       label={t("capability.scheduled_dialog_permission_mode")}
       onChange={actions.setPermissionMode}
-      options={buildPermissionModeOptions(t, !isEditing)}
+      options={buildPermissionModeOptions(t)}
       value={form.permissionMode}
     />
   );
@@ -296,52 +317,52 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
     }
   }, [props.needsSessionRebind]);
   return (
-    <details
-      className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5"
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      open={isOpen}
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
-        <span className="inline-flex items-center gap-2">
-          <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
-          {t("capability.scheduled_dialog_advanced")}
-        </span>
-        <span className="truncate text-xs font-normal text-(--text-muted)">
-          {buildTaskAdvancedSummary(form, t)}
-        </span>
-      </summary>
-
-      <div className="mt-4 flex flex-col gap-4 border-t border-(--divider-subtle-color) pt-4">
-        {props.needsSessionRebind ? (
-          <div
-            className="flex gap-2.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3"
-            role="status"
-          >
-            <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-(--text-strong)">
-                {t("capability.scheduled_dialog_session_rebind_required")}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-                {t("capability.scheduled_dialog_session_rebind_description")}
-              </p>
-            </div>
+    <>
+      {props.needsSessionRebind ? (
+        <div
+          className="flex gap-2.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3"
+          role="status"
+        >
+          <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-(--text-strong)">
+              {t("capability.scheduled_dialog_session_rebind_required")}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-(--text-muted)">
+              {t("capability.scheduled_dialog_session_rebind_description")}
+            </p>
           </div>
-        ) : null}
-        <TaskChoiceField
-          help={getExecutionKindHelp(form.executionKind, t)}
-          label={t("capability.scheduled_dialog_execution_kind")}
-          onChange={actions.setExecutionKind}
-          options={buildExecutionKindOptions(t)}
-          value={form.executionKind}
-        />
-        <TaskTargetTypeField actions={actions} form={form} />
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
         <TaskExecutionModeField actions={actions} form={form} isEditing={props.isEditing} />
         <TaskExecutionSessionField {...props} />
-        <TaskPermissionModeField actions={actions} form={form} isEditing={props.isEditing} />
-        <TaskDeliveryFields {...props} />
-        <TaskExpirationField actions={actions} form={form} />
       </div>
-    </details>
+
+      <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
+        <TaskDeliveryFields {...props} />
+      </div>
+
+      <details
+        className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5"
+        onToggle={(event) => setIsOpen(event.currentTarget.open)}
+        open={isOpen}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
+          <span className="inline-flex items-center gap-2">
+            <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
+            {t("capability.scheduled_dialog_advanced")}
+          </span>
+          <span className="truncate text-xs font-normal text-(--text-muted)">
+            {buildTaskAdvancedSummary(form, t)}
+          </span>
+        </summary>
+        <div className="mt-4 flex flex-col gap-4 border-t border-(--divider-subtle-color) pt-4">
+          <TaskPermissionModeField actions={actions} form={form} />
+          <TaskExpirationField actions={actions} form={form} />
+        </div>
+      </details>
+    </>
   );
 }

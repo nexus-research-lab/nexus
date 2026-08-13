@@ -26,21 +26,22 @@ function resource(items) {
   };
 }
 
-function session({ channelType, externalIdentity, key, title }) {
+function session({ agentId = "nexus", channelType, chatType = "dm", conversationId = null, externalIdentity, key, roomId = null, title }) {
   return {
-    agent_id: "nexus",
+    agent_id: agentId,
     channel_type: channelType,
-    chat_type: "dm",
+    chat_type: chatType,
     created_at: 0,
     last_activity_at: 0,
     message_count: 0,
     options: {},
-    room_id: null,
+    room_id: roomId,
     room_session_id: null,
     session_id: null,
     session_key: key,
     status: "active",
     title,
+    conversation_id: conversationId,
     external_identity: externalIdentity ?? null,
   };
 }
@@ -155,6 +156,246 @@ test("scheduled task selectors hide every unpaired external IM session", async (
   assert.deepEqual(result.options, []);
 });
 
+test("delivery sessions include database-backed Nexus DM and Room member sessions", async () => {
+  const { buildTaskDialogDeliverySessionData } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/resources/task-dialog-resource-model.ts",
+  );
+  const recipientIM = session({
+    agentId: "agent-b",
+    channelType: "weixin-personal",
+    externalIdentity: {
+      can_delete: false,
+      channel_type: "weixin-personal",
+      current_pairing: true,
+      pairing_status: "active",
+    },
+    key: "agent:agent-b:weixin-personal:dm:wx-user-b",
+    title: "B 的微信",
+  });
+  const unavailableRecipientIM = session({
+    agentId: "agent-b",
+    channelType: "telegram",
+    externalIdentity: {
+      can_delete: true,
+      channel_type: "telegram",
+      current_pairing: false,
+      pairing_status: "unpaired",
+    },
+    key: "agent:agent-b:tg:dm:old-b",
+    title: "B 的旧 Telegram",
+  });
+  const executorIM = session({
+    agentId: "agent-a",
+    channelType: "weixin-personal",
+    externalIdentity: {
+      can_delete: false,
+      channel_type: "weixin-personal",
+      current_pairing: true,
+      pairing_status: "active",
+    },
+    key: "agent:agent-a:weixin-personal:dm:wx-user-a",
+    title: "A 的微信",
+  });
+  const recipientNexusDM = session({
+    agentId: "agent-b",
+    channelType: "websocket",
+    conversationId: "dm-conversation-b",
+    key: "agent:agent-b:ws:dm:dm-conversation-b",
+    roomId: "dm-room-b",
+    title: "B 的 Nexus DM",
+  });
+  const recipientRoomMember = session({
+    agentId: "agent-b",
+    channelType: "websocket",
+    chatType: "group",
+    conversationId: "room-conversation-b",
+    key: "agent:agent-b:ws:group:room-conversation-b",
+    roomId: "room-b",
+    title: "B 的 Room 成员会话",
+  });
+  const legacyInbox = session({
+    agentId: "agent-b",
+    channelType: "internal",
+    key: "agent:agent-b:internal:dm:automation-inbox",
+    title: "定时任务收件箱",
+  });
+  legacyInbox.options = { created_by: "automation_delivery" };
+  const result = buildTaskDialogDeliverySessionData(
+    {
+      deliveryTargetType: "agent",
+      executionKind: "agent",
+      replyMode: "selected",
+      selectedDeliveryAgentId: "agent-b",
+    },
+    resource([
+      executorIM,
+      recipientNexusDM,
+      recipientRoomMember,
+      recipientIM,
+      unavailableRecipientIM,
+      legacyInbox,
+    ]),
+    new Map([["agent-a", "A"], ["agent-b", "B"]]),
+    new Map(),
+    "未命名会话",
+  );
+
+  assert.deepEqual(result.options.map(({ agentId, sessionKey }) => ({ agentId, sessionKey })), [
+    { agentId: "agent-b", sessionKey: recipientNexusDM.session_key },
+    { agentId: "agent-b", sessionKey: recipientRoomMember.session_key },
+    { agentId: "agent-b", sessionKey: recipientIM.session_key },
+  ]);
+});
+
+test("Room delivery is a shared conversation and does not pick an execution member", async () => {
+  const { buildTaskDialogDeliverySessionData } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/resources/task-dialog-resource-model.ts",
+  );
+  const result = buildTaskDialogDeliverySessionData(
+    {
+      deliveryTargetType: "room",
+      executionKind: "agent",
+      replyMode: "selected",
+      selectedDeliveryRoomId: "room-1",
+    },
+    resource([
+      session({
+        agentId: "agent-a",
+        channelType: "websocket",
+        conversationId: "conversation-1",
+        key: "agent:agent-a:ws:group:conversation-1",
+        roomId: "room-1",
+        title: "项目周报",
+      }),
+      session({
+        agentId: "agent-b",
+        channelType: "websocket",
+        conversationId: "conversation-1",
+        key: "agent:agent-b:ws:group:conversation-1",
+        roomId: "room-1",
+        title: "项目周报",
+      }),
+    ]),
+    new Map(),
+    new Map([["room-1", "研发 Room"]]),
+    "未命名会话",
+  );
+
+  assert.deepEqual(result.options.map(({ sessionKey, value }) => ({ sessionKey, value })), [
+    { sessionKey: "room:group:conversation-1", value: "room:group:conversation-1" },
+  ]);
+});
+
+test("scheduled task payload keeps executor and recipient identities independent", async () => {
+  const { buildScheduledTaskPayload } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
+  );
+  const recipientSession = "agent:agent-b:weixin-personal:dm:wx-user-b";
+  const payload = buildScheduledTaskPayload({
+    form: {
+      dedicatedSessionKey: "",
+      deliveryTargetType: "agent",
+      enabled: true,
+      executionKind: "agent",
+      executionMode: "temporary",
+      expiresAt: "",
+      instruction: "生成日报",
+      permissionMode: "copy",
+      replyMode: "selected",
+      selectedAgentId: "agent-a",
+      selectedDeliveryAgentId: "agent-b",
+      selectedDeliveryRoomId: "",
+      selectedReplySessionKey: recipientSession,
+      selectedRoomId: "",
+      selectedSessionKey: "",
+      targetType: "agent",
+      taskName: "跨智能体日报",
+    },
+    schedule: {
+      dailyTime: "09:00",
+      everyUnit: "hours",
+      everyValue: "1",
+      kind: "every",
+      runAt: "",
+      selectedWeekdays: [],
+      timezone: "Asia/Shanghai",
+    },
+    selectedReplySession: {
+      agentId: "agent-b",
+      badge: "IM · 微信 · 当前",
+      label: "B 的微信 · B",
+      sessionKey: recipientSession,
+      value: recipientSession,
+    },
+    selectedSession: null,
+  }, (key) => key);
+
+  assert.equal(payload.agent_id, "agent-a");
+  assert.deepEqual(payload.session_target, {
+    kind: "isolated",
+    wake_mode: "next-heartbeat",
+  });
+  assert.deepEqual(payload.delivery, {
+    mode: "last",
+    session_key: recipientSession,
+  });
+  assert.equal(payload.execution_kind, "agent");
+  assert.equal(payload.permission_mode, undefined);
+  assert.equal(payload.source, undefined);
+});
+
+test("Room execution payload uses the selected member as executor", async () => {
+  const { buildScheduledTaskPayload } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
+  );
+  const roomSession = "room:group:conversation-1::executor:agent-b";
+  const payload = buildScheduledTaskPayload({
+    form: {
+      dedicatedSessionKey: "",
+      deliveryTargetType: "agent",
+      enabled: false,
+      executionKind: "agent",
+      executionMode: "existing",
+      expiresAt: "",
+      instruction: "结合 Room 上下文总结",
+      permissionMode: "copy",
+      replyMode: "none",
+      selectedAgentId: "agent-b",
+      selectedDeliveryAgentId: "agent-a",
+      selectedDeliveryRoomId: "",
+      selectedReplySessionKey: "",
+      selectedRoomId: "room-1",
+      selectedSessionKey: roomSession,
+      targetType: "room",
+      taskName: "Room 总结",
+    },
+    schedule: {
+      dailyTime: "09:00",
+      everyUnit: "hours",
+      everyValue: "1",
+      kind: "every",
+      runAt: "",
+      selectedWeekdays: [],
+      timezone: "Asia/Shanghai",
+    },
+    selectedReplySession: null,
+    selectedSession: {
+      agentId: "agent-b",
+      label: "研发 Room · B",
+      sessionKey: "room:group:conversation-1",
+      value: roomSession,
+    },
+  }, (key) => key);
+
+  assert.equal(payload.agent_id, "agent-b");
+  assert.deepEqual(payload.session_target, {
+    bound_session_key: "room:group:conversation-1",
+    kind: "bound",
+    wake_mode: "next-heartbeat",
+  });
+  assert.deepEqual(payload.delivery, { mode: "none" });
+});
+
 test("select presentation carries the selected session badge", async () => {
   const {
     buildSelectMenuPresentation,
@@ -185,6 +426,7 @@ test("editing isolated IM task keeps its delivery session separate from executio
   const imSessionKey = "agent:nexus:weixin-personal:dm:wx-user";
   const state = buildTaskDialogInitialState({
     agent_id: "nexus",
+    configuration_version: 1,
     delivery: { mode: "last", session_key: imSessionKey },
     enabled: true,
     execution_kind: "agent",
@@ -219,6 +461,84 @@ test("editing isolated IM task keeps its delivery session separate from executio
   assert.equal(state.form.permissionMode, "plan");
 });
 
+test("editing keeps delivery when execution and recipient are the same real session", async () => {
+  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
+  );
+  const sessionKey = "agent:nexus:ws:dm:same-session";
+  const state = buildTaskDialogInitialState({
+    agent_id: "nexus",
+    configuration_version: 3,
+    delivery: {
+      channel: "websocket",
+      mode: "explicit",
+      session_key: sessionKey,
+      to: sessionKey,
+    },
+    enabled: true,
+    execution_kind: "agent",
+    expires_at: null,
+    failure_streak: 0,
+    instruction: "总结当前会话",
+    job_id: "same-session-task",
+    last_run_at: null,
+    name: "当前会话总结",
+    next_run_at: null,
+    overlap_policy: "skip",
+    permission_mode: "default",
+    running: false,
+    running_started_at: null,
+    schedule: { interval_seconds: 3600, kind: "every", timezone: "Asia/Shanghai" },
+    session_target: { bound_session_key: sessionKey, kind: "bound" },
+    source: { kind: "user_page" },
+  });
+
+  assert.equal(state.form.replyMode, "selected");
+  assert.equal(state.form.selectedSessionKey, sessionKey);
+  assert.equal(state.form.selectedReplySessionKey, sessionKey);
+});
+
+test("editing uses current execution and delivery identities, not immutable source provenance", async () => {
+  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
+  );
+  const recipientSession = "agent:agent-b:weixin-personal:dm:wx-user-b";
+  const state = buildTaskDialogInitialState({
+    agent_id: "agent-a",
+    configuration_version: 4,
+    delivery: {
+      mode: "last",
+      session_key: recipientSession,
+    },
+    enabled: true,
+    execution_kind: "agent",
+    expires_at: null,
+    failure_streak: 0,
+    instruction: "生成日报",
+    job_id: "task-cross-agent",
+    last_run_at: null,
+    name: "跨智能体日报",
+    next_run_at: null,
+    overlap_policy: "skip",
+    permission_mode: "plan",
+    running: false,
+    running_started_at: null,
+    schedule: { interval_seconds: 3600, kind: "every", timezone: "Asia/Shanghai" },
+    session_target: { kind: "isolated" },
+    source: {
+      context_id: "old-creator",
+      context_type: "agent",
+      creator_agent_id: "old-creator",
+      kind: "agent",
+      session_key: "agent:old-creator:ws:dm:old-session",
+    },
+  });
+
+  assert.equal(state.form.selectedAgentId, "agent-a");
+  assert.equal(state.form.selectedDeliveryAgentId, "agent-b");
+  assert.equal(state.form.selectedReplySessionKey, recipientSession);
+});
+
 test("editing a task that requires rebind clears the deleted session", async () => {
   const { buildTaskDialogInitialState } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
@@ -226,6 +546,7 @@ test("editing a task that requires rebind clears the deleted session", async () 
   const imSessionKey = "agent:nexus:weixin-personal:dm:acct:old-account:old-contact";
   const task = {
     agent_id: "nexus",
+    configuration_version: 2,
     delivery: { channel: "websocket", mode: "explicit", to: imSessionKey },
     enabled: true,
     execution_kind: "agent",
@@ -257,5 +578,50 @@ test("editing a task that requires rebind clears the deleted session", async () 
   const state = buildTaskDialogInitialState(task);
 
   assert.equal(state.form.replyMode, "selected");
+  assert.equal(state.form.selectedReplySessionKey, "");
+});
+
+test("editing a legacy scheduled-task inbox requires a real delivery session", async () => {
+  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
+  );
+  const legacyInbox = "agent:nexus:internal:dm:automation-inbox";
+  const state = buildTaskDialogInitialState({
+    agent_id: "nexus",
+    configuration_version: 7,
+    delivery: {
+      channel: "internal",
+      mode: "explicit",
+      session_key: legacyInbox,
+      to: legacyInbox,
+    },
+    enabled: true,
+    execution_kind: "agent",
+    expires_at: null,
+    failure_streak: 0,
+    instruction: "生成日报",
+    job_id: "legacy-inbox-task",
+    last_run_at: null,
+    name: "旧版收件箱任务",
+    next_run_at: null,
+    overlap_policy: "skip",
+    permission_mode: "default",
+    running: false,
+    running_started_at: null,
+    schedule: {
+      interval_seconds: 3600,
+      kind: "every",
+      timezone: "Asia/Shanghai",
+    },
+    session_target: { kind: "isolated" },
+    source: {
+      context_id: "nexus",
+      context_type: "agent",
+      kind: "user_page",
+    },
+  });
+
+  assert.equal(state.form.replyMode, "selected");
+  assert.equal(state.form.selectedDeliveryAgentId, "nexus");
   assert.equal(state.form.selectedReplySessionKey, "");
 });

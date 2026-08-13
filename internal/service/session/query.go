@@ -1,11 +1,28 @@
+// INPUT: owner-scoped workspace、SQL Room Session 与结构化 Session key 查询。
+// OUTPUT: 面向列表、配置校验和首次投递物化的统一 Session 视图。
+// POS: Session 目录读模型；数据库或 workspace 的持久化位置不构成产品可见性边界。
 package session
 
 import (
 	"context"
+	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// ResolveDeliverySession 以统一 Session 目录解析真实投递目标。不存在时返回
+// nil，使 Automation 配置校验与 channels 物化共用同一语义。
+func (s *Service) ResolveDeliverySession(
+	ctx context.Context,
+	rawSessionKey string,
+) (*protocol.Session, error) {
+	item, err := s.GetSession(ctx, rawSessionKey)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil, nil
+	}
+	return item, err
+}
 
 // ListSessions 列出全部会话视图。
 func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) {

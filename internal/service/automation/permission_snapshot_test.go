@@ -32,7 +32,7 @@ func TestCreateTaskCopiesSessionAndAgentPermissionSnapshot(t *testing.T) {
 		}),
 		IsActive: true,
 	}); err != nil {
-		t.Fatalf("准备来源 Session 失败: %v", err)
+		t.Fatalf("准备执行 Session 失败: %v", err)
 	}
 
 	authority := &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
@@ -127,6 +127,80 @@ func TestCreateTaskCopiesSessionAndAgentPermissionSnapshot(t *testing.T) {
 		slices.Contains(runtimePolicy.AllowedTools, "Read") ||
 		!slices.Equal(runtimePolicy.DisallowedTools, []string{"Write"}) {
 		t.Fatalf("执行未使用任务创建快照: %+v", runtimePolicy)
+	}
+}
+
+func TestUpdateTaskRebindsAgentAndPermissionSnapshotAtomically(t *testing.T) {
+	ownerUserID := authctx.SystemUserID
+	agentAWorkspace := newAutomationOwnerWorkspace(t, ownerUserID, "agent-a")
+	agentBWorkspace := newAutomationOwnerWorkspace(t, ownerUserID, "agent-b")
+	agentBSession := protocol.BuildAgentSessionKey("agent-b", "ws", "dm", "daily-ops", "")
+	now := time.Now().UTC()
+	if _, err := workspacestore.NewSessionFileStore(agentBWorkspace).
+		ForOwner(ownerUserID).
+		UpsertSession(agentBWorkspace, protocol.Session{
+			SessionKey:   agentBSession,
+			AgentID:      "agent-b",
+			ChannelType:  protocol.SessionChannelWebSocket,
+			ChatType:     protocol.RoomTypeDM,
+			Status:       "active",
+			CreatedAt:    now,
+			LastActivity: now,
+			Options: protocol.WithSessionRuntimeSettings(nil, protocol.SessionRuntimeSettings{
+				PermissionMode: automationdomain.PermissionModeDontAsk,
+			}),
+		}); err != nil {
+		t.Fatalf("准备新执行 Session: %v", err)
+	}
+
+	authority := &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
+		"agent-a": {
+			AgentID: "agent-a", OwnerUserID: ownerUserID, WorkspacePath: agentAWorkspace,
+			Options: protocol.Options{PermissionMode: automationdomain.PermissionModePlan, AllowedTools: []string{"WebSearch"}},
+		},
+		"agent-b": {
+			AgentID: "agent-b", OwnerUserID: ownerUserID, WorkspacePath: agentBWorkspace,
+			Options: protocol.Options{PermissionMode: automationdomain.PermissionModeAcceptEdits, AllowedTools: []string{"Read"}, DisallowedTools: []string{"Write"}},
+		},
+	}}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: agentBWorkspace},
+		newAutomationTestDB(t), nil, nil, nil, nil, &fakeWorkspaceReader{}, nil,
+	)
+	service.agents = authority
+	created, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name: "切换执行智能体", AgentID: "agent-a", Instruction: "生成日报",
+		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(3600), Timezone: "Asia/Shanghai"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Source:        automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	agentB := "agent-b"
+	bound := automationdomain.SessionTarget{Kind: automationdomain.SessionTargetBound, BoundSessionKey: agentBSession}
+	copyMode := ""
+	updated, err := service.UpdateTask(context.Background(), created.JobID, automationdomain.UpdateJobInput{
+		AgentID: &agentB, SessionTarget: &bound, PermissionMode: &copyMode,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask agent rebind: %v", err)
+	}
+	if updated.AgentID != "agent-b" || updated.SessionTarget.BoundSessionKey != agentBSession {
+		t.Fatalf("执行身份与 Session 未原子重绑: %+v", updated)
+	}
+	if updated.PermissionMode != automationdomain.PermissionModeDontAsk ||
+		!slices.Equal(updated.PermissionPolicy.DeniedTools, []string{"Write"}) ||
+		updated.PermissionPolicy.Revision != created.PermissionPolicy.Revision+1 {
+		t.Fatalf("新执行方权限快照不正确: %+v", updated)
+	}
+	runtimePolicy := taskRuntimeToolPolicy(*updated)
+	if runtimePolicy == nil || !slices.Contains(runtimePolicy.AllowedTools, "Read") ||
+		slices.Contains(runtimePolicy.AllowedTools, "WebSearch") {
+		t.Fatalf("仍在使用旧执行智能体工具快照: %+v", runtimePolicy)
 	}
 }
 

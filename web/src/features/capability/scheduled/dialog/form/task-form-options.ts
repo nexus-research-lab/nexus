@@ -3,7 +3,6 @@ import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type {
   ChoiceDef,
-  ExecutionKind,
   ExecutionMode,
   PermissionMode,
   ReplyMode,
@@ -19,12 +18,18 @@ export function buildTargetTypeOptions(t: Translate): ChoiceDef<TargetType>[] {
   ];
 }
 
-export function buildExecutionKindOptions(
+export function buildDeliveryTargetTypeOptions(
   t: Translate,
-): ChoiceDef<ExecutionKind>[] {
+): ChoiceDef<TargetType>[] {
   return [
-    { key: "agent", label: t("capability.scheduled_dialog_execution_kind_agent") },
-    { key: "script", label: t("capability.scheduled_dialog_execution_kind_script") },
+    {
+      key: "agent",
+      label: t("capability.scheduled_dialog_delivery_target_type_agent"),
+    },
+    {
+      key: "room",
+      label: t("capability.scheduled_dialog_delivery_target_type_room"),
+    },
   ];
 }
 
@@ -42,7 +47,6 @@ export function buildExecutionModeOptions(
 export function buildReplyModeOptions(t: Translate): ChoiceDef<ReplyMode>[] {
   return [
     { key: "none", label: t("capability.scheduled_dialog_reply_none") },
-    { key: "execution", label: t("capability.scheduled_dialog_reply_execution") },
     { key: "selected", label: t("capability.scheduled_dialog_reply_selected") },
   ];
 }
@@ -76,15 +80,6 @@ export function getPermissionModeHelp(
   return option ? t(option.descriptionKey) : "";
 }
 
-export function getExecutionKindHelp(
-  executionKind: ExecutionKind,
-  t: Translate,
-): string {
-  return t(executionKind === "agent"
-    ? "capability.scheduled_dialog_execution_kind_agent_help"
-    : "capability.scheduled_dialog_execution_kind_script_help");
-}
-
 export function getExecutionModeHelp(
   executionMode: ExecutionMode,
   t: Translate,
@@ -100,7 +95,6 @@ export function getExecutionModeHelp(
 
 export function getReplyModeHelp(replyMode: ReplyMode, t: Translate): string {
   const keys = {
-    execution: "capability.scheduled_dialog_reply_execution_help",
     none: "capability.scheduled_dialog_reply_none_help",
     selected: "capability.scheduled_dialog_reply_selected_help",
   } as const;

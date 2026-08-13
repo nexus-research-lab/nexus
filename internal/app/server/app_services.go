@@ -183,6 +183,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Room.SetRuntimeManager(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
+	channelRouter.SetSessionProjectionResolver(core.Session)
 	channelRouter.SetLogger(logger.With("component", "channels"))
 	channelControl := channels.NewControlService(cfg, db, core.Agent, channelRouter)
 	core.Session.SetExternalSessionIdentityResolver(channelControl)
@@ -242,6 +243,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelRouter,
 	)
 	automationService.SetSessionArtifactDeletionCoordinator(core.Session)
+	automationService.SetDeliverySessionResolver(core.Session)
 	core.Deletion.SetTaskCleaner(automationService)
 	core.Agent.SetDeletionLifecycle(core.Session, automationService)
 	automationService.SetProviderResolver(providerService)

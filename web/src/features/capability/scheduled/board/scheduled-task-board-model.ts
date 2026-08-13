@@ -256,12 +256,15 @@ function getRunStatusLabel(status: string | null | undefined): string {
 
 function getContextLabel(task: ScheduledTaskItem): string {
   const contextLabel = task.source?.context_label?.trim();
-  if (contextLabel) {
-    return task.source.context_type === "room"
-      ? `Room · ${contextLabel}`
-      : contextLabel;
+  if (task.source?.context_type === "room" && contextLabel) {
+    return `Room · ${contextLabel}`;
   }
-  return task.execution_kind === "script" ? "工作区脚本" : "Agent 任务";
+  if (task.source?.context_type === "agent"
+    && task.source.context_id?.trim() === task.agent_id.trim()
+    && contextLabel) {
+    return contextLabel;
+  }
+  return task.execution_kind === "script" ? "工作区脚本" : task.agent_id;
 }
 
 function getStoppedTimingSummary(task: ScheduledTaskItem): string {

@@ -2,6 +2,10 @@ import {
   getExternalSessionChannelLabel,
   getExternalSessionDisplayLabel,
 } from "@/lib/conversation/external-session";
+import {
+  buildRoomSharedSessionKey,
+  parseSessionKey,
+} from "@/lib/conversation/session-key";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type {
   RoomAggregate,
@@ -26,6 +30,7 @@ import type {
 const OPEN_RESOURCE_KEY = "open";
 
 export interface TaskDialogResourceKeys {
+  allSessions: string | null;
   agentSessions: string | null;
   agents: string | null;
   roomContexts: string | null;
@@ -53,7 +58,7 @@ const SESSION_REQUEST_KEYS: Record<
     agentSessions: activeResourceKey(
       isOpen
         && form.executionKind === "agent"
-        && (form.executionMode === "existing" || form.replyMode === "selected"),
+        && form.executionMode === "existing",
       form.selectedAgentId,
     ),
     roomContexts: null,
@@ -98,8 +103,16 @@ export function buildTaskDialogResourceKeys(
   isOpen: boolean,
 ): TaskDialogResourceKeys {
   return {
+    allSessions: isOpen && form.executionKind === "agent" && (
+      form.targetType === "room" || form.replyMode === "selected"
+    )
+      ? OPEN_RESOURCE_KEY
+      : null,
     agents: isOpen ? OPEN_RESOURCE_KEY : null,
-    rooms: isOpen && form.targetType === "room" ? OPEN_RESOURCE_KEY : null,
+    rooms: isOpen && (
+      form.targetType === "room"
+      || (form.replyMode === "selected" && form.deliveryTargetType === "room")
+    ) ? OPEN_RESOURCE_KEY : null,
     ...SESSION_REQUEST_KEYS[form.targetType](form, isOpen),
   };
 }
@@ -124,6 +137,17 @@ export function buildRoomOptions(
   }));
 }
 
+export function buildExecutionRoomOptions(
+  rooms: RoomAggregate[],
+): TaskDialogLabelOption[] {
+  return rooms.filter((room) => room.members.some((member) => (
+    member.member_type === "agent" && !member.participation_paused
+  ))).map((room) => ({
+    label: room.room.name?.trim() || room.room.id,
+    value: room.room.id,
+  }));
+}
+
 export function buildTaskDialogSessionData(
   targetType: TargetType,
   resources: TaskDialogSessionResources,
@@ -135,6 +159,56 @@ export function buildTaskDialogSessionData(
     agentNameById,
     unnamedSessionLabel,
   );
+}
+
+export function buildTaskDialogDeliverySessionData(
+  form: TaskFormDraft,
+  sessions: DialogResource<AgentSession>,
+  agentNameById: Map<string, string>,
+  roomNameById: Map<string, string>,
+  unnamedSessionLabel: string,
+): TaskDialogSessionData {
+  if (form.replyMode !== "selected") {
+    return { options: [], status: resourceStatus(sessions) };
+  }
+  const options = form.deliveryTargetType === "room"
+    ? buildDeliveryRoomOptions(
+        sessions.items,
+        form.selectedDeliveryRoomId,
+        roomNameById,
+        unnamedSessionLabel,
+      )
+    : buildDeliveryAgentOptions(
+        sessions.items,
+        form.selectedDeliveryAgentId,
+        agentNameById,
+        unnamedSessionLabel,
+      );
+  return { options, status: resourceStatus(sessions) };
+}
+
+export function buildRoomNameIndex(
+  rooms: RoomAggregate[],
+): Map<string, string> {
+  return new Map(rooms.map((room) => [
+    room.room.id,
+    room.room.name?.trim() || room.room.id,
+  ]));
+}
+
+export function resolveTaskDialogRoomId(
+  sessions: AgentSession[],
+  sessionKey: string,
+): string {
+  const parsed = parseSessionKey(sessionKey.split("::executor:", 1)[0]);
+  const conversationId = parsed.conversation_id || parsed.ref || "";
+  if (!conversationId) {
+    return "";
+  }
+  return sessions.find((session) => (
+    session.conversation_id === conversationId
+    && Boolean(session.room_id)
+  ))?.room_id?.trim() || "";
 }
 
 export function resourceStatus<T>(
@@ -181,6 +255,96 @@ function buildAgentSessionOptions(
       value: session.session_key,
     };
   });
+}
+
+function isAvailableDeliverySession(session: AgentSession): boolean {
+  const externalChannel = getExternalSessionChannelLabel(
+    session.channel_type,
+    session.session_key,
+  );
+  return !externalChannel || session.external_identity?.current_pairing === true;
+}
+
+function isUserVisibleDeliverySession(session: AgentSession): boolean {
+  const parsed = parseSessionKey(session.session_key);
+  return parsed.channel !== "automation"
+    && !(parsed.channel === "internal" && parsed.ref === "automation-inbox")
+    && session.options.created_by !== "automation_delivery";
+}
+
+function buildDeliveryAgentOptions(
+  sessions: AgentSession[],
+  agentId: string,
+  agentNameById: Map<string, string>,
+  unnamedSessionLabel: string,
+): TaskDialogSessionOption[] {
+  const normalizedAgentId = agentId.trim();
+  if (!normalizedAgentId) {
+    return [];
+  }
+  const agentName = agentNameById.get(normalizedAgentId) || normalizedAgentId;
+  const options: TaskDialogSessionOption[] = [];
+  const seen = new Set<string>();
+  sessions.filter((session) => (
+    session.agent_id === normalizedAgentId
+    && isUserVisibleDeliverySession(session)
+    && isAvailableDeliverySession(session)
+  )).forEach((session) => {
+    if (seen.has(session.session_key)) {
+      return;
+    }
+    seen.add(session.session_key);
+    const channelLabel = getExternalSessionDisplayLabel(
+      session.channel_type,
+      session.session_key,
+      session.external_identity,
+    );
+    options.push({
+      agentId: normalizedAgentId,
+      badge: channelLabel ? `IM · ${channelLabel}` : null,
+      label: formatSessionLabel(
+        session.title?.trim() || unnamedSessionLabel,
+        agentName,
+      ),
+      sessionKey: session.session_key,
+      value: session.session_key,
+    });
+  });
+  return options;
+}
+
+function buildDeliveryRoomOptions(
+  sessions: AgentSession[],
+  roomId: string,
+  roomNameById: Map<string, string>,
+  unnamedSessionLabel: string,
+): TaskDialogSessionOption[] {
+  const normalizedRoomId = roomId.trim();
+  if (!normalizedRoomId) {
+    return [];
+  }
+  const roomName = roomNameById.get(normalizedRoomId) || normalizedRoomId;
+  const seen = new Set<string>();
+  const options: TaskDialogSessionOption[] = [];
+  sessions.filter((session) => (
+    session.room_id === normalizedRoomId
+    && Boolean(session.conversation_id)
+  )).forEach((session) => {
+    const conversationId = session.conversation_id?.trim() || "";
+    if (!conversationId || seen.has(conversationId)) {
+      return;
+    }
+    seen.add(conversationId);
+    const sharedSessionKey = buildRoomSharedSessionKey(conversationId);
+    options.push({
+      agentId: session.agent_id,
+      badge: "Room",
+      label: `${roomName} · ${session.title?.trim() || unnamedSessionLabel}`,
+      sessionKey: sharedSessionKey,
+      value: sharedSessionKey,
+    });
+  });
+  return options;
 }
 
 function buildRoomSessionOptions(

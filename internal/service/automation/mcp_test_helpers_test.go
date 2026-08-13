@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -15,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var automationMCPRequestSequence atomic.Uint64
@@ -65,6 +67,14 @@ func newAutomationMCPFixture(t *testing.T, resultText string) automationMCPFixtu
 		router,
 	)
 	service.SetDeliveryGrantResolver(allowAutomationDeliveryGrant{})
+	currentSessionKey := protocol.BuildAgentSessionKey(
+		"agent-1",
+		protocol.SessionChannelInternalSegment,
+		protocol.RoomTypeDM,
+		"operator",
+		"",
+	)
+	prepareAutomationDeliverySession(t, workspacePath, "user-1", "agent-1", currentSessionKey)
 	return automationMCPFixture{
 		WorkspacePath: workspacePath,
 		Permission:    permission,
@@ -75,13 +85,40 @@ func newAutomationMCPFixture(t *testing.T, resultText string) automationMCPFixtu
 			CurrentAgentID:      "agent-1",
 			CurrentAgentName:    "新闻智能体",
 			OwnerUserID:         "user-1",
-			CurrentSessionKey:   protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", ""),
+			CurrentSessionKey:   currentSessionKey,
 			CurrentSessionLabel: "用户对话",
 			SourceContextType:   "agent",
 			SourceContextID:     "agent-1",
 			SourceContextLabel:  "新闻智能体",
 			DefaultTimezone:     "Asia/Shanghai",
 		},
+	}
+}
+
+func prepareAutomationDeliverySession(
+	t *testing.T,
+	workspacePath string,
+	ownerUserID string,
+	agentID string,
+	sessionKey string,
+) {
+	t.Helper()
+	now := time.Now().UTC()
+	if _, err := workspacestore.NewSessionFileStore(workspacePath).
+		ForOwner(ownerUserID).
+		UpsertSession(workspacePath, protocol.Session{
+			SessionKey:   sessionKey,
+			AgentID:      agentID,
+			ChannelType:  protocol.NormalizeStoredChannelType(protocol.ParseSessionKey(sessionKey).Channel),
+			ChatType:     protocol.RoomTypeDM,
+			Status:       "active",
+			CreatedAt:    now,
+			LastActivity: now,
+			Title:        "用户对话",
+			Options:      map[string]any{},
+			IsActive:     true,
+		}); err != nil {
+		t.Fatalf("准备真实接收会话失败: %v", err)
 	}
 }
 

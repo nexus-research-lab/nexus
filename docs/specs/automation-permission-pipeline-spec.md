@@ -6,13 +6,15 @@
 
 一个定时任务包含五个彼此独立的边界：
 
-1. `Source`：谁在什么可信会话中创建了任务，只用于权限继承、审计和当前会话查询；创建后不可被页面编辑覆盖。
+1. `Source`：谁在什么可信会话中创建了任务，只用于 provenance、审计和当前会话查询；创建后不可被页面编辑覆盖，也不决定执行或投递。
 2. `SessionTarget`：任务在哪个 Agent runtime 上执行，可复用已有会话，也可每次使用独立上下文。
-3. `PermissionMode + TaskPermissionPolicy`：创建时从来源 Session/Agent 复制，随后归任务独立所有。
-4. `DeliveryTarget`：完成结果是否投递，以及投递到哪个稳定 Nexus 会话；外部平台临时 callback 不属于任务定义。
+3. `PermissionMode + TaskPermissionPolicy`：创建时从执行 Session/Agent 复制，随后归任务独立所有。
+4. `DeliveryTarget`：完成结果是否投递，以及投递到哪个真实、稳定的 Nexus/Room/IM Session；外部平台临时 callback 和合成“收件箱”都不属于新任务定义。
 5. `ScheduledTaskRun`：保存本次执行使用的权限 revision、冻结的首次投递目标、执行结果和平台投递状态。
 
 `DeliveryGrant` 是不对 HTTP/MCP 模型暴露的宿主授权快照：它记录最近一次明确配置投递目标时的可信 Agent/页面/CLI 调用方。旧任务升级时从 `Source` 精确复制一次；以后修改投递只替换 grant，不改写 `Source` provenance。
+
+页面控制面可以把现有任务重新绑定到同 owner 的另一个 Agent，但必须在一次配置更新中同时提交新的 `AgentID` 及其执行/投递 Session。后端以新 Agent 重新验证 Session 所属关系、Room 成员关系和 IM active pairing，并推进权限 revision；`Source` 仍保留最初创建 provenance，不能用它回显或覆盖当前任务 Agent。
 
 任务正文不携带 `job_id`、IM 地址或审批状态。后台 runtime 使用宿主签发的隐藏 `AutomationRunContext` 获取当前 `job_id/run_id`；Automation MCP 直接由该可信结构收窄到当前任务，不从模型文本、session 名称或模型参数推断身份。
 
@@ -26,7 +28,7 @@
 
 ## 权限边界
 
-- 创建任务时，优先复制来源 Session 的有效 permission mode；来源没有覆盖时复制 Agent mode。同时复制 Agent 的 `AllowedTools` 与 `DisallowedTools`。
+- 创建任务时，若执行目标明确复用 Session，则优先复制该执行 Session 的有效 permission mode；否则复制执行 Agent mode。同时复制执行 Agent 的 `AllowedTools` 与 `DisallowedTools`。创建来源 Session 不参与权限继承。
 - 复制完成后，任务拥有独立权限副本。修改任务不回写 Agent，Agent 或 Session 后续变化也不隐式改写已有任务。
 - 任务快照中的 deny 是硬拒绝，任务级批准不能覆盖。
 - owner 可以批准同一 run 的精确输入，也可以批准当前任务范围内的能力。任务授权可以绑定 Connector、effect 和 resource scope。
@@ -64,9 +66,9 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 ## 脚本边界
 
-脚本权限与精确内容哈希、owner 和 Agent 绑定。脚本任务只允许人类控制面管理，Agent 对话不能创建、编辑、删除、运行、重试或恢复脚本任务。用户直接创建或编辑脚本时确认精确内容，内容变化后原授权立即失效。
+新建和编辑界面不再暴露独立的 `script` 任务类型；它让用户误以为指令文本会被保存为 `.sh` 并由 shell 执行。用户需要定时运行脚本时，仍创建普通 Agent 任务，由 Agent 在自己的 workspace 中通过常规工具编写或调用 `.sh`；整个过程继续服从任务权限快照、工具 allow/deny 与审批流水线。
 
-缺少权限快照的存量任务会在首次读取或执行时，按照当前 Agent 默认设置初始化。存量脚本任务获得绑定内容哈希的兼容授权，在保持旧执行行为的同时继续服从人类控制面边界。
+存量 `script` 任务只保留兼容读取和原执行行为，可启停、立即运行、查看历史或删除，但不能通过页面或 Agent 对话新建、编辑。缺少权限快照的存量任务在首次读取或执行时按当前 Agent 默认设置初始化，既有脚本授权继续绑定精确内容哈希、owner 和 Agent。
 
 ## 普通 Automation MCP
 
@@ -76,7 +78,7 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 - `deliver_result=true|false`
 - 可选 `permission_mode`
 
-在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前会话。普通 schema 不暴露 legacy execution/reply 枚举，也不暴露 session、channel、account、target 或 thread 等宿主路由参数。Host 从可信 `ServerContext` 自动绑定；即使旧模型传入这些字段，也不能借此重定向任务。数据库仍保留完整目标模型，供存量任务和 owner main 高级控制兼容。
+在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 schema 不暴露 legacy execution/reply 枚举，也不暴露 session、channel、account、target 或 thread 等宿主路由参数。Host 从可信 `ServerContext` 自动绑定；即使旧模型传入这些字段，也不能借此重定向任务。owner main 的高级控制也只能选择已存在且可验证的真实 Session，不能创建合成 Agent 收件箱；数据库中的旧目标枚举只用于存量任务兼容。
 
 ## IM transport 与审批
 
@@ -95,6 +97,10 @@ Automation 权限、重新连接、缺少输入、拒绝、恢复失败和投递
 ## IM 结果投递
 
 外部 IM 任务只持久化结构化 `delivery_session_key` 和可长期复用的 route。投递前重新校验 active pairing，再由 route 解析当前 channel、account、recipient/chat 和可用上下文。
+
+执行 Agent 与接收 Session 相互独立：同 owner 的 Agent A 可以执行，结果投影进 Agent B 已存在的真实 Nexus/IM Session；逻辑会话和 workspace 归接收 Agent B，消息 metadata 另外保留 producer Agent A。新建或改绑必须提供结构化、真实存在的 Session，不能只保存裸 channel/chat ID，也不得合成“定时任务收件箱”。历史裸路由与收件箱目标仅作为旧数据读取/投递兼容；打开编辑时必须重新选择真实 Session，且它们不出现在页面或 MCP 候选中。
+
+“真实存在”以对外统一 Session 读模型为准：SQL 拥有的 Room-backed DM/成员 Session 与 workspace 拥有的 Nexus/IM Session 都是合法候选。页面不得因为 Session 带 `room_id` 就将它从 Agent 接收会话中排除，服务端也不得因为尚未生成 workspace meta 就判定不存在。首次投递可在统一读模型验证 owner、Agent 和精确 session key 后物化 workspace 投影；任意伪造 key 仍必须 fail closed。
 
 - 第一次投递使用 run 启动时冻结的目标，避免运行中无关编辑把结果重定向。
 - 首次投递失败后，用户明确修复任务 route，重试使用任务最新目标。

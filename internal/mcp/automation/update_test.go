@@ -50,71 +50,31 @@ func TestUpdateMapsPermissionMode(t *testing.T) {
 	}
 }
 
-func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
-	tests := []struct {
-		name  string
-		sctx  contract.ServerContext
-		svc   *stubService
-		input map[string]any
-	}{
-		{
-			name: "explicit mode",
-			sctx: contract.ServerContext{
-				CurrentAgentID:    "main",
-				CurrentSessionKey: "agent:main:ws:dm:current",
-				SourceContextType: "agent",
-				IsMainAgent:       true,
-			},
-			svc: &stubService{},
-			input: map[string]any{
-				"job_id":        "job-1",
-				"reply_mode":    "channel",
-				"reply_channel": "feishu",
-				"reply_to":      "oc_group_123",
-			},
-		},
-		{
-			name: "inferred mode",
-			sctx: contract.ServerContext{
-				CurrentAgentID:    "agent-1",
-				CurrentSessionKey: "agent:agent-1:ws:dm:current",
-				SourceContextType: "agent",
-				IsMainAgent:       true,
-			},
-			svc: &stubService{
-				jobs: []automationdomain.ScheduledTask{{
-					JobID:    "job-1",
-					AgentID:  "agent-1",
-					Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
-				}},
-			},
-			input: map[string]any{
-				"job_id":        "job-1",
-				"reply_channel": "feishu",
-				"reply_to":      "oc_group_123",
-			},
-		},
+func TestUpdateRequiresExistingSessionForChannelDelivery(t *testing.T) {
+	svc := &stubService{jobs: []automationdomain.ScheduledTask{{
+		JobID: "job-1", AgentID: "agent-1",
+		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+	}}}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "main",
+		CurrentSessionKey: "agent:main:ws:dm:current",
+		SourceContextType: "agent",
+		IsMainAgent:       true,
+	}, "update_scheduled_task", map[string]any{
+		"job_id":        "job-1",
+		"reply_mode":    "channel",
+		"reply_channel": "feishu",
+		"reply_to":      "oc_group_123",
+	})
+	if !isError || !strings.Contains(extractText(t, result), "existing authorized reply_session_key") {
+		t.Fatalf("owner-main bare channel update should require a real session: %+v", result)
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result, isError := callTool(t, test.svc, test.sctx, "update_scheduled_task", test.input)
-			if isError {
-				t.Fatalf("unexpected error: %s", extractText(t, result))
-			}
-			if test.svc.updateInput.SessionTarget != nil {
-				t.Fatalf("delivery-only update must not rewrite execution target, got %+v", test.svc.updateInput.SessionTarget)
-			}
-			if test.svc.updateInput.Delivery == nil ||
-				test.svc.updateInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-				test.svc.updateInput.Delivery.To != "oc_group_123" {
-				t.Fatalf("expected feishu delivery target, got %+v", test.svc.updateInput.Delivery)
-			}
-		})
+	if svc.updateJobID != "" {
+		t.Fatalf("rejected bare target reached service: %+v", svc.updateInput)
 	}
 }
 
-func TestUpdateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
+func TestUpdateRejectsSyntheticReplyAgentField(t *testing.T) {
 	svc := &stubService{
 		jobs: []automationdomain.ScheduledTask{{
 			JobID:    "job-1",
@@ -131,20 +91,11 @@ func TestUpdateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
 		"job_id":         "job-1",
 		"reply_agent_id": "agent-2",
 	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
+	if !isError {
+		t.Fatalf("synthetic reply_agent_id should not be accepted: %+v", result)
 	}
-	expectedSessionKey := protocol.BuildAgentSessionKey(
-		"agent-2",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-		svc.updateInput.Delivery.To != expectedSessionKey {
-		t.Fatalf("expected agent inbox delivery inferred from reply_agent_id, got %+v", svc.updateInput.Delivery)
+	if svc.updateJobID != "" {
+		t.Fatalf("rejected synthetic inbox reached service: %q", svc.updateJobID)
 	}
 }
 
@@ -332,7 +283,7 @@ func TestUpdateSelectedReplyRequiresConversationTarget(t *testing.T) {
 	}
 }
 
-func TestUpdateAgentDeliveryDefaultsToTaskAgent(t *testing.T) {
+func TestUpdateRejectsSyntheticAgentDeliveryMode(t *testing.T) {
 	svc := &stubService{
 		jobs: []automationdomain.ScheduledTask{{
 			JobID:    "job-1",
@@ -344,20 +295,11 @@ func TestUpdateAgentDeliveryDefaultsToTaskAgent(t *testing.T) {
 		"job_id":     "job-1",
 		"reply_mode": "agent",
 	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
+	if !isError {
+		t.Fatalf("synthetic Agent inbox mode should be rejected: %+v", result)
 	}
-	expectedSessionKey := protocol.BuildAgentSessionKey(
-		"agent-2",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-		svc.updateInput.Delivery.To != expectedSessionKey {
-		t.Fatalf("expected delivery to task agent inbox, got %+v", svc.updateInput.Delivery)
+	if svc.updateJobID != "" {
+		t.Fatalf("rejected synthetic inbox reached service: %q", svc.updateJobID)
 	}
 }
 
