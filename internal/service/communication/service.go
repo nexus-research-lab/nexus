@@ -149,7 +149,7 @@ func (s *Service) SendMessage(
 	)
 }
 
-// OpenContactChannel 为 owner 控制面打开好友直聊通道。
+// OpenContactChannel 为 owner 控制面打开已有好友直聊通道。
 func (s *Service) OpenContactChannel(
 	ctx context.Context,
 	sourceAgentID string,
@@ -163,7 +163,9 @@ func (s *Service) OpenContactChannel(
 	if targetAgentID == "" || targetAgentID == current.AgentID {
 		return nil, errors.New("目标 Agent 不可用")
 	}
-	return s.ensureDirectRoom(ctx, current.AgentID, targetAgentID)
+	s.directMu.Lock()
+	defer s.directMu.Unlock()
+	return s.findDirectRoom(ctx, current.AgentID, targetAgentID)
 }
 
 // SendMessageAsAgent 允许 owner 在控制面以自己管理的普通 Agent 身份发消息。
@@ -312,6 +314,34 @@ func (s *Service) ensureDirectRoom(
 	s.directMu.Lock()
 	defer s.directMu.Unlock()
 
+	contextValue, err := s.findDirectRoom(ctx, sourceAgentID, targetAgentID)
+	if err == nil {
+		return contextValue, nil
+	}
+	if !errors.Is(err, roomsvc.ErrRoomNotFound) {
+		return nil, err
+	}
+	created, err := s.rooms.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:               []string{sourceAgentID, targetAgentID},
+		PrivateMessagesEnabled: true,
+		IsContactChannel:       true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err = s.agents.SetAgentContactDirectRoom(
+		ctx, sourceAgentID, targetAgentID, created.Room.ID,
+	); err != nil {
+		return nil, errors.Join(err, s.rooms.DeleteRoom(ctx, created.Room.ID))
+	}
+	return created, nil
+}
+
+func (s *Service) findDirectRoom(
+	ctx context.Context,
+	sourceAgentID string,
+	targetAgentID string,
+) (*protocol.ConversationContextAggregate, error) {
 	contact, err := s.agents.GetAgentContact(ctx, sourceAgentID, targetAgentID)
 	if err != nil {
 		return nil, err
@@ -328,20 +358,16 @@ func (s *Service) ensureDirectRoom(
 			return nil, contextErr
 		}
 	}
-	created, err := s.rooms.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs:               []string{sourceAgentID, targetAgentID},
-		PrivateMessagesEnabled: true,
-		IsContactChannel:       true,
-	})
+	contextValue, err := s.rooms.FindContactRoomContext(ctx, sourceAgentID, targetAgentID)
 	if err != nil {
 		return nil, err
 	}
 	if err = s.agents.SetAgentContactDirectRoom(
-		ctx, sourceAgentID, targetAgentID, created.Room.ID,
+		ctx, sourceAgentID, targetAgentID, contextValue.Room.ID,
 	); err != nil {
-		return nil, errors.Join(err, s.rooms.DeleteRoom(ctx, created.Room.ID))
+		return nil, err
 	}
-	return created, nil
+	return contextValue, nil
 }
 
 func (s *Service) directRoomContext(
@@ -364,7 +390,9 @@ func (s *Service) directRoomContext(
 		return nil, errors.New("联系人直聊 Room 已停用私域消息")
 	}
 	members := roomdomain.ListAgentIDs(contextValue.Members)
-	if !slices.Contains(members, sourceAgentID) || !slices.Contains(members, targetAgentID) {
+	if len(members) != 2 ||
+		!slices.Contains(members, sourceAgentID) ||
+		!slices.Contains(members, targetAgentID) {
 		return nil, roomsvc.ErrRoomMemberNotFound
 	}
 	return contextValue, nil

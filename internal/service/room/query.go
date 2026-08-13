@@ -63,3 +63,24 @@ func (s *Service) GetConversationContextForSystem(ctx context.Context, conversat
 	}
 	return contextValue, nil
 }
+
+// FindContactRoomContext 查找一对 Agent 已有的联系人直聊上下文。
+func (s *Service) FindContactRoomContext(
+	ctx context.Context,
+	firstAgentID string,
+	secondAgentID string,
+) (*protocol.ConversationContextAggregate, error) {
+	contextValue, err := s.repository.FindContactRoomContext(
+		ctx,
+		authctx.OwnerUserID(ctx),
+		strings.TrimSpace(firstAgentID),
+		strings.TrimSpace(secondAgentID),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if contextValue == nil {
+		return nil, ErrRoomNotFound
+	}
+	return contextValue, nil
+}

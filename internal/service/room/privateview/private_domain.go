@@ -22,10 +22,12 @@ const (
 
 // Query 描述 Agent 私域投影的过滤条件。
 type Query struct {
-	RoomID         string
-	ConversationID string
-	Limit          int
-	RoomLimit      int
+	RoomID          string
+	ConversationID  string
+	Limit           int
+	RoomLimit       int
+	BeforeMessageID string
+	BeforeTimestamp int64
 }
 
 type ThreadBuilder struct {

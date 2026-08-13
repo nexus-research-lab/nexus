@@ -12,6 +12,8 @@ export interface AgentPrivateDomainQuery {
   conversation_id?: string | null;
   limit?: number;
   room_limit?: number;
+  before_message_id?: string | null;
+  before_timestamp?: number | null;
 }
 
 function buildPrivateDomainQuery(options: AgentPrivateDomainQuery = {}) {
@@ -27,6 +29,12 @@ function buildPrivateDomainQuery(options: AgentPrivateDomainQuery = {}) {
   }
   if (options.room_limit && options.room_limit > 0) {
     params.set("room_limit", String(options.room_limit));
+  }
+  if (options.before_message_id) {
+    params.set("before_message_id", options.before_message_id);
+  }
+  if (options.before_timestamp && options.before_timestamp > 0) {
+    params.set("before_timestamp", String(options.before_timestamp));
   }
   const query = params.toString();
   return query ? `?${query}` : "";

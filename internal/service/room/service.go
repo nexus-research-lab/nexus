@@ -39,6 +39,7 @@ type Repository interface {
 	GetConversationContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
 	GetConversationContextForSystem(context.Context, string) (*protocol.ConversationContextAggregate, error)
 	FindDMRoomContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
+	FindContactRoomContext(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
 	CreateRoom(context.Context, roomrepo.CreateRoomBundle) (*protocol.ConversationContextAggregate, error)
 	UpdateRoom(context.Context, string, string, roomrepo.UpdateRoomPatch) (*protocol.ConversationContextAggregate, error)
 	AddRoomMember(context.Context, string, string, roomrepo.AgentRuntimeRef) (*protocol.ConversationContextAggregate, error)
