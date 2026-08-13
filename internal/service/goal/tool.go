@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -92,12 +91,9 @@ func (s *Service) changeStatusByModel(
 			if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *current); readinessErr != nil {
 				return nil, readinessErr
 			}
-			if readinessErr := s.ensureRoomGoalCompletionReady(ctx, *current, agentID, roundID); readinessErr != nil {
+			if readinessErr := s.ensureRoomGoalCollaborationReady(ctx, *current, agentID, roundID); readinessErr != nil {
 				return nil, readinessErr
 			}
-		}
-		if requireRoomCollaboration && roomGoalCompletionRequiresCollaboration(*current) {
-			return nil, fmt.Errorf("%w: multi-member Room Goal requires a room-visible non-lead collaboration reply before completion", ErrGoalInvalidState)
 		}
 		return s.persistTransition(ctx, *current, status, protocol.GoalUpdateSourceModel, eventType, roundID, payload)
 	})

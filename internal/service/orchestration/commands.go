@@ -1469,6 +1469,10 @@ func (s *Service) mutableSnapshot(
 	if err != nil {
 		var domainErr *DomainError
 		if errors.As(err, &domainErr) {
+			if domainErr.Code == ErrorCodeExecutionTerminal {
+				result := SupersededResult(nil, err)
+				return nil, &result, nil
+			}
 			result := RejectedResult(nil, err, nil)
 			return nil, &result, nil
 		}

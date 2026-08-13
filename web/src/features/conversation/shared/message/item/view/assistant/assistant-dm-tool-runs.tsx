@@ -189,6 +189,8 @@ function DmToolRun({
     ? "error"
     : segment.rejectedCount > 0
     ? "rejected"
+    : segment.supersededCount > 0
+    ? "superseded"
     : "complete";
   const expanded = active || expansion.isOpen;
   const artifacts = useWorkspaceFileArtifactsFromContent(
@@ -280,6 +282,7 @@ function formatDmToolRunSummary(
     complete: "message.tool_run_complete",
     error: "message.tool_run_failed",
     rejected: "message.tool_run_rejected",
+    superseded: "message.tool_run_superseded",
   }[phase] as TranslationKey;
   const parts = [t(countKey, { count: toolUseCount }), t(statusKey)];
   if (errorCount > 0) {

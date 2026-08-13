@@ -66,7 +66,7 @@ func (s *Service) SetGoalFromCommand(
 		replaceExisting = *request.Options.ReplaceExisting
 	}
 	leadAgentID := execution.targetAgentIDs[0]
-	collaborationRequired := len(execution.agentByID) > 1
+	collaborationRequired := roomdomain.HasMultipleAgentMembers(execution.contextValue.Members)
 	item, err := provider.Create(
 		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
 		protocol.CreateGoalRequest{

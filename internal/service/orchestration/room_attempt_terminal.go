@@ -1,5 +1,5 @@
 // INPUT: structured Room slot 的 trusted WorkBinding、物理 runtime identity 与终态证据。
-// OUTPUT: root Attempt 的幂等、CAS 保护终态写入及 session 失效事实，不隐式创建 Submission 或 Acceptance。
+// OUTPUT: root Attempt 的幂等、CAS 保护终态写入及 session 失效事实；已收口 predecessor 的迟到回调为 no-op，不隐式创建 Submission 或 Acceptance。
 // POS: Room runtime 生命周期到 Execution Attempt 状态机的原子终态桥。
 package orchestration
 
@@ -62,6 +62,14 @@ func (s *Service) FinishRoomAttempt(
 		}
 		if err = authorizeSnapshot(actor, snapshot); err != nil {
 			return err
+		}
+		// Retarget 会在取消通知抵达旧 Room slot 前原子终结 predecessor。
+		// 身份已由 owner/session/Room 与 exact ExecutionID 校验；terminal aggregate
+		// 不再可变，因此迟到的物理终态只能幂等收口，不能因 active Plan 已移除
+		// 再制造一次 work_binding_mismatch。
+		if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+			s.invalidateSnapshot(ctx, snapshot)
+			return nil
 		}
 		attempt, authErr := authorizeRoomAttemptTerminalBinding(
 			snapshot,

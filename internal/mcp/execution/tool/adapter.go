@@ -290,6 +290,24 @@ func rejectedResult(message string, actions ...orchestration.NextAction) sdktool
 	return mutationResult(orchestration.RejectedResult(nil, errors.New(message), actions))
 }
 
+// recoverableMutationRejection 把已经到达服务端、但被当前权威状态拒绝的
+// stale/terminal command 留在业务 mutation 语义，避免把 retarget 竞态误报成
+// MCP transport failure。owner/session 等安全错误仍保持 IsError。
+func recoverableMutationRejection(err error) (sdktool.ToolResult, bool) {
+	var domainErr *orchestration.DomainError
+	if !errors.As(err, &domainErr) {
+		return sdktool.ToolResult{}, false
+	}
+	switch domainErr.Code {
+	case orchestration.ErrorCodeExecutionTerminal:
+		return mutationResult(orchestration.SupersededResult(nil, domainErr)), true
+	case orchestration.ErrorCodeStaleExecution:
+		return mutationResult(orchestration.RejectedResult(nil, domainErr, nil)), true
+	default:
+		return sdktool.ToolResult{}, false
+	}
+}
+
 func transportErrorResult(err error) sdktool.ToolResult {
 	message := "execution tool failed"
 	if err != nil {

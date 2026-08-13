@@ -280,6 +280,26 @@ func TestStructuredRoomWorkBindingRejectsStaleOrInputSelectedIdentity(t *testing
 	}
 }
 
+func TestStructuredRoomWorkBindingReportsRetargetedPredecessorAsTerminal(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Execution.Status = protocol.ExecutionStatusSuperseded
+	snapshot.Plan = nil
+	service := NewService(&fakeRepository{snapshot: snapshot})
+
+	_, err := service.GetSnapshot(
+		context.Background(),
+		structuredRoomMemberActor(binding),
+		binding.ExecutionID,
+	)
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeExecutionTerminal {
+		t.Fatalf("GetSnapshot error = %v, want %s", err, ErrorCodeExecutionTerminal)
+	}
+	if !strings.Contains(domainErr.Message, "fresh Assignment") {
+		t.Fatalf("terminal guidance = %q, want fresh Assignment recovery", domainErr.Message)
+	}
+}
+
 func TestStructuredRoomReviewBindingAdmitsOnlyItsSelectedPendingReview(t *testing.T) {
 	snapshot, dispatch := reviewReturnSnapshot()
 	binding := &protocol.ExecutionReviewBinding{

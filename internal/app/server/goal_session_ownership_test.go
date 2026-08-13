@@ -176,9 +176,10 @@ func TestGoalSessionOwnershipVerifierReturnsOnlyServerVerifiedRoomMember(t *test
 				"conversation-1": {
 					Room:         protocol.RoomRecord{ID: "room-1", OwnerUserID: owner},
 					Conversation: protocol.ConversationRecord{ID: "conversation-1", RoomID: "room-1"},
-					Members: []protocol.MemberRecord{{
-						RoomID: "room-1", MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-lead",
-					}},
+					Members: []protocol.MemberRecord{
+						{RoomID: "room-1", MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-lead"},
+						{RoomID: "room-1", MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-peer"},
+					},
 				},
 			},
 		}},
@@ -194,7 +195,9 @@ func TestGoalSessionOwnershipVerifierReturnsOnlyServerVerifiedRoomMember(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proof.TrustedAgentID != "agent-lead" || proof.TrustedAgentName != "Verified Lead" {
+	if proof.TrustedAgentID != "agent-lead" ||
+		proof.TrustedAgentName != "Verified Lead" ||
+		!proof.RoomCollaborationRequired {
 		t.Fatalf("proof = %#v", proof)
 	}
 	if _, err = verifier.VerifyGoalSessionOwnership(ctx, goalsvc.GoalSessionOwnershipRequest{

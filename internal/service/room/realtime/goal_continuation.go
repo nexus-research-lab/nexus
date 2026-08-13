@@ -820,7 +820,7 @@ Room Goal collaboration requirement:
 - Available conversation targets:
 %s
 - Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment.
-- If the room-visible history lacks a substantive non-lead reply, either @ exactly one target for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable.
+- If the same Goal's room-visible collaboration chain lacks a substantive non-lead reply, either @ exactly one target for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable. A retarget or consecutive lead round does not erase earlier collaboration for that Goal.
 - Once accountable work is assigned, do not duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only through the managed control path when necessary.
 - Do not call the Goal update tool in the same turn as the first collaboration request or Assignment.
 - Do not mark the Room Goal complete using only your own private work. Completion requires room-visible collaborator evidence plus your final audit.

@@ -1,6 +1,6 @@
-// INPUT: Room Goal 协作要求、可见证据与 objective revision。
-// OUTPUT: revision 安全的协作 metadata 和审计事件。
-// POS: Room Goal 协作完成条件的唯一状态入口。
+// INPUT: Room Goal 协作要求、可见证据、稳定 Goal identity 与事件归因 revision。
+// OUTPUT: Goal 生命周期内单调累计、记录时 revision 安全的协作 metadata 和审计事件。
+// POS: Room Goal 协作完成条件的唯一状态入口；retarget 不会抹除已成立证据。
 package goal
 
 import (
@@ -120,10 +120,4 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx context.C
 		return nil, err
 	}
 	return updated, nil
-}
-
-func roomGoalCompletionRequiresCollaboration(item protocol.Goal) bool {
-	return protocol.IsRoomSharedSessionKey(item.SessionKey) &&
-		RoomCollaborationRequired(item) &&
-		!RoomCollaborationObserved(item)
 }

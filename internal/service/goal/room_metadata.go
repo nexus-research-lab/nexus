@@ -152,7 +152,7 @@ func (s *Service) SetRoomGoalLead(ctx context.Context, goalID string, agentID st
 			current.Metadata,
 			protocol.GoalMetadataOwnerUserID,
 		)
-		_, verifiedAgentID, agentName, verifyErr := s.verifyGoalSessionOwnership(
+		_, verifiedAgentID, agentName, _, verifyErr := s.verifyGoalSessionOwnership(
 			ctx,
 			current.SessionKey,
 			ownerUserID,
@@ -201,7 +201,7 @@ func RoomCollaborationRequired(goal protocol.Goal) bool {
 	return protocol.GoalMetadataBool(goal.Metadata, protocol.GoalMetadataRoomGoalCollaborationRequired)
 }
 
-// RoomCollaborationObserved 判断 Room Goal 是否已有非负责人可见协作证据。
+// RoomCollaborationObserved 判断同一 Room Goal 生命周期内是否已有非负责人可见协作证据。
 func RoomCollaborationObserved(goal protocol.Goal) bool {
 	return protocol.GoalMetadataBool(goal.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
 }

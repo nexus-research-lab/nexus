@@ -101,3 +101,27 @@ func TestFinishRoomAttemptIsNoOpAfterRootAlreadyTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFinishRoomAttemptIsNoOpAfterRetargetClosedPredecessor(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Execution.Status = protocol.ExecutionStatusSuperseded
+	snapshot.Plan = nil
+	snapshot.PlanItems = nil
+	snapshot.WorkItems = nil
+	snapshot.WorkItemSpecs = nil
+	snapshot.Assignments = nil
+	snapshot.Dispatches = nil
+	snapshot.Attempts = nil
+	service := NewService(&fakeRepository{snapshot: snapshot})
+
+	if err := service.FinishRoomAttempt(
+		context.Background(),
+		structuredRoomMemberActor(binding),
+		RoomAttemptTerminalInput{
+			Binding: binding,
+			Status:  protocol.WorkAttemptStatusInterrupted,
+		},
+	); err != nil {
+		t.Fatalf("late predecessor settlement error = %v, want idempotent no-op", err)
+	}
+}

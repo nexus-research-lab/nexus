@@ -15,9 +15,10 @@ import (
 type MutationOutcome = protocol.MutationResultOutcome
 
 const (
-	MutationApplied  = protocol.MutationResultApplied
-	MutationNoOp     = protocol.MutationResultNoOp
-	MutationRejected = protocol.MutationResultRejected
+	MutationApplied    = protocol.MutationResultApplied
+	MutationNoOp       = protocol.MutationResultNoOp
+	MutationRejected   = protocol.MutationResultRejected
+	MutationSuperseded = protocol.MutationResultSuperseded
 )
 
 // NextAction 是基于最新 snapshot 的有序、非授权性恢复建议。
@@ -101,6 +102,26 @@ func RejectedResult(
 		return result
 	}
 	result.ReasonCode = ErrorCodeInvalidInput
+	if err != nil {
+		result.Message = strings.TrimSpace(err.Error())
+	}
+	return result
+}
+
+// SupersededResult 表示 command 属于已经被 retarget/replace 关闭的旧责任。
+func SupersededResult(
+	snapshot *protocol.ExecutionSnapshot,
+	err error,
+) MutationResult {
+	result := mutationResultFromSnapshot(snapshot)
+	result.Outcome = MutationSuperseded
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) {
+		result.ReasonCode = domainErr.Code
+		result.Message = domainErr.Message
+		return result
+	}
+	result.ReasonCode = ErrorCodeExecutionTerminal
 	if err != nil {
 		result.Message = strings.TrimSpace(err.Error())
 	}

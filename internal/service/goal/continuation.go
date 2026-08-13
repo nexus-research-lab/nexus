@@ -649,7 +649,7 @@ Room Goal lead:
 - Follow all Room rules and member roles. A public @mention only requests a conversational or untracked one-off contribution; it never creates an Assignment, WorkBinding, or completion evidence by itself.
 - When another member must own an accountable deliverable, materialize or continue the managed WorkGraph and use assign_work. Use @ only when a conversational contribution is sufficient.
 - For a multi-member Room Goal, visible collaboration is part of completion. If the runtime provides a Room Goal collaboration requirement, satisfy it before attempting completion.
-- If room-visible history does not already show substantive work from a non-lead member, choose the least costly correct route: @ exactly one member for a genuinely untracked contribution, or assign one distinct Ready Work Item through the managed graph. Do not call the Goal update tool in that same turn.
+- If the same Goal's room-visible collaboration chain does not already show substantive work from a non-lead member, choose the least costly correct route: @ exactly one member for a genuinely untracked contribution, or assign one distinct Ready Work Item through the managed graph. A retarget or consecutive lead round does not erase earlier collaboration for that Goal. Do not call the Goal update tool in that same turn.
 - If a public @ request is the right next step, make it the public reply for this turn and do not mark the Goal complete yet.
 - When delegated work returns, inspect the room-visible evidence, continue or delegate again if needed, and only mark the Goal complete after the full room objective is verified.
 `, leadLabel))

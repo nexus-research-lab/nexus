@@ -249,6 +249,7 @@ func SuccessfulGoalCompletionID(
 	for _, observation := range observations {
 		if observation.Recoverable || observation.IsError ||
 			observation.MutationOutcome == protocol.MutationResultRejected ||
+			observation.MutationOutcome == protocol.MutationResultSuperseded ||
 			CanonicalToolName(observation.ToolName) != "update_goal" ||
 			observation.GoalStatus != protocol.GoalStatusComplete {
 			continue
@@ -305,7 +306,8 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 		return false
 	}
 	if observation.MutationOutcome == protocol.MutationResultRejected ||
-		observation.MutationOutcome == protocol.MutationResultNoOp {
+		observation.MutationOutcome == protocol.MutationResultNoOp ||
+		observation.MutationOutcome == protocol.MutationResultSuperseded {
 		return false
 	}
 	switch CanonicalToolName(observation.ToolName) {
@@ -325,7 +327,8 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 func assistantHasSuccessfulGoalUpdateTool(message protocol.Message) bool {
 	for _, observation := range AssistantToolResults(message) {
 		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected {
+			observation.MutationOutcome == protocol.MutationResultRejected ||
+			observation.MutationOutcome == protocol.MutationResultSuperseded {
 			continue
 		}
 		if CanonicalToolName(observation.ToolName) == "update_goal" {

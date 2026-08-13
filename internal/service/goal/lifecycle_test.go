@@ -11,12 +11,13 @@ import (
 )
 
 type fakeRoomGoalCompletionReadiness struct {
-	blocker   string
-	err       error
-	goalID    string
-	agentID   string
-	roundID   string
-	callCount int
+	blocker               string
+	collaborationRequired bool
+	err                   error
+	goalID                string
+	agentID               string
+	roundID               string
+	callCount             int
 }
 
 type fakeExecutionGoalCompletionReadiness struct {
@@ -35,17 +36,20 @@ func (f *fakeExecutionGoalCompletionReadiness) ExecutionGoalCompletionBlocker(
 	return f.blocker, f.err
 }
 
-func (f *fakeRoomGoalCompletionReadiness) RoomGoalCompletionBlocker(
+func (f *fakeRoomGoalCompletionReadiness) RoomGoalCompletionReport(
 	_ context.Context,
 	item protocol.Goal,
 	agentID string,
 	roundID string,
-) (string, error) {
+) (RoomGoalCompletionReport, error) {
 	f.callCount++
 	f.goalID = item.ID
 	f.agentID = agentID
 	f.roundID = roundID
-	return f.blocker, f.err
+	return RoomGoalCompletionReport{
+		CollaborationRequired: f.collaborationRequired,
+		Blocker:               f.blocker,
+	}, f.err
 }
 
 func TestServiceCreateAndCurrentGoal(t *testing.T) {
@@ -669,6 +673,58 @@ func TestServiceCompleteByModelKeepsRoomGoalActiveWhileRoomWorkIsOutstanding(t *
 	}
 	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 2 {
 		t.Fatalf("completed = %#v calls=%d, want complete after Room work drains", completed, readiness.callCount)
+	}
+}
+
+func TestServiceCompleteByModelUsesCurrentRoomMembershipWhenCreationMetadataIsMissing(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	readiness := &fakeRoomGoalCompletionReadiness{collaborationRequired: true}
+	service.SetRoomGoalCompletionReadiness(readiness)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("dynamic-collaboration-gate"),
+		Objective:  "coordinate the current Room members",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if RoomCollaborationRequired(*created) {
+		t.Fatalf("metadata = %#v, test requires a legacy or same-round Goal without the creation marker", created.Metadata)
+	}
+
+	_, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
+		AgentID: "agent-lead",
+		RoundID: "round-create-and-complete",
+	})
+	if !errors.Is(err, ErrGoalInvalidState) || !strings.Contains(err.Error(), "room-visible non-lead collaboration") {
+		t.Fatalf("CompleteByModel error = %v, want current multi-member Room rejection", err)
+	}
+	current, currentErr := service.Current(ctx, created.SessionKey)
+	if currentErr != nil {
+		t.Fatal(currentErr)
+	}
+	if current.Status != protocol.GoalStatusActive || readiness.callCount != 1 {
+		t.Fatalf("current = %#v readiness calls=%d, want active Goal after dynamic collaboration gate", current, readiness.callCount)
+	}
+
+	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
+		AgentID: "agent-lead",
+		RoundID: "round-lead-final",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 2 {
+		t.Fatalf("completed = %#v readiness calls=%d", completed, readiness.callCount)
 	}
 }
 

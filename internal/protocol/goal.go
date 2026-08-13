@@ -94,13 +94,16 @@ type GoalExecutionBindingView struct {
 }
 
 const (
-	GoalMetadataRoomGoalScope                         = "room_goal_scope"
-	GoalMetadataRoomGoalCreatorAgentID                = "room_goal_creator_agent_id"
-	GoalMetadataRoomGoalLeadAgentID                   = "room_goal_lead_agent_id"
-	GoalMetadataRoomGoalLeadAgentName                 = "room_goal_lead_agent_name"
-	GoalMetadataRoomGoalLoopSlug                      = "room_goal_loop_slug"
-	GoalMetadataRoomGoalLoopTitle                     = "room_goal_loop_title"
-	GoalMetadataRoomGoalCollaborationRequired         = "room_goal_collaboration_required"
+	GoalMetadataRoomGoalScope                 = "room_goal_scope"
+	GoalMetadataRoomGoalCreatorAgentID        = "room_goal_creator_agent_id"
+	GoalMetadataRoomGoalLeadAgentID           = "room_goal_lead_agent_id"
+	GoalMetadataRoomGoalLeadAgentName         = "room_goal_lead_agent_name"
+	GoalMetadataRoomGoalLoopSlug              = "room_goal_loop_slug"
+	GoalMetadataRoomGoalLoopTitle             = "room_goal_loop_title"
+	GoalMetadataRoomGoalCollaborationRequired = "room_goal_collaboration_required"
+	// Collaboration evidence is monotonic for one durable Goal ID. The stored
+	// round/agent/revision provenance fences late writes; objective retarget does
+	// not erase an already observed public non-lead contribution.
 	GoalMetadataRoomGoalCollaborationObserved         = "room_goal_collaboration_observed"
 	GoalMetadataRoomGoalCollaborationAgentID          = "room_goal_collaboration_agent_id"
 	GoalMetadataRoomGoalCollaborationRoundID          = "room_goal_collaboration_round_id"
@@ -501,7 +504,8 @@ type CreateGoalRequest struct {
 	OwnerUserID     string `json:"owner_user_id,omitempty"`
 	AgentID         string `json:"-"`
 	// RoomCollaborationRequired 只能由已验证 Room 上下文的服务层设置；
-	// transport JSON 不得伪造共享 Goal 的完成门槛。
+	// transport JSON 不得伪造共享 Goal 的完成门槛。Goal 服务还会用
+	// owner-scoped session proof 补齐或加强它，complete 时重新验证当前成员。
 	RoomCollaborationRequired *bool          `json:"-"`
 	Metadata                  map[string]any `json:"metadata,omitempty"`
 }

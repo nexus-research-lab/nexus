@@ -31,6 +31,7 @@ const TOOL_STATUS_ICON_MAP: Readonly<Record<
   pending: { className: "", icon: Sparkles },
   running: { className: "animate-spin", icon: Loader },
   rejected: { className: "", icon: XCircle },
+  superseded: { className: "", icon: Square },
   stopped: { className: "", icon: Square },
   success: { className: "", icon: CheckCircle },
   waiting_permission: { className: "", icon: Clock },

@@ -253,9 +253,6 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 }
 
 func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
-	if roomGoalCompletionRequiresCollaboration(*item) {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, "Room Goal completion requires room-visible non-lead collaboration")
-	}
 	if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
 		ctx,
 		*item,
@@ -267,7 +264,7 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 	if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *item); readinessErr != nil {
 		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
-	if readinessErr := s.ensureRoomGoalCompletionReady(
+	if readinessErr := s.ensureRoomGoalCollaborationReady(
 		ctx,
 		*item,
 		RoomLeadAgentID(*item),

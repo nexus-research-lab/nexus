@@ -51,3 +51,20 @@ func TestAppliedResultDeduplicatesChangedIDsWithoutReorderingNextActions(t *test
 		t.Fatalf("next actions must keep service priority: %+v", result.NextActions)
 	}
 }
+
+func TestSupersededResultKeepsTerminalSnapshotIdentity(t *testing.T) {
+	snapshot := &protocol.ExecutionSnapshot{Execution: protocol.Execution{
+		ID:      "execution-old",
+		Version: 12,
+	}}
+	result := SupersededResult(snapshot, &DomainError{
+		Code:    ErrorCodeExecutionTerminal,
+		Message: "the predecessor was replaced",
+	})
+	if result.Outcome != MutationSuperseded ||
+		result.ReasonCode != ErrorCodeExecutionTerminal ||
+		result.ExecutionID != "execution-old" ||
+		result.SnapshotRevision != 12 {
+		t.Fatalf("unexpected superseded result: %+v", result)
+	}
+}

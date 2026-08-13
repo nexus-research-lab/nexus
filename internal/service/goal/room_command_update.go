@@ -21,7 +21,6 @@ func applyServerRoomGoalUpdate(
 	leadAgentName := strings.TrimSpace(request.RoomLeadAgentName)
 	if leadAgentID != "" &&
 		(RoomLeadAgentID(*item) != leadAgentID || RoomLeadAgentName(*item) != leadAgentName) {
-		previousLeadAgentID := RoomLeadAgentID(*item)
 		item.Metadata = cloneMap(item.Metadata)
 		if item.Metadata == nil {
 			item.Metadata = map[string]any{}
@@ -32,9 +31,6 @@ func applyServerRoomGoalUpdate(
 			delete(item.Metadata, protocol.GoalMetadataRoomGoalLeadAgentName)
 		} else {
 			item.Metadata[protocol.GoalMetadataRoomGoalLeadAgentName] = leadAgentName
-		}
-		if previousLeadAgentID != leadAgentID {
-			clearRoomGoalCollaborationEvidence(item.Metadata)
 		}
 		mutation.changed = true
 		mutation.payload["room_lead_agent_id"] = leadAgentID
@@ -62,10 +58,6 @@ func applyServerRoomGoalUpdate(
 		for _, key := range []string{
 			protocol.GoalMetadataRoomGoalCollaborationRequired,
 			protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
-			protocol.GoalMetadataRoomGoalCollaborationObserved,
-			protocol.GoalMetadataRoomGoalCollaborationAgentID,
-			protocol.GoalMetadataRoomGoalCollaborationRoundID,
-			protocol.GoalMetadataRoomGoalCollaborationObservedAt,
 		} {
 			if _, exists := item.Metadata[key]; exists {
 				delete(item.Metadata, key)
@@ -76,16 +68,5 @@ func applyServerRoomGoalUpdate(
 	if changed {
 		mutation.changed = true
 		mutation.payload["room_collaboration_required"] = required
-	}
-}
-
-func clearRoomGoalCollaborationEvidence(metadata map[string]any) {
-	for _, key := range []string{
-		protocol.GoalMetadataRoomGoalCollaborationObserved,
-		protocol.GoalMetadataRoomGoalCollaborationAgentID,
-		protocol.GoalMetadataRoomGoalCollaborationRoundID,
-		protocol.GoalMetadataRoomGoalCollaborationObservedAt,
-	} {
-		delete(metadata, key)
 	}
 }

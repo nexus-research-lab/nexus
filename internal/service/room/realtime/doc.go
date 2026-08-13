@@ -18,7 +18,7 @@
 //     @ 不创建 Assignment；正式责任只来自 assign_work。
 //   - goal_command.go：服务端验证 lead/协作门槛后写入共享 Goal 与完成态 public 控制记录；不占用普通 Agent slot。
 //   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
-//     Goal scope、协作终态回连、continuation、终态、附着最终回复的完成收据和额度适配。
+//     Goal scope、complete 时的当前 Room 成员/工作一致读取、协作终态回连、continuation、终态、附着最终回复的完成收据和额度适配。
 //
 // conversation 共享 queue、public wake、Goal continuation 与 Execution slot；锁必须
 // 保持 conversation-scoped。每个并行 slot 自带 round_id，聚合 RoundID 只作单 root

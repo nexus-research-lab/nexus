@@ -250,7 +250,7 @@ func (r *concurrentRetargetRepository) AppendEvent(ctx context.Context, event pr
 	return r.memoryRepository.AppendEvent(ctx, event)
 }
 
-func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
+func TestServiceRetargetByModelPreservesGoalLifecycleCollaboration(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -284,36 +284,35 @@ func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !RoomCollaborationRequired(*updated) || RoomCollaborationObserved(*updated) {
-		t.Fatalf("collaboration metadata = %#v, want required without stale evidence", updated.Metadata)
+	if !RoomCollaborationRequired(*updated) || !RoomCollaborationObserved(*updated) {
+		t.Fatalf("collaboration metadata = %#v, want Goal-lifecycle evidence retained", updated.Metadata)
 	}
 	if len(dispatcher.items) != 1 || dispatcher.items[0].excludedAgentID != "agent-lead" || dispatcher.items[0].contextName != "goal" || dispatcher.items[0].objectiveRevision != updated.ObjectiveRevision() {
 		t.Fatalf("guidance = %#v, want Room retarget propagated except caller", dispatcher.items)
 	}
-	for _, key := range []string{
-		protocol.GoalMetadataRoomGoalCollaborationObserved,
-		protocol.GoalMetadataRoomGoalCollaborationAgentID,
-		protocol.GoalMetadataRoomGoalCollaborationRoundID,
-		protocol.GoalMetadataRoomGoalCollaborationObservedAt,
+	for key, want := range map[string]string{
+		protocol.GoalMetadataRoomGoalCollaborationAgentID:    "agent-peer",
+		protocol.GoalMetadataRoomGoalCollaborationRoundID:    "round-peer-old",
+		protocol.GoalMetadataRoomGoalCollaborationObservedAt: "2026-07-13T10:00:00Z",
 	} {
-		if _, ok := updated.Metadata[key]; ok {
-			t.Fatalf("collaboration metadata retained stale %q: %#v", key, updated.Metadata)
+		if got := protocol.GoalMetadataString(updated.Metadata, key); got != want {
+			t.Fatalf("collaboration metadata %q = %q, want %q", key, got, want)
 		}
-	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead"}); !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("completion without fresh collaboration error = %v, want ErrGoalInvalidState", err)
 	}
 	if _, err := service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer-stale", "agent-peer", created.ObjectiveRevision()); !errors.Is(err, ErrGoalRevisionStale) {
 		t.Fatalf("stale collaboration error = %v, want ErrGoalRevisionStale", err)
 	}
-	if _, err := service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer-new", "agent-peer", updated.ObjectiveRevision()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead", ExpectedObjectiveRevision: created.ObjectiveRevision()}); !errors.Is(err, ErrGoalRevisionStale) {
+	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
+		AgentID:                   "agent-lead",
+		ExpectedObjectiveRevision: created.ObjectiveRevision(),
+	}); !errors.Is(err, ErrGoalRevisionStale) {
 		t.Fatalf("stale completion error = %v, want ErrGoalRevisionStale", err)
 	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead", ExpectedObjectiveRevision: updated.ObjectiveRevision()}); err != nil {
-		t.Fatalf("completion with fresh collaboration error = %v", err)
+	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
+		AgentID:                   "agent-lead",
+		ExpectedObjectiveRevision: updated.ObjectiveRevision(),
+	}); err != nil {
+		t.Fatalf("completion with earlier Goal collaboration error = %v", err)
 	}
 }
 

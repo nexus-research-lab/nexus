@@ -119,6 +119,22 @@ func TestServiceSetFromThreadGoalParamsCompleteIsNotCurrentGoal(t *testing.T) {
 	}
 }
 
+func TestServiceSetFromThreadGoalParamsCannotCreateCompletedRoomGoal(t *testing.T) {
+	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
+	service.idFactory = sequentialID()
+	objective := "bypass Room collaboration"
+	complete := goalappserver.ThreadGoalStatusComplete
+
+	_, err := service.SetFromThreadGoalParams(context.Background(), goalappserver.ThreadGoalSetParams{
+		ThreadID:  protocol.BuildRoomSharedSessionKey("room-direct-complete"),
+		Objective: &objective,
+		Status:    &complete,
+	})
+	if !errors.Is(err, ErrGoalInvalidState) {
+		t.Fatalf("SetFromThreadGoalParams() error = %v, want Room create-complete rejection", err)
+	}
+}
+
 func TestServiceSetFromThreadGoalParamsRequiresObjectiveWhenMissing(t *testing.T) {
 	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
 	active := goalappserver.ThreadGoalStatusActive

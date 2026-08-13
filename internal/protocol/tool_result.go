@@ -17,6 +17,9 @@ const (
 	MutationResultApplied  MutationResultOutcome = "applied"
 	MutationResultNoOp     MutationResultOutcome = "no_op"
 	MutationResultRejected MutationResultOutcome = "rejected"
+	// MutationResultSuperseded 表示 command 命中了已经由权威状态替换的旧责任；
+	// 它未改变状态，也不是调用失败，调用方应停止旧 round 等待新 binding。
+	MutationResultSuperseded MutationResultOutcome = "superseded"
 )
 
 // MutationResultEnvelope 是模型工具结果里可稳定投影到 UI 与 loop guard 的紧凑语义。
@@ -254,7 +257,10 @@ func parseMutationResultJSON(raw []byte, depth int) (MutationResultEnvelope, boo
 func mutationResultOutcome(value any) (MutationResultOutcome, bool) {
 	outcome := MutationResultOutcome(mutationResultString(value))
 	switch outcome {
-	case MutationResultApplied, MutationResultNoOp, MutationResultRejected:
+	case MutationResultApplied,
+		MutationResultNoOp,
+		MutationResultRejected,
+		MutationResultSuperseded:
 		return outcome, true
 	default:
 		return "", false
