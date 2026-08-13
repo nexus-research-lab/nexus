@@ -26,9 +26,10 @@ var ErrTaskSessionRebindRequired = errors.New(
 	"scheduled task has deleted session bindings; reassign every affected execution or delivery session before enabling",
 )
 
-// ErrTaskDeliverySessionUnavailable 表示用户选择的外部 IM 目标没有当前 active pairing。
+// ErrTaskDeliverySessionUnavailable 表示用户选择的真实 Session 已不存在，或外部 IM
+// 没有当前 active pairing。
 var ErrTaskDeliverySessionUnavailable = errors.New(
-	"目标 IM 会话当前未配对，不能作为定时任务投递目标；请重新连接通道后选择当前会话",
+	"目标会话当前不可用，不能作为定时任务投递目标；请重新选择已有会话，IM 会话还需保持当前配对",
 )
 
 // NormalizeScheduledTaskSessionBinding 清理已被用户替换的失效键并重建展示状态。

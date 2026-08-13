@@ -48,7 +48,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 			Timezone:        "Asia/Shanghai",
 		},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		Delivery:      fakeStructuredDelivery("agent-1", "task-history"),
 		Enabled:       true,
 	})
 	if err != nil {
@@ -122,7 +122,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 	}
 
 	deliveryMatches, err := service.SearchTaskHistory(context.Background(), automationdomain.ScheduledTaskHistorySearchInput{
-		Query:          "oc_group",
+		Query:          "task-history",
 		IncludeActive:  false,
 		IncludeDeleted: true,
 		Limit:          10,
@@ -135,7 +135,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 	}
 
 	deliveryAliasMatches, err := service.SearchTaskHistory(context.Background(), automationdomain.ScheduledTaskHistorySearchInput{
-		Query:          "飞书群",
+		Query:          "内部会话",
 		IncludeActive:  false,
 		IncludeDeleted: true,
 		Limit:          10,

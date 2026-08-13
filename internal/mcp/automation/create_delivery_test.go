@@ -56,55 +56,27 @@ func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
 	}
 }
 
-func TestCreateOwnerMainCanDeliverToArbitraryChannel(t *testing.T) {
-	tests := []struct {
-		name  string
-		input map[string]any
-	}{
-		{
-			name: "explicit mode",
-			input: map[string]any{
-				"reply_mode":    "channel",
-				"reply_channel": "feishu",
-				"reply_to":      "oc_group_123",
-			},
-		},
-		{
-			name: "inferred mode",
-			input: map[string]any{
-				"reply_channel": "feishu",
-				"reply_to":      "oc_group_123",
-			},
-		},
+func TestCreateOwnerMainRequiresExistingSessionForChannelDelivery(t *testing.T) {
+	svc := &stubService{}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+		IsMainAgent:       true,
+	}, "create_scheduled_task", map[string]any{
+		"name":           "新闻日报",
+		"instruction":    "搜索今天的重要新闻并整理摘要",
+		"execution_mode": "temporary",
+		"reply_mode":     "channel",
+		"reply_channel":  "feishu",
+		"reply_to":       "oc_group_123",
+		"schedule":       dailySchedule("09:00"),
+	})
+	if !isError || !strings.Contains(extractText(t, result), "existing authorized reply_session_key") {
+		t.Fatalf("owner-main bare channel target should require a real session: %+v", result)
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			svc := &stubService{}
-			input := map[string]any{
-				"name":           "新闻日报",
-				"instruction":    "搜索今天的重要新闻并整理摘要",
-				"execution_mode": "temporary",
-				"schedule":       dailySchedule("09:00"),
-			}
-			for key, value := range test.input {
-				input[key] = value
-			}
-			result, isError := callTool(t, svc, contract.ServerContext{
-				CurrentAgentID:    "agent-1",
-				CurrentSessionKey: "agent:agent-1:ws:dm:current",
-				SourceContextType: "agent",
-				IsMainAgent:       true,
-			}, "create_scheduled_task", input)
-			if isError {
-				t.Fatalf("unexpected error: %s", extractText(t, result))
-			}
-			if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-				svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-				svc.createInput.Delivery.To != "oc_group_123" {
-				t.Fatalf("expected explicit feishu delivery, got %+v", svc.createInput.Delivery)
-			}
-		})
+	if svc.createInput.Name != "" {
+		t.Fatalf("rejected bare target reached service: %+v", svc.createInput)
 	}
 }
 
@@ -131,7 +103,7 @@ func TestCreateOrdinaryAgentRejectsArbitraryChannel(t *testing.T) {
 	}
 }
 
-func TestCreateCanDeliverToAgentInbox(t *testing.T) {
+func TestCreateRejectsSyntheticAgentInboxModes(t *testing.T) {
 	tests := []struct {
 		name  string
 		input map[string]any
@@ -148,6 +120,7 @@ func TestCreateCanDeliverToAgentInbox(t *testing.T) {
 			input: map[string]any{
 				"agent_id":       "agent-1",
 				"reply_agent_id": "agent-2",
+				"reply_mode":     "agent",
 			},
 		},
 	}
@@ -170,20 +143,11 @@ func TestCreateCanDeliverToAgentInbox(t *testing.T) {
 				SourceContextType: "agent",
 				IsMainAgent:       true,
 			}, "create_scheduled_task", input)
-			if isError {
-				t.Fatalf("unexpected error: %s", extractText(t, result))
+			if !isError {
+				t.Fatalf("synthetic Agent inbox mode should be rejected: %+v", result)
 			}
-			expectedSessionKey := protocol.BuildAgentSessionKey(
-				"agent-2",
-				protocol.SessionChannelInternalSegment,
-				"dm",
-				protocol.AutomationInboxSessionRef,
-				"",
-			)
-			if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
-				svc.createInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-				svc.createInput.Delivery.To != expectedSessionKey {
-				t.Fatalf("expected internal agent delivery, got %+v", svc.createInput.Delivery)
+			if svc.createInput.Name != "" {
+				t.Fatalf("rejected synthetic inbox reached service: %+v", svc.createInput)
 			}
 		})
 	}
@@ -322,7 +286,7 @@ func TestExternalIMAutomationSchemaHidesRouteIdentifiers(t *testing.T) {
 	}
 }
 
-func TestOwnerMainPrivateDMSchemaKeepsExplicitChannelTargets(t *testing.T) {
+func TestOwnerMainPrivateDMSchemaOnlyExposesExistingSessionRouting(t *testing.T) {
 	tools := listTools(t, &stubService{}, contract.ServerContext{
 		CurrentAgentID:    "main",
 		CurrentSessionKey: protocol.BuildAgentSessionKey("main", protocol.SessionChannelWebSocket, protocol.RoomTypeDM, "current", ""),
@@ -338,15 +302,12 @@ func TestOwnerMainPrivateDMSchemaKeepsExplicitChannelTargets(t *testing.T) {
 		matched++
 		schema, _ := tool["inputSchema"].(map[string]any)
 		properties, _ := schema["properties"].(map[string]any)
-		for _, field := range []string{
-			"reply_session_key",
-			"reply_channel",
-			"reply_to",
-			"reply_account_id",
-			"reply_thread_id",
-		} {
-			if _, exists := properties[field]; !exists {
-				t.Fatalf("%s owner-main schema missing explicit %s", name, field)
+		if _, exists := properties["reply_session_key"]; !exists {
+			t.Fatalf("%s owner-main schema missing existing reply_session_key", name)
+		}
+		for _, field := range []string{"reply_channel", "reply_to", "reply_account_id", "reply_thread_id"} {
+			if _, exists := properties[field]; exists {
+				t.Fatalf("%s owner-main schema must hide bare route field %s", name, field)
 			}
 		}
 	}

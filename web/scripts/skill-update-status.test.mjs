@@ -298,6 +298,7 @@ test("定时任务恢复运行后不把上一段权限错误当成当前异常",
   );
   const task = {
     agent_id: "agent-1",
+    configuration_version: 1,
     delivery: { mode: "none" },
     enabled: true,
     execution_kind: "agent",
@@ -380,6 +381,7 @@ test("删除绑定会话后定时任务进入需处理并锁定执行和启用",
   );
   const task = {
     agent_id: "agent-1",
+    configuration_version: 1,
     delivery: { mode: "last", session_key: "deleted-delivery" },
     enabled: false,
     execution_kind: "agent",

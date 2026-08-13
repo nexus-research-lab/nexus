@@ -7,6 +7,7 @@ import {
   updateScheduledTaskApi,
 } from "@/lib/api/capability/scheduled-task-api";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
+import { parseSessionKey } from "@/lib/conversation/session-key";
 import {
   type I18nContextValue,
   useI18n,
@@ -51,18 +52,38 @@ interface SubmitTaskDialogOptions {
   t: I18nContextValue["t"];
 }
 
+function needsLegacyDeliveryRebind(task: ScheduledTaskItem | null): boolean {
+  if (!task) {
+    return false;
+  }
+  if (task.execution_kind === "script" || task.delivery.mode === "none") {
+    return false;
+  }
+  const sessionKey = task.delivery.session_key?.trim()
+    || task.delivery.to?.trim()
+    || "";
+  const parsed = parseSessionKey(sessionKey);
+  return !parsed.is_structured || (parsed.kind === "agent"
+    && parsed.channel === "internal"
+    && parsed.ref === "automation-inbox");
+}
+
 function buildUpdatePayload(
   payload: UpdateScheduledTaskParams,
   initialTask: ScheduledTaskItem,
   expiresAtDraft: string,
+  permissionModeDraft: TaskDialogSubmitContext["form"]["permissionMode"],
 ): UpdateScheduledTaskParams {
   // source 是任务创建来源，不是可编辑配置。更新时保持原始 provenance，避免
   // 历史 IM 会话已解绑后，修改名称或计划被误判成一次新的会话授权。
   const { source: _source, ...configurationPayload } = payload;
+  const withPermissionRefresh = permissionModeDraft === "copy"
+    ? { ...configurationPayload, permission_mode: "" as const }
+    : configurationPayload;
   if (expiresAtDraft.trim() || initialTask.expires_at === null) {
-    return configurationPayload;
+    return withPermissionRefresh;
   }
-  return { ...configurationPayload, clear_expires_at: true };
+  return { ...withPermissionRefresh, clear_expires_at: true };
 }
 
 async function submitTaskDialog({
@@ -72,13 +93,15 @@ async function submitTaskDialog({
   onSaved,
   t,
 }: SubmitTaskDialogOptions): Promise<void> {
-  const payload = buildScheduledTaskPayload(context, t, initialTask?.source);
+  const payload = buildScheduledTaskPayload(context, t);
   if (initialTask) {
     const updatePayload = buildUpdatePayload(
       payload,
       initialTask,
       context.form.expiresAt,
+      context.form.permissionMode,
     );
+    updatePayload.expected_configuration_version = initialTask.configuration_version;
     const updated = await updateScheduledTaskApi(initialTask.job_id, updatePayload);
     await onSaved?.(updated);
     return;
@@ -135,33 +158,40 @@ export function useTaskDialogController({
     form: form.draft,
     isOpen,
   });
+  const resolveSelectedRoomIds = form.actions.resolveSelectedRoomIds;
   const selectedSession = data.sessionOptions.find(
     (option) => option.value === form.draft.selectedSessionKey,
   ) ?? null;
-  const selectedReplySession = data.sessionOptions.find(
+  const selectedReplySession = data.deliverySessionOptions.find(
     (option) => option.value === form.draft.selectedReplySessionKey,
   ) ?? null;
-  const hasUnavailableExternalSession = !data.sessions.loading
+  const hasUnavailableExternalSession = (
+    !data.sessions.loading
     && !data.sessions.error
-    && [form.draft.selectedSessionKey, form.draft.selectedReplySessionKey]
-      .some((sessionKey) => (
-        Boolean(sessionKey)
-        && isExternalSessionChannel(null, sessionKey)
-        && !data.sessionOptions.some((option) => option.value === sessionKey)
-      ));
+    && Boolean(form.draft.selectedSessionKey)
+    && isExternalSessionChannel(null, form.draft.selectedSessionKey)
+    && !data.sessionOptions.some(
+      (option) => option.value === form.draft.selectedSessionKey,
+    )
+  ) || (
+    !data.deliverySessions.loading
+    && !data.deliverySessions.error
+    && Boolean(form.draft.selectedReplySessionKey)
+    && isExternalSessionChannel(null, form.draft.selectedReplySessionKey)
+    && !data.deliverySessionOptions.some(
+      (option) => option.value === form.draft.selectedReplySessionKey,
+    )
+  );
   const needsSessionRebind = initialTask?.session_binding_state === "rebind_required"
-    || hasUnavailableExternalSession;
+    || hasUnavailableExternalSession
+    || needsLegacyDeliveryRebind(initialTask ?? null);
 
   const submitContext = useMemo<TaskDialogSubmitContext>(() => ({
-    agentOptions: data.agentOptions,
     form: form.draft,
-    roomOptions: data.roomOptions,
     schedule: schedule.draft,
     selectedReplySession,
     selectedSession,
   }), [
-    data.agentOptions,
-    data.roomOptions,
     form.draft,
     schedule.draft,
     selectedReplySession,
@@ -205,6 +235,17 @@ export function useTaskDialogController({
       setIsSubmitting(false);
     }
   }, [initialTask, onClose, onCreated, onSaved, submitContext, t]);
+
+  useEffect(() => {
+    resolveSelectedRoomIds({
+      deliveryRoomId: data.resolvedDeliveryRoomId,
+      executionRoomId: data.resolvedExecutionRoomId,
+    });
+  }, [
+    data.resolvedDeliveryRoomId,
+    data.resolvedExecutionRoomId,
+    resolveSelectedRoomIds,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {

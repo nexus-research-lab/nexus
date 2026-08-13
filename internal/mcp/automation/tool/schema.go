@@ -37,8 +37,8 @@ var executionModeSchema = map[string]any{
 
 // replyModeSchema 对齐 UI「结果回传」按钮，并按可信调用上下文收窄模型可选项。
 func replyModeSchema(sctx contract.ServerContext) map[string]any {
-	modes := []string{"none", "execution", "selected", "agent"}
-	description := "none=不回传 / execution=回到执行会话 / selected=回到指定会话 / agent=投递到智能体定时任务收件箱"
+	modes := []string{"none", "execution", "selected"}
+	description := "none=不回传 / execution=回到执行会话 / selected=回到指定真实会话"
 	if channel, chatType, ok := currentExternalIMSummary(sctx); ok {
 		modes = append(modes, "channel")
 		description += fmt.Sprintf(
@@ -89,19 +89,13 @@ func addAdvancedRoutingSchema(properties map[string]any, sctx contract.ServerCon
 	properties["selected_session_key"] = map[string]any{"type": "string", "description": "高级兼容：复用的会话 key"}
 	properties["named_session_key"] = map[string]any{"type": "string", "description": "高级兼容：专用长期会话名称"}
 	properties["selected_reply_session_key"] = map[string]any{"type": "string", "description": "高级兼容：接收结果的会话 key"}
-	properties["reply_agent_id"] = map[string]any{"type": "string", "description": "高级兼容：接收结果的智能体"}
 	addExplicitChannelTargetSchema(properties, sctx)
 }
 
 func addExplicitChannelTargetSchema(properties map[string]any, sctx contract.ServerContext) {
-	if properties == nil || !hasMainAgentScopeAuthority(sctx) {
-		return
+	if properties != nil && hasMainAgentScopeAuthority(sctx) {
+		properties["reply_session_key"] = map[string]any{"type": "string", "description": "reply_mode=channel 时填写已存在、结构化且已授权的 IM/session key"}
 	}
-	properties["reply_session_key"] = map[string]any{"type": "string", "description": "reply_mode=channel 时可填：结构化且已授权的 IM/session key"}
-	properties["reply_channel"] = map[string]any{"type": "string", "description": "reply_mode=channel 时填：telegram/discord/dingtalk/wechat/weixin-personal/feishu 等通道"}
-	properties["reply_to"] = map[string]any{"type": "string", "description": "reply_mode=channel 时填：目标外部群、频道或 chat id"}
-	properties["reply_account_id"] = map[string]any{"type": "string", "description": "reply_mode=channel 时可填：多账号通道账号 id"}
-	properties["reply_thread_id"] = map[string]any{"type": "string", "description": "reply_mode=channel 时可填：话题或线程 id"}
 }
 
 func currentExternalIMSummary(sctx contract.ServerContext) (string, string, bool) {

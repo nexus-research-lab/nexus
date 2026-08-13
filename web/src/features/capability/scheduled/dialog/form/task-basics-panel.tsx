@@ -3,6 +3,7 @@
 import { type RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
@@ -12,10 +13,12 @@ import type {
 } from "../scheduled-task-dialog-types";
 import { TaskBasicsAdvanced } from "./task-basics-advanced";
 import {
+  buildTaskDeliveryTargetPresentation,
   buildTaskTargetPresentation,
   type TaskBasicsActions,
   type TaskBasicsData,
 } from "./task-basics-model";
+import { buildTargetTypeOptions } from "./task-form-options";
 
 interface TaskBasicsPanelProps {
   actions: TaskBasicsActions;
@@ -41,6 +44,11 @@ export function TaskBasicsPanel({
     room: actions.setSelectedRoomId,
   };
   const setTarget = targetActions[target.targetType];
+  const deliveryTarget = buildTaskDeliveryTargetPresentation(form, data, t);
+  const deliveryTargetActions: Record<TargetType, (value: string) => void> = {
+    agent: actions.setSelectedDeliveryAgentId,
+    room: actions.setSelectedDeliveryRoomId,
+  };
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -56,6 +64,26 @@ export function TaskBasicsPanel({
           value={form.taskName}
         />
       </UiField>
+
+      <div className="dialog-field">
+        <span className="dialog-label">
+          {t("capability.scheduled_dialog_execution_location")}
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {buildTargetTypeOptions(t).map((option) => (
+            <UiChoiceButton
+              active={form.targetType === option.key}
+              key={option.key}
+              onClick={() => actions.setTargetType(option.key)}
+            >
+              {option.label}
+            </UiChoiceButton>
+          ))}
+        </div>
+        <p className="mt-2 text-xs leading-5 text-(--text-muted)">
+          {t("capability.scheduled_dialog_execution_location_help")}
+        </p>
+      </div>
 
       <UiField
         error={target.error}
@@ -76,6 +104,8 @@ export function TaskBasicsPanel({
       <TaskBasicsAdvanced
         actions={actions}
         data={data}
+        deliveryTarget={deliveryTarget}
+        deliveryTargetActions={deliveryTargetActions}
         form={form}
         isEditing={isEditing}
         needsSessionRebind={needsSessionRebind}

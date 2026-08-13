@@ -91,6 +91,7 @@ export interface ScheduledTaskSource {
 
 export interface ApiScheduledTask {
   job_id: string;
+  configuration_version: number;
   name: string;
   agent_id: string;
   schedule: ScheduledTaskSchedule;
@@ -173,12 +174,13 @@ export interface CreateScheduledTaskParams {
 }
 
 export interface UpdateScheduledTaskParams {
+  expected_configuration_version?: number;
   name?: string;
   agent_id?: string;
   schedule?: ScheduledTaskSchedule;
   instruction?: string;
   execution_kind?: ScheduledTaskExecutionKind;
-  permission_mode?: ScheduledTaskPermissionMode;
+  permission_mode?: ScheduledTaskPermissionMode | "";
   session_target?: ScheduledTaskSessionTarget;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;

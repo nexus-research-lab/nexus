@@ -5,11 +5,9 @@ import type {
   ScheduledTaskDeliveryTarget,
   ScheduledTaskSchedule,
   ScheduledTaskSessionTarget,
-  ScheduledTaskSource,
 } from "@/types/capability/scheduled-task/task";
 
 import type {
-  TaskDialogLabelOption,
   TaskDialogSessionOption,
   TaskFormDraft,
   TaskScheduleDraft,
@@ -23,9 +21,7 @@ import {
 type Translate = I18nContextValue["t"];
 
 export interface TaskDialogSubmitContext {
-  agentOptions: TaskDialogLabelOption[];
   form: TaskFormDraft;
-  roomOptions: TaskDialogLabelOption[];
   schedule: TaskScheduleDraft;
   selectedReplySession: TaskDialogSessionOption | null;
   selectedSession: TaskDialogSessionOption | null;
@@ -44,9 +40,7 @@ function validateBasics(
     return t("capability.scheduled_dialog_validation_name");
   }
   if (!form.instruction.trim()) {
-    return t(form.executionKind === "script"
-      ? "capability.scheduled_dialog_validation_script"
-      : "capability.scheduled_dialog_validation_instruction");
+    return t("capability.scheduled_dialog_validation_instruction");
   }
   return null;
 }
@@ -148,6 +142,16 @@ function validateDelivery(
   if (form.replyMode === "selected" && !selectedReplySession) {
     return t("capability.scheduled_dialog_validation_reply_session");
   }
+  if (form.replyMode === "selected"
+    && form.deliveryTargetType === "agent"
+    && !form.selectedDeliveryAgentId.trim()) {
+    return t("capability.scheduled_dialog_validation_delivery_agent");
+  }
+  if (form.replyMode === "selected"
+    && form.deliveryTargetType === "room"
+    && !form.selectedDeliveryRoomId.trim()) {
+    return t("capability.scheduled_dialog_validation_delivery_room");
+  }
   return null;
 }
 
@@ -207,20 +211,14 @@ function buildDelivery(
   context: TaskDialogSubmitContext,
   t: Translate,
 ): ScheduledTaskDeliveryTarget {
-  const { form, selectedReplySession, selectedSession } = context;
+  const { form, selectedReplySession } = context;
   if (form.replyMode === "none" || form.executionMode === "main") {
     return { mode: "none" };
   }
-  if (form.replyMode === "selected") {
-    if (!selectedReplySession) {
-      throw new Error(t("capability.scheduled_dialog_validation_reply_session"));
-    }
-    return buildSessionDelivery(selectedReplySession.sessionKey);
+  if (!selectedReplySession) {
+    throw new Error(t("capability.scheduled_dialog_validation_reply_session"));
   }
-  if (!selectedSession) {
-    return { mode: "none" };
-  }
-  return buildSessionDelivery(selectedSession.sessionKey);
+  return buildSessionDelivery(selectedReplySession.sessionKey);
 }
 
 function buildSessionDelivery(sessionKey: string): ScheduledTaskDeliveryTarget {
@@ -231,8 +229,9 @@ function buildSessionDelivery(sessionKey: string): ScheduledTaskDeliveryTarget {
     };
   }
   return {
-    channel: "websocket",
+    channel: sessionKey.includes(":internal:") ? "internal" : "websocket",
     mode: "explicit",
+    session_key: sessionKey,
     to: sessionKey,
   };
 }
@@ -297,71 +296,9 @@ function resolveAgentId(
   return selectedSession.agentId;
 }
 
-function selectedLabel(
-  options: TaskDialogLabelOption[],
-  value: string,
-): string {
-  return options.find((option) => option.value === value)?.label || value.trim();
-}
-
-interface TaskSourceContext {
-  context_id: string;
-  context_label: string;
-  context_type: "agent" | "room";
-}
-
-function resolveTaskSourceContext(
-  context: TaskDialogSubmitContext,
-): TaskSourceContext {
-  const { agentOptions, form, roomOptions } = context;
-  const roomTarget = form.executionKind === "agent" && form.targetType === "room";
-  const target = roomTarget
-    ? {
-        contextType: "room" as const,
-        options: roomOptions,
-        value: form.selectedRoomId,
-      }
-    : {
-        contextType: "agent" as const,
-        options: agentOptions,
-        value: form.selectedAgentId,
-      };
-  const contextId = target.value.trim();
-  return {
-    context_id: contextId,
-    context_label: selectedLabel(target.options, contextId),
-    context_type: target.contextType,
-  };
-}
-
-function resolveTaskSourceSession(
-  context: TaskDialogSubmitContext,
-): Pick<ScheduledTaskSource, "session_key" | "session_label"> {
-  if (context.form.executionKind === "script") {
-    return { session_key: null, session_label: null };
-  }
-  return {
-    session_key: context.selectedSession?.sessionKey ?? null,
-    session_label: context.selectedSession?.label ?? null,
-  };
-}
-
-function buildSource(
-  context: TaskDialogSubmitContext,
-  originalSource?: ScheduledTaskSource | null,
-): ScheduledTaskSource {
-  return {
-    ...resolveTaskSourceContext(context),
-    ...resolveTaskSourceSession(context),
-    creator_agent_id: originalSource?.creator_agent_id ?? null,
-    kind: originalSource?.kind ?? "user_page",
-  };
-}
-
 export function buildScheduledTaskPayload(
   context: TaskDialogSubmitContext,
   t: Translate,
-  originalSource?: ScheduledTaskSource | null,
 ): CreateScheduledTaskParams {
   const { form, schedule } = context;
   const common = {
@@ -374,16 +311,7 @@ export function buildScheduledTaskPayload(
       ? undefined
       : form.permissionMode,
     schedule: buildSchedule(schedule, t),
-    source: buildSource(context, originalSource),
   };
-  if (form.executionKind === "script") {
-    return {
-      ...common,
-      delivery: { mode: "none" },
-      execution_kind: "script",
-      session_target: { kind: "isolated", wake_mode: "next-heartbeat" },
-    };
-  }
   return {
     ...common,
     delivery: buildDelivery(context, t),

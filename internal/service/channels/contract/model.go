@@ -106,6 +106,7 @@ type DeliveryResult struct {
 // Channel adapter 不消费这些字段；Router 用它把同一结果稳定投影到 Nexus
 // 会话并关联外部平台回执。模型正文和平台 callback 均不能构造此身份。
 type AutomationDeliveryContext struct {
+	ProducerAgentID     string `json:"producer_agent_id,omitempty"`
 	JobID               string `json:"job_id"`
 	RunID               string `json:"run_id"`
 	TaskName            string `json:"task_name,omitempty"`
@@ -117,6 +118,7 @@ type AutomationDeliveryContext struct {
 // Normalized 返回去除传输噪声后的任务投递身份。
 func (c AutomationDeliveryContext) Normalized() AutomationDeliveryContext {
 	result := c
+	result.ProducerAgentID = strings.TrimSpace(result.ProducerAgentID)
 	result.JobID = strings.TrimSpace(result.JobID)
 	result.RunID = strings.TrimSpace(result.RunID)
 	result.TaskName = strings.TrimSpace(result.TaskName)

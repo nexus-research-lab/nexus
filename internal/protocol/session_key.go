@@ -39,7 +39,7 @@ const (
 	// SessionChannelFeishu 表示持久化后的飞书通道类型。
 	SessionChannelFeishu = "feishu"
 
-	// AutomationInboxSessionRef 表示定时任务投递到 Agent 时使用的固定内部会话。
+	// AutomationInboxSessionRef 仅识别旧版定时任务合成收件箱；新任务必须绑定真实 Session。
 	AutomationInboxSessionRef = "automation-inbox"
 )
 

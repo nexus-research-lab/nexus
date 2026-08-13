@@ -213,9 +213,20 @@ func (s *Service) updateTask(
 	if err = rejectAgentScriptControl(ctx, *current, next); err != nil {
 		return nil, err
 	}
+	agentChanged := strings.TrimSpace(next.AgentID) != strings.TrimSpace(current.AgentID)
+	if agentChanged && input.SessionTarget == nil {
+		return nil, errors.New("changing agent_id requires session_target in the same update")
+	}
+	if agentChanged && next.Delivery.Normalized().Mode != automationdomain.DeliveryModeNone &&
+		input.Delivery == nil {
+		return nil, errors.New("changing agent_id with delivery enabled requires delivery in the same update")
+	}
 	deliveryChanged := input.Delivery != nil &&
 		next.Delivery.Normalized() != current.Delivery.Normalized()
-	if deliveryChanged {
+	if deliveryChanged && isLegacyAutomationInboxDelivery(next.Delivery) {
+		return nil, errors.New("the scheduled task inbox is legacy-only; select an existing Nexus, Room, or IM session")
+	}
+	if deliveryChanged || (agentChanged && input.Delivery != nil) {
 		if err = s.prepareTaskDeliveryMutation(ctx, &next, input.Source); err != nil {
 			return nil, err
 		}
@@ -223,7 +234,47 @@ func (s *Service) updateTask(
 	if err = s.validateTaskUpdate(ctx, *current, next); err != nil {
 		return nil, err
 	}
-	next.PermissionPolicy = s.taskPolicyForDefinitionUpdate(ctx, *current, next)
+	if agentChanged {
+		next.OwnerUserID, err = s.resolveTaskOwnerUserID(ctx, next.AgentID)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(next.OwnerUserID) != strings.TrimSpace(current.OwnerUserID) {
+			return nil, errors.New("target Agent must be owned by the scheduled task owner")
+		}
+		if input.PermissionMode == nil {
+			next.PermissionMode = ""
+		}
+		snapshot, snapshotErr := s.resolveInitialTaskPermissionSnapshot(ctx, next)
+		if snapshotErr != nil {
+			return nil, snapshotErr
+		}
+		next.PermissionMode = snapshot.Mode
+		next.PermissionPolicy = s.buildTaskPermissionPolicyFromOptions(
+			ctx,
+			next,
+			snapshot.AgentOptions,
+			taskPermissionMutationIsDirectUser(ctx, next.Source.Kind),
+			false,
+		)
+		next.PermissionPolicy.Revision = current.PermissionPolicy.Revision + 1
+	} else if input.PermissionMode != nil && strings.TrimSpace(*input.PermissionMode) == "" {
+		snapshot, snapshotErr := s.resolveInitialTaskPermissionSnapshot(ctx, next)
+		if snapshotErr != nil {
+			return nil, snapshotErr
+		}
+		next.PermissionMode = snapshot.Mode
+		next.PermissionPolicy = s.buildTaskPermissionPolicyFromOptions(
+			ctx,
+			next,
+			snapshot.AgentOptions,
+			taskPermissionMutationIsDirectUser(ctx, next.Source.Kind),
+			false,
+		)
+		next.PermissionPolicy.Revision = current.PermissionPolicy.Revision + 1
+	} else {
+		next.PermissionPolicy = s.taskPolicyForDefinitionUpdate(ctx, *current, next)
+	}
 	permissionBoundaryChanged := next.PermissionPolicy.Revision != current.PermissionPolicy.Revision
 	if permissionBoundaryChanged {
 		next.PermissionState = automationdomain.TaskPermissionStateReady
@@ -278,10 +329,17 @@ func (s *Service) applyTaskUpdate(
 ) (automationdomain.ScheduledTask, error) {
 	next := current
 	applyOptionalValue(input.Name, func(value string) { next.Name = strings.TrimSpace(value) })
+	applyOptionalValue(input.AgentID, func(value string) { next.AgentID = strings.TrimSpace(value) })
 	applyOptionalValue(input.Schedule, func(value automationdomain.Schedule) { next.Schedule = value.Normalized() })
 	applyOptionalValue(input.Instruction, func(value string) { next.Instruction = strings.TrimSpace(value) })
 	applyOptionalValue(input.ExecutionKind, func(value string) { next.ExecutionKind = automationdomain.NormalizeExecutionKind(value) })
-	applyOptionalValue(input.PermissionMode, func(value string) { next.PermissionMode = automationdomain.NormalizePermissionMode(value) })
+	applyOptionalValue(input.PermissionMode, func(value string) {
+		if strings.TrimSpace(value) == "" {
+			next.PermissionMode = ""
+			return
+		}
+		next.PermissionMode = automationdomain.NormalizePermissionMode(value)
+	})
 	applyOptionalValue(input.SessionTarget, func(value automationdomain.SessionTarget) { next.SessionTarget = value.Normalized() })
 	applyOptionalValue(input.Delivery, func(value automationdomain.DeliveryTarget) { next.Delivery = value.Normalized() })
 	applyOptionalValue(input.OverlapPolicy, func(value string) { next.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(value) })

@@ -21,7 +21,7 @@ const updateDescription = "按 job_id 或 query 局部更新定时任务字段�
 	"启用或停用直接设置 enabled；cancel_active_run=true 会隐含 enabled=false，并中断当前 active run。" +
 	"除了 job_id/query 之外必须至少提供一个要修改的字段。" +
 	"用户说“再加一条要求/补充任务细节”时优先用 instruction_append；只有明确要重写任务内容时才用 instruction。" +
-	"投递权限：普通 Agent 只能改为自身 Agent 会话/收件箱，Room 成员只能额外改回当前 Room，外部通道只能使用当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他 Agent 或任意已配置通道目标。新的可信会话 grant 会随修改持久化，实际投递前还会重读最新任务并复核当前权限。" +
+	"投递权限：普通 Agent 只能改为自身真实会话，Room 成员只能额外改回当前 Room，外部通道只能使用当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他真实会话或任意已配置通道目标。新的可信会话 grant 会随修改持久化，实际投递前还会重读最新任务并复核当前权限。" +
 	"context_mode 只决定是否复用当前上下文，deliver_result 只决定是否把结果送回当前可信会话。外部 IM 的 channel/account/target/thread/session 由 Nexus 自动绑定，模型不得填写或猜测路由字段。"
 
 func updateDescriptionForContext(sctx contract.ServerContext) string {
@@ -257,7 +257,7 @@ func (b *scheduledTaskUpdateInputBuilder) applyExecutionRoute(executionMode stri
 	if replyMode == "" {
 		return nil
 	}
-	delivery, err := semantic.Delivery(b.args, b.server, b.currentJob.AgentID, executionMode, replyMode, target)
+	delivery, err := semantic.Delivery(b.args, b.server, executionMode, replyMode, target)
 	if err != nil {
 		return err
 	}
@@ -272,7 +272,6 @@ func (b *scheduledTaskUpdateInputBuilder) applyDeliveryOnly(replyMode string) er
 	delivery, err := semantic.Delivery(
 		b.args,
 		b.server,
-		b.currentJob.AgentID,
 		"",
 		replyMode,
 		automationdomain.SessionTarget{},

@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func TestScheduledTaskCLIManagementCommands(t *testing.T) {
@@ -17,13 +18,14 @@ func TestScheduledTaskCLIManagementCommands(t *testing.T) {
 	migrateCLISQLite(t, cfg.DatabaseURL)
 
 	agentID := createCLITestAgent(t, cfg)
-	inboxKey := protocol.BuildAgentSessionKey(
+	deliverySessionKey := protocol.BuildAgentSessionKey(
 		agentID,
 		protocol.SessionChannelInternalSegment,
 		"dm",
-		protocol.AutomationInboxSessionRef,
+		"cli-delivery",
 		"",
 	)
+	prepareCLIDeliverySession(t, cfg, agentID, deliverySessionKey)
 	createPayload := runCLICommand(
 		t,
 		cfg,
@@ -46,28 +48,29 @@ func TestScheduledTaskCLIManagementCommands(t *testing.T) {
 		automationdomain.DeliveryModeExplicit,
 		"--delivery-channel",
 		protocol.SessionChannelInternalSegment,
-		"--delivery-to",
-		inboxKey,
+		"--delivery-session-key",
+		deliverySessionKey,
 	)
 	task := asMap(t, createPayload["item"])
 	jobID := asString(t, task["job_id"])
 	assertNestedString(t, task, "source", "kind", automationdomain.SourceKindCLI)
 	assertNestedString(t, task, "delivery", "mode", automationdomain.DeliveryModeExplicit)
 	assertNestedString(t, task, "delivery", "channel", protocol.SessionChannelInternalSegment)
-	assertNestedString(t, task, "delivery", "to", inboxKey)
+	assertNestedString(t, task, "delivery", "session_key", deliverySessionKey)
 
-	nextInboxKey := protocol.BuildAgentSessionKey(
+	nextSessionKey := protocol.BuildAgentSessionKey(
 		agentID,
 		protocol.SessionChannelInternalSegment,
 		"dm",
 		"automation-secondary",
 		"",
 	)
-	updatePayload := runCLICommand(t, cfg, "automation", "task", "update", jobID, "--delivery-to", nextInboxKey)
+	prepareCLIDeliverySession(t, cfg, agentID, nextSessionKey)
+	updatePayload := runCLICommand(t, cfg, "automation", "task", "update", jobID, "--delivery-session-key", nextSessionKey)
 	updated := asMap(t, updatePayload["item"])
 	assertNestedString(t, updated, "delivery", "mode", automationdomain.DeliveryModeExplicit)
 	assertNestedString(t, updated, "delivery", "channel", protocol.SessionChannelInternalSegment)
-	assertNestedString(t, updated, "delivery", "to", nextInboxKey)
+	assertNestedString(t, updated, "delivery", "session_key", nextSessionKey)
 
 	disablePayload := runCLICommand(t, cfg, "automation", "task", "disable", jobID)
 	if asMap(t, disablePayload["item"])["enabled"] != false {
@@ -120,13 +123,10 @@ func TestScheduledTaskCLIRetryDeliveryCommand(t *testing.T) {
 		"--named-session-key",
 		"news",
 		"--delivery-mode",
-		automationdomain.DeliveryModeExplicit,
-		"--delivery-channel",
-		"feishu",
-		"--delivery-to",
-		"bad-chat-id",
+		automationdomain.DeliveryModeNone,
 	)
 	jobID := asString(t, asMap(t, createPayload["item"])["job_id"])
+	prepareCLILegacyBareDeliveryTask(t, cfg.DatabaseURL, jobID)
 	insertCLIFailedDeliveryRun(t, cfg.DatabaseURL, jobID)
 
 	inspectPayload := runCLICommand(t, cfg, "automation", "task", "inspect", jobID)
@@ -141,13 +141,14 @@ func TestScheduledTaskCLIRetryDeliveryCommand(t *testing.T) {
 		t.Fatalf("report 应统计投递失败: %+v", totals)
 	}
 
-	inboxKey := protocol.BuildAgentSessionKey(
+	deliverySessionKey := protocol.BuildAgentSessionKey(
 		agentID,
 		protocol.SessionChannelInternalSegment,
 		"dm",
-		protocol.AutomationInboxSessionRef,
+		"delivery-recovery",
 		"",
 	)
+	prepareCLIDeliverySession(t, cfg, agentID, deliverySessionKey)
 	runCLICommand(
 		t,
 		cfg,
@@ -157,8 +158,8 @@ func TestScheduledTaskCLIRetryDeliveryCommand(t *testing.T) {
 		jobID,
 		"--delivery-channel",
 		protocol.SessionChannelInternalSegment,
-		"--delivery-to",
-		inboxKey,
+		"--delivery-session-key",
+		deliverySessionKey,
 	)
 	retryPayload := runCLICommand(t, cfg, "automation", "task", "retry-delivery", jobID, "run-delivery-failed")
 	retried := asMap(t, retryPayload["item"])
@@ -167,6 +168,46 @@ func TestScheduledTaskCLIRetryDeliveryCommand(t *testing.T) {
 	}
 	if to := asString(t, retried["delivery_to"]); !strings.Contains(to, "explicit:internal:") {
 		t.Fatalf("retry-delivery 应记录内部投递目标，实际 %q: %+v", to, retried)
+	}
+}
+
+func prepareCLIDeliverySession(t *testing.T, cfg config.Config, agentID string, sessionKey string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开 CLI 测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var workspacePath string
+	if err = db.QueryRow(`SELECT workspace_path FROM agents WHERE id = ?`, agentID).Scan(&workspacePath); err != nil {
+		t.Fatalf("读取 CLI Agent workspace 失败: %v", err)
+	}
+	now := time.Now().UTC()
+	if _, err = workspacestore.NewSessionFileStore(cfg.WorkspacePath).
+		ForOwner(authctx.SystemUserID).
+		UpsertSession(workspacePath, protocol.Session{
+			SessionKey: sessionKey, AgentID: agentID,
+			ChannelType: protocol.SessionChannelInternalSegment, ChatType: protocol.RoomTypeDM,
+			Status: "active", CreatedAt: now, LastActivity: now,
+			Title: "CLI 真实接收会话", Options: map[string]any{}, IsActive: true,
+		}); err != nil {
+		t.Fatalf("准备 CLI 真实接收会话失败: %v", err)
+	}
+}
+
+func prepareCLILegacyBareDeliveryTask(t *testing.T, databaseURL string, jobID string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", databaseURL)
+	if err != nil {
+		t.Fatalf("打开 CLI 测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err = db.Exec(`
+UPDATE automation_scheduled_tasks
+SET delivery_mode = 'explicit', delivery_channel = 'feishu',
+    delivery_to = 'bad-chat-id', delivery_session_key = NULL
+WHERE job_id = ?`, jobID); err != nil {
+		t.Fatalf("模拟 CLI 历史裸投递任务失败: %v", err)
 	}
 }
 

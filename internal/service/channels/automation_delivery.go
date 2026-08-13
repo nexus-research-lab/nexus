@@ -1,6 +1,6 @@
-// INPUT: 已解析的逻辑会话目标、Automation run 身份、结果正文与平台回执。
-// OUTPUT: run_id 幂等的 Nexus assistant 投影、结果摘要及外部投递回执。
-// POS: Automation 结果同时进入 Nexus 会话与真实 IM 的一致性投影边界。
+// INPUT: 已解析的逻辑会话目标、统一 Session 读模型、Automation run 身份与结果正文。
+// OUTPUT: run_id 幂等的 Nexus assistant 投影、数据库 Session 的 workspace 物化及平台回执。
+// POS: Automation 结果同时进入真实 Nexus/Room/IM Session 的一致性投影边界。
 package channels
 
 import (
@@ -41,10 +41,7 @@ func (r *Router) projectAutomationResult(
 	if parsedSession.Kind != protocol.SessionKeyKindAgent {
 		return DeliveryResult{}, errors.New("automation delivery requires an agent or room session")
 	}
-	if strings.TrimSpace(parsedSession.AgentID) != strings.TrimSpace(agentID) {
-		return DeliveryResult{}, errors.New("automation delivery session is bound to another Agent")
-	}
-	channel := r.sessionProjector(ctx, agentID, target.Channel)
+	channel := r.sessionProjector(ctx, parsedSession.AgentID, target.Channel)
 	if channel == nil {
 		return DeliveryResult{}, errors.New("automation delivery session projector is not configured")
 	}
@@ -134,7 +131,7 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 		return nil, err
 	}
 	now := time.Now().UTC()
-	sessionValue, err := c.ensureAutomationTargetSession(ownerUserID, workspacePath, parsed, sessionKey, now)
+	sessionValue, err := c.ensureAutomationTargetSession(ctx, ownerUserID, workspacePath, parsed, sessionKey, now)
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +201,7 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 }
 
 func (c *sessionDeliveryChannel) ensureAutomationTargetSession(
+	ctx context.Context,
 	ownerUserID string,
 	workspacePath string,
 	parsed protocol.SessionKey,
@@ -218,14 +216,24 @@ func (c *sessionDeliveryChannel) ensureAutomationTargetSession(
 	if sessionValue != nil && strings.TrimSpace(foundPath) != "" {
 		return sessionValue, nil
 	}
-	if protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelInternalSegment {
+	resolved, err := c.materializeDeliverySession(ctx, files, workspacePath, parsed, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if resolved != nil {
+		return resolved, nil
+	}
+	if protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelInternalSegment ||
+		strings.TrimSpace(parsed.Ref) != protocol.AutomationInboxSessionRef {
 		return nil, fmt.Errorf(
 			"%s delivery target session is not available: %s",
 			protocol.NormalizeStoredChannelType(parsed.Channel),
 			sessionKey,
 		)
 	}
-	return c.ensureSession(ownerUserID, workspacePath, parsed, sessionKey, now)
+	// 只有旧版明确的 automation-inbox 可以在投递时补建；新任务和其他目标必须
+	// 在配置时绑定已经存在的真实 Session。
+	return c.ensureSession(ctx, ownerUserID, workspacePath, parsed, sessionKey, now)
 }
 
 func (c *sessionDeliveryChannel) refreshAutomationSession(
@@ -343,6 +351,9 @@ func automationDeliveryMetadata(delivery AutomationDeliveryContext) map[string]a
 		"source": automationDeliverySource,
 		"job_id": delivery.JobID,
 		"run_id": delivery.RunID,
+	}
+	if delivery.ProducerAgentID != "" {
+		metadata["producer_agent_id"] = delivery.ProducerAgentID
 	}
 	if delivery.TaskName != "" {
 		metadata["task_name"] = delivery.TaskName

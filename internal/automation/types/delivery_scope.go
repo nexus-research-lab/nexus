@@ -13,7 +13,7 @@ import (
 
 // ValidateSelfScopedDeliveryTarget 验证普通 Agent 的投递目标。
 //
-// 自身 Agent session 可用于当前 DM、执行会话和 Automation inbox。共享 Room 与
+// 自身 Agent session 可用于当前 DM 或已明确选择的真实会话。共享 Room 与
 // 外部 Channel 必须精确匹配创建/最近一次对话修改时保存的可信 source session；
 // 因而仅知道另一个 Agent、群或外部收件人的 ID 不能扩大投递范围。
 func ValidateSelfScopedDeliveryTarget(

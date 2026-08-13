@@ -46,7 +46,11 @@ type TaskExecutionInitialState = Pick<
 
 type TaskReplyInitialState = Pick<
   TaskFormDraft,
-  "replyMode" | "selectedReplySessionKey"
+  | "deliveryTargetType"
+  | "replyMode"
+  | "selectedDeliveryAgentId"
+  | "selectedDeliveryRoomId"
+  | "selectedReplySessionKey"
 >;
 
 function buildRoomExecutorSelectionFromSessionKey(
@@ -78,10 +82,6 @@ function buildRoomTaskExecutorSelectionKey(task: ScheduledTaskItem): string {
   );
 }
 
-function sourceContextId(task: ScheduledTaskItem): string {
-  return task.source.context_id?.trim() || "";
-}
-
 function namedSessionKey(task: ScheduledTaskItem): string {
   return task.session_target.kind === "named"
     ? task.session_target.named_session_key
@@ -101,7 +101,9 @@ function buildAgentTargetInitialState(
     dedicatedSessionKey: namedSessionKey(task),
     executionKind: "agent",
     executionMode: SESSION_TARGET_MODES[task.session_target.kind],
-    selectedAgentId: sourceContextId(task) || task.agent_id,
+    // Source 记录的是不可变的创建 provenance；任务后续重绑 Agent 时必须以
+    // 当前 task.agent_id 回显，否则再次保存会把配置悄悄切回创建者。
+    selectedAgentId: task.agent_id,
     selectedRoomId: "",
     selectedSessionKey: boundSessionKey(task),
     targetType: "agent",
@@ -116,7 +118,7 @@ function buildRoomTargetInitialState(
     executionKind: "agent",
     executionMode: "existing",
     selectedAgentId: task.agent_id,
-    selectedRoomId: sourceContextId(task),
+    selectedRoomId: "",
     selectedSessionKey: buildRoomTaskExecutorSelectionKey(task),
     targetType: "room",
   };
@@ -131,7 +133,8 @@ const AGENT_TARGET_INITIALIZERS: Record<
 };
 
 function agentTargetType(task: ScheduledTaskItem): TargetType {
-  return task.source.context_type === "room" ? "room" : "agent";
+  const parsed = parseSessionKey(executionSessionKey(task));
+  return parsed.kind === "room" ? "room" : "agent";
 }
 
 function buildAgentExecutionInitialState(
@@ -168,63 +171,78 @@ function executionKind(task: ScheduledTaskItem): TaskFormDraft["executionKind"] 
 
 function resolveReplyMode(
   task: ScheduledTaskItem,
-  executionTarget: string,
+  _executionTarget: string,
 ): ReplyMode {
   if (task.execution_kind === "script" || task.delivery.mode === "none") {
     return "none";
   }
-  const replySessionKey = deliverySessionKey(task);
-  if (replySessionKey && (!executionTarget || replySessionKey !== executionTarget)) {
-    return "selected";
-  }
-  return "execution";
+  return "selected";
 }
 
-function deliverySessionKey(task: ScheduledTaskItem): string {
+function rawDeliverySessionKey(task: ScheduledTaskItem): string {
   const sessionKey = task.delivery.session_key?.trim() || "";
   if (sessionKey) {
     return sessionKey;
   }
-  if (task.delivery.mode === "explicit"
-    && task.delivery.channel === "websocket") {
+  if (task.delivery.mode === "explicit") {
     return task.delivery.to?.trim() || "";
   }
   return "";
 }
 
-const REPLY_SESSION_KEY_BUILDERS: Record<
-  TargetType,
-  (sessionKey: string, agentId: string) => string
-> = {
-  agent: (sessionKey) => sessionKey,
-  room: buildRoomExecutorSelectionFromSessionKey,
-};
+function isLegacyAutomationInboxSessionKey(sessionKey: string): boolean {
+  const parsed = parseSessionKey(sessionKey);
+  return parsed.kind === "agent"
+    && parsed.channel === "internal"
+    && parsed.ref === "automation-inbox";
+}
+
+function deliverySessionKey(task: ScheduledTaskItem): string {
+  const sessionKey = rawDeliverySessionKey(task);
+  const parsed = parseSessionKey(sessionKey);
+  return parsed.is_structured && !isLegacyAutomationInboxSessionKey(sessionKey)
+    ? sessionKey
+    : "";
+}
 
 function selectedReplySessionKey(
   task: ScheduledTaskItem,
-  targetType: TargetType,
-  executionTarget: string,
+  _executionTarget: string,
 ): string {
-  const replySessionKey = deliverySessionKey(task);
-  if (!replySessionKey || replySessionKey === executionTarget) {
-    return "";
+  return deliverySessionKey(task);
+}
+
+function deliveryTargetInitialState(
+  task: ScheduledTaskItem,
+): Pick<
+  TaskReplyInitialState,
+  "deliveryTargetType" | "selectedDeliveryAgentId" | "selectedDeliveryRoomId"
+> {
+  const parsed = parseSessionKey(rawDeliverySessionKey(task));
+  if (parsed.kind === "room") {
+    return {
+      deliveryTargetType: "room",
+      selectedDeliveryAgentId: "",
+      selectedDeliveryRoomId: "",
+    };
   }
-  return REPLY_SESSION_KEY_BUILDERS[targetType](
-    replySessionKey,
-    task.agent_id,
-  );
+  return {
+    deliveryTargetType: "agent",
+    selectedDeliveryAgentId: parsed.agent_id || task.agent_id,
+    selectedDeliveryRoomId: "",
+  };
 }
 
 function buildAgentReplyInitialState(
   task: ScheduledTaskItem,
-  execution: TaskExecutionInitialState,
+  _execution: TaskExecutionInitialState,
 ): TaskReplyInitialState {
   const executionTarget = executionSessionKey(task);
   return {
+    ...deliveryTargetInitialState(task),
     replyMode: resolveReplyMode(task, executionTarget),
     selectedReplySessionKey: selectedReplySessionKey(
       task,
-      execution.targetType,
       executionTarget,
     ),
   };
@@ -232,7 +250,10 @@ function buildAgentReplyInitialState(
 
 function buildScriptReplyInitialState(): TaskReplyInitialState {
   return {
+    deliveryTargetType: "agent",
     replyMode: "none",
+    selectedDeliveryAgentId: "",
+    selectedDeliveryRoomId: "",
     selectedReplySessionKey: "",
   };
 }
@@ -316,6 +337,7 @@ export function buildDefaultTaskDialogInitialState(
   return {
     form: {
       dedicatedSessionKey: "",
+      deliveryTargetType: "agent",
       enabled: true,
       expiresAt: "",
       executionKind: "agent",
@@ -324,6 +346,8 @@ export function buildDefaultTaskDialogInitialState(
       permissionMode: "copy",
       replyMode: "none",
       selectedAgentId: agentId,
+      selectedDeliveryAgentId: agentId,
+      selectedDeliveryRoomId: "",
       selectedReplySessionKey: "",
       selectedRoomId: "",
       selectedSessionKey: "",

@@ -13,9 +13,9 @@
 //   - task.go / report.go：带 configuration_version、不可见 delivery grant 的 ScheduledTask、ScheduledTaskRun、日报等对外视图。
 //   - permission.go：含工具 allow/deny 创建快照的任务 grant、run 阻塞、持久审批请求与决策协议。
 //   - permission_mode.go：定时任务可持久化并透传到 SDK 的权限模式枚举。
-//   - input.go：CreateJobInput（含可选创建幂等键）/ UpdateJobInput 及校验、归一。
+//   - input.go：CreateJobInput（含可选创建幂等键）/ UpdateJobInput（含目标 Agent 重绑）及校验、归一。
 //   - schedule.go / target.go：Schedule / SessionTarget / DeliveryTarget / Source 及 Validate/Normalized。
-//   - task_compatibility.go / task_session_binding.go：历史投递线格式兼容，以及 Session 删除后停用、重绑、active pairing 校验错误和恢复的任务级生命周期。
+//   - task_compatibility.go / task_session_binding.go：历史投递线格式与合成收件箱只读兼容，以及 Session 删除后停用、重绑、active pairing 校验错误和恢复的任务级生命周期。
 //   - delivery_scope.go：普通 Agent 的自身/当前 Room/当前外部会话键投递目标边界。
 //   - heartbeat.go：带 configuration_version 的 HeartbeatConfig / HeartbeatWakeInput 等 heartbeat 协议。
 //

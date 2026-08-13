@@ -1,7 +1,6 @@
 import type { RefObject } from "react";
 
 import type {
-  ScheduledTaskExecutionKind,
   ScheduledTaskPermissionMode,
   ScheduledTaskSchedule,
 } from "@/types/capability/scheduled-task/task";
@@ -11,9 +10,11 @@ import type { Weekday } from "../pickers/picker-types";
 export type ScheduleKind = ScheduledTaskSchedule["kind"];
 export type EveryUnit = "hours" | "minutes" | "seconds";
 export type TargetType = "agent" | "room";
-export type ExecutionKind = ScheduledTaskExecutionKind;
+export type DeliveryTargetType = TargetType;
+// 页面仅创建 Agent 任务；script 只用于识别并只读展示历史任务。
+export type ExecutionKind = "agent" | "script";
 export type ExecutionMode = "dedicated" | "existing" | "main" | "temporary";
-export type ReplyMode = "execution" | "none" | "selected";
+export type ReplyMode = "none" | "selected";
 export type PermissionMode = ScheduledTaskPermissionMode | "copy";
 
 export interface ChoiceDef<Value extends string> {
@@ -34,6 +35,7 @@ export interface TaskDialogSessionOption extends TaskDialogLabelOption {
 
 export interface TaskFormDraft {
   dedicatedSessionKey: string;
+  deliveryTargetType: DeliveryTargetType;
   enabled: boolean;
   expiresAt: string;
   executionKind: ExecutionKind;
@@ -42,6 +44,8 @@ export interface TaskFormDraft {
   permissionMode: PermissionMode;
   replyMode: ReplyMode;
   selectedAgentId: string;
+  selectedDeliveryAgentId: string;
+  selectedDeliveryRoomId: string;
   selectedReplySessionKey: string;
   selectedRoomId: string;
   selectedSessionKey: string;

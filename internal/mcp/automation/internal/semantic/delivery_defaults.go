@@ -14,10 +14,6 @@ func ApplyDeliveryFieldDefaults(args map[string]any) map[string]any {
 	if args == nil || strings.TrimSpace(argx.String(args, "reply_mode")) != "" {
 		return args
 	}
-	if hasAgentReplyField(args) {
-		args["reply_mode"] = "agent"
-		return args
-	}
 	if hasChannelReplyField(args) {
 		args["reply_mode"] = "channel"
 		return args
@@ -42,10 +38,6 @@ func ApplySelectedReplyCurrentDefault(args map[string]any, sctx contract.ServerC
 	}
 	args["selected_reply_session_key"] = currentSessionKey
 	return args
-}
-
-func hasAgentReplyField(args map[string]any) bool {
-	return strings.TrimSpace(argx.String(args, "reply_agent_id")) != ""
 }
 
 func hasChannelReplyField(args map[string]any) bool {

@@ -141,6 +141,7 @@ func (s *Service) deliverJobObservationToTarget(
 			text,
 			target,
 			channels.AutomationDeliveryContext{
+				ProducerAgentID:     job.AgentID,
 				JobID:               job.JobID,
 				RunID:               observation.RunID,
 				TaskName:            job.Name,

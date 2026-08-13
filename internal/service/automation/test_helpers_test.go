@@ -337,6 +337,20 @@ type fakeDeliveryRouter struct {
 	receipt      *channelmessage.Receipt
 }
 
+func fakeStructuredDelivery(agentID string, ref string) automationdomain.DeliveryTarget {
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentID,
+		protocol.SessionChannelInternalSegment,
+		protocol.RoomTypeDM,
+		ref,
+		"",
+	)
+	return automationdomain.DeliveryTarget{
+		Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
+		To: sessionKey, SessionKey: sessionKey,
+	}
+}
+
 func (f *fakeDeliveryRouter) DeliverMessage(
 	ctx context.Context,
 	_ string,
