@@ -35,6 +35,9 @@ func call(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			if err != nil {
 				return errorResult(err), nil
 			}
+			if !sctx.ConnectorEnabled(input.ConnectorID) {
+				return errorResult(errors.New("connector 未在当前 Session 启用")), nil
+			}
 			snapshot, err := svc.LoadActiveConnection(ctx, sctx.OwnerUserID, input.ConnectorID)
 			if err != nil {
 				return errorResult(err), nil

@@ -1,12 +1,14 @@
 import type { ReactNode, RefObject } from "react";
-import { Paperclip, Plus, Repeat2, Target } from "lucide-react";
+import { Check, Loader2, Paperclip, Plus, Repeat2, Target } from "lucide-react";
 
+import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiActionMenu,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
 
 type ComposerActionValue = "attachment" | "goal" | "loop";
 
@@ -23,6 +25,8 @@ interface ComposerFooterActionsProps {
   onAttachmentSelect: () => void;
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
+  sessionSettingsController: ComposerSessionSettingsController;
+  sessionSettingsDisabled: boolean;
 }
 
 interface VisibleActionItem {
@@ -43,6 +47,8 @@ export function ComposerFooterActions({
   onAttachmentSelect,
   onGoalToggle,
   onLoopSelect,
+  sessionSettingsController,
+  sessionSettingsDisabled,
 }: ComposerFooterActionsProps) {
   const { t } = useI18n();
   const items = buildActionItems({
@@ -77,6 +83,20 @@ export function ComposerFooterActions({
     ["loop", onLoopSelect],
     ["goal", () => onGoalToggle(!isGoalMode)],
   ]);
+  for (const connector of sessionSettingsController.connectors) {
+    commands.set(`connector:${connector.connector_id}`, () => {
+      void sessionSettingsController.toggleConnector(connector.connector_id);
+    });
+  }
+  const connectorItems = buildConnectorItems({
+    controller: sessionSettingsController,
+    disabled: sessionSettingsDisabled,
+    labels: {
+      enable: t("composer.connector_enable"),
+      enabled: t("composer.connector_enabled"),
+      loading: t("composer.connectors_loading"),
+    },
+  });
 
   return (
     <div className="shrink-0">
@@ -95,6 +115,7 @@ export function ComposerFooterActions({
         anchorRef={actionButtonRef}
         ariaLabel={t("composer.open_actions")}
         isOpen={isActionMenuOpen}
+        footerItems={connectorItems}
         items={items}
         onClose={onActionMenuClose}
         onSelect={(value) => commands.get(value)?.()}
@@ -102,6 +123,54 @@ export function ComposerFooterActions({
       />
     </div>
   );
+}
+
+function buildConnectorItems({
+  controller,
+  disabled,
+  labels,
+}: {
+  controller: ComposerSessionSettingsController;
+  disabled: boolean;
+  labels: Record<"enable" | "enabled" | "loading", string>;
+}): UiActionMenuItem[] {
+  if (controller.connectorsLoading) {
+    return [{
+      disabled: true,
+      icon: <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />,
+      label: labels.loading,
+      value: "connectors:loading",
+    }];
+  }
+  if (controller.connectorsError) {
+    return [{
+      disabled: true,
+      label: controller.connectorsError,
+      value: "connectors:error",
+    }];
+  }
+  return controller.connectors.map((connector) => {
+    const active = controller.enabledConnectorIds.includes(
+      connector.connector_id,
+    );
+    return {
+      active,
+      description: active ? labels.enabled : labels.enable,
+      disabled: disabled || controller.busy,
+      icon: (
+        <ConnectorIcon
+          icon={connector.icon}
+          size="sm"
+          title={connector.title}
+        />
+      ),
+      label: connector.title,
+      trailing: active
+        ? <Check className="h-3.5 w-3.5 text-(--text-strong)" />
+        : undefined,
+      value: `connector:${connector.connector_id}`,
+    };
+  });
 }
 
 function buildActionItems({

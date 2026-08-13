@@ -20,6 +20,7 @@ import type {
 export interface AgentOptionsDraft {
   allowedTools: string[];
   avatar: string;
+  connectorIds: string[];
   description: string;
   disallowedTools: string[];
   model: string;
@@ -76,6 +77,7 @@ export function createAgentOptionsDraft({
   return {
     allowedTools: normalizeAgentAllowedToolsForEditor(initial.options.allowed_tools),
     avatar: initial.avatar,
+    connectorIds: initial.options.connector_ids ?? [],
     description: initial.description,
     disallowedTools: initial.options.disallowed_tools ?? [],
     model,
@@ -143,6 +145,7 @@ export function buildAgentOptionsSubmission(
       max_turns: sourceOptions.max_turns,
       max_thinking_tokens: sourceOptions.max_thinking_tokens,
       mcp_servers: sourceOptions.mcp_servers,
+      connector_ids: draft.connectorIds,
       setting_sources: ["project"],
     },
     title: draft.title.trim(),

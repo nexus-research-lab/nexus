@@ -326,6 +326,13 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 			e.slot.RuntimeSessionKey,
 			e.slot.AgentRoundID,
 		)
+		mcpContext = runtimectx.WithEnabledConnectorIDs(
+			mcpContext,
+			protocol.EffectiveSessionConnectorIDs(
+				e.agent.Options.ConnectorIDs,
+				roomAgentSessionOptions(e.round, e.agent.AgentID),
+			),
+		)
 		servers = e.service.mcpServers(
 			mcpContext,
 			e.agent,

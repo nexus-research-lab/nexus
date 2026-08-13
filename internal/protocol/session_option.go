@@ -1,6 +1,9 @@
 package protocol
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 const (
 	// OptionRuntimeKind 表示创建/续用 SDK session 时使用的 runtime 类型。
@@ -15,6 +18,8 @@ const (
 	OptionSessionModel = "session_model"
 	// OptionSessionPermissionMode 表示当前 Nexus Session 显式覆盖的权限模式。
 	OptionSessionPermissionMode = "session_permission_mode"
+	// OptionSessionConnectorIDs 表示当前 Nexus Session 显式挂载的 Connector。
+	OptionSessionConnectorIDs = "session_connector_ids"
 )
 
 // SessionRuntimeSettings 表示当前 Nexus Session 的运行时覆盖。
@@ -25,6 +30,8 @@ type SessionRuntimeSettings struct {
 	Provider       string `json:"provider"`
 	Model          string `json:"model"`
 	PermissionMode string `json:"permission_mode"`
+	// ConnectorIDs 为 nil 时继承 Agent 默认值；空数组表示当前 Session 显式不挂载。
+	ConnectorIDs *[]string `json:"connector_ids"`
 }
 
 // SessionRuntimeSettingsFromOptions 从 Session options 读取规范化覆盖。
@@ -32,11 +39,16 @@ func SessionRuntimeSettingsFromOptions(options map[string]any) SessionRuntimeSet
 	if len(options) == 0 {
 		return SessionRuntimeSettings{}
 	}
-	return SessionRuntimeSettings{
+	settings := SessionRuntimeSettings{
 		Provider:       sessionOptionString(options[OptionSessionProvider]),
 		Model:          sessionOptionString(options[OptionSessionModel]),
 		PermissionMode: sessionOptionString(options[OptionSessionPermissionMode]),
 	}
+	if raw, exists := options[OptionSessionConnectorIDs]; exists {
+		values := sessionOptionStringSlice(raw)
+		settings.ConnectorIDs = &values
+	}
+	return settings
 }
 
 // WithSessionRuntimeSettings 返回应用覆盖后的 options 副本。
@@ -46,14 +58,31 @@ func WithSessionRuntimeSettings(
 	options map[string]any,
 	settings SessionRuntimeSettings,
 ) map[string]any {
-	result := make(map[string]any, len(options)+3)
+	result := make(map[string]any, len(options)+4)
 	for key, value := range options {
 		result[key] = value
 	}
 	setSessionOption(result, OptionSessionProvider, settings.Provider)
 	setSessionOption(result, OptionSessionModel, settings.Model)
 	setSessionOption(result, OptionSessionPermissionMode, settings.PermissionMode)
+	if settings.ConnectorIDs == nil {
+		delete(result, OptionSessionConnectorIDs)
+	} else {
+		result[OptionSessionConnectorIDs] = slices.Clone(*settings.ConnectorIDs)
+	}
 	return result
+}
+
+// EffectiveSessionConnectorIDs 返回 Session 覆盖或 Agent 默认 Connector 列表。
+func EffectiveSessionConnectorIDs(
+	agentConnectorIDs []string,
+	sessionOptions map[string]any,
+) []string {
+	settings := SessionRuntimeSettingsFromOptions(sessionOptions)
+	if settings.ConnectorIDs != nil {
+		return slices.Clone(*settings.ConnectorIDs)
+	}
+	return slices.Clone(agentConnectorIDs)
 }
 
 func setSessionOption(options map[string]any, key string, value string) {
@@ -68,4 +97,32 @@ func setSessionOption(options map[string]any, key string, value string) {
 func sessionOptionString(value any) string {
 	text, _ := value.(string)
 	return strings.TrimSpace(text)
+}
+
+func sessionOptionStringSlice(value any) []string {
+	var values []string
+	switch typed := value.(type) {
+	case []string:
+		values = typed
+	case []any:
+		values = make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, _ := item.(string)
+			values = append(values, text)
+		}
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }

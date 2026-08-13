@@ -129,7 +129,7 @@ Goal lead 与 Room host 是两个独立角色：
 
 ### 字段和操作边界
 
-普通 Agent 的 self runtime 只允许选择 owner 已启用的 Provider/model，并调整 `max_turns`、`max_thinking_tokens` 等运行上限。它不能自行切换 `permission_mode`、扩大 allowed tools、缩小安全 deny、编辑 `mcp_servers` 或改变其他 Agent。
+普通 Agent 的 self runtime 只允许选择 owner 已启用的 Provider/model，并调整 `max_turns`、`max_thinking_tokens` 等运行上限。它不能自行切换 `permission_mode`、扩大 allowed tools、缩小安全 deny、编辑 `mcp_servers`、修改默认 Connector 或改变其他 Agent。
 
 情绪域归当前 Agent 自己所有，不归 Room 所有。普通成员和群主都可以在当前可信
 conversation 设置或清除“自己”的上下文情绪，但不能修改别的成员，也不能借此改变
@@ -317,7 +317,7 @@ lease、当前认证 principal/session、启动资源版本和过期时间：
 
 以下项目故意不进入通用 configuration MCP 写入面：用户/密码/角色、订阅与公共 Provider、
 项目 ACL、部署环境和认证开关、Automation script task、Goal 暂停/恢复/预算/清除、
-当前客户端的主题/语言/onboarding/tour 状态、当前 Composer 发起的 Session 级模型/权限覆盖、
+当前客户端的主题/语言/onboarding/tour 状态、当前 Composer 发起的 Session 级模型/权限/Connector 覆盖、
 任意本地路径或上传式 Skill 导入、其他 Agent workspace 写入和直接 SQL。它们继续遵循各自已有的原生、宿主或认证管理面，
 不能因为对话配置能力而获得一条绕过所有权、真人确认或秘密输入边界的通路。
 
@@ -332,6 +332,8 @@ workspace 与 scope mode 都由宿主固定，Hook 拒绝环境变量或命令�
 - `agent_self` 不能编辑 MCP server、header、OAuth 或凭据。
 - stdio、HTTP 和 SSE 配置在进入 runtime 前严格解析；未知类型、SDK 内部 server、`nexus_*` 保留名和内置 server 冲突会被拒绝。
 - 修改后的 MCP 配置从下一轮生效，当前半轮不会动态替换工具集合。
+
+应用市场 Connector 不写入自由格式 `mcp_servers`。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。运行时只加载选择项与 owner 当前有效授权的交集，未选择或已断开的 Connector 不注入工具定义，也不能被通用 Connector 调用入口绕过。
 
 ## 工具与审计
 

@@ -35,6 +35,7 @@ export interface SessionRuntimeSettings {
   provider: string;
   model: string;
   permission_mode: string;
+  connector_ids: string[] | null;
 }
 
 export const getConversations = async (): Promise<Conversation[]> => {

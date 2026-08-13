@@ -80,6 +80,7 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 		allowedToolsJSON    string
 		disallowedToolsJSON string
 		mcpServersJSON      string
+		connectorIDsJSON    string
 		settingSourcesJSON  string
 		maxTurns            sql.NullInt64
 		maxThinkingTokens   sql.NullInt64
@@ -103,6 +104,7 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 		&allowedToolsJSON,
 		&disallowedToolsJSON,
 		&mcpServersJSON,
+		&connectorIDsJSON,
 		&maxTurns,
 		&maxThinkingTokens,
 		&settingSourcesJSON,
@@ -116,6 +118,7 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
+	item.Options.ConnectorIDs = jsoncodec.ParseStringSlice(connectorIDsJSON)
 	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)

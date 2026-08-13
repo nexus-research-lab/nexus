@@ -135,6 +135,7 @@ export function pickAgentEditableOptions(options: AgentOptions): AgentOptions {
     max_turns: options.max_turns,
     max_thinking_tokens: options.max_thinking_tokens,
     mcp_servers: options.mcp_servers,
+    connector_ids: options.connector_ids,
     // Skill 绑定由技能域独立保存，不能随普通 Agent 草稿回写旧快照。
     setting_sources: options.setting_sources,
   };

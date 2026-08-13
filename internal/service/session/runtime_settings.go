@@ -1,4 +1,4 @@
-// INPUT: 结构化 Agent Session key 与 Session 级模型/权限覆盖。
+// INPUT: 结构化 Agent Session key 与 Session 级模型、权限、Connector 覆盖。
 // OUTPUT: DM 文件会话或 Room 成员会话上的同构运行时设置。
 // POS: Nexus Session 设置的唯一持久化事务，不修改 Agent 默认值。
 package session
@@ -123,6 +123,10 @@ func normalizeRuntimeSettings(
 	settings.Provider = strings.TrimSpace(settings.Provider)
 	settings.Model = strings.TrimSpace(settings.Model)
 	settings.PermissionMode = strings.TrimSpace(settings.PermissionMode)
+	if settings.ConnectorIDs != nil {
+		normalized := normalizeRuntimeConnectorIDs(*settings.ConnectorIDs)
+		settings.ConnectorIDs = &normalized
+	}
 	if (settings.Provider == "") != (settings.Model == "") {
 		return protocol.SessionRuntimeSettings{}, fmt.Errorf(
 			"%w：provider 与 model 必须同时设置或同时清除",
@@ -144,4 +148,21 @@ func normalizeRuntimeSettings(
 	}
 	settings.PermissionMode = string(normalizedMode)
 	return settings, nil
+}
+
+func normalizeRuntimeConnectorIDs(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }

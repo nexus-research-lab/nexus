@@ -25,6 +25,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		allowedToolsJSON     string
 		disallowedToolsJSON  string
 		mcpServersJSON       string
+		connectorIDsJSON     string
 		skillIDsJSON         string
 		disabledSkillIDsJSON string
 		settingSourcesJSON   string
@@ -53,6 +54,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		&allowedToolsJSON,
 		&disallowedToolsJSON,
 		&mcpServersJSON,
+		&connectorIDsJSON,
 		&skillIDsJSON,
 		&disabledSkillIDsJSON,
 		&maxTurns,
@@ -69,6 +71,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
+	item.Options.ConnectorIDs = jsoncodec.ParseStringSlice(connectorIDsJSON)
 	item.Options.SkillIDs = jsoncodec.ParseStringSlice(skillIDsJSON)
 	item.Options.DisabledSkillIDs = jsoncodec.ParseStringSlice(disabledSkillIDsJSON)
 	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)

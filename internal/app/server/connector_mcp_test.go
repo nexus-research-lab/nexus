@@ -10,7 +10,33 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
+
+func TestConnectorMCPBuilderRequiresSessionEnable(t *testing.T) {
+	svc := &stubConnectorMCPService{
+		snapshots: map[string]*connectordomain.ConnectionSnapshot{
+			"amap": {ConnectorID: "amap", AccessToken: "key"},
+		},
+	}
+	builder := newConnectorMCPBuilder(svc)
+	agentValue := &protocol.Agent{AgentID: "agent-1", OwnerUserID: "owner-1"}
+	build := func(ctx context.Context) map[string]sdkmcp.ServerConfig {
+		return builder(ctx, agentValue, "session-1", "", "", "", "", nil, "")
+	}
+	if servers := build(context.Background()); len(servers) != 0 {
+		t.Fatalf("默认不应挂载 Connector MCP: %+v", servers)
+	}
+	ctx := runtimectx.WithEnabledConnectorIDs(context.Background(), []string{"amap"})
+	servers := build(ctx)
+	if _, ok := servers["nexus_connectors"]; !ok {
+		t.Fatalf("显式启用后缺少 Nexus Connector server: %+v", servers)
+	}
+	if _, ok := servers["amap_maps"]; !ok {
+		t.Fatalf("显式启用后缺少高德 MCP server: %+v", servers)
+	}
+}
 
 func TestAppendAmapMCPServerUsesOfficialHTTPConfig(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
@@ -188,7 +214,14 @@ func (s *stubConnectorMCPService) ListActiveConnections(
 	context.Context,
 	string,
 ) ([]connectordomain.ConnectionSnapshot, error) {
-	return nil, nil
+	if s.err != nil {
+		return nil, s.err
+	}
+	result := make([]connectordomain.ConnectionSnapshot, 0, len(s.snapshots))
+	for _, snapshot := range s.snapshots {
+		result = append(result, *snapshot)
+	}
+	return result, nil
 }
 
 func (s *stubConnectorMCPService) LoadActiveConnection(

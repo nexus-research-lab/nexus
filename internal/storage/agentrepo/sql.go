@@ -147,8 +147,9 @@ VALUES (`+r.dialect.BindList(3)+`, NULL, `+r.dialect.Bind(4)+`, `+r.dialect.Bind
 	if _, err = tx.ExecContext(ctx, `
 INSERT INTO runtimes (
     id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
-    mcp_servers_json, skill_ids_json, disabled_skill_ids_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-) VALUES (`+r.dialect.BindList(14)+`)`,
+    mcp_servers_json, connector_ids_json, skill_ids_json, disabled_skill_ids_json,
+    max_turns, max_thinking_tokens, setting_sources_json, runtime_version
+) VALUES (`+r.dialect.BindList(15)+`)`,
 		record.RuntimeID,
 		record.AgentID,
 		nullIfEmpty(record.Provider),
@@ -157,6 +158,7 @@ INSERT INTO runtimes (
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
 		record.MCPServersJSON,
+		record.ConnectorIDsJSON,
 		record.SkillIDsJSON,
 		record.DisabledSkillIDsJSON,
 		record.MaxTurns,
@@ -226,7 +228,7 @@ WHERE agent_id = `+r.dialect.Bind(2),
 	runtimeQuery := fmt.Sprintf(`
 UPDATE runtimes
 SET provider = %s, model = %s, permission_mode = %s, allowed_tools_json = %s, disallowed_tools_json = %s,
-    mcp_servers_json = %s, skill_ids_json = %s, disabled_skill_ids_json = %s,
+    mcp_servers_json = %s, connector_ids_json = %s, skill_ids_json = %s, disabled_skill_ids_json = %s,
     max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s,
     runtime_version = runtime_version + 1, updated_at = %s
 WHERE agent_id = %s`,
@@ -241,8 +243,9 @@ WHERE agent_id = %s`,
 		r.dialect.Bind(9),
 		r.dialect.Bind(10),
 		r.dialect.Bind(11),
-		r.dialect.CurrentTimestamp(),
 		r.dialect.Bind(12),
+		r.dialect.CurrentTimestamp(),
+		r.dialect.Bind(13),
 	)
 	runtimeArgs := []any{
 		nullIfEmpty(record.Provider),
@@ -251,6 +254,7 @@ WHERE agent_id = %s`,
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
 		record.MCPServersJSON,
+		record.ConnectorIDsJSON,
 		record.SkillIDsJSON,
 		record.DisabledSkillIDsJSON,
 		record.MaxTurns,
@@ -259,7 +263,7 @@ WHERE agent_id = %s`,
 		record.AgentID,
 	}
 	if record.ExpectedRuntimeVersion != nil {
-		runtimeQuery += ` AND runtime_version = ` + r.dialect.Bind(13)
+		runtimeQuery += ` AND runtime_version = ` + r.dialect.Bind(14)
 		runtimeArgs = append(runtimeArgs, *record.ExpectedRuntimeVersion)
 	}
 	runtimeResult, err := tx.ExecContext(ctx, runtimeQuery, runtimeArgs...)
@@ -514,6 +518,7 @@ SELECT
     COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
+    COALESCE(rt.connector_ids_json, '[]'),
     COALESCE(rt.skill_ids_json, '[]'),
     COALESCE(rt.disabled_skill_ids_json, '[]'),
     rt.max_turns,

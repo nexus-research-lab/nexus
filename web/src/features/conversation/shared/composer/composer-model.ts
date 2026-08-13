@@ -82,6 +82,7 @@ export interface ComposerContextUsageItem {
 export interface ComposerSessionSettingsTarget {
   agentId: string;
   avatar?: string | null;
+  defaultConnectorIds?: string[];
   defaultModel?: string;
   defaultPermissionMode?: string;
   defaultProvider?: string;

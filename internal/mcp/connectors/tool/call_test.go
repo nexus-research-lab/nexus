@@ -112,6 +112,18 @@ func TestConnectorCallUnknownConnector(t *testing.T) {
 	}
 }
 
+func TestConnectorCallRequiresSessionEnable(t *testing.T) {
+	result := callToolResultWithEnabled(
+		t,
+		stubConnectorService{},
+		map[string]any{"connector_id": "github", "method": "GET", "path": "/user"},
+		nil,
+	)
+	if !result.IsError || !strings.Contains(result.Content[0]["text"].(string), "当前 Session") {
+		t.Fatalf("disabled connector should return MCP error: %+v", result)
+	}
+}
+
 func callTool(t *testing.T, svc contract.Service, args map[string]any) map[string]any {
 	t.Helper()
 	result := callToolResult(t, svc, args)
@@ -127,7 +139,16 @@ func callTool(t *testing.T, svc contract.Service, args map[string]any) map[strin
 
 func callToolResult(t *testing.T, svc contract.Service, args map[string]any) sdktool.ToolResult {
 	t.Helper()
-	for _, item := range BuildAll(svc, contract.ServerContext{OwnerUserID: "user-1"}) {
+	connectorID, _ := args["connector_id"].(string)
+	return callToolResultWithEnabled(t, svc, args, []string{connectorID})
+}
+
+func callToolResultWithEnabled(t *testing.T, svc contract.Service, args map[string]any, enabled []string) sdktool.ToolResult {
+	t.Helper()
+	for _, item := range BuildAll(svc, contract.ServerContext{
+		OwnerUserID:         "user-1",
+		EnabledConnectorIDs: enabled,
+	}) {
 		if item.Name == "connector_call" {
 			result, err := item.Handler(context.Background(), args)
 			if err != nil {

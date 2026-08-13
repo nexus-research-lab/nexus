@@ -203,6 +203,7 @@ SELECT
     COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
+    COALESCE(rt.connector_ids_json, '[]'),
     rt.max_turns,
     rt.max_thinking_tokens,
     COALESCE(rt.setting_sources_json, '[]')

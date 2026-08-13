@@ -25,6 +25,9 @@ func list(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			}
 			result := make([]map[string]string, 0, len(items))
 			for _, item := range items {
+				if !sctx.ConnectorEnabled(item.ConnectorID) {
+					continue
+				}
 				result = append(result, map[string]string{
 					"connector_id": item.ConnectorID,
 					"auth_type":    item.AuthType,

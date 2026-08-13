@@ -95,8 +95,8 @@ INSERT INTO conversations (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 87 {
-		t.Fatalf("goose version = %d, want 87", version)
+	if version != 88 {
+		t.Fatalf("goose version = %d, want 88", version)
 	}
 
 	if err = goose.DownTo(db, migrationDir, 56); err != nil {
@@ -121,8 +121,8 @@ WHERE name = 'is_draft'
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 87 {
-		t.Fatalf("goose version after reapply = %d, want 87", version)
+	if version != 88 {
+		t.Fatalf("goose version after reapply = %d, want 88", version)
 	}
 }
 

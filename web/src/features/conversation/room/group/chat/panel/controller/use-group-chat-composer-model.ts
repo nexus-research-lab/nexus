@@ -163,6 +163,7 @@ export function useGroupChatComposerModel({
           targets: roomMembers.map((member) => ({
             agentId: member.agent_id,
             avatar: member.avatar,
+            defaultConnectorIds: member.options.connector_ids,
             defaultModel: member.options.model,
             defaultPermissionMode: member.options.permission_mode,
             defaultProvider: member.options.provider,

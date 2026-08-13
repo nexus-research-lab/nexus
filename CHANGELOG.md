@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made connected marketplace MCPs opt-in: Agents default to no attached Connectors, Agent settings can define defaults, and the Composer can override them for the current Session.
 - Replaced the separate recalled-memory conversation event with a compact Assistant footer reference, while keeping recall itself on Claude Code-compatible attachments.
 - Removed `NotebookEdit` from Agent pre-authorization controls and retired existing saved selections.
 - Aligned every Agent detail tab to the standard inset content gutter while keeping memory and communication on one shared split-view axis.

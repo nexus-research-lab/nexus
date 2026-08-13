@@ -468,6 +468,7 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 		AllowedToolsJSON:       mustJSONString(options.AllowedTools),
 		DisallowedToolsJSON:    mustJSONString(options.DisallowedTools),
 		MCPServersJSON:         mustJSONString(options.MCPServers),
+		ConnectorIDsJSON:       mustJSONString(options.ConnectorIDs),
 		SkillIDsJSON:           mustJSONString(options.SkillIDs),
 		DisabledSkillIDsJSON:   mustJSONString(options.DisabledSkillIDs),
 		MaxTurns:               options.MaxTurns,
