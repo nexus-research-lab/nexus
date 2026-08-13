@@ -106,6 +106,21 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	if werewolfSkill.Scope != ScopeRoom {
 		t.Fatalf("狼人杀 room skill scope 不正确: %+v", werewolfSkill)
 	}
+	werewolfDetail, err := service.GetSkillDetail(ctx, "werewolf-6p", "")
+	if err != nil {
+		t.Fatalf("读取狼人杀 skill 详情失败: %v", err)
+	}
+	for _, rule := range []string{
+		"Never expose the private actor, collector, target, decision, or who the host is waiting for",
+		"The final pending actor for that night gets",
+		"Nothing about who attacked, who saved or poisoned, why nobody died",
+		"Announce only the resolved death list",
+		"between 60 and 120 Chinese characters",
+	} {
+		if !strings.Contains(werewolfDetail.ReadmeMarkdown, rule) {
+			t.Fatalf("狼人杀 skill 缺少闭环约束 %q", rule)
+		}
+	}
 	if _, err = service.GetSkillDetail(ctx, "room-playbook", agentValue.AgentID); err == nil {
 		t.Fatal("room scope skill 不应作为 agent skill 详情读取")
 	}

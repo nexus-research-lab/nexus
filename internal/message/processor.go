@@ -60,6 +60,7 @@ type Processor struct {
 	sessionID           string
 	segment             AssistantSegment
 	parentToolUseID     string
+	recalledMemories    []map[string]any
 	toolProgressElapsed map[string]float64
 
 	streamStarted                bool
@@ -84,6 +85,21 @@ func (p *Processor) CurrentMessageID() string {
 // SessionID 返回当前 SDK session_id。
 func (p *Processor) SessionID() string {
 	return strings.TrimSpace(p.sessionID)
+}
+
+// FinalizeInterruptedAssistant 把中断前已流出的内容补成可持久化终态。
+func (p *Processor) FinalizeInterruptedAssistant() protocol.Message {
+	if !hasPublicAssistantContent(p.segment.normalizedContent()) {
+		return nil
+	}
+	p.segment.UpdateMeta("", nil, "cancelled")
+	durable := p.buildAssistantDurableMessage(true, true, p.parentToolUseID)
+	if durable == nil {
+		return nil
+	}
+	(*durable)["is_interrupted_partial"] = true
+	p.lastDurableAssistantSnapshot = protocol.Clone(*durable)
+	return protocol.Clone(*durable)
 }
 
 // Process 处理一条 SDK 消息。
@@ -151,6 +167,9 @@ func handleAssistant(p *Processor, message sdkprotocol.ReceivedMessage, output O
 }
 
 func handleAttachment(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	if p.captureRelevantMemoryAttachment(*message.Attachment) {
+		return output
+	}
 	return appendDurableMessage(output, p.processSubagentAttachmentMessage(*message.Attachment))
 }
 
@@ -445,6 +464,9 @@ func (p *Processor) buildAssistantDurableMessage(
 	parentID string,
 ) *protocol.Message {
 	payload := protocol.Message(p.segment.BuildAssistantMessage(p.ctx, p.sessionID, isComplete))
+	if len(p.recalledMemories) > 0 {
+		payload["recalled_memories"] = cloneBlockSlice(p.recalledMemories)
+	}
 	if !includeStopReason {
 		delete(payload, "stop_reason")
 		payload["is_complete"] = false
@@ -474,6 +496,7 @@ func assistantMessagesEqual(previous protocol.Message, current protocol.Message)
 		normalizeString(previous["round_id"]) == normalizeString(current["round_id"]) &&
 		boolValue(previous["is_complete"]) == boolValue(current["is_complete"]) &&
 		reflect.DeepEqual(previous["usage"], current["usage"]) &&
+		reflect.DeepEqual(previous["recalled_memories"], current["recalled_memories"]) &&
 		reflect.DeepEqual(previous["content"], current["content"])
 }
 

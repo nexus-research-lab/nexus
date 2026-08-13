@@ -2,6 +2,7 @@ package communication_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -17,6 +18,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
 	managersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -77,6 +79,9 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 	}
 	transport := &recordingMessageTransport{}
 	service := communicationsvc.NewService(agents, rooms, transport, roundVerifier)
+	if opened, openErr := service.OpenContactChannel(ctx, amy.AgentID, devin.AgentID); !errors.Is(openErr, roomsvc.ErrRoomNotFound) || opened != nil {
+		t.Fatalf("opening untouched contact created a room: %+v, err = %v", opened, openErr)
+	}
 	directResult, err := service.SendMessage(ctx, actor, communicationsvc.SendRequest{
 		TargetType: communicationsvc.TargetTypeAgent,
 		TargetID:   devin.AgentID,
@@ -162,6 +167,20 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 		Content:    "绕过已删除好友关系",
 	}); err == nil || !strings.Contains(err.Error(), "不能作为群目标") {
 		t.Fatalf("contact channel must not bypass deleted friendship: %v", err)
+	}
+	if _, err = agents.AddAgentContact(ctx, amy.AgentID, protocol.CreateAgentContactRequest{
+		ContactAgentID: devin.AgentID, Alias: "重新添加",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := service.OpenContactChannel(ctx, amy.AgentID, devin.AgentID)
+	if err != nil || reopened.Room.ID != directResult.RoomID ||
+		reopened.Conversation.ID != directResult.ConversationID {
+		t.Fatalf("re-added contact did not restore room: %+v, err = %v", reopened, err)
+	}
+	restored, err := agents.GetAgentContact(ctx, amy.AgentID, devin.AgentID)
+	if err != nil || restored.DirectRoomID != directResult.RoomID {
+		t.Fatalf("restored contact = %+v, err = %v", restored, err)
 	}
 
 	realtime := realtimesvc.NewService(

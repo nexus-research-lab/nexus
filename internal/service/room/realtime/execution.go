@@ -254,6 +254,9 @@ func (s *Service) runSlot(
 	result, err := execution.executeRound(client)
 	if err != nil {
 		if errors.Is(err, exec.ErrRoundInterrupted) {
+			if partialErr := execution.persistInterruptedAssistant(); partialErr != nil {
+				logger.Error("Room interrupted 流式内容持久化失败", "err", partialErr)
+			}
 			s.handleSlotCancelled(slotCtx, roundValue, slot, mapper, result)
 			return
 		}
@@ -541,6 +544,14 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
 	e.service.recordGoalUsageFromSlotAssistantMessage(e.ctx, e.slot, messageValue)
 	return nil
+}
+
+func (e *slotExecution) persistInterruptedAssistant() error {
+	partial := e.mapper.FinalizeInterruptedAssistant()
+	if len(partial) == 0 {
+		return nil
+	}
+	return e.handleDurableMessage(partial)
 }
 
 func (e *slotExecution) emitEvent(event protocol.EventMessage) error {

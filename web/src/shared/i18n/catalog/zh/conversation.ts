@@ -509,6 +509,7 @@ export const zhConversationMessages = {
   "message.goal_completed": "Goal 已完成",
   "message.goal_elapsed": "耗时 {duration}",
   "message.goal_tokens_used": "使用 {count} tokens",
+  "message.recalled_memories": "引用的记忆",
   "message.activity_compacting": "正在压缩上下文",
   "message.activity_sending": "正在发送",
   "message.activity_thinking": "正在思考",

@@ -66,6 +66,7 @@ test("show_widget 从工具过程提升到最终回复", async () => {
     content: '{"accepted":true}',
   };
   const finalText = { type: "text", text: "可以拖动年份查看变化。" };
+  const hiddenThinking = { type: "thinking", thinking: "整理最终回复" };
   const toolMessage = {
     role: "assistant",
     message_id: "assistant-widget",
@@ -76,10 +77,10 @@ test("show_widget 从工具过程提升到最终回复", async () => {
     role: "assistant",
     message_id: "assistant-final",
     parent_id: "user-1",
-    content: [finalText],
+    content: [hiddenThinking, finalText],
     agent_mentions: [{
       agent_id: "agent-2",
-      content_block_index: 0,
+      content_block_index: 1,
       end_rune: 2,
       label: "同事",
       start_rune: 0,

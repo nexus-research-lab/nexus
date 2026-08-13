@@ -23,7 +23,7 @@ func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context
 }
 
 func requireRoomScope(sctx contract.ServerContext) (string, string, string, error) {
-	if strings.TrimSpace(sctx.SourceContextType) != "room" {
+	if !contract.IsRoomRuntimeSourceContextType(sctx.SourceContextType) {
 		return "", "", "", errors.New("nexus_room tools are only available inside Room runtime")
 	}
 	agentID := strings.TrimSpace(sctx.CurrentAgentID)

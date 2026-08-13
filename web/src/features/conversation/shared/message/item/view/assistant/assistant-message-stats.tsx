@@ -1,8 +1,30 @@
-import { Check, CircleCheck, Copy, type LucideIcon } from "lucide-react";
+import {
+  BookOpenText,
+  Check,
+  CircleCheck,
+  Copy,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  useCallback,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
-import type { GoalCompletionReceipt } from "@/types/conversation/message/entity";
+import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
+import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
+import {
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "@/shared/ui/overlay/overlay-styles";
+import type {
+  GoalCompletionReceipt,
+  RecalledMemoryReference,
+} from "@/types/conversation/message/entity";
 
 import type { AssistantFooterStats } from "./assistant-message-model";
 import { buildGoalCompletionReceiptItems } from "./goal-completion-receipt";
@@ -20,6 +42,7 @@ const COPY_ACTION_PRESENTATION: Record<"copied" | "idle", CopyActionPresentation
 export function AssistantMessageStats({
   copied,
   goalCompletionReceipt,
+  memories = [],
   model,
   onCopy,
   stats,
@@ -27,6 +50,7 @@ export function AssistantMessageStats({
 }: {
   copied: boolean;
   goalCompletionReceipt: GoalCompletionReceipt | null;
+  memories: RecalledMemoryReference[];
   model?: string;
   onCopy?: () => Promise<void>;
   stats: AssistantFooterStats | null;
@@ -66,6 +90,7 @@ export function AssistantMessageStats({
           {!hasSecondaryMetadata ? (
             <AssistantStatsTrailing
               copied={copied}
+              memories={memories}
               onCopy={onCopy}
               streaming={streaming}
             />
@@ -110,6 +135,7 @@ export function AssistantMessageStats({
 
           <AssistantStatsTrailing
             copied={copied}
+            memories={memories}
             onCopy={onCopy}
             streaming={streaming}
           />
@@ -121,10 +147,12 @@ export function AssistantMessageStats({
 
 function AssistantStatsTrailing({
   copied,
+  memories,
   onCopy,
   streaming,
 }: {
   copied: boolean;
+  memories: RecalledMemoryReference[];
   onCopy?: () => Promise<void>;
   streaming: boolean;
 }) {
@@ -138,9 +166,104 @@ function AssistantStatsTrailing({
   }
 
   return (
-    <div className="ml-auto flex h-5 shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-(--motion-duration-fast) sm:group-hover:opacity-100">
-      {onCopy ? <AssistantCopyAction copied={copied} onCopy={onCopy} /> : null}
+    <div className="ml-auto flex h-6 shrink-0 items-center gap-0.5">
+      {memories.length > 0 ? (
+        <AssistantMemoryReferences memories={memories} />
+      ) : null}
+      <div className="flex items-center opacity-0 transition-opacity duration-(--motion-duration-fast) sm:group-hover:opacity-100">
+        {onCopy ? <AssistantCopyAction copied={copied} onCopy={onCopy} /> : null}
+      </div>
     </div>
+  );
+}
+
+const MEMORY_POPOVER_MAX_HEIGHT = 320;
+const MEMORY_POPOVER_MIN_HEIGHT = 96;
+const MEMORY_POPOVER_WIDTH = 360;
+
+function AssistantMemoryReferences({
+  memories,
+}: {
+  memories: RecalledMemoryReference[];
+}) {
+  const { t } = useI18n();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const close = useCallback(() => setIsOpen(false), []);
+  const estimatePosition = useCallback((anchor: HTMLButtonElement) => (
+    resolveAnchoredOverlayPosition({
+      align: "end",
+      anchor,
+      estimatedHeight: Math.min(80 + memories.length * 48, MEMORY_POPOVER_MAX_HEIGHT),
+      gap: 8,
+      maxHeight: MEMORY_POPOVER_MAX_HEIGHT,
+      minHeight: MEMORY_POPOVER_MIN_HEIGHT,
+      minWidth: MEMORY_POPOVER_WIDTH,
+      placement: "auto",
+    })
+  ), [memories.length]);
+  const {
+    overlayId,
+    overlayPosition,
+    overlayRef,
+    overlayStyle,
+    portalContainer,
+  } = useAnchoredOverlayLayer({
+    anchorRef: triggerRef,
+    disabled: false,
+    estimatePosition,
+    isOpen,
+    onClose: close,
+  });
+  const label = t("message.recalled_memories");
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        aria-controls={isOpen ? overlayId : undefined}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label={label}
+        className={cn(
+          "inline-flex h-6 w-6 items-center justify-center rounded-full text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
+          isOpen && "bg-(--surface-interactive-hover-background) text-(--icon-strong)",
+        )}
+        onClick={() => setIsOpen((current) => !current)}
+        title={label}
+        type="button"
+      >
+        <BookOpenText className="h-3.5 w-3.5" />
+      </button>
+
+      {isOpen && portalContainer ? createPortal(
+        <div
+          ref={overlayRef}
+          aria-label={label}
+          className={cn(
+            "fixed z-[140] overflow-y-auto p-4",
+            OVERLAY_SURFACE_CLASS_NAME,
+            ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+          )}
+          data-placement={overlayPosition?.placement ?? "top"}
+          role="dialog"
+          style={overlayStyle}
+          {...OPEN_OVERLAY_DATA_ATTRIBUTES}
+        >
+          <h3 className="text-sm font-medium text-(--text-strong)">
+            {label}
+          </h3>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-5 text-(--text-muted)">
+            {memories.map((memory) => (
+              <li key={`${memory.name}\u0000${memory.description}`}>
+                {memory.description}
+              </li>
+            ))}
+          </ul>
+        </div>,
+        portalContainer,
+      ) : null}
+    </>
   );
 }
 

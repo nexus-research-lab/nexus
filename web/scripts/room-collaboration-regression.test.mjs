@@ -1687,6 +1687,21 @@ test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
     "Room 全局交互快照不得清除 conversation 执行槽",
   );
   replaceRoomActivitySnapshot("group-room", "group-round-new", false, []);
+
+  updateRoomActivity("group-room", "runtime-round", "running");
+  updateRoomActivity(
+    "group-room",
+    "logical-root",
+    "running",
+    "agent_round",
+    "continued-slot",
+  );
+  updateRoomActivity("group-room", "runtime-round", "finished");
+  assert.deepEqual(
+    Object.fromEntries(getRoomActivity()),
+    {},
+    "最后一个 runtime round 结束时必须清理 logical root 下的孤儿 Agent 活动态",
+  );
 });
 
 test("聊天行不读取持久化 Agent active 状态", async () => {
@@ -1862,7 +1877,7 @@ test("real Room cancellation guidance is projected once into Amy Thread", async 
   );
 });
 
-test("Room memory recall status is projected only into its Agent Thread", async () => {
+test("Room memory saved status is projected only into its Agent Thread", async () => {
   const { projectGroupAgentTimeline } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
   );
@@ -1872,42 +1887,23 @@ test("Room memory recall status is projected only into its Agent Thread", async 
   const { buildSystemEventBlocks } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/message-item-system-events.ts",
   );
-  const recalled = {
-    agent_id: "367448a0264b",
-    content: "已加载 2 条长期记忆",
-    message_id: "memory-recalled-amy",
-    metadata: { subtype: "memory_recalled" },
-    role: "system",
-    timestamp: 1784083437370,
-  };
   const saved = {
-    ...recalled,
+    agent_id: "367448a0264b",
     content: "长期记忆已保存",
     message_id: "memory-saved-amy",
     metadata: { subtype: "memory_saved" },
-    timestamp: recalled.timestamp + 1,
+    role: "system",
+    timestamp: 1784083437370,
   };
 
-  assert.deepEqual(
-    getRoomThreadMessages([recalled], "367448a0264b")
-      .map((message) => message.message_id),
-    [recalled.message_id],
-  );
-  assert.deepEqual(
-    getRoomThreadMessages([recalled], "0ed5434a8c13"),
-    [],
-  );
   assert.deepEqual(
     getRoomThreadMessages([saved], "367448a0264b")
       .map((message) => message.message_id),
     [saved.message_id],
   );
   assert.deepEqual(
-    buildSystemEventBlocks([recalled], false).map((block) => ({
-      content: block.content,
-      label: block.label,
-    })),
-    [{ content: recalled.content, label: "长期记忆" }],
+    getRoomThreadMessages([saved], "0ed5434a8c13"),
+    [],
   );
   assert.deepEqual(
     buildSystemEventBlocks([saved], false).map((block) => ({
@@ -1917,7 +1913,7 @@ test("Room memory recall status is projected only into its Agent Thread", async 
     [{ content: saved.content, label: "长期记忆" }],
   );
   const publicTimeline = projectGroupAgentTimeline({
-    messageGroups: new Map([["round-memory", [recalled, saved]]]),
+    messageGroups: new Map([["round-memory", [saved]]]),
     pendingPermissionGroups: new Map(),
     pendingSlotGroups: new Map(),
     roundIds: ["round-memory"],
@@ -1929,6 +1925,49 @@ test("Room memory recall status is projected only into its Agent Thread", async 
     [],
     "长期记忆过程不能在 Room 公区生成独立消息节点",
   );
+});
+
+test("Assistant memory references are deduplicated for the footer", async () => {
+  const { collectRecalledMemoryReferences } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/use-message-item-projection.ts",
+  );
+  const reference = {
+    description: "发布前检查签名清单",
+    name: "release checklist",
+  };
+  assert.deepEqual(
+    collectRecalledMemoryReferences([
+      { recalled_memories: [reference] },
+      { recalled_memories: [reference, { description: "", name: "empty" }] },
+    ]),
+    [reference],
+  );
+});
+
+test("Loaded Assistant memory references replace an equivalent live snapshot", async () => {
+  const { mergeLoadedMessages } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+  const live = {
+    agent_id: "367448a0264b",
+    content: [{ type: "text", text: "发布检查已完成。" }],
+    is_complete: true,
+    message_id: "assistant-memory-reference",
+    role: "assistant",
+    round_id: "round-memory-reference",
+    session_key: "agent:test",
+    stop_reason: "end_turn",
+    timestamp: 1784083437370,
+  };
+  const reference = {
+    description: "发布前检查签名清单",
+    name: "release checklist",
+  };
+  const merged = mergeLoadedMessages(
+    [{ ...live, recalled_memories: [reference] }],
+    [live],
+  );
+  assert.deepEqual(merged[0].recalled_memories, [reference]);
 });
 
 test("Room chat ACK with empty pending preserves the active slot", async () => {

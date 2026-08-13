@@ -3894,6 +3894,9 @@ test("Room public cards hide thinking while Thread keeps it available", async ()
 });
 
 test("Room Thread inspector keeps process without repeating the public reply", async () => {
+  const { hasRoomAgentExecutionDetails } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-model.ts",
+  );
   const {
     projectionFromOrderedEntries,
     shouldShowAssistantTimeline,
@@ -3958,9 +3961,23 @@ test("Room Thread inspector keeps process without repeating the public reply", a
     true,
     "通用 transcript 仍需保留过程时间轴",
   );
+  assert.equal(
+    hasRoomAgentExecutionDetails([assistant]),
+    true,
+    "包含 thinking 的回复应保留 Thread 入口",
+  );
+  assert.equal(
+    hasRoomAgentExecutionDetails([assistantMessage({
+      messageId: "assistant-public-only",
+      text: "只有公开回复",
+      timestamp: 2,
+    })]),
+    false,
+    "只有最终公开回复时不应显示空 Thread 入口",
+  );
 });
 
-test("Room no-reply keeps the completed MessageItem visual shell", async () => {
+test("Room no-reply stays out of the public feed", async () => {
   const { GroupAgentReply } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-agent-reply.tsx",
   );
@@ -4040,20 +4057,7 @@ test("Room no-reply keeps the completed MessageItem visual shell", async () => {
     ),
   );
 
-  assert.match(
-    html,
-    /nexus-chat-message-round-expanded/,
-    "no-reply 必须沿用完成态 MessageItem 外壳",
-  );
-  assert.match(html, /nexus-chat-message-header/);
-  assert.match(html, /本轮无需公开回复/);
-  assert.match(html, /查看 Thread/);
-  assert.match(html, /glm-4\.7/);
-  assert.doesNotMatch(
-    html,
-    /bg-primary\/5/,
-    "no-reply 不应退回活动状态卡的高亮背景",
-  );
+  assert.equal(html, "", "no-reply 是内部控制结果，不应生成公区卡片");
 });
 
 test("consumed Room guide update moves beside its running assistant", async () => {

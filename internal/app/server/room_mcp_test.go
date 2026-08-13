@@ -49,6 +49,18 @@ func TestRoomMCPBuilderOnlyAddsServerForRoomRuntime(t *testing.T) {
 	if _, ok := servers["nexus_room"].(sdkmcp.SDKServerConfig); !ok {
 		t.Fatalf("Room runtime 应注入 nexus_room SDK server: %+v", servers)
 	}
+	untrustedServers := builder(
+		context.Background(),
+		agentValue,
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		"round-2",
+		"room_untrusted",
+		"room-1",
+		"狼人杀",
+	)
+	if _, ok := untrustedServers["nexus_room"].(sdkmcp.SDKServerConfig); !ok {
+		t.Fatalf("Room 自动续跑仍应注入 nexus_room SDK server: %+v", untrustedServers)
+	}
 
 	if dmServers := builder(
 		context.Background(),

@@ -53,12 +53,14 @@ export function ContactsPage() {
     onAddContact: communication.addContact,
     onBackToCommunicationDirectory: communication.clearSelection,
     onCreateCommunicationConversation: communication.createConversation,
+    onLoadOlderCommunicationMessages: communication.loadOlderMessages,
     onCreateAgent: controller.editor.openCreate,
     onCreateTeam: navigation.createTeam,
     onDeleteAgent: controller.requestDeleteAgent,
     onOpenAgent: navigation.openAgent,
     onOpenDirectRoom: navigation.openDirectRoom,
     onRefreshCommunication: communication.refresh,
+    onRemoveCommunicationContact: communication.removeContact,
     onSaveAgentOptions: controller.saveAgentOptions,
     onSelectCommunicationContact: communication.selectContact,
     onSelectCommunicationConversation: communication.selectConversation,
@@ -137,10 +139,12 @@ function ContactsPageContent({
             onAddContact={actions.onAddContact}
             onBackToCommunicationDirectory={actions.onBackToCommunicationDirectory}
             onCreateCommunicationConversation={actions.onCreateCommunicationConversation}
+            onLoadOlderCommunicationMessages={actions.onLoadOlderCommunicationMessages}
             onCreateTeam={actions.onCreateTeam}
             onDeleteAgent={actions.onDeleteAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}
             onRefreshCommunication={actions.onRefreshCommunication}
+            onRemoveCommunicationContact={actions.onRemoveCommunicationContact}
             onSaveAgentOptions={actions.onSaveAgentOptions}
             onSelectCommunicationContact={actions.onSelectCommunicationContact}
             onSelectCommunicationConversation={actions.onSelectCommunicationConversation}

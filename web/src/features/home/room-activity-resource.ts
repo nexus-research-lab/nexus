@@ -55,6 +55,15 @@ export function updateRoomActivity(
         activeKeys.delete(key);
       }
     }
+    // 自动续跑的 runtime round 与 logical root ID 不同；最后一个 runtime
+    // round 收口后，剩余 Agent key 都已失去活跃 root，必须一起清掉。
+    if (![...activeKeys].some((key) => key.startsWith("round:"))) {
+      for (const key of activeKeys) {
+        if (key.startsWith("agent:")) {
+          activeKeys.delete(key);
+        }
+      }
+    }
   } else {
     activeKeys.delete(activityKey);
   }

@@ -101,10 +101,12 @@ func MessageRoundID(message Message) string {
 
 // IsTranscriptNativeMessage 表示该 durable message 是否属于 cc transcript 原生真相。
 // 普通 assistant 正文快照属于 transcript 原生消息；Nexus 注入到 assistant
-// 快照里的 task_progress 不会被 runtime transcript 保存，必须进入 overlay。
+// 快照里的 task_progress 与中断前流式快照不会被 runtime transcript 保存，必须进入 overlay。
 // result / system 等同样需要由 Nexus overlay 补齐。
 func IsTranscriptNativeMessage(message Message) bool {
-	return MessageRole(message) == "assistant" && !messageHasContentBlockType(message, "task_progress")
+	return MessageRole(message) == "assistant" &&
+		message["is_interrupted_partial"] != true &&
+		!messageHasContentBlockType(message, "task_progress")
 }
 
 func messageHasContentBlockType(message Message, blockType string) bool {

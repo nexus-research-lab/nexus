@@ -26,7 +26,6 @@ type systemMessageProjection struct {
 var systemMessageProjections = map[string]systemMessageProjection{
 	"api_retry":         {projector: (*Processor).projectAPIRetrySystemMessage, delivery: systemMessageEphemeral},
 	"compact_boundary":  {projector: (*Processor).projectCompactBoundarySystemMessage, delivery: systemMessageDurable},
-	"memory_recalled":   {projector: (*Processor).projectMemoryRecalledSystemMessage, delivery: systemMessageDurable},
 	"memory_saved":      {projector: (*Processor).projectMemorySavedSystemMessage, delivery: systemMessageDurable},
 	"task_notification": {projector: (*Processor).projectSystemTaskNotification, delivery: systemMessageDurable},
 	"task_progress":     {projector: (*Processor).projectSystemTaskProgress, delivery: systemMessageDurable},
@@ -75,20 +74,6 @@ func (p *Processor) projectMemorySavedSystemMessage(message sdkprotocol.SystemMe
 		"system_memory_saved_"+p.ctx.RoundID,
 		memorySavedContent(saved.Verb),
 		metadata,
-	)
-}
-
-func (p *Processor) projectMemoryRecalledSystemMessage(message sdkprotocol.SystemMessage) *protocol.Message {
-	count := max(0, normalizeInt(message.Data["count"]))
-	mode := strings.TrimSpace(normalizeString(message.Data["mode"]))
-	return p.buildSystemEventMessage(
-		"system_memory_recalled_"+p.ctx.RoundID+"_"+firstNonEmpty(mode, "default"),
-		fmt.Sprintf("已加载 %d 条长期记忆", count),
-		map[string]any{
-			"subtype": "memory_recalled",
-			"count":   count,
-			"mode":    mode,
-		},
 	)
 }
 
