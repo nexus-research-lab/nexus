@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - service.go：Service 生成编排。
-//   - request.go / contract.go：请求构造与契约（关闭 think、max_tokens 等）。
+//   - request.go / contract.go：请求构造、标题存储与 Session/Room 失效通知契约。
 //   - generation.go / title_rules.go：生成主逻辑与标题清洗规则。
 //   - apply.go / preview.go：落库与预览填充。
 //

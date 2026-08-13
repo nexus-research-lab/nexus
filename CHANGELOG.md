@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Refreshed Room and DM conversation headers, tabs, and sidebar entries as soon as a Goal-generated title is stored by projecting the change through the Room and global directory invalidation paths.
 - Segmented tools inside one DM Agent round by their exact self Assignment and root Attempt, so serial WorkGraph nodes no longer collapse every Bash/Write/Edit/MCP action under the final node; Room Lead coordination and explicit member WorkBindings remain isolated. Execution mutation results now keep the small `outcome`/`execution_id`/`changed`/`next_actions` control envelope inline and omit recursive runtime history before SDK large-result externalization can erase those identities.
 - Allowed hard-dependency WorkGraph chains such as draft, review, and finalize to hand off the same exclusive output after upstream Acceptance, while continuing to reject overlapping outputs across parallel, sibling, unrelated, or soft-only responsibility paths.
 - Rechecked multi-member Room Goal collaboration at both creation and completion against the owner-scoped Room directory, so Composer, `/goal`, model, app-server, legacy, and membership-change paths cannot close on lead-private work without current room-visible non-lead evidence.

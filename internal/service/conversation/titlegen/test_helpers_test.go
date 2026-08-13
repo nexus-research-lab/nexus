@@ -111,6 +111,23 @@ func (f *fakeEventBroadcaster) BroadcastEvent(_ context.Context, _ string, event
 	return nil
 }
 
+type fakeRoomResyncBroadcaster struct {
+	roomID         string
+	conversationID string
+	reason         string
+}
+
+func (f *fakeRoomResyncBroadcaster) BroadcastRoomResyncRequired(
+	_ context.Context,
+	roomID string,
+	conversationID string,
+	reason string,
+) {
+	f.roomID = roomID
+	f.conversationID = conversationID
+	f.reason = reason
+}
+
 func stringValue(value any) string {
 	switch typed := value.(type) {
 	case string:

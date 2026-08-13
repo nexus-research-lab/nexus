@@ -26,6 +26,10 @@ type eventBroadcaster interface {
 	BroadcastEvent(context.Context, string, protocol.EventMessage) []error
 }
 
+type roomResyncBroadcaster interface {
+	BroadcastRoomResyncRequired(context.Context, string, string, string)
+}
+
 type preferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
 }

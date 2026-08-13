@@ -120,16 +120,27 @@ func (s *Service) canAutoUpdateConversation(
 }
 
 func (s *Service) broadcastResync(ctx context.Context, request Request) {
+	roomID := strings.TrimSpace(request.ConversationRoomID)
+	conversationID := strings.TrimSpace(request.ConversationID)
+	if s.roomEvents != nil && roomID != "" && conversationID != "" {
+		s.roomEvents.BroadcastRoomResyncRequired(
+			ctx,
+			roomID,
+			conversationID,
+			"title_generated",
+		)
+		return
+	}
 	if s.events == nil || strings.TrimSpace(request.SessionKey) == "" {
 		return
 	}
 	data := map[string]any{
 		"reason": "title_generated",
 	}
-	if roomID := strings.TrimSpace(request.ConversationRoomID); roomID != "" {
+	if roomID != "" {
 		data["room_id"] = roomID
 	}
-	if conversationID := strings.TrimSpace(request.ConversationID); conversationID != "" {
+	if conversationID != "" {
 		data["conversation_id"] = conversationID
 	}
 	event := protocol.NewEvent(protocol.EventTypeSessionResyncRequired, data)

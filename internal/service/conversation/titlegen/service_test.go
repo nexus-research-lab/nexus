@@ -161,6 +161,8 @@ func TestScheduleReplacesGoalFallbackTitle(t *testing.T) {
 		roomStore,
 		&fakeEventBroadcaster{},
 	)
+	roomEvents := &fakeRoomResyncBroadcaster{}
+	service.SetRoomResyncBroadcaster(roomEvents)
 	service.runAsync = func(job func()) {
 		job()
 	}
@@ -177,6 +179,9 @@ func TestScheduleReplacesGoalFallbackTitle(t *testing.T) {
 
 	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "Knip 清理" {
 		t.Fatalf("conversation title = %q, want generated title", got)
+	}
+	if roomEvents.roomID != "room_1" || roomEvents.conversationID != "conv_1" || roomEvents.reason != "title_generated" {
+		t.Fatalf("Room resync = %+v, want generated title invalidation", roomEvents)
 	}
 }
 
@@ -232,6 +237,8 @@ func TestScheduleGoalTitleFromGoalTargetsDMConversation(t *testing.T) {
 		roomStore,
 		&fakeEventBroadcaster{},
 	)
+	roomEvents := &fakeRoomResyncBroadcaster{}
+	service.SetRoomResyncBroadcaster(roomEvents)
 	service.runAsync = func(job func()) {
 		job()
 	}
@@ -246,6 +253,9 @@ func TestScheduleGoalTitleFromGoalTargetsDMConversation(t *testing.T) {
 	}
 	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "M3 芯片调研" {
 		t.Fatalf("conversation title = %q, want generated Goal title", got)
+	}
+	if roomEvents.roomID != "room_1" || roomEvents.conversationID != "conv_1" || roomEvents.reason != "title_generated" {
+		t.Fatalf("Room resync = %+v, want generated Goal title invalidation", roomEvents)
 	}
 }
 
