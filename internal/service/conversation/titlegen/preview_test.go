@@ -60,6 +60,8 @@ func TestFillEmptyPreviewFromGoalUpdatesDMConversationTitle(t *testing.T) {
 	}
 	events := &fakeEventBroadcaster{}
 	service := NewService(nil, sessionStore, roomStore, events)
+	roomEvents := &fakeRoomResyncBroadcaster{}
+	service.SetRoomResyncBroadcaster(roomEvents)
 
 	if err := service.FillEmptyPreviewFromGoal(
 		context.Background(),
@@ -75,10 +77,13 @@ func TestFillEmptyPreviewFromGoalUpdatesDMConversationTitle(t *testing.T) {
 	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "调研 M3 芯片" {
 		t.Fatalf("conversation title = %q, want Goal fallback", got)
 	}
-	if len(events.events) != 1 ||
-		events.events[0].Data["room_id"] != "room_1" ||
-		events.events[0].Data["conversation_id"] != "conv_1" {
-		t.Fatalf("events = %#v, want DM conversation resync", events.events)
+	if len(events.events) != 0 {
+		t.Fatalf("session events = %#v, want Room-scoped resync", events.events)
+	}
+	if roomEvents.roomID != "room_1" ||
+		roomEvents.conversationID != "conv_1" ||
+		roomEvents.reason != "title_generated" {
+		t.Fatalf("Room resync = %+v, want DM conversation title invalidation", roomEvents)
 	}
 }
 
@@ -172,6 +177,8 @@ func TestFillEmptyPreviewFromGoalUpdatesDefaultRoomConversationTitle(t *testing.
 	}
 	events := &fakeEventBroadcaster{}
 	service := NewService(nil, nil, roomStore, events)
+	roomEvents := &fakeRoomResyncBroadcaster{}
+	service.SetRoomResyncBroadcaster(roomEvents)
 
 	if err := service.FillEmptyPreviewFromGoal(context.Background(), "room:group:conv_1", "完成 Room Goal"); err != nil {
 		t.Fatalf("FillEmptyPreviewFromGoal() error = %v", err)
@@ -180,8 +187,11 @@ func TestFillEmptyPreviewFromGoalUpdatesDefaultRoomConversationTitle(t *testing.
 	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "完成 Room Goal" {
 		t.Fatalf("conversation title = %q, want goal objective", got)
 	}
-	if len(events.events) != 1 || events.events[0].Data["room_id"] != "room_1" || events.events[0].Data["conversation_id"] != "conv_1" {
-		t.Fatalf("events = %#v, want room conversation resync", events.events)
+	if len(events.events) != 0 {
+		t.Fatalf("session events = %#v, want Room-scoped resync", events.events)
+	}
+	if roomEvents.roomID != "room_1" || roomEvents.conversationID != "conv_1" || roomEvents.reason != "title_generated" {
+		t.Fatalf("Room resync = %+v, want room conversation title invalidation", roomEvents)
 	}
 }
 
