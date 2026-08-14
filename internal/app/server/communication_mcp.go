@@ -15,7 +15,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
-	managersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 )
 
 func newCommunicationMCPBuilder(
@@ -59,59 +58,59 @@ func communicationRuntimeActor(
 	roundID string,
 	sourceContextType string,
 	sourceContextID string,
-) (managersvc.Actor, bool) {
+) (communicationsvc.Actor, bool) {
 	if agents == nil || agentValue == nil {
-		return managersvc.Actor{}, false
+		return communicationsvc.Actor{}, false
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	roundID = strings.TrimSpace(roundID)
 	sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
 	sourceContextID = strings.TrimSpace(sourceContextID)
 	if sessionKey == "" || roundID == "" {
-		return managersvc.Actor{}, false
+		return communicationsvc.Actor{}, false
 	}
 	contextKind := ""
 	switch {
-	case sourceContextType == managersvc.ContextKindAgent,
-		strings.HasPrefix(sourceContextType, managersvc.ContextKindAgent+"_"):
-		contextKind = managersvc.ContextKindAgent
-	case sourceContextType == managersvc.ContextKindRoom,
-		strings.HasPrefix(sourceContextType, managersvc.ContextKindRoom+"_"):
-		contextKind = managersvc.ContextKindRoom
+	case sourceContextType == communicationsvc.ContextKindAgent,
+		strings.HasPrefix(sourceContextType, communicationsvc.ContextKindAgent+"_"):
+		contextKind = communicationsvc.ContextKindAgent
+	case sourceContextType == communicationsvc.ContextKindRoom,
+		strings.HasPrefix(sourceContextType, communicationsvc.ContextKindRoom+"_"):
+		contextKind = communicationsvc.ContextKindRoom
 	default:
-		return managersvc.Actor{}, false
+		return communicationsvc.Actor{}, false
 	}
 	lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
 	if !ok {
-		return managersvc.Actor{}, false
+		return communicationsvc.Actor{}, false
 	}
 	record, err := agents.GetAgent(ctx, strings.TrimSpace(agentValue.AgentID))
 	if err != nil || record == nil || record.IsMain ||
 		strings.TrimSpace(record.AgentID) == "" ||
 		strings.TrimSpace(record.OwnerUserID) == "" {
-		return managersvc.Actor{}, false
+		return communicationsvc.Actor{}, false
 	}
 	if principal := authctx.PrincipalFromContext(ctx); principal != nil &&
 		strings.TrimSpace(principal.UserID) != strings.TrimSpace(record.OwnerUserID) {
-		return managersvc.Actor{}, false
+		return communicationsvc.Actor{}, false
 	}
-	actor := managersvc.Actor{
+	actor := communicationsvc.Actor{
 		OwnerUserID: strings.TrimSpace(record.OwnerUserID), AgentID: strings.TrimSpace(record.AgentID),
 		SessionKey: sessionKey, RoundID: roundID,
 		LeaseSessionKey: strings.TrimSpace(lease.SessionKey), LeaseRoundID: strings.TrimSpace(lease.RoundID),
 		ContextKind: contextKind, ContextID: sourceContextID,
 	}
 	switch contextKind {
-	case managersvc.ContextKindAgent:
+	case communicationsvc.ContextKindAgent:
 		if sourceContextID != actor.AgentID {
-			return managersvc.Actor{}, false
+			return communicationsvc.Actor{}, false
 		}
-	case managersvc.ContextKindRoom:
+	case communicationsvc.ContextKindRoom:
 		parsed := protocol.ParseSessionKey(sessionKey)
 		if sourceContextID == "" || !parsed.IsStructured ||
 			parsed.Kind != protocol.SessionKeyKindRoom ||
 			strings.TrimSpace(parsed.ConversationID) == "" {
-			return managersvc.Actor{}, false
+			return communicationsvc.Actor{}, false
 		}
 		actor.RoomID = sourceContextID
 		actor.ConversationID = strings.TrimSpace(parsed.ConversationID)

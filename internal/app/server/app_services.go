@@ -29,7 +29,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
-	nexusmanagersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
@@ -326,10 +325,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		panic(err)
 	}
 
-	// 把内置配置、资源管理、平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	// 把内置配置、平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
-	nexusManagerService := nexusmanagersvc.NewService(core.Agent, core.Room, core.Session, workspaceService, runtimeManager)
-	nexusManagerBuilder := newNexusManagerMCPBuilder(nexusManagerService, core.Agent)
 	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
 	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
@@ -346,7 +343,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	)
 	mcpBuilder := combinedMCPBuilder(
 		configurationBuilder,
-		nexusManagerBuilder,
 		communicationBuilder,
 		automationBuilder,
 		connectorBuilder,

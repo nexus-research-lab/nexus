@@ -17,7 +17,7 @@ Load this reference only after `inspect_nexus_configuration` identifies a releva
 | `automation` | Use `nexus_automation`, not guessed `nexus_config` operations | Scheduler-defined |
 | `sessions` | Rename or safely delete owner-scoped Agent sessions | UI or deletion immediate |
 | `rooms` | Create/delete Rooms; manage profile, policy, members, participation, host, and conversations | Security changes immediate; prompt next round/input |
-| `workspaces` | Use `nexus_manager` workspace tools | Tool-defined |
+| `workspaces` | Use the `nexus-manager` Skill and owner-scoped `nexusctl`; use native file tools only for the current Agent workspace | Immediate |
 | `goals` | Use `nexus_goal` | Goal runtime-defined |
 
 ## Secrets and approval

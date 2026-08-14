@@ -18,7 +18,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
-	managersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -94,11 +93,11 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 		roomLeaseSessionKey:  "agent-round-room",
 		topicLeaseSessionKey: "agent-round-topic",
 	}
-	actor := managersvc.Actor{
+	actor := communicationsvc.Actor{
 		OwnerUserID: "communication-owner", AgentID: amy.AgentID,
 		SessionKey: sessionKey, RoundID: roundID,
 		LeaseSessionKey: sessionKey, LeaseRoundID: roundID,
-		ContextKind: managersvc.ContextKindAgent, ContextID: amy.AgentID,
+		ContextKind: communicationsvc.ContextKindAgent, ContextID: amy.AgentID,
 	}
 	transport := &recordingMessageTransport{}
 	service := communicationsvc.NewService(agents, rooms, transport, roundVerifier)
@@ -172,21 +171,21 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 		!addressBookHasRoom(book.Rooms, otherRoomContext.Room.ID) {
 		t.Fatalf("address book = %+v", book)
 	}
-	roomBook, err := service.ListAddressBook(ctx, managersvc.Actor{
+	roomBook, err := service.ListAddressBook(ctx, communicationsvc.Actor{
 		OwnerUserID: "communication-owner", AgentID: amy.AgentID,
 		SessionKey: roomSessionKey, RoundID: "root-round-room",
 		LeaseSessionKey: roomLeaseSessionKey, LeaseRoundID: "agent-round-room",
-		ContextKind: managersvc.ContextKindRoom, ContextID: roomContext.Room.ID,
+		ContextKind: communicationsvc.ContextKindRoom, ContextID: roomContext.Room.ID,
 		RoomID: roomContext.Room.ID, ConversationID: roomContext.Conversation.ID,
 	})
 	if err != nil || roomBook.AgentID != amy.AgentID {
 		t.Fatalf("Room runtime address book = %+v, err = %v", roomBook, err)
 	}
-	topicActor := managersvc.Actor{
+	topicActor := communicationsvc.Actor{
 		OwnerUserID: "communication-owner", AgentID: amy.AgentID,
 		SessionKey: topicSessionKey, RoundID: "root-round-topic",
 		LeaseSessionKey: topicLeaseSessionKey, LeaseRoundID: "agent-round-topic",
-		ContextKind: managersvc.ContextKindRoom, ContextID: roomContext.Room.ID,
+		ContextKind: communicationsvc.ContextKindRoom, ContextID: roomContext.Room.ID,
 		RoomID: roomContext.Room.ID, ConversationID: topicContext.Conversation.ID,
 		GoalCollaborationBinding: func() *protocol.GoalCollaborationBinding {
 			return &protocol.GoalCollaborationBinding{
