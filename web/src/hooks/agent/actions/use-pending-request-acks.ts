@@ -8,23 +8,51 @@ type PendingRequestAck = {
   timeout_id: ReturnType<typeof globalThis.setTimeout>;
 };
 
+export interface RequestAcceptanceCorrelation {
+  clientMessageId: string;
+  clientRequestId: string;
+  sessionKey: string;
+}
+
 export interface PendingRequestAckRegistry {
   pending: Map<string, PendingRequestAck>;
+  preserved: Set<string>;
   rejected: Map<string, Error>;
   settled: Set<string>;
   tracked: Set<string>;
 }
 
 export class RequestAcceptanceUnknownError extends Error {
-  constructor(message: string) {
+  readonly correlation: RequestAcceptanceCorrelation | null;
+
+  constructor(
+    message: string,
+    correlation: RequestAcceptanceCorrelation | null = null,
+  ) {
     super(message);
     this.name = "RequestAcceptanceUnknownError";
+    this.correlation = correlation;
+  }
+}
+
+/** 后端明确拒绝仍保留 request identity，供 durable 事实晚到时精确纠偏。 */
+export class RequestAcceptanceRejectedError extends Error {
+  readonly correlation: RequestAcceptanceCorrelation | null;
+
+  constructor(
+    message: string,
+    correlation: RequestAcceptanceCorrelation | null = null,
+  ) {
+    super(message);
+    this.name = "RequestAcceptanceRejectedError";
+    this.correlation = correlation;
   }
 }
 
 export function createPendingRequestAckRegistry(): PendingRequestAckRegistry {
   return {
     pending: new Map(),
+    preserved: new Set(),
     rejected: new Map(),
     settled: new Set(),
     tracked: new Set(),
@@ -34,12 +62,16 @@ export function createPendingRequestAckRegistry(): PendingRequestAckRegistry {
 export function trackPendingRequestAck(
   registry: PendingRequestAckRegistry,
   clientRequestId: string,
+  preserveAcrossSessionTransition = false,
 ): boolean {
   const normalizedRequestId = clientRequestId.trim();
   if (!normalizedRequestId) {
     return false;
   }
   registry.tracked.add(normalizedRequestId);
+  if (preserveAcrossSessionTransition) {
+    registry.preserved.add(normalizedRequestId);
+  }
   return true;
 }
 
@@ -64,6 +96,7 @@ export function resolvePendingRequestAck(
     return false;
   }
   registry.rejected.delete(clientRequestId);
+  registry.preserved.delete(clientRequestId);
   const pendingRequest = registry.pending.get(clientRequestId);
   if (!pendingRequest) {
     registry.tracked.delete(clientRequestId);
@@ -87,6 +120,7 @@ export function rejectPendingRequestAck(
     return false;
   }
   const error = cause instanceof Error ? cause : new Error(cause);
+  registry.preserved.delete(clientRequestId);
   registry.settled.delete(clientRequestId);
   const pendingRequest = registry.pending.get(clientRequestId);
   if (!pendingRequest) {
@@ -108,21 +142,60 @@ export function hasPendingRequestAck(
   return registry.pending.has(clientRequestId);
 }
 
+/** 发送尚未建立 waiter 就失败时，精确丢弃该 request owner 的全部痕迹。 */
+export function discardPendingRequestAck(
+  registry: PendingRequestAckRegistry,
+  clientRequestId: string,
+): void {
+  const pendingRequest = registry.pending.get(clientRequestId);
+  if (pendingRequest) {
+    globalThis.clearTimeout(pendingRequest.timeout_id);
+    registry.pending.delete(clientRequestId);
+  }
+  registry.preserved.delete(clientRequestId);
+  registry.rejected.delete(clientRequestId);
+  registry.settled.delete(clientRequestId);
+  registry.tracked.delete(clientRequestId);
+}
+
 export function cancelPendingRequestAcks(
   registry: PendingRequestAckRegistry,
   reason: string,
+  keepPreserved = false,
 ): void {
   for (const [
     clientRequestId,
     pendingRequest,
   ] of registry.pending.entries()) {
+    if (keepPreserved && registry.preserved.has(clientRequestId)) {
+      continue;
+    }
     globalThis.clearTimeout(pendingRequest.timeout_id);
     pendingRequest.reject(new RequestAcceptanceUnknownError(reason));
     registry.pending.delete(clientRequestId);
+    registry.preserved.delete(clientRequestId);
   }
-  registry.settled.clear();
-  registry.rejected.clear();
-  registry.tracked.clear();
+  for (const requestId of registry.settled) {
+    if (!keepPreserved || !registry.preserved.has(requestId)) {
+      registry.settled.delete(requestId);
+      registry.preserved.delete(requestId);
+    }
+  }
+  for (const requestId of registry.rejected.keys()) {
+    if (!keepPreserved || !registry.preserved.has(requestId)) {
+      registry.rejected.delete(requestId);
+      registry.preserved.delete(requestId);
+    }
+  }
+  for (const requestId of registry.tracked) {
+    if (!keepPreserved || !registry.preserved.has(requestId)) {
+      registry.tracked.delete(requestId);
+      registry.preserved.delete(requestId);
+    }
+  }
+  if (!keepPreserved) {
+    registry.preserved.clear();
+  }
 }
 
 export function waitForRequestAck(
@@ -135,6 +208,7 @@ export function waitForRequestAck(
     trackPendingRequestAck(registry, clientRequestId);
     if (registry.settled.delete(clientRequestId)) {
       registry.tracked.delete(clientRequestId);
+      registry.preserved.delete(clientRequestId);
       resolve();
       return;
     }
@@ -142,6 +216,7 @@ export function waitForRequestAck(
     if (rejectedError) {
       registry.rejected.delete(clientRequestId);
       registry.tracked.delete(clientRequestId);
+      registry.preserved.delete(clientRequestId);
       reject(rejectedError);
       return;
     }
@@ -163,8 +238,15 @@ export function usePendingRequestAcks() {
     resolvePendingRequestAck(registryRef.current, clientRequestId)
   ), []);
 
-  const trackRequestAck = useCallback((clientRequestId: string) => (
-    trackPendingRequestAck(registryRef.current, clientRequestId)
+  const trackRequestAck = useCallback((
+    clientRequestId: string,
+    preserveAcrossSessionTransition = false,
+  ) => (
+    trackPendingRequestAck(
+      registryRef.current,
+      clientRequestId,
+      preserveAcrossSessionTransition,
+    )
   ), []);
 
   const rejectRequestAck = useCallback((
@@ -174,23 +256,37 @@ export function usePendingRequestAcks() {
     rejectPendingRequestAck(registryRef.current, clientRequestId, reason)
   ), []);
 
+  const discardRequestAck = useCallback((clientRequestId: string) => {
+    discardPendingRequestAck(registryRef.current, clientRequestId);
+  }, []);
+
   const hasRequestAck = useCallback((clientRequestId: string) => (
     hasPendingRequestAck(registryRef.current, clientRequestId)
   ), []);
 
-  const cancelRequestAcks = useCallback((reason: string) => {
-    cancelPendingRequestAcks(registryRef.current, reason);
+  const cancelRequestAcks = useCallback((
+    reason: string,
+    keepPreserved = false,
+  ) => {
+    cancelPendingRequestAcks(registryRef.current, reason, keepPreserved);
   }, []);
 
   const waitForAck = useCallback((
     clientRequestId: string,
     onTimeout: () => void,
+    timeoutMs?: number,
   ) => (
-    waitForRequestAck(registryRef.current, clientRequestId, onTimeout)
+    waitForRequestAck(
+      registryRef.current,
+      clientRequestId,
+      onTimeout,
+      timeoutMs,
+    )
   ), []);
 
   return {
     cancel_pending_request_acks: cancelRequestAcks,
+    discard_pending_request_ack: discardRequestAck,
     has_pending_request_ack: hasRequestAck,
     reject_pending_request_ack: rejectRequestAck,
     resolve_pending_request_ack: resolveRequestAck,

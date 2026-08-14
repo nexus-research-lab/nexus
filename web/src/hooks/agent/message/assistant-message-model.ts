@@ -1,3 +1,8 @@
+/**
+ * INPUT: Assistant 实时增量、终态/历史快照与 ContentBlock。
+ * OUTPUT: 内容不回退且宿主 durable annotation 不丢失的 Assistant 消息。
+ * POS: 会话 transport 汇流前的 Assistant 单消息归一/合并边界。
+ */
 import type {
   AssistantMessage,
   Message,
@@ -221,6 +226,8 @@ export function mergeAssistantMessage(
     ),
     is_complete:
       normalizedIncoming.is_complete ?? normalizedExisting.is_complete,
+    handoff_reply:
+      normalizedIncoming.handoff_reply ?? normalizedExisting.handoff_reply,
     result_summary:
       normalizedIncoming.result_summary ?? normalizedExisting.result_summary,
     recalled_memories:

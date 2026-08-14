@@ -56,11 +56,13 @@ export function ComposerGoalModeIndicator({
 
 export function ComposerFooterStatus({
   activeError,
+  isGoalConfirming,
   isGoalCreating,
   isPreparingAttachments,
   runtimeActivity,
 }: {
   activeError: string | null;
+  isGoalConfirming: boolean;
   isGoalCreating: boolean;
   isPreparingAttachments: boolean;
   runtimeActivity: ComposerRuntimeActivity;
@@ -71,12 +73,14 @@ export function ComposerFooterStatus({
     copy: {
       compacting: t("composer.compacting_context"),
       goalCreating: t("composer.goal_normalizing"),
+      goalConfirming: t("composer.goal_confirming"),
       preparingAttachments: t("composer.preparing_attachments"),
       replying: t("status.replying"),
       sending: t("status.sending"),
       stopHint: `[${t("composer.esc_stop")}]`,
     },
     isGoalCreating,
+    isGoalConfirming,
     isPreparingAttachments,
     runtimeActivity,
   });

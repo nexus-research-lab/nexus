@@ -13,6 +13,7 @@ import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   AgentMention,
   GoalCompletionReceipt,
+  PublicHandoffReply,
   RecalledMemoryReference,
 } from "@/types/conversation/message/entity";
 import type {
@@ -70,6 +71,7 @@ interface AssistantHeaderState {
   agentId: string | null;
   automationTaskName: string | null;
   canStop: boolean;
+  handoffReply: PublicHandoffReply | null;
   stop: () => void;
   timestamp: number | undefined;
 }

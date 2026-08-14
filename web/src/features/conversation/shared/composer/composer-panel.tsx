@@ -170,6 +170,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 historyIndex={state.historyIndex}
                 inputHistoryLength={state.inputHistoryLength}
                 isActionMenuOpen={state.isActionMenuOpen}
+                isGoalConfirming={state.isGoalConfirming}
                 isGoalCreating={state.isGoalCreating}
                 isGoalMode={state.isGoalMode}
                 isNearLimit={state.isNearLimit}

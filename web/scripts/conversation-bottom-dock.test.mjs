@@ -164,12 +164,14 @@ test("Composer 回复阶段只保留停止快捷键提示", async () => {
     copy: {
       compacting: "正在压缩上下文",
       goalCreating: "正在创建 Goal",
+      goalConfirming: "正在确认 Goal",
       preparingAttachments: "正在准备附件",
       replying: "回复中",
       sending: "发送中",
       stopHint: "[ESC 停止]",
     },
     isGoalCreating: false,
+    isGoalConfirming: false,
     isPreparingAttachments: false,
     runtimeActivity: "replying",
   });
@@ -177,6 +179,29 @@ test("Composer 回复阶段只保留停止快捷键提示", async () => {
   assert.equal(projection.message, null);
   assert.equal(projection.frames, null);
   assert.equal(projection.hint, "[ESC 停止]");
+});
+
+test("Goal ACK 未知时显示确认中而不是伪成功", async () => {
+  const { projectComposerFooterStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-footer-model.ts",
+  );
+  const projection = projectComposerFooterStatus({
+    activeError: null,
+    copy: {
+      compacting: "正在压缩上下文",
+      goalCreating: "正在创建 Goal",
+      goalConfirming: "正在确认目标是否已受理",
+      preparingAttachments: "正在准备附件",
+      replying: "回复中",
+      sending: "发送中",
+      stopHint: "[ESC 停止]",
+    },
+    isGoalConfirming: true,
+    isGoalCreating: true,
+    isPreparingAttachments: false,
+    runtimeActivity: null,
+  });
+  assert.equal(projection.message, "正在确认目标是否已受理");
 });
 
 test("Goal Composer separates lead control, runtime status, and submit rows", async () => {

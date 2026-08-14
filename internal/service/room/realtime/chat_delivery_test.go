@@ -834,11 +834,16 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
 
-	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		roundID, _ := event.Data["round_id"].(string)
-		return event.EventType == protocol.EventTypeRoundStatus &&
-			strings.HasPrefix(roundID, "room_mention_") &&
-			event.Data["status"] == "finished"
+	annotatedTargetReplies := make(map[string]struct{}, 2)
+	events := collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType == protocol.EventTypeMessage &&
+			(event.MessageID == "devin-public-mention-1" || event.MessageID == "casey-public-mention-1") &&
+			protocol.NormalizePublicHandoffReply(event.Data["handoff_reply"]) != nil {
+			annotatedTargetReplies[event.MessageID] = struct{}{}
+		}
+		generating, _ := event.Data["is_generating"].(bool)
+		return len(annotatedTargetReplies) == 2 &&
+			event.EventType == protocol.EventTypeSessionStatus && !generating
 	})
 	var assistantPayload protocol.Message
 	assistantEventIndex := -1
@@ -957,6 +962,42 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 			t.Fatalf("目标 %s handoff 未随 runtime 收口: %+v", targetAgentID, handoff)
 		}
 	}
+	targetMessageIDs := map[string]struct{}{
+		"devin-public-mention-1": {},
+		"casey-public-mention-1": {},
+	}
+	realtimeReplies := make(map[string]*protocol.PublicHandoffReply, len(targetMessageIDs))
+	annotatedReplyEvents := make(map[string]int, len(targetMessageIDs))
+	for _, event := range events {
+		_, expected := targetMessageIDs[event.MessageID]
+		if !expected || event.EventType != protocol.EventTypeMessage ||
+			event.Data["role"] != "assistant" || event.Data["is_complete"] != true {
+			continue
+		}
+		targetAgentID := event.AgentID
+		reply := protocol.NormalizePublicHandoffReply(event.Data["handoff_reply"])
+		if reply == nil {
+			continue
+		}
+		if reply.HandoffID != mentionByAgentID[targetAgentID].HandoffID ||
+			reply.SourceMessageID != "amy-public-mention-1" || reply.SourceAgentID != amy.AgentID {
+			t.Fatalf("realtime target reply annotation mismatch: target=%s expected_handoff=%q expected_source=%q event=%+v reply=%+v",
+				targetAgentID, mentionByAgentID[targetAgentID].HandoffID, amy.AgentID, event, reply)
+		}
+		if event.Data["agent_mentions"] != nil {
+			t.Fatalf("plain target reply must not synthesize reciprocal @: %+v", event.Data)
+		}
+		realtimeReplies[event.MessageID] = reply
+		annotatedReplyEvents[event.MessageID]++
+	}
+	if len(realtimeReplies) != len(targetMessageIDs) {
+		t.Fatalf("not every target realtime final carried handoff_reply: %+v", realtimeReplies)
+	}
+	for messageID, count := range annotatedReplyEvents {
+		if count != 1 {
+			t.Fatalf("target %s must receive exactly one terminal handoff_reply update, got %d", messageID, count)
+		}
+	}
 }
 
 func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
@@ -1032,7 +1073,7 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 	}
 
 	finishedMentionRounds := 0
-	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+	events := collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
 		if event.EventType != protocol.EventTypeRoundStatus {
 			return false
 		}
@@ -1059,6 +1100,34 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 		if handoff.Status != "finished" {
 			t.Fatalf("reciprocal handoff 未随目标 runtime 收口: %+v", handoff)
 		}
+	}
+	var amyToDevin workspacestore.RoomPublicHandoff
+	for _, handoff := range handoffs {
+		if handoff.SourceAgentID == amy.AgentID && handoff.TargetAgentID == devin.AgentID {
+			amyToDevin = handoff
+			break
+		}
+	}
+	if amyToDevin.HandoffID == "" {
+		t.Fatalf("missing Amy to Devin handoff: %+v", handoffs)
+	}
+	var devinReply protocol.Message
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeMessage &&
+			event.MessageID == "devin-public-mention-chain-1" &&
+			event.Data["role"] == "assistant" && event.Data["is_complete"] == true &&
+			protocol.NormalizePublicHandoffReply(event.Data["handoff_reply"]) != nil {
+			devinReply = protocol.Message(event.Data)
+			break
+		}
+	}
+	reply := protocol.NormalizePublicHandoffReply(devinReply["handoff_reply"])
+	if reply == nil || reply.HandoffID != amyToDevin.HandoffID ||
+		reply.SourceMessageID != "amy-public-mention-chain-1" || reply.SourceAgentID != amy.AgentID {
+		t.Fatalf("reciprocal target must retain source reply annotation: reply=%+v message=%+v", reply, devinReply)
+	}
+	if mentionCountFromTestValue(devinReply["agent_mentions"]) != 1 {
+		t.Fatalf("explicit @Amy must coexist with handoff_reply as a new action: %+v", devinReply)
 	}
 }
 

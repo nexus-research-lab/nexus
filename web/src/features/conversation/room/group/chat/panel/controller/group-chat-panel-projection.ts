@@ -27,6 +27,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { ExecutionView } from "@/types/conversation/execution";
+import type { Goal } from "@/types/conversation/goal";
 
 import type {
   GroupChatComposerModel,
@@ -93,6 +94,7 @@ interface BuildGroupChatPanelViewModelOptions {
   onCreateConversation: (
     title?: string,
   ) => void | Promise<string | null>;
+  onGoalChange: (goal: Goal | null) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
     toolUseId: string,
@@ -117,6 +119,7 @@ export function buildGroupChatPanelViewModel({
   feedTimeline,
   goal,
   onCreateConversation,
+  onGoalChange,
   onOpenAgentContact,
   onOpenSubagentTask,
   onOpenWorkGraph,
@@ -175,6 +178,7 @@ export function buildGroupChatPanelViewModel({
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),
     goalPanel: buildGoalPanelModel({
       goal,
+      onGoalChange,
       roomHostAgentId,
       roomHostAutoReplyEnabled,
       roomMembers,
@@ -275,6 +279,7 @@ function buildGoalLeadModel({
 
 function buildGoalPanelModel({
   goal,
+  onGoalChange,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
   roomMembers,
@@ -282,6 +287,7 @@ function buildGoalPanelModel({
 }: Pick<
   BuildGroupChatPanelViewModelOptions,
   | "goal"
+  | "onGoalChange"
   | "roomHostAgentId"
   | "roomHostAutoReplyEnabled"
   | "roomMembers"
@@ -295,6 +301,7 @@ function buildGoalPanelModel({
       goal.refreshSequence,
     ),
     isLoading: conversation.is_loading,
+    onGoalChange,
     roomHostAgentId,
     roomHostAutoReplyEnabled,
     roomMembers,

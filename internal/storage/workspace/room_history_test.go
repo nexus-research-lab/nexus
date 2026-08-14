@@ -198,7 +198,7 @@ func TestRoomHistoryStoreRejectsCrossOwnerStateSymlink(t *testing.T) {
 	}
 }
 
-func TestRoomHistoryStoreMergesLateMentionAnnotationReference(t *testing.T) {
+func TestRoomHistoryStoreMergesLateHostAnnotationsReference(t *testing.T) {
 	configRoot := t.TempDir()
 	stateRoot := filepath.Join(configRoot, ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
@@ -250,6 +250,11 @@ func TestRoomHistoryStoreMergesLateMentionAnnotationReference(t *testing.T) {
 	annotated["agent_mentions"] = []protocol.AgentMention{{
 		AgentID: "agent-devin", Label: "Devin", StartRune: 0, EndRune: 6,
 	}}
+	annotated["handoff_reply"] = &protocol.PublicHandoffReply{
+		HandoffID:       "rh-reply-1",
+		SourceMessageID: "assistant-source-1",
+		SourceAgentID:   "agent-lead",
+	}
 	if err := history.AppendTranscriptReference(
 		testRoomOwnerUserID,
 		"conversation-1",
@@ -270,5 +275,11 @@ func TestRoomHistoryStoreMergesLateMentionAnnotationReference(t *testing.T) {
 	mentions, ok := rows[0]["agent_mentions"].([]any)
 	if !ok || len(mentions) != 1 {
 		t.Fatalf("迟到的 agent_mentions 应保留在历史: %+v", rows[0])
+	}
+	reply := protocol.NormalizePublicHandoffReply(rows[0]["handoff_reply"])
+	if reply == nil || reply.HandoffID != "rh-reply-1" ||
+		reply.SourceMessageID != "assistant-source-1" ||
+		reply.SourceAgentID != "agent-lead" {
+		t.Fatalf("迟到的 handoff_reply 应与 mention 同构保留: %+v", rows[0])
 	}
 }

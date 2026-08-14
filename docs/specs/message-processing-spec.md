@@ -267,7 +267,7 @@ A 完成后：
 - guide 的 ACK、fallback、`guided_input` 等控制事件合并为目标卡片的一行轻量状态；详细过程放入 Thread，不生成独立大气泡。
 - 尚未消费的用户 queue item 只出现在 composer 的待发送队列；消费后才进入时间线，且只进入一次。
 - 用户入队请求只有在收到 `input_queue_ack` 后才能清空 composer；队列项即使在 ACK 前后被立即派发，重试也必须由持久化幂等记录返回原 `item_id`，不得创建第二轮。
-- Agent public handoff 的 `detected/queued/running` 不生成“系统发言”气泡。源消息中的 `@Agent` chip 是唯一的交接正文，目标卡片只显示排队/运行状态；目标 final reply 到达后才显示完整回复。
+- Agent public handoff 的 `detected/queued/running` 不生成“系统发言”气泡。源消息中的 `@Agent` chip 是唯一的交接正文，目标卡片只显示排队/运行状态；目标 final reply 到达后才显示完整回复，并可用宿主 `handoff_reply` 注解在消息头展示非动作的“回应 `@成员`”因果。这里的 `@` 只是宿主投影的成员来源标识，不得进入正文、`agent_mentions`、mention URI、handoff detector 或 wake。
 - no-reply、空 assistant、纯 result 和重复 wake 不占用独立时间线行。
 
 ### 6.4 消息渲染的密度边界

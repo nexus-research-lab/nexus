@@ -1,6 +1,6 @@
 /**
  * INPUT: Room/DM Session 草稿作用域、完整 Composer 草稿更新与消息/Goal 本地派发事务。
- * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人、Mention 目标、Goal 提交态与失败错误，并保护迟到结果不覆盖新输入。
+ * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人、Mention 目标、Goal 提交/恢复回执与失败错误，并保护迟到结果不覆盖新输入。
  * POS: Composer 用户输入草稿的客户端内存真相源；不持久化瞬时 UI 或浏览器刷新。
  */
 
@@ -8,6 +8,7 @@ import { create } from "zustand";
 
 import type { ComposerLocalAttachment } from "./attachments/composer-local-attachment-model";
 import type { ComposerInputMode } from "./composer-model";
+import type { ComposerGoalBaseline } from "./composer-goal-observation";
 
 export interface ComposerDraftContent {
   attachments: ComposerLocalAttachment[];
@@ -22,9 +23,29 @@ export interface ComposerDraftSnapshot extends ComposerDraftContent {
 }
 
 export interface ComposerGoalSubmission {
+  baselineGoal: ComposerGoalBaseline | null;
   scopeKey: string;
   submissionId: number;
   submittedDraft: ComposerDraftSnapshot;
+}
+
+export interface ComposerGoalConfirmationIdentity {
+  clientMessageId: string;
+  clientRequestId: string;
+  sessionKey: string;
+}
+
+export type ComposerGoalSubmissionPhase = "confirming" | "submitting";
+
+export interface ComposerGoalSubmissionState
+  extends ComposerGoalSubmission {
+  confirmationIdentity: ComposerGoalConfirmationIdentity | null;
+  phase: ComposerGoalSubmissionPhase;
+}
+
+export interface ComposerGoalRecovery extends ComposerGoalSubmission {
+  confirmationIdentity: ComposerGoalConfirmationIdentity;
+  restoredDraftRevision: number;
 }
 
 type ComposerDraftUpdate = (
@@ -35,11 +56,13 @@ interface ComposerDraftStoreState {
   draft_revision: number;
   drafts_by_scope: Record<string, ComposerDraftSnapshot>;
   goal_error_by_scope: Record<string, string>;
+  goal_recovery_by_scope: Record<string, ComposerGoalRecovery>;
   goal_submission_revision: number;
-  goal_submission_by_scope: Record<string, number>;
+  goal_submission_by_scope: Record<string, ComposerGoalSubmissionState>;
   begin_goal_submission: (
     scopeKey: string,
     expectedRevision: number,
+    baselineGoal?: ComposerGoalBaseline | null,
   ) => ComposerGoalSubmission | null;
   claim_composer_draft_for_submission: (
     scopeKey: string,
@@ -50,9 +73,15 @@ interface ComposerDraftStoreState {
     submittedDraft: ComposerDraftSnapshot,
   ) => boolean;
   complete_goal_submission: (submission: ComposerGoalSubmission) => boolean;
+  complete_goal_recovery: (recovery: ComposerGoalRecovery) => boolean;
+  mark_goal_submission_confirming: (
+    submission: ComposerGoalSubmission,
+    confirmationIdentity?: ComposerGoalConfirmationIdentity | null,
+  ) => boolean;
   fail_goal_submission: (
     submission: ComposerGoalSubmission,
     errorMessage: string,
+    confirmationIdentity?: ComposerGoalConfirmationIdentity | null,
   ) => boolean;
   set_goal_error: (scopeKey: string, errorMessage: string | null) => void;
   update_composer_draft: (
@@ -95,9 +124,10 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
-    begin_goal_submission: (scopeKey, expectedRevision) => {
+    begin_goal_submission: (scopeKey, expectedRevision, baselineGoal = null) => {
       const normalizedScopeKey = normalizeDraftScopeKey(scopeKey);
       if (!normalizedScopeKey) {
         return null;
@@ -118,11 +148,14 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
         const submissionId = state.goal_submission_revision + 1;
         const drafts = { ...state.drafts_by_scope };
         const errors = { ...state.goal_error_by_scope };
+        const recoveries = { ...state.goal_recovery_by_scope };
         if (current) {
           delete drafts[normalizedScopeKey];
         }
         delete errors[normalizedScopeKey];
+        delete recoveries[normalizedScopeKey];
         submission = {
+          baselineGoal,
           scopeKey: normalizedScopeKey,
           submissionId,
           submittedDraft: cloneDraftSnapshot(submittedDraft),
@@ -130,10 +163,15 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
         return {
           drafts_by_scope: drafts,
           goal_error_by_scope: errors,
+          goal_recovery_by_scope: recoveries,
           goal_submission_revision: submissionId,
           goal_submission_by_scope: {
             ...state.goal_submission_by_scope,
-            [normalizedScopeKey]: submissionId,
+            [normalizedScopeKey]: {
+              ...submission,
+              confirmationIdentity: null,
+              phase: "submitting",
+            },
           },
         };
       });
@@ -193,7 +231,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
       let completed = false;
       set((state) => {
         if (
-          state.goal_submission_by_scope[submission.scopeKey]
+          state.goal_submission_by_scope[submission.scopeKey]?.submissionId
           !== submission.submissionId
         ) {
           return state;
@@ -205,11 +243,79 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
       });
       return completed;
     },
-    fail_goal_submission: (submission, errorMessage) => {
+    complete_goal_recovery: (recovery) => {
+      let completed = false;
+      set((state) => {
+        const currentRecovery = state.goal_recovery_by_scope[recovery.scopeKey];
+        if (
+          currentRecovery?.submissionId !== recovery.submissionId
+          || currentRecovery.confirmationIdentity.clientMessageId
+            !== recovery.confirmationIdentity.clientMessageId
+          || currentRecovery.confirmationIdentity.clientRequestId
+            !== recovery.confirmationIdentity.clientRequestId
+          || currentRecovery.confirmationIdentity.sessionKey
+            !== recovery.confirmationIdentity.sessionKey
+        ) {
+          return state;
+        }
+        const recoveries = { ...state.goal_recovery_by_scope };
+        const errors = { ...state.goal_error_by_scope };
+        delete recoveries[recovery.scopeKey];
+        delete errors[recovery.scopeKey];
+        completed = true;
+        const currentDraft = state.drafts_by_scope[recovery.scopeKey];
+        if (currentDraft?.revision !== recovery.restoredDraftRevision) {
+          return {
+            goal_error_by_scope: errors,
+            goal_recovery_by_scope: recoveries,
+          };
+        }
+        const drafts = { ...state.drafts_by_scope };
+        delete drafts[recovery.scopeKey];
+        return {
+          drafts_by_scope: drafts,
+          goal_error_by_scope: errors,
+          goal_recovery_by_scope: recoveries,
+        };
+      });
+      return completed;
+    },
+    mark_goal_submission_confirming: (
+      submission,
+      confirmationIdentity = null,
+    ) => {
+      let marked = false;
+      set((state) => {
+        const current = state.goal_submission_by_scope[submission.scopeKey];
+        if (
+          current?.submissionId !== submission.submissionId
+          || current.phase === "confirming"
+        ) {
+          return state;
+        }
+        marked = true;
+        return {
+          goal_submission_by_scope: {
+            ...state.goal_submission_by_scope,
+            [submission.scopeKey]: {
+              ...current,
+              confirmationIdentity,
+              phase: "confirming",
+            },
+          },
+        };
+      });
+      return marked;
+    },
+    fail_goal_submission: (
+      submission,
+      errorMessage,
+      confirmationIdentity = null,
+    ) => {
       let restored = false;
       set((state) => {
         if (
-          state.goal_submission_by_scope[submission.scopeKey]
+          state.goal_submission_by_scope[submission.scopeKey]?.submissionId
             !== submission.submissionId
         ) {
           return state;
@@ -227,6 +333,16 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
         } else {
           delete errors[submission.scopeKey];
         }
+        const recoveries = { ...state.goal_recovery_by_scope };
+        if (confirmationIdentity) {
+          recoveries[submission.scopeKey] = {
+            ...submission,
+            confirmationIdentity,
+            restoredDraftRevision: revision,
+          };
+        } else {
+          delete recoveries[submission.scopeKey];
+        }
         restored = true;
         return {
           draft_revision: revision,
@@ -238,6 +354,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             },
           },
           goal_error_by_scope: errors,
+          goal_recovery_by_scope: recoveries,
           goal_submission_by_scope: pending,
         };
       });

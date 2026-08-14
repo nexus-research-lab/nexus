@@ -12,10 +12,12 @@ import type { ComposerLocalAttachment } from "../attachments/composer-local-atta
 import {
   EMPTY_COMPOSER_DRAFT,
   type ComposerDraftSnapshot,
+  type ComposerGoalConfirmationIdentity,
   type ComposerGoalSubmission,
   useComposerDraftStore,
 } from "../composer-draft-store";
 import type { ComposerInputMode } from "../composer-model";
+import { readObservedComposerGoal } from "../composer-goal-observation";
 
 interface ComposerDraftTransientState {
   isActionMenuOpen: boolean;
@@ -25,6 +27,7 @@ interface ComposerDraftTransientState {
 interface ComposerDraftState
   extends ComposerDraftSnapshot, ComposerDraftTransientState {
   goalError: string | null;
+  isGoalConfirming: boolean;
   isGoalCreating: boolean;
 }
 
@@ -53,6 +56,11 @@ export interface ComposerDraftController {
   failGoalSubmission: (
     submission: ComposerGoalSubmission,
     errorMessage: string,
+    confirmationIdentity?: ComposerGoalConfirmationIdentity | null,
+  ) => boolean;
+  markGoalSubmissionConfirming: (
+    submission: ComposerGoalSubmission,
+    confirmationIdentity?: ComposerGoalConfirmationIdentity | null,
   ) => boolean;
   restoreFailedMessageSubmission: (
     submittedDraft: ComposerDraftSnapshot,
@@ -78,6 +86,11 @@ export function useComposerDraft(
   const isGoalCreating = useComposerDraftStore(
     (state) => Boolean(state.goal_submission_by_scope[draftScopeKey]),
   );
+  const isGoalConfirming = useComposerDraftStore(
+    (state) => (
+      state.goal_submission_by_scope[draftScopeKey]?.phase === "confirming"
+    ),
+  );
   const beginGoalSubmission = useComposerDraftStore(
     (state) => state.begin_goal_submission,
   );
@@ -92,6 +105,9 @@ export function useComposerDraft(
   );
   const failGoalSubmission = useComposerDraftStore(
     (state) => state.fail_goal_submission,
+  );
+  const markGoalSubmissionConfirming = useComposerDraftStore(
+    (state) => state.mark_goal_submission_confirming,
   );
   const setComposerGoalError = useComposerDraftStore(
     (state) => state.set_goal_error,
@@ -197,6 +213,7 @@ export function useComposerDraft(
   const beginScopedGoalSubmission = useCallback(() => beginGoalSubmission(
     draftScopeKey,
     draftSnapshot.revision,
+    readObservedComposerGoal(draftScopeKey),
   ), [beginGoalSubmission, draftScopeKey, draftSnapshot.revision]);
 
   return {
@@ -204,6 +221,7 @@ export function useComposerDraft(
       ...transientState,
       ...draftSnapshot,
       goalError,
+      isGoalConfirming,
       isGoalCreating,
     },
     applyPrompt,
@@ -212,6 +230,7 @@ export function useComposerDraft(
     claimMessageSubmission: claimDraftSubmission,
     completeGoalSubmission,
     failGoalSubmission,
+    markGoalSubmissionConfirming,
     restoreFailedMessageSubmission: restoreFailedDraftSubmission,
     setActionMenuOpen,
     setAttachments,

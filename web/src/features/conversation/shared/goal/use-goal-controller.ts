@@ -124,8 +124,10 @@ export function useGoalController({
   }, [activityKey, refresh]);
 
   useEffect(() => {
-    onGoalChange?.(goal);
-  }, [goal, onGoalChange]);
+    if (!isLoading) {
+      onGoalChange?.(goal);
+    }
+  }, [goal, isLoading, onGoalChange]);
 
   return {
     actions: {

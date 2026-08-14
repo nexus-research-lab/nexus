@@ -4,7 +4,10 @@
  * POS: 前端会话消息协议的类型真相源。
  */
 
-import type { DeliveryMode } from "../../generated/protocol";
+import type {
+  DeliveryMode,
+  PublicHandoffReply as ProtocolPublicHandoffReply,
+} from "../../generated/protocol";
 import type { SessionId } from "../../system/sdk";
 import type { MessageAttachment } from "./attachment";
 import type { ContentBlock } from "./content";
@@ -19,6 +22,12 @@ export interface AgentMention {
   end_rune: number;
   handoff_id?: string;
 }
+
+/**
+ * 宿主确认一次 public handoff 的目标 Agent 已给出最终回复。
+ * 这是展示/恢复事实，不是可点击 mention，也不授予任何唤醒能力。
+ */
+export type PublicHandoffReply = ProtocolPublicHandoffReply;
 
 interface BaseMessage {
   message_id: string;
@@ -127,6 +136,8 @@ export interface AssistantMessage extends BaseMessage {
   recalled_memories?: RecalledMemoryReference[];
   /** 服务端解析出的可点击 Agent mention span。 */
   agent_mentions?: AgentMention[];
+  /** 宿主签发的 public handoff 回执；独立于正文中的显式 Agent mention。 */
+  handoff_reply?: PublicHandoffReply;
   /** 宿主生成消息的结构化来源；展示层不得依赖正文前缀识别定时任务。 */
   metadata?: Record<string, unknown>;
   /** 前端流式状态，不属于后端持久化消息字段。 */

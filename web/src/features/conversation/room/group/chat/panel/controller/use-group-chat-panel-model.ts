@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo } from "react";
 
+import { useComposerGoalSubmissionReconciliation } from "@/features/conversation/shared/composer/composer-goal-submission-reconciliation";
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
@@ -105,6 +106,10 @@ export function useGroupChatPanelModel({
     sessionKey: session.sessionKey,
     runtimeKind,
   });
+  const reconcileGoalSubmission = useComposerGoalSubmissionReconciliation(
+    composer.draftScopeKey,
+    session.conversation.messages,
+  );
 
   useRoomThreadSource({
     agentAvatarMap: directory.avatars,
@@ -128,6 +133,7 @@ export function useGroupChatPanelModel({
     execution: executionResource,
     feedTimeline,
     goal,
+    onGoalChange: reconcileGoalSubmission,
     onCreateConversation,
     onOpenAgentContact,
     onOpenSubagentTask,

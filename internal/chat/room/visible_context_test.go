@@ -183,6 +183,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"recipients: string[]",
 		"next_reply_route: {...}",
 		"unless the source explicitly requests",
+		"handoff_reply",
+		"goal_id",
+		"objective_revision",
+		"The host already associates and returns your final public reply through this source handoff.",
 	} {
 		if strings.Contains(systemPrompt, unexpected) {
 			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
@@ -206,7 +210,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"Amy: @Devin @sam 谁先来？",
 		"Assistant(Amy): 第一轮开始",
 		"This source message is already published in the Room.",
-		"Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm it.",
+		"The host already associates and returns your final public reply through this source handoff.",
+		"Do not @ the source merely to address them, confirm delivery, or tell them to continue or close the current step",
+		"@ the source only when you genuinely require a distinct new conversational contribution.",
+		"Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm the source message.",
 		"A public mention is conversation-only",
 		"If it requests no new contribution, output exactly <nexus_room_no_reply/>.",
 	} {
@@ -228,6 +235,9 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"from:",
 		"to:",
 		"message:",
+		"handoff_reply",
+		"goal_id",
+		"objective_revision",
 	} {
 		if strings.Contains(contextValue, unexpected) {
 			t.Fatalf("Room 动态输入不应重复固定规则 %q:\n%s", unexpected, contextValue)
@@ -267,6 +277,9 @@ func TestBuildRoomVisibleContextIncludesPublicMentionSourceOnlyOnce(t *testing.T
 	}
 	for _, expected := range []string{
 		"This source message is already published in the Room.",
+		"The host already associates and returns your final public reply through this source handoff.",
+		"Do not @ the source merely to address them, confirm delivery, or tell them to continue or close the current step",
+		"@ the source only when you genuinely require a distinct new conversational contribution.",
 		"A public mention is conversation-only",
 		"never carries or activates a managed Assignment",
 		"If it requests no new contribution, output exactly <nexus_room_no_reply/>.",

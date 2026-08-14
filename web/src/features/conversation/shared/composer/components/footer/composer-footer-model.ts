@@ -25,6 +25,7 @@ export interface ComposerFooterProps {
   historyIndex: number;
   inputHistoryLength: number;
   isActionMenuOpen: boolean;
+  isGoalConfirming: boolean;
   isGoalCreating: boolean;
   isGoalMode: boolean;
   isNearLimit: boolean;
@@ -50,6 +51,7 @@ export interface ComposerFooterProps {
 export interface ComposerFooterStatusCopy {
   compacting: string;
   goalCreating: string;
+  goalConfirming: string;
   preparingAttachments: string;
   replying: string;
   sending: string;
@@ -80,12 +82,14 @@ export function projectComposerFooterStatus({
   activeError,
   copy,
   isGoalCreating,
+  isGoalConfirming,
   isPreparingAttachments,
   runtimeActivity,
 }: {
   activeError: string | null;
   copy: ComposerFooterStatusCopy;
   isGoalCreating: boolean;
+  isGoalConfirming: boolean;
   isPreparingAttachments: boolean;
   runtimeActivity: ComposerRuntimeActivity;
 }): ComposerFooterStatusProjection | null {
@@ -105,7 +109,9 @@ export function projectComposerFooterStatus({
         className: "text-(--brand-action)",
         frames: PREPARING_FRAMES,
         hint: null,
-        message: copy.goalCreating,
+        message: isGoalConfirming
+          ? copy.goalConfirming
+          : copy.goalCreating,
         messageClassName: "animate-pulse",
       }
       : null,

@@ -1,5 +1,5 @@
 // INPUT: 已完成 Agent 输出中的显式公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 任意非 self 成员间幂等 handoff、同 Agent 串行 guide/queue/新轮唤醒、服务端分类的 handoff/queue 执行来源，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
+// OUTPUT: 任意非 self 成员间幂等 handoff、成功 target 的同 message-id reply 因果更新、同 Agent 串行 guide/queue/新轮唤醒、服务端分类的 handoff/queue 执行来源，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
 // POS: Room Agent 间公开协作的显式路由与纯资源护栏入口；不解释或限制业务协作拓扑。
 package realtime
 
@@ -63,10 +63,12 @@ func (s *Service) collectPublicMentionWakes(
 	if err != nil {
 		return err
 	}
-	// result 投影可能晚于首个 assistant 快照到达；此时实时事件已经拿到标注，
-	// 但首条 transcript 引用仍是旧快照。追加同 message_id 的引用作为可压缩更新，
-	// 让历史回放与实时渲染保持同一份 agent_mentions。
-	if len(protocolAgentMentions(message["agent_mentions"])) > 0 {
+	hasHandoffReply := protocol.NormalizePublicHandoffReply(message["handoff_reply"]) != nil
+	// result 投影晚于首个 assistant 快照；成功终态确定后才追加同
+	// message_id 的可压缩引用，让历史回放与随后的实时宿主更新保持
+	// 同一份 host annotation。
+	if len(protocolAgentMentions(message["agent_mentions"])) > 0 ||
+		hasHandoffReply {
 		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 			return err
 		}
@@ -78,6 +80,25 @@ func (s *Service) collectPublicMentionWakes(
 		); err != nil {
 			return err
 		}
+	}
+	// Runtime 的完整 assistant frame 早于 terminal result，不能提前把它
+	// 投影成成功回执。slot 成功收口后用同一 message_id 广播宿主更新；
+	// 前端与历史都按稳定消息身份合并，且这条投影不会再次进入 handoff 检测。
+	if hasHandoffReply {
+		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+			return err
+		}
+		s.broadcastSharedEventWithTimeout(
+			ctx,
+			roundValue.SessionKey,
+			roundValue.RoomID,
+			roomdomain.WrapMessageEvent(
+				roundValue.RoomID,
+				roundValue.ConversationID,
+				message,
+				roundValue.RootRoundID,
+			),
+		)
 	}
 	// 标注阶段会剥离 fanout 控制标记并重写 span；必须用清理后的正文
 	// 生成 queue trigger，避免隐藏标记进入目标 Agent 上下文。
