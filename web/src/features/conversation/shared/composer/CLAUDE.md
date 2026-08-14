@@ -18,6 +18,8 @@ L4 | 父级: web/src/features/conversation/shared
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
 - `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列和 Loop 选择器
 
+DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不公开入口。附加目录独立于 Agent workspace CWD，保存期间与模型/权限设置一样阻止新一轮提交。
+
 输入、运行时、模式和动作状态先在控制器中分别投影，再组装为扁平视图契约；面板不得重新解释发送条件和提示文案。
 运行时投影必须保留明确的发送、回复和上下文压缩阶段，Footer 不从通用 loading 状态猜测压缩行为。
 发送目标先投影为 `send/enqueue + delivery policy`，消息提交按资格判断、附件准备、投递和收尾分阶段执行。

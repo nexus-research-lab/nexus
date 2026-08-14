@@ -36,6 +36,8 @@ export interface ComposerPanelProps {
   runtimePhase: AgentConversationRuntimePhase | null;
   runtimeKind: AgentRuntimeKind;
   sessionSettings?: ComposerSessionSettingsScope;
+  /** 桌面端可为该 DM Session 挂载本机目录。 */
+  localDirectorySessionKey?: string;
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
@@ -118,14 +120,14 @@ const INPUT_ROW_PADDING: Record<
   Record<"default" | "goal" | "queue", string>
 > = {
   compact: {
-    default: "px-3.5 pb-1 pt-3",
-    goal: "px-3.5 pb-1 pt-3",
-    queue: "px-3.5 pb-1 pt-2",
+    default: "px-3.5 pb-0.5 pt-1",
+    goal: "px-3.5 pb-0.5 pt-1",
+    queue: "px-3.5 pb-0.5 pt-0",
   },
   regular: {
-    default: "px-3.5 pb-1 pt-4",
-    goal: "px-3.5 pb-1 pt-3.5",
-    queue: "px-3.5 pb-1 pt-2.5",
+    default: "px-3.5 pb-0.5 pt-1.5",
+    goal: "px-3.5 pb-0.5 pt-1.5",
+    queue: "px-3.5 pb-0.5 pt-0.5",
   },
 };
 

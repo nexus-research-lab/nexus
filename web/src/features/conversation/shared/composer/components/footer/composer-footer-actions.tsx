@@ -1,5 +1,13 @@
 import type { ReactNode, RefObject } from "react";
-import { Check, Loader2, Paperclip, Plus, Repeat2, Target } from "lucide-react";
+import {
+  Check,
+  FolderPlus,
+  Loader2,
+  Paperclip,
+  Plus,
+  Repeat2,
+  Target,
+} from "lucide-react";
 
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -9,8 +17,9 @@ import {
 } from "@/shared/ui/menu/action-menu";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
+import type { ComposerLocalDirectoriesController } from "../../controller/use-composer-local-directories";
 
-type ComposerActionValue = "attachment" | "goal" | "loop";
+type ComposerActionValue = "attachment" | "directory" | "goal" | "loop";
 
 interface ComposerFooterActionsProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
@@ -20,11 +29,13 @@ interface ComposerFooterActionsProps {
   isGoalCreating: boolean;
   isGoalMode: boolean;
   isPreparingAttachments: boolean;
+  localDirectoriesController: ComposerLocalDirectoriesController;
   onActionMenuClose: () => void;
   onActionMenuToggle: () => void;
   onAttachmentSelect: () => void;
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
+  onLocalDirectorySelect: () => void;
   sessionSettingsController: ComposerSessionSettingsController;
   sessionSettingsDisabled: boolean;
 }
@@ -42,17 +53,20 @@ export function ComposerFooterActions({
   isGoalCreating,
   isGoalMode,
   isPreparingAttachments,
+  localDirectoriesController,
   onActionMenuClose,
   onActionMenuToggle,
   onAttachmentSelect,
   onGoalToggle,
   onLoopSelect,
+  onLocalDirectorySelect,
   sessionSettingsController,
   sessionSettingsDisabled,
 }: ComposerFooterActionsProps) {
   const { t } = useI18n();
   const items = buildActionItems({
     canCreateGoal,
+    canUseLocalDirectories: localDirectoriesController.available,
     canUseLoop,
     goalSwitch: (
       <span
@@ -71,15 +85,21 @@ export function ComposerFooterActions({
     ),
     isGoalCreating,
     isGoalMode,
+    isLocalDirectoryBusy:
+      sessionSettingsDisabled
+      || localDirectoriesController.loading
+      || localDirectoriesController.saving,
     isPreparingAttachments,
     labels: {
       attachment: t("composer.add_attachment"),
+      directory: t("composer.add_local_directory"),
       goal: t("composer.start_goal"),
       loop: t("composer.insert_loop"),
     },
   });
   const commands = new Map<string, () => void>([
     ["attachment", onAttachmentSelect],
+    ["directory", onLocalDirectorySelect],
     ["loop", onLoopSelect],
     ["goal", () => onGoalToggle(!isGoalMode)],
   ]);
@@ -175,22 +195,35 @@ function buildConnectorItems({
 
 function buildActionItems({
   canCreateGoal,
+  canUseLocalDirectories,
   canUseLoop,
   goalSwitch,
   isGoalCreating,
   isGoalMode,
+  isLocalDirectoryBusy,
   isPreparingAttachments,
   labels,
 }: {
   canCreateGoal: boolean;
+  canUseLocalDirectories: boolean;
   canUseLoop: boolean;
   goalSwitch: ReactNode;
   isGoalCreating: boolean;
   isGoalMode: boolean;
+  isLocalDirectoryBusy: boolean;
   isPreparingAttachments: boolean;
   labels: Record<ComposerActionValue, string>;
 }): UiActionMenuItem[] {
   const candidates: VisibleActionItem[] = [
+    {
+      item: {
+        disabled: isGoalMode || isLocalDirectoryBusy,
+        icon: <FolderPlus className="h-4 w-4 text-(--icon-muted)" />,
+        label: labels.directory,
+        value: "directory",
+      },
+      visible: canUseLocalDirectories,
+    },
     {
       item: {
         disabled: isGoalMode || isPreparingAttachments,

@@ -104,6 +104,14 @@ export async function chooseDesktopStateRoot(
   title: string,
   prompt: string,
 ): Promise<DesktopStateRootSelectionResult> {
+  return chooseDesktopDirectory(initialPath, title, prompt);
+}
+
+export async function chooseDesktopDirectory(
+  initialPath: string,
+  title: string,
+  prompt: string,
+): Promise<DesktopStateRootSelectionResult> {
   return invokeDesktopBridge<
     { initial_path: string; prompt: string; title: string },
     DesktopStateRootSelectionResult

@@ -211,6 +211,7 @@ func (s *Service) ensureClient(
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
+		AdditionalDirectories:      protocol.SessionAdditionalDirectoriesFromOptions(sessionItem.Options),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
 		AppendSystemPromptStatic:   staticSystemPrompt,

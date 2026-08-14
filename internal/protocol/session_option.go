@@ -20,6 +20,8 @@ const (
 	OptionSessionPermissionMode = "session_permission_mode"
 	// OptionSessionConnectorIDs 表示当前 Nexus Session 显式挂载的 Connector。
 	OptionSessionConnectorIDs = "session_connector_ids"
+	// OptionSessionAdditionalDirectories 表示桌面会话显式挂载的本机目录。
+	OptionSessionAdditionalDirectories = "session_additional_directories"
 )
 
 // SessionRuntimeSettings 表示当前 Nexus Session 的运行时覆盖。
@@ -32,6 +34,11 @@ type SessionRuntimeSettings struct {
 	PermissionMode string `json:"permission_mode"`
 	// ConnectorIDs 为 nil 时继承 Agent 默认值；空数组表示当前 Session 显式不挂载。
 	ConnectorIDs *[]string `json:"connector_ids"`
+}
+
+// SessionLocalDirectories 表示当前 Session 额外挂载的本机目录。
+type SessionLocalDirectories struct {
+	Directories []string `json:"directories"`
 }
 
 // SessionRuntimeSettingsFromOptions 从 Session options 读取规范化覆盖。
@@ -83,6 +90,29 @@ func EffectiveSessionConnectorIDs(
 		return slices.Clone(*settings.ConnectorIDs)
 	}
 	return slices.Clone(agentConnectorIDs)
+}
+
+// SessionAdditionalDirectoriesFromOptions 从 Session options 读取附加目录。
+func SessionAdditionalDirectoriesFromOptions(options map[string]any) []string {
+	return sessionOptionStringSlice(options[OptionSessionAdditionalDirectories])
+}
+
+// WithSessionAdditionalDirectories 返回应用附加目录后的 options 副本。
+func WithSessionAdditionalDirectories(
+	options map[string]any,
+	directories []string,
+) map[string]any {
+	result := make(map[string]any, len(options)+1)
+	for key, value := range options {
+		result[key] = value
+	}
+	normalized := sessionOptionStringSlice(directories)
+	if len(normalized) == 0 {
+		delete(result, OptionSessionAdditionalDirectories)
+	} else {
+		result[OptionSessionAdditionalDirectories] = normalized
+	}
+	return result
 }
 
 func setSessionOption(options map[string]any, key string, value string) {

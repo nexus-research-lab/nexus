@@ -23,6 +23,7 @@ import { buildComposerViewState } from "./composer-controller-model";
 import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
 import { useComposerKeyboard } from "./use-composer-keyboard";
+import { useComposerLocalDirectories } from "./use-composer-local-directories";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
 import { useComposerSessionSettings } from "./use-composer-session-settings";
 
@@ -43,6 +44,7 @@ export function useComposerController({
   inputQueueItems,
   interactionIdentity = null,
   isLoading,
+  localDirectorySessionKey,
   onCreateGoal,
   onCreateLoopGoal,
   onEnqueueMessage,
@@ -58,6 +60,9 @@ export function useComposerController({
   const { t } = useI18n();
   const sessionSettingsController = useComposerSessionSettings(
     sessionSettings,
+  );
+  const localDirectories = useComposerLocalDirectories(
+    localDirectorySessionKey,
   );
   const draft = useComposerDraft(draftScopeKey);
   const {
@@ -189,7 +194,7 @@ export function useComposerController({
   });
   const { submitGoal } = goal;
   const handleSend = useCallback(async () => {
-    if (sessionSettingsController.saving) {
+    if (sessionSettingsController.saving || localDirectories.saving) {
       return;
     }
     if (isGoalMode) {
@@ -199,6 +204,7 @@ export function useComposerController({
     }
   }, [
     isGoalMode,
+    localDirectories.saving,
     sessionSettingsController.saving,
     submitGoal,
     submitMessage,
@@ -239,6 +245,10 @@ export function useComposerController({
     setActionMenuOpen(false);
     fileInputRef.current?.click();
   }, [setActionMenuOpen]);
+  const openLocalDirectoryPicker = useCallback(() => {
+    setActionMenuOpen(false);
+    void localDirectories.chooseDirectory();
+  }, [localDirectories, setActionMenuOpen]);
 
   const state = buildComposerViewState({
     attachmentCount: attachments.attachments.length,
@@ -263,7 +273,8 @@ export function useComposerController({
     isLoading,
     isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
-    isSessionSettingsSaving: sessionSettingsController.saving,
+    isSessionSettingsSaving:
+      sessionSettingsController.saving || localDirectories.saving,
     hasStopAction: Boolean(onStop),
     queueItemCount: inputQueueItems.length,
     runtimePhase,
@@ -277,6 +288,7 @@ export function useComposerController({
       textareaRef,
     },
     sessionSettings: sessionSettingsController,
+    localDirectories,
     state,
     attachments: {
       attachments: attachments.attachments,
@@ -326,6 +338,7 @@ export function useComposerController({
       handleLoopSelect: goal.handleLoopSelect,
       handleSend,
       openAttachmentPicker,
+      openLocalDirectoryPicker,
       openLoopPicker: goal.openLoopPicker,
       setIsActionMenuOpen: setActionMenuOpen,
       setIsLoopPickerOpen: setLoopPickerOpen,

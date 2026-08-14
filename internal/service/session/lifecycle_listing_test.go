@@ -12,6 +12,7 @@ import (
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	titlegensvc "github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
@@ -410,6 +411,97 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 		unchangedAgent.Options.Model != "agent-model" ||
 		unchangedAgent.Options.PermissionMode != "default" {
 		t.Fatalf("Session 设置不应修改 Agent 默认值: %+v", unchangedAgent.Options)
+	}
+}
+
+func TestSessionLocalDirectoriesRequireDesktopAndPersist(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	cfg.Debug = true
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db := newSessionTestAgentService(t, cfg)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "本机目录助手",
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		"ws",
+		"dm",
+		"local-directories",
+		"",
+	)
+	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{
+		SessionKey: sessionKey,
+	}); err != nil {
+		t.Fatalf("创建 Session 失败: %v", err)
+	}
+	if _, err = sessionService.GetLocalDirectories(ctx, sessionKey); !errors.Is(
+		err,
+		sessionsvc.ErrLocalDirectoriesUnavailable,
+	) {
+		t.Fatalf("普通 Web 读取错误 = %v", err)
+	}
+
+	desktopCtx := authctx.WithInteractiveHumanEvidence(
+		ctx,
+		"desktop_session_token",
+	)
+	directory := t.TempDir()
+	secondDirectory := t.TempDir()
+	updated, err := sessionService.UpdateLocalDirectories(
+		desktopCtx,
+		sessionKey,
+		protocol.SessionLocalDirectories{
+			Directories: []string{directory, directory},
+		},
+	)
+	if err != nil {
+		t.Fatalf("更新本机目录失败: %v", err)
+	}
+	if len(updated.Directories) != 1 || updated.Directories[0] != directory {
+		t.Fatalf("本机目录未去重: %+v", updated)
+	}
+	loaded, err := sessionService.GetLocalDirectories(desktopCtx, sessionKey)
+	if err != nil || len(loaded.Directories) != 1 || loaded.Directories[0] != directory {
+		t.Fatalf("读取持久化本机目录 = %+v, err=%v", loaded, err)
+	}
+	if _, err = sessionService.UpdateLocalDirectories(
+		desktopCtx,
+		sessionKey,
+		protocol.SessionLocalDirectories{Directories: []string{"relative"}},
+	); !errors.Is(err, sessionsvc.ErrInvalidLocalDirectories) {
+		t.Fatalf("相对目录错误 = %v", err)
+	}
+
+	directRoom, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("创建 Room-backed DM 失败: %v", err)
+	}
+	roomSessionKey := protocol.BuildRoomAgentSessionKey(
+		directRoom.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeDM,
+	)
+	if _, err = sessionService.UpdateLocalDirectories(
+		desktopCtx,
+		roomSessionKey,
+		protocol.SessionLocalDirectories{
+			Directories: []string{directory, secondDirectory},
+		},
+	); err != nil {
+		t.Fatalf("更新 Room-backed DM 本机目录失败: %v", err)
+	}
+	loaded, err = sessionService.GetLocalDirectories(desktopCtx, roomSessionKey)
+	if err != nil || len(loaded.Directories) != 2 ||
+		loaded.Directories[0] != directory ||
+		loaded.Directories[1] != secondDirectory {
+		t.Fatalf("读取 Room-backed DM 本机目录 = %+v, err=%v", loaded, err)
 	}
 }
 

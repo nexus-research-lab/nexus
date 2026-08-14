@@ -301,6 +301,65 @@ func (h *Handlers) HandleUpdateSessionRuntimeSettings(
 	h.api.WriteSuccess(writer, settings)
 }
 
+// HandleSessionLocalDirectories 返回当前 Session 的本机挂载目录。
+func (h *Handlers) HandleSessionLocalDirectories(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	directories, err := h.sessions.GetLocalDirectories(
+		request.Context(),
+		sessionKeyPathParam(request),
+	)
+	if h.writeSessionLocalDirectoriesError(writer, err) {
+		return
+	}
+	h.api.WriteSuccess(writer, directories)
+}
+
+// HandleUpdateSessionLocalDirectories 更新当前 Session 的本机挂载目录。
+func (h *Handlers) HandleUpdateSessionLocalDirectories(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	var payload protocol.SessionLocalDirectories
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	directories, err := h.sessions.UpdateLocalDirectories(
+		request.Context(),
+		sessionKeyPathParam(request),
+		payload,
+	)
+	if h.writeSessionLocalDirectoriesError(writer, err) {
+		return
+	}
+	h.api.WriteSuccess(writer, directories)
+}
+
+func (h *Handlers) writeSessionLocalDirectoriesError(
+	writer http.ResponseWriter,
+	err error,
+) bool {
+	if err == nil {
+		return false
+	}
+	switch {
+	case handlershared.IsStructuredSessionKeyError(err):
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+	case errors.Is(err, sessionpkg.ErrSessionNotFound):
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+	case errors.Is(err, sessionpkg.ErrLocalDirectoriesUnavailable):
+		h.api.WriteFailure(writer, http.StatusForbidden, err.Error())
+	case errors.Is(err, sessionpkg.ErrSessionMutationUnsupported),
+		errors.Is(err, sessionpkg.ErrInvalidLocalDirectories),
+		handlershared.IsClientMessageError(err):
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+	default:
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+	}
+	return true
+}
+
 func (h *Handlers) writeSessionRuntimeSettingsError(
 	writer http.ResponseWriter,
 	err error,

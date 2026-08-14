@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -241,6 +242,10 @@ func TestBuildAgentClientOptionsKeepsClaudeSkillDiscoveryDynamic(t *testing.T) {
 		SkillIDs:         []string{"ima-skill"},
 		DisabledSkillIDs: []string{"unused-global", "workspace-review"},
 		SkillDirectories: []string{"/tmp/platform-skills"},
+		AdditionalDirectories: []string{
+			"/tmp/current-project",
+			"/tmp/platform-skills",
+		},
 	})
 	if err != nil {
 		t.Fatalf("构建带平台 Skill 的 options 失败: %v", err)
@@ -253,8 +258,9 @@ func TestBuildAgentClientOptionsKeepsClaudeSkillDiscoveryDynamic(t *testing.T) {
 		options.Skills.DisabledNames[1] != "workspace-review" {
 		t.Fatalf("Claude Skill 停用集合未投影: %#v", options.Skills)
 	}
-	if len(options.AdditionalDirectories) != 1 || options.AdditionalDirectories[0] != "/tmp/platform-skills" {
-		t.Fatalf("平台 Skill 根目录未投影: %#v", options.AdditionalDirectories)
+	wantDirectories := []string{"/tmp/platform-skills", "/tmp/current-project"}
+	if !slices.Equal(options.AdditionalDirectories, wantDirectories) {
+		t.Fatalf("Skill 与 Session 目录未合并: %#v", options.AdditionalDirectories)
 	}
 }
 
