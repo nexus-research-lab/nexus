@@ -27,14 +27,16 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `sessions` | owner-confined Agent workspace session meta + runtime 不可写的 host-only owner lifecycle ledger | `nexus_config` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
 | `rooms` | 数据库 + Room runtime | `nexus_config` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
 | `automation` | 数据库 + scheduler runtime | Agent task 走 `nexus_automation`；script task 仅人类控制面 | 专用工具创建、检查和核对 |
-| `workspaces` | workspace 文件系统 | `nexus_manager` 只读检查 + 当前 Agent 原生文件工具 | 当前 workspace 文件写入立即 |
+| `workspaces` | workspace 文件系统 | 主智能体通过 `nexus-manager` Skill 调用 owner-scoped `nexusctl`；当前 Agent 使用原生文件工具 | 当前 workspace 文件写入立即 |
 | `goals` | 数据库 + Goal runtime | `nexus_goal` | 专用 Goal 生命周期 |
 
 部署环境和桌面状态根属于宿主控制面。智能体可以读取脱敏状态、运行确定性检查并解释正确操作方法，但不能把一次文件或数据库写入伪装成已经改变当前进程。服务器 workspace 根只能由部署环境配置；桌面端只迁移完整状态根，并在 sidecar 退出后离线切换和重启。
 
-`nexus_manager` 只提供脱敏结构查询和 workspace 只读检查。Agent、Room 与
-conversation 的创建、更新和受控删除全部走 `nexus_config`，因此生命周期操作也具备
-权限复验、人工确认、版本 CAS、写后重读和 reconcile 审计，不能回退到 raw CLI。
+`nexus_manager` MCP 不再挂载。主智能体通过 `nexus-manager` Skill 调用宿主注入、
+owner-scoped 的 `nexusctl` 查询和管理账号、Agent、Room、conversation、session、
+workspace 与 Skill；普通 Agent 只使用原生文件工具操作自己的 workspace，Room 当前
+结构由宿主上下文提供。Provider、runtime options、偏好、Channel、Connector 凭据等
+产品配置仍走 `nexus_config`。两条入口都调用既有领域服务，不允许直接读写数据库。
 Goal、Automation 与当前 Agent workspace 保留各自的专用工具，因为它们的执行生命周期
 不是普通配置 patch。
 

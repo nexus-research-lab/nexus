@@ -15,16 +15,33 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	managersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
 const (
-	TargetTypeAgent = "agent"
-	TargetTypeRoom  = "room"
+	ContextKindAgent = "agent"
+	ContextKindRoom  = "room"
+	TargetTypeAgent  = "agent"
+	TargetTypeRoom   = "room"
 	// ponytail: 本地通讯录先复用最近 Room 查询；单个 Agent 超过 300 个活跃群时改成成员游标分页。
 	addressBookRoomLimit = 300
 )
+
+// Actor 是宿主根据当前 runtime 固化的通讯身份；字段不能来自模型参数。
+type Actor struct {
+	OwnerUserID     string
+	AgentID         string
+	SessionKey      string
+	RoundID         string
+	LeaseSessionKey string
+	LeaseRoundID    string
+	ContextKind     string
+	ContextID       string
+	RoomID          string
+	ConversationID  string
+	// GoalCollaborationBinding 只提供协作归因，不向目标 round 传播能力。
+	GoalCollaborationBinding func() *protocol.GoalCollaborationBinding
+}
 
 // AddressBook 是一个 Agent 当前可寻址的好友与群。
 type AddressBook struct {
@@ -107,7 +124,7 @@ func NewService(
 }
 
 // ListAddressBook 返回当前 Agent 的好友与所在 Group Room。
-func (s *Service) ListAddressBook(ctx context.Context, actor managersvc.Actor) (*AddressBook, error) {
+func (s *Service) ListAddressBook(ctx context.Context, actor Actor) (*AddressBook, error) {
 	scoped, current, err := s.authorize(ctx, actor)
 	if err != nil {
 		return nil, err
@@ -149,7 +166,7 @@ func (s *Service) ListAddressBook(ctx context.Context, actor managersvc.Actor) (
 // SendMessage 给好友发私域消息，或向当前成员群发布公区消息。
 func (s *Service) SendMessage(
 	ctx context.Context,
-	actor managersvc.Actor,
+	actor Actor,
 	request SendRequest,
 ) (*SendResult, error) {
 	scoped, current, err := s.authorize(ctx, actor)
@@ -161,7 +178,7 @@ func (s *Service) SendMessage(
 		return nil, errors.New("conversation_id 只支持 owner 通讯客户端或 room 目标")
 	}
 	trusted := sendContext{}
-	if actor.ContextKind == managersvc.ContextKindRoom {
+	if actor.ContextKind == ContextKindRoom {
 		trusted.RoomID = strings.TrimSpace(actor.RoomID)
 		trusted.ConversationID = strings.TrimSpace(actor.ConversationID)
 		trusted.RootRoundID = strings.TrimSpace(actor.RoundID)
@@ -487,7 +504,7 @@ func (s *Service) resolveRoomConversation(
 
 func (s *Service) authorize(
 	ctx context.Context,
-	actor managersvc.Actor,
+	actor Actor,
 ) (context.Context, *protocol.Agent, error) {
 	if s == nil || s.agents == nil || s.rooms == nil || s.realtime == nil || s.runtime == nil {
 		return nil, nil, errors.New("平台通讯服务未完整装配")
@@ -529,11 +546,11 @@ func (s *Service) authorize(
 		return nil, nil, errors.New("平台通讯 Agent 与 owner 作用域不匹配")
 	}
 	switch actor.ContextKind {
-	case managersvc.ContextKindAgent:
+	case ContextKindAgent:
 		if err = validateAgentActor(actor); err != nil {
 			return nil, nil, err
 		}
-	case managersvc.ContextKindRoom:
+	case ContextKindRoom:
 		if err = s.validateRoomActor(scoped, actor); err != nil {
 			return nil, nil, err
 		}
@@ -543,7 +560,7 @@ func (s *Service) authorize(
 	return scoped, current, nil
 }
 
-func validateAgentActor(actor managersvc.Actor) error {
+func validateAgentActor(actor Actor) error {
 	if actor.ContextID != actor.AgentID ||
 		actor.SessionKey != actor.LeaseSessionKey ||
 		actor.RoundID != actor.LeaseRoundID {
@@ -557,7 +574,7 @@ func validateAgentActor(actor managersvc.Actor) error {
 	return nil
 }
 
-func (s *Service) validateRoomActor(ctx context.Context, actor managersvc.Actor) error {
+func (s *Service) validateRoomActor(ctx context.Context, actor Actor) error {
 	roomID := actor.RoomID
 	if roomID == "" {
 		roomID = actor.ContextID

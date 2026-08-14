@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the always-mounted `nexus_manager` MCP schemas with the existing `nexus-manager` Skill and owner-scoped `nexusctl`; ordinary Agents continue to use native tools for their own workspace.
 - Made connected marketplace MCPs opt-in: Agents default to no attached Connectors, Agent settings can define defaults, and the Composer can override them for the current Session.
 - Replaced the separate recalled-memory conversation event with a compact Assistant footer reference, while keeping recall itself on Claude Code-compatible attachments.
 - Removed `NotebookEdit` from Agent pre-authorization controls and retired existing saved selections.

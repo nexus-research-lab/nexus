@@ -11,7 +11,6 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
-	managersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 )
 
 // ServerName 是 Agent 平台通讯 MCP server 注册名。
@@ -20,7 +19,7 @@ const ServerName = "nexus_comms"
 // NewServer 创建通讯录与消息发送 MCP server。
 func NewServer(
 	svc *communicationsvc.Service,
-	actor managersvc.Actor,
+	actor communicationsvc.Actor,
 ) *sdktool.SimpleSDKMCPServer {
 	return sdktool.NewSimpleSDKMCPServer(ServerName, "1.0.0", []sdktool.Tool{
 		{

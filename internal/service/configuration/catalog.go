@@ -131,7 +131,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainWorkspaces, Description: "Agent workspace 文件与持久化协作资料",
-		Source: "workspace filesystem", ManagedBy: "nexus-manager", Mutable: true,
+		Source: "workspace filesystem", ManagedBy: "nexusctl / native runtime file tools", Mutable: true,
 	},
 	{
 		Name: DomainGoals, Description: "Goal、Workflow、Plan、继续执行与使用状态",
