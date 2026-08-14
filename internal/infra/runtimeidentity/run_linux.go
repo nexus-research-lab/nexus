@@ -29,6 +29,7 @@ var managementCommands = map[string]struct{}{
 	"project-ensure": {},
 	"project-grant":  {},
 	"project-list":   {},
+	"signal-process": {},
 	"stop-user":      {},
 }
 
@@ -71,6 +72,8 @@ func Run(args []string, environ []string, stdout io.Writer, stderr io.Writer) in
 		err = runProjectGrant(config, args[1:], stdout)
 	case "project-list":
 		err = runProjectList(config, args[1:], stdout)
+	case "signal-process":
+		err = runSignalProcess(config, args[1:], stdout)
 	case "stop-user":
 		err = runStopUser(config, args[1:], stdout)
 	case "run-script":
@@ -348,6 +351,52 @@ func runStopUser(config launcherConfig, args []string, stdout io.Writer) error {
 		"owner_user_id": strings.TrimSpace(*ownerUserID),
 		"stopped":       identityValue != nil,
 	})
+}
+
+func runSignalProcess(config launcherConfig, args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("signal-process", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	ownerUserID := flags.String("owner", "", "owner user id")
+	processID := flags.Int("pid", 0, "runtime process id")
+	signalName := flags.String("signal", "", "interrupt, terminate or kill")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+		return errors.New("signal-process 参数无效")
+	}
+	value, err := withLockedRegistry(config, false, func(current *registry) (*identity, bool, error) {
+		identityValue := current.Identities[strings.TrimSpace(*ownerUserID)]
+		if identityValue == nil || identityValue.Status != "active" {
+			return nil, false, errors.New("runtime identity 不存在或已停用")
+		}
+		return identityValue, false, nil
+	})
+	if err != nil {
+		return err
+	}
+	processSignal, sessionWide, err := parseRuntimeProcessSignal(*signalName)
+	if err != nil {
+		return err
+	}
+	if err = signalRuntimeSession(config, value, *processID, processSignal, sessionWide); err != nil {
+		return err
+	}
+	return writeJSON(stdout, map[string]any{
+		"owner_user_id": strings.TrimSpace(*ownerUserID),
+		"pid":           *processID,
+		"signal":        strings.TrimSpace(*signalName),
+	})
+}
+
+func parseRuntimeProcessSignal(value string) (syscall.Signal, bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "interrupt":
+		return syscall.SIGINT, false, nil
+	case "terminate":
+		return syscall.SIGTERM, false, nil
+	case "kill":
+		return syscall.SIGKILL, true, nil
+	default:
+		return 0, false, errors.New("runtime process signal 无效")
+	}
 }
 
 func runRuntimeError(

@@ -109,7 +109,7 @@ func (s *SessionFileStore) openRoomRoot(
 		s.paths.StateRoot,
 		s.paths.RoomConversationRoot(ownerUserID),
 		create,
-		0o700,
+		storagePrivateDirectoryMode(),
 	)
 }
 
@@ -133,7 +133,7 @@ func (s *SessionFileStore) openRoomFileParent(
 	parentPath := path.Dir(relative)
 	var parent *confinedfs.Root
 	if create {
-		parent, err = root.OpenOrCreateRootNoSymlink(parentPath, 0o700)
+		parent, err = root.OpenOrCreateRootNoSymlink(parentPath, storagePrivateDirectoryMode())
 	} else {
 		parent, err = root.OpenRootNoSymlink(parentPath)
 	}
@@ -154,7 +154,7 @@ func (s *SessionFileStore) appendRoomJSONL(
 		return err
 	}
 	defer parent.Close()
-	return appendJSONLAtRootWithMode(parent, name, row, 0o600)
+	return appendJSONLAtRootWithMode(parent, name, row, storageFileMode(0o600))
 }
 
 func (s *SessionFileStore) readRoomJSONL(

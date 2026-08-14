@@ -59,7 +59,7 @@ macOS 无法执行 setuid、POSIX ACL 和 Landlock，发布前仍需在目标 Li
 1. **身份先于路径**：workspace 路径只是定位信息，最终权限由 OS 身份和文件系统权限决定。
 2. **默认拒绝**：没有明确授予的用户、组、路径和操作均拒绝。
 3. **宿主托管**：安全策略、运行身份、环境变量和启动参数由 Nexus 宿主生成；用户配置、Skill 和 project hook 不能降低安全边界。
-4. **宿主根与用户根分区**：`.nexus` 是 Nexus 的统一状态命名空间；其中 `app/` 只保存宿主控制面和宿主共享资源，nxs/Claude 的 config、`projects`、`HOME`、cache、tmp 和用户 workspace 只能进入 `users/<owner_user_id>/`。
+4. **宿主根与用户根分区**：`.nexus` 是 Nexus 的统一状态命名空间；`app/` 只保存宿主控制面和宿主共享资源，当前 owner 的全部数据统一进入且只授权 `users/<owner_user_id>/`。
 5. **协作显式化**：共享目录必须有项目成员关系；加入项目组意味着成员之间互相信任并可按项目权限操作。
 6. **身份稳定**：产品用户到 OS UID/GID 的映射必须持久化，不能因为重启、恢复或用户删除而意外复用。
 7. **平台诚实**：只在具备可靠 POSIX 权限语义的部署上承诺该隔离等级。
@@ -179,7 +179,7 @@ UserScope
         cache/
         logs/
         tmp/
-      state/                          # 宿主托管状态，不属于 runtime config 根
+      state/                          # 宿主持久化的 owner 状态，不属于 runtime config 根
         rooms/                        # owner 级 Room overlay、消息游标、handoff 与延迟唤醒
 
   shared-workspaces/
@@ -192,11 +192,9 @@ UserScope
 
 - `.nexus` 与 `users/` 只给 runtime UID 目录穿越位；`nexus-host` 通过宿主组
   继续创建用户目录，runtime 不能列举根目录；
-- `.nexus/app` 及其 `data/config/logs` 只允许 `nexus-host` 访问；用户的
-  `state/rooms` 也只允许宿主访问，runtime 通过宿主注入用户 runtime 根，不能
-  继承任何宿主状态根。Room 公共附件单独落在 owner 的 `workspace/.rooms`，
-  不能为了附件读取而放宽 ledger 权限。
-- `users/<owner_user_id>` 的边界目录由 root 与对应 private group 控制；父目录只允许穿越，不允许 runtime 列举全部用户。
+- `.nexus/app` 及其 `data/config/logs` 只允许 `nexus-host` 访问；当前 runtime
+  对自己的 `users/<owner_user_id>` 数据根读写，不能继承 `app/` 或其他 owner 根。
+- `users/<owner_user_id>` 的边界目录由 root 与对应 private group 控制；父目录只允许穿越，不允许 runtime 列举全部用户，边界内 `workspace/runtime/state` 使用同一 private group。
 - owner 的 `workspace/` 根由 `nexus-host` 持有并启用 setgid+sticky；每个
   `workspace/<agent_id>` 边界也保持 root-owned、private group 可写，runtime
   可以正常改其内容，却不能把宿主随后会打开的根目录替换成 symlink。边界内文件
@@ -259,7 +257,7 @@ transcript 与 Room 源文件后，再以旧数据优先、外键完整的单事
 - `overlay.jsonl`、directed message、消费游标、public handoff 与 delayed
   wake 均按 owner 拆分，JSONL 采用规范化内容去重，支持中断后重试；
 - 旧 `attachments/` 单独迁入 `users/<owner>/workspace/.rooms/<conversation>/`
-  的对应相对路径，runtime 只获得公共资产，不获得 Room ledger；
+  的对应相对路径；Room ledger 迁入同一 owner 数据根后也遵循 owner 根权限；
 - 无法确认 owner、混合多个 conversation、包含符号链接/硬链接/特殊文件的状态移入宿主私有
   `app/.migration-quarantine/room-state-v1`，不会暴露给任意 runtime；
 - 迁移告警不阻断 server 启动，但新版本不会再回读 `app/rooms`。完成后移除
@@ -339,11 +337,10 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 
 宿主为 nxs 和 Claude 注入同一份 `WorkspacePolicyHook`：
 
-- 绑定 `owner_user_id`、Agent workspace root、当前 project roots 和 policy generation；
+- 绑定 `owner_user_id`、owner 数据根、当前 project roots 和 policy generation；
 - 对 `Read/Write/Edit/Glob/Grep` 等路径工具执行路径归一化和 root containment；
-- nxs 的内部 session-memory 任务只额外放行当前 owner 规范
-  `runtime/projects/<project>/<session>/session-memory/summary.md` 的单文件 `Edit`；
-  其他 runtime 文件仍不属于普通工具写根；
+- 当前 owner 的 `users/<owner_user_id>` 整棵数据根统一允许读写，不再为
+  transcript、session-memory 或 `state` 维护单文件例外；跨 owner 路径仍拒绝；
 - 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` 管理入口的早期检查；普通系统命令
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
 - enforce Hook 对普通 Agent 的 `nexusctl` 管理命令做早期拒绝；打包部署额外把
@@ -506,8 +503,13 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
   角色调整交互，最终授权仍由服务端 owner/admin 规则判定；
 - cgroup 仍需在目标 Linux 部署中显式配置并完成现场验收。
 
-### 12.5 owner 进程树回收（已实现，配置启用后生效）
+### 12.5 会话与 owner 进程树回收（已实现）
 
+- bridge 的中断、关闭和遗留子进程清理统一调用 root-owned launcher；launcher
+  先固定 pidfd，再校验目标属于当前 owner UID/cgroup 和对应 Unix session，避免
+  跨 UID 信号失败或 PID 复用误杀；
+- 未启用 cgroup 时仍可可靠回收同 session 进程；主动 `setsid`/double-fork 脱离
+  session 的 orphan 不在该保证内；
 - launcher 支持 cgroup v2 的 per-user 子 cgroup，并在 runtime `exec` 前写入
   `cgroup.procs`；
 - `stop-user` 使用 `cgroup.kill` 回收主动 double-fork 的 orphan descendant；

@@ -52,7 +52,7 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
 - 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；业务进程不支持拆分或在线迁移局部子树。
-- 用户数据位于 `.nexus/users/<owner>/`：`workspace/` 保存 Agent 工作目录与 runtime 可读的 `.rooms/` 公共附件，`runtime/` 同时作为该 owner 的 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，宿主托管的 Room ledger 固定写入 `state/rooms/`。
+- 用户数据位于 `.nexus/users/<owner>/`，该 owner 的 runtime 对整棵用户数据根拥有读写权限，跨 owner 访问仍拒绝；`workspace/` 保存 Agent 工作目录与 `.rooms/` 公共附件，`runtime/` 同时作为 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，Room ledger 固定写入 `state/rooms/`。
 - nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。
 - Unix runtime 额外获得 `/tmp` 共享兼容读写根，以保持 App/Web 命令行为一致；敏感临时数据仍必须写入该 owner 的 `$TMPDIR`。
 - 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过 `internal/migration/state_layout.go` 与 `workspace_layout.go` 这类明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局；迁移不能因版本发布而提前移除，必须允许用户跨版本直接升级。

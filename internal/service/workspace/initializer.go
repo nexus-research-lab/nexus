@@ -62,8 +62,8 @@ func EnsureInitializedAt(
 
 // EnsureInitializedOnceForAgentAt 使用宿主状态标记，仅在初始化版本或托管状态变化时执行完整初始化。
 //
-// 标记必须位于 runtime 不可写的 owner state；workspace 内的文件只能作为
-// 被校验的结果，不能反过来决定宿主是否跳过初始化。
+// 标记位于 owner state，和 workspace 结果分离；runtime 即使改写标记也不能
+// 绕过结果校验，宿主不会只凭标记跳过初始化。
 func EnsureInitializedOnceForAgentAt(
 	rootFS *confinedfs.Root,
 	agentValue protocol.Agent,
@@ -128,7 +128,11 @@ func ensureInitializedAt(
 	if state == nil {
 		return nil
 	}
-	return state.root.WriteFileAtomic(state.marker, []byte(state.version+"\n"), 0o600)
+	return state.root.WriteFileAtomic(
+		state.marker,
+		[]byte(state.version+"\n"),
+		appfs.RuntimeCollaborativeFileMode(0o600),
+	)
 }
 
 func openWorkspaceInitializationState(
@@ -143,7 +147,10 @@ func openWorkspaceInitializationState(
 		return nil, "", err
 	}
 	relative, marker := workspaceInitializationStateLocation(agentValue)
-	markers, err := stateRoot.OpenOrCreateRootNoSymlink(relative, 0o700)
+	markers, err := stateRoot.OpenOrCreateRootNoSymlink(
+		relative,
+		appfs.RuntimeCollaborativeDirectoryMode(0o700),
+	)
 	closeErr := stateRoot.Close()
 	if err != nil {
 		return nil, "", err

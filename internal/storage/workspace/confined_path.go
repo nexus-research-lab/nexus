@@ -75,7 +75,7 @@ func relativeStorePathWithCreate(rootPath string, target string, createRoot bool
 		return nil, "", errors.New("workspace storage path outside configured root")
 	}
 	if createRoot {
-		if err = os.MkdirAll(rootPath, storageRootDirectoryMode(rootPath)); err != nil {
+		if err = os.MkdirAll(rootPath, storagePrivateDirectoryMode()); err != nil {
 			return nil, "", err
 		}
 	}
@@ -88,18 +88,4 @@ func relativeStorePathWithCreate(rootPath string, target string, createRoot bool
 		relative = "."
 	}
 	return root, relative, nil
-}
-
-// storageRootDirectoryMode 为宿主托管的 Room 状态保留 host-only 目录权限。
-//
-// Room JSONL 由 server 进程读写，不能沿用 runtime workspace 的协作目录模式；
-// 否则 owner runtime 的私有组会重新获得伪造 handoff/wake 的能力。
-func storageRootDirectoryMode(rootPath string) os.FileMode {
-	clean := filepath.Clean(rootPath)
-	if filepath.Base(clean) == "rooms" &&
-		filepath.Base(filepath.Dir(clean)) == "state" &&
-		filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(clean)))) == "users" {
-		return 0o700
-	}
-	return storageDirectoryMode()
 }

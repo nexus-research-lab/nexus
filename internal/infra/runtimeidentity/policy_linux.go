@@ -34,8 +34,8 @@ func preparePolicy(
 	if err != nil {
 		return preparedPolicy{}, false, err
 	}
+	ownerRoot := appfs.UserDataRootAt(config.StateRoot, ownerUserID)
 	workspaceRoot := appfs.UserWorkspaceRootAt(config.StateRoot, ownerUserID)
-	runtimeRoot := runtimeRootForPolicy(config, ownerUserID)
 	projectValue, projectAccess := projectForPath(current, ownerUserID, cwd)
 	if cwd == workspaceRoot {
 		return preparedPolicy{}, false, errors.New("runtime cwd 必须是 owner workspace 的子目录")
@@ -57,7 +57,7 @@ func preparePolicy(
 		}
 	}
 
-	readRoots, writeRoots := baseRuntimePolicyRoots(workspaceRoot, config)
+	readRoots, writeRoots := baseRuntimePolicyRoots(ownerRoot, config)
 	supplementaryGIDs := make([]int, 0)
 	if projectValue != nil {
 		readRoots = append(readRoots, projectValue.Root)
@@ -74,7 +74,7 @@ func preparePolicy(
 		}
 		projectValue, _ := projectForPath(current, ownerUserID, root)
 		switch {
-		case pathWithin(root, workspaceRoot):
+		case pathWithin(root, ownerRoot):
 		case pathWithinAny(root, config.ReadOnlyRoots):
 		case pathWithinSharedTemp(root):
 		case projectValue != nil:
@@ -123,8 +123,8 @@ func preparePolicy(
 		CWD:               cwd,
 		ReadRoots:         readRoots,
 		WriteRoots:        writeRoots,
-		RuntimeReadRoots:  compactPaths(append([]string{runtimeRoot}, readRoots...)),
-		RuntimeWriteRoots: compactPaths(append([]string{runtimeRoot}, writeRoots...)),
+		RuntimeReadRoots:  readRoots,
+		RuntimeWriteRoots: writeRoots,
 		EnvironmentNames:  environmentNames,
 		Generation:        generation,
 		Ticket:            ticketID,
@@ -181,8 +181,8 @@ func preparePolicyWithoutTicket(
 	if err != nil {
 		return preparedPolicy{}, false, err
 	}
+	ownerRoot := appfs.UserDataRootAt(config.StateRoot, ownerUserID)
 	workspaceRoot := appfs.UserWorkspaceRootAt(config.StateRoot, ownerUserID)
-	runtimeRoot := runtimeRootForPolicy(config, ownerUserID)
 	projectValue, projectAccess := projectForPath(current, ownerUserID, cwd)
 	if cwd == workspaceRoot {
 		return preparedPolicy{}, false, errors.New("runtime cwd 必须是 owner workspace 的子目录")
@@ -203,7 +203,7 @@ func preparePolicyWithoutTicket(
 			return preparedPolicy{}, false, err
 		}
 	}
-	readRoots, writeRoots := baseRuntimePolicyRoots(workspaceRoot, config)
+	readRoots, writeRoots := baseRuntimePolicyRoots(ownerRoot, config)
 	gids := []int{}
 	if projectValue != nil {
 		readRoots = append(readRoots, projectValue.Root)
@@ -219,7 +219,7 @@ func preparePolicyWithoutTicket(
 		}
 		projectValue, _ := projectForPath(current, ownerUserID, root)
 		switch {
-		case pathWithin(root, workspaceRoot), pathWithinAny(root, config.ReadOnlyRoots):
+		case pathWithin(root, ownerRoot), pathWithinAny(root, config.ReadOnlyRoots):
 		case pathWithinSharedTemp(root):
 		case projectValue != nil:
 			if err = verifyOSGroup(projectValue.GroupName, projectValue.GID); err != nil {
@@ -242,8 +242,8 @@ func preparePolicyWithoutTicket(
 		CWD:               cwd,
 		ReadRoots:         compactPaths(readRoots),
 		WriteRoots:        compactPaths(writeRoots),
-		RuntimeReadRoots:  compactPaths(append([]string{runtimeRoot}, readRoots...)),
-		RuntimeWriteRoots: compactPaths(append([]string{runtimeRoot}, writeRoots...)),
+		RuntimeReadRoots:  compactPaths(readRoots),
+		RuntimeWriteRoots: compactPaths(writeRoots),
 		EnvironmentNames:  environmentNames,
 		Generation:        max(current.Generation, identityValue.Generation),
 		Identity: preparedIdentity{
@@ -292,11 +292,11 @@ func pathWithinSharedTemp(path string) bool {
 // baseRuntimePolicyRoots 统一 app/web runtime 的基础根；/tmp 是明确选择的
 // 共享兼容区，私有临时数据仍应写入 identity.TempDir。
 func baseRuntimePolicyRoots(
-	workspaceRoot string,
+	ownerRoot string,
 	config launcherConfig,
 ) ([]string, []string) {
-	readRoots := append([]string{workspaceRoot}, config.ReadOnlyRoots...)
-	writeRoots := []string{workspaceRoot}
+	readRoots := append([]string{ownerRoot}, config.ReadOnlyRoots...)
+	writeRoots := []string{ownerRoot}
 	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
 		readRoots = append(readRoots, sharedTempRoot)
 		writeRoots = append(writeRoots, sharedTempRoot)

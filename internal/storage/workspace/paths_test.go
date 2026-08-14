@@ -91,7 +91,7 @@ func TestStoreUsesAppHostRoot(t *testing.T) {
 		"state",
 		"rooms",
 	) {
-		t.Fatalf("Room 宿主状态根不正确: got=%q", got)
+		t.Fatalf("Room 状态根不正确: got=%q", got)
 	}
 
 	customWorkspace := filepath.Join(t.TempDir(), "custom-workspace")

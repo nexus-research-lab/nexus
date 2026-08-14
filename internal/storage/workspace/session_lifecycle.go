@@ -98,7 +98,7 @@ func (s *SessionFileStore) BeginSessionDeletionWithTranscriptIDs(
 }
 
 // BeginSessionArtifactDeletion 为 Room/Automation 等内部生命周期清理建立同一
-// host-only tombstone。即使 meta 尚未落盘或已先行消失，也要保留 admission fence，
+// 持久 tombstone。即使 meta 尚未落盘或已先行消失，也要保留 admission fence，
 // 避免晚到 runtime writer 重新创建目录。
 func (s *SessionFileStore) BeginSessionArtifactDeletion(
 	workspacePath string,
@@ -375,7 +375,7 @@ func (s *SessionFileStore) writeSessionLifecycle(
 	if err != nil {
 		return err
 	}
-	return root.WriteFileAtomic(relative, payload, 0o600)
+	return root.WriteFileAtomic(relative, payload, storageFileMode(0o600))
 }
 
 func (s *SessionFileStore) removeSessionLifecycle(
@@ -406,7 +406,7 @@ func sessionLifecycleFileName(workspacePath string, sessionKey string) string {
 
 func (s *SessionFileStore) openSessionLifecycleRoot(create bool) (*confinedfs.Root, error) {
 	managedRoot, target := s.sessionLifecycleRootPaths()
-	return openManagedSubtree(managedRoot, target, create, 0o700)
+	return openManagedSubtree(managedRoot, target, create, storagePrivateDirectoryMode())
 }
 
 func (s *SessionFileStore) sessionLifecycleRootPaths() (string, string) {
@@ -417,13 +417,13 @@ func (s *SessionFileStore) sessionLifecycleRootPaths() (string, string) {
 		)
 	}
 	// 未绑定 owner 的门面只供底层单元测试和 legacy host 调用。产品服务总是
-	// 使用 ForOwner，因此权威记录位于 runtime 不可写的 users/<owner>/state。
+	// 使用 ForOwner，因此权威记录位于 users/<owner>/state。
 	root := filepath.Clean(strings.TrimSpace(s.paths.WorkspaceRoot))
 	return root, filepath.Join(root, ".nexus-host-state", "session-lifecycle")
 }
 
-// ListSessionDeletionRecords 扫描 runtime 不可写的 owner state。已完成记录也必须
-// 返回，宿主重启时才能重新安装永久 runtime admission fence。
+// ListSessionDeletionRecords 扫描 owner state。已完成记录也必须返回，宿主重启时
+// 才能重新安装永久 runtime admission fence。
 func (s *SessionFileStore) ListSessionDeletionRecords() ([]PendingSessionDeletion, error) {
 	return s.listSessionDeletionRecords()
 }

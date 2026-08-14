@@ -11,9 +11,10 @@ const (
 	registryVersion = 1
 
 	// v11 一次性归一 Agent workspace 内由旧 nxs 以 0700/0600 创建的
-	// AutoMemory 路径；v12 同样归一历史 session summary artifact。后续托管
-	// runtime 会在创建时保留宿主 ACL mask。
-	userLayoutVersion = 12
+	// AutoMemory 路径；v12 同样归一历史 session summary artifact；v13 在
+	// transcript 创建权限统一后修复旧 session artifact。后续托管 runtime
+	// 会在创建时保留宿主 ACL mask。
+	userLayoutVersion = 13
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000

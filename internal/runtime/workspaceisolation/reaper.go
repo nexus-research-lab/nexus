@@ -8,7 +8,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"time"
+
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 // OwnerProcessReaper 通过 root-owned launcher 回收 owner cgroup 中的全部
@@ -36,7 +40,35 @@ func (r OwnerProcessReaper) ReapOwnerProcesses(ctx context.Context, ownerUserID 
 	if launcherPath == "." || !filepath.IsAbs(launcherPath) {
 		return errors.New("runtime launcher path is not configured")
 	}
-	command := exec.CommandContext(ctx, launcherPath, "stop-user", "--owner", ownerUserID)
+	return runLauncherManagementCommand(ctx, launcherPath, "stop-user", "--owner", ownerUserID)
+}
+
+func runtimeProcessSignalHandler(
+	launcherPath string,
+	ownerUserID string,
+) agentclient.ProcessSignalHandler {
+	launcherPath = filepath.Clean(strings.TrimSpace(launcherPath))
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	return func(processID int, signal agentclient.ProcessSignal) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		return runLauncherManagementCommand(
+			ctx,
+			launcherPath,
+			"signal-process",
+			"--owner", ownerUserID,
+			"--pid", strconv.Itoa(processID),
+			"--signal", string(signal),
+		)
+	}
+}
+
+func runLauncherManagementCommand(
+	ctx context.Context,
+	launcherPath string,
+	arguments ...string,
+) error {
+	command := exec.CommandContext(ctx, launcherPath, arguments...)
 	command.Env = []string{
 		"PATH=/usr/sbin:/usr/bin:/sbin:/bin",
 		"LANG=C",
@@ -46,9 +78,9 @@ func (r OwnerProcessReaper) ReapOwnerProcesses(ctx context.Context, ownerUserID 
 	if err := command.Run(); err != nil {
 		detail := strings.TrimSpace(stderr.String())
 		if detail != "" {
-			return fmt.Errorf("stop-user launcher: %s: %w", detail, err)
+			return fmt.Errorf("runtime launcher: %s: %w", detail, err)
 		}
-		return fmt.Errorf("stop-user launcher: %w", err)
+		return fmt.Errorf("runtime launcher: %w", err)
 	}
 	return nil
 }

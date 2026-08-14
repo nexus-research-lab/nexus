@@ -66,6 +66,12 @@ func TestRuntimeStartupDiagnosticFilters(t *testing.T) {
 	}) {
 		t.Fatal("process_exit without error should stay quiet by default")
 	}
+	if !ShouldWarnRuntimeStartupDiagnostic(agentclient.DiagnosticEvent{
+		Component: "bridge.process",
+		Event:     "process_descendant_cleanup_error",
+	}) {
+		t.Fatal("descendant cleanup errors should warn by default")
+	}
 }
 
 func TestRuntimeStartupLogFieldsUsesBridgeSnapshot(t *testing.T) {

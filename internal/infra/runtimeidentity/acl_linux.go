@@ -99,7 +99,7 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 		return false, err
 	}
 	_ = unix.Close(runtimeRootFD)
-	if err := ensureHostStateLayout(userRoot, config.HostGID); err != nil {
+	if err := ensureOwnerStateLayout(userRoot, value, config.HostUID); err != nil {
 		return false, err
 	}
 	requiredDirectories := []string{
@@ -251,7 +251,7 @@ func repairRuntimeACL(config launcherConfig, value *identity) error {
 	})
 }
 
-// prepareRuntimeArgFiles 让 bridge 以宿主身份生成的敏感参数只对当前 runtime 私有组可读。
+// prepareRuntimeArgFiles 让 bridge 以宿主身份生成的参数只对当前 runtime 私有组读写。
 // 宿主进程不属于动态私有组，不能依赖 setgid 继承；launcher 必须在降权前收口归属。
 func prepareRuntimeArgFiles(
 	config launcherConfig,
@@ -298,23 +298,20 @@ func prepareRuntimeArgFile(path string, hostUID int, privateGID int) error {
 	if err = clearPOSIXACLFD(fd, false); err != nil {
 		return err
 	}
-	return unix.Fchmod(fd, 0o640)
+	return unix.Fchmod(fd, 0o660)
 }
 
-// ensureHostStateLayout 将宿主代 Room 状态固定在 runtime 之外。
-//
-// state 根由 root/host group 持有，runtime 私有组没有任何访问位；这样
-// runtime 即使知道绝对路径，也不能伪造 handoff、wake 或共享 Room overlay。
-func ensureHostStateLayout(userRoot string, hostGID int) error {
+// ensureOwnerStateLayout 让 owner state 与 workspace/runtime 使用同一私有组。
+func ensureOwnerStateLayout(userRoot string, value *identity, hostUID int) error {
+	if value == nil {
+		return errors.New("runtime identity 为空")
+	}
 	stateRoot := filepath.Join(userRoot, "state")
 	stateFD, err := ensureDirectoryNoSymlink(stateRoot, 0o770)
 	if err != nil {
 		return err
 	}
 	_ = unix.Close(stateFD)
-	if err = applyHostPath(stateRoot, os.ModeDir, hostGID); err != nil {
-		return err
-	}
 
 	roomsRoot := filepath.Join(stateRoot, "rooms")
 	roomsFD, err := ensureDirectoryNoSymlink(roomsRoot, 0o770)
@@ -322,30 +319,30 @@ func ensureHostStateLayout(userRoot string, hostGID int) error {
 		return err
 	}
 	_ = unix.Close(roomsFD)
-	return normalizeHostStateTree(stateRoot, hostGID)
+	return normalizeOwnerStateTree(stateRoot, value, hostUID)
 }
 
-func normalizeHostStateTree(root string, hostGID int) error {
+func normalizeOwnerStateTree(root string, value *identity, hostUID int) error {
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("宿主用户状态不能包含符号链接: %s", path)
+			return fmt.Errorf("owner 状态不能包含符号链接: %s", path)
 		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() && !info.Mode().IsRegular() {
-			return fmt.Errorf("宿主用户状态不能包含特殊文件: %s", path)
+			return fmt.Errorf("owner 状态不能包含特殊文件: %s", path)
 		}
 		if info.Mode().IsRegular() {
 			if stat, ok := info.Sys().(*unix.Stat_t); ok && stat.Nlink > 1 {
-				return fmt.Errorf("宿主用户状态不能包含硬链接文件: %s", path)
+				return fmt.Errorf("owner 状态不能包含硬链接文件: %s", path)
 			}
 		}
-		return applyHostPath(path, info.Mode(), hostGID)
+		return applyPrivateACL(path, info.Mode(), value.UID, value.PrivateGID, hostUID)
 	})
 }
 

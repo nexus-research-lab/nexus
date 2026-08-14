@@ -166,7 +166,9 @@ func ShouldWarnRuntimeStartupDiagnostic(event agentclient.DiagnosticEvent) bool 
 		"stderr_read_error",
 		"cli_version_unsupported",
 		"process_terminate_error",
-		"process_terminate_timeout_kill":
+		"process_terminate_timeout_kill",
+		"process_kill_error",
+		"process_descendant_cleanup_error":
 		return true
 	default:
 		return false

@@ -74,8 +74,9 @@ bind mount 也不声明等价安全等级。
 撤销项目成员关系或关闭 owner runtime 时调用 `stop-user`，通过
 `cgroup.kill` 回收整个进程树。`cgroup_required=true` 时，挂载类型、权限或
 `cgroup.kill` 缺失都会让 `ensure-host` 和 runtime 启动失败。留空
-`cgroup_root` 表示只使用前一阶段的进程断开回收，不宣称具备 orphan descendant
-清理能力。
+`cgroup_root` 表示由 launcher 通过 owner UID 与 Unix session 校验处理中断、关闭
+和同 session 子进程清理；主动 `setsid`/double-fork 脱离原 session 的 orphan
+仍需 cgroup 才能可靠回收。
 
 Docker 部署要把同一 cgroup v2 层以受控的可管理方式提供给 launcher；
 Docker Desktop 不承诺这套语义，原生 Linux 或专用 Linux worker 才是目标现场。

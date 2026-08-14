@@ -78,6 +78,10 @@ func Apply(
 		}
 		options.Env[LauncherTicketEnvName] = policy.Ticket
 		options.Env[LauncherModeEnvName] = string(mode)
+		options = options.WithProcessSignalHandler(runtimeProcessSignalHandler(
+			config.LauncherPath,
+			input.OwnerUserID,
+		))
 	} else {
 		policy, err = buildAuditPolicy(input)
 		if err != nil {
@@ -177,11 +181,11 @@ func buildAuditPolicy(input Input) (Policy, error) {
 	if appfs.UserPathSegment(input.OwnerUserID) != strings.TrimSpace(input.OwnerUserID) {
 		return Policy{}, errors.New("owner user id 不能安全映射为 workspace 路径")
 	}
-	workspaceRoot := appfs.UserWorkspaceRoot(input.OwnerUserID)
+	ownerRoot := appfs.UserDataRoot(input.OwnerUserID)
 	// audit 需要兼容部署级自定义 workspace：它只记录早期策略命中，
 	// 不把这条路径当作 enforce 的 OS 授权事实源。
-	readRoots := append([]string{workspaceRoot, input.CWD}, input.ReadRoots...)
-	writeRoots := append([]string{workspaceRoot, input.CWD}, input.WriteRoots...)
+	readRoots := append([]string{ownerRoot, input.CWD}, input.ReadRoots...)
+	writeRoots := append([]string{ownerRoot, input.CWD}, input.WriteRoots...)
 	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
 		readRoots = append(readRoots, sharedTempRoot)
 		writeRoots = append(writeRoots, sharedTempRoot)

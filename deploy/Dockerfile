@@ -147,12 +147,13 @@ RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
         --goos "${TARGETOS:-linux}" \
         --goarch "${TARGETARCH:-amd64}" \
         --release "${NEXUS_NXS_RUNTIME_RELEASE}" \
-        --output /opt/app/bin/nxs; \
+        --output /opt/app/bin/nxs \
+        --ripgrep-output /opt/app/bin/rg; \
     fi && \
     find /opt/app/scripts -type d -exec chmod 0555 {} \; && \
     if [ -f /opt/app/bin/nxs ]; then \
-        chown root:root /opt/app/bin/nxs && \
-        chmod 0555 /opt/app/bin /opt/app/bin/nxs; \
+        chown root:root /opt/app/bin/nxs /opt/app/bin/rg && \
+        chmod 0555 /opt/app/bin /opt/app/bin/nxs /opt/app/bin/rg; \
     fi
 
 # OS 账号、launcher 配置与 sudo policy 不依赖产品源码，作为稳定基础层缓存。
