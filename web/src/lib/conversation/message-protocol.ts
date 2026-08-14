@@ -1,7 +1,7 @@
 /**
  * INPUT: WebSocket message / stream 的未知协议载荷与信封回退字段。
  * OUTPUT: 校验后的 Conversation Message 或 Stream Message。
- * POS: 前端消息协议入口；Room user 可无 agent_id，assistant/stream 必须有 agent_id。
+ * POS: 前端消息协议入口；Room 用户与宿主合成 assistant 可无 agent_id，普通 assistant/stream 必须有 agent_id。
  */
 import {
   asUnknownRecord,
@@ -111,12 +111,20 @@ function parseAssistantContent(value: unknown): ContentBlock[] {
     .filter((block): block is ContentBlock => block !== null);
 }
 
-function hasMessageIdentity(record: UnknownRecord, role: string): boolean {
+function hasMessageIdentity(
+  record: UnknownRecord,
+  role: string,
+  allowAgentlessRoomAssistant = false,
+): boolean {
   return (
     hasNonEmptyStringFields(record, MESSAGE_IDENTITY_STRING_FIELDS) &&
     hasFiniteNumberFields(record, MESSAGE_TIMESTAMP_FIELDS) &&
     typeof record.agent_id === "string" &&
-    (role !== "assistant" || record.agent_id.length > 0)
+    (
+      role !== "assistant"
+      || record.agent_id.length > 0
+      || (allowAgentlessRoomAssistant && Boolean(readString(record, "room_id")))
+    )
   );
 }
 
@@ -145,7 +153,7 @@ export function parseConversationMessage(
   if (
     !role
     || !sessionKey
-    || !hasMessageIdentity(record, role)
+    || !hasMessageIdentity(record, role, true)
     || !hasMessageContent(role, record.content)
   ) {
     return null;

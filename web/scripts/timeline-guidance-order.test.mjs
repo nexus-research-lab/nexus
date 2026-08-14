@@ -4332,6 +4332,28 @@ test("message protocol preserves CC rich blocks and contains unknown provider bl
   });
   assert.equal(blockStop?.type, "content_block_stop");
   assert.equal(blockStop?.index, 0);
+
+  const roomNotice = parseConversationMessage({
+    agent_id: "",
+    content: [{ type: "text", text: "请使用 @AgentName 指定要对话的成员" }],
+    conversation_id: "conversation-1",
+    message_id: "assistant-room-notice",
+    role: "assistant",
+    room_id: "room-1",
+    round_id: "round-room-notice",
+    session_key: "room:group:conversation-1",
+    timestamp: 3,
+  });
+  assert.equal(roomNotice?.message_id, "assistant-room-notice");
+  assert.equal(parseConversationMessage({
+    ...roomNotice,
+    room_id: undefined,
+    session_key: "agent:agent-1:ws:dm:test",
+  }), null, "agentless assistant remains invalid outside a Room");
+  assert.equal(parseStreamMessage({
+    ...stream,
+    agent_id: "",
+  }), null, "Room stream events still require an agent identity");
 });
 
 test("stream reducer exposes tool calls and removes terminal empty assistants", async () => {
