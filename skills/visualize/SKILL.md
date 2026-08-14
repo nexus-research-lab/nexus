@@ -24,6 +24,7 @@ Create a custom interactive visual only when it communicates the answer better t
 - The fragment runs in an isolated iframe and cannot access the Nexus page, cookies, storage, or parent DOM.
 - Streaming order is short style, visible content, then scripts last. Scripts run only after the complete tool input arrives. Keep native controls and static content useful before initialization.
 - Before calling `show_widget`, check every inline script for unmatched quotes, backticks, brackets, and incomplete blocks. Prefer short functions over one monolithic script.
+- Before calling `show_widget`, verify that every id, class, or data attribute referenced by JavaScript exists in the submitted markup and is spelled identically.
 - Separate source data, derived calculations, rendering, and event binding. Avoid constructing large interfaces through nested template literals or long HTML string concatenation; update existing DOM nodes when practical.
 - Use the smallest implementation that fully answers the request. Split independent visuals into separate `show_widget` calls with short prose between them, but keep one cohesive widget when its views share state.
 - Make the layout responsive at 320px width and avoid fixed viewport dimensions.
@@ -62,7 +63,8 @@ Use these variables for CSS and SVG. Canvas APIs cannot resolve CSS `var(...)` s
 - Begin with visible, meaningful markup. JavaScript enhances it after streaming; it must not be required to reveal the entire widget.
 - Use native `button`, `input`, `select`, and `range` controls with explicit labels. Every visible control must change the visual immediately and support keyboard input.
 - Keep one plain state object. Derive displayed values from it, then render through short idempotent functions.
-- Bind events once with `addEventListener`. Do not mix inline handlers, duplicated listeners, and global mutable callbacks.
+- Resolve elements before binding events. Never call `.addEventListener` directly on `getElementById(...)` or `querySelector(...)`: fail with a clear `Missing widget element: <selector>` error for required elements, and use optional chaining only for genuinely optional controls.
+- Bind events once with `addEventListener`. Do not wait for `DOMContentLoaded`; final widget scripts already run after the submitted markup is inserted. Do not mix inline handlers, duplicated listeners, and global mutable callbacks.
 - Prefer changing `textContent`, attributes, classes, SVG paths, or chart data over replacing a large subtree with `innerHTML`.
 - Animate the visualization, not the surrounding UI. Use 150-400ms transitions and honor `prefers-reduced-motion`.
 
