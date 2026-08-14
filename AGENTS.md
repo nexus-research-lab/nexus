@@ -40,7 +40,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
   cli/        - nexusctl 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期
-  mcp/ connectors/ workspace/ - 能力域；mcp/communication 提供平台通讯录与消息工具，mcp/visualize 只暴露对话内生成式 UI 的 show_widget，skills/visualize 承载生成规范；owner 资源管理复用 nexus-manager Skill 与宿主作用域 nexusctl，不再挂载 manager MCP
+  mcp/ connectors/ workspace/ - 能力域；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露对话内生成式 UI 的 show_widget，skills/visualize 承载生成规范；owner 资源管理复用 nexus-manager Skill 与宿主作用域 nexusctl，不再挂载 manager MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>

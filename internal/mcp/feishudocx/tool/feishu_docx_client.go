@@ -3,12 +3,18 @@ package tool
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
+	"time"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	feishudocxapi "github.com/nexus-research-lab/nexus/internal/connectors/feishudocx"
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 )
+
+const maxResponseBytes = 256 * 1024
+
+var feishuDocxHTTPClient = &http.Client{Timeout: 20 * time.Second}
 
 func loadFeishuDocxClient(ctx context.Context, svc contract.Service, sctx contract.ServerContext) (*feishudocxapi.Client, error) {
 	snapshot, err := svc.LoadActiveConnection(ctx, sctx.OwnerUserID, "feishu-docx")
@@ -22,7 +28,7 @@ func loadFeishuDocxClient(ctx context.Context, svc contract.Service, sctx contra
 }
 
 func feishuDocxClientFromSnapshot(snapshot *connectordomain.ConnectionSnapshot) *feishudocxapi.Client {
-	return feishudocxapi.NewClient(snapshot.APIBaseURL, snapshot.AccessToken, connectorCallHTTPClient)
+	return feishudocxapi.NewClient(snapshot.APIBaseURL, snapshot.AccessToken, feishuDocxHTTPClient)
 }
 
 func filterDriveFilesByType(files []map[string]any, fileType string) []map[string]any {
@@ -41,6 +47,11 @@ func filterDriveFilesByType(files []map[string]any, fileType string) []map[strin
 
 func boolValue(value any) bool {
 	typed, _ := value.(bool)
+	return typed
+}
+
+func stringValue(value any) string {
+	typed, _ := value.(string)
 	return typed
 }
 

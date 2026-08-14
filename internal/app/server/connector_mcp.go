@@ -1,4 +1,4 @@
-// INPUT: connector 服务、Agent 身份与 runtime source context。
+// INPUT: connector 服务、Agent owner 与 runtime 显式选择的 Connector。
 // OUTPUT: DM/Room 共用的 connector MCP builder。
 // POS: connector MCP 的应用装配入口。
 package server
@@ -13,15 +13,19 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
-	connectormcp "github.com/nexus-research-lab/nexus/internal/mcp/connectors"
-	connectormcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	feishudocxmcp "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx"
+	feishudocxmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
+type connectorMCPService interface {
+	LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*connectordomain.ConnectionSnapshot, error)
+}
+
 // newConnectorMCPBuilder 返回 DM/Room 实时链路所需的 connector MCPServerBuilder。
 func newConnectorMCPBuilder(
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
@@ -43,24 +47,15 @@ func newConnectorMCPBuilder(
 		if len(enabledConnectorIDs) == 0 {
 			return nil
 		}
-		sctx := connectormcpcontract.ServerContext{
-			OwnerUserID:         agentValue.OwnerUserID,
-			CurrentAgentID:      agentValue.AgentID,
-			CurrentSessionKey:   sessionKey,
-			SourceContextType:   sourceContextType,
-			SourceContextID:     sourceContextID,
-			SourceContextLabel:  sourceContextLabel,
-			IsMainAgent:         agentValue.IsMain,
-			EnabledConnectorIDs: enabledConnectorIDs,
-		}
-		servers := map[string]sdkmcp.ServerConfig{
-			connectormcpcontract.ServerName: sdkmcp.SDKServerConfig{
-				Name:     connectormcpcontract.ServerName,
-				Instance: connectormcp.NewServer(svc, sctx),
-			},
-		}
+		servers := map[string]sdkmcp.ServerConfig{}
 		for _, connectorID := range enabledConnectorIDs {
 			switch connectorID {
+			case "feishu-docx":
+				sctx := feishudocxmcpcontract.ServerContext{OwnerUserID: agentValue.OwnerUserID}
+				servers[feishudocxmcpcontract.ServerName] = sdkmcp.SDKServerConfig{
+					Name:     feishudocxmcpcontract.ServerName,
+					Instance: feishudocxmcp.NewServer(svc, sctx),
+				}
 			case "amap":
 				appendAmapMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 			case "didi":
@@ -100,7 +95,7 @@ func normalizedConnectorIDs(requested []string) []string {
 func appendAmapMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 ) {
 	appendAPIKeyMCPServer(ctx, servers, svc, ownerUserID, "amap", "amap_maps", "https://mcp.amap.com/mcp")
@@ -109,7 +104,7 @@ func appendAmapMCPServer(
 func appendDidiMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 ) {
 	appendAPIKeyMCPServer(ctx, servers, svc, ownerUserID, "didi", "didi_ride", "https://mcp.didichuxing.com/mcp-servers")
@@ -118,7 +113,7 @@ func appendDidiMCPServer(
 func appendDingTalkAITableMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 ) {
 	appendUserURLMCPServer(ctx, servers, svc, ownerUserID, "dingtalk-ai-table", "dingtalk_ai_table")
@@ -127,7 +122,7 @@ func appendDingTalkAITableMCPServer(
 func appendTencentDocsMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 ) {
 	appendHeaderTokenMCPServer(ctx, servers, svc, ownerUserID, "tencent-docs", "tencent_docs", "https://docs.qq.com/openapi/mcp", "Authorization")
@@ -136,10 +131,10 @@ func appendTencentDocsMCPServer(
 func appendYuqueMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 ) {
-	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, "yuque")
+	snapshot := loadConnectorMCPSnapshot(ctx, svc, ownerUserID, "yuque")
 	if snapshot == nil {
 		return
 	}
@@ -155,13 +150,13 @@ func appendYuqueMCPServer(
 func appendAPIKeyMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 	connectorID string,
 	serverName string,
 	baseURL string,
 ) {
-	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, connectorID)
+	snapshot := loadConnectorMCPSnapshot(ctx, svc, ownerUserID, connectorID)
 	if snapshot == nil {
 		return
 	}
@@ -173,12 +168,12 @@ func appendAPIKeyMCPServer(
 func appendUserURLMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 	connectorID string,
 	serverName string,
 ) {
-	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, connectorID)
+	snapshot := loadConnectorMCPSnapshot(ctx, svc, ownerUserID, connectorID)
 	if snapshot == nil {
 		return
 	}
@@ -193,14 +188,14 @@ func appendUserURLMCPServer(
 func appendHeaderTokenMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 	connectorID string,
 	serverName string,
 	serverURL string,
 	headerName string,
 ) {
-	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, connectorID)
+	snapshot := loadConnectorMCPSnapshot(ctx, svc, ownerUserID, connectorID)
 	if snapshot == nil {
 		return
 	}
@@ -214,12 +209,11 @@ func appendHeaderTokenMCPServer(
 
 func loadConnectorMCPSnapshot(
 	ctx context.Context,
-	servers map[string]sdkmcp.ServerConfig,
-	svc connectormcpcontract.Service,
+	svc connectorMCPService,
 	ownerUserID string,
 	connectorID string,
 ) *connectordomain.ConnectionSnapshot {
-	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
+	if svc == nil || strings.TrimSpace(ownerUserID) == "" {
 		return nil
 	}
 	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)

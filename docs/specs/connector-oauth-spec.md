@@ -93,15 +93,13 @@ principal、runtime session、round、Connector 和配置版本。
 
 ## 7. 显式挂载 Connector 的运行时能力
 
-只有 Agent 默认或当前 Session 显式选中的 Connector，才通过 `nexus_connectors` MCP server 注入当前 owner 的 Agent runtime：
+只有 Agent 默认或当前 Session 显式选中的 Connector，才向当前 owner 的 Agent runtime
+挂载能力。支持原生 MCP 的 Provider 直接挂载各自 MCP server；飞书云文档通过独立的
+`nexus_feishu_docx` MCP 暴露带固定 schema 的语义工具。宿主不向模型暴露连接列表，也不提供
+可传入任意 method、path 和 body 的通用 REST 代理。
 
-- `connector_list`：列出当前 owner 已连接的 Connector。
-- `connector_call`：向 Connector 的固定 API base URL 发起受控 REST 请求。
-
-`connector_call` 由宿主添加认证头，调用方不能覆盖 `Authorization`。出站地址只允许
-Connector 声明的 base URL；生产环境使用 HTTPS，本地调试仅允许 loopback HTTP。
-响应大小和错误投影由宿主限制，凭据不会进入工具结果。
-选中后的工具 schema 不随短暂连接状态消失；未连接、凭据过期或刷新失败会在真实调用时显式返回错误。显式取消 Session/Agent 选择才会在下一轮卸载该 Connector 工具面。
+选中后的工具 schema 不随短暂连接状态消失；未连接、凭据过期或刷新失败会在真实调用时
+显式返回错误。显式取消 Session/Agent 选择才会在下一轮卸载该 Connector 工具面。
 
 ## 8. 排障
 

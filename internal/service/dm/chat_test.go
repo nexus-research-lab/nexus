@@ -385,7 +385,7 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 						Content: []sdkprotocol.ContentBlock{
 							sdkprotocol.ToolUseBlock{
 								ID:    "tool-connectors",
-								Name:  "mcp__nexus_connectors__connector_list",
+								Name:  "mcp__nexus_feishu_docx__search",
 								Input: json.RawMessage(`{}`),
 							},
 						},

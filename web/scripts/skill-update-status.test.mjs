@@ -305,7 +305,7 @@ test("定时任务恢复运行后不把上一段权限错误当成当前异常",
     failure_streak: 1,
     instruction: "读取飞书文档",
     job_id: "task-1",
-    last_error: "任务需要使用 mcp__nexus_connectors__feishu_docx_read。",
+    last_error: "任务需要使用 mcp__nexus_feishu_docx__read。",
     last_run_status: "awaiting_approval",
     name: "飞书权限回归测试",
     permission_state: "ready",
@@ -342,7 +342,7 @@ test("定时任务恢复运行后不把上一段权限错误当成当前异常",
     running_started_at: null,
   }, pending);
   assert.equal(failed.columnId, "attention");
-  assert.match(failed.lastError ?? "", /feishu_docx_read/);
+  assert.match(failed.lastError ?? "", /nexus_feishu_docx__read/);
 
   const awaitingApproval = boardModel.getScheduledTaskCardPresentation({
     ...task,
@@ -352,7 +352,7 @@ test("定时任务恢复运行后不把上一段权限错误当成当前异常",
       capability: {
         connector_id: "feishu-docx",
         effect: "read",
-        tool_name: "mcp__nexus_connectors__feishu_docx_read",
+        tool_name: "mcp__nexus_feishu_docx__read",
       },
       created_at: "2026-08-10T08:30:00Z",
       job_id: "task-1",

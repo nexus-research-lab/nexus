@@ -1,3 +1,4 @@
+// 本文件集中定义飞书云文档工具的 MCP 结果渲染。
 package tool
 
 import (

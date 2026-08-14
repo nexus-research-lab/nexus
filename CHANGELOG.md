@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the generic Connector listing and arbitrary REST proxy tools; selected Connectors now expose provider MCP servers, with Feishu Docs isolated in its own `nexus_feishu_docx` MCP.
 - Moved Generative UI guidance from the always-loaded `visualize_read_me` tool into the system-managed `visualize` Skill, leaving `nexus_visualize` with only `show_widget`.
 - Replaced the always-mounted `nexus_manager` MCP schemas with the existing `nexus-manager` Skill and owner-scoped `nexusctl`; ordinary Agents continue to use native tools for their own workspace.
 - Made connected marketplace MCPs opt-in: Agents default to no attached Connectors, Agent settings can define defaults, and the Composer can override them for the current Session.
