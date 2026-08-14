@@ -1,13 +1,12 @@
 // INPUT: Goal 创建/读取、model round durable usage scope、Room creator/lead 身份、用户更新请求与 Execution/Room 终态 readiness。
-// OUTPUT: owner 授权先于 runtime accounting 的原子 Goal/created 事件/usage scope、统一清理外部 metadata、future Execution reserved phase、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
+// OUTPUT: owner 授权先于 runtime accounting 的原子 Goal/created 事件/usage scope、统一清理外部 metadata、显式 Goal-only mode、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -41,6 +40,7 @@ type Service struct {
 	roomCompletion      roomGoalCompletionReadiness
 	continuations       ContinuationDispatcher
 	wallClock           *goalWallClockAccounting
+	logger              *slog.Logger
 	nowFn               func() time.Time
 	idFactory           func(string) string
 }
@@ -70,7 +70,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if protocol.IsRoomSharedSessionKey(sessionKey) && ownershipAgentID == "" {
 		ownershipAgentID = strings.TrimSpace(request.RoomLeadAgentID)
 	}
-	ownerUserID, verifiedAgentID, verifiedAgentName, roomCollaborationRequired, err := s.verifyGoalSessionOwnership(
+	ownerUserID, verifiedAgentID, verifiedAgentName, err := s.verifyGoalSessionOwnership(
 		ctx,
 		sessionKey,
 		request.OwnerUserID,
@@ -79,30 +79,10 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
-	if protocol.IsRoomSharedSessionKey(sessionKey) {
-		if request.RoomCollaborationRequired == nil {
-			_, explicitlySet := request.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired]
-			if !explicitlySet {
-				request.RoomCollaborationRequired = &roomCollaborationRequired
-			}
-		} else if !*request.RoomCollaborationRequired && roomCollaborationRequired {
-			return nil, fmt.Errorf(
-				"%w: Room Goal collaboration requirement conflicts with the verified member directory",
-				ErrGoalInvalidState,
-			)
-		}
-	}
 	request.OwnerUserID = ownerUserID
 	request.AgentID = runtimeAgentID
 	if strings.TrimSpace(request.CreatedBy) == "user" {
 		request.Metadata = sanitizeExternalGoalMetadata(request.Metadata)
-	}
-	if protocol.IsRoomSharedSessionKey(sessionKey) && request.RoomCollaborationRequired != nil {
-		if request.Metadata == nil {
-			request.Metadata = map[string]any{}
-		}
-		request.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired] =
-			*request.RoomCollaborationRequired
 	}
 	if protocol.IsRoomSharedSessionKey(sessionKey) && strings.TrimSpace(request.CreatedBy) == "model" && strings.TrimSpace(request.AgentID) == "" {
 		return nil, newGoalInvalidInputError("model-created Room Goal requires the current agent identity")
@@ -120,14 +100,12 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 			metadata = map[string]any{}
 		}
 		return s.Update(ctx, current.ID, protocol.UpdateGoalRequest{
-			Objective:                 &objective,
-			TokenBudget:               protocol.OptionalInt64{Present: true, Value: request.TokenBudget},
-			OwnerUserID:               request.OwnerUserID,
-			Metadata:                  metadata,
-			RoomLeadAgentID:           verifiedRoomLeadAgentID(request.AgentID, verifiedAgentID),
-			RoomLeadAgentName:         verifiedAgentName,
-			RoomCollaborationRequired: request.RoomCollaborationRequired,
-			RoomCollaborationRoundID:  strings.TrimSpace(request.RoundID),
+			Objective:         &objective,
+			TokenBudget:       protocol.OptionalInt64{Present: true, Value: request.TokenBudget},
+			OwnerUserID:       request.OwnerUserID,
+			Metadata:          metadata,
+			RoomLeadAgentID:   verifiedRoomLeadAgentID(request.AgentID, verifiedAgentID),
+			RoomLeadAgentName: verifiedAgentName,
 		})
 	}
 	scopeRoundID := ""
@@ -151,6 +129,9 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		verifiedRoomLeadAgentID(request.AgentID, verifiedAgentID),
 		verifiedAgentName,
 	)
+	if strings.TrimSpace(request.CreatedBy) == "user" {
+		metadata = initializeGoalOnlyExecutionMetadata(metadata)
+	}
 	ownerUserID = strings.TrimSpace(request.OwnerUserID)
 	if ownerUserID == "" {
 		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
@@ -217,12 +198,14 @@ func sanitizeExternalGoalMetadata(metadata map[string]any) map[string]any {
 		protocol.GoalMetadataSourceObjective,
 		protocol.GoalMetadataObjectiveNormalized,
 		protocol.GoalMetadataExecutionID,
+		protocol.GoalMetadataExecutionMode,
 		protocol.GoalMetadataExecutionBindingState,
 		protocol.GoalMetadataPromotionCommand,
 		protocol.GoalMetadataActivationOrigin,
 		protocol.GoalMetadataActivationReason,
 		protocol.GoalMetadataCompletionCriteria,
 		protocol.GoalMetadataObjectiveAlignment,
+		protocol.GoalMetadataBlocker,
 		protocol.GoalMetadataExplicitCommand,
 		protocol.GoalMetadataObjectiveTransition,
 		protocol.GoalMetadataObjectiveRevision,
@@ -242,49 +225,21 @@ func sanitizeExternalGoalMetadata(metadata map[string]any) map[string]any {
 	return metadata
 }
 
-// reserveExternalGoalExecution 为外部 Goal 预留稳定 Execution。
-func reserveExternalGoalExecution(metadata map[string]any, goalID string) map[string]any {
+// initializeGoalOnlyExecutionMetadata records the product mode without
+// inventing an Execution. goal_binding=current is the only transition that may
+// move this Goal into managed mode.
+func initializeGoalOnlyExecutionMetadata(metadata map[string]any) map[string]any {
 	metadata = cloneMap(metadata)
 	if metadata == nil {
 		metadata = map[string]any{}
 	}
-	commandID := "external_goal_" + strings.TrimSpace(goalID)
-	metadata[protocol.GoalMetadataExplicitCommand] = commandID
-	metadata[protocol.GoalMetadataExecutionID] = protocol.ExplicitGoalReservedExecutionID(commandID)
-	metadata[protocol.GoalMetadataExecutionBindingState] =
-		string(protocol.GoalExecutionBindingStateReserved)
+	metadata[protocol.GoalMetadataExecutionMode] = string(protocol.GoalExecutionModeGoalOnly)
 	metadata[protocol.GoalMetadataActivationOrigin] = string(protocol.GoalActivationOriginUserExplicit)
 	metadata[protocol.GoalMetadataActivationReason] = string(protocol.GoalActivationReasonPersistenceRequested)
+	delete(metadata, protocol.GoalMetadataExecutionID)
+	delete(metadata, protocol.GoalMetadataExecutionBindingState)
+	delete(metadata, protocol.GoalMetadataCompletionCriteria)
 	return metadata
-}
-
-// ensureExternalGoalExecutionReservation 为历史外部 Goal 补齐缺失的稳定 reservation。
-func (s *Service) ensureExternalGoalExecutionReservation(
-	ctx context.Context,
-	item *protocol.Goal,
-) (*protocol.Goal, error) {
-	if item == nil || strings.TrimSpace(item.CreatedBy) == "model" ||
-		protocol.GoalReservedExecutionID(*item) != "" {
-		return item, nil
-	}
-	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if strings.TrimSpace(current.CreatedBy) == "model" ||
-			protocol.GoalReservedExecutionID(*current) != "" {
-			return current, nil
-		}
-		expectedVersion := current.Version
-		current.Metadata = reserveExternalGoalExecution(current.Metadata, current.ID)
-		current.Version++
-		current.UpdatedAt = s.nowFn()
-		updated, err := s.repo.UpdateGoal(ctx, *current, expectedVersion)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrGoalVersionStale
-		}
-		if err != nil {
-			return nil, err
-		}
-		return updated, nil
-	})
 }
 
 func (s *Service) createGoalWithUsageScope(
@@ -614,7 +569,9 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 	return paused, nil
 }
 
-// Resume 恢复 paused/blocked/usage_limited Goal；预算耗尽时需要先调整预算。
+// Resume 恢复 paused/blocked 或解除 active continuation suppression。
+// usage_limited 是同一 objective revision 的硬续跑上限，不能用 pause/resume
+// 反复重开；只有 retarget 到新 revision 才获得新的 continuation epoch。
 func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, error) {
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
@@ -638,6 +595,12 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 	switch protocol.NormalizeGoalStatus(item.Status) {
 	case protocol.GoalStatusComplete:
 		return nil, ErrGoalInvalidState
+	case protocol.GoalStatusUsageLimited:
+		if maxContinuations := s.config.GoalMaxContinuationsPerRun; maxContinuations > 0 && item.ContinuationCount >= maxContinuations {
+			return nil, newGoalInvalidInputError(
+				"Goal continuation limit is exhausted for this objective revision; retarget the Goal after an explicit objective change instead of resuming the same work",
+			)
+		}
 	case protocol.GoalStatusBudgetLimited:
 		if s.goalBudgetExhausted(*item) {
 			return item, nil

@@ -40,6 +40,9 @@ func newWebSocketHandler(
 	if services != nil && services.Orchestration != nil {
 		services.Orchestration.SetExecutionInvalidationSink(handler)
 	}
+	if services != nil && services.Automation != nil {
+		handler.SetAutomationPermissionService(services.Automation)
+	}
 	return handler
 }
 

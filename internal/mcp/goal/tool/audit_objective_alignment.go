@@ -122,6 +122,7 @@ func objectiveAlignmentPayload(
 	record *protocol.GoalObjectiveAlignmentRecord,
 ) map[string]any {
 	payload := goalPayload(item)
+	payload["outcome"] = protocol.MutationResultApplied
 	if record == nil {
 		payload["objectiveAlignment"] = nil
 		return payload

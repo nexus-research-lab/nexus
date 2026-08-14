@@ -162,13 +162,26 @@ func (r *Repository) listGoalsWhere(ctx context.Context, predicate string) ([]pr
 	return items, nil
 }
 
-// ListRunnableGoals 返回需要系统继续推进的 active Goal。
+// ListRunnableGoals 只返回 continuation controller 可运行的 active Goal。
+// suspended Goal 必须留给显式 activity/resume 解锁；若先 LIMIT 再在 service
+// 过滤，它们会永久占满旧记录窗口并饿死较新的 ready Goal。
 func (r *Repository) ListRunnableGoals(ctx context.Context, limit int) ([]protocol.Goal, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	query := goalSelectQuery("status = " + r.bind(1) + " ORDER BY updated_at ASC, goal_id ASC LIMIT " + r.bind(2))
-	rows, err := r.db.QueryContext(ctx, query, protocol.GoalStatusActive, limit)
+	query := goalSelectQuery(
+		"status = " + r.bind(1) +
+			" AND empty_progress_count < " + r.bind(2) +
+			" AND TRIM(COALESCE(last_error, '')) = ''" +
+			" ORDER BY updated_at ASC, goal_id ASC LIMIT " + r.bind(3),
+	)
+	rows, err := r.db.QueryContext(
+		ctx,
+		query,
+		protocol.GoalStatusActive,
+		protocol.GoalContinuationSuppressionThreshold,
+		limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -191,10 +204,25 @@ func (r *Repository) ListRunnableGoals(ctx context.Context, limit int) ([]protoc
 // UpdateGoal 以 optimistic version 更新 Goal。
 func (r *Repository) UpdateGoal(ctx context.Context, goal protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
 	goal.Usage = goal.Usage.NormalizeTotals()
-	if err := r.updateGoal(ctx, r.db, goal, expectedVersion); err != nil {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
 		return nil, err
 	}
-	return r.GetGoal(ctx, goal.ID)
+	defer func() { _ = tx.Rollback() }()
+	if err = r.updateGoal(ctx, tx, goal, expectedVersion); err != nil {
+		return nil, err
+	}
+	keepRevision := int64(0)
+	if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusActive {
+		keepRevision = goal.ObjectiveRevision()
+	}
+	if err = r.cancelGoalContinuations(ctx, tx, goal.ID, keepRevision, "Goal lifecycle or objective revision advanced", goal.UpdatedAt); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &goal, nil
 }
 
 func (r *Repository) updateGoal(

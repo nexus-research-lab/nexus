@@ -1,5 +1,5 @@
 // INPUT: authenticated owner、canonical Goal session key 与仅由可信 runtime 注入的可选 Agent identity。
-// OUTPUT: owner-scoped session 存在性证明、经服务端校验的 Room creator/lead Agent identity 与当前 Agent 成员规模。
+// OUTPUT: owner-scoped session 存在性证明与经服务端校验的 Room creator/lead Agent identity。
 // POS: Goal create 与 app-server no-current set 共用的跨域 session ownership 边界。
 package goal
 
@@ -21,9 +21,8 @@ type GoalSessionOwnershipRequest struct {
 
 // GoalSessionOwnershipProof 返回已经由 Agent/Room 服务验证的可信身份。
 type GoalSessionOwnershipProof struct {
-	TrustedAgentID            string
-	TrustedAgentName          string
-	RoomCollaborationRequired bool
+	TrustedAgentID   string
+	TrustedAgentName string
 }
 
 // GoalSessionOwnershipVerifier 由应用层用 owner-scoped Agent/Room 服务实现。
@@ -44,7 +43,7 @@ func (s *Service) verifyGoalSessionOwnership(
 	sessionKey string,
 	requestedOwnerUserID string,
 	trustedAgentID string,
-) (string, string, string, bool, error) {
+) (string, string, string, error) {
 	ownerUserID := strings.TrimSpace(requestedOwnerUserID)
 	if ownerUserID == "" {
 		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
@@ -53,11 +52,11 @@ func (s *Service) verifyGoalSessionOwnership(
 	if s.sessionOwnership == nil {
 		// Focused domain tests construct the Goal service without the app graph.
 		// The production server always installs the owner-scoped verifier.
-		return ownerUserID, trustedAgentID, "", false, nil
+		return ownerUserID, trustedAgentID, "", nil
 	}
 	if authenticatedOwner, ok := authctx.CurrentUserID(ctx); ok &&
 		strings.TrimSpace(authenticatedOwner) != ownerUserID {
-		return "", "", "", false, fmt.Errorf(
+		return "", "", "", fmt.Errorf(
 			"%w: Goal owner does not match the authenticated owner",
 			ErrGoalForbidden,
 		)
@@ -68,14 +67,14 @@ func (s *Service) verifyGoalSessionOwnership(
 		TrustedAgentID: trustedAgentID,
 	})
 	if err != nil {
-		return "", "", "", false, fmt.Errorf(
+		return "", "", "", fmt.Errorf(
 			"%w: target Goal session is not owned by the authenticated owner",
 			ErrGoalForbidden,
 		)
 	}
 	proofAgentID := strings.TrimSpace(proof.TrustedAgentID)
 	if proofAgentID != trustedAgentID {
-		return "", "", "", false, fmt.Errorf(
+		return "", "", "", fmt.Errorf(
 			"%w: Goal session proof returned a different runtime Agent identity",
 			ErrGoalForbidden,
 		)
@@ -83,6 +82,5 @@ func (s *Service) verifyGoalSessionOwnership(
 	return ownerUserID,
 		proofAgentID,
 		strings.TrimSpace(proof.TrustedAgentName),
-		proof.RoomCollaborationRequired,
 		nil
 }

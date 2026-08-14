@@ -19,15 +19,15 @@ func testGoalAuthority(goalID string, revision int64) *runtimectx.GoalAuthorityS
 	return runtimectx.NewGoalAuthorityState(goalID, revision, "")
 }
 
-func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
+func TestUpdateGoalSchemaCarriesBlockedRecoveryPath(t *testing.T) {
 	tool := updateGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	properties, ok := tool.InputSchema["properties"].(map[string]any)
 	if !ok {
 		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
 	}
 	names := slices.Sorted(maps.Keys(properties))
-	if !slices.Equal(names, []string{"status"}) {
-		t.Fatalf("properties = %#v, want status-only schema", names)
+	if !slices.Equal(names, []string{"blocker_id", "needed_input", "reason", "status"}) {
+		t.Fatalf("properties = %#v, want status plus blocker recovery fields", names)
 	}
 	required, ok := tool.InputSchema["required"].([]string)
 	if !ok || !slices.Equal(required, []string{"status"}) {
@@ -513,7 +513,12 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 		GoalAuthority:     testGoalAuthority("goal-1", 1),
 	})
 
-	result, err := tool.Handler(context.Background(), map[string]any{"status": "blocked"})
+	result, err := tool.Handler(context.Background(), map[string]any{
+		"status":       "blocked",
+		"blocker_id":   "dataset-unavailable",
+		"reason":       "external dataset is unavailable",
+		"needed_input": "restore dataset access",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -525,6 +530,11 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 	}
 	if svc.blockedRequest.AgentID != "agent-2" {
 		t.Fatalf("blocked agent = %q, want agent-2", svc.blockedRequest.AgentID)
+	}
+	if svc.blockedRequest.BlockerID != "dataset-unavailable" ||
+		svc.blockedRequest.Reason != "external dataset is unavailable" ||
+		svc.blockedRequest.NeededInput != "restore dataset access" {
+		t.Fatalf("blocked request = %#v, want durable recovery path", svc.blockedRequest)
 	}
 	goal, ok := result.StructuredContent["goal"].(map[string]any)
 	if !ok || goal["status"] != "blocked" {

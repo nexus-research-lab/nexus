@@ -74,6 +74,12 @@ export function isSubagentTaskActive(task: SubagentTask): boolean {
   return status === "pending" || status === "running";
 }
 
+export function canSendSubagentTaskMessage(task: SubagentTask): boolean {
+  return task.status.trim().toLowerCase() !== "deleted"
+    && task.capabilities.send_message
+    && task.capabilities.resume;
+}
+
 export function subagentTaskTitle(task: SubagentTask): string {
   return (
     task.name?.trim() ||
@@ -172,6 +178,29 @@ function normalizeSubagentTaskCapabilities(
 
 export function subagentTaskTimestamp(task: SubagentTask): number {
   return normalizeTimestamp(task.updated_at) ?? normalizeTimestamp(task.started_at) ?? 0;
+}
+
+export function preferFreshSubagentTask(
+  sourceTask: SubagentTask,
+  detailTask?: SubagentTask | null,
+): SubagentTask {
+  if (!detailTask) {
+    return sourceTask;
+  }
+  const sourceTimestamp = subagentTaskTimestamp(sourceTask);
+  const detailTimestamp = subagentTaskTimestamp(detailTask);
+  if (detailTimestamp > sourceTimestamp) {
+    return detailTask;
+  }
+  if (detailTimestamp < sourceTimestamp) {
+    return sourceTask;
+  }
+  // Equal-timestamp status edges occur in historical runtime projections.
+  // Prefer terminal over active so a stale read cannot revive completed work.
+  if (isSubagentTaskActive(detailTask) && !isSubagentTaskActive(sourceTask)) {
+    return sourceTask;
+  }
+  return detailTask;
 }
 
 function normalizeTimestamp(value?: number): number | null {

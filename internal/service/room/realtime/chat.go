@@ -9,15 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-	"github.com/nexus-research-lab/nexus/internal/message"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
-	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"maps"
 	"slices"
 	"sort"
@@ -25,6 +16,15 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/message"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // roomChatExecution 保存一次 Room 输入从受理到启动 round 的业务态。
@@ -168,8 +168,8 @@ func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) err
 	if len(activeRound.Slots) == 0 {
 		return execution.reportUnavailableMembers()
 	}
-	if !execution.startRound(activeRound, pending) {
-		return runtimectx.ErrRuntimeSessionClosing
+	if err = execution.startRound(activeRound, pending); err != nil {
+		return err
 	}
 	return nil
 }
@@ -749,13 +749,42 @@ func (e *roomChatExecution) reportUnavailableMembers() error {
 	return nil
 }
 
-func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) bool {
+func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) error {
 	roundCtx, cancel := context.WithCancel(context.WithoutCancel(e.ctx))
 	activeRound.Cancel = cancel
 	e.service.registerRound(activeRound)
 	if err := e.service.runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
 		e.service.finishRound(activeRound)
-		return false
+		return err
+	}
+	if e.request.continuationStartAdmission != nil {
+		goalID := strings.TrimSpace(e.request.GoalID)
+		if goalID != "" {
+			for _, slot := range activeRound.Slots {
+				if slot == nil {
+					continue
+				}
+				e.service.runtime.RegisterGoalAccountingIdentity(
+					e.sessionKey,
+					slot.AgentRoundID,
+					func() string { return goalID },
+				)
+			}
+		}
+		if err := e.request.continuationStartAdmission(e.ctx); err != nil {
+			cancel()
+			for _, slot := range activeRound.Slots {
+				if slot == nil {
+					continue
+				}
+				e.service.runtime.RegisterGoalAccountingIdentity(e.sessionKey, slot.AgentRoundID, nil)
+				slot.closeDone()
+			}
+			e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+			e.service.rounds.unregister(activeRound)
+			activeRound.doneOnce.Do(func() { close(activeRound.Done) })
+			return err
+		}
 	}
 
 	e.service.broadcastSharedEvent(
@@ -769,7 +798,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 	}
 	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
 	go e.service.runRound(roundCtx, activeRound, e.history, e.agentNameByID, e.agentByID)
-	return true
+	return nil
 }
 
 func (e *roomChatExecution) broadcastAck(pending []protocol.ChatAckPendingSlot, userMessageCommitted bool) {

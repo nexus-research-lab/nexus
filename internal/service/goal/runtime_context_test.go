@@ -66,7 +66,7 @@ func TestServiceRuntimeContextSkipsStoppedGoals(t *testing.T) {
 		{
 			name: "blocked",
 			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
-				_, err := service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{RoundID: "round-1"})
+				_, err := service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{BlockerID: "external-wait", Reason: "external wait", NeededInput: "external completion", RoundID: "round-1"})
 				return err
 			},
 		},

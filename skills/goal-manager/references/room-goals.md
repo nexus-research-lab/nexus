@@ -14,8 +14,8 @@ Room Goal 属于整个 Room。创建者或当前 assigned lead 负责推进、�
 
 分派后不要重复生产同一交付物。Lead 应聚焦自己的责任、协调、解阻、整合和验证；只有任务原子、其他成员没有净收益或 Lead 自己就是明确 owner 时才整体直接执行。
 
-## 可见协作完成条件
+## 可见协作审计
 
-当运行时明确要求当前 Room Goal 具备非 Lead 的可见协作证据时，Lead 必须先让至少一个成员产生与当前 objective revision 相关的实质贡献，再尝试完成。普通 `@` 计划、候选人描述或隐藏协作不构成证据。
+Room Goal 是否需要协作由当前负责人根据任务事实决定，不由成员数量机械触发。负责人确认 objective 已满足且当前 Room/Execution readiness 通过后，可以直接完成 Goal；非 Lead 协作证据是可选审计事实，不是完成门槛。
 
-首次公开分派应写清具体交付物，并等待成员的可见结果；不要在同一轮立即完成 Goal。涉及隐私、密钥或用户明确要求私下协作时才使用 directed message。结果返回后，由 Lead 基于可见证据继续执行、审核或完成 Objective Alignment。
+若使用 `@` 请求一次性贡献，应写清问题并等待公开实质回复；Goal-attributed 回复会记录为协作证据，但不会创建 WorkBinding。若成员必须承担可追责交付，则使用 WorkGraph/Assignment。任何已启动的 `@` handoff、Assignment、队列或 wake 都应先完成或显式取消，再关闭 Goal。涉及隐私、密钥或用户明确要求私下协作时才使用 directed message；私域回复不成为公开协作证据。

@@ -11,13 +11,12 @@ import (
 )
 
 type fakeRoomGoalCompletionReadiness struct {
-	blocker               string
-	collaborationRequired bool
-	err                   error
-	goalID                string
-	agentID               string
-	roundID               string
-	callCount             int
+	blocker   string
+	err       error
+	goalID    string
+	agentID   string
+	roundID   string
+	callCount int
 }
 
 type fakeExecutionGoalCompletionReadiness struct {
@@ -46,10 +45,7 @@ func (f *fakeRoomGoalCompletionReadiness) RoomGoalCompletionReport(
 	f.goalID = item.ID
 	f.agentID = agentID
 	f.roundID = roundID
-	return RoomGoalCompletionReport{
-		CollaborationRequired: f.collaborationRequired,
-		Blocker:               f.blocker,
-	}, f.err
+	return RoomGoalCompletionReport{Blocker: f.blocker}, f.err
 }
 
 func TestServiceCreateAndCurrentGoal(t *testing.T) {
@@ -88,7 +84,7 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	}
 }
 
-func TestServicePlanContinuationRepairsLegacyExternalGoalReservation(t *testing.T) {
+func TestServicePlanContinuationKeepsLegacyExternalGoalStandalone(t *testing.T) {
 	for _, sessionKey := range []string{
 		"agent:nexus:ws:dm:legacy-reservation",
 		"room:group:legacy-reservation",
@@ -117,24 +113,23 @@ func TestServicePlanContinuationRepairsLegacyExternalGoalReservation(t *testing.
 			if plan == nil {
 				t.Fatal("plan = nil, want repaired continuation")
 			}
-			wantExecutionID := protocol.ExplicitGoalReservedExecutionID("external_goal_" + legacy.ID)
-			if got := protocol.GoalReservedExecutionID(plan.Goal); got != wantExecutionID {
-				t.Fatalf("plan execution = %q, want %q", got, wantExecutionID)
+			if got := protocol.GoalReservedExecutionID(plan.Goal); got != "" {
+				t.Fatalf("plan execution = %q, want standalone Goal", got)
 			}
 			if got := protocol.GoalExecutionBindingStateFromGoal(plan.Goal); got !=
-				protocol.GoalExecutionBindingStateReserved {
-				t.Fatalf("plan binding state = %q, want reserved", got)
+				protocol.GoalExecutionBindingStateStandalone {
+				t.Fatalf("plan binding state = %q, want standalone", got)
 			}
 			stored, err := repo.GetGoal(context.Background(), legacy.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if stored == nil || protocol.GoalReservedExecutionID(*stored) != wantExecutionID {
-				t.Fatalf("stored = %#v, want persisted execution reservation", stored)
+			if stored == nil || protocol.GoalReservedExecutionID(*stored) != "" {
+				t.Fatalf("stored = %#v, want no implicit execution reservation", stored)
 			}
 			if got := protocol.GoalExecutionBindingStateFromGoal(*stored); got !=
-				protocol.GoalExecutionBindingStateReserved {
-				t.Fatalf("stored binding state = %q, want reserved", got)
+				protocol.GoalExecutionBindingStateStandalone {
+				t.Fatalf("stored binding state = %q, want standalone", got)
 			}
 		})
 	}
@@ -370,7 +365,7 @@ func TestServiceBroadcastsGoalEvents(t *testing.T) {
 	}
 }
 
-func TestServiceBroadcastsContinuationSuppressedEvent(t *testing.T) {
+func TestServiceBroadcastsContinuationRecoveryEvent(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -392,8 +387,8 @@ func TestServiceBroadcastsContinuationSuppressedEvent(t *testing.T) {
 	if len(broadcaster.events) != 2 || broadcaster.events[1].EventType != protocol.EventTypeGoalContinuation {
 		t.Fatalf("events = %#v, want goal_continuation for suppressed continuation", broadcaster.events)
 	}
-	if broadcaster.events[1].Data["goal_event_type"] != "continuation_suppressed" {
-		t.Fatalf("payload = %#v, want continuation_suppressed goal_event_type", broadcaster.events[1].Data)
+	if broadcaster.events[1].Data["goal_event_type"] != "continuation_recovery_scheduled" {
+		t.Fatalf("payload = %#v, want continuation_recovery_scheduled goal_event_type", broadcaster.events[1].Data)
 	}
 }
 
@@ -577,7 +572,7 @@ func TestServiceModelStatusUpdateFlushesButDoesNotClearRuntimeAccountingEarly(t 
 	}
 }
 
-func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.T) {
+func TestServiceCompleteByModelIgnoresLegacyRoomCollaborationRequirement(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -598,29 +593,15 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 		t.Fatal(err)
 	}
 
-	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead", AgentID: "agent-lead"}); !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("CompleteByModel error = %v, want ErrGoalInvalidState before collaborator evidence", err)
-	}
-	current, err := service.Current(ctx, created.SessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.Status != protocol.GoalStatusActive {
-		t.Fatalf("status = %q, want active after rejected completion", current.Status)
-	}
-
-	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
-		t.Fatal(err)
-	}
-	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead-final", AgentID: "agent-lead"})
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead", AgentID: "agent-lead"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if completed.Status != protocol.GoalStatusComplete {
-		t.Fatalf("status = %q, want complete after collaborator evidence", completed.Status)
+		t.Fatalf("status = %q, want current lead to complete without collaborator evidence", completed.Status)
 	}
-	if !RoomCollaborationObserved(*completed) {
-		t.Fatalf("metadata = %#v, want collaboration observed", completed.Metadata)
+	if RoomCollaborationObserved(*completed) {
+		t.Fatalf("metadata = %#v, legacy requirement must not manufacture collaboration evidence", completed.Metadata)
 	}
 }
 
@@ -676,12 +657,12 @@ func TestServiceCompleteByModelKeepsRoomGoalActiveWhileRoomWorkIsOutstanding(t *
 	}
 }
 
-func TestServiceCompleteByModelUsesCurrentRoomMembershipWhenCreationMetadataIsMissing(t *testing.T) {
+func TestServiceCompleteByModelDoesNotTurnRoomMembershipIntoCollaborationGate(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
 	service.idFactory = sequentialID()
-	readiness := &fakeRoomGoalCompletionReadiness{collaborationRequired: true}
+	readiness := &fakeRoomGoalCompletionReadiness{}
 	service.SetRoomGoalCompletionReadiness(readiness)
 	ctx := context.Background()
 
@@ -694,37 +675,92 @@ func TestServiceCompleteByModelUsesCurrentRoomMembershipWhenCreationMetadataIsMi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if RoomCollaborationRequired(*created) {
-		t.Fatalf("metadata = %#v, test requires a legacy or same-round Goal without the creation marker", created.Metadata)
-	}
-
-	_, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
-		AgentID: "agent-lead",
-		RoundID: "round-create-and-complete",
-	})
-	if !errors.Is(err, ErrGoalInvalidState) || !strings.Contains(err.Error(), "room-visible non-lead collaboration") {
-		t.Fatalf("CompleteByModel error = %v, want current multi-member Room rejection", err)
-	}
-	current, currentErr := service.Current(ctx, created.SessionKey)
-	if currentErr != nil {
-		t.Fatal(currentErr)
-	}
-	if current.Status != protocol.GoalStatusActive || readiness.callCount != 1 {
-		t.Fatalf("current = %#v readiness calls=%d, want active Goal after dynamic collaboration gate", current, readiness.callCount)
-	}
-
-	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
-		t.Fatal(err)
-	}
 	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
 		AgentID: "agent-lead",
-		RoundID: "round-lead-final",
+		RoundID: "round-create-and-complete",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 2 {
+	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 1 {
 		t.Fatalf("completed = %#v readiness calls=%d", completed, readiness.callCount)
+	}
+}
+
+func TestRoomLeadCompletionKeepsWorkGraphReadinessIndependentFromCollaborationEvidence(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	executionReadiness := &fakeExecutionGoalCompletionReadiness{
+		blocker: "work_item:W2:required_not_accepted",
+	}
+	service.SetExecutionGoalCompletionReadiness(executionReadiness)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("room-workgraph-readiness"),
+		Objective:  "complete the managed Room delivery",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-room-readiness",
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
+			protocol.GoalMetadataCompletionCriteria: []string{
+				"all required Work Items accepted",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const roundID = "round-room-final"
+	_, err = service.AuditObjectiveAlignmentByModel(ctx, created.ID, protocol.AuditGoalObjectiveAlignmentRequest{
+		Report: protocol.ObjectiveAlignmentReport{
+			Decision: protocol.ObjectiveAlignmentAligned,
+			CriteriaResults: []protocol.ObjectiveAlignmentCriterionResult{{
+				Criterion: "all required Work Items accepted",
+				Status:    protocol.ObjectiveAlignmentCriterionSatisfied,
+				Evidence: []protocol.ObjectiveAlignmentEvidence{{
+					Ref:   "workgraph:execution-room-readiness",
+					Claim: "the current round inspected the managed WorkGraph",
+				}},
+			}},
+			Summary: "The objective is aligned; WorkGraph readiness remains authoritative.",
+		},
+		RoundID:                   roundID,
+		AgentID:                   "agent-lead",
+		ExpectedObjectiveRevision: created.ObjectiveRevision(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completion := protocol.CompleteGoalRequest{
+		RoundID:                   roundID,
+		AgentID:                   "agent-lead",
+		ExpectedObjectiveRevision: created.ObjectiveRevision(),
+	}
+	if _, err = service.CompleteByModel(ctx, created.ID, completion); !errors.Is(err, ErrGoalInvalidState) ||
+		!strings.Contains(err.Error(), executionReadiness.blocker) {
+		t.Fatalf("CompleteByModel error = %v, want WorkGraph readiness rejection", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusActive || RoomCollaborationObserved(*current) {
+		t.Fatalf("current = %#v, want active Goal without manufactured collaboration evidence", current)
+	}
+
+	executionReadiness.blocker = ""
+	completed, err := service.CompleteByModel(ctx, created.ID, completion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || RoomCollaborationObserved(*completed) {
+		t.Fatalf("completed = %#v, want lead completion after WorkGraph readiness without collaboration gate", completed)
 	}
 }
 
@@ -842,7 +878,7 @@ func TestServiceCompleteByModelRetriesConcurrentGoalVersion(t *testing.T) {
 	}
 }
 
-func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
+func TestServiceBlockByModelRequiresDurableRecoveryReason(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -856,7 +892,14 @@ func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{})
+	if blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{}); !errors.Is(err, ErrGoalInvalidInput) || blocked != nil {
+		t.Fatalf("empty blocker = %#v, %v; want invalid input", blocked, err)
+	}
+	blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{
+		BlockerID:   "source-system-unavailable",
+		Reason:      "source system is unavailable",
+		NeededInput: "restore source-system access",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -866,8 +909,17 @@ func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	if len(repo.events) != 2 || repo.events[1].EventType != "blocked" {
 		t.Fatalf("events = %#v, want blocked event", repo.events)
 	}
-	if _, ok := repo.events[1].Payload["reason"]; ok {
-		t.Fatalf("blocked payload = %#v, want no synthetic reason", repo.events[1].Payload)
+	if repo.events[1].Payload["blocker_id"] != "source-system-unavailable" ||
+		repo.events[1].Payload["reason"] != "source system is unavailable" ||
+		repo.events[1].Payload["needed_input"] != "restore source-system access" {
+		t.Fatalf("blocked payload = %#v, want durable recovery path", repo.events[1].Payload)
+	}
+	blocker, ok := protocol.GoalBlockerFromGoal(*blocked)
+	if !ok || blocker.ID != "source-system-unavailable" ||
+		blocker.Reason != "source system is unavailable" ||
+		blocker.NeededInput != "restore source-system access" ||
+		blocker.SinceObjectiveRevision != blocked.ObjectiveRevision() {
+		t.Fatalf("blocked projection = %#v, ok=%v", blocker, ok)
 	}
 }
 

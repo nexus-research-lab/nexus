@@ -26,12 +26,12 @@
 1. 形成 execution-ready objective。
 2. 调用 `get_goal` 确认当前会话没有未结束 Goal。
 3. 调用 `create_goal`；只有用户明确给出预算时才传 `token_budget`。
-4. 如果当前已经有 objective/owner/scope 兼容的 transient WorkGraph，`create_goal` 会把该 Execution 绑定到新 Goal，不得再创建第二张图。只有两者都尚不存在、且还要建立 WorkGraph 时，才等待 `create_goal` 成功后调用 `prepare_plan_execution`；在这个可选绑定分支中两步有因果顺序，不得放进同一个并行工具批次。Plan 会从 exact active Goal 继承 objective。
+4. 如果当前已经有 objective/owner/scope 兼容的 transient WorkGraph，不要调用 `create_goal`；调用 `promote_execution_to_goal` 并使用 `activation_reason=persistence_requested`，在原图上建立显式 Goal。只有两者都尚不存在、且还要建立 WorkGraph 时，才等待 `create_goal` 成功后调用 `prepare_plan_execution`；两步有因果顺序，不得放进同一个并行工具批次。Plan 会从 exact active Goal 继承 objective。
 5. 创建成功后用一句话确认目标，然后继续执行，不解释底层工具。
 
 如果用户说“设定/更改 Goal”而当前状态未知，先以 `get_goal` 结果分流：空结果进入上述创建流程；存在当前 Goal 才进入下方纠正流程。不要用 `update_goal` 试探或代替任一分支；它只收口 `complete` / `blocked`。
 
-第 4 步是可选分支，不是 Goal 创建的隐藏后续。Goal-only 直接继续 Agent Loop；reserved Execution ID 不代表 WorkGraph 已存在；已有兼容 transient WorkGraph 的自动绑定也不代表需要重新 prepare。
+第 4 步是显式分流，不是 Goal 创建的隐藏后续。Goal-only 直接继续 Agent Loop；`create_goal` 不预留 Execution identity，也不跨领域自动绑定；promote 已有 transient WorkGraph 后不得重新 prepare 第二张图。
 
 ## 纠正 objective
 

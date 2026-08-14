@@ -8,6 +8,7 @@ import type { SubagentTaskMessagesResponse } from "@/types/conversation/subagent
 import {
   isSubagentTaskActive,
   normalizeSubagentTask,
+  preferFreshSubagentTask,
   SUBAGENT_TASK_POLL_INTERVAL_MS,
   subagentTaskErrorMessage,
 } from "../subagent-task-model";
@@ -116,7 +117,7 @@ export function useSubagentTaskThreadResource(
     scope.task.capabilities.transcript,
   ]);
 
-  const effectiveTask = snapshot.detail?.task ?? scope.task;
+  const effectiveTask = preferFreshSubagentTask(scope.task, snapshot.detail?.task);
   const taskIsActive = isSubagentTaskActive(effectiveTask);
   const transcriptAvailable = effectiveTask.capabilities.transcript;
   useEffect(() => {

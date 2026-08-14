@@ -6,6 +6,9 @@ package orchestration
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,6 +153,97 @@ func TestNormalizeAndValidatePlanAllowsHardOrderedOutputScopeHandoff(t *testing.
 		time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
 	); !errors.Is(err, ErrInvariant) {
 		t.Fatalf("soft-only output overlap error = %v, want ErrInvariant", err)
+	}
+}
+
+func TestWritePlanAllowsHardOrderedOutputScopeHandoffAndRejectsConcurrentConflict(t *testing.T) {
+	t.Run("all-hard ordered handoff", func(t *testing.T) {
+		repository := newRepositoryTestStore(t)
+		ctx := context.Background()
+		if _, err := repository.Create(ctx, createTestCommand("scope-handoff-db")); err != nil {
+			t.Fatal(err)
+		}
+		command := testPlanCommand("scope-handoff-db", 1, "scope-handoff-db", "", 1)
+		command.WorkItems = append(command.WorkItems, testPlanWork(
+			command.ExecutionID,
+			command.Plan.ID,
+			"work-scope-handoff-db-3",
+			"spec-scope-handoff-db-3",
+			2,
+		))
+		for index := range command.WorkItems {
+			command.WorkItems[index].OutputClaims[0].Scope = "file:output/workgraph-demo.md"
+		}
+		command.Dependencies = []protocol.ExecutionPlanDependency{
+			{
+				WorkItemID:          command.WorkItems[1].WorkItem.ID,
+				DependsOnWorkItemID: command.WorkItems[0].WorkItem.ID,
+				Kind:                protocol.WorkDependencyHard,
+			},
+			{
+				WorkItemID:          command.WorkItems[2].WorkItem.ID,
+				DependsOnWorkItemID: command.WorkItems[1].WorkItem.ID,
+				Kind:                protocol.WorkDependencyHard,
+			},
+		}
+
+		snapshot, err := repository.WritePlan(ctx, command)
+		if err != nil {
+			t.Fatalf("persist hard-ordered output handoff: %v", err)
+		}
+		claimCount := 0
+		for _, claim := range snapshot.OutputClaims {
+			if claim.Scope == "file:output/workgraph-demo.md" &&
+				claim.Mode == protocol.WorkOutputScopeExclusive {
+				claimCount++
+			}
+		}
+		if claimCount != 3 {
+			t.Fatalf("persisted ordered exclusive claims = %d, want 3", claimCount)
+		}
+	})
+
+	t.Run("unordered concurrent ownership", func(t *testing.T) {
+		repository := newRepositoryTestStore(t)
+		ctx := context.Background()
+		if _, err := repository.Create(ctx, createTestCommand("scope-conflict-db")); err != nil {
+			t.Fatal(err)
+		}
+		command := testPlanCommand("scope-conflict-db", 1, "scope-conflict-db", "", 1)
+		for index := range command.WorkItems {
+			command.WorkItems[index].OutputClaims[0].Scope = "file:output/workgraph-demo.md"
+		}
+
+		if _, err := repository.WritePlan(ctx, command); !errors.Is(err, ErrInvariant) {
+			t.Fatalf("unordered output overlap error = %v, want ErrInvariant", err)
+		}
+		current, err := repository.Get(ctx, command.ExecutionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if current.Version != 1 {
+			t.Fatalf("rejected Plan changed Execution version to %d", current.Version)
+		}
+	})
+}
+
+func TestOrderedOutputHandoffMigrationDropsLegacyUniqueIndexInBothDialects(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "postgres"} {
+		path := filepath.Join(
+			orchestrationMigrationDir(t, dialect),
+			"00102_execution_ordered_output_handoffs.sql",
+		)
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		normalized := strings.ToLower(strings.Join(strings.Fields(string(body)), " "))
+		if !strings.Contains(
+			normalized,
+			"drop index if exists uq_execution_plan_exclusive_output_claim",
+		) {
+			t.Fatalf("%s migration does not drop the legacy unique index", dialect)
+		}
 	}
 }
 

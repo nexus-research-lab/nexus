@@ -57,6 +57,7 @@ func abandonExecution(svc contract.Service, sctx contract.ServerContext) sdktool
 			if serviceErr != nil {
 				return transportErrorResult(serviceErr), nil
 			}
+			applyMutationResponsibilityAuthority(sctx, result)
 			contextActor := actor
 			if result.Outcome != orchestration.MutationRejected {
 				contextActor.ExecutionID = ""

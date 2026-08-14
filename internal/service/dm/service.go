@@ -121,6 +121,10 @@ type Request struct {
 	// AutomationRun 只由 Automation 调度器签发，作为 runtime/MCP 的可信 run 身份。
 	AutomationRun       *protocol.AutomationRunContext
 	ExternalReplyTarget *ExternalReplyTarget
+	// continuationStartAdmission is host-only. It advances the durable
+	// continuation receipt after exact runtime registration and before the
+	// provider receives a query.
+	continuationStartAdmission func(context.Context) error
 }
 
 // RewriteRequest 表示一次 DM 最后一条用户消息重写请求。replacement round_id 由后端 mint。

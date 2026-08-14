@@ -1,5 +1,7 @@
 import {
   asUnknownRecord,
+  readBoolean,
+  readNumber,
   readString,
   type UnknownRecord,
 } from "@/lib/unknown-value";
@@ -57,6 +59,40 @@ export function decodePermissionRequest(
     summary: readOptionalString(event.data, "summary"),
     suggestions: readPermissionSuggestions(event.data.suggestions),
     expires_at: readOptionalString(event.data, "expires_at"),
+    source: readPermissionSource(event.data),
+    automation: readAutomationPermissionContext(event.data),
+  };
+}
+
+function readPermissionSource(
+  data: UnknownRecord,
+): PendingPermission["source"] {
+  return readString(data, "request_source") === "automation"
+    ? "automation"
+    : undefined;
+}
+
+function readAutomationPermissionContext(
+  data: UnknownRecord,
+): PendingPermission["automation"] {
+  if (readString(data, "request_source") !== "automation") {
+    return undefined;
+  }
+  const jobId = readString(data, "automation_job_id")?.trim();
+  const kind = readString(data, "automation_request_kind")?.trim();
+  const policyRevision = readNumber(data, "automation_policy_revision");
+  const taskName = readString(data, "automation_task_name")?.trim();
+  if (!jobId || !kind || policyRevision === null || !taskName) {
+    return undefined;
+  }
+  const runId = readString(data, "automation_run_id")?.trim();
+  return {
+    allow_task: readBoolean(data, "automation_allow_task") === true,
+    job_id: jobId,
+    kind,
+    policy_revision: policyRevision,
+    ...(runId ? { run_id: runId } : {}),
+    task_name: taskName,
   };
 }
 

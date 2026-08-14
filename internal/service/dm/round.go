@@ -82,6 +82,7 @@ type roundRunner struct {
 	goalIDForUsage              string
 	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
+	responsibilityState         *runtimectx.ResponsibilityAuthorityState
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
 	goalUsageBindingMu          sync.Mutex
@@ -481,6 +482,27 @@ func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 
 func (r *roundRunner) writeUsage(message protocol.Message) bool {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
+	goalBound := strings.TrimSpace(r.goalIDForUsage) != ""
+	executionBound := strings.TrimSpace(r.executionID) != ""
+	lane := string(runtimectx.ResponsibilityLaneUnbound)
+	if executionBound {
+		lane = string(runtimectx.ResponsibilityLaneExecution)
+	}
+	if r.responsibilityState != nil {
+		if authority, ok := r.responsibilityState.Load(); ok {
+			goalBound = strings.TrimSpace(authority.GoalID) != ""
+			executionBound = strings.TrimSpace(authority.ExecutionID) != ""
+			lane = string(authority.Lane)
+		}
+	}
+	surface, observed := r.service.runtime.CacheSurface(r.sessionKey)
+	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
+		surface.Input(),
+		observed,
+		goalBound,
+		executionBound,
+		lane,
+	)
 	if err := r.service.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		r.service.loggerFor(context.Background()).Error("DM token usage 写入失败",
 			"session_key", r.sessionKey,

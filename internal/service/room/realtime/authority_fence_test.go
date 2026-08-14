@@ -479,7 +479,6 @@ func assertAuthorityFenceGoalProviderUntouched(
 		len(provider.failures) != 0 ||
 		len(provider.completionMisses) != 0 ||
 		len(provider.activities) != 0 ||
-		len(provider.collabRequired) != 0 ||
 		len(provider.collabEvidence) != 0 {
 		t.Fatalf("revoked output mutated Goal state: %+v", provider)
 	}

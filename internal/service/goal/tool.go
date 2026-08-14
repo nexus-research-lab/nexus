@@ -1,5 +1,5 @@
-// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage 与 objective revision；complete 另读取 Objective Alignment、Execution 与 Room readiness。
-// OUTPUT: 受负责人、状态机与 revision 保护的终态结果；complete 额外 fail-closed，blocked 的三轮判定由模型策略承担。
+// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage 与 objective revision；complete 另读取 Objective Alignment、Execution 与 Room outstanding-work readiness。
+// OUTPUT: 受负责人、状态机与 revision 保护的终态结果；协作证据只审计不拦截，blocked 的三轮判定由模型策略承担。
 // POS: Goal 模型生命周期工具的服务层入口。
 package goal
 
@@ -26,14 +26,18 @@ func (s *Service) CompleteByModel(ctx context.Context, goalID string, request pr
 
 // BlockByModel 允许模型工具把 active Goal 标记为阻塞。
 func (s *Service) BlockByModel(ctx context.Context, goalID string, request protocol.BlockGoalRequest) (*protocol.Goal, error) {
+	blockerID := strings.TrimSpace(request.BlockerID)
 	reason := strings.TrimSpace(request.Reason)
+	neededInput := strings.TrimSpace(request.NeededInput)
+	if blockerID == "" || reason == "" || neededInput == "" {
+		return nil, newGoalInvalidInputError(
+			"blocking a Goal requires a stable blocker id, concrete reason, and the exact needed input or external change",
+		)
+	}
 	payload := map[string]any{}
-	if reason != "" {
-		payload["reason"] = reason
-	}
-	if neededInput := strings.TrimSpace(request.NeededInput); neededInput != "" {
-		payload["needed_input"] = neededInput
-	}
+	payload["blocker_id"] = blockerID
+	payload["reason"] = reason
+	payload["needed_input"] = neededInput
 	if agentID := strings.TrimSpace(request.AgentID); agentID != "" {
 		payload["source_agent_id"] = agentID
 	}
@@ -49,7 +53,7 @@ func (s *Service) changeStatusByModel(
 	roundID string,
 	payload map[string]any,
 	expectedRevision int64,
-	requireRoomCollaboration bool,
+	requireCompletionReadiness bool,
 ) (*protocol.Goal, error) {
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
@@ -79,7 +83,7 @@ func (s *Service) changeStatusByModel(
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}
-		if requireRoomCollaboration {
+		if requireCompletionReadiness {
 			if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
 				ctx,
 				*current,
@@ -91,7 +95,7 @@ func (s *Service) changeStatusByModel(
 			if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *current); readinessErr != nil {
 				return nil, readinessErr
 			}
-			if readinessErr := s.ensureRoomGoalCollaborationReady(ctx, *current, agentID, roundID); readinessErr != nil {
+			if _, readinessErr := s.ensureRoomGoalCompletionReady(ctx, *current, agentID, roundID); readinessErr != nil {
 				return nil, readinessErr
 			}
 		}

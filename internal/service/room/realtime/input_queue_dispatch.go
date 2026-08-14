@@ -31,7 +31,19 @@ func (s *Service) pruneStaleGoalCollaborationQueueEntries(
 		binding := protocol.NormalizeGoalCollaborationBinding(
 			entry.Item.GoalCollaborationBinding,
 		)
-		if binding == nil || roomGoalCollaborationBindingMatchesGoal(currentGoal, binding) {
+		current := binding == nil || roomGoalCollaborationBindingMatchesGoal(currentGoal, binding)
+		if binding != nil && !current {
+			var currentErr error
+			current, currentErr = s.roomGoalCollaborationBindingIsCurrent(
+				ctx,
+				contextValue.Conversation.ID,
+				binding,
+			)
+			if currentErr != nil {
+				return nil, currentErr
+			}
+		}
+		if current {
 			kept = append(kept, entry)
 			continue
 		}

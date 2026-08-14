@@ -1,5 +1,5 @@
 // INPUT: Room slot 的 Goal 上下文、objective revision、parent/child usage 与运行结果。
-// OUTPUT: slot 级 Goal accounting、跨 runtime 的 root-scope child 回补、共享 finalization barrier、协作证据和 objective steering。
+// OUTPUT: slot 级 Goal accounting、root receipt/agent audit 双身份结算、跨 runtime 的 child 回补、共享 finalization barrier、协作证据和 objective steering。
 // POS: Room runtime 与共享 Goal 领域之间的唯一投影入口。
 package realtime
 
@@ -268,11 +268,32 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	if !authority.valid() {
 		return
 	}
+	currentAuthority, ok := slot.boundGoalAuthority()
+	if !ok || currentAuthority.GoalID != authority.GoalID ||
+		currentAuthority.ObjectiveRevision < authority.ObjectiveRevision {
+		return
+	}
 	goalID := authority.GoalID
+	objectiveRevision := currentAuthority.ObjectiveRevision
 	s.recordRoomGoalCollaborationEvidenceForSlot(ctx, slot, finalAssistant)
 	purpose := ""
+	receiptRoundID := ""
 	if roundValue != nil {
 		purpose = strings.TrimSpace(roundValue.InputOptions.Purpose)
+		receiptRoundID = roomRootRoundID(roundValue)
+	}
+	settleContinuationReceipt := func() error {
+		return settleRoomGoalContinuationAfterRuntime(
+			ctx,
+			s.goals,
+			goalID,
+			receiptRoundID,
+			objectiveRevision,
+		)
+	}
+	runtimeIdentity := goalsvc.ContinuationRuntimeIdentity{
+		ReceiptRoundID: receiptRoundID,
+		AuditRoundID:   slot.AgentRoundID,
 	}
 	if purpose == "goal_continuation" && result.TerminalStatus == "error" {
 		reason := cmp.Or(
@@ -281,14 +302,16 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 			"Goal continuation runtime failed",
 		)
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 续跑失败原因失败", func() error {
-			_, err := s.goals.RecordContinuationFailure(ctx, goalID, slot.AgentRoundID, reason, authority.ObjectiveRevision)
+			_, err := s.goals.RecordContinuationRuntimeFailure(
+				ctx, goalID, runtimeIdentity, reason, objectiveRevision,
+			)
 			return err
 		})
 		return
 	}
 	if purpose != "goal_continuation" {
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 显式活动失败", func() error {
-			_, err := s.goals.RecordGoalActivity(ctx, goalID, slot.AgentRoundID, authority.ObjectiveRevision)
+			_, err := s.goals.RecordGoalActivity(ctx, goalID, slot.AgentRoundID, objectiveRevision)
 			return err
 		})
 		return
@@ -296,7 +319,9 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	if messageutil.AssistantMissedGoalCompletionTool(finalAssistant) {
 		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成工具漏调用失败", func() error {
-			_, err := s.goals.RecordCompletionToolMiss(ctx, goalID, slot.AgentRoundID, reason, authority.ObjectiveRevision)
+			_, err := s.goals.RecordContinuationRuntimeCompletionToolMiss(
+				ctx, goalID, runtimeIdentity, reason, objectiveRevision,
+			)
 			return err
 		})
 		return
@@ -304,10 +329,15 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	hasProgress := slotHasGoalToolProgress(slot)
 	if !hasProgress && (slot.hasRunningSubagentTask() ||
 		slotHasPendingGoalCollaboration(slot, finalAssistant)) {
+		s.recordSlotGoalMutation(ctx, slot, "结算已启动 Room Goal 续跑回执失败", func() error {
+			return settleContinuationReceipt()
+		})
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 续跑进展失败", func() error {
-		_, err := s.goals.RecordContinuationProgress(ctx, goalID, slot.AgentRoundID, hasProgress, authority.ObjectiveRevision)
+		_, err := s.goals.RecordContinuationRuntimeProgress(
+			ctx, goalID, runtimeIdentity, hasProgress, objectiveRevision,
+		)
 		return err
 	}, "progressed", hasProgress)
 }
@@ -353,7 +383,9 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 		return
 	}
 	authority := slot.goalMutationAuthority()
-	if !authority.valid() {
+	currentAuthority, ok := slot.boundGoalAuthority()
+	if !authority.valid() || !ok || currentAuthority.GoalID != authority.GoalID ||
+		currentAuthority.ObjectiveRevision < authority.ObjectiveRevision {
 		return
 	}
 	if roomdomain.IsNoReplyAssistantMessage(finalAssistant) {
@@ -363,7 +395,7 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 协作证据失败", func() error {
-		_, err := s.goals.RecordRoomGoalCollaborationEvidence(ctx, authority.GoalID, slot.AgentRoundID, slot.AgentID, authority.ObjectiveRevision)
+		_, err := s.goals.RecordRoomGoalCollaborationEvidence(ctx, authority.GoalID, slot.AgentRoundID, slot.AgentID, currentAuthority.ObjectiveRevision)
 		return err
 	}, "agent_id", slot.AgentID)
 }
@@ -458,6 +490,7 @@ func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
 		return s.flushGoalUsageForSlot(ctx, slot)
 	})
+	s.runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.goalIDForUsage)
 	s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
 		clearGoalUsageForSlot(slot)
 	})
@@ -478,6 +511,7 @@ func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	)
 	return func() {
 		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
+		s.runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, nil)
 		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
 		s.runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, nil)
 		s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
@@ -613,7 +647,12 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessage(
 	}
 	observations := messageutil.AssistantToolResults(message)
 	if len(observations) > 0 {
-		rememberGoalToolProgressForSlot(slot, messageutil.AssistantHasCountedToolProgress(message))
+		authority, goalBound := slot.boundGoalAuthority()
+		goalBound = goalBound && strings.TrimSpace(authority.ExecutionID) != ""
+		rememberGoalToolProgressForSlot(slot, messageutil.AssistantHasCountedToolProgress(
+			message,
+			goalBound,
+		))
 	}
 	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
 	hasSuccessfulCreate := false
@@ -1791,8 +1830,8 @@ func normalizeGoalCancellationText(content string) string {
 	return builder.String()
 }
 
-// INPUT: 当前 Room Goal、调用方 Agent/root round、当前成员、active slots 与 durable Room work。
-// OUTPUT: complete 前的当前多成员事实及第一个 outstanding-work blocker；调用方主 slot 不阻塞自身。
+// INPUT: 当前 Room Goal、调用方 Agent/root round、active slots 与 durable Room work。
+// OUTPUT: complete 前的第一个 outstanding-work blocker；调用方主 slot 不阻塞自身。
 // POS: Room 实时/持久化工作到 Goal 终态 gate 的唯一投影入口。
 // RoomGoalCompletionReport 返回共享 Goal complete 的当前 Room 门禁事实。
 func (s *Service) RoomGoalCompletionReport(
@@ -1820,10 +1859,25 @@ func (s *Service) RoomGoalCompletionReport(
 	if err != nil {
 		return report, err
 	}
-	report.CollaborationRequired = roomdomain.HasMultipleAgentMembers(contextValue.Members)
 	if blocker := s.activeRoomGoalBlocker(goal.SessionKey, conversationID, callerAgentID, callerRoundID); blocker != "" {
 		report.Blocker = blocker
 		return report, nil
+	}
+	if s.publicHandoffs != nil {
+		inFlight, handoffErr := s.publicHandoffs.GoalCollaborationInFlightAll(
+			contextValue.Room.OwnerUserID,
+			protocol.GoalCollaborationBinding{
+				GoalID:            goal.ID,
+				ObjectiveRevision: goal.ObjectiveRevision(),
+			},
+		)
+		if handoffErr != nil {
+			return report, handoffErr
+		}
+		if inFlight {
+			report.Blocker = "a Room Goal collaboration handoff has not settled"
+			return report, nil
+		}
 	}
 	if blocker, err := s.roomGoalInputQueueBlocker(ctx, contextValue, &goal); err != nil || blocker != "" {
 		report.Blocker = blocker

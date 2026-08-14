@@ -44,6 +44,7 @@ type Handler struct {
 	channels               *channelspkg.Router
 	hostCommands           *slashcommandsvc.Registry
 	commandCatalog         *slashcommandsvc.Catalog
+	automationPermissions  automationPermissionService
 	runtimeKindResolver    func(context.Context, string) (agentclient.RuntimeKind, error)
 	roomSubs               *roomSubscriptionRegistry
 	workspaceSubs          *workspaceSubscriptionRegistry
@@ -62,6 +63,20 @@ type roomRealtimeService interface {
 	InputQueueSnapshotEvent(context.Context, string, string) (protocol.EventMessage, error)
 	GetActiveRoundSnapshot(string) *roomrealtime.ActiveRoundSnapshot
 	SetRoomBroadcaster(roomrealtime.RoomBroadcaster)
+}
+
+// automationPermissionService 是 WebSocket 只需使用的持久 Automation 交互边界。
+type automationPermissionService interface {
+	ListSessionPermissionEvents(context.Context, string) ([]protocol.EventMessage, error)
+	PendingPermissionRequestIDsForRoom(context.Context, string, string) ([]string, error)
+	ResolveSessionPermissionResponse(context.Context, string, map[string]any) (bool, error)
+}
+
+// SetAutomationPermissionService 注入持久 Automation 权限读写边界。
+func (h *Handler) SetAutomationPermissionService(service automationPermissionService) {
+	if h != nil {
+		h.automationPermissions = service
+	}
 }
 
 // NewHandler 创建 WebSocket handler。

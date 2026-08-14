@@ -316,16 +316,26 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 
 func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	goalAuthority := e.slot.ensureGoalAuthorityState()
+	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
+	if responsibilityAuthority != nil {
+		responsibilityAuthority.SeedExecution(firstNonEmptyString(
+			executionIDFromRoomBindings(e.slot.WorkBinding, e.slot.ReviewBinding),
+			e.round.ExecutionID,
+		))
+	}
 	var servers map[string]sdkmcp.ServerConfig
 	if e.service.mcpServers != nil {
 		sourceContextType := roomMCPSourceContextType(e.round)
-		mcpContext := runtimectx.WithGoalAuthorityState(
-			runtimectx.WithMCPRoundLease(
-				e.ctx,
-				e.slot.RuntimeSessionKey,
-				e.slot.AgentRoundID,
+		mcpContext := runtimectx.WithResponsibilityAuthorityState(
+			runtimectx.WithGoalAuthorityState(
+				runtimectx.WithMCPRoundLease(
+					e.ctx,
+					e.slot.RuntimeSessionKey,
+					e.slot.AgentRoundID,
+				),
+				goalAuthority,
 			),
-			goalAuthority,
+			responsibilityAuthority,
 		)
 		mcpContext = runtimectx.WithEnabledConnectorIDs(
 			mcpContext,
@@ -360,19 +370,20 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 			),
 			e.round.ExecutionID,
 		),
-		WorkBinding:        cloneExecutionWorkBinding(e.slot.WorkBinding),
-		WorkBindingState:   e.ensureWorkBindingState(),
-		ReviewBinding:      cloneExecutionReviewBinding(e.slot.ReviewBinding),
-		CoordinatorAgentID: strings.TrimSpace(e.round.CoordinatorAgentID),
-		RootRoundID:        e.round.RootRoundID,
-		AgentRoundID:       e.slot.AgentRoundID,
-		SourceContextType:  "room",
-		SourceContextID:    e.round.RoomID,
-		RoomID:             e.round.RoomID,
-		ConversationID:     e.round.ConversationID,
-		PermissionMode:     permissionMode,
-		GoalAuthority:      goalAuthority,
-		AutomationRun:      cloneAutomationRunContext(e.round.AutomationRun),
+		WorkBinding:             cloneExecutionWorkBinding(e.slot.WorkBinding),
+		WorkBindingState:        e.ensureWorkBindingState(),
+		ReviewBinding:           cloneExecutionReviewBinding(e.slot.ReviewBinding),
+		CoordinatorAgentID:      strings.TrimSpace(e.round.CoordinatorAgentID),
+		RootRoundID:             e.round.RootRoundID,
+		AgentRoundID:            e.slot.AgentRoundID,
+		SourceContextType:       "room",
+		SourceContextID:         e.round.RoomID,
+		RoomID:                  e.round.RoomID,
+		ConversationID:          e.round.ConversationID,
+		PermissionMode:          permissionMode,
+		GoalAuthority:           goalAuthority,
+		ResponsibilityAuthority: responsibilityAuthority,
+		AutomationRun:           cloneAutomationRunContext(e.round.AutomationRun),
 	})
 	if len(overlay) > 0 && servers == nil {
 		servers = make(map[string]sdkmcp.ServerConfig, len(overlay))

@@ -3,7 +3,11 @@
 // POS: nexus_manager 服务的跨 transport 数据契约。
 package nexusmanager
 
-import "time"
+import (
+	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
 
 const (
 	ContextKindAgent = "agent"
@@ -26,6 +30,9 @@ type Actor struct {
 	ContextID       string
 	RoomID          string
 	ConversationID  string
+	// GoalCollaborationBinding 由可信宿主动态读取当前 exact Goal/revision。
+	// communication 只把返回值用于协作归因，绝不把它传播为目标 round capability。
+	GoalCollaborationBinding func() *protocol.GoalCollaborationBinding
 }
 
 // CapabilitySnapshot 明确当前上下文实际获得的能力和被排除的高风险边界。

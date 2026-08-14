@@ -148,6 +148,15 @@ func (r *roundRunner) clearGoalUsage() {
 	r.goalTokenUsageObserved = false
 }
 
+func (r *roundRunner) goalIDForAccounting() string {
+	if r == nil {
+		return ""
+	}
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	return strings.TrimSpace(r.goalIDForUsage)
+}
+
 // beginGoalUsageFinalizing 用于外部 complete：保留当前 Goal 固定绑定，
 // 让 provider terminal 与迟到 child usage 完成最终对账后再关闭。
 func (r *roundRunner) beginGoalUsageFinalizing() bool {
@@ -302,7 +311,10 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 	observations := messageutil.AssistantToolResults(message)
 	if len(observations) > 0 {
-		r.rememberGoalToolProgress(messageutil.AssistantHasCountedToolProgress(message))
+		r.rememberGoalToolProgress(messageutil.AssistantHasCountedToolProgress(
+			message,
+			r.hasGoalBoundExecutionAuthority(),
+		))
 	}
 	snapshot := r.assistantGoalUsageSnapshot(message)
 	hasSuccessfulCreate := false
@@ -398,6 +410,9 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	}
 	progressed := r.hasGoalToolProgress()
 	if !progressed && r.hasRunningSubagentTask() {
+		r.recordGoalMutation("结算已启动 Goal 续跑回执失败", func() error {
+			return settleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.goalIDForUsage, r.roundID, r.currentGoalObjectiveRevision())
+		})
 		return
 	}
 	r.recordGoalMutation("记录 Goal 续跑进展失败", func() error {
@@ -420,6 +435,17 @@ func (r *roundRunner) hasGoalRoundBinding() bool {
 	r.goalUsageMu.Lock()
 	defer r.goalUsageMu.Unlock()
 	return strings.TrimSpace(r.goalIDForUsage) != ""
+}
+
+// hasGoalBoundExecutionAuthority distinguishes an exact Goal+Execution
+// responsibility from a Goal-only round. A transient or ambient WorkGraph
+// mutation must never keep an unrelated Goal continuation alive.
+func (r *roundRunner) hasGoalBoundExecutionAuthority() bool {
+	if r == nil || !r.hasGoalRoundBinding() || r.responsibilityState == nil {
+		return false
+	}
+	authority, ok := r.responsibilityState.LoadGoalAuthority()
+	return ok && strings.TrimSpace(authority.ExecutionID) != ""
 }
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {

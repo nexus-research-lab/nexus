@@ -55,7 +55,12 @@ func (s *Service) collectPublicMentionWakes(
 	if content == "" {
 		return nil
 	}
-	if err := s.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
+	goalCollaborationBinding, err := s.annotatePublicAssistantMessageWithGoalBinding(
+		roundValue,
+		slot,
+		message,
+	)
+	if err != nil {
 		return err
 	}
 	// result 投影可能晚于首个 assistant 快照到达；此时实时事件已经拿到标注，
@@ -80,7 +85,13 @@ func (s *Service) collectPublicMentionWakes(
 	if content == "" {
 		return nil
 	}
-	wakes := publicMentionWakesFromMessage(roundValue, slot, message, content)
+	wakes := publicMentionWakesFromMessage(
+		roundValue,
+		slot,
+		message,
+		content,
+		goalCollaborationBinding,
+	)
 	if len(wakes) == 0 {
 		return nil
 	}
@@ -99,7 +110,7 @@ func (s *Service) collectPublicMentionWakes(
 		}
 		s.enqueuePublicMentionWake(roundValue, wake)
 	}
-	if goalCollaborationBindingForSlot(roundValue, slot) != nil {
+	if goalCollaborationBinding != nil {
 		slot.markPendingGoalCollaboration()
 	}
 	// source slot 完成即触发，不等待同一 root 的其他 slot。
@@ -112,6 +123,7 @@ func publicMentionWakesFromMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 	content string,
+	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) []publicMentionWake {
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	if messageID == "" || roundValue == nil || slot == nil {
@@ -119,6 +131,7 @@ func publicMentionWakesFromMessage(
 	}
 	seen := make(map[string]struct{})
 	result := make([]publicMentionWake, 0)
+	binding := cloneGoalCollaborationBinding(goalCollaborationBinding)
 	for _, mention := range protocolAgentMentions(message["agent_mentions"]) {
 		targetAgentID := strings.TrimSpace(mention.AgentID)
 		if targetAgentID == "" || targetAgentID == strings.TrimSpace(slot.AgentID) ||
@@ -136,17 +149,14 @@ func publicMentionWakesFromMessage(
 		}
 		seen[targetAgentID] = struct{}{}
 		result = append(result, publicMentionWake{
-			HandoffID:     handoffID,
-			TriggerType:   "public_mention",
-			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
-			SourceAgentID: strings.TrimSpace(slot.AgentID),
-			TargetAgentID: targetAgentID,
-			Content:       content,
-			MessageID:     messageID,
-			GoalCollaborationBinding: goalCollaborationBindingForSlot(
-				roundValue,
-				slot,
-			),
+			HandoffID:                handoffID,
+			TriggerType:              "public_mention",
+			QueueSource:              protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID:            strings.TrimSpace(slot.AgentID),
+			TargetAgentID:            targetAgentID,
+			Content:                  content,
+			MessageID:                messageID,
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(binding),
 		})
 	}
 	return result

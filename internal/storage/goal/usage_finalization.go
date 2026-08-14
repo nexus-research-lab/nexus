@@ -86,6 +86,9 @@ WHERE goal_id = %s
 	if err := r.insertGoalEvent(ctx, tx, event); err != nil {
 		return nil, err
 	}
+	if err := r.cancelGoalContinuations(ctx, tx, goal.ID, 0, "Goal usage finalized", goal.UpdatedAt); err != nil {
+		return nil, err
+	}
 	updated, err := scanGoal(tx.QueryRowContext(
 		ctx,
 		goalSelectQuery("goal_id = "+r.bind(1)),

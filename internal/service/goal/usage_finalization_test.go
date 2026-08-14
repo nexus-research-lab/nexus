@@ -193,8 +193,10 @@ func TestServiceDoesNotFinalizeActiveBlockedOrUsageLimitedGoal(t *testing.T) {
 			name: "blocked",
 			settle: func(ctx context.Context, service *Service, item *protocol.Goal) (*protocol.Goal, error) {
 				return service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{
-					Reason:  "needs input",
-					RoundID: "round-1",
+					BlockerID:   "needs-input",
+					Reason:      "needs input",
+					NeededInput: "provide input",
+					RoundID:     "round-1",
 				})
 			},
 		},

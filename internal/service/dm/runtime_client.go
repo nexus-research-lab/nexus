@@ -40,6 +40,7 @@ type dmClientPreparation struct {
 	goalIDForUsage        string
 	goalContext           string
 	goalObjectiveRevision *atomic.Int64
+	responsibilityState   *runtimectx.ResponsibilityAuthorityState
 	permissionMode        sdkpermission.Mode
 }
 
@@ -127,6 +128,12 @@ func (s *Service) ensureClient(
 		objectiveRevision,
 		strings.TrimSpace(request.ExecutionID),
 	)
+	responsibilityState := runtimectx.NewResponsibilityAuthorityState(
+		goalAuthority,
+		strings.TrimSpace(request.ExecutionID),
+		nil,
+		nil,
+	)
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
@@ -141,6 +148,10 @@ func (s *Service) ensureClient(
 			),
 		)
 		mcpContext = runtimectx.WithGoalAuthorityState(mcpContext, goalAuthority)
+		mcpContext = runtimectx.WithResponsibilityAuthorityState(
+			mcpContext,
+			responsibilityState,
+		)
 		mcpServers = s.mcpServers(
 			mcpContext,
 			agentValue,
@@ -155,18 +166,19 @@ func (s *Service) ensureClient(
 	}
 	if s.executionMCPServers != nil {
 		overlay := s.executionMCPServers(ctx, runtimectx.ExecutionToolContext{
-			Agent:              agentValue,
-			ScopeSessionKey:    sessionKey,
-			RuntimeSessionKey:  sessionKey,
-			ExecutionID:        strings.TrimSpace(request.ExecutionID),
-			CoordinatorAgentID: agentValue.AgentID,
-			RootRoundID:        request.RoundID,
-			AgentRoundID:       request.AgentRoundID,
-			SourceContextType:  "agent",
-			SourceContextID:    agentValue.AgentID,
-			PermissionMode:     permissionMode,
-			GoalAuthority:      goalAuthority,
-			AutomationRun:      cloneAutomationRunContext(request.AutomationRun),
+			Agent:                   agentValue,
+			ScopeSessionKey:         sessionKey,
+			RuntimeSessionKey:       sessionKey,
+			ExecutionID:             strings.TrimSpace(request.ExecutionID),
+			CoordinatorAgentID:      agentValue.AgentID,
+			RootRoundID:             request.RoundID,
+			AgentRoundID:            request.AgentRoundID,
+			SourceContextType:       "agent",
+			SourceContextID:         agentValue.AgentID,
+			PermissionMode:          permissionMode,
+			GoalAuthority:           goalAuthority,
+			ResponsibilityAuthority: responsibilityState,
+			AutomationRun:           cloneAutomationRunContext(request.AutomationRun),
 		})
 		if len(overlay) > 0 && mcpServers == nil {
 			mcpServers = make(map[string]sdkmcp.ServerConfig, len(overlay))
@@ -304,6 +316,7 @@ func (s *Service) ensureClient(
 		goalIDForUsage:        goalIDForUsage,
 		goalContext:           goalContext,
 		goalObjectiveRevision: goalObjectiveRevision,
+		responsibilityState:   responsibilityState,
 		permissionMode:        permissionMode,
 	}, nil
 }

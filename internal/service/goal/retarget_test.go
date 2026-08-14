@@ -284,7 +284,7 @@ func TestServiceRetargetByModelPreservesGoalLifecycleCollaboration(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !RoomCollaborationRequired(*updated) || !RoomCollaborationObserved(*updated) {
+	if !RoomCollaborationObserved(*updated) {
 		t.Fatalf("collaboration metadata = %#v, want Goal-lifecycle evidence retained", updated.Metadata)
 	}
 	if len(dispatcher.items) != 1 || dispatcher.items[0].excludedAgentID != "agent-lead" || dispatcher.items[0].contextName != "goal" || dispatcher.items[0].objectiveRevision != updated.ObjectiveRevision() {
@@ -350,7 +350,12 @@ func TestServiceRoomGoalModelMutationsRequireLeadAgent(t *testing.T) {
 	if _, err = service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "Peer replacement", AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
 		t.Fatalf("peer retarget error = %v, want ErrGoalForbidden", err)
 	}
-	if _, err = service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
+	if _, err = service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{
+		BlockerID:   "waiting-owner-decision",
+		Reason:      "waiting for a decision",
+		NeededInput: "the owner decision",
+		AgentID:     "agent-peer",
+	}); !errors.Is(err, ErrGoalForbidden) {
 		t.Fatalf("peer block error = %v, want ErrGoalForbidden", err)
 	}
 	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {

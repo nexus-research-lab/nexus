@@ -1,6 +1,6 @@
-// INPUT: runtime round 进展、失败、Room collaboration handback 与 objective revision fence。
-// OUTPUT: CAS 重试后的 Goal 进展状态和审计事件。
-// POS: Goal round 结果回写的唯一入口。
+// INPUT: runtime round 的 durable receipt 身份、Agent 审计身份、进展/失败、Room collaboration handback 与 objective revision fence。
+// OUTPUT: 以 receipt round 结算 continuation plan，并以独立 audit round 写入 CAS 重试后的 Goal 进展状态和审计事件。
+// POS: Goal round 结果回写与 continuation receipt/audit 身份分离的唯一入口。
 package goal
 
 import (
@@ -15,11 +15,54 @@ import (
 const (
 	goalCompletionToolRetryMetadataKey = "completion_tool_retry_count"
 	goalCompletionToolMaxRetries       = 1
+	// One empty round is recoverable: the next hidden turn receives an explicit
+	// action boundary. A second consecutive empty round proves a real loop and
+	// suppresses automatic continuation until explicit activity or resume.
+	goalContinuationSuppressionThreshold = protocol.GoalContinuationSuppressionThreshold
 )
+
+// ContinuationRuntimeIdentity separates the durable launch receipt from the
+// runtime round that produced the observable result. DM callers normally use
+// the same value for both fields; Room callers keep the outer/root continuation
+// round in ReceiptRoundID and the slot AgentRoundID in AuditRoundID.
+type ContinuationRuntimeIdentity struct {
+	ReceiptRoundID string
+	AuditRoundID   string
+}
+
+func (identity ContinuationRuntimeIdentity) normalized() ContinuationRuntimeIdentity {
+	identity.ReceiptRoundID = strings.TrimSpace(identity.ReceiptRoundID)
+	identity.AuditRoundID = strings.TrimSpace(identity.AuditRoundID)
+	return identity
+}
+
+func continuationRuntimeIdentity(roundID string) ContinuationRuntimeIdentity {
+	roundID = strings.TrimSpace(roundID)
+	return ContinuationRuntimeIdentity{
+		ReceiptRoundID: roundID,
+		AuditRoundID:   roundID,
+	}
+}
 
 // RecordContinuationProgress 记录上一轮 Goal 续跑是否产生了可计入的自主进展。
 func (s *Service) RecordContinuationProgress(ctx context.Context, goalID string, roundID string, progressed bool, expectedRevision ...int64) (*protocol.Goal, error) {
+	return s.RecordContinuationRuntimeProgress(
+		ctx,
+		goalID,
+		continuationRuntimeIdentity(roundID),
+		progressed,
+		expectedRevision...,
+	)
+}
+
+// RecordContinuationRuntimeProgress settles the durable launch receipt and
+// records progress against the runtime audit round without conflating them.
+func (s *Service) RecordContinuationRuntimeProgress(ctx context.Context, goalID string, identity ContinuationRuntimeIdentity, progressed bool, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	identity = identity.normalized()
+	if err := s.SettleContinuationPlan(ctx, strings.TrimSpace(goalID), identity.ReceiptRoundID, firstExpectedObjectiveRevision(expectedRevision)); err != nil {
 		return nil, err
 	}
 	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
@@ -29,12 +72,28 @@ func (s *Service) RecordContinuationProgress(ctx context.Context, goalID string,
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordContinuationProgressForGoal(ctx, item, strings.TrimSpace(roundID), progressed, firstExpectedObjectiveRevision(expectedRevision))
+	return s.recordContinuationProgressForGoal(ctx, item, identity.AuditRoundID, progressed, firstExpectedObjectiveRevision(expectedRevision))
 }
 
 // RecordContinuationFailure 记录 Goal 续跑的 runtime 失败原因，并暂停后续空转续跑。
 func (s *Service) RecordContinuationFailure(ctx context.Context, goalID string, roundID string, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
+	return s.RecordContinuationRuntimeFailure(
+		ctx,
+		goalID,
+		continuationRuntimeIdentity(roundID),
+		reason,
+		expectedRevision...,
+	)
+}
+
+// RecordContinuationRuntimeFailure settles the durable launch receipt and
+// records the failure against the runtime audit round without conflating them.
+func (s *Service) RecordContinuationRuntimeFailure(ctx context.Context, goalID string, identity ContinuationRuntimeIdentity, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	identity = identity.normalized()
+	if err := s.SettleContinuationPlan(ctx, strings.TrimSpace(goalID), identity.ReceiptRoundID, firstExpectedObjectiveRevision(expectedRevision)); err != nil {
 		return nil, err
 	}
 	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
@@ -44,12 +103,50 @@ func (s *Service) RecordContinuationFailure(ctx context.Context, goalID string, 
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordContinuationFailureForGoal(ctx, item, strings.TrimSpace(roundID), reason, firstExpectedObjectiveRevision(expectedRevision))
+	return s.recordContinuationFailureForGoal(ctx, item, identity.AuditRoundID, reason, firstExpectedObjectiveRevision(expectedRevision))
+}
+
+// settleRuntimeContinuationReceipt closes the claim/start crash window from
+// the runtime side. Dispatch marks the receipt immediately after synchronous
+// registration; the terminal callback repeats the CAS so a transient first
+// write cannot leave a successfully executed round eligible for replay.
+func (s *Service) SettleContinuationPlan(ctx context.Context, goalID, roundID string, objectiveRevision int64) error {
+	goalID, roundID = strings.TrimSpace(goalID), strings.TrimSpace(roundID)
+	if goalID == "" || roundID == "" || objectiveRevision <= 0 {
+		return nil
+	}
+	repository, ok := s.repo.(continuationPlanRepository)
+	if !ok {
+		return nil
+	}
+	err := repository.SettleGoalContinuation(ctx, goalID, roundID, objectiveRevision, s.nowFn())
+	if errors.Is(err, sql.ErrNoRows) {
+		// Ordinary rounds and lifecycle-cancelled stale receipts have no active
+		// claim to settle. Their existing Goal/revision guards remain decisive.
+		return nil
+	}
+	return err
 }
 
 // RecordCompletionToolMiss 记录模型已声称目标完成但漏调 Goal 完成工具，并安排一次收尾重试。
 func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, roundID string, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
+	return s.RecordContinuationRuntimeCompletionToolMiss(
+		ctx,
+		goalID,
+		continuationRuntimeIdentity(roundID),
+		reason,
+		expectedRevision...,
+	)
+}
+
+// RecordContinuationRuntimeCompletionToolMiss settles the durable launch
+// receipt and records the completion miss against the runtime audit round.
+func (s *Service) RecordContinuationRuntimeCompletionToolMiss(ctx context.Context, goalID string, identity ContinuationRuntimeIdentity, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	identity = identity.normalized()
+	if err := s.SettleContinuationPlan(ctx, strings.TrimSpace(goalID), identity.ReceiptRoundID, firstExpectedObjectiveRevision(expectedRevision)); err != nil {
 		return nil, err
 	}
 	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
@@ -59,7 +156,7 @@ func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, r
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordCompletionToolMissForGoal(ctx, item, strings.TrimSpace(roundID), reason, firstExpectedObjectiveRevision(expectedRevision))
+	return s.recordCompletionToolMissForGoal(ctx, item, identity.AuditRoundID, reason, firstExpectedObjectiveRevision(expectedRevision))
 }
 
 // RecordGoalActivity 记录显式用户/外部活动，让自动续跑 run 从当前轮重新开始计数。
@@ -202,7 +299,10 @@ func (s *Service) recordContinuationFailureForLoadedGoal(ctx context.Context, it
 		reason = "Goal continuation runtime failed"
 	}
 	expectedVersion := item.Version
-	item.EmptyProgressCount++
+	item.EmptyProgressCount = max(
+		item.EmptyProgressCount+1,
+		goalContinuationSuppressionThreshold,
+	)
 	item.LastError = reason
 	item.Version++
 	item.UpdatedAt = s.nowFn()
@@ -259,18 +359,18 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 		RoomLeadAgentID(*item),
 		roundID,
 	); alignmentErr != nil {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, alignmentErr.Error())
+		return s.suppressContinuationProgress(ctx, item, roundID, alignmentErr.Error())
 	}
 	if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *item); readinessErr != nil {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
+		return s.suppressContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
-	if readinessErr := s.ensureRoomGoalCollaborationReady(
+	if _, readinessErr := s.ensureRoomGoalCompletionReady(
 		ctx,
 		*item,
 		RoomLeadAgentID(*item),
 		roundID,
 	); readinessErr != nil {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
+		return s.suppressContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
 	retryCount := goalCompletionToolRetryCount(item.Metadata)
 	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
@@ -388,12 +488,37 @@ func (s *Service) noteEmptyContinuationProgress(ctx context.Context, item *proto
 		"empty_progress_count": item.EmptyProgressCount,
 		"reason":               reason,
 	}
-	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_suppressed", protocol.GoalUpdateSourceSystem, roundID, payload)
+	eventType := "continuation_recovery_scheduled"
+	if goalContinuationSuppressed(*item) {
+		eventType = "continuation_suppressed"
+	}
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, eventType, protocol.GoalUpdateSourceSystem, roundID, payload)
 	if err != nil {
 		return nil, err
 	}
-	s.clearWallClockGoal(*updated)
+	if goalContinuationSuppressed(*updated) {
+		s.clearWallClockGoal(*updated)
+	} else {
+		s.markWallClockGoalActive(*updated)
+	}
 	return updated, nil
+}
+
+func (s *Service) suppressContinuationProgress(
+	ctx context.Context,
+	item *protocol.Goal,
+	roundID string,
+	reason string,
+) (*protocol.Goal, error) {
+	item.EmptyProgressCount = max(
+		item.EmptyProgressCount,
+		goalContinuationSuppressionThreshold-1,
+	)
+	return s.noteEmptyContinuationProgress(ctx, item, roundID, reason)
+}
+
+func goalContinuationSuppressed(item protocol.Goal) bool {
+	return item.ContinuationState() == protocol.GoalContinuationStateSuspended
 }
 
 func goalCompletionToolRetryCount(metadata map[string]any) int {
@@ -428,7 +553,10 @@ func clearCompletionToolRetryMetadata(metadata map[string]any) map[string]any {
 	return copied
 }
 
-func resetCountersForActiveTransition(source protocol.GoalUpdateSource, status protocol.GoalStatus) bool {
+// resetSuppressionForActiveTransition lets a user explicitly resume dispatch,
+// but it deliberately preserves ContinuationCount. Pause/resume is a control
+// transition inside one objective revision, not a fresh continuation budget.
+func resetSuppressionForActiveTransition(source protocol.GoalUpdateSource, status protocol.GoalStatus) bool {
 	if protocol.NormalizeGoalStatus(status) != protocol.GoalStatusActive {
 		return false
 	}

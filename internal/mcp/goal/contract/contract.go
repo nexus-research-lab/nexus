@@ -25,11 +25,12 @@ type Service interface {
 
 // ServerContext 绑定当前运行时会话。
 type ServerContext struct {
-	OwnerUserID       string
-	CurrentSessionKey string
-	CurrentRoundID    string
-	CurrentAgentID    string
-	GoalAuthority     *runtimectx.GoalAuthorityState
+	OwnerUserID             string
+	CurrentSessionKey       string
+	CurrentRoundID          string
+	CurrentAgentID          string
+	GoalAuthority           *runtimectx.GoalAuthorityState
+	ResponsibilityAuthority *runtimectx.ResponsibilityAuthorityState
 	// AllowUserRetarget 只允许可信、可见的普通用户 round 在 retarget_goal
 	// 调用点读取一次当前精确 revision；不会授予其他 Goal/Execution mutation。
 	AllowUserRetarget bool
@@ -38,6 +39,13 @@ type ServerContext struct {
 
 // ExpectedGoalObjectiveRevision 返回当前 MCP server 绑定的 objective revision；0 表示不启用 fencing。
 func (c ServerContext) ExpectedGoalObjectiveRevision() int64 {
+	if c.ResponsibilityAuthority != nil {
+		authority, ok := c.ResponsibilityAuthority.LoadGoalAuthority()
+		if !ok {
+			return 0
+		}
+		return authority.ObjectiveRevision
+	}
 	authority, ok := c.GoalAuthority.Load()
 	if !ok {
 		return 0
@@ -47,6 +55,10 @@ func (c ServerContext) ExpectedGoalObjectiveRevision() int64 {
 
 // StoreGoalMutationAuthority 让当前 MCP server 在成功 create/retarget 后继续操作同一状态链。
 func (c ServerContext) StoreGoalMutationAuthority(item protocol.Goal) {
+	if c.ResponsibilityAuthority != nil {
+		c.ResponsibilityAuthority.ApplyGoalMutation(item)
+		return
+	}
 	if c.GoalAuthority == nil {
 		return
 	}

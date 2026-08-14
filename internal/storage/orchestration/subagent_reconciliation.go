@@ -128,3 +128,38 @@ LIMIT `+r.bind(2),
 	}
 	return scanRows(rows, scanAttempt)
 }
+
+// ListOrphanedSubagentAttempts returns running children created by a previous
+// server process for which parent-exit scheduling never committed. Callers
+// must pass an immutable process-start cutoff and wait the normal grace period
+// before terminalizing them; periodic scans must not advance that cutoff.
+func (r *Repository) ListOrphanedSubagentAttempts(
+	ctx context.Context,
+	createdBefore time.Time,
+	limit int,
+) ([]protocol.WorkAttempt, error) {
+	if createdBefore.IsZero() || limit <= 0 {
+		return nil, fmt.Errorf(
+			"%w: process-start cutoff and positive reconciliation limit are required",
+			ErrInvariant,
+		)
+	}
+	rows, err := r.db.QueryContext(ctx, r.attemptSelect("attempt.")+`
+FROM execution_attempts attempt
+JOIN executions execution ON execution.execution_id = attempt.execution_id
+WHERE attempt.executor_kind = 'subagent'
+  AND attempt.parent_attempt_id IS NOT NULL
+  AND attempt.status = 'running'
+  AND attempt.reconcile_after IS NULL
+  AND attempt.created_at < `+r.bind(1)+`
+  AND execution.status IN ('active', 'waiting', 'paused')
+ORDER BY attempt.created_at, attempt.attempt_id
+LIMIT `+r.bind(2),
+		r.timestamp(createdBefore.UTC()),
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return scanRows(rows, scanAttempt)
+}

@@ -112,7 +112,7 @@ func (s *Service) HandleDirectedMessage(
 		message.GoalCollaborationBinding,
 	) {
 		s.markActiveGoalCollaborationPending(
-			message.ConversationID,
+			contextValue.Room.OwnerUserID,
 			message.SourceAgentID,
 			request.RootRoundID,
 			message.GoalCollaborationBinding,
@@ -154,19 +154,25 @@ func (s *Service) roomDirectedReplyUsesAutomaticRoute(
 }
 
 func (s *Service) markActiveGoalCollaborationPending(
-	conversationID string,
+	ownerUserID string,
 	sourceAgentID string,
 	rootRoundID string,
 	binding *protocol.GoalCollaborationBinding,
 ) {
-	if s == nil || protocol.NormalizeGoalCollaborationBinding(binding) == nil {
+	normalizedBinding := protocol.NormalizeGoalCollaborationBinding(binding)
+	if s == nil || normalizedBinding == nil {
 		return
 	}
-	conversationID = strings.TrimSpace(conversationID)
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	sourceAgentID = strings.TrimSpace(sourceAgentID)
 	rootRoundID = strings.TrimSpace(rootRoundID)
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	// The message is stored in the target conversation while the pending bit
+	// belongs to its source round. Scan every live conversation and fence by the
+	// host-trusted root plus exact Goal revision so cross-conversation directed
+	// messages cannot let the source Goal continue early.
+	for _, roundValue := range s.rounds.snapshot() {
 		if roundValue == nil ||
+			(ownerUserID != "" && strings.TrimSpace(roundValue.OwnerUserID) != ownerUserID) ||
 			(rootRoundID != "" && roomRootRoundID(roundValue) != rootRoundID) {
 			continue
 		}
@@ -175,7 +181,7 @@ func (s *Service) markActiveGoalCollaborationPending(
 				continue
 			}
 			if candidate := goalCollaborationBindingForSlot(roundValue, slot); candidate != nil &&
-				*candidate == *protocol.NormalizeGoalCollaborationBinding(binding) {
+				*candidate == *normalizedBinding {
 				slot.markPendingGoalCollaboration()
 			}
 		}
@@ -372,11 +378,16 @@ func (s *Service) buildRoomDirectedMessageRecord(
 		sourceAgentID,
 		request.RootRoundID,
 	)
-	goalCollaborationBinding := s.goalCollaborationBindingForActiveRound(
-		contextValue.Conversation.ID,
-		sourceAgentID,
-		request.RootRoundID,
+	goalCollaborationBinding := protocol.NormalizeGoalCollaborationBinding(
+		request.GoalCollaborationBinding,
 	)
+	if goalCollaborationBinding == nil {
+		goalCollaborationBinding = s.goalCollaborationBindingForActiveRound(
+			contextValue.Conversation.ID,
+			sourceAgentID,
+			request.RootRoundID,
+		)
+	}
 	messageID := newRealtimeID()
 	if commandID := strings.TrimSpace(request.CommandID); commandID != "" {
 		messageID = roomDirectedMessageCommandID(

@@ -72,4 +72,16 @@ func TestGoalAuthorityStateSharesRevisionAndContext(t *testing.T) {
 	if !ok || authority.ObjectiveRevision != 5 {
 		t.Fatalf("shared revision = %#v, ok=%t", authority, ok)
 	}
+	bound, ok := state.LoadBound()
+	if !ok || bound.GoalID != "goal-1" || bound.ObjectiveRevision != 4 ||
+		bound.ExecutionID != "execution-1" {
+		t.Fatalf("bound authority after steering = %#v, ok=%t, want revision 4", bound, ok)
+	}
+	if !state.Bind("goal-1", 5, "execution-next") {
+		t.Fatal("successful service mutation did not bind the steered revision")
+	}
+	bound, ok = state.LoadBound()
+	if !ok || bound.ObjectiveRevision != 5 || bound.ExecutionID != "execution-next" {
+		t.Fatalf("bound authority after receipt = %#v, ok=%t, want revision 5", bound, ok)
+	}
 }

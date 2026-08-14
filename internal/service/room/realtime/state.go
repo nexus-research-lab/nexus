@@ -21,20 +21,22 @@ import (
 
 // roomSlotRuntimeState 只负责 runtime 生命周期，不持有 Goal 或 delivery 数据。
 type roomSlotRuntimeState struct {
-	mu               sync.RWMutex
-	sdkSessionID     string
-	runtimeKind      string
-	contextWindow    int
-	contextColdStart bool
-	client           runtimectx.Client
-	cancel           context.CancelFunc
-	status           string
-	interruptReason  string
-	errorMessage     string
-	done             chan struct{}
-	doneOnce         sync.Once
-	workBindingOnce  sync.Once
-	workBindingState *runtimectx.WorkBindingState
+	mu                  sync.RWMutex
+	sdkSessionID        string
+	runtimeKind         string
+	contextWindow       int
+	contextColdStart    bool
+	client              runtimectx.Client
+	cancel              context.CancelFunc
+	status              string
+	interruptReason     string
+	errorMessage        string
+	done                chan struct{}
+	doneOnce            sync.Once
+	responsibilityOnce  sync.Once
+	responsibilityState *runtimectx.ResponsibilityAuthorityState
+	workBindingOnce     sync.Once
+	workBindingState    *runtimectx.WorkBindingState
 }
 
 type roomGoalAuthoritySource string
@@ -65,27 +67,29 @@ func (a roomGoalMutationAuthority) valid() bool {
 		a.Source != ""
 }
 
-func goalCollaborationBindingFromAuthority(
-	authority roomGoalMutationAuthority,
-) *protocol.GoalCollaborationBinding {
-	if !authority.valid() {
-		return nil
-	}
-	return &protocol.GoalCollaborationBinding{
-		GoalID:            authority.GoalID,
-		ObjectiveRevision: authority.ObjectiveRevision,
-	}
-}
-
 func goalCollaborationBindingForSlot(
-	roundValue *activeRoomRound,
+	_ *activeRoomRound,
 	slot *activeRoomSlot,
 ) *protocol.GoalCollaborationBinding {
 	if slot == nil {
 		return nil
 	}
-	if binding := goalCollaborationBindingFromAuthority(slot.goalMutationAuthority()); binding != nil {
-		return binding
+	fixed := slot.goalMutationAuthority()
+	if fixed.valid() {
+		// Goal mutation authority fixes the physical round to one Goal identity,
+		// while its shared state advances only after a trusted retarget or
+		// consumed host steering. Collaboration attribution is not mutation
+		// authority, so snapshot the current exact revision without rewriting
+		// the immutable round capability.
+		shared, ok := slot.boundGoalAuthority()
+		if !ok || shared.GoalID != fixed.GoalID ||
+			shared.ObjectiveRevision < fixed.ObjectiveRevision {
+			return nil
+		}
+		return &protocol.GoalCollaborationBinding{
+			GoalID:            fixed.GoalID,
+			ObjectiveRevision: shared.ObjectiveRevision,
+		}
 	}
 	return slot.goalCollaborationBinding()
 }
@@ -96,7 +100,7 @@ func cloneGoalCollaborationBinding(
 	return protocol.NormalizeGoalCollaborationBinding(binding)
 }
 
-// roomSlotGoalState 负责 Goal accounting、固定 revision mutation capability 与协作进度。
+// roomSlotGoalState 负责 Goal accounting、固定起始 capability、服务端确认 revision 与协作进度。
 type roomSlotGoalState struct {
 	mu                      sync.RWMutex
 	sessionKey              string
@@ -202,9 +206,27 @@ func (s *activeRoomSlot) ensureWorkBindingState() *runtimectx.WorkBindingState {
 	}
 	runtimeState := &s.mutable.runtime
 	runtimeState.workBindingOnce.Do(func() {
-		runtimeState.workBindingState = runtimectx.NewWorkBindingState(s.WorkBinding)
+		runtimeState.workBindingState = runtimectx.NewWorkBindingStateFromResponsibility(
+			s.ensureResponsibilityAuthorityState(),
+		)
 	})
 	return runtimeState.workBindingState
+}
+
+func (s *activeRoomSlot) ensureResponsibilityAuthorityState() *runtimectx.ResponsibilityAuthorityState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.responsibilityOnce.Do(func() {
+		runtimeState.responsibilityState = runtimectx.NewResponsibilityAuthorityState(
+			s.ensureGoalAuthorityState(),
+			executionIDFromRoomBindings(s.WorkBinding, s.ReviewBinding),
+			s.WorkBinding,
+			s.ReviewBinding,
+		)
+	})
+	return runtimeState.responsibilityState
 }
 
 func (s *activeRoomSlot) currentWorkBinding() *protocol.ExecutionWorkBinding {
@@ -243,6 +265,17 @@ func (s *activeRoomSlot) ensureGoalAuthorityState() *runtimectx.GoalAuthoritySta
 		)
 	})
 	return goalState.authorityState
+}
+
+func (s *activeRoomSlot) boundGoalAuthority() (runtimectx.GoalAuthority, bool) {
+	if s == nil {
+		return runtimectx.GoalAuthority{}, false
+	}
+	state := s.ensureResponsibilityAuthorityState()
+	if state == nil {
+		return runtimectx.GoalAuthority{}, false
+	}
+	return state.LoadGoalAuthority()
 }
 
 func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
@@ -768,8 +801,8 @@ func (slot *activeRoomSlot) clearGoalUsage() {
 	slot.mutable.goal.mutationAuthority = roomGoalMutationAuthority{}
 	slot.mutable.goal.usageClaimPending = false
 	slot.mutable.goal.terminalSettled = false
-	if authority := slot.ensureGoalAuthorityState(); authority != nil {
-		authority.Clear()
+	if authority := slot.ensureResponsibilityAuthorityState(); authority != nil {
+		authority.ClearGoalAuthority()
 	}
 	slot.mutable.goal.mu.Unlock()
 }
@@ -1435,8 +1468,8 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 		slot.mutable.goal.mu.Unlock()
 		return false
 	}
-	shared := slot.ensureGoalAuthorityState()
-	if shared == nil || !shared.Bind(
+	shared := slot.ensureResponsibilityAuthorityState()
+	if shared == nil || !shared.GrantGoalAuthority(
 		authority.GoalID,
 		authority.ObjectiveRevision,
 		authority.ExecutionID,

@@ -38,7 +38,6 @@ import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import {
   UiActionMenu,
-  type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
 import type {
   PendingPermission,
@@ -47,13 +46,15 @@ import type {
 
 import type { ComposerInteractionKind } from "./composer-interaction-model";
 import {
-  getPermissionScopeActionLabelKey,
-  getPermissionScopeHintKey,
   getPermissionToolTitleKey,
-  getPermissionRuleContent,
 } from "./composer-permission-model";
+import {
+  ALLOW_ONCE_MENU_VALUE,
+  ALLOW_TASK_MENU_VALUE,
+  buildComposerPermissionScopeItems,
+} from "./composer-permission-scope-items";
 
-interface ComposerPermissionSurfaceProps {
+export interface ComposerPermissionSurfaceProps {
   interactionDisabled: boolean;
   kind: Exclude<ComposerInteractionKind, "question">;
   onResponse: (payload: PermissionDecisionPayload) => boolean;
@@ -72,8 +73,6 @@ const TOOL_ICON_BY_NAME: Readonly<Record<string, LucideIcon>> = {
   WebSearch: Globe2,
   Write: FileText,
 };
-
-const ALLOW_ONCE_MENU_VALUE = "allow-once";
 
 export function ComposerPermissionSurface({
   interactionDisabled,
@@ -108,63 +107,29 @@ export function ComposerPermissionSurface({
     setSecretDraft(createConfigurationSecretDraft(permission.request_id));
   }, [permission.request_id]);
   const scopeItems = useMemo(
-    () => [
-      {
-        label: (
-          <span className="text-[15px]">
-            {t("composer.permission_allow_once_menu")}
-          </span>
-        ),
-        description: t("composer.permission_allow_once_description"),
-        value: ALLOW_ONCE_MENU_VALUE,
-      },
-      ...presentation.suggestions.map((suggestion) => {
-        const update = permission.suggestions?.[suggestion.index];
-        const scopeHintKey = getPermissionScopeHintKey(update);
-        const scopeHint = update?.destination === "localSettings" && requesterName
-          ? t("composer.permission_scope_agent_local_settings", {
-            name: requesterName,
-          })
-          : scopeHintKey
-            ? t(scopeHintKey)
-            : null;
-        const actionLabelKey = getPermissionScopeActionLabelKey(
-          permission.tool_name,
-          update,
-        );
-        const ruleContent = getPermissionRuleContent(update);
-        const scopeDescription = scopeHint && ruleContent
-          ? t("composer.permission_rule_scope_description", {
-            rule: ruleContent,
-            scope: scopeHint,
-          })
-          : scopeHint;
-        return {
-          label: (
-            <span className="text-[15px]">
-              {actionLabelKey ? t(actionLabelKey) : suggestion.label}
-            </span>
-          ),
-          description: scopeDescription,
-          value: String(suggestion.index),
-        } satisfies UiActionMenuItem;
-      }),
-    ],
+    () => buildComposerPermissionScopeItems(
+      permission,
+      presentation.suggestions,
+      requesterName,
+      t,
+    ),
     [
-      permission.suggestions,
-      permission.tool_name,
+      permission,
       presentation.suggestions,
       requesterName,
       t,
     ],
   );
   const ToolIcon = presentation.icon;
-  const decisionWidthClassName = presentation.suggestions.length > 0
+  const hasScopeChoices = presentation.suggestions.length > 0
+    || (permission.source === "automation" && permission.automation?.allow_task);
+  const decisionWidthClassName = hasScopeChoices
     ? "w-28"
     : "w-24";
   const respond = (
     decision: PermissionDecisionPayload["decision"],
     suggestionIndex?: number,
+    automationScope?: PermissionDecisionPayload["automation_scope"],
   ) => {
     const configurationSecrets = decision === "allow"
       ? selectConfigurationSecrets(secretSlots, secretValues)
@@ -188,6 +153,9 @@ export function ComposerPermissionSurface({
       updated_permissions: selectedSuggestion
         ? [selectedSuggestion]
         : undefined,
+      ...(permission.source === "automation"
+        ? { automation_scope: automationScope ?? "once" }
+        : {}),
     });
     if (accepted) {
       setSecretDraft(createConfigurationSecretDraft(permission.request_id));
@@ -314,7 +282,7 @@ export function ComposerPermissionSurface({
           >
             {t("composer.permission_allow_once")}
           </button>
-          {presentation.suggestions.length > 0 ? (
+          {hasScopeChoices ? (
             <button
               ref={scopeMenuAnchorRef}
               aria-expanded={isScopeMenuOpen}
@@ -341,6 +309,10 @@ export function ComposerPermissionSurface({
           onSelect={(value) => {
             if (value === ALLOW_ONCE_MENU_VALUE) {
               respond("allow");
+              return;
+            }
+            if (value === ALLOW_TASK_MENU_VALUE) {
+              respond("allow", undefined, "task");
               return;
             }
             const suggestionIndex = Number(value);

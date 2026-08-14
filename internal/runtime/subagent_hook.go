@@ -15,12 +15,11 @@ import (
 )
 
 const (
-	subagentHookTimeout               = 5 * time.Second
-	subagentRoundExitReconcileRetries = 3
-	subagentHookUnavailableCode       = "subagent_admission_unavailable"
-	subagentHookUnavailableMessage    = "authoritative Execution admission context is unavailable"
-	subagentHookCorrelationCode       = "subagent_lifecycle_correlation_required"
-	subagentHookAmbiguousCode         = "subagent_lifecycle_ambiguous"
+	subagentHookTimeout            = 5 * time.Second
+	subagentHookUnavailableCode    = "subagent_admission_unavailable"
+	subagentHookUnavailableMessage = "authoritative Execution admission context is unavailable"
+	subagentHookCorrelationCode    = "subagent_lifecycle_correlation_required"
+	subagentHookAmbiguousCode      = "subagent_lifecycle_ambiguous"
 )
 
 // SubagentHookCallbacks 由当前 DM/Room round 注入；warm client 的 hook 只做动态路由。
@@ -479,12 +478,13 @@ func (m *Manager) expireSubagentHookBinding(
 	if err == nil && subagentHookOutputAccepted(sdkhook.EventPostToolUseFailure, output) {
 		return
 	}
-	if reconcileAttempt >= subagentRoundExitReconcileRetries {
-		return
-	}
+	// Keep retrying while the immutable binding remains live. A fixed retry
+	// count turned a short database outage into a permanent running child in a
+	// long-lived server. The delay is capped below, and a successful/late
+	// terminal hook removes the binding so the next callback becomes a no-op.
 	delay := protocol.SubagentReconciliationGrace << min(reconcileAttempt, 2)
 	time.AfterFunc(delay, func() {
-		m.expireSubagentHookBinding(sessionKey, binding, reconcileAttempt+1)
+		m.expireSubagentHookBinding(sessionKey, binding, min(reconcileAttempt+1, 3))
 	})
 }
 

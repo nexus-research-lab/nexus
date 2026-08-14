@@ -1,5 +1,5 @@
 // INPUT: 当前 owner/session/actor/structured WorkBinding/ReviewBinding/round coordination 身份、Execution ensure/read 请求、explicit Goal gateway 与 SQL Repository port。
-// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 review-to-coordination 的 Execution snapshot，以及提交后的只读投影失效事实。
+// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 review-to-coordination/durable completion recovery 的 Execution snapshot，以及提交后的只读投影失效事实。
 // POS: Execution Orchestration 应用服务入口；模型语义 command 见 commands.go。
 package orchestration
 
@@ -92,6 +92,7 @@ type Service struct {
 	repository             Repository
 	planProposals          PlanProposalRepository
 	goalConfirmations      GoalConfirmationRepository
+	completionAudits       CompletionAuditRepository
 	subagentToolHistory    RuntimeGraphSubagentToolHistoryProvider
 	goalPromotionGateway   GoalPromotionGateway
 	explicitGoalGateway    ExplicitGoalBindingGateway
@@ -111,10 +112,12 @@ type Service struct {
 func NewService(repository Repository) *Service {
 	planProposals, _ := repository.(PlanProposalRepository)
 	goalConfirmations, _ := repository.(GoalConfirmationRepository)
+	completionAudits, _ := repository.(CompletionAuditRepository)
 	return &Service{
 		repository:         repository,
 		planProposals:      planProposals,
 		goalConfirmations:  goalConfirmations,
+		completionAudits:   completionAudits,
 		coordinationRounds: make(map[string]string),
 		now:                time.Now,
 		newID:              newOrchestrationID,

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -192,9 +193,8 @@ func (s *Service) roomGoalCollaborationInFlight(
 	if s == nil || s.publicHandoffs == nil || contextValue == nil {
 		return false
 	}
-	inFlight, err := s.publicHandoffs.GoalCollaborationInFlight(
+	inFlight, err := s.publicHandoffs.GoalCollaborationInFlightAll(
 		contextValue.Room.OwnerUserID,
-		contextValue.Conversation.ID,
 		protocol.GoalCollaborationBinding{
 			GoalID:            goal.ID,
 			ObjectiveRevision: goal.ObjectiveRevision(),
@@ -315,6 +315,10 @@ type currentGoalProvider interface {
 	CurrentOptional(context.Context, string) (*protocol.Goal, error)
 }
 
+type goalByIDProvider interface {
+	GoalByIDForOwner(context.Context, string, string) (*protocol.Goal, error)
+}
+
 type roomGoalLeadSetter interface {
 	SetRoomGoalLead(context.Context, string, string) (*protocol.Goal, error)
 }
@@ -383,18 +387,52 @@ func (s *Service) roomGoalCollaborationBindingIsCurrent(
 	if conversationID == "" {
 		return false, errors.New("conversation_id is required for Goal collaboration admission")
 	}
-	provider, ok := s.goals.(currentGoalProvider)
-	if !ok {
-		return false, errors.New("current Goal provider is required for Goal collaboration admission")
-	}
-	goal, err := provider.CurrentOptional(
-		ctx,
-		protocol.BuildRoomSharedSessionKey(conversationID),
-	)
+	goal, err := s.goalForCollaborationBinding(ctx, conversationID, binding)
 	if err != nil {
 		return false, fmt.Errorf("read current Room Goal for collaboration admission: %w", err)
 	}
 	return roomGoalCollaborationBindingMatchesGoal(goal, binding), nil
+}
+
+func (s *Service) goalForCollaborationBinding(
+	ctx context.Context,
+	conversationID string,
+	binding *protocol.GoalCollaborationBinding,
+) (*protocol.Goal, error) {
+	if provider, ok := s.goals.(goalByIDProvider); ok {
+		ownerUserID, err := s.roomCollaborationOwnerUserID(ctx, conversationID)
+		if err != nil {
+			return nil, err
+		}
+		return provider.GoalByIDForOwner(ctx, binding.GoalID, ownerUserID)
+	}
+	provider, ok := s.goals.(currentGoalProvider)
+	if !ok {
+		return nil, errors.New("current Goal provider is required for Goal collaboration admission")
+	}
+	// Compatibility for lightweight providers and old tests. Production uses
+	// GoalByID so a trusted Goal handoff may cross conversation boundaries.
+	return provider.CurrentOptional(
+		ctx,
+		protocol.BuildRoomSharedSessionKey(conversationID),
+	)
+}
+
+func (s *Service) roomCollaborationOwnerUserID(
+	ctx context.Context,
+	conversationID string,
+) (string, error) {
+	if ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx)); ownerUserID != "" {
+		return ownerUserID, nil
+	}
+	_, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
+	if err != nil {
+		return "", err
+	}
+	if contextValue == nil || strings.TrimSpace(contextValue.Room.OwnerUserID) == "" {
+		return "", errors.New("Room owner is required for Goal collaboration admission")
+	}
+	return strings.TrimSpace(contextValue.Room.OwnerUserID), nil
 }
 
 func roomGoalCollaborationBindingMatchesGoal(
@@ -416,18 +454,25 @@ func (s *Service) dispatchPostRoundWork(ctx context.Context, roundValue *activeR
 	if roundValue.RunningSubagents.Load() {
 		return
 	}
+	continuationSessionKey := roundValue.SessionKey
 	if !roomRoundHasGoalAuthority(roundValue) {
-		if !s.reconcileRoomGoalCollaborationRound(ctx, roundValue) {
+		goal, reconciled := s.reconcileRoomGoalCollaborationRound(ctx, roundValue)
+		if !reconciled {
 			return
 		}
+		continuationSessionKey = goal.SessionKey
 	}
 	if roomRoundHasPendingGoalCollaboration(roundValue) {
 		return
 	}
-	if s.ShouldDeferGoalContinuation(ctx, roundValue.SessionKey) {
+	if s.ShouldDeferGoalContinuation(ctx, continuationSessionKey) {
 		return
 	}
-	s.dispatchGoalContinuation(ctx, roundValue)
+	s.dispatchGoalContinuationForSession(
+		ctx,
+		continuationSessionKey,
+		roundValue.RoundID,
+	)
 }
 
 func roomRoundHasPendingGoalCollaboration(roundValue *activeRoomRound) bool {
@@ -452,10 +497,10 @@ func roomRoundHasPendingGoalCollaboration(roundValue *activeRoomRound) bool {
 func (s *Service) reconcileRoomGoalCollaborationRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
-) bool {
+) (*protocol.Goal, bool) {
 	if s == nil || s.goals == nil || roundValue == nil ||
 		!protocol.IsRoomSharedSessionKey(roundValue.SessionKey) {
-		return false
+		return nil, false
 	}
 	var binding *protocol.GoalCollaborationBinding
 	for _, slot := range roundValue.Slots {
@@ -464,18 +509,21 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 			continue
 		}
 		if binding != nil && *binding != *candidate {
-			return false
+			return nil, false
 		}
 		binding = candidate
 	}
 	if binding == nil {
-		return false
+		return nil, false
 	}
-	goal := s.currentRoomGoalForSession(ctx, roundValue.SessionKey)
-	if goal == nil || strings.TrimSpace(goal.ID) != binding.GoalID ||
-		goal.ObjectiveRevision() != binding.ObjectiveRevision {
+	goal, goalErr := s.goalForCollaborationBinding(
+		ctx,
+		roundValue.ConversationID,
+		binding,
+	)
+	if goalErr != nil || !roomGoalCollaborationBindingMatchesGoal(goal, binding) {
 		s.markRoomGoalCollaborationRoundHandbackSettled(roundValue, binding)
-		return false
+		return nil, false
 	}
 	s.releaseActiveGoalCollaborationSources(roundValue, binding)
 	for _, slot := range roundValue.Slots {
@@ -525,10 +573,10 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 				"err", err,
 			)
 		}
-		return false
+		return nil, false
 	}
 	s.markRoomGoalCollaborationRoundHandbackSettled(roundValue, binding)
-	return true
+	return goal, true
 }
 
 func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
@@ -577,10 +625,15 @@ func (s *Service) releaseActiveGoalCollaborationSources(
 	if s == nil || roundValue == nil || binding == nil {
 		return
 	}
-	rootRoundID := roomRootRoundID(roundValue)
-	for _, candidateRound := range s.rounds.snapshotConversation(roundValue.ConversationID) {
-		if candidateRound == nil || candidateRound == roundValue ||
-			roomRootRoundID(candidateRound) != rootRoundID {
+	for _, candidateRound := range s.rounds.snapshot() {
+		if candidateRound == nil || candidateRound == roundValue {
+			continue
+		}
+		if roomRootRoundID(candidateRound) != roomRootRoundID(roundValue) {
+			continue
+		}
+		if ownerUserID := strings.TrimSpace(roundValue.OwnerUserID); ownerUserID != "" &&
+			strings.TrimSpace(candidateRound.OwnerUserID) != ownerUserID {
 			continue
 		}
 		for _, slot := range candidateRound.Slots {
@@ -607,8 +660,12 @@ func roomRoundHasGoalAuthority(roundValue *activeRoomRound) bool {
 	return false
 }
 
-func (s *Service) dispatchGoalContinuation(ctx context.Context, roundValue *activeRoomRound) {
-	if s == nil || roundValue == nil || s.goals == nil {
+func (s *Service) dispatchGoalContinuationForSession(
+	ctx context.Context,
+	sessionKey string,
+	causedByRoundID string,
+) {
+	if s == nil || strings.TrimSpace(sessionKey) == "" || s.goals == nil {
 		return
 	}
 	planner, ok := s.goals.(goalContinuationProvider)
@@ -618,8 +675,8 @@ func (s *Service) dispatchGoalContinuation(ctx context.Context, roundValue *acti
 	plan, err := goalsvc.PrepareContinuationForDispatch(
 		ctx,
 		planner,
-		roundValue.SessionKey,
-		roundValue.RoundID,
+		sessionKey,
+		causedByRoundID,
 		func(plan protocol.GoalContinuation) bool {
 			return s.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey)
 		},
@@ -629,8 +686,8 @@ func (s *Service) dispatchGoalContinuation(ctx context.Context, roundValue *acti
 			return
 		}
 		s.loggerFor(ctx).Warn("准备 Room Goal 自动续跑失败",
-			"session_key", roundValue.SessionKey,
-			"round_id", roundValue.RoundID,
+			"session_key", sessionKey,
+			"round_id", causedByRoundID,
 			"err", err,
 		)
 		return
@@ -644,7 +701,7 @@ func (s *Service) dispatchGoalContinuation(ctx context.Context, roundValue *acti
 		}
 		s.recordGoalContinuationDispatchFailure(ctx, *plan, err)
 		s.loggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
-			"session_key", roundValue.SessionKey,
+			"session_key", sessionKey,
 			"round_id", plan.RoundID,
 			"goal_id", plan.Goal.ID,
 			"err", err,
@@ -660,7 +717,7 @@ func (s *Service) recordGoalContinuationDispatchFailure(ctx context.Context, pla
 	if reason == "" {
 		reason = "Goal continuation dispatch failed before runtime start"
 	}
-	if _, err := s.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision()); err != nil &&
+	if err := retryRoomGoalContinuationPlan(ctx, s.goals, plan, reason); err != nil &&
 		!goalsvc.IsExpectedMutationError(err) {
 		s.loggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
@@ -701,14 +758,58 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
 		return err
 	}
-	if err := s.dispatchPreparedGoalContinuationLocked(ctx, *validated); err != nil {
+	if err := s.dispatchPreparedGoalContinuationLocked(ctx, planner, *validated); err != nil {
 		return err
 	}
 	return nil
 }
 
+type durableRoomGoalContinuationLauncher interface {
+	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
+	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
+}
+
+type durableRoomGoalContinuationSettler interface {
+	SettleContinuationPlan(context.Context, string, string, int64) error
+}
+
+func settleRoomGoalContinuationAfterRuntime(ctx context.Context, provider goalContextProvider, goalID, roundID string, objectiveRevision int64) error {
+	if durable, ok := provider.(durableRoomGoalContinuationSettler); ok {
+		return durable.SettleContinuationPlan(ctx, goalID, roundID, objectiveRevision)
+	}
+	return nil
+}
+
+func markRoomGoalContinuationStarted(ctx context.Context, provider goalContinuationProvider, plan protocol.GoalContinuation) error {
+	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
+		return durable.MarkContinuationPlanStarted(ctx, plan)
+	}
+	return nil
+}
+
+func retryRoomGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
+	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
+		return durable.RetryContinuationPlan(ctx, plan, reason)
+	}
+	_, err := provider.RecordContinuationRuntimeFailure(
+		ctx,
+		plan.Goal.ID,
+		goalsvc.ContinuationRuntimeIdentity{
+			ReceiptRoundID: plan.RoundID,
+			AuditRoundID:   plan.RoundID,
+		},
+		reason,
+		plan.Goal.ObjectiveRevision(),
+	)
+	return err
+}
+
 // dispatchPreparedGoalContinuationLocked 在 conversation 派发闸门内启动续跑。
-func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, plan protocol.GoalContinuation) error {
+func (s *Service) dispatchPreparedGoalContinuationLocked(
+	ctx context.Context,
+	planner goalContinuationProvider,
+	plan protocol.GoalContinuation,
+) error {
 	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
@@ -716,9 +817,6 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
 	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
-	if collaborationContext != "" {
-		s.recordRoomGoalCollaborationRequired(ctx, plan.Goal.ID, plan.RoundID)
-	}
 	return s.handleChatLocked(ctx, ChatRequest{
 		SessionKey:            sessionKey,
 		ConversationID:        parsed.ConversationID,
@@ -732,6 +830,9 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 		DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
 		Internal:              true,
 		InputOptions:          goalContinuationInputOptions(plan),
+		continuationStartAdmission: func(admissionCtx context.Context) error {
+			return markRoomGoalContinuationStarted(admissionCtx, planner, plan)
+		},
 	})
 }
 
@@ -760,23 +861,6 @@ func (s *Service) goalContinuationDispatchTarget(
 		return nil, ""
 	}
 	return []string{targetAgentID}, buildRoomGoalCollaborationContext(agentNameByID, targetAgentID)
-}
-
-func (s *Service) recordRoomGoalCollaborationRequired(ctx context.Context, goalID string, roundID string) {
-	if s == nil || s.goals == nil || strings.TrimSpace(goalID) == "" {
-		return
-	}
-	if _, err := s.goals.RecordRoomGoalCollaborationRequired(ctx, goalID, roundID); err != nil &&
-		!errors.Is(err, goalsvc.ErrGoalDisabled) &&
-		!errors.Is(err, goalsvc.ErrGoalNotFound) &&
-		!errors.Is(err, goalsvc.ErrGoalInvalidState) &&
-		!errors.Is(err, goalsvc.ErrGoalVersionStale) {
-		s.loggerFor(ctx).Warn("标记 Room Goal 协作要求失败",
-			"goal_id", goalID,
-			"round_id", roundID,
-			"err", err,
-		)
-	}
 }
 
 func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgentID string) string {
@@ -814,16 +898,15 @@ func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgen
 	}
 	leadName := cmp.Or(strings.TrimSpace(agentNameByID[leadAgentID]), leadAgentID)
 	return strings.TrimSpace(fmt.Sprintf(`
-Room Goal collaboration requirement:
-- This Room Goal has multiple members. Visible collaboration is a required part of completing the Goal, not optional polish.
+Room Goal collaboration options:
 - Lead agent for this continuation: %s (agent_id=%s).
 - Available conversation targets:
 %s
-- Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment.
-- If the same Goal's room-visible collaboration chain lacks a substantive non-lead reply, either @ exactly one target for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable. A retarget or consecutive lead round does not erase earlier collaboration for that Goal.
+- Collaboration is optional. The current lead may complete the Goal when the objective is satisfied; non-lead evidence is audit context, not a completion gate.
+- Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment, but a substantive public reply to this Goal-attributed handoff is recorded as collaboration evidence.
+- Use @ for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable.
 - Once accountable work is assigned, do not duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only through the managed control path when necessary.
-- Do not call the Goal update tool in the same turn as the first collaboration request or Assignment.
-- Do not mark the Room Goal complete using only your own private work. Completion requires room-visible collaborator evidence plus your final audit.
+- Do not call the Goal update tool while an @ handoff, Assignment, queue item, or wake for this Goal is still running. Finish or explicitly cancel that work first.
 `, leadName, leadAgentID, strings.Join(lines, "\n")))
 }
 

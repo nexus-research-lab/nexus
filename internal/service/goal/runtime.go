@@ -31,8 +31,12 @@ type externalGoalActivationRollback interface {
 	ClearGoalAccountingRounds(sessionKey string, roundIDs []string) []string
 }
 
+type goalAccountingRoundReader interface {
+	GoalAccountingRoundIDs(sessionKey string, goalID string) []string
+}
+
 type runtimeInterrupter interface {
-	InterruptGoalRuntime(context.Context, string) error
+	InterruptGoalRuntime(context.Context, string, []string) error
 }
 
 type runtimeUsageSettlementBoundaryKey struct{}
@@ -194,7 +198,11 @@ func (s *Service) interruptGoalRuntimeAfterPause(ctx context.Context, item proto
 	if s.runtimeInterrupt == nil {
 		return
 	}
-	_ = s.runtimeInterrupt.InterruptGoalRuntime(ctx, item.SessionKey)
+	roundIDs := []string(nil)
+	if reader, ok := s.externalMutation.(goalAccountingRoundReader); ok {
+		roundIDs = reader.GoalAccountingRoundIDs(item.SessionKey, item.ID)
+	}
+	_ = s.runtimeInterrupt.InterruptGoalRuntime(ctx, item.SessionKey, roundIDs)
 }
 
 func shouldClearRuntimeAccounting(status protocol.GoalStatus) bool {

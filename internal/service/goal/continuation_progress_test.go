@@ -97,7 +97,7 @@ func TestServiceRecordRoomGoalCollaborationHandbackClearsSuppressionWithoutReset
 	}
 }
 
-func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
+func TestServicePlanContinuationUsesOneRecoveryTurnBeforeSuppressing(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -124,19 +124,29 @@ func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
 	if _, err := service.RecordContinuationProgress(ctx, created.ID, plan.RoundID, false); err != nil {
 		t.Fatal(err)
 	}
-	if next, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID); err != nil {
+	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID)
+	if err != nil {
 		t.Fatal(err)
-	} else if next != nil {
-		t.Fatalf("next plan = %#v, want nil after empty continuation progress", next)
+	}
+	if next == nil || !strings.Contains(next.Prompt, "single automatic recovery turn") {
+		t.Fatalf("next plan = %#v, want explicit recovery continuation", next)
+	}
+	if _, err = service.RecordContinuationProgress(ctx, created.ID, next.RoundID, false); err != nil {
+		t.Fatal(err)
+	}
+	if suppressed, planErr := service.PlanContinuationForSession(ctx, created.SessionKey, next.RoundID); planErr != nil {
+		t.Fatal(planErr)
+	} else if suppressed != nil {
+		t.Fatalf("suppressed plan = %#v, want nil after two empty continuation turns", suppressed)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.EmptyProgressCount != 1 || current.ContinuationCount != 1 {
-		t.Fatalf("current = %#v, want empty progress suppression without extra continuation", current)
+	if current.EmptyProgressCount != 2 || current.ContinuationCount != 2 {
+		t.Fatalf("current = %#v, want suppression after one recovery continuation", current)
 	}
-	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.RoundID != plan.RoundID {
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.RoundID != next.RoundID {
 		t.Fatalf("last event = %#v, want continuation_suppressed for continuation round", got)
 	}
 }
@@ -279,12 +289,6 @@ func TestServiceCompletionToolMissCannotBypassRoomReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordRoomGoalCollaborationRequired(ctx, created.ID, "round-required"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
-		t.Fatal(err)
-	}
 	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +394,7 @@ func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *t
 		t.Fatal(err)
 	}
 	stale := repo.goals[created.ID]
-	stale.EmptyProgressCount = 1
+	stale.EmptyProgressCount = goalContinuationSuppressionThreshold
 	stale.Metadata = map[string]any{goalCompletionToolRetryMetadataKey: 1}
 	stale.Version++
 	repo.goals[created.ID] = stale
@@ -488,7 +492,7 @@ func TestServiceRecordContinuationFailureStoresLastError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.LastError != "Failed to authenticate. API Error: 401" || updated.EmptyProgressCount != 1 {
+	if updated.LastError != "Failed to authenticate. API Error: 401" || updated.EmptyProgressCount != goalContinuationSuppressionThreshold {
 		t.Fatalf("updated = %#v, want last_error and empty progress suppression", updated)
 	}
 	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "goal_continuation_1")
@@ -538,8 +542,8 @@ func TestServiceRecordContinuationProgressRetriesVersionStale(t *testing.T) {
 	if updated.EmptyProgressCount != 1 || updated.Objective != "Concurrent room slot update" {
 		t.Fatalf("updated = %#v, want retried empty-progress update on reloaded goal", updated)
 	}
-	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.RoundID != "goal_continuation_1" {
-		t.Fatalf("last event = %#v, want continuation_suppressed after retry", got)
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_recovery_scheduled" || got.RoundID != "goal_continuation_1" {
+		t.Fatalf("last event = %#v, want continuation_recovery_scheduled after retry", got)
 	}
 }
 

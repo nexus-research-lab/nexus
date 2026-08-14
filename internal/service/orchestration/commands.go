@@ -863,6 +863,10 @@ func (s *Service) SubmitWork(
 			"command_id and result_summary are required",
 		), nil), nil
 	}
+	input, bindingErr := bindSubmitWorkInputFromTrustedResponsibility(actor, snapshot, input)
+	if bindingErr != nil {
+		return RejectedResult(snapshot, bindingErr, nil), nil
+	}
 	for _, collection := range []struct {
 		field string
 		count int
@@ -1053,6 +1057,164 @@ func (s *Service) SubmitWork(
 	return AppliedResult(updated, changed, nextActions(updated, actor)), nil
 }
 
+// bindSubmitWorkInputFromTrustedResponsibility resolves omitted locator fields
+// only from the host-issued exact WorkBinding. Explicit model values remain
+// strict consistency checks and can never select a sibling Assignment.
+func bindSubmitWorkInputFromTrustedResponsibility(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+	input SubmitWorkInput,
+) (SubmitWorkInput, error) {
+	if actor.WorkBinding == nil {
+		if strings.TrimSpace(input.WorkItemID) == "" && strings.TrimSpace(input.LogicalKey) == "" {
+			return input, domainError(
+				ErrorCodeInvalidInput,
+				"work_item_id or logical_key is required when no trusted WorkBinding is present",
+			)
+		}
+		return input, nil
+	}
+	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+	if !completeExecutionWorkBinding(binding) {
+		return input, workBindingMismatch("trusted WorkBinding is incomplete")
+	}
+	if explicitWorkID := strings.TrimSpace(input.WorkItemID); explicitWorkID != "" &&
+		explicitWorkID != binding.WorkItemID {
+		return input, workBindingMismatch("explicit work_item_id does not match the trusted WorkBinding")
+	}
+	if explicitAssignmentID := strings.TrimSpace(input.AssignmentID); explicitAssignmentID != "" &&
+		explicitAssignmentID != binding.AssignmentID {
+		return input, workBindingMismatch("explicit assignment_id does not match the trusted WorkBinding")
+	}
+	if err := validateWorkBindingLogicalKey(snapshot, binding, input.LogicalKey); err != nil {
+		return input, err
+	}
+	input.WorkItemID = binding.WorkItemID
+	input.AssignmentID = binding.AssignmentID
+	return input, nil
+}
+
+// bindWorkReferenceFromTrustedResponsibility applies the same exact-binding
+// locator semantics to block/resume as submit. A trusted WorkBinding is the
+// canonical locator; model-supplied references may only confirm it.
+func bindWorkReferenceFromTrustedResponsibility(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+	workItemID string,
+	logicalKey string,
+) (string, string, error) {
+	if actor.WorkBinding == nil {
+		if strings.TrimSpace(workItemID) == "" && strings.TrimSpace(logicalKey) == "" {
+			return "", "", domainError(
+				ErrorCodeInvalidInput,
+				"work_item_id or logical_key is required when no trusted WorkBinding is present",
+			)
+		}
+		return workItemID, logicalKey, nil
+	}
+	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+	if !completeExecutionWorkBinding(binding) {
+		return "", "", workBindingMismatch("trusted WorkBinding is incomplete")
+	}
+	if explicitWorkID := strings.TrimSpace(workItemID); explicitWorkID != "" &&
+		explicitWorkID != binding.WorkItemID {
+		return "", "", workBindingMismatch(
+			"explicit work_item_id does not match the trusted WorkBinding",
+		)
+	}
+	if err := validateWorkBindingLogicalKey(snapshot, binding, logicalKey); err != nil {
+		return "", "", err
+	}
+	return binding.WorkItemID, logicalKey, nil
+}
+
+func validateWorkBindingLogicalKey(
+	snapshot *protocol.ExecutionSnapshot,
+	binding protocol.ExecutionWorkBinding,
+	logicalKey string,
+) error {
+	logicalKey = strings.TrimSpace(logicalKey)
+	if logicalKey == "" {
+		return nil
+	}
+	boundWork := findWorkItemByID(snapshot, binding.WorkItemID)
+	if boundWork == nil {
+		return workBindingMismatch("trusted WorkBinding Work Item is outside the active Plan")
+	}
+	if logicalKey != strings.TrimSpace(boundWork.LogicalKey) {
+		return workBindingMismatch("explicit logical_key does not match the trusted WorkBinding")
+	}
+	return nil
+}
+
+// bindReviewWorkInputFromTrustedResponsibility defaults an exact ReviewBinding
+// to its immutable Submission and an exact WorkBinding to its Work Item. This
+// keeps the public optional schema honest while preserving strict mismatch
+// rejection for every explicit reference.
+func bindReviewWorkInputFromTrustedResponsibility(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+	input ReviewWorkInput,
+) (ReviewWorkInput, error) {
+	if actor.ReviewBinding != nil {
+		binding := normalizeExecutionReviewBinding(actor.ReviewBinding)
+		if !completeExecutionReviewBinding(binding) {
+			return input, workBindingMismatch("trusted ReviewBinding is incomplete")
+		}
+		if explicitSubmissionID := strings.TrimSpace(input.SubmissionID); explicitSubmissionID != "" &&
+			explicitSubmissionID != binding.SubmissionID {
+			return input, workBindingMismatch(
+				"explicit submission_id does not match the trusted ReviewBinding",
+			)
+		}
+		if explicitWorkID := strings.TrimSpace(input.WorkItemID); explicitWorkID != "" &&
+			explicitWorkID != binding.WorkItemID {
+			return input, workBindingMismatch(
+				"explicit work_item_id does not match the trusted ReviewBinding",
+			)
+		}
+		if explicitLogicalKey := strings.TrimSpace(input.LogicalKey); explicitLogicalKey != "" {
+			boundWork := findWorkItemByID(snapshot, binding.WorkItemID)
+			if boundWork == nil {
+				return input, workBindingMismatch(
+					"trusted ReviewBinding Work Item is outside the active Plan",
+				)
+			}
+			if explicitLogicalKey != strings.TrimSpace(boundWork.LogicalKey) {
+				return input, workBindingMismatch(
+					"explicit logical_key does not match the trusted ReviewBinding",
+				)
+			}
+		}
+		input.SubmissionID = binding.SubmissionID
+		input.WorkItemID = binding.WorkItemID
+		return input, nil
+	}
+	if actor.WorkBinding != nil {
+		workItemID, logicalKey, err := bindWorkReferenceFromTrustedResponsibility(
+			actor,
+			snapshot,
+			input.WorkItemID,
+			input.LogicalKey,
+		)
+		if err != nil {
+			return input, err
+		}
+		input.WorkItemID = workItemID
+		input.LogicalKey = logicalKey
+		return input, nil
+	}
+	if strings.TrimSpace(input.SubmissionID) == "" &&
+		strings.TrimSpace(input.WorkItemID) == "" &&
+		strings.TrimSpace(input.LogicalKey) == "" {
+		return input, domainError(
+			ErrorCodeInvalidInput,
+			"submission_id, work_item_id or logical_key is required when no trusted binding is present",
+		)
+	}
+	return input, nil
+}
+
 // ReviewWork 追加唯一 Acceptance，并由 accepted decision 解锁下游。
 func (s *Service) ReviewWork(
 	ctx context.Context,
@@ -1076,6 +1238,10 @@ func (s *Service) ReviewWork(
 	}
 	if limitErr := validateCriteriaResultsProjectionLimit(input.CriteriaResults); limitErr != nil {
 		return RejectedResult(snapshot, limitErr, nil), nil
+	}
+	input, bindErr := bindReviewWorkInputFromTrustedResponsibility(actor, snapshot, input)
+	if bindErr != nil {
+		return RejectedResult(snapshot, bindErr, nextActions(snapshot, actor)), nil
 	}
 	submission, resolveErr := resolveSubmission(snapshot, input.SubmissionID, input.WorkItemID, input.LogicalKey)
 	if resolveErr != nil {
@@ -1263,6 +1429,15 @@ func (s *Service) BlockWork(
 			"command_id, reason and needed_input are required",
 		), nil), nil
 	}
+	input.WorkItemID, input.LogicalKey, err = bindWorkReferenceFromTrustedResponsibility(
+		actor,
+		snapshot,
+		input.WorkItemID,
+		input.LogicalKey,
+	)
+	if err != nil {
+		return RejectedResult(snapshot, err, nextActions(snapshot, actor)), nil
+	}
 	work, spec, resolveErr := resolvePlanWork(snapshot, input.WorkItemID, input.LogicalKey)
 	if resolveErr != nil {
 		return RejectedResult(snapshot, resolveErr, nil), nil
@@ -1349,6 +1524,15 @@ func (s *Service) ResumeWork(
 			ErrorCodeInvalidInput,
 			"command_id, resolution and at least one evidence item are required",
 		), nil), nil
+	}
+	input.WorkItemID, input.LogicalKey, err = bindWorkReferenceFromTrustedResponsibility(
+		actor,
+		snapshot,
+		input.WorkItemID,
+		input.LogicalKey,
+	)
+	if err != nil {
+		return RejectedResult(snapshot, err, nextActions(snapshot, actor)), nil
 	}
 	work, spec, resolveErr := resolvePlanWork(snapshot, input.WorkItemID, input.LogicalKey)
 	if resolveErr != nil {
@@ -1577,6 +1761,9 @@ func (s *Service) mutableSnapshot(
 	}
 	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
 		result := RejectedResult(snapshot, terminalExecutionError(), nil)
+		if snapshot.Execution.Status == protocol.ExecutionStatusSuperseded {
+			result = SupersededResult(snapshot, terminalExecutionError())
+		}
 		return snapshot, &result, nil
 	}
 	if expectedErr := requireMutationRevision(snapshot, expectedRevision); expectedErr != nil {
@@ -1826,11 +2013,34 @@ func resolveSubmission(
 	logicalKey string,
 ) (*protocol.WorkSubmission, error) {
 	submissionID = strings.TrimSpace(submissionID)
+	workItemID = strings.TrimSpace(workItemID)
+	logicalKey = strings.TrimSpace(logicalKey)
 	if submissionID != "" {
 		for index := range snapshot.Submissions {
-			if snapshot.Submissions[index].ID == submissionID {
-				return &snapshot.Submissions[index], nil
+			submission := &snapshot.Submissions[index]
+			if submission.ID != submissionID {
+				continue
 			}
+			if workItemID != "" && submission.WorkItemID != workItemID {
+				return nil, domainError(
+					ErrorCodeInvalidInput,
+					"submission_id and work_item_id identify different Work Items",
+				)
+			}
+			work := findWorkItemByID(snapshot, submission.WorkItemID)
+			if work == nil {
+				return nil, domainError(
+					ErrorCodeInvalidInput,
+					"submission Work Item is not part of the active Plan",
+				)
+			}
+			if logicalKey != "" && strings.TrimSpace(work.LogicalKey) != logicalKey {
+				return nil, domainError(
+					ErrorCodeInvalidInput,
+					"submission_id and logical_key identify different Work Items",
+				)
+			}
+			return submission, nil
 		}
 		return nil, domainError(ErrorCodeInvalidInput, "submission is not part of the active Plan")
 	}
@@ -1848,6 +2058,22 @@ func resolveSubmission(
 		)
 	}
 	return submission, nil
+}
+
+func findWorkItemByID(
+	snapshot *protocol.ExecutionSnapshot,
+	workItemID string,
+) *protocol.WorkItem {
+	if snapshot == nil {
+		return nil
+	}
+	workItemID = strings.TrimSpace(workItemID)
+	for index := range snapshot.WorkItems {
+		if snapshot.WorkItems[index].ID == workItemID {
+			return &snapshot.WorkItems[index]
+		}
+	}
+	return nil
 }
 
 func validateReview(

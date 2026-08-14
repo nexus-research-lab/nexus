@@ -320,6 +320,8 @@ func (s *Service) CommitObjectiveRetarget(
 			current.Metadata = map[string]any{}
 		}
 		current.Metadata[protocol.GoalMetadataObjectiveRevision] = transition.NewRevision
+		current.Metadata[protocol.GoalMetadataExecutionMode] =
+			string(protocol.GoalExecutionModeManaged)
 		current.Metadata[protocol.GoalMetadataExecutionID] = transition.SuccessorExecutionID
 		current.Metadata[protocol.GoalMetadataExecutionBindingState] =
 			string(protocol.GoalExecutionBindingStateReserved)
@@ -552,12 +554,14 @@ func preserveServerOwnedGoalMetadata(
 		protocol.GoalMetadataSourceObjective,
 		protocol.GoalMetadataObjectiveNormalized,
 		protocol.GoalMetadataExecutionID,
+		protocol.GoalMetadataExecutionMode,
 		protocol.GoalMetadataExecutionBindingState,
 		protocol.GoalMetadataPromotionCommand,
 		protocol.GoalMetadataActivationOrigin,
 		protocol.GoalMetadataActivationReason,
 		protocol.GoalMetadataCompletionCriteria,
 		protocol.GoalMetadataObjectiveAlignment,
+		protocol.GoalMetadataBlocker,
 		protocol.GoalMetadataExplicitCommand,
 		protocol.GoalMetadataObjectiveTransition,
 		protocol.GoalMetadataRoomGoalCollaborationRequired,

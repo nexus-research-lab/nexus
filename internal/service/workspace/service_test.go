@@ -176,7 +176,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("goal-manager", "references", "room-goals.md"): {
 			"Lead 身份",
 			"Work Item + Assignment",
-			"可见协作完成条件",
+			"可见协作审计",
+			"不是完成门槛",
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 决定持续追求什么",
