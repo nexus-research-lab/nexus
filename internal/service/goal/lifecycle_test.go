@@ -878,7 +878,7 @@ func TestServiceCompleteByModelRetriesConcurrentGoalVersion(t *testing.T) {
 	}
 }
 
-func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
+func TestServiceBlockByModelRequiresDurableRecoveryReason(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -892,7 +892,14 @@ func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{})
+	if blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{}); !errors.Is(err, ErrGoalInvalidInput) || blocked != nil {
+		t.Fatalf("empty blocker = %#v, %v; want invalid input", blocked, err)
+	}
+	blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{
+		BlockerID:   "source-system-unavailable",
+		Reason:      "source system is unavailable",
+		NeededInput: "restore source-system access",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -902,8 +909,17 @@ func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	if len(repo.events) != 2 || repo.events[1].EventType != "blocked" {
 		t.Fatalf("events = %#v, want blocked event", repo.events)
 	}
-	if _, ok := repo.events[1].Payload["reason"]; ok {
-		t.Fatalf("blocked payload = %#v, want no synthetic reason", repo.events[1].Payload)
+	if repo.events[1].Payload["blocker_id"] != "source-system-unavailable" ||
+		repo.events[1].Payload["reason"] != "source system is unavailable" ||
+		repo.events[1].Payload["needed_input"] != "restore source-system access" {
+		t.Fatalf("blocked payload = %#v, want durable recovery path", repo.events[1].Payload)
+	}
+	blocker, ok := protocol.GoalBlockerFromGoal(*blocked)
+	if !ok || blocker.ID != "source-system-unavailable" ||
+		blocker.Reason != "source system is unavailable" ||
+		blocker.NeededInput != "restore source-system access" ||
+		blocker.SinceObjectiveRevision != blocked.ObjectiveRevision() {
+		t.Fatalf("blocked projection = %#v, ok=%v", blocker, ok)
 	}
 }
 

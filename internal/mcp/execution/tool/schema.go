@@ -1,5 +1,5 @@
-// INPUT: 模型语义字段和 execution domain enums。
-// OUTPUT: Plan 两阶段工具暴露 document/reference scalar 及显式 Goal binding enum，其余工具保留有界集合；全部隐藏 identity/fencing/idempotency。
+// INPUT: 模型语义字段、execution domain enums 与稳定的条件 locator 契约。
+// OUTPUT: Plan 两阶段工具暴露 document/reference scalar 及显式 Goal binding enum，work/review 工具静态表达 binding 默认，其余工具保留有界集合；全部隐藏 identity/fencing/idempotency。
 // POS: nexus_execution 工具的模型调用协议。
 package tool
 
@@ -64,8 +64,15 @@ func executionReferenceProperties() map[string]any {
 
 func workReferenceProperties() map[string]any {
 	properties := executionReferenceProperties()
-	properties["work_item_id"] = stringProperty("Optional opaque Work Item id. Prefer logical_key when it is unambiguous in the active Plan.")
-	properties["logical_key"] = stringProperty("Stable human-readable Work Item logical key from the active Plan.")
+	properties["work_item_id"] = stringProperty("Optional opaque Work Item id. When supplied with logical_key, both must identify the same active-Plan Work Item.")
+	properties["logical_key"] = stringProperty("Optional stable Work Item logical key from the active Plan. When supplied with work_item_id, both must identify the same Work Item.")
+	return properties
+}
+
+func trustedWorkReferenceProperties() map[string]any {
+	properties := workReferenceProperties()
+	properties["work_item_id"] = stringProperty("Conditional Work Item locator. Only an exact trusted WorkBinding permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish that binding. An explicit value must match. In DM coordination or any unbound call, provide work_item_id or logical_key.")
+	properties["logical_key"] = stringProperty("Conditional stable Work Item locator. Only an exact trusted WorkBinding permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish that binding. An explicit value must match. In DM coordination or any unbound call, provide logical_key when work_item_id is absent.")
 	return properties
 }
 
@@ -136,8 +143,8 @@ func assignWorkSchema() map[string]any {
 }
 
 func submitWorkSchema() map[string]any {
-	properties := workReferenceProperties()
-	properties["assignment_id"] = stringProperty("Optional current Assignment id when the Work Item has assignment history.")
+	properties := trustedWorkReferenceProperties()
+	properties["assignment_id"] = stringProperty("Optional current Assignment id; it never replaces the required Work Item locator in an unbound call. Omit inside an exact trusted WorkBinding to use its Assignment. Otherwise the backend selects the current Assignment for the explicit Work Item; any explicit value must match.")
 	properties["result_summary"] = stringProperty("Concise description of the delivered result.")
 	properties["result_refs"] = stringArrayProperty("Artifact, file, URL, commit, or message references.")
 	properties["evidence"] = stringArrayProperty("Evidence that the immutable acceptance criteria are met.")
@@ -146,7 +153,9 @@ func submitWorkSchema() map[string]any {
 
 func reviewWorkSchema() map[string]any {
 	properties := workReferenceProperties()
-	properties["submission_id"] = stringProperty("Optional opaque Submission id. Omit to review the current unreviewed Submission for the Work Item.")
+	properties["work_item_id"] = stringProperty("Conditional review locator. Only an exact trusted ReviewBinding, or a permitted self-review exact trusted WorkBinding, permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish either binding. An explicit value must match. In DM coordination or any unbound call, provide at least one of submission_id, work_item_id, or logical_key, and all supplied locators must identify the same Work Item.")
+	properties["logical_key"] = stringProperty("Conditional stable review locator. Only an exact trusted ReviewBinding, or a permitted self-review exact trusted WorkBinding, permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish either binding. An explicit value must match. In DM coordination or any unbound call, provide at least one of submission_id, work_item_id, or logical_key, and all supplied locators must identify the same Work Item.")
+	properties["submission_id"] = stringProperty("Conditional immutable Submission locator. An exact trusted ReviewBinding permits omission and supplies its Submission; a permitted self-review exact trusted WorkBinding selects the current unreviewed Submission for its Work Item. assigned_work/current_actor projections do not establish either binding. Explicit values must match the bound target. In DM coordination or any unbound call, provide at least one of submission_id, work_item_id, or logical_key; a Work Item locator selects its current unreviewed Submission.")
 	properties["decision"] = enumProperty("Append-only review decision.", "accepted", "rejected", "changes_requested")
 	properties["criteria_results"] = map[string]any{
 		"type":        "array",
@@ -164,14 +173,14 @@ func reviewWorkSchema() map[string]any {
 }
 
 func blockWorkSchema() map[string]any {
-	properties := workReferenceProperties()
+	properties := trustedWorkReferenceProperties()
 	properties["reason"] = stringProperty("Known reason progress cannot continue.")
 	properties["needed_input"] = stringProperty("Specific external input or authority needed to resume.")
 	return objectSchema(properties, "reason", "needed_input")
 }
 
 func resumeWorkSchema() map[string]any {
-	properties := workReferenceProperties()
+	properties := trustedWorkReferenceProperties()
 	properties["resolution"] = stringProperty("How the exact external blocker was resolved.")
 	properties["evidence"] = stringArrayProperty("At least one concrete reference or observation proving the required input or authority is now available.")
 	return objectSchema(properties, "resolution", "evidence")
@@ -192,7 +201,8 @@ func promoteExecutionSchema() map[string]any {
 	properties := executionReferenceProperties()
 	properties["objective_proposal"] = stringProperty("Optional clearer objective proposal. This cannot grant authority or prove persistence need.")
 	properties["activation_reason"] = enumProperty(
-		"Why the Agent chooses to preserve this objective across execution boundaries. The backend validates authority, user configuration, conflicts, and current state; the reason is an Agent strategy choice.",
+		"Why this existing WorkGraph should gain durable Goal persistence. Use persistence_requested only for explicit user/system Goal intent; the remaining values are adaptive Agent choices. The backend validates authority, configuration, conflicts, and current state.",
+		"persistence_requested",
 		"observed_boundary",
 		"room_dependency_chain",
 		"external_wait",

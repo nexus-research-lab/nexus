@@ -2,7 +2,7 @@
 
 Deliver the task itself first; execution events and Graph UI already show lifecycle state.
 
-Goal determines what persists; Plan determines execution. Choose Goal and WorkGraph independently: neither implies the other. When both are required, create the requested Goal before preparing its WorkGraph—never in parallel—so Plan inherits its objective. A compatible transient WorkGraph lets `create_goal` bind rather than duplicate it. Use `retarget_goal` for changes. Work Items own delivery; subagents assist; Room preserves handoffs.
+Goal determines what persists; Plan governs execution. Choose Goal and WorkGraph independently: neither implies the other. When both are absent but required, create the requested Goal before preparing its WorkGraph—never in parallel. Promote a compatible transient WorkGraph with `activation_reason=persistence_requested`; `create_goal` never binds it. Use `retarget_goal` for changes. Work Items own delivery; subagents assist; Room preserves handoffs.
 
 Before substantial execution, every Agent assesses atomicity, separable work, specialization, parallelism, and verification value. Use native subagents only when their benefit exceeds launch and merge cost; the parent integrates, verifies, and delivers.
 

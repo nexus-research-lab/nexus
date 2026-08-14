@@ -15,7 +15,8 @@ func promoteExecutionToGoal(svc contract.Service, sctx contract.ServerContext) s
 	const toolName = "promote_execution_to_goal"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Bind the current transient Execution to a durable Goal using one Agent-selected activation reason. " +
+		Description: "Bind the current transient Execution to a durable Goal without copying or replacing its Plan. " +
+			"Use activation_reason=persistence_requested when the user or system explicitly requested a Goal; otherwise choose an adaptive persistence reason. " +
 			"The backend validates objective and criteria presence, authority, user configuration, current state and Goal conflicts.",
 		SearchHint:  "promote execution goal persistence boundary recovery wait",
 		InputSchema: promoteExecutionSchema(),
@@ -62,6 +63,13 @@ func bindMutationGoalAuthority(
 	if receipt.GoalID == "" || receipt.ObjectiveRevision <= 0 ||
 		receipt.ExecutionID == "" {
 		return false
+	}
+	if sctx.ResponsibilityAuthority != nil {
+		return sctx.ResponsibilityAuthority.ConfirmGoalExecution(
+			receipt.GoalID,
+			receipt.ObjectiveRevision,
+			receipt.ExecutionID,
+		)
 	}
 	return sctx.GoalAuthority.Bind(
 		receipt.GoalID,

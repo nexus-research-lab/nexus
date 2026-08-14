@@ -18,6 +18,9 @@ func currentGoalForMutation(
 	expectedRevision int64,
 ) (*protocol.Goal, error) {
 	authority, ok := sctx.GoalAuthority.Load()
+	if sctx.ResponsibilityAuthority != nil {
+		authority, ok = sctx.ResponsibilityAuthority.LoadGoalAuthority()
+	}
 	if !ok || authority.ObjectiveRevision != expectedRevision {
 		return nil, fmt.Errorf(
 			"this round cannot mutate the current Goal because it has no exact Goal/revision capability; use the user Goal controls or continue with the responsible Goal Agent",

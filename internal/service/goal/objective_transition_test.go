@@ -75,6 +75,9 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 			name: "block",
 			call: func() error {
 				_, callErr := service.BlockByModel(ctx, prepared.ID, protocol.BlockGoalRequest{
+					BlockerID:                 "pending-retarget",
+					Reason:                    "blocked",
+					NeededInput:               "unblock",
 					ExpectedObjectiveRevision: prepared.ObjectiveRevision(),
 				})
 				return callErr

@@ -47,10 +47,19 @@ export interface Goal {
   updated_at: string;
   completed_at?: string | null;
   blocked_at?: string | null;
+	blocker?: GoalBlocker | null;
   usage_finalized: boolean;
   usage_finalized_at?: string | null;
   last_error?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface GoalBlocker {
+  id: string;
+  reason: string;
+  needed_input: string;
+  since_objective_revision: number;
+  blocked_at?: string;
 }
 
 export interface GoalUsageReport {

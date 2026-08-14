@@ -33,7 +33,13 @@ func (s *Service) RecordMessageUsage(ctx context.Context, input RecordInput) err
 	if !ok {
 		return nil
 	}
-	return s.repository.Upsert(ctx, record)
+	if err := s.repository.Upsert(ctx, record); err != nil {
+		return err
+	}
+	// Attribution is observability, not settlement. During rolling upgrades an old
+	// schema may not have these columns yet; never turn that into a usage failure.
+	_ = s.repository.UpdateCacheAttribution(ctx, record)
+	return nil
 }
 
 // Summary 返回用户级 token 用量汇总。
@@ -53,6 +59,41 @@ func (s *Service) Summary(ctx context.Context, ownerUserID string) (Summary, err
 		MessageCount:             stored.MessageCount,
 		UpdatedAt:                stored.UpdatedAt,
 	}, nil
+}
+
+// CacheSegments 按宿主可证明的低基数 surface 聚合 provider cache usage。
+func (s *Service) CacheSegments(ctx context.Context, ownerUserID string) ([]CacheSegment, error) {
+	stored, err := s.repository.CacheSegments(ctx, normalizeOwnerUserID(ownerUserID))
+	if err != nil {
+		return nil, err
+	}
+	segments := make([]CacheSegment, 0, len(stored))
+	for _, item := range stored {
+		segments = append(segments, CacheSegment{
+			Source: item.Source,
+			CacheAttribution: CacheAttribution{
+				GoalScope:               item.GoalScope,
+				ExecutionScope:          item.ExecutionScope,
+				ResponsibilityLane:      item.ResponsibilityLane,
+				RuntimeKind:             item.RuntimeKind,
+				ProviderFingerprint:     item.ProviderFingerprint,
+				ModelFingerprint:        item.ModelFingerprint,
+				GoalToolSurface:         item.GoalToolSurface,
+				ExecutionToolSurface:    item.ExecutionToolSurface,
+				HostToolSurfaceComplete: item.HostToolSurfaceComplete,
+				ToolPolicyFingerprint:   item.ToolPolicyFingerprint,
+				MCPServersFingerprint:   item.MCPServersFingerprint,
+				ToolSurfaceFingerprint:  item.ToolSurfaceFingerprint,
+			},
+			InputTokens:              item.InputTokens,
+			OutputTokens:             item.OutputTokens,
+			CacheCreationInputTokens: item.CacheCreationInputTokens,
+			CacheReadInputTokens:     item.CacheReadInputTokens,
+			TotalTokens:              item.TotalTokens,
+			MessageCount:             item.MessageCount,
+		})
+	}
+	return segments, nil
 }
 
 func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
@@ -85,6 +126,7 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 		source = "runtime"
 	}
 	usageKey := buildUsageKey(sessionKey, messageID, roundID)
+	attribution := normalizeCacheAttribution(input.CacheAttribution)
 	return usagestore.Record{
 		OwnerUserID:              ownerUserID,
 		UsageKey:                 usageKey,
@@ -95,6 +137,18 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 		AgentID:                  strings.TrimSpace(input.AgentID),
 		RoomID:                   strings.TrimSpace(input.RoomID),
 		ConversationID:           strings.TrimSpace(input.ConversationID),
+		GoalScope:                attribution.GoalScope,
+		ExecutionScope:           attribution.ExecutionScope,
+		ResponsibilityLane:       attribution.ResponsibilityLane,
+		RuntimeKind:              attribution.RuntimeKind,
+		ProviderFingerprint:      attribution.ProviderFingerprint,
+		ModelFingerprint:         attribution.ModelFingerprint,
+		GoalToolSurface:          attribution.GoalToolSurface,
+		ExecutionToolSurface:     attribution.ExecutionToolSurface,
+		HostToolSurfaceComplete:  attribution.HostToolSurfaceComplete,
+		ToolPolicyFingerprint:    attribution.ToolPolicyFingerprint,
+		MCPServersFingerprint:    attribution.MCPServersFingerprint,
+		ToolSurfaceFingerprint:   attribution.ToolSurfaceFingerprint,
 		InputTokens:              inputTokens,
 		OutputTokens:             outputTokens,
 		CacheCreationInputTokens: cacheCreationTokens,

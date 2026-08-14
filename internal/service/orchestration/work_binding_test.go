@@ -45,7 +45,7 @@ func TestStructuredRoomWorkBindingScopesSnapshotAndRejectsCrossAssignmentMutatio
 		t.Fatal(err)
 	}
 	if submitResult.Outcome != MutationRejected ||
-		submitResult.ReasonCode != ErrorCodeInvalidInput {
+		submitResult.ReasonCode != ErrorCodeWorkBindingMismatch {
 		t.Fatalf("cross-assignment submit result = %#v", submitResult)
 	}
 
@@ -61,8 +61,276 @@ func TestStructuredRoomWorkBindingScopesSnapshotAndRejectsCrossAssignmentMutatio
 		t.Fatal(err)
 	}
 	if blockResult.Outcome != MutationRejected ||
-		blockResult.ReasonCode != ErrorCodeInvalidInput {
+		blockResult.ReasonCode != ErrorCodeWorkBindingMismatch {
 		t.Fatalf("cross-assignment block result = %#v", blockResult)
+	}
+}
+
+func TestSubmitWorkDefaultsLocatorFromTrustedWorkBinding(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.startAttempt = func(
+		_ context.Context,
+		command orchestrationstore.StartAttemptCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		if command.Attempt.ID != binding.AttemptID {
+			t.Fatalf("started attempt = %q, want bound attempt", command.Attempt.ID)
+		}
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+		result.Assignments[0].Version++
+		result.Attempts[0] = command.Attempt
+		result.Attempts[0].Status = protocol.WorkAttemptStatusRunning
+		result.Attempts[0].Version = command.ExpectedAttemptVersion + 1
+		repository.snapshot = result
+		return result, nil
+	}
+	repository.finishAttempt = func(
+		_ context.Context,
+		command orchestrationstore.FinishAttemptCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		if command.Attempt.ID != binding.AttemptID {
+			t.Fatalf("finished attempt = %q, want bound attempt", command.Attempt.ID)
+		}
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.Attempts[0] = command.Attempt
+		result.Attempts[0].Status = protocol.WorkAttemptStatusSucceeded
+		result.Attempts[0].Version = command.ExpectedAttemptVersion + 1
+		repository.snapshot = result
+		return result, nil
+	}
+	repository.submit = func(
+		_ context.Context,
+		command orchestrationstore.SubmitCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		if command.Submission.WorkItemID != binding.WorkItemID ||
+			command.Submission.AssignmentID != binding.AssignmentID ||
+			command.Submission.AttemptID != binding.AttemptID {
+			t.Fatalf("submission = %+v, want exact bound responsibility", command.Submission)
+		}
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.Submissions = append(result.Submissions, command.Submission)
+		repository.snapshot = result
+		return result, nil
+	}
+	service := NewService(repository)
+	service.newID = func(kind string) string { return kind + "-bound" }
+	actor := structuredRoomMemberActor(binding)
+
+	result, err := service.SubmitWork(context.Background(), actor, SubmitWorkInput{
+		ExecutionID:      binding.ExecutionID,
+		SnapshotRevision: snapshot.Execution.Version,
+		CommandID:        "submit-bound-default",
+		ResultSummary:    "Bound work completed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied {
+		t.Fatalf("result = %+v, want applied", result)
+	}
+}
+
+func TestSubmitWorkTrustedBindingRejectsExplicitSiblingLocator(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	service := NewService(&fakeRepository{snapshot: snapshot})
+	actor := structuredRoomMemberActor(binding)
+
+	for _, input := range []SubmitWorkInput{
+		{
+			ExecutionID:      binding.ExecutionID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "submit-sibling-work",
+			WorkItemID:       "work-2",
+			ResultSummary:    "forged sibling result",
+		},
+		{
+			ExecutionID:      binding.ExecutionID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "submit-sibling-assignment",
+			AssignmentID:     "assignment-2",
+			ResultSummary:    "forged sibling assignment",
+		},
+		{
+			ExecutionID:      binding.ExecutionID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "submit-sibling-logical-key",
+			LogicalKey:       "sibling-work",
+			ResultSummary:    "forged sibling logical key",
+		},
+	} {
+		result, err := service.SubmitWork(context.Background(), actor, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Outcome != MutationRejected ||
+			result.ReasonCode != ErrorCodeWorkBindingMismatch {
+			t.Fatalf("result = %+v, want exact-binding rejection", result)
+		}
+	}
+}
+
+func TestWorkBindingRejectsExplicitSiblingLogicalKeyAcrossWorkMutations(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+	service := NewService(&fakeRepository{snapshot: snapshot})
+	actor := structuredRoomMemberActor(binding)
+
+	for name, call := range map[string]func() (MutationResult, error){
+		"block": func() (MutationResult, error) {
+			return service.BlockWork(context.Background(), actor, BlockWorkInput{
+				ExecutionID: binding.ExecutionID, SnapshotRevision: snapshot.Execution.Version,
+				CommandID: "block-sibling-logical-key", LogicalKey: "sibling-work",
+				Reason: "approval missing", NeededInput: "approval receipt",
+			})
+		},
+		"resume": func() (MutationResult, error) {
+			return service.ResumeWork(context.Background(), actor, ResumeWorkInput{
+				ExecutionID: binding.ExecutionID, SnapshotRevision: snapshot.Execution.Version,
+				CommandID: "resume-sibling-logical-key", LogicalKey: "sibling-work",
+				Resolution: "approval received", Evidence: []string{"approval://receipt"},
+			})
+		},
+		"self_review": func() (MutationResult, error) {
+			return service.ReviewWork(context.Background(), actor, ReviewWorkInput{
+				ExecutionID: binding.ExecutionID, SnapshotRevision: snapshot.Execution.Version,
+				CommandID: "review-sibling-logical-key", LogicalKey: "sibling-work",
+				Decision: protocol.WorkAcceptanceRejected,
+			})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := call()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodeWorkBindingMismatch {
+				t.Fatalf("result = %+v, want work_binding_mismatch", result)
+			}
+		})
+	}
+}
+
+func TestWorkBindingDefaultsBlockAndResumeLocators(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.block = func(
+		_ context.Context,
+		command orchestrationstore.BlockCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		if command.State.WorkItemID != binding.WorkItemID ||
+			command.State.CurrentSpecID != binding.SpecID {
+			t.Fatalf("block target = %+v, want trusted binding", command.State)
+		}
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.WorkItemStates[0] = command.State
+		result.WorkItemStates[0].Version++
+		repository.snapshot = result
+		return result, nil
+	}
+	repository.resume = func(
+		_ context.Context,
+		command orchestrationstore.ResumeCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		if command.State.WorkItemID != binding.WorkItemID ||
+			command.State.CurrentSpecID != binding.SpecID {
+			t.Fatalf("resume target = %+v, want trusted binding", command.State)
+		}
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.WorkItemStates[0] = command.State
+		result.WorkItemStates[0].Version++
+		repository.snapshot = result
+		return result, nil
+	}
+	service := NewService(repository)
+	actor := structuredRoomMemberActor(binding)
+
+	blocked, err := service.BlockWork(context.Background(), actor, BlockWorkInput{
+		ExecutionID:      binding.ExecutionID,
+		SnapshotRevision: snapshot.Execution.Version,
+		CommandID:        "block-bound-default",
+		Reason:           "approval missing",
+		NeededInput:      "approval receipt",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.Outcome != MutationApplied {
+		t.Fatalf("blocked = %+v, want applied", blocked)
+	}
+
+	resumed, err := service.ResumeWork(context.Background(), actor, ResumeWorkInput{
+		ExecutionID:      binding.ExecutionID,
+		SnapshotRevision: blocked.Snapshot.Execution.Version,
+		CommandID:        "resume-bound-default",
+		Resolution:       "approval received",
+		Evidence:         []string{"approval://receipt"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Outcome != MutationApplied {
+		t.Fatalf("resumed = %+v, want applied", resumed)
+	}
+}
+
+func TestUnboundWorkMutationsRequireAnExplicitLocator(t *testing.T) {
+	snapshot := assignedExecutionSnapshot()
+	service := NewService(&fakeRepository{snapshot: snapshot})
+	actor := coordinatorActor()
+	for name, call := range map[string]func() (MutationResult, error){
+		"submit": func() (MutationResult, error) {
+			return service.SubmitWork(context.Background(), actor, SubmitWorkInput{
+				ExecutionID:      snapshot.Execution.ID,
+				SnapshotRevision: snapshot.Execution.Version,
+				CommandID:        "submit-unbound-empty",
+				ResultSummary:    "done",
+			})
+		},
+		"review": func() (MutationResult, error) {
+			return service.ReviewWork(context.Background(), actor, ReviewWorkInput{
+				ExecutionID:      snapshot.Execution.ID,
+				SnapshotRevision: snapshot.Execution.Version,
+				CommandID:        "review-unbound-empty",
+				Decision:         protocol.WorkAcceptanceRejected,
+			})
+		},
+		"block": func() (MutationResult, error) {
+			return service.BlockWork(context.Background(), actor, BlockWorkInput{
+				ExecutionID:      snapshot.Execution.ID,
+				SnapshotRevision: snapshot.Execution.Version,
+				CommandID:        "block-unbound-empty",
+				Reason:           "missing",
+				NeededInput:      "input",
+			})
+		},
+		"resume": func() (MutationResult, error) {
+			return service.ResumeWork(context.Background(), actor, ResumeWorkInput{
+				ExecutionID:      snapshot.Execution.ID,
+				SnapshotRevision: snapshot.Execution.Version,
+				CommandID:        "resume-unbound-empty",
+				Resolution:       "resolved",
+				Evidence:         []string{"evidence"},
+			})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := call()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Outcome != MutationRejected ||
+				result.ReasonCode != ErrorCodeInvalidInput ||
+				!strings.Contains(result.Message, "required when no trusted") {
+				t.Fatalf("result = %+v, want clear missing locator rejection", result)
+			}
+		})
 	}
 }
 
@@ -263,7 +531,7 @@ func TestStructuredRoomWorkBindingHidesUnacceptedUpstreamPayloadAndAuthority(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodeWrongOwner {
+	if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodeWorkBindingMismatch {
 		t.Fatalf("upstream mutation escaped WorkBinding fence: %#v", result)
 	}
 }
@@ -474,6 +742,100 @@ func TestStructuredRoomReviewBindingAllowsSelectedMemberReviewer(t *testing.T) {
 	}
 }
 
+func TestStructuredRoomReviewBindingRejectsExplicitSiblingLogicalKey(t *testing.T) {
+	snapshot, dispatch := reviewReturnSnapshot()
+	actor := ActorContext{
+		OwnerUserID:    snapshot.Execution.OwnerUserID,
+		SessionKey:     snapshot.Execution.SessionKey,
+		ExecutionID:    snapshot.Execution.ID,
+		AgentID:        dispatch.TargetAgentID,
+		Role:           ExecutionActorCoordinator,
+		ActorKind:      protocol.ExecutionActorAgent,
+		ScopeKind:      protocol.ExecutionScopeRoom,
+		RoomID:         snapshot.Execution.RoomID,
+		ConversationID: snapshot.Execution.ConversationID,
+		ReviewBinding: &protocol.ExecutionReviewBinding{
+			ExecutionID:      dispatch.ExecutionID,
+			PlanID:           dispatch.PlanID,
+			WorkItemID:       dispatch.WorkItemID,
+			SpecID:           dispatch.SpecID,
+			AssignmentID:     dispatch.AssignmentID,
+			SubmissionID:     dispatch.SubmissionID,
+			ReviewDispatchID: dispatch.ID,
+			TargetAgentID:    dispatch.TargetAgentID,
+		},
+	}
+
+	result, err := NewService(&fakeRepository{snapshot: snapshot}).ReviewWork(
+		context.Background(),
+		actor,
+		ReviewWorkInput{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "review-forged-logical-key",
+			LogicalKey:       "sibling-work",
+			Decision:         protocol.WorkAcceptanceChangesRequested,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationRejected ||
+		result.ReasonCode != ErrorCodeWorkBindingMismatch {
+		t.Fatalf("result = %+v, want exact ReviewBinding mismatch", result)
+	}
+}
+
+func TestReviewWorkRejectsConflictingExplicitSubmissionLocatorsWithoutBinding(t *testing.T) {
+	snapshot, dispatch := reviewReturnSnapshot()
+	snapshot.WorkItems = append(snapshot.WorkItems, protocol.WorkItem{
+		ID:          "work-sibling",
+		ExecutionID: snapshot.Execution.ID,
+		LogicalKey:  "sibling-work",
+		Kind:        protocol.WorkItemKindProduce,
+	})
+	actor := ActorContext{
+		OwnerUserID:    snapshot.Execution.OwnerUserID,
+		SessionKey:     snapshot.Execution.SessionKey,
+		ExecutionID:    snapshot.Execution.ID,
+		AgentID:        snapshot.Execution.CoordinatorAgentID,
+		Role:           ExecutionActorCoordinator,
+		ActorKind:      protocol.ExecutionActorAgent,
+		ScopeKind:      protocol.ExecutionScopeRoom,
+		RoomID:         snapshot.Execution.RoomID,
+		ConversationID: snapshot.Execution.ConversationID,
+	}
+	service := NewService(&fakeRepository{snapshot: snapshot})
+
+	for _, input := range []ReviewWorkInput{
+		{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "review-conflicting-work-id",
+			SubmissionID:     dispatch.SubmissionID,
+			WorkItemID:       "work-sibling",
+			Decision:         protocol.WorkAcceptanceChangesRequested,
+		},
+		{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "review-conflicting-logical-key",
+			SubmissionID:     dispatch.SubmissionID,
+			LogicalKey:       "sibling-work",
+			Decision:         protocol.WorkAcceptanceChangesRequested,
+		},
+	} {
+		result, err := service.ReviewWork(context.Background(), actor, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Outcome != MutationRejected ||
+			result.ReasonCode != ErrorCodeInvalidInput {
+			t.Fatalf("result = %+v, want conflicting locator rejection", result)
+		}
+	}
+}
+
 func TestRoomReviewAcceptanceContinuesCoordinationAndAssignsReadyWorkSameRound(t *testing.T) {
 	snapshot, dispatch := reviewReturnSnapshot()
 	snapshot.WorkItems = append(snapshot.WorkItems, protocol.WorkItem{
@@ -598,7 +960,6 @@ func TestRoomReviewAcceptanceContinuesCoordinationAndAssignsReadyWorkSameRound(t
 		ExecutionID:      snapshot.Execution.ID,
 		SnapshotRevision: snapshot.Execution.Version,
 		CommandID:        "review-and-continue",
-		SubmissionID:     dispatch.SubmissionID,
 		Decision:         protocol.WorkAcceptanceAccepted,
 		CriteriaResults: []protocol.WorkAcceptanceCriterionResult{{
 			Criterion: "sources cited",
@@ -611,6 +972,11 @@ func TestRoomReviewAcceptanceContinuesCoordinationAndAssignsReadyWorkSameRound(t
 	if reviewed.Outcome != MutationApplied ||
 		!service.runtimeCoordinationActive(actor, snapshot.Execution.ID) {
 		t.Fatalf("review did not activate same-round coordination: %+v", reviewed)
+	}
+	if reviewed.ResponsibilityAuthority == nil ||
+		reviewed.ResponsibilityAuthority.ExecutionID != snapshot.Execution.ID ||
+		reviewed.WorkBinding == nil || !reviewed.WorkBinding.Clear {
+		t.Fatalf("review continuation receipts = responsibility:%+v work:%+v", reviewed.ResponsibilityAuthority, reviewed.WorkBinding)
 	}
 	if len(reviewed.NextActions) == 0 ||
 		reviewed.NextActions[0].Tool != "assign_work" ||
@@ -709,7 +1075,6 @@ func TestRoomCoordinatorSelfReviewContinuesFromWorkBindingSameRound(t *testing.T
 		ExecutionID:      binding.ExecutionID,
 		SnapshotRevision: snapshot.Execution.Version,
 		CommandID:        "review-own-work-same-round",
-		SubmissionID:     "submission-self-review",
 		Decision:         protocol.WorkAcceptanceAccepted,
 		CriteriaResults: []protocol.WorkAcceptanceCriterionResult{{
 			Criterion: "sources cited",

@@ -2,6 +2,7 @@ package goal
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -231,6 +232,9 @@ func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 	}
 	if len(interrupter.sessionKeys) != 1 || interrupter.sessionKeys[0] != created.SessionKey {
 		t.Fatalf("interrupter sessionKeys = %#v, want current session", interrupter.sessionKeys)
+	}
+	if len(interrupter.roundIDs) != 1 || strings.Join(interrupter.roundIDs[0], ",") != "round-running" {
+		t.Fatalf("interrupter roundIDs = %#v, want exact Goal-accounting round", interrupter.roundIDs)
 	}
 	if len(repo.events) != 3 || repo.events[1].EventType != "usage_recorded" || repo.events[2].EventType != "paused" {
 		t.Fatalf("events = %#v, want usage_recorded before paused", repo.events)

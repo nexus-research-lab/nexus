@@ -44,6 +44,7 @@ type goalTextValue struct {
 	TimeUsedSeconds any `json:"timeUsedSeconds"`
 	CreatedAt       any `json:"createdAt"`
 	UpdatedAt       any `json:"updatedAt"`
+	Blocker         any `json:"blocker,omitempty"`
 }
 
 func goalToolTextPayloadFrom(content map[string]any) goalToolTextPayload {
@@ -70,6 +71,7 @@ func goalTextValueFromAny(value any) any {
 		TimeUsedSeconds: goal["timeUsedSeconds"],
 		CreatedAt:       goal["createdAt"],
 		UpdatedAt:       goal["updatedAt"],
+		Blocker:         goal["blocker"],
 	}
 }
 
@@ -114,6 +116,18 @@ func goalPayload(item *protocol.Goal) map[string]any {
 
 func goalCompletionPayload(item *protocol.Goal) map[string]any {
 	return goalPayloadWithOptions(item, goalPayloadOptions{completionBudgetReport: true})
+}
+
+func goalMutationPayload(item *protocol.Goal) map[string]any {
+	payload := goalPayload(item)
+	payload["outcome"] = protocol.MutationResultApplied
+	return payload
+}
+
+func goalCompletionMutationPayload(item *protocol.Goal) map[string]any {
+	payload := goalCompletionPayload(item)
+	payload["outcome"] = protocol.MutationResultApplied
+	return payload
 }
 
 type goalPayloadOptions struct {
@@ -181,6 +195,14 @@ func toolGoalValue(item *protocol.Goal) any {
 		"timeUsedSeconds":       item.TimeUsedSeconds,
 		"createdAt":             item.CreatedAt.Unix(),
 		"updatedAt":             item.UpdatedAt.Unix(),
+	}
+	if blocker, ok := protocol.GoalBlockerFromGoal(*item); ok {
+		goal["blocker"] = map[string]any{
+			"id":            blocker.ID,
+			"reason":        blocker.Reason,
+			"neededInput":   blocker.NeededInput,
+			"sinceRevision": blocker.SinceObjectiveRevision,
+		}
 	}
 	return goal
 }

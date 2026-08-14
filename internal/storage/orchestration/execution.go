@@ -1,5 +1,5 @@
 // INPUT: Execution aggregate root、Goal binding 与 completion command。
-// OUTPUT: Execution 创建/查询、managed WorkGraph 当前/历史选择、无损 Goal 绑定及受审计完成。
+// OUTPUT: Execution 创建/查询、managed WorkGraph 当前/历史选择、无损 Goal 绑定及 completion receipt 同事务终结。
 // POS: Execution 生命周期的 SQL 真相边界。
 package orchestration
 
@@ -385,6 +385,15 @@ WHERE execution_id = `+r.bind(2)+`
 		return nil, err
 	}
 	if err = requireOne(result); err != nil {
+		r.abortMutation(mutation)
+		return nil, err
+	}
+	if err = r.completeCompletionAuditTx(
+		ctx,
+		mutation.tx,
+		command.ExecutionID,
+		completedAt,
+	); err != nil {
 		r.abortMutation(mutation)
 		return nil, err
 	}

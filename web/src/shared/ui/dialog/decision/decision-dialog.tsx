@@ -39,11 +39,14 @@ interface ConfirmDialogProps {
   message: string;
   onCancel: () => void;
   onConfirm: () => void;
+  subtitle?: string;
   title: string;
   variant?: ConfirmDialogVariant;
 }
 
 interface PromptDialogProps {
+  cancelText?: string;
+  confirmText?: string;
   defaultValue?: string;
   isOpen: boolean;
   message?: string;
@@ -52,6 +55,7 @@ interface PromptDialogProps {
   onConfirm: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  shortcutHint?: string;
   title: string;
 }
 
@@ -62,6 +66,7 @@ export function ConfirmDialog({
   message,
   onCancel,
   onConfirm,
+  subtitle,
   title,
   variant = "default",
 }: ConfirmDialogProps) {
@@ -90,7 +95,7 @@ export function ConfirmDialog({
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title" id={titleId}>{title}</h3>
             <p className="mt-1 text-compact leading-5 text-(--text-soft)">
-              {presentation.subtitle}
+              {subtitle ?? presentation.subtitle}
             </p>
           </div>
         </div>
@@ -119,6 +124,8 @@ export function ConfirmDialog({
 }
 
 export function PromptDialog({
+  cancelText = "取消",
+  confirmText = "确认",
   defaultValue = "",
   isOpen,
   message,
@@ -127,6 +134,7 @@ export function PromptDialog({
   onConfirm,
   placeholder = "",
   rows = 8,
+  shortcutHint,
   title,
 }: PromptDialogProps) {
   if (!isOpen) {
@@ -134,6 +142,8 @@ export function PromptDialog({
   }
   return (
     <PromptDialogContent
+      cancelText={cancelText}
+      confirmText={confirmText}
       defaultValue={defaultValue}
       key={defaultValue}
       message={message}
@@ -142,12 +152,15 @@ export function PromptDialog({
       onConfirm={onConfirm}
       placeholder={placeholder}
       rows={rows}
+      shortcutHint={shortcutHint}
       title={title}
     />
   );
 }
 
 function PromptDialogContent({
+  cancelText,
+  confirmText,
   defaultValue,
   message,
   multiline,
@@ -155,6 +168,7 @@ function PromptDialogContent({
   onConfirm,
   placeholder,
   rows,
+  shortcutHint,
   title,
 }: PromptDialogContentProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -210,13 +224,14 @@ function PromptDialogContent({
           onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
           rows={rows}
+          shortcutHint={shortcutHint}
           textareaRef={textareaRef}
           value={value}
         />
       </UiDialogBody>
       <DecisionDialogActions
-        cancelText="取消"
-        confirmText="确认"
+        cancelText={cancelText}
+        confirmText={confirmText}
         onCancel={cancel}
         onConfirm={submit}
       />
@@ -225,6 +240,8 @@ function PromptDialogContent({
 }
 
 interface PromptDialogContentProps {
+  cancelText: string;
+  confirmText: string;
   defaultValue: string;
   message?: string;
   multiline: boolean;
@@ -232,6 +249,7 @@ interface PromptDialogContentProps {
   onConfirm: (value: string) => void;
   placeholder: string;
   rows: number;
+  shortcutHint?: string;
   title: string;
 }
 
@@ -242,6 +260,7 @@ interface PromptInputProps {
   onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   placeholder: string;
   rows?: number;
+  shortcutHint?: string;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   value: string;
 }
@@ -253,6 +272,7 @@ function PromptInput({
   onKeyDown,
   placeholder,
   rows,
+  shortcutHint,
   textareaRef,
   value,
 }: PromptInputProps) {
@@ -270,9 +290,13 @@ function PromptInput({
           rows={rows}
           value={value}
         />
-        <p className="pt-2 text-xs text-(--text-soft)">
-          按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-xs">Cmd/Ctrl + Enter</kbd> 可直接保存。
-        </p>
+        {shortcutHint ? (
+          <p className="pt-2 text-xs text-(--text-soft)">{shortcutHint}</p>
+        ) : (
+          <p className="pt-2 text-xs text-(--text-soft)">
+            按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-xs">Cmd/Ctrl + Enter</kbd> 可直接保存。
+          </p>
+        )}
       </>
     );
   }

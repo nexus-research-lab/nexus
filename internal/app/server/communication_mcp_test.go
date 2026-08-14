@@ -62,6 +62,43 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 		"conversation-1", worker.AgentID, protocol.RoomTypeGroup,
 	)
 	roomContext := runtimectx.WithMCPRoundLease(ownerContext, roomLeaseSession, "agent-round-room")
+	goalAuthority := runtimectx.NewGoalAuthorityState("goal-room", 1, "")
+	responsibility := runtimectx.NewResponsibilityAuthorityState(
+		goalAuthority,
+		"",
+		nil,
+		nil,
+	)
+	roomContext = runtimectx.WithResponsibilityAuthorityState(roomContext, responsibility)
+	actor, ok := communicationRuntimeActor(
+		roomContext,
+		stubConfigurationAgentResolver{record: worker},
+		worker,
+		roomSession,
+		"root-round-room",
+		"room_untrusted",
+		"room-1",
+	)
+	if !ok || actor.ConversationID != "conversation-1" || actor.GoalCollaborationBinding == nil {
+		t.Fatalf("Room communication actor = %+v, ok=%t", actor, ok)
+	}
+	if binding := actor.GoalCollaborationBinding(); binding == nil ||
+		binding.GoalID != "goal-room" || binding.ObjectiveRevision != 1 {
+		t.Fatalf("initial Goal collaboration binding = %+v", binding)
+	}
+	if !responsibility.ApplyGoalMutation(protocol.Goal{
+		ID: "goal-room",
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(2),
+			protocol.GoalMetadataExecutionMode:     string(protocol.GoalExecutionModeGoalOnly),
+		},
+	}) {
+		t.Fatal("retarget responsibility authority")
+	}
+	if binding := actor.GoalCollaborationBinding(); binding == nil ||
+		binding.GoalID != "goal-room" || binding.ObjectiveRevision != 2 {
+		t.Fatalf("retargeted Goal collaboration binding = %+v", binding)
+	}
 	if got := builder(
 		roomContext, worker, roomSession, "root-round-room", "room_untrusted", "room-1", "", nil,
 		sdkpermission.ModeDefault,

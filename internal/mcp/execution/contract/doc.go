@@ -1,5 +1,5 @@
-// Package contract defines the narrow service, dynamic Goal authority and cloned
-// structured WorkBinding boundary for the nexus_execution MCP server.
+// Package contract defines the narrow service and the runtime-owned dynamic
+// Goal/Execution/Work/Review responsibility boundary for nexus_execution MCP.
 //
 // L2 | 父级: internal/mcp/execution（L2 见其 doc.go）
 //

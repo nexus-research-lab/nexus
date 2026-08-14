@@ -9,7 +9,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -268,14 +267,35 @@ func SuccessfulGoalCompletionID(
 	return ""
 }
 
-// AssistantHasCountedToolProgress 判断 assistant 快照里是否包含应计为 Goal 进展的工具完成。
-func AssistantHasCountedToolProgress(message protocol.Message) bool {
+// GoalProgressClass 是 Goal continuation 唯一消费的工具进展分类。
+// Durable collaboration handoff/queue 不经过这里；Room ledger 单独把它
+// 投影为 defer，避免一次 send_message 同时伪装成 mutation progress。
+type GoalProgressClass string
+
+const (
+	GoalProgressNone                   GoalProgressClass = "none"
+	GoalProgressMutation               GoalProgressClass = "goal_mutation"
+	GoalProgressBoundWorkGraphMutation GoalProgressClass = "goal_bound_workgraph_mutation"
+)
+
+// AssistantGoalProgressClass classifies only explicit applied mutation
+// receipts. Unknown tools fail closed even when their transport succeeded.
+func AssistantGoalProgressClass(
+	message protocol.Message,
+	goalBound bool,
+) GoalProgressClass {
 	for _, observation := range AssistantToolResults(message) {
-		if toolResultCountsForGoalProgress(observation) {
-			return true
+		if class := toolResultGoalProgressClass(observation, goalBound); class != GoalProgressNone {
+			return class
 		}
 	}
-	return false
+	return GoalProgressNone
+}
+
+// AssistantHasCountedToolProgress reports whether the typed classification is
+// a real Goal mutation or an applied WorkGraph mutation under exact Goal scope.
+func AssistantHasCountedToolProgress(message protocol.Message, goalBound bool) bool {
+	return AssistantGoalProgressClass(message, goalBound) != GoalProgressNone
 }
 
 // AssistantMissedGoalCompletionTool 判断 assistant 是否声称目标已完成，但把 Goal 完成工具误判为不可用。
@@ -301,27 +321,26 @@ func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
 		claimsGoalWorkComplete(text)
 }
 
-func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
-	if observation.Recoverable || observation.IsError {
-		return false
-	}
-	if observation.MutationOutcome == protocol.MutationResultRejected ||
-		observation.MutationOutcome == protocol.MutationResultNoOp ||
-		observation.MutationOutcome == protocol.MutationResultSuperseded {
-		return false
+func toolResultGoalProgressClass(
+	observation ToolResultObservation,
+	goalBound bool,
+) GoalProgressClass {
+	if observation.Recoverable || observation.IsError ||
+		observation.MutationOutcome != protocol.MutationResultApplied {
+		return GoalProgressNone
 	}
 	switch CanonicalToolName(observation.ToolName) {
-	case "", "get_goal", "get_execution", "update_goal":
-		return false
-	case "retarget_goal":
-		return true
+	case "create_goal", "retarget_goal", "audit_objective_alignment", "update_goal",
+		"promote_execution_to_goal":
+		return GoalProgressMutation
+	case "plan_execution", "abandon_execution", "assign_work", "submit_work",
+		"review_work", "block_work", "resume_work", "take_over_work",
+		"audit_execution_alignment":
+		if goalBound {
+			return GoalProgressBoundWorkGraphMutation
+		}
 	}
-	switch normalizeString(observation.ErrorCode) {
-	case string(sdkpermission.ErrorCodeRequestTimeout):
-		return false
-	default:
-		return true
-	}
+	return GoalProgressNone
 }
 
 func assistantHasSuccessfulGoalUpdateTool(message protocol.Message) bool {

@@ -33,6 +33,7 @@ type goalAccountingHooks struct {
 	activate          GoalAccountingActivate
 	guard             goalAccountingGuard
 	objectiveRevision *atomic.Int64
+	goalID            func() string
 }
 
 func (h goalAccountingHooks) empty() bool {
@@ -41,7 +42,8 @@ func (h goalAccountingHooks) empty() bool {
 		h.finalize == nil &&
 		h.activate == nil &&
 		h.guard.consumed == nil &&
-		h.objectiveRevision == nil
+		h.objectiveRevision == nil &&
+		h.goalID == nil
 }
 
 // roundState 保存一个 round 从运行到收尾所需的全部状态。

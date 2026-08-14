@@ -114,6 +114,7 @@ func resetGoalContinuationForObjectiveReplacement(item *protocol.Goal) {
 	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
 	item.Metadata = cloneMap(item.Metadata)
 	delete(item.Metadata, protocol.GoalMetadataObjectiveAlignment)
+	delete(item.Metadata, protocol.GoalMetadataBlocker)
 }
 
 func canRetargetGoalStatus(status protocol.GoalStatus) bool {

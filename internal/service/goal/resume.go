@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -76,6 +77,7 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 	if err != nil {
 		return err
 	}
+	var dispatchErrors []error
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -84,10 +86,15 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 			continue
 		}
 		if err := s.dispatchContinuationForGoal(ctx, item, dispatcher); err != nil {
-			return err
+			dispatchErrors = append(dispatchErrors, fmt.Errorf(
+				"resume Goal %s for session %s: %w",
+				item.ID,
+				item.SessionKey,
+				err,
+			))
 		}
 	}
-	return nil
+	return errors.Join(dispatchErrors...)
 }
 
 func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
@@ -104,7 +111,12 @@ func (s *Service) DispatchActiveGoalContinuation(ctx context.Context, item proto
 		!goalAllowsContinuationDispatch(item) {
 		return
 	}
-	_ = s.dispatchContinuationForGoal(ctx, item, s.continuations)
+	if err := s.dispatchContinuationForGoal(ctx, item, s.continuations); err != nil {
+		s.logAutoResumeError(ctx, "immediate", err,
+			"goal_id", item.ID,
+			"session_key", item.SessionKey,
+		)
+	}
 }
 
 func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol.Goal, dispatcher ContinuationDispatcher) error {
@@ -168,11 +180,14 @@ func (s *Service) dispatchPreparedContinuation(
 		_, cleanupErr := s.deleteGoal(ctx, plan.Goal, protocol.GoalUpdateSourceSystem)
 		return cleanupErr
 	}
-	_, failureErr := s.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, err.Error(), plan.Goal.ObjectiveRevision())
+	failureErr := s.RetryContinuationPlan(ctx, plan, err.Error())
 	if IsExpectedMutationError(failureErr) {
 		return nil
 	}
-	return failureErr
+	if failureErr != nil {
+		return errors.Join(err, failureErr)
+	}
+	return nil
 }
 
 func (s *Service) clearMissingGoalContinuationTarget(
@@ -200,7 +215,7 @@ func activeGoalContinuationSuppressed(ctx context.Context) bool {
 }
 
 func (s *Service) runAutoResumeLoop(ctx context.Context, dispatcher ContinuationDispatcher) {
-	_ = s.RunAutoResumeOnce(ctx, dispatcher)
+	s.runAndObserveAutoResume(ctx, dispatcher, "startup")
 
 	ticker := time.NewTicker(goalAutoResumeInterval)
 	defer ticker.Stop()
@@ -209,7 +224,28 @@ func (s *Service) runAutoResumeLoop(ctx context.Context, dispatcher Continuation
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = s.RunAutoResumeOnce(ctx, dispatcher)
+			s.runAndObserveAutoResume(ctx, dispatcher, "periodic")
 		}
 	}
+}
+
+func (s *Service) runAndObserveAutoResume(
+	ctx context.Context,
+	dispatcher ContinuationDispatcher,
+	trigger string,
+) {
+	err := s.RunAutoResumeOnce(ctx, dispatcher)
+	if err == nil || ctx.Err() != nil {
+		return
+	}
+	s.logAutoResumeError(ctx, trigger, err)
+}
+
+func (s *Service) logAutoResumeError(ctx context.Context, trigger string, err error, attrs ...any) {
+	if s == nil || s.logger == nil || err == nil {
+		return
+	}
+	fields := []any{"trigger", trigger, "err", err}
+	fields = append(fields, attrs...)
+	s.logger.WarnContext(ctx, "Goal durable resume failed", fields...)
 }

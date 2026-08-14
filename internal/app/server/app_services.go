@@ -123,6 +123,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	providerService.SetLogger(logger.With("component", "provider"))
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	goalService.SetLogger(logger.With("component", "goal"))
 	goalService.SetSessionOwnershipVerifier(newGoalSessionOwnershipVerifier(
 		core.Agent,
 		core.Room,

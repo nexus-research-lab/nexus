@@ -354,6 +354,9 @@ function resolveGoalAttentionTone(
   if (input.error || input.goal.last_error) {
     return "danger";
   }
+  if (input.goal.status === "blocked" && input.goal.blocker) {
+    return "warning";
+  }
   if (input.goal.status === "active" &&
     goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {

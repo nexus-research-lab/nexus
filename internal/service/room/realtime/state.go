@@ -21,20 +21,22 @@ import (
 
 // roomSlotRuntimeState 只负责 runtime 生命周期，不持有 Goal 或 delivery 数据。
 type roomSlotRuntimeState struct {
-	mu               sync.RWMutex
-	sdkSessionID     string
-	runtimeKind      string
-	contextWindow    int
-	contextColdStart bool
-	client           runtimectx.Client
-	cancel           context.CancelFunc
-	status           string
-	interruptReason  string
-	errorMessage     string
-	done             chan struct{}
-	doneOnce         sync.Once
-	workBindingOnce  sync.Once
-	workBindingState *runtimectx.WorkBindingState
+	mu                  sync.RWMutex
+	sdkSessionID        string
+	runtimeKind         string
+	contextWindow       int
+	contextColdStart    bool
+	client              runtimectx.Client
+	cancel              context.CancelFunc
+	status              string
+	interruptReason     string
+	errorMessage        string
+	done                chan struct{}
+	doneOnce            sync.Once
+	responsibilityOnce  sync.Once
+	responsibilityState *runtimectx.ResponsibilityAuthorityState
+	workBindingOnce     sync.Once
+	workBindingState    *runtimectx.WorkBindingState
 }
 
 type roomGoalAuthoritySource string
@@ -204,9 +206,27 @@ func (s *activeRoomSlot) ensureWorkBindingState() *runtimectx.WorkBindingState {
 	}
 	runtimeState := &s.mutable.runtime
 	runtimeState.workBindingOnce.Do(func() {
-		runtimeState.workBindingState = runtimectx.NewWorkBindingState(s.WorkBinding)
+		runtimeState.workBindingState = runtimectx.NewWorkBindingStateFromResponsibility(
+			s.ensureResponsibilityAuthorityState(),
+		)
 	})
 	return runtimeState.workBindingState
+}
+
+func (s *activeRoomSlot) ensureResponsibilityAuthorityState() *runtimectx.ResponsibilityAuthorityState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.responsibilityOnce.Do(func() {
+		runtimeState.responsibilityState = runtimectx.NewResponsibilityAuthorityState(
+			s.ensureGoalAuthorityState(),
+			executionIDFromRoomBindings(s.WorkBinding, s.ReviewBinding),
+			s.WorkBinding,
+			s.ReviewBinding,
+		)
+	})
+	return runtimeState.responsibilityState
 }
 
 func (s *activeRoomSlot) currentWorkBinding() *protocol.ExecutionWorkBinding {
@@ -251,11 +271,11 @@ func (s *activeRoomSlot) boundGoalAuthority() (runtimectx.GoalAuthority, bool) {
 	if s == nil {
 		return runtimectx.GoalAuthority{}, false
 	}
-	state := s.ensureGoalAuthorityState()
+	state := s.ensureResponsibilityAuthorityState()
 	if state == nil {
 		return runtimectx.GoalAuthority{}, false
 	}
-	return state.LoadBound()
+	return state.LoadGoalAuthority()
 }
 
 func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
@@ -781,8 +801,8 @@ func (slot *activeRoomSlot) clearGoalUsage() {
 	slot.mutable.goal.mutationAuthority = roomGoalMutationAuthority{}
 	slot.mutable.goal.usageClaimPending = false
 	slot.mutable.goal.terminalSettled = false
-	if authority := slot.ensureGoalAuthorityState(); authority != nil {
-		authority.Clear()
+	if authority := slot.ensureResponsibilityAuthorityState(); authority != nil {
+		authority.ClearGoalAuthority()
 	}
 	slot.mutable.goal.mu.Unlock()
 }
@@ -1448,8 +1468,8 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 		slot.mutable.goal.mu.Unlock()
 		return false
 	}
-	shared := slot.ensureGoalAuthorityState()
-	if shared == nil || !shared.Bind(
+	shared := slot.ensureResponsibilityAuthorityState()
+	if shared == nil || !shared.GrantGoalAuthority(
 		authority.GoalID,
 		authority.ObjectiveRevision,
 		authority.ExecutionID,

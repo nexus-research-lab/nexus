@@ -71,6 +71,10 @@ func (s *Service) handleChat(
 	if err = execution.prepareRunner(); err != nil {
 		return err
 	}
+	if err = execution.admitContinuationStart(); err != nil {
+		execution.abortRegisteredRound()
+		return err
+	}
 	if err = execution.persistRound(); err != nil {
 		return err
 	}
@@ -92,6 +96,7 @@ type dmChatExecution struct {
 	deliveryPolicy      protocol.ChatDeliveryPolicy
 	runner              *roundRunner
 	roundCtx            context.Context
+	roundCancel         context.CancelFunc
 }
 
 type dmRuntimePreparation struct {
@@ -444,6 +449,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	if preparation.goalObjectiveRevision != nil {
 		r.goalObjectiveRevision = preparation.goalObjectiveRevision
 	}
+	r.responsibilityState = preparation.responsibilityState
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
 		strings.TrimSpace(preparation.goalIDForUsage) != "",
 	)
@@ -508,6 +514,7 @@ func (e *dmChatExecution) startRound() bool {
 		return false
 	}
 	e.roundCtx = roundCtx
+	e.roundCancel = cancel
 	roomID, conversationID := dmRoomPermissionRoute(e.sessionKey, e.session)
 	e.service.permission.BindSessionRoute(e.sessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: e.sessionKey,
@@ -520,6 +527,29 @@ func (e *dmChatExecution) startRound() bool {
 	return true
 }
 
+// admitContinuationStart is the final durable fence between runtime
+// registration and provider execution. Goal pause/retarget may cancel the
+// claimed receipt while runtime setup is in flight; that cancellation must be
+// observed before the goroutine is allowed to query the model.
+func (e *dmChatExecution) admitContinuationStart() error {
+	if e == nil || e.request.continuationStartAdmission == nil {
+		return nil
+	}
+	return e.request.continuationStartAdmission(e.ctx)
+}
+
+// abortRegisteredRound removes only the just-registered physical round. No
+// provider interrupt is needed because admission runs before launch/query.
+func (e *dmChatExecution) abortRegisteredRound() {
+	if e == nil || e.service == nil || e.service.runtime == nil {
+		return
+	}
+	if e.roundCancel != nil {
+		e.roundCancel()
+	}
+	e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+}
+
 func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string, string) {
 	if dmRoomConversationID(protocol.ParseSessionKey(sessionKey)) == "" {
 		return "", ""
@@ -529,6 +559,7 @@ func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string,
 }
 
 func (e *dmChatExecution) registerRunner() {
+	e.service.runtime.RegisterGoalAccountingIdentity(e.sessionKey, e.request.RoundID, e.runner.goalIDForAccounting)
 	e.service.runtime.RegisterGoalAccountingFlush(e.sessionKey, e.request.RoundID, e.runner.flushGoalUsage)
 	e.service.runtime.RegisterGoalAccountingClear(e.sessionKey, e.request.RoundID, e.runner.clearGoalUsage)
 	e.service.runtime.RegisterGoalAccountingFinalize(e.sessionKey, e.request.RoundID, e.runner.beginGoalUsageFinalizing)

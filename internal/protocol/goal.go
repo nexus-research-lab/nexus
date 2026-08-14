@@ -1,4 +1,4 @@
-// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、host Goal command、最终 usage fence 与 continuation 数据。
+// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、host Goal command、最终 usage fence 与 durable continuation 数据。
 // OUTPUT: Goal 领域协议、独立 Goal 控制请求、Goal-only/managed Execution mode、server-derived continuation/binding 只读投影、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
@@ -161,6 +161,10 @@ const (
 	GoalMetadataCompletionCriteria    = "completion_criteria"
 	GoalMetadataObjectiveAlignment    = "objective_alignment"
 	GoalMetadataExplicitCommand       = "explicit_goal_command"
+	// GoalMetadataBlocker is the durable, user-visible recovery contract for a
+	// blocked Goal. It is server-written from the authorized model mutation and
+	// cleared whenever the Goal returns to active or changes objective.
+	GoalMetadataBlocker = "blocker"
 	// GoalMetadataObjectiveTransition is server-owned durable state for a
 	// Goal objective revision rebase. User metadata updates must never replace
 	// or remove it.
@@ -302,6 +306,53 @@ type Goal struct {
 	Metadata           map[string]any `json:"metadata,omitempty"`
 }
 
+// GoalBlocker is the current exact recovery contract for a blocked Goal. It is
+// derived from server-owned Goal metadata so REST, WebSocket and UI readers do
+// not need to scan an event stream to explain how to resume.
+type GoalBlocker struct {
+	ID                     string `json:"id"`
+	Reason                 string `json:"reason"`
+	NeededInput            string `json:"needed_input"`
+	SinceObjectiveRevision int64  `json:"since_objective_revision"`
+	BlockedAt              string `json:"blocked_at,omitempty"`
+}
+
+// GoalBlockerFromGoal returns only a complete blocker for the current blocked
+// lifecycle epoch. Malformed legacy metadata fails closed as unavailable.
+func GoalBlockerFromGoal(goal Goal) (GoalBlocker, bool) {
+	if NormalizeGoalStatus(goal.Status) != GoalStatusBlocked {
+		return GoalBlocker{}, false
+	}
+	rawValue, ok := goal.Metadata[GoalMetadataBlocker]
+	if !ok {
+		return GoalBlocker{}, false
+	}
+	var raw map[string]any
+	switch typed := rawValue.(type) {
+	case map[string]any:
+		raw = typed
+	case map[string]string:
+		raw = make(map[string]any, len(typed))
+		for key, value := range typed {
+			raw[key] = value
+		}
+	default:
+		return GoalBlocker{}, false
+	}
+	result := GoalBlocker{
+		ID:                     GoalMetadataString(raw, "id"),
+		Reason:                 GoalMetadataString(raw, "reason"),
+		NeededInput:            GoalMetadataString(raw, "needed_input"),
+		SinceObjectiveRevision: GoalMetadataInt64(raw, "since_revision"),
+		BlockedAt:              GoalMetadataString(raw, "blocked_at"),
+	}
+	if result.ID == "" || result.Reason == "" || result.NeededInput == "" ||
+		result.SinceObjectiveRevision != goal.ObjectiveRevision() {
+		return GoalBlocker{}, false
+	}
+	return result, true
+}
+
 // ContinuationState derives the automatic continuation controller state from
 // durable Goal fields. It is a read projection and is never persisted as a
 // second source of truth.
@@ -323,12 +374,20 @@ func (g Goal) ContinuationState() GoalContinuationState {
 // REST and WebSocket projection without storing a denormalized state column.
 func (g Goal) MarshalJSON() ([]byte, error) {
 	type goalAlias Goal
+	blocker, hasBlocker := GoalBlockerFromGoal(g)
 	return json.Marshal(struct {
 		*goalAlias
 		ContinuationState GoalContinuationState `json:"continuation_state"`
+		Blocker           *GoalBlocker          `json:"blocker,omitempty"`
 	}{
 		goalAlias:         (*goalAlias)(&g),
 		ContinuationState: g.ContinuationState(),
+		Blocker: func() *GoalBlocker {
+			if !hasBlocker {
+				return nil
+			}
+			return &blocker
+		}(),
 	})
 }
 
@@ -530,6 +589,43 @@ type GoalContinuation struct {
 	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
+// GoalContinuationPlanStatus is the durable launch receipt state. Claimed and
+// started are leased recovery-owner states; only settled is runtime-terminal.
+type GoalContinuationPlanStatus string
+
+const (
+	GoalContinuationPlanStatusScheduled GoalContinuationPlanStatus = "scheduled"
+	GoalContinuationPlanStatusClaimed   GoalContinuationPlanStatus = "claimed"
+	GoalContinuationPlanStatusStarted   GoalContinuationPlanStatus = "started"
+	GoalContinuationPlanStatusSettled   GoalContinuationPlanStatus = "settled"
+	GoalContinuationPlanStatusReleased  GoalContinuationPlanStatus = "released"
+	GoalContinuationPlanStatusCancelled GoalContinuationPlanStatus = "cancelled"
+)
+
+// GoalContinuationPlan is the server-only durable launch receipt. Prompt and
+// metadata deliberately live outside Goal.Metadata so they are never projected
+// to clients as ambient Goal state.
+type GoalContinuationPlan struct {
+	RoundID           string                     `json:"round_id"`
+	GoalID            string                     `json:"goal_id"`
+	SessionKey        string                     `json:"session_key"`
+	ObjectiveRevision int64                      `json:"objective_revision"`
+	ExecutionID       string                     `json:"execution_id,omitempty"`
+	PreviousRoundID   string                     `json:"previous_round_id,omitempty"`
+	Prompt            string                     `json:"prompt"`
+	Purpose           string                     `json:"purpose"`
+	Metadata          map[string]string          `json:"metadata,omitempty"`
+	Status            GoalContinuationPlanStatus `json:"status"`
+	Version           int64                      `json:"version"`
+	AttemptCount      int                        `json:"attempt_count"`
+	NextAttemptAt     *time.Time                 `json:"next_attempt_at,omitempty"`
+	ClaimExpiresAt    *time.Time                 `json:"claim_expires_at,omitempty"`
+	LastError         string                     `json:"last_error,omitempty"`
+	CreatedAt         time.Time                  `json:"created_at"`
+	UpdatedAt         time.Time                  `json:"updated_at"`
+	SettledAt         *time.Time                 `json:"settled_at,omitempty"`
+}
+
 // GoalCommandOptions 是 UI set_goal 与 `/goal` 共用的可选控制参数。
 // Room lead 始终来自服务端验证过的 target_agent_ids，不放入 metadata。
 type GoalCommandOptions struct {
@@ -604,6 +700,7 @@ type CompleteGoalRequest struct {
 
 // BlockGoalRequest 表示阻塞 Goal 的请求。
 type BlockGoalRequest struct {
+	BlockerID                 string `json:"blocker_id"`
 	Reason                    string `json:"reason"`
 	NeededInput               string `json:"needed_input,omitempty"`
 	RoundID                   string `json:"round_id,omitempty"`

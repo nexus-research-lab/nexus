@@ -166,6 +166,7 @@ func (g *executionGoalPromotionGateway) PromoteExecution(
 	}
 
 	criteria := append([]string(nil), execution.CompletionCriteria...)
+	activationOrigin := executionGoalPromotionOrigin(request.Proposal.ActivationReason)
 	roundID := strings.TrimSpace(request.Actor.RootRoundID)
 	if roundID == "" {
 		roundID = strings.TrimSpace(execution.RootRoundID)
@@ -184,7 +185,7 @@ func (g *executionGoalPromotionGateway) PromoteExecution(
 				protocol.GoalExecutionBindingStatePending,
 			),
 			protocol.GoalMetadataPromotionCommand:   commandID,
-			protocol.GoalMetadataActivationOrigin:   string(protocol.GoalActivationOriginAdaptivePromoted),
+			protocol.GoalMetadataActivationOrigin:   string(activationOrigin),
 			protocol.GoalMetadataActivationReason:   string(request.Proposal.ActivationReason),
 			protocol.GoalMetadataCompletionCriteria: criteria,
 		},
@@ -209,7 +210,7 @@ func (g *executionGoalPromotionGateway) PromoteExecution(
 	if created == nil || strings.TrimSpace(created.ID) == "" {
 		return orchestrationsvc.GoalPromotionBinding{}, errors.New("Goal service created no Goal identity")
 	}
-	return executionGoalPromotionBinding(*created, request.Proposal.ActivationReason), nil
+	return executionGoalPromotionBinding(*created, activationOrigin, request.Proposal.ActivationReason), nil
 }
 
 func bindingForExistingExecutionGoal(
@@ -219,13 +220,14 @@ func bindingForExistingExecutionGoal(
 	fallbackReason protocol.GoalActivationReason,
 ) (orchestrationsvc.GoalPromotionBinding, error) {
 	bindingState := protocol.GoalExecutionBindingStateFromGoal(goal)
+	expectedOrigin := executionGoalPromotionOrigin(fallbackReason)
 	if protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataExecutionID) !=
 		strings.TrimSpace(executionID) ||
 		(bindingState != protocol.GoalExecutionBindingStateStandalone &&
 			bindingState != protocol.GoalExecutionBindingStatePending &&
 			bindingState != protocol.GoalExecutionBindingStateConfirmed) ||
 		protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataActivationOrigin) !=
-			string(protocol.GoalActivationOriginAdaptivePromoted) ||
+			string(expectedOrigin) ||
 		strings.TrimSpace(goal.Objective) != strings.TrimSpace(objective) {
 		return orchestrationsvc.GoalPromotionBinding{}, orchestrationsvc.ErrGoalPromotionConflict
 	}
@@ -233,19 +235,27 @@ func bindingForExistingExecutionGoal(
 	if stored := protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataActivationReason); stored != "" {
 		reason = protocol.GoalActivationReason(stored)
 	}
-	return executionGoalPromotionBinding(goal, reason), nil
+	return executionGoalPromotionBinding(goal, expectedOrigin, reason), nil
 }
 
 func executionGoalPromotionBinding(
 	goal protocol.Goal,
+	origin protocol.GoalActivationOrigin,
 	reason protocol.GoalActivationReason,
 ) orchestrationsvc.GoalPromotionBinding {
 	return orchestrationsvc.GoalPromotionBinding{
 		GoalID:                strings.TrimSpace(goal.ID),
 		GoalObjectiveRevision: goal.ObjectiveRevision(),
-		ActivationOrigin:      protocol.GoalActivationOriginAdaptivePromoted,
+		ActivationOrigin:      origin,
 		ActivationReason:      reason,
 	}
+}
+
+func executionGoalPromotionOrigin(reason protocol.GoalActivationReason) protocol.GoalActivationOrigin {
+	if reason == protocol.GoalActivationReasonPersistenceRequested {
+		return protocol.GoalActivationOriginUserExplicit
+	}
+	return protocol.GoalActivationOriginAdaptivePromoted
 }
 
 func mapExecutionGoalPromotionError(err error) error {

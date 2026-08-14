@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -58,6 +59,23 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err = rooms.MarkConversationStarted(ctx, roomContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	topicContext, err := rooms.CreateConversation(
+		ctx,
+		roomContext.Room.ID,
+		protocol.CreateConversationRequest{Title: "当前 Goal topic"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherRoomContext, err := rooms.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, lucy.AgentID}, Name: "另一个群",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	sessionKey := protocol.BuildAgentSessionKey(
 		amy.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "main", "",
@@ -65,11 +83,16 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 	roundID := "round-communication"
 	roomSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	roomLeaseSessionKey := protocol.BuildRoomAgentSessionKey(
-		roomContext.Conversation.ID, amy.AgentID, protocol.RoomTypeGroup,
+		roomContext.Conversation.ID, amy.AgentID, roomContext.Room.RoomType,
+	)
+	topicSessionKey := protocol.BuildRoomSharedSessionKey(topicContext.Conversation.ID)
+	topicLeaseSessionKey := protocol.BuildRoomAgentSessionKey(
+		topicContext.Conversation.ID, amy.AgentID, roomContext.Room.RoomType,
 	)
 	roundVerifier := fixedRoundVerifier{
-		sessionKey:          roundID,
-		roomLeaseSessionKey: "agent-round-room",
+		sessionKey:           roundID,
+		roomLeaseSessionKey:  "agent-round-room",
+		topicLeaseSessionKey: "agent-round-topic",
 	}
 	actor := managersvc.Actor{
 		OwnerUserID: "communication-owner", AgentID: amy.AgentID,
@@ -145,7 +168,8 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 	}
 	if len(book.Contacts) != 1 || book.Contacts[0].ContactAgentID != devin.AgentID ||
 		book.Contacts[0].DirectRoomID != directResult.RoomID ||
-		len(book.Rooms) != 1 || book.Rooms[0].RoomID != roomContext.Room.ID {
+		len(book.Rooms) != 2 || !addressBookHasRoom(book.Rooms, roomContext.Room.ID) ||
+		!addressBookHasRoom(book.Rooms, otherRoomContext.Room.ID) {
 		t.Fatalf("address book = %+v", book)
 	}
 	roomBook, err := service.ListAddressBook(ctx, managersvc.Actor{
@@ -157,6 +181,76 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 	})
 	if err != nil || roomBook.AgentID != amy.AgentID {
 		t.Fatalf("Room runtime address book = %+v, err = %v", roomBook, err)
+	}
+	topicActor := managersvc.Actor{
+		OwnerUserID: "communication-owner", AgentID: amy.AgentID,
+		SessionKey: topicSessionKey, RoundID: "root-round-topic",
+		LeaseSessionKey: topicLeaseSessionKey, LeaseRoundID: "agent-round-topic",
+		ContextKind: managersvc.ContextKindRoom, ContextID: roomContext.Room.ID,
+		RoomID: roomContext.Room.ID, ConversationID: topicContext.Conversation.ID,
+		GoalCollaborationBinding: func() *protocol.GoalCollaborationBinding {
+			return &protocol.GoalCollaborationBinding{
+				GoalID: "goal-topic", ObjectiveRevision: 3,
+			}
+		},
+	}
+	topicResult, err := service.SendMessage(ctx, topicActor, communicationsvc.SendRequest{
+		TargetType: communicationsvc.TargetTypeRoom,
+		TargetID:   roomContext.Room.ID,
+		Content:    "@Lucy 请核对当前 topic",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if topicResult.ConversationID != topicContext.Conversation.ID ||
+		topicResult.RoutingSource != communicationsvc.RoutingSourceCurrentContext ||
+		transport.publicConversationID != topicContext.Conversation.ID ||
+		transport.publicRequest.RootRoundID != "root-round-topic" ||
+		transport.publicRequest.GoalCollaborationBinding == nil ||
+		transport.publicRequest.GoalCollaborationBinding.GoalID != "goal-topic" ||
+		transport.publicRequest.GoalCollaborationBinding.ObjectiveRevision != 3 {
+		t.Fatalf("current topic send = %+v, public request = %+v", topicResult, transport.publicRequest)
+	}
+	publicCalls := transport.publicCalls
+	if _, err = service.SendMessage(ctx, topicActor, communicationsvc.SendRequest{
+		TargetType: communicationsvc.TargetTypeRoom,
+		TargetID:   otherRoomContext.Room.ID,
+		Content:    "不能隐式跨 Room",
+	}); err == nil || !strings.Contains(err.Error(), "必须显式指定 conversation_id") {
+		t.Fatalf("cross-Room send without conversation_id = %v", err)
+	}
+	if transport.publicCalls != publicCalls {
+		t.Fatalf("fail-closed cross-Room send reached transport: calls=%d", transport.publicCalls)
+	}
+	explicitCrossRoom, err := service.SendMessage(ctx, topicActor, communicationsvc.SendRequest{
+		TargetType:     communicationsvc.TargetTypeRoom,
+		TargetID:       otherRoomContext.Room.ID,
+		ConversationID: otherRoomContext.Conversation.ID,
+		Content:        "显式跨 Room",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicitCrossRoom.ConversationID != otherRoomContext.Conversation.ID ||
+		explicitCrossRoom.RoutingSource != communicationsvc.RoutingSourceExplicit {
+		t.Fatalf("explicit cross-Room send = %+v", explicitCrossRoom)
+	}
+	directCalls := transport.directCalls
+	goalDirect, err := service.SendMessage(ctx, topicActor, communicationsvc.SendRequest{
+		TargetType: communicationsvc.TargetTypeAgent,
+		TargetID:   devin.AgentID,
+		Content:    "请私下复核当前 Goal",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transport.directCalls != directCalls+1 ||
+		transport.directRequest.RootRoundID != "root-round-topic" ||
+		transport.directRequest.GoalCollaborationBinding == nil ||
+		transport.directRequest.GoalCollaborationBinding.GoalID != "goal-topic" ||
+		transport.directRequest.GoalCollaborationBinding.ObjectiveRevision != 3 ||
+		goalDirect.RoutingSource != communicationsvc.RoutingSourceRoomMain {
+		t.Fatalf("Goal-attributed direct send = %+v, request = %+v", goalDirect, transport.directRequest)
 	}
 	if err = agents.DeleteAgentContact(ctx, amy.AgentID, devin.AgentID); err != nil {
 		t.Fatal(err)
@@ -198,6 +292,10 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 	if result.Status != "published" || result.RoomID != roomContext.Room.ID || result.MessageID == "" {
 		t.Fatalf("send result = %+v", result)
 	}
+	if result.ConversationID != roomContext.Conversation.ID ||
+		result.RoutingSource != communicationsvc.RoutingSourceRoomMain {
+		t.Fatalf("Agent-context default Room route = %+v", result)
+	}
 	messages, err := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath).ReadMessages(
 		roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil,
 	)
@@ -211,10 +309,14 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 }
 
 type recordingMessageTransport struct {
-	directCalls     int
-	directRequest   protocol.CreateRoomDirectedMessageRequest
-	roomIDs         []string
-	conversationIDs []string
+	directCalls          int
+	directRequest        protocol.CreateRoomDirectedMessageRequest
+	roomIDs              []string
+	conversationIDs      []string
+	publicCalls          int
+	publicRoomID         string
+	publicConversationID string
+	publicRequest        protocol.CreateRoomPublicMessageRequest
 }
 
 func (r *recordingMessageTransport) HandleDirectedMessage(
@@ -233,12 +335,16 @@ func (r *recordingMessageTransport) HandleDirectedMessage(
 	}, nil
 }
 
-func (*recordingMessageTransport) HandlePlatformPublicMessage(
-	context.Context,
-	string,
-	string,
-	protocol.CreateRoomPublicMessageRequest,
+func (r *recordingMessageTransport) HandlePlatformPublicMessage(
+	_ context.Context,
+	roomID string,
+	conversationID string,
+	request protocol.CreateRoomPublicMessageRequest,
 ) (protocol.Message, error) {
+	r.publicCalls++
+	r.publicRoomID = roomID
+	r.publicConversationID = conversationID
+	r.publicRequest = request
 	return protocol.Message{"message_id": "public-recorded"}, nil
 }
 
@@ -249,6 +355,15 @@ func (v fixedRoundVerifier) GetRunningRoundIDs(sessionKey string) []string {
 		return []string{roundID}
 	}
 	return nil
+}
+
+func addressBookHasRoom(rooms []communicationsvc.RoomContact, roomID string) bool {
+	for _, room := range rooms {
+		if room.RoomID == roomID {
+			return true
+		}
+	}
+	return false
 }
 
 func communicationTestConfig(t *testing.T) config.Config {
