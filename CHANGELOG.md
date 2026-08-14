@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept host-generated Room notices visible in real time when no Agent target is selected, without requiring a conversation reload.
 - Kept Assistant result metadata, including model and usage statistics, behind one settled-execution projection so active cards cannot expose partial result details.
 - Filtered private Room directed-message evidence once at the canonical timeline boundary, keeping Feed, Thread, and navigation free of transient night-action cards and empty placeholders.
 - Fenced Room message idempotency by the physical Agent round and prevented a directed-message recipient from persisting the same private reply manually and again through the runtime `reply_route` handback.
