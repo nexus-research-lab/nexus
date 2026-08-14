@@ -164,6 +164,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"在 Nexus 对话中生成交互式图表",
 			"Call `show_widget`",
 			"Network access and external resources are allowed without a domain allowlist",
+			"Never call `.addEventListener` directly",
+			"Missing widget element",
 			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
