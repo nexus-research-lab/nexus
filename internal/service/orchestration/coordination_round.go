@@ -75,7 +75,12 @@ func (s *Service) activateRuntimeCoordinationResult(
 	if result.Outcome != MutationApplied && result.Outcome != MutationNoOp {
 		return result
 	}
-	_ = s.ActivateRuntimeCoordination(ctx, actor, result.Snapshot)
+	if err := s.ActivateRuntimeCoordination(ctx, actor, result.Snapshot); err != nil {
+		return result
+	}
+	result.ResponsibilityAuthority = &ResponsibilityAuthorityReceipt{
+		ExecutionID: strings.TrimSpace(result.Snapshot.Execution.ID),
+	}
 	return result
 }
 
@@ -103,6 +108,9 @@ func (s *Service) activateReviewContinuationResult(
 		return result
 	}
 	result.WorkBinding = &WorkBindingReceipt{Clear: true}
+	result.ResponsibilityAuthority = &ResponsibilityAuthorityReceipt{
+		ExecutionID: strings.TrimSpace(result.Snapshot.Execution.ID),
+	}
 	result.NextActions = nextActions(
 		result.Snapshot,
 		s.effectiveRuntimeCoordinationActor(actor, result.Snapshot),

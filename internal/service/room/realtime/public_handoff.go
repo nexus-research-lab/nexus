@@ -697,12 +697,15 @@ func (s *Service) repairGoalDirectedMessageHandoffs(ctx context.Context) error {
 			continue
 		}
 		repairCtx := contextWithExactQueueOwner(ctx, ownerUserID)
-		goal := s.currentRoomGoalForSession(
+		goal, goalErr := s.goalForCollaborationBinding(
 			repairCtx,
-			protocol.BuildRoomSharedSessionKey(message.ConversationID),
+			message.ConversationID,
+			binding,
 		)
-		if goal == nil || strings.TrimSpace(goal.ID) != binding.GoalID ||
-			goal.ObjectiveRevision() != binding.ObjectiveRevision {
+		if goalErr != nil {
+			return goalErr
+		}
+		if !roomGoalCollaborationBindingMatchesGoal(goal, binding) {
 			continue
 		}
 		if err := s.ensureGoalDirectedMessageHandoffs(
@@ -976,6 +979,13 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 	if s == nil || s.goals == nil || binding == nil {
 		return errors.New("Goal provider is required for Room collaboration handback recovery")
 	}
+	goal, err := s.goalForCollaborationBinding(ctx, conversationID, binding)
+	if err != nil {
+		return err
+	}
+	if !roomGoalCollaborationBindingMatchesGoal(goal, binding) {
+		return s.settleDiscardedGoalHandoff(ownerUserID, conversationID, handoff)
+	}
 	if handoff.GoalPublicEvidence {
 		roundID := firstNonEmptyString(
 			handoff.TargetAgentRoundID,
@@ -997,7 +1007,7 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 		handoff.TargetAgentRoundID,
 		handoff.HandoffID,
 	)
-	if _, err := s.goals.RecordRoomGoalCollaborationHandback(
+	if _, err = s.goals.RecordRoomGoalCollaborationHandback(
 		ctx,
 		binding.GoalID,
 		handbackRoundID,
@@ -1008,11 +1018,18 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 		}
 		return err
 	}
-	return s.publicHandoffs.MarkGoalHandbackSettled(
+	if err = s.publicHandoffs.MarkGoalHandbackSettled(
 		ownerUserID,
 		conversationID,
 		handoff.HandoffID,
-	)
+	); err != nil {
+		return err
+	}
+	// Startup recovery has no live target round whose post-round hook could
+	// restart the source Goal. Dispatch from the canonical Goal session only
+	// after the terminal->handback receipt is durably settled.
+	s.dispatchGoalContinuationForSession(ctx, goal.SessionKey, handbackRoundID)
+	return nil
 }
 
 func (s *Service) recoverGoalDirectedMessageHandoff(

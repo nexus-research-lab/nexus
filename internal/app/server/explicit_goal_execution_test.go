@@ -11,7 +11,7 @@ import (
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
-func TestExplicitCreateGoalBindsCompatibleCurrentExecutionIdempotently(t *testing.T) {
+func TestExplicitCreateGoalRejectsCurrentTransientExecution(t *testing.T) {
 	request := explicitGoalCreateRequest()
 	executions := &stubExplicitExecutionService{
 		current: explicitExecutionSnapshot(request.SessionKey, request.Objective),
@@ -19,44 +19,12 @@ func TestExplicitCreateGoalBindsCompatibleCurrentExecutionIdempotently(t *testin
 	goals := &stubExplicitGoalLifecycleService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
 
-	created, err := coordinator.Create(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
+	_, err := coordinator.Create(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "promote_execution_to_goal") {
+		t.Fatalf("Create() error = %v, want explicit promotion guidance", err)
 	}
-	if goals.createCalls != 1 || executions.bindCalls != 1 {
+	if goals.createCalls != 0 || executions.bindCalls != 0 {
 		t.Fatalf("create calls=%d bind calls=%d", goals.createCalls, executions.bindCalls)
-	}
-	if got := protocol.GoalMetadataString(
-		created.Metadata,
-		protocol.GoalMetadataExecutionID,
-	); got != "execution-current" {
-		t.Fatalf("Goal execution metadata = %q", got)
-	}
-	if got := protocol.GoalExecutionBindingStateFromGoal(*created); got !=
-		protocol.GoalExecutionBindingStatePending {
-		t.Fatalf("Goal binding state = %q, want pending before SQL bind confirmation", got)
-	}
-	if got := protocol.GoalMetadataString(
-		created.Metadata,
-		protocol.GoalMetadataActivationOrigin,
-	); got != string(protocol.GoalActivationOriginUserExplicit) {
-		t.Fatalf("Goal activation origin = %q", got)
-	}
-	if executions.lastBind.GoalID != created.ID ||
-		executions.lastBind.GoalObjectiveRevision != created.ObjectiveRevision() {
-		t.Fatalf("Execution bind input = %#v", executions.lastBind)
-	}
-
-	replayed, err := coordinator.Create(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if replayed.ID != created.ID || goals.createCalls != 1 {
-		t.Fatalf("replay=%#v create calls=%d", replayed, goals.createCalls)
-	}
-	if executions.current.Execution.GoalID != created.ID ||
-		executions.current.Execution.GoalActivationOrigin != protocol.GoalActivationOriginUserExplicit {
-		t.Fatalf("current Execution = %#v", executions.current.Execution)
 	}
 }
 
@@ -154,9 +122,8 @@ func TestExplicitCreateGoalStaysStandaloneUntilPlanPreflightOwnsBinding(t *testi
 	}
 }
 
-func TestExplicitCreateGoalRetryRepairsPreviouslyCreatedUnboundGoal(t *testing.T) {
+func TestExplicitCreateGoalRetryReusesStandaloneReceipt(t *testing.T) {
 	request := explicitGoalCreateRequest()
-	snapshot := explicitExecutionSnapshot(request.SessionKey, request.Objective)
 	commandID := explicitGoalCommandID(request, request.Objective)
 	goals := &stubExplicitGoalLifecycleService{current: &protocol.Goal{
 		ID:         "goal-explicit",
@@ -165,9 +132,9 @@ func TestExplicitCreateGoalRetryRepairsPreviouslyCreatedUnboundGoal(t *testing.T
 		Status:     protocol.GoalStatusActive,
 		Version:    1,
 		CreatedBy:  request.CreatedBy,
-		Metadata:   explicitGoalMetadata(request.Metadata, snapshot, commandID),
+		Metadata:   explicitGoalMetadata(request.Metadata, nil, commandID),
 	}}
-	executions := &stubExplicitExecutionService{current: snapshot}
+	executions := &stubExplicitExecutionService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
 
 	repaired, err := coordinator.Create(context.Background(), request)
@@ -176,61 +143,36 @@ func TestExplicitCreateGoalRetryRepairsPreviouslyCreatedUnboundGoal(t *testing.T
 	}
 	if repaired.ID != "goal-explicit" ||
 		goals.createCalls != 0 ||
-		executions.bindCalls != 1 ||
-		executions.current.Execution.GoalID != repaired.ID {
+		executions.bindCalls != 0 ||
+		protocol.GoalExecutionBindingStateFromGoal(*repaired) != protocol.GoalExecutionBindingStateStandalone {
 		t.Fatalf(
-			"repaired=%#v createCalls=%d bindCalls=%d execution=%#v",
+			"repaired=%#v createCalls=%d bindCalls=%d",
 			repaired,
 			goals.createCalls,
 			executions.bindCalls,
-			executions.current.Execution,
 		)
 	}
 }
 
-func TestExplicitGoalCoordinatorRejectsObjectiveAndScopeConflicts(t *testing.T) {
+func TestExplicitCreateGoalIgnoresTerminalExecution(t *testing.T) {
 	request := explicitGoalCreateRequest()
-	tests := []struct {
-		name       string
-		execution  *protocol.ExecutionSnapshot
-		wantTarget error
-	}{
-		{
-			name:       "objective",
-			execution:  explicitExecutionSnapshot(request.SessionKey, "Different objective"),
-			wantTarget: orchestrationsvc.ErrExplicitGoalObjectiveConflict,
-		},
-		{
-			name: "scope",
-			execution: &protocol.ExecutionSnapshot{Execution: protocol.Execution{
-				ID:                 "execution-current",
-				OwnerUserID:        request.OwnerUserID,
-				SessionKey:         request.SessionKey,
-				ScopeKind:          protocol.ExecutionScopeRoom,
-				ConversationID:     "other-room",
-				CoordinatorAgentID: request.AgentID,
-				Objective:          request.Objective,
-				Status:             protocol.ExecutionStatusActive,
-				Version:            1,
-			}},
-			wantTarget: orchestrationsvc.ErrExplicitGoalScopeConflict,
-		},
+	execution := explicitExecutionSnapshot(request.SessionKey, "old objective")
+	execution.Execution.Status = protocol.ExecutionStatusCompleted
+	goals := &stubExplicitGoalLifecycleService{}
+	coordinator := newExplicitGoalExecutionCoordinator(
+		goals,
+		&stubExplicitExecutionService{current: execution},
+	)
+	created, err := coordinator.Create(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			goals := &stubExplicitGoalLifecycleService{}
-			coordinator := newExplicitGoalExecutionCoordinator(
-				goals,
-				&stubExplicitExecutionService{current: test.execution},
-			)
-			_, err := coordinator.Create(context.Background(), request)
-			if !errors.Is(err, test.wantTarget) {
-				t.Fatalf("Create() error = %v, want %v", err, test.wantTarget)
-			}
-			if goals.createCalls != 0 {
-				t.Fatalf("incompatible Execution created %d Goals", goals.createCalls)
-			}
-		})
+	if created == nil || goals.createCalls != 1 ||
+		protocol.GoalExecutionMode(protocol.GoalMetadataString(
+			created.Metadata,
+			protocol.GoalMetadataExecutionMode,
+		)) != protocol.GoalExecutionModeGoalOnly {
+		t.Fatalf("created=%#v calls=%d", created, goals.createCalls)
 	}
 }
 

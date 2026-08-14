@@ -561,6 +561,7 @@ func preserveServerOwnedGoalMetadata(
 		protocol.GoalMetadataActivationReason,
 		protocol.GoalMetadataCompletionCriteria,
 		protocol.GoalMetadataObjectiveAlignment,
+		protocol.GoalMetadataBlocker,
 		protocol.GoalMetadataExplicitCommand,
 		protocol.GoalMetadataObjectiveTransition,
 		protocol.GoalMetadataRoomGoalCollaborationRequired,

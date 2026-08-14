@@ -5,10 +5,12 @@ package goal
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/objectivealignment"
@@ -23,6 +25,12 @@ type ContinuationPlanProvider interface {
 type continuationPlanReleaser interface {
 	ReleaseContinuationPlan(context.Context, protocol.GoalContinuation, string) (*protocol.Goal, error)
 }
+
+const (
+	goalContinuationClaimLease   = 2 * time.Minute
+	goalContinuationStartedLease = 15 * time.Minute
+	goalContinuationRetryBase    = 10 * time.Second
+)
 
 // PrepareContinuationForDispatch 统一续跑候选在进入运行时前的状态转换。
 // shouldDefer 必须读取最新队列状态，因为规划过程可能与显式输入并发。
@@ -128,6 +136,9 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
+	if recovered, open, err := s.recoverOpenContinuationPlan(ctx, *item); err != nil || open {
+		return recovered, err
+	}
 	if transition, ok := objectiveTransitionAwaitingPlan(*item); ok {
 		if s.goalBudgetExhausted(*item) {
 			_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
@@ -214,7 +225,10 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 	roundID := s.idFactory("goal_continuation")
 	expectedVersion := item.Version
 	now := s.nowFn()
-	item.Metadata = addContinuationReservation(item.Metadata, roundID)
+	durableRepository, durable := s.repo.(continuationPlanRepository)
+	if !durable {
+		item.Metadata = addContinuationReservation(item.Metadata, roundID)
+	}
 	item.ContinuationCount++
 	item.Version++
 	item.UpdatedAt = now
@@ -226,13 +240,10 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 	if previous := strings.TrimSpace(previousRoundID); previous != "" {
 		payload["previous_round_id"] = previous
 	}
-	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_scheduled", protocol.GoalUpdateSourceSystem, roundID, payload)
-	if err != nil {
-		return nil, err
-	}
+	event := s.newGoalEvent(*item, "continuation_scheduled", protocol.GoalUpdateSourceSystem, roundID, payload, now)
 	metadata := map[string]string{
-		"goal_id":           updated.ID,
-		"session_key":       updated.SessionKey,
+		"goal_id":           item.ID,
+		"session_key":       item.SessionKey,
 		"previous_round_id": strings.TrimSpace(previousRoundID),
 	}
 	for key, value := range extraMetadata {
@@ -240,6 +251,28 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 			metadata[key] = strings.TrimSpace(value)
 		}
 	}
+	var updated *protocol.Goal
+	var err error
+	if durable {
+		nextAttemptAt := now
+		updated, err = durableRepository.ReserveGoalContinuation(ctx, *item, expectedVersion, event, protocol.GoalContinuationPlan{
+			RoundID: roundID, GoalID: item.ID, SessionKey: item.SessionKey,
+			ObjectiveRevision: item.ObjectiveRevision(), ExecutionID: strings.TrimSpace(executionID),
+			PreviousRoundID: strings.TrimSpace(previousRoundID), Prompt: strings.TrimSpace(prompt),
+			Purpose: strings.TrimSpace(purpose), Metadata: metadata,
+			Status: protocol.GoalContinuationPlanStatusScheduled, Version: 1,
+			NextAttemptAt: &nextAttemptAt, CreatedAt: now, UpdatedAt: now,
+		})
+	} else {
+		updated, err = s.repo.UpdateGoalWithEvents(ctx, *item, expectedVersion, []protocol.GoalEvent{event})
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGoalVersionStale
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.publishGoalEvent(ctx, *updated, event)
 	return &protocol.GoalContinuation{
 		Goal:           *updated,
 		ExecutionID:    strings.TrimSpace(executionID),
@@ -250,6 +283,43 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 		Purpose:        strings.TrimSpace(purpose),
 		Metadata:       metadata,
 	}, nil
+}
+
+func (s *Service) recoverOpenContinuationPlan(ctx context.Context, item protocol.Goal) (*protocol.GoalContinuation, bool, error) {
+	repository, ok := s.repo.(continuationPlanRepository)
+	if !ok {
+		return nil, false, nil
+	}
+	record, err := repository.GetOpenGoalContinuation(ctx, item.ID, item.ObjectiveRevision())
+	if err != nil || record == nil {
+		return nil, false, err
+	}
+	now := s.nowFn()
+	switch record.Status {
+	case protocol.GoalContinuationPlanStatusScheduled:
+		if record.NextAttemptAt != nil && record.NextAttemptAt.After(now) {
+			return nil, true, nil
+		}
+	case protocol.GoalContinuationPlanStatusClaimed:
+		if record.ClaimExpiresAt != nil && record.ClaimExpiresAt.After(now) {
+			return nil, true, nil
+		}
+	case protocol.GoalContinuationPlanStatusStarted:
+		if record.ClaimExpiresAt != nil && record.ClaimExpiresAt.After(now) {
+			return nil, true, nil
+		}
+	default:
+		return nil, false, nil
+	}
+	return continuationFromRecord(item, *record), true, nil
+}
+
+func continuationFromRecord(item protocol.Goal, record protocol.GoalContinuationPlan) *protocol.GoalContinuation {
+	return &protocol.GoalContinuation{
+		Goal: item, ExecutionID: record.ExecutionID, RoundID: record.RoundID,
+		Prompt: record.Prompt, HiddenFromUser: true, Synthetic: true,
+		Purpose: record.Purpose, Metadata: record.Metadata,
+	}
 }
 
 // GoalContinuationStillCurrent 判断已生成的隐藏续跑是否仍持有当前 objective 的待启动 reservation。
@@ -279,8 +349,16 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return false, nil
 	}
+	durableMatch := false
+	if repository, ok := s.repo.(continuationPlanRepository); ok {
+		record, recordErr := repository.GetOpenGoalContinuation(ctx, item.ID, item.ObjectiveRevision())
+		if recordErr != nil {
+			return false, recordErr
+		}
+		durableMatch = record != nil && strings.TrimSpace(record.RoundID) == strings.TrimSpace(plan.RoundID)
+	}
 	if plan.Purpose == goalObjectiveTransitionPlanningPurpose {
-		return objectiveTransitionPlanningContinuationMatches(*item, plan), nil
+		return objectiveTransitionPlanningContinuationMatches(*item, plan, durableMatch), nil
 	}
 	if GoalObjectiveTransitionPending(*item) {
 		return false, nil
@@ -292,7 +370,7 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	return item.ID == goalID &&
 		objectiveRevisionMatches(*item, plan.Goal.ObjectiveRevision()) &&
 		executionID == strings.TrimSpace(plan.ExecutionID) &&
-		hasContinuationReservation(item.Metadata, plan.RoundID), nil
+		(durableMatch || hasContinuationReservation(item.Metadata, plan.RoundID)), nil
 }
 
 // ClaimContinuationPlan 原子取得隐藏续跑的唯一启动权；后续 runtime 启动失败必须另记 continuation_failed。
@@ -311,10 +389,38 @@ func (s *Service) ClaimContinuationPlan(ctx context.Context, plan protocol.GoalC
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return nil, ErrGoalInvalidState
+	}
 	expectedRevision := plan.Goal.ObjectiveRevision()
+	if repository, ok := s.repo.(continuationPlanRepository); ok {
+		record, recordErr := repository.GetOpenGoalContinuation(ctx, item.ID, item.ObjectiveRevision())
+		if recordErr != nil {
+			return nil, recordErr
+		}
+		if record == nil || strings.TrimSpace(record.RoundID) != strings.TrimSpace(plan.RoundID) ||
+			!objectiveRevisionMatches(*item, expectedRevision) ||
+			strings.TrimSpace(record.ExecutionID) != strings.TrimSpace(plan.ExecutionID) ||
+			strings.TrimSpace(record.Purpose) != strings.TrimSpace(plan.Purpose) {
+			return nil, ErrGoalRevisionStale
+		}
+		if plan.Purpose == goalObjectiveTransitionPlanningPurpose &&
+			!objectiveTransitionPlanningContinuationMatches(*item, plan, true) {
+			return nil, ErrGoalRevisionStale
+		}
+		return s.claimContinuationPlanForLoadedGoal(ctx, item, plan.RoundID)
+	}
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
 		if plan.Purpose == goalObjectiveTransitionPlanningPurpose {
-			if !objectiveTransitionPlanningContinuationMatches(*current, plan) {
+			durableMatch := false
+			if repository, ok := s.repo.(continuationPlanRepository); ok {
+				record, recordErr := repository.GetOpenGoalContinuation(ctx, current.ID, current.ObjectiveRevision())
+				if recordErr != nil {
+					return nil, recordErr
+				}
+				durableMatch = record != nil && strings.TrimSpace(record.RoundID) == strings.TrimSpace(plan.RoundID)
+			}
+			if !objectiveTransitionPlanningContinuationMatches(*current, plan, durableMatch) {
 				return nil, ErrGoalRevisionStale
 			}
 			return s.claimContinuationPlanForLoadedGoal(ctx, current, plan.RoundID)
@@ -339,12 +445,17 @@ func (s *Service) ClaimContinuationPlan(ctx context.Context, plan protocol.GoalC
 func objectiveTransitionPlanningContinuationMatches(
 	item protocol.Goal,
 	plan protocol.GoalContinuation,
+	durableMatch ...bool,
 ) bool {
 	transition, ok := objectiveTransitionAwaitingPlan(item)
+	reserved := hasContinuationReservation(item.Metadata, plan.RoundID)
+	if len(durableMatch) > 0 {
+		reserved = reserved || durableMatch[0]
+	}
 	if !ok || strings.TrimSpace(plan.ExecutionID) != "" ||
 		item.ID != continuationPlanGoalID(plan) ||
 		!objectiveRevisionMatches(item, plan.Goal.ObjectiveRevision()) ||
-		!hasContinuationReservation(item.Metadata, plan.RoundID) {
+		!reserved {
 		return false
 	}
 	if plan.Metadata == nil {
@@ -385,6 +496,17 @@ func (s *Service) claimContinuationPlanForLoadedGoal(ctx context.Context, item *
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, ErrGoalInvalidState
 	}
+	if repository, ok := s.repo.(continuationPlanRepository); ok {
+		now := s.nowFn()
+		_, err := repository.ClaimGoalContinuation(ctx, roundID, now, now.Add(goalContinuationClaimLease))
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrGoalRevisionStale
+		}
+		if err != nil {
+			return nil, err
+		}
+		return item, nil
+	}
 	metadata, found := removeContinuationReservation(item.Metadata, roundID)
 	if !found {
 		return nil, ErrGoalRevisionStale
@@ -400,6 +522,44 @@ func (s *Service) claimContinuationPlanForLoadedGoal(ctx context.Context, item *
 		return nil, err
 	}
 	return updated, nil
+}
+
+// MarkContinuationPlanStarted settles a claimed receipt after the runtime has
+// synchronously registered the exact round identity.
+func (s *Service) MarkContinuationPlanStarted(ctx context.Context, plan protocol.GoalContinuation) error {
+	repository, ok := s.repo.(continuationPlanRepository)
+	if !ok {
+		return nil
+	}
+	now := s.nowFn()
+	err := repository.MarkGoalContinuationStarted(ctx, plan.RoundID, now, now.Add(goalContinuationStartedLease))
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrGoalRevisionStale
+	}
+	return err
+}
+
+// RetryContinuationPlan records a transient pre-runtime failure without
+// suspending the Goal or incrementing its continuation count again.
+func (s *Service) RetryContinuationPlan(ctx context.Context, plan protocol.GoalContinuation, reason string) error {
+	repository, ok := s.repo.(continuationPlanRepository)
+	if !ok {
+		_, err := s.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision())
+		return err
+	}
+	record, err := repository.GetOpenGoalContinuation(ctx, continuationPlanGoalID(plan), plan.Goal.ObjectiveRevision())
+	if err != nil || record == nil {
+		return err
+	}
+	delay := goalContinuationRetryBase
+	for attempt := 1; attempt < record.AttemptCount && delay < 5*time.Minute; attempt++ {
+		delay *= 2
+	}
+	if delay > 5*time.Minute {
+		delay = 5 * time.Minute
+	}
+	now := s.nowFn()
+	return repository.RetryGoalContinuation(ctx, plan.RoundID, strings.TrimSpace(reason), now.Add(delay), now)
 }
 
 // ReleaseContinuationPlan 撤销尚未启动的隐藏续跑计划，避免未执行的 candidate 消耗续跑次数。
@@ -437,6 +597,32 @@ func (s *Service) releaseContinuationPlanForLoadedGoal(
 	roundID string,
 	reason string,
 ) (*protocol.Goal, error) {
+	if repository, ok := s.repo.(continuationPlanRepository); ok {
+		if item.ContinuationCount <= 0 {
+			return item, nil
+		}
+		expectedVersion := item.Version
+		item.ContinuationCount--
+		item.Version++
+		item.UpdatedAt = s.nowFn()
+		reason = strings.TrimSpace(reason)
+		if reason == "" {
+			reason = "Goal continuation deferred before dispatch"
+		}
+		event := s.newGoalEvent(*item, "continuation_deferred", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+			"continuation_count": item.ContinuationCount,
+			"reason":             reason,
+		}, item.UpdatedAt)
+		updated, err := repository.ReleaseGoalContinuation(ctx, *item, expectedVersion, event, roundID, item.UpdatedAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			return item, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		s.publishGoalEvent(ctx, *updated, event)
+		return updated, nil
+	}
 	metadata, found := removeContinuationReservation(item.Metadata, roundID)
 	if !found || item.ContinuationCount <= 0 {
 		return item, nil

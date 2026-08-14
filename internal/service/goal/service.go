@@ -6,6 +6,7 @@ package goal
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -39,6 +40,7 @@ type Service struct {
 	roomCompletion      roomGoalCompletionReadiness
 	continuations       ContinuationDispatcher
 	wallClock           *goalWallClockAccounting
+	logger              *slog.Logger
 	nowFn               func() time.Time
 	idFactory           func(string) string
 }
@@ -203,6 +205,7 @@ func sanitizeExternalGoalMetadata(metadata map[string]any) map[string]any {
 		protocol.GoalMetadataActivationReason,
 		protocol.GoalMetadataCompletionCriteria,
 		protocol.GoalMetadataObjectiveAlignment,
+		protocol.GoalMetadataBlocker,
 		protocol.GoalMetadataExplicitCommand,
 		protocol.GoalMetadataObjectiveTransition,
 		protocol.GoalMetadataObjectiveRevision,
@@ -566,7 +569,9 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 	return paused, nil
 }
 
-// Resume 恢复 paused/blocked/usage_limited Goal；预算耗尽时需要先调整预算。
+// Resume 恢复 paused/blocked 或解除 active continuation suppression。
+// usage_limited 是同一 objective revision 的硬续跑上限，不能用 pause/resume
+// 反复重开；只有 retarget 到新 revision 才获得新的 continuation epoch。
 func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, error) {
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
@@ -590,6 +595,12 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 	switch protocol.NormalizeGoalStatus(item.Status) {
 	case protocol.GoalStatusComplete:
 		return nil, ErrGoalInvalidState
+	case protocol.GoalStatusUsageLimited:
+		if maxContinuations := s.config.GoalMaxContinuationsPerRun; maxContinuations > 0 && item.ContinuationCount >= maxContinuations {
+			return nil, newGoalInvalidInputError(
+				"Goal continuation limit is exhausted for this objective revision; retarget the Goal after an explicit objective change instead of resuming the same work",
+			)
+		}
 	case protocol.GoalStatusBudgetLimited:
 		if s.goalBudgetExhausted(*item) {
 			return item, nil

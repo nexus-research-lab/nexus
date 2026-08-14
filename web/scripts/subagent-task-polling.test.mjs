@@ -30,6 +30,22 @@ test("Chinese subagent empty state uses the product term consistently", async ()
   );
 });
 
+test("subagent control dialogs have complete locale-specific copy", async () => {
+  const { enConversationMessages } = await server.ssrLoadModule(
+    "/src/shared/i18n/catalog/en/conversation.ts",
+  );
+  const { zhConversationMessages } = await server.ssrLoadModule(
+    "/src/shared/i18n/catalog/zh/conversation.ts",
+  );
+
+  assert.equal(enConversationMessages["subagents.stop_subtitle"], "Interrupt only this exact task.");
+  assert.equal(enConversationMessages["subagents.message_send"], "Send");
+  assert.equal(enConversationMessages["subagents.message_shortcut_hint"], "Press Cmd/Ctrl + Enter to send.");
+  assert.equal(zhConversationMessages["subagents.stop_subtitle"], "只会中断这个精确任务。");
+  assert.equal(zhConversationMessages["subagents.message_send"], "发送");
+  assert.equal(zhConversationMessages["subagents.message_shortcut_hint"], "按 Cmd/Ctrl + Enter 发送。");
+});
+
 test("subagent polling discovers tasks after an initially empty response", async () => {
   const {
     shouldPollSubagentTaskList,
@@ -95,6 +111,7 @@ test("subagent polling discovers tasks after an initially empty response", async
 test("subagent title uses the model-provided task description before its generic type", async () => {
   const {
     findSubagentTaskByToolUseId,
+    preferFreshSubagentTask,
     subagentTaskAvatarSeed,
     subagentTaskTitle,
   } = await server.ssrLoadModule(
@@ -139,6 +156,39 @@ test("subagent title uses the model-provided task description before its generic
   );
   assert.equal(findSubagentTaskByToolUseId(tasks, "task-one"), tasks[0]);
   assert.equal(findSubagentTaskByToolUseId(tasks, "missing"), null);
+
+  const capabilities = {
+    observe: true,
+    transcript: true,
+    stop: true,
+    send_message: true,
+    resume: true,
+  };
+  const staleRunningDetail = {
+    capabilities,
+    runtime_kind: "nxs",
+    status: "running",
+    task_id: "task-one",
+    updated_at: 2_000,
+  };
+  const completedListTask = {
+    ...staleRunningDetail,
+    status: "completed",
+  };
+  assert.equal(
+    preferFreshSubagentTask(completedListTask, staleRunningDetail),
+    completedListTask,
+    "an equally timestamped terminal list projection must beat a stale active detail",
+  );
+  const resumedDetail = {
+    ...staleRunningDetail,
+    updated_at: 3_000,
+  };
+  assert.equal(
+    preferFreshSubagentTask(completedListTask, resumedDetail),
+    resumedDetail,
+    "a newer active detail must expose a resumed task immediately",
+  );
 });
 
 test("room subagent tasks can be scoped to the Agent that launched them", async () => {

@@ -46,6 +46,13 @@ type WorkBindingReceipt struct {
 	Clear   bool
 }
 
+// ResponsibilityAuthorityReceipt 是 durable mutation 已经完成后签发的宿主内
+// capability 转场。ExecutionID 绑定同一物理 round 的当前 coordination lane，
+// 并原子撤销先前 Work/Review lane；它不投影给模型。
+type ResponsibilityAuthorityReceipt struct {
+	ExecutionID string
+}
+
 // GoalConfirmationStatus is projected to the model only when a mutation
 // crosses the Execution/Goal durable confirmation boundary.
 type GoalConfirmationStatus string
@@ -59,19 +66,20 @@ const (
 // 与非模型消费者；MCP adapter 必须只投影紧凑字段，不能把它与
 // ExecutionContext 重复发送给模型。
 type MutationResult struct {
-	Outcome          MutationOutcome             `json:"outcome"`
-	ReasonCode       ErrorCode                   `json:"reason_code,omitempty"`
-	Message          string                      `json:"message,omitempty"`
-	ExecutionID      string                      `json:"execution_id,omitempty"`
-	SnapshotRevision int64                       `json:"snapshot_revision,omitempty"`
-	ExecutionContext string                      `json:"execution_context,omitempty"`
-	ContextStatus    string                      `json:"context_status,omitempty"`
-	Changed          []string                    `json:"changed,omitempty"`
-	NextActions      []NextAction                `json:"next_actions,omitempty"`
-	GoalConfirmation GoalConfirmationStatus      `json:"goal_confirmation_status,omitempty"`
-	Snapshot         *protocol.ExecutionSnapshot `json:"snapshot,omitempty"`
-	GoalAuthority    *GoalAuthorityReceipt       `json:"-"`
-	WorkBinding      *WorkBindingReceipt         `json:"-"`
+	Outcome                 MutationOutcome                 `json:"outcome"`
+	ReasonCode              ErrorCode                       `json:"reason_code,omitempty"`
+	Message                 string                          `json:"message,omitempty"`
+	ExecutionID             string                          `json:"execution_id,omitempty"`
+	SnapshotRevision        int64                           `json:"snapshot_revision,omitempty"`
+	ExecutionContext        string                          `json:"execution_context,omitempty"`
+	ContextStatus           string                          `json:"context_status,omitempty"`
+	Changed                 []string                        `json:"changed,omitempty"`
+	NextActions             []NextAction                    `json:"next_actions,omitempty"`
+	GoalConfirmation        GoalConfirmationStatus          `json:"goal_confirmation_status,omitempty"`
+	Snapshot                *protocol.ExecutionSnapshot     `json:"snapshot,omitempty"`
+	GoalAuthority           *GoalAuthorityReceipt           `json:"-"`
+	WorkBinding             *WorkBindingReceipt             `json:"-"`
+	ResponsibilityAuthority *ResponsibilityAuthorityReceipt `json:"-"`
 }
 
 // AppliedResult 生成成功 mutation 的稳定 envelope。

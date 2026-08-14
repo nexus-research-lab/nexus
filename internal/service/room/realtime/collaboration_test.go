@@ -1199,7 +1199,15 @@ func TestPublicMentionRetargetUsesBoundCurrentGoalRevision(t *testing.T) {
 	}
 	slot := &activeRoomSlot{AgentID: "agent-lead", AgentRoundID: "lead-round"}
 	grantTestRoomGoalAuthority(slot, protocol.BuildRoomSharedSessionKey(conversationID), "goal-retarget-mention")
-	if !slot.ensureGoalAuthorityState().Bind("goal-retarget-mention", 2, "execution-successor") {
+	if !slot.ensureResponsibilityAuthorityState().ApplyGoalMutation(protocol.Goal{
+		ID: "goal-retarget-mention",
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision:     int64(2),
+			protocol.GoalMetadataExecutionMode:         string(protocol.GoalExecutionModeManaged),
+			protocol.GoalMetadataExecutionBindingState: string(protocol.GoalExecutionBindingStateReserved),
+			protocol.GoalMetadataExecutionID:           "execution-successor",
+		},
+	}) {
 		t.Fatal("bind retargeted Goal revision")
 	}
 	message := protocol.Message{

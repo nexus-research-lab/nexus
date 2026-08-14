@@ -3,11 +3,31 @@ package goal
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+type claimingContinuationDispatcher struct {
+	service     *Service
+	dispatchErr error
+	plans       []protocol.GoalContinuation
+}
+
+func (d *claimingContinuationDispatcher) ShouldDeferGoalContinuation(context.Context, string) bool {
+	return false
+}
+
+func (d *claimingContinuationDispatcher) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
+	d.plans = append(d.plans, plan)
+	if _, err := d.service.ClaimContinuationPlan(ctx, plan); err != nil {
+		return err
+	}
+	return d.dispatchErr
+}
 
 func TestServiceRepairCurrentGoalPreviewsUsesDurableOwner(t *testing.T) {
 	repo := newMemoryRepository()
@@ -185,6 +205,79 @@ func TestServiceRunAutoResumeOnceRecordsFailureWhenDispatchFails(t *testing.T) {
 	}
 	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_failed" {
 		t.Fatalf("last event = %#v, want continuation_failed", got)
+	}
+}
+
+func TestServiceRunAutoResumeOnceDurablyRetriesStartupFailure(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{GoalEnabled: true, GoalAutoContinueEnabled: true}, repo)
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:durable-auto-resume",
+		Objective:  "retry runtime startup without suspending",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchErr := errors.New("runtime registration unavailable")
+	dispatcher := &claimingContinuationDispatcher{service: service, dispatchErr: dispatchErr}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatalf("RunAutoResumeOnce: %v", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil || current.Status != protocol.GoalStatusActive || current.LastError != "" || current.EmptyProgressCount != 0 || current.ContinuationCount != 1 {
+		t.Fatalf("Goal after durable retry = %#v, %v", current, err)
+	}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil || len(dispatcher.plans) != 1 {
+		t.Fatalf("retry before due: plans=%d err=%v", len(dispatcher.plans), err)
+	}
+	now = now.Add(goalContinuationRetryBase)
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil || len(dispatcher.plans) != 2 {
+		t.Fatalf("retry when due: plans=%d err=%v", len(dispatcher.plans), err)
+	}
+	current, _ = service.Current(ctx, created.SessionKey)
+	if current.ContinuationCount != 1 {
+		t.Fatalf("ContinuationCount = %d, want one durable reservation", current.ContinuationCount)
+	}
+}
+
+func TestServiceRunAutoResumeOnceContinuesAfterOneGoalFails(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	first := protocol.Goal{
+		ID:         "goal-malformed-first",
+		SessionKey: "malformed-session-key",
+		Objective:  "first fails validation",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		UpdatedAt:  fixedClock()(),
+	}
+	repo.goals[first.ID] = first
+	second, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:second",
+		Objective:  "second still dispatches",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{}
+
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err == nil ||
+		!strings.Contains(err.Error(), first.ID) {
+		t.Fatalf("RunAutoResumeOnce() error = %v, want aggregated malformed Goal error", err)
+	}
+	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != second.ID {
+		t.Fatalf("plans = %#v, want second Goal attempted after first failure", dispatcher.plans)
 	}
 }
 

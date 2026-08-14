@@ -17,8 +17,13 @@ import {
   resolveSubagentTaskThreadError,
 } from "./subagent-task-thread-model";
 import { useSubagentTaskThreadResource } from "./use-subagent-task-thread-resource";
+import {
+  type SubagentTaskActions,
+  useSubagentTaskActions,
+} from "./use-subagent-task-actions";
 
 export interface UseSubagentTaskThreadResult {
+	actions: SubagentTaskActions;
   detail: SubagentTaskMessagesResponse | null;
   error: SubagentTaskThreadError | null;
   isLoading: boolean;
@@ -44,8 +49,14 @@ export function useSubagentTaskThread({
     () => projectSubagentTaskThread(task, resource.detail),
     [resource.detail, task],
   );
+	const actions = useSubagentTaskActions({
+		refresh: resource.refresh,
+		source,
+		task: projection.task,
+	});
 
   return {
+		actions,
     detail: resource.detail,
     error: resolveSubagentTaskThreadError(resource.error),
     isLoading: resource.isLoading,

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
 	"github.com/go-chi/chi/v5"
@@ -71,7 +72,9 @@ func (h *Handlers) writeSubagentTaskError(writer http.ResponseWriter, err error)
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	if errors.Is(err, sessionpkg.ErrSessionNotFound) || errors.Is(err, sessionpkg.ErrSubagentTaskNotFound) {
+	if errors.Is(err, agentpkg.ErrAgentNotFound) ||
+		errors.Is(err, sessionpkg.ErrSessionNotFound) ||
+		errors.Is(err, sessionpkg.ErrSubagentTaskNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}

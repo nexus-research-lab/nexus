@@ -305,6 +305,10 @@ func (m *Manager) getOrCreateWithFactory(
 			ownerUserID,
 		)
 	}
+	cacheSurface, err := cacheSurfaceProfileFromOptions(ctx, options)
+	if err != nil {
+		return nil, nil, err
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
@@ -385,6 +389,7 @@ func (m *Manager) getOrCreateWithFactory(
 			current.OwnerUserID = ownerUserID
 			current.AgentID = agentID
 			current.ProcessPolicyFingerprint = processPolicyFingerprint
+			current.CacheSurface = cacheSurface
 			m.touchStateLocked(current)
 			m.mu.Unlock()
 			if err := m.runtimeAgentAdmissionError(sessionKey, ownerUserID, agentID); err != nil {
@@ -438,6 +443,7 @@ func (m *Manager) getOrCreateWithFactory(
 				current.AgentID = agentID
 			}
 			current.ProcessPolicyFingerprint = processPolicyFingerprint
+			current.CacheSurface = cacheSurface
 			m.touchStateLocked(current)
 			m.mu.Unlock()
 			if err := m.runtimeAgentAdmissionError(sessionKey, ownerUserID, agentID); err != nil {
@@ -567,6 +573,10 @@ func (m *Manager) replaceRuntimeClient(
 	options agentclient.Options,
 	factory Factory,
 ) (Client, error) {
+	cacheSurface, err := cacheSurfaceProfileFromOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
 	ownerUserID := runtimeOwnerUserID(options)
 	agentID := runtimeSessionAgentID(sessionKey)
 	m.mu.RLock()
@@ -653,6 +663,7 @@ func (m *Manager) replaceRuntimeClient(
 	state.OwnerUserID = ownerUserID
 	state.AgentID = agentID
 	state.ProcessPolicyFingerprint = managedRuntimeProcessPolicyFingerprint(options)
+	state.CacheSurface = cacheSurface
 	state.ContextUsageByAgent = nil
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false

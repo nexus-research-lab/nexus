@@ -44,7 +44,7 @@ func NewServer(
 		{
 			Name: "send_message",
 			Description: "给通讯录好友或所在群发消息。target_type=agent 会私下投递并立即唤醒好友，回复私下回到并唤醒你；" +
-				"target_type=room 会发布到公区，只有正文里明确 @ 的成员会被唤醒。不会传播当前 workspace、Goal 或 WorkBinding。",
+				"target_type=room 会发布到公区，只有正文里明确 @ 的成员会被唤醒。当前 Room 内省略 conversation_id 时发送到当前 conversation；跨 Room 必须显式指定。不会传播当前 workspace、Goal mutation authority 或 WorkBinding。",
 			SearchHint: "Nexus 发消息 联系好友 群聊 私信 send message contact room",
 			AlwaysLoad: true,
 			InputSchema: objectSchema(map[string]any{
@@ -55,7 +55,7 @@ func NewServer(
 					"type": "string", "description": "好友的 agent_id 或群的 room_id",
 				},
 				"conversation_id": map[string]any{
-					"type": "string", "description": "仅群消息可选；省略时发送到群主 conversation",
+					"type": "string", "description": "仅群消息可选；当前 Room 内省略时使用当前 conversation，跨 Room 必须显式提供",
 				},
 				"content": map[string]any{"type": "string", "minLength": 1},
 			}, []string{"target_type", "target_id", "content"}),

@@ -7,7 +7,10 @@ import type {
   SubagentTaskSource,
 } from "@/types/conversation/subagent-task";
 
-import { subagentTaskSourceKey } from "../subagent-task-model";
+import {
+  preferFreshSubagentTask,
+  subagentTaskSourceKey,
+} from "../subagent-task-model";
 
 const EMPTY_MESSAGES: Message[] = [];
 
@@ -62,7 +65,7 @@ export function projectSubagentTaskThread(
   task: SubagentTask,
   detail: SubagentTaskMessagesResponse | null,
 ): SubagentTaskThreadProjection {
-  const effectiveTask = detail?.task ?? task;
+  const effectiveTask = preferFreshSubagentTask(task, detail?.task);
   const messages = detail?.messages ?? EMPTY_MESSAGES;
   return {
     messages,

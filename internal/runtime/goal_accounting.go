@@ -28,6 +28,10 @@ type GoalAccountingActivate func(context.Context, string) error
 // 一旦返回 true，该 scope 在 round 结束前不能承载另一个 Goal。
 type GoalAccountingConsumed func() bool
 
+// GoalAccountingIdentity reports the exact Goal currently owned by one live
+// round. It is read under no Manager lock and must be concurrency-safe.
+type GoalAccountingIdentity func() string
+
 type goalAccountingGuard struct {
 	scopeRoundID string
 	consumed     GoalAccountingConsumed
@@ -72,6 +76,50 @@ func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID strin
 	m.updateGoalAccountingHooks(sessionKey, roundID, revision != nil, func(hooks *goalAccountingHooks) {
 		hooks.objectiveRevision = revision
 	})
+}
+
+// RegisterGoalAccountingIdentity registers the exact Goal identity currently
+// accounted by one live round. Empty means the round has no Goal authority.
+func (m *Manager) RegisterGoalAccountingIdentity(
+	sessionKey string,
+	roundID string,
+	identity GoalAccountingIdentity,
+) {
+	m.updateGoalAccountingHooks(sessionKey, roundID, identity != nil, func(hooks *goalAccountingHooks) {
+		hooks.goalID = identity
+	})
+}
+
+// GoalAccountingRoundIDs returns only live rounds that currently account the
+// requested Goal. It never broadens to every round in the session.
+func (m *Manager) GoalAccountingRoundIDs(sessionKey string, goalID string) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	goalID = strings.TrimSpace(goalID)
+	if sessionKey == "" || goalID == "" {
+		return nil
+	}
+	m.mu.RLock()
+	state := m.sessions[sessionKey]
+	if state == nil {
+		m.mu.RUnlock()
+		return nil
+	}
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.goal.goalID != nil
+	})
+	identities := make([]GoalAccountingIdentity, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		identities = append(identities, state.Rounds.get(roundID).goal.goalID)
+	}
+	m.mu.RUnlock()
+
+	matched := make([]string, 0, len(roundIDs))
+	for index, identity := range identities {
+		if identity != nil && strings.TrimSpace(identity()) == goalID {
+			matched = append(matched, roundIDs[index])
+		}
+	}
+	return matched
 }
 
 // AdoptGoalObjectiveRevision 在 steering 真正被 runtime 消费后推进运行中 round 的 revision fence。

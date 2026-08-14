@@ -5,7 +5,7 @@
 // 成员清单：
 //   - service.go / access.go：窄依赖装配，以及每次调用的 owner、Agent、DM/Room、active round 与业务上下文/lease 不可转移重校验。
 //   - query.go：脱敏资源查询与 workspace 只读。
-//   - model.go / projection.go：MCP 稳定输出模型及秘密/内部标识裁剪。
+//   - model.go / projection.go：MCP 稳定输出模型、host-only 动态协作归因入口及秘密/内部标识裁剪。
 //
 // 本包不承载创建、配置写入、删除、认证、用户、Provider、Channel、Connector credential
 // 或 Automation 能力；这些边界必须继续由各自控制面服务持有。

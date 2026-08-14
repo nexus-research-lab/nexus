@@ -2,13 +2,330 @@ package goal
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+type durableMemoryGoalRepository struct {
+	*memoryRepository
+	plans map[string]protocol.GoalContinuationPlan
+}
+
+func newDurableMemoryGoalRepository() *durableMemoryGoalRepository {
+	return &durableMemoryGoalRepository{memoryRepository: newMemoryRepository(), plans: map[string]protocol.GoalContinuationPlan{}}
+}
+
+func (r *durableMemoryGoalRepository) ReserveGoalContinuation(ctx context.Context, item protocol.Goal, expectedVersion int64, event protocol.GoalEvent, plan protocol.GoalContinuationPlan) (*protocol.Goal, error) {
+	for _, current := range r.plans {
+		if current.GoalID == plan.GoalID && current.ObjectiveRevision == plan.ObjectiveRevision &&
+			(current.Status == protocol.GoalContinuationPlanStatusScheduled || current.Status == protocol.GoalContinuationPlanStatusClaimed || current.Status == protocol.GoalContinuationPlanStatusStarted) {
+			return nil, sql.ErrNoRows
+		}
+	}
+	updated, err := r.memoryRepository.UpdateGoalWithEvents(ctx, item, expectedVersion, []protocol.GoalEvent{event})
+	if err != nil {
+		return nil, err
+	}
+	r.plans[plan.RoundID] = plan
+	return updated, nil
+}
+
+func (r *durableMemoryGoalRepository) GetOpenGoalContinuation(_ context.Context, goalID string, revision int64) (*protocol.GoalContinuationPlan, error) {
+	for _, plan := range r.plans {
+		if plan.GoalID == goalID && plan.ObjectiveRevision == revision &&
+			(plan.Status == protocol.GoalContinuationPlanStatusScheduled || plan.Status == protocol.GoalContinuationPlanStatusClaimed || plan.Status == protocol.GoalContinuationPlanStatusStarted) {
+			copy := plan
+			return &copy, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *durableMemoryGoalRepository) ClaimGoalContinuation(_ context.Context, roundID string, now time.Time, leaseEnd time.Time) (*protocol.GoalContinuationPlan, error) {
+	plan, ok := r.plans[roundID]
+	if !ok || (plan.Status == protocol.GoalContinuationPlanStatusScheduled && plan.NextAttemptAt != nil && plan.NextAttemptAt.After(now)) ||
+		((plan.Status == protocol.GoalContinuationPlanStatusClaimed || plan.Status == protocol.GoalContinuationPlanStatusStarted) && plan.ClaimExpiresAt != nil && plan.ClaimExpiresAt.After(now)) {
+		return nil, sql.ErrNoRows
+	}
+	plan.Status = protocol.GoalContinuationPlanStatusClaimed
+	plan.AttemptCount++
+	plan.Version++
+	plan.NextAttemptAt = nil
+	plan.ClaimExpiresAt = &leaseEnd
+	plan.UpdatedAt = now
+	r.plans[roundID] = plan
+	return &plan, nil
+}
+
+func (r *durableMemoryGoalRepository) MarkGoalContinuationStarted(_ context.Context, roundID string, now, recoveryAt time.Time) error {
+	plan, ok := r.plans[roundID]
+	if !ok {
+		return sql.ErrNoRows
+	}
+	if plan.Status == protocol.GoalContinuationPlanStatusStarted {
+		return nil
+	}
+	if plan.Status != protocol.GoalContinuationPlanStatusClaimed {
+		return sql.ErrNoRows
+	}
+	plan.Status = protocol.GoalContinuationPlanStatusStarted
+	plan.ClaimExpiresAt = &recoveryAt
+	plan.SettledAt = nil
+	plan.UpdatedAt = now
+	r.plans[roundID] = plan
+	return nil
+}
+
+func (r *durableMemoryGoalRepository) SettleGoalContinuation(_ context.Context, goalID, roundID string, revision int64, now time.Time) error {
+	plan, ok := r.plans[roundID]
+	if !ok || plan.GoalID != goalID || plan.ObjectiveRevision != revision ||
+		(plan.Status != protocol.GoalContinuationPlanStatusClaimed && plan.Status != protocol.GoalContinuationPlanStatusStarted) {
+		if ok && plan.Status == protocol.GoalContinuationPlanStatusSettled {
+			return nil
+		}
+		return sql.ErrNoRows
+	}
+	plan.Status = protocol.GoalContinuationPlanStatusSettled
+	plan.ClaimExpiresAt = nil
+	plan.SettledAt = &now
+	plan.UpdatedAt = now
+	r.plans[roundID] = plan
+	return nil
+}
+
+func (r *durableMemoryGoalRepository) RetryGoalContinuation(_ context.Context, roundID string, reason string, next time.Time, now time.Time) error {
+	plan, ok := r.plans[roundID]
+	if !ok || plan.Status != protocol.GoalContinuationPlanStatusClaimed {
+		return sql.ErrNoRows
+	}
+	plan.Status = protocol.GoalContinuationPlanStatusScheduled
+	plan.ClaimExpiresAt = nil
+	plan.NextAttemptAt = &next
+	plan.LastError = reason
+	plan.UpdatedAt = now
+	r.plans[roundID] = plan
+	return nil
+}
+
+func (r *durableMemoryGoalRepository) ReleaseGoalContinuation(ctx context.Context, item protocol.Goal, expectedVersion int64, event protocol.GoalEvent, roundID string, now time.Time) (*protocol.Goal, error) {
+	plan, ok := r.plans[roundID]
+	if !ok || (plan.Status != protocol.GoalContinuationPlanStatusScheduled && plan.Status != protocol.GoalContinuationPlanStatusClaimed) {
+		return nil, sql.ErrNoRows
+	}
+	updated, err := r.memoryRepository.UpdateGoalWithEvents(ctx, item, expectedVersion, []protocol.GoalEvent{event})
+	if err != nil {
+		return nil, err
+	}
+	plan.Status = protocol.GoalContinuationPlanStatusReleased
+	plan.SettledAt = &now
+	r.plans[roundID] = plan
+	return updated, nil
+}
+
+func TestServiceDurableContinuationRecoversScheduleAndExpiredClaimWithoutRecount(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{
+		GoalEnabled: true, GoalAutoContinueEnabled: true, GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	now := time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:durable-service", Objective: "recover exactly once",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-before")
+	if err != nil || first == nil {
+		t.Fatalf("first plan = %#v, %v", first, err)
+	}
+	if len(continuationReservations(first.Goal.Metadata)) != 0 {
+		t.Fatalf("durable prompt identity leaked into Goal metadata: %#v", first.Goal.Metadata)
+	}
+	recovered, err := service.PlanContinuationForSession(ctx, created.SessionKey, "ignored-after-crash")
+	if err != nil || recovered == nil || recovered.RoundID != first.RoundID || recovered.Prompt != first.Prompt {
+		t.Fatalf("schedule recovery = %#v, %v; want original plan", recovered, err)
+	}
+	if recovered.Goal.ContinuationCount != 1 {
+		t.Fatalf("schedule recovery count = %d, want 1", recovered.Goal.ContinuationCount)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *recovered); err != nil {
+		t.Fatal(err)
+	}
+	if early, err := service.PlanContinuationForSession(ctx, created.SessionKey, ""); err != nil || early != nil {
+		t.Fatalf("live lease recovery = %#v, %v, want deferred", early, err)
+	}
+	now = now.Add(goalContinuationClaimLease + time.Second)
+	afterClaimCrash, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil || afterClaimCrash == nil || afterClaimCrash.RoundID != first.RoundID {
+		t.Fatalf("expired claim recovery = %#v, %v", afterClaimCrash, err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil || current.ContinuationCount != 1 {
+		t.Fatalf("count after claim recovery = %#v, %v", current, err)
+	}
+}
+
+func TestServiceDurableContinuationRecoversStartedCrashWithoutRecount(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{
+		GoalEnabled: true, GoalAutoContinueEnabled: true, GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	now := time.Date(2026, 8, 14, 10, 30, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:started-crash", Objective: "recover a registered runtime",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-before")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v, %v", plan, err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.MarkContinuationPlanStarted(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if beforeExpiry, err := service.PlanContinuationForSession(ctx, created.SessionKey, ""); err != nil || beforeExpiry != nil {
+		t.Fatalf("started owner before expiry = %#v, %v, want deferred", beforeExpiry, err)
+	}
+	now = now.Add(goalContinuationStartedLease + time.Second)
+	recovered, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil || recovered == nil || recovered.RoundID != plan.RoundID || recovered.Prompt != plan.Prompt {
+		t.Fatalf("started crash recovery = %#v, %v; want original plan", recovered, err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil || current.ContinuationCount != 1 {
+		t.Fatalf("count after started crash = %#v, %v, want 1", current, err)
+	}
+}
+
+func TestServiceRuntimeTerminalSettlesStartedContinuation(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{GoalEnabled: true, GoalAutoContinueEnabled: true}, repo)
+	now := time.Date(2026, 8, 14, 10, 45, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:terminal-settle", Objective: "settle the registered runtime",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v, %v", plan, err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.MarkContinuationPlanStarted(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordContinuationProgress(ctx, created.ID, plan.RoundID, true, plan.Goal.ObjectiveRevision()); err != nil {
+		t.Fatal(err)
+	}
+	if open, err := repo.GetOpenGoalContinuation(ctx, created.ID, plan.Goal.ObjectiveRevision()); err != nil || open != nil {
+		t.Fatalf("open after runtime terminal = %#v, %v", open, err)
+	}
+	if _, err = service.RecordContinuationProgress(ctx, created.ID, plan.RoundID, true, plan.Goal.ObjectiveRevision()); err != nil {
+		t.Fatalf("duplicate runtime terminal settlement: %v", err)
+	}
+}
+
+func TestServiceRuntimeTerminalSeparatesReceiptAndAuditRoundIdentities(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{GoalEnabled: true, GoalAutoContinueEnabled: true}, repo)
+	now := time.Date(2026, 8, 14, 10, 50, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "room:group:separate-runtime-identities",
+		Objective:  "settle the root receipt and audit the Room Agent round",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v, %v", plan, err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.MarkContinuationPlanStarted(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	const agentRoundID = "agent_round_distinct_from_receipt"
+	if _, err = service.RecordContinuationRuntimeProgress(
+		ctx,
+		created.ID,
+		ContinuationRuntimeIdentity{
+			ReceiptRoundID: plan.RoundID,
+			AuditRoundID:   agentRoundID,
+		},
+		false,
+		plan.Goal.ObjectiveRevision(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if open, err := repo.GetOpenGoalContinuation(ctx, created.ID, plan.Goal.ObjectiveRevision()); err != nil || open != nil {
+		t.Fatalf("open after split-identity terminal = %#v, %v", open, err)
+	}
+	if got := repo.events[len(repo.events)-1]; got.RoundID != agentRoundID {
+		t.Fatalf("progress audit round = %q, want %q", got.RoundID, agentRoundID)
+	}
+}
+
+func TestServiceDurableContinuationRetryBackoffDoesNotSuspendGoal(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{GoalEnabled: true, GoalAutoContinueEnabled: true}, repo)
+	now := time.Date(2026, 8, 14, 11, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{SessionKey: "agent:nexus:ws:dm:retry-service", Objective: "retry startup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.RetryContinuationPlan(ctx, *plan, "temporary runtime registration failure"); err != nil {
+		t.Fatal(err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil || current.Status != protocol.GoalStatusActive || current.LastError != "" || current.EmptyProgressCount != 0 || current.ContinuationCount != 1 {
+		t.Fatalf("Goal after retry = %#v, %v", current, err)
+	}
+	if pending, err := service.PlanContinuationForSession(ctx, created.SessionKey, ""); err != nil || pending != nil {
+		t.Fatalf("plan before backoff = %#v, %v", pending, err)
+	}
+	now = now.Add(goalContinuationRetryBase)
+	retry, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil || retry == nil || retry.RoundID != plan.RoundID || retry.Goal.ContinuationCount != 1 {
+		t.Fatalf("plan after backoff = %#v, %v", retry, err)
+	}
+}
 
 func TestServicePlanContinuationForSession(t *testing.T) {
 	repo := newMemoryRepository()
@@ -508,7 +825,7 @@ func TestServicePlanContinuationStopsAtUsageLimit(t *testing.T) {
 	}
 }
 
-func TestServiceResumeUsageLimitedGoalStartsFreshContinuationRun(t *testing.T) {
+func TestServiceResumeUsageLimitedGoalCannotReopenSameContinuationEpoch(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:                true,
@@ -541,20 +858,14 @@ func TestServiceResumeUsageLimitedGoalStartsFreshContinuationRun(t *testing.T) {
 	}
 
 	resumed, err := service.Resume(ctx, created.ID)
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, ErrGoalInvalidInput) || resumed != nil {
+		t.Fatalf("Resume() = %#v, %v; want explicit retarget guidance", resumed, err)
 	}
-	if resumed.Status != protocol.GoalStatusActive || resumed.ContinuationCount != 0 {
-		t.Fatalf("resumed = %#v, want active with continuation count reset", resumed)
+	current, currentErr := service.Current(ctx, created.SessionKey)
+	if currentErr != nil {
+		t.Fatal(currentErr)
 	}
-	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-3")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if next == nil {
-		t.Fatal("next plan = nil, want fresh continuation after resume")
-	}
-	if next.Goal.ContinuationCount != 1 {
-		t.Fatalf("next continuation count = %d, want 1 for fresh run", next.Goal.ContinuationCount)
+	if current.Status != protocol.GoalStatusUsageLimited || current.ContinuationCount != 1 {
+		t.Fatalf("current = %#v, want exhausted epoch unchanged", current)
 	}
 }

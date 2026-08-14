@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 
@@ -456,12 +458,13 @@ func TestServiceDuplicateGoalContinuationDispatchKeepsClaimedCount(t *testing.T)
 	}
 	goalProvider.mu.Lock()
 	claimCalls := goalProvider.claimCalls
+	startedCalls := goalProvider.startedCalls
 	releaseCalls := goalProvider.releaseCalls
 	count := goalProvider.continuationCount
 	reserved := goalProvider.reservation
 	goalProvider.mu.Unlock()
-	if claimCalls != 1 || releaseCalls != 1 || count != 1 || reserved {
-		t.Fatalf("claim=%d release=%d count=%d reserved=%v, want one claimed start and duplicate no-op release", claimCalls, releaseCalls, count, reserved)
+	if claimCalls != 1 || startedCalls != 1 || releaseCalls != 1 || count != 1 || reserved {
+		t.Fatalf("claim=%d started=%d release=%d count=%d reserved=%v, want one settled start and duplicate no-op release", claimCalls, startedCalls, releaseCalls, count, reserved)
 	}
 
 	client.messages <- sdkprotocol.ReceivedMessage{
@@ -712,6 +715,96 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 	case <-queryStarted:
 		t.Fatal("retargeted continuation must stop before querying the model")
 	default:
+	}
+}
+
+func TestServiceGoalContinuationPauseAfterRuntimeRegistrationFailsAdmissionBeforeQuery(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+	client := newFakeDMClient()
+	var queryCalls atomic.Int64
+	client.onQuery = func(context.Context, string) { queryCalls.Add(1) }
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:pause-at-start-admission"
+	plan := protocol.GoalContinuation{
+		Goal: protocol.Goal{
+			ID: "goal-pause-at-start-admission", SessionKey: sessionKey,
+			Objective: "old objective", Status: protocol.GoalStatusActive,
+			Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+		},
+		RoundID: "goal_continuation_pause_at_start_admission", Prompt: "continue",
+		HiddenFromUser: true, Synthetic: true, Purpose: "goal_continuation",
+	}
+	provider := &fakeGoalContextProvider{
+		reservation: true, continuationCount: 1, startedErr: goalsvc.ErrGoalRevisionStale,
+		runtimeGoal: &plan.Goal,
+	}
+	registered := make(chan struct{})
+	releaseAdmission := make(chan struct{})
+	provider.beforeStarted = func() {
+		close(registered)
+		<-releaseAdmission
+	}
+	provider.onStarted = func() {
+		if ids := runtimeManager.GetRunningRoundIDs(sessionKey); !slices.Equal(ids, []string{plan.RoundID}) {
+			t.Errorf("start admission saw runtime rounds %v, want exact registered round", ids)
+		}
+		if ids := runtimeManager.GoalAccountingRoundIDs(sessionKey, plan.Goal.ID); !slices.Equal(ids, []string{plan.RoundID}) {
+			t.Errorf("start admission saw Goal accounting rounds %v, want exact registered round", ids)
+		}
+	}
+	service.SetGoalContextProvider(provider)
+
+	dispatchResult := make(chan error, 1)
+	go func() {
+		dispatchResult <- service.DispatchGoalContinuation(context.Background(), plan)
+	}()
+	select {
+	case <-registered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("continuation did not reach registered start admission")
+	}
+	if ids := runtimeManager.GetRunningRoundIDs(sessionKey); !slices.Equal(ids, []string{plan.RoundID}) {
+		t.Fatalf("before pause runtime rounds = %v, want exact registered round", ids)
+	}
+	// Models the lifecycle transaction cancelling the claimed receipt while the
+	// runtime setup path is paused at its final admission fence.
+	close(releaseAdmission)
+	err := <-dispatchResult
+	if !errors.Is(err, goalsvc.ErrGoalRevisionStale) {
+		t.Fatalf("DispatchGoalContinuation() error = %v, want stale admission", err)
+	}
+	if got := runtimeManager.GetRunningRoundIDs(sessionKey); len(got) != 0 {
+		t.Fatalf("stale admission left running round: %v", got)
+	}
+	if got := queryCalls.Load(); got != 0 {
+		t.Fatalf("stale admission queried model %d times, want 0", got)
+	}
+	for _, message := range readDMSessionHistory(t, cfg, service, sessionKey) {
+		if dmdomain.NormalizeString(message["round_id"]) == plan.RoundID {
+			t.Fatalf("stale admission left a phantom continuation marker: %#v", message)
+		}
+	}
+	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
+	index, indexErr := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ReadRoundIndex(
+		workspacePath,
+		sessionValue,
+		nil,
+	)
+	if indexErr != nil {
+		t.Fatal(indexErr)
+	}
+	for _, item := range index.Items {
+		if item.RoundID == plan.RoundID {
+			t.Fatalf("stale admission left a round-index projection: %#v", item)
+		}
+	}
+	provider.mu.Lock()
+	startedCalls := provider.startedCalls
+	provider.mu.Unlock()
+	if startedCalls != 1 {
+		t.Fatalf("start admission calls = %d, want 1", startedCalls)
 	}
 }
 

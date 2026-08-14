@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -245,6 +246,47 @@ func TestRepositoryCreateGoalWithEventIsAtomic(t *testing.T) {
 	}
 	if rolledBack != nil {
 		t.Fatalf("rolled back Goal = %#v, want nil", rolledBack)
+	}
+}
+
+func TestRepositoryListRunnableGoalsFiltersSuspendedBeforeLimit(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 14, 9, 0, 0, 0, time.UTC)
+	for index := 0; index < 55; index++ {
+		item := protocol.Goal{
+			ID:                 fmt.Sprintf("goal-suspended-%02d", index),
+			SessionKey:         fmt.Sprintf("agent:nexus:ws:dm:suspended-%02d", index),
+			Objective:          "wait for explicit recovery",
+			Status:             protocol.GoalStatusActive,
+			EmptyProgressCount: protocol.GoalContinuationSuppressionThreshold,
+			Version:            1,
+			CreatedAt:          now.Add(time.Duration(index) * time.Second),
+			UpdatedAt:          now.Add(time.Duration(index) * time.Second),
+		}
+		if _, err := repository.CreateGoal(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ready := protocol.Goal{
+		ID:         "goal-ready-after-window",
+		SessionKey: "agent:nexus:ws:dm:ready-after-window",
+		Objective:  "must not starve",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now.Add(time.Hour),
+		UpdatedAt:  now.Add(time.Hour),
+	}
+	if _, err := repository.CreateGoal(ctx, ready); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := repository.ListRunnableGoals(ctx, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].ID != ready.ID {
+		t.Fatalf("runnable = %#v, want only ready Goal beyond suspended window", items)
 	}
 }
 
@@ -1056,6 +1098,7 @@ func applyGoalMigration(t *testing.T, db *sql.DB) {
 		"../../../db/migrations/sqlite/00053_goal_usage_source_round_pending.sql",
 		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
 		"../../../db/migrations/sqlite/00055_goal_usage_source_baseline.sql",
+		"../../../db/migrations/sqlite/00104_goal_continuation_plans.sql",
 	)
 }
 

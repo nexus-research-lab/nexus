@@ -1,5 +1,5 @@
 // INPUT: succeeded Attempt 的 immutable Submission 与 reviewer Acceptance command。
-// OUTPUT: append-only Submission/Acceptance、Assignment completion/release 与事件。
+// OUTPUT: append-only Submission/Acceptance、accepted Review completion audit receipt、Assignment completion/release 与事件。
 // POS: worker 交付和 reviewer 决策不可混写的事务边界。
 package orchestration
 
@@ -317,6 +317,18 @@ WHERE assignment_id = ` + r.bind(3) + `
 	if err = requireOne(result); err != nil {
 		r.abortMutation(mutation)
 		return nil, err
+	}
+	if item.Decision == protocol.WorkAcceptanceAccepted {
+		if err = r.ensureCompletionAuditTx(
+			ctx,
+			mutation.tx,
+			item.ExecutionID,
+			item.ID,
+			item.CreatedAt,
+		); err != nil {
+			r.abortMutation(mutation)
+			return nil, err
+		}
 	}
 	return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{
 		EntityType:    protocol.ExecutionEntityAcceptance,

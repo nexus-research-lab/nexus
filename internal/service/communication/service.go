@@ -59,6 +59,22 @@ type SendResult struct {
 	TargetID       string `json:"target_id"`
 	RoomID         string `json:"room_id"`
 	ConversationID string `json:"conversation_id"`
+	RoutingSource  string `json:"routing_source,omitempty"`
+}
+
+const (
+	RoutingSourceExplicit       = "explicit"
+	RoutingSourceCurrentContext = "current_context"
+	RoutingSourceRoomMain       = "room_main"
+)
+
+// sendContext carries only host-minted invocation identity. It is never built
+// from model arguments and is not propagated as capability to a target round.
+type sendContext struct {
+	RoomID         string
+	ConversationID string
+	RootRoundID    string
+	GoalBinding    *protocol.GoalCollaborationBinding
 }
 
 // Service 组合现有联系人、Room 和 realtime 消息主链。
@@ -144,8 +160,19 @@ func (s *Service) SendMessage(
 		strings.TrimSpace(request.ConversationID) != "" {
 		return nil, errors.New("conversation_id 只支持 owner 通讯客户端或 room 目标")
 	}
+	trusted := sendContext{}
+	if actor.ContextKind == managersvc.ContextKindRoom {
+		trusted.RoomID = strings.TrimSpace(actor.RoomID)
+		trusted.ConversationID = strings.TrimSpace(actor.ConversationID)
+		trusted.RootRoundID = strings.TrimSpace(actor.RoundID)
+		if actor.GoalCollaborationBinding != nil {
+			trusted.GoalBinding = protocol.NormalizeGoalCollaborationBinding(
+				actor.GoalCollaborationBinding(),
+			)
+		}
+	}
 	return s.sendMessage(
-		scoped, current.AgentID, request, protocol.RoomWakePolicyImmediate,
+		scoped, current.AgentID, request, protocol.RoomWakePolicyImmediate, trusted,
 	)
 }
 
@@ -179,7 +206,7 @@ func (s *Service) SendMessageAsAgent(
 		return nil, err
 	}
 	return s.sendMessage(
-		ctx, current.AgentID, request, protocol.RoomWakePolicyNone,
+		ctx, current.AgentID, request, protocol.RoomWakePolicyNone, sendContext{},
 	)
 }
 
@@ -188,6 +215,7 @@ func (s *Service) sendMessage(
 	sourceAgentID string,
 	request SendRequest,
 	replyWakePolicy protocol.RoomWakePolicy,
+	trusted sendContext,
 ) (*SendResult, error) {
 	request.TargetType = strings.ToLower(strings.TrimSpace(request.TargetType))
 	request.TargetID = strings.TrimSpace(request.TargetID)
@@ -198,9 +226,9 @@ func (s *Service) sendMessage(
 	}
 	switch request.TargetType {
 	case TargetTypeAgent:
-		return s.sendToAgent(ctx, sourceAgentID, request, replyWakePolicy)
+		return s.sendToAgent(ctx, sourceAgentID, request, replyWakePolicy, trusted)
 	case TargetTypeRoom:
-		return s.sendToRoom(ctx, sourceAgentID, request)
+		return s.sendToRoom(ctx, sourceAgentID, request, trusted)
 	default:
 		return nil, errors.New("target_type 只支持 agent 或 room")
 	}
@@ -211,6 +239,7 @@ func (s *Service) sendToAgent(
 	sourceAgentID string,
 	request SendRequest,
 	replyWakePolicy protocol.RoomWakePolicy,
+	trusted sendContext,
 ) (*SendResult, error) {
 	if request.TargetID == sourceAgentID {
 		return nil, errors.New("Agent 不能给自己发消息")
@@ -235,10 +264,14 @@ func (s *Service) sendToAgent(
 		ctx, contextValue.Room.ID, contextValue.Conversation.ID,
 		protocol.CreateRoomDirectedMessageRequest{
 			SourceAgentID: sourceAgentID,
-			Recipients:    []string{request.TargetID},
-			WakeTargets:   []string{request.TargetID},
-			Content:       request.Content,
-			WakePolicy:    protocol.RoomWakePolicyImmediate,
+			RootRoundID:   trusted.RootRoundID,
+			GoalCollaborationBinding: protocol.NormalizeGoalCollaborationBinding(
+				trusted.GoalBinding,
+			),
+			Recipients:  []string{request.TargetID},
+			WakeTargets: []string{request.TargetID},
+			Content:     request.Content,
+			WakePolicy:  protocol.RoomWakePolicyImmediate,
 			ReplyRoute: protocol.RoomReplyRoute{
 				Mode:       protocol.RoomReplyRoutePrivate,
 				Recipients: []string{sourceAgentID},
@@ -253,6 +286,7 @@ func (s *Service) sendToAgent(
 		MessageID: message.MessageID, Status: "queued",
 		TargetType: TargetTypeAgent, TargetID: request.TargetID,
 		RoomID: contextValue.Room.ID, ConversationID: contextValue.Conversation.ID,
+		RoutingSource: RoutingSourceRoomMain,
 	}, nil
 }
 
@@ -277,8 +311,13 @@ func (s *Service) sendToRoom(
 	ctx context.Context,
 	sourceAgentID string,
 	request SendRequest,
+	trusted sendContext,
 ) (*SendResult, error) {
-	contextValue, err := s.resolveRoomConversation(ctx, request.TargetID, request.ConversationID)
+	conversationID, routingSource, err := resolveRoomConversationID(request, trusted)
+	if err != nil {
+		return nil, err
+	}
+	contextValue, err := s.resolveRoomConversation(ctx, request.TargetID, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +331,11 @@ func (s *Service) sendToRoom(
 		ctx, contextValue.Room.ID, contextValue.Conversation.ID,
 		protocol.CreateRoomPublicMessageRequest{
 			SourceAgentID: sourceAgentID,
-			Content:       request.Content,
+			RootRoundID:   trusted.RootRoundID,
+			GoalCollaborationBinding: protocol.NormalizeGoalCollaborationBinding(
+				trusted.GoalBinding,
+			),
+			Content: request.Content,
 		},
 	)
 	if err != nil {
@@ -303,7 +346,25 @@ func (s *Service) sendToRoom(
 		MessageID: messageID, Status: "published",
 		TargetType: TargetTypeRoom, TargetID: request.TargetID,
 		RoomID: contextValue.Room.ID, ConversationID: contextValue.Conversation.ID,
+		RoutingSource: routingSource,
 	}, nil
+}
+
+func resolveRoomConversationID(request SendRequest, trusted sendContext) (string, string, error) {
+	if conversationID := strings.TrimSpace(request.ConversationID); conversationID != "" {
+		return conversationID, RoutingSourceExplicit, nil
+	}
+	targetRoomID := strings.TrimSpace(request.TargetID)
+	if trustedRoomID := strings.TrimSpace(trusted.RoomID); trustedRoomID != "" {
+		if targetRoomID != trustedRoomID {
+			return "", "", errors.New("从当前 Room 向其他 Room 发消息时必须显式指定 conversation_id")
+		}
+		if conversationID := strings.TrimSpace(trusted.ConversationID); conversationID != "" {
+			return conversationID, RoutingSourceCurrentContext, nil
+		}
+		return "", "", errors.New("当前 Room runtime 缺少可信 conversation_id")
+	}
+	return "", RoutingSourceRoomMain, nil
 }
 
 func (s *Service) ensureDirectRoom(

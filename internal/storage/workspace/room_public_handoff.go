@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -666,6 +667,67 @@ func (s *RoomPublicHandoffStore) GoalCollaborationInFlight(
 			continue
 		}
 		return true, nil
+	}
+	return false, nil
+}
+
+// GoalCollaborationInFlightAll reports whether any Room conversation owned by
+// ownerUserID still carries a non-terminal edge or a terminal edge whose Goal
+// handback receipt has not settled for the exact Goal revision.
+// Communication MCP may deliberately deliver into another Room conversation,
+// so the source Goal continuation cannot fence on its own ledger alone.
+func (s *RoomPublicHandoffStore) GoalCollaborationInFlightAll(
+	ownerUserID string,
+	binding protocol.GoalCollaborationBinding,
+) (bool, error) {
+	bindingValue := protocol.NormalizeGoalCollaborationBinding(&binding)
+	if bindingValue == nil {
+		return false, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ownerPathSegment := appfs.UserPathSegment(strings.TrimSpace(ownerUserID))
+	if ownerPathSegment == "" {
+		return false, nil
+	}
+	roomRootPath := s.paths.RoomConversationRoot(ownerPathSegment)
+	root, err := s.files.openRoomRoot(ownerPathSegment, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	entries, err := fs.ReadDir(root.FS(), ".")
+	_ = root.Close()
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		rows, readErr := s.files.readRoomJSONL(
+			ownerPathSegment,
+			filepath.Join(roomRootPath, entry.Name(), "public_handoffs.jsonl"),
+		)
+		if errors.Is(readErr, os.ErrNotExist) {
+			continue
+		}
+		if readErr != nil {
+			return false, readErr
+		}
+		for _, value := range replayRoomPublicHandoffRows(rows) {
+			candidate := protocol.NormalizeGoalCollaborationBinding(
+				value.GoalCollaborationBinding,
+			)
+			if candidate != nil && *candidate == *bindingValue &&
+				(roomPublicHandoffCanTerminal(value) ||
+					(roomPublicHandoffIsTerminal(value.Status) &&
+						roomPublicHandoffNeedsGoalHandback(value))) {
+				return true, nil
+			}
+		}
 	}
 	return false, nil
 }

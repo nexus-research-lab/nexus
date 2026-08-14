@@ -56,7 +56,7 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 				return errorResult(err), nil
 			}
 			sctx.StoreGoalMutationAuthority(*item)
-			payload := goalPayload(item)
+			payload := goalMutationPayload(item)
 			return structuredResult("goal retargeted", payload), nil
 		},
 	}

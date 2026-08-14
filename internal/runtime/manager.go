@@ -31,6 +31,7 @@ type sessionState struct {
 	RuntimeKind              agentclient.RuntimeKind
 	OwnerUserID              string
 	ProcessPolicyFingerprint string
+	CacheSurface             CacheSurfaceProfile
 	HasSubagentHistory       bool
 	LastUsedAt               time.Time
 }

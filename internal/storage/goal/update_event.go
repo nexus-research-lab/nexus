@@ -43,6 +43,20 @@ func (r *Repository) UpdateGoalWithEvents(
 	if err := r.updateGoal(ctx, tx, goal, expectedVersion); err != nil {
 		return nil, err
 	}
+	keepRevision := int64(0)
+	if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusActive {
+		keepRevision = goal.ObjectiveRevision()
+	}
+	if err := r.cancelGoalContinuations(
+		ctx,
+		tx,
+		goal.ID,
+		keepRevision,
+		"Goal lifecycle or objective revision advanced",
+		goal.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
 	for _, event := range normalizedEvents {
 		if err := r.insertGoalEvent(ctx, tx, event); err != nil {
 			return nil, err

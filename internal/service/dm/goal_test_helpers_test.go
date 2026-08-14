@@ -35,6 +35,12 @@ type fakeGoalContextProvider struct {
 	continuationCount   int
 	claimErr            error
 	onClaim             func()
+	onStarted           func()
+	beforeStarted       func()
+	startedCalls        int
+	startedErr          error
+	settledCalls        int
+	retryReasons        []string
 }
 
 func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
@@ -155,6 +161,38 @@ func (p *fakeGoalContextProvider) ReleaseContinuationPlan(context.Context, proto
 		}
 	}
 	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error {
+	p.mu.Lock()
+	beforeStarted := p.beforeStarted
+	p.mu.Unlock()
+	if beforeStarted != nil {
+		beforeStarted()
+	}
+	p.mu.Lock()
+	p.startedCalls++
+	err := p.startedErr
+	onStarted := p.onStarted
+	p.mu.Unlock()
+	if onStarted != nil {
+		onStarted()
+	}
+	return err
+}
+
+func (p *fakeGoalContextProvider) SettleContinuationPlan(context.Context, string, string, int64) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.settledCalls++
+	return nil
+}
+
+func (p *fakeGoalContextProvider) RetryContinuationPlan(_ context.Context, _ protocol.GoalContinuation, reason string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.retryReasons = append(p.retryReasons, strings.TrimSpace(reason))
+	return nil
 }
 
 func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {

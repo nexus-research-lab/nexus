@@ -350,7 +350,12 @@ func TestServiceRoomGoalModelMutationsRequireLeadAgent(t *testing.T) {
 	if _, err = service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "Peer replacement", AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
 		t.Fatalf("peer retarget error = %v, want ErrGoalForbidden", err)
 	}
-	if _, err = service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
+	if _, err = service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{
+		BlockerID:   "waiting-owner-decision",
+		Reason:      "waiting for a decision",
+		NeededInput: "the owner decision",
+		AgentID:     "agent-peer",
+	}); !errors.Is(err, ErrGoalForbidden) {
 		t.Fatalf("peer block error = %v, want ErrGoalForbidden", err)
 	}
 	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {

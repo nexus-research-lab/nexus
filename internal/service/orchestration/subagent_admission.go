@@ -65,6 +65,11 @@ type subagentReconciliationRepository interface {
 		time.Time,
 		int,
 	) ([]protocol.WorkAttempt, error)
+	ListOrphanedSubagentAttempts(
+		context.Context,
+		time.Time,
+		int,
+	) ([]protocol.WorkAttempt, error)
 }
 
 // SubagentReconciliationResult 汇总 durable parent-exit deadline 的恢复结果。
@@ -530,6 +535,88 @@ func (s *Service) ReconcileExpiredSubagents(
 						AgentRoundID:   current.AgentRoundID,
 					},
 					"subagent-reconcile:"+current.ID,
+					"child-attempt-terminal",
+				),
+			},
+		)
+		if errors.Is(finishErr, orchestrationstore.ErrVersionConflict) ||
+			errors.Is(finishErr, orchestrationstore.ErrInvariant) {
+			result.Deferred++
+			continue
+		}
+		if finishErr != nil {
+			return result, finishErr
+		}
+		s.invalidateSnapshot(ctx, updated)
+		result.Reconciled++
+	}
+	return result, nil
+}
+
+// ReconcileOrphanedSubagents closes the only child-Attempt class that cannot
+// carry a durable deadline: a previous process observed parent exit but died
+// before that scheduling transaction committed. The immutable process-start
+// cutoff prevents this recovery pass from ever selecting children launched by
+// the current server.
+func (s *Service) ReconcileOrphanedSubagents(
+	ctx context.Context,
+	processStartedAt time.Time,
+	limit int,
+) (SubagentReconciliationResult, error) {
+	var result SubagentReconciliationResult
+	if processStartedAt.IsZero() || limit <= 0 {
+		return result, fmt.Errorf(
+			"process start and positive subagent reconciliation limit are required",
+		)
+	}
+	repository, ok := s.repository.(subagentReconciliationRepository)
+	if !ok {
+		return result, fmt.Errorf(
+			"orchestration repository does not support durable subagent reconciliation",
+		)
+	}
+	orphans, err := repository.ListOrphanedSubagentAttempts(
+		ctx,
+		processStartedAt.UTC(),
+		limit,
+	)
+	if err != nil {
+		return result, err
+	}
+	result.Scanned = len(orphans)
+	for _, candidate := range orphans {
+		snapshot, getErr := s.repository.GetSnapshot(ctx, candidate.ExecutionID)
+		if getErr != nil {
+			return result, getErr
+		}
+		current := findAttemptByID(snapshot, candidate.ID)
+		if current == nil ||
+			current.Status != protocol.WorkAttemptStatusRunning ||
+			current.ExecutorKind != protocol.AttemptExecutorSubagent ||
+			strings.TrimSpace(current.ParentAttemptID) == "" ||
+			current.ReconcileAfter != nil ||
+			!current.CreatedAt.Before(processStartedAt.UTC()) {
+			continue
+		}
+		terminal := *current
+		terminal.Status = protocol.WorkAttemptStatusInterrupted
+		terminal.FailureReason =
+			"server restarted before parent round exit reconciliation could be persisted"
+		updated, finishErr := s.repository.FinishAttempt(
+			ctx,
+			orchestrationstore.FinishAttemptCommand{
+				ExpectedExecutionVersion: snapshot.Execution.Version,
+				ExpectedAttemptVersion:   current.Version,
+				Attempt:                  terminal,
+				Meta: s.commandMeta(
+					ActorContext{
+						AgentID:        "subagent-reconciler",
+						ActorKind:      protocol.ExecutionActorSystem,
+						RootRoundID:    current.RootRoundID,
+						RuntimeRoundID: current.RuntimeRoundID,
+						AgentRoundID:   current.AgentRoundID,
+					},
+					"subagent-orphan-reconcile:"+current.ID,
 					"child-attempt-terminal",
 				),
 			},

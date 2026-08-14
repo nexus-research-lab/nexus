@@ -31,6 +31,9 @@ func getExecution(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 			actor := sctx.Actor()
 			snapshot, err := loadSnapshot(ctx, svc, actor, parsed.ExecutionID)
 			if err != nil {
+				if result, ok := recoverableMutationRejection(err); ok {
+					return result, nil
+				}
 				return transportErrorResult(err), nil
 			}
 			if snapshot != nil {

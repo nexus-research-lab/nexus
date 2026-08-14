@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime 的权威 Agent/scope/session/round/permission identity、trusted WorkBinding/ReviewBinding、共享 Goal authority 与 Execution 服务。
-// OUTPUT: 绑定当前 round 权限角色，并在每次 Actor 投影时读取 Goal identity 的 nexus_execution MCP overlay。
+// INPUT: 当前 runtime 的权威 Agent/scope/session/round/permission identity、统一动态 Responsibility authority 与 Execution 服务。
+// OUTPUT: 绑定当前 round 权限角色，并在每次 Actor 投影时原子读取 Goal/Execution/Work/Review identity 的 nexus_execution MCP overlay。
 // POS: DM/Room runtime 到 Execution Orchestration 模型工具的不可伪造应用装配边界。
 package server
 
@@ -97,23 +97,24 @@ func resolveExecutionMCPServerContext(
 	}
 
 	serverContext := executionmcpcontract.ServerContext{
-		OwnerUserID:       ownerUserID,
-		AgentID:           agentID,
-		Role:              role,
-		ActorKind:         protocol.ExecutionActorAgent,
-		ScopeKind:         scopeKind,
-		ScopeSessionKey:   scopeSessionKey,
-		RuntimeSessionKey: strings.TrimSpace(runtimeContext.RuntimeSessionKey),
-		ExecutionID:       strings.TrimSpace(runtimeContext.ExecutionID),
-		WorkBinding:       cloneExecutionMCPWorkBinding(runtimeContext.WorkBinding),
-		WorkBindingState:  runtimeContext.WorkBindingState,
-		ReviewBinding:     cloneExecutionMCPReviewBinding(runtimeContext.ReviewBinding),
-		GoalAuthority:     runtimeContext.GoalAuthority,
-		RootRoundID:       strings.TrimSpace(runtimeContext.RootRoundID),
-		RuntimeRoundID:    runtimeRoundID,
-		AgentRoundID:      strings.TrimSpace(runtimeContext.AgentRoundID),
-		RoomID:            strings.TrimSpace(runtimeContext.RoomID),
-		ConversationID:    strings.TrimSpace(runtimeContext.ConversationID),
+		OwnerUserID:             ownerUserID,
+		AgentID:                 agentID,
+		Role:                    role,
+		ActorKind:               protocol.ExecutionActorAgent,
+		ScopeKind:               scopeKind,
+		ScopeSessionKey:         scopeSessionKey,
+		RuntimeSessionKey:       strings.TrimSpace(runtimeContext.RuntimeSessionKey),
+		ExecutionID:             strings.TrimSpace(runtimeContext.ExecutionID),
+		WorkBinding:             cloneExecutionMCPWorkBinding(runtimeContext.WorkBinding),
+		WorkBindingState:        runtimeContext.WorkBindingState,
+		ReviewBinding:           cloneExecutionMCPReviewBinding(runtimeContext.ReviewBinding),
+		GoalAuthority:           runtimeContext.GoalAuthority,
+		ResponsibilityAuthority: runtimeContext.ResponsibilityAuthority,
+		RootRoundID:             strings.TrimSpace(runtimeContext.RootRoundID),
+		RuntimeRoundID:          runtimeRoundID,
+		AgentRoundID:            strings.TrimSpace(runtimeContext.AgentRoundID),
+		RoomID:                  strings.TrimSpace(runtimeContext.RoomID),
+		ConversationID:          strings.TrimSpace(runtimeContext.ConversationID),
 		PlanMode: runtimepermission.NormalizeMode(runtimeContext.PermissionMode) ==
 			sdkpermission.ModePlan,
 	}
@@ -125,8 +126,8 @@ func resolveExecutionMCPServerContext(
 		lookupActor.Role = ""
 		var snapshot *protocol.ExecutionSnapshot
 		var err error
-		if serverContext.ExecutionID != "" {
-			snapshot, err = reader.GetSnapshot(ctx, lookupActor, serverContext.ExecutionID)
+		if lookupActor.ExecutionID != "" {
+			snapshot, err = reader.GetSnapshot(ctx, lookupActor, lookupActor.ExecutionID)
 		} else {
 			snapshot, err = reader.GetCurrent(ctx, lookupActor)
 		}
@@ -145,8 +146,8 @@ func resolveExecutionMCPServerContext(
 			serverContext.Role = orchestrationsvc.ExecutionActorMember
 		}
 		if serverContext.Role == orchestrationsvc.ExecutionActorMember &&
-			serverContext.WorkBinding == nil &&
-			serverContext.ReviewBinding == nil {
+			lookupActor.WorkBinding == nil &&
+			lookupActor.ReviewBinding == nil {
 			// 裸 @ / 用户定向消息只创建 conversation round。不给未绑定
 			// member 挂载 Execution MCP，避免工具面把聊天隐式升级成责任。
 			return executionmcpcontract.ServerContext{}, false

@@ -60,6 +60,9 @@ func planExecution(
 			if bindMutationGoalAuthority(sctx, result) {
 				actor = sctx.Actor()
 			}
+			if applyMutationResponsibilityAuthority(sctx, result) {
+				actor = sctx.Actor()
+			}
 			contextActor := actor
 			if result.Snapshot != nil &&
 				strings.TrimSpace(actor.ExecutionID) != result.Snapshot.Execution.ID {

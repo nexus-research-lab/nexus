@@ -72,11 +72,16 @@ func (s *Service) handlePublicMessage(
 		sourceAgentID,
 		request.RootRoundID,
 	)
-	goalCollaborationBinding := s.goalCollaborationBindingForActiveRound(
-		contextValue.Conversation.ID,
-		sourceAgentID,
-		request.RootRoundID,
+	goalCollaborationBinding := protocol.NormalizeGoalCollaborationBinding(
+		request.GoalCollaborationBinding,
 	)
+	if goalCollaborationBinding == nil {
+		goalCollaborationBinding = s.goalCollaborationBindingForActiveRound(
+			contextValue.Conversation.ID,
+			sourceAgentID,
+			request.RootRoundID,
+		)
+	}
 	if rootRoundID == "" {
 		rootRoundID = messageID
 	}
@@ -145,6 +150,18 @@ func (s *Service) handlePublicMessage(
 	)
 	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs, goalCollaborationBinding); err != nil {
 		return nil, err
+	}
+	if len(targetAgentIDs) > 0 && s.goalDirectedMessageHandoffInFlight(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		goalCollaborationBinding,
+	) {
+		s.markActiveGoalCollaborationPending(
+			contextValue.Room.OwnerUserID,
+			sourceAgentID,
+			request.RootRoundID,
+			goalCollaborationBinding,
+		)
 	}
 	return message, nil
 }

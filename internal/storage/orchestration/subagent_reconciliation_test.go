@@ -70,6 +70,28 @@ func TestRepositorySubagentReconciliationDeadlineSurvivesRepositoryRestart(t *te
 		t.Fatal(err)
 	}
 	child = findAttempt(t, snapshot, child.ID)
+	beforeRestart, err := repository.ListOrphanedSubagentAttempts(
+		ctx,
+		child.CreatedAt,
+		10,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(beforeRestart) != 0 {
+		t.Fatalf("same-process child classified as orphan: %#v", beforeRestart)
+	}
+	afterRestart, err := repository.ListOrphanedSubagentAttempts(
+		ctx,
+		child.CreatedAt.Add(time.Second),
+		10,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterRestart) != 1 || afterRestart[0].ID != child.ID {
+		t.Fatalf("pre-restart unscheduled child Attempts = %#v", afterRestart)
+	}
 	exitedAt := time.Date(2030, time.January, 2, 3, 4, 5, 0, time.UTC)
 	reconcileAfter := exitedAt.Add(protocol.SubagentReconciliationGrace)
 	if _, err = repository.ScheduleSubagentReconciliation(
@@ -107,6 +129,17 @@ func TestRepositorySubagentReconciliationDeadlineSurvivesRepositoryRestart(t *te
 		scheduled.ReconcileAfter == nil ||
 		!scheduled.ReconcileAfter.Equal(reconcileAfter) {
 		t.Fatalf("scheduled child Attempt = %#v", scheduled)
+	}
+	orphansAfterSchedule, err := repository.ListOrphanedSubagentAttempts(
+		ctx,
+		child.CreatedAt.Add(time.Second),
+		10,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(orphansAfterSchedule) != 0 {
+		t.Fatalf("durably scheduled child remained orphaned: %#v", orphansAfterSchedule)
 	}
 	restarted := NewSQLRepository("sqlite", repository.db)
 	before, err := restarted.ListExpiredSubagentAttempts(

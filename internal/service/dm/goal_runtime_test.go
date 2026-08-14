@@ -188,6 +188,47 @@ func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
 	}
 }
 
+func TestDMGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
+	message := goalToolResultAssistantMessage(
+		"tool-workgraph",
+		"mcp__nexus_execution__submit_work",
+		false,
+		4,
+		1,
+	)
+	content := message["content"].([]map[string]any)
+	content[1]["content"] = `{"outcome":"applied"}`
+
+	goalOnly := runtimectx.NewResponsibilityAuthorityState(
+		runtimectx.NewGoalAuthorityState("goal-1", 1, ""),
+		"",
+		nil,
+		nil,
+	)
+	runner := &roundRunner{
+		service:               &Service{goals: &fakeGoalContextProvider{}},
+		goalIDForUsage:        "goal-1",
+		goalObjectiveRevision: func() *atomic.Int64 { value := &atomic.Int64{}; value.Store(1); return value }(),
+		responsibilityState:   goalOnly,
+	}
+	runner.recordGoalUsageFromAssistantMessage(message)
+	if runner.hasGoalToolProgress() {
+		t.Fatal("Goal-only authority counted an unrelated WorkGraph mutation")
+	}
+
+	bound := runtimectx.NewResponsibilityAuthorityState(
+		runtimectx.NewGoalAuthorityState("goal-1", 1, "execution-1"),
+		"execution-1",
+		nil,
+		nil,
+	)
+	runner.responsibilityState = bound
+	runner.recordGoalUsageFromAssistantMessage(message)
+	if !runner.hasGoalToolProgress() {
+		t.Fatal("confirmed Goal-bound Execution mutation was not counted")
+	}
+}
+
 func TestRoundRunnerRecordsAbortGoalUsageFromAssistantSnapshot(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
@@ -808,6 +849,12 @@ func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testi
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
 		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
 	}
+	goalProvider.mu.Lock()
+	settledCalls := goalProvider.settledCalls
+	goalProvider.mu.Unlock()
+	if settledCalls != 1 {
+		t.Fatalf("settledCalls = %d, want runtime terminal to settle launch receipt while subagent work remains pending", settledCalls)
+	}
 }
 
 func TestRoundRunnerRecordsGoalContinuationFailure(t *testing.T) {
@@ -837,7 +884,7 @@ func TestRoundRunnerRecordsGoalContinuationFailure(t *testing.T) {
 	}
 }
 
-func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
+func TestRoundRunnerOrdinaryToolDoesNotFakeGoalContinuationProgress(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
 		service:        &Service{goals: goalProvider},
@@ -854,8 +901,8 @@ func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
 	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	progress := goalProvider.recordedProgress()
-	if len(progress) != 1 || !progress[0] {
-		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	if len(progress) != 1 || progress[0] {
+		t.Fatalf("progress = %#v, want ordinary read to record empty progress", progress)
 	}
 }
 

@@ -10,15 +10,18 @@
 //     materialization lease/receipt/recovery。
 //   - goal_confirmation.go：与 Goal-bound Execution mutation 同事务的 pending receipt、
 //     confirmed CAS 与跨进程扫描。
+//   - completion_audit.go：与 accepted Review 同事务的 completion receipt、
+//     Complete 同事务终结、CAS defer/discard 与跨进程扫描。
 //   - assignment.go / attempt.go / submission.go / state.go：责任、执行、交付、验收
 //     和 Block/Resume/Takeover。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go：work、review 与
 //     physical cancellation outbox。
-//   - subagent_reconciliation.go：child Attempt 与 parent-exit deadline 对账。
+//   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline 与上次进程未落 deadline orphan 对账。
 //   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref。
 //   - query.go / scan.go / workgraph.go：Snapshot SQL 投影和 managed WorkGraph 读取。
 //
 // 主要暴露接口：NewRepository/NewSQLRepository 与 Repository 的事务 command、
 // owner/session/Goal 查询、GetSnapshot、outbox claim/deliver/retry、Runtime Graph
-// upsert/read，以及 Plan proposal 和 Goal confirmation recovery receipt 方法。
+// upsert/read，以及 Plan proposal、Goal confirmation 和 completion audit recovery
+// receipt 方法。
 package orchestration

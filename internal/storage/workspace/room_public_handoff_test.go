@@ -154,6 +154,62 @@ func TestRoomPublicHandoffGoalCollaborationInFlightUsesExactRevision(t *testing.
 	}
 }
 
+func TestRoomPublicHandoffGoalCollaborationInFlightAllCrossesConversationLedger(t *testing.T) {
+	root := t.TempDir()
+	store := NewRoomPublicHandoffStore(root)
+	store.paths.StateRoot = root
+	binding := &protocol.GoalCollaborationBinding{
+		GoalID: "goal-room-cross-conversation", ObjectiveRevision: 2,
+	}
+	handoff := RoomPublicHandoff{
+		HandoffID: "rh_goal_cross_conversation", ConversationID: "conversation-target",
+		SourceMessageID: "message-cross-conversation", SourceAgentID: "agent-lead",
+		TargetAgentID: "agent-peer", QueueSource: protocol.InputQueueSourceAgentRoomMessage,
+		GoalCollaborationBinding: binding,
+	}
+	if _, _, err := store.Detect(testRoomOwnerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	local, err := store.GoalCollaborationInFlight(
+		testRoomOwnerUserID,
+		"conversation-source",
+		*binding,
+	)
+	if err != nil || local {
+		t.Fatalf("source-conversation lookup = %v, err=%v, want no local edge", local, err)
+	}
+	all, err := store.GoalCollaborationInFlightAll(testRoomOwnerUserID, *binding)
+	if err != nil || !all {
+		t.Fatalf("owner-wide lookup = %v, err=%v, want target edge fenced", all, err)
+	}
+	if err := store.MarkTerminalWithGoalOutcome(
+		testRoomOwnerUserID,
+		handoff.ConversationID,
+		handoff.HandoffID,
+		"finished",
+		"target-agent-round",
+		true,
+		true,
+	); err != nil {
+		t.Fatal(err)
+	}
+	all, err = store.GoalCollaborationInFlightAll(testRoomOwnerUserID, *binding)
+	if err != nil || !all {
+		t.Fatalf("unsettled terminal owner-wide lookup = %v, err=%v, want fenced", all, err)
+	}
+	if err := store.MarkGoalHandbackSettled(
+		testRoomOwnerUserID,
+		handoff.ConversationID,
+		handoff.HandoffID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	all, err = store.GoalCollaborationInFlightAll(testRoomOwnerUserID, *binding)
+	if err != nil || all {
+		t.Fatalf("settled terminal owner-wide lookup = %v, err=%v, want released", all, err)
+	}
+}
+
 func TestRoomPublicHandoffTerminalGoalHandbackSurvivesRestartExactlyOnce(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", root)

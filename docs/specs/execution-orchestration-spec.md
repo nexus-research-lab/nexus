@@ -29,13 +29,17 @@ code-defined truth:
 | Plan proposal lifecycle and receipts | [`internal/protocol/execution_plan_proposal.go`](../../internal/protocol/execution_plan_proposal.go) |
 | Execution/Goal confirmation recovery receipts | [`internal/storage/orchestration/goal_confirmation.go`](../../internal/storage/orchestration/goal_confirmation.go), [`internal/service/orchestration/goal_confirmation_recovery.go`](../../internal/service/orchestration/goal_confirmation_recovery.go) |
 | Goal and Goal/Execution binding states | [`internal/protocol/goal.go`](../../internal/protocol/goal.go) |
+| Durable Goal continuation launch receipts | [`internal/storage/goal/continuation_plan.go`](../../internal/storage/goal/continuation_plan.go), [`internal/service/goal/continuation.go`](../../internal/service/goal/continuation.go) |
 | Collection and projection limits | [`internal/protocol/execution_limits.go`](../../internal/protocol/execution_limits.go) |
 | Plan Document parsing and normalization | [`internal/service/orchestration/plan_document.go`](../../internal/service/orchestration/plan_document.go) |
 | Parser-backed Plan Document contract | [`internal/service/orchestration/plan_document_contract.go`](../../internal/service/orchestration/plan_document_contract.go) |
 | Proposal sealing and materialization | [`internal/service/orchestration/plan_proposal.go`](../../internal/service/orchestration/plan_proposal.go), [`plan_materialization.go`](../../internal/service/orchestration/plan_materialization.go) |
 | Execution MCP inputs, schemas, and registry | [`internal/mcp/execution/tool/input.go`](../../internal/mcp/execution/tool/input.go), [`schema.go`](../../internal/mcp/execution/tool/schema.go), [`registry.go`](../../internal/mcp/execution/tool/registry.go) |
 | Goal MCP registry and tool contracts | [`internal/mcp/goal/tool/registry.go`](../../internal/mcp/goal/tool/registry.go) |
-| Runtime responsibility and coordination authority | [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
+| Runtime responsibility and coordination authority | [`internal/runtime/responsibility_authority.go`](../../internal/runtime/responsibility_authority.go), [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
+| Accepted-review completion recovery receipts | [`internal/storage/orchestration/completion_audit.go`](../../internal/storage/orchestration/completion_audit.go), [`internal/service/orchestration/completion_audit_recovery.go`](../../internal/service/orchestration/completion_audit_recovery.go) |
+| Room collaboration attribution and handoff recovery | [`internal/protocol/room.go`](../../internal/protocol/room.go), [`internal/storage/workspace/room_public_handoff.go`](../../internal/storage/workspace/room_public_handoff.go), [`internal/service/room/realtime/public_handoff.go`](../../internal/service/room/realtime/public_handoff.go) |
+| Model tool-result progress classification | [`internal/message/tool_result.go`](../../internal/message/tool_result.go) |
 | UI/Slash Goal command dispatch and durable control history | [`internal/service/slashcommand/goal.go`](../../internal/service/slashcommand/goal.go), [`internal/service/dm/goal_command.go`](../../internal/service/dm/goal_command.go), [`internal/service/room/realtime/goal_command.go`](../../internal/service/room/realtime/goal_command.go) |
 
 Do not copy the complete Plan Document field list or MCP input schema into this
@@ -68,6 +72,48 @@ default result of setting a Goal.
 An Execution row without an active materialized Plan is a bootstrap or
 reconciliation state. It is not a fourth public product mode and must not be
 presented as a managed WorkGraph.
+
+### 2.1.1 DM/Room entry convergence
+
+Transport chooses owner, session, conversation, and responsible Agent; it does
+not choose a different lifecycle. The eight supported entry paths converge as
+follows:
+
+| Surface | Intent | Canonical entry | Resulting mode and authority |
+| --- | --- | --- | --- |
+| DM conversation | Model calls `create_goal` | Goal service create transaction | Goal-only; the verified DM Agent owns the exact Goal revision. |
+| DM Composer | Goal mode or `/goal` | Host Goal control command | Goal-only; the visible control record is a projection, not a model turn. |
+| DM conversation/Composer | Goal + WorkGraph | Create/retarget Goal, then seal and materialize `goal_binding=current` | Goal + WorkGraph only after bilateral confirmation; the current physical round receives the confirmed dynamic responsibility receipt. |
+| DM conversation | WorkGraph-only | Seal and materialize `goal_binding=none` | WorkGraph-only; any ambient Goal is ignored. |
+| Room conversation | Lead calls `create_goal` | Goal service create transaction with host-verified Room identity | Goal-only; only the persisted lead owns the exact Goal revision. |
+| Room Composer | Goal mode or `/goal` | Host Goal control command with Room lead validation | Goal-only; the control record is written to the exact current conversation. |
+| Room conversation/Composer | Goal + WorkGraph | Create/retarget Goal, then seal and materialize `goal_binding=current` | Goal + WorkGraph only after bilateral confirmation; coordinator, worker, and reviewer capabilities remain exact and distinct. |
+| Room conversation | WorkGraph-only | Seal and materialize `goal_binding=none` | WorkGraph-only; Room membership does not grant Work Item authority. |
+
+`create_goal` never guesses that an unbound transient Execution should be
+adopted. Existing WorkGraph intent uses the explicit promotion operation, while
+new integrated work uses `goal_binding=current`. This keeps all eight paths on
+the same Goal, Execution, and responsibility state machines and removes a
+cross-domain half-commit from Goal creation.
+
+### 2.1.2 State ownership and projections
+
+Each concern has one authoritative state. A runtime or UI projection may lag or
+disappear; it must never be used to manufacture the durable fact again.
+
+| Concern | Authoritative truth | State transition | Derived or recoverable projections |
+| --- | --- | --- | --- |
+| Goal | `session_goals` plus append-only `goal_events` | Goal repository CAS on ID, owner, status, version, and objective revision | Goal MCP context, continuation strip, title/control history, and UI blocker text |
+| Plan/Execution/WorkGraph | Orchestration SQL aggregate: Execution, immutable Plan revision, Work Item state, Assignment, Attempt, Submission, Acceptance, and outbox/receipt rows | One service command re-reads the aggregate and commits one typed mutation | Execution Graph/UI, runtime nodes, Room delivery, and snapshot caches |
+| Responsibility capability | Durable responsibility records are business truth; one mutable in-memory `ResponsibilityAuthorityState` is the current physical round's capability projection | A successful typed mutation receipt atomically replaces or clears Goal, Execution, Work, and Review authority for the next call in that round | MCP `ServerContext` and tool availability hints; neither authorizes without service revalidation |
+| Collaboration handoff | Owner-scoped Room directed-message/public-handoff/InputQueue ledgers with exact source Goal ID and objective revision | Durable schedule, dispatch, target terminal, and source handback advance separate idempotent stages | Wake state, public feed, source continuation defer, and collaboration audit evidence |
+| Continuation | `goal_continuation_plans` open receipt plus Goal continuation count/event | `scheduled → claimed → started → settled`, or retry/release/cancel under revision and lease CAS | Runtime running-round registration and UI continuation state |
+| Progress | Typed `applied` mutation outcome under the exact current Goal/Execution responsibility; the resulting Goal controller counters/events are durable | Counted mutation clears the no-progress streak; exact handoff defers; terminal empty/failure advances suppression | Parsed SDK tool results are candidate facts only and cannot count by tool success alone |
+
+Cache attribution is observational, not a seventh control state. The usage ledger
+stores provider-reported cache token totals beside low-cardinality lane/surface
+fingerprints. Those hashes help compare stable versus changing host context but
+are neither provider cache keys nor authorization facts.
 
 ### 2.2 Goal/Execution binding states
 
@@ -108,12 +154,46 @@ durable consecutive no-progress streak, not a paused lifecycle status:
 - a second consecutive empty continuation emits `continuation_suppressed` and
   stops automatic continuation until explicit Goal activity or Resume clears the
   streak;
-- actual runtime/dispatch failure stores `last_error` and suppresses immediately;
+- provider/runtime terminal failure after a round starts stores `last_error` and
+  suppresses immediately; a failure before runtime registration stays on the
+  durable launch receipt and retries with bounded backoff without changing the
+  Goal lifecycle;
 - any counted Goal mutation or explicit user activity clears the streak.
 
 Read-only inspection is not fabricated progress. The recovery turn exists so a
 legitimate inspect-then-mutate sequence is not stopped between those stages,
 while the second empty turn still closes a real loop.
+
+Tool transport success is not a progress receipt. Only an explicit `applied`
+Goal mutation, or an `applied` WorkGraph mutation executed under an exact current
+Goal binding, counts as continuation progress. Ordinary message sends,
+read/list/search operations, Task/Todo bookkeeping, unknown tools, rejected/no-op
+mutations, and unbound WorkGraph mutations fail closed. A durable exact
+Goal-attributed Room handoff or queue receipt defers the source continuation until
+handback; it does not masquerade as mutation progress.
+
+Continuation scheduling is one durable transaction: the Goal continuation count
+and audit event advance together with a server-only `goal_continuation_plans`
+receipt containing the exact Goal revision, Execution identity, previous round,
+purpose, prompt, and metadata. Prompt content is never copied into Goal metadata
+or client projections. A worker obtains a leased CAS claim, registers the exact
+runtime round, and only then advances the receipt to leased `started`. `started`
+remains the recovery owner and the one-open-plan uniqueness fence until the exact
+runtime terminal callback advances it to `settled`; it is not a terminal launch
+receipt. Room execution keeps two non-interchangeable identities through that
+callback: the outer/root continuation round settles the durable receipt, while
+the slot `AgentRoundID` identifies progress, failure, and completion-miss audit
+events. A public handoff settles the source root receipt before waiting for the
+separate durable handback; the handback may then schedule a fresh continuation
+without waiting for lease recovery. A process crash before claim leaves the scheduled receipt recoverable;
+a crash after claim or after runtime registration makes the same receipt
+recoverable after its lease expires, without incrementing the Goal again.
+Duplicate workers cannot claim the same receipt. Objective revision changes and
+non-active lifecycle transitions cancel old open receipts. Historical opaque
+reservation IDs are discarded because they lack enough authority and prompt
+data to replay safely. Migration refunds only distinct, non-empty outstanding
+reservation IDs from `continuation_count`, clamped at zero; counts for rounds
+that actually ran remain part of the same objective revision's usage limit.
 
 Every SQL mutation that first makes an Execution Goal-bound writes one exact
 `execution_goal_confirmations` pending receipt in the same transaction. The
@@ -243,6 +323,14 @@ Dependencies are revision-scoped:
 Output claims are either exclusive or shared. Exclusive claims prevent two active
 responsibility chains from owning the same declared output.
 
+These claims are a durable scheduling and review contract, not a filesystem
+capability. Nexus validates Plan topology and exposes the assigned scopes to the
+responsible runtime, but the current workspace layer does not intercept every
+file write against them. `exclusive` therefore means the orchestrator will not
+legitimately schedule conflicting responsibility lanes; it must not be described
+to users or models as an OS-enforced write lock. Plans that mutate shared
+workspace outputs should declare scopes so the scheduler can protect them.
+
 An all-hard dependency path makes overlapping exclusive claims an ordered
 ownership handoff rather than concurrent ownership: every downstream Work Item
 remains locked until the upstream Submission is accepted, so a later draft,
@@ -294,7 +382,11 @@ There is never more than one current owner for a Work Item. A takeover terminate
 the previous current chain before creating a fresh one.
 
 An accepted Acceptance is the only fact that unlocks hard dependents. A succeeded
-Attempt or a Submission alone is not acceptance.
+Attempt or a Submission alone is not acceptance. The accepted Review transaction
+also creates or wakes one durable Execution completion-audit receipt. This receipt
+does not assert readiness and grants no model authority; it only guarantees that
+the backend will re-derive current blockers after the originating request or
+process disappears.
 
 ### 3.6 History and evidence
 
@@ -445,13 +537,21 @@ control-plane transition.
 | `plan_execution` | Materializes the exact sealed receipt as `create`, `replan`, or `replace` under CAS, identity, base-Plan, and Goal fences. It is transactional and idempotent; Plan Mode rejects it. |
 | `abandon_execution` | Cancels a transient unbound Execution and atomically releases/cancels its live responsibility chain. A Goal-bound Execution must use the Goal retarget path instead. |
 | `assign_work` | Assigns one ready Work Item to one owner and creates the pending root Attempt plus Room dispatch when required. It cannot create parallel current owners. |
-| `submit_work` | Under the exact WorkBinding, appends one immutable Submission and correlates/completes the current Attempt. Downstream hard dependencies remain locked until Acceptance. |
-| `review_work` | Under the exact ReviewBinding or permitted self-review path, appends one Acceptance decision for the selected Submission. Acceptance unlocks dependents; rejection or changes requested preserves history and requires fresh work. |
-| `block_work` | Moves the bound Work Item to `waiting_input` for a specific external input/authority blocker and terminates the current Attempt chain. It rejects when an unreviewed Submission exists. |
-| `resume_work` | Records resolution/evidence and moves `waiting_input` back to `open`. It does not recreate an Assignment or revive an Attempt. |
+| `submit_work` | Under an exact host-issued WorkBinding, omitted Work Item and Assignment locators default to that trusted binding; explicit values must match. In DM coordination or any other unbound round, `work_item_id` or `logical_key` is required while `assignment_id` remains optional. The mutation appends one immutable Submission and correlates/completes the current Attempt. Downstream hard dependencies remain locked until Acceptance. |
+| `review_work` | Under an exact host-issued ReviewBinding, omitted Submission and Work Item locators default to that immutable review target; permitted self-review similarly defaults from an exact WorkBinding. Explicit values must match. In DM coordination or any other unbound round, at least one of `submission_id`, `work_item_id`, or `logical_key` is required and all supplied locators must agree. The mutation appends one Acceptance decision. Acceptance unlocks dependents; an accepted decision atomically wakes the durable backend completion audit, while rejection or changes requested preserves history and requires fresh work. |
+| `block_work` | Under an exact WorkBinding, omitted Work Item locators default to that binding and explicit values must match. The mutation moves the Work Item to `waiting_input` for a specific external input/authority blocker and rejects when an unreviewed Submission exists. |
+| `resume_work` | Under an exact WorkBinding, omitted Work Item locators default to that binding and explicit values must match. The mutation records resolution/evidence and moves `waiting_input` back to `open`; it does not recreate an Assignment or revive an Attempt. |
 | `take_over_work` | Coordinator-only atomic replacement: releases the old Assignment, interrupts/cancels its current chain, then creates a fresh Assignment/Attempt/dispatch. It rejects when an unreviewed Submission exists. |
 | `audit_execution_alignment` | Appends an optional visible three-state objective-alignment gate. It does not transition work, reroute, retry, start a Goal, or complete an Execution. |
 | `promote_execution_to_goal` | Binds a compatible transient Execution to a newly created durable Goal while preserving Plan and history. It enforces objective, state, configuration, authority, and exact binding fences; it does not copy the Plan. |
+
+The model-visible tool schema is stable across bound and unbound rounds. Locator
+fields therefore remain structurally optional: only the host knows whether the
+current call carries an exact trusted binding, and the service enforces the
+conditional one-of requirement at the mutation boundary. Tool availability,
+`<assigned_work>`, and a graph node's `current_actor="true"` are state
+projections, not WorkBinding or ReviewBinding receipts, and never authorize
+locator omission by themselves.
 
 A physical runtime round is an execution carrier, not an Assignment identity. One
 round may serially complete root Attempts for different self-owned Assignments in
@@ -487,7 +587,7 @@ WorkGraph-specific gates apply only to a `confirmed` managed binding.
 | Tool | Atomic semantics |
 | --- | --- |
 | `get_goal` | Reads the current optional Goal and usage state. It does not mutate Goal or Execution state. |
-| `create_goal` | Creates an active Goal only when no Goal exists for the scope and the objective is execution-ready. A model-created Room Goal persists the server-verified creator as its lead; Room member count does not create a collaboration completion requirement. In DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. When the same round already owns a compatible transient WorkGraph, the explicit Goal flow reuses and binds that Execution instead of creating a second graph. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
+| `create_goal` | Atomically creates a standalone active Goal only when no Goal exists for the scope and the objective is execution-ready. It never creates, reserves, or binds an Execution. A model-created Room Goal persists the server-verified creator as its lead; Room member count does not create a collaboration completion requirement. In DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. If the same round already owns a compatible transient WorkGraph, explicit Goal intent instead uses `promote_execution_to_goal` with `persistence_requested`; when neither exists, a later `goal_binding=current` Plan materialization performs the bilateral binding. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
 | `retarget_goal` | Applies an explicit user objective correction while preserving Goal identity and usage. A trusted visible user round may late-bind the exact current Goal/revision only for this tool; every other source requires existing Goal authority. `standalone`/`reserved` update the Goal revision directly; `confirmed` enters the successor rebase saga; `pending`/`conflict` fail closed. |
 | `audit_objective_alignment` | Appends a three-state evidence report for the exact Goal revision and round without changing status. A Goal with a confirmed managed WorkGraph binding requires a current aligned report for completion; Goal-only and reserved Goals do not. |
 | `update_goal` | Allows the model to mark the exact authorized Goal `complete` or `blocked`. The current Room lead or DM Agent decides when the objective is satisfied. Completion rechecks revision, binding resolution, Room in-flight work readiness, and, for a Goal with a confirmed managed WorkGraph binding, WorkGraph readiness plus current alignment evidence. Collaboration evidence is audit context and never a completion gate. Pause, resume, and limit controls remain user/system operations. |
@@ -496,8 +596,12 @@ WorkGraph-specific gates apply only to a `confirmed` managed binding.
 
 The instruction to mark a Goal blocked only after the same concrete blocker
 persists for at least three consecutive Goal turns is a **model behavior policy**.
-The `update_goal` input does not send blocker identity or a three-turn history, and
-the backend does not audit that persistence rule.
+The `update_goal` request must send a stable `blocker_id`, concrete `reason`, and
+exact `needed_input`. The backend persists this typed recovery contract on the
+blocked Goal and in its audit event, clears it when the Goal resumes or changes
+objective, and exposes it to the UI. Reusing a `blocker_id` means the same
+concrete blocker; it does not itself prove three consecutive turns. The backend
+therefore does not claim to audit the persistence rule.
 
 The backend does enforce exact Goal identity, objective revision, lead/authority,
 and legal current state. Documentation, Skills, and prompts must not describe the
@@ -539,9 +643,39 @@ Each authoritative transition writes its domain state and append-only Execution
 events in one SQL transaction. A failure before commit exposes no partial
 responsibility transition.
 
+The required atomic groups are:
+
+| Boundary | Must advance together | Why |
+| --- | --- | --- |
+| Goal mutation | Goal row version/status/objective revision, typed blocker or binding metadata, and Goal event | A reader must never observe a lifecycle state without its audit/recovery contract. |
+| Continuation reservation | Goal continuation count/version, scheduling event, and complete server-only launch receipt | A crash must neither consume an unowned round nor launch an uncounted round. |
+| Plan materialization/promotion | Execution/Plan aggregate mutation and pending Goal-confirmation receipt | Cross-domain Goal confirmation may lag, but it always has an exact durable recovery owner. |
+| Responsibility command | Assignment/Attempt/Submission/Acceptance/Work Item state and Execution events/outboxes created by that command | Model-visible success must correspond to one complete responsibility fact. |
+| Accepted review | Acceptance and pending completion-audit receipt | Process exit after review cannot strand a ready Execution. |
+| Execution completion | Terminal Execution event/state and completion-audit settlement | Recovery cannot re-complete or leave a pending receipt behind a terminal graph. |
+
+Round-local responsibility replacement happens synchronously from the successful
+service receipt before the next MCP call returns to dispatch. It is not another
+durable aggregate: every later call still revalidates the durable records. A
+review/retarget/successor-plan chain therefore clears predecessor Review/Work
+capabilities and binds the successor Execution in the same physical round, while
+an old explicit identity returns a structured terminal/superseded outcome.
+
 Materialization, assignment, submit, review, block, resume, takeover, abandon, and
 terminal completion all re-read current state and enforce compare-and-set fences.
 Callers must treat conflicts as a need to refresh, not as permission to overwrite.
+
+An accepted Acceptance and its pending `execution_completion_audits` receipt are
+committed in the same Review transaction. Foreground completion remains a separate
+authoritative transition: it re-reads the latest active Plan and blocker set under
+the Execution version fence. When completion commits, it marks the receipt
+`completed` in that same transaction as the terminal Execution event. Startup and
+periodic recovery scan pending receipts, defer paused or blocked graphs, discard
+non-completed terminal graphs, and retry `Complete` under fresh CAS. Migration
+backfill creates receipts for legacy active managed graphs that already contain an
+accepted current-Plan review. This recovery audit is backend readiness only; it
+does not synthesize or replace `audit_execution_alignment` or Goal
+`audit_objective_alignment` evidence.
 
 Every Goal mutation that also emits Goal audit events updates the Goal row and
 appends those events in one Goal repository transaction. Creation additionally
@@ -585,6 +719,13 @@ SQL orchestration state and the Room workspace ledger are not one cross-store
 transaction. Durable dispatch/review outboxes and reconciliation converge Room
 delivery with SQL state.
 
+The same rule applies to Goal-attributed collaboration: the source Goal remains
+authoritative in Goal SQL, while directed messages, public handoffs, queue/wake,
+target terminal, and source handback are separately durable, idempotent stages.
+They carry exact owner/Goal/revision/root identities and reconcile forward; they
+are never collapsed into one optimistic in-memory flag or treated as Goal
+mutation authority.
+
 The SQL transition remains authoritative. Late Room acknowledgements or runtime
 results must be rejected when the Assignment, Attempt, Plan, Execution, Goal
 revision, or binding is no longer current.
@@ -606,8 +747,9 @@ was interrupted; terminal fences still prevent late output from mutating state.
    the strict Plan Document. Runtime invoke/spawn/guard/loop-back/retry edges are
    observed read-only facts in the Execution Graph projection. Control outcomes
    use typed domain tools, not arbitrary edge writes.
-3. **No backend three-turn blocker audit.** The consecutive-turn rule is model
-   policy; backend validation covers identity, revision, authority, and state.
+3. **No backend three-turn blocker-count audit.** The consecutive-turn rule is
+   model policy; backend validation covers stable blocker identity, recovery
+   evidence, Goal identity, revision, authority, and state.
 4. **No public planless WorkGraph.** An Execution without an active non-empty Plan
    is transitional internal state.
 5. **No implicit managed evidence.** Runtime-only Subagents, ordinary Room
