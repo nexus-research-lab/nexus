@@ -9,7 +9,7 @@
 - `item/process/` 负责过程摘要、问答超时识别与 DM live 连续工具段纯投影；工具段只接收人工交互工具 ID 集合作为边界，不取得权限动作所有权。
 - `ui/` 只保留跨消息表面的头像、动作、轨道和统计；消息项私有视图不得上提到共享聚合文件。
 - `markdown-renderer.tsx` 只把消息文件产物协议适配到共享 Markdown；通用渲染能力归 `shared/ui/markdown/`。
-- `agent-handoff-status-context.tsx` 只桥接按 `handoff_id` 投影的 mention 阶段；状态真相仍属于 Room 面板，mention chip 只原位展示，不建立第二张 Agent 卡。
+- `agent-handoff-status-context.tsx` 只桥接按 `handoff_id` 投影的 mention 阶段；Room 面板从宿主 `handoff_reply` 恢复单调 `responded`，源 mention chip 只原位展示。目标消息头的“回应 @Agent”仅复用身份视觉，不建立 mention、wake 或第二张 Agent 卡。
 - DM/Room pending interaction 的唯一操作 owner 都是 Composer：消息内容与 Thread 只保留中性的等待确认过程证据，不得再次挂载权限、问答或计划确认组件，也不得用 warning 色或容器动画压过 Composer 决策按钮；消息活动文案共用低对比流光提示，但必须在系统减少动态效果时静态回退。
 - 单消费者逻辑留在拥有它的 controller/view；禁止重新建立聚合 helper 或通过根 barrel 暴露内部模型。
 - `MessageItem` 由 `item/message-item.tsx` 直接公开，消费者不得绕回消息目录聚合出口。

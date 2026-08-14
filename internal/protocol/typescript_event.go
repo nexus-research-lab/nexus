@@ -214,6 +214,7 @@ export interface ConversationMessage {
   stream_status?: 'pending' | 'streaming' | 'done' | 'cancelled' | 'error';
   result_summary?: Record<string, unknown>;
   agent_mentions?: AgentMention[];
+  handoff_reply?: PublicHandoffReply;
 }
 
 export interface AgentMention {
@@ -223,6 +224,12 @@ export interface AgentMention {
   start_rune: number;
   end_rune: number;
   handoff_id?: string;
+}
+
+export interface PublicHandoffReply {
+  handoff_id: string;
+  source_message_id: string;
+  source_agent_id: string;
 }
 
 export interface TurnPendingPermission {

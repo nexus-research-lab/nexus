@@ -1,3 +1,8 @@
+/**
+ * INPUT: controller 投影的 Assistant 状态、Agent 目录与视图动作。
+ * OUTPUT: 消息头、过程/最终内容、活动与页脚的唯一装配。
+ * POS: MessageItem controller 与 Assistant 子视图之间的展示边界。
+ */
 import { useCallback } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -52,11 +57,15 @@ export function MessageAssistantSection({
         <div className="nexus-chat-assistant group relative min-w-0">
           {showHeader ? (
             <AssistantMessageHeader
+              agentMentionDirectory={agentMentionDirectory}
               avatarUrl={currentAgentAvatar}
               automationTaskName={assistant.header.automationTaskName}
               canStop={assistant.header.canStop}
               compact={compact}
               headerAction={assistantHeaderAction}
+              handoffReplySourceAgentId={
+                assistant.header.handoffReply?.source_agent_id ?? null
+              }
               model={assistant.model}
               name={currentAgentName}
               onOpenContact={openContact}

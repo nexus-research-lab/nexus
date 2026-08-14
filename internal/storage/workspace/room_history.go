@@ -1,5 +1,5 @@
 // INPUT: Room inline overlay、成员 transcript 引用与 Agent 执行身份。
-// OUTPUT: 保留 root round、agent round 与 parent 关系的 Room 共享历史。
+// OUTPUT: 保留 root/agent round、parent 关系与 host-owned public handoff reply 因果的 Room 共享历史。
 // POS: Room 公区历史在 JSONL overlay 与成员 transcript 之间的持久化边界。
 package workspace
 
@@ -374,6 +374,7 @@ func buildRoomTranscriptReference(
 	copyRoomTranscriptReferenceIdentity(row, message, "agent_round_id")
 	copyRoomTranscriptReferenceIdentity(row, message, "parent_id")
 	copyRoomTranscriptReferenceValue(row, message, "agent_mentions")
+	copyRoomTranscriptReferenceValue(row, message, "handoff_reply")
 	copyRoomTranscriptReferenceValue(row, message, "display_order")
 	return row
 }
@@ -424,7 +425,7 @@ func overrideRoomTranscriptFields(target protocol.Message, source protocol.Messa
 			target[key] = value
 		}
 	}
-	for _, key := range []string{"agent_mentions", "display_order"} {
+	for _, key := range []string{"agent_mentions", "handoff_reply", "display_order"} {
 		if value, exists := source[key]; exists && value != nil {
 			target[key] = value
 		}

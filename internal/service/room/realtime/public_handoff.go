@@ -1,5 +1,5 @@
 // INPUT: Room 最终 assistant 公区消息、Goal-attributed directed wake、成员目录与 source slot 身份。
-// OUTPUT: 带 agent_mentions 标注的消息，以及固化 Goal revision、保留 owner/root scope、路由来源且可幂等恢复的 handoff ledger 记录。
+// OUTPUT: 分离 agent_mentions action 与 host-owned handoff_reply 因果的公区消息，以及固化 Goal revision、保留 owner/root scope、路由来源且可幂等恢复的 handoff ledger 记录。
 // POS: @ 解析、directed wake 与 handoff identity 的单一持久恢复边界。
 package realtime
 
@@ -97,6 +97,9 @@ func (s *Service) decorateRoomMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) {
+	// handoff_reply 只能从当前可信 slot 派生；runtime 在任何
+	// 非终态、私域或普通轮次伪造的同名字段都必须被清除。
+	delete(message, "handoff_reply")
 	setRoomDisplayOrder(slot, message)
 	if !roomShouldAnnotatePublicMessage(roundValue, slot, message) {
 		return
@@ -156,13 +159,18 @@ func (s *Service) annotatePublicAssistantMessageWithGoalBinding(
 	// 旧版 fanout 控制标记只做输入兼容，不再决定路由；每个有效 @ 都是
 	// 真实 handoff。清理后重新计算 span，确保偏移对应用户实际看到的文本。
 	cleaned := roomdomain.StripFanoutMarker(message)
-	// agent_mentions 是服务端派生字段，不能信任 runtime 传入的旧 handoff_id。
+	// agent_mentions 与 handoff_reply 都是服务端派生字段，不能
+	// 信任 runtime 传入的 mention action 或 reply lineage。
 	delete(cleaned, "agent_mentions")
+	delete(cleaned, "handoff_reply")
 	for key := range message {
 		delete(message, key)
 	}
 	for key, value := range cleaned {
 		message[key] = value
+	}
+	if reply := publicHandoffReplyForSlot(slot, message); reply != nil {
+		message["handoff_reply"] = reply
 	}
 	blocks := roomMentionTextBlocks(message["content"])
 	if len(blocks) == 0 {
@@ -199,6 +207,58 @@ func (s *Service) annotatePublicAssistantMessageWithGoalBinding(
 	}
 	message["agent_mentions"] = mentions
 	return storedGoalBinding, nil
+}
+
+// publicHandoffReplyForSlot 仅为宿主创建的 public mention target
+// 公开实质终态建立回复因果。该注解不是 mention，不会产生
+// wake，也不参与 Goal handback 或 capability admission。
+func publicHandoffReplyForSlot(
+	slot *activeRoomSlot,
+	message protocol.Message,
+) *protocol.PublicHandoffReply {
+	if slot == nil || strings.TrimSpace(slot.Trigger.TriggerType) != "public_mention" ||
+		!roomSlotPublishesPublicOutput(slot) ||
+		slot.getStatus() != "finished" ||
+		!roomdomain.IsFinalPublicAssistantMessage(message) ||
+		!publicHandoffReplyTerminalSucceeded(message) ||
+		roomdomain.IsNoReplyAssistantMessage(message) ||
+		strings.TrimSpace(messageutil.ExtractAssistantDisplayText(message)) == "" {
+		return nil
+	}
+	reply := &protocol.PublicHandoffReply{
+		HandoffID:       strings.TrimSpace(slot.handoffID()),
+		SourceMessageID: strings.TrimSpace(slot.replySourceMessage()),
+		SourceAgentID:   strings.TrimSpace(slot.Trigger.SourceAgentID),
+	}
+	if reply.HandoffID == "" || reply.SourceMessageID == "" ||
+		reply.SourceAgentID == "" || reply.SourceAgentID == strings.TrimSpace(slot.AgentID) {
+		return nil
+	}
+	return reply
+}
+
+// publicHandoffReplyTerminalSucceeded prevents a failed or interrupted target
+// card from looking like a successful reply. Runtime result projection keeps
+// terminal facts in result_summary, while older messages may expose them at the
+// top level, so both representations are fenced here.
+func publicHandoffReplyTerminalSucceeded(message protocol.Message) bool {
+	if message == nil || message["is_error"] == true || publicHandoffReplyFailureSubtype(message["subtype"]) {
+		return false
+	}
+	switch summary := message["result_summary"].(type) {
+	case map[string]any:
+		return summary["is_error"] != true && !publicHandoffReplyFailureSubtype(summary["subtype"])
+	case protocol.Message:
+		return summary["is_error"] != true && !publicHandoffReplyFailureSubtype(summary["subtype"])
+	default:
+		return true
+	}
+}
+
+func publicHandoffReplyFailureSubtype(value any) bool {
+	subtype := strings.ToLower(strings.TrimSpace(anyString(value)))
+	return subtype == "error" || strings.HasPrefix(subtype, "error_") ||
+		subtype == "interrupted" || subtype == "cancelled" || subtype == "canceled"
 }
 
 func (s *Service) detectRoomMentionHandoffs(

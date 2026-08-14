@@ -293,6 +293,8 @@ export const zhConversationMessages = {
   "room.agent_handoff_preparing": "交接中",
   "room.agent_handoff_queued": "排队中",
   "room.agent_handoff_active": "已交接",
+  "room.agent_handoff_responded": "已回应",
+  "room.agent_handoff_reply": "回应 @{name}",
   "room.agent_stop": "停止 Agent",
   "room.agent_stopping": "停止中…",
   "room.pause_member": "暂停 {name} 参与",

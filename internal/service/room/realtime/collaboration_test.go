@@ -1038,6 +1038,158 @@ func TestPublicInputBatchIgnoresStoredCursorWhenRuntimeCannotResume(t *testing.T
 
 // 公共移交意图测试。
 
+func TestPublicMentionReplyAnnotationIsHostOwnedAndSeparateFromReciprocalMention(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Conversation: protocol.ConversationRecord{ID: "conversation-reply-annotation"},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-lead"},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-researcher"},
+		},
+		MemberAgents: []protocol.Agent{
+			{AgentID: "agent-lead", Name: "Lead"},
+			{AgentID: "agent-researcher", Name: "Researcher"},
+		},
+	}
+	roundValue := &activeRoomRound{
+		Context: contextValue, ConversationID: contextValue.Conversation.ID,
+		RoomID: "room-reply-annotation", RootRoundID: "root-reply-annotation",
+	}
+	slot := &activeRoomSlot{
+		AgentID: "agent-researcher", AgentRoundID: "researcher-round",
+		Trigger: roomTrigger{
+			TriggerType: "public_mention", SourceAgentID: "agent-lead",
+			TargetAgentID: "agent-researcher",
+		},
+	}
+	slot.setDeliveryMetadata(protocol.RoomReplyRoute{}, "lead-public-message", "rh-lead-to-researcher")
+	slot.setStatus("finished")
+	service := &Service{}
+
+	plainReply := protocol.Message{
+		"message_id": "researcher-public-reply", "role": "assistant", "is_complete": true,
+		"handoff_reply": map[string]any{
+			"handoff_id": "runtime-forged", "source_message_id": "forged-message",
+			"source_agent_id": "forged-agent",
+		},
+		"content": []map[string]any{{"type": "text", "text": "核对结论已完成。"}},
+	}
+	service.decorateRoomMessage(roundValue, slot, plainReply)
+	reply := protocol.NormalizePublicHandoffReply(plainReply["handoff_reply"])
+	if reply == nil || reply.HandoffID != "rh-lead-to-researcher" ||
+		reply.SourceMessageID != "lead-public-message" || reply.SourceAgentID != "agent-lead" {
+		t.Fatalf("handoff_reply must be re-derived from trusted slot: %+v", plainReply)
+	}
+	if mentions := protocolAgentMentions(plainReply["agent_mentions"]); len(mentions) != 0 {
+		t.Fatalf("plain handoff reply must not invent a reciprocal mention: %+v", mentions)
+	}
+
+	reciprocalReply := protocol.Message{
+		"message_id": "researcher-reciprocal-reply", "role": "assistant", "is_complete": true,
+		"content": []map[string]any{{"type": "text", "text": "@Lead 请继续下一项核对。"}},
+	}
+	service.decorateRoomMessage(roundValue, slot, reciprocalReply)
+	reply = protocol.NormalizePublicHandoffReply(reciprocalReply["handoff_reply"])
+	mentions := protocolAgentMentions(reciprocalReply["agent_mentions"])
+	if reply == nil || reply.HandoffID != "rh-lead-to-researcher" || len(mentions) != 1 ||
+		mentions[0].AgentID != "agent-lead" || mentions[0].HandoffID == "" ||
+		mentions[0].HandoffID == reply.HandoffID {
+		t.Fatalf("reply lineage and reciprocal action must coexist with distinct identities: reply=%+v mentions=%+v", reply, mentions)
+	}
+}
+
+func TestPublicHandoffReplyAnnotationRejectsPrivateNoReplyAndOrdinaryRounds(t *testing.T) {
+	roundValue := &activeRoomRound{
+		Context: &protocol.ConversationContextAggregate{
+			Conversation: protocol.ConversationRecord{ID: "conversation-reply-negative"},
+		},
+		ConversationID: "conversation-reply-negative", RoomID: "room-reply-negative",
+	}
+	newSlot := func(triggerType string, route protocol.RoomReplyRoute) *activeRoomSlot {
+		slot := &activeRoomSlot{
+			AgentID: "agent-target",
+			Trigger: roomTrigger{TriggerType: triggerType, SourceAgentID: "agent-source"},
+		}
+		slot.setDeliveryMetadata(route, "source-message", "rh-negative")
+		slot.setStatus("finished")
+		return slot
+	}
+	newMessage := func(text string) protocol.Message {
+		return protocol.Message{
+			"message_id": "target-message", "role": "assistant", "is_complete": true,
+			"handoff_reply": map[string]any{
+				"handoff_id": "runtime-forged", "source_message_id": "forged-message",
+				"source_agent_id": "forged-agent",
+			},
+			"content": []map[string]any{{"type": "text", "text": text}},
+		}
+	}
+	tests := []struct {
+		name    string
+		slot    *activeRoomSlot
+		message protocol.Message
+	}{
+		{
+			name:    "private reply",
+			slot:    newSlot("public_mention", protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePrivate, Recipients: []string{"agent-source"}}),
+			message: newMessage("私域回复"),
+		},
+		{
+			name:    "no reply",
+			slot:    newSlot("public_mention", protocol.RoomReplyRoute{}),
+			message: newMessage("<nexus_room_no_reply/>"),
+		},
+		{
+			name:    "ordinary round",
+			slot:    newSlot("public_chat", protocol.RoomReplyRoute{}),
+			message: newMessage("普通回复"),
+		},
+		{
+			name: "preterminal assistant frame",
+			slot: func() *activeRoomSlot {
+				slot := newSlot("public_mention", protocol.RoomReplyRoute{})
+				slot.setStatus("running")
+				return slot
+			}(),
+			message: newMessage("尚未收到 terminal result"),
+		},
+		{
+			name: "error result",
+			slot: func() *activeRoomSlot {
+				slot := newSlot("public_mention", protocol.RoomReplyRoute{})
+				slot.setStatus("error")
+				return slot
+			}(),
+			message: func() protocol.Message {
+				message := newMessage("执行失败")
+				message["result_summary"] = map[string]any{"subtype": "error", "is_error": true}
+				return message
+			}(),
+		},
+		{
+			name: "interrupted result",
+			slot: func() *activeRoomSlot {
+				slot := newSlot("public_mention", protocol.RoomReplyRoute{})
+				slot.setStatus("interrupted")
+				return slot
+			}(),
+			message: func() protocol.Message {
+				message := newMessage("已停止")
+				message["result_summary"] = map[string]any{"subtype": "interrupted", "is_error": false}
+				return message
+			}(),
+		},
+	}
+	service := &Service{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service.decorateRoomMessage(roundValue, tt.slot, tt.message)
+			if reply := protocol.NormalizePublicHandoffReply(tt.message["handoff_reply"]); reply != nil {
+				t.Fatalf("non-public-handoff output must not retain reply annotation: %+v", reply)
+			}
+		})
+	}
+}
+
 func TestAnnotatePublicAssistantMessageCreatesHandoffForEveryMention(t *testing.T) {
 	contextValue := &protocol.ConversationContextAggregate{
 		Conversation: protocol.ConversationRecord{ID: "conversation-intent"},

@@ -107,6 +107,11 @@ func TestRoomGoalOnlyPublicMentionHandbackImmediatelyContinues(t *testing.T) {
 	service.SetGoalContextProvider(goalService)
 
 	sessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := &realtimeTestSender{
+		key:    "room-goal-only-public-handoff",
+		events: make(chan protocol.EventMessage, 512),
+	}
+	permission.BindSession(sessionKey, sender)
 	goalCommand, err := service.SetGoalFromCommand(ctx, protocol.GoalCommandRequest{
 		SessionKey:      sessionKey,
 		Objective:       "由 Lead 通过公区 @Researcher 完成一次 Goal-only 协作核对。",
@@ -197,6 +202,34 @@ func TestRoomGoalOnlyPublicMentionHandbackImmediatelyContinues(t *testing.T) {
 	if handoff.TargetRoundID == "" || handoff.TargetAgentRoundID == "" ||
 		handoff.TargetRoundID == handoff.TargetAgentRoundID {
 		t.Fatalf("target root/slot identities were not kept distinct: %+v", handoff)
+	}
+	events := collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeMessage &&
+			event.MessageID == "researcher-goal-only-result" &&
+			event.Data["role"] == "assistant" && event.Data["is_complete"] == true &&
+			protocol.NormalizePublicHandoffReply(event.Data["handoff_reply"]) != nil
+	})
+	var researcherReply protocol.Message
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeMessage &&
+			event.MessageID == "researcher-goal-only-result" &&
+			event.Data["role"] == "assistant" && event.Data["is_complete"] == true &&
+			protocol.NormalizePublicHandoffReply(event.Data["handoff_reply"]) != nil {
+			researcherReply = protocol.Message(event.Data)
+			break
+		}
+	}
+	if researcherReply == nil {
+		t.Fatalf("Goal-only researcher public reply missing from realtime events: %+v", events)
+	}
+	reply := protocol.NormalizePublicHandoffReply(researcherReply["handoff_reply"])
+	if reply == nil || reply.HandoffID != handoff.HandoffID ||
+		reply.SourceMessageID != "lead-goal-only-public-mention" ||
+		reply.SourceAgentID != lead.AgentID {
+		t.Fatalf("Goal-only public reply annotation = %+v, message=%+v", reply, researcherReply)
+	}
+	if researcherReply["agent_mentions"] != nil {
+		t.Fatalf("no-@ Goal-only reply must not synthesize a reciprocal mention: %+v", researcherReply)
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for len(runtimeManager.GetRunningRoundIDs(sessionKey)) > 0 && time.Now().Before(deadline) {

@@ -823,7 +823,7 @@ test("public handoff correlation survives ACK, active execution, and terminal li
   assert.equal(terminal[0].phase, "terminal");
 });
 
-test("Room handoff mention phases are realtime-only, monotonic, and reconnect-safe", async () => {
+test("Room handoff mention phases are host-acknowledged, monotonic, and reconnect-safe", async () => {
   const { projectRoomAgentHandoffStatuses } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/panel/controller/room-handoff-status-model.ts",
   );
@@ -844,9 +844,26 @@ test("Room handoff mention phases are realtime-only, monotonic, and reconnect-sa
     message_id: "source-message",
     role: "assistant",
     round_id: "root-round",
+    result_summary: { is_error: false, subtype: "success" },
     session_key: "room:group:conversation",
     stream_status: "done",
     timestamp: 10,
+  };
+  const targetReplyMessage = {
+    agent_id: "agent-target",
+    content: [{ text: "已完成检查。", type: "text" }],
+    handoff_reply: {
+      handoff_id: handoffId,
+      source_agent_id: "agent-source",
+      source_message_id: liveFinalMessage.message_id,
+    },
+    is_complete: true,
+    message_id: "target-reply-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    stream_status: "done",
+    timestamp: 13,
   };
 
   assert.deepEqual(
@@ -858,6 +875,19 @@ test("Room handoff mention phases are realtime-only, monotonic, and reconnect-sa
     }),
     {},
     "history reload must not resurrect a completed handoff from mention metadata alone",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        { ...liveFinalMessage, delivery_mode: undefined },
+        targetReplyMessage,
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "responded",
+    "host-signed reply must restore history even without a result_summary",
   );
   assert.equal(
     projectRoomAgentHandoffStatuses({
@@ -935,6 +965,76 @@ test("Room handoff mention phases are realtime-only, monotonic, and reconnect-sa
     "active",
     "a reconnect pending snapshot must restore the handoff without realtime message flags",
   );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [{
+        agent_id: "agent-target",
+        agent_round_id: "agent-round-target",
+        display_order: 1,
+        first_seen_at: 12,
+        handoff_id: handoffId,
+        phase: "active",
+        round_id: "root-round",
+        status: "streaming",
+      }],
+      inputQueueItems: [],
+      messages: [liveFinalMessage, targetReplyMessage],
+      pendingSlots: [],
+    })[handoffId],
+    "responded",
+    "late execution snapshots cannot regress an acknowledged response",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        liveFinalMessage,
+        {
+          ...targetReplyMessage,
+          handoff_reply: {
+            ...targetReplyMessage.handoff_reply,
+            source_message_id: "different-source-message",
+          },
+        },
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+    "a reply for another source message must not acknowledge this mention",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        liveFinalMessage,
+        {
+          ...targetReplyMessage,
+          handoff_reply: {
+            ...targetReplyMessage.handoff_reply,
+            source_agent_id: "different-source-agent",
+          },
+        },
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+    "a reply with mismatched source Agent identity must fail closed",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        liveFinalMessage,
+        { ...targetReplyMessage, agent_id: "different-target-agent" },
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+    "a reply from a different target Agent must fail closed",
+  );
 });
 
 test("Agent mention chip updates one inline handoff surface without adding a reply card", async () => {
@@ -952,6 +1052,7 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
     "room.agent_handoff_active": "已交接",
     "room.agent_handoff_preparing": "交接中",
     "room.agent_handoff_queued": "排队中",
+    "room.agent_handoff_responded": "已回应",
   };
   const html = renderToStaticMarkup(createElement(
     I18N_CONTEXT.Provider,
@@ -964,7 +1065,7 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
     },
     createElement(
       AgentHandoffStatusProvider,
-      { statuses: { "handoff-room-1": "queued" } },
+      { statuses: { "handoff-room-1": "responded" } },
       createElement(
         AgentMentionChip,
         {
@@ -978,13 +1079,153 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
   ));
 
   assert.match(html, /@Target/);
-  assert.match(html, /排队中/);
+  assert.match(html, /已回应/);
   assert.equal(
     html.match(/role="status"/g)?.length,
     1,
     "handoff feedback must stay inside the single mention chip",
   );
   assert.doesNotMatch(html, /data-room-agent-execution-shell/);
+});
+
+test("Room handoff reply header uses a non-action @ identity chip", async () => {
+  const { AssistantMessageHeader } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-header.tsx",
+  );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const translations = {
+    "composer.stop_generation": "停止",
+    "message.assistant_fallback": "协作成员",
+    "room.agent_contact_open": "打开 Lead 的联络",
+    "room.agent_handoff_reply": "回应 @Lead",
+  };
+  const html = renderToStaticMarkup(createElement(
+    I18N_CONTEXT.Provider,
+    {
+      value: {
+        locale: "zh",
+        setLocale: () => {},
+        t: (key) => translations[key] ?? key,
+      },
+    },
+    createElement(AssistantMessageHeader, {
+      agentMentionDirectory: { names: { "agent-lead": "Lead" } },
+      canStop: false,
+      compact: false,
+      handoffReplySourceAgentId: "agent-lead",
+      name: "Researcher",
+      onStop: () => {},
+      showMetadata: false,
+    }),
+  ));
+
+  assert.match(html, /回应 @Lead/);
+  assert.match(html, /data-handoff-reply="true"/);
+  assert.doesNotMatch(html, /<a\b|href=|agent:\/\//);
+  assert.doesNotMatch(
+    html,
+    /<button\b/,
+    "the host receipt must not become a contact or wake action",
+  );
+});
+
+test("host final handoff reply without result summary stays separate from body @mention", async () => {
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const text = { text: "@Lead 请继续下一步。", type: "text" };
+  const message = {
+    agent_id: "agent-target",
+    agent_mentions: [{
+      agent_id: "agent-lead",
+      content_block_index: 0,
+      end_rune: 5,
+      handoff_id: "reciprocal-handoff",
+      label: "@Lead",
+      start_rune: 0,
+    }],
+    content: [text],
+    handoff_reply: {
+      handoff_id: "incoming-handoff",
+      source_agent_id: "agent-lead",
+      source_message_id: "source-message",
+    },
+    is_complete: true,
+    message_id: "assistant-final",
+    parent_id: "user-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    timestamp: 13,
+  };
+  const entry = {
+    block: text,
+    mergedIndex: 0,
+    sourceMessageId: message.message_id,
+    sourceOrder: 0,
+  };
+  const projection = resolveMessageItemFinalProjection({
+    assistantContentMode: "room_result",
+    assistantMessages: [message],
+    orderedProjection: { content: [text], streamingIndexes: new Set() },
+    resultSummary: undefined,
+    roundId: message.round_id,
+    streamingBlockIndexes: new Set(),
+    userMessageId: message.parent_id,
+    visibleAssistantTurns: [{
+      content: [text],
+      messageId: message.message_id,
+      streamingIndexes: new Set(),
+      textContent: [text],
+      textStreamingIndexes: new Set(),
+    }],
+    visibleOrderedAssistantEntries: [entry],
+  });
+
+  assert.equal(projection.finalAssistantContent[0].text, text.text);
+  assert.equal(
+    projection.finalAssistantMentions[0].handoff_id,
+    "reciprocal-handoff",
+  );
+  assert.equal(
+    projection.finalAssistantHandoffReply.handoff_id,
+    "incoming-handoff",
+  );
+});
+
+test("handoff reply survives equal-content history merge and stale realtime snapshots", async () => {
+  const { mergeLoadedMessages, upsertMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+  const base = {
+    agent_id: "agent-target",
+    content: [{ text: "已完成检查。", type: "text" }],
+    is_complete: true,
+    message_id: "target-reply-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    stop_reason: "end_turn",
+    timestamp: 13,
+  };
+  const handoffReply = {
+    handoff_id: "handoff-room-1",
+    source_agent_id: "agent-source",
+    source_message_id: "source-message",
+  };
+  const merged = mergeLoadedMessages(
+    [{ ...base, handoff_reply: handoffReply }],
+    [base],
+  );
+
+  assert.deepEqual(merged[0].handoff_reply, handoffReply);
+  assert.deepEqual(
+    upsertMessage(merged, { ...base, timestamp: 14 })[0].handoff_reply,
+    handoffReply,
+    "a later snapshot without the annotation must not erase a durable response",
+  );
 });
 
 test("input queue ACK resolves only accepted requests", async () => {

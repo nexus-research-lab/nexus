@@ -88,7 +88,7 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 平台不从 Agent 的通信方向推断业务拓扑，也不禁止 reciprocal handoff。只要是不同消息中的显式新 `@`，`A → B → A`、peer 间继续讨论或多人先后回交给同一成员都是真实 handoff；是否继续协作由 Agent 的明确表达和 Room Skill 决定。多个来源同时指向同一忙碌 Agent 时，每条 handoff 都独立持久化并按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
 
-公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容或 Execution capability 带给目标 Agent。目标 Agent 应输出新的对话贡献或一次性结果，而不是复述触发消息。只有在确实需要另一位参与者继续对话时才用带明确下一步的 `@成员`；managed work 完成后必须调用 `submit_work`，系统用 durable review outbox 自动回交 reviewer，正确性不依赖正文里的 `@协调者`。公开回复可以展示交付，但不能代替或事后转化为 Submission、Acceptance 或 Assignment。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
+公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容或 Execution capability 带给目标 Agent。目标 Agent 应输出新的对话贡献或一次性结果，而不是复述触发消息。目标 Agent 的 final reply 本身已由宿主关联回 source handoff；不得仅为称呼 source、确认交付或让 source 继续/收尾而写 `@source`。只有确实要求 source 产生一个独立的新增对话贡献时，才可发出 reciprocal `@source`，届时它是一条新的真实 handoff，而不是回执。只有在确实需要另一位参与者继续对话时才用带明确下一步的 `@成员`；managed work 完成后必须调用 `submit_work`，系统用 durable review outbox 自动回交 reviewer，正确性不依赖正文里的 `@协调者`。公开回复可以展示交付，但不能代替或事后转化为 Submission、Acceptance 或 Assignment。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
 
 若 source round 是精确授权的 Room Goal continuation，handoff 还会携带 host-only 的 Goal ID/objective revision 协作归因。它只把协作者终态回连到该 revision，绝不传播 `GoalAuthorityState`，因此 target 仍是普通 conversation round，不能调用 Goal mutation。同一物理 round 成功执行 `retarget_goal` 后，后续公区 `@`、带 wake 的 directed message 和 round 终态记账必须读取该服务端成功 mutation receipt 已确认的新 revision；仅消费另一个 round 的 objective steering 不得把 predecessor round 的协作归因升级到新 revision。归因在首次写入 handoff ledger 时固化，后续 wake、InputQueue 与恢复只能复用该快照，不能再次从 live state 推算。归因必须随 Room handoff ledger、directed-message record、InputQueue 和恢复重放保持；Goal-directed message 落盘后、任何 immediate/delayed 调度前即用确定性 ID 建立 handoff。启动恢复还会反向扫描带归因的 directed-message 事实，只为仍处于 active 的精确 Goal revision 补建被崩溃打断的 message→handoff 写入；旧 revision 不会复活。同一协作者继续 `@` 或私域回交时可传播归因，但每一轮仍不获得 mutation authority。Goal-attributed handoff 不得降级为既有 busy slot 的普通 guide，必须保留可单独收口的 queue/target round 身份。ledger 把 target terminal 与 Goal handback 记为两个独立 durable 阶段：即使进程在两者之间崩溃，启动恢复也必须先恢复公开证据（如有）、清除旧源 round 错写的 empty-progress 抑制，再交给新的有权限 continuation。handback 不重置 continuation count，不能绕过自动续跑上限。终态的公开实质回复可记录 Room-visible Goal evidence，但该证据只用于审计和展示，不参与 Goal complete 判定；私域回复只恢复续跑，不形成公开证据；no-reply、失败、中断或已过期 revision 不记录证据。对归因字段上线前遗留的终态 root，启动器只在当前 active Goal 的最新非 usage 审计事件是该 root source Agent round 的 `continuation_suppressed`、root 内全部边已终态、且同 root 存在非 Lead 的公开实质终态时补写精确当前 revision；不得从消息正文、目标措辞或相邻时间猜测旧归因。
 
@@ -119,6 +119,25 @@ Room 成员数量不产生 Goal 协作门槛。complete 时宿主仍在同一 co
 - `<nexus_room_fanout/>` 是旧版兼容标记，不再改变路由；服务端仍会剥离它，确保其不进入正文、历史、上下文或时间线。
 - 消息不持久化 avatar URL；前端按当前 Room agent directory 解析头像，找不到成员时使用 `label` 和 initials 兜底。
 - 解析不明确、目标已移除或位于代码/链接 destination 中的 `@` 保留为普通文本，不创建 handoff。
+
+public mention 目标的公开实质终态还必须携带宿主派生的回复因果注解：
+
+```json
+{
+  "handoff_reply": {
+    "handoff_id": "rh_...",
+    "source_message_id": "msg_...",
+    "source_agent_id": "agent-lead"
+  }
+}
+```
+
+- `handoff_reply` 只能从当前 target slot 的可信 handoff identity 派生；runtime 输入的同名字段必须被清除。
+- 该注解是“此终态回应哪条公区交接”的非动作投影，不属于 `agent_mentions`，不改写正文或 `parent_id`，也不创建 wake、queue、capability 或 Goal handback。
+- runtime 的完整 assistant frame 早于 terminal result 时不得提前携带该注解；只有 slot 成功终态后，宿主才以同一 `message_id` 持久化并补发带注解的 durable message update。客户端按稳定消息身份单调合并，迟到或旧历史中缺失该字段的快照不得擦除已确认的回复因果。
+- 同一终态若正文又有真实 `@Lead`，它同时保留 `handoff_reply` 来源因果与新 `agent_mentions` action：前者回应上一跳，后者才启动下一跳。
+- 私域 reply、`<nexus_room_no_reply/>`、空输出、失败/中断与普通非 handoff round 不产生公区 `handoff_reply`。
+- 注解必须随实时 message event、Room transcript reference 和历史 turn 同构保留。它不包含 Goal ID/objective revision；Goal 归因、target terminal 与 handback settled 仍分别以 handoff/Goal ledger 为真相源，不得从该投影反推。
 
 ### 4.4 主动公区广播
 

@@ -1,9 +1,18 @@
+/**
+ * INPUT: Assistant 身份、结算元数据与宿主 public handoff reply 来源。
+ * OUTPUT: 消息头部、不可点击的“回应 @Agent”标注与可选停止动作。
+ * POS: Assistant 消息头视图，不解析正文 mention 也不发起通讯。
+ */
 import type { ReactNode } from "react";
 import { Bot, Clock3, Square } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
+import {
+  AgentHandoffReplyChip,
+  type AgentMentionDirectory,
+} from "../../../agent-mention-chip";
 import { formatMessageTime } from "../../../message-time";
 import { MessageActionButton } from "../../../ui/message-action-button";
 import { MessageAvatar } from "../../../ui/message-avatar";
@@ -13,7 +22,9 @@ interface AssistantMessageHeaderProps {
   automationTaskName?: string | null;
   canStop: boolean;
   compact: boolean;
+  agentMentionDirectory?: AgentMentionDirectory;
   headerAction?: ReactNode;
+  handoffReplySourceAgentId?: string | null;
   model?: string;
   name?: string | null;
   onOpenContact?: () => void;
@@ -32,7 +43,9 @@ export function AssistantMessageHeader({
   automationTaskName,
   canStop,
   compact,
+  agentMentionDirectory,
   headerAction,
+  handoffReplySourceAgentId,
   model,
   name,
   onOpenContact,
@@ -60,6 +73,12 @@ export function AssistantMessageHeader({
         {displayName}
       </span>
       <AssistantAutomationBadge taskName={automationTaskName} />
+      {handoffReplySourceAgentId ? (
+        <AgentHandoffReplyChip
+          agentId={handoffReplySourceAgentId}
+          directory={agentMentionDirectory}
+        />
+      ) : null}
       {showMetadata ? (
         <>
           <AssistantTimestamp timestamp={timestamp} />
