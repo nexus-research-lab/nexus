@@ -24,7 +24,7 @@ function isRequestAcceptanceUnknown(error: unknown): error is Error {
 function readConfirmationIdentity(
   error: unknown,
 ): ComposerGoalConfirmationIdentity | null {
-  if (!isRequestAcceptanceUnknown(error) || !("correlation" in error)) {
+  if (!(error instanceof Error) || !("correlation" in error)) {
     return null;
   }
   const correlation = error.correlation;
@@ -99,6 +99,7 @@ export function useComposerGoalActions({
       failGoalSubmission(
         submission,
         error instanceof Error ? error.message : fallbackErrorMessage,
+        readConfirmationIdentity(error),
       );
       return;
     }
@@ -119,6 +120,7 @@ export function useComposerGoalActions({
       failGoalSubmission(
         submission,
         error instanceof Error ? error.message : fallbackErrorMessage,
+        readConfirmationIdentity(error),
       );
     }
   }, [
@@ -192,6 +194,7 @@ export function useComposerGoalActions({
       failGoalSubmission(
         submission,
         error instanceof Error ? error.message : fallbackErrorMessage,
+        readConfirmationIdentity(error),
       );
       throw error;
     }
@@ -209,6 +212,7 @@ export function useComposerGoalActions({
       failGoalSubmission(
         submission,
         error instanceof Error ? error.message : fallbackErrorMessage,
+        readConfirmationIdentity(error),
       );
       throw error;
     }

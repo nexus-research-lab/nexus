@@ -1,7 +1,7 @@
 /**
  * INPUT: 当前 Composer Goal 提交作用域与 owner-scoped durable Goal 快照。
- * OUTPUT: 只在原始 objective（含服务端 source_objective）匹配时收口确认中提交。
- * POS: Goal REST 正向证据到 Composer 提交状态的精确对账边界。
+ * OUTPUT: 只在原始 objective（含服务端 source_objective）匹配时收口确认中提交或精确失败恢复回执。
+ * POS: Goal REST/控制记录正向证据到 Composer 提交状态的精确对账边界。
  */
 
 import { useCallback, useEffect, useRef } from "react";
@@ -10,10 +10,18 @@ import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import type { Goal } from "@/types/conversation/goal";
 import type { Message } from "@/types/conversation/message/entity";
 
-import { useComposerDraftStore } from "./composer-draft-store";
+import {
+  type ComposerGoalRecovery,
+  type ComposerGoalSubmissionState,
+  useComposerDraftStore,
+} from "./composer-draft-store";
 import { observeComposerGoal } from "./composer-goal-observation";
 
 const SOURCE_OBJECTIVE_METADATA_KEY = "source_objective";
+
+type ComposerGoalReconciliationTarget =
+  | { kind: "recovery"; value: ComposerGoalRecovery }
+  | { kind: "submission"; value: ComposerGoalSubmissionState };
 
 /** durable Goal 是 ACK 丢失后的正向证据；其他 scope 或其他目标不得误收口。 */
 export function reconcileComposerGoalSubmission(
@@ -24,18 +32,19 @@ export function reconcileComposerGoalSubmission(
     return false;
   }
   const state = useComposerDraftStore.getState();
-  const submission = state.goal_submission_by_scope[scopeKey];
+  const target = readReconciliationTarget(scopeKey);
   if (
-    !submission
-    || submission.phase !== "confirming"
-    || !isNewerThanBaseline(goal, submission.baselineGoal)
-    || !matchesSubmittedObjective(goal, submission.submittedDraft.input)
+    !target
+    || !isNewerThanBaseline(goal, target.value.baselineGoal)
+    || !matchesSubmittedObjective(goal, target.value.submittedDraft.input)
   ) {
     observeComposerGoal(scopeKey, goal);
     return false;
   }
   observeComposerGoal(scopeKey, goal);
-  return state.complete_goal_submission(submission);
+  return target.kind === "submission"
+    ? state.complete_goal_submission(target.value)
+    : state.complete_goal_recovery(target.value);
 }
 
 /**
@@ -47,9 +56,9 @@ export function reconcileComposerGoalSubmissionFromMessages(
   messages: readonly Message[],
 ): boolean {
   const state = useComposerDraftStore.getState();
-  const submission = state.goal_submission_by_scope[scopeKey];
-  const owner = submission?.confirmationIdentity;
-  if (!submission || submission.phase !== "confirming" || !owner) {
+  const target = readReconciliationTarget(scopeKey);
+  const owner = target?.value.confirmationIdentity;
+  if (!target || !owner) {
     return false;
   }
   const hasDurableControlRecord = messages.some((message) => (
@@ -59,9 +68,12 @@ export function reconcileComposerGoalSubmissionFromMessages(
     && message.metadata?.subtype === "goal_set"
     && areEquivalentSessionKeys(message.session_key, owner.sessionKey)
   ));
-  return hasDurableControlRecord
-    ? state.complete_goal_submission(submission)
-    : false;
+  if (!hasDurableControlRecord) {
+    return false;
+  }
+  return target.kind === "submission"
+    ? state.complete_goal_submission(target.value)
+    : state.complete_goal_recovery(target.value);
 }
 
 /**
@@ -73,9 +85,21 @@ export function useComposerGoalSubmissionReconciliation(
   messages: readonly Message[],
 ): (goal: Goal | null) => void {
   const currentGoalRef = useRef<Goal | null>(null);
-  const submissionPhase = useComposerDraftStore(
-    (state) => state.goal_submission_by_scope[scopeKey]?.phase ?? null,
-  );
+  const reconciliationOwner = useComposerDraftStore((state) => {
+    const submission = state.goal_submission_by_scope[scopeKey];
+    if (submission?.phase === "confirming") {
+      return `submission:${submission.submissionId}`;
+    }
+    const recovery = state.goal_recovery_by_scope[scopeKey];
+    return recovery
+      ? [
+          "recovery",
+          recovery.submissionId,
+          recovery.restoredDraftRevision,
+          recovery.confirmationIdentity.clientMessageId,
+        ].join(":")
+      : null;
+  });
   const reconcile = useCallback((goal: Goal | null) => {
     currentGoalRef.current = goal;
     if (!goal) {
@@ -85,16 +109,28 @@ export function useComposerGoalSubmissionReconciliation(
     reconcileComposerGoalSubmission(scopeKey, goal);
   }, [scopeKey]);
   useEffect(() => {
-    if (submissionPhase === "confirming" && currentGoalRef.current) {
+    if (reconciliationOwner && currentGoalRef.current) {
       reconcileComposerGoalSubmission(scopeKey, currentGoalRef.current);
     }
-  }, [scopeKey, submissionPhase]);
+  }, [reconciliationOwner, scopeKey]);
   useEffect(() => {
-    if (submissionPhase === "confirming") {
+    if (reconciliationOwner) {
       reconcileComposerGoalSubmissionFromMessages(scopeKey, messages);
     }
-  }, [messages, scopeKey, submissionPhase]);
+  }, [messages, reconciliationOwner, scopeKey]);
   return reconcile;
+}
+
+function readReconciliationTarget(
+  scopeKey: string,
+): ComposerGoalReconciliationTarget | null {
+  const state = useComposerDraftStore.getState();
+  const submission = state.goal_submission_by_scope[scopeKey];
+  if (submission?.phase === "confirming") {
+    return { kind: "submission", value: submission };
+  }
+  const recovery = state.goal_recovery_by_scope[scopeKey];
+  return recovery ? { kind: "recovery", value: recovery } : null;
 }
 
 function isNewerThanBaseline(

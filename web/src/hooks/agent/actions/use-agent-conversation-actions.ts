@@ -34,6 +34,7 @@ import type { OutboundRequestDescriptor } from "./outbound-request";
 import { createOutboundRequestDescriptor } from "./outbound-request";
 import { buildSessionBindMessage } from "./conversation-command-builders";
 import {
+  RequestAcceptanceRejectedError,
   RequestAcceptanceUnknownError,
   type RequestAcceptanceCorrelation,
 } from "./use-pending-request-acks";
@@ -163,7 +164,13 @@ export function useAgentConversationActions({
             },
             onRejected: (reason) => {
               trackPendingRequestAck(preparedRequest.client_request_id, true);
-              rejectPendingRequestAck(preparedRequest.client_request_id, reason);
+              rejectPendingRequestAck(
+                preparedRequest.client_request_id,
+                new RequestAcceptanceRejectedError(
+                  reason,
+                  acceptanceCorrelation,
+                ),
+              );
             },
             onTimeout: () => {
               trackPendingRequestAck(preparedRequest.client_request_id, true);
@@ -220,6 +227,13 @@ export function useAgentConversationActions({
         client_message_id: clientMessageId,
         client_request_id: requestId,
       } = request;
+      const requestAcceptanceCorrelation = requestSessionKey
+        ? {
+            clientMessageId,
+            clientRequestId: requestId,
+            sessionKey: requestSessionKey,
+          } satisfies RequestAcceptanceCorrelation
+        : null;
       trackPendingRequestAck(
         requestId,
         options.preserveTransportAcrossUnmount,
@@ -234,14 +248,20 @@ export function useAgentConversationActions({
               resolvePendingRequestAck(requestId);
             },
             onRejected: (reason) => {
-              rejectPendingRequestAck(requestId, reason);
+              rejectPendingRequestAck(
+                requestId,
+                new RequestAcceptanceRejectedError(
+                  reason,
+                  requestAcceptanceCorrelation,
+                ),
+              );
             },
             onTimeout: () => {
               rejectPendingRequestAck(
                 requestId,
                 new RequestAcceptanceUnknownError(
                   "暂时无法确认 Goal 是否已受理；正在核对 Goal 状态",
-                  acceptanceCorrelation,
+                  requestAcceptanceCorrelation,
                 ),
               );
             },
@@ -282,10 +302,10 @@ export function useAgentConversationActions({
         const currentSessionKey = actionContextRef.current.activeSessionKeyRef.current
           ?? actionContextRef.current.sessionKey;
         const ownerError = error instanceof RequestAcceptanceUnknownError
-          && acceptanceCorrelation
+          && requestAcceptanceCorrelation
           ? new RequestAcceptanceUnknownError(
               error.message,
-              acceptanceCorrelation,
+              requestAcceptanceCorrelation,
             )
           : error;
         if (

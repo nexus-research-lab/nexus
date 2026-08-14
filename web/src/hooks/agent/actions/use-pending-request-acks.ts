@@ -35,6 +35,20 @@ export class RequestAcceptanceUnknownError extends Error {
   }
 }
 
+/** 后端明确拒绝仍保留 request identity，供 durable 事实晚到时精确纠偏。 */
+export class RequestAcceptanceRejectedError extends Error {
+  readonly correlation: RequestAcceptanceCorrelation | null;
+
+  constructor(
+    message: string,
+    correlation: RequestAcceptanceCorrelation | null = null,
+  ) {
+    super(message);
+    this.name = "RequestAcceptanceRejectedError";
+    this.correlation = correlation;
+  }
+}
+
 export function createPendingRequestAckRegistry(): PendingRequestAckRegistry {
   return {
     pending: new Map(),

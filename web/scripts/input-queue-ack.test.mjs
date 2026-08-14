@@ -236,6 +236,9 @@ test("request ACK registry handles ACK and error before waiter registration", as
   const { RequestAcceptanceUnknownError } = await server.ssrLoadModule(
     "/src/hooks/agent/actions/use-request-ack-failure.ts",
   );
+  const { RequestAcceptanceRejectedError } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-pending-request-acks.ts",
+  );
 
   const acknowledged = createPendingRequestAckRegistry();
   trackPendingRequestAck(acknowledged, "req-ack-first", true);
@@ -250,9 +253,17 @@ test("request ACK registry handles ACK and error before waiter registration", as
   assert.equal(acknowledged.preserved.size, 0);
 
   const rejected = createPendingRequestAckRegistry();
+  const rejectedError = new RequestAcceptanceRejectedError(
+    "后端拒绝",
+    {
+      clientMessageId: "local-goal-rejected",
+      clientRequestId: "req-error-first",
+      sessionKey: "dm:session-a",
+    },
+  );
   trackPendingRequestAck(rejected, "req-error-first", true);
   assert.equal(
-    rejectPendingRequestAck(rejected, "req-error-first", "后端拒绝"),
+    rejectPendingRequestAck(rejected, "req-error-first", rejectedError),
     false,
   );
   trackPendingRequestAck(rejected, "req-error-first", true);
@@ -263,7 +274,11 @@ test("request ACK registry handles ACK and error before waiter registration", as
       () => assert.fail("rejected ACK must not time out"),
       10,
     ),
-    /后端拒绝/,
+    (error) => (
+      error === rejectedError
+      && error.correlation.clientMessageId === "local-goal-rejected"
+    ),
+    "an early explicit rejection must preserve its exact recovery identity",
   );
   assert.equal(rejected.preserved.size, 0);
 
@@ -1263,6 +1278,7 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
@@ -1276,6 +1292,7 @@ test("Goal submission claims its original Session and restores only without newe
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
@@ -1325,6 +1342,11 @@ test("Goal submission claims its original Session and restores only without newe
     "后端拒绝 Goal",
   );
   assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[firstScope],
+    undefined,
+    "a pre-send failure without transport identity must not create a receipt",
+  );
+  assert.equal(
     useComposerDraftStore.getState().goal_error_by_scope[secondScope],
     undefined,
   );
@@ -1362,9 +1384,272 @@ test("Goal submission claims its original Session and restores only without newe
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
+});
+
+test("failed Goal recovery reconciles exact durable acceptance without erasing edits", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const { reconcileComposerGoalSubmissionFromMessages } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+
+  const beginFailedGoal = (scope, objective, identity) => {
+    const store = useComposerDraftStore.getState();
+    store.update_composer_draft(scope, (current) => ({
+      ...current,
+      input: objective,
+      inputMode: "goal",
+    }));
+    const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+    const submission = useComposerDraftStore.getState().begin_goal_submission(
+      scope,
+      draft.revision,
+      null,
+    );
+    assert.ok(submission);
+    assert.equal(
+      useComposerDraftStore.getState().fail_goal_submission(
+        submission,
+        "后端拒绝 Goal",
+        identity,
+      ),
+      true,
+    );
+    return submission;
+  };
+  const controlRecord = (identity, messageId, sessionKey = identity.sessionKey) => ({
+    agent_id: "agent-a",
+    client_message_id: identity.clientMessageId,
+    content: "/goal 恢复测试",
+    message_id: messageId,
+    metadata: { subtype: "goal_set" },
+    role: "user",
+    round_id: identity.clientMessageId,
+    session_key: sessionKey,
+    timestamp: 1,
+  });
+
+  const acceptedScope = "dm:agent-a:session:dm:recovery-accepted";
+  const acceptedIdentity = {
+    clientMessageId: "local-goal-recovery-accepted",
+    clientRequestId: "req-goal-recovery-accepted",
+    sessionKey: "dm:recovery-accepted",
+  };
+  beginFailedGoal(acceptedScope, "恢复测试", acceptedIdentity);
+  const acceptedState = useComposerDraftStore.getState();
+  const acceptedRecovery = acceptedState.goal_recovery_by_scope[acceptedScope];
+  assert.ok(acceptedRecovery);
+  assert.equal(
+    acceptedState.drafts_by_scope[acceptedScope].revision,
+    acceptedRecovery.restoredDraftRevision,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(acceptedScope, [
+      controlRecord(
+        acceptedIdentity,
+        acceptedIdentity.clientMessageId,
+      ),
+    ]),
+    false,
+    "an optimistic control card is not durable evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(acceptedScope, [
+      controlRecord(
+        acceptedIdentity,
+        "message-server-foreign",
+        "dm:foreign-session",
+      ),
+    ]),
+    false,
+    "a foreign Session receipt cannot clear the restored draft",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(acceptedScope, [
+      controlRecord(acceptedIdentity, "message-server-accepted"),
+    ]),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[acceptedScope],
+    undefined,
+    "exact durable acceptance removes only the auto-restored draft revision",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[acceptedScope],
+    undefined,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[acceptedScope],
+    undefined,
+  );
+
+  const editedScope = "dm:agent-a:session:dm:recovery-edited";
+  const editedIdentity = {
+    clientMessageId: "local-goal-recovery-edited",
+    clientRequestId: "req-goal-recovery-edited",
+    sessionKey: "dm:recovery-edited",
+  };
+  beginFailedGoal(editedScope, "恢复后继续编辑", editedIdentity);
+  const restoredRevision = useComposerDraftStore
+    .getState()
+    .goal_recovery_by_scope[editedScope].restoredDraftRevision;
+  useComposerDraftStore.getState().update_composer_draft(
+    editedScope,
+    (current) => ({ ...current, input: "用户后来输入的新 Goal" }),
+  );
+  assert.notEqual(
+    useComposerDraftStore.getState().drafts_by_scope[editedScope].revision,
+    restoredRevision,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(editedScope, [
+      controlRecord(editedIdentity, "message-server-edited"),
+    ]),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[editedScope].input,
+    "用户后来输入的新 Goal",
+    "late acceptance must preserve a user-edited draft",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[editedScope],
+    undefined,
+    "durable acceptance clears the obsolete failure projection",
+  );
+
+  const retryScope = "dm:agent-a:session:dm:recovery-retry";
+  const oldIdentity = {
+    clientMessageId: "local-goal-recovery-old",
+    clientRequestId: "req-goal-recovery-old",
+    sessionKey: "dm:recovery-retry",
+  };
+  beginFailedGoal(retryScope, "重试 Goal", oldIdentity);
+  const retryDraft = useComposerDraftStore.getState().drafts_by_scope[retryScope];
+  const retry = useComposerDraftStore.getState().begin_goal_submission(
+    retryScope,
+    retryDraft.revision,
+    null,
+  );
+  assert.ok(retry);
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[retryScope],
+    undefined,
+    "a retry atomically supersedes the previous recovery receipt",
+  );
+  const retryIdentity = {
+    clientMessageId: "local-goal-recovery-retry",
+    clientRequestId: "req-goal-recovery-retry",
+    sessionKey: "dm:recovery-retry",
+  };
+  assert.equal(
+    useComposerDraftStore.getState().mark_goal_submission_confirming(
+      retry,
+      retryIdentity,
+    ),
+    true,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(retryScope, [
+      controlRecord(oldIdentity, "message-server-old"),
+    ]),
+    false,
+    "the prior request receipt cannot settle a retry",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[retryScope]
+      .submissionId,
+    retry.submissionId,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(retryScope, [
+      controlRecord(retryIdentity, "message-server-retry"),
+    ]),
+    true,
+  );
+});
+
+test("failed Goal recovery also reconciles a newer version-fenced Goal", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const { reconcileComposerGoalSubmission } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const scope = "room:room-a:session:room:group:recovery-fence";
+  useComposerDraftStore.getState().update_composer_draft(scope, (current) => ({
+    ...current,
+    input: "版本围栏恢复",
+    inputMode: "goal",
+  }));
+  const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  const submission = useComposerDraftStore.getState().begin_goal_submission(
+    scope,
+    draft.revision,
+    { goalId: "goal-existing", version: 3 },
+  );
+  assert.ok(submission);
+  assert.equal(
+    useComposerDraftStore.getState().fail_goal_submission(
+      submission,
+      "后端拒绝 Goal",
+      {
+        clientMessageId: "local-goal-fence",
+        clientRequestId: "req-goal-fence",
+        sessionKey: "room:group:recovery-fence",
+      },
+    ),
+    true,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      id: "goal-existing",
+      metadata: { source_objective: "版本围栏恢复" },
+      objective: "服务端规范化后的目标",
+      version: 3,
+    }),
+    false,
+    "the unchanged baseline is not durable acceptance evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      id: "goal-existing",
+      metadata: { source_objective: "版本围栏恢复" },
+      objective: "服务端规范化后的目标",
+      version: 4,
+    }),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[scope],
+    undefined,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[scope],
+    undefined,
+  );
 });
 
 test("unknown Goal remains confirming until a newer durable Goal matches", async () => {
@@ -1384,6 +1669,7 @@ test("unknown Goal remains confirming until a newer durable Goal matches", async
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
@@ -1469,6 +1755,7 @@ test("unobserved Goal baseline reconciles only from its exact durable control re
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
