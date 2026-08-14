@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -503,6 +504,77 @@ func TestReconcileExpiredSubagentsTerminalizesDurableChild(t *testing.T) {
 	}
 	if result.Scanned != 1 || result.Reconciled != 1 || result.Deferred != 0 {
 		t.Fatalf("reconciliation result = %#v", result)
+	}
+}
+
+func TestReconcileOrphanedSubagentsOnlyClosesPreRestartChildren(t *testing.T) {
+	processStartedAt := time.Date(2030, time.January, 2, 3, 5, 0, 0, time.UTC)
+	snapshot := runningSubagentSnapshot()
+	snapshot.Attempts[1].CreatedAt = processStartedAt.Add(-time.Minute)
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.listOrphaned = func(
+		_ context.Context,
+		cutoff time.Time,
+		limit int,
+	) ([]protocol.WorkAttempt, error) {
+		if !cutoff.Equal(processStartedAt) || limit != 8 {
+			t.Fatalf("orphan query cutoff=%s limit=%d", cutoff, limit)
+		}
+		return []protocol.WorkAttempt{snapshot.Attempts[1]}, nil
+	}
+	repository.finishAttempt = func(
+		_ context.Context,
+		command orchestrationstore.FinishAttemptCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		if command.Attempt.ID != "attempt-child" ||
+			command.Attempt.Status != protocol.WorkAttemptStatusInterrupted ||
+			!strings.Contains(command.Attempt.FailureReason, "server restarted") {
+			t.Fatalf("finish command = %#v", command)
+		}
+		updated := cloneExecutionSnapshot(repository.snapshot)
+		updated.Execution.Version++
+		updated.Attempts[1] = command.Attempt
+		updated.Attempts[1].Version++
+		repository.snapshot = updated
+		return updated, nil
+	}
+	result, err := NewService(repository).ReconcileOrphanedSubagents(
+		context.Background(),
+		processStartedAt,
+		8,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scanned != 1 || result.Reconciled != 1 || result.Deferred != 0 {
+		t.Fatalf("orphan reconciliation result = %#v", result)
+	}
+}
+
+func TestReconcileOrphanedSubagentsRechecksImmutableStartupCutoff(t *testing.T) {
+	processStartedAt := time.Date(2030, time.January, 2, 3, 5, 0, 0, time.UTC)
+	snapshot := runningSubagentSnapshot()
+	snapshot.Attempts[1].CreatedAt = processStartedAt.Add(time.Second)
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.listOrphaned = func(
+		context.Context,
+		time.Time,
+		int,
+	) ([]protocol.WorkAttempt, error) {
+		// Simulate a stale/overbroad storage result: the service must still
+		// protect a child created by this process.
+		return []protocol.WorkAttempt{snapshot.Attempts[1]}, nil
+	}
+	result, err := NewService(repository).ReconcileOrphanedSubagents(
+		context.Background(),
+		processStartedAt,
+		8,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scanned != 1 || result.Reconciled != 0 || result.Deferred != 0 {
+		t.Fatalf("current-process child result = %#v", result)
 	}
 }
 

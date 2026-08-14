@@ -88,7 +88,7 @@ func (s *Service) recordUsage(roundValue *activeRoomRound, slot *activeRoomSlot,
 	if !usagesvc.MessageHasUsage(message) {
 		return
 	}
-	if s.writeUsage(roundValue, message) {
+	if s.writeUsage(roundValue, slot, message) {
 		slot.setResultUsageWritten()
 	}
 }
@@ -100,11 +100,35 @@ func (s *Service) recordTerminalAssistantUsage(roundValue *activeRoomRound, slot
 	if slot.resultUsageWasWritten() || !usagesvc.MessageHasUsage(message) {
 		return
 	}
-	s.writeUsage(roundValue, message)
+	s.writeUsage(roundValue, slot, message)
 }
 
-func (s *Service) writeUsage(roundValue *activeRoomRound, message protocol.Message) bool {
+func (s *Service) writeUsage(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) bool {
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
+	goalBound, executionBound := false, false
+	lane := string(runtimectx.ResponsibilityLaneUnbound)
+	if authorityState := slot.ensureResponsibilityAuthorityState(); authorityState != nil {
+		if authority, ok := authorityState.Load(); ok {
+			goalBound = strings.TrimSpace(authority.GoalID) != ""
+			executionBound = strings.TrimSpace(authority.ExecutionID) != ""
+			lane = string(authority.Lane)
+		}
+	}
+	// Goal usage ownership is host-maintained even before a Goal mutation lane is
+	// granted; it may enrich scope but never grants capability back to the round.
+	goalBound = goalBound || strings.TrimSpace(slot.goalIDForUsage()) != ""
+	surface, observed := s.runtime.CacheSurface(slot.RuntimeSessionKey)
+	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
+		surface.Input(),
+		observed,
+		goalBound,
+		executionBound,
+		lane,
+	)
 	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		s.loggerFor(context.Background()).Error("Room token usage 写入失败",
 			"s", roundValue.SessionKey,
@@ -298,12 +322,22 @@ func (s *Service) runSlot(
 
 func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
 	actor := roomOrchestrationActor(e.round, e.slot)
-	binding, bound := e.ensureWorkBindingState().Load()
-	actor.WorkBinding = binding
-	if bound {
-		actor.ExecutionID = binding.ExecutionID
+	authority := e.ensureResponsibilityAuthorityState()
+	if authority != nil {
+		authority.SeedExecution(actor.ExecutionID)
+		snapshot, _ := authority.Load()
+		actor.ExecutionID = snapshot.ExecutionID
+		actor.WorkBinding = cloneExecutionWorkBinding(snapshot.WorkBinding)
+		actor.ReviewBinding = cloneExecutionReviewBinding(snapshot.ReviewBinding)
 	}
 	return actor
+}
+
+func (e *slotExecution) ensureResponsibilityAuthorityState() *runtimectx.ResponsibilityAuthorityState {
+	if e == nil || e.slot == nil {
+		return nil
+	}
+	return e.slot.ensureResponsibilityAuthorityState()
 }
 
 func (e *slotExecution) ensureWorkBindingState() *runtimectx.WorkBindingState {

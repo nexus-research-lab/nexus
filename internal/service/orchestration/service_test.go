@@ -255,6 +255,7 @@ func TestServiceProjectionCollectionLimitCoversPlanModeAndMutations(t *testing.T
 					ExecutionID:      snapshot.Execution.ID,
 					SnapshotRevision: snapshot.Execution.Version,
 					CommandID:        "submit-overflow",
+					WorkItemID:       "work-1",
 					ResultSummary:    "done",
 					ResultRefs:       overLimit,
 				})
@@ -267,6 +268,7 @@ func TestServiceProjectionCollectionLimitCoversPlanModeAndMutations(t *testing.T
 					ExecutionID:      snapshot.Execution.ID,
 					SnapshotRevision: snapshot.Execution.Version,
 					CommandID:        "submit-evidence-overflow",
+					WorkItemID:       "work-1",
 					ResultSummary:    "done",
 					Evidence:         overLimit,
 				})
@@ -2237,6 +2239,7 @@ type fakeRepository struct {
 	finishAttempt     func(context.Context, orchestrationstore.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error)
 	scheduleSubagent  func(context.Context, orchestrationstore.ScheduleSubagentReconciliationCommand) (*protocol.ExecutionSnapshot, error)
 	listExpired       func(context.Context, time.Time, int) ([]protocol.WorkAttempt, error)
+	listOrphaned      func(context.Context, time.Time, int) ([]protocol.WorkAttempt, error)
 	submit            func(context.Context, orchestrationstore.SubmitCommand) (*protocol.ExecutionSnapshot, error)
 	review            func(context.Context, orchestrationstore.ReviewCommand) (*protocol.ExecutionSnapshot, error)
 	block             func(context.Context, orchestrationstore.BlockCommand) (*protocol.ExecutionSnapshot, error)
@@ -2403,6 +2406,17 @@ func (f *fakeRepository) ListExpiredSubagentAttempts(
 		return nil, errors.New("unexpected ListExpiredSubagentAttempts")
 	}
 	return f.listExpired(ctx, now, limit)
+}
+
+func (f *fakeRepository) ListOrphanedSubagentAttempts(
+	ctx context.Context,
+	createdBefore time.Time,
+	limit int,
+) ([]protocol.WorkAttempt, error) {
+	if f.listOrphaned == nil {
+		return nil, errors.New("unexpected ListOrphanedSubagentAttempts")
+	}
+	return f.listOrphaned(ctx, createdBefore, limit)
 }
 
 func (f *fakeRepository) Submit(

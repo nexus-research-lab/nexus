@@ -2,6 +2,7 @@ package goal
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -162,6 +163,9 @@ func TestServiceWallClockAccountingStopsWhileContinuationSuppressed(t *testing.T
 	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal-continuation-1", false); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal-continuation-2", false); err != nil {
+		t.Fatal(err)
+	}
 
 	clock.Advance(20 * time.Second)
 	objective := "Do not count idle continuation hold time, updated"
@@ -228,6 +232,9 @@ func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 	}
 	if len(interrupter.sessionKeys) != 1 || interrupter.sessionKeys[0] != created.SessionKey {
 		t.Fatalf("interrupter sessionKeys = %#v, want current session", interrupter.sessionKeys)
+	}
+	if len(interrupter.roundIDs) != 1 || strings.Join(interrupter.roundIDs[0], ",") != "round-running" {
+		t.Fatalf("interrupter roundIDs = %#v, want exact Goal-accounting round", interrupter.roundIDs)
 	}
 	if len(repo.events) != 3 || repo.events[1].EventType != "usage_recorded" || repo.events[2].EventType != "paused" {
 		t.Fatalf("events = %#v, want usage_recorded before paused", repo.events)

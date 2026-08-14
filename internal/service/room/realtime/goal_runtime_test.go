@@ -1381,29 +1381,39 @@ func (p *fakePersistentRoomGoalProvider) ClaimUsageSourceRound(
 }
 
 type fakeRoomGoalContextProvider struct {
-	mu               sync.Mutex
-	runtimeContexts  map[string]string
-	runtimeGoals     map[string]*protocol.Goal
-	usage            []protocol.GoalUsage
-	usageGoal        *protocol.Goal
-	usageSessionKeys []string
-	usageGoalIDs     []string
-	usageLimitReason []string
-	usageLimitKeys   []string
-	progress         []bool
-	failures         []string
-	completionMisses []string
-	activities       []string
-	handbacks        []string
-	collabRequired   []string
-	collabEvidence   []string
-	events           []protocol.GoalEvent
-	plan             *protocol.GoalContinuation
-	planCalls        int
-	stillCurrent     bool
-	claimCalls       int
-	releaseCalls     int
-	onPlan           func()
+	mu                     sync.Mutex
+	runtimeContexts        map[string]string
+	runtimeGoals           map[string]*protocol.Goal
+	usage                  []protocol.GoalUsage
+	usageGoal              *protocol.Goal
+	usageSessionKeys       []string
+	usageGoalIDs           []string
+	usageLimitReason       []string
+	usageLimitKeys         []string
+	progress               []bool
+	progressRevision       []int64
+	progressRoundIDs       []string
+	failures               []string
+	failureRoundIDs        []string
+	completionMisses       []string
+	completionMissRoundIDs []string
+	activities             []string
+	handbacks              []string
+	collabEvidence         []string
+	events                 []protocol.GoalEvent
+	plan                   *protocol.GoalContinuation
+	planCalls              int
+	stillCurrent           bool
+	claimCalls             int
+	startedCalls           int
+	startedErr             error
+	onStarted              func()
+	beforeStarted          func()
+	settledCalls           int
+	settledRoundIDs        []string
+	retryReasons           []string
+	releaseCalls           int
+	onPlan                 func()
 }
 
 func (p *fakeRoomGoalContextProvider) RuntimeContext(_ context.Context, sessionKey string) (string, *protocol.Goal, error) {
@@ -1453,24 +1463,36 @@ func (p *fakeRoomGoalContextProvider) UsageLimitForSession(_ context.Context, se
 	return nil, nil
 }
 
-func (p *fakeRoomGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool, _ ...int64) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeProgress(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, progressed bool, revisions ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.progress = append(p.progress, progressed)
+	p.progressRoundIDs = append(p.progressRoundIDs, strings.TrimSpace(identity.AuditRoundID))
+	p.settledCalls++
+	p.settledRoundIDs = append(p.settledRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
+	if len(revisions) > 0 {
+		p.progressRevision = append(p.progressRevision, revisions[0])
+	}
 	return nil, nil
 }
 
-func (p *fakeRoomGoalContextProvider) RecordContinuationFailure(_ context.Context, _ string, _ string, reason string, _ ...int64) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeFailure(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, reason string, _ ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.failures = append(p.failures, strings.TrimSpace(reason))
+	p.failureRoundIDs = append(p.failureRoundIDs, strings.TrimSpace(identity.AuditRoundID))
+	p.settledCalls++
+	p.settledRoundIDs = append(p.settledRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
 	return nil, nil
 }
 
-func (p *fakeRoomGoalContextProvider) RecordCompletionToolMiss(_ context.Context, _ string, _ string, reason string, _ ...int64) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeCompletionToolMiss(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, reason string, _ ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.completionMisses = append(p.completionMisses, strings.TrimSpace(reason))
+	p.completionMissRoundIDs = append(p.completionMissRoundIDs, strings.TrimSpace(identity.AuditRoundID))
+	p.settledCalls++
+	p.settledRoundIDs = append(p.settledRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
 	return nil, nil
 }
 
@@ -1485,13 +1507,6 @@ func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationHandback(_ cont
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.handbacks = append(p.handbacks, strings.TrimSpace(roundID))
-	return nil, nil
-}
-
-func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationRequired(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.collabRequired = append(p.collabRequired, strings.TrimSpace(roundID))
 	return nil, nil
 }
 
@@ -1550,6 +1565,39 @@ func (p *fakeRoomGoalContextProvider) ReleaseContinuationPlan(context.Context, p
 	return nil, nil
 }
 
+func (p *fakeRoomGoalContextProvider) MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error {
+	p.mu.Lock()
+	beforeStarted := p.beforeStarted
+	p.mu.Unlock()
+	if beforeStarted != nil {
+		beforeStarted()
+	}
+	p.mu.Lock()
+	p.startedCalls++
+	err := p.startedErr
+	onStarted := p.onStarted
+	p.mu.Unlock()
+	if onStarted != nil {
+		onStarted()
+	}
+	return err
+}
+
+func (p *fakeRoomGoalContextProvider) SettleContinuationPlan(_ context.Context, _ string, roundID string, _ int64) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.settledCalls++
+	p.settledRoundIDs = append(p.settledRoundIDs, strings.TrimSpace(roundID))
+	return nil
+}
+
+func (p *fakeRoomGoalContextProvider) RetryContinuationPlan(_ context.Context, _ protocol.GoalContinuation, reason string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.retryReasons = append(p.retryReasons, strings.TrimSpace(reason))
+	return nil
+}
+
 func (p *fakeRoomGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -1566,6 +1614,36 @@ func (p *fakeRoomGoalContextProvider) recordedProgress() []bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]bool(nil), p.progress...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedProgressRoundIDs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.progressRoundIDs...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedFailureRoundIDs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.failureRoundIDs...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedCompletionMissRoundIDs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.completionMissRoundIDs...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedSettledRoundIDs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.settledRoundIDs...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedProgressRevisions() []int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]int64(nil), p.progressRevision...)
 }
 
 func (p *fakeRoomGoalContextProvider) recordedFailures() []string {
@@ -1692,15 +1770,15 @@ func (p *cancellationGoalProvider) UsageLimitForSession(context.Context, string,
 	return p.current, nil
 }
 
-func (p *cancellationGoalProvider) RecordContinuationProgress(context.Context, string, string, bool, ...int64) (*protocol.Goal, error) {
+func (p *cancellationGoalProvider) RecordContinuationRuntimeProgress(context.Context, string, goalsvc.ContinuationRuntimeIdentity, bool, ...int64) (*protocol.Goal, error) {
 	return p.current, nil
 }
 
-func (p *cancellationGoalProvider) RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error) {
+func (p *cancellationGoalProvider) RecordContinuationRuntimeFailure(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error) {
 	return p.current, nil
 }
 
-func (p *cancellationGoalProvider) RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error) {
+func (p *cancellationGoalProvider) RecordContinuationRuntimeCompletionToolMiss(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error) {
 	return p.current, nil
 }
 
@@ -1709,10 +1787,6 @@ func (p *cancellationGoalProvider) RecordGoalActivity(context.Context, string, s
 }
 
 func (p *cancellationGoalProvider) RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error) {
-	return p.current, nil
-}
-
-func (p *cancellationGoalProvider) RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error) {
 	return p.current, nil
 }
 
@@ -2004,7 +2078,7 @@ func TestRoomGoalDurableBlockersIgnoreRetargetedCollaborationRevision(t *testing
 	}
 }
 
-func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
+func TestRoomGoalCompletionReportIgnoresMemberCount(t *testing.T) {
 	contextValue := newAuthorityFenceContext()
 	contextValue.Room.OwnerUserID = "owner-completion-membership"
 	store := &authorityFenceRoomStore{contextValue: contextValue}
@@ -2024,8 +2098,8 @@ func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !report.CollaborationRequired || report.Blocker != "" {
-		t.Fatalf("report = %#v, want current multi-member collaboration requirement", report)
+	if report.Blocker != "" {
+		t.Fatalf("report = %#v, want member count not to create a blocker", report)
 	}
 
 	store.update(func(current *protocol.ConversationContextAggregate) {
@@ -2040,7 +2114,7 @@ func TestRoomGoalCompletionReportRechecksCurrentAgentMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.CollaborationRequired || report.Blocker != "" {
+	if report.Blocker != "" {
 		t.Fatalf("report = %#v, want single-Agent Room without dynamic requirement", report)
 	}
 }

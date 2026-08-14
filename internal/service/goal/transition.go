@@ -6,6 +6,7 @@ package goal
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -125,9 +126,8 @@ func (s *Service) persistTransitionWithOptions(
 	expectedVersion := item.Version
 	now := s.nowFn()
 	item.Status = status
-	if resetCountersForActiveTransition(source, status) {
+	if resetSuppressionForActiveTransition(source, status) {
 		item.EmptyProgressCount = 0
-		item.ContinuationCount = 0
 		item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
 	}
 	item.Version++
@@ -137,10 +137,17 @@ func (s *Service) persistTransitionWithOptions(
 		item.LastError = ""
 		item.CompletedAt = nil
 		item.BlockedAt = nil
+		item.Metadata = clearGoalBlockerMetadata(item.Metadata)
 	case protocol.GoalStatusComplete:
 		item.CompletedAt = &now
 	case protocol.GoalStatusBlocked:
 		item.BlockedAt = &now
+		item.Metadata = storeGoalBlockerMetadata(
+			item.Metadata,
+			payload,
+			item.ObjectiveRevision(),
+			now,
+		)
 	}
 	updated, err := s.persistGoalUpdateWithEvent(
 		ctx,
@@ -181,6 +188,32 @@ func (s *Service) persistTransitionWithOptions(
 		}
 	}
 	return updated, nil
+}
+
+func storeGoalBlockerMetadata(
+	metadata map[string]any,
+	payload map[string]any,
+	objectiveRevision int64,
+	at time.Time,
+) map[string]any {
+	metadata = cloneMap(metadata)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	metadata[protocol.GoalMetadataBlocker] = map[string]any{
+		"id":             strings.TrimSpace(protocol.GoalMetadataString(payload, "blocker_id")),
+		"reason":         strings.TrimSpace(protocol.GoalMetadataString(payload, "reason")),
+		"needed_input":   strings.TrimSpace(protocol.GoalMetadataString(payload, "needed_input")),
+		"since_revision": objectiveRevision,
+		"blocked_at":     at.UTC().Format(time.RFC3339Nano),
+	}
+	return metadata
+}
+
+func clearGoalBlockerMetadata(metadata map[string]any) map[string]any {
+	metadata = cloneMap(metadata)
+	delete(metadata, protocol.GoalMetadataBlocker)
+	return metadata
 }
 
 func statusAfterUserGoalUpdate(status protocol.GoalStatus, objectiveUpdated bool) protocol.GoalStatus {

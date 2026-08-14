@@ -27,17 +27,32 @@ Agent 通讯是 Nexus 产品层能力。SDK 只执行单次 runtime 和工具调
 
 ## 4. 群消息
 
-Agent 只能向自己当前所在的 Group Room 发送。省略 conversation 时使用主 conversation；指定 conversation 时必须属于目标 Room。
+Agent 只能向自己当前所在的 Group Room 发送。Room runtime 向当前 Room
+发送时，省略 `conversation_id` 必须使用宿主固化的当前 conversation；不能
+回退到 Room 主 conversation。向另一个 Room 发送必须显式提供
+`conversation_id`，且该 conversation 必须属于目标 Room，否则 fail closed。
+owner 通讯客户端和 DM/外部 Agent runtime 没有可信 Room conversation 上下文，
+省略时继续使用目标 Room 主 conversation，保持旧调用兼容。
 
 群消息进入 public feed。正文里的有效 `@成员` 继续使用 Room 的 mention/handoff 规则，只唤醒明确目标；没有 `@` 时只发布，不唤醒全群。群消息不依赖 Room 私域消息开关。
 
 ## 5. 身份与上下文
 
-runtime 调用的 `source_agent_id`、owner、session、round、Room 和 conversation 都由 server 固化，模型参数只能选择通讯录中的目标和正文。每次工具调用重新校验 active runtime lease、Agent 身份和当前 Room 成员关系。
+runtime 调用的 `source_agent_id`、owner、session、root round、Room 和 current
+conversation 都由 server 固化，模型参数只能选择通讯录中的目标和正文。每次
+工具调用重新校验 active runtime lease、Agent 身份和当前 Room 成员关系。
 
 owner 可以在 Contacts 中切换到某个普通 Agent 的视角。此时 source Agent 由认证路径固定，服务端重新校验 owner 归属与好友关系；浏览器正文不能冒充任意 Agent。好友隐藏 Room 继续使用既有 conversation 作为 Session，创建与切换不会产生第二套通讯会话模型。普通群仍从“聊天”进入，不重复出现在“联络”。
 
-跨会话消息会开启目标 transport 自己的因果链，不传播来源会话的 workspace、Goal、WorkBinding、ReviewBinding 或其他 capability。通讯能力跟随普通 Agent 身份，而不跟随配置控制权：WebSocket、外部通道、后台任务、队列续跑和 Room handoff 只要仍持有当前 live runtime lease 都可以通信；主智能体和已经结束的 round 不可以。
+跨会话消息的可见内容进入目标 transport，但因果链保留宿主固化的 source root
+round。若来源是当前 Room Goal continuation，host 还携带 exact Goal ID 与
+objective revision 作为 collaboration attribution；它跨 directed-message、handoff
+ledger、InputQueue 和重启恢复保持，并只用于等待、审计及重新调度来源 Goal。
+该 attribution 绝不授予目标 round Goal mutation authority，也不传播来源
+workspace、WorkBinding、ReviewBinding 或其他 capability。普通 Room round 不会
+伪造 Goal attribution。
+
+通讯能力跟随普通 Agent 身份，而不跟随配置控制权：WebSocket、外部通道、后台任务、队列续跑和 Room handoff 只要仍持有当前 live runtime lease 都可以通信；主智能体和已经结束的 round 不可以。
 
 ## 6. 工具
 
@@ -47,6 +62,12 @@ owner 可以在 Contacts 中切换到某个普通 Agent 的视角。此时 sourc
 - `send_message`：`target_type=agent` 发送好友私信，`target_type=room` 发布群消息。
 
 工具成功只表示消息已经进入对应 Room transport；运行时启动、忙碌排队或 mention handoff 的后续状态仍由 Room 事件与队列真相源表达。消息持久化后若唤醒启动失败，调用必须返回错误，不能把失败伪装成 `queued`。
+
+成功的 `send_message` 本身不算 Goal continuation progress。只有持久化且带 exact
+Goal revision 的 handoff/queue receipt 可以让 continuation 暂缓；真正清零空进展
+只能来自显式 applied Goal mutation，或 exact Goal-bound 的 applied WorkGraph
+mutation。`list_address_book`、普通消息发送和其他 read/list/todo 工具都不能作为
+续跑存活证据。
 
 ## 7. 用户控制面
 

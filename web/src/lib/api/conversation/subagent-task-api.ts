@@ -1,6 +1,7 @@
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
+	SubagentTaskActionResult,
   SubagentTaskListResponse,
   SubagentTaskMessagesResponse,
   SubagentTaskSource,
@@ -35,4 +36,28 @@ export async function getSubagentTaskMessagesApi(
     `${subagentTaskUrl(source, taskId)}/messages`,
     { method: "GET" },
   );
+}
+
+export async function stopSubagentTaskApi(
+  source: SubagentTaskSource,
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<SubagentTaskActionResult> {
+  return requestApi<SubagentTaskActionResult>(
+    `${subagentTaskUrl(source, taskId)}/stop`,
+    { method: "POST", signal },
+  );
+}
+
+export async function sendSubagentTaskMessageApi(
+  source: SubagentTaskSource,
+  taskId: string,
+  message: string,
+  signal?: AbortSignal,
+): Promise<SubagentTaskActionResult> {
+  return requestApi<SubagentTaskActionResult>(subagentTaskUrl(source, taskId) + "/messages", {
+    body: { message },
+    method: "POST",
+    signal,
+  });
 }

@@ -1,6 +1,6 @@
-// INPUT: ScheduledTask 的持久 IM 会话 grant、执行结果与交互请求。
-// OUTPUT: 带任务身份且经最新 pairing 校验的权限、失败等 IM 控制面通知。
-// POS: Automation 到外部 IM 的非运行结果通知出口；普通 Agent 结果不得在此改写。
+// INPUT: ScheduledTask 的结果接收 Session、持久 IM 会话 grant、执行结果与交互请求。
+// OUTPUT: 发往 Nexus DM/Room 的结构化权限事件，以及经最新 pairing 校验的外部 IM 控制面通知。
+// POS: Automation 交互通知路由；普通 Agent 结果不得在此改写。
 package automation
 
 import (
@@ -42,6 +42,7 @@ func (s *Service) notifyAutomationPermissionRequest(
 	job automationdomain.ScheduledTask,
 	request automationdomain.AutomationPermissionRequest,
 ) {
+	s.notifyAutomationPermissionSessionRequest(ctx, job, request)
 	commands := ""
 	switch request.Kind {
 	case automationdomain.PermissionRequestKindTool, automationdomain.PermissionRequestKindScript:
@@ -68,6 +69,7 @@ func (s *Service) notifyAutomationPermissionDecision(
 	request automationdomain.AutomationPermissionRequest,
 	body string,
 ) {
+	s.notifyAutomationPermissionSessionResolution(ctx, job, request)
 	if fromPermissionIMCommand(ctx) {
 		return
 	}

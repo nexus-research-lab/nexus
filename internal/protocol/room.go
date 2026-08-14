@@ -146,14 +146,16 @@ type CreateRoomDirectedMessageRequest struct {
 	RootRoundID string `json:"-"`
 	// CommandID 由受控运行时按 source round 与规范化工具输入生成。
 	// 同一逻辑调用的 transport/model retry 必须复用它，不能重复追加私域消息。
-	CommandID     string         `json:"-"`
-	Recipients    []string       `json:"recipients"`
-	WakeTargets   []string       `json:"wake_targets,omitempty"`
-	Content       string         `json:"content"`
-	WakePolicy    RoomWakePolicy `json:"wake_policy,omitempty"`
-	ReplyRoute    RoomReplyRoute `json:"reply_route"`
-	DelaySeconds  int            `json:"delay_seconds,omitempty"`
-	CorrelationID string         `json:"correlation_id,omitempty"`
+	CommandID string `json:"-"`
+	// GoalCollaborationBinding 由受控 runtime 注入；只用于 durable handoff 归因。
+	GoalCollaborationBinding *GoalCollaborationBinding `json:"-"`
+	Recipients               []string                  `json:"recipients"`
+	WakeTargets              []string                  `json:"wake_targets,omitempty"`
+	Content                  string                    `json:"content"`
+	WakePolicy               RoomWakePolicy            `json:"wake_policy,omitempty"`
+	ReplyRoute               RoomReplyRoute            `json:"reply_route"`
+	DelaySeconds             int                       `json:"delay_seconds,omitempty"`
+	CorrelationID            string                    `json:"correlation_id,omitempty"`
 }
 
 // CreateRoomPublicMessageRequest 表示受控运行时主动发布公区消息的请求。
@@ -161,9 +163,11 @@ type CreateRoomPublicMessageRequest struct {
 	// SourceAgentID 只能由受控运行时注入，不能从 JSON body 写入。
 	SourceAgentID string `json:"-"`
 	// RootRoundID 由受控运行时注入，用于保证主动广播属于当前 slot 轮次。
-	RootRoundID   string `json:"-"`
-	Content       string `json:"content"`
-	CorrelationID string `json:"correlation_id,omitempty"`
+	RootRoundID string `json:"-"`
+	// GoalCollaborationBinding 由受控 runtime 注入；只用于 durable handoff 归因。
+	GoalCollaborationBinding *GoalCollaborationBinding `json:"-"`
+	Content                  string                    `json:"content"`
+	CorrelationID            string                    `json:"correlation_id,omitempty"`
 }
 
 // RoomDirectedMessageRecord 表示 Room directed message 的 append-only 持久化记录。

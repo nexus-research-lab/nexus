@@ -157,6 +157,7 @@ export function GoalStatusStrip({
           />
         </div>
         <GoalAttentionMessage
+          blocker={goal.status === "blocked" ? goal.blocker ?? null : null}
           message={model.attentionMessage}
           tone={model.attentionTone}
         />
@@ -299,13 +300,23 @@ function GoalStatusActions({
 }
 
 function GoalAttentionMessage({
+  blocker,
   message,
   tone,
 }: {
+  blocker: Goal["blocker"];
   message: string | null;
   tone: GoalStatusStripModel["attentionTone"];
 }) {
-  if (!message) {
+  const { t } = useI18n();
+  const localizedBlocker = tone === "warning" && blocker
+    ? t("goal.blocker_attention", {
+      neededInput: blocker.needed_input,
+      reason: blocker.reason,
+    })
+    : null;
+  const resolvedMessage = localizedBlocker ?? message;
+  if (!resolvedMessage) {
     return null;
   }
   return (
@@ -315,7 +326,7 @@ function GoalAttentionMessage({
         tone === "warning" ? "text-(--warning)" : "text-(--destructive)",
       )}
     >
-      {message}
+      {resolvedMessage}
     </div>
   );
 }

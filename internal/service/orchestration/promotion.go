@@ -169,10 +169,10 @@ func (s *Service) PromoteExecutionToGoal(
 			"promotion requires an objective and completion criteria",
 		), nil), nil
 	}
-	if !validAdaptiveActivationReason(input.ActivationReason) {
+	if !validGoalPromotionReason(input.ActivationReason) {
 		return RejectedResult(snapshot, domainError(
 			ErrorCodeInvalidInput,
-			"activation_reason must identify a durable adaptive boundary",
+			"activation_reason must identify a supported persistence boundary",
 		), nil), nil
 	}
 	if s.goalPromotionGateway == nil {
@@ -210,8 +210,9 @@ func (s *Service) PromoteExecutionToGoal(
 	}
 	if strings.TrimSpace(binding.GoalID) == "" ||
 		binding.GoalObjectiveRevision <= 0 ||
-		binding.ActivationOrigin != protocol.GoalActivationOriginAdaptivePromoted ||
-		!validAdaptiveActivationReason(binding.ActivationReason) {
+		binding.ActivationOrigin != goalPromotionOrigin(input.ActivationReason) ||
+		!validGoalPromotionReason(binding.ActivationReason) ||
+		goalPromotionOrigin(binding.ActivationReason) != binding.ActivationOrigin {
 		return MutationResult{}, errors.New("Goal promotion gateway returned an invalid binding")
 	}
 	updated, bindErr := s.repository.BindGoal(ctx, orchestrationstore.BindGoalCommand{
@@ -350,9 +351,10 @@ func requiredWorkRemaining(snapshot *protocol.ExecutionSnapshot) bool {
 	return false
 }
 
-func validAdaptiveActivationReason(reason protocol.GoalActivationReason) bool {
+func validGoalPromotionReason(reason protocol.GoalActivationReason) bool {
 	switch reason {
-	case protocol.GoalActivationReasonObservedBoundary,
+	case protocol.GoalActivationReasonPersistenceRequested,
+		protocol.GoalActivationReasonObservedBoundary,
 		protocol.GoalActivationReasonRoomDependencyChain,
 		protocol.GoalActivationReasonExternalWait,
 		protocol.GoalActivationReasonScheduledRetry,
@@ -363,6 +365,13 @@ func validAdaptiveActivationReason(reason protocol.GoalActivationReason) bool {
 	default:
 		return false
 	}
+}
+
+func goalPromotionOrigin(reason protocol.GoalActivationReason) protocol.GoalActivationOrigin {
+	if reason == protocol.GoalActivationReasonPersistenceRequested {
+		return protocol.GoalActivationOriginUserExplicit
+	}
+	return protocol.GoalActivationOriginAdaptivePromoted
 }
 
 func adaptiveEvidenceFromSnapshot(

@@ -1,5 +1,5 @@
-// INPUT: 当前 owner/Agent/scope/session/round identity、trusted WorkBinding/ReviewBinding、共享 Goal authority 与 Orchestration 应用服务。
-// OUTPUT: 十二个模型语义工具共用、每次调用动态读取 Goal identity 的权威 actor context 和窄服务接口。
+// INPUT: 当前 owner/Agent/scope/session/round identity、统一动态 Responsibility authority 与 Orchestration 应用服务。
+// OUTPUT: 十二个模型语义工具共用、每次调用原子读取 Goal/Execution/Work/Review identity 的权威 actor context 和窄服务接口。
 // POS: MCP tool adapter 与 service/orchestration 之间不接受模型伪造业务身份的消费侧契约。
 package contract
 
@@ -48,36 +48,49 @@ type Service interface {
 // ServerContext contains authoritative runtime identity. None of these fields
 // are accepted from model tool input.
 type ServerContext struct {
-	OwnerUserID       string
-	AgentID           string
-	Role              orchestration.ExecutionActorRole
-	ActorKind         protocol.ExecutionActorKind
-	ScopeKind         protocol.ExecutionScopeKind
-	ScopeSessionKey   string
-	RuntimeSessionKey string
-	ExecutionID       string
-	WorkBinding       *protocol.ExecutionWorkBinding
-	WorkBindingState  *runtimectx.WorkBindingState
-	ReviewBinding     *protocol.ExecutionReviewBinding
-	GoalAuthority     *runtimectx.GoalAuthorityState
-	RootRoundID       string
-	RuntimeRoundID    string
-	AgentRoundID      string
-	RoomID            string
-	ConversationID    string
-	RoomSessionID     string
-	PlanMode          bool
+	OwnerUserID             string
+	AgentID                 string
+	Role                    orchestration.ExecutionActorRole
+	ActorKind               protocol.ExecutionActorKind
+	ScopeKind               protocol.ExecutionScopeKind
+	ScopeSessionKey         string
+	RuntimeSessionKey       string
+	ExecutionID             string
+	WorkBinding             *protocol.ExecutionWorkBinding
+	WorkBindingState        *runtimectx.WorkBindingState
+	ReviewBinding           *protocol.ExecutionReviewBinding
+	GoalAuthority           *runtimectx.GoalAuthorityState
+	ResponsibilityAuthority *runtimectx.ResponsibilityAuthorityState
+	RootRoundID             string
+	RuntimeRoundID          string
+	AgentRoundID            string
+	RoomID                  string
+	ConversationID          string
+	RoomSessionID           string
+	PlanMode                bool
 }
 
 // Actor projects MCP runtime identity into the application service authority
 // boundary.
 func (c ServerContext) Actor() orchestration.ActorContext {
-	goalAuthority, _ := c.GoalAuthority.Load()
+	goalAuthority := runtimectx.GoalAuthority{}
 	workBinding := cloneExecutionWorkBinding(c.WorkBinding)
-	if c.WorkBindingState != nil {
+	reviewBinding := cloneExecutionReviewBinding(c.ReviewBinding)
+	executionID := strings.TrimSpace(c.ExecutionID)
+	if c.ResponsibilityAuthority != nil {
+		authority, _ := c.ResponsibilityAuthority.Load()
+		workBinding = cloneExecutionWorkBinding(authority.WorkBinding)
+		reviewBinding = cloneExecutionReviewBinding(authority.ReviewBinding)
+		executionID = strings.TrimSpace(authority.ExecutionID)
+		goalAuthority.GoalID = authority.GoalID
+		goalAuthority.ObjectiveRevision = authority.ObjectiveRevision
+		goalAuthority.ExecutionID = authority.ExecutionID
+	} else {
+		goalAuthority, _ = c.GoalAuthority.Load()
+	}
+	if c.ResponsibilityAuthority == nil && c.WorkBindingState != nil {
 		workBinding, _ = c.WorkBindingState.Load()
 	}
-	executionID := strings.TrimSpace(c.ExecutionID)
 	if workBinding != nil {
 		executionID = strings.TrimSpace(workBinding.ExecutionID)
 	}
@@ -89,7 +102,7 @@ func (c ServerContext) Actor() orchestration.ActorContext {
 		SessionKey:            strings.TrimSpace(c.ScopeSessionKey),
 		ExecutionID:           executionID,
 		WorkBinding:           workBinding,
-		ReviewBinding:         cloneExecutionReviewBinding(c.ReviewBinding),
+		ReviewBinding:         reviewBinding,
 		GoalID:                goalAuthority.GoalID,
 		GoalObjectiveRevision: goalAuthority.ObjectiveRevision,
 		AgentID:               strings.TrimSpace(c.AgentID),

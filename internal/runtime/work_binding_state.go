@@ -13,8 +13,9 @@ import (
 // WorkBindingState 保存当前物理 round 的 exact 工作责任。一个尚未释放的
 // binding 不允许被另一个 Assignment 覆盖；宿主必须先完成显式责任转场。
 type WorkBindingState struct {
-	mu      sync.RWMutex
-	binding *protocol.ExecutionWorkBinding
+	mu             sync.RWMutex
+	binding        *protocol.ExecutionWorkBinding
+	responsibility *ResponsibilityAuthorityState
 }
 
 // NewWorkBindingState 从宿主已有的 structured Room slot binding 创建状态。
@@ -26,10 +27,28 @@ func NewWorkBindingState(binding *protocol.ExecutionWorkBinding) *WorkBindingSta
 	return state
 }
 
+// NewWorkBindingStateFromResponsibility 为旧的 runtime graph/hook 消费面提供
+// WorkBinding 兼容视图；读写都落到统一 Responsibility authority，不再复制状态。
+func NewWorkBindingStateFromResponsibility(
+	state *ResponsibilityAuthorityState,
+) *WorkBindingState {
+	if state == nil {
+		return NewWorkBindingState(nil)
+	}
+	return &WorkBindingState{responsibility: state}
+}
+
 // Load 返回隔离副本；不完整的 binding 永远不构成 runtime capability。
 func (s *WorkBindingState) Load() (*protocol.ExecutionWorkBinding, bool) {
 	if s == nil {
 		return nil, false
+	}
+	if s.responsibility != nil {
+		authority, _ := s.responsibility.Load()
+		if !completeRuntimeWorkBinding(authority.WorkBinding) {
+			return nil, false
+		}
+		return cloneRuntimeWorkBinding(authority.WorkBinding), true
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -44,6 +63,9 @@ func (s *WorkBindingState) Bind(binding *protocol.ExecutionWorkBinding) bool {
 	if s == nil || !completeRuntimeWorkBinding(binding) {
 		return false
 	}
+	if s.responsibility != nil {
+		return s.responsibility.BindWork(binding)
+	}
 	next := cloneRuntimeWorkBinding(binding)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,6 +79,13 @@ func (s *WorkBindingState) Bind(binding *protocol.ExecutionWorkBinding) bool {
 // Clear 撤销当前 round 的工作 capability；已构造的 MCP server 会立即观察到。
 func (s *WorkBindingState) Clear() {
 	if s == nil {
+		return
+	}
+	if s.responsibility != nil {
+		authority, _ := s.responsibility.Load()
+		if authority.ExecutionID != "" {
+			s.responsibility.BindCoordination(authority.ExecutionID)
+		}
 		return
 	}
 	s.mu.Lock()

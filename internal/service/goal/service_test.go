@@ -96,7 +96,8 @@ func (r *memoryRepository) ListCurrentGoals(_ context.Context) ([]protocol.Goal,
 func (r *memoryRepository) ListRunnableGoals(_ context.Context, limit int) ([]protocol.Goal, error) {
 	items := make([]protocol.Goal, 0)
 	for _, item := range r.goals {
-		if item.Status == protocol.GoalStatusActive {
+		if item.Status == protocol.GoalStatusActive &&
+			item.ContinuationState() != protocol.GoalContinuationStateSuspended {
 			items = append(items, item)
 		}
 	}
@@ -466,12 +467,21 @@ func (a *fakeExternalMutationAccountant) ClearGoalAccountingRounds(sessionKey st
 	return append([]string(nil), roundIDs...)
 }
 
-type fakeRuntimeInterrupter struct {
-	sessionKeys []string
+func (a *fakeExternalMutationAccountant) GoalAccountingRoundIDs(_ string, _ string) []string {
+	if strings.TrimSpace(a.roundID) == "" {
+		return nil
+	}
+	return []string{a.roundID}
 }
 
-func (i *fakeRuntimeInterrupter) InterruptGoalRuntime(_ context.Context, sessionKey string) error {
+type fakeRuntimeInterrupter struct {
+	sessionKeys []string
+	roundIDs    [][]string
+}
+
+func (i *fakeRuntimeInterrupter) InterruptGoalRuntime(_ context.Context, sessionKey string, roundIDs []string) error {
 	i.sessionKeys = append(i.sessionKeys, sessionKey)
+	i.roundIDs = append(i.roundIDs, append([]string(nil), roundIDs...))
 	return nil
 }
 

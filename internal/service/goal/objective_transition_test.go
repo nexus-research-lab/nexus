@@ -75,6 +75,9 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 			name: "block",
 			call: func() error {
 				_, callErr := service.BlockByModel(ctx, prepared.ID, protocol.BlockGoalRequest{
+					BlockerID:                 "pending-retarget",
+					Reason:                    "blocked",
+					NeededInput:               "unblock",
 					ExpectedObjectiveRevision: prepared.ObjectiveRevision(),
 				})
 				return callErr
@@ -177,7 +180,7 @@ func TestGoalObjectiveTransitionPhasesAndProtectedBindingMetadata(t *testing.T) 
 		"runtime start failed",
 		committed.ObjectiveRevision(),
 	)
-	if err != nil || failedPlanning.EmptyProgressCount != 1 {
+	if err != nil || failedPlanning.EmptyProgressCount != goalContinuationSuppressionThreshold {
 		t.Fatalf("record planning failure = %#v, err=%v", failedPlanning, err)
 	}
 	retryPlanning, err := service.PlanContinuationForSession(ctx, committed.SessionKey, planning.RoundID)

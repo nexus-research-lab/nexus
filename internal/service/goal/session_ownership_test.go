@@ -12,10 +12,9 @@ import (
 )
 
 type staticGoalSessionOwnershipVerifier struct {
-	trustedAgentID            string
-	trustedAgentName          string
-	roomCollaborationRequired bool
-	err                       error
+	trustedAgentID   string
+	trustedAgentName string
+	err              error
 }
 
 func (v staticGoalSessionOwnershipVerifier) VerifyGoalSessionOwnership(
@@ -26,9 +25,8 @@ func (v staticGoalSessionOwnershipVerifier) VerifyGoalSessionOwnership(
 		return GoalSessionOwnershipProof{}, v.err
 	}
 	return GoalSessionOwnershipProof{
-		TrustedAgentID:            v.trustedAgentID,
-		TrustedAgentName:          v.trustedAgentName,
-		RoomCollaborationRequired: v.roomCollaborationRequired,
+		TrustedAgentID:   v.trustedAgentID,
+		TrustedAgentName: v.trustedAgentName,
 	}, nil
 }
 
@@ -172,14 +170,13 @@ func TestRoomGoalOwnershipMetadataUsesOnlyVerifiedRuntimeIdentity(t *testing.T) 
 	}
 }
 
-func TestModelCreatedRoomGoalUsesVerifiedCurrentMemberCount(t *testing.T) {
+func TestModelCreatedRoomGoalDoesNotPersistMemberCountAsCompletionPolicy(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.idFactory = sequentialID()
 	service.SetSessionOwnershipVerifier(staticGoalSessionOwnershipVerifier{
-		trustedAgentID:            "agent-lead",
-		trustedAgentName:          "Verified Lead",
-		roomCollaborationRequired: true,
+		trustedAgentID:   "agent-lead",
+		trustedAgentName: "Verified Lead",
 	})
 
 	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
@@ -191,8 +188,8 @@ func TestModelCreatedRoomGoalUsesVerifiedCurrentMemberCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !RoomCollaborationRequired(*created) {
-		t.Fatalf("metadata = %#v, want owner-scoped member proof to set collaboration requirement", created.Metadata)
+	if _, exists := created.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired]; exists {
+		t.Fatalf("metadata = %#v, member count must not become Goal completion policy", created.Metadata)
 	}
 }
 
@@ -200,17 +197,15 @@ func TestUserCreatedRoomGoalUsesVerifiedSelectedLead(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.idFactory = sequentialID()
-	collaborationRequired := true
 	verifier := &roomMemberGoalSessionOwnershipVerifier{members: map[string]string{
 		"agent-selected": "Directory Lead",
 	}}
 	service.SetSessionOwnershipVerifier(verifier)
 	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey:                protocol.BuildRoomSharedSessionKey("user-selected-lead"),
-		Objective:                 "coordinate the Room",
-		CreatedBy:                 "user",
-		RoomLeadAgentID:           "agent-selected",
-		RoomCollaborationRequired: &collaborationRequired,
+		SessionKey:      protocol.BuildRoomSharedSessionKey("user-selected-lead"),
+		Objective:       "coordinate the Room",
+		CreatedBy:       "user",
+		RoomLeadAgentID: "agent-selected",
 		Metadata: map[string]any{
 			protocol.GoalMetadataRoomGoalCreatorAgentID:        "agent-forged",
 			protocol.GoalMetadataRoomGoalLeadAgentID:           "agent-forged",
@@ -230,8 +225,8 @@ func TestUserCreatedRoomGoalUsesVerifiedSelectedLead(t *testing.T) {
 	if got := RoomLeadAgentName(*created); got != "Directory Lead" {
 		t.Fatalf("lead name = %q, want server directory value", got)
 	}
-	if !RoomCollaborationRequired(*created) {
-		t.Fatalf("Room collaboration requirement = %#v, want server-derived true", created.Metadata)
+	if _, exists := created.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired]; exists {
+		t.Fatalf("Room collaboration requirement = %#v, want external value removed", created.Metadata)
 	}
 	if len(verifier.requests) != 1 ||
 		verifier.requests[0].TrustedAgentID != "agent-selected" {
@@ -249,13 +244,11 @@ func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *
 		"agent-new": "New Lead",
 	}})
 	sessionKey := protocol.BuildRoomSharedSessionKey("user-replaced-lead")
-	initialCollaboration := false
 	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey:                sessionKey,
-		Objective:                 "old Room objective",
-		CreatedBy:                 "user",
-		RoomLeadAgentID:           "agent-old",
-		RoomCollaborationRequired: &initialCollaboration,
+		SessionKey:      sessionKey,
+		Objective:       "old Room objective",
+		CreatedBy:       "user",
+		RoomLeadAgentID: "agent-old",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -271,15 +264,13 @@ func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *
 		t.Fatalf("initial collaboration = %#v err=%v", created, err)
 	}
 	eventsBefore := len(repo.events)
-	replacementCollaboration := true
 	replaced, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey:                sessionKey,
-		Objective:                 "new Room objective",
-		CreatedBy:                 "user",
-		ReplaceExisting:           true,
-		RoomLeadAgentID:           "agent-new",
-		RoomCollaborationRequired: &replacementCollaboration,
-		RoundID:                   "goal-command-round",
+		SessionKey:      sessionKey,
+		Objective:       "new Room objective",
+		CreatedBy:       "user",
+		ReplaceExisting: true,
+		RoomLeadAgentID: "agent-new",
+		RoundID:         "goal-command-round",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +281,6 @@ func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *
 	if replaced.Objective != "new Room objective" ||
 		RoomLeadAgentID(*replaced) != "agent-new" ||
 		RoomLeadAgentName(*replaced) != "New Lead" ||
-		!RoomCollaborationRequired(*replaced) ||
 		!RoomCollaborationObserved(*replaced) {
 		t.Fatalf("replaced Room state = %#v, want verified lead and Goal-lifecycle collaboration", replaced)
 	}
@@ -300,11 +290,8 @@ func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *
 	); got != "agent-peer" {
 		t.Fatalf("collaboration agent = %q, want agent-peer retained", got)
 	}
-	if got := protocol.GoalMetadataString(
-		replaced.Metadata,
-		protocol.GoalMetadataRoomGoalCollaborationRequirementRound,
-	); got != "goal-command-round" {
-		t.Fatalf("collaboration requirement round = %q, want goal-command-round", got)
+	if _, exists := replaced.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequirementRound]; exists {
+		t.Fatalf("replacement metadata = %#v, requirement round must not be written", replaced.Metadata)
 	}
 	if len(repo.events) != eventsBefore+1 || repo.events[len(repo.events)-1].EventType != "updated" {
 		t.Fatalf("replacement events = %#v, want one atomic updated event", repo.events[eventsBefore:])

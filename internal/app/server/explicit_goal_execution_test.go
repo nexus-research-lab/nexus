@@ -11,7 +11,7 @@ import (
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
-func TestExplicitCreateGoalBindsCompatibleCurrentExecutionIdempotently(t *testing.T) {
+func TestExplicitCreateGoalRejectsCurrentTransientExecution(t *testing.T) {
 	request := explicitGoalCreateRequest()
 	executions := &stubExplicitExecutionService{
 		current: explicitExecutionSnapshot(request.SessionKey, request.Objective),
@@ -19,55 +19,21 @@ func TestExplicitCreateGoalBindsCompatibleCurrentExecutionIdempotently(t *testin
 	goals := &stubExplicitGoalLifecycleService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
 
-	created, err := coordinator.Create(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
+	_, err := coordinator.Create(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "promote_execution_to_goal") {
+		t.Fatalf("Create() error = %v, want explicit promotion guidance", err)
 	}
-	if goals.createCalls != 1 || executions.bindCalls != 1 {
+	if goals.createCalls != 0 || executions.bindCalls != 0 {
 		t.Fatalf("create calls=%d bind calls=%d", goals.createCalls, executions.bindCalls)
-	}
-	if got := protocol.GoalMetadataString(
-		created.Metadata,
-		protocol.GoalMetadataExecutionID,
-	); got != "execution-current" {
-		t.Fatalf("Goal execution metadata = %q", got)
-	}
-	if got := protocol.GoalExecutionBindingStateFromGoal(*created); got !=
-		protocol.GoalExecutionBindingStatePending {
-		t.Fatalf("Goal binding state = %q, want pending before SQL bind confirmation", got)
-	}
-	if got := protocol.GoalMetadataString(
-		created.Metadata,
-		protocol.GoalMetadataActivationOrigin,
-	); got != string(protocol.GoalActivationOriginUserExplicit) {
-		t.Fatalf("Goal activation origin = %q", got)
-	}
-	if executions.lastBind.GoalID != created.ID ||
-		executions.lastBind.GoalObjectiveRevision != created.ObjectiveRevision() {
-		t.Fatalf("Execution bind input = %#v", executions.lastBind)
-	}
-
-	replayed, err := coordinator.Create(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if replayed.ID != created.ID || goals.createCalls != 1 {
-		t.Fatalf("replay=%#v create calls=%d", replayed, goals.createCalls)
-	}
-	if executions.current.Execution.GoalID != created.ID ||
-		executions.current.Execution.GoalActivationOrigin != protocol.GoalActivationOriginUserExplicit {
-		t.Fatalf("current Execution = %#v", executions.current.Execution)
 	}
 }
 
-func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.T) {
+func TestExplicitCreateGoalStaysStandaloneUntilPlanPreflightOwnsBinding(t *testing.T) {
 	request := explicitGoalCreateRequest()
 	goals := &stubExplicitGoalLifecycleService{}
 	executions := &stubExplicitExecutionService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
-	expectedExecutionID := protocol.ExplicitGoalReservedExecutionID(
-		explicitGoalCommandID(request, request.Objective),
-	)
+	const expectedExecutionID = "execution-proposal-owned"
 
 	created, err := coordinator.Create(context.Background(), request)
 	if err != nil {
@@ -76,12 +42,12 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if got := protocol.GoalMetadataString(
 		created.Metadata,
 		protocol.GoalMetadataExecutionID,
-	); got != expectedExecutionID {
-		t.Fatalf("new Goal reservation = %q, want %q", got, expectedExecutionID)
+	); got != "" {
+		t.Fatalf("new Goal reservation = %q, want none", got)
 	}
 	if got := protocol.GoalExecutionBindingStateFromGoal(*created); got !=
-		protocol.GoalExecutionBindingStateReserved {
-		t.Fatalf("new Goal binding state = %q, want reserved", got)
+		protocol.GoalExecutionBindingStateStandalone {
+		t.Fatalf("new Goal binding state = %q, want standalone", got)
 	}
 	activation, err := coordinator.ResolveExplicitGoalActivation(
 		context.Background(),
@@ -95,14 +61,14 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if activation == nil || activation.ReservedExecutionID != expectedExecutionID ||
+	if activation == nil || activation.ReservedExecutionID != "" ||
 		activation.Objective != request.Objective {
 		t.Fatalf("proposal activation = %#v", activation)
 	}
 	binding, err := coordinator.PrepareExplicitGoalBinding(
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
-			CandidateExecutionID: "execution-reserved",
+			CandidateExecutionID: expectedExecutionID,
 			OwnerUserID:          request.OwnerUserID,
 			SessionKey:           request.SessionKey,
 			ScopeKind:            protocol.ExecutionScopeDM,
@@ -134,8 +100,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 		t.Fatalf("prepared Goal binding state = %q, want pending", got)
 	}
 
-	// A retry after Execution creation failed reuses the durable reserved ID
-	// instead of minting a second state chain.
+	// A retry after Goal preflight reuses the now-durable proposal identity.
 	replayed, err := coordinator.PrepareExplicitGoalBinding(
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
@@ -157,9 +122,8 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	}
 }
 
-func TestExplicitCreateGoalRetryRepairsPreviouslyCreatedUnboundGoal(t *testing.T) {
+func TestExplicitCreateGoalRetryReusesStandaloneReceipt(t *testing.T) {
 	request := explicitGoalCreateRequest()
-	snapshot := explicitExecutionSnapshot(request.SessionKey, request.Objective)
 	commandID := explicitGoalCommandID(request, request.Objective)
 	goals := &stubExplicitGoalLifecycleService{current: &protocol.Goal{
 		ID:         "goal-explicit",
@@ -168,9 +132,9 @@ func TestExplicitCreateGoalRetryRepairsPreviouslyCreatedUnboundGoal(t *testing.T
 		Status:     protocol.GoalStatusActive,
 		Version:    1,
 		CreatedBy:  request.CreatedBy,
-		Metadata:   explicitGoalMetadata(request.Metadata, snapshot, commandID),
+		Metadata:   explicitGoalMetadata(request.Metadata, nil, commandID),
 	}}
-	executions := &stubExplicitExecutionService{current: snapshot}
+	executions := &stubExplicitExecutionService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
 
 	repaired, err := coordinator.Create(context.Background(), request)
@@ -179,61 +143,36 @@ func TestExplicitCreateGoalRetryRepairsPreviouslyCreatedUnboundGoal(t *testing.T
 	}
 	if repaired.ID != "goal-explicit" ||
 		goals.createCalls != 0 ||
-		executions.bindCalls != 1 ||
-		executions.current.Execution.GoalID != repaired.ID {
+		executions.bindCalls != 0 ||
+		protocol.GoalExecutionBindingStateFromGoal(*repaired) != protocol.GoalExecutionBindingStateStandalone {
 		t.Fatalf(
-			"repaired=%#v createCalls=%d bindCalls=%d execution=%#v",
+			"repaired=%#v createCalls=%d bindCalls=%d",
 			repaired,
 			goals.createCalls,
 			executions.bindCalls,
-			executions.current.Execution,
 		)
 	}
 }
 
-func TestExplicitGoalCoordinatorRejectsObjectiveAndScopeConflicts(t *testing.T) {
+func TestExplicitCreateGoalIgnoresTerminalExecution(t *testing.T) {
 	request := explicitGoalCreateRequest()
-	tests := []struct {
-		name       string
-		execution  *protocol.ExecutionSnapshot
-		wantTarget error
-	}{
-		{
-			name:       "objective",
-			execution:  explicitExecutionSnapshot(request.SessionKey, "Different objective"),
-			wantTarget: orchestrationsvc.ErrExplicitGoalObjectiveConflict,
-		},
-		{
-			name: "scope",
-			execution: &protocol.ExecutionSnapshot{Execution: protocol.Execution{
-				ID:                 "execution-current",
-				OwnerUserID:        request.OwnerUserID,
-				SessionKey:         request.SessionKey,
-				ScopeKind:          protocol.ExecutionScopeRoom,
-				ConversationID:     "other-room",
-				CoordinatorAgentID: request.AgentID,
-				Objective:          request.Objective,
-				Status:             protocol.ExecutionStatusActive,
-				Version:            1,
-			}},
-			wantTarget: orchestrationsvc.ErrExplicitGoalScopeConflict,
-		},
+	execution := explicitExecutionSnapshot(request.SessionKey, "old objective")
+	execution.Execution.Status = protocol.ExecutionStatusCompleted
+	goals := &stubExplicitGoalLifecycleService{}
+	coordinator := newExplicitGoalExecutionCoordinator(
+		goals,
+		&stubExplicitExecutionService{current: execution},
+	)
+	created, err := coordinator.Create(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			goals := &stubExplicitGoalLifecycleService{}
-			coordinator := newExplicitGoalExecutionCoordinator(
-				goals,
-				&stubExplicitExecutionService{current: test.execution},
-			)
-			_, err := coordinator.Create(context.Background(), request)
-			if !errors.Is(err, test.wantTarget) {
-				t.Fatalf("Create() error = %v, want %v", err, test.wantTarget)
-			}
-			if goals.createCalls != 0 {
-				t.Fatalf("incompatible Execution created %d Goals", goals.createCalls)
-			}
-		})
+	if created == nil || goals.createCalls != 1 ||
+		protocol.GoalExecutionMode(protocol.GoalMetadataString(
+			created.Metadata,
+			protocol.GoalMetadataExecutionMode,
+		)) != protocol.GoalExecutionModeGoalOnly {
+		t.Fatalf("created=%#v calls=%d", created, goals.createCalls)
 	}
 }
 
@@ -370,6 +309,42 @@ func TestGoalObjectiveRetargetSagaRecoversEveryDurablePhase(t *testing.T) {
 				t.Fatalf("retarget replay=%#v transition=%#v", replayed, replayedTransition)
 			}
 		})
+	}
+}
+
+func TestGoalObjectiveRetargetCommitsAfterTerminalExecution(t *testing.T) {
+	goal := retargetSagaGoal()
+	oldGoal := *cloneExplicitGoal(goal)
+	completedExecution := retargetSagaExecution(goal)
+	completedExecution.Execution.Status = protocol.ExecutionStatusCompleted
+	executions := &stubExplicitExecutionService{current: completedExecution}
+	goals := &stubExplicitGoalLifecycleService{current: goal}
+	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
+	command := goalsvc.ObjectiveRetargetCommand{
+		Goal:                      oldGoal,
+		Objective:                 "Deliver a second verified phase",
+		Reason:                    "user extended the Goal after terminal acceptance",
+		ExpectedObjectiveRevision: oldGoal.ObjectiveRevision(),
+		Source:                    protocol.GoalUpdateSourceUser,
+		OwnerUserID:               "owner-1",
+	}
+
+	committed, err := coordinator.RetargetGoalObjective(context.Background(), command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transition, ok := goalsvc.ObjectiveTransitionFromGoal(*committed)
+	if !ok || transition.Phase != goalsvc.ObjectiveTransitionAwaitingPlan ||
+		committed.ObjectiveRevision() != oldGoal.ObjectiveRevision()+1 {
+		t.Fatalf("terminal retarget Goal=%#v transition=%#v", committed, transition)
+	}
+	if executions.current.Execution.Status != protocol.ExecutionStatusCompleted {
+		t.Fatalf("terminal predecessor status = %s, want completed", executions.current.Execution.Status)
+	}
+	if executions.lastSupersede.SuccessorExecutionID != transition.SuccessorExecutionID ||
+		executions.lastSupersede.OldGoalObjectiveRevision != transition.OldRevision ||
+		executions.lastSupersede.NewGoalObjectiveRevision != transition.NewRevision {
+		t.Fatalf("terminal predecessor reservation = %#v", executions.lastSupersede)
 	}
 }
 
@@ -772,6 +747,8 @@ func (s *stubExplicitGoalLifecycleService) BindExplicitExecution(
 	}
 	s.current.Metadata = cloneExplicitGoalMetadata(s.current.Metadata)
 	s.current.Metadata[protocol.GoalMetadataExecutionID] = binding.ExecutionID
+	s.current.Metadata[protocol.GoalMetadataExecutionMode] =
+		string(protocol.GoalExecutionModeManaged)
 	s.current.Metadata[protocol.GoalMetadataExecutionBindingState] =
 		string(protocol.GoalExecutionBindingStatePending)
 	s.current.Metadata[protocol.GoalMetadataCompletionCriteria] = append(
@@ -1011,7 +988,10 @@ func (s *stubExplicitExecutionService) SupersedeGoalRevision(
 	if s.current == nil {
 		return nil, nil
 	}
-	if s.current.Execution.Status != protocol.ExecutionStatusSuperseded {
+	if s.current.Execution.Status != protocol.ExecutionStatusSuperseded &&
+		s.current.Execution.Status != protocol.ExecutionStatusCompleted &&
+		s.current.Execution.Status != protocol.ExecutionStatusFailed &&
+		s.current.Execution.Status != protocol.ExecutionStatusCancelled {
 		s.current.Execution.Status = protocol.ExecutionStatusSuperseded
 		s.current.Execution.Version++
 	}

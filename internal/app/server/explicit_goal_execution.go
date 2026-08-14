@@ -1,6 +1,6 @@
 // INPUT: nexus_goal create/retarget/alignment/lifecycle request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
-// OUTPUT: create_goal -> Execution 稳定 reservation/pending/confirmed phase、带 canonical objective 的只读 Plan activation、严格 Goal/Execution binding saga 与 Goal 工具窄透传。
-// POS: Goal 与 Execution 两个领域服务之间的应用层协调器；Plan transport 不裁决 Goal objective，也不把跨域事务伪装成单库原子操作。
+// OUTPUT: 单域原子的 goal_only create_goal、带 canonical objective 的只读 Plan activation、显式 Goal/Execution binding saga 与 Goal 工具窄透传。
+// POS: Goal 与 Execution 两个领域服务之间的应用层协调器；create_goal 不隐式跨域，Plan transport 不裁决 Goal objective。
 package server
 
 import (
@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -57,19 +56,15 @@ type explicitGoalExecutionService interface {
 		int64,
 		string,
 	) (bool, error)
-	BindExplicitGoal(
-		context.Context,
-		orchestrationsvc.ActorContext,
-		orchestrationsvc.BindExplicitGoalInput,
-	) (orchestrationsvc.MutationResult, error)
 	SupersedeGoalRevision(
 		context.Context,
 		orchestrationsvc.GoalRevisionSupersedeInput,
 	) (*protocol.ExecutionSnapshot, error)
 }
 
-// explicitGoalExecutionCoordinator 既包装 nexus_goal service，也向 Ensure
-// 提供 active explicit Goal preflight，保证两种调用顺序收敛到同一 binding。
+// explicitGoalExecutionCoordinator 既包装 nexus_goal service，也向 Plan
+// materialization 提供 active explicit Goal preflight。Goal 创建与 WorkGraph
+// 绑定是两个显式动作，避免 create_goal 在两个 aggregate 之间留下半提交状态。
 type explicitGoalExecutionCoordinator struct {
 	goals      explicitGoalLifecycleService
 	executions explicitGoalExecutionService
@@ -89,24 +84,24 @@ func (c *explicitGoalExecutionCoordinator) Create(
 	ctx context.Context,
 	request protocol.CreateGoalRequest,
 ) (*protocol.Goal, error) {
-	if c == nil || c.goals == nil || c.executions == nil {
+	if c == nil || c.goals == nil {
 		return nil, errors.New("explicit Goal execution coordinator is unavailable")
 	}
 	actor, objective, err := explicitGoalActor(request)
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := c.executions.GetCurrent(ctx, actor)
-	if err != nil {
-		return nil, fmt.Errorf("read current Execution before create_goal: %w", err)
-	}
-	if snapshot != nil {
-		if err = validateExplicitGoalExecutionCompatibility(
-			snapshot.Execution,
-			actor,
-			objective,
-		); err != nil {
-			return nil, err
+	if c.executions != nil {
+		snapshot, readErr := c.executions.GetCurrent(ctx, actor)
+		if readErr != nil {
+			return nil, fmt.Errorf("read current Execution before create_goal: %w", readErr)
+		}
+		if snapshot != nil && strings.TrimSpace(snapshot.Execution.GoalID) == "" &&
+			!executionTerminalForGoalCreate(snapshot.Execution.Status) {
+			return nil, fmt.Errorf(
+				"current WorkGraph %s already owns this execution scope; use promote_execution_to_goal with activation_reason=persistence_requested instead of create_goal",
+				strings.TrimSpace(snapshot.Execution.ID),
+			)
 		}
 	}
 	commandID := explicitGoalCommandID(request, objective)
@@ -118,12 +113,12 @@ func (c *explicitGoalExecutionCoordinator) Create(
 		return nil, err
 	}
 	if current != nil {
-		return c.reuseExplicitGoalOrConflict(ctx, actor, snapshot, request, objective, commandID, *current)
+		return reuseStandaloneExplicitGoalOrConflict(request, objective, commandID, *current)
 	}
 
 	request.SessionKey = actor.SessionKey
 	request.Objective = objective
-	request.Metadata = explicitGoalMetadata(request.Metadata, snapshot, commandID)
+	request.Metadata = explicitGoalMetadata(request.Metadata, nil, commandID)
 	created, err := c.goals.Create(
 		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
 		request,
@@ -137,15 +132,7 @@ func (c *explicitGoalExecutionCoordinator) Create(
 			return nil, loadErr
 		}
 		if current != nil {
-			return c.reuseExplicitGoalOrConflict(
-				ctx,
-				actor,
-				snapshot,
-				request,
-				objective,
-				commandID,
-				*current,
-			)
+			return reuseStandaloneExplicitGoalOrConflict(request, objective, commandID, *current)
 		}
 	}
 	if err != nil {
@@ -154,19 +141,22 @@ func (c *explicitGoalExecutionCoordinator) Create(
 	if created == nil {
 		return nil, errors.New("create_goal returned no Goal")
 	}
-	if err = c.bindCreatedExplicitGoal(ctx, actor, snapshot, commandID, *created); err != nil {
-		return nil, err
-	}
-	if snapshot != nil {
-		return c.reloadBoundExplicitGoal(ctx, actor.SessionKey, created.ID)
-	}
 	return created, nil
 }
 
-func (c *explicitGoalExecutionCoordinator) reuseExplicitGoalOrConflict(
-	ctx context.Context,
-	actor orchestrationsvc.ActorContext,
-	snapshot *protocol.ExecutionSnapshot,
+func executionTerminalForGoalCreate(status protocol.ExecutionStatus) bool {
+	switch status {
+	case protocol.ExecutionStatusCompleted,
+		protocol.ExecutionStatusFailed,
+		protocol.ExecutionStatusCancelled,
+		protocol.ExecutionStatusSuperseded:
+		return true
+	default:
+		return false
+	}
+}
+
+func reuseStandaloneExplicitGoalOrConflict(
 	request protocol.CreateGoalRequest,
 	objective string,
 	commandID string,
@@ -183,101 +173,10 @@ func (c *explicitGoalExecutionCoordinator) reuseExplicitGoalOrConflict(
 			objective,
 		)
 	}
-	if !explicitGoalRetryMatches(current, request, snapshot, commandID) {
+	if !explicitGoalRetryMatches(current, request, nil, commandID) {
 		return nil, goalsvc.ErrGoalConflict
 	}
-	if err := c.bindCreatedExplicitGoal(ctx, actor, snapshot, commandID, current); err != nil {
-		return nil, err
-	}
-	if snapshot != nil {
-		return c.reloadBoundExplicitGoal(ctx, actor.SessionKey, current.ID)
-	}
 	return &current, nil
-}
-
-func (c *explicitGoalExecutionCoordinator) reloadBoundExplicitGoal(
-	ctx context.Context,
-	sessionKey string,
-	goalID string,
-) (*protocol.Goal, error) {
-	current, err := c.goals.Current(
-		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
-		strings.TrimSpace(sessionKey),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if current == nil || strings.TrimSpace(current.ID) != strings.TrimSpace(goalID) {
-		return nil, fmt.Errorf(
-			"%w: active Goal changed after Execution binding confirmation",
-			orchestrationsvc.ErrExplicitGoalBindingConflict,
-		)
-	}
-	return current, nil
-}
-
-func (c *explicitGoalExecutionCoordinator) bindCreatedExplicitGoal(
-	ctx context.Context,
-	actor orchestrationsvc.ActorContext,
-	snapshot *protocol.ExecutionSnapshot,
-	commandID string,
-	goal protocol.Goal,
-) error {
-	if snapshot == nil {
-		return nil
-	}
-	current := snapshot
-	for attempt := 0; attempt < 3; attempt++ {
-		result, err := c.executions.BindExplicitGoal(ctx, actor, orchestrationsvc.BindExplicitGoalInput{
-			ExecutionID:           current.Execution.ID,
-			SnapshotRevision:      current.Execution.Version,
-			CommandID:             commandID,
-			GoalID:                goal.ID,
-			GoalObjectiveRevision: goal.ObjectiveRevision(),
-			Objective:             goal.Objective,
-		})
-		if err != nil {
-			return fmt.Errorf("bind explicit Goal to current Execution: %w", err)
-		}
-		if result.Outcome != orchestrationsvc.MutationRejected {
-			return nil
-		}
-		if result.ReasonCode == orchestrationsvc.ErrorCodeStaleExecution {
-			reloaded, reloadErr := c.executions.GetCurrent(ctx, actor)
-			if reloadErr != nil {
-				return fmt.Errorf("reload current Execution after binding race: %w", reloadErr)
-			}
-			if reloaded == nil {
-				return fmt.Errorf(
-					"%w: current Execution disappeared during explicit Goal binding",
-					orchestrationsvc.ErrExplicitGoalBindingConflict,
-				)
-			}
-			if executionMatchesExplicitGoal(reloaded.Execution, goal) {
-				return nil
-			}
-			current = reloaded
-			continue
-		}
-		switch result.ReasonCode {
-		case orchestrationsvc.ErrorCodeGoalObjectiveConflict:
-			return fmt.Errorf("%w: %s", orchestrationsvc.ErrExplicitGoalObjectiveConflict, result.Message)
-		case orchestrationsvc.ErrorCodeGoalScopeConflict:
-			return fmt.Errorf("%w: %s", orchestrationsvc.ErrExplicitGoalScopeConflict, result.Message)
-		case orchestrationsvc.ErrorCodeGoalBindingConflict:
-			return fmt.Errorf("%w: %s", orchestrationsvc.ErrExplicitGoalBindingConflict, result.Message)
-		default:
-			return fmt.Errorf(
-				"explicit Goal binding rejected (%s): %s",
-				result.ReasonCode,
-				result.Message,
-			)
-		}
-	}
-	return fmt.Errorf(
-		"%w: Execution kept changing while explicit Goal binding retried",
-		orchestrationsvc.ErrExplicitGoalBindingConflict,
-	)
 }
 
 func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
@@ -313,6 +212,10 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 		current.Metadata,
 		protocol.GoalMetadataActivationOrigin,
 	))
+	bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+	if origin == "" && bindingState == protocol.GoalExecutionBindingStateStandalone {
+		origin = protocol.GoalActivationOriginUserExplicit
+	}
 	switch origin {
 	case protocol.GoalActivationOriginUserExplicit,
 		protocol.GoalActivationOriginAdaptiveInitial,
@@ -328,6 +231,9 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 		current.Metadata,
 		protocol.GoalMetadataActivationReason,
 	))
+	if activationReason == "" && bindingState == protocol.GoalExecutionBindingStateStandalone {
+		activationReason = protocol.GoalActivationReasonPersistenceRequested
+	}
 	if activationReason == "" {
 		return nil, fmt.Errorf(
 			"%w: active Goal has inconsistent activation reason",
@@ -444,6 +350,12 @@ func (c *explicitGoalExecutionCoordinator) ResolveExplicitGoalActivation(
 		current.Metadata,
 		protocol.GoalMetadataActivationReason,
 	))
+	bindingState := protocol.GoalExecutionBindingStateFromGoal(*current)
+	if origin == "" && reason == "" &&
+		bindingState == protocol.GoalExecutionBindingStateStandalone {
+		origin = protocol.GoalActivationOriginUserExplicit
+		reason = protocol.GoalActivationReasonPersistenceRequested
+	}
 	switch origin {
 	case protocol.GoalActivationOriginUserExplicit,
 		protocol.GoalActivationOriginAdaptiveInitial,
@@ -856,7 +768,7 @@ func validateGoalForExplicitActivation(
 
 func explicitGoalMetadata(
 	source map[string]any,
-	snapshot *protocol.ExecutionSnapshot,
+	_ *protocol.ExecutionSnapshot,
 	commandID string,
 ) map[string]any {
 	metadata := make(map[string]any, len(source)+6)
@@ -864,33 +776,21 @@ func explicitGoalMetadata(
 		metadata[key] = value
 	}
 	delete(metadata, protocol.GoalMetadataPromotionCommand)
+	delete(metadata, protocol.GoalMetadataExecutionMode)
 	delete(metadata, protocol.GoalMetadataExecutionBindingState)
 	metadata[protocol.GoalMetadataExplicitCommand] = commandID
 	metadata[protocol.GoalMetadataActivationOrigin] = string(protocol.GoalActivationOriginUserExplicit)
 	metadata[protocol.GoalMetadataActivationReason] = string(protocol.GoalActivationReasonPersistenceRequested)
-	if snapshot == nil {
-		metadata[protocol.GoalMetadataExecutionID] = protocol.ExplicitGoalReservedExecutionID(commandID)
-		metadata[protocol.GoalMetadataExecutionBindingState] =
-			string(protocol.GoalExecutionBindingStateReserved)
-		delete(metadata, protocol.GoalMetadataCompletionCriteria)
-		return metadata
-	}
-	metadata[protocol.GoalMetadataExecutionID] = snapshot.Execution.ID
-	metadata[protocol.GoalMetadataExecutionBindingState] =
-		string(protocol.GoalExecutionBindingStatePending)
-	criteria := normalizeExplicitCriteria(snapshot.Execution.CompletionCriteria)
-	if len(criteria) == 0 {
-		delete(metadata, protocol.GoalMetadataCompletionCriteria)
-	} else {
-		metadata[protocol.GoalMetadataCompletionCriteria] = criteria
-	}
+	metadata[protocol.GoalMetadataExecutionMode] = string(protocol.GoalExecutionModeGoalOnly)
+	delete(metadata, protocol.GoalMetadataExecutionID)
+	delete(metadata, protocol.GoalMetadataCompletionCriteria)
 	return metadata
 }
 
 func explicitGoalRetryMatches(
 	goal protocol.Goal,
 	request protocol.CreateGoalRequest,
-	snapshot *protocol.ExecutionSnapshot,
+	_ *protocol.ExecutionSnapshot,
 	commandID string,
 ) bool {
 	if protocol.GoalMetadataString(
@@ -908,30 +808,12 @@ func explicitGoalRetryMatches(
 		!goalTokenBudgetMatches(goal.TokenBudget, request.TokenBudget) {
 		return false
 	}
-	executionID := protocol.GoalMetadataString(
-		goal.Metadata,
-		protocol.GoalMetadataExecutionID,
-	)
-	if snapshot == nil {
-		expectedID := protocol.ExplicitGoalReservedExecutionID(commandID)
-		state := protocol.GoalExecutionBindingStateFromGoal(goal)
-		return (executionID == "" || executionID == expectedID) &&
-			(state == protocol.GoalExecutionBindingStateReserved ||
-				state == protocol.GoalExecutionBindingStateStandalone)
-	}
-	if executionID != snapshot.Execution.ID {
-		return false
-	}
-	state := protocol.GoalExecutionBindingStateFromGoal(goal)
-	if state != protocol.GoalExecutionBindingStatePending &&
-		state != protocol.GoalExecutionBindingStateConfirmed &&
-		state != protocol.GoalExecutionBindingStateStandalone {
-		return false
-	}
-	return slices.Equal(
-		goalMetadataCriteria(goal.Metadata),
-		normalizeExplicitCriteria(snapshot.Execution.CompletionCriteria),
-	)
+	return protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataExecutionID) == "" &&
+		protocol.GoalExecutionBindingStateFromGoal(goal) == protocol.GoalExecutionBindingStateStandalone &&
+		protocol.GoalExecutionMode(protocol.GoalMetadataString(
+			goal.Metadata,
+			protocol.GoalMetadataExecutionMode,
+		)) == protocol.GoalExecutionModeGoalOnly
 }
 
 func explicitGoalCommandID(request protocol.CreateGoalRequest, objective string) string {
@@ -982,16 +864,6 @@ func goalTokenBudgetMatches(left *int64, right *int64) bool {
 		return left == nil && right == nil
 	}
 	return *left == *right
-}
-
-func executionMatchesExplicitGoal(
-	execution protocol.Execution,
-	goal protocol.Goal,
-) bool {
-	return strings.TrimSpace(execution.GoalID) == strings.TrimSpace(goal.ID) &&
-		execution.GoalObjectiveRevision == goal.ObjectiveRevision() &&
-		execution.GoalActivationOrigin == protocol.GoalActivationOriginUserExplicit &&
-		execution.GoalActivationReason == protocol.GoalActivationReasonPersistenceRequested
 }
 
 func goalRetargetIdentities(

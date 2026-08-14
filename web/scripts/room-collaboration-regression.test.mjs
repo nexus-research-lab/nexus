@@ -250,15 +250,37 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
     objective: "Keep Room Goal continuation observable",
     continuation_count: 1,
     empty_progress_count: 0,
+    continuation_state: "ready",
     version: 1,
     created_at: "2026-08-12T00:00:00Z",
     updated_at: "2026-08-12T00:00:00Z",
   };
+  const recovering = buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: {
+      ...baseGoal,
+      status: "active",
+      empty_progress_count: 1,
+      continuation_state: "recovering",
+    },
+    isGenerating: false,
+  });
+  assert.equal(recovering.statusLabel, "运行中");
+  assert.equal(recovering.attentionTone, null);
+  assert.equal(recovering.attentionMessage, null);
+
   const suppressed = buildGoalStatusStripModel({
     canResume: true,
     continuationHold: null,
     error: null,
-    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    goal: {
+      ...baseGoal,
+      status: "active",
+      empty_progress_count: 2,
+      continuation_state: "suspended",
+    },
     isGenerating: false,
   });
   assert.equal(suppressed.statusLabel, "自动续跑已停止");
@@ -270,7 +292,7 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
     canResume: true,
     continuationHold: null,
     error: null,
-    goal: { ...baseGoal, status: "paused" },
+    goal: { ...baseGoal, status: "paused", continuation_state: "inactive" },
     isGenerating: false,
   });
   assert.equal(paused.statusLabel, "已暂停");
@@ -295,7 +317,12 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
     compact: false,
     disabled: false,
     error: null,
-    goal: { ...baseGoal, status: "active", empty_progress_count: 1 },
+    goal: {
+      ...baseGoal,
+      status: "active",
+      empty_progress_count: 2,
+      continuation_state: "suspended",
+    },
     isGenerating: false,
     isLoading: false,
     scopeLabel: "房间 Goal",
@@ -308,6 +335,51 @@ test("Goal status distinguishes auto-continuation suppression from an actual pau
   assert.match(html, />自动续跑已停止</);
   assert.match(html, /这不是 Agent 主动暂停/);
   assert.match(html, /aria-label="继续"/);
+});
+
+test("Goal blocker recovery contract follows the interface language", async () => {
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const goal = {
+    id: "goal-blocked-recovery",
+    session_key: "room:group:blocked-recovery",
+    objective: "Restore the source system",
+    status: "blocked",
+    blocker: {
+      id: "source-system-unavailable",
+      needed_input: "restore source-system access",
+      reason: "source system is unavailable",
+      since_objective_revision: 1,
+    },
+    continuation_count: 2,
+    empty_progress_count: 0,
+    version: 3,
+    created_at: "2026-08-14T00:00:00Z",
+    updated_at: "2026-08-14T00:00:00Z",
+  };
+  const element = React.createElement(GoalStatusStrip, {
+    canResume: true,
+    compact: false,
+    disabled: false,
+    error: null,
+    goal,
+    isGenerating: false,
+    isLoading: false,
+    scopeLabel: "Goal",
+    onClearRequest: () => {},
+    onEdit: () => {},
+    onPause: () => {},
+    onRefresh: () => {},
+    onResume: () => {},
+  });
+
+  const chinese = await renderWithI18n(element, "zh");
+  assert.match(chinese, /source system is unavailable；需要：restore source-system access/);
+
+  const english = await renderWithI18n(element, "en");
+  assert.match(english, /source system is unavailable Needed input: restore source-system access/);
+  assert.doesNotMatch(english, /需要|；/);
 });
 
 test("Goal clear follows the server-derived WorkGraph binding state", async () => {

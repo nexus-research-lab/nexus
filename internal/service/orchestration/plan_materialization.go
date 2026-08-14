@@ -102,14 +102,14 @@ func (s *Service) materializeLoadedPlanProposal(
 		switch proposal.Status {
 		case protocol.ExecutionPlanProposalStatusSealed:
 			reservedExecutionID := strings.TrimSpace(proposal.TargetExecutionID)
-			if proposal.Document.Operation == protocol.ExecutionPlanProposalCreate &&
-				strings.TrimSpace(proposal.GoalReservedExecutionID) != "" {
-				reservedExecutionID = strings.TrimSpace(proposal.GoalReservedExecutionID)
-			} else if proposal.Document.Operation != protocol.ExecutionPlanProposalReplan {
+			if proposal.Document.Operation != protocol.ExecutionPlanProposalReplan {
 				reservedExecutionID = deterministicProposalExecutionID(
 					proposal.ID,
 					proposal.ContentDigest,
 				)
+				if strings.TrimSpace(proposal.GoalReservedExecutionID) != "" {
+					reservedExecutionID = strings.TrimSpace(proposal.GoalReservedExecutionID)
+				}
 			}
 			nextAttemptAt := s.currentTime().Add(planProposalRetryDelay)
 			updated, err := s.planProposals.MarkPlanProposalMaterializing(
@@ -543,13 +543,18 @@ func proposalGoalActivationMatches(
 			strings.TrimSpace(proposal.GoalReservedExecutionID) == "" &&
 			strings.TrimSpace(proposal.ReplacesExecutionID) == ""
 	}
+	reservationMatches := strings.TrimSpace(proposal.GoalReservedExecutionID) ==
+		strings.TrimSpace(activation.ReservedExecutionID)
+	if strings.TrimSpace(proposal.GoalReservedExecutionID) == "" &&
+		strings.TrimSpace(activation.ReservedExecutionID) != "" {
+		reservationMatches = true
+	}
 	return strings.TrimSpace(proposal.GoalID) == strings.TrimSpace(activation.GoalID) &&
 		proposal.GoalObjectiveRevision == activation.GoalObjectiveRevision &&
 		strings.TrimSpace(proposal.Document.Objective) == strings.TrimSpace(activation.Objective) &&
 		proposal.GoalActivationOrigin == activation.ActivationOrigin &&
 		proposal.GoalActivationReason == activation.ActivationReason &&
-		strings.TrimSpace(proposal.GoalReservedExecutionID) ==
-			strings.TrimSpace(activation.ReservedExecutionID) &&
+		reservationMatches &&
 		strings.TrimSpace(proposal.ReplacesExecutionID) ==
 			strings.TrimSpace(activation.ReplacesExecutionID)
 }

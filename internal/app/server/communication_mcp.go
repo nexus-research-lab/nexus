@@ -115,6 +115,31 @@ func communicationRuntimeActor(
 		}
 		actor.RoomID = sourceContextID
 		actor.ConversationID = strings.TrimSpace(parsed.ConversationID)
+		if authority := runtimectx.ResponsibilityAuthorityStateFromContext(ctx); authority != nil {
+			actor.GoalCollaborationBinding = func() *protocol.GoalCollaborationBinding {
+				current, ok := authority.LoadGoalAuthority()
+				if !ok {
+					return nil
+				}
+				return &protocol.GoalCollaborationBinding{
+					GoalID:            current.GoalID,
+					ObjectiveRevision: current.ObjectiveRevision,
+				}
+			}
+			break
+		}
+		if authority := runtimectx.GoalAuthorityStateFromContext(ctx); authority != nil {
+			actor.GoalCollaborationBinding = func() *protocol.GoalCollaborationBinding {
+				current, ok := authority.LoadBound()
+				if !ok {
+					return nil
+				}
+				return &protocol.GoalCollaborationBinding{
+					GoalID:            current.GoalID,
+					ObjectiveRevision: current.ObjectiveRevision,
+				}
+			}
+		}
 	}
 	return actor, true
 }

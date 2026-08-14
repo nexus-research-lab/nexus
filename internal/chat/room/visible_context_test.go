@@ -312,7 +312,8 @@ func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *test
 		"assign_work is intentionally unavailable until that bootstrap completes",
 		"Never use raw @ as a fallback for planned responsibility",
 		"Only the resulting WorkBinding defines responsibility",
-		"every raw @ remains conversation-only and creates no Work Item or completion evidence",
+		"every raw @ remains conversation-only and creates no Work Item",
+		"evidence is audit context and never a Goal completion gate",
 		"do not duplicate those deliverables yourself",
 		"coordination, unblocking, integration, and verification",
 		"Direct ownership remains valid when one member can deliver coherently",
@@ -396,8 +397,10 @@ func TestBuildRoomVisibleContextUsesGoalContinuationTrigger(t *testing.T) {
 		"Goal continuation: continue the active Room goal",
 		"hidden internal goal context",
 		"create a distinct Ready Work Item and use assign_work",
-		"A bare @ remains conversation-only regardless of Goal or Execution state",
-		"cannot advance Goal evidence",
+		"current Goal lead may complete it when the objective is satisfied",
+		"collaboration evidence is audit context, not a completion requirement",
+		"Goal-attributed @ remains conversation-only and creates no WorkBinding",
+		"substantive public reply may be recorded as collaboration evidence",
 	} {
 		if !strings.Contains(got, expected) {
 			t.Fatalf("Goal continuation trigger missing %q:\n%s", expected, got)

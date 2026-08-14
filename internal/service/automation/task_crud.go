@@ -290,8 +290,21 @@ func (s *Service) updateTask(
 		return nil, err
 	}
 	if permissionBoundaryChanged {
+		pendingRequests, listErr := s.repository.ListPermissionRequests(
+			ctx,
+			updated.OwnerUserID,
+			automationdomain.PermissionRequestStatusPending,
+			updated.JobID,
+		)
+		if listErr != nil {
+			return nil, listErr
+		}
 		if err = s.repository.SupersedePendingPermissionRequests(ctx, updated.OwnerUserID, updated.JobID); err != nil {
 			return nil, err
+		}
+		for _, request := range pendingRequests {
+			request.Status = automationdomain.PermissionRequestStatusSuperseded
+			s.notifyAutomationPermissionSessionResolution(ctx, *current, request)
 		}
 		if err = s.repository.CancelBlockedRunsForTaskRevision(
 			ctx,

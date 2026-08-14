@@ -46,6 +46,8 @@ Agent 任务持久化一个具体 SDK permission mode：`default`、`plan`、`ac
 
 每个任务拥有一份带版本的 `TaskPermissionPolicy` 和一个权限状态。每次 run 都记录启动时使用的策略修订、阻塞状态、造成阻塞的请求，以及外部或 workspace 副作用是否已经开始。每次用户交互对应一条 owner-scoped 的 `AutomationPermissionRequest`。
 
+当任务配置了结果投递 Session 时，工具或存量脚本审批还必须把同一持久请求投影到该接收 Session 的 DM/Room Composer，而不是只显示在能力面板。接收 Session 只是通知与交互路由，不成为任务或请求的授权所有者；服务端仍按 owner、精确 request/job/run/policy revision 和请求冻结的 `delivery_session_key` 校验决策。浏览器重新绑定 Session 时从持久请求重放，Room 级订阅同时恢复待确认标记。允许操作只映射为 `allow_once` 或当前任务的 `allow_task`，拒绝映射为 `deny`；请求解决后向同一 Session 投影 resolved 事件以清除交互面。
+
 客户端必须提交界面实际展示的 job、run、request 和策略修订。只有该请求仍是任务当前交互，并且对应 run 仍被它阻塞时，存储层才接受处理结果。修改 Agent、指令、执行类型或 session target 会推进策略修订；待处理请求随即失效，旧修订的阻塞 run 被取消，已有批准不能越过变化后的执行边界。
 
 ## 运行流程
@@ -93,6 +95,8 @@ Discord、Telegram、DingTalk、WeCom、个人微信和飞书使用同一 channe
 历史 `/approve`、`/always`、`/deny` 仅作为兼容输入。内部 request ID 不展示给用户。Ingress 在执行无 ID 命令前，必须合计当前 session 的普通 runtime 与 Automation pending 请求；总数恰好为一才可执行，多个请求一律 fail closed。命令由控制面消费，不进入 Agent 对话。
 
 Automation 权限、重新连接、缺少输入、拒绝、恢复失败和投递 dead letter 等控制通知可以显示任务身份。普通完成结果不能被强制拼接任务前缀或后缀；Web UI 只根据结构化 metadata 显示轻量“定时任务”标识。
+
+Nexus 内部 DM/Room 不使用 IM Slash 命令承载 Automation 审批。工具与存量脚本请求复用 Composer 权限确认面，直接提供“允许本次”“此任务始终允许”和“拒绝”；Connector 重新连接与缺少执行输入仍由能力面板完成相应配置动作。
 
 ## IM 结果投递
 

@@ -112,7 +112,7 @@ func (s *Service) verifyLegacyGoalOwnerClaim(
 	if s.sessionOwnership == nil {
 		return fmt.Errorf("%w: Goal session ownership proof is unavailable", ErrGoalForbidden)
 	}
-	verifiedOwnerUserID, _, _, _, err := s.verifyGoalSessionOwnership(
+	verifiedOwnerUserID, _, _, err := s.verifyGoalSessionOwnership(
 		ctx,
 		item.SessionKey,
 		ownerUserID,

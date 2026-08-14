@@ -1,5 +1,5 @@
 // INPUT: create_goal 的 execution-ready objective/token budget 与当前 owner/agent/session/round。
-// OUTPUT: 抑制与当前可见 round 竞态的隐藏续跑，创建带 durable usage scope owner 的新 Goal，或返回指向 retarget_goal 的冲突提示。
+// OUTPUT: 抑制与当前可见 round 竞态的隐藏续跑，原子创建 goal_only Goal，或返回指向 retarget_goal / Execution promotion 的明确提示。
 // POS: Goal MCP 创建入口与模型侧 readiness gate；已有 active Goal 不在此处改写。
 package tool
 
@@ -51,13 +51,13 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 				return createGoalErrorResult(err), nil
 			}
 			sctx.StoreGoalMutationAuthority(*item)
-			return structuredResult("goal created", goalPayload(item)), nil
+			return structuredResult("goal created", goalMutationPayload(item)), nil
 		},
 	}
 }
 
 const (
-	createGoalBaseDescription = "Create one active Goal only after explicit user or system Goal intent and a complete execution-ready objective. Do not create a broad placeholder while material clarification is still required. Set token_budget only from an explicit budget. When a compatible transient WorkGraph already exists, this call binds that existing Execution to the new Goal; do not create a second graph. When neither exists and a WorkGraph is also required, wait for this call to succeed before prepare_plan_execution; never launch them in parallel. The call fails when a current Goal exists; explicit objective correction uses retarget_goal on that same Goal."
+	createGoalBaseDescription = "Create one standalone active Goal only after explicit user or system Goal intent and a complete execution-ready objective. Do not create a broad placeholder while material clarification is still required. Set token_budget only from an explicit budget. This call never creates, reserves, or binds an Execution. If a transient WorkGraph is already current, use promote_execution_to_goal with activation_reason=persistence_requested instead. When no WorkGraph exists and one is also required, wait for this call to succeed before prepare_plan_execution with goal_binding=current; never launch them in parallel. The call fails when a current Goal exists; explicit objective correction uses retarget_goal on that same Goal."
 )
 
 func createGoalDescription(_ string) string {

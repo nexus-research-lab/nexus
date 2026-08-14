@@ -49,6 +49,12 @@ export interface SubagentTaskMessagesResponse {
   output?: string;
 }
 
+export interface SubagentTaskActionResult {
+  success: boolean;
+  task_id: string;
+  status: string;
+}
+
 export type SubagentTaskSource =
   | { kind: "session"; session_key: string }
   | { kind: "room"; room_id: string; conversation_id: string };

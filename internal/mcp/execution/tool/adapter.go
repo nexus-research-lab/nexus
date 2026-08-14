@@ -228,6 +228,18 @@ func snapshotResult(
 	if snapshot != nil {
 		payload["execution_id"] = snapshot.Execution.ID
 		payload["snapshot_revision"] = snapshot.Execution.Version
+		switch snapshot.Execution.Status {
+		case protocol.ExecutionStatusSuperseded:
+			payload["outcome"] = orchestration.MutationSuperseded
+			payload["reason_code"] = orchestration.ErrorCodeExecutionTerminal
+			payload["execution_status"] = snapshot.Execution.Status
+		case protocol.ExecutionStatusCompleted,
+			protocol.ExecutionStatusFailed,
+			protocol.ExecutionStatusCancelled:
+			payload["outcome"] = orchestration.MutationRejected
+			payload["reason_code"] = orchestration.ErrorCodeExecutionTerminal
+			payload["execution_status"] = snapshot.Execution.Status
+		}
 	}
 	if reader, ok := any(svc).(executionRuntimeContextReader); ok {
 		if rendered, err := reader.RuntimeContext(ctx, actor); err == nil &&

@@ -59,11 +59,18 @@ func newGoalMCPBuilder(
 			agentValue,
 			roundAuthority,
 		)
+		responsibilityAuthority := runtimectx.ResponsibilityAuthorityStateFromContext(ctx)
+		if responsibilityAuthority != nil && authority != roundAuthority {
+			// Durable Goal owner fallback intentionally creates a private Goal-only
+			// snapshot. It must not attach the ambient Room Execution authority.
+			responsibilityAuthority = nil
+		}
 		sctx := goalmcpcontract.ServerContext{
-			CurrentSessionKey: goalSessionKey,
-			CurrentRoundID:    strings.TrimSpace(roundID),
-			GoalAuthority:     authority,
-			AllowUserRetarget: allowsTrustedUserGoalRetarget(sourceContextType),
+			CurrentSessionKey:       goalSessionKey,
+			CurrentRoundID:          strings.TrimSpace(roundID),
+			GoalAuthority:           authority,
+			ResponsibilityAuthority: responsibilityAuthority,
+			AllowUserRetarget:       allowsTrustedUserGoalRetarget(sourceContextType),
 			PlanMode: runtimepermission.NormalizeMode(permissionMode) ==
 				sdkpermission.ModePlan,
 		}

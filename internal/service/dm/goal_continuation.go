@@ -204,6 +204,9 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 				Priority:       "internal",
 				Metadata:       validated.Metadata,
 			},
+			continuationStartAdmission: func(admissionCtx context.Context) error {
+				return markGoalContinuationStarted(admissionCtx, s.goals, *validated)
+			},
 		}, chatExecutionInline)
 	}
 	s.inputQueueDispatchMu.Unlock()
@@ -244,7 +247,7 @@ func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context,
 	if reason == "" {
 		reason = "Goal continuation dispatch failed before runtime start"
 	}
-	if _, err := r.service.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision()); err != nil &&
+	if err := retryGoalContinuationPlan(ctx, r.service.goals, plan, reason); err != nil &&
 		!goalsvc.IsExpectedMutationError(err) {
 		r.service.loggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
@@ -253,4 +256,35 @@ func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context,
 			"err", err,
 		)
 	}
+}
+
+type durableGoalContinuationLauncher interface {
+	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
+	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
+}
+
+type durableGoalContinuationSettler interface {
+	SettleContinuationPlan(context.Context, string, string, int64) error
+}
+
+func settleGoalContinuationAfterRuntime(ctx context.Context, provider goalContextProvider, goalID, roundID string, objectiveRevision int64) error {
+	if durable, ok := provider.(durableGoalContinuationSettler); ok {
+		return durable.SettleContinuationPlan(ctx, goalID, roundID, objectiveRevision)
+	}
+	return nil
+}
+
+func markGoalContinuationStarted(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation) error {
+	if durable, ok := provider.(durableGoalContinuationLauncher); ok {
+		return durable.MarkContinuationPlanStarted(ctx, plan)
+	}
+	return nil
+}
+
+func retryGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
+	if durable, ok := provider.(durableGoalContinuationLauncher); ok {
+		return durable.RetryContinuationPlan(ctx, plan, reason)
+	}
+	_, err := provider.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision())
+	return err
 }

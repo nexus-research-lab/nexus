@@ -23,7 +23,7 @@ func TestServicePauseAndModelBlockPreserveBudgetLimitedGoal(t *testing.T) {
 		{
 			name: "model block",
 			run: func(ctx context.Context, service *Service, item protocol.Goal) (*protocol.Goal, error) {
-				return service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{RoundID: "round-blocked"})
+				return service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{BlockerID: "external-input-unavailable", Reason: "external input unavailable", NeededInput: "provide the missing external input", RoundID: "round-blocked"})
 			},
 		},
 	} {
@@ -441,7 +441,10 @@ func TestServiceAllowsGoalCompletionAfterExternalFlushHitsBudget(t *testing.T) {
 
 func TestServiceUsageLimitForSessionTransitionsActiveAndBudgetLimitedGoal(t *testing.T) {
 	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalMaxContinuationsPerRun: 20,
+	}, repo)
 	service.nowFn = fixedClock()
 	service.idFactory = sequentialID()
 	ctx := context.Background()

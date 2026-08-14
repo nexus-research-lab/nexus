@@ -19,6 +19,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -104,6 +105,10 @@ type ChatRequest struct {
 	// AutomationRun 只由 Automation 调度器签发，作为 runtime/MCP 的可信 run 身份。
 	AutomationRun *protocol.AutomationRunContext
 	EventObserver RoomEventObserver
+	// continuationStartAdmission is host-only. It advances the durable
+	// continuation receipt after exact root registration and before any slot
+	// runtime is allowed to start.
+	continuationStartAdmission func(context.Context) error
 }
 
 // InterruptRequest 表示 Room 会话中断请求。按 root round + agent slot 定位执行对象。
@@ -203,12 +208,11 @@ type goalContextProvider interface {
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordContinuationProgress(context.Context, string, string, bool, ...int64) (*protocol.Goal, error)
-	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
-	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordContinuationRuntimeProgress(context.Context, string, goalsvc.ContinuationRuntimeIdentity, bool, ...int64) (*protocol.Goal, error)
+	RecordContinuationRuntimeFailure(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
+	RecordContinuationRuntimeCompletionToolMiss(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error)
-	RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 }
 

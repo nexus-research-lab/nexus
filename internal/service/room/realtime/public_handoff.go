@@ -1,5 +1,5 @@
 // INPUT: Room 最终 assistant 公区消息、Goal-attributed directed wake、成员目录与 source slot 身份。
-// OUTPUT: 带 agent_mentions 标注的消息，以及保留 owner/root scope、路由来源且可幂等恢复的 handoff ledger 记录。
+// OUTPUT: 带 agent_mentions 标注的消息，以及固化 Goal revision、保留 owner/root scope、路由来源且可幂等恢复的 handoff ledger 记录。
 // POS: @ 解析、directed wake 与 handoff identity 的单一持久恢复边界。
 package realtime
 
@@ -144,6 +144,15 @@ func (s *Service) annotatePublicAssistantMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) error {
+	_, err := s.annotatePublicAssistantMessageWithGoalBinding(roundValue, slot, message)
+	return err
+}
+
+func (s *Service) annotatePublicAssistantMessageWithGoalBinding(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) (*protocol.GoalCollaborationBinding, error) {
 	// 旧版 fanout 控制标记只做输入兼容，不再决定路由；每个有效 @ 都是
 	// 真实 handoff。清理后重新计算 span，确保偏移对应用户实际看到的文本。
 	cleaned := roomdomain.StripFanoutMarker(message)
@@ -162,11 +171,11 @@ func (s *Service) annotatePublicAssistantMessage(
 		}
 	}
 	if len(blocks) == 0 {
-		return nil
+		return nil, nil
 	}
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	if messageID == "" {
-		return nil
+		return nil, nil
 	}
 	mentions := buildRoomMentionAnnotations(
 		roundValue.Context,
@@ -175,13 +184,21 @@ func (s *Service) annotatePublicAssistantMessage(
 		blocks,
 	)
 	if len(mentions) == 0 {
-		return nil
+		return nil, nil
 	}
-	if err := s.detectRoomMentionHandoffs(roundValue, slot, message, mentions); err != nil {
-		return err
+	goalCollaborationBinding := goalCollaborationBindingForSlot(roundValue, slot)
+	storedGoalBinding, err := s.detectRoomMentionHandoffs(
+		roundValue,
+		slot,
+		message,
+		mentions,
+		goalCollaborationBinding,
+	)
+	if err != nil {
+		return nil, err
 	}
 	message["agent_mentions"] = mentions
-	return nil
+	return storedGoalBinding, nil
 }
 
 func (s *Service) detectRoomMentionHandoffs(
@@ -189,13 +206,16 @@ func (s *Service) detectRoomMentionHandoffs(
 	slot *activeRoomSlot,
 	message protocol.Message,
 	mentions []protocol.AgentMention,
-) error {
+	goalCollaborationBinding *protocol.GoalCollaborationBinding,
+) (*protocol.GoalCollaborationBinding, error) {
 	if s.publicHandoffs == nil {
-		return nil
+		return cloneGoalCollaborationBinding(goalCollaborationBinding), nil
 	}
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
 	detected := make(map[string]struct{}, len(mentions))
+	var storedGoalBinding *protocol.GoalCollaborationBinding
+	storedBindingSet := false
 	for _, mention := range mentions {
 		handoffID := strings.TrimSpace(mention.HandoffID)
 		if handoffID == "" {
@@ -205,7 +225,7 @@ func (s *Service) detectRoomMentionHandoffs(
 			continue
 		}
 		detected[handoffID] = struct{}{}
-		_, _, err := s.publicHandoffs.Detect(roundValue.OwnerUserID, workspacestore.RoomPublicHandoff{
+		stored, _, err := s.publicHandoffs.Detect(roundValue.OwnerUserID, workspacestore.RoomPublicHandoff{
 			HandoffID:          handoffID,
 			ConversationID:     roundValue.ConversationID,
 			RoomID:             roundValue.RoomID,
@@ -216,17 +236,28 @@ func (s *Service) detectRoomMentionHandoffs(
 			TargetAgentID:      strings.TrimSpace(mention.AgentID),
 			Content:            content,
 			QueueSource:        protocol.InputQueueSourceAgentPublicMention,
-			GoalCollaborationBinding: goalCollaborationBindingForSlot(
-				roundValue,
-				slot,
+			GoalCollaborationBinding: cloneGoalCollaborationBinding(
+				goalCollaborationBinding,
 			),
 			HopIndex: roundValue.HopIndex,
 		})
 		if err != nil {
-			return err
+			return nil, err
+		}
+		candidate := protocol.NormalizeGoalCollaborationBinding(
+			stored.GoalCollaborationBinding,
+		)
+		if !storedBindingSet {
+			storedGoalBinding = cloneGoalCollaborationBinding(candidate)
+			storedBindingSet = true
+			continue
+		}
+		if (storedGoalBinding == nil) != (candidate == nil) ||
+			(storedGoalBinding != nil && *storedGoalBinding != *candidate) {
+			return nil, errors.New("Room public handoffs for one assistant message disagree on Goal revision")
 		}
 	}
-	return nil
+	return storedGoalBinding, nil
 }
 
 func roomMentionTextBlocks(content any) []roomMentionTextBlock {
@@ -666,12 +697,15 @@ func (s *Service) repairGoalDirectedMessageHandoffs(ctx context.Context) error {
 			continue
 		}
 		repairCtx := contextWithExactQueueOwner(ctx, ownerUserID)
-		goal := s.currentRoomGoalForSession(
+		goal, goalErr := s.goalForCollaborationBinding(
 			repairCtx,
-			protocol.BuildRoomSharedSessionKey(message.ConversationID),
+			message.ConversationID,
+			binding,
 		)
-		if goal == nil || strings.TrimSpace(goal.ID) != binding.GoalID ||
-			goal.ObjectiveRevision() != binding.ObjectiveRevision {
+		if goalErr != nil {
+			return goalErr
+		}
+		if !roomGoalCollaborationBindingMatchesGoal(goal, binding) {
 			continue
 		}
 		if err := s.ensureGoalDirectedMessageHandoffs(
@@ -945,6 +979,13 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 	if s == nil || s.goals == nil || binding == nil {
 		return errors.New("Goal provider is required for Room collaboration handback recovery")
 	}
+	goal, err := s.goalForCollaborationBinding(ctx, conversationID, binding)
+	if err != nil {
+		return err
+	}
+	if !roomGoalCollaborationBindingMatchesGoal(goal, binding) {
+		return s.settleDiscardedGoalHandoff(ownerUserID, conversationID, handoff)
+	}
 	if handoff.GoalPublicEvidence {
 		roundID := firstNonEmptyString(
 			handoff.TargetAgentRoundID,
@@ -966,7 +1007,7 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 		handoff.TargetAgentRoundID,
 		handoff.HandoffID,
 	)
-	if _, err := s.goals.RecordRoomGoalCollaborationHandback(
+	if _, err = s.goals.RecordRoomGoalCollaborationHandback(
 		ctx,
 		binding.GoalID,
 		handbackRoundID,
@@ -977,11 +1018,18 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 		}
 		return err
 	}
-	return s.publicHandoffs.MarkGoalHandbackSettled(
+	if err = s.publicHandoffs.MarkGoalHandbackSettled(
 		ownerUserID,
 		conversationID,
 		handoff.HandoffID,
-	)
+	); err != nil {
+		return err
+	}
+	// Startup recovery has no live target round whose post-round hook could
+	// restart the source Goal. Dispatch from the canonical Goal session only
+	// after the terminal->handback receipt is durably settled.
+	s.dispatchGoalContinuationForSession(ctx, goal.SessionKey, handbackRoundID)
+	return nil
 }
 
 func (s *Service) recoverGoalDirectedMessageHandoff(

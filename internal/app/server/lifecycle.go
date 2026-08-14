@@ -1,5 +1,5 @@
-// INPUT: Server services, runtime managers, root lifecycle context、durable Goal confirmation/subagent deadline 与 orchestration dispatch state。
-// OUTPUT: 启动及周期恢复 Goal binding、Plan proposal、child Attempt、lease，并在 successor dispatch 前优先 drain cancellation。
+// INPUT: Server services, runtime managers, root lifecycle context、durable completion/Goal confirmation/subagent deadline 与 orchestration dispatch state。
+// OUTPUT: 启动及周期恢复 completion audit、Goal binding、Plan proposal、child Attempt、lease，并在 successor dispatch 前优先 drain cancellation。
 // POS: 启动、监管和停止后台 orchestration 恢复器的应用生命周期边界。
 package server
 
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
@@ -31,6 +32,8 @@ const (
 	planProposalReconcileBatch    = 32
 	goalConfirmationInterval      = 15 * time.Second
 	goalConfirmationBatch         = 32
+	completionAuditInterval       = 15 * time.Second
+	completionAuditBatch          = 32
 )
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
@@ -79,6 +82,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startAutomation,
 		s.startRoomPublicHandoffs,
 		s.startRoomDirectedWakes,
+		s.startCompletionAuditRecovery,
 		s.startGoalConfirmationRecovery,
 		s.startPlanProposalRecovery,
 		s.startSubagentReconciliation,
@@ -108,6 +112,51 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startCompletionAuditRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Orchestration == nil {
+		return nil, nil
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	reconcile := func() {
+		result, err := s.services.Orchestration.ReconcileCompletionAudits(
+			workerCtx,
+			completionAuditBatch,
+		)
+		if err != nil {
+			s.api.BaseLogger().Warn("恢复 Execution completion audit 失败", "err", err)
+		}
+		if result.Scanned > 0 {
+			s.api.BaseLogger().Info(
+				"恢复 Execution completion audit",
+				"scanned", result.Scanned,
+				"completed", result.Completed,
+				"deferred", result.Deferred,
+				"discarded", result.Discarded,
+				"failed", result.Failed,
+			)
+		}
+	}
+	reconcile()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(completionAuditInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-ticker.C:
+				reconcile()
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}, nil
 }
 
 func (s *Server) startGoalConfirmationRecovery(ctx context.Context) (func(), error) {
@@ -199,6 +248,7 @@ func (s *Server) startSubagentReconciliation(ctx context.Context) (func(), error
 		return nil, nil
 	}
 	runCtx, stop := context.WithCancel(ctx)
+	processStartedAt := time.Now().UTC()
 	result, err := s.services.Orchestration.ReconcileExpiredSubagents(
 		runCtx,
 		subagentReconcileBatch,
@@ -214,17 +264,40 @@ func (s *Server) startSubagentReconciliation(ctx context.Context) (func(), error
 		"interval_seconds",
 		int64(subagentReconcileInterval.Seconds()),
 	)
-	go s.runSubagentReconciliation(runCtx)
+	go s.runSubagentReconciliation(runCtx, processStartedAt)
 	return stop, nil
 }
 
-func (s *Server) runSubagentReconciliation(ctx context.Context) {
+func (s *Server) runSubagentReconciliation(
+	ctx context.Context,
+	processStartedAt time.Time,
+) {
 	ticker := time.NewTicker(subagentReconcileInterval)
 	defer ticker.Stop()
+	orphanTimer := time.NewTimer(protocol.SubagentReconciliationGrace)
+	defer orphanTimer.Stop()
+	// The timer retains the immutable startup cutoff across retries; the regular
+	// ticker handles only attempts that already carry a durable deadline.
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-orphanTimer.C:
+			result, err := s.services.Orchestration.ReconcileOrphanedSubagents(
+				ctx,
+				processStartedAt,
+				subagentReconcileBatch,
+			)
+			if err != nil {
+				s.api.BaseLogger().Warn("Subagent orphan Attempt 恢复失败", "err", err)
+				orphanTimer.Reset(subagentReconcileInterval)
+				continue
+			}
+			s.logSubagentReconciliationResult("重启 orphan 恢复", result)
+			if result.Scanned >= subagentReconcileBatch {
+				orphanTimer.Reset(subagentReconcileInterval)
+				continue
+			}
 		case <-ticker.C:
 			result, err := s.services.Orchestration.ReconcileExpiredSubagents(
 				ctx,

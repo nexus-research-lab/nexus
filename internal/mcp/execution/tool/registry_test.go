@@ -220,6 +220,156 @@ func TestExecutionToolSchemasExposeProjectionCollectionLimits(t *testing.T) {
 	}
 }
 
+func TestWorkReferenceSchemasDescribeOnlyTheirActualAuthorityLane(t *testing.T) {
+	for name, schema := range map[string]map[string]any{
+		"assign_work":    assignWorkSchema(),
+		"take_over_work": takeOverWorkSchema(),
+	} {
+		properties := schema["properties"].(map[string]any)
+		for _, field := range []string{"work_item_id", "logical_key"} {
+			description := properties[field].(map[string]any)["description"].(string)
+			if strings.Contains(description, "WorkBinding") ||
+				strings.Contains(description, "ReviewBinding") {
+				t.Fatalf("%s.%s invents a binding authority lane: %s", name, field, description)
+			}
+		}
+	}
+
+	for name, schema := range map[string]map[string]any{
+		"submit_work": submitWorkSchema(),
+		"block_work":  blockWorkSchema(),
+		"resume_work": resumeWorkSchema(),
+	} {
+		properties := schema["properties"].(map[string]any)
+		for _, field := range []string{"work_item_id", "logical_key"} {
+			description := properties[field].(map[string]any)["description"].(string)
+			if !strings.Contains(description, "exact trusted WorkBinding") ||
+				!strings.Contains(description, "explicit value must match") {
+				t.Fatalf("%s.%s omits trusted-default/fail-closed semantics: %s", name, field, description)
+			}
+		}
+	}
+
+	review := reviewWorkSchema()["properties"].(map[string]any)
+	for _, field := range []string{"submission_id", "work_item_id", "logical_key"} {
+		description := review[field].(map[string]any)["description"].(string)
+		if !strings.Contains(description, "exact trusted ReviewBinding") ||
+			!strings.Contains(description, "exact trusted WorkBinding") ||
+			!strings.Contains(description, "must match") {
+			t.Fatalf("review_work.%s omits exact ReviewBinding consistency: %s", field, description)
+		}
+	}
+}
+
+func TestSubmitAndReviewSurfacesKeepConditionalLocatorsExplicitAndStable(t *testing.T) {
+	type toolSurface struct {
+		description string
+		schema      map[string]any
+	}
+	unbound := contract.ServerContext{}
+	workBound := contract.ServerContext{WorkBinding: &protocol.ExecutionWorkBinding{
+		ExecutionID:  "execution-1",
+		PlanID:       "plan-1",
+		WorkItemID:   "work-1",
+		SpecID:       "spec-1",
+		AssignmentID: "assignment-1",
+		AttemptID:    "attempt-1",
+	}}
+	reviewBound := contract.ServerContext{ReviewBinding: &protocol.ExecutionReviewBinding{
+		ExecutionID:      "execution-1",
+		PlanID:           "plan-1",
+		WorkItemID:       "work-1",
+		SpecID:           "spec-1",
+		AssignmentID:     "assignment-1",
+		SubmissionID:     "submission-1",
+		ReviewDispatchID: "review-dispatch-1",
+		TargetAgentID:    "reviewer-1",
+	}}
+
+	unboundSubmit := submitWork(nil, unbound)
+	boundSubmit := submitWork(nil, workBound)
+	unboundReview := reviewWork(nil, unbound)
+	boundReview := reviewWork(nil, reviewBound)
+	selfReview := reviewWork(nil, workBound)
+	for _, pair := range []struct {
+		name  string
+		left  toolSurface
+		right toolSurface
+	}{
+		{
+			name:  "submit_work",
+			left:  toolSurface{description: unboundSubmit.Description, schema: unboundSubmit.InputSchema},
+			right: toolSurface{description: boundSubmit.Description, schema: boundSubmit.InputSchema},
+		},
+		{
+			name:  "review_work",
+			left:  toolSurface{description: unboundReview.Description, schema: unboundReview.InputSchema},
+			right: toolSurface{description: boundReview.Description, schema: boundReview.InputSchema},
+		},
+		{
+			name:  "review_work_self_binding",
+			left:  toolSurface{description: unboundReview.Description, schema: unboundReview.InputSchema},
+			right: toolSurface{description: selfReview.Description, schema: selfReview.InputSchema},
+		},
+	} {
+		leftSchema, err := json.Marshal(pair.left.schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rightSchema, err := json.Marshal(pair.right.schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pair.left.description != pair.right.description ||
+			string(leftSchema) != string(rightSchema) {
+			t.Fatalf("%s model surface changed with trusted binding", pair.name)
+		}
+	}
+
+	for _, field := range []string{"assigned_work", "current_actor", "not proof"} {
+		if !strings.Contains(unboundSubmit.Description, field) ||
+			!strings.Contains(unboundReview.Description, field) {
+			t.Fatalf("submit/review descriptions do not distinguish projection from capability: missing %q", field)
+		}
+	}
+	if !strings.Contains(unboundSubmit.Description, "DM coordination or any unbound round") ||
+		!strings.Contains(unboundSubmit.Description, "provide work_item_id or logical_key") {
+		t.Fatalf("submit_work description omits unbound locator rule: %s", unboundSubmit.Description)
+	}
+	if !strings.Contains(unboundReview.Description, "DM coordination or any unbound round") ||
+		!strings.Contains(unboundReview.Description, "provide at least one of submission_id, work_item_id, or logical_key") {
+		t.Fatalf("review_work description omits unbound locator rule: %s", unboundReview.Description)
+	}
+
+	submitRequired := unboundSubmit.InputSchema["required"].([]string)
+	reviewRequired := unboundReview.InputSchema["required"].([]string)
+	if !slices.Equal(submitRequired, []string{"result_summary"}) ||
+		!slices.Equal(reviewRequired, []string{"decision"}) {
+		t.Fatalf("conditional locators changed stable required arrays: submit=%#v review=%#v", submitRequired, reviewRequired)
+	}
+	submitProperties := unboundSubmit.InputSchema["properties"].(map[string]any)
+	for _, field := range []string{"work_item_id", "logical_key"} {
+		description := submitProperties[field].(map[string]any)["description"].(string)
+		if !strings.Contains(description, "DM coordination or any unbound call") ||
+			!strings.Contains(description, "assigned_work/current_actor projections do not establish that binding") {
+			t.Fatalf("submit_work.%s omits unbound conditional requirement: %s", field, description)
+		}
+	}
+	assignmentDescription := submitProperties["assignment_id"].(map[string]any)["description"].(string)
+	if !strings.Contains(assignmentDescription, "never replaces the required Work Item locator") {
+		t.Fatalf("submit_work.assignment_id implies it can locate work: %s", assignmentDescription)
+	}
+	reviewProperties := unboundReview.InputSchema["properties"].(map[string]any)
+	for _, field := range []string{"submission_id", "work_item_id", "logical_key"} {
+		description := reviewProperties[field].(map[string]any)["description"].(string)
+		if !strings.Contains(description, "DM coordination or any unbound call") ||
+			!strings.Contains(description, "at least one of submission_id, work_item_id, or logical_key") ||
+			!strings.Contains(description, "assigned_work/current_actor projections do not establish either binding") {
+			t.Fatalf("review_work.%s omits unbound conditional requirement: %s", field, description)
+		}
+	}
+}
+
 func TestGoalPromotionSchemaAllowsAgentSelectedComplexityReason(t *testing.T) {
 	properties := promoteExecutionSchema()["properties"].(map[string]any)
 	reasons := properties["activation_reason"].(map[string]any)["enum"].([]string)

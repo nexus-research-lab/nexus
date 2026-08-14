@@ -21,6 +21,8 @@ Continuation behavior:
 
 {{ completion_tool_retry_note }}
 
+{{ no_progress_recovery_note }}
+
 Budget:
 - Tokens used: {{ tokens_used }}
 - Token budget: {{ token_budget }}
