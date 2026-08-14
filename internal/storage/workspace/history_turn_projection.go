@@ -1,3 +1,6 @@
+// INPUT: 已归一化的历史行、Agent mention action 与 public handoff reply 投影。
+// OUTPUT: 保留 root/slot 身份及非动作 reply lineage 的 ConversationTurn 读模型。
+// POS: workspace 持久消息到 HTTP turn wire shape 的唯一转换边界。
 package workspace
 
 import (
@@ -240,6 +243,7 @@ func convertTurnMessage(
 		converted.ResultSummary = summary
 	}
 	converted.AgentMentions = agentMentionsFromAny(row["agent_mentions"])
+	converted.HandoffReply = protocol.NormalizePublicHandoffReply(row["handoff_reply"])
 	return converted
 }
 

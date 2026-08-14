@@ -12,7 +12,7 @@
 //   - execution.go / execution_runtime.go / execution_dispatch.go / execution_review_dispatch.go / execution_cancellation_dispatch.go / execution_attempt_terminal.go / execution_evidence.go / execution_goal_authority.go / runtime_policy.go / recovery_context.go / execution_context.go / execution_slot_status.go / interrupt.go / subagent_idle_drain.go：slot 执行主链、带 current Spec/accepted dependency WorkContract 的 Assignment/Review admission、完整 binding 校验、Goal mutation authority、取消与 Attempt 终态、compact 持久证据、actor-specific WorkGraph 上下文、配置角色 Skill、连接诊断、中断与父子 usage 后台重试。
 //     execution_context_usage.go 额外持久化每 Agent 终态上下文占用快照及 Session 元数据，并隔离中断控制值与展示文案；Automation slot 使用任务创建时工具策略覆盖而不回读 Agent 当前 allow/deny；精确 agent_round 中断对自然完成竞态保持幂等。
 //   - input_queue.go / input_queue_dispatch.go / guidance_input.go：持久化输入队列（受理/上下文/存储）、队列派发和运行中引导。
-//   - directed_message.go / public_*.go：公开消息、服务端分类为 handoff（区别于 queue/internal）的 mention conversation handoff、
+//   - directed_message.go / public_*.go：公开消息、服务端分类为 handoff（区别于 queue/internal）的 mention conversation handoff、不触发新 wake 的 host-owned reply 因果投影、
 //     visible context、由成功 Goal mutation receipt 派生且首次写 ledger 即固化的非授权 revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
 //     两阶段写入修复、host command 幂等、immediate/delayed durable wake 调度与在线重试。
 //     @ 不创建 Assignment；正式责任只来自 assign_work。

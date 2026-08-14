@@ -296,6 +296,8 @@ export const enConversationMessages = {
   "room.agent_handoff_preparing": "Handing off",
   "room.agent_handoff_queued": "Queued",
   "room.agent_handoff_active": "Handed off",
+  "room.agent_handoff_responded": "Responded",
+  "room.agent_handoff_reply": "Replying to @{name}",
   "room.agent_stop": "Stop Agent",
   "room.agent_stopping": "Stopping…",
   "room.pause_member": "Pause {name}'s participation",

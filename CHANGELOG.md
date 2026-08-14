@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made successful public handoff replies visibly traceable to their source member with a host-owned, reconnect-safe reply annotation, without fabricating a reciprocal `@`, a second wake, Goal authority, or a false success on failed and interrupted target rounds.
 - Kept Composer Goal submissions alive across page and Session navigation with an exact request-owned WebSocket and Session-binding lease, a client acceptance window longer than the detached backend deadline, an explicit confirmation state for unknown ACKs, and reconciliation against either a version-fenced Goal or the original Session's exact durable control record. Post-send rejection recovery now retains the exact request receipt so late durable acceptance retracts only the unchanged auto-restored draft and obsolete error while preserving later user edits and retries.
 - Rejected stale `web/dist` assets when launching the macOS shell directly from a development checkout, with a clear `make app-run-dev` recovery path, while leaving packaged app resources unchanged.
 - Kept host-generated Room notices visible in real time when no Agent target is selected, without requiring a conversation reload.
