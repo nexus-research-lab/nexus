@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	systemSkillNames   = map[string]struct{}{"imagegen": {}, "goal-manager": {}}
+	systemSkillNames   = map[string]struct{}{"imagegen": {}, "visualize": {}, "goal-manager": {}}
 	internalSkillNames = map[string]struct{}{
 		"nexus-manager":                   {},
 		"nexus-owner-configuration":       {},

@@ -85,23 +85,16 @@ var managedExecutionAllowedTools = []string{
 
 var managedVisualizeAllowedTools = []string{
 	"nexus_visualize",
-	"mcp__nexus_visualize__visualize_read_me",
 	"mcp__nexus_visualize__show_widget",
-	"visualize_read_me",
 	"show_widget",
 }
 
 var managedVisualizeToolNames = map[string]struct{}{
-	"visualize_read_me": {},
-	"show_widget":       {},
-	"mcp__nexus_visualize__visualize_read_me": {},
-	"mcp__nexus_visualize__show_widget":       {},
-	"nexus_visualize__visualize_read_me":      {},
-	"nexus_visualize__show_widget":            {},
-	"nexus_visualize.visualize_read_me":       {},
-	"nexus_visualize.show_widget":             {},
-	"nexus_visualize/visualize_read_me":       {},
-	"nexus_visualize/show_widget":             {},
+	"show_widget":                       {},
+	"mcp__nexus_visualize__show_widget": {},
+	"nexus_visualize__show_widget":      {},
+	"nexus_visualize.show_widget":       {},
+	"nexus_visualize/show_widget":       {},
 }
 
 var managedImagegenAllowedTools = []string{

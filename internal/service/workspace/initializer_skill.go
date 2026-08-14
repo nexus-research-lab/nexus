@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	baseSkillNames      = []string{"imagegen", "goal-manager", "execution-orchestrator"}
+	baseSkillNames      = []string{"imagegen", "visualize", "goal-manager", "execution-orchestrator"}
 	mainAgentSkillNames = []string{"nexus-manager"}
 	// createSymlink 仅作为平台能力探针；真正的创建由 confinedfs.Root.Symlink 完成。
 	createSymlink = func(string, string) error { return nil }

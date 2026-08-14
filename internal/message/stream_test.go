@@ -219,7 +219,7 @@ func TestProcessorStreamsVisualizeWidgetCodeBeforeInputJSONCompletes(t *testing.
 			"index": 0,
 			"delta": map[string]any{
 				"type":         "input_json_delta",
-				"partial_json": `{"i_have_seen_read_me":true,"title":"增长曲线","widget_code":"<div class=\"chart\">\u4e`,
+				"partial_json": `{"title":"增长曲线","widget_code":"<div class=\"chart\">\u4e`,
 			},
 		}},
 	})
@@ -242,7 +242,7 @@ func TestProcessorStreamsVisualizeWidgetCodeBeforeInputJSONCompletes(t *testing.
 	})
 	block, _ = complete.StreamEvents[0].Data["content_block"].(map[string]any)
 	input, _ = block["input"].(map[string]any)
-	if input["i_have_seen_read_me"] != true || input["widget_code"] != `<div class="chart">中</div>` {
+	if input["title"] != "增长曲线" || input["widget_code"] != `<div class="chart">中</div>` {
 		t.Fatalf("complete widget input = %+v", input)
 	}
 }
