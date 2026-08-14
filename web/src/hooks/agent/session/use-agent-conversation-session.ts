@@ -15,7 +15,10 @@ import {
 
 interface UseAgentConversationSessionParams {
   activeSessionKeyRef: RefObject<string | null>;
-  cancelPendingRequestAcks: (reason: string) => void;
+  cancelPendingRequestAcks: (
+    reason: string,
+    keepPreserved?: boolean,
+  ) => void;
   clearLiveSessionState: () => void;
   lifecycleContext: AgentConversationLifecycleContext;
   resetHistoryPagination: () => void;
@@ -25,6 +28,37 @@ interface UseAgentConversationSessionParams {
 }
 
 type SessionTransition = (context: AgentConversationLifecycleContext) => void;
+type SessionTransitionKind = "clear" | "reset" | "start";
+
+interface SessionTransitionEffects {
+  cancelPendingRequestAcks: (
+    reason: string,
+    keepPreserved?: boolean,
+  ) => void;
+  clearLiveSessionState: () => void;
+  resetHistoryPagination: () => void;
+  resetRuntimeMachine: () => void;
+}
+
+/**
+ * 新会话只保留具备 durable transport owner 的请求；普通页面级 ACK 仍取消。
+ * clear/reset 是用户明确撤销全部未确认请求的边界。
+ */
+export function runAgentSessionTransition(
+  kind: SessionTransitionKind,
+  reason: string,
+  transition: SessionTransition,
+  context: AgentConversationLifecycleContext,
+  effects: SessionTransitionEffects,
+): void {
+  // start 会取消普通 chat/interrupt 等页面级 ACK，只保留显式标记为
+  // durable owner 的 Goal；clear/reset 是用户明确取消全部请求的边界。
+  effects.cancelPendingRequestAcks(reason, kind === "start");
+  effects.clearLiveSessionState();
+  transition(context);
+  effects.resetHistoryPagination();
+  effects.resetRuntimeMachine();
+}
 
 /** 管理会话键切换，并统一清理依附于旧会话的瞬时状态。 */
 export function useAgentConversationSession({
@@ -38,12 +72,17 @@ export function useAgentConversationSession({
   setSessionKey,
 }: UseAgentConversationSessionParams) {
   const runSessionTransition = useCallback(
-    (reason: string, transition: SessionTransition): void => {
-      cancelPendingRequestAcks(reason);
-      clearLiveSessionState();
-      transition(lifecycleContext);
-      resetHistoryPagination();
-      resetRuntimeMachine();
+    (
+      kind: SessionTransitionKind,
+      reason: string,
+      transition: SessionTransition,
+    ): void => {
+      runAgentSessionTransition(kind, reason, transition, lifecycleContext, {
+        cancelPendingRequestAcks,
+        clearLiveSessionState,
+        resetHistoryPagination,
+        resetRuntimeMachine,
+      });
     },
     [
       cancelPendingRequestAcks,
@@ -56,7 +95,8 @@ export function useAgentConversationSession({
 
   const startSession = useCallback((): void => {
     runSessionTransition(
-      "会话已重建，未确认的消息发送已取消",
+      "start",
+      "已切换到新会话",
       startAgentSession,
     );
   }, [runSessionTransition]);
@@ -73,6 +113,7 @@ export function useAgentConversationSession({
 
   const clearSession = useCallback((): void => {
     runSessionTransition(
+      "clear",
       "会话已清空，未确认的消息发送已取消",
       clearAgentSession,
     );
@@ -112,6 +153,7 @@ export function useAgentConversationSession({
 
   const resetSession = useCallback((): void => {
     runSessionTransition(
+      "reset",
       "会话已重置，未确认的消息发送已取消",
       resetAgentSession,
     );

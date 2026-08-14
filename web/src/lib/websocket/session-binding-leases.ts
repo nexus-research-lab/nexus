@@ -34,6 +34,15 @@ export class SessionBindingLeaseRegistry {
     lease: SessionBindingLease,
     message: WebSocketMessage,
   ): () => void {
+    return this.retain(lease, message, true);
+  }
+
+  /** 请求传输租约只延长已有 binding，不为同一消费者制造额外 replay。 */
+  retain(
+    lease: SessionBindingLease,
+    message: WebSocketMessage,
+    announce = false,
+  ): () => void {
     const binding = parseSessionBindMessage(message);
     if (!binding) {
       return () => {};
@@ -47,7 +56,7 @@ export class SessionBindingLeaseRegistry {
 
     // 每个新消费者都主动 bind 一次，让服务端把当前 pending 请求重放给
     // 刚挂载的订阅者；后续 release 仍由引用计数保护，不会误解绑其他消费者。
-    if (this.isConnected()) {
+    if (announce && this.isConnected()) {
       this.send(binding);
     }
 

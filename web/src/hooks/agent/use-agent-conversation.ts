@@ -26,6 +26,7 @@ import { usePendingRequestAcks } from "./actions/use-pending-request-acks";
 import { useRequestAckFailure } from "./actions/use-request-ack-failure";
 import { useAgentMessageCollection } from "./message/use-agent-message-collection";
 import { useAgentConversationRuntime } from "./runtime/use-agent-conversation-runtime";
+import { readAgentSessionMessages } from "./session/conversation-lifecycle";
 import { useAgentSessionController } from "./session/controller/use-agent-session-controller";
 import { useAgentConversationSocket } from "./transport/use-agent-conversation-socket";
 import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
@@ -80,6 +81,7 @@ export function useAgentConversation(
 
   const {
     cancel_pending_request_acks: cancelPendingRequestAcks,
+    discard_pending_request_ack: discardPendingRequestAck,
     has_pending_request_ack: hasPendingRequestAck,
     reject_pending_request_ack: rejectPendingRequestAck,
     resolve_pending_request_ack: resolvePendingRequestAck,
@@ -177,6 +179,7 @@ export function useAgentConversation(
     clearOutboundRequest,
     getInputQueueItems,
     hasPendingRequestAck,
+    readSessionMessages: readAgentSessionMessages,
     rejectPendingRequestAck,
     reloadCurrentSession: session.reloadCurrentSession,
     resolvePendingRequestAck,
@@ -242,7 +245,11 @@ export function useAgentConversation(
       wsStateRef,
     },
   });
-  const { wsState, wsSend } = useAgentConversationSocket({
+  const {
+    acquireRequestTransportLease,
+    wsState,
+    wsSend,
+  } = useAgentConversationSocket({
     wsUrl,
     agentId,
     roomId,
@@ -271,12 +278,16 @@ export function useAgentConversation(
     wsState,
   };
   const actions = useAgentConversationActions({
+    acquireRequestTransportLease,
     actionContext,
     beginAgentRoundStop,
     clearOutboundRequest,
     confirmAgentRoundStop,
+    discardPendingRequestAck,
     handleRequestAckTimeout,
     readStoppingAgentRoundIds,
+    rejectPendingRequestAck,
+    resolvePendingRequestAck,
     settleAgentRoundStop,
     settleChatAckWaitFailure,
     settleRequestAckWaitFailure,

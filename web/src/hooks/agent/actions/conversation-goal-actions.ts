@@ -26,13 +26,14 @@ export async function setSessionGoal(
   objective: string,
   context: AgentConversationActionContext,
   options: AgentConversationGoalOptions = {},
+  requestDescriptor?: OutboundRequestDescriptor,
 ): Promise<OutboundRequestDescriptor | null> {
   const normalizedObjective = objective.trim();
   if (!normalizedObjective) {
     return null;
   }
   const actionContext = requireConversationActionContext(context);
-  const request = createOutboundRequestDescriptor();
+  const request = requestDescriptor ?? createOutboundRequestDescriptor();
   const messageOptions: AgentConversationSendOptions = {
     delivery_policy: "auto",
     target_agent_ids: options.target_agent_ids,

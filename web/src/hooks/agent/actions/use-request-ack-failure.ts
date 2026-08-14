@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
+import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { WebSocketState } from "@/types/system/websocket";
 
@@ -18,12 +19,39 @@ interface UseRequestAckFailureOptions {
     clientRequestId: string,
     cause: string | Error,
   ) => boolean;
+  readSessionMessages: (
+    identity: AgentConversationIdentity | null,
+    sessionKey: string,
+  ) => Promise<Message[]>;
   reloadCurrentSession: () => Promise<Message[] | null>;
   resolvePendingRequestAck: (clientRequestId?: string | null) => boolean;
   setError: Dispatch<SetStateAction<string | null>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   wsReconnectRef: RefObject<() => void>;
   wsStateRef: RefObject<WebSocketState>;
+}
+
+export interface RequestAckRecoveryScope {
+  identity: AgentConversationIdentity | null;
+  sessionKey: string;
+}
+
+export interface RequestAckTimeoutOptions {
+  recoveryScope?: RequestAckRecoveryScope;
+  unknownMessage?: string;
+}
+
+export function buildRequestAckRecoveryReader(
+  recoveryScope: RequestAckRecoveryScope | undefined,
+  readSessionMessages: UseRequestAckFailureOptions["readSessionMessages"],
+  reloadCurrentSession: UseRequestAckFailureOptions["reloadCurrentSession"],
+): () => Promise<Message[] | null> {
+  return recoveryScope
+    ? () => readSessionMessages(
+        recoveryScope.identity,
+        recoveryScope.sessionKey,
+      )
+    : reloadCurrentSession;
 }
 
 export function hasAcceptedClientMessage(
@@ -90,6 +118,7 @@ export function useRequestAckFailure({
   clearOutboundRequest,
   getInputQueueItems,
   hasPendingRequestAck,
+  readSessionMessages,
   rejectPendingRequestAck,
   reloadCurrentSession,
   resolvePendingRequestAck,
@@ -103,13 +132,18 @@ export function useRequestAckFailure({
   const handleRequestAckTimeout = useCallback((
     clientRequestId: string,
     clientMessageId: string,
-    unknownMessage = "连接超时，暂时无法确认消息是否已受理；已保留消息并重新连接",
+    options: RequestAckTimeoutOptions = {},
   ): void => {
+    const recoveryScope = options.recoveryScope;
     void recoverRequestAckTimeout({
       clientMessageId,
       inputQueueItems: getInputQueueItems,
       reconnect: () => wsReconnectRef.current(),
-      reload: reloadCurrentSession,
+      reload: buildRequestAckRecoveryReader(
+        recoveryScope,
+        readSessionMessages,
+        reloadCurrentSession,
+      ),
       websocketState: () => wsStateRef.current,
     }).then((outcome) => {
       // reload 期间真实 ACK 可能已经到达；此时不能再次 settle，否则会在
@@ -123,12 +157,16 @@ export function useRequestAckFailure({
       }
       rejectPendingRequestAck(
         clientRequestId,
-        new RequestAcceptanceUnknownError(unknownMessage),
+        new RequestAcceptanceUnknownError(
+          options.unknownMessage
+          ?? "连接超时，暂时无法确认消息是否已受理；已保留消息并重新连接",
+        ),
       );
     });
   }, [
     getInputQueueItems,
     hasPendingRequestAck,
+    readSessionMessages,
     rejectPendingRequestAck,
     reloadCurrentSession,
     resolvePendingRequestAck,

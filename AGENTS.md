@@ -75,7 +75,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态与待确认人工交互只按 Room ID 投影；DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
-- Goal Composer 的“设定 Goal”和文本 `/goal` 必须进入同一个宿主控制命令：先写 Goal，再持久化一条完成态、用户可见但不进入模型的 `/goal <objective>` 控制记录，最后才启动 Goal continuation。不得把 Goal objective 当普通 chat prompt 直接执行；新会话标题与 started/message count 必须由 Goal/控制记录独立建立，不能依赖首个模型回复。
+- Goal Composer 的“设定 Goal”和文本 `/goal` 必须进入同一个宿主控制命令：先写 Goal，再持久化一条完成态、用户可见但不进入模型的 `/goal <objective>` 控制记录，最后才启动 Goal continuation。该控制记录必须保留 exact `client_message_id` 作为 ACK 丢失后的 durable acceptance 证据；不得按正文或时间邻近猜测。不得把 Goal objective 当普通 chat prompt 直接执行；新会话标题与 started/message count 必须由 Goal/控制记录独立建立，不能依赖首个模型回复。WebSocket 入口完成同步 scope/owner 校验并受理 `set_goal` 后，必须按原连接顺序在有界 detached context 中完成；切页或断连只能失去 ACK 投影，不能取消已受理的 Goal、控制记录、目录失效或 continuation。
 - 模型通过 `create_goal` 创建的 Goal 必须把经服务端验证的当前 Agent 持久化为负责人；后续新物理 round 只为该负责人解析启动时的 exact Goal/objective revision，并且该快照只进入 `nexus_goal`，不得泄漏为 ambient Execution/WorkGraph authority。Room 协作者只能读 Goal 和交付证据；旧 round、旧 revision、后台/外部来源仍必须 fail closed。
 - Room Lead 自己执行 Work Item 时，必须由宿主在 self Assignment 持久化后签发 exact WorkBinding，并在同一物理 round 内供 Execution MCP、Runtime Graph 与 subagent admission 动态读取；Room 成员或 coordinator 身份不得替代该显式 capability。DM 的同轮责任分段保持独立，不得反向成为 Room 的隐式授权条件。
 - 活跃 Nexus Session 的 MCP 工具面只由稳定会话拓扑和用户显式 MCP/Connector 选择决定；内部唤醒、私域回传、Room 角色、WorkBinding/ReviewBinding、Goal authority 与通讯开关只改变逐轮执行权限，不得通过卸载 schema 鉴权。无权轮次必须保留工具定义并在 service 真相源 fail closed；`ToolSearch` 只是默认关闭的 schema 传递优化，不参与挂载或鉴权。

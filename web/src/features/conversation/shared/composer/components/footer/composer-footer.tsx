@@ -59,6 +59,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
         />
         <ComposerFooterStatus
           activeError={props.activeError}
+          isGoalConfirming={props.isGoalConfirming}
           isGoalCreating={props.isGoalCreating}
           isPreparingAttachments={props.isPreparingAttachments}
           runtimeActivity={props.runtimeActivity}

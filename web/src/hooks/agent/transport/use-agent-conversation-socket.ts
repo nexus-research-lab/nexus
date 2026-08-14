@@ -8,6 +8,7 @@ import {
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { useWebSocket } from "@/lib/websocket";
+import type { RequestTransportLeaseOptions } from "@/lib/websocket/request-transport-leases";
 import {
   WebSocketMessage,
   WebSocketSendResult,
@@ -58,6 +59,7 @@ export function useAgentConversationSocket({
   const sessionBindingLeaseRef = useRef<object>({});
 
   const {
+    acquireRequestTransportLease,
     acquireSessionBinding,
     channelKey,
     state: wsState,
@@ -179,5 +181,11 @@ export function useAgentConversationSocket({
     };
   }, [conversationId, roomId, roomSeqCursorRef, wsSend, wsState]);
 
-  return { wsSend, wsState };
+  return {
+    acquireRequestTransportLease: (
+      options: RequestTransportLeaseOptions,
+    ) => acquireRequestTransportLease(options),
+    wsSend,
+    wsState,
+  };
 }

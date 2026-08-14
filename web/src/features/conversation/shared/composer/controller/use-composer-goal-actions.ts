@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
+import type { ComposerGoalConfirmationIdentity } from "../composer-draft-store";
 import type { ComposerDraftController } from "./use-composer-draft";
 
 interface UseComposerGoalActionsOptions {
@@ -15,9 +16,34 @@ interface UseComposerGoalActionsOptions {
   onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;
 }
 
-function isRequestAcceptanceUnknown(error: unknown): boolean {
+function isRequestAcceptanceUnknown(error: unknown): error is Error {
   return error instanceof Error
     && error.name === "RequestAcceptanceUnknownError";
+}
+
+function readConfirmationIdentity(
+  error: unknown,
+): ComposerGoalConfirmationIdentity | null {
+  if (!isRequestAcceptanceUnknown(error) || !("correlation" in error)) {
+    return null;
+  }
+  const correlation = error.correlation;
+  if (!correlation || typeof correlation !== "object") {
+    return null;
+  }
+  const candidate = correlation as Partial<ComposerGoalConfirmationIdentity>;
+  if (
+    typeof candidate.clientMessageId !== "string"
+    || typeof candidate.clientRequestId !== "string"
+    || typeof candidate.sessionKey !== "string"
+  ) {
+    return null;
+  }
+  return {
+    clientMessageId: candidate.clientMessageId,
+    clientRequestId: candidate.clientRequestId,
+    sessionKey: candidate.sessionKey,
+  };
 }
 
 export function useComposerGoalActions({
@@ -36,6 +62,7 @@ export function useComposerGoalActions({
     cancelGoal,
     completeGoalSubmission,
     failGoalSubmission,
+    markGoalSubmissionConfirming,
     setActionMenuOpen,
     setGoalError,
     setLoopPickerOpen,
@@ -81,9 +108,12 @@ export function useComposerGoalActions({
       completeGoalSubmission(submission);
     } catch (error) {
       if (isRequestAcceptanceUnknown(error)) {
-        // 超时或组件卸载只能说明 ACK 未知，不能把可能已创建的 Goal
-        // 重新塞回草稿，诱导用户重复提交。
-        completeGoalSubmission(submission);
+        // 超时只能说明 ACK 未知：保留原 scope 的互斥提交状态并明确显示
+        // “确认中”，等待 durable Goal 读取对账，不能伪成功或恢复草稿。
+        markGoalSubmissionConfirming(
+          submission,
+          readConfirmationIdentity(error),
+        );
         return;
       }
       failGoalSubmission(
@@ -100,6 +130,7 @@ export function useComposerGoalActions({
     beginGoalSubmission,
     completeGoalSubmission,
     failGoalSubmission,
+    markGoalSubmissionConfirming,
     setGoalError,
   ]);
 
@@ -169,7 +200,10 @@ export function useComposerGoalActions({
       completeGoalSubmission(submission);
     } catch (error) {
       if (isRequestAcceptanceUnknown(error)) {
-        completeGoalSubmission(submission);
+        markGoalSubmissionConfirming(
+          submission,
+          readConfirmationIdentity(error),
+        );
         return;
       }
       failGoalSubmission(
@@ -186,6 +220,7 @@ export function useComposerGoalActions({
     failGoalSubmission,
     fallbackErrorMessage,
     onCreateLoopGoal,
+    markGoalSubmissionConfirming,
     setGoalError,
   ]);
 

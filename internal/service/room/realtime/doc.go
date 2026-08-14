@@ -16,7 +16,7 @@
 //     visible context、由成功 Goal mutation receipt 派生且首次写 ledger 即固化的非授权 revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
 //     两阶段写入修复、host command 幂等、immediate/delayed durable wake 调度与在线重试。
 //     @ 不创建 Assignment；正式责任只来自 assign_work。
-//   - goal_command.go：服务端验证当前 lead 身份后写入共享 Goal 与完成态 public 控制记录；成员数量与协作审计事实不构成完成门槛，控制命令不占用普通 Agent slot。
+//   - goal_command.go：服务端验证当前 lead 身份后写入共享 Goal 与携带 exact client message identity 的完成态 public 控制记录；成员数量与协作审计事实不构成完成门槛，控制命令不占用普通 Agent slot。
 //   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
 //     Goal scope、complete 时的当前 Room 成员/工作一致读取、协作终态回连、root receipt/Agent audit 双身份 continuation 终态、附着最终回复的完成收据和额度适配。
 //

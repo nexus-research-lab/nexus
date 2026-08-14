@@ -8,6 +8,7 @@ import { create } from "zustand";
 
 import type { ComposerLocalAttachment } from "./attachments/composer-local-attachment-model";
 import type { ComposerInputMode } from "./composer-model";
+import type { ComposerGoalBaseline } from "./composer-goal-observation";
 
 export interface ComposerDraftContent {
   attachments: ComposerLocalAttachment[];
@@ -22,9 +23,24 @@ export interface ComposerDraftSnapshot extends ComposerDraftContent {
 }
 
 export interface ComposerGoalSubmission {
+  baselineGoal: ComposerGoalBaseline | null;
   scopeKey: string;
   submissionId: number;
   submittedDraft: ComposerDraftSnapshot;
+}
+
+export interface ComposerGoalConfirmationIdentity {
+  clientMessageId: string;
+  clientRequestId: string;
+  sessionKey: string;
+}
+
+export type ComposerGoalSubmissionPhase = "confirming" | "submitting";
+
+export interface ComposerGoalSubmissionState
+  extends ComposerGoalSubmission {
+  confirmationIdentity: ComposerGoalConfirmationIdentity | null;
+  phase: ComposerGoalSubmissionPhase;
 }
 
 type ComposerDraftUpdate = (
@@ -36,10 +52,11 @@ interface ComposerDraftStoreState {
   drafts_by_scope: Record<string, ComposerDraftSnapshot>;
   goal_error_by_scope: Record<string, string>;
   goal_submission_revision: number;
-  goal_submission_by_scope: Record<string, number>;
+  goal_submission_by_scope: Record<string, ComposerGoalSubmissionState>;
   begin_goal_submission: (
     scopeKey: string,
     expectedRevision: number,
+    baselineGoal?: ComposerGoalBaseline | null,
   ) => ComposerGoalSubmission | null;
   claim_composer_draft_for_submission: (
     scopeKey: string,
@@ -50,6 +67,10 @@ interface ComposerDraftStoreState {
     submittedDraft: ComposerDraftSnapshot,
   ) => boolean;
   complete_goal_submission: (submission: ComposerGoalSubmission) => boolean;
+  mark_goal_submission_confirming: (
+    submission: ComposerGoalSubmission,
+    confirmationIdentity?: ComposerGoalConfirmationIdentity | null,
+  ) => boolean;
   fail_goal_submission: (
     submission: ComposerGoalSubmission,
     errorMessage: string,
@@ -97,7 +118,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
     goal_error_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
-    begin_goal_submission: (scopeKey, expectedRevision) => {
+    begin_goal_submission: (scopeKey, expectedRevision, baselineGoal = null) => {
       const normalizedScopeKey = normalizeDraftScopeKey(scopeKey);
       if (!normalizedScopeKey) {
         return null;
@@ -123,6 +144,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
         }
         delete errors[normalizedScopeKey];
         submission = {
+          baselineGoal,
           scopeKey: normalizedScopeKey,
           submissionId,
           submittedDraft: cloneDraftSnapshot(submittedDraft),
@@ -133,7 +155,11 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
           goal_submission_revision: submissionId,
           goal_submission_by_scope: {
             ...state.goal_submission_by_scope,
-            [normalizedScopeKey]: submissionId,
+            [normalizedScopeKey]: {
+              ...submission,
+              confirmationIdentity: null,
+              phase: "submitting",
+            },
           },
         };
       });
@@ -193,7 +219,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
       let completed = false;
       set((state) => {
         if (
-          state.goal_submission_by_scope[submission.scopeKey]
+          state.goal_submission_by_scope[submission.scopeKey]?.submissionId
           !== submission.submissionId
         ) {
           return state;
@@ -205,11 +231,38 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
       });
       return completed;
     },
+    mark_goal_submission_confirming: (
+      submission,
+      confirmationIdentity = null,
+    ) => {
+      let marked = false;
+      set((state) => {
+        const current = state.goal_submission_by_scope[submission.scopeKey];
+        if (
+          current?.submissionId !== submission.submissionId
+          || current.phase === "confirming"
+        ) {
+          return state;
+        }
+        marked = true;
+        return {
+          goal_submission_by_scope: {
+            ...state.goal_submission_by_scope,
+            [submission.scopeKey]: {
+              ...current,
+              confirmationIdentity,
+              phase: "confirming",
+            },
+          },
+        };
+      });
+      return marked;
+    },
     fail_goal_submission: (submission, errorMessage) => {
       let restored = false;
       set((state) => {
         if (
-          state.goal_submission_by_scope[submission.scopeKey]
+          state.goal_submission_by_scope[submission.scopeKey]?.submissionId
             !== submission.submissionId
         ) {
           return state;

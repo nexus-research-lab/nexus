@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
+import { useComposerGoalSubmissionReconciliation } from "@/features/conversation/shared/composer/composer-goal-submission-reconciliation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { DmChatPanelProps } from "../dm-chat-panel-types";
@@ -56,6 +57,10 @@ export function useDmChatPanelModel({
     sessionKey,
     runtimeKind,
   });
+  const reconcileGoalSubmission = useComposerGoalSubmissionReconciliation(
+    composer.draftScopeKey,
+    session.conversation.messages,
+  );
   const rewriteLastUserMessage = session.conversation.rewrite_last_user_message;
   const handleEditLastUserMessage = useCallback(
     (messageId: string, content: string): void => {
@@ -71,6 +76,7 @@ export function useDmChatPanelModel({
     execution: executionResource,
     goal,
     goalScopeLabel,
+    onGoalChange: reconcileGoalSubmission,
     onEditLastUserMessage: handleEditLastUserMessage,
     onOpenAgentContact,
     onOpenSubagentTask,

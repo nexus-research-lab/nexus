@@ -17,6 +17,7 @@ import {
   sharedWebSocketRegistry,
   type SharedWebSocketChannel,
 } from "./shared-socket-channel";
+import type { RequestTransportLeaseOptions } from "./request-transport-leases";
 import {
   buildSharedSocketKey,
   resolveWebSocketConfig,
@@ -170,8 +171,16 @@ export function useWebSocket(options: UseWebSocketOptions) {
     },
     [],
   );
+  const acquireRequestTransportLease = useCallback(
+    (options: RequestTransportLeaseOptions): (() => void) => {
+      const channel = channelRef.current;
+      return channel?.acquireRequestTransportLease(options) ?? (() => {});
+    },
+    [],
+  );
 
   return {
+    acquireRequestTransportLease,
     acquireSessionBinding,
     channelKey,
     connect,
