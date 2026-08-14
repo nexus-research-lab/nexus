@@ -208,7 +208,7 @@ export class WebSocketClient {
       notifyAuthRequired();
       return;
     }
-    if (this.reconnectEnabled && !event.wasClean && event.code !== 1000) {
+    if (this.reconnectEnabled) {
       this.attemptReconnect();
       return;
     }
