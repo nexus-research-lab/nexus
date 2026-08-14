@@ -19,9 +19,13 @@ func TestBaseRuntimePolicyRootsIncludesSharedTemporaryRoot(t *testing.T) {
 		t.Skip("当前平台没有 Unix 共享临时根")
 	}
 
-	readRoots, writeRoots := baseRuntimePolicyRoots("/workspace", launcherConfig{
+	ownerRoot := "/users/owner-a"
+	readRoots, writeRoots := baseRuntimePolicyRoots(ownerRoot, launcherConfig{
 		ReadOnlyRoots: []string{"/opt/templates"},
 	})
+	if !slices.Contains(readRoots, ownerRoot) || !slices.Contains(writeRoots, ownerRoot) {
+		t.Fatalf("owner root missing from policy: read=%v write=%v", readRoots, writeRoots)
+	}
 	if !slices.Contains(readRoots, sharedTempRoot) {
 		t.Fatalf("read roots = %v, want shared temp root %q", readRoots, sharedTempRoot)
 	}

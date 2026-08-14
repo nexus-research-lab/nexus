@@ -8,8 +8,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -187,6 +189,195 @@ func killRuntimeCgroup(config launcherConfig, username string) error {
 		return fmt.Errorf("回收 runtime cgroup: %w", err)
 	}
 	return nil
+}
+
+// signalRuntimeSession 只向指定 owner UID/cgroup 内的 Unix session 发信号。
+// 没有 cgroup 时稳定 owner UID 仍提供相同租户边界；强杀会同时清理该 session
+// 的遗留子进程。
+func signalRuntimeSession(
+	config launcherConfig,
+	value *identity,
+	sessionID int,
+	signal syscall.Signal,
+	sessionWide bool,
+) error {
+	if value == nil || sessionID <= 1 {
+		return errors.New("runtime process identity 或 pid 无效")
+	}
+	if !sessionWide {
+		exists, matched, err := signalManagedRuntimeProcess(
+			config,
+			value,
+			sessionID,
+			sessionID,
+			signal,
+		)
+		if err != nil {
+			return err
+		}
+		if exists && !matched {
+			return errors.New("runtime pid 不属于当前 owner 的 session leader")
+		}
+		return nil
+	}
+	processIDs, err := managedRuntimeProcessIDs(config, value)
+	if err != nil {
+		return err
+	}
+	matched := false
+	for _, processID := range processIDs {
+		if processID == sessionID {
+			continue
+		}
+		_, processMatched, signalErr := signalManagedRuntimeProcess(
+			config,
+			value,
+			processID,
+			sessionID,
+			signal,
+		)
+		if signalErr != nil {
+			return signalErr
+		}
+		matched = matched || processMatched
+	}
+	exists, leaderMatched, err := signalManagedRuntimeProcess(
+		config,
+		value,
+		sessionID,
+		sessionID,
+		signal,
+	)
+	if err != nil {
+		return err
+	}
+	if exists && !leaderMatched && !matched {
+		return errors.New("runtime pid 不属于当前 owner 的 session")
+	}
+	return nil
+}
+
+// signalManagedRuntimeProcess 先固定 pidfd，再校验 owner 和 session，避免 PID
+// 复用竞态把 root launcher 的信号发给无关进程。
+func signalManagedRuntimeProcess(
+	config launcherConfig,
+	value *identity,
+	processID int,
+	sessionID int,
+	signal syscall.Signal,
+) (bool, bool, error) {
+	processFD, err := unix.PidfdOpen(processID, 0)
+	if errors.Is(err, unix.ESRCH) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, fmt.Errorf("打开 runtime pidfd %d: %w", processID, err)
+	}
+	defer unix.Close(processFD)
+
+	managed, err := runtimeProcessManaged(config, value, processID)
+	if err != nil {
+		return true, false, err
+	}
+	actualSessionID, sessionErr := unix.Getsid(processID)
+	if errors.Is(sessionErr, unix.ESRCH) {
+		return false, false, nil
+	}
+	if sessionErr != nil {
+		return true, false, fmt.Errorf("读取 runtime process %d session: %w", processID, sessionErr)
+	}
+	if !managed || actualSessionID != sessionID {
+		if aliveErr := unix.PidfdSendSignal(processFD, 0, nil, 0); errors.Is(aliveErr, unix.ESRCH) {
+			return false, false, nil
+		} else if aliveErr != nil {
+			return true, false, fmt.Errorf("检查 runtime process %d: %w", processID, aliveErr)
+		}
+		return true, false, nil
+	}
+	if err = unix.PidfdSendSignal(processFD, unix.Signal(signal), nil, 0); err != nil &&
+		!errors.Is(err, unix.ESRCH) {
+		return true, true, fmt.Errorf("发送 runtime process %d 信号: %w", processID, err)
+	}
+	return true, true, nil
+}
+
+func runtimeProcessManaged(config launcherConfig, value *identity, processID int) (bool, error) {
+	if cgroupEnabled(config) {
+		path, err := runtimeCgroupPath(config, value.Username)
+		if err != nil {
+			return false, err
+		}
+		data, err := os.ReadFile(filepath.Join(path, cgroupProcsFile))
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("读取 runtime cgroup 进程: %w", err)
+		}
+		processIDs, err := parseProcessIDs(string(data))
+		return slices.Contains(processIDs, processID), err
+	}
+	var stat unix.Stat_t
+	if err := unix.Stat(filepath.Join("/proc", strconv.Itoa(processID)), &stat); err != nil {
+		if errors.Is(err, unix.ENOENT) {
+			return false, nil
+		}
+		return false, fmt.Errorf("读取 runtime process %d: %w", processID, err)
+	}
+	return stat.Uid == uint32(value.UID), nil
+}
+
+func managedRuntimeProcessIDs(config launcherConfig, value *identity) ([]int, error) {
+	if cgroupEnabled(config) {
+		path, err := runtimeCgroupPath(config, value.Username)
+		if err != nil {
+			return nil, err
+		}
+		data, err := os.ReadFile(filepath.Join(path, cgroupProcsFile))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("读取 runtime cgroup 进程: %w", err)
+		}
+		return parseProcessIDs(string(data))
+	}
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, fmt.Errorf("读取 proc: %w", err)
+	}
+	processIDs := make([]int, 0)
+	for _, entry := range entries {
+		processID, parseErr := strconv.Atoi(entry.Name())
+		if parseErr != nil || processID <= 1 {
+			continue
+		}
+		var stat unix.Stat_t
+		if statErr := unix.Stat(filepath.Join("/proc", entry.Name()), &stat); statErr != nil {
+			if errors.Is(statErr, unix.ENOENT) {
+				continue
+			}
+			return nil, fmt.Errorf("读取 runtime process %d: %w", processID, statErr)
+		}
+		if stat.Uid == uint32(value.UID) {
+			processIDs = append(processIDs, processID)
+		}
+	}
+	slices.Sort(processIDs)
+	return processIDs, nil
+}
+
+func parseProcessIDs(data string) ([]int, error) {
+	processIDs := make([]int, 0)
+	for _, field := range strings.Fields(data) {
+		processID, err := strconv.Atoi(field)
+		if err != nil || processID <= 1 {
+			return nil, fmt.Errorf("runtime cgroup pid 无效: %q", field)
+		}
+		processIDs = append(processIDs, processID)
+	}
+	slices.Sort(processIDs)
+	return slices.Compact(processIDs), nil
 }
 
 func runtimeCgroupPath(config launcherConfig, username string) (string, error) {

@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -282,10 +283,17 @@ func (s *Service) writePreferencesConfined(ownerUserID string, item Preferences)
 		return err
 	}
 	payload = append(payload, '\n')
-	if err := root.MkdirAll(".settings", 0o700); err != nil {
+	if err := root.MkdirAll(
+		".settings",
+		appfs.RuntimeCollaborativeDirectoryMode(0o700),
+	); err != nil {
 		return err
 	}
-	return root.WriteFileAtomic(".settings/preferences.json", payload, 0o600)
+	return root.WriteFileAtomic(
+		".settings/preferences.json",
+		payload,
+		appfs.RuntimeCollaborativeFileMode(0o600),
+	)
 }
 
 func (s *Service) withWebSearchAPIKeyConfined(
@@ -349,14 +357,21 @@ func (s *Service) writeWebSearchCredentialBundleConfined(
 		}
 		return nil
 	}
-	if err = root.MkdirAll(".settings", 0o700); err != nil {
+	if err = root.MkdirAll(
+		".settings",
+		appfs.RuntimeCollaborativeDirectoryMode(0o700),
+	); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(bundle)
 	if err != nil {
 		return err
 	}
-	return root.WriteFileAtomic(".settings/web-search-api-key", append(payload, '\n'), 0o600)
+	return root.WriteFileAtomic(
+		".settings/web-search-api-key",
+		append(payload, '\n'),
+		appfs.RuntimeCollaborativeFileMode(0o600),
+	)
 }
 
 func (s *Service) openOwnerRoot(ownerUserID string, create bool) (*confinedfs.Root, error) {

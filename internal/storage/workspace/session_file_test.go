@@ -308,7 +308,7 @@ func TestSessionDeletionLifecycleBlocksLateWriterAndPersistsTombstone(t *testing
 	}
 }
 
-func TestOwnerSessionDeletionLifecycleUsesHostStateAndBlocksCollisionAlias(t *testing.T) {
+func TestOwnerSessionDeletionLifecycleUsesOwnerStateAndBlocksCollisionAlias(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
 	ownerUserID := "owner-session-delete"
@@ -343,14 +343,15 @@ func TestOwnerSessionDeletionLifecycleUsesHostStateAndBlocksCollisionAlias(t *te
 	)
 	entries, err := os.ReadDir(lifecycleRoot)
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("host lifecycle entries=%d err=%v", len(entries), err)
+		t.Fatalf("owner lifecycle entries=%d err=%v", len(entries), err)
 	}
 	lifecycleInfo, err := entries[0].Info()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lifecycleInfo.Mode().Perm() != 0o600 {
-		t.Fatalf("host lifecycle mode=%#o, want 0600", lifecycleInfo.Mode().Perm())
+	wantLifecycleMode := storageFileMode(0o600)
+	if lifecycleInfo.Mode().Perm() != wantLifecycleMode {
+		t.Fatalf("owner lifecycle mode=%#o, want %#o", lifecycleInfo.Mode().Perm(), wantLifecycleMode)
 	}
 	if _, err = os.Stat(filepath.Join(workspacePath, ".agents", "session_lifecycle")); !errors.Is(
 		err,

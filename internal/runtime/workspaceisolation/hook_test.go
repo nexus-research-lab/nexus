@@ -34,6 +34,7 @@ func createWorkspaceIsolationTestSymlink(t *testing.T, target string, link strin
 
 func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
 	root := t.TempDir()
+	ownerRoot := filepath.Join(root, "users", "owner-a")
 	workspace := filepath.Join(root, "users", "owner-a", "workspace", "agent-a")
 	otherWorkspace := filepath.Join(root, "users", "owner-b", "workspace", "agent-b")
 	if err := os.MkdirAll(workspace, 0o700); err != nil {
@@ -42,7 +43,8 @@ func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
 	if err := os.MkdirAll(otherWorkspace, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	policy := testPolicy(t, workspace)
+	policy := testPolicy(t, ownerRoot)
+	policy.CWD = workspace
 	callback := workspacePolicyCallback(ModeEnforce, policy)
 
 	allowed, err := callback(context.Background(), sdkhook.Input{
@@ -73,9 +75,10 @@ func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
 	}
 }
 
-func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) {
+func TestWorkspacePolicyHookAllowsOwnerDataRoot(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", root)
+	ownerRoot := filepath.Join(root, "users", "owner-a")
 	workspace := filepath.Join(root, "users", "owner-a", "workspace", "agent-a")
 	summaryPath := filepath.Join(
 		root,
@@ -116,27 +119,38 @@ func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) 
 		t.Fatal(err)
 	}
 	createWorkspaceIsolationTestSymlink(t, outsidePath, symlinkSummaryPath)
-	policy := testPolicy(t, workspace)
-	policy.Identity.TempDir = filepath.Join(
-		root,
-		"users",
-		"owner-a",
-		"runtime",
-		"tmp",
-	)
+	policy := testPolicy(t, ownerRoot)
+	policy.CWD = workspace
 	for _, test := range []struct {
 		name     string
 		toolName string
+		cwd      string
 		path     string
 		denied   bool
 	}{
 		{name: "exact Edit", toolName: "Edit", path: summaryPath},
-		{name: "Write remains denied", toolName: "Write", path: summaryPath, denied: true},
 		{
-			name:     "adjacent runtime file remains denied",
+			name:     "relative Edit from session memory cwd",
+			toolName: "Edit",
+			cwd:      filepath.Dir(summaryPath),
+			path:     "summary.md",
+		},
+		{
+			name:     "relative Read from session memory cwd",
+			toolName: "Read",
+			cwd:      filepath.Dir(summaryPath),
+			path:     "summary.md",
+		},
+		{name: "Write runtime file", toolName: "Write", path: summaryPath},
+		{
+			name:     "Edit adjacent runtime file",
 			toolName: "Edit",
 			path:     filepath.Join(filepath.Dir(summaryPath), "state.json"),
-			denied:   true,
+		},
+		{
+			name:     "Write owner state",
+			toolName: "Write",
+			path:     filepath.Join(ownerRoot, "state", "rooms", "ledger.jsonl"),
 		},
 		{
 			name:     "other owner remains denied",
@@ -162,8 +176,12 @@ func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) 
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			cwd := test.cwd
+			if cwd == "" {
+				cwd = workspace
+			}
 			violation := inspectToolAccess(policy, sdkhook.Input{
-				CWD:      workspace,
+				CWD:      cwd,
 				ToolName: test.toolName,
 				ToolInput: map[string]any{
 					"file_path": test.path,
@@ -180,16 +198,100 @@ func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) 
 			}
 		})
 	}
-	claudePolicy := policy
-	claudePolicy.RuntimeKind = "claude"
-	if violation := inspectToolAccess(claudePolicy, sdkhook.Input{
-		CWD:      workspace,
-		ToolName: "Edit",
-		ToolInput: map[string]any{
-			"file_path": summaryPath,
+}
+
+func TestWorkspacePolicyHookAllowsOwnerTranscriptShellAccess(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	ownerRoot := filepath.Join(root, "users", "owner-a")
+	workspace := filepath.Join(root, "users", "owner-a", "workspace", "agent-a")
+	projectDir := filepath.Join(root, "users", "owner-a", "runtime", "projects", "project-a")
+	transcriptPath := filepath.Join(projectDir, "session-a.jsonl")
+	siblingPath := filepath.Join(projectDir, "session-b.jsonl")
+	otherOwnerPath := filepath.Join(root, "users", "owner-b", "runtime", "projects", "project-b", "session.jsonl")
+	if err := os.MkdirAll(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{transcriptPath, siblingPath, otherOwnerPath} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("transcript\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	policy := testPolicy(t, ownerRoot)
+	policy.CWD = workspace
+
+	for _, test := range []struct {
+		name      string
+		toolName  string
+		toolInput map[string]any
+		denied    bool
+	}{
+		{
+			name:      "Read current transcript",
+			toolName:  "Read",
+			toolInput: map[string]any{"file_path": transcriptPath},
 		},
-	}); violation == nil {
-		t.Fatal("Claude runtime 不应获得 nxs session-memory 写权限")
+		{
+			name:      "Grep current transcript",
+			toolName:  "Grep",
+			toolInput: map[string]any{"path": transcriptPath, "pattern": "needle"},
+		},
+		{
+			name:      "Read sibling transcript",
+			toolName:  "Read",
+			toolInput: map[string]any{"file_path": siblingPath},
+		},
+		{
+			name:      "Bash current transcript",
+			toolName:  "Bash",
+			toolInput: map[string]any{"command": "grep needle " + transcriptPath},
+		},
+		{
+			name:      "Bash scan owner transcript directory",
+			toolName:  "Bash",
+			toolInput: map[string]any{"command": "d=\"" + projectDir + "\"; ls -lat \"$d\"; grep -l needle \"$d\"/*.jsonl"},
+		},
+		{
+			name:      "Write owner transcript",
+			toolName:  "Write",
+			toolInput: map[string]any{"file_path": transcriptPath},
+		},
+		{
+			name:      "Bash overwrite owner transcript",
+			toolName:  "Bash",
+			toolInput: map[string]any{"command": "printf changed > \"" + transcriptPath + "\""},
+		},
+		{
+			name:      "Bash remove owner transcript",
+			toolName:  "Bash",
+			toolInput: map[string]any{"command": "rm \"" + transcriptPath + "\""},
+		},
+		{
+			name:      "Read other owner transcript",
+			toolName:  "Read",
+			toolInput: map[string]any{"file_path": otherOwnerPath},
+			denied:    true,
+		},
+		{
+			name:      "Bash scan other owner transcript directory",
+			toolName:  "Bash",
+			toolInput: map[string]any{"command": "d=\"" + filepath.Dir(otherOwnerPath) + "\"; ls -lat \"$d\"; grep -l needle \"$d\"/*.jsonl"},
+			denied:    true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			violation := inspectToolAccess(policy, sdkhook.Input{
+				CWD:       workspace,
+				ToolName:  test.toolName,
+				ToolInput: test.toolInput,
+			})
+			if (violation != nil) != test.denied {
+				t.Fatalf("violation = %#v, denied=%v", violation, test.denied)
+			}
+		})
 	}
 }
 
@@ -821,6 +923,8 @@ func TestWorkspacePolicyHookRunsAfterExistingHooks(t *testing.T) {
 }
 
 func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
 	workspace := t.TempDir()
 	policy, err := buildAuditPolicy(Input{
 		OwnerUserID: "owner-a",
@@ -832,6 +936,15 @@ func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
 	}
 	if policy.Identity.UID != 0 || policy.Identity.PrivateGID != 0 {
 		t.Fatalf("audit policy 不应伪造 OS identity: %#v", policy.Identity)
+	}
+	if _, err = policy.authorize(
+		filepath.Join(appfs.UserStateRoot("owner-a"), "rooms", "ledger.jsonl"),
+		true,
+	); err != nil {
+		t.Fatalf("audit policy 应允许当前 owner 数据根: %v", err)
+	}
+	if _, err = policy.authorize(appfs.UserDataRoot("owner-b"), false); err == nil {
+		t.Fatal("audit policy 不应允许其他 owner 数据根")
 	}
 	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
 		if _, err = policy.authorize(filepath.Join(sharedTempRoot, "runtime.log"), true); err != nil {

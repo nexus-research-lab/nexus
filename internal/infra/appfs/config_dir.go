@@ -63,24 +63,22 @@ func UserRuntimeRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "runtime")
 }
 
-// UserStateRoot 返回指定用户由 Nexus 宿主管理的状态根。
-//
-// 该目录不属于 NEXUS_CONFIG_DIR/CLAUDE_CONFIG_DIR，runtime 进程不能写入。
+// UserStateRoot 返回指定用户由 Nexus 管理、同 owner runtime 可读写的状态根。
 func UserStateRoot(ownerUserID string) string {
 	return UserStateRootAt(StateRoot(), ownerUserID)
 }
 
-// UserStateRootAt 返回指定状态根下的用户宿主状态根。
+// UserStateRootAt 返回指定状态根下的用户状态根。
 func UserStateRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "state")
 }
 
-// UserRoomRoot 返回指定用户的 Room 宿主状态根。
+// UserRoomRoot 返回指定用户的 Room 状态根。
 func UserRoomRoot(ownerUserID string) string {
 	return UserRoomRootAt(StateRoot(), ownerUserID)
 }
 
-// UserRoomRootAt 返回指定状态根下的用户 Room 宿主状态根。
+// UserRoomRootAt 返回指定状态根下的用户 Room 状态根。
 func UserRoomRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserStateRootAt(stateRoot, ownerUserID), "rooms")
 }
@@ -97,8 +95,7 @@ func UserWorkspaceRootAt(stateRoot string, ownerUserID string) string {
 
 // UserRoomAssetsRoot 返回指定用户可供 runtime 读取的 Room 公共资产根。
 //
-// Room ledger 留在宿主 state，附件则属于用户 workspace 数据；两者不能共享
-// 权限根，否则为了读取附件会同时暴露 handoff、wake 等宿主控制状态。
+// Room ledger 与附件分别留在 state 和 workspace，保持状态职责与清理边界独立。
 func UserRoomAssetsRoot(ownerUserID string) string {
 	return UserRoomAssetsRootAt(StateRoot(), ownerUserID)
 }
@@ -134,7 +131,10 @@ func EnsureUserRuntimeLayoutAt(stateRoot string, ownerUserID string) error {
 		if suffix != "" {
 			relative = filepath.ToSlash(filepath.Join(relative, suffix))
 		}
-		child, openErr := root.OpenOrCreateRootNoSymlink(relative, 0o700)
+		child, openErr := root.OpenOrCreateRootNoSymlink(
+			relative,
+			RuntimeCollaborativeDirectoryMode(0o700),
+		)
 		if openErr != nil {
 			return openErr
 		}

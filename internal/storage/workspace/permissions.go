@@ -13,6 +13,12 @@ func storageDirectoryMode() fs.FileMode {
 	return appfs.RuntimeCollaborativeDirectoryMode(0o755)
 }
 
+// storagePrivateDirectoryMode 保留单用户私有目录语义，并在 Linux enforce 下
+// 让同一 owner 的 runtime 私有组协作。
+func storagePrivateDirectoryMode() fs.FileMode {
+	return appfs.RuntimeCollaborativeDirectoryMode(0o700)
+}
+
 // storageFileMode 保留宿主与 runtime 私有组协作所需的 group 读写位。
 func storageFileMode(defaultMode os.FileMode) os.FileMode {
 	return appfs.RuntimeCollaborativeFileMode(defaultMode)

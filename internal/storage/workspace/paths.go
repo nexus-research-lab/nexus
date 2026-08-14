@@ -59,7 +59,7 @@ func (s *Store) RoomConversationDir(ownerUserID string, conversationID string) s
 	return filepath.Join(s.RoomConversationRoot(ownerUserID), encodeConversationDirName(conversationID))
 }
 
-// RoomConversationRoot 返回指定用户的 Room 宿主状态根。
+// RoomConversationRoot 返回指定用户的 Room 状态根。
 func (s *Store) RoomConversationRoot(ownerUserID string) string {
 	return appfs.UserRoomRootAt(s.StateRoot, ownerUserID)
 }

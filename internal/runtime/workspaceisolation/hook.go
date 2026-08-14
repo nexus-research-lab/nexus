@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -17,7 +16,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 const (
@@ -274,66 +272,10 @@ func inspectToolAccess(policy Policy, input sdkhook.Input) *policyViolation {
 			return &policyViolation{reason: err.Error(), path: candidate.path}
 		}
 		if _, err = policy.authorize(resolved, write); err != nil {
-			if write && sessionSummaryEditAuthorized(policy, toolName, resolved) {
-				continue
-			}
 			return &policyViolation{reason: accessReason(write), path: resolved}
 		}
 	}
 	return nil
-}
-
-// sessionSummaryEditAuthorized 只放行 nxs 内部会话摘要的单文件 Edit。
-// runtime 目录仍不是普通工具写根，其他内部状态继续由宿主和 Landlock 管理。
-func sessionSummaryEditAuthorized(policy Policy, toolName string, path string) bool {
-	if toolName != "edit" ||
-		!strings.EqualFold(strings.TrimSpace(policy.RuntimeKind), "nxs") {
-		return false
-	}
-	runtimeRoot, err := runtimeRootFromPolicy(policy)
-	if err != nil {
-		return false
-	}
-	projectsRoot, err := canonicalPolicyPath(
-		filepath.Join(runtimeRoot, "projects"),
-	)
-	if err != nil {
-		return false
-	}
-	target, err := canonicalPolicyPath(path)
-	if err != nil || !pathWithinPolicyRoot(target, projectsRoot) {
-		return false
-	}
-	relative, err := filepath.Rel(projectsRoot, target)
-	if err != nil {
-		return false
-	}
-	segments := strings.Split(relative, string(os.PathSeparator))
-	return len(segments) == 4 &&
-		validSessionSummarySegment(segments[0]) &&
-		validSessionSummarySegment(segments[1]) &&
-		segments[2] == "session-memory" &&
-		segments[3] == "summary.md"
-}
-
-// runtimeRootFromPolicy 优先使用 root-owned launcher 返回的 identity。
-// audit 模式没有 OS identity，才回退到宿主 canonical 状态根。
-func runtimeRootFromPolicy(policy Policy) (string, error) {
-	tempRoot := strings.TrimSpace(policy.Identity.TempDir)
-	if tempRoot != "" {
-		canonicalTempRoot, err := canonicalPolicyPath(tempRoot)
-		if err == nil &&
-			filepath.Base(canonicalTempRoot) == "tmp" &&
-			filepath.Base(filepath.Dir(canonicalTempRoot)) == "runtime" {
-			return filepath.Dir(canonicalTempRoot), nil
-		}
-	}
-	return canonicalPolicyPath(appfs.UserRuntimeRoot(policy.OwnerUserID))
-}
-
-func validSessionSummarySegment(segment string) bool {
-	segment = strings.TrimSpace(segment)
-	return segment != "" && segment != "." && segment != ".."
 }
 
 func inspectGenericPathFields(
@@ -431,9 +373,18 @@ func inspectShellCommand(
 		return &policyViolation{reason: "Shell 路径包含复杂环境变量展开", path: path}
 	}
 	pathParts := shellCommandParts(command, syntax)
+	staticAssignments := make(map[string]string)
 	for index, part := range pathParts {
 		if part.operator != 0 || shellNumericEscapeArgument(pathParts, index) ||
 			windowsSlashOption(pathParts, index, windowsSlashRoot) {
+			continue
+		}
+		if name, value, assigned := strings.Cut(part.value, "="); assigned && shellAssignmentName(name) {
+			delete(staticAssignments, name)
+			if !unixShellVariablePattern.MatchString(value) &&
+				!windowsShellVariablePattern.MatchString(value) {
+				staticAssignments[name] = value
+			}
 			continue
 		}
 		if bracedShellRemoteURLValue(part.value) {
@@ -445,7 +396,10 @@ func inspectShellCommand(
 		if standaloneComplexBracedShellValue(part.value) {
 			continue
 		}
-		path, ok := shellTokenPath(part.value, windowsSlashRoot)
+		path, ok := shellTokenPath(
+			expandStaticShellPath(part.value, staticAssignments),
+			windowsSlashRoot,
+		)
 		if !ok {
 			continue
 		}
@@ -478,6 +432,21 @@ func inspectShellCommand(
 		}
 	}
 	return nil
+}
+
+// expandStaticShellPath 只展开当前命令内已知的字面量变量赋值。
+func expandStaticShellPath(value string, assignments map[string]string) string {
+	match := unixShellVariablePattern.FindStringIndex(value)
+	if len(match) != 2 || match[0] != 0 {
+		return value
+	}
+	name := strings.TrimSuffix(strings.TrimPrefix(value[match[0]:match[1]], "${"), "}")
+	name = strings.TrimPrefix(name, "$")
+	replacement, ok := assignments[name]
+	if !ok {
+		return value
+	}
+	return replacement + value[match[1]:]
 }
 
 type shellCommandPart struct {

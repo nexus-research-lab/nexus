@@ -3,9 +3,12 @@
 package runtimeidentity
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestNormalizeCgroupConfigRequiresRootWhenEnabled(t *testing.T) {
@@ -15,6 +18,43 @@ func TestNormalizeCgroupConfigRequiresRootWhenEnabled(t *testing.T) {
 	}
 	if err := normalizeCgroupConfig(&config); err == nil {
 		t.Fatal("cgroup_required=true 且未配置 root 时应失败")
+	}
+}
+
+func TestParseRuntimeProcessSignal(t *testing.T) {
+	signal, sessionWide, err := parseRuntimeProcessSignal("kill")
+	if err != nil || signal != unix.SIGKILL || !sessionWide {
+		t.Fatalf("parse kill = signal:%v sessionWide:%v err:%v", signal, sessionWide, err)
+	}
+	if _, _, err = parseRuntimeProcessSignal("stop"); err == nil {
+		t.Fatal("未知 runtime signal 应被拒绝")
+	}
+}
+
+func TestSignalManagedRuntimeProcessChecksOwnerAndKernelSession(t *testing.T) {
+	sessionID, err := unix.Getsid(os.Getpid())
+	if err != nil {
+		t.Fatalf("Getsid() error = %v", err)
+	}
+	exists, matched, err := signalManagedRuntimeProcess(
+		launcherConfig{},
+		&identity{UID: os.Getuid()},
+		os.Getpid(),
+		sessionID,
+		0,
+	)
+	if err != nil || !exists || !matched {
+		t.Fatalf("current process = exists:%v matched:%v err:%v", exists, matched, err)
+	}
+	exists, matched, err = signalManagedRuntimeProcess(
+		launcherConfig{},
+		&identity{UID: os.Getuid() + 1},
+		os.Getpid(),
+		sessionID,
+		0,
+	)
+	if err != nil || !exists || matched {
+		t.Fatalf("wrong owner = exists:%v matched:%v err:%v", exists, matched, err)
 	}
 }
 

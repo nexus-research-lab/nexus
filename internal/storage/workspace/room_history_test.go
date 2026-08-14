@@ -48,8 +48,9 @@ func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if ledgerInfo.Mode().Perm()&0o077 != 0 {
-			t.Fatalf("Room ledger 不能向 group/other 暴露: mode=%#o", ledgerInfo.Mode().Perm())
+		wantMode := storageFileMode(0o600)
+		if ledgerInfo.Mode().Perm() != wantMode {
+			t.Fatalf("Room ledger mode=%#o, want %#o", ledgerInfo.Mode().Perm(), wantMode)
 		}
 	}
 }
