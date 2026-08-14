@@ -1,5 +1,6 @@
 // INPUT: 已授权 `/goal` 或 UI set_goal、Room member/lead 事实与 Goal service。
-// OUTPUT: 服务端验证 lead 后的 Goal、durable 公区控制记录与 draft 消费。
+// OUTPUT: 服务端验证 lead 后的 Goal、携带 exact client message identity 的
+// durable 公区控制记录与 draft 消费。
 // POS: Room Goal command 的 conversation 级串行业务边界；不创建普通模型 slot。
 package realtime
 
@@ -106,6 +107,12 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 		"goal_objective_revision": strconv.FormatInt(item.ObjectiveRevision(), 10),
 	}
 	e.userMessage["control_only"] = true
+	// 普通 Room 消息的 client_message_id 只服务当前连接的 optimistic 替换，
+	// 但 goal_set 是 host command 的 durable acceptance receipt。ACK 丢失后，
+	// 原 Session 必须能用这个 exact identity 收口，而不能按正文或时间猜测。
+	if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
+		e.userMessage["client_message_id"] = clientMessageID
+	}
 	if err := e.service.persistSharedInlineMessage(
 		e.contextValue.Room.OwnerUserID,
 		e.conversationID,
@@ -131,9 +138,6 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 		)
 	}
 	realtimeUserMessage := protocol.Clone(e.userMessage)
-	if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
-		realtimeUserMessage["client_message_id"] = clientMessageID
-	}
 	e.service.broadcastSharedEvent(
 		e.ctx,
 		e.sessionKey,

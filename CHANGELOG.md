@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Composer Goal submissions alive across page and Session navigation with an exact request-owned WebSocket and Session-binding lease, a client acceptance window longer than the detached backend deadline, an explicit confirmation state for unknown ACKs, and reconciliation against either a version-fenced Goal or the original Session's exact durable control record instead of false success or duplicate retry.
 - Kept host-generated Room notices visible in real time when no Agent target is selected, without requiring a conversation reload.
 - Reconnected the shared browser channel after clean server closes so desktop resume and idle-timeout recovery no longer leave conversations permanently offline.
 - Kept Assistant result metadata, including model and usage statistics, behind one settled-execution projection so active cards cannot expose partial result details.

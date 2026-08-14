@@ -20,9 +20,212 @@ test.after(async () => {
   await server.close();
 });
 
+function websocketEvent(eventType, data, sessionKey = "dm:session-a") {
+  return {
+    data,
+    event_type: eventType,
+    protocol_version: 2,
+    session_key: sessionKey,
+    timestamp: 1,
+  };
+}
+
+test("request transport lease keeps exact ownership across navigation", async () => {
+  const { RequestTransportLeaseRegistry } = await server.ssrLoadModule(
+    "/src/lib/websocket/request-transport-leases.ts",
+  );
+  const retainedBindings = [];
+  const releasedBindings = [];
+  const settlements = [];
+  let idleCount = 0;
+  const registry = new RequestTransportLeaseRegistry(
+    (lease, binding) => {
+      retainedBindings.push({ binding, lease });
+      return () => releasedBindings.push(lease);
+    },
+    () => {
+      idleCount += 1;
+    },
+  );
+  const binding = {
+    conversation_id: "conversation-a",
+    room_id: "room-a",
+    session_key: "room:group:conversation-a",
+    type: "bind_session",
+  };
+  const releaseOwner = registry.acquire({
+    clientRequestId: "req-goal-a",
+    onAccepted: () => settlements.push("owner:accepted"),
+    onRejected: (reason) => settlements.push(`owner:${reason}`),
+    sessionBinding: binding,
+  });
+  const releaseDuplicate = registry.acquire({
+    clientRequestId: "req-goal-a",
+    onAccepted: () => settlements.push("duplicate:accepted"),
+    onRejected: () => settlements.push("duplicate:rejected"),
+    sessionBinding: { ...binding, session_key: "room:group:wrong" },
+  });
+  assert.equal(registry.hasLeases(), true);
+  assert.equal(retainedBindings.length, 1);
+  assert.deepEqual(retainedBindings[0].binding, binding);
+
+  releaseDuplicate();
+  assert.equal(
+    registry.hasLeases(),
+    true,
+    "a duplicate caller must not gain release authority over the owner lease",
+  );
+  assert.equal(
+    registry.handleMessage(websocketEvent(
+      "chat_ack",
+      { client_request_id: "req-foreign" },
+      "dm:session-b",
+    )),
+    false,
+    "a foreign ACK must not release the original request",
+  );
+  assert.equal(releasedBindings.length, 0);
+  assert.equal(
+    registry.handleMessage(websocketEvent(
+      "chat_ack",
+      { client_request_id: "req-goal-a" },
+      "dm:session-b",
+    )),
+    true,
+    "request identity, not the currently visible route, owns the ACK",
+  );
+  assert.deepEqual(settlements, ["owner:accepted"]);
+  assert.equal(registry.hasLeases(), false);
+  assert.equal(releasedBindings.length, 1);
+  assert.equal(idleCount, 1);
+  releaseOwner();
+  assert.equal(releasedBindings.length, 1, "terminal release is idempotent");
+});
+
+test("new Session preserves only durable Goal ACK owners while reset cancels all", async () => {
+  const { runAgentSessionTransition } = await server.ssrLoadModule(
+    "/src/hooks/agent/session/use-agent-conversation-session.ts",
+  );
+  const calls = [];
+  const effects = {
+    cancelPendingRequestAcks: (_reason, keepPreserved) => (
+      calls.push(`cancel:${keepPreserved}`)
+    ),
+    clearLiveSessionState: () => calls.push("clear-live"),
+    resetHistoryPagination: () => calls.push("reset-history"),
+    resetRuntimeMachine: () => calls.push("reset-runtime"),
+  };
+  runAgentSessionTransition(
+    "start",
+    "new Session",
+    () => calls.push("start-b"),
+    {},
+    effects,
+  );
+  assert.deepEqual(calls, [
+    "cancel:true",
+    "clear-live",
+    "start-b",
+    "reset-history",
+    "reset-runtime",
+  ], "submit A then immediately create B must not cancel A's ACK owner");
+
+  calls.length = 0;
+  runAgentSessionTransition(
+    "reset",
+    "explicit reset",
+    () => calls.push("reset-session"),
+    {},
+    effects,
+  );
+  assert.deepEqual(calls, [
+    "cancel:false",
+    "clear-live",
+    "reset-session",
+    "reset-history",
+    "reset-runtime",
+  ]);
+});
+
+test("Session navigation cancels ordinary ACKs without cancelling Goal owners", async () => {
+  const {
+    cancelPendingRequestAcks,
+    createPendingRequestAckRegistry,
+    resolvePendingRequestAck,
+    trackPendingRequestAck,
+    waitForRequestAck,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-pending-request-acks.ts",
+  );
+  const registry = createPendingRequestAckRegistry();
+  trackPendingRequestAck(registry, "req-chat");
+  trackPendingRequestAck(registry, "req-goal", true);
+  const chat = waitForRequestAck(
+    registry,
+    "req-chat",
+    () => assert.fail("navigation cancellation should precede timeout"),
+    50,
+  );
+  const goal = waitForRequestAck(
+    registry,
+    "req-goal",
+    () => assert.fail("the durable Goal owner should remain live"),
+    50,
+  );
+  cancelPendingRequestAcks(registry, "切换会话", true);
+  await assert.rejects(chat, /切换会话/);
+  assert.equal(registry.pending.has("req-goal"), true);
+  assert.equal(resolvePendingRequestAck(registry, "req-goal"), true);
+  await goal;
+  assert.equal(registry.preserved.size, 0);
+});
+
+test("request transport hard timeout releases the retained Session exactly once", async () => {
+  const { RequestTransportLeaseRegistry } = await server.ssrLoadModule(
+    "/src/lib/websocket/request-transport-leases.ts",
+  );
+  let releaseCount = 0;
+  let timeoutCount = 0;
+  const registry = new RequestTransportLeaseRegistry(
+    () => () => {
+      releaseCount += 1;
+    },
+    () => {},
+  );
+  const release = registry.acquire({
+    clientRequestId: "req-timeout",
+    onAccepted: () => assert.fail("timed out request must not be accepted"),
+    onRejected: () => assert.fail("hard timeout uses its typed owner callback"),
+    onTimeout: () => {
+      timeoutCount += 1;
+    },
+    sessionBinding: { session_key: "dm:session-a", type: "bind_session" },
+    timeoutMs: 5,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.equal(registry.hasLeases(), false);
+  assert.equal(releaseCount, 1);
+  assert.equal(timeoutCount, 1);
+  release();
+  assert.equal(releaseCount, 1);
+});
+
+test("Goal acceptance window outlives the detached backend deadline", async () => {
+  const {
+    getGoalRequestAcceptanceTimeoutMs,
+    getMessageSendAckTimeoutMs,
+  } = await server.ssrLoadModule(
+    "/src/config/conversation-policy.ts",
+  );
+  assert.equal(getMessageSendAckTimeoutMs(), 10_000);
+  assert.equal(getGoalRequestAcceptanceTimeoutMs(), 20_000);
+  assert.ok(getGoalRequestAcceptanceTimeoutMs() > 15_000);
+});
+
 test("request ACK registry handles ACK and error before waiter registration", async () => {
   const {
     createPendingRequestAckRegistry,
+    discardPendingRequestAck,
     rejectPendingRequestAck,
     resolvePendingRequestAck,
     trackPendingRequestAck,
@@ -35,21 +238,24 @@ test("request ACK registry handles ACK and error before waiter registration", as
   );
 
   const acknowledged = createPendingRequestAckRegistry();
-  trackPendingRequestAck(acknowledged, "req-ack-first");
+  trackPendingRequestAck(acknowledged, "req-ack-first", true);
   assert.equal(resolvePendingRequestAck(acknowledged, "req-ack-first"), false);
+  trackPendingRequestAck(acknowledged, "req-ack-first", true);
   await waitForRequestAck(
     acknowledged,
     "req-ack-first",
     () => assert.fail("settled ACK must not time out"),
     10,
   );
+  assert.equal(acknowledged.preserved.size, 0);
 
   const rejected = createPendingRequestAckRegistry();
-  trackPendingRequestAck(rejected, "req-error-first");
+  trackPendingRequestAck(rejected, "req-error-first", true);
   assert.equal(
     rejectPendingRequestAck(rejected, "req-error-first", "后端拒绝"),
     false,
   );
+  trackPendingRequestAck(rejected, "req-error-first", true);
   await assert.rejects(
     waitForRequestAck(
       rejected,
@@ -59,6 +265,16 @@ test("request ACK registry handles ACK and error before waiter registration", as
     ),
     /后端拒绝/,
   );
+  assert.equal(rejected.preserved.size, 0);
+
+  const abandoned = createPendingRequestAckRegistry();
+  trackPendingRequestAck(abandoned, "req-send-failed", true);
+  resolvePendingRequestAck(abandoned, "req-send-failed");
+  trackPendingRequestAck(abandoned, "req-send-failed", true);
+  discardPendingRequestAck(abandoned, "req-send-failed");
+  assert.equal(abandoned.preserved.size, 0);
+  assert.equal(abandoned.settled.size, 0);
+  assert.equal(abandoned.tracked.size, 0);
 
   const unknown = createPendingRequestAckRegistry();
   const unknownError = new RequestAcceptanceUnknownError("受理状态未知");
@@ -310,6 +526,38 @@ test("chat ACK timeout recovery recognizes a durable client message identity", a
     true,
     "durable queue acceptance must survive a lost ACK before history projection",
   );
+});
+
+test("Goal ACK recovery reads the captured Session without projecting the new route", async () => {
+  const { buildRequestAckRecoveryReader } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-request-ack-failure.ts",
+  );
+  const reads = [];
+  const originalIdentity = {
+    agent_id: "lead-a",
+    chat_type: "group",
+    conversation_id: "conversation-a",
+    room_id: "room-a",
+    session_key: "room:group:conversation-a",
+  };
+  const reader = buildRequestAckRecoveryReader(
+    {
+      identity: originalIdentity,
+      sessionKey: "room:group:conversation-a",
+    },
+    async (identity, sessionKey) => {
+      reads.push({ identity, sessionKey });
+      return [];
+    },
+    async () => {
+      assert.fail("the currently visible Session B must not be reloaded");
+    },
+  );
+  await reader();
+  assert.deepEqual(reads, [{
+    identity: originalIdentity,
+    sessionKey: "room:group:conversation-a",
+  }]);
 });
 
 test("input queue retry keeps message identity and rotates request identity", async () => {
@@ -1061,7 +1309,8 @@ test("Goal submission claims its original Session and restores only without newe
     "另一个 Session 的消息",
   );
   assert.equal(
-    useComposerDraftStore.getState().goal_submission_by_scope[firstScope],
+    useComposerDraftStore.getState()
+      .goal_submission_by_scope[firstScope].submissionId,
     submission.submissionId,
   );
 
@@ -1116,6 +1365,185 @@ test("Goal submission claims its original Session and restores only without newe
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
+});
+
+test("unknown Goal remains confirming until a newer durable Goal matches", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const {
+    observeComposerGoal,
+    readObservedComposerGoal,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-observation.ts",
+  );
+  const { reconcileComposerGoalSubmission } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const scope = "room:room-a:session:room:group:conversation-a";
+  const foreignScope = "room:room-b:session:room:group:conversation-b";
+  const oldGoal = {
+    id: "goal-existing",
+    metadata: {},
+    objective: "生成发布说明",
+    version: 4,
+  };
+  observeComposerGoal(scope, oldGoal);
+  useComposerDraftStore.getState().update_composer_draft(scope, (current) => ({
+    ...current,
+    input: "生成发布说明",
+    inputMode: "goal",
+  }));
+  const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  const submission = useComposerDraftStore.getState().begin_goal_submission(
+    scope,
+    draft.revision,
+    readObservedComposerGoal(scope),
+  );
+  assert.ok(submission);
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, { ...oldGoal, version: 5 }),
+    false,
+    "durable evidence must not settle before the transport becomes unknown",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().mark_goal_submission_confirming(submission),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[scope].phase,
+    "confirming",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().begin_goal_submission(scope, 0),
+    null,
+    "the same scope stays fail-closed while acceptance is being confirmed",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(foreignScope, {
+      ...oldGoal,
+      id: "goal-foreign",
+      version: 9,
+    }),
+    false,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, oldGoal),
+    false,
+    "an unchanged pre-submit Goal with the same objective is not evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      ...oldGoal,
+      metadata: { source_objective: "生成发布说明" },
+      objective: "整理并生成一份可发布的说明",
+      version: 5,
+    }),
+    true,
+    "a newer normalized Goal may reconcile through source_objective",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[scope],
+    undefined,
+  );
+});
+
+test("unobserved Goal baseline reconciles only from its exact durable control record", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const {
+    reconcileComposerGoalSubmission,
+    reconcileComposerGoalSubmissionFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const scope = "dm:agent-a:session:dm:session-a";
+  useComposerDraftStore.getState().update_composer_draft(scope, (current) => ({
+    ...current,
+    input: "首次加载前提交 Goal",
+    inputMode: "goal",
+  }));
+  const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  const submission = useComposerDraftStore.getState().begin_goal_submission(
+    scope,
+    draft.revision,
+    null,
+  );
+  assert.ok(submission);
+  const confirmationIdentity = {
+    clientMessageId: "local_msg_goal-a",
+    clientRequestId: "req-goal-a",
+    sessionKey: "dm:session-a",
+  };
+  assert.equal(
+    useComposerDraftStore.getState().mark_goal_submission_confirming(
+      submission,
+      confirmationIdentity,
+    ),
+    true,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      id: "goal-existing-or-new",
+      metadata: { source_objective: "首次加载前提交 Goal" },
+      objective: "首次加载前提交 Goal",
+      version: 9,
+    }),
+    false,
+    "an unknown baseline cannot use same-objective Goal state as acceptance proof",
+  );
+  const optimistic = {
+    agent_id: "agent-a",
+    client_message_id: confirmationIdentity.clientMessageId,
+    content: "/goal 首次加载前提交 Goal",
+    message_id: confirmationIdentity.clientMessageId,
+    metadata: { subtype: "goal_set" },
+    role: "user",
+    round_id: confirmationIdentity.clientMessageId,
+    session_key: confirmationIdentity.sessionKey,
+    timestamp: 1,
+  };
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(scope, [optimistic]),
+    false,
+    "the local optimistic card is not durable acceptance evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(scope, [{
+      ...optimistic,
+      message_id: "message-server-a",
+      session_key: "dm:foreign-session",
+    }]),
+    false,
+    "a foreign Session control record cannot settle the original scope",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(scope, [{
+      ...optimistic,
+      message_id: "message-server-a",
+    }]),
+    true,
+    "returning to A settles from its exact durable client_message_id even if Goal is terminal",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[scope],
+    undefined,
+  );
 });
 
 test("Composer submission clears immediately and failure recovery preserves newer input", async () => {

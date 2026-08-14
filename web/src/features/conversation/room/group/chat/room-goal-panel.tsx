@@ -20,6 +20,7 @@ interface RoomGoalPanelProps {
   activityKey: string | number | null;
   isLoading: boolean;
   isMobileLayout: boolean;
+  onGoalChange: (goal: Goal | null) => void;
   roomHostAgentId?: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
@@ -30,6 +31,7 @@ export function RoomGoalPanel({
   activityKey: activityKey,
   isLoading: isLoading,
   isMobileLayout: isMobileLayout,
+  onGoalChange,
   roomHostAgentId: roomHostAgentId,
   roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
   roomMembers: roomMembers,
@@ -67,7 +69,8 @@ export function RoomGoalPanel({
   );
   const handleGoalChange = useCallback((goal: Goal | null) => {
     setCurrentGoal(goal);
-  }, []);
+    onGoalChange(goal);
+  }, [onGoalChange]);
   const statusExtra = leadAgent ? (
     <span
       className="inline-flex min-w-0 items-center gap-1 truncate text-(--text-muted)"

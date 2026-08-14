@@ -6,6 +6,10 @@ import type {
 
 import { WebSocketClient } from "./socket-client";
 import type { ResolvedWebSocketConfig } from "./socket-policy";
+import {
+  RequestTransportLeaseRegistry,
+  type RequestTransportLeaseOptions,
+} from "./request-transport-leases";
 import { SessionBindingLeaseRegistry } from "./session-binding-leases";
 
 const SHARED_SOCKET_RELEASE_DELAY_MS = 300;
@@ -25,13 +29,17 @@ interface SharedSocketSnapshot {
 
 export class SharedWebSocketChannel {
   private readonly client: WebSocketClient;
+  private readonly requestTransports: RequestTransportLeaseRegistry;
   private readonly sessionBindings: SessionBindingLeaseRegistry;
   private readonly subscribers = new Map<number, SharedSocketSubscriber>();
   private nextSubscriberId = 1;
   private state: WebSocketState = "disconnected";
   private error: Event | null = null;
 
-  constructor(config: ResolvedWebSocketConfig) {
+  constructor(
+    config: ResolvedWebSocketConfig,
+    onRequestTransportsIdle: () => void = () => {},
+  ) {
     this.client = new WebSocketClient(config, {
       onError: (error) => this.publishError(error),
       onMessage: (message) => this.publishMessage(message),
@@ -40,6 +48,10 @@ export class SharedWebSocketChannel {
     this.sessionBindings = new SessionBindingLeaseRegistry(
       (message) => this.client.send(message),
       () => this.state === "connected",
+    );
+    this.requestTransports = new RequestTransportLeaseRegistry(
+      (lease, binding) => this.sessionBindings.retain(lease, binding),
+      onRequestTransportsIdle,
     );
   }
 
@@ -58,6 +70,10 @@ export class SharedWebSocketChannel {
 
   hasSubscribers(): boolean {
     return this.subscribers.size > 0;
+  }
+
+  hasConsumers(): boolean {
+    return this.hasSubscribers() || this.requestTransports.hasLeases();
   }
 
   connect(): void {
@@ -85,11 +101,18 @@ export class SharedWebSocketChannel {
     return this.sessionBindings.acquire(lease, message);
   }
 
+  acquireRequestTransportLease(
+    options: RequestTransportLeaseOptions,
+  ): () => void {
+    return this.requestTransports.acquire(options);
+  }
+
   getSnapshot(): SharedSocketSnapshot {
     return { error: this.error, state: this.state };
   }
 
   private publishMessage(message: unknown): void {
+    this.requestTransports.handleMessage(message);
     for (const subscriber of this.subscribers.values()) {
       subscriber.onMessage?.(message);
     }
@@ -141,20 +164,24 @@ class SharedWebSocketRegistry {
     if (existingChannel) {
       return existingChannel;
     }
-    const channel = new SharedWebSocketChannel(config);
+    let channel: SharedWebSocketChannel;
+    channel = new SharedWebSocketChannel(
+      config,
+      () => this.release(channelKey, channel),
+    );
     this.channels.set(channelKey, channel);
     return channel;
   }
 
   release(channelKey: string, channel: SharedWebSocketChannel): void {
-    if (channel.hasSubscribers()) {
+    if (channel.hasConsumers()) {
       return;
     }
     this.cancelRelease(channelKey);
     const timerId = window.setTimeout(() => {
       this.cleanupTimers.delete(channelKey);
       if (
-        channel.hasSubscribers() ||
+        channel.hasConsumers() ||
         this.channels.get(channelKey) !== channel
       ) {
         return;

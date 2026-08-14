@@ -509,6 +509,7 @@ export const enConversationMessages = {
   "composer.goal_confirm": "Start Goal",
   "composer.cancel_goal_mode": "Exit Goal input",
   "composer.goal_normalizing": "Organizing Goal",
+  "composer.goal_confirming": "Confirming Goal acceptance",
   "composer.goal_create_failed": "Failed to start Goal",
   "composer.goal_attachment_unsupported": "Goal objectives do not support attachments.",
   "composer.choose_attachment_file": "Choose attachment file",

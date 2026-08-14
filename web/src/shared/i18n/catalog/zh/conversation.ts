@@ -506,6 +506,7 @@ export const zhConversationMessages = {
   "composer.goal_confirm": "启动 Goal",
   "composer.cancel_goal_mode": "退出 Goal 输入",
   "composer.goal_normalizing": "正在整理目标",
+  "composer.goal_confirming": "正在确认目标是否已受理",
   "composer.goal_create_failed": "Goal 启动失败",
   "composer.goal_attachment_unsupported": "Goal 目标不支持附件。",
   "composer.choose_attachment_file": "选择附件文件",
