@@ -102,7 +102,11 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "imagegen", "SKILL.md")); err != nil {
 		t.Fatalf("Claude 兼容 imagegen skill 未同步: %v", err)
 	}
+	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "visualize", "SKILL.md")); err != nil {
+		t.Fatalf("平台全局 visualize skill 未同步: %v", err)
+	}
 	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "visualize") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "goal-manager") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "execution-orchestrator") {
 		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
@@ -156,6 +160,12 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
 	managedSkillContracts := map[string][]string{
+		filepath.Join("visualize", "SKILL.md"): {
+			"在 Nexus 对话中生成交互式图表",
+			"Call `show_widget`",
+			"Network access and external resources are allowed without a domain allowlist",
+			"--nexus-chart-1",
+		},
 		filepath.Join("goal-manager", "SKILL.md"): {
 			"mcp__nexus_goal__get_goal",
 			"Skill 只加载使用规则",

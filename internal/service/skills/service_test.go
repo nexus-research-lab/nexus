@@ -32,6 +32,7 @@ func TestMain(m *testing.M) {
 		"goal-manager",
 		"ima-skill",
 		"imagegen",
+		"visualize",
 		"kami",
 		"nexus-manager",
 		"room-playbook",
@@ -85,6 +86,13 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	if !containsSkill(items, "goal-manager") {
 		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
 	}
+	visualizeSkill, ok := findSkill(items, "visualize")
+	if !ok {
+		t.Fatalf("可视化系统 skill 未暴露: %+v", items)
+	}
+	if visualizeSkill.SourceType != sourceTypeSystem || !visualizeSkill.Locked || visualizeSkill.Deletable || !visualizeSkill.EnabledForAgent {
+		t.Fatalf("visualize 应与 imagegen 一样作为已启用的系统内置 skill: %+v", visualizeSkill)
+	}
 	if containsSkill(items, "room-playbook") {
 		t.Fatalf("room scope skill 不应暴露为 agent 技能: %+v", items)
 	}
@@ -129,6 +137,9 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "goal-manager"); err == nil {
 		t.Fatal("系统托管 goal-manager skill 不应允许手动安装")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "visualize"); err == nil {
+		t.Fatal("系统托管 visualize skill 不应允许手动安装")
 	}
 
 	agentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "agent-only-skill")

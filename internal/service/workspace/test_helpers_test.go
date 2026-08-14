@@ -21,6 +21,7 @@ func TestMain(m *testing.M) {
 		"goal-manager",
 		"ima-skill",
 		"imagegen",
+		"visualize",
 		"kami",
 		"nexus-manager",
 		"room-playbook",

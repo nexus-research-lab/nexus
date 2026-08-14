@@ -111,14 +111,17 @@ func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
 
 func TestManagedVisualizeToolOnlyMatchesBuiltInServer(t *testing.T) {
 	for _, toolName := range []string{
-		"visualize_read_me",
 		"show_widget",
 		"mcp__nexus_visualize__show_widget",
-		"nexus_visualize.visualize_read_me",
+		"nexus_visualize.show_widget",
+		"nexus_visualize/show_widget",
 	} {
 		if !IsManagedVisualizeTool(toolName) {
 			t.Fatalf("expected managed visualize tool to match %q", toolName)
 		}
+	}
+	if IsManagedVisualizeTool("visualize_read_me") {
+		t.Fatal("retired visualize_read_me must not inherit managed auto-approval")
 	}
 	if IsManagedVisualizeTool("mcp__external__show_widget") {
 		t.Fatal("external show_widget must not inherit managed auto-approval")
@@ -290,7 +293,6 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		"mcp__nexus_goal__get_goal",
 		"mcp__nexus_execution__prepare_plan_execution",
 		"mcp__nexus_execution__plan_execution",
-		"mcp__nexus_visualize__visualize_read_me",
 		"mcp__nexus_visualize__show_widget",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
@@ -298,6 +300,9 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected runtime allowed tools to include %q: %+v", toolName, tools)
 		}
+	}
+	if _, exists := approved["mcp__nexus_visualize__visualize_read_me"]; exists {
+		t.Fatalf("retired visualize_read_me should not stay approved: %+v", tools)
 	}
 }
 
