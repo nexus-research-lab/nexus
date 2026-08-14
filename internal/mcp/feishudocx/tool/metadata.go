@@ -1,12 +1,10 @@
+// 本文件集中定义飞书云文档工具的检索提示。
 package tool
 
 const (
-	searchHintConnectorList = "connector 连接器 list status auth 已连接 可用 授权"
-	searchHintConnectorCall = "connector REST API call provider request advanced fallback 通用调用"
-
 	searchHintFeishuDocxRead           = "飞书 文档 docx wiki read export markdown 读取 导出 文档 内容"
 	searchHintFeishuDocxSearch         = "飞书 云文档 search 搜索 doc docx wiki sheet bitable 文档"
-	searchHintFeishuDocxSheetSheets    = "飞书 表格 sheet sheets list 工作表 sheet_id 元数据"
+	searchHintFeishuDocxSheetList      = "飞书 表格 sheet sheets list 工作表 sheet_id 元数据"
 	searchHintFeishuDocxSheetValues    = "飞书 表格 sheet values read range 单元格 读取"
 	searchHintFeishuDocxSheetFind      = "飞书 表格 sheet find search cell 查找 单元格"
 	searchHintFeishuDocxBitableTables  = "飞书 多维表格 bitable tables list 数据表 table_id"

@@ -253,7 +253,7 @@ func TestAgentHistoryStorePreservesParallelToolResultsFromTranscriptBranches(t *
 					{
 						"type":  "tool_use",
 						"id":    "call-connectors",
-						"name":  "mcp__nexus_connectors__connector_list",
+						"name":  "mcp__nexus_feishu_docx__search",
 						"input": map[string]any{},
 					},
 				},

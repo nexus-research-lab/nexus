@@ -7,12 +7,12 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 )
 
 func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_read",
+		Name:        "read",
 		Description: "阅读已授权飞书 Docx 或 Wiki 文档，返回 Markdown，可选择保留 block_id 注释用于后续精准更新。",
 		SearchHint:  searchHintFeishuDocxRead,
 		InputSchema: map[string]any{
@@ -40,7 +40,7 @@ func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdktool.T
 
 func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_search",
+		Name:        "search",
 		Description: "全文搜索当前授权账号可访问的飞书云文档，返回匹配文档 token、类型、标题和分页信息。",
 		SearchHint:  searchHintFeishuDocxSearch,
 		InputSchema: map[string]any{
@@ -80,7 +80,7 @@ func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdktool
 
 func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_create",
+		Name:        "create",
 		Description: "创建飞书 Docx 文档，并可直接把 Markdown 内容写入文档。",
 		SearchHint:  searchHintFeishuDocxCreate,
 		InputSchema: map[string]any{
@@ -113,7 +113,7 @@ func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext)
 
 func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_append_markdown",
+		Name:        "append_markdown",
 		Description: "向飞书 Docx 或 Wiki 文档末尾追加 Markdown 内容。",
 		SearchHint:  searchHintFeishuDocxAppendMarkdown,
 		InputSchema: map[string]any{
@@ -154,7 +154,7 @@ func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext)
 
 func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_update_block",
+		Name:        "update_block",
 		Description: "更新飞书 Docx 文档中指定文本 Block 的内容。",
 		SearchHint:  searchHintFeishuDocxUpdateBlock,
 		InputSchema: map[string]any{

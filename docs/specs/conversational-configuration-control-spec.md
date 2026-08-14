@@ -24,7 +24,7 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexus_config`；OAuth/Device 走 `nexus_connector_auth` | 下一会话或重新授权 |
 | `skills` | 数据库 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexus_config` | 来源、目录和导入结果立即；Agent 在下一轮加载 Skill 内容与安装选择 |
 | `host` | 部署环境 + 原生桌面宿主 | `nexus_config` 脱敏检查；变更走对应人类控制面 | 外部变更后重启 |
-| `sessions` | owner-confined Agent workspace session meta + runtime 不可写的 host-only owner lifecycle ledger | `nexus_config` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
+| `sessions` | owner-confined Agent workspace session meta + owner lifecycle ledger | `nexus_config` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
 | `rooms` | 数据库 + Room runtime | `nexus_config` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
 | `automation` | 数据库 + scheduler runtime | Agent task 走 `nexus_automation`；script task 仅人类控制面 | 专用工具创建、检查和核对 |
 | `workspaces` | workspace 文件系统 | 主智能体通过 `nexus-manager` Skill 调用 owner-scoped `nexusctl`；当前 Agent 使用原生文件工具 | 当前 workspace 文件写入立即 |
@@ -143,14 +143,14 @@ snapshot/checks，并在该 Agent 自己的私有 DM 中查看 Agent-scope 历�
 Sessions 域只包含 owner workspace 中的普通 Agent session。主智能体可重命名或删除
 任意自有 Agent session；普通 Agent 只能重命名正在交互的当前 WebSocket 私有 DM。
 Room conversation 仍完全由 `rooms` 域管理。删除当前正在执行配置工具的 session 被
-拒绝；其他 session 先在 runtime 不可写的 host-only owner state 写入 deleting tombstone
+拒绝；其他 session 先在 owner state 写入 deleting tombstone
 并安装精确 runtime admission fence，再关闭 runtime、以 `configuration_version` CAS
 提交 meta 删除并清理 transcript。配置 inspect 是纯读投影，不会为了刷新 active 状态
 推进版本；返回值也不包含 SDK `session_id`、resume 标识或 runtime options。
 
 历史 session 目录名编码不是单射，因此所有读写先核对 `meta.session_key` 与请求值，
 并按真实物理目录加同一把锁；碰撞时 fail closed，不能借别名读取、覆盖或删除另一个
-session。提交后的 host-only `deleted` tombstone 永久阻止同一物理身份的晚到 writer 或
+session。提交后的持久 `deleted` tombstone 永久阻止同一物理身份的晚到 writer 或
 新 runtime 复活，Agent workspace 文件不能删除或伪造它。transcript 清理引用只保存在
 该私有 ledger，清理成功后才移除；清理失败返回 `reconcile_required`。宿主在启动时
 fail-closed 扫描，并周期 reconcile 残留的 deleting、目录提交和 transcript 清理，
@@ -268,7 +268,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 | Skill 来源、导入、更新和安装选择 | 私有来源增删改、搜索、目录和导入结果立即；目标 Agent 下一轮加载内容与选择 | 所有设置页/API/对话功能写共用 owner catalog CAS，Bearer 仅走原生 secret slot；发布失败原子恢复旧目录或进入明确 reconcile |
 | Scheduled Agent task / Heartbeat | scheduler 读取持久新版本；wake 不改变配置版本 | 更新/删除用版本 CAS 并重读；同 `request_id` 创建只重放同一意图；script task 不开放对话写入 |
 | Agent session 标题 | 目录/UI 立即 | 同一 session 资源锁内单调推进版本；写后重读标题 |
-| 删除 Agent session | host-only lifecycle ledger 先封锁，meta 删除后保持 tombstone | admission fence 阻止新启动和晚到写回；关闭失败撤销未提交栅栏，提交后 transcript 清理失败保留私有重试引用，由启动/周期 recovery 继续 reconcile |
+| 删除 Agent session | owner lifecycle ledger 先封锁，meta 删除后保持 tombstone | admission fence 阻止新启动和晚到写回；关闭失败撤销未提交栅栏，提交后 transcript 清理失败保留私有重试引用，由启动/周期 recovery 继续 reconcile |
 | Agent 基础/上下文情绪 | 下一轮稳定投影 | 版本 CAS；只改变当前 Agent 自有状态，不动态改写半轮 prompt |
 | Room 名称、标题、头像、描述 | Room UI/目录立即；稳定 prompt 下一轮 | 当前 round 使用已捕获的展示快照 |
 | Room Skill | 下一轮稳定 prompt | 不在半轮中替换协作规则文本 |
@@ -339,7 +339,7 @@ workspace 与 scope mode 都由宿主固定，Hook 拒绝环境变量或命令�
 - stdio、HTTP 和 SSE 配置在进入 runtime 前严格解析；未知类型、SDK 内部 server、`nexus_*` 保留名和内置 server 冲突会被拒绝。
 - 修改后的 MCP 配置从下一轮生效，当前半轮不会动态替换工具集合。
 
-应用市场 Connector 不写入自由格式 `mcp_servers`。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。显式选择决定 `nexus_connectors` 的 Session 工具面；短暂未连接或凭据不可用时保留工具定义，真实调用返回“未连接”或具体认证错误。未选择的 Connector 不注入工具定义，也不能被通用 Connector 调用入口绕过；需要凭据才能构造的第三方远程 MCP 仍只在授权快照可用时建立连接。
+应用市场 Connector 不写入自由格式 `mcp_servers`。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。显式选择决定对应 Provider MCP 的 Session 工具面；飞书云文档使用独立的 `nexus_feishu_docx` MCP。短暂未连接或凭据不可用时，宿主管理的固定工具面保留定义并在真实调用返回“未连接”或具体认证错误；需要凭据才能构造的第三方远程 MCP 只在授权快照可用时建立连接。未选择的 Connector 不注入任何工具定义，也不存在通用 Connector 调用入口可绕过这条边界。
 
 ## 工具与审计
 

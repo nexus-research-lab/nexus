@@ -157,7 +157,7 @@ func TestPermissionApprovalDrainsPhysicalAttemptBeforeResume(t *testing.T) {
 	permission := permissionctx.NewContext()
 	runner := &permissionDrainDMRunner{
 		permission:       permission,
-		requiredTool:     "mcp__nexus_connectors__feishu_docx_read",
+		requiredTool:     "mcp__nexus_feishu_docx__read",
 		interruptStarted: make(chan struct{}),
 		releaseInterrupt: make(chan struct{}),
 	}
@@ -247,7 +247,7 @@ func TestPermissionApprovalDrainsPhysicalAttemptBeforeResume(t *testing.T) {
 		t.Fatalf("续跑在旧 attempt 前启动或丢失权限上下文: requests=%+v resumed_before_stop=%v", dispatched, resumedBeforeStop)
 	}
 	if dispatched[1].AutomationRun == nil ||
-		dispatched[1].AutomationRun.ResumeToolName != "mcp__nexus_connectors__feishu_docx_read" {
+		dispatched[1].AutomationRun.ResumeToolName != "mcp__nexus_feishu_docx__read" {
 		t.Fatalf("续跑未通过可信上下文要求重试触发审批的工具: %+v", dispatched[1].AutomationRun)
 	}
 	if len(interrupts) != 1 || interrupts[0].RoundID != dispatched[0].RoundID {
@@ -417,7 +417,7 @@ func TestPermissionPipelineRequiresExplicitRetryAfterEffectStarted(t *testing.T)
 	dm := &fakeDMRunner{
 		permission: permission,
 		requiredTools: []string{
-			"mcp__nexus_connectors__feishu_docx_write",
+			"mcp__nexus_feishu_docx__append_markdown",
 			"WebSearch",
 		},
 	}
@@ -453,7 +453,7 @@ func TestPermissionPipelineRequiresExplicitRetryAfterEffectStarted(t *testing.T)
 	policy := appendTaskPermissionGrant(task.PermissionPolicy, automationdomain.TaskPermissionGrant{
 		GrantID: "grant-write",
 		Capability: automationdomain.PermissionCapability{
-			ToolName:    "mcp__nexus_connectors__feishu_docx_write",
+			ToolName:    "mcp__nexus_feishu_docx__append_markdown",
 			ConnectorID: "feishu-docx",
 			Effect:      automationdomain.PermissionEffectWrite,
 		},
@@ -527,7 +527,7 @@ func TestPermissionPipelineSeparatesFeishuGrantFromOAuthReadiness(t *testing.T) 
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
 		permission:   permission,
-		requiredTool: "mcp__nexus_connectors__feishu_docx_read",
+		requiredTool: "mcp__nexus_feishu_docx__read",
 	}
 	connectors := &mutableConnectorResolver{}
 	service := NewService(
@@ -661,7 +661,7 @@ func TestLegacyScheduledTaskPermissionBackfillPreservesTaskAndCreatesRequest(t *
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
 		permission:   permission,
-		requiredTool: "mcp__nexus_connectors__feishu_docx_read",
+		requiredTool: "mcp__nexus_feishu_docx__read",
 	}
 	recovered := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
@@ -711,7 +711,7 @@ func TestLegacyScheduledTaskPermissionBackfillPreservesTaskAndCreatesRequest(t *
 		task.JobID,
 	)
 	if err != nil || len(requests) != 1 ||
-		requests[0].Capability.ToolName != "mcp__nexus_connectors__feishu_docx_read" ||
+		requests[0].Capability.ToolName != "mcp__nexus_feishu_docx__read" ||
 		requests[0].PolicyRevision != 1 {
 		t.Fatalf("旧任务未进入持久权限确认链路: requests=%+v err=%v", requests, err)
 	}
@@ -798,35 +798,35 @@ func TestScriptPermissionGrantIsBoundToExactScriptContent(t *testing.T) {
 	}
 }
 
-func TestFeishuPermissionEffectsMatchConnectorToolSemantics(t *testing.T) {
+func TestFeishuPermissionEffectsMatchMCPToolSemantics(t *testing.T) {
 	readOnlyTools := []string{
-		"feishu_docx_read",
-		"feishu_docx_search",
-		"feishu_docx_sheet_sheets",
-		"feishu_docx_sheet_values",
-		"feishu_docx_sheet_find",
-		"feishu_docx_bitable_tables",
-		"feishu_docx_bitable_fields",
-		"feishu_docx_bitable_records",
-		"feishu_docx_drive_list",
-		"feishu_docx_wiki_spaces",
-		"feishu_docx_wiki_space",
-		"feishu_docx_wiki_nodes",
-		"feishu_docx_wiki_node",
+		"read",
+		"search",
+		"sheet_list",
+		"sheet_values",
+		"sheet_find",
+		"bitable_tables",
+		"bitable_fields",
+		"bitable_records",
+		"drive_list",
+		"wiki_spaces",
+		"wiki_space",
+		"wiki_nodes",
+		"wiki_node",
 	}
 	for _, toolName := range readOnlyTools {
-		qualified := "mcp__nexus_connectors__" + toolName
+		qualified := "mcp__nexus_feishu_docx__" + toolName
 		if effect := classifyPermissionEffect(qualified); effect != automationdomain.PermissionEffectRead {
 			t.Errorf("%s effect = %q, want read", qualified, effect)
 		}
 	}
 	writeTools := []string{
-		"feishu_docx_create",
-		"feishu_docx_append_markdown",
-		"feishu_docx_update_block",
+		"create",
+		"append_markdown",
+		"update_block",
 	}
 	for _, toolName := range writeTools {
-		qualified := "mcp__nexus_connectors__" + toolName
+		qualified := "mcp__nexus_feishu_docx__" + toolName
 		if effect := classifyPermissionEffect(qualified); effect != automationdomain.PermissionEffectWrite {
 			t.Errorf("%s effect = %q, want write", qualified, effect)
 		}

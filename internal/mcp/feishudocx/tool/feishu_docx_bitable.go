@@ -3,13 +3,13 @@ package tool
 import (
 	"context"
 
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 )
 
 func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_bitable_tables",
+		Name:        "bitable_tables",
 		Description: "列出飞书多维表格应用内的数据表，返回 table_id、名称和分页信息。",
 		SearchHint:  searchHintFeishuDocxBitableTables,
 		InputSchema: map[string]any{
@@ -38,7 +38,7 @@ func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) 
 
 func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_bitable_fields",
+		Name:        "bitable_fields",
 		Description: "列出飞书多维表格指定数据表的字段，返回字段名称、类型、属性和说明。",
 		SearchHint:  searchHintFeishuDocxBitableFields,
 		InputSchema: map[string]any{
@@ -76,7 +76,7 @@ func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) 
 
 func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_bitable_records",
+		Name:        "bitable_records",
 		Description: "读取飞书多维表格指定数据表的记录内容，支持字段选择、视图、筛选、排序和分页。",
 		SearchHint:  searchHintFeishuDocxBitableRecords,
 		InputSchema: map[string]any{

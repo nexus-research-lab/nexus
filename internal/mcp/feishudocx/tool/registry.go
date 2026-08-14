@@ -3,22 +3,15 @@ package tool
 import (
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 )
 
-// BuildAll 汇集全部 connector MCP 工具。
+// BuildAll 汇集全部飞书云文档 MCP 工具。
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool {
-	tools := []sdktool.Tool{
-		list(svc, sctx),
-		call(svc, sctx),
-	}
-	if !sctx.ConnectorEnabled("feishu-docx") {
-		return tools
-	}
-	return append(tools,
+	return []sdktool.Tool{
 		feishuDocxRead(svc, sctx),
 		feishuDocxSearch(svc, sctx),
-		feishuDocxSheetSheets(svc, sctx),
+		feishuDocxSheetList(svc, sctx),
 		feishuDocxSheetValues(svc, sctx),
 		feishuDocxSheetFind(svc, sctx),
 		feishuDocxBitableTables(svc, sctx),
@@ -32,5 +25,5 @@ func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool 
 		feishuDocxWikiSpace(svc, sctx),
 		feishuDocxWikiNodes(svc, sctx),
 		feishuDocxWikiNode(svc, sctx),
-	)
+	}
 }

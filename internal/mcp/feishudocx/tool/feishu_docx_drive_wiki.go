@@ -5,13 +5,13 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 )
 
 func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_drive_list",
+		Name:        "drive_list",
 		Description: "列出飞书云空间文件，可按 folder_token 分页浏览文档、知识库节点、文件夹等资源。",
 		SearchHint:  searchHintFeishuDocxDriveList,
 		InputSchema: map[string]any{
@@ -52,7 +52,7 @@ func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkt
 
 func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_wiki_spaces",
+		Name:        "wiki_spaces",
 		Description: "列出当前授权账号或应用可访问的飞书知识库空间，返回 space_id、名称和分页信息。",
 		SearchHint:  searchHintFeishuDocxWikiSpaces,
 		InputSchema: map[string]any{
@@ -79,7 +79,7 @@ func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdk
 
 func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_wiki_space",
+		Name:        "wiki_space",
 		Description: "获取指定飞书知识库空间详情，用于确认知识库名称、描述和 space_id。",
 		SearchHint:  searchHintFeishuDocxWikiSpace,
 		InputSchema: map[string]any{
@@ -110,7 +110,7 @@ func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdkt
 
 func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_wiki_nodes",
+		Name:        "wiki_nodes",
 		Description: "分页列出飞书知识库空间中的子节点；不传 parent_node_token 时列出顶层节点，可用于逐层浏览操作文档。",
 		SearchHint:  searchHintFeishuDocxWikiNodes,
 		InputSchema: map[string]any{
@@ -150,7 +150,7 @@ func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkt
 
 func feishuDocxWikiNode(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_wiki_node",
+		Name:        "wiki_node",
 		Description: "通过飞书 Wiki URL 或 node_token 解析知识库节点，返回真实 obj_token、obj_type、父节点、标题和是否有子节点。",
 		SearchHint:  searchHintFeishuDocxWikiNode,
 		InputSchema: map[string]any{

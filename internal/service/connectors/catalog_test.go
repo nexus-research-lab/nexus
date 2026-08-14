@@ -162,15 +162,4 @@ func TestServiceScopesConnectionStateByOwner(t *testing.T) {
 		t.Fatalf("owner-b 不应读到 owner-a token: %+v", snapshotB)
 	}
 
-	activeA, err := service.ListActiveConnections(ctx, "owner-a")
-	if err != nil {
-		t.Fatalf("列出 owner-a active connectors 失败: %v", err)
-	}
-	activeB, err := service.ListActiveConnections(ctx, "owner-b")
-	if err != nil {
-		t.Fatalf("列出 owner-b active connectors 失败: %v", err)
-	}
-	if len(activeA) != 1 || activeA[0].ConnectorID != "github" || len(activeB) != 0 {
-		t.Fatalf("active connector 列表未按 owner 隔离: owner-a=%+v owner-b=%+v", activeA, activeB)
-	}
 }

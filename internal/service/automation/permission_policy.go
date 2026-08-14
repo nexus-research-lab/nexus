@@ -39,19 +39,19 @@ var permissionResourceKeys = []string{
 }
 
 var readOnlyPermissionToolNames = map[string]struct{}{
-	"feishu_docx_bitable_fields":  {},
-	"feishu_docx_bitable_records": {},
-	"feishu_docx_bitable_tables":  {},
-	"feishu_docx_drive_list":      {},
-	"feishu_docx_read":            {},
-	"feishu_docx_search":          {},
-	"feishu_docx_sheet_find":      {},
-	"feishu_docx_sheet_sheets":    {},
-	"feishu_docx_sheet_values":    {},
-	"feishu_docx_wiki_node":       {},
-	"feishu_docx_wiki_nodes":      {},
-	"feishu_docx_wiki_space":      {},
-	"feishu_docx_wiki_spaces":     {},
+	"mcp__nexus_feishu_docx__bitable_fields":  {},
+	"mcp__nexus_feishu_docx__bitable_records": {},
+	"mcp__nexus_feishu_docx__bitable_tables":  {},
+	"mcp__nexus_feishu_docx__drive_list":      {},
+	"mcp__nexus_feishu_docx__read":            {},
+	"mcp__nexus_feishu_docx__search":          {},
+	"mcp__nexus_feishu_docx__sheet_find":      {},
+	"mcp__nexus_feishu_docx__sheet_list":      {},
+	"mcp__nexus_feishu_docx__sheet_values":    {},
+	"mcp__nexus_feishu_docx__wiki_node":       {},
+	"mcp__nexus_feishu_docx__wiki_nodes":      {},
+	"mcp__nexus_feishu_docx__wiki_space":      {},
+	"mcp__nexus_feishu_docx__wiki_spaces":     {},
 }
 
 func (s *Service) ensureTaskPermissionPolicy(
@@ -361,7 +361,7 @@ func buildPermissionCapability(request sdkpermission.Request) automationdomain.P
 	toolName := strings.TrimSpace(request.ToolName)
 	return automationdomain.PermissionCapability{
 		ToolName:         toolName,
-		ConnectorID:      connectorIDForPermissionRequest(toolName, request.Input),
+		ConnectorID:      connectorIDForPermissionRequest(toolName),
 		Effect:           classifyPermissionEffect(toolName),
 		ResourceScope:    permissionResourceScope(request.Input),
 		InputFingerprint: permissionInputFingerprint(toolName, request.Input),
@@ -377,24 +377,18 @@ func buildScriptPermissionCapability(job automationdomain.ScheduledTask) automat
 	}
 }
 
-func connectorIDForPermissionRequest(toolName string, input map[string]any) string {
+func connectorIDForPermissionRequest(toolName string) string {
 	parts := strings.Split(strings.TrimPrefix(strings.TrimSpace(toolName), "mcp__"), "__")
-	if len(parts) < 2 || parts[0] != "nexus_connectors" {
+	if len(parts) < 2 || parts[0] != "nexus_feishu_docx" {
 		return ""
 	}
-	leaf := strings.Join(parts[1:], "__")
-	if leaf == "connector_call" {
-		return strings.TrimSpace(permissionStringValue(input["connector_id"]))
-	}
-	if strings.HasPrefix(leaf, "feishu_docx_") {
-		return "feishu-docx"
-	}
-	return ""
+	return "feishu-docx"
 }
 
 func classifyPermissionEffect(toolName string) string {
+	normalized := strings.ToLower(strings.TrimSpace(toolName))
 	leaf := strings.ToLower(permissionToolLeaf(toolName))
-	if _, readOnly := readOnlyPermissionToolNames[leaf]; readOnly {
+	if _, readOnly := readOnlyPermissionToolNames[normalized]; readOnly {
 		return automationdomain.PermissionEffectRead
 	}
 	for _, fragment := range []string{"delete", "remove", "write", "update", "append", "create", "edit", "send", "post", "put", "patch", "move", "rename"} {

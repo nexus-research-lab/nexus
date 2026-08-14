@@ -11,8 +11,20 @@ import (
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 )
+
+type stubConnectorService struct {
+	item *connectordomain.ConnectionSnapshot
+}
+
+func (s stubConnectorService) LoadActiveConnection(
+	context.Context,
+	string,
+	string,
+) (*connectordomain.ConnectionSnapshot, error) {
+	return s.item, nil
+}
 
 func TestFeishuDocxSearchTool(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -43,7 +55,7 @@ func TestFeishuDocxSearchTool(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := callNamedTool(t, "feishu_docx_search", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
+	result := callNamedTool(t, "search", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
 		ConnectorID: "feishu-docx",
 		AuthType:    "oauth2",
 		APIBaseURL:  server.URL,
@@ -90,7 +102,7 @@ func TestFeishuDocxSheetValuesTool(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := callNamedTool(t, "feishu_docx_sheet_values", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
+	result := callNamedTool(t, "sheet_values", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
 		ConnectorID: "feishu-docx",
 		AuthType:    "oauth2",
 		APIBaseURL:  server.URL,
@@ -140,7 +152,7 @@ func TestFeishuDocxBitableRecordsTool(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := callNamedTool(t, "feishu_docx_bitable_records", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
+	result := callNamedTool(t, "bitable_records", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
 		ConnectorID: "feishu-docx",
 		AuthType:    "oauth2",
 		APIBaseURL:  server.URL,
@@ -183,7 +195,7 @@ func TestFeishuDocxCreateDocumentTool(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := callNamedTool(t, "feishu_docx_create", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
+	result := callNamedTool(t, "create", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
 		ConnectorID: "feishu-docx",
 		AuthType:    "oauth2",
 		APIBaseURL:  server.URL,
@@ -221,7 +233,7 @@ func TestFeishuDocxWikiNodesTool(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := callNamedTool(t, "feishu_docx_wiki_nodes", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
+	result := callNamedTool(t, "wiki_nodes", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
 		ConnectorID: "feishu-docx",
 		AuthType:    "oauth2",
 		APIBaseURL:  server.URL,
@@ -264,7 +276,7 @@ func TestFeishuDocxDriveListFiltersFileType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result := callNamedTool(t, "feishu_docx_drive_list", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
+	result := callNamedTool(t, "drive_list", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
 		ConnectorID: "feishu-docx",
 		AuthType:    "oauth2",
 		APIBaseURL:  server.URL,
@@ -285,10 +297,7 @@ func TestFeishuDocxDriveListFiltersFileType(t *testing.T) {
 
 func callNamedTool(t *testing.T, name string, svc contract.Service, args map[string]any) sdktool.ToolResult {
 	t.Helper()
-	for _, item := range BuildAll(svc, contract.ServerContext{
-		OwnerUserID:         "user-1",
-		EnabledConnectorIDs: []string{"feishu-docx"},
-	}) {
+	for _, item := range BuildAll(svc, contract.ServerContext{OwnerUserID: "user-1"}) {
 		if item.Name == name {
 			result, err := item.Handler(context.Background(), args)
 			if err != nil {

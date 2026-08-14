@@ -11,41 +11,6 @@ import (
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 )
 
-// ListActiveConnections 列出当前用户已连接 connector。
-func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]connectordomain.ConnectionSnapshot, error) {
-	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
-	query := fmt.Sprintf(
-		"SELECT owner_user_id, connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE owner_user_id = %s AND state = 'connected'",
-		s.bind(1),
-	)
-	rows, err := s.db.QueryContext(ctx, query, ownerUserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := []connectordomain.ConnectionSnapshot{}
-	for rows.Next() {
-		var record connectionRecord
-		if err = rows.Scan(
-			&record.OwnerUserID,
-			&record.ConnectorID,
-			&record.Credentials,
-			&record.CredentialsEncrypted,
-			&record.AuthType,
-		); err != nil {
-			return nil, err
-		}
-		item, err := s.connectionSnapshotFromRecord(record)
-		if err != nil {
-			return nil, err
-		}
-		if item != nil {
-			result = append(result, *item)
-		}
-	}
-	return result, rows.Err()
-}
-
 // LoadActiveConnection 读取已连接 connector 的 token 快照。
 func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*connectordomain.ConnectionSnapshot, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)

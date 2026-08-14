@@ -30,8 +30,8 @@ func TestConnectorMCPBuilderRequiresSessionEnable(t *testing.T) {
 	}
 	ctx := runtimectx.WithEnabledConnectorIDs(context.Background(), []string{"amap"})
 	servers := build(ctx)
-	if _, ok := servers["nexus_connectors"]; !ok {
-		t.Fatalf("显式启用后缺少 Nexus Connector server: %+v", servers)
+	if _, ok := servers["nexus_feishu_docx"]; ok {
+		t.Fatalf("高德不应挂载飞书云文档 MCP server: %+v", servers)
 	}
 	if _, ok := servers["amap_maps"]; !ok {
 		t.Fatalf("显式启用后缺少高德 MCP server: %+v", servers)
@@ -49,7 +49,7 @@ func TestConnectorMCPBuilderKeepsExplicitSurfaceWhenConnectionIsUnavailable(t *t
 		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "owner-1"},
 		"session-1", "", "", "", "", nil, "",
 	)
-	config, ok := servers["nexus_connectors"].(sdkmcp.SDKServerConfig)
+	config, ok := servers["nexus_feishu_docx"].(sdkmcp.SDKServerConfig)
 	if !ok || config.Instance == nil {
 		t.Fatalf("explicit Connector surface disappeared while disconnected: %+v", servers)
 	}
@@ -61,8 +61,11 @@ func TestConnectorMCPBuilderKeepsExplicitSurfaceWhenConnectionIsUnavailable(t *t
 	}
 	result, _ := response["result"].(map[string]any)
 	tools, _ := result["tools"].([]map[string]any)
-	if !connectorToolListContains(tools, "feishu_docx_read") {
+	if !connectorToolListContains(tools, "read") || !connectorToolListContains(tools, "sheet_list") {
 		t.Fatalf("explicit Feishu tool surface = %+v", tools)
+	}
+	if len(tools) != 16 {
+		t.Fatalf("飞书工具面应仅包含 16 个语义工具: %+v", tools)
 	}
 }
 
@@ -76,9 +79,7 @@ func connectorToolListContains(tools []map[string]any, name string) bool {
 }
 
 func TestAppendAmapMCPServerUsesOfficialHTTPConfig(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	svc := &stubConnectorMCPService{
 		snapshots: map[string]*connectordomain.ConnectionSnapshot{
 			"amap": {
@@ -103,9 +104,7 @@ func TestAppendAmapMCPServerUsesOfficialHTTPConfig(t *testing.T) {
 }
 
 func TestAppendDidiMCPServerUsesOfficialHTTPConfig(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	svc := &stubConnectorMCPService{
 		snapshots: map[string]*connectordomain.ConnectionSnapshot{
 			"didi": {
@@ -130,9 +129,7 @@ func TestAppendDidiMCPServerUsesOfficialHTTPConfig(t *testing.T) {
 }
 
 func TestAppendDingTalkAITableMCPServerUsesUserHTTPURL(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	svc := &stubConnectorMCPService{
 		snapshots: map[string]*connectordomain.ConnectionSnapshot{
 			"dingtalk-ai-table": {
@@ -154,9 +151,7 @@ func TestAppendDingTalkAITableMCPServerUsesUserHTTPURL(t *testing.T) {
 }
 
 func TestAppendDingTalkAITableMCPServerSkipsInvalidURL(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	svc := &stubConnectorMCPService{
 		snapshots: map[string]*connectordomain.ConnectionSnapshot{
 			"dingtalk-ai-table": {
@@ -174,9 +169,7 @@ func TestAppendDingTalkAITableMCPServerSkipsInvalidURL(t *testing.T) {
 }
 
 func TestAppendTencentDocsMCPServerUsesAuthorizationHeader(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	svc := &stubConnectorMCPService{
 		snapshots: map[string]*connectordomain.ConnectionSnapshot{
 			"tencent-docs": {
@@ -201,9 +194,7 @@ func TestAppendTencentDocsMCPServerUsesAuthorizationHeader(t *testing.T) {
 }
 
 func TestAppendYuqueMCPServerUsesStdioConfig(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	svc := &stubConnectorMCPService{
 		snapshots: map[string]*connectordomain.ConnectionSnapshot{
 			"yuque": {
@@ -228,9 +219,7 @@ func TestAppendYuqueMCPServerUsesStdioConfig(t *testing.T) {
 }
 
 func TestAppendAmapMCPServerSkipsMissingConnection(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
-	}
+	servers := map[string]sdkmcp.ServerConfig{}
 	appendAmapMCPServer(context.Background(), servers, &stubConnectorMCPService{}, "owner-1")
 	if _, ok := servers["amap_maps"]; ok {
 		t.Fatalf("未连接高德时不应注入 amap_maps: %+v", servers)
@@ -245,20 +234,6 @@ func TestAppendAmapMCPServerSkipsMissingConnection(t *testing.T) {
 type stubConnectorMCPService struct {
 	snapshots map[string]*connectordomain.ConnectionSnapshot
 	err       error
-}
-
-func (s *stubConnectorMCPService) ListActiveConnections(
-	context.Context,
-	string,
-) ([]connectordomain.ConnectionSnapshot, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	result := make([]connectordomain.ConnectionSnapshot, 0, len(s.snapshots))
-	for _, snapshot := range s.snapshots {
-		result = append(result, *snapshot)
-	}
-	return result, nil
 }
 
 func (s *stubConnectorMCPService) LoadActiveConnection(

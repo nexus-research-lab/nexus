@@ -3,15 +3,15 @@ package tool
 import (
 	"context"
 
-	"github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 )
 
-func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+func feishuDocxSheetList(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_sheet_sheets",
+		Name:        "sheet_list",
 		Description: "列出飞书电子表格内的工作表，返回 sheet_id、标题、行列信息等元数据。",
-		SearchHint:  searchHintFeishuDocxSheetSheets,
+		SearchHint:  searchHintFeishuDocxSheetList,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -36,7 +36,7 @@ func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sd
 
 func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_sheet_values",
+		Name:        "sheet_values",
 		Description: "读取飞书电子表格指定范围的具体单元格内容，适合查看表格正文。",
 		SearchHint:  searchHintFeishuDocxSheetValues,
 		InputSchema: map[string]any{
@@ -64,7 +64,7 @@ func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sd
 
 func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "feishu_docx_sheet_find",
+		Name:        "sheet_find",
 		Description: "在飞书电子表格指定工作表内查找单元格内容，返回匹配单元格位置。",
 		SearchHint:  searchHintFeishuDocxSheetFind,
 		InputSchema: map[string]any{

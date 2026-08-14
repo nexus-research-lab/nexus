@@ -1,6 +1,6 @@
-// Package contract 定义 nexus_connectors MCP 子包共享的契约（ServerName 等）。
+// Package contract 定义 nexus_feishu_docx MCP 子包共享的契约（ServerName 等）。
 //
-// L2 | 父级: internal/mcp/connectors（L1 见 AGENTS.md）
+// L2 | 父级: internal/mcp/feishudocx（L1 见 AGENTS.md）
 //
 // 成员清单：
 //   - contract.go：MCP server 注册名与共享契约。
