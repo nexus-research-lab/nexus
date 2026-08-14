@@ -1,9 +1,16 @@
+// INPUT: Authenticated WebSocket control messages, host commands, and DM/Room
+// authorization services.
+// OUTPUT: Correlated control results plus bounded detached set_goal mutations
+// whose durable effects do not depend on the originating sender remaining open.
+// POS: WebSocket control adapter; host command business rules stay in
+// service/slashcommand and the DM/Room/Goal services.
 package websocket
 
 import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -12,6 +19,11 @@ import (
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
+)
+
+const (
+	detachedGoalCommandTimeout  = 15 * time.Second
+	detachedGoalDeliveryTimeout = 2 * time.Second
 )
 
 // sendChatFailure 回报 chat 类请求受理失败。此时后端还没有 canonical round_id，
@@ -81,6 +93,26 @@ func (h *Handler) handleControlMessage(
 		parsed:     parsed,
 		msgType:    msgType,
 	}
+	if msgType == "set_goal" {
+		clientRequestID, clientMessageID := message.clientIDs()
+		if err := message.validateDetachedGoalCommand(); err != nil {
+			message.reportChatFailure(clientRequestID, clientMessageID, err)
+			return
+		}
+		message.bestEffortDelivery = true
+		if dispatcher != nil {
+			dispatcher.enqueueDetached(&message, detachedGoalCommandTimeout)
+			return
+		}
+		detachedCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			detachedGoalCommandTimeout,
+		)
+		defer cancel()
+		message.ctx = detachedCtx
+		message.dispatch()
+		return
+	}
 	if dispatcher != nil {
 		dispatcher.enqueue(&message)
 		return
@@ -96,6 +128,10 @@ type controlMessage struct {
 	sessionKey string
 	parsed     protocol.SessionKey
 	msgType    string
+	// bestEffortDelivery is set only after set_goal passed synchronous scope
+	// authorization. Once its detached host mutation starts, sender delivery is
+	// an observation channel rather than part of the mutation's success boundary.
+	bestEffortDelivery bool
 }
 
 type controlMessageHandler func(*controlMessage)
@@ -187,6 +223,37 @@ func (m *controlMessage) handleSetGoal() {
 	m.reportChatFailure(clientRequestID, clientMessageID, err)
 }
 
+// validateDetachedGoalCommand completes cheap input and owner/session checks
+// before the mutation is allowed to outlive the WebSocket connection. The host
+// registry repeats authorization inside the detached job as a fail-closed fence.
+func (m *controlMessage) validateDetachedGoalCommand() error {
+	if strings.TrimSpace(m.stringValue("objective")) == "" {
+		return errors.New("goal objective is required")
+	}
+	if m.handler == nil || m.handler.hostCommands == nil {
+		return errors.New("Goal command is unavailable")
+	}
+	if _, err := goalCommandOptionsValue(m.inbound["goal_options"]); err != nil {
+		return err
+	}
+	return m.handler.authorizeHostCommand(
+		m.ctx,
+		m.hostCommandScope(),
+		slashcommandsvc.Invocation{
+			SessionKey:     m.sessionKey,
+			AgentID:        firstStringValue(m.inbound["agent_id"], m.parsed.AgentID),
+			TargetAgentIDs: stringSliceValue(m.inbound["target_agent_ids"]),
+		},
+	)
+}
+
+func (m *controlMessage) hostCommandScope() slashcommandsvc.Scope {
+	if m.parsed.Kind == protocol.SessionKeyKindRoom {
+		return slashcommandsvc.ScopeRoom
+	}
+	return slashcommandsvc.ScopeDM
+}
+
 func (m *controlMessage) executeHostCommand(
 	clientRequestID string,
 	clientMessageID string,
@@ -196,10 +263,7 @@ func (m *controlMessage) executeHostCommand(
 	if m.handler.hostCommands == nil {
 		return false, nil
 	}
-	scope := slashcommandsvc.ScopeDM
-	if m.parsed.Kind == protocol.SessionKeyKindRoom {
-		scope = slashcommandsvc.ScopeRoom
-	}
+	scope := m.hostCommandScope()
 	roundID := protocol.NewRoundID()
 	userMessageID := protocol.NewUserMessageID()
 	goalOptions := protocol.GoalCommandOptions{}
@@ -236,6 +300,8 @@ func (m *controlMessage) executeHostCommand(
 	if result.AfterResponseAttempted != nil {
 		defer result.AfterResponseAttempted(context.WithoutCancel(m.ctx))
 	}
+	deliveryCtx, cancelDelivery := m.deliveryContext()
+	defer cancelDelivery()
 	ack := protocol.NewTransientChatAckEvent(m.sessionKey, clientRequestID, clientMessageID, roundID, userMessageID)
 	if result.UserMessageCommitted {
 		ack = protocol.NewChatAckEvent(
@@ -248,35 +314,47 @@ func (m *controlMessage) executeHostCommand(
 			nil,
 		)
 	}
-	if err = m.sender.SendEvent(m.ctx, ack); err != nil {
-		return true, err
+	var deliveryErr error
+	recordDeliveryError := func(sendErr error) {
+		if sendErr != nil && deliveryErr == nil {
+			deliveryErr = sendErr
+		}
 	}
+	recordDeliveryError(m.sender.SendEvent(deliveryCtx, ack))
 	for _, event := range result.Events {
 		// host handler 只能向触发它的 session 回写事件，避免错误实现把事件投到别的会话。
 		event.SessionKey = m.sessionKey
-		if err = m.sender.SendEvent(m.ctx, event); err != nil {
-			return true, err
-		}
+		recordDeliveryError(m.sender.SendEvent(deliveryCtx, event))
 	}
 	if invalidation := result.DirectoryInvalidation; invalidation != nil {
+		invalidationCtx, cancelInvalidation := m.deliveryContext()
 		m.handler.BroadcastDirectoryChanged(
-			m.ctx,
+			invalidationCtx,
 			invalidation.Reason,
 			invalidation.Data,
 		)
+		cancelInvalidation()
 	}
-	if err = m.sender.SendEvent(
-		m.ctx,
+	recordDeliveryError(m.sender.SendEvent(
+		deliveryCtx,
 		protocol.NewRoundStatusEvent(
 			m.sessionKey,
 			roundID,
 			protocol.RoundStatusFinished,
 			"success",
 		),
-	); err != nil {
-		return true, err
+	))
+	if deliveryErr != nil && m.bestEffortDelivery {
+		logx.Resolve(deliveryCtx, m.handler.api.BaseLogger()).Debug(
+			"Goal command committed after sender delivery became unavailable",
+			"session_key", m.sessionKey,
+			"client_request_id", clientRequestID,
+			"client_message_id", clientMessageID,
+			"err", deliveryErr,
+		)
+		return true, nil
 	}
-	return true, nil
+	return true, deliveryErr
 }
 
 func isGoalHostCommandContent(content string) bool {
@@ -511,8 +589,23 @@ func (m *controlMessage) deliveryPolicy() protocol.ChatDeliveryPolicy {
 
 func (m *controlMessage) reportChatFailure(clientRequestID string, clientMessageID string, err error) {
 	if err != nil {
-		m.handler.sendChatFailure(m.ctx, m.sender, m.sessionKey, m.msgType, clientRequestID, clientMessageID, err)
+		deliveryCtx, cancelDelivery := m.deliveryContext()
+		defer cancelDelivery()
+		m.handler.sendChatFailure(deliveryCtx, m.sender, m.sessionKey, m.msgType, clientRequestID, clientMessageID, err)
 	}
+}
+
+// deliveryContext separates the accepted Goal mutation deadline from its final
+// transport attempt. It preserves authenticated context values, but removing a
+// canceled business deadline never restarts or extends the mutation itself.
+func (m *controlMessage) deliveryContext() (context.Context, context.CancelFunc) {
+	if !m.bestEffortDelivery {
+		return m.ctx, func() {}
+	}
+	return context.WithTimeout(
+		context.WithoutCancel(m.ctx),
+		detachedGoalDeliveryTimeout,
+	)
 }
 
 func (m *controlMessage) reportGatewayFailure(errorType string, err error, details map[string]any) {

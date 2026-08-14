@@ -20,9 +20,212 @@ test.after(async () => {
   await server.close();
 });
 
+function websocketEvent(eventType, data, sessionKey = "dm:session-a") {
+  return {
+    data,
+    event_type: eventType,
+    protocol_version: 2,
+    session_key: sessionKey,
+    timestamp: 1,
+  };
+}
+
+test("request transport lease keeps exact ownership across navigation", async () => {
+  const { RequestTransportLeaseRegistry } = await server.ssrLoadModule(
+    "/src/lib/websocket/request-transport-leases.ts",
+  );
+  const retainedBindings = [];
+  const releasedBindings = [];
+  const settlements = [];
+  let idleCount = 0;
+  const registry = new RequestTransportLeaseRegistry(
+    (lease, binding) => {
+      retainedBindings.push({ binding, lease });
+      return () => releasedBindings.push(lease);
+    },
+    () => {
+      idleCount += 1;
+    },
+  );
+  const binding = {
+    conversation_id: "conversation-a",
+    room_id: "room-a",
+    session_key: "room:group:conversation-a",
+    type: "bind_session",
+  };
+  const releaseOwner = registry.acquire({
+    clientRequestId: "req-goal-a",
+    onAccepted: () => settlements.push("owner:accepted"),
+    onRejected: (reason) => settlements.push(`owner:${reason}`),
+    sessionBinding: binding,
+  });
+  const releaseDuplicate = registry.acquire({
+    clientRequestId: "req-goal-a",
+    onAccepted: () => settlements.push("duplicate:accepted"),
+    onRejected: () => settlements.push("duplicate:rejected"),
+    sessionBinding: { ...binding, session_key: "room:group:wrong" },
+  });
+  assert.equal(registry.hasLeases(), true);
+  assert.equal(retainedBindings.length, 1);
+  assert.deepEqual(retainedBindings[0].binding, binding);
+
+  releaseDuplicate();
+  assert.equal(
+    registry.hasLeases(),
+    true,
+    "a duplicate caller must not gain release authority over the owner lease",
+  );
+  assert.equal(
+    registry.handleMessage(websocketEvent(
+      "chat_ack",
+      { client_request_id: "req-foreign" },
+      "dm:session-b",
+    )),
+    false,
+    "a foreign ACK must not release the original request",
+  );
+  assert.equal(releasedBindings.length, 0);
+  assert.equal(
+    registry.handleMessage(websocketEvent(
+      "chat_ack",
+      { client_request_id: "req-goal-a" },
+      "dm:session-b",
+    )),
+    true,
+    "request identity, not the currently visible route, owns the ACK",
+  );
+  assert.deepEqual(settlements, ["owner:accepted"]);
+  assert.equal(registry.hasLeases(), false);
+  assert.equal(releasedBindings.length, 1);
+  assert.equal(idleCount, 1);
+  releaseOwner();
+  assert.equal(releasedBindings.length, 1, "terminal release is idempotent");
+});
+
+test("new Session preserves only durable Goal ACK owners while reset cancels all", async () => {
+  const { runAgentSessionTransition } = await server.ssrLoadModule(
+    "/src/hooks/agent/session/use-agent-conversation-session.ts",
+  );
+  const calls = [];
+  const effects = {
+    cancelPendingRequestAcks: (_reason, keepPreserved) => (
+      calls.push(`cancel:${keepPreserved}`)
+    ),
+    clearLiveSessionState: () => calls.push("clear-live"),
+    resetHistoryPagination: () => calls.push("reset-history"),
+    resetRuntimeMachine: () => calls.push("reset-runtime"),
+  };
+  runAgentSessionTransition(
+    "start",
+    "new Session",
+    () => calls.push("start-b"),
+    {},
+    effects,
+  );
+  assert.deepEqual(calls, [
+    "cancel:true",
+    "clear-live",
+    "start-b",
+    "reset-history",
+    "reset-runtime",
+  ], "submit A then immediately create B must not cancel A's ACK owner");
+
+  calls.length = 0;
+  runAgentSessionTransition(
+    "reset",
+    "explicit reset",
+    () => calls.push("reset-session"),
+    {},
+    effects,
+  );
+  assert.deepEqual(calls, [
+    "cancel:false",
+    "clear-live",
+    "reset-session",
+    "reset-history",
+    "reset-runtime",
+  ]);
+});
+
+test("Session navigation cancels ordinary ACKs without cancelling Goal owners", async () => {
+  const {
+    cancelPendingRequestAcks,
+    createPendingRequestAckRegistry,
+    resolvePendingRequestAck,
+    trackPendingRequestAck,
+    waitForRequestAck,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-pending-request-acks.ts",
+  );
+  const registry = createPendingRequestAckRegistry();
+  trackPendingRequestAck(registry, "req-chat");
+  trackPendingRequestAck(registry, "req-goal", true);
+  const chat = waitForRequestAck(
+    registry,
+    "req-chat",
+    () => assert.fail("navigation cancellation should precede timeout"),
+    50,
+  );
+  const goal = waitForRequestAck(
+    registry,
+    "req-goal",
+    () => assert.fail("the durable Goal owner should remain live"),
+    50,
+  );
+  cancelPendingRequestAcks(registry, "切换会话", true);
+  await assert.rejects(chat, /切换会话/);
+  assert.equal(registry.pending.has("req-goal"), true);
+  assert.equal(resolvePendingRequestAck(registry, "req-goal"), true);
+  await goal;
+  assert.equal(registry.preserved.size, 0);
+});
+
+test("request transport hard timeout releases the retained Session exactly once", async () => {
+  const { RequestTransportLeaseRegistry } = await server.ssrLoadModule(
+    "/src/lib/websocket/request-transport-leases.ts",
+  );
+  let releaseCount = 0;
+  let timeoutCount = 0;
+  const registry = new RequestTransportLeaseRegistry(
+    () => () => {
+      releaseCount += 1;
+    },
+    () => {},
+  );
+  const release = registry.acquire({
+    clientRequestId: "req-timeout",
+    onAccepted: () => assert.fail("timed out request must not be accepted"),
+    onRejected: () => assert.fail("hard timeout uses its typed owner callback"),
+    onTimeout: () => {
+      timeoutCount += 1;
+    },
+    sessionBinding: { session_key: "dm:session-a", type: "bind_session" },
+    timeoutMs: 5,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.equal(registry.hasLeases(), false);
+  assert.equal(releaseCount, 1);
+  assert.equal(timeoutCount, 1);
+  release();
+  assert.equal(releaseCount, 1);
+});
+
+test("Goal acceptance window outlives the detached backend deadline", async () => {
+  const {
+    getGoalRequestAcceptanceTimeoutMs,
+    getMessageSendAckTimeoutMs,
+  } = await server.ssrLoadModule(
+    "/src/config/conversation-policy.ts",
+  );
+  assert.equal(getMessageSendAckTimeoutMs(), 10_000);
+  assert.equal(getGoalRequestAcceptanceTimeoutMs(), 20_000);
+  assert.ok(getGoalRequestAcceptanceTimeoutMs() > 15_000);
+});
+
 test("request ACK registry handles ACK and error before waiter registration", async () => {
   const {
     createPendingRequestAckRegistry,
+    discardPendingRequestAck,
     rejectPendingRequestAck,
     resolvePendingRequestAck,
     trackPendingRequestAck,
@@ -33,23 +236,37 @@ test("request ACK registry handles ACK and error before waiter registration", as
   const { RequestAcceptanceUnknownError } = await server.ssrLoadModule(
     "/src/hooks/agent/actions/use-request-ack-failure.ts",
   );
+  const { RequestAcceptanceRejectedError } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-pending-request-acks.ts",
+  );
 
   const acknowledged = createPendingRequestAckRegistry();
-  trackPendingRequestAck(acknowledged, "req-ack-first");
+  trackPendingRequestAck(acknowledged, "req-ack-first", true);
   assert.equal(resolvePendingRequestAck(acknowledged, "req-ack-first"), false);
+  trackPendingRequestAck(acknowledged, "req-ack-first", true);
   await waitForRequestAck(
     acknowledged,
     "req-ack-first",
     () => assert.fail("settled ACK must not time out"),
     10,
   );
+  assert.equal(acknowledged.preserved.size, 0);
 
   const rejected = createPendingRequestAckRegistry();
-  trackPendingRequestAck(rejected, "req-error-first");
+  const rejectedError = new RequestAcceptanceRejectedError(
+    "后端拒绝",
+    {
+      clientMessageId: "local-goal-rejected",
+      clientRequestId: "req-error-first",
+      sessionKey: "dm:session-a",
+    },
+  );
+  trackPendingRequestAck(rejected, "req-error-first", true);
   assert.equal(
-    rejectPendingRequestAck(rejected, "req-error-first", "后端拒绝"),
+    rejectPendingRequestAck(rejected, "req-error-first", rejectedError),
     false,
   );
+  trackPendingRequestAck(rejected, "req-error-first", true);
   await assert.rejects(
     waitForRequestAck(
       rejected,
@@ -57,8 +274,22 @@ test("request ACK registry handles ACK and error before waiter registration", as
       () => assert.fail("rejected ACK must not time out"),
       10,
     ),
-    /后端拒绝/,
+    (error) => (
+      error === rejectedError
+      && error.correlation.clientMessageId === "local-goal-rejected"
+    ),
+    "an early explicit rejection must preserve its exact recovery identity",
   );
+  assert.equal(rejected.preserved.size, 0);
+
+  const abandoned = createPendingRequestAckRegistry();
+  trackPendingRequestAck(abandoned, "req-send-failed", true);
+  resolvePendingRequestAck(abandoned, "req-send-failed");
+  trackPendingRequestAck(abandoned, "req-send-failed", true);
+  discardPendingRequestAck(abandoned, "req-send-failed");
+  assert.equal(abandoned.preserved.size, 0);
+  assert.equal(abandoned.settled.size, 0);
+  assert.equal(abandoned.tracked.size, 0);
 
   const unknown = createPendingRequestAckRegistry();
   const unknownError = new RequestAcceptanceUnknownError("受理状态未知");
@@ -312,6 +543,38 @@ test("chat ACK timeout recovery recognizes a durable client message identity", a
   );
 });
 
+test("Goal ACK recovery reads the captured Session without projecting the new route", async () => {
+  const { buildRequestAckRecoveryReader } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-request-ack-failure.ts",
+  );
+  const reads = [];
+  const originalIdentity = {
+    agent_id: "lead-a",
+    chat_type: "group",
+    conversation_id: "conversation-a",
+    room_id: "room-a",
+    session_key: "room:group:conversation-a",
+  };
+  const reader = buildRequestAckRecoveryReader(
+    {
+      identity: originalIdentity,
+      sessionKey: "room:group:conversation-a",
+    },
+    async (identity, sessionKey) => {
+      reads.push({ identity, sessionKey });
+      return [];
+    },
+    async () => {
+      assert.fail("the currently visible Session B must not be reloaded");
+    },
+  );
+  await reader();
+  assert.deepEqual(reads, [{
+    identity: originalIdentity,
+    sessionKey: "room:group:conversation-a",
+  }]);
+});
+
 test("input queue retry keeps message identity and rotates request identity", async () => {
   const {
     createInputQueueDraftFingerprint,
@@ -560,7 +823,7 @@ test("public handoff correlation survives ACK, active execution, and terminal li
   assert.equal(terminal[0].phase, "terminal");
 });
 
-test("Room handoff mention phases are realtime-only, monotonic, and reconnect-safe", async () => {
+test("Room handoff mention phases are host-acknowledged, monotonic, and reconnect-safe", async () => {
   const { projectRoomAgentHandoffStatuses } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/panel/controller/room-handoff-status-model.ts",
   );
@@ -581,9 +844,26 @@ test("Room handoff mention phases are realtime-only, monotonic, and reconnect-sa
     message_id: "source-message",
     role: "assistant",
     round_id: "root-round",
+    result_summary: { is_error: false, subtype: "success" },
     session_key: "room:group:conversation",
     stream_status: "done",
     timestamp: 10,
+  };
+  const targetReplyMessage = {
+    agent_id: "agent-target",
+    content: [{ text: "已完成检查。", type: "text" }],
+    handoff_reply: {
+      handoff_id: handoffId,
+      source_agent_id: "agent-source",
+      source_message_id: liveFinalMessage.message_id,
+    },
+    is_complete: true,
+    message_id: "target-reply-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    stream_status: "done",
+    timestamp: 13,
   };
 
   assert.deepEqual(
@@ -595,6 +875,19 @@ test("Room handoff mention phases are realtime-only, monotonic, and reconnect-sa
     }),
     {},
     "history reload must not resurrect a completed handoff from mention metadata alone",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        { ...liveFinalMessage, delivery_mode: undefined },
+        targetReplyMessage,
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "responded",
+    "host-signed reply must restore history even without a result_summary",
   );
   assert.equal(
     projectRoomAgentHandoffStatuses({
@@ -672,6 +965,76 @@ test("Room handoff mention phases are realtime-only, monotonic, and reconnect-sa
     "active",
     "a reconnect pending snapshot must restore the handoff without realtime message flags",
   );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [{
+        agent_id: "agent-target",
+        agent_round_id: "agent-round-target",
+        display_order: 1,
+        first_seen_at: 12,
+        handoff_id: handoffId,
+        phase: "active",
+        round_id: "root-round",
+        status: "streaming",
+      }],
+      inputQueueItems: [],
+      messages: [liveFinalMessage, targetReplyMessage],
+      pendingSlots: [],
+    })[handoffId],
+    "responded",
+    "late execution snapshots cannot regress an acknowledged response",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        liveFinalMessage,
+        {
+          ...targetReplyMessage,
+          handoff_reply: {
+            ...targetReplyMessage.handoff_reply,
+            source_message_id: "different-source-message",
+          },
+        },
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+    "a reply for another source message must not acknowledge this mention",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        liveFinalMessage,
+        {
+          ...targetReplyMessage,
+          handoff_reply: {
+            ...targetReplyMessage.handoff_reply,
+            source_agent_id: "different-source-agent",
+          },
+        },
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+    "a reply with mismatched source Agent identity must fail closed",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [
+        liveFinalMessage,
+        { ...targetReplyMessage, agent_id: "different-target-agent" },
+      ],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+    "a reply from a different target Agent must fail closed",
+  );
 });
 
 test("Agent mention chip updates one inline handoff surface without adding a reply card", async () => {
@@ -689,6 +1052,7 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
     "room.agent_handoff_active": "已交接",
     "room.agent_handoff_preparing": "交接中",
     "room.agent_handoff_queued": "排队中",
+    "room.agent_handoff_responded": "已回应",
   };
   const html = renderToStaticMarkup(createElement(
     I18N_CONTEXT.Provider,
@@ -701,7 +1065,7 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
     },
     createElement(
       AgentHandoffStatusProvider,
-      { statuses: { "handoff-room-1": "queued" } },
+      { statuses: { "handoff-room-1": "responded" } },
       createElement(
         AgentMentionChip,
         {
@@ -715,13 +1079,153 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
   ));
 
   assert.match(html, /@Target/);
-  assert.match(html, /排队中/);
+  assert.match(html, /已回应/);
   assert.equal(
     html.match(/role="status"/g)?.length,
     1,
     "handoff feedback must stay inside the single mention chip",
   );
   assert.doesNotMatch(html, /data-room-agent-execution-shell/);
+});
+
+test("Room handoff reply header uses a non-action @ identity chip", async () => {
+  const { AssistantMessageHeader } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-header.tsx",
+  );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const translations = {
+    "composer.stop_generation": "停止",
+    "message.assistant_fallback": "协作成员",
+    "room.agent_contact_open": "打开 Lead 的联络",
+    "room.agent_handoff_reply": "回应 @Lead",
+  };
+  const html = renderToStaticMarkup(createElement(
+    I18N_CONTEXT.Provider,
+    {
+      value: {
+        locale: "zh",
+        setLocale: () => {},
+        t: (key) => translations[key] ?? key,
+      },
+    },
+    createElement(AssistantMessageHeader, {
+      agentMentionDirectory: { names: { "agent-lead": "Lead" } },
+      canStop: false,
+      compact: false,
+      handoffReplySourceAgentId: "agent-lead",
+      name: "Researcher",
+      onStop: () => {},
+      showMetadata: false,
+    }),
+  ));
+
+  assert.match(html, /回应 @Lead/);
+  assert.match(html, /data-handoff-reply="true"/);
+  assert.doesNotMatch(html, /<a\b|href=|agent:\/\//);
+  assert.doesNotMatch(
+    html,
+    /<button\b/,
+    "the host receipt must not become a contact or wake action",
+  );
+});
+
+test("host final handoff reply without result summary stays separate from body @mention", async () => {
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const text = { text: "@Lead 请继续下一步。", type: "text" };
+  const message = {
+    agent_id: "agent-target",
+    agent_mentions: [{
+      agent_id: "agent-lead",
+      content_block_index: 0,
+      end_rune: 5,
+      handoff_id: "reciprocal-handoff",
+      label: "@Lead",
+      start_rune: 0,
+    }],
+    content: [text],
+    handoff_reply: {
+      handoff_id: "incoming-handoff",
+      source_agent_id: "agent-lead",
+      source_message_id: "source-message",
+    },
+    is_complete: true,
+    message_id: "assistant-final",
+    parent_id: "user-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    timestamp: 13,
+  };
+  const entry = {
+    block: text,
+    mergedIndex: 0,
+    sourceMessageId: message.message_id,
+    sourceOrder: 0,
+  };
+  const projection = resolveMessageItemFinalProjection({
+    assistantContentMode: "room_result",
+    assistantMessages: [message],
+    orderedProjection: { content: [text], streamingIndexes: new Set() },
+    resultSummary: undefined,
+    roundId: message.round_id,
+    streamingBlockIndexes: new Set(),
+    userMessageId: message.parent_id,
+    visibleAssistantTurns: [{
+      content: [text],
+      messageId: message.message_id,
+      streamingIndexes: new Set(),
+      textContent: [text],
+      textStreamingIndexes: new Set(),
+    }],
+    visibleOrderedAssistantEntries: [entry],
+  });
+
+  assert.equal(projection.finalAssistantContent[0].text, text.text);
+  assert.equal(
+    projection.finalAssistantMentions[0].handoff_id,
+    "reciprocal-handoff",
+  );
+  assert.equal(
+    projection.finalAssistantHandoffReply.handoff_id,
+    "incoming-handoff",
+  );
+});
+
+test("handoff reply survives equal-content history merge and stale realtime snapshots", async () => {
+  const { mergeLoadedMessages, upsertMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+  const base = {
+    agent_id: "agent-target",
+    content: [{ text: "已完成检查。", type: "text" }],
+    is_complete: true,
+    message_id: "target-reply-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    stop_reason: "end_turn",
+    timestamp: 13,
+  };
+  const handoffReply = {
+    handoff_id: "handoff-room-1",
+    source_agent_id: "agent-source",
+    source_message_id: "source-message",
+  };
+  const merged = mergeLoadedMessages(
+    [{ ...base, handoff_reply: handoffReply }],
+    [base],
+  );
+
+  assert.deepEqual(merged[0].handoff_reply, handoffReply);
+  assert.deepEqual(
+    upsertMessage(merged, { ...base, timestamp: 14 })[0].handoff_reply,
+    handoffReply,
+    "a later snapshot without the annotation must not erase a durable response",
+  );
 });
 
 test("input queue ACK resolves only accepted requests", async () => {
@@ -1015,6 +1519,7 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
@@ -1028,6 +1533,7 @@ test("Goal submission claims its original Session and restores only without newe
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
@@ -1061,7 +1567,8 @@ test("Goal submission claims its original Session and restores only without newe
     "另一个 Session 的消息",
   );
   assert.equal(
-    useComposerDraftStore.getState().goal_submission_by_scope[firstScope],
+    useComposerDraftStore.getState()
+      .goal_submission_by_scope[firstScope].submissionId,
     submission.submissionId,
   );
 
@@ -1074,6 +1581,11 @@ test("Goal submission claims its original Session and restores only without newe
   assert.equal(
     useComposerDraftStore.getState().goal_error_by_scope[firstScope],
     "后端拒绝 Goal",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[firstScope],
+    undefined,
+    "a pre-send failure without transport identity must not create a receipt",
   );
   assert.equal(
     useComposerDraftStore.getState().goal_error_by_scope[secondScope],
@@ -1113,9 +1625,453 @@ test("Goal submission claims its original Session and restores only without newe
     draft_revision: 0,
     drafts_by_scope: {},
     goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
     goal_submission_revision: 0,
     goal_submission_by_scope: {},
   });
+});
+
+test("failed Goal recovery reconciles exact durable acceptance without erasing edits", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const { reconcileComposerGoalSubmissionFromMessages } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+
+  const beginFailedGoal = (scope, objective, identity) => {
+    const store = useComposerDraftStore.getState();
+    store.update_composer_draft(scope, (current) => ({
+      ...current,
+      input: objective,
+      inputMode: "goal",
+    }));
+    const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+    const submission = useComposerDraftStore.getState().begin_goal_submission(
+      scope,
+      draft.revision,
+      null,
+    );
+    assert.ok(submission);
+    assert.equal(
+      useComposerDraftStore.getState().fail_goal_submission(
+        submission,
+        "后端拒绝 Goal",
+        identity,
+      ),
+      true,
+    );
+    return submission;
+  };
+  const controlRecord = (identity, messageId, sessionKey = identity.sessionKey) => ({
+    agent_id: "agent-a",
+    client_message_id: identity.clientMessageId,
+    content: "/goal 恢复测试",
+    message_id: messageId,
+    metadata: { subtype: "goal_set" },
+    role: "user",
+    round_id: identity.clientMessageId,
+    session_key: sessionKey,
+    timestamp: 1,
+  });
+
+  const acceptedScope = "dm:agent-a:session:dm:recovery-accepted";
+  const acceptedIdentity = {
+    clientMessageId: "local-goal-recovery-accepted",
+    clientRequestId: "req-goal-recovery-accepted",
+    sessionKey: "dm:recovery-accepted",
+  };
+  beginFailedGoal(acceptedScope, "恢复测试", acceptedIdentity);
+  const acceptedState = useComposerDraftStore.getState();
+  const acceptedRecovery = acceptedState.goal_recovery_by_scope[acceptedScope];
+  assert.ok(acceptedRecovery);
+  assert.equal(
+    acceptedState.drafts_by_scope[acceptedScope].revision,
+    acceptedRecovery.restoredDraftRevision,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(acceptedScope, [
+      controlRecord(
+        acceptedIdentity,
+        acceptedIdentity.clientMessageId,
+      ),
+    ]),
+    false,
+    "an optimistic control card is not durable evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(acceptedScope, [
+      controlRecord(
+        acceptedIdentity,
+        "message-server-foreign",
+        "dm:foreign-session",
+      ),
+    ]),
+    false,
+    "a foreign Session receipt cannot clear the restored draft",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(acceptedScope, [
+      controlRecord(acceptedIdentity, "message-server-accepted"),
+    ]),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[acceptedScope],
+    undefined,
+    "exact durable acceptance removes only the auto-restored draft revision",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[acceptedScope],
+    undefined,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[acceptedScope],
+    undefined,
+  );
+
+  const editedScope = "dm:agent-a:session:dm:recovery-edited";
+  const editedIdentity = {
+    clientMessageId: "local-goal-recovery-edited",
+    clientRequestId: "req-goal-recovery-edited",
+    sessionKey: "dm:recovery-edited",
+  };
+  beginFailedGoal(editedScope, "恢复后继续编辑", editedIdentity);
+  const restoredRevision = useComposerDraftStore
+    .getState()
+    .goal_recovery_by_scope[editedScope].restoredDraftRevision;
+  useComposerDraftStore.getState().update_composer_draft(
+    editedScope,
+    (current) => ({ ...current, input: "用户后来输入的新 Goal" }),
+  );
+  assert.notEqual(
+    useComposerDraftStore.getState().drafts_by_scope[editedScope].revision,
+    restoredRevision,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(editedScope, [
+      controlRecord(editedIdentity, "message-server-edited"),
+    ]),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[editedScope].input,
+    "用户后来输入的新 Goal",
+    "late acceptance must preserve a user-edited draft",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_error_by_scope[editedScope],
+    undefined,
+    "durable acceptance clears the obsolete failure projection",
+  );
+
+  const retryScope = "dm:agent-a:session:dm:recovery-retry";
+  const oldIdentity = {
+    clientMessageId: "local-goal-recovery-old",
+    clientRequestId: "req-goal-recovery-old",
+    sessionKey: "dm:recovery-retry",
+  };
+  beginFailedGoal(retryScope, "重试 Goal", oldIdentity);
+  const retryDraft = useComposerDraftStore.getState().drafts_by_scope[retryScope];
+  const retry = useComposerDraftStore.getState().begin_goal_submission(
+    retryScope,
+    retryDraft.revision,
+    null,
+  );
+  assert.ok(retry);
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[retryScope],
+    undefined,
+    "a retry atomically supersedes the previous recovery receipt",
+  );
+  const retryIdentity = {
+    clientMessageId: "local-goal-recovery-retry",
+    clientRequestId: "req-goal-recovery-retry",
+    sessionKey: "dm:recovery-retry",
+  };
+  assert.equal(
+    useComposerDraftStore.getState().mark_goal_submission_confirming(
+      retry,
+      retryIdentity,
+    ),
+    true,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(retryScope, [
+      controlRecord(oldIdentity, "message-server-old"),
+    ]),
+    false,
+    "the prior request receipt cannot settle a retry",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[retryScope]
+      .submissionId,
+    retry.submissionId,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(retryScope, [
+      controlRecord(retryIdentity, "message-server-retry"),
+    ]),
+    true,
+  );
+});
+
+test("failed Goal recovery also reconciles a newer version-fenced Goal", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const { reconcileComposerGoalSubmission } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const scope = "room:room-a:session:room:group:recovery-fence";
+  useComposerDraftStore.getState().update_composer_draft(scope, (current) => ({
+    ...current,
+    input: "版本围栏恢复",
+    inputMode: "goal",
+  }));
+  const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  const submission = useComposerDraftStore.getState().begin_goal_submission(
+    scope,
+    draft.revision,
+    { goalId: "goal-existing", version: 3 },
+  );
+  assert.ok(submission);
+  assert.equal(
+    useComposerDraftStore.getState().fail_goal_submission(
+      submission,
+      "后端拒绝 Goal",
+      {
+        clientMessageId: "local-goal-fence",
+        clientRequestId: "req-goal-fence",
+        sessionKey: "room:group:recovery-fence",
+      },
+    ),
+    true,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      id: "goal-existing",
+      metadata: { source_objective: "版本围栏恢复" },
+      objective: "服务端规范化后的目标",
+      version: 3,
+    }),
+    false,
+    "the unchanged baseline is not durable acceptance evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      id: "goal-existing",
+      metadata: { source_objective: "版本围栏恢复" },
+      objective: "服务端规范化后的目标",
+      version: 4,
+    }),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[scope],
+    undefined,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_recovery_by_scope[scope],
+    undefined,
+  );
+});
+
+test("unknown Goal remains confirming until a newer durable Goal matches", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const {
+    observeComposerGoal,
+    readObservedComposerGoal,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-observation.ts",
+  );
+  const { reconcileComposerGoalSubmission } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const scope = "room:room-a:session:room:group:conversation-a";
+  const foreignScope = "room:room-b:session:room:group:conversation-b";
+  const oldGoal = {
+    id: "goal-existing",
+    metadata: {},
+    objective: "生成发布说明",
+    version: 4,
+  };
+  observeComposerGoal(scope, oldGoal);
+  useComposerDraftStore.getState().update_composer_draft(scope, (current) => ({
+    ...current,
+    input: "生成发布说明",
+    inputMode: "goal",
+  }));
+  const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  const submission = useComposerDraftStore.getState().begin_goal_submission(
+    scope,
+    draft.revision,
+    readObservedComposerGoal(scope),
+  );
+  assert.ok(submission);
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, { ...oldGoal, version: 5 }),
+    false,
+    "durable evidence must not settle before the transport becomes unknown",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().mark_goal_submission_confirming(submission),
+    true,
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[scope].phase,
+    "confirming",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().begin_goal_submission(scope, 0),
+    null,
+    "the same scope stays fail-closed while acceptance is being confirmed",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(foreignScope, {
+      ...oldGoal,
+      id: "goal-foreign",
+      version: 9,
+    }),
+    false,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, oldGoal),
+    false,
+    "an unchanged pre-submit Goal with the same objective is not evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      ...oldGoal,
+      metadata: { source_objective: "生成发布说明" },
+      objective: "整理并生成一份可发布的说明",
+      version: 5,
+    }),
+    true,
+    "a newer normalized Goal may reconcile through source_objective",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[scope],
+    undefined,
+  );
+});
+
+test("unobserved Goal baseline reconciles only from its exact durable control record", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  const {
+    reconcileComposerGoalSubmission,
+    reconcileComposerGoalSubmissionFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-goal-submission-reconciliation.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: 0,
+    goal_submission_by_scope: {},
+  });
+  const scope = "dm:agent-a:session:dm:session-a";
+  useComposerDraftStore.getState().update_composer_draft(scope, (current) => ({
+    ...current,
+    input: "首次加载前提交 Goal",
+    inputMode: "goal",
+  }));
+  const draft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  const submission = useComposerDraftStore.getState().begin_goal_submission(
+    scope,
+    draft.revision,
+    null,
+  );
+  assert.ok(submission);
+  const confirmationIdentity = {
+    clientMessageId: "local_msg_goal-a",
+    clientRequestId: "req-goal-a",
+    sessionKey: "dm:session-a",
+  };
+  assert.equal(
+    useComposerDraftStore.getState().mark_goal_submission_confirming(
+      submission,
+      confirmationIdentity,
+    ),
+    true,
+  );
+  assert.equal(
+    reconcileComposerGoalSubmission(scope, {
+      id: "goal-existing-or-new",
+      metadata: { source_objective: "首次加载前提交 Goal" },
+      objective: "首次加载前提交 Goal",
+      version: 9,
+    }),
+    false,
+    "an unknown baseline cannot use same-objective Goal state as acceptance proof",
+  );
+  const optimistic = {
+    agent_id: "agent-a",
+    client_message_id: confirmationIdentity.clientMessageId,
+    content: "/goal 首次加载前提交 Goal",
+    message_id: confirmationIdentity.clientMessageId,
+    metadata: { subtype: "goal_set" },
+    role: "user",
+    round_id: confirmationIdentity.clientMessageId,
+    session_key: confirmationIdentity.sessionKey,
+    timestamp: 1,
+  };
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(scope, [optimistic]),
+    false,
+    "the local optimistic card is not durable acceptance evidence",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(scope, [{
+      ...optimistic,
+      message_id: "message-server-a",
+      session_key: "dm:foreign-session",
+    }]),
+    false,
+    "a foreign Session control record cannot settle the original scope",
+  );
+  assert.equal(
+    reconcileComposerGoalSubmissionFromMessages(scope, [{
+      ...optimistic,
+      message_id: "message-server-a",
+    }]),
+    true,
+    "returning to A settles from its exact durable client_message_id even if Goal is terminal",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().goal_submission_by_scope[scope],
+    undefined,
+  );
 });
 
 test("Composer submission clears immediately and failure recovery preserves newer input", async () => {

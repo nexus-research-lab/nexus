@@ -220,6 +220,7 @@ function assistantSnapshotProgress(
     serializedSize(normalized.recalled_memories),
     serializedSize(normalized.usage),
     serializedSize(normalized.goal_completion_receipt),
+    serializedSize(normalized.handoff_reply),
     normalized.timestamp,
   ];
 }

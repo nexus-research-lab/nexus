@@ -232,6 +232,19 @@ func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text stri
 	sendFakeAssistantResultWithUsage(client, messageID, text, nil)
 }
 
+func mentionCountFromTestValue(value any) int {
+	switch typed := value.(type) {
+	case []protocol.AgentMention:
+		return len(typed)
+	case []map[string]any:
+		return len(typed)
+	case []any:
+		return len(typed)
+	default:
+		return 0
+	}
+}
+
 type fakeRoomTitleScheduler struct {
 	mu       sync.Mutex
 	requests []titlegen.Request

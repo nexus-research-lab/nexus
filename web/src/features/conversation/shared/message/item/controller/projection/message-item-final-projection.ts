@@ -7,11 +7,13 @@ import type {
   AssistantMessage,
   AgentMention,
   Message,
+  PublicHandoffReply,
   ResultSummary,
 } from "@/types/conversation/message/entity";
 import type { ContentBlock } from "@/types/conversation/message/content";
 import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { extractTextFromContentBlocks } from "../../../message-content-model";
+import { normalizePublicHandoffReply } from "../../../public-handoff-reply-model";
 import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
   projectionFromOrderedEntries,
@@ -135,6 +137,10 @@ export function resolveMessageItemFinalProjection({
     finalAssistantTurn?.messageId ?? null,
     generativeUIEntries.length,
   );
+  const finalAssistantHandoffReply = resolveFinalAssistantHandoffReply(
+    assistantMessages,
+    finalAssistantTurn?.messageId ?? null,
+  );
 
   return {
     directOrderedProjection,
@@ -143,7 +149,22 @@ export function resolveMessageItemFinalProjection({
     finalAssistantStreamingIndexes,
     finalAssistantText,
     finalAssistantMentions,
+    finalAssistantHandoffReply,
   };
+}
+
+function resolveFinalAssistantHandoffReply(
+  assistantMessages: Message[],
+  messageId: string | null,
+): PublicHandoffReply | null {
+  if (!messageId) {
+    return null;
+  }
+  const message = assistantMessages.find(
+    (value): value is AssistantMessage =>
+      value.role === "assistant" && value.message_id === messageId,
+  );
+  return normalizePublicHandoffReply(message?.handoff_reply);
 }
 
 function resolveFinalAssistantMentions(

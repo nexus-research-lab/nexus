@@ -7,7 +7,10 @@ import type { AgentConversationIdentity } from "@/types/agent/agent-conversation
 
 interface UseAgentSessionIdentityOptions {
   activeSessionKeyRef: RefObject<string | null>;
-  cancelPendingRequestAcks: (reason: string) => void;
+  cancelPendingRequestAcks: (
+    reason: string,
+    keepPreserved?: boolean,
+  ) => void;
   clearLiveSessionState: () => void;
   identity: AgentConversationIdentity | null;
   identitySessionKey: string | null;
@@ -48,16 +51,21 @@ export function useAgentSessionIdentity({
     if (activeIdentityKeyRef.current === nextIdentityKey) {
       return;
     }
+    cancelPendingRequestAcks(
+      "会话已切换，未确认的普通消息发送已取消",
+      true,
+    );
     activeIdentityKeyRef.current = nextIdentityKey;
     sessionSeqCursorRef.current = 0;
     roomSeqCursorRef.current = 0;
     resetHistoryPagination();
     clearLiveSessionState();
-    // 已发出的请求继续由 client_request_id 收口。切换会话只清理当前
-    // 页面投影，不能把尚未到达的旧会话 ACK 伪装成发送失败。
+    // Goal 由 durable client_request_id owner 继续收口；普通页面请求已在
+    // 上方取消，不能把其迟到结果投影进新会话。
     resetRuntimeMachine();
   }, [
     clearLiveSessionState,
+    cancelPendingRequestAcks,
     identity,
     resetHistoryPagination,
     roomSeqCursorRef,
@@ -70,7 +78,10 @@ export function useAgentSessionIdentity({
   }, [activeSessionKeyRef, identitySessionKey]);
 
   useEffect(() => () => {
-    cancelPendingRequestAcks("会话已卸载，未确认的消息发送已取消");
+    cancelPendingRequestAcks(
+      "会话已卸载，未确认的普通消息发送已取消",
+      true,
+    );
   }, [cancelPendingRequestAcks]);
 
   return { isCurrentSessionEvent };

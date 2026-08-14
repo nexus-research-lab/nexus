@@ -47,8 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
-
 - Routed isolated runtime interrupts, shutdown, and same-session descendant cleanup through the trusted launcher instead of relying on cross-UID parent signals.
+- Made successful public handoff replies visibly traceable to their source member with a host-owned, reconnect-safe reply annotation, without fabricating a reciprocal `@`, a second wake, Goal authority, or a false success on failed and interrupted target rounds.
+- Kept Composer Goal submissions alive across page and Session navigation with an exact request-owned WebSocket and Session-binding lease, a client acceptance window longer than the detached backend deadline, an explicit confirmation state for unknown ACKs, and reconciliation against either a version-fenced Goal or the original Session's exact durable control record. Post-send rejection recovery now retains the exact request receipt so late durable acceptance retracts only the unchanged auto-restored draft and obsolete error while preserving later user edits and retries.
+- Rejected stale `web/dist` assets when launching the macOS shell directly from a development checkout, with a clear `make app-run-dev` recovery path, while leaving packaged app resources unchanged.
 - Kept host-generated Room notices visible in real time when no Agent target is selected, without requiring a conversation reload.
 - Reconnected the shared browser channel after clean server closes so desktop resume and idle-timeout recovery no longer leave conversations permanently offline.
 - Bundled the nxs ripgrep sidecar in Linux images, migrated legacy managed data ACLs, and unified workspace isolation around the current owner's writable user-data root while continuing to deny cross-owner access.

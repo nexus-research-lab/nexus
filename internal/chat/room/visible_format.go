@@ -1,5 +1,5 @@
 // INPUT: Room trigger、成员目录与回复路由。
-// OUTPUT: 供单个成员消费的动态唤醒文本；房主按任务结构判断持久协作，公区提及区分 source 与新增交付。
+// OUTPUT: 供单个成员消费的动态唤醒文本；房主按任务结构判断持久协作，公区提及的 final reply 由宿主关联回 source，新 @ 仅表示独立后续 handoff。
 // POS: Room 可见上下文中 latest_trigger 的唯一格式化入口。
 package room
 
@@ -44,7 +44,7 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 		line += "\nroom host default takeover: the user did not @ any member, and Room settings require you as host to handle this turn. Before substantial execution, assess the task's actual structure: atomicity, separable subproblems, specialist fit, local-subagent value, and whether persistent Room ownership or topology should be recoverable. You may invite one or many members with @ to chat, debate, vote, brainstorm, or provide untracked one-off contributions even when this Room has a background Execution; every raw @ remains conversation-only and creates no Work Item. A substantive public reply to a Goal-attributed @ may be recorded as collaboration evidence, but that evidence is audit context and never a Goal completion gate. When the task needs separately accountable member deliverables or durable dependency, parallel, synthesis, verification, acceptance, recovery, or continuity handoffs, first prepare the complete managed Plan and materialize its exact sealed proposal to create distinct Ready Work Items, then use assign_work for each selected member. assign_work is intentionally unavailable until that bootstrap completes; follow the refreshed context for structured assignment. Never use raw @ as a fallback for planned responsibility. Only the resulting WorkBinding defines responsibility. Once work is assigned, do not duplicate those deliverables yourself; focus on coordination, unblocking, integration, and verification. Direct ownership remains valid when one member can deliver coherently, including by using native subagents inside that responsibility."
 	}
 	if triggerType == "public_mention" {
-		line += "\nThis source message is already published in the Room. Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm it. A public mention is conversation-only and never carries or activates a managed Assignment; output only the newly requested contribution or untracked one-off result. If it requests no new contribution, output exactly <nexus_room_no_reply/>."
+		line += "\nThis source message is already published in the Room. The host already associates and returns your final public reply through this source handoff. Do not @ the source merely to address them, confirm delivery, or tell them to continue or close the current step; @ the source only when you genuinely require a distinct new conversational contribution. Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm the source message. A public mention is conversation-only and never carries or activates a managed Assignment; output only the newly requested contribution or untracked one-off result. If it requests no new contribution, output exactly <nexus_room_no_reply/>."
 	}
 	if projection := formatRoomReplyProjection(trigger, agentNameByID); projection != "" {
 		line += "\n" + projection

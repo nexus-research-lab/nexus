@@ -269,6 +269,7 @@ export function useComposerController({
     input: draftState.input,
     inputMode: draftState.inputMode,
     isActionMenuOpen: draftState.isActionMenuOpen,
+    isGoalConfirming: draftState.isGoalConfirming,
     isGoalCreating: draftState.isGoalCreating,
     isLoading,
     isLoopPickerOpen: draftState.isLoopPickerOpen,

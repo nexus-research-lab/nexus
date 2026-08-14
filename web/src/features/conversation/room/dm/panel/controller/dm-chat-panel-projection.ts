@@ -21,6 +21,7 @@ import type { UseAgentConversationReturn } from "@/types/agent/agent-conversatio
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { ExecutionView } from "@/types/conversation/execution";
+import type { Goal } from "@/types/conversation/goal";
 
 import type {
   DmChatComposerModel,
@@ -64,6 +65,7 @@ interface BuildDmChatPanelViewModelOptions {
   goal: DmGoalProjection;
   goalScopeLabel: string;
   onEditLastUserMessage: (messageId: string, content: string) => void;
+  onGoalChange: (goal: Goal | null) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
     toolUseId: string,
@@ -85,6 +87,7 @@ export function buildDmChatPanelViewModel({
   goal,
   goalScopeLabel,
   onEditLastUserMessage,
+  onGoalChange,
   onOpenAgentContact,
   onOpenSubagentTask,
   onOpenWorkGraph,
@@ -134,7 +137,12 @@ export function buildDmChatPanelViewModel({
       onOpenGraph: onOpenWorkGraph,
       workspaceAgentId,
     }),
-    goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
+    goalPanel: buildDmGoalPanelModel(
+      goal,
+      goalScopeLabel,
+      session,
+      onGoalChange,
+    ),
     taskSource: workspaceAgentId && currentAgentName
       ? {
           agentId: workspaceAgentId,
@@ -237,6 +245,7 @@ function buildDmGoalPanelModel(
   goal: DmGoalProjection,
   scopeLabel: string,
   session: DmChatSession,
+  onGoalChange: (goal: Goal | null) => void,
 ): DmChatPanelViewModel["goalPanel"] {
   const { conversation, sessionKey } = session;
   return {
@@ -247,6 +256,7 @@ function buildDmGoalPanelModel(
     ),
     continuationHold: goal.continuationHold,
     isGenerating: conversation.is_loading,
+    onGoalChange,
     scopeLabel,
     sessionKey,
   };

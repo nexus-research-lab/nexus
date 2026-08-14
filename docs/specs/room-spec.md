@@ -154,7 +154,7 @@ Group Room 且 `private_messages_enabled=true` 时，runtime 才获得 Room 协�
 - Room 成员、conversation 和 session 的归属由 SQL 校验。
 - 共享正文与私有正文的来源显式分离。
 - 私域正文不会因普通投影自动进入 public feed。
-- public handoff 由独立的 append-only ledger 持久化；Input queue 只负责忙碌目标的投递。
+- public handoff 由独立的 append-only ledger 持久化；Input queue 只负责忙碌目标的投递；target 公开终态的 `handoff_reply` 只是宿主派生的回复因果投影，不取代 ledger 或创建新 wake。
 - `source_agent_id`、Room scope 和 root/cause 关联由受控运行时/后端绑定；`reply_route` 必须由后端校验并按成员范围归一化。
 - cursor 只在实际消费到连续输入后推进；失败或取消不能无条件标记已读。
 - 聊天侧栏的执行态只投影为瞬时 `active room_id` 集合：任一 Agent slot 仍在执行时 Room 保持激活，root 终态或全部 slot 终态后清除；`dm` 与 `room` 使用同一规则，不读取 Agent runtime 状态或持久化 `is_active/status`。

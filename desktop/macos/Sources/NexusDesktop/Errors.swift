@@ -1,8 +1,12 @@
 import Foundation
 
+// INPUT: Typed startup, runtime, security, and native integration failure facts.
+// OUTPUT: Stable user-facing diagnostics with the recovery action when one is available.
+// POS: The macOS shell error vocabulary shared by lifecycle and UI reporting boundaries.
 enum DesktopShellError: LocalizedError {
   case projectRootNotFound
   case webDistNotFound(String)
+  case webDistStale(webDistPath: String, newerInputPath: String)
   case sidecarExecutableNotFound
   case portUnavailable(Int)
   case sidecarExited
@@ -24,7 +28,9 @@ enum DesktopShellError: LocalizedError {
     case .projectRootNotFound:
       return "未找到 Nexus 仓库根目录。请从仓库内运行 desktop/macos。"
     case .webDistNotFound(let path):
-      return "未找到 Web 产物：\(path)。请先执行 scripts/desktop/run-macos-dev.sh 或构建 web/dist。"
+      return "未找到 Web 产物：\(path)。请执行 make app-run-dev 重新构建并启动桌面开发版。"
+    case .webDistStale(let webDistPath, let newerInputPath):
+      return "Web 产物已过期：\(webDistPath) 早于 \(newerInputPath)。请执行 make app-run-dev 重新构建并启动桌面开发版。"
     case .sidecarExecutableNotFound:
       return "未找到 Go sidecar。开发模式需要可用的 go 命令，打包模式需要 bundle 内的 nexus-server。"
     case .portUnavailable(let port):

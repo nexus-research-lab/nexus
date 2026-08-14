@@ -38,6 +38,28 @@ func TestProjectConversationTurnsDMSingleAgent(t *testing.T) {
 	}
 }
 
+func TestProjectConversationTurnsPreservesPublicHandoffReply(t *testing.T) {
+	rows := []protocol.Message{{
+		"message_id": "msg-reply", "round_id": "round-reply",
+		"agent_round_id": "agent-round-reply", "agent_id": "agent-researcher",
+		"role": "assistant", "content": "reply", "timestamp": int64(200),
+		"handoff_reply": map[string]any{
+			"handoff_id": "rh-reply", "source_message_id": "msg-lead",
+			"source_agent_id": "agent-lead",
+		},
+	}}
+	turns := ProjectConversationTurns(rows, true, nil)
+	if len(turns) != 1 || len(turns[0].AgentSlots) != 1 ||
+		len(turns[0].AgentSlots[0].AssistantMessages) != 1 {
+		t.Fatalf("unexpected projected turns: %+v", turns)
+	}
+	reply := turns[0].AgentSlots[0].AssistantMessages[0].HandoffReply
+	if reply == nil || reply.HandoffID != "rh-reply" ||
+		reply.SourceMessageID != "msg-lead" || reply.SourceAgentID != "agent-lead" {
+		t.Fatalf("handoff_reply missing from turn projection: %+v", reply)
+	}
+}
+
 func TestProjectConversationTurnsRoomMultiAgent(t *testing.T) {
 	rows := []protocol.Message{
 		{"message_id": "msg_user_1", "round_id": "round_1", "role": "user", "content": "hello all", "timestamp": int64(100)},

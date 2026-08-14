@@ -132,7 +132,11 @@ function prepareSessionLoad(
   return requestId;
 }
 
-async function fetchSessionMessages(
+/**
+ * 只读指定 Session 的 durable 消息，不改变当前页面 identity 或消息投影。
+ * 请求级 ACK 恢复用它核对原 Session，避免用户已切到新会话时误读新页面。
+ */
+export async function readAgentSessionMessagePage(
   identity: AgentConversationIdentity | null,
   sessionKey: string,
 ): Promise<ConversationMessagePage> {
@@ -145,6 +149,13 @@ async function fetchSessionMessages(
     );
   }
   return getSessionMessagesApi(sessionKey, query);
+}
+
+export async function readAgentSessionMessages(
+  identity: AgentConversationIdentity | null,
+  sessionKey: string,
+): Promise<Message[]> {
+  return (await readAgentSessionMessagePage(identity, sessionKey)).items;
 }
 
 function commitSessionMessages(
@@ -185,7 +196,10 @@ export async function loadAgentSession(
 ): Promise<Message[] | null> {
   const requestId = prepareSessionLoad(sessionKey, context, isReload);
   try {
-    const page = await fetchSessionMessages(context.identity, sessionKey);
+    const page = await readAgentSessionMessagePage(
+      context.identity,
+      sessionKey,
+    );
     if (isCurrentLoad(context, requestId, sessionKey)) {
       return commitSessionMessages(sessionKey, page, context, isReload);
     }

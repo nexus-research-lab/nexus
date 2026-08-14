@@ -222,6 +222,26 @@ stages:
    `round_status=finished` for that host control round; and
 5. dispatch the active Goal continuation through the normal Goal state machine.
 
+The WebSocket ingress completes cheap authenticated owner/session validation
+before acceptance. An accepted `set_goal` then keeps its original connection FIFO
+position but runs in a bounded detached context that retains the authenticated
+context values. Closing the page, switching Session, or losing the socket may lose
+the response projection, but cannot cancel an already accepted Goal mutation,
+control-record append, directory invalidation, or continuation attempt. The
+business deadline remains authoritative: a separate short-lived delivery context
+may attempt the terminal ACK or correlated error after that deadline, but cannot
+restart or extend the mutation. This transport detachment is not a durable command
+receipt and does not by itself make an in-flight command replayable after a server
+process crash.
+
+The Web client holds the exact original Session binding and physical shared socket
+under the locally minted `client_request_id` until a raw ACK/error, an explicit
+destructive Session reset, or the bounded acceptance timeout. A timeout is
+`unknown`, not success or rejection. Reconciliation therefore uses the original
+`client_message_id` control record, or a newer owner-scoped Goal identity/version
+whose `objective` or server-recorded `source_objective` matches the submission;
+the currently visible route and an unchanged same-objective Goal are not evidence.
+
 The control record is not a runtime turn and never waits for an assistant/result
 terminal. It is still a real visible user record: it starts a draft conversation,
 increments the session message count, and gives a new Goal-only session enough

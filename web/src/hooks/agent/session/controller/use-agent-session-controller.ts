@@ -35,7 +35,10 @@ interface AgentSessionRuntime {
 }
 
 interface UseAgentSessionControllerParams {
-  cancelPendingRequestAcks: (reason: string) => void;
+  cancelPendingRequestAcks: (
+    reason: string,
+    keepPreserved?: boolean,
+  ) => void;
   identity: AgentConversationIdentity | null;
   identitySessionKey: string | null;
   roomSeqCursorRef: RefObject<number>;

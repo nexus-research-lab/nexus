@@ -27,6 +27,7 @@ interface ComposerViewStateOptions {
   input: string;
   inputMode: ComposerInputMode;
   isActionMenuOpen: boolean;
+  isGoalConfirming: boolean;
   isGoalCreating: boolean;
   isLoading: boolean;
   isLoopPickerOpen: boolean;
@@ -81,6 +82,7 @@ export function buildComposerViewState(
     input: options.input,
     inputHistoryLength: options.historyItemCount,
     isActionMenuOpen: options.isActionMenuOpen,
+    isGoalConfirming: options.isGoalConfirming,
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
     isLoopPickerOpen: options.isLoopPickerOpen,

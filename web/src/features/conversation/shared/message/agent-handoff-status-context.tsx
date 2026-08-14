@@ -11,7 +11,11 @@ import {
   useContext,
 } from "react";
 
-export type AgentHandoffPhase = "preparing" | "queued" | "active";
+export type AgentHandoffPhase =
+  | "preparing"
+  | "queued"
+  | "active"
+  | "responded";
 export type AgentHandoffStatusMap = Readonly<Record<string, AgentHandoffPhase>>;
 
 const EMPTY_HANDOFF_STATUSES: AgentHandoffStatusMap = Object.freeze({});
