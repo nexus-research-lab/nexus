@@ -21,3 +21,22 @@ func TestEffectiveSessionConnectorIDs(t *testing.T) {
 		t.Fatalf("Session Connector 覆盖 = %v", got)
 	}
 }
+
+func TestSessionAdditionalDirectoriesOptions(t *testing.T) {
+	options := WithSessionAdditionalDirectories(map[string]any{
+		"keep": "value",
+	}, []string{" /tmp/project ", "/tmp/project", ""})
+	if got := SessionAdditionalDirectoriesFromOptions(options); !reflect.DeepEqual(
+		got,
+		[]string{"/tmp/project"},
+	) {
+		t.Fatalf("Session 附加目录 = %v", got)
+	}
+	if options["keep"] != "value" {
+		t.Fatalf("无关 option 被覆盖: %v", options)
+	}
+	cleared := WithSessionAdditionalDirectories(options, nil)
+	if _, exists := cleared[OptionSessionAdditionalDirectories]; exists {
+		t.Fatalf("清空后仍保留附加目录: %v", cleared)
+	}
+}

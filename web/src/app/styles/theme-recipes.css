@@ -747,7 +747,8 @@
     grid-template-areas: "leading brand trailing";
     align-items: center;
     gap: 0.75rem;
-    padding: 0.5rem 0.875rem;
+    /* 20px 壳圆角减去 8px 控件圆角，三个边距保持同心。 */
+    padding: 0.375rem 0.75rem 0.75rem;
   }
 
   .nexus-chat-composer-footer-leading {
@@ -796,10 +797,9 @@
   .nexus-chat-composer-submit {
     width: 2rem;
     padding-inline: 0;
-    border-radius: 999px;
   }
 
-  /* 空输入仍保留中性圆形动作，避免发送入口在可用性变化时消失。 */
+  /* 空输入仍保留中性动作，避免发送入口在可用性变化时消失。 */
   .nexus-chat-composer-submit:disabled {
     opacity: 1;
     border-color: transparent;

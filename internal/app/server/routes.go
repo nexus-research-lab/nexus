@@ -125,6 +125,8 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/sessions/{session_key}/turns"), s.handlers.agent.HandleSessionTurns)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleSessionRuntimeSettings)
 	s.router.Put(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleUpdateSessionRuntimeSettings)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleSessionLocalDirectories)
+	s.router.Put(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleUpdateSessionLocalDirectories)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks"), s.handlers.agent.HandleSessionSubagentTasks)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/messages"), s.handlers.agent.HandleSessionSubagentTaskMessages)
 	s.router.Post(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/messages"), s.handlers.agent.HandleSendSessionSubagentTaskMessage)

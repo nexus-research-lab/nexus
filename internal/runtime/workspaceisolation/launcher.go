@@ -181,7 +181,7 @@ func buildAuditPolicy(input Input) (Policy, error) {
 	// audit 需要兼容部署级自定义 workspace：它只记录早期策略命中，
 	// 不把这条路径当作 enforce 的 OS 授权事实源。
 	readRoots := append([]string{workspaceRoot, input.CWD}, input.ReadRoots...)
-	writeRoots := []string{workspaceRoot, input.CWD}
+	writeRoots := append([]string{workspaceRoot, input.CWD}, input.WriteRoots...)
 	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
 		readRoots = append(readRoots, sharedTempRoot)
 		writeRoots = append(writeRoots, sharedTempRoot)

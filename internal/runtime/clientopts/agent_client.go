@@ -81,7 +81,9 @@ type AgentClientOptionsInput struct {
 	// 项目级 Skill 允许动态发现，不能仅靠启动时白名单表达显式停用状态。
 	DisabledSkillIDs []string
 	// SkillDirectories 是宿主授予 runtime 的平台与用户级资源根，不随 Agent workspace 变化。
-	SkillDirectories           []string
+	SkillDirectories []string
+	// AdditionalDirectories 是用户为当前 Session 显式挂载的本机工作目录。
+	AdditionalDirectories      []string
 	SettingSources             []string
 	AppendSystemPrompt         string
 	AppendSystemPromptStatic   string
@@ -167,10 +169,14 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
 	permissionMode := runtimepermission.NormalizeMode(input.PermissionMode)
+	additionalDirectories := appendDistinctStrings(
+		input.SkillDirectories,
+		input.AdditionalDirectories...,
+	)
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
-		AdditionalDirectories:  slices.Clone(input.SkillDirectories),
+		AdditionalDirectories:  additionalDirectories,
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
 		System: agentclient.SystemOptions{
@@ -181,7 +187,7 @@ func BuildAgentClientOptionsWithConfig(
 		Tools: agentclient.ToolOptions{
 			Available: runtimeAvailableTools(effectiveRuntimeKind),
 			Allow:     slices.Clone(input.AllowedTools),
-			Deny:      appendDistinctTools(input.DisallowedTools, agentSessionDeniedTools...),
+			Deny:      appendDistinctStrings(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
 			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
@@ -229,7 +235,8 @@ func BuildAgentClientOptionsWithConfig(
 			IsMainAgent: input.IsMainAgent,
 			RuntimeKind: effectiveRuntimeKind,
 			CWD:         input.WorkspacePath,
-			ReadRoots:   input.SkillDirectories,
+			ReadRoots:   additionalDirectories,
+			WriteRoots:  input.AdditionalDirectories,
 		},
 	)
 	if err != nil {
@@ -289,7 +296,7 @@ func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {
 	return agentclient.RuntimeClaude
 }
 
-func appendDistinctTools(base []string, extra ...string) []string {
+func appendDistinctStrings(base []string, extra ...string) []string {
 	result := make([]string, 0, len(base)+len(extra))
 	seen := make(map[string]struct{}, len(base)+len(extra))
 	for _, tool := range slices.Concat(base, extra) {

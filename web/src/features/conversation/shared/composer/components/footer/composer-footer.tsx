@@ -34,11 +34,13 @@ export function ComposerFooter(props: ComposerFooterProps) {
             isGoalCreating={props.isGoalCreating}
             isGoalMode={props.isGoalMode}
             isPreparingAttachments={props.isPreparingAttachments}
+            localDirectoriesController={props.localDirectoriesController}
             onActionMenuClose={props.onActionMenuClose}
             onActionMenuToggle={props.onActionMenuToggle}
             onAttachmentSelect={props.onAttachmentSelect}
             onGoalToggle={props.onGoalToggle}
             onLoopSelect={props.onLoopSelect}
+            onLocalDirectorySelect={props.onLocalDirectorySelect}
             sessionSettingsController={props.sessionSettingsController}
             sessionSettingsDisabled={props.sessionSettingsDisabled}
           />

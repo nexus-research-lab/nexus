@@ -5,7 +5,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 ## 职责
 
 - `composer-footer.tsx`: 以输入壳命名容器装配动作、Session 设置、Goal 标记、状态、元数据和提交动作，并在中心显示可按容器宽度收敛的 `Powered by Nexus`
-- `composer-footer-actions.tsx`: 构造动作菜单、当前 Session Connector 显式开关并按动作表分派命令
+- `composer-footer-actions.tsx`: 构造附件、本机文件夹、Goal/Loop 动作菜单、当前 Session Connector 显式开关并按动作表分派命令
 - `composer-session-controls.tsx`: 为 DM 装配直接模型/权限菜单，为 Room 装配统一权限与右侧模型入口
 - `composer-room-model-control.tsx`: 复用公共锚定浮层和 Action Menu 内容，按 Room Agent 级联其当前 Session 模型
 - `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型/权限选项

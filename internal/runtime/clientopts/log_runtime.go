@@ -40,7 +40,7 @@ func RuntimeStartupLogFields(options agentclient.Options) []any {
 		"path_to_executable", strings.TrimSpace(options.PathToExecutable),
 		"runtime_transport", snapshot.Transport,
 		"command_path", strings.TrimSpace(snapshot.CommandPath),
-		"runtime_args", slices.Clone(snapshot.Args),
+		"runtime_args", redactRuntimeStartupArgs(snapshot.Args),
 		"runtime_arg_fingerprint", snapshot.ArgFingerprint,
 		"cwd", strings.TrimSpace(snapshot.CWD),
 		"resume_id_present", strings.TrimSpace(options.Session.ResumeID) != "",
@@ -129,6 +129,23 @@ func runtimeEnvConfigured(env map[string]string, key string) bool {
 		return false
 	}
 	return strings.TrimSpace(env[key]) != ""
+}
+
+func redactRuntimeStartupArgs(args []string) []string {
+	result := slices.Clone(args)
+	for index := 0; index < len(result); index++ {
+		name := runtimeArgName(result[index])
+		if name != "--add-dir" {
+			continue
+		}
+		if strings.Contains(result[index], "=") {
+			result[index] = "--add-dir=<redacted>"
+		} else if index+1 < len(result) {
+			result[index+1] = "<redacted>"
+			index++
+		}
+	}
+	return result
 }
 
 // ShouldLogRuntimeStartupDiagnostic 判断默认模式下是否记录启动诊断事件。
@@ -248,6 +265,7 @@ func runtimeArgHasValue(arg string) bool {
 		"--settings",
 		"--mcp-config",
 		"--debug-file",
+		"--add-dir",
 		"--max-turns":
 		return true
 	default:

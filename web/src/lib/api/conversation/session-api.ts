@@ -38,6 +38,10 @@ export interface SessionRuntimeSettings {
   connector_ids: string[] | null;
 }
 
+export interface SessionLocalDirectories {
+  directories: string[];
+}
+
 export const getConversations = async (): Promise<Conversation[]> => {
   const result = await requestApi<ApiConversation[]>(
     `${AGENT_API_BASE_URL}/sessions`,
@@ -130,6 +134,30 @@ export async function updateSessionRuntimeSettingsApi(
     {
       method: "PUT",
       body: JSON.stringify(settings),
+    },
+  );
+}
+
+export async function getSessionLocalDirectoriesApi(
+  sessionKey: string,
+): Promise<SessionLocalDirectories> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  return requestApi<SessionLocalDirectories>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}/local-directories`,
+    { method: "GET" },
+  );
+}
+
+export async function updateSessionLocalDirectoriesApi(
+  sessionKey: string,
+  directories: string[],
+): Promise<SessionLocalDirectories> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  return requestApi<SessionLocalDirectories>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}/local-directories`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ directories }),
     },
   );
 }

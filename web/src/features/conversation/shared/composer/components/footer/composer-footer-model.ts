@@ -9,6 +9,7 @@ import type {
 import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
+import type { ComposerLocalDirectoriesController } from "../../controller/use-composer-local-directories";
 import type { ComposerSubmitButtonProps } from "../composer-submit-button";
 
 export interface ComposerFooterProps {
@@ -29,6 +30,7 @@ export interface ComposerFooterProps {
   isNearLimit: boolean;
   isOverLimit: boolean;
   isPreparingAttachments: boolean;
+  localDirectoriesController: ComposerLocalDirectoriesController;
   maxLength: number;
   onActionMenuClose: () => void;
   onActionMenuToggle: () => void;
@@ -36,6 +38,7 @@ export interface ComposerFooterProps {
   onCancelGoal: () => void;
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
+  onLocalDirectorySelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
   sessionSettingsController: ComposerSessionSettingsController;
   sessionSettingsDisabled: boolean;

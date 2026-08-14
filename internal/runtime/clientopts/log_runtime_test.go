@@ -72,6 +72,7 @@ func TestRuntimeStartupLogFieldsUsesBridgeSnapshot(t *testing.T) {
 	fields := RuntimeStartupLogFields(agentclient.NewOptions().
 		WithCLIPath("claude").
 		WithCWD("/workspace").
+		WithAdditionalDirectories("/Users/alice/private-project").
 		WithSystemPrompt("secret prompt").
 		WithEnv(map[string]string{
 			"ANTHROPIC_AUTH_TOKEN": "secret-token",
@@ -96,7 +97,7 @@ func TestRuntimeStartupLogFieldsUsesBridgeSnapshot(t *testing.T) {
 		t.Fatalf("runtime_args = %+v", values["runtime_args"])
 	}
 	raw := fmt.Sprint(fields)
-	for _, forbidden := range []string{"secret-token", "secret prompt"} {
+	for _, forbidden := range []string{"secret-token", "secret prompt", "/Users/alice/private-project"} {
 		if strings.Contains(raw, forbidden) {
 			t.Fatalf("startup log fields leaked %q: %s", forbidden, raw)
 		}

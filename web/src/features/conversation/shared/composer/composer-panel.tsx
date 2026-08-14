@@ -16,6 +16,7 @@ import { COMPOSER_ATTACHMENT_ACCEPT } from "./attachments/composer-attachments";
 import { ComposerAttachmentList } from "./attachments/composer-local-attachments";
 import { ComposerFooter } from "./components/footer/composer-footer";
 import { ComposerInputRow } from "./components/composer-input-row";
+import { ComposerLocalDirectories } from "./components/composer-local-directories";
 import { ComposerPendingQueue } from "./components/pending-queue/composer-pending-queue";
 import { LoopPickerDialog } from "./components/loop-picker/loop-picker-dialog";
 import {
@@ -33,6 +34,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const {
     actions,
     attachments,
+    localDirectories,
     mention,
     refs,
     sessionSettings,
@@ -73,6 +75,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
         className="nexus-chat-composer-edge relative isolate"
         data-composer-edge="true"
       >
+        <ComposerLocalDirectories
+          controller={localDirectories}
+          disabled={props.isLoading || state.runtimeActivity !== null}
+        />
         <div
           ref={refs.composerShellRef}
           className={COMPOSER_SHELL_CLASS_NAME}
@@ -170,6 +176,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 isOverLimit={state.isOverLimit}
                 isPreparingAttachments={state.isPreparingAttachments}
                 maxLength={MAX_COMPOSER_INPUT_LENGTH}
+                localDirectoriesController={localDirectories}
                 onActionMenuClose={() => actions.setIsActionMenuOpen(false)}
                 onActionMenuToggle={() => {
                   actions.setIsActionMenuOpen((current) => !current);
@@ -178,6 +185,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onCancelGoal={actions.cancelGoalInput}
                 onGoalToggle={actions.toggleGoalInput}
                 onLoopSelect={actions.openLoopPicker}
+                onLocalDirectorySelect={actions.openLocalDirectoryPicker}
                 runtimeActivity={state.runtimeActivity}
                 sessionSettingsController={sessionSettings}
                 sessionSettingsDisabled={
