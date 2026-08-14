@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -101,6 +102,20 @@ func TestAutomationMCPBuilderUsesFreshAgentAndLimitsMainAuthorityToPrivateDM(t *
 			service.heartbeatOwners,
 		)
 	}
+	internalConfig := requireAutomationSDKServer(t, builder(
+		runtimectx.WithMCPRoundLease(context.Background(), dmSession, "round-internal"),
+		&protocol.Agent{AgentID: "nexus"},
+		dmSession,
+		"round-internal",
+		"agent_internal",
+		"nexus",
+		"主会话",
+		nil,
+		sdkpermission.ModeDefault,
+	))
+	if trusted, internal := automationToolCatalogJSON(t, config), automationToolCatalogJSON(t, internalConfig); trusted != internal {
+		t.Fatalf("main DM Automation schema changed across source type\ntrusted=%s\ninternal=%s", trusted, internal)
+	}
 
 	roomService := &automationBoundaryService{}
 	roomBuilder := newAutomationMCPBuilder(roomService, resolver, "Asia/Shanghai")
@@ -183,7 +198,7 @@ func TestAutomationMCPBuilderOrdinaryAgentStaysSelfScopedInDMAndRoom(t *testing.
 	}
 }
 
-func TestAutomationMCPBuilderTrustedMutationFailsClosedWithoutIdentityAndLeaseProofs(t *testing.T) {
+func TestAutomationMCPBuilderKeepsStableSurfaceWithoutGrantingMutation(t *testing.T) {
 	service := &automationBoundaryService{}
 	record := &protocol.Agent{
 		AgentID: "worker", OwnerUserID: "owner", IsMain: false,
@@ -197,13 +212,14 @@ func TestAutomationMCPBuilderTrustedMutationFailsClosedWithoutIdentityAndLeasePr
 	)
 	validContext := automationAuthenticatedLeaseContext("owner", sessionKey, "round-worker")
 	tests := []struct {
-		name      string
-		resolver  *stubAutomationAgentResolver
-		ctx       context.Context
-		session   string
-		roundID   string
-		context   string
-		contextID string
+		name       string
+		resolver   *stubAutomationAgentResolver
+		ctx        context.Context
+		session    string
+		roundID    string
+		context    string
+		contextID  string
+		wantServer bool
 	}{
 		{
 			name: "resolver failure", resolver: &stubAutomationAgentResolver{err: errors.New("stale")},
@@ -219,16 +235,19 @@ func TestAutomationMCPBuilderTrustedMutationFailsClosedWithoutIdentityAndLeasePr
 			name: "missing principal", resolver: &stubAutomationAgentResolver{record: record},
 			ctx:     runtimectx.WithMCPRoundLease(context.Background(), sessionKey, "round-worker"),
 			session: sessionKey, roundID: "round-worker", context: "agent", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "owner mismatch", resolver: &stubAutomationAgentResolver{record: record},
 			ctx:     automationAuthenticatedLeaseContext("other-owner", sessionKey, "round-worker"),
 			session: sessionKey, roundID: "round-worker", context: "agent", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "missing lease", resolver: &stubAutomationAgentResolver{record: record},
 			ctx:     automationAuthenticatedContext("owner"),
 			session: sessionKey, roundID: "round-worker", context: "agent", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "swapped lease", resolver: &stubAutomationAgentResolver{record: record},
@@ -244,6 +263,7 @@ func TestAutomationMCPBuilderTrustedMutationFailsClosedWithoutIdentityAndLeasePr
 				"round-worker",
 			),
 			session: sessionKey, roundID: "round-worker", context: "agent", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "plain route", resolver: &stubAutomationAgentResolver{record: record},
@@ -253,6 +273,7 @@ func TestAutomationMCPBuilderTrustedMutationFailsClosedWithoutIdentityAndLeasePr
 		{
 			name: "source agent mismatch", resolver: &stubAutomationAgentResolver{record: record},
 			ctx: validContext, session: sessionKey, roundID: "round-worker", context: "agent", contextID: "other",
+			wantServer: true,
 		},
 	}
 	for _, test := range tests {
@@ -269,8 +290,18 @@ func TestAutomationMCPBuilderTrustedMutationFailsClosedWithoutIdentityAndLeasePr
 				nil,
 				sdkpermission.ModeDefault,
 			)
-			if len(servers) != 0 {
-				t.Fatalf("untrusted mutation context received Automation server: %+v", servers)
+			if !test.wantServer {
+				if len(servers) != 0 {
+					t.Fatalf("invalid runtime topology received Automation server: %+v", servers)
+				}
+				return
+			}
+			config := requireAutomationSDKServer(t, servers)
+			if !slices.Contains(automationToolNames(t, config), "create_scheduled_task") {
+				t.Fatalf("stable Session lost Automation mutation schema")
+			}
+			if !callAutomationTool(t, config, "create_scheduled_task", nil) {
+				t.Fatal("untrusted round executed an Automation mutation")
 			}
 		})
 	}
@@ -369,6 +400,23 @@ func automationToolNames(t *testing.T, config sdkmcp.SDKServerConfig) []string {
 	return names
 }
 
+func automationToolCatalogJSON(t *testing.T, config sdkmcp.SDKServerConfig) string {
+	t.Helper()
+	response, err := config.Instance.HandleMessage(t.Context(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/list",
+	})
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	payload, err := json.Marshal(response["result"])
+	if err != nil {
+		t.Fatalf("marshal tools/list: %v", err)
+	}
+	return string(payload)
+}
+
 func callAutomationGetHeartbeat(
 	t *testing.T,
 	config sdkmcp.SDKServerConfig,
@@ -386,6 +434,30 @@ func callAutomationGetHeartbeat(
 	})
 	if err != nil {
 		t.Fatalf("get_heartbeat: %v", err)
+	}
+	result, _ := response["result"].(map[string]any)
+	isError, _ := result["isError"].(bool)
+	return isError
+}
+
+func callAutomationTool(
+	t *testing.T,
+	config sdkmcp.SDKServerConfig,
+	name string,
+	arguments map[string]any,
+) bool {
+	t.Helper()
+	response, err := config.Instance.HandleMessage(t.Context(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/call",
+		"params": map[string]any{
+			"name":      name,
+			"arguments": arguments,
+		},
+	})
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
 	}
 	result, _ := response["result"].(map[string]any)
 	isError, _ := result["isError"].(bool)

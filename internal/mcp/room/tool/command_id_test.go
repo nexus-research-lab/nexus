@@ -21,10 +21,11 @@ func TestRoomCommandIDPrefersToolUseID(t *testing.T) {
 
 func TestRoomCommandIDFallbackIsCanonicalAndRoundFenced(t *testing.T) {
 	contextValue := contract.ServerContext{
-		CurrentSessionKey: "room:conversation:agent",
-		ConversationID:    "conversation",
-		CurrentAgentID:    "agent",
-		CurrentRoundID:    "round-1",
+		CurrentSessionKey:   "room:conversation:agent",
+		ConversationID:      "conversation",
+		CurrentAgentID:      "agent",
+		CurrentRoundID:      "round-1",
+		CurrentAgentRoundID: "agent-round-1",
 	}
 	first, err := roomCommandID(contextValue, nil, "send_directed_message", map[string]any{
 		"recipients": []any{"peer"}, "content": "hello",
@@ -38,11 +39,11 @@ func TestRoomCommandIDFallbackIsCanonicalAndRoundFenced(t *testing.T) {
 	if err != nil || same != first {
 		t.Fatalf("canonical retry = %q, first=%q err=%v", same, first, err)
 	}
-	contextValue.CurrentRoundID = "round-2"
+	contextValue.CurrentAgentRoundID = "agent-round-2"
 	next, err := roomCommandID(contextValue, nil, "send_directed_message", map[string]any{
 		"recipients": []any{"peer"}, "content": "hello",
 	})
 	if err != nil || next == first {
-		t.Fatalf("next round must get a new command: next=%q first=%q err=%v", next, first, err)
+		t.Fatalf("next agent round must get a new command: next=%q first=%q err=%v", next, first, err)
 	}
 }

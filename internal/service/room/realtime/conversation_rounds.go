@@ -647,14 +647,15 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 				status = "streaming"
 			}
 			pending = append(pending, protocol.ChatAckPendingSlot{
-				AgentID:      slot.AgentID,
-				AgentRoundID: slot.AgentRoundID,
-				MsgID:        slot.MsgID,
-				RoundID:      rootRoundID,
-				HandoffID:    slot.handoffID(),
-				Status:       status,
-				Timestamp:    slot.TimestampMS,
-				Index:        slot.Index,
+				AgentID:        slot.AgentID,
+				AgentRoundID:   slot.AgentRoundID,
+				MsgID:          slot.MsgID,
+				RoundID:        rootRoundID,
+				HandoffID:      slot.handoffID(),
+				HiddenFromUser: roomSlotHiddenFromUser(slot),
+				Status:         status,
+				Timestamp:      slot.TimestampMS,
+				Index:          slot.Index,
 			})
 		}
 	}

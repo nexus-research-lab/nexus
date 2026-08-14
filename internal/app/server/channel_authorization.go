@@ -1,5 +1,5 @@
 // INPUT: Channel authorization 服务、fresh Agent/principal 与真实 runtime round lease。
-// OUTPUT: 仅注入 owner 主智能体 WebSocket 私有 DM 的专用 MCP server。
+// OUTPUT: 按 owner 主智能体 WebSocket 私有 DM Session 稳定注入的专用 MCP server。
 // POS: Channel 真人授权的应用层 capability 装配边界。
 package server
 
@@ -40,11 +40,9 @@ func newChannelAuthorizationMCPBuilder(
 		roundID = strings.TrimSpace(roundID)
 		sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
 		sourceContextID = strings.TrimSpace(sourceContextID)
-		if agentID == "" ||
-			sessionKey == "" ||
-			roundID == "" ||
-			sourceContextType != "agent" ||
-			sourceContextID != agentID {
+		contextKind, _, surfaceOK := runtimeMCPSurfaceContext(agentID, sessionKey)
+		if agentID == "" || sessionKey == "" || roundID == "" ||
+			!surfaceOK || contextKind != "agent" {
 			return nil
 		}
 		lease, hasLease := runtimectx.MCPRoundLeaseFromContext(ctx)
@@ -59,17 +57,42 @@ func newChannelAuthorizationMCPBuilder(
 			!record.IsMain {
 			return nil
 		}
+		sctx := channelauthorizationcontract.ServerContext{
+			OwnerUserID:       strings.TrimSpace(record.OwnerUserID),
+			CurrentAgentID:    agentID,
+			CurrentSessionKey: sessionKey,
+			CurrentRoundID:    roundID,
+			LeaseSessionKey:   strings.TrimSpace(lease.SessionKey),
+			LeaseRoundID:      strings.TrimSpace(lease.RoundID),
+			ContextKind:       contextKind,
+			ContextID:         agentID,
+			IsMainAgent:       true,
+		}
+		server := func() map[string]sdkmcp.ServerConfig {
+			return map[string]sdkmcp.ServerConfig{
+				channelauthorizationcontract.ServerName: sdkmcp.SDKServerConfig{
+					Name: channelauthorizationcontract.ServerName,
+					Instance: channelauthorizationmcp.NewServer(
+						svc,
+						sctx,
+					),
+				},
+			}
+		}
+		if sourceContextType != contextKind || sourceContextID != agentID {
+			return server()
+		}
 		role, authMethod, localSingleUser, principalOK := trustedConfigurationPrincipal(
 			ctx,
 			record.OwnerUserID,
 		)
 		if !principalOK {
-			return nil
+			return server()
 		}
 		principal := authctx.PrincipalFromContext(ctx)
 		if principal == nil ||
 			strings.TrimSpace(principal.UserID) != record.OwnerUserID {
-			return nil
+			return server()
 		}
 		authSessionID := ""
 		if principal.SessionID != nil {
@@ -78,17 +101,17 @@ func newChannelAuthorizationMCPBuilder(
 		switch authMethod {
 		case authctx.AuthMethodPassword:
 			if authSessionID == "" {
-				return nil
+				return server()
 			}
 		case authctx.AuthMethodLocal:
 			evidence, hasEvidence := authctx.InteractiveHumanEvidenceFromContext(ctx)
 			if !localSingleUser ||
 				!hasEvidence ||
 				evidence.Source != "desktop_session_token" {
-				return nil
+				return server()
 			}
 		default:
-			return nil
+			return server()
 		}
 		if _, routeOK := trustedConfigurationRuntimeRoute(
 			record.AgentID,
@@ -98,31 +121,12 @@ func newChannelAuthorizationMCPBuilder(
 			lease.SessionKey,
 			lease.RoundID,
 		); !routeOK {
-			return nil
+			return server()
 		}
-		sctx := channelauthorizationcontract.ServerContext{
-			OwnerUserID:       record.OwnerUserID,
-			CurrentAgentID:    record.AgentID,
-			CurrentSessionKey: sessionKey,
-			CurrentRoundID:    roundID,
-			LeaseSessionKey:   strings.TrimSpace(lease.SessionKey),
-			LeaseRoundID:      strings.TrimSpace(lease.RoundID),
-			ContextKind:       sourceContextType,
-			ContextID:         sourceContextID,
-			IsMainAgent:       true,
-			PrincipalRole:     role,
-			AuthMethod:        authMethod,
-			AuthSessionID:     authSessionID,
-			LocalSingleUser:   localSingleUser,
-		}
-		return map[string]sdkmcp.ServerConfig{
-			channelauthorizationcontract.ServerName: sdkmcp.SDKServerConfig{
-				Name: channelauthorizationcontract.ServerName,
-				Instance: channelauthorizationmcp.NewServer(
-					svc,
-					sctx,
-				),
-			},
-		}
+		sctx.PrincipalRole = role
+		sctx.AuthMethod = authMethod
+		sctx.AuthSessionID = authSessionID
+		sctx.LocalSingleUser = localSingleUser
+		return server()
 	}
 }

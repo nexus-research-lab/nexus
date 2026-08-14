@@ -18,6 +18,8 @@ import {
   buildGroupRoundCardModel,
   type GroupRoundAgentCardModel,
 } from "../../thread/round-card/group-round-card-model";
+import { isRoomAgentNoPublicReply } from "../../thread/round-card/group-agent-execution-model";
+
 interface ProjectGroupAgentTimelineOptions {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
@@ -194,20 +196,26 @@ function buildRootTimelineNodes({
       rootExecutionStates,
     ));
   }
-  nodes.push(...model.entries.map((entry) => ({
-    messages: [
-      ...entry.guidedUserMessages.map(({ message }) => message),
-      ...entry.assistant_messages,
-    ],
-    nodeId: buildGroupAgentTimelineNodeId(rootRoundId, entry.entry_id),
-    pendingPermissions: entry.pendingPermissions,
-    pendingSlots: entry.pending_slot ? [entry.pending_slot] : [],
-    roomAgentExecutionStates: roomAgentExecutionStates.filter((state) => (
-      buildSlotKey(state.agent_id, state.agent_round_id)
-        === buildEntrySlotKey(entry)
-    )),
-    rootRoundId,
-  })));
+  nodes.push(...model.entries
+    .filter((entry) => !isRoomAgentNoPublicReply(
+      entry.assistant_messages,
+      entry.result_summary,
+      entry.status,
+    ))
+    .map((entry) => ({
+      messages: [
+        ...entry.guidedUserMessages.map(({ message }) => message),
+        ...entry.assistant_messages,
+      ],
+      nodeId: buildGroupAgentTimelineNodeId(rootRoundId, entry.entry_id),
+      pendingPermissions: entry.pendingPermissions,
+      pendingSlots: entry.pending_slot ? [entry.pending_slot] : [],
+      roomAgentExecutionStates: roomAgentExecutionStates.filter((state) => (
+        buildSlotKey(state.agent_id, state.agent_round_id)
+          === buildEntrySlotKey(entry)
+      )),
+      rootRoundId,
+    })));
   return restoreMissingVisibleUserMessages(rootRoundId, messages, nodes);
 }
 

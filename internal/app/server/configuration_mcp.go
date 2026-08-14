@@ -1,5 +1,5 @@
 // INPUT: configuration 服务、Agent 身份、业务 source context 与真实 runtime lease。
-// OUTPUT: 只在可信用户 DM 或当前 Room 活跃 slot 中注入、由服务端动态鉴权的 nexus_config MCP builder。
+// OUTPUT: 按 Session 拓扑稳定注入、由服务端逐轮动态鉴权的 nexus_config MCP builder。
 // POS: configuration MCP 的应用装配入口。
 package server
 
@@ -40,14 +40,15 @@ func newConfigurationMCPBuilder(
 		if svc == nil || agents == nil || agentValue == nil || strings.TrimSpace(agentValue.AgentID) == "" {
 			return nil
 		}
-		sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
-		sourceContextID = strings.TrimSpace(sourceContextID)
-		if sourceContextType != "agent" && sourceContextType != "room" {
-			// Goal continuation、Automation、外部 IM 和未知来源默认没有持久配置 capability。
-			return nil
-		}
+		agentID := strings.TrimSpace(agentValue.AgentID)
 		sessionKey = strings.TrimSpace(sessionKey)
 		roundID = strings.TrimSpace(roundID)
+		sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
+		sourceContextID = strings.TrimSpace(sourceContextID)
+		contextKind, _, surfaceOK := runtimeMCPSurfaceContext(agentID, sessionKey)
+		if !surfaceOK {
+			return nil
+		}
 		lease, hasLease := runtimectx.MCPRoundLeaseFromContext(ctx)
 		if sessionKey == "" || roundID == "" || !hasLease {
 			// 业务 session/root round 负责计划和审计归属；runtime lease 负责
@@ -56,16 +57,42 @@ func newConfigurationMCPBuilder(
 		}
 		// agentValue 只是 runtime 快照。每次构造 server 都重新读取当前 Agent/
 		// owner/main 身份，避免旧 client 快照扩大配置作用域。
-		record, err := agents.GetAgent(ctx, agentValue.AgentID)
-		if err != nil || record == nil || strings.TrimSpace(record.OwnerUserID) == "" {
+		record, err := agents.GetAgent(ctx, agentID)
+		if err != nil || record == nil ||
+			strings.TrimSpace(record.AgentID) != agentID ||
+			strings.TrimSpace(record.OwnerUserID) == "" {
 			return nil
+		}
+		sctx := configurationcontract.ServerContext{
+			OwnerUserID:       strings.TrimSpace(record.OwnerUserID),
+			CurrentAgentID:    agentID,
+			CurrentSessionKey: sessionKey,
+			CurrentRoundID:    roundID,
+			LeaseSessionKey:   strings.TrimSpace(lease.SessionKey),
+			LeaseRoundID:      strings.TrimSpace(lease.RoundID),
+			ContextKind:       contextKind,
+			SourceContext:     strings.Trim(sourceContextType+":"+sourceContextID, ":"),
+			IsMainAgent:       record.IsMain,
+		}
+		server := func() map[string]sdkmcp.ServerConfig {
+			return map[string]sdkmcp.ServerConfig{
+				configurationcontract.ServerName: sdkmcp.SDKServerConfig{
+					Name: configurationcontract.ServerName, Instance: configurationmcp.NewServer(svc, sctx),
+				},
+			}
+		}
+
+		// 非用户触发轮仍保留同一工具表，但不签发 ContextID 和
+		// human principal；真实 service 调用会在作用域边界 fail closed。
+		if sourceContextType != contextKind {
+			return server()
 		}
 		role, authMethod, localSingleUser, ok := trustedConfigurationPrincipal(
 			ctx,
 			record.OwnerUserID,
 		)
 		if !ok {
-			return nil
+			return server()
 		}
 		authSessionID := ""
 		if principal := authctx.PrincipalFromContext(ctx); principal != nil &&
@@ -74,7 +101,7 @@ func newConfigurationMCPBuilder(
 		}
 		if queued, hasQueuedBinding := authctx.QueuedHumanPrincipalBindingFromContext(ctx); hasQueuedBinding {
 			if strings.TrimSpace(queued.UserID) != strings.TrimSpace(record.OwnerUserID) {
-				return nil
+				return server()
 			}
 			// A queue worker's synthetic RoleOwner is only an owner-scoping
 			// transport principal. Persist no role in the admission and fail
@@ -84,48 +111,61 @@ func newConfigurationMCPBuilder(
 			authSessionID = queued.SessionID
 			localSingleUser = false
 		}
-		if sourceContextType == "agent" && sourceContextID != record.AgentID {
-			return nil
+		if contextKind == configurationsvc.ContextKindAgent && sourceContextID != agentID {
+			return server()
 		}
-		if sourceContextType == "room" && sourceContextID == "" {
-			return nil
+		if contextKind == configurationsvc.ContextKindRoom && sourceContextID == "" {
+			return server()
 		}
 		conversationID, routeOK := trustedConfigurationRuntimeRoute(
-			record.AgentID,
-			sourceContextType,
+			agentID,
+			contextKind,
 			sessionKey,
 			roundID,
 			lease.SessionKey,
 			lease.RoundID,
 		)
 		if !routeOK {
-			return nil
+			return server()
 		}
-		sctx := configurationcontract.ServerContext{
-			OwnerUserID:       record.OwnerUserID,
-			CurrentAgentID:    record.AgentID,
-			CurrentSessionKey: sessionKey,
-			CurrentRoundID:    roundID,
-			LeaseSessionKey:   lease.SessionKey,
-			LeaseRoundID:      lease.RoundID,
-			ContextKind:       sourceContextType,
-			ContextID:         sourceContextID,
-			ConversationID:    conversationID,
-			SourceContext:     strings.Trim(strings.TrimSpace(sourceContextType)+":"+strings.TrimSpace(sourceContextID), ":"),
-			IsMainAgent:       record.IsMain,
-			PrincipalRole:     role,
-			AuthMethod:        authMethod,
-			AuthSessionID:     authSessionID,
-			LocalSingleUser:   localSingleUser,
-		}
-		if sourceContextType == "room" {
+		sctx.ContextID = sourceContextID
+		sctx.ConversationID = conversationID
+		sctx.PrincipalRole = role
+		sctx.AuthMethod = authMethod
+		sctx.AuthSessionID = authSessionID
+		sctx.LocalSingleUser = localSingleUser
+		if contextKind == configurationsvc.ContextKindRoom {
 			sctx.RoomID = sourceContextID
 		}
-		return map[string]sdkmcp.ServerConfig{
-			configurationcontract.ServerName: sdkmcp.SDKServerConfig{
-				Name: configurationcontract.ServerName, Instance: configurationmcp.NewServer(svc, sctx),
-			},
+		return server()
+	}
+}
+
+// runtimeMCPSurfaceContext 只根据不会在轮次间漂移的 Session 拓扑选择工具表。
+func runtimeMCPSurfaceContext(agentID string, sessionKey string) (string, string, bool) {
+	agentID = strings.TrimSpace(agentID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured {
+		return "", "", false
+	}
+	switch parsed.Kind {
+	case protocol.SessionKeyKindAgent:
+		if parsed.Channel != protocol.SessionChannelWebSocketSegment ||
+			parsed.ChatType != protocol.RoomTypeDM ||
+			strings.TrimSpace(parsed.AgentID) != agentID {
+			return "", "", false
 		}
+		return configurationsvc.ContextKindAgent, "", true
+	case protocol.SessionKeyKindRoom:
+		conversationID := strings.TrimSpace(parsed.ConversationID)
+		if !parsed.IsShared || conversationID == "" ||
+			sessionKey != protocol.BuildRoomSharedSessionKey(conversationID) {
+			return "", "", false
+		}
+		return configurationsvc.ContextKindRoom, conversationID, true
+	default:
+		return "", "", false
 	}
 }
 

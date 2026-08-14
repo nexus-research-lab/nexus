@@ -2,9 +2,11 @@ package tool
 
 import (
 	"context"
+	"errors"
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/room/contract"
 )
@@ -37,18 +39,25 @@ func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdkt
 				return errorResult(err), nil
 			}
 			request := protocol.CreateRoomDirectedMessageRequest{
-				SourceAgentID: sourceAgentID,
-				RootRoundID:   sctx.CurrentRoundID,
-				CommandID:     commandID,
-				Recipients:    stringListArg(args, "recipients"),
-				WakeTargets:   stringListArg(args, "wake_targets"),
-				Content:       stringArg(args, "content"),
-				WakePolicy:    protocol.RoomWakePolicy(stringArg(args, "wake_policy")),
-				ReplyRoute:    roomReplyRouteArg(objectArg(args, "reply_route")),
-				DelaySeconds:  intArg(args, "delay_seconds"),
-				CorrelationID: stringArg(args, "correlation_id"),
+				SourceAgentID:      sourceAgentID,
+				SourceAgentRoundID: sctx.CurrentAgentRoundID,
+				RootRoundID:        sctx.CurrentRoundID,
+				CommandID:          commandID,
+				Recipients:         stringListArg(args, "recipients"),
+				WakeTargets:        stringListArg(args, "wake_targets"),
+				Content:            stringArg(args, "content"),
+				WakePolicy:         protocol.RoomWakePolicy(stringArg(args, "wake_policy")),
+				ReplyRoute:         roomReplyRouteArg(objectArg(args, "reply_route")),
+				DelaySeconds:       intArg(args, "delay_seconds"),
+				CorrelationID:      stringArg(args, "correlation_id"),
 			}
 			item, err := svc.HandleDirectedMessage(scopedToolContext(ctx, sctx), roomID, conversationID, request)
+			if errors.Is(err, roomsvc.ErrDirectedReplyAutoRouted) {
+				return jsonResult(map[string]any{
+					"status":      "reply_via_final",
+					"instruction": "Return the intended reply as this turn's final reply; runtime will route it.",
+				}), nil
+			}
 			if err != nil {
 				return errorResult(err), nil
 			}

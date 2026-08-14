@@ -24,8 +24,8 @@ func TestToolPolicyKeepsPrivateMessagesOptIn(t *testing.T) {
 	}
 
 	disallowedTools := roomDisallowedTools(nil, false)
-	if !slices.Contains(disallowedTools, roomSendDirectedMessageTool) {
-		t.Fatalf("Room 私信工具默认应加入 deny: %+v", disallowedTools)
+	if len(disallowedTools) != 0 {
+		t.Fatalf("Room 开关不应通过 deny 改变 Session 工具面: %+v", disallowedTools)
 	}
 	disallowedTools = roomDisallowedTools(nil, true)
 	if slices.Contains(disallowedTools, roomSendDirectedMessageTool) {

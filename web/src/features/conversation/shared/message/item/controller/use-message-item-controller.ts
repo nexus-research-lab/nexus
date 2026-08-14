@@ -103,11 +103,11 @@ export function useMessageItemController({
     userMessages: projection.userMessages,
     assistant: {
       hidden: display.hidden,
+      model: display.resultModel,
       header: {
         agentId: projection.assistantAgentId,
         automationTaskName: projection.automationTaskName,
         canStop: display.canStop,
-        model: projection.model,
         stop: handleStopMessage,
         timestamp: projection.timestamp,
       },

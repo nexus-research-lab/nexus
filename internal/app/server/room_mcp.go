@@ -1,5 +1,5 @@
 // INPUT: Room runtime 身份、Room 当前配置与 realtime 通讯服务。
-// OUTPUT: 仅普通 Group Room 可见、按私域开关裁剪的 nexus_room MCP builder。
+// OUTPUT: 仅普通 Group Room 可见、工具面稳定且按私域开关鉴权的 nexus_room MCP builder。
 // POS: Room 内协作工具装配边界；联系人内部通道只使用 nexus_comms/reply route。
 package server
 
@@ -12,6 +12,7 @@ import (
 	roommcp "github.com/nexus-research-lab/nexus/internal/mcp/room"
 	roommcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/room/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // newRoomMCPBuilder 返回 Room runtime 内建通讯 MCPServerBuilder。
@@ -47,6 +48,9 @@ func newRoomMCPBuilder(
 			ConversationID:     strings.TrimSpace(parsed.ConversationID),
 			SourceContextType:  strings.TrimSpace(sourceContextType),
 			SourceContextLabel: strings.TrimSpace(sourceContextLabel),
+		}
+		if lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx); ok {
+			sctx.CurrentAgentRoundID = strings.TrimSpace(lease.RoundID)
 		}
 		if getRoom != nil && strings.TrimSpace(sctx.RoomID) != "" {
 			if record, err := getRoom(ctx, sctx.RoomID); err == nil && record != nil {

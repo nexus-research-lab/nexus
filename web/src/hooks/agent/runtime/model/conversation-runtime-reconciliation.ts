@@ -326,6 +326,7 @@ export function mergeChatAckPendingSlots(
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,
     ...(slot.handoff_id ? { handoff_id: slot.handoff_id } : {}),
+    ...(slot.hidden_from_user ? { hidden_from_user: true } : {}),
     msg_id: slot.msg_id,
     round_id: slot.round_id?.trim() || ack.round_id,
     status: slot.status,

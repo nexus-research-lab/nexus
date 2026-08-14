@@ -17,6 +17,8 @@ import type { AgentConversationChatType } from "@/types/agent/agent-conversation
 import {
   buildIndexedTimelineRoundIds,
   buildTimelineRoundIds,
+  filterVisibleRoomLiveRoundIds,
+  filterVisibleTimelineMessages,
   filterResolvedEmptyRoundIndexItems,
   filterSupersededRoundIndexItems,
   groupMessagesByRound,
@@ -24,6 +26,7 @@ import {
   groupPendingSlotsByRound,
   groupRoomAgentExecutionStatesByRound,
   mergeLoadedRoundIndexItems,
+  projectVisibleRoomTimelineEvidence,
 } from "./timeline-model";
 import type { ConversationTimeline } from "./timeline-model";
 
@@ -55,39 +58,71 @@ export function useConversationTimeline({
 }: UseConversationTimelineOptions): ConversationTimeline {
   const isRoom = chatType === "group";
 
-  const messageGroups = useMemo(
-    () => groupMessagesByRound(messages),
+  const visibleMessages = useMemo(
+    () => filterVisibleTimelineMessages(messages),
     [messages],
+  );
+  const visibleRoomEvidence = useMemo(
+    () => isRoom
+      ? projectVisibleRoomTimelineEvidence(
+          pendingAgentSlots,
+          pendingPermissions,
+          roomAgentExecutionStates,
+        )
+      : {
+          executionStates: EMPTY_EXECUTION_STATES,
+          pendingPermissions: EMPTY_PERMISSIONS,
+          pendingSlots: EMPTY_SLOTS,
+        },
+    [
+      isRoom,
+      pendingAgentSlots,
+      pendingPermissions,
+      roomAgentExecutionStates,
+    ],
+  );
+
+  const messageGroups = useMemo(
+    () => groupMessagesByRound(visibleMessages),
+    [visibleMessages],
   );
   const pendingSlotGroups = useMemo(
     () =>
       isRoom
-        ? groupPendingSlotsByRound(pendingAgentSlots)
+        ? groupPendingSlotsByRound(visibleRoomEvidence.pendingSlots)
         : new Map<string, RoomPendingAgentSlotState[]>(),
-    [isRoom, pendingAgentSlots],
+    [isRoom, visibleRoomEvidence.pendingSlots],
   );
   const pendingPermissionGroups = useMemo(
     () =>
       isRoom
-        ? groupPendingPermissionsByRound(pendingPermissions)
+        ? groupPendingPermissionsByRound(
+            visibleRoomEvidence.pendingPermissions,
+          )
         : new Map<string, PendingPermission[]>(),
-    [isRoom, pendingPermissions],
+    [isRoom, visibleRoomEvidence.pendingPermissions],
   );
   const roomAgentExecutionStateGroups = useMemo(
     () =>
       isRoom
-        ? groupRoomAgentExecutionStatesByRound(roomAgentExecutionStates)
+        ? groupRoomAgentExecutionStatesByRound(
+            visibleRoomEvidence.executionStates,
+          )
         : new Map<string, RoomAgentExecutionState[]>(),
-    [isRoom, roomAgentExecutionStates],
+    [isRoom, visibleRoomEvidence.executionStates],
   );
-  const loadedRoundIds = useMemo(
-    () =>
-      buildTimelineRoundIds(messageGroups, liveRoundIds, [
-        ...pendingSlotGroups.keys(),
-        ...pendingPermissionGroups.keys(),
-        ...roomAgentExecutionStateGroups.keys(),
-      ]),
+  const visibleLiveRoundIds = useMemo(
+    () => isRoom
+      ? filterVisibleRoomLiveRoundIds(
+          liveRoundIds,
+          messageGroups,
+          pendingPermissionGroups,
+          pendingSlotGroups,
+          roomAgentExecutionStateGroups,
+        )
+      : liveRoundIds,
     [
+      isRoom,
       liveRoundIds,
       messageGroups,
       pendingPermissionGroups,
@@ -95,9 +130,24 @@ export function useConversationTimeline({
       roomAgentExecutionStateGroups,
     ],
   );
+  const loadedRoundIds = useMemo(
+    () =>
+      buildTimelineRoundIds(messageGroups, visibleLiveRoundIds, [
+        ...pendingSlotGroups.keys(),
+        ...pendingPermissionGroups.keys(),
+        ...roomAgentExecutionStateGroups.keys(),
+      ]),
+    [
+      messageGroups,
+      pendingPermissionGroups,
+      pendingSlotGroups,
+      roomAgentExecutionStateGroups,
+      visibleLiveRoundIds,
+    ],
+  );
   const unsupersededRoundIndexItems = useMemo(
-    () => filterSupersededRoundIndexItems(roundIndexItems, messages),
-    [messages, roundIndexItems],
+    () => filterSupersededRoundIndexItems(roundIndexItems, visibleMessages),
+    [roundIndexItems, visibleMessages],
   );
   const visibleRoundIndexItems = useMemo(
     () => filterResolvedEmptyRoundIndexItems(
@@ -125,17 +175,17 @@ export function useConversationTimeline({
       loaded_round_ids: loadedRoundIds,
       feed_round_ids: feedRoundIds,
       round_index_items: mergedRoundIndexItems,
-      live_round_ids: liveRoundIds,
+      live_round_ids: visibleLiveRoundIds,
     }),
     [
       feedRoundIds,
-      liveRoundIds,
       loadedRoundIds,
       messageGroups,
       mergedRoundIndexItems,
       pendingPermissionGroups,
       pendingSlotGroups,
       roomAgentExecutionStateGroups,
+      visibleLiveRoundIds,
     ],
   );
 }

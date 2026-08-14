@@ -1,5 +1,5 @@
 // INPUT: Connector authorization control、当前主 Agent 记录、认证 principal 与 runtime round lease。
-// OUTPUT: owner-main WebSocket 私有 DM 专用 MCP builder，以及只接收 opaque flow_id 的安全浏览器跳转路由。
+// OUTPUT: owner-main WebSocket 私有 DM 稳定 MCP builder，以及只接收 opaque flow_id 的安全浏览器跳转路由。
 // POS: Connector 对话授权的应用层接线边界；模型和 URL 都不能构造或覆盖授权身份。
 package server
 
@@ -61,11 +61,9 @@ func newConnectorAuthorizationMCPBuilder(
 		roundID = strings.TrimSpace(roundID)
 		sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
 		sourceContextID = strings.TrimSpace(sourceContextID)
-		if agentID == "" ||
-			sessionKey == "" ||
-			roundID == "" ||
-			sourceContextType != "agent" ||
-			sourceContextID != agentID {
+		contextKind, _, surfaceOK := runtimeMCPSurfaceContext(agentID, sessionKey)
+		if agentID == "" || sessionKey == "" || roundID == "" ||
+			!surfaceOK || contextKind != "agent" {
 			return nil
 		}
 		lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
@@ -80,16 +78,39 @@ func newConnectorAuthorizationMCPBuilder(
 			!record.IsMain {
 			return nil
 		}
+		sctx := connectorauthorizationcontract.ServerContext{
+			OwnerUserID:            strings.TrimSpace(record.OwnerUserID),
+			CurrentAgentID:         agentID,
+			BusinessSessionKey:     sessionKey,
+			RootRoundID:            roundID,
+			RuntimeLeaseSessionKey: strings.TrimSpace(lease.SessionKey),
+			RuntimeLeaseRoundID:    strings.TrimSpace(lease.RoundID),
+			ContextKind:            contextKind,
+			IsMainAgent:            true,
+		}
+		server := func() map[string]sdkmcp.ServerConfig {
+			return map[string]sdkmcp.ServerConfig{
+				connectorauthorizationcontract.ServerName: sdkmcp.SDKServerConfig{
+					Name: connectorauthorizationcontract.ServerName,
+					Instance: connectorauthorizationmcp.NewServer(
+						svc, sctx,
+					),
+				},
+			}
+		}
+		if sourceContextType != contextKind || sourceContextID != agentID {
+			return server()
+		}
 		role, authMethod, localSingleUser, ok := trustedConfigurationPrincipal(
 			ctx, record.OwnerUserID,
 		)
 		if !ok {
-			return nil
+			return server()
 		}
 		principal := authctx.PrincipalFromContext(ctx)
 		if principal == nil ||
 			strings.TrimSpace(principal.UserID) != record.OwnerUserID {
-			return nil
+			return server()
 		}
 		authSessionID := ""
 		if principal.SessionID != nil {
@@ -98,19 +119,19 @@ func newConnectorAuthorizationMCPBuilder(
 		switch authMethod {
 		case authctx.AuthMethodPassword:
 			if authSessionID == "" {
-				return nil
+				return server()
 			}
 		case authctx.AuthMethodLocal:
 			evidence, hasEvidence := authctx.InteractiveHumanEvidenceFromContext(ctx)
 			if !localSingleUser ||
 				!hasEvidence ||
 				evidence.Source != "desktop_session_token" {
-				return nil
+				return server()
 			}
 		default:
 			// Bearer/runtime principals cannot satisfy the human-presence
 			// requirement of Connector authorization.
-			return nil
+			return server()
 		}
 		if _, routeOK := trustedConfigurationRuntimeRoute(
 			record.AgentID,
@@ -120,30 +141,13 @@ func newConnectorAuthorizationMCPBuilder(
 			lease.SessionKey,
 			lease.RoundID,
 		); !routeOK {
-			return nil
+			return server()
 		}
-		sctx := connectorauthorizationcontract.ServerContext{
-			OwnerUserID:            record.OwnerUserID,
-			CurrentAgentID:         record.AgentID,
-			BusinessSessionKey:     sessionKey,
-			RootRoundID:            roundID,
-			RuntimeLeaseSessionKey: strings.TrimSpace(lease.SessionKey),
-			RuntimeLeaseRoundID:    strings.TrimSpace(lease.RoundID),
-			PrincipalUserID:        strings.TrimSpace(principal.UserID),
-			PrincipalRole:          role,
-			AuthMethod:             authMethod,
-			AuthSessionID:          authSessionID,
-			ContextKind:            sourceContextType,
-			IsMainAgent:            true,
-		}
-		return map[string]sdkmcp.ServerConfig{
-			connectorauthorizationcontract.ServerName: sdkmcp.SDKServerConfig{
-				Name: connectorauthorizationcontract.ServerName,
-				Instance: connectorauthorizationmcp.NewServer(
-					svc, sctx,
-				),
-			},
-		}
+		sctx.PrincipalUserID = strings.TrimSpace(principal.UserID)
+		sctx.PrincipalRole = role
+		sctx.AuthMethod = authMethod
+		sctx.AuthSessionID = authSessionID
+		return server()
 	}
 }
 

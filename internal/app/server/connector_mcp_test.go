@@ -38,6 +38,43 @@ func TestConnectorMCPBuilderRequiresSessionEnable(t *testing.T) {
 	}
 }
 
+func TestConnectorMCPBuilderKeepsExplicitSurfaceWhenConnectionIsUnavailable(t *testing.T) {
+	builder := newConnectorMCPBuilder(&stubConnectorMCPService{})
+	ctx := runtimectx.WithEnabledConnectorIDs(
+		context.Background(),
+		[]string{"feishu-docx"},
+	)
+	servers := builder(
+		ctx,
+		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "owner-1"},
+		"session-1", "", "", "", "", nil, "",
+	)
+	config, ok := servers["nexus_connectors"].(sdkmcp.SDKServerConfig)
+	if !ok || config.Instance == nil {
+		t.Fatalf("explicit Connector surface disappeared while disconnected: %+v", servers)
+	}
+	response, err := config.Instance.HandleMessage(t.Context(), map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/list",
+	})
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	result, _ := response["result"].(map[string]any)
+	tools, _ := result["tools"].([]map[string]any)
+	if !connectorToolListContains(tools, "feishu_docx_read") {
+		t.Fatalf("explicit Feishu tool surface = %+v", tools)
+	}
+}
+
+func connectorToolListContains(tools []map[string]any, name string) bool {
+	for _, tool := range tools {
+		if tool["name"] == name {
+			return true
+		}
+	}
+	return false
+}
+
 func TestAppendAmapMCPServerUsesOfficialHTTPConfig(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
 		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},

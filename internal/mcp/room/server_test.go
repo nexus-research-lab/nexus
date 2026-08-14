@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/room/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
 type stubRoomService struct {
@@ -17,6 +18,7 @@ type stubRoomService struct {
 	directedRequest        protocol.CreateRoomDirectedMessageRequest
 	directedOwnerUserID    string
 	publicMessagePublished bool
+	directedErr            error
 }
 
 func (s *stubRoomService) HandleDirectedMessage(
@@ -29,6 +31,9 @@ func (s *stubRoomService) HandleDirectedMessage(
 	s.directedConversationID = conversationID
 	s.directedRequest = request
 	s.directedOwnerUserID, _ = authctx.CurrentUserID(ctx)
+	if s.directedErr != nil {
+		return nil, s.directedErr
+	}
 	return &protocol.RoomDirectedMessageRecord{
 		MessageID:      "msg-1",
 		RoomID:         roomID,
@@ -58,7 +63,7 @@ func (s *stubRoomService) MarkPublicMessagePublished(context.Context, string, st
 	return nil
 }
 
-func TestToolsListOmitsPublicToolByDefault(t *testing.T) {
+func TestToolsListStaysStableWhenPrivateMessagesAreDisabled(t *testing.T) {
 	tools := listRoomTools(t, &stubRoomService{}, contract.ServerContext{})
 	names := map[string]bool{}
 	for _, item := range tools {
@@ -75,11 +80,11 @@ func TestToolsListOmitsPublicToolByDefault(t *testing.T) {
 			t.Fatalf("%s should stay deferred", name)
 		}
 	}
-	if names["publish_public_message"] {
-		t.Fatalf("Room 普通运行时不应暴露 publish_public_message: %+v", tools)
+	if !names["publish_public_message"] {
+		t.Fatalf("Room 禁用通讯时不应卸载 publish_public_message: %+v", tools)
 	}
-	if names["send_directed_message"] {
-		t.Fatalf("Room 未开启私信时不应暴露 send_directed_message: %+v", tools)
+	if !names["send_directed_message"] {
+		t.Fatalf("Room 禁用通讯时不应卸载 send_directed_message: %+v", tools)
 	}
 }
 
@@ -104,6 +109,7 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 		OwnerUserID:            "user-1",
 		CurrentAgentID:         "agent-host",
 		CurrentRoundID:         "round-root-1",
+		CurrentAgentRoundID:    "agent-round-1",
 		RoomID:                 "room-1",
 		ConversationID:         "conversation-1",
 		SourceContextType:      "room",
@@ -136,6 +142,9 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	if svc.directedRequest.RootRoundID != "round-root-1" {
 		t.Fatalf("root round 应由运行时注入: %+v", svc.directedRequest)
 	}
+	if svc.directedRequest.SourceAgentRoundID != "agent-round-1" {
+		t.Fatalf("agent round 应由运行时注入: %+v", svc.directedRequest)
+	}
 	if strings.TrimSpace(svc.directedRequest.CommandID) == "" {
 		t.Fatalf("command id 应由运行时注入: %+v", svc.directedRequest)
 	}
@@ -152,6 +161,25 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	}
 	if payload["content"] != nil || payload["item"] != nil {
 		t.Fatalf("工具输出不应泄漏 directed message 正文: %+v", payload)
+	}
+}
+
+func TestSendDirectedMessageDefersCurrentPrivateReplyToFinal(t *testing.T) {
+	result, isError := callRoomTool(t, &stubRoomService{directedErr: roomsvc.ErrDirectedReplyAutoRouted}, contract.ServerContext{
+		CurrentAgentID:      "agent-worker",
+		CurrentAgentRoundID: "agent-round-1",
+		RoomID:              "room-1",
+		ConversationID:      "conversation-1",
+		SourceContextType:   "room",
+	}, "send_directed_message", map[string]any{
+		"recipients": []any{"agent-host"},
+		"content":    "查验:Tom",
+	})
+	if isError {
+		t.Fatalf("自动路由的私域回复不应产生工具错误: %s", extractRoomText(t, result))
+	}
+	if !strings.Contains(extractRoomText(t, result), `"status":"reply_via_final"`) {
+		t.Fatalf("工具应提示改用 final reply: %s", extractRoomText(t, result))
 	}
 }
 

@@ -29,6 +29,7 @@ interface RoomExecutionEvidence extends RoomExecutionIdentity {
   canonicalDisplayOrder?: number;
   firstSeenAt: number;
   handoffId?: string;
+  hiddenFromUser?: boolean;
   phase: RoomAgentExecutionState["phase"];
   preferredDisplayOrder?: number;
   status: AssistantMessageStatus;
@@ -143,6 +144,7 @@ function mergeEvidence(
         display_order: resolveNewDisplayOrder(states, evidence),
         first_seen_at: evidence.firstSeenAt,
         ...(evidence.handoffId ? { handoff_id: evidence.handoffId } : {}),
+        ...(evidence.hiddenFromUser ? { hidden_from_user: true } : {}),
         phase: evidence.phase,
         round_id: evidence.roundId,
         status: evidence.status,
@@ -154,6 +156,9 @@ function mergeEvidence(
   const nextPhase = resolveNextPhase(current.phase, evidence.phase);
   const nextStatus = mergeMonotonicStatus(current.status, evidence.status);
   const nextHandoffId = evidence.handoffId ?? current.handoff_id;
+  const nextHiddenFromUser = current.hidden_from_user
+    || evidence.hiddenFromUser
+    || undefined;
   const nextOrder = isFiniteDisplayOrder(evidence.canonicalDisplayOrder)
     ? evidence.canonicalDisplayOrder
     : current.display_order;
@@ -161,6 +166,7 @@ function mergeEvidence(
     current.agent_id === evidence.agentId
     && current.display_order === nextOrder
     && current.handoff_id === nextHandoffId
+    && current.hidden_from_user === nextHiddenFromUser
     && current.phase === nextPhase
     && current.status === nextStatus
   ) {
@@ -172,6 +178,7 @@ function mergeEvidence(
     agent_id: evidence.agentId,
     display_order: nextOrder,
     ...(nextHandoffId ? { handoff_id: nextHandoffId } : {}),
+    ...(nextHiddenFromUser ? { hidden_from_user: true } : {}),
     phase: nextPhase,
     status: nextStatus,
   };
@@ -298,6 +305,7 @@ export function syncRoomAgentExecutionsFromSlots(
           ...(slot.handoff_id?.trim()
             ? { handoffId: slot.handoff_id.trim() }
             : {}),
+          ...(slot.hidden_from_user ? { hiddenFromUser: true } : {}),
           phase: TERMINAL_STATUSES.has(slot.status) ? "terminal" : "active",
           preferredDisplayOrder: resolveSlotDisplayOrder(slot, fallbackOrder),
           status: slot.status,

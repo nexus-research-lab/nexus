@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Assistant result metadata, including model and usage statistics, behind one settled-execution projection so active cards cannot expose partial result details.
+- Filtered private Room directed-message evidence once at the canonical timeline boundary, keeping Feed, Thread, and navigation free of transient night-action cards and empty placeholders.
+- Fenced Room message idempotency by the physical Agent round and prevented a directed-message recipient from persisting the same private reply manually and again through the runtime `reply_route` handback.
+- Stabilized each live Nexus Session's MCP tool surface across internal wakes, private-message handbacks, Room role and WorkBinding changes, transient Execution snapshot failures, and Room communication permission changes. Per-round authority now fails closed at tool execution instead of unloading schemas, while marketplace Connectors still change only through explicit Agent or Session selection and remain visible when a selected connection is temporarily unavailable.
 - Restored every real Agent destination Session in scheduled-task delivery selectors, including database-backed Nexus DMs and Room member Sessions, and materialized their verified workspace projections on first delivery instead of showing only IM targets.
 - Refreshed Room and DM conversation headers, tabs, and sidebar entries as soon as a Goal-generated title is stored by projecting the change through the Room and global directory invalidation paths.
 - Segmented tools inside one DM Agent round by their exact self Assignment and root Attempt, so serial WorkGraph nodes no longer collapse every Bash/Write/Edit/MCP action under the final node; Room Lead coordination and explicit member WorkBindings remain isolated. Execution mutation results now keep the small `outcome`/`execution_id`/`changed`/`next_actions` control envelope inline and omit recursive runtime history before SDK large-result externalization can erase those identities.

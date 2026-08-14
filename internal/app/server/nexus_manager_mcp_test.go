@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -13,7 +15,7 @@ import (
 	managersvc "github.com/nexus-research-lab/nexus/internal/service/nexusmanager"
 )
 
-func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) {
+func TestNexusManagerMCPBuilderKeepsSessionSurfaceAndSignsOnlyTrustedRounds(t *testing.T) {
 	service := managersvc.NewService(nil, nil, nil, nil, nil)
 	ownerContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID: "owner", Role: authctx.RoleOwner, AuthMethod: authctx.AuthMethodPassword,
@@ -66,6 +68,7 @@ func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) 
 	if _, ok = servers[managercontract.ServerName]; !ok {
 		t.Fatalf("ordinary Agent private DM must receive self workspace manager: %+v", servers)
 	}
+	workerTools := managerToolNames(t, servers)
 
 	roomSession := protocol.BuildRoomSharedSessionKey("conversation-1")
 	roomLeaseSession := protocol.BuildRoomAgentSessionKey(
@@ -96,6 +99,7 @@ func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) 
 		roundID     string
 		contextKind string
 		contextID   string
+		wantServer  bool
 	}{
 		{
 			name: "missing round", ctx: ownerContext, sessionKey: workerSession,
@@ -104,22 +108,27 @@ func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) 
 		{
 			name: "mismatched agent", ctx: ownerContext, sessionKey: workerSession,
 			roundID: "round", contextKind: "agent", contextID: "other",
+			wantServer: true,
 		},
 		{
 			name: "invalid room session", ctx: ownerContext, sessionKey: workerSession,
 			roundID: "round", contextKind: "room", contextID: "room-1",
+			wantServer: true,
 		},
 		{
 			name: "internal origin", ctx: ownerContext, sessionKey: workerSession,
 			roundID: "round", contextKind: "agent_internal", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "external origin", ctx: ownerContext, sessionKey: workerSession,
 			roundID: "round", contextKind: "agent_external", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "missing principal", ctx: context.Background(), sessionKey: workerSession,
 			roundID: "round", contextKind: "agent", contextID: "worker",
+			wantServer: true,
 		},
 		{
 			name: "mismatched owner",
@@ -129,16 +138,13 @@ func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) 
 			}),
 			sessionKey: workerSession, roundID: "round",
 			contextKind: "agent", contextID: "worker",
+			wantServer: true,
 		},
 	}
 	for _, test := range rejected {
 		t.Run(test.name, func(t *testing.T) {
 			testContext := test.ctx
-			if test.name != "missing principal" && test.name != "mismatched owner" {
-				testContext = runtimectx.WithMCPRoundLease(
-					testContext, test.sessionKey, "lease-round",
-				)
-			} else if test.name == "mismatched owner" {
+			if test.roundID != "" {
 				testContext = runtimectx.WithMCPRoundLease(
 					testContext, test.sessionKey, "lease-round",
 				)
@@ -154,8 +160,14 @@ func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) 
 				nil,
 				sdkpermission.ModeDefault,
 			)
-			if len(got) != 0 {
-				t.Fatalf("untrusted context received nexus_manager: %+v", got)
+			if !test.wantServer {
+				if len(got) != 0 {
+					t.Fatalf("invalid runtime topology received nexus_manager: %+v", got)
+				}
+				return
+			}
+			if tools := managerToolNames(t, got); !slices.Equal(tools, workerTools) {
+				t.Fatalf("stable Agent Session tools = %v, want %v", tools, workerTools)
 			}
 		})
 	}
@@ -172,4 +184,29 @@ func TestNexusManagerMCPBuilderInjectsOnlyTrustedDirectUserScopes(t *testing.T) 
 	); len(got) != 0 {
 		t.Fatalf("manager without an injected runtime lease must fail closed: %+v", got)
 	}
+}
+
+func managerToolNames(
+	t *testing.T,
+	servers map[string]sdkmcp.ServerConfig,
+) []string {
+	t.Helper()
+	config, ok := servers[managercontract.ServerName].(sdkmcp.SDKServerConfig)
+	if !ok || config.Instance == nil {
+		t.Fatalf("missing %s SDK server: %+v", managercontract.ServerName, servers)
+	}
+	response, err := config.Instance.HandleMessage(t.Context(), map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/list",
+	})
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	result, _ := response["result"].(map[string]any)
+	tools, _ := result["tools"].([]map[string]any)
+	names := make([]string, 0, len(tools))
+	for _, item := range tools {
+		name, _ := item["name"].(string)
+		names = append(names, strings.TrimSpace(name))
+	}
+	return names
 }

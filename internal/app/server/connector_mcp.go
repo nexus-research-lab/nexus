@@ -39,13 +39,7 @@ func newConnectorMCPBuilder(
 			strings.TrimSpace(agentValue.OwnerUserID) == "" {
 			return nil
 		}
-		enabledConnectorIDs := runtimectx.EnabledConnectorIDs(ctx)
-		enabledConnectorIDs = activeEnabledConnectorIDs(
-			ctx,
-			svc,
-			agentValue.OwnerUserID,
-			enabledConnectorIDs,
-		)
+		enabledConnectorIDs := normalizedConnectorIDs(runtimectx.EnabledConnectorIDs(ctx))
 		if len(enabledConnectorIDs) == 0 {
 			return nil
 		}
@@ -83,28 +77,15 @@ func newConnectorMCPBuilder(
 	}
 }
 
-func activeEnabledConnectorIDs(
-	ctx context.Context,
-	svc connectormcpcontract.Service,
-	ownerUserID string,
-	requested []string,
-) []string {
+func normalizedConnectorIDs(requested []string) []string {
 	if len(requested) == 0 {
 		return nil
-	}
-	connections, err := svc.ListActiveConnections(ctx, ownerUserID)
-	if err != nil {
-		return nil
-	}
-	active := make(map[string]struct{}, len(connections))
-	for _, connection := range connections {
-		active[strings.TrimSpace(connection.ConnectorID)] = struct{}{}
 	}
 	result := make([]string, 0, len(requested))
 	seen := make(map[string]struct{}, len(requested))
 	for _, connectorID := range requested {
 		connectorID = strings.TrimSpace(connectorID)
-		if _, ok := active[connectorID]; !ok {
+		if connectorID == "" {
 			continue
 		}
 		if _, duplicate := seen[connectorID]; duplicate {

@@ -179,34 +179,58 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 	); len(gotServers) != 0 {
 		t.Fatalf("ordinary Agent received authorization MCP: %+v", gotServers)
 	}
-	if gotServers := builder(
+	assertDeniedSurface := func(
+		name string,
+		callContext context.Context,
+		gotServers map[string]sdkmcp.ServerConfig,
+	) {
+		t.Helper()
+		config, ok := gotServers[connectorauthorizationcontract.ServerName].(sdkmcp.SDKServerConfig)
+		if !ok || config.Instance == nil {
+			t.Fatalf("%s changed Connector authorization surface: %+v", name, gotServers)
+		}
+		control.lastMCPActor = connectorsvc.AuthorizationActor{}
+		response, callErr := config.Instance.HandleMessage(callContext, map[string]any{
+			"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+			"params": map[string]any{
+				"name": "get_connector_authorization_status",
+				"arguments": map[string]any{
+					"flow_id": "caf_safe", "connector_id": "github",
+				},
+			},
+		})
+		if callErr != nil {
+			t.Fatal(callErr)
+		}
+		if result, _ := response["result"].(map[string]any); result == nil || result["isError"] == true {
+			t.Fatalf("%s status response = %+v", name, response)
+		}
+		if control.lastMCPActor.PrincipalUserID != "" || control.lastMCPActor.AuthMethod != "" {
+			t.Fatalf("%s received Connector authorization authority: %+v", name, control.lastMCPActor)
+		}
+	}
+	assertDeniedSurface("room source", ctx, builder(
 		ctx, &protocol.Agent{AgentID: "nexus"},
 		sessionKey, "round-a", "room", "room-a", "", nil, sdkpermission.ModeDefault,
-	); len(gotServers) != 0 {
-		t.Fatalf("Room received authorization MCP: %+v", gotServers)
-	}
+	))
 	mismatchedLease := runtimectx.WithMCPRoundLease(
 		authctx.WithPrincipal(context.Background(), principal),
 		sessionKey,
 		"other-round",
 	)
-	if gotServers := builder(
+	assertDeniedSurface("mismatched lease", mismatchedLease, builder(
 		mismatchedLease, &protocol.Agent{AgentID: "nexus"},
 		sessionKey, "round-a", "agent", "nexus", "", nil, sdkpermission.ModeDefault,
-	); len(gotServers) != 0 {
-		t.Fatalf("mismatched runtime lease received authorization MCP: %+v", gotServers)
-	}
+	))
 	bearer := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID: "owner-a", Role: authctx.RoleOwner,
 		AuthMethod: authctx.AuthMethodBearer,
 	})
 	bearer = runtimectx.WithMCPRoundLease(bearer, sessionKey, "round-a")
-	if gotServers := builder(
+	assertDeniedSurface("bearer principal", bearer, builder(
 		bearer, &protocol.Agent{AgentID: "nexus"},
 		sessionKey, "round-a", "agent", "nexus", "", nil, sdkpermission.ModeDefault,
-	); len(gotServers) != 0 {
-		t.Fatalf("bearer principal received authorization MCP: %+v", gotServers)
-	}
+	))
 }
 
 func TestConnectorAuthorizationOpenRouteUsesOnlyBoundFlowIdentity(

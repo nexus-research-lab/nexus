@@ -31,6 +31,7 @@ interface AssistantDisplayProjection {
   goalCompletionReceipt: unknown | null;
   liveActivityState: unknown | null;
   mergedContent: readonly ContentBlock[];
+  model?: string;
   processProjection: {
     content: readonly ContentBlock[];
   };
@@ -72,6 +73,10 @@ export function resolveAssistantDisplayState({
     isLoading,
     streamStatus: projection.streamStatus,
   });
+  const resultSettled = isAssistantResultSettled(
+    showCursor,
+    projection.streamStatus,
+  );
   const canCopy = Boolean(projection.finalAssistantText.trim());
 
   return {
@@ -93,6 +98,7 @@ export function resolveAssistantDisplayState({
       hasGoalCompletionReceipt: Boolean(projection.goalCompletionReceipt),
       hasStats: Boolean(projection.stats),
       isComplete: projection.streamStatus === "done",
+      isSettled: resultSettled,
       mode: assistantContentMode,
     }),
     hidden: !hasAssistantSurfaceContent({
@@ -106,6 +112,9 @@ export function resolveAssistantDisplayState({
       streamStatus: projection.streamStatus,
     }),
     processVisible,
+    resultModel: resultSettled
+      ? projection.model?.trim() || undefined
+      : undefined,
     showCursor,
     standaloneActivity: resolveStandaloneActivity(
       Boolean(projection.liveActivityState),
@@ -178,12 +187,14 @@ function resolveFooterVisible({
   hasGoalCompletionReceipt,
   hasStats,
   isComplete,
+  isSettled,
   mode,
 }: {
   canCopy: boolean;
   hasGoalCompletionReceipt: boolean;
   hasStats: boolean;
   isComplete: boolean;
+  isSettled: boolean;
   mode: AssistantContentMode;
 }): boolean {
   const hasCompletedCopy = [isComplete, canCopy].every(Boolean);
@@ -192,7 +203,15 @@ function resolveFooterVisible({
     hasStats,
     hasCompletedCopy,
   ].some(Boolean);
-  return [FOOTER_MODES.has(mode), hasFooterContent].every(Boolean);
+  return [FOOTER_MODES.has(mode), isSettled, hasFooterContent].every(Boolean);
+}
+
+function isAssistantResultSettled(
+  showCursor: boolean,
+  streamStatus: string | null,
+): boolean {
+  return !showCursor
+    && !hasStreamStatus(STOPPABLE_STREAM_STATUSES, streamStatus);
 }
 
 function resolveStandaloneActivity(

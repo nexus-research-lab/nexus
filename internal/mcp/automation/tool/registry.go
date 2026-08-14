@@ -1,5 +1,5 @@
 // INPUT: automation 服务与服务端签发的 runtime 来源上下文。
-// OUTPUT: 可信 DM/Room 的完整工具集，或外部/后台来源的只读诊断工具集。
+// OUTPUT: 交互 Session 的稳定工具集，或独立后台 profile 的只读诊断工具集。
 // POS: nexus_automation 的 capability 注册边界。
 package tool
 
@@ -19,7 +19,7 @@ func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool 
 		report(svc, sctx),
 		getHeartbeat(svc, sctx),
 	}
-	if !isTrustedInteractiveSource(sctx) {
+	if !sctx.StableInteractiveSurface && !isTrustedInteractiveSource(sctx) {
 		return readTools
 	}
 	return []sdktool.Tool{

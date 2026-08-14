@@ -140,6 +140,8 @@ type RoomReplyRoute struct {
 type CreateRoomDirectedMessageRequest struct {
 	// SourceAgentID 只能由受控运行时注入，不能从 JSON body 写入。
 	SourceAgentID string `json:"-"`
+	// SourceAgentRoundID 由受控运行时注入，区分同一逻辑 root 下的物理 Agent 轮次。
+	SourceAgentRoundID string `json:"-"`
 	// RootRoundID 由受控运行时注入，用于让工具触发的后续轮次继承因果链。
 	RootRoundID string `json:"-"`
 	// CommandID 由受控运行时按 source round 与规范化工具输入生成。

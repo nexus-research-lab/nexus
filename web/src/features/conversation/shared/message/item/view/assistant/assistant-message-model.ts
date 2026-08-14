@@ -70,7 +70,6 @@ interface AssistantHeaderState {
   agentId: string | null;
   automationTaskName: string | null;
   canStop: boolean;
-  model: string | undefined;
   stop: () => void;
   timestamp: number | undefined;
 }
@@ -104,6 +103,7 @@ interface MessageAssistantState {
   header: AssistantHeaderState;
   hidden: boolean;
   layout: AssistantLayoutState;
+  model?: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
   showMaxTokensWarning: boolean;

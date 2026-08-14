@@ -1,5 +1,5 @@
 // INPUT: nexusmanager 服务、可信 Agent 记录与 direct-user DM/Room runtime 上下文。
-// OUTPUT: 仅在可信用户轮次注入、且每次调用重新鉴权的 nexus_manager MCP builder。
+// OUTPUT: 按 Session 拓扑稳定注入、且每次调用重新鉴权的 nexus_manager MCP builder。
 // POS: 受控 Nexus 资源管理 MCP 的应用装配入口。
 package server
 
@@ -14,6 +14,7 @@ import (
 	managercontract "github.com/nexus-research-lab/nexus/internal/mcp/manager/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 )
 
 func newNexusManagerMCPBuilder(
@@ -38,51 +39,63 @@ func newNexusManagerMCPBuilder(
 		roundID = strings.TrimSpace(roundID)
 		sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
 		sourceContextID = strings.TrimSpace(sourceContextID)
-		if sessionKey == "" || roundID == "" ||
-			(sourceContextType != "agent" && sourceContextType != "room") {
+		agentID := strings.TrimSpace(agentValue.AgentID)
+		contextKind, conversationID, surfaceOK := runtimeMCPSurfaceContext(agentID, sessionKey)
+		if sessionKey == "" || roundID == "" || !surfaceOK {
 			return nil
 		}
 		lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
 		if !ok {
 			return nil
 		}
-		record, err := agents.GetAgent(ctx, strings.TrimSpace(agentValue.AgentID))
+		record, err := agents.GetAgent(ctx, agentID)
 		if err != nil || record == nil ||
-			strings.TrimSpace(record.AgentID) == "" ||
+			strings.TrimSpace(record.AgentID) != agentID ||
 			strings.TrimSpace(record.OwnerUserID) == "" {
-			return nil
-		}
-		if _, _, _, ok := trustedConfigurationPrincipal(ctx, record.OwnerUserID); !ok {
 			return nil
 		}
 		sctx := managercontract.ServerContext{
 			OwnerUserID: record.OwnerUserID, CurrentAgentID: record.AgentID,
 			CurrentSessionKey: sessionKey, CurrentRoundID: roundID,
 			LeaseSessionKey: lease.SessionKey, LeaseRoundID: lease.RoundID,
-			ContextKind: sourceContextType, ContextID: sourceContextID,
+			ContextKind: contextKind,
 			IsMainAgent: record.IsMain,
 		}
-		switch sourceContextType {
-		case "agent":
-			if sourceContextID != record.AgentID {
-				return nil
+		server := func() map[string]sdkmcp.ServerConfig {
+			return map[string]sdkmcp.ServerConfig{
+				managercontract.ServerName: sdkmcp.SDKServerConfig{
+					Name:     managercontract.ServerName,
+					Instance: managermcp.NewServer(svc, sctx),
+				},
 			}
-		case "room":
-			parsed := protocol.ParseSessionKey(sessionKey)
-			if sourceContextID == "" ||
-				!parsed.IsStructured ||
-				parsed.Kind != protocol.SessionKeyKindRoom ||
-				strings.TrimSpace(parsed.ConversationID) == "" {
-				return nil
-			}
+		}
+		if sourceContextType != contextKind {
+			return server()
+		}
+		if _, _, _, ok := trustedConfigurationPrincipal(ctx, record.OwnerUserID); !ok {
+			return server()
+		}
+		if contextKind == configurationsvc.ContextKindAgent && sourceContextID != agentID {
+			return server()
+		}
+		if contextKind == configurationsvc.ContextKindRoom && sourceContextID == "" {
+			return server()
+		}
+		if _, ok := trustedConfigurationRuntimeRoute(
+			agentID,
+			contextKind,
+			sessionKey,
+			roundID,
+			lease.SessionKey,
+			lease.RoundID,
+		); !ok {
+			return server()
+		}
+		sctx.ContextID = sourceContextID
+		if contextKind == configurationsvc.ContextKindRoom {
 			sctx.RoomID = sourceContextID
-			sctx.ConversationID = parsed.ConversationID
+			sctx.ConversationID = conversationID
 		}
-		return map[string]sdkmcp.ServerConfig{
-			managercontract.ServerName: sdkmcp.SDKServerConfig{
-				Name:     managercontract.ServerName,
-				Instance: managermcp.NewServer(svc, sctx),
-			},
-		}
+		return server()
 	}
 }
