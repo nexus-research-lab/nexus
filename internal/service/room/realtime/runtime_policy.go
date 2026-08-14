@@ -54,14 +54,9 @@ func roomRoundToolPolicy(round *activeRoomRound, agent *protocol.Agent) (allowed
 	return slices.Clone(agent.Options.AllowedTools), slices.Clone(agent.Options.DisallowedTools), false
 }
 
-func roomDisallowedTools(values []string, privateMessagesEnabled bool) []string {
-	// Deny is monotonic across Agent -> Room. Enabling a Room feature never
-	// removes an Agent-level deny, including the broad nexus_room family.
-	result := slices.Clone(values)
-	if !privateMessagesEnabled {
-		result = appendDistinctTools(result, roomSendDirectedMessageTool, roomPublishPublicMessageTool)
-	}
-	return result
+func roomDisallowedTools(values []string, _ bool) []string {
+	// Room 开关只影响逐次权限，不再通过 deny 列表改变 Session 工具面。
+	return slices.Clone(values)
 }
 
 func withRoomPermissionPolicy(
@@ -90,23 +85,6 @@ func withRoomPermissionPolicy(
 		}
 		return sdkpermission.Allow(request.Input, nil), nil
 	}
-}
-
-func appendDistinctTools(values []string, extra ...string) []string {
-	result := make([]string, 0, len(values)+len(extra))
-	seen := make(map[string]struct{}, len(values)+len(extra))
-	for _, value := range slices.Concat(values, extra) {
-		normalized := strings.TrimSpace(value)
-		if normalized == "" {
-			continue
-		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		result = append(result, normalized)
-	}
-	return result
 }
 
 func isPrivateMessageTool(toolName string) bool {

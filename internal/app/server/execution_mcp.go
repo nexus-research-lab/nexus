@@ -131,7 +131,10 @@ func resolveExecutionMCPServerContext(
 			snapshot, err = reader.GetCurrent(ctx, lookupActor)
 		}
 		if err != nil {
-			return executionmcpcontract.ServerContext{}, false
+			// 快照故障不得改变 Session 工具表；服务层仍会在
+			// 每次执行时重读真相源并拒绝未绑定权限。
+			serverContext.Role = orchestrationsvc.ExecutionActorMember
+			return serverContext, true
 		}
 		switch {
 		case snapshot != nil &&
@@ -143,13 +146,6 @@ func resolveExecutionMCPServerContext(
 			serverContext.Role = orchestrationsvc.ExecutionActorCoordinator
 		default:
 			serverContext.Role = orchestrationsvc.ExecutionActorMember
-		}
-		if serverContext.Role == orchestrationsvc.ExecutionActorMember &&
-			serverContext.WorkBinding == nil &&
-			serverContext.ReviewBinding == nil {
-			// 裸 @ / 用户定向消息只创建 conversation round。不给未绑定
-			// member 挂载 Execution MCP，避免工具面把聊天隐式升级成责任。
-			return executionmcpcontract.ServerContext{}, false
 		}
 	}
 	return serverContext, true

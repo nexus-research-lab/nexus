@@ -7,9 +7,25 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 type stubRoomMCPService struct{}
+
+type capturingRoomMCPService struct {
+	stubRoomMCPService
+	request protocol.CreateRoomDirectedMessageRequest
+}
+
+func (s *capturingRoomMCPService) HandleDirectedMessage(
+	_ context.Context,
+	_ string,
+	_ string,
+	request protocol.CreateRoomDirectedMessageRequest,
+) (*protocol.RoomDirectedMessageRecord, error) {
+	s.request = request
+	return &protocol.RoomDirectedMessageRecord{MessageID: "message-1"}, nil
+}
 
 func (stubRoomMCPService) HandleDirectedMessage(
 	context.Context,
@@ -72,6 +88,38 @@ func TestRoomMCPBuilderOnlyAddsServerForRoomRuntime(t *testing.T) {
 		"Agent",
 	); len(dmServers) != 0 {
 		t.Fatalf("非 Room runtime 不应注入 nexus_room: %+v", dmServers)
+	}
+}
+
+func TestRoomMCPBuilderCarriesPhysicalAgentRound(t *testing.T) {
+	svc := &capturingRoomMCPService{}
+	builder := newRoomMCPBuilder(svc, nil)
+	servers := builder(
+		runtimectx.WithMCPRoundLease(context.Background(), "runtime-session", "agent-round-1"),
+		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "user-1"},
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		"root-round-1",
+		"room",
+		"room-1",
+		"狼人杀",
+	)
+	config := servers["nexus_room"].(sdkmcp.SDKServerConfig)
+	if _, err := config.Instance.HandleMessage(context.Background(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/call",
+		"params": map[string]any{
+			"name": "send_directed_message",
+			"arguments": map[string]any{
+				"recipients": []any{"agent-2"},
+				"content":    "查验谁？",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("tools/call 失败: %v", err)
+	}
+	if svc.request.SourceAgentRoundID != "agent-round-1" {
+		t.Fatalf("physical agent round = %q, want agent-round-1", svc.request.SourceAgentRoundID)
 	}
 }
 

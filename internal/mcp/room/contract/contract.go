@@ -28,6 +28,7 @@ type ServerContext struct {
 	CurrentAgentID         string
 	CurrentSessionKey      string
 	CurrentRoundID         string
+	CurrentAgentRoundID    string
 	RoomID                 string
 	ConversationID         string
 	SourceContextType      string

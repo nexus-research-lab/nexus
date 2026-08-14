@@ -150,6 +150,7 @@ export interface ChatAckPendingSlot {
   msg_id: string;
   round_id?: string;
   handoff_id?: string;
+  hidden_from_user?: boolean;
   status: string;
   timestamp: number;
   index: number;

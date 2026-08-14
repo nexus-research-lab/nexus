@@ -33,6 +33,7 @@ func roomCommandID(
 		strings.TrimSpace(sctx.CurrentSessionKey),
 		strings.TrimSpace(sctx.ConversationID),
 		strings.TrimSpace(sctx.CurrentAgentID),
+		strings.TrimSpace(sctx.CurrentAgentRoundID),
 		strings.TrimSpace(sctx.CurrentRoundID),
 		strings.TrimSpace(toolName),
 		string(canonical),

@@ -91,9 +91,9 @@ principal、runtime session、round、Connector 和配置版本。
 轮询时间。完成、查询与取消都会重新校验 owner、主智能体身份、原始 round lease 和
 配置版本；Room、普通 Agent、过期批准或已结束 round 均不能复用该授权。
 
-## 7. 已连接 Connector 的运行时能力
+## 7. 显式挂载 Connector 的运行时能力
 
-已连接 Connector 通过 `nexus_connectors` MCP server 注入当前 owner 的 Agent runtime：
+只有 Agent 默认或当前 Session 显式选中的 Connector，才通过 `nexus_connectors` MCP server 注入当前 owner 的 Agent runtime：
 
 - `connector_list`：列出当前 owner 已连接的 Connector。
 - `connector_call`：向 Connector 的固定 API base URL 发起受控 REST 请求。
@@ -101,6 +101,7 @@ principal、runtime session、round、Connector 和配置版本。
 `connector_call` 由宿主添加认证头，调用方不能覆盖 `Authorization`。出站地址只允许
 Connector 声明的 base URL；生产环境使用 HTTPS，本地调试仅允许 loopback HTTP。
 响应大小和错误投影由宿主限制，凭据不会进入工具结果。
+选中后的工具 schema 不随短暂连接状态消失；未连接、凭据过期或刷新失败会在真实调用时显式返回错误。显式取消 Session/Agent 选择才会在下一轮卸载该 Connector 工具面。
 
 ## 8. 排障
 

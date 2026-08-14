@@ -170,9 +170,9 @@ func TestResolveExecutionMCPServerContextDerivesRoomRoleFromExecution(t *testing
 	}
 }
 
-func TestResolveExecutionMCPServerContextOmitsUnboundRoomMember(t *testing.T) {
+func TestResolveExecutionMCPServerContextKeepsUnboundRoomMemberSurface(t *testing.T) {
 	reader := &stubExecutionCurrentReader{}
-	_, ok := resolveExecutionMCPServerContext(
+	serverContext, ok := resolveExecutionMCPServerContext(
 		context.Background(),
 		reader,
 		runtimectx.ExecutionToolContext{
@@ -184,8 +184,9 @@ func TestResolveExecutionMCPServerContextOmitsUnboundRoomMember(t *testing.T) {
 			ConversationID:     "conversation-1",
 		},
 	)
-	if ok {
-		t.Fatal("unbound Room member conversation must not receive Execution MCP")
+	if !ok || serverContext.Role != orchestrationsvc.ExecutionActorMember ||
+		serverContext.WorkBinding != nil || serverContext.ReviewBinding != nil {
+		t.Fatalf("unbound Room member surface = %+v, ok=%t", serverContext, ok)
 	}
 }
 
@@ -208,9 +209,9 @@ func TestResolveExecutionMCPServerContextKeepsBootstrapCoordinator(t *testing.T)
 	}
 }
 
-func TestResolveExecutionMCPServerContextFailsClosedOnSnapshotError(t *testing.T) {
+func TestResolveExecutionMCPServerContextKeepsSurfaceOnSnapshotError(t *testing.T) {
 	reader := &stubExecutionCurrentReader{err: errors.New("database unavailable")}
-	_, ok := resolveExecutionMCPServerContext(
+	serverContext, ok := resolveExecutionMCPServerContext(
 		context.Background(),
 		reader,
 		runtimectx.ExecutionToolContext{
@@ -221,7 +222,7 @@ func TestResolveExecutionMCPServerContextFailsClosedOnSnapshotError(t *testing.T
 			ConversationID:    "conversation-1",
 		},
 	)
-	if ok {
-		t.Fatal("Room Execution MCP context should fail closed when role cannot be loaded")
+	if !ok || serverContext.Role != orchestrationsvc.ExecutionActorMember {
+		t.Fatalf("snapshot failure changed Execution surface: %+v, ok=%t", serverContext, ok)
 	}
 }

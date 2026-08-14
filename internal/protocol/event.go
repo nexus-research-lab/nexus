@@ -375,14 +375,15 @@ func NewRoundStatusErrorEvent(sessionKey string, roundID string, message string)
 // ChatAckPendingSlot 表示 chat_ack 中一个 agent slot 的占位信息。
 // RoundID 在跨多个 root 的权威快照中必填；普通单 root ACK 可沿用事件 round_id。
 type ChatAckPendingSlot struct {
-	AgentID      string `json:"agent_id"`
-	AgentRoundID string `json:"agent_round_id"`
-	MsgID        string `json:"msg_id"`
-	RoundID      string `json:"round_id,omitempty"`
-	HandoffID    string `json:"handoff_id,omitempty"`
-	Status       string `json:"status"`
-	Timestamp    int64  `json:"timestamp"`
-	Index        int    `json:"index"`
+	AgentID        string `json:"agent_id"`
+	AgentRoundID   string `json:"agent_round_id"`
+	MsgID          string `json:"msg_id"`
+	RoundID        string `json:"round_id,omitempty"`
+	HandoffID      string `json:"handoff_id,omitempty"`
+	HiddenFromUser bool   `json:"hidden_from_user,omitempty"`
+	Status         string `json:"status"`
+	Timestamp      int64  `json:"timestamp"`
+	Index          int    `json:"index"`
 }
 
 // NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id 由后端 mint，

@@ -35,6 +35,7 @@ export interface RoomPendingAgentSlotState {
   agent_id: string;
   agent_round_id: string;
   handoff_id?: string;
+  hidden_from_user?: boolean;
   msg_id: string;
   round_id: string;
   status: AssistantMessageStatus;
@@ -55,6 +56,7 @@ export interface RoomAgentExecutionState {
   display_order: number;
   first_seen_at: number;
   handoff_id?: string;
+  hidden_from_user?: boolean;
   phase: "pending_permission" | "acknowledged" | "active" | "terminal";
   round_id: string;
   status: AssistantMessageStatus;

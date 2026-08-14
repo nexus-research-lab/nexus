@@ -859,14 +859,15 @@ func addPublicMentionSlots(
 		)
 		activeRound.Slots[msgID] = slot
 		pending = append(pending, protocol.ChatAckPendingSlot{
-			AgentID:      pendingSlot.targetAgentID,
-			AgentRoundID: agentRoundID,
-			MsgID:        msgID,
-			RoundID:      roomRootRoundID(activeRound),
-			HandoffID:    strings.TrimSpace(pendingSlot.wake.HandoffID),
-			Status:       "pending",
-			Timestamp:    slot.TimestampMS,
-			Index:        slotIndex,
+			AgentID:        pendingSlot.targetAgentID,
+			AgentRoundID:   agentRoundID,
+			MsgID:          msgID,
+			RoundID:        roomRootRoundID(activeRound),
+			HandoffID:      strings.TrimSpace(pendingSlot.wake.HandoffID),
+			HiddenFromUser: roomSlotHiddenFromUser(slot),
+			Status:         "pending",
+			Timestamp:      slot.TimestampMS,
+			Index:          slotIndex,
 		})
 	}
 	return targetAgentIDs, pending
@@ -975,6 +976,10 @@ func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource 
 		return protocol.InputQueueSourceAgentRoomMessage
 	}
 	return protocol.InputQueueSourceAgentPublicMention
+}
+
+func roomSlotHiddenFromUser(slot *activeRoomSlot) bool {
+	return slot != nil && strings.TrimSpace(slot.Trigger.TriggerType) == roomDirectedMessageTriggerType
 }
 
 func roomWakeRoundID(wakes []publicMentionWake) string {

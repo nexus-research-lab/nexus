@@ -39,6 +39,9 @@ func (s *Service) HandleDirectedMessage(
 	if err != nil {
 		return nil, err
 	}
+	if s.roomDirectedReplyUsesAutomaticRoute(request.SourceAgentRoundID, *message) {
+		return nil, roomsvc.ErrDirectedReplyAutoRouted
+	}
 	if s.directedMessages == nil {
 		return nil, errors.New("room directed message store is not configured")
 	}
@@ -116,6 +119,38 @@ func (s *Service) HandleDirectedMessage(
 		)
 	}
 	return message, nil
+}
+
+func (s *Service) roomDirectedReplyUsesAutomaticRoute(
+	sourceAgentRoundID string,
+	message protocol.RoomDirectedMessageRecord,
+) bool {
+	sourceAgentRoundID = strings.TrimSpace(sourceAgentRoundID)
+	if sourceAgentRoundID == "" {
+		return false
+	}
+	for _, roundValue := range s.rounds.snapshotConversation(message.ConversationID) {
+		if roundValue == nil {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || strings.TrimSpace(slot.AgentRoundID) != sourceAgentRoundID ||
+				strings.TrimSpace(slot.AgentID) != strings.TrimSpace(message.SourceAgentID) ||
+				strings.TrimSpace(slot.replySourceMessage()) == "" {
+				continue
+			}
+			route := roomSlotReplyRoute(slot)
+			if route.Mode != protocol.RoomReplyRoutePrivate {
+				return false
+			}
+			expected := normalizeRoomDirectedMessageRecipients(route.Recipients)
+			actual := normalizeRoomDirectedMessageRecipients(message.Recipients)
+			slices.Sort(expected)
+			slices.Sort(actual)
+			return slices.Equal(expected, actual)
+		}
+	}
+	return false
 }
 
 func (s *Service) markActiveGoalCollaborationPending(

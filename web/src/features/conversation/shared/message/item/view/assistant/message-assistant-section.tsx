@@ -57,7 +57,7 @@ export function MessageAssistantSection({
               canStop={assistant.header.canStop}
               compact={compact}
               headerAction={assistantHeaderAction}
-              model={assistant.header.model}
+              model={assistant.model}
               name={currentAgentName}
               onOpenContact={openContact}
               onStop={assistant.header.stop}
@@ -102,9 +102,8 @@ export function MessageAssistantSection({
           </div>
 
           <AssistantFooter
-            activityShowCursor={assistant.activity.showCursor}
             footer={assistant.footer}
-            model={assistant.header.model}
+            model={assistant.model}
           />
         </div>
       </div>
@@ -139,11 +138,9 @@ function useOpenAgentContact(
 }
 
 function AssistantFooter({
-  activityShowCursor,
   footer,
   model,
 }: {
-  activityShowCursor: boolean;
   footer: AssistantFooterState;
   model?: string;
 }) {
@@ -157,7 +154,6 @@ function AssistantFooter({
       memories={footer.memories}
       onCopy={footer.onCopy}
       stats={footer.stats}
-      streaming={activityShowCursor}
       model={model}
     />
   );

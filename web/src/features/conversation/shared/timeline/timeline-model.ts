@@ -28,6 +28,12 @@ export interface ConversationTimeline {
   live_round_ids: string[];
 }
 
+export interface VisibleRoomTimelineEvidence {
+  executionStates: RoomAgentExecutionState[];
+  pendingPermissions: PendingPermission[];
+  pendingSlots: RoomPendingAgentSlotState[];
+}
+
 function groupByRound<T>(
   items: T[],
   getRoundId: (item: T) => string | null | undefined,
@@ -52,7 +58,107 @@ function groupByRound<T>(
 export function groupMessagesByRound(
   messages: Message[],
 ): Map<string, Message[]> {
-  return groupByRound(messages, (message) => message.round_id);
+  return groupByRound(
+    filterVisibleTimelineMessages(messages),
+    (message) => message.round_id,
+  );
+}
+
+/** 用户不可见消息在 canonical timeline 入口统一移除。 */
+export function filterVisibleTimelineMessages(
+  messages: Message[],
+): Message[] {
+  const visible = messages.filter(
+    (message) => message.hidden_from_user !== true,
+  );
+  return visible.length === messages.length ? messages : visible;
+}
+
+/**
+ * Room 私域执行仍参与宿主运行态，但不能进入公区 Feed、Thread 或导航。
+ * slot 与 execution 任一携带隐藏事实，都按精确 agent round 隐藏整组易失证据。
+ */
+export function projectVisibleRoomTimelineEvidence(
+  pendingSlots: RoomPendingAgentSlotState[],
+  pendingPermissions: PendingPermission[],
+  executionStates: RoomAgentExecutionState[],
+): VisibleRoomTimelineEvidence {
+  const hiddenAgentRounds = new Set<string>();
+  pendingSlots.forEach((slot) => {
+    if (slot.hidden_from_user === true) {
+      addRoomAgentRoundIdentity(
+        hiddenAgentRounds,
+        slot.agent_id,
+        slot.agent_round_id,
+      );
+    }
+  });
+  executionStates.forEach((state) => {
+    if (state.hidden_from_user === true) {
+      addRoomAgentRoundIdentity(
+        hiddenAgentRounds,
+        state.agent_id,
+        state.agent_round_id,
+      );
+    }
+  });
+  if (hiddenAgentRounds.size === 0) {
+    return { executionStates, pendingPermissions, pendingSlots };
+  }
+  return {
+    executionStates: executionStates.filter(
+      (state) => !hasRoomAgentRoundIdentity(
+        hiddenAgentRounds,
+        state.agent_id,
+        state.agent_round_id,
+      ),
+    ),
+    pendingPermissions: pendingPermissions.filter(
+      (permission) => !hasRoomAgentRoundIdentity(
+        hiddenAgentRounds,
+        permission.agent_id,
+        permission.agent_round_id,
+      ),
+    ),
+    pendingSlots: pendingSlots.filter(
+      (slot) => !hasRoomAgentRoundIdentity(
+        hiddenAgentRounds,
+        slot.agent_id,
+        slot.agent_round_id,
+      ),
+    ),
+  };
+}
+
+function addRoomAgentRoundIdentity(
+  identities: Set<string>,
+  agentId: string | null | undefined,
+  agentRoundId: string | null | undefined,
+): void {
+  const identity = buildRoomAgentRoundIdentity(agentId, agentRoundId);
+  if (identity) {
+    identities.add(identity);
+  }
+}
+
+function hasRoomAgentRoundIdentity(
+  identities: ReadonlySet<string>,
+  agentId: string | null | undefined,
+  agentRoundId: string | null | undefined,
+): boolean {
+  const identity = buildRoomAgentRoundIdentity(agentId, agentRoundId);
+  return Boolean(identity && identities.has(identity));
+}
+
+function buildRoomAgentRoundIdentity(
+  agentId: string | null | undefined,
+  agentRoundId: string | null | undefined,
+): string | null {
+  const normalizedAgentId = agentId?.trim();
+  const normalizedAgentRoundId = agentRoundId?.trim();
+  return normalizedAgentId && normalizedAgentRoundId
+    ? `${normalizedAgentId}\u001f${normalizedAgentRoundId}`
+    : null;
 }
 
 export function groupPendingPermissionsByRound(
@@ -71,6 +177,26 @@ export function groupRoomAgentExecutionStatesByRound(
   states: RoomAgentExecutionState[],
 ): Map<string, RoomAgentExecutionState[]> {
   return groupByRound(states, (state) => state.round_id);
+}
+
+/** 只保留已经具备公区消息或公区运行证据的 Room live round。 */
+export function filterVisibleRoomLiveRoundIds(
+  liveRoundIds: string[],
+  messageGroups: ReadonlyMap<string, readonly Message[]>,
+  pendingPermissionGroups: ReadonlyMap<string, readonly PendingPermission[]>,
+  pendingSlotGroups: ReadonlyMap<string, readonly RoomPendingAgentSlotState[]>,
+  executionStateGroups: ReadonlyMap<
+    string,
+    readonly RoomAgentExecutionState[]
+  >,
+): string[] {
+  const visible = liveRoundIds.filter((roundId) => (
+    messageGroups.has(roundId)
+    || pendingPermissionGroups.has(roundId)
+    || pendingSlotGroups.has(roundId)
+    || executionStateGroups.has(roundId)
+  ));
+  return visible.length === liveRoundIds.length ? liveRoundIds : visible;
 }
 
 /** 删除已被加载消息迁入其他根轮次的原始 round 索引。 */

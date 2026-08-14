@@ -46,7 +46,6 @@ export function AssistantMessageStats({
   model,
   onCopy,
   stats,
-  streaming,
 }: {
   copied: boolean;
   goalCompletionReceipt: GoalCompletionReceipt | null;
@@ -54,7 +53,6 @@ export function AssistantMessageStats({
   model?: string;
   onCopy?: () => Promise<void>;
   stats: AssistantFooterStats | null;
-  streaming: boolean;
 }) {
   const { locale, t } = useI18n();
   const statsItems = [
@@ -92,7 +90,6 @@ export function AssistantMessageStats({
               copied={copied}
               memories={memories}
               onCopy={onCopy}
-              streaming={streaming}
             />
           ) : null}
         </div>
@@ -137,7 +134,6 @@ export function AssistantMessageStats({
             copied={copied}
             memories={memories}
             onCopy={onCopy}
-            streaming={streaming}
           />
         </div>
       ) : null}
@@ -149,22 +145,11 @@ function AssistantStatsTrailing({
   copied,
   memories,
   onCopy,
-  streaming,
 }: {
   copied: boolean;
   memories: RecalledMemoryReference[];
   onCopy?: () => Promise<void>;
-  streaming: boolean;
 }) {
-  if (streaming) {
-    return (
-      <span
-        aria-hidden="true"
-        className="ml-auto inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-(--text-soft) opacity-70"
-      />
-    );
-  }
-
   return (
     <div className="ml-auto flex h-6 shrink-0 items-center gap-0.5">
       {memories.length > 0 ? (

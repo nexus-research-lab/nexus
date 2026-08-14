@@ -3483,7 +3483,7 @@ test("DM live and terminal keep the final response on one content surface", asyn
   );
 });
 
-test("Goal 完成收据只在 assistant 真正终态后打开 footer", async () => {
+test("Assistant 结果元数据只在 execution 真正终态后展示", async () => {
   const { resolveAssistantDisplayState } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/display/message-item-display-model.ts",
   );
@@ -3496,24 +3496,37 @@ test("Goal 完成收据只在 assistant 真正终态后打开 footer", async () 
     goalCompletionReceipt: { goal_id: "goal-hidden", round_id: "round-hidden" },
     liveActivityState: null,
     mergedContent: [{ type: "text", text: "最终交付" }],
+    model: "glm-5.2",
     pendingInteractionPermissions: [],
     processProjection: { content: [] },
     resultSummary: null,
-    stats: null,
+    stats: { duration: "1.0s" },
     streamStatus,
     streamingBlockIndexes: new Set(),
   });
-  const resolve = (streamStatus) => resolveAssistantDisplayState({
+  const resolve = (
+    streamStatus,
+    isLoading = streamStatus !== "done",
+  ) => resolveAssistantDisplayState({
     assistantContentMode: "dm_archived",
     hasStopHandler: false,
     isLastRound: true,
-    isLoading: streamStatus !== "done",
+    isLoading,
     pendingPermissionCount: 0,
     projection: projection(streamStatus),
   });
 
-  assert.equal(resolve("streaming").footerVisible, false);
-  assert.equal(resolve("done").footerVisible, true);
+  const streaming = resolve("streaming");
+  assert.equal(streaming.footerVisible, false);
+  assert.equal(streaming.resultModel, undefined);
+
+  const continuingRoomExecution = resolve("done", true);
+  assert.equal(continuingRoomExecution.footerVisible, false);
+  assert.equal(continuingRoomExecution.resultModel, undefined);
+
+  const terminal = resolve("done", false);
+  assert.equal(terminal.footerVisible, true);
+  assert.equal(terminal.resultModel, "glm-5.2");
 });
 
 test("迟到历史用 Goal 完成收据推进同一 assistant 快照", async () => {
@@ -3978,86 +3991,54 @@ test("Room Thread inspector keeps process without repeating the public reply", a
 });
 
 test("Room no-reply stays out of the public feed", async () => {
-  const { GroupAgentReply } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/thread/round-card/group-agent-reply.tsx",
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
   );
-  const { ThreadControlContext } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/thread/group-thread-state.ts",
-  );
-  const { I18nProvider } = await server.ssrLoadModule(
-    "/src/shared/i18n/i18n-provider.tsx",
-  );
-  const entry = {
-    agentAvatar: null,
-    agent_id: "agent-lucy",
-    agentName: "Lucy",
-    agent_round_id: "agent-round-lucy",
-    assistant_messages: [{
-      ...assistantMessage({
-        agentId: "agent-lucy",
-        agentRoundId: "agent-round-lucy",
-        messageId: "assistant-lucy",
-        model: "glm-4.7",
-        resultSummary: {
-          duration_api_ms: 10,
-          duration_ms: 100,
-          is_error: false,
-          num_turns: 1,
-          result: "<nexus_room_no_reply/>",
-          subtype: "success",
-          timestamp: 2,
-        },
-        status: "done",
-        timestamp: 2,
-      }),
-      content: [{
-        thinking: "仅供 Thread 查看",
-        type: "thinking",
-      }],
-    }],
-    entry_id: "agent-lucy:agent-round-lucy",
-    guidedUserMessages: [],
-    pendingPermissions: [],
-    pending_slot: null,
-    result_summary: {
-      duration_api_ms: 10,
-      duration_ms: 100,
-      is_error: false,
-      num_turns: 1,
-      result: "<nexus_room_no_reply/>",
-      subtype: "success",
-      timestamp: 2,
-    },
-    status: "done",
-    stopAgentRoundId: null,
+  const roundId = "round-root";
+  const rootUser = userMessage({
+    content: "继续协作",
+    messageId: "user-root",
+    roundId,
+    timestamp: 1,
+  });
+  const resultSummary = {
+    duration_api_ms: 10,
+    duration_ms: 100,
+    is_error: false,
+    num_turns: 1,
+    result: "<nexus_room_no_reply/>",
+    subtype: "success",
     timestamp: 2,
   };
-  const html = renderToStaticMarkup(
-    React.createElement(
-      I18nProvider,
-      null,
-      React.createElement(
-        ThreadControlContext.Provider,
-        {
-          value: {
-            activeThread: null,
-            closeThread: () => {},
-            openThread: () => {},
-          },
-        },
-        React.createElement(GroupAgentReply, {
-          agentMentionDirectory: { avatars: {}, names: {} },
-          entry,
-          isThreadActive: false,
-          onClickThread: () => {},
-          onPermissionResponse: () => true,
-          roundId: "round-root",
-        }),
-      ),
-    ),
-  );
+  const assistant = {
+    ...assistantMessage({
+      agentId: "agent-lucy",
+      agentRoundId: "agent-round-lucy",
+      messageId: "assistant-lucy",
+      model: "glm-4.7",
+      resultSummary,
+      roundId,
+      status: "done",
+      timestamp: 2,
+    }),
+    content: [{
+      thinking: "仅供 Thread 查看",
+      type: "thinking",
+    }],
+  };
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([[roundId, [rootUser, assistant]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: [roundId],
+  });
 
-  assert.equal(html, "", "no-reply 是内部控制结果，不应生成公区卡片");
+  assert.deepEqual(projection.roundIds, [roundId]);
+  assert.deepEqual(
+    projection.messageGroups.get(roundId)?.map((message) => message.message_id),
+    [rootUser.message_id],
+    "no-reply 是内部控制结果，不应生成公区 Agent 节点或空壳",
+  );
 });
 
 test("consumed Room guide update moves beside its running assistant", async () => {
@@ -6202,6 +6183,106 @@ test("Room Assistant turn completion keeps its Agent execution active", async ()
     )[0]?.status,
     "streaming",
     "a completed tool-use message is not the terminal state of its agent_round",
+  );
+});
+
+test("canonical timeline hides private Room execution evidence", async () => {
+  const {
+    buildRoomAgentRoundEntries,
+    hasRoomAgentRoundEntries,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const { syncRoomAgentExecutionsFromSlots } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const {
+    filterVisibleRoomLiveRoundIds,
+    filterVisibleTimelineMessages,
+    groupMessagesByRound,
+    groupPendingPermissionsByRound,
+    groupPendingSlotsByRound,
+    groupRoomAgentExecutionStatesByRound,
+    projectVisibleRoomTimelineEvidence,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/timeline-model.ts",
+  );
+  const privateRoundId = "root-round";
+  const privateSlot = {
+    agent_id: "agent-witch",
+    agent_round_id: "agent-round-witch",
+    hidden_from_user: true,
+    index: 0,
+    msg_id: "slot-witch",
+    round_id: privateRoundId,
+    status: "streaming",
+    timestamp: 1,
+  };
+  const [privateExecution] = syncRoomAgentExecutionsFromSlots([], [privateSlot]);
+  assert.equal(privateExecution.hidden_from_user, true);
+  const privatePermission = {
+    agent_id: privateSlot.agent_id,
+    agent_round_id: privateSlot.agent_round_id,
+    request_id: "permission-witch",
+    round_id: privateRoundId,
+    tool_input: {},
+    tool_name: "Read",
+  };
+  const privateEvidence = projectVisibleRoomTimelineEvidence(
+    [privateSlot],
+    [privatePermission],
+    [privateExecution],
+  );
+
+  assert.deepEqual(privateEvidence.pendingSlots, []);
+  assert.deepEqual(privateEvidence.pendingPermissions, []);
+  assert.deepEqual(privateEvidence.executionStates, []);
+  assert.deepEqual(
+    filterVisibleRoomLiveRoundIds(
+      [privateRoundId],
+      groupMessagesByRound([]),
+      groupPendingPermissionsByRound(privateEvidence.pendingPermissions),
+      groupPendingSlotsByRound(privateEvidence.pendingSlots),
+      groupRoomAgentExecutionStatesByRound(privateEvidence.executionStates),
+    ),
+    [],
+    "只有私域证据的物理 round 不应进入公区时间线",
+  );
+  assert.equal(hasRoomAgentRoundEntries([], [], [], []), false);
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      [],
+      privateEvidence.pendingSlots,
+      privateEvidence.pendingPermissions,
+      privateEvidence.executionStates,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    filterVisibleTimelineMessages([
+      { message_id: "private", hidden_from_user: true },
+      { message_id: "public" },
+    ]).map((message) => message.message_id),
+    ["public"],
+  );
+
+  const publicSlot = {
+    ...privateSlot,
+    hidden_from_user: false,
+  };
+  const publicEvidence = projectVisibleRoomTimelineEvidence(
+    [publicSlot],
+    [],
+    syncRoomAgentExecutionsFromSlots([], [publicSlot]),
+  );
+  assert.equal(
+    buildRoomAgentRoundEntries(
+      [],
+      publicEvidence.pendingSlots,
+      publicEvidence.pendingPermissions,
+      publicEvidence.executionStates,
+    ).length,
+    1,
   );
 });
 

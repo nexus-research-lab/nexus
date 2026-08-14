@@ -1868,6 +1868,26 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 			roundValue.RootRoundID,
 		)
 	}
+	if roomSlotHiddenFromUser(slot) {
+		t.Fatal("公区 @ slot 不应隐藏")
+	}
+	privateSlot := buildPublicMentionSlot(
+		roundValue,
+		contextValue,
+		protocol.SessionRecord{ID: "session-devin"},
+		&protocol.Agent{AgentID: "agent-devin", WorkspacePath: t.TempDir()},
+		publicMentionWake{
+			TriggerType:   roomDirectedMessageTriggerType,
+			TargetAgentID: "agent-devin",
+			Content:       "只在私域消费",
+		},
+		"round-private",
+		"message-slot-private",
+		0,
+	)
+	if !roomSlotHiddenFromUser(privateSlot) {
+		t.Fatal("私域 directed-message slot 应显式隐藏")
+	}
 }
 
 func TestSetRoomDisplayOrderKeepsSlotStartAcrossCompletion(t *testing.T) {

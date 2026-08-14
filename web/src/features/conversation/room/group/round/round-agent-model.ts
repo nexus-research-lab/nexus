@@ -17,6 +17,7 @@ import type {
 import {
   extractTextFromContentBlocks,
 } from "@/features/conversation/shared/message/message-content-model";
+import { isVisibleRoomAgentExecutionState } from "@/hooks/agent/runtime/model/room-agent-execution-state";
 
 export type AgentRoundStatus = AssistantMessageStatus;
 
@@ -73,12 +74,6 @@ const TERMINAL_STATUS_PRIORITY: Partial<Record<AgentRoundStatus, number>> = {
   error: 3,
 };
 const ROOM_DISPLAY_ORDER_SCALE = 1_000;
-
-function isVisibleRoomAgentExecutionState(
-  state: RoomAgentExecutionState,
-): boolean {
-  return state.phase !== "pending_permission";
-}
 
 export function hasRoomAgentRoundEntries(
   messages: Message[],

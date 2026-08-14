@@ -129,18 +129,27 @@ func TestChannelAuthorizationMCPBuilderBindsOwnerMainPrivateDM(t *testing.T) {
 		t.Fatalf("Channel authorization Actor not fully bound: %+v", actor)
 	}
 
+	roomServers := builder(
+		ctx,
+		&protocol.Agent{AgentID: "nexus"},
+		sessionKey,
+		"round-a",
+		"room",
+		"room-a",
+		"",
+		nil,
+		sdkpermission.ModeDefault,
+	)
+	roomConfig, ok := roomServers[channelauthorizationcontract.ServerName].(sdkmcp.SDKServerConfig)
+	if !ok || roomConfig.Instance == nil {
+		t.Fatalf("same Session lost Channel authorization surface: %+v", roomServers)
+	}
+	callChannelAuthorizationStatus(t, roomConfig, ctx)
+	if service.lastActor.AuthMethod != "" || service.lastActor.AuthSessionID != "" {
+		t.Fatalf("non-user round received Channel authorization authority: %+v", service.lastActor)
+	}
+
 	for name, denied := range map[string]map[string]sdkmcp.ServerConfig{
-		"room": builder(
-			ctx,
-			&protocol.Agent{AgentID: "nexus"},
-			sessionKey,
-			"round-a",
-			"room",
-			"room-a",
-			"",
-			nil,
-			sdkpermission.ModeDefault,
-		),
 		"ordinary": newChannelAuthorizationMCPBuilder(
 			service,
 			stubConfigurationAgentResolver{record: &protocol.Agent{
@@ -174,5 +183,29 @@ func TestChannelAuthorizationMCPBuilderBindsOwnerMainPrivateDM(t *testing.T) {
 				t.Fatalf("unauthorized context received Channel authorization MCP: %+v", denied)
 			}
 		})
+	}
+}
+
+func callChannelAuthorizationStatus(
+	t *testing.T,
+	config sdkmcp.SDKServerConfig,
+	ctx context.Context,
+) {
+	t.Helper()
+	response, err := config.Instance.HandleMessage(ctx, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      2,
+		"method":  "tools/call",
+		"params": map[string]any{
+			"name":      "get_nexus_channel_authorization",
+			"arguments": map[string]any{"flow_id": "channel_authorization-safe"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, _ := response["result"].(map[string]any)
+	if result == nil || result["isError"] == true {
+		t.Fatalf("status response = %+v", response)
 	}
 }

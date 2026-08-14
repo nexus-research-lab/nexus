@@ -27,6 +27,35 @@ func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usa
 	return nil
 }
 
+func TestRoomDirectedReplyUsesAutomaticRoute(t *testing.T) {
+	const conversationID = "conversation-directed-reply-route"
+	slot := &activeRoomSlot{AgentID: "worker", AgentRoundID: "agent-round-1"}
+	slot.setDeliveryMetadata(protocol.RoomReplyRoute{
+		Mode:       protocol.RoomReplyRoutePrivate,
+		Recipients: []string{"host"},
+	}, "question-1", "")
+	service := &Service{rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+		"round-1": {
+			SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
+			ConversationID: conversationID,
+			RoundID:        "round-1",
+			Slots:          map[string]*activeRoomSlot{"slot-1": slot},
+		},
+	})}
+	message := protocol.RoomDirectedMessageRecord{
+		ConversationID: conversationID,
+		SourceAgentID:  "worker",
+		Recipients:     []string{"host"},
+	}
+	if !service.roomDirectedReplyUsesAutomaticRoute("agent-round-1", message) {
+		t.Fatal("当前私域回复应交给 runtime reply_route")
+	}
+	message.Recipients = []string{"other"}
+	if service.roomDirectedReplyUsesAutomaticRoute("agent-round-1", message) {
+		t.Fatal("发给其他成员的私域消息不应被自动回复路由拦截")
+	}
+}
+
 type permissionModeTestClient struct {
 	modes           []sdkpermission.Mode
 	modeErr         error

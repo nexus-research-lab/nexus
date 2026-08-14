@@ -2018,7 +2018,6 @@ test("Goal 完成收据只展示已知结算项且不泄露内部绑定 ID", asy
       copied: false,
       goalCompletionReceipt: receipt,
       stats: null,
-      streaming: false,
     }),
     locale,
   );

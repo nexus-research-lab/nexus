@@ -46,7 +46,7 @@ func replyModeSchema(sctx contract.ServerContext) map[string]any {
 			channel,
 			chatType,
 		)
-	} else if hasMainAgentScopeAuthority(sctx) {
+	} else if hasMainAgentSchema(sctx) {
 		modes = append(modes, "channel")
 		description += " / channel=投递到显式 IM/外部通道目标"
 	}
@@ -81,7 +81,7 @@ func createSchema(sctx contract.ServerContext) map[string]any {
 }
 
 func addAdvancedRoutingSchema(properties map[string]any, sctx contract.ServerContext) {
-	if properties == nil || !hasMainAgentScopeAuthority(sctx) {
+	if properties == nil || !hasMainAgentSchema(sctx) {
 		return
 	}
 	properties["execution_mode"] = executionModeSchema
@@ -93,9 +93,14 @@ func addAdvancedRoutingSchema(properties map[string]any, sctx contract.ServerCon
 }
 
 func addExplicitChannelTargetSchema(properties map[string]any, sctx contract.ServerContext) {
-	if properties != nil && hasMainAgentScopeAuthority(sctx) {
+	if properties != nil && hasMainAgentSchema(sctx) {
 		properties["reply_session_key"] = map[string]any{"type": "string", "description": "reply_mode=channel 时填写已存在、结构化且已授权的 IM/session key"}
 	}
+}
+
+func hasMainAgentSchema(sctx contract.ServerContext) bool {
+	return sctx.IsMainAgent &&
+		(sctx.StableInteractiveSurface || strings.TrimSpace(sctx.SourceContextType) == "agent")
 }
 
 func currentExternalIMSummary(sctx contract.ServerContext) (string, string, bool) {

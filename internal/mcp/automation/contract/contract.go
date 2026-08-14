@@ -25,13 +25,16 @@ type ServerContext struct {
 	CurrentSessionLabel string
 	// SourceContextType 的 "agent"/"room" 与经过实时 pairing 复核的
 	// "agent_paired" 表示可信交互上下文；其他带 channel/external/
-	// automation/queue/internal 等后缀的来源只能获得只读工具。
+	// automation/queue/internal 等后缀的来源只能获得只读执行权限。
 	// 该字段也影响 reply_mode=execution 的解析。
 	SourceContextType string
 	// SourceContextID/Label 对齐前端任务来源快照，用于让 Agent 创建的 Room 任务
 	// 后续仍能在任务管理 UI 里按 Room 维度编辑。
 	SourceContextID    string
 	SourceContextLabel string
+	// StableInteractiveSurface 只决定当前 Session 的工具表；真实
+	// mutation 权限仍只由 SourceContextType 在每次调用时判定。
+	StableInteractiveSurface bool
 	// IsMainAgent 只由应用层为主智能体自己的可信私有 DM 签发。该上下文可在
 	// owner scope 内跨 Agent 管理；Room、外部和后台来源即使运行主智能体也必须为 false。
 	IsMainAgent bool

@@ -243,6 +243,10 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 
 ## 热重载与撤权
 
+每个活跃 Nexus Session 先按不随轮次变化的拓扑和显式选择确定 MCP 工具面。用户输入、内部唤醒、私域回传、Room host/member 角色、WorkBinding/ReviewBinding、Goal authority 和通讯开关只改变当轮执行权限，不卸载工具 schema。无权轮次不签发可信 `ContextID`、human principal 或执行绑定，真实工具调用仍在 service 真相源上 fail closed。
+
+正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮热更新。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
+
 “热重载”不是一个模糊布尔值。不同配置按安全要求和 runtime 生命周期分级：
 
 | 变更 | 持久化后生效 | 活跃执行处理 |
@@ -250,7 +254,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 | 初始化 owner / 启用服务端认证 | admission gate 完成撤销后原子提交；后续启动按 `NEXUS_RUNTIME_ISOLATION_MODE` 选择隔离模式 | 阻断新启动，取消并排空在途 DM/Room/AutoDream admission，关闭 system owner 的既有 session/round；任一步失败都不提交认证 |
 | Agent 名称、头像、描述、标签 | UI/目录立即；prompt 下一轮 | 当前输出保持本轮身份快照 |
 | Agent `permission_mode` | 当前 DM 与 Room runtime 立即同步 | 后续工具授权立刻使用新模式 |
-| Agent Provider/model、运行上限、tools、Skills、MCP | 下一轮重建 client options | 不在半轮中替换模型或工具表 |
+| Agent Provider/model、运行上限、tools、Skills、MCP | 下一轮重建 client options；显式 MCP 修改才更新 Session 工具面 | 不在半轮中替换模型或工具表 |
 | Provider 主配置、模型卡、默认选择、测试状态 | Provider 目录和检查立即；引用它的 Agent 下一轮重建 client options | 当前 round 保持已捕获的 Provider 配置；写后要求聚合版本精确 `+1` |
 | 强制删除使用中的 Provider | 保留显式绑定并使不可用选择动态回退 | 当前 round 不切换；下一轮采用 owner 默认模型，Provider 恢复后可自动切回 |
 | WebSearch 凭据/设置 | 活跃 nxs runtime 立即同步 | 同步失败仅在 version 仍等于本次写入时回滚；若已有后续写入则保留新状态并报告 reconcile |
@@ -267,8 +271,8 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 | Room 名称、标题、头像、描述 | Room UI/目录立即；稳定 prompt 下一轮 | 当前 round 使用已捕获的展示快照 |
 | Room Skill | 下一轮稳定 prompt | 不在半轮中替换协作规则文本 |
 | `host_auto_reply_enabled` | 下一条输入路由 | 当前已派发 slot 不改目标 |
-| `private_messages_enabled=false` | 服务层立即撤销 | 每次私域工具调用重新读库，旧 prompt 也无法绕过 |
-| `private_messages_enabled=true` | 服务层允许立即；工具/prompt 下一轮完整出现 | 当前 client 不动态改工具表 |
+| `private_messages_enabled=false` | 服务层立即撤销，工具 schema 保留 | 每次私域工具调用重新读库，旧 prompt 也无法绕过 |
+| `private_messages_enabled=true` | 服务层立即允许，工具 schema 不变 | 当前 client 不动态改工具表 |
 | 添加 Room 成员 | 成员目录与后续路由立即 | 新成员从后续输入开始获得 slot |
 | 移除 Room 成员 | 权限立即撤销并中断活跃任务 | 最终输出前再验成员关系，旧 runtime 在途结果不能落库 |
 | 暂停/恢复 Room 成员参与 | Room CAS 与 authority epoch 立即推进；暂停中断活跃任务，恢复重启待办调度 | 最终输出前同时复核 epoch、成员关系和 participation gate |
@@ -333,7 +337,7 @@ workspace 与 scope mode 都由宿主固定，Hook 拒绝环境变量或命令�
 - stdio、HTTP 和 SSE 配置在进入 runtime 前严格解析；未知类型、SDK 内部 server、`nexus_*` 保留名和内置 server 冲突会被拒绝。
 - 修改后的 MCP 配置从下一轮生效，当前半轮不会动态替换工具集合。
 
-应用市场 Connector 不写入自由格式 `mcp_servers`。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。运行时只加载选择项与 owner 当前有效授权的交集，未选择或已断开的 Connector 不注入工具定义，也不能被通用 Connector 调用入口绕过。
+应用市场 Connector 不写入自由格式 `mcp_servers`。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。显式选择决定 `nexus_connectors` 的 Session 工具面；短暂未连接或凭据不可用时保留工具定义，真实调用返回“未连接”或具体认证错误。未选择的 Connector 不注入工具定义，也不能被通用 Connector 调用入口绕过；需要凭据才能构造的第三方远程 MCP 仍只在授权快照可用时建立连接。
 
 ## 工具与审计
 

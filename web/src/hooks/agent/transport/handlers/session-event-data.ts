@@ -332,6 +332,12 @@ function isChatAckPendingSlot(
   )) {
     return false;
   }
+  if (
+    record.hidden_from_user !== undefined
+    && typeof record.hidden_from_user !== "boolean"
+  ) {
+    return false;
+  }
   return Boolean(
     status
     && hasNonEmptyStringFields(record, CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS)

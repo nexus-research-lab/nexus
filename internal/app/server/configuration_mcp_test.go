@@ -50,7 +50,7 @@ func (*stubConfigurationService) ListChanges(
 	return nil, nil
 }
 
-func TestConfigurationMCPBuilderInjectsOnlyTrustedInteractiveScopes(t *testing.T) {
+func TestConfigurationMCPBuilderKeepsSessionSurfaceAndSignsOnlyTrustedRounds(t *testing.T) {
 	service := &stubConfigurationService{}
 	mainSession := protocol.BuildAgentSessionKey(
 		"nexus", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "main", "",
@@ -141,11 +141,14 @@ func TestConfigurationMCPBuilderInjectsOnlyTrustedInteractiveScopes(t *testing.T
 			UserID: "another-owner", AuthMethod: authctx.AuthMethodPassword, SessionID: "sess-other",
 		},
 	)
-	if servers = workerBuilder(
+	servers = workerBuilder(
 		crossOwnerQueueContext, worker,
 		workerSession, "round-queued", "agent", "worker", "", nil, sdkpermission.ModeDefault,
-	); len(servers) != 0 {
-		t.Fatalf("cross-owner queued principal binding must fail closed: %+v", servers)
+	)
+	config = requireConfigurationSDKServer(t, servers)
+	callConfigurationInspect(t, config)
+	if service.lastActor.ContextID != "" || service.lastActor.AuthMethod != "" {
+		t.Fatalf("cross-owner queue received configuration authority: %+v", service.lastActor)
 	}
 	roomBusinessSession := protocol.BuildRoomSharedSessionKey("conv-a")
 	roomLeaseSession := protocol.BuildRoomAgentSessionKey(
@@ -179,11 +182,14 @@ func TestConfigurationMCPBuilderInjectsOnlyTrustedInteractiveScopes(t *testing.T
 		),
 		"round-worker",
 	)
-	if servers = workerBuilder(
+	servers = workerBuilder(
 		swappedDMLease, worker,
 		workerSession, "round-worker", "agent", "worker", "", nil, sdkpermission.ModeDefault,
-	); len(servers) != 0 {
-		t.Fatalf("DM business session must not borrow another runtime lease: %+v", servers)
+	)
+	config = requireConfigurationSDKServer(t, servers)
+	callConfigurationInspect(t, config)
+	if service.lastActor.ContextID != "" {
+		t.Fatalf("DM business session borrowed another runtime lease: %+v", service.lastActor)
 	}
 	swappedRoomLease := runtimectx.WithMCPRoundLease(
 		memberContext,
@@ -192,11 +198,14 @@ func TestConfigurationMCPBuilderInjectsOnlyTrustedInteractiveScopes(t *testing.T
 		),
 		"agent-round-worker",
 	)
-	if servers = workerBuilder(
+	servers = workerBuilder(
 		swappedRoomLease, worker,
 		roomBusinessSession, "root-round", "room", "room-a", "", nil, sdkpermission.ModeDefault,
-	); len(servers) != 0 {
-		t.Fatalf("Room business session must not borrow another Agent slot: %+v", servers)
+	)
+	config = requireConfigurationSDKServer(t, servers)
+	callConfigurationInspect(t, config)
+	if service.lastActor.ContextID != "" || service.lastActor.RoomID != "" {
+		t.Fatalf("Room business session borrowed another Agent slot: %+v", service.lastActor)
 	}
 	for _, missingContext := range []struct {
 		contextType string
@@ -218,29 +227,52 @@ func TestConfigurationMCPBuilderInjectsOnlyTrustedInteractiveScopes(t *testing.T
 			)
 		}
 	}
-	for _, contextType := range []string{"agent_internal", "agent_external", "room_internal", "unknown"} {
-		if servers = workerBuilder(
-			workerDMContext, worker,
-			"session", "round", contextType, "worker", "", nil, sdkpermission.ModeDefault,
-		); len(servers) != 0 {
-			t.Fatalf("%s must not receive persistent configuration capability: %+v", contextType, servers)
-		}
+	for _, test := range []struct {
+		name       string
+		ctx        context.Context
+		sessionKey string
+		roundID    string
+		sourceType string
+		sourceID   string
+	}{
+		{name: "agent internal", ctx: workerDMContext, sessionKey: workerSession, roundID: "round-worker", sourceType: "agent_internal", sourceID: "worker"},
+		{name: "agent external reply", ctx: workerDMContext, sessionKey: workerSession, roundID: "round-worker", sourceType: "agent_external", sourceID: "worker"},
+		{name: "room internal", ctx: roomContext, sessionKey: roomBusinessSession, roundID: "root-round", sourceType: "room_internal", sourceID: "room-a"},
+		{name: "unknown round", ctx: workerDMContext, sessionKey: workerSession, roundID: "round-worker", sourceType: "unknown", sourceID: "worker"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stableServers := workerBuilder(
+				test.ctx, worker, test.sessionKey, test.roundID,
+				test.sourceType, test.sourceID, "", nil, sdkpermission.ModeDefault,
+			)
+			stableConfig := requireConfigurationSDKServer(t, stableServers)
+			callConfigurationInspect(t, stableConfig)
+			if service.lastActor.ContextID != "" || service.lastActor.RoomID != "" {
+				t.Fatalf("non-user round received configuration authority: %+v", service.lastActor)
+			}
+		})
 	}
-	if servers = workerBuilder(
-		runtimectx.WithMCPRoundLease(context.Background(), "session", "round"), worker,
-		"session", "round", "agent", "worker", "", nil, sdkpermission.ModeDefault,
-	); len(servers) != 0 {
-		t.Fatalf("missing authenticated principal must fail closed: %+v", servers)
+	servers = workerBuilder(
+		runtimectx.WithMCPRoundLease(context.Background(), workerSession, "round-worker"), worker,
+		workerSession, "round-worker", "agent", "worker", "", nil, sdkpermission.ModeDefault,
+	)
+	config = requireConfigurationSDKServer(t, servers)
+	callConfigurationInspect(t, config)
+	if service.lastActor.ContextID != "" || service.lastActor.AuthMethod != "" {
+		t.Fatalf("missing principal received configuration authority: %+v", service.lastActor)
 	}
 	mismatched := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID: "another-owner", Role: authctx.RoleOwner, AuthMethod: authctx.AuthMethodPassword,
 	})
-	mismatched = runtimectx.WithMCPRoundLease(mismatched, "session", "round")
-	if servers = workerBuilder(
+	mismatched = runtimectx.WithMCPRoundLease(mismatched, workerSession, "round-worker")
+	servers = workerBuilder(
 		mismatched, worker,
-		"session", "round", "agent", "worker", "", nil, sdkpermission.ModeDefault,
-	); len(servers) != 0 {
-		t.Fatalf("principal/Agent owner mismatch must fail closed: %+v", servers)
+		workerSession, "round-worker", "agent", "worker", "", nil, sdkpermission.ModeDefault,
+	)
+	config = requireConfigurationSDKServer(t, servers)
+	callConfigurationInspect(t, config)
+	if service.lastActor.ContextID != "" || service.lastActor.AuthMethod != "" {
+		t.Fatalf("mismatched principal received configuration authority: %+v", service.lastActor)
 	}
 	if servers = workerBuilder(
 		memberContext, worker,
@@ -248,6 +280,18 @@ func TestConfigurationMCPBuilderInjectsOnlyTrustedInteractiveScopes(t *testing.T
 	); len(servers) != 0 {
 		t.Fatalf("missing runtime lease must fail closed: %+v", servers)
 	}
+}
+
+func requireConfigurationSDKServer(
+	t *testing.T,
+	servers map[string]sdkmcp.ServerConfig,
+) sdkmcp.SDKServerConfig {
+	t.Helper()
+	config, ok := servers[configurationcontract.ServerName].(sdkmcp.SDKServerConfig)
+	if !ok || config.Instance == nil {
+		t.Fatalf("missing %s SDK server: %+v", configurationcontract.ServerName, servers)
+	}
+	return config
 }
 
 func callConfigurationInspect(t *testing.T, config sdkmcp.SDKServerConfig) {
