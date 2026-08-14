@@ -5,7 +5,7 @@
 当前形态：
 
 - SwiftPM 可执行程序，使用 AppKit + WKWebView。
-- 开发模式下从仓库根目录启动 `go run ./cmd/nexus-server`。
+- 开发模式下从仓库根目录启动 `go run ./cmd/nexus-server`；启动前会校验 `web/dist` 不早于 Web 源码、入口和构建配置，避免误跑旧前端。
 - Bundle 模式下从 `.app/Contents/MacOS/nexus-server` 启动 Go sidecar，并优先使用 `.app/Contents/Resources/bin/nxs` 作为 `nxs` runtime。
 - Shell 自动分配 loopback 随机端口。
 - Sidecar 通过 `WEB_DIST_DIR` 托管 `web/dist`，WebView 访问同源 `http://127.0.0.1:<port>/`。
@@ -44,7 +44,7 @@ scripts/desktop/smoke-macos-app.sh
 scripts/desktop/package-macos-app.sh
 ```
 
-`run-macos-dev.sh` 会先构建前端，再启动 Swift shell。首次启动会初始化桌面专用 SQLite 数据库。
+`run-macos-dev.sh` 会先构建前端，再启动 Swift shell。直接运行 Swift shell 时若 `web/dist` 缺失或已过期，启动会明确失败并提示执行 `make app-run-dev`；正式 `.app` 内的打包资源不参与该开发态时效校验。首次启动会初始化桌面专用 SQLite 数据库。
 `generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。

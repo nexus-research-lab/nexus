@@ -56,6 +56,7 @@ export interface ComposerDraftController {
   failGoalSubmission: (
     submission: ComposerGoalSubmission,
     errorMessage: string,
+    confirmationIdentity?: ComposerGoalConfirmationIdentity | null,
   ) => boolean;
   markGoalSubmissionConfirming: (
     submission: ComposerGoalSubmission,
