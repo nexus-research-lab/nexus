@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Collapsed the always-mounted `nexus_automation` surface from eleven operation-specific tools to read-only `automation_query` and trusted `automation_update`, moving schedule and heartbeat guidance into the system-managed `automation` Skill.
+- Mounted `nexus_imagegen` only when a usable image-generation model is configured, keeping unavailable image tools out of the default MCP surface.
 - Replaced the `nexus_config` MCP with the system-managed `nexus-configuration` Skill and round-scoped `nexuscfg` CLI for every Agent, while keeping owner-global changes exclusive to the main Agent and preserving discovery, planning, revision checks, verification, and audit.
 - Removed the generic Connector listing and arbitrary REST proxy tools; selected Connectors now expose provider MCP servers, with Feishu Docs isolated in its own `nexus_feishu_docx` MCP.
 - Moved Generative UI guidance from the always-loaded `visualize_read_me` tool into the system-managed `visualize` Skill, leaving `nexus_visualize` with only `show_widget`.

@@ -341,7 +341,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
 	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator)
 	visualizeBuilder := newVisualizeMCPBuilder()
-	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
+	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	executionBuilder := combinedExecutionMCPBuilder(
 		newExecutionMCPBuilder(orchestrationService),
