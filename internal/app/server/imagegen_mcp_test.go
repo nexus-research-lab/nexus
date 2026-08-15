@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
 type stubImagegenMCPService struct{}
@@ -25,8 +27,25 @@ func (stubImagegenMCPService) EditImage(
 	return &imagegensvc.Result{}, nil, nil
 }
 
+type stubImagegenMCPConfigResolver struct {
+	err error
+}
+
+func (s stubImagegenMCPConfigResolver) ResolveImageConfig(
+	context.Context,
+	string,
+) (*providercfg.ImageConfig, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &providercfg.ImageConfig{Provider: "image-provider", Model: "image-model"}, nil
+}
+
 func TestImagegenMCPBuilderAddsSDKServerForAgentRuntime(t *testing.T) {
-	builder := newImagegenMCPBuilder(stubImagegenMCPService{})
+	builder := newImagegenMCPBuilder(
+		stubImagegenMCPService{},
+		stubImagegenMCPConfigResolver{},
+	)
 	agentValue := &protocol.Agent{
 		AgentID:       "agent-1",
 		Name:          "Painter",
@@ -52,7 +71,10 @@ func TestImagegenMCPBuilderAddsSDKServerForAgentRuntime(t *testing.T) {
 }
 
 func TestImagegenMCPBuilderSkipsMissingWorkspace(t *testing.T) {
-	builder := newImagegenMCPBuilder(stubImagegenMCPService{})
+	builder := newImagegenMCPBuilder(
+		stubImagegenMCPService{},
+		stubImagegenMCPConfigResolver{},
+	)
 
 	if servers := builder(
 		context.Background(),
@@ -63,5 +85,26 @@ func TestImagegenMCPBuilderSkipsMissingWorkspace(t *testing.T) {
 		"Agent",
 	); len(servers) != 0 {
 		t.Fatalf("缺少 workspace 时不应注入 nexus_imagegen: %+v", servers)
+	}
+}
+
+func TestImagegenMCPBuilderSkipsMissingImageModel(t *testing.T) {
+	builder := newImagegenMCPBuilder(
+		stubImagegenMCPService{},
+		stubImagegenMCPConfigResolver{err: errors.New("未配置生图模型")},
+	)
+
+	if servers := builder(
+		context.Background(),
+		&protocol.Agent{
+			AgentID:       "agent-1",
+			WorkspacePath: "/workspace/agent-1",
+		},
+		"session",
+		"agent",
+		"agent-1",
+		"Agent",
+	); len(servers) != 0 {
+		t.Fatalf("缺少生图模型时不应注入 nexus_imagegen: %+v", servers)
 	}
 }
