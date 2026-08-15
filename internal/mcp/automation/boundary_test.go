@@ -29,7 +29,7 @@ func TestExternalAndBackgroundContextsOnlyExposeReadTools(t *testing.T) {
 			if !ok {
 				t.Fatalf("tools type = %T", result["tools"])
 			}
-			want := []string{"find_scheduled_tasks", "inspect_scheduled_task", "get_scheduled_task_report", "get_heartbeat"}
+			want := []string{"automation_query"}
 			if len(tools) != len(want) {
 				t.Fatalf("tools = %+v, want exactly %v", tools, want)
 			}
@@ -60,7 +60,7 @@ func TestPairedAgentContextExposesMutationsWithoutOwnerWideAuthority(t *testing.
 	}
 	result := response["result"].(map[string]any)
 	tools := result["tools"].([]map[string]any)
-	if len(tools) <= 4 || tools[0]["name"] != "create_scheduled_task" {
+	if len(tools) != 2 || tools[0]["name"] != "automation_query" || tools[1]["name"] != "automation_update" {
 		t.Fatalf("paired Agent DM 未获得完整 Automation 工具: %+v", tools)
 	}
 

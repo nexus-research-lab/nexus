@@ -141,7 +141,7 @@ func heartbeatUpdateFromArgs(
 		changed = true
 	}
 	if !changed {
-		return automationdomain.HeartbeatUpdateInput{}, errors.New("update_heartbeat requires at least one configuration field")
+		return automationdomain.HeartbeatUpdateInput{}, errors.New("automation_update operation=set_heartbeat requires at least one configuration field")
 	}
 	return input, nil
 }

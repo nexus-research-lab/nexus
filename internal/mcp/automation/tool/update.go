@@ -167,7 +167,7 @@ func (b *scheduledTaskUpdateInputBuilder) build() (automationdomain.UpdateJobInp
 		}
 	}
 	if !hasUpdateFields(b.input) {
-		return automationdomain.UpdateJobInput{}, errors.New("update_scheduled_task requires at least one field to update besides job_id")
+		return automationdomain.UpdateJobInput{}, errors.New("automation_update operation=update requires at least one field to update besides job_id")
 	}
 	return b.input, nil
 }

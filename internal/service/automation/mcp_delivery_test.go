@@ -167,7 +167,7 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToCurrentSession(t *testing.T)
 	}
 	taskReport := report.Tasks[0]
 	if !slices.Contains(taskReport.Signals, "delivery_attention") ||
-		!slices.Contains(taskReport.SuggestedTools, "repair_scheduled_task") ||
+		!slices.Contains(taskReport.SuggestedTools, "automation_update") ||
 		!slices.Contains(taskReport.ManualRedeliveryRunIDs, runID) {
 		t.Fatalf("日报应直接指出失败投递 run 和补救工具: %+v", taskReport)
 	}
@@ -309,8 +309,8 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 		!slices.Contains(taskReport.Signals, "delivery_attention") ||
 		!slices.Contains(taskReport.DeliveryDeadLetterRunIDs, runID) ||
 		slices.Contains(taskReport.ManualRedeliveryRunIDs, runID) ||
-		!slices.Contains(taskReport.SuggestedTools, "inspect_scheduled_task") ||
-		slices.Contains(taskReport.SuggestedTools, "repair_scheduled_task") {
+		!slices.Contains(taskReport.SuggestedTools, "automation_query") ||
+		slices.Contains(taskReport.SuggestedTools, "automation_update") {
 		t.Fatalf("已删任务日报应保留失败诊断但不建议补发: %+v", taskReport)
 	}
 }

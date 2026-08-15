@@ -84,10 +84,8 @@ func TestAutomationMCPBuilderUsesFreshAgentAndLimitsMainAuthorityToPrivateDM(t *
 	)
 	config := requireAutomationSDKServer(t, servers)
 	names := automationToolNames(t, config)
-	for _, name := range []string{"create_scheduled_task", "update_scheduled_task", "update_heartbeat"} {
-		if !slices.Contains(names, name) {
-			t.Fatalf("trusted main DM tools = %v, missing %q", names, name)
-		}
+	if !slices.Equal(names, []string{"automation_query", "automation_update"}) {
+		t.Fatalf("trusted main DM tools = %v", names)
 	}
 	if isError := callAutomationGetHeartbeat(t, config, "worker"); isError {
 		t.Fatal("fresh main Agent in its private DM must retain owner-scoped cross-Agent authority")
@@ -185,7 +183,7 @@ func TestAutomationMCPBuilderOrdinaryAgentStaysSelfScopedInDMAndRoom(t *testing.
 				nil,
 				sdkpermission.ModeDefault,
 			))
-			if !slices.Contains(automationToolNames(t, config), "update_heartbeat") {
+			if !slices.Contains(automationToolNames(t, config), "automation_update") {
 				t.Fatal("trusted ordinary Agent must retain self mutation tools")
 			}
 			if isError := callAutomationGetHeartbeat(t, config, "other"); !isError {
@@ -297,10 +295,10 @@ func TestAutomationMCPBuilderKeepsStableSurfaceWithoutGrantingMutation(t *testin
 				return
 			}
 			config := requireAutomationSDKServer(t, servers)
-			if !slices.Contains(automationToolNames(t, config), "create_scheduled_task") {
+			if !slices.Contains(automationToolNames(t, config), "automation_update") {
 				t.Fatalf("stable Session lost Automation mutation schema")
 			}
-			if !callAutomationTool(t, config, "create_scheduled_task", nil) {
+			if !callAutomationTool(t, config, "automation_update", map[string]any{"operation": "create"}) {
 				t.Fatal("untrusted round executed an Automation mutation")
 			}
 		})
@@ -327,12 +325,7 @@ func TestAutomationMCPBuilderBackgroundAndExternalSourcesAreReadOnly(t *testing.
 				sdkpermission.ModeDefault,
 			))
 			names := automationToolNames(t, config)
-			want := []string{
-				"find_scheduled_tasks",
-				"inspect_scheduled_task",
-				"get_scheduled_task_report",
-				"get_heartbeat",
-			}
+			want := []string{"automation_query"}
 			if !slices.Equal(names, want) {
 				t.Fatalf("%s tools = %v, want %v", source, names, want)
 			}
@@ -428,12 +421,15 @@ func callAutomationGetHeartbeat(
 		"id":      1,
 		"method":  "tools/call",
 		"params": map[string]any{
-			"name":      "get_heartbeat",
-			"arguments": map[string]any{"agent_id": agentID},
+			"name": "automation_query",
+			"arguments": map[string]any{
+				"operation": "heartbeat",
+				"agent_id":  agentID,
+			},
 		},
 	})
 	if err != nil {
-		t.Fatalf("get_heartbeat: %v", err)
+		t.Fatalf("automation_query heartbeat: %v", err)
 	}
 	result, _ := response["result"].(map[string]any)
 	isError, _ := result["isError"].(bool)

@@ -22,6 +22,7 @@ func TestMain(m *testing.M) {
 		"ima-skill",
 		"imagegen",
 		"visualize",
+		"automation",
 		"kami",
 		"nexus-manager",
 		"nexus-configuration",

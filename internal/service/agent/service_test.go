@@ -259,8 +259,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 agent 失败: %v", err)
 	}
-	if loaded.SkillsCount != 7 {
-		t.Fatalf("skills_count 不正确: got=%d want=7", loaded.SkillsCount)
+	if loaded.SkillsCount != 8 {
+		t.Fatalf("skills_count 不正确: got=%d want=8", loaded.SkillsCount)
 	}
 
 	items, err = service.ListAgents(ctx)
@@ -271,8 +271,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 		t.Fatalf("agent 数量不正确: got=%d want=2", len(items))
 	}
 	for _, item := range items {
-		if item.AgentID == created.AgentID && item.SkillsCount != 7 {
-			t.Fatalf("list_agents skills_count 不正确: got=%d want=7", item.SkillsCount)
+		if item.AgentID == created.AgentID && item.SkillsCount != 8 {
+			t.Fatalf("list_agents skills_count 不正确: got=%d want=8", item.SkillsCount)
 		}
 	}
 

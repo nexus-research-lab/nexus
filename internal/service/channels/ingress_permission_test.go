@@ -83,7 +83,7 @@ func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *test
 				t.Fatalf("%s 未签发 paired interactive context: %+v", channelType, handler.requests)
 			}
 			decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-				ToolName: "mcp__nexus_automation__create_scheduled_task",
+				ToolName: "mcp__nexus_automation__automation_update",
 				Input:    map[string]any{"name": "每日提醒"},
 			})
 			if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
@@ -345,20 +345,18 @@ func TestExternalIngressExplicitAgentIDCannotBypassPairing(t *testing.T) {
 
 func TestScheduledTaskMutationToolMatchesRuntimeWrappers(t *testing.T) {
 	for _, toolName := range []string{
-		"create_scheduled_task",
-		"mcp__nexus_automation__delete_scheduled_task",
-		"nexus_automation.update_scheduled_task",
-		"nexus_automation/run_scheduled_task",
-		"custom_wrapper__repair_scheduled_task",
+		"automation_update",
+		"mcp__nexus_automation__automation_update",
+		"nexus_automation.automation_update",
+		"custom_wrapper__automation_update",
 	} {
 		if !isScheduledTaskMutationTool(toolName) {
 			t.Fatalf("mutation wrapper %q was not denied", toolName)
 		}
 	}
 	for _, toolName := range []string{
-		"find_scheduled_tasks",
-		"mcp__nexus_automation__inspect_scheduled_task",
-		"mcp__nexus_automation__get_scheduled_task_report",
+		"automation_query",
+		"mcp__nexus_automation__automation_query",
 	} {
 		if isScheduledTaskMutationTool(toolName) {
 			t.Fatalf("read tool %q was classified as a mutation", toolName)
@@ -394,7 +392,7 @@ func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *test
 	}
 
 	reportDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__get_scheduled_task_report",
+		ToolName: "mcp__nexus_automation__automation_query",
 		Input:    map[string]any{"date": "today"},
 	})
 	if err != nil {
@@ -489,25 +487,25 @@ func TestIngressServiceAcceptTelegramAllowsScheduledTaskQueriesButDeniesMutation
 	}
 
 	createTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "create_scheduled_task",
+		ToolName: "automation_update",
 		Input:    map[string]any{"name": "新闻日报"},
 	})
 	if err != nil {
-		t.Fatalf("create_scheduled_task 权限处理失败: %v", err)
+		t.Fatalf("automation_update 权限处理失败: %v", err)
 	}
 	if createTaskDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("telegram ingress 的 create_scheduled_task 必须拒绝: %+v", createTaskDecision)
+		t.Fatalf("telegram ingress 的 automation_update 必须拒绝: %+v", createTaskDecision)
 	}
 
 	mcpDeleteTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__delete_scheduled_task",
+		ToolName: "mcp__nexus_automation__automation_update",
 		Input:    map[string]any{"job_id": "job-1"},
 	})
 	if err != nil {
-		t.Fatalf("mcp delete_scheduled_task 权限处理失败: %v", err)
+		t.Fatalf("mcp automation_update 权限处理失败: %v", err)
 	}
 	if mcpDeleteTaskDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("telegram ingress 的 nexus_automation delete_scheduled_task 必须拒绝: %+v", mcpDeleteTaskDecision)
+		t.Fatalf("telegram ingress 的 nexus_automation automation_update 必须拒绝: %+v", mcpDeleteTaskDecision)
 	}
 
 	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
@@ -545,7 +543,7 @@ func TestIngressServiceAutoApproveToolsCannotOpenAutomationMutations(t *testing.
 		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
 	}
 	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__update_scheduled_task",
+		ToolName: "mcp__nexus_automation__automation_update",
 		Input:    map[string]any{"job_id": "job-1"},
 	})
 	if err != nil {
@@ -555,7 +553,7 @@ func TestIngressServiceAutoApproveToolsCannotOpenAutomationMutations(t *testing.
 		t.Fatalf("auto_approve_tools=nexus_automation 不能开放 mutation: %+v", decision)
 	}
 	historyDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__find_scheduled_tasks",
+		ToolName: "mcp__nexus_automation__automation_query",
 		Input:    map[string]any{"query": "每日新闻"},
 	})
 	if err != nil {
@@ -586,9 +584,8 @@ func TestIngressServiceAutoApproveAllCannotOpenAutomationMutations(t *testing.T)
 		t.Fatalf("Accept 失败: %v", err)
 	}
 	for _, toolName := range []string{
-		"create_scheduled_task",
-		"mcp__nexus_automation__update_scheduled_task",
-		"mcp__nexus_automation__run_scheduled_task",
+		"automation_update",
+		"mcp__nexus_automation__automation_update",
 	} {
 		decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 			ToolName: toolName,
