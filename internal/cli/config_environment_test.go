@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestLoadConfigRestoresHostRootsFromUserRuntime(t *testing.T) {
@@ -81,5 +82,21 @@ func TestLoadConfigLeavesHostEnvironmentUntouched(t *testing.T) {
 
 	if cfg.WorkspacePath != workspaceRoot {
 		t.Fatalf("宿主 WORKSPACE_PATH 被改写: got=%q want=%q", cfg.WorkspacePath, workspaceRoot)
+	}
+}
+
+func TestLoadConfigurationConfigDoesNotRestoreHostRootsForRuntimeBroker(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	runtimeRoot := appfs.UserRuntimeRootAt(stateRoot, "user_demo")
+	t.Setenv(appfs.NexusStateRootEnvName, "")
+	t.Setenv(nexusConfigDirEnvName, runtimeRoot)
+	t.Setenv(workspacePathEnvName, filepath.Join(stateRoot, "users", "user_demo", "workspace", "agent-a"))
+	t.Setenv(protocol.NexusConfigBrokerURLEnvName, "http://127.0.0.1:8010/nexus/v1/internal/runtime/configuration")
+	t.Setenv(protocol.NexusConfigCapabilityTokenEnvName, "runtime-token")
+
+	_ = LoadConfigurationConfig()
+
+	if got := os.Getenv(appfs.NexusStateRootEnvName); got != "" {
+		t.Fatalf("broker 模式不应恢复宿主状态根: %q", got)
 	}
 }

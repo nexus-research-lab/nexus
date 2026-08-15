@@ -132,6 +132,16 @@ type MCPServerBuilder func(
 	permissionMode sdkpermission.Mode,
 ) map[string]sdkmcp.ServerConfig
 
+// ConfigurationRuntimeEnvironmentBuilder 由宿主为当前 Room Agent slot 签发 nexuscfg 环境。
+type ConfigurationRuntimeEnvironmentBuilder func(
+	context.Context,
+	*protocol.Agent,
+	string,
+	string,
+	string,
+	string,
+) (map[string]string, error)
+
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。
 type roomContextStore interface {
 	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
@@ -143,33 +153,34 @@ type roomContextStore interface {
 }
 
 type Service struct {
-	config              config.Config
-	rooms               roomContextStore
-	agents              *agentsvc.Service
-	runtime             *runtimectx.Manager
-	permission          *permissionctx.Context
-	providers           clientopts.RuntimeConfigResolver
-	admission           clientopts.AgentRuntimeAdmissionResolver
-	prefs               roomRuntimePreferencesService
-	files               *workspacestore.SessionFileStore
-	history             *workspacestore.AgentHistoryStore
-	roomHistory         *workspacestore.RoomHistoryStore
-	directedMessages    *workspacestore.RoomDirectedMessageStore
-	directedWakes       *workspacestore.RoomDirectedMessageWakeStore
-	publicHandoffs      *workspacestore.RoomPublicHandoffStore
-	inputQueue          *workspacestore.InputQueueStore
-	queueTrust          queueAdmissionStore
-	usage               usageRecorder
-	quota               quotaChecker
-	goals               goalContextProvider
-	executionContext    executionContextProvider
-	subagentAdmission   orchestrationruntimehook.Provider
-	factory             roomClientFactory
-	broadcaster         RoomBroadcaster
-	logger              *slog.Logger
-	mcpServers          MCPServerBuilder
-	executionMCPServers runtimectx.ExecutionMCPServerBuilder
-	titles              roomTitleScheduler
+	config                  config.Config
+	rooms                   roomContextStore
+	agents                  *agentsvc.Service
+	runtime                 *runtimectx.Manager
+	permission              *permissionctx.Context
+	providers               clientopts.RuntimeConfigResolver
+	admission               clientopts.AgentRuntimeAdmissionResolver
+	prefs                   roomRuntimePreferencesService
+	files                   *workspacestore.SessionFileStore
+	history                 *workspacestore.AgentHistoryStore
+	roomHistory             *workspacestore.RoomHistoryStore
+	directedMessages        *workspacestore.RoomDirectedMessageStore
+	directedWakes           *workspacestore.RoomDirectedMessageWakeStore
+	publicHandoffs          *workspacestore.RoomPublicHandoffStore
+	inputQueue              *workspacestore.InputQueueStore
+	queueTrust              queueAdmissionStore
+	usage                   usageRecorder
+	quota                   quotaChecker
+	goals                   goalContextProvider
+	executionContext        executionContextProvider
+	subagentAdmission       orchestrationruntimehook.Provider
+	factory                 roomClientFactory
+	broadcaster             RoomBroadcaster
+	logger                  *slog.Logger
+	mcpServers              MCPServerBuilder
+	configurationRuntimeEnv ConfigurationRuntimeEnvironmentBuilder
+	executionMCPServers     runtimectx.ExecutionMCPServerBuilder
+	titles                  roomTitleScheduler
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration
@@ -334,6 +345,13 @@ func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
 // SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
+}
+
+// SetConfigurationRuntimeEnvironmentBuilder 注入可信 nexuscfg capability 签发器。
+func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
+	builder ConfigurationRuntimeEnvironmentBuilder,
+) {
+	s.configurationRuntimeEnv = builder
 }
 
 // SetExecutionMCPServerBuilder 注入需要完整 slot/round identity 的 Execution MCP overlay。

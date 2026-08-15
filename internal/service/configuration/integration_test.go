@@ -1,6 +1,6 @@
 // INPUT: 完整 AppServices、owner-main Actor 与各配置域 plan/apply 请求。
 // OUTPUT: 配置控制面跨服务持久化、CAS、审计、脱敏和写后核对证明。
-// POS: nexus_config 真实装配的端到端后端集成测试。
+// POS: nexuscfg 真实装配的端到端后端集成测试。
 package configuration_test
 
 import (

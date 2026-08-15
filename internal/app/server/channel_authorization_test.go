@@ -76,7 +76,7 @@ func TestChannelAuthorizationMCPBuilderBindsOwnerMainPrivateDM(t *testing.T) {
 	service := &channelAuthorizationAppService{}
 	builder := newChannelAuthorizationMCPBuilder(
 		service,
-		stubConfigurationAgentResolver{record: &protocol.Agent{
+		stubRuntimeAgentResolver{record: &protocol.Agent{
 			AgentID: "nexus", OwnerUserID: "owner-a", IsMain: true,
 		}},
 	)
@@ -152,7 +152,7 @@ func TestChannelAuthorizationMCPBuilderBindsOwnerMainPrivateDM(t *testing.T) {
 	for name, denied := range map[string]map[string]sdkmcp.ServerConfig{
 		"ordinary": newChannelAuthorizationMCPBuilder(
 			service,
-			stubConfigurationAgentResolver{record: &protocol.Agent{
+			stubRuntimeAgentResolver{record: &protocol.Agent{
 				AgentID: "nexus", OwnerUserID: "owner-a", IsMain: false,
 			}},
 		)(

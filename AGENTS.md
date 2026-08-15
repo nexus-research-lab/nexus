@@ -24,7 +24,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl；Linux runtime launcher）
+cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
 desktop/    - macOS AppKit/WKWebView 与 Windows WPF/WebView2 宿主（窗口 chrome、bridge、sidecar 生命周期、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗）
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
@@ -38,9 +38,9 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
   automation/ - 定时任务 / heartbeat 调度域（任务级 capability grant、持久审批、run 阻塞与安全恢复）
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
-  cli/        - nexusctl 命令装配（按领域文件组织）
+  cli/        - nexusctl / nexuscfg 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期
-  mcp/ connectors/ workspace/ - 能力域；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露对话内生成式 UI 的 show_widget，skills/visualize 承载生成规范；owner 资源管理复用 nexus-manager Skill 与宿主作用域 nexusctl，不再挂载 manager MCP
+  mcp/ connectors/ workspace/ - 能力域；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露对话内生成式 UI 的 show_widget，skills/visualize 承载生成规范；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>
@@ -56,7 +56,7 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 - nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。
 - Unix runtime 额外获得 `/tmp` 共享兼容读写根，以保持 App/Web 命令行为一致；敏感临时数据仍必须写入该 owner 的 `$TMPDIR`。
 - 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过 `internal/migration/state_layout.go` 与 `workspace_layout.go` 这类明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局；迁移不能因版本发布而提前移除，必须允许用户跨版本直接升级。
-- Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`。
+- Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`；所有交互 Agent 通过宿主签发的 round capability 调用 `nexuscfg`，权限仍由 configuration 角色矩阵收口。
 - 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
 
 ## 后端依赖方向

@@ -19,7 +19,7 @@ import (
 
 func newChannelAuthorizationMCPBuilder(
 	svc channelauthorizationcontract.Service,
-	agents configurationAgentResolver,
+	agents runtimeAgentResolver,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
@@ -82,7 +82,7 @@ func newChannelAuthorizationMCPBuilder(
 		if sourceContextType != contextKind || sourceContextID != agentID {
 			return server()
 		}
-		role, authMethod, localSingleUser, principalOK := trustedConfigurationPrincipal(
+		role, authMethod, localSingleUser, principalOK := trustedRuntimePrincipal(
 			ctx,
 			record.OwnerUserID,
 		)
@@ -113,7 +113,7 @@ func newChannelAuthorizationMCPBuilder(
 		default:
 			return server()
 		}
-		if _, routeOK := trustedConfigurationRuntimeRoute(
+		if _, routeOK := trustedRuntimeRoute(
 			record.AgentID,
 			sourceContextType,
 			sessionKey,

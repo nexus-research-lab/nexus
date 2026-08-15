@@ -29,7 +29,7 @@ macOS 无法执行 setuid、POSIX ACL 和 Landlock，发布前仍需在目标 Li
 ### 2.2 非目标
 
 - 防御宿主 root、容器运行时、内核或文件系统本身被攻破。
-- 用文件权限替代 HTTP、WebSocket、`nexusctl` 和 storage 层的 owner 授权。
+- 用文件权限替代 HTTP、WebSocket、`nexusctl` / `nexuscfg` 和 storage 层的 owner 授权。
 - 不实现每个 Agent 一个操作系统用户。
 - 不承诺网络、CPU、内存、PID namespace 或设备 ioctl 隔离。Landlock 只负责
   runtime 进程的文件系统访问集合；cgroup 仅在显式配置时负责 owner 进程树回收。
@@ -42,7 +42,7 @@ macOS 无法执行 setuid、POSIX ACL 和 Landlock，发布前仍需在目标 Li
 
 - 能控制 Agent 提示词、Skill、project hook 或 Bash 输入的模型/运行时进程。
 - 用户 A 试图读取用户 B 的 workspace、transcript、配置或缓存。
-- 被误配置的 runtime 通过绝对路径、相对路径、符号链接、Shell 展开或 `nexusctl` scope 访问越界资源。
+- 被误配置的 runtime 通过绝对路径、相对路径、符号链接、Shell 展开或控制面 CLI scope 访问越界资源。
 
 ### 3.2 不纳入的攻击者
 
@@ -341,14 +341,14 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 - 对 `Read/Write/Edit/Glob/Grep` 等路径工具执行路径归一化和 root containment；
 - 当前 owner 的 `users/<owner_user_id>` 整棵数据根统一允许读写，不再为
   transcript、session-memory 或 `state` 维护单文件例外；跨 owner 路径仍拒绝；
-- 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` 管理入口的早期检查；普通系统命令
+- 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` / `nexuscfg` 管理入口的早期检查；普通系统命令
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
 - enforce Hook 对普通 Agent 的 `nexusctl` 管理命令做早期拒绝；打包部署额外把
-  CLI executable 设为宿主组专用。Nexus 主智能体是宿主控制面主体，可使用
-  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope。宿主注入 owner 后，CLI 帮助隐藏
-  人工作用域选择参数，显式覆盖返回可重试的 usage 错误，Hook 对 shell 文本仍做
-  拒绝。现有 CLI 直接打开宿主数据库，通用 scoped broker 尚未就绪，不能让普通
-  runtime 误操作空数据库或继承宿主控制面；
+  `nexusctl` executable 设为宿主组专用。Nexus 主智能体是宿主控制面主体，可使用
+  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope。`nexuscfg` 对所有交互 Agent 可执行，但
+  只把命令转发给宿主 loopback broker；宿主签发的 round capability 固定 owner、Agent、
+  DM/Room 和 runtime lease，configuration 角色矩阵决定最终 operation。CLI 作用域或
+  capability 覆盖返回可重试错误，Hook 对这类 shell 文本仍做早期拒绝；
 - 不返回 `updatedInput`，只允许放行或拒绝；
 - Hook 本身不返回 `allow` 决策，避免覆盖其他 hook 或用户权限处理；越界时返回
   `deny`。Hook 失效不构成安全放行，enforce 进程仍必须通过 launcher 的最终边界；
@@ -363,10 +363,11 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 
 `NEXUS_SIMPLE`、`CLAUDE_CODE_SIMPLE`、`--bare` 或类似模式不能绕过最终访问校验；
 launcher 会拒绝禁用 hook 的 argv/环境。即使 runtime hook 被跳过，Landlock 仍在
-整个 nxs/Claude 进程（包括其子进程）上生效。`nexusctl` 属于控制面而不是用户
-文件系统；在 scoped broker 完成前，生产部署还必须通过 DAC/容器镜像边界让
-普通 runtime UID 无法执行 CLI，不能只依赖 Hook 文本识别。主智能体保留宿主
-身份是明确的控制面信任边界，不宣称具备普通 Agent 的 Landlock 隔离等级。
+整个 nxs/Claude 进程（包括其子进程）上生效。`nexusctl` 与 `nexuscfg` 属于控制面而不是
+用户文件系统。生产部署必须继续通过 DAC/容器镜像边界让普通 runtime UID 无法执行
+`nexusctl`；`nexuscfg` 的最终边界是宿主 round capability 与 configuration 服务授权，
+不能只依赖 Hook 文本识别。主智能体保留宿主身份是明确的控制面信任边界，不宣称
+具备普通 Agent 的 Landlock 隔离等级。
 
 ### 8.3 Final path guard
 
@@ -414,7 +415,7 @@ inode，并在 Darwin/Linux 上拒绝多硬链接文件。
 OS 权限不能替代业务授权。以下入口必须继续按真实认证用户过滤：
 
 - Agent、workspace、Room、DM 和 transcript API；
-- `nexusctl` 的 user/global scope；
+- `nexusctl` / `nexuscfg` 的 user/global scope；
 - storage repository 的 `owner_user_id` 条件；
 - workspace 列表、搜索、导出和恢复；
 - MCP、connector、automation 和 provider 凭据读取。
@@ -466,7 +467,7 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 ### 12.1 基础控制面（已实现）
 
 - 服务端和 runtime 环境改为 allowlist；
-- 修复 app API 和 `nexusctl` 的 owner 授权；
+- 修复 app API 和控制面 CLI 的 owner 授权；
 - 注入 deny-only PreToolUse hook；
 - 禁止安全关键环境变量覆盖 policy；
 - 记录越界尝试，不改变现有数据布局。
@@ -528,9 +529,9 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - `Read/Glob/Grep/Write/Edit` 访问 B 路径均失败；
 - 相对路径、绝对路径、`..`、符号链接和硬链接均不能越界；
 - Bash、Shell 展开、`find`、`cat` 和 `cp` 不能越过文件系统边界；
-- 普通 Agent 的常规 `nexusctl` 管理命令被 Hook 拒绝，生产部署同时由 DAC 阻止
-  runtime UID 执行 CLI；主智能体只能使用宿主注入的当前 owner scope，不能把
-  命令文本识别当作普通 Agent 的控制面授权；
+- 普通 Agent 的 `nexusctl` 管理命令被 Hook 拒绝，生产部署同时由 DAC 阻止 runtime
+  UID 执行；普通 Agent 的 `nexuscfg` 只能使用宿主签发的当前 round capability，并且
+  无法覆盖身份、作用域或修改其他 Agent；
 - simple/bare 模式不能绕过 final guard；
 - runtime 环境中不存在 app DB、connector key 和 B 的 provider secret；
 - `/proc` 不应暴露其他用户受 DAC 保护的环境/文件；共享 `/tmp`、共享 cache

@@ -18,6 +18,7 @@ import (
 
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	t.Setenv(nexusctlCommandPathEnvName, "")
+	t.Setenv(nexuscfgCommandPathEnvName, "")
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -135,6 +136,22 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexusctl shim: %v", err)
+	}
+	nexuscfgShim := filepath.Join(sharedBinDir, "nexuscfg")
+	if info, statErr := os.Stat(nexuscfgShim); statErr != nil {
+		t.Fatalf("共享 nexuscfg shim 未生成: %v", statErr)
+	} else if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("nexuscfg shim 应可执行: %s", nexuscfgShim)
+	}
+	nexuscfgPayload, err := os.ReadFile(nexuscfgShim)
+	if err != nil {
+		t.Fatalf("读取 nexuscfg shim 失败: %v", err)
+	}
+	if !strings.Contains(string(nexuscfgPayload), "go run ./cmd/nexuscfg") {
+		t.Fatalf("开发环境 nexuscfg shim 应固定到源码入口: %s", nexuscfgPayload)
+	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexuscfg")); !os.IsNotExist(err) {
+		t.Fatalf("agent workspace 不应生成独立 nexuscfg shim: %v", err)
 	}
 	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
 	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {

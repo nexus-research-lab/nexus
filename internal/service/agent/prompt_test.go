@@ -280,7 +280,7 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "You coordinate from the main chat, but you are not a Room member")
 	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, file, or scheduled task")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for Nexus user accounts, members, Rooms, DMs, workspaces, and skills")
-	assertPromptContains(t, prompt, "Use `nexus_config` for Nexus settings")
+	assertPromptContains(t, prompt, "use the round-scoped `nexuscfg`")
 	assertPromptContains(t, prompt, "Configuration changes follow one workflow")
 	assertPromptContains(t, prompt, "account registration, user listing, and password resets")
 	assertPromptContains(t, prompt, "the host-injected current owner and workspace are authoritative")

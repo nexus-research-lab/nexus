@@ -97,15 +97,6 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
-	configurationRoleSkill := workspacepkg.ConfigurationSkillAgentSelf
-	if agentValue.IsMain {
-		configurationRoleSkill = workspacepkg.ConfigurationSkillOwnerMain
-	}
-	runtimeSkillNames, runtimeDisabledSkillNames = workspacepkg.WithRuntimeConfigurationRoleSkill(
-		runtimeSkillNames,
-		runtimeDisabledSkillNames,
-		configurationRoleSkill,
-	)
 	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -136,10 +127,25 @@ func (s *Service) ensureClient(
 	)
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
+	runtimeBuilderContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
+	configurationRuntimeEnv := map[string]string(nil)
+	if s.configurationRuntimeEnv != nil {
+		configurationRuntimeEnv, err = s.configurationRuntimeEnv(
+			runtimeBuilderContext,
+			agentValue,
+			sessionKey,
+			request.RoundID,
+			sourceContextType,
+			agentValue.AgentID,
+		)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+	}
 	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
-		mcpContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
+		mcpContext := runtimeBuilderContext
 		mcpContext = runtimectx.WithEnabledConnectorIDs(
 			mcpContext,
 			protocol.EffectiveSessionConnectorIDs(
@@ -233,6 +239,7 @@ func (s *Service) ensureClient(
 		MaxTurns:                   agentValue.Options.MaxTurns,
 		MCPServers:                 mcpServers,
 		AgentMCPServers:            agentValue.Options.MCPServers,
+		ConfigurationEnv:           configurationRuntimeEnv,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,

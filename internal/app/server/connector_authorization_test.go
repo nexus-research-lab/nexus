@@ -116,7 +116,7 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 	control := &connectorAuthorizationAppControl{}
 	builder := newConnectorAuthorizationMCPBuilder(
 		control,
-		stubConfigurationAgentResolver{record: &protocol.Agent{
+		stubRuntimeAgentResolver{record: &protocol.Agent{
 			AgentID: "nexus", OwnerUserID: "owner-a", IsMain: true,
 		}},
 	)
@@ -169,7 +169,7 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 
 	ordinaryBuilder := newConnectorAuthorizationMCPBuilder(
 		control,
-		stubConfigurationAgentResolver{record: &protocol.Agent{
+		stubRuntimeAgentResolver{record: &protocol.Agent{
 			AgentID: "nexus", OwnerUserID: "owner-a", IsMain: false,
 		}},
 	)

@@ -175,7 +175,7 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["TELEGRAM_ENABLED"] = "false";
         startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = runtime.OAuthRedirectUri;
         ApplyPackagedConnectorConfig(startInfo);
-        ApplyBundledNexusctlCommand(startInfo);
+        ApplyBundledControlCommands(startInfo);
         ApplyBundledNXSRuntime(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = runtime.WebBaseUrl.TrimEnd('/');
         return startInfo;
@@ -212,44 +212,49 @@ internal sealed class SidecarSupervisor : IDisposable
         }
     }
 
-    private void ApplyBundledNexusctlCommand(ProcessStartInfo startInfo)
+    private void ApplyBundledControlCommands(ProcessStartInfo startInfo)
     {
-        if (startInfo.Environment.TryGetValue("NEXUSCTL_COMMAND_PATH", out string? overridePath) &&
-            !string.IsNullOrWhiteSpace(overridePath))
+        foreach ((string name, string environmentKey) in new[]
         {
-            startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+            ("nexusctl", "NEXUSCTL_COMMAND_PATH"),
+            ("nexuscfg", "NEXUSCFG_COMMAND_PATH"),
+        })
+        {
+            string timelineKey = $"sidecar.{name}_command";
+            if (startInfo.Environment.TryGetValue(environmentKey, out string? overridePath) &&
+                !string.IsNullOrWhiteSpace(overridePath))
             {
-                ["source"] = "override",
-                ["path"] = overridePath,
-            });
-            return;
-        }
-
-        if (locator.IsDevelopment)
-        {
-            startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+                startupTimeline.Mark(timelineKey, new Dictionary<string, string>
+                {
+                    ["source"] = "override",
+                    ["path"] = overridePath,
+                });
+                continue;
+            }
+            if (locator.IsDevelopment)
             {
-                ["source"] = "development",
-            });
-            return;
-        }
-
-        string nexusctlPath = Path.Combine(locator.AppRoot, "bin", "nexusctl.exe");
-        if (File.Exists(nexusctlPath))
-        {
-            startInfo.Environment["NEXUSCTL_COMMAND_PATH"] = nexusctlPath;
-            startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+                startupTimeline.Mark(timelineKey, new Dictionary<string, string>
+                {
+                    ["source"] = "development",
+                });
+                continue;
+            }
+            string commandPath = Path.Combine(locator.AppRoot, "bin", $"{name}.exe");
+            if (File.Exists(commandPath))
             {
-                ["source"] = "bundled",
-                ["path"] = nexusctlPath,
+                startInfo.Environment[environmentKey] = commandPath;
+                startupTimeline.Mark(timelineKey, new Dictionary<string, string>
+                {
+                    ["source"] = "bundled",
+                    ["path"] = commandPath,
+                });
+                continue;
+            }
+            startupTimeline.Mark(timelineKey, new Dictionary<string, string>
+            {
+                ["source"] = "missing",
             });
-            return;
         }
-
-        startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
-        {
-            ["source"] = "missing",
-        });
     }
 
     private void ApplyBundledNXSRuntime(ProcessStartInfo startInfo)

@@ -236,16 +236,16 @@ func workspaceManagedStateReady(rootFS *confinedfs.Root, isMain bool) bool {
 			}
 		}
 	}
-	return sharedNexusctlShimsReady()
+	return sharedRuntimeCLIShimsReady()
 }
 
-func sharedNexusctlShimsReady() bool {
-	for _, name := range []string{"nexusctl", "nexusctl.cmd"} {
+func sharedRuntimeCLIShimsReady() bool {
+	for _, name := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd"} {
 		info, err := os.Lstat(filepath.Join(appfs.AgentRuntimeBinDir(), name))
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return false
 		}
-		if runtime.GOOS != "windows" && name == "nexusctl" && info.Mode().Perm()&0o111 == 0 {
+		if runtime.GOOS != "windows" && !strings.HasSuffix(name, ".cmd") && info.Mode().Perm()&0o111 == 0 {
 			return false
 		}
 	}
@@ -332,7 +332,7 @@ func (i *workspaceInitializer) ensureDirectoriesAt() error {
 }
 
 func (i *workspaceInitializer) ensureRuntimeTools() error {
-	if err := ensureNexusctlShim(appfs.AgentRuntimeBinDir(), i.context); err != nil {
+	if err := ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), i.context); err != nil {
 		return err
 	}
 	return removeWorkspaceBinShim(i.rootFS)

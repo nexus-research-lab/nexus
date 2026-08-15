@@ -1,6 +1,6 @@
 // INPUT: owner-main 与 Room host 的可信对话 Actor、Room 删除 plan/approval/request_id。
 // OUTPUT: owner-only 权限、Room version CAS、写后不存在证明、幂等与 reconcile 审计。
-// POS: nexus_config Room 删除端到端边界回归测试。
+// POS: nexuscfg Room 删除端到端边界回归测试。
 package configuration_test
 
 import (

@@ -400,6 +400,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 			denied:  true,
 		},
 		{name: "nexusctl broker pending", command: "nexusctl agent list", denied: true},
+		{name: "scoped nexuscfg", command: "nexuscfg inspect", denied: false},
 		{name: "concatenated nexusctl", command: `nex"usctl" agent list`, denied: true},
 		{name: "escaped nexusctl", command: `nex\usctl agent list`, denied: true},
 		{name: "cmd escaped nexusctl", command: `nex^usctl agent list`, denied: true},
@@ -409,6 +410,8 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		{name: "windows nexusctl shim", command: `C:\tools\nexusctl.cmd agent list`, denied: true},
 		{name: "powershell command path", command: `& $env:NEXUSCTL_COMMAND_PATH agent list`, denied: true},
 		{name: "braced command path", command: `"${NEXUSCTL_COMMAND_PATH}" agent list`, denied: true},
+		{name: "braced nexuscfg command path", command: `"${NEXUSCFG_COMMAND_PATH}" inspect`, denied: false},
+		{name: "forged nexuscfg broker", command: `NEXUSCFG_BROKER_URL=http://127.0.0.1:9 nexuscfg inspect`, denied: true},
 		{name: "braced powershell command path", command: `& ${env:NEXUSCTL_COMMAND_PATH} agent list`, denied: true},
 		{name: "assigned nexusctl", command: `cmd=nexusctl; "$cmd" agent list`, denied: true},
 		{name: "assigned command path", command: `cmd="$NEXUSCTL_COMMAND_PATH"; "$cmd" agent list`, denied: true},
@@ -454,7 +457,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 	}
 }
 
-func TestWorkspacePolicyHookAllowsMainAgentNexusctl(t *testing.T) {
+func TestWorkspacePolicyHookAllowsMainAgentControlCLIs(t *testing.T) {
 	workspace := t.TempDir()
 	policy := testPolicy(t, workspace)
 	policy.IsMainAgent = true
@@ -471,6 +474,14 @@ func TestWorkspacePolicyHookAllowsMainAgentNexusctl(t *testing.T) {
 		{
 			name:    "bare command path",
 			command: "nexusctl --json room list",
+		},
+		{
+			name:    "injected nexuscfg command path",
+			command: `"$NEXUSCFG_COMMAND_PATH" --json inspect --domain providers`,
+		},
+		{
+			name:    "bare nexuscfg command path",
+			command: "nexuscfg --json inspect --domain providers",
 		},
 		{
 			name:    "owner scoped user create",

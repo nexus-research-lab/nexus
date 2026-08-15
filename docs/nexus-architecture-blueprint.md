@@ -234,7 +234,7 @@ Execution 的分派、评审返回和取消通过持久 Outbox 恢复。取消�
 
 Linux 服务端可通过 root-owned `nexus-runtime-launcher` 为 Runtime 分配不可登录 OS 用户、UID 与 GID、POSIX ACL、cgroup v2 和 Landlock 文件规则。Launcher 只接受受信任宿主配置，按 allowlist 构造环境，并移除宿主秘密和原始控制面能力。
 
-普通 Agent 通过受作用域的内建 MCP 使用 Nexus 能力。主 Agent 可以获得宿主注入的 `nexusctl` 路径，但 owner 和 workspace 由宿主锁定，Runtime Policy 拒绝作用域覆盖。
+普通 Agent 通过受作用域的内建 MCP 使用 Nexus 能力，并通过宿主按 runtime round 签发的 `nexuscfg` capability 管理自己的安全配置子集。主 Agent 额外获得宿主注入的 `nexusctl` 路径管理 owner 资源，并在私聊中通过同一 `nexuscfg` 获得 owner 全局配置权限；owner、Agent、DM/Room 和 workspace 均由宿主锁定，Runtime Policy 拒绝作用域与 capability 覆盖。
 
 ### 凭据
 

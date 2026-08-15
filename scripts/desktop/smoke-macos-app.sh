@@ -149,6 +149,15 @@ if ! "${NEXUSCTL_EXECUTABLE}" --help >/dev/null 2>&1; then
   fail "bundled nexusctl --help failed"
 fi
 
+NEXUSCFG_EXECUTABLE="${APP_BUNDLE}/Contents/Resources/bin/nexuscfg"
+if [[ ! -x "${NEXUSCFG_EXECUTABLE}" ]]; then
+  fail "missing bundled nexuscfg executable: ${NEXUSCFG_EXECUTABLE}"
+fi
+
+if ! "${NEXUSCFG_EXECUTABLE}" --help >/dev/null 2>&1; then
+  fail "bundled nexuscfg --help failed"
+fi
+
 NXS_EXECUTABLE="${APP_BUNDLE}/Contents/Resources/bin/nxs"
 if [[ "${EXPECT_NXS_RUNTIME}" == "1" ]]; then
   if [[ ! -x "${NXS_EXECUTABLE}" ]]; then

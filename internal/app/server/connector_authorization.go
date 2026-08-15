@@ -40,7 +40,7 @@ type connectorAuthorizationRedirectControl interface {
 // 私有 DM 注入授权工具。全部身份字段来自 fresh Agent/principal/lease 记录。
 func newConnectorAuthorizationMCPBuilder(
 	svc connectorauthorizationcontract.Service,
-	agents configurationAgentResolver,
+	agents runtimeAgentResolver,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
@@ -101,7 +101,7 @@ func newConnectorAuthorizationMCPBuilder(
 		if sourceContextType != contextKind || sourceContextID != agentID {
 			return server()
 		}
-		role, authMethod, localSingleUser, ok := trustedConfigurationPrincipal(
+		role, authMethod, localSingleUser, ok := trustedRuntimePrincipal(
 			ctx, record.OwnerUserID,
 		)
 		if !ok {
@@ -133,7 +133,7 @@ func newConnectorAuthorizationMCPBuilder(
 			// requirement of Connector authorization.
 			return server()
 		}
-		if _, routeOK := trustedConfigurationRuntimeRoute(
+		if _, routeOK := trustedRuntimeRoute(
 			record.AgentID,
 			sourceContextType,
 			sessionKey,

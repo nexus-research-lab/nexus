@@ -158,7 +158,7 @@ type ChangePlan struct {
 	RequiresConfirmation bool     `json:"requires_confirmation"`
 	Summary              string   `json:"summary"`
 	SanitizedInput       any      `json:"sanitized_input,omitempty"`
-	// SecretSlots 只描述需要由当前真人在批准卡中填写的路径和 opaque ID。
+	// SecretSlots 只描述需要由当前真人通过受信入口填写的路径和 opaque ID。
 	// 值从不进入模型结果、tool input、审计或持久 transcript。
 	SecretSlots []secretinput.Slot `json:"secret_slots,omitempty"`
 }

@@ -29,33 +29,37 @@ var (
 	// ErrMainAgentRequired 防止普通 Agent 读取或改写 owner 级全局配置。
 	ErrMainAgentRequired = errors.New("只有 Nexus 主智能体可以读取或修改全局配置")
 	// ErrRevisionRequired 强制对话写入先读取/预检再应用。
-	ErrRevisionRequired = errors.New("expected_revision 不能为空；请先调用 plan_nexus_configuration_change")
+	ErrRevisionRequired = errors.New("expected_revision 不能为空；请先运行 nexuscfg plan")
 )
 
 // Service 聚合现有领域服务，不直接复刻其业务规则。
 type Service struct {
-	cfg            config.Config
-	db             *sql.DB
-	dialect        storage.SQLDialect
-	agents         *agentsvc.Service
-	providers      *providersvc.Service
-	prefs          *preferencessvc.Service
-	channels       *channels.ControlService
-	connectors     *connectorsvc.Service
-	skills         *skillsvc.Service
-	runtime        *runtimectx.Manager
-	sessions       sessionConfigurationService
-	rooms          roomConfigurationService
-	roomRuntime    roomRuntimeController
-	notifier       configurationNotifier
-	mutationLocks  [256]sync.Mutex
-	integrityMu    sync.Mutex
-	integrityKey   []byte
-	approvalMu     sync.Mutex
-	humanApprovals map[string]humanApprovalRecord
-	approvalNow    func() time.Time
-	humanVerifier  interactiveHumanVerifier
-	roleResolver   activePrincipalRoleResolver
+	cfg                        config.Config
+	db                         *sql.DB
+	dialect                    storage.SQLDialect
+	agents                     *agentsvc.Service
+	providers                  *providersvc.Service
+	prefs                      *preferencessvc.Service
+	channels                   *channels.ControlService
+	connectors                 *connectorsvc.Service
+	skills                     *skillsvc.Service
+	runtime                    *runtimectx.Manager
+	sessions                   sessionConfigurationService
+	rooms                      roomConfigurationService
+	roomRuntime                roomRuntimeController
+	notifier                   configurationNotifier
+	mutationLocks              [256]sync.Mutex
+	integrityMu                sync.Mutex
+	integrityKey               []byte
+	approvalMu                 sync.Mutex
+	humanApprovals             map[string]humanApprovalRecord
+	approvalNow                func() time.Time
+	runtimeCapabilityMu        sync.Mutex
+	runtimeCapabilities        map[string]*runtimeCapabilityRecord
+	runtimeCapabilityBySession map[string]string
+	runtimeCapabilityNow       func() time.Time
+	humanVerifier              interactiveHumanVerifier
+	roleResolver               activePrincipalRoleResolver
 }
 
 type interactiveHumanVerifier interface {
@@ -88,8 +92,11 @@ func NewService(
 		cfg: cfg, db: db, dialect: storage.NewSQLDialect(cfg.DatabaseDriver),
 		agents: agents, providers: providers, prefs: prefs, channels: channelControl,
 		connectors: connectors, skills: skills, runtime: runtime,
-		humanApprovals: make(map[string]humanApprovalRecord),
-		approvalNow:    func() time.Time { return time.Now().UTC() },
+		humanApprovals:             make(map[string]humanApprovalRecord),
+		approvalNow:                func() time.Time { return time.Now().UTC() },
+		runtimeCapabilities:        make(map[string]*runtimeCapabilityRecord),
+		runtimeCapabilityBySession: make(map[string]string),
+		runtimeCapabilityNow:       func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -144,7 +151,7 @@ func scopedContext(ctx context.Context, actor Actor) context.Context {
 
 // privateProviderMutationContext 把 Provider 写入能力固定为 owner 私有资源。
 //
-// 即使调用 nexus_config 的真实用户是 owner/admin，也不能把该角色转交给
+// 即使调用配置服务的真实用户是 owner/admin，也不能把该角色转交给
 // Agent 去修改公共订阅 Provider；Provider 服务会据此拒绝任何竞态下回退到的
 // public 记录。
 func privateProviderMutationContext(ctx context.Context, actor Actor) context.Context {

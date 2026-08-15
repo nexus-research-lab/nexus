@@ -268,6 +268,13 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	configurationService.SetSessionControl(core.Session)
 	configurationService.SetRoomControl(core.Room, roomRealtime)
 	configurationService.SetPrincipalVerifiers(authService, authService)
+	configurationRuntimeEnvironmentBuilder := newConfigurationRuntimeEnvironmentBuilder(
+		cfg,
+		configurationService,
+		core.Agent,
+	)
+	dmService.SetConfigurationRuntimeEnvironmentBuilder(configurationRuntimeEnvironmentBuilder)
+	roomRealtime.SetConfigurationRuntimeEnvironmentBuilder(configurationRuntimeEnvironmentBuilder)
 	connectorAuthorization, err := connectorsvc.NewAuthorizationControl(
 		connectorService,
 		core.Agent,
@@ -325,8 +332,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		panic(err)
 	}
 
-	// 把内置配置、平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
-	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
+	// 把平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
 	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
@@ -342,7 +348,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		newAutomationExecutionMCPBuilder(automationService, cfg.DefaultTimezone),
 	)
 	mcpBuilder := combinedMCPBuilder(
-		configurationBuilder,
 		communicationBuilder,
 		automationBuilder,
 		connectorBuilder,

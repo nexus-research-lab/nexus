@@ -13,15 +13,28 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
-const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
+const (
+	nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
+	nexuscfgCommandPathEnvName = "NEXUSCFG_COMMAND_PATH"
+)
 
-type nexusctlShimTarget struct {
+type runtimeCLIShimDefinition struct {
+	Name               string
+	CommandPathEnvName string
+}
+
+var runtimeCLIShimDefinitions = []runtimeCLIShimDefinition{
+	{Name: "nexusctl", CommandPathEnvName: nexusctlCommandPathEnvName},
+	{Name: "nexuscfg", CommandPathEnvName: nexuscfgCommandPathEnvName},
+}
+
+type runtimeCLIShimTarget struct {
 	Kind        string
 	CommandPath string
 	ProjectRoot string
 }
 
-func ensureNexusctlShim(binDir string, context map[string]string) error {
+func ensureRuntimeCLIShims(binDir string, context map[string]string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
@@ -30,69 +43,84 @@ func ensureNexusctlShim(binDir string, context map[string]string) error {
 		return err
 	}
 	defer root.Close()
-	target, err := resolveNexusctlShimTarget(binDir, context["project_root"])
-	if err != nil {
-		return err
+	for _, definition := range runtimeCLIShimDefinitions {
+		target, resolveErr := resolveRuntimeCLIShimTarget(
+			binDir,
+			context["project_root"],
+			definition,
+		)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		content, renderErr := renderRuntimeCLIShellShim(target, definition.Name)
+		if renderErr != nil {
+			return renderErr
+		}
+		if err = root.WriteFileAtomic(definition.Name, []byte(content), 0o755); err != nil {
+			return err
+		}
+		cmdContent, renderErr := renderRuntimeCLIWindowsShim(target, definition.Name)
+		if renderErr != nil {
+			return renderErr
+		}
+		if err = root.WriteFileAtomic(definition.Name+".cmd", []byte(cmdContent), 0o755); err != nil {
+			return err
+		}
 	}
-	content, err := renderNexusctlShellShim(target)
-	if err != nil {
-		return err
-	}
-	if err = root.WriteFileAtomic("nexusctl", []byte(content), 0o755); err != nil {
-		return err
-	}
-	cmdContent, err := renderNexusctlWindowsShim(target)
-	if err != nil {
-		return err
-	}
-	return root.WriteFileAtomic("nexusctl.cmd", []byte(cmdContent), 0o755)
+	return nil
 }
 
-func resolveNexusctlShimTarget(binDir string, projectRoot string) (nexusctlShimTarget, error) {
+func resolveRuntimeCLIShimTarget(
+	binDir string,
+	projectRoot string,
+	definition runtimeCLIShimDefinition,
+) (runtimeCLIShimTarget, error) {
 	root := filepath.Clean(strings.TrimSpace(projectRoot))
-	if commandPath := strings.TrimSpace(os.Getenv(nexusctlCommandPathEnvName)); commandPath != "" &&
-		!samePath(commandPath, filepath.Join(binDir, "nexusctl")) &&
-		!samePath(commandPath, filepath.Join(binDir, "nexusctl.cmd")) {
-		if err := validateNexusctlExecutable(commandPath); err != nil {
-			return nexusctlShimTarget{}, err
+	if commandPath := strings.TrimSpace(os.Getenv(definition.CommandPathEnvName)); commandPath != "" &&
+		!samePath(commandPath, filepath.Join(binDir, definition.Name)) &&
+		!samePath(commandPath, filepath.Join(binDir, definition.Name+".cmd")) {
+		if err := validateRuntimeCLIExecutable(commandPath, definition.Name); err != nil {
+			return runtimeCLIShimTarget{}, err
 		}
-		return nexusctlShimTarget{Kind: "executable", CommandPath: filepath.Clean(commandPath)}, nil
+		return runtimeCLIShimTarget{Kind: "executable", CommandPath: filepath.Clean(commandPath)}, nil
 	}
-	sourceEntry := filepath.Join(root, "cmd", "nexusctl", "main.go")
+	sourceEntry := filepath.Join(root, "cmd", definition.Name, "main.go")
 	if _, err := os.Stat(sourceEntry); err == nil {
-		return nexusctlShimTarget{Kind: "source", ProjectRoot: root}, nil
+		return runtimeCLIShimTarget{Kind: "source", ProjectRoot: root}, nil
 	} else if err != nil && !os.IsNotExist(err) {
-		return nexusctlShimTarget{}, err
+		return runtimeCLIShimTarget{}, err
 	}
-	for _, candidate := range packagedNexusctlCandidates(root) {
-		if err := validateNexusctlExecutable(candidate); err == nil {
-			return nexusctlShimTarget{Kind: "executable", CommandPath: filepath.Clean(candidate)}, nil
+	for _, candidate := range packagedRuntimeCLICandidates(root, definition.Name) {
+		if err := validateRuntimeCLIExecutable(candidate, definition.Name); err == nil {
+			return runtimeCLIShimTarget{Kind: "executable", CommandPath: filepath.Clean(candidate)}, nil
 		} else if err != nil && !os.IsNotExist(err) {
-			return nexusctlShimTarget{}, err
+			return runtimeCLIShimTarget{}, err
 		}
 	}
-	return nexusctlShimTarget{}, fmt.Errorf(
-		"nexusctl command path is required: set %s or provide cmd/nexusctl/main.go under %s",
-		nexusctlCommandPathEnvName,
+	return runtimeCLIShimTarget{}, fmt.Errorf(
+		"%s command path is required: set %s or provide cmd/%s/main.go under %s",
+		definition.Name,
+		definition.CommandPathEnvName,
+		definition.Name,
 		root,
 	)
 }
 
-func packagedNexusctlCandidates(root string) []string {
+func packagedRuntimeCLICandidates(root string, name string) []string {
 	if runtime.GOOS == "windows" {
-		return []string{filepath.Join(root, "bin", "nexusctl.exe")}
+		return []string{filepath.Join(root, "bin", name+".exe")}
 	}
-	return []string{filepath.Join(root, "bin", "nexusctl")}
+	return []string{filepath.Join(root, "bin", name)}
 }
 
-func validateNexusctlExecutable(commandPath string) error {
+func validateRuntimeCLIExecutable(commandPath string, name string) error {
 	cleanPath := filepath.Clean(strings.TrimSpace(commandPath))
 	info, err := os.Stat(cleanPath)
 	if err != nil {
 		return err
 	}
 	if info.IsDir() {
-		return fmt.Errorf("%s 指向目录，不是 nexusctl 可执行文件", cleanPath)
+		return fmt.Errorf("%s 指向目录，不是 %s 可执行文件", cleanPath, name)
 	}
 	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		return fmt.Errorf("%s 不可执行", cleanPath)
@@ -100,7 +128,7 @@ func validateNexusctlExecutable(commandPath string) error {
 	return nil
 }
 
-func renderNexusctlShellShim(target nexusctlShimTarget) (string, error) {
+func renderRuntimeCLIShellShim(target runtimeCLIShimTarget, name string) (string, error) {
 	switch target.Kind {
 	case "source":
 		return `#!/bin/sh
@@ -110,7 +138,7 @@ CALLER_CWD="$(pwd)"
 export NEXUSCTL_WORKSPACE_PATH="${NEXUSCTL_WORKSPACE_PATH:-$CALLER_CWD}"
 
 cd ` + shellSingleQuote(target.ProjectRoot) + `
-exec go run ./cmd/nexusctl "$@"
+exec go run ./cmd/` + name + ` "$@"
 `, nil
 	case "executable":
 		return `#!/bin/sh
@@ -122,11 +150,11 @@ export NEXUSCTL_WORKSPACE_PATH="${NEXUSCTL_WORKSPACE_PATH:-$CALLER_CWD}"
 exec ` + shellSingleQuote(target.CommandPath) + ` "$@"
 `, nil
 	default:
-		return "", fmt.Errorf("未知 nexusctl shim 类型: %s", target.Kind)
+		return "", fmt.Errorf("未知 %s shim 类型: %s", name, target.Kind)
 	}
 }
 
-func renderNexusctlWindowsShim(target nexusctlShimTarget) (string, error) {
+func renderRuntimeCLIWindowsShim(target runtimeCLIShimTarget, name string) (string, error) {
 	switch target.Kind {
 	case "source":
 		return `@echo off
@@ -136,7 +164,7 @@ set "CALLER_CWD=%CD%"
 if "%NEXUSCTL_WORKSPACE_PATH%"=="" set "NEXUSCTL_WORKSPACE_PATH=%CALLER_CWD%"
 
 cd /d "` + windowsBatchValue(target.ProjectRoot) + `"
-go run ./cmd/nexusctl %*
+go run ./cmd/` + name + ` %*
 exit /b %ERRORLEVEL%
 `, nil
 	case "executable":
@@ -150,7 +178,7 @@ if "%NEXUSCTL_WORKSPACE_PATH%"=="" set "NEXUSCTL_WORKSPACE_PATH=%CALLER_CWD%"
 exit /b %ERRORLEVEL%
 `, nil
 	default:
-		return "", fmt.Errorf("未知 nexusctl shim 类型: %s", target.Kind)
+		return "", fmt.Errorf("未知 %s shim 类型: %s", name, target.Kind)
 	}
 }
 
@@ -168,7 +196,7 @@ func removeWorkspaceBinShim(root *confinedfs.Root) error {
 			_ = binRoot.Close()
 		}
 	}()
-	for _, fileName := range []string{"nexusctl", "nexusctl.cmd"} {
+	for _, fileName := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd"} {
 		info, statErr := binRoot.Lstat(fileName)
 		if os.IsNotExist(statErr) {
 			continue
@@ -194,7 +222,7 @@ func removeWorkspaceBinShim(root *confinedfs.Root) error {
 		if closeErr != nil {
 			return closeErr
 		}
-		if !looksLikeGeneratedNexusctlShim(string(content)) {
+		if !looksLikeGeneratedRuntimeCLIShim(string(content)) {
 			continue
 		}
 		if err = binRoot.Remove(fileName); err != nil && !os.IsNotExist(err) {
@@ -215,9 +243,10 @@ func removeWorkspaceBinShim(root *confinedfs.Root) error {
 	return root.Remove(".agents/bin")
 }
 
-func looksLikeGeneratedNexusctlShim(content string) bool {
+func looksLikeGeneratedRuntimeCLIShim(content string) bool {
 	return strings.Contains(content, "NEXUSCTL_WORKSPACE_PATH") &&
 		(strings.Contains(content, "go run ./cmd/nexusctl") ||
+			strings.Contains(content, "go run ./cmd/nexuscfg") ||
 			strings.Contains(content, "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl") ||
 			strings.Contains(content, "exit /b %ERRORLEVEL%"))
 }

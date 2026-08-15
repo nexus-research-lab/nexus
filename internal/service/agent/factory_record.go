@@ -116,7 +116,7 @@ func defaultMainAgentOptions() protocol.Options {
 }
 
 func defaultAgentOptions(isMain bool) protocol.Options {
-	skillIDs := []string{"imagegen", "visualize", "goal-manager", "execution-orchestrator"}
+	skillIDs := []string{"imagegen", "visualize", "goal-manager", "execution-orchestrator", "nexus-configuration"}
 	if isMain {
 		skillIDs = append(skillIDs, "nexus-manager")
 	}

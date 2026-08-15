@@ -16,6 +16,7 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 )
@@ -63,7 +64,7 @@ type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
-	// 只有该宿主事实可启用 owner-scoped nexusctl 控制面能力。
+	// 只有该宿主事实可启用 owner-scoped nexusctl；nexuscfg 由独立 round capability 授权。
 	IsMainAgent       bool
 	RuntimeKind       string
 	Provider          string
@@ -83,17 +84,19 @@ type AgentClientOptionsInput struct {
 	// SkillDirectories 是宿主授予 runtime 的平台与用户级资源根，不随 Agent workspace 变化。
 	SkillDirectories []string
 	// AdditionalDirectories 是用户为当前 Session 显式挂载的本机工作目录。
-	AdditionalDirectories      []string
-	SettingSources             []string
-	AppendSystemPrompt         string
-	AppendSystemPromptStatic   string
-	AppendSystemPromptDynamic  string
-	ResumeSessionID            string
-	MaxThinkingTokens          *int
-	MaxTurns                   *int
-	MCPServers                 map[string]sdkmcp.ServerConfig
-	AgentMCPServers            map[string]any
-	ExtraEnv                   map[string]string
+	AdditionalDirectories     []string
+	SettingSources            []string
+	AppendSystemPrompt        string
+	AppendSystemPromptStatic  string
+	AppendSystemPromptDynamic string
+	ResumeSessionID           string
+	MaxThinkingTokens         *int
+	MaxTurns                  *int
+	MCPServers                map[string]sdkmcp.ServerConfig
+	AgentMCPServers           map[string]any
+	ExtraEnv                  map[string]string
+	// ConfigurationEnv 只接受宿主按当前 runtime round 签发的 nexuscfg broker capability。
+	ConfigurationEnv           map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
 	WebSearch                  WebSearchConfig
@@ -155,15 +158,25 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
 	// 必须在所有可配置环境合并后再次写入，确保 session metadata 和下游
-	// hook 始终绑定同一个 owner；普通 Agent 保持清空，主智能体随后只恢复
-	// 宿主注入且锁定 owner/workspace 的 nexusctl capability。
+	// hook 始终绑定同一个 owner；nexusctl 仍只对主智能体开放，nexuscfg 则
+	// 只有拿到宿主 round capability 的 runtime 才恢复命令入口。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID, input.IsMainAgent))
 	runtimeEnv = mergeRuntimeEnv(
 		runtimeEnv,
 		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),
 	)
-	if input.IsMainAgent {
-		runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
+	if input.IsMainAgent || len(input.ConfigurationEnv) > 0 {
+		runtimeEnv = mergeRuntimeEnv(
+			runtimeEnv,
+			workspaceRuntimeEnv(input.WorkspacePath, input.IsMainAgent),
+		)
+	}
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ConfigurationEnv)
+	// 防止上层误把不完整 capability 当成可信环境。
+	if len(input.ConfigurationEnv) > 0 &&
+		(strings.TrimSpace(runtimeEnv[protocol.NexusConfigBrokerURLEnvName]) == "" ||
+			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
+		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
 	}
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))

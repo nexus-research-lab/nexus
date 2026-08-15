@@ -20,7 +20,7 @@ import (
 
 const (
 	workspacePolicyPublicDenial  = "该操作超出当前用户被授予的工作区范围。"
-	mainAgentNexusctlScopeDenial = "主智能体调用 nexusctl 时已有宿主注入的 owner 作用域；请移除 --global-scope、--scope-user-id 和作用域环境变量覆盖后重试。"
+	mainAgentNexusctlScopeDenial = "主智能体调用 Nexus 控制面 CLI 时已有宿主注入的 owner 作用域；请移除 --global-scope、--scope-user-id 和作用域环境变量覆盖后重试。"
 )
 
 var unixShellVariablePattern = regexp.MustCompile(
@@ -39,20 +39,27 @@ var shellRemoteURLExpansionPattern = regexp.MustCompile(
 var shellFileURLExpansionPattern = regexp.MustCompile(`(?i)(?:[-=+?])file:/+`)
 var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
 var powerShellBracedScopeEnvironmentAssignmentPattern = regexp.MustCompile(
-	`(?i)\$\{env:(?:CLAUDE_CONFIG_DIR|NEXUS_CONFIG_DIR|NEXUS_RUNTIME_SCOPE_MODE|NEXUS_STATE_ROOT|NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH)\}\s*=`,
+	`(?i)\$\{env:(?:CLAUDE_CONFIG_DIR|NEXUS_CONFIG_DIR|NEXUS_RUNTIME_SCOPE_MODE|NEXUS_STATE_ROOT|NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH|NEXUSCTL_COMMAND_PATH|NEXUSCFG_COMMAND_PATH|NEXUSCFG_BROKER_URL|NEXUSCFG_CAPABILITY_TOKEN)\}\s*=`,
 )
 var nexusctlCommandTextPattern = regexp.MustCompile(
 	`(?i)(?:^|[^A-Za-z0-9_.-])nexusctl(?:\.(?:bat|cmd|exe|ps1))?(?:$|[^A-Za-z0-9_.-])`,
 )
+var nexuscfgCommandTextPattern = regexp.MustCompile(
+	`(?i)(?:^|[^A-Za-z0-9_.-])nexuscfg(?:\.(?:bat|cmd|exe|ps1))?(?:$|[^A-Za-z0-9_.-])`,
+)
 var shellEscapeReplacer = strings.NewReplacer(`\`, "", "^", "", "`", "")
 
 var nexusctlScopeEnvironmentNames = map[string]struct{}{
-	"CLAUDE_CONFIG_DIR":        {},
-	"NEXUS_CONFIG_DIR":         {},
-	"NEXUS_RUNTIME_SCOPE_MODE": {},
-	"NEXUS_STATE_ROOT":         {},
-	"NEXUSCTL_USER_ID":         {},
-	"NEXUSCTL_WORKSPACE_PATH":  {},
+	"CLAUDE_CONFIG_DIR":         {},
+	"NEXUS_CONFIG_DIR":          {},
+	"NEXUS_RUNTIME_SCOPE_MODE":  {},
+	"NEXUS_STATE_ROOT":          {},
+	"NEXUSCTL_USER_ID":          {},
+	"NEXUSCTL_WORKSPACE_PATH":   {},
+	"NEXUSCTL_COMMAND_PATH":     {},
+	"NEXUSCFG_COMMAND_PATH":     {},
+	"NEXUSCFG_BROKER_URL":       {},
+	"NEXUSCFG_CAPABILITY_TOKEN": {},
 }
 
 var nexusctlScopeFlags = map[string]struct{}{
@@ -66,6 +73,14 @@ var nexusctlExecutableNames = map[string]struct{}{
 	"nexusctl.cmd": {},
 	"nexusctl.exe": {},
 	"nexusctl.ps1": {},
+}
+
+var nexuscfgExecutableNames = map[string]struct{}{
+	"nexuscfg":     {},
+	"nexuscfg.bat": {},
+	"nexuscfg.cmd": {},
+	"nexuscfg.exe": {},
+	"nexuscfg.ps1": {},
 }
 
 var powerShellEnvironmentMutationCommands = map[string]struct{}{
@@ -845,7 +860,7 @@ func standaloneComplexBracedShellValue(value string) bool {
 
 func mainAgentDynamicPathArgument(parts []shellCommandPart, index int) bool {
 	part := parts[index]
-	if firstShellVariableIndex(part.value) < 0 || nexusctlCommandVariable(part.value) {
+	if firstShellVariableIndex(part.value) < 0 || nexusControlCommandVariable(part.value) {
 		return false
 	}
 	if name, _, assigned := strings.Cut(part.value, "="); assigned && shellAssignmentName(name) {
@@ -939,17 +954,22 @@ func shellSystemPath(path string) bool {
 
 func forbiddenNexusctlScope(policy Policy, command string, syntax shellSyntax) string {
 	parts := shellCommandParts(command, syntax)
-	if !shellCommandUsesNexusctl(parts) && !commandReferencesBracedNexusctlVariable(command) &&
-		!nexusctlCommandTextPattern.MatchString(command) {
+	usesNexusctl := shellCommandUsesNexusctl(parts) ||
+		commandReferencesBracedNexusctlVariable(command) ||
+		nexusctlCommandTextPattern.MatchString(command)
+	usesNexuscfg := shellCommandUsesNexuscfg(parts) ||
+		commandReferencesBracedNexuscfgVariable(command) ||
+		nexuscfgCommandTextPattern.MatchString(command)
+	if !usesNexusctl && !usesNexuscfg {
 		return ""
 	}
-	if policy.IsMainAgent {
-		if shellCommandOverridesNexusctlScope(parts, command) {
-			return "主智能体 nexusctl 必须使用宿主注入的 owner 作用域"
-		}
-		return ""
+	if usesNexusctl && !policy.IsMainAgent {
+		return "runtime 不向普通 Agent 提供 nexusctl"
 	}
-	return "runtime 暂不提供直接 nexusctl 控制面 broker"
+	if shellCommandOverridesNexusctlScope(parts, command) {
+		return "Nexus 控制面 CLI 必须使用宿主注入的作用域和 capability"
+	}
+	return ""
 }
 
 func shellCommandUsesNexusctl(parts []shellCommandPart) bool {
@@ -962,6 +982,23 @@ func shellCommandUsesNexusctl(parts []shellCommandPart) bool {
 				candidate = value
 			}
 			if nexusctlCommandVariable(candidate) || nexusctlExecutable(candidate) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func shellCommandUsesNexuscfg(parts []shellCommandPart) bool {
+	for _, part := range parts {
+		if part.operator != 0 {
+			continue
+		}
+		for _, candidate := range shellTokenCandidates(part) {
+			if _, value, assigned := strings.Cut(candidate, "="); assigned {
+				candidate = value
+			}
+			if nexuscfgCommandVariable(candidate) || nexuscfgExecutable(candidate) {
 				return true
 			}
 		}
@@ -1007,6 +1044,12 @@ func commandReferencesBracedNexusctlVariable(command string) bool {
 		strings.Contains(upper, "${ENV:NEXUSCTL_COMMAND_PATH}")
 }
 
+func commandReferencesBracedNexuscfgVariable(command string) bool {
+	upper := strings.ToUpper(command)
+	return strings.Contains(upper, "${NEXUSCFG_COMMAND_PATH}") ||
+		strings.Contains(upper, "${ENV:NEXUSCFG_COMMAND_PATH}")
+}
+
 func shellTokenCandidates(part shellCommandPart) []string {
 	candidates := []string{part.value}
 	unescaped := shellEscapeReplacer.Replace(part.value)
@@ -1030,11 +1073,36 @@ func nexusctlCommandVariable(value string) bool {
 	}
 }
 
+func nexuscfgCommandVariable(value string) bool {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "$NEXUSCFG_COMMAND_PATH",
+		"${NEXUSCFG_COMMAND_PATH}",
+		"%NEXUSCFG_COMMAND_PATH%",
+		"$ENV:NEXUSCFG_COMMAND_PATH",
+		"${ENV:NEXUSCFG_COMMAND_PATH}":
+		return true
+	default:
+		return false
+	}
+}
+
+func nexusControlCommandVariable(value string) bool {
+	return nexusctlCommandVariable(value) || nexuscfgCommandVariable(value)
+}
+
 func nexusctlExecutable(value string) bool {
 	if index := strings.LastIndexAny(value, `/\`); index >= 0 {
 		value = value[index+1:]
 	}
 	_, ok := nexusctlExecutableNames[strings.ToLower(strings.TrimSpace(value))]
+	return ok
+}
+
+func nexuscfgExecutable(value string) bool {
+	if index := strings.LastIndexAny(value, `/\`); index >= 0 {
+		value = value[index+1:]
+	}
+	_, ok := nexuscfgExecutableNames[strings.ToLower(strings.TrimSpace(value))]
 	return ok
 }
 

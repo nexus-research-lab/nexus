@@ -21,7 +21,7 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 		UserID: "owner", Role: authctx.RoleOwner, AuthMethod: authctx.AuthMethodPassword,
 	})
 	worker := &protocol.Agent{AgentID: "worker", OwnerUserID: "owner"}
-	builder := newCommunicationMCPBuilder(svc, stubConfigurationAgentResolver{record: worker})
+	builder := newCommunicationMCPBuilder(svc, stubRuntimeAgentResolver{record: worker})
 	sessionKey := protocol.BuildAgentSessionKey(
 		worker.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "main", "",
 	)
@@ -39,7 +39,7 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 	}
 
 	main := &protocol.Agent{AgentID: "nexus", OwnerUserID: "owner", IsMain: true}
-	mainBuilder := newCommunicationMCPBuilder(svc, stubConfigurationAgentResolver{record: main})
+	mainBuilder := newCommunicationMCPBuilder(svc, stubRuntimeAgentResolver{record: main})
 	mainSession := protocol.BuildAgentSessionKey(
 		main.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "main", "",
 	)
@@ -72,7 +72,7 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 	roomContext = runtimectx.WithResponsibilityAuthorityState(roomContext, responsibility)
 	actor, ok := communicationRuntimeActor(
 		roomContext,
-		stubConfigurationAgentResolver{record: worker},
+		stubRuntimeAgentResolver{record: worker},
 		worker,
 		roomSession,
 		"root-round-room",

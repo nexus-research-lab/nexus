@@ -95,7 +95,9 @@ func (s *Service) resolveActor(ctx context.Context, actor Actor) (*resolvedActor
 		return nil, err
 	}
 	actor = actorWithTrustedRequestPrincipal(ctx, actor)
-	if s.roleResolver != nil {
+	if authctx.IsLocalSingleUserControlPlane(ctx, actor.OwnerUserID) {
+		actor.PrincipalRole = authctx.RoleOwner
+	} else if s.roleResolver != nil {
 		role, roleErr := s.roleResolver.ResolveActivePrincipalRole(ctx, actor.OwnerUserID)
 		if roleErr != nil {
 			return nil, fmt.Errorf("重新验证配置 principal 角色: %w", roleErr)

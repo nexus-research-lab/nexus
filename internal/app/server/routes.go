@@ -4,6 +4,10 @@ import "strings"
 
 // mountRoutes 按功能域挂载全部 HTTP 路由。
 func (s *Server) mountRoutes() {
+	s.router.Post(
+		s.prefixPath("/internal/runtime/configuration"),
+		newRuntimeConfigurationHandler(s.services.Configuration),
+	)
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
