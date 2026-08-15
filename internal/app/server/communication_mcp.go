@@ -19,7 +19,7 @@ import (
 
 func newCommunicationMCPBuilder(
 	svc *communicationsvc.Service,
-	agents configurationAgentResolver,
+	agents runtimeAgentResolver,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
@@ -52,7 +52,7 @@ func newCommunicationMCPBuilder(
 
 func communicationRuntimeActor(
 	ctx context.Context,
-	agents configurationAgentResolver,
+	agents runtimeAgentResolver,
 	agentValue *protocol.Agent,
 	sessionKey string,
 	roundID string,

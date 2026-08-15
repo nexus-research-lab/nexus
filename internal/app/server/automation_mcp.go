@@ -23,7 +23,7 @@ import (
 // Agent 的只读诊断工具。跨 Agent authority 只签发给主智能体自己的私有 DM。
 func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
-	agents configurationAgentResolver,
+	agents runtimeAgentResolver,
 	defaultTimezone string,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
@@ -92,7 +92,7 @@ func newAutomationMCPBuilder(
 		// 精确 agent/room 来源会暴露 mutation 工具，因此必须同时验证
 		// fresh Agent、owner principal、结构化业务路由和当前 runtime lease。
 		if sourceContextType == "agent" || sourceContextType == "room" {
-			if _, _, _, ok := trustedConfigurationPrincipal(ctx, record.OwnerUserID); !ok {
+			if _, _, _, ok := trustedRuntimePrincipal(ctx, record.OwnerUserID); !ok {
 				return downgrade()
 			}
 			lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
@@ -109,7 +109,7 @@ func newAutomationMCPBuilder(
 					return downgrade()
 				}
 			}
-			if _, ok = trustedConfigurationRuntimeRoute(
+			if _, ok = trustedRuntimeRoute(
 				record.AgentID,
 				sourceContextType,
 				sessionKey,

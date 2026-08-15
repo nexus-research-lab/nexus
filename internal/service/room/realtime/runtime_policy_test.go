@@ -14,7 +14,6 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
@@ -165,12 +164,6 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	}
 	if !options.IncludePartialMessages {
 		t.Fatalf("room runtime 未开启 partial messages: %+v", options)
-	}
-	if slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomMember) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillOwnerMain) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillAgentSelf) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomHost) {
-		t.Fatalf("普通 Room slot 未只启用 member 配置 Skill: %#v", options.Skills)
 	}
 }
 
@@ -620,12 +613,6 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	options := factory.LastOptions()
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room 请求级权限处理器未透传: %+v", options)
-	}
-	if slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomHost) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillOwnerMain) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillAgentSelf) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomMember) {
-		t.Fatalf("Room host slot 未只启用 host 配置 Skill: %#v", options.Skills)
 	}
 	if len(options.Tools.Allow) != 0 {
 		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)

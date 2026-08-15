@@ -42,13 +42,9 @@ const (
 )
 
 var (
-	systemSkillNames   = map[string]struct{}{"imagegen": {}, "visualize": {}, "goal-manager": {}}
+	systemSkillNames   = map[string]struct{}{"imagegen": {}, "visualize": {}, "goal-manager": {}, "nexus-configuration": {}}
 	internalSkillNames = map[string]struct{}{
-		"nexus-manager":                   {},
-		"nexus-owner-configuration":       {},
-		"nexus-agent-self-configuration":  {},
-		"nexus-room-host-configuration":   {},
-		"nexus-room-member-configuration": {},
+		"nexus-manager": {},
 	}
 	curatedEntriesOnce sync.Once
 	curatedEntriesData map[string]map[string]string

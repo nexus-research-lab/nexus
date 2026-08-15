@@ -158,6 +158,16 @@ type MCPServerBuilder func(
 	permissionMode sdkpermission.Mode,
 ) map[string]sdkmcp.ServerConfig
 
+// ConfigurationRuntimeEnvironmentBuilder 由宿主为当前 runtime round 签发 nexuscfg 环境。
+type ConfigurationRuntimeEnvironmentBuilder func(
+	context.Context,
+	*protocol.Agent,
+	string,
+	string,
+	string,
+	string,
+) (map[string]string, error)
+
 // Service 负责编排 DM 实时链路。
 type Service struct {
 	config       config.Config
@@ -185,6 +195,7 @@ type Service struct {
 	subagentAdmission         orchestrationruntimehook.Provider
 	logger                    *slog.Logger
 	mcpServers                MCPServerBuilder
+	configurationRuntimeEnv   ConfigurationRuntimeEnvironmentBuilder
 	executionMCPServers       runtimectx.ExecutionMCPServerBuilder
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
@@ -293,6 +304,13 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 // 由 server app 在构造定时任务服务后注入，避免 dm 包反向依赖 automation 子包。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
+}
+
+// SetConfigurationRuntimeEnvironmentBuilder 注入可信 nexuscfg capability 签发器。
+func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
+	builder ConfigurationRuntimeEnvironmentBuilder,
+) {
+	s.configurationRuntimeEnv = builder
 }
 
 // SetExecutionMCPServerBuilder 注入需要完整 round identity 的 Execution MCP overlay。

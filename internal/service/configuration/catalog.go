@@ -12,14 +12,14 @@ import (
 var domainCatalog = []DomainDefinition{
 	{
 		Name: DomainPreferences, Description: "用户级聊天、runtime、WebSearch 与默认 Agent 偏好",
-		Source: "user preferences JSON + encrypted/isolated credential file", ManagedBy: "nexus_config", Mutable: true,
+		Source: "user preferences JSON + encrypted/isolated credential file", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("update", "合并更新偏好；WebSearch 变更会同步到活跃 nxs runtime", false, "immediate"),
 		},
 	},
 	{
 		Name: DomainProviders, Description: "LLM、图片 Provider、模型卡、默认模型与连通状态",
-		Source: "database", ManagedBy: "nexus_config", Mutable: true,
+		Source: "database", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("create", "创建私有 Provider", true, "next_round"),
 			op("update", "更新私有 Provider", true, "next_round"),
@@ -33,7 +33,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainAgents, Description: "Agent 身份、模型、权限、工具、MCP server 与 Skill 选择",
-		Source: "database + derived workspace settings", ManagedBy: "nexus_config", Mutable: true,
+		Source: "database + derived workspace settings", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("create", "创建 Agent 与独立 workspace", true, "next_round"),
 			op("update", "主智能体更新任意自有 Agent；权限模式立即同步，其他 runtime 配置下一轮重载", true, "mixed"),
@@ -44,7 +44,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainEmotion, Description: "当前 Agent 自有的基础情绪与可信 DM/Room 上下文情绪",
-		Source: "versioned .agents/emotion.json", ManagedBy: "nexus_config", Mutable: true,
+		Source: "versioned .agents/emotion.json", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("set_base", "在当前 Agent 私有 DM 中更新基础情绪；fatigue 保持 runtime 只读", false, "next_round"),
 			op("set_context", "更新当前可信 DM 或 Room conversation 的上下文情绪", false, "next_round"),
@@ -53,7 +53,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainChannels, Description: "IM Channel、账号、路由 Agent 与配对授权",
-		Source: "database with encrypted credentials", ManagedBy: "nexus_config", Mutable: true,
+		Source: "database with encrypted credentials", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("upsert", "创建或更新 Channel 并热重载", true, "immediate"),
 			op("delete_config", "删除 Channel 配置及账号", true, "immediate"),
@@ -65,7 +65,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainConnectors, Description: "外部连接器连接状态、直接凭据与用户 OAuth 应用",
-		Source: "database with encrypted credentials", ManagedBy: "nexus_config", Mutable: true,
+		Source: "database with encrypted credentials", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("connect", "使用显式凭据连接非 OAuth Connector", true, "next_session"),
 			op("disconnect", "断开 Connector 并清除连接凭据", true, "next_session"),
@@ -75,11 +75,11 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainSkills, Description: "外部 Skill 来源、更新状态与 Agent 安装选择",
-		Source: "database + user skill library", ManagedBy: "nexus_config", Mutable: true,
+		Source: "database + user skill library", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("search_external", "搜索已启用的远端 Skill 来源；不修改目录", false, "immediate"),
 			op("preview_external", "读取远端 Skill 详情预览；不修改目录", false, "immediate"),
-			op("create_private_source", "新增并验证 owner 私有 Skill 来源；Bearer Token 只从原生批准卡取得", true, "immediate"),
+			op("create_private_source", "新增并验证 owner 私有 Skill 来源；Bearer Token 只通过 Settings 或人工 CLI secret slot 输入", true, "immediate"),
 			op("import_git", "从 HTTPS Git 仓库的受控子目录导入 Skill", true, "next_round"),
 			op("import_url", "从受校验 HTTPS URL 导入 SKILL.md 或 zip", true, "next_round"),
 			op("import_skills_sh", "从 skills.sh 标识导入 Skill", true, "next_round"),
@@ -106,7 +106,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainSessions, Description: "Owner workspace 中的 Agent 对话目录与安全生命周期",
-		Source: "versioned Agent workspace session meta + runtime manager", ManagedBy: "nexus_config", Mutable: true,
+		Source: "versioned Agent workspace session meta + runtime manager", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("update_title", "更新普通 Agent session 标题；Room conversation 标题仍由 rooms 域管理", true, "ui_immediate"),
 			op("delete", "先安全关闭目标 runtime，再以版本 CAS 删除普通 Agent session 与 transcript", true, "immediate"),
@@ -114,7 +114,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainRooms, Description: "Room 共享资料、成员、群主与协作策略",
-		Source: "database + room runtime", ManagedBy: "nexus_config", Mutable: true,
+		Source: "database + room runtime", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("create", "创建 Room、初始 conversation、成员与群主", true, "ui_immediate_runtime_next_input"),
 			op("update_profile", "更新 Room 名称、描述与头像", true, "ui_immediate_runtime_next_round"),
@@ -443,7 +443,7 @@ func operationFor(definition DomainDefinition, operation string) (OperationDefin
 			return candidate, nil
 		}
 	}
-	if definition.ManagedBy != "nexus_config" {
+	if definition.ManagedBy != "nexuscfg" {
 		return OperationDefinition{}, fmt.Errorf("%s 由 %s 管理，请使用对应对话工具", definition.Name, definition.ManagedBy)
 	}
 	return OperationDefinition{}, fmt.Errorf("配置域 %s 不支持操作 %q", definition.Name, operation)

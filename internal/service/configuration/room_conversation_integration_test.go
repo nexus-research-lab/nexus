@@ -1,6 +1,6 @@
 // INPUT: owner-main、Room host/member 的可信对话身份与版本化 Room/conversation 变更。
 // OUTPUT: Room 创建、conversation 生命周期、人工批准、CAS、写后核验和成员拒绝证明。
-// POS: nexus_config 群聊生命周期与权限边界的端到端回归测试。
+// POS: nexuscfg 群聊生命周期与权限边界的端到端回归测试。
 package configuration_test
 
 import (

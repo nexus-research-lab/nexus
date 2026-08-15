@@ -401,6 +401,53 @@ func TestAgentSelfConfigurationBoundaryAndResourceCAS(t *testing.T) {
 	}
 }
 
+func TestAgentSelfCanApplyOwnProfileThroughNexuscfg(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	worker := fixture.createAgent(t, "CLI Self Config Worker")
+	actor := configurationsvc.Actor{
+		OwnerUserID: worker.OwnerUserID,
+		AgentID:     worker.AgentID,
+		SessionKey:  "agent:" + worker.AgentID + ":ws:dm:main",
+		ContextKind: configurationsvc.ContextKindAgent,
+		ContextID:   worker.AgentID,
+	}
+	bindConfigurationTestRound(t, fixture.services, &actor)
+	input := json.RawMessage(`{"description":"updated by nexuscfg"}`)
+	plan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		actor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainAgents, Operation: "update_self_profile", Input: input,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := fixture.services.Configuration.ApplyChangeFromCLI(
+		fixture.ownerCtx,
+		actor,
+		configurationsvc.ChangeRequest{
+			RequestID: "agent-self-cli-0001", Domain: configurationsvc.DomainAgents,
+			Operation: "update_self_profile", Input: input,
+			ExpectedRevision: plan.CurrentRevision, PlanDigest: plan.PlanDigest,
+		},
+		configurationsvc.CLIApplyOptions{Confirmed: true},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Applied {
+		t.Fatalf("nexuscfg apply result = %+v", result)
+	}
+	updated, err := fixture.services.Core.Agent.GetAgent(fixture.ownerCtx, worker.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Description != "updated by nexuscfg" {
+		t.Fatalf("ordinary Agent profile description = %q", updated.Description)
+	}
+}
+
 func TestSkillChangesBindSelfAndMainPlansToTargetAgentCAS(t *testing.T) {
 	fixture := newScopedConfigurationFixture(t)
 	mainTarget := fixture.createAgent(t, "Main Skill Target")

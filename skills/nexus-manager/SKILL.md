@@ -9,7 +9,7 @@ description: 管理和查询 Nexus 的用户账号、Agent、私聊（DM）、Ro
 
 ## 执行契约
 
-Nexus 产品配置不走本 CLI。Provider、Agent runtime options、偏好、Channel、Connector 凭据和 Skill 来源使用 `nexus_config` MCP：先 inspect/plan，再按 revision apply，最后核对 checks；主机启动配置只允许脱敏检查，真正变更走部署环境或原生桌面状态根迁移。不得直接编辑 Nexus 数据库或产品配置文件。
+Nexus 产品配置不走本 CLI。Provider、Agent runtime options、偏好、Channel、Connector 凭据和 Skill 来源使用内置 `nexus-configuration` Skill 与宿主作用域锁定的 `nexuscfg`；主机启动配置只允许脱敏检查，真正变更走部署环境或原生桌面状态根迁移。不得直接编辑 Nexus 数据库或产品配置文件。
 
 旧的 `nexus_manager` MCP 已移除。平台资源的读取和变更统一通过本 Skill 调用 `nexusctl`，不要尝试旧 MCP 工具名。
 

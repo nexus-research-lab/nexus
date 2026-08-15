@@ -316,6 +316,13 @@ func TestPublicAuthRouteAllowsOAuthCallbackPost(t *testing.T) {
 	}
 }
 
+func TestPublicAuthRouteAllowsRuntimeConfigurationBrokerWithCustomPrefix(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/custom/internal/runtime/configuration", nil)
+	if !PublicAuthRoute(request) {
+		t.Fatal("nexuscfg runtime broker 应自行通过 capability 鉴权")
+	}
+}
+
 func TestDesktopSessionTokenMiddlewareAcceptsWebSocketProtocolToken(t *testing.T) {
 	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	handler := DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(

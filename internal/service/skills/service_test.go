@@ -35,6 +35,7 @@ func TestMain(m *testing.M) {
 		"visualize",
 		"kami",
 		"nexus-manager",
+		"nexus-configuration",
 		"room-playbook",
 		"wechat-article-search",
 		"werewolf-6p",

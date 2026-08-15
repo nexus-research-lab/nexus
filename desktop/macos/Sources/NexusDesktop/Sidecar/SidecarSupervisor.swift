@@ -150,7 +150,7 @@ final class SidecarSupervisor {
     environment["TELEGRAM_ENABLED"] = "false"
     environment["CONNECTOR_OAUTH_REDIRECT_URI"] = runtimeConfig.oauthRedirectURL.absoluteString
     applyPackagedConnectorConfig(to: &environment)
-    applyBundledNexusctlCommand(to: &environment)
+    applyBundledControlCommands(to: &environment)
     applyBundledNXSRuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = webOrigin
@@ -179,32 +179,28 @@ final class SidecarSupervisor {
     }
   }
 
-  private func applyBundledNexusctlCommand(to environment: inout [String: String]) {
-    if let override = environment["NEXUSCTL_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
-        "source": "override",
-        "path": override,
-      ])
-      return
+  private func applyBundledControlCommands(to environment: inout [String: String]) {
+    for (name, environmentKey) in [
+      ("nexusctl", "NEXUSCTL_COMMAND_PATH"),
+      ("nexuscfg", "NEXUSCFG_COMMAND_PATH"),
+    ] {
+      let timelineKey = "sidecar.\(name)_command"
+      if let override = environment[environmentKey], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        startupTimeline?.mark(timelineKey, metadata: ["source": "override", "path": override])
+        continue
+      }
+      guard locator.projectRoot == nil else {
+        startupTimeline?.mark(timelineKey, metadata: ["source": "development"])
+        continue
+      }
+      let commandURL = locator.appRootURL.appendingPathComponent("bin/\(name)")
+      if FileManager.default.isExecutableFile(atPath: commandURL.path) {
+        environment[environmentKey] = commandURL.path
+        startupTimeline?.mark(timelineKey, metadata: ["source": "bundled", "path": commandURL.path])
+      } else {
+        startupTimeline?.mark(timelineKey, metadata: ["source": "missing"])
+      }
     }
-    guard locator.projectRoot == nil else {
-      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
-        "source": "development",
-      ])
-      return
-    }
-    let nexusctlURL = locator.appRootURL.appendingPathComponent("bin/nexusctl")
-    if FileManager.default.isExecutableFile(atPath: nexusctlURL.path) {
-      environment["NEXUSCTL_COMMAND_PATH"] = nexusctlURL.path
-      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
-        "source": "bundled",
-        "path": nexusctlURL.path,
-      ])
-      return
-    }
-    startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
-      "source": "missing",
-    ])
   }
 
   private func applyBundledNXSRuntime(to environment: inout [String: String]) {

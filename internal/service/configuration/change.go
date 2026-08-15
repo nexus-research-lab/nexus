@@ -23,6 +23,13 @@ import (
 
 var requestIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,127}$`)
 
+// CLIApplyOptions 是 nexuscfg 进程内确认后的执行输入。
+// SecretValues 只允许来自 nexuscfg stdin，调用结束后会被清空。
+type CLIApplyOptions struct {
+	Confirmed    bool
+	SecretValues map[string]string
+}
+
 // PlanChange 校验输入并返回当前 revision、风险和生效语义，不写入任何真相源。
 func (s *Service) PlanChange(ctx context.Context, actor Actor, request ChangeRequest) (*ChangePlan, error) {
 	resolved, err := s.resolveActor(ctx, actor)
@@ -92,9 +99,33 @@ func (s *Service) planChange(
 
 // ApplyChange 使用 request_id 幂等、expected_revision 乐观锁与一次性人工批准应用变更。
 func (s *Service) ApplyChange(ctx context.Context, actor Actor, request ChangeRequest) (*ApplyResult, error) {
+	return s.applyChange(ctx, actor, request, nil)
+}
+
+// ApplyChangeFromCLI 允许人工终端或宿主签发 round capability 的 nexuscfg 执行变更。
+func (s *Service) ApplyChangeFromCLI(
+	ctx context.Context,
+	actor Actor,
+	request ChangeRequest,
+	options CLIApplyOptions,
+) (*ApplyResult, error) {
+	defer clear(options.SecretValues)
+	return s.applyChange(ctx, actor, request, &options)
+}
+
+func (s *Service) applyChange(
+	ctx context.Context,
+	actor Actor,
+	request ChangeRequest,
+	cliOptions *CLIApplyOptions,
+) (*ApplyResult, error) {
 	resolved, err := s.resolveActor(ctx, actor)
 	if err != nil {
 		return nil, err
+	}
+	if cliOptions != nil && len(cliOptions.SecretValues) > 0 &&
+		(!resolved.isMain() || resolved.RoundLeaseRequired) {
+		return nil, errors.New("只有人工终端中的 owner 主智能体 nexuscfg 可以提交 secret slot")
 	}
 	request.RequestID = strings.TrimSpace(request.RequestID)
 	if !requestIDPattern.MatchString(request.RequestID) {
@@ -104,7 +135,7 @@ func (s *Service) ApplyChange(ctx context.Context, actor Actor, request ChangeRe
 		return nil, ErrRevisionRequired
 	}
 	if strings.TrimSpace(request.PlanDigest) == "" {
-		return nil, errors.New("plan_digest 不能为空；必须原样使用 plan_nexus_configuration_change 返回的 plan_digest")
+		return nil, errors.New("plan_digest 不能为空；必须使用同一进程内 plan 返回的 plan_digest")
 	}
 	request, scope, err := authorizeChange(resolved, request)
 	if err != nil {
@@ -148,40 +179,53 @@ func (s *Service) ApplyChange(ctx context.Context, actor Actor, request ChangeRe
 	}
 	var humanApproval *humanApprovalRecord
 	if plan.RequiresConfirmation {
-		if s.humanVerifier == nil {
+		if cliOptions != nil {
+			if !cliOptions.Confirmed {
+				return nil, errors.New("该配置变更需要确认；请核对 plan 后使用 nexuscfg apply --confirm")
+			}
+		} else if s.humanVerifier == nil {
 			return nil, errors.New("高风险配置变更缺少 human principal verifier")
-		}
-		principal, releaseHumanLease, leaseErr := s.humanVerifier.AcquireBoundInteractiveHumanLease(
-			ctx,
-			resolved.OwnerUserID,
-			resolved.AuthMethod,
-			resolved.AuthSessionID,
-		)
-		if leaseErr != nil {
-			return nil, fmt.Errorf("人工批准登录已失效，未执行配置变更: %w", leaseErr)
-		}
-		defer releaseHumanLease()
-		if principal == nil ||
-			strings.TrimSpace(principal.UserID) != resolved.OwnerUserID ||
-			strings.TrimSpace(principal.Role) != resolved.PrincipalRole {
-			return nil, errors.New("人工批准 principal 已变化，未执行配置变更")
-		}
-		if humanApproval, err = s.consumeHumanApproval(resolved, request, *plan); err != nil {
-			return nil, err
+		} else {
+			principal, releaseHumanLease, leaseErr := s.humanVerifier.AcquireBoundInteractiveHumanLease(
+				ctx,
+				resolved.OwnerUserID,
+				resolved.AuthMethod,
+				resolved.AuthSessionID,
+			)
+			if leaseErr != nil {
+				return nil, fmt.Errorf("人工批准登录已失效，未执行配置变更: %w", leaseErr)
+			}
+			defer releaseHumanLease()
+			if principal == nil ||
+				strings.TrimSpace(principal.UserID) != resolved.OwnerUserID ||
+				strings.TrimSpace(principal.Role) != resolved.PrincipalRole {
+				return nil, errors.New("人工批准 principal 已变化，未执行配置变更")
+			}
+			if humanApproval, err = s.consumeHumanApproval(resolved, request, *plan); err != nil {
+				return nil, err
+			}
 		}
 	}
 	executionRequest := request
 	if len(plan.SecretSlots) > 0 {
-		if humanApproval == nil {
-			return nil, errors.New("含 secret slot 的配置变更必须由当前真人在批准卡中填写")
+		secretValues := map[string]string(nil)
+		if cliOptions != nil {
+			secretValues = cliOptions.SecretValues
+		} else if humanApproval != nil {
+			secretValues = humanApproval.ConfigurationSecrets
+		}
+		if len(secretValues) == 0 {
+			return nil, errors.New("含 secret slot 的配置变更缺少当前真人提供的 secret 值")
 		}
 		executionRequest.Input, err = secretinput.MaterializeJSON(
 			request.Input,
-			humanApproval.ConfigurationSecrets,
+			secretValues,
 		)
 		defer clear(executionRequest.Input)
-		clear(humanApproval.ConfigurationSecrets)
-		humanApproval.ConfigurationSecrets = nil
+		clear(secretValues)
+		if humanApproval != nil {
+			humanApproval.ConfigurationSecrets = nil
+		}
 		if err != nil {
 			return nil, err
 		}

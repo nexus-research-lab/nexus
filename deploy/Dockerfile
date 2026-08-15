@@ -45,6 +45,7 @@ COPY db /src/db
 RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -o /out/nexus-server ./cmd/nexus-server && \
     go build -o /out/nexusctl ./cmd/nexusctl && \
+    go build -o /out/nexuscfg ./cmd/nexuscfg && \
     go build -o /out/nexus-runtime-launcher ./cmd/nexus-runtime-launcher
 
 FROM ${NODE_IMAGE} AS runtime-base
@@ -91,6 +92,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 ENV HOME=/home/agent \
     NEXUS_APP_ROOT=/opt/app \
     NEXUSCTL_COMMAND_PATH=/usr/local/bin/nexusctl \
+    NEXUSCFG_COMMAND_PATH=/usr/local/bin/nexuscfg \
     NEXUS_NXS_COMMAND_PATH=/opt/app/bin/nxs \
     PNPM_HOME=/usr/local/share/pnpm \
     PATH=/usr/local/share/pnpm:/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
@@ -204,6 +206,7 @@ RUN find /opt/app/skills -type d -exec chmod 0555 {} \; && \
 
 COPY --from=builder --chown=root:root --chmod=0755 /out/nexus-server /usr/local/bin/nexus-server
 COPY --from=builder --chown=root:agent --chmod=0750 /out/nexusctl /usr/local/bin/nexusctl
+COPY --from=builder --chown=root:root --chmod=0755 /out/nexuscfg /usr/local/bin/nexuscfg
 COPY --from=builder --chown=root:agent --chmod=4750 /out/nexus-runtime-launcher /usr/local/libexec/nexus-runtime-launcher
 COPY --chown=root:root --chmod=0555 deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
 COPY --chown=root:root --chmod=0755 deploy/nexus-apt-install /usr/local/bin/nexus-apt-install

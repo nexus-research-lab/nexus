@@ -1,6 +1,6 @@
-// INPUT: nexusctl 继承的宿主或 Agent runtime 环境变量。
+// INPUT: nexusctl / nexuscfg 继承的宿主或 Agent runtime 环境变量。
 // OUTPUT: 指向 Nexus 宿主状态根和 workspace 基址的 Config。
-// POS: nexusctl 入口与通用 config.Load 之间的目录布局适配层。
+// POS: 控制面 CLI 入口与通用 config.Load 之间的目录布局适配层。
 package cli
 
 import (
@@ -18,16 +18,25 @@ const (
 	workspacePathEnvName  = "WORKSPACE_PATH"
 )
 
-// LoadConfig 从当前进程环境加载 nexusctl 使用的宿主配置。
+// LoadConfig 从当前进程环境加载控制面 CLI 使用的宿主配置。
 func LoadConfig() config.Config {
 	normalizeRuntimeLayoutEnvironment()
 	return config.Load()
 }
 
-// normalizeRuntimeLayoutEnvironment 把用户 runtime 根还原为 nexusctl 的宿主视图。
+// LoadConfigurationConfig 只在人工终端模式加载宿主配置。
+// Agent runtime 的 nexuscfg 由 broker 提供全部配置能力，不能反推或打开宿主状态根。
+func LoadConfigurationConfig() config.Config {
+	if runtimeConfigurationBrokerConfigured() {
+		return config.Config{}
+	}
+	return LoadConfig()
+}
+
+// normalizeRuntimeLayoutEnvironment 把用户 runtime 根还原为控制面 CLI 的宿主视图。
 //
 // nxs 与 Claude 必须继续把 NEXUS_CONFIG_DIR 指向 users/<owner>/runtime；
-// nexusctl 则直接装配宿主服务，不能把该目录误当成 NEXUS_STATE_ROOT，也不能
+// 控制面 CLI 则直接装配宿主服务，不能把该目录误当成 NEXUS_STATE_ROOT，也不能
 // 把当前 Agent workspace 误当成所有用户的 workspace 基址。
 func normalizeRuntimeLayoutEnvironment() {
 	stateRoot, ownerSegment, ok := stateRootFromRuntimeConfigDir(

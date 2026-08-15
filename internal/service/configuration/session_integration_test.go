@@ -1,6 +1,6 @@
 // INPUT: owner-main/agent-self 可信 DM Actor、workspace Session 与人类批准。
 // OUTPUT: Session inspect/plan/CAS/apply/verify、越权拒绝、过期计划拒绝与安全删除证明。
-// POS: nexus_config Sessions 域跨配置、runtime 与 owner-confined 文件真相源的端到端回归。
+// POS: nexuscfg Sessions 域跨配置、runtime 与 owner-confined 文件真相源的端到端回归。
 package configuration_test
 
 import (

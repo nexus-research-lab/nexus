@@ -164,15 +164,6 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	configurationRoleSkill := workspacepkg.ConfigurationSkillRoomMember
-	if strings.TrimSpace(e.round.Context.Room.HostAgentID) == strings.TrimSpace(e.agent.AgentID) {
-		configurationRoleSkill = workspacepkg.ConfigurationSkillRoomHost
-	}
-	runtimeSkillNames, runtimeDisabledSkillNames = workspacepkg.WithRuntimeConfigurationRoleSkill(
-		runtimeSkillNames,
-		runtimeDisabledSkillNames,
-		configurationRoleSkill,
-	)
 	allowedTools, disallowedTools, snapshottedToolPolicy := roomRoundToolPolicy(e.round, e.agent)
 	allowedTools = roomAllowedTools(allowedTools, e.round.Context.Room.PrivateMessagesEnabled)
 	if !snapshottedToolPolicy {
@@ -182,6 +173,21 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		)
 	}
 	disallowedTools = roomDisallowedTools(disallowedTools, e.round.Context.Room.PrivateMessagesEnabled)
+	configurationRuntimeEnv := map[string]string(nil)
+	if e.service.configurationRuntimeEnv != nil {
+		configurationRuntimeEnv, err = e.service.configurationRuntimeEnv(
+			e.runtimeBuilderContext(),
+			e.agent,
+			e.round.SessionKey,
+			e.round.RootRoundID,
+			roomMCPSourceContextType(e.round),
+			e.round.RoomID,
+		)
+		if err != nil {
+			return preparedSlotRuntime{}, err
+		}
+	}
+	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
@@ -207,7 +213,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		MaxTurns:                   e.agent.Options.MaxTurns,
 		MCPServers:                 e.runtimeMCPServers(permissionMode),
 		AgentMCPServers:            e.agent.Options.MCPServers,
-		ExtraEnv:                   e.service.roomRuntimeEnv(e.round, e.slot),
+		ExtraEnv:                   extraEnv,
+		ConfigurationEnv:           configurationRuntimeEnv,
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
@@ -328,11 +335,7 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 		sourceContextType := roomMCPSourceContextType(e.round)
 		mcpContext := runtimectx.WithResponsibilityAuthorityState(
 			runtimectx.WithGoalAuthorityState(
-				runtimectx.WithMCPRoundLease(
-					e.ctx,
-					e.slot.RuntimeSessionKey,
-					e.slot.AgentRoundID,
-				),
+				e.runtimeBuilderContext(),
 				goalAuthority,
 			),
 			responsibilityAuthority,
@@ -392,6 +395,14 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 		servers[name] = server
 	}
 	return servers
+}
+
+func (e *slotExecution) runtimeBuilderContext() context.Context {
+	return runtimectx.WithMCPRoundLease(
+		e.ctx,
+		e.slot.RuntimeSessionKey,
+		e.slot.AgentRoundID,
+	)
 }
 
 func roomMCPSourceContextType(round *activeRoomRound) string {

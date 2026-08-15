@@ -1,6 +1,6 @@
 // INPUT: 已动态鉴权的 owner-main/agent-self 与 owner-confined workspace Session 服务。
 // OUTPUT: 不含 SDK session_id/options 的目录快照、目标版本与写后可核验投影。
-// POS: nexus_config Sessions 域的数据最小化边界；Room conversation 始终归 rooms 域。
+// POS: nexuscfg Sessions 域的数据最小化边界；Room conversation 始终归 rooms 域。
 package configuration
 
 import (

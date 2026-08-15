@@ -1,6 +1,6 @@
 // INPUT: human-only 本地导入形成的 owner Skill、主智能体对话计划与并发来源更新。
 // OUTPUT: 路径脱敏、catalog_version CAS、过期计划拒绝与删除写后不存在证明。
-// POS: nexus_config Skill 全局目录控制的端到端边界回归测试。
+// POS: nexuscfg Skill 全局目录控制的端到端边界回归测试。
 package configuration_test
 
 import (

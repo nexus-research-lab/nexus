@@ -174,6 +174,7 @@ if ([string]::IsNullOrWhiteSpace($OutputDir)) {
 $intermediateDir = Join-Path $windowsDir ".build/intermediates"
 $sidecarPath = Join-Path $intermediateDir "nexus-server.exe"
 $nexusctlPath = Join-Path $intermediateDir "nexusctl.exe"
+$nexuscfgPath = Join-Path $intermediateDir "nexuscfg.exe"
 $publishDir = Join-Path $intermediateDir "publish"
 $resourcesDir = Join-Path $OutputDir "Resources"
 $resourcesBinDir = Join-Path $resourcesDir "bin"
@@ -211,6 +212,12 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Failed to build nexusctl with exit code $LASTEXITCODE"
   }
+
+  Write-Host "==> Building nexuscfg"
+  go build -trimpath -ldflags $ldflags -o $nexuscfgPath ./cmd/nexuscfg
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build nexuscfg with exit code $LASTEXITCODE"
+  }
 } finally {
   if ($null -eq $previousCgoEnabled) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $previousCgoEnabled }
   if ($null -eq $previousGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $previousGoos }
@@ -242,6 +249,7 @@ New-Item -ItemType Directory -Force -Path $resourcesBinDir | Out-Null
 Copy-Item -Recurse -Force (Join-Path $publishDir "*") $OutputDir
 Copy-Item -Force $sidecarPath (Join-Path $resourcesDir "nexus-server.exe")
 Copy-Item -Force $nexusctlPath (Join-Path $resourcesBinDir "nexusctl.exe")
+Copy-Item -Force $nexuscfgPath (Join-Path $resourcesBinDir "nexuscfg.exe")
 if ($bundleNXSRuntime) {
   $nxsPath = Join-Path $resourcesBinDir "nxs.exe"
   $nxsRipgrepPath = Join-Path $resourcesBinDir "rg.exe"

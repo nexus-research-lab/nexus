@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	"github.com/spf13/cobra"
@@ -61,11 +62,46 @@ func (a *App) Execute() (err error) {
 // New 创建 CLI 应用。
 func New(cfg config.Config) (*App, error) {
 	services := newCLIServiceProvider(cfg)
+	root, err := newScopedRoot(
+		cfg,
+		services,
+		"nexusctl",
+		"Nexus 控制面 CLI",
+		"面向 Agent 与脚本的 Nexus 控制面 CLI。stdout 只输出数据，stderr 只输出诊断；参数错误返回 64，执行错误返回 1。",
+	)
+	if err != nil {
+		return nil, err
+	}
 
+	root.AddCommand(newAgentCommand(services))
+	root.AddCommand(newAuthCommand(services))
+	root.AddCommand(newUserCommand(services))
+	root.AddCommand(newRoomCommand(services))
+	root.AddCommand(newConversationCommand(services))
+	root.AddCommand(newSessionCommand(services))
+	root.AddCommand(newWorkspaceCommand(services))
+	root.AddCommand(newSkillCommand(services))
+	root.AddCommand(newConnectorCommand(services))
+	root.AddCommand(newLauncherCommand(services))
+	root.AddCommand(newChannelCommand(services))
+	root.AddCommand(newAutomationCommand(services))
+	root.AddCommand(newImagegenCommand(services))
+	root.AddCommand(newEmotionCommand())
+
+	return &App{command: root, services: services}, nil
+}
+
+func newScopedRoot(
+	cfg config.Config,
+	services *cliServiceProvider,
+	use string,
+	short string,
+	long string,
+) (*cobra.Command, error) {
 	root := &cobra.Command{
-		Use:           "nexusctl",
-		Short:         "Nexus 控制面 CLI",
-		Long:          "面向 Agent 与脚本的 Nexus 控制面 CLI。stdout 只输出数据，stderr 只输出诊断；参数错误返回 64，执行错误返回 1。",
+		Use:           use,
+		Short:         short,
+		Long:          long,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -73,7 +109,8 @@ func New(cfg config.Config) (*App, error) {
 		scopeUserID string
 		globalScope bool
 	)
-	hostManagedScope := hasHostManagedCLIScope()
+	runtimeConfigurationScope := use == "nexuscfg" && runtimeConfigurationBrokerConfigured()
+	hostManagedScope := hasHostManagedCLIScope() || runtimeConfigurationScope
 	outputOptions := configureRootOutput(root)
 	root.PersistentFlags().StringVar(
 		&scopeUserID,
@@ -103,6 +140,9 @@ func New(cfg config.Config) (*App, error) {
 				root.PersistentFlags().Changed("global-scope")) {
 			return usageErrorf(hostManagedScopeOverrideError)
 		}
+		if runtimeConfigurationScope {
+			return nil
+		}
 		var authService *authsvc.Service
 		needsScopeState := commandRequiresUserScope(cmd) &&
 			strings.TrimSpace(scopeUserID) == "" &&
@@ -122,22 +162,7 @@ func New(cfg config.Config) (*App, error) {
 		return nil
 	}
 
-	root.AddCommand(newAgentCommand(services))
-	root.AddCommand(newAuthCommand(services))
-	root.AddCommand(newUserCommand(services))
-	root.AddCommand(newRoomCommand(services))
-	root.AddCommand(newConversationCommand(services))
-	root.AddCommand(newSessionCommand(services))
-	root.AddCommand(newWorkspaceCommand(services))
-	root.AddCommand(newSkillCommand(services))
-	root.AddCommand(newConnectorCommand(services))
-	root.AddCommand(newLauncherCommand(services))
-	root.AddCommand(newChannelCommand(services))
-	root.AddCommand(newAutomationCommand(services))
-	root.AddCommand(newImagegenCommand(services))
-	root.AddCommand(newEmotionCommand())
-
-	return &App{command: root, services: services}, nil
+	return root, nil
 }
 
 func hasHostManagedCLIScope() bool {
@@ -192,6 +217,17 @@ func buildScopedCLIContext(
 	if !commandRequiresUserScope(cmd) {
 		return base, nil
 	}
+	if hasHostManagedCLIScope() &&
+		strings.TrimSpace(os.Getenv(nexusRuntimeScopeModeEnvName)) == runtimeScopeModeSingleUser &&
+		trimmedUserID == authctx.SystemUserID {
+		base = authsvc.WithPrincipal(base, &authsvc.Principal{
+			UserID:     authctx.SystemUserID,
+			Username:   authctx.SystemUserID,
+			Role:       authctx.RoleOwner,
+			AuthMethod: authctx.AuthMethodLocal,
+		})
+		return authsvc.WithState(base, authsvc.State{AuthRequired: false}), nil
+	}
 	if trimmedUserID == "" {
 		if authService != nil {
 			state, err := authService.GetState(context.Background())
@@ -204,6 +240,7 @@ func buildScopedCLIContext(
 					cmd.CommandPath(),
 				)
 			}
+			return authsvc.WithState(base, state), nil
 		}
 		return base, nil
 	}

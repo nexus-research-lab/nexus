@@ -11,6 +11,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -698,6 +699,7 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
 	t.Setenv(nexusctlUserIDEnvName, "ambient-owner")
 	t.Setenv(nexusctlWorkspacePathEnvName, "/ambient/workspace")
 	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
@@ -709,12 +711,40 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 	}
 	for _, key := range []string{
 		nexusctlCommandPathEnvName,
+		nexuscfgCommandPathEnvName,
 		nexusctlUserIDEnvName,
 		nexusctlWorkspacePathEnvName,
+		protocol.NexusConfigBrokerURLEnvName,
+		protocol.NexusConfigCapabilityTokenEnvName,
 	} {
 		if value := strings.TrimSpace(options.Env[key]); value != "" {
 			t.Fatalf("Agent runtime 泄漏原始 CLI 环境 %s=%q: %+v", key, value, options.Env)
 		}
+	}
+}
+
+func TestBuildAgentClientOptionsExposesOnlyNexuscfgWithRuntimeCapability(t *testing.T) {
+	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		OwnerUserID:   "owner-a",
+		WorkspacePath: "/tmp/ordinary-agent",
+		ConfigurationEnv: map[string]string{
+			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/configuration",
+			protocol.NexusConfigCapabilityTokenEnvName: "runtime-token",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Env[nexuscfgCommandPathEnvName] != "/opt/nexus/bin/nexuscfg" ||
+		options.Env[protocol.NexusConfigCapabilityTokenEnvName] != "runtime-token" {
+		t.Fatalf("普通 Agent 未获得 nexuscfg capability: %+v", options.Env)
+	}
+	if options.Env[nexusctlCommandPathEnvName] != "" ||
+		options.Env[nexusctlWorkspacePathEnvName] != "" ||
+		options.Env[nexusctlUserIDEnvName] != "" {
+		t.Fatalf("普通 Agent 不应获得 nexusctl owner capability: %+v", options.Env)
 	}
 }
 
@@ -808,6 +838,7 @@ func TestBuildAgentClientOptionsDoesNotExposeNexusCLIWithoutCapability(t *testin
 	for _, key := range []string{
 		nexusctlUserIDEnvName,
 		nexusctlCommandPathEnvName,
+		nexuscfgCommandPathEnvName,
 		nexusctlWorkspacePathEnvName,
 	} {
 		if value := strings.TrimSpace(options.Env[key]); value != "" {
@@ -816,6 +847,28 @@ func TestBuildAgentClientOptionsDoesNotExposeNexusCLIWithoutCapability(t *testin
 	}
 	if options.Env[nexusRuntimeUserIDEnvName] != "ordinary-owner" {
 		t.Fatalf("通用 runtime user scope 不应随 CLI capability 一起删除: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsControlCLIsForMainAgent(t *testing.T) {
+	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "owner-a"})
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		OwnerUserID:   "owner-a",
+		WorkspacePath: "/tmp/main-agent",
+		IsMainAgent:   true,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for key, want := range map[string]string{
+		nexusctlCommandPathEnvName: "/opt/nexus/bin/nexusctl",
+		nexuscfgCommandPathEnvName: "/opt/nexus/bin/nexuscfg",
+	} {
+		if got := options.Env[key]; got != want {
+			t.Fatalf("主智能体 %s=%q, want %q", key, got, want)
+		}
 	}
 }
 
@@ -914,10 +967,16 @@ func TestBuildAgentClientOptionsProtectsScopedIdentityFromExtraEnv(t *testing.T)
 	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			nexusctlUserIDEnvName:          "user-b",
-			nexusRuntimeUserIDEnvName:      "user-b",
-			nexusRuntimeScopeModeEnvName:   "single_user",
-			"NEXUS_RUNTIME_ISOLATION_MODE": "off",
+			nexusctlUserIDEnvName:                      "user-b",
+			nexusRuntimeUserIDEnvName:                  "user-b",
+			nexusRuntimeScopeModeEnvName:               "single_user",
+			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:9/forged",
+			protocol.NexusConfigCapabilityTokenEnvName: "forged",
+			"NEXUS_RUNTIME_ISOLATION_MODE":             "off",
+		},
+		ConfigurationEnv: map[string]string{
+			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/configuration",
+			protocol.NexusConfigCapabilityTokenEnvName: "trusted",
 		},
 	})
 	if err != nil {
@@ -925,7 +984,8 @@ func TestBuildAgentClientOptionsProtectsScopedIdentityFromExtraEnv(t *testing.T)
 	}
 	if options.Env[nexusctlUserIDEnvName] != "" ||
 		options.Env[nexusRuntimeUserIDEnvName] != "user-a" ||
-		options.Env[nexusRuntimeScopeModeEnvName] != "user_scoped" {
+		options.Env[nexusRuntimeScopeModeEnvName] != "user_scoped" ||
+		options.Env[protocol.NexusConfigCapabilityTokenEnvName] != "trusted" {
 		t.Fatalf("ExtraEnv 覆盖了 runtime 身份作用域: %+v", options.Env)
 	}
 }

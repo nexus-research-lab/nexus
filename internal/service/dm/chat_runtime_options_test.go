@@ -11,7 +11,6 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -177,12 +176,6 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 	if !options.IncludePartialMessages {
 		t.Fatalf("runtime 未开启 partial messages: %+v", options)
-	}
-	if slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillOwnerMain) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillAgentSelf) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomHost) ||
-		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomMember) {
-		t.Fatalf("main DM 未只启用 owner 配置 Skill: %#v", options.Skills)
 	}
 	if len(options.Tools.Allow) != 0 {
 		t.Fatalf("runtime 不应在无显式白名单时为了 Goal 收窄 allowed tools: %+v", options.Tools.Allow)
