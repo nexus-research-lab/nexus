@@ -24,17 +24,11 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 }
 
 var defaultScheduledTaskReadTools = map[string]struct{}{
-	"find_scheduled_tasks":      {},
-	"get_scheduled_task_report": {},
-	"inspect_scheduled_task":    {},
+	"automation_query": {},
 }
 
 var scheduledTaskMutationTools = map[string]struct{}{
-	"create_scheduled_task": {},
-	"delete_scheduled_task": {},
-	"repair_scheduled_task": {},
-	"run_scheduled_task":    {},
-	"update_scheduled_task": {},
+	"automation_update": {},
 }
 
 var defaultGoalApprovedTools = map[string]struct{}{

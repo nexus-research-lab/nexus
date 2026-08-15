@@ -402,8 +402,8 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 						Content: []sdkprotocol.ContentBlock{
 							sdkprotocol.ToolUseBlock{
 								ID:    "tool-automation",
-								Name:  "mcp__nexus_automation__find_scheduled_tasks",
-								Input: json.RawMessage(`{}`),
+								Name:  "mcp__nexus_automation__automation_query",
+								Input: json.RawMessage(`{"operation":"list"}`),
 							},
 						},
 					},

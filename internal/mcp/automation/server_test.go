@@ -379,10 +379,8 @@ func callTool(t *testing.T, svc contract.Service, sctx contract.ServerContext, n
 	if strings.TrimSpace(sctx.SourceContextType) == "" {
 		sctx.SourceContextType = "agent"
 	}
-	if name == "create_scheduled_task" {
-		if args == nil {
-			args = map[string]any{}
-		}
+	name, args = automationTestRoute(name, args)
+	if args["operation"] == "create" {
 		requestID, hasRequestID := args["request_id"]
 		if !hasRequestID || strings.TrimSpace(fmt.Sprint(requestID)) == "" {
 			args["request_id"] = fmt.Sprintf(
@@ -408,6 +406,55 @@ func callTool(t *testing.T, svc contract.Service, sctx contract.ServerContext, n
 	}
 	isError, _ := result["isError"].(bool)
 	return result, isError
+}
+
+func automationTestRoute(name string, args map[string]any) (string, map[string]any) {
+	routed := make(map[string]any, len(args)+1)
+	for key, value := range args {
+		routed[key] = value
+	}
+	operation := ""
+	switch name {
+	case "create_scheduled_task":
+		operation = "create"
+	case "find_scheduled_tasks":
+		operation = "list"
+	case "inspect_scheduled_task":
+		operation, _ = routed["view"].(string)
+		if operation == "" || operation == "status" {
+			operation = "get"
+		}
+	case "update_scheduled_task":
+		operation = "update"
+	case "delete_scheduled_task":
+		operation = "delete"
+	case "get_scheduled_task_report":
+		operation = "report"
+	case "get_heartbeat":
+		operation = "heartbeat"
+	case "run_scheduled_task":
+		operation = "run"
+	case "repair_scheduled_task":
+		if routed["action"] == "recover" {
+			operation = "update"
+			routed["enabled"] = false
+			routed["cancel_active_run"] = true
+		} else {
+			operation = "retry_delivery"
+		}
+		delete(routed, "action")
+	case "update_heartbeat":
+		operation = "set_heartbeat"
+	case "wake_heartbeat":
+		operation = "wake"
+	case "automation_query", "automation_update":
+		return name, routed
+	}
+	routed["operation"] = operation
+	if operation == "list" || operation == "get" || operation == "runs" || operation == "events" || operation == "report" || operation == "heartbeat" {
+		return "automation_query", routed
+	}
+	return "automation_update", routed
 }
 
 func listTools(t *testing.T, svc contract.Service, sctx contract.ServerContext) []map[string]any {

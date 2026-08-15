@@ -35,6 +35,75 @@ var executionModeSchema = map[string]any{
 	"description": "main=使用主会话 / existing=使用现有会话 / temporary=每次新建临时会话 / dedicated=使用专用长期会话",
 }
 
+func automationQuerySchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"operation":      map[string]any{"type": "string", "enum": []string{"list", "get", "runs", "events", "report", "heartbeat"}, "description": "要执行的只读查询"},
+			"job_id":         map[string]any{"type": "string", "description": "任务 id；get/runs/events/report 使用"},
+			"query":          map[string]any{"type": "string", "description": "按任务名称、内容、投递目标或状态定位任务"},
+			"agent_id":       map[string]any{"type": "string", "description": "缺省为当前 Agent；跨 Agent 查询仍受当前可信上下文限制"},
+			"include_active": map[string]any{"type": "boolean", "description": "list 是否包含当前任务，缺省 true"},
+			"include_deleted": map[string]any{
+				"type":        "boolean",
+				"description": "list 是否包含已删除任务，缺省 false",
+			},
+			"enabled":     map[string]any{"type": "boolean", "description": "list 可选启用状态过滤"},
+			"limit":       map[string]any{"type": "integer", "description": "list 返回条数，缺省 20，最大 50"},
+			"run_limit":   map[string]any{"type": "integer", "description": "get/runs 返回条数，缺省 10，最大 50"},
+			"event_limit": map[string]any{"type": "integer", "description": "get/events 返回条数，缺省 10，最大 50"},
+			"date":        map[string]any{"type": "string", "description": "report 日期，YYYY-MM-DD；缺省 today"},
+			"timezone":    map[string]any{"type": "string", "description": "report 使用的 IANA 时区"},
+		},
+		"required": []string{"operation"},
+	}
+}
+
+func automationUpdateSchema(sctx contract.ServerContext) map[string]any {
+	properties := map[string]any{
+		"operation": map[string]any{
+			"type":        "string",
+			"enum":        []string{"create", "update", "delete", "run", "retry_delivery", "set_heartbeat", "wake"},
+			"description": "要执行的变更动作",
+		},
+		"request_id":  map[string]any{"type": "string", "description": "create 的稳定幂等键；同一调用重试必须复用"},
+		"job_id":      map[string]any{"type": "string", "description": "update/delete/run/retry_delivery 的任务 id"},
+		"query":       map[string]any{"type": "string", "description": "没有 job_id 时，在当前权限范围内定位唯一任务"},
+		"agent_id":    map[string]any{"type": "string", "description": "缺省为当前 Agent；跨 Agent 变更仍受当前可信上下文限制"},
+		"name":        map[string]any{"type": "string", "description": "任务名称"},
+		"instruction": map[string]any{"type": "string", "description": "任务到点执行的自包含指令"},
+		"instruction_append": map[string]any{
+			"type":        "string",
+			"description": "update 时追加任务要求；不要与 instruction 同时使用",
+		},
+		"execution_kind":  map[string]any{"type": "string", "enum": []string{"agent"}},
+		"permission_mode": map[string]any{"type": "string", "enum": []string{"default", "plan", "acceptEdits", "bypassPermissions", "dontAsk"}},
+		"schedule":        scheduleSchema,
+		"context_mode":    map[string]any{"type": "string", "enum": []string{"isolated", "current"}, "description": "isolated=独立运行；current=复用当前会话上下文"},
+		"deliver_result":  map[string]any{"type": "boolean", "description": "是否把结果送回当前可信会话"},
+		"overlap_policy":  map[string]any{"type": "string", "enum": []string{"skip", "allow"}},
+		"expires_at":      map[string]any{"type": "string", "description": "任务截止时间，RFC3339"},
+		"clear_expires_at": map[string]any{
+			"type":        "boolean",
+			"description": "update 时清除任务截止时间",
+		},
+		"enabled":           map[string]any{"type": "boolean", "description": "任务或 heartbeat 的启用状态，由 operation 决定"},
+		"cancel_active_run": map[string]any{"type": "boolean", "description": "update 停用任务时同时中断当前 active run"},
+		"run_id":            map[string]any{"type": "string", "description": "retry_delivery 的 run id，或 cancel_active_run 的并发保护"},
+		"every_seconds":     map[string]any{"type": "integer", "minimum": 1, "description": "set_heartbeat 的周期秒数"},
+		"target_mode":       map[string]any{"type": "string", "enum": []string{"none", "last"}, "description": "set_heartbeat 的投递目标"},
+		"ack_max_chars":     map[string]any{"type": "integer", "minimum": 0, "description": "set_heartbeat 的纯 ACK 抑制阈值"},
+		"mode":              map[string]any{"type": "string", "enum": []string{"now", "next-heartbeat"}, "description": "wake 模式，缺省 now"},
+		"text":              map[string]any{"type": "string", "description": "wake 随本次唤醒交付的上下文"},
+	}
+	addAdvancedRoutingSchema(properties, sctx)
+	return map[string]any{
+		"type":       "object",
+		"properties": properties,
+		"required":   []string{"operation"},
+	}
+}
+
 // replyModeSchema 对齐 UI「结果回传」按钮，并按可信调用上下文收窄模型可选项。
 func replyModeSchema(sctx contract.ServerContext) map[string]any {
 	modes := []string{"none", "execution", "selected"}

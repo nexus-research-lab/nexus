@@ -36,7 +36,7 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 					JobID:                    "job-1",
 					Name:                     "新闻日报",
 					Signals:                  []string{"delivery_attention"},
-					SuggestedTools:           []string{"repair_scheduled_task", "update_scheduled_task", "run_scheduled_task"},
+					SuggestedTools:           []string{"automation_update"},
 					LatestExecutionError:     &executionError,
 					LatestDeliveryError:      &deliveryError,
 					ExecutionFailedRunIDs:    []string{"run-exec-failed"},
@@ -86,9 +86,7 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 		t.Fatalf("daily report task 不是 object: %+v", tasks[0])
 	}
 	if firstString(task["signals"]) != "delivery_attention" ||
-		!stringSliceContains(task["suggested_tools"], "repair_scheduled_task") ||
-		!stringSliceContains(task["suggested_tools"], "update_scheduled_task") ||
-		!stringSliceContains(task["suggested_tools"], "run_scheduled_task") ||
+		!stringSliceContains(task["suggested_tools"], "automation_update") ||
 		task["latest_execution_error"] != "WebSearch permission denied" ||
 		task["latest_delivery_error"] != "feishu send failed" ||
 		firstString(task["execution_failed_run_ids"]) != "run-exec-failed" ||

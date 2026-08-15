@@ -32,6 +32,8 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "goal-manager", "references", "complete-and-block.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "visualize", "SKILL.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "visualize", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "automation", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "automation", "SKILL.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "SKILL.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "SOURCE.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "LICENSE"),

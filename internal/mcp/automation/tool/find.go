@@ -23,7 +23,7 @@ func find(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			includeActive := optionalBoolDefault(args, "include_active", true)
 			includeDeleted := optionalBoolDefault(args, "include_deleted", false)
 			if !includeActive && !includeDeleted {
-				return render.Error(errors.New("find_scheduled_tasks requires include_active or include_deleted")), nil
+				return render.Error(errors.New("automation_query operation=list requires include_active or include_deleted")), nil
 			}
 			agentID, err := resolveListAgentID(sctx, argx.String(args, "agent_id"))
 			if err != nil {

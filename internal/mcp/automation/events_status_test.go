@@ -189,7 +189,7 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 			Health: automationdomain.ScheduledTaskHealth{
 				State:                     "attention",
 				Signals:                   []string{"delivery_attention"},
-				SuggestedTools:            []string{"repair_scheduled_task"},
+				SuggestedTools:            []string{"automation_update"},
 				ManualRedeliveryAvailable: true,
 				DeliveryFailedRunCount:    1,
 				ManualRedeliveryRunIDs:    []string{"run-delivery-failed"},
@@ -228,7 +228,7 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
 	text := extractText(t, result)
-	for _, want := range []string{"delivery_attention", "repair_scheduled_task", "run-delivery-failed", deliveryError, automationdomain.TaskEventActionUpdate} {
+	for _, want := range []string{"delivery_attention", "automation_update", "run-delivery-failed", deliveryError, automationdomain.TaskEventActionUpdate} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("status response missing %q: %s", want, text)
 		}

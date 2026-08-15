@@ -106,8 +106,12 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "visualize", "SKILL.md")); err != nil {
 		t.Fatalf("平台全局 visualize skill 未同步: %v", err)
 	}
+	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "automation", "SKILL.md")); err != nil {
+		t.Fatalf("平台全局 automation skill 未同步: %v", err)
+	}
 	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "visualize") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "automation") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "goal-manager") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "execution-orchestrator") {
 		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
@@ -177,6 +181,17 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
 	managedSkillContracts := map[string][]string{
+		filepath.Join("automation", "SKILL.md"): {
+			"`automation_query` 只读",
+			"`automation_update` 执行受权限保护的变更",
+			"宿主会绑定当前任务",
+			"`runs` 和 `events` 可以检查已删除任务",
+			"也不会重新启用已暂停任务",
+			"`manual_redelivery_run_ids`",
+			"`retry_delivery`",
+			"`set_heartbeat`",
+			"CAS 更新并重读核验",
+		},
 		filepath.Join("visualize", "SKILL.md"): {
 			"在 Nexus 对话中生成交互式图表",
 			"Call `show_widget`",

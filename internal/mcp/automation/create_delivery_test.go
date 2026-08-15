@@ -254,7 +254,7 @@ func TestExternalIMAutomationSchemaHidesRouteIdentifiers(t *testing.T) {
 	matched := 0
 	for _, tool := range tools {
 		name, _ := tool["name"].(string)
-		if name != "create_scheduled_task" && name != "update_scheduled_task" {
+		if name != "automation_update" {
 			continue
 		}
 		matched++
@@ -281,8 +281,8 @@ func TestExternalIMAutomationSchemaHidesRouteIdentifiers(t *testing.T) {
 			}
 		}
 	}
-	if matched != 2 {
-		t.Fatalf("matched %d create/update tools, want 2", matched)
+	if matched != 1 {
+		t.Fatalf("matched %d update tools, want 1", matched)
 	}
 }
 
@@ -296,7 +296,7 @@ func TestOwnerMainPrivateDMSchemaOnlyExposesExistingSessionRouting(t *testing.T)
 	matched := 0
 	for _, tool := range tools {
 		name, _ := tool["name"].(string)
-		if name != "create_scheduled_task" && name != "update_scheduled_task" {
+		if name != "automation_update" {
 			continue
 		}
 		matched++
@@ -311,8 +311,8 @@ func TestOwnerMainPrivateDMSchemaOnlyExposesExistingSessionRouting(t *testing.T)
 			}
 		}
 	}
-	if matched != 2 {
-		t.Fatalf("matched %d create/update tools, want 2", matched)
+	if matched != 1 {
+		t.Fatalf("matched %d update tools, want 1", matched)
 	}
 }
 

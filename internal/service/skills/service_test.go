@@ -33,6 +33,7 @@ func TestMain(m *testing.M) {
 		"ima-skill",
 		"imagegen",
 		"visualize",
+		"automation",
 		"kami",
 		"nexus-manager",
 		"nexus-configuration",
@@ -81,8 +82,12 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	if !containsSkill(items, "imagegen") {
 		t.Fatalf("图片生成系统 skill 未暴露: %+v", items)
 	}
-	if containsSkill(items, "scheduled-task-manager") {
-		t.Fatalf("定时任务已由 nexus_automation 工具承载，不应再暴露重复 skill: %+v", items)
+	automationSkill, ok := findSkill(items, "automation")
+	if !ok {
+		t.Fatalf("自动化系统 skill 未暴露: %+v", items)
+	}
+	if automationSkill.SourceType != sourceTypeSystem || !automationSkill.Locked || automationSkill.Deletable || !automationSkill.EnabledForAgent {
+		t.Fatalf("automation 应作为已启用的系统内置 skill: %+v", automationSkill)
 	}
 	if !containsSkill(items, "goal-manager") {
 		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
@@ -141,6 +146,9 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "visualize"); err == nil {
 		t.Fatal("系统托管 visualize skill 不应允许手动安装")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "automation"); err == nil {
+		t.Fatal("系统托管 automation skill 不应允许手动安装")
 	}
 
 	agentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "agent-only-skill")

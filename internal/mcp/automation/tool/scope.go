@@ -362,7 +362,7 @@ func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context
 	})
 }
 
-// resolveListAgentID 决定 find_scheduled_tasks 的过滤条件。
+// resolveListAgentID 决定 automation_query 的 Agent 过滤条件。
 // owner main 仅在自己的可信私有 DM 支持显式过滤或全部列出；其他上下文限定为自己。
 func resolveListAgentID(sctx contract.ServerContext, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)
@@ -379,7 +379,7 @@ func resolveListAgentID(sctx contract.ServerContext, requested string) (string, 
 	return caller, nil
 }
 
-// resolveCreateAgentID 决定 create_scheduled_task 的归属 agent_id。
+// resolveCreateAgentID 决定 automation_update 的目标 Agent。
 // owner main 仅在自己的可信私有 DM 可指定；其他上下文强制为自己。
 func resolveCreateAgentID(sctx contract.ServerContext, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)
