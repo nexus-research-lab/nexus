@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层，并让 Goal/Execution MCP 共用同一 round authority 的换代安全 runtime client。
+// OUTPUT: static/dynamic prompt 分层、K3 工具面兼容换代，并让 Goal/Execution MCP 共用同一 round authority 的换代安全 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -32,16 +32,18 @@ import (
 
 // dmClientPreparation 收拢 runtime client 启动后的配置快照，避免扩展返回值参数组。
 type dmClientPreparation struct {
-	client                runtimectx.Client
-	runtimeKind           string
-	runtimeProvider       string
-	runtimeModel          string
-	emotionEnabled        bool
-	goalIDForUsage        string
-	goalContext           string
-	goalObjectiveRevision *atomic.Int64
-	responsibilityState   *runtimectx.ResponsibilityAuthorityState
-	permissionMode        sdkpermission.Mode
+	client                 runtimectx.Client
+	runtimeKind            string
+	runtimeProvider        string
+	runtimeModel           string
+	toolSurfaceFingerprint string
+	session                protocol.Session
+	emotionEnabled         bool
+	goalIDForUsage         string
+	goalContext            string
+	goalObjectiveRevision  *atomic.Int64
+	responsibilityState    *runtimectx.ResponsibilityAuthorityState
+	permissionMode         sdkpermission.Mode
 }
 
 func (s *Service) ensureClient(
@@ -277,7 +279,47 @@ func (s *Service) ensureClient(
 	})
 	options = s.withRuntimeDiagnosticsLogger(options, sessionKey, agentValue.AgentID)
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
-	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
+	toolSurfaceFingerprint, toolSurfaceComplete, err := runtimectx.ModelToolSurfaceFingerprint(ctx, options)
+	if err != nil {
+		return dmClientPreparation{}, fmt.Errorf("计算 DM runtime 工具面指纹: %w", err)
+	}
+	runtimeBaseURL := dmdomain.FirstNonEmpty(
+		options.Env["ANTHROPIC_BASE_URL"],
+		options.Env["OPENAI_BASE_URL"],
+	)
+	if strings.TrimSpace(options.Session.ResumeID) != "" &&
+		!toolSurfaceComplete &&
+		sessionresumesvc.IsKimiK3Runtime(runtimeProvider, options.Model, runtimeBaseURL) {
+		return dmClientPreparation{}, errors.New("K3 runtime 工具面检查不完整，拒绝复用旧 SDK session")
+	}
+	resumeID, resetSession := s.resolveReusableSDKSessionID(
+		ctx,
+		agentValue.WorkspacePath,
+		sessionItem,
+		runtimeProvider,
+		options,
+		toolSurfaceFingerprint,
+	)
+	options.Session.ResumeID = resumeID
+	if resetSession {
+		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
+		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
+			return dmClientPreparation{}, fmt.Errorf("换代 K3 工具面 runtime: %w", retireErr)
+		}
+		if sessionItem.Options == nil {
+			sessionItem.Options = map[string]any{}
+		}
+		sessionItem.Options[protocol.OptionRuntimeSegmentedTranscript] = true
+		clearedSession, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem)
+		if clearErr != nil {
+			return dmClientPreparation{}, fmt.Errorf("清理不兼容的 K3 SDK session: %w", clearErr)
+		}
+		sessionItem = clearedSession
+		s.loggerFor(ctx).Info("K3 Session 工具面变化，创建 fresh SDK session",
+			"session_key", sessionKey,
+			"retired_warm_client", retired,
+		)
+	}
 	s.loggerFor(ctx).Info("准备启动 DM runtime",
 		append(clientopts.RuntimeStartupLogFields(options),
 			"session_key", sessionKey,
@@ -333,16 +375,18 @@ func (s *Service) ensureClient(
 		}
 	}
 	return dmClientPreparation{
-		client:                client,
-		runtimeKind:           strings.TrimSpace(string(options.Runtime.Kind)),
-		runtimeProvider:       runtimeProvider,
-		runtimeModel:          strings.TrimSpace(options.Model),
-		emotionEnabled:        runtimeSelection.EmotionEnabled,
-		goalIDForUsage:        goalIDForUsage,
-		goalContext:           goalContext,
-		goalObjectiveRevision: goalObjectiveRevision,
-		responsibilityState:   responsibilityState,
-		permissionMode:        permissionMode,
+		client:                 client,
+		runtimeKind:            strings.TrimSpace(string(options.Runtime.Kind)),
+		runtimeProvider:        runtimeProvider,
+		runtimeModel:           strings.TrimSpace(options.Model),
+		toolSurfaceFingerprint: toolSurfaceFingerprint,
+		session:                sessionItem,
+		emotionEnabled:         runtimeSelection.EmotionEnabled,
+		goalIDForUsage:         goalIDForUsage,
+		goalContext:            goalContext,
+		goalObjectiveRevision:  goalObjectiveRevision,
+		responsibilityState:    responsibilityState,
+		permissionMode:         permissionMode,
 	}, nil
 }
 
@@ -363,6 +407,15 @@ func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartu
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
 	return startup.RetireCurrent(closeCtx)
+}
+
+func retireExistingDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	return startup.RetireExisting(closeCtx)
 }
 
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
@@ -500,10 +553,11 @@ func (s *Service) resolveReusableSDKSessionID(
 	sessionItem protocol.Session,
 	provider string,
 	options agentclient.Options,
-) string {
+	toolSurfaceFingerprint string,
+) (string, bool) {
 	resumeID := strings.TrimSpace(options.Session.ResumeID)
 	if resumeID == "" {
-		return ""
+		return "", false
 	}
 	expectedKind := strings.TrimSpace(string(options.Runtime.Kind))
 	expectedProvider := strings.TrimSpace(provider)
@@ -511,9 +565,12 @@ func (s *Service) resolveReusableSDKSessionID(
 	actualKind, hasKindFingerprint := sessionItem.Options[protocol.OptionRuntimeKind].(string)
 	actualProvider, hasProviderFingerprint := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
 	actualModel, hasModelFingerprint := sessionItem.Options[protocol.OptionRuntimeModel].(string)
+	actualToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	actualKind = strings.TrimSpace(actualKind)
 	actualProvider = strings.TrimSpace(actualProvider)
 	actualModel = strings.TrimSpace(actualModel)
+	actualToolSurface = strings.TrimSpace(actualToolSurface)
+	toolSurfaceFingerprint = strings.TrimSpace(toolSurfaceFingerprint)
 	hasFingerprint := hasKindFingerprint || hasProviderFingerprint || hasModelFingerprint
 	fingerprintMatches := hasFingerprint &&
 		(!hasKindFingerprint || actualKind == expectedKind) &&
@@ -523,6 +580,21 @@ func (s *Service) resolveReusableSDKSessionID(
 		s.history.ForOwner(authctx.OwnerUserID(ctx)),
 	).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
+		if sessionresumesvc.RequiresK3ToolSurfaceReset(
+			expectedProvider,
+			expectedModel,
+			dmdomain.FirstNonEmpty(options.Env["ANTHROPIC_BASE_URL"], options.Env["OPENAI_BASE_URL"]),
+			actualToolSurface,
+			toolSurfaceFingerprint,
+		) {
+			s.loggerFor(ctx).Info("K3 SDK session 工具面与当前选择不兼容，准备换代",
+				"session_key", sessionItem.SessionKey,
+				"sdk_session_id", resumeID,
+				"stored_tool_surface_present", actualToolSurface != "",
+				"reason", string(decision.Reason),
+			)
+			return "", true
+		}
 		if !fingerprintMatches {
 			s.loggerFor(ctx).Info("DM session runtime 配置已变更但 transcript 可恢复，继续 resume",
 				"session_key", sessionItem.SessionKey,
@@ -536,8 +608,17 @@ func (s *Service) resolveReusableSDKSessionID(
 				"reason", string(decision.Reason),
 			)
 		}
-		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
-		return resumeID
+		s.persistSDKSessionFingerprint(
+			ctx,
+			workspacePath,
+			sessionItem,
+			false,
+			expectedKind,
+			expectedProvider,
+			expectedModel,
+			toolSurfaceFingerprint,
+		)
+		return resumeID, false
 	}
 	if decision.Err != nil {
 		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，跳过过期 resume",
@@ -547,8 +628,17 @@ func (s *Service) resolveReusableSDKSessionID(
 			"reason", string(decision.Reason),
 			"err", decision.Err,
 		)
-		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
-		return ""
+		s.persistSDKSessionFingerprint(
+			ctx,
+			workspacePath,
+			sessionItem,
+			true,
+			expectedKind,
+			expectedProvider,
+			expectedModel,
+			toolSurfaceFingerprint,
+		)
+		return "", false
 	}
 
 	s.loggerFor(ctx).Warn("DM SDK session transcript 不存在，跳过过期 resume",
@@ -562,8 +652,17 @@ func (s *Service) resolveReusableSDKSessionID(
 		"new_model", expectedModel,
 		"reason", string(decision.Reason),
 	)
-	s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
-	return ""
+	s.persistSDKSessionFingerprint(
+		ctx,
+		workspacePath,
+		sessionItem,
+		true,
+		expectedKind,
+		expectedProvider,
+		expectedModel,
+		toolSurfaceFingerprint,
+	)
+	return "", false
 }
 
 func (s *Service) persistSDKSessionFingerprint(
@@ -574,6 +673,7 @@ func (s *Service) persistSDKSessionFingerprint(
 	runtimeKind string,
 	provider string,
 	model string,
+	toolSurfaceFingerprint string,
 ) {
 	if clearSessionID {
 		sessionItem.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
@@ -588,6 +688,7 @@ func (s *Service) persistSDKSessionFingerprint(
 	sessionItem.Options[protocol.OptionRuntimeKind] = strings.TrimSpace(runtimeKind)
 	sessionItem.Options[protocol.OptionRuntimeProvider] = strings.TrimSpace(provider)
 	sessionItem.Options[protocol.OptionRuntimeModel] = strings.TrimSpace(model)
+	sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint] = strings.TrimSpace(toolSurfaceFingerprint)
 	var err error
 	sessionItem, err = s.preservePersistedSessionTitleForOwner(
 		authctx.OwnerUserID(ctx),

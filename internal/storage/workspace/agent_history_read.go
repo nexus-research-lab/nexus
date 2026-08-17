@@ -66,12 +66,12 @@ func (s *AgentHistoryStore) readHistoryRows(
 	workspacePath string,
 	sessionValue protocol.Session,
 ) ([]protocol.Message, error) {
-	sessionID := strings.TrimSpace(stringPointerValue(sessionValue.SessionID))
 	overlayState, err := s.readOverlayHistoryState(workspacePath, sessionValue.SessionKey)
 	if err != nil {
 		return nil, err
 	}
-	if sessionID == "" {
+	sessionIDs := historyTranscriptSessionIDs(sessionValue)
+	if len(sessionIDs) == 0 {
 		rows := buildOverlayOnlyHistoryRows(
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
@@ -81,25 +81,35 @@ func (s *AgentHistoryStore) readHistoryRows(
 		return rows, nil
 	}
 
-	transcriptRows, err := s.readTranscriptMessages(
-		workspacePath,
-		sessionValue.SessionKey,
-		sessionValue.AgentID,
-		sessionID,
-		overlayState.RoundMarkers,
-	)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// transcript 文件尚未出现时，只返回当前 overlay/round marker。
-			rows := buildOverlayOnlyHistoryRows(
-				sessionValue.SessionKey,
-				sessionValue.AgentID,
-				overlayState.MessageRows,
-				overlayState.RoundMarkers,
-			)
-			return rows, nil
+	transcriptRows := make([]protocol.Message, 0)
+	segmented, _ := sessionValue.Options[protocol.OptionRuntimeSegmentedTranscript].(bool)
+	if segmented {
+		transcriptRows, err = s.readSegmentedTranscriptMessages(
+			workspacePath,
+			sessionValue.SessionKey,
+			sessionValue.AgentID,
+			sessionIDs,
+			overlayState.RoundMarkers,
+		)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+	} else {
+		sessionID := sessionIDs[0]
+		rows, readErr := s.readTranscriptMessages(
+			workspacePath,
+			sessionValue.SessionKey,
+			sessionValue.AgentID,
+			sessionID,
+			overlayState.RoundMarkers,
+		)
+		if readErr != nil {
+			if !errors.Is(readErr, os.ErrNotExist) {
+				return nil, readErr
+			}
+		} else {
+			transcriptRows = append(transcriptRows, rows...)
+		}
 	}
 
 	rows := mergeTranscriptAndOverlayRows(
@@ -112,6 +122,54 @@ func (s *AgentHistoryStore) readHistoryRows(
 		),
 	)
 	return rows, nil
+}
+
+func (s *AgentHistoryStore) readSegmentedTranscriptMessages(
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	sessionIDs []string,
+	roundMarkers []transcriptRoundMarker,
+) ([]protocol.Message, error) {
+	combinedChain := make([]transcriptEntry, 0)
+	nextIndex := 0
+	for _, sessionID := range sessionIDs {
+		transcriptPath, err := s.resolveTranscriptPath(workspacePath, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		root, relative, _, err := s.openTranscriptPath(workspacePath, transcriptPath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, err
+		}
+		entries, readErr := s.readTranscriptEntriesAt(root, relative)
+		_ = root.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		segmentChain := buildPrimaryTranscriptChain(entries)
+		for index := range segmentChain {
+			segmentChain[index].Index = nextIndex
+			nextIndex++
+		}
+		combinedChain = append(combinedChain, segmentChain...)
+	}
+	return projectTranscriptChain(workspacePath, sessionKey, agentID, combinedChain, roundMarkers), nil
+}
+
+func historyTranscriptSessionIDs(sessionValue protocol.Session) []string {
+	segmented, _ := sessionValue.Options[protocol.OptionRuntimeSegmentedTranscript].(bool)
+	if segmented {
+		return protocol.SessionTranscriptIDs(sessionValue)
+	}
+	current := strings.TrimSpace(stringPointerValue(sessionValue.SessionID))
+	if current == "" {
+		return nil
+	}
+	return []string{current}
 }
 
 func buildOverlayOnlyHistoryRows(

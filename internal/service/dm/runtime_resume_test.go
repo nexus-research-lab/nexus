@@ -2,6 +2,9 @@ package dm
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,8 +15,27 @@ import (
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+type k3ToolSurfaceTestServer struct{}
+
+func (k3ToolSurfaceTestServer) HandleMessage(_ context.Context, request map[string]any) (map[string]any, error) {
+	if request["method"] != "tools/list" {
+		return map[string]any{}, nil
+	}
+	return map[string]any{
+		"result": map[string]any{
+			"tools": []map[string]any{{
+				"name":        "read",
+				"description": "read Feishu document",
+				"inputSchema": map[string]any{"type": "object"},
+			}},
+		},
+	}, nil
+}
 
 func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t *testing.T) {
 	cfg := newDMTestConfig(t)
@@ -243,6 +265,200 @@ func TestServiceHandleChatKeepsSDKSessionResumeWhenRuntimeFingerprintMissingAndT
 	}
 	if sessionValue.Options[protocol.OptionRuntimeModel] != "glm-5.1" {
 		t.Fatalf("legacy resume 后应补写 runtime model 指纹: %+v", sessionValue.Options)
+	}
+}
+
+func TestServiceHandleChatResetsK3SDKSessionWhenToolSurfaceFingerprintMissing(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:  "kimi-code",
+		PresetKey: "kimi-code",
+		AuthToken: "kimi-token",
+		Enabled:   true,
+	}, "k3", true)
+
+	oldSessionID := "99999999-9999-4999-8999-999999999999"
+	newSessionID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	sessionKey := "agent:nexus:ws:dm:k3-tool-surface-reset"
+	permission := permissionctx.NewContext()
+	staleClient := newFakeDMClient()
+	staleClient.sessionID = oldSessionID
+	client := newFakeDMClient()
+	client.sessionID = newSessionID
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: newSessionID,
+				UUID:      "result-k3-tool-surface-reset",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{clients: []*fakeDMClient{staleClient, client}}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	warmClient, err := runtimeManager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "__system__"},
+	})
+	if err != nil {
+		t.Fatalf("预热旧 K3 runtime 失败: %v", err)
+	}
+	if err = runtimeManager.Connect(context.Background(), sessionKey, warmClient); err != nil {
+		t.Fatalf("连接旧 K3 runtime 失败: %v", err)
+	}
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		AgentRuntimeKind: "nxs",
+		DefaultAgentOptions: protocol.Options{
+			Provider: "kimi-code",
+			Model:    "k3",
+		},
+	}})
+	service.SetMCPServerBuilder(func(
+		ctx context.Context,
+		_ *protocol.Agent,
+		_ string,
+		_ string,
+		_ string,
+		_ string,
+		_ string,
+		_ *atomic.Int64,
+		_ sdkpermission.Mode,
+	) map[string]sdkmcp.ServerConfig {
+		enabled := runtimectx.EnabledConnectorIDs(ctx)
+		if len(enabled) != 1 || enabled[0] != "feishu-docx" {
+			t.Fatalf("runtime connector selection = %+v, want feishu-docx", enabled)
+		}
+		return map[string]sdkmcp.ServerConfig{
+			"nexus_feishu_docx": sdkmcp.SDKServerConfig{
+				Name:     "nexus_feishu_docx",
+				Instance: k3ToolSurfaceTestServer{},
+			},
+		}
+	})
+	sender := newDMTestSender("sender-k3-tool-surface-reset")
+	permission.BindSession(sessionKey, sender)
+
+	workspacePath := dmMainWorkspacePath(cfg)
+	writeTranscriptFixture(t, workspacePath, oldSessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "99000000-0000-4000-8000-000000000001",
+			"sessionId": oldSessionID,
+			"timestamp": "2026-08-17T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "旧 K3 工具面消息",
+			},
+		},
+	})
+	writeTranscriptFixture(t, workspacePath, newSessionID, []map[string]any{
+		{
+			"type":      "assistant",
+			"uuid":      "aa000000-0000-4000-8000-000000000001",
+			"sessionId": newSessionID,
+			"timestamp": "2026-08-17T00:00:01Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []any{map[string]any{
+					"type": "text",
+					"text": "fresh K3 工具面回复",
+				}},
+			},
+		},
+	})
+	now := time.Now().UTC()
+	connectorIDs := []string{"feishu-docx"}
+	sessionOptions := protocol.WithSessionRuntimeSettings(map[string]any{
+		protocol.OptionRuntimeKind:     "nxs",
+		protocol.OptionRuntimeProvider: "kimi-code",
+		protocol.OptionRuntimeModel:    "k3",
+	}, protocol.SessionRuntimeSettings{ConnectorIDs: &connectorIDs})
+	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &oldSessionID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "K3 Tool Surface Reset",
+		Options:      sessionOptions,
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("预写入 K3 legacy session 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "验证新的 Connector 工具面",
+		RoundID:    "round-k3-tool-surface-reset",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	feishuConfig, ok := options.MCP.Servers["nexus_feishu_docx"].(sdkmcp.SDKServerConfig)
+	if !ok || feishuConfig.Instance == nil {
+		t.Fatalf("fresh K3 options 缺少飞书 MCP: %+v", options.MCP.Servers)
+	}
+	toolList, err := feishuConfig.Instance.HandleMessage(context.Background(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/list",
+	})
+	if err != nil || !strings.Contains(fmt.Sprint(toolList), "read") {
+		t.Fatalf("fresh K3 飞书 MCP 缺少 read schema: result=%+v err=%v", toolList, err)
+	}
+	if options.Session.ResumeID != "" || options.Session.Fork {
+		t.Fatalf("K3 legacy session 应以 fresh identity 启动: %+v", options.Session)
+	}
+	staleClient.mu.Lock()
+	staleDisconnectCalls := staleClient.disconnectCalls
+	staleClient.mu.Unlock()
+	if staleDisconnectCalls == 0 {
+		t.Fatal("K3 工具面换代前未退休 warm client")
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != newSessionID {
+		t.Fatalf("换代后新 SDK session_id = %q, want %q; session=%+v", stringPointer(t, sessionValue.SessionID), newSessionID, sessionValue)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeToolSurfaceFingerprint] == "" {
+		t.Fatalf("换代后工具面指纹未写回: %+v", sessionValue.Options)
+	}
+	if sessionValue.SessionKey != sessionKey || sessionValue.Title != "K3 Tool Surface Reset" {
+		t.Fatalf("Nexus Session identity/title 不应随 SDK 换代改变: %+v", sessionValue)
+	}
+	if segmented, _ := sessionValue.Options[protocol.OptionRuntimeSegmentedTranscript].(bool); !segmented {
+		t.Fatalf("换代 Session 未标记分段 transcript: %+v", sessionValue.Options)
+	}
+	wantLineage := protocol.MergeTranscriptSessionIDs([]string{oldSessionID, newSessionID})
+	if got := protocol.SessionTranscriptIDs(sessionValue); len(got) != len(wantLineage) || got[0] != wantLineage[0] || got[1] != wantLineage[1] {
+		t.Fatalf("换代 transcript lineage = %+v, want %+v", got, wantLineage)
+	}
+	rows, err := service.history.ForOwner("__system__").ReadMessages(workspacePath, sessionValue, nil)
+	if err != nil {
+		t.Fatalf("读取换代后的统一历史失败: %v", err)
+	}
+	joinedRows := fmt.Sprint(rows)
+	if !strings.Contains(joinedRows, "旧 K3 工具面消息") || !strings.Contains(joinedRows, "验证新的 Connector 工具面") {
+		t.Fatalf("换代后历史未合并旧/新 transcript: %+v", rows)
 	}
 }
 
@@ -596,7 +812,7 @@ func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t
 		},
 	})
 
-	got := service.resolveReusableSDKSessionID(context.Background(), workspacePath, protocol.Session{
+	got, reset := service.resolveReusableSDKSessionID(context.Background(), workspacePath, protocol.Session{
 		SessionKey: "agent:nexus:ws:dm:resolve-shared-runtime-resume",
 		AgentID:    cfg.DefaultAgentID,
 		SessionID:  &resumeID,
@@ -613,8 +829,122 @@ func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t
 		Runtime: agentclient.RuntimeOptions{
 			Kind: agentclient.RuntimeClaude,
 		},
-	})
+	}, "surface-current")
 	if got != resumeID {
 		t.Fatalf("runtime 切换存在共享 transcript 时应复用 resume: got=%q want=%q", got, resumeID)
+	}
+	if reset {
+		t.Fatal("非 K3 runtime 切换不应重置 SDK session")
+	}
+}
+
+func TestServiceResolveReusableSDKSessionResetsK3WhenToolSurfaceChanges(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	agentService := newDMAgentService(t, cfg)
+	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(&fakeDMFactory{}), permissionctx.NewContext())
+
+	workspacePath := dmMainWorkspacePath(cfg)
+	resumeID := "88888888-8888-4888-8888-888888888888"
+	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "88000000-0000-4000-8000-000000000001",
+			"sessionId": resumeID,
+			"timestamp": "2026-08-17T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "开启飞书 Connector 前的会话",
+			},
+		},
+	})
+
+	got, reset := service.resolveReusableSDKSessionID(context.Background(), workspacePath, protocol.Session{
+		SessionKey: "agent:nexus:ws:dm:k3-tool-surface-reset",
+		AgentID:    cfg.DefaultAgentID,
+		SessionID:  &resumeID,
+		Options: map[string]any{
+			protocol.OptionRuntimeKind:                   "nxs",
+			protocol.OptionRuntimeProvider:               "kimi-code",
+			protocol.OptionRuntimeModel:                  "k3",
+			protocol.OptionRuntimeToolSurfaceFingerprint: "surface-before",
+		},
+	}, "kimi-code", agentclient.Options{
+		Model: "k3",
+		Session: agentclient.SessionOptions{
+			ResumeID: resumeID,
+		},
+		Runtime: agentclient.RuntimeOptions{
+			Kind: agentclient.RuntimeNXS,
+		},
+	}, "surface-after")
+	if got != "" || !reset {
+		t.Fatalf("K3 工具面变化应放弃旧 resume: resume=%q reset=%v", got, reset)
+	}
+}
+
+func TestSyncSDKSessionDoesNotCommitToolSurfaceBeforeFreshTranscriptIsPersistable(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	agentService := newDMAgentService(t, cfg)
+	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(&fakeDMFactory{}), permissionctx.NewContext())
+
+	workspacePath := dmMainWorkspacePath(cfg)
+	oldSessionID := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	newSessionID := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	writeTranscriptFixture(t, workspacePath, oldSessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "bb000000-0000-4000-8000-000000000001",
+			"sessionId": oldSessionID,
+			"timestamp": "2026-08-17T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "旧工具面",
+			},
+		},
+	})
+	now := time.Now().UTC()
+	current := protocol.Session{
+		SessionKey:   "agent:nexus:ws:dm:k3-reset-not-yet-persistable",
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &oldSessionID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Options: map[string]any{
+			protocol.OptionRuntimeKind:                   "nxs",
+			protocol.OptionRuntimeProvider:               "kimi-code",
+			protocol.OptionRuntimeModel:                  "k3",
+			protocol.OptionRuntimeToolSurfaceFingerprint: "surface-before",
+		},
+		IsActive: true,
+	}
+	stored, err := service.files.UpsertSession(workspacePath, current)
+	if err != nil || stored == nil {
+		t.Fatalf("预写入 Session 失败: stored=%+v err=%v", stored, err)
+	}
+
+	updated, err := service.syncSDKSessionIDForOwner(
+		context.Background(),
+		"__system__",
+		workspacePath,
+		*stored,
+		newSessionID,
+		"nxs",
+		"kimi-code",
+		"k3",
+		"surface-after",
+	)
+	if err != nil {
+		t.Fatalf("syncSDKSessionIDForOwner() error = %v", err)
+	}
+	if got := stringPointer(t, updated.SessionID); got != oldSessionID {
+		t.Fatalf("不可恢复的新 transcript 不应替换 current id: got=%q want=%q", got, oldSessionID)
+	}
+	if got := updated.Options[protocol.OptionRuntimeToolSurfaceFingerprint]; got != "surface-before" {
+		t.Fatalf("新工具面不得提前提交到旧 K3 session: got=%v", got)
 	}
 }

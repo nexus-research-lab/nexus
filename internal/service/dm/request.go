@@ -362,6 +362,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		)
 		return dmRuntimePreparation{}, err
 	}
+	e.session = clientPreparation.session
 	if !runtimeContent.IsEmpty() && !slashInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
 			runtimeCtx,
@@ -436,6 +437,7 @@ func cloneAutomationRunContext(value *protocol.AutomationRunContext) *protocol.A
 }
 
 func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
+	r.session = preparation.session
 	r.runtimeContent = preparation.content
 	r.atomicInput = preparation.atomicInput
 	r.recoveryContext = preparation.recoveryContext
@@ -443,6 +445,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.runtimeKind = preparation.runtimeKind
 	r.runtimeProvider = preparation.runtimeProvider
 	r.runtimeModel = preparation.runtimeModel
+	r.toolSurfaceFingerprint = preparation.toolSurfaceFingerprint
 	r.goalContext = preparation.goalContext
 	r.goalIDForUsage = preparation.goalIDForUsage
 	r.childGoalIDForUsage = preparation.goalIDForUsage

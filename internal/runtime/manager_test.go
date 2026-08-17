@@ -1731,6 +1731,100 @@ func TestManagerRetireCurrentPreservesBackgroundTaskForStartupRetry(t *testing.T
 	}
 }
 
+func TestManagerRetireExistingReplacesWarmClientBeforeGetOrCreate(t *testing.T) {
+	stale := &ownershipFenceClient{}
+	fresh := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:retire-existing-warm-client"
+
+	initial, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("开始首次启动事务失败: %v", err)
+	}
+	if _, err = initial.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		initial.Close()
+		t.Fatalf("创建 warm client 失败: %v", err)
+	}
+	if err = initial.Connect(context.Background()); err != nil {
+		initial.Close()
+		t.Fatalf("连接 warm client 失败: %v", err)
+	}
+	initial.Close()
+
+	replacement, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("开始换代事务失败: %v", err)
+	}
+	retired, err := replacement.RetireExisting(context.Background())
+	if err != nil || !retired {
+		replacement.Close()
+		t.Fatalf("RetireExisting() = retired:%v err:%v", retired, err)
+	}
+	if current := manager.SessionClient(sessionKey); current != nil {
+		replacement.Close()
+		t.Fatalf("RetireExisting() 后仍发布旧 client: %#v", current)
+	}
+	client, err := replacement.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil)
+	if err != nil || client != fresh {
+		replacement.Close()
+		t.Fatalf("换代后 client = %#v err=%v, want fresh", client, err)
+	}
+	if err = replacement.Connect(context.Background()); err != nil {
+		replacement.Close()
+		t.Fatalf("连接 fresh client 失败: %v", err)
+	}
+	replacement.Close()
+
+	stale.mu.Lock()
+	retireCalls := stale.retireCalls
+	disconnectCalls := stale.disconnectCalls
+	stale.mu.Unlock()
+	if retireCalls != 1 || disconnectCalls != 1 {
+		t.Fatalf("warm client cleanup = retire:%d disconnect:%d, want 1/1", retireCalls, disconnectCalls)
+	}
+	if err = manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理 fresh client 失败: %v", err)
+	}
+}
+
+func TestManagerRetireExistingRejectsOwnerMismatch(t *testing.T) {
+	stale := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
+	sessionKey := "agent:nexus:ws:dm:retire-existing-owner-fence"
+
+	initial, err := manager.BeginClientStartup(context.Background(), sessionKey, "owner-a")
+	if err != nil {
+		t.Fatalf("开始 owner-a 启动事务失败: %v", err)
+	}
+	if _, err = initial.GetOrCreateWithFactory(context.Background(), agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}, nil); err != nil {
+		initial.Close()
+		t.Fatalf("创建 owner-a client 失败: %v", err)
+	}
+	if err = initial.Connect(context.Background()); err != nil {
+		initial.Close()
+		t.Fatalf("连接 owner-a client 失败: %v", err)
+	}
+	initial.Close()
+
+	replacement, err := manager.BeginClientStartup(context.Background(), sessionKey, "owner-b")
+	if err != nil {
+		t.Fatalf("开始 owner-b 启动事务失败: %v", err)
+	}
+	retired, retireErr := replacement.RetireExisting(context.Background())
+	replacement.Close()
+	if retired || retireErr == nil || !strings.Contains(retireErr.Error(), "runtime session owner mismatch") {
+		t.Fatalf("owner mismatch RetireExisting() = retired:%v err:%v", retired, retireErr)
+	}
+	if current := manager.SessionClient(sessionKey); current != stale {
+		t.Fatalf("owner mismatch 不应移除原 client: %#v", current)
+	}
+	if err = manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理 owner-a client 失败: %v", err)
+	}
+}
+
 func TestManagerRetireCurrentTimeoutDoesNotAbortInFlightStartupRetry(t *testing.T) {
 	disconnectStarted := make(chan struct{}, 2)
 	disconnectRelease := make(chan struct{})
