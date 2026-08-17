@@ -100,7 +100,7 @@ func (s *Service) deliverAutomationIMNotice(
 	deliverySessionKey string,
 	body string,
 ) {
-	deliverySessionKey = firstNonEmpty(deliverySessionKey, job.Delivery.SessionKey, job.Source.SessionKey)
+	deliverySessionKey = strings.TrimSpace(deliverySessionKey)
 	if !externalIMSessionKey(deliverySessionKey) || s.delivery == nil || s.deliveryGrants == nil {
 		return
 	}

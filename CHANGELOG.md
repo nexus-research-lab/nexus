@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Projected each scheduled-task permission request into its frozen recipient Nexus Agent, Room, or active-paired IM Session—with realtime delivery and reconnect replay—while keeping IM Slash as an additional transport and using the source Session only when no recipient exists.
 - Preserved durable scheduled-task permission audit, Nexus Session projection, and external IM `/y`/`/a`/`/d` notifications after the blocked physical attempt is interrupted by publishing them on a bounded detached owner context.
 - Restored current-conversation Automation queries and external IM default report scoping, exact deleted-job runs/events lookup, and enabled-before-limit history filtering; external IM rounds no longer expose heartbeat configuration.
 - Reset transcript-backed Kimi K3 DM runtime sessions once when an explicit Agent or Session Connector change—or a legacy session without a tool baseline—alters the model-visible tool surface. The fresh runtime starts with the selected MCP schemas while Nexus preserves the stable Session identity and projects the old and new transcript segments as one visible history.

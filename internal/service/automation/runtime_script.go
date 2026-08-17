@@ -157,22 +157,19 @@ func (s *Service) ensureScriptRunPermission(
 		ctx,
 		automationstore.PermissionRequestCreateInput{
 			Request: automationdomain.AutomationPermissionRequest{
-				RequestID:      s.idFactory("permission"),
-				OwnerUserID:    job.OwnerUserID,
-				JobID:          job.JobID,
-				RunID:          runID,
-				PolicyRevision: job.PermissionPolicy.Revision,
-				Kind:           automationdomain.PermissionRequestKindScript,
-				Capability:     capability,
-				InputSummary:   map[string]any{"script_sha256": capability.ResourceScope},
-				Title:          "定时任务请求执行工作区脚本",
-				Description:    "脚本会在目标 Agent workspace 中执行；授权与当前脚本内容哈希绑定，脚本修改后自动失效。",
-				Reason:         "需要 owner 确认工作区脚本执行",
-				DeliverySessionKey: firstNonEmpty(
-					job.Delivery.SessionKey,
-					job.Source.SessionKey,
-				),
-				ResumeSafe: true,
+				RequestID:          s.idFactory("permission"),
+				OwnerUserID:        job.OwnerUserID,
+				JobID:              job.JobID,
+				RunID:              runID,
+				PolicyRevision:     job.PermissionPolicy.Revision,
+				Kind:               automationdomain.PermissionRequestKindScript,
+				Capability:         capability,
+				InputSummary:       map[string]any{"script_sha256": capability.ResourceScope},
+				Title:              "定时任务请求执行工作区脚本",
+				Description:        "脚本会在目标 Agent workspace 中执行；授权与当前脚本内容哈希绑定，脚本修改后自动失效。",
+				Reason:             "需要 owner 确认工作区脚本执行",
+				DeliverySessionKey: automationPermissionApprovalSessionKey(job.Delivery, job.Source),
+				ResumeSafe:         true,
 			},
 			TaskState:  automationdomain.TaskPermissionStateAwaitingApproval,
 			BlockState: automationdomain.RunBlockStateAwaitingApproval,
@@ -184,13 +181,9 @@ func (s *Service) ensureScriptRunPermission(
 	s.setJobPermissionState(job.JobID, automationdomain.TaskPermissionStateAwaitingApproval, request.RequestID)
 	s.pauseJobRuntimeForPermission(job, runID, automationdomain.TaskPermissionStateAwaitingApproval, &request.Reason)
 	if created {
-		s.recordTaskEvent(ctx, automationdomain.TaskEventActionPermissionRequested, job, runID, map[string]any{
-			"request_id":   request.RequestID,
-			"request_kind": request.Kind,
-			"effect":       request.Capability.Effect,
-			"resume_safe":  request.ResumeSafe,
-		})
-		s.notifyAutomationPermissionRequest(ctx, job, *request)
+		s.publishScheduledPermissionRequest(ctx, scheduledPermissionScope{
+			Job: job, RunID: runID,
+		}, *request)
 	}
 	return false, nil
 }
