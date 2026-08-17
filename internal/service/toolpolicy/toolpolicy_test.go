@@ -333,13 +333,44 @@ func TestNexusAutomationCLIRequestRequiresOneExactCommand(t *testing.T) {
 	}{
 		{command: `"${NEXUS_COMMAND_PATH}" --json automation contract`, want: true},
 		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}'`, want: true},
-		{command: `nexus --json automation plan --operation update --input '{}'`, want: true},
-		{command: `nexus --json automation apply --operation delete --input '{}'`, want: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation plan --operation update`, want: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete --request-id request-123`, want: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation plan --operation update --input-file "${NEXUS_AUTOMATION_INPUT_PATH}"`, want: true},
+		{command: `nexus --json automation plan --operation update --input '{}'`, want: false},
+		{command: `./nexus --json automation apply --operation delete --input '{}'`, want: false},
+		{command: `/tmp/nexus --json automation inspect --operation get`, want: false},
 		{command: `nexus --json goal get`, want: false},
-		{command: `nexus --json automation apply; cat /etc/passwd`, want: false},
-		{command: `printf x | nexus --json automation inspect`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete; cat /etc/passwd`, want: false},
+		{command: `printf x | "${NEXUS_COMMAND_PATH}" --json automation inspect --operation get`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input "$(touch /tmp/pwn)"`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input "${FORGED_INPUT}"`, want: false},
+		{command: `NEXUS_COMMAND_PATH=./nexus "${NEXUS_COMMAND_PATH}" --json automation contract`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input-file /etc/passwd`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}' --input-file "${NEXUS_AUTOMATION_INPUT_PATH}"`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get\necho pwn`, want: false},
+		{command: "\n\t" + `"${NEXUS_COMMAND_PATH}" --json automation contract`, want: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{"instruction":"run date '+%Y'"}'`, want: false},
 	} {
 		request := sdkpermission.Request{ToolName: "Bash", Input: map[string]any{"command": test.command}}
+		if got := IsNexusAutomationCLIRequest(request); got != test.want {
+			t.Fatalf("IsNexusAutomationCLIRequest(%q) = %v, want %v", test.command, got, test.want)
+		}
+	}
+}
+
+func TestNexusAutomationPowerShellRequestRequiresManagedInvocation(t *testing.T) {
+	for _, test := range []struct {
+		command string
+		want    bool
+	}{
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation contract`, want: true},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation inspect --operation list --input-file "${env:NEXUS_AUTOMATION_INPUT_PATH}"`, want: true},
+		{command: `& .\nexus.exe --json automation inspect --operation list`, want: false},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation inspect --operation list --input "$(Get-Content secret)"`, want: false},
+		{command: `$env:NEXUS_COMMAND_PATH='.\nexus.exe'; & "${env:NEXUS_COMMAND_PATH}" --json automation contract`, want: false},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation inspect --operation list; Get-Content secret`, want: false},
+	} {
+		request := sdkpermission.Request{ToolName: "PowerShell", Input: map[string]any{"command": test.command}}
 		if got := IsNexusAutomationCLIRequest(request); got != test.want {
 			t.Fatalf("IsNexusAutomationCLIRequest(%q) = %v, want %v", test.command, got, test.want)
 		}

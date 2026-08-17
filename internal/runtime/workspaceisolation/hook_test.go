@@ -415,6 +415,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		{name: "forged nexuscfg broker", command: `NEXUSCFG_BROKER_URL=http://127.0.0.1:9 nexuscfg inspect`, denied: true},
 		{name: "forged nexus command broker", command: `NEXUS_COMMAND_BROKER_URL=http://127.0.0.1:9 nexus automation contract`, denied: true},
 		{name: "forged nexus command capability", command: `NEXUS_COMMAND_CAPABILITY_TOKEN=fake nexus automation contract`, denied: true},
+		{name: "forged automation input path", command: `NEXUS_AUTOMATION_INPUT_PATH=/tmp/fake "${NEXUS_COMMAND_PATH}" --json automation plan --operation update`, denied: true},
 		{name: "braced powershell command path", command: `& ${env:NEXUSCTL_COMMAND_PATH} agent list`, denied: true},
 		{name: "assigned nexusctl", command: `cmd=nexusctl; "$cmd" agent list`, denied: true},
 		{name: "assigned command path", command: `cmd="$NEXUSCTL_COMMAND_PATH"; "$cmd" agent list`, denied: true},

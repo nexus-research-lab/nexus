@@ -7,5 +7,6 @@ const (
 	NexusCommandPathEnvName            = "NEXUS_COMMAND_PATH"
 	NexusCommandBrokerURLEnvName       = "NEXUS_COMMAND_BROKER_URL"
 	NexusCommandCapabilityTokenEnvName = "NEXUS_COMMAND_CAPABILITY_TOKEN"
+	NexusAutomationInputPathEnvName    = "NEXUS_AUTOMATION_INPUT_PATH"
 	NexusCommandCapabilityHeader       = "X-Nexus-Runtime-Command-Capability"
 )

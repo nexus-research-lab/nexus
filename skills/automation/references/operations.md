@@ -9,27 +9,27 @@
 本文件与当前 CLI contract 不一致时，以 CLI 为准。
 只有 contract 返回 `cross_agent_allowed=true` 时才能使用跨 Agent/Session 高级输入。
 
+contract 同时返回宿主创建的 `input_staging.path`。用 Write 工具把单个 JSON 对象写到该精确路径，然后在 Bash 单行命令中使用 `--input-file "${NEXUS_AUTOMATION_INPUT_PATH}"`；Windows PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ... --input-file "${env:NEXUS_AUTOMATION_INPUT_PATH}"`。CLI 未显式传 `--input` / `--input-file` 时也默认读取这个槽。`--input` 与 `--input-file` 互斥，文件上限 1 MiB，`-` 只用于人工 stdin。不要用 `$(cat ...)`、heredoc、重定向或多行 shell 传 JSON。
+
 ## 查询
 
 统一形式：
 
 ```bash
-"${NEXUS_COMMAND_PATH}" --json automation inspect \
-  --operation OPERATION \
-  --input 'JSON_OBJECT'
+"${NEXUS_COMMAND_PATH}" --json automation inspect --operation OPERATION --input-file "${NEXUS_AUTOMATION_INPUT_PATH}"
 ```
 
 - `list`：`query`、`agent_id`、`include_active`、`include_deleted`、`enabled`、`limit`。
 - `get`：`job_id` 或可唯一定位的 `query`；可选 `run_limit`、`event_limit`。
 - `runs` / `events`：`job_id` 或唯一 `query`；支持已删除任务历史。
 - `report`：可选 `date`、`timezone`、`agent_id`、`job_id` 或唯一 `query`。
-- `heartbeat`：可选 `agent_id`。
+- `heartbeat`：可选 `agent_id`；外部 IM round 不开放。
 
 后台 scheduled run 省略 `job_id` 时自动使用宿主绑定的当前任务；不能改查其他任务。
 
 ## 变更
 
-每项变更先 `plan`，再用完全相同的 operation/input `apply`。apply 必须携带 plan 的 `current_revision` 和稳定 `request_id`。
+每项变更先 `plan`，再保持受管文件不变并用完全相同的 operation/input `apply`。apply 必须携带 plan 的 `current_revision` 和稳定 `request_id`。
 
 ### create
 
@@ -71,7 +71,8 @@ Cron 只接受能回写 Nexus UI 的标准五段日/周表达式：minute/hour �
 - `name`、`schedule`、`permission_mode`、`context_mode`、`deliver_result`、`overlap_policy`、`enabled`。
 - `instruction` 完整替换；`instruction_append` 追加。两者不能同时出现。
 - `expires_at` 设置截止；`clear_expires_at=true` 清除。两者不能同时出现。
-- `cancel_active_run=true` 会隐含停用；同时传当前 `run_id` 防止取消错误运行。
+- `cancel_active_run=true` 会隐含停用；同时传当前 `run_id` 防止取消错误运行。当前没有 active run、run_id 已变化或同时传 `enabled=true` 都会在 plan 阶段拒绝。
+- 空 update、脱离 `cancel_active_run=true` 的 `run_id` 都会拒绝，不会只推进配置版本。
 - 跨 Agent 修改必须在同一 update 中提供新的 execution/delivery Session 意图，并重新验证权限与投递 grant。
 
 ### delete / run / retry_delivery

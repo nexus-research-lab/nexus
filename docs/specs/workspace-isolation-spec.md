@@ -350,7 +350,9 @@ NEXUS_MEMORY_DIR=<agent_workspace>
   DM/Room 和 runtime lease，configuration 角色矩阵决定最终 operation。CLI 作用域或
   capability 覆盖返回可重试错误，Hook 对这类 shell 文本仍做早期拒绝。Agent-facing
   `nexus automation` 同样只转发给 loopback broker；后台 run 固定 job/run 且只读，
-  交互 mutation 还需 service plan/revision/digest 与当前会话真人确认；
+  交互 mutation 还需 service plan/revision/digest 与当前会话真人确认。其 JSON 输入只写入
+  owner 私有 `runtime/tmp` 下宿主按 round 创建的 `0600` 槽位；Bash/PowerShell 自动审批只接受
+  各自 shell 中精确的受管 executable、受管 input path 和无动态展开的单命令语法；
 - 不返回 `updatedInput`，只允许放行或拒绝；
 - Hook 本身不返回 `allow` 决策，避免覆盖其他 hook 或用户权限处理；越界时返回
   `deny`。Hook 失效不构成安全放行，enforce 进程仍必须通过 launcher 的最终边界；

@@ -120,6 +120,9 @@ type AutomationCommandPlan struct {
 	CurrentRevision      string                 `json:"current_revision"`
 	PlanDigest           string                 `json:"plan_digest"`
 	Input                AutomationCommandInput `json:"input"`
+	// ObservedConfigurationVersion 只在 broker/service 同进程 apply 中使用；
+	// wire 仍以 CurrentRevision 和 PlanDigest 为公开栅栏。
+	ObservedConfigurationVersion int64 `json:"-"`
 }
 
 // AutomationCommandApplyResult 是写入后的稳定结果 envelope。

@@ -168,7 +168,7 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 
 // UpdateTask 更新任务。
 func (s *Service) UpdateTask(ctx context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.ScheduledTask, error) {
-	return s.updateTask(ctx, jobID, input, nil)
+	return s.updateTask(ctx, jobID, input, nil, nil)
 }
 
 // UpdateTaskAtVersion 更新对话在读取阶段看到的精确版本。
@@ -178,7 +178,19 @@ func (s *Service) UpdateTaskAtVersion(
 	expectedVersion int64,
 	input automationdomain.UpdateJobInput,
 ) (*automationdomain.ScheduledTask, error) {
-	return s.updateTask(ctx, jobID, input, &expectedVersion)
+	return s.updateTask(ctx, jobID, input, &expectedVersion, nil)
+}
+
+// UpdateTaskAtVersionAndRunningRun 只在配置与 plan 观察到的 active run 都未变化时写入。
+func (s *Service) UpdateTaskAtVersionAndRunningRun(
+	ctx context.Context,
+	jobID string,
+	expectedVersion int64,
+	expectedRunningRunID string,
+	input automationdomain.UpdateJobInput,
+) (*automationdomain.ScheduledTask, error) {
+	expectedRunningRunID = strings.TrimSpace(expectedRunningRunID)
+	return s.updateTask(ctx, jobID, input, &expectedVersion, &expectedRunningRunID)
 }
 
 func (s *Service) updateTask(
@@ -186,6 +198,7 @@ func (s *Service) updateTask(
 	jobID string,
 	input automationdomain.UpdateJobInput,
 	expectedVersion *int64,
+	expectedRunningRunID *string,
 ) (*automationdomain.ScheduledTask, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
@@ -199,6 +212,10 @@ func (s *Service) updateTask(
 	}
 	if expectedVersion != nil &&
 		(*expectedVersion < 1 || current.ConfigurationVersion != *expectedVersion) {
+		return nil, automationdomain.ErrConfigurationVersionConflict
+	}
+	if expectedRunningRunID != nil &&
+		strings.TrimSpace(current.RunningRunID) != strings.TrimSpace(*expectedRunningRunID) {
 		return nil, automationdomain.ErrConfigurationVersionConflict
 	}
 	ensuredCurrent, err := s.ensureTaskPermissionPolicy(ctx, *current)
@@ -281,7 +298,14 @@ func (s *Service) updateTask(
 		next.PendingPermissionRequestID = ""
 	}
 	var updated *automationdomain.ScheduledTask
-	if expectedVersion != nil {
+	if expectedVersion != nil && expectedRunningRunID != nil {
+		updated, err = s.repository.UpdateScheduledTaskAtVersionAndRunningRun(
+			ctx,
+			next,
+			*expectedVersion,
+			*expectedRunningRunID,
+		)
+	} else if expectedVersion != nil {
 		updated, err = s.repository.UpdateScheduledTaskAtVersion(ctx, next, *expectedVersion)
 	} else {
 		updated, err = s.repository.UpsertScheduledTask(ctx, next)

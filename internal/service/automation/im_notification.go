@@ -5,6 +5,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -110,7 +111,11 @@ func (s *Service) deliverAutomationIMNotice(
 		job.AgentID,
 		deliverySessionKey,
 	); err != nil {
-		s.loggerFor(ctx).Warn("定时任务 IM 通知授权已失效",
+		message := "定时任务 IM 通知授权已失效"
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			message = "定时任务 IM 通知校验未完成"
+		}
+		s.loggerFor(ctx).Warn(message,
 			"job_id", job.JobID,
 			"session_key", deliverySessionKey,
 			"err", err,

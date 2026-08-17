@@ -220,7 +220,11 @@ func TestAutomationPermissionProjectsToConfiguredRoom(t *testing.T) {
 		PermissionState: automationdomain.TaskPermissionStateReady,
 	}
 	job, request := persistAutomationPermissionSessionFixture(t, service, ownerCtx, job, "permission-room-recipient")
-	service.notifyAutomationPermissionRequest(ownerCtx, job, request)
+	cancelledCtx, cancel := context.WithCancel(ownerCtx)
+	cancel()
+	service.publishScheduledPermissionRequest(cancelledCtx, scheduledPermissionScope{
+		Job: job, RunID: request.RunID, SessionKey: request.SessionKey, RoundID: request.RoundID,
+	}, request)
 
 	events := recorder.snapshot()
 	if len(events) != 1 || events[0].SessionKey != roomSession ||
