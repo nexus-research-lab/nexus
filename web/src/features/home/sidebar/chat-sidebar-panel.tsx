@@ -1,4 +1,4 @@
-import { MessageCirclePlus, MessageSquarePlus } from "lucide-react";
+import { CircleAlert, MessageCirclePlus, MessageSquarePlus } from "lucide-react";
 import { memo } from "react";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
@@ -57,6 +57,14 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
                 onDelete={item.canDelete ? () => controller.deletion.request(item) : undefined}
               />
             ))
+          ) : controller.list.hasError ? (
+            <SidebarEmptyGuide
+              actionLabel={t("sidebar.retry")}
+              description={t("sidebar.directory_load_failed_description")}
+              icon={CircleAlert}
+              onAction={controller.list.retry}
+              title={t("sidebar.directory_load_failed")}
+            />
           ) : (
             <SidebarEmptyGuide
               actionLabel={controller.list.query

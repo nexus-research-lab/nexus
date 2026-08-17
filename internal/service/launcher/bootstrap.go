@@ -70,9 +70,6 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 			return BootstrapResponse{}, listErr
 		}
 		conversationItems = buildBootstrapConversations(sessions, roomTypeByID)
-		if previewErr := s.attachLatestReplyPreviews(ctx, conversationItems); previewErr != nil {
-			return BootstrapResponse{}, previewErr
-		}
 	}
 
 	return BootstrapResponse{
@@ -80,40 +77,6 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		Rooms:         roomItems,
 		Conversations: conversationItems,
 	}, nil
-}
-
-func (s *Service) attachLatestReplyPreviews(
-	ctx context.Context,
-	items []BootstrapConversation,
-) error {
-	seenRoomIDs := make(map[string]struct{}, len(items))
-	for index := range items {
-		roomID := strings.TrimSpace(items[index].RoomID)
-		if roomID == "" {
-			continue
-		}
-		if _, exists := seenRoomIDs[roomID]; exists {
-			continue
-		}
-		seenRoomIDs[roomID] = struct{}{}
-
-		preview, err := s.session.GetSessionLatestReplyPreview(ctx, previewSessionKey(items[index]))
-		if err != nil {
-			return err
-		}
-		items[index].LastReplyPreview = preview
-	}
-	return nil
-}
-
-// previewSessionKey 返回摘要计算入口：群聊必须走共享历史。
-// 成员 session key 只反映单个成员的私有视图，没发过言的成员会得到空摘要。
-func previewSessionKey(item BootstrapConversation) string {
-	conversationID := strings.TrimSpace(item.ConversationID)
-	if item.RoomType == protocol.RoomTypeDM || conversationID == "" {
-		return item.SessionKey
-	}
-	return protocol.BuildRoomSharedSessionKey(conversationID)
 }
 
 func buildBootstrapRoomMembers(
