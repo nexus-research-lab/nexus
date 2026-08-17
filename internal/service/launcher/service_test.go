@@ -216,7 +216,7 @@ func findBootstrapConversationByRoomID(
 	return nil
 }
 
-func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
+func TestBuildBootstrapConversationsIncludesNavigationFields(t *testing.T) {
 	roomID := "room-1"
 	conversationID := "conversation-1"
 	now := time.Date(2026, 5, 20, 9, 30, 0, 0, time.UTC)
@@ -236,8 +236,6 @@ func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
 			ConversationID: &conversationID,
 			ChannelType:    "ws",
 			ChatType:       protocol.RoomTypeGroup,
-			Status:         "active",
-			IsActive:       true,
 			CreatedAt:      now,
 			LastActivity:   now,
 			Title:          "room",
@@ -248,7 +246,6 @@ func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
 			AgentID:      "amy",
 			ChannelType:  protocol.SessionChannelWeixinPersonal,
 			ChatType:     protocol.RoomTypeDM,
-			Status:       "closed",
 			CreatedAt:    now.Add(time.Minute),
 			LastActivity: now.Add(time.Minute),
 			Title:        "New Chat",
@@ -259,11 +256,8 @@ func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("bootstrap conversations 数量不正确: %+v", items)
 	}
-	if items[0].Status != "active" || !items[0].IsActive {
-		t.Fatalf("bootstrap conversation 应携带运行态: %+v", items[0])
-	}
-	if items[0].ChannelType != "ws" || items[0].ChatType != protocol.RoomTypeGroup {
-		t.Fatalf("bootstrap conversation 应携带通道语义: %+v", items[0])
+	if items[0].ChannelType != "ws" || items[0].RoomType != "room" {
+		t.Fatalf("bootstrap conversation 应携带导航语义: %+v", items[0])
 	}
 	externalItem := findBootstrapConversationBySessionKey(items, externalSessionKey)
 	if externalItem == nil {

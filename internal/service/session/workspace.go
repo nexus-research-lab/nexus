@@ -10,8 +10,8 @@ import (
 )
 
 // listWorkspaceSessions 只投影当前运行态，目录查询不得为展示状态写回 meta。
-func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]protocol.Session, error) {
-	workspacePaths, err := s.resolveWorkspacePaths(ctx, agentID)
+func (s *Service) listWorkspaceSessions(ctx context.Context) ([]protocol.Session, error) {
+	workspacePaths, err := s.resolveWorkspacePaths(ctx, "")
 	if err != nil {
 		return nil, err
 	}

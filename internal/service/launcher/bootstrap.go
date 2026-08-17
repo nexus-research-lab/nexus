@@ -74,17 +74,13 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		})
 	}
 
-	conversationItems := make([]BootstrapConversation, 0)
-	var sessionsDuration time.Duration
-	if s.session != nil {
-		sessionsStartedAt := time.Now()
-		sessions, listErr := s.session.ListDirectorySessions(ctx)
-		sessionsDuration = time.Since(sessionsStartedAt)
-		if listErr != nil {
-			return BootstrapResponse{}, listErr
-		}
-		conversationItems = buildBootstrapConversations(sessions, roomTypeByID)
+	sessionsStartedAt := time.Now()
+	sessions, listErr := s.session.ListDirectorySessions(ctx)
+	sessionsDuration := time.Since(sessionsStartedAt)
+	if listErr != nil {
+		return BootstrapResponse{}, listErr
 	}
+	conversationItems := buildBootstrapConversations(sessions, roomTypeByID)
 	duration := time.Since(startedAt)
 	if duration >= slowBootstrapLogThreshold {
 		slog.InfoContext(
@@ -156,10 +152,7 @@ func buildBootstrapConversations(
 			ConversationID: conversationID,
 			RoomType:       roomType,
 			ChannelType:    strings.TrimSpace(item.ChannelType),
-			ChatType:       strings.TrimSpace(item.ChatType),
 			Title:          normalizeBootstrapConversationTitle(item.Title, roomType),
-			Status:         strings.TrimSpace(item.Status),
-			IsActive:       item.IsActive,
 			LastActivity:   isoString(lastActivity),
 			MessageCount:   item.MessageCount,
 		})

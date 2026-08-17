@@ -87,13 +87,13 @@ test("clean server close reconnects the shared WebSocket", async () => {
 });
 
 test("home directory uses shared event-driven refresh without fixed polling", async () => {
-  const [directoryResource, launcherController, notificationSocket] = await Promise.all([
+  const [directoryResource, launcherPage, notificationSocket] = await Promise.all([
     fs.readFile(
       path.join(webRoot, "src/features/home/home-directory-resource.ts"),
       "utf8",
     ),
     fs.readFile(
-      path.join(webRoot, "src/hooks/launcher/use-launcher-page-controller.ts"),
+      path.join(webRoot, "src/pages/launcher/launcher-page.tsx"),
       "utf8",
     ),
     fs.readFile(
@@ -108,9 +108,9 @@ test("home directory uses shared event-driven refresh without fixed polling", as
   assert.match(directoryResource, /function refreshHomeDirectoryIfStale/);
   assert.match(directoryResource, /subscribeRoomDirectoryUpdates\(refreshHomeDirectory\)/);
   assert.doesNotMatch(directoryResource, /setInterval/);
-  assert.match(launcherController, /useHomeDirectory\(\)/);
+  assert.match(launcherPage, /useHomeDirectory\(\)/);
   assert.doesNotMatch(
-    launcherController,
+    launcherPage,
     /getLauncherBootstrapApi|subscribeRoomDirectoryUpdates/,
   );
   assert.match(notificationSocket, /if \(hasConnectedRef\.current\)/);
