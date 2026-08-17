@@ -170,8 +170,13 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 }
 
 func (m *liveManager) runWatcher(ctx context.Context, agentID string) {
-	ticker := time.NewTicker(liveTickerInterval)
-	defer ticker.Stop()
+	var settleTimer *time.Timer
+	var settle <-chan time.Time
+	defer func() {
+		if settleTimer != nil {
+			settleTimer.Stop()
+		}
+	}()
 
 	for {
 		m.mu.Lock()
@@ -188,28 +193,40 @@ func (m *liveManager) runWatcher(ctx context.Context, agentID string) {
 			if !ok {
 				return
 			}
-			m.handleFSEvent(agentID, event)
+			if !m.handleFSEvent(agentID, event) || settle != nil {
+				continue
+			}
+			if settleTimer == nil {
+				settleTimer = time.NewTimer(liveQuietWindow)
+			} else {
+				settleTimer.Reset(liveQuietWindow)
+			}
+			settle = settleTimer.C
 		case watchErr, ok := <-state.Watcher.Errors:
 			if !ok {
 				return
 			}
 			slog.Warn("workspace watcher 错误", "agent_id", agentID, "err", watchErr)
-		case <-ticker.C:
-			m.flushSettledWrites(agentID)
+		case <-settle:
+			settle = nil
+			if delay := m.flushSettledWrites(agentID); delay > 0 {
+				settleTimer.Reset(delay)
+				settle = settleTimer.C
+			}
 		}
 	}
 }
 
-func (m *liveManager) handleFSEvent(agentID string, event fsnotify.Event) {
+func (m *liveManager) handleFSEvent(agentID string, event fsnotify.Event) bool {
 	resolved, ok := m.resolveFSEvent(agentID, event)
 	if !ok || resolved.kind == liveFSEventIgnored {
-		return
+		return false
 	}
 	m.mu.Lock()
 	state := resolved.state
 	if m.watchers[agentID] != state || m.ignoreLiveEventLocked(state, resolved.relativePath) {
 		m.mu.Unlock()
-		return
+		return false
 	}
 	events := m.applyFSEventLocked(agentID, resolved)
 	listeners := m.snapshotListenersLocked(agentID)
@@ -217,6 +234,7 @@ func (m *liveManager) handleFSEvent(agentID string, event fsnotify.Event) {
 	for _, liveEvent := range events {
 		m.dispatchListeners(listeners, liveEvent)
 	}
+	return resolved.kind == liveFSEventWritten
 }
 
 func (m *liveManager) resolveFSEvent(agentID string, event fsnotify.Event) (resolvedLiveFSEvent, bool) {

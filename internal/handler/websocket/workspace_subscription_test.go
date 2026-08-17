@@ -50,24 +50,20 @@ func TestWorkspaceSubscriptionRegistryKeepsDuplicateSenderSubscription(t *testin
 	readWorkspaceRegistryEvent(t, sender.events)
 
 	registry.Unsubscribe(sender, "agent-1")
-	snapshot.RunningTaskCount = 2
-	registry.broadcastRuntimeChanges()
-
-	event := readWorkspaceRegistryEvent(t, sender.events)
-	if event.EventType != protocol.EventTypeAgentRuntimeEvent {
-		t.Fatalf("事件类型不正确: %+v", event)
-	}
-	if event.AgentID != "agent-1" {
-		t.Fatalf("agent_id 不正确: %+v", event)
-	}
-	if event.Data["running_task_count"] != 2 {
-		t.Fatalf("running_task_count 不正确: %+v", event.Data)
+	registry.mu.Lock()
+	remaining := registry.senderTokens[sender.Key()]["agent-1"].refCount
+	registry.mu.Unlock()
+	if remaining != 1 {
+		t.Fatalf("重复订阅引用计数不正确: %d", remaining)
 	}
 
 	registry.Unsubscribe(sender, "agent-1")
-	snapshot.RunningTaskCount = 3
-	registry.broadcastRuntimeChanges()
-	assertNoWorkspaceRegistryEvent(t, sender.events)
+	registry.mu.Lock()
+	_, exists := registry.senderTokens[sender.Key()]
+	registry.mu.Unlock()
+	if exists {
+		t.Fatalf("最后一个引用取消后仍保留 sender token: %+v", registry.senderTokens)
+	}
 }
 
 func TestWorkspaceSubscriptionRegistryUnregisterSenderClearsAllReferences(t *testing.T) {
@@ -92,9 +88,6 @@ func TestWorkspaceSubscriptionRegistryUnregisterSenderClearsAllReferences(t *tes
 	readWorkspaceRegistryEvent(t, sender.events)
 
 	registry.UnregisterSender(sender)
-	snapshot.RunningTaskCount = 2
-	registry.broadcastRuntimeChanges()
-	assertNoWorkspaceRegistryEvent(t, sender.events)
 	if len(registry.senderTokens[sender.Key()]) != 0 {
 		t.Fatalf("sender token 未清理: %+v", registry.senderTokens)
 	}
@@ -108,14 +101,5 @@ func readWorkspaceRegistryEvent(t *testing.T, events <-chan protocol.EventMessag
 	case <-time.After(2 * time.Second):
 		t.Fatal("等待 workspace registry 事件超时")
 		return protocol.EventMessage{}
-	}
-}
-
-func assertNoWorkspaceRegistryEvent(t *testing.T, events <-chan protocol.EventMessage) {
-	t.Helper()
-	select {
-	case event := <-events:
-		t.Fatalf("不应收到 workspace registry 事件: %+v", event)
-	case <-time.After(80 * time.Millisecond):
 	}
 }

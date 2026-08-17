@@ -1,5 +1,5 @@
-// INPUT: Server services, runtime managers, root lifecycle context、durable completion/Goal confirmation/subagent deadline 与 orchestration dispatch state。
-// OUTPUT: 启动及周期恢复 completion audit、Goal binding、Plan proposal、child Attempt、lease，并在 successor dispatch 前优先 drain cancellation。
+// INPUT: Server services, runtime managers, root lifecycle context、durable completion/Goal confirmation/subagent deadline 事件与 orchestration dispatch state。
+// OUTPUT: 启动及按 deadline 恢复 completion audit、Goal binding、Plan proposal、child Attempt、lease，并在 successor dispatch 前优先 drain cancellation。
 // POS: 启动、监管和停止后台 orchestration 恢复器的应用生命周期边界。
 package server
 
@@ -24,16 +24,17 @@ const (
 	httpWriteTimeout = 6 * time.Minute
 	httpIdleTimeout  = 60 * time.Second
 
-	executionDispatchInterval     = time.Second
-	executionDispatchBatch        = 32
-	subagentReconcileInterval     = time.Second
-	subagentReconcileBatch        = 32
-	planProposalReconcileInterval = 15 * time.Second
-	planProposalReconcileBatch    = 32
-	goalConfirmationInterval      = 15 * time.Second
-	goalConfirmationBatch         = 32
-	completionAuditInterval       = 15 * time.Second
-	completionAuditBatch          = 32
+	executionDispatchInterval      = time.Second
+	executionDispatchBatch         = 32
+	subagentReconcileRetryMinDelay = time.Second
+	subagentReconcileRetryMaxDelay = 30 * time.Second
+	subagentReconcileBatch         = 32
+	planProposalReconcileInterval  = 15 * time.Second
+	planProposalReconcileBatch     = 32
+	goalConfirmationInterval       = 15 * time.Second
+	goalConfirmationBatch          = 32
+	completionAuditInterval        = 15 * time.Second
+	completionAuditBatch           = 32
 )
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
@@ -261,8 +262,8 @@ func (s *Server) startSubagentReconciliation(ctx context.Context) (func(), error
 	s.logSubagentReconciliationResult("启动恢复", result)
 	s.api.BaseLogger().Info(
 		"启动 Subagent Attempt 恢复器",
-		"interval_seconds",
-		int64(subagentReconcileInterval.Seconds()),
+		"mode",
+		"deadline_event",
 	)
 	go s.runSubagentReconciliation(runCtx, processStartedAt)
 	return stop, nil
@@ -272,16 +273,73 @@ func (s *Server) runSubagentReconciliation(
 	ctx context.Context,
 	processStartedAt time.Time,
 ) {
-	ticker := time.NewTicker(subagentReconcileInterval)
-	defer ticker.Stop()
 	orphanTimer := time.NewTimer(protocol.SubagentReconciliationGrace)
 	defer orphanTimer.Stop()
-	// The timer retains the immutable startup cutoff across retries; the regular
-	// ticker handles only attempts that already carry a durable deadline.
+	var deadlineTimer *time.Timer
+	var deadlineTimerC <-chan time.Time
+	var deadlineRetryDelay time.Duration
+	stopDeadlineTimer := func() {
+		if deadlineTimer != nil && !deadlineTimer.Stop() {
+			select {
+			case <-deadlineTimer.C:
+			default:
+			}
+		}
+		deadlineTimerC = nil
+	}
+	defer stopDeadlineTimer()
+	resetDeadlineTimer := func(delay time.Duration) {
+		stopDeadlineTimer()
+		if deadlineTimer == nil {
+			deadlineTimer = time.NewTimer(delay)
+		} else {
+			deadlineTimer.Reset(delay)
+		}
+		deadlineTimerC = deadlineTimer.C
+	}
+	retryDeadlineTimer := func() {
+		deadlineRetryDelay = subagentReconciliationRetryBackoff(deadlineRetryDelay)
+		resetDeadlineTimer(deadlineRetryDelay)
+	}
+	refreshDeadlineTimer := func() {
+		next, err := s.services.Orchestration.NextSubagentReconciliationDeadline(ctx)
+		if err != nil {
+			s.api.BaseLogger().Warn("读取最近 Subagent Attempt deadline 失败", "err", err)
+			retryDeadlineTimer()
+			return
+		}
+		deadlineRetryDelay = 0
+		delay, armed := subagentReconciliationDelay(time.Now(), next)
+		if !armed {
+			stopDeadlineTimer()
+			return
+		}
+		resetDeadlineTimer(delay)
+	}
+	reconcileExpired := func() {
+		result, err := s.services.Orchestration.ReconcileExpiredSubagents(
+			ctx,
+			subagentReconcileBatch,
+		)
+		if err != nil {
+			s.api.BaseLogger().Warn("Subagent Attempt 恢复失败", "err", err)
+			retryDeadlineTimer()
+			return
+		}
+		s.logSubagentReconciliationResult("deadline 恢复", result)
+		refreshDeadlineTimer()
+	}
+	refreshDeadlineTimer()
+	changes := s.services.Orchestration.SubagentReconciliationChanges()
+	var orphanRetryDelay time.Duration
+	// orphan timer 保留 immutable startup cutoff；durable deadline 只在最近
+	// deadline 到达或 schedule 事件发生时查询，不再常驻扫描数据库。
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-changes:
+			refreshDeadlineTimer()
 		case <-orphanTimer.C:
 			result, err := s.services.Orchestration.ReconcileOrphanedSubagents(
 				ctx,
@@ -290,26 +348,42 @@ func (s *Server) runSubagentReconciliation(
 			)
 			if err != nil {
 				s.api.BaseLogger().Warn("Subagent orphan Attempt 恢复失败", "err", err)
-				orphanTimer.Reset(subagentReconcileInterval)
+				orphanRetryDelay = subagentReconciliationRetryBackoff(orphanRetryDelay)
+				orphanTimer.Reset(orphanRetryDelay)
 				continue
 			}
+			orphanRetryDelay = 0
 			s.logSubagentReconciliationResult("重启 orphan 恢复", result)
-			if result.Scanned >= subagentReconcileBatch {
-				orphanTimer.Reset(subagentReconcileInterval)
+			if result.Scanned >= subagentReconcileBatch || result.Deferred > 0 {
+				orphanTimer.Reset(subagentReconcileRetryMinDelay)
 				continue
 			}
-		case <-ticker.C:
-			result, err := s.services.Orchestration.ReconcileExpiredSubagents(
-				ctx,
-				subagentReconcileBatch,
-			)
-			if err != nil {
-				s.api.BaseLogger().Warn("Subagent Attempt 恢复失败", "err", err)
-				continue
-			}
-			s.logSubagentReconciliationResult("定时恢复", result)
+		case <-deadlineTimerC:
+			deadlineTimerC = nil
+			reconcileExpired()
 		}
 	}
+}
+
+func subagentReconciliationDelay(now time.Time, deadline *time.Time) (time.Duration, bool) {
+	if deadline == nil {
+		return 0, false
+	}
+	delay := deadline.UTC().Sub(now.UTC())
+	if delay <= 0 {
+		delay = subagentReconcileRetryMinDelay
+	}
+	return delay, true
+}
+
+func subagentReconciliationRetryBackoff(previous time.Duration) time.Duration {
+	if previous < subagentReconcileRetryMinDelay {
+		return subagentReconcileRetryMinDelay
+	}
+	if previous >= subagentReconcileRetryMaxDelay/2 {
+		return subagentReconcileRetryMaxDelay
+	}
+	return previous * 2
 }
 
 func (s *Server) startExecutionDispatches(ctx context.Context) (func(), error) {

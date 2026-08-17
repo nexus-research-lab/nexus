@@ -51,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Rendered scheduled-task run output as Markdown and kept long results inside the history dialog's normal scroll flow.
+- Replaced the always-on one-second Subagent Attempt recovery scan with deadline-driven wakeups; restart recovery now restores persisted deadlines once and only rechecks when the nearest deadline or a new schedule arrives.
+- Stopped live workspace watchers from waking every 400 milliseconds while idle and removed the per-second runtime scan; settled writes now use a timer armed only by filesystem events.
 - Stopped frontend Skill, external-session, WorkGraph, Contacts, scheduled-task, and Subagent fallback timers from repeatedly hitting HTTP APIs; Subagent lists and threads now refresh only for exact realtime source/task changes, focus, and one connection reconciliation.
 - Removed overlapping 10-second web-render and 60-second native WebView probes; desktop recovery now relies on process-failure callbacks plus window focus, visibility, and restore events, and Windows skips recovery while a newer navigation is loading.
 - Stopped desktop focus changes from repeatedly rescanning the full chat directory, refreshed it once after WebSocket reconnection instead of on a fixed timer, reused the shared snapshot on Launcher, and skipped unused external IM identity and task-reference queries during bootstrap.
