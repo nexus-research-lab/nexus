@@ -1,3 +1,6 @@
+// INPUT: Automation durable catalog/lease/delivery deadline、内存 task/heartbeat deadline 与变更唤醒。
+// OUTPUT: 单 leader 的精确定时分发、超时恢复、失败投递重试和 bounded cross-instance audit。
+// POS: Automation deadline coordinator；任务/投递 repository 仍是权威状态，loop 不做每秒扫描。
 package automation
 
 import (
@@ -8,11 +11,14 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
+	storagebase "github.com/nexus-research-lab/nexus/internal/storage"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 const automationSchedulerLeaseName = "scheduled-tasks"
 const defaultAutomationSchedulerLeaseTTL = 30 * time.Second
+const automationDeadlineAuditInterval = 30 * time.Second
 
 type dueScheduledTask struct {
 	job          automationdomain.ScheduledTask
@@ -67,14 +73,26 @@ func (s *Service) refreshSchedulerLease(ctx context.Context, now time.Time) (boo
 		s.mu.Unlock()
 		return false, false, err
 	}
+	var nextAcquireAt *time.Time
+	if !acquired {
+		nextAcquireAt, err = s.repository.SchedulerLeaseExpiresAt(
+			ctx,
+			automationSchedulerLeaseName,
+		)
+		if err != nil {
+			return false, false, err
+		}
+	}
 
 	s.mu.Lock()
 	becameLeader := acquired && !s.schedulerLeaseHeld
 	s.schedulerLeaseHeld = acquired
 	if acquired {
 		s.schedulerLeaseRenewAt = now.Add(ttl / 3)
+	} else if nextAcquireAt != nil && nextAcquireAt.After(now) {
+		s.schedulerLeaseRenewAt = nextAcquireAt.UTC()
 	} else {
-		s.schedulerLeaseRenewAt = time.Time{}
+		s.schedulerLeaseRenewAt = now.Add(ttl / 3)
 	}
 	s.mu.Unlock()
 	return acquired, becameLeader, nil
@@ -191,11 +209,13 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	seenJobs := make(map[string]struct{}, len(jobs))
 	for _, item := range jobs {
 		item, err = s.ensureTaskPermissionPolicy(ctx, item)
 		if err != nil {
 			return err
 		}
+		seenJobs[item.JobID] = struct{}{}
 		s.ensureJobState(item)
 	}
 
@@ -203,52 +223,239 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	seenHeartbeats := make(map[string]struct{}, len(configs))
 	for _, item := range configs {
-		if _, stateErr := s.ensureHeartbeatState(ctx, item.AgentID); stateErr != nil {
+		seenHeartbeats[item.AgentID] = struct{}{}
+		if _, stateErr := s.refreshHeartbeatState(ctx, item.AgentID); stateErr != nil {
 			return stateErr
 		}
 	}
+
+	// PostgreSQL deployments may accept a mutation on a non-leader process. The
+	// leader therefore reconciles its in-memory catalog during the bounded audit.
+	// Running work is allowed to settle, but disappeared/disabled definitions may
+	// not schedule another run.
+	s.mu.Lock()
+	for jobID, state := range s.jobStates {
+		if _, ok := seenJobs[jobID]; ok {
+			continue
+		}
+		if state != nil && state.Running {
+			state.Job.Enabled = false
+			state.NextRunAt = nil
+			continue
+		}
+		delete(s.jobStates, jobID)
+	}
+	for agentID, state := range s.heartbeatState {
+		if _, ok := seenHeartbeats[agentID]; ok {
+			continue
+		}
+		if state != nil && state.Running {
+			state.Config.Enabled = false
+			state.NextRunAt = nil
+			continue
+		}
+		delete(s.heartbeatState, agentID)
+	}
+	s.schedulerCatalogReadAt = s.nowFn().UTC()
+	s.mu.Unlock()
 	return nil
 }
 
 func (s *Service) runLoop(ctx context.Context) {
 	defer s.wg.Done()
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	if s.schedulerLoop == nil {
+		return
+	}
+	if err := s.schedulerLoop.Run(ctx, s.reconcileAutomationDeadline); err != nil && ctx.Err() == nil {
+		s.loggerFor(ctx).Error("自动化 deadline coordinator 已停止", "err", err)
+	}
+}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case now := <-ticker.C:
-			held, becameLeader, err := s.refreshSchedulerLease(ctx, now.UTC())
-			if err != nil {
-				s.loggerFor(ctx).Warn("刷新自动化调度器租约失败", "err", err)
-				continue
-			}
-			if !held {
-				continue
-			}
-			if becameLeader {
-				if err := s.bootstrapRuntime(ctx); err != nil {
-					s.loggerFor(ctx).Error("接管自动化调度器后刷新运行态失败", "err", err)
-					continue
-				}
-				s.loggerFor(ctx).Info("当前实例已接管自动化调度器")
-			}
-			s.runDueOnce()
+func (s *Service) reconcileAutomationDeadline(
+	ctx context.Context,
+	now time.Time,
+) (duework.Result, error) {
+	held, becameLeader, err := s.refreshSchedulerLease(ctx, now.UTC())
+	if err != nil {
+		return duework.Result{}, err
+	}
+	if !held {
+		return duework.Result{NextDueAt: s.schedulerControlDeadline()}, nil
+	}
+	if becameLeader {
+		if err = s.bootstrapRuntime(ctx); err != nil {
+			return duework.Result{}, err
+		}
+		s.loggerFor(ctx).Info("当前实例已接管自动化调度器")
+	} else if s.schedulerCatalogRefreshDue(now) {
+		if err = s.bootstrapRuntime(ctx); err != nil {
+			return duework.Result{}, err
 		}
 	}
+	deliveryAt, err := s.loadDeliveryRetryDeadline(ctx, now)
+	if err != nil {
+		return duework.Result{}, err
+	}
+	s.runDueOnceAt(now)
+	if deadlineReached(deliveryAt, now) {
+		s.startDeliveryRetryBatch(now)
+	}
+	nextDueAt := s.nextAutomationDeadline()
+	if !s.deliveryRetryBatchRunning() && deliveryAt != nil && deliveryAt.After(now) {
+		nextDueAt = earliestAutomationDeadline(nextDueAt, deliveryAt)
+	}
+	// Dispatch starts asynchronously after the in-memory due snapshot. A past
+	// value here is therefore a notification fence, not permission to spin.
+	if nextDueAt != nil && !nextDueAt.After(now) {
+		nextDueAt = s.schedulerControlDeadline()
+	}
+	return duework.Result{NextDueAt: nextDueAt}, nil
 }
 
 func (s *Service) runDueOnce() {
 	now := s.nowFn()
+	s.runDueOnceAt(now)
+	deliveryAt, err := s.loadDeliveryRetryDeadline(
+		context.Background(),
+		now,
+	)
+	if err == nil && deadlineReached(deliveryAt, now) {
+		s.startDeliveryRetryBatch(now)
+	}
+}
+
+func (s *Service) runDueOnceAt(now time.Time) {
 	s.recoverStaleRunningJobs(context.Background(), now)
 	work := s.collectDueAutomationWork(now)
 	s.expireScheduledTasks(work.expiredTasks, now)
 	s.dispatchScheduledTasks(work.dueTasks, now)
 	s.dispatchDueHeartbeats(work.heartbeatAgentIDs)
-	s.startDeliveryRetryBatch(now)
+}
+
+func (s *Service) nextAutomationDeadline() *time.Time {
+	s.mu.Lock()
+	deadlines := make([]*time.Time, 0, len(s.jobStates)+len(s.heartbeatState)+2)
+	if !s.schedulerLeaseRenewAt.IsZero() {
+		deadlines = append(deadlines, cloneTimePointer(&s.schedulerLeaseRenewAt))
+	}
+	runTimeout := s.automationRunTimeout()
+	for _, state := range s.jobStates {
+		if state == nil {
+			continue
+		}
+		if state.Job.Enabled && state.Job.ExpiresAt != nil {
+			deadlines = append(deadlines, cloneTimePointer(state.Job.ExpiresAt))
+		}
+		if state.Running && state.RunningStartedAt != nil && runTimeout > 0 {
+			timeoutAt := state.RunningStartedAt.UTC().Add(runTimeout)
+			deadlines = append(deadlines, &timeoutAt)
+		}
+		if state.Job.Enabled && state.NextRunAt != nil &&
+			state.Job.SessionBindingState != automationdomain.TaskSessionBindingStateRebindRequired &&
+			(strings.TrimSpace(state.Job.PermissionState) == "" ||
+				strings.TrimSpace(state.Job.PermissionState) == automationdomain.TaskPermissionStateReady) &&
+			(!state.Running || automationdomain.NormalizeOverlapPolicy(state.Job.OverlapPolicy) != automationdomain.OverlapPolicySkip) {
+			deadlines = append(deadlines, cloneTimePointer(state.NextRunAt))
+		}
+	}
+	for _, state := range s.heartbeatState {
+		if state != nil && state.Config.Enabled && !state.Running && state.NextRunAt != nil {
+			deadlines = append(deadlines, cloneTimePointer(state.NextRunAt))
+		}
+	}
+	s.mu.Unlock()
+	return earliestAutomationDeadline(deadlines...)
+}
+
+func (s *Service) deliveryRetryBatchRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deliveryRetryRunning
+}
+
+func (s *Service) loadDeliveryRetryDeadline(
+	ctx context.Context,
+	now time.Time,
+) (*time.Time, error) {
+	s.mu.Lock()
+	if !s.deliveryDeadlineDirty && !s.deliveryDeadlineReadAt.IsZero() &&
+		now.UTC().Before(s.deliveryDeadlineReadAt.UTC().Add(automationDeadlineAuditInterval)) {
+		cached := cloneTimePointer(s.deliveryRetryDeadline)
+		s.mu.Unlock()
+		return cached, nil
+	}
+	version := s.deliveryDeadlineVersion
+	s.mu.Unlock()
+
+	deadline, err := s.repository.NextDeliveryRetryAt(ctx, maxAutoDeliveryAttempts)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	s.deliveryRetryDeadline = cloneTimePointer(deadline)
+	s.deliveryDeadlineReadAt = now.UTC()
+	// A local delivery mutation may race the query. Preserve its dirty bit so
+	// the already-coalesced wake performs a second authoritative read.
+	s.deliveryDeadlineDirty = s.deliveryDeadlineVersion != version
+	s.mu.Unlock()
+	return cloneTimePointer(deadline), nil
+}
+
+func (s *Service) invalidateDeliveryRetryDeadline() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.deliveryDeadlineDirty = true
+	s.deliveryDeadlineVersion++
+	s.mu.Unlock()
+	s.wakeScheduler()
+}
+
+func (s *Service) schedulerCatalogRefreshDue(now time.Time) bool {
+	if storagebase.NormalizeSQLDriver(s.config.DatabaseDriver) != "pgx" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.schedulerCatalogReadAt.IsZero() ||
+		!now.UTC().Before(s.schedulerCatalogReadAt.UTC().Add(automationDeadlineAuditInterval))
+}
+
+func (s *Service) schedulerControlDeadline() *time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.schedulerLeaseRenewAt.IsZero() {
+		return nil
+	}
+	return cloneTimePointer(&s.schedulerLeaseRenewAt)
+}
+
+func (s *Service) wakeScheduler() {
+	if s != nil && s.schedulerLoop != nil {
+		s.schedulerLoop.Notify()
+	}
+}
+
+func earliestAutomationDeadline(deadlines ...*time.Time) *time.Time {
+	var earliest *time.Time
+	for _, deadline := range deadlines {
+		if deadline == nil {
+			continue
+		}
+		value := deadline.UTC()
+		if earliest == nil || value.Before(*earliest) {
+			copy := value
+			earliest = &copy
+		}
+	}
+	return earliest
+}
+
+func deadlineReached(deadline *time.Time, now time.Time) bool {
+	return deadline != nil && !deadline.UTC().After(now.UTC())
 }
 
 func (s *Service) collectDueAutomationWork(now time.Time) dueAutomationWork {

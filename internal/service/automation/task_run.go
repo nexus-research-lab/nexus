@@ -153,6 +153,7 @@ func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID stri
 	if err = s.repository.MarkRunDelivery(ctx, update); err != nil {
 		return nil, err
 	}
+	s.invalidateDeliveryRetryDeadline()
 	s.updateJobLastDeliveryStatus(*job, deliveryStatus)
 
 	updated, err := s.loadRetriedRun(ctx, ownerUserID, job.JobID, run.RunID)

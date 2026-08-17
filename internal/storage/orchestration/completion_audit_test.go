@@ -39,6 +39,11 @@ func TestAcceptedReviewAndCompletionAuditReceiptCommitAtomically(t *testing.T) {
 		receipt.SettledAt != nil {
 		t.Fatalf("accepted review receipt = %#v", receipt)
 	}
+	deadlines, err := repository.OrchestrationRecoveryDeadlines(ctx)
+	if err != nil || deadlines.CompletionAudit == nil ||
+		!deadlines.CompletionAudit.Equal(*receipt.NextAttemptAt) {
+		t.Fatalf("completion audit deadline = %+v, err=%v", deadlines, err)
+	}
 
 	snapshot, err = repository.Complete(ctx, CompleteCommand{
 		ExecutionID:              snapshot.Execution.ID,
@@ -57,6 +62,10 @@ func TestAcceptedReviewAndCompletionAuditReceiptCommitAtomically(t *testing.T) {
 		receipt.NextAttemptAt != nil || receipt.LastError != "" ||
 		receipt.SettledAt == nil {
 		t.Fatalf("completed snapshot=%#v receipt=%#v", snapshot.Execution, receipt)
+	}
+	deadlines, err = repository.OrchestrationRecoveryDeadlines(ctx)
+	if err != nil || deadlines.CompletionAudit != nil {
+		t.Fatalf("settled completion audit deadline = %+v, err=%v", deadlines, err)
 	}
 }
 

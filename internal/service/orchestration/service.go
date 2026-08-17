@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -100,11 +101,13 @@ type Service struct {
 	dispatchConsumer       ExecutionDispatchConsumer
 	reviewDispatchConsumer ExecutionReviewDispatchConsumer
 	cancellationConsumer   ExecutionCancellationConsumer
-	subagentWake           chan struct{}
 	invalidationMu         sync.RWMutex
 	invalidationSink       ExecutionInvalidationSink
 	coordinationMu         sync.RWMutex
 	coordinationRounds     map[string]string
+	dispatchLoop           *duework.Loop
+	subagentLoop           *duework.Loop
+	recoveryLoop           *duework.Loop
 	now                    func() time.Time
 	newID                  func(string) string
 }
@@ -114,16 +117,28 @@ func NewService(repository Repository) *Service {
 	planProposals, _ := repository.(PlanProposalRepository)
 	goalConfirmations, _ := repository.(GoalConfirmationRepository)
 	completionAudits, _ := repository.(CompletionAuditRepository)
-	return &Service{
+	service := &Service{
 		repository:         repository,
 		planProposals:      planProposals,
 		goalConfirmations:  goalConfirmations,
 		completionAudits:   completionAudits,
-		subagentWake:       make(chan struct{}, 1),
 		coordinationRounds: make(map[string]string),
 		now:                time.Now,
 		newID:              newOrchestrationID,
 	}
+	service.dispatchLoop = duework.New(duework.Options{
+		AuditInterval: 30 * time.Second,
+		Now:           func() time.Time { return service.currentTime() },
+	})
+	service.subagentLoop = duework.New(duework.Options{
+		AuditInterval: 30 * time.Second,
+		Now:           func() time.Time { return service.currentTime() },
+	})
+	service.recoveryLoop = duework.New(duework.Options{
+		AuditInterval: 30 * time.Second,
+		Now:           func() time.Time { return service.currentTime() },
+	})
+	return service
 }
 
 // Ensure 返回当前未终结 Execution；不存在时由服务端创建。

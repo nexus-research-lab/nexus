@@ -128,6 +128,7 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 	if configValue.AgentID != "" {
 		_ = s.repository.PersistHeartbeatRuntimeState(context.Background(), s.idFactory("hb"), configValue, lastHeartbeatAt, lastAckAt)
 	}
+	s.wakeScheduler()
 }
 
 func (s *Service) snapshotHeartbeatState(agentID string) (automationexec.HeartbeatRuntimeState, bool) {

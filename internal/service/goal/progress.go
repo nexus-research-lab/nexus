@@ -125,6 +125,9 @@ func (s *Service) SettleContinuationPlan(ctx context.Context, goalID, roundID st
 		// claim to settle. Their existing Goal/revision guards remain decisive.
 		return nil
 	}
+	if err == nil {
+		s.WakeAutoResume()
+	}
 	return err
 }
 

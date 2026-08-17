@@ -1,3 +1,6 @@
+// INPUT: 到期的 durable delivery retry rows、最新 task 定义与动态投递授权。
+// OUTPUT: 有界异步重试批次、dead-letter/next-attempt 状态与下一 deadline 失效通知。
+// POS: Automation deadline coordinator 的 delivery worker；同一进程最多运行一个批次。
 package automation
 
 import (
@@ -22,7 +25,9 @@ func (s *Service) beginDeliveryRetryBatch() bool {
 func (s *Service) finishDeliveryRetryBatch() {
 	s.mu.Lock()
 	s.deliveryRetryRunning = false
+	s.deliveryDeadlineDirty = true
 	s.mu.Unlock()
+	s.wakeScheduler()
 }
 
 func (s *Service) retryDueDeliveries(ctx context.Context, now time.Time) {

@@ -158,6 +158,14 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	if runs[0].DeliveryNextAttemptAt == nil || runs[0].DeliveryDeadLetterAt != nil {
 		t.Fatalf("投递失败后应安排自动重试且不进入死信: %+v", runs[0])
 	}
+	deadline, err := service.repository.NextDeliveryRetryAt(
+		context.Background(),
+		maxAutoDeliveryAttempts,
+	)
+	if err != nil || deadline == nil ||
+		!deadline.Equal(*runs[0].DeliveryNextAttemptAt) {
+		t.Fatalf("delivery retry deadline = %v, err=%v", deadline, err)
+	}
 	updatedTask, err := service.GetTask(context.Background(), task.JobID)
 	if err != nil {
 		t.Fatalf("读取任务失败: %v", err)
@@ -197,6 +205,13 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	}
 	if redelivered.DeliveryNextAttemptAt != nil || redelivered.DeliveryDeadLetterAt != nil {
 		t.Fatalf("投递成功后应清理重试/死信时间: %+v", redelivered)
+	}
+	deadline, err = service.repository.NextDeliveryRetryAt(
+		context.Background(),
+		maxAutoDeliveryAttempts,
+	)
+	if err != nil || deadline != nil {
+		t.Fatalf("settled delivery retry deadline = %v, err=%v", deadline, err)
 	}
 	events, err := service.ListTaskEvents(context.Background(), task.JobID, 20)
 	if err != nil {

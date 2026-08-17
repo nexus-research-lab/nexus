@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - repository.go / create.go / update_event.go / event.go：Goal 双 token 总量、当前 Goal 恢复读面、Goal + created event 原子创建、event-bearing optimistic update、事件读写与显式事务级联删除。
-//   - continuation_plan.go：完整隐藏续跑计划的独立持久化、Goal 计数/事件原子预留、scheduled/claimed/started lease recovery、retry 与 settled/released 终态。
+//   - continuation_plan.go：完整隐藏续跑计划的独立持久化、Goal 计数/事件原子预留、scheduled/claimed/started lease recovery、最早 retry/lease deadline、retry 与 settled/released 终态。
 //   - usage_recording.go：parent usage 聚合与对应审计事件的原子提交。
 //   - usage_finalization.go：最终 usage、pending barrier、持久 fence 与事件的单事务提交。
 //   - usage_source.go：runtime child checkpoint、durable scope 解析、Goal actual usage 与审计事件的原子提交。

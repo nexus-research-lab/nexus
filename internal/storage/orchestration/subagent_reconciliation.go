@@ -133,24 +133,7 @@ LIMIT `+r.bind(2),
 func (r *Repository) NextSubagentReconciliationDeadline(
 	ctx context.Context,
 ) (*time.Time, error) {
-	rows, err := r.db.QueryContext(ctx, r.attemptSelect("attempt.")+`
-FROM execution_attempts attempt
-JOIN executions execution ON execution.execution_id = attempt.execution_id
-WHERE attempt.executor_kind = 'subagent'
-  AND attempt.parent_attempt_id IS NOT NULL
-  AND attempt.status = 'running'
-  AND attempt.reconcile_after IS NOT NULL
-  AND execution.status IN ('active', 'waiting', 'paused')
-ORDER BY attempt.reconcile_after, attempt.attempt_id
-LIMIT 1`)
-	if err != nil {
-		return nil, err
-	}
-	attempts, err := scanRows(rows, scanAttempt)
-	if err != nil || len(attempts) == 0 {
-		return nil, err
-	}
-	return attempts[0].ReconcileAfter, nil
+	return r.NextSubagentReconciliationAt(ctx)
 }
 
 // ListOrphanedSubagentAttempts returns running children created by a previous
