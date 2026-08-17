@@ -38,7 +38,8 @@ test("联络只显示好友并复用现有聊天组件", async () => {
   assert.match(controller, /room_directed_message/);
   assert.match(controller, /agent_contact_changed/);
   assert.match(controller, /subscribe_room/);
-  assert.match(controller, /MESSAGE_FALLBACK_POLL_INTERVAL_MS = 30_000/);
+  assert.doesNotMatch(controller, /MESSAGE_FALLBACK_POLL_INTERVAL_MS|setInterval/);
+  assert.match(controller, /previousRealtimeStateRef/);
   assert.match(controller, /before_message_id: historyCursor\.beforeMessageId/);
   assert.match(controller, /setHistoryPrependToken/);
   assert.match(view, /remove_friend_confirm/);

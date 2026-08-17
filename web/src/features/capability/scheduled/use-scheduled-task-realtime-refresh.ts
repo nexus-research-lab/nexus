@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/runtime-endpoints";
@@ -9,29 +9,12 @@ import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 
 import { notifyCapabilitySummaryMutated } from "../capability-summary-events";
 
-const RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS = 30000;
-const ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS = 120000;
-
-function getFallbackPollInterval(enabledCount: number, runningCount: number): number {
-  if (runningCount > 0) {
-    return RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS;
-  }
-  if (enabledCount > 0) {
-    return ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS;
-  }
-  return 0;
-}
-
 interface ScheduledTaskRealtimeRefreshOptions {
-  enabledCount: number;
   refreshTasks: (options?: { silent?: boolean }) => Promise<void>;
-  runningCount: number;
 }
 
 export function useScheduledTaskRealtimeRefresh({
-  enabledCount: enabledCount,
-  refreshTasks: refreshTasks,
-  runningCount: runningCount,
+  refreshTasks,
 }: ScheduledTaskRealtimeRefreshOptions): void {
   const wsUrl = getAgentWsUrl();
 
@@ -63,6 +46,18 @@ export function useScheduledTaskRealtimeRefresh({
 
   useAppEventSubscription(wsSend, wsState);
 
+  const previousWsStateRef = useRef(wsState);
+  useEffect(() => {
+    const previousWsState = previousWsStateRef.current;
+    previousWsStateRef.current = wsState;
+    if (wsState !== "connected" || previousWsState === "connected") {
+      return;
+    }
+    void refreshTasks({ silent: true }).catch((err: unknown) => {
+      console.debug("[scheduled-tasks] Connection refresh failed:", err);
+    });
+  }, [refreshTasks, wsState]);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -85,28 +80,4 @@ export function useScheduledTaskRealtimeRefresh({
       document.removeEventListener("visibilitychange", handlePageRevalidate);
     };
   }, [refreshTasks]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (wsState === "connected") {
-      return;
-    }
-    const pollIntervalMs = getFallbackPollInterval(enabledCount, runningCount);
-    if (!pollIntervalMs) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      void refreshTasks({ silent: true }).catch((err: unknown) => {
-        console.debug("[scheduled-tasks] Background refresh failed:", err);
-      });
-    }, pollIntervalMs);
-
-    return () => window.clearInterval(intervalId);
-  }, [enabledCount, refreshTasks, runningCount, wsState]);
 }

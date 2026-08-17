@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,16 @@ const server = await createServer({
 
 test.after(async () => {
   await server.close();
+});
+
+test("scheduled tasks reconcile once after socket connection without fallback polling", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/features/capability/scheduled/use-scheduled-task-realtime-refresh.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /previousWsStateRef/);
+  assert.doesNotMatch(source, /setInterval|FALLBACK_POLL/);
 });
 
 function resource(items) {

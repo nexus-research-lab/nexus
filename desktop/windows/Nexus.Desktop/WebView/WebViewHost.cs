@@ -21,10 +21,12 @@ internal sealed class WebViewHost : IDisposable
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
     private readonly Func<string> updateStarter;
     private DesktopBridgeHandler? bridgeHandler;
+    private ulong? activeNavigationId;
     private bool disposed;
     private bool resumeCheckInFlight;
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
+    private ulong lastNavigationId;
     private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
 
     private sealed record ResumeProbeResult(bool IsReady, DesktopWebRoute? CurrentRoute, string Snapshot);
@@ -85,7 +87,7 @@ internal sealed class WebViewHost : IDisposable
             updateStarter);
         core.WebMessageReceived += async (_, args) => await HandleWebMessageAsync(args);
         core.NavigationStarting += HandleNavigationStarting;
-        core.NavigationCompleted += (_, _) => startupTimeline.Mark("webview.navigation_completed");
+        core.NavigationCompleted += HandleNavigationCompleted;
         core.NewWindowRequested += HandleNewWindowRequested;
         core.ProcessFailed += (_, args) =>
         {
@@ -193,6 +195,12 @@ internal sealed class WebViewHost : IDisposable
             return;
         }
 
+        ulong observedNavigationId = lastNavigationId;
+        if (ShouldSkipResumeCheckForNavigation(reason, observedNavigationId))
+        {
+            return;
+        }
+
         DateTimeOffset now = DateTimeOffset.UtcNow;
         if (now - lastResumeCheckAt < TimeSpan.FromSeconds(5))
         {
@@ -206,12 +214,17 @@ internal sealed class WebViewHost : IDisposable
             webView.InvalidateVisual();
             webView.UpdateLayout();
             await Task.Delay(150);
-            if (disposed || webView.CoreWebView2 is null)
+            if (disposed || webView.CoreWebView2 is null ||
+                ShouldSkipResumeCheckForNavigation(reason, observedNavigationId))
             {
                 return;
             }
 
             ResumeProbeResult probe = await CaptureResumeProbeAsync();
+            if (ShouldSkipResumeCheckForNavigation(reason, observedNavigationId))
+            {
+                return;
+            }
             UpdateLastRouteFromProbe(probe);
             if (probe.IsReady)
             {
@@ -675,11 +688,42 @@ internal sealed class WebViewHost : IDisposable
     {
         if (ShouldKeepInsideWebView(args.Uri))
         {
+            activeNavigationId = args.NavigationId;
+            lastNavigationId = args.NavigationId;
             return;
         }
 
         args.Cancel = true;
         HandleExternalNavigation(args.Uri);
+    }
+
+    private void HandleNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
+    {
+        if (activeNavigationId == args.NavigationId)
+        {
+            activeNavigationId = null;
+            if (args.IsSuccess)
+            {
+                consecutiveResumeProbeFailures = 0;
+            }
+        }
+        startupTimeline.Mark("webview.navigation_completed");
+    }
+
+    private bool ShouldSkipResumeCheckForNavigation(string reason, ulong observedNavigationId)
+    {
+        if (activeNavigationId is null && lastNavigationId == observedNavigationId)
+        {
+            return false;
+        }
+
+        startupTimeline.Mark("webview.resume_check_skipped", new Dictionary<string, string>
+        {
+            ["path"] = lastRoute.Path,
+            ["reason"] = reason,
+            ["skip_reason"] = activeNavigationId is null ? "navigation_changed" : "navigation_in_flight",
+        });
+        return true;
     }
 
     private void HandleNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs args)

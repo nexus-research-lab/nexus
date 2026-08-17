@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK、执行/待确认活动快照与 owner/session WorkGraph 失效事件。
+// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK、执行/待确认活动快照与 WorkGraph/Subagent 失效事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -48,6 +48,7 @@ const (
 	EventTypeWorkspaceEvent              EventType = "workspace_event"
 	EventTypeDirectoryChanged            EventType = "directory_changed"
 	EventTypeScheduledTaskChanged        EventType = "scheduled_task_changed"
+	EventTypeSubagentTaskChanged         EventType = "subagent_task_changed"
 	EventTypeRoomMemberAdded             EventType = "room_member_added"
 	EventTypeRoomMemberRemoved           EventType = "room_member_removed"
 	EventTypeRoomMemberParticipation     EventType = "room_member_participation_changed"

@@ -4,17 +4,20 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getDefaultAgentId } from "@/config/runtime-options";
+import { useHomeDirectory } from "@/features/home/home-directory-resource";
 import { LauncherConsole } from "@/features/launcher/console/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/hero/launcher-surface-theme";
-import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
+import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 
 export function LauncherPage() {
   const { theme } = useTheme();
-  const controller = useLauncherPageController();
+  const { agents, conversations, isLoading, rooms } = useHomeDirectory();
+  const currentAgentId = useAgentStore((state) => state.current_agent_id);
+  const setCurrentAgent = useAgentStore((state) => state.set_current_agent);
   const navigate = useNavigate();
   const setActivePanelItem = useSidebarStore(
     (state) => state.set_active_panel_item,
@@ -32,7 +35,7 @@ export function LauncherPage() {
     (agentId: string, initialPrompt?: string) => {
       void resolveDirectRoomNavigationTarget(agentId, initialPrompt)
         .then(({ context, route }) => {
-          controller.handle_select_agent(agentId);
+          setCurrentAgent(agentId);
           setActivePanelItem(context.room.id);
           openNavigationRoute(route);
         })
@@ -40,7 +43,7 @@ export function LauncherPage() {
           console.error("[LauncherPage] 打开 Agent DM 失败:", error);
         });
     },
-    [controller, openNavigationRoute, setActivePanelItem],
+    [openNavigationRoute, setActivePanelItem, setCurrentAgent],
   );
 
   const handleOpenMainAgentDm = useCallback(
@@ -61,7 +64,7 @@ export function LauncherPage() {
     [openAgentDm],
   );
 
-  if (!controller.is_hydrated) {
+  if (isLoading) {
     return <AppLoadingScreen />;
   }
 
@@ -71,13 +74,13 @@ export function LauncherPage() {
       style={getLauncherSurfaceThemeStyle(theme)}
     >
       <LauncherConsole
-        agents={controller.agents}
-        conversations={controller.conversations}
-        currentAgentId={controller.current_agent_id}
+        agents={agents}
+        conversations={conversations}
+        currentAgentId={currentAgentId}
         onOpenMainAgentDm={handleOpenMainAgentDm}
         onOpenRoute={openNavigationRoute}
         onSelectAgent={handleSelectAgent}
-        rooms={controller.rooms}
+        rooms={rooms}
       />
     </div>
   );

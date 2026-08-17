@@ -9,8 +9,9 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
-func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]protocol.Session, error) {
-	workspacePaths, err := s.resolveWorkspacePaths(ctx, agentID)
+// listWorkspaceSessions 只投影当前运行态，目录查询不得为展示状态写回 meta。
+func (s *Service) listWorkspaceSessions(ctx context.Context) ([]protocol.Session, error) {
+	workspacePaths, err := s.resolveWorkspacePaths(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -21,14 +22,11 @@ func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]
 			return nil, listErr
 		}
 		for _, item := range items {
-			reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(ctx, workspacePath, item)
-			if reconcileErr != nil {
-				return nil, reconcileErr
-			}
-			if protocol.IsRoomSharedSessionKey(reconciled.SessionKey) {
+			projected := s.applyRuntimeStateToSession(item)
+			if protocol.IsRoomSharedSessionKey(projected.SessionKey) {
 				continue
 			}
-			result = append(result, reconciled)
+			result = append(result, projected)
 		}
 	}
 	slices.SortFunc(result, func(left protocol.Session, right protocol.Session) int {
