@@ -13,8 +13,6 @@ import {
 import { AgentSession } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
-const EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS = 60000;
-
 function buildExternalRoomConversationViews({
   roomId,
   sessions,
@@ -148,13 +146,11 @@ export function useRoomExternalSessions({
     };
 
     refreshExternalSessions();
-    const intervalId = window.setInterval(refreshIfVisible, EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS);
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };

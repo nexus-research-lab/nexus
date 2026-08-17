@@ -18,7 +18,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var mainWindow: NSWindow?
   private var mainWebViewHost: WebViewHost?
   private var mainWindowRevealed = false
-  private var mainWindowHealthProbeTask: Task<Void, Never>?
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -222,7 +221,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
       mainWebViewHost = host
       mainWindow = window
       installInitialRevealFallback()
-      installMainWindowHealthProbe()
     } catch {
       let alert = NSAlert(error: error)
       alert.runModal()
@@ -302,25 +300,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
     Task { @MainActor in
       try? await Task.sleep(nanoseconds: 3_000_000_000)
       revealMainWindowIfNeeded(source: "fallback_timeout")
-    }
-  }
-
-  private func installMainWindowHealthProbe() {
-    guard mainWindowHealthProbeTask == nil else {
-      return
-    }
-    mainWindowHealthProbeTask = Task { @MainActor [weak self] in
-      while !Task.isCancelled {
-        try? await Task.sleep(nanoseconds: 60_000_000_000)
-        guard let self,
-              self.mainWindowRevealed,
-              let window = self.mainWindow,
-              window.isVisible,
-              window.occlusionState.contains(.visible) else {
-          continue
-        }
-        self.recoverMainWebViewIfNeeded(reason: "periodic_visible")
-      }
     }
   }
 }

@@ -11,12 +11,11 @@ import type {
 
 import {
   normalizeSubagentTaskListResponse,
-  shouldPollSubagentTaskList,
-  SUBAGENT_TASK_POLL_INTERVAL_MS,
   subagentTaskErrorMessage,
   subagentTaskSourceKey,
 } from "./subagent-task-model";
 import { useScopedResource } from "./use-scoped-resource";
+import { useSubagentTaskRealtimeRefresh } from "./use-subagent-task-realtime-refresh";
 
 const EMPTY_TASKS: SubagentTask[] = [];
 
@@ -36,11 +35,11 @@ interface TaskListSnapshot {
 }
 
 export function useSubagentTasks(
-  source: SubagentTaskSource | null,
-  enabled: boolean,
+  source: SubagentTaskSource,
+  observeChanges: boolean,
+  hostAgentId?: string | null,
 ): UseSubagentTasksResult {
-  const sourceKey = subagentTaskSourceKey(source);
-  const scopeKey = enabled && source ? sourceKey : "";
+  const scopeKey = subagentTaskSourceKey(source);
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const {
@@ -53,7 +52,7 @@ export function useSubagentTasks(
 
   const refresh = useCallback(async (silent = false) => {
     const currentSource = sourceRef.current;
-    if (!currentSource || !scopeKey || subagentTaskSourceKey(currentSource) !== scopeKey) {
+    if (!scopeKey || subagentTaskSourceKey(currentSource) !== scopeKey) {
       return;
     }
     const requestId = beginRequest(scopeKey);
@@ -99,18 +98,16 @@ export function useSubagentTasks(
     return invalidateRequests;
   }, [invalidateRequests, refresh, scopeKey]);
 
-  const tasks = snapshot.data?.items ?? EMPTY_TASKS;
-  const pollingEnabled = shouldPollSubagentTaskList(scopeKey);
+  const refreshFromRealtime = useCallback(() => refresh(true), [refresh]);
 
-  useEffect(() => {
-    if (!pollingEnabled) {
-      return undefined;
-    }
-    const intervalId = window.setInterval(() => {
-      void refresh(true);
-    }, SUBAGENT_TASK_POLL_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
-  }, [pollingEnabled, refresh]);
+  useSubagentTaskRealtimeRefresh({
+    enabled: observeChanges,
+    hostAgentId,
+    onChanged: refreshFromRealtime,
+    source,
+  });
+
+  const tasks = snapshot.data?.items ?? EMPTY_TASKS;
 
   return {
     data: snapshot.data,

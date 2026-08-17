@@ -5,6 +5,8 @@ import type {
   SubagentTaskListResponse,
   SubagentTaskSource,
 } from "@/types/conversation/subagent-task";
+import type { EventMessage } from "@/types/generated/protocol";
+import { isStringArray } from "@/lib/unknown-value";
 
 type SubagentTaskViewStatus =
   | "pending"
@@ -12,8 +14,6 @@ type SubagentTaskViewStatus =
   | "completed"
   | "stopped"
   | "failed";
-
-export const SUBAGENT_TASK_POLL_INTERVAL_MS = 3_000;
 
 const EMPTY_CAPABILITIES: SubagentTaskCapabilities = {
   observe: false,
@@ -120,8 +120,35 @@ export function subagentTaskSourceKey(source: SubagentTaskSource | null): string
   return `room:${source.room_id}:${source.conversation_id}`;
 }
 
-export function shouldPollSubagentTaskList(scopeKey: string): boolean {
-  return scopeKey.trim().length > 0;
+export function isSubagentTaskChangeFor(
+  event: EventMessage,
+  source: SubagentTaskSource,
+  taskId?: string | null,
+  hostAgentId?: string | null,
+): boolean {
+  if (event.event_type !== "subagent_task_changed") {
+    return false;
+  }
+  if (source.kind === "session") {
+    if (event.session_key !== source.session_key) {
+      return false;
+    }
+  } else if (
+    event.room_id !== source.room_id
+    || event.conversation_id !== source.conversation_id
+  ) {
+    return false;
+  }
+  const normalizedHostAgentId = hostAgentId?.trim() ?? "";
+  if (normalizedHostAgentId && event.agent_id?.trim() !== normalizedHostAgentId) {
+    return false;
+  }
+  const taskIDs = event.data.task_ids;
+  if (!isStringArray(taskIDs) || taskIDs.length === 0) {
+    return false;
+  }
+  const normalizedTaskId = taskId?.trim() ?? "";
+  return !normalizedTaskId || taskIDs.includes(normalizedTaskId);
 }
 
 export function subagentTaskErrorMessage(error: unknown): string {

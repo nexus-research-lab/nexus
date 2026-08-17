@@ -30,6 +30,7 @@ export type EventType =
   | 'workspace_event'
   | 'directory_changed'
   | 'scheduled_task_changed'
+  | 'subagent_task_changed'
   | 'room_member_added'
   | 'room_member_removed'
   | 'room_member_participation_changed'
@@ -93,6 +94,10 @@ export interface RuntimeStatusData {
 export interface ExecutionInvalidationData {
   execution_id: string;
   version: number;
+}
+
+export interface SubagentTaskChangedData {
+  task_ids: string[];
 }
 
 export type ChannelAuthorizationKind = 'qr_code' | 'verification_code';

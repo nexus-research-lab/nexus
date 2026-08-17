@@ -1,9 +1,13 @@
 // INPUT: Processor 产出的流事件、durable/ephemeral 消息与 runtime 状态。
-// OUTPUT: 带完整会话身份的协议事件、持久消息和 round 终态。
+// OUTPUT: 带完整会话身份的协议事件、Subagent 失效、持久消息和 round 终态。
 // POS: SDK 消息投影到 Nexus 事件协议的统一编排边界。
 package message
 
 import (
+	"encoding/json"
+	"sort"
+	"strings"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -36,6 +40,10 @@ type EventMapper struct {
 	processor              *Processor
 	lastAssistantMessage   protocol.Message
 	decorateMessage        MessageDecorator
+	subagentTaskIDs        map[string]struct{}
+	subagentTaskByToolUse  map[string]string
+	subagentTaskSnapshots  map[string]string
+	subagentToolResults    map[string]struct{}
 }
 
 // NewEventMapper 创建通用 SDK 消息映射器。
@@ -45,6 +53,10 @@ func NewEventMapper(options EventMapperOptions) *EventMapper {
 		includeStreamLifecycle: options.IncludeStreamLifecycle,
 		processor:              NewProcessor(options.Context, ""),
 		decorateMessage:        noopMessageDecorator,
+		subagentTaskIDs:        make(map[string]struct{}),
+		subagentTaskByToolUse:  make(map[string]string),
+		subagentTaskSnapshots:  make(map[string]string),
+		subagentToolResults:    make(map[string]struct{}),
 	}
 }
 
@@ -120,12 +132,89 @@ func (m *EventMapper) appendDurableMessage(result *EventMapResult, messageValue 
 	if len(projected) > 0 {
 		result.Events = append(result.Events, m.wrapMessageEvent(projected, protocol.DeliveryModeDurable))
 	}
+	m.appendSubagentTaskChanged(result, durable)
 	if m.includeStreamLifecycle && isCompletedAssistantMessage(durable) {
 		result.Events = append(result.Events, m.wrapStreamLifecycleEvent(
 			protocol.EventTypeStreamEnd,
 			normalizeString(durable["message_id"]),
 		))
 	}
+}
+
+func (m *EventMapper) appendSubagentTaskChanged(result *EventMapResult, message protocol.Message) {
+	changed := make(map[string]struct{})
+	metadata := mapValue(message["metadata"])
+	if taskID := normalizeString(metadata["task_id"]); taskID != "" && strings.HasPrefix(normalizeString(metadata["subtype"]), "task_") {
+		subtype := normalizeString(metadata["subtype"])
+		if m.rememberSubagentTask(taskID, metadata, subtype == "task_progress") &&
+			m.subagentTaskSnapshotChanged("metadata:"+subtype+":"+taskID, metadata) {
+			changed[taskID] = struct{}{}
+		}
+	}
+
+	for _, block := range normalizeMessageContentBlocks(message["content"]) {
+		switch normalizeString(block["type"]) {
+		case "task_progress":
+			taskID := normalizeString(block["task_id"])
+			if taskID != "" && m.rememberSubagentTask(taskID, block, true) &&
+				m.subagentTaskSnapshotChanged("progress:"+taskID, block) {
+				changed[taskID] = struct{}{}
+			}
+		case "tool_result":
+			toolUseID := normalizeString(block["tool_use_id"])
+			taskID := m.subagentTaskByToolUse[toolUseID]
+			if _, observed := m.subagentToolResults[toolUseID]; taskID != "" && !observed {
+				m.subagentToolResults[toolUseID] = struct{}{}
+				changed[taskID] = struct{}{}
+			}
+		}
+	}
+	if len(changed) == 0 {
+		return
+	}
+	taskIDs := make([]string, 0, len(changed))
+	for taskID := range changed {
+		taskIDs = append(taskIDs, taskID)
+	}
+	sort.Strings(taskIDs)
+	result.Events = append(result.Events, m.wrapEvent(
+		protocol.EventTypeSubagentTaskChanged,
+		map[string]any{"task_ids": taskIDs},
+		"",
+	))
+}
+
+func (m *EventMapper) rememberSubagentTask(taskID string, metadata map[string]any, legacyProgress bool) bool {
+	taskType := strings.ToLower(normalizeString(metadata["task_type"]))
+	if taskType == "local_shell" {
+		return false
+	}
+	_, known := m.subagentTaskIDs[taskID]
+	if taskType != "" {
+		if taskType != "local_agent" {
+			return false
+		}
+	} else if !known && !legacyProgress && normalizeString(metadata["agent_id"]) == "" && normalizeString(metadata["agent_type"]) == "" {
+		return false
+	}
+	m.subagentTaskIDs[taskID] = struct{}{}
+	if toolUseID := normalizeString(metadata["tool_use_id"]); toolUseID != "" {
+		m.subagentTaskByToolUse[toolUseID] = taskID
+	}
+	return true
+}
+
+func (m *EventMapper) subagentTaskSnapshotChanged(key string, snapshot map[string]any) bool {
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return true
+	}
+	fingerprint := string(encoded)
+	if m.subagentTaskSnapshots[key] == fingerprint {
+		return false
+	}
+	m.subagentTaskSnapshots[key] = fingerprint
+	return true
 }
 
 func (m *EventMapper) appendEphemeralMessages(result *EventMapResult, messages []protocol.Message) {

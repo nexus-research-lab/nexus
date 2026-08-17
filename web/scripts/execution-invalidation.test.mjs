@@ -50,7 +50,7 @@ test("execution invalidation reaches only the matching conversation session", as
   }]);
 });
 
-test("WorkGraph refresh uses exact invalidation and keeps active fallback polling", async () => {
+test("WorkGraph refresh uses exact invalidation without fallback polling", async () => {
   const shell = await fs.readFile(
     path.join(webRoot, "src/features/conversation/room/surface/room-surface-shell.tsx"),
     "utf8",
@@ -63,6 +63,6 @@ test("WorkGraph refresh uses exact invalidation and keeps active fallback pollin
   assert.match(shell, /eventType === "execution_invalidated"/);
   assert.doesNotMatch(shell, /eventType === "message"/);
   assert.match(shell, /invalidationKey: executionEventRevision/);
-  assert.match(resource, /ACTIVE_EXECUTION_FALLBACK_POLL_MS = 30_000/);
+  assert.doesNotMatch(resource, /setInterval|FALLBACK_POLL/);
   assert.match(resource, /\[invalidationKey, refresh, sessionKey\]/);
 });
