@@ -1,5 +1,5 @@
 // INPUT: owner-scoped DM/Room 历史、活跃 round 身份与 finalized Goal usage report。
-// OUTPUT: 归一化消息历史、分页结果、最近回复摘要及按当前聚合真相刷新的 Goal 完成收据。
+// OUTPUT: 归一化消息历史、分页结果及按当前聚合真相刷新的 Goal 完成收据。
 // POS: Session 历史统一读取与兼容投影边界。
 package session
 
@@ -14,8 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
-
-const latestReplyPreviewRuneLimit = 160
 
 // GetSessionMessages 读取 session 历史消息。
 func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) ([]protocol.Message, error) {
@@ -55,58 +53,6 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 		return nil, err
 	}
 	return s.refreshGoalCompletionReceipts(ctx, items), nil
-}
-
-// GetSessionLatestReplyPreview 返回最近一条可见 assistant 回复的紧凑摘要。
-func (s *Service) GetSessionLatestReplyPreview(ctx context.Context, rawSessionKey string) (string, error) {
-	messages, err := s.GetSessionMessages(ctx, rawSessionKey)
-	if err != nil {
-		return "", err
-	}
-	return latestReplyPreview(messages), nil
-}
-
-func latestReplyPreview(messages []protocol.Message) string {
-	for index := len(messages) - 1; index >= 0; index-- {
-		item := messages[index]
-		if protocol.MessageRole(item) != "assistant" {
-			continue
-		}
-
-		resultSummary, _ := item["result_summary"].(map[string]any)
-		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
-			continue
-		}
-
-		text := messageutil.ExtractAssistantDisplayText(item)
-		if text == "" {
-			text = replySummaryString(item["content"])
-		}
-		if text == "" {
-			text = replySummaryString(resultSummary["result"])
-		}
-		if preview := compactReplyPreview(text); preview != "" {
-			return preview
-		}
-	}
-	return ""
-}
-
-func compactReplyPreview(value string) string {
-	normalized := strings.Join(strings.Fields(value), " ")
-	if normalized == "" {
-		return ""
-	}
-	runes := []rune(normalized)
-	if len(runes) <= latestReplyPreviewRuneLimit {
-		return normalized
-	}
-	return string(runes[:latestReplyPreviewRuneLimit-1]) + "…"
-}
-
-func replySummaryString(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
 }
 
 // GetSessionMessagesPage 分页读取 session 历史消息。

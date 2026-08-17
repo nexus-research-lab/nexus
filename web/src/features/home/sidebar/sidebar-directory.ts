@@ -8,6 +8,7 @@ import { refreshHomeDirectory, useHomeDirectory } from "../home-directory-resour
 export interface SidebarDirectoryState {
   agents: LauncherAgentSummary[];
   conversations: LauncherConversationSummary[];
+  hasError: boolean;
   isLoading: boolean;
   refreshDirectory: () => void;
   rooms: LauncherRoomSummary[];

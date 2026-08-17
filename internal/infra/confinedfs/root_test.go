@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestRootRejectsTraversalAndAbsolutePaths(t *testing.T) {
@@ -226,6 +227,51 @@ func TestWriteFileAtomicAndRenameRemainWithinRoot(t *testing.T) {
 	}
 	if _, err = root.Stat("nested/value.json"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("old path still exists: %v", err)
+	}
+}
+
+func TestReadFileSurvivesAtomicReplacement(t *testing.T) {
+	rootPath := t.TempDir()
+	target := filepath.Join(rootPath, "value.json")
+	if err := os.WriteFile(target, []byte(`{"version":0}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root, err := Open(rootPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	writerDone := make(chan error, 1)
+	go func() {
+		for i := 0; i < 128; i++ {
+			temporary := filepath.Join(rootPath, "value.tmp")
+			if writeErr := os.WriteFile(temporary, []byte(`{"version":1}`), 0o600); writeErr != nil {
+				writerDone <- writeErr
+				return
+			}
+			if renameErr := os.Rename(temporary, target); renameErr != nil {
+				writerDone <- renameErr
+				return
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+		writerDone <- nil
+	}()
+
+	for {
+		select {
+		case writerErr := <-writerDone:
+			if writerErr != nil {
+				t.Fatal(writerErr)
+			}
+			return
+		default:
+			if _, readErr := root.ReadFile("value.json"); readErr != nil {
+				<-writerDone
+				t.Fatalf("ReadFile() during atomic replacement: %v", readErr)
+			}
+		}
 	}
 }
 

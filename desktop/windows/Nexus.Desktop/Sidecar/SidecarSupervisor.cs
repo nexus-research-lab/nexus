@@ -396,31 +396,72 @@ internal sealed class SidecarSupervisor : IDisposable
 
     private void KillProcessTree(Process target)
     {
+        int pid = target.Id;
+        if (TryKillProcess(target, true, out string reason))
+        {
+            RemoveProcessRecord();
+            return;
+        }
+
         try
         {
-            target.Kill(entireProcessTree: true);
-            if (target.WaitForExit(ReapTimeoutMilliseconds))
+            using Process retry = Process.GetProcessById(pid);
+            if (!IsExpectedSidecar(retry))
             {
                 RemoveProcessRecord();
                 return;
             }
-            startupTimeline.Mark("sidecar.reap_timeout", new Dictionary<string, string>
+
+            startupTimeline.Mark("sidecar.reap_retry", new Dictionary<string, string>
             {
-                ["pid"] = target.Id.ToString(),
+                ["pid"] = pid.ToString(),
+                ["reason"] = reason,
             });
+
+            if (TryKillProcess(retry, false, out reason))
+            {
+                RemoveProcessRecord();
+                return;
+            }
         }
-        catch (InvalidOperationException)
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             RemoveProcessRecord();
+            return;
         }
-        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or NotSupportedException)
+        catch (System.ComponentModel.Win32Exception exception)
         {
-            startupTimeline.Mark("sidecar.reap_failed", new Dictionary<string, string>
-            {
-                ["pid"] = target.Id.ToString(),
-                ["reason"] = exception.GetType().Name,
-            });
+            reason = exception.GetType().Name;
         }
+
+        startupTimeline.Mark(
+            reason == "Timeout" ? "sidecar.reap_timeout" : "sidecar.reap_failed",
+            new Dictionary<string, string>
+            {
+                ["pid"] = pid.ToString(),
+                ["reason"] = reason,
+            });
+    }
+
+    private static bool TryKillProcess(Process target, bool entireProcessTree, out string reason)
+    {
+        try
+        {
+            target.Kill(entireProcessTree);
+            if (target.WaitForExit(ReapTimeoutMilliseconds))
+            {
+                reason = "";
+                return true;
+            }
+            reason = "Timeout";
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or
+                                           System.ComponentModel.Win32Exception or
+                                           NotSupportedException)
+        {
+            reason = exception.GetType().Name;
+        }
+        return false;
     }
 
     private bool IsExpectedSidecar(Process target)

@@ -326,7 +326,14 @@ func (r *Root) openFileNoSymlink(name string, flag int, perm os.FileMode) (*os.F
 			if observeErr != nil {
 				return nil, observeErr
 			}
-			return nil, ErrChanged
+			if observed.Mode()&os.ModeSymlink != 0 {
+				return nil, ErrSymlink
+			}
+			if hasMultipleHardLinks(opened) || hasMultipleHardLinks(observed) {
+				return nil, ErrHardlink
+			}
+			// 合法的原子替换也会短暂改变 inode；下一轮仍会完整执行安全校验。
+			continue
 		}
 		return file, nil
 	}

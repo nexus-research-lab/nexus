@@ -3,7 +3,10 @@
  */
 
 /** 授权方式 */
-export type ConnectorAuthType = "oauth2" | "api_key" | "token" | "none";
+export type ConnectorAuthType = "oauth2" | "api_key" | "token" | "none" | "custom_mcp";
+
+/** 目录来源 */
+export type ConnectorKind = "connector" | "custom_mcp";
 
 /** 连接器可用状态 */
 export type ConnectorStatus = "available" | "coming_soon";
@@ -14,6 +17,7 @@ export type ConnectionState = "connected" | "disconnected" | "expired";
 /** 连接器列表项 */
 export interface ConnectorInfo {
   connector_id: string;
+  kind: ConnectorKind;
   name: string;
   title: string;
   description: string;
@@ -29,6 +33,28 @@ export interface ConnectorInfo {
   oauth_client_config_required?: boolean;
   oauth_client_configured?: boolean;
   supports_device_auth?: boolean;
+}
+
+export type CustomMCPServerType = "stdio" | "http" | "sse";
+export type CustomMCPAuthType = "none" | "bearer" | "headers";
+
+/** null 表示该秘密已配置但不会回传明文。 */
+export type CustomMCPSecretMap = Record<string, string | null>;
+
+export interface CustomMCPServerInput {
+  name: string;
+  type: CustomMCPServerType;
+  command?: string;
+  args?: string[];
+  env?: CustomMCPSecretMap;
+  url?: string;
+  auth_type?: CustomMCPAuthType;
+  bearer_token?: string | null;
+  headers?: CustomMCPSecretMap;
+}
+
+export interface CustomMCPServer extends CustomMCPServerInput {
+  connector_id: string;
 }
 
 /** 连接器详情 */
