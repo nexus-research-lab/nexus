@@ -18,6 +18,10 @@ const CHUNK_ERROR_PATTERNS = [
   /not a valid JavaScript MIME type/i,
   /Expected a JavaScript module script but the server responded with a MIME type/i,
 ];
+const BENIGN_RESIZE_OBSERVER_ERRORS = new Set([
+  "ResizeObserver loop completed with undelivered notifications.",
+  "ResizeObserver loop limit exceeded",
+]);
 
 let didInstallGlobalErrorHandlers = false;
 
@@ -38,6 +42,13 @@ function diagnosticText(error: unknown): string {
 function isChunkLoadError(error: unknown): boolean {
   const diagnostic = diagnosticText(error);
   return CHUNK_ERROR_PATTERNS.some((pattern) => pattern.test(diagnostic));
+}
+
+export function isBenignResizeObserverError(error: unknown): boolean {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string" ? error : "";
+  return BENIGN_RESIZE_OBSERVER_ERRORS.has(message.trim());
 }
 
 export function recoverFromChunkLoadError(source: string, error: unknown): boolean {
@@ -63,6 +74,9 @@ export function installGlobalErrorHandlers(): void {
 
   window.addEventListener("error", (event) => {
     const error = event.error ?? event.message;
+    if (isBenignResizeObserverError(error)) {
+      return;
+    }
     notifyDesktopWebFatal("window.error", error);
     recoverFromChunkLoadError("window.error", error);
   });

@@ -1,4 +1,4 @@
-import { CirclePlus, Users2 } from "lucide-react";
+import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -29,7 +29,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
   const clearTargetNotifications = useSidebarStore(
     (state) => state.clear_chat_notifications_for_target,
   );
-  const { agents, isLoading } = useSidebarDirectory();
+  const { agents, hasError, isLoading, refreshDirectory } = useSidebarDirectory();
   const [query, setQuery] = useState("");
   const activeAgentId = location.pathname === AppRouteBuilders.contacts()
     ? new URLSearchParams(location.search).get("agent")
@@ -106,6 +106,14 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
                 onOpenDirectory={() => openAgentDetail(agent.id)}
               />
             ))
+          ) : hasError ? (
+            <SidebarEmptyGuide
+              actionLabel={t("sidebar.retry")}
+              description={t("sidebar.directory_load_failed_description")}
+              icon={CircleAlert}
+              onAction={refreshDirectory}
+              title={t("sidebar.directory_load_failed")}
+            />
           ) : (
             <SidebarEmptyGuide
               actionLabel={t("sidebar.manage_contacts")}
