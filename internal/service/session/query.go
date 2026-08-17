@@ -39,7 +39,7 @@ func (s *Service) ListDirectorySessions(ctx context.Context) ([]protocol.Session
 }
 
 func (s *Service) listSessionDirectory(ctx context.Context) ([]protocol.Session, error) {
-	fileSessions, err := s.listWorkspaceSessions(ctx, "")
+	fileSessions, err := s.listWorkspaceSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
