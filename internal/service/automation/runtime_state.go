@@ -54,6 +54,7 @@ func (s *Service) ensureJobState(job automationdomain.ScheduledTask) *automation
 	if shouldDisable {
 		s.disableExpiredJobAsync(jobSnapshot)
 	}
+	s.wakeScheduler()
 	return state
 }
 
@@ -92,6 +93,12 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 	s.persistJobRuntime(context.Background(), runtimeSnapshot)
 	if shouldDisable {
 		s.disableExpiredJobAsync(jobSnapshot)
+	}
+	if len(deliveryStatuses) > 0 &&
+		strings.TrimSpace(deliveryStatuses[0]) == automationdomain.DeliveryStatusFailed {
+		s.invalidateDeliveryRetryDeadline()
+	} else {
+		s.wakeScheduler()
 	}
 }
 
@@ -232,6 +239,7 @@ func (s *Service) replaceJobRuntimeState(job automationdomain.ScheduledTask) *au
 	s.mu.Unlock()
 
 	s.persistJobRuntime(context.Background(), runtimeSnapshot)
+	s.wakeScheduler()
 	return state
 }
 

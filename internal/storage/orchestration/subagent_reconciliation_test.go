@@ -137,6 +137,10 @@ func TestRepositorySubagentReconciliationDeadlineSurvivesRepositoryRestart(t *te
 		!scheduled.ReconcileAfter.Equal(reconcileAfter) {
 		t.Fatalf("scheduled child Attempt = %#v", scheduled)
 	}
+	deadline, err := repository.NextSubagentReconciliationAt(ctx)
+	if err != nil || deadline == nil || !deadline.Equal(reconcileAfter) {
+		t.Fatalf("subagent reconciliation deadline = %v, err=%v", deadline, err)
+	}
 	orphansAfterSchedule, err := repository.ListOrphanedSubagentAttempts(
 		ctx,
 		child.CreatedAt.Add(time.Second),

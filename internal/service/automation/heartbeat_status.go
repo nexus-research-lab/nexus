@@ -135,6 +135,7 @@ func (s *Service) updateHeartbeat(
 		state.PendingWake = false
 	}
 	s.mu.Unlock()
+	s.wakeScheduler()
 	return s.GetHeartbeatStatus(ctx, configValue.AgentID)
 }
 
@@ -221,6 +222,7 @@ func (s *Service) wakeHeartbeat(
 	default:
 		state.PendingWake = true
 		s.mu.Unlock()
+		s.wakeScheduler()
 		return &automationdomain.HeartbeatWakeResult{AgentID: targetAgentID, Mode: mode, Scheduled: false}, nil
 	}
 }

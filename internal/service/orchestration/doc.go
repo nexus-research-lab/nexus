@@ -16,7 +16,10 @@
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /
 //     room_attempt_terminal.go：Room work、review 和 physical cancellation outbox，
 //     以及 dispatched/self WorkBinding 共用的 root Attempt 终态桥。
-//   - subagent_admission.go：Subagent admission、child Attempt、parent-exit deadline、合并唤醒信号与重启 orphan 对账。
+//   - background_coordinator.go：Execution 三类 outbox、Subagent deadline 与三类
+//     durable saga 共用的 startup + mutation wake + exact deadline + bounded audit 控制面。
+//   - subagent_admission.go：Subagent admission、child Attempt、parent-exit deadline、
+//     coordinator 唤醒与重启 orphan 对账。
 //   - runtime_graph*.go / execution_view.go / context.go / execution_alignment.go：
 //     Runtime Graph 事实、actor context、目标对齐与 managed WorkGraph 只读投影。
 //   - goal_policy.go / promotion.go / explicit_goal.go / goal_binding.go /
@@ -29,7 +32,7 @@
 //   - prompt.go / prompt_policy.md：DM、Room 与 Goal continuation 共用执行提示。
 //
 // 主要暴露接口：NewService 与 Service 的 Ensure/Get*/RuntimeContext、Plan、work、
-// review、Goal binding/promotion、Runtime Graph observation 和 recovery 方法；
+// review、Goal binding/promotion、Runtime Graph observation、deadline coordinator 和 recovery 方法；
 // Set*Gateway/Consumer/Sink 只注入 Goal、Room、runtime 与 transport 的消费侧 port。
 //
 // [PROTOCOL]: 行为或 wire 变化时检查两份 execution spec、protocol L2 与 AGENTS.md。

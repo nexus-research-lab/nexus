@@ -1,5 +1,5 @@
 // INPUT: 当前 actor 的权威 Execution snapshot 与 SDK Agent hook identity。
-// OUTPUT: 可选的 tool_use_id child Attempt 绑定、runtime-only 放行、生命周期校验、durable parent-exit deadline、deadline 变更信号、终态持久化与对应 session 失效事实。
+// OUTPUT: 可选的 tool_use_id child Attempt 绑定、runtime-only 放行、生命周期校验、durable parent-exit deadline、coordinator 唤醒、终态持久化与对应 session 失效事实。
 // POS: 原生 Agent 工具的运行准入与可选 managed WorkGraph 记账边界；策略选择不由状态机强制。
 package orchestration
 
@@ -65,7 +65,6 @@ type subagentReconciliationRepository interface {
 		time.Time,
 		int,
 	) ([]protocol.WorkAttempt, error)
-	NextSubagentReconciliationDeadline(context.Context) (*time.Time, error)
 	ListOrphanedSubagentAttempts(
 		context.Context,
 		time.Time,
@@ -78,37 +77,6 @@ type SubagentReconciliationResult struct {
 	Scanned    int
 	Reconciled int
 	Deferred   int
-}
-
-// SubagentReconciliationChanges 返回 durable deadline 的合并变更信号。
-func (s *Service) SubagentReconciliationChanges() <-chan struct{} {
-	if s == nil {
-		return nil
-	}
-	return s.subagentWake
-}
-
-// NextSubagentReconciliationDeadline 返回当前最近的 running child deadline。
-func (s *Service) NextSubagentReconciliationDeadline(
-	ctx context.Context,
-) (*time.Time, error) {
-	repository, ok := s.repository.(subagentReconciliationRepository)
-	if !ok {
-		return nil, fmt.Errorf(
-			"orchestration repository does not support durable subagent reconciliation",
-		)
-	}
-	return repository.NextSubagentReconciliationDeadline(ctx)
-}
-
-func (s *Service) notifySubagentReconciliationChange() {
-	if s == nil {
-		return
-	}
-	select {
-	case s.subagentWake <- struct{}{}:
-	default:
-	}
 }
 
 // SubagentAttemptBinding 是后端生成、不会交给模型修改的 launch identity。
@@ -507,7 +475,7 @@ func (s *Service) ObserveSubagentParentRoundExit(
 			return SubagentAdmissionResult{}, scheduleErr
 		}
 		s.invalidateSnapshot(ctx, updated)
-		s.notifySubagentReconciliationChange()
+		s.WakeSubagentReconciliation()
 		return allowedSubagentAdmission(bindingForAttempt(updated, child.ID)), nil
 	}
 	return rejectedSubagentAdmission(domainError(

@@ -70,10 +70,18 @@ INSERT INTO session_goals (
 		api:      handlershared.NewAPI(logx.NewDiscardLogger()),
 		services: services,
 	}
-	stop, err := server.startGoalConfirmationRecovery(context.Background())
+	if _, deadlineErr := store.OrchestrationRecoveryDeadlines(context.Background()); deadlineErr != nil {
+		t.Fatalf("read recovery deadlines: %v", deadlineErr)
+	}
+	stop, err := server.startOrchestrationRecovery(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+	waitForServerCondition(t, func() bool {
+		current, getErr := store.GetGoalConfirmationReceipt(context.Background(), executionID)
+		return getErr == nil && current != nil &&
+			current.State == orchestrationstore.GoalConfirmationConfirmed
+	})
 	if stop != nil {
 		stop()
 	}

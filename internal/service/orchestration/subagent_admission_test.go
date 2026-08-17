@@ -438,11 +438,6 @@ func TestSubagentParentRoundExitPersistsDurableReconciliationDeadline(t *testing
 		result.Binding.AttemptID != "attempt-child" {
 		t.Fatalf("parent round exit result = %#v", result)
 	}
-	select {
-	case <-service.SubagentReconciliationChanges():
-	default:
-		t.Fatal("durable deadline did not emit a reconciliation change")
-	}
 }
 
 func TestSubagentParentRoundExitRejectsNonExactReconciliationDeadline(t *testing.T) {

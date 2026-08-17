@@ -10,11 +10,12 @@
 //     Session 清理由 SessionArtifactDeletionCoordinator 安装 tombstone 后统一回收。
 //   - script_control_boundary.go：Agent actor 对 script 任务的 service 级最终拒绝与并发控制。
 //   - delivery_authority.go：创建 provenance 与独立 delivery grant 分离，以及 create/update/投递/重试时对真实 Nexus/Room/IM Session、Room 回复 Agent、owner-main/self/成员/active pairing 的动态复核；Room 未显式选择回复者时固化当前房主。
-//   - scheduler.go：到期工作扫描、阶段分发、数据库租约与超时恢复。
+//   - scheduler.go：基于内存最近 deadline、持久失败投递 deadline、变更唤醒与
+//     低频审计的阶段分发、数据库 leader 租约、多实例目录收敛与超时恢复；不做每秒扫描。
 //   - execution*.go / main_session_execution.go：脚本、主会话、独立会话的分阶段执行、非交互来源标记、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理。
 //   - heartbeat_*.go：heartbeat 输入分段、分发、运行时与状态。
 //   - observability_health.go / observability_util.go / daily_report.go：状态查询、健康计算与日报。
-//   - delivery_retry.go：投递重试；重试同样通过最新任务与动态权限复核。
+//   - delivery_retry.go：由最早 next-attempt deadline 驱动的投递重试；重试同样通过最新任务与动态权限复核。
 //   - runtime_*.go：执行工件 / 投递 / 脚本 / 进程运行态；desktop 脚本只继承
 //     必要系统环境并把 HOME/TEMP 收窄到任务 workspace/临时目录。
 //   - permission_snapshot.go / permission_policy.go / permission_scheduled.go / permission_decision.go / permission_recipient.go / permission_session.go：执行 Session/Agent 权限 copy-on-create、独立任务授权策略、运行时拦截、持久决策与安全恢复，并把待确认请求按 run 冻结接收目标投影及重放到 Nexus DM/Room/IM Session；没有接收目标时可冻结来源 Session 作为审批兜底。

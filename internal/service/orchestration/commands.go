@@ -739,14 +739,6 @@ func (s *Service) AssignWork(
 	}
 	if dispatch != nil {
 		changed = append(changed, "dispatch:"+dispatch.ID)
-		if s.dispatchConsumer != nil {
-			// Assignment 已原子持久化；投递失败只保留 pending retry，
-			// 不能把一个已提交的 command 伪装成未应用。
-			_, _ = s.DispatchPending(ctx, "assign:"+input.CommandID, 8)
-			if refreshed, refreshErr := s.repository.GetSnapshot(ctx, snapshot.Execution.ID); refreshErr == nil && refreshed != nil {
-				updated = refreshed
-			}
-		}
 	}
 	result := AppliedResult(updated, changed, nextActions(updated, actor))
 	return withRoomSelfWorkBindingReceipt(actor, result, work.ID), nil
@@ -1044,15 +1036,6 @@ func (s *Service) SubmitWork(
 	}
 	if reviewDispatch != nil {
 		changed = append(changed, "review_dispatch:"+reviewDispatch.ID)
-		if s.reviewDispatchConsumer != nil {
-			_, _ = s.DispatchPendingReviews(ctx, "submit:"+input.CommandID, 8)
-			if refreshed, refreshErr := s.repository.GetSnapshot(
-				ctx,
-				snapshot.Execution.ID,
-			); refreshErr == nil && refreshed != nil {
-				updated = refreshed
-			}
-		}
 	}
 	return AppliedResult(updated, changed, nextActions(updated, actor)), nil
 }

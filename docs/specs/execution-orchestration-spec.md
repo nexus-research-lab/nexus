@@ -38,6 +38,7 @@ code-defined truth:
 | Goal MCP registry and tool contracts | [`internal/mcp/goal/tool/registry.go`](../../internal/mcp/goal/tool/registry.go) |
 | Runtime responsibility and coordination authority | [`internal/runtime/responsibility_authority.go`](../../internal/runtime/responsibility_authority.go), [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
 | Accepted-review completion recovery receipts | [`internal/storage/orchestration/completion_audit.go`](../../internal/storage/orchestration/completion_audit.go), [`internal/service/orchestration/completion_audit_recovery.go`](../../internal/service/orchestration/completion_audit_recovery.go) |
+| Background dispatch and recovery scheduling | [`internal/infra/duework/loop.go`](../../internal/infra/duework/loop.go), [`internal/service/orchestration/background_coordinator.go`](../../internal/service/orchestration/background_coordinator.go), [`internal/storage/orchestration/background_deadline.go`](../../internal/storage/orchestration/background_deadline.go) |
 | Room collaboration attribution and handoff recovery | [`internal/protocol/room.go`](../../internal/protocol/room.go), [`internal/storage/workspace/room_public_handoff.go`](../../internal/storage/workspace/room_public_handoff.go), [`internal/service/room/realtime/public_handoff.go`](../../internal/service/room/realtime/public_handoff.go) |
 | Model tool-result progress classification | [`internal/message/tool_result.go`](../../internal/message/tool_result.go) |
 | UI/Slash Goal command dispatch and durable control history | [`internal/service/slashcommand/goal.go`](../../internal/service/slashcommand/goal.go), [`internal/service/dm/goal_command.go`](../../internal/service/dm/goal_command.go), [`internal/service/room/realtime/goal_command.go`](../../internal/service/room/realtime/goal_command.go) |
@@ -194,6 +195,9 @@ reservation IDs are discarded because they lack enough authority and prompt
 data to replay safely. Migration refunds only distinct, non-empty outstanding
 reservation IDs from `continuation_count`, clamped at zero; counts for rounds
 that actually ran remain part of the same objective revision's usage limit.
+The recovery controller reconciles once at startup, wakes after local Goal or
+runtime receipt mutations, arms the exact next retry/lease deadline, and retains
+a bounded low-frequency audit for lost hints and cross-process writes.
 
 Every SQL mutation that first makes an Execution Goal-bound writes one exact
 `execution_goal_confirmations` pending receipt in the same transaction. The
@@ -202,7 +206,9 @@ therefore restart recovery does not depend on the originating request or on a
 Plan proposal row. Goal confirmation is idempotent, and the background reconciler
 marks the receipt `confirmed` only after the Goal-side reverse binding succeeds.
 The Plan proposal confirmation state remains its materialization-saga projection,
-not the sole recovery source.
+not the sole recovery source. Goal confirmation, Plan proposal recovery, and
+completion audit share one deadline snapshot/driver while retaining independent
+durable state machines and CAS transitions.
 
 ### 2.3 User Goal control command
 
@@ -689,9 +695,10 @@ An accepted Acceptance and its pending `execution_completion_audits` receipt are
 committed in the same Review transaction. Foreground completion remains a separate
 authoritative transition: it re-reads the latest active Plan and blocker set under
 the Execution version fence. When completion commits, it marks the receipt
-`completed` in that same transaction as the terminal Execution event. Startup and
-periodic recovery scan pending receipts, defer paused or blocked graphs, discard
-non-completed terminal graphs, and retry `Complete` under fresh CAS. Migration
+`completed` in that same transaction as the terminal Execution event. Startup,
+post-commit mutation wakes, exact `next_attempt_at` timers, and a bounded audit
+recover pending receipts, defer paused or blocked graphs, discard non-completed
+terminal graphs, and retry `Complete` under fresh CAS. Migration
 backfill creates receipts for legacy active managed graphs that already contain an
 accepted current-Plan review. This recovery audit is backend readiness only; it
 does not synthesize or replace `audit_execution_alignment` or Goal

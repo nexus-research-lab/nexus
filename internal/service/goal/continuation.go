@@ -273,6 +273,7 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 		return nil, err
 	}
 	s.publishGoalEvent(ctx, *updated, event)
+	s.WakeAutoResume()
 	return &protocol.GoalContinuation{
 		Goal:           *updated,
 		ExecutionID:    strings.TrimSpace(executionID),
@@ -536,6 +537,9 @@ func (s *Service) MarkContinuationPlanStarted(ctx context.Context, plan protocol
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrGoalRevisionStale
 	}
+	if err == nil {
+		s.WakeAutoResume()
+	}
 	return err
 }
 
@@ -559,7 +563,11 @@ func (s *Service) RetryContinuationPlan(ctx context.Context, plan protocol.GoalC
 		delay = 5 * time.Minute
 	}
 	now := s.nowFn()
-	return repository.RetryGoalContinuation(ctx, plan.RoundID, strings.TrimSpace(reason), now.Add(delay), now)
+	err = repository.RetryGoalContinuation(ctx, plan.RoundID, strings.TrimSpace(reason), now.Add(delay), now)
+	if err == nil {
+		s.WakeAutoResume()
+	}
+	return err
 }
 
 // ReleaseContinuationPlan 撤销尚未启动的隐藏续跑计划，避免未执行的 candidate 消耗续跑次数。
@@ -578,9 +586,13 @@ func (s *Service) ReleaseContinuationPlan(ctx context.Context, plan protocol.Goa
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+	updated, err := s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
 		return s.releaseContinuationPlanForLoadedGoal(ctx, current, plan.RoundID, reason)
 	})
+	if err == nil {
+		s.WakeAutoResume()
+	}
+	return updated, err
 }
 
 func continuationPlanGoalID(plan protocol.GoalContinuation) string {

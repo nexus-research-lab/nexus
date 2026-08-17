@@ -1,6 +1,6 @@
-// INPUT: durable active Goals、continuation dispatcher 与恢复节拍。
-// OUTPUT: 经最终校验投递的隐藏续跑及可停止的自动恢复循环。
-// POS: Goal 进程恢复和 idle 自动续跑的调度入口。
+// INPUT: durable active Goals/continuation receipts、mutation/runtime wake 与 continuation dispatcher。
+// OUTPUT: 经最终校验投递的隐藏续跑、精确 retry/lease timer 与低频恢复审计。
+// POS: Goal 进程恢复和 idle 自动续跑的 deadline coordinator。
 package goal
 
 import (
@@ -10,10 +10,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-const goalAutoResumeInterval = 10 * time.Second
 
 type activeGoalContinuationSuppressedKey struct{}
 
@@ -117,6 +116,15 @@ func (s *Service) DispatchActiveGoalContinuation(ctx context.Context, item proto
 			"session_key", item.SessionKey,
 		)
 	}
+	s.WakeAutoResume()
+}
+
+// WakeAutoResume records a process-local mutation/runtime hint. Durable Goal
+// and continuation-plan state remains authoritative when a hint is lost.
+func (s *Service) WakeAutoResume() {
+	if s != nil && s.autoResumeLoop != nil {
+		s.autoResumeLoop.Notify()
+	}
 }
 
 func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol.Goal, dispatcher ContinuationDispatcher) error {
@@ -215,17 +223,27 @@ func activeGoalContinuationSuppressed(ctx context.Context) bool {
 }
 
 func (s *Service) runAutoResumeLoop(ctx context.Context, dispatcher ContinuationDispatcher) {
-	s.runAndObserveAutoResume(ctx, dispatcher, "startup")
-
-	ticker := time.NewTicker(goalAutoResumeInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.runAndObserveAutoResume(ctx, dispatcher, "periodic")
+	if s == nil || s.autoResumeLoop == nil {
+		return
+	}
+	if err := s.autoResumeLoop.Run(ctx, func(
+		runCtx context.Context,
+		_ time.Time,
+	) (duework.Result, error) {
+		if err := s.RunAutoResumeOnce(runCtx, dispatcher); err != nil {
+			return duework.Result{}, err
 		}
+		repository, ok := s.repo.(continuationDeadlineRepository)
+		if !ok {
+			return duework.Result{}, nil
+		}
+		nextDueAt, err := repository.NextGoalContinuationAt(runCtx)
+		if err != nil {
+			return duework.Result{}, err
+		}
+		return duework.Result{NextDueAt: nextDueAt}, nil
+	}); err != nil && ctx.Err() == nil {
+		s.logAutoResumeError(ctx, "coordinator_stopped", err)
 	}
 }
 
