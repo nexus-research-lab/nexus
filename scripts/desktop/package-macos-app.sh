@@ -216,6 +216,7 @@ require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
 require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/nexus-server"
 require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexusctl"
 require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexuscfg"
+require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexus"
 
 NXS_RUNTIME_PATH="${APP_BUNDLE}/Contents/Resources/bin/nxs"
 if is_enabled "${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}" && [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then

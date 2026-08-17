@@ -142,6 +142,18 @@ type ConfigurationRuntimeEnvironmentBuilder func(
 	string,
 ) (map[string]string, error)
 
+// AutomationRuntimeEnvironmentBuilder 为当前 Room Agent slot 签发 Agent-facing nexus CLI 环境。
+type AutomationRuntimeEnvironmentBuilder func(
+	context.Context,
+	*protocol.Agent,
+	string,
+	string,
+	string,
+	string,
+	string,
+	*protocol.AutomationRunContext,
+) (map[string]string, error)
+
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。
 type roomContextStore interface {
 	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
@@ -179,6 +191,7 @@ type Service struct {
 	logger                  *slog.Logger
 	mcpServers              MCPServerBuilder
 	configurationRuntimeEnv ConfigurationRuntimeEnvironmentBuilder
+	automationRuntimeEnv    AutomationRuntimeEnvironmentBuilder
 	executionMCPServers     runtimectx.ExecutionMCPServerBuilder
 	titles                  roomTitleScheduler
 
@@ -352,6 +365,13 @@ func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
 	builder ConfigurationRuntimeEnvironmentBuilder,
 ) {
 	s.configurationRuntimeEnv = builder
+}
+
+// SetAutomationRuntimeEnvironmentBuilder 注入可信 Nexus Automation CLI capability 签发器。
+func (s *Service) SetAutomationRuntimeEnvironmentBuilder(
+	builder AutomationRuntimeEnvironmentBuilder,
+) {
+	s.automationRuntimeEnv = builder
 }
 
 // SetExecutionMCPServerBuilder 注入需要完整 slot/round identity 的 Execution MCP overlay。

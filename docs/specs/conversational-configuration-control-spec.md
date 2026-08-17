@@ -26,7 +26,7 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `host` | 部署环境 + 原生桌面宿主 | `nexuscfg` 脱敏检查；变更走对应人类控制面 | 外部变更后重启 |
 | `sessions` | owner-confined Agent workspace session meta + owner lifecycle ledger | `nexuscfg` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
 | `rooms` | 数据库 + Room runtime | `nexuscfg` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
-| `automation` | 数据库 + scheduler runtime | Agent task 走 `nexus_automation`；script task 仅人类控制面 | 专用工具创建、检查和核对 |
+| `automation` | 数据库 + scheduler runtime | Agent task 走内置 Skill + round-scoped `nexus automation`；script task 仅人类控制面 | CLI inspect/plan/apply，后台 run 只读 |
 | `workspaces` | workspace 文件系统 | 主智能体通过 `nexus-manager` Skill 调用 owner-scoped `nexusctl`；当前 Agent 使用原生文件工具 | 当前 workspace 文件写入立即 |
 | `goals` | 数据库 + Goal runtime | `nexus_goal` | 专用 Goal 生命周期 |
 
@@ -35,10 +35,11 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 `nexus_manager` 和 `nexus_config` MCP 都不再挂载。主智能体通过内置
 `nexus-manager` Skill 调用宿主注入且 owner-scoped 的 `nexusctl`；所有交互 Agent
 通过内置 `nexus-configuration` Skill 调用宿主按 runtime round 签发的 `nexuscfg`。
-两个 CLI 都调用既有领域服务，不允许模型直接读写数据库。`nexuscfg` 能执行的操作
+这些 CLI 都调用既有领域服务，不允许模型直接读写数据库。`nexuscfg` 能执行的操作
 由当前可信 DM/Room 身份决定，普通 Agent 只获得自身或当前 Room 范围的配置能力。
-Goal、Automation 与当前 Agent workspace 保留各自的专用工具，因为它们的执行生命周期
-不是普通配置 patch。
+Goal 保留自己的生命周期工具；Automation 使用内置 Skill 与 round-scoped
+`nexus automation` CLI，因为两者都不是普通配置 patch。当前 Agent workspace 仍使用
+自己的文件工具。
 
 Goal 的创建、读取、明确改写目标和模型终态继续由 `nexus_goal` 完成。当前自动批准的
 `nexus_goal` family 只承载这些模型侧安全操作；暂停、恢复、预算和清除会触发 usage
@@ -102,7 +103,7 @@ Rooms 域允许主智能体对 owner 范围内的 Room 执行：
 
 服务端会重新校验 Room 归属、成员关系和资源版本，不使用聊天文本中的身份声称。
 
-Automation 使用自己的专用对话工具，但投递权限不能绕开上述配置边界。普通 Agent
+Automation 使用自己的 round-scoped CLI command service，但投递权限不能绕开上述配置边界。普通 Agent
 只能把结果投递到自己的 session/inbox；Room 中只能投递到 runtime 绑定的当前
 conversation，且执行或重试前重新读取最新 task、Room 归属和当前成员关系；外部
 Channel 投递必须精确匹配这次可信对话已授予的目标。只有主智能体自己的认证 WebSocket

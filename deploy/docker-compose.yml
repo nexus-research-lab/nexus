@@ -51,6 +51,7 @@ services:
       CLAUDE_CONFIG_DIR: /home/agent/.nexus
       NEXUSCTL_COMMAND_PATH: /usr/local/bin/nexusctl
       NEXUSCFG_COMMAND_PATH: /usr/local/bin/nexuscfg
+      NEXUS_COMMAND_PATH: /usr/local/bin/nexus
       NEXUS_NXS_COMMAND_PATH: ${NEXUS_DOCKER_NXS_COMMAND_PATH:-/opt/app/bin/nxs}
       NEXUS_RUNTIME_ISOLATION_MODE: ${NEXUS_RUNTIME_ISOLATION_MODE:-enforce}
       NEXUS_RUNTIME_LAUNCHER_PATH: /usr/local/libexec/nexus-runtime-launcher

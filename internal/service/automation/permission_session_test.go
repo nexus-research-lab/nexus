@@ -68,7 +68,7 @@ func TestAutomationPermissionProjectsToRecipientDMAndResolvesFromComposer(t *tes
 	}})
 	recorder := &automationPermissionEventRecorder{}
 	service.SetPermissionSessionEventNotifier(recorder)
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	task, err := service.CreateTask(ownerCtx, automationdomain.CreateJobInput{
 		Name:        "接收会话审批",
 		AgentID:     "agent-executor",
@@ -202,7 +202,7 @@ func TestAutomationPermissionProjectsToConfiguredRoom(t *testing.T) {
 	)
 	recorder := &automationPermissionEventRecorder{}
 	service.SetPermissionSessionEventNotifier(recorder)
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	roomSession := protocol.BuildRoomSharedSessionKey(conversationID)
 	job := automationdomain.ScheduledTask{
 		JobID:       "task-room-recipient",

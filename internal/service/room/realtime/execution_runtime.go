@@ -187,6 +187,22 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 			return preparedSlotRuntime{}, err
 		}
 	}
+	automationRuntimeEnv := map[string]string(nil)
+	if e.service.automationRuntimeEnv != nil {
+		automationRuntimeEnv, err = e.service.automationRuntimeEnv(
+			e.runtimeBuilderContext(),
+			e.agent,
+			e.round.SessionKey,
+			e.round.RootRoundID,
+			roomMCPSourceContextType(e.round),
+			e.round.RoomID,
+			roomSourceContextLabel(e.round),
+			cloneAutomationRunContext(e.round.AutomationRun),
+		)
+		if err != nil {
+			return preparedSlotRuntime{}, err
+		}
+	}
 	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
@@ -215,6 +231,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AgentMCPServers:            e.agent.Options.MCPServers,
 		ExtraEnv:                   extraEnv,
 		ConfigurationEnv:           configurationRuntimeEnv,
+		RuntimeCommandEnv:          automationRuntimeEnv,
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
@@ -440,6 +457,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 		disallowedTools,
 	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
+	handler = toolpolicy.WithNexusRuntimeCLIAutoApproval(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)
 	return toolpolicy.WithNexusControlPlaneDeny(handler, !e.agent.IsMain)
 }

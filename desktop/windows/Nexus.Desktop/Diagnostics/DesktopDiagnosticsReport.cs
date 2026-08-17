@@ -186,6 +186,7 @@ internal static class DesktopDiagnosticsReport
             ["bundled_sidecar_exists"] = File.Exists(Path.Combine(resourceDirectory, "nexus-server.exe")),
             ["bundled_nexusctl_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nexusctl.exe")),
             ["bundled_nexuscfg_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nexuscfg.exe")),
+            ["bundled_nexus_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nexus.exe")),
             ["bundled_nxs_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nxs.exe")),
             ["connector_credentials_dpapi_exists"] = File.Exists(Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.dpapi")),
             ["connector_credentials_fallback_key_exists"] = File.Exists(Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.key")),

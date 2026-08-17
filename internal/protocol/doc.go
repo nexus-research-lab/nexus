@@ -27,8 +27,8 @@
 //   - attachment.go / workspace_file_artifact.go / delivery_policy.go：附件、
 //     文件产物与投递策略。
 //   - identity.go / value.go / provider_failure.go / tool_result.go /
-//     configuration_runtime.go：共享 ID、值解码、Provider 失败分类、mutation
-//     outcome 与 nexuscfg runtime broker wire 常量。
+//     configuration_runtime.go / runtime_command.go：共享 ID、值解码、Provider
+//     失败分类、mutation outcome，以及 nexuscfg / Agent-facing nexus broker wire 常量。
 //
 // 主要暴露接口：Goal、ExecutionSnapshot/ExecutionView、ExecutionWorkBinding/
 // ExecutionReviewBinding、EventMessage 及 New*Event 构造器；精确字段以对应 Go

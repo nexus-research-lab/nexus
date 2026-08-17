@@ -79,6 +79,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithNexusRuntimeCLIAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return dmClientPreparation{}, err
@@ -137,6 +138,22 @@ func (s *Service) ensureClient(
 			request.RoundID,
 			sourceContextType,
 			agentValue.AgentID,
+		)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+	}
+	automationRuntimeEnv := map[string]string(nil)
+	if s.automationRuntimeEnv != nil {
+		automationRuntimeEnv, err = s.automationRuntimeEnv(
+			runtimeBuilderContext,
+			agentValue,
+			sessionKey,
+			request.RoundID,
+			sourceContextType,
+			agentValue.AgentID,
+			agentValue.Name,
+			cloneAutomationRunContext(request.AutomationRun),
 		)
 		if err != nil {
 			return dmClientPreparation{}, err
@@ -240,6 +257,7 @@ func (s *Service) ensureClient(
 		MCPServers:                 mcpServers,
 		AgentMCPServers:            agentValue.Options.MCPServers,
 		ConfigurationEnv:           configurationRuntimeEnv,
+		RuntimeCommandEnv:          automationRuntimeEnv,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,

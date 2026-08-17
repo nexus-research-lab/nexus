@@ -158,6 +158,7 @@ enum DesktopDiagnosticsReport {
       "bundled_sidecar_exists": bundledExecutableExists(name: "nexus-server"),
       "bundled_nexusctl_exists": bundledResourceExecutableExists(relativePath: "bin/nexusctl"),
       "bundled_nexuscfg_exists": bundledResourceExecutableExists(relativePath: "bin/nexuscfg"),
+      "bundled_nexus_exists": bundledResourceExecutableExists(relativePath: "bin/nexus"),
       "bundled_nxs_exists": bundledResourceExecutableExists(relativePath: "bin/nxs"),
       "nexus_url_scheme_declared": declaredURLSchemes(bundle: Bundle.main).contains("nexus"),
     ]

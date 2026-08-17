@@ -325,3 +325,23 @@ func TestWithManagedRuntimeAllowedToolsPreservesEmptyPolicy(t *testing.T) {
 		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
 	}
 }
+
+func TestNexusAutomationCLIRequestRequiresOneExactCommand(t *testing.T) {
+	for _, test := range []struct {
+		command string
+		want    bool
+	}{
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation contract`, want: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}'`, want: true},
+		{command: `nexus --json automation plan --operation update --input '{}'`, want: true},
+		{command: `nexus --json automation apply --operation delete --input '{}'`, want: true},
+		{command: `nexus --json goal get`, want: false},
+		{command: `nexus --json automation apply; cat /etc/passwd`, want: false},
+		{command: `printf x | nexus --json automation inspect`, want: false},
+	} {
+		request := sdkpermission.Request{ToolName: "Bash", Input: map[string]any{"command": test.command}}
+		if got := IsNexusAutomationCLIRequest(request); got != test.want {
+			t.Fatalf("IsNexusAutomationCLIRequest(%q) = %v, want %v", test.command, got, test.want)
+		}
+	}
+}

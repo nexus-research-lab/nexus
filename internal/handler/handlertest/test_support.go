@@ -129,6 +129,7 @@ func createMinimalAppRoot() (string, error) {
 	}
 	for _, directory := range []string{
 		filepath.Join(root, "skills"),
+		filepath.Join(root, "cmd", "nexus"),
 		filepath.Join(root, "cmd", "nexusctl"),
 		filepath.Join(root, "cmd", "nexuscfg"),
 	} {
@@ -137,6 +138,13 @@ func createMinimalAppRoot() (string, error) {
 		}
 	}
 	if err = os.WriteFile(filepath.Join(root, "go.mod"), []byte(testAppRootGoMod), 0o644); err != nil {
+		return cleanup(err)
+	}
+	if err = os.WriteFile(
+		filepath.Join(root, "cmd", "nexus", "main.go"),
+		[]byte(testNexusctlMain),
+		0o644,
+	); err != nil {
 		return cleanup(err)
 	}
 	if err = os.WriteFile(

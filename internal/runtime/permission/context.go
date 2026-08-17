@@ -287,6 +287,17 @@ func (c *Context) RequestPermission(
 	sessionKey string,
 	request sdkpermission.Request,
 ) (sdkpermission.Decision, error) {
+	decision, _, err := c.RequestPermissionWithID(ctx, sessionKey, request)
+	return decision, err
+}
+
+// RequestPermissionWithID 与 RequestPermission 相同，并返回宿主生成的精确请求 ID，
+// 供高风险领域命令把真人批准关联到 durable audit。
+func (c *Context) RequestPermissionWithID(
+	ctx context.Context,
+	sessionKey string,
+	request sdkpermission.Request,
+) (sdkpermission.Decision, string, error) {
 	pending := c.newPendingRequest(sessionKey, request)
 	c.mu.Lock()
 	c.pendingRequests[pending.RequestID] = pending
@@ -298,10 +309,10 @@ func (c *Context) RequestPermission(
 	select {
 	case decision := <-pending.ResponseCh:
 		c.finalizeRequest(pending, "answered")
-		return decision, nil
+		return decision, pending.RequestID, nil
 	case <-ctx.Done():
 		c.finalizeRequest(pending, "cancelled")
-		return sdkpermission.Deny("Permission request cancelled", request.ToolName == "AskUserQuestion"), nil
+		return sdkpermission.Deny("Permission request cancelled", request.ToolName == "AskUserQuestion"), pending.RequestID, nil
 	}
 }
 

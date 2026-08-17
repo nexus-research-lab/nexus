@@ -218,6 +218,7 @@ internal sealed class SidecarSupervisor : IDisposable
         {
             ("nexusctl", "NEXUSCTL_COMMAND_PATH"),
             ("nexuscfg", "NEXUSCFG_COMMAND_PATH"),
+            ("nexus", "NEXUS_COMMAND_PATH"),
         })
         {
             string timelineKey = $"sidecar.{name}_command";

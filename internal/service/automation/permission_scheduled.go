@@ -332,6 +332,11 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 		if toolpolicy.MatchesItem(toolName, "AskUserQuestion") {
 			return sdkpermission.Deny("后台 heartbeat 不支持交互式确认；请先把必要信息写入配置", true), nil
 		}
+		// Agent-facing CLI 仍经 Bash transport，但 exact contract/inspect 命令的最终
+		// scope 由只读 job/run capability 和 service 收口，不能要求任务获得任意 Bash 权限。
+		if readOnlyAutomationCLIRequest(request) {
+			return sdkpermission.Allow(request.Input, nil), nil
+		}
 		if toolpolicy.Contains(disallowedByAgent, toolName) {
 			return sdkpermission.Deny(fmt.Sprintf("当前 Agent 已禁用工具 %s，后台运行不会自动授权", toolName), false), nil
 		}
@@ -343,4 +348,37 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 		}
 		return sdkpermission.Allow(request.Input, nil), nil
 	}
+}
+
+func readOnlyAutomationCLIRequest(request sdkpermission.Request) bool {
+	if !toolpolicy.MatchesItem(request.ToolName, "Bash") {
+		return false
+	}
+	command, _ := request.Input["command"].(string)
+	command = strings.TrimSpace(command)
+	if command == "" || strings.ContainsAny(command, "\n\r;|&><`") {
+		return false
+	}
+	normalized := strings.ToLower(command)
+	if !strings.Contains(normalized, "nexus_command_path") &&
+		!strings.HasPrefix(normalized, "nexus ") &&
+		!strings.HasPrefix(normalized, `"nexus" `) &&
+		!strings.Contains(normalized, `/nexus `) &&
+		!strings.Contains(normalized, `\nexus.exe `) {
+		return false
+	}
+	fields := strings.Fields(normalized)
+	automationIndex := -1
+	for index, field := range fields {
+		if strings.Trim(field, `"'`) == "automation" {
+			automationIndex = index
+			break
+		}
+	}
+	if automationIndex < 0 || automationIndex+1 >= len(fields) {
+		return false
+	}
+	action := strings.Trim(fields[automationIndex+1], `"'`)
+	return action == automationdomain.AutomationCommandActionContract ||
+		action == automationdomain.AutomationCommandActionInspect
 }

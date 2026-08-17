@@ -11,7 +11,6 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -220,7 +219,7 @@ func TestServiceRunTaskNowDeliversLegacyAgentAutomationInbox(t *testing.T) {
 	assertRunDeliveredTo(t, service, task.JobID, "explicit:internal:"+inboxKey)
 }
 
-func TestAutomationMCPCreateRunAndInspectDeliversToCurrentSession(t *testing.T) {
+func TestAutomationCommandCreateRunAndInspectDeliversToCurrentSession(t *testing.T) {
 	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
@@ -244,21 +243,21 @@ func TestAutomationMCPCreateRunAndInspectDeliversToCurrentSession(t *testing.T) 
 		&fakeWorkspaceReader{},
 		router,
 	)
-	sctx := contract.ServerContext{
-		CurrentAgentID:      "agent-1",
-		CurrentAgentName:    "新闻智能体",
-		OwnerUserID:         "user-1",
-		CurrentSessionKey:   protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", ""),
-		CurrentSessionLabel: "用户对话",
-		SourceContextType:   "agent",
-		SourceContextID:     "agent-1",
-		SourceContextLabel:  "新闻智能体",
-		DefaultTimezone:     "Asia/Shanghai",
+	sctx := RuntimeCommandActor{
+		AgentID:            "agent-1",
+		AgentName:          "新闻智能体",
+		OwnerUserID:        "user-1",
+		SessionKey:         protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", ""),
+		SessionLabel:       "用户对话",
+		SourceContextType:  "agent",
+		SourceContextID:    "agent-1",
+		SourceContextLabel: "新闻智能体",
+		DefaultTimezone:    "Asia/Shanghai",
 	}
-	recipientSessionKey := sctx.CurrentSessionKey
+	recipientSessionKey := sctx.SessionKey
 	prepareAutomationDeliverySession(t, workspacePath, "user-1", "agent-1", recipientSessionKey)
 
-	createResult, isError := callAutomationMCPTool(t, service, sctx, "create_scheduled_task", map[string]any{
+	createResult, isError := callAutomationCommand(t, service, sctx, "create_scheduled_task", map[string]any{
 		"name":                       "新闻投递到智能体",
 		"instruction":                "每天搜索新闻并输出摘要",
 		"execution_mode":             "dedicated",
@@ -272,33 +271,33 @@ func TestAutomationMCPCreateRunAndInspectDeliversToCurrentSession(t *testing.T) 
 		},
 	})
 	if isError {
-		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
+		t.Fatalf("create_scheduled_task 不应失败: %s", automationCommandText(t, createResult))
 	}
-	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
+	created := decodeAutomationCommandJSON[automationdomain.ScheduledTask](t, createResult)
 	if created.AgentID != "agent-1" {
-		t.Fatalf("MCP 创建任务应归属调用智能体，实际 %+v", created)
+		t.Fatalf("CLI 创建任务应归属调用智能体，实际 %+v", created)
 	}
 	if created.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		created.Delivery.Channel != protocol.SessionChannelInternalSegment ||
 		created.Delivery.To != recipientSessionKey {
-		t.Fatalf("MCP selected 应绑定真实当前会话，实际 %+v", created.Delivery)
+		t.Fatalf("CLI selected 应绑定真实当前会话，实际 %+v", created.Delivery)
 	}
 	if created.Source.Kind != automationdomain.SourceKindAgent || created.Source.CreatorAgentID != "agent-1" {
-		t.Fatalf("MCP 创建任务应记录 Agent 来源，实际 %+v", created.Source)
+		t.Fatalf("CLI 创建任务应记录 Agent 来源，实际 %+v", created.Source)
 	}
 
-	runResult, isError := callAutomationMCPTool(t, service, sctx, "run_scheduled_task", map[string]any{
+	runResult, isError := callAutomationCommand(t, service, sctx, "run_scheduled_task", map[string]any{
 		"query": "新闻投递到智能体",
 	})
 	if isError {
-		t.Fatalf("run_scheduled_task by query 不应失败: %s", automationMCPToolText(t, runResult))
+		t.Fatalf("run_scheduled_task by query 不应失败: %s", automationCommandText(t, runResult))
 	}
-	runNow := decodeAutomationMCPJSON[automationdomain.ExecutionResult](t, runResult)
+	runNow := decodeAutomationCommandJSON[automationdomain.ExecutionResult](t, runResult)
 	if runNow.JobID != created.JobID {
 		t.Fatalf("query 应定位到刚创建的任务，run=%+v created=%+v", runNow, created)
 	}
 
-	ownerCtx := automationMCPTestOwnerContext(sctx.OwnerUserID)
+	ownerCtx := automationCommandTestOwnerContext(sctx.OwnerUserID)
 	waitFor(t, 2*time.Second, func() bool {
 		items, listErr := service.ListTaskRuns(ownerCtx, created.JobID)
 		if listErr != nil || len(items) == 0 {
@@ -310,31 +309,31 @@ func TestAutomationMCPCreateRunAndInspectDeliversToCurrentSession(t *testing.T) 
 	store := workspacestore.NewSessionFileStore(workspacePath)
 	sessionValue, _, err := store.FindSession([]string{workspacePath}, recipientSessionKey)
 	if err != nil {
-		t.Fatalf("读取 MCP 真实当前 session 失败: %v", err)
+		t.Fatalf("读取 CLI 真实当前 session 失败: %v", err)
 	}
 	if sessionValue == nil {
-		t.Fatal("MCP 创建并运行后应写入真实当前会话")
+		t.Fatal("CLI 创建并运行后应写入真实当前会话")
 	}
 	if sessionValue.AgentID != "agent-1" {
-		t.Fatalf("MCP 投递会话应归属目标智能体，实际 %+v", sessionValue)
+		t.Fatalf("CLI 投递会话应归属目标智能体，实际 %+v", sessionValue)
 	}
-	assertDeliveredAgentMessage(t, workspacePath, *sessionValue, "今日新闻摘要", "MCP 真实当前会话")
+	assertDeliveredAgentMessage(t, workspacePath, *sessionValue, "今日新闻摘要", "CLI 真实当前会话")
 	assertRunDeliveredToContext(t, ownerCtx, service, created.JobID, "explicit:internal:"+recipientSessionKey)
 
-	statusResult, isError := callAutomationMCPTool(t, service, sctx, "inspect_scheduled_task", map[string]any{
+	statusResult, isError := callAutomationCommand(t, service, sctx, "inspect_scheduled_task", map[string]any{
 		"query":       "新闻投递到智能体",
 		"run_limit":   5,
 		"event_limit": 5,
 	})
 	if isError {
-		t.Fatalf("inspect_scheduled_task by query 不应失败: %s", automationMCPToolText(t, statusResult))
+		t.Fatalf("inspect_scheduled_task by query 不应失败: %s", automationCommandText(t, statusResult))
 	}
-	status := decodeAutomationMCPJSON[automationdomain.ScheduledTaskStatus](t, statusResult)
+	status := decodeAutomationCommandJSON[automationdomain.ScheduledTaskStatus](t, statusResult)
 	if status.Job.JobID != created.JobID || status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded {
-		t.Fatalf("MCP 状态应能看到任务最新投递成功，实际 %+v", status.Job)
+		t.Fatalf("CLI 状态应能看到任务最新投递成功，实际 %+v", status.Job)
 	}
 	if len(status.RecentRuns) == 0 || status.RecentRuns[0].DeliveryTo != "explicit:internal:"+recipientSessionKey {
-		t.Fatalf("MCP 状态应返回最近投递目标，实际 %+v", status.RecentRuns)
+		t.Fatalf("CLI 状态应返回最近投递目标，实际 %+v", status.RecentRuns)
 	}
 }
 

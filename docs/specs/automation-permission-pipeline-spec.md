@@ -12,11 +12,11 @@
 4. `DeliveryTarget`：完成结果是否投递，以及投递到哪个真实、稳定的 Nexus/Room/IM Session；外部平台临时 callback 和合成“收件箱”都不属于新任务定义。
 5. `ScheduledTaskRun`：保存本次执行使用的权限 revision、冻结的首次投递目标、执行结果和平台投递状态。
 
-`DeliveryGrant` 是不对 HTTP/MCP 模型暴露的宿主授权快照：它记录最近一次明确配置投递目标时的可信 Agent/页面/CLI 调用方。旧任务升级时从 `Source` 精确复制一次；以后修改投递只替换 grant，不改写 `Source` provenance。
+`DeliveryGrant` 是不对 HTTP/CLI 模型输入暴露的宿主授权快照：它记录最近一次明确配置投递目标时的可信 Agent/页面/CLI 调用方。旧任务升级时从 `Source` 精确复制一次；以后修改投递只替换 grant，不改写 `Source` provenance。
 
 页面控制面可以把现有任务重新绑定到同 owner 的另一个 Agent，但必须在一次配置更新中同时提交新的 `AgentID` 及其执行/投递 Session。后端以新 Agent 重新验证 Session 所属关系、Room 成员关系和 IM active pairing，并推进权限 revision；`Source` 仍保留最初创建 provenance，不能用它回显或覆盖当前任务 Agent。
 
-任务正文不携带 `job_id`、IM 地址或审批状态。后台 runtime 使用宿主签发的隐藏 `AutomationRunContext` 获取当前 `job_id/run_id`；Automation MCP 直接由该可信结构收窄到当前任务，不从模型文本、session 名称或模型参数推断身份。
+任务正文不携带 `job_id`、IM 地址或审批状态。后台 runtime 使用宿主签发的隐藏 `AutomationRunContext` 获取当前 `job_id/run_id`；round-scoped Nexus command capability 直接由该可信结构收窄到当前任务且只允许 inspect，不从模型文本、session 名称或模型参数推断身份。
 
 一次性任务完成或错过最终窗口后只自动停用，不自动删除。任务、run 和事件继续保留，因此消息中出现的任务身份始终可以通过任务或历史工具核对。
 
@@ -38,7 +38,7 @@
 
 ## Runtime permission mode
 
-Agent 任务持久化一个具体 SDK permission mode：`default`、`plan`、`acceptEdits`、`bypassPermissions` 或 `dontAsk`。UI 的“复制当前权限”和 MCP 省略 `permission_mode` 都执行上述复制语义；用户也可以在创建时或之后选择具体模式。
+Agent 任务持久化一个具体 SDK permission mode：`default`、`plan`、`acceptEdits`、`bypassPermissions` 或 `dontAsk`。UI 的“复制当前权限”和 Automation CLI 省略 `permission_mode` 都执行上述复制语义；用户也可以在创建时或之后选择具体模式。
 
 每次 DM 或 Room 派发都同时传入任务保存的 mode 与工具策略快照。`bypassPermissions` 会明确跳过 SDK 权限检查，只能由用户主动选择。SDK 仍产生额外权限请求时，下面的 Automation 持久审批流水线继续作为决定来源。
 
@@ -72,19 +72,25 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 存量 `script` 任务只保留兼容读取和原执行行为，可启停、立即运行、查看历史或删除，但不能通过页面或 Agent 对话新建、编辑。缺少权限快照的存量任务在首次读取或执行时按当前 Agent 默认设置初始化，既有脚本授权继续绑定精确内容哈希、owner 和 Agent。
 
-## 普通 Automation MCP
+## Agent Automation CLI
 
-普通交互 runtime 的 create/update 只暴露：
+所有 Agent 通过内置 `automation` Skill 调用宿主签发的 `NEXUS_COMMAND_PATH`。`nexus automation` 只连接 loopback broker，不打开数据库；同一 runtime session 复用不可猜测 token，broker 每次只解析仍在运行且唯一的 physical round。CLI 参数不能声明或覆盖 owner、Agent、Room、Session、source、DeliveryGrant、当前 job/run 或 capability。
+
+查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。模型提供的 `--confirm`、聊天正文同意或通用 Bash allow 都不能替代这次领域确认。
+
+每个 apply 使用 owner-scoped 稳定 `request_id`。durable command ledger 把它绑定到 Actor、operation、不含瞬时 revision 的 intent digest，以及当前 Session permission context 生成的真人 approval request ID：相同意图重放返回首次结果，不同意图冲突；命令已经开始但进程未能持久化结果时进入 uncertain 并禁止自动重放，调用方必须 inspect 权威状态后以新命令处理，不能冒险重复 run、wake 或外部投递。
+
+普通交互 runtime 的 create/update 只表达：
 
 - `context_mode=current|isolated`
 - `deliver_result=true|false`
 - 可选 `permission_mode`
 
-在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 schema 不暴露 legacy execution/reply 枚举，也不暴露 session、channel、account、target 或 thread 等宿主路由参数。Host 从可信 `ServerContext` 自动绑定；即使旧模型传入这些字段，也不能借此重定向任务。owner main 的高级控制也只能选择已存在且可验证的真实 Session，不能创建合成 Agent 收件箱；数据库中的旧目标枚举只用于存量任务兼容。
+在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 CLI wire 不暴露 channel、account、target 或 thread 等宿主路由参数；严格 JSON 解码拒绝未知字段，service 再按 capability 自动绑定真实路由。只有主智能体自己的 Nexus WebSocket 私有 DM capability 可以使用跨 Agent/Session 高级字段，且目标仍必须是当前 owner 下已存在、可验证的真实 Session，不能创建合成 Agent 收件箱。后台 scheduled run capability 固定为只读并绑定 exact job/run。
 
 ## IM transport 与审批
 
-Discord、Telegram、DingTalk、WeCom、个人微信和飞书使用同一 channel-neutral 边界。完全匹配 active pairing 的私聊是同一个 Agent 的另一种 transport，因此加载同一 Agent 的 Skill、当前 permission mode、工具 allow/deny，并可使用同 Agent Automation mutation 工具。pairing 只证明 transport 身份，不构成第二套工具权限系统。群聊、失效配对及跨 Agent/owner 操作继续 fail closed。
+Discord、Telegram、DingTalk、WeCom、个人微信和飞书使用同一 channel-neutral 边界。完全匹配 active pairing 的私聊是同一个 Agent 的另一种 transport，因此加载同一 Agent 的 Skill、当前 permission mode、工具 allow/deny，并可使用同 Agent Automation CLI mutation。pairing 只证明 transport 身份，不构成第二套工具权限系统。群聊、失效配对及跨 Agent/owner 操作继续 fail closed。
 
 普通 Agent runtime 的临时权限请求与 Automation 持久请求仍是两种状态，但复用同一套 IM 控制命令：
 

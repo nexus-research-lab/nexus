@@ -301,6 +301,53 @@ func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission
 	}
 }
 
+// WithNexusRuntimeCLIAutoApproval 只放行一个没有 shell 组合符的 exact
+// `nexus automation` 进程调用。查询/plan 由 round capability 收口，apply 还会在
+// broker 内发起独立原生真人确认，因此这里不能成为领域写入授权。
+func WithNexusRuntimeCLIAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if IsNexusAutomationCLIRequest(request) {
+			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+// IsNexusAutomationCLIRequest 对 shell 文本做保守识别；复杂 shell 仍走原权限处理器。
+func IsNexusAutomationCLIRequest(request sdkpermission.Request) bool {
+	if !MatchesItem(request.ToolName, "Bash") {
+		return false
+	}
+	command := strings.TrimSpace(stringInput(request.Input, "command"))
+	if command == "" || strings.ContainsAny(command, "\n\r;|&><`") {
+		return false
+	}
+	normalized := strings.ToLower(command)
+	if !strings.Contains(normalized, "nexus_command_path") &&
+		!strings.HasPrefix(normalized, "nexus ") &&
+		!strings.HasPrefix(normalized, `"nexus" `) &&
+		!strings.Contains(normalized, `/nexus `) &&
+		!strings.Contains(normalized, `\nexus.exe `) {
+		return false
+	}
+	fields := strings.Fields(normalized)
+	for index, field := range fields {
+		if strings.Trim(field, `"'`) != "automation" || index+1 >= len(fields) {
+			continue
+		}
+		switch strings.Trim(fields[index+1], `"'`) {
+		case "contract", "inspect", "plan", "apply":
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
 // WithMalformedInputDeny 检测工具输入 JSON 解析失败时拒绝执行，
 // 将错误原因反馈给大模型使其可以重试或纠正，同时前端能看到出错工具调用。
 func WithMalformedInputDeny(handler sdkpermission.Handler) sdkpermission.Handler {
