@@ -23,6 +23,8 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebSearch": {},
 }
 
+// Legacy Automation MCP names remain permission-compatible only for resumed
+// pre-migration transcripts. New runtimes do not mount these tools.
 var defaultScheduledTaskReadTools = map[string]struct{}{
 	"automation_query": {},
 }
@@ -85,11 +87,10 @@ func (s *IngressService) buildPermissionHandler(
 		if toolpolicy.Contains(deniedByAgent, toolName) {
 			return sdkpermission.Deny("当前 agent 已禁止该工具", false), nil
 		}
-		// 外部 ingress 的内容并不等同于已认证的人类控制面请求。即使通道配置了
-		// autoApproveAll 或把整个 nexus_automation server 放入 allowlist，也只能
-		// 查询任务，不能创建、修改、删除、修复或立即运行持久化任务。
+		// 旧 transcript 即使重放 legacy Automation MCP tool name，也不能借外部
+		// unpaired ingress 恢复 mutation；新命令的最终边界是 round-scoped broker。
 		if isScheduledTaskMutationTool(toolName) {
-			return sdkpermission.Deny("外部通道只允许查询定时任务；持久化变更和立即执行必须在 Nexus 的可信 DM/Room 中发起", false), nil
+			return sdkpermission.Deny("外部通道不能通过旧 Automation 工具名执行持久化变更", false), nil
 		}
 		if request.autoApproveAll {
 			return sdkpermission.Allow(permissionRequest.Input, nil), nil

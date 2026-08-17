@@ -1,4 +1,4 @@
-// INPUT: nexusctl / nexuscfg 继承的宿主或 Agent runtime 环境变量。
+// INPUT: nexusctl / nexuscfg / Agent-facing nexus 继承的宿主或 runtime 环境变量。
 // OUTPUT: 指向 Nexus 宿主状态根和 workspace 基址的 Config。
 // POS: 控制面 CLI 入口与通用 config.Load 之间的目录布局适配层。
 package cli
@@ -31,6 +31,11 @@ func LoadConfigurationConfig() config.Config {
 		return config.Config{}
 	}
 	return LoadConfig()
+}
+
+// LoadRuntimeConfig 不读取宿主状态；Agent-facing nexus CLI 的全部能力来自 broker。
+func LoadRuntimeConfig() config.Config {
+	return config.Config{}
 }
 
 // normalizeRuntimeLayoutEnvironment 把用户 runtime 根还原为控制面 CLI 的宿主视图。

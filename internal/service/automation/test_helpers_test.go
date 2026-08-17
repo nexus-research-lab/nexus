@@ -208,7 +208,7 @@ func (f *fakeRoomRunner) GetConversationContext(_ context.Context, conversationI
 		}
 	}
 	return &protocol.ConversationContextAggregate{
-		Room: protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
+		Room: protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup, HostAgentID: "agent-1"},
 		Members: []protocol.MemberRecord{
 			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-1"},
 		},
@@ -331,6 +331,7 @@ func (f *fakeWorkspaceReader) GetFile(_ context.Context, _ string, relativePath 
 type fakeDeliveryRouter struct {
 	mu           sync.Mutex
 	calls        []channels.DeliveryTarget
+	agentIDs     []string
 	messages     []string
 	ownerUserIDs []string
 	err          error
@@ -353,19 +354,26 @@ func fakeStructuredDelivery(agentID string, ref string) automationdomain.Deliver
 
 func (f *fakeDeliveryRouter) DeliverMessage(
 	ctx context.Context,
-	_ string,
+	agentID string,
 	text string,
 	target channels.DeliveryTarget,
 ) (channels.DeliveryResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, target)
+	f.agentIDs = append(f.agentIDs, strings.TrimSpace(agentID))
 	f.messages = append(f.messages, text)
 	f.ownerUserIDs = append(f.ownerUserIDs, authctx.OwnerUserID(ctx))
 	if f.err != nil {
 		return channels.DeliveryResult{}, f.err
 	}
 	return channels.DeliveryResult{Target: target, Receipt: f.receipt}, nil
+}
+
+func (f *fakeDeliveryRouter) AgentIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.agentIDs)
 }
 
 func (f *fakeDeliveryRouter) Messages() []string {
@@ -487,6 +495,7 @@ CREATE TABLE automation_scheduled_tasks (
     delivery_account_id VARCHAR(64),
     delivery_thread_id VARCHAR(255),
     delivery_session_key VARCHAR(255),
+    delivery_agent_id VARCHAR(64),
     session_binding_state VARCHAR(32) NOT NULL DEFAULT 'ready',
     invalidated_session_keys_json TEXT NOT NULL DEFAULT '[]',
 	delivery_grant_json TEXT NOT NULL DEFAULT '{}',
@@ -601,6 +610,20 @@ CREATE TABLE automation_task_create_requests (
     agent_id VARCHAR(64) NOT NULL,
     intent_digest VARCHAR(64) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (owner_user_id, request_id)
+);
+CREATE TABLE automation_runtime_commands (
+    owner_user_id VARCHAR(64) NOT NULL,
+    request_id VARCHAR(128) NOT NULL,
+    actor_agent_id VARCHAR(64) NOT NULL,
+    operation VARCHAR(32) NOT NULL,
+    intent_digest VARCHAR(64) NOT NULL,
+    approval_request_id VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    result_json TEXT,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (owner_user_id, request_id)
 );
 CREATE TABLE automation_delivery_routes (

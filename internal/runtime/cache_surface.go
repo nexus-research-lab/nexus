@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ type CacheSurfaceProfile struct {
 	ExecutionToolSurfacePresent bool
 	ManagedToolPresenceKnown    bool
 	HostToolSurfaceComplete     bool
+	ManagedToolSurfaceComplete  bool
 	ToolPolicyFingerprint       string
 	MCPServersFingerprint       string
 	ToolSurfaceFingerprint      string
@@ -50,6 +52,7 @@ type CacheSurfaceInput struct {
 	ExecutionToolSurfacePresent bool
 	ManagedToolPresenceKnown    bool
 	HostToolSurfaceComplete     bool
+	ManagedToolSurfaceComplete  bool
 	ToolPolicyFingerprint       string
 	MCPServersFingerprint       string
 	ToolSurfaceFingerprint      string
@@ -65,6 +68,7 @@ func (p CacheSurfaceProfile) Input() CacheSurfaceInput {
 		ExecutionToolSurfacePresent: p.ExecutionToolSurfacePresent,
 		ManagedToolPresenceKnown:    p.ManagedToolPresenceKnown,
 		HostToolSurfaceComplete:     p.HostToolSurfaceComplete,
+		ManagedToolSurfaceComplete:  p.ManagedToolSurfaceComplete,
 		ToolPolicyFingerprint:       p.ToolPolicyFingerprint,
 		MCPServersFingerprint:       p.MCPServersFingerprint,
 		ToolSurfaceFingerprint:      p.ToolSurfaceFingerprint,
@@ -96,15 +100,17 @@ func cacheSurfaceProfileFromOptions(ctx context.Context, options agentclient.Opt
 		ExecutionToolSurfacePresent: hasMCPServer(options, managedExecutionMCPServerName),
 		ManagedToolPresenceKnown:    strings.TrimSpace(options.MCP.Config) == "",
 		HostToolSurfaceComplete:     true,
+		ManagedToolSurfaceComplete:  true,
 		ToolPolicyFingerprint:       fingerprintNativeToolSurface(options),
 		MCPServersFingerprint:       fingerprintMCPServerSet(options),
 	}
 
-	serverSurfaces, complete, err := hostSDKToolSurfaceFingerprints(ctx, options)
+	serverSurfaces, managedComplete, hostComplete, err := hostSDKToolSurfaceFingerprints(ctx, options)
 	if err != nil {
 		return CacheSurfaceProfile{}, err
 	}
-	profile.HostToolSurfaceComplete = profile.HostToolSurfaceComplete && complete
+	profile.HostToolSurfaceComplete = profile.HostToolSurfaceComplete && hostComplete
+	profile.ManagedToolSurfaceComplete = managedComplete
 	profile.ToolSurfaceFingerprint = fingerprintCacheValue(cacheToolSurfaceManifest{
 		Version:                     1,
 		NativeToolSurface:           fingerprintNativeToolSurface(options),
@@ -114,7 +120,25 @@ func cacheSurfaceProfileFromOptions(ctx context.Context, options agentclient.Opt
 		ExecutionToolSurfacePresent: profile.ExecutionToolSurfacePresent,
 		SDKToolSurfaces:             serverSurfaces,
 	})
+	if !profile.ManagedToolSurfaceComplete {
+		profile.HostToolSurfaceComplete = false
+	}
 	return profile, nil
+}
+
+// ModelToolSurfaceFingerprint 返回宿主可证明的模型可见工具面脱敏指纹。
+//
+// 它不是 provider cache key；产品层只把它作为不支持会话内动态工具更新的
+// runtime 的保守 resume/reset 栅栏。
+func ModelToolSurfaceFingerprint(ctx context.Context, options agentclient.Options) (string, bool, error) {
+	profile, err := cacheSurfaceProfileFromOptions(ctx, options)
+	if err != nil {
+		return "", false, err
+	}
+	if strings.TrimSpace(profile.ToolSurfaceFingerprint) == "" {
+		return "", false, errors.New("runtime model tool surface fingerprint is empty")
+	}
+	return profile.ToolSurfaceFingerprint, profile.ManagedToolSurfaceComplete, nil
 }
 
 func fingerprintMCPServerSet(options agentclient.Options) string {
@@ -164,9 +188,10 @@ func fingerprintNativeToolSurface(options agentclient.Options) string {
 func hostSDKToolSurfaceFingerprints(
 	ctx context.Context,
 	options agentclient.Options,
-) (map[string]string, bool, error) {
+) (map[string]string, bool, bool, error) {
 	servers := make(map[string]sdkmcp.SDKMCPServer)
-	complete := strings.TrimSpace(options.MCP.Config) == ""
+	managedComplete := true
+	hostComplete := strings.TrimSpace(options.MCP.Config) == ""
 	for alias, server := range options.MCP.SDKServers {
 		if server != nil {
 			servers[alias] = server
@@ -183,7 +208,7 @@ func hostSDKToolSurfaceFingerprints(
 			}
 		default:
 			delete(servers, alias)
-			complete = false
+			hostComplete = false
 		}
 	}
 
@@ -196,20 +221,21 @@ func hostSDKToolSurfaceFingerprints(
 	for _, alias := range aliases {
 		// Only Nexus-owned aliases are safe to invoke during configuration.
 		if !strings.HasPrefix(strings.TrimSpace(alias), "nexus_") {
-			complete = false
+			hostComplete = false
 			continue
 		}
 		result, ok, err := inspectSDKToolSurface(ctx, servers[alias])
 		if err != nil {
-			return nil, false, err
+			return nil, false, false, err
 		}
 		if !ok {
-			complete = false
+			managedComplete = false
+			hostComplete = false
 			continue
 		}
 		surfaces[alias] = fingerprintCacheValue(result)
 	}
-	return surfaces, complete, nil
+	return surfaces, managedComplete, hostComplete, nil
 }
 
 func inspectSDKToolSurface(

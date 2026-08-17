@@ -1,3 +1,6 @@
+// INPUT: DM Session、SDK transcript identity、runtime/tool-surface fingerprint 与 round marker。
+// OUTPUT: 持久 Session runtime 状态、完整 transcript lineage 和可恢复历史投影。
+// POS: DM Session 历史与 SDK identity 的唯一写回事务。
 package dm
 
 import (
@@ -325,6 +328,7 @@ func (s *Service) syncSDKSessionIDForOwner(
 	runtimeKind string,
 	runtimeProvider string,
 	runtimeModel string,
+	toolSurfaceFingerprint string,
 ) (protocol.Session, error) {
 	sync := sdkSessionSync{
 		service:       s,
@@ -334,28 +338,32 @@ func (s *Service) syncSDKSessionIDForOwner(
 		current:       current,
 		nextSessionID: strings.TrimSpace(sessionID),
 		nextFingerprint: sessionRuntimeFingerprint{
-			kind:     strings.TrimSpace(runtimeKind),
-			provider: strings.TrimSpace(runtimeProvider),
-			model:    strings.TrimSpace(runtimeModel),
+			kind:        strings.TrimSpace(runtimeKind),
+			provider:    strings.TrimSpace(runtimeProvider),
+			model:       strings.TrimSpace(runtimeModel),
+			toolSurface: strings.TrimSpace(toolSurfaceFingerprint),
 		},
 	}
 	return sync.run()
 }
 
 type sessionRuntimeFingerprint struct {
-	kind     string
-	provider string
-	model    string
+	kind        string
+	provider    string
+	model       string
+	toolSurface string
 }
 
 func runtimeFingerprintFromSession(session protocol.Session) sessionRuntimeFingerprint {
 	kind, _ := session.Options[protocol.OptionRuntimeKind].(string)
 	provider, _ := session.Options[protocol.OptionRuntimeProvider].(string)
 	model, _ := session.Options[protocol.OptionRuntimeModel].(string)
+	toolSurface, _ := session.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	return sessionRuntimeFingerprint{
-		kind:     strings.TrimSpace(kind),
-		provider: strings.TrimSpace(provider),
-		model:    strings.TrimSpace(model),
+		kind:        strings.TrimSpace(kind),
+		provider:    strings.TrimSpace(provider),
+		model:       strings.TrimSpace(model),
+		toolSurface: strings.TrimSpace(toolSurface),
 	}
 }
 
@@ -363,6 +371,7 @@ func (f sessionRuntimeFingerprint) apply(options map[string]any) {
 	options[protocol.OptionRuntimeKind] = f.kind
 	options[protocol.OptionRuntimeProvider] = f.provider
 	options[protocol.OptionRuntimeModel] = f.model
+	options[protocol.OptionRuntimeToolSurfaceFingerprint] = f.toolSurface
 }
 
 type sdkSessionSync struct {
@@ -422,7 +431,13 @@ func (s *sdkSessionSync) apply() {
 	if s.current.Options == nil {
 		s.current.Options = map[string]any{}
 	}
-	s.nextFingerprint.apply(s.current.Options)
+	nextFingerprint := s.nextFingerprint
+	if s.sessionIDChanged && !s.canPersistSession {
+		// 新 transcript 尚不可恢复时，不能把它的工具面基线提交到旧 SDK session；
+		// 否则下一轮会把旧 K3 identity 误判为已经采用新工具面。
+		nextFingerprint.toolSurface = runtimeFingerprintFromSession(s.current).toolSurface
+	}
+	nextFingerprint.apply(s.current.Options)
 }
 
 func (s *sdkSessionSync) persist() (protocol.Session, error) {

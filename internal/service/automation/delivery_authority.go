@@ -35,6 +35,9 @@ func (s *Service) prepareTaskDeliveryMutation(
 	if err := validateConfigurableDeliveryTarget(task.Delivery); err != nil {
 		return err
 	}
+	if err := s.resolveRoomDeliveryAgent(ctx, task); err != nil {
+		return err
+	}
 	actorAgentID, agentActor := automationexec.ActorAgentID(ctx)
 	if agentActor {
 		if grantSource == nil || strings.TrimSpace(grantSource.Kind) != automationdomain.SourceKindAgent {
@@ -138,6 +141,9 @@ func (s *Service) authorizedDeliveryJobForTarget(
 		return job, nil
 	}
 	job.Delivery = target.Normalized()
+	if err := s.resolveRoomDeliveryAgent(ctx, &job); err != nil {
+		return automationdomain.ScheduledTask{}, err
+	}
 	if strings.TrimSpace(job.DeliveryGrant.Kind) == automationdomain.SourceKindAgent {
 		if err := s.validateAgentOriginDeliveryGrant(contextForJobOwner(ctx, job), job); err != nil {
 			return automationdomain.ScheduledTask{}, err
@@ -147,6 +153,60 @@ func (s *Service) authorizedDeliveryJobForTarget(
 		return automationdomain.ScheduledTask{}, err
 	}
 	return job, nil
+}
+
+// resolveRoomDeliveryAgent 把 Room 的“默认房主”选择解析成持久化的精确 Agent，
+// 并在配置写入、运行和重试阶段复核同 owner、同 conversation 的当前成员身份。
+// 非 Room Session 不接受独立的 AgentID，避免把回复身份偷渡到 DM/IM 路由。
+func (s *Service) resolveRoomDeliveryAgent(
+	ctx context.Context,
+	job *automationdomain.ScheduledTask,
+) error {
+	if job == nil {
+		return errors.New("automation delivery validation requires a task")
+	}
+	target := job.Delivery.Normalized()
+	if target.Mode == automationdomain.DeliveryModeNone {
+		target.AgentID = ""
+		job.Delivery = target
+		return nil
+	}
+	sessionKey := strings.TrimSpace(target.SessionKey)
+	if sessionKey == "" && protocol.ParseSessionKey(target.To).IsStructured {
+		sessionKey = strings.TrimSpace(target.To)
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindRoom {
+		if target.AgentID != "" {
+			return errors.New("delivery.agent_id is only valid for a Room session")
+		}
+		job.Delivery = target
+		return nil
+	}
+	if s.room == nil {
+		return errors.New("Room automation delivery cannot revalidate current membership")
+	}
+	contextValue, err := s.room.GetConversationContext(ctx, parsed.ConversationID)
+	if err != nil {
+		return err
+	}
+	if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
+		return errors.New("Automation delivery Room is no longer available")
+	}
+	if target.AgentID == "" {
+		target.AgentID = strings.TrimSpace(contextValue.Room.HostAgentID)
+	}
+	if target.AgentID == "" {
+		return errors.New("Room automation delivery requires a replying Agent or Room host")
+	}
+	if !isAvailableRoomSessionAgent(contextValue, target.AgentID) {
+		return errors.New("Automation delivery replying Agent is no longer a member of the target Room session")
+	}
+	if _, err = s.requireSameOwnerDeliveryAgent(ctx, *job, target.AgentID); err != nil {
+		return err
+	}
+	job.Delivery = target
+	return nil
 }
 
 func (s *Service) validatePersistentDeliveryGrant(
@@ -350,6 +410,9 @@ func (s *Service) validateRoomDeliveryMembership(
 	}
 	if contextValue == nil {
 		return errors.New("Automation delivery Room is no longer available")
+	}
+	if !isAvailableRoomSessionAgent(contextValue, target.AgentID) {
+		return errors.New("Automation delivery replying Agent is no longer a member of the target Room session")
 	}
 	// 人类控制面可以把同 owner Agent 的产物投递到另一个 Room；Room 是结果接收方，
 	// 不是执行身份。普通 Agent 自主创建的任务仍只能回到可信来源 Room，并且执行

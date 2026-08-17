@@ -76,7 +76,10 @@ func (t SessionTarget) Normalized() SessionTarget {
 
 // DeliveryTarget 表示自动化外部投递目标。
 type DeliveryTarget struct {
-	Mode       string `json:"mode"`
+	Mode string `json:"mode"`
+	// AgentID 是 Room Session 中承载结果消息的回复/署名 Agent。
+	// Agent Session 的归属已经编码在 SessionKey 中，不使用此字段。
+	AgentID    string `json:"agent_id,omitempty"`
 	Channel    string `json:"channel,omitempty"`
 	To         string `json:"to,omitempty"`
 	AccountID  string `json:"account_id,omitempty"`
@@ -118,6 +121,7 @@ func (d DeliveryTarget) Normalized() DeliveryTarget {
 		result.Mode = DeliveryModeNone
 	}
 	result.Channel = strings.TrimSpace(result.Channel)
+	result.AgentID = strings.TrimSpace(result.AgentID)
 	result.To = strings.TrimSpace(result.To)
 	result.AccountID = strings.TrimSpace(result.AccountID)
 	result.ThreadID = strings.TrimSpace(result.ThreadID)

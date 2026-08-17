@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a host-managed, owner-private, round-scoped JSON input slot for `nexus automation`, with `--input-file`/stdin support, strict size/link/path checks, and automatic round cleanup so quoted instructions no longer depend on shell escaping.
 - Added owner-scoped custom STDIO, HTTP, and SSE MCP servers to the Connector directory, with encrypted environment, Bearer Token, and custom-header secrets plus existing Agent/Session Connector activation controls.
 - Added session-scoped multi-folder workspaces for desktop chats, with a native folder picker, runtime access, and automatic working-directory context.
 - Added privacy-safe cache correlation segments for provider-reported cache reads, keyed by low-cardinality Goal/Execution responsibility lanes and one-way runtime/tool-surface fingerprints without persisting prompts, tool schemas, credentials, or domain IDs.
@@ -18,16 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
 - Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
 - Added desktop workspace file actions for system-aware opening, copying paths, and attaching files to the current chat.
-- Added selectable scheduled-task SDK permission modes to the create/edit dialog and Automation MCP create/update tools. New tasks copy the execution session's effective mode when one is reused, otherwise the execution Agent mode, plus that Agent's tool allow/deny policy, then keep an independent task snapshot.
+- Added selectable scheduled-task SDK permission modes to the create/edit dialog and Agent-facing Automation commands. New tasks copy the execution session's effective mode when one is reused, otherwise the execution Agent mode, plus that Agent's tool allow/deny policy, then keep an independent task snapshot.
 - Added owner- and session-scoped IM slash commands for durable scheduled-task permission approval, denial, connector retry, and task-level grants across Discord, Telegram, DingTalk, WeCom, personal Weixin, and Feishu.
-- Added same-Agent Skill and Automation mutation access for exactly active-paired external IM direct messages without granting cross-Agent owner authority.
+- Added same-Agent Skill and round-scoped Automation command access for exactly active-paired external IM direct messages without granting cross-Agent owner authority.
 - Added session-scoped `/y`, `/a`, and `/d` handling for ordinary Agent and scheduled-task permission prompts in active-paired IM direct messages without exposing internal request IDs; historical long commands remain accepted as compatibility aliases, and ambiguous pending requests across both permission domains fail closed.
 - Added `IM · channel · account hint · current/history` identity markers to conversation history, open tabs, and scheduled-task session selectors so multiple accounts and stale sessions remain distinguishable without exposing raw platform IDs.
 - Added run-scoped delivery snapshots and structured Automation result projection into destination Nexus sessions, with idempotent run identities, platform receipt overlays, and continuation context for the next user turn.
 
 ### Changed
 
-- Collapsed the always-mounted `nexus_automation` surface from eleven operation-specific tools to read-only `automation_query` and trusted `automation_update`, moving schedule and heartbeat guidance into the system-managed `automation` Skill.
+- Restricted `nexus automation` Bash/PowerShell auto-approval to the exact host-injected executable, fixed one-command grammar, and the host-managed input path; plan confirmations now include normalized change details and stale configuration/run identities fail before any task update.
+- Replaced the `nexus_automation` MCP surface with the system-managed `automation` Skill and the nxs/Claude-compatible, round-scoped `nexus automation` CLI. Mutations now use inspect/plan/apply, revision and digest fencing, and native Nexus/Room/IM confirmation; background task runs receive only exact job/run-scoped reads.
 - Mounted `nexus_imagegen` only when a usable image-generation model is configured, keeping unavailable image tools out of the default MCP surface.
 - Replaced the `nexus_config` MCP with the system-managed `nexus-configuration` Skill and round-scoped `nexuscfg` CLI for every Agent, while keeping owner-global changes exclusive to the main Agent and preserving discovery, planning, revision checks, verification, and audit.
 - Removed the generic Connector listing and arbitrary REST proxy tools; selected Connectors now expose provider MCP servers, with Feishu Docs isolated in its own `nexus_feishu_docx` MCP.
@@ -54,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rendered scheduled-task run output as Markdown and kept long results inside the history dialog's normal scroll flow.
 - Replaced the always-on one-second Subagent Attempt recovery scan with deadline-driven wakeups; restart recovery now restores persisted deadlines once and only rechecks when the nearest deadline or a new schedule arrives.
 - Stopped live workspace watchers from waking every 400 milliseconds while idle and removed the per-second runtime scan; settled writes now use a timer armed only by filesystem events.
+- Separated scheduled-task execution and recipient pickers by canonical conversation identity: DM now follows Agent then DM/active IM Session, while Room follows Room then shared Session then an independent execution or replying Agent, defaulting to the current host and revalidating membership at run/retry time.
+- Cleared the Chat navigation badge when entering Chat without discarding per-conversation unread counts or exact first-unread anchors.
+- Projected each scheduled-task permission request into its frozen recipient Nexus Agent, Room, or active-paired IM Session—with realtime delivery and reconnect replay—while keeping IM Slash as an additional transport and using the source Session only when no recipient exists.
+- Preserved durable scheduled-task permission audit, Nexus Session projection, and external IM `/y`/`/a`/`/d` notifications after the blocked physical attempt is interrupted by publishing them on a bounded detached owner context.
+- Restored current-conversation Automation queries and external IM default report scoping, exact deleted-job runs/events lookup, and enabled-before-limit history filtering; external IM rounds no longer expose heartbeat configuration.
+- Reset transcript-backed Kimi K3 DM runtime sessions once when an explicit Agent or Session Connector change—or a legacy session without a tool baseline—alters the model-visible tool surface. The fresh runtime starts with the selected MCP schemas while Nexus preserves the stable Session identity and projects the old and new transcript segments as one visible history.
 - Stopped frontend Skill, external-session, WorkGraph, Contacts, scheduled-task, and Subagent fallback timers from repeatedly hitting HTTP APIs; Subagent lists and threads now refresh only for exact realtime source/task changes, focus, and one connection reconciliation.
 - Removed overlapping 10-second web-render and 60-second native WebView probes; desktop recovery now relies on process-failure callbacks plus window focus, visibility, and restore events, and Windows skips recovery while a newer navigation is loading.
 - Stopped desktop focus changes from repeatedly rescanning the full chat directory, refreshed it once after WebSocket reconnection instead of on a fixed timer, reused the shared snapshot on Launcher, and skipped unused external IM identity and task-reference queries during bootstrap.

@@ -24,11 +24,14 @@ type mutableAutomationDeliveryGrant struct {
 }
 
 func (g *mutableAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
 	agentID string,
 	sessionKey string,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.agentIDs = append(g.agentIDs, strings.TrimSpace(agentID))
@@ -37,6 +40,36 @@ func (g *mutableAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
 		return fmt.Errorf("%w: pairing revoked", channels.ErrExternalSessionGrantUnavailable)
 	}
 	return nil
+}
+
+func TestPermissionPublishSurvivesCancelledPhysicalAttemptContext(t *testing.T) {
+	fixture := newPermissionIMFixture(t)
+	beforeMessages := len(fixture.delivery.Messages())
+	cancelledCtx, cancel := context.WithCancel(fixture.ownerCtx)
+	cancel()
+	fixture.service.publishScheduledPermissionRequest(cancelledCtx, scheduledPermissionScope{
+		Job: fixture.task, RunID: fixture.request.RunID,
+		SessionKey: fixture.request.SessionKey, RoundID: fixture.request.RoundID,
+	}, fixture.request)
+	if messages := fixture.delivery.Messages(); len(messages) != beforeMessages+1 ||
+		!strings.Contains(messages[len(messages)-1], "需要权限确认") {
+		t.Fatalf("cancelled attempt context swallowed IM permission notice: %+v", messages)
+	}
+	events, err := fixture.service.ListTaskEvents(fixture.ownerCtx, fixture.task.JobID, 20)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	found := false
+	for _, event := range events {
+		if event.Action == automationdomain.TaskEventActionPermissionRequested &&
+			event.Detail["request_id"] == fixture.request.RequestID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("cancelled attempt context swallowed permission_requested audit: %+v", events)
+	}
 }
 
 func (g *mutableAutomationDeliveryGrant) agentIDsSnapshot() []string {

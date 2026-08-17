@@ -51,7 +51,7 @@ func (s *Service) ListSessionPermissionEvents(
 			return nil, loadErr
 		}
 		if !currentAutomationPermissionRequest(job, request) ||
-			firstNonEmpty(request.DeliverySessionKey, job.Delivery.SessionKey, job.Source.SessionKey) != sessionKey {
+			automationPermissionRequestRecipientSessionKey(request) != sessionKey {
 			continue
 		}
 		event, visible, eventErr := s.automationPermissionSessionEvent(ctx, *job, request)
@@ -101,8 +101,7 @@ func (s *Service) ResolveSessionPermissionResponse(
 	if err != nil {
 		return true, err
 	}
-	if job == nil ||
-		firstNonEmpty(request.DeliverySessionKey, job.Delivery.SessionKey, job.Source.SessionKey) != strings.TrimSpace(sessionKey) {
+	if job == nil || automationPermissionRequestRecipientSessionKey(*request) != strings.TrimSpace(sessionKey) {
 		return false, nil
 	}
 	if !currentAutomationPermissionRequest(job, *request) {
@@ -278,11 +277,7 @@ func (s *Service) resolveAutomationPermissionSessionRoute(
 	job automationdomain.ScheduledTask,
 	request automationdomain.AutomationPermissionRequest,
 ) (automationPermissionSessionRoute, bool, error) {
-	sessionKey := firstNonEmpty(
-		request.DeliverySessionKey,
-		job.Delivery.SessionKey,
-		job.Source.SessionKey,
-	)
+	sessionKey := automationPermissionRequestRecipientSessionKey(request)
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if !parsed.IsStructured {
 		return automationPermissionSessionRoute{}, false, nil
@@ -309,10 +304,6 @@ func (s *Service) resolveAutomationPermissionSessionRoute(
 	if parsed.Kind != protocol.SessionKeyKindAgent {
 		return automationPermissionSessionRoute{}, false, nil
 	}
-	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
-	if channel != protocol.SessionChannelWebSocket && channel != protocol.SessionChannelInternalSegment {
-		return automationPermissionSessionRoute{}, false, nil
-	}
 	if s.deliverySessions == nil {
 		return automationPermissionSessionRoute{}, true, errors.New("automation permission Session resolver is not configured")
 	}
@@ -322,6 +313,10 @@ func (s *Service) resolveAutomationPermissionSessionRoute(
 	}
 	if stored == nil || strings.TrimSpace(stored.SessionKey) != sessionKey ||
 		strings.TrimSpace(stored.AgentID) != strings.TrimSpace(parsed.AgentID) {
+		return automationPermissionSessionRoute{}, true, automationdomain.ErrTaskDeliverySessionUnavailable
+	}
+	if externalIMChannel(parsed.Channel) &&
+		(stored.ExternalIdentity == nil || !stored.ExternalIdentity.CurrentPairing) {
 		return automationPermissionSessionRoute{}, true, automationdomain.ErrTaskDeliverySessionUnavailable
 	}
 	return automationPermissionSessionRoute{

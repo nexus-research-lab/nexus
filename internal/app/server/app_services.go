@@ -252,6 +252,14 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetTaskReferenceResolver(automationService)
 	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
+	automationService.SetRuntimeCommandRoundResolver(runtimeManager)
+	automationRuntimeEnvironmentBuilder := newAutomationRuntimeEnvironmentBuilder(
+		cfg,
+		automationService,
+		core.Agent,
+	)
+	dmService.SetAutomationRuntimeEnvironmentBuilder(automationRuntimeEnvironmentBuilder)
+	roomRealtime.SetAutomationRuntimeEnvironmentBuilder(automationRuntimeEnvironmentBuilder)
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 	configurationService := configurationsvc.NewService(
@@ -332,10 +340,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		panic(err)
 	}
 
-	// 把平台通讯、自动化、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	// 把平台通讯、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	// Automation 由内置 Skill + round-scoped nexus CLI 提供，不再占用模型 MCP 工具面。
 	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
 	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
-	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
@@ -343,13 +351,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	executionBuilder := combinedExecutionMCPBuilder(
-		newExecutionMCPBuilder(orchestrationService),
-		newAutomationExecutionMCPBuilder(automationService, cfg.DefaultTimezone),
-	)
+	executionBuilder := newExecutionMCPBuilder(orchestrationService)
 	mcpBuilder := combinedMCPBuilder(
 		communicationBuilder,
-		automationBuilder,
 		connectorBuilder,
 		connectorAuthorizationBuilder,
 		channelAuthorizationBuilder,

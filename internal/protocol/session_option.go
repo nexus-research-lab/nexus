@@ -12,6 +12,11 @@ const (
 	OptionRuntimeProvider = "runtime_provider"
 	// OptionRuntimeModel 表示创建/续用 SDK session 时使用的模型。
 	OptionRuntimeModel = "runtime_model"
+	// OptionRuntimeToolSurfaceFingerprint 表示当前 SDK session 首次采用的模型可见工具面。
+	// 该脱敏指纹只用于判断旧 K3 session 是否需要换代，不是 provider cache key。
+	OptionRuntimeToolSurfaceFingerprint = "runtime_tool_surface_fingerprint"
+	// OptionRuntimeSegmentedTranscript 表示一次 Nexus Session 跨多个非复制 SDK transcript 续写。
+	OptionRuntimeSegmentedTranscript = "runtime_segmented_transcript"
 	// OptionSessionProvider 表示当前 Nexus Session 显式覆盖的 provider。
 	OptionSessionProvider = "session_provider"
 	// OptionSessionModel 表示当前 Nexus Session 显式覆盖的模型。

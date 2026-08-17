@@ -26,6 +26,7 @@ func scanScheduledTask(scanner interface {
 		deliveryAccountID          sql.NullString
 		deliveryThreadID           sql.NullString
 		deliverySessionKey         sql.NullString
+		deliveryAgentID            sql.NullString
 		invalidatedSessionKeysJSON sql.NullString
 		sourceKind                 sql.NullString
 		sourceCreatorID            sql.NullString
@@ -70,6 +71,7 @@ func scanScheduledTask(scanner interface {
 		&deliveryAccountID,
 		&deliveryThreadID,
 		&deliverySessionKey,
+		&deliveryAgentID,
 		&item.SessionBindingState,
 		&invalidatedSessionKeysJSON,
 		&sourceKind,
@@ -112,6 +114,7 @@ func scanScheduledTask(scanner interface {
 	item.Delivery.AccountID = nullStringValue(deliveryAccountID)
 	item.Delivery.ThreadID = nullStringValue(deliveryThreadID)
 	item.Delivery.SessionKey = nullStringValue(deliverySessionKey)
+	item.Delivery.AgentID = nullStringValue(deliveryAgentID)
 	if raw := strings.TrimSpace(nullStringValue(invalidatedSessionKeysJSON)); raw != "" && raw != "[]" {
 		if decodeErr := json.Unmarshal([]byte(raw), &item.InvalidatedSessionKeys); decodeErr != nil {
 			return automationdomain.ScheduledTask{}, decodeErr

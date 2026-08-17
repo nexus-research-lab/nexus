@@ -301,6 +301,160 @@ func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission
 	}
 }
 
+// WithNexusRuntimeCLIAutoApproval 只放行一个没有 shell 组合符的 exact
+// `nexus automation` 进程调用。查询/plan 由 round capability 收口，apply 还会在
+// broker 内发起独立原生真人确认，因此这里不能成为领域写入授权。
+func WithNexusRuntimeCLIAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if IsNexusAutomationCLIRequest(request) {
+			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+// IsNexusAutomationCLIRequest 只识别受管 executable、固定子命令和无 shell
+// 动态语义的单进程调用；任何其他 Bash/PowerShell 语法仍进入普通权限处理器。
+func IsNexusAutomationCLIRequest(request sdkpermission.Request) bool {
+	_, ok := NexusAutomationCLIAction(request)
+	return ok
+}
+
+// NexusAutomationCLIAction 返回经过严格 shell 子集解析后的 Automation action。
+// executable 和 input slot 都只能引用宿主注入的精确变量，不能换成同名程序或任意路径。
+func NexusAutomationCLIAction(request sdkpermission.Request) (string, bool) {
+	rawCommand, ok := request.Input["command"].(string)
+	if !ok || rawCommand == "" || strings.ContainsAny(rawCommand, "\n\r\x00") {
+		return "", false
+	}
+	command := strings.Trim(rawCommand, " \t")
+	if command == "" {
+		return "", false
+	}
+	commandToken := ""
+	managedInputToken := ""
+	switch {
+	case MatchesItem(request.ToolName, "Bash"):
+		commandToken = `"${NEXUS_COMMAND_PATH}"`
+		managedInputToken = `"${NEXUS_AUTOMATION_INPUT_PATH}"`
+	case MatchesItem(request.ToolName, "PowerShell"):
+		commandToken = `& "${env:NEXUS_COMMAND_PATH}"`
+		managedInputToken = `"${env:NEXUS_AUTOMATION_INPUT_PATH}"`
+	default:
+		return "", false
+	}
+	if !strings.HasPrefix(command, commandToken) ||
+		len(command) == len(commandToken) || !automationShellWhitespace(command[len(commandToken)]) {
+		return "", false
+	}
+	arguments, ok := parseAutomationShellArguments(command[len(commandToken):], managedInputToken)
+	if !ok || len(arguments) < 3 || arguments[0] != "--json" || arguments[1] != "automation" {
+		return "", false
+	}
+	action := arguments[2]
+	if action == "contract" {
+		return action, len(arguments) == 3
+	}
+	if action != "inspect" && action != "plan" && action != "apply" {
+		return "", false
+	}
+	allowed := map[string]bool{
+		"--operation":  true,
+		"--input":      true,
+		"--input-file": true,
+	}
+	if action == "apply" {
+		allowed["--request-id"] = true
+		allowed["--expected-revision"] = true
+	}
+	seen := make(map[string]bool, len(allowed))
+	for index := 3; index < len(arguments); index += 2 {
+		if index+1 >= len(arguments) || !allowed[arguments[index]] || seen[arguments[index]] {
+			return "", false
+		}
+		seen[arguments[index]] = true
+		if arguments[index] == "--input-file" && arguments[index+1] != automationShellInputPathToken {
+			return "", false
+		}
+	}
+	if !seen["--operation"] || seen["--input"] && seen["--input-file"] {
+		return "", false
+	}
+	return action, true
+}
+
+const automationShellInputPathToken = "\x00nexus-automation-input-path\x00"
+
+func parseAutomationShellArguments(command string, managedInput string) ([]string, bool) {
+	arguments := make([]string, 0, 10)
+	for index := 0; index < len(command); {
+		for index < len(command) && automationShellWhitespace(command[index]) {
+			index++
+		}
+		if index == len(command) {
+			break
+		}
+		var value string
+		switch command[index] {
+		case '\'':
+			end := strings.IndexByte(command[index+1:], '\'')
+			if end < 0 {
+				return nil, false
+			}
+			end += index + 1
+			value = command[index+1 : end]
+			index = end + 1
+		case '"':
+			if strings.HasPrefix(command[index:], managedInput) {
+				value = automationShellInputPathToken
+				index += len(managedInput)
+				break
+			}
+			end := strings.IndexByte(command[index+1:], '"')
+			if end < 0 {
+				return nil, false
+			}
+			end += index + 1
+			quoted := command[index+1 : end]
+			if strings.ContainsAny(quoted, "$`\\") {
+				return nil, false
+			}
+			value = quoted
+			index = end + 1
+		default:
+			start := index
+			for index < len(command) && !automationShellWhitespace(command[index]) {
+				if !automationShellSafeByte(command[index]) {
+					return nil, false
+				}
+				index++
+			}
+			value = command[start:index]
+		}
+		if value == "" || index < len(command) && !automationShellWhitespace(command[index]) {
+			// 拒绝 shell 的 quoted/unquoted token 拼接；即使结果 argv 相同，也不把
+			// 更大的 shell 语法面纳入自动审批边界。
+			return nil, false
+		}
+		arguments = append(arguments, value)
+	}
+	return arguments, len(arguments) > 0
+}
+
+func automationShellWhitespace(value byte) bool {
+	return value == ' ' || value == '\t'
+}
+
+func automationShellSafeByte(value byte) bool {
+	return value >= 'a' && value <= 'z' ||
+		value >= 'A' && value <= 'Z' ||
+		value >= '0' && value <= '9' ||
+		strings.ContainsRune("_-./:@%+=,", rune(value))
+}
+
 // WithMalformedInputDeny 检测工具输入 JSON 解析失败时拒绝执行，
 // 将错误原因反馈给大模型使其可以重试或纠正，同时前端能看到出错工具调用。
 func WithMalformedInputDeny(handler sdkpermission.Handler) sdkpermission.Handler {

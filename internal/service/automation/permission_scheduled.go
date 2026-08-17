@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	automationPermissionRequiredCode sdkpermission.ErrorCode = "automation_permission_required"
-	automationReauthRequiredCode     sdkpermission.ErrorCode = "automation_connector_reauth_required"
-	automationInputRequiredCode      sdkpermission.ErrorCode = "automation_input_required"
+	automationPermissionRequiredCode   sdkpermission.ErrorCode = "automation_permission_required"
+	automationReauthRequiredCode       sdkpermission.ErrorCode = "automation_connector_reauth_required"
+	automationInputRequiredCode        sdkpermission.ErrorCode = "automation_input_required"
+	automationPermissionPublishTimeout                         = 30 * time.Second
 )
 
 type scheduledPermissionScope struct {
@@ -267,25 +269,22 @@ func (s *Service) blockScheduledPermissionRequest(
 		ctx,
 		automationstore.PermissionRequestCreateInput{
 			Request: automationdomain.AutomationPermissionRequest{
-				RequestID:      s.idFactory("permission"),
-				OwnerUserID:    scope.Job.OwnerUserID,
-				JobID:          scope.Job.JobID,
-				RunID:          scope.RunID,
-				PolicyRevision: scope.Job.PermissionPolicy.Revision,
-				Kind:           kind,
-				Capability:     capability,
-				InputSummary:   summarizePermissionInput(request.Input),
-				Title:          truncatePermissionText(title, 255),
-				Description:    truncatePermissionText(description, 1000),
-				Reason:         truncatePermissionText(reason, 1000),
-				SessionKey:     strings.TrimSpace(scope.SessionKey),
-				DeliverySessionKey: firstNonEmpty(
-					scope.Job.Delivery.SessionKey,
-					scope.Job.Source.SessionKey,
-				),
-				RoundID:    strings.TrimSpace(scope.RoundID),
-				ToolUseID:  strings.TrimSpace(request.ToolUseID),
-				ResumeSafe: !run.EffectStarted,
+				RequestID:          s.idFactory("permission"),
+				OwnerUserID:        scope.Job.OwnerUserID,
+				JobID:              scope.Job.JobID,
+				RunID:              scope.RunID,
+				PolicyRevision:     scope.Job.PermissionPolicy.Revision,
+				Kind:               kind,
+				Capability:         capability,
+				InputSummary:       summarizePermissionInput(request.Input),
+				Title:              truncatePermissionText(title, 255),
+				Description:        truncatePermissionText(description, 1000),
+				Reason:             truncatePermissionText(reason, 1000),
+				SessionKey:         strings.TrimSpace(scope.SessionKey),
+				DeliverySessionKey: automationPermissionRunRecipientSessionKey(scope.Job, *run),
+				RoundID:            strings.TrimSpace(scope.RoundID),
+				ToolUseID:          strings.TrimSpace(request.ToolUseID),
+				ResumeSafe:         !run.EffectStarted,
 			},
 			TaskState:  taskState,
 			BlockState: runBlockState,
@@ -300,24 +299,37 @@ func (s *Service) blockScheduledPermissionRequest(
 	// Agent 停止后续推理；异步精确中断可避免在 permission callback 内自锁。
 	s.stopBlockedPhysicalAttempt(scope.Job, scope.RunID, scope.SessionKey, scope.RoundID)
 	if created {
-		detail := map[string]any{
-			"request_id":   pending.RequestID,
-			"request_kind": pending.Kind,
-			"tool_name":    pending.Capability.ToolName,
-			"connector_id": pending.Capability.ConnectorID,
-			"effect":       pending.Capability.Effect,
-			"resume_safe":  pending.ResumeSafe,
-		}
-		s.recordTaskEvent(
-			contextForJobOwner(ctx, scope.Job),
-			automationdomain.TaskEventActionPermissionRequested,
-			scope.Job,
-			scope.RunID,
-			detail,
-		)
-		s.notifyAutomationPermissionRequest(ctx, scope.Job, *pending)
+		s.publishScheduledPermissionRequest(ctx, scope, *pending)
 	}
 	return sdkpermission.DenyWithErrorCode(reason, errorCode, true), nil
+}
+
+func (s *Service) publishScheduledPermissionRequest(
+	ctx context.Context,
+	scope scheduledPermissionScope,
+	pending automationdomain.AutomationPermissionRequest,
+) {
+	publishCtx, cancelPublish := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		automationPermissionPublishTimeout,
+	)
+	defer cancelPublish()
+	detail := map[string]any{
+		"request_id":   pending.RequestID,
+		"request_kind": pending.Kind,
+		"tool_name":    pending.Capability.ToolName,
+		"connector_id": pending.Capability.ConnectorID,
+		"effect":       pending.Capability.Effect,
+		"resume_safe":  pending.ResumeSafe,
+	}
+	s.recordTaskEvent(
+		contextForJobOwner(publishCtx, scope.Job),
+		automationdomain.TaskEventActionPermissionRequested,
+		scope.Job,
+		scope.RunID,
+		detail,
+	)
+	s.notifyAutomationPermissionRequest(publishCtx, scope.Job, pending)
 }
 
 func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegenDefaultEnabled bool) sdkpermission.Handler {
@@ -332,6 +344,11 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 		if toolpolicy.MatchesItem(toolName, "AskUserQuestion") {
 			return sdkpermission.Deny("后台 heartbeat 不支持交互式确认；请先把必要信息写入配置", true), nil
 		}
+		// Agent-facing CLI 仍经 Bash transport，但 exact contract/inspect 命令的最终
+		// scope 由只读 job/run capability 和 service 收口，不能要求任务获得任意 Bash 权限。
+		if readOnlyAutomationCLIRequest(request) {
+			return sdkpermission.Allow(request.Input, nil), nil
+		}
 		if toolpolicy.Contains(disallowedByAgent, toolName) {
 			return sdkpermission.Deny(fmt.Sprintf("当前 Agent 已禁用工具 %s，后台运行不会自动授权", toolName), false), nil
 		}
@@ -343,4 +360,13 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 		}
 		return sdkpermission.Allow(request.Input, nil), nil
 	}
+}
+
+func readOnlyAutomationCLIRequest(request sdkpermission.Request) bool {
+	action, ok := toolpolicy.NexusAutomationCLIAction(request)
+	if !ok {
+		return false
+	}
+	return action == automationdomain.AutomationCommandActionContract ||
+		action == automationdomain.AutomationCommandActionInspect
 }

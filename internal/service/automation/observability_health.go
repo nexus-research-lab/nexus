@@ -64,7 +64,7 @@ func (s *Service) applyScheduledTaskStateHealth(
 		if job.RunningStartedAt != nil {
 			health.RunningForSeconds = int64(s.nowFn().UTC().Sub(job.RunningStartedAt.UTC()).Seconds())
 		}
-		addTaskHealthSuggestedTool(health, "automation_update")
+		addTaskHealthSuggestedTool(health, runtimeAutomationApplySuggestion)
 	}
 	permissionAttention := taskPermissionNeedsUserAction(job.PermissionState)
 	if permissionAttention {
@@ -133,7 +133,7 @@ func finalizeScheduledTaskHealth(health *automationdomain.ScheduledTaskHealth) {
 	}
 	if health.DeliveryFailedRunCount > 0 || health.DeliveryDeadLetterCount > 0 {
 		addTaskHealthSignal(health, "delivery_attention")
-		addTaskHealthSuggestedTool(health, "automation_update")
+		addTaskHealthSuggestedTool(health, runtimeAutomationApplySuggestion)
 		markScheduledTaskHealthAttention(health)
 	}
 	if health.DeliveryPendingRunCount > 0 {

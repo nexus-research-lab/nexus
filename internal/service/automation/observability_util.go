@@ -7,6 +7,11 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
+const (
+	runtimeAutomationInspectSuggestion = "nexus automation inspect"
+	runtimeAutomationApplySuggestion   = "nexus automation apply"
+)
+
 func deriveTaskRunDeliveryStatus(run automationdomain.ScheduledTaskRun) string {
 	if deliveryStatus := strings.TrimSpace(run.DeliveryStatus); deliveryStatus != "" {
 		return deliveryStatus
@@ -57,7 +62,7 @@ func addTaskHealthSuggestedTool(health *automationdomain.ScheduledTaskHealth, na
 }
 
 func addExecutionRepairSuggestedTools(items *[]string) {
-	addUniqueString(items, "automation_update")
+	addUniqueString(items, runtimeAutomationApplySuggestion)
 }
 
 func addDailyReportTaskRunSignals(task *automationdomain.ScheduledTaskDailyReportItem, run automationdomain.ScheduledTaskRun) {
@@ -75,7 +80,7 @@ func addDailyReportTaskRunSignals(task *automationdomain.ScheduledTaskDailyRepor
 	case automationdomain.DeliveryStatusFailed:
 		addDailyReportTaskSignal(task, "delivery_attention")
 		if !task.Deleted {
-			addDailyReportTaskSuggestedTool(task, "automation_update")
+			addDailyReportTaskSuggestedTool(task, runtimeAutomationApplySuggestion)
 			addUniqueString(&task.ManualRedeliveryRunIDs, run.RunID)
 		}
 		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
@@ -89,7 +94,7 @@ func addDailyReportTaskRunSignals(task *automationdomain.ScheduledTaskDailyRepor
 	if run.DeliveryDeadLetterAt != nil {
 		addDailyReportTaskSignal(task, "delivery_attention")
 		if !task.Deleted {
-			addDailyReportTaskSuggestedTool(task, "automation_update")
+			addDailyReportTaskSuggestedTool(task, runtimeAutomationApplySuggestion)
 		}
 		addUniqueString(&task.DeliveryDeadLetterRunIDs, run.RunID)
 		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
@@ -105,7 +110,7 @@ func addDailyReportTaskSuggestedTool(task *automationdomain.ScheduledTaskDailyRe
 }
 
 func addDailyReportExecutionRepairSuggestedTools(task *automationdomain.ScheduledTaskDailyReportItem) {
-	addDailyReportTaskSuggestedTool(task, "automation_update")
+	addDailyReportTaskSuggestedTool(task, runtimeAutomationApplySuggestion)
 }
 
 func addUniqueString(items *[]string, value string) {
