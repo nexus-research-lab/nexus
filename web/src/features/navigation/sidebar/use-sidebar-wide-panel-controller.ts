@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前路由、鉴权/i18n 状态、侧栏 Store 与面板拖拽动作。
- * OUTPUT: 宽侧栏导航、折叠和退出行为模型。
+ * OUTPUT: 宽侧栏导航、进入聊天时的入口红点确认、折叠和退出行为模型。
  * POS: 纯侧栏控制层；全局聊天完成订阅由 AppLayout 持有，不能下沉到此处。
  */
 "use client";
@@ -39,6 +39,9 @@ export function useSidebarWidePanelController({
   const navigate = useNavigate();
   const activePanelItemId = useSidebarStore((state) => state.active_panel_item_id);
   const chatBadgeCount = useSidebarStore((state) => state.chat_badge_count);
+  const acknowledgeChatTab = useSidebarStore(
+    (state) => state.acknowledge_chat_tab,
+  );
   const setActivePanelItem = useSidebarStore((state) => state.set_active_panel_item);
   const setWidePanelCollapsed = useSidebarStore(
     (state) => state.set_wide_panel_collapsed,
@@ -66,6 +69,12 @@ export function useSidebarWidePanelController({
       setActivePanelItem(nextActiveItemId);
     }
   }, [activePanelItemId, pathname, setActivePanelItem]);
+
+  useEffect(() => {
+    if (activeTab === "chat") {
+      acknowledgeChatTab();
+    }
+  }, [acknowledgeChatTab, activeTab]);
 
   const selectPrimaryTab = useCallback((tab: SidebarPrimaryTab) => {
     const actions: Record<SidebarPrimaryTab, () => void> = {

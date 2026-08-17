@@ -43,6 +43,8 @@ export function useTaskForm(
       const targetType = current.executionKind === "script" ? "agent" : value;
       return clearExecutionSelection(current, {
         executionMode: targetType === "room" ? "existing" : current.executionMode,
+        permissionMode: targetType !== current.targetType ? "copy" : current.permissionMode,
+        selectedAgentId: targetType === "room" ? "" : current.selectedAgentId,
         selectedRoomId: targetType === "room" ? current.selectedRoomId : "",
         targetType,
       });
@@ -69,17 +71,26 @@ export function useTaskForm(
   }, [onChange]);
 
   const setSelectedAgentId = useCallback((value: string) => {
-    setDraft((current) => clearExecutionSelection(current, {
-      permissionMode: value.trim() !== current.selectedAgentId.trim()
-        ? "copy"
-        : current.permissionMode,
-      selectedAgentId: value,
-    }));
+    setDraft((current) => {
+      const patch = {
+        permissionMode: value.trim() !== current.selectedAgentId.trim()
+          ? "copy" as const
+          : current.permissionMode,
+        selectedAgentId: value,
+      };
+      return current.targetType === "room"
+        ? { ...current, ...patch }
+        : clearExecutionSelection(current, patch);
+    });
     onChange();
   }, [onChange]);
 
   const setSelectedRoomId = useCallback((value: string) => {
     setDraft((current) => clearExecutionSelection(current, {
+      permissionMode: value.trim() !== current.selectedRoomId.trim()
+        ? "copy"
+        : current.permissionMode,
+      selectedAgentId: "",
       selectedRoomId: value,
     }));
     onChange();
@@ -94,6 +105,9 @@ export function useTaskForm(
         selectedReplySessionKey: replyMode === "selected"
           ? current.selectedReplySessionKey
           : "",
+        selectedDeliveryPresenterAgentId: replyMode === "selected"
+          ? current.selectedDeliveryPresenterAgentId
+          : "",
       };
     });
     onChange();
@@ -103,6 +117,7 @@ export function useTaskForm(
     setDraft((current) => ({
       ...current,
       deliveryTargetType: value,
+      selectedDeliveryPresenterAgentId: "",
       selectedReplySessionKey: "",
     }));
     onChange();
@@ -112,6 +127,7 @@ export function useTaskForm(
     setDraft((current) => ({
       ...current,
       selectedDeliveryAgentId: value,
+      selectedDeliveryPresenterAgentId: "",
       selectedReplySessionKey: "",
     }));
     onChange();
@@ -121,20 +137,19 @@ export function useTaskForm(
     setDraft((current) => ({
       ...current,
       selectedDeliveryRoomId: value,
+      selectedDeliveryPresenterAgentId: "",
       selectedReplySessionKey: "",
     }));
     onChange();
   }, [onChange]);
 
-  const setSelectedSessionKey = useCallback((value: string, agentId?: string) => {
-    const normalizedAgentId = agentId?.trim() || "";
+  const setSelectedSessionKey = useCallback((value: string) => {
     setDraft((current) => ({
       ...current,
-      permissionMode: normalizedAgentId
-        && normalizedAgentId !== current.selectedAgentId.trim()
+      permissionMode: current.targetType === "room" && current.selectedAgentId
         ? "copy"
         : current.permissionMode,
-      selectedAgentId: normalizedAgentId || current.selectedAgentId,
+      selectedAgentId: current.targetType === "room" ? "" : current.selectedAgentId,
       selectedSessionKey: value,
     }));
     onChange();
@@ -172,10 +187,18 @@ export function useTaskForm(
     setSelectedAgentId,
     setSelectedDeliveryAgentId,
     setSelectedDeliveryRoomId,
-    setSelectedReplySessionKey: (value: string) => setValue(
-      "selectedReplySessionKey",
+    setSelectedDeliveryPresenterAgentId: (value: string) => setValue(
+      "selectedDeliveryPresenterAgentId",
       value,
     ),
+    setSelectedReplySessionKey: (value: string) => {
+      setDraft((current) => ({
+        ...current,
+        selectedDeliveryPresenterAgentId: "",
+        selectedReplySessionKey: value,
+      }));
+      onChange();
+    },
     setSelectedRoomId,
     setSelectedSessionKey,
     setTargetType,
@@ -192,6 +215,7 @@ export function useTaskForm(
     setSelectedSessionKey,
     setTargetType,
     setValue,
+    onChange,
   ]);
 
   return { actions, draft, hydrate };

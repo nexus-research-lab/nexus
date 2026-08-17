@@ -592,6 +592,9 @@ func TestRoomDeliveryRevalidatesCurrentMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("current Room member should grant delivery to that Room: %v", err)
 	}
+	if created.Delivery.AgentID != "agent-1" {
+		t.Fatalf("blank Room reply agent should resolve to host: %+v", created.Delivery)
+	}
 
 	room.contexts = map[string]*protocol.ConversationContextAggregate{
 		"conversation-1": {
@@ -612,5 +615,71 @@ func TestRoomDeliveryRevalidatesCurrentMembership(t *testing.T) {
 	}
 	if calls := delivery.Calls(); len(calls) != 0 {
 		t.Fatalf("revoked Room member reached delivery router: %+v", calls)
+	}
+}
+
+func TestRoomDeliveryPersistsAndUsesIndependentReplyAgent(t *testing.T) {
+	db := newAutomationTestDB(t)
+	delivery := &fakeDeliveryRouter{}
+	room := &fakeRoomRunner{contexts: map[string]*protocol.ConversationContextAggregate{
+		"conversation-1": {
+			Room: protocol.RoomRecord{
+				ID: "room-1", RoomType: protocol.RoomTypeGroup, HostAgentID: "agent-1",
+			},
+			Members: []protocol.MemberRecord{
+				{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-1"},
+				{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-2"},
+			},
+			Conversation: protocol.ConversationRecord{ID: "conversation-1", RoomID: "room-1"},
+			Sessions: []protocol.SessionRecord{
+				{ConversationID: "conversation-1", AgentID: "agent-1", Status: "active"},
+				{ConversationID: "conversation-1", AgentID: "agent-2", Status: "active"},
+			},
+		},
+	}}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		room,
+		nil,
+		nil,
+		delivery,
+	)
+	ownerCtx := automationCommandTestOwnerContext("user-1")
+	roomSession := protocol.BuildRoomSharedSessionKey("conversation-1")
+	created, err := service.CreateTask(ownerCtx, automationdomain.CreateJobInput{
+		Name:        "room-report",
+		AgentID:     "agent-1",
+		Instruction: "send as selected room member",
+		Schedule: automationdomain.Schedule{
+			Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai",
+		},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelWebSocket,
+			To: roomSession, SessionKey: roomSession, AgentID: "agent-2",
+		},
+		Source:  automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("create Room delivery with independent reply agent: %v", err)
+	}
+	if created.AgentID != "agent-1" || created.Delivery.AgentID != "agent-2" {
+		t.Fatalf("execution and reply identities should remain independent: %+v", created)
+	}
+	result := service.deliverJobObservation(
+		ownerCtx,
+		*created,
+		"",
+		automationexec.ExecutionObservation{RunID: "run-1", ResultText: "room result"},
+	)
+	if result.Status != automationdomain.DeliveryStatusSucceeded {
+		t.Fatalf("deliver Room result: %+v", result)
+	}
+	if got := delivery.AgentIDs(); len(got) != 1 || got[0] != "agent-2" {
+		t.Fatalf("Room result projected as agent %q, want agent-2", got)
 	}
 }

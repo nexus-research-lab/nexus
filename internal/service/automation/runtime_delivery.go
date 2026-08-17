@@ -11,6 +11,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -104,7 +105,9 @@ func (s *Service) deliverJobObservationToTarget(
 	if job.Delivery.Normalized().Mode == automationdomain.DeliveryModeNone {
 		return jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
 	}
-	targetSnapshot = targetSnapshot.Normalized()
+	// authorizedDeliveryJobForTarget 保留 run 冻结的 Session 路由，同时补齐并
+	// 复核 Room 的精确回复 Agent；后续投影必须使用该授权后的目标。
+	targetSnapshot = job.Delivery.Normalized()
 	deliveryMode := strings.TrimSpace(targetSnapshot.Mode)
 	deliveryChannel := strings.TrimSpace(targetSnapshot.Channel)
 	deliveryTo := strings.TrimSpace(targetSnapshot.To)
@@ -134,10 +137,15 @@ func (s *Service) deliverJobObservationToTarget(
 	}
 	deliveryCtx := contextForJobOwner(ctx, job)
 	var delivered channels.DeliveryResult
+	deliveryAgentID := strings.TrimSpace(job.AgentID)
+	parsedTargetSession := protocol.ParseSessionKey(target.SessionKey)
+	if parsedTargetSession.Kind == protocol.SessionKeyKindRoom {
+		deliveryAgentID = strings.TrimSpace(targetSnapshot.AgentID)
+	}
 	if enriched, ok := s.delivery.(automationResultDeliveryRouter); ok {
 		delivered, err = enriched.DeliverAutomationResult(
 			deliveryCtx,
-			job.AgentID,
+			deliveryAgentID,
 			text,
 			target,
 			channels.AutomationDeliveryContext{
@@ -153,7 +161,7 @@ func (s *Service) deliverJobObservationToTarget(
 	} else {
 		delivered, err = s.delivery.DeliverMessage(
 			deliveryCtx,
-			job.AgentID,
+			deliveryAgentID,
 			text,
 			target,
 		)

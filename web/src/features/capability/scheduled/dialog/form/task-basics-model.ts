@@ -27,6 +27,10 @@ export interface TaskBasicsData {
   agentOptions: TaskDialogLabelOption[];
   agents: ResourceStatus;
   deliveryRoomOptions: TaskDialogLabelOption[];
+  deliveryRoomAgentOptions: TaskDialogLabelOption[];
+  defaultDeliveryRoomAgentId: string;
+  defaultExecutionRoomAgentId: string;
+  executionRoomAgentOptions: TaskDialogLabelOption[];
   deliverySessionOptions: TaskDialogSessionOption[];
   deliverySessions: ResourceStatus;
   roomOptions: TaskDialogLabelOption[];
@@ -44,10 +48,11 @@ export interface TaskBasicsActions {
   setReplyMode: (value: ReplyMode) => void;
   setSelectedAgentId: (value: string) => void;
   setSelectedDeliveryAgentId: (value: string) => void;
+  setSelectedDeliveryPresenterAgentId: (value: string) => void;
   setSelectedDeliveryRoomId: (value: string) => void;
   setSelectedReplySessionKey: (value: string) => void;
   setSelectedRoomId: (value: string) => void;
-  setSelectedSessionKey: (value: string, agentId?: string) => void;
+  setSelectedSessionKey: (value: string) => void;
   setTargetType: (value: TargetType) => void;
   setTaskName: (value: string) => void;
 }
@@ -145,10 +150,10 @@ function buildSessionCopy(t: Translate): Record<TargetType, SessionCopy> {
       label: t("capability.scheduled_dialog_execution_session"),
     },
     room: {
-      ariaLabel: t("capability.scheduled_dialog_select_execution_member"),
+      ariaLabel: t("capability.scheduled_dialog_select_execution_session"),
       emptyMessage: t("capability.scheduled_dialog_no_room_sessions"),
-      emptyPlaceholder: t("capability.scheduled_dialog_select_member"),
-      label: t("capability.scheduled_dialog_execution_member"),
+      emptyPlaceholder: t("capability.scheduled_dialog_select_session"),
+      label: t("capability.scheduled_dialog_execution_session"),
     },
   };
 }

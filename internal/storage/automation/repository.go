@@ -50,6 +50,7 @@ INSERT INTO automation_scheduled_tasks (
     delivery_account_id,
     delivery_thread_id,
     delivery_session_key,
+    delivery_agent_id,
     session_binding_state,
     invalidated_session_keys_json,
     source_kind,
@@ -94,6 +95,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     delivery_account_id = EXCLUDED.delivery_account_id,
     delivery_thread_id = EXCLUDED.delivery_thread_id,
     delivery_session_key = EXCLUDED.delivery_session_key,
+    delivery_agent_id = EXCLUDED.delivery_agent_id,
     session_binding_state = EXCLUDED.session_binding_state,
     invalidated_session_keys_json = EXCLUDED.invalidated_session_keys_json,
     source_kind = EXCLUDED.source_kind,
@@ -121,7 +123,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
-	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(39))
+	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(40))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_task_runs (
     run_id,

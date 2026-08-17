@@ -211,11 +211,42 @@ function TaskExecutionSessionField({
   return (
     <TaskSessionField
       id="task-session-key"
-      onChange={(value) => actions.setSelectedSessionKey(
-        value,
-        data.sessionOptions.find((option) => option.value === value)?.agentId,
-      )}
+      onChange={actions.setSelectedSessionKey}
       presentation={presentation}
+    />
+  );
+}
+
+function TaskRoomAgentField({
+  actions,
+  data,
+  form,
+}: TaskBasicsAdvancedProps) {
+  const { t } = useI18n();
+  if (form.targetType !== "room" || !form.selectedSessionKey) {
+    return null;
+  }
+  const defaultLabel = data.defaultExecutionRoomAgentId
+    ? t("capability.scheduled_dialog_default_room_host")
+    : t("capability.scheduled_dialog_select_room_agent");
+  return (
+    <TaskSessionField
+      id="task-execution-room-agent"
+      onChange={actions.setSelectedAgentId}
+      presentation={{
+        ariaLabel: t("capability.scheduled_dialog_select_room_agent"),
+        description: data.executionRoomAgentOptions.length === 0
+          ? t("capability.scheduled_dialog_no_room_agents")
+          : t("capability.scheduled_dialog_room_agent_default_help"),
+        disabled: data.executionRoomAgentOptions.length === 0,
+        error: null,
+        label: t("capability.scheduled_dialog_execution_agent"),
+        options: [
+          { label: defaultLabel, value: "" },
+          ...data.executionRoomAgentOptions,
+        ],
+        value: form.selectedAgentId,
+      }}
     />
   );
 }
@@ -234,6 +265,42 @@ function TaskReplySessionField({
       id="task-reply-session-key"
       onChange={actions.setSelectedReplySessionKey}
       presentation={buildReplySessionPresentation(form, data, t)}
+    />
+  );
+}
+
+function TaskDeliveryRoomAgentField({
+  actions,
+  data,
+  form,
+}: TaskBasicsAdvancedProps) {
+  const { t } = useI18n();
+  if (form.replyMode !== "selected"
+    || form.deliveryTargetType !== "room"
+    || !form.selectedReplySessionKey) {
+    return null;
+  }
+  const defaultLabel = data.defaultDeliveryRoomAgentId
+    ? t("capability.scheduled_dialog_default_room_host")
+    : t("capability.scheduled_dialog_select_room_agent");
+  return (
+    <TaskSessionField
+      id="task-delivery-room-agent"
+      onChange={actions.setSelectedDeliveryPresenterAgentId}
+      presentation={{
+        ariaLabel: t("capability.scheduled_dialog_select_delivery_room_agent"),
+        description: data.deliveryRoomAgentOptions.length === 0
+          ? t("capability.scheduled_dialog_no_room_agents")
+          : t("capability.scheduled_dialog_delivery_room_agent_help"),
+        disabled: data.deliveryRoomAgentOptions.length === 0,
+        error: null,
+        label: t("capability.scheduled_dialog_delivery_room_agent"),
+        options: [
+          { label: defaultLabel, value: "" },
+          ...data.deliveryRoomAgentOptions,
+        ],
+        value: form.selectedDeliveryPresenterAgentId,
+      }}
     />
   );
 }
@@ -263,6 +330,7 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
       <TaskDeliveryTargetTypeField actions={actions} form={form} />
       <TaskDeliveryTargetField {...props} />
       <TaskReplySessionField {...props} />
+      <TaskDeliveryRoomAgentField {...props} />
     </>
   );
 }
@@ -338,6 +406,7 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
       <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
         <TaskExecutionModeField actions={actions} form={form} isEditing={props.isEditing} />
         <TaskExecutionSessionField {...props} />
+        <TaskRoomAgentField {...props} />
       </div>
 
       <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">

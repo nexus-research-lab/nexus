@@ -18,7 +18,6 @@ import {
   getDefaultTimezone,
 } from "../schedule/task-schedule-model";
 import {
-  buildRoomExecutorSelectionKey,
   isoToZonedLocalInput,
   parseDailyCronExpression,
 } from "../schedule/task-schedule-time";
@@ -49,23 +48,17 @@ type TaskReplyInitialState = Pick<
   | "deliveryTargetType"
   | "replyMode"
   | "selectedDeliveryAgentId"
+  | "selectedDeliveryPresenterAgentId"
   | "selectedDeliveryRoomId"
   | "selectedReplySessionKey"
 >;
 
-function buildRoomExecutorSelectionFromSessionKey(
-  sessionKey: string,
-  agentId: string,
-): string {
+function buildRoomSharedSelectionFromSessionKey(sessionKey: string): string {
   const parsed = parseSessionKey(sessionKey);
-  let sharedSessionKey = sessionKey;
   if (parsed.kind === "agent" && parsed.ref) {
-    sharedSessionKey = buildRoomSharedSessionKey(parsed.ref);
+    return buildRoomSharedSessionKey(parsed.ref);
   }
-  if (!sharedSessionKey.trim() || !agentId.trim()) {
-    return "";
-  }
-  return buildRoomExecutorSelectionKey(sharedSessionKey, agentId);
+  return parsed.kind === "room" ? sessionKey : "";
 }
 
 function executionSessionKey(task: ScheduledTaskItem): string {
@@ -73,13 +66,6 @@ function executionSessionKey(task: ScheduledTaskItem): string {
     return task.session_target.bound_session_key;
   }
   return "";
-}
-
-function buildRoomTaskExecutorSelectionKey(task: ScheduledTaskItem): string {
-  return buildRoomExecutorSelectionFromSessionKey(
-    executionSessionKey(task),
-    task.agent_id,
-  );
 }
 
 function namedSessionKey(task: ScheduledTaskItem): string {
@@ -119,7 +105,9 @@ function buildRoomTargetInitialState(
     executionMode: "existing",
     selectedAgentId: task.agent_id,
     selectedRoomId: "",
-    selectedSessionKey: buildRoomTaskExecutorSelectionKey(task),
+    selectedSessionKey: buildRoomSharedSelectionFromSessionKey(
+      executionSessionKey(task),
+    ),
     targetType: "room",
   };
 }
@@ -216,19 +204,24 @@ function deliveryTargetInitialState(
   task: ScheduledTaskItem,
 ): Pick<
   TaskReplyInitialState,
-  "deliveryTargetType" | "selectedDeliveryAgentId" | "selectedDeliveryRoomId"
+  | "deliveryTargetType"
+  | "selectedDeliveryAgentId"
+  | "selectedDeliveryPresenterAgentId"
+  | "selectedDeliveryRoomId"
 > {
   const parsed = parseSessionKey(rawDeliverySessionKey(task));
   if (parsed.kind === "room") {
     return {
       deliveryTargetType: "room",
       selectedDeliveryAgentId: "",
+      selectedDeliveryPresenterAgentId: task.delivery.agent_id?.trim() || "",
       selectedDeliveryRoomId: "",
     };
   }
   return {
     deliveryTargetType: "agent",
     selectedDeliveryAgentId: parsed.agent_id || task.agent_id,
+    selectedDeliveryPresenterAgentId: "",
     selectedDeliveryRoomId: "",
   };
 }
@@ -253,6 +246,7 @@ function buildScriptReplyInitialState(): TaskReplyInitialState {
     deliveryTargetType: "agent",
     replyMode: "none",
     selectedDeliveryAgentId: "",
+    selectedDeliveryPresenterAgentId: "",
     selectedDeliveryRoomId: "",
     selectedReplySessionKey: "",
   };
@@ -347,6 +341,7 @@ export function buildDefaultTaskDialogInitialState(
       replyMode: "none",
       selectedAgentId: agentId,
       selectedDeliveryAgentId: agentId,
+      selectedDeliveryPresenterAgentId: "",
       selectedDeliveryRoomId: "",
       selectedReplySessionKey: "",
       selectedRoomId: "",

@@ -29,7 +29,6 @@ export interface TaskDialogLabelOption {
 }
 
 export interface TaskDialogSessionOption extends TaskDialogLabelOption {
-  agentId: string;
   sessionKey: string;
 }
 
@@ -45,6 +44,7 @@ export interface TaskFormDraft {
   replyMode: ReplyMode;
   selectedAgentId: string;
   selectedDeliveryAgentId: string;
+  selectedDeliveryPresenterAgentId: string;
   selectedDeliveryRoomId: string;
   selectedReplySessionKey: string;
   selectedRoomId: string;
