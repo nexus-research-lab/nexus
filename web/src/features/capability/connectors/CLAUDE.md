@@ -3,6 +3,7 @@
 - 根目录只保留目录入口和跨 catalog/detail 使用的图标。
 - `model/` 负责 catalog 与 detail 共享的连接状态和动作语义。
 - `catalog/` 负责搜索、分组和连接器列表。
+- `custom/` 负责 owner 级自定义 MCP 的脱敏表单、目录与 CRUD 状态；远程认证只展示无认证、Bearer Token 与自定义请求头。
 - 目录卡片复用能力域共享的可见边框与三列间距，品牌图标继续由 `ConnectorIcon` 统一渲染。
 - `detail/` 负责详情状态、主动作与能力展示。
 - `auth/` 负责 OAuth、Device Flow、直接凭证和附加认证信息。
@@ -10,3 +11,4 @@
 - 配置弹窗使用判别联合状态；异步命令共享唯一互斥入口。
 - 连接命令通过 Auth 控制器请求附加输入，不得在命令函数内创建临时 React Root。
 - 原始连接器字段只允许由共享状态模型解释，列表和详情不得各自维护状态分支。
+- 自定义 MCP 作为动态 Connector 暴露，启用状态继续复用 Agent/Session 的 `connector_ids`。

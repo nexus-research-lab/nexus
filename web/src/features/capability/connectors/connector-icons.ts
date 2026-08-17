@@ -4,6 +4,7 @@
 
 /** 首字母缩写 */
 const CONNECTOR_ICON_LETTERS: Record<string, string> = {
+  "custom-mcp": "MCP",
   gmail: "G",
   "x-twitter": "𝕏",
   linkedin: "in",
