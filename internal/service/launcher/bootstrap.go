@@ -2,18 +2,25 @@ package launcher
 
 import (
 	"context"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
+const slowBootstrapLogThreshold = 500 * time.Millisecond
+
 // Bootstrap 幂等保证主智能体默认聊天存在，并返回 Launcher 首屏最小必要数据。
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
+	startedAt := time.Now()
+	agentsStartedAt := time.Now()
 	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
 		return BootstrapResponse{}, err
 	}
+	agentsDuration := time.Since(agentsStartedAt)
 	mainAgentID := ""
 	for _, agentValue := range agents {
 		if agentValue.IsMain {
@@ -24,13 +31,17 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	if mainAgentID == "" {
 		return BootstrapResponse{}, agentsvc.ErrAgentNotFound
 	}
+	ensureDirectRoomStartedAt := time.Now()
 	if _, err = s.roomService.EnsureDirectRoom(ctx, mainAgentID); err != nil {
 		return BootstrapResponse{}, err
 	}
+	ensureDirectRoomDuration := time.Since(ensureDirectRoomStartedAt)
+	roomsStartedAt := time.Now()
 	rooms, err := s.roomService.ListRooms(ctx, 200)
 	if err != nil {
 		return BootstrapResponse{}, err
 	}
+	roomsDuration := time.Since(roomsStartedAt)
 
 	agentItems := make([]BootstrapAgent, 0, len(agents))
 	agentByID := make(map[string]protocol.Agent, len(agents))
@@ -64,12 +75,30 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	}
 
 	conversationItems := make([]BootstrapConversation, 0)
+	var sessionsDuration time.Duration
 	if s.session != nil {
-		sessions, listErr := s.session.ListSessions(ctx)
+		sessionsStartedAt := time.Now()
+		sessions, listErr := s.session.ListDirectorySessions(ctx)
+		sessionsDuration = time.Since(sessionsStartedAt)
 		if listErr != nil {
 			return BootstrapResponse{}, listErr
 		}
 		conversationItems = buildBootstrapConversations(sessions, roomTypeByID)
+	}
+	duration := time.Since(startedAt)
+	if duration >= slowBootstrapLogThreshold {
+		slog.InfoContext(
+			ctx,
+			"Launcher bootstrap 慢查询",
+			"duration_ms", duration.Milliseconds(),
+			"agents_ms", agentsDuration.Milliseconds(),
+			"ensure_dm_ms", ensureDirectRoomDuration.Milliseconds(),
+			"rooms_ms", roomsDuration.Milliseconds(),
+			"sessions_ms", sessionsDuration.Milliseconds(),
+			"agent_count", len(agents),
+			"room_count", len(roomItems),
+			"conversation_count", len(conversationItems),
+		)
 	}
 
 	return BootstrapResponse{

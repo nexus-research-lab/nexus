@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Stopped desktop focus changes from repeatedly rescanning the full chat directory, refreshed it once after WebSocket reconnection instead of on a fixed timer, reused the shared snapshot on Launcher, and skipped unused external IM identity and task-reference queries during bootstrap.
 - Retried Windows orphan-sidecar termination when process-tree cleanup fails, and tolerated safe atomic session metadata replacement while listing conversations.
 - Kept launcher and sidebar directory loading independent of full conversation history, surfaced retryable directory failures instead of false empty states, and stopped benign ResizeObserver warnings from polluting desktop fatal diagnostics.
 - Routed isolated runtime interrupts, shutdown, and same-session descendant cleanup through the trusted launcher instead of relying on cross-UID parent signals.

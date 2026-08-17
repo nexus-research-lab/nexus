@@ -9,7 +9,7 @@ import type {
   LauncherRoomSummary,
 } from "@/types/app/launcher";
 
-const DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS = 120_000;
+const DIRECTORY_PASSIVE_REFRESH_STALE_MS = 120_000;
 
 export interface HomeDirectorySnapshot {
   agents: LauncherAgentSummary[];
@@ -31,6 +31,7 @@ let snapshot: HomeDirectorySnapshot = {
 };
 let refreshPromise: Promise<void> | null = null;
 let refreshQueued = false;
+let lastSuccessfulRefreshAt = 0;
 let stopTriggers: (() => void) | null = null;
 
 export function useHomeDirectory(): HomeDirectorySnapshot {
@@ -53,6 +54,7 @@ export function refreshHomeDirectory(): void {
 
   refreshPromise = getLauncherBootstrapApi()
     .then((payload) => {
+      lastSuccessfulRefreshAt = Date.now();
       replaceSnapshot({
         agents: payload.agents,
         conversations: payload.conversations,
@@ -72,6 +74,16 @@ export function refreshHomeDirectory(): void {
         refreshHomeDirectory();
       }
     });
+}
+
+function refreshHomeDirectoryIfStale(): void {
+  if (
+    refreshPromise ||
+    Date.now() - lastSuccessfulRefreshAt < DIRECTORY_PASSIVE_REFRESH_STALE_MS
+  ) {
+    return;
+  }
+  refreshHomeDirectory();
 }
 
 function subscribeHomeDirectory(listener: DirectoryListener): () => void {
@@ -112,21 +124,16 @@ function startDirectoryTriggers(): () => void {
 
   const refreshIfVisible = () => {
     if (document.visibilityState !== "hidden") {
-      refreshHomeDirectory();
+      refreshHomeDirectoryIfStale();
     }
   };
   const unsubscribeRoomDirectory = subscribeRoomDirectoryUpdates(refreshHomeDirectory);
-  const intervalId = window.setInterval(
-    refreshIfVisible,
-    DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS,
-  );
   window.addEventListener("focus", refreshIfVisible);
   window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshHomeDirectory);
   document.addEventListener("visibilitychange", refreshIfVisible);
 
   return () => {
     unsubscribeRoomDirectory();
-    window.clearInterval(intervalId);
     window.removeEventListener("focus", refreshIfVisible);
     window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshHomeDirectory);
     document.removeEventListener("visibilitychange", refreshIfVisible);

@@ -11,9 +11,11 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 type fakeExternalSessionIdentityResolver struct {
+	calls   int
 	current bool
 }
 
@@ -92,6 +94,7 @@ func (f *fakeExternalSessionIdentityResolver) ResolveExternalSessionIdentity(
 	string,
 	string,
 ) (*protocol.ExternalSessionIdentity, error) {
+	f.calls++
 	return &protocol.ExternalSessionIdentity{
 		ChannelType:    protocol.SessionChannelWeixinPersonal,
 		AccountHint:    "A1B2C3",
@@ -103,6 +106,7 @@ func (f *fakeExternalSessionIdentityResolver) ResolveExternalSessionIdentity(
 }
 
 type fakeSessionTaskReferenceResolver struct {
+	calls int
 	count int
 }
 
@@ -111,11 +115,88 @@ func (f *fakeSessionTaskReferenceResolver) CountTasksReferencingSessions(
 	_ string,
 	sessionKeys []string,
 ) (map[string]int, error) {
+	f.calls++
 	result := make(map[string]int, len(sessionKeys))
 	for _, sessionKey := range sessionKeys {
 		result[sessionKey] = f.count
 	}
 	return result, nil
+}
+
+func TestDirectorySessionsSkipExternalIdentityProjectionAndRuntimeWrites(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+	agentService, db := newSessionTestAgentService(t, cfg)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService.SetRuntimeManager(runtimectx.NewManager())
+
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "目录投影助手"})
+	if err != nil {
+		t.Fatalf("创建 Agent: %v", err)
+	}
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWeixinPersonal,
+		"dm",
+		"account-current",
+		"contact-a",
+		"",
+	)
+	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{
+		SessionKey: sessionKey,
+		Title:      "微信联系人甲",
+	})
+	if err != nil {
+		t.Fatalf("创建 IM Session: %v", err)
+	}
+	created.Status = "active"
+	created.IsActive = true
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	if _, err = store.UpsertSession(agentValue.WorkspacePath, *created); err != nil {
+		t.Fatalf("写入活跃 Session: %v", err)
+	}
+
+	identityResolver := &fakeExternalSessionIdentityResolver{current: true}
+	taskResolver := &fakeSessionTaskReferenceResolver{}
+	sessionService.SetExternalSessionIdentityResolver(identityResolver)
+	sessionService.SetTaskReferenceResolver(taskResolver)
+
+	items, err := sessionService.ListDirectorySessions(ctx)
+	if err != nil {
+		t.Fatalf("读取目录 Session: %v", err)
+	}
+	item := findSessionByKey(items, sessionKey)
+	if item == nil || item.ExternalIdentity != nil || item.Status != "closed" || item.IsActive {
+		t.Fatalf("目录 Session 投影不正确: %+v", item)
+	}
+	if identityResolver.calls != 0 || taskResolver.calls != 0 {
+		t.Fatalf(
+			"目录查询不应读取外部身份或任务引用: identity=%d tasks=%d",
+			identityResolver.calls,
+			taskResolver.calls,
+		)
+	}
+	persisted, _, err := store.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
+	if err != nil || persisted == nil || persisted.Status != "active" || !persisted.IsActive {
+		t.Fatalf("目录查询不应写回运行态: item=%+v err=%v", persisted, err)
+	}
+
+	items, err = sessionService.ListSessions(ctx)
+	if err != nil {
+		t.Fatalf("读取完整 Session: %v", err)
+	}
+	item = findSessionByKey(items, sessionKey)
+	if item == nil || item.ExternalIdentity == nil {
+		t.Fatalf("完整 Session 查询应保留外部身份: %+v", item)
+	}
+	if identityResolver.calls != 1 || taskResolver.calls != 1 {
+		t.Fatalf(
+			"完整查询应读取一次外部身份和任务引用: identity=%d tasks=%d",
+			identityResolver.calls,
+			taskResolver.calls,
+		)
+	}
 }
 
 func TestExternalSessionIdentityAndDeletionUsePairingAndTaskFacts(t *testing.T) {
