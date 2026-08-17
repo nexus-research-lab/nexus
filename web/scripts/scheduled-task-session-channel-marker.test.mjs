@@ -19,6 +19,33 @@ test.after(async () => {
   await server.close();
 });
 
+test("scheduled task run history shows one canonical result", async () => {
+  const { getRunOutputSections } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/history/scheduled-task-run-diagnostic-model.ts",
+  );
+  const run = {
+    assistant_text: "assistant answer",
+    delivery_error: null,
+    error_message: null,
+    result_summary: "runtime result",
+    result_text: "runtime result",
+  };
+
+  assert.deepEqual(getRunOutputSections(run), [{
+    content: "runtime result",
+    label: undefined,
+    tone: "default",
+  }]);
+  assert.deepEqual(getRunOutputSections({
+    ...run,
+    result_text: " ",
+  }), [{
+    content: "assistant answer",
+    label: undefined,
+    tone: "default",
+  }]);
+});
+
 test("scheduled tasks reconcile once after socket connection without fallback polling", async () => {
   const source = await readFile(
     path.join(webRoot, "src/features/capability/scheduled/use-scheduled-task-realtime-refresh.ts"),

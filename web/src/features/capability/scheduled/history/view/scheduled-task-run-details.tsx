@@ -3,6 +3,7 @@
 import { Copy } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 
 import {
@@ -26,7 +27,10 @@ export function ScheduledTaskRunDetails({
   const outputSections = getRunOutputSections(run);
   return (
     <>
-      <details className="mt-3 text-xs text-(--text-muted)">
+      {outputSections.map((section, index) => (
+        <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} />
+      ))}
+      <details className="mt-4 text-xs text-(--text-muted)">
         <summary className="cursor-pointer list-none font-medium text-(--text-default) hover:text-(--text-strong)">
           诊断详情
         </summary>
@@ -46,33 +50,35 @@ export function ScheduledTaskRunDetails({
           </button>
         </div>
       </details>
-      {outputSections.map((section, index) => (
-        <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} />
-      ))}
     </>
   );
 }
 
 function RunOutput({ section }: { section: RunOutputSection }) {
+  if (section.tone === "default") {
+    return (
+      <div className="mt-3 min-w-0 text-sm text-(--text-default)">
+        {section.label ? (
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+            {section.label}
+          </p>
+        ) : null}
+        <UiMarkdownContent
+          className={cn("text-sm", section.label && "mt-2")}
+          content={section.content}
+          mermaidShowHeader={false}
+        />
+      </div>
+    );
+  }
   return (
-    <div className={cn(
-      "mt-3 rounded-[8px] border px-3 py-2.5 text-sm",
-      section.tone === "danger"
-        ? "border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] text-(--destructive)"
-        : "border-(--divider-subtle-color) text-(--text-default)",
-    )}>
+    <div className="mt-3 min-w-0 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-3 py-2.5 text-sm text-(--destructive)">
       {section.label ? (
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
           {section.label}
         </p>
       ) : null}
-      {section.label ? (
-        <pre className="mt-2 max-h-64 whitespace-pre-wrap break-words leading-5">
-          {section.content}
-        </pre>
-      ) : (
-        <p className="leading-5">{section.content}</p>
-      )}
+      <p className="whitespace-pre-wrap break-words leading-5">{section.content}</p>
     </div>
   );
 }

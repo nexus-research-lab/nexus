@@ -59,7 +59,15 @@ const optionalDatetime = (value: number | null): string | null => (
 
 function assistantText(run: ScheduledTaskRunItem): string | null {
   const content = run.assistant_text?.trim();
-  return content && content !== (run.result_text ?? "").trim() ? run.assistant_text ?? null : null;
+  return content && ![run.result_text, run.result_summary].some((value) => (
+    content === value?.trim()
+  )) ? run.assistant_text ?? null : null;
+}
+
+function primaryResultText(run: ScheduledTaskRunItem): string | null {
+  return [run.result_text, run.assistant_text, run.result_summary].find((value) => (
+    Boolean(value?.trim())
+  )) ?? null;
 }
 
 const RUN_DIAGNOSTIC_ROW_DEFINITIONS: readonly RunDiagnosticRowDefinition[] = [
@@ -88,9 +96,7 @@ const RUN_OUTPUT_SECTION_DEFINITIONS: readonly RunOutputSectionDefinition[] = [
     content: (run) => run.delivery_error ? `投递失败：${run.delivery_error}` : null,
     tone: "danger",
   },
-  { content: (run) => optionalText(run.result_summary), tone: "default" },
-  { content: (run) => optionalText(run.result_text), label: "运行输出", tone: "default" },
-  { content: assistantText, label: "助手回复", tone: "default" },
+  { content: primaryResultText, tone: "default" },
 ];
 
 const DIAGNOSTIC_COPY_FIELD_DEFINITIONS: readonly DiagnosticCopyFieldDefinition[] = [
