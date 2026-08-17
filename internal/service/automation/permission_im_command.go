@@ -245,11 +245,7 @@ func permissionIMRequestMatchesIngress(
 			strings.TrimSpace(job.PendingPermissionRequestID) != strings.TrimSpace(request.RequestID)) {
 		return false
 	}
-	deliverySessionKey := firstNonEmpty(
-		request.DeliverySessionKey,
-		job.Delivery.SessionKey,
-		job.Source.SessionKey,
-	)
+	deliverySessionKey := automationPermissionRequestRecipientSessionKey(request)
 	return deliverySessionKey != "" && deliverySessionKey == strings.TrimSpace(ingress.SessionKey)
 }
 
@@ -266,7 +262,7 @@ func (s *Service) validatePermissionIMPairing(
 		ctx,
 		ingress.OwnerUserID,
 		job.AgentID,
-		firstNonEmpty(request.DeliverySessionKey, job.Delivery.SessionKey, job.Source.SessionKey),
+		automationPermissionRequestRecipientSessionKey(request),
 	)
 }
 

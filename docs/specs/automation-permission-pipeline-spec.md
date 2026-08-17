@@ -110,6 +110,8 @@ Automation 权限、重新连接、缺少输入、拒绝、恢复失败和投递
 
 权限请求一旦与 run 阻塞状态原子持久化，`permission_requested` 审计、Nexus Session 事件和外部 IM 控制通知就是已受理副作用。中断当前 physical attempt 后，这三项必须在保留 owner principal 的有界 `context.WithoutCancel` 上完成；物理 round 的 cancellation 不能撤销已持久化请求的通知。DeliveryGrant 仍在 detached context 中实时复验，真实失效与 context cancellation 必须使用不同诊断。
 
+每条持久权限请求在创建时冻结唯一审批 Session：优先使用该 run 开始时固化的结果接收 Session；没有结果接收 Session 时才使用任务来源 Session；两者都不存在时只保留 Automation 看板审批。后续实时通知、WebSocket 重放、Composer 决策和 IM Slash 都只消费请求中冻结的 SessionKey，不能按任务最新配置重新猜路由。有效的 Nexus Agent、Room 与 active-paired 外部 IM Session 都必须收到同一 `permission_request` 投影；外部 IM 另外发送 `/y`、`/a`、`/d` transport 通知。浏览器在外部 IM Session 上处理该持久卡片只解析 exact request，不注入聊天 Slash，也不得改写外部投递 route。
+
 Nexus 内部 DM/Room 不使用 IM Slash 命令承载 Automation 审批。工具与存量脚本请求复用 Composer 权限确认面，直接提供“允许本次”“此任务始终允许”和“拒绝”；Connector 重新连接与缺少执行输入仍由能力面板完成相应配置动作。
 
 ## IM 结果投递

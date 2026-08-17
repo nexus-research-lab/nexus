@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -238,6 +239,204 @@ func TestAutomationPermissionProjectsToConfiguredRoom(t *testing.T) {
 	}
 }
 
+func TestAutomationPermissionProjectsToExternalRecipientSession(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		permissionctx.NewContext(),
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	recipientSession := protocol.BuildAgentAccountSessionKey(
+		"agent-recipient",
+		protocol.SessionChannelWeixinPersonal,
+		protocol.RoomTypeDM,
+		"account-1",
+		"user-1",
+		"",
+	)
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
+		recipientSession: {
+			SessionKey:  recipientSession,
+			AgentID:     "agent-recipient",
+			ChannelType: protocol.SessionChannelWeixinPersonal,
+			ChatType:    protocol.RoomTypeDM,
+			ExternalIdentity: &protocol.ExternalSessionIdentity{
+				ChannelType:    protocol.SessionChannelWeixinPersonal,
+				PairingStatus:  "active",
+				CurrentPairing: true,
+			},
+		},
+	}})
+	recorder := &automationPermissionEventRecorder{}
+	service.SetPermissionSessionEventNotifier(recorder)
+	ownerCtx := automationCommandTestOwnerContext("user-1")
+	job := automationdomain.ScheduledTask{
+		JobID:       "task-external-recipient",
+		OwnerUserID: "user-1",
+		Name:        "外部 IM 收件任务",
+		AgentID:     "agent-executor",
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:       automationdomain.DeliveryModeLast,
+			SessionKey: recipientSession,
+		},
+		Source: automationdomain.Source{
+			Kind:       automationdomain.SourceKindUserPage,
+			SessionKey: protocol.BuildAgentSessionKey("agent-executor", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "source", ""),
+		},
+		PermissionPolicy: automationdomain.TaskPermissionPolicy{
+			Version: taskPermissionPolicyVersion, Revision: 1,
+		},
+		PermissionState: automationdomain.TaskPermissionStateReady,
+	}
+	job, request := persistAutomationPermissionSessionFixture(
+		t, service, ownerCtx, job, "permission-external-recipient",
+	)
+	service.publishScheduledPermissionRequest(ownerCtx, scheduledPermissionScope{
+		Job: job, RunID: request.RunID,
+	}, request)
+
+	events := recorder.snapshot()
+	if request.DeliverySessionKey != recipientSession || len(events) != 1 ||
+		events[0].SessionKey != recipientSession || events[0].AgentID != "agent-recipient" ||
+		events[0].EventType != protocol.EventTypePermissionRequest {
+		t.Fatalf("external recipient permission event = %+v, request = %+v", events, request)
+	}
+	replayed, err := service.ListSessionPermissionEvents(ownerCtx, recipientSession)
+	if err != nil || len(replayed) != 1 || replayed[0].Data["request_id"] != request.RequestID {
+		t.Fatalf("external recipient replay = %+v, %v", replayed, err)
+	}
+}
+
+func TestAutomationPermissionRejectsInactiveExternalRecipientSession(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		permissionctx.NewContext(),
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	recipientSession := protocol.BuildAgentAccountSessionKey(
+		"agent-recipient",
+		protocol.SessionChannelWeixinPersonal,
+		protocol.RoomTypeDM,
+		"account-1",
+		"user-1",
+		"",
+	)
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
+		recipientSession: {
+			SessionKey:  recipientSession,
+			AgentID:     "agent-recipient",
+			ChannelType: protocol.SessionChannelWeixinPersonal,
+			ChatType:    protocol.RoomTypeDM,
+			ExternalIdentity: &protocol.ExternalSessionIdentity{
+				ChannelType:    protocol.SessionChannelWeixinPersonal,
+				PairingStatus:  "revoked",
+				CurrentPairing: false,
+			},
+		},
+	}})
+
+	_, recognized, err := service.resolveAutomationPermissionSessionRoute(
+		automationCommandTestOwnerContext("user-1"),
+		automationdomain.ScheduledTask{AgentID: "agent-executor"},
+		automationdomain.AutomationPermissionRequest{DeliverySessionKey: recipientSession},
+	)
+	if !recognized || !errors.Is(err, automationdomain.ErrTaskDeliverySessionUnavailable) {
+		t.Fatalf("inactive external recipient route recognized = %v, err = %v", recognized, err)
+	}
+}
+
+func TestAutomationPermissionApprovalSessionPrefersRunRecipientThenSource(t *testing.T) {
+	recipientAtRunStart := protocol.BuildAgentSessionKey(
+		"agent-recipient", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "recipient-at-start", "",
+	)
+	currentRecipient := protocol.BuildAgentSessionKey(
+		"agent-recipient", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "recipient-current", "",
+	)
+	sourceSession := protocol.BuildAgentSessionKey(
+		"agent-executor", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "source", "",
+	)
+	job := automationdomain.ScheduledTask{
+		Delivery: automationdomain.DeliveryTarget{
+			Mode: automationdomain.DeliveryModeExplicit, SessionKey: currentRecipient,
+		},
+		Source: automationdomain.Source{SessionKey: sourceSession},
+	}
+	run := automationdomain.ScheduledTaskRun{DeliveryTarget: &automationdomain.DeliveryTarget{
+		Mode: automationdomain.DeliveryModeExplicit, SessionKey: recipientAtRunStart,
+	}}
+	if got := automationPermissionRunRecipientSessionKey(job, run); got != recipientAtRunStart {
+		t.Fatalf("run recipient = %q, want frozen %q", got, recipientAtRunStart)
+	}
+	run.DeliveryTarget = &automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}
+	if got := automationPermissionRunRecipientSessionKey(job, run); got != sourceSession {
+		t.Fatalf("no-recipient approval session = %q, want source %q", got, sourceSession)
+	}
+	job.Source.SessionKey = ""
+	if got := automationPermissionRunRecipientSessionKey(job, run); got != "" {
+		t.Fatalf("approval session without recipient or source = %q", got)
+	}
+}
+
+func TestAutomationPermissionUsesSourceSessionWhenRecipientIsMissing(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		permissionctx.NewContext(),
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	sourceSession := protocol.BuildAgentSessionKey(
+		"agent-executor", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "source-fallback", "",
+	)
+	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
+		sourceSession: {
+			SessionKey: sourceSession,
+			AgentID:    "agent-executor",
+		},
+	}})
+	recorder := &automationPermissionEventRecorder{}
+	service.SetPermissionSessionEventNotifier(recorder)
+	ownerCtx := automationCommandTestOwnerContext("user-1")
+	job := automationdomain.ScheduledTask{
+		JobID:       "task-source-fallback",
+		OwnerUserID: "user-1",
+		Name:        "来源会话审批兜底",
+		AgentID:     "agent-executor",
+		Delivery:    automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Source: automationdomain.Source{
+			Kind: automationdomain.SourceKindUserPage, SessionKey: sourceSession,
+		},
+		PermissionPolicy: automationdomain.TaskPermissionPolicy{
+			Version: taskPermissionPolicyVersion, Revision: 1,
+		},
+		PermissionState: automationdomain.TaskPermissionStateReady,
+	}
+	job, request := persistAutomationPermissionSessionFixture(
+		t, service, ownerCtx, job, "permission-source-fallback",
+	)
+	service.publishScheduledPermissionRequest(ownerCtx, scheduledPermissionScope{
+		Job: job, RunID: request.RunID,
+	}, request)
+
+	events := recorder.snapshot()
+	if request.DeliverySessionKey != sourceSession || len(events) != 1 ||
+		events[0].SessionKey != sourceSession {
+		t.Fatalf("source fallback permission event = %+v, request = %+v", events, request)
+	}
+}
+
 func persistAutomationPermissionSessionFixture(
 	t *testing.T,
 	service *Service,
@@ -271,7 +470,7 @@ func persistAutomationPermissionSessionFixture(
 				Kind:               automationdomain.PermissionRequestKindTool,
 				Capability:         automationdomain.PermissionCapability{ToolName: "WebSearch", Effect: automationdomain.PermissionEffectRead, InputFingerprint: requestID},
 				Description:        "需要搜索资料",
-				DeliverySessionKey: persisted.Delivery.SessionKey,
+				DeliverySessionKey: automationPermissionApprovalSessionKey(persisted.Delivery, persisted.Source),
 				ResumeSafe:         true,
 			},
 			TaskState:  automationdomain.TaskPermissionStateAwaitingApproval,
