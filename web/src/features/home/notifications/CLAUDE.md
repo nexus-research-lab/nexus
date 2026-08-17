@@ -16,6 +16,7 @@
 - 通知与侧栏必须消费 `home-directory-resource.ts` 的同一目录快照，不得各自加载 bootstrap。
 - Room 订阅只由排序后的 Room ID 内容键驱动，目录对象换引用不得触发重订阅。
 - WebSocket 重放依靠消息 ID 在 Store 中去重；活动窗口内的当前目标只清除未读，不弹系统通知。
+- WebSocket 重连成功必须令共享聊天目录失效一次，补偿断线期间可能丢失的全局目录事件；不得恢复固定间隔的全量目录轮询。
 - 通知目标优先级固定为 Room Conversation、Room、Session；Session 活动目标不得回退匹配同 Room 的其他通知。
 - 浏览器权限失败不得影响站内未读记录。
 - 聊天执行态与待确认状态只按 `roomId` 保存；root round 终态负责清理执行槽，单个 Agent slot 终态不得熄灭仍在执行的 Room，权限 resolved 只清理对应请求。
