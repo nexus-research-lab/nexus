@@ -183,7 +183,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 
 每个活跃 Nexus Session 先按不随轮次变化的拓扑和显式选择确定 MCP 工具面。用户输入、内部唤醒、私域回传、Room host/member 角色、WorkBinding/ReviewBinding、Goal authority 和通讯开关只改变当轮执行权限，不卸载工具 schema。无权轮次不签发可信 `ContextID`、human principal 或执行绑定，真实工具调用仍在 service 真相源上 fail closed。
 
-正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮热更新。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
+正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮热更新。对于不能在已恢复会话中可靠替换全局工具基线的 Kimi K3 DM runtime，宿主比较当前模型可见工具面的脱敏指纹；旧会话缺少指纹或指纹变化时，必须先关闭同一 Nexus Session 的 warm client、保留旧 transcript lineage 并清除底层 resume，再让 fresh SDK Session 从首轮采用当前工具面。Nexus Session key、标题和可见历史保持连续，旧/新非复制 transcript 由统一读模型合并；模型上下文在这次兼容换代中冷启动。新 SDK identity 与工具面指纹必须在 transcript 可恢复后一起提交，失败后不得退回不兼容的旧 client。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
 
 “热重载”不是一个模糊布尔值。不同配置按安全要求和 runtime 生命周期分级：
 

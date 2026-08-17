@@ -1000,6 +1000,45 @@ func (s *ClientStartup) RetireCurrent(ctx context.Context) (bool, error) {
 	return retired, err
 }
 
+// RetireExisting 永久撤销启动事务开始前已经发布的当前 client。
+// 它用于配置兼容性在 GetOrCreate 前已经判定必须换代的路径；若事务已经获取过
+// client，则退化为 RetireCurrent，始终受同一 startup gate 与 owner epoch 保护。
+func (s *ClientStartup) RetireExisting(ctx context.Context) (bool, error) {
+	if err := s.active(); err != nil {
+		return false, err
+	}
+	if s.expectedState == nil || s.expectedClient == nil {
+		s.manager.mu.Lock()
+		ownershipErr := s.validateCloseEpochLocked()
+		state := s.manager.sessions[s.sessionKey]
+		requestedOwnerUserID := ""
+		if s.ownerLease != nil {
+			requestedOwnerUserID = s.ownerLease.ownerUserID
+		}
+		if ownershipErr == nil && state != nil {
+			switch {
+			case runtimeOwnerMismatch(state.OwnerUserID, requestedOwnerUserID):
+				ownershipErr = fmt.Errorf(
+					"runtime session owner mismatch: existing=%s requested=%s",
+					state.OwnerUserID,
+					requestedOwnerUserID,
+				)
+			case state.Closing:
+				ownershipErr = ErrRuntimeSessionClosing
+			case state.Client != nil:
+				s.expectedState = state
+				s.expectedClient = state.Client
+				s.expectedGeneration = state.StartupGeneration
+			}
+		}
+		s.manager.mu.Unlock()
+		if ownershipErr != nil {
+			return false, ownershipErr
+		}
+	}
+	return s.RetireCurrent(ctx)
+}
+
 func (m *Manager) retireCurrentClient(
 	ctx context.Context,
 	startup *ClientStartup,

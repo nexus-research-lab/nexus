@@ -4,10 +4,11 @@
 //
 // 职责边界：
 //   - Nexus 产品层：维护 DM/Room 入口、持久化 session 元数据、判断 resume id 是否有
-//     对应 transcript 支撑。
+//     对应 transcript 支撑，并为不能会话内热换工具面的 K3 runtime 判定 session reset。
 //   - bridge：封装 runtime 进程、配置、连接、消息流和 stderr 诊断。
 //   - SDK：定义 bridge 暴露的协议类型和控制面接口。
 //
+// 成员：policy.go 负责 transcript 存在性；tool_surface.go 负责 K3 工具面兼容栅栏。
 // 这个包不能依赖 bridge client 或 SDK wire 类型，避免把产品入口状态下沉到中间层。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

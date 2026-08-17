@@ -1,13 +1,85 @@
 package workspace
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestAgentHistoryStoreReadsSegmentedRuntimeTranscriptLineage(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "nexus")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	oldSessionID := "11111111-1111-4111-8111-111111111111"
+	newSessionID := "22222222-2222-4222-8222-222222222222"
+	writeAgentTranscriptFixture(t, workspacePath, oldSessionID, []map[string]any{
+		{
+			"type": "user", "uuid": "old-user", "sessionId": oldSessionID,
+			"timestamp": "2026-08-17T00:00:00Z",
+			"message":   map[string]any{"role": "user", "content": "旧工具面消息"},
+		},
+	})
+	writeAgentTranscriptFixture(t, workspacePath, newSessionID, []map[string]any{
+		{
+			"type": "user", "uuid": "new-user", "sessionId": newSessionID,
+			"timestamp": "2026-08-17T00:00:01Z",
+			"message":   map[string]any{"role": "user", "content": "新工具面请求"},
+		},
+		{
+			"type": "assistant", "uuid": "new-assistant", "sessionId": newSessionID,
+			"parentUuid": "new-user", "timestamp": "2026-08-17T00:00:02Z",
+			"message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "新工具面回复"}}},
+		},
+	})
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	if err := history.AppendRoundMarker(workspacePath, "agent:nexus:ws:dm:segmented-runtime", "round-old", "旧工具面消息", 1000); err != nil {
+		t.Fatalf("写入旧 segment marker 失败: %v", err)
+	}
+	if err := history.AppendRoundMarker(workspacePath, "agent:nexus:ws:dm:segmented-runtime", "round-new", "新工具面请求", 2000); err != nil {
+		t.Fatalf("写入新 segment marker 失败: %v", err)
+	}
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey:           "agent:nexus:ws:dm:segmented-runtime",
+		AgentID:              "nexus",
+		SessionID:            &newSessionID,
+		TranscriptSessionIDs: []string{oldSessionID, newSessionID},
+		Options: map[string]any{
+			protocol.OptionRuntimeSegmentedTranscript: true,
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取分段历史失败: %v", err)
+	}
+	contents := make([]string, 0, len(rows))
+	for _, row := range rows {
+		contents = append(contents, fmt.Sprint(row["content"]))
+	}
+	joined := strings.Join(contents, "\n")
+	if !strings.Contains(joined, "旧工具面消息") || !strings.Contains(joined, "新工具面回复") {
+		t.Fatalf("分段历史缺失: %+v", rows)
+	}
+	roundByUserContent := map[string]string{}
+	for _, row := range rows {
+		if row["role"] == "user" {
+			roundByUserContent[fmt.Sprint(row["content"])] = fmt.Sprint(row["round_id"])
+		}
+	}
+	if roundByUserContent["旧工具面消息"] != "round-old" || roundByUserContent["新工具面请求"] != "round-new" {
+		t.Fatalf("分段 marker 对齐错误: %+v rows=%+v", roundByUserContent, rows)
+	}
+}
 
 func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	configRoot := t.TempDir()
