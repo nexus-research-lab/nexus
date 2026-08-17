@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -46,66 +47,67 @@ test("subagent control dialogs have complete locale-specific copy", async () => 
   assert.equal(zhConversationMessages["subagents.message_shortcut_hint"], "按 Cmd/Ctrl + Enter 发送。");
 });
 
-test("subagent polling discovers tasks after an initially empty response", async () => {
+test("subagent task changes refresh only the exact source and task", async () => {
   const {
-    shouldPollSubagentTaskList,
-    subagentTaskSourceKey,
+    isSubagentTaskChangeFor,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/subagent/subagent-task-model.ts",
   );
-  const { buildSubagentTaskListModel } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/subagent/subagent-task-list-model.ts",
-  );
-
-  const sourceKey = subagentTaskSourceKey({
+  const sessionSource = {
     kind: "session",
     session_key: "agent:dev:ws:dm:conversation-1",
-  });
-  const data = {
-    capabilities: {
-      observe: true,
-      transcript: true,
-      stop: true,
-      send_message: true,
-      resume: true,
-    },
-    items: [],
-    runtime_kind: "nxs",
   };
-  const emptyModel = buildSubagentTaskListModel({
-    data,
-    isLoading: false,
-    tasks: data.items,
-  });
-
-  assert.equal(emptyModel.activeTasks.length, 0);
-  assert.equal(shouldPollSubagentTaskList(sourceKey), true);
-
-  const runningTask = {
-    capabilities: data.capabilities,
-    runtime_kind: "nxs",
-    status: "running",
-    task_id: "task-market-research",
+  const event = {
+    agent_id: "agent-dev",
+    data: { task_ids: ["task-market-research"] },
+    delivery_mode: "ephemeral",
+    event_type: "subagent_task_changed",
+    protocol_version: 2,
+    session_key: sessionSource.session_key,
+    timestamp: Date.now(),
   };
-  const runningModel = buildSubagentTaskListModel({
-    data: { ...data, items: [runningTask] },
-    isLoading: false,
-    tasks: [runningTask],
-  });
 
-  assert.deepEqual(runningModel.activeTasks, [runningTask]);
-  assert.equal(shouldPollSubagentTaskList(sourceKey), true);
+  assert.equal(isSubagentTaskChangeFor(event, sessionSource), true);
+  assert.equal(
+    isSubagentTaskChangeFor(event, sessionSource, "task-market-research"),
+    true,
+  );
+  assert.equal(isSubagentTaskChangeFor(event, sessionSource, "task-other"), false);
+  assert.equal(
+    isSubagentTaskChangeFor(event, { ...sessionSource, session_key: "other" }),
+    false,
+  );
+  assert.equal(isSubagentTaskChangeFor(event, sessionSource, null, "agent-other"), false);
 
-  const completedTask = { ...runningTask, status: "completed" };
-  const completedModel = buildSubagentTaskListModel({
-    data: { ...data, items: [completedTask] },
-    isLoading: false,
-    tasks: [completedTask],
-  });
+  const roomEvent = {
+    ...event,
+    conversation_id: "conversation-room",
+    room_id: "room-1",
+    session_key: "room-session",
+  };
+  assert.equal(isSubagentTaskChangeFor(roomEvent, {
+    kind: "room",
+    conversation_id: "conversation-room",
+    room_id: "room-1",
+  }, null, "agent-dev"), true);
+  assert.equal(isSubagentTaskChangeFor(roomEvent, {
+    kind: "room",
+    conversation_id: "conversation-other",
+    room_id: "room-1",
+  }), false);
 
-  assert.deepEqual(completedModel.completedTasks, [completedTask]);
-  assert.equal(shouldPollSubagentTaskList(sourceKey), true);
-  assert.equal(shouldPollSubagentTaskList(""), false);
+  const listResource = fs.readFileSync(
+    path.join(webRoot, "src/features/conversation/shared/subagent/use-subagent-tasks.ts"),
+    "utf8",
+  );
+  const threadResource = fs.readFileSync(
+    path.join(webRoot, "src/features/conversation/shared/subagent/thread/use-subagent-task-thread-resource.ts"),
+    "utf8",
+  );
+  assert.doesNotMatch(listResource, /setInterval|SUBAGENT_TASK_POLL_INTERVAL_MS/);
+  assert.doesNotMatch(threadResource, /setInterval|SUBAGENT_TASK_POLL_INTERVAL_MS/);
+  assert.match(listResource, /useSubagentTaskRealtimeRefresh/);
+  assert.match(threadResource, /taskId: scope\.task\.task_id/);
 });
 
 test("subagent title uses the model-provided task description before its generic type", async () => {

@@ -31,7 +31,6 @@ public partial class MainWindow : System.Windows.Window
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly DesktopUpdateChecker updateChecker;
     private readonly DesktopTrayController trayController;
-    private readonly System.Windows.Threading.DispatcherTimer webViewHealthProbeTimer;
     private WebViewHost? webViewHost;
     private bool closed;
     private bool exitRequested;
@@ -56,12 +55,6 @@ public partial class MainWindow : System.Windows.Window
             ClearWebCacheFromTray,
             CheckForUpdatesFromTray,
             ExitFromTray);
-        webViewHealthProbeTimer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(60),
-        };
-        webViewHealthProbeTimer.Tick += (_, _) => RecoverVisibleWebView("periodic_visible");
-        webViewHealthProbeTimer.Start();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -87,7 +80,6 @@ public partial class MainWindow : System.Windows.Window
     {
         closed = true;
         startupTimeline.Mark("main_window.closed");
-        webViewHealthProbeTimer.Stop();
         trayController.Dispose();
         DisposeWebView();
         base.OnClosed(e);
@@ -341,15 +333,6 @@ public partial class MainWindow : System.Windows.Window
         }
         Activate();
         Focus();
-    }
-
-    private void RecoverVisibleWebView(string reason)
-    {
-        if (closed || webViewHost is null || !IsVisible || WindowState == WindowState.Minimized)
-        {
-            return;
-        }
-        _ = webViewHost.RecoverAfterWindowShownAsync(reason);
     }
 
     private static string TrimMetadata(string value)

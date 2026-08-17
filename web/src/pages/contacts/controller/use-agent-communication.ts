@@ -30,7 +30,6 @@ import type { AgentPrivateEvent } from "@/types/agent/private-domain";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 
 const MESSAGE_LIMIT = 160;
-const MESSAGE_FALLBACK_POLL_INTERVAL_MS = 30_000;
 const EMPTY_HISTORY_CURSOR = {
   beforeMessageId: null,
   beforeTimestamp: null,
@@ -349,6 +348,8 @@ export function useAgentCommunication(
   });
   useAppEventSubscription(sendRealtime, realtimeState);
 
+  const previousRealtimeStateRef = useRef(realtimeState);
+
   useEffect(() => {
     if (!roomId || realtimeState !== "connected") {
       return;
@@ -368,17 +369,16 @@ export function useAgentCommunication(
   }, [conversationId, realtimeState, roomId, sendRealtime]);
 
   useEffect(() => {
-    if (!conversationId) {
-      return undefined;
+    const previousRealtimeState = previousRealtimeStateRef.current;
+    previousRealtimeStateRef.current = realtimeState;
+    if (
+      realtimeState !== "connected"
+      || previousRealtimeState === "connected"
+    ) {
+      return;
     }
-    if (realtimeState === "connected") {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void loadMessages(false);
-    }, MESSAGE_FALLBACK_POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [conversationId, loadMessages, realtimeState]);
+    void loadMessages(false);
+  }, [loadMessages, realtimeState]);
 
   const addContact = useCallback(async (
     contactAgentId: string,

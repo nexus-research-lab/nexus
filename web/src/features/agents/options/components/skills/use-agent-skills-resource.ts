@@ -4,8 +4,6 @@ import { getAgentSkillsApi } from "@/lib/api/capability/skill-api";
 import { getErrorMessage } from "@/lib/error-message";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
-const SKILL_REFRESH_INTERVAL_MS = 5000;
-
 interface AgentSkillsResourceState {
   agentId: string | null;
   error: string | null;
@@ -131,16 +129,11 @@ export function useAgentSkillsResource({
         void runRefresh("background");
       }
     };
-    const intervalId = window.setInterval(
-      refreshIfVisible,
-      SKILL_REFRESH_INTERVAL_MS,
-    );
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       requestSequenceRef.current += 1;
       requestControllerRef.current?.abort();
-      window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };

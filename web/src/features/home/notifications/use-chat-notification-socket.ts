@@ -41,6 +41,7 @@ export function useChatNotificationSocket({
   roomIdsKey,
 }: UseChatNotificationSocketOptions): void {
   const roomSeqCursorRef = useRef<Record<string, number>>({});
+  const hasConnectedRef = useRef(false);
   const directoryIndexRef = useRef(directoryIndex);
   directoryIndexRef.current = directoryIndex;
   const handleMessage = useCallback((rawMessage: unknown) => {
@@ -101,6 +102,17 @@ export function useChatNotificationSocket({
     onMessage: handleMessage,
   });
   useAppEventSubscription(send, state);
+
+  useEffect(() => {
+    if (state !== "connected") {
+      return;
+    }
+    if (hasConnectedRef.current) {
+      // 重连期间可能错过全局目录事件，连接恢复后只补刷一次。
+      notifyRoomDirectoryUpdated();
+    }
+    hasConnectedRef.current = true;
+  }, [state]);
 
   useEffect(() => {
     const roomIds = roomIdsKey ? roomIdsKey.split("\n") : [];

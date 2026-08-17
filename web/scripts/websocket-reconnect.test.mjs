@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -83,4 +84,35 @@ test("clean server close reconnects the shared WebSocket", async () => {
       globalThis.window = originalWindow;
     }
   }
+});
+
+test("home directory uses shared event-driven refresh without fixed polling", async () => {
+  const [directoryResource, launcherPage, notificationSocket] = await Promise.all([
+    fs.readFile(
+      path.join(webRoot, "src/features/home/home-directory-resource.ts"),
+      "utf8",
+    ),
+    fs.readFile(
+      path.join(webRoot, "src/pages/launcher/launcher-page.tsx"),
+      "utf8",
+    ),
+    fs.readFile(
+      path.join(
+        webRoot,
+        "src/features/home/notifications/use-chat-notification-socket.ts",
+      ),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(directoryResource, /function refreshHomeDirectoryIfStale/);
+  assert.match(directoryResource, /subscribeRoomDirectoryUpdates\(refreshHomeDirectory\)/);
+  assert.doesNotMatch(directoryResource, /setInterval/);
+  assert.match(launcherPage, /useHomeDirectory\(\)/);
+  assert.doesNotMatch(
+    launcherPage,
+    /getLauncherBootstrapApi|subscribeRoomDirectoryUpdates/,
+  );
+  assert.match(notificationSocket, /if \(hasConnectedRef\.current\)/);
+  assert.match(notificationSocket, /notifyRoomDirectoryUpdated\(\)/);
 });

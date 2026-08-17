@@ -5,7 +5,7 @@
 ## 职责边界
 
 - `subagent-task-thread-model.ts` 只定义作用域、快照和纯展示投影。
-- `use-subagent-task-thread-resource.ts` 独占 transcript 加载、请求代次和活动任务轮询。
+- `use-subagent-task-thread-resource.ts` 独占 transcript 加载、请求代次和精确 task 的实时失效刷新。
 - `use-subagent-task-actions.ts` 独占精确 task 的 stop/send/resume mutation、请求代次、取消与反馈。
 - `use-subagent-task-thread.ts` 只组合资源和投影，不直接调用 API。
 - `subagent-task-thread-view.tsx` 只消费窄视图模型，不解释请求或能力协议。

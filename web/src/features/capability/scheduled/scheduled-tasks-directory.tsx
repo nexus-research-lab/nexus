@@ -18,7 +18,6 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
 import { ScheduledTaskBoard } from "./board/scheduled-task-board";
-import { getScheduledTaskMetrics } from "./controller/scheduled-task-directory-model";
 import { useScheduledTaskCommands } from "./controller/use-scheduled-task-commands";
 import { useScheduledTasksResource } from "./controller/use-scheduled-tasks-resource";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
@@ -42,7 +41,6 @@ export function ScheduledTasksDirectory() {
     removeTask: resource.removeTask,
     upsertTask: resource.upsertTask,
   });
-  const metrics = getScheduledTaskMetrics(resource.items);
   const feedbackItem: FeedbackBannerProps | null = commands.feedback
     ? {
         ...commands.feedback,
@@ -53,9 +51,7 @@ export function ScheduledTasksDirectory() {
   const createPreset = dialog.kind === "create" ? dialog.preset : null;
 
   useScheduledTaskRealtimeRefresh({
-    enabledCount: metrics.enabled,
     refreshTasks: resource.refresh,
-    runningCount: metrics.running,
   });
 
   const closeDialog = () => setDialog({ kind: "closed" });

@@ -1,5 +1,5 @@
 // INPUT: owner-scoped workspace、SQL Room Session 与结构化 Session key 查询。
-// OUTPUT: 面向列表、配置校验和首次投递物化的统一 Session 视图。
+// OUTPUT: 面向目录、配置校验和首次投递物化的统一 Session 视图。
 // POS: Session 目录读模型；数据库或 workspace 的持久化位置不构成产品可见性边界。
 package session
 
@@ -26,7 +26,20 @@ func (s *Service) ResolveDeliverySession(
 
 // ListSessions 列出全部会话视图。
 func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) {
-	fileSessions, err := s.listWorkspaceSessions(ctx, "")
+	items, err := s.listSessionDirectory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.projectExternalSessionIdentities(ctx, items)
+}
+
+// ListDirectorySessions 返回首屏目录所需的纯读会话视图。
+func (s *Service) ListDirectorySessions(ctx context.Context) ([]protocol.Session, error) {
+	return s.listSessionDirectory(ctx)
+}
+
+func (s *Service) listSessionDirectory(ctx context.Context) ([]protocol.Session, error) {
+	fileSessions, err := s.listWorkspaceSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +48,7 @@ func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) 
 		return nil, err
 	}
 	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
-	return s.projectExternalSessionIdentities(ctx, mergeSessions(fileSessions, roomSessions))
+	return mergeSessions(fileSessions, roomSessions), nil
 }
 
 // ListMutableSessions 只列出 owner workspace 中由 Session 域管理的 Agent 会话。

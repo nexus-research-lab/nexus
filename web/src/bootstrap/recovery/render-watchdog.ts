@@ -11,7 +11,6 @@ import { shouldReloadOnce } from "./reload-guard";
 type UnhealthyRenderStatus = Exclude<DesktopRenderHealthStatus, "ready">;
 
 const APP_BLANK_RENDER_RELOAD_KEY_PREFIX = "nexus:app-blank-render-reload:";
-const APP_RENDER_WATCHDOG_INTERVAL_MS = 10_000;
 const APP_RENDER_WATCHDOG_UNHEALTHY_THRESHOLD = 2;
 const RECOVERY_REASONS: Record<UnhealthyRenderStatus, string> = {
   empty_root: "根节点为空",
@@ -66,10 +65,6 @@ export function startAppRenderWatchdog(
     renderRecoveryScreen(RECOVERY_REASONS[unhealthyStatus]);
   };
 
-  window.setInterval(
-    () => checkRenderHealth("watchdog"),
-    APP_RENDER_WATCHDOG_INTERVAL_MS,
-  );
   window.addEventListener("focus", () => {
     window.setTimeout(() => checkRenderHealth("focus"), 300);
   });
