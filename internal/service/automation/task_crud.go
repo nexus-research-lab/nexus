@@ -84,6 +84,7 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 	if err = s.prepareTaskDeliveryMutation(ctx, &deliveryCandidate, &normalized.Source); err != nil {
 		return nil, err
 	}
+	normalized.Delivery = deliveryCandidate.Delivery
 	deliveryGrant := deliveryCandidate.DeliveryGrant
 	intentDigest := ""
 	if normalized.RequestID != "" {

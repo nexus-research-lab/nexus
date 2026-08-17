@@ -9,7 +9,7 @@
 //     任务创建幂等、配置版本 CAS、到期停用、查询、运行与统一运行态投影；isolated
 //     Session 清理由 SessionArtifactDeletionCoordinator 安装 tombstone 后统一回收。
 //   - script_control_boundary.go：Agent actor 对 script 任务的 service 级最终拒绝与并发控制。
-//   - delivery_authority.go：创建 provenance 与独立 delivery grant 分离，以及 create/update/投递/重试时对真实 Nexus/Room/IM Session 的 owner-main/self/Room/active pairing 动态复核。
+//   - delivery_authority.go：创建 provenance 与独立 delivery grant 分离，以及 create/update/投递/重试时对真实 Nexus/Room/IM Session、Room 回复 Agent、owner-main/self/成员/active pairing 的动态复核；Room 未显式选择回复者时固化当前房主。
 //   - scheduler.go：到期工作扫描、阶段分发、数据库租约与超时恢复。
 //   - execution*.go / main_session_execution.go：脚本、主会话、独立会话的分阶段执行、非交互来源标记、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理。
 //   - heartbeat_*.go：heartbeat 输入分段、分发、运行时与状态。

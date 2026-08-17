@@ -9,7 +9,7 @@
 1. `Source`：谁在什么可信会话中创建了任务，只用于 provenance、审计和当前会话查询；创建后不可被页面编辑覆盖，也不决定执行或投递。
 2. `SessionTarget`：任务在哪个 Agent runtime 上执行，可复用已有会话，也可每次使用独立上下文。
 3. `PermissionMode + TaskPermissionPolicy`：创建时从执行 Session/Agent 复制，随后归任务独立所有。
-4. `DeliveryTarget`：完成结果是否投递，以及投递到哪个真实、稳定的 Nexus/Room/IM Session；外部平台临时 callback 和合成“收件箱”都不属于新任务定义。
+4. `DeliveryTarget`：完成结果是否投递，以及投递到哪个真实、稳定的 Nexus/Room/IM Session；Room 目标还保存与执行 Agent 独立的结果回复/署名 Agent。外部平台临时 callback 和合成“收件箱”都不属于新任务定义。
 5. `ScheduledTaskRun`：保存本次执行使用的权限 revision、冻结的首次投递目标、执行结果和平台投递状态。
 
 `DeliveryGrant` 是不对 HTTP/CLI 模型输入暴露的宿主授权快照：它记录最近一次明确配置投递目标时的可信 Agent/页面/CLI 调用方。旧任务升级时从 `Source` 精确复制一次；以后修改投递只替换 grant，不改写 `Source` provenance。
@@ -120,7 +120,7 @@ Nexus 内部 DM/Room 不使用 IM Slash 命令承载 Automation 审批。工具�
 
 执行 Agent 与接收 Session 相互独立：同 owner 的 Agent A 可以执行，结果投影进 Agent B 已存在的真实 Nexus/IM Session；逻辑会话和 workspace 归接收 Agent B，消息 metadata 另外保留 producer Agent A。新建或改绑必须提供结构化、真实存在的 Session，不能只保存裸 channel/chat ID，也不得合成“定时任务收件箱”。历史裸路由与收件箱目标仅作为旧数据读取/投递兼容；打开编辑时必须重新选择真实 Session，且它们不出现在页面或 MCP 候选中。
 
-“真实存在”以对外统一 Session 读模型为准：SQL 拥有的 Room-backed DM/成员 Session 与 workspace 拥有的 Nexus/IM Session 都是合法候选。页面不得因为 Session 带 `room_id` 就将它从 Agent 接收会话中排除，服务端也不得因为尚未生成 workspace meta 就判定不存在。首次投递可在统一读模型验证 owner、Agent 和精确 session key 后物化 workspace 投影；任意伪造 key 仍必须 fail closed。
+“真实存在”以对外统一 Session 读模型为准：SQL 拥有的 Room-backed DM/成员 Session 与 workspace 拥有的 Nexus/IM Session 都是合法候选。页面按身份而不是存储位置分类，并对执行与投递使用同一层级：DM 是 `Agent -> chat_type=dm Session`，Room 是 `room_type=room -> 共享 room:group:<conversation_id> Session -> 该 Session 的有效成员 Agent`。Room 不选成员时由服务端在保存阶段解析当前房主；执行 Agent 与结果回复 Agent 分别保存、分别授权。Room-backed DM 即使带 `room_id` 也不能被排除，`chat_type=group` 成员 Session 也不能混入 Agent/DM 候选。服务端不得因为 Session 尚未生成 workspace meta 就判定不存在。首次投递可在统一读模型验证 owner、Agent 和精确 session key 后物化 workspace 投影；任意伪造 key 仍必须 fail closed。
 
 - 第一次投递使用 run 启动时冻结的目标，避免运行中无关编辑把结果重定向。
 - 首次投递失败后，用户明确修复任务 route，重试使用任务最新目标。

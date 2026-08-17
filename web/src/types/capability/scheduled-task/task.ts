@@ -1,7 +1,7 @@
 /**
- * 定时任务定义与写操作契约。
- *
- * 这里只描述任务本身；运行记录和执行结果由 `run.ts` 持有。
+ * INPUT: Automation HTTP/WS 的任务配置线格式。
+ * OUTPUT: 执行目标、独立结果 Session/Room 回复 Agent 与任务写操作类型。
+ * POS: Web 侧 ScheduledTask 配置协议镜像；运行记录和执行结果由 `run.ts` 持有。
  */
 
 import type { AutomationPermissionRequest } from "./permission";
@@ -72,6 +72,8 @@ export type ScheduledTaskSessionTarget =
 
 export interface ScheduledTaskDeliveryTarget {
   mode: ScheduledTaskDeliveryMode;
+  /** Room 投递消息的回复/署名 Agent；非 Room 目标必须为空。 */
+  agent_id?: string | null;
   channel?: string | null;
   to?: string | null;
   account_id?: string | null;

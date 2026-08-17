@@ -187,11 +187,15 @@ export function useTaskDialogController({
     || needsLegacyDeliveryRebind(initialTask ?? null);
 
   const submitContext = useMemo<TaskDialogSubmitContext>(() => ({
+    defaultDeliveryRoomAgentId: data.defaultDeliveryRoomAgentId,
+    defaultExecutionRoomAgentId: data.defaultExecutionRoomAgentId,
     form: form.draft,
     schedule: schedule.draft,
     selectedReplySession,
     selectedSession,
   }), [
+    data.defaultDeliveryRoomAgentId,
+    data.defaultExecutionRoomAgentId,
     form.draft,
     schedule.draft,
     selectedReplySession,

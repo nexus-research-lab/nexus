@@ -21,6 +21,8 @@ import {
 type Translate = I18nContextValue["t"];
 
 export interface TaskDialogSubmitContext {
+  defaultDeliveryRoomAgentId: string;
+  defaultExecutionRoomAgentId: string;
   form: TaskFormDraft;
   schedule: TaskScheduleDraft;
   selectedReplySession: TaskDialogSessionOption | null;
@@ -68,6 +70,9 @@ function validateExecution(
     return null;
   }
   if (form.targetType === "room" && !selectedSession) {
+    return t("capability.scheduled_dialog_validation_session");
+  }
+  if (form.targetType === "room" && !resolveExecutionRoomAgentId(context)) {
     return t("capability.scheduled_dialog_validation_member");
   }
   if (form.executionMode === "existing" && !selectedSession) {
@@ -152,6 +157,11 @@ function validateDelivery(
     && !form.selectedDeliveryRoomId.trim()) {
     return t("capability.scheduled_dialog_validation_delivery_room");
   }
+  if (form.replyMode === "selected"
+    && form.deliveryTargetType === "room"
+    && !resolveDeliveryRoomAgentId(context)) {
+    return t("capability.scheduled_dialog_validation_delivery_room_agent");
+  }
   return null;
 }
 
@@ -218,10 +228,18 @@ function buildDelivery(
   if (!selectedReplySession) {
     throw new Error(t("capability.scheduled_dialog_validation_reply_session"));
   }
-  return buildSessionDelivery(selectedReplySession.sessionKey);
+  return buildSessionDelivery(
+    selectedReplySession.sessionKey,
+    form.deliveryTargetType === "room"
+      ? resolveDeliveryRoomAgentId(context)
+      : "",
+  );
 }
 
-function buildSessionDelivery(sessionKey: string): ScheduledTaskDeliveryTarget {
+function buildSessionDelivery(
+  sessionKey: string,
+  roomAgentId: string,
+): ScheduledTaskDeliveryTarget {
   if (isExternalSessionChannel(null, sessionKey)) {
     return {
       mode: "last",
@@ -229,6 +247,7 @@ function buildSessionDelivery(sessionKey: string): ScheduledTaskDeliveryTarget {
     };
   }
   return {
+    agent_id: roomAgentId || undefined,
     channel: sessionKey.includes(":internal:") ? "internal" : "websocket",
     mode: "explicit",
     session_key: sessionKey,
@@ -286,14 +305,29 @@ function resolveAgentId(
   context: TaskDialogSubmitContext,
   t: Translate,
 ): string {
-  const { form, selectedSession } = context;
+  const { form } = context;
   if (form.executionKind === "script" || form.targetType === "agent") {
     return form.selectedAgentId.trim();
   }
-  if (!selectedSession) {
+  const agentId = resolveExecutionRoomAgentId(context);
+  if (!agentId) {
     throw new Error(t("capability.scheduled_dialog_validation_member"));
   }
-  return selectedSession.agentId;
+  return agentId;
+}
+
+function resolveExecutionRoomAgentId(
+  context: TaskDialogSubmitContext,
+): string {
+  return context.form.selectedAgentId.trim()
+    || context.defaultExecutionRoomAgentId.trim();
+}
+
+function resolveDeliveryRoomAgentId(
+  context: TaskDialogSubmitContext,
+): string {
+  return context.form.selectedDeliveryPresenterAgentId.trim()
+    || context.defaultDeliveryRoomAgentId.trim();
 }
 
 export function buildScheduledTaskPayload(

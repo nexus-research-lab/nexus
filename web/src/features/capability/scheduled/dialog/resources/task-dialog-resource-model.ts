@@ -1,3 +1,8 @@
+/**
+ * INPUT: Automation 表单目标、Agent/Room 目录与统一 Session 读模型。
+ * OUTPUT: 严格按 DM/Room 身份隔离的执行与结果接收候选、资源状态和 Room 解析。
+ * POS: 定时任务弹窗所有目标与 Session 候选的唯一纯投影入口。
+ */
 import {
   getExternalSessionChannelLabel,
   getExternalSessionDisplayLabel,
@@ -18,10 +23,7 @@ import type {
   TaskDialogSessionOption,
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
-import {
-  buildRoomSessionSelections,
-  formatSessionLabel,
-} from "../schedule/task-schedule-time";
+import { formatSessionLabel } from "../schedule/task-schedule-time";
 import type {
   DialogResource,
   DialogResourceStatus,
@@ -40,6 +42,11 @@ export interface TaskDialogResourceKeys {
 export interface TaskDialogSessionData {
   options: TaskDialogSessionOption[];
   status: DialogResourceStatus;
+}
+
+export interface TaskDialogRoomAgentData {
+  defaultAgentId: string;
+  options: TaskDialogLabelOption[];
 }
 
 interface TaskDialogSessionResources {
@@ -131,7 +138,7 @@ export function buildAgentOptions(agents: Agent[]): TaskDialogLabelOption[] {
 export function buildRoomOptions(
   rooms: RoomAggregate[],
 ): TaskDialogLabelOption[] {
-  return rooms.map((room) => ({
+  return rooms.filter(isGroupRoom).map((room) => ({
     label: room.room.name?.trim() || room.room.id,
     value: room.room.id,
   }));
@@ -140,9 +147,12 @@ export function buildRoomOptions(
 export function buildExecutionRoomOptions(
   rooms: RoomAggregate[],
 ): TaskDialogLabelOption[] {
-  return rooms.filter((room) => room.members.some((member) => (
-    member.member_type === "agent" && !member.participation_paused
-  ))).map((room) => ({
+  return rooms.filter((room) => (
+    isGroupRoom(room)
+    && room.members.some((member) => (
+      member.member_type === "agent" && !member.participation_paused
+    ))
+  )).map((room) => ({
     label: room.room.name?.trim() || room.room.id,
     value: room.room.id,
   }));
@@ -187,6 +197,77 @@ export function buildTaskDialogDeliverySessionData(
   return { options, status: resourceStatus(sessions) };
 }
 
+export function buildExecutionRoomAgentData(
+  contexts: RoomContextAggregate[],
+  selectedSessionKey: string,
+): TaskDialogRoomAgentData {
+  const conversationId = roomConversationId(selectedSessionKey);
+  const context = contexts.find((item) => (
+    item.room.room_type === "room"
+    && item.conversation.id === conversationId
+  ));
+  if (!context) {
+    return { defaultAgentId: "", options: [] };
+  }
+  const availableAgentIds = new Set(context.sessions.map((session) => (
+    session.agent_id.trim()
+  )).filter(Boolean));
+  const options = context.member_agents.filter((agent) => (
+    availableAgentIds.has(agent.agent_id)
+    && !agent.room_participation_paused
+  )).map((agent) => ({
+    label: agent.name || agent.agent_id,
+    value: agent.agent_id,
+  }));
+  const defaultAgentId = context.room.host_agent_id?.trim() || "";
+  return {
+    defaultAgentId: options.some((option) => option.value === defaultAgentId)
+      ? defaultAgentId
+      : "",
+    options,
+  };
+}
+
+export function buildDeliveryRoomAgentData(
+  sessions: AgentSession[],
+  rooms: RoomAggregate[],
+  roomId: string,
+  selectedSessionKey: string,
+  agentNameById: Map<string, string>,
+): TaskDialogRoomAgentData {
+  const normalizedRoomId = roomId.trim();
+  const conversationId = roomConversationId(selectedSessionKey);
+  if (!normalizedRoomId || !conversationId) {
+    return { defaultAgentId: "", options: [] };
+  }
+  const seen = new Set<string>();
+  const options: TaskDialogLabelOption[] = [];
+  sessions.filter((session) => (
+    session.room_id === normalizedRoomId
+    && session.conversation_id === conversationId
+    && isRoomMemberSession(session)
+  )).forEach((session) => {
+    const agentId = session.agent_id.trim();
+    if (!agentId || seen.has(agentId)) {
+      return;
+    }
+    seen.add(agentId);
+    options.push({
+      label: agentNameById.get(agentId) || agentId,
+      value: agentId,
+    });
+  });
+  const defaultAgentId = rooms.find((room) => (
+    isGroupRoom(room) && room.room.id === normalizedRoomId
+  ))?.room.host_agent_id?.trim() || "";
+  return {
+    defaultAgentId: options.some((option) => option.value === defaultAgentId)
+      ? defaultAgentId
+      : "",
+    options,
+  };
+}
+
 export function buildRoomNameIndex(
   rooms: RoomAggregate[],
 ): Map<string, string> {
@@ -206,9 +287,19 @@ export function resolveTaskDialogRoomId(
     return "";
   }
   return sessions.find((session) => (
+    isRoomMemberSession(session)
+    &&
     session.conversation_id === conversationId
     && Boolean(session.room_id)
   ))?.room_id?.trim() || "";
+}
+
+function roomConversationId(sessionKey: string): string {
+  const parsed = parseSessionKey(sessionKey);
+  if (!parsed.is_structured || parsed.kind !== "room") {
+    return "";
+  }
+  return parsed.conversation_id || parsed.ref || "";
 }
 
 export function resourceStatus<T>(
@@ -227,12 +318,56 @@ function activeResourceKey(
   return active && selectedId ? selectedId : null;
 }
 
+function isGroupRoom(room: RoomAggregate): boolean {
+  return room.room.room_type.trim().toLowerCase() === "room";
+}
+
+function normalizeSessionChatType(value: string | null): string {
+  switch (value?.trim().toLowerCase()) {
+    case "":
+    case undefined:
+    case "dm":
+      return "dm";
+    case "group":
+    case "room":
+      return "group";
+    default:
+      return value?.trim().toLowerCase() || "";
+  }
+}
+
+function isAgentSessionOfChatType(
+  session: AgentSession,
+  expectedChatType: "dm" | "group",
+): boolean {
+  const parsed = parseSessionKey(session.session_key);
+  if (!parsed.is_structured
+    || parsed.kind !== "agent"
+    || normalizeSessionChatType(parsed.chat_type) !== expectedChatType) {
+    return false;
+  }
+  const storedChatType = session.chat_type.trim();
+  return !storedChatType
+    || normalizeSessionChatType(storedChatType) === expectedChatType;
+}
+
+function isAgentDMSession(session: AgentSession): boolean {
+  return isAgentSessionOfChatType(session, "dm");
+}
+
+function isRoomMemberSession(session: AgentSession): boolean {
+  return isAgentSessionOfChatType(session, "group");
+}
+
 function buildAgentSessionOptions(
   sessions: AgentSession[],
   agentNameById: Map<string, string>,
   unnamedSessionLabel: string,
 ): TaskDialogSessionOption[] {
   return sessions.filter((session) => {
+    if (!isAgentDMSession(session)) {
+      return false;
+    }
     const externalChannel = getExternalSessionChannelLabel(
       session.channel_type,
       session.session_key,
@@ -245,7 +380,6 @@ function buildAgentSessionOptions(
       session.external_identity,
     );
     return {
-      agentId: session.agent_id,
       badge: channelLabel ? `IM · ${channelLabel}` : null,
       label: formatSessionLabel(
         session.title?.trim() || unnamedSessionLabel,
@@ -287,6 +421,7 @@ function buildDeliveryAgentOptions(
   const seen = new Set<string>();
   sessions.filter((session) => (
     session.agent_id === normalizedAgentId
+    && isAgentDMSession(session)
     && isUserVisibleDeliverySession(session)
     && isAvailableDeliverySession(session)
   )).forEach((session) => {
@@ -300,7 +435,6 @@ function buildDeliveryAgentOptions(
       session.external_identity,
     );
     options.push({
-      agentId: normalizedAgentId,
       badge: channelLabel ? `IM · ${channelLabel}` : null,
       label: formatSessionLabel(
         session.title?.trim() || unnamedSessionLabel,
@@ -328,6 +462,7 @@ function buildDeliveryRoomOptions(
   const options: TaskDialogSessionOption[] = [];
   sessions.filter((session) => (
     session.room_id === normalizedRoomId
+    && isRoomMemberSession(session)
     && Boolean(session.conversation_id)
   )).forEach((session) => {
     const conversationId = session.conversation_id?.trim() || "";
@@ -337,7 +472,6 @@ function buildDeliveryRoomOptions(
     seen.add(conversationId);
     const sharedSessionKey = buildRoomSharedSessionKey(conversationId);
     options.push({
-      agentId: session.agent_id,
       badge: "Room",
       label: `${roomName} · ${session.title?.trim() || unnamedSessionLabel}`,
       sessionKey: sharedSessionKey,
@@ -349,17 +483,23 @@ function buildDeliveryRoomOptions(
 
 function buildRoomSessionOptions(
   contexts: RoomContextAggregate[],
-  agentNameById: Map<string, string>,
+  _agentNameById: Map<string, string>,
   unnamedSessionLabel: string,
 ): TaskDialogSessionOption[] {
-  return buildRoomSessionSelections(
-    contexts,
-    agentNameById,
-    unnamedSessionLabel,
-  ).map((option) => ({
-    agentId: option.agent_id,
-    label: option.label,
-    sessionKey: option.session_key,
-    value: option.value,
-  }));
+  return contexts.filter((context) => (
+    context.room.room_type === "room"
+    && context.conversation.id.trim()
+    && context.sessions.length > 0
+  )).map((context) => {
+    const sessionKey = buildRoomSharedSessionKey(context.conversation.id);
+    const roomName = context.room.name?.trim() || context.room.id;
+    const conversationName = context.conversation.title?.trim()
+      || unnamedSessionLabel;
+    return {
+      badge: "Room",
+      label: `${roomName} · ${conversationName}`,
+      sessionKey,
+      value: sessionKey,
+    };
+  });
 }

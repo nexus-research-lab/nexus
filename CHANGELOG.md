@@ -53,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Separated scheduled-task execution and recipient pickers by canonical conversation identity: DM now follows Agent then DM/active IM Session, while Room follows Room then shared Session then an independent execution or replying Agent, defaulting to the current host and revalidating membership at run/retry time.
+- Cleared the Chat navigation badge when entering Chat without discarding per-conversation unread counts or exact first-unread anchors.
 - Projected each scheduled-task permission request into its frozen recipient Nexus Agent, Room, or active-paired IM Session—with realtime delivery and reconnect replay—while keeping IM Slash as an additional transport and using the source Session only when no recipient exists.
 - Preserved durable scheduled-task permission audit, Nexus Session projection, and external IM `/y`/`/a`/`/d` notifications after the blocked physical attempt is interrupted by publishing them on a bounded detached owner context.
 - Restored current-conversation Automation queries and external IM default report scoping, exact deleted-job runs/events lookup, and enabled-before-limit history filtering; external IM rounds no longer expose heartbeat configuration.
