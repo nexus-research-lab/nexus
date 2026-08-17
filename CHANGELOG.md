@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added owner-scoped custom STDIO, HTTP, and SSE MCP servers to the Connector directory, with encrypted environment, Bearer Token, and custom-header secrets plus existing Agent/Session Connector activation controls.
 - Added session-scoped multi-folder workspaces for desktop chats, with a native folder picker, runtime access, and automatic working-directory context.
 - Added privacy-safe cache correlation segments for provider-reported cache reads, keyed by low-cardinality Goal/Execution responsibility lanes and one-way runtime/tool-surface fingerprints without persisting prompts, tool schemas, credentials, or domain IDs.
 - Added a built-in Word-reading Skill that detects actual DOCX versus legacy DOC content, including mislabeled `.docx` uploads.

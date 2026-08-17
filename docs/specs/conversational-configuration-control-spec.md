@@ -274,7 +274,7 @@ runtime round 生效的 `nexuscfg` capability。owner、Agent、DM/Room 与 scop
 - stdio、HTTP 和 SSE 配置在进入 runtime 前严格解析；未知类型、SDK 内部 server、`nexus_*` 保留名和内置 server 冲突会被拒绝。
 - 修改后的 MCP 配置从下一轮生效，当前半轮不会动态替换工具集合。
 
-应用市场 Connector 不写入自由格式 `mcp_servers`。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。显式选择决定对应 Provider MCP 的 Session 工具面；飞书云文档使用独立的 `nexus_feishu_docx` MCP。短暂未连接或凭据不可用时，宿主管理的固定工具面保留定义并在真实调用返回“未连接”或具体认证错误；需要凭据才能构造的第三方远程 MCP 只在授权快照可用时建立连接。未选择的 Connector 不注入任何工具定义，也不存在通用 Connector 调用入口可绕过这条边界。
+应用市场 Connector 与连接器目录中 owner 级自定义 MCP 都不写入自由格式 `mcp_servers`。自定义 MCP 配置复用 Connector 加密仓储，并以动态 Connector 参与既有选择链路；远程自定义 MCP 只暴露无认证、Bearer Token 和自定义请求头，Bearer Token 由宿主生成 `Authorization` header，尚未形成完整登录闭环的 OAuth 元数据不进入用户配置。Agent 的 `connector_ids` 只保存默认挂载选择，默认值为空；Composer 可以为当前 Session 显式覆盖，未设置时继承 Agent、空数组表示全部关闭。显式选择决定对应 Provider 或自定义 MCP 的 Session 工具面；飞书云文档使用独立的 `nexus_feishu_docx` MCP。短暂未连接或凭据不可用时，宿主管理的固定工具面保留定义并在真实调用返回“未连接”或具体认证错误；需要凭据才能构造的第三方远程 MCP 只在授权快照可用时建立连接。未选择的 Connector 不注入任何工具定义，也不存在通用 Connector 调用入口可绕过这条边界。
 
 ## CLI 与审计
 

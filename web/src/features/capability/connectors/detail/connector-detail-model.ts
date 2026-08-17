@@ -5,6 +5,7 @@ import type {
 } from "@/types/capability/connector";
 
 const AUTH_LABELS: Record<ConnectorAuthType, string> = {
+  custom_mcp: "自定义 MCP",
   oauth2: "OAuth 2.0",
   api_key: "API Key",
   token: "Token",

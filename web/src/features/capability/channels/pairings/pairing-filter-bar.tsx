@@ -3,12 +3,13 @@
 import { Filter, Users } from "lucide-react";
 
 import {
+  CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
 import type { Agent } from "@/types/agent/agent";
 
 import type {
@@ -52,40 +53,29 @@ export function PairingFilterBar({
   const { t } = useI18n();
 
   return (
-    <div className="mb-5">
-      <div className="overflow-x-auto border-b border-(--divider-subtle-color)">
-        <div
-          aria-label="按配对状态筛选"
-          className="flex min-w-max items-end gap-1"
-          role="tablist"
-        >
-          {STATUS_TABS.map((tab) => {
-            const selected = filters.status === tab.value;
-            return (
-              <button
-                aria-selected={selected}
-                className={cn(
-                  "flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
-                  selected
-                    ? "border-(--primary) text-(--text-strong)"
-                    : "border-transparent text-(--text-muted) hover:text-(--text-default)",
-                )}
-                key={tab.value || "all"}
-                onClick={() => onChange("status", tab.value)}
-                role="tab"
-                type="button"
-              >
-                <span>{tab.label}</span>
-                <span className="min-w-4 text-right text-xs tabular-nums text-(--text-soft)">
-                  {counts[tab.countKey]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+    <CapabilityFilterBar className="mb-5 sm:justify-between">
+      <UiTabs
+        activeValue={filters.status}
+        ariaLabel="按配对状态筛选"
+        className="h-8 w-full shrink-0 sm:w-auto"
+        density="compact"
+        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
+        onChange={(value) => onChange("status", value)}
+        options={STATUS_TABS.map((tab) => ({
+          className: "min-w-0 flex-1 sm:flex-none",
+          label: (
+            <>
+              <span>{tab.label}</span>
+              <span className="min-w-4 text-right tabular-nums text-(--text-soft)">
+                {counts[tab.countKey]}
+              </span>
+            </>
+          ),
+          value: tab.value,
+        }))}
+      />
 
-      <div className="mt-3 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:ml-auto sm:max-w-[720px] sm:flex-row sm:items-center">
         <CapabilityFilterSearchInput
           onChange={(value) => onChange("query", value)}
           placeholder={searchPlaceholder}
@@ -121,6 +111,6 @@ export function PairingFilterBar({
           value={filters.agentId}
         />
       </div>
-    </div>
+    </CapabilityFilterBar>
   );
 }

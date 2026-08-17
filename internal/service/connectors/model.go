@@ -5,9 +5,17 @@ import (
 	"time"
 )
 
+const (
+	// ConnectorKindCatalog 表示 Nexus 内置连接器目录项。
+	ConnectorKindCatalog = "connector"
+	// ConnectorKindCustomMCP 表示用户创建的自定义 MCP server。
+	ConnectorKindCustomMCP = "custom_mcp"
+)
+
 // Info 表示连接器列表项。
 type Info struct {
 	ConnectorID               string   `json:"connector_id"`
+	Kind                      string   `json:"kind"`
 	Name                      string   `json:"name"`
 	Title                     string   `json:"title"`
 	Description               string   `json:"description"`

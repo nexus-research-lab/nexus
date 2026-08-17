@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -8,7 +9,9 @@ import { CapabilityPageLayout } from "@/features/capability/shared/capability-pa
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -18,9 +21,16 @@ import { FeishuAppConnectionDialog } from "./auth/feishu/feishu-app-connection-d
 import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
 import { ShopDomainPromptDialog } from "./auth/shop-domain/shop-domain-prompt-dialog";
 import { ConnectorsGrid } from "./catalog/connectors-grid";
-import { ConnectorsSearchBar } from "./catalog/connectors-search-bar";
+import {
+  type ConnectorDirectoryMode,
+  ConnectorsSearchBar,
+} from "./catalog/connectors-search-bar";
 import { useConnectorController } from "./controller/use-connector-controller";
 import { useConnectorOauthEvents } from "./controller/use-connector-oauth-events";
+import { CustomMCPDialog } from "./custom/custom-mcp-dialog";
+import { CustomMCPGrid } from "./custom/custom-mcp-grid";
+import { filterCustomMCPServers } from "./custom/custom-mcp-model";
+import { useCustomMCPServers } from "./custom/use-custom-mcp-servers";
 import { ConnectorDetailView } from "./detail/connector-detail-view";
 
 type ConnectorConfigDialog = {
@@ -33,6 +43,9 @@ export function ConnectorsDirectory() {
   const controller = useConnectorController();
   const navigate = useNavigate();
   const { connectorId } = useParams<ConnectorsRouteParams>();
+  const [directoryMode, setDirectoryMode] =
+    useState<ConnectorDirectoryMode>("catalog");
+  const [customSearchQuery, setCustomSearchQuery] = useState("");
   const [configDialog, setConfigDialog] =
     useState<ConnectorConfigDialog>(null);
   const [feishuConnectionOpen, setFeishuConnectionOpen] = useState(false);
@@ -52,6 +65,15 @@ export function ConnectorsDirectory() {
     refreshCatalog,
     reportFeedback,
   } = controller;
+  const customMCP = useCustomMCPServers({
+    enabled: !connectorId && directoryMode === "custom_mcp",
+    onCatalogChanged: refreshCatalog,
+    reportFeedback,
+  });
+  const visibleCustomMCPServers = useMemo(
+    () => filterCustomMCPServers(customMCP.servers, customSearchQuery),
+    [customMCP.servers, customSearchQuery],
+  );
 
   useEffect(() => {
     if (!connectorId) {
@@ -142,25 +164,53 @@ export function ConnectorsDirectory() {
           />
         ) : (
           <CapabilityPageLayout
+            actions={directoryMode === "custom_mcp" ? (
+              <WorkspaceSurfaceToolbarAction
+                disabled={customMCP.busy}
+                onClick={customMCP.openCreate}
+                tone="primary"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("capability.custom_mcp_add")}
+              </WorkspaceSurfaceToolbarAction>
+            ) : undefined}
             description={t("capability.connectors_intro_description")}
             title={t("capability.connectors_intro_title")}
           >
             <ConnectorsSearchBar
               activeCategory={controller.activeCategory}
+              mode={directoryMode}
               onCategoryChange={controller.setActiveCategory}
-              onQueryChange={controller.setSearchQuery}
-              searchQuery={controller.searchQuery}
+              onModeChange={setDirectoryMode}
+              onQueryChange={directoryMode === "catalog"
+                ? controller.setSearchQuery
+                : setCustomSearchQuery}
+              searchQuery={directoryMode === "catalog"
+                ? controller.searchQuery
+                : customSearchQuery}
             />
-            <ConnectorsGrid
-              activeCategory={controller.activeCategory}
-              connectors={controller.connectors}
-              loading={controller.loading}
-              onConnect={requestConnectorConnect}
-              onDisconnect={(id) => void handleDisconnect(id)}
-              onOpenConnector={openConnectorPage}
-              pendingAction={controller.pendingAction}
-              searchQuery={controller.searchQuery}
-            />
+            {directoryMode === "catalog" ? (
+              <ConnectorsGrid
+                activeCategory={controller.activeCategory}
+                connectors={controller.connectors}
+                loading={controller.loading}
+                onConnect={requestConnectorConnect}
+                onDisconnect={(id) => void handleDisconnect(id)}
+                onOpenConnector={openConnectorPage}
+                pendingAction={controller.pendingAction}
+                searchQuery={controller.searchQuery}
+              />
+            ) : (
+              <CustomMCPGrid
+                busy={customMCP.busy}
+                hasServers={customMCP.servers.length > 0}
+                loading={customMCP.loading}
+                onAdd={customMCP.openCreate}
+                onDelete={customMCP.requestDelete}
+                onEdit={customMCP.openEdit}
+                servers={visibleCustomMCPServers}
+              />
+            )}
           </CapabilityPageLayout>
         )}
       </WorkspaceSurfaceScaffold>
@@ -236,6 +286,32 @@ export function ConnectorsDirectory() {
         onCancel={controller.cancelShopDomainPrompt}
         onConfirm={controller.confirmShopDomainPrompt}
         state={controller.shopDomainPrompt}
+      />
+      {customMCP.dialogState ? (
+        <CustomMCPDialog
+          busy={customMCP.busy}
+          key={customMCP.dialogState.mode === "edit"
+            ? customMCP.dialogState.server.connector_id
+            : "create"}
+          onClose={customMCP.closeDialog}
+          onSave={customMCP.save}
+          {...(customMCP.dialogState.mode === "edit"
+            ? { server: customMCP.dialogState.server }
+            : {})}
+        />
+      ) : null}
+      <ConfirmDialog
+        confirmText={t("capability.custom_mcp_delete_confirm")}
+        isOpen={customMCP.deleteTarget !== null}
+        message={customMCP.deleteTarget
+          ? t("capability.custom_mcp_delete_message", {
+              name: customMCP.deleteTarget.name,
+            })
+          : ""}
+        onCancel={() => customMCP.requestDelete(null)}
+        onConfirm={() => void customMCP.confirmDelete()}
+        title={t("capability.custom_mcp_delete_title")}
+        variant="danger"
       />
       <FeedbackBannerViewport
         item={controller.feedback ? {

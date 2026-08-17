@@ -17,10 +17,19 @@ import (
 	feishudocxmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 )
 
 type connectorMCPService interface {
 	LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*connectordomain.ConnectionSnapshot, error)
+}
+
+type customMCPService interface {
+	LoadActiveCustomMCPServer(
+		ctx context.Context,
+		ownerUserID string,
+		connectorID string,
+	) (string, map[string]any, error)
 }
 
 // newConnectorMCPBuilder 返回 DM/Room 实时链路所需的 connector MCPServerBuilder。
@@ -66,10 +75,44 @@ func newConnectorMCPBuilder(
 				appendTencentDocsMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 			case "yuque":
 				appendYuqueMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			default:
+				servers = appendCustomMCPServer(
+					ctx,
+					servers,
+					svc,
+					agentValue.OwnerUserID,
+					connectorID,
+				)
 			}
 		}
 		return servers
 	}
+}
+
+func appendCustomMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectorMCPService,
+	ownerUserID string,
+	connectorID string,
+) map[string]sdkmcp.ServerConfig {
+	customService, ok := svc.(customMCPService)
+	if !ok {
+		return servers
+	}
+	name, config, err := customService.LoadActiveCustomMCPServer(
+		ctx,
+		ownerUserID,
+		connectorID,
+	)
+	if err != nil || strings.TrimSpace(name) == "" || config == nil {
+		return servers
+	}
+	merged, err := clientopts.MergeAgentMCPServers(servers, map[string]any{name: config})
+	if err != nil {
+		return servers
+	}
+	return merged
 }
 
 func normalizedConnectorIDs(requested []string) []string {
