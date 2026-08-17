@@ -79,6 +79,7 @@ build_binary() {
 build_binary "nexus-server" "./cmd/nexus-server"
 build_binary "nexusctl" "./cmd/nexusctl"
 build_binary "nexuscfg" "./cmd/nexuscfg"
+build_binary "nexus" "./cmd/nexus"
 
 echo "==> Staging runtime files"
 rsync -a --delete --exclude ".DS_Store" "${ROOT_DIR}/db/" "${STAGE_DIR}/db/"
@@ -145,7 +146,7 @@ ${START_COMMAND}
 默认 Web UI: http://localhost:8010
 默认 API 前缀: /nexus/v1
 
-这个包包含服务端、nexusctl、nexuscfg、内置技能与前端资源；服务端启动时会自动执行数据库迁移，不包含 macOS 桌面 app。
+这个包包含服务端、nexusctl、nexuscfg、Agent-facing nexus CLI、内置技能与前端资源；服务端启动时会自动执行数据库迁移，不包含 macOS 桌面 app。
 RELEASE_DOC
 
 echo "==> Creating archive"

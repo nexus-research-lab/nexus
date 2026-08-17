@@ -401,6 +401,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		},
 		{name: "nexusctl broker pending", command: "nexusctl agent list", denied: true},
 		{name: "scoped nexuscfg", command: "nexuscfg inspect", denied: false},
+		{name: "scoped nexus runtime cli", command: `"${NEXUS_COMMAND_PATH}" --json automation contract`, denied: false},
 		{name: "concatenated nexusctl", command: `nex"usctl" agent list`, denied: true},
 		{name: "escaped nexusctl", command: `nex\usctl agent list`, denied: true},
 		{name: "cmd escaped nexusctl", command: `nex^usctl agent list`, denied: true},
@@ -412,6 +413,8 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		{name: "braced command path", command: `"${NEXUSCTL_COMMAND_PATH}" agent list`, denied: true},
 		{name: "braced nexuscfg command path", command: `"${NEXUSCFG_COMMAND_PATH}" inspect`, denied: false},
 		{name: "forged nexuscfg broker", command: `NEXUSCFG_BROKER_URL=http://127.0.0.1:9 nexuscfg inspect`, denied: true},
+		{name: "forged nexus command broker", command: `NEXUS_COMMAND_BROKER_URL=http://127.0.0.1:9 nexus automation contract`, denied: true},
+		{name: "forged nexus command capability", command: `NEXUS_COMMAND_CAPABILITY_TOKEN=fake nexus automation contract`, denied: true},
 		{name: "braced powershell command path", command: `& ${env:NEXUSCTL_COMMAND_PATH} agent list`, denied: true},
 		{name: "assigned nexusctl", command: `cmd=nexusctl; "$cmd" agent list`, denied: true},
 		{name: "assigned command path", command: `cmd="$NEXUSCTL_COMMAND_PATH"; "$cmd" agent list`, denied: true},
@@ -482,6 +485,10 @@ func TestWorkspacePolicyHookAllowsMainAgentControlCLIs(t *testing.T) {
 		{
 			name:    "bare nexuscfg command path",
 			command: "nexuscfg --json inspect --domain providers",
+		},
+		{
+			name:    "injected nexus runtime command path",
+			command: `"$NEXUS_COMMAND_PATH" --json automation contract`,
 		},
 		{
 			name:    "owner scoped user create",

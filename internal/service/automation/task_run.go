@@ -17,6 +17,23 @@ import (
 
 // RunTaskNow 立即触发一次任务。
 func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*automationdomain.ExecutionResult, error) {
+	return s.runTaskNow(ctx, jobID, nil)
+}
+
+// RunTaskNowAtVersion 只运行调用方在 plan 阶段核对过的任务版本。
+func (s *Service) RunTaskNowAtVersion(
+	ctx context.Context,
+	jobID string,
+	expectedVersion int64,
+) (*automationdomain.ExecutionResult, error) {
+	return s.runTaskNow(ctx, jobID, &expectedVersion)
+}
+
+func (s *Service) runTaskNow(
+	ctx context.Context,
+	jobID string,
+	expectedVersion *int64,
+) (*automationdomain.ExecutionResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -30,6 +47,10 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*automationdoma
 	}
 	if job == nil {
 		return nil, automationdomain.ErrJobNotFound
+	}
+	if expectedVersion != nil &&
+		(*expectedVersion < 1 || job.ConfigurationVersion != *expectedVersion) {
+		return nil, automationdomain.ErrConfigurationVersionConflict
 	}
 	if err = rejectAgentScriptControl(ctx, *job); err != nil {
 		return nil, err
@@ -79,8 +100,40 @@ func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]automationd
 
 // RetryRunDelivery 只重试某次 run 的结果投递，不重新执行任务本身。
 func (s *Service) RetryRunDelivery(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error) {
+	return s.retryRunDeliveryAtVersion(ctx, jobID, runID, nil)
+}
+
+// RetryRunDeliveryAtVersion 只按 plan 阶段核对过的任务配置重投递一次结果。
+func (s *Service) RetryRunDeliveryAtVersion(
+	ctx context.Context,
+	jobID string,
+	runID string,
+	expectedVersion int64,
+) (*automationdomain.ScheduledTaskRun, error) {
+	return s.retryRunDeliveryAtVersion(ctx, jobID, runID, &expectedVersion)
+}
+
+func (s *Service) retryRunDeliveryAtVersion(
+	ctx context.Context,
+	jobID string,
+	runID string,
+	expectedVersion *int64,
+) (*automationdomain.ScheduledTaskRun, error) {
 	s.taskControlMu.Lock()
 	defer s.taskControlMu.Unlock()
+	if expectedVersion != nil {
+		ownerUserID, _ := scopedOwnerUserID(ctx)
+		job, err := s.repository.GetScheduledTask(ctx, ownerUserID, strings.TrimSpace(jobID))
+		if err != nil {
+			return nil, err
+		}
+		if job == nil {
+			return nil, automationdomain.ErrJobNotFound
+		}
+		if *expectedVersion < 1 || job.ConfigurationVersion != *expectedVersion {
+			return nil, automationdomain.ErrConfigurationVersionConflict
+		}
+	}
 	return s.retryRunDelivery(ctx, jobID, runID, true)
 }
 

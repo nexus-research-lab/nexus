@@ -157,6 +157,22 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexuscfg")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexuscfg shim: %v", err)
 	}
+	nexusShim := filepath.Join(sharedBinDir, "nexus")
+	if info, statErr := os.Stat(nexusShim); statErr != nil {
+		t.Fatalf("共享 nexus shim 未生成: %v", statErr)
+	} else if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("nexus shim 应可执行: %s", nexusShim)
+	}
+	nexusPayload, err := os.ReadFile(nexusShim)
+	if err != nil {
+		t.Fatalf("读取 nexus shim 失败: %v", err)
+	}
+	if !strings.Contains(string(nexusPayload), "go run ./cmd/nexus") {
+		t.Fatalf("开发环境 nexus shim 应固定到源码入口: %s", nexusPayload)
+	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexus")); !os.IsNotExist(err) {
+		t.Fatalf("agent workspace 不应生成独立 nexus shim: %v", err)
+	}
 	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
 	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {
 		t.Fatalf("创建 stale imagegen 目录失败: %v", err)
@@ -182,15 +198,20 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
 	managedSkillContracts := map[string][]string{
 		filepath.Join("automation", "SKILL.md"): {
-			"`automation_query` 只读",
-			"`automation_update` 执行受权限保护的变更",
-			"宿主会绑定当前任务",
-			"`runs` 和 `events` 可以检查已删除任务",
-			"也不会重新启用已暂停任务",
-			"`manual_redelivery_run_ids`",
-			"`retry_delivery`",
-			"`set_heartbeat`",
-			"CAS 更新并重读核验",
+			"NEXUS_COMMAND_PATH",
+			"automation contract",
+			"inspect → plan → apply",
+			"原生真人确认",
+			"后台 scheduled run 只有查询权限",
+			"IM `/y`、`/a`、`/d`",
+			"references/operations.md",
+		},
+		filepath.Join("automation", "references", "operations.md"): {
+			"Automation CLI 操作",
+			"retry_delivery",
+			"set_heartbeat",
+			"cross_agent_allowed",
+			"current_revision",
 		},
 		filepath.Join("visualize", "SKILL.md"): {
 			"在 Nexus 对话中生成交互式图表",

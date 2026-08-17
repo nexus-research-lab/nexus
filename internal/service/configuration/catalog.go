@@ -102,7 +102,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainAutomation, Description: "定时任务、Heartbeat、交付与运行历史",
-		Source: "database + scheduler runtime", ManagedBy: "nexus_automation", Mutable: true,
+		Source: "database + scheduler runtime", ManagedBy: "nexus automation", Mutable: true,
 	},
 	{
 		Name: DomainSessions, Description: "Owner workspace 中的 Agent 对话目录与安全生命周期",

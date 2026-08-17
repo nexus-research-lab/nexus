@@ -15,7 +15,7 @@ import (
 
 func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 	handler := scheduledTaskPermissionHandlerForOptions(protocol.Options{
-		AllowedTools:    []string{"WebSearch", "nexus_automation"},
+		AllowedTools:    []string{"WebSearch"},
 		DisallowedTools: []string{"Write"},
 	}, false)
 
@@ -34,12 +34,27 @@ func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 		t.Fatalf("WebSearch 授权应匹配常见搜索 MCP 工具名: %+v", wrappedSearchDecision)
 	}
 
-	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_automation__automation_query"})
+	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input: map[string]any{
+			"command": `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}'`,
+		},
+	})
 	if err != nil {
-		t.Fatalf("包装后的 nexus_automation 工具权限处理失败: %v", err)
+		t.Fatalf("Automation CLI 查询权限处理失败: %v", err)
 	}
 	if wrappedDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("nexus_automation 授权应匹配包装工具名: %+v", wrappedDecision)
+		t.Fatalf("exact Automation CLI 查询应由 job/run capability 收口并允许启动: %+v", wrappedDecision)
+	}
+	mutationDecision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete`},
+	})
+	if err != nil {
+		t.Fatalf("Automation CLI 变更权限处理失败: %v", err)
+	}
+	if mutationDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("后台 scheduled run 不应获得 Automation CLI mutation Bash 权限: %+v", mutationDecision)
 	}
 
 	writeDecision, err := handler(context.Background(), sdkpermission.Request{ToolName: "Write"})

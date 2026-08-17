@@ -17,16 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
 - Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
 - Added desktop workspace file actions for system-aware opening, copying paths, and attaching files to the current chat.
-- Added selectable scheduled-task SDK permission modes to the create/edit dialog and Automation MCP create/update tools. New tasks copy the execution session's effective mode when one is reused, otherwise the execution Agent mode, plus that Agent's tool allow/deny policy, then keep an independent task snapshot.
+- Added selectable scheduled-task SDK permission modes to the create/edit dialog and Agent-facing Automation commands. New tasks copy the execution session's effective mode when one is reused, otherwise the execution Agent mode, plus that Agent's tool allow/deny policy, then keep an independent task snapshot.
 - Added owner- and session-scoped IM slash commands for durable scheduled-task permission approval, denial, connector retry, and task-level grants across Discord, Telegram, DingTalk, WeCom, personal Weixin, and Feishu.
-- Added same-Agent Skill and Automation mutation access for exactly active-paired external IM direct messages without granting cross-Agent owner authority.
+- Added same-Agent Skill and round-scoped Automation command access for exactly active-paired external IM direct messages without granting cross-Agent owner authority.
 - Added session-scoped `/y`, `/a`, and `/d` handling for ordinary Agent and scheduled-task permission prompts in active-paired IM direct messages without exposing internal request IDs; historical long commands remain accepted as compatibility aliases, and ambiguous pending requests across both permission domains fail closed.
 - Added `IM · channel · account hint · current/history` identity markers to conversation history, open tabs, and scheduled-task session selectors so multiple accounts and stale sessions remain distinguishable without exposing raw platform IDs.
 - Added run-scoped delivery snapshots and structured Automation result projection into destination Nexus sessions, with idempotent run identities, platform receipt overlays, and continuation context for the next user turn.
 
 ### Changed
 
-- Collapsed the always-mounted `nexus_automation` surface from eleven operation-specific tools to read-only `automation_query` and trusted `automation_update`, moving schedule and heartbeat guidance into the system-managed `automation` Skill.
+- Replaced the `nexus_automation` MCP surface with the system-managed `automation` Skill and the nxs/Claude-compatible, round-scoped `nexus automation` CLI. Mutations now use inspect/plan/apply, revision and digest fencing, and native Nexus/Room/IM confirmation; background task runs receive only exact job/run-scoped reads.
 - Mounted `nexus_imagegen` only when a usable image-generation model is configured, keeping unavailable image tools out of the default MCP surface.
 - Replaced the `nexus_config` MCP with the system-managed `nexus-configuration` Skill and round-scoped `nexuscfg` CLI for every Agent, while keeping owner-global changes exclusive to the main Agent and preserving discovery, planning, revision checks, verification, and audit.
 - Removed the generic Connector listing and arbitrary REST proxy tools; selected Connectors now expose provider MCP servers, with Feishu Docs isolated in its own `nexus_feishu_docx` MCP.

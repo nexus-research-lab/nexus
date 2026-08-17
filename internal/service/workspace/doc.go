@@ -5,8 +5,9 @@
 // 成员清单：
 //   - service.go / file.go / memory.go / mutation.go / upload.go / path.go：Service、基于 confined-fd 的文件/记忆/条目/上传访问与路径。
 //   - agent.go / model.go / reveal.go：Agent workspace、模型、本机定位。
-//   - initializer.go / initializer_*.go / runtime_configuration_skill.go：workspace 初始化阶段、主 Agent 文件策略，
-//     全局绑定/显式停用与 workspace 动态 Skill 的运行时投影，以及按可信 DM/Room 角色只启用一个配置 Skill 的渐进披露（复用 Agent 默认行为模板 / nexusctl / 模板集）。
+//   - initializer.go / initializer_*.go：workspace 初始化阶段、主 Agent 文件策略，
+//     全局绑定/显式停用与 workspace 动态 Skill 的运行时投影，以及共享 nexusctl、
+//     nexuscfg、Agent-facing nexus shim 的安全生成（复用 Agent 默认行为模板与模板集）。
 //   - platform_skills.go / host_skills*.go / host_skill_link_*.go / user_skills.go：平台、
 //     桌面宿主与 owner 外部 Skill 源同步、宿主直接 Skill 及安全目录链接快照、
 //     稳定根下的分 Skill 刷新与后台监听、

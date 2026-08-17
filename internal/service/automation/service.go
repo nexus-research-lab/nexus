@@ -152,6 +152,10 @@ type Service struct {
 	schedulerOwnerID      string
 	schedulerLeaseHeld    bool
 	schedulerLeaseRenewAt time.Time
+	runtimeCommandMu      sync.Mutex
+	runtimeCommandRecords map[string]*runtimeCommandCapabilityRecord
+	runtimeCommandTokens  map[string]string
+	runtimeCommandRounds  runtimeCommandRoundResolver
 	started               bool
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
@@ -184,21 +188,23 @@ func NewService(
 		authority = agents
 	}
 	return &Service{
-		config:           cfg,
-		repository:       automationstore.NewRepository(cfg, db),
-		agents:           authority,
-		dm:               dm,
-		room:             room,
-		permission:       permission,
-		workspace:        workspace,
-		delivery:         delivery,
-		logger:           logx.NewDiscardLogger(),
-		nowFn:            func() time.Time { return time.Now().UTC() },
-		idFactory:        automationexec.NewID,
-		schedulerOwnerID: automationexec.NewID("scheduler"),
-		jobStates:        make(map[string]*automationexec.JobRuntimeState),
-		heartbeatState:   make(map[string]*automationexec.HeartbeatRuntimeState),
-		wakeRequests:     make(map[string][]automationexec.HeartbeatWakeRequest),
+		config:                cfg,
+		repository:            automationstore.NewRepository(cfg, db),
+		agents:                authority,
+		dm:                    dm,
+		room:                  room,
+		permission:            permission,
+		workspace:             workspace,
+		delivery:              delivery,
+		logger:                logx.NewDiscardLogger(),
+		nowFn:                 func() time.Time { return time.Now().UTC() },
+		idFactory:             automationexec.NewID,
+		schedulerOwnerID:      automationexec.NewID("scheduler"),
+		jobStates:             make(map[string]*automationexec.JobRuntimeState),
+		heartbeatState:        make(map[string]*automationexec.HeartbeatRuntimeState),
+		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
+		runtimeCommandRecords: make(map[string]*runtimeCommandCapabilityRecord),
+		runtimeCommandTokens:  make(map[string]string),
 	}
 }
 

@@ -135,6 +135,10 @@ var (
 	ErrConfigurationVersionConflict = errors.New("automation configuration version conflict")
 	// ErrCreateRequestConflict 表示同一个创建幂等键被用于不同意图。
 	ErrCreateRequestConflict = errors.New("scheduled task create request conflicts with an existing intent")
+	// ErrRuntimeCommandConflict 表示同一个 runtime command request_id 被复用于不同意图。
+	ErrRuntimeCommandConflict = errors.New("automation runtime command request conflicts with an existing intent")
+	// ErrRuntimeCommandUncertain 表示命令已经开始，但无法安全证明是否完成，禁止自动重放。
+	ErrRuntimeCommandUncertain = errors.New("automation runtime command outcome is uncertain; inspect authoritative state before issuing a new command")
 	// ErrPermissionRequestNotFound 表示审批请求不存在或不属于当前 owner。
 	ErrPermissionRequestNotFound = errors.New("automation permission request not found")
 	// ErrPermissionRequestResolved 表示审批请求已由其他决策处理。

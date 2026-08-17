@@ -8,6 +8,10 @@ func (s *Server) mountRoutes() {
 		s.prefixPath("/internal/runtime/configuration"),
 		newRuntimeConfigurationHandler(s.services.Configuration),
 	)
+	s.router.Post(
+		s.prefixPath("/internal/runtime/automation"),
+		newRuntimeAutomationHandler(s.services.Automation, s.services.Permission),
+	)
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()

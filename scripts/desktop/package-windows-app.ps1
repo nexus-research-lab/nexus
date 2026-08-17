@@ -536,6 +536,7 @@ if ($signingEnabled) {
     (Join-Path $AppBuildDir "Resources/nexus-server.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nexusctl.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nexuscfg.exe"),
+    (Join-Path $AppBuildDir "Resources/bin/nexus.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nxs.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
 

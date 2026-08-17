@@ -8,7 +8,8 @@ import "strings"
 // AutomationRunContext 描述当前 runtime round 所属的定时任务运行。
 //
 // 该结构只由 Nexus 后端调度链路写入。模型可在隐藏上下文中读取这些字段，
-// 但 Automation MCP 的访问范围直接使用本结构，而不解析提示词或会话名称。
+// 但 round-scoped Automation command capability 的访问范围直接使用本结构，
+// 不解析提示词或 session 名称。
 type AutomationRunContext struct {
 	JobID                    string
 	RunID                    string

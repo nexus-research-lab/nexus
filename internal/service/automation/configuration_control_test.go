@@ -10,7 +10,6 @@ import (
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -425,8 +424,8 @@ func TestHeartbeatCASAndRuntimePersistenceKeepConfigurationVersion(t *testing.T)
 	}
 }
 
-func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
-	fixture := newAutomationMCPFixture(t, "ok")
+func TestAutomationCommandCreateRetryAndHeartbeatControl(t *testing.T) {
+	fixture := newAutomationCommandFixture(t, "ok")
 	createArgs := map[string]any{
 		"request_id":     "mcp-create-stable",
 		"name":           "stable",
@@ -439,7 +438,7 @@ func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
 			"interval_unit":  "minutes",
 		},
 	}
-	firstResult, firstError := callAutomationMCPTool(
+	firstResult, firstError := callAutomationCommand(
 		t,
 		fixture.Service,
 		fixture.ServerContext,
@@ -447,9 +446,9 @@ func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
 		createArgs,
 	)
 	if firstError {
-		t.Fatalf("first create_scheduled_task: %s", automationMCPToolText(t, firstResult))
+		t.Fatalf("first create_scheduled_task: %s", automationCommandText(t, firstResult))
 	}
-	secondResult, secondError := callAutomationMCPTool(
+	secondResult, secondError := callAutomationCommand(
 		t,
 		fixture.Service,
 		fixture.ServerContext,
@@ -457,16 +456,16 @@ func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
 		createArgs,
 	)
 	if secondError {
-		t.Fatalf("replayed create_scheduled_task: %s", automationMCPToolText(t, secondResult))
+		t.Fatalf("replayed create_scheduled_task: %s", automationCommandText(t, secondResult))
 	}
-	first := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, firstResult)
-	second := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, secondResult)
+	first := decodeAutomationCommandJSON[automationdomain.ScheduledTask](t, firstResult)
+	second := decodeAutomationCommandJSON[automationdomain.ScheduledTask](t, secondResult)
 	if first.JobID != second.JobID || first.ConfigurationVersion != second.ConfigurationVersion {
-		t.Fatalf("MCP replay created a different task: first=%+v second=%+v", first, second)
+		t.Fatalf("command replay created a different task: first=%+v second=%+v", first, second)
 	}
 	tasks, err := fixture.Service.ListTasks(
-		automationMCPTestOwnerContext(fixture.ServerContext.OwnerUserID),
-		fixture.ServerContext.CurrentAgentID,
+		automationCommandTestOwnerContext(fixture.ServerContext.OwnerUserID),
+		fixture.ServerContext.AgentID,
 	)
 	if err != nil {
 		t.Fatalf("ListTasks: %v", err)
@@ -475,7 +474,7 @@ func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
 		t.Fatalf("task count after replay = %d, want 1", len(tasks))
 	}
 
-	updateResult, updateError := callAutomationMCPTool(
+	updateResult, updateError := callAutomationCommand(
 		t,
 		fixture.Service,
 		fixture.ServerContext,
@@ -488,17 +487,17 @@ func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
 		},
 	)
 	if updateError {
-		t.Fatalf("update_heartbeat: %s", automationMCPToolText(t, updateResult))
+		t.Fatalf("update_heartbeat: %s", automationCommandText(t, updateResult))
 	}
-	heartbeat := decodeAutomationMCPJSON[automationdomain.HeartbeatStatus](t, updateResult)
+	heartbeat := decodeAutomationCommandJSON[automationdomain.HeartbeatStatus](t, updateResult)
 	if heartbeat.ConfigurationVersion != 1 || !heartbeat.Enabled || heartbeat.EverySeconds != 120 {
 		t.Fatalf("heartbeat update = %+v", heartbeat)
 	}
-	wakeResult, wakeError := callAutomationMCPTool(
+	wakeResult, wakeError := callAutomationCommand(
 		t,
 		fixture.Service,
-		contract.ServerContext{
-			CurrentAgentID:    fixture.ServerContext.CurrentAgentID,
+		RuntimeCommandActor{
+			AgentID:           fixture.ServerContext.AgentID,
 			OwnerUserID:       fixture.ServerContext.OwnerUserID,
 			SourceContextType: "agent",
 		},
@@ -506,17 +505,17 @@ func TestAutomationMCPCreateRetryAndHeartbeatControl(t *testing.T) {
 		map[string]any{"mode": automationdomain.WakeModeNextHeartbeat},
 	)
 	if wakeError {
-		t.Fatalf("wake_heartbeat: %s", automationMCPToolText(t, wakeResult))
+		t.Fatalf("wake_heartbeat: %s", automationCommandText(t, wakeResult))
 	}
-	wake := decodeAutomationMCPJSON[automationdomain.HeartbeatWakeResult](t, wakeResult)
-	if wake.AgentID != fixture.ServerContext.CurrentAgentID ||
+	wake := decodeAutomationCommandJSON[automationdomain.HeartbeatWakeResult](t, wakeResult)
+	if wake.AgentID != fixture.ServerContext.AgentID ||
 		wake.Mode != automationdomain.WakeModeNextHeartbeat ||
 		wake.Scheduled {
 		t.Fatalf("wake result = %+v", wake)
 	}
 	afterWake, err := fixture.Service.GetHeartbeatStatus(
-		automationMCPTestOwnerContext(fixture.ServerContext.OwnerUserID),
-		fixture.ServerContext.CurrentAgentID,
+		automationCommandTestOwnerContext(fixture.ServerContext.OwnerUserID),
+		fixture.ServerContext.AgentID,
 	)
 	if err != nil {
 		t.Fatalf("GetHeartbeatStatus after wake: %v", err)

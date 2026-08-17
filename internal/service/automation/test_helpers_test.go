@@ -603,6 +603,20 @@ CREATE TABLE automation_task_create_requests (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (owner_user_id, request_id)
 );
+CREATE TABLE automation_runtime_commands (
+    owner_user_id VARCHAR(64) NOT NULL,
+    request_id VARCHAR(128) NOT NULL,
+    actor_agent_id VARCHAR(64) NOT NULL,
+    operation VARCHAR(32) NOT NULL,
+    intent_digest VARCHAR(64) NOT NULL,
+    approval_request_id VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    result_json TEXT,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (owner_user_id, request_id)
+);
 CREATE TABLE automation_delivery_routes (
     route_id VARCHAR(64) NOT NULL PRIMARY KEY,
     agent_id VARCHAR(64) NOT NULL,

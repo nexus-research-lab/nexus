@@ -69,7 +69,7 @@ func TestServiceRejectsAgentOriginDeliveryToAnotherAgent(t *testing.T) {
 		nil,
 		nil,
 	)
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	agentCtx := automationexec.WithActorAgentID(ownerCtx, "agent-1")
 	sourceSession := protocol.BuildAgentSessionKey(
 		"agent-1",
@@ -182,7 +182,7 @@ func TestServiceRejectsAgentActorWithForgedControlPlaneSource(t *testing.T) {
 		nil,
 		nil,
 	)
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	agentCtx := automationexec.WithActorAgentID(ownerCtx, "agent-1")
 
 	_, err := service.CreateTask(agentCtx, automationdomain.CreateJobInput{
@@ -235,7 +235,7 @@ func TestServiceAllowsPageDeliveryToAnotherSameOwnerAgent(t *testing.T) {
 			SessionKey: recipientSession, AgentID: "agent-b", ChannelType: protocol.SessionChannelInternalSegment,
 		},
 	}})
-	created, err := service.CreateTask(automationMCPTestOwnerContext("user-1"), automationdomain.CreateJobInput{
+	created, err := service.CreateTask(automationCommandTestOwnerContext("user-1"), automationdomain.CreateJobInput{
 		Name: "A executes and B receives", AgentID: "agent-a", Instruction: "prepare report",
 		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
@@ -271,7 +271,7 @@ func TestServiceRejectsNewLegacyInboxAndMissingRealSession(t *testing.T) {
 	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{})
 	input := automationConfigurationTaskInput("real-session-required")
 	input.Source = automationdomain.Source{Kind: automationdomain.SourceKindUserPage}
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 
 	inboxKey := protocol.BuildAgentSessionKey(
 		"agent-1", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
@@ -324,7 +324,7 @@ func TestServiceValidatesCrossAgentIMAgainstRecipientPairing(t *testing.T) {
 			SessionKey: recipientSession, AgentID: "agent-b", ChannelType: protocol.SessionChannelWeixinPersonal,
 		},
 	}})
-	_, err := service.CreateTask(automationMCPTestOwnerContext("user-1"), automationdomain.CreateJobInput{
+	_, err := service.CreateTask(automationCommandTestOwnerContext("user-1"), automationdomain.CreateJobInput{
 		Name: "A executes and B receives on IM", AgentID: "agent-a", Instruction: "prepare report",
 		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
@@ -354,7 +354,7 @@ func TestServiceRejectsPageDeliveryToCrossOwnerAgent(t *testing.T) {
 		"agent-b", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
 		"recipient-session", "",
 	)
-	_, err := service.CreateTask(automationMCPTestOwnerContext("user-1"), automationdomain.CreateJobInput{
+	_, err := service.CreateTask(automationCommandTestOwnerContext("user-1"), automationdomain.CreateJobInput{
 		Name: "cross owner", AgentID: "agent-a", Instruction: "prepare report",
 		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
@@ -400,7 +400,7 @@ func TestServiceOwnerMainGrantIsRevalidatedBeforeDelivery(t *testing.T) {
 		delivery,
 	)
 	service.agents = authority
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	mainCtx := automationexec.WithActorAgentID(ownerCtx, "main")
 	mainSession := protocol.BuildAgentSessionKey(
 		"main",
@@ -484,7 +484,7 @@ func TestDeliverJobObservationUsesLatestTaskAfterStaleSnapshot(t *testing.T) {
 		nil,
 		delivery,
 	)
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	agentCtx := automationexec.WithActorAgentID(ownerCtx, "agent-1")
 	sourceSession := protocol.BuildAgentSessionKey(
 		"agent-1",
@@ -559,7 +559,7 @@ func TestRoomDeliveryRevalidatesCurrentMembership(t *testing.T) {
 		nil,
 		delivery,
 	)
-	ownerCtx := automationMCPTestOwnerContext("user-1")
+	ownerCtx := automationCommandTestOwnerContext("user-1")
 	agentCtx := automationexec.WithActorAgentID(ownerCtx, "agent-1")
 	roomSession := protocol.BuildRoomSharedSessionKey("conversation-1")
 	created, err := service.CreateTask(agentCtx, automationdomain.CreateJobInput{

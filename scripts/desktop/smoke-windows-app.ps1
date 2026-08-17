@@ -405,6 +405,16 @@ if ($LASTEXITCODE -ne 0) {
   throw "Bundled nexuscfg --help failed with exit code $LASTEXITCODE"
 }
 
+$nexusExe = Join-Path $AppDir "Resources/bin/nexus.exe"
+if (-not (Test-Path $nexusExe)) {
+  throw "Missing bundled nexus executable: $nexusExe"
+}
+
+& $nexusExe --help *> $null
+if ($LASTEXITCODE -ne 0) {
+  throw "Bundled nexus --help failed with exit code $LASTEXITCODE"
+}
+
 $nxsExpected = Resolve-Bool $ExpectNXSRuntime $false
 $nxsExe = Join-Path $AppDir "Resources/bin/nxs.exe"
 if ($nxsExpected) {
