@@ -18,6 +18,20 @@ test.after(async () => {
   await server.close();
 });
 
+test("ResizeObserver 浏览器告警不上报为 Web 崩溃", async () => {
+  const { isBenignResizeObserverError } = await server.ssrLoadModule(
+    "/src/bootstrap/recovery/chunk-error-recovery.ts",
+  );
+
+  assert.equal(isBenignResizeObserverError(
+    "ResizeObserver loop completed with undelivered notifications.",
+  ), true);
+  assert.equal(isBenignResizeObserverError(
+    new Error("ResizeObserver loop limit exceeded"),
+  ), true);
+  assert.equal(isBenignResizeObserverError("Request timed out"), false);
+});
+
 test("workspace subscription errors do not mutate conversation state", async () => {
   const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-handlers.ts",

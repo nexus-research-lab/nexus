@@ -1790,7 +1790,6 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
     conversation_id: `${room.id}-conversation`,
     is_active: true,
     last_activity: `2026-07-20T0${index + 1}:00:00.000Z`,
-    last_reply_preview: "preview",
     message_count: 1,
     room_id: room.id,
     room_type: room.room_type,
@@ -1812,6 +1811,11 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
   assert.deepEqual(
     Object.fromEntries(items.map((item) => [item.roomId, item.activityStatus])),
     { "dm-room": "waiting", "group-room": "working", "idle-room": null },
+  );
+  assert.equal(
+    items.find((item) => item.roomId === "group-room").summary,
+    "group-room",
+    "聊天行应复用会话标题，不为摘要扫描完整历史",
   );
 
   const { ConversationRow } = await server.ssrLoadModule(

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added owner-scoped custom STDIO, HTTP, and SSE MCP servers to the Connector directory, with encrypted environment, Bearer Token, and custom-header secrets plus existing Agent/Session Connector activation controls.
 - Added session-scoped multi-folder workspaces for desktop chats, with a native folder picker, runtime access, and automatic working-directory context.
 - Added privacy-safe cache correlation segments for provider-reported cache reads, keyed by low-cardinality Goal/Execution responsibility lanes and one-way runtime/tool-surface fingerprints without persisting prompts, tool schemas, credentials, or domain IDs.
 - Added a built-in Word-reading Skill that detects actual DOCX versus legacy DOC content, including mislabeled `.docx` uploads.
@@ -51,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Reset transcript-backed Kimi K3 DM runtime sessions once when an explicit Agent or Session Connector change—or a legacy session without a tool baseline—alters the model-visible tool surface. The fresh runtime starts with the selected MCP schemas while Nexus preserves the stable Session identity and projects the old and new transcript segments as one visible history.
+- Retried Windows orphan-sidecar termination when process-tree cleanup fails, and tolerated safe atomic session metadata replacement while listing conversations.
+- Kept launcher and sidebar directory loading independent of full conversation history, surfaced retryable directory failures instead of false empty states, and stopped benign ResizeObserver warnings from polluting desktop fatal diagnostics.
 - Routed isolated runtime interrupts, shutdown, and same-session descendant cleanup through the trusted launcher instead of relying on cross-UID parent signals.
 - Made successful public handoff replies visibly traceable to their source member with a host-owned, reconnect-safe reply annotation, without fabricating a reciprocal `@`, a second wake, Goal authority, or a false success on failed and interrupted target rounds.
 - Kept Composer Goal submissions alive across page and Session navigation with an exact request-owned WebSocket and Session-binding lease, a client acceptance window longer than the detached backend deadline, an explicit confirmation state for unknown ACKs, and reconciliation against either a version-fenced Goal or the original Session's exact durable control record. Post-send rejection recovery now retains the exact request receipt so late durable acceptance retracts only the unchanged auto-restored draft and obsolete error while preserving later user edits and retries.

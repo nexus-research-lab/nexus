@@ -39,11 +39,15 @@ export function useConnectorCatalog({ onError }: UseConnectorCatalogOptions) {
     void refresh();
   }, [refresh]);
 
+  const catalogConnectors = useMemo(
+    () => allConnectors.filter((item) => item.kind !== "custom_mcp"),
+    [allConnectors],
+  );
   const connectors = useMemo(() => filterConnectors(
-    allConnectors,
+    catalogConnectors,
     activeCategory,
     searchQuery,
-  ), [activeCategory, allConnectors, searchQuery]);
+  ), [activeCategory, catalogConnectors, searchQuery]);
 
   return {
     activeCategory,

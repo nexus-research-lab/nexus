@@ -11,6 +11,8 @@ import {
   ConnectorDeviceAuthPollResult,
   ConnectorDeviceAuthStart,
   ConnectorInfo,
+  CustomMCPServer,
+  CustomMCPServerInput,
 } from "@/types/capability/connector";
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
@@ -157,5 +159,46 @@ export const pollConnectorDeviceAuthApi = async (
       method: "POST",
       body: JSON.stringify({ device_code: deviceCode }),
     },
+  );
+};
+
+/** 获取当前用户的自定义 MCP server。 */
+export const getCustomMCPServersApi = async (): Promise<CustomMCPServer[]> => {
+  return requestApi<CustomMCPServer[]>(`${BASE}/custom-mcp-servers`, {
+    method: "GET",
+  });
+};
+
+/** 创建自定义 MCP server。 */
+export const createCustomMCPServerApi = async (
+  body: CustomMCPServerInput,
+): Promise<CustomMCPServer> => {
+  return requestApi<CustomMCPServer>(`${BASE}/custom-mcp-servers`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+};
+
+/** 更新自定义 MCP server，null 秘密值表示保留已有值。 */
+export const updateCustomMCPServerApi = async (
+  connectorId: string,
+  body: CustomMCPServerInput,
+): Promise<CustomMCPServer> => {
+  return requestApi<CustomMCPServer>(
+    `${BASE}/custom-mcp-servers/${encodeURIComponent(connectorId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+  );
+};
+
+/** 删除自定义 MCP server。 */
+export const deleteCustomMCPServerApi = async (
+  connectorId: string,
+): Promise<void> => {
+  await requestApi<{ connector_id: string }>(
+    `${BASE}/custom-mcp-servers/${encodeURIComponent(connectorId)}`,
+    { method: "DELETE" },
   );
 };

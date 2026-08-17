@@ -38,6 +38,30 @@ func TestConnectorMCPBuilderRequiresSessionEnable(t *testing.T) {
 	}
 }
 
+func TestConnectorMCPBuilderLoadsEnabledCustomMCP(t *testing.T) {
+	svc := &stubCustomConnectorMCPService{
+		stubConnectorMCPService: stubConnectorMCPService{},
+		name:                    "local_tools",
+		config: map[string]any{
+			"type": "stdio", "command": "npx", "args": []string{"-y", "local-mcp"},
+		},
+	}
+	builder := newConnectorMCPBuilder(svc)
+	ctx := runtimectx.WithEnabledConnectorIDs(
+		context.Background(),
+		[]string{"custom-mcp:test"},
+	)
+	servers := builder(
+		ctx,
+		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "owner-1"},
+		"session-1", "", "", "", "", nil, "",
+	)
+	config, ok := servers["local_tools"].(sdkmcp.StdioServerConfig)
+	if !ok || config.Command != "npx" || len(config.Args) != 2 {
+		t.Fatalf("自定义 MCP 未按 Connector 选择挂载: %+v", servers)
+	}
+}
+
 func TestConnectorMCPBuilderKeepsExplicitSurfaceWhenConnectionIsUnavailable(t *testing.T) {
 	builder := newConnectorMCPBuilder(&stubConnectorMCPService{})
 	ctx := runtimectx.WithEnabledConnectorIDs(
@@ -234,6 +258,23 @@ func TestAppendAmapMCPServerSkipsMissingConnection(t *testing.T) {
 type stubConnectorMCPService struct {
 	snapshots map[string]*connectordomain.ConnectionSnapshot
 	err       error
+}
+
+type stubCustomConnectorMCPService struct {
+	stubConnectorMCPService
+	name   string
+	config map[string]any
+}
+
+func (s *stubCustomConnectorMCPService) LoadActiveCustomMCPServer(
+	_ context.Context,
+	ownerUserID string,
+	connectorID string,
+) (string, map[string]any, error) {
+	if ownerUserID != "owner-1" || connectorID != "custom-mcp:test" {
+		return "", nil, nil
+	}
+	return s.name, s.config, nil
 }
 
 func (s *stubConnectorMCPService) LoadActiveConnection(

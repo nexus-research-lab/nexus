@@ -21,11 +21,15 @@ export function useLauncherPageController() {
     LauncherConversationSummary[]
   >([]);
   const refreshBootstrap = useCallback(() => {
-    void getLauncherBootstrapApi().then((payload) => {
-      setAgents(payload.agents);
-      setRooms(payload.rooms);
-      setConversations(payload.conversations);
-    });
+    void getLauncherBootstrapApi()
+      .then((payload) => {
+        setAgents(payload.agents);
+        setRooms(payload.rooms);
+        setConversations(payload.conversations);
+      })
+      .catch((error) => {
+        console.error("[useLauncherPageController] 刷新 Launcher 数据失败:", error);
+      });
   }, []);
 
   useEffect(() => {

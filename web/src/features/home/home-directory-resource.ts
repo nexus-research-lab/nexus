@@ -14,6 +14,7 @@ const DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS = 120_000;
 export interface HomeDirectorySnapshot {
   agents: LauncherAgentSummary[];
   conversations: LauncherConversationSummary[];
+  hasError: boolean;
   isLoading: boolean;
   rooms: LauncherRoomSummary[];
 }
@@ -24,6 +25,7 @@ const listeners = new Set<DirectoryListener>();
 let snapshot: HomeDirectorySnapshot = {
   agents: [],
   conversations: [],
+  hasError: false,
   isLoading: true,
   rooms: [],
 };
@@ -46,7 +48,7 @@ export function refreshHomeDirectory(): void {
     return;
   }
   if (snapshot.agents.length === 0 && snapshot.rooms.length === 0) {
-    replaceSnapshot({ ...snapshot, isLoading: true });
+    replaceSnapshot({ ...snapshot, hasError: false, isLoading: true });
   }
 
   refreshPromise = getLauncherBootstrapApi()
@@ -54,13 +56,14 @@ export function refreshHomeDirectory(): void {
       replaceSnapshot({
         agents: payload.agents,
         conversations: payload.conversations,
+        hasError: false,
         isLoading: false,
         rooms: payload.rooms,
       });
     })
     .catch((error) => {
       console.error("[HomeDirectory] 加载聊天目录失败:", error);
-      replaceSnapshot({ ...snapshot, isLoading: false });
+      replaceSnapshot({ ...snapshot, hasError: true, isLoading: false });
     })
     .finally(() => {
       refreshPromise = null;

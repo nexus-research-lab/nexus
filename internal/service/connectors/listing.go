@@ -33,6 +33,22 @@ func (s *Service) ListConnectors(ctx context.Context, ownerUserID string, query 
 		}
 		items = append(items, s.toInfoWithConfigError(entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"), configErrors[entry.ConnectorID]))
 	}
+	customServers, err := s.ListCustomMCPServers(ctx, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	for _, server := range customServers {
+		if category != "" && category != ConnectorKindCustomMCP {
+			continue
+		}
+		if status != "" && status != "available" {
+			continue
+		}
+		if needle != "" && !customMCPServerMatches(server, needle) {
+			continue
+		}
+		items = append(items, customMCPServerConnectorInfo(server))
+	}
 	return items, nil
 }
 
@@ -96,6 +112,7 @@ func (s *Service) toInfoWithConfigError(entry CatalogEntry, connectionState stri
 	}
 	return Info{
 		ConnectorID:               entry.ConnectorID,
+		Kind:                      ConnectorKindCatalog,
 		Name:                      entry.Name,
 		Title:                     entry.Title,
 		Description:               entry.Description,
