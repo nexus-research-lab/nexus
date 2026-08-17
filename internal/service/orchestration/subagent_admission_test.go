@@ -419,7 +419,8 @@ func TestSubagentParentRoundExitPersistsDurableReconciliationDeadline(t *testing
 		repository.snapshot = updated
 		return updated, nil
 	}
-	result, err := NewService(repository).ObserveSubagentParentRoundExit(
+	service := NewService(repository)
+	result, err := service.ObserveSubagentParentRoundExit(
 		context.Background(),
 		subagentActor(),
 		SubagentParentRoundExitInput{
@@ -436,6 +437,11 @@ func TestSubagentParentRoundExitPersistsDurableReconciliationDeadline(t *testing
 	if !result.Allowed || result.Binding == nil ||
 		result.Binding.AttemptID != "attempt-child" {
 		t.Fatalf("parent round exit result = %#v", result)
+	}
+	select {
+	case <-service.SubagentReconciliationChanges():
+	default:
+		t.Fatal("durable deadline did not emit a reconciliation change")
 	}
 }
 

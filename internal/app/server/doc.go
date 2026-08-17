@@ -3,7 +3,7 @@
 // L2 | 父级: internal/app（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go / lifecycle.go / app_services.go / core_services.go：服务生命周期与依赖装配；accepted Review completion audit、Execution -> Goal durable confirmation、Goal 会话标题、Plan proposal 与 parent-exit subagent Attempt 各有跨进程恢复器，Assignment、review-return 与 cancellation outbox 由 Room dispatch 恢复器处理。
+//   - server.go / lifecycle.go / app_services.go / core_services.go：服务生命周期与依赖装配；accepted Review completion audit、Execution -> Goal durable confirmation、Goal 会话标题、Plan proposal 各有跨进程恢复器，parent-exit subagent Attempt 按最近 durable deadline 和变更事件唤醒，Assignment、review-return 与 cancellation outbox 由 Room dispatch 恢复器处理。
 //   - routes.go / routes_web.go / handlers.go / websocket.go：HTTP/Web 路由、WS 入口与 orchestration ExecutionInvalidationSink 装配。
 //   - *_mcp.go：configuration / automation / authorization / communication / connector / execution / goal / visualize / imagegen / room 内建 MCP server 按 Session 拓扑稳定装配；DM runner / Room slot 逐轮绑定统一动态 Responsibility authority、exact Goal/revision/Execution、trusted WorkBinding/ReviewBinding 与 human authority。
 //   - execution_goal.go / explicit_goal_execution.go / execution_subagent_history.go：显式/自适应 promotion、单域原子的 goal_only create_goal、fresh Plan 只读继承 canonical Goal objective、历史 reservation 恢复、Plan materialization 或 promotion 驱动的 pending/confirmed Goal/Execution 双向幂等 binding、Goal objective revision rebase saga 与受限 Subagent ToolRun 历史适配。

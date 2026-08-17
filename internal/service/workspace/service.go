@@ -63,11 +63,3 @@ func (s *Service) UnsubscribeLive(token string) {
 	}
 	s.live.Unsubscribe(token)
 }
-
-// FlushLiveWrites 立即结算指定 Agent 尚未发出结束事件的实时写入。
-func (s *Service) FlushLiveWrites(agentID string) {
-	if s.live == nil {
-		return
-	}
-	s.live.FlushActiveWrites(agentID)
-}

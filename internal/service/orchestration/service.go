@@ -100,6 +100,7 @@ type Service struct {
 	dispatchConsumer       ExecutionDispatchConsumer
 	reviewDispatchConsumer ExecutionReviewDispatchConsumer
 	cancellationConsumer   ExecutionCancellationConsumer
+	subagentWake           chan struct{}
 	invalidationMu         sync.RWMutex
 	invalidationSink       ExecutionInvalidationSink
 	coordinationMu         sync.RWMutex
@@ -118,6 +119,7 @@ func NewService(repository Repository) *Service {
 		planProposals:      planProposals,
 		goalConfirmations:  goalConfirmations,
 		completionAudits:   completionAudits,
+		subagentWake:       make(chan struct{}, 1),
 		coordinationRounds: make(map[string]string),
 		now:                time.Now,
 		newID:              newOrchestrationID,

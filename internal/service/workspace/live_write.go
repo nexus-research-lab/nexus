@@ -99,19 +99,7 @@ func (m *liveManager) EmitAPIDelete(agentID string, relativePath string) {
 	})
 }
 
-func (m *liveManager) FlushActiveWrites(agentID string) {
-	normalizedAgentID := strings.TrimSpace(agentID)
-	if normalizedAgentID == "" {
-		return
-	}
-	m.flushWrites(normalizedAgentID, true)
-}
-
-func (m *liveManager) flushSettledWrites(agentID string) {
-	m.flushWrites(agentID, false)
-}
-
-func (m *liveManager) flushWrites(agentID string, force bool) {
+func (m *liveManager) flushSettledWrites(agentID string) time.Duration {
 	type settledEvent struct {
 		Listeners []LiveListener
 		Event     LiveEvent
@@ -119,12 +107,13 @@ func (m *liveManager) flushWrites(agentID string, force bool) {
 
 	now := time.Now().UTC()
 	pending := make([]settledEvent, 0)
+	var nextDelay time.Duration
 
 	m.mu.Lock()
 	state := m.watchers[agentID]
 	if state == nil {
 		m.mu.Unlock()
-		return
+		return 0
 	}
 	for path, ignoredUntil := range state.IgnoredUntil {
 		if now.After(ignoredUntil) {
@@ -133,7 +122,11 @@ func (m *liveManager) flushWrites(agentID string, force bool) {
 	}
 	listeners := m.snapshotListenersLocked(agentID)
 	for path, writeState := range state.ActiveWrites {
-		if !force && now.Sub(writeState.LastChangeAt) < liveQuietWindow {
+		remaining := liveQuietWindow - now.Sub(writeState.LastChangeAt)
+		if remaining > 0 {
+			if nextDelay == 0 || remaining < nextDelay {
+				nextDelay = remaining
+			}
 			continue
 		}
 		state.Snapshots[path] = cloneStringPointer(writeState.Current)
@@ -158,4 +151,5 @@ func (m *liveManager) flushWrites(agentID string, force bool) {
 	for _, item := range pending {
 		m.dispatchListeners(item.Listeners, item.Event)
 	}
+	return nextDelay
 }

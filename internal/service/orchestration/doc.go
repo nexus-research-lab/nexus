@@ -16,7 +16,7 @@
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /
 //     room_attempt_terminal.go：Room work、review 和 physical cancellation outbox，
 //     以及 dispatched/self WorkBinding 共用的 root Attempt 终态桥。
-//   - subagent_admission.go：Subagent admission、child Attempt、parent-exit deadline 与重启 orphan 对账。
+//   - subagent_admission.go：Subagent admission、child Attempt、parent-exit deadline、合并唤醒信号与重启 orphan 对账。
 //   - runtime_graph*.go / execution_view.go / context.go / execution_alignment.go：
 //     Runtime Graph 事实、actor context、目标对齐与 managed WorkGraph 只读投影。
 //   - goal_policy.go / promotion.go / explicit_goal.go / goal_binding.go /

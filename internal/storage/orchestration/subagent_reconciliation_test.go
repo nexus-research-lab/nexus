@@ -70,6 +70,13 @@ func TestRepositorySubagentReconciliationDeadlineSurvivesRepositoryRestart(t *te
 		t.Fatal(err)
 	}
 	child = findAttempt(t, snapshot, child.ID)
+	nextDeadline, err := repository.NextSubagentReconciliationDeadline(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextDeadline != nil {
+		t.Fatalf("unscheduled child deadline = %s", nextDeadline)
+	}
 	beforeRestart, err := repository.ListOrphanedSubagentAttempts(
 		ctx,
 		child.CreatedAt,
@@ -142,6 +149,13 @@ func TestRepositorySubagentReconciliationDeadlineSurvivesRepositoryRestart(t *te
 		t.Fatalf("durably scheduled child remained orphaned: %#v", orphansAfterSchedule)
 	}
 	restarted := NewSQLRepository("sqlite", repository.db)
+	nextDeadline, err = restarted.NextSubagentReconciliationDeadline(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextDeadline == nil || !nextDeadline.Equal(reconcileAfter) {
+		t.Fatalf("next reconciliation deadline = %v, want %s", nextDeadline, reconcileAfter)
+	}
 	before, err := restarted.ListExpiredSubagentAttempts(
 		ctx,
 		reconcileAfter.Add(-time.Nanosecond),

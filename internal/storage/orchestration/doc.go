@@ -16,7 +16,7 @@
 //     和 Block/Resume/Takeover。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go：work、review 与
 //     physical cancellation outbox。
-//   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline 与上次进程未落 deadline orphan 对账。
+//   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline、最近 deadline 查询与上次进程未落 deadline orphan 对账。
 //   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref。
 //   - query.go / scan.go / workgraph.go：Snapshot SQL 投影和 managed WorkGraph 读取。
 //

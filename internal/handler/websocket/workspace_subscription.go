@@ -35,9 +35,6 @@ type workspaceSubscriptionRegistry struct {
 	workspace       *workspacesvc.Service
 	runtimeProvider runtimeSnapshotProvider
 	senderTokens    map[string]map[string]workspaceSenderSubscription
-	agentSenders    map[string]map[string]workspaceEventSender
-	lastSnapshots   map[string]RuntimeSnapshot
-	pollerCancel    context.CancelFunc
 }
 
 func newWorkspaceSubscriptionRegistry(
@@ -48,8 +45,6 @@ func newWorkspaceSubscriptionRegistry(
 		workspace:       workspaceService,
 		runtimeProvider: runtimeProvider,
 		senderTokens:    make(map[string]map[string]workspaceSenderSubscription),
-		agentSenders:    make(map[string]map[string]workspaceEventSender),
-		lastSnapshots:   make(map[string]RuntimeSnapshot),
 	}
 }
 
@@ -84,11 +79,6 @@ func (r *workspaceSubscriptionRegistry) addReference(sender workspaceEventSender
 	subscription := r.senderTokens[senderKey][agentID]
 	subscription.refCount++
 	r.senderTokens[senderKey][agentID] = subscription
-	if r.agentSenders[agentID] == nil {
-		r.agentSenders[agentID] = make(map[string]workspaceEventSender)
-	}
-	r.agentSenders[agentID][senderKey] = sender
-	r.ensurePollerLocked()
 	return subscription.refCount == 1 && r.workspace != nil
 }
 
@@ -189,17 +179,6 @@ func (r *workspaceSubscriptionRegistry) deleteSubscriptionLocked(senderKey strin
 	if len(agentTokens) == 0 {
 		delete(r.senderTokens, senderKey)
 	}
-	if senders := r.agentSenders[agentID]; senders != nil {
-		delete(senders, senderKey)
-		if len(senders) == 0 {
-			delete(r.agentSenders, agentID)
-			delete(r.lastSnapshots, agentID)
-		}
-	}
-	if len(r.agentSenders) == 0 && r.pollerCancel != nil {
-		r.pollerCancel()
-		r.pollerCancel = nil
-	}
 	return subscription
 }
 
@@ -207,15 +186,6 @@ func (r *workspaceSubscriptionRegistry) releaseLiveToken(token string) {
 	if token != "" && r.workspace != nil {
 		r.workspace.UnsubscribeLive(token)
 	}
-}
-
-func (r *workspaceSubscriptionRegistry) ensurePollerLocked() {
-	if r.pollerCancel != nil {
-		return
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	r.pollerCancel = cancel
-	go r.runPoller(ctx)
 }
 
 func workspaceEventMessage(event workspacesvc.LiveEvent) protocol.EventMessage {

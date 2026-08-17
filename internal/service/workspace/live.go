@@ -15,7 +15,6 @@ import (
 const (
 	liveQuietWindow      = 1500 * time.Millisecond
 	liveIgnoreWindow     = 2 * time.Second
-	liveTickerInterval   = 400 * time.Millisecond
 	liveMaxSnapshotBytes = 128 * 1024
 )
 

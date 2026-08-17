@@ -2239,6 +2239,7 @@ type fakeRepository struct {
 	finishAttempt     func(context.Context, orchestrationstore.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error)
 	scheduleSubagent  func(context.Context, orchestrationstore.ScheduleSubagentReconciliationCommand) (*protocol.ExecutionSnapshot, error)
 	listExpired       func(context.Context, time.Time, int) ([]protocol.WorkAttempt, error)
+	nextDeadline      func(context.Context) (*time.Time, error)
 	listOrphaned      func(context.Context, time.Time, int) ([]protocol.WorkAttempt, error)
 	submit            func(context.Context, orchestrationstore.SubmitCommand) (*protocol.ExecutionSnapshot, error)
 	review            func(context.Context, orchestrationstore.ReviewCommand) (*protocol.ExecutionSnapshot, error)
@@ -2406,6 +2407,15 @@ func (f *fakeRepository) ListExpiredSubagentAttempts(
 		return nil, errors.New("unexpected ListExpiredSubagentAttempts")
 	}
 	return f.listExpired(ctx, now, limit)
+}
+
+func (f *fakeRepository) NextSubagentReconciliationDeadline(
+	ctx context.Context,
+) (*time.Time, error) {
+	if f.nextDeadline == nil {
+		return nil, errors.New("unexpected NextSubagentReconciliationDeadline")
+	}
+	return f.nextDeadline(ctx)
 }
 
 func (f *fakeRepository) ListOrphanedSubagentAttempts(
