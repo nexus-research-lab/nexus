@@ -6,13 +6,11 @@ import { getSubagentTaskMessagesApi } from "@/lib/api/conversation/subagent-task
 import type { SubagentTaskMessagesResponse } from "@/types/conversation/subagent-task";
 
 import {
-  isSubagentTaskActive,
   normalizeSubagentTask,
-  preferFreshSubagentTask,
-  SUBAGENT_TASK_POLL_INTERVAL_MS,
   subagentTaskErrorMessage,
 } from "../subagent-task-model";
 import { useScopedResource } from "../use-scoped-resource";
+import { useSubagentTaskRealtimeRefresh } from "../use-subagent-task-realtime-refresh";
 import {
   createSubagentTaskThreadResourceSnapshot,
   type SubagentTaskThreadScope,
@@ -117,18 +115,14 @@ export function useSubagentTaskThreadResource(
     scope.task.capabilities.transcript,
   ]);
 
-  const effectiveTask = preferFreshSubagentTask(scope.task, snapshot.detail?.task);
-  const taskIsActive = isSubagentTaskActive(effectiveTask);
-  const transcriptAvailable = effectiveTask.capabilities.transcript;
-  useEffect(() => {
-    if (!transcriptAvailable || !taskIsActive) {
-      return undefined;
-    }
-    const intervalId = window.setInterval(() => {
-      void refresh(true);
-    }, SUBAGENT_TASK_POLL_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
-  }, [refresh, taskIsActive, transcriptAvailable]);
+  const refreshFromRealtime = useCallback(() => refresh(true), [refresh]);
+
+  useSubagentTaskRealtimeRefresh({
+    enabled: scope.task.capabilities.transcript,
+    onChanged: refreshFromRealtime,
+    source: scope.source,
+    taskId: scope.task.task_id,
+  });
 
   return {
     detail: snapshot.detail,

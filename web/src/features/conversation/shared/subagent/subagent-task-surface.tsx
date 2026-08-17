@@ -74,7 +74,7 @@ function SubagentTaskSourceSurface({
     isLoading,
     refresh,
     tasks,
-  } = useSubagentTasks(source, true);
+  } = useSubagentTasks(source, selectedTaskId === null, hostAgentId);
   const visibleTasks = useMemo(
     () => filterSubagentTasksByHostAgent(tasks, hostAgentId),
     [hostAgentId, tasks],
@@ -113,7 +113,10 @@ function SubagentTaskSourceSurface({
     return (
       <SubagentTaskThread
         layout={layout}
-        onBack={() => setSelectedTaskId(null)}
+        onBack={() => {
+          setSelectedTaskId(null);
+          void refresh(true);
+        }}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         source={source}
         task={selectedTask}

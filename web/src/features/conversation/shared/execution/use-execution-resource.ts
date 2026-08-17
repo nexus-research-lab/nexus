@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 session_key 与 Execution 只读 API。
- * OUTPUT: 带请求竞态保护、WS 失效合并、最近 managed 图保留和低频兜底的 WorkGraph 资源。
+ * OUTPUT: 带请求竞态保护、WS 失效合并和最近 managed 图保留的 WorkGraph 资源。
  * POS: DM/Room 共用的 Execution 前端状态入口。
  */
 "use client";
@@ -14,7 +14,6 @@ import type {
   ExecutionView,
 } from "@/types/conversation/execution";
 
-const ACTIVE_EXECUTION_FALLBACK_POLL_MS = 30_000;
 const EXECUTION_INVALIDATION_DEBOUNCE_MS = 200;
 const ACTIVE_EXECUTION_STATUSES = new Set<ExecutionStatus>([
   "active",
@@ -125,21 +124,6 @@ export function useExecutionResource({
     }, EXECUTION_INVALIDATION_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
   }, [invalidationKey, refresh, sessionKey]);
-
-  useEffect(() => {
-    const executionActive = rawExecution
-      ? ACTIVE_EXECUTION_STATUSES.has(rawExecution.status)
-      : false;
-    if (!executionActive) {
-      return;
-    }
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void refresh(false);
-      }
-    }, ACTIVE_EXECUTION_FALLBACK_POLL_MS);
-    return () => window.clearInterval(interval);
-  }, [rawExecution, refresh]);
 
   useEffect(() => {
     const refreshWhenVisible = () => {

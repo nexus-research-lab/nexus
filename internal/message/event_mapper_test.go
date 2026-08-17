@@ -44,6 +44,87 @@ func TestEventMapperProjectsCompactRuntimeStatusLifecycle(t *testing.T) {
 	}
 }
 
+func TestEventMapperInvalidatesOnlySubagentTaskChanges(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{Context: MessageContext{
+		SessionKey:     "agent:nexus:ws:room:conversation-1",
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+		AgentID:        "nexus",
+		RoundID:        "round-subagent",
+	}})
+
+	started, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskStarted,
+		TaskStarted: &sdkprotocol.TaskStartedMessage{
+			TaskID:    "task-agent",
+			ToolUseID: "tool-agent",
+			TaskType:  "local_agent",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Map(task_started) error = %v", err)
+	}
+	event := findMappedEvent(started.Events, protocol.EventTypeSubagentTaskChanged)
+	if event == nil {
+		t.Fatalf("task_started events = %+v", started.Events)
+	}
+	if event.RoomID != "room-1" || event.ConversationID != "conversation-1" || event.AgentID != "nexus" {
+		t.Fatalf("失效事件作用域不正确: %+v", event)
+	}
+	taskIDs, ok := event.Data["task_ids"].([]string)
+	if !ok || len(taskIDs) != 1 || taskIDs[0] != "task-agent" {
+		t.Fatalf("task_ids = %#v", event.Data["task_ids"])
+	}
+	unchanged, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskStarted,
+		TaskStarted: &sdkprotocol.TaskStartedMessage{
+			TaskID:    "task-agent",
+			ToolUseID: "tool-agent",
+			TaskType:  "local_agent",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Map(unchanged task_started) error = %v", err)
+	}
+	if event := findMappedEvent(unchanged.Events, protocol.EventTypeSubagentTaskChanged); event != nil {
+		t.Fatalf("未变化的任务快照不应重复失效: %+v", event)
+	}
+
+	completed, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskNotification,
+		TaskNotification: &sdkprotocol.TaskNotificationMessage{
+			TaskID: "task-agent",
+			Status: "completed",
+		},
+	})
+	if err != nil || findMappedEvent(completed.Events, protocol.EventTypeSubagentTaskChanged) == nil {
+		t.Fatalf("已识别任务的终态未失效: result=%+v error=%v", completed, err)
+	}
+
+	shell, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskStarted,
+		TaskStarted: &sdkprotocol.TaskStartedMessage{
+			TaskID:   "task-shell",
+			TaskType: "local_shell",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Map(local_shell) error = %v", err)
+	}
+	if event := findMappedEvent(shell.Events, protocol.EventTypeSubagentTaskChanged); event != nil {
+		t.Fatalf("local_shell 不应触发子智能体失效: %+v", event)
+	}
+}
+
+func findMappedEvent(events []protocol.EventMessage, eventType protocol.EventType) *protocol.EventMessage {
+	for index := range events {
+		if events[index].EventType == eventType {
+			return &events[index]
+		}
+	}
+	return nil
+}
+
 func TestEventMapperDecoratesDurableAndProjectedMessages(t *testing.T) {
 	mapper := NewEventMapper(EventMapperOptions{
 		Context: MessageContext{
