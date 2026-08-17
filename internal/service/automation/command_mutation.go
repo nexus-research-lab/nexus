@@ -66,6 +66,7 @@ func (s *Service) PlanRuntimeCommand(
 			plan.Target = scope.JobID
 			plan.Summary = fmt.Sprintf("修改定时任务「%s」", scope.Job.Name)
 			plan.CurrentRevision = runtimeTaskRevision(scope.Job)
+			plan.ObservedConfigurationVersion = scope.Job.ConfigurationVersion
 		}
 	case automationdomain.AutomationCommandOperationDelete,
 		automationdomain.AutomationCommandOperationRun:
@@ -78,6 +79,7 @@ func (s *Service) PlanRuntimeCommand(
 			input.JobID = scope.JobID
 			plan.Target = scope.JobID
 			plan.CurrentRevision = runtimeTaskRevision(scope.Job)
+			plan.ObservedConfigurationVersion = scope.Job.ConfigurationVersion
 			if operation == automationdomain.AutomationCommandOperationDelete {
 				plan.Risk = "destructive"
 				plan.Summary = fmt.Sprintf("删除定时任务「%s」", scope.Job.Name)
@@ -118,6 +120,7 @@ func (s *Service) PlanRuntimeCommand(
 			plan.Summary = fmt.Sprintf("只重投递任务「%s」的运行结果，不重新执行任务", scope.Job.Name)
 			plan.Risk = "external_effect"
 			plan.CurrentRevision = runtimeDeliveryRevision(scope.Job, *selected)
+			plan.ObservedConfigurationVersion = scope.Job.ConfigurationVersion
 		}
 	case automationdomain.AutomationCommandOperationSetHeartbeat,
 		automationdomain.AutomationCommandOperationWake:
@@ -132,6 +135,7 @@ func (s *Service) PlanRuntimeCommand(
 			}
 			plan.Target = agentID
 			plan.CurrentRevision = runtimeHeartbeatRevision(*status)
+			plan.ObservedConfigurationVersion = status.ConfigurationVersion
 			if operation == automationdomain.AutomationCommandOperationSetHeartbeat {
 				err = validateRuntimeHeartbeatInput(input, *status)
 				plan.Summary = fmt.Sprintf("修改 Agent %s 的 heartbeat 配置", agentID)
@@ -229,15 +233,26 @@ func (s *Service) ApplyRuntimeCommand(
 			return nil, buildErr
 		}
 		var updated *automationdomain.ScheduledTask
-		updated, err = s.UpdateTaskAtVersion(ctx, scope.JobID, scope.Job.ConfigurationVersion, updateInput)
+		if plan.ObservedConfigurationVersion < 1 {
+			return nil, automationdomain.ErrConfigurationVersionConflict
+		}
+		if plan.Input.CancelActiveRun {
+			updated, err = s.UpdateTaskAtVersionAndRunningRun(
+				ctx,
+				scope.JobID,
+				plan.ObservedConfigurationVersion,
+				strings.TrimSpace(plan.Input.RunID),
+				updateInput,
+			)
+		} else {
+			updated, err = s.UpdateTaskAtVersion(
+				ctx, scope.JobID, plan.ObservedConfigurationVersion, updateInput,
+			)
+		}
 		if err == nil && plan.Input.CancelActiveRun {
-			runID := strings.TrimSpace(plan.Input.RunID)
-			if runID == "" {
-				runID = strings.TrimSpace(updated.RunningRunID)
-			}
-			if runID != "" {
-				updated, err = s.RecoverTaskRunningRun(ctx, scope.JobID, runID)
-			}
+			updated, err = s.RecoverTaskRunningRun(
+				ctx, scope.JobID, strings.TrimSpace(plan.Input.RunID),
+			)
 		}
 		result.Data = updated
 	case automationdomain.AutomationCommandOperationDelete:
@@ -245,20 +260,20 @@ func (s *Service) ApplyRuntimeCommand(
 		if scopeErr != nil {
 			return nil, scopeErr
 		}
-		result.Data, err = s.DeleteTaskAtVersion(ctx, scope.JobID, scope.Job.ConfigurationVersion)
+		result.Data, err = s.DeleteTaskAtVersion(ctx, scope.JobID, plan.ObservedConfigurationVersion)
 	case automationdomain.AutomationCommandOperationRun:
 		scope, scopeErr := s.runtimeCommandTaskScope(ctx, actor, plan.Input, true)
 		if scopeErr != nil {
 			return nil, scopeErr
 		}
-		result.Data, err = s.RunTaskNowAtVersion(ctx, scope.JobID, scope.Job.ConfigurationVersion)
+		result.Data, err = s.RunTaskNowAtVersion(ctx, scope.JobID, plan.ObservedConfigurationVersion)
 	case automationdomain.AutomationCommandOperationRetryDelivery:
 		scope, scopeErr := s.runtimeCommandTaskScope(ctx, actor, plan.Input, true)
 		if scopeErr != nil {
 			return nil, scopeErr
 		}
 		result.Data, err = s.RetryRunDeliveryAtVersion(
-			ctx, scope.JobID, strings.TrimSpace(plan.Input.RunID), scope.Job.ConfigurationVersion,
+			ctx, scope.JobID, strings.TrimSpace(plan.Input.RunID), plan.ObservedConfigurationVersion,
 		)
 	case automationdomain.AutomationCommandOperationSetHeartbeat:
 		status, statusErr := s.GetHeartbeatStatus(ctx, plan.Target)
@@ -266,16 +281,18 @@ func (s *Service) ApplyRuntimeCommand(
 			return nil, statusErr
 		}
 		update := runtimeHeartbeatUpdate(plan.Input, *status)
-		result.Data, err = s.UpdateHeartbeatAtVersion(ctx, plan.Target, status.ConfigurationVersion, update)
+		result.Data, err = s.UpdateHeartbeatAtVersion(
+			ctx, plan.Target, plan.ObservedConfigurationVersion, update,
+		)
 	case automationdomain.AutomationCommandOperationWake:
-		status, statusErr := s.GetHeartbeatStatus(ctx, plan.Target)
+		_, statusErr := s.GetHeartbeatStatus(ctx, plan.Target)
 		if statusErr != nil {
 			return nil, statusErr
 		}
 		result.Data, err = s.WakeHeartbeatAtVersion(
 			ctx,
 			plan.Target,
-			status.ConfigurationVersion,
+			plan.ObservedConfigurationVersion,
 			automationdomain.HeartbeatWakeInput{Mode: strings.TrimSpace(plan.Input.Mode), Text: commandOptionalString(plan.Input.Text)},
 		)
 	default:
@@ -450,6 +467,23 @@ func (s *Service) runtimeCommandUpdateInput(
 	current automationdomain.ScheduledTask,
 	input automationdomain.AutomationCommandInput,
 ) (automationdomain.UpdateJobInput, automationdomain.AutomationCommandInput, error) {
+	input.RunID = strings.TrimSpace(input.RunID)
+	if input.RunID != "" && !input.CancelActiveRun {
+		return automationdomain.UpdateJobInput{}, input, errors.New("run_id 只能与 cancel_active_run=true 同时使用")
+	}
+	if input.CancelActiveRun {
+		if input.Enabled != nil && *input.Enabled {
+			return automationdomain.UpdateJobInput{}, input, errors.New("cancel_active_run=true 不能同时设置 enabled=true")
+		}
+		currentRunID := strings.TrimSpace(current.RunningRunID)
+		if currentRunID == "" {
+			return automationdomain.UpdateJobInput{}, input, errors.New("当前任务没有可取消的 active run")
+		}
+		if input.RunID != "" && input.RunID != currentRunID {
+			return automationdomain.UpdateJobInput{}, input, errors.New("run_id 与当前 active run 不一致；请重新 inspect/plan")
+		}
+		input.RunID = currentRunID
+	}
 	if strings.TrimSpace(input.Instruction) != "" && strings.TrimSpace(input.InstructionAdd) != "" {
 		return automationdomain.UpdateJobInput{}, input, errors.New("instruction 和 instruction_append 不能同时使用")
 	}
@@ -522,6 +556,9 @@ func (s *Service) runtimeCommandUpdateInput(
 	if input.CancelActiveRun {
 		value := false
 		update.Enabled = &value
+	}
+	if len(changedTaskFields(update)) == 0 {
+		return automationdomain.UpdateJobInput{}, input, errors.New("update 至少需要一个实际变更字段")
 	}
 	next, err := s.applyTaskUpdate(current, update)
 	if err != nil {

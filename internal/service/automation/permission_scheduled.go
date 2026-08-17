@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	automationPermissionRequiredCode sdkpermission.ErrorCode = "automation_permission_required"
-	automationReauthRequiredCode     sdkpermission.ErrorCode = "automation_connector_reauth_required"
-	automationInputRequiredCode      sdkpermission.ErrorCode = "automation_input_required"
+	automationPermissionRequiredCode   sdkpermission.ErrorCode = "automation_permission_required"
+	automationReauthRequiredCode       sdkpermission.ErrorCode = "automation_connector_reauth_required"
+	automationInputRequiredCode        sdkpermission.ErrorCode = "automation_input_required"
+	automationPermissionPublishTimeout                         = 30 * time.Second
 )
 
 type scheduledPermissionScope struct {
@@ -300,24 +302,37 @@ func (s *Service) blockScheduledPermissionRequest(
 	// Agent 停止后续推理；异步精确中断可避免在 permission callback 内自锁。
 	s.stopBlockedPhysicalAttempt(scope.Job, scope.RunID, scope.SessionKey, scope.RoundID)
 	if created {
-		detail := map[string]any{
-			"request_id":   pending.RequestID,
-			"request_kind": pending.Kind,
-			"tool_name":    pending.Capability.ToolName,
-			"connector_id": pending.Capability.ConnectorID,
-			"effect":       pending.Capability.Effect,
-			"resume_safe":  pending.ResumeSafe,
-		}
-		s.recordTaskEvent(
-			contextForJobOwner(ctx, scope.Job),
-			automationdomain.TaskEventActionPermissionRequested,
-			scope.Job,
-			scope.RunID,
-			detail,
-		)
-		s.notifyAutomationPermissionRequest(ctx, scope.Job, *pending)
+		s.publishScheduledPermissionRequest(ctx, scope, *pending)
 	}
 	return sdkpermission.DenyWithErrorCode(reason, errorCode, true), nil
+}
+
+func (s *Service) publishScheduledPermissionRequest(
+	ctx context.Context,
+	scope scheduledPermissionScope,
+	pending automationdomain.AutomationPermissionRequest,
+) {
+	publishCtx, cancelPublish := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		automationPermissionPublishTimeout,
+	)
+	defer cancelPublish()
+	detail := map[string]any{
+		"request_id":   pending.RequestID,
+		"request_kind": pending.Kind,
+		"tool_name":    pending.Capability.ToolName,
+		"connector_id": pending.Capability.ConnectorID,
+		"effect":       pending.Capability.Effect,
+		"resume_safe":  pending.ResumeSafe,
+	}
+	s.recordTaskEvent(
+		contextForJobOwner(publishCtx, scope.Job),
+		automationdomain.TaskEventActionPermissionRequested,
+		scope.Job,
+		scope.RunID,
+		detail,
+	)
+	s.notifyAutomationPermissionRequest(publishCtx, scope.Job, pending)
 }
 
 func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegenDefaultEnabled bool) sdkpermission.Handler {
@@ -351,34 +366,10 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 }
 
 func readOnlyAutomationCLIRequest(request sdkpermission.Request) bool {
-	if !toolpolicy.MatchesItem(request.ToolName, "Bash") {
+	action, ok := toolpolicy.NexusAutomationCLIAction(request)
+	if !ok {
 		return false
 	}
-	command, _ := request.Input["command"].(string)
-	command = strings.TrimSpace(command)
-	if command == "" || strings.ContainsAny(command, "\n\r;|&><`") {
-		return false
-	}
-	normalized := strings.ToLower(command)
-	if !strings.Contains(normalized, "nexus_command_path") &&
-		!strings.HasPrefix(normalized, "nexus ") &&
-		!strings.HasPrefix(normalized, `"nexus" `) &&
-		!strings.Contains(normalized, `/nexus `) &&
-		!strings.Contains(normalized, `\nexus.exe `) {
-		return false
-	}
-	fields := strings.Fields(normalized)
-	automationIndex := -1
-	for index, field := range fields {
-		if strings.Trim(field, `"'`) == "automation" {
-			automationIndex = index
-			break
-		}
-	}
-	if automationIndex < 0 || automationIndex+1 >= len(fields) {
-		return false
-	}
-	action := strings.Trim(fields[automationIndex+1], `"'`)
 	return action == automationdomain.AutomationCommandActionContract ||
 		action == automationdomain.AutomationCommandActionInspect
 }

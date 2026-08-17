@@ -49,8 +49,16 @@ func (s *Service) RuntimeCommandContract(
 	if actor.MutationAllowed() {
 		mutations = append(mutations, runtimeAutomationMutationOperations...)
 	}
+	queryOperations := make([]string, 0, len(runtimeAutomationQueryOperations))
+	for _, operation := range runtimeAutomationQueryOperations {
+		if strings.TrimSpace(actor.SourceContextType) == "agent_paired" &&
+			operation == automationdomain.AutomationCommandOperationHeartbeat {
+			continue
+		}
+		queryOperations = append(queryOperations, operation)
+	}
 	return automationdomain.AutomationCommandContract{
-		QueryOperations:    append([]string(nil), runtimeAutomationQueryOperations...),
+		QueryOperations:    queryOperations,
 		MutationOperations: mutations,
 		MutationAllowed:    actor.MutationAllowed(),
 		CrossAgentAllowed:  actor.CrossAgentAllowed(),
@@ -68,6 +76,9 @@ func runtimeAutomationOperationContracts(
 		"events":    {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "event_limit"}},
 		"report":    {Kind: "query", Optional: []string{"date", "timezone", "agent_id", "job_id", "query"}},
 		"heartbeat": {Kind: "query", Optional: []string{"agent_id"}},
+	}
+	if strings.TrimSpace(actor.SourceContextType) == "agent_paired" {
+		delete(contracts, automationdomain.AutomationCommandOperationHeartbeat)
 	}
 	if !actor.MutationAllowed() {
 		return contracts
@@ -145,6 +156,9 @@ func (s *Service) InspectRuntimeCommand(
 	case automationdomain.AutomationCommandOperationReport:
 		return s.runtimeCommandReport(ctx, actor, input)
 	case automationdomain.AutomationCommandOperationHeartbeat:
+		if strings.TrimSpace(actor.SourceContextType) == "agent_paired" {
+			return nil, errors.New("外部 IM round 不开放 Agent heartbeat 配置查询")
+		}
 		agentID, err := runtimeCommandAgentID(actor, input.AgentID)
 		if err != nil {
 			return nil, err
@@ -211,7 +225,7 @@ func (s *Service) runtimeCommandTaskScope(
 	if err != nil {
 		return runtimeCommandTaskScope{}, err
 	}
-	matches := automationexec.BestMatchingScheduledTasks(jobs, query)
+	matches := runtimeBestMatchingTasks(jobs, query, actor)
 	switch len(matches) {
 	case 0:
 		return runtimeCommandTaskScope{}, fmt.Errorf("没有任务匹配 query %q", query)
@@ -249,6 +263,25 @@ func (s *Service) runtimeCommandHistoryScope(
 		return scope, nil
 	} else if !errors.Is(err, automationdomain.ErrJobNotFound) && strings.TrimSpace(input.Query) == "" {
 		return runtimeCommandTaskScope{}, err
+	}
+	jobID := strings.TrimSpace(input.JobID)
+	if jobID != "" {
+		agentID, err := runtimeCommandAgentID(actor, input.AgentID)
+		if err != nil {
+			return runtimeCommandTaskScope{}, err
+		}
+		items, err := s.SearchTaskHistory(ctx, automationdomain.ScheduledTaskHistorySearchInput{
+			Query: jobID, AgentID: agentID, IncludeActive: true, IncludeDeleted: true, Limit: 10,
+		})
+		if err != nil {
+			return runtimeCommandTaskScope{}, err
+		}
+		for _, item := range items {
+			if strings.TrimSpace(item.JobID) == jobID {
+				return runtimeCommandTaskScope{JobID: jobID}, nil
+			}
+		}
+		return runtimeCommandTaskScope{}, automationdomain.ErrJobNotFound
 	}
 	query := strings.TrimSpace(input.Query)
 	if query == "" {
@@ -292,18 +325,37 @@ func (s *Service) runtimeCommandList(
 	}
 	limit := commandLimit(input.Limit, 20, 50)
 	if input.IncludeDeleted {
+		query := strings.TrimSpace(input.Query)
+		current, hasCurrent := runtimeTaskContextFromActor(actor)
+		scopeCurrent := hasCurrent && (current.external || runtimeQueryMentionsCurrentConversation(query))
+		if scopeCurrent && runtimeQueryMentionsCurrentConversation(query) {
+			query = runtimeStripCurrentConversationTerms(query)
+		}
+		if scopeCurrent {
+			return s.runtimeCurrentContextHistoryItems(
+				ctx, actor, agentID, query, includeActive, input.Enabled, limit,
+			)
+		}
+		searchLimit := limit
+		if input.Enabled != nil {
+			searchLimit = 50
+		}
 		items, searchErr := s.SearchTaskHistory(ctx, automationdomain.ScheduledTaskHistorySearchInput{
-			Query: strings.TrimSpace(input.Query), AgentID: agentID,
-			IncludeActive: includeActive, IncludeDeleted: true, Limit: limit,
+			Query: query, AgentID: agentID,
+			IncludeActive: includeActive, IncludeDeleted: true, Limit: searchLimit,
 		})
-		if searchErr != nil || input.Enabled == nil {
-			return items, searchErr
+		if searchErr != nil {
+			return nil, searchErr
 		}
 		filtered := make([]automationdomain.ScheduledTaskHistoryItem, 0, len(items))
 		for _, item := range items {
-			if item.Enabled != nil && *item.Enabled == *input.Enabled {
-				filtered = append(filtered, item)
+			if input.Enabled != nil && (item.Enabled == nil || *item.Enabled != *input.Enabled) {
+				continue
 			}
+			filtered = append(filtered, item)
+		}
+		if len(filtered) > limit {
+			filtered = filtered[:limit]
 		}
 		return filtered, nil
 	}
@@ -314,11 +366,9 @@ func (s *Service) runtimeCommandList(
 	if err != nil {
 		return nil, err
 	}
+	items = runtimeFilterTasksForList(items, input.Query, actor)
 	filtered := make([]automationdomain.ScheduledTask, 0, len(items))
 	for _, item := range items {
-		if strings.TrimSpace(input.Query) != "" && !automationexec.ScheduledTaskMatchesQuery(item, input.Query) {
-			continue
-		}
 		if input.Enabled != nil && item.Enabled != *input.Enabled {
 			continue
 		}
@@ -338,6 +388,9 @@ func (s *Service) runtimeCommandReport(
 	agentID, err := runtimeCommandAgentID(actor, input.AgentID)
 	if err != nil {
 		return nil, err
+	}
+	if report, handled, reportErr := s.runtimeCurrentConversationReport(ctx, actor, input, agentID); handled {
+		return report, reportErr
 	}
 	jobID := strings.TrimSpace(input.JobID)
 	if current := strings.TrimSpace(actor.CurrentJobID); current != "" {

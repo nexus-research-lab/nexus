@@ -76,7 +76,11 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 所有 Agent 通过内置 `automation` Skill 调用宿主签发的 `NEXUS_COMMAND_PATH`。`nexus automation` 只连接 loopback broker，不打开数据库；同一 runtime session 复用不可猜测 token，broker 每次只解析仍在运行且唯一的 physical round。CLI 参数不能声明或覆盖 owner、Agent、Room、Session、source、DeliveryGrant、当前 job/run 或 capability。
 
-查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。模型提供的 `--confirm`、聊天正文同意或通用 Bash allow 都不能替代这次领域确认。
+每个 round 还由宿主在 owner 私有 `runtime/tmp/automation-inputs/` 下创建一个按 capability+round 隔离、权限为 `0600` 的 JSON 输入槽，通过 `NEXUS_AUTOMATION_INPUT_PATH` 和 contract 输出交给 runtime。CLI 默认读取该槽，`--input-file` 在受管 runtime 中只能引用这条宿主路径；读取拒绝符号链接、硬链接、非普通文件、Unix group/other 权限和超过 1 MiB 的内容。槽位随 physical round context 清理，进程异常遗留项由后续 round 按 capability TTL 回收；它不进入数据库，不成为任务定义、运行历史或 UI 详情真相源。
+
+shell 自动审批只接受单进程、单行、固定 flag 语法：Bash 必须以精确 `"${NEXUS_COMMAND_PATH}" --json automation ...` 开头，Windows PowerShell 必须以精确 `& "${env:NEXUS_COMMAND_PATH}" --json automation ...` 开头；受管文件参数也只能使用各自 shell 的精确 `NEXUS_AUTOMATION_INPUT_PATH` 变量。裸 `nexus`、同名工作区程序、路径伪装、环境覆盖、命令替换、其他变量展开、管道、重定向、命令串、quoted/unquoted 拼接和多行命令都不进入自动审批。后台 run 只在同一解析器确认 action 为 `contract|inspect` 后绕过任意 shell allowlist。
+
+查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。确认载荷必须投影规范化变更字段，不能只显示泛化标题。真正写入继续使用 plan 观察到的 configuration version；`cancel_active_run` 还把 plan 观察到的 run_id 放进同一条件更新，过期确认必须在任何配置字段落库前失败。模型提供的 `--confirm`、聊天正文同意或通用 Bash allow 都不能替代这次领域确认。
 
 每个 apply 使用 owner-scoped 稳定 `request_id`。durable command ledger 把它绑定到 Actor、operation、不含瞬时 revision 的 intent digest，以及当前 Session permission context 生成的真人 approval request ID：相同意图重放返回首次结果，不同意图冲突；命令已经开始但进程未能持久化结果时进入 uncertain 并禁止自动重放，调用方必须 inspect 权威状态后以新命令处理，不能冒险重复 run、wake 或外部投递。
 
@@ -87,6 +91,8 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 - 可选 `permission_mode`
 
 在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 CLI wire 不暴露 channel、account、target 或 thread 等宿主路由参数；严格 JSON 解码拒绝未知字段，service 再按 capability 自动绑定真实路由。只有主智能体自己的 Nexus WebSocket 私有 DM capability 可以使用跨 Agent/Session 高级字段，且目标仍必须是当前 owner 下已存在、可验证的真实 Session，不能创建合成 Agent 收件箱。后台 scheduled run capability 固定为只读并绑定 exact job/run。
+
+list/get 的“这里、当前群、当前会话”等词按 Actor 的结构化 SessionKey 匹配任务 source、bound execution Session 和 delivery Session。active-paired 外部 IM 的空 list/report 默认也只覆盖当前会话，零匹配返回空而不能回退到 Agent 全量；外部 IM 不开放 heartbeat 配置查询。已删除任务的 runs/events 仍接受精确 job_id；`enabled` 和会话过滤必须在用户 limit 之前执行。
 
 ## IM transport 与审批
 
@@ -101,6 +107,8 @@ Discord、Telegram、DingTalk、WeCom、个人微信和飞书使用同一 channe
 历史 `/approve`、`/always`、`/deny` 仅作为兼容输入。内部 request ID 不展示给用户。Ingress 在执行无 ID 命令前，必须合计当前 session 的普通 runtime 与 Automation pending 请求；总数恰好为一才可执行，多个请求一律 fail closed。命令由控制面消费，不进入 Agent 对话。
 
 Automation 权限、重新连接、缺少输入、拒绝、恢复失败和投递 dead letter 等控制通知可以显示任务身份。普通完成结果不能被强制拼接任务前缀或后缀；Web UI 只根据结构化 metadata 显示轻量“定时任务”标识。
+
+权限请求一旦与 run 阻塞状态原子持久化，`permission_requested` 审计、Nexus Session 事件和外部 IM 控制通知就是已受理副作用。中断当前 physical attempt 后，这三项必须在保留 owner principal 的有界 `context.WithoutCancel` 上完成；物理 round 的 cancellation 不能撤销已持久化请求的通知。DeliveryGrant 仍在 detached context 中实时复验，真实失效与 context cancellation 必须使用不同诊断。
 
 Nexus 内部 DM/Room 不使用 IM Slash 命令承载 Automation 审批。工具与存量脚本请求复用 Composer 权限确认面，直接提供“允许本次”“此任务始终允许”和“拒绝”；Connector 重新连接与缺少执行输入仍由能力面板完成相应配置动作。
 

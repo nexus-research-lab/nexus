@@ -81,6 +81,38 @@ func TestRuntimeAutomationApplyRequiresNativeSessionPermission(t *testing.T) {
 	}
 }
 
+func TestRuntimeAutomationConfirmationShowsNormalizedChangesWithoutRouteSecrets(t *testing.T) {
+	deliver := true
+	plan := automationdomain.AutomationCommandPlan{
+		Operation:       automationdomain.AutomationCommandOperationCreate,
+		Target:          "agent-1",
+		Summary:         "创建定时任务",
+		Risk:            "write",
+		CurrentRevision: "new:agent-1",
+		PlanDigest:      "digest-1",
+		Input: automationdomain.AutomationCommandInput{
+			Name:                    "日报",
+			Instruction:             "生成日报",
+			ContextMode:             "isolated",
+			DeliverResult:           &deliver,
+			SelectedSessionKey:      "agent:secret:websocket:dm:owner:",
+			SelectedReplySessionKey: "agent:secret:weixin:dm:account:target:",
+		},
+	}
+	input := runtimeAutomationConfirmationInput(plan)
+	changes, ok := input["changes"].(map[string]any)
+	if !ok || changes["name"] != "日报" || changes["deliver_result"] != &deliver {
+		t.Fatalf("confirmation changes = %#v", input["changes"])
+	}
+	for _, routeField := range []string{
+		"selected_session_key", "named_session_key", "selected_reply_session_key", "reply_session_key",
+	} {
+		if _, leaked := changes[routeField]; leaked {
+			t.Fatalf("confirmation leaked host route field %q: %#v", routeField, changes)
+		}
+	}
+}
+
 func TestRuntimeAutomationHandlerResolvesCapabilityWithoutMCP(t *testing.T) {
 	service := automationsvc.NewService(config.Config{}, nil, nil, nil, nil, nil, nil, nil)
 	actor := automationsvc.RuntimeCommandActor{

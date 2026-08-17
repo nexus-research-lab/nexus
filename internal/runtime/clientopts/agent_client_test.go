@@ -720,6 +720,7 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 		protocol.NexusCommandPathEnvName,
 		protocol.NexusCommandBrokerURLEnvName,
 		protocol.NexusCommandCapabilityTokenEnvName,
+		protocol.NexusAutomationInputPathEnvName,
 	} {
 		if value := strings.TrimSpace(options.Env[key]); value != "" {
 			t.Fatalf("Agent runtime 泄漏原始 CLI 环境 %s=%q: %+v", key, value, options.Env)
@@ -735,13 +736,15 @@ func TestBuildAgentClientOptionsExposesRoundScopedNexusRuntimeCLI(t *testing.T) 
 		RuntimeCommandEnv: map[string]string{
 			protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/automation",
 			protocol.NexusCommandCapabilityTokenEnvName: "automation-token",
+			protocol.NexusAutomationInputPathEnvName:    "/private/round/input.json",
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if options.Env[protocol.NexusCommandPathEnvName] != "/opt/nexus/bin/nexus" ||
-		options.Env[protocol.NexusCommandCapabilityTokenEnvName] != "automation-token" {
+		options.Env[protocol.NexusCommandCapabilityTokenEnvName] != "automation-token" ||
+		options.Env[protocol.NexusAutomationInputPathEnvName] != "/private/round/input.json" {
 		t.Fatalf("ordinary Agent did not receive round-scoped nexus CLI: %+v", options.Env)
 	}
 	if options.Env[nexusctlCommandPathEnvName] != "" || options.Env[nexusctlUserIDEnvName] != "" {

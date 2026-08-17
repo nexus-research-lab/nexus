@@ -91,10 +91,19 @@ func newAutomationRuntimeEnvironmentBuilder(
 		if err != nil {
 			return nil, err
 		}
-		return map[string]string{
+		environment := map[string]string{
 			protocol.NexusCommandBrokerURLEnvName:       endpoint,
 			protocol.NexusCommandCapabilityTokenEnvName: token,
-		}, nil
+		}
+		inputPath, cleanup, stagingErr := prepareAutomationRuntimeInput(
+			actor.OwnerUserID, actor.LeaseRoundID, token,
+		)
+		if stagingErr != nil {
+			return nil, stagingErr
+		}
+		environment[protocol.NexusAutomationInputPathEnvName] = inputPath
+		context.AfterFunc(ctx, cleanup)
+		return environment, nil
 	}
 }
 
@@ -265,11 +274,8 @@ func requireRuntimeAutomationConfirmation(
 	}
 	decision, requestID, err := permissions.RequestPermissionWithID(ctx, actor.LeaseSessionKey, sdkpermission.Request{
 		ToolName: "nexus_automation_apply",
-		Input: map[string]any{
-			"operation": plan.Operation, "target": plan.Target,
-			"summary": plan.Summary, "risk": plan.Risk, "plan_digest": plan.PlanDigest,
-		},
-		Title: "确认 Nexus 自动化变更", DisplayName: "Nexus Automation",
+		Input:    runtimeAutomationConfirmationInput(plan),
+		Title:    "确认 Nexus 自动化变更", DisplayName: "Nexus Automation",
 		Description: plan.Summary,
 	})
 	if err != nil {
@@ -283,6 +289,47 @@ func requireRuntimeAutomationConfirmation(
 		return requestID, errors.New(message)
 	}
 	return requestID, nil
+}
+
+func runtimeAutomationConfirmationInput(plan automationdomain.AutomationCommandPlan) map[string]any {
+	input := map[string]any{
+		"operation":   plan.Operation,
+		"target":      plan.Target,
+		"summary":     plan.Summary,
+		"risk":        plan.Risk,
+		"revision":    plan.CurrentRevision,
+		"plan_digest": plan.PlanDigest,
+	}
+	changes := map[string]any{}
+	add := func(name string, value any, present bool) {
+		if present {
+			changes[name] = value
+		}
+	}
+	command := plan.Input
+	add("name", command.Name, strings.TrimSpace(command.Name) != "")
+	add("instruction", command.Instruction, strings.TrimSpace(command.Instruction) != "")
+	add("instruction_append", command.InstructionAdd, strings.TrimSpace(command.InstructionAdd) != "")
+	add("schedule", command.Schedule, command.Schedule != nil)
+	add("agent_id", command.AgentID, strings.TrimSpace(command.AgentID) != "")
+	add("context_mode", command.ContextMode, strings.TrimSpace(command.ContextMode) != "")
+	add("deliver_result", command.DeliverResult, command.DeliverResult != nil)
+	add("permission_mode", command.PermissionMode, strings.TrimSpace(command.PermissionMode) != "")
+	add("overlap_policy", command.OverlapPolicy, strings.TrimSpace(command.OverlapPolicy) != "")
+	add("expires_at", command.ExpiresAt, strings.TrimSpace(command.ExpiresAt) != "")
+	add("clear_expires_at", command.ClearExpiresAt, command.ClearExpiresAt)
+	add("enabled", command.Enabled, command.Enabled != nil)
+	add("cancel_active_run", command.CancelActiveRun, command.CancelActiveRun)
+	add("run_id", command.RunID, strings.TrimSpace(command.RunID) != "")
+	add("every_seconds", command.EverySeconds, command.EverySeconds > 0)
+	add("target_mode", command.TargetMode, strings.TrimSpace(command.TargetMode) != "")
+	add("ack_max_chars", command.AckMaxChars, command.AckMaxChars != nil)
+	add("wake_mode", command.Mode, strings.TrimSpace(command.Mode) != "")
+	add("text", command.Text, strings.TrimSpace(command.Text) != "")
+	if len(changes) > 0 {
+		input["changes"] = changes
+	}
+	return input
 }
 
 func writeRuntimeAutomationError(writer http.ResponseWriter, status int, message string) {

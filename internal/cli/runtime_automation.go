@@ -14,10 +14,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/spf13/cobra"
@@ -26,7 +29,10 @@ import (
 type runtimeAutomationFlags struct {
 	operation string
 	input     string
+	inputFile string
 }
+
+const maxRuntimeAutomationInputBytes = 1 << 20
 
 type runtimeAutomationController interface {
 	Contract(context.Context) (*automationdomain.AutomationCommandContract, error)
@@ -59,7 +65,13 @@ func newRuntimeAutomationContractCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emitJSON(map[string]any{"domain": "automation", "action": "contract", "contract": contract})
+			payload := map[string]any{"domain": "automation", "action": "contract", "contract": contract}
+			if inputPath := strings.TrimSpace(os.Getenv(protocol.NexusAutomationInputPathEnvName)); inputPath != "" {
+				payload["input_staging"] = map[string]any{
+					"path": inputPath, "max_bytes": maxRuntimeAutomationInputBytes,
+				}
+			}
+			return emitJSON(payload)
 		},
 	}
 }
@@ -73,7 +85,7 @@ func newRuntimeAutomationInspectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			input, err := decodeRuntimeAutomationInput(flags.input)
+			input, err := decodeRuntimeAutomationInputForCommand(cmd, flags)
 			if err != nil {
 				return err
 			}
@@ -100,7 +112,7 @@ func newRuntimeAutomationPlanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			input, err := decodeRuntimeAutomationInput(flags.input)
+			input, err := decodeRuntimeAutomationInputForCommand(cmd, flags)
 			if err != nil {
 				return err
 			}
@@ -126,7 +138,7 @@ func newRuntimeAutomationApplyCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			input, err := decodeRuntimeAutomationInput(flags.input)
+			input, err := decodeRuntimeAutomationInputForCommand(cmd, flags)
 			if err != nil {
 				return err
 			}
@@ -175,7 +187,93 @@ func newRuntimeAutomationApplyCommand() *cobra.Command {
 func bindRuntimeAutomationFlags(command *cobra.Command, flags *runtimeAutomationFlags) {
 	command.Flags().StringVar(&flags.operation, "operation", "", "contract 返回的精确 operation")
 	command.Flags().StringVar(&flags.input, "input", "{}", "Automation command JSON 对象")
+	command.Flags().StringVar(&flags.inputFile, "input-file", "", "从宿主签发的 round 私有文件读取 JSON；- 表示 stdin")
 	_ = command.MarkFlagRequired("operation")
+}
+
+func decodeRuntimeAutomationInputForCommand(
+	command *cobra.Command,
+	flags runtimeAutomationFlags,
+) (automationdomain.AutomationCommandInput, error) {
+	inlineChanged := command.Flags().Changed("input")
+	fileChanged := command.Flags().Changed("input-file")
+	if inlineChanged && fileChanged {
+		return automationdomain.AutomationCommandInput{}, usageErrorf("--input 与 --input-file 不能同时使用")
+	}
+	if inlineChanged {
+		return decodeRuntimeAutomationInput(flags.input)
+	}
+	inputPath := strings.TrimSpace(flags.inputFile)
+	if !fileChanged {
+		inputPath = strings.TrimSpace(os.Getenv(protocol.NexusAutomationInputPathEnvName))
+	}
+	if inputPath == "" {
+		if fileChanged {
+			return automationdomain.AutomationCommandInput{}, usageErrorf("--input-file 不能为空")
+		}
+		return decodeRuntimeAutomationInput("{}")
+	}
+	raw, err := readRuntimeAutomationInput(command, inputPath)
+	if err != nil {
+		return automationdomain.AutomationCommandInput{}, err
+	}
+	input, err := decodeRuntimeAutomationInput(string(raw))
+	if err != nil {
+		return input, usageErrorf("读取 %s: %v", inputPath, err)
+	}
+	return input, nil
+}
+
+func readRuntimeAutomationInput(command *cobra.Command, inputPath string) ([]byte, error) {
+	if inputPath == "-" {
+		return readLimitedRuntimeAutomationInput(command.InOrStdin(), "stdin")
+	}
+	managedPath := strings.TrimSpace(os.Getenv(protocol.NexusAutomationInputPathEnvName))
+	if managedPath != "" && !sameRuntimeAutomationInputPath(managedPath, inputPath) {
+		return nil, usageErrorf("--input-file 必须使用宿主签发的 %s", protocol.NexusAutomationInputPathEnvName)
+	}
+	cleanPath := filepath.Clean(inputPath)
+	if !filepath.IsAbs(cleanPath) {
+		return nil, usageErrorf("--input-file 必须是绝对路径或 -")
+	}
+	root, err := confinedfs.Open(filepath.Dir(cleanPath))
+	if err != nil {
+		return nil, usageErrorf("打开 --input-file 目录失败: %v", err)
+	}
+	defer root.Close()
+	file, err := root.OpenFileNoSymlink(filepath.Base(cleanPath), os.O_RDONLY, 0)
+	if err != nil {
+		return nil, usageErrorf("打开 --input-file 失败: %v", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, usageErrorf("校验 --input-file 失败: %v", err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		return nil, usageErrorf("--input-file 必须是 owner 私有文件（不能授予 group/other 权限）")
+	}
+	return readLimitedRuntimeAutomationInput(file, "--input-file")
+}
+
+func readLimitedRuntimeAutomationInput(reader io.Reader, source string) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(reader, maxRuntimeAutomationInputBytes+1))
+	if err != nil {
+		return nil, usageErrorf("读取 %s 失败: %v", source, err)
+	}
+	if len(raw) > maxRuntimeAutomationInputBytes {
+		return nil, usageErrorf("%s 超过 %d 字节上限", source, maxRuntimeAutomationInputBytes)
+	}
+	return raw, nil
+}
+
+func sameRuntimeAutomationInputPath(left string, right string) bool {
+	left = filepath.Clean(strings.TrimSpace(left))
+	right = filepath.Clean(strings.TrimSpace(right))
+	if os.PathSeparator == '\\' {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func decodeRuntimeAutomationInput(raw string) (automationdomain.AutomationCommandInput, error) {
@@ -186,10 +284,10 @@ func decodeRuntimeAutomationInput(raw string) (automationdomain.AutomationComman
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
-		return input, usageErrorf("--input 必须是有效 Automation JSON 对象: %v", err)
+		return input, usageErrorf("Automation input 必须是有效 JSON 对象: %v", err)
 	}
 	if err := requireJSONEOF(decoder); err != nil {
-		return input, usageErrorf("--input 必须只包含一个 JSON 对象: %v", err)
+		return input, usageErrorf("Automation input 必须只包含一个 JSON 对象: %v", err)
 	}
 	return input, nil
 }

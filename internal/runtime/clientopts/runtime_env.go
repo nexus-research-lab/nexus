@@ -445,6 +445,7 @@ func managedUserRuntimeEnv(
 		protocol.NexusCommandPathEnvName:            "",
 		protocol.NexusCommandBrokerURLEnvName:       "",
 		protocol.NexusCommandCapabilityTokenEnvName: "",
+		protocol.NexusAutomationInputPathEnvName:    "",
 		nexusctlWorkspacePathEnvName:                "",
 	}
 	env[workspacePathEnvName] = workspacePath
