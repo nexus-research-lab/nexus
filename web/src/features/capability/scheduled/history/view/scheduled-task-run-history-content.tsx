@@ -52,8 +52,9 @@ export function ScheduledTaskRunHistoryContent({
         />
       ) : (
         <div className="divide-y divide-(--divider-subtle-color)">
-          {runs.map((run) => (
+          {runs.map((run, index) => (
             <ScheduledTaskRunHistoryItem
+              defaultOpen={index === 0}
               isCopied={copiedRunId === run.run_id}
               isRecovering={pendingRecoveries.has(run.run_id)}
               isRetrying={pendingRetries.has(run.run_id)}

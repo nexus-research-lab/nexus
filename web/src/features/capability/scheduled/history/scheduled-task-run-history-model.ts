@@ -11,12 +11,12 @@ interface RunStatusMeta {
 }
 
 const RUN_STATUS_META: Record<ScheduledTaskRunLedgerStatus, RunStatusMeta> = {
-  cancelled: { label: "已取消", tone: "idle" },
+  cancelled: { label: "取消", tone: "idle" },
   failed: { label: "失败", tone: "default" },
-  pending: { label: "等待中", tone: "default" },
-  queued_to_main_session: { label: "主会话排队中", tone: "running" },
-  running: { label: "运行中", tone: "running" },
-  skipped: { label: "已跳过", tone: "idle" },
+  pending: { label: "等待", tone: "default" },
+  queued_to_main_session: { label: "排队", tone: "running" },
+  running: { label: "运行", tone: "running" },
+  skipped: { label: "跳过", tone: "idle" },
   succeeded: { label: "成功", tone: "success" },
 };
 

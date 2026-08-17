@@ -65,9 +65,12 @@ export function ScheduledTaskRunActions({
     retry: onRetry,
     retry_delivery: onRetryDelivery,
   };
+  if (actions.length === 0 && !run.artifact_path) {
+    return null;
+  }
   return (
-    <div className="shrink-0 text-right text-sm text-(--text-default)">
-      <div className="flex flex-col items-end gap-1.5">
+    <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-(--divider-subtle-color) pt-3 text-sm text-(--text-default)">
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         {actions.map((action) => {
           const Icon = RUN_ACTION_ICONS[action.kind];
           return (
@@ -147,7 +150,7 @@ function ScheduledRunArtifactButton({
   return (
     <button
       aria-label={actionCopy.ariaLabel}
-      className="mt-2 inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
+      className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
       onClick={downloadArtifact}
       title={actionCopy.title}
       type="button"
