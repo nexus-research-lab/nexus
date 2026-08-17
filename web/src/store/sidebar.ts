@@ -1,7 +1,7 @@
 /**
  * INPUT: 侧栏布局命令、聊天完成通知及其精确消息锚点。
- * OUTPUT: 导航高亮、未读计数/首批消息定位数据、分区折叠和面板宽度状态。
- * POS: 侧栏运行态 Store；未读锚点不持久化，布局偏好由 persist 单独保存。
+ * OUTPUT: 导航高亮、可独立确认的聊天入口红点、会话未读/首批消息定位数据、分区折叠和面板宽度状态。
+ * POS: 侧栏运行态 Store；入口确认不丢会话未读锚点，未读状态不持久化，布局偏好由 persist 单独保存。
  */
 
 import { create } from "zustand";
@@ -78,6 +78,8 @@ interface SidebarState {
   wide_panel_collapse_source: WidePanelCollapseSource | null;
   /** 聊天入口未读消息提示数量。 */
   chat_badge_count: number;
+  /** 自上次进入聊天页后新增的会话维度计数；不影响会话内未读锚点。 */
+  chat_tab_unseen_counts: Record<string, number>;
   /** 聊天会话维度的未读完成消息数。 */
   chat_unread_counts: Record<string, number>;
   /** 未读目标元数据，用于列表按 Room 聚合并跳转到真实未读会话。 */
@@ -94,7 +96,7 @@ interface SidebarState {
 
 interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
-  set_chat_badge_count: (count: number) => void;
+  acknowledge_chat_tab: () => void;
   record_chat_notification: (
     target: ChatNotificationTargetState,
     message: ChatUnreadMessageAnchor,
@@ -131,6 +133,7 @@ function clearChatUnreadKeys(
 ): Pick<
   SidebarState,
   | "chat_badge_count"
+  | "chat_tab_unseen_counts"
   | "chat_unread_anchors"
   | "chat_unread_counts"
   | "chat_unread_targets"
@@ -140,6 +143,7 @@ function clearChatUnreadKeys(
   if (uniqueKeys.length === 0) {
     return {
       chat_badge_count: state.chat_badge_count,
+      chat_tab_unseen_counts: state.chat_tab_unseen_counts,
       chat_unread_anchors: state.chat_unread_anchors,
       chat_unread_counts: state.chat_unread_counts,
       chat_unread_targets: state.chat_unread_targets,
@@ -148,17 +152,20 @@ function clearChatUnreadKeys(
   }
 
   const nextCounts = { ...state.chat_unread_counts };
+  const nextTabUnseenCounts = { ...state.chat_tab_unseen_counts };
   const nextAnchors = { ...state.chat_unread_anchors };
   const nextTargets = { ...state.chat_unread_targets };
   const nextTimestamps = { ...state.chat_unread_timestamps };
   for (const key of uniqueKeys) {
     delete nextCounts[key];
+    delete nextTabUnseenCounts[key];
     delete nextAnchors[key];
     delete nextTargets[key];
     delete nextTimestamps[key];
   }
   return {
-    chat_badge_count: countChatUnreadTotal(nextCounts),
+    chat_badge_count: countChatUnreadTotal(nextTabUnseenCounts),
+    chat_tab_unseen_counts: nextTabUnseenCounts,
     chat_unread_anchors: nextAnchors,
     chat_unread_counts: nextCounts,
     chat_unread_targets: nextTargets,
@@ -189,6 +196,7 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       wide_panel_collapsed: false,
       wide_panel_collapse_source: null,
       chat_badge_count: 0,
+      chat_tab_unseen_counts: {},
       chat_unread_counts: {},
       chat_unread_targets: {},
       chat_unread_timestamps: {},
@@ -197,7 +205,10 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
-      set_chat_badge_count: (count) => set({ chat_badge_count: Math.max(0, Math.floor(count)) }),
+      acknowledge_chat_tab: () => set({
+        chat_badge_count: 0,
+        chat_tab_unseen_counts: {},
+      }),
       record_chat_notification: (
         target,
         message,
@@ -227,6 +238,11 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
             ...state.chat_unread_counts,
             [normalizedTargetKey]:
               (state.chat_unread_counts[normalizedTargetKey] ?? 0) + 1,
+          };
+          const nextTabUnseenCounts = {
+            ...state.chat_tab_unseen_counts,
+            [normalizedTargetKey]:
+              (state.chat_tab_unseen_counts[normalizedTargetKey] ?? 0) + 1,
           };
           const nextTargets = {
             ...state.chat_unread_targets,
@@ -263,7 +279,8 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
             ...state.notified_chat_message_ids,
           ].slice(0, MAX_NOTIFIED_CHAT_MESSAGE_IDS);
           return {
-            chat_badge_count: countChatUnreadTotal(nextCounts),
+            chat_badge_count: countChatUnreadTotal(nextTabUnseenCounts),
+            chat_tab_unseen_counts: nextTabUnseenCounts,
             chat_unread_counts: nextCounts,
             chat_unread_targets: nextTargets,
             chat_unread_timestamps: nextTimestamps,
@@ -306,6 +323,7 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
             - removedMessages.length,
         );
         const nextCounts = { ...state.chat_unread_counts };
+        const nextTabUnseenCounts = { ...state.chat_tab_unseen_counts };
         const nextTargets = { ...state.chat_unread_targets };
         const nextTimestamps = { ...state.chat_unread_timestamps };
         if (nextCount > 0) {
@@ -315,8 +333,19 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
           delete nextTargets[normalizedTargetKey];
           delete nextTimestamps[normalizedTargetKey];
         }
+        const nextTabUnseenCount = Math.max(
+          0,
+          (state.chat_tab_unseen_counts[normalizedTargetKey] ?? 0)
+            - removedMessages.length,
+        );
+        if (nextTabUnseenCount > 0) {
+          nextTabUnseenCounts[normalizedTargetKey] = nextTabUnseenCount;
+        } else {
+          delete nextTabUnseenCounts[normalizedTargetKey];
+        }
         return {
-          chat_badge_count: countChatUnreadTotal(nextCounts),
+          chat_badge_count: countChatUnreadTotal(nextTabUnseenCounts),
+          chat_tab_unseen_counts: nextTabUnseenCounts,
           chat_unread_anchors: nextAnchors,
           chat_unread_counts: nextCounts,
           chat_unread_targets: nextTargets,

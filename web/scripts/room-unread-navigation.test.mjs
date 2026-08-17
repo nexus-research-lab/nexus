@@ -92,6 +92,7 @@ test("sidebar orders exact Room anchors and consumes them message by message", a
     "replayed completions do not duplicate the unread queue",
   );
   assert.equal(useSidebarStore.getState().chat_unread_counts[target.key], 2);
+  assert.equal(useSidebarStore.getState().chat_badge_count, 2);
   assert.deepEqual(
     useSidebarStore.getState().chat_unread_anchors[target.key].messages,
     [first, second],
@@ -112,9 +113,24 @@ test("sidebar orders exact Room anchors and consumes them message by message", a
     ),
     true,
   );
+  useSidebarStore.getState().acknowledge_chat_tab();
+  assert.equal(useSidebarStore.getState().chat_badge_count, 0);
   assert.equal(
     useSidebarStore.getState().chat_unread_counts[target.key],
     3,
+    "entering Chat acknowledges the navigation badge without discarding unread anchors",
+  );
+
+  useSidebarStore.getState().record_chat_notification(target, {
+    agent_id: "agent-d",
+    message_id: "message-d",
+    room_seq: 14,
+    timestamp: 4_000,
+  });
+  assert.equal(useSidebarStore.getState().chat_badge_count, 1);
+  assert.equal(
+    useSidebarStore.getState().chat_unread_counts[target.key],
+    4,
     "an active Room completion remains unread until the Feed proves it visible",
   );
 
@@ -122,10 +138,15 @@ test("sidebar orders exact Room anchors and consumes them message by message", a
     target.key,
     ["message-a"],
   );
-  assert.equal(useSidebarStore.getState().chat_unread_counts[target.key], 2);
+  assert.equal(useSidebarStore.getState().chat_unread_counts[target.key], 3);
   assert.deepEqual(
     useSidebarStore.getState().chat_unread_anchors[target.key].messages,
-    [second, activeMessage],
+    [second, activeMessage, {
+      agent_id: "agent-d",
+      message_id: "message-d",
+      room_seq: 14,
+      timestamp: 4_000,
+    }],
     "reading one materialized node preserves every other unread anchor",
   );
 
@@ -135,11 +156,16 @@ test("sidebar orders exact Room anchors and consumes them message by message", a
   );
   assert.deepEqual(
     useSidebarStore.getState().chat_unread_anchors[target.key].messages,
-    [activeMessage],
+    [activeMessage, {
+      agent_id: "agent-d",
+      message_id: "message-d",
+      room_seq: 14,
+      timestamp: 4_000,
+    }],
   );
   useSidebarStore.getState().consume_chat_unread_messages(
     target.key,
-    ["message-c"],
+    ["message-c", "message-d"],
   );
   assert.equal(useSidebarStore.getState().chat_unread_anchors[target.key], undefined);
 

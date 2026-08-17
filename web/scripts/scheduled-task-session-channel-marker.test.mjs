@@ -80,6 +80,14 @@ test("scheduled task session options mark external IM channels only", async () =
       title: "普通对话",
     }),
     session({
+      channelType: "websocket",
+      chatType: "group",
+      conversationId: "room-conversation",
+      key: "agent:nexus:ws:group:room-conversation",
+      roomId: "room-1",
+      title: "不应混入的 Room 成员会话",
+    }),
+    session({
       channelType: "",
       externalIdentity: {
         can_delete: false,
@@ -167,7 +175,42 @@ test("scheduled task selectors hide every unpaired external IM session", async (
   assert.deepEqual(result.options, []);
 });
 
-test("delivery sessions include database-backed Nexus DM and Room member sessions", async () => {
+test("scheduled task Room targets exclude every DM-backed room", async () => {
+  const {
+    buildExecutionRoomOptions,
+    buildRoomOptions,
+  } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/resources/task-dialog-resource-model.ts",
+  );
+  const activeMember = {
+    member_type: "agent",
+    participation_paused: false,
+  };
+  const rooms = [
+    {
+      members: [activeMember],
+      room: { id: "dm-room", name: "Analyst", room_type: "dm" },
+    },
+    {
+      members: [activeMember],
+      room: { id: "group-room", name: "研究小组", room_type: "room" },
+    },
+    {
+      members: [{ ...activeMember, participation_paused: true }],
+      room: { id: "paused-room", name: "暂停小组", room_type: "room" },
+    },
+  ];
+
+  assert.deepEqual(buildRoomOptions(rooms), [
+    { label: "研究小组", value: "group-room" },
+    { label: "暂停小组", value: "paused-room" },
+  ]);
+  assert.deepEqual(buildExecutionRoomOptions(rooms), [
+    { label: "研究小组", value: "group-room" },
+  ]);
+});
+
+test("Agent delivery includes Room-backed DM but excludes Room member sessions", async () => {
   const { buildTaskDialogDeliverySessionData } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/dialog/resources/task-dialog-resource-model.ts",
   );
@@ -251,17 +294,49 @@ test("delivery sessions include database-backed Nexus DM and Room member session
     "未命名会话",
   );
 
-  assert.deepEqual(result.options.map(({ agentId, sessionKey }) => ({ agentId, sessionKey })), [
-    { agentId: "agent-b", sessionKey: recipientNexusDM.session_key },
-    { agentId: "agent-b", sessionKey: recipientRoomMember.session_key },
-    { agentId: "agent-b", sessionKey: recipientIM.session_key },
+  assert.deepEqual(result.options.map(({ sessionKey }) => sessionKey), [
+    recipientNexusDM.session_key,
+    recipientIM.session_key,
   ]);
 });
 
-test("Room delivery is a shared conversation and does not pick an execution member", async () => {
-  const { buildTaskDialogDeliverySessionData } = await server.ssrLoadModule(
+test("Room delivery exposes a shared conversation, then its exact member agents", async () => {
+  const {
+    buildDeliveryRoomAgentData,
+    buildTaskDialogDeliverySessionData,
+    resolveTaskDialogRoomId,
+  } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/dialog/resources/task-dialog-resource-model.ts",
   );
+  const directSession = session({
+    agentId: "agent-a",
+    channelType: "websocket",
+    conversationId: "dm-conversation",
+    key: "agent:agent-a:ws:dm:dm-conversation",
+    roomId: "room-1",
+    title: "不应混入的 DM",
+  });
+  const roomSessions = [
+    directSession,
+    session({
+      agentId: "agent-a",
+      channelType: "websocket",
+      chatType: "group",
+      conversationId: "conversation-1",
+      key: "agent:agent-a:ws:group:conversation-1",
+      roomId: "room-1",
+      title: "项目周报",
+    }),
+    session({
+      agentId: "agent-b",
+      channelType: "websocket",
+      chatType: "group",
+      conversationId: "conversation-1",
+      key: "agent:agent-b:ws:group:conversation-1",
+      roomId: "room-1",
+      title: "项目周报",
+    }),
+  ];
   const result = buildTaskDialogDeliverySessionData(
     {
       deliveryTargetType: "room",
@@ -269,24 +344,7 @@ test("Room delivery is a shared conversation and does not pick an execution memb
       replyMode: "selected",
       selectedDeliveryRoomId: "room-1",
     },
-    resource([
-      session({
-        agentId: "agent-a",
-        channelType: "websocket",
-        conversationId: "conversation-1",
-        key: "agent:agent-a:ws:group:conversation-1",
-        roomId: "room-1",
-        title: "项目周报",
-      }),
-      session({
-        agentId: "agent-b",
-        channelType: "websocket",
-        conversationId: "conversation-1",
-        key: "agent:agent-b:ws:group:conversation-1",
-        roomId: "room-1",
-        title: "项目周报",
-      }),
-    ]),
+    resource(roomSessions),
     new Map(),
     new Map([["room-1", "研发 Room"]]),
     "未命名会话",
@@ -295,6 +353,64 @@ test("Room delivery is a shared conversation and does not pick an execution memb
   assert.deepEqual(result.options.map(({ sessionKey, value }) => ({ sessionKey, value })), [
     { sessionKey: "room:group:conversation-1", value: "room:group:conversation-1" },
   ]);
+  assert.equal(resolveTaskDialogRoomId(roomSessions, directSession.session_key), "");
+  assert.equal(resolveTaskDialogRoomId(roomSessions, "room:group:conversation-1"), "room-1");
+  assert.deepEqual(buildDeliveryRoomAgentData(
+    roomSessions,
+    [{ room: { host_agent_id: "agent-a", id: "room-1", room_type: "room" } }],
+    "room-1",
+    "room:group:conversation-1",
+    new Map([["agent-a", "A"], ["agent-b", "B"]]),
+  ), {
+    defaultAgentId: "agent-a",
+    options: [
+      { label: "A", value: "agent-a" },
+      { label: "B", value: "agent-b" },
+    ],
+  });
+});
+
+test("Room execution exposes conversation before member and defaults to host", async () => {
+  const {
+    buildExecutionRoomAgentData,
+    buildTaskDialogSessionData,
+  } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/resources/task-dialog-resource-model.ts",
+  );
+  const context = {
+    conversation: { id: "conversation-1", title: "方案讨论" },
+    member_agents: [
+      { agent_id: "agent-a", name: "A", room_participation_paused: false },
+      { agent_id: "agent-b", name: "B", room_participation_paused: false },
+      { agent_id: "agent-c", name: "C", room_participation_paused: true },
+    ],
+    room: { host_agent_id: "agent-a", id: "room-1", name: "研发 Room", room_type: "room" },
+    sessions: [
+      { agent_id: "agent-a" },
+      { agent_id: "agent-b" },
+      { agent_id: "agent-c" },
+    ],
+  };
+  const sessionData = buildTaskDialogSessionData(
+    "room",
+    { agentSessions: resource([]), roomContexts: resource([context]) },
+    new Map([["agent-a", "A"], ["agent-b", "B"]]),
+    "未命名会话",
+  );
+  assert.deepEqual(sessionData.options.map(({ label, value }) => ({ label, value })), [{
+    label: "研发 Room · 方案讨论",
+    value: "room:group:conversation-1",
+  }]);
+  assert.deepEqual(buildExecutionRoomAgentData(
+    [context],
+    "room:group:conversation-1",
+  ), {
+    defaultAgentId: "agent-a",
+    options: [
+      { label: "A", value: "agent-a" },
+      { label: "B", value: "agent-b" },
+    ],
+  });
 });
 
 test("scheduled task payload keeps executor and recipient identities independent", async () => {
@@ -303,6 +419,8 @@ test("scheduled task payload keeps executor and recipient identities independent
   );
   const recipientSession = "agent:agent-b:weixin-personal:dm:wx-user-b";
   const payload = buildScheduledTaskPayload({
+    defaultDeliveryRoomAgentId: "",
+    defaultExecutionRoomAgentId: "",
     form: {
       dedicatedSessionKey: "",
       deliveryTargetType: "agent",
@@ -315,6 +433,7 @@ test("scheduled task payload keeps executor and recipient identities independent
       replyMode: "selected",
       selectedAgentId: "agent-a",
       selectedDeliveryAgentId: "agent-b",
+      selectedDeliveryPresenterAgentId: "",
       selectedDeliveryRoomId: "",
       selectedReplySessionKey: recipientSession,
       selectedRoomId: "",
@@ -332,7 +451,6 @@ test("scheduled task payload keeps executor and recipient identities independent
       timezone: "Asia/Shanghai",
     },
     selectedReplySession: {
-      agentId: "agent-b",
       badge: "IM · 微信 · 当前",
       label: "B 的微信 · B",
       sessionKey: recipientSession,
@@ -355,12 +473,14 @@ test("scheduled task payload keeps executor and recipient identities independent
   assert.equal(payload.source, undefined);
 });
 
-test("Room execution payload uses the selected member as executor", async () => {
+test("Room execution payload uses explicit member after the shared session", async () => {
   const { buildScheduledTaskPayload } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
   );
-  const roomSession = "room:group:conversation-1::executor:agent-b";
+  const roomSession = "room:group:conversation-1";
   const payload = buildScheduledTaskPayload({
+    defaultDeliveryRoomAgentId: "",
+    defaultExecutionRoomAgentId: "agent-a",
     form: {
       dedicatedSessionKey: "",
       deliveryTargetType: "agent",
@@ -373,6 +493,7 @@ test("Room execution payload uses the selected member as executor", async () => 
       replyMode: "none",
       selectedAgentId: "agent-b",
       selectedDeliveryAgentId: "agent-a",
+      selectedDeliveryPresenterAgentId: "",
       selectedDeliveryRoomId: "",
       selectedReplySessionKey: "",
       selectedRoomId: "room-1",
@@ -391,8 +512,7 @@ test("Room execution payload uses the selected member as executor", async () => 
     },
     selectedReplySession: null,
     selectedSession: {
-      agentId: "agent-b",
-      label: "研发 Room · B",
+      label: "研发 Room · 方案讨论",
       sessionKey: "room:group:conversation-1",
       value: roomSession,
     },
@@ -405,6 +525,61 @@ test("Room execution payload uses the selected member as executor", async () => 
     wake_mode: "next-heartbeat",
   });
   assert.deepEqual(payload.delivery, { mode: "none" });
+});
+
+test("Room result delivery persists an independent replying agent", async () => {
+  const { buildScheduledTaskPayload } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
+  );
+  const roomSession = "room:group:conversation-2";
+  const payload = buildScheduledTaskPayload({
+    defaultDeliveryRoomAgentId: "agent-host",
+    defaultExecutionRoomAgentId: "",
+    form: {
+      dedicatedSessionKey: "",
+      deliveryTargetType: "room",
+      enabled: true,
+      executionKind: "agent",
+      executionMode: "temporary",
+      expiresAt: "",
+      instruction: "发送 Room 周报",
+      permissionMode: "copy",
+      replyMode: "selected",
+      selectedAgentId: "agent-executor",
+      selectedDeliveryAgentId: "",
+      selectedDeliveryPresenterAgentId: "agent-presenter",
+      selectedDeliveryRoomId: "room-2",
+      selectedReplySessionKey: roomSession,
+      selectedRoomId: "",
+      selectedSessionKey: "",
+      targetType: "agent",
+      taskName: "Room 周报",
+    },
+    schedule: {
+      dailyTime: "09:00",
+      everyUnit: "hours",
+      everyValue: "1",
+      kind: "every",
+      runAt: "",
+      selectedWeekdays: [],
+      timezone: "Asia/Shanghai",
+    },
+    selectedReplySession: {
+      label: "研发 Room · 周报",
+      sessionKey: roomSession,
+      value: roomSession,
+    },
+    selectedSession: null,
+  }, (key) => key);
+
+  assert.equal(payload.agent_id, "agent-executor");
+  assert.deepEqual(payload.delivery, {
+    agent_id: "agent-presenter",
+    channel: "websocket",
+    mode: "explicit",
+    session_key: roomSession,
+    to: roomSession,
+  });
 });
 
 test("select presentation carries the selected session badge", async () => {

@@ -41,6 +41,7 @@ SELECT
     delivery_account_id,
     delivery_thread_id,
     delivery_session_key,
+    delivery_agent_id,
     session_binding_state,
     invalidated_session_keys_json,
     source_kind,
@@ -145,6 +146,7 @@ SELECT
     delivery_account_id,
     delivery_thread_id,
     delivery_session_key,
+    delivery_agent_id,
     session_binding_state,
     invalidated_session_keys_json,
     source_kind,
@@ -380,6 +382,27 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 	job automationdomain.ScheduledTask,
 	expectedVersion int64,
 ) (*automationdomain.ScheduledTask, error) {
+	return r.updateScheduledTaskAtVersion(ctx, job, expectedVersion, nil)
+}
+
+// UpdateScheduledTaskAtVersionAndRunningRun 把配置 revision 与当前运行身份放进
+// 同一条条件写入，避免先提交配置后才发现 cancel_active_run 针对的是旧 run。
+func (r *Repository) UpdateScheduledTaskAtVersionAndRunningRun(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	expectedVersion int64,
+	expectedRunningRunID string,
+) (*automationdomain.ScheduledTask, error) {
+	expectedRunningRunID = strings.TrimSpace(expectedRunningRunID)
+	return r.updateScheduledTaskAtVersion(ctx, job, expectedVersion, &expectedRunningRunID)
+}
+
+func (r *Repository) updateScheduledTaskAtVersion(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	expectedVersion int64,
+	expectedRunningRunID *string,
+) (*automationdomain.ScheduledTask, error) {
 	if expectedVersion < 1 {
 		return nil, automationdomain.ErrConfigurationVersionConflict
 	}
@@ -405,6 +428,7 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		"delivery_account_id",
 		"delivery_thread_id",
 		"delivery_session_key",
+		"delivery_agent_id",
 		"session_binding_state",
 		"invalidated_session_keys_json",
 		"source_kind",
@@ -436,12 +460,17 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		return nil, err
 	}
 	args = append(args, strings.TrimSpace(job.JobID), strings.TrimSpace(job.OwnerUserID), expectedVersion)
+	query := "UPDATE automation_scheduled_tasks SET " + strings.Join(assignments, ", ") +
+		" WHERE job_id = " + r.bind(len(columns)+1) +
+		" AND owner_user_id = " + r.bind(len(columns)+2) +
+		" AND configuration_version = " + r.bind(len(columns)+3)
+	if expectedRunningRunID != nil {
+		args = append(args, strings.TrimSpace(*expectedRunningRunID))
+		query += " AND COALESCE(running_run_id, '') = " + r.bind(len(columns)+4)
+	}
 	result, err := r.execWithRetry(
 		ctx,
-		"UPDATE automation_scheduled_tasks SET "+strings.Join(assignments, ", ")+
-			" WHERE job_id = "+r.bind(len(columns)+1)+
-			" AND owner_user_id = "+r.bind(len(columns)+2)+
-			" AND configuration_version = "+r.bind(len(columns)+3),
+		query,
 		args...,
 	)
 	if err != nil {
@@ -545,6 +574,7 @@ func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, err
 		nullString(job.Delivery.AccountID),
 		nullString(job.Delivery.ThreadID),
 		nullString(job.Delivery.SessionKey),
+		nullString(job.Delivery.AgentID),
 		job.SessionBindingState,
 		string(invalidatedSessionKeysJSON),
 		job.Source.Kind,

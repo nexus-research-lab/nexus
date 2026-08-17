@@ -1,5 +1,5 @@
-// INPUT: 已准备的 DM round、runtime 消息与终态结果。
-// OUTPUT: durable 历史、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
+// INPUT: 已准备的 DM round、runtime 消息、工具面指纹与终态结果。
+// OUTPUT: durable 历史、SDK session 工具面基线、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
 // POS: DM 单轮执行生命周期的主状态机。
 package dm
 
@@ -71,6 +71,7 @@ type roundRunner struct {
 	runtimeKind                 string
 	runtimeProvider             string
 	runtimeModel                string
+	toolSurfaceFingerprint      string
 	ownerUserID                 string
 	mapper                      *dmdomain.MessageMapper
 	inputOptions                sdkprotocol.OutboundMessageOptions
@@ -271,6 +272,7 @@ func (r *roundRunner) executeRound(
 				r.runtimeKind,
 				r.runtimeProvider,
 				r.runtimeModel,
+				r.toolSurfaceFingerprint,
 			)
 			if syncErr != nil {
 				return syncErr

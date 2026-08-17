@@ -27,6 +27,8 @@ import {
   buildAgentNameIndex,
   buildAgentOptions,
   buildExecutionRoomOptions,
+  buildExecutionRoomAgentData,
+  buildDeliveryRoomAgentData,
   buildRoomOptions,
   buildRoomNameIndex,
   buildTaskDialogDeliverySessionData,
@@ -66,6 +68,10 @@ export interface TaskDialogData {
   agentOptions: TaskDialogLabelOption[];
   agents: DialogResourceStatus;
   deliveryRoomOptions: TaskDialogLabelOption[];
+  deliveryRoomAgentOptions: TaskDialogLabelOption[];
+  defaultDeliveryRoomAgentId: string;
+  defaultExecutionRoomAgentId: string;
+  executionRoomAgentOptions: TaskDialogLabelOption[];
   roomOptions: TaskDialogLabelOption[];
   rooms: DialogResourceStatus;
   deliverySessionOptions: TaskDialogSessionOption[];
@@ -149,6 +155,29 @@ export function useTaskDialogData({
     ),
     [agentNameById, allSessions, form, roomNameById, t],
   );
+  const executionRoomAgentData = useMemo(
+    () => buildExecutionRoomAgentData(
+      roomContexts.items,
+      form.selectedSessionKey,
+    ),
+    [form.selectedSessionKey, roomContexts.items],
+  );
+  const deliveryRoomAgentData = useMemo(
+    () => buildDeliveryRoomAgentData(
+      allSessions.items,
+      rooms.items,
+      form.selectedDeliveryRoomId,
+      form.selectedReplySessionKey,
+      agentNameById,
+    ),
+    [
+      agentNameById,
+      allSessions.items,
+      form.selectedDeliveryRoomId,
+      form.selectedReplySessionKey,
+      rooms.items,
+    ],
+  );
   const resolvedExecutionRoomId = form.targetType === "room"
     ? resolveTaskDialogRoomId(allSessions.items, form.selectedSessionKey)
     : "";
@@ -159,6 +188,10 @@ export function useTaskDialogData({
     agentOptions,
     agents: resourceStatus(agents),
     deliveryRoomOptions,
+    deliveryRoomAgentOptions: deliveryRoomAgentData.options,
+    defaultDeliveryRoomAgentId: deliveryRoomAgentData.defaultAgentId,
+    defaultExecutionRoomAgentId: executionRoomAgentData.defaultAgentId,
+    executionRoomAgentOptions: executionRoomAgentData.options,
     roomOptions,
     rooms: resourceStatus(rooms),
     deliverySessionOptions: deliverySessionData.options,

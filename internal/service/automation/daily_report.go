@@ -131,7 +131,7 @@ func deletedDailyReportTaskFromEvents(jobID string, events []automationdomain.Sc
 		Runs:    []automationdomain.ScheduledTaskRun{},
 	}
 	addDailyReportTaskSignal(&task, "deleted")
-	addDailyReportTaskSuggestedTool(&task, "automation_query")
+	addDailyReportTaskSuggestedTool(&task, runtimeAutomationInspectSuggestion)
 	for _, event := range events {
 		if strings.TrimSpace(task.AgentID) == "" {
 			task.AgentID = strings.TrimSpace(event.AgentID)
@@ -181,7 +181,7 @@ func (s *Service) buildDailyReportTask(
 	}
 	if task.Running {
 		addDailyReportTaskSignal(&task, "running")
-		addDailyReportTaskSuggestedTool(&task, "automation_update")
+		addDailyReportTaskSuggestedTool(&task, runtimeAutomationApplySuggestion)
 	}
 	if stringPointerHasText(job.LastError) || job.FailureStreak > 0 || isFailedRunStatus(job.LastRunStatus) {
 		addDailyReportTaskSignal(&task, "execution_attention")

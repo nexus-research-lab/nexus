@@ -14,7 +14,6 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -152,6 +151,10 @@ type Service struct {
 	schedulerOwnerID      string
 	schedulerLeaseHeld    bool
 	schedulerLeaseRenewAt time.Time
+	runtimeCommandMu      sync.Mutex
+	runtimeCommandRecords map[string]*runtimeCommandCapabilityRecord
+	runtimeCommandTokens  map[string]string
+	runtimeCommandRounds  runtimeCommandRoundResolver
 	started               bool
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
@@ -184,21 +187,23 @@ func NewService(
 		authority = agents
 	}
 	return &Service{
-		config:           cfg,
-		repository:       automationstore.NewRepository(cfg, db),
-		agents:           authority,
-		dm:               dm,
-		room:             room,
-		permission:       permission,
-		workspace:        workspace,
-		delivery:         delivery,
-		logger:           logx.NewDiscardLogger(),
-		nowFn:            func() time.Time { return time.Now().UTC() },
-		idFactory:        automationexec.NewID,
-		schedulerOwnerID: automationexec.NewID("scheduler"),
-		jobStates:        make(map[string]*automationexec.JobRuntimeState),
-		heartbeatState:   make(map[string]*automationexec.HeartbeatRuntimeState),
-		wakeRequests:     make(map[string][]automationexec.HeartbeatWakeRequest),
+		config:                cfg,
+		repository:            automationstore.NewRepository(cfg, db),
+		agents:                authority,
+		dm:                    dm,
+		room:                  room,
+		permission:            permission,
+		workspace:             workspace,
+		delivery:              delivery,
+		logger:                logx.NewDiscardLogger(),
+		nowFn:                 func() time.Time { return time.Now().UTC() },
+		idFactory:             automationexec.NewID,
+		schedulerOwnerID:      automationexec.NewID("scheduler"),
+		jobStates:             make(map[string]*automationexec.JobRuntimeState),
+		heartbeatState:        make(map[string]*automationexec.HeartbeatRuntimeState),
+		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
+		runtimeCommandRecords: make(map[string]*runtimeCommandCapabilityRecord),
+		runtimeCommandTokens:  make(map[string]string),
 	}
 }
 
@@ -349,10 +354,40 @@ func (s *Service) validateRoomTargetAgent(ctx context.Context, conversationID st
 	if err != nil {
 		return err
 	}
-	if contextValue == nil || !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
-		return errors.New("agent_id 不是目标 Room 的成员")
+	if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup ||
+		!isAvailableRoomSessionAgent(contextValue, agentID) {
+		return errors.New("agent_id 不是目标 Room 的成员，或该成员在目标 Session 中不可用")
 	}
 	return nil
+}
+
+func isAvailableRoomSessionAgent(
+	contextValue *protocol.ConversationContextAggregate,
+	agentID string,
+) bool {
+	if contextValue == nil {
+		return false
+	}
+	agentID = strings.TrimSpace(agentID)
+	memberAvailable := false
+	for _, member := range contextValue.Members {
+		if member.MemberType == protocol.MemberTypeAgent &&
+			strings.TrimSpace(member.MemberAgentID) == agentID &&
+			!member.ParticipationPaused {
+			memberAvailable = true
+			break
+		}
+	}
+	if !memberAvailable {
+		return false
+	}
+	for _, session := range contextValue.Sessions {
+		if strings.TrimSpace(session.ConversationID) == strings.TrimSpace(contextValue.Conversation.ID) &&
+			strings.TrimSpace(session.AgentID) == agentID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) ensureDirectTargetSupported(target automationdomain.SessionTarget) error {

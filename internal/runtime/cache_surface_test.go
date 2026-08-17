@@ -70,6 +70,16 @@ func TestCacheSurfaceFingerprintsModelVisibleSDKToolSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cacheSurfaceProfileFromOptions() error = %v", err)
 	}
+	exportedFingerprint, complete, err := ModelToolSurfaceFingerprint(context.Background(), options)
+	if err != nil {
+		t.Fatalf("ModelToolSurfaceFingerprint() error = %v", err)
+	}
+	if !complete {
+		t.Fatal("Nexus SDK-only tool surface should be complete through exported helper")
+	}
+	if exportedFingerprint != first.ToolSurfaceFingerprint {
+		t.Fatalf("导出工具面指纹 = %q, want %q", exportedFingerprint, first.ToolSurfaceFingerprint)
+	}
 	if !first.GoalToolSurfacePresent || first.ExecutionToolSurfacePresent {
 		t.Fatalf("tool presence = goal:%v execution:%v", first.GoalToolSurfacePresent, first.ExecutionToolSurfacePresent)
 	}
@@ -181,7 +191,7 @@ func TestCacheSurfaceInspectionFailureIsContained(t *testing.T) {
 		"blocking": cacheSurfaceBlockingServer{},
 	} {
 		t.Run(name, func(t *testing.T) {
-			profile, err := cacheSurfaceProfileFromOptions(context.Background(), agentclient.Options{
+			options := agentclient.Options{
 				CLIPath: "/test/nxs",
 				Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
 				Env:     map[string]string{"NEXUS_CONFIG_DIR": t.TempDir()},
@@ -190,7 +200,8 @@ func TestCacheSurfaceInspectionFailureIsContained(t *testing.T) {
 						Name: managedGoalMCPServerName, Instance: server,
 					},
 				}},
-			})
+			}
+			profile, err := cacheSurfaceProfileFromOptions(context.Background(), options)
 			if err != nil {
 				t.Fatalf("cacheSurfaceProfileFromOptions() error = %v", err)
 			}
@@ -199,6 +210,9 @@ func TestCacheSurfaceInspectionFailureIsContained(t *testing.T) {
 			}
 			if !profile.GoalToolSurfacePresent || profile.ToolSurfaceFingerprint == "" {
 				t.Fatalf("partial profile = %+v", profile)
+			}
+			if _, complete, fingerprintErr := ModelToolSurfaceFingerprint(context.Background(), options); fingerprintErr != nil || complete {
+				t.Fatalf("inspection %s exported completeness = %v err=%v, want incomplete without error", name, complete, fingerprintErr)
 			}
 		})
 	}

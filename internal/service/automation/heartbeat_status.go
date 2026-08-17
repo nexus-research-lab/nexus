@@ -140,9 +140,30 @@ func (s *Service) updateHeartbeat(
 
 // WakeHeartbeat 手动登记一次 heartbeat 唤醒。
 func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request automationdomain.HeartbeatWakeInput) (*automationdomain.HeartbeatWakeResult, error) {
+	return s.wakeHeartbeat(ctx, agentID, request, nil)
+}
+
+// WakeHeartbeatAtVersion 只按 plan 阶段核对过的 heartbeat 配置登记唤醒。
+func (s *Service) WakeHeartbeatAtVersion(
+	ctx context.Context,
+	agentID string,
+	expectedVersion int64,
+	request automationdomain.HeartbeatWakeInput,
+) (*automationdomain.HeartbeatWakeResult, error) {
+	return s.wakeHeartbeat(ctx, agentID, request, &expectedVersion)
+}
+
+func (s *Service) wakeHeartbeat(
+	ctx context.Context,
+	agentID string,
+	request automationdomain.HeartbeatWakeInput,
+	expectedVersion *int64,
+) (*automationdomain.HeartbeatWakeResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
+	s.heartbeatControlMu.Lock()
+	defer s.heartbeatControlMu.Unlock()
 	targetAgentID := strings.TrimSpace(agentID)
 	if _, err := s.requireAgent(ctx, targetAgentID); err != nil {
 		return nil, err
@@ -158,6 +179,13 @@ func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request aut
 	state, err := s.ensureHeartbeatState(ctx, targetAgentID)
 	if err != nil {
 		return nil, err
+	}
+	s.mu.Lock()
+	currentVersion := state.Config.ConfigurationVersion
+	s.mu.Unlock()
+	if expectedVersion != nil &&
+		(*expectedVersion < 0 || currentVersion != *expectedVersion) {
+		return nil, automationdomain.ErrConfigurationVersionConflict
 	}
 	if request.Text != nil && strings.TrimSpace(*request.Text) != "" {
 		if err = s.repository.InsertSystemEvent(

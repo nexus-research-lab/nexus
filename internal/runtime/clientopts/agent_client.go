@@ -96,7 +96,9 @@ type AgentClientOptionsInput struct {
 	AgentMCPServers           map[string]any
 	ExtraEnv                  map[string]string
 	// ConfigurationEnv 只接受宿主按当前 runtime round 签发的 nexuscfg broker capability。
-	ConfigurationEnv           map[string]string
+	ConfigurationEnv map[string]string
+	// RuntimeCommandEnv 只接受宿主按当前 runtime round 签发的 Agent-facing nexus CLI capability。
+	RuntimeCommandEnv          map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
 	WebSearch                  WebSearchConfig
@@ -165,7 +167,7 @@ func BuildAgentClientOptionsWithConfig(
 		runtimeEnv,
 		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),
 	)
-	if input.IsMainAgent || len(input.ConfigurationEnv) > 0 {
+	if input.IsMainAgent || len(input.ConfigurationEnv) > 0 || len(input.RuntimeCommandEnv) > 0 {
 		runtimeEnv = mergeRuntimeEnv(
 			runtimeEnv,
 			workspaceRuntimeEnv(input.WorkspacePath, input.IsMainAgent),
@@ -177,6 +179,12 @@ func BuildAgentClientOptionsWithConfig(
 		(strings.TrimSpace(runtimeEnv[protocol.NexusConfigBrokerURLEnvName]) == "" ||
 			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
 		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
+	}
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.RuntimeCommandEnv)
+	if len(input.RuntimeCommandEnv) > 0 &&
+		(strings.TrimSpace(runtimeEnv[protocol.NexusCommandBrokerURLEnvName]) == "" ||
+			strings.TrimSpace(runtimeEnv[protocol.NexusCommandCapabilityTokenEnvName]) == "") {
+		return agentclient.Options{}, nil, errors.New("Nexus runtime command capability 不完整")
 	}
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))

@@ -18,6 +18,7 @@
 //   - task_compatibility.go / task_session_binding.go：历史投递线格式与合成收件箱只读兼容，以及 Session 删除后停用、重绑、active pairing 校验错误和恢复的任务级生命周期。
 //   - delivery_scope.go：普通 Agent 的自身/当前 Room/当前外部会话键投递目标边界。
 //   - heartbeat.go：带 configuration_version 的 HeartbeatConfig / HeartbeatWakeInput 等 heartbeat 协议。
+//   - command.go：Automation Skill、nexus CLI、broker 与 service 共用的 contract/inspect/plan/apply wire。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package types
