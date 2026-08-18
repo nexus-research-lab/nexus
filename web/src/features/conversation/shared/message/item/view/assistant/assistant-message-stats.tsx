@@ -3,6 +3,8 @@ import {
   Check,
   CircleCheck,
   Copy,
+  GitFork,
+  LoaderCircle,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -45,6 +47,7 @@ export function AssistantMessageStats({
   memories = [],
   model,
   onCopy,
+  onFork,
   stats,
 }: {
   copied: boolean;
@@ -52,6 +55,7 @@ export function AssistantMessageStats({
   memories: RecalledMemoryReference[];
   model?: string;
   onCopy?: () => Promise<void>;
+  onFork?: () => Promise<void>;
   stats: AssistantFooterStats | null;
 }) {
   const { locale, t } = useI18n();
@@ -90,6 +94,7 @@ export function AssistantMessageStats({
               copied={copied}
               memories={memories}
               onCopy={onCopy}
+              onFork={onFork}
             />
           ) : null}
         </div>
@@ -134,6 +139,7 @@ export function AssistantMessageStats({
             copied={copied}
             memories={memories}
             onCopy={onCopy}
+            onFork={onFork}
           />
         </div>
       ) : null}
@@ -145,20 +151,62 @@ function AssistantStatsTrailing({
   copied,
   memories,
   onCopy,
+  onFork,
 }: {
   copied: boolean;
   memories: RecalledMemoryReference[];
   onCopy?: () => Promise<void>;
+  onFork?: () => Promise<void>;
 }) {
   return (
     <div className="ml-auto flex h-6 shrink-0 items-center gap-0.5">
       {memories.length > 0 ? (
         <AssistantMemoryReferences memories={memories} />
       ) : null}
-      <div className="flex items-center opacity-0 transition-opacity duration-(--motion-duration-fast) sm:group-hover:opacity-100">
+      <div className="flex items-center opacity-100 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
         {onCopy ? <AssistantCopyAction copied={copied} onCopy={onCopy} /> : null}
+        {onFork ? <AssistantForkAction onFork={onFork} /> : null}
       </div>
     </div>
+  );
+}
+
+function AssistantForkAction({
+  onFork,
+}: {
+  onFork: () => Promise<void>;
+}) {
+  const { t } = useI18n();
+  const [state, setState] = useState<"failed" | "idle" | "pending">("idle");
+  const label = state === "failed"
+    ? t("message.fork_failed")
+    : state === "pending"
+    ? t("message.forking")
+    : t("message.fork_to_new_chat");
+  const handleFork = useCallback(async () => {
+    setState("pending");
+    try {
+      await onFork();
+      setState("idle");
+    } catch {
+      setState("failed");
+    }
+  }, [onFork]);
+  const Icon = state === "pending" ? LoaderCircle : GitFork;
+  return (
+    <button
+      aria-label={label}
+      className={cn(
+        "inline-flex h-5 w-5 items-center justify-center rounded-md text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
+        state === "failed" && "text-(--danger)",
+      )}
+      disabled={state === "pending"}
+      onClick={() => void handleFork()}
+      title={label}
+      type="button"
+    >
+      <Icon className={cn("h-3 w-3", state === "pending" && "animate-spin")} />
+    </button>
   );
 }
 

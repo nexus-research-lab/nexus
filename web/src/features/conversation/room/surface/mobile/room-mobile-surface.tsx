@@ -66,6 +66,7 @@ interface RoomMobileSurfaceProps {
   onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
+  onForkConversation: (roundId: string) => Promise<void>;
   onInitialDraftConsumed?: () => void;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
@@ -119,6 +120,7 @@ export function RoomMobileSurface({
   onCreateConversation,
   onDeleteConversation,
   onExecutionTaskRunsChange,
+  onForkConversation,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -232,6 +234,7 @@ export function RoomMobileSurface({
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={onCreateConversation}
       onExecutionTaskRunsChange={onExecutionTaskRunsChange}
+      onForkConversation={onForkConversation}
       onInitialDraftConsumed={onInitialDraftConsumed}
       onOpenSubagentTask={subagentTaskSource
         ? handleOpenSubagentTask

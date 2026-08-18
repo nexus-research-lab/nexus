@@ -49,6 +49,7 @@ export function RoomSurfaceContent({
   onReplaceFinalConversation,
   onDeleteConversation,
   onExecutionTaskRunsChange,
+  onForkConversation,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -149,6 +150,7 @@ export function RoomSurfaceContent({
                   onConversationSnapshotChange={onConversationSnapshotChange}
                   onCreateConversation={onCreateConversation}
                   onExecutionTaskRunsChange={onExecutionTaskRunsChange}
+                  onForkConversation={onForkConversation}
                   onInitialDraftConsumed={onInitialDraftConsumed}
                   onOpenAgentContact={layout.handleOpenAgentContact}
                   onOpenSubagentTask={layout.subagentTaskSource

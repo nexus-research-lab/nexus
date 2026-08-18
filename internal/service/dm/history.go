@@ -431,6 +431,10 @@ func (s *sdkSessionSync) apply() {
 	if s.current.Options == nil {
 		s.current.Options = map[string]any{}
 	}
+	if s.canPersistSession && s.sessionIDChanged {
+		delete(s.current.Options, protocol.OptionRuntimeForkSourceSessionID)
+		delete(s.current.Options, protocol.OptionRuntimeForkMessageID)
+	}
 	nextFingerprint := s.nextFingerprint
 	if s.sessionIDChanged && !s.canPersistSession {
 		// 新 transcript 尚不可恢复时，不能把它的工具面基线提交到旧 SDK session；

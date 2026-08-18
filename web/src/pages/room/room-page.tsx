@@ -67,6 +67,7 @@ function ActiveRoomPage({
         onBackToDirectory={navigation.backToChatDirectory}
         onCloseConversation={actions.closeConversation}
         onDeleteConversation={navigation.deleteConversation}
+        onForkConversation={actions.forkConversation}
         onCreateConversation={navigation.createConversation}
         onReplaceFinalConversation={navigation.replaceFinalConversation}
         onOpenWorkspaceFile={workspace.handleOpenWorkspaceFile}

@@ -59,6 +59,11 @@ export function ConversationRound({
               : undefined
           }
           onOpenAgentContact={renderer.onOpenAgentContact}
+          onForkConversation={
+            !state.isLive && renderer.onForkRound
+              ? () => renderer.onForkRound?.(state.roundId) ?? Promise.resolve()
+              : undefined
+          }
           onOpenSubagentTask={renderer.onOpenSubagentTask}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
           onPermissionResponse={renderer.onPermissionResponse}

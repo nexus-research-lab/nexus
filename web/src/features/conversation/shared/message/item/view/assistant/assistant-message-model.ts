@@ -56,6 +56,7 @@ export interface AssistantFooterState {
   goalCompletionReceipt: GoalCompletionReceipt | null;
   memories: RecalledMemoryReference[];
   onCopy?: () => Promise<void>;
+  onFork?: () => Promise<void>;
   stats: AssistantFooterStats | null;
   visible: boolean;
 }

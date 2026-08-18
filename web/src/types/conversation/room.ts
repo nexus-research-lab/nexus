@@ -112,6 +112,10 @@ export interface CreateRoomConversationParams {
   title?: string;
 }
 
+export interface ForkRoomConversationParams {
+  round_id: string;
+}
+
 export interface UpdateRoomConversationParams {
   title?: string;
 }

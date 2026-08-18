@@ -62,6 +62,7 @@ export function useRoomPageController({
       closeConversation: commands.handleCloseConversation,
       createConversation: commands.handleCreateConversation,
       deleteConversation: commands.handleDeleteConversation,
+      forkConversation: commands.handleForkConversation,
       manageRoom: commands.handleManageRoom,
       prepareAgentCatalog: loadAgentsFromServer,
       refreshRoomState: commands.handleRefreshRoomState,

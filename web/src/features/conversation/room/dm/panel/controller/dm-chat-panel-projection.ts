@@ -65,6 +65,7 @@ interface BuildDmChatPanelViewModelOptions {
   goal: DmGoalProjection;
   goalScopeLabel: string;
   onEditLastUserMessage: (messageId: string, content: string) => void;
+  onForkConversation?: (roundId: string) => Promise<void>;
   onGoalChange: (goal: Goal | null) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
@@ -87,6 +88,7 @@ export function buildDmChatPanelViewModel({
   goal,
   goalScopeLabel,
   onEditLastUserMessage,
+  onForkConversation,
   onGoalChange,
   onOpenAgentContact,
   onOpenSubagentTask,
@@ -117,6 +119,7 @@ export function buildDmChatPanelViewModel({
       currentAgentName,
       environment,
       onEditLastUserMessage,
+      onForkConversation,
       onOpenAgentContact,
       onOpenSubagentTask,
       onOpenWorkspaceFile,
@@ -193,6 +196,7 @@ function buildDmFeedModel({
   currentAgentName,
   environment,
   onEditLastUserMessage,
+  onForkConversation,
   onOpenAgentContact,
   onOpenSubagentTask,
   onOpenWorkspaceFile,
@@ -204,6 +208,7 @@ function buildDmFeedModel({
   | "currentAgentName"
   | "environment"
   | "onEditLastUserMessage"
+  | "onForkConversation"
   | "onOpenAgentContact"
   | "onOpenSubagentTask"
   | "onOpenWorkspaceFile"
@@ -224,6 +229,7 @@ function buildDmFeedModel({
       currentAgentAvatar,
       currentAgentName,
       onEditLastUserMessage,
+      onForkRound: onForkConversation,
       onOpenAgentContact,
       onOpenSubagentTask,
       onOpenWorkspaceFile,
