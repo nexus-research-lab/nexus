@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimecommand "github.com/nexus-research-lab/nexus/internal/runtimecommand"
@@ -45,15 +46,17 @@ type goalCommandTextPayload struct {
 }
 
 type goalTextValue struct {
-	ThreadID        any `json:"threadId"`
-	Objective       any `json:"objective"`
-	Status          any `json:"status"`
-	TokenBudget     any `json:"tokenBudget"`
-	TokensUsed      any `json:"tokensUsed"`
-	TimeUsedSeconds any `json:"timeUsedSeconds"`
-	CreatedAt       any `json:"createdAt"`
-	UpdatedAt       any `json:"updatedAt"`
-	Blocker         any `json:"blocker,omitempty"`
+	ThreadID           any `json:"threadId"`
+	Objective          any `json:"objective"`
+	ObjectiveRevision  any `json:"objectiveRevision"`
+	CompletionCriteria any `json:"completionCriteria"`
+	Status             any `json:"status"`
+	TokenBudget        any `json:"tokenBudget"`
+	TokensUsed         any `json:"tokensUsed"`
+	TimeUsedSeconds    any `json:"timeUsedSeconds"`
+	CreatedAt          any `json:"createdAt"`
+	UpdatedAt          any `json:"updatedAt"`
+	Blocker            any `json:"blocker,omitempty"`
 }
 
 func goalCommandTextPayloadFrom(content map[string]any) goalCommandTextPayload {
@@ -72,15 +75,17 @@ func goalTextValueFromAny(value any) any {
 		return nil
 	}
 	return goalTextValue{
-		ThreadID:        goal["threadId"],
-		Objective:       goal["objective"],
-		Status:          goal["status"],
-		TokenBudget:     goal["tokenBudget"],
-		TokensUsed:      goal["tokensUsed"],
-		TimeUsedSeconds: goal["timeUsedSeconds"],
-		CreatedAt:       goal["createdAt"],
-		UpdatedAt:       goal["updatedAt"],
-		Blocker:         goal["blocker"],
+		ThreadID:           goal["threadId"],
+		Objective:          goal["objective"],
+		ObjectiveRevision:  goal["objectiveRevision"],
+		CompletionCriteria: goal["completionCriteria"],
+		Status:             goal["status"],
+		TokenBudget:        goal["tokenBudget"],
+		TokensUsed:         goal["tokensUsed"],
+		TimeUsedSeconds:    goal["timeUsedSeconds"],
+		CreatedAt:          goal["createdAt"],
+		UpdatedAt:          goal["updatedAt"],
+		Blocker:            goal["blocker"],
 	}
 }
 
@@ -202,6 +207,8 @@ func commandGoalValue(item *protocol.Goal) any {
 	goal := map[string]any{
 		"threadId":              item.SessionKey,
 		"objective":             item.Objective,
+		"objectiveRevision":     item.ObjectiveRevision(),
+		"completionCriteria":    commandGoalCompletionCriteria(*item),
 		"status":                commandGoalStatus(item.Status),
 		"tokenBudget":           int64PointerValue(item.TokenBudget),
 		"tokensUsed":            item.Usage.BudgetTokens(),
@@ -221,6 +228,36 @@ func commandGoalValue(item *protocol.Goal) any {
 		}
 	}
 	return goal
+}
+
+func commandGoalCompletionCriteria(item protocol.Goal) []string {
+	value, ok := item.Metadata[protocol.GoalMetadataCompletionCriteria]
+	if !ok {
+		return []string{}
+	}
+	var values []string
+	switch typed := value.(type) {
+	case []string:
+		values = typed
+	case []any:
+		values = make([]string, 0, len(typed))
+		for _, entry := range typed {
+			text, textOK := entry.(string)
+			if !textOK {
+				return []string{}
+			}
+			values = append(values, text)
+		}
+	default:
+		return []string{}
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func commandGoalStatus(status protocol.GoalStatus) string {
