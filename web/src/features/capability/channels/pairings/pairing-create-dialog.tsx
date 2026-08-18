@@ -146,10 +146,14 @@ export function CreatePairingDialog({
 
             <UiField
               description="同一智能体可以绑定多个不同外部对象，每个对象会生成独立 IM session。"
-              label={<>外部对象 ID <span className="text-(--destructive)">*</span></>}
+              htmlFor="pairing-external-ref"
+              label="外部对象 ID"
+              required
             >
               <UiInput
+                id="pairing-external-ref"
                 onChange={(event) => setField("externalRef", event.target.value)}
+                pattern=".*\S.*"
                 placeholder={draft.chatType === "group"
                   ? "群 ID / chat_id / channel_id"
                   : "用户 ID / open_id / chat_id"}
@@ -191,7 +195,7 @@ export function CreatePairingDialog({
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
+              <UiField label="处理智能体" required>
                 <UiSelectMenu
                   ariaLabel="选择处理智能体"
                   disabled={agents.length === 0}
@@ -235,7 +239,7 @@ export function CreatePairingDialog({
             </UiButton>
             <UiButton
               className="min-w-[124px]"
-              disabled={saving || !draft.externalRef.trim() || !draft.agentId}
+              disabled={saving || !draft.agentId}
               size="lg"
               tone="primary"
               type="submit"

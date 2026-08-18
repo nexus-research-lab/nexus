@@ -81,7 +81,9 @@ export function ProviderAddModelDialog({
           <UiDialogBody className="space-y-4">
             <UiField
               description={t("settings.providers.add_model_description")}
+              htmlFor="provider-model-id"
               label={t("settings.providers.model_id")}
+              required
             >
               <UiInput
                 aria-label={t("settings.providers.model_id")}
@@ -89,15 +91,11 @@ export function ProviderAddModelDialog({
                 autoCorrect="off"
                 controlSize="lg"
                 className="font-mono"
+                id="provider-model-id"
                 ref={modelInputRef}
                 onChange={(event) => setManualModelId(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    onAdd();
-                  }
-                }}
                 placeholder={manualModelPlaceholder}
+                required
                 spellCheck={false}
                 type="text"
                 value={manualModelId}
@@ -129,10 +127,9 @@ export function ProviderAddModelDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={!manualModelId.trim() || isAdding || !selectedCanManage}
-              onClick={onAdd}
+              disabled={isAdding || !selectedCanManage}
               tone="primary"
-              type="button"
+              type="submit"
               variant="solid"
             >
               {isAdding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}

@@ -82,7 +82,7 @@ export function ChannelConnectionFields({
         />
       ) : null}
 
-      <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
+      <UiField label="处理智能体" required>
         <UiSelectMenu
           ariaLabel="选择频道处理智能体"
           onChange={controller.setAgentId}
@@ -99,11 +99,8 @@ export function ChannelConnectionFields({
         {currentItem.credential_fields.map((field, index) => (
           <UiField
             key={field.key}
-            label={(
-              <>
-                {field.label} {field.required ? <span className="text-(--destructive)">*</span> : null}
-              </>
-            )}
+            label={field.label}
+            required={field.required}
           >
             <UiInput
               autoCapitalize="none"

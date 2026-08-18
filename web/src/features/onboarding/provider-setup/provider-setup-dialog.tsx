@@ -804,7 +804,13 @@ function CredentialsScene({
   }, []);
 
   return (
-    <>
+    <form
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
       <SceneMessage
         body={existingProvider
           ? t("onboarding.provider_setup_credentials_saved_description")
@@ -821,6 +827,7 @@ function CredentialsScene({
             : undefined}
           htmlFor="provider-setup-api-key"
           label={t("onboarding.provider_setup_api_key")}
+          required={apiKeyRequired}
         >
           <UiInput
             ref={apiKeyInputRef}
@@ -853,7 +860,11 @@ function CredentialsScene({
         </UiField>
 
         {setup.preset.endpoint_mode !== "fixed" ? (
-          <UiField htmlFor="provider-setup-base-url" label={t("onboarding.provider_setup_base_url")}>
+          <UiField
+            htmlFor="provider-setup-base-url"
+            label={t("onboarding.provider_setup_base_url")}
+            required
+          >
             <UiInput
               autoCapitalize="off"
               autoCorrect="off"
@@ -873,6 +884,7 @@ function CredentialsScene({
           <UiField
             htmlFor="provider-setup-model-id"
             label={t("onboarding.provider_setup_model")}
+            required
           >
             <UiInput
               autoCapitalize="off"
@@ -900,16 +912,16 @@ function CredentialsScene({
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
-        <UiButton onClick={onBack} size="sm" variant="text">
+        <UiButton onClick={onBack} size="sm" type="button" variant="text">
           <ChevronLeft className="h-3.5 w-3.5" />
           {t("onboarding.provider_setup_back")}
         </UiButton>
-        <UiButton onClick={onSubmit} size="sm" tone="primary" variant="solid">
+        <UiButton size="sm" tone="primary" type="submit" variant="solid">
           <PlugZap className="h-3.5 w-3.5" />
           {t("onboarding.provider_setup_submit")}
         </UiButton>
       </div>
-    </>
+    </form>
   );
 }
 
@@ -952,7 +964,13 @@ function CustomProviderScene({
     value: setup.format.api_format,
   }));
   return (
-    <>
+    <form
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
       <SceneMessage
         body={t("onboarding.provider_setup_custom_description")}
         title={t("onboarding.provider_setup_custom_title")}
@@ -963,6 +981,7 @@ function CustomProviderScene({
           <UiField
             htmlFor="provider-setup-custom-name"
             label={t("onboarding.provider_setup_custom_name")}
+            required
           >
             <UiInput
               autoCapitalize="off"
@@ -980,6 +999,7 @@ function CustomProviderScene({
           <UiField
             htmlFor="provider-setup-custom-format"
             label={t("onboarding.provider_setup_custom_format")}
+            required
           >
             <UiSelectMenu
               ariaLabel={t("onboarding.provider_setup_custom_format")}
@@ -1001,6 +1021,7 @@ function CustomProviderScene({
             : undefined}
           htmlFor="provider-setup-custom-api-key"
           label={t("onboarding.provider_setup_api_key")}
+          required={!existingProvider?.auth_token_masked?.trim()}
         >
           <UiInput
             autoCapitalize="off"
@@ -1023,6 +1044,7 @@ function CustomProviderScene({
         <UiField
           htmlFor="provider-setup-custom-base-url"
           label={t("onboarding.provider_setup_base_url")}
+          required
         >
           <UiInput
             autoCapitalize="off"
@@ -1041,6 +1063,7 @@ function CustomProviderScene({
         <UiField
           htmlFor="provider-setup-custom-model-id"
           label={t("onboarding.provider_setup_model")}
+          required
         >
           <UiInput
             autoCapitalize="off"
@@ -1067,16 +1090,16 @@ function CustomProviderScene({
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
-        <UiButton onClick={onBack} size="sm" variant="text">
+        <UiButton onClick={onBack} size="sm" type="button" variant="text">
           <ChevronLeft className="h-3.5 w-3.5" />
           {t("onboarding.provider_setup_back")}
         </UiButton>
-        <UiButton onClick={onSubmit} size="sm" tone="primary" variant="solid">
+        <UiButton size="sm" tone="primary" type="submit" variant="solid">
           <PlugZap className="h-3.5 w-3.5" />
           {t("onboarding.provider_setup_submit")}
         </UiButton>
       </div>
-    </>
+    </form>
   );
 }
 

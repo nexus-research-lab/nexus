@@ -66,7 +66,6 @@ export function useSkillImportDialog({
   }, [draft, importing, mode, onImportGit]);
 
   return {
-    canSubmitGit: canSubmitGitSkillImport(mode, importing, draft),
     close,
     dismissAction: importing ? undefined : close,
     draft,

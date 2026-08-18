@@ -55,12 +55,14 @@ export function TaskBasicsPanel({
       <UiField
         htmlFor="task-name"
         label={t("capability.scheduled_dialog_task_name")}
+        required
       >
         <UiInput
           ref={nameRef}
           id="task-name"
           onChange={(event) => actions.setTaskName(event.target.value)}
           placeholder={t("capability.scheduled_dialog_task_name_placeholder")}
+          required
           value={form.taskName}
         />
       </UiField>
@@ -89,6 +91,7 @@ export function TaskBasicsPanel({
         error={target.error}
         htmlFor="task-target-object"
         label={target.label}
+        required
       >
         <UiSelectMenu
           ariaLabel={target.ariaLabel}
