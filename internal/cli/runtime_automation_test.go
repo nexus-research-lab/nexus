@@ -21,6 +21,19 @@ func (fn runtimeAutomationRoundTripFunc) RoundTrip(request *http.Request) (*http
 	return fn(request)
 }
 
+func TestRuntimeCommandInputStagingDescribesPreCreatedFile(t *testing.T) {
+	staging := runtimeCommandInputStaging("/private/round/input.json")
+	if staging["path"] != "/private/round/input.json" ||
+		staging["max_bytes"] != maxRuntimeCommandInputBytes ||
+		!strings.Contains(staging["write_precondition"].(string), "Read") {
+		t.Fatalf("input staging = %+v", staging)
+	}
+	initial, ok := staging["initial_content"].(map[string]any)
+	if !ok || len(initial) != 0 {
+		t.Fatalf("initial input = %#v", staging["initial_content"])
+	}
+}
+
 func TestRuntimeAutomationControllerUsesCapabilityAndStrictEnvelope(t *testing.T) {
 	controller := remoteRuntimeAutomationController{
 		command: &runtimeSemanticController{

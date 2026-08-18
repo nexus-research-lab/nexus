@@ -24,7 +24,7 @@ tags: [automation, scheduled-task, reminder, heartbeat]
 
    Windows 的 runtime 工具名为 PowerShell 时，使用对应的单行受管形式：`& "${env:NEXUS_COMMAND_PATH}" --json automation contract`；后续 input path 使用 `"${env:NEXUS_COMMAND_INPUT_PATH}"`。不要混用 Bash 与 PowerShell 变量语法。
 
-2. 从 contract 输出读取 `input_staging.path`。用 Write 工具把当前 operation 的一个完整 JSON 对象写到该精确路径；只写 JSON 内容，不自行选择文件名，不使用 Bash、heredoc、`cat`、命令替换或重定向生成输入。每个新意图都覆盖旧内容。
+2. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为当前 operation 的一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。只写 JSON 内容，不自行选择文件名，不使用 Bash、heredoc、`cat`、命令替换或重定向生成输入。
 
 3. 用单条、单行 `inspect` 查询现状。修改、删除、运行或补投递前，先定位唯一任务并取得 `job_id`、`configuration_version`、running run 和健康状态。CLI 默认读取受管输入槽；显式写法如下。
 
