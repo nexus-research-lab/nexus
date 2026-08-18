@@ -1,4 +1,4 @@
-/** 私聊 Session、消息历史和轮次索引的 HTTP 边界。 */
+/** 私聊 Session、可取消消息分页、大内容 detail 和轮次索引的 HTTP 边界。 */
 
 import type {
   ApiConversation,
@@ -13,9 +13,11 @@ import type {
   ApiSessionRoundIndex,
   ConversationMessagePage,
   ConversationMessagesQuery,
+  MessageDetailResponse,
   SessionRoundIndexItem,
 } from "@/types/conversation/history";
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
+import { applyDesktopRequestHeaders } from "@/config/desktop-runtime";
 import { requestApi } from "@/lib/api/core/http";
 import { assertStructuredSessionKey } from "@/lib/conversation/session-key";
 
@@ -83,6 +85,7 @@ export async function deleteSessionApi(sessionKey: string): Promise<void> {
 export async function getSessionMessagesApi(
   sessionKey: string,
   options: ConversationMessagesQuery = {},
+  signal?: AbortSignal,
 ): Promise<ConversationMessagePage> {
   const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
   const querySuffix = buildConversationMessagesQuerySuffix(options, [
@@ -92,9 +95,53 @@ export async function getSessionMessagesApi(
     `${AGENT_API_BASE_URL}/sessions/messages${querySuffix}`,
     {
       method: "GET",
+      signal,
     },
   );
   return normalizeConversationMessagePage(result);
+}
+
+export async function getSessionMessageDetailApi(
+  sessionKey: string,
+  detailRef: string,
+  signal?: AbortSignal,
+): Promise<MessageDetailResponse> {
+  return requestApi<MessageDetailResponse>(
+    buildSessionMessageDetailUrl(sessionKey, detailRef),
+    { method: "GET", signal },
+  );
+}
+
+export async function getSessionMessageImageDetailApi(
+  sessionKey: string,
+  detailRef: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const url = buildSessionMessageDetailUrl(sessionKey, detailRef);
+  const headers = new Headers();
+  applyDesktopRequestHeaders(url, headers);
+  const response = await fetch(url, {
+    credentials: "include",
+    headers,
+    method: "GET",
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`读取图片详情失败：HTTP ${response.status}`);
+  }
+  return response.blob();
+}
+
+function buildSessionMessageDetailUrl(
+  sessionKey: string,
+  detailRef: string,
+): string {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  const params = new URLSearchParams({
+    detail_ref: detailRef.trim(),
+    session_key: normalizedSessionKey,
+  });
+  return `${AGENT_API_BASE_URL}/sessions/message-detail?${params.toString()}`;
 }
 
 export async function getSessionRoundIndexApi(

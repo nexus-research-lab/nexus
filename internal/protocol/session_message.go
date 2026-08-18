@@ -1,5 +1,5 @@
 // INPUT: runtime/历史层产出的会话消息。
-// OUTPUT: 跨层共享的消息模型、身份读取与 transcript 原生性判定。
+// OUTPUT: 跨层共享的消息/分页/detail 模型、身份读取与 transcript 原生性判定。
 // POS: 会话消息协议及其持久化来源边界。
 package protocol
 
@@ -136,6 +136,14 @@ type MessagePage struct {
 	NextBeforeRoundTimestamp *int64    `json:"next_before_round_timestamp,omitempty"`
 	Indexing                 bool      `json:"indexing,omitempty"`
 	RetryAfterMS             int       `json:"retry_after_ms,omitempty"`
+}
+
+// MessageDetailResponse 是非图片 detail 的按需 JSON 响应。
+type MessageDetailResponse struct {
+	Ref      string `json:"ref"`
+	Kind     string `json:"kind"`
+	ByteSize int64  `json:"byte_size"`
+	Content  any    `json:"content"`
 }
 
 // SessionRoundIndex 表示 session 级 round 导航索引。

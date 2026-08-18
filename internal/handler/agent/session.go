@@ -1,6 +1,10 @@
+// INPUT: 鉴权后的 Session HTTP 请求、分页参数与 opaque detail ref。
+// OUTPUT: Session 消息/导航 JSON 或受限大型图片字节流。
+// POS: Agent Session 读取传输边界；业务归属与 generation 校验委托 session service。
 package agent
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -14,6 +18,63 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// HandleSessionMessageDetailByQuery 返回大型 Tool result JSON 或图片字节流。
+func (h *Handlers) HandleSessionMessageDetailByQuery(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	ref := strings.TrimSpace(request.URL.Query().Get("detail_ref"))
+	if sessionKey == "" || ref == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 和 detail_ref 参数缺失")
+		return
+	}
+	detail, err := h.sessions.GetSessionMessageDetail(request.Context(), sessionKey, ref)
+	if handlershared.IsStructuredSessionKeyError(err) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSessionNotFound) ||
+		errors.Is(err, sessionpkg.ErrMessageDetailUnavailable) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在或已更新")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "消息详情读取失败")
+		return
+	}
+	if detail.Kind == "image" {
+		writer.Header().Set("Content-Type", safeMessageDetailImageMediaType(detail.MediaType))
+		writer.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+		writer.Header().Set("Content-Length", strconv.FormatInt(detail.ByteSize, 10))
+		writer.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		writer.Header().Set("X-Content-Type-Options", "nosniff")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write(detail.Payload)
+		return
+	}
+	var content any
+	if err = json.Unmarshal(detail.Payload, &content); err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "消息详情格式错误")
+		return
+	}
+	h.api.WriteSuccess(writer, protocol.MessageDetailResponse{
+		Ref:      detail.Ref,
+		Kind:     detail.Kind,
+		ByteSize: detail.ByteSize,
+		Content:  content,
+	})
+}
+
+func safeMessageDetailImageMediaType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "image/avif", "image/bmp", "image/gif", "image/jpeg", "image/png", "image/webp", "image/x-icon":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "application/octet-stream"
+	}
+}
 
 // HandleListAgentSessions 返回指定 agent 的 session 列表。
 func (h *Handlers) HandleListAgentSessions(writer http.ResponseWriter, request *http.Request) {
@@ -53,85 +114,6 @@ func (h *Handlers) HandleSessionMessagesByQuery(writer http.ResponseWriter, requ
 		return
 	}
 	h.writeSessionMessages(writer, request, sessionKey)
-}
-
-// HandleSessionTurns 返回指定 session 的 ConversationTurn 分页。
-func (h *Handlers) HandleSessionTurns(writer http.ResponseWriter, request *http.Request) {
-	sessionKey := sessionKeyPathParam(request)
-	h.writeSessionTurns(writer, request, sessionKey)
-}
-
-// HandleSessionTurnsByQuery 返回指定 session 的 ConversationTurn 分页。
-func (h *Handlers) HandleSessionTurnsByQuery(writer http.ResponseWriter, request *http.Request) {
-	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
-	if sessionKey == "" {
-		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
-		return
-	}
-	h.writeSessionTurns(writer, request, sessionKey)
-}
-
-func (h *Handlers) writeSessionTurns(writer http.ResponseWriter, request *http.Request, sessionKey string) {
-	limit := 0
-	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
-		parsedLimit, parseErr := strconv.Atoi(rawLimit)
-		if parseErr != nil || parsedLimit <= 0 {
-			h.api.WriteFailure(writer, http.StatusBadRequest, "limit 参数错误")
-			return
-		}
-		limit = parsedLimit
-	}
-	page, err := h.sessions.GetSessionTurnsPage(request.Context(), sessionKey, sessionpkg.TurnPageRequest{
-		Limit:         limit,
-		BeforeRoundID: strings.TrimSpace(request.URL.Query().Get("before_round_id")),
-		AroundRoundID: strings.TrimSpace(request.URL.Query().Get("around_round_id")),
-		Sort:          strings.TrimSpace(request.URL.Query().Get("sort")),
-		View:          strings.TrimSpace(request.URL.Query().Get("view")),
-	})
-	if handlershared.IsStructuredSessionKeyError(err) {
-		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrExternalSessionPairingActive) {
-		h.api.WriteFailure(writer, http.StatusConflict, err.Error())
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionMutationUnsupported) {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, page)
-}
-
-// HandleSessionTurnIndexByQuery 返回指定 session 的 turn 导航索引。
-func (h *Handlers) HandleSessionTurnIndexByQuery(writer http.ResponseWriter, request *http.Request) {
-	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
-	if sessionKey == "" {
-		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
-		return
-	}
-	items, err := h.sessions.GetSessionTurnIndex(request.Context(), sessionKey)
-	if handlershared.IsStructuredSessionKeyError(err) {
-		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, map[string]any{"items": items})
 }
 
 // HandleSessionRoundsByQuery 返回指定 session 的完整 round 导航索引。

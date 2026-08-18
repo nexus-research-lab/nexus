@@ -36,6 +36,8 @@ var (
 	ErrSessionDeleted = errors.New("session is deleting or deleted")
 	// ErrExternalSessionPairingActive 表示外部 IM 会话仍由有效配对占用。
 	ErrExternalSessionPairingActive = errors.New("external IM session pairing is active")
+	// ErrMessageDetailUnavailable 表示大内容引用已过期或不属于当前 Session generation。
+	ErrMessageDetailUnavailable = workspacestore.ErrHistoryMessageDetailUnavailable
 )
 
 // Service 负责编排文件会话与 Room SQL 会话视图。

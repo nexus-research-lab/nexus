@@ -1,3 +1,8 @@
+/**
+ * INPUT: 图片内容块、可选 detail Blob URL 与 workspace 路径解析器。
+ * OUTPUT: 单一可信图片源、打开能力和外部文件动作投影。
+ * POS: 图片内容块的无副作用展示模型。
+ */
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
 import { resolveWorkspaceImagePath } from "@/shared/ui/markdown/workspace/markdown-workspace-artifact-model";
 import type { ImageContent } from "@/types/conversation/message/content";
@@ -22,6 +27,7 @@ interface ImageSourceContext {
   resolveFilePath: (value: string) => string | null;
   sourceData: string;
   sourceMimeType: string;
+  deferredDetailUrl: string;
 }
 
 type ImageSourceResolver = (
@@ -39,6 +45,7 @@ export interface ImageArtifactProjection {
 const EXTERNAL_IMAGE_PATTERN = /^(https?:|data:|blob:)/i;
 const EMPTY_IMAGE_SOURCE: ImageSource = { src: "", workspacePath: null };
 const IMAGE_SOURCE_RESOLVERS: ImageSourceResolver[] = [
+  resolveDeferredImageSource,
   resolveInlineImageSource,
   resolveExternalImageSource,
   resolveWorkspaceImageSource,
@@ -48,17 +55,24 @@ const IMAGE_SOURCE_RESOLVERS: ImageSourceResolver[] = [
 export function projectImageArtifact({
   block,
   currentAgentId,
+  deferredDetailUrl = "",
   hasOpenHandler,
   resolveFilePath,
 }: {
   block: ImageContent;
   currentAgentId: string | null | undefined;
+  deferredDetailUrl?: string;
   hasOpenHandler: boolean;
   resolveFilePath: (value: string) => string | null;
 }): ImageArtifactProjection {
   const resolvedAgentId = resolveAgentId(currentAgentId);
   const imageSource = resolveImageSource(
-    buildImageSourceContext(block, resolvedAgentId, resolveFilePath),
+    buildImageSourceContext(
+      block,
+      resolvedAgentId,
+      deferredDetailUrl,
+      resolveFilePath,
+    ),
   );
   const canOpen = canOpenImageSource(imageSource, hasOpenHandler);
   return {
@@ -73,6 +87,7 @@ export function projectImageArtifact({
 function buildImageSourceContext(
   block: ImageContent,
   currentAgentId: string,
+  deferredDetailUrl: string,
   resolveFilePath: (value: string) => string | null,
 ): ImageSourceContext {
   return {
@@ -81,7 +96,16 @@ function buildImageSourceContext(
     resolveFilePath,
     sourceData: resolveInlineImageData(block),
     sourceMimeType: resolveImageMimeType(block),
+    deferredDetailUrl,
   };
+}
+
+function resolveDeferredImageSource(
+  context: ImageSourceContext,
+): ImageSource | null {
+  return context.deferredDetailUrl
+    ? { src: context.deferredDetailUrl, workspacePath: null }
+    : null;
 }
 
 function resolveAgentId(currentAgentId: string | null | undefined): string {

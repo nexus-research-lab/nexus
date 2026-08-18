@@ -1,3 +1,6 @@
+// INPUT: Session command、分页与派生 detail 的服务层数据。
+// OUTPUT: Session service 的窄请求/响应与通知接口。
+// POS: 不进入 wire 真相源的 Session 业务 DTO。
 package session
 
 import (
@@ -44,11 +47,11 @@ type MessagePageRequest struct {
 	DeferIndex           bool
 }
 
-// TurnPageRequest 表示 turn 投影分页读取请求。
-type TurnPageRequest struct {
-	Limit         int
-	BeforeRoundID string
-	AroundRoundID string
-	Sort          string // asc | desc
-	View          string // summary | full
+// MessageDetail 是消息页中大型 Tool result / 图片引用的完整内容。
+type MessageDetail struct {
+	Ref       string
+	Kind      string
+	MediaType string
+	ByteSize  int64
+	Payload   []byte
 }

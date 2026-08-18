@@ -1,3 +1,4 @@
+/** Room catalog、context 与可取消消息分页的 HTTP 边界。 */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
@@ -40,10 +41,11 @@ export async function getRoomConversationMessages(
   roomId: string,
   conversationId: string,
   options: ConversationMessagesQuery = {},
+  signal?: AbortSignal,
 ): Promise<ConversationMessagePage> {
   const result = await requestApi<ApiConversationMessagePage>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/messages${buildConversationMessagesQuerySuffix(options)}`,
-    { method: "GET" },
+    { method: "GET", signal },
   );
   return normalizeConversationMessagePage(result);
 }

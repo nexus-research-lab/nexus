@@ -1,3 +1,4 @@
+/** 消息 round 分页、轻量导航与按需大内容响应协议。 */
 import type { Message } from "./message/entity";
 
 export interface ConversationMessagesQuery {
@@ -25,6 +26,13 @@ export interface ConversationMessagePage {
   next_before_round_timestamp: number | null;
   indexing: boolean;
   retry_after_ms: number;
+}
+
+export interface MessageDetailResponse {
+  ref: string;
+  kind: "tool_result";
+  byte_size: number;
+  content: unknown;
 }
 
 export interface ApiSessionRoundIndexItem {
