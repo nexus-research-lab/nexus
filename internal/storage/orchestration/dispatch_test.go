@@ -53,6 +53,11 @@ func TestRepositoryDispatchLeaseRetryAndIdempotentDelivery(t *testing.T) {
 	if len(candidates) != 1 || candidates[0].ID != "dispatch-1" {
 		t.Fatalf("available Dispatches = %+v", candidates)
 	}
+	deadlines, err := repository.ExecutionDispatchDeadlines(ctx)
+	if err != nil || deadlines.Room == nil ||
+		!deadlines.Room.Equal(candidates[0].AvailableAt) {
+		t.Fatalf("pending dispatch deadline = %+v, err=%v", deadlines, err)
+	}
 	if _, err = repository.ClaimDispatch(ctx, "dispatch-1", 99, "worker-a", time.Minute); !errors.Is(err, ErrDispatchLease) {
 		t.Fatalf("stale claim error = %v, want ErrDispatchLease", err)
 	}
@@ -70,6 +75,11 @@ func TestRepositoryDispatchLeaseRetryAndIdempotentDelivery(t *testing.T) {
 		claimed.DeliveryAttempts != 1 ||
 		claimed.LeaseOwner != "worker-a" {
 		t.Fatalf("claimed Dispatch = %+v", claimed)
+	}
+	deadlines, err = repository.ExecutionDispatchDeadlines(ctx)
+	if err != nil || deadlines.Room == nil || claimed.LeaseExpiresAt == nil ||
+		!deadlines.Room.Equal(*claimed.LeaseExpiresAt) {
+		t.Fatalf("claimed dispatch deadline = %+v, dispatch=%+v err=%v", deadlines, claimed, err)
 	}
 	if _, err = repository.ClaimDispatch(
 		ctx,
@@ -97,6 +107,10 @@ func TestRepositoryDispatchLeaseRetryAndIdempotentDelivery(t *testing.T) {
 		pending.LeaseOwner != "" ||
 		pending.LastError == "" {
 		t.Fatalf("retried Dispatch = %+v", pending)
+	}
+	deadlines, err = repository.ExecutionDispatchDeadlines(ctx)
+	if err != nil || deadlines.Room == nil || !deadlines.Room.Equal(retryAt) {
+		t.Fatalf("retry dispatch deadline = %+v, err=%v", deadlines, err)
 	}
 	if available, listErr := repository.ListAvailableRoomDispatches(ctx, 10); listErr != nil {
 		t.Fatal(listErr)

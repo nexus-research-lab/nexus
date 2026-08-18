@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -48,15 +49,23 @@ func TestCompletionAuditLifecycleRecoversAcceptedReviewAfterDatabaseRestart(t *t
 		api:      handlershared.NewAPI(logx.NewDiscardLogger()),
 		services: services,
 	}
-	stop, err := server.startCompletionAuditRecovery(ctx)
+	restartedStore := orchestrationstore.NewRepository(cfg, db)
+	if _, deadlineErr := restartedStore.OrchestrationRecoveryDeadlines(ctx); deadlineErr != nil {
+		t.Fatalf("read recovery deadlines: %v", deadlineErr)
+	}
+	stop, err := server.startOrchestrationRecovery(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
+	waitForServerCondition(t, func() bool {
+		current, getErr := restartedStore.GetCompletionAuditReceipt(ctx, snapshot.Execution.ID)
+		return getErr == nil && current != nil &&
+			current.State == orchestrationstore.CompletionAuditCompleted
+	})
 	if stop != nil {
 		stop()
 	}
 
-	restartedStore := orchestrationstore.NewRepository(cfg, db)
 	snapshot, err = restartedStore.GetSnapshot(ctx, snapshot.Execution.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +93,7 @@ WHERE execution_id = ? AND event_type = 'execution_completed'`,
 	}
 
 	// A second startup pass must observe the settled receipt and remain a no-op.
-	stop, err = server.startCompletionAuditRecovery(ctx)
+	stop, err = server.startOrchestrationRecovery(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,10 +140,17 @@ UPDATE executions SET status = 'paused' WHERE execution_id = ?`,
 		api:      handlershared.NewAPI(logx.NewDiscardLogger()),
 		services: services,
 	}
-	stop, err := server.startCompletionAuditRecovery(ctx)
+	if _, deadlineErr := store.OrchestrationRecoveryDeadlines(ctx); deadlineErr != nil {
+		t.Fatalf("read recovery deadlines: %v", deadlineErr)
+	}
+	stop, err := server.startOrchestrationRecovery(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
+	waitForServerCondition(t, func() bool {
+		current, getErr := store.GetCompletionAuditReceipt(ctx, snapshot.Execution.ID)
+		return getErr == nil && current != nil && current.AttemptCount == 1
+	})
 	if stop != nil {
 		stop()
 	}
@@ -152,6 +168,18 @@ UPDATE executions SET status = 'paused' WHERE execution_id = ?`,
 		receipt.LastError != "Execution is paused" {
 		t.Fatalf("paused recovery snapshot=%#v receipt=%#v", current.Execution, receipt)
 	}
+}
+
+func waitForServerCondition(t *testing.T, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for server condition")
 }
 
 func prepareCompletionAuditLifecycleReview(

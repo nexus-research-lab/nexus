@@ -1,6 +1,6 @@
 // INPUT: automation 配置、持久化连接、Agent/Room/统一 Session/投递依赖与 artifact 删除协调器。
-// OUTPUT: 调度、任务控制、heartbeat、运行态编排与 isolated Session tombstone 清理服务。
-// POS: automation 服务的依赖装配与进程内状态根。
+// OUTPUT: deadline/wake 调度、任务控制、heartbeat、运行态编排与 isolated Session tombstone 清理服务。
+// POS: Automation 服务的依赖装配、deadline loop 与进程内 catalog 状态根。
 package automation
 
 import (
@@ -16,6 +16,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -139,25 +140,31 @@ type Service struct {
 	// taskControlMu serializes human-control-plane changes with Agent-initiated
 	// task mutations/runs so the script capability check and the real action
 	// observe one process-local task-control order.
-	taskControlMu         sync.Mutex
-	heartbeatControlMu    sync.Mutex
-	mu                    sync.Mutex
-	jobStates             map[string]*automationexec.JobRuntimeState
-	heartbeatState        map[string]*automationexec.HeartbeatRuntimeState
-	wakeRequests          map[string][]automationexec.HeartbeatWakeRequest
-	attemptMu             sync.Mutex
-	physicalAttempts      map[physicalAttemptKey]*physicalAttempt
-	deliveryRetryRunning  bool
-	schedulerOwnerID      string
-	schedulerLeaseHeld    bool
-	schedulerLeaseRenewAt time.Time
-	runtimeCommandMu      sync.Mutex
-	runtimeCommandRecords map[string]*runtimeCommandCapabilityRecord
-	runtimeCommandTokens  map[string]string
-	runtimeCommandRounds  runtimeCommandRoundResolver
-	started               bool
-	cancel                context.CancelFunc
-	wg                    sync.WaitGroup
+	taskControlMu           sync.Mutex
+	heartbeatControlMu      sync.Mutex
+	mu                      sync.Mutex
+	jobStates               map[string]*automationexec.JobRuntimeState
+	heartbeatState          map[string]*automationexec.HeartbeatRuntimeState
+	wakeRequests            map[string][]automationexec.HeartbeatWakeRequest
+	attemptMu               sync.Mutex
+	physicalAttempts        map[physicalAttemptKey]*physicalAttempt
+	deliveryRetryRunning    bool
+	deliveryRetryDeadline   *time.Time
+	deliveryDeadlineReadAt  time.Time
+	deliveryDeadlineDirty   bool
+	deliveryDeadlineVersion uint64
+	schedulerLoop           *duework.Loop
+	schedulerOwnerID        string
+	schedulerLeaseHeld      bool
+	schedulerLeaseRenewAt   time.Time
+	schedulerCatalogReadAt  time.Time
+	runtimeCommandMu        sync.Mutex
+	runtimeCommandRecords   map[string]*runtimeCommandCapabilityRecord
+	runtimeCommandTokens    map[string]string
+	runtimeCommandRounds    runtimeCommandRoundResolver
+	started                 bool
+	cancel                  context.CancelFunc
+	wg                      sync.WaitGroup
 }
 
 // SetDeliveryGrantResolver 注入 IM pairing 的实时授权检查器。
@@ -186,7 +193,7 @@ func NewService(
 	if agents != nil {
 		authority = agents
 	}
-	return &Service{
+	service := &Service{
 		config:                cfg,
 		repository:            automationstore.NewRepository(cfg, db),
 		agents:                authority,
@@ -204,7 +211,19 @@ func NewService(
 		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
 		runtimeCommandRecords: make(map[string]*runtimeCommandCapabilityRecord),
 		runtimeCommandTokens:  make(map[string]string),
+		deliveryDeadlineDirty: true,
 	}
+	service.schedulerLoop = duework.New(duework.Options{
+		AuditInterval: automationDeadlineAuditInterval,
+		Now:           func() time.Time { return service.nowFn() },
+		OnError: func(err error) {
+			service.loggerFor(context.Background()).Warn(
+				"自动化 deadline coordinator 失败，等待重试",
+				"err", err,
+			)
+		},
+	})
+	return service
 }
 
 // SetLogger 注入业务日志实例。

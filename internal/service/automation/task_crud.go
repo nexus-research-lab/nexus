@@ -544,6 +544,7 @@ func (s *Service) applyScheduledTaskDeletion(
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
 	s.mu.Unlock()
+	s.invalidateDeliveryRetryDeadline()
 	s.recordTaskEvent(ctx, automationdomain.TaskEventActionDelete, current, cancelledRunID, deleteTaskEventDetail(current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
 	result := &automationdomain.DeleteJobResult{
 		JobID:              current.JobID,

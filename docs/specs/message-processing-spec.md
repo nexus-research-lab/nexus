@@ -173,7 +173,9 @@ Room shared 不再保存完整正文副本，而是：
 
 ## 5. 分页机制
 
-当前历史分页已经统一按 round，不按消息条数。
+当前历史分页已经统一按 round，不按消息条数。runtime transcript、DM overlay 与
+Room ledger/private transcript 继续是唯一 canonical 真相源；分页索引只是可删除、
+可校验、可从这些真相源重建的派生数据，不得反向改写历史或成为第二套权威存储。
 
 ### 5.1 首屏
 
@@ -188,6 +190,46 @@ Room shared 不再保存完整正文副本，而是：
 
 - 只刷新最近一页
 - 不再整段全量重拉
+
+### 5.4 派生索引与故障恢复
+
+- DM 与 Room 的 runtime transcript、overlay 和 Room ledger/private transcript 始终是唯一
+  canonical 真相。旧用户数据不改写、不搬迁；首次读取只从 canonical 生成宿主
+  `app/cache/history-read-model.v1.sqlite` 派生读模型。
+- 派生库只保留当前 schema，不保留数据迁移链。schema 变化、初始化中断或损坏时
+  直接丢弃并从 canonical 回建；不得反向改写 canonical 历史。
+- DM 与 Room 先完成第 6 节定义的完整规范化，再在单个 SQLite 事务中发布新
+  generation。每个 physical round 分开保存 B-Tree 游标元数据、完整 payload 与摘要；
+  不调用模型压缩、不丢弃消息块。
+- 热读先验证全部 canonical source 快照，再通过 B-Tree 读取有界的游标元数据窗口和
+  本页命中的 round payload。单组摘要、scope 元数据或数据库损坏时一律放弃
+  派生结果并安全回建，不得返回未经校验的历史。
+- Session Round Navigator 的标题、状态、Agent 和时间元数据与消息页属于同一
+  generation；热开不得为导航再扫描完整 overlay，冷开必须复用同一 rebuild future
+  和 `indexing` 短轮询协议。
+- 冷建或 source 变化时，同一个会话只允许一个后台 rebuild；全局只允许固定数量的
+  active rebuild，不保留 detached 等待队列。HTTP 客户端设置 `defer_index=true` 时，
+  后台槽已满或前景等待超过短预算就返回 `indexing=true` 和 `retry_after_ms`；
+  前端保持 loading 并用短请求重试，禁止把该空 `items` 提交为真实空历史。原请求
+  超时或切页不取消已受理的有界 rebuild，重试必须 attach 同 scope future，不得从零重扫。
+- generation 在单个数据库事务内切换。会话在 build/persist 期间被删除时必须放弃写入，
+  禁止由派生读模型重新创建 canonical session/Room 容器。超过保留期的 scope 可直接淘汰。
+- 派生层必须限制 group 数、单 group、generation 和单页 payload 字节。detached build
+  还必须在读取/规范化前限制 canonical source 总字节：DM 先检查全部
+  overlay/transcript 快照；Room 先检查 ledger，再从有界 ledger 收集 dependency 快照，
+  并在 resolve private transcript 前再次检查。source 超限的 detached build 只能生成
+  disabled marker；ledger 自身已超限的 Room marker 只绑定 ledger snapshot，不能为了
+  计算全依赖 digest 反过来读取 oversized ledger。完整规范化必须回到可由 HTTP
+  context 取消的 request-bound 路径。超限不能改写 canonical 或向客户端返回截断历史，
+  而要持久化绑定当前 source digest
+  的 disabled marker，并走 request-bound canonical 精确分页。同 source 不得反复启动
+  detached rebuild；source 变化后才允许在有空闲 admission 时尝试恢复索引。该降级
+  保留完整功能，但会回到完整规范化的原有成本；它不伪装成 append-only 增量方案。
+- 当前任一 canonical source 变化都会触发一次完整 generation 重建。duplicate UUID、
+  parent 主链、marker 对齐和 Room transcript_ref 都可能反向改变旧 round，因此在没有
+  等价性证明前不得用 append-only 增量更新替代完整规范化。
+- Launcher 与侧栏目录只读取 Session metadata/Room catalog，禁止为了标题、预览或排序
+  扫描 transcript/history；单个超长或损坏会话不能阻塞整个目录首屏。
 
 ## 6. 规范化规则
 

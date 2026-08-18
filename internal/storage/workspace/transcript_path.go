@@ -1,3 +1,6 @@
+// INPUT: workspace、transcript session 标识与可取消的请求上下文。
+// OUTPUT: 受 owner 根约束的 transcript 路径，以及必要时查询到的 Git worktree 候选。
+// POS: transcript 文件定位与 Git worktree 回退边界。
 package workspace
 
 import (
@@ -20,10 +23,24 @@ import (
 var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionID string) (string, error) {
+	return s.resolveTranscriptPathContext(context.Background(), workspacePath, sessionID)
+}
+
+func (s *AgentHistoryStore) resolveTranscriptPathContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionID string,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	canonicalPath := canonicalizeTranscriptPath(workspacePath)
 	projectsRoot := s.transcriptProjectsRootForWorkspace(canonicalPath)
 	projectDir, err := s.findTranscriptProjectDirAt(projectsRoot, canonicalPath)
 	if err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	if projectDir != "" {
@@ -37,7 +54,14 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 		}
 	}
 
-	for _, worktreePath := range listTranscriptWorktreePaths(canonicalPath) {
+	worktreePaths, err := listTranscriptWorktreePathsContext(ctx, canonicalPath)
+	if err != nil {
+		return "", err
+	}
+	for _, worktreePath := range worktreePaths {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		if worktreePath == canonicalPath {
 			continue
 		}
@@ -279,32 +303,63 @@ func transcriptProjectsDirForWorkspace(workspacePath string) string {
 }
 
 func listTranscriptWorktreePaths(cwd string) []string {
+	paths, _ := listTranscriptWorktreePathsContext(context.Background(), cwd)
+	return paths
+}
+
+type transcriptCommandContext func(context.Context, string, ...string) *exec.Cmd
+
+func listTranscriptWorktreePathsContext(ctx context.Context, cwd string) ([]string, error) {
+	return listTranscriptWorktreePathsContextWithCommand(ctx, cwd, exec.CommandContext)
+}
+
+func listTranscriptWorktreePathsContextWithCommand(
+	ctx context.Context,
+	cwd string,
+	commandContext transcriptCommandContext,
+) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(cwd) == "" {
-		return nil
+		return nil, nil
 	}
 	if !transcriptWorktreeLookupRequired(cwd) {
-		return nil
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), transcriptSessionSearchTimout)
+	lookupCtx, cancel := context.WithTimeout(ctx, transcriptSessionSearchTimout)
 	defer cancel()
 
-	command := exec.CommandContext(ctx, "git", "worktree", "list", "--porcelain")
+	command := commandContext(lookupCtx, "git", "worktree", "list", "--porcelain")
 	command.Dir = cwd
 	output, err := command.Output()
 	if err != nil {
-		return nil
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		// 内部 Git 查询超时和普通 Git 错误沿用旧行为：没有额外候选。
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	lines := strings.Split(string(output), "\n")
 	results := make([]string, 0, len(lines))
 	for _, line := range lines {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if !strings.HasPrefix(line, "worktree ") {
 			continue
 		}
 		results = append(results, norm.NFC.String(strings.TrimSpace(strings.TrimPrefix(line, "worktree "))))
 	}
-	return results
+	return results, nil
 }
 
 // transcriptWorktreeLookupRequired 先排除最常见的单 worktree 仓库，

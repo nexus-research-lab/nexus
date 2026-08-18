@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -217,6 +218,40 @@ func TestSessionServiceLifecycle(t *testing.T) {
 		t.Fatalf("Room synthetic assistant 应保留在同一轮分页结果里: %+v", roomMessagePage.Items)
 	}
 
+	canceledPageCtx, cancelPage := context.WithCancel(ctx)
+	cancelPage()
+	if _, err = sessionService.GetSessionMessagesPage(
+		canceledPageCtx,
+		dmKey,
+		sessionsvc.MessagePageRequest{Limit: 1},
+	); !errors.Is(err, context.Canceled) {
+		t.Fatalf("已取消的 DM 分页请求应在进入存储前退出: %v", err)
+	}
+	if _, err = sessionService.GetSessionMessagesPage(
+		canceledPageCtx,
+		protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID),
+		sessionsvc.MessagePageRequest{Limit: 1},
+	); !errors.Is(err, context.Canceled) {
+		t.Fatalf("已取消的 Room 分页请求应在进入存储前退出: %v", err)
+	}
+
+	dmStorageCtx := newCancelOnSecondErrContext(ctx)
+	if _, err = sessionService.GetSessionMessagesPage(
+		dmStorageCtx,
+		dmKey,
+		sessionsvc.MessagePageRequest{Limit: 1},
+	); !errors.Is(err, context.Canceled) {
+		t.Fatalf("DM 存储分页应观察原请求取消信号: %v", err)
+	}
+	roomStorageCtx := newCancelOnSecondErrContext(ctx)
+	if _, err = sessionService.GetSessionMessagesPage(
+		roomStorageCtx,
+		protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID),
+		sessionsvc.MessagePageRequest{Limit: 1},
+	); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Room 存储分页应观察原请求取消信号: %v", err)
+	}
+
 	updatedTitle := "Launcher 重命名"
 	updated, err := sessionService.UpdateSession(ctx, dmKey, sessionsvc.UpdateRequest{Title: &updatedTitle})
 	if err != nil {
@@ -257,6 +292,24 @@ INSERT INTO automation_delivery_routes (
 	if routeCount != 0 {
 		t.Fatalf("删除 Session 后仍残留 delivery route: %d", routeCount)
 	}
+}
+
+type cancelOnSecondErrContext struct {
+	context.Context
+	cancel context.CancelFunc
+	checks atomic.Int32
+}
+
+func newCancelOnSecondErrContext(parent context.Context) *cancelOnSecondErrContext {
+	ctx, cancel := context.WithCancel(parent)
+	return &cancelOnSecondErrContext{Context: ctx, cancel: cancel}
+}
+
+func (c *cancelOnSecondErrContext) Err() error {
+	if c.checks.Add(1) == 2 {
+		c.cancel()
+	}
+	return c.Context.Err()
 }
 
 func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T) {

@@ -48,15 +48,32 @@ interface LoadRoundWindowMessagesParams
 
 async function requestHistoryPage(
   request: ConversationHistoryRequest,
-): Promise<ConversationMessagePage> {
-  if (request.source.kind === "room") {
-    return getRoomConversationMessages(
-      request.source.roomId,
-      request.source.conversationId,
-      request.query,
-    );
+  isCurrent: () => boolean,
+): Promise<ConversationMessagePage | null> {
+  for (;;) {
+    const page = request.source.kind === "room"
+      ? await getRoomConversationMessages(
+        request.source.roomId,
+        request.source.conversationId,
+        request.query,
+      )
+      : await getSessionMessagesApi(request.source.sessionKey, request.query);
+    if (!page.indexing) {
+      return page;
+    }
+    if (!isCurrent()) {
+      return null;
+    }
+    await waitForHistoryIndex(page.retry_after_ms);
+    if (!isCurrent()) {
+      return null;
+    }
   }
-  return getSessionMessagesApi(request.source.sessionKey, request.query);
+}
+
+function waitForHistoryIndex(retryAfterMs: number): Promise<void> {
+  const delay = Math.min(Math.max(retryAfterMs, 100), 5_000);
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
 function isCurrentHistoryRequest(
@@ -144,8 +161,11 @@ export async function loadOlderAgentConversationMessages(
 
   context.setHistoryLoading(true);
   try {
-    const page = await requestHistoryPage(request);
-    return isCurrentHistoryRequest(request, context.activeSessionKeyRef)
+    const page = await requestHistoryPage(
+      request,
+      () => isCurrentHistoryRequest(request, context.activeSessionKeyRef),
+    );
+    return page && isCurrentHistoryRequest(request, context.activeSessionKeyRef)
       ? commitOlderHistoryPage(page, context)
       : false;
   } catch (error) {
@@ -181,8 +201,11 @@ export async function loadAgentConversationMessagesAroundRound(
 
   context.isRoundWindowLoadingRef.current = true;
   try {
-    const page = await requestHistoryPage(request);
-    if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
+    const page = await requestHistoryPage(
+      request,
+      () => isCurrentHistoryRequest(request, context.activeSessionKeyRef),
+    );
+    if (!page || !isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
     }
     context.onRoundResolved(context.roundId);

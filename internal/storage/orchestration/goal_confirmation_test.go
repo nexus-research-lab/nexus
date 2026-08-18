@@ -56,6 +56,11 @@ VALUES (?, ?, ?, 'active')`,
 		receipt.AttemptCount != 0 || receipt.NextAttemptAt == nil {
 		t.Fatalf("pending receipt = %#v", receipt)
 	}
+	deadlines, err := repository.OrchestrationRecoveryDeadlines(ctx)
+	if err != nil || deadlines.GoalConfirmation == nil ||
+		!deadlines.GoalConfirmation.Equal(*receipt.NextAttemptAt) {
+		t.Fatalf("Goal confirmation deadline = %+v, err=%v", deadlines, err)
+	}
 
 	// A fresh Repository value represents process restart: no request or Plan
 	// proposal state is needed to rediscover the pending confirmation.
@@ -89,6 +94,11 @@ VALUES (?, ?, ?, 'active')`,
 		!receipt.NextAttemptAt.Equal(nextAttemptAt) {
 		t.Fatalf("scheduled receipt = %#v", receipt)
 	}
+	deadlines, err = restarted.OrchestrationRecoveryDeadlines(ctx)
+	if err != nil || deadlines.GoalConfirmation == nil ||
+		!deadlines.GoalConfirmation.Equal(nextAttemptAt) {
+		t.Fatalf("retry Goal confirmation deadline = %+v, err=%v", deadlines, err)
+	}
 
 	receipt, err = restarted.MarkGoalConfirmationConfirmed(ctx, MarkGoalConfirmationCommand{
 		ExecutionID:           snapshot.Execution.ID,
@@ -101,6 +111,10 @@ VALUES (?, ?, ?, 'active')`,
 	if receipt.State != GoalConfirmationConfirmed || receipt.AttemptCount != 2 ||
 		receipt.LastError != "" || receipt.NextAttemptAt != nil || receipt.ConfirmedAt == nil {
 		t.Fatalf("confirmed receipt = %#v", receipt)
+	}
+	deadlines, err = restarted.OrchestrationRecoveryDeadlines(ctx)
+	if err != nil || deadlines.GoalConfirmation != nil {
+		t.Fatalf("confirmed Goal confirmation deadline = %+v, err=%v", deadlines, err)
 	}
 	replayed, err := restarted.MarkGoalConfirmationConfirmed(ctx, MarkGoalConfirmationCommand{
 		ExecutionID:           snapshot.Execution.ID,

@@ -36,3 +36,7 @@ type continuationPlanRepository interface {
 	RetryGoalContinuation(context.Context, string, string, time.Time, time.Time) error
 	ReleaseGoalContinuation(context.Context, protocol.Goal, int64, protocol.GoalEvent, string, time.Time) (*protocol.Goal, error)
 }
+
+type continuationDeadlineRepository interface {
+	NextGoalContinuationAt(context.Context) (*time.Time, error)
+}

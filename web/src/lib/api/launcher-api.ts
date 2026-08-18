@@ -1,5 +1,7 @@
 /**
- * Launcher API 客户端
+ * INPUT: Launcher 查询参数、可选 AbortSignal 与运行时 API 根地址。
+ * OUTPUT: 保持 wire 兼容的 bootstrap/query 响应。
+ * POS: Launcher 的无状态 HTTP 协议客户端；请求合并归调用方资源状态机。
  */
 
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
@@ -16,22 +18,16 @@ export interface LauncherQueryResponse {
   initial_message?: string;
 }
 
-let launcherBootstrapInflight: Promise<LauncherBootstrapResponse> | null = null;
-
-export async function getLauncherBootstrapApi(): Promise<LauncherBootstrapResponse> {
-  if (launcherBootstrapInflight) {
-    return launcherBootstrapInflight;
-  }
-
-  launcherBootstrapInflight = requestApi<LauncherBootstrapResponse>(
+export async function getLauncherBootstrapApi(
+  signal?: AbortSignal,
+): Promise<LauncherBootstrapResponse> {
+  return requestApi<LauncherBootstrapResponse>(
     `${getAgentApiBaseUrl()}/launcher/bootstrap`,
     {
       method: "GET",
+      signal,
     },
-  ).finally(() => {
-    launcherBootstrapInflight = null;
-  });
-  return launcherBootstrapInflight;
+  );
 }
 
 /**

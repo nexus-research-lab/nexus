@@ -21,11 +21,18 @@ func (s *Service) invalidateMutationResult(
 	// The transport/frontend intentionally coalesce duplicate notifications.
 	if (result.Outcome == MutationApplied || result.Outcome == MutationNoOp) &&
 		result.Snapshot != nil {
+		// The exact durable rows decide whether dispatch or saga work exists.
+		// Waking both coordinators here also repairs a notification lost by an
+		// earlier idempotent command attempt without coupling command handlers to
+		// individual outbox implementations.
+		s.WakeExecutionDispatch()
+		s.WakeOrchestrationRecovery()
 		s.invalidateSnapshot(ctx, result.Snapshot)
 		return
 	}
 	var pending *GoalBindingConfirmationPendingError
 	if errors.As(err, &pending) && pending.DurableMutation && pending.Snapshot != nil {
+		s.WakeOrchestrationRecovery()
 		s.invalidateSnapshot(ctx, pending.Snapshot)
 	}
 }

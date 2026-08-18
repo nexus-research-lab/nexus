@@ -6,10 +6,43 @@ import (
 	"testing"
 	"time"
 
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 )
+
+func TestNextAutomationDeadlineChoosesEarliestRunnableBoundary(t *testing.T) {
+	db := newAutomationTestDB(t)
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", AutomationRunTimeoutSeconds: 60},
+		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
+	)
+	leaseAt := now.Add(20 * time.Second)
+	taskAt := now.Add(30 * time.Second)
+	expiresAt := now.Add(40 * time.Second)
+	startedAt := now.Add(-55 * time.Second)
+	heartbeatAt := now.Add(3 * time.Second)
+	service.schedulerLeaseRenewAt = leaseAt
+	service.jobStates["job-deadline"] = &automationexec.JobRuntimeState{
+		Job:     automationdomain.ScheduledTask{Enabled: true, ExpiresAt: &expiresAt},
+		Running: true, RunningStartedAt: &startedAt, NextRunAt: &taskAt,
+	}
+	service.heartbeatState["agent-deadline"] = &automationexec.HeartbeatRuntimeState{
+		Config:    automationdomain.HeartbeatConfig{AgentID: "agent-deadline", Enabled: true},
+		NextRunAt: &heartbeatAt,
+	}
+
+	if deadline := service.nextAutomationDeadline(); deadline == nil || !deadline.Equal(heartbeatAt) {
+		t.Fatalf("next deadline = %v, want heartbeat %s", deadline, heartbeatAt)
+	}
+	service.heartbeatState["agent-deadline"].Running = true
+	timeoutAt := now.Add(5 * time.Second)
+	if deadline := service.nextAutomationDeadline(); deadline == nil || !deadline.Equal(timeoutAt) {
+		t.Fatalf("next deadline = %v, want stale-run timeout %s", deadline, timeoutAt)
+	}
+}
 
 func TestSchedulerLeaseAllowsSingleLeaderAndExpiryTakeover(t *testing.T) {
 	db := newAutomationTestDB(t)
