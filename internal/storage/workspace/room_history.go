@@ -354,6 +354,7 @@ func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
 			agentID,
 			sessionID,
 			overlayState.RoundMarkers,
+			"",
 		)
 		if errors.Is(err, os.ErrNotExist) {
 			cache[cacheKey] = map[string]protocol.Message{}

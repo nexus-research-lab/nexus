@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -53,6 +54,11 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (dmClientPreparation, error) {
+	forkSourceSessionID := strings.TrimSpace(request.forkSourceSessionID)
+	forkMessageID := strings.TrimSpace(request.forkMessageID)
+	if (forkSourceSessionID == "") != (forkMessageID == "") {
+		return dmClientPreparation{}, errors.New("fork source session id and message id must be provided together")
+	}
 	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -68,6 +74,13 @@ func (s *Service) ensureClient(
 	if latestSession != nil {
 		sessionItem = *latestSession
 	}
+	if forkSourceSessionID == "" && forkMessageID == "" {
+		forkSourceSessionID, forkMessageID = pendingConversationFork(sessionItem.Options)
+	}
+	if (forkSourceSessionID == "") != (forkMessageID == "") {
+		return dmClientPreparation{}, errors.New("fork source session id and message id must be provided together")
+	}
+	forking := forkSourceSessionID != ""
 	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(sessionItem.Options)
 	permissionMode := resolvePermissionMode(
 		request.PermissionMode,
@@ -220,6 +233,18 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
+	if forking {
+		fingerprint := runtimeFingerprintFromSession(sessionItem)
+		if fingerprint.kind != "" {
+			runtimeSelection.RuntimeKind = fingerprint.kind
+		}
+		if fingerprint.provider != "" {
+			runtimeSelection.Provider = fingerprint.provider
+		}
+		if fingerprint.model != "" {
+			runtimeSelection.Model = fingerprint.model
+		}
+	}
 	if err = s.agents.EnsureRuntimeVisionSettingsProjection(
 		*agentValue,
 		runtimeSelection.VisionProvider,
@@ -253,7 +278,7 @@ func (s *Service) ensureClient(
 		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
 		AppendSystemPromptStatic:   staticSystemPrompt,
 		AppendSystemPromptDynamic:  dynamicSystemPrompt,
-		ResumeSessionID:            dmdomain.StringPointerValue(sessionItem.SessionID),
+		ResumeSessionID:            dmdomain.FirstNonEmpty(forkSourceSessionID, dmdomain.StringPointerValue(sessionItem.SessionID)),
 		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
 		MaxTurns:                   agentValue.Options.MaxTurns,
 		MCPServers:                 mcpServers,
@@ -300,7 +325,18 @@ func (s *Service) ensureClient(
 		options,
 		toolSurfaceFingerprint,
 	)
+	if forking && resumeID == "" {
+		return dmClientPreparation{}, errors.New("fork source SDK session is unavailable")
+	}
+	if forking && resetSession {
+		return dmClientPreparation{}, errors.New("fork source SDK session is incompatible with the current runtime")
+	}
 	options.Session.ResumeID = resumeID
+	options.Session.ResumeAt = forkMessageID
+	options.Session.Fork = forking
+	if forking && options.Runtime.Kind == agentclient.RuntimeClaude && strings.TrimSpace(options.Session.ID) == "" {
+		options.Session.ID = uuid.NewString()
+	}
 	if resetSession {
 		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
 		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
@@ -340,6 +376,9 @@ func (s *Service) ensureClient(
 				"startup_err", err,
 				"cleanup_err", closeErr,
 			)
+		}
+		if forking {
+			return dmClientPreparation{}, err
 		}
 		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
 			return dmClientPreparation{}, err

@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -134,11 +135,125 @@ func TestAgentHistoryStoreResolveTranscriptRoundTail(t *testing.T) {
 	if tail.TargetMessageUUID != "user-2" {
 		t.Fatalf("target uuid = %q, want user-2", tail.TargetMessageUUID)
 	}
+	if tail.TargetRoundEndUUID != "assistant-2" {
+		t.Fatalf("target end uuid = %q, want assistant-2", tail.TargetRoundEndUUID)
+	}
 	if want := []string{"user-2", "assistant-2"}; !reflect.DeepEqual(tail.MessageUUIDs, want) {
 		t.Fatalf("tail uuids = %#v, want %#v", tail.MessageUUIDs, want)
 	}
 	if want := []string{"round-2"}; !reflect.DeepEqual(tail.RoundIDs, want) {
 		t.Fatalf("tail round ids = %#v, want %#v", tail.RoundIDs, want)
+	}
+	firstRound, err := history.ResolveTranscriptRoundTail(
+		workspacePath,
+		sessionKey,
+		sessionID,
+		"round-1",
+	)
+	if err != nil {
+		t.Fatalf("解析历史 round 边界失败: %v", err)
+	}
+	if firstRound.TargetRoundEndUUID != "assistant-1" {
+		t.Fatalf("historical round end uuid = %q, want assistant-1", firstRound.TargetRoundEndUUID)
+	}
+}
+
+func TestAgentHistoryStoreForkRoundMarkers(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, "home"))
+	workspacePath := filepath.Join(root, "workspace")
+	sourceSessionKey := "agent:nexus:ws:dm:fork-source"
+	targetSessionKey := "agent:nexus:ws:dm:fork-target"
+	history := NewAgentHistoryStore(root)
+
+	for index, roundID := range []string{"round-1", "round-2", "round-3"} {
+		if err := history.AppendRoundMarkerWithOptions(
+			workspacePath,
+			sourceSessionKey,
+			roundID,
+			"问题 "+roundID,
+			int64(index+1)*1000,
+			RoundMarkerOptions{ClientMessageID: "client-" + roundID},
+		); err != nil {
+			t.Fatalf("写入 %s marker 失败: %v", roundID, err)
+		}
+	}
+
+	if err := history.ForkRoundMarkers(
+		workspacePath,
+		sourceSessionKey,
+		targetSessionKey,
+		"round-2",
+	); err != nil {
+		t.Fatalf("复制 fork marker 失败: %v", err)
+	}
+	target, err := history.readOverlayHistoryState(workspacePath, targetSessionKey)
+	if err != nil {
+		t.Fatalf("读取 fork marker 失败: %v", err)
+	}
+	if len(target.RoundMarkers) != 2 {
+		t.Fatalf("fork marker 数量 = %d, want 2", len(target.RoundMarkers))
+	}
+	if target.RoundMarkers[1].RoundID != "round-2" ||
+		target.RoundMarkers[1].ClientMessageID != "client-round-2" {
+		t.Fatalf("fork marker 元数据不正确: %+v", target.RoundMarkers[1])
+	}
+
+	sessionID := "fork-source-session"
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type": "user", "uuid": "user-1", "sessionId": sessionID,
+			"timestamp": 1000, "message": map[string]any{"role": "user", "content": "问题 round-1"},
+		},
+		{
+			"type": "assistant", "uuid": "assistant-1", "parentUuid": "user-1", "sessionId": sessionID,
+			"timestamp": 1100, "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "回答 round-1"}}},
+		},
+		{
+			"type": "user", "uuid": "user-2", "parentUuid": "assistant-1", "sessionId": sessionID,
+			"timestamp": 2000, "message": map[string]any{"role": "user", "content": "问题 round-2"},
+		},
+		{
+			"type": "assistant", "uuid": "assistant-2", "parentUuid": "user-2", "sessionId": sessionID,
+			"timestamp": 2100, "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "回答 round-2"}}},
+		},
+		{
+			"type": "user", "uuid": "user-3", "parentUuid": "assistant-2", "sessionId": sessionID,
+			"timestamp": 3000, "message": map[string]any{"role": "user", "content": "问题 round-3"},
+		},
+		{
+			"type": "assistant", "uuid": "assistant-3", "parentUuid": "user-3", "sessionId": sessionID,
+			"timestamp": 3100, "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "回答 round-3"}}},
+		},
+	})
+	pendingFork := protocol.Session{
+		SessionKey: targetSessionKey,
+		AgentID:    "nexus",
+		Options: map[string]any{
+			protocol.OptionRuntimeForkSourceSessionID: sessionID,
+			protocol.OptionRuntimeForkMessageID:       "assistant-2",
+		},
+	}
+	rows, err := history.ReadMessages(workspacePath, pendingFork, nil)
+	if err != nil {
+		t.Fatalf("读取 pending fork 历史失败: %v", err)
+	}
+	if !hasRound(rows, "round-1") || !hasRound(rows, "round-2") || hasRound(rows, "round-3") {
+		t.Fatalf("pending fork 历史未停在目标轮次: %+v", rows)
+	}
+	page, err := history.ReadMessagesPageContext(
+		context.Background(),
+		workspacePath,
+		pendingFork,
+		nil,
+		HistoryPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatalf("分页读取 pending fork 历史失败: %v", err)
+	}
+	if !hasRound(page.Items, "round-1") || !hasRound(page.Items, "round-2") || hasRound(page.Items, "round-3") {
+		t.Fatalf("分页 pending fork 历史越过目标轮次: %+v", page.Items)
 	}
 }
 

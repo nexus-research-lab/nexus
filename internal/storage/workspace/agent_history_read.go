@@ -6,6 +6,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -92,6 +93,7 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 		}
 	} else {
 		sessionID := sessionIDs[0]
+		_, forkMessageID := pendingForkTranscript(sessionValue)
 		rows, readErr := s.readTranscriptMessagesContext(
 			ctx,
 			workspacePath,
@@ -99,6 +101,7 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 			sessionValue.AgentID,
 			sessionID,
 			overlayState.RoundMarkers,
+			forkMessageID,
 		)
 		if readErr != nil {
 			if !errors.Is(readErr, os.ErrNotExist) {
@@ -179,6 +182,9 @@ func (s *AgentHistoryStore) readSegmentedTranscriptMessagesContext(
 }
 
 func historyTranscriptSessionIDs(sessionValue protocol.Session) []string {
+	if sourceSessionID, messageID := pendingForkTranscript(sessionValue); sourceSessionID != "" && messageID != "" {
+		return []string{sourceSessionID}
+	}
 	segmented, _ := sessionValue.Options[protocol.OptionRuntimeSegmentedTranscript].(bool)
 	if segmented {
 		return protocol.SessionTranscriptIDs(sessionValue)
@@ -188,6 +194,12 @@ func historyTranscriptSessionIDs(sessionValue protocol.Session) []string {
 		return nil
 	}
 	return []string{current}
+}
+
+func pendingForkTranscript(sessionValue protocol.Session) (string, string) {
+	sourceSessionID, _ := sessionValue.Options[protocol.OptionRuntimeForkSourceSessionID].(string)
+	messageID, _ := sessionValue.Options[protocol.OptionRuntimeForkMessageID].(string)
+	return strings.TrimSpace(sourceSessionID), strings.TrimSpace(messageID)
 }
 
 func buildOverlayOnlyHistoryRows(
@@ -283,6 +295,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	agentID string,
 	sessionID string,
 	roundMarkers []transcriptRoundMarker,
+	throughMessageID string,
 ) ([]protocol.Message, error) {
 	return s.readTranscriptMessagesContext(
 		context.Background(),
@@ -291,6 +304,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 		agentID,
 		sessionID,
 		roundMarkers,
+		throughMessageID,
 	)
 }
 
@@ -301,6 +315,7 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 	agentID string,
 	sessionID string,
 	roundMarkers []transcriptRoundMarker,
+	throughMessageID string,
 ) ([]protocol.Message, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -315,7 +330,8 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 	}
 	defer root.Close()
 
-	roundMarkerFingerprint := fingerprintTranscriptRoundMarkers(roundMarkers)
+	throughMessageID = strings.TrimSpace(throughMessageID)
+	roundMarkerFingerprint := throughMessageID + "\n" + fingerprintTranscriptRoundMarkers(roundMarkers)
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint); ok {
 		return cachedRows, nil
 	}
@@ -325,9 +341,25 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 		return nil, err
 	}
 	chain := buildPrimaryTranscriptChain(entries)
+	if throughMessageID != "" {
+		var found bool
+		chain, found = transcriptChainThroughMessage(chain, throughMessageID)
+		if !found {
+			return nil, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
+		}
+	}
 	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers)
 	s.writeTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint, projectedRows)
 	return projectedRows, nil
+}
+
+func transcriptChainThroughMessage(chain []transcriptEntry, messageID string) ([]transcriptEntry, bool) {
+	for index, entry := range chain {
+		if strings.TrimSpace(stringFromAny(entry.Data["uuid"])) == messageID {
+			return chain[:index+1], true
+		}
+	}
+	return nil, false
 }
 
 // ReadTranscriptSessionMessages 按受控 session id 定位独立 Agent thread，

@@ -194,6 +194,38 @@ func (h *Handlers) HandleCreateConversation(writer http.ResponseWriter, request 
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleForkConversation 从已完成轮次创建新 conversation。
+func (h *Handlers) HandleForkConversation(writer http.ResponseWriter, request *http.Request) {
+	var payload protocol.ForkConversationRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.roomService.ForkConversation(
+		request.Context(),
+		chi.URLParam(request, "room_id"),
+		chi.URLParam(request, "conversation_id"),
+		payload,
+	)
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrConversationNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, roompkg.ErrConversationForkUnsupported) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if err != nil {
+		if handlershared.IsClientMessageError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.broadcastRoomResync(request.Context(), item.Room.ID, item.Conversation.ID, "conversation_forked")
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleUpdateConversation 更新 conversation。
 func (h *Handlers) HandleUpdateConversation(writer http.ResponseWriter, request *http.Request) {
 	var payload protocol.UpdateConversationRequest

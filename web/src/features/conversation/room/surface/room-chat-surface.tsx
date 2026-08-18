@@ -34,6 +34,7 @@ interface RoomChatSurfaceProps {
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
+  onForkConversation?: (roundId: string) => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
     toolUseId: string,
@@ -63,6 +64,7 @@ export function RoomChatSurface({
   onConversationSnapshotChange: onConversationSnapshotChange,
   onCreateConversation: onCreateConversation,
   onExecutionTaskRunsChange,
+  onForkConversation,
   onOpenAgentContact: onOpenAgentContact,
   onOpenSubagentTask,
   onOpenWorkGraph,
@@ -91,6 +93,7 @@ export function RoomChatSurface({
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
           onExecutionTaskRunsChange={onExecutionTaskRunsChange}
+          onForkConversation={onForkConversation}
           onOpenAgentContact={onOpenAgentContact}
           onOpenSubagentTask={onOpenSubagentTask}
           onOpenWorkGraph={onOpenWorkGraph}

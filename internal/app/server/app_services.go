@@ -203,6 +203,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
+	core.Room.SetConversationSessionForker(dmService)
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)

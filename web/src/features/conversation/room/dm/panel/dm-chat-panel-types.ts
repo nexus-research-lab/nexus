@@ -19,6 +19,7 @@ export interface DmChatPanelProps {
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
   onExecutionTaskRunsChange?: (runs: ConversationTaskRun[]) => void;
+  onForkConversation?: (roundId: string) => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
     toolUseId: string,

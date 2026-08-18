@@ -21,6 +21,8 @@ var (
 	ErrRoomNotFound = errors.New("room not found")
 	// ErrConversationNotFound 表示房间对话不存在。
 	ErrConversationNotFound = errors.New("conversation not found")
+	// ErrConversationForkUnsupported 表示当前房间不支持对话分支。
+	ErrConversationForkUnsupported = errors.New("当前仅支持单 Agent 直聊分支")
 	// ErrRoomMemberNotFound 表示房间成员不存在。
 	ErrRoomMemberNotFound = errors.New("room member not found")
 	// ErrPrivateMessagingDisabled 表示 Room 私域通信能力已被 owner 撤销。
@@ -76,6 +78,10 @@ type runtimeSessionCloser interface {
 	CloseSession(context.Context, string) error
 }
 
+type conversationSessionForker interface {
+	ForkConversationSession(context.Context, string, string, string) error
+}
+
 // SessionArtifactDeletionCoordinator 统一撤销 Room 成员 Session 的 runtime 与持久 artifact。
 type SessionArtifactDeletionCoordinator interface {
 	DeleteSessionArtifacts(context.Context, string, string, string, string) error
@@ -93,6 +99,7 @@ type Service struct {
 	goals            goalCleaner
 	goalReader       goalConversationInspector
 	runtime          runtimeSessionCloser
+	sessionForker    conversationSessionForker
 	sessionArtifacts SessionArtifactDeletionCoordinator
 	deletion         *deletionsvc.Coordinator
 }
@@ -118,6 +125,11 @@ func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 // SetRuntimeManager 注入运行时管理器，用于关闭 Room conversation 对应的后台 client。
 func (s *Service) SetRuntimeManager(runtimeManager runtimeSessionCloser) {
 	s.runtime = runtimeManager
+}
+
+// SetConversationSessionForker 注入 DM runtime 的 transcript fork 能力。
+func (s *Service) SetConversationSessionForker(forker conversationSessionForker) {
+	s.sessionForker = forker
 }
 
 // SetSessionArtifactDeletionCoordinator 注入 Room 成员 Session 的统一删除协调器。

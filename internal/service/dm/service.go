@@ -112,9 +112,12 @@ type Request struct {
 	// trustedQueuedConfigurationContext 只能由本包在成功 claim 宿主 DB
 	// admission 后设置，外部 Request 构造者无法伪造。
 	trustedQueuedConfigurationContext bool
-	InputOptions                      sdkprotocol.OutboundMessageOptions
-	PermissionMode                    sdkpermission.Mode
-	PermissionHandler                 sdkpermission.Handler
+	// forkSourceSessionID / forkMessageID 只由 Room service 写入，HTTP/WS 请求不能伪造。
+	forkSourceSessionID string
+	forkMessageID       string
+	InputOptions        sdkprotocol.OutboundMessageOptions
+	PermissionMode      sdkpermission.Mode
+	PermissionHandler   sdkpermission.Handler
 	// RuntimeToolPolicy 仅供 automation 等受控执行传入创建时权限快照。
 	// 普通会话为 nil，继续使用 Agent 当前工具配置。
 	RuntimeToolPolicy *protocol.RuntimeToolPolicy

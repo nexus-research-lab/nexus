@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - history_*.go / user_input_probe.go：分阶段历史投影与严格只读用户输入判定（compact / normalize / causal control ordering / pagination / last-write round_index /
-//     rewrite_tail / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / 不为完成态 host control 伪造中断 assistant 的 unfinished_round）。
+//     rewrite_tail / fork marker 前缀 / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / 不为完成态 host control 伪造中断 assistant 的 unfinished_round）。
 //   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏。
 //   - history_read_model.go / history_message_detail.go：宿主 SQLite/B-Tree 派生读模型，以原子 generation、source/payload 校验、有界 metadata window、淘汰、整库版本重建和大型 Tool/图片按需 detail 提供按页读取；canonical 历史不迁移。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。

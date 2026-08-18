@@ -162,6 +162,7 @@ function AssistantFooter({
       goalCompletionReceipt={footer.goalCompletionReceipt}
       memories={footer.memories}
       onCopy={footer.onCopy}
+      onFork={footer.onFork}
       stats={footer.stats}
       model={model}
     />
