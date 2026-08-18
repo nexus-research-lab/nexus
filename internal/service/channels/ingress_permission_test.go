@@ -42,7 +42,7 @@ func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *test
 				accountID = "weixin-account"
 			}
 			if _, err = agentService.UpdateAgent(context.Background(), defaultAgent.AgentID, protocol.UpdateRequest{
-				Options: &protocol.Options{AllowedTools: []string{"nexus_automation"}},
+				Options: &protocol.Options{AllowedTools: []string{"Bash"}},
 			}); err != nil {
 				t.Fatalf("配置 %s Agent 工具权限失败: %v", channelType, err)
 			}
@@ -83,11 +83,13 @@ func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *test
 				t.Fatalf("%s 未签发 paired interactive context: %+v", channelType, handler.requests)
 			}
 			decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-				ToolName: "mcp__nexus_automation__automation_update",
-				Input:    map[string]any{"name": "每日提醒"},
+				ToolName: "Bash",
+				Input: map[string]any{
+					"command": `"${NEXUS_COMMAND_PATH}" --json automation plan --operation create --input-file "${NEXUS_COMMAND_INPUT_PATH}"`,
+				},
 			})
 			if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
-				t.Fatalf("%s paired DM 未获得同 Agent Automation mutation: decision=%+v err=%v", channelType, decision, err)
+				t.Fatalf("%s paired DM 未继承同 Agent 的 CLI transport 权限: decision=%+v err=%v", channelType, decision, err)
 			}
 		})
 	}
@@ -343,35 +345,14 @@ func TestExternalIngressExplicitAgentIDCannotBypassPairing(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskMutationToolMatchesRuntimeWrappers(t *testing.T) {
-	for _, toolName := range []string{
-		"automation_update",
-		"mcp__nexus_automation__automation_update",
-		"nexus_automation.automation_update",
-		"custom_wrapper__automation_update",
-	} {
-		if !isScheduledTaskMutationTool(toolName) {
-			t.Fatalf("mutation wrapper %q was not denied", toolName)
-		}
-	}
-	for _, toolName := range []string{
-		"automation_query",
-		"mcp__nexus_automation__automation_query",
-	} {
-		if isScheduledTaskMutationTool(toolName) {
-			t.Fatalf("read tool %q was classified as a mutation", toolName)
-		}
-	}
-}
-
-func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *testing.T) {
+func TestIngressServiceFeishuAllowsManagedSemanticSkillsWithRestrictiveAgentTools(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	if _, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
-		Options: &protocol.Options{AllowedTools: []string{"nexus_automation"}},
+		Options: &protocol.Options{AllowedTools: []string{"Skill"}},
 	}); err != nil {
 		t.Fatalf("收紧默认 agent 工具权限失败: %v", err)
 	}
@@ -391,43 +372,13 @@ func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *test
 		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
 	}
 
-	reportDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__automation_query",
-		Input:    map[string]any{"date": "today"},
-	})
-	if err != nil {
-		t.Fatalf("日报工具权限处理失败: %v", err)
-	}
-	if reportDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("限制 allowlist 时仍应允许托管定时任务工具: %+v", reportDecision)
-	}
-	goalSkillDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Skill",
-		Input:    map[string]any{"name": "goal-manager"},
-	})
-	if err != nil {
-		t.Fatalf("Goal Skill 权限处理失败: %v", err)
-	}
-	if goalSkillDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("限制 allowlist 时仍应允许加载托管 Goal skill: %+v", goalSkillDecision)
-	}
-
-	for _, toolName := range []string{
-		"mcp__nexus_goal__get_goal",
-		"mcp__nexus_goal__create_goal",
-		"mcp__nexus_goal__retarget_goal",
-		"mcp__nexus_goal__audit_objective_alignment",
-		"mcp__nexus_goal__update_goal",
-	} {
-		goalDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-			ToolName: toolName,
-			Input:    map[string]any{"objective": "完成发送问题排查"},
+	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {
+		decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+			ToolName: "Skill",
+			Input:    map[string]any{"name": skillName},
 		})
-		if err != nil {
-			t.Fatalf("%s 权限处理失败: %v", toolName, err)
-		}
-		if goalDecision.Behavior != sdkpermission.BehaviorAllow {
-			t.Fatalf("限制 allowlist 时仍应允许托管 Goal 工具 %s: %+v", toolName, goalDecision)
+		if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
+			t.Fatalf("限制 allowlist 时仍应允许加载托管 Skill %q: decision=%+v err=%v", skillName, decision, err)
 		}
 	}
 
@@ -443,7 +394,7 @@ func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *test
 	}
 }
 
-func TestIngressServiceAcceptTelegramAllowsScheduledTaskQueriesButDeniesMutations(t *testing.T) {
+func TestIngressServiceAcceptTelegramUsesReadOnlyDefaultPolicy(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -486,41 +437,18 @@ func TestIngressServiceAcceptTelegramAllowsScheduledTaskQueriesButDeniesMutation
 		t.Fatalf("telegram ingress 的 Read 应自动允许: %+v", readDecision)
 	}
 
-	createTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "automation_update",
-		Input:    map[string]any{"name": "新闻日报"},
-	})
-	if err != nil {
-		t.Fatalf("automation_update 权限处理失败: %v", err)
-	}
-	if createTaskDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("telegram ingress 的 automation_update 必须拒绝: %+v", createTaskDecision)
-	}
-
-	mcpDeleteTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__automation_update",
-		Input:    map[string]any{"job_id": "job-1"},
-	})
-	if err != nil {
-		t.Fatalf("mcp automation_update 权限处理失败: %v", err)
-	}
-	if mcpDeleteTaskDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("telegram ingress 的 nexus_automation automation_update 必须拒绝: %+v", mcpDeleteTaskDecision)
-	}
-
-	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Write",
-		Input:    map[string]any{"file_path": "README.md"},
-	})
-	if err != nil {
-		t.Fatalf("Write 权限处理失败: %v", err)
-	}
-	if writeDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("telegram ingress 的 Write 应默认拒绝: %+v", writeDecision)
+	for _, toolName := range []string{"Write", "automation_update", "mcp__nexus_automation__automation_update"} {
+		decision, permissionErr := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+			ToolName: toolName,
+			Input:    map[string]any{"job_id": "job-1"},
+		})
+		if permissionErr != nil || decision.Behavior != sdkpermission.BehaviorDeny {
+			t.Fatalf("telegram ingress 应拒绝未列入只读默认集的 %s: decision=%+v err=%v", toolName, decision, permissionErr)
+		}
 	}
 }
 
-func TestIngressServiceAutoApproveToolsCannotOpenAutomationMutations(t *testing.T) {
+func TestIngressServiceRetiredAutomationFamilyIsNotManaged(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -559,12 +487,12 @@ func TestIngressServiceAutoApproveToolsCannotOpenAutomationMutations(t *testing.
 	if err != nil {
 		t.Fatalf("nexus_automation history search 权限处理失败: %v", err)
 	}
-	if historyDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("auto_approve_tools=nexus_automation 应允许历史搜索工具: %+v", historyDecision)
+	if historyDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("retired nexus_automation family must not expand to old query tools: %+v", historyDecision)
 	}
 }
 
-func TestIngressServiceAutoApproveAllCannotOpenAutomationMutations(t *testing.T) {
+func TestIngressServiceAutoApproveAllRemainsGeneric(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -583,19 +511,11 @@ func TestIngressServiceAutoApproveAllCannotOpenAutomationMutations(t *testing.T)
 	}); err != nil {
 		t.Fatalf("Accept 失败: %v", err)
 	}
-	for _, toolName := range []string{
-		"automation_update",
-		"mcp__nexus_automation__automation_update",
-	} {
-		decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-			ToolName: toolName,
-			Input:    map[string]any{"job_id": "job-1"},
-		})
-		if err != nil {
-			t.Fatalf("%s permission error: %v", toolName, err)
-		}
-		if decision.Behavior != sdkpermission.BehaviorDeny {
-			t.Fatalf("auto_approve_all 不能开放 %s: %+v", toolName, decision)
-		}
+	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Write",
+		Input:    map[string]any{"file_path": "report.md"},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("auto_approve_all should remain a generic explicit grant: decision=%+v err=%v", decision, err)
 	}
 }

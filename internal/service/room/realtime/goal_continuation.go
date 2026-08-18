@@ -150,7 +150,7 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	if s.agents == nil {
 		return false
 	}
-	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
+	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
 	if err != nil {
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
 		return false
@@ -851,11 +851,7 @@ func (s *Service) goalContinuationDispatchTarget(
 		}
 		return nil, ""
 	}
-	agentNameByID, _, err := s.buildAgentDirectory(ctx, contextValue)
-	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 续跑目标 Agent 失败", "conversation_id", conversationID, "err", err)
-		return nil, ""
-	}
+	agentNameByID := buildMemberNameDirectory(contextValue)
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, &goal)
 	if targetAgentID == "" {
 		return nil, ""
@@ -906,7 +902,7 @@ Room Goal collaboration options:
 - Before choosing a route, assess task complexity, separable work, member fit, and whether responsibility must persist. An @mention is conversation-only and never creates an Assignment, but a substantive public reply to this Goal-attributed handoff is recorded as collaboration evidence.
 - Use @ for a genuinely untracked contribution, or create/continue a managed WorkGraph and use assign_work for one distinct Ready Work Item when the member must own an accountable deliverable.
 - Once accountable work is assigned, do not duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only through the managed control path when necessary.
-- Do not call the Goal update tool while an @ handoff, Assignment, queue item, or wake for this Goal is still running. Finish or explicitly cancel that work first.
+- Do not call the Goal update command while an @ handoff, Assignment, queue item, or wake for this Goal is still running. Finish or explicitly cancel that work first.
 `, leadName, leadAgentID, strings.Join(lines, "\n")))
 }
 

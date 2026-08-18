@@ -23,8 +23,8 @@ var runtimeGraphVisibleToolFamilies = []string{
 }
 
 // 未包装的 Provider 工具只有在名称表达可观察动作时才进入画布；外部 MCP
-// capability 调用默认可见，而本地 filesystem/workspace/tool discovery 服务及
-// 已由 WorkGraph/Goal 领域节点表达的 MCP 调用仍留在详情。运行失败、控制边、
+// capability 调用默认可见，而本地 filesystem/workspace/tool discovery 服务
+// 留在详情。运行失败、控制边、
 // Artifact 与显式 hint 仍由上层结构事实提升，不能被这里的分类压回 detail。
 var runtimeGraphVisibleActionPrefixes = []string{
 	"append",
@@ -71,8 +71,6 @@ var runtimeGraphVisibleActionPrefixes = []string{
 var runtimeGraphSupportingMCPServerMarkers = []string{
 	"filesystem",
 	"localfs",
-	"nexusexecution",
-	"nexusgoal",
 	"skill",
 	"toolsearch",
 	"workspace",
@@ -84,15 +82,6 @@ func runtimeGraphToolActionVisible(item protocol.ExecutionRuntimeNodeRun) bool {
 	}
 	name := strings.TrimSpace(item.Name)
 	if name == "" {
-		return false
-	}
-	// submit_work 是 Work -> Review 的真实因果边界。其他已被 WorkItem/Gate
-	// 表达的领域 mutation 留在详情，但提交节点必须可见，供 review/return
-	// 精确锚定，不能把边笼统连在 Agent 头像上。
-	if runtimeGraphIsSubmissionTool(name) {
-		return true
-	}
-	if toolpolicy.IsManagedExecutionTool(name) || toolpolicy.IsManagedGoalTool(name) {
 		return false
 	}
 	for _, family := range runtimeGraphVisibleToolFamilies {

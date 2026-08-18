@@ -570,7 +570,7 @@ func TestRenderExecutionContextPublishesOnlyCurrentlyCallableOrchestrationAction
 	):strings.Index(member, "</allowed_actions>")]
 	if !strings.Contains(
 		member,
-		"<action_scope>allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation;",
+		"<action_scope>allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names;",
 	) ||
 		strings.Contains(memberAllowed, "<action>submit_work</action>") ||
 		strings.Contains(memberAllowed, "<action>block_work</action>") {

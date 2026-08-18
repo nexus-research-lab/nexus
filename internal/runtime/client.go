@@ -771,10 +771,6 @@ func (c *agentClient) Reconfigure(ctx context.Context, options bridge.Options) e
 		return bridge.ErrAborted
 	}
 	session := c.session
-	if session != nil && shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
-		c.mu.Unlock()
-		return errManagedGoalMCPServerSetChanged
-	}
 	c.options = options
 	c.configVersion++
 	configVersion := c.configVersion

@@ -36,6 +36,7 @@ type runtimeGraphNodeEvidence struct {
 	executionID      string
 	changed          []string
 	semanticFailed   bool
+	commandIdentity  protocol.RuntimeCommandResultIdentity
 }
 
 // runtimeGraphLifecycleEvents 保留 Bridge 的 canonical lifecycle，并把
@@ -179,6 +180,15 @@ func applyRuntimeToolResultEvidence(
 			evidence.mutationOutcome = mutationResult.Outcome
 			evidence.executionID = mutationResult.ExecutionID
 			evidence.changed = mutationResult.Changed
+		}
+		if identity, ok := protocol.ParseRuntimeCommandResultIdentity(
+			message.User.ToolUseResult,
+			message.Raw["toolUseResult"],
+			raw["structured_output"],
+			raw["content"],
+			toolResult.Content,
+		); ok {
+			evidence.commandIdentity = identity
 		}
 		evidence.errorCode = firstNonEmpty(
 			mutationResult.ReasonCode,

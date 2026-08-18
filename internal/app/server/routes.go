@@ -12,8 +12,14 @@ func (s *Server) mountRoutes() {
 		newRuntimeConfigurationHandler(s.services.Configuration),
 	)
 	s.router.Post(
-		s.prefixPath("/internal/runtime/automation"),
-		newRuntimeAutomationHandler(s.services.Automation, s.services.Permission),
+		s.prefixPath("/internal/runtime/command"),
+		newRuntimeCommandHandler(
+			s.services.RuntimeCommand,
+			s.services.Automation,
+			s.services.GoalCommand,
+			s.services.Orchestration,
+			s.services.Permission,
+		),
 	)
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()

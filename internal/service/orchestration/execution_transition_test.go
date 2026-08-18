@@ -59,7 +59,7 @@ func TestServicePlanExecutionRequiresExplicitReplacementForBoundaryChange(t *tes
 	if result.Outcome != MutationRejected ||
 		result.ReasonCode != ErrorCodeObjectiveChangeReplace ||
 		len(result.NextActions) != 1 ||
-		result.NextActions[0].Tool != "prepare_plan_execution" {
+		result.NextActions[0].Operation != "prepare_plan_execution" {
 		t.Fatalf("boundary mismatch result = %#v", result)
 	}
 }

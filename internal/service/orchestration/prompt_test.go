@@ -30,7 +30,9 @@ func TestStablePromptDefinesExecutionBoundaries(t *testing.T) {
 		"load the `execution-orchestrator` Skill",
 		"Graph UI already show lifecycle state",
 		"`allowed_actions`",
-		"Use structured tools for responsibility and transitions",
+		`"${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke`,
+		"Action names are semantic operations, not tool-schema or MCP names",
+		"Never use nexusctl, the retired Execution MCP",
 		"Bridge observation records actual Tool and Subagent runs",
 		"never ask the user to send “continue”",
 	} {

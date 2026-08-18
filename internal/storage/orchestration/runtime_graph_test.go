@@ -519,7 +519,7 @@ func TestRepositoryBindsExactRuntimeRoundToSingleExecution(t *testing.T) {
 	tool.Kind = protocol.ExecutionRuntimeNodeTool
 	tool.SubjectID = "tool-bind"
 	tool.ParentSubjectID = root.SubjectID
-	tool.Name = "mcp__nexus_execution__assign_work"
+	tool.Name = "assign_work"
 	tool.StartedAt = now.Add(time.Second)
 	tool.UpdatedAt = tool.StartedAt
 	for _, node := range []protocol.ExecutionRuntimeNodeRun{root, tool} {

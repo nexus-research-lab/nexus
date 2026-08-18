@@ -18,6 +18,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -85,6 +86,8 @@ type roundRunner struct {
 	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
 	responsibilityState         *runtimectx.ResponsibilityAuthorityState
+	commandReceipts             *runtimecommand.ReceiptState
+	commandReceiptSequence      uint64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
 	goalUsageBindingMu          sync.Mutex
@@ -328,13 +331,17 @@ func (r *roundRunner) closeUncommittedForkRuntime(logger *slog.Logger, forkErr e
 }
 
 func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
-	return orchestration.ActorContext{
+	agentID := strings.TrimSpace(r.session.AgentID)
+	if r.agent != nil {
+		agentID = strings.TrimSpace(r.agent.AgentID)
+	}
+	actor := orchestration.ActorContext{
 		OwnerUserID:           r.ownerUserID,
 		SessionKey:            r.sessionKey,
 		ExecutionID:           strings.TrimSpace(r.executionID),
 		GoalID:                strings.TrimSpace(r.goalIDForUsage),
 		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
-		AgentID:               r.agent.AgentID,
+		AgentID:               agentID,
 		Role:                  orchestration.ExecutionActorCoordinator,
 		ActorKind:             protocol.ExecutionActorAgent,
 		ScopeKind:             protocol.ExecutionScopeDM,
@@ -343,6 +350,23 @@ func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
 		AgentRoundID:          r.agentRoundID,
 		PlanMode:              r.permissionMode == sdkpermission.ModePlan,
 	}
+	if r.responsibilityState != nil {
+		if snapshot, ok := r.responsibilityState.Load(); ok {
+			if executionID := strings.TrimSpace(snapshot.ExecutionID); executionID != "" {
+				actor.ExecutionID = executionID
+			}
+			if goalID := strings.TrimSpace(snapshot.GoalID); goalID != "" {
+				actor.GoalID = goalID
+			}
+			actor.GoalObjectiveRevision = snapshot.ObjectiveRevision
+			actor.WorkBinding = snapshot.WorkBinding
+			actor.ReviewBinding = snapshot.ReviewBinding
+			if snapshot.WorkBinding != nil || snapshot.ReviewBinding != nil {
+				actor.Role = orchestration.ExecutionActorMember
+			}
+		}
+	}
+	return actor
 }
 
 // runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。

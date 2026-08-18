@@ -54,7 +54,7 @@ func TestRoomConfigurationContextRequiresTrustedUserInput(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := roomMCPSourceContextType(test.round); got != test.want {
+			if got := roomCommandSourceContextType(test.round); got != test.want {
 				t.Fatalf("source context = %q, want %q", got, test.want)
 			}
 		})
@@ -74,14 +74,14 @@ func TestTrustedQueuedRoomContextDoesNotPropagateToAgentHandoffs(t *testing.T) {
 		pendingTrustedQueueDispatch: true,
 	}
 	userRound := newPublicMentionRound(dispatchScaffold, "room:group:conversation-1", "user-round")
-	if got := roomMCPSourceContextType(userRound); got != "room" {
+	if got := roomCommandSourceContextType(userRound); got != "room" {
 		t.Fatalf("direct queued user round source = %q, want room", got)
 	}
 	if userRound.pendingTrustedQueueDispatch {
 		t.Fatal("direct queued user trust must be consumed by one runtime hop")
 	}
 	agentHandoff := newPublicMentionRound(userRound, "room:group:conversation-1", "agent-handoff")
-	if got := roomMCPSourceContextType(agentHandoff); got != "room_handoff" {
+	if got := roomCommandSourceContextType(agentHandoff); got != "room_handoff" {
 		t.Fatalf("agent handoff source = %q, want room_handoff", got)
 	}
 }

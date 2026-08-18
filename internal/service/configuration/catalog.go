@@ -134,8 +134,12 @@ var domainCatalog = []DomainDefinition{
 		Source: "workspace filesystem", ManagedBy: "nexusctl / native runtime file tools", Mutable: true,
 	},
 	{
-		Name: DomainGoals, Description: "Goal、Workflow、Plan、继续执行与使用状态",
-		Source: "database + goal runtime", ManagedBy: "nexus_goal", Mutable: true,
+		Name: DomainGoals, Description: "持久 Goal objective、生命周期、继续执行与使用状态",
+		Source: "database + goal runtime", ManagedBy: "goal-manager Skill + nexus goal CLI", Mutable: true,
+	},
+	{
+		Name: DomainExecutions, Description: "Execution、Plan、WorkGraph、Assignment、验收与恢复状态",
+		Source: "database + execution runtime", ManagedBy: "execution-orchestrator Skill + nexus execution CLI", Mutable: true,
 	},
 }
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -24,6 +25,48 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+func TestServiceKeepsManagedSemanticSkillsBound(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _ := newAgentTestService(t, cfg)
+	ctx := context.Background()
+
+	agentValue, err := service.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "managed-skill-agent",
+		Options: &protocol.Options{
+			SkillIDs:         []string{"private-skill"},
+			DisabledSkillIDs: []string{"goal-manager", "execution-orchestrator", "workspace-off"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertManagedSemanticSkillBindings(t, agentValue)
+
+	agentValue, err = service.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{
+			SkillIDs:         []string{},
+			DisabledSkillIDs: []string{"goal-manager", "execution-orchestrator"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertManagedSemanticSkillBindings(t, agentValue)
+}
+
+func assertManagedSemanticSkillBindings(t *testing.T, agentValue *protocol.Agent) {
+	t.Helper()
+	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {
+		if !slices.Contains(agentValue.Options.SkillIDs, skillName) {
+			t.Fatalf("managed Skill %q was removed: %+v", skillName, agentValue.Options)
+		}
+		if slices.Contains(agentValue.Options.DisabledSkillIDs, skillName) {
+			t.Fatalf("managed Skill %q remained disabled: %+v", skillName, agentValue.Options)
+		}
+	}
+}
 
 func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 	cfg := newTestConfig(t)

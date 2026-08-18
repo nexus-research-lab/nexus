@@ -1067,6 +1067,7 @@ func TestManagerCloseSessionWaitsForIdleHandlerExit(t *testing.T) {
 }
 
 func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
+	const serverName = "search"
 	tests := []struct {
 		name    string
 		options agentclient.Options
@@ -1075,14 +1076,14 @@ func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
 		{
 			name: "server config",
 			options: agentclient.Options{MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-				managedGoalMCPServerName: sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
+				serverName: sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
 			}}},
 			want: true,
 		},
 		{
 			name: "legacy sdk server",
 			options: agentclient.Options{MCP: agentclient.MCPOptions{SDKServers: map[string]sdkmcp.SDKMCPServer{
-				managedGoalMCPServerName: fakeSDKMCPServer{},
+				serverName: fakeSDKMCPServer{},
 			}}},
 			want: true,
 		},
@@ -1090,38 +1091,10 @@ func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := hasMCPServer(test.options, managedGoalMCPServerName); got != test.want {
+			if got := hasMCPServer(test.options, serverName); got != test.want {
 				t.Fatalf("hasMCPServer() = %v, want %v", got, test.want)
 			}
 		})
-	}
-}
-
-func TestRuntimeRestartsWhenManagedGoalMCPServerSetChanges(t *testing.T) {
-	currentOptions := agentclient.Options{
-		MCP: agentclient.MCPOptions{
-			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
-			},
-		},
-	}
-	nextOptions := agentclient.Options{
-		MCP: agentclient.MCPOptions{
-			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
-				"nexus_goal":       sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
-			},
-		},
-	}
-
-	if !shouldRestartForManagedGoalMCPServerSetChange(currentOptions, nextOptions) {
-		t.Fatal("新增托管 Goal MCP server 时应重建 SDK client")
-	}
-	if shouldRestartForManagedGoalMCPServerSetChange(nextOptions, nextOptions) {
-		t.Fatal("Goal MCP server 集合未变化时不应重建 SDK client")
-	}
-	if !shouldReplaceRuntimeClientAfterReconfigureError(errManagedGoalMCPServerSetChanged) {
-		t.Fatal("托管 Goal MCP server 集合变化错误应触发 client 替换")
 	}
 }
 
@@ -2392,7 +2365,7 @@ func TestManagerGetOrCreateReplacesClientWhenMCPControlUnsupported(t *testing.T)
 	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
 		MCP: agentclient.MCPOptions{
 			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+				"search": sdkmcp.SDKServerConfig{Name: "search", Instance: fakeSDKMCPServer{}},
 			},
 		},
 	})

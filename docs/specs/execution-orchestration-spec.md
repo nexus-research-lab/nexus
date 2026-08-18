@@ -9,7 +9,7 @@ managed WorkGraph execution. It defines:
 - the user-visible Goal control command and its continuation boundary;
 - the durable Plan and responsibility model;
 - the authority carried by coordinator, worker, reviewer, and Subagent rounds;
-- the atomic semantics of the 12 Execution tools and 5 Goal tools;
+- the atomic semantics of the 12 Execution operations and 5 Goal operations;
 - transaction, idempotency, reconciliation, and terminal-state invariants;
 - current limits that callers and UI code must preserve.
 
@@ -20,7 +20,7 @@ Only currently implemented control-plane behavior is in scope.
 ### 1.1 Normative truth sources
 
 This specification owns product semantics and cross-component invariants. Exact
-fields, enums, parser rules, and MCP JSON schemas remain code-generated or
+fields, enums, parser rules, and runtime command contracts remain code-generated or
 code-defined truth:
 
 | Concern | Truth source |
@@ -34,16 +34,18 @@ code-defined truth:
 | Plan Document parsing and normalization | [`internal/service/orchestration/plan_document.go`](../../internal/service/orchestration/plan_document.go) |
 | Parser-backed Plan Document contract | [`internal/service/orchestration/plan_document_contract.go`](../../internal/service/orchestration/plan_document_contract.go) |
 | Proposal sealing and materialization | [`internal/service/orchestration/plan_proposal.go`](../../internal/service/orchestration/plan_proposal.go), [`plan_materialization.go`](../../internal/service/orchestration/plan_materialization.go) |
-| Execution MCP inputs, schemas, and registry | [`internal/mcp/execution/tool/input.go`](../../internal/mcp/execution/tool/input.go), [`schema.go`](../../internal/mcp/execution/tool/schema.go), [`registry.go`](../../internal/mcp/execution/tool/registry.go) |
-| Goal MCP registry and tool contracts | [`internal/mcp/goal/tool/registry.go`](../../internal/mcp/goal/tool/registry.go) |
+| Runtime command envelope, operation contract, and typed receipt | [`internal/runtimecommand/command.go`](../../internal/runtimecommand/command.go), [`receipt.go`](../../internal/runtimecommand/receipt.go) |
+| Execution operation inputs, schemas, and directory | [`internal/runtimecommand/execution/operation/input.go`](../../internal/runtimecommand/execution/operation/input.go), [`schema.go`](../../internal/runtimecommand/execution/operation/schema.go), [`registry.go`](../../internal/runtimecommand/execution/operation/registry.go) |
+| Goal operation directory and contracts | [`internal/runtimecommand/goal/operation/registry.go`](../../internal/runtimecommand/goal/operation/registry.go), [`internal/runtimecommand/goal/contract/contract.go`](../../internal/runtimecommand/goal/contract/contract.go) |
+| Round-scoped CLI transport and broker | [`internal/cli/runtime_semantic.go`](../../internal/cli/runtime_semantic.go), [`internal/app/server/runtime_command.go`](../../internal/app/server/runtime_command.go) |
 | Runtime responsibility and coordination authority | [`internal/runtime/responsibility_authority.go`](../../internal/runtime/responsibility_authority.go), [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
 | Accepted-review completion recovery receipts | [`internal/storage/orchestration/completion_audit.go`](../../internal/storage/orchestration/completion_audit.go), [`internal/service/orchestration/completion_audit_recovery.go`](../../internal/service/orchestration/completion_audit_recovery.go) |
 | Background dispatch and recovery scheduling | [`internal/infra/duework/loop.go`](../../internal/infra/duework/loop.go), [`internal/service/orchestration/background_coordinator.go`](../../internal/service/orchestration/background_coordinator.go), [`internal/storage/orchestration/background_deadline.go`](../../internal/storage/orchestration/background_deadline.go) |
 | Room collaboration attribution and handoff recovery | [`internal/protocol/room.go`](../../internal/protocol/room.go), [`internal/storage/workspace/room_public_handoff.go`](../../internal/storage/workspace/room_public_handoff.go), [`internal/service/room/realtime/public_handoff.go`](../../internal/service/room/realtime/public_handoff.go) |
-| Model tool-result progress classification | [`internal/message/tool_result.go`](../../internal/message/tool_result.go) |
+| Host-owned command receipt classification | [`internal/runtimecommand/receipt.go`](../../internal/runtimecommand/receipt.go), [`internal/service/dm/goal_runtime.go`](../../internal/service/dm/goal_runtime.go), [`internal/service/room/realtime/goal_runtime.go`](../../internal/service/room/realtime/goal_runtime.go) |
 | UI/Slash Goal command dispatch and durable control history | [`internal/service/slashcommand/goal.go`](../../internal/service/slashcommand/goal.go), [`internal/service/dm/goal_command.go`](../../internal/service/dm/goal_command.go), [`internal/service/room/realtime/goal_command.go`](../../internal/service/room/realtime/goal_command.go) |
 
-Do not copy the complete Plan Document field list or MCP input schema into this
+Do not copy the complete Plan Document field list or operation input schema into this
 document. When this document and those sources disagree on a field shape or enum,
 the source above wins and this document must be corrected.
 
@@ -104,9 +106,9 @@ disappear; it must never be used to manufacture the durable fact again.
 
 | Concern | Authoritative truth | State transition | Derived or recoverable projections |
 | --- | --- | --- | --- |
-| Goal | `session_goals` plus append-only `goal_events` | Goal repository CAS on ID, owner, status, version, and objective revision | Goal MCP context, continuation strip, title/control history, and UI blocker text |
+| Goal | `session_goals` plus append-only `goal_events` | Goal repository CAS on ID, owner, status, version, and objective revision | Round command context, continuation strip, title/control history, and UI blocker text |
 | Plan/Execution/WorkGraph | Orchestration SQL aggregate: Execution, immutable Plan revision, Work Item state, Assignment, Attempt, Submission, Acceptance, and outbox/receipt rows | One service command re-reads the aggregate and commits one typed mutation | Execution Graph/UI, runtime nodes, Room delivery, and snapshot caches |
-| Responsibility capability | Durable responsibility records are business truth; one mutable in-memory `ResponsibilityAuthorityState` is the current physical round's capability projection | A successful typed mutation receipt atomically replaces or clears Goal, Execution, Work, and Review authority for the next call in that round | MCP `ServerContext` and tool availability hints; neither authorizes without service revalidation |
+| Responsibility capability | Durable responsibility records are business truth; one mutable in-memory `ResponsibilityAuthorityState` is the current physical round's capability projection | A successful typed mutation receipt atomically replaces or clears Goal, Execution, Work, and Review authority for the next call in that round | Runtime command context and operation availability hints; neither authorizes without service revalidation |
 | Collaboration handoff | Owner-scoped Room directed-message/public-handoff/InputQueue ledgers with exact source Goal ID and objective revision | Durable schedule, dispatch, target terminal, and source handback advance separate idempotent stages | Wake state, public feed, source continuation defer, and collaboration audit evidence |
 | Continuation | `goal_continuation_plans` open receipt plus Goal continuation count/event | `scheduled → claimed → started → settled`, or retry/release/cancel under revision and lease CAS | Runtime running-round registration and UI continuation state |
 | Progress | Typed `applied` mutation outcome under the exact current Goal/Execution responsibility; the resulting Goal controller counters/events are durable | Counted mutation clears the no-progress streak; exact handoff defers; terminal empty/failure advances suppression | Parsed SDK tool results are candidate facts only and cannot count by tool success alone |
@@ -273,8 +275,8 @@ a Room-backed DM therefore update the SQL conversation only; they must not attem
 an unsupported workspace Session title mutation.
 
 Continuation is scheduled only after the first control response send has been
-attempted; socket delivery success is not a continuation prerequisite. When MCP
-`create_goal` creates a Goal inside an already-running visible model round, its
+attempted; socket delivery success is not a continuation prerequisite. When the
+model invokes `create_goal` inside an already-running visible round, its
 hidden continuation is suppressed until that round has fully left both runtime
 and Goal usage accounting; a terminal UI event alone is not proof that accounting
 cleanup has finished.
@@ -437,7 +439,7 @@ The authoring transport is one strict YAML string named `plan_document` using
 
 The parser rejects unknown fields, missing required fields, invalid aliases,
 duplicate logical identities, invalid dependency/output relationships, and
-over-limit collections. Callers must use the parser-backed contract and MCP schema
+over-limit collections. Callers must use the parser-backed operation contract
 rather than reconstructing a wider YAML format from prose.
 
 ### 4.2 Prepare
@@ -498,7 +500,7 @@ runtime capability and current SQL state.
 
 | Entry lane | Authority | Allowed control-plane behavior |
 | --- | --- | --- |
-| Unbound ordinary Room round | Conversation identity plus, only for the durable Goal lead, a private start-of-round Goal revision snapshot | May chat and perform runtime-only activity; the Goal lead may mutate that exact Goal revision through `nexus_goal`, but cannot create managed evidence or mutate a Work Item without an Execution binding. |
+| Unbound ordinary Room round | Conversation identity plus, only for the durable Goal lead, a private start-of-round Goal revision snapshot | May chat and perform runtime-only activity; the Goal lead may mutate that exact Goal revision through the Goal command broker, but cannot create managed evidence or mutate a Work Item without an Execution binding. |
 | Exact coordinator round | Ephemeral `CoordinationBinding` for one Execution and round | May inspect and coordinate that Execution according to current state and tool-specific rules. |
 | Exact worker round | `WorkBinding` for one responsibility chain | May act only on the bound Work Item and current Assignment/Attempt. |
 | Exact reviewer round | `ReviewBinding` for one Submission | May review only that immutable Submission. |
@@ -508,14 +510,42 @@ runtime capability and current SQL state.
 | Plan Mode | Read plus proposal preparation | May read state and call `prepare_plan_execution`; authoritative Execution/Goal mutation and Agent execution remain blocked. |
 
 External channel admission is a separate policy layer, not a substitute for these
-fences. An admitted external DM may expose the five Goal tools by default,
-including alignment audit, because Goal-only operation is a supported product
-mode; exposure does not grant mutation authority. Such calls still need an
+fences. An admitted external DM may receive the Goal Skill and round-scoped Goal
+command capability because Goal-only operation is a supported product mode;
+capability issuance does not grant mutation authority. Invocations still need an
 already-bound exact `GoalAuthorityState`, and external ingress cannot use the
-trusted-visible-user late-bind exception for `retarget_goal`. Execution tools
-remain denied by default on channel ingress and require explicit channel/Agent
-approval. If admitted, they still receive only server-derived owner/session
-identity and must pass the same lane and SQL checks above.
+trusted-visible-user late-bind exception for `retarget_goal`. Execution command
+invocation remains denied by default on channel ingress and requires explicit
+channel/Agent approval. If admitted, the broker still derives owner/session
+identity and applies the same lane and SQL checks above.
+
+Goal and Execution do not mount model-visible MCP servers. Their complete
+model-facing surface is the bundled decision Skill plus the round-scoped
+`nexus goal` and `nexus execution` CLI. Both domains share one host command broker,
+one private input staging slot, one capability check, and one typed receipt ledger;
+there is no legacy route, environment-variable fallback, or parallel MCP mutation
+path. `contract` loads only the requested operation schema, `inspect` performs one
+actor-filtered read, and `invoke` resolves the operation from the in-process
+directory without polling or scanning durable command history.
+
+The managed Goal/Execution Skill catalog is one shared runtime-command truth used
+by Agent defaults, workspace deployment, the Skills catalog, prompts, and permission
+policy. Existing Agents are migrated into that binding and cannot retain an old
+Execution disable. A Room aggregate may project member configuration for display,
+but a physical Room round batch-loads its complete runtime profiles from the
+canonical Agent service; the display projection never authorizes a runtime. The
+host-generated input slot's exact per-round parent directory is the only additional
+writable root granted for command staging, and incomplete, relative, or filesystem-
+root capabilities fail before runtime launch.
+
+The provider's Bash/PowerShell Tool result is only an untrusted candidate for UI
+and Runtime Graph correlation. At each assistant checkpoint, the host reconciles
+all new Execution command receipts in one batch: it reads the current Runtime
+Graph once, indexes candidate Tool nodes in memory by exact
+`domain + operation + request_id`, and upserts only matched or missing semantic
+nodes and edges. Thus graph preservation does not multiply reads by command count,
+and arbitrary shell output cannot recreate `assign_work` segment authority or a
+`submit_work` review anchor without the matching host-owned receipt.
 
 `get_execution` does not mutate durable Execution or Plan state. On a verified
 current-coordinator read it mints an ephemeral `CoordinationBinding` for the
@@ -539,24 +569,26 @@ sufficient authority. Host-minted continuation and WorkGraph rounds carry a
 shared runtime `GoalAuthorityState`. Separately, when a new physical round starts,
 the host may resolve the current Goal for its durable responsible Agent: the
 persisted Room lead, or the Agent encoded by a DM session key. That one exact
-start-of-round revision is copied into a private `nexus_goal` authority state; it
+start-of-round revision is copied into a private round command authority state; it
 is not written into the shared runtime context and therefore cannot become
 ambient Execution/WorkGraph authority. Another Room member, a mismatched DM
 Agent, a later revision, or a predecessor round still fails closed.
 
 There is also one narrow objective-correction recovery lane: `retarget_goal` in a
-trusted visible user DM or Room round may read the current Goal once at tool
+trusted visible user DM or Room round may read the current Goal once at command
 invocation, bind its exact ID and revision into the request, and then pass the
 same service fences. This source exception does not authorize `update_goal`,
 Objective Alignment, Execution mutation, internal continuations, external
 ingress, or Agent-to-Agent handoffs.
 
-## 6. Execution tools
+## 6. Execution operations
 
-The Execution MCP registry exposes exactly 12 tools. Each tool owns one atomic
-control-plane transition.
+The Execution operation directory exposes exactly 12 operations through the
+round-scoped `nexus execution` CLI. Each operation owns one atomic control-plane
+transition; `contract`, `inspect`, and `invoke` are transport actions, not extra
+business operations.
 
-| Tool | Atomic semantics |
+| Operation | Atomic semantics |
 | --- | --- |
 | `get_execution` | Returns an actor-filtered current snapshot without changing durable Execution/Plan state. A verified current-coordinator read mints coordination authority for the current physical round, so this is the explicit recovery entry and is not a pure `ReadOnly`-annotated tool. |
 | `prepare_plan_execution` | Strictly parses, validates, normalizes, and seals a non-authoritative proposal. It never creates authoritative graph state and is allowed in Plan Mode. |
@@ -571,7 +603,7 @@ control-plane transition.
 | `audit_execution_alignment` | Appends an optional visible three-state objective-alignment gate. It does not transition work, reroute, retry, start a Goal, or complete an Execution. |
 | `promote_execution_to_goal` | Binds a compatible transient Execution to a newly created durable Goal while preserving Plan and history. It enforces objective, state, configuration, authority, and exact binding fences; it does not copy the Plan. |
 
-The model-visible tool schema is stable across bound and unbound rounds. Locator
+The model-visible operation contract is stable across bound and unbound rounds. Locator
 fields therefore remain structurally optional: only the host knows whether the
 current call carries an exact trusted binding, and the service enforces the
 conditional one-of requirement at the mutation boundary. Tool availability,
@@ -601,16 +633,17 @@ predecessor, a late worker command returns `outcome: superseded` with
 `reason_code: execution_terminal`. It is a successful transport carrying a muted
 stop-old-round signal, not a failed submission and not evidence of Goal progress.
 
-No tool may combine planning, assignment, execution, submission, and acceptance
-into one implicit mutation. Tool retries must use their stable receipt or
+No operation may combine planning, assignment, execution, submission, and acceptance
+into one implicit mutation. Command retries must use their stable request identity and receipt
 idempotency identity where provided.
 
-## 7. Goal tools
+## 7. Goal operations
 
-The Goal MCP registry exposes exactly 5 tools. Goal-only operation remains valid;
-WorkGraph-specific gates apply only to a `confirmed` managed binding.
+The Goal operation directory exposes exactly 5 operations through the round-scoped
+`nexus goal` CLI. Goal-only operation remains valid; WorkGraph-specific gates apply
+only to a `confirmed` managed binding.
 
-| Tool | Atomic semantics |
+| Operation | Atomic semantics |
 | --- | --- |
 | `get_goal` | Reads the current optional Goal and usage state. It does not mutate Goal or Execution state. |
 | `create_goal` | Atomically creates a standalone active Goal only when no Goal exists for the scope and the objective is execution-ready. It never creates, reserves, or binds an Execution. A model-created Room Goal persists the server-verified creator as its lead; Room member count does not create a collaboration completion requirement. In DM, the session Agent is the responsible Agent. The creating round can mutate the new revision immediately, and later rounds of that same responsible Agent receive a private exact start-of-round Goal snapshot. If the same round already owns a compatible transient WorkGraph, explicit Goal intent instead uses `promote_execution_to_goal` with `persistence_requested`; when neither exists, a later `goal_binding=current` Plan materialization performs the bilateral binding. A token budget is set only when explicitly requested. It is rejected in Plan Mode. |
@@ -681,7 +714,7 @@ The required atomic groups are:
 | Execution completion | Terminal Execution event/state and completion-audit settlement | Recovery cannot re-complete or leave a pending receipt behind a terminal graph. |
 
 Round-local responsibility replacement happens synchronously from the successful
-service receipt before the next MCP call returns to dispatch. It is not another
+service receipt before the next command invocation returns to dispatch. It is not another
 durable aggregate: every later call still revalidates the durable records. A
 review/retarget/successor-plan chain therefore clears predecessor Review/Work
 capabilities and binds the successor Execution in the same physical round, while
@@ -773,7 +806,7 @@ was interrupted; terminal fences still prevent late output from mutating state.
 2. **No generic writable `control_edge`.** Plan dependencies are authored through
    the strict Plan Document. Runtime invoke/spawn/guard/loop-back/retry edges are
    observed read-only facts in the Execution Graph projection. Control outcomes
-   use typed domain tools, not arbitrary edge writes.
+   use typed domain operations, not arbitrary edge writes.
 3. **No backend three-turn blocker-count audit.** The consecutive-turn rule is
    model policy; backend validation covers stable blocker identity, recovery
    evidence, Goal identity, revision, authority, and state.
@@ -787,7 +820,7 @@ was interrupted; terminal fences still prevent late output from mutating state.
    creates a fresh successor graph and revalidates all work.
 
 These are current product boundaries. Changing them requires coordinated protocol,
-service, MCP schema, Skill/prompt, UI, migration, and test updates that preserve
+service, command contract, Skill/prompt, UI, migration, and test updates that preserve
 the invariants below.
 
 ## 10. Required invariants
@@ -816,7 +849,7 @@ Implementations and callers must preserve all of the following:
     no-op; it cannot resurrect work or produce a second binding failure.
 14. Goal mutations use an exact Goal identity and objective revision. A durable
     responsible Agent may receive only the current start-of-round revision in a
-    private `nexus_goal` state, while the trusted visible-user `retarget_goal`
+    private round command authority state, while the trusted visible-user `retarget_goal`
     recovery lane acquires both at invocation; neither path weakens Execution,
     collaborator, stale-round, or stale-revision fences.
 15. Managed Subagents remain children of the bound Work Item responsibility chain.
@@ -833,10 +866,10 @@ the following layers together:
 - strict Plan Document parser and parser-backed contract;
 - storage transaction and reconciliation behavior;
 - runtime coordination, WorkBinding, ReviewBinding, and Goal authority;
-- MCP input schemas, tool descriptions, and registry;
+- runtime command input schemas, operation descriptions, and directory;
 - bundled Skills and system prompts;
 - actor-filtered HTTP/WS snapshots and the read-only Execution Graph projection;
-- migrations and focused service/storage/MCP/frontend tests.
+- migrations and focused service/storage/runtime-command/frontend tests.
 
 A change is incomplete when one layer advertises authority or state that another
 layer cannot enforce.

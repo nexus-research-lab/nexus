@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	managedExecutionMCPServerName = "nexus_execution"
 	runtimeProviderEnvName        = "NEXUS_RUNTIME_PROVIDER"
 	cacheSurfaceInspectionTimeout = 100 * time.Millisecond
 )
@@ -29,60 +28,49 @@ var cacheSurfaceInspectionSlots = make(chan struct{}, 8)
 // ToolSurfaceFingerprint 只覆盖宿主可证明的 tool policy、MCP 配置以及
 // Nexus 内建 SDK server 的 model-visible tools/list；不声称等于 provider cache key。
 type CacheSurfaceProfile struct {
-	RuntimeKind                 string
-	ProviderFingerprint         string
-	ModelFingerprint            string
-	GoalToolSurfacePresent      bool
-	ExecutionToolSurfacePresent bool
-	ManagedToolPresenceKnown    bool
-	HostToolSurfaceComplete     bool
-	ManagedToolSurfaceComplete  bool
-	ToolPolicyFingerprint       string
-	MCPServersFingerprint       string
-	ToolSurfaceFingerprint      string
+	RuntimeKind                string
+	ProviderFingerprint        string
+	ModelFingerprint           string
+	HostToolSurfaceComplete    bool
+	ManagedToolSurfaceComplete bool
+	ToolPolicyFingerprint      string
+	MCPServersFingerprint      string
+	ToolSurfaceFingerprint     string
 }
 
 // CacheSurfaceInput 是 runtime 向 usage 投影的低敏 DTO。它避免 usage service
 // 反向依赖 Manager 的内部 profile，同时让 DM/Room 共用唯一转换入口。
 type CacheSurfaceInput struct {
-	RuntimeKind                 string
-	ProviderFingerprint         string
-	ModelFingerprint            string
-	GoalToolSurfacePresent      bool
-	ExecutionToolSurfacePresent bool
-	ManagedToolPresenceKnown    bool
-	HostToolSurfaceComplete     bool
-	ManagedToolSurfaceComplete  bool
-	ToolPolicyFingerprint       string
-	MCPServersFingerprint       string
-	ToolSurfaceFingerprint      string
+	RuntimeKind                string
+	ProviderFingerprint        string
+	ModelFingerprint           string
+	HostToolSurfaceComplete    bool
+	ManagedToolSurfaceComplete bool
+	ToolPolicyFingerprint      string
+	MCPServersFingerprint      string
+	ToolSurfaceFingerprint     string
 }
 
 // Input 返回不含 prompt、schema 或 tool list 明文的隔离副本。
 func (p CacheSurfaceProfile) Input() CacheSurfaceInput {
 	return CacheSurfaceInput{
-		RuntimeKind:                 p.RuntimeKind,
-		ProviderFingerprint:         p.ProviderFingerprint,
-		ModelFingerprint:            p.ModelFingerprint,
-		GoalToolSurfacePresent:      p.GoalToolSurfacePresent,
-		ExecutionToolSurfacePresent: p.ExecutionToolSurfacePresent,
-		ManagedToolPresenceKnown:    p.ManagedToolPresenceKnown,
-		HostToolSurfaceComplete:     p.HostToolSurfaceComplete,
-		ManagedToolSurfaceComplete:  p.ManagedToolSurfaceComplete,
-		ToolPolicyFingerprint:       p.ToolPolicyFingerprint,
-		MCPServersFingerprint:       p.MCPServersFingerprint,
-		ToolSurfaceFingerprint:      p.ToolSurfaceFingerprint,
+		RuntimeKind:                p.RuntimeKind,
+		ProviderFingerprint:        p.ProviderFingerprint,
+		ModelFingerprint:           p.ModelFingerprint,
+		HostToolSurfaceComplete:    p.HostToolSurfaceComplete,
+		ManagedToolSurfaceComplete: p.ManagedToolSurfaceComplete,
+		ToolPolicyFingerprint:      p.ToolPolicyFingerprint,
+		MCPServersFingerprint:      p.MCPServersFingerprint,
+		ToolSurfaceFingerprint:     p.ToolSurfaceFingerprint,
 	}
 }
 
 type cacheToolSurfaceManifest struct {
-	Version                     int               `json:"version"`
-	NativeToolSurface           string            `json:"native_tool_surface"`
-	ToolPolicyFingerprint       string            `json:"tool_policy_fingerprint"`
-	MCPServersFingerprint       string            `json:"mcp_servers_fingerprint"`
-	GoalToolSurfacePresent      bool              `json:"goal_tool_surface_present"`
-	ExecutionToolSurfacePresent bool              `json:"execution_tool_surface_present"`
-	SDKToolSurfaces             map[string]string `json:"sdk_tool_surfaces,omitempty"`
+	Version               int               `json:"version"`
+	NativeToolSurface     string            `json:"native_tool_surface"`
+	ToolPolicyFingerprint string            `json:"tool_policy_fingerprint"`
+	MCPServersFingerprint string            `json:"mcp_servers_fingerprint"`
+	SDKToolSurfaces       map[string]string `json:"sdk_tool_surfaces,omitempty"`
 }
 
 func cacheSurfaceProfileFromOptions(ctx context.Context, options agentclient.Options) (CacheSurfaceProfile, error) {
@@ -93,16 +81,13 @@ func cacheSurfaceProfileFromOptions(ctx context.Context, options agentclient.Opt
 		return CacheSurfaceProfile{}, err
 	}
 	profile := CacheSurfaceProfile{
-		RuntimeKind:                 string(normalizedManagedRuntimeKind(options.Runtime.Kind)),
-		ProviderFingerprint:         fingerprintCacheIdentity("provider", options.Env[runtimeProviderEnvName]),
-		ModelFingerprint:            fingerprintCacheIdentity("model", options.Model),
-		GoalToolSurfacePresent:      hasMCPServer(options, managedGoalMCPServerName),
-		ExecutionToolSurfacePresent: hasMCPServer(options, managedExecutionMCPServerName),
-		ManagedToolPresenceKnown:    strings.TrimSpace(options.MCP.Config) == "",
-		HostToolSurfaceComplete:     true,
-		ManagedToolSurfaceComplete:  true,
-		ToolPolicyFingerprint:       fingerprintNativeToolSurface(options),
-		MCPServersFingerprint:       fingerprintMCPServerSet(options),
+		RuntimeKind:                string(normalizedManagedRuntimeKind(options.Runtime.Kind)),
+		ProviderFingerprint:        fingerprintCacheIdentity("provider", options.Env[runtimeProviderEnvName]),
+		ModelFingerprint:           fingerprintCacheIdentity("model", options.Model),
+		HostToolSurfaceComplete:    true,
+		ManagedToolSurfaceComplete: true,
+		ToolPolicyFingerprint:      fingerprintNativeToolSurface(options),
+		MCPServersFingerprint:      fingerprintMCPServerSet(options),
 	}
 
 	serverSurfaces, managedComplete, hostComplete, err := hostSDKToolSurfaceFingerprints(ctx, options)
@@ -112,13 +97,11 @@ func cacheSurfaceProfileFromOptions(ctx context.Context, options agentclient.Opt
 	profile.HostToolSurfaceComplete = profile.HostToolSurfaceComplete && hostComplete
 	profile.ManagedToolSurfaceComplete = managedComplete
 	profile.ToolSurfaceFingerprint = fingerprintCacheValue(cacheToolSurfaceManifest{
-		Version:                     1,
-		NativeToolSurface:           fingerprintNativeToolSurface(options),
-		ToolPolicyFingerprint:       profile.ToolPolicyFingerprint,
-		MCPServersFingerprint:       profile.MCPServersFingerprint,
-		GoalToolSurfacePresent:      profile.GoalToolSurfacePresent,
-		ExecutionToolSurfacePresent: profile.ExecutionToolSurfacePresent,
-		SDKToolSurfaces:             serverSurfaces,
+		Version:               2,
+		NativeToolSurface:     fingerprintNativeToolSurface(options),
+		ToolPolicyFingerprint: profile.ToolPolicyFingerprint,
+		MCPServersFingerprint: profile.MCPServersFingerprint,
+		SDKToolSurfaces:       serverSurfaces,
 	})
 	if !profile.ManagedToolSurfaceComplete {
 		profile.HostToolSurfaceComplete = false

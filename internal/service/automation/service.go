@@ -158,10 +158,6 @@ type Service struct {
 	schedulerLeaseHeld      bool
 	schedulerLeaseRenewAt   time.Time
 	schedulerCatalogReadAt  time.Time
-	runtimeCommandMu        sync.Mutex
-	runtimeCommandRecords   map[string]*runtimeCommandCapabilityRecord
-	runtimeCommandTokens    map[string]string
-	runtimeCommandRounds    runtimeCommandRoundResolver
 	started                 bool
 	cancel                  context.CancelFunc
 	wg                      sync.WaitGroup
@@ -209,8 +205,6 @@ func NewService(
 		jobStates:             make(map[string]*automationexec.JobRuntimeState),
 		heartbeatState:        make(map[string]*automationexec.HeartbeatRuntimeState),
 		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
-		runtimeCommandRecords: make(map[string]*runtimeCommandCapabilityRecord),
-		runtimeCommandTokens:  make(map[string]string),
 		deliveryDeadlineDirty: true,
 	}
 	service.schedulerLoop = duework.New(duework.Options{

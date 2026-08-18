@@ -132,7 +132,7 @@ func (s *Service) PromoteExecutionToGoal(
 				NoOpResult(snapshot, ""),
 				"Execution is already durably bound to the Goal; reverse binding confirmation is pending and will retry automatically.",
 				NextAction{
-					Tool:   "promote_execution_to_goal",
+					Domain: "execution", Operation: "promote_execution_to_goal",
 					Reason: "retry the same promotion intent now, or continue while durable background reconciliation confirms the Goal binding",
 				},
 			), nil
@@ -228,7 +228,7 @@ func (s *Service) PromoteExecutionToGoal(
 	})
 	if bindErr != nil {
 		retry := []NextAction{{
-			Tool:   "promote_execution_to_goal",
+			Domain: "execution", Operation: "promote_execution_to_goal",
 			Reason: "Goal identity exists; retry with the same semantic arguments so the backend can reuse it and finish binding",
 		}}
 		result, knownErr := s.storageMutationResult(snapshot, bindErr, retry)
@@ -246,7 +246,7 @@ func (s *Service) PromoteExecutionToGoal(
 			}, nextActions(updated, actor)),
 			"Execution and Goal identity are durable; reverse binding confirmation is pending and will retry automatically.",
 			NextAction{
-				Tool:   "promote_execution_to_goal",
+				Domain: "execution", Operation: "promote_execution_to_goal",
 				Reason: "retry the same promotion intent now, or continue while durable background reconciliation confirms the Goal binding",
 			},
 		), nil

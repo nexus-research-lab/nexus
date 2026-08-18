@@ -457,6 +457,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 		r.goalObjectiveRevision = preparation.goalObjectiveRevision
 	}
 	r.responsibilityState = preparation.responsibilityState
+	r.commandReceipts = preparation.commandReceipts
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
 		strings.TrimSpace(preparation.goalIDForUsage) != "",
 	)

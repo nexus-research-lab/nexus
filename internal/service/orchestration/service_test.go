@@ -89,7 +89,7 @@ func TestServiceEnsureDoesNotSilentlyRewriteCurrentExecutionBoundary(t *testing.
 				result.Snapshot == nil ||
 				result.Snapshot.Execution.ID != snapshot.Execution.ID ||
 				len(result.NextActions) != 1 ||
-				result.NextActions[0].Tool != test.nextTool {
+				result.NextActions[0].Operation != test.nextTool {
 				t.Fatalf("boundary-changing ensure = %#v", result)
 			}
 		})
@@ -1422,7 +1422,7 @@ func TestServicePlanModeValidatesProposalWithoutWritingAndRuntimeContextMatches(
 		t.Fatalf("result=%#v plan=%#v", result, written.Plan)
 	}
 	for _, action := range result.NextActions {
-		if action.Tool == "assign_work" {
+		if action.Operation == "assign_work" {
 			t.Fatalf("Plan Mode exposed assign_work: %#v", result.NextActions)
 		}
 	}
@@ -1471,7 +1471,7 @@ func TestServicePlanModeValidatesProposalWithoutCreatingExecution(t *testing.T) 
 	if result.Outcome != MutationNoOp || result.ExecutionID != "" || result.Snapshot != nil {
 		t.Fatalf("result = %#v", result)
 	}
-	if len(result.NextActions) != 1 || result.NextActions[0].Tool != "prepare_plan_execution" {
+	if len(result.NextActions) != 1 || result.NextActions[0].Operation != "prepare_plan_execution" {
 		t.Fatalf("next actions = %#v", result.NextActions)
 	}
 }
@@ -1783,7 +1783,7 @@ func TestServiceAcceptedTerminalReviewCompletesExecutionAutomatically(t *testing
 		t.Fatalf("result=%#v calls=%#v", result, calls)
 	}
 	for _, action := range result.NextActions {
-		if action.Tool == "complete_execution" {
+		if action.Operation == "complete_execution" {
 			t.Fatalf("model-facing completion action leaked: %#v", result.NextActions)
 		}
 	}

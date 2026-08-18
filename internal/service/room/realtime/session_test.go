@@ -83,7 +83,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		_ *atomic.Int64,
 		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
-		lease, _ := runtimectx.MCPRoundLeaseFromContext(builderContext)
+		lease, _ := runtimectx.RuntimeRoundLeaseFromContext(builderContext)
 		calls <- builderCall{
 			agentID:            agentValue.AgentID,
 			sessionKey:         sessionKey,

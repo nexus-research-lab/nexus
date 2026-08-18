@@ -23,5 +23,7 @@ func NewRuntime(cfg config.Config) (*App, error) {
 		return applyOutputOptions(cfg, nil, *output)
 	}
 	root.AddCommand(newRuntimeAutomationCommand())
+	root.AddCommand(newRuntimeSemanticCommand("goal", "管理当前 round 的 durable Goal"))
+	root.AddCommand(newRuntimeSemanticCommand("execution", "管理当前 round 的 Execution 与 WorkGraph"))
 	return &App{command: root}, nil
 }

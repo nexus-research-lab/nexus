@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -243,7 +244,7 @@ func TestAutomationCommandCreateRunAndInspectDeliversToCurrentSession(t *testing
 		&fakeWorkspaceReader{},
 		router,
 	)
-	sctx := RuntimeCommandActor{
+	sctx := runtimecommand.Actor{
 		AgentID:            "agent-1",
 		AgentName:          "新闻智能体",
 		OwnerUserID:        "user-1",

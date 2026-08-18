@@ -175,6 +175,9 @@ func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
 		AgentID:       "agent-1",
 		Name:          "planner",
 		WorkspacePath: workspacePath,
+		Options: protocol.Options{
+			SkillIDs: []string{"goal-manager"},
+		},
 	})
 	if err != nil {
 		t.Fatalf("构建运行时提示词失败: %v", err)
@@ -182,11 +185,32 @@ func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
 
 	assertPromptContains(t, prompt, "Goal Skill 使用要求")
 	assertPromptContains(t, prompt, "goal-manager")
-	assertPromptContains(t, prompt, "mcp__nexus_goal__get_goal")
-	assertPromptContains(t, prompt, "mcp__nexus_goal__create_goal")
-	assertPromptContains(t, prompt, "mcp__nexus_goal__retarget_goal")
-	assertPromptContains(t, prompt, "mcp__nexus_goal__audit_objective_alignment")
-	assertPromptContains(t, prompt, "mcp__nexus_goal__update_goal")
+	assertPromptContains(t, prompt, `"${NEXUS_COMMAND_PATH}" --json goal contract|inspect|invoke`)
+	assertPromptContains(t, prompt, "operation 名不是独立工具")
+	assertPromptContains(t, prompt, "不使用 nexusctl、旧 Goal MCP")
+	assertPromptContains(t, prompt, "promote_execution_to_goal")
+}
+
+func TestServiceBuildRuntimePromptDirectsExecutionSkillToExactRuntimeCLI(t *testing.T) {
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID:   "nexus",
+		BaseSystemPrompt: "BASE CUSTOM PROMPT",
+	}, nil)
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
+		AgentID: "agent-1",
+		Name:    "planner",
+		Options: protocol.Options{
+			SkillIDs: []string{"execution-orchestrator"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("构建运行时提示词失败: %v", err)
+	}
+	assertPromptContains(t, prompt, "Execution Skill 使用要求")
+	assertPromptContains(t, prompt, "execution-orchestrator")
+	assertPromptContains(t, prompt, `"${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke`)
+	assertPromptContains(t, prompt, "allowed_actions` 中的名称是语义 operation，不是工具 schema")
+	assertPromptContains(t, prompt, "不使用 nexusctl、旧 Execution MCP")
 }
 
 func TestServiceBuildRuntimePromptOmitsDisabledGoalSkillGuidance(t *testing.T) {
@@ -217,6 +241,27 @@ func TestServiceBuildRuntimePromptOmitsDisabledGoalSkillGuidance(t *testing.T) {
 	}
 	if strings.Contains(prompt, "Goal Skill 使用要求") {
 		t.Fatalf("显式停用 goal-manager 后仍注入使用要求: %q", prompt)
+	}
+}
+
+func TestServiceBuildRuntimePromptOmitsDisabledExecutionSkillGuidance(t *testing.T) {
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID:   "nexus",
+		BaseSystemPrompt: "BASE CUSTOM PROMPT",
+	}, nil)
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
+		AgentID: "agent-1",
+		Name:    "planner",
+		Options: protocol.Options{
+			SkillIDs:         []string{"execution-orchestrator"},
+			DisabledSkillIDs: []string{"execution-orchestrator"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("构建运行时提示词失败: %v", err)
+	}
+	if strings.Contains(prompt, "Execution Skill 使用要求") {
+		t.Fatalf("显式停用 execution-orchestrator 后仍注入使用要求: %q", prompt)
 	}
 }
 

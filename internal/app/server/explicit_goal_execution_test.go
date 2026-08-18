@@ -1007,7 +1007,7 @@ func explicitGoalCreateRequest() protocol.CreateGoalRequest {
 		OwnerUserID: "owner-1",
 		AgentID:     "agent-1",
 		Metadata: map[string]any{
-			"created_via": "goal_tool",
+			"created_via": "goal_command",
 			protocol.GoalMetadataExecutionBindingState: "confirmed",
 		},
 	}

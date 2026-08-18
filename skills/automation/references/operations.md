@@ -9,14 +9,14 @@
 本文件与当前 CLI contract 不一致时，以 CLI 为准。
 只有 contract 返回 `cross_agent_allowed=true` 时才能使用跨 Agent/Session 高级输入。
 
-contract 同时返回宿主创建的 `input_staging.path`。用 Write 工具把单个 JSON 对象写到该精确路径，然后在 Bash 单行命令中使用 `--input-file "${NEXUS_AUTOMATION_INPUT_PATH}"`；Windows PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ... --input-file "${env:NEXUS_AUTOMATION_INPUT_PATH}"`。CLI 未显式传 `--input` / `--input-file` 时也默认读取这个槽。`--input` 与 `--input-file` 互斥，文件上限 1 MiB，`-` 只用于人工 stdin。不要用 `$(cat ...)`、heredoc、重定向或多行 shell 传 JSON。
+contract 同时返回宿主创建的 `input_staging.path`。用 Write 工具把单个 JSON 对象写到该精确路径，然后在 Bash 单行命令中使用 `--input-file "${NEXUS_COMMAND_INPUT_PATH}"`；Windows PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ... --input-file "${env:NEXUS_COMMAND_INPUT_PATH}"`。CLI 未显式传 `--input` / `--input-file` 时也默认读取这个槽。`--input` 与 `--input-file` 互斥，文件上限 1 MiB，`-` 只用于人工 stdin。不要用 `$(cat ...)`、heredoc、重定向或多行 shell 传 JSON。
 
 ## 查询
 
 统一形式：
 
 ```bash
-"${NEXUS_COMMAND_PATH}" --json automation inspect --operation OPERATION --input-file "${NEXUS_AUTOMATION_INPUT_PATH}"
+"${NEXUS_COMMAND_PATH}" --json automation inspect --operation OPERATION --input-file "${NEXUS_COMMAND_INPUT_PATH}"
 ```
 
 - `list`：`query`、`agent_id`、`include_active`、`include_deleted`、`enabled`、`limit`。

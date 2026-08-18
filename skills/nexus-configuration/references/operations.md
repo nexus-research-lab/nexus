@@ -27,7 +27,7 @@ target 不能扩大上述范围。普通 Agent 的 self operation 会由服务�
 | `rooms` | 管理 owner Room | 无 | 群主管理当前 Room；成员只读 | 安全变更立即；提示下一轮 |
 | `host` | 只读 | 无 | 无 | 外部变更并重启 |
 
-`automation` 使用内置 `automation` Skill 与 round-scoped `nexus automation` CLI，`workspaces` 使用 `nexus-manager` / `nexusctl`，`goals` 使用 `nexus_goal`。
+`automation` 使用内置 `automation` Skill 与 round-scoped `nexus automation` CLI，`workspaces` 使用 `nexus-manager` / `nexusctl`，`goals` 使用内置 `goal-manager` Skill 与 round-scoped `nexus goal` CLI，`executions` 使用内置 `execution-orchestrator` Skill 与 round-scoped `nexus execution` CLI。
 
 ## 确认、秘密与失败
 

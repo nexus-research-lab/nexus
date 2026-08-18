@@ -720,7 +720,7 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 		protocol.NexusCommandPathEnvName,
 		protocol.NexusCommandBrokerURLEnvName,
 		protocol.NexusCommandCapabilityTokenEnvName,
-		protocol.NexusAutomationInputPathEnvName,
+		protocol.NexusCommandInputPathEnvName,
 	} {
 		if value := strings.TrimSpace(options.Env[key]); value != "" {
 			t.Fatalf("Agent runtime 泄漏原始 CLI 环境 %s=%q: %+v", key, value, options.Env)
@@ -736,7 +736,7 @@ func TestBuildAgentClientOptionsExposesRoundScopedNexusRuntimeCLI(t *testing.T) 
 		RuntimeCommandEnv: map[string]string{
 			protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/automation",
 			protocol.NexusCommandCapabilityTokenEnvName: "automation-token",
-			protocol.NexusAutomationInputPathEnvName:    "/private/round/input.json",
+			protocol.NexusCommandInputPathEnvName:       "/private/round/input.json",
 		},
 	})
 	if err != nil {
@@ -744,11 +744,29 @@ func TestBuildAgentClientOptionsExposesRoundScopedNexusRuntimeCLI(t *testing.T) 
 	}
 	if options.Env[protocol.NexusCommandPathEnvName] != "/opt/nexus/bin/nexus" ||
 		options.Env[protocol.NexusCommandCapabilityTokenEnvName] != "automation-token" ||
-		options.Env[protocol.NexusAutomationInputPathEnvName] != "/private/round/input.json" {
+		options.Env[protocol.NexusCommandInputPathEnvName] != "/private/round/input.json" {
 		t.Fatalf("ordinary Agent did not receive round-scoped nexus CLI: %+v", options.Env)
 	}
 	if options.Env[nexusctlCommandPathEnvName] != "" || options.Env[nexusctlUserIDEnvName] != "" {
 		t.Fatalf("runtime nexus CLI leaked nexusctl owner authority: %+v", options.Env)
+	}
+	if !slices.Contains(options.AdditionalDirectories, "/private/round") {
+		t.Fatalf("runtime command input directory was not granted to this round: %+v", options.AdditionalDirectories)
+	}
+}
+
+func TestBuildAgentClientOptionsRejectsInvalidRuntimeCommandInputBoundary(t *testing.T) {
+	for _, inputPath := range []string{"", "relative/input.json", "/input.json"} {
+		_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+			RuntimeCommandEnv: map[string]string{
+				protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/command",
+				protocol.NexusCommandCapabilityTokenEnvName: "round-token",
+				protocol.NexusCommandInputPathEnvName:       inputPath,
+			},
+		})
+		if err == nil {
+			t.Fatalf("runtime command input path %q should fail closed", inputPath)
+		}
 	}
 }
 

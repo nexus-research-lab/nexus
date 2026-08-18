@@ -18,6 +18,7 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -76,6 +77,12 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
 		t.Fatalf("创建单成员 room 失败: %v", err)
+	}
+	if len(roomContext.MemberAgents) != 1 ||
+		!slices.Contains(roomContext.MemberAgents[0].Options.SkillIDs, "goal-manager") ||
+		!slices.Contains(roomContext.MemberAgents[0].Options.SkillIDs, "execution-orchestrator") ||
+		roomContext.MemberAgents[0].RuntimeVersion != memberAgent.RuntimeVersion {
+		t.Fatalf("Room member display projection lost runtime fields: %+v", roomContext.MemberAgents)
 	}
 
 	client := newFakeRoomClient()
@@ -164,6 +171,35 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	}
 	if !options.IncludePartialMessages {
 		t.Fatalf("room runtime 未开启 partial messages: %+v", options)
+	}
+	for _, managedSkill := range []string{"goal-manager", "execution-orchestrator"} {
+		if slices.Contains(options.Skills.DisabledNames, managedSkill) {
+			t.Fatalf("Room runtime incorrectly disabled selected managed Skill %q: %+v", managedSkill, options.Skills)
+		}
+		decision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+			ToolName: "Skill",
+			Input:    map[string]any{"name": managedSkill},
+		})
+		if decisionErr != nil || decision.Behavior != sdkpermission.BehaviorAllow {
+			t.Fatalf("Room runtime did not auto-approve managed Skill %q: decision=%+v err=%v", managedSkill, decision, decisionErr)
+		}
+	}
+	executionCommandDecision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`},
+	})
+	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Room runtime did not auto-approve exact Execution CLI: decision=%+v err=%v", executionCommandDecision, decisionErr)
+	}
+	for _, expected := range []string{
+		"## Goal Skill 使用要求",
+		`"${NEXUS_COMMAND_PATH}" --json goal contract|inspect|invoke`,
+		"## Execution Skill 使用要求",
+		`"${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke`,
+	} {
+		if !strings.Contains(options.System.Append, expected) {
+			t.Fatalf("Room runtime prompt missing managed CLI binding %q: %s", expected, options.System.Append)
+		}
 	}
 }
 
@@ -618,14 +654,14 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_goal__update_goal",
-		Input:    map[string]any{"status": "complete"},
+		ToolName: "Bash",
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id room-goal-complete-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`},
 	})
 	if err != nil {
 		t.Fatalf("执行 room Goal 权限处理器失败: %v", err)
 	}
 	if goalDecision.Behavior != sdkpermission.BehaviorAllow || len(handledTools) != 0 {
-		t.Fatalf("room Goal 权限应自动放行且不进入请求级 handler: decision=%+v tools=%+v", goalDecision, handledTools)
+		t.Fatalf("room Goal command 应自动放行且不进入请求级 handler: decision=%+v tools=%+v", goalDecision, handledTools)
 	}
 	decision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "Write"})
 	if err != nil {

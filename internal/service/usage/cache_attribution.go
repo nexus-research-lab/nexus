@@ -13,10 +13,6 @@ const (
 	ScopeUnknown = "unknown"
 	ScopeNone    = "none"
 	ScopeBound   = "bound"
-
-	ToolSurfaceUnknown = "unknown"
-	ToolSurfaceAbsent  = "absent"
-	ToolSurfacePresent = "present"
 )
 
 var responsibilityLanes = map[string]struct{}{
@@ -38,8 +34,6 @@ type CacheAttribution struct {
 	RuntimeKind             string
 	ProviderFingerprint     string
 	ModelFingerprint        string
-	GoalToolSurface         string
-	ExecutionToolSurface    string
 	HostToolSurfaceComplete bool
 	ToolPolicyFingerprint   string
 	MCPServersFingerprint   string
@@ -53,15 +47,8 @@ func BoundScope(bound bool) string {
 	return ScopeNone
 }
 
-func ToolSurface(present bool) string {
-	if present {
-		return ToolSurfacePresent
-	}
-	return ToolSurfaceAbsent
-}
-
 // RuntimeCacheAttribution 把 Manager 已成功采用的 runtime surface 与调用点
-// 同时读取的 responsibility snapshot 合并。observed=false 时工具面保持 unknown。
+// 同时读取的 responsibility snapshot 合并。
 func RuntimeCacheAttribution(
 	profile runtimectx.CacheSurfaceInput,
 	observed bool,
@@ -70,12 +57,10 @@ func RuntimeCacheAttribution(
 	responsibilityLane string,
 ) CacheAttribution {
 	result := CacheAttribution{
-		GoalScope:            BoundScope(goalBound),
-		ExecutionScope:       BoundScope(executionBound),
-		ResponsibilityLane:   responsibilityLane,
-		RuntimeKind:          ScopeUnknown,
-		GoalToolSurface:      ToolSurfaceUnknown,
-		ExecutionToolSurface: ToolSurfaceUnknown,
+		GoalScope:          BoundScope(goalBound),
+		ExecutionScope:     BoundScope(executionBound),
+		ResponsibilityLane: responsibilityLane,
+		RuntimeKind:        ScopeUnknown,
 	}
 	if !observed {
 		return normalizeCacheAttribution(result)
@@ -83,10 +68,6 @@ func RuntimeCacheAttribution(
 	result.RuntimeKind = profile.RuntimeKind
 	result.ProviderFingerprint = profile.ProviderFingerprint
 	result.ModelFingerprint = profile.ModelFingerprint
-	if profile.ManagedToolPresenceKnown {
-		result.GoalToolSurface = ToolSurface(profile.GoalToolSurfacePresent)
-		result.ExecutionToolSurface = ToolSurface(profile.ExecutionToolSurfacePresent)
-	}
 	result.HostToolSurfaceComplete = profile.HostToolSurfaceComplete
 	result.ToolPolicyFingerprint = profile.ToolPolicyFingerprint
 	result.MCPServersFingerprint = profile.MCPServersFingerprint
@@ -102,8 +83,6 @@ func normalizeCacheAttribution(input CacheAttribution) CacheAttribution {
 		RuntimeKind:             normalizeEnum(input.RuntimeKind, ScopeUnknown, "nxs", "claude"),
 		ProviderFingerprint:     normalizeFingerprint(input.ProviderFingerprint),
 		ModelFingerprint:        normalizeFingerprint(input.ModelFingerprint),
-		GoalToolSurface:         normalizeEnum(input.GoalToolSurface, ToolSurfaceUnknown, ToolSurfaceAbsent, ToolSurfacePresent),
-		ExecutionToolSurface:    normalizeEnum(input.ExecutionToolSurface, ToolSurfaceUnknown, ToolSurfaceAbsent, ToolSurfacePresent),
 		HostToolSurfaceComplete: input.HostToolSurfaceComplete,
 		ToolPolicyFingerprint:   normalizeFingerprint(input.ToolPolicyFingerprint),
 		MCPServersFingerprint:   normalizeFingerprint(input.MCPServersFingerprint),

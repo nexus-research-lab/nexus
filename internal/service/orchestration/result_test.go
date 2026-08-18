@@ -18,7 +18,7 @@ func TestMutationResultUsesSnapshotRevisionAndStableReasonCode(t *testing.T) {
 			Message: "accept W1 first",
 		},
 		[]NextAction{{
-			Tool:       "review_work",
+			Domain: "execution", Operation: "review_work",
 			LogicalKey: "W1",
 			Reason:     "upstream submission is pending review",
 		}},
@@ -28,7 +28,7 @@ func TestMutationResultUsesSnapshotRevisionAndStableReasonCode(t *testing.T) {
 		result.ExecutionID != "execution-1" ||
 		result.SnapshotRevision != 9 ||
 		len(result.NextActions) != 1 ||
-		result.NextActions[0].Tool != "review_work" {
+		result.NextActions[0].Operation != "review_work" {
 		t.Fatalf("unexpected mutation result: %+v", result)
 	}
 }
@@ -38,16 +38,16 @@ func TestAppliedResultDeduplicatesChangedIDsWithoutReorderingNextActions(t *test
 		nil,
 		[]string{"work-2", "work-1", "work-2", ""},
 		[]NextAction{
-			{Tool: "submit_work", WorkItemID: "work-2", Reason: "finish assigned work"},
-			{Tool: "review_work", WorkItemID: "work-1", Reason: "review upstream first"},
+			{Domain: "execution", Operation: "submit_work", WorkItemID: "work-2", Reason: "finish assigned work"},
+			{Domain: "execution", Operation: "review_work", WorkItemID: "work-1", Reason: "review upstream first"},
 		},
 	)
 	if len(result.Changed) != 2 || result.Changed[0] != "work-1" || result.Changed[1] != "work-2" {
 		t.Fatalf("changed IDs should be deterministic: %+v", result.Changed)
 	}
 	if len(result.NextActions) != 2 ||
-		result.NextActions[0].Tool != "submit_work" ||
-		result.NextActions[1].Tool != "review_work" {
+		result.NextActions[0].Operation != "submit_work" ||
+		result.NextActions[1].Operation != "review_work" {
 		t.Fatalf("next actions must keep service priority: %+v", result.NextActions)
 	}
 }

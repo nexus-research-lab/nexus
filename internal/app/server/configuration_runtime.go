@@ -52,7 +52,7 @@ func newConfigurationRuntimeEnvironmentBuilder(
 		}
 		agentID := strings.TrimSpace(agentValue.AgentID)
 		contextKind, _, surfaceOK := runtimeMCPSurfaceContext(agentID, sessionKey)
-		lease, hasLease := runtimectx.MCPRoundLeaseFromContext(ctx)
+		lease, hasLease := runtimectx.RuntimeRoundLeaseFromContext(ctx)
 		if agentID == "" || !surfaceOK || !hasLease {
 			return nil, nil
 		}

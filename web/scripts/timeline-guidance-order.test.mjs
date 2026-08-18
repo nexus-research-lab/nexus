@@ -3005,16 +3005,9 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   const tool = {
     type: "tool_use",
     id: "tool-plan-rejected",
-    name: "mcp__nexus_execution__prepare_plan_execution",
+    name: "Bash",
     input: {
-      plan_document: [
-        "nexus_plan: 1",
-        "operation: create",
-        "objective: 产出 LPL 本周看点简报",
-        "completion_criteria:",
-        "  - 简报可供发布",
-        "items: []",
-      ].join("\n"),
+      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation prepare_plan_execution --request-id plan-rejected-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"',
     },
   };
   const result = {
@@ -3022,13 +3015,19 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     tool_use_id: tool.id,
     is_error: false,
     content: JSON.stringify({
-      message: "Plan Document items must contain at least one complete Work Item",
-      next_actions: [{
-        reason: "submit one complete Nexus Plan Document with every intended Work Item",
-        tool: "prepare_plan_execution",
-      }],
-      outcome: "rejected",
-      reason_code: "plan_items_empty",
+      domain: "execution",
+      action: "invoke",
+      operation: "prepare_plan_execution",
+      result: { data: {
+        message: "Plan Document items must contain at least one complete Work Item",
+        next_actions: [{
+          domain: "execution",
+          operation: "prepare_plan_execution",
+          reason: "submit one complete Nexus Plan Document with every intended Work Item",
+        }],
+        outcome: "rejected",
+        reason_code: "plan_items_empty",
+      } },
     }),
   };
   const projection = {
@@ -3133,10 +3132,9 @@ test("superseded WorkGraph result is muted and does not count as failure", async
   const tool = {
     type: "tool_use",
     id: "tool-submit-superseded",
-    name: "mcp__nexus_execution__submit_work",
+    name: "Bash",
     input: {
-      execution_id: "execution-old",
-      result_summary: "late predecessor result",
+      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id submit-superseded-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"',
     },
   };
   const result = {
@@ -3144,9 +3142,14 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     tool_use_id: tool.id,
     is_error: false,
     content: JSON.stringify({
-      message: "旧工作已被新目标替换；请停止当前轮次并等待新指派",
-      outcome: "superseded",
-      reason_code: "execution_terminal",
+      domain: "execution",
+      action: "invoke",
+      operation: "submit_work",
+      result: { data: {
+        message: "旧工作已被新目标替换；请停止当前轮次并等待新指派",
+        outcome: "superseded",
+        reason_code: "execution_terminal",
+      } },
     }),
   };
   const projection = {

@@ -1,6 +1,6 @@
 // INPUT: 领域 command 的应用结果、拒绝原因与最新 snapshot。
-// OUTPUT: 所有 execution MCP mutation 共用的可恢复结果 envelope 与仅进程内使用的 confirmed Goal authority receipt。
-// POS: 服务状态机到模型工具结果的稳定语义边界。
+// OUTPUT: 所有 Execution command mutation 共用的可恢复结果 envelope 与仅进程内使用的 confirmed Goal authority receipt。
+// POS: 服务状态机到 runtime command 结果的稳定语义边界。
 package orchestration
 
 import (
@@ -23,7 +23,8 @@ const (
 
 // NextAction 是基于最新 snapshot 的有序、非授权性恢复建议。
 type NextAction struct {
-	Tool       string `json:"tool"`
+	Domain     string `json:"domain"`
+	Operation  string `json:"operation"`
 	WorkItemID string `json:"work_item_id,omitempty"`
 	LogicalKey string `json:"logical_key,omitempty"`
 	Reason     string `json:"reason"`
@@ -63,7 +64,7 @@ const (
 )
 
 // MutationResult 是 service 内部的统一 mutation 结果。Snapshot 支持同进程协调
-// 与非模型消费者；MCP adapter 必须只投影紧凑字段，不能把它与
+// 与非模型消费者；command adapter 必须只投影紧凑字段，不能把它与
 // ExecutionContext 重复发送给模型。
 type MutationResult struct {
 	Outcome                 MutationOutcome                 `json:"outcome"`
@@ -206,11 +207,12 @@ func normalizeResultStrings(values []string) []string {
 func normalizeNextActions(actions []NextAction) []NextAction {
 	result := make([]NextAction, 0, len(actions))
 	for _, action := range actions {
-		action.Tool = strings.TrimSpace(action.Tool)
+		action.Domain = strings.TrimSpace(action.Domain)
+		action.Operation = strings.TrimSpace(action.Operation)
 		action.WorkItemID = strings.TrimSpace(action.WorkItemID)
 		action.LogicalKey = strings.TrimSpace(action.LogicalKey)
 		action.Reason = strings.TrimSpace(action.Reason)
-		if action.Tool == "" || action.Reason == "" {
+		if action.Domain == "" || action.Operation == "" || action.Reason == "" {
 			continue
 		}
 		result = append(result, action)

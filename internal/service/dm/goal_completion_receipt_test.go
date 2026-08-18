@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -71,53 +72,54 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 }
 
 func TestRoundRunnerDoesNotTreatBlockedGoalUpdateAsCompleted(t *testing.T) {
+	receipts := runtimecommand.NewReceiptState()
 	runner := &roundRunner{
-		service:        &Service{goals: &fakeGoalContextProvider{}},
-		goalIDForUsage: "goal-1",
+		service:         &Service{goals: &fakeGoalContextProvider{}},
+		goalIDForUsage:  "goal-1",
+		commandReceipts: receipts,
 	}
-	runner.recordGoalUsageFromAssistantMessage(goalUpdateResultMessage(protocol.GoalStatusBlocked))
+	receipts.Record(runtimecommand.Receipt{
+		Domain: runtimecommand.DomainGoal, Operation: runtimecommand.GoalOperationUpdate,
+		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
+		GoalStatus: string(protocol.GoalStatusBlocked),
+	})
+	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusBlocked))
 	if runner.goalCompletionCandidateID != "" {
 		t.Fatalf("blocked update created completion candidate %q", runner.goalCompletionCandidateID)
 	}
-	runner.recordGoalUsageFromAssistantMessage(goalUpdateResultMessage(protocol.GoalStatusComplete))
+	receipts.Record(runtimecommand.Receipt{
+		Domain: runtimecommand.DomainGoal, Operation: runtimecommand.GoalOperationUpdate,
+		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
+		GoalStatus: string(protocol.GoalStatusComplete),
+	})
+	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
 	if runner.goalCompletionCandidateID != "goal-1" {
 		t.Fatalf("complete update candidate = %q, want goal-1", runner.goalCompletionCandidateID)
 	}
 }
 
-func TestRoundRunnerUsesGoalIDReturnedByCompletionTool(t *testing.T) {
+func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
+	receipts := runtimecommand.NewReceiptState()
 	runner := &roundRunner{
-		service: &Service{goals: &fakeGoalContextProvider{}},
+		service:         &Service{goals: &fakeGoalContextProvider{}},
+		commandReceipts: receipts,
 	}
-	runner.recordGoalUsageFromAssistantMessage(goalUpdateResultMessageWithID(
-		protocol.GoalStatusComplete,
-		"goal-from-result",
-	))
-	if runner.goalCompletionCandidateID != "goal-from-result" {
-		t.Fatalf("complete update candidate = %q, want exact result Goal ID", runner.goalCompletionCandidateID)
+	receipts.Record(runtimecommand.Receipt{
+		Domain: runtimecommand.DomainGoal, Operation: runtimecommand.GoalOperationUpdate,
+		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-from-receipt",
+		GoalStatus: string(protocol.GoalStatusComplete),
+	})
+	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
+	if runner.goalCompletionCandidateID != "goal-from-receipt" {
+		t.Fatalf("complete update candidate = %q, want exact receipt Goal ID", runner.goalCompletionCandidateID)
 	}
 }
 
-func goalUpdateResultMessage(status protocol.GoalStatus) protocol.Message {
-	return goalUpdateResultMessageWithID(status, "")
-}
-
-func goalUpdateResultMessageWithID(status protocol.GoalStatus, goalID string) protocol.Message {
-	identity := ""
-	if goalID != "" {
-		identity = `,"goalId":"` + goalID + `"`
-	}
+func goalCommandAssistantMessage(status protocol.GoalStatus) protocol.Message {
 	return protocol.Message{
 		"message_id": "assistant-update-" + string(status),
 		"role":       "assistant",
-		"content": []map[string]any{
-			{"type": "tool_use", "id": "tool-1", "name": "update_goal"},
-			{
-				"type":        "tool_result",
-				"tool_use_id": "tool-1",
-				"content":     `{"goal":{"status":"` + string(status) + `"}` + identity + `}`,
-			},
-		},
+		"content":    []map[string]any{{"type": "text", "text": "Goal command completed"}},
 	}
 }
 

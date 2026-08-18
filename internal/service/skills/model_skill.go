@@ -1,12 +1,14 @@
 // INPUT: Skill frontmatter、来源元数据与目标 Agent 的目录状态。
-// OUTPUT: 列表/详情模型以及绑定 runtime_version 的 AgentSkillState。
-// POS: Skills 服务跨目录、HTTP 与配置控制面共享的协议模型。
+// OUTPUT: 共享系统 Skill 目录、列表/详情模型及绑定 runtime_version 的 AgentSkillState。
+// POS: Skills 服务跨目录、HTTP、配置控制面与 runtimecommand 绑定的协议模型。
 package skills
 
 import (
 	"context"
 	_ "embed"
 	"sync"
+
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 const (
@@ -42,7 +44,7 @@ const (
 )
 
 var (
-	systemSkillNames   = map[string]struct{}{"imagegen": {}, "visualize": {}, "automation": {}, "goal-manager": {}, "nexus-configuration": {}}
+	systemSkillNames   = buildSystemSkillNames()
 	internalSkillNames = map[string]struct{}{
 		"nexus-manager": {},
 	}
@@ -50,6 +52,19 @@ var (
 	curatedEntriesData map[string]map[string]string
 	curatedEntriesErr  error
 )
+
+func buildSystemSkillNames() map[string]struct{} {
+	result := map[string]struct{}{
+		"imagegen":            {},
+		"visualize":           {},
+		"automation":          {},
+		"nexus-configuration": {},
+	}
+	for _, skillName := range runtimecommand.ManagedSemanticSkillNames() {
+		result[skillName] = struct{}{}
+	}
+	return result
+}
 
 // 中文注释：catalog 元数据直接编进二进制，避免运行时容器再依赖源码目录。
 //

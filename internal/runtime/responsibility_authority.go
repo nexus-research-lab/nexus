@@ -1,6 +1,6 @@
 // INPUT: 宿主签发的 Goal/Execution identity、Work/Review binding 与可信 mutation receipt。
 // OUTPUT: 同一物理 round 内 Goal、Execution、Work、Review responsibility 的单一并发安全 authority snapshot。
-// POS: runtime identity 边界；已构造的 Goal/Execution MCP、runtime graph 与 hooks 只读此状态，模型输入不能直接推进。
+// POS: runtime identity 边界；Goal/Execution command、runtime graph 与 hooks 只读此状态，模型输入不能直接推进。
 package runtime
 
 import (
@@ -124,7 +124,7 @@ func (s *ResponsibilityAuthorityState) GoalAuthorityState() *GoalAuthorityState 
 }
 
 // LoadGoalAuthority 从统一 snapshot 读取 Goal mutation fence；统一状态存在时，
-// Goal MCP 与 Execution MCP 都不再分别读取 GoalAuthorityState 造成撕裂。
+// Goal command 与 Execution command 不再分别读取 GoalAuthorityState 造成撕裂。
 func (s *ResponsibilityAuthorityState) LoadGoalAuthority() (GoalAuthority, bool) {
 	if s == nil {
 		return GoalAuthority{}, false
@@ -189,7 +189,7 @@ func (s *ResponsibilityAuthorityState) GrantGoalAuthority(
 }
 
 // ClearGoalAuthority 撤销整条 round authority；旧 Execution/Work/Review 不能在
-// Goal usage 已清理后继续通过已构造的 MCP server 生效。
+// Goal usage 已清理后继续通过已构造的 command context 生效。
 func (s *ResponsibilityAuthorityState) ClearGoalAuthority() {
 	if s == nil {
 		return
@@ -506,7 +506,7 @@ func cloneRuntimeReviewBinding(binding *protocol.ExecutionReviewBinding) *protoc
 
 type responsibilityAuthorityContextKey struct{}
 
-// WithResponsibilityAuthorityState 把当前 round 的统一 capability 交给组合 MCP builder。
+// WithResponsibilityAuthorityState 把当前 round 的统一 capability 交给 command broker 与运行图消费者。
 func WithResponsibilityAuthorityState(
 	ctx context.Context,
 	state *ResponsibilityAuthorityState,

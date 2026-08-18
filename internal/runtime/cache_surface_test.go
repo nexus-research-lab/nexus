@@ -13,6 +13,8 @@ type cacheSurfaceMCPServer struct {
 	description string
 }
 
+const cacheSurfaceNexusServerName = "nexus_visualize"
+
 type cacheSurfacePanicServer struct{}
 
 func (cacheSurfacePanicServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
@@ -42,7 +44,7 @@ func (s cacheSurfaceMCPServer) HandleMessage(
 	return map[string]any{
 		"result": map[string]any{
 			"tools": []map[string]any{{
-				"name":        "update_goal",
+				"name":        "show_widget",
 				"description": s.description,
 				"inputSchema": map[string]any{"type": "object"},
 			}},
@@ -60,8 +62,8 @@ func TestCacheSurfaceFingerprintsModelVisibleSDKToolSchema(t *testing.T) {
 			"NEXUS_CONFIG_DIR":     t.TempDir(),
 		},
 		MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-			managedGoalMCPServerName: sdkmcp.SDKServerConfig{
-				Name:     managedGoalMCPServerName,
+			cacheSurfaceNexusServerName: sdkmcp.SDKServerConfig{
+				Name:     cacheSurfaceNexusServerName,
 				Instance: cacheSurfaceMCPServer{description: "first private schema text"},
 			},
 		}},
@@ -80,9 +82,6 @@ func TestCacheSurfaceFingerprintsModelVisibleSDKToolSchema(t *testing.T) {
 	if exportedFingerprint != first.ToolSurfaceFingerprint {
 		t.Fatalf("导出工具面指纹 = %q, want %q", exportedFingerprint, first.ToolSurfaceFingerprint)
 	}
-	if !first.GoalToolSurfacePresent || first.ExecutionToolSurfacePresent {
-		t.Fatalf("tool presence = goal:%v execution:%v", first.GoalToolSurfacePresent, first.ExecutionToolSurfacePresent)
-	}
 	if !first.HostToolSurfaceComplete {
 		t.Fatal("Nexus SDK-only tool surface should be complete")
 	}
@@ -99,8 +98,8 @@ func TestCacheSurfaceFingerprintsModelVisibleSDKToolSchema(t *testing.T) {
 		}
 	}
 
-	options.MCP.Servers[managedGoalMCPServerName] = sdkmcp.SDKServerConfig{
-		Name:     managedGoalMCPServerName,
+	options.MCP.Servers[cacheSurfaceNexusServerName] = sdkmcp.SDKServerConfig{
+		Name:     cacheSurfaceNexusServerName,
 		Instance: cacheSurfaceMCPServer{description: "changed private schema text"},
 	}
 	second, err := cacheSurfaceProfileFromOptions(context.Background(), options)
@@ -113,8 +112,8 @@ func TestCacheSurfaceFingerprintsModelVisibleSDKToolSchema(t *testing.T) {
 	if first.ToolSurfaceFingerprint == second.ToolSurfaceFingerprint {
 		t.Fatal("model-visible SDK schema change must alter tool surface fingerprint")
 	}
-	options.MCP.Servers[managedGoalMCPServerName] = sdkmcp.SDKServerConfig{
-		Name:     managedGoalMCPServerName,
+	options.MCP.Servers[cacheSurfaceNexusServerName] = sdkmcp.SDKServerConfig{
+		Name:     cacheSurfaceNexusServerName,
 		Instance: cacheSurfaceMCPServer{description: "changed private schema text"},
 	}
 	options.Tools.Available = []string{"Read"}
@@ -167,14 +166,11 @@ func TestCacheSurfaceMarksUninspectableExternalMCPIncomplete(t *testing.T) {
 		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
 		Env:     map[string]string{"NEXUS_CONFIG_DIR": t.TempDir()},
 		MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-			managedExecutionMCPServerName: sdkmcp.HTTPServerConfig{URL: "https://example.invalid/mcp"},
+			"search": sdkmcp.HTTPServerConfig{URL: "https://example.invalid/mcp"},
 		}},
 	})
 	if err != nil {
 		t.Fatalf("cacheSurfaceProfileFromOptions() error = %v", err)
-	}
-	if !profile.ExecutionToolSurfacePresent {
-		t.Fatal("execution server presence should be host-observable")
 	}
 	if profile.HostToolSurfaceComplete {
 		t.Fatal("external MCP schema cannot be claimed complete before connection")
@@ -196,8 +192,8 @@ func TestCacheSurfaceInspectionFailureIsContained(t *testing.T) {
 				Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
 				Env:     map[string]string{"NEXUS_CONFIG_DIR": t.TempDir()},
 				MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-					managedGoalMCPServerName: sdkmcp.SDKServerConfig{
-						Name: managedGoalMCPServerName, Instance: server,
+					cacheSurfaceNexusServerName: sdkmcp.SDKServerConfig{
+						Name: cacheSurfaceNexusServerName, Instance: server,
 					},
 				}},
 			}
@@ -208,7 +204,7 @@ func TestCacheSurfaceInspectionFailureIsContained(t *testing.T) {
 			if profile.HostToolSurfaceComplete {
 				t.Fatalf("inspection %s must mark surface incomplete", name)
 			}
-			if !profile.GoalToolSurfacePresent || profile.ToolSurfaceFingerprint == "" {
+			if profile.ToolSurfaceFingerprint == "" {
 				t.Fatalf("partial profile = %+v", profile)
 			}
 			if _, complete, fingerprintErr := ModelToolSurfaceFingerprint(context.Background(), options); fingerprintErr != nil || complete {
@@ -235,8 +231,8 @@ func TestManagerCacheSurfaceTracksSuccessfulConfiguration(t *testing.T) {
 		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
 		Env:     map[string]string{"NEXUS_CONFIG_DIR": t.TempDir()},
 		MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-			managedGoalMCPServerName: sdkmcp.SDKServerConfig{
-				Name:     managedGoalMCPServerName,
+			cacheSurfaceNexusServerName: sdkmcp.SDKServerConfig{
+				Name:     cacheSurfaceNexusServerName,
 				Instance: cacheSurfaceMCPServer{description: "goal"},
 			},
 		}},
@@ -245,7 +241,7 @@ func TestManagerCacheSurfaceTracksSuccessfulConfiguration(t *testing.T) {
 		t.Fatalf("GetOrCreate() error = %v", err)
 	}
 	profile, ok := manager.CacheSurface(sessionKey)
-	if !ok || !profile.GoalToolSurfacePresent || profile.ToolSurfaceFingerprint == "" {
+	if !ok || profile.ToolSurfaceFingerprint == "" {
 		t.Fatalf("CacheSurface() = %+v, ok=%v", profile, ok)
 	}
 }

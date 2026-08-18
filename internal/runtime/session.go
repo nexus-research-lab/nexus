@@ -560,7 +560,6 @@ func runtimeOwnerMismatch(existing string, requested string) bool {
 func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
 	return IsRuntimeTransportClosedError(err) ||
 		errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed) ||
-		errors.Is(err, errManagedGoalMCPServerSetChanged) ||
 		errors.Is(err, agentclient.ErrRestartRequired)
 }
 

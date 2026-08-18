@@ -76,9 +76,9 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 所有 Agent 通过内置 `automation` Skill 调用宿主签发的 `NEXUS_COMMAND_PATH`。`nexus automation` 只连接 loopback broker，不打开数据库；同一 runtime session 复用不可猜测 token，broker 每次只解析仍在运行且唯一的 physical round。CLI 参数不能声明或覆盖 owner、Agent、Room、Session、source、DeliveryGrant、当前 job/run 或 capability。
 
-每个 round 还由宿主在 owner 私有 `runtime/tmp/automation-inputs/` 下创建一个按 capability+round 隔离、权限为 `0600` 的 JSON 输入槽，通过 `NEXUS_AUTOMATION_INPUT_PATH` 和 contract 输出交给 runtime。CLI 默认读取该槽，`--input-file` 在受管 runtime 中只能引用这条宿主路径；读取拒绝符号链接、硬链接、非普通文件、Unix group/other 权限和超过 1 MiB 的内容。槽位随 physical round context 清理，进程异常遗留项由后续 round 按 capability TTL 回收；它不进入数据库，不成为任务定义、运行历史或 UI 详情真相源。
+每个 round 还由宿主在 owner 私有 `runtime/tmp/runtime-command-inputs/` 下创建一个按 capability+round 隔离、权限为 `0600` 的通用 JSON 输入槽，通过 `NEXUS_COMMAND_INPUT_PATH` 和 contract 输出交给 runtime。Goal、Execution 与 Automation CLI 共用这条输入生命周期边界；`--input-file` 在受管 runtime 中只能引用宿主签发的精确路径。读取拒绝符号链接、硬链接、非普通文件、Unix group/other 权限和超过 1 MiB 的内容。槽位随 physical round context 清理，进程异常遗留项由后续 round 按 capability TTL 回收；它不进入数据库，不成为任务定义、运行历史或 UI 详情真相源。
 
-shell 自动审批只接受单进程、单行、固定 flag 语法：Bash 必须以精确 `"${NEXUS_COMMAND_PATH}" --json automation ...` 开头，Windows PowerShell 必须以精确 `& "${env:NEXUS_COMMAND_PATH}" --json automation ...` 开头；受管文件参数也只能使用各自 shell 的精确 `NEXUS_AUTOMATION_INPUT_PATH` 变量。裸 `nexus`、同名工作区程序、路径伪装、环境覆盖、命令替换、其他变量展开、管道、重定向、命令串、quoted/unquoted 拼接和多行命令都不进入自动审批。后台 run 只在同一解析器确认 action 为 `contract|inspect` 后绕过任意 shell allowlist。
+shell 自动审批只接受单进程、单行、固定 flag 语法：Bash 必须以精确 `"${NEXUS_COMMAND_PATH}" --json automation ...` 开头，Windows PowerShell 必须以精确 `& "${env:NEXUS_COMMAND_PATH}" --json automation ...` 开头；受管文件参数也只能使用各自 shell 的精确 `NEXUS_COMMAND_INPUT_PATH` 变量。裸 `nexus`、同名工作区程序、路径伪装、环境覆盖、命令替换、其他变量展开、管道、重定向、命令串、quoted/unquoted 拼接和多行命令都不进入自动审批。后台 run 只在同一解析器确认 action 为 `contract|inspect` 后绕过任意 shell allowlist。
 
 查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。确认载荷必须投影规范化变更字段，不能只显示泛化标题。真正写入继续使用 plan 观察到的 configuration version；`cancel_active_run` 还把 plan 观察到的 run_id 放进同一条件更新，过期确认必须在任何配置字段落库前失败。模型提供的 `--confirm`、聊天正文同意或通用 Bash allow 都不能替代这次领域确认。
 

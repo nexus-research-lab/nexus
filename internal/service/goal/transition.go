@@ -128,7 +128,7 @@ func (s *Service) persistTransitionWithOptions(
 	item.Status = status
 	if resetSuppressionForActiveTransition(source, status) {
 		item.EmptyProgressCount = 0
-		item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
+		item.Metadata = clearContinuationReservations(clearCompletionCommandRetryMetadata(item.Metadata))
 	}
 	item.Version++
 	item.UpdatedAt = now

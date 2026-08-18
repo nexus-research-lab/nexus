@@ -193,15 +193,29 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	if goalSkillDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("Goal Skill 应自动放行: %+v", goalSkillDecision)
 	}
-	goalToolDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_goal__update_goal",
-		Input:    map[string]any{"status": "complete"},
+	executionSkillDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Skill",
+		Input:    map[string]any{"name": "execution-orchestrator"},
+	})
+	if err != nil || executionSkillDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Execution Skill 应自动放行: decision=%+v err=%v", executionSkillDecision, err)
+	}
+	goalCommandDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id goal-complete-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`},
 	})
 	if err != nil {
-		t.Fatalf("Goal 工具权限处理失败: %v", err)
+		t.Fatalf("Goal command 权限处理失败: %v", err)
 	}
-	if goalToolDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("Goal 工具应自动放行: %+v", goalToolDecision)
+	if goalCommandDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Goal command 应自动放行: %+v", goalCommandDecision)
+	}
+	executionCommandDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution invoke --operation get_execution --request-id execution-read-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`},
+	})
+	if err != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Execution command 应自动放行: decision=%+v err=%v", executionCommandDecision, err)
 	}
 	titleRequest := titleScheduler.LastRequest()
 	if titleRequest.Provider != "glm" || titleRequest.Model != "glm-5.1" {

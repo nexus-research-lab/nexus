@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -26,7 +27,7 @@ type automationCommandFixture struct {
 	DM            *fakeDMRunner
 	Router        *channels.Router
 	Service       *Service
-	ServerContext RuntimeCommandActor
+	ServerContext runtimecommand.Actor
 }
 
 type allowAutomationDeliveryGrant struct{}
@@ -80,7 +81,7 @@ func newAutomationCommandFixture(t *testing.T, resultText string) automationComm
 		DM:            dm,
 		Router:        router,
 		Service:       service,
-		ServerContext: RuntimeCommandActor{
+		ServerContext: runtimecommand.Actor{
 			AgentID:            "agent-1",
 			AgentName:          "新闻智能体",
 			OwnerUserID:        "user-1",
@@ -93,6 +94,9 @@ func newAutomationCommandFixture(t *testing.T, resultText string) automationComm
 			RoundID:            "round-test",
 			LeaseSessionKey:    currentSessionKey,
 			LeaseRoundID:       "round-test",
+			Round: runtimecommand.RoundContext{
+				Receipts: runtimecommand.NewReceiptState(),
+			},
 		},
 	}
 }
@@ -127,7 +131,7 @@ func prepareAutomationDeliverySession(
 func callAutomationCommand(
 	t *testing.T,
 	service *Service,
-	sctx RuntimeCommandActor,
+	sctx runtimecommand.Actor,
 	name string,
 	args map[string]any,
 ) (map[string]any, bool) {
@@ -140,6 +144,12 @@ func callAutomationCommand(
 	}
 	if strings.TrimSpace(sctx.RoundID) == "" {
 		sctx.RoundID = sctx.LeaseRoundID
+	}
+	if strings.TrimSpace(sctx.SessionKey) == "" {
+		sctx.SessionKey = sctx.LeaseSessionKey
+	}
+	if sctx.Round.Receipts == nil {
+		sctx.Round.Receipts = runtimecommand.NewReceiptState()
 	}
 	name, args = automationCommandTestRoute(name, args)
 	if !sctx.CrossAgentAllowed() {
