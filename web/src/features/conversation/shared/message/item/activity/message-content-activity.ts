@@ -1,11 +1,14 @@
+/**
+ * INPUT: 已投影的结构化内容、工具完成态与消息级活动 fallback。
+ * OUTPUT: 仅在没有可见叶子块持有运行状态时返回消息级尾随活动。
+ * POS: ContentRenderer 的状态所有权边界；ToolBlock 自己展示状态时不得再叠加 Agent 活动。
+ */
 import type {
   ContentBlock,
   TaskProgressContent,
   ToolUseContent,
 } from "@/types/conversation/message/content";
-import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
-import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
 import {
   type MessageActivityState,
   resolveToolActivityState,
@@ -16,7 +19,6 @@ import { isRecoverableToolUse } from "../../message-content-model";
 interface ContentActivityContext {
   fallback: MessageActivityState | null;
   hasStreamingText: boolean;
-  pendingPermissionsByToolUseId: ReadonlyMap<string, PendingPermission>;
 }
 
 interface ContentActivityRule {
@@ -34,17 +36,6 @@ interface ActivityBlockVisibilityContext {
   index: number;
 }
 
-interface ToolUseActivityFacts {
-  fallback: MessageActivityState;
-  hasPermission: boolean;
-  isQuestion: boolean;
-}
-
-interface ToolUseActivityRule {
-  matches: (facts: ToolUseActivityFacts) => boolean;
-  resolve: (facts: ToolUseActivityFacts) => MessageActivityState;
-}
-
 const HIDDEN_ACTIVITY_BLOCK_RULES: ReadonlyArray<
   (context: ActivityBlockVisibilityContext) => boolean
 > = [
@@ -60,10 +51,6 @@ const CONTENT_ACTIVITY_RULES: ContentActivityRule[] = [
     "task_progress",
     (block) => resolveProgressActivityState(block),
   ),
-  defineContentActivityRule(
-    "tool_use",
-    (block, context) => resolveToolUseActivityState(block, context),
-  ),
   defineContentActivityRule("thinking", () => "thinking"),
   defineContentActivityRule(
     "text",
@@ -77,20 +64,6 @@ const CONTENT_ACTIVITY_RULES: ContentActivityRule[] = [
   ),
 ];
 
-const TOOL_USE_ACTIVITY_RULES: ToolUseActivityRule[] = [
-  {
-    matches: ({ hasPermission }) => hasPermission,
-    resolve: ({ isQuestion }) => isQuestion
-      ? "waiting_input"
-      : "waiting_permission",
-  },
-  {
-    matches: ({ isQuestion }) => isQuestion,
-    resolve: ({ fallback }) => fallback,
-  },
-];
-
-const EMPTY_PENDING_PERMISSIONS = new Map<string, PendingPermission>();
 const EMPTY_STREAMING_BLOCK_INDEXES = new Set<number>();
 
 export function resolveContentActivityState({
@@ -98,7 +71,6 @@ export function resolveContentActivityState({
   content,
   fallbackActivityState = null,
   hiddenToolNames,
-  pendingPermissionsByToolUseId = EMPTY_PENDING_PERMISSIONS,
   resolvedToolUseIds,
   streamingBlockIndexes = EMPTY_STREAMING_BLOCK_INDEXES,
 }: {
@@ -106,45 +78,24 @@ export function resolveContentActivityState({
   content: readonly ContentBlock[];
   fallbackActivityState?: MessageActivityState | null;
   hiddenToolNames: ReadonlySet<string>;
-  pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   resolvedToolUseIds: ReadonlySet<string>;
   streamingBlockIndexes?: ReadonlySet<number>;
-}): MessageActivityState {
+}): MessageActivityState | null {
   const context: ContentActivityContext = {
     fallback: fallbackActivityState,
     hasStreamingText: hasStreamingTextBlock(content, streamingBlockIndexes),
-    pendingPermissionsByToolUseId,
   };
-  return resolveLatestPendingToolActivity({
-    content,
-    context,
-    hiddenToolNames,
-    resolvedToolUseIds,
-  }) ?? resolveLatestVisibleBlockActivity({
+  if (findLatestPendingToolUse(content, resolvedToolUseIds, hiddenToolNames)) {
+    // 可见 ToolBlock 已展示 running / waiting；消息层不得再叠加同义状态。
+    return null;
+  }
+  return resolveLatestVisibleBlockActivity({
     consumedBlockIndexes,
     content,
     context,
     hiddenToolNames,
-  });
-}
-
-function resolveLatestPendingToolActivity({
-  content,
-  context,
-  hiddenToolNames,
-  resolvedToolUseIds,
-}: {
-  content: readonly ContentBlock[];
-  context: ContentActivityContext;
-  hiddenToolNames: ReadonlySet<string>;
-  resolvedToolUseIds: ReadonlySet<string>;
-}): MessageActivityState | null {
-  const toolUse = findLatestPendingToolUse(
-    content,
     resolvedToolUseIds,
-    hiddenToolNames,
-  );
-  return toolUse ? resolveToolUseActivityState(toolUse, context) : null;
+  });
 }
 
 function resolveLatestVisibleBlockActivity({
@@ -152,11 +103,13 @@ function resolveLatestVisibleBlockActivity({
   content,
   context,
   hiddenToolNames,
+  resolvedToolUseIds,
 }: {
   consumedBlockIndexes: ReadonlySet<number>;
   content: readonly ContentBlock[];
   context: ContentActivityContext;
   hiddenToolNames: ReadonlySet<string>;
+  resolvedToolUseIds: ReadonlySet<string>;
 }): MessageActivityState {
   const block = findLatestVisibleBlock(
     content,
@@ -166,6 +119,11 @@ function resolveLatestVisibleBlockActivity({
   const fallback = context.fallback ?? "thinking";
   if (!block) {
     return fallback;
+  }
+  if (block.type === "tool_use") {
+    // 已完成工具后仍在流式表示 Agent 已回到下一步推理；未完成工具的
+    // 状态由上面的 ToolBlock 自己持有。
+    return resolvedToolUseIds.has(block.id) ? "thinking" : fallback;
   }
   const rule = CONTENT_ACTIVITY_RULES.find(
     (candidate) => candidate.matches(block),
@@ -209,21 +167,6 @@ function resolveProgressActivityState(
   block: TaskProgressContent,
 ): MessageActivityState {
   return resolveToolActivityState(block.last_tool_name);
-}
-
-function resolveToolUseActivityState(
-  block: ToolUseContent,
-  context: ContentActivityContext,
-): MessageActivityState {
-  const facts: ToolUseActivityFacts = {
-    fallback: context.fallback ?? "thinking",
-    hasPermission: context.pendingPermissionsByToolUseId.has(block.id),
-    isQuestion: block.name === ASK_USER_QUESTION_TOOL_NAME,
-  };
-  const rule = TOOL_USE_ACTIVITY_RULES.find(
-    (candidate) => candidate.matches(facts),
-  );
-  return rule ? rule.resolve(facts) : resolveToolActivityState(block.name);
 }
 
 function hasStreamingTextBlock(

@@ -196,7 +196,6 @@ function GoalStatusSummary({
           {model.statusLabel}
         </span>
         {model.bindingBadge ? <GoalBindingBadge model={model.bindingBadge} /> : null}
-        <GoalExecutionState model={model} />
         {statusExtra}
       </div>
       <div
@@ -229,13 +228,6 @@ function GoalBindingBadge({
       {t(model.labelKey)}
     </span>
   );
-}
-
-function GoalExecutionState({ model }: { model: GoalStatusStripModel }) {
-  if (!model.isExecuting) {
-    return null;
-  }
-  return <span className={cn("font-semibold", model.tone.text)}>执行中</span>;
 }
 
 function GoalUsage({ label }: { label: string | null }) {

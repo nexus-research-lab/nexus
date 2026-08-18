@@ -63,7 +63,6 @@ export function StructuredContentRenderer(
     fallbackActivityState,
     hiddenToolNames: hiddenToolNameSet,
     isStreaming,
-    pendingPermissionsByToolUseId,
     projection,
     streamingBlockIndexes,
   });
@@ -220,7 +219,6 @@ function resolveStructuredActivityState({
   fallbackActivityState,
   hiddenToolNames,
   isStreaming,
-  pendingPermissionsByToolUseId,
   projection,
   streamingBlockIndexes,
 }: {
@@ -228,7 +226,6 @@ function resolveStructuredActivityState({
   fallbackActivityState: MessageActivityState | null;
   hiddenToolNames: ReadonlySet<string>;
   isStreaming: boolean;
-  pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   projection: StructuredContentProjection;
   streamingBlockIndexes?: ReadonlySet<number>;
 }): MessageActivityState | null {
@@ -240,7 +237,6 @@ function resolveStructuredActivityState({
     content,
     fallbackActivityState,
     hiddenToolNames,
-    pendingPermissionsByToolUseId,
     resolvedToolUseIds: projection.resolvedToolUseIds,
     streamingBlockIndexes,
   });
