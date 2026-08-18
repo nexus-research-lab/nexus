@@ -47,6 +47,11 @@ type CreateConversationRequest struct {
 	Title string `json:"title,omitempty"`
 }
 
+// ForkConversationRequest 表示从已完成轮次创建新对话。
+type ForkConversationRequest struct {
+	RoundID string `json:"round_id"`
+}
+
 // UpdateConversationRequest 表示更新话题请求。
 type UpdateConversationRequest struct {
 	Title string `json:"title,omitempty"`

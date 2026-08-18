@@ -5,6 +5,7 @@ import type {
   ApiRoomContextAggregate,
   CreateRoomConversationParams,
   CreateRoomParams,
+  ForkRoomConversationParams,
   RoomContextAggregate,
   UpdateRoomConversationParams,
   UpdateRoomParams,
@@ -87,6 +88,18 @@ export function updateRoomConversation(
     `/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
     "PATCH",
     { title: params.title },
+  );
+}
+
+export function forkRoomConversation(
+  roomId: string,
+  conversationId: string,
+  params: ForkRoomConversationParams,
+): Promise<RoomContextAggregate> {
+  return mutateRoomContext(
+    `/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/fork`,
+    "POST",
+    { round_id: params.round_id },
   );
 }
 

@@ -25,6 +25,7 @@ type MessageItemControllerOptions = Pick<
   | "isLastRound"
   | "isLoading"
   | "messages"
+  | "onForkConversation"
   | "onStopMessage"
   | "pendingPermissions"
   | "roundId"
@@ -39,6 +40,7 @@ export function useMessageItemController({
   isLastRound,
   isLoading,
   messages,
+  onForkConversation,
   onStopMessage,
   pendingPermissions = [],
   roundId,
@@ -65,6 +67,7 @@ export function useMessageItemController({
   const display = resolveAssistantDisplayState({
     assistantContentMode,
     hasStopHandler: Boolean(onStopMessage),
+    hasForkHandler: Boolean(onForkConversation),
     isLastRound: Boolean(isLastRound),
     isLoading: Boolean(isLoading),
     pendingPermissionCount: pendingPermissions.length,
@@ -148,6 +151,7 @@ export function useMessageItemController({
         goalCompletionReceipt: projection.goalCompletionReceipt,
         memories: projection.recalledMemories,
         onCopy: display.canCopy ? handleCopyAssistant : undefined,
+        onFork: display.canFork ? onForkConversation : undefined,
         stats: projection.stats,
         visible: display.footerVisible,
       },

@@ -32,6 +32,7 @@ export interface MessageItemProps {
   permissionReadOnlyReason?: string;
   hiddenToolNames?: string[];
   onEditUserMessage?: (messageId: string, newContent: string) => void;
+  onForkConversation?: () => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
     toolUseId: string,

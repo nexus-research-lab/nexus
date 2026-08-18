@@ -4,6 +4,7 @@ import {
   closeRoomConversationRuntime,
   createRoomConversation,
   deleteRoomConversation,
+  forkRoomConversation,
   updateRoomConversation,
 } from "@/lib/api/conversation/room-command-api";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
@@ -91,6 +92,21 @@ export function useRoomPageCommands({
     return fallbackContext?.conversation.id ?? null;
   }, [runRoomCommand]);
 
+  const handleForkConversation = useCallback(async (
+    conversationId: string,
+    roundId: string,
+  ): Promise<string | null> => {
+    const context = await runRoomCommand(
+      ROOM_COMMAND_POLICIES.mutate,
+      (scopeRoomId) => forkRoomConversation(
+        scopeRoomId,
+        conversationId,
+        { round_id: roundId },
+      ),
+    );
+    return context?.conversation.id ?? null;
+  }, [runRoomCommand]);
+
   const handleCloseConversation = useCallback(async (conversationId: string) => {
     await runRoomCommand(
       ROOM_COMMAND_POLICIES.runtime,
@@ -145,6 +161,7 @@ export function useRoomPageCommands({
   return {
     handleCreateConversation,
     handleDeleteConversation,
+    handleForkConversation,
     handleCloseConversation,
     handleUpdateConversationTitle,
     handleManageRoom,

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added owner/session/generation-bound on-demand detail reads for historical Tool results and inline images at or above 256 KiB, keeping canonical history lossless while removing large payloads from ordinary message pages.
+- Added single-Agent DM conversation branching from any completed Assistant reply, preserving the shared workspace while creating an independent SDK session and transcript history.
 - Added a host-managed, owner-private, round-scoped JSON input slot for `nexus automation`, with `--input-file`/stdin support, strict size/link/path checks, and automatic round cleanup so quoted instructions no longer depend on shell escaping.
 - Added owner-scoped custom STDIO, HTTP, and SSE MCP servers to the Connector directory, with encrypted environment, Bearer Token, and custom-header secrets plus existing Agent/Session Connector activation controls.
 - Added session-scoped multi-folder workspaces for desktop chats, with a native folder picker, runtime access, and automatic working-directory context.

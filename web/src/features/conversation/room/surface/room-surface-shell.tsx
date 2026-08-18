@@ -54,6 +54,10 @@ interface RoomSurfaceShellProps {
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
+  onForkConversation: (
+    conversationId: string,
+    roundId: string,
+  ) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onSaveAgentOptions: (agentId: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
@@ -95,6 +99,7 @@ export function RoomSurfaceShell({
   onSelectConversation,
   onCloseConversation,
   onDeleteConversation,
+  onForkConversation,
   onManageRoom,
   onOpenMemberManager,
   onSaveAgentOptions,
@@ -162,6 +167,18 @@ export function RoomSurfaceShell({
     },
   ), [onReplaceFinalConversation]);
 
+  const handleForkConversationInShell = useCallback(async (roundId: string) => {
+    if (!conversationId) {
+      return;
+    }
+    const nextConversationId = await onForkConversation(conversationId, roundId);
+    if (!nextConversationId) {
+      return;
+    }
+    setActiveSurfaceTab("chat");
+    onSelectConversation(nextConversationId);
+  }, [conversationId, onForkConversation, onSelectConversation]);
+
   const handleOpenWorkspaceFileInShell = useCallback((path: string | null, workspaceAgentId?: string | null) => {
     onOpenWorkspaceFile(path, workspaceAgentId);
     if (path) {
@@ -199,6 +216,7 @@ export function RoomSurfaceShell({
         onConversationSnapshotChange={onConversationSnapshotChange}
         onCreateConversation={handleCreateConversationInShell}
         onDeleteConversation={onDeleteConversation}
+        onForkConversation={handleForkConversationInShell}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         onRoomEvent={handleRoomEvent}
         onSaveAgentOptions={onSaveAgentOptions}
@@ -250,6 +268,7 @@ export function RoomSurfaceShell({
       onReplaceFinalConversation={handleReplaceFinalConversationInShell}
       onCloseConversation={onCloseConversation}
       onDeleteConversation={onDeleteConversation}
+      onForkConversation={handleForkConversationInShell}
       onOpenWorkspaceFile={handleOpenWorkspaceFileInShell}
       onUpdateConversationTitle={onUpdateConversationTitle}
       onSelectConversation={onSelectConversation}
