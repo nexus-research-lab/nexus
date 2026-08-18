@@ -180,6 +180,10 @@ func (s *Service) ensureClient(
 		agentValue.Options.ConnectorIDs,
 		sessionItem.Options,
 	)
+	dynamicSystemPrompt = joinDMRuntimePrompts(
+		dynamicSystemPrompt,
+		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
+	)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpContext := runtimeBuilderContext

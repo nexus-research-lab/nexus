@@ -215,7 +215,17 @@ type Service struct {
 	executionMCPServers       runtimectx.ExecutionMCPServerBuilder
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
+	connectorRuntimeStates    ConnectorRuntimeStateLoader
 }
+
+// ConnectorRuntimeState 是可安全进入模型动态上下文的 Connector 脱敏状态。
+type ConnectorRuntimeState struct {
+	ConnectorID string
+	Configured  bool
+}
+
+// ConnectorRuntimeStateLoader 读取 owner 的 Connector 配置/授权状态，不返回凭据。
+type ConnectorRuntimeStateLoader func(context.Context, string) ([]ConnectorRuntimeState, error)
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
 type ExternalReplyTarget struct {
@@ -396,6 +406,11 @@ func (s *Service) SetTitleGenerator(generator titleScheduler) {
 // SetExternalReplyDispatcher 注入外部 IM 自然回复投递器。
 func (s *Service) SetExternalReplyDispatcher(dispatcher ExternalReplyDispatcher) {
 	s.replies = dispatcher
+}
+
+// SetConnectorRuntimeStateLoader 注入 Connector 配置/授权状态真相源。
+func (s *Service) SetConnectorRuntimeStateLoader(loader ConnectorRuntimeStateLoader) {
+	s.connectorRuntimeStates = loader
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {

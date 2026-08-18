@@ -327,6 +327,12 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 			Model:    "glm-5.1",
 		},
 	}})
+	service.SetConnectorRuntimeStateLoader(func(context.Context, string) ([]ConnectorRuntimeState, error) {
+		return []ConnectorRuntimeState{
+			{ConnectorID: "feishu-docx", Configured: true},
+			{ConnectorID: "github", Configured: true},
+		}, nil
+	})
 	service.SetMCPServerBuilder(func(
 		ctx context.Context,
 		_ *protocol.Agent,
@@ -429,6 +435,14 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	})
 
 	options := factory.LastOptions()
+	for _, want := range []string{
+		`"connector_id":"feishu-docx","configuration_state":"configured","selected_in_current_session":true`,
+		`"connector_id":"github","configuration_state":"configured","selected_in_current_session":false`,
+	} {
+		if !strings.Contains(options.System.AppendDynamic, want) {
+			t.Fatalf("fork runtime 动态上下文缺少 Connector 状态 %q: %s", want, options.System.AppendDynamic)
+		}
+	}
 	feishuConfig, ok := options.MCP.Servers["nexus_feishu_docx"].(sdkmcp.SDKServerConfig)
 	if !ok || feishuConfig.Instance == nil {
 		t.Fatalf("fork options 缺少飞书 MCP: %+v", options.MCP.Servers)

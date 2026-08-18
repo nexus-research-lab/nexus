@@ -194,6 +194,26 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetLogger(logger.With("component", "dm"))
 	dmService.SetProviderResolver(providerService)
 	dmService.SetPreferences(preferencesService)
+	dmService.SetConnectorRuntimeStateLoader(func(
+		ctx context.Context,
+		ownerUserID string,
+	) ([]dmsvc.ConnectorRuntimeState, error) {
+		items, err := connectorService.ListConnectors(ctx, ownerUserID, "", "", "available")
+		if err != nil {
+			return nil, err
+		}
+		states := make([]dmsvc.ConnectorRuntimeState, 0, len(items))
+		for _, item := range items {
+			if item.Kind != connectorsvc.ConnectorKindCatalog {
+				continue
+			}
+			states = append(states, dmsvc.ConnectorRuntimeState{
+				ConnectorID: item.ConnectorID,
+				Configured:  item.ConnectionState == "connected",
+			})
+		}
+		return states, nil
+	})
 	dmService.SetUsageRecorder(usageService)
 	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
