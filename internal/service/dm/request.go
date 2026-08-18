@@ -468,7 +468,12 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 
 func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	runtimeCtx := e.runtimeContext()
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" && len(e.request.RewriteRemoveMessageUUIDs) == 0 {
+	if e.request.rewriteOverlayOnly && len(e.request.RewriteRemoveMessageUUIDs) > 0 {
+		return errors.New("overlay-only rewrite cannot remove runtime messages")
+	}
+	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" &&
+		!e.request.rewriteOverlayOnly &&
+		len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
 	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)

@@ -113,6 +113,9 @@ type Request struct {
 	// trustedQueuedConfigurationContext 只能由本包在成功 claim 宿主 DB
 	// admission 后设置，外部 Request 构造者无法伪造。
 	trustedQueuedConfigurationContext bool
+	// rewriteOverlayOnly 只能由本包 rewrite planner 在确认目标是未进入 SDK
+	// transcript 的 durable 失败 round 后设置，外部 Request 无法绕过 UUID 边界。
+	rewriteOverlayOnly bool
 	// forkSourceSessionID / forkMessageID 只由 Room service 写入，HTTP/WS 请求不能伪造。
 	forkSourceSessionID string
 	forkMessageID       string

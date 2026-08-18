@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -155,6 +156,15 @@ func TestAgentHistoryStoreResolveTranscriptRoundTail(t *testing.T) {
 	}
 	if firstRound.TargetRoundEndUUID != "assistant-1" {
 		t.Fatalf("historical round end uuid = %q, want assistant-1", firstRound.TargetRoundEndUUID)
+	}
+	_, err = history.ResolveTranscriptRoundTail(
+		workspacePath,
+		sessionKey,
+		sessionID,
+		"round-not-materialized",
+	)
+	if !errors.Is(err, ErrTranscriptRoundNotFound) {
+		t.Fatalf("未物化 round 应返回 typed not-found，实际 %v", err)
 	}
 }
 
