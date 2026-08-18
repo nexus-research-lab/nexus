@@ -3,8 +3,10 @@ package launcher
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,9 +20,22 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	"github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 )
+
+type recordingDirectorySessionLister struct {
+	items []protocol.Session
+	calls int
+}
+
+func (lister *recordingDirectorySessionLister) ListDirectorySessions(
+	context.Context,
+) ([]protocol.Session, error) {
+	lister.calls++
+	return lister.items, nil
+}
 
 func TestLauncherQueryAndSuggestions(t *testing.T) {
 	cfg := newLauncherTestConfig(t)
@@ -158,6 +173,102 @@ func TestLauncherBootstrapEnsuresMainAgentDefaultChat(t *testing.T) {
 	reusedRoom := findBootstrapRoomByAgentID(second.Rooms, cfg.DefaultAgentID)
 	if reusedRoom == nil || reusedRoom.ID != mainRoom.ID {
 		t.Fatalf("bootstrap 应幂等复用主智能体默认聊天: first=%+v second=%+v", mainRoom, reusedRoom)
+	}
+}
+
+func TestLauncherBootstrapOnlyConsumesDirectorySessionMetadata(t *testing.T) {
+	cfg := newLauncherTestConfig(t)
+	migrateLauncherSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	roomService := roomsvc.NewService(cfg, agentService, roomrepo.NewSQLRepository("sqlite", db))
+	sessionService := sessionsvc.NewService(cfg, agentService, sessionrepo.NewSQLRepository("sqlite", db))
+	service := NewService(cfg, agentService, roomService, sessionService)
+
+	now := time.Date(2026, 8, 17, 9, 30, 0, 0, time.UTC)
+	lister := &recordingDirectorySessionLister{items: []protocol.Session{
+		{
+			SessionKey:   "agent:nexus:ws:dm:catalog-only",
+			AgentID:      cfg.DefaultAgentID,
+			ChannelType:  "ws",
+			ChatType:     protocol.RoomTypeDM,
+			CreatedAt:    now,
+			LastActivity: now,
+			Title:        "metadata only",
+			MessageCount: 9,
+		},
+	}}
+	service.session = lister
+
+	bootstrap, err := service.Bootstrap(context.Background())
+	if err != nil {
+		t.Fatalf("读取 launcher bootstrap 失败: %v", err)
+	}
+	if lister.calls != 1 {
+		t.Fatalf("bootstrap 应仅批量读取一次目录 metadata: got=%d want=1", lister.calls)
+	}
+	item := findBootstrapConversationBySessionKey(
+		bootstrap.Conversations,
+		"agent:nexus:ws:dm:catalog-only",
+	)
+	if item == nil || item.Title != "metadata only" || item.MessageCount != 9 {
+		t.Fatalf("bootstrap 未直接投影目录 metadata: %+v", bootstrap.Conversations)
+	}
+}
+
+func TestLauncherBootstrapIgnoresCorruptConversationHistory(t *testing.T) {
+	cfg := newLauncherTestConfig(t)
+	migrateLauncherSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	roomService := roomsvc.NewService(cfg, agentService, roomrepo.NewSQLRepository("sqlite", db))
+	sessionService := sessionsvc.NewService(cfg, agentService, sessionrepo.NewSQLRepository("sqlite", db))
+	service := NewService(cfg, agentService, roomService, sessionService)
+	ctx := context.Background()
+
+	agentValue := createLauncherAgent(t, agentService, ctx, "历史损坏隔离助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("创建测试直聊失败: %v", err)
+	}
+	sessionKey := protocol.BuildRoomAgentSessionKey(
+		dmContext.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeDM,
+	)
+	overlayPath := workspacestore.New(cfg.WorkspacePath).SessionOverlayPath(
+		agentValue.WorkspacePath,
+		sessionKey,
+	)
+	if err = os.MkdirAll(filepath.Dir(overlayPath), 0o700); err != nil {
+		t.Fatalf("创建测试历史目录失败: %v", err)
+	}
+	corruptHistory := strings.Repeat("{not-valid-json}\n", 4096)
+	if err = os.WriteFile(overlayPath, []byte(corruptHistory), 0o600); err != nil {
+		t.Fatalf("写入损坏历史夹具失败: %v", err)
+	}
+
+	bootstrap, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatalf("单个会话历史损坏不应拖垮 launcher bootstrap: %v", err)
+	}
+	if findBootstrapConversationBySessionKey(bootstrap.Conversations, sessionKey) == nil {
+		t.Fatalf("损坏历史不应让对应 metadata 会话消失: %+v", bootstrap.Conversations)
+	}
+	if len(bootstrap.Rooms) < 2 {
+		t.Fatalf("损坏历史不应影响其他 Room 目录: %+v", bootstrap.Rooms)
 	}
 }
 

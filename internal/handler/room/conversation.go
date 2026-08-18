@@ -58,6 +58,7 @@ func conversationMessagePageRequest(request *http.Request) (sessionpkg.MessagePa
 		BeforeRoundTimestamp: beforeRoundTimestamp,
 		AroundRoundID:        strings.TrimSpace(request.URL.Query().Get("around_round_id")),
 		AroundLimit:          aroundLimit,
+		DeferIndex:           strings.EqualFold(strings.TrimSpace(request.URL.Query().Get("defer_index")), "true"),
 	}, nil
 }
 

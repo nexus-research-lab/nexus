@@ -1,10 +1,44 @@
 package workspace
 
 import (
+	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
+
+func TestTranscriptPathLookupHonorsPreCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	history := NewAgentHistoryStore(t.TempDir())
+	if _, err := history.resolveTranscriptPathContext(ctx, t.TempDir(), "session"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("resolveTranscriptPathContext() error = %v, want context.Canceled", err)
+	}
+
+	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "git-dir"))
+	t.Setenv("GIT_WORK_TREE", "")
+	commandStarted := false
+	paths, err := listTranscriptWorktreePathsContextWithCommand(
+		ctx,
+		t.TempDir(),
+		func(commandCtx context.Context, name string, args ...string) *exec.Cmd {
+			commandStarted = true
+			return exec.CommandContext(commandCtx, name, args...)
+		},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("listTranscriptWorktreePathsContext() error = %v, want context.Canceled", err)
+	}
+	if len(paths) != 0 {
+		t.Fatalf("listTranscriptWorktreePathsContext() = %v, want no paths", paths)
+	}
+	if commandStarted {
+		t.Fatal("预取消 context 不得启动 Git worktree lookup")
+	}
+}
 
 func TestTranscriptWorktreeLookupRequired(t *testing.T) {
 	t.Setenv("GIT_DIR", "")

@@ -141,7 +141,11 @@ func (h *Handlers) HandleSessionRoundsByQuery(writer http.ResponseWriter, reques
 		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
 		return
 	}
-	index, err := h.sessions.GetSessionRoundIndex(request.Context(), sessionKey)
+	index, err := h.sessions.GetSessionRoundIndexPage(
+		request.Context(),
+		sessionKey,
+		strings.EqualFold(strings.TrimSpace(request.URL.Query().Get("defer_index")), "true"),
+	)
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -194,6 +198,7 @@ func (h *Handlers) writeSessionMessages(writer http.ResponseWriter, request *htt
 		BeforeRoundTimestamp: beforeRoundTimestamp,
 		AroundRoundID:        aroundRoundID,
 		AroundLimit:          aroundLimit,
+		DeferIndex:           strings.EqualFold(strings.TrimSpace(request.URL.Query().Get("defer_index")), "true"),
 	})
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())

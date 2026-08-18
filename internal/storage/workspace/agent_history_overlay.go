@@ -4,6 +4,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -222,7 +223,20 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 	workspacePath string,
 	sessionKey string,
 ) (overlayHistoryState, error) {
-	rows, err := s.files.readJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey))
+	return s.readOverlayHistoryStateContext(context.Background(), workspacePath, sessionKey)
+}
+
+func (s *AgentHistoryStore) readOverlayHistoryStateContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionKey string,
+) (overlayHistoryState, error) {
+	rows, err := readWorkspaceJSONLAtContext(
+		ctx,
+		s.files,
+		workspacePath,
+		s.paths.SessionOverlayPath(workspacePath, sessionKey),
+	)
 	if errors.Is(err, os.ErrNotExist) {
 		return overlayHistoryState{
 			MessageRows:  []protocol.Message{},
@@ -232,7 +246,10 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 	if err != nil {
 		return overlayHistoryState{}, err
 	}
+	return overlayHistoryStateFromRows(rows), nil
+}
 
+func overlayHistoryStateFromRows(rows []map[string]any) overlayHistoryState {
 	messageRows := make([]protocol.Message, 0, len(rows))
 	roundMarkers := make([]transcriptRoundMarker, 0)
 	for _, row := range rows {
@@ -264,7 +281,7 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 	return overlayHistoryState{
 		MessageRows:  messageRows,
 		RoundMarkers: roundMarkers,
-	}, nil
+	}
 }
 
 func isSessionOverlayControlRow(row map[string]any) bool {

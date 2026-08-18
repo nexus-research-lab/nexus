@@ -4,8 +4,8 @@
 //
 // 成员清单：
 //   - service.go / query.go / history.go / external_identity.go：Service、查询、历史消息，以及
-//     供目录首屏、Automation 校验和首次投递物化共用的统一 Session 解析、按字段所有权合并 Room SQL/workspace 纯读投影、按当前 Goal 聚合真相刷新完成收据、
-//     外部 IM 账号短标识、当前配对、任务引用影响与安全删除事实投影。
+//     供目录首屏、Automation 校验和首次投递物化共用的统一 Session 解析、按字段所有权合并 Room SQL/workspace 纯读投影、可取消的历史分页、按当前 Goal 聚合真相刷新完成收据、
+//     与消息页共享派生 generation 的可取消 Round Navigator、外部 IM 账号短标识、当前配对、任务引用影响与安全删除事实投影。
 //   - mutation.go / model.go / util.go：增删改、模型、辅助。
 //   - recovery.go：持久 tombstone 的启动/周期恢复，同时重放任务停用与跨域引用清理。
 //   - runtime.go / context_usage.go / subagent_task.go / subagent_tool_run.go / workspace.go：运行时、

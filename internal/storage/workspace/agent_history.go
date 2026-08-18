@@ -14,6 +14,7 @@ type agentHistoryCache struct {
 type AgentHistoryStore struct {
 	paths         *Store
 	files         *SessionFileStore
+	readModel     *historyReadModel
 	ownerUserID   string
 	cache         *agentHistoryCache
 	runtimeRepair *runtimePermissionRepair
@@ -22,8 +23,9 @@ type AgentHistoryStore struct {
 // NewAgentHistoryStore 创建 DM 历史读写门面。
 func NewAgentHistoryStore(root string) *AgentHistoryStore {
 	return &AgentHistoryStore{
-		paths: New(root),
-		files: NewSessionFileStore(root),
+		paths:     New(root),
+		files:     NewSessionFileStore(root),
+		readModel: sharedHistoryReadModel(root),
 		cache: &agentHistoryCache{
 			messages: make(map[string]transcriptCacheEntry),
 		},
@@ -40,6 +42,7 @@ func (s *AgentHistoryStore) ForOwner(ownerUserID string) *AgentHistoryStore {
 	return &AgentHistoryStore{
 		paths:         s.paths,
 		files:         s.files.ForOwner(ownerUserID),
+		readModel:     s.readModel,
 		ownerUserID:   ownerUserID,
 		cache:         s.cache,
 		runtimeRepair: s.runtimeRepair,

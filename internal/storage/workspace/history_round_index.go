@@ -1,9 +1,10 @@
-// [INPUT]: 依赖 append-only overlay JSONL 与当前活跃 round 集合。
-// [OUTPUT]: 对外提供遵循 message_id 最后写入语义的轻量 round 导航索引。
-// [POS]: workspace history 的 DM/Room 共享 round index 投影。
+// INPUT: append-only overlay JSONL、共享 history generation 与当前活跃 round 集合。
+// OUTPUT: 遵循 message_id 最后写入语义、支持短冷建的 DM/Room Round Navigator 元数据。
+// POS: canonical overlay 导航投影与 SQLite 派生代际之间的唯一 round index 边界。
 package workspace
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -47,6 +48,34 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 	sessionValue protocol.Session,
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
+	return s.readCanonicalRoundIndexContext(
+		context.Background(), workspacePath, sessionValue, activeRoundIDs,
+	)
+}
+
+// ReadRoundIndexPageContext 从共用派生代际读取 DM 导航元数据；冷建可返回短轮询状态。
+func (s *AgentHistoryStore) ReadRoundIndexPageContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionValue protocol.Session,
+	activeRoundIDs []string,
+	deferIndex bool,
+) (protocol.SessionRoundIndex, error) {
+	return readSessionRoundIndexWithModel(
+		ctx,
+		s.historyPageAccess(workspacePath, sessionValue),
+		activeRoundIDs,
+		false,
+		deferIndex,
+	)
+}
+
+func (s *AgentHistoryStore) readCanonicalRoundIndexContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionValue protocol.Session,
+	activeRoundIDs []string,
+) (protocol.SessionRoundIndex, error) {
 	active := normalizeActiveRoundIDs(activeRoundIDs)
 	root, err := s.files.openWorkspaceRoot(workspacePath, false)
 	if errors.Is(err, os.ErrNotExist) {
@@ -56,7 +85,8 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 		return protocol.SessionRoundIndex{}, err
 	}
 	defer root.Close()
-	return readRoundIndexFromRoot(
+	return readRoundIndexFromRootContext(
+		ctx,
 		root,
 		filepath.ToSlash(filepath.Join(
 			".agents",
@@ -76,6 +106,150 @@ func (s *RoomHistoryStore) ReadRoundIndex(
 	conversationID string,
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
+	return s.readCanonicalRoundIndexContext(
+		context.Background(), ownerUserID, conversationID, activeRoundIDs,
+	)
+}
+
+// ReadRoundIndexPageContext 从共用派生代际读取 Room 导航元数据；冷建可返回短轮询状态。
+func (s *RoomHistoryStore) ReadRoundIndexPageContext(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	activeRoundIDs []string,
+	deferIndex bool,
+) (protocol.SessionRoundIndex, error) {
+	return readSessionRoundIndexWithModel(
+		ctx,
+		s.historyPageAccess(ownerUserID, conversationID),
+		activeRoundIDs,
+		true,
+		deferIndex,
+	)
+}
+
+func readSessionRoundIndexWithModel(
+	ctx context.Context,
+	access historyPageIndexAccess,
+	activeRoundIDs []string,
+	collapseRoomRounds bool,
+	deferIndex bool,
+) (protocol.SessionRoundIndex, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	if access.ReadModel != nil {
+		index, ok, err := access.ReadModel.loadRoundIndex(
+			ctx, access, activeRoundIDs, collapseRoomRounds,
+		)
+		if err == nil && ok {
+			return index, nil
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return protocol.SessionRoundIndex{}, err
+		}
+		var disabled *historyPageIndexDisabledError
+		if errors.As(err, &disabled) {
+			return buildCanonicalSessionRoundIndex(ctx, access, activeRoundIDs, collapseRoomRounds)
+		}
+	}
+	built, indexing, err := awaitHistoryPageIndexBuild(ctx, access, deferIndex)
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	if indexing {
+		return sessionRoundIndexingResult(), nil
+	}
+	if built.Disabled {
+		return buildCanonicalSessionRoundIndex(ctx, access, activeRoundIDs, collapseRoomRounds)
+	}
+	return materializeSessionRoundIndex(
+		built.RoundIndex,
+		activeRoundIDs,
+		collapseRoomRounds,
+	), nil
+}
+
+func buildCanonicalSessionRoundIndex(
+	ctx context.Context,
+	access historyPageIndexAccess,
+	activeRoundIDs []string,
+	collapseRoomRounds bool,
+) (protocol.SessionRoundIndex, error) {
+	build := access.BuildCanonical
+	if build == nil {
+		build = access.Build
+	}
+	built, err := build(ctx)
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	return materializeSessionRoundIndex(
+		built.RoundIndex,
+		activeRoundIDs,
+		collapseRoomRounds,
+	), nil
+}
+
+func sessionRoundIndexingResult() protocol.SessionRoundIndex {
+	return protocol.SessionRoundIndex{
+		Items:        []protocol.SessionRoundIndexItem{},
+		Indexing:     true,
+		RetryAfterMS: historyPageIndexRetryAfterMS,
+	}
+}
+
+func materializeSessionRoundIndex(
+	items []protocol.SessionRoundIndexItem,
+	activeRoundIDs []string,
+	collapseRoomRounds bool,
+) protocol.SessionRoundIndex {
+	active := normalizeActiveRoundIDs(activeRoundIDs)
+	result := make([]protocol.SessionRoundIndexItem, len(items))
+	for index, item := range items {
+		result[index] = item
+		result[index].AgentIDs = append([]string(nil), item.AgentIDs...)
+		if sessionRoundIndexItemIsActive(item, active, collapseRoomRounds) {
+			result[index].IsLive = true
+			result[index].Status = string(roundStatusRunning)
+		}
+	}
+	return protocol.SessionRoundIndex{Items: result}
+}
+
+func sessionRoundIndexItemIsActive(
+	item protocol.SessionRoundIndexItem,
+	active map[string]struct{},
+	collapseRoomRounds bool,
+) bool {
+	if _, ok := active[item.RoundID]; ok {
+		return true
+	}
+	if !collapseRoomRounds {
+		return false
+	}
+	for rawRoundID := range active {
+		if normalizeRoundIndexRoundID(rawRoundID, "", true) == item.RoundID {
+			return true
+		}
+		for _, agentID := range item.AgentIDs {
+			if normalizeRoundIndexRoundID(rawRoundID, agentID, true) == item.RoundID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *RoomHistoryStore) readCanonicalRoundIndexContext(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	activeRoundIDs []string,
+) (protocol.SessionRoundIndex, error) {
 	parent, name, err := s.files.openRoomFileParent(
 		ownerUserID,
 		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
@@ -88,7 +262,8 @@ func (s *RoomHistoryStore) ReadRoundIndex(
 		return protocol.SessionRoundIndex{}, err
 	}
 	defer parent.Close()
-	return readRoundIndexFromRoot(
+	return readRoundIndexFromRootContext(
+		ctx,
 		parent,
 		name,
 		normalizeActiveRoundIDs(activeRoundIDs),
@@ -119,6 +294,19 @@ func readRoundIndexFromRoot(
 	collapseRoomAgentRounds bool,
 	defaultAgentID string,
 ) (protocol.SessionRoundIndex, error) {
+	return readRoundIndexFromRootContext(
+		context.Background(), root, relative, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID,
+	)
+}
+
+func readRoundIndexFromRootContext(
+	ctx context.Context,
+	root *confinedfs.Root,
+	relative string,
+	activeRoundIDs map[string]struct{},
+	collapseRoomAgentRounds bool,
+	defaultAgentID string,
+) (protocol.SessionRoundIndex, error) {
 	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
@@ -132,6 +320,9 @@ func readRoundIndexFromRoot(
 	rows := make([]roundIndexOverlayJSONRow, 0)
 	latestByMessageID := make(map[string]int)
 	for {
+		if err = ctx.Err(); err != nil {
+			return protocol.SessionRoundIndex{}, err
+		}
 		var row roundIndexOverlayJSONRow
 		if err := decoder.Decode(&row); err != nil {
 			if errors.Is(err, io.EOF) {

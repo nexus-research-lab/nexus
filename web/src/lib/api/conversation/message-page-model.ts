@@ -14,6 +14,10 @@ interface QueryFieldRule {
 }
 
 const MESSAGE_QUERY_FIELD_RULES: readonly QueryFieldRule[] = [
+  {
+    key: "defer_index",
+    resolve: (options) => options.defer_index === false ? null : "true",
+  },
   {key: "limit", resolve: (options) => serializePositiveNumber(options.limit)},
   {key: "before_round_id", resolve: (options) => options.before_round_id || null},
   {
@@ -59,5 +63,7 @@ export function normalizeConversationMessagePage(
     items: page.items ?? [],
     next_before_round_id: page.next_before_round_id ?? null,
     next_before_round_timestamp: page.next_before_round_timestamp ?? null,
+    indexing: page.indexing ?? false,
+    retry_after_ms: Math.max(0, page.retry_after_ms ?? 0),
   };
 }

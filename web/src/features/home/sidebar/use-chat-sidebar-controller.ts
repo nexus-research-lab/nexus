@@ -57,6 +57,7 @@ export function useChatSidebarController({
     agents,
     conversations,
     hasError,
+    hasLoaded,
     isLoading,
     refreshDirectory,
     rooms,
@@ -197,6 +198,7 @@ export function useChatSidebarController({
     },
     list: {
       hasError,
+      hasLoaded,
       isItemActive,
       isLoading,
       items: filteredItems,
