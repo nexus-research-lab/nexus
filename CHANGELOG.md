@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made conversation activity state single-owner across Goal, Agent, and Tool layers: active Goals now use one lifecycle/activity badge, visible Tool blocks suppress duplicate message-level activity, completed tools no longer revive stale reply labels, and internal-only Room results no longer leave empty Agent cards.
 - Made initial, older, and around-history requests transport-cancellable; bounded the browser message window by complete rounds and estimated bytes; and removed the obsolete full-scan ConversationTurn/TurnIndex endpoints in favor of the indexed message and round read model.
 - Restricted `nexus automation` Bash/PowerShell auto-approval to the exact host-injected executable, fixed one-command grammar, and the host-managed input path; plan confirmations now include normalized change details and stale configuration/run identities fail before any task update.
 - Replaced the `nexus_automation` MCP surface with the system-managed `automation` Skill and the nxs/Claude-compatible, round-scoped `nexus automation` CLI. Mutations now use inspect/plan/apply, revision and digest fencing, and native Nexus/Room/IM confirmation; background task runs receive only exact job/run-scoped reads.

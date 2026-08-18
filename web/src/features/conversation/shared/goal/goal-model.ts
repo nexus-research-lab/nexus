@@ -62,7 +62,6 @@ export interface GoalStatusStripModel {
   attentionMessage: string | null;
   attentionTone: "danger" | "warning" | null;
   bindingBadge: GoalBindingBadgeModel | null;
-  isExecuting: boolean;
   statusLabel: string;
   statusTitle: string;
   tone: GoalStatusTone;
@@ -191,6 +190,7 @@ const GOAL_BINDING_BADGE: Record<
 };
 
 const EMPTY_PROGRESS_LABEL = "自动续跑已停止";
+const GOAL_EXECUTING_LABEL = "执行中";
 const EMPTY_PROGRESS_MESSAGE =
   "上一轮未产生可计入进展，系统已停止自动续跑；这不是 Agent 主动暂停。";
 
@@ -278,7 +278,6 @@ export function buildGoalStatusStripModel(
     attentionMessage: resolveGoalAttentionMessage(activeInput),
     attentionTone: resolveGoalAttentionTone(activeInput),
     bindingBadge: resolveGoalBindingBadgeModel(input.executionBinding ?? null),
-    isExecuting: input.isGenerating && input.goal.status === "active",
     statusLabel: visibleStatus.label,
     statusTitle: resolveGoalStatusTitle(activeInput, visibleStatus),
     tone: goalStatusTone(visibleStatus.status),
@@ -298,6 +297,9 @@ export function resolveGoalBindingBadgeModel(
 function resolveVisibleGoalStatus(
   input: GoalStatusProjectionInput,
 ): VisibleGoalStatus {
+  if (input.goal.status === "active" && input.isGenerating) {
+    return { label: GOAL_EXECUTING_LABEL, status: "active" };
+  }
   if (!isIdleActiveGoal(input)) {
     return {
       label: GOAL_STATUS_LABEL[input.goal.status],

@@ -2594,6 +2594,120 @@ test("recoverable malformed tool use does not keep the activity indicator busy",
   );
 });
 
+test("a visible ToolBlock exclusively owns its running state", async () => {
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { resolveContentActivityState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/activity/message-content-activity.ts",
+  );
+  const toolUse = {
+    type: "tool_use",
+    id: "tool-write-state-owner",
+    name: "Write",
+    input: { file_path: "PLAN.md" },
+  };
+  assert.equal(resolveContentActivityState({
+    consumedBlockIndexes: new Set(),
+    content: [toolUse],
+    hiddenToolNames: new Set(),
+    resolvedToolUseIds: new Set(),
+  }), null);
+
+  const html = await renderWithI18n(React.createElement(ContentRenderer, {
+    content: [toolUse],
+    fallbackActivityState: "executing",
+    isStreaming: true,
+  }));
+  assert.equal(html.match(/>执行中</g)?.length, 1);
+  assert.doesNotMatch(html, /正在执行/);
+});
+
+test("an active Room execution returns to Agent activity after tool completion", async () => {
+  const { projectRoomAgentActivityState } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-model.ts",
+  );
+  const message = {
+    agent_id: "agent-state-owner",
+    agent_round_id: "agent-round-state-owner",
+    content: [
+      { type: "text", text: "准备写入" },
+      {
+        type: "tool_use",
+        id: "tool-write-complete",
+        name: "Write",
+        input: { file_path: "PLAN.md" },
+      },
+      {
+        type: "tool_result",
+        tool_use_id: "tool-write-complete",
+        content: "ok",
+      },
+    ],
+    message_id: "assistant-state-owner",
+    role: "assistant",
+    round_id: "round-state-owner",
+    session_key: "room:state-owner",
+    stream_status: "streaming",
+    timestamp: 1,
+  };
+  assert.equal(projectRoomAgentActivityState({
+    messages: [message],
+    pendingPermissions: [],
+    status: "streaming",
+  }), "thinking");
+});
+
+test("terminal Room entries ignore internal-only content blocks", async () => {
+  const { isRoomAgentNoPublicReply } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-model.ts",
+  );
+  const message = {
+    agent_id: "agent-internal-only",
+    agent_round_id: "agent-round-internal-only",
+    content: [{
+      type: "tool_result",
+      tool_use_id: "tool-internal-only",
+      content: "internal result",
+    }],
+    is_complete: true,
+    message_id: "assistant-internal-only",
+    role: "assistant",
+    round_id: "round-internal-only",
+    session_key: "room:internal-only",
+    stream_status: "done",
+    timestamp: 1,
+  };
+  assert.equal(isRoomAgentNoPublicReply([message], undefined, "done"), true);
+  assert.equal(isRoomAgentNoPublicReply([{
+    ...message,
+    content: [{
+      type: "tool_use",
+      id: "tool-task-only",
+      name: "TaskUpdate",
+      input: { taskId: "1", status: "completed" },
+    }],
+  }], undefined, "done"), true);
+  assert.equal(isRoomAgentNoPublicReply([{
+    ...message,
+    content: [{
+      type: "system_event",
+      attempt: 1,
+      content: "retrying",
+      icon: "retry",
+      label: "Retrying",
+      source_message_id: message.message_id,
+      subtype: "api_retry",
+      timestamp: 1,
+      tone: "warning",
+    }],
+  }], undefined, "done"), true);
+  assert.equal(isRoomAgentNoPublicReply([{
+    ...message,
+    content: [{ type: "text", text: "可见结果" }],
+  }], undefined, "done"), false);
+});
+
 test("DM live keeps one stable open segment across consecutive tool patches", async () => {
   const { projectDmToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
