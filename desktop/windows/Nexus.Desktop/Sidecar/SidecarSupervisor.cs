@@ -269,33 +269,48 @@ internal sealed class SidecarSupervisor : IDisposable
             return;
         }
 
-        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
-            !string.IsNullOrWhiteSpace(overridePath))
+        string? overridePath = null;
+        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? configuredOverridePath) &&
+            !string.IsNullOrWhiteSpace(configuredOverridePath))
         {
-            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            overridePath = configuredOverridePath.Trim();
+            if (File.Exists(overridePath))
             {
-                ["source"] = "override",
-                ["path"] = overridePath,
-            });
-            return;
+                startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+                {
+                    ["source"] = "override",
+                    ["path"] = overridePath,
+                });
+                return;
+            }
         }
 
         string nxsPath = Path.Combine(locator.AppRoot, "bin", "nxs.exe");
         if (File.Exists(nxsPath))
         {
             startInfo.Environment["NEXUS_NXS_COMMAND_PATH"] = nxsPath;
-            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            Dictionary<string, string> metadata = new()
             {
                 ["source"] = "bundled",
                 ["path"] = nxsPath,
-            });
+            };
+            if (!string.IsNullOrWhiteSpace(overridePath))
+            {
+                metadata["ignored_override"] = overridePath;
+            }
+            startupTimeline.Mark("sidecar.nxs_runtime", metadata);
             return;
         }
 
-        startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+        Dictionary<string, string> missingMetadata = new()
         {
             ["source"] = "missing",
-        });
+        };
+        if (!string.IsNullOrWhiteSpace(overridePath))
+        {
+            missingMetadata["invalid_override"] = overridePath;
+        }
+        startupTimeline.Mark("sidecar.nxs_runtime", missingMetadata);
     }
 
     private static void PrepareDirectories()

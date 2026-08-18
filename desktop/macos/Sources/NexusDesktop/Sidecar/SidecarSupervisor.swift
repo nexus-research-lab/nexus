@@ -211,7 +211,8 @@ final class SidecarSupervisor {
       ])
       return
     }
-    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    let override = environment["NEXUS_NXS_COMMAND_PATH"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let override, !override.isEmpty, FileManager.default.isExecutableFile(atPath: override) {
       startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
         "source": "override",
         "path": override,
@@ -221,15 +222,23 @@ final class SidecarSupervisor {
     let nxsURL = locator.appRootURL.appendingPathComponent("bin/nxs")
     if FileManager.default.isExecutableFile(atPath: nxsURL.path) {
       environment["NEXUS_NXS_COMMAND_PATH"] = nxsURL.path
-      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+      var metadata = [
         "source": "bundled",
         "path": nxsURL.path,
-      ])
+      ]
+      if let override, !override.isEmpty {
+        metadata["ignored_override"] = override
+      }
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: metadata)
       return
     }
-    startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+    var metadata = [
       "source": "missing",
-    ])
+    ]
+    if let override, !override.isEmpty {
+      metadata["invalid_override"] = override
+    }
+    startupTimeline?.mark("sidecar.nxs_runtime", metadata: metadata)
   }
 
   private func connectorCredentialsKeyMode(environment: [String: String]) -> DesktopKeychainMode {
