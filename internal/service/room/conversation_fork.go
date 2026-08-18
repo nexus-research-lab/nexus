@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -43,6 +44,19 @@ func (s *Service) ForkConversation(
 	}
 
 	sourceSession := source.Sessions[0]
+	sourceSessionKey := protocol.BuildRoomAgentSessionKey(
+		sourceConversationID,
+		sourceSession.AgentID,
+		source.Room.RoomType,
+	)
+	sourceSDKSessionID, sourceMessageID, err := s.sessionForker.PrepareConversationFork(
+		ctx,
+		sourceSessionKey,
+		targetRoundID,
+	)
+	if err != nil {
+		return nil, err
+	}
 	targetConversationID := roomdomain.NewEntityID()
 	targetSession := protocol.SessionRecord{
 		ID:             roomdomain.NewEntityID(),
@@ -52,9 +66,14 @@ func (s *Service) ForkConversation(
 		VersionNo:      1,
 		BranchKey:      "main",
 		IsPrimary:      true,
-		Options:        forkConversationSessionOptions(sourceSession.Options),
-		Status:         "active",
+		Options: forkConversationSessionOptions(
+			sourceSession.Options,
+			sourceSDKSessionID,
+			sourceMessageID,
+		),
+		Status: "active",
 	}
+	expectedConfigurationVersion := source.Room.ConfigurationVersion
 	created, err := s.repository.CreateConversation(ctx, roomrepo.CreateConversationBundle{
 		OwnerUserID: authctx.OwnerUserID(ctx),
 		RoomID:      roomID,
@@ -65,7 +84,8 @@ func (s *Service) ForkConversation(
 			Title:            source.Conversation.Title,
 			IsDraft:          false,
 		},
-		Sessions: []protocol.SessionRecord{targetSession},
+		Sessions:                     []protocol.SessionRecord{targetSession},
+		ExpectedConfigurationVersion: &expectedConfigurationVersion,
 	})
 	if err != nil {
 		return nil, err
@@ -74,11 +94,6 @@ func (s *Service) ForkConversation(
 		return nil, ErrRoomNotFound
 	}
 
-	sourceSessionKey := protocol.BuildRoomAgentSessionKey(
-		sourceConversationID,
-		sourceSession.AgentID,
-		source.Room.RoomType,
-	)
 	targetSessionKey := protocol.BuildRoomAgentSessionKey(
 		targetConversationID,
 		sourceSession.AgentID,
@@ -89,8 +104,17 @@ func (s *Service) ForkConversation(
 		sourceSessionKey,
 		targetSessionKey,
 		targetRoundID,
+		sourceSDKSessionID,
+		sourceMessageID,
 	); err != nil {
-		if _, cleanupErr := s.DeleteConversation(ctx, roomID, targetConversationID); cleanupErr != nil {
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancelCleanup()
+		if _, cleanupErr := s.DeleteConversationAtVersion(
+			cleanupCtx,
+			roomID,
+			targetConversationID,
+			created.Room.ConfigurationVersion,
+		); cleanupErr != nil {
 			return nil, errors.Join(err, cleanupErr)
 		}
 		return nil, err
@@ -98,13 +122,20 @@ func (s *Service) ForkConversation(
 	return s.GetConversationContext(ctx, targetConversationID)
 }
 
-func forkConversationSessionOptions(source map[string]any) map[string]any {
+func forkConversationSessionOptions(
+	source map[string]any,
+	sourceSessionID string,
+	sourceMessageID string,
+) map[string]any {
 	options := protocol.WithSessionRuntimeSettings(
 		nil,
 		protocol.SessionRuntimeSettingsFromOptions(source),
 	)
-	return protocol.WithSessionAdditionalDirectories(
+	options = protocol.WithSessionAdditionalDirectories(
 		options,
 		protocol.SessionAdditionalDirectoriesFromOptions(source),
 	)
+	options[protocol.OptionRuntimeForkSourceSessionID] = strings.TrimSpace(sourceSessionID)
+	options[protocol.OptionRuntimeForkMessageID] = strings.TrimSpace(sourceMessageID)
+	return options
 }

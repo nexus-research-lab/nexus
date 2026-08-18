@@ -79,7 +79,8 @@ type runtimeSessionCloser interface {
 }
 
 type conversationSessionForker interface {
-	ForkConversationSession(context.Context, string, string, string) error
+	PrepareConversationFork(context.Context, string, string) (string, string, error)
+	ForkConversationSession(context.Context, string, string, string, string, string) error
 }
 
 // SessionArtifactDeletionCoordinator 统一撤销 Room 成员 Session 的 runtime 与持久 artifact。

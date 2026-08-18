@@ -21,6 +21,8 @@ const (
 	OptionRuntimeForkSourceSessionID = "runtime_fork_source_session_id"
 	// OptionRuntimeForkMessageID 表示尚待首次用户输入物化的 fork transcript 边界。
 	OptionRuntimeForkMessageID = "runtime_fork_message_id"
+	// OptionRuntimeRetainedTranscriptSessionIDs 表示不进入读模型、但由该 Room Session 延迟回收的 transcript。
+	OptionRuntimeRetainedTranscriptSessionIDs = "runtime_retained_transcript_session_ids"
 	// OptionSessionProvider 表示当前 Nexus Session 显式覆盖的 provider。
 	OptionSessionProvider = "session_provider"
 	// OptionSessionModel 表示当前 Nexus Session 显式覆盖的模型。

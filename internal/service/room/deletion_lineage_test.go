@@ -18,6 +18,57 @@ func (f failingRoomDeletionRuntime) CloseSession(context.Context, string) error 
 	return f.err
 }
 
+func TestRoomSessionMaterializationClearsPendingForkDependency(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatalf("创建 Agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "fork 物化助手")
+	created, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "fork 物化 room",
+	})
+	if err != nil {
+		t.Fatalf("创建 Room 失败: %v", err)
+	}
+	roomSessionID := findRoomSessionID(t, *created, agentValue.AgentID)
+	if _, err = db.ExecContext(ctx, `
+UPDATE sessions
+SET options_json = ?
+WHERE id = ?`, `{"runtime_fork_source_session_id":"source-sdk","runtime_fork_message_id":"source-message"}`, roomSessionID); err != nil {
+		t.Fatalf("写入 pending fork 依赖失败: %v", err)
+	}
+
+	if err = roomService.UpdateSessionSDKSessionID(ctx, roomSessionID, "target-sdk"); err != nil {
+		t.Fatalf("物化 target SDK session 失败: %v", err)
+	}
+	contextValue, err := roomService.GetConversationContext(ctx, created.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取物化后 Session 失败: %v", err)
+	}
+	sessionValue := contextValue.Sessions[0]
+	if _, exists := sessionValue.Options[protocol.OptionRuntimeForkSourceSessionID]; exists {
+		t.Fatalf("物化后仍保留 fork source 依赖: %+v", sessionValue.Options)
+	}
+	if _, exists := sessionValue.Options[protocol.OptionRuntimeForkMessageID]; exists {
+		t.Fatalf("物化后仍保留 fork message 依赖: %+v", sessionValue.Options)
+	}
+	if sessionValue.SDKSessionID != "target-sdk" ||
+		!sameStringSet(sessionValue.TranscriptSessionIDs, []string{"target-sdk"}) {
+		t.Fatalf("物化后 transcript lineage 不正确: %+v", sessionValue)
+	}
+	if retained := protocol.RetainedTranscriptSessionIDsFromOptions(sessionValue.Options); !sameStringSet(retained, []string{"source-sdk"}) {
+		t.Fatalf("物化后未转移 source transcript 清理所有权: %+v", sessionValue.Options)
+	}
+	if cleanupIDs := protocol.RoomSessionCleanupTranscriptIDs(sessionValue); !sameStringSet(cleanupIDs, []string{"source-sdk", "target-sdk"}) {
+		t.Fatalf("物化后 transcript 清理集合不正确: %+v", cleanupIDs)
+	}
+}
+
 func TestRoomSessionKeepsTranscriptLineageAcrossSDKIdentityChanges(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

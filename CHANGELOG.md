@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Made conversation forks durable before workspace materialization, protected pending branches from source-transcript deletion, transferred delayed transcript cleanup ownership after SDK materialization, and compensated failed forks even after request cancellation.
 - Replaced full-scan history pagination and per-open Round Navigator scans with one host-side SQLite/B-Tree read model for DM and Room. Cold legacy sessions now return a short retryable indexing state while one bounded rebuild continues across request cancellation; warm reads validate canonical sources and load only navigation metadata, bounded cursor windows, and selected round payloads, with atomic generations, corruption recovery, retention, and deletion fencing.
 - Rendered scheduled-task run output as Markdown, collapsed history into compact run rows, removed duplicate result copies, and kept long results inside the dialog's normal scroll flow.
 - Replaced the always-on one-second Subagent Attempt recovery scan with deadline-driven wakeups; restart recovery now restores persisted deadlines once and only rechecks when the nearest deadline or a new schedule arrives.
