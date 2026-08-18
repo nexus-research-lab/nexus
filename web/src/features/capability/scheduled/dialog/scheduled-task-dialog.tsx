@@ -9,9 +9,9 @@ import {
   UiDialogBackdrop,
   UiDialogBody,
   UiDialogFooter,
+  UiDialogFormShell,
   UiDialogHeader,
   UiDialogPortal,
-  UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -74,8 +74,12 @@ export function ScheduledTaskDialog({
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <UiDialogShell
+        <UiDialogFormShell
           className="h-[min(82dvh,760px)] max-w-[960px] max-sm:h-[calc(100dvh-16px)]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void controller.handleSubmit();
+          }}
           size="wide"
         >
           <UiDialogHeader
@@ -138,9 +142,8 @@ export function ScheduledTaskDialog({
               <UiButton
                 className="min-w-[124px]"
                 disabled={controller.isSubmitting}
-                onClick={() => void controller.handleSubmit()}
                 tone="primary"
-                type="button"
+                type="submit"
                 variant="solid"
               >
                 {controller.isSubmitting ? submittingLabel : (
@@ -152,7 +155,7 @@ export function ScheduledTaskDialog({
               </UiButton>
             ) : null}
           </UiDialogFooter>
-        </UiDialogShell>
+        </UiDialogFormShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
   );

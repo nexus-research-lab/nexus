@@ -12,7 +12,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -80,7 +80,7 @@ export function ConnectorCredentialDialog({
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!detail) return;
+      if (!detail || !credential.trim()) return;
       onSave(detail.connector_id, credential);
     },
     [credential, detail, onSave],
@@ -89,8 +89,6 @@ export function ConnectorCredentialDialog({
   if (!detail) return null;
 
   const copy = getCredentialCopy(detail);
-  const canSave = credential.trim() !== "";
-
   return (
     <UiDialogBackdrop onClose={onClose}>
       <UiDialogFormShell className="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
@@ -121,8 +119,11 @@ export function ConnectorCredentialDialog({
             </UiLinkButton>
           ) : null}
 
-          <label className="block space-y-1 text-compact font-medium text-(--text-muted)">
-            <span>{copy.label}</span>
+          <UiField
+            htmlFor={`${detail.connector_id}-credential`}
+            label={copy.label}
+            required
+          >
             <UiInput
               autoCapitalize="off"
               autoComplete="off"
@@ -130,19 +131,22 @@ export function ConnectorCredentialDialog({
               controlSize="sm"
               data-form-type="other"
               data-lpignore="true"
+              id={`${detail.connector_id}-credential`}
               name={`${detail.connector_id}-credential`}
               onChange={(event) => setCredential(event.target.value)}
+              pattern=".*\S.*"
               placeholder={copy.placeholder}
+              required
               spellCheck={false}
               type="password"
               value={credential}
             />
-          </label>
+          </UiField>
         </UiDialogBody>
 
         <UiDialogFooter>
           <UiButton
-            disabled={busy || !canSave}
+            disabled={busy}
             size="sm"
             tone="primary"
             type="submit"

@@ -4,7 +4,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale, TranslationKey } from "@/shared/i18n/messages";
 import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -272,19 +272,17 @@ export function TaskSchedulePanel({
         />
       </div>
 
-      <div className="dialog-field">
-        <label className="dialog-label" htmlFor="task-instruction">
-          {instructionLabel}
-        </label>
+      <UiField htmlFor="task-instruction" label={instructionLabel} required>
         <UiTextarea
           className="resize-none"
           id="task-instruction"
           onChange={(event) => formActions.setInstruction(event.target.value)}
           placeholder={t("capability.scheduled_dialog_instruction_placeholder")}
+          required
           rows={4}
           value={form.instruction}
         />
-      </div>
+      </UiField>
 
       <UiCheckboxRow
         checked={form.enabled}

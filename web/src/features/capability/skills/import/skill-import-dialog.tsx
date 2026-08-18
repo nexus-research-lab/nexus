@@ -88,7 +88,6 @@ export function SkillImportDialog({
             <SkillImportGuide importing={importing} />
           </UiDialogBody>
           <SkillImportFooter
-            canSubmitGit={controller.canSubmitGit}
             importing={importing}
             mode={mode}
             onClose={controller.close}

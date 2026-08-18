@@ -18,7 +18,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -64,7 +64,6 @@ export function ConnectorOAuthClientDialog({
         <ConnectorOauthClientBody form={form} model={model} />
         <ConnectorOauthClientFooter
           busy={busy}
-          canSave={form.canSave}
           model={model}
           onDelete={onDelete}
         />
@@ -74,7 +73,6 @@ export function ConnectorOAuthClientDialog({
 }
 
 interface ConnectorOauthClientFormState {
-  canSave: boolean;
   clientId: string;
   clientSecret: string;
   handleSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -94,12 +92,13 @@ function useConnectorOauthClientForm(
   const [clientSecret, setClientSecret] = useResettableState("", resetKey);
   const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!model) return;
+    if (!model || !connectorOauthCredentialsComplete(clientId, clientSecret)) {
+      return;
+    }
     onSave(model.connectorId, clientId, clientSecret);
   }, [clientId, clientSecret, model, onSave]);
 
   return {
-    canSave: connectorOauthCredentialsComplete(clientId, clientSecret),
     clientId,
     clientSecret,
     handleSubmit,
@@ -186,21 +185,21 @@ function ConnectorOauthClientFields({
 }) {
   return (
     <>
-      <label className="block space-y-1 text-compact font-medium text-(--text-muted)" htmlFor="oauth-client-id">
-        <span>Client ID</span>
+      <UiField htmlFor="oauth-client-id" label="Client ID" required>
         <UiInput
           autoCapitalize="off"
           autoCorrect="off"
           controlSize="sm"
           id="oauth-client-id"
           onChange={(event) => form.setClientId(event.target.value)}
+          pattern=".*\S.*"
           placeholder="飞书应用 App ID"
+          required
           spellCheck={false}
           value={form.clientId}
         />
-      </label>
-      <label className="block space-y-1 text-compact font-medium text-(--text-muted)" htmlFor="oauth-client-secret">
-        <span>Client Secret</span>
+      </UiField>
+      <UiField htmlFor="oauth-client-secret" label="Client Secret" required>
         <UiInput
           autoCapitalize="off"
           autoComplete="off"
@@ -211,24 +210,24 @@ function ConnectorOauthClientFields({
           id="oauth-client-secret"
           name="feishu-docx-client-secret"
           onChange={(event) => form.setClientSecret(event.target.value)}
+          pattern=".*\S.*"
           placeholder={model.secretPlaceholder}
+          required
           spellCheck={false}
           type="password"
           value={form.clientSecret}
         />
-      </label>
+      </UiField>
     </>
   );
 }
 
 function ConnectorOauthClientFooter({
   busy,
-  canSave,
   model,
   onDelete,
 }: {
   busy: boolean;
-  canSave: boolean;
   model: ConnectorOauthClientDialogModel;
   onDelete: ConnectorOAuthClientDialogProps["onDelete"];
 }) {
@@ -248,7 +247,7 @@ function ConnectorOauthClientFooter({
         </UiButton>
       ) : null}
       <UiButton
-        disabled={busy || !canSave}
+        disabled={busy}
         size="sm"
         tone="primary"
         type="submit"

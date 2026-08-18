@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Marked required fields consistently across Provider setup and other configuration forms, and kept submit actions available so missing values receive immediate Nexus-styled inline validation feedback.
 - Moved `diagram-design`, `Kami`, and `slide-maker` out of the bundled platform
   Skill library; users can now install and update them from Community Skills
   when needed.

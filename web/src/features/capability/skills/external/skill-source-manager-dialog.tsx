@@ -336,16 +336,6 @@ function PrivateSourceEditorDialog({
     key: K,
     value: PrivateSkillSourceDraft[K],
   ) => onChange({ ...draft, [key]: value });
-  const canSubmit = Boolean(
-    draft.name.trim()
-    && draft.url.trim()
-    && (
-      draft.authType === "none"
-      || draft.token.trim()
-      || editingSource?.credential_configured
-    ),
-  );
-
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
@@ -371,12 +361,14 @@ function PrivateSourceEditorDialog({
             <UiField
               htmlFor="private-skill-source-name"
               label={t("capability.skill_source_name")}
+              required
             >
               <UiInput
                 data-autofocus="true"
                 disabled={loading}
                 id="private-skill-source-name"
                 onChange={(event) => updateDraft("name", event.target.value)}
+                pattern=".*\S.*"
                 placeholder={t("capability.skill_source_name_placeholder")}
                 required
                 value={draft.name}
@@ -388,6 +380,7 @@ function PrivateSourceEditorDialog({
                 : t("capability.skill_source_url_description")}
               htmlFor="private-skill-source-url"
               label={t("capability.skill_source_url")}
+              required
             >
               <UiInput
                 disabled={loading || Boolean(editingSource)}
@@ -424,12 +417,14 @@ function PrivateSourceEditorDialog({
                   : t("capability.skill_source_token_description")}
                 htmlFor="private-skill-source-token"
                 label={t("capability.skill_source_token")}
+                required={!editingSource?.credential_configured}
               >
                 <UiInput
                   autoComplete="new-password"
                   disabled={loading}
                   id="private-skill-source-token"
                   onChange={(event) => updateDraft("token", event.target.value)}
+                  pattern=".*\S.*"
                   placeholder={editingSource?.credential_configured ? "••••••••" : "token"}
                   required={!editingSource?.credential_configured}
                   type="password"
@@ -448,7 +443,7 @@ function PrivateSourceEditorDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={loading || !canSubmit}
+              disabled={loading}
               size="sm"
               tone="primary"
               type="submit"

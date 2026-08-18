@@ -101,6 +101,7 @@ export function CustomMCPDialog({
             <UiField
               htmlFor="custom-mcp-name"
               label={t("capability.custom_mcp_name")}
+              required
             >
               <UiInput
                 ref={nameInputRef}
@@ -108,6 +109,7 @@ export function CustomMCPDialog({
                 id="custom-mcp-name"
                 onChange={(event) => updateDraft("name", event.target.value)}
                 placeholder="my_mcp_server"
+                required
                 value={draft.name}
               />
             </UiField>
@@ -168,12 +170,14 @@ function StdioFields({
       <UiField
         htmlFor="custom-mcp-command"
         label={t("capability.custom_mcp_command")}
+        required
       >
         <UiInput
           autoComplete="off"
           id="custom-mcp-command"
           onChange={(event) => updateDraft("command", event.target.value)}
           placeholder="npx"
+          required
           value={draft.command}
         />
       </UiField>
@@ -207,12 +211,17 @@ function RemoteFields({
   const { t } = useI18n();
   return (
     <>
-      <UiField htmlFor="custom-mcp-url" label={t("capability.custom_mcp_url")}>
+      <UiField
+        htmlFor="custom-mcp-url"
+        label={t("capability.custom_mcp_url")}
+        required
+      >
         <UiInput
           autoComplete="off"
           id="custom-mcp-url"
           onChange={(event) => updateDraft("url", event.target.value)}
           placeholder="https://example.com/mcp"
+          required
           type="url"
           value={draft.url}
         />
@@ -236,6 +245,7 @@ function RemoteFields({
           description={t("capability.custom_mcp_bearer_hint")}
           htmlFor="custom-mcp-bearer-token"
           label={t("capability.custom_mcp_bearer_token")}
+          required={!draft.bearerTokenConfigured}
         >
           <UiInput
             autoComplete="off"
@@ -247,6 +257,7 @@ function RemoteFields({
             placeholder={draft.bearerTokenConfigured
               ? t("capability.custom_mcp_secret_saved")
               : t("capability.custom_mcp_bearer_placeholder")}
+            required={!draft.bearerTokenConfigured}
             type="password"
             value={draft.bearerToken}
           />
@@ -288,6 +299,7 @@ function StringListEditor({
                 itemIndex === index ? event.target.value : item
               )))}
               placeholder={placeholder}
+              required
               value={value}
             />
             <RemoveRowButton onClick={() => onChange(
@@ -332,6 +344,7 @@ function SecretListEditor({
               aria-label={`${label} ${t("capability.custom_mcp_key")}`}
               onChange={(event) => updateRow(index, { key: event.target.value })}
               placeholder={t("capability.custom_mcp_key")}
+              required
               value={row.key}
             />
             <UiInput
@@ -343,6 +356,7 @@ function SecretListEditor({
               placeholder={row.configured
                 ? t("capability.custom_mcp_secret_saved")
                 : t("capability.custom_mcp_value")}
+              required={!row.configured}
               type="password"
               value={row.value}
             />
