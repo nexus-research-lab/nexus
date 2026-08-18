@@ -72,6 +72,7 @@ type roundRunner struct {
 	runtimeProvider             string
 	runtimeModel                string
 	toolSurfaceFingerprint      string
+	forkSourceSessionID         string
 	ownerUserID                 string
 	mapper                      *dmdomain.MessageMapper
 	inputOptions                sdkprotocol.OutboundMessageOptions
@@ -263,6 +264,10 @@ func (r *roundRunner) executeRound(
 			logger.Debug("Agent ", fields...)
 		},
 		SyncSessionID: func(sessionID string) error {
+			if sourceSessionID := strings.TrimSpace(r.forkSourceSessionID); sourceSessionID != "" &&
+				strings.TrimSpace(sessionID) == sourceSessionID {
+				return errors.New("runtime fork 仍返回 source SDK session")
+			}
 			updatedSession, syncErr := r.service.syncSDKSessionIDForOwner(
 				ctx,
 				r.ownerUserID,
@@ -278,6 +283,9 @@ func (r *roundRunner) executeRound(
 				return syncErr
 			}
 			r.session = updatedSession
+			if forkSessionStateCommitted(r.session, sessionID, r.toolSurfaceFingerprint) {
+				r.forkSourceSessionID = ""
+			}
 			return nil
 		},
 		HandleDurableMessage: func(message protocol.Message) error {
@@ -288,6 +296,12 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
+	if executeErr == nil && strings.TrimSpace(r.forkSourceSessionID) != "" {
+		executeErr = errors.New("runtime fork 未提交可恢复的独立 SDK session")
+	}
+	if executeErr != nil && strings.TrimSpace(r.forkSourceSessionID) != "" {
+		r.closeUncommittedForkRuntime(logger, executeErr)
+	}
 	failureReason := ""
 	if executeErr != nil {
 		failureReason = executeErr.Error()
@@ -298,6 +312,19 @@ func (r *roundRunner) executeRound(
 		failureReason,
 	)
 	return result, executeErr
+}
+
+func (r *roundRunner) closeUncommittedForkRuntime(logger *slog.Logger, forkErr error) {
+	lease, ok := r.service.runtime.CaptureClientLease(r.sessionKey, r.client)
+	if !ok {
+		return
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	_, closeErr := r.service.runtime.CloseSessionIfLease(closeCtx, lease)
+	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+		logger.Warn("关闭未提交的 fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
+	}
 }
 
 func (r *roundRunner) orchestrationActor() orchestration.ActorContext {

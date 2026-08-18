@@ -38,6 +38,7 @@ type dmClientPreparation struct {
 	runtimeProvider        string
 	runtimeModel           string
 	toolSurfaceFingerprint string
+	forkSourceSessionID    string
 	session                protocol.Session
 	emotionEnabled         bool
 	goalIDForUsage         string
@@ -414,28 +415,38 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
+	forkSourceSessionID = ""
 	if forking {
 		forkedSessionID := strings.TrimSpace(client.SessionID())
-		if forkedSessionID == "" || forkedSessionID == strings.TrimSpace(resumeID) {
+		if forkedSessionID == strings.TrimSpace(resumeID) {
 			_, _ = retireDMRuntimeClient(ctx, startup)
-			return dmClientPreparation{}, errors.New("runtime 未物化独立的 fork SDK session")
+			return dmClientPreparation{}, errors.New("runtime fork 仍返回 source SDK session")
 		}
-		updatedSession, syncErr := s.syncSDKSessionIDForOwner(
-			ctx,
-			agentValue.OwnerUserID,
-			agentValue.WorkspacePath,
-			sessionItem,
-			forkedSessionID,
-			strings.TrimSpace(string(options.Runtime.Kind)),
-			runtimeProvider,
-			strings.TrimSpace(options.Model),
-			toolSurfaceFingerprint,
-		)
-		if syncErr != nil {
-			_, _ = retireDMRuntimeClient(ctx, startup)
-			return dmClientPreparation{}, fmt.Errorf("提交 fork SDK session: %w", syncErr)
+		if forkedSessionID == "" {
+			// Claude Code 只在首条 query 后通过 init 事件公布 fork identity；
+			// 在 round 收到该事件前保持旧 identity/工具面基线不变。
+			forkSourceSessionID = strings.TrimSpace(resumeID)
+		} else {
+			updatedSession, syncErr := s.syncSDKSessionIDForOwner(
+				ctx,
+				agentValue.OwnerUserID,
+				agentValue.WorkspacePath,
+				sessionItem,
+				forkedSessionID,
+				strings.TrimSpace(string(options.Runtime.Kind)),
+				runtimeProvider,
+				strings.TrimSpace(options.Model),
+				toolSurfaceFingerprint,
+			)
+			if syncErr != nil {
+				_, _ = retireDMRuntimeClient(ctx, startup)
+				return dmClientPreparation{}, fmt.Errorf("提交 fork SDK session: %w", syncErr)
+			}
+			sessionItem = updatedSession
+			if !forkSessionStateCommitted(sessionItem, forkedSessionID, toolSurfaceFingerprint) {
+				forkSourceSessionID = strings.TrimSpace(resumeID)
+			}
 		}
-		sessionItem = updatedSession
 	}
 	return dmClientPreparation{
 		client:                 client,
@@ -443,6 +454,7 @@ func (s *Service) ensureClient(
 		runtimeProvider:        runtimeProvider,
 		runtimeModel:           strings.TrimSpace(options.Model),
 		toolSurfaceFingerprint: toolSurfaceFingerprint,
+		forkSourceSessionID:    forkSourceSessionID,
 		session:                sessionItem,
 		emotionEnabled:         runtimeSelection.EmotionEnabled,
 		goalIDForUsage:         goalIDForUsage,
@@ -451,6 +463,17 @@ func (s *Service) ensureClient(
 		responsibilityState:    responsibilityState,
 		permissionMode:         permissionMode,
 	}, nil
+}
+
+func forkSessionStateCommitted(
+	sessionItem protocol.Session,
+	sessionID string,
+	toolSurfaceFingerprint string,
+) bool {
+	currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.SessionID))
+	storedToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
+	return currentSessionID == strings.TrimSpace(sessionID) &&
+		strings.TrimSpace(storedToolSurface) == strings.TrimSpace(toolSurfaceFingerprint)
 }
 
 func runtimeForkTargetSessionID(
