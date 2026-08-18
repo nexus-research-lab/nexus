@@ -91,9 +91,40 @@ func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
 	roomSessionID string,
 	sdkSessionID string,
 ) error {
+	_, err := r.updateRoomSessionSDKSessionID(
+		ctx,
+		roomSessionID,
+		sdkSessionID,
+		nil,
+	)
+	return err
+}
+
+// UpdateRoomSessionSDKSessionIDAtConnectorSelection 仅在 SQL Session 的 Connector
+// 选择仍等于后台预备快照时提交 fork identity。
+func (r *SQLRepository) UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+	ctx context.Context,
+	roomSessionID string,
+	sdkSessionID string,
+	expected protocol.SessionConnectorSelection,
+) (bool, error) {
+	return r.updateRoomSessionSDKSessionID(
+		ctx,
+		roomSessionID,
+		sdkSessionID,
+		&expected,
+	)
+}
+
+func (r *SQLRepository) updateRoomSessionSDKSessionID(
+	ctx context.Context,
+	roomSessionID string,
+	sdkSessionID string,
+	expected *protocol.SessionConnectorSelection,
+) (bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { _ = tx.Rollback() }()
 	var roomID string
@@ -101,15 +132,15 @@ func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
 SELECT c.room_id
 FROM sessions s
 JOIN conversations c ON c.id = s.conversation_id
-WHERE s.id = `+r.dialect.Bind(1), roomSessionID).Scan(&roomID)
+	WHERE s.id = `+r.dialect.Bind(1), roomSessionID).Scan(&roomID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err = storage.LockRoomForMutation(ctx, tx, r.dialect, "", roomID); err != nil {
-		return err
+		return false, err
 	}
 	var current sql.NullString
 	var optionsJSON string
@@ -119,17 +150,22 @@ WHERE s.id = `+r.dialect.Bind(1), roomSessionID).Scan(&roomID)
 		roomSessionID,
 	).Scan(&current, &optionsJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
+	}
+	currentOptions := jsoncodec.ParseMap(optionsJSON)
+	if expected != nil &&
+		!protocol.SessionConnectorSelectionFromOptions(currentOptions).Equal(*expected) {
+		return false, nil
 	}
 	options := protocol.WithTranscriptSessionIDs(
-		jsoncodec.ParseMap(optionsJSON),
+		currentOptions,
 		[]string{current.String, sdkSessionID},
 	)
 	optionsJSON, err = jsoncodec.MarshalMap(options)
 	if err != nil {
-		return err
+		return false, err
 	}
 	_, err = tx.ExecContext(ctx, `
 UPDATE sessions
@@ -146,9 +182,12 @@ WHERE id = `+r.dialect.Bind(3)+`
 		roomID,
 	)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // UpdateRoomConversationRuntimeSettings 更新目标 Agent 模型，并统一 Conversation 权限。

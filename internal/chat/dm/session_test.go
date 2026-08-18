@@ -51,6 +51,22 @@ func TestRoomBackedSessionOptionsReplaceLocalOverlay(t *testing.T) {
 	}
 }
 
+func TestSessionsEqualTreatsDecodedAndTypedConnectorSlicesAsEquivalent(t *testing.T) {
+	left := protocol.Session{
+		SessionKey: "agent:agent-a:ws:dm:conversation-a",
+		Options: map[string]any{
+			protocol.OptionSessionConnectorIDs: []any{"feishu-docx"},
+		},
+	}
+	right := left
+	right.Options = map[string]any{
+		protocol.OptionSessionConnectorIDs: []string{"feishu-docx"},
+	}
+	if !SessionsEqual(left, right) {
+		t.Fatal("JSON-equivalent Connector options should not rewrite Session meta")
+	}
+}
+
 func TestRoomBackedSessionSQLClearsMaterializedForkDependency(t *testing.T) {
 	targetSessionID := "target-sdk-session"
 	current := protocol.Session{

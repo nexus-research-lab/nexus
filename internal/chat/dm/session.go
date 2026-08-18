@@ -4,6 +4,8 @@
 package dm
 
 import (
+	"bytes"
+	"encoding/json"
 	"reflect"
 	"slices"
 	"strings"
@@ -80,7 +82,16 @@ func SessionsEqual(left protocol.Session, right protocol.Session) bool {
 		left.MessageCount == right.MessageCount &&
 		slices.Equal(left.TranscriptSessionIDs, right.TranscriptSessionIDs) &&
 		reflect.DeepEqual(left.ContextUsage, right.ContextUsage) &&
-		reflect.DeepEqual(left.Options, right.Options)
+		equivalentJSONValue(left.Options, right.Options)
+}
+
+func equivalentJSONValue(left any, right any) bool {
+	leftJSON, leftErr := json.Marshal(left)
+	rightJSON, rightErr := json.Marshal(right)
+	if leftErr != nil || rightErr != nil {
+		return reflect.DeepEqual(left, right)
+	}
+	return bytes.Equal(leftJSON, rightJSON)
 }
 
 // StringPointerValue 返回字符串指针的去空白值。

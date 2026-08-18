@@ -5,6 +5,7 @@ package dm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -329,14 +330,21 @@ func (s *Service) syncSDKSessionIDForOwner(
 	runtimeProvider string,
 	runtimeModel string,
 	toolSurfaceFingerprint string,
+	constraints ...sdkSessionSyncConstraint,
 ) (protocol.Session, error) {
+	constraint := sdkSessionSyncConstraint{}
+	if len(constraints) > 0 {
+		constraint = constraints[0]
+	}
 	sync := sdkSessionSync{
-		service:       s,
-		ctx:           ctx,
-		ownerUserID:   strings.TrimSpace(ownerUserID),
-		workspacePath: workspacePath,
-		current:       current,
-		nextSessionID: strings.TrimSpace(sessionID),
+		service:                      s,
+		ctx:                          ctx,
+		ownerUserID:                  strings.TrimSpace(ownerUserID),
+		workspacePath:                workspacePath,
+		current:                      current,
+		nextSessionID:                strings.TrimSpace(sessionID),
+		expectedConfigurationVersion: constraint.configurationVersion,
+		expectedConnectorSelection:   constraint.connectorSelection,
 		nextFingerprint: sessionRuntimeFingerprint{
 			kind:        strings.TrimSpace(runtimeKind),
 			provider:    strings.TrimSpace(runtimeProvider),
@@ -345,6 +353,11 @@ func (s *Service) syncSDKSessionIDForOwner(
 		},
 	}
 	return sync.run()
+}
+
+type sdkSessionSyncConstraint struct {
+	configurationVersion int64
+	connectorSelection   *protocol.SessionConnectorSelection
 }
 
 type sessionRuntimeFingerprint struct {
@@ -375,16 +388,18 @@ func (f sessionRuntimeFingerprint) apply(options map[string]any) {
 }
 
 type sdkSessionSync struct {
-	service            *Service
-	ctx                context.Context
-	ownerUserID        string
-	workspacePath      string
-	current            protocol.Session
-	nextSessionID      string
-	nextFingerprint    sessionRuntimeFingerprint
-	sessionIDChanged   bool
-	fingerprintChanged bool
-	canPersistSession  bool
+	service                      *Service
+	ctx                          context.Context
+	ownerUserID                  string
+	workspacePath                string
+	current                      protocol.Session
+	nextSessionID                string
+	nextFingerprint              sessionRuntimeFingerprint
+	sessionIDChanged             bool
+	fingerprintChanged           bool
+	canPersistSession            bool
+	expectedConfigurationVersion int64
+	expectedConnectorSelection   *protocol.SessionConnectorSelection
 }
 
 func (s *sdkSessionSync) run() (protocol.Session, error) {
@@ -458,10 +473,17 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	if err = s.syncRoomSession(current); err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.service.files.ForOwner(s.ownerUserID).PatchSessionRuntime(
-		s.workspacePath,
-		current,
-	)
+	files := s.service.files.ForOwner(s.ownerUserID)
+	var updated *protocol.Session
+	if s.expectedConfigurationVersion > 0 {
+		updated, err = files.PatchSessionRuntimeAtVersion(
+			s.workspacePath,
+			current,
+			s.expectedConfigurationVersion,
+		)
+	} else {
+		updated, err = files.PatchSessionRuntime(s.workspacePath, current)
+	}
 	if err != nil {
 		return protocol.Session{}, err
 	}
@@ -477,6 +499,32 @@ func (s *sdkSessionSync) syncRoomSession(updated protocol.Session) error {
 	}
 	roomSessionID := strings.TrimSpace(*updated.RoomSessionID)
 	if roomSessionID == "" {
+		return nil
+	}
+	if s.expectedConnectorSelection != nil {
+		store, ok := s.service.roomStore.(interface {
+			UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+				context.Context,
+				string,
+				string,
+				protocol.SessionConnectorSelection,
+			) (bool, error)
+		})
+		if !ok {
+			return errors.New("Room Session store 不支持 Connector 选择版本栅栏")
+		}
+		committed, err := store.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+			s.ctx,
+			roomSessionID,
+			s.nextSessionID,
+			*s.expectedConnectorSelection,
+		)
+		if err != nil {
+			return err
+		}
+		if !committed {
+			return workspacestore.ErrSessionConfigurationVersionConflict
+		}
 		return nil
 	}
 	return s.service.roomStore.UpdateRoomSessionSDKSessionID(s.ctx, roomSessionID, s.nextSessionID)

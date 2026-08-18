@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -61,7 +62,16 @@ func (s *Service) UpdateRuntimeSettings(
 	if err != nil {
 		return protocol.SessionRuntimeSettings{}, err
 	}
-	item.Options = protocol.WithSessionRuntimeSettings(item.Options, normalized)
+	previousOptions := item.Options
+	nextOptions := protocol.WithSessionRuntimeSettings(item.Options, normalized)
+	connectorSelectionChanged := s.effectiveConnectorSelectionChanged(
+		ctx,
+		*item,
+		previousOptions,
+		nextOptions,
+	)
+	item.Options = nextOptions
+	updatedForPreparation := make([]protocol.Session, 0, 1)
 	if isRoomSession {
 		if item.RoomSessionID == nil || strings.TrimSpace(*item.RoomSessionID) == "" {
 			return protocol.SessionRuntimeSettings{}, ErrSessionNotFound
@@ -76,18 +86,61 @@ func (s *Service) UpdateRuntimeSettings(
 			return protocol.SessionRuntimeSettings{}, updateErr
 		}
 		for _, updatedSession := range updatedSessions {
+			updatedForPreparation = append(updatedForPreparation, updatedSession)
 			s.notifyDirectoryChanged(
 				ctx,
 				"session_runtime_settings_updated",
 				updatedSession,
 			)
 		}
-	} else if _, err = s.ownerFiles(ctx).UpsertSession(workspacePath, *item); err != nil {
+	} else if item, err = s.ownerFiles(ctx).UpsertSession(workspacePath, *item); err != nil {
 		return protocol.SessionRuntimeSettings{}, err
 	} else {
 		s.notifyDirectoryChanged(ctx, "session_runtime_settings_updated", *item)
+		updatedForPreparation = append(updatedForPreparation, *item)
+	}
+	if connectorSelectionChanged && s.runtimeSettingsPreparation != nil {
+		for _, updatedSession := range updatedForPreparation {
+			s.runtimeSettingsPreparation.ScheduleRuntimeSettingsPreparation(
+				ctx,
+				updatedSession,
+			)
+		}
 	}
 	return normalized, nil
+}
+
+func (s *Service) effectiveConnectorSelectionChanged(
+	ctx context.Context,
+	session protocol.Session,
+	previousOptions map[string]any,
+	nextOptions map[string]any,
+) bool {
+	agentConnectorIDs := []string(nil)
+	agentDefaultsKnown := false
+	if s.agentService != nil {
+		agentValue, err := s.agentService.GetAgent(ctx, strings.TrimSpace(session.AgentID))
+		if err == nil && agentValue != nil {
+			agentConnectorIDs = agentValue.Options.ConnectorIDs
+			agentDefaultsKnown = true
+		}
+	}
+	if !agentDefaultsKnown {
+		previous := protocol.SessionConnectorSelectionFromOptions(previousOptions)
+		next := protocol.SessionConnectorSelectionFromOptions(nextOptions)
+		return !previous.Equal(next)
+	}
+	previous := protocol.EffectiveSessionConnectorIDs(agentConnectorIDs, previousOptions)
+	next := protocol.EffectiveSessionConnectorIDs(agentConnectorIDs, nextOptions)
+	previous = sortedRuntimeConnectorIDs(previous)
+	next = sortedRuntimeConnectorIDs(next)
+	return !slices.Equal(previous, next)
+}
+
+func sortedRuntimeConnectorIDs(values []string) []string {
+	result := normalizeRuntimeConnectorIDs(values)
+	slices.Sort(result)
+	return result
 }
 
 // GetLocalDirectories 返回当前 Session 的额外挂载目录。

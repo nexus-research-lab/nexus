@@ -387,6 +387,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
 	dmService.SetExecutionMCPServerBuilder(executionBuilder)
 	roomRealtime.SetExecutionMCPServerBuilder(executionBuilder)
+	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
 
 	warnIfProviderMissing(providerService, logger)
 

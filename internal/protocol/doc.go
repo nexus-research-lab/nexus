@@ -9,6 +9,7 @@
 // 成员地图：
 //   - agent.go / agent_private.go / skill.go：Agent、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
 //   - session*.go / conversation_message_annotation.go / input_queue.go：会话、消息、轮次、
+//     Connector 继承/显式选择快照、
 //     公开 handoff 回复因果注解、外部 IM 身份、Goal 完成收据、记忆引用、
 //     上下文占用和持久输入队列。
 //   - room*.go：Room、可按好友对恢复的联系人内部通道、成员 participation gate、

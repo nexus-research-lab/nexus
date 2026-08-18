@@ -22,6 +22,25 @@ func TestEffectiveSessionConnectorIDs(t *testing.T) {
 	}
 }
 
+func TestSessionConnectorSelectionDistinguishesInheritanceAndCanonicalizesSet(t *testing.T) {
+	inherited := SessionConnectorSelectionFromOptions(nil)
+	explicitEmpty := SessionConnectorSelectionFromOptions(map[string]any{
+		OptionSessionConnectorIDs: []any{},
+	})
+	if inherited.Equal(explicitEmpty) {
+		t.Fatal("继承 Agent 默认值不应等于显式空 Connector 集合")
+	}
+	left := SessionConnectorSelectionFromOptions(map[string]any{
+		OptionSessionConnectorIDs: []any{"github", " feishu-docx ", "github"},
+	})
+	right := SessionConnectorSelectionFromOptions(map[string]any{
+		OptionSessionConnectorIDs: []any{"feishu-docx", "github"},
+	})
+	if !left.Equal(right) {
+		t.Fatalf("canonical Connector selections differ: left=%+v right=%+v", left, right)
+	}
+}
+
 func TestSessionAdditionalDirectoriesOptions(t *testing.T) {
 	options := WithSessionAdditionalDirectories(map[string]any{
 		"keep": "value",

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,10 +19,31 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	titlegensvc "github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
+	sessionrepo "github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 )
+
+type runtimeSettingsPreparationRecorder struct {
+	mu       sync.Mutex
+	sessions []protocol.Session
+}
+
+func (r *runtimeSettingsPreparationRecorder) ScheduleRuntimeSettingsPreparation(
+	_ context.Context,
+	session protocol.Session,
+) {
+	r.mu.Lock()
+	r.sessions = append(r.sessions, session)
+	r.mu.Unlock()
+}
+
+func (r *runtimeSettingsPreparationRecorder) snapshot() []protocol.Session {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]protocol.Session(nil), r.sessions...)
+}
 
 func TestSessionServiceLifecycle(t *testing.T) {
 	cfg := newSessionTestConfig(t)
@@ -464,6 +486,140 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 		unchangedAgent.Options.Model != "agent-model" ||
 		unchangedAgent.Options.PermissionMode != "default" {
 		t.Fatalf("Session 设置不应修改 Agent 默认值: %+v", unchangedAgent.Options)
+	}
+}
+
+func TestSessionRuntimeSettingsSchedulesOnlyEffectiveConnectorChanges(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+	agentService, db := newSessionTestAgentService(t, cfg)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	recorder := &runtimeSettingsPreparationRecorder{}
+	sessionService.SetRuntimeSettingsPreparationScheduler(recorder)
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "Connector 预备助手",
+		Options: &protocol.Options{
+			ConnectorIDs: []string{"github"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		"ws",
+		"dm",
+		"connector-preparation",
+		"",
+	)
+	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
+		Provider: "provider-only-settings-change",
+		Model:    "model-only-settings-change",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sameAsDefault := []string{"github"}
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
+		ConnectorIDs: &sameAsDefault,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := recorder.snapshot(); len(got) != 0 {
+		t.Fatalf("equivalent Connector settings scheduled preparation: %+v", got)
+	}
+
+	feishu := []string{"feishu-docx"}
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
+		ConnectorIDs: &feishu,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := recorder.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("effective Connector change scheduled %d preparations, want 1", len(got))
+	}
+	if got[0].ConfigurationVersion < 2 {
+		t.Fatalf("scheduled Session configuration_version=%d", got[0].ConfigurationVersion)
+	}
+	selected := protocol.EffectiveSessionConnectorIDs(nil, got[0].Options)
+	if len(selected) != 1 || selected[0] != "feishu-docx" {
+		t.Fatalf("scheduled Connector selection=%v", selected)
+	}
+}
+
+func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+	agentService, db := newSessionTestAgentService(t, cfg)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Room Connector CAS"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionKey := protocol.BuildRoomAgentSessionKey(
+		roomContext.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeDM,
+	)
+	feishu := []string{"feishu-docx"}
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
+		ConnectorIDs: &feishu,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	roomSession, err := sessionService.GetSession(ctx, sessionKey)
+	if err != nil || roomSession.RoomSessionID == nil {
+		t.Fatalf("Room Session projection=%+v err=%v", roomSession, err)
+	}
+	staleSelection := protocol.SessionConnectorSelectionFromOptions(roomSession.Options)
+	github := []string{"github"}
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
+		ConnectorIDs: &github,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	repository := sessionrepo.NewSQLRepository(cfg.DatabaseDriver, db)
+	committed, err := repository.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+		ctx,
+		*roomSession.RoomSessionID,
+		"stale-fork-session",
+		staleSelection,
+	)
+	if err != nil || committed {
+		t.Fatalf("stale Connector selection committed=%t err=%v", committed, err)
+	}
+	current, err := sessionService.GetSession(ctx, sessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentSelection := protocol.SessionConnectorSelectionFromOptions(current.Options)
+	committed, err = repository.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+		ctx,
+		*roomSession.RoomSessionID,
+		"current-fork-session",
+		currentSelection,
+	)
+	if err != nil || !committed {
+		t.Fatalf("current Connector selection committed=%t err=%v", committed, err)
+	}
+	reloaded, err := repository.GetRoomSessionByKey(
+		ctx,
+		authctx.OwnerUserID(ctx),
+		protocol.ParseSessionKey(sessionKey),
+	)
+	if err != nil || reloaded == nil || reloaded.SessionID == nil ||
+		*reloaded.SessionID != "current-fork-session" {
+		t.Fatalf("reloaded Room Session=%+v err=%v", reloaded, err)
 	}
 }
 
