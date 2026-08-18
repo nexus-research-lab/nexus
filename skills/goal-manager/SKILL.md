@@ -25,6 +25,8 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
    "${NEXUS_COMMAND_PATH}" --json goal inspect
    ```
 
+   `inspect` 中当前 objective revision 与 completion criteria 是 Objective Alignment 和完成判断的唯一目标边界；不要从 transcript、旧 Plan、聊天正文或本地草稿反查或拼接标准。
+
 3. 确定一个操作后，只读取它的精确 contract，不根据记忆猜输入。
 
    ```bash
