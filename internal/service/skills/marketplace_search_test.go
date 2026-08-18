@@ -8,6 +8,31 @@ import (
 	"testing"
 )
 
+func TestSearchExternalSkillsReturnsRecommendedMetadata(t *testing.T) {
+	result, err := (&Service{}).SearchExternalSkills(context.Background(), "", false)
+	if err != nil {
+		t.Fatalf("读取推荐 skill 失败: %v", err)
+	}
+	if len(result.Results) != 3 || len(result.Sources) != 0 {
+		t.Fatalf("推荐 skill 响应不正确: %+v", result)
+	}
+
+	expected := map[string]struct {
+		repository string
+		path       string
+	}{
+		"diagram-design": {"https://github.com/cathrynlavery/diagram-design", "skills/diagram-design"},
+		"kami":           {"https://github.com/tw93/Kami", "plugins/kami/skills/kami"},
+		"wecom-unified":  {"https://github.com/WecomTeam/wecom-unified", "skills/wecom-unified"},
+	}
+	for name, want := range expected {
+		item := findExternalSearchItem(result.Results, name)
+		if item == nil || item.SourceKey != "nexus_recommended" || item.ImportMode != externalSourceKindGit || item.GitURL != want.repository || item.GitPath != want.path {
+			t.Fatalf("推荐 skill 元数据不正确: name=%s item=%+v", name, item)
+		}
+	}
+}
+
 func TestSearchExternalSkillsAggregatesSources(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)

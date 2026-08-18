@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added metadata-only recommendations for `diagram-design`, `Kami`, and
+  `wecom-unified` to Community Skills, with user-initiated Git installation.
 - Added single-Agent DM conversation branching from any completed Assistant reply, preserving the shared workspace while creating an independent SDK session and transcript history.
 - Added a host-managed, owner-private, round-scoped JSON input slot for `nexus automation`, with `--input-file`/stdin support, strict size/link/path checks, and automatic round cleanup so quoted instructions no longer depend on shell escaping.
 - Added owner-scoped custom STDIO, HTTP, and SSE MCP servers to the Connector directory, with encrypted environment, Bearer Token, and custom-header secrets plus existing Agent/Session Connector activation controls.
@@ -29,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved `diagram-design` and `Kami` out of the bundled platform Skill library;
+  users can now install and update them from Community Skills when needed.
 - Restricted `nexus automation` Bash/PowerShell auto-approval to the exact host-injected executable, fixed one-command grammar, and the host-managed input path; plan confirmations now include normalized change details and stale configuration/run identities fail before any task update.
 - Replaced the `nexus_automation` MCP surface with the system-managed `automation` Skill and the nxs/Claude-compatible, round-scoped `nexus automation` CLI. Mutations now use inspect/plan/apply, revision and digest fencing, and native Nexus/Room/IM confirmation; background task runs receive only exact job/run-scoped reads.
 - Mounted `nexus_imagegen` only when a usable image-generation model is configured, keeping unavailable image tools out of the default MCP surface.

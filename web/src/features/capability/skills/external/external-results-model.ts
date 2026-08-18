@@ -20,6 +20,8 @@ export interface ExternalResultsModel {
   phase: ExternalResultsPhase;
   selectedGroup: ExternalResultGroup | null;
   selectedSourceKey: string | null;
+  showSourceFilters: boolean;
+  title: string;
   visibleItems: ExternalSkillSearchItem[];
 }
 
@@ -52,6 +54,10 @@ export function buildExternalResultsModel({
     phase: resolveExternalResultsPhase(loading, submittedQuery, items, groups),
     selectedGroup,
     selectedSourceKey,
+    showSourceFilters: Boolean(submittedQuery.trim()),
+    title: localization.t(submittedQuery.trim()
+      ? "capability.search_results"
+      : "capability.skills_external_recommended"),
     visibleItems: filterAndSortExternalItems(items, selectedSourceKey),
   };
 }

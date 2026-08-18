@@ -89,7 +89,7 @@ Use these variables for CSS and SVG. Canvas APIs cannot resolve CSS `var(...)` s
 - Use neutral structure plus no more than two categorical chart colors. Encode status with text or shape as well as color.
 - For interactive diagrams, mutate classes and SVG attributes on existing elements instead of rebuilding the SVG.
 
-Use `diagram-design` instead when the user wants a persistent, downloadable single-file HTML diagram rather than an inline conversational widget.
+When `diagram-design` is installed, use it for a persistent, downloadable single-file HTML diagram rather than an inline conversational widget.
 
 ## UI mockups
 

@@ -216,6 +216,32 @@ test("英文社区 Skill 结果、预览与来源状态保持同一语言", asyn
     resultsModel.sourceGroupEmptyMessage(results.groups[0], localization),
     /This source is disabled/,
   );
+
+  const recommendedItem = {
+    ...item,
+    source_key: "nexus_recommended",
+    source_name: "Nexus Picks",
+  };
+  const recommendedListItem = skillModel.buildExternalSkillListItemModel(
+    recommendedItem,
+    new Map(),
+    new Set(),
+    localization,
+  );
+  assert.equal(recommendedListItem.installLabel, "");
+
+  const recommendedResults = resultsModel.buildExternalResultsModel({
+    activeSourceKey: null,
+    items: [recommendedItem],
+    loading: false,
+    localization,
+    statuses: [],
+    submittedQuery: "",
+    sources: [],
+  });
+  assert.equal(recommendedResults.phase, "ready");
+  assert.equal(recommendedResults.title, "Recommended Skills");
+  assert.equal(recommendedResults.showSourceFilters, false);
 });
 
 test("单次定时任务使用无歧义的年在前日期", async () => {

@@ -79,12 +79,6 @@
       "recommendation": "适合海报、静态视觉与导出物设计。"
     },
     {
-      "name": "diagram-design",
-      "category_key": "design-frontend",
-      "category_name": "设计与前端",
-      "recommendation": "适合把流程、架构、关系与抽象概念制作成清晰、可交付的专业图解。"
-    },
-    {
       "name": "theme-factory",
       "category_key": "design-frontend",
       "category_name": "设计与前端",
@@ -107,12 +101,6 @@
       "category_key": "content-docs",
       "category_name": "内容与文档",
       "recommendation": "适合管理 IMA 笔记、知识库、文件资料与网页收藏。"
-    },
-    {
-      "name": "kami",
-      "category_key": "content-docs",
-      "category_name": "内容与文档",
-      "recommendation": "适合把简历、报告、幻灯片与落地页排成统一、可验证的编辑式成品。"
     },
     {
       "name": "docx",
@@ -149,6 +137,74 @@
       "category_key": "ecommerce-growth",
       "category_name": "电商与增长",
       "recommendation": "适合潜客挖掘、商家搜集和销售线索整理。"
+    }
+  ],
+  "recommended_skills": [
+    {
+      "name": "diagram-design",
+      "title": "Diagram Design",
+      "description": "将流程、架构、关系与抽象概念制作成专业的 HTML/SVG 图解。",
+      "source": "https://github.com/cathrynlavery/diagram-design",
+      "package_spec": "https://github.com/cathrynlavery/diagram-design",
+      "skill_slug": "diagram-design",
+      "installs": 0,
+      "detail_url": "https://github.com/cathrynlavery/diagram-design/tree/main/skills/diagram-design",
+      "readme_markdown": "",
+      "source_kind": "git",
+      "source_key": "nexus_recommended",
+      "source_name": "Nexus Picks",
+      "source_trust": "community",
+      "import_mode": "git",
+      "git_url": "https://github.com/cathrynlavery/diagram-design",
+      "git_branch": "main",
+      "git_path": "skills/diagram-design",
+      "raw_url": "https://raw.githubusercontent.com/cathrynlavery/diagram-design/main/skills/diagram-design/SKILL.md",
+      "tags": ["diagram", "svg", "architecture", "design"],
+      "version": "main"
+    },
+    {
+      "name": "kami",
+      "title": "Kami",
+      "description": "使用统一的编辑式设计语言制作文档、幻灯片与落地页。",
+      "source": "https://github.com/tw93/Kami",
+      "package_spec": "https://github.com/tw93/Kami",
+      "skill_slug": "kami",
+      "installs": 0,
+      "detail_url": "https://github.com/tw93/Kami/tree/main/plugins/kami/skills/kami",
+      "readme_markdown": "",
+      "source_kind": "git",
+      "source_key": "nexus_recommended",
+      "source_name": "Nexus Picks",
+      "source_trust": "community",
+      "import_mode": "git",
+      "git_url": "https://github.com/tw93/Kami",
+      "git_branch": "main",
+      "git_path": "plugins/kami/skills/kami",
+      "raw_url": "https://raw.githubusercontent.com/tw93/Kami/main/plugins/kami/skills/kami/SKILL.md",
+      "tags": ["documents", "slides", "design"],
+      "version": "main"
+    },
+    {
+      "name": "wecom-unified",
+      "title": "WeCom Unified",
+      "description": "通过 wecom-cli 操作企业微信通讯录、文档表格、日程会议、待办、消息与邮件。",
+      "source": "https://github.com/WecomTeam/wecom-unified",
+      "package_spec": "https://github.com/WecomTeam/wecom-unified",
+      "skill_slug": "wecom-unified",
+      "installs": 0,
+      "detail_url": "https://github.com/WecomTeam/wecom-unified/tree/main/skills/wecom-unified",
+      "readme_markdown": "",
+      "source_kind": "git",
+      "source_key": "nexus_recommended",
+      "source_name": "Nexus Picks",
+      "source_trust": "community",
+      "import_mode": "git",
+      "git_url": "https://github.com/WecomTeam/wecom-unified",
+      "git_branch": "main",
+      "git_path": "skills/wecom-unified",
+      "raw_url": "https://raw.githubusercontent.com/WecomTeam/wecom-unified/main/skills/wecom-unified/SKILL.md",
+      "tags": ["wecom", "office", "collaboration"],
+      "version": "main"
     }
   ]
 }

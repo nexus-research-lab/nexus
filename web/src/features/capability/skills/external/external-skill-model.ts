@@ -97,9 +97,11 @@ export function buildExternalSkillListItemModel(
       busyKeys,
       localization,
     ),
-    installLabel: localization.t("capability.skills_external_install_count", {
-      count: formatInstallCount(item.installs),
-    }),
+    installLabel: item.source_key === "nexus_recommended"
+      ? ""
+      : localization.t("capability.skills_external_install_count", {
+        count: formatInstallCount(item.installs),
+      }),
     sourceLabel,
     sourceReference: externalSkillSourceReference(item),
     title: item.title || item.skill_slug,
@@ -127,7 +129,7 @@ export function buildExternalSkillPreviewModel(
     item,
     markdown: buildPreviewMarkdown(item, loading, localization),
     sourceLabel: listItem.sourceLabel,
-    subtitle: `${listItem.sourceReference} · ${listItem.installLabel}`,
+    subtitle: [listItem.sourceReference, listItem.installLabel].filter(Boolean).join(" · "),
     title: listItem.title,
   };
 }
