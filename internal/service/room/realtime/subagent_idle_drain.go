@@ -153,7 +153,8 @@ func (s *Service) handleIdleSubagentDurableMessage(
 			return err
 		}
 		s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
-		s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
+		actor := roomOrchestrationActor(roundValue, slot)
+		s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 		return nil
 	}
 	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
@@ -179,7 +180,8 @@ func (s *Service) handleIdleSubagentDurableMessage(
 		return err
 	}
 	s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
-	s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
+	actor := roomOrchestrationActor(roundValue, slot)
+	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 	return nil
 }
 

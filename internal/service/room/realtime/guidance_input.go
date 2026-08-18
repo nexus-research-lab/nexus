@@ -360,10 +360,7 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 	if e.round == nil || e.round.Context == nil {
 		return nil
 	}
-	agentNameByID, _, err := e.service.buildAgentDirectory(e.ctx, e.round.Context)
-	if err != nil {
-		return err
-	}
+	agentNameByID := buildMemberNameDirectory(e.round.Context)
 	publicHistory, err := e.service.roomHistory.ReadMessages(
 		e.round.OwnerUserID,
 		e.round.ConversationID,

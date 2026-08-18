@@ -171,7 +171,7 @@ func (s *Service) Ensure(
 			),
 		)
 		result.NextActions = []NextAction{{
-			Tool:   "prepare_plan_execution",
+			Domain: "execution", Operation: "prepare_plan_execution",
 			Reason: "seal the complete WorkGraph proposal, then leave Plan Mode and commit its exact receipt",
 		}}
 		return result, nil
@@ -198,12 +198,12 @@ func (s *Service) Ensure(
 		); boundaryErr != nil {
 			if strings.TrimSpace(snapshot.Execution.GoalID) != "" {
 				return RejectedResult(snapshot, goalRetargetRequiredError(), []NextAction{{
-					Tool:   "retarget_goal",
+					Domain: "goal", Operation: "retarget_goal",
 					Reason: "advance the Goal objective revision before replanning its bound Execution",
 				}}), nil
 			}
 			return RejectedResult(snapshot, boundaryErr, []NextAction{{
-				Tool:   "prepare_plan_execution",
+				Domain: "execution", Operation: "prepare_plan_execution",
 				Reason: "prepare an operation: replace document with a complete successor boundary",
 			}}), nil
 		}
@@ -323,7 +323,7 @@ func (s *Service) Ensure(
 		return s.storageMutationResult(nil, err, nil)
 	}
 	result := AppliedResult(snapshot, []string{"execution:" + snapshot.Execution.ID}, []NextAction{{
-		Tool:   "prepare_plan_execution",
+		Domain: "execution", Operation: "prepare_plan_execution",
 		Reason: "prepare and seal the complete WorkGraph when coordinated delivery is required",
 	}})
 	if strings.TrimSpace(snapshot.Execution.GoalID) == "" {
@@ -334,7 +334,7 @@ func (s *Service) Ensure(
 			result,
 			"Execution is durable; reverse Goal binding confirmation is pending and will retry automatically.",
 			NextAction{
-				Tool:   "get_execution",
+				Domain: "execution", Operation: "get_execution",
 				Reason: "continue from the durable Execution while background reconciliation confirms the Goal binding",
 			},
 		), nil

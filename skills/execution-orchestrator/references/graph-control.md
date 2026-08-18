@@ -11,9 +11,9 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 ## Plan Document 传输
 
-需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 交给 `prepare_plan_execution`，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。fresh Goal-free `create` 明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 成功，再准备绑定它的 Plan；不要并行调用二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先调用 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
+需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 写入 `prepare_plan_execution` 的 command input，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。fresh Goal-free `create` 明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 的 applied receipt，再准备绑定它的 Plan；不要并行执行二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先执行 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
 
-Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`prepare_plan_execution` 的工具 schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
+Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`execution contract --operation prepare_plan_execution` 返回的 input schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
 
 下面只是一个最小 create 示例，不是第二份 schema：
 
@@ -37,7 +37,7 @@ items:
       - "semantic:requested-outcome"
 ```
 
-`replan` / `replace` 的复用、依赖、输出 scope 和 active-work 条件以当轮 contract 为准。不要把对象或数组直接作为工具参数，不要发送 placeholder、fragment 或多份 YAML document，也不要自行猜测旧字段或枚举。
+`replan` / `replace` 的复用、依赖、输出 scope 和 active-work 条件以当轮 contract 为准。`plan_document` 必须是 input JSON 内的一个完整 string；不要发送 placeholder、fragment 或多份 YAML document，也不要自行猜测旧字段或枚举。
 
 ## 并行与依赖
 
@@ -54,7 +54,7 @@ items:
 
 执行中发现新范围时，优先保留已发生的 Node Run、提交、审核和证据，再按当前 `allowed_actions` 追加后继节点或建立新 Plan revision。不要删除或改写历史来伪装原计划一直如此。
 
-追加与替换的具体字段、可变更边界和当前可用动作以 `nexus_execution_context` 和工具 schema 为准；Skill 不复制瞬时版本或参数协议。
+追加与替换的具体字段、可变更边界和当前可用动作以 `nexus_execution_context` 和当轮 operation contract 为准；Skill 不复制瞬时版本或参数协议。
 
 ## Review 与 Gate
 

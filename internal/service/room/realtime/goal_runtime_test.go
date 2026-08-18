@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"path/filepath"
@@ -157,48 +158,47 @@ func TestRoomGoalFinalizingHookDeclinesWithoutSharedFinalizer(t *testing.T) {
 	}
 }
 
-func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalTool(t *testing.T) {
-	for _, toolName := range []string{"create_goal", "mcp__nexus_goal__create_goal"} {
-		t.Run(toolName, func(t *testing.T) {
-			sharedSessionKey := "room:group:conversation-1"
-			createdGoal := &protocol.Goal{ID: "goal-room-created", SessionKey: sharedSessionKey}
-			goalProvider := &fakeRoomGoalContextProvider{
-				usageGoal: createdGoal,
-				runtimeGoals: map[string]*protocol.Goal{
-					sharedSessionKey: createdGoal,
-				},
-			}
-			service := &Service{goals: goalProvider}
-			slot := &activeRoomSlot{
-				RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
-				AgentRoundID:      "round-1:agent-1",
-			}
-			slot.setGoalBinding(sharedSessionKey, "")
-			slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(false))
+func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalCommand(t *testing.T) {
+	t.Run("create_goal command", func(t *testing.T) {
+		sharedSessionKey := "room:group:conversation-1"
+		createdGoal := &protocol.Goal{ID: "goal-room-created", SessionKey: sharedSessionKey}
+		goalProvider := &fakeRoomGoalContextProvider{
+			usageGoal: createdGoal,
+			runtimeGoals: map[string]*protocol.Goal{
+				sharedSessionKey: createdGoal,
+			},
+		}
+		service := &Service{goals: goalProvider}
+		slot := &activeRoomSlot{
+			RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
+			AgentRoundID:      "round-1:agent-1",
+		}
+		slot.setGoalBinding(sharedSessionKey, "")
+		slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(false))
 
-			service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", toolName, 4, 1))
-			service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
-				Usage: sdkprotocol.TokenUsage{
-					InputTokens:  9,
-					OutputTokens: 3,
-					TotalTokens:  12,
-				},
-			}, nil)
+		stageRoomAppliedGoalCommand(slot, runtimecommand.GoalOperationCreate, createdGoal.ID, "")
+		service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "Bash", 4, 1))
+		service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
+			Usage: sdkprotocol.TokenUsage{
+				InputTokens:  9,
+				OutputTokens: 3,
+				TotalTokens:  12,
+			},
+		}, nil)
 
-			usages := goalProvider.recordedUsage()
-			if len(usages) != 1 {
-				t.Fatalf("len(usages) = %d, want one terminal settlement", len(usages))
-			}
-			if usages[0].InputTokens != 9 || usages[0].OutputTokens != 3 ||
-				usages[0].BudgetTokens() != 12 || usages[0].ActualTokens() != 12 {
-				t.Fatalf("usage = %#v, want complete first Room Goal slot round 9/3", usages[0])
-			}
-			if len(goalProvider.usageGoalIDs) != 1 ||
-				goalProvider.usageGoalIDs[0] != createdGoal.ID {
-				t.Fatalf("usageGoalIDs = %#v, want created shared Goal", goalProvider.usageGoalIDs)
-			}
-		})
-	}
+		usages := goalProvider.recordedUsage()
+		if len(usages) != 1 {
+			t.Fatalf("len(usages) = %d, want one terminal settlement", len(usages))
+		}
+		if usages[0].InputTokens != 9 || usages[0].OutputTokens != 3 ||
+			usages[0].BudgetTokens() != 12 || usages[0].ActualTokens() != 12 {
+			t.Fatalf("usage = %#v, want complete first Room Goal slot round 9/3", usages[0])
+		}
+		if len(goalProvider.usageGoalIDs) != 1 ||
+			goalProvider.usageGoalIDs[0] != createdGoal.ID {
+			t.Fatalf("usageGoalIDs = %#v, want created shared Goal", goalProvider.usageGoalIDs)
+		}
+	})
 }
 
 func TestRoomGoalCreateStartsUsageForEveryActiveSlot(t *testing.T) {
@@ -251,10 +251,11 @@ func TestRoomGoalCreateStartsUsageForEveryActiveSlot(t *testing.T) {
 		}),
 	}
 
+	stageRoomAppliedGoalCommand(creator, runtimecommand.GoalOperationCreate, createdGoal.ID, "")
 	service.recordGoalUsageFromSlotAssistantMessage(
 		context.Background(),
 		creator,
-		roomGoalToolResultAssistantMessage("tool-1", "create_goal", 4, 1),
+		roomGoalToolResultAssistantMessage("tool-1", "Bash", 4, 1),
 	)
 	service.recordGoalUsageForSlot(context.Background(), creator, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
@@ -337,10 +338,11 @@ func TestRoomGoalCreateBindsEverySlotToSharedGoalID(t *testing.T) {
 		}),
 	}
 
+	stageRoomAppliedGoalCommand(creator, runtimecommand.GoalOperationCreate, "goal-room-created", "")
 	service.recordGoalUsageFromSlotAssistantMessage(
 		context.Background(),
 		creator,
-		roomGoalToolResultAssistantMessage("tool-create", "create_goal", 4, 1),
+		roomGoalToolResultAssistantMessage("tool-create", "Bash", 4, 1),
 	)
 	if creator.goalIDForUsage() != "goal-room-created" || peer.goalIDForUsage() != "goal-room-created" {
 		t.Fatalf("slot bindings = creator:%q peer:%q, want shared goal-room-created",
@@ -631,10 +633,11 @@ func TestRoomClaimsPreCreateSubagentUsageAndKeepsChildrenBoundAfterSlotTerminal(
 		unrelated,
 		taskMessage("task-unrelated", 70),
 	)
+	stageRoomAppliedGoalCommand(creator, runtimecommand.GoalOperationCreate, "goal-room-created", "")
 	service.recordGoalUsageFromSlotAssistantMessage(
 		context.Background(),
 		creator,
-		roomGoalToolResultAssistantMessage("tool-create", "create_goal", 0, 0),
+		roomGoalToolResultAssistantMessage("tool-create", "Bash", 0, 0),
 	)
 
 	if len(provider.snapshots) != 3 ||
@@ -1486,7 +1489,7 @@ func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeFailure(_ context
 	return nil, nil
 }
 
-func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeCompletionToolMiss(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, reason string, _ ...int64) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeCompletionCommandMiss(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, reason string, _ ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.completionMisses = append(p.completionMisses, strings.TrimSpace(reason))
@@ -1679,13 +1682,25 @@ func roomGoalToolResultAssistantMessage(
 	}
 }
 
-func roomGoalCompletionToolMissAssistantMessage() protocol.Message {
+func roomGoalCompletionCommandMissAssistantMessage() protocol.Message {
 	return protocol.Message{
 		"role": "assistant",
 		"content": []map[string]any{
-			{"type": "text", "text": "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。"},
+			{"type": "text", "text": "任务已经完成，但无法调用 nexus goal invoke --operation update_goal 命令来标记完成。"},
 		},
 	}
+}
+
+func stageRoomRuntimeCommandReceipt(slot *activeRoomSlot, receipt runtimecommand.Receipt) {
+	slot.ensureCommandReceiptState().Record(receipt)
+}
+
+func stageRoomAppliedGoalCommand(slot *activeRoomSlot, operation string, goalID string, status protocol.GoalStatus) {
+	stageRoomRuntimeCommandReceipt(slot, runtimecommand.Receipt{
+		Domain: runtimecommand.DomainGoal, Operation: operation,
+		Outcome: string(protocol.MutationResultApplied), GoalID: goalID,
+		GoalStatus: string(status),
+	})
 }
 
 func roomGoalTextAssistantMessage(messageID string, text string) protocol.Message {
@@ -1778,7 +1793,7 @@ func (p *cancellationGoalProvider) RecordContinuationRuntimeFailure(context.Cont
 	return p.current, nil
 }
 
-func (p *cancellationGoalProvider) RecordContinuationRuntimeCompletionToolMiss(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error) {
+func (p *cancellationGoalProvider) RecordContinuationRuntimeCompletionCommandMiss(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error) {
 	return p.current, nil
 }
 

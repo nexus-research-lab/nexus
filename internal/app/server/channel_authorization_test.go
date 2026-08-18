@@ -72,7 +72,7 @@ func TestChannelAuthorizationMCPBuilderBindsOwnerMainPrivateDM(t *testing.T) {
 		SessionID:  &authSessionID,
 	}
 	ctx := authctx.WithPrincipal(t.Context(), principal)
-	ctx = runtimectx.WithMCPRoundLease(ctx, sessionKey, "round-a")
+	ctx = runtimectx.WithRuntimeRoundLease(ctx, sessionKey, "round-a")
 	service := &channelAuthorizationAppService{}
 	builder := newChannelAuthorizationMCPBuilder(
 		service,

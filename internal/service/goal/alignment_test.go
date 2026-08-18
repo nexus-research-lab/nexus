@@ -199,7 +199,7 @@ func TestManagedGoalCompletionRejectsNonAlignedOrStaleAudit(t *testing.T) {
 	}
 }
 
-func TestManagedGoalCompletionToolMissCannotBypassObjectiveAlignment(t *testing.T) {
+func TestManagedGoalCompletionCommandMissCannotBypassObjectiveAlignment(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -229,7 +229,7 @@ func TestManagedGoalCompletionToolMissCannotBypassObjectiveAlignment(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(
+	if _, err = service.RecordCompletionCommandMiss(
 		ctx,
 		created.ID,
 		"round-first",
@@ -237,7 +237,7 @@ func TestManagedGoalCompletionToolMissCannotBypassObjectiveAlignment(t *testing.
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(
+	if _, err = service.RecordCompletionCommandMiss(
 		ctx,
 		created.ID,
 		"round-final",
@@ -259,7 +259,7 @@ func TestManagedGoalCompletionToolMissCannotBypassObjectiveAlignment(t *testing.
 	}
 }
 
-func TestManagedGoalCompletionToolMissCanUseSameRoundAlignedAudit(t *testing.T) {
+func TestManagedGoalCompletionCommandMissCanUseSameRoundAlignedAudit(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -289,7 +289,7 @@ func TestManagedGoalCompletionToolMissCanUseSameRoundAlignedAudit(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(
+	if _, err = service.RecordCompletionCommandMiss(
 		ctx,
 		created.ID,
 		"round-first",
@@ -321,7 +321,7 @@ func TestManagedGoalCompletionToolMissCanUseSameRoundAlignedAudit(t *testing.T) 
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(
+	if _, err = service.RecordCompletionCommandMiss(
 		ctx,
 		created.ID,
 		finalRound,

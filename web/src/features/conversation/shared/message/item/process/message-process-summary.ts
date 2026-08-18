@@ -6,6 +6,7 @@ import {
 } from "../../message-content-model";
 import {
   getCompactToolInputSummary,
+  getSemanticToolName,
 } from "../../tool-activity";
 import { isRejectedToolResult } from "../../tool-result-semantic-model";
 
@@ -50,7 +51,7 @@ const PROCESS_DETAIL_RESOLVERS: ReadonlyArray<
     return {
       detail: detail ? compactProcessDetail(detail) : null,
       kind: "tool",
-      toolName: block.name,
+      toolName: getSemanticToolName(block.name, block.input),
     };
   },
   (block) => block.type === "system_event"

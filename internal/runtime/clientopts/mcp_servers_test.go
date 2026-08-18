@@ -23,7 +23,7 @@ func (r *countingMCPRuntimeResolver) ResolveRuntimeConfig(
 
 func TestMergeAgentMCPServersParsesSupportedTransports(t *testing.T) {
 	builtIn := map[string]sdkmcp.ServerConfig{
-		"nexus_goal": sdkmcp.HTTPServerConfig{URL: "https://nexus.invalid/mcp"},
+		"nexus_visualize": sdkmcp.HTTPServerConfig{URL: "https://nexus.invalid/mcp"},
 	}
 	merged, err := MergeAgentMCPServers(builtIn, map[string]any{
 		"local_tools": map[string]any{
@@ -103,9 +103,9 @@ func TestMergeAgentMCPServersRejectsManagedNames(t *testing.T) {
 		{
 			name: "reserved nexus namespace",
 			configured: map[string]any{
-				"nexus_goal": map[string]any{"command": "custom"},
+				"nexus_shadow": map[string]any{"command": "custom"},
 			},
-			serverName: "nexus_goal",
+			serverName: "nexus_shadow",
 		},
 		{
 			name: "reserved connector name",

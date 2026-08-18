@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
@@ -294,8 +295,8 @@ func (s *Service) UpdateAgentSkillSelection(
 		ctx,
 		existing.AgentID,
 		existing.OwnerUserID,
-		mustJSONString(normalizeStringList(skillIDs)),
-		mustJSONString(normalizeStringList(disabledSkillIDs)),
+		mustJSONString(normalizeManagedSkillIDs(skillIDs)),
+		mustJSONString(normalizeManagedDisabledSkillIDs(disabledSkillIDs)),
 	)
 	return s.finalizeAgentSkillSelection(updated, err)
 }
@@ -318,7 +319,7 @@ func (s *Service) UpdateAgentSkillIDsAtVersion(
 		ctx,
 		existing.AgentID,
 		existing.OwnerUserID,
-		mustJSONString(normalizeStringList(skillIDs)),
+		mustJSONString(normalizeManagedSkillIDs(skillIDs)),
 		expectedRuntimeVersion,
 	)
 	return s.finalizeAgentSkillSelection(updated, err)
@@ -342,7 +343,7 @@ func (s *Service) UpdateAgentDisabledSkillIDsAtVersion(
 		ctx,
 		existing.AgentID,
 		existing.OwnerUserID,
-		mustJSONString(normalizeStringList(disabledSkillIDs)),
+		mustJSONString(normalizeManagedDisabledSkillIDs(disabledSkillIDs)),
 		expectedRuntimeVersion,
 	)
 	return s.finalizeAgentSkillSelection(updated, err)
@@ -454,6 +455,10 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 		return agentrepo.UpdateRecord{}, err
 	}
 	options := u.updatedOptions()
+	options.SkillIDs, options.DisabledSkillIDs = runtimecommand.BindManagedSemanticSkills(
+		options.SkillIDs,
+		options.DisabledSkillIDs,
+	)
 	return agentrepo.UpdateRecord{
 		AgentID:                u.existing.AgentID,
 		OwnerUserID:            u.ownerUserID,
@@ -476,6 +481,16 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 		SettingSourcesJSON:     mustJSONString(options.SettingSources),
 		ExpectedRuntimeVersion: u.request.ExpectedRuntimeVersion,
 	}, nil
+}
+
+func normalizeManagedSkillIDs(skillIDs []string) []string {
+	bound, _ := runtimecommand.BindManagedSemanticSkills(normalizeStringList(skillIDs), nil)
+	return bound
+}
+
+func normalizeManagedDisabledSkillIDs(disabledSkillIDs []string) []string {
+	_, disabled := runtimecommand.BindManagedSemanticSkills(nil, normalizeStringList(disabledSkillIDs))
+	return disabled
 }
 
 func (u *agentUpdate) normalizedName() (string, error) {

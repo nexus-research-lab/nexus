@@ -464,7 +464,7 @@ func (s *Service) startPublicMentionRoundLocked(
 		s.resumeParentAfterRejectedGoalCollaboration(ctx, parentRound)
 		return nil
 	}
-	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
+	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
 	if err != nil {
 		return err
 	}
@@ -861,7 +861,7 @@ func publicMentionExecutionOrigin(trusted bool) string {
 		return "queue"
 	}
 	// public mention 是宿主从已持久化的最终 assistant message 解析出的
-	// 协作 handoff。保留独立来源，让 Goal MCP 只给这一类负责人续轮恢复
+	// 协作 handoff。保留独立来源，让 Goal continuation 只给这一类负责人续轮恢复
 	// mutation authority，而不会把普通 queue/internal round 一并放开。
 	return "handoff"
 }

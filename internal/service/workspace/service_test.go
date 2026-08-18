@@ -222,8 +222,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
-			"mcp__nexus_goal__get_goal",
-			"Skill 只加载使用规则",
+			"--json goal contract",
+			"NEXUS_COMMAND_INPUT_PATH",
 			"references/create-and-retarget.md",
 			"execution-orchestrator",
 			"token_budget",
@@ -246,11 +246,13 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 决定持续追求什么",
+			"--json execution contract",
+			"NEXUS_COMMAND_INPUT_PATH",
 			"最小选择表",
 			"references/structure-selection.md",
-			"每个 Agent 都先评估任务是否原子",
-			"用户有没有说“协作”",
-			"不因一次 handoff",
+			"substantial execution 前评估任务是否原子",
+			"只加入价值高于协调成本的结构",
+			"不因 handoff 要求用户发送“继续”",
 		},
 		filepath.Join("execution-orchestrator", "references", "structure-selection.md"): {
 			"独立判断信号",
@@ -267,7 +269,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {
 			"四个平面",
-			"MCP 可以记录交付状态",
+			"command 可以记录交付状态",
+			"用户有没有说“协作”",
 			"不要要求用户发送“继续”",
 		},
 	}

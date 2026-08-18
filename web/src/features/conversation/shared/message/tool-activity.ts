@@ -20,6 +20,8 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   WebFetch: "抓取网页",
   Skill: "调用技能",
   Task: "委派任务",
+  goal_contract: "读取 Goal 命令契约",
+  execution_contract: "读取工作图命令契约",
   get_execution: "读取工作图",
   prepare_plan_execution: "封存计划提案",
   plan_execution: "提交计划提案",
@@ -90,8 +92,8 @@ const INPUT_SUMMARY_KEYS = [
 
 const COMMAND_SUMMARY_LIMIT = 50;
 
-export function getToolTitle(toolName: string): string {
-  const semanticToolName = getSemanticToolName(toolName);
+export function getToolTitle(toolName: string, input?: unknown): string {
+  const semanticToolName = getSemanticToolName(toolName, input);
   return TOOL_TITLE_MAP[semanticToolName] ?? TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
@@ -102,9 +104,11 @@ export function getToolTitleKey(toolName: string): TranslationKey | null {
 export function getLocalizedToolTitle(
   toolName: string,
   t: (key: TranslationKey) => string,
+  input?: unknown,
 ): string {
-  const titleKey = getToolTitleKey(toolName);
-  return titleKey ? t(titleKey) : getToolTitle(toolName);
+  const semanticToolName = getSemanticToolName(toolName, input);
+  const titleKey = TOOL_TITLE_KEY_MAP[semanticToolName];
+  return titleKey ? t(titleKey) : getToolTitle(semanticToolName);
 }
 
 export function getToolInputSummary(input: unknown): string | null {
@@ -144,16 +148,29 @@ function formatCommandSummary(command: string): string {
   return `$ ${command.slice(0, COMMAND_SUMMARY_LIMIT)}${suffix}`;
 }
 
-const NEXUS_TOOL_PREFIXES = [
-  "mcp__nexus_execution__",
-  "mcp__nexus_goal__",
-] as const;
+const RUNTIME_COMMAND_PATTERN = /^\s*(?:"\$\{NEXUS_COMMAND_PATH\}"|&\s+"\$\{env:NEXUS_COMMAND_PATH\}")\s+--json\s+(goal|execution)\s+(contract|inspect|invoke)(?:\s|$)/;
+const RUNTIME_COMMAND_OPERATION_PATTERN = /(?:^|\s)--operation\s+([a-z][a-z0-9_]*)(?:\s|$)/;
 
-function getSemanticToolName(toolName: string): string {
-  const prefix = NEXUS_TOOL_PREFIXES.find((candidate) => (
-    toolName.startsWith(candidate)
-  ));
-  return prefix ? toolName.slice(prefix.length) : toolName;
+export function getSemanticToolName(toolName: string, input?: unknown): string {
+  if (toolName !== "Bash" && toolName !== "PowerShell") {
+    return toolName;
+  }
+  const command = getStringField(asRecord(input), "command");
+  if (!command) {
+    return toolName;
+  }
+  const invocation = command.match(RUNTIME_COMMAND_PATTERN);
+  if (!invocation) {
+    return toolName;
+  }
+  const [, domain, action] = invocation;
+  if (action === "contract") {
+    return `${domain}_contract`;
+  }
+  if (action === "inspect") {
+    return domain === "goal" ? "get_goal" : "get_execution";
+  }
+  return command.match(RUNTIME_COMMAND_OPERATION_PATTERN)?.[1] ?? toolName;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -163,9 +180,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function getStringField(
-  record: Record<string, unknown>,
+  record: Record<string, unknown> | null,
   key: string,
 ): string | null {
+  if (!record) return null;
   const value = record[key];
   return typeof value === "string" && value ? value : null;
 }

@@ -1,5 +1,5 @@
 // INPUT: Room、成员、Agent、对话与 session SQL 查询行。
-// OUTPUT: 含 configuration_version、authority_epoch 的 protocol Room 投影及聚合选择结果。
+// OUTPUT: 含配置世代及完整成员 Agent runtime 展示字段的 protocol Room 投影。
 // POS: Room 仓储查询结果到跨边界协议模型的统一扫描层。
 package roomrepo
 
@@ -75,16 +75,18 @@ func ScanMemberRecord(scanner Scanner) (protocol.MemberRecord, error) {
 
 func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 	var (
-		item                protocol.Agent
-		vibeTagsJSON        string
-		allowedToolsJSON    string
-		disallowedToolsJSON string
-		mcpServersJSON      string
-		connectorIDsJSON    string
-		settingSourcesJSON  string
-		maxTurns            sql.NullInt64
-		maxThinkingTokens   sql.NullInt64
-		createdAt           time.Time
+		item                 protocol.Agent
+		vibeTagsJSON         string
+		allowedToolsJSON     string
+		disallowedToolsJSON  string
+		mcpServersJSON       string
+		connectorIDsJSON     string
+		skillIDsJSON         string
+		disabledSkillIDsJSON string
+		settingSourcesJSON   string
+		maxTurns             sql.NullInt64
+		maxThinkingTokens    sql.NullInt64
+		createdAt            time.Time
 	)
 
 	err := scanner.Scan(
@@ -105,9 +107,12 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 		&disallowedToolsJSON,
 		&mcpServersJSON,
 		&connectorIDsJSON,
+		&skillIDsJSON,
+		&disabledSkillIDsJSON,
 		&maxTurns,
 		&maxThinkingTokens,
 		&settingSourcesJSON,
+		&item.RuntimeVersion,
 	)
 	if err != nil {
 		return protocol.Agent{}, err
@@ -119,6 +124,8 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
 	item.Options.ConnectorIDs = jsoncodec.ParseStringSlice(connectorIDsJSON)
+	item.Options.SkillIDs = jsoncodec.ParseStringSlice(skillIDsJSON)
+	item.Options.DisabledSkillIDs = jsoncodec.ParseStringSlice(disabledSkillIDsJSON)
 	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)

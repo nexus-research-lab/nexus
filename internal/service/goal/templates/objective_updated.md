@@ -15,4 +15,4 @@ Budget:
 
 Adjust the current turn to pursue the updated objective. Avoid continuing work that only served the previous objective unless it also helps the updated objective.
 
-Do not call the Goal update tool unless the updated goal is actually complete. In Nexus, the model-visible tool name is normally `mcp__nexus_goal__update_goal`; in Codex/plain-tool runtimes it may be visible as bare `update_goal`. These names refer to the same Goal update capability.
+Load `goal-manager` and use only the host-injected `"${NEXUS_COMMAND_PATH}" --json goal contract|inspect|invoke` workflow; never use nexusctl, a Goal MCP, or standalone tools inferred from operation names. Do not invoke `update_goal` unless the updated goal is actually complete.

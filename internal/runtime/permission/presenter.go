@@ -50,18 +50,6 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 }
 
 func resolveRisk(toolName string) (string, string) {
-	if executionTool := executionToolLeaf(toolName); executionTool != "" {
-		switch executionTool {
-		case "get_execution":
-			return "low", "只读"
-		case "prepare_plan_execution":
-			return "low", "封存提案"
-		case "abandon_execution":
-			return "high", "终止编排"
-		default:
-			return "medium", "编排"
-		}
-	}
 	if _, ok := readOnlyTools[toolName]; ok {
 		return "low", "只读"
 	}
@@ -75,15 +63,6 @@ func resolveRisk(toolName string) (string, string) {
 		return "medium", "交互"
 	}
 	return "high", "敏感"
-}
-
-func executionToolLeaf(toolName string) string {
-	const prefix = "mcp__nexus_execution__"
-	normalized := strings.TrimSpace(toolName)
-	if strings.HasPrefix(normalized, prefix) {
-		return strings.TrimPrefix(normalized, prefix)
-	}
-	return ""
 }
 
 func resolveInteractionMode(toolName string) string {

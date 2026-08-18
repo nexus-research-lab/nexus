@@ -7,47 +7,28 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func TestContainsMatchesAliases(t *testing.T) {
+func TestContainsMatchesManagedAliases(t *testing.T) {
 	tests := []struct {
 		approved []string
 		tools    []string
 	}{
 		{
 			approved: []string{"WebSearch"},
-			tools: []string{
-				"WebSearch",
-				"web_search",
-				"mcp__brave_search__brave_web_search",
-				"brave.web-search",
-				"search",
-			},
+			tools:    []string{"WebSearch", "web_search", "mcp__brave_search__brave_web_search", "search"},
 		},
 		{
 			approved: []string{"WebFetch"},
-			tools: []string{
-				"WebFetch",
-				"web_fetch",
-				"mcp__fetch__fetch",
-				"browser.web-fetch",
-			},
+			tools:    []string{"WebFetch", "web_fetch", "mcp__fetch__fetch", "browser.web-fetch"},
 		},
 		{
 			approved: []string{"nexus_room"},
-			tools: []string{
-				"mcp__nexus_room__send_directed_message",
-				"nexus_room.send_directed_message",
-			},
+			tools:    []string{"mcp__nexus_room__send_directed_message", "nexus_room.send_directed_message"},
 		},
 		{
 			approved: []string{"nexus_imagegen"},
-			tools: []string{
-				"mcp__nexus_imagegen__generate_image",
-				"nexus_imagegen__edit_image",
-				"nexus_imagegen.generate_image",
-			},
+			tools:    []string{"mcp__nexus_imagegen__generate_image", "nexus_imagegen__edit_image"},
 		},
 	}
-
 	for _, test := range tests {
 		approved := NormalizeSet(test.approved)
 		for _, toolName := range test.tools {
@@ -60,7 +41,6 @@ func TestContainsMatchesAliases(t *testing.T) {
 
 func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
 	approved := NormalizeSet([]string{"WebSearch"})
-
 	for _, toolName := range []string{"Write", "mcp__filesystem__write_file", "Research"} {
 		if Contains(approved, toolName) {
 			t.Fatalf("did not expect WebSearch approval to match %q", toolName)
@@ -68,43 +48,18 @@ func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
 	}
 }
 
-func TestManagedGoalToolMatchesWrappedNames(t *testing.T) {
-	for _, toolName := range []string{
-		"create_goal",
-		"audit_objective_alignment",
-		"mcp__nexus_goal__get_goal",
-		"mcp__nexus_goal__retarget_goal",
-		"mcp__nexus_goal__audit_objective_alignment",
-		"nexus_goal.update_goal",
-		"nexus_goal/update_goal",
-	} {
-		if !IsManagedGoalTool(toolName) {
-			t.Fatalf("expected managed Goal tool to match %q", toolName)
+func TestManagedSemanticSkillRequestOnlyApprovesGoalAndExecution(t *testing.T) {
+	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {
+		if !IsManagedSemanticSkillRequest("Skill", map[string]any{"name": skillName}) {
+			t.Fatalf("expected %s Skill request to be managed", skillName)
 		}
 	}
-}
-
-func TestManagedGoalPermissionOnlyApprovesGoalManagerSkill(t *testing.T) {
-	if !IsManagedGoalSkillRequest("Skill", map[string]any{"name": "goal-manager"}) {
-		t.Fatal("expected goal-manager Skill request to be managed")
-	}
-	if IsManagedGoalSkillRequest("Skill", map[string]any{"name": "imagegen"}) {
-		t.Fatal("did not expect unrelated Skill request to be managed")
-	}
-}
-
-func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
-	for _, toolName := range []string{
-		"prepare_plan_execution",
-		"mcp__nexus_execution__prepare_plan_execution",
-		"plan_execution",
-		"mcp__nexus_execution__assign_work",
-		"nexus_execution.submit_work",
-		"nexus_execution/review_work",
-		"mcp__nexus_execution__audit_execution_alignment",
+	for _, request := range []sdkpermission.Request{
+		{ToolName: "Skill", Input: map[string]any{"name": "imagegen"}},
+		{ToolName: "Bash", Input: map[string]any{"command": "echo unrelated"}},
 	} {
-		if !IsManagedExecutionTool(toolName) {
-			t.Fatalf("expected managed Execution tool to match %q", toolName)
+		if IsManagedSemanticSkillRequest(request.ToolName, request.Input) {
+			t.Fatalf("unrelated request must not be managed: %+v", request)
 		}
 	}
 }
@@ -120,71 +75,40 @@ func TestManagedVisualizeToolOnlyMatchesBuiltInServer(t *testing.T) {
 			t.Fatalf("expected managed visualize tool to match %q", toolName)
 		}
 	}
-	if IsManagedVisualizeTool("visualize_read_me") {
-		t.Fatal("retired visualize_read_me must not inherit managed auto-approval")
-	}
-	if IsManagedVisualizeTool("mcp__external__show_widget") {
-		t.Fatal("external show_widget must not inherit managed auto-approval")
-	}
-}
-
-func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
-	fallbackCalled := false
-	handler := WithManagedGoalAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		fallbackCalled = true
-		return sdkpermission.Deny(request.ToolName, false), nil
-	})
-
-	goalDecision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_goal__update_goal",
-		Input:    map[string]any{"status": "complete"},
-	})
-	if err != nil {
-		t.Fatalf("Goal 权限处理失败: %v", err)
-	}
-	if goalDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("Goal 权限应自动放行: %+v", goalDecision)
-	}
-	if fallbackCalled {
-		t.Fatal("Goal 权限不应进入 fallback handler")
-	}
-
-	writeDecision, err := handler(context.Background(), sdkpermission.Request{ToolName: "Write"})
-	if err != nil {
-		t.Fatalf("fallback 权限处理失败: %v", err)
-	}
-	if writeDecision.Behavior != sdkpermission.BehaviorDeny || !fallbackCalled {
-		t.Fatalf("普通工具应交给 fallback handler: %+v fallback=%v", writeDecision, fallbackCalled)
+	for _, toolName := range []string{"visualize_read_me", "mcp__external__show_widget"} {
+		if IsManagedVisualizeTool(toolName) {
+			t.Fatalf("external or retired tool must not inherit managed approval: %q", toolName)
+		}
 	}
 }
 
-func TestManagedRuntimeAutoApprovalIncludesExecutionAndVisualize(t *testing.T) {
-	fallbackCalled := false
+func TestManagedRuntimeAutoApprovalUsesSemanticSkillsAndVisualizeOnly(t *testing.T) {
+	fallbackCalls := 0
 	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		fallbackCalled = true
+		fallbackCalls++
 		return sdkpermission.Deny(request.ToolName, false), nil
 	})
-
-	decision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_execution__plan_execution",
-		Input: map[string]any{
-			"proposal_id":     "proposal-1",
-			"proposal_digest": "digest-1",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Execution 权限处理失败: %v", err)
+	for _, request := range []sdkpermission.Request{
+		{ToolName: "Skill", Input: map[string]any{"name": "goal-manager"}},
+		{ToolName: "Skill", Input: map[string]any{"name": "execution-orchestrator"}},
+		{ToolName: "mcp__nexus_visualize__show_widget", Input: map[string]any{"title": "diagram"}},
+	} {
+		decision, err := handler(context.Background(), request)
+		if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
+			t.Fatalf("managed request should be allowed: decision=%+v err=%v", decision, err)
+		}
 	}
-	if decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
-		t.Fatalf("Execution 权限应由托管策略放行: %+v fallback=%v", decision, fallbackCalled)
+	for _, request := range []sdkpermission.Request{
+		{ToolName: "Bash", Input: map[string]any{"command": "echo unrelated"}},
+		{ToolName: "mcp__external__update_record"},
+	} {
+		decision, err := handler(context.Background(), request)
+		if err != nil || decision.Behavior != sdkpermission.BehaviorDeny {
+			t.Fatalf("unmanaged request must reach fallback: decision=%+v err=%v", decision, err)
+		}
 	}
-
-	decision, err = handler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_visualize__show_widget",
-		Input:    map[string]any{"title": "图解"},
-	})
-	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
-		t.Fatalf("生成式 UI 权限应由托管策略放行: %+v err=%v fallback=%v", decision, err, fallbackCalled)
+	if fallbackCalls != 2 {
+		t.Fatalf("fallback calls = %d, want 2", fallbackCalls)
 	}
 }
 
@@ -197,7 +121,6 @@ func TestNexusControlPlaneDenyBlocksShellBypass(t *testing.T) {
 		fallbackCalls++
 		return sdkpermission.Allow(request.Input, nil), nil
 	}, true)
-
 	for _, command := range []string{
 		`"$NEXUSCTL_COMMAND_PATH" agent list`,
 		"nexusctl room list",
@@ -205,64 +128,20 @@ func TestNexusControlPlaneDenyBlocksShellBypass(t *testing.T) {
 		"NEXUS-CTL channel list",
 	} {
 		decision, err := handler(context.Background(), sdkpermission.Request{
-			ToolName: "Bash",
-			Input:    map[string]any{"command": command},
+			ToolName: "Bash", Input: map[string]any{"command": command},
 		})
-		if err != nil {
-			t.Fatalf("control-plane deny error: %v", err)
-		}
-		if decision.Behavior != sdkpermission.BehaviorDeny {
-			t.Fatalf("command %q was not denied: %+v", command, decision)
+		if err != nil || decision.Behavior != sdkpermission.BehaviorDeny {
+			t.Fatalf("command %q was not denied: decision=%+v err=%v", command, decision, err)
 		}
 	}
 	if fallbackCalls != 0 {
-		t.Fatalf("denied control-plane commands reached fallback %d times", fallbackCalls)
+		t.Fatalf("denied commands reached fallback %d times", fallbackCalls)
 	}
-
 	decision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": "go test ./..."},
+		ToolName: "Bash", Input: map[string]any{"command": "go test ./..."},
 	})
 	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 1 {
-		t.Fatalf("ordinary shell command should reach fallback: decision=%+v err=%v calls=%d", decision, err, fallbackCalls)
-	}
-}
-
-func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
-	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
-	approved := NormalizeSet(tools)
-	for _, toolName := range []string{"Read", "create_goal", "get_goal", "retarget_goal", "audit_objective_alignment", "update_goal", "mcp__nexus_goal__get_goal", "mcp__nexus_goal__create_goal", "mcp__nexus_goal__retarget_goal", "mcp__nexus_goal__audit_objective_alignment", "mcp__nexus_goal__update_goal", "Skill"} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
-		}
-	}
-}
-
-func TestWithManagedGoalAllowedToolsPreservesEmptyPolicy(t *testing.T) {
-	if tools := WithManagedGoalAllowedTools(nil); tools != nil {
-		t.Fatalf("nil allow policy should stay nil, got %+v", tools)
-	}
-	if tools := WithManagedGoalAllowedTools([]string{}); len(tools) != 0 {
-		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
-	}
-}
-
-func TestWithManagedExecutionAllowedToolsAppendsSemanticSurface(t *testing.T) {
-	tools := WithManagedExecutionAllowedTools([]string{"Read"})
-	approved := NormalizeSet(tools)
-	for _, toolName := range []string{
-		"mcp__nexus_execution__get_execution",
-		"mcp__nexus_execution__prepare_plan_execution",
-		"mcp__nexus_execution__plan_execution",
-		"mcp__nexus_execution__assign_work",
-		"mcp__nexus_execution__submit_work",
-		"mcp__nexus_execution__review_work",
-		"mcp__nexus_execution__audit_execution_alignment",
-		"mcp__nexus_execution__promote_execution_to_goal",
-	} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
-		}
+		t.Fatalf("ordinary shell command should reach fallback: decision=%+v err=%v", decision, err)
 	}
 }
 
@@ -283,16 +162,11 @@ func TestWithManagedImagegenAllowedToolsAppendsDistinctTools(t *testing.T) {
 	}
 }
 
-func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testing.T) {
+func TestWithManagedRuntimeAllowedToolsAddsSkillAndCLITransport(t *testing.T) {
 	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, true)
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
-		"Read",
-		"Agent",
-		"nexus_imagegen",
-		"mcp__nexus_goal__get_goal",
-		"mcp__nexus_execution__prepare_plan_execution",
-		"mcp__nexus_execution__plan_execution",
+		"Read", "Agent", "Bash", "PowerShell", "Skill",
 		"mcp__nexus_visualize__show_widget",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
@@ -300,9 +174,6 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected runtime allowed tools to include %q: %+v", toolName, tools)
 		}
-	}
-	if _, exists := approved["mcp__nexus_visualize__visualize_read_me"]; exists {
-		t.Fatalf("retired visualize_read_me should not stay approved: %+v", tools)
 	}
 }
 
@@ -312,8 +183,10 @@ func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testi
 	if Contains(approved, "mcp__nexus_imagegen__generate_image") {
 		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
 	}
-	if !Contains(approved, "mcp__nexus_goal__get_goal") {
-		t.Fatalf("managed goal should still be included: %+v", tools)
+	for _, required := range []string{"Bash", "PowerShell", "Skill"} {
+		if !Contains(approved, required) {
+			t.Fatalf("managed CLI transport %q should remain enabled: %+v", required, tools)
+		}
 	}
 }
 
@@ -326,53 +199,88 @@ func TestWithManagedRuntimeAllowedToolsPreservesEmptyPolicy(t *testing.T) {
 	}
 }
 
-func TestNexusAutomationCLIRequestRequiresOneExactCommand(t *testing.T) {
-	for _, test := range []struct {
+func TestNexusRuntimeCLIRequestRequiresExactManagedInvocation(t *testing.T) {
+	tests := []struct {
 		command string
-		want    bool
+		domain  string
+		action  string
+		ok      bool
 	}{
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation contract`, want: true},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}'`, want: true},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation plan --operation update`, want: true},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete --request-id request-123`, want: true},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation plan --operation update --input-file "${NEXUS_AUTOMATION_INPUT_PATH}"`, want: true},
-		{command: `nexus --json automation plan --operation update --input '{}'`, want: false},
-		{command: `./nexus --json automation apply --operation delete --input '{}'`, want: false},
-		{command: `/tmp/nexus --json automation inspect --operation get`, want: false},
-		{command: `nexus --json goal get`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete; cat /etc/passwd`, want: false},
-		{command: `printf x | "${NEXUS_COMMAND_PATH}" --json automation inspect --operation get`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input "$(touch /tmp/pwn)"`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input "${FORGED_INPUT}"`, want: false},
-		{command: `NEXUS_COMMAND_PATH=./nexus "${NEXUS_COMMAND_PATH}" --json automation contract`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input-file /etc/passwd`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}' --input-file "${NEXUS_AUTOMATION_INPUT_PATH}"`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get\necho pwn`, want: false},
-		{command: "\n\t" + `"${NEXUS_COMMAND_PATH}" --json automation contract`, want: false},
-		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{"instruction":"run date '+%Y'"}'`, want: false},
-	} {
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation contract`, domain: "automation", action: "contract", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}'`, domain: "automation", action: "inspect", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation plan --operation update --input-file "${NEXUS_COMMAND_INPUT_PATH}"`, domain: "automation", action: "plan", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete --request-id request-123`, domain: "automation", action: "apply", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal contract`, domain: "goal", action: "contract", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal contract --operation update_goal`, domain: "goal", action: "contract", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal inspect`, domain: "goal", action: "inspect", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id goal-request-1 --input '{}'`, domain: "goal", action: "invoke", ok: true},
+		{command: `"${NEXUS_COMMAND_PATH}" --json execution invoke --operation assign_work --request-id work-request-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`, domain: "execution", action: "invoke", ok: true},
+		{command: `nexus --json goal inspect`, ok: false},
+		{command: `./nexus --json goal inspect`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal invoke --request-id goal-request-1`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal inspect --operation get_goal`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal inspect --input '{}'`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json other inspect`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation contract --operation get`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input-file /etc/passwd`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id goal-1 --input '{}' --input-file "${NEXUS_COMMAND_INPUT_PATH}"`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal inspect; cat /etc/passwd`, ok: false},
+		{command: `printf x | "${NEXUS_COMMAND_PATH}" --json goal inspect`, ok: false},
+		{command: `"${NEXUS_COMMAND_PATH}" --json goal inspect --input "$(touch /tmp/pwn)"`, ok: false},
+		{command: `NEXUS_COMMAND_PATH=./nexus "${NEXUS_COMMAND_PATH}" --json goal inspect`, ok: false},
+		{command: "\"${NEXUS_COMMAND_PATH}\" --json goal inspect\necho pwn", ok: false},
+	}
+	for _, test := range tests {
 		request := sdkpermission.Request{ToolName: "Bash", Input: map[string]any{"command": test.command}}
-		if got := IsNexusAutomationCLIRequest(request); got != test.want {
-			t.Fatalf("IsNexusAutomationCLIRequest(%q) = %v, want %v", test.command, got, test.want)
+		got, ok := NexusRuntimeCLIInvocation(request)
+		if ok != test.ok || got.Domain != test.domain || got.Action != test.action {
+			t.Fatalf("NexusRuntimeCLIInvocation(%q) = %+v, %v; want %q/%q, %v", test.command, got, ok, test.domain, test.action, test.ok)
+		}
+		if IsNexusRuntimeCLIRequest(request) != test.ok {
+			t.Fatalf("IsNexusRuntimeCLIRequest(%q) mismatch", test.command)
 		}
 	}
 }
 
-func TestNexusAutomationPowerShellRequestRequiresManagedInvocation(t *testing.T) {
-	for _, test := range []struct {
+func TestNexusRuntimePowerShellRequestRequiresManagedInvocation(t *testing.T) {
+	tests := []struct {
 		command string
-		want    bool
+		ok      bool
 	}{
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation contract`, want: true},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation inspect --operation list --input-file "${env:NEXUS_AUTOMATION_INPUT_PATH}"`, want: true},
-		{command: `& .\nexus.exe --json automation inspect --operation list`, want: false},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation inspect --operation list --input "$(Get-Content secret)"`, want: false},
-		{command: `$env:NEXUS_COMMAND_PATH='.\nexus.exe'; & "${env:NEXUS_COMMAND_PATH}" --json automation contract`, want: false},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation inspect --operation list; Get-Content secret`, want: false},
-	} {
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation contract`, ok: true},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, ok: true},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id work-1`, ok: true},
+		{command: `& .\nexus.exe --json goal inspect`, ok: false},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect --input "$(Get-Content secret)"`, ok: false},
+		{command: `$env:NEXUS_COMMAND_PATH='.\nexus.exe'; & "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, ok: false},
+		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect; Get-Content secret`, ok: false},
+	}
+	for _, test := range tests {
 		request := sdkpermission.Request{ToolName: "PowerShell", Input: map[string]any{"command": test.command}}
-		if got := IsNexusAutomationCLIRequest(request); got != test.want {
-			t.Fatalf("IsNexusAutomationCLIRequest(%q) = %v, want %v", test.command, got, test.want)
+		if got := IsNexusRuntimeCLIRequest(request); got != test.ok {
+			t.Fatalf("IsNexusRuntimeCLIRequest(%q) = %v, want %v", test.command, got, test.ok)
 		}
+	}
+}
+
+func TestNexusRuntimeCLIAutoApprovalFallsBackForOtherShell(t *testing.T) {
+	fallbackCalls := 0
+	handler := WithNexusRuntimeCLIAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		fallbackCalls++
+		return sdkpermission.Deny(request.ToolName, false), nil
+	})
+	managed, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`},
+	})
+	if err != nil || managed.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 0 {
+		t.Fatalf("managed CLI should be allowed: decision=%+v err=%v calls=%d", managed, err, fallbackCalls)
+	}
+	ordinary, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash", Input: map[string]any{"command": "go test ./..."},
+	})
+	if err != nil || ordinary.Behavior != sdkpermission.BehaviorDeny || fallbackCalls != 1 {
+		t.Fatalf("ordinary shell should reach fallback: decision=%+v err=%v calls=%d", ordinary, err, fallbackCalls)
 	}
 }

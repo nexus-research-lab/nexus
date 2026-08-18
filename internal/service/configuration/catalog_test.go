@@ -233,7 +233,7 @@ func TestValidateChangeRequestRejectsInvalidManagedMCPConfiguration(t *testing.T
 	cases := []ChangeRequest{
 		{
 			Domain: DomainAgents, Operation: "create",
-			Input: []byte(`{"name":"worker","options":{"mcp_servers":{"nexus_goal":{"command":"forged"}}}}`),
+			Input: []byte(`{"name":"worker","options":{"mcp_servers":{"nexus_shadow":{"command":"forged"}}}}`),
 		},
 		{
 			Domain: DomainAgents, Operation: "update", Target: "worker",

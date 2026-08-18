@@ -157,7 +157,7 @@ func (s *Service) PlanExecution(
 		if errors.As(validateErr, &domainErr) &&
 			domainErr.Code == ErrorCodePlanItemsEmpty {
 			return RejectedResult(nil, validateErr, []NextAction{{
-				Tool:   "prepare_plan_execution",
+				Domain: "execution", Operation: "prepare_plan_execution",
 				Reason: "submit one complete Nexus Plan Document with every intended Work Item",
 			}}), nil
 		}
@@ -206,7 +206,7 @@ func (s *Service) PlanExecution(
 				"Execution and Plan proposal is valid; Plan Mode created no authoritative state.",
 			)
 			result.NextActions = []NextAction{{
-				Tool:   "prepare_plan_execution",
+				Domain: "execution", Operation: "prepare_plan_execution",
 				Reason: "seal the complete Plan proposal, then leave Plan Mode to commit its exact receipt",
 			}}
 			return result, nil
@@ -272,7 +272,7 @@ func (s *Service) PlanExecution(
 			if domainErr := new(DomainError); errors.As(boundaryErr, &domainErr) &&
 				domainErr.Code == ErrorCodeGoalRetargetRequired {
 				actions = []NextAction{{
-					Tool:   "retarget_goal",
+					Domain: "goal", Operation: "retarget_goal",
 					Reason: "advance the Goal objective revision instead of replacing its bound Execution",
 				}}
 			}
@@ -284,7 +284,7 @@ func (s *Service) PlanExecution(
 				"Execution replacement proposal is valid; Plan Mode did not supersede or create authoritative state.",
 			)
 			result.NextActions = []NextAction{{
-				Tool:   "prepare_plan_execution",
+				Domain: "execution", Operation: "prepare_plan_execution",
 				Reason: "seal an operation: replace document, then leave Plan Mode to commit its exact receipt",
 			}}
 			return result, nil
@@ -362,7 +362,7 @@ func (s *Service) PlanExecution(
 		input.CompletionCriteria,
 	); boundaryErr != nil {
 		return RejectedResult(snapshot, boundaryErr, []NextAction{{
-			Tool:   "prepare_plan_execution",
+			Domain: "execution", Operation: "prepare_plan_execution",
 			Reason: "prepare an operation: replace document with replacement_reason, the new boundary, and the complete successor WorkGraph",
 		}}), nil
 	}
@@ -372,7 +372,7 @@ func (s *Service) PlanExecution(
 			"Plan proposal is valid; no authoritative state changed in Plan Mode. Resubmit after leaving Plan Mode to activate it.",
 		)
 		result.NextActions = []NextAction{{
-			Tool:   "prepare_plan_execution",
+			Domain: "execution", Operation: "prepare_plan_execution",
 			Reason: "seal this complete replan document, then leave Plan Mode to commit its exact receipt",
 		}}
 		return result, nil
@@ -1756,7 +1756,7 @@ func (s *Service) mutableSnapshot(
 	if coordinatorOnly {
 		if coordinationErr := s.requireRuntimeCoordination(actor, snapshot); coordinationErr != nil {
 			result := RejectedResult(snapshot, coordinationErr, []NextAction{{
-				Tool:   "get_execution",
+				Domain: "execution", Operation: "get_execution",
 				Reason: "explicitly inspect and enter the current Room coordination scope",
 			}})
 			return snapshot, &result, nil
@@ -2630,7 +2630,7 @@ func nextActions(
 		for _, workID := range snapshot.ReadyWorkItemIDs {
 			work := logicalWork(snapshot, workID)
 			actions = append(actions, NextAction{
-				Tool:       "assign_work",
+				Domain: "execution", Operation: "assign_work",
 				WorkItemID: workID,
 				LogicalKey: work.LogicalKey,
 				Reason:     "Work Item is ready and has no current Assignment",
@@ -2649,7 +2649,7 @@ func nextActions(
 				continue
 			}
 			actions = append(actions, NextAction{
-				Tool:       "review_work",
+				Domain: "execution", Operation: "review_work",
 				WorkItemID: work.ID,
 				LogicalKey: work.LogicalKey,
 				Reason:     "Submission is awaiting the selected review decision",
@@ -2671,7 +2671,7 @@ func nextActions(
 			continue
 		}
 		actions = append(actions, NextAction{
-			Tool:       "resume_work",
+			Domain: "execution", Operation: "resume_work",
 			WorkItemID: work.ID,
 			LogicalKey: work.LogicalKey,
 			Reason:     "the exact waiting_input blocker must be resolved with evidence",
@@ -2689,7 +2689,7 @@ func nextActions(
 			}
 			work := logicalWork(snapshot, assignment.WorkItemID)
 			actions = append(actions, NextAction{
-				Tool:       "submit_work",
+				Domain: "execution", Operation: "submit_work",
 				WorkItemID: assignment.WorkItemID,
 				LogicalKey: work.LogicalKey,
 				Reason:     "current actor owns this Assignment",

@@ -576,7 +576,8 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 		return err
 	}
 	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
-	e.service.recordGoalUsageFromSlotAssistantMessage(e.ctx, e.slot, messageValue)
+	actor := e.orchestrationActor()
+	e.service.recordGoalUsageFromSlotAssistantMessageWithActor(e.ctx, e.slot, &actor, messageValue)
 	return nil
 }
 

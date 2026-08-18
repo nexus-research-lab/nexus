@@ -17,7 +17,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 ## L1 — 文档地图
 
 代码是机器相，注释是语义相，两相必须同构：任一相变化必须在另一相显现，否则视为未完成。
-本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、MCP schema/parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
+本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、runtime command/MCP schema 与 parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
 
 `nexus` — 用户运行的多 agent 桌面/网页应用；Go 后端 + React web。
 技术栈: Go + net/http + WebSocket + SQLite/goose + React19 + Vite + Zustand
@@ -40,7 +40,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
   cli/        - nexusctl / nexuscfg / round-scoped nexus 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期
-  mcp/ connectors/ workspace/ - 能力域；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；Automation 模型控制复用全 Agent 内置 automation Skill 与 round-scoped `nexus automation` CLI，不再挂载 Automation MCP；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
+  runtimecommand/ mcp/ connectors/ workspace/ - 能力域；runtimecommand 提供 Goal/Execution 的 transport-neutral operation contract、round capability 与 typed receipt，模型侧只通过内置 Skill 和 round-scoped `nexus goal|execution` CLI 使用；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；Automation 模型控制复用全 Agent 内置 automation Skill 与 round-scoped `nexus automation` CLI，不再挂载 Automation MCP；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>
@@ -76,8 +76,8 @@ cmd -> app -> handler -> service -> domain/storage
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态与待确认人工交互只按 Room ID 投影；DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
 - Goal Composer 的“设定 Goal”和文本 `/goal` 必须进入同一个宿主控制命令：先写 Goal，再持久化一条完成态、用户可见但不进入模型的 `/goal <objective>` 控制记录，最后才启动 Goal continuation。该控制记录必须保留 exact `client_message_id` 作为 ACK 丢失后的 durable acceptance 证据；不得按正文或时间邻近猜测。不得把 Goal objective 当普通 chat prompt 直接执行；新会话标题与 started/message count 必须由 Goal/控制记录独立建立，不能依赖首个模型回复。WebSocket 入口完成同步 scope/owner 校验并受理 `set_goal` 后，必须按原连接顺序在有界 detached context 中完成；切页或断连只能失去 ACK 投影，不能取消已受理的 Goal、控制记录、目录失效或 continuation。
-- 模型通过 `create_goal` 创建的 Goal 必须把经服务端验证的当前 Agent 持久化为负责人；后续新物理 round 只为该负责人解析启动时的 exact Goal/objective revision，并且该快照只进入 `nexus_goal`，不得泄漏为 ambient Execution/WorkGraph authority。Room 协作者只能读 Goal 和交付证据；旧 round、旧 revision、后台/外部来源仍必须 fail closed。
-- Room Lead 自己执行 Work Item 时，必须由宿主在 self Assignment 持久化后签发 exact WorkBinding，并在同一物理 round 内供 Execution MCP、Runtime Graph 与 subagent admission 动态读取；Room 成员或 coordinator 身份不得替代该显式 capability。DM 的同轮责任分段保持独立，不得反向成为 Room 的隐式授权条件。
+- 模型通过 Goal command 创建的 Goal 必须把经服务端验证的当前 Agent 持久化为负责人；后续新物理 round 只为该负责人解析启动时的 exact Goal/objective revision，并且该快照只进入 round-scoped Goal command authority，不得泄漏为 ambient Execution/WorkGraph authority。Room 协作者只能读 Goal 和交付证据；旧 round、旧 revision、后台/外部来源仍必须 fail closed。
+- Room Lead 自己执行 Work Item 时，必须由宿主在 self Assignment 持久化后签发 exact WorkBinding，并在同一物理 round 内供 Execution command、Runtime Graph 与 subagent admission 动态读取；Room 成员或 coordinator 身份不得替代该显式 capability。DM 的同轮责任分段保持独立，不得反向成为 Room 的隐式授权条件。
 - 活跃 Nexus Session 的 MCP 工具面只由稳定会话拓扑和用户显式 MCP/Connector 选择决定；内部唤醒、私域回传、Room 角色、WorkBinding/ReviewBinding、Goal authority 与通讯开关只改变逐轮执行权限，不得通过卸载 schema 鉴权。无权轮次必须保留工具定义并在 service 真相源 fail closed；`ToolSearch` 只是默认关闭的 schema 传递优化，不参与挂载或鉴权。
 - Room Goal continuation 发出的公区 `@` 或带 wake 的 directed message 必须携带宿主持有的精确 Goal ID/objective revision 协作归因，跨 directed-message fact、handoff ledger、InputQueue 和重启恢复保持；私域消息与 handoff 的两阶段写入必须可从前者按当前 revision 幂等修复。副作用工具重试使用 host-only command identity；immediate/delayed wake 都必须先 schedule、成功入队后 complete，并可在线及重启恢复。该归因只用于等待协作者终态、记录可见审计事实并重新调度一轮有权限的 continuation，绝不能授予目标 conversation round Goal mutation authority。Goal-attributed handoff 不得折叠为 busy slot 的普通 guide；target terminal 与 Goal handback 必须作为两个 durable 阶段恢复，handback 只解除旧 source 的空进展抑制，不重置 continuation 次数上限。当前负责人在 objective 满足且 Room/Execution readiness 通过后拥有 Goal 关闭决定权；成员数量与协作证据不构成完成门槛，但已启动的 slot、handoff、queue、wake 或 WorkGraph work 必须先终态或显式取消。公开非 Lead 实质回复仍可在同一 durable Goal ID 生命周期内单调记录为审计事实，objective revision 只 fence 迟到事件的写入归因。历史无归因数据只能由当前 Goal 的精确 suppression 审计事件、完整终态 root 与同 root 公开证据联合修复，禁止从正文或时间邻近猜测。
 - Room-backed Session 中，SQL 只拥有 Room 身份、标题与配置，workspace/Room ledger 拥有运行历史进度；统一读模型必须单调合并。旧 SQL `messages` 计数只能作为兼容下限，禁止覆盖 canonical Goal 控制记录、标题、最近活动、消息数、上下文占用或 transcript lineage。

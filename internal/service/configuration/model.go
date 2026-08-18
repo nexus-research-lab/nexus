@@ -24,6 +24,7 @@ const (
 	DomainRooms       = "rooms"
 	DomainWorkspaces  = "workspaces"
 	DomainGoals       = "goals"
+	DomainExecutions  = "executions"
 
 	ContextKindAgent = "agent"
 	ContextKindRoom  = "room"

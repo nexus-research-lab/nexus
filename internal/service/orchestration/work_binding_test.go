@@ -979,7 +979,7 @@ func TestRoomReviewAcceptanceContinuesCoordinationAndAssignsReadyWorkSameRound(t
 		t.Fatalf("review continuation receipts = responsibility:%+v work:%+v", reviewed.ResponsibilityAuthority, reviewed.WorkBinding)
 	}
 	if len(reviewed.NextActions) == 0 ||
-		reviewed.NextActions[0].Tool != "assign_work" ||
+		reviewed.NextActions[0].Operation != "assign_work" ||
 		reviewed.NextActions[0].WorkItemID != "work-next" {
 		t.Fatalf("review continuation next actions = %+v", reviewed.NextActions)
 	}

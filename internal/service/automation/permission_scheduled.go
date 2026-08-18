@@ -349,6 +349,9 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 		if readOnlyAutomationCLIRequest(request) {
 			return sdkpermission.Allow(request.Input, nil), nil
 		}
+		if toolpolicy.IsNexusRuntimeCLIRequest(request) {
+			return sdkpermission.Deny("后台 scheduled run 只能读取 Automation contract/inspect，不能调用 runtime mutation 命令", true), nil
+		}
 		if toolpolicy.Contains(disallowedByAgent, toolName) {
 			return sdkpermission.Deny(fmt.Sprintf("当前 Agent 已禁用工具 %s，后台运行不会自动授权", toolName), false), nil
 		}
@@ -363,10 +366,10 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 }
 
 func readOnlyAutomationCLIRequest(request sdkpermission.Request) bool {
-	action, ok := toolpolicy.NexusAutomationCLIAction(request)
-	if !ok {
+	invocation, ok := toolpolicy.NexusRuntimeCLIInvocation(request)
+	if !ok || invocation.Domain != "automation" {
 		return false
 	}
-	return action == automationdomain.AutomationCommandActionContract ||
-		action == automationdomain.AutomationCommandActionInspect
+	return invocation.Action == automationdomain.AutomationCommandActionContract ||
+		invocation.Action == automationdomain.AutomationCommandActionInspect
 }

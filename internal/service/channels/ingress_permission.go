@@ -23,29 +23,7 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebSearch": {},
 }
 
-// Legacy Automation MCP names remain permission-compatible only for resumed
-// pre-migration transcripts. New runtimes do not mount these tools.
-var defaultScheduledTaskReadTools = map[string]struct{}{
-	"automation_query": {},
-}
-
-var scheduledTaskMutationTools = map[string]struct{}{
-	"automation_update": {},
-}
-
-var defaultGoalApprovedTools = map[string]struct{}{
-	"create_goal":               {},
-	"get_goal":                  {},
-	"retarget_goal":             {},
-	"audit_objective_alignment": {},
-	"update_goal":               {},
-}
-
-var defaultManagedSupportTools = map[string]struct{}{
-	"Skill": {},
-}
-
-var defaultExternalApprovedTools = toolpolicy.MergeSets(defaultReadOnlyApprovedTools, defaultScheduledTaskReadTools, defaultGoalApprovedTools)
+var defaultExternalApprovedTools = toolpolicy.CopySet(defaultReadOnlyApprovedTools)
 
 func (s *IngressService) resolveApprovedTools(channel string, explicit []string) map[string]struct{} {
 	if len(explicit) > 0 {
@@ -86,11 +64,6 @@ func (s *IngressService) buildPermissionHandler(
 		}
 		if toolpolicy.Contains(deniedByAgent, toolName) {
 			return sdkpermission.Deny("当前 agent 已禁止该工具", false), nil
-		}
-		// 旧 transcript 即使重放 legacy Automation MCP tool name，也不能借外部
-		// unpaired ingress 恢复 mutation；新命令的最终边界是 round-scoped broker。
-		if isScheduledTaskMutationTool(toolName) {
-			return sdkpermission.Deny("外部通道不能通过旧 Automation 工具名执行持久化变更", false), nil
 		}
 		if request.autoApproveAll {
 			return sdkpermission.Allow(permissionRequest.Input, nil), nil
@@ -139,11 +112,5 @@ func (s *IngressService) buildPairedDMPermissionHandler(
 }
 
 func isManagedIngressTool(toolName string) bool {
-	return toolpolicy.Contains(defaultScheduledTaskReadTools, toolName) ||
-		toolpolicy.IsManagedGoalTool(toolName) ||
-		toolpolicy.Contains(defaultManagedSupportTools, toolName)
-}
-
-func isScheduledTaskMutationTool(toolName string) bool {
-	return toolpolicy.Contains(scheduledTaskMutationTools, toolName)
+	return toolpolicy.MatchesItem(toolName, "Skill")
 }

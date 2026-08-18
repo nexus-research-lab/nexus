@@ -14,7 +14,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	"maps"
 	"slices"
 	"strings"
@@ -261,7 +263,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) {
-	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
+	if slot == nil {
 		return
 	}
 	authority := slot.goalMutationAuthority()
@@ -316,10 +318,12 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		})
 		return
 	}
-	if messageutil.AssistantMissedGoalCompletionTool(finalAssistant) {
-		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
-		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成工具漏调用失败", func() error {
-			_, err := s.goals.RecordContinuationRuntimeCompletionToolMiss(
+	if messageutil.AssistantMissedGoalCompletionCommand(
+		finalAssistant, slot.hasGoalCompletionCandidate(),
+	) {
+		reason := "assistant claimed goal completion without an applied nexus goal update_goal command receipt"
+		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成命令漏调用失败", func() error {
+			_, err := s.goals.RecordContinuationRuntimeCompletionCommandMiss(
 				ctx, goalID, runtimeIdentity, reason, objectiveRevision,
 			)
 			return err
@@ -444,7 +448,7 @@ func goalUsageScopeRoundIDForRoomSlot(slot *activeRoomSlot) string {
 }
 
 func goalUsageSessionKeyForRoomSlot(slot *activeRoomSlot, candidate string) string {
-	// 与 Goal MCP session 解析保持同一边界：group Room 聚合到共享流，
+	// 与 Goal command session 解析保持同一边界：group Room 聚合到共享流，
 	// private/DM Room 继续使用各 Agent 自己的 Goal session。
 	normalize := func(raw string) string {
 		sessionKey := strings.TrimSpace(raw)
@@ -639,37 +643,36 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) {
+	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, nil, message)
+}
+
+func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	actor *orchestrationsvc.ActorContext,
+	message protocol.Message,
+) {
 	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
 	if protocol.MessageRole(message) != "assistant" {
 		return
 	}
-	observations := messageutil.AssistantToolResults(message)
-	if len(observations) > 0 {
-		authority, goalBound := slot.boundGoalAuthority()
-		goalBound = goalBound && strings.TrimSpace(authority.ExecutionID) != ""
-		rememberGoalToolProgressForSlot(slot, messageutil.AssistantHasCountedToolProgress(
-			message,
-			goalBound,
-		))
+	receipts := slot.consumeRuntimeCommandReceipts()
+	if actor != nil && runtimecommand.HasDomain(receipts, runtimecommand.DomainExecution) {
+		s.observeExecutionRuntimeCommandReceipts(*actor, receipts)
 	}
+	if s.goals == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	rememberGoalToolProgressForSlot(slot, runtimecommand.HasGoalProgress(receipts))
 	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
-	hasSuccessfulCreate := false
-	hasSuccessfulUpdate := false
-	for _, observation := range observations {
-		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected ||
-			observation.MutationOutcome == protocol.MutationResultSuperseded {
-			continue
-		}
-		switch messageutil.CanonicalToolName(observation.ToolName) {
-		case "create_goal":
-			hasSuccessfulCreate = true
-		case "update_goal":
-			hasSuccessfulUpdate = true
-		}
-	}
+	hasSuccessfulCreate := runtimecommand.HasAppliedOperation(
+		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationCreate,
+	)
+	hasSuccessfulUpdate := runtimecommand.HasAppliedOperation(
+		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationUpdate,
+	)
 	if hasSuccessfulCreate {
 		s.startRoomGoalUsageFromRoundStartForScope(ctx, slot, goalSessionKeyForSlot(slot))
 		goalID, goalSessionKey := s.ensureModelCreatedRoomGoalBinding(ctx, slot)
@@ -679,8 +682,8 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessage(
 		s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
 	}
 	if hasSuccessfulUpdate {
-		if goalID := messageutil.SuccessfulGoalCompletionID(
-			observations,
+		if goalID := runtimecommand.SuccessfulGoalCompletionID(
+			receipts,
 			slot.goalIDForUsage(),
 		); goalID != "" {
 			slot.markGoalCompletionCandidate(goalID)

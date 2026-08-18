@@ -34,7 +34,7 @@ func TestRepositoryUpdatesAndAggregatesCacheAttribution(t *testing.T) {
 		InputTokens: 20, CacheReadInputTokens: 15, TotalTokens: 35,
 		OccurredAt: time.Unix(100, 0).UTC(),
 		GoalScope:  "bound", ExecutionScope: "bound", ResponsibilityLane: "review",
-		RuntimeKind: "nxs", GoalToolSurface: "present", ExecutionToolSurface: "present",
+		RuntimeKind:             "nxs",
 		HostToolSurfaceComplete: true,
 		ToolSurfaceFingerprint:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
@@ -58,8 +58,6 @@ func TestRepositoryUpdatesAndAggregatesCacheAttribution(t *testing.T) {
 	unknownRetry.ExecutionScope = "unknown"
 	unknownRetry.ResponsibilityLane = "unknown"
 	unknownRetry.RuntimeKind = "unknown"
-	unknownRetry.GoalToolSurface = "unknown"
-	unknownRetry.ExecutionToolSurface = "unknown"
 	unknownRetry.HostToolSurfaceComplete = false
 	unknownRetry.ToolSurfaceFingerprint = ""
 	if err := repository.Upsert(context.Background(), unknownRetry); err != nil {
@@ -83,8 +81,6 @@ func TestRepositoryUpdatesAndAggregatesCacheAttribution(t *testing.T) {
 	conflictingRetry.ExecutionScope = "none"
 	conflictingRetry.ResponsibilityLane = "unbound"
 	conflictingRetry.RuntimeKind = "claude"
-	conflictingRetry.GoalToolSurface = "absent"
-	conflictingRetry.ExecutionToolSurface = "absent"
 	conflictingRetry.ToolSurfaceFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	if err := repository.UpdateCacheAttribution(context.Background(), conflictingRetry); err != nil {
 		t.Fatalf("conflicting retry UpdateCacheAttribution() error = %v", err)

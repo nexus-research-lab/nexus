@@ -14,6 +14,8 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
+	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	channelauthorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
@@ -71,8 +73,10 @@ type AppServices struct {
 	Ingress                *channels.IngressService
 	RoomRealtime           *roomrealtime.Service
 	Automation             *automationsvc.Service
+	RuntimeCommand         *runtimecommand.Registry
 	Imagegen               *imagegensvc.Service
 	Goal                   *goalsvc.Service
+	GoalCommand            goalcommandcontract.Service
 	Orchestration          *orchestrationsvc.Service
 	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
@@ -273,14 +277,15 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetTaskReferenceResolver(automationService)
 	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
-	automationService.SetRuntimeCommandRoundResolver(runtimeManager)
-	automationRuntimeEnvironmentBuilder := newAutomationRuntimeEnvironmentBuilder(
+	runtimeCommandRegistry := runtimecommand.NewRegistry(runtimeManager)
+	runtimeCommandEnvironmentBuilder := newRuntimeCommandEnvironmentBuilder(
 		cfg,
-		automationService,
+		runtimeCommandRegistry,
 		core.Agent,
+		explicitGoalCoordinator,
 	)
-	dmService.SetAutomationRuntimeEnvironmentBuilder(automationRuntimeEnvironmentBuilder)
-	roomRealtime.SetAutomationRuntimeEnvironmentBuilder(automationRuntimeEnvironmentBuilder)
+	dmService.SetRuntimeCommandEnvironmentBuilder(runtimeCommandEnvironmentBuilder)
+	roomRealtime.SetRuntimeCommandEnvironmentBuilder(runtimeCommandEnvironmentBuilder)
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 	configurationService := configurationsvc.NewService(
@@ -368,25 +373,20 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
-	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator)
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	executionBuilder := newExecutionMCPBuilder(orchestrationService)
 	mcpBuilder := combinedMCPBuilder(
 		communicationBuilder,
 		connectorBuilder,
 		connectorAuthorizationBuilder,
 		channelAuthorizationBuilder,
-		goalBuilder,
 		contextOnlyMCPBuilder(visualizeBuilder),
 		contextOnlyMCPBuilder(imagegenBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
-	dmService.SetExecutionMCPServerBuilder(executionBuilder)
-	roomRealtime.SetExecutionMCPServerBuilder(executionBuilder)
 	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
 
 	warnIfProviderMissing(providerService, logger)
@@ -417,8 +417,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Ingress:                ingressService,
 		RoomRealtime:           roomRealtime,
 		Automation:             automationService,
+		RuntimeCommand:         runtimeCommandRegistry,
 		Imagegen:               imagegenService,
 		Goal:                   goalService,
+		GoalCommand:            explicitGoalCoordinator,
 		Orchestration:          orchestrationService,
 		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,

@@ -247,7 +247,7 @@ func TestGoalRevisionSuccessorPlanModeDoesNotReserveOrCreateState(t *testing.T) 
 	}
 	if result.Outcome != MutationNoOp || result.Snapshot != nil ||
 		len(result.NextActions) != 1 ||
-		result.NextActions[0].Tool != "prepare_plan_execution" {
+		result.NextActions[0].Operation != "prepare_plan_execution" {
 		t.Fatalf("Plan Mode result = %#v", result)
 	}
 }

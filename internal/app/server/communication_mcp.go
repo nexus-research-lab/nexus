@@ -80,7 +80,7 @@ func communicationRuntimeActor(
 	default:
 		return communicationsvc.Actor{}, false
 	}
-	lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
+	lease, ok := runtimectx.RuntimeRoundLeaseFromContext(ctx)
 	if !ok {
 		return communicationsvc.Actor{}, false
 	}

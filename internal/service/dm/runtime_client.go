@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork，并让 Goal/Execution MCP 共用同一 round authority 的换代安全 runtime client。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork，并让 Goal/Execution command 共用同一 round authority 的换代安全 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -18,6 +18,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -46,6 +47,7 @@ type dmClientPreparation struct {
 	goalContext            string
 	goalObjectiveRevision  *atomic.Int64
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
+	commandReceipts        *runtimecommand.ReceiptState
 	connectorTurnContext   string
 	permissionMode         sdkpermission.Mode
 }
@@ -179,9 +181,20 @@ func (s *Service) ensureClient(
 		nil,
 		nil,
 	)
+	commandReceipts := runtimecommand.NewReceiptState()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
-	runtimeBuilderContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
+	runtimeBuilderContext := runtimectx.WithRuntimeRoundLease(ctx, sessionKey, request.RoundID)
+	runtimeCommandContext := runtimectx.RuntimeCommandContext{
+		Agent: agentValue, ScopeSessionKey: sessionKey, RuntimeSessionKey: sessionKey,
+		ExecutionID:        strings.TrimSpace(request.ExecutionID),
+		CoordinatorAgentID: agentValue.AgentID,
+		RootRoundID:        request.RoundID, AgentRoundID: request.AgentRoundID,
+		SourceContextType: "agent", SourceContextID: agentValue.AgentID,
+		SourceContextLabel: agentValue.Name, PermissionMode: permissionMode,
+		GoalAuthority: goalAuthority, ResponsibilityAuthority: responsibilityState,
+		AutomationRun: cloneAutomationRunContext(request.AutomationRun),
+	}
 	configurationRuntimeEnv := map[string]string(nil)
 	if !request.runtimePreparationOnly && s.configurationRuntimeEnv != nil {
 		configurationRuntimeEnv, err = s.configurationRuntimeEnv(
@@ -196,17 +209,16 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
-	automationRuntimeEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly && s.automationRuntimeEnv != nil {
-		automationRuntimeEnv, err = s.automationRuntimeEnv(
+	runtimeCommandEnv := map[string]string(nil)
+	if !request.runtimePreparationOnly && s.runtimeCommandEnv != nil {
+		runtimeCommandEnv, err = s.runtimeCommandEnv(
 			runtimeBuilderContext,
-			agentValue,
-			sessionKey,
-			request.RoundID,
-			sourceContextType,
-			agentValue.AgentID,
-			agentValue.Name,
-			cloneAutomationRunContext(request.AutomationRun),
+			runtimecommand.RoundContext{
+				SessionKey: sessionKey, RoundID: request.RoundID,
+				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
+				SourceContextLabel: agentValue.Name,
+				CommandContext:     runtimeCommandContext, Receipts: commandReceipts,
+			},
 		)
 		if err != nil {
 			return dmClientPreparation{}, err
@@ -244,29 +256,6 @@ func (s *Service) ensureClient(
 			goalObjectiveRevision,
 			permissionMode,
 		)
-	}
-	if s.executionMCPServers != nil {
-		overlay := s.executionMCPServers(ctx, runtimectx.ExecutionToolContext{
-			Agent:                   agentValue,
-			ScopeSessionKey:         sessionKey,
-			RuntimeSessionKey:       sessionKey,
-			ExecutionID:             strings.TrimSpace(request.ExecutionID),
-			CoordinatorAgentID:      agentValue.AgentID,
-			RootRoundID:             request.RoundID,
-			AgentRoundID:            request.AgentRoundID,
-			SourceContextType:       "agent",
-			SourceContextID:         agentValue.AgentID,
-			PermissionMode:          permissionMode,
-			GoalAuthority:           goalAuthority,
-			ResponsibilityAuthority: responsibilityState,
-			AutomationRun:           cloneAutomationRunContext(request.AutomationRun),
-		})
-		if len(overlay) > 0 && mcpServers == nil {
-			mcpServers = make(map[string]sdkmcp.ServerConfig, len(overlay))
-		}
-		for name, server := range overlay {
-			mcpServers[name] = server
-		}
 	}
 	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
 	dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, connectorTurnContext)
@@ -329,7 +318,7 @@ func (s *Service) ensureClient(
 		MCPServers:                 mcpServers,
 		AgentMCPServers:            agentValue.Options.MCPServers,
 		ConfigurationEnv:           configurationRuntimeEnv,
-		RuntimeCommandEnv:          automationRuntimeEnv,
+		RuntimeCommandEnv:          runtimeCommandEnv,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
@@ -550,6 +539,7 @@ func (s *Service) ensureClient(
 		goalContext:            goalContext,
 		goalObjectiveRevision:  goalObjectiveRevision,
 		responsibilityState:    responsibilityState,
+		commandReceipts:        commandReceipts,
 		connectorTurnContext:   connectorTurnContext,
 		permissionMode:         permissionMode,
 	}, nil

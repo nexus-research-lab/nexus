@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 type fakeGoalContextProvider struct {
@@ -101,7 +102,7 @@ func (p *fakeGoalContextProvider) RecordContinuationFailure(_ context.Context, _
 	return nil, nil
 }
 
-func (p *fakeGoalContextProvider) RecordCompletionToolMiss(_ context.Context, _ string, _ string, reason string, revisions ...int64) (*protocol.Goal, error) {
+func (p *fakeGoalContextProvider) RecordCompletionCommandMiss(_ context.Context, _ string, _ string, reason string, revisions ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.completionMisses = append(p.completionMisses, strings.TrimSpace(reason))
@@ -272,11 +273,26 @@ func goalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.M
 	}
 }
 
-func goalCompletionToolMissAssistantMessage() protocol.Message {
+func goalCompletionCommandMissAssistantMessage() protocol.Message {
 	return protocol.Message{
 		"role": "assistant",
 		"content": []map[string]any{
-			{"type": "text", "text": "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。"},
+			{"type": "text", "text": "任务已经完成，但无法调用 nexus goal invoke --operation update_goal 命令来标记完成。"},
 		},
 	}
+}
+
+func stageDMRuntimeCommandReceipt(runner *roundRunner, receipt runtimecommand.Receipt) {
+	if runner.commandReceipts == nil {
+		runner.commandReceipts = runtimecommand.NewReceiptState()
+	}
+	runner.commandReceipts.Record(receipt)
+}
+
+func stageDMAppliedGoalCommand(runner *roundRunner, operation string, goalID string, status protocol.GoalStatus) {
+	stageDMRuntimeCommandReceipt(runner, runtimecommand.Receipt{
+		Domain: runtimecommand.DomainGoal, Operation: operation,
+		Outcome: string(protocol.MutationResultApplied), GoalID: goalID,
+		GoalStatus: string(status),
+	})
 }

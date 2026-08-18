@@ -39,7 +39,7 @@ var shellRemoteURLExpansionPattern = regexp.MustCompile(
 var shellFileURLExpansionPattern = regexp.MustCompile(`(?i)(?:[-=+?])file:/+`)
 var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
 var powerShellBracedScopeEnvironmentAssignmentPattern = regexp.MustCompile(
-	`(?i)\$\{env:(?:CLAUDE_CONFIG_DIR|NEXUS_CONFIG_DIR|NEXUS_RUNTIME_SCOPE_MODE|NEXUS_STATE_ROOT|NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH|NEXUSCTL_COMMAND_PATH|NEXUSCFG_COMMAND_PATH|NEXUSCFG_BROKER_URL|NEXUSCFG_CAPABILITY_TOKEN|NEXUS_COMMAND_PATH|NEXUS_COMMAND_BROKER_URL|NEXUS_COMMAND_CAPABILITY_TOKEN|NEXUS_AUTOMATION_INPUT_PATH)\}\s*=`,
+	`(?i)\$\{env:(?:CLAUDE_CONFIG_DIR|NEXUS_CONFIG_DIR|NEXUS_RUNTIME_SCOPE_MODE|NEXUS_STATE_ROOT|NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH|NEXUSCTL_COMMAND_PATH|NEXUSCFG_COMMAND_PATH|NEXUSCFG_BROKER_URL|NEXUSCFG_CAPABILITY_TOKEN|NEXUS_COMMAND_PATH|NEXUS_COMMAND_BROKER_URL|NEXUS_COMMAND_CAPABILITY_TOKEN|NEXUS_COMMAND_INPUT_PATH)\}\s*=`,
 )
 var nexusctlCommandTextPattern = regexp.MustCompile(
 	`(?i)(?:^|[^A-Za-z0-9_.-])nexusctl(?:\.(?:bat|cmd|exe|ps1))?(?:$|[^A-Za-z0-9_.-])`,
@@ -63,7 +63,7 @@ var nexusctlScopeEnvironmentNames = map[string]struct{}{
 	"NEXUS_COMMAND_PATH":             {},
 	"NEXUS_COMMAND_BROKER_URL":       {},
 	"NEXUS_COMMAND_CAPABILITY_TOKEN": {},
-	"NEXUS_AUTOMATION_INPUT_PATH":    {},
+	"NEXUS_COMMAND_INPUT_PATH":       {},
 }
 
 var nexusctlScopeFlags = map[string]struct{}{

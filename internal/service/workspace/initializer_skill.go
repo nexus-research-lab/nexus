@@ -20,11 +20,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
-	baseSkillNames      = []string{"imagegen", "visualize", "automation", "goal-manager", "execution-orchestrator", "nexus-configuration"}
+	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation"}, runtimecommand.ManagedSemanticSkillNames()...), "nexus-configuration")
 	mainAgentSkillNames = []string{"nexus-manager"}
 	// createSymlink 仅作为平台能力探针；真正的创建由 confinedfs.Root.Symlink 完成。
 	createSymlink = func(string, string) error { return nil }

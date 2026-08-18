@@ -1159,7 +1159,7 @@ test("WorkGraph Tool nodes use semantic action icon categories", async () => {
       "mcp__imagegen__generate_image",
       "mcp__github__list_issues",
       "Read",
-      "mcp__nexus_execution__submit_work",
+      "Task",
     ].map((name) => resolveExecutionToolVisualKind(name)),
     [
       "search",
@@ -1450,28 +1450,28 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
   assert.equal(resolveExecutionWorkspaceReference("https://example.com/result"), null);
 });
 
-const nexusToolTitles = [
-  ["mcp__nexus_execution__get_execution", "读取工作图"],
-  ["mcp__nexus_execution__prepare_plan_execution", "封存计划提案"],
-  ["mcp__nexus_execution__plan_execution", "提交计划提案"],
-  ["mcp__nexus_execution__abandon_execution", "终止当前执行"],
-  ["mcp__nexus_execution__assign_work", "指派工作项"],
-  ["mcp__nexus_execution__submit_work", "提交交付物"],
-  ["mcp__nexus_execution__review_work", "验收工作项"],
-  ["mcp__nexus_execution__block_work", "标记工作阻塞"],
-  ["mcp__nexus_execution__resume_work", "恢复工作项"],
-  ["mcp__nexus_execution__take_over_work", "接管工作项"],
-  ["mcp__nexus_execution__audit_execution_alignment", "审计执行对齐"],
-  ["mcp__nexus_execution__promote_execution_to_goal", "升级为 Goal"],
-  ["mcp__nexus_goal__get_goal", "读取 Goal"],
-  ["mcp__nexus_goal__create_goal", "创建 Goal"],
-  ["mcp__nexus_goal__retarget_goal", "调整 Goal 目标"],
-  ["mcp__nexus_goal__audit_objective_alignment", "审计 Goal 对齐"],
-  ["mcp__nexus_goal__update_goal", "更新 Goal 状态"],
+const nexusCommandTitles = [
+  ["execution inspect", "读取工作图"],
+  ["execution invoke --operation prepare_plan_execution", "封存计划提案"],
+  ["execution invoke --operation plan_execution", "提交计划提案"],
+  ["execution invoke --operation abandon_execution", "终止当前执行"],
+  ["execution invoke --operation assign_work", "指派工作项"],
+  ["execution invoke --operation submit_work", "提交交付物"],
+  ["execution invoke --operation review_work", "验收工作项"],
+  ["execution invoke --operation block_work", "标记工作阻塞"],
+  ["execution invoke --operation resume_work", "恢复工作项"],
+  ["execution invoke --operation take_over_work", "接管工作项"],
+  ["execution invoke --operation audit_execution_alignment", "审计执行对齐"],
+  ["execution invoke --operation promote_execution_to_goal", "升级为 Goal"],
+  ["goal inspect", "读取 Goal"],
+  ["goal invoke --operation create_goal", "创建 Goal"],
+  ["goal invoke --operation retarget_goal", "调整 Goal 目标"],
+  ["goal invoke --operation audit_objective_alignment", "审计 Goal 对齐"],
+  ["goal invoke --operation update_goal", "更新 Goal 状态"],
 ];
 
-test("Nexus execution and Goal MCP names render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
-  const { getToolInputSummary, getToolTitle } = await server.ssrLoadModule(
+test("Nexus Goal and execution CLI commands render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
+  const { getSemanticToolName, getToolInputSummary, getToolTitle } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/tool-activity.ts",
   );
   const { ToolBlock } = await server.ssrLoadModule(
@@ -1480,19 +1480,21 @@ test("Nexus execution and Goal MCP names render semantic titles in real ToolBloc
   const { AssistantProcessCallchain } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
   );
-  for (const [toolName, expectedTitle] of nexusToolTitles) {
-    assert.equal(getToolTitle(toolName), expectedTitle);
+  for (const [commandTail, expectedTitle] of nexusCommandTitles) {
+    const command = `"\${NEXUS_COMMAND_PATH}" --json ${commandTail}`;
+    const input = { command };
+    assert.equal(getToolTitle("Bash", input), expectedTitle);
     const toolHtml = await renderWithI18n(React.createElement(ToolBlock, {
       status: "success",
       toolUse: {
-        id: `tool-${toolName}`,
-        input: {},
-        name: toolName,
+        id: `tool-${expectedTitle}`,
+        input,
+        name: "Bash",
         type: "tool_use",
       },
     }));
     assert.match(toolHtml, new RegExp(expectedTitle));
-    assert.doesNotMatch(toolHtml, /mcp__nexus_(?:execution|goal)__/);
+    assert.doesNotMatch(toolHtml, /mcp__nexus_/);
 
     const processHtml = await renderWithI18n(React.createElement(
       AssistantProcessCallchain,
@@ -1507,7 +1509,11 @@ test("Nexus execution and Goal MCP names render semantic titles in real ToolBloc
           projection: { content: [], streamingIndexes: new Set() },
           summary: {
             kind: "details",
-            latestDetail: { detail: null, kind: "tool", toolName },
+            latestDetail: {
+              detail: null,
+              kind: "tool",
+              toolName: getSemanticToolName("Bash", input),
+            },
             metrics: [{ count: 1, kind: "action" }],
           },
           toggle: () => {},
@@ -1516,7 +1522,7 @@ test("Nexus execution and Goal MCP names render semantic titles in real ToolBloc
       },
     ));
     assert.match(processHtml, new RegExp(expectedTitle));
-    assert.doesNotMatch(processHtml, /mcp__nexus_(?:execution|goal)__/);
+    assert.doesNotMatch(processHtml, /mcp__nexus_/);
   }
   assert.equal(
     getToolInputSummary({

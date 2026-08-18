@@ -19,8 +19,6 @@ type Record struct {
 	RuntimeKind              string
 	ProviderFingerprint      string
 	ModelFingerprint         string
-	GoalToolSurface          string
-	ExecutionToolSurface     string
 	HostToolSurfaceComplete  bool
 	ToolPolicyFingerprint    string
 	MCPServersFingerprint    string
@@ -42,8 +40,6 @@ type CacheSegment struct {
 	RuntimeKind              string
 	ProviderFingerprint      string
 	ModelFingerprint         string
-	GoalToolSurface          string
-	ExecutionToolSurface     string
 	HostToolSurfaceComplete  bool
 	ToolPolicyFingerprint    string
 	MCPServersFingerprint    string

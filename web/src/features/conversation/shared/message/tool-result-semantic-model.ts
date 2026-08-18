@@ -113,6 +113,8 @@ function parseMutationResult(
     };
   }
   for (const key of [
+    "result",
+    "data",
     "structured_output",
     "structured_content",
     "structuredContent",
