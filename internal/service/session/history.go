@@ -1,6 +1,6 @@
-// INPUT: owner-scoped DM/Room 历史、活跃 round 身份与 finalized Goal usage report。
-// OUTPUT: 归一化消息历史、分页结果及按当前聚合真相刷新的 Goal 完成收据。
-// POS: Session 历史统一读取与兼容投影边界。
+// INPUT: owner-scoped DM/Room 历史、请求取消信号、活跃 round 身份与 finalized Goal usage report。
+// OUTPUT: 归一化消息页、共享派生 generation 的 Round Navigator 及按当前聚合真相刷新的 Goal 完成收据。
+// POS: Session 历史统一读取与短冷建协议边界。
 package session
 
 import (
@@ -65,16 +65,23 @@ func (s *Service) GetSessionMessagesPage(
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		page, err := s.roomHistory.ReadMessagesPage(
+		page, err := s.roomHistory.ReadMessagesPageContext(
+			ctx,
 			authctx.OwnerUserID(ctx),
 			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
-			request.Limit,
-			request.BeforeRoundID,
-			request.BeforeRoundTimestamp,
-			request.AroundRoundID,
-			request.AroundLimit,
+			workspacestore.HistoryPageQuery{
+				Limit:                request.Limit,
+				BeforeRoundID:        request.BeforeRoundID,
+				BeforeRoundTimestamp: request.BeforeRoundTimestamp,
+				AroundRoundID:        request.AroundRoundID,
+				AroundLimit:          request.AroundLimit,
+				DeferIndex:           request.DeferIndex,
+			},
 		)
 		if err != nil {
 			return nil, err
@@ -94,15 +101,19 @@ func (s *Service) GetSessionMessagesPage(
 	if sessionValue == nil {
 		return nil, ErrSessionNotFound
 	}
-	page, err := s.ownerHistory(ctx).ReadMessagesPage(
+	page, err := s.ownerHistory(ctx).ReadMessagesPageContext(
+		ctx,
 		workspacePath,
 		*sessionValue,
 		s.activeRoundIDs(sessionKey),
-		request.Limit,
-		request.BeforeRoundID,
-		request.BeforeRoundTimestamp,
-		request.AroundRoundID,
-		request.AroundLimit,
+		workspacestore.HistoryPageQuery{
+			Limit:                request.Limit,
+			BeforeRoundID:        request.BeforeRoundID,
+			BeforeRoundTimestamp: request.BeforeRoundTimestamp,
+			AroundRoundID:        request.AroundRoundID,
+			AroundLimit:          request.AroundLimit,
+			DeferIndex:           request.DeferIndex,
+		},
 	)
 	if err != nil {
 		return nil, err
@@ -214,15 +225,26 @@ func (s *Service) GetSessionTurnIndex(ctx context.Context, rawSessionKey string)
 
 // GetSessionRoundIndex 读取 session 的轻量 round 导航索引。
 func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string) (*protocol.SessionRoundIndex, error) {
+	return s.GetSessionRoundIndexPage(ctx, rawSessionKey, false)
+}
+
+// GetSessionRoundIndexPage 读取 round 导航索引，可显式选择短冷建协议。
+func (s *Service) GetSessionRoundIndexPage(
+	ctx context.Context,
+	rawSessionKey string,
+	deferIndex bool,
+) (*protocol.SessionRoundIndex, error) {
 	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		index, err := s.roomHistory.ReadRoundIndex(
+		index, err := s.roomHistory.ReadRoundIndexPageContext(
+			ctx,
 			authctx.OwnerUserID(ctx),
 			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
+			deferIndex,
 		)
 		if err != nil {
 			return nil, err
@@ -241,10 +263,12 @@ func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string
 	if sessionValue == nil {
 		return nil, ErrSessionNotFound
 	}
-	index, err := s.ownerHistory(ctx).ReadRoundIndex(
+	index, err := s.ownerHistory(ctx).ReadRoundIndexPageContext(
+		ctx,
 		workspacePath,
 		*sessionValue,
 		s.activeRoundIDs(sessionKey),
+		deferIndex,
 	)
 	if err != nil {
 		return nil, err

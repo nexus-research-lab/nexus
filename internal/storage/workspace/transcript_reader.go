@@ -5,6 +5,7 @@ package workspace
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"slices"
@@ -16,20 +17,35 @@ import (
 )
 
 func (s *AgentHistoryStore) readTranscriptEntriesAt(root *confinedfs.Root, relative string) ([]transcriptEntry, error) {
+	return s.readTranscriptEntriesAtContext(context.Background(), root, relative)
+}
+
+func (s *AgentHistoryStore) readTranscriptEntriesAtContext(
+	ctx context.Context,
+	root *confinedfs.Root,
+	relative string,
+) ([]transcriptEntry, error) {
 	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	return readTranscriptEntriesFile(file)
+	return readTranscriptEntriesFileContext(ctx, file)
 }
 
 func readTranscriptEntriesFile(file *os.File) ([]transcriptEntry, error) {
+	return readTranscriptEntriesFileContext(context.Background(), file)
+}
+
+func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
 	reader := bufio.NewScanner(file)
 	reader.Buffer(make([]byte, 0, transcriptReadBufferBytes), transcriptScannerBufferBytes)
 
 	results := make([]transcriptEntry, 0)
 	for index := 0; reader.Scan(); index++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		line := strings.TrimSpace(reader.Text())
 		if line == "" {
 			continue
@@ -47,7 +63,10 @@ func readTranscriptEntriesFile(file *os.File) ([]transcriptEntry, error) {
 			Data:  entry,
 		})
 	}
-	return results, reader.Err()
+	if err := reader.Err(); err != nil {
+		return nil, err
+	}
+	return results, ctx.Err()
 }
 
 func normalizeTranscriptEntryShape(entry map[string]any) {

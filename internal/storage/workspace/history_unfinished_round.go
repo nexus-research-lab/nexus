@@ -1,3 +1,6 @@
+// INPUT: compact 后的历史 rows 与当前 active physical round 集合。
+// OUTPUT: 为已离开 active 且无终态的 round 稳定补齐 interrupted assistant。
+// POS: canonical history normalize 的未完成轮次收口阶段。
 package workspace
 
 import (
@@ -35,6 +38,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 	}
 
 	rounds := make(map[string]*roundSnapshot)
+	roundOrder := make([]string, 0)
 	for _, row := range rows {
 		roundID := stringFromAny(row["round_id"])
 		if roundID == "" {
@@ -47,6 +51,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 				TerminalStatus: roundStatusRunning,
 			}
 			rounds[roundID] = snapshot
+			roundOrder = append(roundOrder, roundID)
 		}
 		snapshot.SessionKey = firstNonEmpty(snapshot.SessionKey, stringFromAny(row["session_key"]))
 		snapshot.RoomID = firstNonEmpty(snapshot.RoomID, stringFromAny(row["room_id"]))
@@ -73,7 +78,10 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 
 	result := make([]protocol.Message, 0, len(rows)+len(rounds))
 	result = append(result, rows...)
-	for roundID, snapshot := range rounds {
+	// 合成 interrupt 的同 timestamp 顺序必须继承 canonical row 首次出现顺序；
+	// map 迭代会让 before cursor 与 seek index 在相同输入上随机漂移。
+	for _, roundID := range roundOrder {
+		snapshot := rounds[roundID]
 		if snapshot == nil || snapshot.HasResult || snapshot.ControlOnly {
 			continue
 		}

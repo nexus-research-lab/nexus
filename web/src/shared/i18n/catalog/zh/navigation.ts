@@ -22,6 +22,7 @@ export const zhNavigationMessages = {
   "sidebar.no_matching_capabilities": "没有匹配的能力",
   "sidebar.directory_load_failed": "目录加载失败",
   "sidebar.directory_load_failed_description": "数据还在，请重新加载。",
+  "sidebar.directory_refresh_failed_description": "刷新失败，正在显示上次加载的数据。",
   "sidebar.retry": "重新加载",
   "sidebar.no_contacts": "还没有联系人",
   "sidebar.contacts_empty_description": "联系人是你的 Agent 目录，添加后可以从聊天列表发起 DM 或组进群聊。",

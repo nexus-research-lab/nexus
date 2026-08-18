@@ -15,8 +15,9 @@ export function useSessionRoundIndex(sessionKey: string | null) {
       setItems([]);
       return;
     }
+    const controller = new AbortController();
 
-    void getSessionRoundIndexApi(normalizedSessionKey)
+    void getSessionRoundIndexApi(normalizedSessionKey, controller.signal)
       .then((nextItems) => {
         if (requestIdRef.current !== requestId) {
           return;
@@ -27,9 +28,13 @@ export function useSessionRoundIndex(sessionKey: string | null) {
         if (requestIdRef.current !== requestId) {
           return;
         }
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         console.error("[useSessionRoundIndex] 加载 session round 索引失败:", error);
         setItems([]);
       });
+    return () => controller.abort();
   }, [sessionKey]);
 
   return items;

@@ -88,7 +88,7 @@ export function useChatCompletionNotifications(): void {
   useEffect(clearActiveNotifications, [clearActiveNotifications, directoryIndex, location.pathname]);
   useEffect(() => subscribeBrowserNotificationPermission(), []);
   useEffect(() => {
-    if (directory.isLoading) {
+    if (!directory.hasLoaded) {
       return;
     }
     const knownRoomIds = new Set(directory.rooms.map((room) => room.id));
@@ -107,7 +107,7 @@ export function useChatCompletionNotifications(): void {
       discardRoomChatState(roomId);
     }
   }, [
-    directory.isLoading,
+    directory.hasLoaded,
     directory.rooms,
     discardRoomChatState,
   ]);

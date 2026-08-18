@@ -1,9 +1,15 @@
+/**
+ * INPUT: Agent 目录、共享目录降级状态、当前路由与联系人导航命令。
+ * OUTPUT: 可搜索、可恢复且保留 stale Agent 数据的联系人侧栏。
+ * POS: Home 联系人目录视图；不直接发起 bootstrap 请求。
+ */
 import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { buildChatNotificationTargetKey } from "@/features/home/notifications/chat-notification-target";
+import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
@@ -29,7 +35,13 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
   const clearTargetNotifications = useSidebarStore(
     (state) => state.clear_chat_notifications_for_target,
   );
-  const { agents, hasError, isLoading, refreshDirectory } = useSidebarDirectory();
+  const {
+    agents,
+    hasError,
+    hasLoaded,
+    isLoading,
+    refreshDirectory,
+  } = useSidebarDirectory();
   const [query, setQuery] = useState("");
   const activeAgentId = location.pathname === AppRouteBuilders.contacts()
     ? new URLSearchParams(location.search).get("agent")
@@ -94,6 +106,12 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
         <SidebarListLoadingRows />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
+          {hasError && hasLoaded ? (
+            <HomeDirectoryRefreshErrorNotice
+              className="mb-1"
+              onRetry={refreshDirectory}
+            />
+          ) : null}
           {filteredAgents.length > 0 ? (
             filteredAgents.map((agent) => (
               <ContactRow
@@ -106,7 +124,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
                 onOpenDirectory={() => openAgentDetail(agent.id)}
               />
             ))
-          ) : hasError ? (
+          ) : hasError && !hasLoaded ? (
             <SidebarEmptyGuide
               actionLabel={t("sidebar.retry")}
               description={t("sidebar.directory_load_failed_description")}
