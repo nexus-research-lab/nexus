@@ -553,13 +553,18 @@ nodes and edges. Thus graph preservation does not multiply reads by command coun
 and arbitrary shell output cannot recreate `assign_work` segment authority or a
 `submit_work` review anchor without the matching host-owned receipt.
 
-`get_execution` does not mutate durable Execution or Plan state. On a verified
-current-coordinator read it mints an ephemeral `CoordinationBinding` for the
+`get_execution` does not mutate durable Execution or Plan state. Every verified
+member of the exact Room conversation may read a bounded shared WorkGraph
+observation: objective, completion criteria, graph topology, and node status are
+visible, while Assignment/Review/Submission evidence and every mutation action
+remain absent. Observation never creates WorkBinding, ReviewBinding, Goal
+authority, or coordination authority. On a verified current-coordinator read,
+the same operation instead mints an ephemeral `CoordinationBinding` for the
 current physical round in runtime memory. This is the explicit recovery path when
 an existing WorkGraph continues in a new coordinator round; without it, the new
 round has no coordination capability. The capability is not persisted and does
-not make the read a graph mutation, but this runtime side effect also means the
-tool must not be advertised with a pure `ReadOnly` annotation.
+not make the read a graph mutation, but this coordinator-only runtime side effect
+also means the operation must not be advertised with a pure `ReadOnly` annotation.
 
 A successful `plan_execution` may also activate coordination for the current exact
 round.
@@ -596,7 +601,7 @@ business operations.
 
 | Operation | Atomic semantics |
 | --- | --- |
-| `get_execution` | Returns an actor-filtered current snapshot without changing durable Execution/Plan state. A verified current-coordinator read mints coordination authority for the current physical round, so this is the explicit recovery entry and is not a pure `ReadOnly`-annotated tool. |
+| `get_execution` | Returns a bounded actor-specific view without changing durable Execution/Plan state. An exact Room member receives a full shared graph digest in an observation lane with only `get_execution` allowed; it carries no responsibility evidence or mutation authority. Bound workers/reviewers retain their responsibility-scoped view. A verified current-coordinator read mints coordination authority for the current physical round, so this is the explicit recovery entry and is not a pure `ReadOnly`-annotated operation. |
 | `prepare_plan_execution` | Strictly parses, validates, normalizes, and seals a non-authoritative proposal. It never creates authoritative graph state and is allowed in Plan Mode. |
 | `plan_execution` | Materializes the exact sealed receipt as `create`, `replan`, or `replace` under CAS, identity, base-Plan, and Goal fences. It is transactional and idempotent; Plan Mode rejects it. |
 | `abandon_execution` | Cancels a transient unbound Execution and atomically releases/cancels its live responsibility chain. A Goal-bound Execution must use the Goal retarget path instead. |

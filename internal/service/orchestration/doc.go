@@ -31,8 +31,8 @@
 //     responsibility advancement receipt 与稳定 mutation outcome/next-action envelope。
 //   - prompt.go / prompt_policy.md：DM、Room 与 Goal continuation 共用执行提示。
 //
-// 主要暴露接口：NewService 与 Service 的 Ensure/Get*/RuntimeContext、Plan、work、
-// review、Goal binding/promotion、Runtime Graph observation、deadline coordinator 和 recovery 方法；
+// 主要暴露接口：NewService 与 Service 的 Ensure/Get*/Read*/RuntimeContext、Plan、work、
+// review、Goal binding/promotion、Room WorkGraph/Runtime Graph observation、deadline coordinator 和 recovery 方法；
 // Set*Gateway/Consumer/Sink 只注入 Goal、Room、runtime 与 transport 的消费侧 port。
 //
 // [PROTOCOL]: 行为或 wire 变化时检查两份 execution spec、protocol L2 与 AGENTS.md。

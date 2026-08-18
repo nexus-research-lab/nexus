@@ -152,7 +152,7 @@ func TestRuntimeAutomationInputSupportsBoundedStdinAndRejectsSymlink(t *testing.
 	}
 }
 
-func TestRuntimeAutomationInputRejectsNonPrivateMode(t *testing.T) {
+func TestRuntimeAutomationInputNormalizesManagedNonPrivateMode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not expose Unix owner/group/other mode bits")
 	}
@@ -165,9 +165,22 @@ func TestRuntimeAutomationInputRejectsNonPrivateMode(t *testing.T) {
 	}
 	t.Setenv(protocol.NexusCommandInputPathEnvName, inputPath)
 	command := &cobra.Command{Use: "test"}
-	if _, err := readRuntimeCommandInput(command, inputPath); err == nil ||
+	raw, err := readRuntimeCommandInput(command, inputPath)
+	if err != nil || string(raw) != `{}` {
+		t.Fatalf("managed input = %q err=%v", raw, err)
+	}
+	info, err := os.Stat(inputPath)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("normalized mode = %v err=%v", info.Mode().Perm(), err)
+	}
+
+	t.Setenv(protocol.NexusCommandInputPathEnvName, "")
+	if err = os.Chmod(inputPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = readRuntimeCommandInput(command, inputPath); err == nil ||
 		!strings.Contains(err.Error(), "owner 私有") {
-		t.Fatalf("non-private input error = %v", err)
+		t.Fatalf("unmanaged non-private input error = %v", err)
 	}
 }
 

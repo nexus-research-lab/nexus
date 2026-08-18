@@ -1,6 +1,6 @@
 // INPUT: Room runtime 注入的 trusted WorkBinding、当前 actor 与完整 Execution snapshot。
 // OUTPUT: 完整绑定链校验、自身 mutation capability、超限 fail-closed 及已验收上游只读投影的 actor-scoped snapshot。
-// POS: structured Room member 所有 read/mutation/subagent 路径共用的最终授权栅栏。
+// POS: structured Room member mutation/responsibility/subagent 路径共用的最终授权栅栏；显式共享图观察走独立只读入口。
 package orchestration
 
 import (
@@ -14,8 +14,9 @@ import (
 // 解释为后端能力边界。模型只能提供 tool input，不能扩大 actor 自带的绑定。
 //
 // Coordinator 可通过显式 get_execution / prepare_plan_execution -> plan_execution 进入协调面；Room member
-// 必须由 WorkBinding 或 ReviewBinding 获得逐 round capability。裸 @ / 用户定向
-// 消息产生的无 binding round 只是 conversation transport，不能读取或修改 WorkGraph。
+// 必须由 WorkBinding 或 ReviewBinding 获得逐 round mutation capability。裸 @ / 用户定向
+// 消息产生的无 binding round 只是 conversation transport；可以通过独立 read model
+// 观察共享 WorkGraph，但不能用本栅栏取得责任或修改 WorkGraph。
 func scopeSnapshotToTrustedWorkBinding(
 	actor ActorContext,
 	requestedExecutionID string,

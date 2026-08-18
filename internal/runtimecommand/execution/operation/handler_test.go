@@ -61,6 +61,14 @@ func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.Ac
 	return snapshot, nil
 }
 
+func (s *fakeExecutionService) ReadCurrent(ctx context.Context, actor orchestration.ActorContext) (*protocol.ExecutionSnapshot, error) {
+	return s.GetCurrent(ctx, actor)
+}
+
+func (s *fakeExecutionService) ReadSnapshot(ctx context.Context, actor orchestration.ActorContext, executionID string) (*protocol.ExecutionSnapshot, error) {
+	return s.GetSnapshot(ctx, actor, executionID)
+}
+
 func TestSubmitWorkProjectsRetargetedPredecessorAsSuperseded(t *testing.T) {
 	svc := &fakeExecutionService{snapshotError: &orchestration.DomainError{
 		Code:    orchestration.ErrorCodeExecutionTerminal,
@@ -293,6 +301,48 @@ func TestGetExecutionMintsExplicitRuntimeCoordinationCapability(t *testing.T) {
 			"get_execution binding activated=%t context execution=%q",
 			activated,
 			contextExecutionID,
+		)
+	}
+}
+
+func TestGetExecutionLetsRoomMemberObserveWithoutCoordinationCapability(t *testing.T) {
+	snapshot := executionSnapshot(9)
+	var activated bool
+	var contextActor orchestration.ActorContext
+	svc := &fakeExecutionService{
+		current: func() *protocol.ExecutionSnapshot { return snapshot },
+		contextActor: func(actor orchestration.ActorContext) {
+			contextActor = actor
+		},
+		activate: func(
+			orchestration.ActorContext,
+			*protocol.ExecutionSnapshot,
+		) error {
+			activated = true
+			return &orchestration.DomainError{
+				Code:    orchestration.ErrorCodeWrongOwner,
+				Message: "only the execution coordinator may perform this operation",
+			}
+		},
+	}
+	sctx := executionContext()
+	sctx.AgentID = "agent-2"
+	sctx.Role = orchestration.ExecutionActorMember
+	result, err := getExecution(svc, sctx).ContextHandler(
+		context.Background(),
+		map[string]any{"execution_id": snapshot.Execution.ID},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError || activated || !contextActor.ObservationOnly ||
+		contextActor.ExecutionID != snapshot.Execution.ID {
+		t.Fatalf(
+			"member read result=%+v activated=%t actor=%+v",
+			result,
+			activated,
+			contextActor,
 		)
 	}
 }

@@ -1,5 +1,5 @@
 // INPUT: 当前 owner/session/actor/structured WorkBinding/ReviewBinding/round coordination 身份、Execution ensure/read 请求、explicit Goal gateway 与 SQL Repository port。
-// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 review-to-coordination/durable completion recovery 的 Execution snapshot，以及提交后的只读投影失效事实。
+// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 Room 共享图只读观察、review-to-coordination/durable completion recovery 的 Execution snapshot，以及提交后的只读投影失效事实。
 // POS: Execution Orchestration 应用服务入口；模型语义 command 见 commands.go。
 package orchestration
 
@@ -65,6 +65,7 @@ type ActorContext struct {
 	RuntimeRoundID        string
 	AgentRoundID          string
 	PlanMode              bool
+	ObservationOnly       bool
 }
 
 // RuntimeGoalBinding 是 runtime 能力层从 trusted Execution identity 派生出的
@@ -391,6 +392,67 @@ func (s *Service) GetCurrent(
 	return s.GetSnapshot(ctx, actor, current.ID)
 }
 
+// ReadCurrent 返回当前 actor 在同一 verified Room/DM scope 中可观察的
+// WorkGraph。它只服务显式只读投影，不建立 WorkBinding、ReviewBinding 或
+// coordination capability。
+func (s *Service) ReadCurrent(
+	ctx context.Context,
+	actor ActorContext,
+) (*protocol.ExecutionSnapshot, error) {
+	if err := validateActor(actor); err != nil {
+		return nil, err
+	}
+	if s.repository == nil {
+		return nil, fmt.Errorf("orchestration repository is nil")
+	}
+	current, err := s.repository.FindCurrent(
+		ctx,
+		strings.TrimSpace(actor.OwnerUserID),
+		strings.TrimSpace(actor.SessionKey),
+	)
+	if err != nil || current == nil {
+		return nil, err
+	}
+	return s.ReadSnapshot(ctx, actor, current.ID)
+}
+
+// ReadSnapshot 返回显式只读 WorkGraph 的权威数据源。Room 观察者必须携带
+// exact Room 与 conversation identity；该入口不复用 mutation binding fence，
+// 也不把完整 snapshot 直接投影给模型。
+func (s *Service) ReadSnapshot(
+	ctx context.Context,
+	actor ActorContext,
+	executionID string,
+) (*protocol.ExecutionSnapshot, error) {
+	if err := validateActor(actor); err != nil {
+		return nil, err
+	}
+	if s.repository == nil {
+		return nil, fmt.Errorf("orchestration repository is nil")
+	}
+	snapshot, err := s.repository.GetSnapshot(ctx, strings.TrimSpace(executionID))
+	if err != nil || snapshot == nil {
+		return snapshot, err
+	}
+	if err = authorizeSnapshot(actor, snapshot); err != nil {
+		return nil, err
+	}
+	if snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom {
+		return s.GetSnapshot(ctx, actor, executionID)
+	}
+	if actor.ScopeKind != protocol.ExecutionScopeRoom ||
+		strings.TrimSpace(actor.RoomID) == "" ||
+		strings.TrimSpace(actor.RoomID) != strings.TrimSpace(snapshot.Execution.RoomID) ||
+		strings.TrimSpace(actor.ConversationID) == "" ||
+		strings.TrimSpace(actor.ConversationID) != strings.TrimSpace(snapshot.Execution.ConversationID) {
+		return nil, domainError(
+			ErrorCodeWrongOwner,
+			"execution is outside the current verified Room conversation",
+		)
+	}
+	return snapshot, nil
+}
+
 // GetSnapshot 返回 actor 可访问的 Execution snapshot。
 func (s *Service) GetSnapshot(
 	ctx context.Context,
@@ -489,7 +551,17 @@ func (s *Service) runtimeContextSnapshot(
 
 // RuntimeContext 投影当前 actor 每轮需要的有界权威执行状态。
 func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (string, error) {
-	snapshot, err := s.runtimeContextSnapshot(ctx, actor)
+	var snapshot *protocol.ExecutionSnapshot
+	var err error
+	if actor.ObservationOnly {
+		if executionID := strings.TrimSpace(actor.ExecutionID); executionID != "" {
+			snapshot, err = s.ReadSnapshot(ctx, actor, executionID)
+		} else {
+			snapshot, err = s.ReadCurrent(ctx, actor)
+		}
+	} else {
+		snapshot, err = s.runtimeContextSnapshot(ctx, actor)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -501,12 +573,17 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 		WorkBound:    actor.WorkBinding != nil,
 		ReviewBound:  actor.ReviewBinding != nil,
 		PlanMode:     actor.PlanMode,
+		ObserveOnly:  actor.ObservationOnly,
 	}
 	s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
 	if snapshot == nil {
 		return RenderUnmanagedExecutionContext(options), nil
 	}
 	options.ScopeKind = snapshot.Execution.ScopeKind
+	if actor.ObservationOnly {
+		options.Role = ExecutionActorMember
+		return RenderExecutionContext(snapshot, options), nil
+	}
 	if strings.TrimSpace(actor.GoalID) != "" &&
 		actor.GoalObjectiveRevision > 0 &&
 		actor.WorkBinding == nil &&
