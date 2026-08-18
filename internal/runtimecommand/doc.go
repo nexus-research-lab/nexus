@@ -5,6 +5,8 @@
 // 成员:
 //   - command.go: transport-neutral request、contract、operation 与 result。
 //   - capability.go: physical-round Actor capability registry。
+//   - round_resources.go: 与 physical round 同寿命的临时资源所有权。
+//   - attempt_state.go: 跨 command registry rebuild 保持的 round-local 重试计数。
 //   - managed.go: Goal/Execution 领域与内置 Skill 的唯一绑定目录。
 //   - receipt.go: Goal/Execution mutation 的宿主侧 typed receipt。
 //

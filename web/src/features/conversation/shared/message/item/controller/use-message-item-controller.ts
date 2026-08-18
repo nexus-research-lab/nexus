@@ -95,11 +95,8 @@ export function useMessageItemController({
     }
   }, [onStopMessage, projection.firstAssistantMessageId]);
   const { contentAreaRef, contentAreaStyle } = useMessageItemStreamingLayout({
-    assistantTurnKey: projection.assistantMessages.at(-1)?.message_id ?? null,
-    assistantContentMode,
-    directContent: projection.directOrderedProjection.content,
-    finalAssistantText: projection.finalAssistantText,
-    showCursor: display.showCursor,
+    active: Boolean(isLoading),
+    layoutScopeKey: roundId,
   });
 
   return {

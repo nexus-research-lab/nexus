@@ -605,6 +605,42 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 	}
 }
 
+func TestPreparePlanExecutionEndsStaleGoalAuthorityRoundWithoutRetryLoop(t *testing.T) {
+	svc := &fakeExecutionService{
+		prepare: func(
+			orchestration.ActorContext,
+			orchestration.PreparePlanExecutionInput,
+		) (*protocol.ExecutionPlanProposal, error) {
+			return nil, &orchestration.DomainError{
+				Code: orchestration.ErrorCodeGoalBindingConflict,
+				Message: "active Goal revision changed after this physical round started",
+			}
+		},
+	}
+	sctx := executionContext()
+	sctx.GoalAuthority = runtimectx.NewGoalAuthorityState("goal-1", 1, "execution-old")
+	commandInput := validPreparePlanCommandInput()
+	commandInput["goal_binding"] = "current"
+
+	result, err := preparePlanExecution(svc, sctx).ContextHandler(
+		context.Background(),
+		commandInput,
+		&runtimecommand.CallContext{RequestID: "goal-stale-plan-1"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError ||
+		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodeGoalBindingConflict) ||
+		result.StructuredContent["context_status"] != "round_refresh_required" {
+		t.Fatalf("stale Goal round result = %#v", result)
+	}
+	if actions, exists := result.StructuredContent["next_actions"]; exists && actions != nil {
+		t.Fatalf("stale physical round must not advertise same-round retry: %#v", actions)
+	}
+}
+
 func TestPlanProposalBoundarySourcesFollowOperationAuthority(t *testing.T) {
 	for _, testCase := range []struct {
 		name      string

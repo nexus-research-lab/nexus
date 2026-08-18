@@ -33,6 +33,8 @@ type RoundContext struct {
 	SourceContextLabel string
 	CommandContext     runtimectx.RuntimeCommandContext
 	Receipts           *ReceiptState
+	Resources          *RoundResources
+	Attempts           *AttemptState
 }
 
 // Actor 是宿主为一个 physical round 固定的 command 调用身份。

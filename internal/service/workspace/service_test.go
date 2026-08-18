@@ -19,6 +19,7 @@ import (
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	t.Setenv(nexusctlCommandPathEnvName, "")
 	t.Setenv(nexuscfgCommandPathEnvName, "")
+	t.Setenv(nexusCommandPathEnvName, "")
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -167,8 +168,9 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 nexus shim 失败: %v", err)
 	}
-	if !strings.Contains(string(nexusPayload), "go run ./cmd/nexus") {
-		t.Fatalf("开发环境 nexus shim 应固定到源码入口: %s", nexusPayload)
+	if !strings.Contains(string(nexusPayload), protocol.NexusCommandHostEntrypointArgument) ||
+		strings.Contains(string(nexusPayload), "go run ./cmd/nexus") {
+		t.Fatalf("nexus shim 应复用稳定宿主入口，不能在 Agent round 内编译源码: %s", nexusPayload)
 	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexus")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexus shim: %v", err)
@@ -223,7 +225,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
 			"--json goal contract",
-			"NEXUS_COMMAND_INPUT_PATH",
+			"input_staging.path",
 			"references/create-and-retarget.md",
 			"execution-orchestrator",
 			"token_budget",
@@ -247,7 +249,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 决定持续追求什么",
 			"--json execution contract",
-			"NEXUS_COMMAND_INPUT_PATH",
+			"input_staging.path",
 			"最小选择表",
 			"references/structure-selection.md",
 			"substantial execution 前评估任务是否原子",

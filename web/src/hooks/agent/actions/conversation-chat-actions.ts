@@ -74,12 +74,12 @@ export async function sendSessionMessage(
   content: string,
   context: AgentConversationActionContext,
   options: AgentConversationSendOptions = {},
+  request: OutboundChatRequest = createOutboundRequestDescriptor(),
 ): Promise<OutboundChatRequest | null> {
   if (!content.trim() && !options.attachments?.length) {
     return null;
   }
   const actionContext = requireConversationActionContext(context);
-  const request = createOutboundRequestDescriptor();
   const optimisticMessage = {
     ...buildOptimisticUserMessage(
       content,
@@ -104,6 +104,7 @@ export async function rewriteLastUserMessage(
   targetRoundId: string,
   content: string,
   context: AgentConversationActionContext,
+  request: OutboundChatRequest = createOutboundRequestDescriptor(),
 ): Promise<OutboundChatRequest | null> {
   if (!content.trim()) {
     return null;
@@ -116,7 +117,6 @@ export async function rewriteLastUserMessage(
   if (actionContext.chatType === "group") {
     failConversationAction(context, "Room 会话暂不支持编辑重跑");
   }
-  const request = createOutboundRequestDescriptor();
   sendConversationCommand(context, {
     type: "chat_rewrite_last",
     content,

@@ -20,5 +20,5 @@ L5 | 父级: web/src/features/conversation/shared/composer
 `awaiting_permission` 阶段保留输入草稿但禁止消息提交；Enter 和发送按钮必须共享同一提交资格，不能越过权限交互。
 Composer 挂载或 Session 草稿作用域变化后，控制器只执行一次聚焦并把 selection 移到当前草稿末尾；上下键召回历史后同样在下一帧把 selection 放到召回正文末尾；普通输入更新不得重置用户主动选择的光标位置。
 Slash 选择只负责改写 textarea 草稿与光标；host/runtime command 都由现有消息提交器作为普通文本发送，不能在键盘控制器中旁路发送资格、附件或队列策略。
-消息投递只有在后端 ACK 后才进入收尾阶段；完整草稿修订号仍等于提交时修订号才原子清空，迟到 ACK 不得删除更新后的正文、附件、模式、Goal 负责人或 Mention 目标；传输失败或 ACK 超时必须保留整个草稿胶囊。
-Goal 控制命令与普通消息的确认语义不同：发送前先建立 exact transport owner，宿主请求发出后即认领原 Session 草稿；切换和新建 Session 只保留该 Goal owner，普通 ACK 取消。Goal ACK/拒绝按 client_request_id 回到原 Promise，明确失败仅恢复原作用域且不得覆盖其后产生的新草稿；已越过发送边界的明确失败必须把 exact request identity 与恢复修订号保留到 recovery receipt，迟到 acceptance 只删除未被编辑的自动恢复内容并清除旧错误，新提交原子废止旧 receipt。受理未知显示“确认中”且禁止同 scope 重复提交；旧的同 objective Goal 不能当证据，只有越过提交前 Goal ID/version baseline 的 owner-scoped 快照，或原 Session 中 message_id 已由服务端签发且 client_message_id 精确匹配的 durable `/goal` 控制记录才能解除。
+普通消息在本地协议派发成功后立即按提交修订号原子认领草稿，迟到 ACK 不得删除更新后的正文、附件、模式、Goal 负责人或 Mention 目标；发送前失败或后端明确拒绝只在原作用域仍未产生新草稿时恢复，受理状态未知不得恢复，避免把可能已落盘的内容再次发送。
+Goal、普通消息、编辑重跑与队列输入共用发送前建立的 exact transport owner，切换和新建 Session 都保留原 owner，ACK/拒绝按 client_request_id 回到原 Promise且只收口原 Session。Goal 另有 confirming/recovery 状态：明确失败仅恢复原作用域且不得覆盖其后产生的新草稿；已越过发送边界的明确失败必须把 exact request identity 与恢复修订号保留到 recovery receipt，迟到 acceptance 只删除未被编辑的自动恢复内容并清除旧错误，新提交原子废止旧 receipt。受理未知显示“确认中”且禁止同 scope 重复提交；旧的同 objective Goal 不能当证据，只有越过提交前 Goal ID/version baseline 的 owner-scoped 快照，或原 Session 中 message_id 已由服务端签发且 client_message_id 精确匹配的 durable `/goal` 控制记录才能解除。

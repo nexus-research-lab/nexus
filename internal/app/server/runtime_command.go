@@ -51,6 +51,9 @@ func newRuntimeCommandEnvironmentBuilder(
 			strings.TrimSpace(lease.RoundID) == "" {
 			return nil, nil
 		}
+		if round.Attempts == nil {
+			round.Attempts = runtimecommand.NewAttemptState()
+		}
 		record, err := agents.GetAgent(ctx, agentID)
 		if err != nil || record == nil || strings.TrimSpace(record.OwnerUserID) == "" ||
 			strings.TrimSpace(record.AgentID) != agentID {
@@ -104,8 +107,12 @@ func newRuntimeCommandEnvironmentBuilder(
 		if stagingErr != nil {
 			return nil, stagingErr
 		}
+		if round.Resources == nil {
+			cleanup()
+			return nil, errors.New("runtime command physical round 缺少资源所有者")
+		}
+		round.Resources.Add(cleanup)
 		environment[protocol.NexusCommandInputPathEnvName] = inputPath
-		context.AfterFunc(ctx, cleanup)
 		return environment, nil
 	}
 }
@@ -325,10 +332,17 @@ func handleExecutionRuntimeCommand(
 	if svc == nil {
 		return nil, errors.New("Execution command service 尚未装配")
 	}
-	sctx, ok := resolveExecutionCommandContext(ctx, svc, actor.Round.CommandContext)
+	roundContext := actor.Round.CommandContext
+	// Goal create/retarget can advance exact authority during this physical
+	// round. Execution must consume the same host-owned state instead of the
+	// immutable launch snapshot, or Goal+WorkGraph will self-conflict.
+	roundContext.GoalAuthority = actor.GoalMutationAuthority
+	roundContext.ResponsibilityAuthority = actor.GoalResponsibilityState
+	sctx, ok := resolveExecutionCommandContext(ctx, svc, roundContext)
 	if !ok {
 		return nil, errors.New("当前 round 没有有效的 Execution command identity")
 	}
+	sctx.CommandAttempts = actor.Round.Attempts
 	operations := executionoperation.BuildAll(svc, sctx)
 	return handleSemanticRuntimeCommand(
 		ctx, actor, runtimecommand.DomainExecution, "get_execution", operations, command,

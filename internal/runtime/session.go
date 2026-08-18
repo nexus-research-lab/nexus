@@ -618,9 +618,12 @@ func (m *Manager) replaceRuntimeClient(
 	}
 	m.mu.Unlock()
 
-	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
-	disconnectErr := stale.Disconnect(disconnectCtx)
-	cancel()
+	// Runtime adapter/SDK owns the subprocess termination window. Reusing the
+	// same fixed timeout here races its forced-close boundary: the process may
+	// have exited successfully while this outer deadline reports a failed
+	// replacement. The durable startup context still cancels deletion/shutdown,
+	// while a normal replacement waits for the old process to be fully reaped.
+	disconnectErr := stale.Disconnect(ctx)
 	idleDrainErr := waitIdleMessageDrain(ctx, drain)
 	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) ||
 		idleDrainErr != nil {

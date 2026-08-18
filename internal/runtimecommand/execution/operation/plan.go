@@ -41,10 +41,10 @@ func planExecution(
 				return malformedPlanTransportResult(
 					operationName,
 					"proposal_id and proposal_digest are required",
-					guard.emptyCommit.Add(1),
+					guard.incrementCommit(),
 				), nil
 			}
-			guard.emptyCommit.Store(0)
+			guard.resetCommit()
 			actor := sctx.Actor()
 			result, err := svc.MaterializePlanExecution(
 				ctx,

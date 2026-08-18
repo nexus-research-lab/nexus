@@ -9,6 +9,7 @@
 // distinguishes immutable replanning from atomic transient objective replacement;
 // abandon_execution cancels a transient graph without a successor.
 // Adapters reload authoritative state, inject revisions and idempotency keys,
+// keep malformed Plan transport retry state across per-command registry rebuilds,
 // clear stale WorkBinding context after a successor/abandon transition, and
 // never expose Attempt bookkeeping such as start_work. A committed
 // Execution -> Goal mutation whose reverse confirmation is still recovering is

@@ -262,11 +262,11 @@ func TestRuntimeGraphMarksOnlyExactManagedCLITransportAsDetail(t *testing.T) {
 			command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, transport: true,
 		},
 		{
-			name: "shell chaining remains observable", toolName: "Bash",
+			name: "shell chaining is not managed transport", toolName: "Bash",
 			command: `"${NEXUS_COMMAND_PATH}" --json execution inspect; make deploy`,
 		},
 		{
-			name: "ordinary Bash remains observable", toolName: "Bash",
+			name: "ordinary Bash is not managed transport", toolName: "Bash",
 			command: `go test ./internal/service/orchestration`,
 		},
 	}
@@ -1114,7 +1114,7 @@ func TestRuntimeGraphViewBindsLaunchToolsAndChildrenToSiblingSubagents(t *testin
 		firstTool.ParentNodeID != firstSubagent.ID ||
 		secondTool.ParentNodeID != secondSubagent.ID ||
 		firstTool.Visibility != protocol.ExecutionGraphNodeNested ||
-		secondTool.Visibility != protocol.ExecutionGraphNodeNested {
+		secondTool.Visibility != protocol.ExecutionGraphNodeDetail {
 		t.Fatalf(
 			"runtime child ownership is incorrect: first=%+v first_tool=%+v second=%+v second_tool=%+v",
 			firstSubagent,
@@ -1412,7 +1412,7 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 	}{
 		{name: "web search", toolName: "WebSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "wrapped web fetch", toolName: "browser.web-fetch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
-		{name: "shell execution", toolName: "Bash", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "ordinary shell detail", toolName: "Bash", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "workspace mutation", toolName: "Edit", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "external mutation", toolName: "mcp__slack__send_message", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "browser action", toolName: "mcp__browser__navigate", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
@@ -1422,7 +1422,7 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 		{name: "workspace mcp read", toolName: "mcp__filesystem__read_file", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "unknown local query", toolName: "list_issues", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "tool discovery", toolName: "ToolSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
-		{name: "submission control anchor", toolName: "submit_work", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "legacy submission transport", toolName: "submit_work", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "external update capability", toolName: "mcp__external__update_record", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "non tool", toolName: "WebFetch", kind: protocol.ExecutionRuntimeNodeAgent, visible: false},
 	}
@@ -1448,6 +1448,123 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 	projected := projectRuntimeGraphNode(managedCommand, 0, true)
 	if projected.Visibility != protocol.ExecutionGraphNodeDetail {
 		t.Fatalf("failed managed transport visibility = %q", projected.Visibility)
+	}
+}
+
+func TestRuntimeGraphKeepsHistoricalGoalAndExecutionMCPTransportInDetail(t *testing.T) {
+	t.Parallel()
+
+	operations := []struct {
+		domain    string
+		operation string
+	}{
+		{domain: "nexus_goal", operation: "get_goal"},
+		{domain: "nexus_goal", operation: "create_goal"},
+		{domain: "nexus_goal", operation: "retarget_goal"},
+		{domain: "nexus_goal", operation: "audit_objective_alignment"},
+		{domain: "nexus_goal", operation: "update_goal"},
+		{domain: "nexus_execution", operation: "get_execution"},
+		{domain: "nexus_execution", operation: "prepare_plan_execution"},
+		{domain: "nexus_execution", operation: "plan_execution"},
+		{domain: "nexus_execution", operation: "abandon_execution"},
+		{domain: "nexus_execution", operation: "assign_work"},
+		{domain: "nexus_execution", operation: "submit_work"},
+		{domain: "nexus_execution", operation: "review_work"},
+		{domain: "nexus_execution", operation: "block_work"},
+		{domain: "nexus_execution", operation: "resume_work"},
+		{domain: "nexus_execution", operation: "take_over_work"},
+		{domain: "nexus_execution", operation: "audit_execution_alignment"},
+		{domain: "nexus_execution", operation: "promote_execution_to_goal"},
+	}
+	for _, test := range operations {
+		for _, name := range []string{
+			test.operation,
+			"mcp__" + test.domain + "__" + test.operation,
+			test.domain + "." + test.operation,
+			"functions.mcp__" + test.domain + "__" + test.operation,
+		} {
+			item := protocol.ExecutionRuntimeNodeRun{
+				Kind:   protocol.ExecutionRuntimeNodeTool,
+				Name:   name,
+				Status: protocol.ExecutionRuntimeNodeFailed,
+			}
+			if !runtimeGraphIsCommandTransport(item) {
+				t.Fatalf("historical managed transport %q was not classified", name)
+			}
+			if runtimeGraphToolActionVisible(item) {
+				t.Fatalf("historical managed transport %q entered the canvas", name)
+			}
+			if projected := projectRuntimeGraphNode(item, 0, true); projected.Visibility != protocol.ExecutionGraphNodeDetail {
+				t.Fatalf("historical managed transport %q visibility = %q", name, projected.Visibility)
+			}
+		}
+	}
+
+	externalSameLeaf := protocol.ExecutionRuntimeNodeRun{
+		Kind: protocol.ExecutionRuntimeNodeTool,
+		Name: "mcp__slack__update_goal",
+	}
+	if runtimeGraphIsCommandTransport(externalSameLeaf) {
+		t.Fatal("an external MCP capability sharing one legacy leaf was misclassified")
+	}
+}
+
+func TestRuntimeGraphPromotesShellOnlyWithImportantEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 18, 23, 30, 0, 0, time.UTC)
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "shell-ordinary", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		},
+		{
+			ID: "shell-running", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeRunning, StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+		},
+		{
+			ID: "shell-failed", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeFailed, StartedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+		},
+		{
+			ID: "shell-artifact", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(3 * time.Second), UpdatedAt: now.Add(3 * time.Second),
+			Artifacts: []protocol.WorkspaceFileArtifactBlock{{
+				Type: protocol.ContentBlockTypeWorkspaceFileArtifact,
+				Path: "report.md",
+			}},
+		},
+		{
+			ID: "shell-explicit", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(4 * time.Second), UpdatedAt: now.Add(4 * time.Second),
+			Metadata: map[string]any{protocol.ExecutionRuntimeMetadataWorkGraphVisibility: string(protocol.ExecutionGraphNodeNested)},
+		},
+		{
+			ID: "shell-retry", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(5 * time.Second), UpdatedAt: now.Add(5 * time.Second),
+		},
+	}
+	graph := protocol.ExecutionRuntimeGraph{
+		Nodes: nodes,
+		Edges: []protocol.ExecutionRuntimeEdgeRun{{
+			Kind:         protocol.ExecutionRuntimeEdgeRetry,
+			SourceNodeID: "shell-failed", TargetNodeID: "shell-retry",
+		}},
+	}
+	promoted := runtimeGraphPromotedNodeIDs(graph)
+	want := map[string]protocol.ExecutionGraphNodeVisibility{
+		"shell-ordinary": protocol.ExecutionGraphNodeDetail,
+		"shell-running":  protocol.ExecutionGraphNodeNested,
+		"shell-failed":   protocol.ExecutionGraphNodeNested,
+		"shell-artifact": protocol.ExecutionGraphNodeNested,
+		"shell-explicit": protocol.ExecutionGraphNodeNested,
+		"shell-retry":    protocol.ExecutionGraphNodeNested,
+	}
+	for index, node := range nodes {
+		_, isPromoted := promoted[node.ID]
+		if projected := projectRuntimeGraphNode(node, index, isPromoted); projected.Visibility != want[node.ID] {
+			t.Fatalf("%s visibility = %q, want %q", node.ID, projected.Visibility, want[node.ID])
+		}
 	}
 }
 
@@ -1481,7 +1598,7 @@ func TestRuntimeGraphProjectsObservableActionsAndKeepsSupportingReadsInDetail(t 
 	}
 }
 
-func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t *testing.T) {
+func TestRuntimeGraphSubagentRecoveryIsVisibleWithoutPromotingUnrelatedSupportingTools(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 6, 10, 30, 0, 0, time.UTC)
@@ -1522,7 +1639,7 @@ func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t 
 		"read-failed":    protocol.ExecutionGraphNodeNested,
 		"read-early":     protocol.ExecutionGraphNodeDetail,
 		"read-recovered": protocol.ExecutionGraphNodeNested,
-		"grep-latest":    protocol.ExecutionGraphNodeNested,
+		"grep-latest":    protocol.ExecutionGraphNodeDetail,
 	}
 	for index, node := range graph.Nodes[1:] {
 		_, isPromoted := promoted[node.ID]

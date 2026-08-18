@@ -18,6 +18,42 @@ import (
 type planTransportGuard struct {
 	emptyPrepare atomic.Uint32
 	emptyCommit  atomic.Uint32
+	attempts     *runtimecommand.AttemptState
+}
+
+const (
+	prepareEmptyAttemptKey = "execution.prepare_plan_execution.empty_input"
+	commitEmptyAttemptKey  = "execution.plan_execution.empty_input"
+)
+
+func (g *planTransportGuard) incrementPrepare() uint32 {
+	if g != nil && g.attempts != nil {
+		return g.attempts.Increment(prepareEmptyAttemptKey)
+	}
+	return g.emptyPrepare.Add(1)
+}
+
+func (g *planTransportGuard) resetPrepare() {
+	if g != nil && g.attempts != nil {
+		g.attempts.Reset(prepareEmptyAttemptKey)
+		return
+	}
+	g.emptyPrepare.Store(0)
+}
+
+func (g *planTransportGuard) incrementCommit() uint32 {
+	if g != nil && g.attempts != nil {
+		return g.attempts.Increment(commitEmptyAttemptKey)
+	}
+	return g.emptyCommit.Add(1)
+}
+
+func (g *planTransportGuard) resetCommit() {
+	if g != nil && g.attempts != nil {
+		g.attempts.Reset(commitEmptyAttemptKey)
+		return
+	}
+	g.emptyCommit.Store(0)
 }
 
 func preparePlanExecution(
@@ -50,17 +86,18 @@ func preparePlanExecution(
 				return malformedPlanTransportResult(
 					operationName,
 					"plan_document is required and must be non-empty",
-					guard.emptyPrepare.Add(1),
+					guard.incrementPrepare(),
 				), nil
 			}
-			guard.emptyPrepare.Store(0)
+			guard.resetPrepare()
 			prepareCommandID, err := commandID(sctx, callContext, operationName, input, 0)
 			if err != nil {
 				return transportErrorResult(err), nil
 			}
+			actor := sctx.Actor()
 			proposal, err := svc.PreparePlanExecution(
 				ctx,
-				sctx.Actor(),
+				actor,
 				orchestration.PreparePlanExecutionInput{
 					CommandID:    prepareCommandID,
 					PlanDocument: parsed.PlanDocument,
@@ -73,6 +110,19 @@ func preparePlanExecution(
 				}
 				var domainErr *orchestration.DomainError
 				if errors.As(err, &domainErr) {
+					if domainErr.Code == orchestration.ErrorCodeGoalBindingConflict &&
+						parsed.GoalBinding == orchestration.PlanGoalBindingCurrent {
+						result := orchestration.RejectedResult(nil, err, nil)
+						if strings.TrimSpace(actor.GoalID) != "" && actor.GoalObjectiveRevision > 0 {
+							// The physical round did possess exact Goal authority, so a
+							// server-side binding conflict means that authority was
+							// superseded after launch. Inspect cannot replace a round's
+							// immutable authorization provenance; the host must launch the
+							// successor round instead of teaching the model to loop here.
+							result.ContextStatus = "round_refresh_required"
+						}
+						return mutationResult(result), nil
+					}
 					return mutationResult(orchestration.RejectedResult(nil, err, []orchestration.NextAction{{
 						Domain:    runtimecommand.DomainExecution,
 						Operation: operationName,

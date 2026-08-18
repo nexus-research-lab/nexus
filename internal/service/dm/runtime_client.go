@@ -48,6 +48,7 @@ type dmClientPreparation struct {
 	goalObjectiveRevision  *atomic.Int64
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
 	commandReceipts        *runtimecommand.ReceiptState
+	commandResources       *runtimecommand.RoundResources
 	connectorTurnContext   string
 	permissionMode         sdkpermission.Mode
 }
@@ -182,6 +183,13 @@ func (s *Service) ensureClient(
 		nil,
 	)
 	commandReceipts := runtimecommand.NewReceiptState()
+	commandResources := runtimecommand.NewRoundResources()
+	commandResourcesTransferred := false
+	defer func() {
+		if !commandResourcesTransferred {
+			commandResources.Close()
+		}
+	}()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	runtimeBuilderContext := runtimectx.WithRuntimeRoundLease(ctx, sessionKey, request.RoundID)
@@ -218,6 +226,7 @@ func (s *Service) ensureClient(
 				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 				SourceContextLabel: agentValue.Name,
 				CommandContext:     runtimeCommandContext, Receipts: commandReceipts,
+				Resources: commandResources,
 			},
 		)
 		if err != nil {
@@ -526,7 +535,7 @@ func (s *Service) ensureClient(
 			}
 		}
 	}
-	return dmClientPreparation{
+	preparation := dmClientPreparation{
 		client:                 client,
 		runtimeKind:            strings.TrimSpace(string(options.Runtime.Kind)),
 		runtimeProvider:        runtimeProvider,
@@ -540,9 +549,12 @@ func (s *Service) ensureClient(
 		goalObjectiveRevision:  goalObjectiveRevision,
 		responsibilityState:    responsibilityState,
 		commandReceipts:        commandReceipts,
+		commandResources:       commandResources,
 		connectorTurnContext:   connectorTurnContext,
 		permissionMode:         permissionMode,
-	}, nil
+	}
+	commandResourcesTransferred = true
+	return preparation, nil
 }
 
 func forkSessionStateCommitted(

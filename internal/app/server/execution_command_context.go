@@ -17,8 +17,8 @@ import (
 )
 
 type executionSnapshotReader interface {
-	GetCurrent(context.Context, orchestrationsvc.ActorContext) (*protocol.ExecutionSnapshot, error)
-	GetSnapshot(context.Context, orchestrationsvc.ActorContext, string) (*protocol.ExecutionSnapshot, error)
+	ReadCurrent(context.Context, orchestrationsvc.ActorContext) (*protocol.ExecutionSnapshot, error)
+	ReadSnapshot(context.Context, orchestrationsvc.ActorContext, string) (*protocol.ExecutionSnapshot, error)
 }
 
 func resolveExecutionCommandContext(
@@ -75,9 +75,9 @@ func resolveExecutionCommandContext(
 		var snapshot *protocol.ExecutionSnapshot
 		var err error
 		if lookupActor.ExecutionID != "" {
-			snapshot, err = reader.GetSnapshot(ctx, lookupActor, lookupActor.ExecutionID)
+			snapshot, err = reader.ReadSnapshot(ctx, lookupActor, lookupActor.ExecutionID)
 		} else {
-			snapshot, err = reader.GetCurrent(ctx, lookupActor)
+			snapshot, err = reader.ReadCurrent(ctx, lookupActor)
 		}
 		if err != nil {
 			sctx.Role = orchestrationsvc.ExecutionActorMember

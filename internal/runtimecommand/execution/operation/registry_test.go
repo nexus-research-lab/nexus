@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"context"
 	"encoding/json"
 	"maps"
 	"slices"
@@ -8,9 +9,57 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/runtimecommand/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
+
+func TestPlanTransportRetryGuardSurvivesOperationRegistryRebuild(t *testing.T) {
+	attempts := runtimecommand.NewAttemptState()
+	sctx := contract.Context{CommandAttempts: attempts}
+	invokeEmptyPrepare := func() runtimecommand.Result {
+		definition, ok := runtimecommand.FindOperation(BuildAll(nil, sctx), "prepare_plan_execution")
+		if !ok {
+			t.Fatal("prepare_plan_execution missing")
+		}
+		result, err := definition.Invoke(context.Background(), map[string]any{"plan_document": ""}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	first := invokeEmptyPrepare()
+	second := invokeEmptyPrepare()
+	if first.StructuredContent["next_actions"] == nil || second.StructuredContent["next_actions"] != nil ||
+		!strings.Contains(second.StructuredContent["message"].(string), "stop retrying") {
+		t.Fatalf("registry rebuild reset transport guard: first=%#v second=%#v", first, second)
+	}
+}
+
+func TestExecutionOperationDirectoryIsExactAndStable(t *testing.T) {
+	definitions := BuildAll(nil, contract.Context{})
+	names := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		names = append(names, definition.Name)
+	}
+	want := []string{
+		"get_execution",
+		"prepare_plan_execution",
+		"plan_execution",
+		"abandon_execution",
+		"assign_work",
+		"submit_work",
+		"review_work",
+		"block_work",
+		"resume_work",
+		"take_over_work",
+		"audit_execution_alignment",
+		"promote_execution_to_goal",
+	}
+	if !slices.Equal(names, want) {
+		t.Fatalf("Execution operation directory = %#v, want %#v", names, want)
+	}
+}
 
 func TestPlanPreparationIsDurableButNotReadOnly(t *testing.T) {
 	definitions := BuildAll(nil, contract.Context{})

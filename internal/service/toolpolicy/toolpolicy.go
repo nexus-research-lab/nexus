@@ -261,7 +261,7 @@ func NexusRuntimeCLIInvocation(request sdkpermission.Request) (RuntimeCLIInvocat
 			return invalid, false
 		}
 	case "goal", "execution":
-		if !validSemanticCLIArguments(invocation.Action, arguments[3:]) {
+		if !validSemanticCLIArguments(invocation.Domain, invocation.Action, arguments[3:]) {
 			return invalid, false
 		}
 	default:
@@ -302,16 +302,18 @@ func validAutomationCLIArguments(action string, arguments []string) bool {
 	return true
 }
 
-func validSemanticCLIArguments(action string, arguments []string) bool {
+func validSemanticCLIArguments(domain string, action string, arguments []string) bool {
 	switch action {
 	case "contract":
 		return validRuntimeCLIFlags(arguments, map[string]bool{"--operation": true}, nil)
 	case "inspect":
+		if domain == runtimecommand.DomainExecution {
+			return validRuntimeCLIFlags(arguments, map[string]bool{"--execution-id": true}, nil)
+		}
 		return len(arguments) == 0
 	case "invoke":
 		return validRuntimeCLIFlags(arguments, map[string]bool{
 			"--operation": true, "--request-id": true,
-			"--input": true, "--input-file": true,
 		}, map[string]bool{"--operation": true, "--request-id": true})
 	default:
 		return false
@@ -325,12 +327,6 @@ func validRuntimeCLIFlags(arguments []string, allowed map[string]bool, required 
 			return false
 		}
 		seen[arguments[index]] = true
-		if arguments[index] == "--input-file" && arguments[index+1] != runtimeCommandShellInputPathToken {
-			return false
-		}
-	}
-	if seen["--input"] && seen["--input-file"] {
-		return false
 	}
 	for flag := range required {
 		if !seen[flag] {

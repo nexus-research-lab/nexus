@@ -41,6 +41,7 @@ type fakeRuntimeClient struct {
 	reconfigureErr     error
 	disconnectCalls    int
 	disconnectErr      error
+	disconnectFn       func(context.Context) error
 	interruptCalls     int
 	interruptHook      func()
 	stoppedTasks       []string
@@ -173,8 +174,11 @@ func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermiss
 
 func (c *fakeRuntimeClient) Retire() {}
 
-func (c *fakeRuntimeClient) Disconnect(context.Context) error {
+func (c *fakeRuntimeClient) Disconnect(ctx context.Context) error {
 	c.disconnectCalls++
+	if c.disconnectFn != nil {
+		return c.disconnectFn(ctx)
+	}
 	return c.disconnectErr
 }
 
@@ -2309,6 +2313,65 @@ func TestManagerGetOrCreateReplacesClientWhenBridgeRequiresRestart(t *testing.T)
 	}
 	if stale.disconnectCalls != 1 {
 		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerRuntimeReplacementWaitsForSDKCleanupWithoutSyntheticDeadline(t *testing.T) {
+	disconnectStarted := make(chan struct{})
+	releaseDisconnect := make(chan struct{})
+	stale := &fakeRuntimeClient{
+		reconfigureErr: &agentclient.RestartRequiredError{
+			Reason: agentclient.RestartReasonProcessEnvChanged,
+		},
+		disconnectFn: func(ctx context.Context) error {
+			if _, hasDeadline := ctx.Deadline(); hasDeadline {
+				return errors.New("runtime replacement must not race SDK cleanup with a second deadline")
+			}
+			close(disconnectStarted)
+			select {
+			case <-releaseDisconnect:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:restart-cleanup-fence"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	type replacementResult struct {
+		client Client
+		err    error
+	}
+	result := make(chan replacementResult, 1)
+	go func() {
+		client, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+			Env: map[string]string{"NEXUS_TEST_RUNTIME_REVISION": "2"},
+		})
+		result <- replacementResult{client: client, err: err}
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("runtime replacement did not enter SDK cleanup")
+	}
+	select {
+	case premature := <-result:
+		t.Fatalf("replacement published before old SDK cleanup completed: %+v", premature)
+	default:
+	}
+	close(releaseDisconnect)
+	select {
+	case completed := <-result:
+		if completed.err != nil || completed.client != fresh {
+			t.Fatalf("replacement result = %+v, want fresh client", completed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runtime replacement did not finish after SDK cleanup")
 	}
 }
 

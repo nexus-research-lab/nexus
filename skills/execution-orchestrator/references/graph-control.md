@@ -15,6 +15,8 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`execution contract --operation prepare_plan_execution` 返回的 input schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
 
+`prepare_plan_execution` 的文档校验失败才允许在同一 physical round 修正文档。若返回 `context_status=round_refresh_required`，说明启动本轮时固定的 Goal/Execution authority 已被用户 retarget 或宿主 successor 替换；`inspect` 只能读新状态，不能给旧 round 换发 authority，因此本轮必须结束并等待宿主 continuation，不能把它当作 YAML 错误重试。
+
 下面只是一个最小 create 示例，不是第二份 schema：
 
 ```yaml

@@ -415,6 +415,7 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 		SourceContextType: roomCommandSourceContextType(e.round),
 		SourceContextID:   e.round.RoomID, SourceContextLabel: roomSourceContextLabel(e.round),
 		CommandContext: commandContext, Receipts: e.slot.ensureCommandReceiptState(),
+		Resources: e.slot.ensureCommandResources(),
 	}
 }
 

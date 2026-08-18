@@ -1,31 +1,21 @@
 /**
- * INPUT: Assistant 正文 surface、当前 Assistant turn、可见文本与流式游标状态。
- * OUTPUT: 同一 turn 内只增不减、跨 turn 立即复位的正文最小高度与测量节点。
+ * INPUT: 当前物理 round 身份与 live 状态。
+ * OUTPUT: 整个 live round 内基于真实 DOM 高度只增不减的正文最小高度与测量节点。
  * POS: MessageItem 视图层的流式排版稳定器。
  */
-import { prepare, layout } from "@chenglou/pretext";
-import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
-
-import type { ContentBlock } from "@/types/conversation/message/content";
-
-import { extractTextFromContentBlocks } from "../../message-content-model";
 import {
-  resolveAssistantResponseSurface,
-  type AssistantContentMode,
-} from "../message-item-projection";
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 
 const STREAMING_MIN_HEIGHT = 60;
-const STREAMING_LAYOUT_DELAY_MS = 150;
-const STREAMING_PROSE_FONT =
-  '400 16px "KingHwaOldSong", "Source Han Serif SC", "Songti SC", serif';
-const STREAMING_LINE_HEIGHT = 28;
 
 type MessageItemStreamingLayoutOptions = {
-  assistantTurnKey: string | null;
-  assistantContentMode: AssistantContentMode;
-  directContent: ContentBlock[];
-  finalAssistantText: string;
-  showCursor: boolean;
+  active: boolean;
+  layoutScopeKey: string;
 };
 
 type MessageItemStreamingLayout = {
@@ -35,110 +25,88 @@ type MessageItemStreamingLayout = {
 
 type MessageItemStreamingLayoutState = {
   active: boolean;
-  assistantTurnKey: string | null;
+  layoutScopeKey: string;
   minHeight: number;
 };
 
 export function resolveMessageItemStreamingLayoutState(
   current: MessageItemStreamingLayoutState,
-  assistantTurnKey: string | null,
-  showCursor: boolean,
+  layoutScopeKey: string,
+  active: boolean,
 ): MessageItemStreamingLayoutState {
-  if (
-    !showCursor
-    || !current.active
-    || current.assistantTurnKey !== assistantTurnKey
-  ) {
+  if (current.layoutScopeKey !== layoutScopeKey) {
     return {
-      active: showCursor,
-      assistantTurnKey,
-      minHeight: STREAMING_MIN_HEIGHT,
+      active,
+      layoutScopeKey,
+      minHeight: active ? STREAMING_MIN_HEIGHT : 0,
+    };
+  }
+  if (!active) {
+    return current.active || current.minHeight !== 0
+      ? { active: false, layoutScopeKey, minHeight: 0 }
+      : current;
+  }
+  if (!current.active || current.minHeight < STREAMING_MIN_HEIGHT) {
+    return {
+      active: true,
+      layoutScopeKey,
+      minHeight: Math.max(current.minHeight, STREAMING_MIN_HEIGHT),
     };
   }
   return current;
 }
 
 export function useMessageItemStreamingLayout({
-  assistantTurnKey,
-  assistantContentMode,
-  directContent,
-  finalAssistantText,
-  showCursor,
+  active,
+  layoutScopeKey,
 }: MessageItemStreamingLayoutOptions): MessageItemStreamingLayout {
   const contentAreaRef = useRef<HTMLDivElement>(null);
-  const streamingLayoutState = useRef<MessageItemStreamingLayoutState>({
-    active: showCursor,
-    assistantTurnKey,
-    minHeight: STREAMING_MIN_HEIGHT,
+  const [streamingLayoutState, setStreamingLayoutState] = useState<MessageItemStreamingLayoutState>({
+    active,
+    layoutScopeKey,
+    minHeight: active ? STREAMING_MIN_HEIGHT : 0,
   });
   const renderedLayoutState = resolveMessageItemStreamingLayoutState(
-    streamingLayoutState.current,
-    assistantTurnKey,
-    showCursor,
-  );
-  const layoutThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
+    streamingLayoutState,
+    layoutScopeKey,
+    active,
   );
 
-  useEffect(() => {
-    streamingLayoutState.current = resolveMessageItemStreamingLayoutState(
-      streamingLayoutState.current,
-      assistantTurnKey,
-      showCursor,
-    );
-    const layoutText = resolveAssistantResponseSurface(assistantContentMode)
-      === "direct"
-      ? extractTextFromContentBlocks(directContent)
-      : finalAssistantText;
-
-    if (!showCursor || !layoutText) {
-      return;
-    }
-    if (layoutThrottleRef.current !== null) {
+  useLayoutEffect(() => {
+    setStreamingLayoutState((current) => (
+      resolveMessageItemStreamingLayoutState(current, layoutScopeKey, active)
+    ));
+    const element = contentAreaRef.current;
+    if (!active || !element || typeof ResizeObserver === "undefined") {
       return;
     }
 
-    layoutThrottleRef.current = setTimeout(() => {
-      layoutThrottleRef.current = null;
-      const element = contentAreaRef.current;
-      const currentLayoutState = streamingLayoutState.current;
-      if (
-        !element
-        || !currentLayoutState.active
-        || currentLayoutState.assistantTurnKey !== assistantTurnKey
-      ) {
+    const retainMeasuredHeight = () => {
+      const measuredHeight = Math.ceil(element.getBoundingClientRect().height);
+      if (measuredHeight <= 0) {
         return;
       }
-      try {
-        const width = element.offsetWidth || 640;
-        const prepared = prepare(layoutText, STREAMING_PROSE_FONT);
-        const result = layout(prepared, width, STREAMING_LINE_HEIGHT);
-        streamingLayoutState.current = {
-          ...currentLayoutState,
-          minHeight: Math.max(currentLayoutState.minHeight, result.height),
-        };
-      } catch {
-        // 这里只保留上一次可用高度，避免流式阶段因为排版测量失败产生闪动。
-      }
-    }, STREAMING_LAYOUT_DELAY_MS);
-
-    return () => {
-      if (layoutThrottleRef.current !== null) {
-        clearTimeout(layoutThrottleRef.current);
-        layoutThrottleRef.current = null;
-      }
+      setStreamingLayoutState((current) => {
+        const normalized = resolveMessageItemStreamingLayoutState(
+          current,
+          layoutScopeKey,
+          true,
+        );
+        if (normalized.minHeight >= measuredHeight) {
+          return normalized;
+        }
+        return { ...normalized, minHeight: measuredHeight };
+      });
     };
-  }, [
-    assistantContentMode,
-    assistantTurnKey,
-    directContent,
-    finalAssistantText,
-    showCursor,
-  ]);
+    const observer = new ResizeObserver(retainMeasuredHeight);
+    observer.observe(element);
+    retainMeasuredHeight();
+    return () => observer.disconnect();
+  }, [active, layoutScopeKey]);
 
   return {
     contentAreaRef,
-    contentAreaStyle: showCursor
+    contentAreaStyle: renderedLayoutState.active
       ? { minHeight: renderedLayoutState.minHeight }
       : undefined,
   };
