@@ -1,5 +1,5 @@
 // INPUT: nexus goal/execution CLI flags、宿主私有输入槽与 round command capability。
-// OUTPUT: contract、inspect、invoke 的稳定 JSON envelope。
+// OUTPUT: 带自描述精确命令顺序的 contract、inspect、invoke 稳定 JSON envelope。
 // POS: Goal/WorkGraph Skill 的唯一命令传输层；业务 identity 与授权只来自宿主 broker。
 package cli
 
@@ -56,7 +56,14 @@ func newRuntimeSemanticContractCommand(domain string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload := map[string]any{"domain": domain, "action": runtimecommand.ActionContract, "contract": contract}
+			payload := map[string]any{
+				"domain": domain, "action": runtimecommand.ActionContract, "contract": contract,
+				"command_usage": runtimeSemanticContractCommandUsage(
+					domain,
+					strings.TrimSpace(operation),
+					contract.Inspect,
+				),
+			}
 			if inputPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName)); inputPath != "" {
 				payload["input_staging"] = map[string]any{"path": inputPath, "max_bytes": maxRuntimeCommandInputBytes}
 			}
@@ -65,6 +72,39 @@ func newRuntimeSemanticContractCommand(domain string) *cobra.Command {
 	}
 	command.Flags().StringVar(&operation, "operation", "", "可选；只返回一个精确 operation contract")
 	return command
+}
+
+// runtimeSemanticContractCommandUsage keeps the CLI transport self-describing
+// without copying domain schemas into Skills or the operation directory.
+func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation string) map[string]string {
+	domain = strings.TrimSpace(domain)
+	operation = strings.TrimSpace(operation)
+	inspectOperation = strings.TrimSpace(inspectOperation)
+	usage := map[string]string{
+		"inspect": fmt.Sprintf(
+			`"${NEXUS_COMMAND_PATH}" --json %s inspect`,
+			domain,
+		),
+	}
+	if operation == "" {
+		usage["next"] = "choose one allowed action, then read its exact operation contract before invoking"
+		usage["operation_contract"] = fmt.Sprintf(
+			`"${NEXUS_COMMAND_PATH}" --json %s contract --operation '<operation>'`,
+			domain,
+		)
+		return usage
+	}
+	if operation == inspectOperation {
+		usage["next"] = "use inspect; the domain read operation is not invokable"
+		return usage
+	}
+	usage["next"] = "write one complete JSON object to input_staging.path, then invoke with one stable request id"
+	usage["invoke"] = fmt.Sprintf(
+		`"${NEXUS_COMMAND_PATH}" --json %s invoke --operation '%s' --input-file "${NEXUS_COMMAND_INPUT_PATH}" --request-id '<stable-request-id>'`,
+		domain,
+		operation,
+	)
+	return usage
 }
 
 func newRuntimeSemanticInspectCommand(domain string) *cobra.Command {

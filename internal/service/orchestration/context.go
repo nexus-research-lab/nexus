@@ -23,7 +23,7 @@ const (
 	ExecutionActorSubagent    ExecutionActorRole = "subagent"
 
 	executionGraphDigestEdgeLimit = protocol.ExecutionProjectionCollectionLimit * 4
-	executionActionTransportScope = "allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names; load execution-orchestrator and invoke listed Execution operations only through the host-injected \"${NEXUS_COMMAND_PATH}\" --json execution contract|inspect|invoke command; never use nexusctl; native Agent delegation and all other task tools remain governed by task and tool policy"
+	executionActionTransportScope = "allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names; load execution-orchestrator, select from allowed_actions, then read execution contract --operation <selected_action> before invoke; execution inspect takes no operation; use only the host-injected \"${NEXUS_COMMAND_PATH}\" --json execution command, never nexusctl; native Agent delegation and all other task tools remain governed by task and tool policy"
 )
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
