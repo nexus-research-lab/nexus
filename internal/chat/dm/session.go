@@ -43,12 +43,24 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 		switch key {
 		case protocol.OptionSessionProvider,
 			protocol.OptionSessionModel,
-			protocol.OptionSessionPermissionMode:
+			protocol.OptionSessionPermissionMode,
+			protocol.OptionRuntimeRetainedTranscriptSessionIDs:
 			continue
 		default:
 			merged.Options[key] = value
 		}
 	}
+	// Pending fork 依赖与 Room Session 身份同事务持久化；SQL 缺少该字段
+	// 表示 target transcript 已物化，不能被落后的 workspace 投影重新引入。
+	for _, key := range []string{
+		protocol.OptionRuntimeForkSourceSessionID,
+		protocol.OptionRuntimeForkMessageID,
+	} {
+		if _, exists := roomSession.Options[key]; !exists {
+			delete(merged.Options, key)
+		}
+	}
+	delete(merged.Options, protocol.OptionRuntimeRetainedTranscriptSessionIDs)
 	return merged
 }
 

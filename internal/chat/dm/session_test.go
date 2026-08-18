@@ -51,6 +51,37 @@ func TestRoomBackedSessionOptionsReplaceLocalOverlay(t *testing.T) {
 	}
 }
 
+func TestRoomBackedSessionSQLClearsMaterializedForkDependency(t *testing.T) {
+	targetSessionID := "target-sdk-session"
+	current := protocol.Session{
+		SessionKey: "agent:agent-a:ws:dm:conversation-fork",
+		AgentID:    "agent-a",
+		Options: map[string]any{
+			protocol.OptionRuntimeForkSourceSessionID: "source-sdk-session",
+			protocol.OptionRuntimeForkMessageID:       "source-boundary",
+		},
+	}
+	roomSession := current
+	roomSession.SessionID = &targetSessionID
+	roomSession.Options = map[string]any{
+		protocol.OptionRuntimeRetainedTranscriptSessionIDs: []string{"source-sdk-session"},
+	}
+
+	merged := MergeRoomBackedSession(current, roomSession)
+	if _, exists := merged.Options[protocol.OptionRuntimeForkSourceSessionID]; exists {
+		t.Fatalf("SQL 已物化 fork 后不应恢复 source 依赖: %+v", merged.Options)
+	}
+	if _, exists := merged.Options[protocol.OptionRuntimeForkMessageID]; exists {
+		t.Fatalf("SQL 已物化 fork 后不应恢复 message 边界: %+v", merged.Options)
+	}
+	if StringPointerValue(merged.SessionID) != targetSessionID {
+		t.Fatalf("SQL target SDK identity 未投影到 workspace: %+v", merged)
+	}
+	if _, exists := merged.Options[protocol.OptionRuntimeRetainedTranscriptSessionIDs]; exists {
+		t.Fatalf("仅清理 transcript 所有权不应进入 workspace 读模型: %+v", merged.Options)
+	}
+}
+
 func TestRoomBackedSessionKeepsMonotonicWorkspaceProgress(t *testing.T) {
 	older := time.Date(2026, time.August, 12, 1, 0, 0, 0, time.UTC)
 	newer := older.Add(5 * time.Minute)

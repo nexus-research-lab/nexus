@@ -453,6 +453,11 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	if err != nil {
 		return protocol.Session{}, err
 	}
+	// Room SQL 拥有 SDK identity 与 pending fork 依赖：先提交权威状态，
+	// workspace 投影写入失败时可由下次 ensureSession 单向修复。
+	if err = s.syncRoomSession(current); err != nil {
+		return protocol.Session{}, err
+	}
 	updated, err := s.service.files.ForOwner(s.ownerUserID).PatchSessionRuntime(
 		s.workspacePath,
 		current,
@@ -462,9 +467,6 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	}
 	if updated == nil {
 		return current, nil
-	}
-	if err = s.syncRoomSession(*updated); err != nil {
-		return protocol.Session{}, err
 	}
 	return *updated, nil
 }

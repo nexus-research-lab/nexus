@@ -225,10 +225,11 @@ func (s *Service) deleteConversation(
 		return nil, err
 	}
 	payload := roomDeletionPayload{
-		Contexts:             targetContexts,
-		ConversationID:       conversationID,
-		RoomID:               roomID,
-		TranscriptReferences: transcriptReferences,
+		Contexts:                      targetContexts,
+		ConversationID:                conversationID,
+		RoomID:                        roomID,
+		TranscriptReferences:          transcriptReferences,
+		ProtectedTranscriptSessionIDs: remainingConversationTranscriptSessionIDs(contexts, conversationID),
 	}
 	if expectedConfigurationVersion == nil {
 		if cleanupErr := s.cleanupCommittedRoomDeletion(ctx, payload, true); cleanupErr != nil {
@@ -264,6 +265,26 @@ func (s *Service) deleteConversation(
 		}
 	}
 	return contextValue, nil
+}
+
+func remainingConversationTranscriptSessionIDs(
+	contexts []protocol.ConversationContextAggregate,
+	deletedConversationID string,
+) []string {
+	groups := make([][]string, 0)
+	for _, contextValue := range contexts {
+		if strings.TrimSpace(contextValue.Conversation.ID) == strings.TrimSpace(deletedConversationID) {
+			continue
+		}
+		for _, sessionValue := range contextValue.Sessions {
+			ids := protocol.RoomSessionCleanupTranscriptIDs(sessionValue)
+			if pendingSourceID, _ := sessionValue.Options[protocol.OptionRuntimeForkSourceSessionID].(string); strings.TrimSpace(pendingSourceID) != "" {
+				ids = append(ids, pendingSourceID)
+			}
+			groups = append(groups, ids)
+		}
+	}
+	return protocol.MergeTranscriptSessionIDs(groups...)
 }
 
 // UpdateSessionSDKSessionID 更新房间会话记录中的 SDK session_id。

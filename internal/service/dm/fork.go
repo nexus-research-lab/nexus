@@ -1,5 +1,5 @@
-// INPUT: 同 Agent 的 source/target DM Session 与一个已完成 round_id。
-// OUTPUT: 按该轮 transcript 边界持久化待首次输入物化的分支 Session。
+// INPUT: 同 Agent 的 source/target DM Session、已完成 round_id 与预检 transcript 边界。
+// OUTPUT: 先解析可持久化的 fork 依赖，再按该边界物化目标 Session。
 // POS: Room conversation fork 到 runtime transcript fork 的适配层。
 package dm
 
@@ -14,20 +14,78 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-// ForkConversationSession 从 source 的已完成轮次创建待首次输入物化的 target session。
+// PrepareConversationFork 在 SQL 创建目标会话前验证轮次并解析稳定 transcript 边界。
+func (s *Service) PrepareConversationFork(
+	ctx context.Context,
+	sourceSessionKey string,
+	targetRoundID string,
+) (string, string, error) {
+	source, err := validateConversationForkSourceKey(sourceSessionKey)
+	if err != nil {
+		return "", "", err
+	}
+	targetRoundID = strings.TrimSpace(targetRoundID)
+	if targetRoundID == "" {
+		return "", "", errors.New("target round id is required")
+	}
+
+	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
+	if err != nil {
+		return "", "", err
+	}
+	sourceSession, err := s.ensureSession(ctx, agentValue, source, sourceSessionKey)
+	if err != nil {
+		return "", "", err
+	}
+	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
+	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
+	page, err := ownerHistory.ReadMessagesPageContext(
+		ctx,
+		agentValue.WorkspacePath,
+		sourceSession,
+		activeRoundIDs,
+		workspacestore.HistoryPageQuery{
+			AroundRoundID: targetRoundID,
+			AroundLimit:   1,
+		},
+	)
+	if err != nil {
+		return "", "", fmt.Errorf("读取 source conversation 目标轮次: %w", err)
+	}
+	if !completedAssistantRound(page.Items, targetRoundID, activeRoundIDs) {
+		return "", "", errors.New("目标轮次不支持分支，只能选择已完成的助手回复")
+	}
+	sourceSessionID, forkMessageID, err := resolveConversationForkBoundary(
+		ownerHistory,
+		agentValue.WorkspacePath,
+		sourceSessionKey,
+		sourceSession,
+		targetRoundID,
+	)
+	if err != nil {
+		return "", "", fmt.Errorf("解析 fork transcript 边界: %w", err)
+	}
+	return sourceSessionID, forkMessageID, nil
+}
+
+// ForkConversationSession 把已与 SQL 目标会话原子持久化的 fork 依赖物化到 workspace。
 func (s *Service) ForkConversationSession(
 	ctx context.Context,
 	sourceSessionKey string,
 	targetSessionKey string,
 	targetRoundID string,
+	sourceSessionID string,
+	forkMessageID string,
 ) error {
 	source, target, err := validateConversationForkKeys(sourceSessionKey, targetSessionKey)
 	if err != nil {
 		return err
 	}
 	targetRoundID = strings.TrimSpace(targetRoundID)
-	if targetRoundID == "" {
-		return errors.New("target round id is required")
+	sourceSessionID = strings.TrimSpace(sourceSessionID)
+	forkMessageID = strings.TrimSpace(forkMessageID)
+	if targetRoundID == "" || sourceSessionID == "" || forkMessageID == "" {
+		return errors.New("conversation fork target and transcript boundary are required")
 	}
 
 	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
@@ -50,33 +108,6 @@ func (s *Service) ForkConversationSession(
 	}
 	runtimeFingerprintFromSession(sourceSession).apply(targetSession.Options)
 	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
-	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
-	page, err := ownerHistory.ReadMessagesPageContext(
-		ctx,
-		agentValue.WorkspacePath,
-		sourceSession,
-		activeRoundIDs,
-		workspacestore.HistoryPageQuery{
-			AroundRoundID: targetRoundID,
-			AroundLimit:   1,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("读取 source conversation 目标轮次: %w", err)
-	}
-	if !completedAssistantRound(page.Items, targetRoundID, activeRoundIDs) {
-		return errors.New("目标轮次不支持分支，只能选择已完成的助手回复")
-	}
-	sourceSessionID, forkMessageID, err := resolveConversationForkBoundary(
-		ownerHistory,
-		agentValue.WorkspacePath,
-		sourceSessionKey,
-		sourceSession,
-		targetRoundID,
-	)
-	if err != nil {
-		return fmt.Errorf("解析 fork transcript 边界: %w", err)
-	}
 	if err = ownerHistory.ForkRoundMarkers(
 		agentValue.WorkspacePath,
 		sourceSessionKey,
@@ -84,6 +115,19 @@ func (s *Service) ForkConversationSession(
 		targetRoundID,
 	); err != nil {
 		return fmt.Errorf("复制 fork round marker: %w", err)
+	}
+	actualSessionID, actualMessageID, err := resolveConversationForkBoundary(
+		ownerHistory,
+		agentValue.WorkspacePath,
+		targetSessionKey,
+		sourceSession,
+		targetRoundID,
+	)
+	if err != nil {
+		return fmt.Errorf("重新验证 fork transcript 边界: %w", err)
+	}
+	if actualSessionID != sourceSessionID || actualMessageID != forkMessageID {
+		return errors.New("fork transcript boundary changed before target materialization")
 	}
 	targetSession.Options[protocol.OptionRuntimeForkSourceSessionID] = sourceSessionID
 	targetSession.Options[protocol.OptionRuntimeForkMessageID] = forkMessageID
@@ -142,20 +186,32 @@ func resolveConversationForkBoundary(
 }
 
 func validateConversationForkKeys(sourceRaw string, targetRaw string) (protocol.SessionKey, protocol.SessionKey, error) {
-	source := protocol.ParseSessionKey(sourceRaw)
-	target := protocol.ParseSessionKey(targetRaw)
-	valid := func(key protocol.SessionKey) bool {
-		return key.IsStructured &&
-			key.Kind == protocol.SessionKeyKindAgent &&
-			key.Channel == protocol.SessionChannelWebSocketSegment &&
-			key.ChatType == protocol.RoomTypeDM &&
-			strings.TrimSpace(key.AgentID) != "" &&
-			strings.TrimSpace(key.Ref) != ""
+	source, err := validateConversationForkSourceKey(sourceRaw)
+	if err != nil {
+		return protocol.SessionKey{}, protocol.SessionKey{}, err
 	}
-	if !valid(source) || !valid(target) || source.AgentID != target.AgentID || source.Ref == target.Ref {
+	target := protocol.ParseSessionKey(targetRaw)
+	if !validConversationForkKey(target) || source.AgentID != target.AgentID || source.Ref == target.Ref {
 		return protocol.SessionKey{}, protocol.SessionKey{}, errors.New("conversation fork requires distinct DM sessions for the same Agent")
 	}
 	return source, target, nil
+}
+
+func validateConversationForkSourceKey(raw string) (protocol.SessionKey, error) {
+	key := protocol.ParseSessionKey(raw)
+	if !validConversationForkKey(key) {
+		return protocol.SessionKey{}, errors.New("conversation fork requires a DM session")
+	}
+	return key, nil
+}
+
+func validConversationForkKey(key protocol.SessionKey) bool {
+	return key.IsStructured &&
+		key.Kind == protocol.SessionKeyKindAgent &&
+		key.Channel == protocol.SessionChannelWebSocketSegment &&
+		key.ChatType == protocol.RoomTypeDM &&
+		strings.TrimSpace(key.AgentID) != "" &&
+		strings.TrimSpace(key.Ref) != ""
 }
 
 func completedAssistantRound(rows []protocol.Message, roundID string, activeRoundIDs []string) bool {
