@@ -438,7 +438,7 @@ func (s *sdkSessionSync) apply() {
 	nextFingerprint := s.nextFingerprint
 	if s.sessionIDChanged && !s.canPersistSession {
 		// 新 transcript 尚不可恢复时，不能把它的工具面基线提交到旧 SDK session；
-		// 否则下一轮会把旧 K3 identity 误判为已经采用新工具面。
+		// 否则下一轮会把旧物理 identity 误判为已经采用新工具面。
 		nextFingerprint.toolSurface = runtimeFingerprintFromSession(s.current).toolSurface
 	}
 	nextFingerprint.apply(s.current.Options)
