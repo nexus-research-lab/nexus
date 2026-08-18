@@ -268,6 +268,16 @@ func TestServiceHandleChatKeepsSDKSessionResumeWhenRuntimeFingerprintMissingAndT
 	}
 }
 
+func TestToolSurfaceRetireTimeoutCoversGracefulAndForcedProcessExit(t *testing.T) {
+	if dmToolSurfaceRetireTimeout <= 2*runtimectx.RoundIdleAbortTimeout {
+		t.Fatalf(
+			"tool-surface retire timeout = %s, must cover two %s process shutdown windows",
+			dmToolSurfaceRetireTimeout,
+			runtimectx.RoundIdleAbortTimeout,
+		)
+	}
+}
+
 func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)

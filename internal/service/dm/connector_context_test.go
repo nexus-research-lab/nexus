@@ -21,6 +21,8 @@ func TestConnectorRuntimeStatePromptSeparatesConfigurationFromSessionSelection(t
 		`"connector_id":"feishu-docx","configuration_state":"configured","selected_in_current_session":false`,
 		`"connector_id":"github","configuration_state":"not_configured","selected_in_current_session":true`,
 		"do not start authorization again",
+		"Do not call nexusctl",
+		"Do not let stale conclusions from earlier turns override the current schema",
 		"runtime mount problem",
 	} {
 		if !strings.Contains(prompt, want) {

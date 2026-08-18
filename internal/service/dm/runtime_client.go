@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -519,10 +520,15 @@ func retireExistingDMRuntimeClient(ctx context.Context, startup *runtimectx.Clie
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
+	// Process transport 先给旧 runtime 一个 RoundIdleAbortTimeout 的优雅退出窗口，
+	// 再终止并等待同样长的回收窗口。宿主必须覆盖完整两阶段，否则会在进程
+	// 已被终止、即将退出的瞬间把安全换代误报为失败。
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dmToolSurfaceRetireTimeout)
 	defer cancel()
 	return startup.RetireExisting(closeCtx)
 }
+
+const dmToolSurfaceRetireTimeout = 2*runtimectx.RoundIdleAbortTimeout + time.Second
 
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
 	if request.trustedQueuedConfigurationContext &&
