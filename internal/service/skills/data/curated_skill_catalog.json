@@ -185,6 +185,28 @@
       "version": "main"
     },
     {
+      "name": "slide-maker",
+      "title": "Slide Maker",
+      "description": "创建、重做和评审专业演示文稿，支持从文档、代码、论文或现有模板生成幻灯片。",
+      "source": "https://github.com/addsumtech/slides_maker",
+      "package_spec": "https://github.com/addsumtech/slides_maker",
+      "skill_slug": "slide-maker",
+      "installs": 0,
+      "detail_url": "https://github.com/addsumtech/slides_maker/tree/main/skills/slide-maker",
+      "readme_markdown": "",
+      "source_kind": "git",
+      "source_key": "nexus_recommended",
+      "source_name": "Nexus Picks",
+      "source_trust": "community",
+      "import_mode": "git",
+      "git_url": "https://github.com/addsumtech/slides_maker",
+      "git_branch": "main",
+      "git_path": "skills/slide-maker",
+      "raw_url": "https://raw.githubusercontent.com/addsumtech/slides_maker/main/skills/slide-maker/SKILL.md",
+      "tags": ["presentation", "pptx", "slide-design"],
+      "version": "main"
+    },
+    {
       "name": "wecom-unified",
       "title": "WeCom Unified",
       "description": "通过 wecom-cli 操作企业微信通讯录、文档表格、日程会议、待办、消息与邮件。",

@@ -151,7 +151,6 @@ export const zhCapabilityMessages = {
   "capability.skill_description.goal_manager": "管理当前会话中的长期目标，包括创建、继续、纠正、完成或标记阻塞，并按目标持续推进工作。",
   "capability.skill_description.ima": "连接 IMA 笔记与知识库，可搜索、浏览、创建和编辑笔记，并支持上传文件与收藏网页。",
   "capability.skill_description.wechat_article_search": "按关键词搜索微信公众号文章，并整理标题、摘要、发布时间、来源公众号和链接。",
-  "capability.skill_description.slide_maker": "创建、重做和评审专业演示文稿，支持从文档、代码、论文或现有模板生成和优化幻灯片。",
   "capability.skill_description.room_playbook": "为 Room 注入共享协作规则，帮助成员围绕共同目标安全、有序地配合。",
   "capability.skill_description.werewolf_6p": "为一名主持人与六名玩家提供 Nexus Room 狼人杀规则，包括公开阶段、私密信息和顺序唤醒。",
   "capability.skills_external_loading": "正在搜索社区技能...",

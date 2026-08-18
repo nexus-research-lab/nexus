@@ -23,7 +23,6 @@ const BUNDLED_SKILLS = [
   ["goal-manager", "system", undefined],
   ["ima-skill", "builtin", "nexus_platform"],
   ["wechat-article-search", "builtin", "nexus_platform"],
-  ["slide-maker", "builtin", "nexus_platform"],
   ["room-playbook", "builtin", "nexus_platform"],
   ["werewolf-6p", "builtin", "nexus_platform"],
 ];
@@ -108,10 +107,10 @@ test("Agent 搜索使用当前语言的内置 Skill 说明", async () => {
     ),
     server.ssrLoadModule("/src/shared/i18n/messages.ts"),
   ]);
-  const skill = createSkill("slide-maker", "builtin", "nexus_platform");
+  const skill = createSkill("wechat-article-search", "builtin", "nexus_platform");
   const projection = projectAgentSkills(
     [skill],
-    "演示文稿",
+    "公众号",
     (item) => getSkillDisplayDescription(
       item,
       (key) => MESSAGES.zh[key],
@@ -120,7 +119,7 @@ test("Agent 搜索使用当前语言的内置 Skill 说明", async () => {
 
   assert.deepEqual(
     projection.visibleAvailable.map((item) => item.name),
-    ["slide-maker"],
+    ["wechat-article-search"],
   );
 });
 
@@ -128,7 +127,7 @@ test("同名非平台 Skill 保留自己的真实说明", async () => {
   const { getSkillDisplayDescription } = await server.ssrLoadModule(
     "/src/lib/skill-description.ts",
   );
-  const userSkill = createSkill("slide-maker", "builtin", "user_global");
+  const userSkill = createSkill("ima-skill", "builtin", "user_global");
   const externalSkill = createSkill("imagegen", "external", "marketplace");
   const translate = () => "不应使用的本地化说明";
 
