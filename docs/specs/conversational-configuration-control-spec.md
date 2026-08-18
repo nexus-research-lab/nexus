@@ -185,6 +185,8 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 
 正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮生效。宿主不能把 bridge/nxs/Claude Code 的配置下发成功视为模型已经采用新 schema：在交互 DM 中，只要已有可恢复 SDK Session 的模型可见工具面指纹变化，就必须先关闭同一 Nexus Session 的 warm client，再从旧 transcript 幂等 fork 一个新物理 SDK Session，使当前 MCP 工具面从该分支的首轮成为启动事实。Nexus Session key、标题和可见历史保持不变；fork transcript 自带旧上下文，旧 identity 只保留为清理 lineage，不作为并列可见分段。target SDK identity 由宿主稳定派生，连接失败可重试同一分支；nxs 可在 Connect 阶段确认该 identity，Claude Code 则可能直到首条 query 的 init 事件才公布，宿主必须在相应确认点验证它不是 source identity。新 identity 与工具面指纹只有在 transcript 可恢复后才能共同提交，失败时继续保留旧 identity 和旧基线、关闭未提交的 fork client，且不得回退到旧 warm client 执行本轮输入。该规则不依赖 K3、nxs 或 Claude Code 的名称；未来只有明确协商并确认会话内动态工具更新的 runtime capability 才能绕过 fork。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
 
+交互 DM 的动态模型上下文必须分别投影 owner 级 Connector 配置/授权状态与当前 Session 的有效选择状态，二者不得互相推断。已配置但未选择时，模型只能提示用户为当前 Session 选择该能力，不得重新发起授权；已配置且已选择但对应 schema 缺失时，必须报告 runtime 挂载异常，不得谎报为未配置或未授权。该投影只包含 Connector ID 和脱敏状态，不携带凭据或工具 schema。
+
 “热重载”不是一个模糊布尔值。不同配置按安全要求和 runtime 生命周期分级：
 
 | 变更 | 持久化后生效 | 活跃执行处理 |
