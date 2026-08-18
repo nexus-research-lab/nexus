@@ -317,6 +317,9 @@ func TestEnsureClientForConversationForkUsesSourceBoundary(t *testing.T) {
 	if options.Session.ID == "" {
 		t.Fatal("Claude fork 必须在启动前固定 target session id")
 	}
+	if want := runtimeForkTargetSessionID(targetSessionKey, sourceSessionID, boundaryUUID, ""); options.Session.ID != want {
+		t.Fatalf("显式 fork target id 必须只由稳定分支身份派生: got=%q want=%q", options.Session.ID, want)
+	}
 }
 
 func TestSDKSessionSyncClearsPendingConversationFork(t *testing.T) {

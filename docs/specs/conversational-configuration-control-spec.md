@@ -183,7 +183,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 
 每个活跃 Nexus Session 先按不随轮次变化的拓扑和显式选择确定 MCP 工具面。用户输入、内部唤醒、私域回传、Room host/member 角色、WorkBinding/ReviewBinding、Goal authority 和通讯开关只改变当轮执行权限，不卸载工具 schema。无权轮次不签发可信 `ContextID`、human principal 或执行绑定，真实工具调用仍在 service 真相源上 fail closed。
 
-正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮热更新。对于不能在已恢复会话中可靠替换全局工具基线的 Kimi K3 DM runtime，宿主比较当前模型可见工具面的脱敏指纹；旧会话缺少指纹或指纹变化时，必须先关闭同一 Nexus Session 的 warm client、保留旧 transcript lineage 并清除底层 resume，再让 fresh SDK Session 从首轮采用当前工具面。Nexus Session key、标题和可见历史保持连续，旧/新非复制 transcript 由统一读模型合并；模型上下文在这次兼容换代中冷启动。新 SDK identity 与工具面指纹必须在 transcript 可恢复后一起提交，失败后不得退回不兼容的旧 client。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
+正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮生效。宿主不能把 bridge/nxs/Claude Code 的配置下发成功视为模型已经采用新 schema：在交互 DM 中，只要已有可恢复 SDK Session 的模型可见工具面指纹变化，就必须先关闭同一 Nexus Session 的 warm client，再从旧 transcript 幂等 fork 一个新物理 SDK Session，使当前 MCP 工具面从该分支的首轮成为启动事实。Nexus Session key、标题和可见历史保持不变；fork transcript 自带旧上下文，旧 identity 只保留为清理 lineage，不作为并列可见分段。target SDK identity 由宿主稳定派生，连接失败可重试同一分支；新 identity 与工具面指纹只有在 transcript 可恢复后才能共同提交，失败时继续保留旧 identity 和旧基线，且不得回退到旧 warm client 执行本轮输入。该规则不依赖 K3、nxs 或 Claude Code 的名称；未来只有明确协商并确认会话内动态工具更新的 runtime capability 才能绕过 fork。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
 
 “热重载”不是一个模糊布尔值。不同配置按安全要求和 runtime 生命周期分级：
 

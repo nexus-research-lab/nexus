@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、K3 工具面兼容换代，并让 Goal/Execution MCP 共用同一 round authority 的换代安全 runtime client。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork，并让 Goal/Execution MCP 共用同一 round authority 的换代安全 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -175,15 +175,16 @@ func (s *Service) ensureClient(
 		}
 	}
 	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
+	enabledConnectorIDs := protocol.EffectiveSessionConnectorIDs(
+		agentValue.Options.ConnectorIDs,
+		sessionItem.Options,
+	)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpContext := runtimeBuilderContext
 		mcpContext = runtimectx.WithEnabledConnectorIDs(
 			mcpContext,
-			protocol.EffectiveSessionConnectorIDs(
-				agentValue.Options.ConnectorIDs,
-				sessionItem.Options,
-			),
+			enabledConnectorIDs,
 		)
 		mcpContext = runtimectx.WithGoalAuthorityState(mcpContext, goalAuthority)
 		mcpContext = runtimectx.WithResponsibilityAuthorityState(
@@ -308,50 +309,50 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return dmClientPreparation{}, fmt.Errorf("计算 DM runtime 工具面指纹: %w", err)
 	}
-	runtimeBaseURL := dmdomain.FirstNonEmpty(
-		options.Env["ANTHROPIC_BASE_URL"],
-		options.Env["OPENAI_BASE_URL"],
-	)
+	storedToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	if strings.TrimSpace(options.Session.ResumeID) != "" &&
 		!toolSurfaceComplete &&
-		sessionresumesvc.IsKimiK3Runtime(runtimeProvider, options.Model, runtimeBaseURL) {
-		return dmClientPreparation{}, errors.New("K3 runtime 工具面检查不完整，拒绝复用旧 SDK session")
+		sessionresumesvc.RequiresToolSurfaceFork(
+			storedToolSurface,
+			toolSurfaceFingerprint,
+			len(enabledConnectorIDs) > 0,
+		) {
+		return dmClientPreparation{}, errors.New("runtime 工具面检查不完整，无法安全 fork 旧 SDK session")
 	}
-	resumeID, resetSession := s.resolveReusableSDKSessionID(
+	resumeID, toolSurfaceFork := s.resolveReusableSDKSessionID(
 		ctx,
 		agentValue.WorkspacePath,
 		sessionItem,
 		runtimeProvider,
 		options,
 		toolSurfaceFingerprint,
+		len(enabledConnectorIDs) > 0,
 	)
 	if forking && resumeID == "" {
 		return dmClientPreparation{}, errors.New("fork source SDK session is unavailable")
 	}
-	if forking && resetSession {
-		return dmClientPreparation{}, errors.New("fork source SDK session is incompatible with the current runtime")
-	}
+	forking = forking || toolSurfaceFork
 	options.Session.ResumeID = resumeID
 	options.Session.ResumeAt = forkMessageID
 	options.Session.Fork = forking
-	if forking && options.Runtime.Kind == agentclient.RuntimeClaude && strings.TrimSpace(options.Session.ID) == "" {
-		options.Session.ID = uuid.NewString()
+	if forking && strings.TrimSpace(options.Session.ID) == "" {
+		targetToolSurface := ""
+		if toolSurfaceFork {
+			targetToolSurface = toolSurfaceFingerprint
+		}
+		options.Session.ID = runtimeForkTargetSessionID(
+			sessionKey,
+			resumeID,
+			forkMessageID,
+			targetToolSurface,
+		)
 	}
-	if resetSession {
+	if toolSurfaceFork {
 		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
 		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
-			return dmClientPreparation{}, fmt.Errorf("换代 K3 工具面 runtime: %w", retireErr)
+			return dmClientPreparation{}, fmt.Errorf("换代 runtime 工具面: %w", retireErr)
 		}
-		if sessionItem.Options == nil {
-			sessionItem.Options = map[string]any{}
-		}
-		sessionItem.Options[protocol.OptionRuntimeSegmentedTranscript] = true
-		clearedSession, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem)
-		if clearErr != nil {
-			return dmClientPreparation{}, fmt.Errorf("清理不兼容的 K3 SDK session: %w", clearErr)
-		}
-		sessionItem = clearedSession
-		s.loggerFor(ctx).Info("K3 Session 工具面变化，创建 fresh SDK session",
+		s.loggerFor(ctx).Info("Session 工具面变化，从旧 transcript fork 新 SDK session",
 			"session_key", sessionKey,
 			"retired_warm_client", retired,
 		)
@@ -413,6 +414,29 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
+	if forking {
+		forkedSessionID := strings.TrimSpace(client.SessionID())
+		if forkedSessionID == "" || forkedSessionID == strings.TrimSpace(resumeID) {
+			_, _ = retireDMRuntimeClient(ctx, startup)
+			return dmClientPreparation{}, errors.New("runtime 未物化独立的 fork SDK session")
+		}
+		updatedSession, syncErr := s.syncSDKSessionIDForOwner(
+			ctx,
+			agentValue.OwnerUserID,
+			agentValue.WorkspacePath,
+			sessionItem,
+			forkedSessionID,
+			strings.TrimSpace(string(options.Runtime.Kind)),
+			runtimeProvider,
+			strings.TrimSpace(options.Model),
+			toolSurfaceFingerprint,
+		)
+		if syncErr != nil {
+			_, _ = retireDMRuntimeClient(ctx, startup)
+			return dmClientPreparation{}, fmt.Errorf("提交 fork SDK session: %w", syncErr)
+		}
+		sessionItem = updatedSession
+	}
 	return dmClientPreparation{
 		client:                 client,
 		runtimeKind:            strings.TrimSpace(string(options.Runtime.Kind)),
@@ -427,6 +451,22 @@ func (s *Service) ensureClient(
 		responsibilityState:    responsibilityState,
 		permissionMode:         permissionMode,
 	}, nil
+}
+
+func runtimeForkTargetSessionID(
+	sessionKey string,
+	sourceSessionID string,
+	messageID string,
+	toolSurfaceFingerprint string,
+) string {
+	identity := strings.Join([]string{
+		"nexus:runtime-fork:v1",
+		strings.TrimSpace(sessionKey),
+		strings.TrimSpace(sourceSessionID),
+		strings.TrimSpace(messageID),
+		strings.TrimSpace(toolSurfaceFingerprint),
+	}, "\x00")
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(identity)).String()
 }
 
 func joinDMRuntimePrompts(stable string, dynamic string) string {
@@ -593,6 +633,7 @@ func (s *Service) resolveReusableSDKSessionID(
 	provider string,
 	options agentclient.Options,
 	toolSurfaceFingerprint string,
+	forkLegacyToolSurface bool,
 ) (string, bool) {
 	resumeID := strings.TrimSpace(options.Session.ResumeID)
 	if resumeID == "" {
@@ -619,20 +660,18 @@ func (s *Service) resolveReusableSDKSessionID(
 		s.history.ForOwner(authctx.OwnerUserID(ctx)),
 	).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
-		if sessionresumesvc.RequiresK3ToolSurfaceReset(
-			expectedProvider,
-			expectedModel,
-			dmdomain.FirstNonEmpty(options.Env["ANTHROPIC_BASE_URL"], options.Env["OPENAI_BASE_URL"]),
+		if sessionresumesvc.RequiresToolSurfaceFork(
 			actualToolSurface,
 			toolSurfaceFingerprint,
+			forkLegacyToolSurface,
 		) {
-			s.loggerFor(ctx).Info("K3 SDK session 工具面与当前选择不兼容，准备换代",
+			s.loggerFor(ctx).Info("SDK session 工具面与当前选择不兼容，准备 fork",
 				"session_key", sessionItem.SessionKey,
 				"sdk_session_id", resumeID,
 				"stored_tool_surface_present", actualToolSurface != "",
 				"reason", string(decision.Reason),
 			)
-			return "", true
+			return resumeID, true
 		}
 		if !fingerprintMatches {
 			s.loggerFor(ctx).Info("DM session runtime 配置已变更但 transcript 可恢复，继续 resume",
