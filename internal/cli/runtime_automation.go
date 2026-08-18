@@ -1,5 +1,5 @@
 // INPUT: nexus automation CLI flags 与宿主注入的 broker capability。
-// OUTPUT: contract、inspect、plan、apply 的稳定 JSON envelope。
+// OUTPUT: 带输入槽写入前置的 contract、inspect、plan、apply 稳定 JSON envelope。
 // POS: Automation Skill 的命令传输层；业务授权、确认和写入只发生在宿主 service。
 package cli
 
@@ -60,11 +60,14 @@ func newRuntimeAutomationContractCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload := map[string]any{"domain": "automation", "action": "contract", "contract": contract}
+			payload := map[string]any{
+				"domain": "automation", "action": "contract", "contract": contract,
+				"command_usage": map[string]string{
+					"next": "read the pre-created input_staging.path once with Read, then overwrite it with one complete JSON object before inspect, plan, or apply",
+				},
+			}
 			if inputPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName)); inputPath != "" {
-				payload["input_staging"] = map[string]any{
-					"path": inputPath, "max_bytes": maxRuntimeCommandInputBytes,
-				}
+				payload["input_staging"] = runtimeCommandInputStaging(inputPath)
 			}
 			return emitJSON(payload)
 		},

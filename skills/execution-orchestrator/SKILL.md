@@ -39,7 +39,7 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
    "${NEXUS_COMMAND_PATH}" --json execution contract --operation assign_work
    ```
 
-3. 从 contract 输出读取 `input_staging.path`。用 Write 工具把一个完整 JSON 对象写到该精确路径；每个新意图覆盖旧内容。不要用 shell 重定向、heredoc、`cat` 或命令替换拼 JSON。
+3. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。不要用 shell 重定向、heredoc、`cat` 或命令替换拼 JSON。
 
 4. 用一条单行命令调用。每个新意图使用一个 8–128 位稳定 `request_id`，重试同一意图时复用。
 

@@ -31,7 +31,7 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
    "${NEXUS_COMMAND_PATH}" --json goal contract --operation create_goal
    ```
 
-4. 从 contract 输出读取 `input_staging.path`。用 Write 工具把该操作的一个完整 JSON 对象写到这个精确路径；每个新意图覆盖旧内容。不要自行选择路径，不用 Bash、heredoc、`cat`、命令替换或重定向生成 JSON。
+4. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为该操作的一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。不要自行选择路径，不用 Bash、heredoc、`cat`、命令替换或重定向生成 JSON。
 
 5. 用一条单行命令执行操作。每个新意图生成一个 8–128 位稳定 `request_id`；同一意图重试必须复用。
 

@@ -22,6 +22,7 @@ func TestRuntimeSemanticContractCommandUsageMakesExactContractMandatory(t *testi
 		"get_execution",
 	)
 	if !strings.Contains(exact["next"], "input_staging.path") ||
+		!strings.Contains(exact["next"], "Read") ||
 		!strings.Contains(exact["invoke"], "--operation 'prepare_plan_execution'") ||
 		!strings.Contains(exact["invoke"], `--input-file "${NEXUS_COMMAND_INPUT_PATH}"`) {
 		t.Fatalf("exact usage = %#v", exact)

@@ -1,5 +1,5 @@
 // INPUT: nexus goal/execution CLI flags、宿主私有输入槽与 round command capability。
-// OUTPUT: 带自描述精确命令顺序的 contract、inspect、invoke 稳定 JSON envelope。
+// OUTPUT: 带自描述精确命令顺序和输入槽写入前置的 contract、inspect、invoke 稳定 JSON envelope。
 // POS: Goal/WorkGraph Skill 的唯一命令传输层；业务 identity 与授权只来自宿主 broker。
 package cli
 
@@ -65,7 +65,7 @@ func newRuntimeSemanticContractCommand(domain string) *cobra.Command {
 				),
 			}
 			if inputPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName)); inputPath != "" {
-				payload["input_staging"] = map[string]any{"path": inputPath, "max_bytes": maxRuntimeCommandInputBytes}
+				payload["input_staging"] = runtimeCommandInputStaging(inputPath)
 			}
 			return emitJSON(payload)
 		},
@@ -98,13 +98,22 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 		usage["next"] = "use inspect; the domain read operation is not invokable"
 		return usage
 	}
-	usage["next"] = "write one complete JSON object to input_staging.path, then invoke with one stable request id"
+	usage["next"] = "read the pre-created input_staging.path once with Read, overwrite it with one complete JSON object, then invoke with one stable request id"
 	usage["invoke"] = fmt.Sprintf(
 		`"${NEXUS_COMMAND_PATH}" --json %s invoke --operation '%s' --input-file "${NEXUS_COMMAND_INPUT_PATH}" --request-id '<stable-request-id>'`,
 		domain,
 		operation,
 	)
 	return usage
+}
+
+func runtimeCommandInputStaging(inputPath string) map[string]any {
+	return map[string]any{
+		"path":               inputPath,
+		"max_bytes":          maxRuntimeCommandInputBytes,
+		"initial_content":    map[string]any{},
+		"write_precondition": "read this pre-created file once with Read before the first Write",
+	}
 }
 
 func newRuntimeSemanticInspectCommand(domain string) *cobra.Command {
