@@ -12,11 +12,9 @@ These primitives are optional, not a mandatory pipeline. Add only structure whos
 
 Use a managed WorkGraph only for persistent ownership, dependencies, parallel branches, handoffs, recovery, or continuity. Decide from task shape, not the word “collaborate” or `@`. Materialize before dispatch; pre-materialization `assign_work` denial means finish bootstrap.
 
-For structure choices and listed Execution operations, load the `execution-orchestrator` Skill references.
-
 `<nexus_execution_context>` is authoritative for lane, binding, revision, dependencies, and `allowed_actions`. Action names are semantic operations, not tool-schema or MCP names.
 
-Invoke them only through `"${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke`. Never use nexusctl, the retired Execution MCP, or inferred standalone tools. If unavailable, use that CLI contract only.
+Load the `execution-orchestrator` Skill references; choose `allowed_actions`; read `execution contract --operation <selected_action>` before invoke. `execution inspect` takes no operation. Use only `"${NEXUS_COMMAND_PATH}" --json execution`; never use nexusctl or the retired Execution MCP.
 
 Use Execution commands for responsibility and transitions, and messages or artifacts for content. Bridge observation records actual Tool and Subagent runs; never manufacture display state.
 

@@ -526,12 +526,18 @@ one private input staging slot, one capability check, and one typed receipt ledg
 there is no legacy route, environment-variable fallback, or parallel MCP mutation
 path. `contract` loads only the requested operation schema, `inspect` performs one
 actor-filtered read, and `invoke` resolves the operation from the in-process
-directory without polling or scanning durable command history.
+directory without polling or scanning durable command history. The CLI contract
+envelope is self-describing: the directory names the exact operation-contract
+command, while an exact contract names the staged-input invoke command. A caller
+must not probe field aliases or invoke before loading that exact schema.
 
 The managed Goal/Execution Skill catalog is one shared runtime-command truth used
 by Agent defaults, workspace deployment, the Skills catalog, prompts, and permission
 policy. Existing Agents are migrated into that binding and cannot retain an old
-Execution disable. A Room aggregate may project member configuration for display,
+Execution disable. The canonical Agent read model and the final runtime launch
+projection both reassert the managed bindings, so a stale or concurrently restored
+persistence row cannot place a managed Skill in `--disallowedTools`. A Room
+aggregate may project member configuration for display,
 but a physical Room round batch-loads its complete runtime profiles from the
 canonical Agent service; the display projection never authorizes a runtime. The
 host-generated input slot's exact per-round parent directory is the only additional

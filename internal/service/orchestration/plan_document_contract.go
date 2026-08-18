@@ -1,5 +1,5 @@
 // INPUT: Nexus Plan Document v1 的 parser 字段与稳定 transport 约束。
-// OUTPUT: parser 与模型工具共用、不可被调用方修改的 schema contract 和有效 create 示例。
+// OUTPUT: parser 与模型工具共用、区分外层 command/内层 YAML 且不可变的 schema contract 和有效 create 示例。
 // POS: strict YAML parser 前的单一字段真相源；具体 operation authority 仍由 proposal service 校验。
 package orchestration
 
@@ -105,6 +105,7 @@ func ExecutionPlanDocumentSchemaContract() PlanDocumentSchemaContract {
 			"dependencies": "depends_on or soft_depends_on",
 			"description":  "subject plus objective plus deliverable",
 			"acceptance":   "acceptance_criteria",
+			"goal_binding": "outer command input beside plan_document; never a Plan Document YAML root field",
 			"scopes":       "output_scopes or shared_output_scopes",
 		},
 		MinimalValidCreateExample: strings.TrimSpace(planDocumentMinimalCreateExample),

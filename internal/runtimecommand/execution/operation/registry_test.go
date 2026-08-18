@@ -83,6 +83,10 @@ func TestPlanOperationSchemasExposeDocumentGoalIntentThenExactSealedReference(t 
 	) {
 		t.Fatalf("prepare schema omits output scope handoff semantics: %s", planDocumentDescription)
 	}
+	if !strings.Contains(planDocumentDescription, "goal_binding is not a YAML field") ||
+		!strings.Contains(goalBinding["description"].(string), "Outer command input beside plan_document") {
+		t.Fatalf("prepare schema blurs outer command input and Plan YAML: %#v", prepare.InputSchema)
+	}
 	commitProperties := commit.InputSchema["properties"].(map[string]any)
 	commitRequired := commit.InputSchema["required"].([]string)
 	if len(commitProperties) != 2 ||

@@ -1,5 +1,5 @@
 // INPUT: 可信 owner 上下文中的 Agent CRUD 请求与可选资源版本。
-// OUTPUT: Agent 持久状态、workspace 投影及跨域协调后的删除结果。
+// OUTPUT: 带宿主受管语义 Skill 读取不变量的 Agent 持久状态、workspace 投影及跨域协调后的删除结果。
 // POS: Agent 业务 CRUD 主链，删除通过消费侧协调器进入关联能力域。
 package agent
 
@@ -53,6 +53,7 @@ func (s *Service) ListAllAgentRecordsForMaintenance(ctx context.Context) ([]prot
 	if err != nil {
 		return nil, err
 	}
+	normalizeManagedSemanticSkillBindings(agents)
 	normalizeAgentAvatars(agents)
 	return agents, nil
 }
@@ -66,6 +67,7 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	if err != nil {
 		return nil, err
 	}
+	normalizeManagedSemanticSkillBindings(agents)
 	if err = s.ensureAgentRuntimeStates(agents); err != nil {
 		return nil, err
 	}
@@ -92,6 +94,7 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	normalizeManagedSemanticSkillBinding(agent)
 	normalizeAgentAvatar(agent)
 	if err = s.ensureAgentRuntimeState(*agent); err != nil {
 		return nil, err
@@ -112,6 +115,7 @@ func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]prot
 	if err != nil {
 		return nil, err
 	}
+	normalizeManagedSemanticSkillBindings(agents)
 	if err = s.ensureAgentRuntimeStates(agents); err != nil {
 		return nil, err
 	}
@@ -132,6 +136,7 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	normalizeManagedSemanticSkillBinding(agent)
 	normalizeAgentAvatar(agent)
 	if err = s.ensureAgentRuntimeState(*agent); err != nil {
 		return nil, err
@@ -161,6 +166,25 @@ func normalizeAgentAvatar(agent *protocol.Agent) {
 func normalizeAgentAvatars(agents []protocol.Agent) {
 	for index := range agents {
 		normalizeAgentAvatar(&agents[index])
+	}
+}
+
+// normalizeManagedSemanticSkillBinding projects the host-owned Goal/Execution
+// Skills as a read invariant. Persistence migrations repair stored rows, but a
+// runtime launch never trusts a stale row enough to disable its control plane.
+func normalizeManagedSemanticSkillBinding(agent *protocol.Agent) {
+	if agent == nil {
+		return
+	}
+	agent.Options.SkillIDs, agent.Options.DisabledSkillIDs = runtimecommand.BindManagedSemanticSkills(
+		agent.Options.SkillIDs,
+		agent.Options.DisabledSkillIDs,
+	)
+}
+
+func normalizeManagedSemanticSkillBindings(agents []protocol.Agent) {
+	for index := range agents {
+		normalizeManagedSemanticSkillBinding(&agents[index])
 	}
 }
 
@@ -361,6 +385,7 @@ func (s *Service) loadAgentForSkillSelection(
 	if existing == nil || existing.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	normalizeManagedSemanticSkillBinding(existing)
 	return existing, nil
 }
 
@@ -374,6 +399,7 @@ func (s *Service) finalizeAgentSkillSelection(
 	if updated == nil {
 		return nil, ErrAgentNotFound
 	}
+	normalizeManagedSemanticSkillBinding(updated)
 	if err = s.ensureAgentRuntimeState(*updated); err != nil {
 		return nil, err
 	}
@@ -441,6 +467,7 @@ func (u *agentUpdate) load() error {
 	if existing == nil || existing.Status != "active" {
 		return ErrAgentNotFound
 	}
+	normalizeManagedSemanticSkillBinding(existing)
 	u.existing = existing
 	u.ownerUserID = existing.OwnerUserID
 	if scopedOwnerID != "" {

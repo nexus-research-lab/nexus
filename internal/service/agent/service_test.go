@@ -56,6 +56,45 @@ func TestServiceKeepsManagedSemanticSkillsBound(t *testing.T) {
 	assertManagedSemanticSkillBindings(t, agentValue)
 }
 
+func TestServiceRepairsManagedSemanticSkillsOnEveryRead(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, db := newAgentTestService(t, cfg)
+	ctx := context.Background()
+
+	agentValue, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "stale-managed-skill-agent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(
+		`UPDATE runtimes SET skill_ids_json = '["imagegen"]', disabled_skill_ids_json = '["goal-manager","execution-orchestrator"]' WHERE agent_id = ?`,
+		agentValue.AgentID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := service.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertManagedSemanticSkillBindings(t, reloaded)
+	records, err := service.ListAgentRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var projected *protocol.Agent
+	for index := range records {
+		if records[index].AgentID == agentValue.AgentID {
+			projected = &records[index]
+			break
+		}
+	}
+	if projected == nil {
+		t.Fatalf("agent %q missing from records: %+v", agentValue.AgentID, records)
+	}
+	assertManagedSemanticSkillBindings(t, projected)
+}
+
 func assertManagedSemanticSkillBindings(t *testing.T, agentValue *protocol.Agent) {
 	t.Helper()
 	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {

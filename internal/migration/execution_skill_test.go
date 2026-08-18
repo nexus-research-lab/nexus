@@ -11,7 +11,7 @@ import (
 func TestGoalExecutionCLIMigrationBindsExistingAgentsToExecutionSkill(t *testing.T) {
 	db := openAgentDisabledSkillMigrationTestDB(t, "goal-execution-cli-skill.db")
 	migrationDir := providerRecoveryMigrationDir(t)
-	if err := goose.UpTo(db, migrationDir, 112); err != nil {
+	if err := goose.UpTo(db, migrationDir, 114); err != nil {
 		t.Fatal(err)
 	}
 	insertRecoveryAgent(t, db, "worker", "owner", "")
@@ -22,12 +22,12 @@ func TestGoalExecutionCLIMigrationBindsExistingAgentsToExecutionSkill(t *testing
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(
-		`UPDATE runtimes SET disabled_skill_ids_json = '["execution-orchestrator","private-skill"]' WHERE agent_id = 'worker'`,
+		`UPDATE runtimes SET disabled_skill_ids_json = '["goal-manager","execution-orchestrator","private-skill"]' WHERE agent_id = 'worker'`,
 	); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := goose.UpTo(db, migrationDir, 113); err != nil {
+	if err := goose.UpTo(db, migrationDir, 115); err != nil {
 		t.Fatal(err)
 	}
 	var payload string

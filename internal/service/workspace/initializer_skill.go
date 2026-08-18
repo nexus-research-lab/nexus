@@ -1,5 +1,5 @@
 // INPUT: 平台或用户 Skill 源目录、已授权 workspace 根与模板上下文。
-// OUTPUT: nxs/Claude Skill 入口及运行时可见 Skill 名称。
+// OUTPUT: nxs/Claude Skill 入口及包含非可选 Goal/Execution 绑定的运行时可见/停用 Skill 名称。
 // POS: 宿主同步 Skill 文件时的双向 confinedfs 边界。
 package workspace
 
@@ -208,6 +208,7 @@ func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]strin
 }
 
 // RuntimeSkillNamesForAgent 从 owner 绑定的 workspace fd 读取运行时 Skill。
+// Goal/Execution 受管 Skill 是宿主能力，不以可能陈旧的持久化选择作为启动条件。
 func RuntimeSkillNamesForAgent(
 	cfg config.Config,
 	agentValue protocol.Agent,
@@ -221,10 +222,14 @@ func RuntimeSkillNamesForAgent(
 		return nil, err
 	}
 	defer root.Close()
-	return RuntimeSkillNamesAt(
-		root,
+	selectedSkillIDs, disabledSkillIDs := runtimecommand.BindManagedSemanticSkills(
 		agentValue.Options.SkillIDs,
 		agentValue.Options.DisabledSkillIDs,
+	)
+	return RuntimeSkillNamesAt(
+		root,
+		selectedSkillIDs,
+		disabledSkillIDs,
 	)
 }
 
@@ -236,8 +241,12 @@ func RuntimeDisabledSkillNamesForAgent(
 	cfg config.Config,
 	agentValue protocol.Agent,
 ) ([]string, error) {
-	selected := normalizedSkillNameSet(agentValue.Options.SkillIDs)
-	explicitlyDisabled := normalizedSkillNameSet(agentValue.Options.DisabledSkillIDs)
+	selectedSkillIDs, disabledSkillIDs := runtimecommand.BindManagedSemanticSkills(
+		agentValue.Options.SkillIDs,
+		agentValue.Options.DisabledSkillIDs,
+	)
+	selected := normalizedSkillNameSet(selectedSkillIDs)
+	explicitlyDisabled := normalizedSkillNameSet(disabledSkillIDs)
 	enabledInWorkspace := maps.Clone(selected)
 	disabledByName := make(map[string]string)
 	addDisabled := func(reference string) {
@@ -250,7 +259,7 @@ func RuntimeDisabledSkillNamesForAgent(
 			disabledByName[key] = name
 		}
 	}
-	for _, reference := range agentValue.Options.DisabledSkillIDs {
+	for _, reference := range disabledSkillIDs {
 		addDisabled(reference)
 	}
 	// Agent workspace 内的本地 Skill 默认动态可见；先把未显式停用的名称

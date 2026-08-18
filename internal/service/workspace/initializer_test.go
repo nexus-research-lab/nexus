@@ -291,7 +291,7 @@ func TestRuntimeSkillSelectionSeparatesGlobalBindingsAndWorkspaceDisables(t *tes
 		WorkspacePath: filepath.Join(UserSkillLibraryRoot(cfg, "owner-1"), "agent-1"),
 		Options: protocol.Options{
 			SkillIDs:         []string{"external:enabled-global"},
-			DisabledSkillIDs: []string{"local-off"},
+			DisabledSkillIDs: []string{"local-off", "goal-manager", "execution-orchestrator"},
 		},
 	}
 	for _, path := range []string{
@@ -314,7 +314,9 @@ func TestRuntimeSkillSelectionSeparatesGlobalBindingsAndWorkspaceDisables(t *tes
 	if err != nil {
 		t.Fatalf("读取 Agent 运行时 Skill 失败: %v", err)
 	}
-	for _, name := range []string{"enabled-global", "local-on"} {
+	for _, name := range []string{
+		"enabled-global", "local-on", "goal-manager", "execution-orchestrator",
+	} {
 		if !slices.Contains(enabled, name) {
 			t.Fatalf("运行时启用列表缺少 %q: %#v", name, enabled)
 		}
@@ -337,6 +339,11 @@ func TestRuntimeSkillSelectionSeparatesGlobalBindingsAndWorkspaceDisables(t *tes
 	}
 	if slices.Contains(disabled, "same-name-local") {
 		t.Fatalf("动态发现的工作区同名 Skill 被误判为停用: %#v", disabled)
+	}
+	for _, name := range []string{"goal-manager", "execution-orchestrator"} {
+		if slices.Contains(disabled, name) {
+			t.Fatalf("受管 Skill %q 不能被陈旧持久化状态停用: %#v", name, disabled)
+		}
 	}
 }
 
