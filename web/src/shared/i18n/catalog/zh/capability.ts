@@ -155,6 +155,7 @@ export const zhCapabilityMessages = {
   "capability.skill_description.room_playbook": "为 Room 注入共享协作规则，帮助成员围绕共同目标安全、有序地配合。",
   "capability.skill_description.werewolf_6p": "为一名主持人与六名玩家提供 Nexus Room 狼人杀规则，包括公开阶段、私密信息和顺序唤醒。",
   "capability.skills_external_loading": "正在搜索社区技能...",
+  "capability.skills_external_recommended": "推荐技能",
   "capability.skills_external_empty": "暂无匹配结果，试试更具体的关键词",
   "capability.skills_external_status_available": "可导入",
   "capability.skills_external_status_conflict": "同名冲突",

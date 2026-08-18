@@ -16,14 +16,12 @@ import (
 func TestMain(m *testing.M) {
 	os.Exit(handlertest.RunWithSelectedAppSkills(
 		m,
-		"diagram-design",
 		"execution-orchestrator",
 		"goal-manager",
 		"ima-skill",
 		"imagegen",
 		"visualize",
 		"automation",
-		"kami",
 		"nexus-manager",
 		"nexus-configuration",
 		"room-playbook",

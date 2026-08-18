@@ -158,6 +158,7 @@ export const enCapabilityMessages = {
   "capability.skill_description.room_playbook": "Inject shared collaboration rules into a Room so members can work safely and in sequence toward a common goal.",
   "capability.skill_description.werewolf_6p": "Provide Nexus Room werewolf rules for one host and six players, including public phases, private information, and ordered turns.",
   "capability.skills_external_loading": "Searching community skills...",
+  "capability.skills_external_recommended": "Recommended Skills",
   "capability.skills_external_empty": "No matches yet. Try a more specific keyword.",
   "capability.skills_external_status_available": "Available",
   "capability.skills_external_status_conflict": "Name conflict",
