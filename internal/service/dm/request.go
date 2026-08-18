@@ -370,6 +370,9 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 			"dm:"+strings.TrimSpace(e.sessionKey),
 			clientPreparation.emotionEnabled,
 		))
+		// Connector 工具面会随 Session 选择 fork；把本轮装配事实贴近当前输入，
+		// 避免复制进新 transcript 的历史“工具不存在”结论压过当前 schema。
+		runtimeContent = runtimeContent.AppendText(clientPreparation.connectorTurnContext)
 	}
 	if override := strings.TrimSpace(e.request.GoalContext); e.request.Internal && override != "" {
 		clientPreparation.goalContext = override

@@ -46,6 +46,7 @@ type dmClientPreparation struct {
 	goalContext            string
 	goalObjectiveRevision  *atomic.Int64
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
+	connectorTurnContext   string
 	permissionMode         sdkpermission.Mode
 }
 
@@ -56,6 +57,9 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (dmClientPreparation, error) {
+	if !request.runtimePreparationOnly {
+		s.cancelConnectorRuntimePreparation(agentValue.OwnerUserID, sessionKey)
+	}
 	forkSourceSessionID := strings.TrimSpace(request.forkSourceSessionID)
 	forkMessageID := strings.TrimSpace(request.forkMessageID)
 	if (forkSourceSessionID == "") != (forkMessageID == "") {
@@ -66,15 +70,47 @@ func (s *Service) ensureClient(
 		return dmClientPreparation{}, err
 	}
 	defer startup.Close()
-	latestSession, _, err := s.files.ForOwner(agentValue.OwnerUserID).FindSession(
-		[]string{agentValue.WorkspacePath},
-		sessionKey,
-	)
+	var latestSession *protocol.Session
+	if request.runtimePreparationOnly {
+		current, currentErr := s.ensureSession(
+			ctx,
+			agentValue,
+			protocol.ParseSessionKey(sessionKey),
+			sessionKey,
+		)
+		if currentErr != nil {
+			return dmClientPreparation{}, currentErr
+		}
+		latestSession = &current
+	} else {
+		latestSession, _, err = s.files.ForOwner(agentValue.OwnerUserID).FindSession(
+			[]string{agentValue.WorkspacePath},
+			sessionKey,
+		)
+	}
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
 	if latestSession != nil {
 		sessionItem = *latestSession
+	}
+	if request.runtimePreparationOnly &&
+		sessionItem.ConfigurationVersion != request.expectedConfigurationVersion {
+		return dmClientPreparation{}, fmt.Errorf(
+			"%w: expected configuration_version=%d actual=%d",
+			errConnectorPreparationSuperseded,
+			request.expectedConfigurationVersion,
+			sessionItem.ConfigurationVersion,
+		)
+	}
+	if request.runtimePreparationOnly && request.expectedConnectorSelection != nil &&
+		!protocol.SessionConnectorSelectionFromOptions(sessionItem.Options).Equal(
+			*request.expectedConnectorSelection,
+		) {
+		return dmClientPreparation{}, fmt.Errorf(
+			"%w: Connector selection changed during startup",
+			errConnectorPreparationSuperseded,
+		)
 	}
 	if forkSourceSessionID == "" && forkMessageID == "" {
 		forkSourceSessionID, forkMessageID = pendingConversationFork(sessionItem.Options)
@@ -147,7 +183,7 @@ func (s *Service) ensureClient(
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	runtimeBuilderContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
 	configurationRuntimeEnv := map[string]string(nil)
-	if s.configurationRuntimeEnv != nil {
+	if !request.runtimePreparationOnly && s.configurationRuntimeEnv != nil {
 		configurationRuntimeEnv, err = s.configurationRuntimeEnv(
 			runtimeBuilderContext,
 			agentValue,
@@ -161,7 +197,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	automationRuntimeEnv := map[string]string(nil)
-	if s.automationRuntimeEnv != nil {
+	if !request.runtimePreparationOnly && s.automationRuntimeEnv != nil {
 		automationRuntimeEnv, err = s.automationRuntimeEnv(
 			runtimeBuilderContext,
 			agentValue,
@@ -232,6 +268,8 @@ func (s *Service) ensureClient(
 			mcpServers[name] = server
 		}
 	}
+	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
+	dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, connectorTurnContext)
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(
 		ctx,
 		agentValue,
@@ -325,6 +363,13 @@ func (s *Service) ensureClient(
 		) {
 		return dmClientPreparation{}, errors.New("runtime 工具面检查不完整，无法安全 fork 旧 SDK session")
 	}
+	if request.runtimePreparationOnly && !sessionresumesvc.RequiresToolSurfaceFork(
+		storedToolSurface,
+		toolSurfaceFingerprint,
+		len(enabledConnectorIDs) > 0,
+	) {
+		return dmClientPreparation{}, nil
+	}
 	resumeID, toolSurfaceFork := s.resolveReusableSDKSessionID(
 		ctx,
 		agentValue.WorkspacePath,
@@ -338,6 +383,31 @@ func (s *Service) ensureClient(
 		return dmClientPreparation{}, errors.New("fork source SDK session is unavailable")
 	}
 	forking = forking || toolSurfaceFork
+	if request.runtimePreparationOnly && !toolSurfaceFork {
+		return dmClientPreparation{}, nil
+	}
+	if request.runtimePreparationOnly {
+		latest, latestErr := s.ensureSession(
+			ctx,
+			agentValue,
+			protocol.ParseSessionKey(sessionKey),
+			sessionKey,
+		)
+		if latestErr != nil {
+			return dmClientPreparation{}, latestErr
+		}
+		if latest.ConfigurationVersion != request.expectedConfigurationVersion ||
+			(request.expectedConnectorSelection != nil &&
+				!protocol.SessionConnectorSelectionFromOptions(latest.Options).Equal(
+					*request.expectedConnectorSelection,
+				)) {
+			return dmClientPreparation{}, fmt.Errorf(
+				"%w: Connector selection or configuration version changed before fork",
+				errConnectorPreparationSuperseded,
+			)
+		}
+		sessionItem = latest
+	}
 	options.Session.ResumeID = resumeID
 	options.Session.ResumeAt = forkMessageID
 	options.Session.Fork = forking
@@ -428,10 +498,23 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, errors.New("runtime fork 仍返回 source SDK session")
 		}
 		if forkedSessionID == "" {
+			if request.runtimePreparationOnly {
+				_, _ = retireDMRuntimeClient(ctx, startup)
+				// Claude Code 等 runtime 直到真实 query 才公布 fork identity；后台预备
+				// 不发送隐藏消息，保持下一轮同步 fork 作为正确性边界。
+				return dmClientPreparation{}, nil
+			}
 			// Claude Code 只在首条 query 后通过 init 事件公布 fork identity；
 			// 在 round 收到该事件前保持旧 identity/工具面基线不变。
 			forkSourceSessionID = strings.TrimSpace(resumeID)
 		} else {
+			syncArguments := []sdkSessionSyncConstraint(nil)
+			if request.runtimePreparationOnly {
+				syncArguments = append(syncArguments, sdkSessionSyncConstraint{
+					configurationVersion: request.expectedConfigurationVersion,
+					connectorSelection:   request.expectedConnectorSelection,
+				})
+			}
 			updatedSession, syncErr := s.syncSDKSessionIDForOwner(
 				ctx,
 				agentValue.OwnerUserID,
@@ -442,6 +525,7 @@ func (s *Service) ensureClient(
 				runtimeProvider,
 				strings.TrimSpace(options.Model),
 				toolSurfaceFingerprint,
+				syncArguments...,
 			)
 			if syncErr != nil {
 				_, _ = retireDMRuntimeClient(ctx, startup)
@@ -466,6 +550,7 @@ func (s *Service) ensureClient(
 		goalContext:            goalContext,
 		goalObjectiveRevision:  goalObjectiveRevision,
 		responsibilityState:    responsibilityState,
+		connectorTurnContext:   connectorTurnContext,
 		permissionMode:         permissionMode,
 	}, nil
 }

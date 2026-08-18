@@ -47,6 +47,41 @@ type SessionRuntimeSettings struct {
 	ConnectorIDs *[]string `json:"connector_ids"`
 }
 
+// SessionConnectorSelection 是 Session Connector 覆盖的可比较快照。
+// Inherit 区分“继承 Agent 默认值”和“显式选择空集合”。
+type SessionConnectorSelection struct {
+	Inherit      bool
+	ConnectorIDs []string
+}
+
+// SessionConnectorSelectionFromOptions 生成顺序无关、去重的 Connector 选择快照。
+func SessionConnectorSelectionFromOptions(options map[string]any) SessionConnectorSelection {
+	settings := SessionRuntimeSettingsFromOptions(options)
+	if settings.ConnectorIDs == nil {
+		return SessionConnectorSelection{Inherit: true}
+	}
+	seen := make(map[string]struct{}, len(*settings.ConnectorIDs))
+	connectorIDs := make([]string, 0, len(*settings.ConnectorIDs))
+	for _, connectorID := range *settings.ConnectorIDs {
+		connectorID = strings.TrimSpace(connectorID)
+		if connectorID == "" {
+			continue
+		}
+		if _, exists := seen[connectorID]; exists {
+			continue
+		}
+		seen[connectorID] = struct{}{}
+		connectorIDs = append(connectorIDs, connectorID)
+	}
+	slices.Sort(connectorIDs)
+	return SessionConnectorSelection{ConnectorIDs: connectorIDs}
+}
+
+// Equal 把 Connector 集合作为无序选择比较，同时保留继承语义。
+func (s SessionConnectorSelection) Equal(other SessionConnectorSelection) bool {
+	return s.Inherit == other.Inherit && slices.Equal(s.ConnectorIDs, other.ConnectorIDs)
+}
+
 // SessionLocalDirectories 表示当前 Session 额外挂载的本机目录。
 type SessionLocalDirectories struct {
 	Directories []string `json:"directories"`

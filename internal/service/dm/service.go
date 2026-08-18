@@ -115,9 +115,14 @@ type Request struct {
 	// forkSourceSessionID / forkMessageID 只由 Room service 写入，HTTP/WS 请求不能伪造。
 	forkSourceSessionID string
 	forkMessageID       string
-	InputOptions        sdkprotocol.OutboundMessageOptions
-	PermissionMode      sdkpermission.Mode
-	PermissionHandler   sdkpermission.Handler
+	// runtimePreparationOnly 只由 Session 设置提交后的后台预备器设置；它只允许
+	// 物化工具面 fork，不创建用户消息或模型 round。
+	runtimePreparationOnly       bool
+	expectedConfigurationVersion int64
+	expectedConnectorSelection   *protocol.SessionConnectorSelection
+	InputOptions                 sdkprotocol.OutboundMessageOptions
+	PermissionMode               sdkpermission.Mode
+	PermissionHandler            sdkpermission.Handler
 	// RuntimeToolPolicy 仅供 automation 等受控执行传入创建时权限快照。
 	// 普通会话为 nil，继续使用 Agent 当前工具配置。
 	RuntimeToolPolicy *protocol.RuntimeToolPolicy
@@ -216,6 +221,10 @@ type Service struct {
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
 	connectorRuntimeStates    ConnectorRuntimeStateLoader
+	connectorPreparationMu    sync.Mutex
+	connectorPreparations     map[string]*connectorRuntimePreparation
+	connectorPreparationDelay time.Duration
+	connectorPreparationRun   func(context.Context, protocol.Session) error
 }
 
 // ConnectorRuntimeState 是可安全进入模型动态上下文的 Connector 脱敏状态。
@@ -306,14 +315,16 @@ func NewService(
 	permission *permissionctx.Context,
 ) *Service {
 	return &Service{
-		config:     cfg,
-		agents:     agentService,
-		runtime:    runtimeManager,
-		permission: permission,
-		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		inputQueue: workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		logger:     logx.NewDiscardLogger(),
+		config:                    cfg,
+		agents:                    agentService,
+		runtime:                   runtimeManager,
+		permission:                permission,
+		files:                     workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		history:                   workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		inputQueue:                workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		logger:                    logx.NewDiscardLogger(),
+		connectorPreparations:     make(map[string]*connectorRuntimePreparation),
+		connectorPreparationDelay: defaultConnectorPreparationDelay,
 	}
 }
 
