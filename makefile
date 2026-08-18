@@ -34,6 +34,7 @@ NEXUS_NXS_RUNTIME_RELEASE ?= nxs-stable
 HOST_DATA_DIR ?= ./data
 NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEXUS_NXS_RUNTIME_RELEASE)"
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
+DEV_RUNTIME_CLI_BIN_DIR ?= $(abspath cache/dev-runtime-cli)
 COMPOSE_CMD ?= HOST_DATA_DIR="$(HOST_DATA_DIR)" docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 PNPM ?= pnpm
 GO_TEST_PACKAGE_PARALLELISM ?= 4
@@ -43,6 +44,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
+	prepare-dev-runtime-cli \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
@@ -64,7 +66,14 @@ run-web: ## Run frontend in development mode
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
 	go generate ./internal/protocol
 
-run-backend: ## Run Go backend in development mode
+prepare-dev-runtime-cli: ## Build current-source runtime CLI binaries for development
+	@mkdir -p "$(DEV_RUNTIME_CLI_BIN_DIR)"
+	go build -o "$(DEV_RUNTIME_CLI_BIN_DIR)/" ./cmd/nexusctl ./cmd/nexuscfg ./cmd/nexus
+
+run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
+	NEXUSCTL_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexusctl" \
+	NEXUSCFG_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexuscfg" \
+	NEXUS_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexus" \
 	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
