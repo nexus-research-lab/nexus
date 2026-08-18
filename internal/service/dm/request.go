@@ -362,6 +362,12 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		)
 		return dmRuntimePreparation{}, err
 	}
+	resourcesTransferred := false
+	defer func() {
+		if !resourcesTransferred {
+			clientPreparation.commandResources.Close()
+		}
+	}()
 	e.session = clientPreparation.session
 	if !runtimeContent.IsEmpty() && !slashInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
@@ -389,12 +395,14 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		clientPreparation.goalContext = ""
 		recoveryContext = nil
 	}
-	return dmRuntimePreparation{
+	preparation := dmRuntimePreparation{
 		dmClientPreparation: clientPreparation,
 		content:             runtimeContent,
 		atomicInput:         atomicInput,
 		recoveryContext:     recoveryContext,
-	}, nil
+	}
+	resourcesTransferred = true
+	return preparation, nil
 }
 
 func (e *dmChatExecution) runtimeContext() context.Context {
@@ -458,6 +466,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	}
 	r.responsibilityState = preparation.responsibilityState
 	r.commandReceipts = preparation.commandReceipts
+	r.commandResources = preparation.commandResources
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
 		strings.TrimSpace(preparation.goalIDForUsage) != "",
 	)

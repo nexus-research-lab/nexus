@@ -14,12 +14,36 @@ import (
 var runtimeGraphVisibleToolFamilies = []string{
 	"WebSearch",
 	"WebFetch",
-	"Bash",
-	"KillShell",
 	"Write",
 	"Edit",
 	"MultiEdit",
 	"NotebookEdit",
+}
+
+// These names are the complete Goal/Execution MCP surface that existed before
+// the control plane moved to the round-scoped nexus CLI. They are read-model
+// compatibility facts only: recognizing one never restores an MCP route or grants
+// authority. Historical rows do not carry the newer command-transport metadata,
+// so the projection must classify their exact semantic identity here or they are
+// mistaken for ordinary external MCP work and leak back onto the canvas.
+var runtimeGraphLegacyManagedTransportOperations = map[string]struct{}{
+	"getgoal":                 {},
+	"creategoal":              {},
+	"retargetgoal":            {},
+	"auditobjectivealignment": {},
+	"updategoal":              {},
+	"getexecution":            {},
+	"prepareplanexecution":    {},
+	"planexecution":           {},
+	"abandonexecution":        {},
+	"assignwork":              {},
+	"submitwork":              {},
+	"reviewwork":              {},
+	"blockwork":               {},
+	"resumework":              {},
+	"takeoverwork":            {},
+	"auditexecutionalignment": {},
+	"promoteexecutiontogoal":  {},
 }
 
 // 未包装的 Provider 工具只有在名称表达可观察动作时才进入画布；外部 MCP
@@ -71,6 +95,8 @@ var runtimeGraphVisibleActionPrefixes = []string{
 var runtimeGraphSupportingMCPServerMarkers = []string{
 	"filesystem",
 	"localfs",
+	"nexusexecution",
+	"nexusgoal",
 	"skill",
 	"toolsearch",
 	"workspace",
@@ -107,12 +133,39 @@ func runtimeGraphToolActionVisible(item protocol.ExecutionRuntimeNodeRun) bool {
 func runtimeGraphIsCommandTransport(item protocol.ExecutionRuntimeNodeRun) bool {
 	switch value := item.Metadata[runtimeGraphCommandTransportMetadataKey].(type) {
 	case bool:
-		return value
+		if value {
+			return true
+		}
 	case string:
-		return strings.EqualFold(strings.TrimSpace(value), "true")
-	default:
+		if strings.EqualFold(strings.TrimSpace(value), "true") {
+			return true
+		}
+	}
+	return runtimeGraphIsLegacyManagedTransport(item.Name)
+}
+
+func runtimeGraphIsLegacyManagedTransport(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	leaf := runtimeGraphCanonicalToolLeaf(trimmed)
+	if _, exists := runtimeGraphLegacyManagedTransportOperations[leaf]; !exists {
 		return false
 	}
+
+	separatorIndex := -1
+	for _, separator := range []string{"__", ".", "/"} {
+		if index := strings.LastIndex(trimmed, separator); index > separatorIndex {
+			separatorIndex = index
+		}
+	}
+	// Old SDK projections sometimes persisted only the MCP operation name.
+	if separatorIndex < 0 {
+		return true
+	}
+
+	prefix := trimmed[:separatorIndex]
+	server := runtimeGraphCanonicalToolLeaf(prefix)
+	return strings.Contains(server, "nexusexecution") ||
+		strings.Contains(server, "nexusgoal")
 }
 
 func runtimeGraphIsSubmissionTool(name string) bool {

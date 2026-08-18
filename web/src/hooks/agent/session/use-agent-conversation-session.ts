@@ -46,7 +46,7 @@ interface SessionTransitionEffects {
 }
 
 /**
- * 新会话只保留具备 durable transport owner 的请求；普通页面级 ACK 仍取消。
+ * 新会话只保留具备 durable transport owner 的用户提交；页面级 ACK 仍取消。
  * clear/reset 是用户明确撤销全部未确认请求的边界。
  */
 export function runAgentSessionTransition(
@@ -56,8 +56,8 @@ export function runAgentSessionTransition(
   context: AgentConversationLifecycleContext,
   effects: SessionTransitionEffects,
 ): void {
-  // start 会取消普通 chat/interrupt 等页面级 ACK，只保留显式标记为
-  // durable owner 的 Goal；clear/reset 是用户明确取消全部请求的边界。
+  // start 会取消 interrupt 等页面级 ACK，只保留显式标记为 durable owner
+  // 的消息、队列输入与 Goal；clear/reset 是用户明确取消全部请求的边界。
   effects.cancelPendingRequestAcks(reason, kind === "start");
   effects.clearLiveSessionState();
   transition(context);

@@ -23,12 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type runtimeSemanticFlags struct {
-	operation string
-	input     string
-	inputFile string
-}
-
 func newRuntimeSemanticCommand(domain, short string) *cobra.Command {
 	command := &cobra.Command{Use: domain, Short: short}
 	command.AddCommand(
@@ -86,6 +80,9 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 			domain,
 		),
 	}
+	if domain == runtimecommand.DomainExecution {
+		usage["inspect_explicit"] = `"${NEXUS_COMMAND_PATH}" --json execution inspect --execution-id '<execution-id>'`
+	}
 	if operation == "" {
 		usage["next"] = "choose one allowed action, then read its exact operation contract before invoking"
 		usage["operation_contract"] = fmt.Sprintf(
@@ -98,9 +95,9 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 		usage["next"] = "use inspect; the domain read operation is not invokable"
 		return usage
 	}
-	usage["next"] = "read the pre-created input_staging.path once with Read, overwrite it with one complete JSON object, then invoke with one stable request id"
+	usage["next"] = "read the pre-created input_staging.path once with Read, overwrite it with one complete JSON object, then invoke with one stable request id; invoke always reads the host-managed staging slot"
 	usage["invoke"] = fmt.Sprintf(
-		`"${NEXUS_COMMAND_PATH}" --json %s invoke --operation '%s' --input-file "${NEXUS_COMMAND_INPUT_PATH}" --request-id '<stable-request-id>'`,
+		`"${NEXUS_COMMAND_PATH}" --json %s invoke --operation '%s' --request-id '<stable-request-id>'`,
 		domain,
 		operation,
 	)
@@ -117,27 +114,40 @@ func runtimeCommandInputStaging(inputPath string) map[string]any {
 }
 
 func newRuntimeSemanticInspectCommand(domain string) *cobra.Command {
+	var executionID string
+	stateName := "Execution / WorkGraph"
+	if domain == runtimecommand.DomainGoal {
+		stateName = "Goal"
+	}
 	command := &cobra.Command{
-		Use: "inspect", Short: "读取当前 actor 的权威 Goal 或 Execution 状态",
+		Use: "inspect", Short: "读取当前 actor 的权威 " + stateName + " 状态",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			controller, err := newRuntimeSemanticController()
 			if err != nil {
 				return err
 			}
+			input := map[string]any(nil)
+			if executionID = strings.TrimSpace(executionID); executionID != "" {
+				input = map[string]any{"execution_id": executionID}
+			}
 			var result runtimecommand.Result
 			if err = controller.call(commandContext(cmd), runtimecommand.Request{
 				Domain: domain, Action: runtimecommand.ActionInspect,
+				Input: input,
 			}, &result); err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{"domain": domain, "action": runtimecommand.ActionInspect, "result": result})
 		},
 	}
+	if domain == runtimecommand.DomainExecution {
+		command.Flags().StringVar(&executionID, "execution-id", "", "可选；读取同一可信 scope 中的一个显式历史 Execution")
+	}
 	return command
 }
 
 func newRuntimeSemanticInvokeCommand(domain string) *cobra.Command {
-	flags := runtimeSemanticFlags{}
+	var operation string
 	var requestID string
 	command := &cobra.Command{
 		Use: "invoke", Short: "在当前 exact round authority 下执行一个语义操作",
@@ -146,61 +156,42 @@ func newRuntimeSemanticInvokeCommand(domain string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			input, err := decodeRuntimeSemanticInputForCommand(cmd, flags)
+			input, err := decodeRuntimeSemanticInputForCommand(cmd)
 			if err != nil {
 				return err
 			}
 			requestID = strings.TrimSpace(requestID)
-			if requestID == "" {
-				return usageErrorf("invoke 必须提供稳定 --request-id；同一意图重试时复用")
+			if !runtimecommand.ValidRequestID(requestID) {
+				return usageErrorf("invoke --request-id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符；同一意图重试时复用")
 			}
 			var result runtimecommand.Result
 			if err = controller.call(commandContext(cmd), runtimecommand.Request{
 				Domain: domain, Action: runtimecommand.ActionInvoke,
-				Operation: strings.TrimSpace(flags.operation), Input: input, RequestID: requestID,
+				Operation: strings.TrimSpace(operation), Input: input, RequestID: requestID,
 			}, &result); err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{
 				"domain": domain, "action": runtimecommand.ActionInvoke,
-				"operation": strings.TrimSpace(flags.operation), "request_id": requestID,
+				"operation": strings.TrimSpace(operation), "request_id": requestID,
 				"result": result,
 			})
 		},
 	}
-	bindRuntimeSemanticInputFlags(command, &flags, true)
+	command.Flags().StringVar(&operation, "operation", "", "contract 返回的精确 operation")
+	_ = command.MarkFlagRequired("operation")
 	command.Flags().StringVar(&requestID, "request-id", "", "8-128 位稳定命令 ID；同一意图重试时必须复用")
 	return command
 }
 
-func bindRuntimeSemanticInputFlags(command *cobra.Command, flags *runtimeSemanticFlags, operationRequired bool) {
-	command.Flags().StringVar(&flags.operation, "operation", "", "contract 返回的精确 operation")
-	command.Flags().StringVar(&flags.input, "input", "{}", "command JSON 对象")
-	command.Flags().StringVar(&flags.inputFile, "input-file", "", "从宿主签发的 round 私有文件读取 JSON")
-	if operationRequired {
-		_ = command.MarkFlagRequired("operation")
+func decodeRuntimeSemanticInputForCommand(command *cobra.Command) (map[string]any, error) {
+	inputPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName))
+	if inputPath == "" || inputPath == "-" {
+		return nil, usageErrorf("当前 physical round 缺少宿主签发的 %s", protocol.NexusCommandInputPathEnvName)
 	}
-}
-
-func decodeRuntimeSemanticInputForCommand(command *cobra.Command, flags runtimeSemanticFlags) (map[string]any, error) {
-	inlineChanged := command.Flags().Changed("input")
-	fileChanged := command.Flags().Changed("input-file")
-	if inlineChanged && fileChanged {
-		return nil, usageErrorf("--input 与 --input-file 不能同时使用")
-	}
-	raw := []byte(strings.TrimSpace(flags.input))
-	if !inlineChanged {
-		inputPath := strings.TrimSpace(flags.inputFile)
-		if !fileChanged {
-			inputPath = strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName))
-		}
-		if inputPath != "" {
-			var err error
-			raw, err = readRuntimeCommandInput(command, inputPath)
-			if err != nil {
-				return nil, err
-			}
-		}
+	raw, err := readRuntimeCommandInput(command, inputPath)
+	if err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(string(raw)) == "" {
 		raw = []byte("{}")

@@ -202,7 +202,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 	goalCommandDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id goal-complete-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`},
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id goal-complete-1`},
 	})
 	if err != nil {
 		t.Fatalf("Goal command 权限处理失败: %v", err)
@@ -212,7 +212,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 	executionCommandDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution invoke --operation get_execution --request-id execution-read-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`},
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`},
 	})
 	if err != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("Execution command 应自动放行: decision=%+v err=%v", executionCommandDecision, err)

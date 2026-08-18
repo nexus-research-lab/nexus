@@ -9,8 +9,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const (
@@ -22,21 +25,36 @@ const (
 type runtimeCLIShimDefinition struct {
 	Name               string
 	CommandPathEnvName string
+	StableHostFallback bool
 }
 
 var runtimeCLIShimDefinitions = []runtimeCLIShimDefinition{
 	{Name: "nexusctl", CommandPathEnvName: nexusctlCommandPathEnvName},
 	{Name: "nexuscfg", CommandPathEnvName: nexuscfgCommandPathEnvName},
-	{Name: "nexus", CommandPathEnvName: nexusCommandPathEnvName},
+	{Name: "nexus", CommandPathEnvName: nexusCommandPathEnvName, StableHostFallback: true},
 }
+
+var runtimeCLIShimMu sync.Mutex
 
 type runtimeCLIShimTarget struct {
 	Kind        string
 	CommandPath string
 	ProjectRoot string
+	Arguments   []string
+}
+
+// EnsureRuntimeCLICommands refreshes process-bound multicall shims during host
+// startup. A development `go run` host has a new executable path after every
+// restart, independently of Agent workspace initialization markers.
+func EnsureRuntimeCLICommands() error {
+	return ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), map[string]string{
+		"project_root": appfs.Root(),
+	})
 }
 
 func ensureRuntimeCLIShims(binDir string, context map[string]string) error {
+	runtimeCLIShimMu.Lock()
+	defer runtimeCLIShimMu.Unlock()
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
@@ -86,11 +104,18 @@ func resolveRuntimeCLIShimTarget(
 		}
 		return runtimeCLIShimTarget{Kind: "executable", CommandPath: filepath.Clean(commandPath)}, nil
 	}
-	sourceEntry := filepath.Join(root, "cmd", definition.Name, "main.go")
-	if _, err := os.Stat(sourceEntry); err == nil {
-		return runtimeCLIShimTarget{Kind: "source", ProjectRoot: root}, nil
-	} else if err != nil && !os.IsNotExist(err) {
-		return runtimeCLIShimTarget{}, err
+	if definition.StableHostFallback {
+		hostPath, err := os.Executable()
+		if err != nil {
+			return runtimeCLIShimTarget{}, fmt.Errorf("解析 Nexus 宿主可执行文件: %w", err)
+		}
+		if err = validateRuntimeCLIExecutable(hostPath, definition.Name); err != nil {
+			return runtimeCLIShimTarget{}, fmt.Errorf("Nexus 宿主不能承载 runtime CLI: %w", err)
+		}
+		return runtimeCLIShimTarget{
+			Kind: "executable", CommandPath: filepath.Clean(hostPath),
+			Arguments: []string{protocol.NexusCommandHostEntrypointArgument},
+		}, nil
 	}
 	for _, candidate := range packagedRuntimeCLICandidates(root, definition.Name) {
 		if err := validateRuntimeCLIExecutable(candidate, definition.Name); err == nil {
@@ -98,6 +123,12 @@ func resolveRuntimeCLIShimTarget(
 		} else if err != nil && !os.IsNotExist(err) {
 			return runtimeCLIShimTarget{}, err
 		}
+	}
+	sourceEntry := filepath.Join(root, "cmd", definition.Name, "main.go")
+	if _, err := os.Stat(sourceEntry); err == nil {
+		return runtimeCLIShimTarget{Kind: "source", ProjectRoot: root}, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return runtimeCLIShimTarget{}, err
 	}
 	return runtimeCLIShimTarget{}, fmt.Errorf(
 		"%s command path is required: set %s or provide cmd/%s/main.go under %s",
@@ -143,13 +174,14 @@ cd ` + shellSingleQuote(target.ProjectRoot) + `
 exec go run ./cmd/` + name + ` "$@"
 `, nil
 	case "executable":
+		arguments := renderRuntimeCLIArguments(target.Arguments, shellSingleQuote)
 		return `#!/bin/sh
 set -eu
 
 CALLER_CWD="$(pwd)"
 export NEXUSCTL_WORKSPACE_PATH="${NEXUSCTL_WORKSPACE_PATH:-$CALLER_CWD}"
 
-exec ` + shellSingleQuote(target.CommandPath) + ` "$@"
+exec ` + shellSingleQuote(target.CommandPath) + arguments + ` "$@"
 `, nil
 	default:
 		return "", fmt.Errorf("未知 %s shim 类型: %s", name, target.Kind)
@@ -170,18 +202,32 @@ go run ./cmd/` + name + ` %*
 exit /b %ERRORLEVEL%
 `, nil
 	case "executable":
+		arguments := renderRuntimeCLIArguments(target.Arguments, func(value string) string {
+			return `"` + windowsBatchValue(value) + `"`
+		})
 		return `@echo off
 setlocal
 
 set "CALLER_CWD=%CD%"
 if "%NEXUSCTL_WORKSPACE_PATH%"=="" set "NEXUSCTL_WORKSPACE_PATH=%CALLER_CWD%"
 
-"` + windowsBatchValue(target.CommandPath) + `" %*
+"` + windowsBatchValue(target.CommandPath) + `"` + arguments + ` %*
 exit /b %ERRORLEVEL%
 `, nil
 	default:
 		return "", fmt.Errorf("未知 %s shim 类型: %s", name, target.Kind)
 	}
+}
+
+func renderRuntimeCLIArguments(arguments []string, quote func(string) string) string {
+	if len(arguments) == 0 {
+		return ""
+	}
+	encoded := make([]string, 0, len(arguments))
+	for _, argument := range arguments {
+		encoded = append(encoded, quote(argument))
+	}
+	return " " + strings.Join(encoded, " ")
 }
 
 func removeWorkspaceBinShim(root *confinedfs.Root) error {
@@ -250,6 +296,7 @@ func looksLikeGeneratedRuntimeCLIShim(content string) bool {
 		(strings.Contains(content, "go run ./cmd/nexusctl") ||
 			strings.Contains(content, "go run ./cmd/nexuscfg") ||
 			strings.Contains(content, "go run ./cmd/nexus") ||
+			strings.Contains(content, protocol.NexusCommandHostEntrypointArgument) ||
 			strings.Contains(content, "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl") ||
 			strings.Contains(content, "exit /b %ERRORLEVEL%"))
 }

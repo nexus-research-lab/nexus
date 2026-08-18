@@ -655,7 +655,7 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id room-goal-complete-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"`},
+		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id room-goal-complete-1`},
 	})
 	if err != nil {
 		t.Fatalf("执行 room Goal 权限处理器失败: %v", err)

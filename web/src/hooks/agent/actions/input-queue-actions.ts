@@ -73,12 +73,11 @@ export function enqueueInputQueueMessage(
   deliveryPolicy: AgentConversationDeliveryPolicy = "queue",
   attachments: AgentConversationSendOptions["attachments"] = [],
   targetAgentIDs: string[] = [],
-  clientMessageId?: string,
+  request: OutboundInputQueueRequest = createOutboundRequestDescriptor(),
 ): OutboundInputQueueRequest | null {
   if (!content.trim() && attachments.length === 0) {
     return null;
   }
-  const request = createOutboundRequestDescriptor(clientMessageId);
   sendInputQueueCommand(context, {
     action: "enqueue",
     client_message_id: request.client_message_id,

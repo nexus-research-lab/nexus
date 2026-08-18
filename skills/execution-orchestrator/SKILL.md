@@ -24,16 +24,23 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 
 只有需要读取或改变受管 WorkGraph 时才调用 CLI。使用宿主注入的 `NEXUS_COMMAND_PATH`；身份、Session、Room role、WorkBinding、ReviewBinding、Goal authority 和 physical round 都来自宿主。不要覆盖 `NEXUS_COMMAND_*`，不要使用 `nexusctl` 或其他编排管理入口。
 
-1. 读取当前目录和状态。
+1. 先读取当前 actor 的权威状态。
 
    ```bash
-   "${NEXUS_COMMAND_PATH}" --json execution contract
    "${NEXUS_COMMAND_PATH}" --json execution inspect
    ```
 
    PowerShell runtime 使用 `& "${env:NEXUS_COMMAND_PATH}" ...`，不要混用变量语法。
 
-2. 从 `allowed_actions` 选择一个操作，再按需读取精确 contract。
+   只有需要读取同一可信 scope 中的明确历史 Execution 时，才使用 contract 返回的显式历史模板：
+
+   ```bash
+   "${NEXUS_COMMAND_PATH}" --json execution inspect --execution-id '<execution-id>'
+   ```
+
+   该 locator 只选择可读快照，不授予 coordinator、WorkBinding、ReviewBinding 或 Goal authority。
+
+2. 从 `allowed_actions` 选择一个操作，再读取精确 contract；只有状态不足以确定 operation 名称时才读取完整目录，不把目录作为每次调用的固定前置。
 
    ```bash
    "${NEXUS_COMMAND_PATH}" --json execution contract --operation assign_work
@@ -41,15 +48,17 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 
 3. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。不要用 shell 重定向、heredoc、`cat` 或命令替换拼 JSON。
 
-4. 用一条单行命令调用。每个新意图使用一个 8–128 位稳定 `request_id`，重试同一意图时复用。
+4. 用一条单行命令调用。`invoke` 只读取当前 physical round 的宿主管理输入槽，不接受 inline JSON 或调用方选择的文件。每个新意图使用一个 8–128 位稳定 `request_id`，重试同一意图时复用。
 
    ```bash
-   "${NEXUS_COMMAND_PATH}" --json execution invoke --operation assign_work --input-file "${NEXUS_COMMAND_INPUT_PATH}" --request-id 'execution-assign-UNIQUE'
+   "${NEXUS_COMMAND_PATH}" --json execution invoke --operation assign_work --request-id 'execution-assign-UNIQUE'
    ```
 
-5. 只把 `is_error=false` 且宿主 applied receipt 对应的结果当成状态变化。按返回的 `next_actions[].domain` / `operation` 行动；revision 冲突、权限拒绝或 lane 改变时重新 `inspect`，不修改身份字段绕过。
+5. 只把 `is_error=false` 且宿主 applied receipt 对应的结果当成状态变化。按返回的 `next_actions[].domain` / `operation` 行动；普通 snapshot revision 冲突可重新 `inspect`，权限拒绝不能通过改身份字段绕过。`context_status=round_refresh_required` 表示 physical round 的 Goal/Execution authority 已被外部换代：立即结束本轮，不再 `inspect`、重写 Plan 或重试 invoke，等待宿主启动 successor round。
 
 输入槽是 round 私有传输介质，不是状态源。CLI 的 operation contract 是当前参数、枚举与 Plan Document 约束的唯一真相；Skill 不复制完整 schema。
+
+创建 Goal+WorkGraph 时必须串行：先由 `goal-manager` 完成 `create_goal`，确认 applied 后再 `prepare_plan_execution`，并在外层输入使用 `goal_binding=current`；两者不得并行。已有 transient WorkGraph 后才出现明确 Goal 意图时，不再 `create_goal`，而使用 `promote_execution_to_goal`。Composer 已创建 Goal 时由宿主启动携带 exact revision 的新 round，再按同一 `goal_binding=current` 路径建图。
 
 ## 最小选择表
 

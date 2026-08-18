@@ -11,7 +11,7 @@ import (
 // BuildAll returns the complete semantic surface. There is deliberately no
 // start_work, attempt-state, command-id, or snapshot-revision operation.
 func BuildAll(svc contract.Service, sctx contract.Context) []runtimecommand.Operation {
-	planGuard := &planTransportGuard{}
+	planGuard := &planTransportGuard{attempts: sctx.CommandAttempts}
 	return []runtimecommand.Operation{
 		getExecution(svc, sctx),
 		preparePlanExecution(svc, sctx, planGuard),

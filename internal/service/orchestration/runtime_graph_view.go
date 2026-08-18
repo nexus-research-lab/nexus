@@ -1137,7 +1137,6 @@ func runtimeGraphPromotedNodeIDs(
 		result[edge.TargetNodeID] = struct{}{}
 	}
 	promoteRuntimeGraphRecoverySuccesses(graph, result)
-	promoteRuntimeGraphSubagentRepresentativeTools(graph, result)
 	return result
 }
 
@@ -1188,83 +1187,6 @@ func promoteRuntimeGraphRecoverySuccesses(
 		}
 		if latestRecoveryID != "" {
 			promoted[latestRecoveryID] = struct{}{}
-		}
-	}
-}
-
-const runtimeGraphSubagentRepresentativeToolLimit = 3
-
-// Subagent 仍遵守全局 Tool 可见性规则；画布最多补足少量 direct supporting
-// Tool 作为代表。失败、外部动作等结构性可见节点先占槽位，再优先补最近的
-// 成功动作，因此失败后的恢复不会只在详情里出现；同时不会把普通 Read/Grep
-// 全量铺到主图。
-func promoteRuntimeGraphSubagentRepresentativeTools(
-	graph protocol.ExecutionRuntimeGraph,
-	promoted map[string]struct{},
-) {
-	childrenByParentSubject := make(map[string][]protocol.ExecutionRuntimeNodeRun)
-	subagentParentSubjects := make(map[string]struct{})
-	for _, node := range graph.Nodes {
-		if node.Kind == protocol.ExecutionRuntimeNodeSubagent {
-			for _, key := range []string{
-				strings.TrimSpace(node.SubjectID),
-				runtimeGraphMetadataString(node, "tool_use_id"),
-			} {
-				if key != "" {
-					subagentParentSubjects[key] = struct{}{}
-				}
-			}
-		}
-		// 旧运行图先保存 Agent launch Tool，读取时再把它合并进 durable
-		// Subagent Attempt；其 exact ToolUse subject 同样是 child Tool 的父键。
-		if node.Kind == protocol.ExecutionRuntimeNodeTool &&
-			runtimeGraphCanonicalToolLeaf(node.Name) == "agent" &&
-			strings.TrimSpace(node.SubjectID) != "" {
-			subagentParentSubjects[strings.TrimSpace(node.SubjectID)] = struct{}{}
-		}
-		if node.Kind == protocol.ExecutionRuntimeNodeTool {
-			parentSubjectID := strings.TrimSpace(node.ParentSubjectID)
-			if parentSubjectID == "" {
-				continue
-			}
-			childrenByParentSubject[parentSubjectID] = append(
-				childrenByParentSubject[parentSubjectID],
-				node,
-			)
-		}
-	}
-	for parentSubject := range subagentParentSubjects {
-		children := childrenByParentSubject[parentSubject]
-		if len(children) == 0 {
-			continue
-		}
-		visibleCount := 0
-		for _, child := range children {
-			_, explicitlyPromoted := promoted[child.ID]
-			if explicitlyPromoted || child.Status != protocol.ExecutionRuntimeNodeSucceeded {
-				visibleCount++
-			}
-		}
-		if visibleCount >= runtimeGraphSubagentRepresentativeToolLimit {
-			continue
-		}
-		slices.SortFunc(children, func(left, right protocol.ExecutionRuntimeNodeRun) int {
-			if order := left.StartedAt.Compare(right.StartedAt); order != 0 {
-				return order
-			}
-			return strings.Compare(left.ID, right.ID)
-		})
-		remaining := runtimeGraphSubagentRepresentativeToolLimit - visibleCount
-		for index := len(children) - 1; index >= 0 && remaining > 0; index-- {
-			child := children[index]
-			if child.Status != protocol.ExecutionRuntimeNodeSucceeded {
-				continue
-			}
-			if _, alreadyPromoted := promoted[child.ID]; alreadyPromoted {
-				continue
-			}
-			promoted[child.ID] = struct{}{}
-			remaining--
 		}
 	}
 }

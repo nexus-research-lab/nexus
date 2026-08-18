@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
@@ -64,6 +65,7 @@ type Context struct {
 	ConversationID          string
 	RoomSessionID           string
 	PlanMode                bool
+	CommandAttempts         *runtimecommand.AttemptState
 }
 
 // Actor projects runtime command identity into the application service authority boundary.

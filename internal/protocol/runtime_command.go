@@ -1,5 +1,5 @@
-// INPUT: 宿主签发给当前 Agent runtime 的 Nexus command broker、稳定 capability 与私有输入槽。
-// OUTPUT: nxs/Claude、CLI 与本机 broker 共用且不可由模型覆盖的环境变量和请求头名称。
+// INPUT: 宿主签发给当前 Agent runtime 的 Nexus command broker、稳定 capability、私有输入槽与同版本 host multicall。
+// OUTPUT: nxs/Claude、CLI 与本机 broker 共用且不可由模型覆盖的环境变量、请求头与私有入口名称。
 // POS: Goal、Execution、Automation 共用的 Agent-facing Nexus CLI 跨进程最小 wire。
 package protocol
 
@@ -14,6 +14,7 @@ const (
 	NexusCommandCapabilityTokenEnvName = "NEXUS_COMMAND_CAPABILITY_TOKEN"
 	NexusCommandInputPathEnvName       = "NEXUS_COMMAND_INPUT_PATH"
 	NexusCommandCapabilityHeader       = "X-Nexus-Runtime-Command-Capability"
+	NexusCommandHostEntrypointArgument = "__nexus_runtime_command__"
 )
 
 // RuntimeCommandResultIdentity 是 nexus CLI invoke 输出中可与宿主 typed receipt

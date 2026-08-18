@@ -526,10 +526,70 @@ one private input staging slot, one capability check, and one typed receipt ledg
 there is no legacy route, environment-variable fallback, or parallel MCP mutation
 path. `contract` loads only the requested operation schema, `inspect` performs one
 actor-filtered read, and `invoke` resolves the operation from the in-process
-directory without polling or scanning durable command history. The CLI contract
+directory without polling or scanning durable command history. Goal/Execution
+`invoke` always reads the exact host-managed `NEXUS_COMMAND_INPUT_PATH`; it exposes
+neither inline JSON nor a caller-selected input path. The CLI contract
 envelope is self-describing: the directory names the exact operation-contract
-command, while an exact contract names the staged-input invoke command. A caller
+command, while an exact contract names the staged-input invoke command. The normal
+sequence is actor-filtered `inspect`, one exact operation contract, one staged write,
+and one invoke; loading the full directory is discovery fallback rather than a fixed
+per-call preflight. A caller
 must not probe field aliases or invoke before loading that exact schema.
+
+### 5.1 Agent-facing CLI command audit
+
+The stable CLI grammar is deliberately smaller than the business operation
+directory. DM and Room use the same commands; the host-issued round capability,
+not a caller flag, selects owner, Agent, Session, Room role, Goal revision,
+WorkBinding, ReviewBinding, and coordination authority.
+
+| Business operation | Exact CLI path | Design boundary |
+| --- | --- | --- |
+| `get_goal` | `nexus --json goal inspect` | Current Goal only. It has no input and cannot be invoked through the mutation path. |
+| `create_goal`, `retarget_goal`, `audit_objective_alignment`, `update_goal` | `goal inspect` → `goal contract --operation <operation>` → write `input_staging.path` → `goal invoke --operation <operation> --request-id <stable-id>` | The operation contract owns the model input. Goal id, revision, owner, Agent, Room lead, and round are host facts and never CLI arguments. |
+| `get_execution` (current) | `nexus --json execution inspect` | Reads the actor-filtered current WorkGraph. For an exact current Room coordinator this also establishes only a round-local coordination binding. |
+| `get_execution` (historical) | `nexus --json execution inspect --execution-id <id>` | The only explicit read locator. It is non-authorizing and remains scope checked; historical selection never changes the current Execution. |
+| `prepare_plan_execution` | `execution inspect` → `execution contract --operation prepare_plan_execution` → stage complete input → `execution invoke --operation prepare_plan_execution --request-id <stable-id>` | Strictly validates and durably seals a complete Plan proposal. It does not materialize the WorkGraph. |
+| `plan_execution` | exact contract → stage the returned `proposal_id` and `proposal_digest` → `execution invoke --operation plan_execution --request-id <stable-id>` | Atomically materializes only the sealed proposal. Separating validation from commit supplies restart-safe retry, CAS, and Goal-revision fencing without accepting a second graph payload. |
+| `abandon_execution`, `assign_work`, `submit_work`, `review_work`, `block_work`, `resume_work`, `take_over_work`, `audit_execution_alignment`, `promote_execution_to_goal` | `execution inspect` → exact operation contract → stage input → `execution invoke --operation <operation> --request-id <stable-id>` | Stable schemas remain visible in every authorized runtime topology, while service state and exact bindings decide whether the operation is allowed. Locator omission is legal only when a host binding supplies the same target. |
+
+Goal/Execution `invoke` has exactly one input transport: the owner-private,
+physical-round staging file named by the host. It accepts neither inline JSON nor
+`--input-file`; therefore a caller cannot redirect the broker to another owner or
+stale temporary file. The host keeps the file alive until the physical round ends,
+repairs an editor-replaced managed inode to `0600` after validating it, and shares
+one round-local retry counter across repeated CLI process invocations. A stable
+`request_id` identifies one semantic intent and must be reused for its retries.
+
+The Agent-facing `nexus` executable must resolve to an explicit packaged binary or
+the running same-version Nexus host through its private multicall entrypoint. The
+server refreshes that generated shim on every startup. A model round never builds
+the CLI from the source tree: source builds can select a developer `go.work`, add
+startup latency, and make command behavior differ from the running server.
+
+### 5.2 Eight supported product entry paths
+
+These are product entry paths, not eight CLI variants. “Dialogue” means the user
+asks the active model to create the structure; “Composer” means the trusted host
+control above the input box accepts the Goal before a model continuation starts.
+
+| Scope and user entry | Authoritative command sequence | Required resulting state |
+| --- | --- | --- |
+| DM · dialogue Goal | `goal inspect` → exact `create_goal` contract → stage → `goal invoke create_goal` | One standalone Goal. The DM Session Agent becomes the durable responsible Agent; no Execution is created. |
+| DM · Composer Goal | Host `set_goal` transaction: create Goal → persist the exact `client_message_id` control record → start successor continuation; successor uses `goal inspect` | One standalone Goal and one visible control record that never enters the model as an ordinary prompt. No model `create_goal` call occurs. |
+| DM · dialogue WorkGraph | `execution inspect` → exact `prepare_plan_execution` contract → stage `goal_binding=none` → invoke → exact `plan_execution` contract → stage sealed receipt → invoke | One transient Goal-free Execution with an authoritative Plan. |
+| DM · dialogue Goal+WorkGraph | Complete `create_goal` first; after its applied receipt run the two Execution Plan commands with outer `goal_binding=current` | One Goal and one bilaterally confirmed Goal-bound Execution. Same-round dynamic authority carries the newly created Goal revision into Execution. |
+| Room · dialogue Goal | Same Goal CLI sequence as DM | One standalone Room Goal. The server-verified current Agent is persisted as creator and lead; other members can inspect but cannot mutate it. |
+| Room · Composer Goal | Host Room `set_goal` transaction with exactly one verified selected lead → durable public control record → lead successor continuation uses `goal inspect` | One standalone Room Goal with an exact lead and durable acceptance evidence. No model `create_goal` call occurs. |
+| Room · dialogue WorkGraph | Same two-phase Execution CLI sequence as DM with `goal_binding=none` | One transient Room Execution whose coordinator is host verified. Room members receive observation reads; only exact bindings authorize work or review mutations. |
+| Room · dialogue Goal+WorkGraph | Lead completes `create_goal`, then the same round prepares and materializes with `goal_binding=current` | One confirmed Room Goal+Execution binding. The Goal lead/coordinator may coordinate; every member still needs its own WorkBinding or ReviewBinding to deliver or accept work. |
+
+If a transient WorkGraph already exists before explicit Goal intent, neither DM nor
+Room creates a parallel Goal and tries to bind it afterward. The coordinator uses
+`promote_execution_to_goal` with the exact contract. If Composer created the Goal,
+the accepted host request and model continuation are different physical rounds;
+the successor receives the exact current revision at launch rather than inheriting
+authority from the WebSocket request context.
 
 The managed Goal/Execution Skill catalog is one shared runtime-command truth used
 by Agent defaults, workspace deployment, the Skills catalog, prompts, and permission
@@ -549,14 +609,19 @@ work. The runtime observer applies the same strict, single-process Bash/PowerShe
 grammar as permission policy and persists only a boolean transport classification,
 never raw command input. Exact `${NEXUS_COMMAND_PATH}` contract, inspect, and invoke
 calls therefore remain `detail` under their direct Agent owner even when they fail,
-retry, carry an Artifact, or would otherwise match the visible Bash family; ordinary
-Bash, pipelines, chained commands, substitutions, arbitrary executables, and external
-capability calls remain observable canvas actions. Review and loop-back edges continue
-to use the structured Work Item/Agent and Gate facts rather than a `submit_work`
-transport node. At each assistant checkpoint, host-owned invoke receipts still enrich
-candidate nodes in one graph read by exact `domain + operation + request_id`; arbitrary
-shell output cannot recreate `assign_work` segment authority or any other semantic
-operation identity.
+retry, carry an Artifact, or would otherwise look important. The read projection also
+classifies the exact retired Goal/Execution MCP operation directory as the same
+control-plane transport, so historical rows remain available in run details without
+restoring an MCP route or authority. A successful ordinary Bash/PowerShell action stays
+in details; only an active run, failure/cancellation/interruption, an exact Artifact, an
+explicit visibility hint, a durable retry/loop-back edge, or a visible recovery after
+failure promotes it onto the canvas.
+External observable capability calls retain their semantic visibility. Review and
+loop-back edges continue to use the structured Work Item/Agent and Gate facts rather
+than a `submit_work` transport node. At each assistant checkpoint, host-owned invoke
+receipts still enrich candidate nodes in one graph read by exact
+`domain + operation + request_id`; arbitrary shell output cannot recreate `assign_work`
+segment authority or any other semantic operation identity.
 
 `get_execution` does not mutate durable Execution or Plan state. Every verified
 member of the exact Room conversation may read a bounded shared WorkGraph
@@ -648,6 +713,12 @@ When Goal retarget or Execution replacement has already closed the exact bound
 predecessor, a late worker command returns `outcome: superseded` with
 `reason_code: execution_terminal`. It is a successful transport carrying a muted
 stop-old-round signal, not a failed submission and not evidence of Goal progress.
+When a Plan preparation reaches the service with exact Goal authority that was
+valid at physical-round launch but conflicts with the current Goal/Execution
+revision, it returns `context_status: round_refresh_required` with no same-round
+next action. `inspect` may expose the successor state but cannot mutate the old
+round's authorization provenance; the old round terminates and the host-owned
+successor continuation performs the next command.
 
 No operation may combine planning, assignment, execution, submission, and acceptance
 into one implicit mutation. Command retries must use their stable request identity and receipt

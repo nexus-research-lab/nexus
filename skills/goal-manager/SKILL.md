@@ -11,23 +11,25 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 
 ## 命令工作流
 
-1. 首次操作或边界不确定时读取目录。
-
-   ```bash
-   "${NEXUS_COMMAND_PATH}" --json goal contract
-   ```
-
-   Windows 的 PowerShell runtime 使用 `& "${env:NEXUS_COMMAND_PATH}" --json goal contract`。后续命令保持同一种 shell 变量语法。
-
-2. 用户要求设定、查看或更改 Goal，或当前状态未知时，读取权威状态。
+1. 用户要求设定、查看或更改 Goal，或当前状态未知时，先读取权威状态。
 
    ```bash
    "${NEXUS_COMMAND_PATH}" --json goal inspect
    ```
 
+   Windows 的 PowerShell runtime 使用 `& "${env:NEXUS_COMMAND_PATH}" --json goal contract`。后续命令保持同一种 shell 变量语法。
+
    `inspect` 中当前 objective revision 与 completion criteria 是 Objective Alignment 和完成判断的唯一目标边界；不要从 transcript、旧 Plan、聊天正文或本地草稿反查或拼接标准。
 
-3. 确定一个操作后，只读取它的精确 contract，不根据记忆猜输入。
+   Composer 顶部入口和文本 `/goal` 是宿主控制命令，不经过本 Skill 或 `create_goal`。它们成功后，模型只在宿主启动的新 physical round 中用 `goal inspect` 读取已经持久化的 Goal；不得再次创建或按聊天正文补写。
+
+2. 根据用户意图与 `inspect` 状态选择一个操作；只有无法确定 operation 名称时才按需读取目录，不把完整目录作为每次调用的固定前置。
+
+   ```bash
+   "${NEXUS_COMMAND_PATH}" --json goal contract
+   ```
+
+3. 确定 operation 后，只读取它的精确 contract，不根据记忆猜输入。
 
    ```bash
    "${NEXUS_COMMAND_PATH}" --json goal contract --operation create_goal
@@ -35,13 +37,13 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 
 4. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为该操作的一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。不要自行选择路径，不用 Bash、heredoc、`cat`、命令替换或重定向生成 JSON。
 
-5. 用一条单行命令执行操作。每个新意图生成一个 8–128 位稳定 `request_id`；同一意图重试必须复用。
+5. 用一条单行命令执行操作。`invoke` 只读取当前 physical round 的宿主管理输入槽，不接受 inline JSON 或调用方选择的文件。每个新意图生成一个 8–128 位稳定 `request_id`；同一意图重试必须复用。
 
    ```bash
-   "${NEXUS_COMMAND_PATH}" --json goal invoke --operation create_goal --input-file "${NEXUS_COMMAND_INPUT_PATH}" --request-id 'goal-create-UNIQUE'
+   "${NEXUS_COMMAND_PATH}" --json goal invoke --operation create_goal --request-id 'goal-create-UNIQUE'
    ```
 
-   PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ... --input-file "${env:NEXUS_COMMAND_INPUT_PATH}"`。
+   PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ...`；输入槽路径仍从 exact contract 的 `input_staging.path` 读取。
 
 6. 只把 `is_error=false` 且宿主返回 applied receipt 的调用视为状态变化。按 `nextAction.domain` 与 `nextAction.operation` 继续；不要解析 shell 文本、伪造 receipt 或把 plan/no-op 当成已写入。
 

@@ -19,6 +19,24 @@ func testGoalAuthority(goalID string, revision int64) *runtimectx.GoalAuthorityS
 	return runtimectx.NewGoalAuthorityState(goalID, revision, "")
 }
 
+func TestGoalOperationDirectoryIsExactAndStable(t *testing.T) {
+	definitions := BuildAll(nil, contract.Context{})
+	names := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		names = append(names, definition.Name)
+	}
+	want := []string{
+		"get_goal",
+		"create_goal",
+		"retarget_goal",
+		"audit_objective_alignment",
+		"update_goal",
+	}
+	if !slices.Equal(names, want) {
+		t.Fatalf("Goal operation directory = %#v, want %#v", names, want)
+	}
+}
+
 func TestUpdateGoalSchemaCarriesBlockedRecoveryPath(t *testing.T) {
 	tool := updateGoal(nil, contract.Context{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	properties, ok := tool.InputSchema["properties"].(map[string]any)

@@ -127,6 +127,7 @@ func (r *roundRunner) failRoundAtPhase(
 }
 
 func (r *roundRunner) failRuntimeStartup(err error) {
+	r.commandResources.Close()
 	r.failRoundAtPhase(exec.RoundExecutionResult{}, err, "runtime_startup")
 }
 

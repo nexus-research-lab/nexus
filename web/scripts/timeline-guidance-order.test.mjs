@@ -3007,7 +3007,7 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     id: "tool-plan-rejected",
     name: "Bash",
     input: {
-      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation prepare_plan_execution --request-id plan-rejected-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"',
+      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation prepare_plan_execution --request-id plan-rejected-1',
     },
   };
   const result = {
@@ -3134,7 +3134,7 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     id: "tool-submit-superseded",
     name: "Bash",
     input: {
-      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id submit-superseded-1 --input-file "${NEXUS_COMMAND_INPUT_PATH}"',
+      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id submit-superseded-1',
     },
   };
   const result = {
@@ -3369,50 +3369,95 @@ test("same-RAF live text starts empty while history and recovery snapshots stay 
   assert.equal(hasLiveStreamRevealMarker(cleared[0]?.content[0]), false);
 });
 
-test("active MessageItem streaming height resets between Assistant turns", async () => {
+test("Room conversation identity stays stable across physical member sessions", async () => {
+  const { getAgentConversationIdentityKey } = await server.ssrLoadModule(
+    "/src/lib/conversation/agent-conversation-identity.ts",
+  );
+  const firstMemberSession = {
+    chat_type: "group",
+    conversation_id: "conversation-shared",
+    room_session_id: "room-session-agent-1",
+    session_key: "room:group:conversation-shared",
+  };
+  const secondMemberSession = {
+    ...firstMemberSession,
+    room_session_id: "room-session-agent-2",
+  };
+
+  assert.equal(
+    getAgentConversationIdentityKey(firstMemberSession),
+    "room-conversation:conversation-shared",
+  );
+  assert.equal(
+    getAgentConversationIdentityKey(secondMemberSession),
+    "room-conversation:conversation-shared",
+    "a member runtime/session reorder must not reset the shared Room timeline",
+  );
+  assert.equal(
+    getAgentConversationIdentityKey({
+      chat_type: "dm",
+      conversation_id: "conversation-dm",
+      room_session_id: "room-session-dm",
+      session_key: "agent:agent-1:workspace:dm:conversation-dm",
+    }),
+    "room-session:room-session-dm",
+    "non-Room conversations keep their physical session boundary",
+  );
+});
+
+test("active MessageItem streaming height spans the whole physical round", async () => {
   const { resolveMessageItemStreamingLayoutState } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/message-item-streaming-layout.ts",
   );
-  const tallTurn = {
+  const tallRound = {
     active: true,
-    assistantTurnKey: "assistant-long-response",
+    layoutScopeKey: "agent-round-live",
     minHeight: 960,
   };
 
   assert.strictEqual(
     resolveMessageItemStreamingLayoutState(
-      tallTurn,
-      "assistant-long-response",
+      tallRound,
+      "agent-round-live",
       true,
     ),
-    tallTurn,
-    "streaming revisions within one Assistant turn retain the monotonic height",
+    tallRound,
+    "streaming revisions within one physical round retain the monotonic height",
+  );
+  assert.strictEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallRound,
+      "agent-round-live",
+      true,
+    ),
+    tallRound,
+    "tool and Assistant turn transitions cannot shrink the live round",
   );
   assert.deepEqual(
     resolveMessageItemStreamingLayoutState(
-      tallTurn,
-      "assistant-tool-continuation",
+      tallRound,
+      "agent-round-next",
       true,
     ),
     {
       active: true,
-      assistantTurnKey: "assistant-tool-continuation",
+      layoutScopeKey: "agent-round-next",
       minHeight: 60,
     },
-    "a later tool or response turn cannot inherit the preceding long response height",
+    "a new physical round cannot inherit the preceding round height",
   );
   assert.deepEqual(
     resolveMessageItemStreamingLayoutState(
-      tallTurn,
-      "assistant-long-response",
+      tallRound,
+      "agent-round-live",
       false,
     ),
     {
       active: false,
-      assistantTurnKey: "assistant-long-response",
-      minHeight: 60,
+      layoutScopeKey: "agent-round-live",
+      minHeight: 0,
     },
-    "terminal layout clears the streaming height before the same turn can resume",
+    "terminal layout releases the live round height",
   );
 });
 
