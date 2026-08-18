@@ -1,5 +1,5 @@
 // INPUT: 稳定 canonical source 快照、规范化 physical round groups 与分页请求。
-// OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、可校验且可淘汰的历史读模型。
+// OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、可校验且可淘汰的分页与大内容 detail 读模型。
 // POS: workspace canonical 历史之上的唯一当前派生查询层；数据库可整体删除重建。
 package workspace
 
@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 3
+	historyReadModelSchemaVersion = 4
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000
@@ -180,7 +180,8 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		// version=0 也会清理，使上次初始化中断留下的半张表自愈。
 		if _, err = tx.ExecContext(
 			ctx,
-			`DROP TABLE IF EXISTS history_read_groups;
+			`DROP TABLE IF EXISTS history_read_details;
+			 DROP TABLE IF EXISTS history_read_groups;
 			 DROP TABLE IF EXISTS history_read_scopes;`,
 		); err != nil {
 			return fmt.Errorf("reset history read model: %w", err)
@@ -211,6 +212,17 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 			payload BLOB NOT NULL,
 			payload_digest TEXT NOT NULL,
 			PRIMARY KEY (scope, generation, sequence)
+		) WITHOUT ROWID`,
+		`CREATE TABLE IF NOT EXISTS history_read_details (
+			scope TEXT NOT NULL,
+			generation TEXT NOT NULL,
+			detail_ref TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			media_type TEXT NOT NULL,
+			byte_size INTEGER NOT NULL,
+			payload BLOB NOT NULL,
+			payload_digest TEXT NOT NULL,
+			PRIMARY KEY (scope, generation, detail_ref)
 		) WITHOUT ROWID`,
 		`CREATE INDEX IF NOT EXISTS history_read_groups_cursor
 			ON history_read_groups(scope, generation, cursor_round_id, sequence)`,
@@ -829,6 +841,9 @@ func (m *historyReadModel) persist(
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_groups WHERE scope = ?`, access.Scope); err != nil {
 		return err
 	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_details WHERE scope = ?`, access.Scope); err != nil {
+		return err
+	}
 	disabledReason := ""
 	disabledDigest := ""
 	disabledCoverage := ""
@@ -903,12 +918,32 @@ func insertHistoryReadModelGroups(
 		return err
 	}
 	defer statement.Close()
+	detailStatement, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO history_read_details(
+			scope, generation, detail_ref, kind, media_type,
+			byte_size, payload, payload_digest
+		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+	)
+	if err != nil {
+		return err
+	}
+	defer detailStatement.Close()
 	totalBytes := int64(0)
 	for index, group := range groups {
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		payload, marshalErr := marshalHistoryPageJSONBounded(group, historyReadModelMaxGroupBytes)
+		projected, details, projectionErr := projectHistoryReadModelGroup(
+			scope,
+			generation,
+			index,
+			group,
+		)
+		if projectionErr != nil {
+			return projectionErr
+		}
+		payload, marshalErr := marshalHistoryPageJSONBounded(projected, historyReadModelMaxGroupBytes)
 		if marshalErr != nil {
 			return marshalErr
 		}
@@ -916,6 +951,12 @@ func insertHistoryReadModelGroups(
 			return errHistoryPageIndexResourceLimit
 		}
 		totalBytes += int64(len(payload))
+		for _, detail := range details {
+			if int64(len(detail.Payload)) > historyReadModelMaxDataBytes-totalBytes {
+				return errHistoryPageIndexResourceLimit
+			}
+			totalBytes += int64(len(detail.Payload))
+		}
 		metadata := historyPageIndexMetadataForGroup(group)
 		syntheticJSON, marshalErr := json.Marshal(metadata.SyntheticInterrupts)
 		if marshalErr != nil {
@@ -941,6 +982,21 @@ func insertHistoryReadModelGroups(
 		); err != nil {
 			return err
 		}
+		for _, detail := range details {
+			if _, err = detailStatement.ExecContext(
+				ctx,
+				scope,
+				generation,
+				detail.Ref,
+				detail.Kind,
+				detail.MediaType,
+				len(detail.Payload),
+				detail.Payload,
+				detail.Digest,
+			); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -960,6 +1016,9 @@ func (m *historyReadModel) deleteScope(ctx context.Context, scope string) error 
 		return err
 	}
 	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_details WHERE scope = ?`, scope); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_groups WHERE scope = ?`, scope); err != nil {
 		return err
 	}
@@ -979,6 +1038,14 @@ func (m *historyReadModel) evictColdScopes(ctx context.Context, cutoff time.Time
 		return err
 	}
 	defer tx.Rollback()
+	if _, err = tx.ExecContext(
+		ctx,
+		`DELETE FROM history_read_details
+		 WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
+		cutoff.UnixMilli(),
+	); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(
 		ctx,
 		`DELETE FROM history_read_groups

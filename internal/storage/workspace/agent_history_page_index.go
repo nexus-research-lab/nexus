@@ -57,6 +57,17 @@ func (s *AgentHistoryStore) historyPageAccess(
 	}
 }
 
+// ReadMessageDetailContext 读取当前 DM generation 中的大型消息 detail。
+func (s *AgentHistoryStore) ReadMessageDetailContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionValue protocol.Session,
+	ref string,
+) (HistoryMessageDetail, error) {
+	access := s.historyPageAccess(workspacePath, sessionValue)
+	return access.ReadModel.loadDetail(ctx, access, ref)
+}
+
 func (s *AgentHistoryStore) validateAgentHistoryPageSources(
 	ctx context.Context,
 	workspacePath string,

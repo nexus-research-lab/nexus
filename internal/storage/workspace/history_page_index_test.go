@@ -4,13 +4,16 @@
 package workspace
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +22,100 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestHistoryReadModelDefersLargeToolResultAndImageDetails(t *testing.T) {
+	root := t.TempDir()
+	model := sharedHistoryReadModel(root)
+	access := historyPageIndexAccess{
+		Scope:     "large-detail-" + t.Name(),
+		ReadModel: model,
+		OpenRoot: func(bool) (*confinedfs.Root, error) {
+			return confinedfs.Open(root)
+		},
+		ValidateSources: func(context.Context, []historyPageSourceSnapshot) (bool, error) {
+			return true, nil
+		},
+	}
+	toolContent := strings.Repeat("tool-result-", 32*1024)
+	imageBytes := bytes.Repeat([]byte{0x42}, historyMessageDetailThresholdBytes)
+	built := historyPageIndexBuild{
+		Cacheable: true,
+		Groups: []historyPageIndexedGroup{{
+			CursorRoundID:        "round-large-detail",
+			CursorRoundTimestamp: 1,
+			GroupKey:             "round:round-large-detail",
+			Items: []protocol.Message{{
+				"message_id": "assistant-large-detail",
+				"round_id":   "round-large-detail",
+				"role":       "assistant",
+				"timestamp":  int64(1),
+				"content": []any{
+					map[string]any{
+						"type":        "tool_result",
+						"tool_use_id": "tool-large",
+						"content":     toolContent,
+					},
+					map[string]any{
+						"type":      "image",
+						"mime_type": "image/png",
+						"data":      base64.StdEncoding.EncodeToString(imageBytes),
+					},
+				},
+			}},
+		}},
+	}
+	if err := model.persist(context.Background(), access, built); err != nil {
+		t.Fatal(err)
+	}
+	page, ok, err := model.load(
+		context.Background(),
+		access,
+		historyPageIndexRequest{Limit: 1},
+	)
+	if err != nil || !ok || len(page.Items) != 1 {
+		t.Fatalf("load large detail page: ok=%t page=%+v err=%v", ok, page, err)
+	}
+	blocks, ok := page.Items[0]["content"].([]any)
+	if !ok || len(blocks) != 2 {
+		t.Fatalf("projected blocks = %#v", page.Items[0]["content"])
+	}
+	toolBlock := blocks[0].(map[string]any)
+	toolRef := stringFromAny(toolBlock["detail_ref"])
+	if toolRef == "" || toolBlock["detail_truncated"] != true || toolBlock["content"] == toolContent {
+		t.Fatalf("large tool result was not deferred: %#v", toolBlock)
+	}
+	toolDetail, err := model.loadDetail(context.Background(), access, toolRef)
+	if err != nil || toolDetail.Kind != historyMessageDetailKindToolResult {
+		t.Fatalf("load tool detail: detail=%+v err=%v", toolDetail, err)
+	}
+	var restoredToolContent string
+	if err = json.Unmarshal(toolDetail.Payload, &restoredToolContent); err != nil || restoredToolContent != toolContent {
+		t.Fatalf("restored tool content mismatch: len=%d err=%v", len(restoredToolContent), err)
+	}
+
+	imageBlock := blocks[1].(map[string]any)
+	imageRef := stringFromAny(imageBlock["detail_ref"])
+	if imageRef == "" || imageBlock["data"] != nil {
+		t.Fatalf("large image was not deferred: %#v", imageBlock)
+	}
+	imageDetail, err := model.loadDetail(context.Background(), access, imageRef)
+	if err != nil || imageDetail.Kind != historyMessageDetailKindImage ||
+		!bytes.Equal(imageDetail.Payload, imageBytes) {
+		t.Fatalf("load image detail: size=%d kind=%s err=%v", len(imageDetail.Payload), imageDetail.Kind, err)
+	}
+	wrongScope := access
+	wrongScope.Scope += "-other-session"
+	if _, err = model.loadDetail(context.Background(), wrongScope, toolRef); !errors.Is(err, ErrHistoryMessageDetailUnavailable) {
+		t.Fatalf("cross-session detail ref must fail closed: %v", err)
+	}
+	staleAccess := access
+	staleAccess.ValidateSources = func(context.Context, []historyPageSourceSnapshot) (bool, error) {
+		return false, nil
+	}
+	if _, err = model.loadDetail(context.Background(), staleAccess, toolRef); !errors.Is(err, ErrHistoryMessageDetailUnavailable) {
+		t.Fatalf("stale generation detail ref must fail closed: %v", err)
+	}
+}
 
 func TestAgentHistoryPageIndexMatchesCanonicalPagination(t *testing.T) {
 	root := t.TempDir()

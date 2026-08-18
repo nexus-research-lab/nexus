@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 Session 身份、round 游标、分页/around 请求与取消信号。
+ * OUTPUT: 代次隔离、可取消且按完整 round 有界合并的历史窗口。
+ * POS: Agent 会话增量历史请求与提交边界。
+ */
 import type {
   Dispatch,
   MutableRefObject,
@@ -16,6 +21,10 @@ import {
   sortMessages,
 } from "../message/message-collection-model";
 import {
+  boundLoadedMessages,
+  loadedMessageRoundIds,
+} from "../message/message-window-model";
+import {
   planOlderHistoryRequest,
   planRoundWindowHistoryRequest,
   type AgentConversationHistoryCursor,
@@ -26,6 +35,7 @@ interface AgentConversationHistoryContext {
   activeSessionKeyRef: RefObject<string | null>;
   historyCursorRef: MutableRefObject<AgentConversationHistoryCursor>;
   identity: AgentConversationIdentity | null;
+  signal: AbortSignal;
   setError: Dispatch<SetStateAction<string | null>>;
   setHasMoreHistory: (nextValue: boolean) => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
@@ -49,6 +59,7 @@ interface LoadRoundWindowMessagesParams
 async function requestHistoryPage(
   request: ConversationHistoryRequest,
   isCurrent: () => boolean,
+  signal: AbortSignal,
 ): Promise<ConversationMessagePage | null> {
   for (;;) {
     const page = request.source.kind === "room"
@@ -56,24 +67,45 @@ async function requestHistoryPage(
         request.source.roomId,
         request.source.conversationId,
         request.query,
+        signal,
       )
-      : await getSessionMessagesApi(request.source.sessionKey, request.query);
+      : await getSessionMessagesApi(
+        request.source.sessionKey,
+        request.query,
+        signal,
+      );
     if (!page.indexing) {
       return page;
     }
     if (!isCurrent()) {
       return null;
     }
-    await waitForHistoryIndex(page.retry_after_ms);
+    await waitForHistoryIndex(page.retry_after_ms, signal);
     if (!isCurrent()) {
       return null;
     }
   }
 }
 
-function waitForHistoryIndex(retryAfterMs: number): Promise<void> {
+function waitForHistoryIndex(
+  retryAfterMs: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Aborted", "AbortError"));
+  }
   const delay = Math.min(Math.max(retryAfterMs, 100), 5_000);
-  return new Promise((resolve) => window.setTimeout(resolve, delay));
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delay);
+    const handleAbort = (): void => {
+      window.clearTimeout(timeout);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
 }
 
 function isCurrentHistoryRequest(
@@ -108,7 +140,13 @@ function commitOlderHistoryPage(
   }
 
   context.setMessages((currentMessages) =>
-    mergeLoadedMessages(sortedMessages, currentMessages),
+    boundLoadedMessages(
+      mergeLoadedMessages(sortedMessages, currentMessages),
+      {
+        anchorRoundIds: loadedMessageRoundIds(sortedMessages),
+        preference: "anchor",
+      },
+    ),
   );
   updateHistoryCursor(context.historyCursorRef, page);
   context.setHasMoreHistory(page.has_more);
@@ -126,7 +164,13 @@ function commitRoundWindowHistoryPage(
   }
 
   context.setMessages((currentMessages) =>
-    mergeLoadedMessages(sortedMessages, currentMessages),
+    boundLoadedMessages(
+      mergeLoadedMessages(sortedMessages, currentMessages),
+      {
+        anchorRoundIds: loadedMessageRoundIds(sortedMessages),
+        preference: "anchor",
+      },
+    ),
   );
   if (page.next_before_round_timestamp) {
     updateHistoryCursor(context.historyCursorRef, page);
@@ -164,11 +208,15 @@ export async function loadOlderAgentConversationMessages(
     const page = await requestHistoryPage(
       request,
       () => isCurrentHistoryRequest(request, context.activeSessionKeyRef),
+      context.signal,
     );
     return page && isCurrentHistoryRequest(request, context.activeSessionKeyRef)
       ? commitOlderHistoryPage(page, context)
       : false;
   } catch (error) {
+    if (context.signal.aborted) {
+      return false;
+    }
     if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
     }
@@ -204,6 +252,7 @@ export async function loadAgentConversationMessagesAroundRound(
     const page = await requestHistoryPage(
       request,
       () => isCurrentHistoryRequest(request, context.activeSessionKeyRef),
+      context.signal,
     );
     if (!page || !isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
@@ -211,6 +260,9 @@ export async function loadAgentConversationMessagesAroundRound(
     context.onRoundResolved(context.roundId);
     return commitRoundWindowHistoryPage(page, context);
   } catch (error) {
+    if (context.signal.aborted) {
+      return false;
+    }
     if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
     }

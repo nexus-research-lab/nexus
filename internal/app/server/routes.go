@@ -1,3 +1,6 @@
+// INPUT: 已装配的 HTTP handlers 与统一 API prefix。
+// OUTPUT: 核心、Session、Room、能力和 Web 路由表。
+// POS: app 层唯一 HTTP route composition root。
 package server
 
 import "strings"
@@ -126,11 +129,9 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
 	s.router.Post(s.prefixPath("/sessions"), s.handlers.agent.HandleCreateSession)
 	s.router.Get(s.prefixPath("/sessions/messages"), s.handlers.agent.HandleSessionMessagesByQuery)
+	s.router.Get(s.prefixPath("/sessions/message-detail"), s.handlers.agent.HandleSessionMessageDetailByQuery)
 	s.router.Get(s.prefixPath("/sessions/rounds"), s.handlers.agent.HandleSessionRoundsByQuery)
-	s.router.Get(s.prefixPath("/sessions/turns"), s.handlers.agent.HandleSessionTurnsByQuery)
-	s.router.Get(s.prefixPath("/sessions/turn-index"), s.handlers.agent.HandleSessionTurnIndexByQuery)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
-	s.router.Get(s.prefixPath("/sessions/{session_key}/turns"), s.handlers.agent.HandleSessionTurns)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleSessionRuntimeSettings)
 	s.router.Put(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleUpdateSessionRuntimeSettings)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleSessionLocalDirectories)
@@ -157,7 +158,6 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Patch(s.prefixPath("/rooms/{room_id}/members/{agent_id}/participation"), s.handlers.room.HandleSetRoomMemberParticipation)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations"), s.handlers.room.HandleCreateConversation)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/messages"), s.handlers.room.HandleConversationMessages)
-	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/turns"), s.handlers.room.HandleConversationTurns)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks"), s.handlers.room.HandleConversationSubagentTasks)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks/{task_id}/messages"), s.handlers.room.HandleConversationSubagentTaskMessages)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks/{task_id}/messages"), s.handlers.room.HandleSendConversationSubagentTaskMessage)

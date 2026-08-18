@@ -69,9 +69,106 @@ test("indexing responses stay in the request loop instead of becoming empty hist
     ),
   ]);
   assert.match(historySource, /if \(!page\.indexing\) \{\s*return page;/);
-  assert.match(historySource, /await waitForHistoryIndex\(page\.retry_after_ms\)/);
+  assert.match(historySource, /await waitForHistoryIndex\(page\.retry_after_ms, signal\)/);
+  assert.match(historySource, /signal: AbortSignal/);
+  assert.match(historySource, /signal\.addEventListener\("abort"/);
   assert.match(roundIndexApi, /if \(!result\.indexing\)/);
   assert.match(roundIndexApi, /await waitForSessionRoundIndex/);
   assert.match(roundIndexHook, /new AbortController\(\)/);
   assert.match(roundIndexHook, /return \(\) => controller\.abort\(\)/);
+});
+
+test("message history keeps complete root rounds inside a bounded browser window", async () => {
+  const { boundLoadedMessages } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-window-model.ts",
+  );
+  const messages = Array.from({ length: 20 }, (_, index) => ([
+    {
+      agent_id: "amy",
+      content: `user-${index}`,
+      message_id: `user-${index}`,
+      role: "user",
+      round_id: `round-${index}`,
+      session_key: "agent:amy:ws:dm:test",
+      timestamp: index * 2,
+    },
+    {
+      agent_id: "amy",
+      content: [{ type: "text", text: `assistant-${index}` }],
+      message_id: `assistant-${index}`,
+      role: "assistant",
+      round_id: `round-${index}`,
+      session_key: "agent:amy:ws:dm:test",
+      timestamp: index * 2 + 1,
+    },
+  ])).flat();
+
+  const latest = boundLoadedMessages(messages, {
+    maxBytes: Number.MAX_SAFE_INTEGER,
+    maxRounds: 3,
+    preference: "latest",
+  });
+  assert.deepEqual(
+    [...new Set(latest.map((message) => message.round_id))],
+    ["round-17", "round-18", "round-19"],
+  );
+  assert.equal(latest.length, 6, "a root round must never be split");
+
+  const around = boundLoadedMessages(messages, {
+    anchorRoundIds: ["round-2"],
+    maxBytes: Number.MAX_SAFE_INTEGER,
+    maxRounds: 9,
+    preference: "anchor",
+  });
+  const retained = new Set(around.map((message) => message.round_id));
+  assert.equal(retained.size, 9);
+  assert.equal(retained.has("round-2"), true);
+  for (let index = 12; index < 20; index += 1) {
+    assert.equal(retained.has(`round-${index}`), true);
+  }
+
+  const byteBounded = boundLoadedMessages([
+    { ...messages[0], content: "a".repeat(2_000), round_id: "large-old" },
+    { ...messages[2], content: "b".repeat(2_000), round_id: "large-new" },
+  ], {
+    maxBytes: 512,
+    maxRounds: 10,
+    preference: "latest",
+  });
+  assert.deepEqual(
+    [...new Set(byteBounded.map((message) => message.round_id))],
+    ["large-new"],
+    "one oversized latest round remains atomic without retaining older rounds",
+  );
+});
+
+test("large message details load only on demand and remain abortable", async () => {
+  const [toolDetailSource, toolControllerSource, imageBlockSource, sessionApiSource] = await Promise.all([
+    readFile(
+      path.join(webRoot, "src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx"),
+      "utf8",
+    ),
+    readFile(
+      path.join(webRoot, "src/features/conversation/shared/message/blocks/tool/use-tool-block-controller.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(webRoot, "src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx"),
+      "utf8",
+    ),
+    readFile(
+      path.join(webRoot, "src/lib/api/conversation/session-api.ts"),
+      "utf8",
+    ),
+  ]);
+  assert.match(toolDetailSource, /new AbortController\(\)/);
+  assert.match(toolDetailSource, /getSessionMessageDetailApi/);
+  assert.match(toolDetailSource, /return \(\) => controller\.abort\(\)/);
+  assert.match(toolControllerSource, /resolveCompleteToolResult/);
+  assert.match(toolControllerSource, /getSessionMessageDetailApi/);
+  assert.match(imageBlockSource, /getSessionMessageImageDetailApi/);
+  assert.match(imageBlockSource, /URL\.createObjectURL/);
+  assert.match(imageBlockSource, /return \(\) => \{/);
+  assert.match(sessionApiSource, /applyDesktopRequestHeaders/);
+  assert.match(sessionApiSource, /\/sessions\/message-detail/);
 });

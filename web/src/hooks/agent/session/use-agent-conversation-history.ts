@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 Session 身份与消息集合 setter。
+ * OUTPUT: 分页 cursor、加载状态和按 Session 重置的请求取消所有权。
+ * POS: React 层历史分页生命周期协调器。
+ */
 import {
   useCallback,
   useRef,
@@ -40,6 +45,7 @@ export function useAgentConversationHistory({
   const isHistoryLoadingRef = useRef(false);
   const isRoundWindowLoadingRef = useRef(false);
   const hasMoreHistoryRef = useRef(false);
+  const requestControllersRef = useRef<Set<AbortController>>(new Set());
   const historyCursorRef = useRef<AgentConversationHistoryCursor>({
     before_round_id: null,
     before_round_timestamp: null,
@@ -67,11 +73,13 @@ export function useAgentConversationHistory({
     setResolvedHistoryRoundIds((currentRoundIds) => (
       currentRoundIds.includes(normalized)
         ? currentRoundIds
-        : [...currentRoundIds, normalized]
+        : [...currentRoundIds, normalized].slice(-1_024)
     ));
   }, []);
 
   const resetHistoryPagination = useCallback(() => {
+    requestControllersRef.current.forEach((controller) => controller.abort());
+    requestControllersRef.current.clear();
     historyCursorRef.current = {
       before_round_id: null,
       before_round_timestamp: null,
@@ -83,18 +91,25 @@ export function useAgentConversationHistory({
   }, [setHasMoreHistory, setHistoryLoading]);
 
   const loadOlderMessages = useCallback(async (): Promise<boolean> => {
-    return loadOlderAgentConversationMessages({
-      activeSessionKeyRef,
-      hasMoreHistoryRef,
-      historyCursorRef,
-      identity,
-      isHistoryLoadingRef,
-      setError,
-      setHasMoreHistory,
-      setHistoryLoading,
-      setHistoryPrependToken,
-      setMessages,
-    });
+    const controller = new AbortController();
+    requestControllersRef.current.add(controller);
+    try {
+      return await loadOlderAgentConversationMessages({
+        activeSessionKeyRef,
+        hasMoreHistoryRef,
+        historyCursorRef,
+        identity,
+        isHistoryLoadingRef,
+        setError,
+        setHasMoreHistory,
+        setHistoryLoading,
+        setHistoryPrependToken,
+        setMessages,
+        signal: controller.signal,
+      });
+    } finally {
+      requestControllersRef.current.delete(controller);
+    }
   }, [
     activeSessionKeyRef,
     identity,
@@ -105,17 +120,24 @@ export function useAgentConversationHistory({
   ]);
 
   const loadRoundWindow = useCallback(async (roundId: string): Promise<boolean> => {
-    return loadAgentConversationMessagesAroundRound({
-      activeSessionKeyRef,
-      historyCursorRef,
-      identity,
-      isRoundWindowLoadingRef,
-      onRoundResolved: markHistoryRoundResolved,
-      roundId,
-      setError,
-      setHasMoreHistory,
-      setMessages,
-    });
+    const controller = new AbortController();
+    requestControllersRef.current.add(controller);
+    try {
+      return await loadAgentConversationMessagesAroundRound({
+        activeSessionKeyRef,
+        historyCursorRef,
+        identity,
+        isRoundWindowLoadingRef,
+        onRoundResolved: markHistoryRoundResolved,
+        roundId,
+        setError,
+        setHasMoreHistory,
+        setMessages,
+        signal: controller.signal,
+      });
+    } finally {
+      requestControllersRef.current.delete(controller);
+    }
   }, [
     activeSessionKeyRef,
     identity,

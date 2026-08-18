@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 conversation identity、消息集合和 Session 传输能力。
+ * OUTPUT: Session 切换/分页/重载/清理能力与衍生状态。
+ * POS: Agent conversation 对外 Session Hook 门面。
+ */
 import {
   useCallback,
   type Dispatch,
@@ -126,6 +131,8 @@ export function useAgentConversationSession({
         return;
       }
 
+      lifecycleContext.refs.loadAbortController.current?.abort();
+      lifecycleContext.refs.loadAbortController.current = null;
       activeSessionKeyRef.current = normalizedKey;
       // 普通会话切换不取消已发送请求；ACK registry 跨切换按
       // client_request_id 完成原 Promise，Feed 仍只显示当前会话事件。
@@ -144,6 +151,7 @@ export function useAgentConversationSession({
     [
       activeSessionKeyRef,
       clearLiveSessionState,
+      lifecycleContext,
       resetHistoryPagination,
       resetRuntimeMachine,
       setIsSessionLoading,
