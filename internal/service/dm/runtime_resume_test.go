@@ -289,8 +289,10 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	staleClient := newFakeDMClient()
 	staleClient.sessionID = oldSessionID
 	client := newFakeDMClient()
-	client.sessionID = newSessionID
+	// Claude Code 在 Connect 后尚未公布 fork identity，直到首条 query 才通过 init 返回。
+	client.sessionID = ""
 	client.onQuery = func(_ context.Context, _ string) {
+		client.sessionID = newSessionID
 		go func() {
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
@@ -319,7 +321,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	service.SetProviderResolver(providerService)
 	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
-		AgentRuntimeKind: "nxs",
+		AgentRuntimeKind: "claude",
 		DefaultAgentOptions: protocol.Options{
 			Provider: "glm",
 			Model:    "glm-5.1",
@@ -395,7 +397,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	now := time.Now().UTC()
 	connectorIDs := []string{"feishu-docx"}
 	sessionOptions := protocol.WithSessionRuntimeSettings(map[string]any{
-		protocol.OptionRuntimeKind:     "nxs",
+		protocol.OptionRuntimeKind:     "claude",
 		protocol.OptionRuntimeProvider: "glm",
 		protocol.OptionRuntimeModel:    "glm-5.1",
 	}, protocol.SessionRuntimeSettings{ConnectorIDs: &connectorIDs})

@@ -446,6 +446,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.runtimeProvider = preparation.runtimeProvider
 	r.runtimeModel = preparation.runtimeModel
 	r.toolSurfaceFingerprint = preparation.toolSurfaceFingerprint
+	r.forkSourceSessionID = preparation.forkSourceSessionID
 	r.goalContext = preparation.goalContext
 	r.goalIDForUsage = preparation.goalIDForUsage
 	r.childGoalIDForUsage = preparation.goalIDForUsage
