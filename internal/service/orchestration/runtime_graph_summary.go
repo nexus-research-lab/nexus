@@ -10,9 +10,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 )
 
 const runtimeGraphSummaryRuneLimit = 600
@@ -49,6 +51,9 @@ func runtimeGraphLifecycleEvents(
 		events = sdkprotocol.DeriveRuntimeLifecycleEvents(message)
 	}
 	result := append([]sdkprotocol.RuntimeLifecycleEvent(nil), events...)
+	for index := range result {
+		annotateRuntimeGraphCommandTransport(message, &result[index])
+	}
 	result = append(result, runtimeGraphSubagentToolEvents(message)...)
 	if message.ToolUseSummary == nil || strings.TrimSpace(message.ToolUseSummary.Summary) == "" {
 		return result
@@ -108,6 +113,7 @@ func runtimeGraphSubagentToolEvents(
 			continue
 		}
 		for _, event := range sdkprotocol.DeriveRuntimeLifecycleEvents(nested) {
+			annotateRuntimeGraphCommandTransport(nested, &event)
 			if strings.TrimSpace(event.ParentSubjectID) == "" {
 				event.ParentSubjectID = parentToolUseID
 			}
@@ -115,6 +121,41 @@ func runtimeGraphSubagentToolEvents(
 		}
 	}
 	return result
+}
+
+// annotateRuntimeGraphCommandTransport projects only a boolean semantic fact
+// from the exact ToolUse input. The strict parser rejects pipelines, chaining,
+// substitutions, arbitrary executables and non-managed input files; raw command
+// text and Tool input never enter Runtime Graph persistence.
+func annotateRuntimeGraphCommandTransport(
+	message sdkprotocol.ReceivedMessage,
+	event *sdkprotocol.RuntimeLifecycleEvent,
+) {
+	if event == nil || event.NodeKind != sdkprotocol.RuntimeLifecycleNodeTool ||
+		message.Assistant == nil {
+		return
+	}
+	for _, block := range message.Assistant.Message.Content {
+		toolUse, ok := sdkprotocol.AsToolUseBlock(block)
+		if !ok || strings.TrimSpace(toolUse.ID) != strings.TrimSpace(event.SubjectID) {
+			continue
+		}
+		invocation, ok := toolpolicy.NexusRuntimeCLIInvocation(sdkpermission.Request{
+			ToolName:  toolUse.Name,
+			Input:     toolUse.InputMap(),
+			ToolUseID: toolUse.ID,
+		})
+		if !ok || invocation.Domain != "goal" && invocation.Domain != "execution" {
+			return
+		}
+		if event.Metadata == nil {
+			event.Metadata = make(map[string]string)
+		}
+		event.Metadata[runtimeGraphCommandTransportMetadataKey] = "true"
+		event.Metadata[runtimeGraphCommandDomainMetadataKey] = invocation.Domain
+		event.Metadata[runtimeGraphCommandActionMetadataKey] = invocation.Action
+		return
+	}
 }
 
 func runtimeGraphEvidenceForEvent(

@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,7 +111,7 @@ func (f *runtimeGraphRepositoryFake) GetRuntimeGraph(
 	return f.graph, nil
 }
 
-func TestRuntimeCommandReceiptsPromoteCLITransportInOneGraphRead(t *testing.T) {
+func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 18, 16, 0, 0, 0, time.UTC)
 	actor := ActorContext{
@@ -240,6 +241,110 @@ func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testin
 	}
 	if repository.finishedStatus != protocol.ExecutionRuntimeNodeInterrupted {
 		t.Fatalf("finished status = %q, want interrupted", repository.finishedStatus)
+	}
+}
+
+func TestRuntimeGraphMarksOnlyExactManagedCLITransportAsDetail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		toolName  string
+		command   string
+		transport bool
+	}{
+		{
+			name: "managed Bash execution inspect", toolName: "Bash",
+			command: `"${NEXUS_COMMAND_PATH}" --json execution inspect`, transport: true,
+		},
+		{
+			name: "managed PowerShell Goal inspect", toolName: "PowerShell",
+			command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, transport: true,
+		},
+		{
+			name: "shell chaining remains observable", toolName: "Bash",
+			command: `"${NEXUS_COMMAND_PATH}" --json execution inspect; make deploy`,
+		},
+		{
+			name: "ordinary Bash remains observable", toolName: "Bash",
+			command: `go test ./internal/service/orchestration`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			message, err := sdkprotocol.DecodeMessage(map[string]any{
+				"type": "assistant", "uuid": "assistant-1",
+				"message": map[string]any{
+					"role": "assistant",
+					"content": []any{map[string]any{
+						"type": "tool_use", "id": "tool-1", "name": test.toolName,
+						"input": map[string]any{"command": test.command},
+					}},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := runtimeGraphLifecycleEvents(message)
+			if len(events) != 1 {
+				t.Fatalf("lifecycle events = %+v", events)
+			}
+			marked := strings.EqualFold(
+				events[0].Metadata[runtimeGraphCommandTransportMetadataKey],
+				"true",
+			)
+			if marked != test.transport {
+				t.Fatalf("managed transport = %t, want %t metadata=%+v", marked, test.transport, events[0].Metadata)
+			}
+		})
+	}
+}
+
+func TestRuntimeGraphPersistsManagedCLITransportWithoutRawCommand(t *testing.T) {
+	t.Parallel()
+
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time {
+		return time.Date(2026, 8, 18, 17, 0, 0, 0, time.UTC)
+	}
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant", "uuid": "assistant-1",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use", "id": "tool-1", "name": "Bash",
+				"input": map[string]any{
+					"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`,
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.nodes) != 2 {
+		t.Fatalf("runtime graph nodes = %+v", repository.nodes)
+	}
+	tool := repository.nodes[1]
+	if !runtimeGraphIsCommandTransport(tool) ||
+		runtimeGraphMetadataString(tool, runtimeGraphCommandDomainMetadataKey) != "execution" ||
+		runtimeGraphMetadataString(tool, runtimeGraphCommandActionMetadataKey) != "inspect" {
+		t.Fatalf("managed command transport metadata = %+v", tool.Metadata)
+	}
+	if _, leaked := tool.Metadata["command"]; leaked {
+		t.Fatalf("managed command text leaked into runtime graph metadata: %+v", tool.Metadata)
+	}
+	if projected := projectRuntimeGraphNode(tool, 0, true); projected.Visibility != protocol.ExecutionGraphNodeDetail {
+		t.Fatalf("managed command transport visibility = %q", projected.Visibility)
 	}
 }
 
@@ -1107,6 +1212,7 @@ func TestRuntimeGraphReviewEdgesUseSuccessfulSubmissionAsControlAnchor(t *testin
 			{ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent},
 			{
 				ID: "submit-1", Kind: protocol.ExecutionGraphNodeTool,
+				Visibility:   protocol.ExecutionGraphNodeNested,
 				ParentNodeID: "work-1", Name: "submit_work",
 				LifecycleStatus: "succeeded", StartedAt: &now,
 			},
@@ -1123,6 +1229,17 @@ func TestRuntimeGraphReviewEdgesUseSuccessfulSubmissionAsControlAnchor(t *testin
 	if view.Graph.Edges[0].SourceNodeID != "submit-1" ||
 		view.Graph.Edges[1].TargetNodeID != "submit-1" {
 		t.Fatalf("review control anchor = %+v", view.Graph.Edges)
+	}
+
+	view.Graph.Nodes[1].Visibility = protocol.ExecutionGraphNodeDetail
+	view.Graph.Edges[0].SourceNodeID = "work-1"
+	view.Graph.Edges[1].TargetNodeID = "work-1"
+	reanchorExecutionReviewEdgesToSubmission(view, map[string]int{
+		"work-1": 0, "submit-1": 1, "gate-1": 2,
+	})
+	if view.Graph.Edges[0].SourceNodeID != "work-1" ||
+		view.Graph.Edges[1].TargetNodeID != "work-1" {
+		t.Fatalf("detail command transport captured visible review edges: %+v", view.Graph.Edges)
 	}
 }
 
@@ -1317,6 +1434,20 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 				t.Fatalf("runtimeGraphToolActionVisible(%q) = %t, want %t", test.toolName, got, test.visible)
 			}
 		})
+	}
+
+	managedCommand := protocol.ExecutionRuntimeNodeRun{
+		Kind:     protocol.ExecutionRuntimeNodeTool,
+		Name:     "Bash",
+		Status:   protocol.ExecutionRuntimeNodeFailed,
+		Metadata: map[string]any{runtimeGraphCommandTransportMetadataKey: true},
+	}
+	if runtimeGraphToolActionVisible(managedCommand) {
+		t.Fatal("managed Goal/Execution CLI transport must not enter the canvas")
+	}
+	projected := projectRuntimeGraphNode(managedCommand, 0, true)
+	if projected.Visibility != protocol.ExecutionGraphNodeDetail {
+		t.Fatalf("failed managed transport visibility = %q", projected.Visibility)
 	}
 }
 

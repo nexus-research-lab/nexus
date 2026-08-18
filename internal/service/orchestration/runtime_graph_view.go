@@ -714,6 +714,7 @@ func reanchorExecutionReviewEdgesToSubmission(
 	submissionByOwnerNodeID := make(map[string]protocol.ExecutionGraphNodeView)
 	for _, node := range view.Graph.Nodes {
 		if node.Kind != protocol.ExecutionGraphNodeTool ||
+			node.Visibility == protocol.ExecutionGraphNodeDetail ||
 			!runtimeGraphIsSubmissionTool(node.Name) ||
 			!strings.EqualFold(strings.TrimSpace(node.LifecycleStatus), "succeeded") ||
 			strings.TrimSpace(node.ParentNodeID) == "" {
@@ -952,7 +953,8 @@ func projectRuntimeGraphNode(
 	case protocol.ExecutionRuntimeNodeTool:
 		kind = protocol.ExecutionGraphNodeTool
 		visibility = protocol.ExecutionGraphNodeDetail
-		if item.Status != protocol.ExecutionRuntimeNodeSucceeded || promoted {
+		if !runtimeGraphIsCommandTransport(item) &&
+			(item.Status != protocol.ExecutionRuntimeNodeSucceeded || promoted) {
 			visibility = protocol.ExecutionGraphNodeNested
 		}
 	case protocol.ExecutionRuntimeNodeGate:

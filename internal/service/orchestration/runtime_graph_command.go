@@ -18,9 +18,11 @@ const (
 	runtimeGraphCommandOperationMetadataKey = "runtime_command_operation"
 	runtimeGraphCommandRequestIDMetadataKey = "runtime_command_request_id"
 	runtimeGraphCommandVerifiedMetadataKey  = "runtime_command_verified"
+	runtimeGraphCommandTransportMetadataKey = "runtime_command_transport"
+	runtimeGraphCommandActionMetadataKey    = "runtime_command_action"
 )
 
-// ObserveRuntimeCommandReceipts promotes provider Tool nodes only after their CLI
+// ObserveRuntimeCommandReceipts reconciles provider Tool nodes only after their CLI
 // envelopes match broker-owned receipts. One graph read serves the whole assistant
 // checkpoint; providers without Tool lifecycle receive deterministic fallback nodes.
 func (s *Service) ObserveRuntimeCommandReceipts(
@@ -116,6 +118,8 @@ func (s *Service) applyRuntimeCommandReceipt(
 	node.Metadata[runtimeGraphCommandOperationMetadataKey] = receipt.Operation
 	node.Metadata[runtimeGraphCommandRequestIDMetadataKey] = receipt.RequestID
 	node.Metadata[runtimeGraphCommandVerifiedMetadataKey] = true
+	node.Metadata[runtimeGraphCommandTransportMetadataKey] = true
+	node.Metadata[runtimeGraphCommandActionMetadataKey] = runtimecommand.ActionInvoke
 	if receipt.Outcome != "" {
 		node.Metadata["mutation_outcome"] = receipt.Outcome
 	}
@@ -212,6 +216,13 @@ func runtimeCommandFallbackNode(
 		RootRoundID: identity.RootRoundID, RuntimeRoundID: identity.RuntimeRoundID,
 		AgentRoundID: identity.AgentRoundID, AgentID: identity.AgentID,
 		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		Metadata: map[string]any{
+			runtimeGraphCommandDomainMetadataKey:    receipt.Domain,
+			runtimeGraphCommandOperationMetadataKey: receipt.Operation,
+			runtimeGraphCommandRequestIDMetadataKey: receipt.RequestID,
+			runtimeGraphCommandTransportMetadataKey: true,
+			runtimeGraphCommandActionMetadataKey:    runtimecommand.ActionInvoke,
+		},
 	}
 }
 
