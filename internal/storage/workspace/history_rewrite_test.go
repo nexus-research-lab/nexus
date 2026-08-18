@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -226,19 +227,33 @@ func TestAgentHistoryStoreForkRoundMarkers(t *testing.T) {
 			"timestamp": 3100, "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "回答 round-3"}}},
 		},
 	})
-	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+	pendingFork := protocol.Session{
 		SessionKey: targetSessionKey,
 		AgentID:    "nexus",
 		Options: map[string]any{
 			protocol.OptionRuntimeForkSourceSessionID: sessionID,
 			protocol.OptionRuntimeForkMessageID:       "assistant-2",
 		},
-	}, nil)
+	}
+	rows, err := history.ReadMessages(workspacePath, pendingFork, nil)
 	if err != nil {
 		t.Fatalf("读取 pending fork 历史失败: %v", err)
 	}
 	if !hasRound(rows, "round-1") || !hasRound(rows, "round-2") || hasRound(rows, "round-3") {
 		t.Fatalf("pending fork 历史未停在目标轮次: %+v", rows)
+	}
+	page, err := history.ReadMessagesPageContext(
+		context.Background(),
+		workspacePath,
+		pendingFork,
+		nil,
+		HistoryPageQuery{Limit: 10},
+	)
+	if err != nil {
+		t.Fatalf("分页读取 pending fork 历史失败: %v", err)
+	}
+	if !hasRound(page.Items, "round-1") || !hasRound(page.Items, "round-2") || hasRound(page.Items, "round-3") {
+		t.Fatalf("分页 pending fork 历史越过目标轮次: %+v", page.Items)
 	}
 }
 

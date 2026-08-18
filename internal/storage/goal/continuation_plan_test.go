@@ -49,6 +49,10 @@ func TestRepositoryGoalContinuationPlanSurvivesReopenAndFencesDuplicateWorkers(t
 	if _, err := repository.ReserveGoalContinuation(ctx, goal, 1, event, plan); err != nil {
 		t.Fatal(err)
 	}
+	deadline, err := repository.NextGoalContinuationAt(ctx)
+	if err != nil || deadline == nil || !deadline.Equal(next) {
+		t.Fatalf("scheduled continuation deadline = %v, err=%v", deadline, err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -70,6 +74,10 @@ func TestRepositoryGoalContinuationPlanSurvivesReopenAndFencesDuplicateWorkers(t
 	if claimed.Status != protocol.GoalContinuationPlanStatusClaimed || claimed.AttemptCount != 1 {
 		t.Fatalf("claimed = %#v", claimed)
 	}
+	deadline, err = repository.NextGoalContinuationAt(ctx)
+	if err != nil || deadline == nil || !deadline.Equal(leaseEnd) {
+		t.Fatalf("claimed continuation deadline = %v, err=%v", deadline, err)
+	}
 	if _, err := repository.ClaimGoalContinuation(ctx, plan.RoundID, now, leaseEnd); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("duplicate claim error = %v, want CAS miss", err)
 	}
@@ -80,6 +88,10 @@ func TestRepositoryGoalContinuationPlanSurvivesReopenAndFencesDuplicateWorkers(t
 	startedRecoveryAt := startedAt.Add(15 * time.Minute)
 	if err := repository.MarkGoalContinuationStarted(ctx, plan.RoundID, startedAt, startedRecoveryAt); err != nil {
 		t.Fatal(err)
+	}
+	deadline, err = repository.NextGoalContinuationAt(ctx)
+	if err != nil || deadline == nil || !deadline.Equal(startedRecoveryAt) {
+		t.Fatalf("started continuation deadline = %v, err=%v", deadline, err)
 	}
 	if err := repository.MarkGoalContinuationStarted(ctx, plan.RoundID, leaseEnd.Add(3*time.Second), startedRecoveryAt); err != nil {
 		t.Fatalf("idempotent started settlement: %v", err)
@@ -95,6 +107,10 @@ func TestRepositoryGoalContinuationPlanSurvivesReopenAndFencesDuplicateWorkers(t
 	}
 	if err := repository.SettleGoalContinuation(ctx, goal.ID, plan.RoundID, 1, startedRecoveryAt.Add(2*time.Second)); err != nil {
 		t.Fatal(err)
+	}
+	deadline, err = repository.NextGoalContinuationAt(ctx)
+	if err != nil || deadline != nil {
+		t.Fatalf("settled continuation deadline = %v, err=%v", deadline, err)
 	}
 	if err := repository.SettleGoalContinuation(ctx, goal.ID, plan.RoundID, 1, startedRecoveryAt.Add(3*time.Second)); err != nil {
 		t.Fatalf("idempotent terminal settlement: %v", err)

@@ -1,3 +1,6 @@
+// INPUT: Agent/Room 持久摘要与只读 Session metadata 目录。
+// OUTPUT: 保持 wire 兼容的 Launcher 首屏 agents、rooms 与 conversations 摘要。
+// POS: Launcher 首屏投影；禁止读取 transcript、overlay 或按会话计算回复预览。
 package launcher
 
 import (

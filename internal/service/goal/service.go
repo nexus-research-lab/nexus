@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -39,6 +40,7 @@ type Service struct {
 	sessionOwnership    GoalSessionOwnershipVerifier
 	roomCompletion      roomGoalCompletionReadiness
 	continuations       ContinuationDispatcher
+	autoResumeLoop      *duework.Loop
 	wallClock           *goalWallClockAccounting
 	logger              *slog.Logger
 	nowFn               func() time.Time
@@ -47,13 +49,21 @@ type Service struct {
 
 // NewService 创建 Goal 服务。
 func NewService(cfg config.Config, repo Repository) *Service {
-	return &Service{
+	service := &Service{
 		config:    cfg,
 		repo:      repo,
 		wallClock: newGoalWallClockAccounting(),
 		nowFn:     func() time.Time { return time.Now().UTC() },
 		idFactory: newID,
 	}
+	service.autoResumeLoop = duework.New(duework.Options{
+		AuditInterval: 30 * time.Second,
+		Now:           func() time.Time { return service.nowFn() },
+		OnError: func(err error) {
+			service.logAutoResumeError(context.Background(), "deadline", err)
+		},
+	})
+	return service
 }
 
 // Create 创建当前 Goal。

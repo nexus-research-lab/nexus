@@ -4,6 +4,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -31,6 +32,7 @@ type RoomHistoryStore struct {
 	paths        *Store
 	files        *SessionFileStore
 	agentHistory *AgentHistoryStore
+	readModel    *historyReadModel
 	countMu      sync.Mutex
 	countByKey   map[string]roomHistoryCountSnapshot
 }
@@ -44,10 +46,12 @@ type roomHistoryCountSnapshot struct {
 // NewRoomHistoryStore 创建 Room 共享历史门面。
 func NewRoomHistoryStore(root string) *RoomHistoryStore {
 	paths := New(root)
+	agentHistory := NewAgentHistoryStore(root)
 	return &RoomHistoryStore{
 		paths:        paths,
 		files:        newSessionFileStore(paths),
-		agentHistory: NewAgentHistoryStore(root),
+		agentHistory: agentHistory,
+		readModel:    agentHistory.readModel,
 		countByKey:   make(map[string]roomHistoryCountSnapshot),
 	}
 }
@@ -218,41 +222,38 @@ func (s *RoomHistoryStore) ListTranscriptReferences(
 	return result, nil
 }
 
-// ReadMessagesPage 按 round 读取 Room 共享历史分页。
-func (s *RoomHistoryStore) ReadMessagesPage(
+// ReadMessagesPageContext 按 root round 真分页读取 Room 历史，并允许取消索引校验与回建。
+func (s *RoomHistoryStore) ReadMessagesPageContext(
+	ctx context.Context,
 	ownerUserID string,
 	conversationID string,
 	activeRoundIDs []string,
-	limit int,
-	beforeRoundID string,
-	beforeRoundTimestamp int64,
-	aroundRoundID string,
-	aroundLimit int,
+	query HistoryPageQuery,
 ) (protocol.MessagePage, error) {
-	rows, err := s.readResolvedRows(ownerUserID, conversationID)
-	if err != nil {
-		return protocol.MessagePage{}, err
-	}
-	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
-	if strings.TrimSpace(aroundRoundID) != "" {
-		return paginateNormalizedHistoryRowsAround(
-			normalizedRows,
-			aroundRoundID,
-			aroundLimit,
-			true,
-		), nil
-	}
-	return paginateNormalizedHistoryRows(
-		normalizedRows,
-		limit,
-		beforeRoundID,
-		beforeRoundTimestamp,
-		true,
-	), nil
+	return readHistoryPageWithIndex(ctx, s.historyPageAccess(ownerUserID, conversationID), historyPageIndexRequest{
+		Limit:                query.Limit,
+		BeforeRoundID:        query.BeforeRoundID,
+		BeforeRoundTimestamp: query.BeforeRoundTimestamp,
+		AroundRoundID:        query.AroundRoundID,
+		AroundLimit:          query.AroundLimit,
+		CollapseRoomRounds:   true,
+		ActiveRoundIDs:       activeRoundIDs,
+		DeferIndex:           query.DeferIndex,
+	})
 }
 
 func (s *RoomHistoryStore) readResolvedRows(ownerUserID string, conversationID string) ([]protocol.Message, error) {
-	rows, err := s.files.readRoomJSONL(
+	return s.readResolvedRowsContext(context.Background(), ownerUserID, conversationID)
+}
+
+func (s *RoomHistoryStore) readResolvedRowsContext(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+) ([]protocol.Message, error) {
+	rows, err := readRoomJSONLWithContext(
+		ctx,
+		s.files,
 		ownerUserID,
 		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
 	)
@@ -262,17 +263,29 @@ func (s *RoomHistoryStore) readResolvedRows(ownerUserID string, conversationID s
 	if err != nil {
 		return nil, err
 	}
+	return s.resolveRoomHistoryRowsContext(ctx, ownerUserID, conversationID, rows)
+}
 
+func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	rows []map[string]any,
+) ([]protocol.Message, error) {
 	transcriptRowsByMessageID := make(map[string]map[string]protocol.Message)
 	resolved := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if stringFromAny(row[overlayKindField]) != overlayKindTranscriptRef {
 			message := protocol.Message(row)
 			message["conversation_id"] = strings.TrimSpace(conversationID)
 			resolved = append(resolved, message)
 			continue
 		}
-		messageValue, ok, resolveErr := s.resolveTranscriptReference(
+		messageValue, ok, resolveErr := s.resolveTranscriptReferenceContext(
+			ctx,
 			ownerUserID,
 			protocol.Message(row),
 			transcriptRowsByMessageID,
@@ -293,6 +306,23 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 	row protocol.Message,
 	cache map[string]map[string]protocol.Message,
 ) (protocol.Message, bool, error) {
+	return s.resolveTranscriptReferenceContext(
+		context.Background(),
+		ownerUserID,
+		row,
+		cache,
+	)
+}
+
+func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
+	ctx context.Context,
+	ownerUserID string,
+	row protocol.Message,
+	cache map[string]map[string]protocol.Message,
+) (protocol.Message, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
 	workspacePath := stringFromAny(row["workspace_path"])
 	privateSessionKey := stringFromAny(row["private_session_key"])
 	agentID := stringFromAny(row["agent_id"])
@@ -309,19 +339,21 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 	messageIndex, exists := cache[cacheKey]
 	if !exists {
 		ownerHistory := s.agentHistory.ForOwner(ownerUserID)
-		_, roundMarkers, err := ownerHistory.readOverlayRowsAndMarkers(
+		overlayState, err := ownerHistory.readOverlayHistoryStateContext(
+			ctx,
 			workspacePath,
 			privateSessionKey,
 		)
 		if err != nil {
 			return nil, false, err
 		}
-		transcriptRows, err := ownerHistory.readTranscriptMessages(
+		transcriptRows, err := ownerHistory.readTranscriptMessagesContext(
+			ctx,
 			workspacePath,
 			privateSessionKey,
 			agentID,
 			sessionID,
-			roundMarkers,
+			overlayState.RoundMarkers,
 			"",
 		)
 		if errors.Is(err, os.ErrNotExist) {

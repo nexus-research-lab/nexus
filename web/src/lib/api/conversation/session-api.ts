@@ -99,17 +99,46 @@ export async function getSessionMessagesApi(
 
 export async function getSessionRoundIndexApi(
   sessionKey: string,
+  signal?: AbortSignal,
 ): Promise<SessionRoundIndexItem[]> {
   const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
   const params = new URLSearchParams();
   params.set("session_key", normalizedSessionKey);
-  const result = await requestApi<ApiSessionRoundIndex>(
-    `${AGENT_API_BASE_URL}/sessions/rounds?${params.toString()}`,
-    {
-      method: "GET",
-    },
-  );
-  return transformApiSessionRoundIndex(result);
+  params.set("defer_index", "true");
+  for (;;) {
+    const result = await requestApi<ApiSessionRoundIndex>(
+      `${AGENT_API_BASE_URL}/sessions/rounds?${params.toString()}`,
+      {
+        method: "GET",
+        signal,
+      },
+    );
+    if (!result.indexing) {
+      return transformApiSessionRoundIndex(result);
+    }
+    await waitForSessionRoundIndex(result.retry_after_ms ?? 0, signal);
+  }
+}
+
+function waitForSessionRoundIndex(
+  retryAfterMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException("Aborted", "AbortError"));
+  }
+  const delay = Math.min(Math.max(retryAfterMs, 100), 5_000);
+  return new Promise((resolve, reject) => {
+    const timeout = globalThis.setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delay);
+    const handleAbort = (): void => {
+      globalThis.clearTimeout(timeout);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", handleAbort, {once: true});
+  });
 }
 
 export async function getSessionRuntimeSettingsApi(

@@ -4,6 +4,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -28,38 +29,24 @@ func (s *AgentHistoryStore) ReadMessages(
 	})
 }
 
-// ReadMessagesPage 按 round 分页读取 DM 历史。
-func (s *AgentHistoryStore) ReadMessagesPage(
+// ReadMessagesPageContext 按 round 真分页读取 DM 历史，并允许请求取消索引校验与回建。
+func (s *AgentHistoryStore) ReadMessagesPageContext(
+	ctx context.Context,
 	workspacePath string,
 	sessionValue protocol.Session,
 	activeRoundIDs []string,
-	limit int,
-	beforeRoundID string,
-	beforeRoundTimestamp int64,
-	aroundRoundID string,
-	aroundLimit int,
+	query HistoryPageQuery,
 ) (protocol.MessagePage, error) {
 	return withRuntimePermissionRepair(s, func() (protocol.MessagePage, error) {
-		rows, err := s.readHistoryRows(workspacePath, sessionValue)
-		if err != nil {
-			return protocol.MessagePage{}, err
-		}
-		normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
-		if strings.TrimSpace(aroundRoundID) != "" {
-			return paginateNormalizedHistoryRowsAround(
-				normalizedRows,
-				aroundRoundID,
-				aroundLimit,
-				false,
-			), nil
-		}
-		return paginateNormalizedHistoryRows(
-			normalizedRows,
-			limit,
-			beforeRoundID,
-			beforeRoundTimestamp,
-			false,
-		), nil
+		return readHistoryPageWithIndex(ctx, s.historyPageAccess(workspacePath, sessionValue), historyPageIndexRequest{
+			Limit:                query.Limit,
+			BeforeRoundID:        query.BeforeRoundID,
+			BeforeRoundTimestamp: query.BeforeRoundTimestamp,
+			AroundRoundID:        query.AroundRoundID,
+			AroundLimit:          query.AroundLimit,
+			ActiveRoundIDs:       activeRoundIDs,
+			DeferIndex:           query.DeferIndex,
+		})
 	})
 }
 
@@ -67,7 +54,15 @@ func (s *AgentHistoryStore) readHistoryRows(
 	workspacePath string,
 	sessionValue protocol.Session,
 ) ([]protocol.Message, error) {
-	overlayState, err := s.readOverlayHistoryState(workspacePath, sessionValue.SessionKey)
+	return s.readHistoryRowsContext(context.Background(), workspacePath, sessionValue)
+}
+
+func (s *AgentHistoryStore) readHistoryRowsContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionValue protocol.Session,
+) ([]protocol.Message, error) {
+	overlayState, err := s.readOverlayHistoryStateContext(ctx, workspacePath, sessionValue.SessionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +80,8 @@ func (s *AgentHistoryStore) readHistoryRows(
 	transcriptRows := make([]protocol.Message, 0)
 	segmented, _ := sessionValue.Options[protocol.OptionRuntimeSegmentedTranscript].(bool)
 	if segmented {
-		transcriptRows, err = s.readSegmentedTranscriptMessages(
+		transcriptRows, err = s.readSegmentedTranscriptMessagesContext(
+			ctx,
 			workspacePath,
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
@@ -98,7 +94,8 @@ func (s *AgentHistoryStore) readHistoryRows(
 	} else {
 		sessionID := sessionIDs[0]
 		_, forkMessageID := pendingForkTranscript(sessionValue)
-		rows, readErr := s.readTranscriptMessages(
+		rows, readErr := s.readTranscriptMessagesContext(
+			ctx,
 			workspacePath,
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
@@ -134,10 +131,31 @@ func (s *AgentHistoryStore) readSegmentedTranscriptMessages(
 	sessionIDs []string,
 	roundMarkers []transcriptRoundMarker,
 ) ([]protocol.Message, error) {
+	return s.readSegmentedTranscriptMessagesContext(
+		context.Background(),
+		workspacePath,
+		sessionKey,
+		agentID,
+		sessionIDs,
+		roundMarkers,
+	)
+}
+
+func (s *AgentHistoryStore) readSegmentedTranscriptMessagesContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	sessionIDs []string,
+	roundMarkers []transcriptRoundMarker,
+) ([]protocol.Message, error) {
 	combinedChain := make([]transcriptEntry, 0)
 	nextIndex := 0
 	for _, sessionID := range sessionIDs {
-		transcriptPath, err := s.resolveTranscriptPath(workspacePath, sessionID)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		transcriptPath, err := s.resolveTranscriptPathContext(ctx, workspacePath, sessionID)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +166,7 @@ func (s *AgentHistoryStore) readSegmentedTranscriptMessages(
 			}
 			return nil, err
 		}
-		entries, readErr := s.readTranscriptEntriesAt(root, relative)
+		entries, readErr := s.readTranscriptEntriesAtContext(ctx, root, relative)
 		_ = root.Close()
 		if readErr != nil {
 			return nil, readErr
@@ -279,7 +297,30 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	roundMarkers []transcriptRoundMarker,
 	throughMessageID string,
 ) ([]protocol.Message, error) {
-	transcriptPath, err := s.resolveTranscriptPath(workspacePath, sessionID)
+	return s.readTranscriptMessagesContext(
+		context.Background(),
+		workspacePath,
+		sessionKey,
+		agentID,
+		sessionID,
+		roundMarkers,
+		throughMessageID,
+	)
+}
+
+func (s *AgentHistoryStore) readTranscriptMessagesContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	sessionID string,
+	roundMarkers []transcriptRoundMarker,
+	throughMessageID string,
+) ([]protocol.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	transcriptPath, err := s.resolveTranscriptPathContext(ctx, workspacePath, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +336,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 		return cachedRows, nil
 	}
 
-	entries, err := s.readTranscriptEntriesAt(root, relative)
+	entries, err := s.readTranscriptEntriesAtContext(ctx, root, relative)
 	if err != nil {
 		return nil, err
 	}

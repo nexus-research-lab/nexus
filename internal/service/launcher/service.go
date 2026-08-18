@@ -1,3 +1,6 @@
+// INPUT: Launcher 配置、Agent/Room 服务与只读 Session 目录投影。
+// OUTPUT: Launcher 查询、推荐与首屏目录服务。
+// POS: Launcher 业务装配边界；首屏不得依赖 transcript/history 读取能力。
 package launcher
 
 import (
@@ -18,12 +21,18 @@ const (
 	actionOpenApp     = "open_app"
 )
 
+// directorySessionLister 刻意只暴露持久 Session metadata 目录。
+// Launcher 不持有历史读取接口，避免首屏随单个超长会话退化为全量扫描。
+type directorySessionLister interface {
+	ListDirectorySessions(context.Context) ([]protocol.Session, error)
+}
+
 // Service 提供 Launcher 查询和推荐能力。
 type Service struct {
 	config       config.Config
 	agentService *agentsvc.Service
 	roomService  *roomsvc.Service
-	session      *sessionsvc.Service
+	session      directorySessionLister
 }
 
 // NewService 创建 Launcher 服务。

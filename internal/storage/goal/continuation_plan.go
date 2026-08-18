@@ -12,7 +12,26 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
+
+// NextGoalContinuationAt 返回最早可恢复的 durable launch receipt。active
+// Goal 若尚未生成 receipt 由 mutation/runtime wake 和低频 audit 发现。
+func (r *Repository) NextGoalContinuationAt(ctx context.Context) (*time.Time, error) {
+	var deadline any
+	query := `
+SELECT MIN(CASE
+  WHEN status = 'scheduled' THEN next_attempt_at
+  ELSE claim_expires_at
+END)
+FROM goal_continuation_plans
+WHERE (status = 'scheduled' AND next_attempt_at IS NOT NULL)
+   OR (status IN ('claimed', 'started') AND claim_expires_at IS NOT NULL)`
+	if err := r.db.QueryRowContext(ctx, query).Scan(&deadline); err != nil {
+		return nil, err
+	}
+	return storage.NullableTime(deadline)
+}
 
 func (r *Repository) ReserveGoalContinuation(ctx context.Context, goal protocol.Goal, expectedVersion int64, event protocol.GoalEvent, plan protocol.GoalContinuationPlan) (*protocol.Goal, error) {
 	if goal.ID == "" || plan.RoundID == "" || plan.GoalID != goal.ID || plan.SessionKey != goal.SessionKey ||

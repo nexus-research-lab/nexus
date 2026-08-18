@@ -31,6 +31,7 @@ func (s *Service) MaterializePlanExecution(
 	actor ActorContext,
 	input MaterializePlanExecutionInput,
 ) (MutationResult, error) {
+	defer s.WakeOrchestrationRecovery()
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}

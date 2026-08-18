@@ -94,6 +94,7 @@ func (s *Service) PreparePlanExecution(
 	actor ActorContext,
 	input PreparePlanExecutionInput,
 ) (*protocol.ExecutionPlanProposal, error) {
+	defer s.WakeOrchestrationRecovery()
 	if err := validateActor(actor); err != nil {
 		return nil, err
 	}

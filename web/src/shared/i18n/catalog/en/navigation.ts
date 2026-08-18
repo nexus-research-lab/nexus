@@ -25,6 +25,7 @@ export const enNavigationMessages = {
   "sidebar.no_matching_capabilities": "No matching capabilities",
   "sidebar.directory_load_failed": "Could not load directory",
   "sidebar.directory_load_failed_description": "Your data is still here. Try loading it again.",
+  "sidebar.directory_refresh_failed_description": "Refresh failed. Showing the last loaded directory.",
   "sidebar.retry": "Reload",
   "sidebar.no_contacts": "No contacts yet",
   "sidebar.contacts_empty_description": "Contacts are your agent directory. Add one, then start DMs or group chats from Chats.",

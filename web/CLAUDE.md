@@ -63,7 +63,7 @@ src/
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
 - Room 成员的 `participation_paused` 是 Room 级持久调度状态：管理弹窗只维护成员草稿，页面命令只提交真实差异；后端暂停时收口该成员当前 slot 并闸住 queue、Agent wake、Goal continuation 与 WorkGraph dispatch，恢复后继续原样保留的工作，前端不得把它降格为一次性停止输出
-- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态与待确认人工交互统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
+- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求由单飞状态机持有，在途失效只合并一次补刷、最后订阅者卸载才取消 I/O，首次失败与合法空目录必须分离，stale 失败继续展示最后成功数据；全局目录事件不得在消费者中重复实现；聊天执行态与待确认人工交互统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
 - Group Room 完成事件须同时记录精确消息锚点与未读计数；Room 导航不得预先清除它们，只有对应 Feed 证明消息已进入视口后才逐条消费。DM 仍在进入会话时清理自身未读，未读计数和最后更新时间不能推断第一条未读 Agent 回复
 - Home ASCII Hero 的 Canvas 资源只归 `home/hero/home-ascii-scene.ts`；异步字体与尺寸重建必须绑定代次，过期任务不得启动动画循环
@@ -128,6 +128,7 @@ src/
 - DM/Room canonical 根轮次只从 `features/conversation/shared/timeline/timeline-model.ts` 派生；隐藏消息、私域 Room execution 的 slot/permission/execution 证据及其 live round 在这个入口一次性过滤，Feed、Thread 与 navigator 不得再次解释可见性；Room Feed 再由 `room/group/chat/feed/group-agent-timeline-model.ts` 把各 `agent_round` 投影为保留根因果关系的稳定时间线节点，并在节点生成前移除明确无公开回复的 entry，Thread 仍使用 canonical root；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求
 - Room 未读 Agent 队列只使用完成事件的精确消息身份、`room_seq` 和稳定 `room-agent-round` 节点；Agent 节点可能插入旧 root，标记必须以不改变测量高度的 overlay 随真实节点渲染，Composer 上方入口按目标相对视口显示向上或向下，static/virtual Feed 共用同一状态且不得改变 DM 的回到底部控件
 - 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记
+- 对话历史请求默认携带 `defer_index=true`；后端返回 `indexing` 时必须保留 loading、按 `retry_after_ms` 短请求重试并用会话代次停止旧请求，禁止把空 `items` 当成已加载的空会话；Round Navigator 复用同一 generation 与短轮询协议，切换会话时必须 abort 旧索引请求
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导
 - 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用
 - 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态、结果元数据结算资格与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，不得根据 streaming 自行隐藏或恢复模型与统计，DM live 的连续普通工具由 `item/process/dm-tool-run-segments.ts` 以首个 `tool_use.id` 稳定成段，未解析或新增长段保持展开，已解析段在叙事/final 恢复边界后折叠，Room 与人工交互工具不进入该压缩路径；User 视图按展示模型、头部、正文和编辑器分工，未匹配权限只进入 Composer 队列，不得在消息正文恢复独立操作面

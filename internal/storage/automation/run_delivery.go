@@ -1,3 +1,6 @@
+// INPUT: Automation run 的投递结果、retry/dead-letter 状态与 due 查询边界。
+// OUTPUT: CAS-safe 投递观测写入、到期 retry rows 与最早 next-attempt deadline。
+// POS: Automation delivery durable state；service timer 只消费其 deadline，不复制状态机。
 package automation
 
 import (
@@ -7,7 +10,33 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
+
+// NextDeliveryRetryAt 返回最早可自动重试的失败投递。NULL deadline 使用
+// updated_at，保持与 ListDueDeliveryRetries 相同的立即恢复语义。
+func (r *Repository) NextDeliveryRetryAt(
+	ctx context.Context,
+	maxAttempts int,
+) (*time.Time, error) {
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+	var deadline any
+	err := r.db.QueryRowContext(ctx, `
+SELECT MIN(COALESCE(delivery_next_attempt_at, updated_at))
+FROM automation_task_runs
+WHERE delivery_status = `+r.bind(1)+`
+  AND delivery_dead_letter_at IS NULL
+  AND delivery_attempts < `+r.bind(2),
+		automationdomain.DeliveryStatusFailed,
+		maxAttempts,
+	).Scan(&deadline)
+	if err != nil {
+		return nil, err
+	}
+	return storage.NullableTime(deadline)
+}
 
 // RunDeliveryUpdateInput 表示单独刷新 run 投递状态的输入。
 type RunDeliveryUpdateInput struct {
