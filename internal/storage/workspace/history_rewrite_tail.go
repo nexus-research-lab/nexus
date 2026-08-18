@@ -1,3 +1,6 @@
+// INPUT: SDK transcript 主链、Nexus round marker 与目标 round_id。
+// OUTPUT: 可安全删除的精确 transcript UUID 尾部，或可分类的边界缺失错误。
+// POS: DM rewrite/fork 在修改 runtime 历史前的只读边界解析器。
 package workspace
 
 import (
@@ -7,6 +10,11 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+// ErrTranscriptRoundNotFound 表示目标 Nexus round 尚未物化进 SDK transcript。
+// 调用方只能在另有 durable 失败证据时把它解释为 overlay-only rewrite；普通
+// rewrite/fork 仍必须拒绝，不能把 transcript 损坏静默降级成无边界删除。
+var ErrTranscriptRoundNotFound = errors.New("transcript round not found")
 
 // TranscriptRoundTail 描述一次 rewrite 需要从 SDK runtime 删除的 transcript 尾部。
 type TranscriptRoundTail struct {
@@ -56,7 +64,7 @@ func (s *AgentHistoryStore) ResolveTranscriptRoundTail(
 		targetRoundID,
 	)
 	if tail.TargetMessageUUID == "" {
-		return TranscriptRoundTail{}, fmt.Errorf("target round %s not found in transcript", targetRoundID)
+		return TranscriptRoundTail{}, fmt.Errorf("%w: %s", ErrTranscriptRoundNotFound, targetRoundID)
 	}
 	if len(tail.MessageUUIDs) == 0 {
 		return TranscriptRoundTail{}, fmt.Errorf("target round %s has no transcript uuid", targetRoundID)

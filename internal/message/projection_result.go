@@ -150,6 +150,7 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 	copyNonEmptyResultField(summary, result, "runtime_subtype")
 	copyNonEmptyResultField(summary, result, "permission_denials")
 	copyNonEmptyResultField(summary, result, "errors")
+	copyNonEmptyResultField(summary, result, "failure_phase")
 	copyNonEmptyResultField(summary, result, "terminal_reason")
 	copyNonEmptyResultField(summary, result, "stop_reason")
 

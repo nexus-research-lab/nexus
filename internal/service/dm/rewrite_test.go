@@ -2,6 +2,7 @@ package dm
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -140,4 +141,111 @@ func TestServiceHandleRewriteRemovesRuntimeTailBeforeQuery(t *testing.T) {
 	if !strings.Contains(rewritePrompt, "新问题") {
 		t.Fatalf("rewrite query 应包含新问题:\n%s", rewritePrompt)
 	}
+}
+
+func TestServiceHandleRewriteRetriesOverlayOnlyRuntimeStartupFailure(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	client := newFakeDMClient()
+	client.connectErrors = []error{errors.New("runtime unavailable")}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	permission := permissionctx.NewContext()
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	sessionKey := "agent:nexus:ws:dm:rewrite-startup-failure"
+	sender := newDMTestSender("sender-rewrite-startup-failure")
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleRealtimeChat(context.Background(), Request{
+		SessionKey:      sessionKey,
+		Content:         "重试启动失败",
+		ClientRequestID: "startup-request",
+		ClientMessageID: "startup-message",
+		RoundID:         "round-startup-failure",
+	}); err != nil {
+		t.Fatalf("受理首轮失败请求: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["status"] == protocol.RoundStatusError
+	})
+	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
+
+	failedHistory := readDMSessionHistory(t, cfg, service, sessionKey)
+	assertRuntimeStartupFailurePhase(t, failedHistory, "round-startup-failure")
+
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+					ID:      "assistant-startup-retry",
+					Content: []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "已恢复"}},
+				}},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-startup-retry",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype: "success",
+					Result:  "done",
+				},
+			}
+		}()
+	}
+	if err := service.HandleRewriteLastUserMessage(context.Background(), RewriteRequest{
+		SessionKey:      sessionKey,
+		TargetRoundID:   "round-startup-failure",
+		ClientRequestID: "retry-request",
+		ClientMessageID: "retry-message",
+		Content:         "重试启动失败",
+	}); err != nil {
+		t.Fatalf("overlay-only 重试失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["status"] == protocol.RoundStatusFinished
+	})
+	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
+
+	client.mu.Lock()
+	removeMessages := append([][]string(nil), client.removeMessages...)
+	client.mu.Unlock()
+	if len(removeMessages) != 0 {
+		t.Fatalf("未进入 transcript 的失败 round 不应删除 runtime UUID: %#v", removeMessages)
+	}
+
+	history := readDMSessionHistory(t, cfg, service, sessionKey)
+	for _, row := range history {
+		if protocol.MessageRoundID(row) == "round-startup-failure" {
+			t.Fatalf("replacement 完成后不应保留旧失败 round: %+v", history)
+		}
+	}
+	if !historyHasClientMessage(history, "retry-message") {
+		t.Fatalf("replacement round 未保留新的 client_message_id: %+v", history)
+	}
+}
+
+func assertRuntimeStartupFailurePhase(t *testing.T, rows []protocol.Message, roundID string) {
+	t.Helper()
+	for _, row := range rows {
+		summary, _ := row["result_summary"].(map[string]any)
+		if protocol.MessageRoundID(row) == roundID &&
+			protocol.MessageRole(row) == "assistant" &&
+			summary["failure_phase"] == "runtime_startup" {
+			return
+		}
+	}
+	t.Fatalf("round %s 缺少 runtime_startup durable phase: %+v", roundID, rows)
+}
+
+func historyHasClientMessage(rows []protocol.Message, clientMessageID string) bool {
+	for _, row := range rows {
+		if row["client_message_id"] == clientMessageID {
+			return true
+		}
+	}
+	return false
 }

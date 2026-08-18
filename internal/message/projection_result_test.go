@@ -377,6 +377,7 @@ func TestBuildAssistantResultSummaryPreservesRuntimeDiagnostics(t *testing.T) {
 		"role":              "result",
 		"subtype":           "error",
 		"runtime_subtype":   "error_max_turns",
+		"failure_phase":     "runtime_startup",
 		"is_error":          true,
 		"model_usage":       map[string]any{"glm-5.2": map[string]any{"input_tokens": 42}},
 		"structured_output": map[string]any{"status": "failed"},
@@ -385,6 +386,9 @@ func TestBuildAssistantResultSummaryPreservesRuntimeDiagnostics(t *testing.T) {
 
 	if summary["runtime_subtype"] != "error_max_turns" || summary["fast_mode_state"] != "cooldown" {
 		t.Fatalf("runtime diagnostics missing: %+v", summary)
+	}
+	if summary["failure_phase"] != "runtime_startup" {
+		t.Fatalf("failure phase missing: %+v", summary)
 	}
 	if summary["model_usage"] == nil || summary["structured_output"] == nil {
 		t.Fatalf("result payload diagnostics missing: %+v", summary)
