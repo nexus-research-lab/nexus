@@ -18,6 +18,8 @@ import (
 type Service interface {
 	GetCurrent(context.Context, orchestration.ActorContext) (*protocol.ExecutionSnapshot, error)
 	GetSnapshot(context.Context, orchestration.ActorContext, string) (*protocol.ExecutionSnapshot, error)
+	ReadCurrent(context.Context, orchestration.ActorContext) (*protocol.ExecutionSnapshot, error)
+	ReadSnapshot(context.Context, orchestration.ActorContext, string) (*protocol.ExecutionSnapshot, error)
 	PreparePlanExecution(context.Context, orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
 	MaterializePlanExecution(context.Context, orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) (orchestration.MutationResult, error)
 	AbandonExecution(context.Context, orchestration.ActorContext, orchestration.AbandonExecutionInput) (orchestration.MutationResult, error)

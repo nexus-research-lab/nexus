@@ -1243,6 +1243,40 @@ func TestRoomCoordinatorKeepsAuthorityWhileUnboundMemberStaysConversationOnly(t 
 		domainErr.Code != ErrorCodeConversationOnly {
 		t.Fatalf("unbound Room member snapshot error = %v", err)
 	}
+	observed, err := service.ReadSnapshot(
+		context.Background(),
+		unbound,
+		binding.ExecutionID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed.Assignments) != len(snapshot.Assignments) {
+		t.Fatalf("Room member observation assignments = %d, want %d", len(observed.Assignments), len(snapshot.Assignments))
+	}
+	wrongRoom := unbound
+	wrongRoom.RoomID = "other-room"
+	_, err = service.ReadSnapshot(
+		context.Background(),
+		wrongRoom,
+		binding.ExecutionID,
+	)
+	if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeWrongOwner {
+		t.Fatalf("cross-Room observation error = %v", err)
+	}
+	observer := unbound
+	observer.ExecutionID = binding.ExecutionID
+	observer.ObservationOnly = true
+	rendered, err = service.RuntimeContext(context.Background(), observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered, `<lane type="observation" />`) ||
+		!strings.Contains(rendered, `graph_digest notation="nexus-dag-v1" scope="full"`) ||
+		!strings.Contains(rendered, `<action>get_execution</action>`) ||
+		strings.Contains(rendered, "<assigned_work>") {
+		t.Fatalf("unbound Room member observation context = %s", rendered)
+	}
 	rendered, err = service.RuntimeContext(context.Background(), unbound)
 	if err != nil {
 		t.Fatal(err)

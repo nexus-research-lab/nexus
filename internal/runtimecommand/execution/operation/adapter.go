@@ -51,6 +51,24 @@ func loadSnapshot(
 	return svc.GetCurrent(ctx, actor)
 }
 
+func loadReadableSnapshot(
+	ctx context.Context,
+	svc contract.Service,
+	actor orchestration.ActorContext,
+	executionID string,
+) (*protocol.ExecutionSnapshot, error) {
+	if svc == nil {
+		return nil, errors.New("execution orchestration service is nil")
+	}
+	if executionID = strings.TrimSpace(executionID); executionID != "" {
+		return svc.ReadSnapshot(ctx, actor, executionID)
+	}
+	if executionID = strings.TrimSpace(actor.ExecutionID); executionID != "" {
+		return svc.ReadSnapshot(ctx, actor, executionID)
+	}
+	return svc.ReadCurrent(ctx, actor)
+}
+
 func commandID(
 	sctx contract.Context,
 	callContext *runtimecommand.CallContext,

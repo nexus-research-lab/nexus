@@ -249,7 +249,20 @@ func readRuntimeCommandInput(command *cobra.Command, inputPath string) ([]byte, 
 		return nil, usageErrorf("校验 --input-file 失败: %v", err)
 	}
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, usageErrorf("--input-file 必须是 owner 私有文件（不能授予 group/other 权限）")
+		if managedPath == "" {
+			return nil, usageErrorf("--input-file 必须是 owner 私有文件（不能授予 group/other 权限）")
+		}
+		// Runtime editors may atomically replace the host-created 0600 file with
+		// their default mode. OpenFileNoSymlink has already fenced symlinks,
+		// hardlinks and replacement races, so normalize the verified managed
+		// inode here instead of making the model run chmod.
+		if err = file.Chmod(0o600); err != nil {
+			return nil, usageErrorf("收紧受管 --input-file 权限失败: %v", err)
+		}
+		info, err = file.Stat()
+		if err != nil || info.Mode().Perm()&0o077 != 0 {
+			return nil, usageErrorf("校验受管 --input-file 权限失败")
+		}
 	}
 	return readLimitedRuntimeCommandInput(file, "--input-file")
 }

@@ -69,6 +69,7 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 - 复杂度是评估信号，不是固定路由。
 - Goal 与 WorkGraph 分别选择；只信 exact Goal context 和明确绑定意图。
 - 普通聊天、brainstorm、投票和一次性帮助只走消息，不必建图。
+- exact Room conversation 的成员可以用 `get_execution` 读取共享图的目标、拓扑和状态；`observation` lane 只表示可见性，不是 WorkBinding、ReviewBinding 或 coordination authority，不能据此提交、审核或修改图。
 - 持久成员责任一旦成立，先建图并 materialize，再按刷新后的 context Assignment；裸 `@` 不创建责任。
 - 无依赖只表示 Work Item 可同时 Ready；实际并行需要不同 Room Agent slot 或真实 Subagent。
 - 不为展示制造 Tool、Subagent、Gate 或审核节点；Bridge 投影真实运行。
