@@ -544,14 +544,19 @@ host-generated input slot's exact per-round parent directory is the only additio
 writable root granted for command staging, and incomplete, relative, or filesystem-
 root capabilities fail before runtime launch.
 
-The provider's Bash/PowerShell Tool result is only an untrusted candidate for UI
-and Runtime Graph correlation. At each assistant checkpoint, the host reconciles
-all new Execution command receipts in one batch: it reads the current Runtime
-Graph once, indexes candidate Tool nodes in memory by exact
-`domain + operation + request_id`, and upserts only matched or missing semantic
-nodes and edges. Thus graph preservation does not multiply reads by command count,
-and arbitrary shell output cannot recreate `assign_work` segment authority or a
-`submit_work` review anchor without the matching host-owned receipt.
+Goal/Execution CLI calls are control-plane transport, not independent WorkGraph
+work. The runtime observer applies the same strict, single-process Bash/PowerShell
+grammar as permission policy and persists only a boolean transport classification,
+never raw command input. Exact `${NEXUS_COMMAND_PATH}` contract, inspect, and invoke
+calls therefore remain `detail` under their direct Agent owner even when they fail,
+retry, carry an Artifact, or would otherwise match the visible Bash family; ordinary
+Bash, pipelines, chained commands, substitutions, arbitrary executables, and external
+capability calls remain observable canvas actions. Review and loop-back edges continue
+to use the structured Work Item/Agent and Gate facts rather than a `submit_work`
+transport node. At each assistant checkpoint, host-owned invoke receipts still enrich
+candidate nodes in one graph read by exact `domain + operation + request_id`; arbitrary
+shell output cannot recreate `assign_work` segment authority or any other semantic
+operation identity.
 
 `get_execution` does not mutate durable Execution or Plan state. Every verified
 member of the exact Room conversation may read a bounded shared WorkGraph

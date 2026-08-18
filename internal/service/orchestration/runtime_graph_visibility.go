@@ -24,8 +24,8 @@ var runtimeGraphVisibleToolFamilies = []string{
 
 // 未包装的 Provider 工具只有在名称表达可观察动作时才进入画布；外部 MCP
 // capability 调用默认可见，而本地 filesystem/workspace/tool discovery 服务
-// 留在详情。运行失败、控制边、
-// Artifact 与显式 hint 仍由上层结构事实提升，不能被这里的分类压回 detail。
+// 留在详情。Goal/Execution CLI 控制 transport 始终留在 direct owner 详情；
+// 其他运行失败、控制边、Artifact 与显式 hint 仍由上层结构事实提升。
 var runtimeGraphVisibleActionPrefixes = []string{
 	"append",
 	"approve",
@@ -80,6 +80,9 @@ func runtimeGraphToolActionVisible(item protocol.ExecutionRuntimeNodeRun) bool {
 	if item.Kind != protocol.ExecutionRuntimeNodeTool {
 		return false
 	}
+	if runtimeGraphIsCommandTransport(item) {
+		return false
+	}
 	name := strings.TrimSpace(item.Name)
 	if name == "" {
 		return false
@@ -99,6 +102,17 @@ func runtimeGraphToolActionVisible(item protocol.ExecutionRuntimeNodeRun) bool {
 		}
 	}
 	return strings.HasSuffix(leaf, "codeexecution")
+}
+
+func runtimeGraphIsCommandTransport(item protocol.ExecutionRuntimeNodeRun) bool {
+	switch value := item.Metadata[runtimeGraphCommandTransportMetadataKey].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
 }
 
 func runtimeGraphIsSubmissionTool(name string) bool {

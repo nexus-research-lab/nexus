@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Kept strictly recognized Goal/Execution Bash and PowerShell CLI transport calls in the owning Agent's Runtime Graph details instead of rendering them as WorkGraph canvas nodes. Ordinary shell work remains visible, while Review and loop-back edges now stay attached to structured Work Item/Agent and Gate facts rather than hidden `submit_work` transport.
 - Preserved explicit empty dotenv values instead of consuming the next comment or setting as their value, preventing a blank `WORKSPACE_PATH=` from becoming an invalid filesystem root during restart.
 - Included the exact objective revision and backend-authoritative completion criteria in both compact and structured Goal inspection results, preventing completion audits from reconstructing a current Goal boundary from transcript history or stale Plan documents.
 - Let every verified member of the exact Room conversation inspect the shared WorkGraph through a bounded observation lane, while keeping Assignment, Review, Submission, Plan mutation, Goal, and coordinator authority behind their existing exact capabilities. Member reads no longer fail through the coordinator-only activation path.
