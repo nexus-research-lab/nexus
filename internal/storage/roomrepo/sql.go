@@ -840,11 +840,15 @@ VALUES (%s, %s)%s`, insertPrefix, r.dialect.BindList(5), r.dialect.CurrentTimest
 		return r.getContextByConversation(ctx, ownerUserID, bundle.RoomID, conversationID)
 	}
 	for _, sessionValue := range bundle.Sessions {
+		optionsJSON, marshalErr := jsoncodec.MarshalMap(sessionValue.Options)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
 		if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
 INSERT INTO sessions (
     id, conversation_id, agent_id, runtime_id, version_no, branch_key,
-    is_primary, sdk_session_id, status
-) VALUES (%s)`, r.dialect.BindList(9)),
+    is_primary, sdk_session_id, options_json, status
+) VALUES (%s)`, r.dialect.BindList(10)),
 			sessionValue.ID,
 			sessionValue.ConversationID,
 			sessionValue.AgentID,
@@ -853,6 +857,7 @@ INSERT INTO sessions (
 			sessionValue.BranchKey,
 			sessionValue.IsPrimary,
 			NullIfEmpty(sessionValue.SDKSessionID),
+			optionsJSON,
 			sessionValue.Status,
 		); err != nil {
 			return nil, err

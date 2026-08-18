@@ -45,6 +45,7 @@ interface AssistantDisplayProjection {
 interface ResolveAssistantDisplayStateOptions {
   assistantContentMode: AssistantContentMode;
   hasStopHandler: boolean;
+  hasForkHandler: boolean;
   isLastRound: boolean;
   isLoading: boolean;
   pendingPermissionCount: number;
@@ -54,6 +55,7 @@ interface ResolveAssistantDisplayStateOptions {
 export function resolveAssistantDisplayState({
   assistantContentMode,
   hasStopHandler,
+  hasForkHandler,
   isLastRound,
   isLoading,
   pendingPermissionCount,
@@ -78,9 +80,14 @@ export function resolveAssistantDisplayState({
     projection.streamStatus,
   );
   const canCopy = Boolean(projection.finalAssistantText.trim());
+  const canFork = hasForkHandler
+    && resultSettled
+    && !hasStreamStatus(ACTIVE_STREAM_STATUSES, projection.streamStatus)
+    && projection.assistantMessages.length > 0;
 
   return {
     canCopy,
+    canFork,
     canStop: resolveCanStop(hasStopHandler, projection.streamStatus),
     directVisible,
     emptyStreamStatus: resolveEmptyStreamStatus(
@@ -95,6 +102,7 @@ export function resolveAssistantDisplayState({
     finalVisible,
     footerVisible: resolveFooterVisible({
       canCopy,
+      canFork,
       hasGoalCompletionReceipt: Boolean(projection.goalCompletionReceipt),
       hasStats: Boolean(projection.stats),
       isComplete: projection.streamStatus === "done",
@@ -184,6 +192,7 @@ function resolveFinalStreaming(
 
 function resolveFooterVisible({
   canCopy,
+  canFork,
   hasGoalCompletionReceipt,
   hasStats,
   isComplete,
@@ -191,6 +200,7 @@ function resolveFooterVisible({
   mode,
 }: {
   canCopy: boolean;
+  canFork: boolean;
   hasGoalCompletionReceipt: boolean;
   hasStats: boolean;
   isComplete: boolean;
@@ -202,6 +212,7 @@ function resolveFooterVisible({
     isComplete && hasGoalCompletionReceipt,
     hasStats,
     hasCompletedCopy,
+    canFork,
   ].some(Boolean);
   return [FOOTER_MODES.has(mode), isSettled, hasFooterContent].every(Boolean);
 }

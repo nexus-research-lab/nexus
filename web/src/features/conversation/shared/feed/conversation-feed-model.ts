@@ -26,6 +26,7 @@ export interface ConversationRoundRenderer {
   currentAgentAvatar?: string | null;
   currentAgentName: string | null;
   onEditLastUserMessage?: (messageId: string, newContent: string) => void;
+  onForkRound?: (roundId: string) => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (
     toolUseId: string,

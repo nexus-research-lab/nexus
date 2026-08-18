@@ -17,6 +17,10 @@ const (
 	OptionRuntimeToolSurfaceFingerprint = "runtime_tool_surface_fingerprint"
 	// OptionRuntimeSegmentedTranscript 表示一次 Nexus Session 跨多个非复制 SDK transcript 续写。
 	OptionRuntimeSegmentedTranscript = "runtime_segmented_transcript"
+	// OptionRuntimeForkSourceSessionID 表示尚待首次用户输入物化的 fork source。
+	OptionRuntimeForkSourceSessionID = "runtime_fork_source_session_id"
+	// OptionRuntimeForkMessageID 表示尚待首次用户输入物化的 fork transcript 边界。
+	OptionRuntimeForkMessageID = "runtime_fork_message_id"
 	// OptionSessionProvider 表示当前 Nexus Session 显式覆盖的 provider。
 	OptionSessionProvider = "session_provider"
 	// OptionSessionModel 表示当前 Nexus Session 显式覆盖的模型。

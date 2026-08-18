@@ -10,10 +10,11 @@ import (
 
 // TranscriptRoundTail 描述一次 rewrite 需要从 SDK runtime 删除的 transcript 尾部。
 type TranscriptRoundTail struct {
-	TargetRoundID     string
-	TargetMessageUUID string
-	MessageUUIDs      []string
-	RoundIDs          []string
+	TargetRoundID      string
+	TargetMessageUUID  string
+	TargetRoundEndUUID string
+	MessageUUIDs       []string
+	RoundIDs           []string
 }
 
 // ResolveTranscriptRoundTail 将 Nexus round_id 解析成 SDK transcript UUID 尾部。
@@ -60,6 +61,9 @@ func (s *AgentHistoryStore) ResolveTranscriptRoundTail(
 	if len(tail.MessageUUIDs) == 0 {
 		return TranscriptRoundTail{}, fmt.Errorf("target round %s has no transcript uuid", targetRoundID)
 	}
+	if tail.TargetRoundEndUUID == "" {
+		return TranscriptRoundTail{}, fmt.Errorf("target round %s has no transcript boundary", targetRoundID)
+	}
 	return tail, nil
 }
 
@@ -78,6 +82,7 @@ func resolveTranscriptRoundTail(
 	)
 	markerIndex := 0
 	found := false
+	targetEnded := false
 	tail := TranscriptRoundTail{
 		TargetRoundID: targetRoundID,
 	}
@@ -95,6 +100,13 @@ func resolveTranscriptRoundTail(
 			}
 			found = true
 			tail.TargetMessageUUID = strings.TrimSpace(stringFromAny(entry.Data["uuid"]))
+		} else if entryRoundID != "" && entryRoundID != targetRoundID {
+			targetEnded = true
+		}
+		if !targetEnded {
+			if uuid := strings.TrimSpace(stringFromAny(entry.Data["uuid"])); uuid != "" {
+				tail.TargetRoundEndUUID = uuid
+			}
 		}
 		appendTranscriptTailRoundID(&tail, seenRoundIDs, entryRoundID)
 		appendTranscriptTailUUID(&tail, seenUUIDs, entry)

@@ -322,6 +322,7 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 			agentID,
 			sessionID,
 			roundMarkers,
+			"",
 		)
 		if errors.Is(err, os.ErrNotExist) {
 			cache[cacheKey] = map[string]protocol.Message{}

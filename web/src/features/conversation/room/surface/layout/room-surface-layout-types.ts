@@ -55,6 +55,7 @@ export interface RoomSurfaceLayoutProps {
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
+  onForkConversation: (roundId: string) => Promise<void>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onSaveAgentOptions: (
