@@ -13,7 +13,7 @@ func TestSearchExternalSkillsReturnsRecommendedMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取推荐 skill 失败: %v", err)
 	}
-	if len(result.Results) != 3 || len(result.Sources) != 0 {
+	if len(result.Results) != 4 || len(result.Sources) != 0 {
 		t.Fatalf("推荐 skill 响应不正确: %+v", result)
 	}
 
@@ -23,6 +23,7 @@ func TestSearchExternalSkillsReturnsRecommendedMetadata(t *testing.T) {
 	}{
 		"diagram-design": {"https://github.com/cathrynlavery/diagram-design", "skills/diagram-design"},
 		"kami":           {"https://github.com/tw93/Kami", "plugins/kami/skills/kami"},
+		"slide-maker":    {"https://github.com/addsumtech/slides_maker", "skills/slide-maker"},
 		"wecom-unified":  {"https://github.com/WecomTeam/wecom-unified", "skills/wecom-unified"},
 	}
 	for name, want := range expected {

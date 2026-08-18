@@ -8,7 +8,6 @@ const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
   "ima-skill": "capability.skill_description.ima",
   imagegen: "capability.skill_description.imagegen",
   "room-playbook": "capability.skill_description.room_playbook",
-  "slide-maker": "capability.skill_description.slide_maker",
   "wechat-article-search": "capability.skill_description.wechat_article_search",
   "werewolf-6p": "capability.skill_description.werewolf_6p",
 } as const satisfies Readonly<Record<string, TranslationKey>>;

@@ -154,7 +154,6 @@ export const enCapabilityMessages = {
   "capability.skill_description.goal_manager": "Manage long-running goals for the current conversation, including creating, continuing, correcting, completing, or blocking a goal.",
   "capability.skill_description.ima": "Connect to IMA Notes and Knowledge Base to search, browse, create, and edit notes, upload files, and save web pages.",
   "capability.skill_description.wechat_article_search": "Search WeChat Official Account articles by keyword and organize titles, summaries, publication dates, sources, and links.",
-  "capability.skill_description.slide_maker": "Create, redesign, and review presentation-ready slide decks from documents, code, papers, or existing templates.",
   "capability.skill_description.room_playbook": "Inject shared collaboration rules into a Room so members can work safely and in sequence toward a common goal.",
   "capability.skill_description.werewolf_6p": "Provide Nexus Room werewolf rules for one host and six players, including public phases, private information, and ordered turns.",
   "capability.skills_external_loading": "Searching community skills...",
