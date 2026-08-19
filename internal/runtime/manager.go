@@ -71,11 +71,8 @@ func NewManager() *Manager {
 	return NewManagerWithFactory(defaultFactory{})
 }
 
-// NewManagerWithFactory 使用自定义 factory 创建运行时管理器。
+// NewManagerWithFactory 使用非空自定义 factory 创建运行时管理器；默认实现使用 NewManager。
 func NewManagerWithFactory(factory Factory) *Manager {
-	if factory == nil {
-		factory = defaultFactory{}
-	}
 	return &Manager{
 		sessions:              make(map[string]*sessionState),
 		startupGates:          make(map[string]*sessionStartupGate),
@@ -91,9 +88,6 @@ func NewManagerWithFactory(factory Factory) *Manager {
 
 // SetOwnerProcessReaper 注入 owner 级 cgroup 回收器。
 func (m *Manager) SetOwnerProcessReaper(reaper OwnerProcessReaper) {
-	if m == nil {
-		return
-	}
 	m.mu.Lock()
 	m.ownerProcessReaper = reaper
 	m.mu.Unlock()
@@ -161,8 +155,5 @@ func (m *Manager) touchStateLocked(state *sessionState) {
 }
 
 func (m *Manager) nowTime() time.Time {
-	if m.now == nil {
-		return time.Now()
-	}
 	return m.now()
 }

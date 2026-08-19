@@ -51,9 +51,6 @@ func (m *Manager) beginClientStartup(
 	sessionKey string,
 	ownerUserID string,
 ) (*ClientStartup, error) {
-	if m == nil {
-		return nil, agentclient.ErrNotConnected
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -114,7 +111,7 @@ func (m *Manager) releaseClientStartup(
 	ownerLease *ownerStartupLease,
 	held bool,
 ) {
-	if m == nil || gate == nil {
+	if gate == nil {
 		return
 	}
 	m.mu.Lock()
@@ -148,7 +145,7 @@ func (m *Manager) beginSessionCloseGateLocked(sessionKey string) *sessionStartup
 }
 
 func (m *Manager) releaseSessionCloseGate(sessionKey string, gate *sessionStartupGate) {
-	if m == nil || gate == nil {
+	if gate == nil {
 		return
 	}
 	m.mu.Lock()
@@ -480,7 +477,7 @@ func (m *Manager) runtimeAgentAdmissionError(
 // GetOrCreate 与 SDK Connect 之间存在锁外进程启动窗口，因此连接前后都要核验；
 // 删除若在 Connect 中间发生，后置核验会再次断开迟到启动的进程。
 func (m *Manager) Connect(ctx context.Context, sessionKey string, client Client) error {
-	if m == nil || client == nil {
+	if client == nil {
 		return agentclient.ErrNotConnected
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -692,9 +689,6 @@ func retireUnusedRuntimeClient(client Client) {
 
 // RuntimeKind 返回当前 session 实际持有的 runtime 类型。
 func (m *Manager) RuntimeKind(sessionKey string) agentclient.RuntimeKind {
-	if m == nil {
-		return ""
-	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil && !state.Closing {
@@ -706,9 +700,6 @@ func (m *Manager) RuntimeKind(sessionKey string) agentclient.RuntimeKind {
 // HasSession 返回 session 是否已有可复用的 runtime client。
 // 仅检查内存中的 client，不把已持久化但尚未连接的 resume 当作热会话。
 func (m *Manager) HasSession(sessionKey string) bool {
-	if m == nil {
-		return false
-	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
@@ -727,9 +718,6 @@ func sessionStateHasConnectedClient(state *sessionState) bool {
 
 // SessionClient 返回当前 session 保存的 client，用于判断 GetOrCreate 是否替换了 runtime。
 func (m *Manager) SessionClient(sessionKey string) Client {
-	if m == nil {
-		return nil
-	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil && !state.Closing {
@@ -765,7 +753,7 @@ func (m *Manager) connectClient(
 	expected Client,
 	expectedGeneration uint64,
 ) error {
-	if m == nil || expected == nil || expectedState == nil {
+	if expected == nil || expectedState == nil {
 		return agentclient.ErrNotConnected
 	}
 
@@ -850,7 +838,7 @@ func runtimeClientLeaseOwnershipError(
 
 // CaptureClientLease 捕获当前 client 代次，用于跨启动事务的失败清理。
 func (m *Manager) CaptureClientLease(sessionKey string, expected Client) (ClientLease, bool) {
-	if m == nil || expected == nil {
+	if expected == nil {
 		return ClientLease{}, false
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -874,7 +862,7 @@ func (m *Manager) CaptureClientLease(sessionKey string, expected Client) (Client
 
 // CloseSessionIfLease 只关闭 lease 仍指向的 session state、client 与连接代次。
 func (m *Manager) CloseSessionIfLease(ctx context.Context, lease ClientLease) (bool, error) {
-	if m == nil || lease.manager != m || lease.client == nil || lease.state == nil {
+	if lease.manager != m || lease.client == nil || lease.state == nil {
 		return false, nil
 	}
 	startup, err := m.beginClientStartup(ctx, lease.sessionKey, lease.ownerUserID)
@@ -897,7 +885,7 @@ func (m *Manager) CloseSessionIfLease(ctx context.Context, lease ClientLease) (b
 // MarkSubagentHistory 标记该 runtime 已承载过 subagent task。
 // 标记随 sessionState 生命周期保留，使父 round 结束后仍可复用同一 task/thread。
 func (m *Manager) MarkSubagentHistory(sessionKey string) {
-	if m == nil || strings.TrimSpace(sessionKey) == "" {
+	if strings.TrimSpace(sessionKey) == "" {
 		return
 	}
 	m.mu.Lock()
@@ -912,9 +900,6 @@ func (m *Manager) MarkSubagentHistory(sessionKey string) {
 
 // HasSubagentHistory 判断该 runtime 是否需要为 task follow-up 保留进程。
 func (m *Manager) HasSubagentHistory(sessionKey string) bool {
-	if m == nil {
-		return false
-	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
@@ -923,9 +908,6 @@ func (m *Manager) HasSubagentHistory(sessionKey string) bool {
 
 // CloseSession 关闭指定 session。
 func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
-	if m == nil {
-		return nil
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	_, err := m.closeSession(ctx, sessionKey, nil, nil, 0, false, true, nil)
 	return err

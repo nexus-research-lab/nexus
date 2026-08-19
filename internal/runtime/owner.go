@@ -197,7 +197,7 @@ func (m *Manager) beginOwnerReapLocked(
 }
 
 func (m *Manager) startOwnerReap(plan *ownerReapPlan) {
-	if m == nil || plan == nil || plan.flight == nil {
+	if plan == nil || plan.flight == nil {
 		return
 	}
 	go func() {
@@ -239,7 +239,7 @@ func waitOwnerReap(ctx context.Context, flight *ownerReapFlight) error {
 
 // CloseOwnerSessions 关闭指定 owner 的全部 runtime，并取消仍在执行的 round。
 func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (int, error) {
-	if m == nil || strings.TrimSpace(ownerUserID) == "" {
+	if strings.TrimSpace(ownerUserID) == "" {
 		return 0, nil
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)

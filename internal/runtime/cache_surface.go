@@ -304,9 +304,6 @@ func fingerprintCacheValue(value any) string {
 
 // CacheSurface 返回当前 session 已成功采用的脱敏 runtime cache 切面。
 func (m *Manager) CacheSurface(sessionKey string) (CacheSurfaceProfile, bool) {
-	if m == nil {
-		return CacheSurfaceProfile{}, false
-	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]

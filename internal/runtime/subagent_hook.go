@@ -66,7 +66,7 @@ func (m *Manager) SetSubagentHookCallbacks(
 ) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	roundID = strings.TrimSpace(roundID)
-	if m == nil || sessionKey == "" || roundID == "" {
+	if sessionKey == "" || roundID == "" {
 		return
 	}
 	m.mu.Lock()
@@ -83,7 +83,7 @@ func (m *Manager) SetSubagentHookCallbacks(
 func (m *Manager) ClearSubagentHookCallbacks(sessionKey string, roundID string) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	roundID = strings.TrimSpace(roundID)
-	if m == nil || sessionKey == "" || roundID == "" {
+	if sessionKey == "" || roundID == "" {
 		return
 	}
 	m.mu.Lock()
@@ -136,7 +136,7 @@ func (m *Manager) WithSubagentAdmissionHooks(
 	options agentclient.Options,
 	sessionKey string,
 ) agentclient.Options {
-	if m == nil || strings.TrimSpace(sessionKey) == "" {
+	if strings.TrimSpace(sessionKey) == "" {
 		return options
 	}
 	sessionKey = strings.TrimSpace(sessionKey)

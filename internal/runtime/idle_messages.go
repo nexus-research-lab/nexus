@@ -21,7 +21,7 @@ type idleMessageDrain struct {
 
 // StartIdleMessageDrain 在没有活动 round 时接管 client 消息，用于后台 task 通知。
 func (m *Manager) StartIdleMessageDrain(sessionKey string, handler IdleMessageHandler) {
-	if m == nil || sessionKey == "" || handler == nil {
+	if sessionKey == "" || handler == nil {
 		return
 	}
 	m.mu.Lock()

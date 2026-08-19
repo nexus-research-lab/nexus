@@ -17,33 +17,18 @@ type roomGoalUsageScopeLockEntry struct {
 }
 
 type roomGoalUsageScopeLockRegistry struct {
-	mu      *sync.Mutex
+	mu      sync.Mutex
 	entries map[string]*roomGoalUsageScopeLockEntry
 }
 
-// 零值 Service 只在白盒测试出现；共享兜底锁保证它的懒初始化仍然并发安全。
-var zeroRoomGoalUsageScopeLockRegistryMu sync.Mutex
-
 func newRoomGoalUsageScopeLockRegistry() roomGoalUsageScopeLockRegistry {
 	return roomGoalUsageScopeLockRegistry{
-		mu:      &sync.Mutex{},
 		entries: make(map[string]*roomGoalUsageScopeLockEntry),
 	}
 }
 
-func (r *roomGoalUsageScopeLockRegistry) mutex() *sync.Mutex {
-	if r == nil || r.mu == nil {
-		return &zeroRoomGoalUsageScopeLockRegistryMu
-	}
-	return r.mu
-}
-
 func (r *roomGoalUsageScopeLockRegistry) lock(key string) func() {
-	if r == nil {
-		return func() {}
-	}
-	mu := r.mutex()
-	mu.Lock()
+	r.mu.Lock()
 	if r.entries == nil {
 		r.entries = make(map[string]*roomGoalUsageScopeLockEntry)
 	}
@@ -53,17 +38,17 @@ func (r *roomGoalUsageScopeLockRegistry) lock(key string) func() {
 		r.entries[key] = entry
 	}
 	entry.refs++
-	mu.Unlock()
+	r.mu.Unlock()
 
 	entry.mu.Lock()
 	return func() {
 		entry.mu.Unlock()
-		mu.Lock()
+		r.mu.Lock()
 		entry.refs--
 		if entry.refs == 0 && r.entries[key] == entry {
 			delete(r.entries, key)
 		}
-		mu.Unlock()
+		r.mu.Unlock()
 	}
 }
 
@@ -76,7 +61,7 @@ func roomGoalUsageScopeLockKey(ctx context.Context, slot *activeRoomSlot) string
 }
 
 func (s *Service) lockRoomGoalUsageScope(ctx context.Context, slot *activeRoomSlot) func() {
-	if s == nil || slot == nil {
+	if slot == nil {
 		return func() {}
 	}
 	return s.goalUsageScopeLocks.lock(roomGoalUsageScopeLockKey(ctx, slot))
@@ -86,7 +71,7 @@ func (s *Service) roomGoalUsagePersistenceSlotsForScope(
 	ctx context.Context,
 	origin *activeRoomSlot,
 ) []*activeRoomSlot {
-	if s == nil || origin == nil {
+	if origin == nil {
 		return nil
 	}
 	ownerUserID := goalUsageOwnerUserIDForRoomSlot(ctx, origin)
