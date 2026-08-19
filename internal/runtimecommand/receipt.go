@@ -1,9 +1,10 @@
 // INPUT: broker 已执行的 Goal/Execution operation、typed result 与调用时 exact Goal binding。
-// OUTPUT: DM/Room runtime 可按 sequence 单调消费的 host-side mutation receipt。
+// OUTPUT: DM/Room runtime 可按 sequence 单调消费、包含 exact changed refs 的 host-side mutation receipt。
 // POS: CLI transport 与 Goal usage/continuation/完成收据之间的事实桥；禁止解析 shell stdout 推断。
 package runtimecommand
 
 import (
+	"slices"
 	"strings"
 	"sync"
 
@@ -20,21 +21,22 @@ const (
 )
 
 type Receipt struct {
-	Sequence         uint64 `json:"sequence"`
-	RequestID        string `json:"request_id"`
-	Domain           string `json:"domain"`
-	Operation        string `json:"operation"`
-	Outcome          string `json:"outcome,omitempty"`
-	Message          string `json:"message,omitempty"`
-	ReasonCode       string `json:"reason_code,omitempty"`
-	GoalID           string `json:"goal_id,omitempty"`
-	GoalStatus       string `json:"goal_status,omitempty"`
-	ExecutionID      string `json:"execution_id,omitempty"`
-	WorkItemID       string `json:"work_item_id,omitempty"`
-	AssignmentID     string `json:"assignment_id,omitempty"`
-	AttemptID        string `json:"attempt_id,omitempty"`
-	SnapshotRevision int64  `json:"snapshot_revision,omitempty"`
-	GoalBound        bool   `json:"goal_bound,omitempty"`
+	Sequence         uint64   `json:"sequence"`
+	RequestID        string   `json:"request_id"`
+	Domain           string   `json:"domain"`
+	Operation        string   `json:"operation"`
+	Outcome          string   `json:"outcome,omitempty"`
+	Message          string   `json:"message,omitempty"`
+	ReasonCode       string   `json:"reason_code,omitempty"`
+	GoalID           string   `json:"goal_id,omitempty"`
+	GoalStatus       string   `json:"goal_status,omitempty"`
+	ExecutionID      string   `json:"execution_id,omitempty"`
+	WorkItemID       string   `json:"work_item_id,omitempty"`
+	AssignmentID     string   `json:"assignment_id,omitempty"`
+	AttemptID        string   `json:"attempt_id,omitempty"`
+	Changed          []string `json:"changed,omitempty"`
+	SnapshotRevision int64    `json:"snapshot_revision,omitempty"`
+	GoalBound        bool     `json:"goal_bound,omitempty"`
 }
 
 type ReceiptState struct {
@@ -61,6 +63,12 @@ func (s *ReceiptState) Record(receipt Receipt) Receipt {
 	receipt.WorkItemID = strings.TrimSpace(receipt.WorkItemID)
 	receipt.AssignmentID = strings.TrimSpace(receipt.AssignmentID)
 	receipt.AttemptID = strings.TrimSpace(receipt.AttemptID)
+	receipt.Changed = slices.DeleteFunc(slices.Clone(receipt.Changed), func(value string) bool {
+		return strings.TrimSpace(value) == ""
+	})
+	for index := range receipt.Changed {
+		receipt.Changed[index] = strings.TrimSpace(receipt.Changed[index])
+	}
 	s.mu.Lock()
 	s.sequence++
 	receipt.Sequence = s.sequence

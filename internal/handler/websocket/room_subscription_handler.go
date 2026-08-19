@@ -6,6 +6,7 @@ package websocket
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -121,7 +122,10 @@ func (h *Handler) restoreRoomActivitySnapshot(
 		}
 	}
 	if strings.TrimSpace(conversationID) == "" {
-		event := protocol.NewChatPendingInteractionSnapshotEvent(pendingInteractionRequestIDs)
+		event := protocol.NewChatContainerActivitySnapshotEvent(
+			pendingInteractionRequestIDs,
+			h.activeChatActivitySources(roomID),
+		)
 		event.RoomID = roomID
 		_ = sender.SendEvent(ctx, event)
 		return
@@ -152,6 +156,67 @@ func (h *Handler) restoreRoomActivitySnapshot(
 	event.ConversationID = conversationID
 	event.RoundID = roundID
 	_ = sender.SendEvent(ctx, event)
+}
+
+func (h *Handler) activeChatActivitySources(roomID string) []protocol.ChatActivitySourceSnapshot {
+	if h.permission == nil || h.runtime == nil || strings.TrimSpace(roomID) == "" {
+		return []protocol.ChatActivitySourceSnapshot{}
+	}
+	type sourceState struct {
+		conversationID string
+		roundIDs       map[string]struct{}
+	}
+	bySessionKey := make(map[string]*sourceState)
+	for _, routeSnapshot := range h.permission.SessionActivityRoutesForRoom(roomID) {
+		runningRoundIDs := h.runtime.GetRunningRoundIDs(routeSnapshot.SessionKey)
+		if len(runningRoundIDs) == 0 {
+			continue
+		}
+		sourceSessionKey := strings.TrimSpace(routeSnapshot.Route.DispatchSessionKey)
+		if sourceSessionKey == "" {
+			sourceSessionKey = strings.TrimSpace(routeSnapshot.SessionKey)
+		}
+		conversationID := strings.TrimSpace(routeSnapshot.Route.ConversationID)
+		if sourceSessionKey == "" || conversationID == "" {
+			continue
+		}
+		state := bySessionKey[sourceSessionKey]
+		if state == nil {
+			state = &sourceState{
+				conversationID: conversationID,
+				roundIDs:       make(map[string]struct{}),
+			}
+			bySessionKey[sourceSessionKey] = state
+		}
+		for _, roundID := range runningRoundIDs {
+			if roundID = strings.TrimSpace(roundID); roundID != "" {
+				state.roundIDs[roundID] = struct{}{}
+			}
+		}
+	}
+	sessionKeys := make([]string, 0, len(bySessionKey))
+	for sessionKey := range bySessionKey {
+		sessionKeys = append(sessionKeys, sessionKey)
+	}
+	slices.Sort(sessionKeys)
+	result := make([]protocol.ChatActivitySourceSnapshot, 0, len(sessionKeys))
+	for _, sessionKey := range sessionKeys {
+		state := bySessionKey[sessionKey]
+		roundIDs := make([]string, 0, len(state.roundIDs))
+		for roundID := range state.roundIDs {
+			roundIDs = append(roundIDs, roundID)
+		}
+		slices.Sort(roundIDs)
+		if len(roundIDs) == 0 {
+			continue
+		}
+		result = append(result, protocol.ChatActivitySourceSnapshot{
+			SessionKey:      sessionKey,
+			ConversationID:  state.conversationID,
+			RunningRoundIDs: roundIDs,
+		})
+	}
+	return result
 }
 
 func appendUniqueStrings(values []string, candidates ...string) []string {

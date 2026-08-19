@@ -199,6 +199,7 @@ func TestSemanticRuntimeCommandRecordsHostTypedExecutionReceipt(t *testing.T) {
 			capturedSessionID = call.SessionID
 			return runtimecommand.Result{StructuredContent: map[string]any{
 				"outcome": "applied", "execution_id": "execution-1", "message": "submitted",
+				"changed": []any{"submission:submission-1", "attempt:attempt-1"},
 			}}, nil
 		},
 	}}
@@ -223,7 +224,8 @@ func TestSemanticRuntimeCommandRecordsHostTypedExecutionReceipt(t *testing.T) {
 	if receipt.RequestID != "submit-request-1" || receipt.Domain != runtimecommand.DomainExecution ||
 		receipt.Operation != "submit_work" || !receipt.Applied() ||
 		receipt.ExecutionID != "execution-1" || receipt.WorkItemID != "work-1" ||
-		receipt.AssignmentID != "assignment-1" || receipt.AttemptID != "attempt-1" {
+		receipt.AssignmentID != "assignment-1" || receipt.AttemptID != "attempt-1" ||
+		len(receipt.Changed) != 2 || receipt.Changed[0] != "submission:submission-1" {
 		t.Fatalf("typed execution receipt = %+v", receipt)
 	}
 }

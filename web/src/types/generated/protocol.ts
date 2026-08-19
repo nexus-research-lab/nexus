@@ -161,6 +161,12 @@ export interface ChatAckPendingSlot {
   index: number;
 }
 
+export interface ChatActivitySourceSnapshot {
+  session_key: string;
+  conversation_id: string;
+  running_round_ids: string[];
+}
+
 export interface ChatAckData {
   client_request_id: string;
   client_message_id: string;
@@ -170,6 +176,10 @@ export interface ChatAckData {
   user_message_delivery_mode?: DeliveryMode;
   pending: ChatAckPendingSlot[];
   pending_snapshot: boolean;
+  pending_interaction_snapshot?: boolean;
+  pending_interaction_request_ids?: string[];
+  activity_snapshot?: boolean;
+  active_sources?: ChatActivitySourceSnapshot[];
   ack_timeout_ms: number;
 }
 

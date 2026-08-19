@@ -1711,18 +1711,40 @@ test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
   const {
     getRoomActivity,
     pruneRoomActivity,
-    replaceRoomActivitySnapshot,
+    replaceRoomActivitySources,
+    replaceRoomActivitySourceSnapshot,
     replaceRoomInteractionSnapshot,
     updateRoomActivity,
     updateRoomInteraction,
   } = await server.ssrLoadModule("/src/features/home/room-activity-resource.ts");
 
   pruneRoomActivity(new Set());
-  updateRoomActivity("dm-room", "dm-round", "running");
-  updateRoomActivity("group-room", "group-round", "running");
-  updateRoomActivity("group-room", "group-round", "running", "agent_round", "slot-a");
-  updateRoomActivity("group-room", "group-round", "running", "agent_round", "slot-b");
-  updateRoomActivity("group-room", "group-round", "finished", "agent_round", "slot-a");
+  updateRoomActivity("dm-room", "session:dm-a", "dm-round", "running");
+  updateRoomActivity("group-room", "session:group-a", "group-round", "running");
+  updateRoomActivity(
+    "group-room",
+    "session:group-a",
+    "group-round",
+    "running",
+    "agent_round",
+    "slot-a",
+  );
+  updateRoomActivity(
+    "group-room",
+    "session:group-a",
+    "group-round",
+    "running",
+    "agent_round",
+    "slot-b",
+  );
+  updateRoomActivity(
+    "group-room",
+    "session:group-a",
+    "group-round",
+    "finished",
+    "agent_round",
+    "slot-a",
+  );
   assert.deepEqual(
     Object.fromEntries([...getRoomActivity()].sort()),
     { "dm-room": "working", "group-room": "working" },
@@ -1742,18 +1764,19 @@ test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
     "waiting",
     "仍有其他人工交互时不能提前恢复工作中",
   );
-  updateRoomActivity("group-room", "group-round", "finished");
+  updateRoomActivity("group-room", "session:group-a", "group-round", "finished");
   updateRoomInteraction("group-room", "permission-b", false);
-  replaceRoomActivitySnapshot("dm-room", "dm-round", false, ["permission-replayed"]);
+  replaceRoomActivitySourceSnapshot("dm-room", "session:dm-a", [], false);
+  replaceRoomInteractionSnapshot("dm-room", ["permission-replayed"]);
   assert.deepEqual(
     Object.fromEntries(getRoomActivity()),
     { "dm-room": "waiting" },
     "重连快照必须恢复待确认状态",
   );
-  replaceRoomActivitySnapshot("dm-room", "dm-round", false, []);
+  replaceRoomInteractionSnapshot("dm-room", []);
   assert.deepEqual(Object.fromEntries(getRoomActivity()), {}, "空快照应清除 Room 活动态");
 
-  updateRoomActivity("group-room", "group-round-new", "running");
+  updateRoomActivity("group-room", "session:group-b", "group-round-new", "running");
   replaceRoomInteractionSnapshot("group-room", ["permission-global"]);
   assert.equal(getRoomActivity().get("group-room"), "waiting");
   replaceRoomInteractionSnapshot("group-room", []);
@@ -1762,22 +1785,88 @@ test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
     "working",
     "Room 全局交互快照不得清除 conversation 执行槽",
   );
-  replaceRoomActivitySnapshot("group-room", "group-round-new", false, []);
+  replaceRoomActivitySourceSnapshot("group-room", "session:group-b", [], false);
 
-  updateRoomActivity("group-room", "runtime-round", "running");
+  updateRoomActivity("group-room", "session:group-c", "runtime-round", "running");
   updateRoomActivity(
     "group-room",
+    "session:group-c",
     "logical-root",
     "running",
     "agent_round",
     "continued-slot",
   );
-  updateRoomActivity("group-room", "runtime-round", "finished");
+  updateRoomActivity("group-room", "session:group-c", "runtime-round", "finished");
   assert.deepEqual(
     Object.fromEntries(getRoomActivity()),
     {},
     "最后一个 runtime round 结束时必须清理 logical root 下的孤儿 Agent 活动态",
   );
+
+  replaceRoomActivitySourceSnapshot("dm-room", "session:dm-a", ["round-a"], true);
+  replaceRoomActivitySourceSnapshot("dm-room", "session:dm-b", [], false);
+  assert.equal(
+    getRoomActivity().get("dm-room"),
+    "working",
+    "同一 DM 容器的空会话快照不得清除另一个仍运行的会话",
+  );
+  updateRoomActivity("dm-room", "session:dm-a", "round-a", "finished");
+  assert.equal(getRoomActivity().has("dm-room"), false);
+
+  replaceRoomActivitySources("dm-room", [{
+    runningRoundIds: ["round-restored"],
+    sourceKey: "session:dm-restored",
+  }]);
+  assert.equal(getRoomActivity().get("dm-room"), "working");
+  replaceRoomActivitySources("dm-room", []);
+  assert.equal(getRoomActivity().has("dm-room"), false);
+});
+
+test("DM session_status 在重连后恢复且只清理自己的工作态", async () => {
+  const { buildChatNotificationDirectoryIndex } = await server.ssrLoadModule(
+    "/src/features/home/notifications/chat-notification-directory.ts",
+  );
+  const { syncRoomActivity } = await server.ssrLoadModule(
+    "/src/features/home/notifications/use-chat-notification-socket.ts",
+  );
+  const { getRoomActivity, pruneRoomActivity } = await server.ssrLoadModule(
+    "/src/features/home/room-activity-resource.ts",
+  );
+  const directoryIndex = buildChatNotificationDirectoryIndex({
+    agents: [],
+    conversations: [],
+    rooms: [{ id: "dm-room", room_type: "dm" }],
+  });
+  pruneRoomActivity(new Set());
+
+  syncRoomActivity({
+    conversation_id: "conversation-a",
+    data: { is_generating: true, running_round_ids: ["round-a"] },
+    event_type: "session_status",
+    room_id: "dm-room",
+    session_key: "agent:cindy:ws:dm:conversation-a",
+  }, directoryIndex);
+  syncRoomActivity({
+    conversation_id: "conversation-b",
+    data: { is_generating: false, running_round_ids: [] },
+    event_type: "session_status",
+    room_id: "dm-room",
+    session_key: "agent:cindy:ws:dm:conversation-b",
+  }, directoryIndex);
+  assert.equal(
+    getRoomActivity().get("dm-room"),
+    "working",
+    "另一个 DM 会话的 idle 恢复值不得清除正在执行的会话",
+  );
+
+  syncRoomActivity({
+    conversation_id: "conversation-a",
+    data: { is_generating: false, running_round_ids: [] },
+    event_type: "session_status",
+    room_id: "dm-room",
+    session_key: "agent:cindy:ws:dm:conversation-a",
+  }, directoryIndex);
+  assert.equal(getRoomActivity().has("dm-room"), false);
 });
 
 test("聊天行不读取持久化 Agent active 状态", async () => {

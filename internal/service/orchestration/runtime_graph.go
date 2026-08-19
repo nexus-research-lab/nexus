@@ -190,6 +190,11 @@ func (s *Service) ObserveRuntimeMessage(
 			metadata[runtimeGraphCommandOperationMetadataKey] = evidence.commandIdentity.Operation
 			metadata[runtimeGraphCommandRequestIDMetadataKey] = evidence.commandIdentity.RequestID
 		}
+		name := firstNonEmpty(event.Name, previousNode.Name)
+		description := firstNonEmpty(event.Description, previousNode.Description)
+		boundaryOperation := runtimeGraphAssignmentBoundaryOperationForNode(
+			protocol.ExecutionRuntimeNodeRun{Name: name, Metadata: metadata},
+		)
 		if activeSegment.valid() {
 			applyRuntimeExecutionSegment(metadata, activeSegment)
 		}
@@ -197,7 +202,7 @@ func (s *Service) ObserveRuntimeMessage(
 			ctx,
 			actor,
 			identity,
-			firstNonEmpty(event.Name, previousNode.Name),
+			boundaryOperation,
 			evidence,
 		); segment.valid() {
 			if err = repository.BindRuntimeGraphRoundExecution(
@@ -214,15 +219,13 @@ func (s *Service) ObserveRuntimeMessage(
 			metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryAssign
 		} else if actor.ScopeKind == protocol.ExecutionScopeDM &&
 			nodeKind == protocol.ExecutionRuntimeNodeTool &&
-			runtimeGraphCanonicalToolLeaf(firstNonEmpty(event.Name, previousNode.Name)) == "assignwork" &&
+			boundaryOperation != "" &&
 			event.Phase == sdkprotocol.RuntimeLifecycleFinished &&
 			status == protocol.ExecutionRuntimeNodeSucceeded {
 			clearRuntimeExecutionSegment(metadata)
 			metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryUnresolved
 			activeSegment = runtimeExecutionSegment{}
 		}
-		name := firstNonEmpty(event.Name, previousNode.Name)
-		description := firstNonEmpty(event.Description, previousNode.Description)
 		startedAt := now
 		if !previousNode.StartedAt.IsZero() {
 			startedAt = previousNode.StartedAt

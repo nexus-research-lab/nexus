@@ -67,11 +67,11 @@ Runtime Graph 来自 provider-neutral runtime lifecycle 和 Nexus round boundary
 - Tool use ID、child session/task identity；
 - Runtime Graph 的 subject 与 parent subject identity。
 
-`AgentRoundID` 只表示一个物理 Agent round 的外层容器，不是 Work Item ownership identity。同一个 DM coordinator round 串行承担多个自分配 Work Item 时，每次成功 `assign_work` 建立新的内部执行段；该段必须由服务端 mutation envelope 中的 exact Execution/Assignment/Attempt refs 回查权威 snapshot 后，持久化为 `execution_id + work_item_id + assignment_id + attempt_id`，后续 Tool 才能归入对应责任节点。Room 不使用这条 DM 自分配推断：Lead 的协调 round 保持 coordinator lane，成员工作与审核只认 durable WorkBinding/ReviewBinding。
+`AgentRoundID` 只表示一个物理 Agent round 的外层容器，不是 Work Item ownership identity。同一个 DM coordinator round 串行承担多个自分配 Work Item 时，每次成功 `assign_work` 或 self `take_over_work` 建立新的内部执行段；该段必须由服务端 mutation envelope 中的 exact Execution/Assignment/Attempt refs 回查权威 snapshot 后，持久化为 `execution_id + work_item_id + assignment_id + attempt_id`，后续 Tool 才能归入对应责任节点。同一 `domain + operation + request_id` 的 provider Tool lifecycle 与 host typed receipt 是一个语义边界；到达顺序不同不得造成重复切段。历史首个 self Assignment 若在 block/release 前尚未持久化 `AgentRoundID`，只有同 coordinator、同 exact request 且 lifecycle 区间内唯一包含其 durable Attempt 创建时间时才可恢复。Room 不使用这条 DM 自分配推断：Lead 的协调 round 保持 coordinator lane，成员工作与审核只认 durable WorkBinding/ReviewBinding。
 
 禁止按工具名、自然语言、消息位置、DOM 顺序或时间邻近猜测归属、重试和责任。
 
-历史兼容只允许一种 fail-closed 修复：同一 Agent round 内，一个成功 `assign_work` 的 exact start/finish 生命周期区间必须唯一包含一个 durable root Attempt 的创建事实，且该 Attempt 也只能被一个这样的区间命中。它是封闭因果区间校验，不是“找最近时间”；任一侧多解时不得恢复执行段。
+历史兼容只允许一种 fail-closed 修复：同一 Agent round 内，一个成功 assignment-boundary command 的 exact start/finish 生命周期区间必须唯一包含一个 durable root Attempt 的创建事实，且该 Attempt 也只能被一个这样的区间命中。CLI transport 即使持久化为 `Bash`，也必须先具有 exact managed command metadata 才能作为该边界。它是封闭因果区间校验，不是“找最近时间”；任一侧多解时不得恢复执行段。
 
 ## 4. Runtime Graph 数据模型
 
@@ -194,8 +194,7 @@ visibility 只影响默认展示，不改变运行、权限或责任状态。
 默认进入 ownership tree 的用户可观察动作包括：
 
 - WebSearch、WebFetch；
-- Bash、KillShell；
-- Write、Edit、MultiEdit、NotebookEdit；
+- 携带 exact Artifact 或显式可见性 hint 的 workspace 写入；
 - 外部 MCP capability 调用；
 - 浏览器导航、点击、填写、下载、截图；
 - 创建、更新、提交、发送、发布、部署、生成等明确动作；
@@ -203,16 +202,19 @@ visibility 只影响默认展示，不改变运行、权限或责任状态。
 默认保留为 `detail` 的支持性动作包括：
 
 - 成功的本地 Read、Grep、Glob 等读取/查找；
+- 没有 Artifact 或显式重要性事实的成功 Write、Edit、MultiEdit、NotebookEdit 与普通 shell；
 - filesystem/workspace MCP；
 - Tool discovery 与 Skill 加载；
+- `MEMORY.md` 与 `memory/` 下的长期记忆维护；即使消息层生成 workspace Artifact，它也不是当前 Work Item 交付物；
 - 已被 Work Item、Gate 或 Goal 领域节点完整表达的管理工具调用。
 - `nexus goal|execution` 及历史同义 MCP transport，包括 `submit_work`；它们只保留 detail 审计，Work → Review 由 durable Attempt/Submission Gate 表达。
+- `${NEXUS_COMMAND_INPUT_PATH}` 对应的 owner-private `runtime/tmp/runtime-command-inputs/<round-digest>/input.json` 读写；它是 CLI transport 的输入槽，即使失败或历史记录缺少新 metadata 也不得进入画布。
 
 以下结构事实可以把 Tool 从 `detail` 提升到 `nested`：
 
 - running、failed、cancelled 或 interrupted；
 - 参与 `loop_back` 或 `retry`；
-- 携带 Artifact；
+- 携带非 transport、非长期记忆维护的业务 Artifact；
 - 携带 `workgraph_visibility=primary|nested`；
 - 同一 direct owner 下已出现同类失败，随后成功需要被用户看见。
 

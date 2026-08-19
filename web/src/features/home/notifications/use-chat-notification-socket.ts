@@ -1,6 +1,6 @@
 /**
  * INPUT: 全局 Room 订阅目录、完成消息与删除事件回调。
- * OUTPUT: 可重连的单 WebSocket 完成事件流、Room 活动态和目录刷新信号。
+ * OUTPUT: 可重连的单 WebSocket 完成事件流、按 Conversation/Session source 隔离的 Room 活动态和目录刷新信号。
  * POS: Home 全局聊天通知的协议边界；未读/删除状态由上层回调处理。
  */
 import { useCallback, useEffect, useRef } from "react";
@@ -9,7 +9,8 @@ import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import {
   pruneRoomActivity,
-  replaceRoomActivitySnapshot,
+  replaceRoomActivitySources,
+  replaceRoomActivitySourceSnapshot,
   replaceRoomInteractionSnapshot,
   updateRoomActivity,
   updateRoomInteraction,
@@ -144,7 +145,7 @@ function refreshAgentDirectory(event: EventMessage): void {
   void useAgentStore.getState().load_agents_from_server();
 }
 
-function syncRoomActivity(
+export function syncRoomActivity(
   event: EventMessage,
   directoryIndex: ChatNotificationDirectoryIndex,
 ): void {
@@ -171,15 +172,41 @@ function syncRoomActivity(
     return;
   }
 
+  const sourceKey = resolveRoomActivitySourceKey(event, roomId);
+
+  if (event.event_type === "session_status") {
+    // session_status 是 DM bind/reconnect 的权威恢复值。Room slot 有自己的
+    // agent_round_status 与全局 active_sources，不能把成员 runtime 混进私聊。
+    if (directoryIndex.roomsById.get(roomId)?.room_type !== "dm") {
+      return;
+    }
+    const runningRoundIds = isStringArray(event.data.running_round_ids)
+      ? event.data.running_round_ids
+      : [];
+    replaceRoomActivitySourceSnapshot(
+      roomId,
+      sourceKey,
+      runningRoundIds,
+      event.data.is_generating === true,
+    );
+    return;
+  }
+
   if (event.event_type === "round_status") {
     const roundId = readString(event.data, "round_id") ?? event.round_id;
-    updateRoomActivity(roomId, roundId, readString(event.data, "status"));
+    updateRoomActivity(
+      roomId,
+      sourceKey,
+      roundId,
+      readString(event.data, "status"),
+    );
     return;
   }
 
   if (event.event_type === "agent_round_status") {
     updateRoomActivity(
       roomId,
+      sourceKey,
       readString(event.data, "round_id") ?? event.round_id,
       readString(event.data, "status"),
       "agent_round",
@@ -198,6 +225,12 @@ function syncRoomActivity(
         ? event.data.pending_interaction_request_ids
         : [],
     );
+    if (event.data.activity_snapshot === true) {
+      replaceRoomActivitySources(
+        roomId,
+        parseRoomActivitySources(event.data.active_sources),
+      );
+    }
     return;
   }
 
@@ -205,14 +238,65 @@ function syncRoomActivity(
     return;
   }
   const pending = Array.isArray(event.data.pending) ? event.data.pending : [];
-  replaceRoomActivitySnapshot(
+  const runningRoundIds = pending
+    .map((slot) => readString(slot, "round_id"))
+    .filter((roundId): roundId is string => Boolean(roundId));
+  const eventRoundId = readString(event.data, "round_id") ?? event.round_id;
+  if (runningRoundIds.length === 0 && pending.length > 0 && eventRoundId) {
+    runningRoundIds.push(eventRoundId);
+  }
+  replaceRoomActivitySourceSnapshot(
     roomId,
-    readString(event.data, "round_id") ?? event.round_id,
+    sourceKey,
+    runningRoundIds,
     pending.length > 0,
-    isStringArray(event.data.pending_interaction_request_ids)
-      ? event.data.pending_interaction_request_ids
-      : [],
   );
+}
+
+function parseRoomActivitySources(value: unknown): Array<{
+  runningRoundIds: string[];
+  sourceKey: string;
+}> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const sources: Array<{ runningRoundIds: string[]; sourceKey: string }> = [];
+  for (const source of value) {
+    const record = typeof source === "object" && source !== null
+      ? source as Record<string, unknown>
+      : null;
+    if (!record) {
+      continue;
+    }
+    const sessionKey = readString(record, "session_key");
+    if (!sessionKey) {
+      continue;
+    }
+    const runningRoundIds = isStringArray(record.running_round_ids)
+      ? record.running_round_ids
+      : [];
+    sources.push({
+      runningRoundIds,
+      sourceKey: activitySourceKey(sessionKey),
+    });
+  }
+  return sources;
+}
+
+function resolveRoomActivitySourceKey(event: EventMessage, roomId: string): string {
+  const sessionKey = normalize(event.session_key);
+  if (sessionKey) {
+    return activitySourceKey(sessionKey);
+  }
+  const conversationId = normalize(event.conversation_id);
+  if (conversationId) {
+    return `conversation:${conversationId}`;
+  }
+  return `room:${roomId}`;
+}
+
+function activitySourceKey(sessionKey: string): string {
+  return `session:${sessionKey}`;
 }
 
 function resolveRoomActivityRoomId(

@@ -24,7 +24,7 @@
 //   - automation_run.go / im_permission_command.go：受控 Automation 运行上下文与
 //     普通 runtime/Automation 共用的 IM 权限短命令。
 //   - event.go / typescript_event.go / generate.go：统一事件 envelope、session-scoped
-//     command catalog、interrupt ACK、WorkGraph/Subagent 失效事件、上下文占用事件与前端 TS 生成。
+//     command catalog、interrupt ACK、聊天 source 活动快照、WorkGraph/Subagent 失效事件、上下文占用事件与前端 TS 生成。
 //   - attachment.go / workspace_file_artifact.go / delivery_policy.go：附件、
 //     文件产物与投递策略。
 //   - identity.go / value.go / provider_failure.go / tool_result.go /

@@ -15,15 +15,17 @@ import (
 
 type runtimeGraphRepositoryFake struct {
 	*fakeRepository
-	nodes          []protocol.ExecutionRuntimeNodeRun
-	edges          []protocol.ExecutionRuntimeEdgeRun
-	artifacts      []protocol.ExecutionRuntimeArtifactRef
-	boundRoundID   string
-	boundExecution string
-	reconciled     int
-	finishedStatus protocol.ExecutionRuntimeNodeStatus
-	graph          protocol.ExecutionRuntimeGraph
-	getGraphCalls  int
+	nodes            []protocol.ExecutionRuntimeNodeRun
+	edges            []protocol.ExecutionRuntimeEdgeRun
+	artifacts        []protocol.ExecutionRuntimeArtifactRef
+	boundRoundID     string
+	boundExecution   string
+	reconciled       int
+	finishedStatus   protocol.ExecutionRuntimeNodeStatus
+	graph            protocol.ExecutionRuntimeGraph
+	getGraphCalls    int
+	graphExecutionID string
+	graphRootRoundID string
 }
 
 type runtimeGraphSubagentHistoryProviderFunc func(
@@ -101,13 +103,15 @@ func (f *runtimeGraphRepositoryFake) FinishRuntimeGraphRound(
 }
 
 func (f *runtimeGraphRepositoryFake) GetRuntimeGraph(
-	context.Context,
-	string,
-	string,
-	string,
-	string,
+	_ context.Context,
+	_ string,
+	_ string,
+	executionID string,
+	rootRoundID string,
 ) (protocol.ExecutionRuntimeGraph, error) {
 	f.getGraphCalls++
+	f.graphExecutionID = executionID
+	f.graphRootRoundID = rootRoundID
 	return f.graph, nil
 }
 
@@ -139,8 +143,18 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 		},
 	}
 	repository := &runtimeGraphRepositoryFake{
-		fakeRepository: &fakeRepository{},
-		graph:          protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{candidate}},
+		fakeRepository: &fakeRepository{snapshot: func() *protocol.ExecutionSnapshot {
+			snapshot := assignedExecutionSnapshot()
+			snapshot.Execution.CoordinatorAgentID = actor.AgentID
+			snapshot.Assignments[0].OwnerAgentID = actor.AgentID
+			snapshot.Assignments[0].Strategy = protocol.AssignmentStrategySelf
+			snapshot.Attempts[0].ExecutorAgentID = actor.AgentID
+			snapshot.Attempts[0].RootRoundID = actor.RootRoundID
+			snapshot.Attempts[0].RuntimeRoundID = actor.RuntimeRoundID
+			snapshot.Attempts[0].AgentRoundID = actor.AgentRoundID
+			return snapshot
+		}()},
+		graph: protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{candidate}},
 	}
 	service := NewService(repository)
 	service.now = func() time.Time { return now }
@@ -148,8 +162,8 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 		{
 			Domain: runtimecommand.DomainExecution, Operation: "assign_work",
 			RequestID: "assign-request-1", Outcome: string(protocol.MutationResultApplied),
-			ExecutionID: "execution-1", WorkItemID: "work-1",
-			AssignmentID: "assignment-1", AttemptID: "attempt-1",
+			ExecutionID: "execution-1",
+			Changed:     []string{"assignment:assignment-1", "attempt:attempt-1"},
 		},
 		{
 			Domain: runtimecommand.DomainExecution, Operation: "submit_work",
@@ -162,6 +176,16 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 	}
 	if repository.getGraphCalls != 1 {
 		t.Fatalf("GetRuntimeGraph calls = %d, want one batched read", repository.getGraphCalls)
+	}
+	if repository.graphExecutionID != actor.ExecutionID ||
+		repository.graphRootRoundID != actor.RootRoundID {
+		t.Fatalf(
+			"GetRuntimeGraph identity = %q/%q, want %q/%q",
+			repository.graphExecutionID,
+			repository.graphRootRoundID,
+			actor.ExecutionID,
+			actor.RootRoundID,
+		)
 	}
 	if repository.boundRoundID != actor.AgentRoundID || repository.boundExecution != actor.ExecutionID {
 		t.Fatalf("runtime segment binding = %q/%q", repository.boundRoundID, repository.boundExecution)
@@ -664,9 +688,10 @@ func TestRuntimeGraphPersistsDMSelfAssignmentSegmentAcrossTools(t *testing.T) {
 		ID:   runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeTool, "tool-assign"),
 		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign",
 		AgentRoundID: "agent-round-1", AgentID: "agent-lead",
-		Name:      "assign_work",
+		Name:      "Bash",
 		Status:    protocol.ExecutionRuntimeNodeRunning,
 		StartedAt: now.Add(-time.Second), UpdatedAt: now.Add(-time.Second),
+		Metadata: map[string]any{runtimeGraphCommandTransportMetadataKey: true},
 	}
 	repository := &runtimeGraphRepositoryFake{
 		fakeRepository: &fakeRepository{snapshot: snapshot},
@@ -680,7 +705,7 @@ func TestRuntimeGraphPersistsDMSelfAssignmentSegmentAcrossTools(t *testing.T) {
 			"role": "user",
 			"content": []any{map[string]any{
 				"type": "tool_result", "tool_use_id": "tool-assign",
-				"content": `{"outcome":"applied","execution_id":"execution-1","changed":["assignment:assignment-1","attempt:attempt-1"]}`,
+				"content": `{"domain":"execution","action":"invoke","operation":"assign_work","request_id":"assign-request-1","result":{"data":{"outcome":"applied","execution_id":"execution-1","changed":["assignment:assignment-1","attempt:attempt-1"]}}}`,
 			}},
 		},
 	})
@@ -775,6 +800,53 @@ func TestRuntimeGraphUnresolvedSuccessfulAssignmentStopsPreviousDMSegment(t *tes
 	}
 	if got := latestRuntimeExecutionSegment(nodes, identity); got.valid() {
 		t.Fatalf("unresolved successful assign leaked previous segment after restart: %+v", got)
+	}
+}
+
+func TestRuntimeGraphExactReceiptCompanionDoesNotClearDMSegment(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 15, 0, 0, 0, time.UTC)
+	identity := runtimeGraphIdentity{
+		ExecutionID: "execution-1", AgentRoundID: "agent-round-1", AgentID: "agent-1",
+	}
+	segment := runtimeExecutionSegment{
+		ExecutionID: "execution-1", WorkItemID: "work-a",
+		AssignmentID: "assignment-a", AttemptID: "attempt-a",
+		Source: "assign_work_receipt",
+	}
+	receiptMetadata := map[string]any{
+		runtimeGraphCommandTransportMetadataKey: true,
+		runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+		runtimeGraphCommandOperationMetadataKey: "assign_work",
+		runtimeGraphCommandRequestIDMetadataKey: "assign-a",
+		runtimeGraphSegmentBoundaryKey:          runtimeGraphSegmentBoundaryAssign,
+	}
+	applyRuntimeExecutionSegment(receiptMetadata, segment)
+	unresolvedCompanionMetadata := map[string]any{
+		runtimeGraphCommandTransportMetadataKey: true,
+		runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+		runtimeGraphCommandOperationMetadataKey: "assign_work",
+		runtimeGraphCommandRequestIDMetadataKey: "assign-a",
+		runtimeGraphSegmentBoundaryKey:          runtimeGraphSegmentBoundaryUnresolved,
+	}
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "receipt-assign-a", Kind: protocol.ExecutionRuntimeNodeTool,
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+			Metadata: receiptMetadata,
+		},
+		{
+			ID: "tool-assign-a", Kind: protocol.ExecutionRuntimeNodeTool,
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Bash",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(time.Second), UpdatedAt: now.Add(2 * time.Second),
+			Metadata: unresolvedCompanionMetadata,
+		},
+	}
+	if got := latestRuntimeExecutionSegment(nodes, identity); got != segment {
+		t.Fatalf("exact unresolved companion cleared trusted receipt segment: got %+v, want %+v", got, segment)
 	}
 }
 
@@ -883,9 +955,13 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		},
 		{
 			ID: "tool-assign-a", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-a",
-			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Bash",
 			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(2 * time.Second),
 			UpdatedAt: now.Add(3 * time.Second), FinishedAt: finishedAt(3 * time.Second),
+			Metadata: map[string]any{
+				runtimeGraphCommandTransportMetadataKey: true,
+				runtimeGraphCommandOperationMetadataKey: "assign_work",
+			},
 		},
 		{
 			ID: "tool-write-a", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-write-a",
@@ -895,9 +971,13 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		},
 		{
 			ID: "tool-assign-b", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-b",
-			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Bash",
 			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(6 * time.Second),
 			UpdatedAt: now.Add(7 * time.Second), FinishedAt: finishedAt(7 * time.Second),
+			Metadata: map[string]any{
+				runtimeGraphCommandTransportMetadataKey: true,
+				runtimeGraphCommandOperationMetadataKey: "assign_work",
+			},
 		},
 		{
 			ID: "tool-bash-b", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-bash-b",
@@ -907,9 +987,13 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		},
 		{
 			ID: "tool-assign-c", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-c",
-			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "Bash",
 			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(10 * time.Second),
 			UpdatedAt: now.Add(11 * time.Second), FinishedAt: finishedAt(11 * time.Second),
+			Metadata: map[string]any{
+				runtimeGraphCommandTransportMetadataKey: true,
+				runtimeGraphCommandOperationMetadataKey: "assign_work",
+			},
 		},
 		{
 			ID: "tool-edit-c", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-edit-c",
@@ -937,6 +1021,191 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		if node.ID == "" || node.ParentNodeID != wantParent || node.WorkItemID != wantParent {
 			t.Fatalf("%s ownership = parent:%q work:%q, want %q; graph=%+v", nodeID, node.ParentNodeID, node.WorkItemID, wantParent, view.Graph)
 		}
+	}
+}
+
+func TestRuntimeGraphViewKeepsBlockedResumeAttemptsAndArtifactsInExactDMSegments(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 13, 0, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		ID: "execution-cindy", ScopeKind: protocol.ExecutionScopeDM,
+		CoordinatorAgentID: "agent-cindy",
+		WorkItems: []protocol.ExecutionWorkItemView{
+			{
+				ID: "work-left", Position: 0, OwnerAgentID: "agent-cindy",
+				Attempts: []protocol.ExecutionAttemptView{
+					{
+						ID: "attempt-left-1", AssignmentID: "assignment-left-1",
+						ExecutorKind: protocol.AttemptExecutorAgent, ExecutorAgentID: "agent-cindy",
+						CreatedAt: now.Add(2 * time.Second),
+					},
+					{
+						ID: "attempt-left-2", AssignmentID: "assignment-left-2",
+						ExecutorKind: protocol.AttemptExecutorAgent, ExecutorAgentID: "agent-cindy",
+						AgentRoundID: "agent-round-cindy", CreatedAt: now.Add(10 * time.Second),
+					},
+				},
+			},
+			{
+				ID: "work-right", Position: 1, OwnerAgentID: "agent-cindy",
+				Attempts: []protocol.ExecutionAttemptView{{
+					ID: "attempt-right", AssignmentID: "assignment-right",
+					ExecutorKind: protocol.AttemptExecutorAgent, ExecutorAgentID: "agent-cindy",
+					AgentRoundID: "agent-round-cindy", CreatedAt: now.Add(6 * time.Second),
+				}},
+			},
+			{
+				ID: "work-merge", Position: 2, OwnerAgentID: "agent-cindy",
+				Attempts: []protocol.ExecutionAttemptView{{
+					ID: "attempt-merge", AssignmentID: "assignment-merge",
+					ExecutorKind: protocol.AttemptExecutorAgent, ExecutorAgentID: "agent-cindy",
+					AgentRoundID: "agent-round-cindy", CreatedAt: now.Add(14 * time.Second),
+				}},
+			},
+		},
+	}
+	view.Graph = projectExecutionGraphView(view.WorkItems)
+	finishedAt := func(offset time.Duration) *time.Time {
+		value := now.Add(offset)
+		return &value
+	}
+	root := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-cindy", Kind: protocol.ExecutionRuntimeNodeAgent,
+		SubjectID: "agent-round-cindy", AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy",
+		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		Metadata: map[string]any{"execution_lane": "coordination"},
+	}
+	assignmentBoundary := func(id, requestID string, start, finish time.Duration) protocol.ExecutionRuntimeNodeRun {
+		return protocol.ExecutionRuntimeNodeRun{
+			ID: id, Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: id,
+			AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy", Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(start),
+			UpdatedAt: now.Add(finish), FinishedAt: finishedAt(finish),
+			Metadata: map[string]any{
+				runtimeGraphCommandTransportMetadataKey: true,
+				runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+				runtimeGraphCommandOperationMetadataKey: "assign_work",
+				runtimeGraphCommandRequestIDMetadataKey: requestID,
+			},
+		}
+	}
+	receiptCompanion := func(id, requestID string, offset time.Duration) protocol.ExecutionRuntimeNodeRun {
+		return protocol.ExecutionRuntimeNodeRun{
+			ID: id, Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "runtime-command:" + requestID,
+			AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy", Name: "assign_work",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(offset),
+			UpdatedAt: now.Add(offset), FinishedAt: finishedAt(offset),
+			Metadata: map[string]any{
+				runtimeGraphCommandTransportMetadataKey: true,
+				runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+				runtimeGraphCommandOperationMetadataKey: "assign_work",
+				runtimeGraphCommandRequestIDMetadataKey: requestID,
+				runtimeGraphCommandVerifiedMetadataKey:  true,
+			},
+		}
+	}
+	artifactWrite := func(id, path string, offset time.Duration) protocol.ExecutionRuntimeNodeRun {
+		return protocol.ExecutionRuntimeNodeRun{
+			ID: id, Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: id,
+			AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy", Name: "Write",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(offset), UpdatedAt: now.Add(offset),
+			Artifacts: []protocol.WorkspaceFileArtifactBlock{{
+				Type: protocol.ContentBlockTypeWorkspaceFileArtifact, Path: path, SourceToolUseID: id,
+			}},
+		}
+	}
+	stagingPath := "/private/state/users/owner/runtime/tmp/runtime-command-inputs/0123456789abcdef0123456789abcdef/input.json"
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		root,
+		assignmentBoundary("tool-assign-left-1", "assign-left-1", time.Second, 3*time.Second),
+		receiptCompanion("receipt-assign-left-1", "assign-left-1", 3200*time.Millisecond),
+		{
+			ID: "tool-staging", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-staging",
+			AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy", Name: "Write",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(3500 * time.Millisecond),
+			UpdatedAt: now.Add(3500 * time.Millisecond), ResultSummary: "updated " + stagingPath,
+		},
+		assignmentBoundary("tool-assign-right", "assign-right", 5*time.Second, 7*time.Second),
+		receiptCompanion("receipt-assign-right", "assign-right", 7200*time.Millisecond),
+		artifactWrite("tool-write-right", "right.md", 8*time.Second),
+		assignmentBoundary("tool-assign-left-2", "assign-left-2", 9*time.Second, 11*time.Second),
+		receiptCompanion("receipt-assign-left-2", "assign-left-2", 11200*time.Millisecond),
+		artifactWrite("tool-write-left", "left.md", 12*time.Second),
+		assignmentBoundary("tool-assign-merge", "assign-merge", 13*time.Second, 15*time.Second),
+		receiptCompanion("receipt-assign-merge", "assign-merge", 15200*time.Millisecond),
+		artifactWrite("tool-write-merge", "merge-report.md", 16*time.Second),
+		{
+			ID: "tool-memory-edit", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-memory-edit",
+			AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy", Name: "Edit",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(17 * time.Second),
+			UpdatedAt: now.Add(17 * time.Second), ResultSummary: "memory/project_workgraph_smoke.md",
+			Artifacts: []protocol.WorkspaceFileArtifactBlock{{
+				Type: protocol.ContentBlockTypeWorkspaceFileArtifact,
+				Path: "memory/project_workgraph_smoke.md", SourceToolUseID: "tool-memory-edit",
+			}},
+		},
+		{
+			ID: "tool-memory-edit-2", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-memory-edit-2",
+			AgentRoundID: "agent-round-cindy", AgentID: "agent-cindy", Name: "Edit",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(18 * time.Second),
+			UpdatedAt: now.Add(18 * time.Second), ResultSummary: "memory/project_workgraph_smoke.md",
+			Artifacts: []protocol.WorkspaceFileArtifactBlock{{
+				Type: protocol.ContentBlockTypeWorkspaceFileArtifact,
+				Path: "memory/project_workgraph_smoke.md", SourceToolUseID: "tool-memory-edit-2",
+			}},
+		},
+	}
+	edges := make([]protocol.ExecutionRuntimeEdgeRun, 0, len(nodes)-1)
+	for _, node := range nodes[1:] {
+		edges = append(edges, protocol.ExecutionRuntimeEdgeRun{
+			ID: "edge-" + node.ID, SourceNodeID: root.ID, TargetNodeID: node.ID,
+			Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: node.StartedAt,
+		})
+	}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: nodes, Edges: edges})
+
+	attemptNodeID := func(attemptID string) string {
+		for _, node := range view.Graph.Nodes {
+			if node.Kind == protocol.ExecutionGraphNodeAgent && node.AttemptID == attemptID {
+				return node.ID
+			}
+		}
+		return ""
+	}
+	for toolID, attemptID := range map[string]string{
+		"tool-assign-left-1":    "attempt-left-1",
+		"receipt-assign-left-1": "attempt-left-1",
+		"tool-staging":          "attempt-left-1",
+		"tool-assign-right":     "attempt-right",
+		"receipt-assign-right":  "attempt-right",
+		"tool-write-right":      "attempt-right",
+		"tool-assign-left-2":    "attempt-left-2",
+		"receipt-assign-left-2": "attempt-left-2",
+		"tool-write-left":       "attempt-left-2",
+		"tool-assign-merge":     "attempt-merge",
+		"receipt-assign-merge":  "attempt-merge",
+		"tool-write-merge":      "attempt-merge",
+		"tool-memory-edit":      "attempt-merge",
+		"tool-memory-edit-2":    "attempt-merge",
+	} {
+		node := graphNodeByID(view.Graph.Nodes, toolID)
+		if wantParent := attemptNodeID(attemptID); node.ID == "" || wantParent == "" || node.ParentNodeID != wantParent {
+			t.Fatalf("%s parent = %q, want Attempt %s node %q", toolID, node.ParentNodeID, attemptID, wantParent)
+		}
+	}
+	visibleRuntimeNodes := 0
+	for _, node := range view.Graph.Nodes {
+		if !strings.HasPrefix(node.ID, "tool-") || node.Visibility == protocol.ExecutionGraphNodeDetail {
+			continue
+		}
+		visibleRuntimeNodes++
+		if node.ID != "tool-write-right" && node.ID != "tool-write-left" && node.ID != "tool-write-merge" {
+			t.Fatalf("supporting transport leaked onto canvas: %+v", node)
+		}
+	}
+	if visibleRuntimeNodes != 3 {
+		t.Fatalf("visible runtime nodes = %d, want three exact artifacts", visibleRuntimeNodes)
 	}
 }
 
@@ -1413,11 +1682,13 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 		{name: "web search", toolName: "WebSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "wrapped web fetch", toolName: "browser.web-fetch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "ordinary shell detail", toolName: "Bash", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
-		{name: "workspace mutation", toolName: "Edit", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "workspace mutation needs artifact or explicit importance", toolName: "Edit", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "external mutation", toolName: "mcp__slack__send_message", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "browser action", toolName: "mcp__browser__navigate", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "local read", toolName: "Read", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "local search", toolName: "Grep", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "local write variant", toolName: "write_file", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "workspace write variant", toolName: "mcp__filesystem__write_file", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "external query", toolName: "mcp__github__list_issues", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "workspace mcp read", toolName: "mcp__filesystem__read_file", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "unknown local query", toolName: "list_issues", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
@@ -1448,6 +1719,104 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 	projected := projectRuntimeGraphNode(managedCommand, 0, true)
 	if projected.Visibility != protocol.ExecutionGraphNodeDetail {
 		t.Fatalf("failed managed transport visibility = %q", projected.Visibility)
+	}
+
+	stagingPath := "/private/state/users/owner/runtime/tmp/runtime-command-inputs/0123456789abcdef0123456789abcdef/input.json"
+	stagingWrite := protocol.ExecutionRuntimeNodeRun{
+		Kind:          protocol.ExecutionRuntimeNodeTool,
+		Name:          "Write",
+		Status:        protocol.ExecutionRuntimeNodeFailed,
+		ResultSummary: "The file " + stagingPath + " has been updated successfully.",
+	}
+	if !runtimeGraphIsCommandTransport(stagingWrite) {
+		t.Fatal("historical command input staging Write was not classified as transport detail")
+	}
+	if projected := projectRuntimeGraphNode(stagingWrite, 0, true); projected.Visibility != protocol.ExecutionGraphNodeDetail {
+		t.Fatalf("command input staging visibility = %q", projected.Visibility)
+	}
+	if runtimeGraphCommandInputStagingTool("Write", map[string]any{"file_path": "input.json"}) {
+		t.Fatal("ordinary workspace input.json was mistaken for host command staging")
+	}
+	if !runtimeGraphCommandInputStagingTool("write_file", map[string]any{"file_path": stagingPath}) {
+		t.Fatal("write_file command input staging variant was not classified as transport detail")
+	}
+}
+
+func TestRuntimeGraphAssignmentBoundaryRequiresManagedTransportIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		node protocol.ExecutionRuntimeNodeRun
+		want string
+	}{
+		{
+			name: "typed CLI takeover",
+			node: protocol.ExecutionRuntimeNodeRun{
+				Name: "Bash",
+				Metadata: map[string]any{
+					runtimeGraphCommandTransportMetadataKey: true,
+					runtimeGraphCommandOperationMetadataKey: "take_over_work",
+				},
+			},
+			want: "take_over_work",
+		},
+		{
+			name: "legacy Nexus MCP takeover",
+			node: protocol.ExecutionRuntimeNodeRun{Name: "mcp__nexus_execution__take_over_work"},
+			want: "take_over_work",
+		},
+		{
+			name: "external same-leaf capability",
+			node: protocol.ExecutionRuntimeNodeRun{Name: "mcp__external__take_over_work"},
+		},
+		{
+			name: "unverified Bash metadata",
+			node: protocol.ExecutionRuntimeNodeRun{
+				Name: "Bash",
+				Metadata: map[string]any{
+					runtimeGraphCommandOperationMetadataKey: "take_over_work",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := runtimeGraphAssignmentBoundaryOperationForNode(test.node); got != test.want {
+				t.Fatalf("boundary operation = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRuntimeGraphMarksCommandInputStagingToolWithoutPersistingRawPath(t *testing.T) {
+	t.Parallel()
+
+	path := "/private/state/users/owner/runtime/tmp/runtime-command-inputs/0123456789abcdef0123456789abcdef/input.json"
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant", "uuid": "assistant-input-write",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use", "id": "tool-input-write", "name": "Write",
+				"input": map[string]any{"file_path": path, "content": `{"secret":"not persisted"}`},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := runtimeGraphLifecycleEvents(message)
+	if len(events) != 1 ||
+		!strings.EqualFold(events[0].Metadata[runtimeGraphCommandTransportMetadataKey], "true") ||
+		events[0].Metadata[runtimeGraphCommandActionMetadataKey] != "input_staging" {
+		t.Fatalf("command input staging lifecycle = %+v", events)
+	}
+	for key, value := range events[0].Metadata {
+		if strings.Contains(key, path) || strings.Contains(value, path) || strings.Contains(value, "secret") {
+			t.Fatalf("command input staging metadata leaked raw input: %+v", events[0].Metadata)
+		}
 	}
 }
 

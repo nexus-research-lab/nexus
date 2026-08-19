@@ -50,7 +50,7 @@ func (s *Service) ObserveRuntimeCommandReceipts(
 		return err
 	}
 	graph, err := repository.GetRuntimeGraph(
-		ctx, identity.OwnerUserID, identity.SessionKey, identity.AgentID, identity.AgentRoundID,
+		ctx, identity.OwnerUserID, identity.SessionKey, identity.ExecutionID, identity.RootRoundID,
 	)
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (s *Service) applyRuntimeCommandReceipt(
 	}
 	node.UpdatedAt = now
 
-	segment := runtimeCommandReceiptSegment(receipt)
+	segment := s.runtimeCommandReceiptSegment(ctx, actor, identity, receipt)
 	if segment.valid() {
 		if err := repository.BindRuntimeGraphRoundExecution(
 			ctx, identity.OwnerUserID, identity.SessionKey, identity.AgentRoundID, segment.ExecutionID,
@@ -226,19 +226,35 @@ func runtimeCommandFallbackNode(
 	}
 }
 
-func runtimeCommandReceiptSegment(receipt runtimecommand.Receipt) runtimeExecutionSegment {
-	if receipt.Operation != "assign_work" || !receipt.Applied() {
+func (s *Service) runtimeCommandReceiptSegment(
+	ctx context.Context,
+	actor ActorContext,
+	identity runtimeGraphIdentity,
+	receipt runtimecommand.Receipt,
+) runtimeExecutionSegment {
+	if !runtimeGraphAssignmentBoundaryOperation(receipt.Operation) || !receipt.Applied() {
 		return runtimeExecutionSegment{}
 	}
+	source := runtimeGraphAssignmentBoundarySource(receipt.Operation)
 	segment := runtimeExecutionSegment{
 		ExecutionID: receipt.ExecutionID, WorkItemID: receipt.WorkItemID,
 		AssignmentID: receipt.AssignmentID, AttemptID: receipt.AttemptID,
-		Source: "assign_work_receipt",
+		Source: source,
 	}
-	if !segment.valid() {
+	if segment.valid() {
+		return segment
+	}
+	if actor.ScopeKind != protocol.ExecutionScopeDM {
 		return runtimeExecutionSegment{}
 	}
-	return segment
+	return s.runtimeExecutionSegmentFromChangedRefs(
+		ctx,
+		actor,
+		identity,
+		receipt.ExecutionID,
+		receipt.Changed,
+		source,
+	)
 }
 
 func runtimeGraphMetadataBool(item protocol.ExecutionRuntimeNodeRun, key string) bool {
