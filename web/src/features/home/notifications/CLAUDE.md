@@ -19,4 +19,4 @@
 - WebSocket 重连成功必须令共享聊天目录失效一次，补偿断线期间可能丢失的全局目录事件；不得恢复固定间隔的全量目录轮询。
 - 通知目标优先级固定为 Room Conversation、Room、Session；Session 活动目标不得回退匹配同 Room 的其他通知。
 - 浏览器权限失败不得影响站内未读记录。
-- 聊天执行态与待确认状态只按 `roomId` 保存；root round 终态负责清理执行槽，单个 Agent slot 终态不得熄灭仍在执行的 Room，权限 resolved 只清理对应请求。
+- 聊天行仍只按 `roomId` 输出状态，但执行态必须在容器内部按精确 Conversation/Session source 隔离后取并集；DM `session_status` 与 Room 全局 `active_sources` 负责重连恢复，任何空快照或终态只能清理自己的 source。root round 终态负责清理该 source 的执行槽，单个 Agent slot 终态不得熄灭仍在执行的其他 slot，权限 resolved 只清理对应请求。

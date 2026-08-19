@@ -1,12 +1,18 @@
+/**
+ * INPUT: chat container、精确 Conversation/Session source 与执行/交互生命周期。
+ * OUTPUT: 以 Room ID 为外部键、内部按 source 隔离并集后的侧栏活动快照。
+ * POS: Home transient activity store；禁止持久目录或其他 source 的终态覆盖仍在运行的会话。
+ */
 import { useSyncExternalStore } from "react";
 
 const ROOM_SNAPSHOT_TOKEN = "__room_snapshot__";
+const DEFAULT_ACTIVITY_SOURCE = "__room_source__";
 const EMPTY_ROOM_ACTIVITY: ReadonlyMap<string, RoomActivityStatus> = new Map();
 
 type RoomActivityScope = "round" | "agent_round";
 export type RoomActivityStatus = "waiting" | "working";
 
-const activeRoundKeysByRoom = new Map<string, Set<string>>();
+const activeRoundKeysByRoom = new Map<string, Map<string, Set<string>>>();
 const pendingInteractionIdsByRoom = new Map<string, Set<string>>();
 const listeners = new Set<() => void>();
 let roomActivitySnapshot: ReadonlyMap<string, RoomActivityStatus> = EMPTY_ROOM_ACTIVITY;
@@ -15,7 +21,7 @@ let roomActivitySnapshot: ReadonlyMap<string, RoomActivityStatus> = EMPTY_ROOM_A
  * Room WebSocket 生命周期的短期投影。
  *
  * 侧栏目录是持久化数据，不能承担正在执行中的瞬时状态；这里单独保存
- * Room 级活动集合，避免把同一个执行态错误投影到某个 Agent 私聊行。
+ * 聊天容器内按 Conversation/Session 隔离活动集合，再汇总到目录行。
  */
 export function useRoomActivity(): ReadonlyMap<string, RoomActivityStatus> {
   return useSyncExternalStore(
@@ -28,19 +34,22 @@ export function useRoomActivity(): ReadonlyMap<string, RoomActivityStatus> {
 /** 更新 Room root 或 Agent slot 的生命周期。 */
 export function updateRoomActivity(
   roomId: string | null | undefined,
+  sourceKey: string | null | undefined,
   roundId: string | null | undefined,
   status: string | null | undefined,
   scope: RoomActivityScope = "round",
   agentRoundId?: string | null,
 ): void {
   const normalizedRoomId = normalize(roomId);
+  const normalizedSourceKey = normalize(sourceKey) || DEFAULT_ACTIVITY_SOURCE;
   const normalizedRoundId = normalize(roundId) || ROOM_SNAPSHOT_TOKEN;
   const normalizedStatus = normalize(status);
   if (!normalizedRoomId || !isKnownRoundStatus(normalizedStatus)) {
     return;
   }
 
-  const activeKeys = activeRoundKeysByRoom.get(normalizedRoomId) ?? new Set<string>();
+  const sources = activeRoundKeysByRoom.get(normalizedRoomId) ?? new Map<string, Set<string>>();
+  const activeKeys = new Set(sources.get(normalizedSourceKey) ?? []);
   activeKeys.delete(ROOM_SNAPSHOT_TOKEN);
   const activityKey = scope === "round"
     ? `round:${normalizedRoundId}`
@@ -68,7 +77,7 @@ export function updateRoomActivity(
     activeKeys.delete(activityKey);
   }
 
-  writeRoundActivity(normalizedRoomId, activeKeys);
+  writeRoundActivity(normalizedRoomId, normalizedSourceKey, sources, activeKeys);
 }
 
 /** 更新 Room 中单个人工交互请求的等待状态。 */
@@ -94,29 +103,65 @@ export function updateRoomInteraction(
   writePendingInteractions(normalizedRoomId, requestIds);
 }
 
-/** 用订阅恢复时的权威 pending 快照替换 Room 执行态与人工交互态。 */
-export function replaceRoomActivitySnapshot(
+/** 用一个 Conversation/Session 的权威快照只替换该 source 的执行态。 */
+export function replaceRoomActivitySourceSnapshot(
   roomId: string | null | undefined,
-  roundId: string | null | undefined,
+  sourceKey: string | null | undefined,
+  runningRoundIds: readonly string[],
   hasPendingSlots: boolean,
-  pendingInteractionRequestIds: readonly string[] = [],
+): void {
+  const normalizedRoomId = normalize(roomId);
+  const normalizedSourceKey = normalize(sourceKey) || DEFAULT_ACTIVITY_SOURCE;
+  if (!normalizedRoomId || !normalizedSourceKey) {
+    return;
+  }
+
+  const activeKeys = new Set(
+    runningRoundIds
+      .map(normalize)
+      .filter(Boolean)
+      .map((roundId) => `round:${roundId}`),
+  );
+  if (activeKeys.size === 0 && hasPendingSlots) {
+    activeKeys.add(`round:${ROOM_SNAPSHOT_TOKEN}`);
+  }
+  const sources = activeRoundKeysByRoom.get(normalizedRoomId) ?? new Map<string, Set<string>>();
+  writeRoundActivity(normalizedRoomId, normalizedSourceKey, sources, activeKeys, false);
+  publishRoomActivity();
+}
+
+export interface RoomActivitySourceSnapshot {
+  runningRoundIds: readonly string[];
+  sourceKey: string;
+}
+
+/** Room 全局重连快照整体替换执行 sources，空数组会清除陈旧工作态。 */
+export function replaceRoomActivitySources(
+  roomId: string | null | undefined,
+  sources: readonly RoomActivitySourceSnapshot[],
 ): void {
   const normalizedRoomId = normalize(roomId);
   if (!normalizedRoomId) {
     return;
   }
-
-  if (hasPendingSlots) {
-    const normalizedRoundId = normalize(roundId) || ROOM_SNAPSHOT_TOKEN;
-    activeRoundKeysByRoom.set(
-      normalizedRoomId,
-      new Set([`round:${normalizedRoundId}`]),
+  const nextSources = new Map<string, Set<string>>();
+  for (const source of sources) {
+    const sourceKey = normalize(source.sourceKey);
+    const activeKeys = new Set(
+      source.runningRoundIds
+        .map(normalize)
+        .filter(Boolean)
+        .map((roundId) => `round:${roundId}`),
     );
+    if (sourceKey && activeKeys.size > 0) {
+      nextSources.set(sourceKey, activeKeys);
+    }
+  }
+  if (nextSources.size > 0) {
+    activeRoundKeysByRoom.set(normalizedRoomId, nextSources);
   } else {
     activeRoundKeysByRoom.delete(normalizedRoomId);
   }
-
-  replacePendingInteractions(normalizedRoomId, pendingInteractionRequestIds);
   publishRoomActivity();
 }
 
@@ -163,13 +208,26 @@ export function getRoomActivity(): ReadonlyMap<string, RoomActivityStatus> {
   return roomActivitySnapshot;
 }
 
-function writeRoundActivity(roomId: string, nextKeys: Set<string>): void {
+function writeRoundActivity(
+  roomId: string,
+  sourceKey: string,
+  sources: Map<string, Set<string>>,
+  nextKeys: Set<string>,
+  publish = true,
+): void {
   if (nextKeys.size === 0) {
+    sources.delete(sourceKey);
+  } else {
+    sources.set(sourceKey, nextKeys);
+  }
+  if (sources.size === 0) {
     activeRoundKeysByRoom.delete(roomId);
   } else {
-    activeRoundKeysByRoom.set(roomId, nextKeys);
+    activeRoundKeysByRoom.set(roomId, sources);
   }
-  publishRoomActivity();
+  if (publish) {
+    publishRoomActivity();
+  }
 }
 
 function writePendingInteractions(roomId: string, requestIds: Set<string>): void {
