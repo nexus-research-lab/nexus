@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Removed the Room member picker's ten-Agent limit so all available Agents can be added to a Room.
+- Opened scheduled tasks to standard five-field Cron expressions, with first-class monthly scheduling and lossless custom Cron editing in the task dialog.
 - Restored reliable DM “working” badges after reconnects and across multiple conversations by keeping exact session activity sources isolated, mirroring active DM lifecycle events to the chat container, and preventing an idle sibling conversation from clearing a running one.
 - Made conversation activity state single-owner across Goal, Agent, and Tool layers: active Goals now use one lifecycle/activity badge, visible Tool blocks suppress duplicate message-level activity, completed tools no longer revive stale reply labels, and internal-only Room results no longer leave empty Agent cards.
 - Made initial, older, and around-history requests transport-cancellable; bounded the browser message window by complete rounds and estimated bytes; and removed the obsolete full-scan ConversationTurn/TurnIndex endpoints in favor of the indexed message and round read model.

@@ -56,6 +56,72 @@ test("scheduled tasks reconcile once after socket connection without fallback po
   assert.doesNotMatch(source, /setInterval|FALLBACK_POLL/);
 });
 
+test("monthly and custom cron schedules remain editable", async () => {
+  const {
+    buildMonthlyCronExpression,
+    parseMonthlyCronExpression,
+  } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/schedule/task-schedule-time.ts",
+  );
+  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
+  );
+  const { buildScheduledTaskPayload } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
+  );
+
+  assert.equal(buildMonthlyCronExpression("09:00", "15"), "0 9 15 * *");
+  assert.deepEqual(parseMonthlyCronExpression("0 9 15 * *"), {
+    dailyTime: "09:00",
+    monthlyDay: "15",
+  });
+
+  const task = {
+    agent_id: "nexus",
+    configuration_version: 1,
+    delivery: { mode: "none" },
+    enabled: true,
+    execution_kind: "agent",
+    expires_at: null,
+    failure_streak: 0,
+    instruction: "生成月报",
+    job_id: "cron-task",
+    last_run_at: null,
+    name: "月报",
+    next_run_at: null,
+    overlap_policy: "skip",
+    permission_mode: "default",
+    running: false,
+    running_started_at: null,
+    session_target: { kind: "isolated" },
+    source: { kind: "user_page" },
+  };
+  const monthly = buildTaskDialogInitialState({
+    ...task,
+    schedule: { cron_expression: "0 9 15 * *", kind: "cron", timezone: "Asia/Shanghai" },
+  });
+  assert.equal(monthly.schedule.kind, "monthly");
+  assert.equal(monthly.schedule.monthlyDay, "15");
+
+  const expression = "*/15 9-17 * * 1-5";
+  const custom = buildTaskDialogInitialState({
+    ...task,
+    job_id: "custom-cron-task",
+    schedule: { cron_expression: expression, kind: "cron", timezone: "Asia/Shanghai" },
+  });
+  assert.equal(custom.schedule.kind, "custom");
+  assert.equal(custom.schedule.cronExpression, expression);
+  const payload = buildScheduledTaskPayload({
+    defaultDeliveryRoomAgentId: "",
+    defaultExecutionRoomAgentId: "",
+    form: custom.form,
+    schedule: custom.schedule,
+    selectedReplySession: null,
+    selectedSession: null,
+  }, (key) => key);
+  assert.equal(payload.schedule.cron_expression, expression);
+});
+
 function resource(items) {
   return {
     error: null,

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -60,6 +61,9 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 
 	normalized := input.Normalized()
 	if err := normalized.Validate(); err != nil {
+		return nil, err
+	}
+	if err := validateRunnableSchedule(normalized.Schedule); err != nil {
 		return nil, err
 	}
 	if err := rejectAgentScriptCreate(ctx, normalized); err != nil {
@@ -228,6 +232,11 @@ func (s *Service) updateTask(
 	if err != nil {
 		return nil, err
 	}
+	if input.Schedule != nil {
+		if err = validateRunnableSchedule(next.Schedule); err != nil {
+			return nil, err
+		}
+	}
 	if err = rejectAgentScriptControl(ctx, *current, next); err != nil {
 		return nil, err
 	}
@@ -347,6 +356,11 @@ func (s *Service) updateTask(
 	s.recordTaskEvent(ctx, updateTaskEventAction(input, *updated), *updated, eventRunID, updateTaskEventDetail(input, *current, *updated))
 	result := s.scheduledTaskRuntimeSnapshot(*updated, state)
 	return &result, nil
+}
+
+func validateRunnableSchedule(schedule automationdomain.Schedule) error {
+	_, err := automationexec.ComputeNextRunAt(schedule, time.Unix(0, 0))
+	return err
 }
 
 func (s *Service) loadRequiredScheduledTask(ctx context.Context, jobID string) (*automationdomain.ScheduledTask, error) {

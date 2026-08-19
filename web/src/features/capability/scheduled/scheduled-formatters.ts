@@ -81,15 +81,27 @@ function formatCronSchedule(expression: string): string {
   const [minuteText, hourText, dayOfMonth, month, weekdayText] = fields;
   const minute = Number(minuteText);
   const hour = Number(hourText);
-  const weekdays = formatCronWeekdays(weekdayText);
-  const isDailySchedule = dayOfMonth === "*"
-    && month === "*"
-    && Number.isInteger(hour)
+  const day = Number(dayOfMonth);
+  const isFixedTime = Number.isInteger(hour)
     && hour >= 0
     && hour <= 23
     && Number.isInteger(minute)
     && minute >= 0
-    && minute <= 59
+    && minute <= 59;
+  if (
+    isFixedTime
+    && Number.isInteger(day)
+    && day >= 1
+    && day <= 31
+    && month === "*"
+    && weekdayText === "*"
+  ) {
+    return `每月 ${day} 日 ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+  const weekdays = formatCronWeekdays(weekdayText);
+  const isDailySchedule = dayOfMonth === "*"
+    && month === "*"
+    && isFixedTime
     && weekdays;
   if (!isDailySchedule) {
     return "自定义计划";

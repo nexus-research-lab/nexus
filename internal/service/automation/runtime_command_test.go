@@ -10,6 +10,30 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 )
 
+func TestAutomationCommandCronScheduleAcceptsStandardFiveField(t *testing.T) {
+	for _, expression := range []string{"0 9 15 * *", "*/15 9-17 * * 1-5"} {
+		schedule, err := automationCommandCronSchedule(expression, "Asia/Shanghai")
+		if err != nil {
+			t.Fatalf("automationCommandCronSchedule(%q): %v", expression, err)
+		}
+		if schedule.CronExpression == nil || *schedule.CronExpression != expression {
+			t.Fatalf("cron_expression = %#v, want %q", schedule.CronExpression, expression)
+		}
+	}
+	if _, err := automationCommandCronSchedule("0 25 15 * *", "Asia/Shanghai"); err == nil {
+		t.Fatal("invalid cron expression unexpectedly accepted")
+	}
+	fixture := newAutomationCommandFixture(t, "ok")
+	input := automationConfigurationTaskInput("invalid cron")
+	expression := "0 25 15 * *"
+	input.Schedule = automationdomain.Schedule{
+		Kind: automationdomain.ScheduleKindCron, CronExpression: &expression, Timezone: "Asia/Shanghai",
+	}
+	if _, err := fixture.Service.CreateTask(context.Background(), input); err == nil {
+		t.Fatal("CreateTask unexpectedly persisted invalid cron expression")
+	}
+}
+
 func TestRuntimeCommandCreateUsesPlanConfirmationAndIdempotency(t *testing.T) {
 	fixture := newAutomationCommandFixture(t, "ok")
 	actor := fixture.ServerContext

@@ -62,7 +62,11 @@ contract 同时返回宿主为当前 physical round 预建的 `input_staging.pat
 {"kind":"cron","expr":"0 9 * * 1-5","timezone":"Asia/Shanghai"}
 ```
 
-Cron 只接受能回写 Nexus UI 的标准五段日/周表达式：minute/hour 为单个整数，day-of-month 和 month 都为 `*`。
+```json
+{"kind":"cron","expr":"0 9 15 * *","timezone":"Asia/Shanghai"}
+```
+
+Cron 接受标准五段表达式。日/周与每月表达式会映射为可视化表单，其他表达式会在 Nexus UI 中保留为可直接编辑的 Cron。
 
 ### update
 

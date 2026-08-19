@@ -18,7 +18,9 @@ export function buildScheduleOptions(t: Translate): ChoiceDef<ScheduleKind>[] {
   return [
     { key: "at", label: t("capability.scheduled_dialog_schedule_once") },
     { key: "cron", label: t("capability.scheduled_dialog_schedule_daily") },
+    { key: "monthly", label: t("capability.scheduled_dialog_schedule_monthly") },
     { key: "every", label: t("capability.scheduled_dialog_schedule_interval") },
+    { key: "custom", label: t("capability.scheduled_dialog_schedule_custom") },
   ];
 }
 
@@ -52,10 +54,12 @@ export function createDefaultTaskSchedule(
 ): TaskScheduleDraft {
   const nextHour = new Date(now.getTime() + 3600_000);
   return {
+    cronExpression: "0 9 * * *",
     dailyTime: formatTimeLocalInput(nextHour),
     everyUnit: "minutes",
     everyValue: "30",
     kind: "every",
+    monthlyDay: "1",
     runAt: formatDatetimeLocalInput(nextHour),
     selectedWeekdays: WEEKDAY_OPTIONS.map((option) => option.key),
     timezone,

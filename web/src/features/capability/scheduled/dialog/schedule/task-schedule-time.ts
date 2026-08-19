@@ -120,27 +120,37 @@ export function isoToZonedLocalInput(value: string, timezone: string): string | 
 }
 
 export function buildDailyCronExpression(timeValue: string, weekdays: Weekday[]): string | null {
-  const normalized = timeValue.trim();
-  const match = normalized.match(/^(\d{2}):(\d{2})$/);
-  if (!match) {
-    return null;
-  }
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+  const time = parseTimeValue(timeValue);
+  if (!time) {
     return null;
   }
   if (weekdays.length === 0) {
     return null;
   }
   if (weekdays.length === WEEKDAY_OPTIONS.length) {
-    return `${minute} ${hour} * * *`;
+    return `${time.minute} ${time.hour} * * *`;
   }
   const weekdayExpression = WEEKDAY_OPTIONS
     .filter((option) => weekdays.includes(option.key))
     .map((option) => String(option.cronValue))
     .join(",");
-  return `${minute} ${hour} * * ${weekdayExpression}`;
+  return `${time.minute} ${time.hour} * * ${weekdayExpression}`;
+}
+
+export function buildMonthlyCronExpression(
+  timeValue: string,
+  monthlyDay: string,
+): string | null {
+  const time = parseTimeValue(timeValue);
+  const day = Number(monthlyDay.trim());
+  if (!time || !/^\d{1,2}$/.test(monthlyDay.trim()) || day < 1 || day > 31) {
+    return null;
+  }
+  return `${time.minute} ${time.hour} ${day} * *`;
+}
+
+export function isStandardCronExpression(cronExpression: string): boolean {
+  return cronExpression.trim().split(/\s+/).length === 5;
 }
 
 export function parseDailyCronExpression(
@@ -157,6 +167,29 @@ export function parseDailyCronExpression(
   }
 
   return { dailyTime, selectedWeekdays };
+}
+
+export function parseMonthlyCronExpression(
+  cronExpression: string,
+): { dailyTime: string; monthlyDay: string } | null {
+  const parts = cronExpression.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    return null;
+  }
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  const day = Number(dayOfMonth);
+  const dailyTime = parseDailyCronTime(minute, hour);
+  if (
+    !dailyTime
+    || !/^\d{1,2}$/.test(dayOfMonth)
+    || day < 1
+    || day > 31
+    || month !== "*"
+    || dayOfWeek !== "*"
+  ) {
+    return null;
+  }
+  return { dailyTime, monthlyDay: String(day) };
 }
 
 interface DailyCronFields {
@@ -187,6 +220,18 @@ function parseDailyCronTime(minuteText: string, hourText: string): string | null
     && minute <= 59;
   return isValid
     ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+    : null;
+}
+
+function parseTimeValue(value: string): { hour: number; minute: number } | null {
+  const match = value.trim().match(/^(\d{2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
+    ? { hour, minute }
     : null;
 }
 
