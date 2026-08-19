@@ -19,9 +19,6 @@ func (m *Manager) ObserveSubagentUsage(sessionKey string, taskID string, cumulat
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.subagentUsageTotals == nil {
-		m.subagentUsageTotals = make(map[string]int64)
-	}
 	key := sessionKey + "\x00" + taskID
 	previous := m.subagentUsageTotals[key]
 	if cumulativeTokens <= previous {

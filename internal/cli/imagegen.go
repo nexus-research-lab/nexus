@@ -44,7 +44,7 @@ func newImagegenGenerateCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, payload, err := appServices.Imagegen.GenerateImage(commandContext(cmd), input)
+			result, payload, err := appServices.Imagegen.GenerateImage(cmd.Context(), input)
 			if err != nil {
 				return err
 			}
@@ -77,7 +77,7 @@ func newImagegenEditCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, payload, err := appServices.Imagegen.EditImage(commandContext(cmd), input)
+			result, payload, err := appServices.Imagegen.EditImage(cmd.Context(), input)
 			if err != nil {
 				return err
 			}

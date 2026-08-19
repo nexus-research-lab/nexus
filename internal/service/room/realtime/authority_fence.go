@@ -38,9 +38,6 @@ func (s *Service) ensureSlotOutputAuthorized(
 	if s == nil || s.rooms == nil || roundValue == nil || slot == nil {
 		return errRoomSlotAuthorityRevoked
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	// Interrupt 会先取消 slotCtx；权限复核仍必须带着原 context values
 	// 读取数据库真相源，不能把正常用户中断误判成授权不确定。
 	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), roomBroadcastTimeout)

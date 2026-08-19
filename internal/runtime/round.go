@@ -70,9 +70,6 @@ type roundRegistry struct {
 }
 
 func (r *roundRegistry) ensure(roundID string) *roundState {
-	if r.items == nil {
-		r.items = make(map[string]*roundState)
-	}
 	state := r.items[roundID]
 	if state == nil {
 		state = &roundState{}
@@ -226,9 +223,6 @@ func (m *Manager) StartRound(
 		return fail(errRuntimeRoundInvalid)
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return fail(err)

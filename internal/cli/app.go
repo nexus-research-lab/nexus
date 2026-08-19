@@ -154,7 +154,7 @@ func newScopedRoot(
 				return err
 			}
 		}
-		nextCtx, err := buildScopedCLIContext(commandContext(cmd), authService, cmd, scopeUserID, globalScope)
+		nextCtx, err := buildScopedCLIContext(cmd.Context(), authService, cmd, scopeUserID, globalScope)
 		if err != nil {
 			return err
 		}
@@ -177,15 +177,8 @@ func hasHostManagedCLIScope() bool {
 	}
 }
 
-func commandContext(cmd *cobra.Command) context.Context {
-	if cmd == nil || cmd.Context() == nil {
-		return context.Background()
-	}
-	return cmd.Context()
-}
-
 func currentCLIUserID(cmd *cobra.Command) string {
-	return authsvc.OwnerUserID(commandContext(cmd))
+	return authsvc.OwnerUserID(cmd.Context())
 }
 
 func buildScopedCLIContext(
@@ -195,9 +188,6 @@ func buildScopedCLIContext(
 	scopeUserID string,
 	globalScope bool,
 ) (context.Context, error) {
-	if base == nil {
-		base = context.Background()
-	}
 	trimmedUserID := strings.TrimSpace(scopeUserID)
 	if existingUserID, ok := authsvc.CurrentUserID(base); ok && strings.TrimSpace(existingUserID) != "" {
 		if trimmedUserID != "" && trimmedUserID != strings.TrimSpace(existingUserID) {

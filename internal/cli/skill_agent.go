@@ -28,7 +28,7 @@ func newSkillAgentListCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := service.GetAgentSkills(commandContext(cmd), agentID)
+			items, err := service.GetAgentSkills(cmd.Context(), agentID)
 			if err != nil {
 				return err
 			}
@@ -55,7 +55,7 @@ func newSkillInstallCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := appServices.Skills.InstallSkill(commandContext(cmd), targetAgentID, skillName)
+			item, err := appServices.Skills.InstallSkill(cmd.Context(), targetAgentID, skillName)
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func newSkillUninstallCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err = service.UninstallSkill(commandContext(cmd), agentID, skillName); err != nil {
+			if err = service.UninstallSkill(cmd.Context(), agentID, skillName); err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{
@@ -121,7 +121,7 @@ func inferCLIWorkspaceAgentID(
 	if workspacePath == "." {
 		return ""
 	}
-	agents, err := appServices.Core.Agent.ListAgentRecords(commandContext(cmd))
+	agents, err := appServices.Core.Agent.ListAgentRecords(cmd.Context())
 	if err != nil {
 		return ""
 	}

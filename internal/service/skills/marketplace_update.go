@@ -335,7 +335,7 @@ func (s *Service) remoteGitCommit(ctx context.Context, manifest externalManifest
 		return "", err
 	}
 	for _, line := range strings.Split(output, "\n") {
-		fields := strings.Fields(strings.TrimSpace(line))
+		fields := strings.Fields(line)
 		if len(fields) < 2 || strings.HasPrefix(fields[0], "ref:") {
 			continue
 		}

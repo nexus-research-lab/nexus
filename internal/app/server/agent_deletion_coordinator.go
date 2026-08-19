@@ -43,9 +43,6 @@ func (c agentDeletionCoordinator) CoordinateAgentDeletion(
 	if deletePersistent == nil {
 		return errors.New("Agent 持久删除回调不能为空")
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	committed := false
 	var runtimeErr error
 	deleteAndRevoke := func(deleteCtx context.Context) error {

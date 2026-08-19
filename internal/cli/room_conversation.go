@@ -19,7 +19,7 @@ func addRoomConversationCommands(command *cobra.Command, services *cliServicePro
 					return err
 				}
 				service := appServices.Core.Room
-				item, err := service.CreateConversation(commandContext(cmd), args[0], protocol.CreateConversationRequest{
+				item, err := service.CreateConversation(cmd.Context(), args[0], protocol.CreateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -48,7 +48,7 @@ func addRoomConversationCommands(command *cobra.Command, services *cliServicePro
 					return err
 				}
 				service := appServices.Core.Room
-				item, err := service.UpdateConversation(commandContext(cmd), args[0], args[1], protocol.UpdateConversationRequest{
+				item, err := service.UpdateConversation(cmd.Context(), args[0], args[1], protocol.UpdateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -76,7 +76,7 @@ func addRoomConversationCommands(command *cobra.Command, services *cliServicePro
 				return err
 			}
 			service := appServices.Core.Room
-			item, err := service.DeleteConversation(commandContext(cmd), args[0], args[1])
+			item, err := service.DeleteConversation(cmd.Context(), args[0], args[1])
 			if err != nil {
 				return err
 			}

@@ -71,9 +71,6 @@ func (m *Manager) SetSubagentHookCallbacks(
 	}
 	m.mu.Lock()
 	state := m.ensureStateLocked(sessionKey)
-	if state.SubagentHooks == nil {
-		state.SubagentHooks = make(map[string]SubagentHookCallbacks)
-	}
 	state.SubagentHooks[roundID] = callbacks
 	m.touchStateLocked(state)
 	m.mu.Unlock()

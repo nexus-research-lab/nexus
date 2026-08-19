@@ -21,15 +21,15 @@ func (s *Service) normalizeChatAttachments(
 	defaultRoomID string,
 	defaultConversationID string,
 ) []protocol.ChatAttachment {
-	normalized := protocol.NormalizeChatAttachments(attachments, strings.TrimSpace(defaultAgentID))
+	normalized := protocol.NormalizeChatAttachments(attachments, defaultAgentID)
 	for index := range normalized {
 		if normalized[index].Scope != protocol.ChatAttachmentScopeRoomConversation {
 			continue
 		}
-		if strings.TrimSpace(normalized[index].RoomID) == "" {
+		if normalized[index].RoomID == "" {
 			normalized[index].RoomID = strings.TrimSpace(defaultRoomID)
 		}
-		if strings.TrimSpace(normalized[index].ConversationID) == "" {
+		if normalized[index].ConversationID == "" {
 			normalized[index].ConversationID = strings.TrimSpace(defaultConversationID)
 		}
 		normalized[index].WorkspaceAgentID = ""

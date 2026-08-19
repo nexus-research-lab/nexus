@@ -152,14 +152,12 @@ func Audit(
 		}
 		ordered = append(ordered, result)
 	}
-	if len(byCriterion) > 0 {
-		for criterion := range byCriterion {
-			return protocol.ObjectiveAlignmentReport{}, fmt.Errorf(
-				"%w: criterion %q is not part of the authoritative target",
-				ErrInvalidReport,
-				criterion,
-			)
-		}
+	for criterion := range byCriterion {
+		return protocol.ObjectiveAlignmentReport{}, fmt.Errorf(
+			"%w: criterion %q is not part of the authoritative target",
+			ErrInvalidReport,
+			criterion,
+		)
 	}
 
 	expectedDecision := protocol.ObjectiveAlignmentAligned

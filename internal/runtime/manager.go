@@ -104,6 +104,7 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 	if state == nil {
 		state = &sessionState{
 			ContextUsageByAgent:  make(map[string]protocol.ContextUsageData),
+			Rounds:               roundRegistry{items: make(map[string]*roundState)},
 			BackgroundTasks:      make(map[uint64]context.CancelFunc),
 			BackgroundDone:       closedSignal(),
 			SubagentHooks:        make(map[string]SubagentHookCallbacks),

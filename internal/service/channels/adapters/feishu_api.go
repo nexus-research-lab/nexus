@@ -81,20 +81,14 @@ func (c *FeishuChannel) SendDeliveryTyping(ctx context.Context, target channelco
 			return nil
 		}
 		c.mu.Lock()
-		if c.typingReacts == nil {
-			c.typingReacts = make(map[string]string)
-		}
 		c.typingReacts[messageID] = reactionID
 		c.mu.Unlock()
 		return nil
 	}
 
 	c.mu.Lock()
-	reactionID := ""
-	if c.typingReacts != nil {
-		reactionID = c.typingReacts[messageID]
-		delete(c.typingReacts, messageID)
-	}
+	reactionID := c.typingReacts[messageID]
+	delete(c.typingReacts, messageID)
 	c.mu.Unlock()
 	if reactionID == "" {
 		return nil

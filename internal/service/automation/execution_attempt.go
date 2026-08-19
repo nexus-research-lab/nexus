@@ -55,9 +55,6 @@ func (s *Service) registerPhysicalAttempt(runID string, roundID string) func() {
 		stopDone: make(chan struct{}),
 	}
 	s.attemptMu.Lock()
-	if s.physicalAttempts == nil {
-		s.physicalAttempts = make(map[physicalAttemptKey]*physicalAttempt)
-	}
 	s.physicalAttempts[key] = attempt
 	s.attemptMu.Unlock()
 

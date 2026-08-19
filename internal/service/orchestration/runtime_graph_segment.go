@@ -104,9 +104,6 @@ func applyRuntimeExecutionSegment(
 }
 
 func clearRuntimeExecutionSegment(metadata map[string]any) {
-	if metadata == nil {
-		return
-	}
 	delete(metadata, runtimeGraphExecutionIDMetadataKey)
 	delete(metadata, runtimeGraphWorkItemIDMetadataKey)
 	delete(metadata, runtimeGraphAssignmentIDMetadataKey)

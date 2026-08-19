@@ -184,9 +184,6 @@ func (s *channelLoginSession) waitDone(ctx context.Context) error {
 	if s == nil || s.done == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

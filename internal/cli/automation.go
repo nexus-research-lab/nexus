@@ -45,7 +45,7 @@ func newScheduledTaskListCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := service.ListTasks(commandContext(cmd), agentID)
+			items, err := service.ListTasks(cmd.Context(), agentID)
 			if err != nil {
 				return err
 			}
@@ -130,7 +130,7 @@ func newScheduledTaskCreateCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.CreateTask(commandContext(cmd), flags.payload())
+			item, err := service.CreateTask(cmd.Context(), flags.payload())
 			if err != nil {
 				return err
 			}
@@ -194,7 +194,7 @@ func newScheduledTaskUpdateCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.UpdateTask(commandContext(cmd), args[0], flags.payload(cmd, current))
+			item, err := service.UpdateTask(cmd.Context(), args[0], flags.payload(cmd, current))
 			if err != nil {
 				return err
 			}
@@ -219,7 +219,7 @@ func (f scheduledTaskUpdateFlags) currentTaskForDelivery(command *cobra.Command,
 	if !f.delivery.changed(command) {
 		return nil, nil
 	}
-	current, err := service.GetTask(commandContext(command), jobID)
+	current, err := service.GetTask(command.Context(), jobID)
 	if err != nil || current != nil {
 		return current, err
 	}
@@ -268,7 +268,7 @@ func newScheduledTaskDeleteCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.DeleteTask(commandContext(cmd), args[0])
+			item, err := service.DeleteTask(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -287,7 +287,7 @@ func newScheduledTaskRunCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := service.RunTaskNow(commandContext(cmd), args[0])
+			item, err := service.RunTaskNow(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -306,7 +306,7 @@ func newScheduledTaskRunsCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := service.ListTaskRuns(commandContext(cmd), args[0])
+			items, err := service.ListTaskRuns(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -326,7 +326,7 @@ func newScheduledTaskStatusCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.UpdateTaskStatus(commandContext(cmd), args[0], enabled)
+			item, err := service.UpdateTaskStatus(cmd.Context(), args[0], enabled)
 			if err != nil {
 				return err
 			}

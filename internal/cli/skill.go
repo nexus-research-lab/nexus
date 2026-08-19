@@ -30,7 +30,7 @@ func newSkillListCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := service.ListSkills(commandContext(cmd), query)
+			items, err := service.ListSkills(cmd.Context(), query)
 			if err != nil {
 				return err
 			}
@@ -55,7 +55,7 @@ func newSkillGetCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := service.GetSkillDetail(commandContext(cmd), args[0], agentID)
+			item, err := service.GetSkillDetail(cmd.Context(), args[0], agentID)
 			if err != nil {
 				return err
 			}

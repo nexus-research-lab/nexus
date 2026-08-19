@@ -32,9 +32,6 @@ func (m *Manager) BeginSessionDeletion(sessionKey string) (SessionDeletionLease,
 	blockKey := runtimeSessionDeletionBlockKey(sessionKey)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.sessionDeletionBlocks == nil {
-		m.sessionDeletionBlocks = make(map[string]uint64)
-	}
 	if _, exists := m.sessionDeletionBlocks[blockKey]; exists {
 		return SessionDeletionLease{}, ErrRuntimeSessionDeleted
 	}

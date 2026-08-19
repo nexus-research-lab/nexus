@@ -92,9 +92,6 @@ func (s *Service) prepareExternalMutationAtSettlementBoundary(
 // runtime consumer 仅在该边界结算 deferred actual；普通 mid-round checkpoint
 // 仍等待 provider terminal 做最终校准。
 func RuntimeUsageSettlementBoundary(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
 	value, _ := ctx.Value(runtimeUsageSettlementBoundaryKey{}).(bool)
 	return value
 }

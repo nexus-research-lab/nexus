@@ -57,7 +57,7 @@ func appendRawLogField(fields []any, key string, value any) []any {
 }
 
 func streamDebugText(value string) string {
-	value = strings.TrimSpace(strings.Join(strings.Fields(value), " "))
+	value = strings.Join(strings.Fields(value), " ")
 	if value == "" {
 		return ""
 	}

@@ -211,6 +211,7 @@ func NewService(
 		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
 		runtimeCommandRecords: make(map[string]*runtimeCommandCapabilityRecord),
 		runtimeCommandTokens:  make(map[string]string),
+		physicalAttempts:      make(map[physicalAttemptKey]*physicalAttempt),
 		deliveryDeadlineDirty: true,
 	}
 	service.schedulerLoop = duework.New(duework.Options{

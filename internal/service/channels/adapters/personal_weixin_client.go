@@ -161,9 +161,6 @@ func (c *PersonalWeixinIlinkClient) TypingTicket(ctx context.Context, ilinkUserI
 	}
 	now := time.Now()
 	c.configMu.Lock()
-	if c.configCache == nil {
-		c.configCache = make(map[string]personalWeixinConfigCacheEntry)
-	}
 	if entry, ok := c.configCache[ilinkUserID]; ok {
 		if strings.TrimSpace(entry.typingTicket) != "" && now.Before(entry.expiresAt) {
 			ticket := entry.typingTicket

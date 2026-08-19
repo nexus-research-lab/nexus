@@ -61,7 +61,7 @@ func newRuntimeAutomationContractCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			contract, err := controller.Contract(commandContext(cmd))
+			contract, err := controller.Contract(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -89,7 +89,7 @@ func newRuntimeAutomationInspectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			data, err := controller.Inspect(commandContext(cmd), flags.operation, input)
+			data, err := controller.Inspect(cmd.Context(), flags.operation, input)
 			if err != nil {
 				return err
 			}
@@ -116,7 +116,7 @@ func newRuntimeAutomationPlanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan, err := controller.Plan(commandContext(cmd), flags.operation, input)
+			plan, err := controller.Plan(cmd.Context(), flags.operation, input)
 			if err != nil {
 				return err
 			}
@@ -149,7 +149,7 @@ func newRuntimeAutomationApplyCommand() *cobra.Command {
 			baseRequest := automationdomain.AutomationCommandRequest{
 				Operation: flags.operation, Input: input, RequestID: requestID,
 			}
-			replay, err := controller.Replay(commandContext(cmd), baseRequest)
+			replay, err := controller.Replay(cmd.Context(), baseRequest)
 			if err != nil {
 				return err
 			}
@@ -158,14 +158,14 @@ func newRuntimeAutomationApplyCommand() *cobra.Command {
 					"domain": "automation", "action": "apply", "result": replay.Result,
 				})
 			}
-			plan, err := controller.Plan(commandContext(cmd), flags.operation, input)
+			plan, err := controller.Plan(cmd.Context(), flags.operation, input)
 			if err != nil {
 				return err
 			}
 			if expected := strings.TrimSpace(expectedRevision); expected != "" && expected != plan.CurrentRevision {
 				return fmt.Errorf("Automation 状态已变化：expected_revision=%s current_revision=%s；请重新 inspect/plan", expected, plan.CurrentRevision)
 			}
-			result, err := controller.Apply(commandContext(cmd), automationdomain.AutomationCommandRequest{
+			result, err := controller.Apply(cmd.Context(), automationdomain.AutomationCommandRequest{
 				Action: automationdomain.AutomationCommandActionApply, Operation: flags.operation,
 				Input: input, RequestID: requestID,
 				ExpectedRevision: plan.CurrentRevision, PlanDigest: plan.PlanDigest,

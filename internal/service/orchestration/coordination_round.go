@@ -42,9 +42,6 @@ func (s *Service) mintRuntimeCoordination(
 		)
 	}
 	s.coordinationMu.Lock()
-	if s.coordinationRounds == nil {
-		s.coordinationRounds = make(map[string]string)
-	}
 	s.coordinationRounds[key] = strings.TrimSpace(executionID)
 	s.coordinationMu.Unlock()
 	return nil

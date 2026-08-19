@@ -86,9 +86,6 @@ func (m *Manager) RevokeAgentSessions(
 	if identity.ownerUserID == "" || identity.agentID == "" {
 		return 0, errors.New("owner_user_id and agent_id are required")
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, RoundIdleAbortTimeout)
@@ -99,12 +96,6 @@ func (m *Manager) RevokeAgentSessions(
 	waiting := make([]<-chan struct{}, 0)
 
 	m.mu.Lock()
-	if m.revokedAgents == nil {
-		m.revokedAgents = make(map[agentRuntimeIdentity]struct{})
-	}
-	if m.revokedSessionKeys == nil {
-		m.revokedSessionKeys = make(map[string]struct{})
-	}
 	m.revokedAgents[identity] = struct{}{}
 	for sessionKey, state := range m.sessions {
 		if state == nil || state.OwnerUserID != identity.ownerUserID {

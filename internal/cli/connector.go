@@ -19,7 +19,7 @@ func newConnectorCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Connectors
-			items, err := service.ListConnectors(commandContext(cmd), currentCLIUserID(cmd), "", "", "")
+			items, err := service.ListConnectors(cmd.Context(), currentCLIUserID(cmd), "", "", "")
 			if err != nil {
 				return err
 			}
@@ -41,7 +41,7 @@ func newConnectorCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Connectors
-			item, err := service.GetConnectorDetail(commandContext(cmd), currentCLIUserID(cmd), args[0])
+			item, err := service.GetConnectorDetail(cmd.Context(), currentCLIUserID(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -65,7 +65,7 @@ func newConnectorCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Connectors
-				item, err := service.GetAuthURL(commandContext(cmd), currentCLIUserID(cmd), args[0], redirectURI, nil)
+				item, err := service.GetAuthURL(cmd.Context(), currentCLIUserID(cmd), args[0], redirectURI, nil)
 				if err != nil {
 					return err
 				}
@@ -90,7 +90,7 @@ func newConnectorCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Connectors
-			item, err := service.Disconnect(commandContext(cmd), currentCLIUserID(cmd), args[0])
+			item, err := service.Disconnect(cmd.Context(), currentCLIUserID(cmd), args[0])
 			if err != nil {
 				return err
 			}

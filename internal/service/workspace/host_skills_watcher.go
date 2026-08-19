@@ -34,9 +34,6 @@ func watchHostSkillLibrary(
 	logger *slog.Logger,
 	ready chan<- struct{},
 ) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if logger == nil {
 		logger = slog.Default()
 	}

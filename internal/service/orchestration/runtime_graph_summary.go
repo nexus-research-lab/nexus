@@ -262,7 +262,7 @@ func runtimeGraphReadableValue(value any, depth int) string {
 
 func compactRuntimeGraphSummary(value string) (string, bool) {
 	value = runtimeGraphInternalSentinel.ReplaceAllString(value, " ")
-	value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	value = strings.Join(strings.Fields(value), " ")
 	if value == "" {
 		return "", false
 	}

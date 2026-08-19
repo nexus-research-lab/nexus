@@ -45,9 +45,6 @@ type ownerClosingSet struct {
 }
 
 func (m *Manager) ensureOwnerLifecycleLocked(ownerUserID string) *ownerLifecycle {
-	if m.owners == nil {
-		m.owners = make(map[string]*ownerLifecycle)
-	}
 	lifecycle := m.owners[ownerUserID]
 	if lifecycle == nil {
 		lifecycle = &ownerLifecycle{startups: make(map[*ownerStartupLease]struct{})}
@@ -232,9 +229,6 @@ func waitOwnerReap(ctx context.Context, flight *ownerReapFlight) error {
 	if flight == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	select {
 	case <-flight.done:
 		return flight.err
@@ -247,9 +241,6 @@ func waitOwnerReap(ctx context.Context, flight *ownerReapFlight) error {
 func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (int, error) {
 	if m == nil || strings.TrimSpace(ownerUserID) == "" {
 		return 0, nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	targets := make([]*sessionCloseTarget, 0)

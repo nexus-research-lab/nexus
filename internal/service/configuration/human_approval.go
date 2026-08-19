@@ -149,9 +149,6 @@ func (s *Service) RecordHumanToolApproval(
 		}
 		clear(existing.ConfigurationSecrets)
 	}
-	if s.humanApprovals == nil {
-		s.humanApprovals = make(map[string]humanApprovalRecord)
-	}
 	s.humanApprovals[key] = record
 	return nil
 }

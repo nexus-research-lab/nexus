@@ -254,7 +254,7 @@ func normalizedAgents(values []string) []string {
 }
 
 func contentPreview(content string) string {
-	normalized := strings.Join(strings.Fields(strings.TrimSpace(content)), " ")
+	normalized := strings.Join(strings.Fields(content), " ")
 	runes := []rune(normalized)
 	if len(runes) <= previewRunes {
 		return normalized

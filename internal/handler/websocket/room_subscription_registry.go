@@ -124,9 +124,6 @@ func (r *roomSubscriptionRegistry) UnsubscribeRoom(sender roomEventSender, roomI
 	}
 
 	senderRooms := r.senderRooms[sender.Key()]
-	if len(senderRooms) == 0 {
-		return
-	}
 	delete(senderRooms, roomID)
 	if len(senderRooms) == 0 {
 		delete(r.senderRooms, sender.Key())

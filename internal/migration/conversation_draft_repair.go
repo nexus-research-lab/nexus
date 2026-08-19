@@ -77,9 +77,6 @@ func runDesktopLegacyConversationDraftRepairOnce(
 	if !isDesktopSQLite(cfg) {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if logger == nil {
 		logger = slog.Default()
 	}

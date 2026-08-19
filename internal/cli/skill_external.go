@@ -33,7 +33,7 @@ func newSkillImportLocalCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := service.ImportLocalPath(commandContext(cmd), path)
+			item, err := service.ImportLocalPath(cmd.Context(), path)
 			if err != nil {
 				return err
 			}
@@ -60,7 +60,7 @@ func newSkillSearchExternalCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.SearchExternalSkills(commandContext(cmd), resolvedQuery, includeReadme)
+			item, err := service.SearchExternalSkills(cmd.Context(), resolvedQuery, includeReadme)
 			if err != nil {
 				return err
 			}
@@ -94,7 +94,7 @@ func newSkillImportGitCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := service.ImportGitPath(commandContext(cmd), repositoryURL, branch, skillPath)
+			item, err := service.ImportGitPath(cmd.Context(), repositoryURL, branch, skillPath)
 			if err != nil {
 				return err
 			}
@@ -123,10 +123,10 @@ func newSkillUpdateCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			if all {
-				item, updateErr := service.UpdateImportedSkills(commandContext(cmd))
+				item, updateErr := service.UpdateImportedSkills(cmd.Context())
 				return emitSkillUpdate(item, "update_all", updateErr)
 			}
-			item, updateErr := service.UpdateSingleSkill(commandContext(cmd), name)
+			item, updateErr := service.UpdateSingleSkill(cmd.Context(), name)
 			return emitSkillUpdate(item, "update", updateErr)
 		},
 	}
@@ -193,7 +193,7 @@ func newExternalSkillImportCommand(services *cliServiceProvider, install bool) *
 			if err != nil {
 				return err
 			}
-			detail, err := appServices.Skills.ImportExternalSkill(commandContext(cmd), item)
+			detail, err := appServices.Skills.ImportExternalSkill(cmd.Context(), item)
 			if err != nil {
 				return err
 			}
@@ -203,7 +203,7 @@ func newExternalSkillImportCommand(services *cliServiceProvider, install bool) *
 				if resolveErr != nil {
 					return resolveErr
 				}
-				result, err = appServices.Skills.InstallSkill(commandContext(cmd), targetAgentID, detail.Name)
+				result, err = appServices.Skills.InstallSkill(cmd.Context(), targetAgentID, detail.Name)
 				if err != nil {
 					return err
 				}

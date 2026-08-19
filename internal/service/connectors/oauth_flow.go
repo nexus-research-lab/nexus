@@ -110,7 +110,7 @@ func availableOAuthProvider(connectorID string) (CatalogEntry, providers.Provide
 func validatedOAuthExtras(provider providers.Provider, extras map[string]string) (map[string]string, error) {
 	normalized := normalizeExtras(extras)
 	for _, key := range provider.RequiredExtraKeys() {
-		if strings.TrimSpace(normalized[key]) == "" {
+		if normalized[key] == "" {
 			return nil, fmt.Errorf("%s 参数缺失", key)
 		}
 	}

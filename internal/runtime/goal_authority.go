@@ -148,17 +148,11 @@ func WithGoalAuthorityState(ctx context.Context, state *GoalAuthorityState) cont
 	if state == nil {
 		return ctx
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, goalAuthorityContextKey{}, state)
 }
 
 // GoalAuthorityStateFromContext 读取由可信 runtime 注入的共享 authority。
 func GoalAuthorityStateFromContext(ctx context.Context) *GoalAuthorityState {
-	if ctx == nil {
-		return nil
-	}
 	state, _ := ctx.Value(goalAuthorityContextKey{}).(*GoalAuthorityState)
 	return state
 }

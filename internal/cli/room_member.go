@@ -19,7 +19,7 @@ func addRoomMemberCommands(command *cobra.Command, services *cliServiceProvider)
 					return err
 				}
 				service := appServices.Core.Room
-				item, err := service.AddRoomMember(commandContext(cmd), args[0], protocol.AddRoomMemberRequest{
+				item, err := service.AddRoomMember(cmd.Context(), args[0], protocol.AddRoomMemberRequest{
 					AgentID: agentID,
 				})
 				if err != nil {
@@ -49,7 +49,7 @@ func addRoomMemberCommands(command *cobra.Command, services *cliServiceProvider)
 					return err
 				}
 				service := appServices.Core.Room
-				item, err := service.RemoveRoomMember(commandContext(cmd), args[0], agentID)
+				item, err := service.RemoveRoomMember(cmd.Context(), args[0], agentID)
 				if err != nil {
 					return err
 				}

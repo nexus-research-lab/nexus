@@ -69,9 +69,9 @@ func (s *Service) prepareTaskDeliveryMutation(
 
 func isLegacyAutomationInboxDelivery(target automationdomain.DeliveryTarget) bool {
 	normalized := target.Normalized()
-	sessionKey := strings.TrimSpace(normalized.SessionKey)
+	sessionKey := normalized.SessionKey
 	if sessionKey == "" && protocol.ParseSessionKey(normalized.To).IsStructured {
-		sessionKey = strings.TrimSpace(normalized.To)
+		sessionKey = normalized.To
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	return parsed.IsStructured &&
@@ -90,13 +90,13 @@ func validateConfigurableDeliveryTarget(target automationdomain.DeliveryTarget) 
 	// `last` without a key is the long-standing "use the remembered route" runtime
 	// contract. It does not create a Session and remains valid for non-UI callers.
 	if normalized.Mode == automationdomain.DeliveryModeLast &&
-		strings.TrimSpace(normalized.SessionKey) == "" &&
-		strings.TrimSpace(normalized.To) == "" {
+		normalized.SessionKey == "" &&
+		normalized.To == "" {
 		return nil
 	}
-	sessionKey := strings.TrimSpace(normalized.SessionKey)
+	sessionKey := normalized.SessionKey
 	if sessionKey == "" && protocol.ParseSessionKey(normalized.To).IsStructured {
-		sessionKey = strings.TrimSpace(normalized.To)
+		sessionKey = normalized.To
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if !parsed.IsStructured ||

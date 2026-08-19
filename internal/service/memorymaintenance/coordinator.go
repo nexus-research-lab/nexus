@@ -78,9 +78,6 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	if c == nil || c.agents == nil || c.runner == nil || c.config.SweepInterval <= 0 {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	c.mu.Lock()
 	if c.started {
 		c.mu.Unlock()

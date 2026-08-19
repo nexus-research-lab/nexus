@@ -70,11 +70,7 @@ func (s *Service) finishBoundRoomAttempt(
 		RuntimeRoundID: slot.AgentRoundID,
 		AgentRoundID:   slot.AgentRoundID,
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	} else {
-		ctx = context.WithoutCancel(ctx)
-	}
+	ctx = context.WithoutCancel(ctx)
 	return terminalizer.FinishRoomAttempt(
 		ctx,
 		actor,

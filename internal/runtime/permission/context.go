@@ -397,20 +397,14 @@ func (c *Context) pruneClosedBindingsLocked(sessionKey string) {
 
 func (c *Context) removeBindingLocked(sessionKey string, senderKey string) {
 	bindings := c.sessionBindings[sessionKey]
-	if len(bindings) == 0 {
-		return
-	}
-
 	delete(bindings, senderKey)
 	if len(bindings) == 0 {
 		delete(c.sessionBindings, sessionKey)
 	}
 
 	sessions := c.senderSessions[senderKey]
-	if len(sessions) > 0 {
-		delete(sessions, sessionKey)
-		if len(sessions) == 0 {
-			delete(c.senderSessions, senderKey)
-		}
+	delete(sessions, sessionKey)
+	if len(sessions) == 0 {
+		delete(c.senderSessions, senderKey)
 	}
 }

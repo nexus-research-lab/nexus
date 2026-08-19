@@ -27,9 +27,9 @@ func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 					items any
 				)
 				if agentID != "" {
-					items, err = service.ListAgentSessions(commandContext(cmd), agentID)
+					items, err = service.ListAgentSessions(cmd.Context(), agentID)
 				} else {
-					items, err = service.ListSessions(commandContext(cmd))
+					items, err = service.ListSessions(cmd.Context())
 				}
 				if err != nil {
 					return err
@@ -56,7 +56,7 @@ func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Session
-				item, err := service.GetSession(commandContext(cmd), sessionKey)
+				item, err := service.GetSession(cmd.Context(), sessionKey)
 				if err != nil {
 					return err
 				}
@@ -87,7 +87,7 @@ func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Session
-				item, err := service.CreateSession(commandContext(cmd), sessionsvc.CreateRequest{
+				item, err := service.CreateSession(cmd.Context(), sessionsvc.CreateRequest{
 					SessionKey: sessionKey,
 					AgentID:    agentID,
 					Title:      title,
@@ -123,7 +123,7 @@ func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Session
-				item, err := service.UpdateSession(commandContext(cmd), sessionKey, sessionsvc.UpdateRequest{
+				item, err := service.UpdateSession(cmd.Context(), sessionKey, sessionsvc.UpdateRequest{
 					Title: &title,
 				})
 				if err != nil {
@@ -153,7 +153,7 @@ func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Session
-				items, err := service.GetSessionMessages(commandContext(cmd), sessionKey)
+				items, err := service.GetSessionMessages(cmd.Context(), sessionKey)
 				if err != nil {
 					return err
 				}
@@ -180,7 +180,7 @@ func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Session
-				if err := service.DeleteSession(commandContext(cmd), sessionKey); err != nil {
+				if err := service.DeleteSession(cmd.Context(), sessionKey); err != nil {
 					return err
 				}
 				return emitJSON(map[string]any{

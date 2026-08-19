@@ -26,7 +26,7 @@ func newConversationPruneEmptyCommand(services *cliServiceProvider) *cobra.Comma
 				return err
 			}
 			report, err := appServices.Core.Room.PruneEmptyConversations(
-				commandContext(cmd),
+				cmd.Context(),
 				room.PruneEmptyConversationsOptions{
 					RoomID: roomID,
 					Apply:  apply,

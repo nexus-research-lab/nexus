@@ -67,9 +67,6 @@ func (r *Router) RegisterAndStartForOwner(ctx context.Context, ownerUserID strin
 	}
 	r.mu.Unlock()
 
-	if runCtx == nil {
-		runCtx = ctx
-	}
 	if err := channel.Start(runCtx); err != nil {
 		_ = channel.Stop(context.Background())
 		return err
