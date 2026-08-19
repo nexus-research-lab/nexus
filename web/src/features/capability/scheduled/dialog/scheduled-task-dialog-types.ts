@@ -7,7 +7,7 @@ import type {
 
 import type { Weekday } from "../pickers/picker-types";
 
-export type ScheduleKind = ScheduledTaskSchedule["kind"];
+export type ScheduleKind = ScheduledTaskSchedule["kind"] | "custom" | "monthly";
 export type EveryUnit = "hours" | "minutes" | "seconds";
 export type TargetType = "agent" | "room";
 export type DeliveryTargetType = TargetType;
@@ -54,10 +54,12 @@ export interface TaskFormDraft {
 }
 
 export interface TaskScheduleDraft {
+  cronExpression: string;
   dailyTime: string;
   everyUnit: EveryUnit;
   everyValue: string;
   kind: ScheduleKind;
+  monthlyDay: string;
   runAt: string;
   selectedWeekdays: Weekday[];
   timezone: string;

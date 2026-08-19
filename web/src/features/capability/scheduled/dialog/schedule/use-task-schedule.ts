@@ -235,9 +235,11 @@ export function useTaskSchedule(
     isSingleSecondDisabled: (value: string) => isSingleCandidateDisabled({
       second: value,
     }),
+    setCronExpression: (value: string) => setValue("cronExpression", value),
     setEveryUnit: (value: EveryUnit) => setValue("everyUnit", value),
     setEveryValue: (value: string) => setValue("everyValue", value),
     setKind: (value: ScheduleKind) => setValue("kind", value),
+    setMonthlyDay: (value: string) => setValue("monthlyDay", value),
     setTimezone: (value: string) => setValue("timezone", value),
     toggleDailyPicker,
     toggleSinglePicker,

@@ -14,6 +14,8 @@ import type {
 } from "../scheduled-task-dialog-types";
 import {
   buildDailyCronExpression,
+  buildMonthlyCronExpression,
+  isStandardCronExpression,
   toIntervalSeconds,
   zonedDateTimeToEpochMs,
 } from "../schedule/task-schedule-time";
@@ -101,6 +103,17 @@ function validateSchedule(
       schedule.dailyTime,
       schedule.selectedWeekdays,
     ) ? null : t("capability.scheduled_dialog_validation_daily_time");
+  }
+  if (schedule.kind === "monthly") {
+    return buildMonthlyCronExpression(
+      schedule.dailyTime,
+      schedule.monthlyDay,
+    ) ? null : t("capability.scheduled_dialog_validation_monthly");
+  }
+  if (schedule.kind === "custom") {
+    return isStandardCronExpression(schedule.cronExpression)
+      ? null
+      : t("capability.scheduled_dialog_validation_cron");
   }
   const runAtEpoch = zonedDateTimeToEpochMs(
     schedule.runAt,
@@ -277,6 +290,23 @@ function buildSchedule(
     );
     if (!cronExpression) {
       throw new Error(t("capability.scheduled_dialog_validation_daily_time"));
+    }
+    return { cron_expression: cronExpression, kind: "cron", timezone };
+  }
+  if (schedule.kind === "monthly") {
+    const cronExpression = buildMonthlyCronExpression(
+      schedule.dailyTime,
+      schedule.monthlyDay,
+    );
+    if (!cronExpression) {
+      throw new Error(t("capability.scheduled_dialog_validation_monthly"));
+    }
+    return { cron_expression: cronExpression, kind: "cron", timezone };
+  }
+  if (schedule.kind === "custom") {
+    const cronExpression = schedule.cronExpression.trim();
+    if (!isStandardCronExpression(cronExpression)) {
+      throw new Error(t("capability.scheduled_dialog_validation_cron"));
     }
     return { cron_expression: cronExpression, kind: "cron", timezone };
   }

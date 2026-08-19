@@ -140,97 +140,19 @@ func automationCommandIntervalSeconds(value int, unit string) (int, error) {
 }
 
 func automationCommandCronSchedule(expression string, timezone string) (automationdomain.Schedule, error) {
+	expression = strings.TrimSpace(expression)
 	fields := strings.Fields(expression)
 	if len(fields) != 5 {
 		return automationdomain.Schedule{}, errors.New("schedule.expr must be a standard five-field cron expression")
 	}
-	minute, err := automationCommandCronInteger(fields[0], 0, 59)
-	if err != nil {
-		return automationdomain.Schedule{}, fmt.Errorf("schedule.expr minute: %w", err)
-	}
-	hour, err := automationCommandCronInteger(fields[1], 0, 23)
-	if err != nil {
-		return automationdomain.Schedule{}, fmt.Errorf("schedule.expr hour: %w", err)
-	}
-	if fields[2] != "*" || fields[3] != "*" {
-		return automationdomain.Schedule{}, errors.New("schedule.expr day-of-month and month must be '*' so the task remains editable in Nexus")
-	}
-	weekdays, err := automationCommandCronWeekdays(fields[4])
-	if err != nil {
-		return automationdomain.Schedule{}, err
-	}
-	normalized, err := automationCommandDailyCron(
-		fmt.Sprintf("%02d:%02d", hour, minute),
-		weekdays,
-	)
-	if err != nil {
-		return automationdomain.Schedule{}, err
-	}
-	return validateAutomationCommandSchedule(automationdomain.Schedule{
-		Kind: automationdomain.ScheduleKindCron, CronExpression: &normalized, Timezone: timezone,
+	schedule, err := validateAutomationCommandSchedule(automationdomain.Schedule{
+		Kind: automationdomain.ScheduleKindCron, CronExpression: &expression, Timezone: timezone,
 	})
-}
-
-func automationCommandCronInteger(value string, minimum int, maximum int) (int, error) {
-	if strings.ContainsAny(value, "*,/-") {
-		return 0, errors.New("must be one integer")
-	}
-	return automationCommandClockPart(value, minimum, maximum)
-}
-
-func automationCommandCronWeekdays(value string) ([]string, error) {
-	value = strings.TrimSpace(value)
-	if value == "" || value == "*" {
-		return nil, nil
-	}
-	if strings.Contains(value, "/") {
-		return nil, errors.New("schedule.expr day-of-week steps are not supported")
-	}
-	values := map[int]struct{}{}
-	for _, item := range strings.Split(value, ",") {
-		startText, endText, ranged := strings.Cut(strings.TrimSpace(item), "-")
-		start, err := automationCommandCronWeekday(startText)
-		if err != nil {
-			return nil, err
-		}
-		if !ranged {
-			values[start] = struct{}{}
-			continue
-		}
-		end, err := automationCommandCronWeekday(endText)
-		if err != nil {
-			return nil, err
-		}
-		if end < start {
-			return nil, errors.New("schedule.expr day-of-week range cannot descend")
-		}
-		for current := start; current <= end; current++ {
-			values[current] = struct{}{}
-		}
-	}
-	if len(values) == 7 {
-		return nil, nil
-	}
-	names := []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
-	result := make([]string, 0, len(values))
-	for value := 0; value < len(names); value++ {
-		if _, ok := values[value]; ok {
-			result = append(result, names[value])
-		}
-	}
-	return result, nil
-}
-
-func automationCommandCronWeekday(value string) (int, error) {
-	parsed, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
-		return 0, fmt.Errorf("schedule.expr day-of-week %q is not an integer", value)
+		return automationdomain.Schedule{}, err
 	}
-	if parsed == 7 {
-		parsed = 0
+	if err = validateRunnableSchedule(schedule); err != nil {
+		return automationdomain.Schedule{}, fmt.Errorf("schedule.expr: %w", err)
 	}
-	if parsed < 0 || parsed > 6 {
-		return 0, errors.New("schedule.expr day-of-week must be in [0,6]")
-	}
-	return parsed, nil
+	return schedule, nil
 }

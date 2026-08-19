@@ -65,9 +65,11 @@ interface TaskScheduleActions {
   isSingleMeridiemDisabled: (value: Meridiem) => boolean;
   isSingleMinuteDisabled: (value: string) => boolean;
   isSingleSecondDisabled: (value: string) => boolean;
+  setCronExpression: (value: string) => void;
   setEveryUnit: (value: EveryUnit) => void;
   setEveryValue: (value: string) => void;
   setKind: (value: ScheduleKind) => void;
+  setMonthlyDay: (value: string) => void;
   setTimezone: (value: string) => void;
   toggleDailyPicker: () => void;
   toggleSinglePicker: () => void;
@@ -182,8 +184,28 @@ export function TaskSchedulePanel({
         />
       ) : null}
 
-      {schedule.kind === "cron" ? (
+      {schedule.kind === "cron" || schedule.kind === "monthly" ? (
         <div className="grid gap-4">
+          {schedule.kind === "monthly" ? (
+            <UiField
+              description={t("capability.scheduled_dialog_monthly_day_help")}
+              htmlFor="task-monthly-day"
+              label={t("capability.scheduled_dialog_monthly_day")}
+              required
+            >
+              <UiInput
+                controlSize="lg"
+                id="task-monthly-day"
+                max="31"
+                min="1"
+                onChange={(event) => actions.setMonthlyDay(event.target.value)}
+                required
+                step="1"
+                type="number"
+                value={schedule.monthlyDay}
+              />
+            </UiField>
+          ) : null}
           <DailyTimePicker
             anchorRef={refs.dailyPickerAnchorRef}
             display={view.dailyDisplay}
@@ -197,29 +219,49 @@ export function TaskSchedulePanel({
             onMinuteSelect={(minute) => actions.updateDailyPicker({ minute })}
             onToggle={actions.toggleDailyPicker}
           />
-          <div className="dialog-field">
-            <span className="dialog-label">
-              {t("capability.scheduled_dialog_execution_days")}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {WEEKDAY_OPTIONS.map((option) => (
-                <UiChoiceButton
-                  active={schedule.selectedWeekdays.includes(option.key)}
-                  choiceSize="md"
-                  className="min-w-9 px-3"
-                  key={option.key}
-                  onClick={() => actions.toggleWeekday(option.key)}
-                  shape="pill"
-                >
-                  {t(WEEKDAY_LABEL_KEYS[option.key])}
-                </UiChoiceButton>
-              ))}
+          {schedule.kind === "cron" ? (
+            <div className="dialog-field">
+              <span className="dialog-label">
+                {t("capability.scheduled_dialog_execution_days")}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAY_OPTIONS.map((option) => (
+                  <UiChoiceButton
+                    active={schedule.selectedWeekdays.includes(option.key)}
+                    choiceSize="md"
+                    className="min-w-9 px-3"
+                    key={option.key}
+                    onClick={() => actions.toggleWeekday(option.key)}
+                    shape="pill"
+                  >
+                    {t(WEEKDAY_LABEL_KEYS[option.key])}
+                  </UiChoiceButton>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-(--text-muted)">
+                {t("capability.scheduled_dialog_execution_days_help")}
+              </p>
             </div>
-            <p className="text-xs leading-5 text-(--text-muted)">
-              {t("capability.scheduled_dialog_execution_days_help")}
-            </p>
-          </div>
+          ) : null}
         </div>
+      ) : null}
+
+      {schedule.kind === "custom" ? (
+        <UiField
+          description={t("capability.scheduled_dialog_custom_cron_help")}
+          htmlFor="task-custom-cron"
+          label={t("capability.scheduled_dialog_custom_cron")}
+          required
+        >
+          <UiInput
+            controlSize="lg"
+            id="task-custom-cron"
+            onChange={(event) => actions.setCronExpression(event.target.value)}
+            placeholder="0 9 15 * *"
+            required
+            value={schedule.cronExpression}
+          />
+        </UiField>
       ) : null}
 
       {schedule.kind === "every" ? (

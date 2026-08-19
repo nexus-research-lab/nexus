@@ -20,6 +20,7 @@ import {
 import {
   isoToZonedLocalInput,
   parseDailyCronExpression,
+  parseMonthlyCronExpression,
 } from "../schedule/task-schedule-time";
 
 const SESSION_TARGET_MODES: Record<
@@ -278,12 +279,29 @@ function buildTaskSchedule(task: ScheduledTaskItem): TaskScheduleDraft {
   const timezone = task.schedule.timezone?.trim() || getDefaultTimezone();
   const defaults = createDefaultTaskSchedule(new Date(), timezone);
   if (task.schedule.kind === "cron") {
-    const parsed = parseDailyCronExpression(task.schedule.cron_expression);
+    const expression = task.schedule.cron_expression;
+    const parsed = parseDailyCronExpression(expression);
+    if (parsed) {
+      return {
+        ...defaults,
+        dailyTime: parsed.dailyTime,
+        kind: "cron",
+        selectedWeekdays: parsed.selectedWeekdays,
+      };
+    }
+    const monthly = parseMonthlyCronExpression(expression);
+    if (monthly) {
+      return {
+        ...defaults,
+        dailyTime: monthly.dailyTime,
+        kind: "monthly",
+        monthlyDay: monthly.monthlyDay,
+      };
+    }
     return {
       ...defaults,
-      dailyTime: parsed?.dailyTime ?? defaults.dailyTime,
-      kind: "cron",
-      selectedWeekdays: parsed?.selectedWeekdays ?? defaults.selectedWeekdays,
+      cronExpression: expression,
+      kind: "custom",
     };
   }
   if (task.schedule.kind === "at") {
