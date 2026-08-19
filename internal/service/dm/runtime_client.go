@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -416,18 +415,6 @@ func (s *Service) ensureClient(
 	options.Session.ResumeID = resumeID
 	options.Session.ResumeAt = forkMessageID
 	options.Session.Fork = forking
-	if forking && strings.TrimSpace(options.Session.ID) == "" {
-		targetToolSurface := ""
-		if toolSurfaceFork {
-			targetToolSurface = toolSurfaceFingerprint
-		}
-		options.Session.ID = runtimeForkTargetSessionID(
-			sessionKey,
-			resumeID,
-			forkMessageID,
-			targetToolSurface,
-		)
-	}
 	if toolSurfaceFork {
 		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
 		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
@@ -582,22 +569,6 @@ func forkSessionStateCommitted(
 	storedToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	return currentSessionID == strings.TrimSpace(sessionID) &&
 		strings.TrimSpace(storedToolSurface) == strings.TrimSpace(toolSurfaceFingerprint)
-}
-
-func runtimeForkTargetSessionID(
-	sessionKey string,
-	sourceSessionID string,
-	messageID string,
-	toolSurfaceFingerprint string,
-) string {
-	identity := strings.Join([]string{
-		"nexus:runtime-fork:v1",
-		strings.TrimSpace(sessionKey),
-		strings.TrimSpace(sourceSessionID),
-		strings.TrimSpace(messageID),
-		strings.TrimSpace(toolSurfaceFingerprint),
-	}, "\x00")
-	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(identity)).String()
 }
 
 func joinDMRuntimePrompts(stable string, dynamic string) string {

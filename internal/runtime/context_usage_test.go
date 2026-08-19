@@ -70,6 +70,24 @@ func TestManagerContextUsageSnapshotsKeepPerAgentLatestValue(t *testing.T) {
 	}
 }
 
+func TestManagerRecordContextUsageAfterRuntimeReplacement(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:session-a"
+	manager.mu.Lock()
+	manager.ensureStateLocked(sessionKey).ContextUsageByAgent = nil
+	manager.mu.Unlock()
+
+	manager.RecordContextUsage(sessionKey, "agent-a", protocol.ContextUsageData{
+		TotalTokens: 10,
+		MaxTokens:   100,
+		Percentage:  10,
+	})
+
+	if snapshots := manager.ContextUsageSnapshots(sessionKey); len(snapshots) != 1 {
+		t.Fatalf("ContextUsageSnapshots() = %#v, want replacement runtime snapshot", snapshots)
+	}
+}
+
 func TestManagerContextUsageSnapshotsIgnoreInvalidIdentity(t *testing.T) {
 	manager := NewManager()
 	manager.RecordContextUsage("", "agent-a", protocol.ContextUsageData{MaxTokens: 100})

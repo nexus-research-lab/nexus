@@ -314,11 +314,8 @@ func TestEnsureClientForConversationForkUsesSourceBoundary(t *testing.T) {
 	if options.Runtime.Kind != agentclient.RuntimeClaude {
 		t.Fatalf("fork 必须沿用 source runtime，got=%q", options.Runtime.Kind)
 	}
-	if options.Session.ID == "" {
-		t.Fatal("Claude fork 必须在启动前固定 target session id")
-	}
-	if want := runtimeForkTargetSessionID(targetSessionKey, sourceSessionID, boundaryUUID, ""); options.Session.ID != want {
-		t.Fatalf("显式 fork target id 必须只由稳定分支身份派生: got=%q want=%q", options.Session.ID, want)
+	if options.Session.ID != "" {
+		t.Fatalf("fork target session id 应由 runtime 分配: %+v", options.Session)
 	}
 }
 

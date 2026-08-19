@@ -602,6 +602,15 @@ func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	current.Options[protocol.OptionRuntimeForkSourceSessionID] = "source-fork-session"
+	current.Options[protocol.OptionRuntimeForkMessageID] = "source-fork-message"
+	optionsJSON, err := json.Marshal(current.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.ExecContext(ctx, "UPDATE sessions SET options_json = ? WHERE id = ?", optionsJSON, *roomSession.RoomSessionID); err != nil {
+		t.Fatal(err)
+	}
 	currentSelection := protocol.SessionConnectorSelectionFromOptions(current.Options)
 	committed, err = repository.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
 		ctx,
@@ -620,6 +629,15 @@ func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
 	if err != nil || reloaded == nil || reloaded.SessionID == nil ||
 		*reloaded.SessionID != "current-fork-session" {
 		t.Fatalf("reloaded Room Session=%+v err=%v", reloaded, err)
+	}
+	if _, exists := reloaded.Options[protocol.OptionRuntimeForkSourceSessionID]; exists {
+		t.Fatalf("fork source 未清理: %+v", reloaded.Options)
+	}
+	if _, exists := reloaded.Options[protocol.OptionRuntimeForkMessageID]; exists {
+		t.Fatalf("fork message 未清理: %+v", reloaded.Options)
+	}
+	if retained := protocol.RetainedTranscriptSessionIDsFromOptions(reloaded.Options); len(retained) != 1 || retained[0] != "source-fork-session" {
+		t.Fatalf("fork source 清理所有权=%v", retained)
 	}
 }
 
