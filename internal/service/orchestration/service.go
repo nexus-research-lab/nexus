@@ -148,11 +148,12 @@ func (s *Service) Ensure(
 	input EnsureInput,
 ) (returned MutationResult, returnedErr error) {
 	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
+	input.CommandID = strings.TrimSpace(input.CommandID)
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}
 	if actor.PlanMode {
-		if strings.TrimSpace(input.CommandID) == "" {
+		if input.CommandID == "" {
 			return RejectedResult(nil, domainError(
 				ErrorCodeInvalidInput,
 				"command_id is required",
@@ -235,7 +236,7 @@ func (s *Service) Ensure(
 					"current Execution is already bound to another Goal or objective revision",
 				), nil), nil
 			}
-			if strings.TrimSpace(input.CommandID) == "" {
+			if input.CommandID == "" {
 				return RejectedResult(snapshot, domainError(
 					ErrorCodeInvalidInput,
 					"command_id is required to bind the current Execution to an explicit Goal",
@@ -246,7 +247,7 @@ func (s *Service) Ensure(
 		return NoOpResult(snapshot, "current execution already exists"), nil
 	}
 
-	if strings.TrimSpace(input.CommandID) == "" {
+	if input.CommandID == "" {
 		return RejectedResult(nil, domainError(
 			ErrorCodeInvalidInput,
 			"command_id is required",

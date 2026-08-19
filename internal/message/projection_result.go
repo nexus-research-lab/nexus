@@ -81,11 +81,11 @@ func AttachGoalCompletionReceipt(
 	if protocol.MessageRole(assistant) != "assistant" ||
 		strings.TrimSpace(receipt.GoalID) == "" ||
 		strings.TrimSpace(receipt.RoundID) == "" ||
-		strings.TrimSpace(normalizeString(assistant["message_id"])) == "" {
+		normalizeString(assistant["message_id"]) == "" {
 		return nil, false
 	}
 	messageRoundID := protocol.MessageRoundID(assistant)
-	agentRoundID := strings.TrimSpace(normalizeString(assistant["agent_round_id"]))
+	agentRoundID := normalizeString(assistant["agent_round_id"])
 	if receipt.RoundID != messageRoundID && receipt.RoundID != agentRoundID {
 		return nil, false
 	}

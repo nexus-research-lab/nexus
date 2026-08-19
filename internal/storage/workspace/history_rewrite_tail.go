@@ -99,12 +99,12 @@ func resolveTranscriptRoundTail(
 				continue
 			}
 			found = true
-			tail.TargetMessageUUID = strings.TrimSpace(stringFromAny(entry.Data["uuid"]))
+			tail.TargetMessageUUID = stringFromAny(entry.Data["uuid"])
 		} else if entryRoundID != "" && entryRoundID != targetRoundID {
 			targetEnded = true
 		}
 		if !targetEnded {
-			if uuid := strings.TrimSpace(stringFromAny(entry.Data["uuid"])); uuid != "" {
+			if uuid := stringFromAny(entry.Data["uuid"]); uuid != "" {
 				tail.TargetRoundEndUUID = uuid
 			}
 		}
@@ -131,7 +131,7 @@ func transcriptEntryRoundID(
 }
 
 func appendTranscriptTailUUID(tail *TranscriptRoundTail, seen map[string]struct{}, entry transcriptEntry) {
-	uuid := strings.TrimSpace(stringFromAny(entry.Data["uuid"]))
+	uuid := stringFromAny(entry.Data["uuid"])
 	if uuid == "" {
 		return
 	}

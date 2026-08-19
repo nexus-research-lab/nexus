@@ -120,6 +120,7 @@ func (s *Service) ensureClient(
 	staticSystemPrompt := orchestration.StablePrompt()
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	explicitGoalID := strings.TrimSpace(request.GoalID)
+	executionID := strings.TrimSpace(request.ExecutionID)
 	explicitGoalRevision := request.GoalObjectiveRevision
 	goalBoundRequest := request.Internal && explicitGoalID != "" && explicitGoalRevision > 0
 	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) && goalBoundRequest {
@@ -133,11 +134,11 @@ func (s *Service) ensureClient(
 	goalAuthority := runtimectx.NewGoalAuthorityState(
 		goalIDForUsage,
 		objectiveRevision,
-		strings.TrimSpace(request.ExecutionID),
+		executionID,
 	)
 	responsibilityState := runtimectx.NewResponsibilityAuthorityState(
 		goalAuthority,
-		strings.TrimSpace(request.ExecutionID),
+		executionID,
 		nil,
 		nil,
 	)
@@ -207,7 +208,7 @@ func (s *Service) ensureClient(
 			Agent:                   agentValue,
 			ScopeSessionKey:         sessionKey,
 			RuntimeSessionKey:       sessionKey,
-			ExecutionID:             strings.TrimSpace(request.ExecutionID),
+			ExecutionID:             executionID,
 			CoordinatorAgentID:      agentValue.AgentID,
 			RootRoundID:             request.RoundID,
 			AgentRoundID:            request.AgentRoundID,
@@ -458,19 +459,20 @@ func retireExistingDMRuntimeClient(ctx context.Context, startup *runtimectx.Clie
 }
 
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
+	executionOrigin := strings.TrimSpace(request.ExecutionOrigin)
 	if request.trustedQueuedConfigurationContext &&
-		strings.TrimSpace(request.ExecutionOrigin) == "queue" &&
+		executionOrigin == "queue" &&
 		trustedDMWebSocketSession(sessionKey, agentID) {
 		return "agent"
 	}
 	if request.TrustedExternalInteractiveContext &&
-		strings.TrimSpace(request.ExecutionOrigin) == "channel" &&
+		executionOrigin == "channel" &&
 		trustedExternalDMSession(sessionKey, agentID) {
 		return "agent_paired"
 	}
 	switch {
-	case strings.TrimSpace(request.ExecutionOrigin) != "":
-		return "agent_" + strings.ToLower(strings.TrimSpace(request.ExecutionOrigin))
+	case executionOrigin != "":
+		return "agent_" + strings.ToLower(executionOrigin)
 	case request.Internal:
 		return "agent_internal"
 	case request.ExternalReplyTarget != nil:
@@ -814,26 +816,28 @@ func (s *Service) withRuntimeDiagnosticsLogger(
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)
 		}
+		component := strings.TrimSpace(event.Component)
+		eventName := strings.TrimSpace(event.Event)
 		if diagnosticsEnabled {
 			logger.Info("Agent SDK diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
+				"component", component,
+				"event", eventName,
 				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
 			)
 			return
 		}
 		if clientopts.ShouldLogRuntimeStartupDiagnostic(event) {
 			logger.Info("Agent SDK startup diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
+				"component", component,
+				"event", eventName,
 				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
 			)
 			return
 		}
 		if clientopts.ShouldWarnRuntimeStartupDiagnostic(event) {
 			logger.Warn("Agent SDK startup diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
+				"component", component,
+				"event", eventName,
 				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
 			)
 		}

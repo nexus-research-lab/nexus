@@ -904,7 +904,7 @@ func indexedSyntheticInterruptIsActive(
 }
 
 func indexedSyntheticInterruptRoundID(row protocol.Message) string {
-	roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
+	roundID := stringFromAny(row["round_id"])
 	if roundID == "" || stringFromAny(row["message_id"]) != "assistant_interrupt_"+roundID {
 		return ""
 	}

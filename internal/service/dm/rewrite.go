@@ -24,23 +24,28 @@ type rewritePruneInput struct {
 
 // HandleRewriteLastUserMessage 编辑最后一条用户消息，并基于新的上下文重新生成。
 func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request RewriteRequest) error {
+	request.SessionKey = strings.TrimSpace(request.SessionKey)
+	request.AgentID = strings.TrimSpace(request.AgentID)
+	request.TargetRoundID = strings.TrimSpace(request.TargetRoundID)
+	request.ClientRequestID = strings.TrimSpace(request.ClientRequestID)
+	request.ClientMessageID = strings.TrimSpace(request.ClientMessageID)
 	sessionKey, parsed, err := s.validateRewriteRequest(request)
 	if err != nil {
 		s.loggerFor(ctx).Warn("拒绝 DM rewrite 请求",
-			"session_key", strings.TrimSpace(request.SessionKey),
-			"agent_id", strings.TrimSpace(request.AgentID),
-			"target_round_id", strings.TrimSpace(request.TargetRoundID),
-			"client_request_id", strings.TrimSpace(request.ClientRequestID),
-			"client_message_id", strings.TrimSpace(request.ClientMessageID),
+			"session_key", request.SessionKey,
+			"agent_id", request.AgentID,
+			"target_round_id", request.TargetRoundID,
+			"client_request_id", request.ClientRequestID,
+			"client_message_id", request.ClientMessageID,
 			"err", err,
 		)
 		return err
 	}
 	logger := s.loggerFor(ctx).With(
 		"session_key", sessionKey,
-		"target_round_id", strings.TrimSpace(request.TargetRoundID),
-		"client_request_id", strings.TrimSpace(request.ClientRequestID),
-		"client_message_id", strings.TrimSpace(request.ClientMessageID),
+		"target_round_id", request.TargetRoundID,
+		"client_request_id", request.ClientRequestID,
+		"client_message_id", request.ClientMessageID,
 	)
 	if runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey); len(runningRoundIDs) > 0 {
 		logger.Warn("拒绝 DM rewrite：已有运行中 round", "running_round_ids", runningRoundIDs)
@@ -83,10 +88,10 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		logger.Warn("拒绝 DM rewrite：会话为空")
 		return errors.New("cannot rewrite an empty conversation")
 	}
-	targetRoundID := strings.TrimSpace(request.TargetRoundID)
-	if targetRoundID != strings.TrimSpace(dmdomain.NormalizeString(lastUser["round_id"])) {
+	targetRoundID := request.TargetRoundID
+	if targetRoundID != dmdomain.NormalizeString(lastUser["round_id"]) {
 		logger.Warn("拒绝 DM rewrite：目标不是最后一条用户消息",
-			"last_user_round_id", strings.TrimSpace(dmdomain.NormalizeString(lastUser["round_id"])),
+			"last_user_round_id", dmdomain.NormalizeString(lastUser["round_id"]),
 		)
 		return fmt.Errorf("can only rewrite the last user message")
 	}
@@ -144,7 +149,7 @@ func (s *Service) validateRewriteRequest(request RewriteRequest) (string, protoc
 	if parsed.Kind == protocol.SessionKeyKindRoom {
 		return "", protocol.SessionKey{}, ErrRoomSessionNotImplemented
 	}
-	if strings.TrimSpace(request.TargetRoundID) == "" {
+	if request.TargetRoundID == "" {
 		return "", protocol.SessionKey{}, errors.New("target_round_id is required")
 	}
 	if !protocol.HasChatInput(request.Content, request.Attachments) {
@@ -213,7 +218,7 @@ func (s *Service) broadcastHistoryRewriteResync(
 func lastVisibleUserMessage(rows []protocol.Message) (protocol.Message, bool) {
 	for index := len(rows) - 1; index >= 0; index-- {
 		row := rows[index]
-		if strings.TrimSpace(dmdomain.NormalizeString(row["role"])) == "user" {
+		if dmdomain.NormalizeString(row["role"]) == "user" {
 			return row, true
 		}
 	}
@@ -227,7 +232,7 @@ func countHistoryRowsForRound(rows []protocol.Message, roundID string) int {
 	}
 	count := 0
 	for _, row := range rows {
-		if strings.TrimSpace(dmdomain.NormalizeString(row["round_id"])) == roundID {
+		if dmdomain.NormalizeString(row["round_id"]) == roundID {
 			count++
 		}
 	}

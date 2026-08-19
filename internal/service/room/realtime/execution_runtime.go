@@ -270,6 +270,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(
 		roomAgentSessionOptions(e.round, e.agent.AgentID),
 	)
+	sessionKey := strings.TrimSpace(e.round.SessionKey)
 	permissionMode := runtimepermission.NormalizeMode(
 		sdkpermission.Mode(e.agent.Options.PermissionMode),
 	)
@@ -286,7 +287,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	// admit only an explicit continuation or an exact Goal-bound Work/Review
 	// Execution. A successful create_goal can bind this slot later.
 	e.slot.setGoalContext("")
-	e.slot.setGoalBinding(strings.TrimSpace(e.round.SessionKey), "")
+	e.slot.setGoalBinding(sessionKey, "")
 	if !e.slot.goalRuntimeIgnored() {
 		explicitGoalID := strings.TrimSpace(e.round.GoalID)
 		explicitRevision := e.round.GoalObjectiveRevision
@@ -308,13 +309,13 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 		} else if e.round.Internal && explicitGoalID != "" && explicitRevision > 0 {
 			goalContext, currentGoalID, currentRevision, ok := e.service.goalRuntimeContext(
 				e.ctx,
-				strings.TrimSpace(e.round.SessionKey),
+				sessionKey,
 			)
 			if !ok || currentGoalID != explicitGoalID || currentRevision != explicitRevision {
 				return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
 			}
 			if !e.slot.grantGoalMutationAuthority(roomGoalMutationAuthority{
-				SessionKey:        strings.TrimSpace(e.round.SessionKey),
+				SessionKey:        sessionKey,
 				GoalID:            explicitGoalID,
 				ObjectiveRevision: explicitRevision,
 				ExecutionID: firstNonEmptyString(
@@ -426,13 +427,13 @@ func roomMCPSourceContextType(round *activeRoomRound) string {
 	if round == nil {
 		return "room_untrusted"
 	}
-	if round.trustedQueuedConfigurationContext &&
-		strings.TrimSpace(round.ExecutionOrigin) == "queue" {
+	executionOrigin := strings.TrimSpace(round.ExecutionOrigin)
+	if round.trustedQueuedConfigurationContext && executionOrigin == "queue" {
 		return "room"
 	}
 	switch {
-	case strings.TrimSpace(round.ExecutionOrigin) != "":
-		return "room_" + strings.ToLower(strings.TrimSpace(round.ExecutionOrigin))
+	case executionOrigin != "":
+		return "room_" + strings.ToLower(executionOrigin)
 	case round.Internal:
 		return "room_internal"
 	case !round.TrustedConfigurationContext:
@@ -716,26 +717,28 @@ func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)
 		}
+		component := strings.TrimSpace(event.Component)
+		eventName := strings.TrimSpace(event.Event)
 		if diagnosticsEnabled {
 			logger.Info("Agent SDK diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
+				"component", component,
+				"event", eventName,
 				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
 			)
 			return
 		}
 		if clientopts.ShouldLogRuntimeStartupDiagnostic(event) {
 			logger.Info("Agent SDK startup diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
+				"component", component,
+				"event", eventName,
 				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
 			)
 			return
 		}
 		if clientopts.ShouldWarnRuntimeStartupDiagnostic(event) {
 			logger.Warn("Agent SDK startup diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
+				"component", component,
+				"event", eventName,
 				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
 			)
 		}

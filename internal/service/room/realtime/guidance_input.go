@@ -430,13 +430,13 @@ func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, roomTr
 	roundID := ""
 	trigger := roomTrigger{}
 	for _, item := range queueItems {
-		if strings.TrimSpace(item.ID) != "" {
-			roundID = "queue_" + strings.TrimSpace(item.ID)
+		if itemID := strings.TrimSpace(item.ID); itemID != "" {
+			roundID = "queue_" + itemID
 		}
-		if strings.TrimSpace(item.Content) != "" {
+		if content := strings.TrimSpace(item.Content); content != "" {
 			trigger = roomTrigger{
 				TriggerType:   guidanceTriggerType(item.Source),
-				Content:       strings.TrimSpace(item.Content),
+				Content:       content,
 				MessageID:     firstNonEmptyString(item.SourceMessageID, roundID),
 				SourceAgentID: strings.TrimSpace(item.SourceAgentID),
 				TargetAgentID: strings.TrimSpace(item.AgentID),

@@ -189,7 +189,7 @@ func historyTranscriptSessionIDs(sessionValue protocol.Session) []string {
 	if segmented {
 		return protocol.SessionTranscriptIDs(sessionValue)
 	}
-	current := strings.TrimSpace(stringPointerValue(sessionValue.SessionID))
+	current := stringPointerValue(sessionValue.SessionID)
 	if current == "" {
 		return nil
 	}
@@ -355,7 +355,7 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 
 func transcriptChainThroughMessage(chain []transcriptEntry, messageID string) ([]transcriptEntry, bool) {
 	for index, entry := range chain {
-		if strings.TrimSpace(stringFromAny(entry.Data["uuid"])) == messageID {
+		if stringFromAny(entry.Data["uuid"]) == messageID {
 			return chain[:index+1], true
 		}
 	}

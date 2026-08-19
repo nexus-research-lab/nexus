@@ -166,8 +166,10 @@ func privateProviderMutationContext(ctx context.Context, actor Actor) context.Co
 }
 
 func actorWithTrustedRequestPrincipal(ctx context.Context, actor Actor) Actor {
+	actor.OwnerUserID = strings.TrimSpace(actor.OwnerUserID)
+	actor.AgentID = strings.TrimSpace(actor.AgentID)
 	if principal := authctx.PrincipalFromContext(ctx); principal != nil &&
-		strings.TrimSpace(principal.UserID) == strings.TrimSpace(actor.OwnerUserID) {
+		strings.TrimSpace(principal.UserID) == actor.OwnerUserID {
 		actor.PrincipalRole = strings.TrimSpace(principal.Role)
 		actor.AuthMethod = strings.TrimSpace(principal.AuthMethod)
 		actor.AuthSessionID = ""
@@ -177,7 +179,7 @@ func actorWithTrustedRequestPrincipal(ctx context.Context, actor Actor) Actor {
 		actor.LocalSingleUser = false
 	}
 	if queued, ok := authctx.QueuedHumanPrincipalBindingFromContext(ctx); ok &&
-		strings.TrimSpace(queued.UserID) == strings.TrimSpace(actor.OwnerUserID) {
+		queued.UserID == actor.OwnerUserID {
 		// Background queue workers carry a synthetic RoleOwner solely to scope
 		// host reads. Never treat it as configuration authority: restore only
 		// the DB-backed auth identity and let roleResolver reload the role.
@@ -189,7 +191,7 @@ func actorWithTrustedRequestPrincipal(ctx context.Context, actor Actor) Actor {
 	state, hasState := authctx.StateFromContext(ctx)
 	if hasState &&
 		!state.AuthRequired &&
-		strings.TrimSpace(actor.OwnerUserID) == authctx.SystemUserID &&
+		actor.OwnerUserID == authctx.SystemUserID &&
 		strings.TrimSpace(actor.PrincipalRole) == authctx.RoleOwner &&
 		strings.TrimSpace(actor.AuthMethod) == authctx.AuthMethodLocal {
 		actor.LocalSingleUser = true

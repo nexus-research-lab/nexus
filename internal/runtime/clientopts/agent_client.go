@@ -131,7 +131,7 @@ func BuildAgentClientOptionsWithConfig(
 	if ownerUserID == "" {
 		// 老的后台调用方可能只把 owner 放在认证上下文里；统一解析后，
 		// 配置目录、环境变量和 workspace policy 必须使用同一个 owner。
-		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+		ownerUserID = authctx.OwnerUserID(ctx)
 	}
 	mcpServers, err := MergeAgentMCPServers(input.MCPServers, input.AgentMCPServers)
 	if err != nil {

@@ -352,11 +352,11 @@ func subagentHookBindingMatchesLifecycle(
 	event sdkhook.Event,
 	input sdkhook.Input,
 ) bool {
+	agentID := strings.TrimSpace(input.AgentID)
+	taskID := strings.TrimSpace(input.TaskID)
 	if event == sdkhook.EventSubagentStart && (binding.Started || binding.Terminal) {
 		// A duplicate/late Start must keep matching its frozen child identity.
 		// Excluding it would let a newer unstarted binding absorb the old event.
-		agentID := strings.TrimSpace(input.AgentID)
-		taskID := strings.TrimSpace(input.TaskID)
 		if (agentID == "" || binding.SDKAgentID == "" || binding.SDKAgentID != agentID) &&
 			(taskID == "" || binding.SDKTaskID == "" || binding.SDKTaskID != taskID) {
 			return false
@@ -369,19 +369,19 @@ func subagentHookBindingMatchesLifecycle(
 		binding.SDKSessionID != "" && binding.SDKSessionID != sessionID {
 		return false
 	}
-	if taskID := strings.TrimSpace(input.TaskID); taskID != "" &&
+	if taskID != "" &&
 		binding.SDKTaskID != "" && binding.SDKTaskID != taskID {
 		return false
 	}
-	if agentID := strings.TrimSpace(input.AgentID); agentID != "" &&
+	if agentID != "" &&
 		binding.SDKAgentID != "" && binding.SDKAgentID != agentID {
 		return false
 	}
 	if event == sdkhook.EventSubagentStop {
-		if taskID := strings.TrimSpace(input.TaskID); taskID != "" {
+		if taskID != "" {
 			return binding.SDKTaskID == "" || binding.SDKTaskID == taskID
 		}
-		if agentID := strings.TrimSpace(input.AgentID); agentID != "" {
+		if agentID != "" {
 			return binding.SDKAgentID == agentID
 		}
 	}

@@ -39,31 +39,36 @@ func DecodeDingTalkIngressCallback(raw []byte) (*channelcontract.IngressRequest,
 		return nil, "empty_ref", nil
 	}
 	deliveryTo := channelcontract.FirstNonEmpty(payload.SessionWebhook, payload.OpenConversationID, payload.ConversationID, ref)
+	accountID := strings.TrimSpace(payload.ChatbotCorpID)
+	messageID := strings.TrimSpace(payload.MsgID)
+	chatType := normalizeDingTalkConversationType(payload.ConversationType)
+	senderName := strings.TrimSpace(payload.SenderNick)
+	conversationTitle := strings.TrimSpace(payload.ConversationTitle)
 	return &channelcontract.IngressRequest{
 		Channel:      channelcontract.ChannelTypeDingTalk,
-		AccountID:    strings.TrimSpace(payload.ChatbotCorpID),
-		ChatType:     normalizeDingTalkConversationType(payload.ConversationType),
+		AccountID:    accountID,
+		ChatType:     chatType,
 		Ref:          ref,
 		Content:      content,
-		RoundID:      strings.TrimSpace(payload.MsgID),
-		ReqID:        strings.TrimSpace(payload.MsgID),
+		RoundID:      messageID,
+		ReqID:        messageID,
 		ExternalName: channelcontract.FirstNonEmpty(payload.ConversationTitle, payload.SenderNick),
 		Delivery: &channelcontract.DeliveryTarget{
 			Mode:      channelcontract.DeliveryModeExplicit,
 			Channel:   channelcontract.ChannelTypeDingTalk,
 			To:        deliveryTo,
-			AccountID: strings.TrimSpace(payload.ChatbotCorpID),
+			AccountID: accountID,
 		},
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
 			Channel:           channelcontract.ChannelTypeDingTalk,
 			Target:            ref,
-			PlatformMessageID: strings.TrimSpace(payload.MsgID),
+			PlatformMessageID: messageID,
 			SenderID:          channelcontract.FirstNonEmpty(payload.SenderStaffID, payload.SenderID),
-			SenderName:        strings.TrimSpace(payload.SenderNick),
-			ChatType:          normalizeDingTalkConversationType(payload.ConversationType),
+			SenderName:        senderName,
+			ChatType:          chatType,
 			Text:              content,
 			Metadata: map[string]string{
-				"conversation_title": strings.TrimSpace(payload.ConversationTitle),
+				"conversation_title": conversationTitle,
 			},
 		}),
 	}, "", nil

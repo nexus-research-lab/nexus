@@ -607,9 +607,10 @@ func shouldDeadLetterDeletedTaskDelivery(run automationdomain.ScheduledTaskRun) 
 	if strings.TrimSpace(run.RunID) == "" || run.DeliveryDeadLetterAt != nil {
 		return false
 	}
-	if strings.TrimSpace(run.Status) == automationdomain.RunStatusPending ||
-		strings.TrimSpace(run.Status) == automationdomain.RunStatusRunning ||
-		strings.TrimSpace(run.Status) == automationdomain.RunStatusQueuedToMain {
+	status := strings.TrimSpace(run.Status)
+	if status == automationdomain.RunStatusPending ||
+		status == automationdomain.RunStatusRunning ||
+		status == automationdomain.RunStatusQueuedToMain {
 		return false
 	}
 	return deriveTaskRunDeliveryStatus(run) == automationdomain.DeliveryStatusFailed

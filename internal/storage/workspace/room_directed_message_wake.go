@@ -65,7 +65,7 @@ func (s *RoomDirectedMessageWakeStore) ScheduleIfAbsent(wake RoomDirectedMessage
 		return false, err
 	}
 	for _, row := range rows {
-		if strings.TrimSpace(stringFromAny(row["action"])) != roomWakeActionSchedule {
+		if stringFromAny(row["action"]) != roomWakeActionSchedule {
 			continue
 		}
 		payload, marshalErr := json.Marshal(row["wake"])
@@ -101,7 +101,7 @@ func (s *RoomDirectedMessageWakeStore) ScheduleIfAbsent(wake RoomDirectedMessage
 func roomDirectedWakeLogContainsSchedule(rows []map[string]any, wakeID string) bool {
 	wakeID = strings.TrimSpace(wakeID)
 	for _, row := range rows {
-		if strings.TrimSpace(stringFromAny(row["action"])) != roomWakeActionSchedule {
+		if stringFromAny(row["action"]) != roomWakeActionSchedule {
 			continue
 		}
 		payload, err := json.Marshal(row["wake"])
@@ -181,7 +181,7 @@ func (s *RoomDirectedMessageWakeStore) pendingRowsLocked(
 	}
 	pending := make(map[string]RoomDirectedMessageWake)
 	for _, row := range rows {
-		switch strings.TrimSpace(stringFromAny(row["action"])) {
+		switch stringFromAny(row["action"]) {
 		case roomWakeActionSchedule:
 			payload, marshalErr := json.Marshal(row["wake"])
 			if marshalErr != nil {
@@ -205,7 +205,7 @@ func (s *RoomDirectedMessageWakeStore) pendingRowsLocked(
 			}
 			pending[wake.WakeID] = wake
 		case roomWakeActionComplete:
-			delete(pending, strings.TrimSpace(stringFromAny(row["wake_id"])))
+			delete(pending, stringFromAny(row["wake_id"]))
 		}
 	}
 	result := make([]RoomDirectedMessageWake, 0, len(pending))

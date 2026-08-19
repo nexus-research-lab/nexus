@@ -422,7 +422,7 @@ func (s *Service) roomCollaborationOwnerUserID(
 	ctx context.Context,
 	conversationID string,
 ) (string, error) {
-	if ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx)); ownerUserID != "" {
+	if ownerUserID := authctx.OwnerUserID(ctx); ownerUserID != "" {
 		return ownerUserID, nil
 	}
 	_, contextValue, err := s.internalConversationContext(ctx, conversationID, true)

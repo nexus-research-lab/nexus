@@ -181,7 +181,7 @@ func (c *Context) buildPermissionDecision(
 	pending *PendingRequest,
 	message map[string]any,
 ) sdkpermission.Decision {
-	decision := strings.TrimSpace(normalizeString(message["decision"]))
+	decision := normalizeString(message["decision"])
 	configurationSecrets := normalizeConfigurationSecrets(message["configuration_secrets"])
 	delete(message, "configuration_secrets")
 	defer clear(configurationSecrets)
@@ -328,7 +328,7 @@ func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) ma
 			continue
 		}
 		questionPayload, _ := rawQuestions[questionIndex].(map[string]any)
-		questionText := strings.TrimSpace(normalizeString(questionPayload["question"]))
+		questionText := normalizeString(questionPayload["question"])
 		if questionText == "" {
 			continue
 		}
@@ -403,7 +403,7 @@ func normalizeStringSlice(raw any) []string {
 	case []any:
 		result := make([]string, 0, len(items))
 		for _, item := range items {
-			value := strings.TrimSpace(normalizeString(item))
+			value := normalizeString(item)
 			if value != "" {
 				result = append(result, value)
 			}

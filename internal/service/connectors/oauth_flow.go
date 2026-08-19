@@ -245,7 +245,8 @@ func (s *Service) insertState(ctx context.Context, row stateRow) error {
 }
 
 func (s *Service) consumeState(ctx context.Context, ownerUserID string, state string) (*stateRow, error) {
-	if strings.TrimSpace(state) == "" {
+	state = strings.TrimSpace(state)
+	if state == "" {
 		return nil, nil
 	}
 	normalizedOwnerUserID := strings.TrimSpace(ownerUserID)
@@ -253,7 +254,7 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, control_flow_id, expires_at",
 		s.bind(1),
 	)
-	args := []any{strings.TrimSpace(state)}
+	args := []any{state}
 	if normalizedOwnerUserID != "" {
 		normalizedOwnerUserID = normalizeConnectorOwnerUserID(ctx, normalizedOwnerUserID)
 		query = fmt.Sprintf(
@@ -261,7 +262,7 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 			s.bind(1),
 			s.bind(2),
 		)
-		args = []any{normalizedOwnerUserID, strings.TrimSpace(state)}
+		args = []any{normalizedOwnerUserID, state}
 	}
 	var row stateRow
 	var codeVerifier sql.NullString

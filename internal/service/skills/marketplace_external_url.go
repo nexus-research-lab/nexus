@@ -97,16 +97,18 @@ func clawhubDownloadURL(sourceURL string, slug string) string {
 }
 
 func clawhubDetailURL(sourceURL string, owner string, slug string) string {
+	owner = strings.TrimSpace(owner)
+	slug = strings.TrimSpace(slug)
 	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
 	if err != nil || parsed.Host == "" {
-		return "https://clawhub.ai/skills/" + strings.TrimSpace(slug)
+		return "https://clawhub.ai/skills/" + slug
 	}
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
-	if strings.TrimSpace(owner) != "" {
-		parsed.Path = "/" + strings.Trim(strings.TrimSpace(owner), "/") + "/" + strings.Trim(strings.TrimSpace(slug), "/")
+	if owner != "" {
+		parsed.Path = "/" + strings.Trim(owner, "/") + "/" + strings.Trim(slug, "/")
 	} else {
-		parsed.Path = "/skills/" + strings.Trim(strings.TrimSpace(slug), "/")
+		parsed.Path = "/skills/" + strings.Trim(slug, "/")
 	}
 	return parsed.String()
 }

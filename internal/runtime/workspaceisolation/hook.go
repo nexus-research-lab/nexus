@@ -1251,14 +1251,14 @@ func collectPathFields(input map[string]any) []pathCandidate {
 }
 
 func resolveShellToolPath(cwd string, raw string, windowsSlashRoot bool) (string, error) {
-	raw = trimPowerShellFileSystemProvider(strings.TrimSpace(raw))
-	if path, ok, err := localFileURLPath(strings.TrimSpace(raw)); ok || err != nil {
+	raw = strings.TrimSpace(trimPowerShellFileSystemProvider(strings.TrimSpace(raw)))
+	if path, ok, err := localFileURLPath(raw); ok || err != nil {
 		if err != nil {
 			return "", err
 		}
-		raw = path
+		raw = strings.TrimSpace(path)
 	}
-	if windowsSlashRoot && isWindowsSlashRootRelativeShellPath(strings.TrimSpace(raw)) {
+	if windowsSlashRoot && isWindowsSlashRootRelativeShellPath(raw) {
 		return "", fmt.Errorf("工具路径包含 Windows 当前盘根路径")
 	}
 	return resolveToolPath(cwd, raw)

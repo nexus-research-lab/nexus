@@ -95,7 +95,7 @@ func (p *Processor) projectTaskProgress(progress sdkprotocol.TaskProgressMessage
 	return p.buildTaskProgressMessage(
 		firstNonEmpty(progress.TaskID, progress.ToolUseID),
 		firstNonEmpty(description, "后台任务正在执行"),
-		strings.TrimSpace(progress.ToolUseID),
+		progress.ToolUseID,
 		toolName,
 		taskUsageMap(progress.Usage, progress.Additional["usage"]),
 		mergeTaskEventMetadata(progress.Additional, map[string]string{
@@ -115,16 +115,16 @@ func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgress
 	if shellType := resolveShellProgressType(progressType, progress.ToolName); shellType != "" {
 		trackingID := firstNonEmpty(
 			normalizePointerString(progress.ParentToolUseID),
-			strings.TrimSpace(progress.ToolUseID),
+			progress.ToolUseID,
 		)
 		if trackingID == "" || !p.shouldEmitShellToolProgress(trackingID, progress.ElapsedTimeSeconds) {
 			return nil, true
 		}
-		toolName := firstNonEmpty(strings.TrimSpace(progress.ToolName), shellProgressToolName(shellType))
+		toolName := firstNonEmpty(progress.ToolName, shellProgressToolName(shellType))
 		elapsedSeconds := int(math.Max(0, progress.ElapsedTimeSeconds))
 		description := fmt.Sprintf("%s 已运行 %d 秒", toolName, elapsedSeconds)
 		return p.buildEphemeralTaskProgressMessage(
-			firstNonEmpty(strings.TrimSpace(progress.TaskID), "tool_progress_"+trackingID),
+			firstNonEmpty(progress.TaskID, "tool_progress_"+trackingID),
 			description,
 			trackingID,
 			toolName,
@@ -138,9 +138,9 @@ func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgress
 		return nil, false
 	}
 	taskID := firstNonEmpty(
-		strings.TrimSpace(progress.TaskID),
+		progress.TaskID,
 		normalizeString(data["agent_id"]),
-		strings.TrimSpace(progress.ToolUseID),
+		progress.ToolUseID,
 	)
 	description := firstNonEmpty(
 		normalizeString(data["description"]),
@@ -160,8 +160,8 @@ func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgress
 	return p.buildTaskProgressMessage(
 		taskID,
 		description,
-		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
-		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
+		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), progress.ToolUseID),
+		firstNonEmpty(agentProgressLastToolName(data), progress.ToolName),
 		mapValue(data["usage"]),
 		metadata,
 	), false
@@ -177,7 +177,7 @@ func (p *Processor) processSubagentAttachmentMessage(attachment sdkprotocol.Atta
 		normalizeString(data["agentId"]),
 	)
 	toolUseID := firstNonEmpty(
-		strings.TrimSpace(attachment.ToolUseID),
+		attachment.ToolUseID,
 		normalizeString(data["tool_use_id"]),
 		normalizeString(data["toolUseId"]),
 	)
@@ -219,7 +219,8 @@ func (p *Processor) processSubagentAttachmentMessage(attachment sdkprotocol.Atta
 }
 
 func normalizeSubagentAttachmentStatus(status string) string {
-	switch strings.ToLower(strings.TrimSpace(status)) {
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch status {
 	case "completed", "complete", "success", "succeeded":
 		return "completed"
 	case "failed", "error":
@@ -229,7 +230,7 @@ func normalizeSubagentAttachmentStatus(status string) string {
 	case "pending", "running", "in_progress":
 		return "running"
 	default:
-		return strings.ToLower(strings.TrimSpace(status))
+		return status
 	}
 }
 
@@ -238,10 +239,11 @@ func resolveShellProgressType(progressType string, toolName string) string {
 	case "bash_progress", "powershell_progress":
 		return progressType
 	}
+	toolName = strings.TrimSpace(toolName)
 	switch {
-	case strings.EqualFold(strings.TrimSpace(toolName), "Bash"):
+	case strings.EqualFold(toolName, "Bash"):
 		return "bash_progress"
-	case strings.EqualFold(strings.TrimSpace(toolName), "PowerShell"):
+	case strings.EqualFold(toolName, "PowerShell"):
 		return "powershell_progress"
 	default:
 		return ""
@@ -268,8 +270,8 @@ func (p *Processor) projectTaskStarted(started sdkprotocol.TaskStartedMessage) *
 	return p.buildTaskStartedMessage(
 		firstNonEmpty(started.TaskID, started.ToolUseID),
 		firstNonEmpty(started.Description, started.Prompt, "任务已开始"),
-		strings.TrimSpace(started.TaskType),
-		strings.TrimSpace(started.ToolUseID),
+		started.TaskType,
+		started.ToolUseID,
 		mergeTaskEventMetadata(started.Additional, map[string]string{
 			"agent_id":       started.AgentID,
 			"agent_type":     started.AgentType,
@@ -287,9 +289,9 @@ func (p *Processor) projectTaskNotification(notification sdkprotocol.TaskNotific
 	return p.buildTaskNotificationMessage(
 		firstNonEmpty(notification.TaskID, notification.ToolUseID),
 		firstNonEmpty(notification.Summary, taskNotificationDefaultContent(notification.Status)),
-		strings.TrimSpace(notification.ToolUseID),
-		strings.TrimSpace(notification.Status),
-		strings.TrimSpace(notification.OutputFile),
+		notification.ToolUseID,
+		notification.Status,
+		notification.OutputFile,
 		taskUsageMap(notification.Usage, notification.Additional["usage"]),
 		mergeTaskEventMetadata(notification.Additional, map[string]string{
 			"agent_id":        notification.AgentID,
@@ -303,10 +305,10 @@ func (p *Processor) projectTaskNotification(notification sdkprotocol.TaskNotific
 }
 
 func (p *Processor) projectTaskUpdated(updated sdkprotocol.TaskUpdatedMessage) *protocol.Message {
-	if strings.TrimSpace(updated.TaskID) == "" {
+	taskID := strings.TrimSpace(updated.TaskID)
+	if taskID == "" {
 		return nil
 	}
-	taskID := strings.TrimSpace(updated.TaskID)
 	status := strings.TrimSpace(updated.Status)
 	payload := baseMessageEnvelope(
 		p.ctx,
@@ -345,19 +347,20 @@ func taskUpdatedPatchMap(patch sdkprotocol.TaskUpdatedPatch) map[string]any {
 }
 
 func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskType string, toolUseID string, additional map[string]any) *protocol.Message {
-	if strings.TrimSpace(taskID) == "" {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
 		return nil
 	}
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		fmt.Sprintf("system_task_started_%s_%s", p.ctx.RoundID, strings.TrimSpace(taskID)),
+		fmt.Sprintf("system_task_started_%s_%s", p.ctx.RoundID, taskID),
 		"system",
 	)
 	payload["content"] = firstNonEmpty(content, "任务已开始")
 	payload["metadata"] = map[string]any{
 		"subtype":     "task_started",
-		"task_id":     strings.TrimSpace(taskID),
+		"task_id":     taskID,
 		"task_type":   emptyToNil(taskType),
 		"tool_use_id": emptyToNil(toolUseID),
 	}
@@ -432,7 +435,8 @@ func newTaskProgressBlock(
 	usage map[string]any,
 	additional map[string]any,
 ) map[string]any {
-	if strings.TrimSpace(taskID) == "" {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
 		return nil
 	}
 	progress := map[string]any{
@@ -448,19 +452,20 @@ func newTaskProgressBlock(
 }
 
 func (p *Processor) buildTaskNotificationMessage(taskID string, content string, toolUseID string, status string, outputFile string, usage map[string]any, additional map[string]any) *protocol.Message {
-	if strings.TrimSpace(taskID) == "" {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
 		return nil
 	}
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		fmt.Sprintf("system_task_notification_%s_%s", p.ctx.RoundID, strings.TrimSpace(taskID)),
+		fmt.Sprintf("system_task_notification_%s_%s", p.ctx.RoundID, taskID),
 		"system",
 	)
 	payload["content"] = firstNonEmpty(content, "任务状态已更新")
 	payload["metadata"] = map[string]any{
 		"subtype":     "task_notification",
-		"task_id":     strings.TrimSpace(taskID),
+		"task_id":     taskID,
 		"tool_use_id": emptyToNil(toolUseID),
 		"status":      emptyToNil(status),
 		"output_file": emptyToNil(outputFile),

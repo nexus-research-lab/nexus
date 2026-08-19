@@ -23,7 +23,7 @@ func buildHistoryLines(history []protocol.Message, agentNameByID map[string]stri
 }
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {
-	role := strings.TrimSpace(normalizeAnyString(message["role"]))
+	role := normalizeAnyString(message["role"])
 	var content string
 	switch role {
 	case "user":
@@ -56,7 +56,7 @@ func extractAssistantResultText(message protocol.Message) string {
 		if text := extractHistoryText(message); text != "" {
 			return text
 		}
-		return strings.TrimSpace(normalizeAnyString(summary["result"]))
+		return normalizeAnyString(summary["result"])
 	}
 	if message["is_complete"] == true {
 		return extractHistoryText(message)
@@ -81,7 +81,7 @@ func extractHistoryText(message protocol.Message) string {
 
 	parts := make([]string, 0, len(items))
 	for _, payload := range items {
-		if text := strings.TrimSpace(normalizeAnyString(payload["text"])); text != "" {
+		if text := normalizeAnyString(payload["text"]); text != "" {
 			parts = append(parts, text)
 		}
 	}

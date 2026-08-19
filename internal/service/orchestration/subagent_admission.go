@@ -356,12 +356,13 @@ func (s *Service) ObserveSubagentStop(
 		)
 		terminal.Status = protocol.WorkAttemptStatusSucceeded
 		terminal.FailureReason = ""
+		errorMessage := strings.TrimSpace(input.Error)
 		if input.Interrupted {
 			terminal.Status = protocol.WorkAttemptStatusInterrupted
-			terminal.FailureReason = firstNonEmpty(strings.TrimSpace(input.Error), "subagent interrupted")
-		} else if strings.TrimSpace(input.Error) != "" {
+			terminal.FailureReason = firstNonEmpty(errorMessage, "subagent interrupted")
+		} else if errorMessage != "" {
 			terminal.Status = protocol.WorkAttemptStatusFailed
-			terminal.FailureReason = strings.TrimSpace(input.Error)
+			terminal.FailureReason = errorMessage
 		}
 		terminal.Metadata = mergeSubagentLifecycleMetadata(terminal.Metadata, input)
 		updated, finishErr := s.repository.FinishAttempt(ctx, orchestrationstore.FinishAttemptCommand{

@@ -138,7 +138,7 @@ func terminalControlMessage(row protocol.Message) bool {
 	case map[string]string:
 		return strings.TrimSpace(metadata["subtype"]) == "goal_set"
 	case map[string]any:
-		return strings.TrimSpace(stringFromAny(metadata["subtype"])) == "goal_set"
+		return stringFromAny(metadata["subtype"]) == "goal_set"
 	default:
 		return false
 	}

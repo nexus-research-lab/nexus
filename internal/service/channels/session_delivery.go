@@ -116,7 +116,7 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		return nil, fmt.Errorf("delivery target agent has no workspace path: %s", parsed.AgentID)
 	}
 	ownerUserID := strings.TrimSpace(agentValue.OwnerUserID)
-	authOwnerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	authOwnerUserID := authctx.OwnerUserID(ctx)
 	if ownerUserID != "" && authOwnerUserID != "" && ownerUserID != authOwnerUserID {
 		return nil, fmt.Errorf(
 			"delivery target agent owner mismatch: agent=%s principal=%s",

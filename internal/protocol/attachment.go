@@ -59,7 +59,7 @@ func NormalizeChatAttachmentScope(value string, conversationID string) ChatAttac
 func NormalizeChatAttachment(value ChatAttachment, defaultAgentID string) ChatAttachment {
 	value.FileName = strings.TrimSpace(value.FileName)
 	value.WorkspacePath = strings.TrimSpace(strings.ReplaceAll(value.WorkspacePath, "\\", "/"))
-	value.WorkspaceAgentID = strings.TrimSpace(firstNonEmptyChatAttachment(value.WorkspaceAgentID, defaultAgentID))
+	value.WorkspaceAgentID = firstNonEmptyChatAttachment(value.WorkspaceAgentID, defaultAgentID)
 	value.RoomID = strings.TrimSpace(value.RoomID)
 	value.ConversationID = strings.TrimSpace(value.ConversationID)
 	value.Scope = NormalizeChatAttachmentScope(string(value.Scope), value.ConversationID)

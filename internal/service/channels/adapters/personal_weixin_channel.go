@@ -87,7 +87,7 @@ func (c *PersonalWeixinChannel) SendDeliveryMessage(ctx context.Context, target 
 	if strings.TrimSpace(c.token) == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("personal weixin channel is not configured")
 	}
-	if strings.TrimSpace(target.To) == "" {
+	if normalized.To == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("personal weixin delivery target requires to")
 	}
 	parts := make([]channelmessage.ReceiptPart, 0)
@@ -107,7 +107,7 @@ func (c *PersonalWeixinChannel) SendDeliveryMessage(ctx context.Context, target 
 	}
 	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
 		Channel:  channelcontract.ChannelTypeWeixinPersonal,
-		Target:   target.To,
+		Target:   normalized.To,
 		ThreadID: normalized.ThreadID,
 		Parts:    parts,
 	})), nil
@@ -144,18 +144,18 @@ func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target c
 	if strings.TrimSpace(c.token) == "" {
 		return fmt.Errorf("personal weixin channel is not configured")
 	}
-	to := strings.TrimSpace(target.To)
-	if to == "" {
+	normalized := target.Normalized()
+	if normalized.To == "" {
 		return fmt.Errorf("personal weixin typing target requires to")
 	}
-	ticket, err := c.client.TypingTicket(ctx, to, strings.TrimSpace(target.ContextToken))
+	ticket, err := c.client.TypingTicket(ctx, normalized.To, normalized.ContextToken)
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(ticket) == "" {
 		return nil
 	}
-	return c.client.SendTyping(ctx, to, ticket, active)
+	return c.client.SendTyping(ctx, normalized.To, ticket, active)
 }
 
 func (c *PersonalWeixinChannel) pollUpdates(ctx context.Context) {

@@ -23,18 +23,18 @@ func (c *TelegramChannel) SendDeliveryMessage(
 	if strings.TrimSpace(c.token) == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("telegram channel is not configured")
 	}
-	if strings.TrimSpace(target.To) == "" {
+	if normalized.To == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("telegram delivery target requires to")
 	}
 
 	parts := make([]channelmessage.ReceiptPart, 0)
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4000) {
 		payload := map[string]any{
-			"chat_id":                  target.To,
+			"chat_id":                  normalized.To,
 			"text":                     chunk,
 			"disable_web_page_preview": true,
 		}
-		if err := applyTelegramSendThreadID(payload, target.ThreadID); err != nil {
+		if err := applyTelegramSendThreadID(payload, normalized.ThreadID); err != nil {
 			return channelcontract.DeliveryResult{}, err
 		}
 		var response telegramSendMessageResponse
@@ -62,8 +62,8 @@ func (c *TelegramChannel) SendDeliveryMessage(
 	}
 	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
 		Channel:  channelcontract.ChannelTypeTelegram,
-		Target:   target.To,
-		ThreadID: target.ThreadID,
+		Target:   normalized.To,
+		ThreadID: normalized.ThreadID,
 		Parts:    parts,
 	})), nil
 }
@@ -75,15 +75,16 @@ func (c *TelegramChannel) SendDeliveryTyping(ctx context.Context, target channel
 	if strings.TrimSpace(c.token) == "" {
 		return fmt.Errorf("telegram channel is not configured")
 	}
-	if strings.TrimSpace(target.To) == "" {
+	normalized := target.Normalized()
+	if normalized.To == "" {
 		return fmt.Errorf("telegram typing target requires to")
 	}
 
 	payload := map[string]any{
-		"chat_id": target.To,
+		"chat_id": normalized.To,
 		"action":  "typing",
 	}
-	if err := applyTelegramTypingThreadID(payload, target.ThreadID); err != nil {
+	if err := applyTelegramTypingThreadID(payload, normalized.ThreadID); err != nil {
 		return err
 	}
 	if err := channeltransport.DoJSONExpectSuccess(
@@ -108,10 +109,11 @@ func applyTelegramTypingThreadID(payload map[string]any, rawThreadID string) err
 }
 
 func applyTelegramThreadID(payload map[string]any, rawThreadID string, includeGeneralTopic bool) error {
-	if strings.TrimSpace(rawThreadID) == "" {
+	rawThreadID = strings.TrimSpace(rawThreadID)
+	if rawThreadID == "" {
 		return nil
 	}
-	threadID, err := strconv.ParseInt(strings.TrimSpace(rawThreadID), 10, 64)
+	threadID, err := strconv.ParseInt(rawThreadID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("telegram thread_id is invalid: %w", err)
 	}

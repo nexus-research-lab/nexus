@@ -46,7 +46,7 @@ func (s *Service) verifyGoalSessionOwnership(
 ) (string, string, string, error) {
 	ownerUserID := strings.TrimSpace(requestedOwnerUserID)
 	if ownerUserID == "" {
-		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+		ownerUserID = authctx.OwnerUserID(ctx)
 	}
 	trustedAgentID = strings.TrimSpace(trustedAgentID)
 	if s.sessionOwnership == nil {

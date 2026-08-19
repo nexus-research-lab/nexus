@@ -144,7 +144,7 @@ func (s *Service) removeRoomMember(
 	var contextValue *protocol.ConversationContextAggregate
 	if expectedVersion == nil {
 		contextValue, err = s.repository.RemoveRoomMember(
-			ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), normalizedAgentID,
+			ctx, authctx.OwnerUserID(ctx), roomID, normalizedAgentID,
 		)
 	} else {
 		versioned, ok := s.repository.(interface {
@@ -156,7 +156,7 @@ func (s *Service) removeRoomMember(
 			return nil, errors.New("Room repository 不支持成员资源版本")
 		}
 		contextValue, err = versioned.RemoveRoomMemberAtVersion(
-			ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), normalizedAgentID, *expectedVersion,
+			ctx, authctx.OwnerUserID(ctx), roomID, normalizedAgentID, *expectedVersion,
 		)
 	}
 	if err != nil {

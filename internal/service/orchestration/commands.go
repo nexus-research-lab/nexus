@@ -838,6 +838,8 @@ func (s *Service) SubmitWork(
 	input SubmitWorkInput,
 ) (returned MutationResult, returnedErr error) {
 	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
+	input.CommandID = strings.TrimSpace(input.CommandID)
+	input.ResultSummary = strings.TrimSpace(input.ResultSummary)
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -849,7 +851,7 @@ func (s *Service) SubmitWork(
 	if err != nil || rejected != nil {
 		return resultOrZero(rejected), err
 	}
-	if strings.TrimSpace(input.CommandID) == "" || strings.TrimSpace(input.ResultSummary) == "" {
+	if input.CommandID == "" || input.ResultSummary == "" {
 		return RejectedResult(snapshot, domainError(
 			ErrorCodeInvalidInput,
 			"command_id and result_summary are required",
@@ -859,6 +861,7 @@ func (s *Service) SubmitWork(
 	if bindingErr != nil {
 		return RejectedResult(snapshot, bindingErr, nil), nil
 	}
+	actorAgentID := strings.TrimSpace(actor.AgentID)
 	for _, collection := range []struct {
 		field string
 		count int
@@ -877,7 +880,7 @@ func (s *Service) SubmitWork(
 	assignment := selectAssignment(snapshot, work.ID, input.AssignmentID)
 	if assignment == nil || !currentAssignment(*assignment) {
 		if submission := latestUnreviewedSubmission(snapshot, work.ID); submission != nil &&
-			submission.SubmitterAgentID == strings.TrimSpace(actor.AgentID) {
+			submission.SubmitterAgentID == actorAgentID {
 			return NoOpResult(snapshot, "work is already submitted and awaiting review"), nil
 		}
 		return RejectedResult(snapshot, newDomainError(
@@ -887,7 +890,7 @@ func (s *Service) SubmitWork(
 			"",
 		), nil), nil
 	}
-	if assignment.OwnerAgentID != strings.TrimSpace(actor.AgentID) {
+	if assignment.OwnerAgentID != actorAgentID {
 		return RejectedResult(snapshot, newDomainError(
 			ErrorCodeWrongOwner,
 			"only the current Assignment owner may submit work",
@@ -993,8 +996,8 @@ func (s *Service) SubmitWork(
 		SpecID:           assignment.SpecID,
 		AssignmentID:     assignment.ID,
 		AttemptID:        attempt.ID,
-		SubmitterAgentID: strings.TrimSpace(actor.AgentID),
-		ResultSummary:    strings.TrimSpace(input.ResultSummary),
+		SubmitterAgentID: actorAgentID,
+		ResultSummary:    input.ResultSummary,
 		ResultRefs:       normalizeNonEmptyValues(input.ResultRefs),
 		Evidence:         normalizeNonEmptyValues(input.Evidence),
 	}
@@ -1393,6 +1396,9 @@ func (s *Service) BlockWork(
 	input BlockWorkInput,
 ) (returned MutationResult, returnedErr error) {
 	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
+	input.CommandID = strings.TrimSpace(input.CommandID)
+	input.Reason = strings.TrimSpace(input.Reason)
+	input.NeededInput = strings.TrimSpace(input.NeededInput)
 	snapshot, rejected, err := s.mutableSnapshot(
 		ctx,
 		actor,
@@ -1404,9 +1410,7 @@ func (s *Service) BlockWork(
 	if err != nil || rejected != nil {
 		return resultOrZero(rejected), err
 	}
-	if strings.TrimSpace(input.CommandID) == "" ||
-		strings.TrimSpace(input.Reason) == "" ||
-		strings.TrimSpace(input.NeededInput) == "" {
+	if input.CommandID == "" || input.Reason == "" || input.NeededInput == "" {
 		return RejectedResult(snapshot, domainError(
 			ErrorCodeInvalidInput,
 			"command_id, reason and needed_input are required",
@@ -1426,8 +1430,9 @@ func (s *Service) BlockWork(
 		return RejectedResult(snapshot, resolveErr, nil), nil
 	}
 	assignment := activeAssignmentForWork(snapshot, work.ID)
-	isCoordinator := snapshot.Execution.CoordinatorAgentID == strings.TrimSpace(actor.AgentID)
-	if !isCoordinator && (assignment == nil || assignment.OwnerAgentID != strings.TrimSpace(actor.AgentID)) {
+	actorAgentID := strings.TrimSpace(actor.AgentID)
+	isCoordinator := snapshot.Execution.CoordinatorAgentID == actorAgentID
+	if !isCoordinator && (assignment == nil || assignment.OwnerAgentID != actorAgentID) {
 		return RejectedResult(snapshot, newDomainError(
 			ErrorCodeWrongOwner,
 			"only the current Assignment owner or coordinator may block work",
@@ -1451,8 +1456,8 @@ func (s *Service) BlockWork(
 		), nil), nil
 	}
 	if state.Status == protocol.WorkItemStatusWaitingInput &&
-		state.BlockReason == strings.TrimSpace(input.Reason) &&
-		state.NeededInput == strings.TrimSpace(input.NeededInput) {
+		state.BlockReason == input.Reason &&
+		state.NeededInput == input.NeededInput {
 		return NoOpResult(snapshot, "work is already blocked on the same input"), nil
 	}
 	updated, blockErr := s.repository.Block(ctx, orchestrationstore.BlockCommand{
@@ -1463,8 +1468,8 @@ func (s *Service) BlockWork(
 			ExecutionID:   snapshot.Execution.ID,
 			CurrentSpecID: spec.ID,
 			Status:        protocol.WorkItemStatusWaitingInput,
-			BlockReason:   strings.TrimSpace(input.Reason),
-			NeededInput:   strings.TrimSpace(input.NeededInput),
+			BlockReason:   input.Reason,
+			NeededInput:   input.NeededInput,
 			Metadata:      cloneMap(state.Metadata),
 		},
 		Meta: s.commandMeta(actor, input.CommandID, "block"),
@@ -1792,9 +1797,10 @@ func (s *Service) buildAssignmentChain(
 	protocol.WorkAttempt,
 	error,
 ) {
+	actorAgentID := strings.TrimSpace(actor.AgentID)
 	if strategy == "" {
 		strategy = protocol.AssignmentStrategyRoomMember
-		if target == strings.TrimSpace(actor.AgentID) {
+		if target == actorAgentID {
 			strategy = protocol.AssignmentStrategySelf
 		}
 	}
@@ -1813,7 +1819,7 @@ func (s *Service) buildAssignmentChain(
 		)
 	}
 	if strategy == protocol.AssignmentStrategySelf {
-		if target != strings.TrimSpace(actor.AgentID) {
+		if target != actorAgentID {
 			return protocol.WorkAssignment{}, nil, protocol.WorkAttempt{}, domainError(
 				ErrorCodeAssignmentTargetInvalid,
 				"self Assignment target must be the current actor",
@@ -1827,7 +1833,7 @@ func (s *Service) buildAssignmentChain(
 		}
 	}
 	if strategy == protocol.AssignmentStrategyRoomMember &&
-		target == strings.TrimSpace(actor.AgentID) {
+		target == actorAgentID {
 		return protocol.WorkAssignment{}, nil, protocol.WorkAttempt{}, domainError(
 			ErrorCodeAssignmentTargetInvalid,
 			"assign the current actor with strategy self",
@@ -1850,7 +1856,7 @@ func (s *Service) buildAssignmentChain(
 		WorkItemID:        work.ID,
 		SpecID:            spec.ID,
 		OwnerAgentID:      target,
-		AssignedByAgentID: strings.TrimSpace(actor.AgentID),
+		AssignedByAgentID: actorAgentID,
 		ReturnToAgentID:   returnTo,
 		Strategy:          strategy,
 		Status:            protocol.WorkAssignmentStatusAssigned,
@@ -2624,7 +2630,8 @@ func nextActions(
 	if snapshot == nil {
 		return nil
 	}
-	isCoordinator := snapshot.Execution.CoordinatorAgentID == strings.TrimSpace(actor.AgentID)
+	actorAgentID := strings.TrimSpace(actor.AgentID)
+	isCoordinator := snapshot.Execution.CoordinatorAgentID == actorAgentID
 	actions := make([]NextAction, 0)
 	if isCoordinator {
 		for _, workID := range snapshot.ReadyWorkItemIDs {
@@ -2642,7 +2649,7 @@ func nextActions(
 			assignment := findAssignmentByID(snapshot, submission.AssignmentID)
 			if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
 				(assignment == nil ||
-					strings.TrimSpace(assignment.ReturnToAgentID) != strings.TrimSpace(actor.AgentID)) {
+					strings.TrimSpace(assignment.ReturnToAgentID) != actorAgentID) {
 				continue
 			}
 			if snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom && !isCoordinator {
@@ -2667,7 +2674,7 @@ func nextActions(
 			state.CurrentSpecID,
 		)
 		if !isCoordinator &&
-			(assignment == nil || assignment.OwnerAgentID != strings.TrimSpace(actor.AgentID)) {
+			(assignment == nil || assignment.OwnerAgentID != actorAgentID) {
 			continue
 		}
 		actions = append(actions, NextAction{
@@ -2679,7 +2686,7 @@ func nextActions(
 	}
 	for _, assignment := range snapshot.Assignments {
 		if currentAssignment(assignment) &&
-			assignment.OwnerAgentID == strings.TrimSpace(actor.AgentID) &&
+			assignment.OwnerAgentID == actorAgentID &&
 			latestUnreviewedSubmission(snapshot, assignment.WorkItemID) == nil {
 			state := findStateByWorkID(snapshot, assignment.WorkItemID)
 			if state == nil ||

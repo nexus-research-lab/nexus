@@ -292,7 +292,7 @@ func automationDeliveryOwner(ctx context.Context, agentValue *protocol.Agent) (s
 		return "", errors.New("automation delivery agent is missing")
 	}
 	ownerUserID := strings.TrimSpace(agentValue.OwnerUserID)
-	authOwnerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	authOwnerUserID := authctx.OwnerUserID(ctx)
 	if ownerUserID != "" && authOwnerUserID != "" && ownerUserID != authOwnerUserID {
 		return "", fmt.Errorf("delivery target agent owner mismatch: agent=%s principal=%s", ownerUserID, authOwnerUserID)
 	}

@@ -115,16 +115,19 @@ func QueuedHumanPrincipalBindingFromContext(
 }
 
 func validQueuedHumanPrincipalBinding(binding QueuedHumanPrincipalBinding) bool {
-	if strings.TrimSpace(binding.UserID) == "" {
+	userID := strings.TrimSpace(binding.UserID)
+	authMethod := strings.TrimSpace(binding.AuthMethod)
+	sessionID := strings.TrimSpace(binding.SessionID)
+	if userID == "" {
 		return false
 	}
-	switch strings.TrimSpace(binding.AuthMethod) {
+	switch authMethod {
 	case AuthMethodPassword:
-		return strings.TrimSpace(binding.SessionID) != ""
+		return sessionID != ""
 	case AuthMethodLocal:
-		return binding.UserID == SystemUserID && strings.TrimSpace(binding.SessionID) == ""
+		return userID == SystemUserID && sessionID == ""
 	case AuthMethodBearer:
-		return strings.TrimSpace(binding.SessionID) == ""
+		return sessionID == ""
 	default:
 		return false
 	}

@@ -79,6 +79,7 @@ func (c *DingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 		To:        deliveryTo,
 		AccountID: strings.TrimSpace(data.ChatbotCorpId),
 	}
+	messageID := strings.TrimSpace(data.MsgId)
 
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -89,14 +90,14 @@ func (c *DingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 		ChatType:     chatType,
 		Ref:          ref,
 		Content:      content,
-		RoundID:      strings.TrimSpace(data.MsgId),
-		ReqID:        strings.TrimSpace(data.MsgId),
+		RoundID:      messageID,
+		ReqID:        messageID,
 		ExternalName: channelcontract.FirstNonEmpty(data.ConversationTitle, data.SenderNick),
 		Delivery:     delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
 			Channel:           channelcontract.ChannelTypeDingTalk,
 			Target:            ref,
-			PlatformMessageID: strings.TrimSpace(data.MsgId),
+			PlatformMessageID: messageID,
 			SenderID:          channelcontract.FirstNonEmpty(data.SenderStaffId, data.SenderId),
 			SenderName:        strings.TrimSpace(data.SenderNick),
 			ChatType:          chatType,

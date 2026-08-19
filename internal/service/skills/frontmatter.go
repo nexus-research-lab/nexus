@@ -46,11 +46,12 @@ func parseSkillFrontmatter(content string, fallbackName string) frontmatterData 
 	for index := 0; index < len(lines); index++ {
 		rawLine := lines[index]
 		line := strings.TrimRight(rawLine, "\r")
-		if strings.TrimSpace(line) == "" {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" {
 			continue
 		}
-		if pendingKey != "" && strings.HasPrefix(strings.TrimSpace(line), "- ") {
-			pendingList = append(pendingList, strings.Trim(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "- ")), "\"'"))
+		if pendingKey != "" && strings.HasPrefix(trimmedLine, "- ") {
+			pendingList = append(pendingList, strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmedLine, "- ")), "\"'"))
 			continue
 		}
 		if pendingKey != "" {

@@ -147,7 +147,7 @@ func appendContentBlockStartFields(fields []any, event map[string]any) []any {
 			fields = append(fields, "stream_text", text)
 		}
 	case "tool_use":
-		toolName := strings.TrimSpace(FirstNonEmpty(RawString(block["name"]), RawString(block["id"])))
+		toolName := FirstNonEmpty(RawString(block["name"]), RawString(block["id"]))
 		if toolName != "" {
 			fields = append(fields, "tool", toolName)
 		}

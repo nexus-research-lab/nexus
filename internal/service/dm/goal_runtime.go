@@ -271,7 +271,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 	snapshot := goalsvc.RuntimeUsageSnapshot{
 		Usage:          usage,
 		ElapsedSeconds: r.elapsedGoalUsageSeconds(),
-		TurnID:         strings.TrimSpace(dmdomain.NormalizeString(r.goalLastAssistant["message_id"])),
+		TurnID:         dmdomain.NormalizeString(r.goalLastAssistant["message_id"]),
 	}
 	r.goalIDForUsage = goalID
 	r.childGoalIDForUsage = goalID
@@ -495,7 +495,7 @@ func (r *roundRunner) finalGoalUsageSnapshot(
 		Usage:              usage,
 		ElapsedSeconds:     elapsedSeconds,
 		TokenUsageObserved: usageOK,
-		TurnID:             strings.TrimSpace(dmdomain.NormalizeString(finalAssistant["message_id"])),
+		TurnID:             dmdomain.NormalizeString(finalAssistant["message_id"]),
 		Cumulative:         cumulative,
 		Terminal:           true,
 	}, usageOK || elapsedSeconds > 0
@@ -561,7 +561,7 @@ func (r *roundRunner) assistantGoalUsageSnapshot(message protocol.Message) goals
 		Usage:              usage,
 		ElapsedSeconds:     r.elapsedGoalUsageSeconds(),
 		TokenUsageObserved: usageObserved,
-		TurnID:             strings.TrimSpace(dmdomain.NormalizeString(message["message_id"])),
+		TurnID:             dmdomain.NormalizeString(message["message_id"]),
 	}
 }
 
@@ -813,8 +813,9 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 	}
 	r.goalUsageMu.Lock()
 	goalID := strings.TrimSpace(r.goalIDForUsage)
+	childGoalID := strings.TrimSpace(r.childGoalIDForUsage)
 	if goalID != "" {
-		if strings.TrimSpace(r.childGoalIDForUsage) == "" {
+		if childGoalID == "" {
 			r.childGoalIDForUsage = goalID
 		}
 		r.goalUsageMu.Unlock()
@@ -834,17 +835,23 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 		}
 		return ""
 	}
-	if goal == nil || strings.TrimSpace(goal.ID) == "" {
+	if goal == nil {
+		return ""
+	}
+	loadedGoalID := strings.TrimSpace(goal.ID)
+	if loadedGoalID == "" {
 		return ""
 	}
 	r.goalUsageMu.Lock()
 	if strings.TrimSpace(r.goalIDForUsage) == "" {
-		r.goalIDForUsage = strings.TrimSpace(goal.ID)
+		r.goalIDForUsage = loadedGoalID
 	}
-	if strings.TrimSpace(r.childGoalIDForUsage) == "" {
-		r.childGoalIDForUsage = strings.TrimSpace(goal.ID)
+	childGoalID = strings.TrimSpace(r.childGoalIDForUsage)
+	if childGoalID == "" {
+		childGoalID = loadedGoalID
+		r.childGoalIDForUsage = childGoalID
 	}
-	goalID = strings.TrimSpace(r.childGoalIDForUsage)
+	goalID = childGoalID
 	r.goalUsageMu.Unlock()
 	return goalID
 }

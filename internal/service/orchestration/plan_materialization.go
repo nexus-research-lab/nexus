@@ -444,7 +444,8 @@ func (s *Service) recoverProposalMaterialization(
 		reservedExecutionID,
 		proposal.MaterializationCommandID,
 	)
-	if err != nil || strings.TrimSpace(planID) == "" {
+	planID = strings.TrimSpace(planID)
+	if err != nil || planID == "" {
 		return nil, err
 	}
 	snapshot, err := s.GetSnapshot(ctx, actor, reservedExecutionID)
@@ -458,7 +459,7 @@ func (s *Service) recoverProposalMaterialization(
 	if snapshot == nil {
 		return nil, errors.New("materialization command receipt points to a missing Execution")
 	}
-	if snapshot.Plan != nil && snapshot.Plan.ID == strings.TrimSpace(planID) {
+	if snapshot.Plan != nil && snapshot.Plan.ID == planID {
 		matches, matchErr := proposalMatchesSnapshot(proposal, snapshot)
 		if matchErr != nil {
 			return nil, matchErr
@@ -469,7 +470,7 @@ func (s *Service) recoverProposalMaterialization(
 	}
 	return &recoveredPlanMaterialization{
 		Snapshot: snapshot,
-		PlanID:   strings.TrimSpace(planID),
+		PlanID:   planID,
 	}, nil
 }
 
@@ -544,10 +545,10 @@ func proposalGoalActivationMatches(
 			strings.TrimSpace(proposal.GoalReservedExecutionID) == "" &&
 			strings.TrimSpace(proposal.ReplacesExecutionID) == ""
 	}
-	reservationMatches := strings.TrimSpace(proposal.GoalReservedExecutionID) ==
-		strings.TrimSpace(activation.ReservedExecutionID)
-	if strings.TrimSpace(proposal.GoalReservedExecutionID) == "" &&
-		strings.TrimSpace(activation.ReservedExecutionID) != "" {
+	proposalReservedExecutionID := strings.TrimSpace(proposal.GoalReservedExecutionID)
+	activationReservedExecutionID := strings.TrimSpace(activation.ReservedExecutionID)
+	reservationMatches := proposalReservedExecutionID == activationReservedExecutionID
+	if proposalReservedExecutionID == "" && activationReservedExecutionID != "" {
 		reservationMatches = true
 	}
 	return strings.TrimSpace(proposal.GoalID) == strings.TrimSpace(activation.GoalID) &&

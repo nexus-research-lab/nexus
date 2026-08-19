@@ -67,7 +67,7 @@ func inputQueueTargetAgentIDs(item protocol.InputQueueItem) []string {
 }
 
 func inputQueueLocationAgentID(location workspacestore.InputQueueLocation) string {
-	return strings.TrimSpace(protocol.ParseSessionKey(location.SessionKey).AgentID)
+	return protocol.ParseSessionKey(location.SessionKey).AgentID
 }
 
 func inputQueueLocationKey(location workspacestore.InputQueueLocation) string {

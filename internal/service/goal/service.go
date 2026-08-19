@@ -75,6 +75,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
+	request.CreatedBy = strings.TrimSpace(request.CreatedBy)
 	runtimeAgentID := strings.TrimSpace(request.AgentID)
 	ownershipAgentID := runtimeAgentID
 	if protocol.IsRoomSharedSessionKey(sessionKey) && ownershipAgentID == "" {
@@ -91,10 +92,10 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	}
 	request.OwnerUserID = ownerUserID
 	request.AgentID = runtimeAgentID
-	if strings.TrimSpace(request.CreatedBy) == "user" {
+	if request.CreatedBy == "user" {
 		request.Metadata = sanitizeExternalGoalMetadata(request.Metadata)
 	}
-	if protocol.IsRoomSharedSessionKey(sessionKey) && strings.TrimSpace(request.CreatedBy) == "model" && strings.TrimSpace(request.AgentID) == "" {
+	if protocol.IsRoomSharedSessionKey(sessionKey) && request.CreatedBy == "model" && request.AgentID == "" {
 		return nil, newGoalInvalidInputError("model-created Room Goal requires the current agent identity")
 	}
 	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
@@ -119,7 +120,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		})
 	}
 	scopeRoundID := ""
-	if strings.TrimSpace(request.CreatedBy) == "model" {
+	if request.CreatedBy == "model" {
 		scopeRoundID = strings.TrimSpace(request.RoundID)
 	}
 	if err := s.preflightGoalCreate(sessionKey, scopeRoundID); err != nil {
@@ -139,12 +140,12 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		verifiedRoomLeadAgentID(request.AgentID, verifiedAgentID),
 		verifiedAgentName,
 	)
-	if strings.TrimSpace(request.CreatedBy) == "user" {
+	if request.CreatedBy == "user" {
 		metadata = initializeGoalOnlyExecutionMetadata(metadata)
 	}
 	ownerUserID = strings.TrimSpace(request.OwnerUserID)
 	if ownerUserID == "" {
-		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+		ownerUserID = authctx.OwnerUserID(ctx)
 	}
 	if ownerUserID != "" {
 		if metadata == nil {
@@ -165,7 +166,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		Status:      protocol.GoalStatusActive,
 		TokenBudget: tokenBudget,
 		Version:     1,
-		CreatedBy:   strings.TrimSpace(request.CreatedBy),
+		CreatedBy:   request.CreatedBy,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		Metadata:    metadata,
@@ -261,10 +262,10 @@ func (s *Service) createGoalWithUsageScope(
 ) (*protocol.Goal, *protocol.GoalEvent, error) {
 	roundID := strings.TrimSpace(request.RoundID)
 	repository, scoped := s.repo.(usageScopeCreateRepository)
-	if strings.TrimSpace(request.CreatedBy) == "model" && roundID != "" && scoped {
+	if request.CreatedBy == "model" && roundID != "" && scoped {
 		ownerUserID := strings.TrimSpace(request.OwnerUserID)
 		if ownerUserID == "" {
-			ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+			ownerUserID = authctx.OwnerUserID(ctx)
 		}
 		result, err := repository.CreateGoalWithUsageScope(ctx, item, createdEvent, protocol.GoalUsageScopeBinding{
 			OwnerUserID:    ownerUserID,

@@ -80,7 +80,7 @@ func enabledSkillNames(agentValue *protocol.Agent, records map[string]catalogRec
 		if externalName, ok := protocol.ParseExternalSkillReference(value); ok {
 			name = externalName
 		}
-		if _, blocked := disabled[strings.ToLower(strings.TrimSpace(name))]; blocked {
+		if _, blocked := disabled[strings.ToLower(name)]; blocked {
 			continue
 		}
 		result[value] = true

@@ -67,10 +67,10 @@ func subagentToolRunsFromMessages(
 	for _, message := range messages {
 		timestamp := protocol.Int64FromAny(message["timestamp"])
 		for _, block := range subagentTaskContentBlocks(message) {
-			switch strings.ToLower(strings.TrimSpace(stringFromAny(block["type"]))) {
+			switch strings.ToLower(stringFromAny(block["type"])) {
 			case "tool_use":
-				toolUseID := strings.TrimSpace(stringFromAny(block["id"]))
-				name := strings.TrimSpace(stringFromAny(block["name"]))
+				toolUseID := stringFromAny(block["id"])
+				name := stringFromAny(block["name"])
 				if toolUseID == "" || name == "" {
 					continue
 				}
@@ -94,7 +94,7 @@ func subagentToolRunsFromMessages(
 					StartedAt:       timestamp,
 				})
 			case "tool_result":
-				toolUseID := strings.TrimSpace(stringFromAny(block["tool_use_id"]))
+				toolUseID := stringFromAny(block["tool_use_id"])
 				index, exists := indexByToolUseID[toolUseID]
 				if !exists {
 					continue

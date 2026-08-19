@@ -55,12 +55,12 @@ func buildRoundRemoveSet(roundIDs []string) map[string]struct{} {
 }
 
 func shouldRemoveOverlayRow(row map[string]any, removeSet map[string]struct{}) bool {
-	if _, ok := removeSet[strings.TrimSpace(stringFromAny(row["round_id"]))]; ok {
+	if _, ok := removeSet[stringFromAny(row["round_id"])]; ok {
 		return true
 	}
 	if stringFromAny(row[overlayKindField]) != "history_rewrite" {
 		return false
 	}
-	_, ok := removeSet[strings.TrimSpace(stringFromAny(row["target_round_id"]))]
+	_, ok := removeSet[stringFromAny(row["target_round_id"])]
 	return ok
 }

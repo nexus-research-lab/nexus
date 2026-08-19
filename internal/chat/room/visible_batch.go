@@ -50,7 +50,7 @@ func publicMessagesAfterCursor(history []protocol.Message, cursor PublicCursor) 
 	lastMessageID := strings.TrimSpace(cursor.LastMessageID)
 	if lastMessageID != "" {
 		for index, message := range history {
-			if strings.TrimSpace(normalizeAnyString(message["message_id"])) == lastMessageID {
+			if normalizeAnyString(message["message_id"]) == lastMessageID {
 				return slices.Clone(history[index+1:])
 			}
 		}
@@ -67,12 +67,12 @@ func publicMessagesAfterCursor(history []protocol.Message, cursor PublicCursor) 
 }
 
 func isVisiblePublicInputMessage(message protocol.Message, targetAgentID string) bool {
-	role := strings.TrimSpace(normalizeAnyString(message["role"]))
+	role := normalizeAnyString(message["role"])
 	switch role {
 	case "user":
 		return extractHistoryText(message) != ""
 	case "assistant":
-		if strings.TrimSpace(normalizeAnyString(message["agent_id"])) == strings.TrimSpace(targetAgentID) {
+		if normalizeAnyString(message["agent_id"]) == strings.TrimSpace(targetAgentID) {
 			return false
 		}
 		return formatHistoryLine(message, nil) != ""

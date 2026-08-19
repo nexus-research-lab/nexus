@@ -180,6 +180,25 @@ func (r *Repository) CreatePermissionRequestAndBlockRun(
 	input PermissionRequestCreateInput,
 ) (*automationdomain.AutomationPermissionRequest, bool, error) {
 	request := input.Request
+	request.RequestID = strings.TrimSpace(request.RequestID)
+	request.OwnerUserID = strings.TrimSpace(request.OwnerUserID)
+	request.JobID = strings.TrimSpace(request.JobID)
+	request.RunID = strings.TrimSpace(request.RunID)
+	request.Kind = strings.TrimSpace(request.Kind)
+	request.Capability.ToolName = strings.TrimSpace(request.Capability.ToolName)
+	request.Capability.ConnectorID = strings.TrimSpace(request.Capability.ConnectorID)
+	request.Capability.Effect = strings.TrimSpace(request.Capability.Effect)
+	request.Capability.ResourceScope = strings.TrimSpace(request.Capability.ResourceScope)
+	request.Capability.InputFingerprint = strings.TrimSpace(request.Capability.InputFingerprint)
+	request.Title = strings.TrimSpace(request.Title)
+	request.Description = strings.TrimSpace(request.Description)
+	request.Reason = strings.TrimSpace(request.Reason)
+	request.SessionKey = strings.TrimSpace(request.SessionKey)
+	request.DeliverySessionKey = strings.TrimSpace(request.DeliverySessionKey)
+	request.RoundID = strings.TrimSpace(request.RoundID)
+	request.ToolUseID = strings.TrimSpace(request.ToolUseID)
+	input.TaskState = strings.TrimSpace(input.TaskState)
+	input.BlockState = strings.TrimSpace(input.BlockState)
 	capabilityJSON, err := json.Marshal(request.Capability)
 	if err != nil {
 		return nil, false, err
@@ -207,27 +226,27 @@ ON CONFLICT DO NOTHING`,
 	result, err := tx.ExecContext(
 		ctx,
 		insertQuery,
-		strings.TrimSpace(request.RequestID),
-		strings.TrimSpace(request.OwnerUserID),
-		strings.TrimSpace(request.JobID),
-		nullString(strings.TrimSpace(request.RunID)),
+		request.RequestID,
+		request.OwnerUserID,
+		request.JobID,
+		nullString(request.RunID),
 		request.PolicyRevision,
-		strings.TrimSpace(request.Kind),
+		request.Kind,
 		automationdomain.PermissionRequestStatusPending,
-		strings.TrimSpace(request.Capability.ToolName),
-		nullString(strings.TrimSpace(request.Capability.ConnectorID)),
-		strings.TrimSpace(request.Capability.Effect),
-		nullString(strings.TrimSpace(request.Capability.ResourceScope)),
-		strings.TrimSpace(request.Capability.InputFingerprint),
+		request.Capability.ToolName,
+		nullString(request.Capability.ConnectorID),
+		request.Capability.Effect,
+		nullString(request.Capability.ResourceScope),
+		request.Capability.InputFingerprint,
 		string(capabilityJSON),
 		string(inputSummaryJSON),
-		nullString(strings.TrimSpace(request.Title)),
-		nullString(strings.TrimSpace(request.Description)),
-		nullString(strings.TrimSpace(request.Reason)),
-		nullString(strings.TrimSpace(request.SessionKey)),
-		nullString(strings.TrimSpace(request.DeliverySessionKey)),
-		nullString(strings.TrimSpace(request.RoundID)),
-		nullString(strings.TrimSpace(request.ToolUseID)),
+		nullString(request.Title),
+		nullString(request.Description),
+		nullString(request.Reason),
+		nullString(request.SessionKey),
+		nullString(request.DeliverySessionKey),
+		nullString(request.RoundID),
+		nullString(request.ToolUseID),
 		request.ResumeSafe,
 	)
 	if err != nil {
@@ -260,12 +279,12 @@ WHERE job_id = %s
 	taskResult, err := tx.ExecContext(
 		ctx,
 		taskUpdate,
-		strings.TrimSpace(input.TaskState),
-		strings.TrimSpace(request.RequestID),
-		strings.TrimSpace(request.JobID),
-		strings.TrimSpace(request.OwnerUserID),
+		input.TaskState,
+		request.RequestID,
+		request.JobID,
+		request.OwnerUserID,
 		request.PolicyRevision,
-		strings.TrimSpace(request.RequestID),
+		request.RequestID,
 	)
 	if err != nil {
 		return nil, false, err
@@ -278,7 +297,7 @@ WHERE job_id = %s
 		return nil, false, automationdomain.ErrPermissionRequestStale
 	}
 
-	if strings.TrimSpace(request.RunID) != "" {
+	if request.RunID != "" {
 		runUpdate := fmt.Sprintf(
 			`UPDATE automation_task_runs
 SET status = %s,
@@ -298,11 +317,11 @@ WHERE run_id = %s
 			ctx,
 			runUpdate,
 			automationdomain.RunStatusPending,
-			strings.TrimSpace(input.BlockState),
-			strings.TrimSpace(request.RequestID),
-			nullString(strings.TrimSpace(request.Reason)),
-			strings.TrimSpace(request.RunID),
-			strings.TrimSpace(request.OwnerUserID),
+			input.BlockState,
+			request.RequestID,
+			nullString(request.Reason),
+			request.RunID,
+			request.OwnerUserID,
 			request.PolicyRevision,
 			automationdomain.RunStatusPending,
 			automationdomain.RunStatusRunning,
@@ -346,11 +365,11 @@ LIMIT 1`,
 	item, err := scanAutomationPermissionRequest(tx.QueryRowContext(
 		ctx,
 		query,
-		strings.TrimSpace(request.OwnerUserID),
-		strings.TrimSpace(request.JobID),
-		strings.TrimSpace(request.RunID),
-		strings.TrimSpace(request.Kind),
-		strings.TrimSpace(request.Capability.InputFingerprint),
+		request.OwnerUserID,
+		request.JobID,
+		request.RunID,
+		request.Kind,
+		request.Capability.InputFingerprint,
 		automationdomain.PermissionRequestStatusPending,
 	))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -507,6 +526,13 @@ func (r *Repository) ResolvePermissionRequest(
 	ctx context.Context,
 	input PermissionRequestDecisionStoreInput,
 ) (*automationdomain.AutomationPermissionRequest, error) {
+	input.RequestID = strings.TrimSpace(input.RequestID)
+	input.OwnerUserID = strings.TrimSpace(input.OwnerUserID)
+	input.Decision = strings.TrimSpace(input.Decision)
+	input.ResolvedByUserID = strings.TrimSpace(input.ResolvedByUserID)
+	input.TaskState = strings.TrimSpace(input.TaskState)
+	input.RunBlockState = strings.TrimSpace(input.RunBlockState)
+	input.DeniedMessage = strings.TrimSpace(input.DeniedMessage)
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -520,8 +546,8 @@ func (r *Repository) ResolvePermissionRequest(
 	request, err := scanAutomationPermissionRequest(tx.QueryRowContext(
 		ctx,
 		query,
-		strings.TrimSpace(input.RequestID),
-		strings.TrimSpace(input.OwnerUserID),
+		input.RequestID,
+		input.OwnerUserID,
 	))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, automationdomain.ErrPermissionRequestNotFound
@@ -550,7 +576,7 @@ func (r *Repository) ResolvePermissionRequest(
 	if input.TaskState == automationdomain.TaskPermissionStateReadyToRetry {
 		pendingRequestID = request.RequestID
 	}
-	taskArgs := []any{strings.TrimSpace(input.TaskState), nullString(pendingRequestID)}
+	taskArgs := []any{input.TaskState, nullString(pendingRequestID)}
 	taskUpdate := fmt.Sprintf(
 		`UPDATE automation_scheduled_tasks
 SET permission_state = %s,
@@ -567,10 +593,10 @@ SET permission_state = %s,
 	}
 	taskArgs = append(
 		taskArgs,
-		strings.TrimSpace(request.JobID),
-		strings.TrimSpace(input.OwnerUserID),
+		request.JobID,
+		input.OwnerUserID,
 		input.ExpectedRevision,
-		strings.TrimSpace(request.RequestID),
+		request.RequestID,
 	)
 	taskUpdate += fmt.Sprintf(
 		`,
@@ -613,11 +639,11 @@ WHERE request_id = %s
 		ctx,
 		requestUpdate,
 		requestStatus,
-		strings.TrimSpace(input.Decision),
-		strings.TrimSpace(input.ResolvedByUserID),
+		input.Decision,
+		input.ResolvedByUserID,
 		input.ResolvedAt.UTC(),
-		strings.TrimSpace(request.RequestID),
-		strings.TrimSpace(input.OwnerUserID),
+		request.RequestID,
+		input.OwnerUserID,
 		automationdomain.PermissionRequestStatusPending,
 	)
 	if err != nil {
@@ -631,7 +657,7 @@ WHERE request_id = %s
 		return nil, automationdomain.ErrPermissionRequestResolved
 	}
 
-	if strings.TrimSpace(request.RunID) != "" {
+	if request.RunID != "" {
 		if input.FinishRunAsDenied {
 			runUpdate := fmt.Sprintf(
 				`UPDATE automation_task_runs
@@ -652,10 +678,10 @@ WHERE run_id = %s
 				runUpdate,
 				automationdomain.RunStatusFailed,
 				input.ResolvedAt.UTC(),
-				nullString(strings.TrimSpace(input.DeniedMessage)),
-				strings.TrimSpace(request.RunID),
-				strings.TrimSpace(input.OwnerUserID),
-				strings.TrimSpace(request.RequestID),
+				nullString(input.DeniedMessage),
+				request.RunID,
+				input.OwnerUserID,
+				request.RequestID,
 			)
 			if runErr != nil {
 				return nil, runErr
@@ -687,10 +713,10 @@ WHERE run_id = %s
 				runUpdate,
 				automationdomain.RunStatusPending,
 				nextRevision,
-				strings.TrimSpace(input.RunBlockState),
-				strings.TrimSpace(request.RunID),
-				strings.TrimSpace(input.OwnerUserID),
-				strings.TrimSpace(request.RequestID),
+				input.RunBlockState,
+				request.RunID,
+				input.OwnerUserID,
+				request.RequestID,
 			)
 			if runErr != nil {
 				return nil, runErr

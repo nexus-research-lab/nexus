@@ -521,8 +521,9 @@ func migrateLegacyRoomWakeFile(
 		wakeID := nestedString(row["wake"], "wake_id")
 		if wakeID == "" {
 			wakeID, _ = row["wake_id"].(string)
-			ownerUserID = ownerByWakeID[strings.TrimSpace(wakeID)]
 		}
+		wakeID = strings.TrimSpace(wakeID)
+		ownerUserID = ownerByWakeID[wakeID]
 		conversationIDs := make(map[string]struct{})
 		collectNestedStrings(row, "conversation_id", conversationIDs)
 		if len(conversationIDs) > 1 {
@@ -536,14 +537,14 @@ func migrateLegacyRoomWakeFile(
 			}
 		}
 		if ownerUserID == "" && wakeID != "" {
-			ownerUserID = ownerByWakeID[strings.TrimSpace(wakeID)]
+			ownerUserID = ownerByWakeID[wakeID]
 		}
 		if ownerUserID == "" {
 			unresolved = append(unresolved, line)
 			continue
 		}
 		if wakeID != "" {
-			ownerByWakeID[strings.TrimSpace(wakeID)] = ownerUserID
+			ownerByWakeID[wakeID] = ownerUserID
 		}
 		rewriteNestedString(row, "owner_user_id", ownerUserID)
 		if wake, ok := row["wake"].(map[string]any); ok {

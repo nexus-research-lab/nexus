@@ -161,7 +161,7 @@ func (s *Service) GetSubagentTaskMessages(ctx context.Context, rawSessionKey str
 func subagentTaskOutputMessages(messages []protocol.Message) []protocol.Message {
 	output := make([]protocol.Message, 0, len(messages))
 	for _, message := range messages {
-		if strings.EqualFold(strings.TrimSpace(stringFromAny(message["role"])), "user") {
+		if strings.EqualFold(stringFromAny(message["role"]), "user") {
 			continue
 		}
 		output = append(output, message)
@@ -400,7 +400,7 @@ func subagentTaskHostAgentID(task SubagentTask) string {
 	if agentID := strings.TrimSpace(task.HostAgentID); agentID != "" {
 		return agentID
 	}
-	return strings.TrimSpace(protocol.ParseSessionKey(task.SessionKey).AgentID)
+	return protocol.ParseSessionKey(task.SessionKey).AgentID
 }
 
 func subagentTaskRuntimeSessionKey(task SubagentTask) string {
@@ -522,7 +522,7 @@ func newSubagentTaskProjection(sessionKey string, defaultRuntimeKind string) *su
 	return &subagentTaskProjection{
 		sessionKey:         sessionKey,
 		defaultRuntimeKind: defaultRuntimeKind,
-		defaultHostAgentID: strings.TrimSpace(protocol.ParseSessionKey(sessionKey).AgentID),
+		defaultHostAgentID: protocol.ParseSessionKey(sessionKey).AgentID,
 		tasks:              make(map[string]*SubagentTask),
 	}
 }
