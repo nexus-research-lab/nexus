@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored reliable DM “working” badges after reconnects and across multiple conversations by keeping exact session activity sources isolated, mirroring active DM lifecycle events to the chat container, and preventing an idle sibling conversation from clearing a running one.
 - Made conversation activity state single-owner across Goal, Agent, and Tool layers: active Goals now use one lifecycle/activity badge, visible Tool blocks suppress duplicate message-level activity, completed tools no longer revive stale reply labels, and internal-only Room results no longer leave empty Agent cards.
 - Made initial, older, and around-history requests transport-cancellable; bounded the browser message window by complete rounds and estimated bytes; and removed the obsolete full-scan ConversationTurn/TurnIndex endpoints in favor of the indexed message and round read model.
 - Marked required fields consistently across Provider setup and other configuration forms, and kept submit actions available so missing values receive immediate Nexus-styled inline validation feedback.

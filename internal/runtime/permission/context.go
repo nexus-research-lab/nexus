@@ -1,5 +1,5 @@
 // INPUT: Session 事件 sender、runtime session 路由 lease 与阻塞式人工交互命令。
-// OUTPUT: sender/session 绑定、仅由当前 owner 释放的路由映射，以及请求广播与响应收口。
+// OUTPUT: sender/session 绑定、仅由当前 owner 释放的路由映射、DM 生命周期 Room 投影、重连 route 快照，以及请求广播与响应收口。
 // POS: runtime permission 的并发上下文与连接生命周期真相源。
 package permission
 
@@ -8,6 +8,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +43,13 @@ type sessionRouteBinding struct {
 type SessionRouteLease struct {
 	leaseID    uint64
 	sessionKey string
+}
+
+// SessionActivityRouteSnapshot exposes the exact runtime Session route needed
+// to rebuild one Room's transient execution activity after a WebSocket reconnect.
+type SessionActivityRouteSnapshot struct {
+	SessionKey string
+	Route      RouteContext
 }
 
 // Context 保存 session 绑定与权限请求广播逻辑。
@@ -200,14 +208,12 @@ func (c *Context) ResolveSessionSenders(sessionKey string) []Sender {
 // BroadcastSessionStatus 向当前 session 的全部绑定连接广播 session_status。
 func (c *Context) BroadcastSessionStatus(ctx context.Context, sessionKey string, runningRoundIDs []string) []error {
 	senders := c.ResolveSessionSenders(sessionKey)
-	if len(senders) == 0 {
-		return nil
-	}
 	event := protocol.NewEvent(protocol.EventTypeSessionStatus, map[string]any{
 		"is_generating":     len(runningRoundIDs) > 0,
 		"running_round_ids": runningRoundIDs,
 	})
 	event.SessionKey = sessionKey
+	event, _, _ = c.prepareRoutedEvent(sessionKey, event)
 
 	errs := make([]error, 0)
 	for _, sender := range senders {
@@ -221,19 +227,46 @@ func (c *Context) BroadcastSessionStatus(ctx context.Context, sessionKey string,
 // BroadcastEvent 向某个 session 的全部绑定连接广播通用事件。
 func (c *Context) BroadcastEvent(ctx context.Context, sessionKey string, event protocol.EventMessage) []error {
 	senders := c.ResolveSessionSenders(sessionKey)
-	if len(senders) == 0 {
-		return nil
-	}
 	if event.SessionKey == "" {
 		event.SessionKey = sessionKey
 	}
+	event, route, roomBroadcaster := c.prepareRoutedEvent(sessionKey, event)
 	errs := make([]error, 0)
 	for _, sender := range senders {
 		if err := sender.SendEvent(ctx, event); err != nil {
 			errs = append(errs, err)
 		}
 	}
+	// canonical DM 的 round 生命周期同时投影到所属聊天容器。侧栏因此不依赖
+	// 当前页面是否仍 bind_session；durable 副本还会封住快照到订阅之间的竞态。
+	if event.EventType == protocol.EventTypeRoundStatus &&
+		roomBroadcaster != nil && route.RoomID != "" && route.ConversationID != "" {
+		roomEvent := event
+		roomEvent.DeliveryMode = protocol.DeliveryModeDurable
+		errs = append(errs, roomBroadcaster.Broadcast(ctx, route.RoomID, roomEvent)...)
+	}
 	return errs
+}
+
+func (c *Context) prepareRoutedEvent(
+	sessionKey string,
+	event protocol.EventMessage,
+) (protocol.EventMessage, RouteContext, RoomBroadcaster) {
+	c.mu.RLock()
+	binding := c.sessionRoutes[sessionKey]
+	roomBroadcaster := c.roomBroadcaster
+	c.mu.RUnlock()
+	route := binding.route
+	if event.RoomID == "" {
+		event.RoomID = route.RoomID
+	}
+	if event.ConversationID == "" {
+		event.ConversationID = route.ConversationID
+	}
+	if event.AgentID == "" {
+		event.AgentID = route.AgentID
+	}
+	return event, route, roomBroadcaster
 }
 
 // BindSessionRoute 记录运行时 session 到前端路由 session 的映射，并返回当前绑定的 owner lease。
@@ -256,6 +289,32 @@ func (c *Context) BindSessionRoute(sessionKey string, route RouteContext) Sessio
 	}
 	c.mu.Unlock()
 	return lease
+}
+
+// SessionActivityRoutesForRoom returns a stable copy of every runtime Session
+// route associated with one chat container. Callers must still ask runtime for
+// the current running rounds; historical route bindings alone are not activity.
+func (c *Context) SessionActivityRoutesForRoom(roomID string) []SessionActivityRouteSnapshot {
+	roomID = strings.TrimSpace(roomID)
+	if roomID == "" {
+		return []SessionActivityRouteSnapshot{}
+	}
+	c.mu.RLock()
+	result := make([]SessionActivityRouteSnapshot, 0)
+	for sessionKey, binding := range c.sessionRoutes {
+		if strings.TrimSpace(binding.route.RoomID) != roomID {
+			continue
+		}
+		result = append(result, SessionActivityRouteSnapshot{
+			SessionKey: sessionKey,
+			Route:      binding.route,
+		})
+	}
+	c.mu.RUnlock()
+	slices.SortFunc(result, func(left SessionActivityRouteSnapshot, right SessionActivityRouteSnapshot) int {
+		return cmp.Compare(left.SessionKey, right.SessionKey)
+	})
+	return result
 }
 
 // UnbindSessionRoute 仅在 lease 仍拥有当前绑定时移除 runtime session 路由。
