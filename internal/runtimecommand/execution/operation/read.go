@@ -5,6 +5,7 @@ package operation
 
 import (
 	"context"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimecommand "github.com/nexus-research-lab/nexus/internal/runtimecommand"
@@ -45,7 +46,8 @@ func getExecution(svc contract.Service, sctx contract.Context) runtimecommand.Op
 			isCoordinator := snapshot != nil &&
 				snapshot.Execution.CoordinatorAgentID == actor.AgentID &&
 				(actor.Role == "" || actor.Role == orchestration.ExecutionActorCoordinator)
-			if !isCoordinator && snapshot != nil &&
+			hasResponsibility := actorHasCurrentExecutionResponsibility(actor, snapshot)
+			if !isCoordinator && !hasResponsibility && snapshot != nil &&
 				snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom {
 				actor.ObservationOnly = true
 			}
@@ -67,4 +69,24 @@ func getExecution(svc contract.Service, sctx contract.Context) runtimecommand.Op
 			return snapshotResult(ctx, svc, actor, snapshot), nil
 		},
 	}
+}
+
+func actorHasCurrentExecutionResponsibility(
+	actor orchestration.ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+) bool {
+	if snapshot == nil || snapshot.Plan == nil {
+		return false
+	}
+	if binding := actor.WorkBinding; binding != nil &&
+		strings.TrimSpace(binding.ExecutionID) == snapshot.Execution.ID &&
+		strings.TrimSpace(binding.PlanID) == snapshot.Plan.ID {
+		return true
+	}
+	if binding := actor.ReviewBinding; binding != nil &&
+		strings.TrimSpace(binding.ExecutionID) == snapshot.Execution.ID &&
+		strings.TrimSpace(binding.PlanID) == snapshot.Plan.ID {
+		return true
+	}
+	return false
 }

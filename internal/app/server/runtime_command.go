@@ -378,7 +378,10 @@ func handleSemanticRuntimeCommand(
 		if !ok || operation.Name == inspectOperation {
 			return nil, fmt.Errorf("未知或不可 invoke 的 %s operation %q", domain, command.Operation)
 		}
-		result, err := operation.Invoke(ctx, command.Input, &runtimecommand.CallContext{RequestID: command.RequestID})
+		result, err := operation.Invoke(ctx, command.Input, &runtimecommand.CallContext{
+			RequestID: command.RequestID,
+			SessionID: actor.Round.CommandContext.CurrentSDKSessionID(),
+		})
 		if err == nil {
 			recordRuntimeSemanticReceipt(
 				actor, command.RequestID, domain, operation.Name, command.Input, result,

@@ -126,14 +126,15 @@ func TestCompactRuntimeCommandContextKeepsAuthorityWithoutRuntimeHistory(t *test
 	}
 }
 
-func TestMutationResultKeepsControlIdentityInlineWhenContextIsTooLarge(t *testing.T) {
+func TestMutationResultKeepsAuthoritativeContextWhenLarge(t *testing.T) {
 	t.Parallel()
 
+	largeContext := strings.Repeat("x", executionContextInlineLimit+1)
 	result := mutationResult(orchestration.MutationResult{
 		Outcome:          orchestration.MutationApplied,
 		ExecutionID:      "execution-1",
 		SnapshotRevision: 12,
-		ExecutionContext: strings.Repeat("x", executionCommandResultInlineLimit),
+		ExecutionContext: largeContext,
 		ContextStatus:    "authoritative",
 		Changed: []string{
 			"assignment:assignment-1",
@@ -145,19 +146,63 @@ func TestMutationResultKeepsControlIdentityInlineWhenContextIsTooLarge(t *testin
 	}
 	if result.StructuredContent["outcome"] != string(orchestration.MutationApplied) ||
 		result.StructuredContent["execution_id"] != "execution-1" ||
-		result.StructuredContent["context_status"] != "refresh_required" {
+		result.StructuredContent["context_status"] != "authoritative" ||
+		result.StructuredContent["execution_context"] != largeContext {
 		t.Fatalf("large mutation control envelope = %#v", result.StructuredContent)
-	}
-	if contextValue, exists := result.StructuredContent["execution_context"]; exists && contextValue != "" {
-		t.Fatalf("oversized execution context remained inline: %#v", contextValue)
 	}
 	changed, ok := result.StructuredContent["changed"].([]any)
 	if !ok || len(changed) != 2 {
 		t.Fatalf("changed identities were externalized: %#v", result.StructuredContent["changed"])
 	}
-	actions, ok := result.StructuredContent["next_actions"].([]any)
-	if !ok || len(actions) == 0 {
-		t.Fatalf("refresh recovery missing: %#v", result.StructuredContent["next_actions"])
+	if _, exists := result.StructuredContent["next_actions"]; exists {
+		t.Fatalf("large result fabricated a recovery action: %#v", result.StructuredContent["next_actions"])
+	}
+}
+
+func TestCompactRuntimeCommandContextNeverDropsResponsibility(t *testing.T) {
+	t.Parallel()
+
+	assigned := `<assigned_work><item assignment_id="assignment-1">` +
+		strings.Repeat("x", executionContextInlineLimit) +
+		`</item></assigned_work>`
+	rendered := `<nexus_execution_context><graph_digest>` +
+		strings.Repeat("g", executionContextInlineLimit) +
+		`</graph_digest>` + assigned +
+		`<allowed_actions><action>submit_work</action></allowed_actions></nexus_execution_context>`
+	compact := compactRuntimeCommandContext(rendered)
+	if strings.Contains(compact, "graph_digest") ||
+		!strings.Contains(compact, `assignment_id="assignment-1"`) ||
+		!strings.Contains(compact, "submit_work") {
+		t.Fatalf("compact context dropped authority: %s", compact)
+	}
+}
+
+func TestReviewWorkInvokeRejectsUnknownDecisionBeforeReadingExecution(t *testing.T) {
+	t.Parallel()
+
+	reviewed := false
+	svc := &fakeExecutionService{
+		current: func() *protocol.ExecutionSnapshot { return executionSnapshot(3) },
+		review: func(orchestration.ReviewWorkInput) orchestration.MutationResult {
+			reviewed = true
+			return orchestration.MutationResult{}
+		},
+	}
+	_, err := reviewWork(svc, executionContext()).Invoke(
+		context.Background(),
+		map[string]any{"decision": "accept"},
+		&runtimecommand.CallContext{RequestID: "review-invalid-1"},
+	)
+	if err == nil || !strings.Contains(err.Error(), "$.decision") {
+		t.Fatalf("Invoke() error = %v, want decision enum validation", err)
+	}
+	if reviewed || svc.currentReads != 0 || svc.snapshotReads != 0 {
+		t.Fatalf(
+			"invalid review crossed the command boundary: reviewed=%t current=%d snapshot=%d",
+			reviewed,
+			svc.currentReads,
+			svc.snapshotReads,
+		)
 	}
 }
 
@@ -344,6 +389,69 @@ func TestGetExecutionLetsRoomMemberObserveWithoutCoordinationCapability(t *testi
 			activated,
 			contextActor,
 		)
+	}
+}
+
+func TestGetExecutionKeepsExactRoomResponsibilityView(t *testing.T) {
+	t.Parallel()
+
+	snapshot := executionSnapshot(9)
+	snapshot.Plan = &protocol.ExecutionPlanRevision{ID: "plan-current"}
+	for _, test := range []struct {
+		name          string
+		workBinding   *protocol.ExecutionWorkBinding
+		reviewBinding *protocol.ExecutionReviewBinding
+		observation   bool
+	}{
+		{
+			name: "worker",
+			workBinding: &protocol.ExecutionWorkBinding{
+				ExecutionID: snapshot.Execution.ID,
+				PlanID:      snapshot.Plan.ID,
+			},
+		},
+		{
+			name: "reviewer",
+			reviewBinding: &protocol.ExecutionReviewBinding{
+				ExecutionID: snapshot.Execution.ID,
+				PlanID:      snapshot.Plan.ID,
+			},
+		},
+		{
+			name: "stale plan",
+			workBinding: &protocol.ExecutionWorkBinding{
+				ExecutionID: snapshot.Execution.ID,
+				PlanID:      "plan-old",
+			},
+			observation: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			var contextActor orchestration.ActorContext
+			svc := &fakeExecutionService{
+				current: func() *protocol.ExecutionSnapshot { return snapshot },
+				contextActor: func(actor orchestration.ActorContext) {
+					contextActor = actor
+				},
+			}
+			sctx := executionContext()
+			sctx.AgentID = "agent-2"
+			sctx.Role = orchestration.ExecutionActorMember
+			sctx.WorkBinding = test.workBinding
+			sctx.ReviewBinding = test.reviewBinding
+			result, err := getExecution(svc, sctx).ContextHandler(
+				context.Background(),
+				map[string]any{"execution_id": snapshot.Execution.ID},
+				nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.IsError || contextActor.ObservationOnly != test.observation {
+				t.Fatalf("result=%+v actor=%+v, observation=%t", result, contextActor, test.observation)
+			}
+		})
 	}
 }
 
@@ -612,7 +720,7 @@ func TestPreparePlanExecutionEndsStaleGoalAuthorityRoundWithoutRetryLoop(t *test
 			orchestration.PreparePlanExecutionInput,
 		) (*protocol.ExecutionPlanProposal, error) {
 			return nil, &orchestration.DomainError{
-				Code: orchestration.ErrorCodeGoalBindingConflict,
+				Code:    orchestration.ErrorCodeGoalBindingConflict,
 				Message: "active Goal revision changed after this physical round started",
 			}
 		},

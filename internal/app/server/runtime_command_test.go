@@ -184,15 +184,19 @@ func TestSemanticRuntimeCommandRecordsHostTypedExecutionReceipt(t *testing.T) {
 	}
 	responsibility := runtimectx.NewResponsibilityAuthorityState(nil, "execution-1", workBinding, nil)
 	receipts := runtimecommand.NewReceiptState()
+	sdkSessionIdentity := runtimectx.NewSDKSessionIdentityState("sdk-session-current")
 	actor := runtimecommand.Actor{Round: runtimecommand.RoundContext{
 		Receipts: receipts,
 		CommandContext: runtimectx.RuntimeCommandContext{
 			ResponsibilityAuthority: responsibility,
+			SDKSessionIdentity:      sdkSessionIdentity,
 		},
 	}}
+	var capturedSessionID string
 	operations := []runtimecommand.Operation{{
 		Name: "submit_work",
-		Handler: func(context.Context, map[string]any) (runtimecommand.Result, error) {
+		ContextHandler: func(_ context.Context, _ map[string]any, call *runtimecommand.CallContext) (runtimecommand.Result, error) {
+			capturedSessionID = call.SessionID
 			return runtimecommand.Result{StructuredContent: map[string]any{
 				"outcome": "applied", "execution_id": "execution-1", "message": "submitted",
 			}}, nil
@@ -207,6 +211,9 @@ func TestSemanticRuntimeCommandRecordsHostTypedExecutionReceipt(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if capturedSessionID != "sdk-session-current" {
+		t.Fatalf("semantic command SDK Session = %q", capturedSessionID)
 	}
 	items, sequence := receipts.Since(0)
 	if sequence != 1 || len(items) != 1 {

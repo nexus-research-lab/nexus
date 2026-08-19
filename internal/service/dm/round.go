@@ -86,6 +86,7 @@ type roundRunner struct {
 	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
 	responsibilityState         *runtimectx.ResponsibilityAuthorityState
+	sdkSessionIdentity          *runtimectx.SDKSessionIdentityState
 	commandReceipts             *runtimecommand.ReceiptState
 	commandResources            *runtimecommand.RoundResources
 	commandReceiptSequence      uint64
@@ -288,6 +289,9 @@ func (r *roundRunner) executeRound(
 				return syncErr
 			}
 			r.session = updatedSession
+			if r.sdkSessionIdentity != nil {
+				r.sdkSessionIdentity.Set(sessionID)
+			}
 			if forkSessionStateCommitted(r.session, sessionID, r.toolSurfaceFingerprint) {
 				r.forkSourceSessionID = ""
 			}

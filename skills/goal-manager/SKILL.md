@@ -7,7 +7,7 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 
 管理当前会话已经选定的长程 objective。是否需要 Goal 的结构选择由 `execution-orchestrator` 负责；本 Skill 不把普通任务、提醒、Room action 或一次性协作升级为 Goal，也不因 Goal 存在自动建立 WorkGraph。
 
-使用宿主注入的 `NEXUS_COMMAND_PATH`。宿主把命令绑定到当前 owner、Agent、Session、physical round 和 exact Goal revision；不要声明或覆盖这些身份，不要覆盖任何 `NEXUS_COMMAND_*` 环境变量，不使用 `nexusctl`、其他管理入口或 `/goal` 文本命令。
+使用宿主注入的 `NEXUS_COMMAND_PATH`。宿主把命令绑定到当前 owner、Agent、Session、physical round 和 exact Goal revision；直接执行下面的受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。不要声明或覆盖这些身份，不要覆盖任何 `NEXUS_COMMAND_*` 环境变量，不使用 `nexusctl`、其他管理入口或 `/goal` 文本命令。
 
 ## 命令工作流
 
@@ -29,13 +29,13 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
    "${NEXUS_COMMAND_PATH}" --json goal contract
    ```
 
-3. 确定 operation 后，只读取它的精确 contract，不根据记忆猜输入。
+3. 确定 operation 后，每次新的 mutation 输入写入前，都必须紧邻写入重新读取它的精确 contract，不根据记忆猜 schema 或路径。
 
    ```bash
    "${NEXUS_COMMAND_PATH}" --json goal contract --operation create_goal
    ```
 
-4. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为该操作的一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。不要自行选择路径，不用 Bash、heredoc、`cat`、命令替换或重定向生成 JSON。
+4. 只使用刚刚返回的 exact contract 中的 `input_staging.path`。这是宿主为当前 physical round 预建且初始内容为 `{}` 的私有文件；不要复用记忆、旧输出或上一轮中的绝对路径。某个新返回路径首次写入前先用 Read 工具读一次，再用 Write 覆盖为该操作的一个完整 JSON 对象。即使同轮之前调用过同一 operation，新意图也先重读 exact contract，再覆盖当前路径。不要自行选择路径，不用 Bash、heredoc、`cat`、命令替换或重定向生成 JSON。
 
 5. 用一条单行命令执行操作。`invoke` 只读取当前 physical round 的宿主管理输入槽，不接受 inline JSON 或调用方选择的文件。每个新意图生成一个 8–128 位稳定 `request_id`；同一意图重试必须复用。
 

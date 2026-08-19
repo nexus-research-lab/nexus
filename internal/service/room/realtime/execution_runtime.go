@@ -132,6 +132,9 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 			"sdk_session_id", strings.TrimSpace(client.SessionID()),
 		)...,
 	)
+	if sessionID := strings.TrimSpace(client.SessionID()); sessionID != "" {
+		e.slot.ensureSDKSessionIdentityState().Set(sessionID)
+	}
 	return client, nil
 }
 
@@ -408,6 +411,7 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 		PermissionMode:          permissionMode,
 		GoalAuthority:           goalAuthority,
 		ResponsibilityAuthority: responsibilityAuthority,
+		SDKSessionIdentity:      e.slot.ensureSDKSessionIdentityState(),
 		AutomationRun:           cloneAutomationRunContext(e.round.AutomationRun),
 	}
 	return runtimecommand.RoundContext{

@@ -2064,12 +2064,24 @@ func validateReview(
 	submission protocol.WorkSubmission,
 	input ReviewWorkInput,
 ) error {
+	if strings.TrimSpace(string(input.Decision)) == "" {
+		return domainError(
+			ErrorCodeInvalidInput,
+			"acceptance decision is required; use accepted, rejected, or changes_requested",
+		)
+	}
 	switch input.Decision {
 	case protocol.WorkAcceptanceAccepted,
 		protocol.WorkAcceptanceRejected,
 		protocol.WorkAcceptanceChangesRequested:
 	default:
-		return domainError(ErrorCodeInvalidInput, "unknown acceptance decision")
+		return domainError(
+			ErrorCodeInvalidInput,
+			fmt.Sprintf(
+				"invalid acceptance decision %q; use accepted, rejected, or changes_requested",
+				input.Decision,
+			),
+		)
 	}
 	if input.Decision != protocol.WorkAcceptanceAccepted {
 		return nil

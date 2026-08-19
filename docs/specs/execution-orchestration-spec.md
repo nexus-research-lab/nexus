@@ -351,6 +351,11 @@ Dependencies are revision-scoped:
 Output claims are either exclusive or shared. Exclusive claims prevent two active
 responsibility chains from owning the same declared output.
 
+Every output scope uses one canonical form: `file:<workspace-relative-path>`,
+`dir:<workspace-relative-path>`, or `semantic:<stable-key>`. File and directory
+paths use forward slashes, are never absolute, never equal `.`, and never escape
+with `..`; an owner/Agent absolute workspace path is not a Plan scope.
+
 These claims are a durable scheduling and review contract, not a filesystem
 capability. Nexus validates Plan topology and exposes the assigned scopes to the
 responsible runtime, but the current workspace layer does not intercept every
@@ -531,10 +536,14 @@ directory without polling or scanning durable command history. Goal/Execution
 neither inline JSON nor a caller-selected input path. The CLI contract
 envelope is self-describing: the directory names the exact operation-contract
 command, while an exact contract names the staged-input invoke command. The normal
-sequence is actor-filtered `inspect`, one exact operation contract, one staged write,
-and one invoke; loading the full directory is discovery fallback rather than a fixed
-per-call preflight. A caller
-must not probe field aliases or invoke before loading that exact schema.
+sequence is actor-filtered `inspect`, a fresh exact operation contract immediately
+before each new mutation input write, one staged write, and one invoke; loading the
+full directory is discovery fallback rather than a fixed per-call preflight. A caller
+must not probe environment injection or field aliases, must not reuse an absolute
+staging path remembered from another physical round, and must not invoke before
+loading that exact schema. The broker validates required fields, closed objects,
+types, enums, patterns, and collection bounds before any domain handler or state
+read, matching the retired native MCP schema boundary without restoring its route.
 
 ### 5.1 Agent-facing CLI command audit
 
@@ -559,7 +568,9 @@ physical-round staging file named by the host. It accepts neither inline JSON no
 stale temporary file. The host keeps the file alive until the physical round ends,
 repairs an editor-replaced managed inode to `0600` after validating it, and shares
 one round-local retry counter across repeated CLI process invocations. A stable
-`request_id` identifies one semantic intent and must be reused for its retries.
+`request_id` identifies one semantic intent and must be reused for its retries. A
+fresh exact contract is the only source of the current slot path; an old path that
+has already been cleaned up is not a recoverable command input.
 
 The Agent-facing `nexus` executable must resolve to an explicit packaged binary or
 the running same-version Nexus host through its private multicall entrypoint. The
@@ -623,12 +634,14 @@ receipts still enrich candidate nodes in one graph read by exact
 `domain + operation + request_id`; arbitrary shell output cannot recreate `assign_work`
 segment authority or any other semantic operation identity.
 
-`get_execution` does not mutate durable Execution or Plan state. Every verified
-member of the exact Room conversation may read a bounded shared WorkGraph
+`get_execution` does not mutate durable Execution or Plan state. An unbound verified
+member of the exact Room conversation receives a bounded shared WorkGraph
 observation: objective, completion criteria, graph topology, and node status are
 visible, while Assignment/Review/Submission evidence and every mutation action
-remain absent. Observation never creates WorkBinding, ReviewBinding, Goal
-authority, or coordination authority. On a verified current-coordinator read,
+remain absent. A member carrying an exact current WorkBinding or ReviewBinding keeps
+that responsibility-scoped view; Room membership alone never downgrades or grants
+such a binding. Observation never creates WorkBinding, ReviewBinding, Goal authority,
+or coordination authority. On a verified current-coordinator read,
 the same operation instead mints an ephemeral `CoordinationBinding` for the
 current physical round in runtime memory. This is the explicit recovery path when
 an existing WorkGraph continues in a new coordinator round; without it, the new
@@ -719,6 +732,12 @@ revision, it returns `context_status: round_refresh_required` with no same-round
 next action. `inspect` may expose the successor state but cannot mutate the old
 round's authorization provenance; the old round terminates and the host-owned
 successor continuation performs the next command.
+
+Plain `context_status: refresh_required` is a same-round reread instruction and
+never means that the physical round should wait for a successor. Result compaction
+may remove observed `runtime_facts` and an optional `graph_digest`, but it must keep
+the authoritative responsibility/review/action/blocker context even when that wire
+is large; size alone must not fabricate either refresh status or end a round.
 
 No operation may combine planning, assignment, execution, submission, and acceptance
 into one implicit mutation. Command retries must use their stable request identity and receipt

@@ -9,7 +9,7 @@
 本文件与当前 CLI contract 不一致时，以 CLI 为准。
 只有 contract 返回 `cross_agent_allowed=true` 时才能使用跨 Agent/Session 高级输入。
 
-contract 同时返回宿主预建的 `input_staging.path`，初始内容为 `{}`。每个 physical round 第一次写入前先用 Read 工具读该路径一次，再用 Write 覆盖为单个 JSON 对象；同轮后续新意图可直接覆盖。然后在 Bash 单行命令中使用 `--input-file "${NEXUS_COMMAND_INPUT_PATH}"`；Windows PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ... --input-file "${env:NEXUS_COMMAND_INPUT_PATH}"`。CLI 未显式传 `--input` / `--input-file` 时也默认读取这个槽。`--input` 与 `--input-file` 互斥，文件上限 1 MiB，`-` 只用于人工 stdin。不要用 `$(cat ...)`、heredoc、重定向或多行 shell 传 JSON。
+contract 同时返回宿主为当前 physical round 预建的 `input_staging.path`，初始内容为 `{}`。每次新的 input 写入前都重新运行 contract，并且只使用刚返回的路径；不要复用记忆、旧输出或上一轮中的绝对路径。某个新返回路径第一次写入前先用 Read 工具读一次，再用 Write 覆盖为单个 JSON 对象。然后在 Bash 单行命令中使用 `--input-file "${NEXUS_COMMAND_INPUT_PATH}"`；Windows PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ... --input-file "${env:NEXUS_COMMAND_INPUT_PATH}"`。CLI 未显式传 `--input` / `--input-file` 时也默认读取这个槽。`--input` 与 `--input-file` 互斥，文件上限 1 MiB，`-` 只用于人工 stdin。不要用 `$(cat ...)`、heredoc、重定向或多行 shell 传 JSON。
 
 ## 查询
 

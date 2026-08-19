@@ -65,6 +65,7 @@ Gate 只表示会真实改变路线的检查，不代表每一步都需要用户
 - owner 与 reviewer 相同：自审折叠在同一 Agent 节点。
 - reviewer 不同：显示独立 review Gate，并通过结构化 review handoff 交接。
 - 高风险、争议大或需要独立证据时优先独立审核；否则不要机械增加 reviewer。
+- `return_to_agent_id` 可以选择 Lead，也可以选择另一位适合且可用的 Room 成员；独立并行分支很多、Lead 会成为瓶颈或需要职责分离时，应把审核分散给不同 reviewer。Submission 之后等待审核是已提交责任，不是外部输入阻塞，worker 不得为催审再调用 `block_work`。
 - Gate 返回结论与证据，不替 Agent 决定路由。
 
 ## Loop

@@ -93,6 +93,9 @@ type OperationAnnotations struct {
 
 // Invoke 执行操作并保留 request identity。
 func (o Operation) Invoke(ctx context.Context, input map[string]any, call *CallContext) (Result, error) {
+	if err := ValidateInput(o.InputSchema, input); err != nil {
+		return Result{}, fmt.Errorf("%s input %w", strings.TrimSpace(o.Name), err)
+	}
 	if o.ContextHandler != nil {
 		return o.ContextHandler(ctx, input, call)
 	}

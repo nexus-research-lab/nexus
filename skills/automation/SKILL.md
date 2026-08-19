@@ -10,13 +10,13 @@ tags: [automation, scheduled-task, reminder, heartbeat]
 
 使用宿主注入的 `NEXUS_COMMAND_PATH`。该命令通过当前 physical round capability 绑定 owner、Agent、DM/Room/IM Session 和可选的当前 job/run；不要自行声明或覆盖这些身份。
 
-所有调用都加 `--json`。不要搜索源码入口、手写 `go run ./cmd/nexus`、调用 `nexusctl automation`，也不要覆盖 `NEXUS_COMMAND_*` 或 `NEXUS_COMMAND_INPUT_PATH` 环境变量。
+所有调用都加 `--json`。直接调用受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。不要搜索源码入口、手写 `go run ./cmd/nexus`、调用 `nexusctl automation`，也不要覆盖 `NEXUS_COMMAND_*` 或 `NEXUS_COMMAND_INPUT_PATH` 环境变量。
 
 固定流程是 `inspect → plan → apply → verify`。
 
 ## 工作流
 
-1. 首次操作或边界不确定时读取当前 contract。
+1. 首次操作或边界不确定时读取当前 contract；每次新的 input 写入前也必须紧邻写入重新读取 contract，以取得当前 physical round 的输入槽。
 
    ```bash
    "${NEXUS_COMMAND_PATH}" --json automation contract
@@ -24,7 +24,7 @@ tags: [automation, scheduled-task, reminder, heartbeat]
 
    Windows 的 runtime 工具名为 PowerShell 时，使用对应的单行受管形式：`& "${env:NEXUS_COMMAND_PATH}" --json automation contract`；后续 input path 使用 `"${env:NEXUS_COMMAND_INPUT_PATH}"`。不要混用 Bash 与 PowerShell 变量语法。
 
-2. 从 contract 输出读取 `input_staging.path`。这是宿主预建且初始内容为 `{}` 的文件：每个 physical round 第一次写入前，先用 Read 工具读该路径一次，再用 Write 覆盖为当前 operation 的一个完整 JSON 对象；同轮后续新意图直接覆盖旧内容。只写 JSON 内容，不自行选择文件名，不使用 Bash、heredoc、`cat`、命令替换或重定向生成输入。
+2. 只使用刚刚返回的 contract 中的 `input_staging.path`。这是宿主为当前 physical round 预建且初始内容为 `{}` 的私有文件；不要复用记忆、旧输出或上一轮中的绝对路径。某个新返回路径首次写入前先用 Read 工具读一次，再用 Write 覆盖为当前 operation 的一个完整 JSON 对象。新意图必须先重读 contract；plan 后紧接的 apply 则保持同一输入内容与 revision/digest，不另造输入。只写 JSON 内容，不自行选择文件名，不使用 Bash、heredoc、`cat`、命令替换或重定向生成输入。
 
 3. 用单条、单行 `inspect` 查询现状。修改、删除、运行或补投递前，先定位唯一任务并取得 `job_id`、`configuration_version`、running run 和健康状态。CLI 默认读取受管输入槽；显式写法如下。
 

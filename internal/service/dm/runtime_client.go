@@ -47,6 +47,7 @@ type dmClientPreparation struct {
 	goalContext            string
 	goalObjectiveRevision  *atomic.Int64
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
+	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
 	commandReceipts        *runtimecommand.ReceiptState
 	commandResources       *runtimecommand.RoundResources
 	connectorTurnContext   string
@@ -182,6 +183,9 @@ func (s *Service) ensureClient(
 		nil,
 		nil,
 	)
+	sdkSessionIdentity := runtimectx.NewSDKSessionIdentityState(
+		dmdomain.StringPointerValue(sessionItem.SessionID),
+	)
 	commandReceipts := runtimecommand.NewReceiptState()
 	commandResources := runtimecommand.NewRoundResources()
 	commandResourcesTransferred := false
@@ -201,7 +205,8 @@ func (s *Service) ensureClient(
 		SourceContextType: "agent", SourceContextID: agentValue.AgentID,
 		SourceContextLabel: agentValue.Name, PermissionMode: permissionMode,
 		GoalAuthority: goalAuthority, ResponsibilityAuthority: responsibilityState,
-		AutomationRun: cloneAutomationRunContext(request.AutomationRun),
+		SDKSessionIdentity: sdkSessionIdentity,
+		AutomationRun:      cloneAutomationRunContext(request.AutomationRun),
 	}
 	configurationRuntimeEnv := map[string]string(nil)
 	if !request.runtimePreparationOnly && s.configurationRuntimeEnv != nil {
@@ -470,6 +475,7 @@ func (s *Service) ensureClient(
 		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
 			return dmClientPreparation{}, clearErr
 		}
+		sdkSessionIdentity.Set("")
 		options.Session.ResumeID = ""
 		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
 			return dmClientPreparation{}, err
@@ -535,6 +541,13 @@ func (s *Service) ensureClient(
 			}
 		}
 	}
+	if currentSessionID := strings.TrimSpace(client.SessionID()); currentSessionID != "" {
+		sdkSessionIdentity.Set(currentSessionID)
+	} else if strings.TrimSpace(forkSourceSessionID) != "" {
+		sdkSessionIdentity.Set("")
+	} else {
+		sdkSessionIdentity.Set(dmdomain.StringPointerValue(sessionItem.SessionID))
+	}
 	preparation := dmClientPreparation{
 		client:                 client,
 		runtimeKind:            strings.TrimSpace(string(options.Runtime.Kind)),
@@ -548,6 +561,7 @@ func (s *Service) ensureClient(
 		goalContext:            goalContext,
 		goalObjectiveRevision:  goalObjectiveRevision,
 		responsibilityState:    responsibilityState,
+		sdkSessionIdentity:     sdkSessionIdentity,
 		commandReceipts:        commandReceipts,
 		commandResources:       commandResources,
 		connectorTurnContext:   connectorTurnContext,

@@ -4,6 +4,7 @@
 //
 // 成员:
 //   - command.go: transport-neutral request、contract、operation 与 result。
+//   - input_schema.go: 在领域 handler 前执行 Goal/Execution 共用的 portable JSON Schema 校验。
 //   - capability.go: physical-round Actor capability registry。
 //   - round_resources.go: 与 physical round 同寿命的临时资源所有权。
 //   - attempt_state.go: 跨 command registry rebuild 保持的 round-local 重试计数。

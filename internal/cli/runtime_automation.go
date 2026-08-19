@@ -63,7 +63,7 @@ func newRuntimeAutomationContractCommand() *cobra.Command {
 			payload := map[string]any{
 				"domain": "automation", "action": "contract", "contract": contract,
 				"command_usage": map[string]string{
-					"next": "read the pre-created input_staging.path once with Read, then overwrite it with one complete JSON object before inspect, plan, or apply",
+					"next": "immediately before every new input write, run automation contract again and use only the input_staging.path in that fresh result; never reuse a remembered path from an earlier physical round; Read each newly returned path once before its first Write",
 				},
 			}
 			if inputPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName)); inputPath != "" {

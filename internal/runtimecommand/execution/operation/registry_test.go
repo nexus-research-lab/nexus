@@ -22,7 +22,7 @@ func TestPlanTransportRetryGuardSurvivesOperationRegistryRebuild(t *testing.T) {
 		if !ok {
 			t.Fatal("prepare_plan_execution missing")
 		}
-		result, err := definition.Invoke(context.Background(), map[string]any{"plan_document": ""}, nil)
+		result, err := definition.ContextHandler(context.Background(), map[string]any{"plan_document": ""}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -131,6 +131,10 @@ func TestPlanOperationSchemasExposeDocumentGoalIntentThenExactSealedReference(t 
 		orchestration.ExecutionPlanDocumentSchemaContract().OutputScopeRequirements,
 	) {
 		t.Fatalf("prepare schema omits output scope handoff semantics: %s", planDocumentDescription)
+	}
+	if !strings.Contains(planDocumentDescription, "cannot be absolute") ||
+		!strings.Contains(planDocumentDescription, "semantic:<stable-key>") {
+		t.Fatalf("prepare schema omits output scope path boundary: %s", planDocumentDescription)
 	}
 	if !strings.Contains(planDocumentDescription, "goal_binding is not a YAML field") ||
 		!strings.Contains(goalBinding["description"].(string), "Outer command input beside plan_document") {

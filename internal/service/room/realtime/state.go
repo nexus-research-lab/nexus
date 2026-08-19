@@ -36,6 +36,8 @@ type roomSlotRuntimeState struct {
 	doneOnce            sync.Once
 	responsibilityOnce  sync.Once
 	responsibilityState *runtimectx.ResponsibilityAuthorityState
+	sdkIdentityOnce     sync.Once
+	sdkSessionIdentity  *runtimectx.SDKSessionIdentityState
 	commandReceiptOnce  sync.Once
 	commandReceipts     *runtimecommand.ReceiptState
 	commandResourceOnce sync.Once
@@ -64,6 +66,19 @@ func (s *activeRoomSlot) ensureCommandReceiptState() *runtimecommand.ReceiptStat
 		runtimeState.commandReceipts = runtimecommand.NewReceiptState()
 	})
 	return runtimeState.commandReceipts
+}
+
+func (s *activeRoomSlot) ensureSDKSessionIdentityState() *runtimectx.SDKSessionIdentityState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.sdkIdentityOnce.Do(func() {
+		runtimeState.sdkSessionIdentity = runtimectx.NewSDKSessionIdentityState(
+			s.getSDKSessionID(),
+		)
+	})
+	return runtimeState.sdkSessionIdentity
 }
 
 type roomGoalAuthoritySource string
@@ -488,11 +503,13 @@ func (slot *activeRoomSlot) setSDKSessionID(sessionID string) bool {
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	slot.mutable.runtime.mu.Lock()
-	defer slot.mutable.runtime.mu.Unlock()
 	if sessionID == "" || sessionID == strings.TrimSpace(slot.mutable.runtime.sdkSessionID) {
+		slot.mutable.runtime.mu.Unlock()
 		return false
 	}
 	slot.mutable.runtime.sdkSessionID = sessionID
+	slot.mutable.runtime.mu.Unlock()
+	slot.ensureSDKSessionIdentityState().Set(sessionID)
 	return true
 }
 
@@ -501,11 +518,13 @@ func (slot *activeRoomSlot) clearSDKSessionID() bool {
 		return false
 	}
 	slot.mutable.runtime.mu.Lock()
-	defer slot.mutable.runtime.mu.Unlock()
 	if strings.TrimSpace(slot.mutable.runtime.sdkSessionID) == "" {
+		slot.mutable.runtime.mu.Unlock()
 		return false
 	}
 	slot.mutable.runtime.sdkSessionID = ""
+	slot.mutable.runtime.mu.Unlock()
+	slot.ensureSDKSessionIdentityState().Set("")
 	return true
 }
 

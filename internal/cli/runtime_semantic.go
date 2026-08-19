@@ -95,7 +95,7 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 		usage["next"] = "use inspect; the domain read operation is not invokable"
 		return usage
 	}
-	usage["next"] = "read the pre-created input_staging.path once with Read, overwrite it with one complete JSON object, then invoke with one stable request id; invoke always reads the host-managed staging slot"
+	usage["next"] = "immediately before every new mutation input write, run this exact operation contract again and use only the input_staging.path in that fresh result; never reuse a remembered path from an earlier physical round; Read each newly returned path once before its first Write, overwrite it with one complete JSON object, then invoke with one stable request id"
 	usage["invoke"] = fmt.Sprintf(
 		`"${NEXUS_COMMAND_PATH}" --json %s invoke --operation '%s' --request-id '<stable-request-id>'`,
 		domain,
@@ -110,6 +110,8 @@ func runtimeCommandInputStaging(inputPath string) map[string]any {
 		"max_bytes":          maxRuntimeCommandInputBytes,
 		"initial_content":    map[string]any{},
 		"write_precondition": "read this pre-created file once with Read before the first Write",
+		"lifetime":           "current physical round only; the host removes this slot when the round ends",
+		"refresh_rule":       "run the exact operation contract immediately before every new input write and use only the path in that fresh result; never reuse a remembered path",
 	}
 }
 
