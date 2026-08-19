@@ -11,8 +11,8 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 var runtimeAutomationQueryOperations = []string{

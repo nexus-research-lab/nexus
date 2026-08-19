@@ -10,11 +10,11 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )

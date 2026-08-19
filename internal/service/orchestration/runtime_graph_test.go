@@ -9,8 +9,8 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 type runtimeGraphRepositoryFake struct {

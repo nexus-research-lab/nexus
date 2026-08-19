@@ -38,9 +38,12 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
   automation/ - 定时任务 / heartbeat 调度域（任务级 capability grant、持久审批、run 阻塞与安全恢复）
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
-  cli/        - nexusctl / nexuscfg / round-scoped nexus 命令装配（按领域文件组织）
+  cli/        - 命令子系统；根目录无 Go 包，按信任边界分为三个子包：
+    agent/          - Agent-facing round-scoped nexus CLI；不打开数据库，只经 broker capability 调用宿主
+    host/           - nexusctl / nexuscfg 宿主命令行装配（按领域文件组织）
+    runtimecommand/ - Goal/Execution 的 transport-neutral operation contract、round capability 与 typed receipt
   app/        - HTTP 服务装配与生命周期
-  runtimecommand/ mcp/ connectors/ workspace/ - 能力域；runtimecommand 提供 Goal/Execution 的 transport-neutral operation contract、round capability 与 typed receipt，模型侧只通过内置 Skill 和 round-scoped `nexus goal|execution` CLI 使用；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；Automation 模型控制复用全 Agent 内置 automation Skill 与 round-scoped `nexus automation` CLI，不再挂载 Automation MCP；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
+  mcp/ connectors/ workspace/ - 能力域；模型侧只通过内置 Skill 和 round-scoped `nexus goal|execution` CLI 使用 runtime command；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；Automation 模型控制复用全 Agent 内置 automation Skill 与 round-scoped `nexus automation` CLI，不再挂载 Automation MCP；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>

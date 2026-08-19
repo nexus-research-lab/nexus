@@ -16,7 +16,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 

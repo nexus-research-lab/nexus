@@ -19,15 +19,15 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	executioncontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/execution/contract"
+	executionoperation "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/execution/operation"
+	goalcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
+	goaloperation "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/operation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
-	executioncontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/execution/contract"
-	executionoperation "github.com/nexus-research-lab/nexus/internal/runtimecommand/execution/operation"
-	goalcontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
-	goaloperation "github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/operation"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 )
 

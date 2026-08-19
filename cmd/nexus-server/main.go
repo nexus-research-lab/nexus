@@ -17,7 +17,7 @@ import (
 	"syscall"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
-	"github.com/nexus-research-lab/nexus/internal/cli"
+	"github.com/nexus-research-lab/nexus/internal/cli/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -420,8 +420,8 @@ func runServer() error {
 }
 
 func main() {
-	if arguments, ok := cli.RuntimeEntrypointArgs(os.Args[1:]); ok {
-		if code := cli.RunRuntime(arguments, os.Stderr); code != 0 {
+	if arguments, ok := agent.RuntimeEntrypointArgs(os.Args[1:]); ok {
+		if code := agent.RunRuntime(arguments, os.Stderr); code != 0 {
 			os.Exit(code)
 		}
 		return

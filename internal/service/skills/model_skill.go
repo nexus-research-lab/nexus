@@ -8,7 +8,7 @@ import (
 	_ "embed"
 	"sync"
 
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 )
 
 const (

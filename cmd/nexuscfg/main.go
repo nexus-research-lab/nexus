@@ -3,23 +3,24 @@ package main
 import (
 	"os"
 
-	"github.com/nexus-research-lab/nexus/internal/cli"
+	"github.com/nexus-research-lab/nexus/internal/cli/agent"
+	"github.com/nexus-research-lab/nexus/internal/cli/host"
 )
 
 func main() {
-	if arguments, ok := cli.RuntimeEntrypointArgs(os.Args[1:]); ok {
-		if code := cli.RunRuntime(arguments, os.Stderr); code != 0 {
+	if arguments, ok := agent.RuntimeEntrypointArgs(os.Args[1:]); ok {
+		if code := agent.RunRuntime(arguments, os.Stderr); code != 0 {
 			os.Exit(code)
 		}
 		return
 	}
-	command, err := cli.NewConfiguration(cli.LoadConfigurationConfig())
+	command, err := host.NewConfiguration(host.LoadConfigurationConfig())
 	if err != nil {
-		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
-		os.Exit(cli.ExitCode(err))
+		host.WriteCommandError(os.Stderr, err, host.RequestedJSON(os.Args[1:]))
+		os.Exit(host.ExitCode(err))
 	}
 	if err = command.Execute(); err != nil {
-		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
-		os.Exit(cli.ExitCode(err))
+		host.WriteCommandError(os.Stderr, err, host.RequestedJSON(os.Args[1:]))
+		os.Exit(host.ExitCode(err))
 	}
 }

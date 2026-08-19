@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 
-	"github.com/nexus-research-lab/nexus/internal/cli"
+	"github.com/nexus-research-lab/nexus/internal/cli/agent"
 )
 
 func main() {
-	if code := cli.RunRuntime(os.Args[1:], os.Stderr); code != 0 {
+	if code := agent.RunRuntime(os.Args[1:], os.Stderr); code != 0 {
 		os.Exit(code)
 	}
 }

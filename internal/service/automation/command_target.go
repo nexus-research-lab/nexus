@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 func runtimeCommandAgentID(actor runtimecommand.Actor, requested string) (string, error) {

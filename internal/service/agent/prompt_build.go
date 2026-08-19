@@ -15,7 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 

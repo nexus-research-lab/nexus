@@ -10,11 +10,11 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 

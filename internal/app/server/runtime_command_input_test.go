@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 type runtimeCommandInputAgentResolver struct {

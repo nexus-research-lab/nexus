@@ -7,10 +7,10 @@ import (
 	"context"
 	"strings"
 
+	executioncontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	executioncontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/execution/contract"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"

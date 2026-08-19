@@ -12,7 +12,7 @@ import (
 	"unicode"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 )
 
 var managedVisualizeAllowedTools = []string{
