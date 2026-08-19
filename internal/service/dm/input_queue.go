@@ -454,10 +454,13 @@ func contextWithQueueOwner(ctx context.Context, ownerUserID string) context.Cont
 	})
 }
 
-// contextWithExactOwner 为脱离请求生命周期的后台任务重建唯一 owner 身份。
+// contextWithExactOwner 保留同 owner 的认证身份，只为后台来源重建非交互 owner。
 func contextWithExactOwner(ctx context.Context, ownerUserID string) context.Context {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
+		return ctx
+	}
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && currentUserID == ownerUserID {
 		return ctx
 	}
 	return authctx.WithPrincipal(ctx, &authctx.Principal{

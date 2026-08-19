@@ -35,6 +35,7 @@ cache
 .claude
 .agents
 .venv
+.diagram-design
 
 # python residue (legacy migration artifacts)
 __pycache__/

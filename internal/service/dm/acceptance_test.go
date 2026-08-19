@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -29,7 +30,7 @@ func (a *blockingDMAcceptanceActivity) MarkConversationStarted(
 	return ctx.Err()
 }
 
-func TestDetachedAcceptanceSurvivesCallerCancellation(t *testing.T) {
+func TestDetachedAcceptancePreservesIdentityAndSurvivesCallerCancellation(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -60,7 +61,12 @@ func TestDetachedAcceptanceSurvivesCallerCancellation(t *testing.T) {
 	sender := newDMTestSender("sender-detached-acceptance")
 	permission.BindSession(sessionKey, sender)
 
-	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	requestBase := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: authctx.SystemUserID, Role: authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
+	requestBase = authctx.WithInteractiveHumanEvidence(requestBase, "desktop_session_token")
+	requestCtx, cancelRequest := context.WithCancel(requestBase)
 	if err := service.HandleRealtimeChat(requestCtx, Request{
 		SessionKey:      sessionKey,
 		Content:         "连接断开后继续执行",
@@ -83,6 +89,14 @@ func TestDetachedAcceptanceSurvivesCallerCancellation(t *testing.T) {
 	case runtimeCtx = <-connectStarted:
 	case <-time.After(3 * time.Second):
 		t.Fatal("runtime 未开始连接")
+	}
+	principal := authctx.PrincipalFromContext(runtimeCtx)
+	if principal == nil || principal.AuthMethod != authctx.AuthMethodLocal {
+		t.Fatalf("detached runtime principal = %+v", principal)
+	}
+	evidence, ok := authctx.InteractiveHumanEvidenceFromContext(runtimeCtx)
+	if !ok || evidence.Source != "desktop_session_token" {
+		t.Fatalf("detached runtime human evidence = %+v, ok = %t", evidence, ok)
 	}
 	cancelRequest()
 	select {
