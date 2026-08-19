@@ -20,10 +20,10 @@
 //     最早 durable deadline 聚合读面；只负责 timer 索引，不 claim 或改写业务状态。
 //   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline 与上次进程未落 deadline orphan 对账。
 //   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref。
-//   - query.go / scan.go / workgraph.go：Snapshot SQL 投影和 managed WorkGraph 读取。
+//   - query.go / scan.go / workgraph.go：Snapshot SQL 投影、与 Snapshot 同一 read transaction 的 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史，以及 managed WorkGraph 读取。
 //
 // 主要暴露接口：NewRepository/NewSQLRepository 与 Repository 的事务 command、
-// owner/session/Goal 查询、GetSnapshot、outbox claim/deliver/retry、Runtime Graph
+// owner/session/Goal 查询、GetSnapshot/GetWorkGraphState、outbox claim/deliver/retry、Runtime Graph
 // upsert/read，以及 Plan proposal、Goal confirmation 和 completion audit recovery
 // receipt 方法，以及 background deadline snapshots。
 package orchestration

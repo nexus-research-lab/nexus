@@ -25,7 +25,9 @@ func TestRuntimeCommandInputStagingDescribesPreCreatedFile(t *testing.T) {
 	staging := runtimeCommandInputStaging("/private/round/input.json")
 	if staging["path"] != "/private/round/input.json" ||
 		staging["max_bytes"] != maxRuntimeCommandInputBytes ||
-		!strings.Contains(staging["write_precondition"].(string), "Read") {
+		!strings.Contains(staging["write_precondition"].(string), "Read") ||
+		!strings.Contains(staging["lifetime"].(string), "current physical round") ||
+		!strings.Contains(staging["refresh_rule"].(string), "never reuse") {
 		t.Fatalf("input staging = %+v", staging)
 	}
 	initial, ok := staging["initial_content"].(map[string]any)

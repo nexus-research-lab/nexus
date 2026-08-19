@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度与纯 UI 隐藏节点集合。
- * OUTPUT: 主责任图自上而下展开；每个 Agent/Subagent 的直接子节点从左向右形成独立子树车道，后代始终落在真实拥有者下方；正向流程走中轴，同侧回连在所属子图框内避让节点并合流到共享 U 形正交总线。
+ * OUTPUT: 主责任图自上而下展开；每个不可变 Attempt/Review 轮次保持独立层级；每个 Agent/Subagent 的直接子节点从左向右形成独立子树车道，后代始终落在真实拥有者下方；正向流程走中轴，真正成环的控制回连在所属子图框内避让节点并合流到共享 U 形正交总线。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态树形投影；只为一级 Agent/Gate 的完整运行树绘制外框，Subagent 层级只由树线表达，不再嵌套子图框。
  */
 import type {
@@ -781,16 +781,38 @@ function resolveGraphNodeDepths(
 ): Record<string, number> {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const upstreamByNodeId = new Map<string, string[]>();
-  for (const edge of edges) {
-    if (isExecutionControlEdge(edge.kind)) {
-      continue;
-    }
-    if (!nodeIds.has(edge.source_node_id) || !nodeIds.has(edge.target_node_id)) {
-      continue;
-    }
+  const downstreamByNodeId = new Map<string, string[]>();
+  const validEdges = edges.filter((edge) => (
+    nodeIds.has(edge.source_node_id) && nodeIds.has(edge.target_node_id)
+  ));
+  const addDepthEdge = (edge: ExecutionGraphEdgeView): void => {
     const upstream = upstreamByNodeId.get(edge.target_node_id) ?? [];
     upstream.push(edge.source_node_id);
     upstreamByNodeId.set(edge.target_node_id, upstream);
+    const downstream = downstreamByNodeId.get(edge.source_node_id) ?? [];
+    downstream.push(edge.target_node_id);
+    downstreamByNodeId.set(edge.source_node_id, downstream);
+  };
+  // Structural edges are the stable skeleton. Build them first so deciding
+  // whether a retry/loop-back advances to a new immutable Attempt or closes a
+  // cycle never depends on the JSON edge order.
+  for (const edge of validEdges) {
+    if (!isExecutionControlEdge(edge.kind)) {
+      addDepthEdge(edge);
+    }
+  }
+  for (const edge of validEdges) {
+    if (!isExecutionControlEdge(edge.kind)) {
+      continue;
+    }
+    if (executionGraphPathExists(
+      downstreamByNodeId,
+      edge.target_node_id,
+      edge.source_node_id,
+    )) {
+      continue;
+    }
+    addDepthEdge(edge);
   }
   const result: Record<string, number> = {};
   const resolveDepth = (nodeId: string, visiting: Set<string>): number => {
@@ -812,6 +834,27 @@ function resolveGraphNodeDepths(
     resolveDepth(node.id, new Set());
   }
   return result;
+}
+
+function executionGraphPathExists(
+  downstreamByNodeId: Map<string, string[]>,
+  sourceNodeId: string,
+  targetNodeId: string,
+): boolean {
+  const pending = [sourceNodeId];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    if (current === targetNodeId) {
+      return true;
+    }
+    visited.add(current);
+    pending.push(...(downstreamByNodeId.get(current) ?? []));
+  }
+  return false;
 }
 
 function normalizeAvailableWidth(width: number | undefined): number | null {

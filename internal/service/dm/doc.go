@@ -11,7 +11,7 @@
 //   - attachments.go / broadcast.go / external_reply.go / command_input.go / connector_context.go：附件、广播、外部回复、Connector 配置与当前 Session 选择的可信动态上下文，以及把 DM 查看权限与仅 WebSocket 可用的 host Slash 权限分离的无副作用校验。
 //   - quota.go / subagent_task.go / runtime_client.go / runtime_settings_preparation.go：账号额度门禁与 Goal 限制投影、子任务、带 Execution-aware Agent hook 装配，
 //     Connector 选择提交后按 Session latest-wins 预备工具面 fork，真实输入仍同步兜底；工具面变化时从旧 transcript 幂等 fork 新物理 Session，并签发 nexuscfg 与 Agent-facing nexus command 的 physical-round capability；active-paired
-//     外部私聊复用同 Agent Skill，受控 Automation 执行可覆盖创建时工具快照且 CLI 只读绑定当前 job/run。
+//     外部私聊复用同 Agent Skill，provider init/fork 后的 SDK Session identity 动态写回同轮 command context，受控 Automation 执行可覆盖创建时工具快照且 CLI 只读绑定当前 job/run。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package dm

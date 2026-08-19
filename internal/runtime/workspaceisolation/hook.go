@@ -38,9 +38,6 @@ var shellRemoteURLExpansionPattern = regexp.MustCompile(
 )
 var shellFileURLExpansionPattern = regexp.MustCompile(`(?i)(?:[-=+?])file:/+`)
 var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
-var powerShellBracedScopeEnvironmentAssignmentPattern = regexp.MustCompile(
-	`(?i)\$\{env:(?:CLAUDE_CONFIG_DIR|NEXUS_CONFIG_DIR|NEXUS_RUNTIME_SCOPE_MODE|NEXUS_STATE_ROOT|NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH|NEXUSCTL_COMMAND_PATH|NEXUSCFG_COMMAND_PATH|NEXUSCFG_BROKER_URL|NEXUSCFG_CAPABILITY_TOKEN|NEXUS_COMMAND_PATH|NEXUS_COMMAND_BROKER_URL|NEXUS_COMMAND_CAPABILITY_TOKEN|NEXUS_COMMAND_INPUT_PATH)\}\s*=`,
-)
 var nexusctlCommandTextPattern = regexp.MustCompile(
 	`(?i)(?:^|[^A-Za-z0-9_.-])nexusctl(?:\.(?:bat|cmd|exe|ps1))?(?:$|[^A-Za-z0-9_.-])`,
 )
@@ -1037,10 +1034,7 @@ func shellCommandUsesNexusRuntime(parts []shellCommandPart) bool {
 	return false
 }
 
-func shellCommandOverridesNexusctlScope(parts []shellCommandPart, command string) bool {
-	if powerShellBracedScopeEnvironmentAssignmentPattern.MatchString(command) {
-		return true
-	}
+func shellCommandOverridesNexusctlScope(parts []shellCommandPart, _ string) bool {
 	for index, part := range parts {
 		if part.operator != 0 {
 			continue
@@ -1055,10 +1049,14 @@ func shellCommandOverridesNexusctlScope(parts []shellCommandPart, command string
 					return true
 				}
 			}
-			if assigned && (nexusctlScopeEnvironment(name) || powerShellScopeEnvironment(name)) {
+			if assigned &&
+				(nexusctlScopeEnvironment(name) || powerShellScopeEnvironment(name)) &&
+				shellEnvironmentAssignmentPosition(parts, index) {
 				return true
 			}
-			if powerShellScopeEnvironment(name) && nextShellWordIsEquals(parts, index) {
+			if powerShellScopeEnvironment(name) &&
+				nextShellWordIsEquals(parts, index) &&
+				shellEnvironmentAssignmentPosition(parts, index) {
 				return true
 			}
 			if powerShellScopeEnvironment(name) && powerShellEnvironmentMutation(parts, index) {
@@ -1067,6 +1065,43 @@ func shellCommandOverridesNexusctlScope(parts []shellCommandPart, command string
 		}
 	}
 	return false
+}
+
+// shellEnvironmentAssignmentPosition distinguishes syntax that actually
+// mutates a command environment from an ordinary NAME=value argument printed
+// or inspected by another command. Prefix assignments and `env NAME=value`
+// are authoritative; `echo NAME=value` is only text.
+func shellEnvironmentAssignmentPosition(parts []shellCommandPart, index int) bool {
+	start := 0
+	for cursor := index - 1; cursor >= 0; cursor-- {
+		if strings.ContainsRune(";|&()", parts[cursor].operator) {
+			start = cursor + 1
+			break
+		}
+	}
+	envCommand := false
+	for cursor := start; cursor < index; cursor++ {
+		part := parts[cursor]
+		if part.operator != 0 {
+			return false
+		}
+		name, _, assigned := strings.Cut(part.value, "=")
+		if assigned && shellAssignmentName(name) && !part.quoted {
+			continue
+		}
+		if !envCommand && strings.EqualFold(filepath.Base(part.value), "env") {
+			envCommand = true
+			continue
+		}
+		if envCommand && strings.HasPrefix(part.value, "-") {
+			continue
+		}
+		if envCommand && assigned && shellAssignmentName(name) {
+			continue
+		}
+		return false
+	}
+	return envCommand || !parts[index].quoted
 }
 
 func commandReferencesBracedNexusctlVariable(command string) bool {

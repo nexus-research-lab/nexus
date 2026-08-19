@@ -291,6 +291,7 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
     hasManagedExecutionGraph,
     isExecutionActivityVisible,
     normalizeExecutionNodeDisplayText,
+    resolveExecutionGraphNodeStatus,
     resolveExecutionPrimaryAgentNodes,
     resolveExecutionNodeSummary,
     resolveExecutionWorkGraphHeaderModel,
@@ -309,6 +310,73 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
   assert.deepEqual(
     resolveExecutionPrimaryAgentNodes(execution).map((node) => node.id),
     ["research", "build"],
+  );
+  const reviewedCycles = structuredClone(execution);
+  reviewedCycles.work_items = [{
+    ...reviewedCycles.work_items[1],
+    status: "accepted",
+    attempts: [],
+  }];
+  reviewedCycles.graph.nodes = [
+    {
+      id: "attempt-old",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-old",
+      agent_id: "builder",
+      run_status: "succeeded",
+      position: 1,
+    },
+    {
+      id: "review:submission-old",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-old",
+      agent_id: "lead",
+      lifecycle_status: "rejected",
+      position: 1,
+    },
+    {
+      id: "build",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-new",
+      agent_id: "builder",
+      responsibility_status: "accepted",
+      run_status: "succeeded",
+      position: 1,
+    },
+    {
+      id: "review:submission-new",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-new",
+      agent_id: "lead",
+      lifecycle_status: "accepted",
+      position: 1,
+    },
+  ];
+  assert.equal(
+    resolveExecutionGraphNodeStatus(
+      reviewedCycles.graph.nodes[0],
+      reviewedCycles.work_items[0],
+    ),
+    "submitted",
+    "an old succeeded Attempt must not inherit the latest Work Item acceptance",
+  );
+  assert.equal(
+    resolveExecutionNodeSummary(reviewedCycles).currentNode.id,
+    "build",
+    "focus stays on the current stable Work Item cycle",
+  );
+  assert.deepEqual(
+    resolveExecutionPrimaryAgentNodes(reviewedCycles).map((node) => node.id),
+    ["build"],
+    "the Agent shortcut represents the latest cycle instead of an old Submission",
   );
   const withLead = structuredClone(execution);
   withLead.graph.nodes.push({
@@ -1241,6 +1309,86 @@ test("Lead review gate is a visible node and changes-requested is a back edge", 
     layout.nodes.find((node) => node.node.kind === "gate").y
       > layout.nodes.find((node) => node.node.kind === "agent").y,
   );
+});
+
+test("WorkGraph review rounds keep stable depth when loop edges arrive first", async () => {
+  const { buildExecutionGraphLayout } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",
+  );
+  const reviewed = structuredClone(execution);
+  reviewed.work_items = [reviewed.work_items.find((item) => item.id === "build")];
+  reviewed.graph.nodes = [
+    {
+      id: "attempt-build-v1",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v1",
+      agent_id: "builder",
+      position: 1,
+    },
+    {
+      id: "review:submission-v1",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v1",
+      subject_id: "submission-v1",
+      lifecycle_status: "rejected",
+      position: 1,
+    },
+    {
+      id: "build",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v2",
+      agent_id: "builder",
+      position: 1,
+    },
+    {
+      id: "review:submission-v2",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v2",
+      subject_id: "submission-v2",
+      lifecycle_status: "changes_requested",
+      position: 1,
+    },
+  ];
+  // Deliberately put both control edges before their structural review edges.
+  reviewed.graph.edges = [
+    {
+      id: "loop-current",
+      kind: "loop_back",
+      source_node_id: "review:submission-v2",
+      target_node_id: "build",
+    },
+    {
+      id: "loop-next-attempt",
+      kind: "loop_back",
+      source_node_id: "review:submission-v1",
+      target_node_id: "build",
+    },
+    {
+      id: "review-v2",
+      kind: "review",
+      source_node_id: "build",
+      target_node_id: "review:submission-v2",
+    },
+    {
+      id: "review-v1",
+      kind: "review",
+      source_node_id: "attempt-build-v1",
+      target_node_id: "review:submission-v1",
+    },
+  ];
+  const layout = buildExecutionGraphLayout(reviewed);
+  const y = Object.fromEntries(layout.nodes.map((node) => [node.node.id, node.y]));
+  assert.ok(y["attempt-build-v1"] < y["review:submission-v1"]);
+  assert.ok(y["review:submission-v1"] < y.build);
+  assert.ok(y.build < y["review:submission-v2"]);
 });
 
 test("Objective alignment gate reports evidence without choosing the Agent route", async () => {

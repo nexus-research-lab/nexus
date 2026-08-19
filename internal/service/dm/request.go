@@ -465,6 +465,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 		r.goalObjectiveRevision = preparation.goalObjectiveRevision
 	}
 	r.responsibilityState = preparation.responsibilityState
+	r.sdkSessionIdentity = preparation.sdkSessionIdentity
 	r.commandReceipts = preparation.commandReceipts
 	r.commandResources = preparation.commandResources
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(

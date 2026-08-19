@@ -21,7 +21,7 @@
 //   - subagent_admission.go：Subagent admission、child Attempt、parent-exit deadline、
 //     coordinator 唤醒与重启 orphan 对账。
 //   - runtime_graph*.go / execution_view.go / context.go / execution_alignment.go：
-//     Runtime Graph 事实、actor context、目标对齐与 managed WorkGraph 只读投影。
+//     Runtime Graph 事实、actor context、目标对齐，以及按每个 root Attempt 与 immutable Submission/Gate 保留轮次、再按 exact Attempt/Submission/round 合并运行历史的 managed WorkGraph 只读投影。
 //   - goal_policy.go / promotion.go / explicit_goal.go / goal_binding.go /
 //     goal_confirmation_recovery.go：Goal promotion、双向 binding 五态与 durable
 //     confirmation receipt/reconciler。

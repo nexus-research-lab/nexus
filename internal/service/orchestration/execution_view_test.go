@@ -566,6 +566,67 @@ func TestProjectExecutionGraphViewShowsChangesRequestedAsBoundedLoop(t *testing.
 	}
 }
 
+func TestProjectExecutionGraphViewKeepsRejectedReviewCyclesDistinct(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 9, 0, 0, 0, time.UTC)
+	finishedFirst := now.Add(time.Minute)
+	finishedSecond := now.Add(3 * time.Minute)
+	items := []protocol.ExecutionWorkItemView{{
+		ID:               "work-draft",
+		Subject:          "Draft",
+		Position:         0,
+		Status:           protocol.ExecutionWorkItemViewAccepted,
+		OwnerAgentID:     "writer",
+		AssignmentID:     "assignment-2",
+		ReviewAgentID:    "lead",
+		AssignmentStatus: protocol.WorkAssignmentStatusCompleted,
+	}}
+	history := protocol.ExecutionWorkGraphHistory{
+		Assignments: []protocol.WorkAssignment{
+			{ID: "assignment-1", WorkItemID: "work-draft", OwnerAgentID: "writer", ReturnToAgentID: "lead"},
+			{ID: "assignment-2", WorkItemID: "work-draft", OwnerAgentID: "writer", ReturnToAgentID: "lead"},
+		},
+		Attempts: []protocol.WorkAttempt{
+			{ID: "attempt-1", AssignmentID: "assignment-1", WorkItemID: "work-draft", ExecutorAgentID: "writer", AgentRoundID: "round-1", Status: protocol.WorkAttemptStatusSucceeded, CreatedAt: now, FinishedAt: &finishedFirst},
+			{ID: "attempt-2", AssignmentID: "assignment-2", WorkItemID: "work-draft", ExecutorAgentID: "writer", AgentRoundID: "round-2", Status: protocol.WorkAttemptStatusSucceeded, CreatedAt: now.Add(2 * time.Minute), FinishedAt: &finishedSecond},
+		},
+		Submissions: []protocol.WorkSubmission{
+			{ID: "submission-1", AssignmentID: "assignment-1", AttemptID: "attempt-1", WorkItemID: "work-draft", Sequence: 1, ResultSummary: "draft v1", CreatedAt: finishedFirst},
+			{ID: "submission-2", AssignmentID: "assignment-2", AttemptID: "attempt-2", WorkItemID: "work-draft", Sequence: 2, ResultSummary: "draft v2", CreatedAt: finishedSecond},
+		},
+		ReviewDispatches: []protocol.ExecutionReviewDispatch{
+			{ID: "review-dispatch-1", AssignmentID: "assignment-1", SubmissionID: "submission-1", WorkItemID: "work-draft", TargetAgentID: "lead", Status: protocol.ExecutionReviewDispatchStatusDelivered},
+			{ID: "review-dispatch-2", AssignmentID: "assignment-2", SubmissionID: "submission-2", WorkItemID: "work-draft", TargetAgentID: "lead", Status: protocol.ExecutionReviewDispatchStatusDelivered},
+		},
+		Acceptances: []protocol.WorkAcceptance{
+			{ID: "acceptance-1", AssignmentID: "assignment-1", SubmissionID: "submission-1", WorkItemID: "work-draft", Decision: protocol.WorkAcceptanceRejected, ReviewerKind: protocol.WorkReviewerAgent, ReviewerID: "lead", Feedback: "add evidence"},
+			{ID: "acceptance-2", AssignmentID: "assignment-2", SubmissionID: "submission-2", WorkItemID: "work-draft", Decision: protocol.WorkAcceptanceAccepted, ReviewerKind: protocol.WorkReviewerAgent, ReviewerID: "lead"},
+		},
+	}
+
+	graph := projectExecutionGraphViewWithHistory(items, history)
+	firstAttempt := graphNodeByID(graph.Nodes, "attempt-1")
+	secondAttempt := graphNodeByID(graph.Nodes, "work-draft")
+	firstReview := graphNodeByID(graph.Nodes, "review:submission-1")
+	secondReview := graphNodeByID(graph.Nodes, "review:submission-2")
+	if firstAttempt.AttemptID != "attempt-1" || len(firstAttempt.Runs) != 1 ||
+		secondAttempt.AttemptID != "attempt-2" || len(secondAttempt.Runs) != 1 {
+		t.Fatalf("root Attempt cycles were collapsed: first=%+v second=%+v", firstAttempt, secondAttempt)
+	}
+	if firstReview.LifecycleStatus != string(protocol.WorkAcceptanceRejected) ||
+		secondReview.LifecycleStatus != string(protocol.WorkAcceptanceAccepted) ||
+		firstReview.ResultSummary != "add evidence" ||
+		secondReview.ResultSummary != "draft v2" {
+		t.Fatalf("review history was lost: first=%+v second=%+v", firstReview, secondReview)
+	}
+	if !hasExecutionGraphEdge(graph.Edges, protocol.ExecutionGraphEdgeReview, firstAttempt.ID, firstReview.ID) ||
+		!hasExecutionGraphEdge(graph.Edges, protocol.ExecutionGraphEdgeLoopBack, firstReview.ID, secondAttempt.ID) ||
+		!hasExecutionGraphEdge(graph.Edges, protocol.ExecutionGraphEdgeReview, secondAttempt.ID, secondReview.ID) {
+		t.Fatalf("review cycle edges are incomplete: %+v", graph.Edges)
+	}
+}
+
 func TestProjectExecutionGraphViewDoesNotTurnContainmentIntoDependency(t *testing.T) {
 	t.Parallel()
 

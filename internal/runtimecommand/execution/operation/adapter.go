@@ -129,19 +129,6 @@ func mutationResult(result orchestration.MutationResult) runtimecommand.Result {
 		NextActions:      result.NextActions,
 		GoalConfirmation: result.GoalConfirmation,
 	}
-	if encoded, err := json.Marshal(payload); err == nil &&
-		len(encoded) > executionCommandResultInlineLimit && payload.ExecutionContext != "" {
-		// Control identity must remain inline even when the refreshed context is
-		// unusually large. Otherwise SDK externalization replaces outcome,
-		// changed and next_actions with only a file pointer, and the runtime can
-		// no longer correlate this exact mutation with its WorkGraph segment.
-		result.ExecutionContext = ""
-		result.ContextStatus = "refresh_required"
-		result = withGetExecutionRecovery(result)
-		payload.ExecutionContext = result.ExecutionContext
-		payload.ContextStatus = result.ContextStatus
-		payload.NextActions = result.NextActions
-	}
 	return jsonResult(payload)
 }
 
@@ -169,8 +156,7 @@ type executionRuntimeContextReader interface {
 }
 
 const (
-	executionContextInlineLimit       = 12 * 1024
-	executionCommandResultInlineLimit = 15 * 1024
+	executionContextInlineLimit = 12 * 1024
 )
 
 func withFreshExecutionContext(
@@ -284,10 +270,12 @@ func compactRuntimeCommandContext(rendered string) string {
 	// The graph digest is useful orientation, but the actionable assigned,
 	// ready and review sections below it are the required continuation state.
 	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "graph_digest"))
-	if len(rendered) <= executionContextInlineLimit {
-		return rendered
-	}
-	return ""
+	// Responsibility, review, action and blocker sections are authoritative.
+	// They may exceed this transport-size preference, but must never be erased
+	// or replaced with a fabricated refresh state. The CLI transports the one
+	// structured wire as-is; only the optional observed graph facts above are
+	// eligible for compaction.
+	return rendered
 }
 
 func removeExecutionContextElement(rendered string, element string) string {

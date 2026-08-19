@@ -2013,6 +2013,115 @@ func TestRuntimeGraphViewKeepsEveryManagedAgentRun(t *testing.T) {
 	}
 }
 
+func TestRuntimeGraphViewKeepsLegacyRoundToolsOnTheirAttemptCycle(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+	oldStarted := now
+	currentStarted := now.Add(2 * time.Minute)
+	view := &protocol.ExecutionView{
+		ID: "execution-history",
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID: "work-history", Position: 0,
+		}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{
+			{
+				ID: "attempt-old", Kind: protocol.ExecutionGraphNodeAgent,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-history", AttemptID: "attempt-old",
+				AgentID: "worker-1", AgentRoundID: "round-old", Position: 0,
+				Runs: []protocol.ExecutionGraphNodeRunView{{StartedAt: &oldStarted}},
+			},
+			{
+				ID: "work-history", Kind: protocol.ExecutionGraphNodeAgent,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-history", AttemptID: "attempt-current",
+				AgentID: "worker-1", AgentRoundID: "round-current", Position: 0,
+				Runs: []protocol.ExecutionGraphNodeRunView{{StartedAt: &currentStarted}},
+			},
+		}},
+	}
+	runtimeStarted := now.Add(time.Second)
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-old", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "round-old", AgentRoundID: "round-old", AgentID: "worker-1",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now, UpdatedAt: runtimeStarted,
+			Metadata: map[string]any{
+				"execution_lane": "work",
+				"work_item_id":   "work-history",
+			},
+		},
+		{
+			ID: "tool-old", Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: "tool-old", ParentSubjectID: "round-old",
+			AgentRoundID: "round-old", AgentID: "worker-1", Name: "Write",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: runtimeStarted, UpdatedAt: runtimeStarted,
+		},
+	}})
+
+	tool := graphNodeByID(view.Graph.Nodes, "tool-old")
+	if tool.ID == "" || tool.ParentNodeID != "attempt-old" || tool.WorkItemID != "work-history" {
+		t.Fatalf("legacy historical tool attached to wrong cycle: %+v", tool)
+	}
+}
+
+func TestRuntimeGraphViewKeepsLegacyReviewerToolsOnTheirSubmissionGate(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 12, 30, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		ID: "execution-review-history",
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID: "work-review-history", Position: 0,
+		}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{
+			{
+				ID: "review:submission-old", Kind: protocol.ExecutionGraphNodeGate,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-review-history", AttemptID: "attempt-old",
+				AgentID: "reviewer-1", AgentRoundID: "review-round-old",
+				SubjectID: "submission-old", Position: 0,
+			},
+			{
+				ID: "review:submission-current", Kind: protocol.ExecutionGraphNodeGate,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-review-history", AttemptID: "attempt-current",
+				AgentID: "reviewer-1", AgentRoundID: "review-round-current",
+				SubjectID: "submission-current", Position: 0,
+			},
+		}},
+	}
+	toolStarted := now.Add(time.Second)
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-review-old", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "review-round-old", AgentRoundID: "review-round-old",
+			AgentID: "reviewer-1", Status: protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now, UpdatedAt: toolStarted,
+			Metadata: map[string]any{
+				"execution_lane": "review",
+				"work_item_id":   "work-review-history",
+			},
+		},
+		{
+			ID: "review-tool-old", Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: "review-tool-old", ParentSubjectID: "review-round-old",
+			AgentRoundID: "review-round-old", AgentID: "reviewer-1", Name: "Read",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: toolStarted, UpdatedAt: toolStarted,
+		},
+	}})
+
+	tool := graphNodeByID(view.Graph.Nodes, "review-tool-old")
+	if tool.ID == "" || tool.ParentNodeID != "review:submission-old" ||
+		tool.WorkItemID != "work-review-history" {
+		t.Fatalf("legacy reviewer tool attached to wrong Submission gate: %+v", tool)
+	}
+}
+
 func TestRuntimeGraphArtifactsPersistBeforeToolRunByExactIdentity(t *testing.T) {
 	t.Parallel()
 
