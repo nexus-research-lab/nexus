@@ -122,14 +122,16 @@ function ExternalResultsReady({
         count={t("capability.result_count", {
           count: model.visibleItems.length,
         })}
-        title={t("capability.search_results")}
+        title={model.title}
       />
-      <ExternalSourceFilters
-        groups={model.groups}
-        onSelect={onSelectSource}
-        selectedSourceKey={model.selectedSourceKey}
-        totalCount={totalCount}
-      />
+      {model.showSourceFilters ? (
+        <ExternalSourceFilters
+          groups={model.groups}
+          onSelect={onSelectSource}
+          selectedSourceKey={model.selectedSourceKey}
+          totalCount={totalCount}
+        />
+      ) : null}
       {model.visibleItems.length ? (
         <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`}>
           {model.visibleItems.map((item) => (

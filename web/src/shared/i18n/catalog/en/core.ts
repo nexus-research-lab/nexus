@@ -28,6 +28,8 @@ export const enCoreMessages = {
   "common.edit": "Edit",
   "common.delete": "Delete",
   "common.clear": "Clear",
+  "common.required_field": "Required",
+  "common.invalid_field": "Invalid format",
   "common.icon_picker_previous": "Browse previous avatars",
   "common.icon_picker_scroll": "Scroll avatar choices",
   "common.icon_picker_next": "Browse next avatars",

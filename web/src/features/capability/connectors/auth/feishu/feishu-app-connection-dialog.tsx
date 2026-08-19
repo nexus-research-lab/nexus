@@ -54,13 +54,9 @@ export function FeishuAppConnectionDialog({
     return null;
   }
   if (view === "manual") {
-    const canSubmit = feishuManualCredentialsComplete(
-      clientId,
-      clientSecret,
-    );
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!busy && canSubmit) {
+      if (!busy && feishuManualCredentialsComplete(clientId, clientSecret)) {
         onConnectManually(clientId.trim(), clientSecret.trim());
       }
     };
@@ -93,20 +89,27 @@ export function FeishuAppConnectionDialog({
               >
                 这是兜底方式。提交 App ID 和 App Secret 后，Nexus 会直接显示当前用户的飞书授权链接；该阶段不再把链接生成为二维码。
               </UiPanel>
-              <UiField label="App ID">
+              <UiField htmlFor="feishu-existing-app-id" label="App ID" required>
                 <UiInput
                   autoCapitalize="off"
                   autoCorrect="off"
                   disabled={busy}
+                  id="feishu-existing-app-id"
                   name="feishu-existing-app-id"
                   onChange={(event) => setClientId(event.target.value)}
+                  pattern=".*\S.*"
                   placeholder="飞书开放平台中的 App ID"
+                  required
                   spellCheck={false}
                   value={clientId}
                   variant="dialog"
                 />
               </UiField>
-              <UiField label="App Secret">
+              <UiField
+                htmlFor="feishu-existing-app-secret"
+                label="App Secret"
+                required
+              >
                 <UiInput
                   autoCapitalize="off"
                   autoComplete="off"
@@ -115,9 +118,12 @@ export function FeishuAppConnectionDialog({
                   data-form-type="other"
                   data-lpignore="true"
                   disabled={busy}
+                  id="feishu-existing-app-secret"
                   name="feishu-existing-app-secret"
                   onChange={(event) => setClientSecret(event.target.value)}
+                  pattern=".*\S.*"
                   placeholder="飞书开放平台中的 App Secret"
+                  required
                   spellCheck={false}
                   type="password"
                   value={clientSecret}
@@ -130,7 +136,7 @@ export function FeishuAppConnectionDialog({
                 取消
               </UiButton>
               <UiButton
-                disabled={busy || !canSubmit}
+                disabled={busy}
                 tone="primary"
                 type="submit"
                 variant="solid"

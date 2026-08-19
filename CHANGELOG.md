@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added owner/session/generation-bound on-demand detail reads for historical Tool results and inline images at or above 256 KiB, keeping canonical history lossless while removing large payloads from ordinary message pages.
+- Added metadata-only recommendations for `diagram-design`, `Kami`,
+  `slide-maker`, and `wecom-unified` to Community Skills, with user-initiated
+  Git installation.
 - Added single-Agent DM conversation branching from any completed Assistant reply, preserving the shared workspace while creating an independent SDK session and transcript history.
 - Added a host-managed, owner-private, round-scoped JSON input slot for `nexus automation`, with `--input-file`/stdin support, strict size/link/path checks, and automatic round cleanup so quoted instructions no longer depend on shell escaping.
 - Added owner-scoped custom STDIO, HTTP, and SSE MCP servers to the Connector directory, with encrypted environment, Bearer Token, and custom-header secrets plus existing Agent/Session Connector activation controls.
@@ -32,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Made conversation activity state single-owner across Goal, Agent, and Tool layers: active Goals now use one lifecycle/activity badge, visible Tool blocks suppress duplicate message-level activity, completed tools no longer revive stale reply labels, and internal-only Room results no longer leave empty Agent cards.
 - Made initial, older, and around-history requests transport-cancellable; bounded the browser message window by complete rounds and estimated bytes; and removed the obsolete full-scan ConversationTurn/TurnIndex endpoints in favor of the indexed message and round read model.
+- Marked required fields consistently across Provider setup and other configuration forms, and kept submit actions available so missing values receive immediate Nexus-styled inline validation feedback.
+- Moved `diagram-design`, `Kami`, and `slide-maker` out of the bundled platform
+  Skill library; users can now install and update them from Community Skills
+  when needed.
 - Restricted `nexus automation` Bash/PowerShell auto-approval to the exact host-injected executable, fixed one-command grammar, and the host-managed input path; plan confirmations now include normalized change details and stale configuration/run identities fail before any task update.
 - Replaced the `nexus_automation` MCP surface with the system-managed `automation` Skill and the nxs/Claude-compatible, round-scoped `nexus automation` CLI. Mutations now use inspect/plan/apply, revision and digest fencing, and native Nexus/Room/IM confirmation; background task runs receive only exact job/run-scoped reads.
 - Replaced the Goal and Execution MCP surfaces with bundled `goal-manager`/`execution-orchestrator` Skills and the round-scoped `nexus goal|execution` CLI. A shared broker now binds host identity and responsibility, emits typed receipts, preserves same-round Goal/WorkGraph transitions and Runtime Graph anchors, and removes the old schema/cache surface without a compatibility route.

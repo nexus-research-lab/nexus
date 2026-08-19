@@ -3,7 +3,7 @@
 import { ExternalLink } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import type {
@@ -74,28 +74,32 @@ function ProviderShapeControls({
   }
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_260px]">
-      <label className="space-y-2">
-        <span className={PROVIDER_LABEL_CLASS_NAME}>
-          {t("settings.providers.provider_name")}
-        </span>
+      <UiField
+        htmlFor="provider-display-name"
+        label={t("settings.providers.provider_name")}
+        labelClassName={PROVIDER_LABEL_CLASS_NAME}
+        required={draft.preset_key === "custom"}
+      >
         <UiInput
           autoCapitalize="off"
           autoCorrect="off"
           controlSize="lg"
           disabled={!selectedCanManage || draft.preset_key !== "custom"}
+          id="provider-display-name"
           onChange={(event) => onProviderDisplayNameChange(event.target.value)}
           onBlur={onFieldBlur}
           placeholder={t("settings.providers.provider_name_placeholder")}
+          required={draft.preset_key === "custom"}
           spellCheck={false}
           type="text"
           value={draft.display_name}
         />
-      </label>
+      </UiField>
 
-      <label className="space-y-2">
-        <span className={PROVIDER_LABEL_CLASS_NAME}>
-          {t("settings.providers.kind")}
-        </span>
+      <UiField
+        label={t("settings.providers.kind")}
+        labelClassName={PROVIDER_LABEL_CLASS_NAME}
+      >
         <UiSelectMenu
           ariaLabel={t("settings.providers.kind")}
           className="h-11"
@@ -105,13 +109,12 @@ function ProviderShapeControls({
           size="sm"
           value={draft.provider_kind}
         />
-      </label>
+      </UiField>
 
-      <label className="space-y-2">
-        <span className="flex items-center gap-2">
-          <span className={PROVIDER_LABEL_CLASS_NAME}>
+      <UiField
+        label={(
+          <span className="inline-flex items-center gap-2">
             {t("settings.providers.api_format")}
-          </span>
           {showRuntimeFormatBadge ? (
             <span
               className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-medium leading-4 text-(--text-muted)"
@@ -120,7 +123,11 @@ function ProviderShapeControls({
               {t("settings.providers.api_format_runtime_badge")}
             </span>
           ) : null}
-        </span>
+          </span>
+        )}
+        labelClassName={PROVIDER_LABEL_CLASS_NAME}
+        required
+      >
         <UiSelectMenu
           ariaLabel={t("settings.providers.api_format")}
           className="h-11"
@@ -130,7 +137,7 @@ function ProviderShapeControls({
           size="sm"
           value={draft.api_format}
         />
-      </label>
+      </UiField>
     </div>
   );
 }
@@ -163,10 +170,12 @@ function ProviderApiKeyField({
       )
     : t("settings.providers.api_key_placeholder");
   return (
-    <label className="block space-y-2">
-      <span className={PROVIDER_LABEL_CLASS_NAME}>
-        {t("settings.providers.api_key")}
-      </span>
+    <UiField
+      htmlFor="provider-auth-token"
+      label={t("settings.providers.api_key")}
+      labelClassName={PROVIDER_LABEL_CLASS_NAME}
+      required={!isEditing}
+    >
       <UiInput
         autoCapitalize="off"
         autoComplete="off"
@@ -175,10 +184,12 @@ function ProviderApiKeyField({
         data-form-type="other"
         data-lpignore="true"
         disabled={!selectedCanManage}
+        id="provider-auth-token"
         name="provider-auth-token"
         onChange={(event) => onAuthTokenChange(event.target.value)}
         onBlur={onFieldBlur}
         placeholder={placeholder}
+        required={!isEditing}
         spellCheck={false}
         type="password"
         value={draft.auth_token}
@@ -194,7 +205,7 @@ function ProviderApiKeyField({
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       ) : null}
-    </label>
+    </UiField>
   );
 }
 
@@ -218,10 +229,12 @@ function ProviderEndpointField({
 >) {
   const { t } = useI18n();
   return (
-    <div className="block space-y-2">
-      <span className={PROVIDER_LABEL_CLASS_NAME}>
-        {t("settings.providers.base_url")}
-      </span>
+    <UiField
+      htmlFor="provider-base-url"
+      label={t("settings.providers.base_url")}
+      labelClassName={PROVIDER_LABEL_CLASS_NAME}
+      required={!usesBuiltinEndpoint}
+    >
       {usesBuiltinEndpoint ? (
         <div className="space-y-1.5">
           {builtinEndpointFormats.map((format) => (
@@ -247,17 +260,19 @@ function ProviderEndpointField({
           autoCorrect="off"
           controlSize="md"
           disabled={!selectedCanManage}
+          id="provider-base-url"
           onChange={(event) => onBaseUrlChange(event.target.value)}
           onBlur={onFieldBlur}
           placeholder={currentFormat?.base_url_placeholder
             || currentFormat?.base_url
             || "https://api.example.com/v1"}
+          required
           spellCheck={false}
           type="text"
           value={draft.base_url}
         />
       )}
-    </div>
+    </UiField>
   );
 }
 

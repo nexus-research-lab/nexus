@@ -33,6 +33,7 @@ interface ProviderPersistenceApi {
 }
 
 export type PersistProvider = (options?: {
+  enabled?: boolean;
   showError?: boolean;
 }) => Promise<ProviderPersistResult | null>;
 
@@ -78,7 +79,9 @@ export function useProviderPersistence({
   const persistProvider = useCallback<PersistProvider>(async (options) => {
     const snapshot: ProviderPersistenceSnapshot = {
       currentPreset,
-      draft,
+      draft: options?.enabled === undefined
+        ? draft
+        : { ...draft, enabled: options.enabled },
       isCreating,
       isEditing,
       isEmptyMode,
@@ -135,10 +138,20 @@ export function useProviderPersistence({
   ]);
 
   const handleEnabledChange = useCallback((checked: boolean) => {
-    if (!selectedCanManage || !selectedRecord) {
+    if (!selectedCanManage) {
       return;
     }
     void runCommand({ kind: "toggle-provider" }, async () => {
+      if (!selectedRecord) {
+        const result = await persistProvider({
+          enabled: checked,
+          showError: true,
+        });
+        if (result) {
+          await refreshAll(result.record.provider);
+        }
+        return;
+      }
       updateDraft({ enabled: checked });
       try {
         const result = await providerApi.updateConfig(
@@ -162,6 +175,7 @@ export function useProviderPersistence({
     });
   }, [
     draft.auth_token,
+    persistProvider,
     providerApi,
     refreshAll,
     runCommand,

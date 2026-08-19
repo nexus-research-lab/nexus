@@ -69,7 +69,7 @@ export function SkillsSearchBar({
     <button
       aria-label={searchLabel}
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) text-(--text-muted) transition hover:border-(--primary) hover:text-(--primary) disabled:pointer-events-none disabled:opacity-45"
-      disabled={!externalQuery.trim() || externalLoading}
+      disabled={externalQuery.trim().length < 2 || externalLoading}
       onClick={(event) => {
         event.preventDefault();
         onSubmitExternalSearch();

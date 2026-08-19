@@ -10,7 +10,7 @@ interface UiFormControlStyleOptions {
 }
 
 const FORM_CONTROL_BASE_CLASS_NAME =
-  "w-full text-(--text-strong) outline-none transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+  "w-full text-(--text-strong) outline-none transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus-visible:outline-none aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--destructive)_72%,transparent)] aria-[invalid=true]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--destructive)_16%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
 const FORM_CONTROL_VARIANT_CLASS_MAP: Record<UiFormControlVariant, string> = {
   dialog: "dialog-input",

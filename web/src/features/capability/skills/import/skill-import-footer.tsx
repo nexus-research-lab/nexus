@@ -22,15 +22,13 @@ function GitImportStatus({ importing }: { importing: boolean }) {
 }
 
 function GitImportSubmitButton({
-  canSubmit,
   importing,
 }: {
-  canSubmit: boolean;
   importing: boolean;
 }) {
   return (
     <UiButton
-      disabled={!canSubmit}
+      disabled={importing}
       size="sm"
       tone="primary"
       type="submit"
@@ -42,12 +40,10 @@ function GitImportSubmitButton({
 }
 
 export function SkillImportFooter({
-  canSubmitGit,
   importing,
   mode,
   onClose,
 }: {
-  canSubmitGit: boolean;
   importing: boolean;
   mode: SkillImportDialogMode;
   onClose: () => void;
@@ -60,7 +56,6 @@ export function SkillImportFooter({
       </UiButton>
       {mode === "git" ? (
         <GitImportSubmitButton
-          canSubmit={canSubmitGit}
           importing={importing}
         />
       ) : null}

@@ -19,7 +19,7 @@ func TestCreateAppRootWithSkillsCopiesOnlySelectedSkill(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(root, "skills", "goal-manager", "SKILL.md")); err != nil {
 		t.Fatalf("选定 Skill 未复制: %v", err)
 	}
-	if _, err = os.Stat(filepath.Join(root, "skills", "slide-maker")); !os.IsNotExist(err) {
+	if _, err = os.Stat(filepath.Join(root, "skills", "wechat-article-search")); !os.IsNotExist(err) {
 		t.Fatalf("未选定 Skill 不应复制: %v", err)
 	}
 }

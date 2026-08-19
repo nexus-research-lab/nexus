@@ -2,10 +2,14 @@
 
 import {
   type ChangeEvent,
+  type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type TextareaHTMLAttributes,
   forwardRef,
+  useId,
+  useRef,
+  useState,
 } from "react";
 import { Search, X } from "lucide-react";
 
@@ -25,6 +29,8 @@ interface UiFieldProps {
   error?: ReactNode;
   htmlFor?: string;
   label?: ReactNode;
+  labelClassName?: string;
+  required?: boolean;
 }
 
 interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -56,18 +62,101 @@ export function UiField({
   error,
   htmlFor: htmlFor,
   label,
+  labelClassName,
+  required = false,
 }: UiFieldProps) {
+  const { t } = useI18n();
+  const errorId = useId();
+  const invalidTargetRef = useRef<
+    HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null
+  >(null);
+  const [nativeError, setNativeError] = useState<string | null>(null);
+  const labelError = label && !error ? nativeError : null;
+  const contentError = error ?? (!label ? nativeError : null);
+
+  const clearNativeError = () => {
+    invalidTargetRef.current?.removeAttribute("aria-errormessage");
+    invalidTargetRef.current?.removeAttribute("aria-invalid");
+    invalidTargetRef.current = null;
+    setNativeError(null);
+  };
+
+  const handleInvalid = (event: FormEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const target = event.target as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement;
+    const firstInvalid = target.form?.querySelector<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >("input:invalid, select:invalid, textarea:invalid");
+    if (firstInvalid && firstInvalid !== target) {
+      return;
+    }
+
+    clearNativeError();
+    invalidTargetRef.current = target;
+    target.setAttribute("aria-errormessage", errorId);
+    target.setAttribute("aria-invalid", "true");
+    setNativeError(
+      t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
+    );
+    target.focus();
+  };
+
+  const handleInput = (event: FormEvent<HTMLDivElement>) => {
+    const target = event.target as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement;
+    if (target !== invalidTargetRef.current) {
+      return;
+    }
+    if (!target.validity.valid) {
+      setNativeError(
+        t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
+      );
+      return;
+    }
+    clearNativeError();
+  };
+
   return (
-    <div className={cn("dialog-field", className)}>
+    <div
+      className={cn("dialog-field", className)}
+      onInputCapture={handleInput}
+      onInvalid={handleInvalid}
+    >
       {label ? (
-        <label className="dialog-label" htmlFor={htmlFor}>
-          {label}
-        </label>
+        <div className="flex min-h-5 items-center justify-between gap-2">
+          <label className={cn("dialog-label min-w-0", labelClassName)} htmlFor={htmlFor}>
+            {label}
+            {required ? (
+              <span aria-hidden="true" className="ml-0.5 text-(--destructive)">
+                *
+              </span>
+            ) : null}
+          </label>
+          {labelError ? (
+            <span
+              className="shrink-0 text-xs leading-5 text-(--destructive)"
+              id={errorId}
+              role="alert"
+            >
+              {labelError}
+            </span>
+          ) : null}
+        </div>
       ) : null}
       {children}
-      {error ? (
-        <p className="mt-2 text-xs leading-5 text-(--destructive)">
-          {error}
+      {contentError ? (
+        <p
+          className="mt-2 text-xs leading-5 text-(--destructive)"
+          id={errorId}
+          role="alert"
+        >
+          {contentError}
         </p>
       ) : description ? (
         <p className="mt-2 text-xs leading-5 text-(--text-muted)">
