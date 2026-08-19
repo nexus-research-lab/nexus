@@ -129,6 +129,9 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 			return false, directoryErr
 		}
 	}
+	if err := repairRuntimeArgFiles(runtimeRoot, config.HostUID, value.PrivateGID); err != nil {
+		return false, err
+	}
 	if value.LayoutVersion >= userLayoutVersion {
 		return false, nil
 	}
@@ -176,9 +179,10 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 				7,
 			)
 		}
-		return applyPrivateACL(
+		return applyOwnerACL(
 			path,
 			info.Mode(),
+			runtimeRoot,
 			value.UID,
 			value.PrivateGID,
 			config.HostUID,
@@ -238,9 +242,10 @@ func repairRuntimeACL(config launcherConfig, value *identity) error {
 		if path == runtimeRoot {
 			return nil
 		}
-		if err := applyPrivateACL(
+		if err := applyOwnerACL(
 			path,
 			info.Mode(),
+			runtimeRoot,
 			value.UID,
 			value.PrivateGID,
 			config.HostUID,
@@ -248,6 +253,53 @@ func repairRuntimeACL(config launcherConfig, value *identity) error {
 			return fmt.Errorf("修复 runtime ACL %s: %w", path, err)
 		}
 		return nil
+	})
+}
+
+// applyOwnerACL 保持 bridge 参数目录由宿主持有，避免通用 runtime 修复夺走 chmod 所需的 owner 身份。
+func applyOwnerACL(
+	path string,
+	mode os.FileMode,
+	runtimeRoot string,
+	runtimeUID int,
+	privateGID int,
+	hostUID int,
+) error {
+	argFilesRoot := filepath.Join(runtimeRoot, "runtime", "arg-files")
+	if pathWithin(path, argFilesRoot) {
+		return applyRuntimeArgFileACL(path, mode.IsDir(), hostUID, privateGID)
+	}
+	return applyPrivateACL(path, mode, runtimeUID, privateGID, hostUID)
+}
+
+// repairRuntimeArgFiles 在每次 prepare 时恢复存量参数路径，确保 bridge 能在 launcher 启动前刷新权限。
+func repairRuntimeArgFiles(runtimeRoot string, hostUID int, privateGID int) error {
+	root := filepath.Join(runtimeRoot, "runtime", "arg-files")
+	info, err := os.Lstat(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return errors.New("runtime 参数文件根不是安全目录")
+	}
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("runtime 参数目录不能包含符号链接: %s", path)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return fmt.Errorf("runtime 参数目录不能包含特殊文件: %s", path)
+		}
+		return applyRuntimeArgFileACL(path, info.IsDir(), hostUID, privateGID)
 	})
 }
 
@@ -280,7 +332,11 @@ func prepareRuntimeArgFiles(
 }
 
 func prepareRuntimeArgFile(path string, hostUID int, privateGID int) error {
-	fd, err := openPathNoSymlink(path, false)
+	return applyRuntimeArgFileACL(path, false, hostUID, privateGID)
+}
+
+func applyRuntimeArgFileACL(path string, directory bool, hostUID int, privateGID int) error {
+	fd, err := openPathNoSymlink(path, directory)
 	if err != nil {
 		return err
 	}
@@ -289,14 +345,17 @@ func prepareRuntimeArgFile(path string, hostUID int, privateGID int) error {
 	if err = unix.Fstat(fd, &stat); err != nil {
 		return err
 	}
-	if stat.Nlink != 1 {
+	if !directory && stat.Nlink != 1 {
 		return errors.New("runtime 参数文件不能是硬链接")
 	}
 	if err = unix.Fchown(fd, hostUID, privateGID); err != nil {
 		return err
 	}
-	if err = clearPOSIXACLFD(fd, false); err != nil {
+	if err = clearPOSIXACLFD(fd, directory); err != nil {
 		return err
+	}
+	if directory {
+		return unix.Fchmod(fd, unix.S_ISGID|0o750)
 	}
 	return unix.Fchmod(fd, 0o660)
 }

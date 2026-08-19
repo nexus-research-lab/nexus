@@ -60,6 +60,18 @@ func TestEnsureIdentityLayoutRepairsManagedWorkspaceACL(t *testing.T) {
 	if err := os.WriteFile(summaryFile, []byte("legacy summary"), 0o600); err != nil {
 		t.Fatalf("创建旧 session summary 文件失败: %v", err)
 	}
+	argFilesRoot := filepath.Join(
+		appfs.UserRuntimeRootAt(config.StateRoot, value.OwnerUserID),
+		"runtime",
+		"arg-files",
+	)
+	if err := os.MkdirAll(argFilesRoot, 0o750); err != nil {
+		t.Fatalf("创建旧 runtime 参数目录失败: %v", err)
+	}
+	argFile := filepath.Join(argFilesRoot, "mcp-config-test.json")
+	if err := os.WriteFile(argFile, []byte(`{"mcpServers":{}}`), 0o640); err != nil {
+		t.Fatalf("创建旧 runtime 参数文件失败: %v", err)
+	}
 	roomStateRoot := filepath.Join(
 		appfs.UserStateRootAt(config.StateRoot, value.OwnerUserID),
 		"rooms",
@@ -85,6 +97,8 @@ func TestEnsureIdentityLayoutRepairsManagedWorkspaceACL(t *testing.T) {
 	assertManagedWorkspaceMode(t, memoryFile, runtimeUID, runtimeUID, 0o660)
 	assertManagedWorkspaceMode(t, summaryRoot, runtimeUID, runtimeUID, 0o770)
 	assertManagedWorkspaceMode(t, summaryFile, runtimeUID, runtimeUID, 0o660)
+	assertManagedWorkspaceMode(t, argFilesRoot, hostUID, runtimeUID, 0o750)
+	assertManagedWorkspaceMode(t, argFile, hostUID, runtimeUID, 0o660)
 	assertManagedWorkspaceMode(t, roomStateRoot, runtimeUID, runtimeUID, 0o770)
 	assertManagedWorkspaceMode(t, roomStateFile, runtimeUID, runtimeUID, 0o660)
 	if got := aclPermission(t, memoryRoot, aclNamedUser, hostUID); got != 7 {
@@ -104,7 +118,7 @@ func TestEnsureIdentityLayoutRepairsManagedWorkspaceACL(t *testing.T) {
 	}
 }
 
-func TestPrepareRuntimeArgFilesGrantsPrivateGroup(t *testing.T) {
+func TestPrepareRuntimeArgFilesSurvivesRuntimeACLRepair(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("runtime 参数文件归属测试需要 root 执行 fchown")
 	}
@@ -146,6 +160,27 @@ func TestPrepareRuntimeArgFilesGrantsPrivateGroup(t *testing.T) {
 	}
 	if err := prepareRuntimeArgFiles(config, policy, []string{"--mcp-config", path}); err != nil {
 		t.Fatalf("prepareRuntimeArgFiles() error = %v", err)
+	}
+	if err := os.Chown(root, runtimeUID, runtimeUID); err != nil {
+		t.Fatalf("模拟错误参数目录归属失败: %v", err)
+	}
+	if err := os.Chown(path, runtimeUID, runtimeUID); err != nil {
+		t.Fatalf("模拟错误参数文件归属失败: %v", err)
+	}
+	if err := os.Chmod(root, 0o770|os.ModeSetgid); err != nil {
+		t.Fatalf("模拟错误参数目录权限失败: %v", err)
+	}
+	value := &identity{
+		OwnerUserID:   owner,
+		UID:           runtimeUID,
+		PrivateGID:    runtimeUID,
+		LayoutVersion: userLayoutVersion,
+	}
+	if _, err := ensureIdentityLayout(config, value); err != nil {
+		t.Fatalf("ensureIdentityLayout() error = %v", err)
+	}
+	if err := repairRuntimeACL(config, value); err != nil {
+		t.Fatalf("repairRuntimeACL() error = %v", err)
 	}
 	assertManagedWorkspaceMode(t, root, hostUID, runtimeUID, 0o750)
 	assertManagedWorkspaceMode(t, path, hostUID, runtimeUID, 0o660)
