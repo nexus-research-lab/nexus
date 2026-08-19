@@ -222,7 +222,7 @@ func (s *Service) GetCatalogSourceState(
 }
 
 func (s *Service) lockCatalogMutation(ctx context.Context) func() {
-	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	ownerUserID := authctx.OwnerUserID(ctx)
 	value, _ := s.mutationLocks.LoadOrStore(ownerUserID, &sync.Mutex{})
 	mutex := value.(*sync.Mutex)
 	mutex.Lock()

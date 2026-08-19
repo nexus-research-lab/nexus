@@ -140,7 +140,7 @@ func (s *RoomDirectedMessageStore) GoalCollaborationMessagesAll() ([]RoomDirecte
 			}
 			for _, row := range rows {
 				ownerUserID := ""
-				if persistedOwnerUserID := strings.TrimSpace(stringFromAny(row["owner_user_id"])); persistedOwnerUserID != "" {
+				if persistedOwnerUserID := stringFromAny(row["owner_user_id"]); persistedOwnerUserID != "" {
 					var ok bool
 					ownerUserID, ok = roomLedgerOwnerUserID(
 						ownerPathSegment,

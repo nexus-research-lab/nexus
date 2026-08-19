@@ -243,7 +243,7 @@ func authorizationActorFromApproval(
 	principal *authctx.Principal,
 	approval permissionctx.HumanToolApproval,
 ) (AuthorizationActor, error) {
-	if principal == nil || strings.TrimSpace(principal.UserID) == "" {
+	if principal == nil {
 		return AuthorizationActor{}, errors.New(
 			"Connector authorization 人工批准缺少认证 principal",
 		)
@@ -256,35 +256,37 @@ func authorizationActorFromApproval(
 	}
 	agentID := strings.TrimSpace(approval.Route.AgentID)
 	if agentID == "" {
-		agentID = strings.TrimSpace(
-			protocol.ParseSessionKey(approval.RuntimeSessionKey).AgentID,
+		agentID = protocol.ParseSessionKey(approval.RuntimeSessionKey).AgentID
+	}
+	authorizationActor := AuthorizationActor{
+		OwnerUserID:            principal.UserID,
+		AgentID:                agentID,
+		BusinessSessionKey:     approval.DispatchSessionKey,
+		RootRoundID:            approval.Route.RoundID,
+		RuntimeLeaseSessionKey: approval.RuntimeSessionKey,
+		RuntimeLeaseRoundID:    approval.Route.RoundID,
+		PrincipalUserID:        principal.UserID,
+		PrincipalRole:          principal.Role,
+		AuthMethod:             principal.AuthMethod,
+	}
+	if principal.SessionID != nil {
+		authorizationActor.AuthSessionID = *principal.SessionID
+	}
+	normalizeAuthorizationActor(&authorizationActor)
+	if authorizationActor.OwnerUserID == "" {
+		return AuthorizationActor{}, errors.New(
+			"Connector authorization 人工批准缺少认证 principal",
 		)
 	}
-	businessSessionKey := strings.TrimSpace(approval.DispatchSessionKey)
-	rootRoundID := strings.TrimSpace(approval.Route.RoundID)
-	leaseSessionKey := strings.TrimSpace(approval.RuntimeSessionKey)
-	if agentID == "" || businessSessionKey == "" || rootRoundID == "" ||
-		leaseSessionKey == "" {
+	if authorizationActor.AgentID == "" ||
+		authorizationActor.BusinessSessionKey == "" ||
+		authorizationActor.RootRoundID == "" ||
+		authorizationActor.RuntimeLeaseSessionKey == "" {
 		return AuthorizationActor{}, errors.New(
 			"Connector authorization 人工批准缺少可信 DM session/round",
 		)
 	}
-	authSessionID := ""
-	if principal.SessionID != nil {
-		authSessionID = strings.TrimSpace(*principal.SessionID)
-	}
-	return AuthorizationActor{
-		OwnerUserID:            strings.TrimSpace(principal.UserID),
-		AgentID:                agentID,
-		BusinessSessionKey:     businessSessionKey,
-		RootRoundID:            rootRoundID,
-		RuntimeLeaseSessionKey: leaseSessionKey,
-		RuntimeLeaseRoundID:    rootRoundID,
-		PrincipalUserID:        strings.TrimSpace(principal.UserID),
-		PrincipalRole:          strings.TrimSpace(principal.Role),
-		AuthMethod:             strings.TrimSpace(principal.AuthMethod),
-		AuthSessionID:          authSessionID,
-	}, nil
+	return authorizationActor, nil
 }
 
 func normalizeAuthorizationActor(actor *AuthorizationActor) {

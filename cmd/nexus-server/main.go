@@ -207,7 +207,7 @@ func ensureOwnerFromEnv(ctx context.Context, cfg config.Config, logger *slog.Log
 
 	hasActiveAdmin := false
 	targetUserRole := ""
-	normalizedUsername := strings.ToLower(strings.TrimSpace(username))
+	normalizedUsername := strings.ToLower(username)
 	for _, user := range users {
 		if user.Username == normalizedUsername {
 			targetUserRole = user.Role

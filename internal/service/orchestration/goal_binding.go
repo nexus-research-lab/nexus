@@ -20,11 +20,12 @@ func (s *Service) ResolveGoalExecutionBinding(
 	ctx context.Context,
 	goal protocol.Goal,
 ) (protocol.GoalExecutionBindingResolution, error) {
+	goal.ID = strings.TrimSpace(goal.ID)
 	resolution := protocol.GoalExecutionBindingResolution{
 		State:               protocol.GoalExecutionBindingStateStandalone,
 		ReservedExecutionID: protocol.GoalReservedExecutionID(goal),
 	}
-	if s == nil || s.repository == nil || strings.TrimSpace(goal.ID) == "" {
+	if s == nil || s.repository == nil || goal.ID == "" {
 		return resolution, nil
 	}
 
@@ -41,13 +42,13 @@ func (s *Service) ResolveGoalExecutionBinding(
 		if repository, ok := s.repository.(goalRevisionExecutionRepository); ok {
 			execution, err = repository.FindByGoalRevision(
 				ctx,
-				strings.TrimSpace(goal.ID),
+				goal.ID,
 				goal.ObjectiveRevision(),
 			)
 		} else {
 			execution, err = s.repository.FindCurrentByGoal(
 				ctx,
-				strings.TrimSpace(goal.ID),
+				goal.ID,
 				goal.ObjectiveRevision(),
 			)
 		}
@@ -107,7 +108,7 @@ func goalExecutionBindingMatches(
 	execution protocol.Execution,
 ) bool {
 	if strings.TrimSpace(execution.ID) == "" ||
-		strings.TrimSpace(execution.GoalID) != strings.TrimSpace(goal.ID) ||
+		strings.TrimSpace(execution.GoalID) != goal.ID ||
 		execution.GoalObjectiveRevision != goal.ObjectiveRevision() ||
 		strings.TrimSpace(execution.SessionKey) != strings.TrimSpace(goal.SessionKey) ||
 		(reservedExecutionID != "" && strings.TrimSpace(execution.ID) != reservedExecutionID) {

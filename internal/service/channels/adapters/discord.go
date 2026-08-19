@@ -222,18 +222,23 @@ func (c *DiscordChannel) buildIngressRequest(
 	message *discordgo.MessageCreate,
 	content string,
 ) (channelcontract.IngressRequest, error) {
+	channelID := strings.TrimSpace(message.ChannelID)
+	guildID := strings.TrimSpace(message.GuildID)
+	messageID := strings.TrimSpace(message.ID)
+	senderID := strings.TrimSpace(message.Author.ID)
+	senderName := strings.TrimSpace(message.Author.Username)
 	chatType := "group"
-	ref := strings.TrimSpace(message.ChannelID)
+	ref := channelID
 	threadID := ""
 	delivery := &channelcontract.DeliveryTarget{
 		Mode:    channelcontract.DeliveryModeExplicit,
 		Channel: channelcontract.ChannelTypeDiscord,
-		To:      strings.TrimSpace(message.ChannelID),
+		To:      channelID,
 	}
 
-	if strings.TrimSpace(message.GuildID) == "" {
+	if guildID == "" {
 		chatType = "dm"
-		ref = strings.TrimSpace(message.Author.ID)
+		ref = senderID
 		return channelcontract.IngressRequest{
 			Channel:     channelcontract.ChannelTypeDiscord,
 			OwnerUserID: c.ownerUserID,
@@ -241,32 +246,31 @@ func (c *DiscordChannel) buildIngressRequest(
 			ChatType:    chatType,
 			Ref:         ref,
 			Content:     content,
-			RoundID:     strings.TrimSpace(message.ID),
-			ReqID:       strings.TrimSpace(message.ID),
+			RoundID:     messageID,
+			ReqID:       messageID,
 			Delivery:    delivery,
 			Message: channelmessage.NewInbound(channelmessage.InboundParams{
 				Channel:           channelcontract.ChannelTypeDiscord,
 				Target:            ref,
-				PlatformMessageID: strings.TrimSpace(message.ID),
+				PlatformMessageID: messageID,
 				ThreadID:          threadID,
 				ReplyToID:         discordReplyToID(message),
-				SenderID:          strings.TrimSpace(message.Author.ID),
-				SenderName:        strings.TrimSpace(message.Author.Username),
+				SenderID:          senderID,
+				SenderName:        senderName,
 				ChatType:          chatType,
 				Text:              content,
 			}),
 		}, nil
 	}
 
-	channelID := strings.TrimSpace(message.ChannelID)
 	if parentID, resolvedThreadID := c.resolveDiscordThreadRoute(session, channelID); resolvedThreadID != "" {
 		threadID = resolvedThreadID
 		channelID = parentID
 		delivery.ThreadID = resolvedThreadID
 	}
 	delivery.To = channelID
-	delivery.AccountID = strings.TrimSpace(message.GuildID)
-	ref = joinDiscordRoute(strings.TrimSpace(message.GuildID), channelID)
+	delivery.AccountID = guildID
+	ref = joinDiscordRoute(guildID, channelID)
 
 	return channelcontract.IngressRequest{
 		Channel:     channelcontract.ChannelTypeDiscord,
@@ -276,17 +280,17 @@ func (c *DiscordChannel) buildIngressRequest(
 		Ref:         ref,
 		ThreadID:    threadID,
 		Content:     content,
-		RoundID:     strings.TrimSpace(message.ID),
-		ReqID:       strings.TrimSpace(message.ID),
+		RoundID:     messageID,
+		ReqID:       messageID,
 		Delivery:    delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
 			Channel:           channelcontract.ChannelTypeDiscord,
 			Target:            ref,
-			PlatformMessageID: strings.TrimSpace(message.ID),
+			PlatformMessageID: messageID,
 			ThreadID:          threadID,
 			ReplyToID:         discordReplyToID(message),
-			SenderID:          strings.TrimSpace(message.Author.ID),
-			SenderName:        strings.TrimSpace(message.Author.Username),
+			SenderID:          senderID,
+			SenderName:        senderName,
 			ChatType:          chatType,
 			Text:              content,
 		}),
@@ -301,21 +305,23 @@ func discordReplyToID(message *discordgo.MessageCreate) string {
 }
 
 func (c *DiscordChannel) resolveDiscordThreadRoute(session *discordgo.Session, channelID string) (string, string) {
-	channel, err := session.State.Channel(strings.TrimSpace(channelID))
+	channelID = strings.TrimSpace(channelID)
+	channel, err := session.State.Channel(channelID)
 	if err != nil || channel == nil {
-		channel, err = session.Channel(strings.TrimSpace(channelID))
+		channel, err = session.Channel(channelID)
 		if err != nil || channel == nil {
-			return strings.TrimSpace(channelID), ""
+			return channelID, ""
 		}
 	}
+	resolvedChannelID := strings.TrimSpace(channel.ID)
 	if !isDiscordThreadType(channel.Type) {
-		return strings.TrimSpace(channel.ID), ""
+		return resolvedChannelID, ""
 	}
 	parentID := strings.TrimSpace(channel.ParentID)
 	if parentID == "" {
-		parentID = strings.TrimSpace(channel.ID)
+		parentID = resolvedChannelID
 	}
-	return parentID, strings.TrimSpace(channel.ID)
+	return parentID, resolvedChannelID
 }
 
 func (c *DiscordChannel) currentIngress() channelcontract.IngressAcceptor {
@@ -325,10 +331,12 @@ func (c *DiscordChannel) currentIngress() channelcontract.IngressAcceptor {
 }
 
 func joinDiscordRoute(guildID string, channelID string) string {
-	if strings.TrimSpace(guildID) == "" {
-		return strings.TrimSpace(channelID)
+	guildID = strings.TrimSpace(guildID)
+	channelID = strings.TrimSpace(channelID)
+	if guildID == "" {
+		return channelID
 	}
-	return strings.TrimSpace(guildID) + ":" + strings.TrimSpace(channelID)
+	return guildID + ":" + channelID
 }
 
 func isDiscordThreadType(channelType discordgo.ChannelType) bool {

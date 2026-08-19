@@ -29,12 +29,13 @@ type dingTalkAPIEnvelope struct {
 
 func (c *DingTalkChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
-	if strings.TrimSpace(target.To) == "" {
+	if normalized.To == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("dingtalk delivery target requires to")
 	}
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(target.To)), "http://") ||
-		strings.HasPrefix(strings.ToLower(strings.TrimSpace(target.To)), "https://") {
-		if err := c.sendSessionWebhookText(ctx, target.To, text); err != nil {
+	normalizedToLower := strings.ToLower(normalized.To)
+	if strings.HasPrefix(normalizedToLower, "http://") ||
+		strings.HasPrefix(normalizedToLower, "https://") {
+		if err := c.sendSessionWebhookText(ctx, normalized.To, text); err != nil {
 			return channelcontract.DeliveryResult{}, err
 		}
 		return channelcontract.NewDeliveryResult(normalized, nil), nil
@@ -47,7 +48,7 @@ func (c *DingTalkChannel) SendDeliveryMessage(ctx context.Context, target channe
 		return channelcontract.DeliveryResult{}, err
 	}
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 3800) {
-		if err = c.sendGroupTextChunk(ctx, token, target.To, chunk); err != nil {
+		if err = c.sendGroupTextChunk(ctx, token, normalized.To, chunk); err != nil {
 			c.clearAccessToken()
 			return channelcontract.DeliveryResult{}, err
 		}

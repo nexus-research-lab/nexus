@@ -20,7 +20,9 @@ func (r *Router) GetSessionRoute(ctx context.Context, agentID string, sessionKey
 	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
-	return r.deliveryRoutes.GetSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey))
+	agentID = strings.TrimSpace(agentID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	return r.deliveryRoutes.GetSessionRoute(ctx, agentID, sessionKey)
 }
 
 // RememberRoute 记录一条可复用的显式路由。
@@ -28,21 +30,22 @@ func (r *Router) RememberRoute(ctx context.Context, agentID string, target Deliv
 	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
+	agentID = strings.TrimSpace(agentID)
 	normalized := target.Normalized()
 	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
 		normalized.Mode = DeliveryModeExplicit
 	}
-	remembered, err := r.deliveryRoutes.RememberRoute(ctx, strings.TrimSpace(agentID), normalized)
+	remembered, err := r.deliveryRoutes.RememberRoute(ctx, agentID, normalized)
 	if err != nil {
 		r.loggerFor(ctx).Error("记录最近投递目标失败",
-			"agent_id", strings.TrimSpace(agentID),
+			"agent_id", agentID,
 			"channel", normalized.Channel,
 			"err", err,
 		)
 		return nil, err
 	}
 	r.loggerFor(ctx).Debug("记录最近投递目标",
-		"agent_id", strings.TrimSpace(agentID),
+		"agent_id", agentID,
 		"channel", normalized.Channel,
 		"mode", normalized.Mode,
 	)
@@ -54,23 +57,25 @@ func (r *Router) RememberSessionRoute(ctx context.Context, agentID string, sessi
 	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
+	agentID = strings.TrimSpace(agentID)
+	sessionKey = strings.TrimSpace(sessionKey)
 	normalized := target.Normalized()
 	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
 		normalized.Mode = DeliveryModeExplicit
 	}
-	remembered, err := r.deliveryRoutes.RememberSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey), normalized)
+	remembered, err := r.deliveryRoutes.RememberSessionRoute(ctx, agentID, sessionKey, normalized)
 	if err != nil {
 		r.loggerFor(ctx).Error("记录 session 投递目标失败",
-			"agent_id", strings.TrimSpace(agentID),
-			"session_key", strings.TrimSpace(sessionKey),
+			"agent_id", agentID,
+			"session_key", sessionKey,
 			"channel", normalized.Channel,
 			"err", err,
 		)
 		return nil, err
 	}
 	r.loggerFor(ctx).Debug("记录 session 投递目标",
-		"agent_id", strings.TrimSpace(agentID),
-		"session_key", strings.TrimSpace(sessionKey),
+		"agent_id", agentID,
+		"session_key", sessionKey,
 		"channel", normalized.Channel,
 		"mode", normalized.Mode,
 	)
@@ -81,16 +86,17 @@ func (r *Router) RememberSessionRoute(ctx context.Context, agentID string, sessi
 func (r *Router) RememberWebSocketRoute(ctx context.Context, sessionKey string) error {
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindAgent ||
-		strings.TrimSpace(parsed.AgentID) == "" ||
+		parsed.AgentID == "" ||
 		protocol.NormalizeSessionKeyChannelSegment(parsed.Channel) != protocol.SessionChannelWebSocketSegment {
 		return nil
 	}
+	sessionKey = parsed.Raw
 	_, err := r.RememberRoute(ctx, parsed.AgentID, DeliveryTarget{
 		Mode:       DeliveryModeExplicit,
 		Channel:    ChannelTypeWebSocket,
-		To:         strings.TrimSpace(sessionKey),
+		To:         sessionKey,
 		ThreadID:   parsed.ThreadID,
-		SessionKey: strings.TrimSpace(sessionKey),
+		SessionKey: sessionKey,
 	})
 	if err != nil {
 		return err
@@ -98,9 +104,9 @@ func (r *Router) RememberWebSocketRoute(ctx context.Context, sessionKey string) 
 	_, err = r.RememberSessionRoute(ctx, parsed.AgentID, sessionKey, DeliveryTarget{
 		Mode:       DeliveryModeExplicit,
 		Channel:    ChannelTypeWebSocket,
-		To:         strings.TrimSpace(sessionKey),
+		To:         sessionKey,
 		ThreadID:   parsed.ThreadID,
-		SessionKey: strings.TrimSpace(sessionKey),
+		SessionKey: sessionKey,
 	})
 	return err
 }

@@ -113,6 +113,7 @@ func mergeExecutionRuntimeGraph(
 	promotedRuntimeNodeIDs := runtimeGraphPromotedNodeIDs(runtimeGraph)
 	runtimeSubagentLaunchNodeIDs := make(map[string]struct{})
 	for _, runtimeNode := range runtimeGraph.Nodes {
+		subjectID := strings.TrimSpace(runtimeNode.SubjectID)
 		if managedExecution {
 			if _, allowed := allowedAgentRound[runtimeNode.AgentRoundID]; !allowed {
 				continue
@@ -145,7 +146,7 @@ func mergeExecutionRuntimeGraph(
 			}
 		}
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
-			existingID := subagentNodeByTask[strings.TrimSpace(runtimeNode.SubjectID)]
+			existingID := subagentNodeByTask[subjectID]
 			if existingID == "" {
 				toolUseID := strings.TrimSpace(runtimeGraphMetadataString(runtimeNode, "tool_use_id"))
 				existingID = subagentNodeByToolUse[toolUseID]
@@ -153,14 +154,14 @@ func mergeExecutionRuntimeGraph(
 			if existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
 				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
-				if runtimeNode.SubjectID != "" {
-					subagentNodeByTask[strings.TrimSpace(runtimeNode.SubjectID)] = existingID
+				if subjectID != "" {
+					subagentNodeByTask[subjectID] = existingID
 				}
 				continue
 			}
 		}
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeTool {
-			if existingID := subagentNodeByToolUse[strings.TrimSpace(runtimeNode.SubjectID)]; existingID != "" {
+			if existingID := subagentNodeByToolUse[subjectID]; existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
 				runtimeSubagentLaunchNodeIDs[runtimeNode.ID] = struct{}{}
 				// Agent Tool 只证明“发起了哪一个 child”。它与 child Attempt
@@ -181,8 +182,8 @@ func mergeExecutionRuntimeGraph(
 				coordinatorNodeIDs = append(coordinatorNodeIDs, projected.ID)
 			}
 		}
-		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent && runtimeNode.SubjectID != "" {
-			subagentNodeByTask[runtimeNode.SubjectID] = projected.ID
+		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent && subjectID != "" {
+			subagentNodeByTask[subjectID] = projected.ID
 		}
 	}
 
@@ -193,8 +194,8 @@ func mergeExecutionRuntimeGraph(
 	parentNodeBySubject := make(map[string]string, len(runtimeGraph.Nodes))
 	for _, runtimeNode := range runtimeGraph.Nodes {
 		projectedID := runtimeNodeProjection[runtimeNode.ID]
-		if projectedID != "" && strings.TrimSpace(runtimeNode.SubjectID) != "" {
-			parentNodeBySubject[strings.TrimSpace(runtimeNode.SubjectID)] = projectedID
+		if subjectID := strings.TrimSpace(runtimeNode.SubjectID); projectedID != "" && subjectID != "" {
+			parentNodeBySubject[subjectID] = projectedID
 		}
 	}
 	for _, runtimeNode := range runtimeGraph.Nodes {

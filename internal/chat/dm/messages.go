@@ -48,7 +48,7 @@ func WrapSessionMessageEvent(sessionValue protocol.Session, messageValue protoco
 	event.SessionKey = sessionValue.SessionKey
 	event.AgentID = sessionValue.AgentID
 	event.MessageID = NormalizeString(messageValue["message_id"])
-	event.RoundID = strings.TrimSpace(FirstNonEmpty(roundID, NormalizeString(messageValue["round_id"])))
+	event.RoundID = FirstNonEmpty(roundID, NormalizeString(messageValue["round_id"]))
 	event.AgentRoundID = NormalizeString(messageValue["agent_round_id"])
 	return event
 }

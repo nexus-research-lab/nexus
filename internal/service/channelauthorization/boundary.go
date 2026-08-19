@@ -23,6 +23,16 @@ func (s *Service) authorize(
 	if s.humanVerifier == nil {
 		return authorizationstore.Binding{}, errors.New("Channel 授权缺少 human principal verifier")
 	}
+	actor.OwnerUserID = strings.TrimSpace(actor.OwnerUserID)
+	actor.AgentID = strings.TrimSpace(actor.AgentID)
+	actor.SessionKey = strings.TrimSpace(actor.SessionKey)
+	actor.RoundID = strings.TrimSpace(actor.RoundID)
+	actor.LeaseSessionKey = strings.TrimSpace(actor.LeaseSessionKey)
+	actor.LeaseRoundID = strings.TrimSpace(actor.LeaseRoundID)
+	actor.ContextKind = strings.ToLower(strings.TrimSpace(actor.ContextKind))
+	actor.ContextID = strings.TrimSpace(actor.ContextID)
+	actor.AuthMethod = strings.TrimSpace(actor.AuthMethod)
+	actor.AuthSessionID = strings.TrimSpace(actor.AuthSessionID)
 	principal, err := s.humanVerifier.VerifyInteractiveHuman(
 		ctx,
 		authctx.PrincipalFromContext(ctx),
@@ -34,9 +44,11 @@ func (s *Service) authorize(
 	if principal.SessionID != nil {
 		authSessionID = strings.TrimSpace(*principal.SessionID)
 	}
-	if strings.TrimSpace(principal.UserID) != strings.TrimSpace(actor.OwnerUserID) ||
-		strings.TrimSpace(principal.AuthMethod) != strings.TrimSpace(actor.AuthMethod) ||
-		authSessionID != strings.TrimSpace(actor.AuthSessionID) {
+	principalUserID := strings.TrimSpace(principal.UserID)
+	principalAuthMethod := strings.TrimSpace(principal.AuthMethod)
+	if principalUserID != actor.OwnerUserID ||
+		principalAuthMethod != actor.AuthMethod ||
+		authSessionID != actor.AuthSessionID {
 		return authorizationstore.Binding{}, errors.New(
 			"Channel 授权当前真人 principal/session 与 runtime 身份不匹配",
 		)
@@ -54,27 +66,26 @@ func (s *Service) authorize(
 	if inspection == nil ||
 		inspection.Authority != configurationsvc.AuthorityOwnerMain ||
 		inspection.Context.Kind != configurationsvc.ScopeKindOwner ||
-		strings.ToLower(strings.TrimSpace(actor.ContextKind)) != configurationsvc.ContextKindAgent ||
-		strings.TrimSpace(actor.ContextID) != strings.TrimSpace(actor.AgentID) {
+		actor.ContextKind != configurationsvc.ContextKindAgent ||
+		actor.ContextID != actor.AgentID {
 		return authorizationstore.Binding{}, errors.New(
 			"Channel 扫码授权只允许 Nexus 主智能体在自己的 WebSocket 私有 DM 中发起",
 		)
 	}
-	principalUserID := strings.TrimSpace(principal.UserID)
 	binding := authorizationstore.Binding{
 		OwnerUserID:            principalUserID,
 		PrincipalUserID:        principalUserID,
 		PrincipalRole:          strings.TrimSpace(principal.Role),
-		PrincipalAuthMethod:    strings.TrimSpace(principal.AuthMethod),
+		PrincipalAuthMethod:    principalAuthMethod,
 		PrincipalAuthSessionID: authSessionID,
-		AgentID:                strings.TrimSpace(actor.AgentID),
-		BusinessSessionKey:     strings.TrimSpace(actor.SessionKey),
-		RootRoundID:            strings.TrimSpace(actor.RoundID),
-		RuntimeLeaseSessionKey: strings.TrimSpace(actor.LeaseSessionKey),
-		RuntimeLeaseRoundID:    strings.TrimSpace(actor.LeaseRoundID),
+		AgentID:                actor.AgentID,
+		BusinessSessionKey:     actor.SessionKey,
+		RootRoundID:            actor.RoundID,
+		RuntimeLeaseSessionKey: actor.LeaseSessionKey,
+		RuntimeLeaseRoundID:    actor.LeaseRoundID,
 	}
 	if actor.LocalSingleUser &&
-		strings.TrimSpace(principal.AuthMethod) == authctx.AuthMethodLocal {
+		principalAuthMethod == authctx.AuthMethodLocal {
 		binding.PrincipalRole = "owner"
 		binding.PrincipalAuthMethod = "local"
 	}

@@ -38,25 +38,29 @@ func (s *Service) prepareTaskDeliveryMutation(
 	if err := s.resolveRoomDeliveryAgent(ctx, task); err != nil {
 		return err
 	}
+	normalizedGrantSource := automationdomain.Source{}
+	if grantSource != nil {
+		normalizedGrantSource = grantSource.Normalized()
+	}
 	actorAgentID, agentActor := automationexec.ActorAgentID(ctx)
 	if agentActor {
-		if grantSource == nil || strings.TrimSpace(grantSource.Kind) != automationdomain.SourceKindAgent {
+		if normalizedGrantSource.Kind != automationdomain.SourceKindAgent {
 			return errors.New("Agent-origin automation mutation must use the trusted Agent source")
 		}
-		if strings.TrimSpace(grantSource.CreatorAgentID) != strings.TrimSpace(actorAgentID) {
+		if normalizedGrantSource.CreatorAgentID != strings.TrimSpace(actorAgentID) {
 			return errors.New("automation source creator does not match the trusted Agent actor")
 		}
-		task.DeliveryGrant = grantSource.Normalized()
+		task.DeliveryGrant = normalizedGrantSource
 		if err := s.validateAgentOriginDeliveryGrant(ctx, *task); err != nil {
 			return err
 		}
 		return s.validatePersistentDeliveryGrant(ctx, *task)
 	}
 	kind := automationdomain.SourceKindUserPage
-	if grantSource != nil {
-		switch strings.TrimSpace(grantSource.Kind) {
+	if normalizedGrantSource.Kind != "" {
+		switch normalizedGrantSource.Kind {
 		case automationdomain.SourceKindUserPage, automationdomain.SourceKindCLI:
-			kind = strings.TrimSpace(grantSource.Kind)
+			kind = normalizedGrantSource.Kind
 		}
 	}
 	task.DeliveryGrant = automationdomain.Source{Kind: kind}.Normalized()

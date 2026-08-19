@@ -97,7 +97,7 @@ func resolveInteractionMode(toolName string) string {
 
 func summarizeInput(toolName string, input map[string]any) string {
 	if toolName == "Bash" {
-		if command := strings.TrimSpace(normalizeString(input["command"])); command != "" {
+		if command := normalizeString(input["command"]); command != "" {
 			return command
 		}
 	}
@@ -113,21 +113,21 @@ func summarizeInput(toolName string, input map[string]any) string {
 		"result_summary",
 		"reason",
 	} {
-		if value := strings.TrimSpace(normalizeString(input[key])); value != "" {
+		if value := normalizeString(input[key]); value != "" {
 			return value
 		}
 	}
 	if toolName == "AskUserQuestion" {
 		if questions, ok := input["questions"].([]any); ok && len(questions) > 0 {
 			if payload, ok := questions[0].(map[string]any); ok {
-				if question := strings.TrimSpace(normalizeString(payload["question"])); question != "" {
+				if question := normalizeString(payload["question"]); question != "" {
 					return question
 				}
 			}
 		}
 	}
 	for _, key := range []string{"description", "task", "prompt"} {
-		if value := strings.TrimSpace(normalizeString(input[key])); value != "" {
+		if value := normalizeString(input[key]); value != "" {
 			return value
 		}
 	}

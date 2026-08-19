@@ -128,6 +128,8 @@ func (s *Service) updateConversation(
 	request protocol.UpdateConversationRequest,
 	expectedConfigurationVersion *int64,
 ) (*protocol.ConversationContextAggregate, error) {
+	roomID = strings.TrimSpace(roomID)
+	conversationID = strings.TrimSpace(conversationID)
 	title := roomdomain.NormalizeOptionalText(request.Title)
 	if title == "" {
 		return nil, errors.New("对话标题不能为空")
@@ -144,8 +146,8 @@ func (s *Service) updateConversation(
 		contextValue, err = s.repository.UpdateConversationAtVersion(
 			ctx,
 			authctx.OwnerUserID(ctx),
-			strings.TrimSpace(roomID),
-			strings.TrimSpace(conversationID),
+			roomID,
+			conversationID,
 			title,
 			*expectedConfigurationVersion,
 		)
@@ -153,8 +155,8 @@ func (s *Service) updateConversation(
 		contextValue, err = s.repository.UpdateConversation(
 			ctx,
 			authctx.OwnerUserID(ctx),
-			strings.TrimSpace(roomID),
-			strings.TrimSpace(conversationID),
+			roomID,
+			conversationID,
 			title,
 		)
 	}
@@ -240,16 +242,16 @@ func (s *Service) deleteConversation(
 		contextValue, err = s.repository.DeleteConversationAtVersion(
 			ctx,
 			authctx.OwnerUserID(ctx),
-			strings.TrimSpace(roomID),
-			strings.TrimSpace(conversationID),
+			roomID,
+			conversationID,
 			*expectedConfigurationVersion,
 		)
 	} else {
 		contextValue, err = s.repository.DeleteConversation(
 			ctx,
 			authctx.OwnerUserID(ctx),
-			strings.TrimSpace(roomID),
-			strings.TrimSpace(conversationID),
+			roomID,
+			conversationID,
 		)
 	}
 	if err != nil {

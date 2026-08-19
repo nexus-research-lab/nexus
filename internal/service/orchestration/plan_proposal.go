@@ -219,6 +219,7 @@ func (s *Service) resolveProposalGoalActivation(
 	ctx context.Context,
 	actor ActorContext,
 ) (*ExplicitGoalActivation, error) {
+	actor.GoalID = strings.TrimSpace(actor.GoalID)
 	if !actorHasExactGoalAuthority(actor) {
 		return nil, nil
 	}
@@ -228,7 +229,7 @@ func (s *Service) resolveProposalGoalActivation(
 			"trusted Goal activation provenance is unavailable for Plan preparation")
 	}
 	activation, err := resolver.ResolveExplicitGoalActivation(ctx, ExplicitGoalActivationRequest{
-		ExistingGoalID:        strings.TrimSpace(actor.GoalID),
+		ExistingGoalID:        actor.GoalID,
 		GoalObjectiveRevision: actor.GoalObjectiveRevision,
 		OwnerUserID:           strings.TrimSpace(actor.OwnerUserID),
 		SessionKey:            strings.TrimSpace(actor.SessionKey),
@@ -252,7 +253,7 @@ func (s *Service) resolveProposalGoalActivation(
 	if activation.GoalID == "" || activation.GoalObjectiveRevision <= 0 ||
 		activation.Objective == "" ||
 		activation.ActivationOrigin == "" || activation.ActivationReason == "" ||
-		(strings.TrimSpace(actor.GoalID) != "" && activation.GoalID != strings.TrimSpace(actor.GoalID)) ||
+		(actor.GoalID != "" && activation.GoalID != actor.GoalID) ||
 		(actor.GoalObjectiveRevision > 0 &&
 			activation.GoalObjectiveRevision != actor.GoalObjectiveRevision) ||
 		(activation.ReplacesExecutionID != "" && activation.ReservedExecutionID == "") ||

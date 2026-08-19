@@ -99,7 +99,7 @@ func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, too
 }
 
 func imagegenArtifactLabel(payload map[string]any) string {
-	switch strings.TrimSpace(normalizeString(payload["action"])) {
+	switch normalizeString(payload["action"]) {
 	case "edit", "edit_image":
 		return "编辑图片"
 	default:

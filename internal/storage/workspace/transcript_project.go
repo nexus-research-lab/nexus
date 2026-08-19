@@ -141,7 +141,7 @@ func projectTranscriptChainWithFilter(
 				continue
 			}
 			projected = append(projected, *userMessage)
-			lastVisibleUserContent = strings.TrimSpace(stringFromAny((*userMessage)["content"]))
+			lastVisibleUserContent = stringFromAny((*userMessage)["content"])
 			lastVisibleUserTimestamp = entryTimestamp
 		case sdkprotocol.MessageTypeAssistant,
 			sdkprotocol.MessageTypeAttachment,
@@ -242,7 +242,7 @@ func transcriptUserContent(entry map[string]any) string {
 func transcriptRawUserContent(entry map[string]any) string {
 	messageValue, _ := entry["message"].(map[string]any)
 	contentValue := messageValue["content"]
-	if text := strings.TrimSpace(stringFromAny(contentValue)); text != "" {
+	if text := stringFromAny(contentValue); text != "" {
 		return text
 	}
 	items, _ := contentValue.([]any)
@@ -252,7 +252,7 @@ func transcriptRawUserContent(entry map[string]any) string {
 		if !ok {
 			continue
 		}
-		if text := strings.TrimSpace(stringFromAny(payload["text"])); text != "" {
+		if text := stringFromAny(payload["text"]); text != "" {
 			parts = append(parts, text)
 		}
 	}
@@ -326,15 +326,15 @@ func stripTranscriptRuntimeContext(content string) string {
 
 func transcriptSlashCommandContent(entry map[string]any) string {
 	content := strings.TrimSpace(transcriptRawUserContent(entry))
-	name := transcriptTaggedValue(content, "command-name")
+	name := strings.TrimSpace(transcriptTaggedValue(content, "command-name"))
 	if name == "" {
 		return ""
 	}
 	if !strings.HasPrefix(name, "/") {
 		name = "/" + name
 	}
-	args := transcriptTaggedValue(content, "command-args")
-	return strings.TrimSpace(strings.TrimSpace(name) + " " + strings.TrimSpace(args))
+	args := strings.TrimSpace(transcriptTaggedValue(content, "command-args"))
+	return strings.TrimSpace(name + " " + args)
 }
 
 func transcriptTaggedValue(content string, tag string) string {

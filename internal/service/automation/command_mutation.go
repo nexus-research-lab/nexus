@@ -216,6 +216,7 @@ func (s *Service) ApplyRuntimeCommand(
 	result := &automationdomain.AutomationCommandApplyResult{
 		Operation: plan.Operation, Outcome: "applied",
 	}
+	runID := strings.TrimSpace(plan.Input.RunID)
 	switch plan.Operation {
 	case automationdomain.AutomationCommandOperationCreate:
 		createInput, _, buildErr := s.runtimeCommandCreateInput(ctx, actor, plan.Input, request.RequestID)
@@ -241,7 +242,7 @@ func (s *Service) ApplyRuntimeCommand(
 				ctx,
 				scope.JobID,
 				plan.ObservedConfigurationVersion,
-				strings.TrimSpace(plan.Input.RunID),
+				runID,
 				updateInput,
 			)
 		} else {
@@ -251,7 +252,7 @@ func (s *Service) ApplyRuntimeCommand(
 		}
 		if err == nil && plan.Input.CancelActiveRun {
 			updated, err = s.RecoverTaskRunningRun(
-				ctx, scope.JobID, strings.TrimSpace(plan.Input.RunID),
+				ctx, scope.JobID, runID,
 			)
 		}
 		result.Data = updated
@@ -273,7 +274,7 @@ func (s *Service) ApplyRuntimeCommand(
 			return nil, scopeErr
 		}
 		result.Data, err = s.RetryRunDeliveryAtVersion(
-			ctx, scope.JobID, strings.TrimSpace(plan.Input.RunID), plan.ObservedConfigurationVersion,
+			ctx, scope.JobID, runID, plan.ObservedConfigurationVersion,
 		)
 	case automationdomain.AutomationCommandOperationSetHeartbeat:
 		status, statusErr := s.GetHeartbeatStatus(ctx, plan.Target)
@@ -468,6 +469,10 @@ func (s *Service) runtimeCommandUpdateInput(
 	input automationdomain.AutomationCommandInput,
 ) (automationdomain.UpdateJobInput, automationdomain.AutomationCommandInput, error) {
 	input.RunID = strings.TrimSpace(input.RunID)
+	input.Name = strings.TrimSpace(input.Name)
+	input.AgentID = strings.TrimSpace(input.AgentID)
+	input.Instruction = strings.TrimSpace(input.Instruction)
+	input.InstructionAdd = strings.TrimSpace(input.InstructionAdd)
 	if input.RunID != "" && !input.CancelActiveRun {
 		return automationdomain.UpdateJobInput{}, input, errors.New("run_id 只能与 cancel_active_run=true 同时使用")
 	}
@@ -484,14 +489,14 @@ func (s *Service) runtimeCommandUpdateInput(
 		}
 		input.RunID = currentRunID
 	}
-	if strings.TrimSpace(input.Instruction) != "" && strings.TrimSpace(input.InstructionAdd) != "" {
+	if input.Instruction != "" && input.InstructionAdd != "" {
 		return automationdomain.UpdateJobInput{}, input, errors.New("instruction 和 instruction_append 不能同时使用")
 	}
 	update := automationdomain.UpdateJobInput{}
-	if strings.TrimSpace(input.Name) != "" {
+	if input.Name != "" {
 		update.Name = commandOptionalString(input.Name)
 	}
-	if strings.TrimSpace(input.AgentID) != "" {
+	if input.AgentID != "" {
 		agentID, err := runtimeCommandAgentID(actor, input.AgentID)
 		if err != nil {
 			return automationdomain.UpdateJobInput{}, input, err
@@ -501,10 +506,10 @@ func (s *Service) runtimeCommandUpdateInput(
 			update.AgentID = &agentID
 		}
 	}
-	if strings.TrimSpace(input.Instruction) != "" {
+	if input.Instruction != "" {
 		update.Instruction = commandOptionalString(input.Instruction)
-	} else if strings.TrimSpace(input.InstructionAdd) != "" {
-		value := strings.TrimSpace(current.Instruction) + "\n\n" + strings.TrimSpace(input.InstructionAdd)
+	} else if input.InstructionAdd != "" {
+		value := strings.TrimSpace(current.Instruction) + "\n\n" + input.InstructionAdd
 		update.Instruction = &value
 	}
 	if input.Schedule != nil {

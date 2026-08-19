@@ -36,6 +36,7 @@ func (s *Service) finishBoundRoomAttempt(
 	if roundValue == nil {
 		return errors.New("Room round is required for managed Attempt settlement")
 	}
+	reason = strings.TrimSpace(reason)
 	attemptStatus := protocol.WorkAttemptStatusFailed
 	switch strings.TrimSpace(slotStatus) {
 	case "finished":
@@ -43,14 +44,14 @@ func (s *Service) finishBoundRoomAttempt(
 		reason = ""
 	case "cancelled", "interrupted":
 		attemptStatus = protocol.WorkAttemptStatusInterrupted
-		if strings.TrimSpace(reason) == "" {
-			reason = roomSlotInterruptReason(slot)
+		if reason == "" {
+			reason = strings.TrimSpace(roomSlotInterruptReason(slot))
 		}
-		if strings.TrimSpace(reason) == "" {
+		if reason == "" {
 			reason = "Room slot interrupted"
 		}
 	default:
-		if strings.TrimSpace(reason) == "" {
+		if reason == "" {
 			reason = "Room slot failed"
 		}
 	}
@@ -80,7 +81,7 @@ func (s *Service) finishBoundRoomAttempt(
 		orchestrationsvc.RoomAttemptTerminalInput{
 			Binding:           *binding,
 			Status:            attemptStatus,
-			FailureReason:     strings.TrimSpace(reason),
+			FailureReason:     reason,
 			RuntimeSessionKey: slot.RuntimeSessionKey,
 			RoomSessionID:     slot.RoomSessionID,
 			SDKSessionID:      slot.getSDKSessionID(),

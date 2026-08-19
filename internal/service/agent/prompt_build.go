@@ -114,7 +114,7 @@ func canonicalPromptSkillName(reference string) string {
 	if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
 		name = externalName
 	}
-	return strings.TrimSpace(name)
+	return name
 }
 
 func (b *promptBuilder) loadStaticPrompt(scope promptBuildScope) string {

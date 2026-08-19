@@ -85,17 +85,20 @@ func communicationRuntimeActor(
 		return communicationsvc.Actor{}, false
 	}
 	record, err := agents.GetAgent(ctx, strings.TrimSpace(agentValue.AgentID))
-	if err != nil || record == nil || record.IsMain ||
-		strings.TrimSpace(record.AgentID) == "" ||
-		strings.TrimSpace(record.OwnerUserID) == "" {
+	if err != nil || record == nil || record.IsMain {
+		return communicationsvc.Actor{}, false
+	}
+	recordAgentID := strings.TrimSpace(record.AgentID)
+	ownerUserID := strings.TrimSpace(record.OwnerUserID)
+	if recordAgentID == "" || ownerUserID == "" {
 		return communicationsvc.Actor{}, false
 	}
 	if principal := authctx.PrincipalFromContext(ctx); principal != nil &&
-		strings.TrimSpace(principal.UserID) != strings.TrimSpace(record.OwnerUserID) {
+		strings.TrimSpace(principal.UserID) != ownerUserID {
 		return communicationsvc.Actor{}, false
 	}
 	actor := communicationsvc.Actor{
-		OwnerUserID: strings.TrimSpace(record.OwnerUserID), AgentID: strings.TrimSpace(record.AgentID),
+		OwnerUserID: ownerUserID, AgentID: recordAgentID,
 		SessionKey: sessionKey, RoundID: roundID,
 		LeaseSessionKey: strings.TrimSpace(lease.SessionKey), LeaseRoundID: strings.TrimSpace(lease.RoundID),
 		ContextKind: contextKind, ContextID: sourceContextID,
@@ -109,11 +112,11 @@ func communicationRuntimeActor(
 		parsed := protocol.ParseSessionKey(sessionKey)
 		if sourceContextID == "" || !parsed.IsStructured ||
 			parsed.Kind != protocol.SessionKeyKindRoom ||
-			strings.TrimSpace(parsed.ConversationID) == "" {
+			parsed.ConversationID == "" {
 			return communicationsvc.Actor{}, false
 		}
 		actor.RoomID = sourceContextID
-		actor.ConversationID = strings.TrimSpace(parsed.ConversationID)
+		actor.ConversationID = parsed.ConversationID
 		if authority := runtimectx.ResponsibilityAuthorityStateFromContext(ctx); authority != nil {
 			actor.GoalCollaborationBinding = func() *protocol.GoalCollaborationBinding {
 				current, ok := authority.LoadGoalAuthority()

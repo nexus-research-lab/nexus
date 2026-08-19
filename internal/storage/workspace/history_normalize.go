@@ -4,8 +4,6 @@
 package workspace
 
 import (
-	"strings"
-
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -24,7 +22,7 @@ func suppressDuplicatedGuidanceRows(rows []protocol.Message) []protocol.Message 
 		if stringFromAny(row["role"]) != "user" {
 			continue
 		}
-		if sourceRoundID := strings.TrimSpace(stringFromAny(row["source_round_id"])); sourceRoundID != "" {
+		if sourceRoundID := stringFromAny(row["source_round_id"]); sourceRoundID != "" {
 			durableSources[sourceRoundID] = struct{}{}
 		}
 	}
@@ -36,7 +34,7 @@ func suppressDuplicatedGuidanceRows(rows []protocol.Message) []protocol.Message 
 		metadata, _ := row["metadata"].(map[string]any)
 		if stringFromAny(row["role"]) == "system" &&
 			stringFromAny(metadata["subtype"]) == message.SystemMessageSubtypeGuidedInput {
-			if _, ok := durableSources[strings.TrimSpace(stringFromAny(metadata["source_round_id"]))]; ok {
+			if _, ok := durableSources[stringFromAny(metadata["source_round_id"])]; ok {
 				continue
 			}
 		}

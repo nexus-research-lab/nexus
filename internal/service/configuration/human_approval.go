@@ -199,7 +199,7 @@ func (s *Service) actorFromHumanApproval(
 
 	agentID := strings.TrimSpace(approval.Route.AgentID)
 	if agentID == "" {
-		agentID = strings.TrimSpace(protocol.ParseSessionKey(approval.RuntimeSessionKey).AgentID)
+		agentID = protocol.ParseSessionKey(approval.RuntimeSessionKey).AgentID
 	}
 	if agentID == "" {
 		return Actor{}, errors.New("配置人工批准缺少可信 agent_id")

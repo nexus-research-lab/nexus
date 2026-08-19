@@ -34,16 +34,16 @@ func AgentSDKDiagnosticsEnabled(env map[string]string) bool {
 // AgentSDKDiagnosticsValue 返回当前生效的诊断开关值。
 func AgentSDKDiagnosticsValue(env map[string]string) string {
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDiagnosticsEnvName); exists {
-		return strings.TrimSpace(value)
+		return value
 	}
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDiagnosticsJSONLEnvName); exists {
 		if runtimeEnvTruthy(value) {
 			return "jsonl"
 		}
-		return strings.TrimSpace(value)
+		return value
 	}
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDebugEnvName); exists {
-		return strings.TrimSpace(value)
+		return value
 	}
 	return ""
 }
@@ -51,20 +51,20 @@ func AgentSDKDiagnosticsValue(env map[string]string) string {
 // AgentSDKProviderDebugBodyValue 返回正文诊断开关值，仅用于日志摘要。
 func AgentSDKProviderDebugBodyValue(env map[string]string) string {
 	value, _ := lookupRuntimeEnv(env, AgentSDKProviderDebugBodyEnvName)
-	return strings.TrimSpace(value)
+	return value
 }
 
 func lookupRuntimeEnv(env map[string]string, key string) (string, bool) {
 	if env != nil {
 		if value, exists := env[key]; exists {
-			return value, true
+			return strings.TrimSpace(value), true
 		}
 	}
 	return "", false
 }
 
 func runtimeEnvTruthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch strings.ToLower(value) {
 	case "1", "true", "yes", "on", "stderr", "terminal", "debug", "jsonl", "file", "debug-file":
 		return true
 	default:

@@ -173,11 +173,14 @@ func (s *Service) enqueueExecutionDispatch(
 	if s == nil || s.inputQueue == nil || contextValue == nil || parentRound == nil {
 		return receipt, errors.New("durable Room input queue is unavailable")
 	}
+	delivery.TargetAgentID = strings.TrimSpace(delivery.TargetAgentID)
+	delivery.SourceAgentID = strings.TrimSpace(delivery.SourceAgentID)
+	delivery.OwnerUserID = strings.TrimSpace(delivery.OwnerUserID)
 	locations, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
 	if err != nil {
 		return receipt, err
 	}
-	location, ok := locations[strings.TrimSpace(delivery.TargetAgentID)]
+	location, ok := locations[delivery.TargetAgentID]
 	if !ok {
 		return receipt, orchestrationsvc.PermanentExecutionDispatchDelivery(
 			errors.New("Execution Dispatch target has no durable queue location"),
@@ -189,15 +192,15 @@ func (s *Service) enqueueExecutionDispatch(
 		SessionKey:      location.Location.SessionKey,
 		RoomID:          delivery.RoomID,
 		ConversationID:  delivery.ConversationID,
-		AgentID:         strings.TrimSpace(delivery.TargetAgentID),
-		SourceAgentID:   strings.TrimSpace(delivery.SourceAgentID),
+		AgentID:         delivery.TargetAgentID,
+		SourceAgentID:   delivery.SourceAgentID,
 		SourceMessageID: handoffID,
 		HandoffID:       handoffID,
-		TargetAgentIDs:  []string{strings.TrimSpace(delivery.TargetAgentID)},
+		TargetAgentIDs:  []string{delivery.TargetAgentID},
 		Source:          protocol.InputQueueSourceAgentRoomMessage,
 		Content:         content,
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
-		OwnerUserID:     strings.TrimSpace(delivery.OwnerUserID),
+		OwnerUserID:     delivery.OwnerUserID,
 		RootRoundID:     roomRootRoundID(parentRound),
 		WorkBinding:     cloneExecutionWorkBinding(&delivery.Binding),
 	}

@@ -264,7 +264,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return decode(&connectorsvc.OAuthClientConfigRequest{})
 	case DomainSkills + ".search_external":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("skills.search_external 不接受 target")
 		}
 		var input skillSearchInput
@@ -276,7 +276,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return nil
 	case DomainSkills + ".preview_external":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("skills.preview_external 不接受 target")
 		}
 		var input skillPreviewInput
@@ -288,7 +288,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return nil
 	case DomainSkills + ".create_private_source":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("skills.create_private_source 不接受 target")
 		}
 		var input skillPrivateSourceCreateInput
@@ -300,7 +300,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return validatePrivateSkillSourceAuth(input.AuthType, input.Token)
 	case DomainSkills + ".import_git":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("skills.import_git 不接受 target")
 		}
 		var input skillGitImportInput
@@ -312,7 +312,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return nil
 	case DomainSkills + ".import_url":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("skills.import_url 不接受 target")
 		}
 		var input skillURLImportInput
@@ -324,7 +324,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return nil
 	case DomainSkills + ".import_skills_sh":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("skills.import_skills_sh 不接受 target")
 		}
 		var input skillSkillsShImportInput
@@ -392,7 +392,7 @@ func validateChangeRequest(request ChangeRequest) error {
 	case DomainSkills + ".delete", DomainSkills + ".update_single":
 		return requireTarget()
 	case DomainSkills + ".check_updates", DomainSkills + ".update_all":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return fmt.Errorf("skills.%s 不接受 target", request.Operation)
 		}
 		return decode(&struct{}{})
@@ -407,7 +407,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		return decode(&struct{}{})
 	case DomainRooms + ".create":
-		if strings.TrimSpace(request.Target) != "" {
+		if target != "" {
 			return errors.New("rooms.create 不能指定现有 room_id")
 		}
 		var input protocol.CreateRoomRequest

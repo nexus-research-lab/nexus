@@ -28,7 +28,7 @@ func (c *sessionDeliveryChannel) projectAutomationRoomResult(
 	if c.roomHistory == nil {
 		return nil, errors.New("session delivery 缺少 room history store")
 	}
-	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	ownerUserID := authctx.OwnerUserID(ctx)
 	if ownerUserID == "" {
 		return nil, errors.New("room delivery requires owner")
 	}
@@ -73,7 +73,7 @@ func (c *sessionDeliveryChannel) sendRoomDeliveryText(
 	}
 
 	now := time.Now().UTC()
-	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	ownerUserID := authctx.OwnerUserID(ctx)
 	if ownerUserID == "" {
 		return nil, errors.New("room delivery requires owner")
 	}

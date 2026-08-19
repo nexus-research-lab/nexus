@@ -248,10 +248,11 @@ func (s *Service) goalRuntimeSnapshot(
 		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
 		return "", nil, false
 	}
-	if strings.TrimSpace(goalContext) == "" {
+	goalContext = strings.TrimSpace(goalContext)
+	if goalContext == "" {
 		return "", goal, true
 	}
-	return strings.TrimSpace(goalContext), goal, true
+	return goalContext, goal, true
 }
 
 func (s *Service) recordGoalContinuationProgressForSlot(
@@ -1913,8 +1914,9 @@ func (s *Service) activeRoomGoalBlocker(
 			if slot == nil {
 				continue
 			}
+			slotAgentID := strings.TrimSpace(slot.AgentID)
 			isCallerSlot := callerAgentID != "" && callerRoundID != "" &&
-				strings.TrimSpace(slot.AgentID) == callerAgentID &&
+				slotAgentID == callerAgentID &&
 				(roomRootRoundID(roundValue) == callerRoundID ||
 					strings.TrimSpace(roundValue.RoundID) == callerRoundID ||
 					strings.TrimSpace(slot.AgentRoundID) == callerRoundID)
@@ -1922,18 +1924,18 @@ func (s *Service) activeRoomGoalBlocker(
 				if isCallerSlot {
 					return fmt.Sprintf("caller agent %s still has running subagent work", callerAgentID)
 				}
-				return fmt.Sprintf("agent %s still has running subagent work", strings.TrimSpace(slot.AgentID))
+				return fmt.Sprintf("agent %s still has running subagent work", slotAgentID)
 			}
 			if slot.isTerminal() {
 				if slot.goalUsageSettlementRequired() && !slot.goalUsageTerminalSettled() {
-					return fmt.Sprintf("agent %s terminal Goal usage is not settled", strings.TrimSpace(slot.AgentID))
+					return fmt.Sprintf("agent %s terminal Goal usage is not settled", slotAgentID)
 				}
 				continue
 			}
 			if isCallerSlot {
 				continue
 			}
-			return fmt.Sprintf("agent %s still has an active Room slot", strings.TrimSpace(slot.AgentID))
+			return fmt.Sprintf("agent %s still has an active Room slot", slotAgentID)
 		}
 	}
 	if s.rounds.hasPublicMentionsForConversation(conversationID) {

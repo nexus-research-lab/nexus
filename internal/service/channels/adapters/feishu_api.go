@@ -31,21 +31,21 @@ type feishuMessageResponseData struct {
 
 func (c *FeishuChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
-	if strings.TrimSpace(target.To) == "" {
+	if normalized.To == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("feishu delivery target requires to")
 	}
 	token, err := c.tenantAccessToken(ctx)
 	if err != nil {
 		return channelcontract.DeliveryResult{}, err
 	}
-	receiveIDType := normalizeFeishuReceiveIDType(target.AccountID)
+	receiveIDType := normalizeFeishuReceiveIDType(normalized.AccountID)
 	parts := make([]channelmessage.ReceiptPart, 0)
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4500) {
 		messageID := ""
-		if strings.TrimSpace(target.ThreadID) != "" {
-			messageID, err = c.replyTextChunk(ctx, token, target.ThreadID, chunk)
+		if normalized.ThreadID != "" {
+			messageID, err = c.replyTextChunk(ctx, token, normalized.ThreadID, chunk)
 		} else {
-			messageID, err = c.sendTextChunk(ctx, token, receiveIDType, target.To, chunk)
+			messageID, err = c.sendTextChunk(ctx, token, receiveIDType, normalized.To, chunk)
 		}
 		if err != nil {
 			c.clearTenantAccessToken()
@@ -57,8 +57,8 @@ func (c *FeishuChannel) SendDeliveryMessage(ctx context.Context, target channelc
 	}
 	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
 		Channel:  channelcontract.ChannelTypeFeishu,
-		Target:   target.To,
-		ThreadID: target.ThreadID,
+		Target:   normalized.To,
+		ThreadID: normalized.ThreadID,
 		Parts:    parts,
 	})), nil
 }
@@ -252,12 +252,13 @@ func decodeFeishuEnvelope(response *http.Response, target any) error {
 }
 
 func normalizeFeishuReceiveIDType(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	value = strings.TrimSpace(value)
+	switch normalized := strings.ToLower(value); normalized {
 	case "", "chat", "group", "chat_id":
 		return "chat_id"
 	case "open_id", "union_id", "user_id", "email":
-		return strings.ToLower(strings.TrimSpace(value))
+		return normalized
 	default:
-		return strings.TrimSpace(value)
+		return value
 	}
 }

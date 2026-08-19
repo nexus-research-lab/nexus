@@ -296,6 +296,9 @@ func NewChannelAuthorizationResultEvent(
 
 // NewCommandCatalogEvent 构造 session 作用域的命令目录事件。
 func NewCommandCatalogEvent(sessionKey string, data CommandCatalogData) EventMessage {
+	data.Revision = strings.TrimSpace(data.Revision)
+	data.RuntimeKind = strings.TrimSpace(data.RuntimeKind)
+	data.AgentID = strings.TrimSpace(data.AgentID)
 	commands := data.Commands
 	if commands == nil {
 		commands = []CommandDescriptor{}
@@ -304,21 +307,21 @@ func NewCommandCatalogEvent(sessionKey string, data CommandCatalogData) EventMes
 		"status":   data.Status,
 		"commands": commands,
 	}
-	if strings.TrimSpace(data.Revision) != "" {
-		payload["revision"] = strings.TrimSpace(data.Revision)
+	if data.Revision != "" {
+		payload["revision"] = data.Revision
 	}
 	if data.Generation > 0 {
 		payload["generation"] = data.Generation
 	}
-	if strings.TrimSpace(data.RuntimeKind) != "" {
-		payload["runtime_kind"] = strings.TrimSpace(data.RuntimeKind)
+	if data.RuntimeKind != "" {
+		payload["runtime_kind"] = data.RuntimeKind
 	}
-	if strings.TrimSpace(data.AgentID) != "" {
-		payload["agent_id"] = strings.TrimSpace(data.AgentID)
+	if data.AgentID != "" {
+		payload["agent_id"] = data.AgentID
 	}
 	event := NewEvent(EventTypeCommandCatalog, payload)
 	event.SessionKey = sessionKey
-	event.AgentID = strings.TrimSpace(data.AgentID)
+	event.AgentID = data.AgentID
 	return event
 }
 

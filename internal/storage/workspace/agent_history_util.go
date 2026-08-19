@@ -24,7 +24,7 @@ func stringMapFromAny(value any) map[string]string {
 	result := make(map[string]string, len(typed))
 	for key, rawValue := range typed {
 		if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
-			result[trimmedKey] = strings.TrimSpace(stringFromAny(rawValue))
+			result[trimmedKey] = stringFromAny(rawValue)
 		}
 	}
 	if len(result) == 0 {

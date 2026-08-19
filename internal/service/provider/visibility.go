@@ -163,6 +163,7 @@ func (s *Service) validateDefaultAgentSelection(
 	selection DefaultAgentSelection,
 	invalidProvider string,
 ) error {
+	invalidProvider = strings.TrimSpace(invalidProvider)
 	config, err := s.ResolveRuntimeConfigForRuntime(
 		ctx,
 		strings.TrimSpace(selection.Provider),
@@ -172,10 +173,10 @@ func (s *Service) validateDefaultAgentSelection(
 	if err != nil {
 		return fmt.Errorf("默认模型不可用: %w", err)
 	}
-	if strings.TrimSpace(invalidProvider) != "" && strings.TrimSpace(config.Provider) == strings.TrimSpace(invalidProvider) {
+	if invalidProvider != "" && strings.TrimSpace(config.Provider) == invalidProvider {
 		return fmt.Errorf(
 			"默认模型仍使用 Provider %s；请先在设置中切换默认模型",
-			strings.TrimSpace(invalidProvider),
+			invalidProvider,
 		)
 	}
 	return nil

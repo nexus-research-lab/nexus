@@ -135,8 +135,8 @@ func buildBootstrapConversations(
 ) []BootstrapConversation {
 	items := make([]BootstrapConversation, 0, len(sessions))
 	for _, item := range sessions {
-		roomID := strings.TrimSpace(stringPointerValue(item.RoomID))
-		conversationID := strings.TrimSpace(stringPointerValue(item.ConversationID))
+		roomID := stringPointerValue(item.RoomID)
+		conversationID := stringPointerValue(item.ConversationID)
 		agentID := strings.TrimSpace(item.AgentID)
 		roomType := normalizeBootstrapConversationRoomType(item.ChatType, roomTypeByID[roomID])
 

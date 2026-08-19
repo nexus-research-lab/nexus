@@ -285,11 +285,19 @@ func (s *Service) AuthorizeRoomRuntimeTarget(
 	if binding == nil {
 		return nil
 	}
-	if strings.TrimSpace(binding.ExecutionID) == "" {
+	bindingCopy := *binding
+	bindingCopy.ExecutionID = strings.TrimSpace(bindingCopy.ExecutionID)
+	bindingCopy.PlanID = strings.TrimSpace(bindingCopy.PlanID)
+	bindingCopy.WorkItemID = strings.TrimSpace(bindingCopy.WorkItemID)
+	bindingCopy.SpecID = strings.TrimSpace(bindingCopy.SpecID)
+	bindingCopy.AssignmentID = strings.TrimSpace(bindingCopy.AssignmentID)
+	bindingCopy.AttemptID = strings.TrimSpace(bindingCopy.AttemptID)
+	bindingCopy.DispatchID = strings.TrimSpace(bindingCopy.DispatchID)
+	binding = &bindingCopy
+	if binding.ExecutionID == "" {
 		return domainError(ErrorCodeAssignmentTargetInvalid, "execution binding is incomplete")
 	}
 	actor.ExecutionID = binding.ExecutionID
-	bindingCopy := *binding
 	actor.WorkBinding = &bindingCopy
 	snapshot, err := s.GetSnapshot(ctx, actor, binding.ExecutionID)
 	if err != nil {
@@ -338,10 +346,10 @@ func (s *Service) AuthorizeRoomRuntimeTarget(
 		if !planMember {
 			continue
 		}
-		if candidate.ID != strings.TrimSpace(binding.AssignmentID) ||
-			candidate.PlanID != strings.TrimSpace(binding.PlanID) ||
-			candidate.WorkItemID != strings.TrimSpace(binding.WorkItemID) ||
-			candidate.SpecID != strings.TrimSpace(binding.SpecID) {
+		if candidate.ID != binding.AssignmentID ||
+			candidate.PlanID != binding.PlanID ||
+			candidate.WorkItemID != binding.WorkItemID ||
+			candidate.SpecID != binding.SpecID {
 			continue
 		}
 		assignment = candidate
@@ -353,17 +361,14 @@ func (s *Service) AuthorizeRoomRuntimeTarget(
 			"target Agent has no matching current Assignment",
 		)
 	}
-	if strings.TrimSpace(binding.DispatchID) == "" ||
-		strings.TrimSpace(binding.AttemptID) == "" ||
-		strings.TrimSpace(binding.PlanID) == "" ||
-		strings.TrimSpace(binding.WorkItemID) == "" ||
-		strings.TrimSpace(binding.SpecID) == "" ||
-		strings.TrimSpace(binding.AssignmentID) == "" {
+	if binding.DispatchID == "" || binding.AttemptID == "" ||
+		binding.PlanID == "" || binding.WorkItemID == "" ||
+		binding.SpecID == "" || binding.AssignmentID == "" {
 		return domainError(ErrorCodeAssignmentTargetInvalid, "execution binding is incomplete")
 	}
 	dispatchMatches := false
 	for _, dispatch := range snapshot.Dispatches {
-		if dispatch.ID == strings.TrimSpace(binding.DispatchID) &&
+		if dispatch.ID == binding.DispatchID &&
 			dispatch.AssignmentID == assignment.ID &&
 			dispatch.TargetAgentID == targetAgentID &&
 			dispatch.PlanID == assignment.PlanID &&
@@ -477,15 +482,18 @@ func authorizeBoundRoomAttempt(
 	targetAgentID string,
 	binding protocol.ExecutionWorkBinding,
 ) error {
+	binding.ExecutionID = strings.TrimSpace(binding.ExecutionID)
+	binding.PlanID = strings.TrimSpace(binding.PlanID)
+	targetAgentID = strings.TrimSpace(targetAgentID)
 	if snapshot == nil || snapshot.Plan == nil ||
 		snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
-		snapshot.Execution.ID != strings.TrimSpace(binding.ExecutionID) ||
-		snapshot.Plan.ID != strings.TrimSpace(binding.PlanID) {
+		snapshot.Execution.ID != binding.ExecutionID ||
+		snapshot.Plan.ID != binding.PlanID {
 		return domainError(ErrorCodeAssignmentTargetInvalid, "Room Attempt is outside the active Execution Plan")
 	}
 	assignment := findAssignmentByID(snapshot, binding.AssignmentID)
 	if assignment == nil ||
-		assignment.OwnerAgentID != strings.TrimSpace(targetAgentID) ||
+		assignment.OwnerAgentID != targetAgentID ||
 		assignment.PlanID != binding.PlanID ||
 		assignment.WorkItemID != binding.WorkItemID ||
 		assignment.SpecID != binding.SpecID ||
@@ -496,7 +504,7 @@ func authorizeBoundRoomAttempt(
 	for _, dispatch := range snapshot.Dispatches {
 		if dispatch.ID == binding.DispatchID &&
 			dispatch.AssignmentID == assignment.ID &&
-			dispatch.TargetAgentID == strings.TrimSpace(targetAgentID) &&
+			dispatch.TargetAgentID == targetAgentID &&
 			dispatch.PlanID == binding.PlanID &&
 			dispatch.WorkItemID == binding.WorkItemID &&
 			dispatch.SpecID == binding.SpecID &&
@@ -515,7 +523,7 @@ func authorizeBoundRoomAttempt(
 		attempt.DispatchID != binding.DispatchID ||
 		attempt.AssignmentID != assignment.ID ||
 		attempt.ExecutorKind != protocol.AttemptExecutorAgent ||
-		attempt.ExecutorAgentID != strings.TrimSpace(targetAgentID) {
+		attempt.ExecutorAgentID != targetAgentID {
 		return domainError(ErrorCodeAssignmentTargetInvalid, "Room root Attempt binding is stale")
 	}
 	return nil

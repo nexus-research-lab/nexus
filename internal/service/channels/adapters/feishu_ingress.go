@@ -95,7 +95,7 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 		return callback, nil
 	}
 
-	eventType := strings.TrimSpace(channelcontract.FirstNonEmpty(payload.Header.EventType, payload.Type))
+	eventType := channelcontract.FirstNonEmpty(payload.Header.EventType, payload.Type)
 	switch eventType {
 	case "im.message.receive_v1":
 		callback.Request = decodeFeishuMessageIngress(payload, &callback)

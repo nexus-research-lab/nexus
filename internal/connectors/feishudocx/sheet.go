@@ -146,9 +146,10 @@ func (c *Client) FindSheet(ctx context.Context, raw string, sheetID string, quer
 	if err := c.ensureAccessToken(); err != nil {
 		return nil, err
 	}
+	rangeValue = strings.TrimSpace(rangeValue)
 	conditionBuilder := larksheets.NewFindConditionBuilder()
-	if strings.TrimSpace(rangeValue) != "" {
-		conditionBuilder.Range(strings.TrimSpace(rangeValue))
+	if rangeValue != "" {
+		conditionBuilder.Range(rangeValue)
 	}
 	if matchCase {
 		conditionBuilder.MatchCase(matchCase)
@@ -182,7 +183,7 @@ func (c *Client) FindSheet(ctx context.Context, raw string, sheetID string, quer
 		SpreadsheetToken: target.SpreadsheetToken,
 		SheetID:          sheetID,
 		Query:            query,
-		Range:            strings.TrimSpace(rangeValue),
+		Range:            rangeValue,
 		FindResult:       map[string]any{},
 	}
 	if resp.Data == nil || resp.Data.FindResult == nil {

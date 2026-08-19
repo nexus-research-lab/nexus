@@ -222,6 +222,10 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 	prompt string,
 	extraMetadata map[string]string,
 ) (*protocol.GoalContinuation, error) {
+	previousRoundID = strings.TrimSpace(previousRoundID)
+	executionID = strings.TrimSpace(executionID)
+	purpose = strings.TrimSpace(purpose)
+	prompt = strings.TrimSpace(prompt)
 	roundID := s.idFactory("goal_continuation")
 	expectedVersion := item.Version
 	now := s.nowFn()
@@ -235,16 +239,16 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 	item.LastError = ""
 	payload := map[string]any{
 		"continuation_count": item.ContinuationCount,
-		"purpose":            strings.TrimSpace(purpose),
+		"purpose":            purpose,
 	}
-	if previous := strings.TrimSpace(previousRoundID); previous != "" {
-		payload["previous_round_id"] = previous
+	if previousRoundID != "" {
+		payload["previous_round_id"] = previousRoundID
 	}
 	event := s.newGoalEvent(*item, "continuation_scheduled", protocol.GoalUpdateSourceSystem, roundID, payload, now)
 	metadata := map[string]string{
 		"goal_id":           item.ID,
 		"session_key":       item.SessionKey,
-		"previous_round_id": strings.TrimSpace(previousRoundID),
+		"previous_round_id": previousRoundID,
 	}
 	for key, value := range extraMetadata {
 		if key = strings.TrimSpace(key); key != "" {
@@ -257,9 +261,9 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 		nextAttemptAt := now
 		updated, err = durableRepository.ReserveGoalContinuation(ctx, *item, expectedVersion, event, protocol.GoalContinuationPlan{
 			RoundID: roundID, GoalID: item.ID, SessionKey: item.SessionKey,
-			ObjectiveRevision: item.ObjectiveRevision(), ExecutionID: strings.TrimSpace(executionID),
-			PreviousRoundID: strings.TrimSpace(previousRoundID), Prompt: strings.TrimSpace(prompt),
-			Purpose: strings.TrimSpace(purpose), Metadata: metadata,
+			ObjectiveRevision: item.ObjectiveRevision(), ExecutionID: executionID,
+			PreviousRoundID: previousRoundID, Prompt: prompt,
+			Purpose: purpose, Metadata: metadata,
 			Status: protocol.GoalContinuationPlanStatusScheduled, Version: 1,
 			NextAttemptAt: &nextAttemptAt, CreatedAt: now, UpdatedAt: now,
 		})
@@ -276,12 +280,12 @@ func (s *Service) reserveContinuationPlanForLoadedGoal(
 	s.WakeAutoResume()
 	return &protocol.GoalContinuation{
 		Goal:           *updated,
-		ExecutionID:    strings.TrimSpace(executionID),
+		ExecutionID:    executionID,
 		RoundID:        roundID,
-		Prompt:         strings.TrimSpace(prompt),
+		Prompt:         prompt,
 		HiddenFromUser: true,
 		Synthetic:      true,
-		Purpose:        strings.TrimSpace(purpose),
+		Purpose:        purpose,
 		Metadata:       metadata,
 	}, nil
 }

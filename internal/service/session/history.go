@@ -333,8 +333,8 @@ func (s *Service) hydrateRoomHistorySession(
 	}
 
 	merged := dmdomain.MergeRoomBackedSession(*fileSession, roomSession)
-	roomSessionID := strings.TrimSpace(stringPointerValue(roomSession.SessionID))
-	fileSessionID := strings.TrimSpace(stringPointerValue(fileSession.SessionID))
+	roomSessionID := stringPointerValue(roomSession.SessionID)
+	fileSessionID := stringPointerValue(fileSession.SessionID)
 	if roomSessionID == "" && fileSessionID != "" {
 		merged.SessionID = fileSession.SessionID
 		if merged.RoomSessionID != nil && strings.TrimSpace(*merged.RoomSessionID) != "" {

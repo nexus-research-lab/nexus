@@ -136,7 +136,7 @@ func (c *PersonalWeixinMultiAccountChannel) accountForTarget(target channelcontr
 	if len(c.accounts) == 0 {
 		return nil, fmt.Errorf("personal weixin channel has no logged-in accounts")
 	}
-	if accountID := strings.TrimSpace(normalized.AccountID); accountID != "" {
+	if accountID := normalized.AccountID; accountID != "" {
 		if account := c.accounts[accountID]; account != nil {
 			return account, nil
 		}

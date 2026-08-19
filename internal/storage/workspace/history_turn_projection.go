@@ -72,8 +72,8 @@ func (p *conversationTurnProjector) add(source protocol.Message) {
 }
 
 func (p *conversationTurnProjector) projectRow(source protocol.Message) (projectedTurnRow, bool) {
-	rawRoundID := strings.TrimSpace(stringFromAny(source["round_id"]))
-	agentID := strings.TrimSpace(stringFromAny(source["agent_id"]))
+	rawRoundID := stringFromAny(source["round_id"])
+	agentID := stringFromAny(source["agent_id"])
 	rootRoundID := rawRoundID
 	if p.collapseRoomAgentRounds {
 		rootRoundID = normalizeRoomHistoryRoundID(rawRoundID, agentID)
@@ -82,7 +82,7 @@ func (p *conversationTurnProjector) projectRow(source protocol.Message) (project
 	if rootRoundID == "" {
 		return projectedTurnRow{}, false
 	}
-	agentRoundID := strings.TrimSpace(stringFromAny(source["agent_round_id"]))
+	agentRoundID := stringFromAny(source["agent_round_id"])
 	if agentRoundID == "" && rawRoundID != rootRoundID {
 		// 旧后缀值直接作为稳定 agent_round_id，避免重放时生成新标识。
 		agentRoundID = rawRoundID
@@ -143,7 +143,7 @@ func (acc *turnAccumulator) observeTimestamp(timestamp int64) {
 }
 
 func (acc *turnAccumulator) addRow(row projectedTurnRow) {
-	switch strings.TrimSpace(stringFromAny(row.source["role"])) {
+	switch stringFromAny(row.source["role"]) {
 	case "user":
 		if acc.turn.UserMessage == nil {
 			message := row.message
@@ -224,17 +224,17 @@ func convertTurnMessage(
 	agentID string,
 ) protocol.ConversationMessage {
 	converted := protocol.ConversationMessage{
-		MessageID:    strings.TrimSpace(stringFromAny(row["message_id"])),
-		SessionKey:   strings.TrimSpace(stringFromAny(row["session_key"])),
-		Role:         strings.TrimSpace(stringFromAny(row["role"])),
+		MessageID:    stringFromAny(row["message_id"]),
+		SessionKey:   stringFromAny(row["session_key"]),
+		Role:         stringFromAny(row["role"]),
 		RoundID:      rootRoundID,
 		AgentRoundID: agentRoundID,
 		AgentID:      agentID,
-		ParentID:     strings.TrimSpace(stringFromAny(row["parent_id"])),
+		ParentID:     stringFromAny(row["parent_id"]),
 		Content:      row["content"],
 		Timestamp:    messageTimestamp(row),
 		DisplayOrder: protocol.Int64FromAny(row["display_order"]),
-		StreamStatus: strings.TrimSpace(stringFromAny(row["stream_status"])),
+		StreamStatus: stringFromAny(row["stream_status"]),
 	}
 	if converted.Role == "result" {
 		converted.Content = row["result"]
@@ -255,12 +255,12 @@ func agentMentionsFromAny(value any) []protocol.AgentMention {
 	case []map[string]any:
 		for _, payload := range typed {
 			result = append(result, protocol.AgentMention{
-				AgentID:           strings.TrimSpace(stringFromAny(payload["agent_id"])),
-				Label:             strings.TrimSpace(stringFromAny(payload["label"])),
+				AgentID:           stringFromAny(payload["agent_id"]),
+				Label:             stringFromAny(payload["label"]),
 				ContentBlockIndex: int(protocol.Int64FromAny(payload["content_block_index"])),
 				StartRune:         int(protocol.Int64FromAny(payload["start_rune"])),
 				EndRune:           int(protocol.Int64FromAny(payload["end_rune"])),
-				HandoffID:         strings.TrimSpace(stringFromAny(payload["handoff_id"])),
+				HandoffID:         stringFromAny(payload["handoff_id"]),
 			})
 		}
 	case []any:
@@ -270,12 +270,12 @@ func agentMentionsFromAny(value any) []protocol.AgentMention {
 				continue
 			}
 			result = append(result, protocol.AgentMention{
-				AgentID:           strings.TrimSpace(stringFromAny(payload["agent_id"])),
-				Label:             strings.TrimSpace(stringFromAny(payload["label"])),
+				AgentID:           stringFromAny(payload["agent_id"]),
+				Label:             stringFromAny(payload["label"]),
 				ContentBlockIndex: int(protocol.Int64FromAny(payload["content_block_index"])),
 				StartRune:         int(protocol.Int64FromAny(payload["start_rune"])),
 				EndRune:           int(protocol.Int64FromAny(payload["end_rune"])),
-				HandoffID:         strings.TrimSpace(stringFromAny(payload["handoff_id"])),
+				HandoffID:         stringFromAny(payload["handoff_id"]),
 			})
 		}
 	}
@@ -289,7 +289,7 @@ func buildResultSummaryFromRow(row protocol.Message) map[string]any {
 	if duration := protocol.Int64FromAny(row["duration_ms"]); duration > 0 {
 		summary["duration_ms"] = duration
 	}
-	if result := strings.TrimSpace(stringFromAny(row["result"])); result != "" {
+	if result := stringFromAny(row["result"]); result != "" {
 		summary["result"] = result
 	}
 	if isError, ok := row["is_error"].(bool); ok {
@@ -378,7 +378,7 @@ func turnPreviewText(content any) string {
 			if !ok || stringFromAny(block["type"]) != "text" {
 				continue
 			}
-			if text := strings.TrimSpace(stringFromAny(block["text"])); text != "" {
+			if text := stringFromAny(block["text"]); text != "" {
 				parts = append(parts, text)
 			}
 		}

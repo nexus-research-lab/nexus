@@ -127,10 +127,10 @@ func (c *WeComBotChannel) Stop(context.Context) error {
 
 func (c *WeComBotChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
-	if strings.TrimSpace(target.To) == "" {
+	if normalized.To == "" {
 		return channelcontract.NewDeliveryResult(normalized, nil), fmt.Errorf("wechat bot delivery target requires to")
 	}
-	if accountID := strings.TrimSpace(normalized.AccountID); accountID != "" && accountID != c.botID {
+	if accountID := normalized.AccountID; accountID != "" && accountID != c.botID {
 		return channelcontract.NewDeliveryResult(normalized, nil), fmt.Errorf("wechat bot delivery account does not match configured bot")
 	}
 	chunks := channeltransport.SplitText(strings.TrimSpace(text), 3800)
@@ -138,8 +138,8 @@ func (c *WeComBotChannel) SendDeliveryMessage(ctx context.Context, target channe
 		return channelcontract.NewDeliveryResult(normalized, nil), nil
 	}
 	parts := make([]channelmessage.ReceiptPart, 0, len(chunks))
-	replyReqID := strings.TrimSpace(normalized.ReplyContextID)
-	streamID := strings.TrimSpace(normalized.StreamID)
+	replyReqID := normalized.ReplyContextID
+	streamID := normalized.StreamID
 	for index, chunk := range chunks {
 		reqID := replyReqID
 		var frame weComBotCommandFrame

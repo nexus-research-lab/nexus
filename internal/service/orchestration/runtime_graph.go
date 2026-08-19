@@ -155,6 +155,7 @@ func (s *Service) ObserveRuntimeMessage(
 			status == protocol.ExecutionRuntimeNodeSucceeded {
 			status = protocol.ExecutionRuntimeNodeFailed
 		}
+		parentSubjectID := strings.TrimSpace(event.ParentSubjectID)
 		nodeID := runtimeGraphNodeID(identity, nodeKind, event.SubjectID)
 		previousNode := runtimeNodeByID[nodeID]
 		// Provider progress facets such as search-progress / agent_msg describe
@@ -162,11 +163,11 @@ func (s *Service) ObserveRuntimeMessage(
 		// they are detail evidence rather than independently executable nodes.
 		if event.Phase == sdkprotocol.RuntimeLifecycleProgress &&
 			previousNode.ID == "" &&
-			strings.TrimSpace(event.ParentSubjectID) != "" {
+			parentSubjectID != "" {
 			continue
 		}
 		sourceNodeID := rootNodeID
-		if parentNodeID := parentNodeBySubject[strings.TrimSpace(event.ParentSubjectID)]; parentNodeID != "" {
+		if parentNodeID := parentNodeBySubject[parentSubjectID]; parentNodeID != "" {
 			sourceNodeID = parentNodeID
 		}
 		finishedAt := (*time.Time)(nil)
@@ -229,7 +230,7 @@ func (s *Service) ObserveRuntimeMessage(
 			ExecutionID:      firstNonEmpty(identity.ExecutionID, activeSegment.ExecutionID),
 			Kind:             nodeKind,
 			SubjectID:        strings.TrimSpace(event.SubjectID),
-			ParentSubjectID:  strings.TrimSpace(event.ParentSubjectID),
+			ParentSubjectID:  parentSubjectID,
 			RootRoundID:      identity.RootRoundID,
 			RuntimeRoundID:   identity.RuntimeRoundID,
 			AgentRoundID:     identity.AgentRoundID,

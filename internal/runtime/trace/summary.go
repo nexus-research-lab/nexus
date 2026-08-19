@@ -211,7 +211,7 @@ func summarizeContentBlocks(blocks []sdkprotocol.ContentBlock) ([]string, string
 		switch blockType {
 		case "tool_use":
 			if toolUseBlock, ok := sdkprotocol.AsToolUseBlock(block); ok {
-				if toolName := strings.TrimSpace(FirstNonEmpty(toolUseBlock.Name, toolUseBlock.ID)); toolName != "" {
+				if toolName := FirstNonEmpty(toolUseBlock.Name, toolUseBlock.ID); toolName != "" {
 					previewParts = append(previewParts, "tool_use:"+toolName)
 				}
 			}

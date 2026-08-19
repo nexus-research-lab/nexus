@@ -84,17 +84,19 @@ func (s *Service) DeliverExecutionCancellation(
 		return orchestrationsvc.ExecutionCancellationReceipt{}, err
 	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
+	detail := strings.TrimSpace(result.Detail)
+	limitationCode := strings.TrimSpace(result.LimitationCode)
 	switch result.Outcome {
 	case runtimectx.ExactRoundProviderInterrupted:
 		return orchestrationsvc.ExecutionCancellationReceipt{
 			Outcome: protocol.ExecutionCancellationOutcomeProviderInterrupted,
-			Detail:  strings.TrimSpace(result.Detail),
+			Detail:  detail,
 		}, nil
 	case runtimectx.ExactRoundLocalCancelled:
 		return orchestrationsvc.ExecutionCancellationReceipt{
 			Outcome:        protocol.ExecutionCancellationOutcomeLocalRoundCancelled,
-			LimitationCode: strings.TrimSpace(result.LimitationCode),
-			Detail:         strings.TrimSpace(result.Detail),
+			LimitationCode: limitationCode,
+			Detail:         detail,
 		}, nil
 	case runtimectx.ExactRoundAlreadyEnded:
 		return orchestrationsvc.ExecutionCancellationReceipt{
@@ -104,8 +106,8 @@ func (s *Service) DeliverExecutionCancellation(
 	case runtimectx.ExactRoundInterruptUnsupported:
 		return orchestrationsvc.ExecutionCancellationReceipt{
 			Outcome:        protocol.ExecutionCancellationOutcomeUnsupported,
-			LimitationCode: strings.TrimSpace(result.LimitationCode),
-			Detail:         strings.TrimSpace(result.Detail),
+			LimitationCode: limitationCode,
+			Detail:         detail,
 		}, nil
 	default:
 		return orchestrationsvc.ExecutionCancellationReceipt{},

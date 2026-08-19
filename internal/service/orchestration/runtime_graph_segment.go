@@ -178,16 +178,16 @@ func (s *Service) runtimeExecutionSegmentFromMutation(
 	toolName string,
 	evidence runtimeGraphNodeEvidence,
 ) runtimeExecutionSegment {
+	executionID := strings.TrimSpace(evidence.executionID)
 	if s == nil || s.repository == nil ||
 		actor.ScopeKind != protocol.ExecutionScopeDM ||
 		runtimeGraphCanonicalToolLeaf(toolName) != "assignwork" ||
 		evidence.mutationOutcome != protocol.MutationResultApplied ||
-		strings.TrimSpace(evidence.executionID) == "" ||
+		executionID == "" ||
 		(identity.ExecutionID != "" &&
-			strings.TrimSpace(evidence.executionID) != identity.ExecutionID) {
+			executionID != identity.ExecutionID) {
 		return runtimeExecutionSegment{}
 	}
-	executionID := strings.TrimSpace(evidence.executionID)
 	assignmentID, assignmentOK := uniqueRuntimeMutationRef(evidence.changed, "assignment:")
 	attemptID, attemptOK := uniqueRuntimeMutationRef(evidence.changed, "attempt:")
 	if !assignmentOK || !attemptOK {

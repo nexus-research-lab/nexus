@@ -79,6 +79,11 @@ func (s *Service) SupersedeGoalRevision(
 	if s == nil || s.repository == nil {
 		return nil, fmt.Errorf("orchestration repository is nil")
 	}
+	input.ActorID = strings.TrimSpace(input.ActorID)
+	input.RootRoundID = strings.TrimSpace(input.RootRoundID)
+	input.ExpectedOwnerUserID = strings.TrimSpace(input.ExpectedOwnerUserID)
+	input.GoalID = strings.TrimSpace(input.GoalID)
+	input.SuccessorExecutionID = strings.TrimSpace(input.SuccessorExecutionID)
 	executionID := strings.TrimSpace(input.ExecutionID)
 	if executionID == "" {
 		return nil, nil
@@ -91,9 +96,9 @@ func (s *Service) SupersedeGoalRevision(
 		actorKind = protocol.ExecutionActorUser
 	}
 	actor := ActorContext{
-		AgentID:     strings.TrimSpace(input.ActorID),
+		AgentID:     input.ActorID,
 		ActorKind:   actorKind,
-		RootRoundID: strings.TrimSpace(input.RootRoundID),
+		RootRoundID: input.RootRoundID,
 	}
 	snapshot, err := s.repository.GetSnapshot(ctx, executionID)
 	if err != nil {
@@ -104,10 +109,10 @@ func (s *Service) SupersedeGoalRevision(
 			ctx,
 			orchestrationstore.FenceGoalExecutionIdentityCommand{
 				ExecutionID:           executionID,
-				ExpectedOwnerUserID:   strings.TrimSpace(input.ExpectedOwnerUserID),
-				GoalID:                strings.TrimSpace(input.GoalID),
+				ExpectedOwnerUserID:   input.ExpectedOwnerUserID,
+				GoalID:                input.GoalID,
 				GoalObjectiveRevision: input.OldGoalObjectiveRevision,
-				SuccessorExecutionID:  strings.TrimSpace(input.SuccessorExecutionID),
+				SuccessorExecutionID:  input.SuccessorExecutionID,
 				Meta:                  s.commandMeta(actor, input.CommandID, "goal-retarget-fence"),
 			},
 		)
@@ -128,14 +133,14 @@ func (s *Service) SupersedeGoalRevision(
 			)
 		}
 	}
-	if strings.TrimSpace(snapshot.Execution.GoalID) != strings.TrimSpace(input.GoalID) ||
+	if strings.TrimSpace(snapshot.Execution.GoalID) != input.GoalID ||
 		snapshot.Execution.GoalObjectiveRevision != input.OldGoalObjectiveRevision {
 		return nil, domainError(
 			ErrorCodeGoalBindingConflict,
 			"old Execution does not match the Goal objective revision being retargeted",
 		)
 	}
-	if expectedOwner := strings.TrimSpace(input.ExpectedOwnerUserID); expectedOwner != "" &&
+	if expectedOwner := input.ExpectedOwnerUserID; expectedOwner != "" &&
 		strings.TrimSpace(snapshot.Execution.OwnerUserID) != expectedOwner {
 		return nil, domainError(
 			ErrorCodeGoalBindingConflict,
@@ -145,11 +150,11 @@ func (s *Service) SupersedeGoalRevision(
 	updated, supersedeErr := s.repository.SupersedeGoalRevision(ctx, orchestrationstore.SupersedeGoalRevisionCommand{
 		ExecutionID:              snapshot.Execution.ID,
 		ExpectedExecutionVersion: snapshot.Execution.Version,
-		ExpectedOwnerUserID:      strings.TrimSpace(input.ExpectedOwnerUserID),
-		GoalID:                   strings.TrimSpace(input.GoalID),
+		ExpectedOwnerUserID:      input.ExpectedOwnerUserID,
+		GoalID:                   input.GoalID,
 		OldGoalObjectiveRevision: input.OldGoalObjectiveRevision,
 		NewGoalObjectiveRevision: input.NewGoalObjectiveRevision,
-		SuccessorExecutionID:     strings.TrimSpace(input.SuccessorExecutionID),
+		SuccessorExecutionID:     input.SuccessorExecutionID,
 		Reason:                   strings.TrimSpace(input.Reason),
 		Meta:                     s.commandMeta(actor, input.CommandID, "goal-retarget-supersede"),
 	})
