@@ -12,6 +12,10 @@ import {
 } from "@/config/runtime-options";
 import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
+import {
+  getHomeOnboardingReturnPath,
+} from "@/features/onboarding/home-agent-onboarding";
+import { useHomeOnboardingState } from "@/features/onboarding/use-home-onboarding-state";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { getIconAvatarSrc } from "@/lib/avatar";
@@ -55,6 +59,7 @@ export function useSidebarWidePanelController() {
   const desktopRuntime = isDesktopRuntime();
   const settingsMode = pathname === AppRouteBuilders.settings();
   const prefersReducedMotion = usePrefersReducedMotion();
+  const homeOnboarding = useHomeOnboardingState();
   const nexusAgent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
   const nexusAvatar = nexusAgent?.avatar?.trim() || getDefaultAgentAvatar();
 
@@ -76,6 +81,14 @@ export function useSidebarWidePanelController() {
   }, [activePanelItemId, pathname, setActivePanelItem]);
 
   const openNexus = useCallback(() => {
+    const onboardingReturnPath = homeOnboarding.active
+      ? getHomeOnboardingReturnPath()
+      : null;
+    if (onboardingReturnPath) {
+      setActivePanelItem(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
+      navigate(onboardingReturnPath);
+      return;
+    }
     if (!defaultAgentId) {
       return;
     }
@@ -85,7 +98,12 @@ export function useSidebarWidePanelController() {
       .catch((error) => {
         console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
       });
-  }, [defaultAgentId, navigate, setActivePanelItem]);
+  }, [
+    defaultAgentId,
+    homeOnboarding.active,
+    navigate,
+    setActivePanelItem,
+  ]);
 
   const selectPrimaryTab = useCallback((tab: SidebarPrimaryTab) => {
     const actions: Record<SidebarPrimaryTab, () => void> = {
@@ -136,6 +154,7 @@ export function useSidebarWidePanelController() {
         ),
         avatarSrc: getIconAvatarSrc(nexusAvatar),
         onClick: openNexus,
+        onboardingActive: homeOnboarding.active,
         prefersReducedMotion,
       },
       onSelectTab: selectPrimaryTab,

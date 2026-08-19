@@ -25,6 +25,9 @@ func (p *Processor) workspaceFileArtifactsForToolResult(toolResult map[string]an
 		return nil
 	}
 	toolName := normalizeString(toolUse["name"])
+	if artifact := p.nexusResourceArtifactForToolResult(toolResult, toolUseID, toolName); artifact != nil {
+		return []map[string]any{artifact.Map()}
+	}
 	if artifact := p.imagegenArtifactForToolResult(toolResult, toolUseID, toolName); artifact != nil {
 		return []map[string]any{artifact.Map()}
 	}

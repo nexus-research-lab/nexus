@@ -71,6 +71,7 @@ type ChatRequest struct {
 	UserMessageID         string
 	DeliveryPolicy        protocol.ChatDeliveryPolicy
 	BroadcastUserMessage  bool
+	ScriptedHostMessage   bool
 	Internal              bool
 	InputOptions          sdkprotocol.OutboundMessageOptions
 	PermissionMode        sdkpermission.Mode

@@ -70,6 +70,7 @@ function buildChatCommand(
     delivery_policy: options.delivery_policy ?? "queue",
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(options.target_agent_ids?.length ? { target_agent_ids: options.target_agent_ids } : {}),
+    ...(options.scripted_host_message ? { scripted_host_message: true } : {}),
   } as WebSocketMessage;
 }
 
@@ -95,7 +96,9 @@ export async function sendSessionMessage(
     buildChatCommand(content, actionContext, request, options),
     "消息未发送到后端，请检查连接后重试",
   );
-  context.setMessages((messages) => upsertMessage(messages, optimisticMessage));
+  if (!options.scripted_host_message) {
+    context.setMessages((messages) => upsertMessage(messages, optimisticMessage));
+  }
   return request;
 }
 

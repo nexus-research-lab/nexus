@@ -31,6 +31,7 @@ interface SidebarExpandedPanelProps {
     active: boolean;
     avatarSrc: string | null;
     onClick: () => void;
+    onboardingActive: boolean;
     prefersReducedMotion: boolean;
   };
   onPointerDown: PointerEventHandler<HTMLDivElement>;

@@ -60,6 +60,8 @@ function ActiveRoomPage({
         currentTodos={workspace.currentTodos}
         sidePanelWidthPercent={workspace.sidePanelWidthPercent}
         initialDraft={navigation.initialDraft}
+        initialSendOptions={navigation.initialSendOptions}
+        isOnboarding={navigation.isOnboarding}
         isResizingSidePanel={workspace.isResizingSidePanel}
         onReplayTour={onReplayTour}
         onManageRoom={actions.manageRoom}
@@ -143,7 +145,11 @@ export function RoomPage() {
   const { startCurrentTour } = useRoomPageTour({
     roomType: getCurrentRoomType(controller),
     hasConversation: Boolean(conversation.current),
-    enabled: status.isHydrated && Boolean(room.current),
+    enabled:
+      status.isHydrated
+      && Boolean(room.current)
+      && !navigation.isOnboarding
+      && !navigation.suppressRoomTour,
   });
   const handleRoomEvent = useRoomPageEvents({
     roomId: params.roomId,

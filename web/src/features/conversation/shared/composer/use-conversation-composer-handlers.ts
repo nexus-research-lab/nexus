@@ -9,6 +9,7 @@ import type { MessageAttachment } from "@/types/conversation/message/attachment"
 interface UseConversationComposerHandlersOptions {
   canSendInitialDraft?: boolean;
   initialDraft?: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
   initialDraftLogLabel: string;
   isLoading: boolean;
   onInitialDraftConsumed?: () => void;
@@ -24,6 +25,7 @@ interface UseConversationComposerHandlersOptions {
 export function useConversationComposerHandlers({
   canSendInitialDraft = true,
   initialDraft = null,
+  initialSendOptions,
   initialDraftLogLabel,
   isLoading,
   onInitialDraftConsumed,
@@ -70,7 +72,7 @@ export function useConversationComposerHandlers({
 
     consumedInitialDraftRef.current = initialDraftKey;
     scrollToBottom("auto");
-    void sendMessage(normalizedDraft)
+    void sendMessage(normalizedDraft, initialSendOptions)
       .then(() => {
         onInitialDraftConsumed?.();
       })
@@ -85,6 +87,7 @@ export function useConversationComposerHandlers({
     canSendInitialDraft,
     initialDraft,
     initialDraftLogLabel,
+    initialSendOptions,
     isLoading,
     onInitialDraftConsumed,
     scrollToBottom,

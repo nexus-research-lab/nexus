@@ -8,7 +8,7 @@ import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-f
 export function HomePage() {
   return (
     <WorkspacePageFrame>
-      <div className="flex min-h-0 flex-1 h-full">
+      <div className="flex h-full min-h-0 flex-1">
         <HomeAsciiHero />
       </div>
     </WorkspacePageFrame>

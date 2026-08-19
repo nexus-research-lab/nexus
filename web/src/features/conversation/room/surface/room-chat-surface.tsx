@@ -6,6 +6,7 @@ import { getAgentConversationIdentityKey } from "@/lib/conversation/agent-conver
 import type { Agent } from "@/types/agent/agent";
 import type {
   AgentConversationIdentity,
+  AgentConversationSendOptions,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import type { ConversationSnapshotPayload } from "@/types/conversation/conversation";
@@ -20,6 +21,8 @@ interface RoomChatSurfaceProps {
   currentAgentSessionIdentity: AgentConversationIdentity | null;
   conversationId: string | null;
   initialDraft?: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
+  isOnboarding?: boolean;
   layout: "desktop" | "mobile";
   onInitialDraftConsumed?: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
@@ -41,6 +44,8 @@ export function RoomChatSurface({
   currentAgentSessionIdentity: currentAgentSessionIdentity,
   conversationId: conversationId,
   initialDraft: initialDraft,
+  initialSendOptions: initialSendOptions,
+  isOnboarding: isOnboarding = false,
   layout: layout,
   onInitialDraftConsumed: onInitialDraftConsumed,
   onConversationSnapshotChange: onConversationSnapshotChange,
@@ -67,6 +72,7 @@ export function RoomChatSurface({
           currentAgentAvatar={currentAgent.avatar ?? null}
           currentAgentPermissionMode={currentAgent.options.permission_mode ?? null}
           initialDraft={initialDraft}
+          onboarding={isOnboarding}
           layout={layout}
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
@@ -84,7 +90,9 @@ export function RoomChatSurface({
           currentAgentName={currentAgent.name}
           currentAgentAvatar={currentAgent.avatar ?? null}
           initialDraft={initialDraft}
+          initialSendOptions={initialSendOptions}
           layout={layout}
+          onboarding={isOnboarding}
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
           onCreateConversation={onCreateConversation}

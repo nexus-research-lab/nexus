@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef } from "react";
+
+import { HomeOnboardingFocusLayer } from "@/features/onboarding/home-onboarding-focus-layer";
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
@@ -29,6 +32,8 @@ export function RoomSurfaceContent({
   currentTodos,
   sidePanelWidthPercent,
   initialDraft = null,
+  initialSendOptions,
+  isOnboarding = false,
   isResizingSidePanel,
   isThreadPanelOpen,
   onChangeSurfaceTab,
@@ -58,6 +63,7 @@ export function RoomSurfaceContent({
   surfaceSplitRef,
 }: RoomSurfaceContentProps) {
   const isDm = currentRoomType === "dm";
+  const onboardingFocusRef = useRef<HTMLDivElement>(null);
   const layout = useRoomSurfaceLayoutController({
     activeSurfaceTab,
     conversationId,
@@ -110,28 +116,37 @@ export function RoomSurfaceContent({
           <div className="flex h-full min-h-0 min-w-0">
             <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
               {/* 聊天面板常驻挂载，切换右栏时不能触发 WebSocket 清理。 */}
-              <RoomChatSurface
-                conversationId={conversationId}
-                currentAgent={currentAgent}
-                currentAgentSessionIdentity={currentAgentSessionIdentity}
-                currentRoomType={currentRoomType}
-                initialDraft={initialDraft}
-                layout="desktop"
-                onConversationSnapshotChange={onConversationSnapshotChange}
-                onCreateConversation={onCreateConversation}
-                onInitialDraftConsumed={onInitialDraftConsumed}
-                onOpenAgentContact={layout.handleOpenAgentContact}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
-                onRoomEvent={onRoomEvent}
-                onTodosChange={onTodosChange}
-                roomHostAgentId={roomHostAgentId}
-                roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
-                roomId={roomId}
-                roomMembers={roomMembers}
-                runtimeKind={runtimeKind}
-              />
+              <div
+                ref={onboardingFocusRef}
+                className="flex h-full min-h-0 min-w-0 flex-col"
+                data-onboarding-conversation-focus={isOnboarding ? "true" : undefined}
+              >
+                <RoomChatSurface
+                  conversationId={conversationId}
+                  currentAgent={currentAgent}
+                  currentAgentSessionIdentity={currentAgentSessionIdentity}
+                  currentRoomType={currentRoomType}
+                  initialDraft={initialDraft}
+                  initialSendOptions={initialSendOptions}
+                  isOnboarding={isOnboarding}
+                  layout="desktop"
+                  onConversationSnapshotChange={onConversationSnapshotChange}
+                  onCreateConversation={onCreateConversation}
+                  onInitialDraftConsumed={onInitialDraftConsumed}
+                  onOpenAgentContact={layout.handleOpenAgentContact}
+                  onOpenWorkspaceFile={onOpenWorkspaceFile}
+                  onRoomEvent={onRoomEvent}
+                  onTodosChange={onTodosChange}
+                  roomHostAgentId={roomHostAgentId}
+                  roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
+                  roomId={roomId}
+                  roomMembers={roomMembers}
+                  runtimeKind={runtimeKind}
+                />
+              </div>
               <WorkspaceTaskPanel
                 key={conversationId ?? "conversation-tasks"}
+                className={isOnboarding ? "hidden" : undefined}
                 todos={currentTodos}
               />
             </div>
@@ -170,6 +185,10 @@ export function RoomSurfaceContent({
             ) : null}
           </div>
         </WorkspaceSurfaceScaffold>
+        <HomeOnboardingFocusLayer
+          enabled={isOnboarding}
+          targetRef={onboardingFocusRef}
+        />
       </div>
     </section>
   );

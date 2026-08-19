@@ -1,4 +1,9 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+/**
+ * INPUT: 问题卡片展示模型、标题与展开状态。
+ * OUTPUT: 标准问题头或带新手引导标识的模板头。
+ * POS: AskUserQuestion 单卡片头部，只解释展示模型。
+ */
+import { ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
@@ -36,7 +41,10 @@ export function AskUserQuestionCardHeader({
         hasSelection={presentation.hasSelection}
         questionIndex={questionIndex}
       />
-      <QuestionHeaderLabel header={question.header} />
+      <QuestionHeaderLabel
+        header={presentation.headerLabel}
+        isOnboarding={presentation.isOnboarding}
+      />
       <span className="flex-1 truncate text-[13px] font-medium leading-tight text-foreground">
         {question.question}
       </span>
@@ -74,12 +82,25 @@ function QuestionIndex({
   );
 }
 
-function QuestionHeaderLabel({ header }: { header?: string }) {
+function QuestionHeaderLabel({
+  header,
+  isOnboarding,
+}: {
+  header?: string;
+  isOnboarding: boolean;
+}) {
   if (!header) {
     return null;
   }
   return (
-    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/80">
+    <span
+      className={cn(
+        "shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/80",
+        isOnboarding
+          && "inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-primary",
+      )}
+    >
+      {isOnboarding ? <Sparkles className="h-3 w-3" /> : null}
       {header}
     </span>
   );

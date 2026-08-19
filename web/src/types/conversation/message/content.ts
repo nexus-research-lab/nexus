@@ -1,5 +1,5 @@
 /**
- * Assistant 结构化内容块契约。
+ * Assistant 结构化内容块契约；Room 资源产物可声明首次进入时的主持开场动作。
  */
 
 import type { ToolInput } from "../../system/sdk";
@@ -81,6 +81,27 @@ export interface WorkspaceFileArtifactContent {
   source_tool_name?: string | null;
 }
 
+export interface NexusResourceArtifactContent {
+  type: "nexus_resource_artifact";
+  id: string;
+  resource_kind: "agent" | "room";
+  resource_id: string;
+  name: string;
+  description?: string | null;
+  avatar?: string | null;
+  conversation_id?: string | null;
+  members?: Array<{
+    id: string;
+    name: string;
+    avatar?: string | null;
+  }>;
+  vibe_tags?: string[];
+  initial_message?: string | null;
+  initial_target_agent_ids?: string[];
+  source_tool_use_id?: string | null;
+  source_tool_name?: string | null;
+}
+
 type SystemEventTone = "neutral" | "warning";
 export type SystemEventIcon = "retry" | "progress" | "status" | "guide";
 
@@ -109,5 +130,6 @@ export type ContentBlock =
   | ThinkingContent
   | ImageContent
   | TaskProgressContent
+  | NexusResourceArtifactContent
   | WorkspaceFileArtifactContent
   | SystemEventContent;

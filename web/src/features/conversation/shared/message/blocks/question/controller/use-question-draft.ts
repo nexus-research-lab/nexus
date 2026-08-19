@@ -77,7 +77,12 @@ export function useQuestionDraft({
     }));
   }, [questions, readOnly, setDraft]);
 
-  return { draft, toggleOption, updateCustomAnswer };
+  return {
+    draft,
+    replaceDraft: setDraft,
+    toggleOption,
+    updateCustomAnswer,
+  };
 }
 
 export function useQuestionExpansion(

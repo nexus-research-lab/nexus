@@ -206,13 +206,14 @@ func roomMentionTextBlocks(content any) []roomMentionTextBlock {
 	}
 }
 
-// annotateRoomUserMessage 写入用户消息中的 mention span；用户消息不创建 handoff，
-// 它只把服务端已经解析出的目标身份传给共享渲染器。
+// annotateRoomUserMessage 写入用户消息或受信任的主持人开场消息中的 mention span；
+// 输入消息不创建 handoff，只把服务端已经解析出的目标身份传给共享渲染器。
 func annotateRoomUserMessage(
 	contextValue *protocol.ConversationContextAggregate,
 	message protocol.Message,
 ) {
-	if contextValue == nil || message == nil || protocol.MessageRole(message) != "user" {
+	role := protocol.MessageRole(message)
+	if contextValue == nil || message == nil || (role != "user" && role != "assistant") {
 		return
 	}
 	content, ok := message["content"].(string)

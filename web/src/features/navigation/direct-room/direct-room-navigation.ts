@@ -1,5 +1,8 @@
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { ensureDirectRoom } from "@/lib/api/conversation/room-command-api";
+import {
+  createRoomConversation,
+  ensureDirectRoom,
+} from "@/lib/api/conversation/room-command-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
 import { useAgentStore } from "@/store/agent";
 import type { RoomContextAggregate } from "@/types/conversation/room";
@@ -15,19 +18,32 @@ export interface DirectRoomNavigationTarget {
 export async function resolveDirectRoomNavigationTarget(
   agentId: string,
   initialMessage?: string,
+  options?: { onboarding?: boolean },
 ): Promise<DirectRoomNavigationTarget> {
-  const context = await resolveDirectRoom(agentId);
+  const directRoomContext = await resolveDirectRoom(agentId);
+  const context = options?.onboarding
+    ? await createRoomConversation(directRoomContext.room.id, {
+        title: "Nexus 新手旅程",
+      })
+    : directRoomContext;
   const normalizedInitialMessage = initialMessage?.trim() ?? "";
   const baseRoute = AppRouteBuilders.roomConversation(
     context.room.id,
     context.conversation.id,
   );
 
+  const searchParams = new URLSearchParams();
+  if (normalizedInitialMessage) {
+    searchParams.set("initial", normalizedInitialMessage);
+  }
+  if (options?.onboarding) {
+    searchParams.set("onboarding", "1");
+  }
+  const query = searchParams.toString();
+
   return {
     context,
-    route: normalizedInitialMessage
-      ? `${baseRoute}?initial=${encodeURIComponent(normalizedInitialMessage)}`
-      : baseRoute,
+    route: query ? `${baseRoute}?${query}` : baseRoute,
   };
 }
 

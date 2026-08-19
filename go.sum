@@ -46,6 +46,8 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.19 h1:lI6HN7D2lz1UBnaA7DvDuWVAlwBmZ8rreoPCCjylazA=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.19/go.mod h1:D1pjbtztCyFMdB6/z/DiG2PlYmznKByVrgK1IIw7d10=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.26 h1:4x0yt+mz+oZatBqvY5Qh8gbT+n2UYibkpYEeLx6p4PU=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.26/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1 h1:Lb/Uzkiw2Ugt2Xf03J5wmv81PdkYOiWbI8CNBi1boC8=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1/go.mod h1:ln3IqPYYocZbYvl9TAOrG/cxGR9xcn4pnZRLdCTEGEU=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

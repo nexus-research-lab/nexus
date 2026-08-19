@@ -1,21 +1,21 @@
 "use client";
 
-import {
-  memo,
-  useCallback,
-  type MouseEvent,
-} from "react";
+import { memo, useCallback, useEffect, type MouseEvent } from "react";
 import { ArrowRight, MessageSquare } from "lucide-react";
 
-import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
-import { cn } from "@/shared/ui/class-name";
 import { ANIMATIONS } from "@/config/animation-assets";
+import {
+  clearHomeOnboardingState,
+  isHomeOnboardingCompleted,
+} from "@/features/onboarding/home-agent-onboarding";
+import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
+import { cn } from "@/shared/ui/class-name";
 import {
   AnimatedHeroText,
   FadeSlideIn,
 } from "@/shared/ui/feedback/animated-hero-text";
+import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
 
 import type { HeroStageProps } from "../console/launcher-console-types";
@@ -41,6 +41,25 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
   isQueryLoading,
 }: HeroStageProps) {
   const { t } = useI18n();
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("reset_onboarding") !== "1") {
+      return;
+    }
+    clearHomeOnboardingState();
+    searchParams.delete("reset_onboarding");
+    const nextQuery = searchParams.toString();
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`,
+    );
+  }, []);
+  const resetRequested =
+    typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("reset_onboarding")
+      === "1";
+  const isOnboardingRequired = resetRequested || !isHomeOnboardingCompleted();
   const queryInput = useLauncherQueryInput({
     mentionTargets,
     onQueryChange,
@@ -56,18 +75,45 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
     [onEnterHome],
   );
 
+  const handleStartJourneyClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      clearHomeOnboardingState();
+      onOpenMainAgentDm(undefined, { onboarding: true });
+    },
+    [onOpenMainAgentDm],
+  );
+
   return (
     <div
       className="relative z-10 flex w-full max-w-[1180px] flex-col items-center"
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
       role="presentation"
     >
       <HeroBlobShell className="z-10 transition-transform duration-500 ease-out">
         <div className="space-y-3 sm:space-y-4">
           <FadeSlideIn delayMs={0} durationMs={380} yOffset={6}>
             <div className="flex flex-col items-center gap-2.5">
-              <div className="flex items-center gap-2">
+              {isOnboardingRequired ? (
+                <button
+                  aria-label="开始旅程"
+                  className="nexus-launcher-journey-button group relative isolate inline-flex items-center gap-3 overflow-hidden rounded-full px-2 py-2 pr-4 text-left transition duration-200 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                  data-testid="launcher-onboarding-start"
+                  onClick={handleStartJourneyClick}
+                  type="button"
+                >
+                  <span
+                    className="nexus-launcher-journey-badge relative z-10 inline-flex min-h-8 items-center justify-center rounded-full px-3 text-[10px] font-semibold tracking-[0.22em]"
+                  >
+                    GUIDE
+                  </span>
+                  <span className="nexus-launcher-journey-text relative z-10 text-[12px] font-semibold tracking-[0.12em] sm:text-[13px]">
+                    开始旅程
+                  </span>
+                  <ArrowRight className="nexus-launcher-journey-arrow relative z-10 h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
+                </button>
+              ) : (
                 <button
                   data-tour-anchor={LAUNCHER_TOUR_ANCHORS.enter_app}
                   className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition duration-200 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45"
@@ -97,10 +143,10 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
                 </button>
-
-              </div>
+              )}
             </div>
           </FadeSlideIn>
+
           <div className="relative inline-block">
             <LottiePlayer
               className="pointer-events-none absolute -right-4 -top-5 h-12 w-12 opacity-[0.46] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
@@ -121,7 +167,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
-              className="mx-auto w-full max-w-[326px] rounded-2xl border px-4 py-1 sm:max-w-[420px] "
+              className="mx-auto w-full max-w-[326px] rounded-2xl border px-4 py-1 sm:max-w-[420px]"
               style={{
                 background:
                   "linear-gradient(180deg, var(--launcher-input-fill), var(--launcher-input-inner-fill))",
@@ -175,10 +221,9 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                     borderColor: isQueryLoading
                       ? "rgba(255,255,255,0.34)"
                       : "transparent",
-                    boxShadow:
-                      isQueryLoading
-                        ? "inset 0 1px 0 rgba(255,255,255,0.26), var(--launcher-submit-shadow)"
-                        : "none",
+                    boxShadow: isQueryLoading
+                      ? "inset 0 1px 0 rgba(255,255,255,0.26), var(--launcher-submit-shadow)"
+                      : "none",
                     color: "var(--launcher-submit-color)",
                   }}
                   onClick={queryInput.submit}
@@ -188,7 +233,11 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   {isQueryLoading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
-                    <img alt="Send" className="h-10 w-10 object-contain sm:h-11 sm:w-11" src="/nexus/launcher-send-mascot.png" />
+                    <img
+                      alt="Send"
+                      className="h-10 w-10 object-contain sm:h-11 sm:w-11"
+                      src="/nexus/launcher-send-mascot.png"
+                    />
                   )}
                 </button>
               </div>

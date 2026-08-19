@@ -58,6 +58,9 @@ func collectTranscriptUserTurns(chain []transcriptEntry) []transcriptUserTurn {
 	turns := make([]transcriptUserTurn, 0)
 	var lastTimestamp int64
 	for _, entry := range chain {
+		if shouldSkipTranscriptEntry(entry.Data) {
+			continue
+		}
 		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
 		lastTimestamp = entryTimestamp
 		decoded, err := sdkprotocol.DecodeMessage(entry.Data)
@@ -168,12 +171,10 @@ func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) t
 	if index == nil {
 		return transcriptRoundMarker{}
 	}
-	for *index < len(markers) {
-		marker := markers[*index]
-		*index++
-		if strings.TrimSpace(marker.RoundID) != "" || strings.TrimSpace(marker.Content) != "" {
-			return marker
-		}
+	if *index >= len(markers) {
+		return transcriptRoundMarker{}
 	}
-	return transcriptRoundMarker{}
+	marker := markers[*index]
+	*index++
+	return marker
 }

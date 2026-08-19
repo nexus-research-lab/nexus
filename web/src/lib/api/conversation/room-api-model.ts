@@ -32,13 +32,17 @@ function appendDefinedRoomSettings(
 export function buildCreateRoomBody(
   params: CreateRoomParams,
 ): Record<string, unknown> {
-  return appendDefinedRoomSettings({
+  const body = appendDefinedRoomSettings({
     agent_ids: params.agent_ids,
     avatar: params.avatar ?? null,
     description: params.description ?? "",
     name: params.name,
     title: params.title,
   }, params);
+  if (params.allow_main_agent_host !== undefined) {
+    body.allow_main_agent_host = params.allow_main_agent_host;
+  }
+  return body;
 }
 
 export function buildUpdateRoomBody(

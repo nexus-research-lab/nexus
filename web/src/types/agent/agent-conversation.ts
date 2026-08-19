@@ -145,6 +145,8 @@ export interface AgentConversationSendOptions {
   attachments?: MessageAttachment[];
   /** Composer 已选中的 Room 目标；服务端仍会再次校验当前成员归属。 */
   target_agent_ids?: string[];
+  /** 仅用于空 Room 的一次性引导开场；服务端会校验并使用当前 Room 主持人身份。 */
+  scripted_host_message?: boolean;
 }
 
 export interface ConversationSnapshot {

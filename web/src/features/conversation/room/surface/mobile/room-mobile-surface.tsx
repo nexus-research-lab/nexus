@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
+import { HomeOnboardingFocusLayer } from "@/features/onboarding/home-onboarding-focus-layer";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import type { Agent } from "@/types/agent/agent";
 import type {
   AgentConversationIdentity,
+  AgentConversationSendOptions,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import type {
@@ -35,6 +37,8 @@ interface RoomMobileSurfaceProps {
   currentRoomType: string;
   currentTodos: TodoItem[];
   initialDraft?: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
+  isOnboarding?: boolean;
   onBackToDirectory: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
@@ -60,6 +64,8 @@ export function RoomMobileSurface({
   currentRoomType,
   currentTodos,
   initialDraft = null,
+  initialSendOptions,
+  isOnboarding = false,
   onBackToDirectory,
   onConversationSnapshotChange,
   onCreateConversation,
@@ -75,6 +81,7 @@ export function RoomMobileSurface({
   runtimeKind,
 }: RoomMobileSurfaceProps) {
   const { t } = useI18n();
+  const onboardingFocusRef = useRef<HTMLDivElement>(null);
   const [isConversationSheetOpen, setIsConversationSheetOpen] = useState(false);
   const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
   const isDm = currentRoomType === "dm";
@@ -96,6 +103,8 @@ export function RoomMobileSurface({
       currentAgentSessionIdentity={currentAgentSessionIdentity}
       currentRoomType={currentRoomType}
       initialDraft={initialDraft}
+      initialSendOptions={initialSendOptions}
+      isOnboarding={isOnboarding}
       layout="mobile"
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={onCreateConversation}
@@ -109,6 +118,15 @@ export function RoomMobileSurface({
       roomMembers={roomMembers}
       runtimeKind={runtimeKind}
     />
+  );
+  const focusedChatSurface = (
+    <div
+      ref={onboardingFocusRef}
+      className="flex h-full min-h-0 min-w-0 flex-col"
+      data-onboarding-conversation-focus={isOnboarding ? "true" : undefined}
+    >
+      {chatSurface}
+    </div>
   );
 
   return (
@@ -125,14 +143,15 @@ export function RoomMobileSurface({
       />
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        {isDm ? chatSurface : (
+        {isDm ? focusedChatSurface : (
           <GroupThreadContextProvider>
-            {chatSurface}
+            {focusedChatSurface}
             <RoomMobileThreadOverlay />
           </GroupThreadContextProvider>
         )}
         <WorkspaceTaskPanel
           key={conversationId ?? "mobile-conversation-tasks"}
+          className={isOnboarding ? "hidden" : undefined}
           todos={currentTodos}
         />
       </div>
@@ -151,6 +170,10 @@ export function RoomMobileSurface({
         source={openSubagentSource === subagentTaskSource
           ? openSubagentSource
           : null}
+      />
+      <HomeOnboardingFocusLayer
+        enabled={isOnboarding}
+        targetRef={onboardingFocusRef}
       />
     </section>
   );

@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Started every replayed home onboarding journey in a fresh Nexus Agent conversation, scoped every role Skill's recovery logic to that conversation, and merged resumed guide messages by timestamp so historical Agent/Room output can no longer skip or visually split the new flow.
+- Made guided Room kickoff actions browser-idempotent: the generated Room card now carries a stable one-time action key, records it only after the automatic host message is accepted, and opens as an ordinary Room card on later visits instead of replaying collaboration.
+
+- Made single-choice guidance cards advance immediately when an option is selected, made Enter submit custom answers without a second confirmation click, and promoted Room artifacts emitted earlier in the same Agent turn into the visible final reply so the predefined clickable Room card cannot remain hidden in the process trace.
+
+- Let guided Room cards carry a Nexus-host kickoff action, automatically publishing the predefined task and targeting the real collaborating Agents when the user enters the Room; ordinary Room cards remain unchanged.
+
+- Kept successful Agent and Room resource artifacts in the visible DM reply instead of dropping them from message ordering or hiding them inside the collapsed process trace, so guided Room creation ends with its predefined clickable card.
+
+- Made successful guided Room creation deterministically emit and persist a predefined clickable Room card from real CLI output, including Room identity, collaborators, and a single “Enter Room” interaction; hardened structured shell-result parsing, repaired duplicate transcript IDs and round-marker alignment, and required every role onboarding Skill to finish through this system card.
+- Added a managed onboarding card-kit Skill with mandatory native card templates for Agent identity, responsibilities, style, creation confirmation, Room task, member plan, and Room confirmation; role Skills can no longer fall back to plain-text form questions, and these cards now receive a dedicated onboarding presentation.
+- Handed role-based onboarding off to the real Nexus Agent after model setup instead of swallowing post-Agent natural-language requests in a frontend state machine; the main Agent now loads an internal role-specific onboarding Skill, restores progress from real Agent/Room resources, and uses native question cards to continue the journey.
+- Projected successful Nexus CLI Agent and Room creation results into durable, clickable conversation resource cards, and pre-authorized only the managed non-destructive onboarding CLI actions so state recovery and resource creation are not interrupted by generic shell permission prompts.
+- Kept first-run onboarding at the default-model card after Provider synchronization, distinguishing a synchronized recommendation from explicit user confirmation and recovering prematurely advanced role-selection sessions back to the required model choice.
+- Highlighted the first-run “Start Journey” entry with layered gradient and breathing effects, kept token messages in conversational order, limited message animation to the latest Agent DM reply, and added a Provider selection card so onboarding validates each Token through the selected vendor, automatically synchronizes that vendor’s model catalog, and lets the user choose a model before explicit default-model confirmation.
+- Kept the unfinished-onboarding NX breathing highlight clipped to the circular Nexus icon instead of its rectangular click target, and made the destination Room finalize onboarding defensively so the highlight disappears immediately even when opened in a new tab.
+- Gave guided product-review Rooms a dedicated Room avatar, made explicit Room avatars override member-initial mosaics, and kept their main-conversation titles on Nexus's native first-message model-generation path instead of assigning a scripted title.
+- Added a conversational LLM Provider recovery card after the second failed onboarding token attempt, with setup steps and a direct link to Provider settings.
+- Refined the resumed onboarding model step to skip confirmation when a usable system default already exists, and added an in-chat model selector for Providers with multiple available models.
+- Prevented disabled or tokenless onboarding Providers and their stale synchronized model cards from being treated as usable, returning interrupted onboarding sessions to Provider selection when the saved configuration is no longer valid.
+- Made the Launcher “Start Journey” action clear browser-only onboarding progress immediately before opening the Nexus Agent DM, ensuring every new journey starts from Provider selection.
+- Added each selected model vendor’s API Key acquisition link to the Nexus Agent onboarding reply, using the existing Provider preset metadata as the source of truth.
+- Extended role onboarding with a resumable conversational Agent-creation task: collect a role-specific name and responsibility, choose guided work-style tags, confirm against the current model and permission defaults, create the Agent through the native API, and show a linked identity milestone card in the Nexus Agent DM.
+- Added the product-manager onboarding Room task: collect a real product idea in the Nexus Agent DM, confirm a three-role review plan, provision reusable user-research and technical-review Agents, and create a native Room hosted by Nexus. Opening that Room now completes onboarding immediately, restores the full interactive page, injects only the scripted host kickoff, and lets the native Room runtime carry the specialist reviews, host handoff, and product-manager synthesis with real model output.
 - Contacts and room intro panels now open on the Identity tab by default instead of the private-domain/contact tab.
 - Aligned Agent permission modes with runtime validation, including `dontAsk` pre-authorized-only behavior and a safe default for unknown modes.
 - Prevented stop commands from being dropped on stale-but-writable WebSocket connections and allowed interrupt requests to bypass a blocked chat dispatch, restoring prompt termination from the conversation Composer.
@@ -28,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Room Agent `@` handoffs so source-slot completion dispatches immediately, busy targets use durable guide/queue delivery, restart recovery is idempotent, and message mentions render as clickable Agent avatar chips with stable timeline ordering.
 
 ### Added
+
+- Added first-run onboarding directly to the existing Launcher and Nexus main-agent entry, including conversational model-token setup, validation feedback, and automatic handoff into the main-agent DM.
+- Added resumable onboarding state across Provider settings and the existing Nexus DM, including an animated NX return affordance, default conversation-model confirmation, and role selection before handing future prompts to the connected model.
 
 - Added runtime-scoped settings with an nxs-only ToolSearch switch, defaulting to off and projecting the choice to both supported SDK environment names without affecting Claude runtime.
 - Added Nexus-to-nxs WebSearch provider configuration with AnySearch enabled by default, moving provider selection into the WebSearch header, keeping required fields compact and layout-stable, and placing SDK-supported search, cache, network, extraction, and AnySearch parameters behind a More settings section with direct API key setup links where needed.

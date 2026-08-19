@@ -90,15 +90,15 @@ func buildTranscriptChain(
 	return includeParallelTranscriptToolResults(entries, chain, shouldSkip)
 }
 
-func indexTranscriptEntries(entries []transcriptEntry) (map[string]transcriptEntry, map[string]struct{}) {
-	byUUID := make(map[string]transcriptEntry, len(entries))
+func indexTranscriptEntries(entries []transcriptEntry) (map[string][]transcriptEntry, map[string]struct{}) {
+	byUUID := make(map[string][]transcriptEntry, len(entries))
 	parentUUIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
 		uuid := stringFromAny(entry.Data["uuid"])
 		if uuid == "" {
 			continue
 		}
-		byUUID[uuid] = entry
+		byUUID[uuid] = append(byUUID[uuid], entry)
 		if parentUUID := stringFromAny(entry.Data["parentUuid"]); parentUUID != "" {
 			parentUUIDs[parentUUID] = struct{}{}
 		}
@@ -122,31 +122,40 @@ func transcriptTerminalEntries(
 	return terminals
 }
 
-func walkTranscriptParentChain(leaf transcriptEntry, byUUID map[string]transcriptEntry) []transcriptEntry {
+func walkTranscriptParentChain(leaf transcriptEntry, byUUID map[string][]transcriptEntry) []transcriptEntry {
 	chain := make([]transcriptEntry, 0, len(byUUID))
-	seen := make(map[string]struct{}, len(byUUID))
+	seen := make(map[int]struct{}, len(byUUID))
 	current := leaf
 	for {
 		uuid := stringFromAny(current.Data["uuid"])
 		if uuid == "" {
 			break
 		}
-		if _, exists := seen[uuid]; exists {
+		if _, exists := seen[current.Index]; exists {
 			break
 		}
-		seen[uuid] = struct{}{}
+		seen[current.Index] = struct{}{}
 		chain = append(chain, current)
 		parentUUID := stringFromAny(current.Data["parentUuid"])
 		if parentUUID == "" {
 			break
 		}
-		parent, exists := byUUID[parentUUID]
+		parent, exists := nearestEarlierTranscriptEntry(byUUID[parentUUID], current.Index)
 		if !exists {
 			break
 		}
 		current = parent
 	}
 	return chain
+}
+
+func nearestEarlierTranscriptEntry(candidates []transcriptEntry, beforeIndex int) (transcriptEntry, bool) {
+	for index := len(candidates) - 1; index >= 0; index-- {
+		if candidates[index].Index < beforeIndex {
+			return candidates[index], true
+		}
+	}
+	return transcriptEntry{}, false
 }
 
 func shouldSkipTranscriptEntry(entry map[string]any) bool {

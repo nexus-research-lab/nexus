@@ -10,6 +10,7 @@ interface AskUserQuestionCardBodyProps {
   customAnswer: string;
   expanded: boolean;
   onCustomAnswerChange: (customAnswer: string) => void;
+  onCustomAnswerSubmit: (customAnswer: string) => void;
   onToggleOption: (optionLabel: string) => void;
   presentation: QuestionCardPresentation;
   question: UserQuestion;
@@ -21,6 +22,7 @@ export function AskUserQuestionCardBody({
   customAnswer,
   expanded,
   onCustomAnswerChange,
+  onCustomAnswerSubmit,
   onToggleOption,
   presentation,
   question,
@@ -47,6 +49,7 @@ export function AskUserQuestionCardBody({
         <CustomAnswerField
           customAnswer={customAnswer}
           onChange={onCustomAnswerChange}
+          onSubmit={onCustomAnswerSubmit}
           placeholder={presentation.customAnswerPlaceholder}
           readOnly={readOnly}
           visible={presentation.showCustomAnswer}
@@ -139,12 +142,14 @@ function SelectedOptionBadge({ visible }: { visible: boolean }) {
 function CustomAnswerField({
   customAnswer,
   onChange,
+  onSubmit,
   placeholder,
   readOnly,
   visible,
 }: {
   customAnswer: string;
   onChange: (customAnswer: string) => void;
+  onSubmit: (customAnswer: string) => void;
   placeholder: string;
   readOnly: boolean;
   visible: boolean;
@@ -176,6 +181,19 @@ function CustomAnswerField({
           disabled={readOnly}
           onChange={(event) => onChange(event.target.value)}
           onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (
+              event.key !== "Enter"
+              || event.shiftKey
+              || event.nativeEvent.isComposing
+              || !customAnswer.trim()
+            ) {
+              return;
+            }
+            event.preventDefault();
+            onSubmit(customAnswer);
+          }}
           placeholder={placeholder}
           rows={1}
           value={customAnswer}

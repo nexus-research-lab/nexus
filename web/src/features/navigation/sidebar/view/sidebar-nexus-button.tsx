@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: Nexus 导航选中态、首次引导状态、头像与交互命令。
+ * [OUTPUT]: 折叠/展开侧栏中的 Nexus 圆形入口；引导光效始终贴合头像轮廓。
+ * [POS]: 全局侧栏 Nexus 入口的唯一视觉实现。
+ */
+
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { cn } from "@/shared/ui/class-name";
@@ -6,6 +12,7 @@ interface SidebarNexusButtonProps {
   active: boolean;
   avatarSrc: string | null;
   onClick: () => void;
+  onboardingActive: boolean;
   prefersReducedMotion: boolean;
   variant: "rail" | "panel";
 }
@@ -22,12 +29,14 @@ function RailNexusButton({
   active,
   avatarSrc,
   onClick,
+  onboardingActive,
 }: SidebarNexusButtonProps) {
   return (
     <button
       aria-label="Nexus"
       className={cn(
         "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[10px] font-semibold uppercase text-(--text-subtle) shadow-(--surface-avatar-shadow) transition-(transform,border-color,box-shadow) duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border)",
+        onboardingActive && "nexus-home-onboarding-nx",
         active &&
           "border-(--surface-interactive-active-border) shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
       )}
@@ -49,11 +58,14 @@ function PanelNexusButton({
   active,
   avatarSrc,
   onClick,
+  onboardingActive,
   prefersReducedMotion,
 }: SidebarNexusButtonProps) {
   return (
     <button
-      className="group/nexus relative flex h-10 w-[46px] shrink-0 items-center justify-center"
+      className={cn(
+        "group/nexus relative flex h-10 w-[46px] shrink-0 items-center justify-center",
+      )}
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.nexus_agent}
       onClick={onClick}
       title="Nexus"
@@ -78,6 +90,7 @@ function PanelNexusButton({
           <span
             className={cn(
               "relative z-10 flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+              onboardingActive && "nexus-home-onboarding-nx",
               active &&
                 "shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_0_10px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
             )}

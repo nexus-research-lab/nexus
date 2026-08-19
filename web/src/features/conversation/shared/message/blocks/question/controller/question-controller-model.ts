@@ -163,3 +163,10 @@ export function isQuestionSubmissionReady({
 }): boolean {
   return [draftComplete, isReady, !readOnly].every(Boolean);
 }
+
+export function shouldAutoSubmitQuestionCard(
+  questions: UserQuestion[],
+): boolean {
+  return questions.length === 1
+    && questions.every((question) => !question.multi_select);
+}

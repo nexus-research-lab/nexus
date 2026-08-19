@@ -51,6 +51,7 @@ export function AskUserQuestionBlock({
   return (
     <AskUserQuestionView
       answerSummary={controller.answerSummary}
+      autoSubmit={controller.autoSubmit}
       draft={controller.draft}
       draftComplete={controller.draftComplete}
       expanded={controller.isExpanded}
@@ -58,6 +59,7 @@ export function AskUserQuestionBlock({
       isSubmitting={controller.isSubmitting}
       onExpandedChange={controller.setIsExpanded}
       onSubmit={() => void controller.submit()}
+      onSubmitCustomAnswer={controller.submitCustomAnswer}
       onToggleOption={controller.toggleOption}
       onUpdateCustomAnswer={controller.updateCustomAnswer}
       questions={questions}

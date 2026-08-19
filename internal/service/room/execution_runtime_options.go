@@ -252,6 +252,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	}
 	handler = runtimepolicy.PermissionHandler(handler, e.round.Context.Room.PrivateMessagesEnabled)
 	handler = toolpolicy.WithManagedGoalAutoApproval(handler)
+	handler = toolpolicy.WithManagedNexusCLIAutoApproval(handler)
 	return toolpolicy.WithMalformedInputDeny(handler)
 }
 

@@ -9,6 +9,54 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+func TestConsumeTranscriptRoundMarkerPreservesEmptyAlignedSlots(t *testing.T) {
+	markers := []transcriptRoundMarker{
+		{},
+		{RoundID: "round-2", Content: "second user turn"},
+	}
+	index := 0
+	if first := consumeTranscriptRoundMarker(markers, &index); first.RoundID != "" || index != 1 {
+		t.Fatalf("first aligned slot = %+v, index = %d", first, index)
+	}
+	if second := consumeTranscriptRoundMarker(markers, &index); second.RoundID != "round-2" || index != 2 {
+		t.Fatalf("second aligned slot = %+v, index = %d", second, index)
+	}
+}
+
+func TestAlignTranscriptRoundMarkersIgnoresSkippedUserEntries(t *testing.T) {
+	chain := []transcriptEntry{
+		{
+			Index: 0,
+			Data: map[string]any{
+				"uuid":        "sidechain-user",
+				"type":        "user",
+				"isSidechain": true,
+				"message": map[string]any{
+					"role":    "user",
+					"content": "internal tool context",
+				},
+			},
+		},
+		{
+			Index: 1,
+			Data: map[string]any{
+				"uuid": "real-user",
+				"type": "user",
+				"message": map[string]any{
+					"role":    "user",
+					"content": "准备好了",
+				},
+			},
+		},
+	}
+	markers := []transcriptRoundMarker{{RoundID: "round-ready", Content: "准备好了"}}
+
+	aligned := alignTranscriptRoundMarkers(chain, markers)
+	if len(aligned) != 1 || aligned[0].RoundID != "round-ready" {
+		t.Fatalf("aligned markers = %+v", aligned)
+	}
+}
+
 func TestAgentHistoryStoreMaterializesRoundMarkerMetadata(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	workspacePath := filepath.Join(workspaceRoot, "nexus")

@@ -223,6 +223,17 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 	}
 
 	userMessage := newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy)
+	if err = promoteScriptedRoomHostMessage(
+		request,
+		contextValue,
+		agentByID,
+		history,
+		attachments,
+		targetAgentIDs,
+		userMessage,
+	); err != nil {
+		return nil, err
+	}
 	annotateRoomUserMessage(contextValue, userMessage)
 	return &roomChatExecution{
 		service:            s,
@@ -242,6 +253,53 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		history:            history,
 		userMessage:        userMessage,
 	}, nil
+}
+
+func promoteScriptedRoomHostMessage(
+	request ChatRequest,
+	contextValue *protocol.ConversationContextAggregate,
+	agentByID map[string]*protocol.Agent,
+	history []protocol.Message,
+	attachments []protocol.ChatAttachment,
+	targetAgentIDs []string,
+	messageValue protocol.Message,
+) error {
+	if !request.ScriptedHostMessage {
+		return nil
+	}
+	if request.Internal {
+		return errors.New("scripted host message must originate from the room client")
+	}
+	if contextValue == nil || strings.TrimSpace(contextValue.Room.HostAgentID) == "" {
+		return errors.New("scripted host message requires a room host")
+	}
+	if len(history) > 0 {
+		return errors.New("scripted host message is only allowed as the first room message")
+	}
+	if len(attachments) > 0 {
+		return errors.New("scripted host message does not support attachments")
+	}
+	if len(targetAgentIDs) == 0 {
+		return errors.New("scripted host message requires at least one target agent")
+	}
+	hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
+	if _, ok := agentByID[hostAgentID]; !ok {
+		return errors.New("scripted host message room host is not an available member")
+	}
+	for _, targetAgentID := range targetAgentIDs {
+		if strings.TrimSpace(targetAgentID) == hostAgentID {
+			return errors.New("scripted host message cannot target the room host")
+		}
+	}
+	messageValue["role"] = "assistant"
+	messageValue["agent_id"] = hostAgentID
+	messageValue["content"] = []map[string]any{{
+		"type": "text",
+		"text": strings.TrimSpace(request.Content),
+	}}
+	messageValue["is_complete"] = true
+	messageValue["stop_reason"] = "scripted"
+	return nil
 }
 
 func ensureRoomChatIDs(request *ChatRequest) {

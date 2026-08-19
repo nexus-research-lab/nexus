@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { ANIMATIONS } from "@/config/animation-assets";
 import { buildLauncherTour } from "@/features/onboarding/tours/launcher-tour";
+import { isHomeOnboardingCompleted } from "@/features/onboarding/home-agent-onboarding";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
@@ -33,7 +34,12 @@ export function LauncherConsole({
     onOpenRoute,
     onSelectAgent,
   });
+  const handleSubmit = useCallback(
+    (submittedQuery: string) => controller.actions.submitQuery(submittedQuery),
+    [controller.actions],
+  );
   const launcherTour = useMemo(() => buildLauncherTour(t), [t]);
+  const launcherTourEnabled = isHomeOnboardingCompleted();
   const decorativeTokens = useMemo(
     () => buildDecorativeTokens(agents, rooms),
     [agents, rooms],
@@ -48,7 +54,7 @@ export function LauncherConsole({
   );
   usePageOnboardingTour({
     autoStartDelayMs: 260,
-    enabled: true,
+    enabled: launcherTourEnabled,
     tour: launcherTour,
   });
 
@@ -80,14 +86,16 @@ export function LauncherConsole({
         <LauncherHeroStage
           currentAgentId={currentAgentId}
           decorativeTokens={decorativeTokens}
-          isQueryLoading={controller.state.isQueryLoading}
+          isQueryLoading={
+            controller.state.isQueryLoading
+          }
           mentionTargets={mentionTargets}
           onEnterHome={controller.actions.enterHome}
           onOpenMainAgentDm={onOpenMainAgentDm}
           onOpenRecentEntry={controller.actions.openRecentEntry}
           onQueryChange={controller.actions.updateQuery}
           onSelectAgent={onSelectAgent}
-          onSubmit={controller.actions.submitQuery}
+          onSubmit={handleSubmit}
           query={controller.state.query}
           recentEntries={recentEntries}
         />

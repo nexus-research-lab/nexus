@@ -14,6 +14,7 @@ export interface DmChatPanelProps {
   runtimeKind: AgentRuntimeKind;
   layout: "desktop" | "mobile";
   initialDraft?: string | null;
+  onboarding?: boolean;
   onInitialDraftConsumed?: () => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;

@@ -91,6 +91,7 @@ export interface CreateRoomParams {
   skill_names?: string[];
   host_agent_id?: string | null;
   host_auto_reply_enabled?: boolean;
+  allow_main_agent_host?: boolean;
   private_messages_enabled?: boolean;
 }
 

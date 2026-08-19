@@ -9,6 +9,7 @@ import type {
 } from "@/types/agent/agent";
 import type {
   AgentConversationIdentity,
+  AgentConversationSendOptions,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import type {
@@ -38,6 +39,8 @@ export interface RoomSurfaceLayoutProps {
   activeWorkspacePath: string | null;
   activeSurfaceTab: RoomSurfaceTabKey;
   initialDraft?: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
+  isOnboarding?: boolean;
   onInitialDraftConsumed?: () => void;
   sidePanelWidthPercent: number;
   isResizingSidePanel: boolean;

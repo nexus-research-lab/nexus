@@ -207,12 +207,29 @@ func upsertAssistantContentBlock(blocks []map[string]any, incoming map[string]an
 				blocks[index] = block
 				return blocks
 			}
+		case protocol.ContentBlockTypeNexusResourceArtifact:
+			if nexusResourceHistoryArtifactKey(current) == nexusResourceHistoryArtifactKey(block) {
+				blocks[index] = block
+				return blocks
+			}
 		default:
 			blocks[index] = block
 			return blocks
 		}
 	}
 	return append(blocks, block)
+}
+
+func nexusResourceHistoryArtifactKey(block map[string]any) string {
+	if id := stringFromAny(block["id"]); id != "" {
+		return id
+	}
+	resourceKind := stringFromAny(block["resource_kind"])
+	resourceID := stringFromAny(block["resource_id"])
+	if resourceKind == "" || resourceID == "" {
+		return ""
+	}
+	return resourceKind + ":" + resourceID
 }
 
 func normalizeMapValue(value any) map[string]any {

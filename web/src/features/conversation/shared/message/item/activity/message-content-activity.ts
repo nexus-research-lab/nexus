@@ -71,6 +71,10 @@ const CONTENT_ACTIVITY_RULES: ContentActivityRule[] = [
       : context.fallback ?? "replying",
   ),
   defineContentActivityRule(
+    "nexus_resource_artifact",
+    (_block, context) => context.fallback ?? "executing",
+  ),
+  defineContentActivityRule(
     "workspace_file_artifact",
     (_block, context) => context.fallback ?? "executing",
   ),

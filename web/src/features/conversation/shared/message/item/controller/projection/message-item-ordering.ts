@@ -25,6 +25,7 @@ type BlockProjector = (
 
 const BLOCK_PROJECTORS: BlockProjector[] = [
   projectVisibleTextBlock,
+  (block) => block.type === "nexus_resource_artifact" ? [block] : null,
   (block) => block.type === "thinking"
     ? (block.thinking.trim() ? [block] : [])
     : null,

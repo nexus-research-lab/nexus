@@ -9,6 +9,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+func TestSanitizeTranscriptUserContentStripsRuntimeContextSuffix(t *testing.T) {
+	content := "卡片没输出出来\n\n<nexus_runtime_context>\n## Emotion State\nBase: focused\n</nexus_runtime_context>"
+	if got := sanitizeTranscriptUserContent(content); got != "卡片没输出出来" {
+		t.Fatalf("sanitized content = %q", got)
+	}
+}
+
 func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")
@@ -205,6 +212,102 @@ func TestAgentHistoryStoreProjectsWorkspaceFileArtifactFromTranscriptToolResult(
 		}
 	}
 	t.Fatalf("transcript tool_result 应投影出 workspace_file_artifact: %+v", rows)
+}
+
+func TestAgentHistoryStoreProjectsRoomCardFromPowerShellCreateResult(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "nexus")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:nexus:ws:dm:room-card"
+	sessionID := "session-room-card"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-room-card", "创建产品评审 Room", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	roomOutput := `{"success":true,"domain":"room","action":"create","item":{"room":{"id":"room-1","name":"产品评审室","description":"评审新功能","avatar":"24"},"conversation":{"id":"conversation-1"},"member_agents":[{"agent_id":"agent-1","name":"产品搭档"},{"agent_id":"agent-2","name":"用户研究顾问"}]}}`
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-room",
+			"sessionId": sessionID,
+			"timestamp": "2026-08-05T09:30:59.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "创建产品评审 Room",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-room-create",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-room",
+			"timestamp":  "2026-08-05T09:31:00.000Z",
+			"message": map[string]any{
+				"id":          "message-room-create",
+				"role":        "assistant",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type":  "tool_use",
+						"id":    "tool-room-create",
+						"name":  "PowerShell",
+						"input": map[string]any{"command": "nexusctl --json room create"},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "transcript-room-result",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-assistant-room-create",
+			"timestamp":  "2026-08-05T09:31:00.100Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":              "tool_result",
+						"tool_use_id":       "tool-room-create",
+						"content":           "",
+						"is_error":          false,
+						"structured_output": map[string]any{"stdout": roomOutput},
+					},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "nexus",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	for _, row := range rows {
+		blocks, _ := row["content"].([]map[string]any)
+		for _, block := range blocks {
+			if block["type"] != protocol.ContentBlockTypeNexusResourceArtifact {
+				continue
+			}
+			if block["resource_kind"] != protocol.NexusResourceKindRoom ||
+				block["resource_id"] != "room-1" ||
+				block["conversation_id"] != "conversation-1" {
+				t.Fatalf("Room card identity mismatch: %+v", block)
+			}
+			return
+		}
+	}
+	t.Fatalf("PowerShell room create result should project a clickable Room card: %+v", rows)
 }
 
 func TestAgentHistoryStorePreservesParallelToolResultsFromTranscriptBranches(t *testing.T) {

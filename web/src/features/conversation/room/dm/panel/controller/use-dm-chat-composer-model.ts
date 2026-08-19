@@ -6,6 +6,7 @@ import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversat
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { AgentConversationSendOptions } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { DmChatComposerModel } from "../view/dm-chat-panel-view";
@@ -25,6 +26,7 @@ type ComposerConversation = Pick<
 
 interface UseDmChatComposerModelOptions {
   agentId: string | null;
+  canSendInitialDraft?: boolean;
   conversation: ComposerConversation;
   goalScopeLabel: string;
   initialDraft: string | null;
@@ -33,10 +35,15 @@ interface UseDmChatComposerModelOptions {
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sessionKey: string | null;
   runtimeKind: AgentRuntimeKind;
+  sendMessage?: (
+    content: string,
+    options?: AgentConversationSendOptions,
+  ) => Promise<void>;
 }
 
 export function useDmChatComposerModel({
   agentId,
+  canSendInitialDraft = true,
   conversation,
   goalScopeLabel,
   initialDraft,
@@ -45,6 +52,7 @@ export function useDmChatComposerModel({
   scrollToBottom,
   sessionKey,
   runtimeKind,
+  sendMessage,
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
@@ -58,13 +66,14 @@ export function useDmChatComposerModel({
     [agentId, t],
   );
   const handlers = useConversationComposerHandlers({
+    canSendInitialDraft,
     initialDraft,
     initialDraftLogLabel: "DM",
     isLoading: conversation.is_loading,
     onInitialDraftConsumed,
     prepareAttachments,
     scrollToBottom,
-    sendMessage: conversation.send_message,
+    sendMessage: sendMessage ?? conversation.send_message,
     sessionKey,
   });
 

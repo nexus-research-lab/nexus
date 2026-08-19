@@ -6,7 +6,10 @@ import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
-import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import {
+  AgentConversationIdentity,
+  AgentConversationSendOptions,
+} from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
 import { normalizeAgentRuntimeKind } from "@/types/settings/preferences";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
@@ -33,6 +36,8 @@ interface RoomSurfaceShellProps {
   currentRoomConversations: RoomConversationView[];
   activeWorkspacePath: string | null;
   initialDraft?: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
+  isOnboarding?: boolean;
   onInitialDraftConsumed?: () => void;
   sidePanelWidthPercent: number;
   isResizingSidePanel: boolean;
@@ -74,6 +79,8 @@ export function RoomSurfaceShell({
   currentRoomConversations,
   activeWorkspacePath,
   initialDraft,
+  initialSendOptions,
+  isOnboarding = false,
   onInitialDraftConsumed,
   sidePanelWidthPercent,
   isResizingSidePanel,
@@ -135,6 +142,8 @@ export function RoomSurfaceShell({
         runtimeKind={runtimeKind}
         currentTodos={currentTodos}
         initialDraft={initialDraft}
+        initialSendOptions={initialSendOptions}
+        isOnboarding={isOnboarding}
         onInitialDraftConsumed={onInitialDraftConsumed}
         onBackToDirectory={onBackToDirectory}
         onConversationSnapshotChange={onConversationSnapshotChange}
@@ -168,6 +177,8 @@ export function RoomSurfaceShell({
       conversationId={conversationId}
       currentRoomConversations={currentRoomConversations}
       initialDraft={initialDraft}
+      initialSendOptions={initialSendOptions}
+      isOnboarding={isOnboarding}
       onInitialDraftConsumed={onInitialDraftConsumed}
       currentTodos={currentTodos}
       sidePanelWidthPercent={sidePanelWidthPercent}

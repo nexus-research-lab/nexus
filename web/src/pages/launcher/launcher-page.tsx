@@ -29,13 +29,17 @@ export function LauncherPage() {
   );
 
   const openAgentDm = useCallback(
-    (agentId: string, initialPrompt?: string) => {
+    (
+      agentId: string,
+      initialPrompt?: string,
+      options?: { onboarding?: boolean },
+    ) => {
       const nextActiveItemId = isMainAgent(agentId)
         ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
         : agentId;
       setActivePanelItem(nextActiveItemId);
 
-      void resolveDirectRoomNavigationTarget(agentId, initialPrompt)
+      void resolveDirectRoomNavigationTarget(agentId, initialPrompt, options)
         .then(({ context, route }) => {
           controller.handle_select_agent(agentId);
           setActivePanelItem(
@@ -53,12 +57,15 @@ export function LauncherPage() {
   );
 
   const handleOpenMainAgentDm = useCallback(
-    (initialPrompt?: string) => {
+    (
+      initialPrompt?: string,
+      options?: { onboarding?: boolean },
+    ) => {
       if (!defaultAgentId) {
         console.error("[LauncherPage] 主智能体 ID 未就绪，无法打开 DM。");
         return;
       }
-      openAgentDm(defaultAgentId, initialPrompt);
+      openAgentDm(defaultAgentId, initialPrompt, options);
     },
     [defaultAgentId, openAgentDm],
   );

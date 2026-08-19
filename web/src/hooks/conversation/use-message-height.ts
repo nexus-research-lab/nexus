@@ -52,6 +52,9 @@ const ignoreHeightMetrics = () => undefined;
 
 const CONTENT_BLOCK_METRIC_COLLECTORS = {
   image: ignoreHeightMetrics,
+  nexus_resource_artifact: (_block, metrics) => {
+    metrics.toolBlockCount += 3;
+  },
   system_event: ignoreHeightMetrics,
   task_progress: (block, metrics) => {
     metrics.textParts.push(block.description);

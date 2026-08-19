@@ -9,12 +9,14 @@ import { buildDmChatPanelViewModel } from "./dm-chat-panel-projection";
 import { useDmChatComposerModel } from "./use-dm-chat-composer-model";
 import { useDmChatSessionController } from "./use-dm-chat-session-controller";
 import { useDmGoalController } from "./use-dm-goal-controller";
+import { useDmOnboardingController } from "./use-dm-onboarding-controller";
 
 export function useDmChatPanelModel({
   currentAgentAvatar,
   currentAgentName,
   currentAgentPermissionMode,
   initialDraft,
+  onboarding = false,
   layout,
   onConversationSnapshotChange,
   onInitialDraftConsumed,
@@ -40,15 +42,26 @@ export function useDmChatPanelModel({
     onRoomEvent,
     onTodosChange,
   });
+  const onboardingController = useDmOnboardingController({
+    agentId: sessionIdentity?.agent_id ?? null,
+    agentName: currentAgentName,
+    conversationId: sessionIdentity?.conversation_id ?? null,
+    enabled: onboarding,
+    roomId: sessionIdentity?.room_id ?? null,
+    sendMessage: session.conversation.send_message,
+    sessionKey,
+  });
   const goalScopeLabel = t("dm.goal_scope");
   const composer = useDmChatComposerModel({
     agentId: sessionIdentity?.agent_id ?? null,
     conversation: session.conversation,
     goalScopeLabel,
     initialDraft: initialDraft ?? null,
+    canSendInitialDraft: !onboardingController.isActive,
     onCreateGoal: goal.createGoal,
     onInitialDraftConsumed,
     scrollToBottom: session.scroll.scrollToBottom,
+    sendMessage: onboardingController.sendMessage,
     sessionKey,
     runtimeKind,
   });
@@ -66,10 +79,62 @@ export function useDmChatPanelModel({
     environment,
     goal,
     goalScopeLabel,
+    onboarding,
+    onboardingAgentConfirmationCardVisible:
+      onboardingController.showAgentConfirmationCard,
+    onboardingAgentIdentityCardVisible:
+      onboardingController.showAgentIdentityCard,
+    onboardingAgentIsCreating:
+      onboardingController.isCreatingAgent,
+    onboardingAgentStyleCardVisible:
+      onboardingController.showAgentStyleCard,
+    onboardingAgentStyleChoices:
+      onboardingController.agentStyleChoices,
+    onboardingAgentTaskDraft:
+      onboardingController.agentTaskDraft,
+    onboardingDefaultModelCardVisible:
+      onboardingController.showDefaultModelCard,
+    onboardingDefaultModelChoices:
+      onboardingController.defaultModelChoices,
+    onboardingDefaultModelSelection:
+      onboardingController.defaultModelSelection,
+    onboardingProviderChoices: onboardingController.providerChoices,
+    onboardingProviderChoicesError:
+      onboardingController.providerChoicesError,
+    onboardingProviderChoicesLoading:
+      onboardingController.providerChoicesLoading,
+    onboardingProviderConfigCardVisible:
+      onboardingController.showProviderConfigCard,
+    onboardingProviderSelectionCardVisible:
+      onboardingController.showProviderSelectionCard,
+    onboardingRoleCardVisible: onboardingController.showRoleCard,
+    onboardingRoomCompletionCardVisible:
+      onboardingController.showRoomCompletionCard,
+    onboardingRoomIsCreating: onboardingController.isCreatingRoom,
+    onboardingRoomLaunchCardVisible:
+      onboardingController.showRoomLaunchCard,
+    onboardingRoomPlanCardVisible: onboardingController.showRoomPlanCard,
+    onboardingRoomStartCardVisible: onboardingController.showRoomStartCard,
+    onboardingRoomTaskDraft: onboardingController.roomTaskDraft,
+    onConfirmAgentCreation: onboardingController.confirmAgentCreation,
+    onConfirmDefaultModel: onboardingController.confirmDefaultModel,
+    onConfirmRoomPlan: onboardingController.confirmRoomPlan,
     onEditLastUserMessage: handleEditLastUserMessage,
+    onFinishOnboarding: onboardingController.finishOnboarding,
+    onLaunchRoomCollaboration:
+      onboardingController.launchRoomCollaboration,
     onOpenAgentContact,
     onOpenWorkspaceFile,
+    onRetryProviderChoices: onboardingController.retryProviderChoices,
+    onRestartAgentDraft: onboardingController.restartAgentDraft,
+    onRestartRoomIdea: onboardingController.restartRoomIdea,
+    onSelectAgentStyle: onboardingController.selectAgentStyle,
+    onSelectDefaultModel: onboardingController.selectDefaultModel,
+    onSelectProvider: onboardingController.selectProvider,
+    onSelectRole: onboardingController.selectRole,
+    onStartRoomTask: onboardingController.startRoomTask,
     session,
+    onboardingMessages: onboardingController.messages,
     workspaceAgentId: sessionIdentity?.agent_id ?? null,
   });
 }

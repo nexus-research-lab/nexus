@@ -38,6 +38,7 @@ func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 			name        string
 			avatar      string
 			description string
+			vibeTags    []string
 		)
 
 		create := &cobra.Command{
@@ -53,6 +54,7 @@ func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 					Name:        name,
 					Avatar:      avatar,
 					Description: description,
+					VibeTags:    vibeTags,
 				})
 				if err != nil {
 					return err
@@ -67,6 +69,7 @@ func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 		create.Flags().StringVar(&name, "name", "", "agent name")
 		create.Flags().StringVar(&avatar, "avatar", "", "agent avatar")
 		create.Flags().StringVar(&description, "description", "", "agent description")
+		create.Flags().StringSliceVar(&vibeTags, "vibe-tag", nil, "agent vibe tags")
 		_ = create.MarkFlagRequired("name")
 		return create
 	}())

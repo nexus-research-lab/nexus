@@ -10,6 +10,7 @@ type CreateRoomRequest struct {
 	SkillNames             []string `json:"skill_names,omitempty"`
 	HostAgentID            string   `json:"host_agent_id,omitempty"`
 	HostAutoReplyEnabled   bool     `json:"host_auto_reply_enabled,omitempty"`
+	AllowMainAgentHost     bool     `json:"allow_main_agent_host,omitempty"`
 	PrivateMessagesEnabled bool     `json:"private_messages_enabled,omitempty"`
 }
 

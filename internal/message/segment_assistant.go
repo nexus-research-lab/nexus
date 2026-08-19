@@ -279,6 +279,9 @@ var assistantBlockMatchers = map[string]assistantBlockMatcher{
 	protocol.ContentBlockTypeWorkspaceFileArtifact: func(current map[string]any, incoming map[string]any) bool {
 		return workspaceFileArtifactKey(current) == workspaceFileArtifactKey(incoming)
 	},
+	protocol.ContentBlockTypeNexusResourceArtifact: func(current map[string]any, incoming map[string]any) bool {
+		return nexusResourceArtifactKey(current) == nexusResourceArtifactKey(incoming)
+	},
 	"text": func(current map[string]any, incoming map[string]any) bool {
 		currentText := rawString(current["text"])
 		incomingText := rawString(incoming["text"])
@@ -286,6 +289,18 @@ var assistantBlockMatchers = map[string]assistantBlockMatcher{
 			strings.HasPrefix(currentText, incomingText) ||
 			strings.HasPrefix(incomingText, currentText)
 	},
+}
+
+func nexusResourceArtifactKey(block map[string]any) string {
+	if id := normalizeString(block["id"]); id != "" {
+		return id
+	}
+	resourceKind := normalizeString(block["resource_kind"])
+	resourceID := normalizeString(block["resource_id"])
+	if resourceKind == "" || resourceID == "" {
+		return ""
+	}
+	return resourceKind + ":" + resourceID
 }
 
 func blockFieldMatcher(field string) assistantBlockMatcher {

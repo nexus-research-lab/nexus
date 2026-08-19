@@ -12,6 +12,9 @@ import {
   isQuestionSubmissionReady,
   projectQuestionDraftMetrics,
   projectQuestionInteraction,
+  shouldAutoSubmitQuestionCard,
+  updateQuestionDraftCustomAnswer,
+  updateQuestionDraftOption,
 } from "./question-controller-model";
 import {
   useQuestionDraft,
@@ -55,7 +58,11 @@ export function useAskUserQuestionController({
     interactionDisabled,
     toolResult,
   });
-  const { draft, toggleOption, updateCustomAnswer } = useQuestionDraft({
+  const {
+    draft,
+    replaceDraft,
+    updateCustomAnswer,
+  } = useQuestionDraft({
     initialSubmitted,
     questions,
     readOnly: interaction.readOnly,
@@ -79,6 +86,7 @@ export function useAskUserQuestionController({
     isReady,
     readOnly: interaction.readOnly,
   });
+  const autoSubmit = shouldAutoSubmitQuestionCard(questions);
   const handleAccepted = useCallback(
     () => setHasLocalSubmission(true),
     [setHasLocalSubmission],
@@ -96,9 +104,77 @@ export function useAskUserQuestionController({
     submissionReady,
     toolUseId,
   });
+  const submitQuestion = submission.submit;
+  const submitUpdatedDraft = useCallback((nextDraft: typeof draft) => {
+    replaceDraft(nextDraft);
+    const nextMetrics = projectQuestionDraftMetrics(
+      questions,
+      nextDraft,
+      false,
+    );
+    const nextSubmissionReady = isQuestionSubmissionReady({
+      draftComplete: nextMetrics.complete,
+      isReady,
+      readOnly: interaction.readOnly,
+    });
+    void submitQuestion(nextDraft, nextSubmissionReady);
+  }, [
+    interaction.readOnly,
+    isReady,
+    questions,
+    replaceDraft,
+    submitQuestion,
+  ]);
+  const handleToggleOption = useCallback((
+    questionIndex: number,
+    optionLabel: string,
+  ) => {
+    const nextDraft = updateQuestionDraftOption({
+      draft,
+      optionLabel,
+      questionIndex,
+      questions,
+      readOnly: interaction.readOnly,
+    });
+    if (autoSubmit) {
+      submitUpdatedDraft(nextDraft);
+      return;
+    }
+    replaceDraft(nextDraft);
+  }, [
+    autoSubmit,
+    draft,
+    interaction.readOnly,
+    questions,
+    replaceDraft,
+    submitUpdatedDraft,
+  ]);
+  const handleCustomAnswerSubmit = useCallback((
+    questionIndex: number,
+    customAnswer: string,
+  ) => {
+    if (!autoSubmit || !customAnswer.trim()) {
+      return;
+    }
+    const nextDraft = updateQuestionDraftCustomAnswer({
+      customAnswer,
+      draft,
+      questionIndex,
+      questions,
+      readOnly: interaction.readOnly,
+    });
+    submitUpdatedDraft(nextDraft);
+  }, [
+    autoSubmit,
+    draft,
+    interaction.readOnly,
+    questions,
+    submitUpdatedDraft,
+  ]);
 
   return {
     answerSummary: metrics.answerSummary,
+    autoSubmit,
     draft,
     draftComplete: metrics.complete,
     isExpanded: expanded,
@@ -108,8 +184,9 @@ export function useAskUserQuestionController({
     setIsExpanded: setExpanded,
     status: interaction.status,
     submit: submission.submit,
+    submitCustomAnswer: handleCustomAnswerSubmit,
     submitEnabled: submission.submitEnabled,
-    toggleOption,
+    toggleOption: handleToggleOption,
     totalSelected: metrics.totalSelected,
     updateCustomAnswer,
   };

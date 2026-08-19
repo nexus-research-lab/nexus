@@ -10,8 +10,8 @@
 //   - room*.go：房间、成员、directed message。
 //   - conversation_turn.go / event.go / goal.go / input_queue.go：
 //     对话投影、统一事件类型与权威 runtime slot 快照、Goal 生命周期/objective revision、输入队列面。
-//   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
-//     聊天附件、工作区文件产物、投递策略。
+//   - chat_attachment.go / workspace_file_artifact.go / nexus_resource_artifact.go / delivery_policy.go：
+//     聊天附件、工作区文件产物、Nexus 资源卡片、投递策略。
 //   - identity.go / value.go：ID 生成与跨边界值解码。
 //   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
 //

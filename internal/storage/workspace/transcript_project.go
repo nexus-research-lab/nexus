@@ -68,6 +68,14 @@ func projectTranscriptChainWithFilter(
 
 		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
 		lastTimestamp = entryTimestamp
+		decoded, decodeErr := sdkprotocol.DecodeMessage(entry.Data)
+		marker := transcriptRoundMarker{}
+		if decodeErr == nil &&
+			decoded.Type == sdkprotocol.MessageTypeUser &&
+			!isTranscriptToolResult(decoded) &&
+			shouldMaterializeTranscriptUserTurn(entry.Data) {
+			marker = consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
+		}
 
 		if guidanceRows := buildTranscriptGuidanceMessages(
 			sessionKey,
@@ -80,8 +88,7 @@ func projectTranscriptChainWithFilter(
 			continue
 		}
 
-		decoded, err := sdkprotocol.DecodeMessage(entry.Data)
-		if err != nil {
+		if decodeErr != nil {
 			continue
 		}
 
@@ -102,7 +109,6 @@ func projectTranscriptChainWithFilter(
 			if !shouldMaterializeTranscriptUserTurn(entry.Data) {
 				continue
 			}
-			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 			currentParentID := firstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
 			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
@@ -235,7 +241,27 @@ func sanitizeTranscriptUserContent(content string) string {
 	if message.IsInternalTranscriptInterruptPrompt(trimmed) {
 		return ""
 	}
-	return trimmed
+	return stripTranscriptRuntimeContext(trimmed)
+}
+
+func stripTranscriptRuntimeContext(content string) string {
+	const (
+		openTag  = "<nexus_runtime_context>"
+		closeTag = "</nexus_runtime_context>"
+	)
+	start := strings.LastIndex(content, openTag)
+	if start < 0 {
+		return content
+	}
+	end := strings.Index(content[start+len(openTag):], closeTag)
+	if end < 0 {
+		return content
+	}
+	end += start + len(openTag) + len(closeTag)
+	if strings.TrimSpace(content[end:]) != "" {
+		return content
+	}
+	return strings.TrimSpace(content[:start])
 }
 
 func stampTranscriptDurableMessages(

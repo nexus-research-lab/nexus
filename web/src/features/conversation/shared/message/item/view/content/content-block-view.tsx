@@ -8,6 +8,7 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import { ImageBlock } from "../../../blocks/artifact/image/image-block";
+import { NexusResourceArtifactCard } from "../../../blocks/artifact/nexus-resource/nexus-resource-artifact-card";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
 import { ThinkingBlock } from "../../../blocks/thinking-block";
 import { ToolUseErrorBlock } from "../../../blocks/tool/tool-use-error-block";
@@ -58,6 +59,7 @@ type ErasedContentBlockRenderer = (
 
 const CONTENT_BLOCK_RENDERERS = {
   image: renderImageBlock,
+  nexus_resource_artifact: renderNexusResourceArtifactBlock,
   system_event: renderSystemEventBlock,
   task_progress: renderHiddenBlock,
   text: renderTextBlock,
@@ -167,6 +169,12 @@ function renderWorkspaceFileArtifactBlock(
       onOpenWorkspaceFile={context.onOpenWorkspaceFile}
     />
   );
+}
+
+function renderNexusResourceArtifactBlock(
+  block: ContentBlockOf<"nexus_resource_artifact">,
+) {
+  return <NexusResourceArtifactCard artifact={block} />;
 }
 
 function renderToolUseBlock(

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 已归一化的用户问题、当前回答草稿与只读状态。
+ * OUTPUT: 原生问题卡片的视觉、选项和新手引导模板投影。
+ * POS: AskUserQuestion 卡片展示的纯模型，不处理轮次或提交副作用。
+ */
 import {
   CheckCircle,
   CheckSquare,
@@ -8,6 +13,11 @@ import {
 
 import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
 
+import {
+  isOnboardingQuestion,
+  ONBOARDING_QUESTION_HEADER_PREFIX,
+} from "../ask-user-question-model";
+
 interface QuestionCardTone {
   background: string;
   borderClassName: string;
@@ -15,8 +25,10 @@ interface QuestionCardTone {
 
 export interface QuestionCardPresentation {
   customAnswerPlaceholder: string;
+  headerLabel?: string;
   hasCustomAnswer: boolean;
   hasSelection: boolean;
+  isOnboarding: boolean;
   isMultiSelect: boolean;
   selectedCount: number;
   selectionSummary: string;
@@ -85,17 +97,31 @@ export function projectQuestionCard(
   const answers = collectAnswerItems(selectedOptions, trimmedCustomAnswer);
   const hasSelection = answers.length > 0;
   const tone = CARD_TONES[hasSelection ? "selected" : "empty"];
+  const isOnboarding = isOnboardingQuestion(question);
   return {
     customAnswerPlaceholder:
       CUSTOM_ANSWER_PLACEHOLDERS[isMultiSelect ? "multi" : "single"],
+    headerLabel: projectQuestionHeaderLabel(question, isOnboarding),
     hasCustomAnswer: Boolean(trimmedCustomAnswer),
     hasSelection,
+    isOnboarding,
     isMultiSelect,
     selectedCount: answers.length,
     selectionSummary: summarizeAnswerItems(answers),
     showCustomAnswer: [!readOnly, Boolean(trimmedCustomAnswer)].some(Boolean),
     tone,
   };
+}
+
+function projectQuestionHeaderLabel(
+  question: UserQuestion,
+  isOnboarding: boolean,
+): string | undefined {
+  const header = question.header?.trim();
+  if (!header || !isOnboarding) {
+    return header;
+  }
+  return header.slice(ONBOARDING_QUESTION_HEADER_PREFIX.length).trim();
 }
 
 function collectAnswerItems(

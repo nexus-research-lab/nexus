@@ -4,6 +4,7 @@ import { MessageItem } from "@/features/conversation/shared/message/item/message
 
 import { ConversationRoundPlaceholder } from "../timeline/round-placeholder";
 import {
+  resolveLatestAssistantRoundId,
   resolveRoundWorkspaceAgentId,
   type ConversationRoundRenderer,
   type ConversationRoundState,
@@ -27,6 +28,9 @@ export function ConversationRound({
     state.messages,
     renderer.workspaceAgentId,
   );
+  const isLatestOnboardingAgentRound = renderer.onboarding
+    && !renderer.onboardingCardVisible
+    && state.roundId === resolveLatestAssistantRoundId(source);
 
   return (
     <div
@@ -46,6 +50,11 @@ export function ConversationRound({
           isLastRound={state.isLast}
           isLoading={state.isLive}
           messages={state.messages}
+          className={
+            isLatestOnboardingAgentRound
+              ? "nexus-onboarding-agent-message"
+              : undefined
+          }
           onEditUserMessage={
             state.isLast && !state.isLive
               ? renderer.onEditLastUserMessage

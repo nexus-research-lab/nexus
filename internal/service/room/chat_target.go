@@ -144,6 +144,9 @@ func initialRoomTriggerType(request ChatRequest, targetResolution string) string
 	if request.Internal && strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" {
 		return "goal_continuation"
 	}
+	if request.ScriptedHostMessage {
+		return "scripted_host_message"
+	}
 	if targetResolution == "room_host_default" {
 		return "room_host_default"
 	}

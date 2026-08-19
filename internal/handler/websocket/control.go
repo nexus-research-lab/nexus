@@ -109,16 +109,17 @@ func (m *controlMessage) handleChat() {
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleChat(m.ctx, roompkg.ChatRequest{
-			SessionKey:        m.sessionKey,
-			RoomID:            m.stringValue("room_id"),
-			ConversationID:    m.stringValue("conversation_id"),
-			AttachmentAgentID: m.stringValue("agent_id"),
-			Content:           m.stringValue("content"),
-			TargetAgentIDs:    stringSliceValue(m.inbound["target_agent_ids"]),
-			Attachments:       m.attachments(),
-			ClientRequestID:   clientRequestID,
-			ClientMessageID:   clientMessageID,
-			DeliveryPolicy:    m.deliveryPolicy(),
+			SessionKey:          m.sessionKey,
+			RoomID:              m.stringValue("room_id"),
+			ConversationID:      m.stringValue("conversation_id"),
+			AttachmentAgentID:   m.stringValue("agent_id"),
+			Content:             m.stringValue("content"),
+			TargetAgentIDs:      stringSliceValue(m.inbound["target_agent_ids"]),
+			Attachments:         m.attachments(),
+			ClientRequestID:     clientRequestID,
+			ClientMessageID:     clientMessageID,
+			DeliveryPolicy:      m.deliveryPolicy(),
+			ScriptedHostMessage: m.boolValue("scripted_host_message"),
 		})
 	} else {
 		err = m.handler.dm.HandleChat(m.ctx, dmsvc.Request{
@@ -218,6 +219,11 @@ func (m *controlMessage) usesRoomRuntime() bool {
 
 func (m *controlMessage) stringValue(key string) string {
 	return handlershared.StringValue(m.inbound[key])
+}
+
+func (m *controlMessage) boolValue(key string) bool {
+	value, _ := handlershared.BoolValue(m.inbound[key])
+	return value
 }
 
 func (m *controlMessage) clientIDs() (string, string) {

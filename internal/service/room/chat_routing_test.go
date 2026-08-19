@@ -74,6 +74,73 @@ func TestNewRoomUserMessagePersistsResolvedTargets(t *testing.T) {
 	}
 }
 
+func TestPromoteScriptedRoomHostMessageUsesHostIdentity(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{HostAgentID: "agent-nexus"},
+	}
+	messageValue := newRoomUserMessage(
+		ChatRequest{
+			RoundID:             "round-onboarding",
+			UserMessageID:       "message-onboarding",
+			Content:             "@研究顾问 开始评审",
+			ScriptedHostMessage: true,
+		},
+		"room:group:conversation-onboarding",
+		"room-onboarding",
+		"conversation-onboarding",
+		nil,
+		[]string{"agent-researcher"},
+		protocol.ChatDeliveryPolicyQueue,
+	)
+	err := promoteScriptedRoomHostMessage(
+		ChatRequest{
+			Content:             "@研究顾问 开始评审",
+			ScriptedHostMessage: true,
+		},
+		contextValue,
+		map[string]*protocol.Agent{
+			"agent-nexus": {AgentID: "agent-nexus"},
+		},
+		nil,
+		nil,
+		[]string{"agent-researcher"},
+		messageValue,
+	)
+	if err != nil {
+		t.Fatalf("主持人开场消息转换失败: %v", err)
+	}
+	if messageValue["role"] != "assistant" || messageValue["agent_id"] != "agent-nexus" {
+		t.Fatalf("主持人开场消息身份不正确: %+v", messageValue)
+	}
+	if messageValue["is_complete"] != true || messageValue["stop_reason"] != "scripted" {
+		t.Fatalf("主持人开场消息终态不正确: %+v", messageValue)
+	}
+	blocks, ok := messageValue["content"].([]map[string]any)
+	if !ok || len(blocks) != 1 || blocks[0]["text"] != "@研究顾问 开始评审" {
+		t.Fatalf("主持人开场消息内容块不正确: %+v", messageValue["content"])
+	}
+}
+
+func TestPromoteScriptedRoomHostMessageRejectsNonEmptyConversation(t *testing.T) {
+	messageValue := protocol.Message{}
+	err := promoteScriptedRoomHostMessage(
+		ChatRequest{ScriptedHostMessage: true},
+		&protocol.ConversationContextAggregate{
+			Room: protocol.RoomRecord{HostAgentID: "agent-nexus"},
+		},
+		map[string]*protocol.Agent{
+			"agent-nexus": {AgentID: "agent-nexus"},
+		},
+		[]protocol.Message{{"role": "user", "content": "existing"}},
+		nil,
+		[]string{"agent-researcher"},
+		messageValue,
+	)
+	if err == nil || !strings.Contains(err.Error(), "first room message") {
+		t.Fatalf("非空会话应拒绝主持人开场消息: %v", err)
+	}
+}
+
 func TestResolveChatTargetAgentIDsRejectsNonMemberTarget(t *testing.T) {
 	contextValue := &protocol.ConversationContextAggregate{
 		Members: []protocol.MemberRecord{

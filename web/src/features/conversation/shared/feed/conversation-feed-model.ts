@@ -21,6 +21,8 @@ export interface ConversationRoundRenderer {
   currentAgentAvatar?: string | null;
   currentAgentName: string | null;
   currentUserAvatar?: string | null;
+  onboarding?: boolean;
+  onboardingCardVisible?: boolean;
   onEditLastUserMessage?: (messageId: string, newContent: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -96,4 +98,17 @@ export function resolveRoundWorkspaceAgentId(
     return assistantMessage.agent_id;
   }
   return fallbackAgentId ?? null;
+}
+
+export function resolveLatestAssistantRoundId(
+  source: Pick<ConversationRoundSource, "messageGroups" | "roundIds">,
+): string | null {
+  for (let index = source.roundIds.length - 1; index >= 0; index -= 1) {
+    const roundId = source.roundIds[index];
+    const messages = source.messageGroups.get(roundId) ?? [];
+    if (messages.some((message) => message.role === "assistant")) {
+      return roundId;
+    }
+  }
+  return null;
 }

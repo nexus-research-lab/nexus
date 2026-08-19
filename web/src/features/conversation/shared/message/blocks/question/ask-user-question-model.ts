@@ -30,6 +30,8 @@ const TERMINAL_QUESTION_STATUSES = new Set<QuestionInteractionStatus>([
   "timed_out",
 ]);
 
+export const ONBOARDING_QUESTION_HEADER_PREFIX = "新手引导 ·";
+
 interface QuestionStatusInput {
   failed: boolean;
   interactionDisabled: boolean;
@@ -102,6 +104,12 @@ export function parseAskUserQuestions(input: unknown): UserQuestion[] {
   return record.questions
     .map(parseUserQuestion)
     .filter((question): question is UserQuestion => question !== null);
+}
+
+export function isOnboardingQuestion(question: UserQuestion): boolean {
+  return question.header?.trim().startsWith(
+    ONBOARDING_QUESTION_HEADER_PREFIX,
+  ) ?? false;
 }
 
 export function createEmptyQuestionDraft(questionCount: number): QuestionDraft {

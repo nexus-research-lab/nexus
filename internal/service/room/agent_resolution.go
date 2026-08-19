@@ -44,7 +44,12 @@ func (s *Service) normalizeDirectAgentIDs(ctx context.Context, agentIDs []string
 	return normalizedIDs, nil
 }
 
-func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string) ([]string, error) {
+func (s *Service) normalizeGroupAgentIDs(
+	ctx context.Context,
+	agentIDs []string,
+	hostAgentID string,
+	allowMainAgentHost bool,
+) ([]string, error) {
 	if len(agentIDs) == 0 {
 		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")
 	}
@@ -70,17 +75,23 @@ func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string)
 		byID[a.AgentID] = a
 	}
 	normalizedIDs := make([]string, 0, len(cleaned))
+	ordinaryMemberCount := 0
+	normalizedHostAgentID := strings.TrimSpace(hostAgentID)
 	for _, id := range cleaned {
 		agentValue, ok := byID[id]
 		if !ok || agentValue.Status != "active" {
 			return nil, fmt.Errorf("%w: %s", agentsvc.ErrAgentNotFound, id)
 		}
 		if agentValue.IsMain {
-			return nil, fmt.Errorf("主智能体（%s）不能作为 room 成员", agentValue.Name)
+			if !allowMainAgentHost || normalizedHostAgentID != agentValue.AgentID {
+				return nil, fmt.Errorf("主智能体（%s）只能在显式启用时作为 room 主持人", agentValue.Name)
+			}
+		} else {
+			ordinaryMemberCount++
 		}
 		normalizedIDs = append(normalizedIDs, agentValue.AgentID)
 	}
-	if len(normalizedIDs) == 0 {
+	if len(normalizedIDs) == 0 || ordinaryMemberCount == 0 {
 		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")
 	}
 	return normalizedIDs, nil

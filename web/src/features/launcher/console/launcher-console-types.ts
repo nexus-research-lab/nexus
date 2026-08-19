@@ -11,7 +11,10 @@ export interface LauncherConsoleProps {
   rooms: LauncherRoomSummary[];
   conversations: LauncherConversationSummary[];
   currentAgentId: string | null;
-  onOpenMainAgentDm: (initialPrompt?: string) => void;
+  onOpenMainAgentDm: (
+    initialPrompt?: string,
+    options?: { onboarding?: boolean },
+  ) => void;
   onOpenRoute: (route: string) => void;
   onSelectAgent: (agentId: string) => void;
 }
@@ -35,7 +38,10 @@ export interface HeroStageProps {
   decorativeTokens: SpotlightToken[];
   mentionTargets: LauncherMentionTarget[];
   onEnterHome: () => void;
-  onOpenMainAgentDm: (initialPrompt?: string) => void;
+  onOpenMainAgentDm: (
+    initialPrompt?: string,
+    options?: { onboarding?: boolean },
+  ) => void;
   onQueryChange: (value: string) => void;
   onSelectAgent: (agentId: string) => void;
   onOpenRecentEntry: (entry: RecentLauncherEntry) => void;

@@ -1,3 +1,8 @@
+/**
+ * INPUT: AskUserQuestion 问题集合、草稿、交互状态与提交动作。
+ * OUTPUT: 原生问题交互区及新手引导卡片模板外观。
+ * POS: 问答内容块视图；回答状态和提交互斥由上层控制器持有。
+ */
 import { Check, Loader2, Send } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -5,6 +10,7 @@ import type { UserQuestion } from "@/types/conversation/interaction/ask-user-que
 
 import { MessageRail } from "../../ui/message-rail";
 import { AskUserQuestionCard } from "./card/ask-user-question-card";
+import { isOnboardingQuestion } from "./ask-user-question-model";
 import { AskUserQuestionHeader } from "./ask-user-question-header";
 import type {
   QuestionDraft,
@@ -13,6 +19,7 @@ import type {
 
 interface AskUserQuestionViewProps {
   answerSummary: string;
+  autoSubmit: boolean;
   draft: QuestionDraft;
   draftComplete: boolean;
   expanded: boolean;
@@ -20,6 +27,10 @@ interface AskUserQuestionViewProps {
   isSubmitting: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onSubmit: () => void;
+  onSubmitCustomAnswer: (
+    questionIndex: number,
+    customAnswer: string,
+  ) => void;
   onToggleOption: (questionIndex: number, optionLabel: string) => void;
   onUpdateCustomAnswer: (questionIndex: number, customAnswer: string) => void;
   questions: UserQuestion[];
@@ -31,6 +42,7 @@ interface AskUserQuestionViewProps {
 
 export function AskUserQuestionView({
   answerSummary,
+  autoSubmit,
   draft,
   draftComplete,
   expanded,
@@ -38,6 +50,7 @@ export function AskUserQuestionView({
   isSubmitting,
   onExpandedChange,
   onSubmit,
+  onSubmitCustomAnswer,
   onToggleOption,
   onUpdateCustomAnswer,
   questions,
@@ -46,8 +59,15 @@ export function AskUserQuestionView({
   submitEnabled,
   totalSelected,
 }: AskUserQuestionViewProps) {
+  const isOnboarding = questions.some(isOnboardingQuestion);
   return (
-    <MessageRail className="my-1.5">
+    <MessageRail
+      className={cn(
+        "my-1.5",
+        isOnboarding
+          && "rounded-[18px] border border-primary/15 bg-primary/[0.025] px-3 py-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+      )}
+    >
       <AskUserQuestionHeader
         answerSummary={answerSummary}
         expanded={expanded}
@@ -60,6 +80,7 @@ export function AskUserQuestionView({
       <QuestionCardList
         draft={draft}
         expanded={expanded}
+        onSubmitCustomAnswer={onSubmitCustomAnswer}
         onToggleOption={onToggleOption}
         onUpdateCustomAnswer={onUpdateCustomAnswer}
         questions={questions}
@@ -73,6 +94,8 @@ export function AskUserQuestionView({
         onSubmit={onSubmit}
         readOnly={readOnly}
         submitEnabled={submitEnabled}
+        submitLabel={isOnboarding ? "继续引导" : "继续协作"}
+        visible={!autoSubmit}
       />
       <QuestionSubmittedNotice expanded={expanded} status={status} />
     </MessageRail>
@@ -84,6 +107,7 @@ const EMPTY_SELECTION = new Set<string>();
 function QuestionCardList({
   draft,
   expanded,
+  onSubmitCustomAnswer,
   onToggleOption,
   onUpdateCustomAnswer,
   questions,
@@ -91,6 +115,10 @@ function QuestionCardList({
 }: {
   draft: QuestionDraft;
   expanded: boolean;
+  onSubmitCustomAnswer: (
+    questionIndex: number,
+    customAnswer: string,
+  ) => void;
   onToggleOption: (questionIndex: number, optionLabel: string) => void;
   onUpdateCustomAnswer: (questionIndex: number, customAnswer: string) => void;
   questions: UserQuestion[];
@@ -110,6 +138,7 @@ function QuestionCardList({
             initiallyExpanded={!readOnly}
             key={`${keyPrefix}:${question.question}`}
             onCustomAnswerChange={onUpdateCustomAnswer}
+            onCustomAnswerSubmit={onSubmitCustomAnswer}
             onToggleOption={onToggleOption}
             question={question}
             questionIndex={index}
@@ -135,11 +164,14 @@ function QuestionSubmitSection({
   onSubmit,
   readOnly,
   submitEnabled,
+  submitLabel,
+  visible,
 }: QuestionSubmitActionProps & {
   expanded: boolean;
   readOnly: boolean;
+  visible: boolean;
 }) {
-  if (readOnly || !expanded) {
+  if (readOnly || !expanded || !visible) {
     return null;
   }
   return (
@@ -149,6 +181,7 @@ function QuestionSubmitSection({
       isSubmitting={isSubmitting}
       onSubmit={onSubmit}
       submitEnabled={submitEnabled}
+      submitLabel={submitLabel}
     />
   );
 }
@@ -177,6 +210,7 @@ interface QuestionSubmitActionProps {
   isSubmitting: boolean;
   onSubmit: () => void;
   submitEnabled: boolean;
+  submitLabel: string;
 }
 
 function QuestionSubmitAction({
@@ -185,6 +219,7 @@ function QuestionSubmitAction({
   isSubmitting,
   onSubmit,
   submitEnabled,
+  submitLabel,
 }: QuestionSubmitActionProps) {
   const hint = resolveSubmitHint({ draftComplete, isReady, isSubmitting });
   const presentation = resolveSubmitPresentation(isSubmitting, submitEnabled);
@@ -208,7 +243,7 @@ function QuestionSubmitAction({
         type="button"
       >
         <Icon className={cn("h-3 w-3", presentation.iconClassName)} />
-        继续协作
+        {submitLabel}
       </button>
     </div>
   );
@@ -252,7 +287,10 @@ function resolveSubmitHint({
   draftComplete,
   isReady,
   isSubmitting,
-}: Omit<QuestionSubmitActionProps, "onSubmit" | "submitEnabled">): string {
+}: Omit<
+  QuestionSubmitActionProps,
+  "onSubmit" | "submitEnabled" | "submitLabel"
+>): string {
   const candidates = [
     { active: isSubmitting, label: "正在提交回应" },
     { active: !isReady, label: "等待提问就绪" },

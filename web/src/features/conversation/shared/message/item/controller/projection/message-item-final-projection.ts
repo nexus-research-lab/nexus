@@ -75,9 +75,13 @@ export function resolveMessageItemFinalProjection({
     finalAssistantTurn,
     visibleOrderedAssistantEntries,
   );
+  const resourceArtifactEntries = resolveResourceArtifactEntries(
+    visibleOrderedAssistantEntries,
+  );
   const archivedProcessProjection = buildArchivedProcessProjection({
     finalAssistantTurn,
     finalTailEntries,
+    resourceArtifactEntries,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
   });
@@ -100,13 +104,18 @@ export function resolveMessageItemFinalProjection({
     assistantContentMode,
     archivedProcessProjection,
   );
-  const finalAssistantContent = resolveFinalAssistantContent({
+  const resolvedFinalAssistantContent = resolveFinalAssistantContent({
     assistantContentMode,
     fallbackFinalAssistantContent,
     finalAssistantTurn,
     finalTailEntries,
     resultSummary,
   });
+  const finalAssistantContent = appendArchivedResourceArtifacts(
+    assistantContentMode,
+    resolvedFinalAssistantContent,
+    resourceArtifactEntries,
+  );
   const finalAssistantStreamingIndexes = resolveFinalStreamingIndexes(
     assistantContentMode,
     finalAssistantContent,
@@ -222,7 +231,7 @@ function resolveFinalTailEntries(
     if (entry.sourceMessageId !== finalAssistantTurn.messageId) {
       break;
     }
-    if (entry.block.type !== "text" || !entry.block.text.trim()) {
+    if (!isFinalPresentationBlock(entry.block)) {
       break;
     }
     tailEntries.unshift(entry);
@@ -230,17 +239,48 @@ function resolveFinalTailEntries(
   return tailEntries;
 }
 
+function isFinalPresentationBlock(block: ContentBlock): boolean {
+  if (block.type === "nexus_resource_artifact") {
+    return true;
+  }
+  return block.type === "text" && Boolean(block.text.trim());
+}
+
+function resolveResourceArtifactEntries(
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[],
+): OrderedAssistantEntry[] {
+  const seenIds = new Set<string>();
+  return visibleOrderedAssistantEntries.filter((entry) => {
+    if (entry.block.type !== "nexus_resource_artifact") {
+      return false;
+    }
+    if (seenIds.has(entry.block.id)) {
+      return false;
+    }
+    seenIds.add(entry.block.id);
+    return true;
+  });
+}
+
 function buildArchivedProcessProjection({
   finalAssistantTurn,
   finalTailEntries,
+  resourceArtifactEntries,
   streamingBlockIndexes,
   visibleOrderedAssistantEntries,
 }: {
   finalAssistantTurn: AssistantTurnEntry | null;
   finalTailEntries: OrderedAssistantEntry[];
+  resourceArtifactEntries: OrderedAssistantEntry[];
   streamingBlockIndexes: Set<number>;
   visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }) {
+  const resourceArtifactIndexes = new Set(
+    resourceArtifactEntries.map((entry) => entry.mergedIndex),
+  );
+  const processEntries = visibleOrderedAssistantEntries.filter(
+    (entry) => !resourceArtifactIndexes.has(entry.mergedIndex),
+  );
   // 最终回复由独立区域渲染（tail / turn 文本 / result 摘要），
   // 过程链无条件剥离它，避免同一段答案在过程和最终各出现一次。
   if (finalTailEntries.length > 0) {
@@ -248,7 +288,7 @@ function buildArchivedProcessProjection({
       finalTailEntries.map((entry) => entry.mergedIndex),
     );
     return projectionFromOrderedEntries(
-      visibleOrderedAssistantEntries.filter(
+      processEntries.filter(
         (entry) => !tailIndexes.has(entry.mergedIndex),
       ),
       streamingBlockIndexes,
@@ -261,7 +301,7 @@ function buildArchivedProcessProjection({
       visibleOrderedAssistantEntries,
     );
     return projectionFromOrderedEntries(
-      visibleOrderedAssistantEntries.filter(
+      processEntries.filter(
         (entry) =>
           entry.sourceMessageId !== finalAssistantTurn.messageId ||
           !finalAssistantTextMergedIndexes.has(entry.mergedIndex),
@@ -271,9 +311,36 @@ function buildArchivedProcessProjection({
   }
 
   return projectionFromOrderedEntries(
-    visibleOrderedAssistantEntries,
+    processEntries,
     streamingBlockIndexes,
   );
+}
+
+function appendArchivedResourceArtifacts(
+  mode: AssistantContentMode,
+  content: string | ContentBlock[] | null,
+  resourceArtifactEntries: OrderedAssistantEntry[],
+): string | ContentBlock[] | null {
+  if (mode !== "dm_archived" || resourceArtifactEntries.length === 0) {
+    return content;
+  }
+  const contentBlocks: ContentBlock[] = typeof content === "string"
+    ? [{ type: "text", text: content }]
+    : [...(content ?? [])];
+  const existingIds = new Set(
+    contentBlocks.flatMap((block) =>
+      block.type === "nexus_resource_artifact" ? [block.id] : []),
+  );
+  for (const entry of resourceArtifactEntries) {
+    if (
+      entry.block.type === "nexus_resource_artifact"
+      && !existingIds.has(entry.block.id)
+    ) {
+      contentBlocks.push(entry.block);
+      existingIds.add(entry.block.id);
+    }
+  }
+  return contentBlocks;
 }
 
 function resolveFallbackFinalAssistantContent(
@@ -346,7 +413,13 @@ function resolveArchivedFinalAssistantContent({
 }: FinalAssistantContentContext): string | ContentBlock[] | null {
   // 归档回复优先使用已从过程链剥离的正文，result 只补齐缺失正文。
   if (finalTailEntries.length > 0) {
-    return finalTailEntries.map((entry) => entry.block);
+    const blocks = finalTailEntries.map((entry) => entry.block);
+    const hasText = blocks.some(
+      (block) => block.type === "text" && Boolean(block.text.trim()),
+    );
+    return resultText && !hasText
+      ? [{ type: "text", text: resultText }, ...blocks]
+      : blocks;
   }
   if (finalAssistantTurn?.textContent.length) {
     return finalAssistantTurn.textContent;

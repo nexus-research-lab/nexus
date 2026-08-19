@@ -1,5 +1,8 @@
 import type { Agent } from "@/types/agent/agent";
-import type { RoomEventPayload } from "@/types/agent/agent-conversation";
+import type {
+  AgentConversationSendOptions,
+  RoomEventPayload,
+} from "@/types/agent/agent-conversation";
 import type { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
@@ -10,6 +13,8 @@ export interface GroupChatPanelProps {
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
   initialDraft?: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
+  onboarding?: boolean;
   layout: "desktop" | "mobile";
   onConversationSnapshotChange?: (
     snapshot: RoomConversationSnapshotPayload,

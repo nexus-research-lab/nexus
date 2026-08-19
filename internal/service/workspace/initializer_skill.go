@@ -1,3 +1,6 @@
+// INPUT: 项目内置 Skill 目录、Agent 身份与目标工作区。
+// OUTPUT: 按 Agent 类型部署并同步系统管理的 Skill 集合。
+// POS: Workspace 初始化器的 Skill 部署边界，决定主 Agent 可加载的内部能力。
 package workspace
 
 import (
@@ -13,8 +16,16 @@ import (
 
 var (
 	baseSkillNames      = []string{"imagegen", "goal-manager"}
-	mainAgentSkillNames = []string{"nexus-manager"}
-	createSymlink       = os.Symlink
+	mainAgentSkillNames = []string{
+		"nexus-manager",
+		"nexus-onboarding-card-kit",
+		"nexus-onboarding-student",
+		"nexus-onboarding-product-manager",
+		"nexus-onboarding-engineer",
+		"nexus-onboarding-operations",
+		"nexus-onboarding-solutions",
+	}
+	createSymlink = os.Symlink
 )
 
 // BuildSkillRenderContext 构建 skill 模板渲染上下文。

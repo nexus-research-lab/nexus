@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
@@ -7,7 +7,11 @@ import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversat
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type {
+  AgentConversationSendOptions,
+  UseAgentConversationReturn,
+} from "@/types/agent/agent-conversation";
+import type { Message } from "@/types/conversation/message/entity";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
@@ -21,17 +25,30 @@ type ComposerConversation = Pick<
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "messages"
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
   | "stop_generation"
 >;
 
+export function hasMatchingRoomInitialMessage(
+  messages: Message[],
+  initialDraft: string | null,
+): boolean {
+  const normalizedDraft = initialDraft?.trim() ?? "";
+  return Boolean(normalizedDraft) && messages.some((message) => (
+    message.role === "user"
+    && message.content.trim() === normalizedDraft
+  ));
+}
+
 interface UseGroupChatComposerModelOptions {
   conversation: ComposerConversation;
   conversationId: string | null;
   goal: RoomGoalComposerModel;
   initialDraft: string | null;
+  initialSendOptions?: AgentConversationSendOptions;
   onInitialDraftConsumed?: () => void;
   roomId: string | null;
   roomMembers: Agent[];
@@ -45,6 +62,7 @@ export function useGroupChatComposerModel({
   conversationId,
   goal,
   initialDraft,
+  initialSendOptions,
   onInitialDraftConsumed,
   roomId,
   roomMembers,
@@ -63,10 +81,20 @@ export function useGroupChatComposerModel({
     },
     [conversationId, roomId, t],
   );
+  const initialDraftAlreadySent = hasMatchingRoomInitialMessage(
+    conversation.messages,
+    initialDraft,
+  );
+  useEffect(() => {
+    if (initialDraftAlreadySent) {
+      onInitialDraftConsumed?.();
+    }
+  }, [initialDraftAlreadySent, onInitialDraftConsumed]);
   const handlers = useConversationComposerHandlers({
-    canSendInitialDraft: true,
+    canSendInitialDraft: !initialDraftAlreadySent,
     initialDraft,
     initialDraftLogLabel: "room",
+    initialSendOptions,
     isLoading: conversation.is_loading,
     onInitialDraftConsumed,
     prepareAttachments,

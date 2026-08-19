@@ -21,6 +21,7 @@ export function useGroupChatPanelModel({
   currentAgentAvatar,
   currentAgentName,
   initialDraft,
+  initialSendOptions,
   layout,
   onConversationSnapshotChange,
   onCreateConversation,
@@ -60,6 +61,7 @@ export function useGroupChatPanelModel({
     conversationId,
     goal,
     initialDraft: initialDraft ?? null,
+    initialSendOptions,
     onInitialDraftConsumed,
     roomId,
     roomMembers,
@@ -67,7 +69,6 @@ export function useGroupChatPanelModel({
     sessionKey: session.sessionKey,
     runtimeKind,
   });
-
   useRoomThreadSource({
     agentAvatarMap: directory.avatars,
     agentNameMap: directory.names,

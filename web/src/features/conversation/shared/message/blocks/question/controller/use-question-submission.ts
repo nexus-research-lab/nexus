@@ -51,27 +51,33 @@ export function useQuestionSubmission({
     }
   }, [scopeKey]);
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(async (
+    draftOverride?: QuestionDraft,
+    submissionReadyOverride?: boolean,
+  ) => {
+    const resolvedSubmissionReady = submissionReadyOverride
+      ?? submissionReady;
     await runQuestionSubmission({
       activeScopeRef,
       activeSubmissionRef,
-      draft,
+      draft: draftOverride ?? draft,
       onAccepted,
       onCollapse,
       onSubmit,
       scopeKey,
       setIsSubmitting,
-      submitEnabled,
+      submitEnabled: [resolvedSubmissionReady, !isSubmitting].every(Boolean),
       toolUseId,
     });
   }, [
     draft,
+    isSubmitting,
     onAccepted,
     onCollapse,
     onSubmit,
     scopeKey,
     setIsSubmitting,
-    submitEnabled,
+    submissionReady,
     toolUseId,
   ]);
 

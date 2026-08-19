@@ -121,6 +121,58 @@ func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 	}
 }
 
+func TestManagedNexusCLIPermissionOnlyAllowsSingleCreateOrReadCommand(t *testing.T) {
+	allowed := []string{
+		`& "$env:NEXUSCTL_COMMAND_PATH" --json agent list`,
+		`& "$env:NEXUSCTL_COMMAND_PATH" --json agent create --name "需求助手"`,
+		`"$NEXUSCTL_COMMAND_PATH" --json room get room-1`,
+		`$NEXUSCTL_COMMAND_PATH --json room create --agent-id agent-1`,
+	}
+	for _, command := range allowed {
+		if !IsManagedNexusCLIPermission("PowerShell", map[string]any{"command": command}) {
+			t.Fatalf("expected managed Nexus CLI command to be allowed: %s", command)
+		}
+	}
+
+	denied := []string{
+		`& "$env:NEXUSCTL_COMMAND_PATH" --json agent delete agent-1`,
+		`& "$env:NEXUSCTL_COMMAND_PATH" --json room create --agent-id agent-1; Remove-Item -Recurse .`,
+		`nexusctl --json room create --agent-id agent-1`,
+		`& "$env:NEXUSCTL_COMMAND_PATH" room list`,
+	}
+	for _, command := range denied {
+		if IsManagedNexusCLIPermission("Bash", map[string]any{"command": command}) {
+			t.Fatalf("expected unmanaged Nexus CLI command to require approval: %s", command)
+		}
+	}
+}
+
+func TestManagedNexusCLIAutoApprovalFallsBackForOtherShellCommands(t *testing.T) {
+	fallbackCalled := false
+	handler := WithManagedNexusCLIAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		fallbackCalled = true
+		return sdkpermission.Deny(request.ToolName, false), nil
+	})
+
+	decision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input: map[string]any{
+			"command": `& "$env:NEXUSCTL_COMMAND_PATH" --json room list`,
+		},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
+		t.Fatalf("managed Nexus CLI should be auto-approved: decision=%+v err=%v fallback=%v", decision, err, fallbackCalled)
+	}
+
+	decision, err = handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input:    map[string]any{"command": "Get-ChildItem"},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorDeny || !fallbackCalled {
+		t.Fatalf("other shell command should use fallback: decision=%+v err=%v fallback=%v", decision, err, fallbackCalled)
+	}
+}
+
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)

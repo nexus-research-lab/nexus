@@ -35,6 +35,11 @@ const IMAGE_IDENTITY_RESOLVERS: readonly ImageIdentityResolver[] = [
 
 const CONTENT_BLOCK_KEY_RESOLVERS = {
   image: (block) => imageContentBlockKey(block),
+  nexus_resource_artifact: (block) => (
+    block.id
+      ? `nexus_resource_artifact:${block.id}`
+      : `nexus_resource_artifact:${block.resource_kind}:${block.resource_id}`
+  ),
   system_event: (block) => [
     "system_event",
     block.source_message_id,

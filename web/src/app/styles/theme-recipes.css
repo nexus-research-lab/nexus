@@ -384,6 +384,296 @@
   }
 }
 
+/* 中文注释：首次旅程入口使用分层渐变、扫光和阴影呼吸强化注意力，不影响普通“进入工作台”按钮。 */
+.nexus-launcher-journey-button {
+  color: white;
+  background:
+    linear-gradient(
+      125deg,
+      color-mix(in srgb, var(--primary) 88%, #5f6dfb) 0%,
+      color-mix(in srgb, var(--primary) 62%, #b85cff) 42%,
+      color-mix(in srgb, var(--primary) 72%, #39c6ed) 72%,
+      color-mix(in srgb, var(--primary) 90%, #6572ff) 100%
+    );
+  background-size: 260% 260%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.44),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 12px 32px color-mix(in srgb, var(--primary) 28%, transparent),
+    0 0 0 color-mix(in srgb, #9b6cff 0%, transparent);
+  animation:
+    nexus-launcher-journey-gradient 5.4s ease-in-out infinite,
+    nexus-launcher-journey-breathe 2.6s ease-in-out infinite;
+}
+
+.nexus-launcher-journey-button::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.22),
+      rgba(255, 255, 255, 0.04) 46%,
+      rgba(20, 24, 70, 0.12)
+    );
+}
+
+.nexus-launcher-journey-button::after {
+  content: "";
+  position: absolute;
+  inset: -45% auto -45% -38%;
+  z-index: 1;
+  width: 28%;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.72),
+    transparent
+  );
+  filter: blur(1px);
+  transform: skewX(-18deg);
+  animation: nexus-launcher-journey-sheen 3.2s ease-in-out infinite;
+}
+
+.nexus-launcher-journey-badge {
+  color: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.38),
+    0 4px 14px rgba(24, 30, 78, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.nexus-launcher-journey-text {
+  color: white;
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #ffffff 32%,
+    #dff8ff 48%,
+    #f4ddff 58%,
+    #ffffff 76%,
+    #ffffff 100%
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.18);
+  animation: nexus-launcher-journey-text-shimmer 2.8s linear infinite;
+}
+
+.nexus-launcher-journey-arrow {
+  color: rgba(255, 255, 255, 0.96);
+  filter: drop-shadow(0 1px 5px rgba(255, 255, 255, 0.34));
+}
+
+@keyframes nexus-launcher-journey-gradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes nexus-launcher-journey-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.44),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+      0 10px 28px color-mix(in srgb, var(--primary) 24%, transparent),
+      0 0 0 color-mix(in srgb, #9b6cff 0%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.64),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.48),
+      0 17px 42px color-mix(in srgb, var(--primary) 42%, transparent),
+      0 0 28px color-mix(in srgb, #9b6cff 48%, transparent);
+  }
+}
+
+@keyframes nexus-launcher-journey-sheen {
+  0%,
+  16% {
+    opacity: 0;
+    transform: translateX(0) skewX(-18deg);
+  }
+  34% {
+    opacity: 0.88;
+  }
+  58%,
+  100% {
+    opacity: 0;
+    transform: translateX(650%) skewX(-18deg);
+  }
+}
+
+@keyframes nexus-launcher-journey-text-shimmer {
+  from {
+    background-position: 140% 50%;
+  }
+  to {
+    background-position: -80% 50%;
+  }
+}
+
+/* 中文注释：NX 引导光效只挂在圆形头像本体，避免展开侧栏的矩形点击热区被一同描边。 */
+.nexus-home-onboarding-nx {
+  border-radius: 9999px;
+  border-color: rgba(150, 224, 255, 0.92) !important;
+  filter: drop-shadow(0 0 8px rgba(104, 211, 255, 0.72));
+  animation: nexus-home-onboarding-nx-breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes nexus-home-onboarding-nx-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(157, 229, 255, 0.24),
+      0 0 12px rgba(104, 211, 255, 0.46),
+      0 8px 22px rgba(73, 169, 224, 0.26);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(157, 229, 255, 0.3),
+      0 0 30px rgba(104, 211, 255, 0.98),
+      0 12px 34px rgba(73, 169, 224, 0.52);
+    transform: scale(1.1);
+  }
+}
+
+.nexus-onboarding-focus-mask {
+  position: fixed;
+  z-index: 80;
+  pointer-events: auto;
+  cursor: not-allowed;
+  touch-action: none;
+  user-select: none;
+  background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 44%,
+    transparent
+  );
+  backdrop-filter: blur(9px) saturate(58%);
+  -webkit-backdrop-filter: blur(9px) saturate(58%);
+  animation: nexus-onboarding-mask-enter 280ms ease-out both;
+}
+
+.nexus-onboarding-focus-frame {
+  position: fixed;
+  z-index: 81;
+  pointer-events: none;
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 34%, transparent),
+    0 0 34px color-mix(in srgb, var(--primary) 16%, transparent);
+  animation: nexus-onboarding-frame-breathe 2.4s ease-in-out infinite;
+}
+
+/* 中文注释：仅为引导轮次与实时回复添加轻量呼吸，避免普通历史消息持续晃动。 */
+.nexus-onboarding-agent-message .nexus-chat-message-content {
+  transform-origin: left center;
+  will-change: filter, opacity, transform;
+  animation:
+    nexus-onboarding-agent-enter 620ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    nexus-onboarding-agent-breathe 2.2s ease-in-out 620ms infinite;
+}
+
+.nexus-onboarding-agent-message .nexus-chat-avatar {
+  animation: nexus-onboarding-avatar-breathe 2.2s ease-in-out 620ms infinite;
+}
+
+@keyframes nexus-onboarding-mask-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nexus-onboarding-frame-breathe {
+  0%,
+  100% {
+    opacity: 0.42;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent),
+      0 0 28px color-mix(in srgb, var(--primary) 9%, transparent);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--primary) 58%, transparent),
+      0 0 64px color-mix(in srgb, var(--primary) 34%, transparent);
+  }
+}
+
+@keyframes nexus-onboarding-agent-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes nexus-onboarding-agent-breathe {
+  0%,
+  100% {
+    opacity: 0.66;
+    filter: drop-shadow(0 0 0 transparent);
+    transform: translateY(2px) scale(0.985);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(
+      0 0 18px color-mix(in srgb, var(--primary) 48%, transparent)
+    );
+    transform: translateY(-4px) scale(1.015);
+  }
+}
+
+@keyframes nexus-onboarding-avatar-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(0.92);
+  }
+  50% {
+    filter: drop-shadow(
+      0 0 18px color-mix(in srgb, var(--primary) 52%, transparent)
+    );
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-launcher-journey-button,
+  .nexus-launcher-journey-button::after,
+  .nexus-launcher-journey-text,
+  .nexus-home-onboarding-nx,
+  .nexus-onboarding-focus-mask,
+  .nexus-onboarding-focus-frame,
+  .nexus-onboarding-agent-message .nexus-chat-message-content,
+  .nexus-onboarding-agent-message .nexus-chat-avatar {
+    animation: none;
+  }
+}
+
 @layer utilities {
   .soft-scrollbar {
     scrollbar-width: thin;

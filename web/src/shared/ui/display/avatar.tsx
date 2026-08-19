@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: Agent/Room 名称、显式头像、成员列表与尺寸。
+ * [OUTPUT]: 统一的 Agent 头像与 Room 头像；显式 Room 头像优先于成员拼图。
+ * [POS]: 全站头像展示的视觉真相源。
+ */
+
 "use client";
 
 import { type HTMLAttributes } from "react";
@@ -107,7 +113,7 @@ export function UiAgentAvatar({
   );
 }
 
-/** 中文注释：Room 头像最多取 9 个成员做九宫格，避免业务侧各自实现不同的拼图规则。 */
+/** 中文注释：显式 Room 头像优先；未配置时最多取 9 个成员做九宫格。 */
 export function UiRoomAvatar({
   avatar,
   className,
@@ -118,11 +124,31 @@ export function UiRoomAvatar({
   title,
   ...props
 }: UiRoomAvatarProps) {
+  const explicitAvatarSrc = getIconAvatarSrc(avatar, "room");
+  if (explicitAvatarSrc) {
+    return (
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+          ROOM_AVATAR_SIZE_CLASS_MAP[size],
+          className,
+        )}
+        {...props}
+      >
+        <img
+          alt={title}
+          className="h-full w-full object-cover"
+          src={explicitAvatarSrc}
+        />
+      </span>
+    );
+  }
+
   const visibleMembers = members.slice(0, maxMembers);
   const gridSize = roomAvatarGridSize(visibleMembers.length);
 
   if (visibleMembers.length === 0) {
-    const roomAvatarId = getRoomAvatarIconId(roomId ?? title, title, avatar);
+    const roomAvatarId = getRoomAvatarIconId(roomId ?? title, title);
     const roomAvatarSrc = getIconAvatarSrc(roomAvatarId, "room");
 
     return (

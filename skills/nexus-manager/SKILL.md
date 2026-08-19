@@ -94,6 +94,16 @@ nexusctl room contexts abc123
 nexusctl room create --agent-id research --agent-id writer --name "内容团队" --title "Kickoff" --description "内容生产协作空间"
 ```
 
+创建“点击卡片即启动协作”的引导 Room 时，必须把 Nexus 主页 Agent 作为受信任主持人，并携带一次性开场协议：
+
+```bash
+nexusctl room create --agent-id nexus --agent-id research --agent-id writer --host-agent-id nexus --allow-main-agent-host --host-auto-reply-enabled --initial-target-agent-id research --initial-target-agent-id writer --initial-message "@研究员 @写作者\n请分别开始协作。" --name "内容团队"
+```
+
+- `--initial-message` 仅随创建结果投影到 Room 卡片，用户首次点击卡片进入 Room 后由主持人自动发布；其中字面量 `\n` 会转换为换行。
+- `--initial-target-agent-id` 明确首轮真实执行 Agent，可以重复传入；不得包含主持人。
+- 只有引导型 Room 才需要这些参数，普通 Room 创建行为不变。
+
 #### 更新 Room
 
 ```bash

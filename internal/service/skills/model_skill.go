@@ -1,3 +1,6 @@
+// INPUT: Skill 目录、来源与作用域元数据。
+// OUTPUT: 系统、内部及用户可见 Skill 的分类模型。
+// POS: Skills 服务的分类真相源，控制内部 Skill 是否进入公共目录。
 package skills
 
 import (
@@ -25,7 +28,15 @@ const ScopeRoom = scopeRoom
 
 var (
 	systemSkillNames   = map[string]struct{}{"imagegen": {}, "goal-manager": {}}
-	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
+	internalSkillNames = map[string]struct{}{
+		"nexus-manager":                    {},
+		"nexus-onboarding-card-kit":        {},
+		"nexus-onboarding-student":         {},
+		"nexus-onboarding-product-manager": {},
+		"nexus-onboarding-engineer":        {},
+		"nexus-onboarding-operations":      {},
+		"nexus-onboarding-solutions":       {},
+	}
 	curatedEntriesOnce sync.Once
 	curatedEntriesData map[string]map[string]string
 	curatedEntriesErr  error

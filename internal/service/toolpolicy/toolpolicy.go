@@ -16,6 +16,11 @@ import (
 
 const managedGoalSkillName = "goal-manager"
 
+var managedNexusCLIAllowedActions = map[string]map[string]struct{}{
+	"agent": {"list": {}, "get": {}, "create": {}},
+	"room":  {"list": {}, "get": {}, "create": {}},
+}
+
 var managedGoalTools = []string{
 	"nexus_goal",
 	"get_goal",
@@ -206,6 +211,66 @@ func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Ha
 		}
 		return handler(ctx, request)
 	}
+}
+
+// IsManagedNexusCLIPermission 判断 shell 请求是否只是通过受管命令入口执行 Agent/Room 引导动作。
+func IsManagedNexusCLIPermission(toolName string, input map[string]any) bool {
+	if !MatchesItem(toolName, "Bash") && !MatchesItem(toolName, "PowerShell") {
+		return false
+	}
+	command := stringInput(input, "command")
+	if command == "" || containsShellComposition(command) {
+		return false
+	}
+	arguments, ok := managedNexusCLIArguments(command)
+	if !ok || len(arguments) < 3 || arguments[0] != "--json" {
+		return false
+	}
+	actions := managedNexusCLIAllowedActions[arguments[1]]
+	_, allowed := actions[arguments[2]]
+	return allowed
+}
+
+// WithManagedNexusCLIAutoApproval 允许主页 Agent 使用受管 Nexus CLI 完成无删除能力的真实引导动作。
+func WithManagedNexusCLIAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if IsManagedNexusCLIPermission(request.ToolName, request.Input) {
+			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+func containsShellComposition(command string) bool {
+	for _, token := range []string{"\n", "\r", ";", "&&", "||", "|", ">", "<", "`", "$("} {
+		if strings.Contains(command, token) {
+			return true
+		}
+	}
+	return false
+}
+
+func managedNexusCLIArguments(command string) ([]string, bool) {
+	trimmed := strings.TrimSpace(command)
+	prefixes := []string{
+		`& "$env:NEXUSCTL_COMMAND_PATH"`,
+		`& '$env:NEXUSCTL_COMMAND_PATH'`,
+		`& $env:NEXUSCTL_COMMAND_PATH`,
+		`"$NEXUSCTL_COMMAND_PATH"`,
+		`'$NEXUSCTL_COMMAND_PATH'`,
+		`$NEXUSCTL_COMMAND_PATH`,
+	}
+	for _, prefix := range prefixes {
+		if !strings.HasPrefix(trimmed, prefix) {
+			continue
+		}
+		rest := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+		return strings.Fields(rest), rest != ""
+	}
+	return nil, false
 }
 
 // WithMalformedInputDeny 检测工具输入 JSON 解析失败时拒绝执行，

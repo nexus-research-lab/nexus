@@ -43,13 +43,18 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 		return nil, err
 	}
 	var normalizedAgentIDs []string
-	// DM 与 group 的成员语义不同，不能共用“普通成员”归一化。
-	// DM 允许主智能体，group 仍然禁止主智能体进入房间成员列表。
+	// DM 与 group 的成员语义不同，不能共用成员归一化。
+	// group 默认禁止主智能体；受信任的创建流程可显式将其设为主持人。
 	switch normalizedRoomType {
 	case protocol.RoomTypeDM:
 		normalizedAgentIDs, err = s.normalizeDirectAgentIDs(ctx, request.AgentIDs)
 	default:
-		normalizedAgentIDs, err = s.normalizeGroupAgentIDs(ctx, request.AgentIDs)
+		normalizedAgentIDs, err = s.normalizeGroupAgentIDs(
+			ctx,
+			request.AgentIDs,
+			request.HostAgentID,
+			request.AllowMainAgentHost,
+		)
 	}
 	if err != nil {
 		return nil, err

@@ -162,6 +162,276 @@ test("Room no-reply control markers never become visible assistant blocks", asyn
   assert.deepEqual(entries, []);
 });
 
+test("Nexus resource artifacts remain visible conversation blocks", async () => {
+  const { buildVisibleOrderedAssistantEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
+  );
+  const artifact = roomResourceArtifact();
+  const entries = buildVisibleOrderedAssistantEntries({
+    hiddenToolNames: new Set(),
+    hiddenToolUseIds: new Set(),
+    isLoading: false,
+    mergedContent: [artifact],
+    mergedContentSourceMessageIds: ["assistant-room-result"],
+    sourceMessageOrderById: new Map([["assistant-room-result", 0]]),
+    systemEventBlocks: [],
+  });
+
+  assert.deepEqual(entries.map((entry) => entry.block.type), [
+    "nexus_resource_artifact",
+  ]);
+});
+
+test("guided Room resource card carries the scripted host kickoff route", async () => {
+  const { buildNexusResourceArtifactRoute } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/artifact/nexus-resource/nexus-resource-artifact-route.ts",
+  );
+  const route = buildNexusResourceArtifactRoute({
+    ...roomResourceArtifact(),
+    initial_message: "@Researcher @Engineer\n请分别开始评审。",
+    initial_target_agent_ids: ["agent-research", "agent-engineer"],
+  });
+  const url = new URL(route, "http://localhost");
+
+  assert.equal(
+    url.pathname,
+    "/rooms/room-created/conversations/conversation-created",
+  );
+  assert.equal(
+    url.searchParams.get("initial"),
+    "@Researcher @Engineer\n请分别开始评审。",
+  );
+  assert.equal(url.searchParams.get("scripted_host_message"), "1");
+  assert.equal(
+    url.searchParams.get("initial_action_key"),
+    "room-created:conversation-created",
+  );
+  assert.equal(
+    url.searchParams.get("initial_target_agent_ids"),
+    "agent-research,agent-engineer",
+  );
+});
+
+test("new onboarding messages are merged by time instead of pinned above history", async () => {
+  const { mergeOnboardingRoundIdsByTimestamp } = await server.ssrLoadModule(
+    "/src/features/conversation/room/dm/panel/controller/dm-chat-panel-projection.ts",
+  );
+  const groups = new Map([
+    ["history-old", [{ timestamp: 10 }]],
+    ["history-new", [{ timestamp: 30 }]],
+    ["onboarding-middle", [{ timestamp: 20 }]],
+    ["onboarding-latest", [{ timestamp: 40 }]],
+  ]);
+
+  assert.deepEqual(
+    mergeOnboardingRoundIdsByTimestamp(
+      ["history-old", "history-new"],
+      ["onboarding-middle", "onboarding-latest"],
+      groups,
+    ),
+    [
+      "history-old",
+      "onboarding-middle",
+      "history-new",
+      "onboarding-latest",
+    ],
+  );
+});
+
+test("an existing scripted Room opener is not sent a second time", async () => {
+  const { hasMatchingRoomInitialMessage } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-composer-model.ts",
+  );
+  const opening = "@研究顾问 @技术顾问\n请开始评审。";
+
+  assert.equal(
+    hasMatchingRoomInitialMessage([
+      userMessage({
+        content: opening,
+        messageId: "room-opener",
+        roundId: "room-opener",
+        timestamp: 1,
+      }),
+    ], opening),
+    true,
+  );
+  assert.equal(
+    hasMatchingRoomInitialMessage([], opening),
+    false,
+  );
+});
+
+test("archived DM keeps the Room card beside the final answer", async () => {
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const {
+    buildVisibleAssistantTurns,
+    buildVisibleOrderedAssistantEntries,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
+  );
+  const artifact = roomResourceArtifact();
+  const resultSummary = {
+    duration_api_ms: 10,
+    duration_ms: 20,
+    is_error: false,
+    num_turns: 2,
+    result: "Room created successfully.",
+    subtype: "success",
+    timestamp: 30,
+  };
+  const assistantMessages = [{
+    content: [artifact],
+    is_complete: true,
+    message_id: "assistant-room-result",
+    parent_id: "user-room-request",
+    result_summary: resultSummary,
+    role: "assistant",
+    round_id: "round-room-request",
+    session_key: "agent:nexus:ws:dm:conversation-1",
+    stop_reason: "tool_use",
+    stream_status: "done",
+    timestamp: 30,
+  }];
+  const visibleOrderedAssistantEntries = buildVisibleOrderedAssistantEntries({
+    hiddenToolNames: new Set(),
+    hiddenToolUseIds: new Set(),
+    isLoading: false,
+    mergedContent: [artifact],
+    mergedContentSourceMessageIds: ["assistant-room-result"],
+    sourceMessageOrderById: new Map([["assistant-room-result", 0]]),
+    systemEventBlocks: [],
+  });
+  const visibleAssistantTurns = buildVisibleAssistantTurns({
+    assistantMessages,
+    streamingBlockIndexes: new Set(),
+    visibleOrderedAssistantEntries,
+  });
+  const result = resolveMessageItemFinalProjection({
+    assistantContentMode: "dm_archived",
+    assistantMessages,
+    orderedProjection: {
+      content: [artifact],
+      streamingIndexes: new Set(),
+    },
+    resultSummary,
+    roundId: "round-room-request",
+    userMessageId: "user-room-request",
+    streamingBlockIndexes: new Set(),
+    visibleAssistantTurns,
+    visibleOrderedAssistantEntries,
+  });
+
+  assert.deepEqual(result.processProjection.content, []);
+  assert.deepEqual(
+    result.finalAssistantContent.map((block) => block.type),
+    ["text", "nexus_resource_artifact"],
+  );
+});
+
+test("archived DM promotes an earlier Room artifact beside a later final answer", async () => {
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const {
+    buildVisibleAssistantTurns,
+    buildVisibleOrderedAssistantEntries,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
+  );
+  const artifact = roomResourceArtifact();
+  const finalText = { type: "text", text: "Room 已创建，点击卡片开始协作。" };
+  const assistantMessages = [
+    {
+      content: [artifact],
+      message_id: "assistant-room-artifact",
+      parent_id: "user-room-request",
+      role: "assistant",
+      round_id: "round-room-request",
+      session_key: "agent:nexus:ws:dm:conversation-1",
+      stop_reason: "tool_use",
+      stream_status: "done",
+      timestamp: 20,
+    },
+    {
+      content: [finalText],
+      is_complete: true,
+      message_id: "assistant-room-final",
+      parent_id: "user-room-request",
+      role: "assistant",
+      round_id: "round-room-request",
+      session_key: "agent:nexus:ws:dm:conversation-1",
+      stop_reason: "end_turn",
+      stream_status: "done",
+      timestamp: 30,
+    },
+  ];
+  const visibleOrderedAssistantEntries = buildVisibleOrderedAssistantEntries({
+    hiddenToolNames: new Set(),
+    hiddenToolUseIds: new Set(),
+    isLoading: false,
+    mergedContent: [artifact, finalText],
+    mergedContentSourceMessageIds: [
+      "assistant-room-artifact",
+      "assistant-room-final",
+    ],
+    sourceMessageOrderById: new Map([
+      ["assistant-room-artifact", 0],
+      ["assistant-room-final", 1],
+    ]),
+    systemEventBlocks: [],
+  });
+  const visibleAssistantTurns = buildVisibleAssistantTurns({
+    assistantMessages,
+    streamingBlockIndexes: new Set(),
+    visibleOrderedAssistantEntries,
+  });
+  const result = resolveMessageItemFinalProjection({
+    assistantContentMode: "dm_archived",
+    assistantMessages,
+    orderedProjection: {
+      content: [artifact, finalText],
+      streamingIndexes: new Set(),
+    },
+    resultSummary: undefined,
+    roundId: "round-room-request",
+    userMessageId: "user-room-request",
+    streamingBlockIndexes: new Set(),
+    visibleAssistantTurns,
+    visibleOrderedAssistantEntries,
+  });
+
+  assert.deepEqual(result.processProjection.content, []);
+  assert.deepEqual(
+    result.finalAssistantContent.map((block) => block.type),
+    ["text", "nexus_resource_artifact"],
+  );
+  assert.equal(result.finalAssistantContent[1]?.resource_id, "room-created");
+});
+
+test("single-select question cards auto-submit while multi-step cards wait", async () => {
+  const { shouldAutoSubmitQuestionCard } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/question/controller/question-controller-model.ts",
+  );
+  const singleQuestion = {
+    header: "新手引导 · 角色",
+    multi_select: false,
+    options: [{ label: "产品经理" }],
+    question: "请选择你的角色",
+  };
+
+  assert.equal(shouldAutoSubmitQuestionCard([singleQuestion]), true);
+  assert.equal(
+    shouldAutoSubmitQuestionCard([{ ...singleQuestion, multi_select: true }]),
+    false,
+  );
+  assert.equal(
+    shouldAutoSubmitQuestionCard([singleQuestion, { ...singleQuestion }]),
+    false,
+  );
+});
+
 test("Room no-reply control markers stay out of previews and result summaries", async () => {
   const { extractAgentPreviewText } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
@@ -1092,5 +1362,21 @@ function roundIndexItem(roundId, overrides = {}) {
     timestamp: null,
     title: "",
     ...overrides,
+  };
+}
+
+function roomResourceArtifact() {
+  return {
+    avatar: "24",
+    conversation_id: "conversation-created",
+    description: "A guided collaboration Room",
+    id: "nexus_resource:room:tool-room:room-created",
+    members: [{ id: "agent-1", name: "Product Agent" }],
+    name: "Product Review Room",
+    resource_id: "room-created",
+    resource_kind: "room",
+    source_tool_name: "PowerShell",
+    source_tool_use_id: "tool-room",
+    type: "nexus_resource_artifact",
   };
 }
