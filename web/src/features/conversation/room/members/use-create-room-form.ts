@@ -6,8 +6,6 @@ import type {
   RoomMemberAgentOption,
 } from "./create-room-dialog-types";
 
-const MAX_ROOM_MEMBERS = 10;
-
 type RoomFormTransition = (
   current: RoomDialogFormState,
 ) => RoomDialogFormState;
@@ -152,7 +150,7 @@ function toggleMemberId(memberIds: string[], agentId: string): string[] {
   const nextIds = new Set(memberIds);
   if (nextIds.has(agentId)) {
     nextIds.delete(agentId);
-  } else if (nextIds.size < MAX_ROOM_MEMBERS) {
+  } else {
     nextIds.add(agentId);
   }
   return [...nextIds];
