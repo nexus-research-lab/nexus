@@ -47,8 +47,8 @@ func (s *Service) FinishRoomAttempt(
 	if s.repository == nil {
 		return errors.New("orchestration repository is nil")
 	}
-	binding := normalizeExecutionWorkBinding(&input.Binding)
-	if !completeExecutionWorkBinding(binding) {
+	binding := input.Binding.Normalized()
+	if !binding.Complete() {
 		return workBindingMismatch("Room root Attempt terminal binding is incomplete")
 	}
 	actor.ExecutionID = binding.ExecutionID

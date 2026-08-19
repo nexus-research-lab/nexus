@@ -335,8 +335,8 @@ func (s *Service) AuthorizeRoomReviewReturn(
 	if err := validateActor(actor); err != nil {
 		return err
 	}
-	normalized := normalizeExecutionReviewBinding(binding)
-	if !completeExecutionReviewBinding(normalized) {
+	normalized := binding.Normalized()
+	if !normalized.Complete() {
 		return domainError(
 			ErrorCodeAssignmentTargetInvalid,
 			"structured Room review binding is incomplete",
@@ -376,33 +376,4 @@ func (s *Service) AuthorizeRoomReviewReturn(
 		)
 	}
 	return nil
-}
-
-func normalizeExecutionReviewBinding(
-	binding *protocol.ExecutionReviewBinding,
-) protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return protocol.ExecutionReviewBinding{}
-	}
-	return protocol.ExecutionReviewBinding{
-		ExecutionID:      strings.TrimSpace(binding.ExecutionID),
-		PlanID:           strings.TrimSpace(binding.PlanID),
-		WorkItemID:       strings.TrimSpace(binding.WorkItemID),
-		SpecID:           strings.TrimSpace(binding.SpecID),
-		AssignmentID:     strings.TrimSpace(binding.AssignmentID),
-		SubmissionID:     strings.TrimSpace(binding.SubmissionID),
-		ReviewDispatchID: strings.TrimSpace(binding.ReviewDispatchID),
-		TargetAgentID:    strings.TrimSpace(binding.TargetAgentID),
-	}
-}
-
-func completeExecutionReviewBinding(binding protocol.ExecutionReviewBinding) bool {
-	return binding.ExecutionID != "" &&
-		binding.PlanID != "" &&
-		binding.WorkItemID != "" &&
-		binding.SpecID != "" &&
-		binding.AssignmentID != "" &&
-		binding.SubmissionID != "" &&
-		binding.ReviewDispatchID != "" &&
-		binding.TargetAgentID != ""
 }

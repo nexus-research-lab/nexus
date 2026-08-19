@@ -139,7 +139,7 @@ func workBindingReviewResolved(
 	if snapshot == nil || actor.WorkBinding == nil {
 		return false
 	}
-	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+	binding := actor.WorkBinding.Normalized()
 	assignment := findAssignmentByID(snapshot, binding.AssignmentID)
 	if assignment == nil ||
 		assignment.ExecutionID != binding.ExecutionID ||
@@ -168,8 +168,8 @@ func reviewBindingResolved(
 	if snapshot == nil || actor.ReviewBinding == nil {
 		return false
 	}
-	binding := normalizeExecutionReviewBinding(actor.ReviewBinding)
-	if !completeExecutionReviewBinding(binding) ||
+	binding := actor.ReviewBinding.Normalized()
+	if !binding.Complete() ||
 		binding.ExecutionID != strings.TrimSpace(snapshot.Execution.ID) ||
 		binding.TargetAgentID != strings.TrimSpace(actor.AgentID) {
 		return false
