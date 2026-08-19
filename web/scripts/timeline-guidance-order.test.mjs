@@ -71,6 +71,86 @@ test("conversation viewport suppresses the browser scroll-region outline", async
     "the programmatically focusable viewport must not expose Safari's native blue outline",
   );
   assert.match(html, /tabindex="-1"/);
+  assert.match(
+    html,
+    /scrollbar-gutter:stable/,
+    "scrollbar appearance must not change the live Markdown measure width",
+  );
+});
+
+test("active Assistant content keeps intrinsic height without a retained high-water mark", async () => {
+  const { MessageAssistantSection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/message-assistant-section.tsx",
+  );
+  const emptyProjection = {
+    content: [],
+    streamingIndexes: new Set(),
+  };
+  const html = await renderWithI18n(React.createElement(
+    MessageAssistantSection,
+    {
+      assistant: {
+        activity: {
+          emptyStreamStatus: null,
+          showCursor: true,
+          standalone: false,
+          state: null,
+        },
+        direct: { projection: emptyProjection, visible: false },
+        final: {
+          content: "正在平滑增长的正文",
+          isStreaming: true,
+          mentions: [],
+          streamingIndexes: new Set(),
+          visible: true,
+        },
+        footer: {
+          copied: false,
+          goalCompletionReceipt: null,
+          memories: [],
+          stats: null,
+          visible: false,
+        },
+        header: {
+          agentId: "agent-1",
+          automationTaskName: null,
+          canStop: false,
+          handoffReply: null,
+          stop: () => {},
+          timestamp: undefined,
+        },
+        hidden: false,
+        permissions: {
+          all: [],
+          matchedByToolUseId: new Map(),
+          owner: "content",
+          unmatched: [],
+        },
+        process: {
+          anchorRef: { current: null },
+          expanded: false,
+          projection: emptyProjection,
+          summary: { entries: [], label: "", visible: false },
+          toggle: () => {},
+          visible: false,
+        },
+        showMaxTokensWarning: false,
+      },
+      assistantContentMode: "room_result",
+      canRespondToPermissions: true,
+      compact: false,
+      hiddenToolNames: [],
+      showHeader: false,
+      workspaceAgentId: "agent-1",
+    },
+  ));
+
+  assert.match(html, /nexus-chat-message-content/);
+  assert.doesNotMatch(
+    html,
+    /min-height:/,
+    "live content must never retain a previously measured container height",
+  );
 });
 
 test("scroll-to-latest requires real viewport overflow", async () => {
@@ -400,11 +480,11 @@ test("Room streaming revisions keep scroll coordination fresh for non-last Agent
   assert.notEqual(
     before,
     after,
-    "任意并行 Agent 的流式正文增长都必须唤醒滚动协调，但不能等同于共享贴底写入",
+    "任意并行 Agent 的流式正文增长都必须进入下一次聚合滚动事务",
   );
 });
 
-test("upper Room Agent streaming delegates virtual height changes without pulling the bottom", async () => {
+test("FOLLOW keeps one scroll owner while parallel Room Agents grow", async () => {
   const { resolveConversationFollowCommitOwner } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
@@ -415,7 +495,6 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: true,
       topologyChanged: false,
-      viewportAnchorRestored: false,
     }),
     "virtualizer",
     "an existing upper Agent stream must not issue a second shared bottom write",
@@ -426,7 +505,6 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: true,
       topologyChanged: false,
-      viewportAnchorRestored: false,
     }),
     "bottom",
     "stream growth during an explicit return-to-latest transaction must still hand off to FOLLOW",
@@ -437,7 +515,6 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: true,
       topologyChanged: true,
-      viewportAnchorRestored: false,
     }),
     "bottom",
     "a genuinely appended tail node still needs the shared bottom owner",
@@ -448,10 +525,9 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: false,
       topologyChanged: false,
-      viewportAnchorRestored: true,
     }),
-    "viewport-anchor",
-    "static content growing above the viewport must preserve its visible round",
+    "bottom",
+    "every static Agent resize in FOLLOW belongs to the aggregate bottom transaction",
   );
 });
 
@@ -892,7 +968,7 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
   );
 });
 
-test("non-virtual content growth preserves the first visible Room round", async () => {
+test("READING preserves the first visible Room round during static growth", async () => {
   const { ConversationViewportAnchor } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/conversation-viewport-anchor.ts",
   );
@@ -2594,6 +2670,120 @@ test("recoverable malformed tool use does not keep the activity indicator busy",
   );
 });
 
+test("a visible ToolBlock exclusively owns its running state", async () => {
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { resolveContentActivityState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/activity/message-content-activity.ts",
+  );
+  const toolUse = {
+    type: "tool_use",
+    id: "tool-write-state-owner",
+    name: "Write",
+    input: { file_path: "PLAN.md" },
+  };
+  assert.equal(resolveContentActivityState({
+    consumedBlockIndexes: new Set(),
+    content: [toolUse],
+    hiddenToolNames: new Set(),
+    resolvedToolUseIds: new Set(),
+  }), null);
+
+  const html = await renderWithI18n(React.createElement(ContentRenderer, {
+    content: [toolUse],
+    fallbackActivityState: "executing",
+    isStreaming: true,
+  }));
+  assert.equal(html.match(/>执行中</g)?.length, 1);
+  assert.doesNotMatch(html, /正在执行/);
+});
+
+test("an active Room execution returns to Agent activity after tool completion", async () => {
+  const { projectRoomAgentActivityState } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-model.ts",
+  );
+  const message = {
+    agent_id: "agent-state-owner",
+    agent_round_id: "agent-round-state-owner",
+    content: [
+      { type: "text", text: "准备写入" },
+      {
+        type: "tool_use",
+        id: "tool-write-complete",
+        name: "Write",
+        input: { file_path: "PLAN.md" },
+      },
+      {
+        type: "tool_result",
+        tool_use_id: "tool-write-complete",
+        content: "ok",
+      },
+    ],
+    message_id: "assistant-state-owner",
+    role: "assistant",
+    round_id: "round-state-owner",
+    session_key: "room:state-owner",
+    stream_status: "streaming",
+    timestamp: 1,
+  };
+  assert.equal(projectRoomAgentActivityState({
+    messages: [message],
+    pendingPermissions: [],
+    status: "streaming",
+  }), "thinking");
+});
+
+test("terminal Room entries ignore internal-only content blocks", async () => {
+  const { isRoomAgentNoPublicReply } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-model.ts",
+  );
+  const message = {
+    agent_id: "agent-internal-only",
+    agent_round_id: "agent-round-internal-only",
+    content: [{
+      type: "tool_result",
+      tool_use_id: "tool-internal-only",
+      content: "internal result",
+    }],
+    is_complete: true,
+    message_id: "assistant-internal-only",
+    role: "assistant",
+    round_id: "round-internal-only",
+    session_key: "room:internal-only",
+    stream_status: "done",
+    timestamp: 1,
+  };
+  assert.equal(isRoomAgentNoPublicReply([message], undefined, "done"), true);
+  assert.equal(isRoomAgentNoPublicReply([{
+    ...message,
+    content: [{
+      type: "tool_use",
+      id: "tool-task-only",
+      name: "TaskUpdate",
+      input: { taskId: "1", status: "completed" },
+    }],
+  }], undefined, "done"), true);
+  assert.equal(isRoomAgentNoPublicReply([{
+    ...message,
+    content: [{
+      type: "system_event",
+      attempt: 1,
+      content: "retrying",
+      icon: "retry",
+      label: "Retrying",
+      source_message_id: message.message_id,
+      subtype: "api_retry",
+      timestamp: 1,
+      tone: "warning",
+    }],
+  }], undefined, "done"), true);
+  assert.equal(isRoomAgentNoPublicReply([{
+    ...message,
+    content: [{ type: "text", text: "可见结果" }],
+  }], undefined, "done"), false);
+});
+
 test("DM live keeps one stable open segment across consecutive tool patches", async () => {
   const { projectDmToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
@@ -3005,16 +3195,9 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   const tool = {
     type: "tool_use",
     id: "tool-plan-rejected",
-    name: "mcp__nexus_execution__prepare_plan_execution",
+    name: "Bash",
     input: {
-      plan_document: [
-        "nexus_plan: 1",
-        "operation: create",
-        "objective: 产出 LPL 本周看点简报",
-        "completion_criteria:",
-        "  - 简报可供发布",
-        "items: []",
-      ].join("\n"),
+      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation prepare_plan_execution --request-id plan-rejected-1',
     },
   };
   const result = {
@@ -3022,13 +3205,19 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     tool_use_id: tool.id,
     is_error: false,
     content: JSON.stringify({
-      message: "Plan Document items must contain at least one complete Work Item",
-      next_actions: [{
-        reason: "submit one complete Nexus Plan Document with every intended Work Item",
-        tool: "prepare_plan_execution",
-      }],
-      outcome: "rejected",
-      reason_code: "plan_items_empty",
+      domain: "execution",
+      action: "invoke",
+      operation: "prepare_plan_execution",
+      result: { data: {
+        message: "Plan Document items must contain at least one complete Work Item",
+        next_actions: [{
+          domain: "execution",
+          operation: "prepare_plan_execution",
+          reason: "submit one complete Nexus Plan Document with every intended Work Item",
+        }],
+        outcome: "rejected",
+        reason_code: "plan_items_empty",
+      } },
     }),
   };
   const projection = {
@@ -3133,10 +3322,9 @@ test("superseded WorkGraph result is muted and does not count as failure", async
   const tool = {
     type: "tool_use",
     id: "tool-submit-superseded",
-    name: "mcp__nexus_execution__submit_work",
+    name: "Bash",
     input: {
-      execution_id: "execution-old",
-      result_summary: "late predecessor result",
+      command: '"${NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id submit-superseded-1',
     },
   };
   const result = {
@@ -3144,9 +3332,14 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     tool_use_id: tool.id,
     is_error: false,
     content: JSON.stringify({
-      message: "旧工作已被新目标替换；请停止当前轮次并等待新指派",
-      outcome: "superseded",
-      reason_code: "execution_terminal",
+      domain: "execution",
+      action: "invoke",
+      operation: "submit_work",
+      result: { data: {
+        message: "旧工作已被新目标替换；请停止当前轮次并等待新指派",
+        outcome: "superseded",
+        reason_code: "execution_terminal",
+      } },
     }),
   };
   const projection = {
@@ -3366,50 +3559,39 @@ test("same-RAF live text starts empty while history and recovery snapshots stay 
   assert.equal(hasLiveStreamRevealMarker(cleared[0]?.content[0]), false);
 });
 
-test("active MessageItem streaming height resets between Assistant turns", async () => {
-  const { resolveMessageItemStreamingLayoutState } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/message/item/view/message-item-streaming-layout.ts",
+test("Room conversation identity stays stable across physical member sessions", async () => {
+  const { getAgentConversationIdentityKey } = await server.ssrLoadModule(
+    "/src/lib/conversation/agent-conversation-identity.ts",
   );
-  const tallTurn = {
-    active: true,
-    assistantTurnKey: "assistant-long-response",
-    minHeight: 960,
+  const firstMemberSession = {
+    chat_type: "group",
+    conversation_id: "conversation-shared",
+    room_session_id: "room-session-agent-1",
+    session_key: "room:group:conversation-shared",
+  };
+  const secondMemberSession = {
+    ...firstMemberSession,
+    room_session_id: "room-session-agent-2",
   };
 
-  assert.strictEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallTurn,
-      "assistant-long-response",
-      true,
-    ),
-    tallTurn,
-    "streaming revisions within one Assistant turn retain the monotonic height",
+  assert.equal(
+    getAgentConversationIdentityKey(firstMemberSession),
+    "room-conversation:conversation-shared",
   );
-  assert.deepEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallTurn,
-      "assistant-tool-continuation",
-      true,
-    ),
-    {
-      active: true,
-      assistantTurnKey: "assistant-tool-continuation",
-      minHeight: 60,
-    },
-    "a later tool or response turn cannot inherit the preceding long response height",
+  assert.equal(
+    getAgentConversationIdentityKey(secondMemberSession),
+    "room-conversation:conversation-shared",
+    "a member runtime/session reorder must not reset the shared Room timeline",
   );
-  assert.deepEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallTurn,
-      "assistant-long-response",
-      false,
-    ),
-    {
-      active: false,
-      assistantTurnKey: "assistant-long-response",
-      minHeight: 60,
-    },
-    "terminal layout clears the streaming height before the same turn can resume",
+  assert.equal(
+    getAgentConversationIdentityKey({
+      chat_type: "dm",
+      conversation_id: "conversation-dm",
+      room_session_id: "room-session-dm",
+      session_key: "agent:agent-1:workspace:dm:conversation-dm",
+    }),
+    "room-session:room-session-dm",
+    "non-Room conversations keep their physical session boundary",
   );
 });
 

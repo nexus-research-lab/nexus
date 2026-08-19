@@ -112,7 +112,7 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 		"",
 	)
 	ctx := authctx.WithPrincipal(context.Background(), principal)
-	ctx = runtimectx.WithMCPRoundLease(ctx, sessionKey, "round-a")
+	ctx = runtimectx.WithRuntimeRoundLease(ctx, sessionKey, "round-a")
 	control := &connectorAuthorizationAppControl{}
 	builder := newConnectorAuthorizationMCPBuilder(
 		control,
@@ -213,7 +213,7 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 		ctx, &protocol.Agent{AgentID: "nexus"},
 		sessionKey, "round-a", "room", "room-a", "", nil, sdkpermission.ModeDefault,
 	))
-	mismatchedLease := runtimectx.WithMCPRoundLease(
+	mismatchedLease := runtimectx.WithRuntimeRoundLease(
 		authctx.WithPrincipal(context.Background(), principal),
 		sessionKey,
 		"other-round",
@@ -226,7 +226,7 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 		UserID: "owner-a", Role: authctx.RoleOwner,
 		AuthMethod: authctx.AuthMethodBearer,
 	})
-	bearer = runtimectx.WithMCPRoundLease(bearer, sessionKey, "round-a")
+	bearer = runtimectx.WithRuntimeRoundLease(bearer, sessionKey, "round-a")
 	assertDeniedSurface("bearer principal", bearer, builder(
 		bearer, &protocol.Agent{AgentID: "nexus"},
 		sessionKey, "round-a", "agent", "nexus", "", nil, sdkpermission.ModeDefault,

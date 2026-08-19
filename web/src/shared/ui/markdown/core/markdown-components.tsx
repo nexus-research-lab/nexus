@@ -233,7 +233,7 @@ export function createMarkdownComponents(
       );
     },
     p({ children }) {
-      return <div data-markdown-anchor className="m-0 min-w-0 max-w-full leading-[1.65rem] text-pretty wrap-anywhere">{children}</div>;
+      return <div data-markdown-anchor className="m-0 min-w-0 max-w-full leading-[1.65rem] wrap-anywhere">{children}</div>;
     },
     ul({ children }) {
       return <ul className="markdown-list markdown-list-unordered">{children}</ul>;
@@ -257,7 +257,7 @@ export function createMarkdownComponents(
     },
     blockquote({ children }) {
       return (
-        <blockquote data-markdown-anchor className="content-quote m-0 text-pretty wrap-anywhere">
+        <blockquote data-markdown-anchor className="content-quote m-0 wrap-anywhere">
           <div className="min-w-0 max-w-full">{children}</div>
         </blockquote>
       );

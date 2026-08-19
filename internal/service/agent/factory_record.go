@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
@@ -34,6 +35,10 @@ func BuildCreateRecord(
 	if request.Options != nil {
 		options = mergeOptions(options, *request.Options)
 	}
+	options.SkillIDs, options.DisabledSkillIDs = runtimecommand.BindManagedSemanticSkills(
+		options.SkillIDs,
+		options.DisabledSkillIDs,
+	)
 
 	return agentrepo.CreateRecord{
 		AgentID:              agentID,
@@ -116,7 +121,9 @@ func defaultMainAgentOptions() protocol.Options {
 }
 
 func defaultAgentOptions(isMain bool) protocol.Options {
-	skillIDs := []string{"imagegen", "visualize", "automation", "goal-manager", "execution-orchestrator", "nexus-configuration"}
+	skillIDs := []string{"imagegen", "visualize", "automation"}
+	skillIDs, _ = runtimecommand.BindManagedSemanticSkills(skillIDs, nil)
+	skillIDs = append(skillIDs, "nexus-configuration")
 	if isMain {
 		skillIDs = append(skillIDs, "nexus-manager")
 	}

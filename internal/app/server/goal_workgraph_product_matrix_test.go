@@ -11,6 +11,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
@@ -101,28 +103,77 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 				sessionKey = protocol.BuildRoomSharedSessionKey(conversationID)
 				actor.SessionKey = sessionKey
 			}
+			goalAuthority := runtimectx.NewGoalAuthorityState("", 0, "")
+			responsibility := runtimectx.NewResponsibilityAuthorityState(
+				goalAuthority, "", nil, nil,
+			)
+			commandActor := productMatrixCommandActor(
+				ownerID, agentID, sessionKey, conversationID, test.scope,
+				goalAuthority, responsibility,
+			)
 
 			var goal *protocol.Goal
 			if test.createGoal {
-				request := protocol.CreateGoalRequest{
-					SessionKey:      sessionKey,
-					Objective:       "Complete the product matrix objective",
-					CreatedBy:       test.createdBy,
-					RoundID:         "round-product-matrix",
-					OwnerUserID:     ownerID,
-					AgentID:         agentID,
-					RoomLeadAgentID: agentID,
-				}
 				if test.entry == "composer" {
-					goal, err = goalService.Create(context.Background(), request)
+					goal, err = goalService.Create(context.Background(), protocol.CreateGoalRequest{
+						SessionKey:      sessionKey,
+						Objective:       "Complete the product matrix objective",
+						CreatedBy:       test.createdBy,
+						RoundID:         "round-product-matrix",
+						OwnerUserID:     ownerID,
+						AgentID:         agentID,
+						RoomLeadAgentID: agentID,
+					})
+					if err == nil {
+						// Composer acceptance and the runtime command happen in
+						// different physical rounds. Model the host-issued exact
+						// successor authority instead of mutating through the HTTP
+						// request context.
+						goalAuthority = runtimectx.NewGoalAuthorityState(
+							goal.ID, goal.ObjectiveRevision(), "",
+						)
+						responsibility = runtimectx.NewResponsibilityAuthorityState(
+							goalAuthority, "", nil, nil,
+						)
+						commandActor = productMatrixCommandActor(
+							ownerID, agentID, sessionKey, conversationID, test.scope,
+							goalAuthority, responsibility,
+						)
+					}
 				} else {
-					goal, err = coordinator.Create(context.Background(), request)
+					commandValue, commandErr := handleGoalRuntimeCommand(
+						context.Background(),
+						goalService,
+						commandActor,
+						runtimecommand.Request{
+							Domain:    runtimecommand.DomainGoal,
+							Action:    runtimecommand.ActionInvoke,
+							Operation: runtimecommand.GoalOperationCreate,
+							RequestID: "goal-create-matrix",
+							Input: map[string]any{
+								"objective": "Complete the product matrix objective",
+							},
+						},
+					)
+					result := productMatrixCommandResult(t, commandValue, commandErr)
+					if result.IsError || result.StructuredContent["outcome"] != string(protocol.MutationResultApplied) {
+						t.Fatalf("create_goal command result = %#v", result)
+					}
+					goal, err = goalService.Current(context.Background(), sessionKey)
 				}
 				if err != nil {
 					t.Fatal(err)
 				}
 				actor.GoalID = goal.ID
 				actor.GoalObjectiveRevision = goal.ObjectiveRevision()
+				if test.entry == "dialogue" && test.bindGoal {
+					// The immutable launch copy predates create_goal. Execution must
+					// consume the Actor's host-owned dynamic authority advanced by
+					// the successful command in this same physical round.
+					commandActor.Round.CommandContext.GoalAuthority =
+						runtimectx.NewGoalAuthorityState("", 0, "")
+					commandActor.Round.CommandContext.ResponsibilityAuthority = nil
+				}
 				if got := protocol.GoalExecutionBindingStateFromGoal(*goal); got !=
 					protocol.GoalExecutionBindingStateStandalone {
 					t.Fatalf("%s Goal create state = %q, want standalone", test.entry, got)
@@ -135,33 +186,68 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 				if test.bindGoal {
 					intent = orchestrationsvc.PlanGoalBindingCurrent
 				}
-				proposal, prepareErr := executionService.PreparePlanExecution(
-					context.Background(),
-					actor,
-					orchestrationsvc.PreparePlanExecutionInput{
-						CommandID:    "prepare-" + strings.ReplaceAll(test.name, " ", "-"),
-						PlanDocument: productMatrixPlanDocument,
-						GoalBinding:  intent,
+				inspectValue, inspectErr := handleExecutionRuntimeCommand(
+					context.Background(), executionService, commandActor,
+					runtimecommand.Request{
+						Domain: runtimecommand.DomainExecution,
+						Action: runtimecommand.ActionInspect,
 					},
 				)
-				if prepareErr != nil {
-					t.Fatal(prepareErr)
+				inspect := productMatrixCommandResult(t, inspectValue, inspectErr)
+				if inspect.IsError {
+					t.Fatalf("execution inspect result = %#v", inspect)
 				}
-				result, materializeErr := executionService.MaterializePlanExecution(
-					context.Background(),
-					actor,
-					orchestrationsvc.MaterializePlanExecutionInput{
-						ProposalID:     proposal.ID,
-						ProposalDigest: proposal.ContentDigest,
+				if _, contractErr := handleExecutionRuntimeCommand(
+					context.Background(), executionService, commandActor,
+					runtimecommand.Request{
+						Domain:    runtimecommand.DomainExecution,
+						Action:    runtimecommand.ActionContract,
+						Operation: "prepare_plan_execution",
+					},
+				); contractErr != nil {
+					t.Fatal(contractErr)
+				}
+				preparedValue, preparedErr := handleExecutionRuntimeCommand(
+					context.Background(), executionService, commandActor,
+					runtimecommand.Request{
+						Domain:    runtimecommand.DomainExecution,
+						Action:    runtimecommand.ActionInvoke,
+						Operation: "prepare_plan_execution",
+						RequestID: "prepare-" + strings.ReplaceAll(test.name, " ", "-"),
+						Input: map[string]any{
+							"plan_document": productMatrixPlanDocument,
+							"goal_binding":  string(intent),
+						},
 					},
 				)
-				if materializeErr != nil {
-					t.Fatal(materializeErr)
+				prepared := productMatrixCommandResult(t, preparedValue, preparedErr)
+				if prepared.IsError || prepared.StructuredContent["outcome"] != "prepared" {
+					t.Fatalf("prepare_plan_execution command result = %#v", prepared)
 				}
-				if result.Outcome != orchestrationsvc.MutationApplied || result.Snapshot == nil {
-					t.Fatalf("materialize result = %#v", result)
+				proposalID, _ := prepared.StructuredContent["proposal_id"].(string)
+				proposalDigest, _ := prepared.StructuredContent["proposal_digest"].(string)
+				materializedValue, materializedErr := handleExecutionRuntimeCommand(
+					context.Background(), executionService, commandActor,
+					runtimecommand.Request{
+						Domain:    runtimecommand.DomainExecution,
+						Action:    runtimecommand.ActionInvoke,
+						Operation: "plan_execution",
+						RequestID: "materialize-" + strings.ReplaceAll(test.name, " ", "-"),
+						Input: map[string]any{
+							"proposal_id":     proposalID,
+							"proposal_digest": proposalDigest,
+						},
+					},
+				)
+				materialized := productMatrixCommandResult(t, materializedValue, materializedErr)
+				if materialized.IsError ||
+					materialized.StructuredContent["outcome"] != string(orchestrationsvc.MutationApplied) {
+					t.Fatalf("plan_execution command result = %#v", materialized)
 				}
-				execution = result.Snapshot
+				execution, err = executionService.ReadCurrent(context.Background(), actor)
+				if err != nil || execution == nil {
+					t.Fatalf("read materialized WorkGraph: snapshot=%#v err=%v", execution, err)
+				}
 			}
 
 			switch {
@@ -200,4 +286,65 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 			}
 		})
 	}
+}
+
+func productMatrixCommandActor(
+	ownerID string,
+	agentID string,
+	sessionKey string,
+	conversationID string,
+	scope protocol.ExecutionScopeKind,
+	goalAuthority *runtimectx.GoalAuthorityState,
+	responsibility *runtimectx.ResponsibilityAuthorityState,
+) runtimecommand.Actor {
+	sourceContextType := "agent"
+	roomID := ""
+	roundConversationID := ""
+	if scope == protocol.ExecutionScopeRoom {
+		sourceContextType = "room"
+		roomID = "room-" + conversationID
+		roundConversationID = conversationID
+	}
+	round := runtimecommand.RoundContext{
+		SessionKey: sessionKey,
+		RoundID:    "round-product-matrix",
+		Receipts:   runtimecommand.NewReceiptState(),
+		Resources:  runtimecommand.NewRoundResources(),
+		CommandContext: runtimectx.RuntimeCommandContext{
+			Agent:                   &protocol.Agent{AgentID: agentID, OwnerUserID: ownerID},
+			ScopeSessionKey:         sessionKey,
+			RuntimeSessionKey:       "runtime:" + agentID + ":" + conversationID,
+			GoalAuthority:           goalAuthority,
+			ResponsibilityAuthority: responsibility,
+			RootRoundID:             "round-product-matrix",
+			AgentRoundID:            "round-product-matrix:" + agentID,
+			SourceContextType:       sourceContextType,
+			RoomID:                  roomID,
+			ConversationID:          roundConversationID,
+			CoordinatorAgentID:      agentID,
+		},
+	}
+	return runtimecommand.Actor{
+		OwnerUserID:             ownerID,
+		AgentID:                 agentID,
+		SessionKey:              sessionKey,
+		RoundID:                 round.RoundID,
+		SourceContextType:       sourceContextType,
+		SourceContextID:         roomID,
+		GoalMutationAuthority:   goalAuthority,
+		GoalResponsibilityState: responsibility,
+		Round:                   round,
+	}
+}
+
+func productMatrixCommandResult(t *testing.T, value any, err error) runtimecommand.Result {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, ok := value.(runtimecommand.Result)
+	if !ok {
+		t.Fatalf("runtime command result type = %T", value)
+	}
+	return result
 }

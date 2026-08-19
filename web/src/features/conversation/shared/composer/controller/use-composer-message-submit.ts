@@ -45,6 +45,12 @@ interface ComposerMessageSubmission {
   policy: AgentConversationDeliveryPolicy;
 }
 
+/** 受理状态未知时禁止回填草稿，避免把可能已落盘的消息再次发送。 */
+export function shouldRestoreMessageDraftAfterFailure(error: unknown): boolean {
+  return !(error instanceof Error
+    && error.name === "RequestAcceptanceUnknownError");
+}
+
 export function useComposerMessageSubmit(
   {
     attachmentCount,
@@ -135,7 +141,7 @@ async function runComposerMessageSubmission(
     await delivery;
     options.recordHistory(submission.content);
   } catch (error) {
-    if (submittedDraft) {
+    if (submittedDraft && shouldRestoreMessageDraftAfterFailure(error)) {
       options.restoreFailedDraftSubmission(submittedDraft);
     }
     console.error("发送消息失败:", error);

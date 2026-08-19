@@ -231,6 +231,26 @@ Room ledger/private transcript 继续是唯一 canonical 真相源；分页索�
 - Launcher 与侧栏目录只读取 Session metadata/Room catalog，禁止为了标题、预览或排序
   扫描 transcript/history；单个超长或损坏会话不能阻塞整个目录首屏。
 
+### 5.5 客户端窗口与大型内容
+
+- 首屏、向前分页、around 定位和 `indexing` 重试都必须携带请求级取消信号；切换或
+  清空 Session 时取消旧请求。会话代次仍作为拒绝迟到响应的第二道栅栏，不能替代
+  transport cancellation。
+- 浏览器只保留受 root round 数与估算驻留字节双预算约束的消息窗口。淘汰以完整
+  root round 为单位；around 请求必须保留目标锚点，实时、乐观与最新 round 优先于
+  可再次分页取得的历史。单个不可拆 round 可以独自超过字节预算，但不得因此继续
+  保留更早的大 round。
+- canonical 历史仍保存完整 Tool result 与内联图片。派生 SQLite generation 对单个
+  `>=256 KiB` 的 Tool result 或图片保存内容摘要、大小和 opaque detail ref，消息页只
+  返回有界预览/引用；Tool 展开或图片实际渲染时才读取完整 detail。detail 必须同时
+  绑定 owner、Session scope、source generation 和 payload digest；source 变化、scope
+  不匹配、派生数据损坏或淘汰后一律返回 unavailable，不能回退猜测旧内容。
+- 图片 detail 只允许以受限 raster MIME 和 `nosniff` 响应；桌面客户端必须通过带
+  会话令牌的 fetch 生成临时 Blob URL，不能把认证 URL 直接交给 `<img>`。
+- 旧 `ConversationTurn`、`TurnPage` 与 turn-index HTTP 投影已经删除。Feed 和定位只
+  使用消息 round 页与同 generation 的 `SessionRoundIndex`，禁止恢复先全量读取再切片
+  的第二套历史 API。
+
 ## 6. 规范化规则
 
 历史读取时会统一做：

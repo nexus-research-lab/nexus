@@ -1,9 +1,9 @@
 /**
  * INPUT: Provider 原生工具结果与可选工作区文件打开能力。
- * OUTPUT: 普通结果明细，或有界的 mutation 拒绝/过期原因与稳定 reason code。
- * POS: ToolBlock 展开内容；完整原始结果仍由复制动作保留。
+ * OUTPUT: 普通结果明细、按需完整大结果，或有界的 mutation 拒绝/过期原因与稳定 reason code。
+ * POS: ToolBlock 展开内容；历史大结果只在展开后读取，复制动作独立读取完整内容。
  */
-import type { PropsWithChildren } from "react";
+import { useEffect, useState, type PropsWithChildren } from "react";
 
 import type {
   ImageContent,
@@ -14,6 +14,7 @@ import { ImageBlock } from "../artifact/image/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
+import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
   "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
@@ -29,12 +30,26 @@ export function ToolBlockResult({
   toolResult,
   workspaceAgentId,
 }: ToolBlockResultProps) {
+  const { t } = useI18n();
+  const detail = useToolResultDetail(toolResult);
   return (
     <div className="message-cjk-font ml-7 mt-2 min-w-0">
       <ToolBlockDetailScroll>
+        {detail.loading && detail.toolResult.content != null ? (
+          <p className="mb-1 text-xs text-(--text-muted)">
+            {t("message.tool_detail_loading")}
+          </p>
+        ) : null}
+        {detail.error && detail.toolResult.content != null ? (
+          <p className="mb-1 text-xs text-(--destructive)">
+            {t("message.tool_detail_error")}
+          </p>
+        ) : null}
         <ToolResultContentView
           onOpenWorkspaceFile={onOpenWorkspaceFile}
-          toolResult={toolResult}
+          detailError={detail.error}
+          detailLoading={detail.loading}
+          toolResult={detail.toolResult}
           workspaceAgentId={workspaceAgentId}
         />
       </ToolBlockDetailScroll>
@@ -47,10 +62,14 @@ export function ToolBlockDetailScroll({ children }: PropsWithChildren) {
 }
 
 function ToolResultContentView({
+  detailError,
+  detailLoading,
   onOpenWorkspaceFile,
   toolResult,
   workspaceAgentId,
 }: {
+  detailError: boolean;
+  detailLoading: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
   toolResult: ToolResultContent;
   workspaceAgentId?: string | null;
@@ -92,6 +111,13 @@ function ToolResultContentView({
     );
   }
 
+  if (detailLoading && toolResult.content == null) {
+    return <p className="text-xs text-(--text-muted)">{t("message.tool_detail_loading")}</p>;
+  }
+  if (detailError && toolResult.content == null) {
+    return <p className="text-xs text-(--destructive)">{t("message.tool_detail_error")}</p>;
+  }
+
   const content = toolResult.content;
   if (typeof content === "string") {
     return (
@@ -125,6 +151,54 @@ function ToolResultContentView({
   }
 
   return <CodeBlock language="json" value={JSON.stringify(content, null, 2)} />;
+}
+
+function useToolResultDetail(toolResult: ToolResultContent): {
+  error: boolean;
+  loading: boolean;
+  toolResult: ToolResultContent;
+} {
+  const detailRef = toolResult.detail_ref?.trim() ?? "";
+  const sessionKey = toolResult.detail_session_key?.trim() ?? "";
+  const [state, setState] = useState<{
+    content: unknown;
+    error: boolean;
+    key: string;
+    loading: boolean;
+  }>({ content: undefined, error: false, key: "", loading: false });
+  const key = `${sessionKey}:${detailRef}`;
+
+  useEffect(() => {
+    if (!sessionKey || !detailRef) {
+      return;
+    }
+    const controller = new AbortController();
+    setState({ content: undefined, error: false, key, loading: true });
+    void getSessionMessageDetailApi(sessionKey, detailRef, controller.signal)
+      .then((detail) => {
+        setState({ content: detail.content, error: false, key, loading: false });
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.error("[conversation] Failed to load tool detail", error);
+          setState({ content: undefined, error: true, key, loading: false });
+        }
+      });
+    return () => controller.abort();
+  }, [detailRef, key, sessionKey]);
+
+  const current = state.key === key ? state : {
+    content: undefined,
+    error: false,
+    loading: Boolean(sessionKey && detailRef),
+  };
+  return {
+    error: current.error,
+    loading: current.loading,
+    toolResult: current.content === undefined
+      ? toolResult
+      : { ...toolResult, content: current.content },
+  };
 }
 
 function isImageContent(value: unknown): value is ImageContent {

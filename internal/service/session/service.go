@@ -25,6 +25,10 @@ type sessionTaskReferenceResolver interface {
 	CountTasksReferencingSessions(context.Context, string, []string) (map[string]int, error)
 }
 
+type runtimeSettingsPreparationScheduler interface {
+	ScheduleRuntimeSettingsPreparation(context.Context, protocol.Session)
+}
+
 var (
 	// ErrSessionNotFound 表示 session 不存在。
 	ErrSessionNotFound = errors.New("session not found")
@@ -36,25 +40,36 @@ var (
 	ErrSessionDeleted = errors.New("session is deleting or deleted")
 	// ErrExternalSessionPairingActive 表示外部 IM 会话仍由有效配对占用。
 	ErrExternalSessionPairingActive = errors.New("external IM session pairing is active")
+	// ErrMessageDetailUnavailable 表示大内容引用已过期或不属于当前 Session generation。
+	ErrMessageDetailUnavailable = workspacestore.ErrHistoryMessageDetailUnavailable
 )
 
 // Service 负责编排文件会话与 Room SQL 会话视图。
 type Service struct {
-	config           config.Config
-	agentService     *agentsvc.Service
-	repository       SQLRepository
-	files            *workspacestore.SessionFileStore
-	history          *workspacestore.AgentHistoryStore
-	roomHistory      *workspacestore.RoomHistoryStore
-	runtime          *runtimectx.Manager
-	deletion         *deletionsvc.Coordinator
-	notifier         DirectoryNotifier
-	externalIdentity externalSessionIdentityResolver
-	taskReferences   sessionTaskReferenceResolver
-	goalUsage        GoalCompletionUsageProvider
+	config                     config.Config
+	agentService               *agentsvc.Service
+	repository                 SQLRepository
+	files                      *workspacestore.SessionFileStore
+	history                    *workspacestore.AgentHistoryStore
+	roomHistory                *workspacestore.RoomHistoryStore
+	runtime                    *runtimectx.Manager
+	deletion                   *deletionsvc.Coordinator
+	notifier                   DirectoryNotifier
+	externalIdentity           externalSessionIdentityResolver
+	taskReferences             sessionTaskReferenceResolver
+	goalUsage                  GoalCompletionUsageProvider
+	runtimeSettingsPreparation runtimeSettingsPreparationScheduler
 
 	recoveryMu      sync.Mutex
 	recoveryBlocked map[string]struct{}
+}
+
+// SetRuntimeSettingsPreparationScheduler 注入 Session 配置提交后的异步 runtime 预备器。
+// 持久化成功是控制面提交点；预备失败不得回滚用户设置，下一轮仍由 runtime 主链兜底。
+func (s *Service) SetRuntimeSettingsPreparationScheduler(
+	scheduler runtimeSettingsPreparationScheduler,
+) {
+	s.runtimeSettingsPreparation = scheduler
 }
 
 // SetExternalSessionIdentityResolver 注入 IM pairing/account 的实时身份投影。

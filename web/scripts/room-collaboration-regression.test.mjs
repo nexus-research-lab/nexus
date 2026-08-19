@@ -155,6 +155,8 @@ test("Goal status shows one exact token total without budget progress", async ()
     isGenerating: true,
   });
   assert.equal(model.usageLabel, "62,762 tokens");
+  assert.equal(model.statusLabel, "执行中");
+  assert.equal("isExecuting" in model, false);
   assert.equal("usagePercent" in model, false);
   assert.equal("usageTitle" in model, false);
   assert.equal("budgetLabel" in model, false);
@@ -196,6 +198,8 @@ test("Goal status shows one exact token total without budget progress", async ()
     onResume: () => {},
   }));
   assert.match(html, />62,762 tokens</);
+  assert.equal(html.match(/>执行中</g)?.length, 1);
+  assert.doesNotMatch(html, />运行中</);
   assert.doesNotMatch(html, /预算|200,000|3,626|role="meter"/);
 });
 

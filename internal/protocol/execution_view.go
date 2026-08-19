@@ -5,6 +5,17 @@ package protocol
 
 import "time"
 
+// ExecutionWorkGraphHistory 是画布专用的 append-only 责任历史。它与提供给
+// 模型状态机的有界 ExecutionSnapshot 分离，避免为了显示旧轮次而扩大 command
+// 上下文；每条 Submission/Acceptance 仍保留不可变领域 identity。
+type ExecutionWorkGraphHistory struct {
+	Assignments      []WorkAssignment
+	Attempts         []WorkAttempt
+	Submissions      []WorkSubmission
+	ReviewDispatches []ExecutionReviewDispatch
+	Acceptances      []WorkAcceptance
+}
+
 // ExecutionWorkItemViewStatus 是 UI 对当前 Work Item 交付阶段的稳定枚举。
 type ExecutionWorkItemViewStatus string
 
@@ -180,6 +191,8 @@ type ExecutionGraphView struct {
 // ExecutionSubmissionView 展示当前 spec 最近一次不可变交付声明。
 type ExecutionSubmissionView struct {
 	ID               string    `json:"id"`
+	AssignmentID     string    `json:"assignment_id"`
+	AttemptID        string    `json:"attempt_id"`
 	SubmitterAgentID string    `json:"submitter_agent_id"`
 	ResultSummary    string    `json:"result_summary"`
 	ResultRefs       []string  `json:"result_refs,omitempty"`

@@ -3,7 +3,7 @@
 - `message-content-model.ts` 负责跨消息项、时间线和会话导航共享的文本协议清理与内容提取；`nexus_room_no_reply`、`nexus_room_fanout` 等 Room 编排标记必须在这里一次剥离，正文、result、复制与历史投影不得各自维护名单。
 - `message-tool-names.ts` 只保存跨活动、过程和视图共同依赖的稳定工具标识，避免兄弟领域相互借用常量。
 - `message-time.ts` 只负责消息时间的稳定格式化，不读取视图状态。
-- `tool-activity.ts` 统一工具名称与输入摘要，供工具块和消息过程摘要直接消费，不依赖具体块视图。`nexus_execution` 十二个工具与 `nexus_goal` 五个工具必须在这里剥离 `mcp__*__` transport 前缀并经由同一 i18n resolver 输出语义标题；ToolBlock、折叠过程摘要和后续消费者不得回退显示 raw MCP 名。
+- `tool-activity.ts` 统一工具名称与输入摘要，供工具块和消息过程摘要直接消费，不依赖具体块视图。Goal/Execution 受管 CLI 必须从 exact `NEXUS_COMMAND_PATH` 调用投影出 domain/operation 语义标题；ToolBlock、折叠过程摘要和后续消费者不得把 Bash transport 当成业务动作名。
 - `item/message-item-projection.ts` 定义消息项内部的有序条目、轮次和内容投影，不承载 DOM 或视觉规则。
 - `item/activity/` 统一活动状态契约，以及轮次级和内容块级的纯状态推导。
 - `item/process/` 负责过程摘要、问答超时识别与 DM live 连续工具段纯投影；工具段只接收人工交互工具 ID 集合作为边界，不取得权限动作所有权。
@@ -15,4 +15,4 @@
 - `MessageItem` 由 `item/message-item.tsx` 直接公开，消费者不得绕回消息目录聚合出口。
 - 消息项控制器只返回按 User/Assistant 和视觉职责分组的具体状态；各视图在消费侧声明所需结构，不共享宽状态接口。
 - Assistant 快照合并必须单调保留 `recalled_memories`，历史载入的引用摘要不得被同进度 live 快照覆盖。
-- `item/view/message-item-streaming-layout.ts` 的防抖高度只在当前 Assistant turn 内单调增长；同一 `agent_round` 进入工具续轮或下一次正文时必须先恢复基线，禁止把旧正文高度带入新内容。
+- live Assistant 高度只由当前可见内容的 intrinsic layout 决定；禁止用子级 `ResizeObserver` 把历史最高高度回写为 `min-height`，否则过程/正文切换会留下不可自愈的大空白。多 Agent 的展示节奏由 shared Markdown 帧调度器合批，MessageItem 不持有高度状态。

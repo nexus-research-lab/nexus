@@ -1,5 +1,5 @@
 // INPUT: durable Runtime Graph 与 managed ExecutionView。
-// OUTPUT: 按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet，并在可见性判定后限制公共 WorkGraph 主图窗口。
+// OUTPUT: 按 exact Attempt/Submission/round 或 launch ToolUse 合并到对应历史轮次、过滤纯 progress facet，并在可见性判定后限制公共 WorkGraph 主图窗口。
 // POS: Runtime NodeRun 到 managed WorkGraph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
 package orchestration
 
@@ -33,9 +33,12 @@ func mergeExecutionRuntimeGraph(
 	if len(runtimeGraph.Nodes) == 0 {
 		return
 	}
-	agentNodeByRound := firstAssignedWorkItemNodeByAgentRound(view.WorkItems)
+	agentNodeByRound := firstAssignedWorkItemNodeByAgentRound(view.Graph.Nodes)
 	agentNodeByWorkItem := make(map[string]string)
+	agentNodeByAttempt := make(map[string]string)
 	reviewNodeByWorkItem := make(map[string]string)
+	reviewNodeBySubmission := make(map[string]string)
+	reviewNodeByRound := make(map[string]string)
 	subagentNodeByTask := make(map[string]string)
 	subagentNodeByAttempt := make(map[string]string)
 	subagentNodeByToolUse := make(map[string]string)
@@ -45,9 +48,18 @@ func mergeExecutionRuntimeGraph(
 		graphNodeByID[node.ID] = index
 		if node.Kind == protocol.ExecutionGraphNodeAgent && node.WorkItemID != "" {
 			agentNodeByWorkItem[node.WorkItemID] = node.ID
+			if node.AttemptID != "" {
+				agentNodeByAttempt[node.AttemptID] = node.ID
+			}
 		}
 		if node.Kind == protocol.ExecutionGraphNodeGate && node.WorkItemID != "" {
 			reviewNodeByWorkItem[node.WorkItemID] = node.ID
+			if node.SubjectID != "" {
+				reviewNodeBySubmission[node.SubjectID] = node.ID
+			}
+			if node.AgentRoundID != "" && reviewNodeByRound[node.AgentRoundID] == "" {
+				reviewNodeByRound[node.AgentRoundID] = node.ID
+			}
 		}
 		if node.Kind == protocol.ExecutionGraphNodeAgent && node.AgentRoundID != "" {
 			if agentNodeByRound[node.AgentRoundID] == "" {
@@ -95,10 +107,12 @@ func mergeExecutionRuntimeGraph(
 			}
 			lane := runtimeGraphMetadataString(runtimeNode, "execution_lane")
 			workItemID := runtimeGraphMetadataString(runtimeNode, "work_item_id")
+			attemptID := runtimeGraphMetadataString(runtimeNode, "attempt_id")
+			submissionID := runtimeGraphMetadataString(runtimeNode, "submission_id")
 			allowed := agentNodeByRound[runtimeNode.AgentRoundID] != "" ||
 				lane == "coordination" ||
-				(lane == "work" && agentNodeByWorkItem[workItemID] != "") ||
-				(lane == "review" && reviewNodeByWorkItem[workItemID] != "")
+				(lane == "work" && firstNonEmpty(agentNodeByAttempt[attemptID], agentNodeByRound[runtimeNode.AgentRoundID], agentNodeByWorkItem[workItemID]) != "") ||
+				(lane == "review" && firstNonEmpty(reviewNodeBySubmission[submissionID], reviewNodeByRound[runtimeNode.AgentRoundID], reviewNodeByWorkItem[workItemID]) != "")
 			if allowed && runtimeNode.AgentRoundID != "" {
 				allowedAgentRound[runtimeNode.AgentRoundID] = struct{}{}
 			}
@@ -122,9 +136,17 @@ func mergeExecutionRuntimeGraph(
 			boundNodeID := ""
 			switch lane {
 			case "work":
-				boundNodeID = agentNodeByWorkItem[workItemID]
+				boundNodeID = firstNonEmpty(
+					agentNodeByAttempt[runtimeGraphMetadataString(runtimeNode, "attempt_id")],
+					agentNodeByRound[runtimeNode.AgentRoundID],
+					agentNodeByWorkItem[workItemID],
+				)
 			case "review":
-				boundNodeID = reviewNodeByWorkItem[workItemID]
+				boundNodeID = firstNonEmpty(
+					reviewNodeBySubmission[runtimeGraphMetadataString(runtimeNode, "submission_id")],
+					reviewNodeByRound[runtimeNode.AgentRoundID],
+					reviewNodeByWorkItem[workItemID],
+				)
 			case "coordination":
 				if len(coordinatorNodeIDs) > 0 {
 					boundNodeID = coordinatorNodeIDs[0]
@@ -214,8 +236,11 @@ func mergeExecutionRuntimeGraph(
 		targetID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.TargetNodeID], runtimeEdge.TargetNodeID)
 		if runtimeEdge.Kind == protocol.ExecutionRuntimeEdgeLoopBack {
 			sourceRuntimeNode := runtimeNodeByID[runtimeEdge.SourceNodeID]
-			workItemID := runtimeExecutionSegmentWorkItemID(sourceRuntimeNode)
-			if segmentOwnerID := agentNodeByWorkItem[workItemID]; segmentOwnerID != "" {
+			segment := runtimeExecutionSegmentFromNode(sourceRuntimeNode)
+			if segmentOwnerID := firstNonEmpty(
+				agentNodeByAttempt[segment.AttemptID],
+				agentNodeByWorkItem[segment.WorkItemID],
+			); segmentOwnerID != "" {
 				targetID = segmentOwnerID
 			}
 		}
@@ -223,8 +248,11 @@ func mergeExecutionRuntimeGraph(
 			runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeRetry {
 			targetRuntimeNode := runtimeNodeByID[runtimeEdge.TargetNodeID]
 			segmentOwnerID := ""
-			if workItemID := runtimeExecutionSegmentWorkItemID(targetRuntimeNode); workItemID != "" {
-				if segmentOwnerID = agentNodeByWorkItem[workItemID]; segmentOwnerID != "" && segmentOwnerID != targetID {
+			if segment := runtimeExecutionSegmentFromNode(targetRuntimeNode); segment.valid() {
+				if segmentOwnerID = firstNonEmpty(
+					agentNodeByAttempt[segment.AttemptID],
+					agentNodeByWorkItem[segment.WorkItemID],
+				); segmentOwnerID != "" && segmentOwnerID != targetID {
 					sourceID = segmentOwnerID
 				}
 			}
@@ -294,8 +322,11 @@ func mergeExecutionRuntimeGraph(
 			continue
 		}
 		sourceID := parentNodeBySubject[strings.TrimSpace(runtimeNode.ParentSubjectID)]
-		if workItemID := runtimeExecutionSegmentWorkItemID(runtimeNode); workItemID != "" {
-			segmentOwnerID := agentNodeByWorkItem[workItemID]
+		if segment := runtimeExecutionSegmentFromNode(runtimeNode); segment.valid() {
+			segmentOwnerID := firstNonEmpty(
+				agentNodeByAttempt[segment.AttemptID],
+				agentNodeByWorkItem[segment.WorkItemID],
+			)
 			if segmentOwnerID != "" && (sourceID == "" || sourceID == agentNodeByRound[runtimeNode.AgentRoundID]) {
 				sourceID = segmentOwnerID
 			}
@@ -345,34 +376,42 @@ func mergeExecutionRuntimeGraph(
 // segment metadata still wins for every tool after assign_work.
 type runtimeRoundOwnerCandidate struct {
 	workItemID string
+	nodeID     string
 	createdAt  time.Time
 	position   int
 }
 
 func firstAssignedWorkItemNodeByAgentRound(
-	items []protocol.ExecutionWorkItemView,
+	nodes []protocol.ExecutionGraphNodeView,
 ) map[string]string {
 	candidates := make(map[string]runtimeRoundOwnerCandidate)
-	for _, item := range items {
-		for _, attempt := range item.Attempts {
-			roundID := strings.TrimSpace(attempt.AgentRoundID)
-			if strings.TrimSpace(attempt.ParentAttemptID) != "" || roundID == "" {
-				continue
-			}
-			incoming := runtimeRoundOwnerCandidate{
-				workItemID: item.ID,
-				createdAt:  attempt.CreatedAt,
-				position:   item.Position,
-			}
-			current, exists := candidates[roundID]
-			if !exists || runtimeRoundOwnerCandidateEarlier(incoming, current) {
-				candidates[roundID] = incoming
-			}
+	for _, node := range nodes {
+		roundID := strings.TrimSpace(node.AgentRoundID)
+		if node.Kind != protocol.ExecutionGraphNodeAgent ||
+			strings.TrimSpace(node.WorkItemID) == "" ||
+			strings.TrimSpace(node.AttemptID) == "" || roundID == "" {
+			continue
+		}
+		createdAt := time.Time{}
+		if node.StartedAt != nil {
+			createdAt = *node.StartedAt
+		} else if len(node.Runs) > 0 && node.Runs[0].StartedAt != nil {
+			createdAt = *node.Runs[0].StartedAt
+		}
+		incoming := runtimeRoundOwnerCandidate{
+			workItemID: node.WorkItemID,
+			nodeID:     node.ID,
+			createdAt:  createdAt,
+			position:   node.Position,
+		}
+		current, exists := candidates[roundID]
+		if !exists || runtimeRoundOwnerCandidateEarlier(incoming, current) {
+			candidates[roundID] = incoming
 		}
 	}
 	result := make(map[string]string, len(candidates))
 	for roundID, candidate := range candidates {
-		result[roundID] = candidate.workItemID
+		result[roundID] = candidate.nodeID
 	}
 	return result
 }
@@ -712,6 +751,7 @@ func reanchorExecutionReviewEdgesToSubmission(
 	submissionByOwnerNodeID := make(map[string]protocol.ExecutionGraphNodeView)
 	for _, node := range view.Graph.Nodes {
 		if node.Kind != protocol.ExecutionGraphNodeTool ||
+			node.Visibility == protocol.ExecutionGraphNodeDetail ||
 			!runtimeGraphIsSubmissionTool(node.Name) ||
 			!strings.EqualFold(strings.TrimSpace(node.LifecycleStatus), "succeeded") ||
 			strings.TrimSpace(node.ParentNodeID) == "" {
@@ -950,7 +990,8 @@ func projectRuntimeGraphNode(
 	case protocol.ExecutionRuntimeNodeTool:
 		kind = protocol.ExecutionGraphNodeTool
 		visibility = protocol.ExecutionGraphNodeDetail
-		if item.Status != protocol.ExecutionRuntimeNodeSucceeded || promoted {
+		if !runtimeGraphIsCommandTransport(item) &&
+			(item.Status != protocol.ExecutionRuntimeNodeSucceeded || promoted) {
 			visibility = protocol.ExecutionGraphNodeNested
 		}
 	case protocol.ExecutionRuntimeNodeGate:
@@ -1133,7 +1174,6 @@ func runtimeGraphPromotedNodeIDs(
 		result[edge.TargetNodeID] = struct{}{}
 	}
 	promoteRuntimeGraphRecoverySuccesses(graph, result)
-	promoteRuntimeGraphSubagentRepresentativeTools(graph, result)
 	return result
 }
 
@@ -1184,83 +1224,6 @@ func promoteRuntimeGraphRecoverySuccesses(
 		}
 		if latestRecoveryID != "" {
 			promoted[latestRecoveryID] = struct{}{}
-		}
-	}
-}
-
-const runtimeGraphSubagentRepresentativeToolLimit = 3
-
-// Subagent 仍遵守全局 Tool 可见性规则；画布最多补足少量 direct supporting
-// Tool 作为代表。失败、外部动作等结构性可见节点先占槽位，再优先补最近的
-// 成功动作，因此失败后的恢复不会只在详情里出现；同时不会把普通 Read/Grep
-// 全量铺到主图。
-func promoteRuntimeGraphSubagentRepresentativeTools(
-	graph protocol.ExecutionRuntimeGraph,
-	promoted map[string]struct{},
-) {
-	childrenByParentSubject := make(map[string][]protocol.ExecutionRuntimeNodeRun)
-	subagentParentSubjects := make(map[string]struct{})
-	for _, node := range graph.Nodes {
-		if node.Kind == protocol.ExecutionRuntimeNodeSubagent {
-			for _, key := range []string{
-				strings.TrimSpace(node.SubjectID),
-				runtimeGraphMetadataString(node, "tool_use_id"),
-			} {
-				if key != "" {
-					subagentParentSubjects[key] = struct{}{}
-				}
-			}
-		}
-		// 旧运行图先保存 Agent launch Tool，读取时再把它合并进 durable
-		// Subagent Attempt；其 exact ToolUse subject 同样是 child Tool 的父键。
-		if node.Kind == protocol.ExecutionRuntimeNodeTool &&
-			runtimeGraphCanonicalToolLeaf(node.Name) == "agent" &&
-			strings.TrimSpace(node.SubjectID) != "" {
-			subagentParentSubjects[strings.TrimSpace(node.SubjectID)] = struct{}{}
-		}
-		if node.Kind == protocol.ExecutionRuntimeNodeTool {
-			parentSubjectID := strings.TrimSpace(node.ParentSubjectID)
-			if parentSubjectID == "" {
-				continue
-			}
-			childrenByParentSubject[parentSubjectID] = append(
-				childrenByParentSubject[parentSubjectID],
-				node,
-			)
-		}
-	}
-	for parentSubject := range subagentParentSubjects {
-		children := childrenByParentSubject[parentSubject]
-		if len(children) == 0 {
-			continue
-		}
-		visibleCount := 0
-		for _, child := range children {
-			_, explicitlyPromoted := promoted[child.ID]
-			if explicitlyPromoted || child.Status != protocol.ExecutionRuntimeNodeSucceeded {
-				visibleCount++
-			}
-		}
-		if visibleCount >= runtimeGraphSubagentRepresentativeToolLimit {
-			continue
-		}
-		slices.SortFunc(children, func(left, right protocol.ExecutionRuntimeNodeRun) int {
-			if order := left.StartedAt.Compare(right.StartedAt); order != 0 {
-				return order
-			}
-			return strings.Compare(left.ID, right.ID)
-		})
-		remaining := runtimeGraphSubagentRepresentativeToolLimit - visibleCount
-		for index := len(children) - 1; index >= 0 && remaining > 0; index-- {
-			child := children[index]
-			if child.Status != protocol.ExecutionRuntimeNodeSucceeded {
-				continue
-			}
-			if _, alreadyPromoted := promoted[child.ID]; alreadyPromoted {
-				continue
-			}
-			promoted[child.ID] = struct{}{}
-			remaining--
 		}
 	}
 }

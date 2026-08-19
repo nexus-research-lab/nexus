@@ -40,7 +40,7 @@ func (s *Service) MaterializePlanExecution(
 	}
 	if actor.PlanMode {
 		return RejectedResult(nil, planModeError(), []NextAction{{
-			Tool:   "plan_execution",
+			Domain: "execution", Operation: "plan_execution",
 			Reason: "leave Plan Mode, then commit the same proposal_id and proposal_digest",
 		}}), nil
 	}
@@ -51,7 +51,7 @@ func (s *Service) MaterializePlanExecution(
 			ErrorCodeInvalidInput,
 			"proposal_id and proposal_digest are required",
 		), []NextAction{{
-			Tool:   "prepare_plan_execution",
+			Domain: "execution", Operation: "prepare_plan_execution",
 			Reason: "submit one complete Nexus Plan Document before committing it",
 		}}), nil
 	}
@@ -78,7 +78,7 @@ func (s *Service) MaterializePlanExecution(
 			ErrorCodePlanProposalNotFound,
 			"sealed plan proposal was not found",
 		), []NextAction{{
-			Tool:   "prepare_plan_execution",
+			Domain: "execution", Operation: "prepare_plan_execution",
 			Reason: "prepare the complete Plan again in the current scope",
 		}}), nil
 	}
@@ -87,7 +87,7 @@ func (s *Service) MaterializePlanExecution(
 			ErrorCodePlanProposalDigest,
 			"proposal_digest does not match the sealed proposal and target fence",
 		), []NextAction{{
-			Tool:   "prepare_plan_execution",
+			Domain: "execution", Operation: "prepare_plan_execution",
 			Reason: "use the exact proposal_id and proposal_digest returned together by preparation",
 		}}), nil
 	}
@@ -178,7 +178,7 @@ func (s *Service) materializeLoadedPlanProposal(
 					"proposal can no longer be committed against its sealed target fence",
 				),
 			), []NextAction{{
-				Tool:   "prepare_plan_execution",
+				Domain: "execution", Operation: "prepare_plan_execution",
 				Reason: "refresh the current Execution and prepare a new complete proposal",
 			}}), nil
 
@@ -187,7 +187,7 @@ func (s *Service) materializeLoadedPlanProposal(
 				ErrorCodePlanProposalBlocked,
 				"proposal was discarded and cannot be committed",
 			), []NextAction{{
-				Tool:   "prepare_plan_execution",
+				Domain: "execution", Operation: "prepare_plan_execution",
 				Reason: "prepare a new complete proposal",
 			}}), nil
 
@@ -638,7 +638,7 @@ func (s *Service) recordMaterializedPlanProposal(
 	result.Message = "Execution and Plan are durable; Goal binding confirmation will retry automatically."
 	result.GoalConfirmation = GoalConfirmationPending
 	result.NextActions = appendUniqueNextAction(result.NextActions, NextAction{
-		Tool:   "get_execution",
+		Domain: "execution", Operation: "get_execution",
 		Reason: "continue from the durable Execution while Goal confirmation recovers in the background",
 	})
 	return result, nil
@@ -811,7 +811,7 @@ func (s *Service) blockPlanProposal(
 		return MutationResult{}, err
 	}
 	return RejectedResult(nil, domainError(code, message), []NextAction{{
-		Tool:   "prepare_plan_execution",
+		Domain: "execution", Operation: "prepare_plan_execution",
 		Reason: "refresh current state and prepare a new complete proposal",
 	}}), nil
 }
@@ -911,7 +911,7 @@ func constantTimeDigestEqual(left, right string) bool {
 
 func appendUniqueNextAction(actions []NextAction, candidate NextAction) []NextAction {
 	for _, action := range actions {
-		if action.Tool == candidate.Tool {
+		if action.Operation == candidate.Operation {
 			return actions
 		}
 	}

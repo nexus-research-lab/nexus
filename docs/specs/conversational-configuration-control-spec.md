@@ -28,7 +28,8 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `rooms` | 数据库 + Room runtime | `nexuscfg` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
 | `automation` | 数据库 + scheduler runtime | Agent task 走内置 Skill + round-scoped `nexus automation`；script task 仅人类控制面 | CLI inspect/plan/apply，后台 run 只读 |
 | `workspaces` | workspace 文件系统 | 主智能体通过 `nexus-manager` Skill 调用 owner-scoped `nexusctl`；当前 Agent 使用原生文件工具 | 当前 workspace 文件写入立即 |
-| `goals` | 数据库 + Goal runtime | `nexus_goal` | 专用 Goal 生命周期 |
+| `goals` | 数据库 + Goal runtime | 内置 `goal-manager` Skill + round-scoped `nexus goal` | 专用 Goal 生命周期 |
+| `executions` | 数据库 + Execution runtime | 内置 `execution-orchestrator` Skill + round-scoped `nexus execution` | 专用 Plan / WorkGraph 生命周期 |
 
 部署环境和桌面状态根属于宿主控制面。智能体可以读取脱敏状态、运行确定性检查并解释正确操作方法，但不能把一次文件或数据库写入伪装成已经改变当前进程。服务器 workspace 根只能由部署环境配置；桌面端只迁移完整状态根，并在 sidecar 退出后离线切换和重启。
 
@@ -37,12 +38,13 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 通过内置 `nexus-configuration` Skill 调用宿主按 runtime round 签发的 `nexuscfg`。
 这些 CLI 都调用既有领域服务，不允许模型直接读写数据库。`nexuscfg` 能执行的操作
 由当前可信 DM/Room 身份决定，普通 Agent 只获得自身或当前 Room 范围的配置能力。
-Goal 保留自己的生命周期工具；Automation 使用内置 Skill 与 round-scoped
-`nexus automation` CLI，因为两者都不是普通配置 patch。当前 Agent workspace 仍使用
+Goal 使用内置 Skill 与 round-scoped `nexus goal` CLI；Automation 使用内置 Skill 与
+round-scoped `nexus automation` CLI，因为两者都不是普通配置 patch。当前 Agent workspace 仍使用
 自己的文件工具。
 
-Goal 的创建、读取、明确改写目标和模型终态继续由 `nexus_goal` 完成。当前自动批准的
-`nexus_goal` family 只承载这些模型侧安全操作；暂停、恢复、预算和清除会触发 usage
+Goal 的创建、读取、明确改写目标和模型终态由 Goal command broker 完成。模型先按需加载
+`goal-manager`，再通过 `contract → inspect → invoke` 读取精确 operation contract 并提交命令；
+身份和 Goal revision 全部由 round capability 绑定。暂停、恢复、预算和清除会触发 usage
 结算、continuation 与当前 round 中断，不属于对话工具，只保留给当前认证的人类界面，
 也不得伪装成 `nexuscfg` 普通字段更新。
 
@@ -183,7 +185,9 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 
 每个活跃 Nexus Session 先按不随轮次变化的拓扑和显式选择确定 MCP 工具面。用户输入、内部唤醒、私域回传、Room host/member 角色、WorkBinding/ReviewBinding、Goal authority 和通讯开关只改变当轮执行权限，不卸载工具 schema。无权轮次不签发可信 `ContextID`、human principal 或执行绑定，真实工具调用仍在 service 真相源上 fail closed。
 
-正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮热更新。对于不能在已恢复会话中可靠替换全局工具基线的 Kimi K3 DM runtime，宿主比较当前模型可见工具面的脱敏指纹；旧会话缺少指纹或指纹变化时，必须先关闭同一 Nexus Session 的 warm client、保留旧 transcript lineage 并清除底层 resume，再让 fresh SDK Session 从首轮采用当前工具面。Nexus Session key、标题和可见历史保持连续，旧/新非复制 transcript 由统一读模型合并；模型上下文在这次兼容换代中冷启动。新 SDK identity 与工具面指纹必须在 transcript 可恢复后一起提交，失败后不得退回不兼容的旧 client。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
+正常工具面只在用户显式修改 Agent 的 MCP/Connector 默认或当前 Session 的 Connector 选择后，从下一轮生效。当前 DM Session 的有效 Connector 选择发生变化且已有可恢复 transcript 时，设置事务提交后必须以短 debounce 启动 latest-wins 后台预备：同一 Session 只保留最后一个配置版本，过期预备必须取消，且只有配置版本仍匹配的 fork identity 与工具面指纹可以提交；真实输入到达时取消尚未提交的预备并立即进入同一 runtime 启动主链，因此预备失败不回滚设置，发送时同步 fork 仍是正确性兜底。后台预备不得发送隐藏模型消息；无法在 Connect 阶段公布新 identity 的 runtime 留到真实首轮完成 fork。宿主不能把 bridge/nxs/Claude Code 的配置下发成功视为模型已经采用新 schema：在交互 DM 中，只要已有可恢复 SDK Session 的模型可见工具面指纹变化，就必须先关闭同一 Nexus Session 的 warm client，再从旧 transcript 幂等 fork 一个新物理 SDK Session，使当前 MCP 工具面从该分支的首轮成为启动事实。旧进程关闭等待必须覆盖 runtime transport 的优雅退出和强制终止两个阶段，不能在强制终止刚发出时用同长度 deadline 把换代误判为失败。Nexus Session key、标题和可见历史保持不变；fork transcript 自带旧上下文，旧 identity 只保留为清理 lineage，不作为并列可见分段。target SDK identity 由宿主稳定派生，连接失败可重试同一分支；nxs 可在 Connect 阶段确认该 identity，Claude Code 则可能直到首条 query 的 init 事件才公布，宿主必须在相应确认点验证它不是 source identity。新 identity 与工具面指纹只有在 transcript 可恢复后才能共同提交，失败时继续保留旧 identity 和旧基线、关闭未提交的 fork client，且不得回退到旧 warm client 执行本轮输入。该规则不依赖 K3、nxs 或 Claude Code 的名称；未来只有明确协商并确认会话内动态工具更新的 runtime capability 才能绕过 fork。后台 Automation run 是独立的受限执行 profile，不借用交互 Session 的 mutation authority。`ToolSearch` 默认关闭；即使开启也只是 schema 传递优化，不作为 MCP 挂载或鉴权机制。
+
+交互 DM 的动态模型上下文必须分别投影 owner 级 Connector 配置/授权状态与当前 Session 的有效选择状态，二者不得互相推断。该宿主快照本身就是状态真相，模型不得再调用 `nexusctl` 或授权工具做重复确认。已配置但未选择时，模型只能提示用户点击对话框左侧的「+」并在弹出菜单中为当前 Session 选择该 Connector，不得重新发起授权或模糊指向不存在的“会话设置”；已配置且已选择并存在对应 schema 时，必须以当前 schema 为准，不得沿用旧轮次的“没有工具”结论；已配置且已选择但对应 schema 缺失时，必须报告 runtime 挂载异常，不得谎报为未配置或未授权。状态投影只包含 Connector ID 和脱敏状态；实际 MCP 装配完成后，宿主可在当前轮补充已挂载 server alias 及宿主已知 Connector 的精确工具名，但不得携带凭据或工具 schema 正文。
 
 “热重载”不是一个模糊布尔值。不同配置按安全要求和 runtime 生命周期分级：
 

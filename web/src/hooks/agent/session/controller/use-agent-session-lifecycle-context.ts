@@ -1,3 +1,8 @@
+/**
+ * INPUT: Session controller 的 refs、state setters 与快照回调。
+ * OUTPUT: 稳定的 Session lifecycle command context。
+ * POS: controller 到纯 lifecycle 状态机的依赖适配层。
+ */
 import { useMemo } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
@@ -17,6 +22,7 @@ interface UseAgentSessionLifecycleContextOptions {
   backgroundMessagesRef: RefObject<Map<string, Message[]>>;
   historyCursorRef: RefObject<AgentConversationHistoryCursor>;
   identity: AgentConversationIdentity | null;
+  loadAbortControllerRef: RefObject<AbortController | null>;
   loadRequestIdRef: RefObject<number>;
   reconcileRuntimeStateFromSnapshot: (messages: Message[]) => void;
   restoreVolatileSessionSnapshot: (sessionKey: string) => boolean;
@@ -35,6 +41,7 @@ export function useAgentSessionLifecycleContext({
   backgroundMessagesRef,
   historyCursorRef,
   identity,
+  loadAbortControllerRef,
   loadRequestIdRef,
   reconcileRuntimeStateFromSnapshot,
   restoreVolatileSessionSnapshot,
@@ -52,6 +59,7 @@ export function useAgentSessionLifecycleContext({
     refs: {
       activeSessionKey: activeSessionKeyRef,
       backgroundMessages: backgroundMessagesRef,
+      loadAbortController: loadAbortControllerRef,
       loadRequestId: loadRequestIdRef,
     },
     state: {
@@ -79,6 +87,7 @@ export function useAgentSessionLifecycleContext({
     backgroundMessagesRef,
     historyCursorRef,
     identity,
+    loadAbortControllerRef,
     loadRequestIdRef,
     reconcileRuntimeStateFromSnapshot,
     restoreVolatileSessionSnapshot,

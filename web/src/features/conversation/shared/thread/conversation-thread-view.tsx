@@ -306,7 +306,7 @@ function ThreadFeed({
         "soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-none px-4",
         model.presentation === "inspector" ? "pb-3 pt-0" : "py-3",
       )}
-      style={{ overflowAnchor: "none" }}
+      style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
       tabIndex={-1}
       onPointerDown={onPointerDown}
       onScroll={onScroll}

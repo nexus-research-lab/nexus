@@ -80,8 +80,6 @@ export function MessageAssistantSection({
               "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 text-left",
               layout.content,
             )}
-            ref={assistant.layout.contentAreaRef}
-            style={assistant.layout.contentAreaStyle}
           >
             {showEmptyState ? (
               assistantEmptyState

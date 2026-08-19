@@ -43,7 +43,7 @@ func (s *Service) AbandonExecution(
 	}
 	if coordinationErr := s.requireRuntimeCoordination(actor, snapshot); coordinationErr != nil {
 		return RejectedResult(snapshot, coordinationErr, []NextAction{{
-			Tool:   "get_execution",
+			Domain: "execution", Operation: "get_execution",
 			Reason: "explicitly inspect and enter the current Room coordination scope",
 		}}), nil
 	}
@@ -52,7 +52,7 @@ func (s *Service) AbandonExecution(
 	}
 	if strings.TrimSpace(snapshot.Execution.GoalID) != "" {
 		return RejectedResult(snapshot, goalRetargetRequiredError(), []NextAction{{
-			Tool:   "retarget_goal",
+			Domain: "goal", Operation: "retarget_goal",
 			Reason: "Goal-bound objectives must advance through the Goal objective revision protocol",
 		}}), nil
 	}
@@ -68,7 +68,7 @@ func (s *Service) AbandonExecution(
 			"Abandon proposal is valid; Plan Mode did not cancel the Execution or any execution chain.",
 		)
 		result.NextActions = []NextAction{{
-			Tool:   "abandon_execution",
+			Domain: "execution", Operation: "abandon_execution",
 			Reason: "leave Plan Mode and resubmit to cancel this transient Execution",
 		}}
 		return result, nil

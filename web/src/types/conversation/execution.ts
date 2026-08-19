@@ -181,6 +181,8 @@ export interface ExecutionGraphView {
 
 export interface ExecutionSubmissionView {
   id: string;
+  assignment_id: string;
+  attempt_id: string;
   submitter_agent_id: string;
   result_summary: string;
   result_refs?: string[];

@@ -285,7 +285,7 @@ func (s *Service) domainValues(
 			0,
 			scope,
 			err
-	case DomainAutomation, DomainWorkspaces, DomainGoals:
+	case DomainAutomation, DomainWorkspaces, DomainGoals, DomainExecutions:
 		definition, _ := definitionFor(domain)
 		return map[string]any{
 			"delegated": true, "managed_by": definition.ManagedBy,

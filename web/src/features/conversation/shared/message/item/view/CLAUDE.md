@@ -4,7 +4,6 @@
 - `content/`: Markdown/结构化内容投影、块分派、系统事件与时间线。
 - `user/`: 用户正文、编辑状态和附件展示。
 - `message-activity-status.tsx`: 以完整展示表渲染思考、工具、回复等活动图标、文案、语气和逐帧动画；整组活动文案通过组件私有 CSS 共用低对比文字流光，并在系统减少动态效果时回退为静态文字。
-- `message-item-streaming-layout.ts`: 流式阶段的高度测量与稳定布局。
 
 - 视图在消费侧声明窄输入契约，只读取控制器按职责分组的具体状态；不得重新推导消息顺序、最终回复、权限归属或运行阶段。
-- 流式高度测量属于视觉布局行为，保留在本层；消息领域投影位于相邻 `controller/`。
+- Assistant 容器始终使用当前 DOM 的自然高度；本层不得通过 `ResizeObserver`、React state 或动态 `min-height` 另建一套高度真相源。流式增长节奏归 shared Markdown 内容调度器，消息领域投影位于相邻 `controller/`。

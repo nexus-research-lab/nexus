@@ -1,3 +1,8 @@
+/**
+ * INPUT: Session 身份、初始/重载请求和页面/易失快照状态。
+ * OUTPUT: 可取消的首屏加载、代次栅栏与受限消息窗口提交。
+ * POS: Agent Session 切换、创建、加载与清理状态机。
+ */
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { getMessageHistoryRoundPageSize } from "@/config/conversation-policy";
@@ -22,10 +27,12 @@ import {
   sortMessages,
 } from "../message/message-collection-model";
 import { latestAssistantResultErrorMessage } from "../message/assistant-message-model";
+import { boundLoadedMessages } from "../message/message-window-model";
 
 interface AgentConversationLifecycleRefs {
   activeSessionKey: RefObject<string | null>;
   backgroundMessages: RefObject<Map<string, Message[]>>;
+  loadAbortController: RefObject<AbortController | null>;
   loadRequestId: RefObject<number>;
 }
 
@@ -85,6 +92,8 @@ function createSessionKey(
 export function startAgentSession(
   context: AgentConversationLifecycleContext,
 ): void {
+  context.refs.loadAbortController.current?.abort();
+  context.refs.loadAbortController.current = null;
   const sessionKey = createSessionKey(context.identity);
   context.refs.loadRequestId.current += 1;
   context.refs.activeSessionKey.current = sessionKey;
@@ -108,7 +117,10 @@ function prepareSessionLoad(
   sessionKey: string,
   context: AgentConversationLifecycleContext,
   isReload: boolean,
-): number {
+): { requestId: number; controller: AbortController } {
+  context.refs.loadAbortController.current?.abort();
+  const controller = new AbortController();
+  context.refs.loadAbortController.current = controller;
   const requestId = context.refs.loadRequestId.current + 1;
   context.refs.loadRequestId.current = requestId;
   context.refs.activeSessionKey.current = sessionKey;
@@ -116,7 +128,7 @@ function prepareSessionLoad(
 
   if (isReload) {
     context.state.setError(null);
-    return requestId;
+    return { controller, requestId };
   }
 
   context.state.setIsSessionLoading(true);
@@ -129,7 +141,7 @@ function prepareSessionLoad(
     resetSessionView(context);
   }
   context.restoreVolatileSessionSnapshot(sessionKey);
-  return requestId;
+  return { controller, requestId };
 }
 
 /**
@@ -139,6 +151,7 @@ function prepareSessionLoad(
 export async function readAgentSessionMessagePage(
   identity: AgentConversationIdentity | null,
   sessionKey: string,
+  signal?: AbortSignal,
 ): Promise<ConversationMessagePage> {
   const query = { limit: getMessageHistoryRoundPageSize() };
   if (identity?.room_id && identity.conversation_id) {
@@ -146,16 +159,19 @@ export async function readAgentSessionMessagePage(
       identity.room_id,
       identity.conversation_id,
       query,
+      signal,
     );
   }
-  return getSessionMessagesApi(sessionKey, query);
+  return getSessionMessagesApi(sessionKey, query, signal);
 }
 
+/** ACK recovery 只读取捕获的原 Session；调用者可选地持有取消所有权。 */
 export async function readAgentSessionMessages(
   identity: AgentConversationIdentity | null,
   sessionKey: string,
+  signal?: AbortSignal,
 ): Promise<Message[]> {
-  return (await readAgentSessionMessagePage(identity, sessionKey)).items;
+  return (await readAgentSessionMessagePage(identity, sessionKey, signal)).items;
 }
 
 function commitSessionMessages(
@@ -167,7 +183,10 @@ function commitSessionMessages(
   const sortedMessages = sortMessages(page.items);
   let mergedMessages = sortedMessages;
   context.state.setMessages((currentMessages) => {
-    mergedMessages = mergeLoadedMessages(sortedMessages, currentMessages);
+    mergedMessages = boundLoadedMessages(
+      mergeLoadedMessages(sortedMessages, currentMessages),
+      { preference: "latest" },
+    );
     return mergedMessages;
   });
   const resultError = latestAssistantResultErrorMessage(mergedMessages);
@@ -194,16 +213,24 @@ export async function loadAgentSession(
   context: AgentConversationLifecycleContext,
   isReload = false,
 ): Promise<Message[] | null> {
-  const requestId = prepareSessionLoad(sessionKey, context, isReload);
+  const { controller, requestId } = prepareSessionLoad(
+    sessionKey,
+    context,
+    isReload,
+  );
   try {
     const page = await readAgentSessionMessagePage(
       context.identity,
       sessionKey,
+      controller.signal,
     );
     if (isCurrentLoad(context, requestId, sessionKey)) {
       return commitSessionMessages(sessionKey, page, context, isReload);
     }
   } catch (error) {
+    if (controller.signal.aborted) {
+      return null;
+    }
     if (isCurrentLoad(context, requestId, sessionKey)) {
       console.error("[loadSession] 加载 session 失败:", error);
       context.state.setError(
@@ -211,6 +238,9 @@ export async function loadAgentSession(
       );
     }
   } finally {
+    if (context.refs.loadAbortController.current === controller) {
+      context.refs.loadAbortController.current = null;
+    }
     if (!isReload && isCurrentLoad(context, requestId, sessionKey)) {
       context.state.setIsSessionLoading(false);
     }
@@ -221,6 +251,8 @@ export async function loadAgentSession(
 export function clearAgentSession(
   context: AgentConversationLifecycleContext,
 ): void {
+  context.refs.loadAbortController.current?.abort();
+  context.refs.loadAbortController.current = null;
   context.refs.loadRequestId.current += 1;
   context.refs.activeSessionKey.current = null;
   context.state.setSessionKey(null);

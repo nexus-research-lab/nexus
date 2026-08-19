@@ -1,4 +1,4 @@
-// INPUT: nexus_goal create/retarget/alignment/lifecycle request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
+// INPUT: Goal command create/retarget/alignment/lifecycle request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
 // OUTPUT: 单域原子的 goal_only create_goal、带 canonical objective 的只读 Plan activation、显式 Goal/Execution binding saga 与 Goal 工具窄透传。
 // POS: Goal 与 Execution 两个领域服务之间的应用层协调器；create_goal 不隐式跨域，Plan transport 不裁决 Goal objective。
 package server
@@ -12,14 +12,14 @@ import (
 	"strconv"
 	"strings"
 
-	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
 type explicitGoalLifecycleService interface {
-	goalmcpcontract.Service
+	goalcommandcontract.Service
 	BindExplicitExecution(
 		context.Context,
 		goalsvc.ExplicitExecutionBinding,
@@ -62,7 +62,7 @@ type explicitGoalExecutionService interface {
 	) (*protocol.ExecutionSnapshot, error)
 }
 
-// explicitGoalExecutionCoordinator 既包装 nexus_goal service，也向 Plan
+// explicitGoalExecutionCoordinator 既包装 Goal command service，也向 Plan
 // materialization 提供 active explicit Goal preflight。Goal 创建与 WorkGraph
 // 绑定是两个显式动作，避免 create_goal 在两个 aggregate 之间留下半提交状态。
 type explicitGoalExecutionCoordinator struct {
@@ -428,7 +428,7 @@ func (c *explicitGoalExecutionCoordinator) CurrentModelMutationAuthority(
 	ownerUserID string,
 	agentID string,
 ) (*protocol.Goal, error) {
-	resolver, ok := c.goals.(goalMCPMutationAuthorityResolver)
+	resolver, ok := c.goals.(goalCommandMutationAuthorityResolver)
 	if !ok || resolver == nil {
 		return nil, errors.New("Goal model mutation authority resolver is unavailable")
 	}

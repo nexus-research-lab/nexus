@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 conversation identity、消息集合和 Session 传输能力。
+ * OUTPUT: Session 切换/分页/重载/清理能力与衍生状态。
+ * POS: Agent conversation 对外 Session Hook 门面。
+ */
 import {
   useCallback,
   type Dispatch,
@@ -41,7 +46,7 @@ interface SessionTransitionEffects {
 }
 
 /**
- * 新会话只保留具备 durable transport owner 的请求；普通页面级 ACK 仍取消。
+ * 新会话只保留具备 durable transport owner 的用户提交；页面级 ACK 仍取消。
  * clear/reset 是用户明确撤销全部未确认请求的边界。
  */
 export function runAgentSessionTransition(
@@ -51,8 +56,8 @@ export function runAgentSessionTransition(
   context: AgentConversationLifecycleContext,
   effects: SessionTransitionEffects,
 ): void {
-  // start 会取消普通 chat/interrupt 等页面级 ACK，只保留显式标记为
-  // durable owner 的 Goal；clear/reset 是用户明确取消全部请求的边界。
+  // start 会取消 interrupt 等页面级 ACK，只保留显式标记为 durable owner
+  // 的消息、队列输入与 Goal；clear/reset 是用户明确取消全部请求的边界。
   effects.cancelPendingRequestAcks(reason, kind === "start");
   effects.clearLiveSessionState();
   transition(context);
@@ -126,6 +131,8 @@ export function useAgentConversationSession({
         return;
       }
 
+      lifecycleContext.refs.loadAbortController.current?.abort();
+      lifecycleContext.refs.loadAbortController.current = null;
       activeSessionKeyRef.current = normalizedKey;
       // 普通会话切换不取消已发送请求；ACK registry 跨切换按
       // client_request_id 完成原 Promise，Feed 仍只显示当前会话事件。
@@ -144,6 +151,7 @@ export function useAgentConversationSession({
     [
       activeSessionKeyRef,
       clearLiveSessionState,
+      lifecycleContext,
       resetHistoryPagination,
       resetRuntimeMachine,
       setIsSessionLoading,

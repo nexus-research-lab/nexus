@@ -362,6 +362,12 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		)
 		return dmRuntimePreparation{}, err
 	}
+	resourcesTransferred := false
+	defer func() {
+		if !resourcesTransferred {
+			clientPreparation.commandResources.Close()
+		}
+	}()
 	e.session = clientPreparation.session
 	if !runtimeContent.IsEmpty() && !slashInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
@@ -370,6 +376,9 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 			"dm:"+strings.TrimSpace(e.sessionKey),
 			clientPreparation.emotionEnabled,
 		))
+		// Connector 工具面会随 Session 选择 fork；把本轮装配事实贴近当前输入，
+		// 避免复制进新 transcript 的历史“工具不存在”结论压过当前 schema。
+		runtimeContent = runtimeContent.AppendText(clientPreparation.connectorTurnContext)
 	}
 	if override := strings.TrimSpace(e.request.GoalContext); e.request.Internal && override != "" {
 		clientPreparation.goalContext = override
@@ -386,12 +395,14 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		clientPreparation.goalContext = ""
 		recoveryContext = nil
 	}
-	return dmRuntimePreparation{
+	preparation := dmRuntimePreparation{
 		dmClientPreparation: clientPreparation,
 		content:             runtimeContent,
 		atomicInput:         atomicInput,
 		recoveryContext:     recoveryContext,
-	}, nil
+	}
+	resourcesTransferred = true
+	return preparation, nil
 }
 
 func (e *dmChatExecution) runtimeContext() context.Context {
@@ -446,6 +457,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.runtimeProvider = preparation.runtimeProvider
 	r.runtimeModel = preparation.runtimeModel
 	r.toolSurfaceFingerprint = preparation.toolSurfaceFingerprint
+	r.forkSourceSessionID = preparation.forkSourceSessionID
 	r.goalContext = preparation.goalContext
 	r.goalIDForUsage = preparation.goalIDForUsage
 	r.childGoalIDForUsage = preparation.goalIDForUsage
@@ -453,6 +465,9 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 		r.goalObjectiveRevision = preparation.goalObjectiveRevision
 	}
 	r.responsibilityState = preparation.responsibilityState
+	r.sdkSessionIdentity = preparation.sdkSessionIdentity
+	r.commandReceipts = preparation.commandReceipts
+	r.commandResources = preparation.commandResources
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
 		strings.TrimSpace(preparation.goalIDForUsage) != "",
 	)
@@ -463,7 +478,12 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 
 func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	runtimeCtx := e.runtimeContext()
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" && len(e.request.RewriteRemoveMessageUUIDs) == 0 {
+	if e.request.rewriteOverlayOnly && len(e.request.RewriteRemoveMessageUUIDs) > 0 {
+		return errors.New("overlay-only rewrite cannot remove runtime messages")
+	}
+	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" &&
+		!e.request.rewriteOverlayOnly &&
+		len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
 	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)

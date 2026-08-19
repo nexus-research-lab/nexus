@@ -38,30 +38,6 @@ func TestResolveInteractionModeKeepsEveryToolActionable(t *testing.T) {
 	}
 }
 
-func TestExecutionPermissionUsesSemanticRiskAndSummary(t *testing.T) {
-	t.Parallel()
-
-	risk, label := resolveRisk("mcp__nexus_execution__plan_execution")
-	if risk != "medium" || label != "编排" {
-		t.Fatalf("plan_execution risk = %q/%q, want medium/编排", risk, label)
-	}
-	risk, label = resolveRisk("mcp__nexus_execution__get_execution")
-	if risk != "low" || label != "只读" {
-		t.Fatalf("get_execution risk = %q/%q, want low/只读", risk, label)
-	}
-	risk, label = resolveRisk("mcp__nexus_execution__prepare_plan_execution")
-	if risk != "low" || label != "封存提案" {
-		t.Fatalf("prepare_plan_execution risk = %q/%q, want low/封存提案", risk, label)
-	}
-	summary := summarizeInput(
-		"mcp__nexus_execution__plan_execution",
-		map[string]any{"proposal_id": "proposal-1", "proposal_digest": "digest-1"},
-	)
-	if summary != "mcp__nexus_execution__plan_execution" {
-		t.Fatalf("Execution summary = %q", summary)
-	}
-}
-
 func TestNormalizeMode(t *testing.T) {
 	tests := []struct {
 		name string

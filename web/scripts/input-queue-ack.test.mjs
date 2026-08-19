@@ -102,7 +102,7 @@ test("request transport lease keeps exact ownership across navigation", async ()
   assert.equal(releasedBindings.length, 1, "terminal release is idempotent");
 });
 
-test("new Session preserves only durable Goal ACK owners while reset cancels all", async () => {
+test("new Session preserves durable submission owners while reset cancels all", async () => {
   const { runAgentSessionTransition } = await server.ssrLoadModule(
     "/src/hooks/agent/session/use-agent-conversation-session.ts",
   );
@@ -147,7 +147,7 @@ test("new Session preserves only durable Goal ACK owners while reset cancels all
   ]);
 });
 
-test("Session navigation cancels ordinary ACKs without cancelling Goal owners", async () => {
+test("Session navigation preserves message and Goal owners while cancelling page requests", async () => {
   const {
     cancelPendingRequestAcks,
     createPendingRequestAckRegistry,
@@ -158,12 +158,19 @@ test("Session navigation cancels ordinary ACKs without cancelling Goal owners", 
     "/src/hooks/agent/actions/use-pending-request-acks.ts",
   );
   const registry = createPendingRequestAckRegistry();
-  trackPendingRequestAck(registry, "req-chat");
+  trackPendingRequestAck(registry, "req-page");
+  trackPendingRequestAck(registry, "req-chat", true);
   trackPendingRequestAck(registry, "req-goal", true);
+  const pageRequest = waitForRequestAck(
+    registry,
+    "req-page",
+    () => assert.fail("navigation cancellation should precede timeout"),
+    50,
+  );
   const chat = waitForRequestAck(
     registry,
     "req-chat",
-    () => assert.fail("navigation cancellation should precede timeout"),
+    () => assert.fail("the durable message owner should remain live"),
     50,
   );
   const goal = waitForRequestAck(
@@ -173,9 +180,12 @@ test("Session navigation cancels ordinary ACKs without cancelling Goal owners", 
     50,
   );
   cancelPendingRequestAcks(registry, "切换会话", true);
-  await assert.rejects(chat, /切换会话/);
+  await assert.rejects(pageRequest, /切换会话/);
+  assert.equal(registry.pending.has("req-chat"), true);
   assert.equal(registry.pending.has("req-goal"), true);
+  assert.equal(resolvePendingRequestAck(registry, "req-chat"), true);
   assert.equal(resolvePendingRequestAck(registry, "req-goal"), true);
+  await chat;
   await goal;
   assert.equal(registry.preserved.size, 0);
 });
@@ -616,7 +626,11 @@ test("input queue enqueue command carries ACK correlation IDs", async () => {
   const { enqueueInputQueueMessage } = await server.ssrLoadModule(
     "/src/hooks/agent/actions/input-queue-actions.ts",
   );
+  const { createOutboundRequestDescriptor } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/outbound-request.ts",
+  );
   const sent = [];
+  const preparedRequest = createOutboundRequestDescriptor("local_msg_stable");
   const request = enqueueInputQueueMessage(
     "还有 M5",
     {
@@ -642,13 +656,56 @@ test("input queue enqueue command carries ACK correlation IDs", async () => {
     "queue",
     [],
     ["researcher"],
-    "local_msg_stable",
+    preparedRequest,
   );
 
+  assert.equal(request, preparedRequest);
   assert.equal(request.client_message_id, "local_msg_stable");
   assert.equal(sent[0].client_message_id, request.client_message_id);
   assert.equal(sent[0].client_request_id, request.client_request_id);
   assert.equal(sent[0].type, "input_queue");
+});
+
+test("chat dispatch preserves its caller-owned request identity", async () => {
+  const { sendSessionMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/conversation-chat-actions.ts",
+  );
+  const { createOutboundRequestDescriptor } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/outbound-request.ts",
+  );
+  const sent = [];
+  let messages = [];
+  const preparedRequest = createOutboundRequestDescriptor("local_msg_chat_a");
+  const request = await sendSessionMessage(
+    "发送后立即切换 Session",
+    {
+      activeSessionKeyRef: { current: "agent:nexus:ws:dm:session-a" },
+      identity: {
+        agent_id: "nexus",
+        chat_type: "dm",
+      },
+      messages,
+      pendingPermissions: [],
+      sessionKey: "agent:nexus:ws:dm:session-a",
+      setError: () => {},
+      setMessages: (updater) => {
+        messages = updater(messages);
+      },
+      setPendingPermissions: () => {},
+      wsSend: (message) => {
+        sent.push(message);
+        return { disposition: "sent" };
+      },
+      wsState: "connected",
+    },
+    {},
+    preparedRequest,
+  );
+
+  assert.equal(request, preparedRequest);
+  assert.equal(sent[0].client_message_id, preparedRequest.client_message_id);
+  assert.equal(sent[0].client_request_id, preparedRequest.client_request_id);
+  assert.equal(messages[0].client_message_id, preparedRequest.client_message_id);
 });
 
 test("input queue ACK parser validates accepted and duplicate flags", async () => {
@@ -2075,6 +2132,22 @@ test("unobserved Goal baseline reconciles only from its exact durable control re
 });
 
 test("Composer submission clears immediately and failure recovery preserves newer input", async () => {
+  const { shouldRestoreMessageDraftAfterFailure } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/controller/use-composer-message-submit.ts",
+  );
+  assert.equal(
+    shouldRestoreMessageDraftAfterFailure(
+      Object.assign(new Error("受理状态未知"), {
+        name: "RequestAcceptanceUnknownError",
+      }),
+    ),
+    false,
+    "an unknown acceptance must not restore content that may already be durable",
+  );
+  assert.equal(
+    shouldRestoreMessageDraftAfterFailure(new Error("后端明确拒绝")),
+    true,
+  );
   const { useComposerDraftStore } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/composer-draft-store.ts",
   );

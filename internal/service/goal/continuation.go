@@ -173,8 +173,8 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 		return nil, err
 	}
 	if goalContinuationSuppressed(*item) {
-		if goalCompletionToolRetryCount(item.Metadata) >= goalCompletionToolMaxRetries {
-			completed, err := s.completeAfterCompletionToolMissRetry(
+		if goalCompletionCommandRetryCount(item.Metadata) >= goalCompletionCommandMaxRetries {
+			completed, err := s.completeAfterCompletionCommandMissRetry(
 				ctx,
 				item,
 				previousRoundID,
@@ -771,15 +771,15 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string, confirm
 		remainingTokens = fmt.Sprintf("%d", *remaining)
 	}
 	return renderGoalPromptTemplate(continuationPromptTemplate, map[string]string{
-		"objective":                    objective,
-		"room_goal_lead_note":          buildRoomGoalLeadNote(item),
-		"objective_alignment_criteria": buildObjectiveAlignmentCriteria(item),
-		"objective_alignment_contract": objectivealignment.PromptContract(),
-		"completion_tool_retry_note":   buildCompletionToolRetryNote(item, confirmedManagedBinding),
-		"no_progress_recovery_note":    buildNoProgressRecoveryNote(item),
-		"tokens_used":                  fmt.Sprintf("%d", item.Usage.BudgetTokens()),
-		"token_budget":                 tokenBudget,
-		"remaining_tokens":             remainingTokens,
+		"objective":                     objective,
+		"room_goal_lead_note":           buildRoomGoalLeadNote(item),
+		"objective_alignment_criteria":  buildObjectiveAlignmentCriteria(item),
+		"objective_alignment_contract":  objectivealignment.PromptContract(),
+		"completion_command_retry_note": buildCompletionCommandRetryNote(item, confirmedManagedBinding),
+		"no_progress_recovery_note":     buildNoProgressRecoveryNote(item),
+		"tokens_used":                   fmt.Sprintf("%d", item.Usage.BudgetTokens()),
+		"token_budget":                  tokenBudget,
+		"remaining_tokens":              remainingTokens,
 	})
 }
 
@@ -806,12 +806,13 @@ Goal objective:
 %s
 
 The predecessor WorkGraph is already fenced. Build the fresh successor WorkGraph now:
-1. Call prepare_plan_execution once with one complete Nexus Plan Document and goal_binding=current.
-2. Commit exactly the returned proposal_id and proposal_digest with plan_execution.
-3. Do not reuse, mutate, or resume the superseded predecessor Execution.
-4. Do not call retarget_goal again unless the user changes the objective again.
+1. Load execution-orchestrator and use only the host-injected "${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke workflow; operation names are not standalone tools and nexusctl is forbidden.
+2. Invoke prepare_plan_execution once with one complete Nexus Plan Document and goal_binding=current.
+3. Commit exactly the returned proposal_id and proposal_digest by invoking plan_execution through the same CLI.
+4. Do not reuse, mutate, or resume the superseded predecessor Execution.
+5. Do not call retarget_goal again unless the user changes the objective again.
 
-The backend owns successor identity %s. Do not put that identity into tool input.
+The backend owns successor identity %s. Do not put that identity into command input.
 `,
 		escapeGoalPromptText(strings.TrimSpace(item.Objective)),
 		escapeGoalPromptText(strings.TrimSpace(transition.SuccessorExecutionID)),
@@ -862,22 +863,22 @@ Room Goal lead:
 `, leadLabel))
 }
 
-func buildCompletionToolRetryNote(item protocol.Goal, confirmedManagedBinding bool) string {
-	if goalCompletionToolRetryCount(item.Metadata) <= 0 {
+func buildCompletionCommandRetryNote(item protocol.Goal, confirmedManagedBinding bool) string {
+	if goalCompletionCommandRetryCount(item.Metadata) <= 0 {
 		return ""
 	}
 	if !confirmedManagedBinding {
 		return strings.TrimSpace(
 			"Completion finalization retry:\n" +
-				"- A previous goal-continuation response stated that the objective was complete but did not call the Goal update tool.\n" +
-				"- This Goal has no confirmed managed WorkGraph binding, so call `mcp__nexus_goal__update_goal` with status \"complete\" before any final response. Do not manufacture an alignment audit or WorkGraph just to close it.",
+				"- A previous goal-continuation response stated that the objective was complete but did not produce an applied Goal completion command receipt.\n" +
+				"- This Goal has no confirmed managed WorkGraph binding, so load `goal-manager` and invoke `update_goal` with status \"complete\" only through the host-injected `\"${NEXUS_COMMAND_PATH}\" --json goal contract|inspect|invoke` workflow before any final response. Never use nexusctl or a standalone operation tool. Do not manufacture an alignment audit or WorkGraph just to close it.",
 		)
 	}
 	return strings.TrimSpace(
 		"Completion finalization retry:\n" +
-			"- A previous goal-continuation response stated that the objective was complete but did not call the Goal update tool.\n" +
-			"- Redo the structured objective-alignment audit in this round through `mcp__nexus_goal__audit_objective_alignment`, or bare `audit_objective_alignment` when that is the visible name.\n" +
-			"- Only after that tool returns `aligned`, call `mcp__nexus_goal__update_goal` with status \"complete\" before any final response. If it returns `not_aligned` or `inconclusive`, continue the work or gather the missing evidence.",
+			"- A previous goal-continuation response stated that the objective was complete but did not produce an applied Goal completion command receipt.\n" +
+			"- Load `goal-manager` and redo `audit_objective_alignment` in this round only through the host-injected `\"${NEXUS_COMMAND_PATH}\" --json goal contract|inspect|invoke` workflow; never use nexusctl or a standalone operation tool.\n" +
+			"- Only after that command returns `aligned`, invoke `update_goal` with status \"complete\" before any final response. If it returns `not_aligned` or `inconclusive`, continue the work or gather the missing evidence.",
 	)
 }
 

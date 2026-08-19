@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -530,65 +531,42 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 		},
 	}
 	service.SetGoalContextProvider(goalProvider)
-	revisionState := make(chan *atomic.Int64, 1)
-	goalAuthorityState := make(chan *runtimectx.GoalAuthorityState, 1)
-	executionAuthorityState := make(chan *runtimectx.GoalAuthorityState, 1)
-	service.SetMCPServerBuilder(func(
+	roundContext := make(chan runtimecommand.RoundContext, 1)
+	service.SetRuntimeCommandEnvironmentBuilder(func(
 		ctx context.Context,
-		_ *protocol.Agent,
-		_ string,
-		_ string,
-		_ string,
-		_ string,
-		_ string,
-		revision *atomic.Int64,
-		_ sdkpermission.Mode,
-	) map[string]sdkmcp.ServerConfig {
+		round runtimecommand.RoundContext,
+	) (map[string]string, error) {
 		goalProvider.mu.Lock()
 		claimCalls := goalProvider.claimCalls
 		goalProvider.mu.Unlock()
 		if claimCalls != 1 {
-			t.Errorf("MCP builder observed claimCalls=%d, want claim before launch", claimCalls)
+			t.Errorf("runtime command builder observed claimCalls=%d, want claim before launch", claimCalls)
 		}
-		revisionState <- revision
-		goalAuthorityState <- runtimectx.GoalAuthorityStateFromContext(ctx)
-		return nil
-	})
-	service.SetExecutionMCPServerBuilder(func(
-		_ context.Context,
-		runtimeContext runtimectx.ExecutionToolContext,
-	) map[string]sdkmcp.ServerConfig {
-		executionAuthorityState <- runtimeContext.GoalAuthority
-		return nil
+		if lease, ok := runtimectx.RuntimeRoundLeaseFromContext(ctx); !ok || lease.SessionKey != sessionKey || lease.RoundID != plan.RoundID {
+			t.Errorf("runtime command lease = %#v, want session=%q round=%q", lease, sessionKey, plan.RoundID)
+		}
+		roundContext <- round
+		return nil, nil
 	})
 
 	if err := service.DispatchGoalContinuation(context.Background(), plan); err != nil {
 		t.Fatal(err)
 	}
-	var state *atomic.Int64
+	var commandRound runtimecommand.RoundContext
 	select {
-	case state = <-revisionState:
+	case commandRound = <-roundContext:
 	case <-time.After(2 * time.Second):
-		t.Fatal("runtime did not build MCP servers")
+		t.Fatal("runtime did not build command environment")
 	}
+	goalAuthority := commandRound.CommandContext.GoalAuthority
+	state := goalAuthority.ObjectiveRevisionState()
 	if state == nil || state.Load() != plan.Goal.ObjectiveRevision() {
 		t.Fatalf("runtime revision = %v, want plan revision %d", state, plan.Goal.ObjectiveRevision())
 	}
-	var goalAuthority *runtimectx.GoalAuthorityState
-	select {
-	case goalAuthority = <-goalAuthorityState:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Goal MCP did not receive runtime authority")
-	}
-	var executionAuthority *runtimectx.GoalAuthorityState
-	select {
-	case executionAuthority = <-executionAuthorityState:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Execution MCP did not receive runtime authority")
-	}
-	if goalAuthority == nil || executionAuthority != goalAuthority ||
+	if goalAuthority == nil || commandRound.CommandContext.ResponsibilityAuthority == nil ||
+		commandRound.CommandContext.ResponsibilityAuthority.GoalAuthorityState() != goalAuthority ||
 		state != goalAuthority.ObjectiveRevisionState() {
-		t.Fatal("DM Goal and Execution MCP did not share one round authority state")
+		t.Fatal("DM Goal and Execution commands did not share one round authority state")
 	}
 	authority, ok := goalAuthority.Load()
 	if !ok || authority.GoalID != plan.Goal.ID ||

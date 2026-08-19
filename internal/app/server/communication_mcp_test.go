@@ -25,7 +25,7 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 	sessionKey := protocol.BuildAgentSessionKey(
 		worker.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "main", "",
 	)
-	ctx := runtimectx.WithMCPRoundLease(ownerContext, sessionKey, "round-worker")
+	ctx := runtimectx.WithRuntimeRoundLease(ownerContext, sessionKey, "round-worker")
 	servers := builder(
 		ctx, worker, sessionKey, "round-worker", "agent", worker.AgentID, "", nil,
 		sdkpermission.ModeDefault,
@@ -43,7 +43,7 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 	mainSession := protocol.BuildAgentSessionKey(
 		main.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "main", "",
 	)
-	mainContext := runtimectx.WithMCPRoundLease(ownerContext, mainSession, "round-main")
+	mainContext := runtimectx.WithRuntimeRoundLease(ownerContext, mainSession, "round-main")
 	if got := mainBuilder(
 		mainContext, main, mainSession, "round-main", "agent", main.AgentID, "", nil,
 		sdkpermission.ModeDefault,
@@ -61,7 +61,7 @@ func TestCommunicationMCPBuilderInjectsForEveryLiveOrdinaryAgentContext(t *testi
 	roomLeaseSession := protocol.BuildRoomAgentSessionKey(
 		"conversation-1", worker.AgentID, protocol.RoomTypeGroup,
 	)
-	roomContext := runtimectx.WithMCPRoundLease(ownerContext, roomLeaseSession, "agent-round-room")
+	roomContext := runtimectx.WithRuntimeRoundLease(ownerContext, roomLeaseSession, "agent-round-room")
 	goalAuthority := runtimectx.NewGoalAuthorityState("goal-room", 1, "")
 	responsibility := runtimectx.NewResponsibilityAuthorityState(
 		goalAuthority,

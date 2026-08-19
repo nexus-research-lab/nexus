@@ -13,7 +13,7 @@ const (
 	// OptionRuntimeModel 表示创建/续用 SDK session 时使用的模型。
 	OptionRuntimeModel = "runtime_model"
 	// OptionRuntimeToolSurfaceFingerprint 表示当前 SDK session 首次采用的模型可见工具面。
-	// 该脱敏指纹只用于判断旧 K3 session 是否需要换代，不是 provider cache key。
+	// 该脱敏指纹只用于判断旧物理 session 是否需要 fork，不是 provider cache key。
 	OptionRuntimeToolSurfaceFingerprint = "runtime_tool_surface_fingerprint"
 	// OptionRuntimeSegmentedTranscript 表示一次 Nexus Session 跨多个非复制 SDK transcript 续写。
 	OptionRuntimeSegmentedTranscript = "runtime_segmented_transcript"
@@ -21,6 +21,8 @@ const (
 	OptionRuntimeForkSourceSessionID = "runtime_fork_source_session_id"
 	// OptionRuntimeForkMessageID 表示尚待首次用户输入物化的 fork transcript 边界。
 	OptionRuntimeForkMessageID = "runtime_fork_message_id"
+	// OptionRuntimeRetainedTranscriptSessionIDs 表示不进入读模型、但由该 Room Session 延迟回收的 transcript。
+	OptionRuntimeRetainedTranscriptSessionIDs = "runtime_retained_transcript_session_ids"
 	// OptionSessionProvider 表示当前 Nexus Session 显式覆盖的 provider。
 	OptionSessionProvider = "session_provider"
 	// OptionSessionModel 表示当前 Nexus Session 显式覆盖的模型。
@@ -43,6 +45,41 @@ type SessionRuntimeSettings struct {
 	PermissionMode string `json:"permission_mode"`
 	// ConnectorIDs 为 nil 时继承 Agent 默认值；空数组表示当前 Session 显式不挂载。
 	ConnectorIDs *[]string `json:"connector_ids"`
+}
+
+// SessionConnectorSelection 是 Session Connector 覆盖的可比较快照。
+// Inherit 区分“继承 Agent 默认值”和“显式选择空集合”。
+type SessionConnectorSelection struct {
+	Inherit      bool
+	ConnectorIDs []string
+}
+
+// SessionConnectorSelectionFromOptions 生成顺序无关、去重的 Connector 选择快照。
+func SessionConnectorSelectionFromOptions(options map[string]any) SessionConnectorSelection {
+	settings := SessionRuntimeSettingsFromOptions(options)
+	if settings.ConnectorIDs == nil {
+		return SessionConnectorSelection{Inherit: true}
+	}
+	seen := make(map[string]struct{}, len(*settings.ConnectorIDs))
+	connectorIDs := make([]string, 0, len(*settings.ConnectorIDs))
+	for _, connectorID := range *settings.ConnectorIDs {
+		connectorID = strings.TrimSpace(connectorID)
+		if connectorID == "" {
+			continue
+		}
+		if _, exists := seen[connectorID]; exists {
+			continue
+		}
+		seen[connectorID] = struct{}{}
+		connectorIDs = append(connectorIDs, connectorID)
+	}
+	slices.Sort(connectorIDs)
+	return SessionConnectorSelection{ConnectorIDs: connectorIDs}
+}
+
+// Equal 把 Connector 集合作为无序选择比较，同时保留继承语义。
+func (s SessionConnectorSelection) Equal(other SessionConnectorSelection) bool {
+	return s.Inherit == other.Inherit && slices.Equal(s.ConnectorIDs, other.ConnectorIDs)
 }
 
 // SessionLocalDirectories 表示当前 Session 额外挂载的本机目录。

@@ -18,6 +18,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -131,6 +132,9 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 			"sdk_session_id", strings.TrimSpace(client.SessionID()),
 		)...,
 	)
+	if sessionID := strings.TrimSpace(client.SessionID()); sessionID != "" {
+		e.slot.ensureSDKSessionIdentityState().Set(sessionID)
+	}
 	return client, nil
 }
 
@@ -180,24 +184,18 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 			e.agent,
 			e.round.SessionKey,
 			e.round.RootRoundID,
-			roomMCPSourceContextType(e.round),
+			roomCommandSourceContextType(e.round),
 			e.round.RoomID,
 		)
 		if err != nil {
 			return preparedSlotRuntime{}, err
 		}
 	}
-	automationRuntimeEnv := map[string]string(nil)
-	if e.service.automationRuntimeEnv != nil {
-		automationRuntimeEnv, err = e.service.automationRuntimeEnv(
+	runtimeCommandEnv := map[string]string(nil)
+	if e.service.runtimeCommandEnv != nil {
+		runtimeCommandEnv, err = e.service.runtimeCommandEnv(
 			e.runtimeBuilderContext(),
-			e.agent,
-			e.round.SessionKey,
-			e.round.RootRoundID,
-			roomMCPSourceContextType(e.round),
-			e.round.RoomID,
-			roomSourceContextLabel(e.round),
-			cloneAutomationRunContext(e.round.AutomationRun),
+			e.runtimeCommandRoundContext(permissionMode),
 		)
 		if err != nil {
 			return preparedSlotRuntime{}, err
@@ -231,7 +229,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AgentMCPServers:            e.agent.Options.MCPServers,
 		ExtraEnv:                   extraEnv,
 		ConfigurationEnv:           configurationRuntimeEnv,
-		RuntimeCommandEnv:          automationRuntimeEnv,
+		RuntimeCommandEnv:          runtimeCommandEnv,
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
@@ -350,7 +348,7 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 	}
 	var servers map[string]sdkmcp.ServerConfig
 	if e.service.mcpServers != nil {
-		sourceContextType := roomMCPSourceContextType(e.round)
+		sourceContextType := roomCommandSourceContextType(e.round)
 		mcpContext := runtimectx.WithResponsibilityAuthorityState(
 			runtimectx.WithGoalAuthorityState(
 				e.runtimeBuilderContext(),
@@ -377,10 +375,19 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 			permissionMode,
 		)
 	}
-	if e.service.executionMCPServers == nil {
-		return servers
+	return servers
+}
+
+func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.Mode) runtimecommand.RoundContext {
+	goalAuthority := e.slot.ensureGoalAuthorityState()
+	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
+	if responsibilityAuthority != nil {
+		responsibilityAuthority.SeedExecution(firstNonEmptyString(
+			executionIDFromRoomBindings(e.slot.WorkBinding, e.slot.ReviewBinding),
+			e.round.ExecutionID,
+		))
 	}
-	overlay := e.service.executionMCPServers(e.ctx, runtimectx.ExecutionToolContext{
+	commandContext := runtimectx.RuntimeCommandContext{
 		Agent:             e.agent,
 		ScopeSessionKey:   e.round.SessionKey,
 		RuntimeSessionKey: e.slot.RuntimeSessionKey,
@@ -399,31 +406,33 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 		AgentRoundID:            e.slot.AgentRoundID,
 		SourceContextType:       "room",
 		SourceContextID:         e.round.RoomID,
+		SourceContextLabel:      roomSourceContextLabel(e.round),
 		RoomID:                  e.round.RoomID,
 		ConversationID:          e.round.ConversationID,
 		PermissionMode:          permissionMode,
 		GoalAuthority:           goalAuthority,
 		ResponsibilityAuthority: responsibilityAuthority,
+		SDKSessionIdentity:      e.slot.ensureSDKSessionIdentityState(),
 		AutomationRun:           cloneAutomationRunContext(e.round.AutomationRun),
-	})
-	if len(overlay) > 0 && servers == nil {
-		servers = make(map[string]sdkmcp.ServerConfig, len(overlay))
 	}
-	for name, server := range overlay {
-		servers[name] = server
+	return runtimecommand.RoundContext{
+		SessionKey: e.round.SessionKey, RoundID: e.round.RootRoundID,
+		SourceContextType: roomCommandSourceContextType(e.round),
+		SourceContextID:   e.round.RoomID, SourceContextLabel: roomSourceContextLabel(e.round),
+		CommandContext: commandContext, Receipts: e.slot.ensureCommandReceiptState(),
+		Resources: e.slot.ensureCommandResources(),
 	}
-	return servers
 }
 
 func (e *slotExecution) runtimeBuilderContext() context.Context {
-	return runtimectx.WithMCPRoundLease(
+	return runtimectx.WithRuntimeRoundLease(
 		e.ctx,
 		e.slot.RuntimeSessionKey,
 		e.slot.AgentRoundID,
 	)
 }
 
-func roomMCPSourceContextType(round *activeRoomRound) string {
+func roomCommandSourceContextType(round *activeRoomRound) string {
 	if round == nil {
 		return "room_untrusted"
 	}
@@ -459,6 +468,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
 	handler = toolpolicy.WithNexusRuntimeCLIAutoApproval(handler)
+	handler = toolpolicy.WithNexusRuntimeCLICompositionDeny(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)
 	return toolpolicy.WithNexusControlPlaneDeny(handler, !e.agent.IsMain)
 }

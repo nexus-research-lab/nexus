@@ -138,7 +138,7 @@ func TestPromoteExecutionReturnsAppliedPendingAfterDurableBind(t *testing.T) {
 		result.GoalAuthority != nil || result.Snapshot == nil ||
 		result.Snapshot.Execution.GoalID != "goal-pending" ||
 		len(result.NextActions) == 0 ||
-		result.NextActions[len(result.NextActions)-1].Tool != "promote_execution_to_goal" {
+		result.NextActions[len(result.NextActions)-1].Operation != "promote_execution_to_goal" {
 		t.Fatalf("durable pending promotion result = %#v", result)
 	}
 }

@@ -291,6 +291,7 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
     hasManagedExecutionGraph,
     isExecutionActivityVisible,
     normalizeExecutionNodeDisplayText,
+    resolveExecutionGraphNodeStatus,
     resolveExecutionPrimaryAgentNodes,
     resolveExecutionNodeSummary,
     resolveExecutionWorkGraphHeaderModel,
@@ -309,6 +310,73 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
   assert.deepEqual(
     resolveExecutionPrimaryAgentNodes(execution).map((node) => node.id),
     ["research", "build"],
+  );
+  const reviewedCycles = structuredClone(execution);
+  reviewedCycles.work_items = [{
+    ...reviewedCycles.work_items[1],
+    status: "accepted",
+    attempts: [],
+  }];
+  reviewedCycles.graph.nodes = [
+    {
+      id: "attempt-old",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-old",
+      agent_id: "builder",
+      run_status: "succeeded",
+      position: 1,
+    },
+    {
+      id: "review:submission-old",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-old",
+      agent_id: "lead",
+      lifecycle_status: "rejected",
+      position: 1,
+    },
+    {
+      id: "build",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-new",
+      agent_id: "builder",
+      responsibility_status: "accepted",
+      run_status: "succeeded",
+      position: 1,
+    },
+    {
+      id: "review:submission-new",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-new",
+      agent_id: "lead",
+      lifecycle_status: "accepted",
+      position: 1,
+    },
+  ];
+  assert.equal(
+    resolveExecutionGraphNodeStatus(
+      reviewedCycles.graph.nodes[0],
+      reviewedCycles.work_items[0],
+    ),
+    "submitted",
+    "an old succeeded Attempt must not inherit the latest Work Item acceptance",
+  );
+  assert.equal(
+    resolveExecutionNodeSummary(reviewedCycles).currentNode.id,
+    "build",
+    "focus stays on the current stable Work Item cycle",
+  );
+  assert.deepEqual(
+    resolveExecutionPrimaryAgentNodes(reviewedCycles).map((node) => node.id),
+    ["build"],
+    "the Agent shortcut represents the latest cycle instead of an old Submission",
   );
   const withLead = structuredClone(execution);
   withLead.graph.nodes.push({
@@ -1159,7 +1227,7 @@ test("WorkGraph Tool nodes use semantic action icon categories", async () => {
       "mcp__imagegen__generate_image",
       "mcp__github__list_issues",
       "Read",
-      "mcp__nexus_execution__submit_work",
+      "Task",
     ].map((name) => resolveExecutionToolVisualKind(name)),
     [
       "search",
@@ -1241,6 +1309,86 @@ test("Lead review gate is a visible node and changes-requested is a back edge", 
     layout.nodes.find((node) => node.node.kind === "gate").y
       > layout.nodes.find((node) => node.node.kind === "agent").y,
   );
+});
+
+test("WorkGraph review rounds keep stable depth when loop edges arrive first", async () => {
+  const { buildExecutionGraphLayout } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",
+  );
+  const reviewed = structuredClone(execution);
+  reviewed.work_items = [reviewed.work_items.find((item) => item.id === "build")];
+  reviewed.graph.nodes = [
+    {
+      id: "attempt-build-v1",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v1",
+      agent_id: "builder",
+      position: 1,
+    },
+    {
+      id: "review:submission-v1",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v1",
+      subject_id: "submission-v1",
+      lifecycle_status: "rejected",
+      position: 1,
+    },
+    {
+      id: "build",
+      kind: "agent",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v2",
+      agent_id: "builder",
+      position: 1,
+    },
+    {
+      id: "review:submission-v2",
+      kind: "gate",
+      visibility: "primary",
+      work_item_id: "build",
+      attempt_id: "attempt-build-v2",
+      subject_id: "submission-v2",
+      lifecycle_status: "changes_requested",
+      position: 1,
+    },
+  ];
+  // Deliberately put both control edges before their structural review edges.
+  reviewed.graph.edges = [
+    {
+      id: "loop-current",
+      kind: "loop_back",
+      source_node_id: "review:submission-v2",
+      target_node_id: "build",
+    },
+    {
+      id: "loop-next-attempt",
+      kind: "loop_back",
+      source_node_id: "review:submission-v1",
+      target_node_id: "build",
+    },
+    {
+      id: "review-v2",
+      kind: "review",
+      source_node_id: "build",
+      target_node_id: "review:submission-v2",
+    },
+    {
+      id: "review-v1",
+      kind: "review",
+      source_node_id: "attempt-build-v1",
+      target_node_id: "review:submission-v1",
+    },
+  ];
+  const layout = buildExecutionGraphLayout(reviewed);
+  const y = Object.fromEntries(layout.nodes.map((node) => [node.node.id, node.y]));
+  assert.ok(y["attempt-build-v1"] < y["review:submission-v1"]);
+  assert.ok(y["review:submission-v1"] < y.build);
+  assert.ok(y.build < y["review:submission-v2"]);
 });
 
 test("Objective alignment gate reports evidence without choosing the Agent route", async () => {
@@ -1450,28 +1598,28 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
   assert.equal(resolveExecutionWorkspaceReference("https://example.com/result"), null);
 });
 
-const nexusToolTitles = [
-  ["mcp__nexus_execution__get_execution", "读取工作图"],
-  ["mcp__nexus_execution__prepare_plan_execution", "封存计划提案"],
-  ["mcp__nexus_execution__plan_execution", "提交计划提案"],
-  ["mcp__nexus_execution__abandon_execution", "终止当前执行"],
-  ["mcp__nexus_execution__assign_work", "指派工作项"],
-  ["mcp__nexus_execution__submit_work", "提交交付物"],
-  ["mcp__nexus_execution__review_work", "验收工作项"],
-  ["mcp__nexus_execution__block_work", "标记工作阻塞"],
-  ["mcp__nexus_execution__resume_work", "恢复工作项"],
-  ["mcp__nexus_execution__take_over_work", "接管工作项"],
-  ["mcp__nexus_execution__audit_execution_alignment", "审计执行对齐"],
-  ["mcp__nexus_execution__promote_execution_to_goal", "升级为 Goal"],
-  ["mcp__nexus_goal__get_goal", "读取 Goal"],
-  ["mcp__nexus_goal__create_goal", "创建 Goal"],
-  ["mcp__nexus_goal__retarget_goal", "调整 Goal 目标"],
-  ["mcp__nexus_goal__audit_objective_alignment", "审计 Goal 对齐"],
-  ["mcp__nexus_goal__update_goal", "更新 Goal 状态"],
+const nexusCommandTitles = [
+  ["execution inspect", "读取工作图"],
+  ["execution invoke --operation prepare_plan_execution", "封存计划提案"],
+  ["execution invoke --operation plan_execution", "提交计划提案"],
+  ["execution invoke --operation abandon_execution", "终止当前执行"],
+  ["execution invoke --operation assign_work", "指派工作项"],
+  ["execution invoke --operation submit_work", "提交交付物"],
+  ["execution invoke --operation review_work", "验收工作项"],
+  ["execution invoke --operation block_work", "标记工作阻塞"],
+  ["execution invoke --operation resume_work", "恢复工作项"],
+  ["execution invoke --operation take_over_work", "接管工作项"],
+  ["execution invoke --operation audit_execution_alignment", "审计执行对齐"],
+  ["execution invoke --operation promote_execution_to_goal", "升级为 Goal"],
+  ["goal inspect", "读取 Goal"],
+  ["goal invoke --operation create_goal", "创建 Goal"],
+  ["goal invoke --operation retarget_goal", "调整 Goal 目标"],
+  ["goal invoke --operation audit_objective_alignment", "审计 Goal 对齐"],
+  ["goal invoke --operation update_goal", "更新 Goal 状态"],
 ];
 
-test("Nexus execution and Goal MCP names render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
-  const { getToolInputSummary, getToolTitle } = await server.ssrLoadModule(
+test("Nexus Goal and execution CLI commands render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
+  const { getSemanticToolName, getToolInputSummary, getToolTitle } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/tool-activity.ts",
   );
   const { ToolBlock } = await server.ssrLoadModule(
@@ -1480,19 +1628,21 @@ test("Nexus execution and Goal MCP names render semantic titles in real ToolBloc
   const { AssistantProcessCallchain } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
   );
-  for (const [toolName, expectedTitle] of nexusToolTitles) {
-    assert.equal(getToolTitle(toolName), expectedTitle);
+  for (const [commandTail, expectedTitle] of nexusCommandTitles) {
+    const command = `"\${NEXUS_COMMAND_PATH}" --json ${commandTail}`;
+    const input = { command };
+    assert.equal(getToolTitle("Bash", input), expectedTitle);
     const toolHtml = await renderWithI18n(React.createElement(ToolBlock, {
       status: "success",
       toolUse: {
-        id: `tool-${toolName}`,
-        input: {},
-        name: toolName,
+        id: `tool-${expectedTitle}`,
+        input,
+        name: "Bash",
         type: "tool_use",
       },
     }));
     assert.match(toolHtml, new RegExp(expectedTitle));
-    assert.doesNotMatch(toolHtml, /mcp__nexus_(?:execution|goal)__/);
+    assert.doesNotMatch(toolHtml, /mcp__nexus_/);
 
     const processHtml = await renderWithI18n(React.createElement(
       AssistantProcessCallchain,
@@ -1507,7 +1657,11 @@ test("Nexus execution and Goal MCP names render semantic titles in real ToolBloc
           projection: { content: [], streamingIndexes: new Set() },
           summary: {
             kind: "details",
-            latestDetail: { detail: null, kind: "tool", toolName },
+            latestDetail: {
+              detail: null,
+              kind: "tool",
+              toolName: getSemanticToolName("Bash", input),
+            },
             metrics: [{ count: 1, kind: "action" }],
           },
           toggle: () => {},
@@ -1516,7 +1670,7 @@ test("Nexus execution and Goal MCP names render semantic titles in real ToolBloc
       },
     ));
     assert.match(processHtml, new RegExp(expectedTitle));
-    assert.doesNotMatch(processHtml, /mcp__nexus_(?:execution|goal)__/);
+    assert.doesNotMatch(processHtml, /mcp__nexus_/);
   }
   assert.equal(
     getToolInputSummary({

@@ -7,6 +7,7 @@ import {
   hasVisibleAssistantOutput,
   stripRoomControlMarkers,
 } from "@/features/conversation/shared/message/message-content-model";
+import { CONVERSATION_TASK_TOOL_NAMES } from "@/features/conversation/shared/todos/task-tool-names";
 import {
   type MessageActivityState,
   resolvePermissionActivityState,
@@ -45,6 +46,10 @@ interface ProjectRoomAgentActivityStateOptions {
   pendingPermissions: PendingPermission[];
   status: AgentRoundStatus;
 }
+
+const ROOM_HIDDEN_TOOL_NAMES = new Set<string>(
+  CONVERSATION_TASK_TOOL_NAMES,
+);
 
 /** 判断 Thread inspector 是否存在主 Feed 最终回复之外的内容。 */
 export function hasRoomAgentExecutionDetails(
@@ -130,7 +135,10 @@ export function isRoomAgentNoPublicReply(
   ) {
     return false;
   }
-  return !messages.some(hasVisibleAssistantOutput);
+  return !messages.some((message) => hasVisibleAssistantOutput(
+    message,
+    ROOM_HIDDEN_TOOL_NAMES,
+  ));
 }
 
 function collectResolvedToolUseIds(
@@ -161,6 +169,11 @@ function resolveLiveMessageActivity(
   }
   for (let index = message.content.length - 1; index >= 0; index -= 1) {
     const block = message.content[index];
+    if (block.type === "tool_result") {
+      // 叶子工具已经收口；execution 仍 active 时属于 Agent 的下一步推理，
+      // 不能回退到工具之前的旧“正在回复”。
+      return "thinking";
+    }
     if (
       block.type === "tool_use"
       && !resolvedToolUseIds.has(block.id)
@@ -175,6 +188,9 @@ function resolveLiveMessageActivity(
     }
     if (block.type === "text" && block.text.trim()) {
       return "replying";
+    }
+    if (block.type === "workspace_file_artifact") {
+      return "executing";
     }
   }
   return "thinking";

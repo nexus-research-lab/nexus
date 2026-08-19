@@ -426,7 +426,7 @@ func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{usage: recorder},
+		service:     &Service{usage: recorder, runtime: runtimectx.NewManager()},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",
@@ -466,7 +466,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{usage: recorder},
+		service:     &Service{usage: recorder, runtime: runtimectx.NewManager()},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",

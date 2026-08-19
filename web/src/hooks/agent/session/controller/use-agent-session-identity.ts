@@ -52,7 +52,7 @@ export function useAgentSessionIdentity({
       return;
     }
     cancelPendingRequestAcks(
-      "会话已切换，未确认的普通消息发送已取消",
+      "会话已切换，未确认的页面请求已取消",
       true,
     );
     activeIdentityKeyRef.current = nextIdentityKey;
@@ -60,8 +60,8 @@ export function useAgentSessionIdentity({
     roomSeqCursorRef.current = 0;
     resetHistoryPagination();
     clearLiveSessionState();
-    // Goal 由 durable client_request_id owner 继续收口；普通页面请求已在
-    // 上方取消，不能把其迟到结果投影进新会话。
+    // 用户消息、排队输入和 Goal 由 durable client_request_id owner 继续
+    // 收口；其余页面请求已取消，迟到结果不得投影进新会话。
     resetRuntimeMachine();
   }, [
     clearLiveSessionState,
@@ -79,7 +79,7 @@ export function useAgentSessionIdentity({
 
   useEffect(() => () => {
     cancelPendingRequestAcks(
-      "会话已卸载，未确认的普通消息发送已取消",
+      "会话已卸载，未确认的页面请求已取消",
       true,
     );
   }, [cancelPendingRequestAcks]);

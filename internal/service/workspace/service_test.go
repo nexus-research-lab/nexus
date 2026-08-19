@@ -19,6 +19,7 @@ import (
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	t.Setenv(nexusctlCommandPathEnvName, "")
 	t.Setenv(nexuscfgCommandPathEnvName, "")
+	t.Setenv(nexusCommandPathEnvName, "")
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -167,8 +168,9 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 nexus shim 失败: %v", err)
 	}
-	if !strings.Contains(string(nexusPayload), "go run ./cmd/nexus") {
-		t.Fatalf("开发环境 nexus shim 应固定到源码入口: %s", nexusPayload)
+	if !strings.Contains(string(nexusPayload), protocol.NexusCommandHostEntrypointArgument) ||
+		strings.Contains(string(nexusPayload), "go run ./cmd/nexus") {
+		t.Fatalf("nexus shim 应复用稳定宿主入口，不能在 Agent round 内编译源码: %s", nexusPayload)
 	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexus")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexus shim: %v", err)
@@ -222,8 +224,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
-			"mcp__nexus_goal__get_goal",
-			"Skill 只加载使用规则",
+			"--json goal contract",
+			"input_staging.path",
 			"references/create-and-retarget.md",
 			"execution-orchestrator",
 			"token_budget",
@@ -246,11 +248,13 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 决定持续追求什么",
+			"--json execution contract",
+			"input_staging.path",
 			"最小选择表",
 			"references/structure-selection.md",
-			"每个 Agent 都先评估任务是否原子",
-			"用户有没有说“协作”",
-			"不因一次 handoff",
+			"substantial execution 前评估任务是否原子",
+			"只加入价值高于协调成本的结构",
+			"不因 handoff 要求用户发送“继续”",
 		},
 		filepath.Join("execution-orchestrator", "references", "structure-selection.md"): {
 			"独立判断信号",
@@ -267,7 +271,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {
 			"四个平面",
-			"MCP 可以记录交付状态",
+			"command 可以记录交付状态",
+			"用户有没有说“协作”",
 			"不要要求用户发送“继续”",
 		},
 	}

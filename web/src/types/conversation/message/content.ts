@@ -1,9 +1,17 @@
 /**
- * Assistant 结构化内容块契约。
+ * Assistant 结构化内容块与当前历史 generation 大内容引用契约。
  */
 
 import type { ToolInput } from "../../system/sdk";
 import type { MessageAttachmentScope } from "./attachment";
+
+interface DeferredMessageDetail {
+  detail_ref?: string;
+  detail_session_key?: string;
+  detail_kind?: "image" | "tool_result";
+  detail_size?: number;
+  detail_truncated?: boolean;
+}
 
 export interface TextContent {
   type: "text";
@@ -24,7 +32,7 @@ export interface ToolUseContent {
   source_type?: string;
 }
 
-export interface ToolResultContent {
+export interface ToolResultContent extends DeferredMessageDetail {
   type: "tool_result";
   tool_use_id: string;
   /** Provider 原生工具结果不保证是字符串或数组，保留其 JSON 形状。 */
@@ -80,7 +88,7 @@ export interface UnsupportedContent {
   payload: Record<string, unknown>;
 }
 
-export interface ImageContent {
+export interface ImageContent extends DeferredMessageDetail {
   type: "image";
   data?: string;
   mime_type?: string | null;

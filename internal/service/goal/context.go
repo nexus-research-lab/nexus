@@ -44,19 +44,22 @@ func renderPendingObjectiveTransitionContext(item protocol.Goal) string {
 			`</nexus_goal_transition>`
 	}
 	action := "prepare_plan_execution"
+	domain := "execution"
 	instruction := "Prepare the complete fresh successor WorkGraph document, then commit its sealed proposal. Do not reuse or mutate the superseded predecessor."
 	if transition.Phase == ObjectiveTransitionPrepared {
 		action = "retarget_goal"
+		domain = "goal"
 		instruction = "Retry retarget_goal with the same requested objective so the durable rebase can finish."
 	}
 	return fmt.Sprintf(
 		`<nexus_goal_transition pending="true" phase="%s" goal_id="%s" objective_revision="%d" successor_execution_id="%s">`+
-			`<required_action tool="%s" requested_objective="%s">%s</required_action>`+
+			`<required_action domain="%s" operation="%s" requested_objective="%s">%s</required_action>`+
 			`</nexus_goal_transition>`,
 		html.EscapeString(string(transition.Phase)),
 		html.EscapeString(strings.TrimSpace(item.ID)),
 		item.ObjectiveRevision(),
 		html.EscapeString(transition.SuccessorExecutionID),
+		domain,
 		action,
 		html.EscapeString(transition.RequestedObjective),
 		instruction,

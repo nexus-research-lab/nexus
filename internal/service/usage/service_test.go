@@ -124,8 +124,6 @@ func TestServicePersistsNormalizedCacheAttributionAndSegments(t *testing.T) {
 			RuntimeKind:             "NXS",
 			ProviderFingerprint:     fingerprint,
 			ModelFingerprint:        "not-a-fingerprint",
-			GoalToolSurface:         ToolSurfacePresent,
-			ExecutionToolSurface:    ToolSurfaceAbsent,
 			HostToolSurfaceComplete: true,
 			ToolPolicyFingerprint:   fingerprint,
 			MCPServersFingerprint:   fingerprint,
@@ -189,9 +187,7 @@ func TestServiceMissingCacheAttributionIsExplicitUnknown(t *testing.T) {
 	attribution := segments[0].CacheAttribution
 	if attribution.GoalScope != ScopeUnknown ||
 		attribution.ExecutionScope != ScopeUnknown ||
-		attribution.ResponsibilityLane != ScopeUnknown ||
-		attribution.GoalToolSurface != ToolSurfaceUnknown ||
-		attribution.ExecutionToolSurface != ToolSurfaceUnknown {
+		attribution.ResponsibilityLane != ScopeUnknown {
 		t.Fatalf("missing attribution = %+v, want explicit unknown", attribution)
 	}
 }

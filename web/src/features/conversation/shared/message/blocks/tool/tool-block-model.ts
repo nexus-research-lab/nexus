@@ -242,7 +242,7 @@ export function buildToolBlockViewModel({
     statusBadgeClassName: statusMeta.badgeClassName,
     statusText: t(statusMeta.labelKey),
     statusTone: statusMeta.tone,
-    toolTitle: getLocalizedToolTitle(toolUse.name, localization),
+    toolTitle: getLocalizedToolTitle(toolUse.name, localization, toolUse.input),
     waitingActionHint: formatWaitingActionHint(
       interactionDisabled,
       interactionDisabledReason,
@@ -547,6 +547,7 @@ function getFieldLabel(
 function getLocalizedToolTitle(
   toolName: string,
   { t }: ToolBlockLocalization,
+  input?: unknown,
 ): string {
-  return resolveLocalizedToolTitle(toolName, t);
+  return resolveLocalizedToolTitle(toolName, t, input);
 }

@@ -33,6 +33,11 @@ func TestParseEnvBytes(t *testing.T) {
 		{name: "double quoted escapes", raw: `FOO="line1\nline2"` + "\n", want: map[string]string{"FOO": "line1\nline2"}},
 		{name: "export prefix", raw: "export FOO=bar\n", want: map[string]string{"FOO": "bar"}},
 		{name: "blank lines", raw: "\n\nFOO=bar\n\nBAZ=qux\n\n", want: map[string]string{"FOO": "bar", "BAZ": "qux"}},
+		{
+			name: "empty value before comment and statement",
+			raw:  "WORKSPACE_PATH=\n# Browser Login\nHOST=0.0.0.0\n",
+			want: map[string]string{"WORKSPACE_PATH": "", "HOST": "0.0.0.0"},
+		},
 		{name: "var expansion", raw: "BASE=/opt\nPATH=${BASE}/bin\n", want: map[string]string{"BASE": "/opt", "PATH": "/opt/bin"}},
 		{
 			name: "simple var expansion",

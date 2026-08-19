@@ -191,30 +191,6 @@ export interface InterruptAckData {
   ack_timeout_ms: number;
 }
 
-export type ConversationTurnStatus =
-  | 'pending'
-  | 'running'
-  | 'finished'
-  | 'interrupted'
-  | 'error';
-
-export interface ConversationMessage {
-  message_id: string;
-  session_key?: string;
-  role: 'user' | 'assistant' | 'system';
-  round_id: string;
-  agent_round_id?: string;
-  agent_id?: string;
-  parent_id?: string;
-  content: unknown;
-  timestamp: number;
-  display_order?: number;
-  stream_status?: 'pending' | 'streaming' | 'done' | 'cancelled' | 'error';
-  result_summary?: Record<string, unknown>;
-  agent_mentions?: AgentMention[];
-  handoff_reply?: PublicHandoffReply;
-}
-
 export interface AgentMention {
   agent_id: string;
   label: string;
@@ -228,50 +204,4 @@ export interface PublicHandoffReply {
   handoff_id: string;
   source_message_id: string;
   source_agent_id: string;
-}
-
-export interface TurnPendingPermission {
-  request_id: string;
-  message_id?: string;
-  tool_use_id?: string;
-  tool_name?: string;
-}
-
-export interface AgentTurnSlot {
-  agent_id: string;
-  agent_round_id: string;
-  msg_id?: string;
-  status: ConversationTurnStatus;
-  assistant_messages: ConversationMessage[];
-  pending_permissions: TurnPendingPermission[];
-  result_summary?: Record<string, unknown>;
-  started_at?: number;
-  finished_at?: number;
-}
-
-export interface ConversationTurn {
-  round_id: string;
-  status: ConversationTurnStatus;
-  created_at: number;
-  updated_at: number;
-  user_message: ConversationMessage | null;
-  agent_slots: AgentTurnSlot[];
-  system_events: ConversationMessage[];
-  is_loaded: boolean;
-}
-
-export interface ConversationTurnIndexItem {
-  round_id: string;
-  created_at: number;
-  updated_at: number;
-  status: ConversationTurnStatus;
-  user_preview: string;
-  agent_ids: string[];
-  loaded: boolean;
-}
-
-export interface TurnPage {
-  turns: ConversationTurn[];
-  next_before_round_id?: string;
-  backwards_after_round_id?: string;
 }

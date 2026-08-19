@@ -8,8 +8,9 @@
 //   - services.go：按命令域延迟创建服务，避免 help 等命令拉起全量后端依赖。
 //   - automation*.go：自动化任务的查询、变更、运行与运维命令；新投递目标绑定既有结构化 Session。
 //   - runtime.go / runtime_automation.go：不打开数据库、只通过 physical-round
-//     capability 调用宿主领域服务的 nexus CLI 与 Automation 子命令；Automation JSON
-//     默认从宿主签发的私有输入槽读取，并拒绝非受管路径、链接与超限文件。
+//     capability 调用宿主领域服务的 nexus CLI 与 Automation 子命令；Goal/Execution
+//     inspect/invoke 把内部 Result 收口为顶层 data + is_error 的单层 typed wire；每次新 mutation
+//     输入只使用 fresh exact contract 返回的当前轮私有输入槽，并拒绝非受管路径、链接与超限文件。
 //   - skill.go / skill_agent.go / skill_external.go：技能目录、Agent 安装与来源管理命令。
 //   - 其余领域文件：agent / auth / channel / connector / conversation（含空白会话维护）/ emotion /
 //     imagegen / launcher / room / session / workspace 命令域。

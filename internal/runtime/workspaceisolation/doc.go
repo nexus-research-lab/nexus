@@ -12,7 +12,7 @@
 //   - reaper.go：跨 UID 进程信号与 owner cgroup 回收命令装配。
 //   - launcher_linux.go / launcher_other.go：平台级 launcher 权限校验。
 //   - policy.go：路径 canonicalization、symlink 防护与读写授权。
-//   - hook.go：nxs/Claude 共用的 mandatory PreToolUse Hook。
+//   - hook.go：nxs/Claude 共用的 mandatory PreToolUse Hook；按 shell 语法位置区分真实环境赋值与普通 NAME=value 文本，禁止覆盖宿主 capability 而不误报输出文本。
 //
 // 暴露接口：NormalizeMode、Apply。
 //

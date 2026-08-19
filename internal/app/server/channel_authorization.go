@@ -45,7 +45,7 @@ func newChannelAuthorizationMCPBuilder(
 			!surfaceOK || contextKind != "agent" {
 			return nil
 		}
-		lease, hasLease := runtimectx.MCPRoundLeaseFromContext(ctx)
+		lease, hasLease := runtimectx.RuntimeRoundLeaseFromContext(ctx)
 		if !hasLease {
 			return nil
 		}

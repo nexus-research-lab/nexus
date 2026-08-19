@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,10 +14,10 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -301,7 +300,7 @@ func TestRoomGoalContinuationRequestAllowsGoalOnlyAuthority(t *testing.T) {
 	}
 }
 
-func TestRoomGoalAndExecutionMCPShareOneAuthorityState(t *testing.T) {
+func TestRoomGoalAndExecutionCommandsShareOneAuthorityState(t *testing.T) {
 	slot := &activeRoomSlot{
 		AgentID:           "agent-lead",
 		AgentRoundID:      "agent-round-1",
@@ -316,31 +315,7 @@ func TestRoomGoalAndExecutionMCPShareOneAuthorityState(t *testing.T) {
 	}) {
 		t.Fatal("grant Goal-only Room authority")
 	}
-	var goalAuthority *runtimectx.GoalAuthorityState
-	var executionAuthority *runtimectx.GoalAuthorityState
-	service := &Service{
-		mcpServers: func(
-			ctx context.Context,
-			_ *protocol.Agent,
-			_ string,
-			_ string,
-			_ string,
-			_ string,
-			_ string,
-			_ *atomic.Int64,
-			_ sdkpermission.Mode,
-		) map[string]sdkmcp.ServerConfig {
-			goalAuthority = runtimectx.GoalAuthorityStateFromContext(ctx)
-			return nil
-		},
-		executionMCPServers: func(
-			_ context.Context,
-			runtimeContext runtimectx.ExecutionToolContext,
-		) map[string]sdkmcp.ServerConfig {
-			executionAuthority = runtimeContext.GoalAuthority
-			return nil
-		},
-	}
+	service := &Service{}
 	execution := &slotExecution{
 		ctx:     context.Background(),
 		service: service,
@@ -354,10 +329,12 @@ func TestRoomGoalAndExecutionMCPShareOneAuthorityState(t *testing.T) {
 		},
 		slot: slot,
 	}
-	execution.runtimeMCPServers(sdkpermission.ModeDefault)
-	if goalAuthority == nil || executionAuthority != goalAuthority ||
+	commandRound := execution.runtimeCommandRoundContext(sdkpermission.ModeDefault)
+	goalAuthority := commandRound.CommandContext.GoalAuthority
+	if goalAuthority == nil || commandRound.CommandContext.ResponsibilityAuthority == nil ||
+		commandRound.CommandContext.ResponsibilityAuthority.GoalAuthorityState() != goalAuthority ||
 		goalAuthority != slot.ensureGoalAuthorityState() {
-		t.Fatal("Room Goal and Execution MCP did not share one slot authority state")
+		t.Fatal("Room Goal and Execution commands did not share one slot authority state")
 	}
 	authority, ok := goalAuthority.Load()
 	if !ok || authority.GoalID != "goal-room" || authority.ObjectiveRevision != 3 ||
@@ -1472,12 +1449,16 @@ func TestRoomGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 	}
 	message := roomGoalToolResultAssistantMessage(
 		"tool-workgraph",
-		"mcp__nexus_execution__submit_work",
+		"Bash",
 		4,
 		1,
 	)
 	content := message["content"].([]map[string]any)
 	content[1]["content"] = `{"outcome":"applied"}`
+	stageRoomRuntimeCommandReceipt(slot, runtimecommand.Receipt{
+		Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+		Outcome: string(protocol.MutationResultApplied), GoalBound: false,
+	})
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, message)
 	if slot.hasGoalToolProgress() {
 		t.Fatal("Goal-only Room authority counted an unrelated WorkGraph mutation")
@@ -1490,13 +1471,17 @@ func TestRoomGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 	) {
 		t.Fatal("confirm Goal-bound Execution authority")
 	}
+	stageRoomRuntimeCommandReceipt(slot, runtimecommand.Receipt{
+		Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+		Outcome: string(protocol.MutationResultApplied), GoalBound: true,
+	})
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, message)
 	if !slot.hasGoalToolProgress() {
 		t.Fatal("confirmed Goal-bound Room WorkGraph mutation was not counted")
 	}
 }
 
-func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionToolMiss(t *testing.T) {
+func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionCommandMiss(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &Service{goals: goalProvider}
 	slot := &activeRoomSlot{
@@ -1516,11 +1501,11 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionToolMiss(t *t
 		slot,
 		roundValue,
 		exec.RoundExecutionResult{},
-		roomGoalCompletionToolMissAssistantMessage(),
+		roomGoalCompletionCommandMissAssistantMessage(),
 	)
 
 	misses := goalProvider.recordedCompletionMisses()
-	if len(misses) != 1 || !strings.Contains(misses[0], "mcp__nexus_goal__update_goal") {
+	if len(misses) != 1 || !strings.Contains(misses[0], "nexus goal update_goal command receipt") {
 		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
 	}
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {

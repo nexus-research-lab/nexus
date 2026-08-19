@@ -53,12 +53,13 @@ func RoomMemberDeletionCommitted(err error) bool {
 }
 
 type roomDeletionPayload struct {
-	AgentIDs             []string
-	AgentID              string
-	Contexts             []protocol.ConversationContextAggregate
-	ConversationID       string
-	RoomID               string
-	TranscriptReferences []workspacestore.RoomTranscriptReference
+	AgentIDs                      []string
+	AgentID                       string
+	Contexts                      []protocol.ConversationContextAggregate
+	ConversationID                string
+	RoomID                        string
+	TranscriptReferences          []workspacestore.RoomTranscriptReference
+	ProtectedTranscriptSessionIDs []string
 }
 
 func (s *Service) captureRoomTranscriptReferences(
@@ -152,6 +153,7 @@ func (s *Service) cleanupCommittedRoomDeletion(
 			cleanupCtx,
 			payload.Contexts,
 			payload.TranscriptReferences,
+			payload.ProtectedTranscriptSessionIDs,
 			includeShared,
 			filter,
 		),

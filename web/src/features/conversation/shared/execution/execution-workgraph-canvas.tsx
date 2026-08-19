@@ -1190,8 +1190,17 @@ function ExecutionNodeInspector({
     : t(WORK_ITEM_STATUS_LABEL_KEY[status]);
   const heading = graphNodeHeading(node, item, t);
   const relatedSubject = node.kind === "agent" ? "" : item?.subject.trim() ?? "";
-  const submission = item?.submission?.result_summary.trim() ?? "";
-  const review = item?.acceptance?.feedback?.trim() ?? "";
+  const currentSubmissionMatchesNode = Boolean(item?.submission && (
+    node.attempt_id
+      ? item.submission.attempt_id === node.attempt_id
+      : node.kind === "gate" && node.subject_id === item.submission.id
+  ));
+  const submission = currentSubmissionMatchesNode
+    ? item?.submission?.result_summary.trim() ?? ""
+    : "";
+  const review = currentSubmissionMatchesNode
+    ? item?.acceptance?.feedback?.trim() ?? ""
+    : "";
   const resultSummary = node.result_summary?.trim() ?? "";
   const errorSummary = normalizeExecutionNodeDisplayText(
     node.error_summary || attempt?.failure_reason || "",

@@ -1,10 +1,9 @@
 /**
- * INPUT: controller 已投影的 Assistant 活动、内容、权限、布局及交互状态。
+ * INPUT: controller 已投影的 Assistant 活动、内容、权限及交互状态。
  * OUTPUT: Assistant 子视图按职责消费的窄状态与环境契约。
  * POS: MessageItem controller 到 Assistant 视图的类型边界，不选择内容模式策略。
  */
 import type {
-  CSSProperties,
   ReactNode,
   RefObject,
 } from "react";
@@ -77,11 +76,6 @@ interface AssistantHeaderState {
   timestamp: number | undefined;
 }
 
-interface AssistantLayoutState {
-  contentAreaRef: RefObject<HTMLDivElement | null>;
-  contentAreaStyle: CSSProperties | undefined;
-}
-
 export interface AssistantPermissionState {
   all: PendingPermission[];
   matchedByToolUseId: ReadonlyMap<string, PendingPermission>;
@@ -105,7 +99,6 @@ interface MessageAssistantState {
   footer: AssistantFooterState;
   header: AssistantHeaderState;
   hidden: boolean;
-  layout: AssistantLayoutState;
   model?: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;

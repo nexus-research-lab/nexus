@@ -3,12 +3,14 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 type runtimeGraphRepositoryFake struct {
@@ -21,6 +23,7 @@ type runtimeGraphRepositoryFake struct {
 	reconciled     int
 	finishedStatus protocol.ExecutionRuntimeNodeStatus
 	graph          protocol.ExecutionRuntimeGraph
+	getGraphCalls  int
 }
 
 type runtimeGraphSubagentHistoryProviderFunc func(
@@ -104,7 +107,82 @@ func (f *runtimeGraphRepositoryFake) GetRuntimeGraph(
 	string,
 	string,
 ) (protocol.ExecutionRuntimeGraph, error) {
+	f.getGraphCalls++
 	return f.graph, nil
+}
+
+func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 8, 18, 16, 0, 0, 0, time.UTC)
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", ExecutionID: "execution-1",
+		AgentID: "agent-1", Role: ExecutionActorCoordinator,
+		ActorKind: protocol.ExecutionActorAgent, ScopeKind: protocol.ExecutionScopeDM,
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	identity, err := runtimeGraphIdentityFromActor(actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := protocol.ExecutionRuntimeNodeRun{
+		ID:      runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeTool, "tool-assign"),
+		GraphID: identity.GraphID, OwnerUserID: actor.OwnerUserID, SessionKey: actor.SessionKey,
+		ExecutionID: actor.ExecutionID, Kind: protocol.ExecutionRuntimeNodeTool,
+		SubjectID: "tool-assign", ParentSubjectID: actor.AgentRoundID,
+		RootRoundID: actor.RootRoundID, RuntimeRoundID: actor.RuntimeRoundID,
+		AgentRoundID: actor.AgentRoundID, AgentID: actor.AgentID, Name: "Bash",
+		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(-time.Second),
+		UpdatedAt: now.Add(-time.Second), Metadata: map[string]any{
+			runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+			runtimeGraphCommandOperationMetadataKey: "assign_work",
+			runtimeGraphCommandRequestIDMetadataKey: "assign-request-1",
+		},
+	}
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{},
+		graph:          protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{candidate}},
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	err = service.ObserveRuntimeCommandReceipts(context.Background(), actor, []runtimecommand.Receipt{
+		{
+			Domain: runtimecommand.DomainExecution, Operation: "assign_work",
+			RequestID: "assign-request-1", Outcome: string(protocol.MutationResultApplied),
+			ExecutionID: "execution-1", WorkItemID: "work-1",
+			AssignmentID: "assignment-1", AttemptID: "attempt-1",
+		},
+		{
+			Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+			RequestID: "submit-request-1", Outcome: string(protocol.MutationResultApplied),
+			ExecutionID: "execution-1",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repository.getGraphCalls != 1 {
+		t.Fatalf("GetRuntimeGraph calls = %d, want one batched read", repository.getGraphCalls)
+	}
+	if repository.boundRoundID != actor.AgentRoundID || repository.boundExecution != actor.ExecutionID {
+		t.Fatalf("runtime segment binding = %q/%q", repository.boundRoundID, repository.boundExecution)
+	}
+	var assignNode, submitNode *protocol.ExecutionRuntimeNodeRun
+	for index := range repository.nodes {
+		node := &repository.nodes[index]
+		switch node.Name {
+		case "assign_work":
+			assignNode = node
+		case "submit_work":
+			submitNode = node
+		}
+	}
+	if assignNode == nil || !runtimeGraphMetadataBool(*assignNode, runtimeGraphCommandVerifiedMetadataKey) ||
+		runtimeGraphMetadataString(*assignNode, runtimeGraphAssignmentIDMetadataKey) != "assignment-1" {
+		t.Fatalf("verified assign node = %+v", assignNode)
+	}
+	if submitNode == nil || !runtimeGraphIsSubmissionTool(submitNode.Name) {
+		t.Fatalf("submit review anchor = %+v", submitNode)
+	}
 }
 
 func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testing.T) {
@@ -163,6 +241,110 @@ func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testin
 	}
 	if repository.finishedStatus != protocol.ExecutionRuntimeNodeInterrupted {
 		t.Fatalf("finished status = %q, want interrupted", repository.finishedStatus)
+	}
+}
+
+func TestRuntimeGraphMarksOnlyExactManagedCLITransportAsDetail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		toolName  string
+		command   string
+		transport bool
+	}{
+		{
+			name: "managed Bash execution inspect", toolName: "Bash",
+			command: `"${NEXUS_COMMAND_PATH}" --json execution inspect`, transport: true,
+		},
+		{
+			name: "managed PowerShell Goal inspect", toolName: "PowerShell",
+			command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, transport: true,
+		},
+		{
+			name: "shell chaining is not managed transport", toolName: "Bash",
+			command: `"${NEXUS_COMMAND_PATH}" --json execution inspect; make deploy`,
+		},
+		{
+			name: "ordinary Bash is not managed transport", toolName: "Bash",
+			command: `go test ./internal/service/orchestration`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			message, err := sdkprotocol.DecodeMessage(map[string]any{
+				"type": "assistant", "uuid": "assistant-1",
+				"message": map[string]any{
+					"role": "assistant",
+					"content": []any{map[string]any{
+						"type": "tool_use", "id": "tool-1", "name": test.toolName,
+						"input": map[string]any{"command": test.command},
+					}},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := runtimeGraphLifecycleEvents(message)
+			if len(events) != 1 {
+				t.Fatalf("lifecycle events = %+v", events)
+			}
+			marked := strings.EqualFold(
+				events[0].Metadata[runtimeGraphCommandTransportMetadataKey],
+				"true",
+			)
+			if marked != test.transport {
+				t.Fatalf("managed transport = %t, want %t metadata=%+v", marked, test.transport, events[0].Metadata)
+			}
+		})
+	}
+}
+
+func TestRuntimeGraphPersistsManagedCLITransportWithoutRawCommand(t *testing.T) {
+	t.Parallel()
+
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time {
+		return time.Date(2026, 8, 18, 17, 0, 0, 0, time.UTC)
+	}
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant", "uuid": "assistant-1",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use", "id": "tool-1", "name": "Bash",
+				"input": map[string]any{
+					"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`,
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.nodes) != 2 {
+		t.Fatalf("runtime graph nodes = %+v", repository.nodes)
+	}
+	tool := repository.nodes[1]
+	if !runtimeGraphIsCommandTransport(tool) ||
+		runtimeGraphMetadataString(tool, runtimeGraphCommandDomainMetadataKey) != "execution" ||
+		runtimeGraphMetadataString(tool, runtimeGraphCommandActionMetadataKey) != "inspect" {
+		t.Fatalf("managed command transport metadata = %+v", tool.Metadata)
+	}
+	if _, leaked := tool.Metadata["command"]; leaked {
+		t.Fatalf("managed command text leaked into runtime graph metadata: %+v", tool.Metadata)
+	}
+	if projected := projectRuntimeGraphNode(tool, 0, true); projected.Visibility != protocol.ExecutionGraphNodeDetail {
+		t.Fatalf("managed command transport visibility = %q", projected.Visibility)
 	}
 }
 
@@ -482,7 +664,7 @@ func TestRuntimeGraphPersistsDMSelfAssignmentSegmentAcrossTools(t *testing.T) {
 		ID:   runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeTool, "tool-assign"),
 		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign",
 		AgentRoundID: "agent-round-1", AgentID: "agent-lead",
-		Name:      "mcp__nexus_execution__assign_work",
+		Name:      "assign_work",
 		Status:    protocol.ExecutionRuntimeNodeRunning,
 		StartedAt: now.Add(-time.Second), UpdatedAt: now.Add(-time.Second),
 	}
@@ -578,14 +760,14 @@ func TestRuntimeGraphUnresolvedSuccessfulAssignmentStopsPreviousDMSegment(t *tes
 		{
 			ID: "tool-assign-a", Kind: protocol.ExecutionRuntimeNodeTool,
 			AgentRoundID: "agent-round-1", AgentID: "agent-1",
-			Name:      "mcp__nexus_execution__assign_work",
+			Name:      "assign_work",
 			Status:    protocol.ExecutionRuntimeNodeSucceeded,
 			StartedAt: now, UpdatedAt: now, Metadata: firstMetadata,
 		},
 		{
 			ID: "tool-assign-unknown", Kind: protocol.ExecutionRuntimeNodeTool,
 			AgentRoundID: "agent-round-1", AgentID: "agent-1",
-			Name:      "mcp__nexus_execution__assign_work",
+			Name:      "assign_work",
 			Status:    protocol.ExecutionRuntimeNodeSucceeded,
 			StartedAt: now.Add(time.Second), UpdatedAt: now.Add(2 * time.Second),
 			Metadata: unresolvedMetadata,
@@ -701,7 +883,7 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		},
 		{
 			ID: "tool-assign-a", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-a",
-			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "mcp__nexus_execution__assign_work",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
 			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(2 * time.Second),
 			UpdatedAt: now.Add(3 * time.Second), FinishedAt: finishedAt(3 * time.Second),
 		},
@@ -713,7 +895,7 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		},
 		{
 			ID: "tool-assign-b", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-b",
-			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "mcp__nexus_execution__assign_work",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
 			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(6 * time.Second),
 			UpdatedAt: now.Add(7 * time.Second), FinishedAt: finishedAt(7 * time.Second),
 		},
@@ -725,7 +907,7 @@ func TestRuntimeGraphViewSegmentsOneDMRoundAcrossWorkItems(t *testing.T) {
 		},
 		{
 			ID: "tool-assign-c", Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-assign-c",
-			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "mcp__nexus_execution__assign_work",
+			AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "assign_work",
 			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(10 * time.Second),
 			UpdatedAt: now.Add(11 * time.Second), FinishedAt: finishedAt(11 * time.Second),
 		},
@@ -789,7 +971,7 @@ func TestRuntimeGraphViewDoesNotInferDMSegmentsForRoomCoordinator(t *testing.T) 
 			{
 				ID: "tool-assign", Kind: protocol.ExecutionRuntimeNodeTool,
 				SubjectID: "tool-assign", AgentRoundID: "agent-round-1", AgentID: "agent-lead",
-				Name: "mcp__nexus_execution__assign_work", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				Name: "assign_work", Status: protocol.ExecutionRuntimeNodeSucceeded,
 				StartedAt: now.Add(time.Second), UpdatedAt: finished, FinishedAt: &finished,
 			},
 			{
@@ -932,7 +1114,7 @@ func TestRuntimeGraphViewBindsLaunchToolsAndChildrenToSiblingSubagents(t *testin
 		firstTool.ParentNodeID != firstSubagent.ID ||
 		secondTool.ParentNodeID != secondSubagent.ID ||
 		firstTool.Visibility != protocol.ExecutionGraphNodeNested ||
-		secondTool.Visibility != protocol.ExecutionGraphNodeNested {
+		secondTool.Visibility != protocol.ExecutionGraphNodeDetail {
 		t.Fatalf(
 			"runtime child ownership is incorrect: first=%+v first_tool=%+v second=%+v second_tool=%+v",
 			firstSubagent,
@@ -1030,7 +1212,8 @@ func TestRuntimeGraphReviewEdgesUseSuccessfulSubmissionAsControlAnchor(t *testin
 			{ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent},
 			{
 				ID: "submit-1", Kind: protocol.ExecutionGraphNodeTool,
-				ParentNodeID: "work-1", Name: "mcp__nexus_execution__submit_work",
+				Visibility:   protocol.ExecutionGraphNodeNested,
+				ParentNodeID: "work-1", Name: "submit_work",
 				LifecycleStatus: "succeeded", StartedAt: &now,
 			},
 			{ID: "gate-1", Kind: protocol.ExecutionGraphNodeGate},
@@ -1046,6 +1229,17 @@ func TestRuntimeGraphReviewEdgesUseSuccessfulSubmissionAsControlAnchor(t *testin
 	if view.Graph.Edges[0].SourceNodeID != "submit-1" ||
 		view.Graph.Edges[1].TargetNodeID != "submit-1" {
 		t.Fatalf("review control anchor = %+v", view.Graph.Edges)
+	}
+
+	view.Graph.Nodes[1].Visibility = protocol.ExecutionGraphNodeDetail
+	view.Graph.Edges[0].SourceNodeID = "work-1"
+	view.Graph.Edges[1].TargetNodeID = "work-1"
+	reanchorExecutionReviewEdgesToSubmission(view, map[string]int{
+		"work-1": 0, "submit-1": 1, "gate-1": 2,
+	})
+	if view.Graph.Edges[0].SourceNodeID != "work-1" ||
+		view.Graph.Edges[1].TargetNodeID != "work-1" {
+		t.Fatalf("detail command transport captured visible review edges: %+v", view.Graph.Edges)
 	}
 }
 
@@ -1218,7 +1412,7 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 	}{
 		{name: "web search", toolName: "WebSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "wrapped web fetch", toolName: "browser.web-fetch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
-		{name: "shell execution", toolName: "Bash", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "ordinary shell detail", toolName: "Bash", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "workspace mutation", toolName: "Edit", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "external mutation", toolName: "mcp__slack__send_message", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "browser action", toolName: "mcp__browser__navigate", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
@@ -1228,8 +1422,8 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 		{name: "workspace mcp read", toolName: "mcp__filesystem__read_file", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "unknown local query", toolName: "list_issues", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
 		{name: "tool discovery", toolName: "ToolSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
-		{name: "submission control anchor", toolName: "mcp__nexus_execution__submit_work", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
-		{name: "represented goal mutation", toolName: "mcp__nexus_goal__update_goal", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "legacy submission transport", toolName: "submit_work", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "external update capability", toolName: "mcp__external__update_record", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
 		{name: "non tool", toolName: "WebFetch", kind: protocol.ExecutionRuntimeNodeAgent, visible: false},
 	}
 	for _, test := range tests {
@@ -1240,6 +1434,137 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 				t.Fatalf("runtimeGraphToolActionVisible(%q) = %t, want %t", test.toolName, got, test.visible)
 			}
 		})
+	}
+
+	managedCommand := protocol.ExecutionRuntimeNodeRun{
+		Kind:     protocol.ExecutionRuntimeNodeTool,
+		Name:     "Bash",
+		Status:   protocol.ExecutionRuntimeNodeFailed,
+		Metadata: map[string]any{runtimeGraphCommandTransportMetadataKey: true},
+	}
+	if runtimeGraphToolActionVisible(managedCommand) {
+		t.Fatal("managed Goal/Execution CLI transport must not enter the canvas")
+	}
+	projected := projectRuntimeGraphNode(managedCommand, 0, true)
+	if projected.Visibility != protocol.ExecutionGraphNodeDetail {
+		t.Fatalf("failed managed transport visibility = %q", projected.Visibility)
+	}
+}
+
+func TestRuntimeGraphKeepsHistoricalGoalAndExecutionMCPTransportInDetail(t *testing.T) {
+	t.Parallel()
+
+	operations := []struct {
+		domain    string
+		operation string
+	}{
+		{domain: "nexus_goal", operation: "get_goal"},
+		{domain: "nexus_goal", operation: "create_goal"},
+		{domain: "nexus_goal", operation: "retarget_goal"},
+		{domain: "nexus_goal", operation: "audit_objective_alignment"},
+		{domain: "nexus_goal", operation: "update_goal"},
+		{domain: "nexus_execution", operation: "get_execution"},
+		{domain: "nexus_execution", operation: "prepare_plan_execution"},
+		{domain: "nexus_execution", operation: "plan_execution"},
+		{domain: "nexus_execution", operation: "abandon_execution"},
+		{domain: "nexus_execution", operation: "assign_work"},
+		{domain: "nexus_execution", operation: "submit_work"},
+		{domain: "nexus_execution", operation: "review_work"},
+		{domain: "nexus_execution", operation: "block_work"},
+		{domain: "nexus_execution", operation: "resume_work"},
+		{domain: "nexus_execution", operation: "take_over_work"},
+		{domain: "nexus_execution", operation: "audit_execution_alignment"},
+		{domain: "nexus_execution", operation: "promote_execution_to_goal"},
+	}
+	for _, test := range operations {
+		for _, name := range []string{
+			test.operation,
+			"mcp__" + test.domain + "__" + test.operation,
+			test.domain + "." + test.operation,
+			"functions.mcp__" + test.domain + "__" + test.operation,
+		} {
+			item := protocol.ExecutionRuntimeNodeRun{
+				Kind:   protocol.ExecutionRuntimeNodeTool,
+				Name:   name,
+				Status: protocol.ExecutionRuntimeNodeFailed,
+			}
+			if !runtimeGraphIsCommandTransport(item) {
+				t.Fatalf("historical managed transport %q was not classified", name)
+			}
+			if runtimeGraphToolActionVisible(item) {
+				t.Fatalf("historical managed transport %q entered the canvas", name)
+			}
+			if projected := projectRuntimeGraphNode(item, 0, true); projected.Visibility != protocol.ExecutionGraphNodeDetail {
+				t.Fatalf("historical managed transport %q visibility = %q", name, projected.Visibility)
+			}
+		}
+	}
+
+	externalSameLeaf := protocol.ExecutionRuntimeNodeRun{
+		Kind: protocol.ExecutionRuntimeNodeTool,
+		Name: "mcp__slack__update_goal",
+	}
+	if runtimeGraphIsCommandTransport(externalSameLeaf) {
+		t.Fatal("an external MCP capability sharing one legacy leaf was misclassified")
+	}
+}
+
+func TestRuntimeGraphPromotesShellOnlyWithImportantEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 18, 23, 30, 0, 0, time.UTC)
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "shell-ordinary", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		},
+		{
+			ID: "shell-running", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeRunning, StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+		},
+		{
+			ID: "shell-failed", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeFailed, StartedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+		},
+		{
+			ID: "shell-artifact", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(3 * time.Second), UpdatedAt: now.Add(3 * time.Second),
+			Artifacts: []protocol.WorkspaceFileArtifactBlock{{
+				Type: protocol.ContentBlockTypeWorkspaceFileArtifact,
+				Path: "report.md",
+			}},
+		},
+		{
+			ID: "shell-explicit", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(4 * time.Second), UpdatedAt: now.Add(4 * time.Second),
+			Metadata: map[string]any{protocol.ExecutionRuntimeMetadataWorkGraphVisibility: string(protocol.ExecutionGraphNodeNested)},
+		},
+		{
+			ID: "shell-retry", Kind: protocol.ExecutionRuntimeNodeTool, Name: "Bash",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(5 * time.Second), UpdatedAt: now.Add(5 * time.Second),
+		},
+	}
+	graph := protocol.ExecutionRuntimeGraph{
+		Nodes: nodes,
+		Edges: []protocol.ExecutionRuntimeEdgeRun{{
+			Kind:         protocol.ExecutionRuntimeEdgeRetry,
+			SourceNodeID: "shell-failed", TargetNodeID: "shell-retry",
+		}},
+	}
+	promoted := runtimeGraphPromotedNodeIDs(graph)
+	want := map[string]protocol.ExecutionGraphNodeVisibility{
+		"shell-ordinary": protocol.ExecutionGraphNodeDetail,
+		"shell-running":  protocol.ExecutionGraphNodeNested,
+		"shell-failed":   protocol.ExecutionGraphNodeNested,
+		"shell-artifact": protocol.ExecutionGraphNodeNested,
+		"shell-explicit": protocol.ExecutionGraphNodeNested,
+		"shell-retry":    protocol.ExecutionGraphNodeNested,
+	}
+	for index, node := range nodes {
+		_, isPromoted := promoted[node.ID]
+		if projected := projectRuntimeGraphNode(node, index, isPromoted); projected.Visibility != want[node.ID] {
+			t.Fatalf("%s visibility = %q, want %q", node.ID, projected.Visibility, want[node.ID])
+		}
 	}
 }
 
@@ -1273,7 +1598,7 @@ func TestRuntimeGraphProjectsObservableActionsAndKeepsSupportingReadsInDetail(t 
 	}
 }
 
-func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t *testing.T) {
+func TestRuntimeGraphSubagentRecoveryIsVisibleWithoutPromotingUnrelatedSupportingTools(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 6, 10, 30, 0, 0, time.UTC)
@@ -1314,7 +1639,7 @@ func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t 
 		"read-failed":    protocol.ExecutionGraphNodeNested,
 		"read-early":     protocol.ExecutionGraphNodeDetail,
 		"read-recovered": protocol.ExecutionGraphNodeNested,
-		"grep-latest":    protocol.ExecutionGraphNodeNested,
+		"grep-latest":    protocol.ExecutionGraphNodeDetail,
 	}
 	for index, node := range graph.Nodes[1:] {
 		_, isPromoted := promoted[node.ID]
@@ -1685,6 +2010,115 @@ func TestRuntimeGraphViewKeepsEveryManagedAgentRun(t *testing.T) {
 		node.Runs[1].ResultSummary != "Recovered" ||
 		node.LifecycleStatus != string(protocol.ExecutionRuntimeNodeSucceeded) {
 		t.Fatalf("managed NodeRun history = %+v", node)
+	}
+}
+
+func TestRuntimeGraphViewKeepsLegacyRoundToolsOnTheirAttemptCycle(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+	oldStarted := now
+	currentStarted := now.Add(2 * time.Minute)
+	view := &protocol.ExecutionView{
+		ID: "execution-history",
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID: "work-history", Position: 0,
+		}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{
+			{
+				ID: "attempt-old", Kind: protocol.ExecutionGraphNodeAgent,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-history", AttemptID: "attempt-old",
+				AgentID: "worker-1", AgentRoundID: "round-old", Position: 0,
+				Runs: []protocol.ExecutionGraphNodeRunView{{StartedAt: &oldStarted}},
+			},
+			{
+				ID: "work-history", Kind: protocol.ExecutionGraphNodeAgent,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-history", AttemptID: "attempt-current",
+				AgentID: "worker-1", AgentRoundID: "round-current", Position: 0,
+				Runs: []protocol.ExecutionGraphNodeRunView{{StartedAt: &currentStarted}},
+			},
+		}},
+	}
+	runtimeStarted := now.Add(time.Second)
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-old", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "round-old", AgentRoundID: "round-old", AgentID: "worker-1",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now, UpdatedAt: runtimeStarted,
+			Metadata: map[string]any{
+				"execution_lane": "work",
+				"work_item_id":   "work-history",
+			},
+		},
+		{
+			ID: "tool-old", Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: "tool-old", ParentSubjectID: "round-old",
+			AgentRoundID: "round-old", AgentID: "worker-1", Name: "Write",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: runtimeStarted, UpdatedAt: runtimeStarted,
+		},
+	}})
+
+	tool := graphNodeByID(view.Graph.Nodes, "tool-old")
+	if tool.ID == "" || tool.ParentNodeID != "attempt-old" || tool.WorkItemID != "work-history" {
+		t.Fatalf("legacy historical tool attached to wrong cycle: %+v", tool)
+	}
+}
+
+func TestRuntimeGraphViewKeepsLegacyReviewerToolsOnTheirSubmissionGate(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 12, 30, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		ID: "execution-review-history",
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID: "work-review-history", Position: 0,
+		}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{
+			{
+				ID: "review:submission-old", Kind: protocol.ExecutionGraphNodeGate,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-review-history", AttemptID: "attempt-old",
+				AgentID: "reviewer-1", AgentRoundID: "review-round-old",
+				SubjectID: "submission-old", Position: 0,
+			},
+			{
+				ID: "review:submission-current", Kind: protocol.ExecutionGraphNodeGate,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: "work-review-history", AttemptID: "attempt-current",
+				AgentID: "reviewer-1", AgentRoundID: "review-round-current",
+				SubjectID: "submission-current", Position: 0,
+			},
+		}},
+	}
+	toolStarted := now.Add(time.Second)
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-review-old", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "review-round-old", AgentRoundID: "review-round-old",
+			AgentID: "reviewer-1", Status: protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now, UpdatedAt: toolStarted,
+			Metadata: map[string]any{
+				"execution_lane": "review",
+				"work_item_id":   "work-review-history",
+			},
+		},
+		{
+			ID: "review-tool-old", Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: "review-tool-old", ParentSubjectID: "review-round-old",
+			AgentRoundID: "review-round-old", AgentID: "reviewer-1", Name: "Read",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: toolStarted, UpdatedAt: toolStarted,
+		},
+	}})
+
+	tool := graphNodeByID(view.Graph.Nodes, "review-tool-old")
+	if tool.ID == "" || tool.ParentNodeID != "review:submission-old" ||
+		tool.WorkItemID != "work-review-history" {
+		t.Fatalf("legacy reviewer tool attached to wrong Submission gate: %+v", tool)
 	}
 }
 

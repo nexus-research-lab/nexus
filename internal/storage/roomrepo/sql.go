@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -1002,6 +1003,15 @@ WHERE id = `+r.dialect.Bind(1)+`
 		jsoncodec.ParseMap(optionsJSON),
 		[]string{currentSDKSessionID.String, sdkSessionID},
 	)
+	if strings.TrimSpace(sdkSessionID) != "" {
+		forkSourceSessionID, _ := options[protocol.OptionRuntimeForkSourceSessionID].(string)
+		options = protocol.WithRetainedTranscriptSessionIDs(
+			options,
+			[]string{forkSourceSessionID},
+		)
+		delete(options, protocol.OptionRuntimeForkSourceSessionID)
+		delete(options, protocol.OptionRuntimeForkMessageID)
+	}
 	optionsJSON, err = jsoncodec.MarshalMap(options)
 	if err != nil {
 		return err

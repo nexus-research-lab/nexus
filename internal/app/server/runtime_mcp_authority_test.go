@@ -41,7 +41,7 @@ func TestConfigurationRuntimeEnvironmentBindsOrdinaryAgentRound(t *testing.T) {
 		"",
 	)
 	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
-	ctx = runtimectx.WithMCPRoundLease(ctx, sessionKey, "round-a")
+	ctx = runtimectx.WithRuntimeRoundLease(ctx, sessionKey, "round-a")
 	env, err := builder(ctx, agentValue, sessionKey, "round-a", "agent", agentValue.AgentID)
 	if err != nil {
 		t.Fatal(err)

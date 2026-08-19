@@ -64,9 +64,7 @@ const usageAttributionUpdateQueryTemplate = `UPDATE token_usage_records SET
     runtime_kind = CASE WHEN runtime_kind = 'unknown' AND %s <> 'unknown' THEN %s ELSE runtime_kind END,
     provider_fingerprint = CASE WHEN provider_fingerprint = '' AND %s <> '' THEN %s ELSE provider_fingerprint END,
     model_fingerprint = CASE WHEN model_fingerprint = '' AND %s <> '' THEN %s ELSE model_fingerprint END,
-    goal_tool_surface = CASE WHEN goal_tool_surface = 'unknown' AND %s <> 'unknown' THEN %s ELSE goal_tool_surface END,
-    execution_tool_surface = CASE WHEN execution_tool_surface = 'unknown' AND %s <> 'unknown' THEN %s ELSE execution_tool_surface END,
-    host_tool_surface_complete = host_tool_surface_complete OR %s,
+	host_tool_surface_complete = host_tool_surface_complete OR %s,
     tool_policy_fingerprint = CASE WHEN tool_policy_fingerprint = '' AND %s <> '' THEN %s ELSE tool_policy_fingerprint END,
     mcp_servers_fingerprint = CASE WHEN mcp_servers_fingerprint = '' AND %s <> '' THEN %s ELSE mcp_servers_fingerprint END,
     tool_surface_fingerprint = CASE WHEN tool_surface_fingerprint = '' AND %s <> '' THEN %s ELSE tool_surface_fingerprint END
@@ -80,9 +78,7 @@ const cacheSegmentsQueryTemplate = `SELECT
     runtime_kind,
     provider_fingerprint,
     model_fingerprint,
-    goal_tool_surface,
-    execution_tool_surface,
-    host_tool_surface_complete,
+	host_tool_surface_complete,
     tool_policy_fingerprint,
     mcp_servers_fingerprint,
     tool_surface_fingerprint,
@@ -95,7 +91,7 @@ const cacheSegmentsQueryTemplate = `SELECT
 FROM token_usage_records
 WHERE owner_user_id = %s
 GROUP BY source, goal_scope, execution_scope, responsibility_lane, runtime_kind,
-    provider_fingerprint, model_fingerprint, goal_tool_surface, execution_tool_surface,
+	provider_fingerprint, model_fingerprint,
     host_tool_surface_complete, tool_policy_fingerprint, mcp_servers_fingerprint,
     tool_surface_fingerprint
 ORDER BY source, goal_scope, execution_scope, responsibility_lane, runtime_kind,
@@ -214,8 +210,6 @@ func (r *Repository) UpdateCacheAttribution(ctx context.Context, item Record) er
 		item.RuntimeKind, item.RuntimeKind,
 		item.ProviderFingerprint, item.ProviderFingerprint,
 		item.ModelFingerprint, item.ModelFingerprint,
-		item.GoalToolSurface, item.GoalToolSurface,
-		item.ExecutionToolSurface, item.ExecutionToolSurface,
 		item.HostToolSurfaceComplete,
 		item.ToolPolicyFingerprint, item.ToolPolicyFingerprint,
 		item.MCPServersFingerprint, item.MCPServersFingerprint,
@@ -227,7 +221,7 @@ func (r *Repository) UpdateCacheAttribution(ctx context.Context, item Record) er
 }
 
 func (r *Repository) buildAttributionUpdateQuery() string {
-	bindings := make([]any, 25)
+	bindings := make([]any, 21)
 	for index := range bindings {
 		bindings[index] = r.bind(index + 1)
 	}
@@ -253,8 +247,6 @@ func (r *Repository) CacheSegments(ctx context.Context, ownerUserID string) ([]C
 			&segment.RuntimeKind,
 			&segment.ProviderFingerprint,
 			&segment.ModelFingerprint,
-			&segment.GoalToolSurface,
-			&segment.ExecutionToolSurface,
 			&segment.HostToolSurfaceComplete,
 			&segment.ToolPolicyFingerprint,
 			&segment.MCPServersFingerprint,

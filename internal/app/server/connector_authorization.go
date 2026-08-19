@@ -66,7 +66,7 @@ func newConnectorAuthorizationMCPBuilder(
 			!surfaceOK || contextKind != "agent" {
 			return nil
 		}
-		lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
+		lease, ok := runtimectx.RuntimeRoundLeaseFromContext(ctx)
 		if !ok {
 			return nil
 		}

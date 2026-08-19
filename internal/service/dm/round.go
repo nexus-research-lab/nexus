@@ -18,6 +18,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -72,6 +73,7 @@ type roundRunner struct {
 	runtimeProvider             string
 	runtimeModel                string
 	toolSurfaceFingerprint      string
+	forkSourceSessionID         string
 	ownerUserID                 string
 	mapper                      *dmdomain.MessageMapper
 	inputOptions                sdkprotocol.OutboundMessageOptions
@@ -84,6 +86,10 @@ type roundRunner struct {
 	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
 	responsibilityState         *runtimectx.ResponsibilityAuthorityState
+	sdkSessionIdentity          *runtimectx.SDKSessionIdentityState
+	commandReceipts             *runtimecommand.ReceiptState
+	commandResources            *runtimecommand.RoundResources
+	commandReceiptSequence      uint64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
 	goalUsageBindingMu          sync.Mutex
@@ -118,6 +124,7 @@ type roundRunner struct {
 }
 
 func (r *roundRunner) run(ctx context.Context) {
+	defer r.commandResources.Close()
 	defer r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
 	logger := r.service.loggerFor(ctx).With(
@@ -263,6 +270,10 @@ func (r *roundRunner) executeRound(
 			logger.Debug("Agent ", fields...)
 		},
 		SyncSessionID: func(sessionID string) error {
+			if sourceSessionID := strings.TrimSpace(r.forkSourceSessionID); sourceSessionID != "" &&
+				strings.TrimSpace(sessionID) == sourceSessionID {
+				return errors.New("runtime fork 仍返回 source SDK session")
+			}
 			updatedSession, syncErr := r.service.syncSDKSessionIDForOwner(
 				ctx,
 				r.ownerUserID,
@@ -278,6 +289,12 @@ func (r *roundRunner) executeRound(
 				return syncErr
 			}
 			r.session = updatedSession
+			if r.sdkSessionIdentity != nil {
+				r.sdkSessionIdentity.Set(sessionID)
+			}
+			if forkSessionStateCommitted(r.session, sessionID, r.toolSurfaceFingerprint) {
+				r.forkSourceSessionID = ""
+			}
 			return nil
 		},
 		HandleDurableMessage: func(message protocol.Message) error {
@@ -288,6 +305,12 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
+	if executeErr == nil && strings.TrimSpace(r.forkSourceSessionID) != "" {
+		executeErr = errors.New("runtime fork 未提交可恢复的独立 SDK session")
+	}
+	if executeErr != nil && strings.TrimSpace(r.forkSourceSessionID) != "" {
+		r.closeUncommittedForkRuntime(logger, executeErr)
+	}
 	failureReason := ""
 	if executeErr != nil {
 		failureReason = executeErr.Error()
@@ -300,14 +323,31 @@ func (r *roundRunner) executeRound(
 	return result, executeErr
 }
 
+func (r *roundRunner) closeUncommittedForkRuntime(logger *slog.Logger, forkErr error) {
+	lease, ok := r.service.runtime.CaptureClientLease(r.sessionKey, r.client)
+	if !ok {
+		return
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	_, closeErr := r.service.runtime.CloseSessionIfLease(closeCtx, lease)
+	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+		logger.Warn("关闭未提交的 fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
+	}
+}
+
 func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
-	return orchestration.ActorContext{
+	agentID := strings.TrimSpace(r.session.AgentID)
+	if r.agent != nil {
+		agentID = strings.TrimSpace(r.agent.AgentID)
+	}
+	actor := orchestration.ActorContext{
 		OwnerUserID:           r.ownerUserID,
 		SessionKey:            r.sessionKey,
 		ExecutionID:           strings.TrimSpace(r.executionID),
 		GoalID:                strings.TrimSpace(r.goalIDForUsage),
 		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
-		AgentID:               r.agent.AgentID,
+		AgentID:               agentID,
 		Role:                  orchestration.ExecutionActorCoordinator,
 		ActorKind:             protocol.ExecutionActorAgent,
 		ScopeKind:             protocol.ExecutionScopeDM,
@@ -316,6 +356,23 @@ func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
 		AgentRoundID:          r.agentRoundID,
 		PlanMode:              r.permissionMode == sdkpermission.ModePlan,
 	}
+	if r.responsibilityState != nil {
+		if snapshot, ok := r.responsibilityState.Load(); ok {
+			if executionID := strings.TrimSpace(snapshot.ExecutionID); executionID != "" {
+				actor.ExecutionID = executionID
+			}
+			if goalID := strings.TrimSpace(snapshot.GoalID); goalID != "" {
+				actor.GoalID = goalID
+			}
+			actor.GoalObjectiveRevision = snapshot.ObjectiveRevision
+			actor.WorkBinding = snapshot.WorkBinding
+			actor.ReviewBinding = snapshot.ReviewBinding
+			if snapshot.WorkBinding != nil || snapshot.ReviewBinding != nil {
+				actor.Role = orchestration.ExecutionActorMember
+			}
+		}
+	}
+	return actor
 }
 
 // runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。

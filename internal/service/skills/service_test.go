@@ -28,6 +28,7 @@ import (
 func TestMain(m *testing.M) {
 	os.Exit(handlertest.RunWithSelectedAppSkills(
 		m,
+		"execution-orchestrator",
 		"goal-manager",
 		"ima-skill",
 		"imagegen",
@@ -90,6 +91,10 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	if !containsSkill(items, "goal-manager") {
 		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
 	}
+	executionSkill, ok := findSkill(items, "execution-orchestrator")
+	if !ok || executionSkill.SourceType != sourceTypeSystem || !executionSkill.Locked || executionSkill.Deletable || !executionSkill.EnabledForAgent {
+		t.Fatalf("Execution 应作为已启用且不可覆盖的系统 Skill: %+v", executionSkill)
+	}
 	visualizeSkill, ok := findSkill(items, "visualize")
 	if !ok {
 		t.Fatalf("可视化系统 skill 未暴露: %+v", items)
@@ -141,6 +146,9 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "goal-manager"); err == nil {
 		t.Fatal("系统托管 goal-manager skill 不应允许手动安装")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "execution-orchestrator"); err == nil {
+		t.Fatal("系统托管 execution-orchestrator skill 不应允许手动安装")
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "visualize"); err == nil {
 		t.Fatal("系统托管 visualize skill 不应允许手动安装")

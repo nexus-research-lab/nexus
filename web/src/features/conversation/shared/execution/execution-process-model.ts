@@ -166,6 +166,16 @@ export function resolveExecutionNodeSummary(
         && node.run_status === "running"
       ))
       ?? graphNodes.find((node) => (
+        node.work_item_id === current?.id
+        && node.kind === "agent"
+        && node.id === current?.id
+      ))
+      ?? graphNodes.find((node) => (
+        node.work_item_id === current?.id
+        && node.kind === "agent"
+        && resolveExecutionGraphNodeStatus(node, current) === "running"
+      ))
+      ?? graphNodes.find((node) => (
         node.work_item_id === current?.id && node.kind === "agent"
       ))
       ?? null
@@ -235,11 +245,28 @@ export function resolveExecutionPrimaryAgentNodes(
       continue;
     }
     const selectedItem = resolveExecutionGraphNodeItem(execution, selected);
+    const selectedStatus = resolveExecutionGraphNodeStatus(selected, selectedItem);
+    const candidateStatus = resolveExecutionGraphNodeStatus(node, item);
+    if (candidateStatus === "running" && selectedStatus !== "running") {
+      selectedByAgent.set(agentKey, node);
+      continue;
+    }
+    if (selectedStatus === "running" && candidateStatus !== "running") {
+      continue;
+    }
+    const selectedIsCurrentCycle = selectedItem?.id === selected.id;
+    const candidateIsCurrentCycle = item?.id === node.id;
+    if (candidateIsCurrentCycle !== selectedIsCurrentCycle) {
+      if (candidateIsCurrentCycle) {
+        selectedByAgent.set(agentKey, node);
+      }
+      continue;
+    }
     const selectedPriority = WORK_ITEM_FOCUS_PRIORITY.indexOf(
-      resolveExecutionGraphNodeStatus(selected, selectedItem),
+      selectedStatus,
     );
     const candidatePriority = WORK_ITEM_FOCUS_PRIORITY.indexOf(
-      resolveExecutionGraphNodeStatus(node, item),
+      candidateStatus,
     );
     if (candidatePriority < selectedPriority) {
       selectedByAgent.set(agentKey, node);
@@ -308,8 +335,8 @@ export function resolveExecutionGraphNodeStatus(
   node: ExecutionGraphNodeView,
   item: ExecutionWorkItemView | null,
 ): ExecutionWorkItemStatus {
-  if (node.kind === "agent" && (node.responsibility_status || item?.status)) {
-    return node.responsibility_status ?? item?.status ?? "waiting";
+  if (node.kind === "agent" && node.responsibility_status) {
+    return node.responsibility_status;
   }
   switch (node.lifecycle_status) {
     case "aligned":
@@ -342,7 +369,7 @@ export function resolveExecutionGraphNodeStatus(
     case "running":
       return "running";
     case "succeeded":
-      return "accepted";
+      return node.kind === "agent" ? "submitted" : "accepted";
     case "failed":
     case "interrupted":
     case "timed_out":
@@ -350,7 +377,9 @@ export function resolveExecutionGraphNodeStatus(
     case "cancelled":
       return "cancelled";
     default:
-      return item?.status ?? "waiting";
+      return node.kind === "agent" && node.attempt_id
+        ? "waiting"
+        : item?.status ?? "waiting";
   }
 }
 

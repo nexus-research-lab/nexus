@@ -17,6 +17,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -142,16 +143,10 @@ type ConfigurationRuntimeEnvironmentBuilder func(
 	string,
 ) (map[string]string, error)
 
-// AutomationRuntimeEnvironmentBuilder 为当前 Room Agent slot 签发 Agent-facing nexus CLI 环境。
-type AutomationRuntimeEnvironmentBuilder func(
+// RuntimeCommandEnvironmentBuilder 为当前 Room Agent slot 签发 Agent-facing nexus CLI 环境。
+type RuntimeCommandEnvironmentBuilder func(
 	context.Context,
-	*protocol.Agent,
-	string,
-	string,
-	string,
-	string,
-	string,
-	*protocol.AutomationRunContext,
+	runtimecommand.RoundContext,
 ) (map[string]string, error)
 
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。
@@ -191,8 +186,7 @@ type Service struct {
 	logger                  *slog.Logger
 	mcpServers              MCPServerBuilder
 	configurationRuntimeEnv ConfigurationRuntimeEnvironmentBuilder
-	automationRuntimeEnv    AutomationRuntimeEnvironmentBuilder
-	executionMCPServers     runtimectx.ExecutionMCPServerBuilder
+	runtimeCommandEnv       RuntimeCommandEnvironmentBuilder
 	titles                  roomTitleScheduler
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
@@ -234,7 +228,7 @@ type goalContextProvider interface {
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordContinuationRuntimeProgress(context.Context, string, goalsvc.ContinuationRuntimeIdentity, bool, ...int64) (*protocol.Goal, error)
 	RecordContinuationRuntimeFailure(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
-	RecordContinuationRuntimeCompletionToolMiss(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
+	RecordContinuationRuntimeCompletionCommandMiss(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationHandback(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
@@ -364,16 +358,11 @@ func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
 	s.configurationRuntimeEnv = builder
 }
 
-// SetAutomationRuntimeEnvironmentBuilder 注入可信 Nexus Automation CLI capability 签发器。
-func (s *Service) SetAutomationRuntimeEnvironmentBuilder(
-	builder AutomationRuntimeEnvironmentBuilder,
+// SetRuntimeCommandEnvironmentBuilder 注入可信 Nexus runtime command capability 签发器。
+func (s *Service) SetRuntimeCommandEnvironmentBuilder(
+	builder RuntimeCommandEnvironmentBuilder,
 ) {
-	s.automationRuntimeEnv = builder
-}
-
-// SetExecutionMCPServerBuilder 注入需要完整 slot/round identity 的 Execution MCP overlay。
-func (s *Service) SetExecutionMCPServerBuilder(builder runtimectx.ExecutionMCPServerBuilder) {
-	s.executionMCPServers = builder
+	s.runtimeCommandEnv = builder
 }
 
 // SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。

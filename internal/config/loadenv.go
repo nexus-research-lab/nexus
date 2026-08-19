@@ -92,7 +92,9 @@ func locateKeyName(src []byte) (key string, cutset []byte, err error) {
 		switch {
 		case char == '=' || char == ':':
 			key = string(src[:i])
-			cutset = bytes.TrimLeftFunc(src[i+1:], unicode.IsSpace)
+			// 行分隔符属于当前空值语句，不能和等号后的水平空白一起吞掉。
+			// 否则 `KEY=` 会把下一行注释或配置误解析成自己的值。
+			cutset = bytes.TrimLeft(src[i+1:], " \t")
 			key = strings.TrimRightFunc(key, unicode.IsSpace)
 			if key == "" {
 				return "", nil, fmt.Errorf("empty key before '='")
