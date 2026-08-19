@@ -1,5 +1,5 @@
 // INPUT: Automation 调度器签发的任务、运行与权限续跑身份。
-// OUTPUT: DM/Room runtime 与 Execution MCP 共用的不可由模型参数构造的 run binding。
+// OUTPUT: DM/Room runtime 与 Execution command 共用的不可由模型参数构造的 run binding。
 // POS: Automation 控制面到 runtime 的可信身份协议；正文和 session_key 均不承担授权语义。
 package protocol
 

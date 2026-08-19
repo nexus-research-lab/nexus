@@ -47,7 +47,7 @@ type roomChatExecution struct {
 	userMessage        protocol.Message
 }
 
-func (s *Service) buildAgentDirectory(
+func (s *Service) buildRuntimeAgentDirectory(
 	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,
 ) (map[string]string, map[string]*protocol.Agent, error) {
@@ -56,33 +56,68 @@ func (s *Service) buildAgentDirectory(
 	if contextValue == nil {
 		return agentNameByID, agentByID, nil
 	}
-	memberIDs := make(map[string]struct{})
+	memberIDs := make([]string, 0, len(contextValue.Members))
+	seenMemberIDs := make(map[string]struct{}, len(contextValue.Members))
 	for _, member := range contextValue.Members {
-		if member.MemberType != protocol.MemberTypeAgent || strings.TrimSpace(member.MemberAgentID) == "" {
+		agentID := strings.TrimSpace(member.MemberAgentID)
+		if member.MemberType != protocol.MemberTypeAgent || agentID == "" {
 			continue
 		}
-		memberIDs[strings.TrimSpace(member.MemberAgentID)] = struct{}{}
+		if _, duplicate := seenMemberIDs[agentID]; duplicate {
+			continue
+		}
+		seenMemberIDs[agentID] = struct{}{}
+		memberIDs = append(memberIDs, agentID)
 	}
-	for _, agentValue := range contextValue.MemberAgents {
-		if _, ok := memberIDs[agentValue.AgentID]; !ok {
-			continue
-		}
-		item := agentValue
-		agentNameByID[item.AgentID] = item.Name
-		agentByID[item.AgentID] = &item
+	if len(memberIDs) == 0 {
+		return agentNameByID, agentByID, nil
 	}
-	for agentID := range memberIDs {
-		if _, ok := agentByID[agentID]; ok {
-			continue
-		}
-		agentValue, err := s.agents.GetAgent(ctx, agentID)
-		if err != nil {
-			return nil, nil, err
-		}
+	// ConversationContext.MemberAgents 是 Room 展示读模型，不是 runtime 配置
+	// 权威。每次准备 round 都以一个批量查询重新水合完整 Agent 配置，避免
+	// Skill、permission 或未来 runtime 字段在 Room 副本中静默漂移。
+	agents, err := s.agents.GetAgentsByIDs(ctx, memberIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for index := range agents {
+		agentValue := &agents[index]
 		agentNameByID[agentValue.AgentID] = agentValue.Name
 		agentByID[agentValue.AgentID] = agentValue
 	}
+	for _, agentID := range memberIDs {
+		if _, ok := agentByID[agentID]; !ok {
+			return nil, nil, fmt.Errorf("room member agent %q is not active", agentID)
+		}
+	}
 	return agentNameByID, agentByID, nil
+}
+
+// buildMemberNameDirectory projects display identity only. It intentionally
+// cannot supply permission, Skill or runtime options; those require
+// buildRuntimeAgentDirectory and the canonical Agent service.
+func buildMemberNameDirectory(contextValue *protocol.ConversationContextAggregate) map[string]string {
+	result := make(map[string]string)
+	if contextValue == nil {
+		return result
+	}
+	memberIDs := make(map[string]struct{}, len(contextValue.Members))
+	for _, member := range contextValue.Members {
+		agentID := strings.TrimSpace(member.MemberAgentID)
+		if member.MemberType == protocol.MemberTypeAgent && agentID != "" {
+			memberIDs[agentID] = struct{}{}
+			result[agentID] = agentID
+		}
+	}
+	for _, agentValue := range contextValue.MemberAgents {
+		agentID := strings.TrimSpace(agentValue.AgentID)
+		if _, ok := memberIDs[agentID]; !ok {
+			continue
+		}
+		if name := strings.TrimSpace(agentValue.Name); name != "" {
+			result[agentID] = name
+		}
+	}
+	return result
 }
 
 func (s *Service) scheduleTitleGeneration(
@@ -193,7 +228,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	if _, err = s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments); err != nil {
 		return nil, err
 	}
-	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
+	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
 	if err != nil {
 		return nil, err
 	}

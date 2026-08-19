@@ -1,5 +1,5 @@
 // INPUT: Room host 签发的 exact WorkBinding 与同一物理 round 内的显式责任转场。
-// OUTPUT: Execution MCP、runtime graph 与 subagent hooks 共用的并发安全动态 WorkBinding。
+// OUTPUT: Execution command、runtime graph 与 subagent hooks 共用的并发安全动态 WorkBinding。
 // POS: runtime identity 边界；DM 不注入该状态，Room 只能消费宿主 mutation receipt，模型输入不能写入。
 package runtime
 
@@ -27,8 +27,8 @@ func NewWorkBindingState(binding *protocol.ExecutionWorkBinding) *WorkBindingSta
 	return state
 }
 
-// NewWorkBindingStateFromResponsibility 为旧的 runtime graph/hook 消费面提供
-// WorkBinding 兼容视图；读写都落到统一 Responsibility authority，不再复制状态。
+// NewWorkBindingStateFromResponsibility 为 runtime graph/hook 消费面提供
+// WorkBinding 投影视图；读写都落到统一 Responsibility authority，不复制状态。
 func NewWorkBindingStateFromResponsibility(
 	state *ResponsibilityAuthorityState,
 ) *WorkBindingState {
@@ -80,7 +80,7 @@ func (s *WorkBindingState) Bind(binding *protocol.ExecutionWorkBinding) bool {
 	return true
 }
 
-// Clear 撤销当前 round 的工作 capability；已构造的 MCP server 会立即观察到。
+// Clear 撤销当前 round 的工作 capability；已构造的 command context 会立即观察到。
 func (s *WorkBindingState) Clear() {
 	if s == nil {
 		return

@@ -191,6 +191,51 @@ func TestSessionConfigurationVersionCASSerializesConcurrentWriters(t *testing.T)
 	}
 }
 
+func TestPatchSessionRuntimeAtVersionRejectsNewerConfiguration(t *testing.T) {
+	storeRoot := t.TempDir()
+	workspacePath := filepath.Join(storeRoot, "owner", "workspace", "agent")
+	store := NewSessionFileStore(storeRoot)
+	sessionKey := "agent:test:ws:dm:runtime-version-fence"
+	created, err := store.UpsertSession(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "test",
+		Options:    map[string]any{"session_connector_ids": []string{"github"}},
+	})
+	if err != nil || created == nil {
+		t.Fatalf("create Session: item=%+v err=%v", created, err)
+	}
+	staleRuntime := *created
+	forkedSessionID := "forked-sdk-session"
+	staleRuntime.SessionID = &forkedSessionID
+	updatedConfiguration := *created
+	updatedConfiguration.Options = map[string]any{
+		"session_connector_ids": []string{"feishu-docx"},
+	}
+	current, err := store.UpsertSessionAtVersion(
+		workspacePath,
+		updatedConfiguration,
+		created.ConfigurationVersion,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.PatchSessionRuntimeAtVersion(
+		workspacePath,
+		staleRuntime,
+		created.ConfigurationVersion,
+	); !errors.Is(err, ErrSessionConfigurationVersionConflict) {
+		t.Fatalf("stale runtime patch error=%v", err)
+	}
+	reloaded, _, err := store.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded == nil || reloaded.ConfigurationVersion != current.ConfigurationVersion ||
+		reloaded.SessionID != nil {
+		t.Fatalf("stale runtime patch changed current Session: %+v", reloaded)
+	}
+}
+
 func TestSessionLegacyPathCollisionFailsClosedAndSerializes(t *testing.T) {
 	storeRoot := t.TempDir()
 	workspacePath := filepath.Join(storeRoot, "owner", "workspace", "agent")

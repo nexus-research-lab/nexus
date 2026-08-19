@@ -17,12 +17,13 @@ const MAX_INITIAL_BUFFER_CHARS = 52;
 const INITIAL_BUFFER_SECONDS = 0.45;
 const MAX_INITIAL_WAIT_MS = 900;
 const MIN_LIVE_CPS = 15;
-const MAX_LIVE_CPS = 180;
+const MAX_LIVE_CPS = 720;
+const LIVE_CATCH_UP_THRESHOLD_CHARS = 240;
+const LIVE_MAX_BACKLOG_SECONDS = 2.5;
 const MIN_FLUSH_CPS = 18;
-const MAX_FLUSH_CPS = 90;
+const MAX_FLUSH_CPS = 2400;
 const FLUSH_SPEEDUP = 1.2;
-const FLUSH_MAX_SECONDS = 4;
-const MAX_FRAME_INTERVAL_MS = 50;
+const FLUSH_MAX_SECONDS = 2;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -52,6 +53,7 @@ export interface AdaptiveStreamFrame {
 interface ResolveFrameInput {
   backlog: number;
   frameIntervalMs: number;
+  maxRevealCount?: number;
   streaming: boolean;
   timestamp: number;
 }
@@ -118,6 +120,7 @@ export class AdaptiveStreamClock {
   resolveFrame({
     backlog,
     frameIntervalMs,
+    maxRevealCount = Number.POSITIVE_INFINITY,
     streaming,
     timestamp,
   }: ResolveFrameInput): AdaptiveStreamFrame {
@@ -134,16 +137,24 @@ export class AdaptiveStreamClock {
     const cps = streaming
       ? this.resolveLiveCps(backlog, timestamp)
       : this.resolveFlushCps(backlog, timestamp);
-    const elapsedSeconds = clamp(
-      frameIntervalMs,
-      1,
-      MAX_FRAME_INTERVAL_MS,
-    ) / 1000;
-    this.characterBudget += cps * elapsedSeconds;
+    // 这是当前流两次获得公平池探测机会之间的展示时间，不是 transport stall。
+    // 四条以上 busy 流在 30Hz 下会自然等待 >100ms，必须完整累计；后台长停顿
+    // 也安全，因为预算先被 backlog 封顶，实际提交再被全局 grant 限幅。
+    const elapsedSeconds = Math.max(1, frameIntervalMs) / 1000;
+    // 已经到达的 backlog 是当前唯一可消费的信用上限。多 Agent 公平池可能
+    // 连续数帧只授予很小额度；若不封顶，旧 backlog 会积累成未来尚未到达
+    // 字符的“预付预算”，在流恢复后长期以最高速率突发显示。
+    this.characterBudget = Math.min(
+      backlog,
+      this.characterBudget + cps * elapsedSeconds,
+    );
     const revealCount = Math.min(
       backlog,
       Math.floor(this.characterBudget),
+      Math.max(0, Math.floor(maxRevealCount)),
     );
+    // 只扣除调度器真正允许展示的字符；全局额度不足时，当前流已经累计的
+    // 小数/整数预算继续留在时钟里，下一帧无需重新等待或损失原有语速。
     this.characterBudget -= revealCount;
 
     return {
@@ -196,8 +207,11 @@ export class AdaptiveStreamClock {
       effectiveArrivalCps,
       this.arrivalCps,
     );
+    const catchUpCps = backlog >= LIVE_CATCH_UP_THRESHOLD_CHARS
+      ? backlog / LIVE_MAX_BACKLOG_SECONDS
+      : 0;
     return clamp(
-      Math.min(safeCps, arrivalCap),
+      Math.max(Math.min(safeCps, arrivalCap), catchUpCps),
       MIN_LIVE_CPS,
       MAX_LIVE_CPS,
     );

@@ -1,3 +1,6 @@
+// INPUT: 鉴权后的 Room/conversation 路径身份与消息分页参数。
+// OUTPUT: 经 Room 归属校验的共享 Session 消息页与附件操作响应。
+// POS: Room conversation HTTP 传输边界。
 package room
 
 import (
@@ -84,38 +87,6 @@ func positiveQueryInt64(request *http.Request, name string) (int64, error) {
 		return 0, errors.New(name + " 参数错误")
 	}
 	return value, nil
-}
-
-// HandleConversationTurns 返回 Room conversation 的 ConversationTurn 分页。
-func (h *Handlers) HandleConversationTurns(writer http.ResponseWriter, request *http.Request) {
-	roomID := chi.URLParam(request, "room_id")
-	conversationID := chi.URLParam(request, "conversation_id")
-	limit, err := positiveQueryInt(request, "limit")
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	sessionKey, ok := h.resolveConversationSessionKey(writer, request, roomID, conversationID)
-	if !ok {
-		return
-	}
-	page, err := h.sessions.GetSessionTurnsPage(request.Context(), sessionKey, sessionpkg.TurnPageRequest{
-		Limit:         limit,
-		BeforeRoundID: strings.TrimSpace(request.URL.Query().Get("before_round_id")),
-		AroundRoundID: strings.TrimSpace(request.URL.Query().Get("around_round_id")),
-		Sort:          strings.TrimSpace(request.URL.Query().Get("sort")),
-		View:          strings.TrimSpace(request.URL.Query().Get("view")),
-	})
-	if handlershared.IsStructuredSessionKeyError(err) {
-		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, page)
 }
 
 // resolveConversationSessionKey 校验 conversation 归属并解析历史读取用 session key。

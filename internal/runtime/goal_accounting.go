@@ -71,7 +71,7 @@ func (m *Manager) updateGoalAccountingHooks(
 	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 }
 
-// RegisterGoalObjectiveRevision 让运行中 round 的 MCP 与终态回调共享同一 objective revision。
+// RegisterGoalObjectiveRevision 让运行中 round 的 command 与终态回调共享同一 objective revision。
 func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID string, revision *atomic.Int64) {
 	m.updateGoalAccountingHooks(sessionKey, roundID, revision != nil, func(hooks *goalAccountingHooks) {
 		hooks.objectiveRevision = revision

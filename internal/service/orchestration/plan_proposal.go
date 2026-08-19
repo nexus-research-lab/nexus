@@ -363,7 +363,8 @@ func (s *Service) validatePreparedPlanProposal(
 
 	case protocol.ExecutionPlanProposalReplan:
 		if snapshot == nil {
-			return domainError(ErrorCodeNoCurrentExecution, "replan requires a current Execution")
+			return domainError(ErrorCodeNoCurrentExecution,
+				"replan requires a current Execution; when inspect returns none, seal the successor or fresh WorkGraph with operation: create")
 		}
 		if err := requireCoordinator(actor, snapshot); err != nil {
 			return err
@@ -388,7 +389,8 @@ func (s *Service) validatePreparedPlanProposal(
 
 	case protocol.ExecutionPlanProposalReplace:
 		if snapshot == nil {
-			return domainError(ErrorCodeNoCurrentExecution, "replace requires a current Execution")
+			return domainError(ErrorCodeNoCurrentExecution,
+				"replace requires a current transient Execution; when inspect returns none, seal the successor or fresh WorkGraph with operation: create")
 		}
 		if err := requireCoordinator(actor, snapshot); err != nil {
 			return err

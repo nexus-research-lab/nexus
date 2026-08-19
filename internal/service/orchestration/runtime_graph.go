@@ -185,6 +185,11 @@ func (s *Service) ObserveRuntimeMessage(
 		if evidence.mutationOutcome != "" {
 			metadata["mutation_outcome"] = string(evidence.mutationOutcome)
 		}
+		if evidence.commandIdentity.RequestID != "" {
+			metadata[runtimeGraphCommandDomainMetadataKey] = evidence.commandIdentity.Domain
+			metadata[runtimeGraphCommandOperationMetadataKey] = evidence.commandIdentity.Operation
+			metadata[runtimeGraphCommandRequestIDMetadataKey] = evidence.commandIdentity.RequestID
+		}
 		if activeSegment.valid() {
 			applyRuntimeExecutionSegment(metadata, activeSegment)
 		}
@@ -475,6 +480,7 @@ func runtimeAgentNodeDescriptor(actor ActorContext) runtimeAgentDescriptor {
 		descriptor.Metadata["execution_lane"] = "work"
 		descriptor.Metadata["work_item_id"] = strings.TrimSpace(binding.WorkItemID)
 		descriptor.Metadata["assignment_id"] = strings.TrimSpace(binding.AssignmentID)
+		descriptor.Metadata["attempt_id"] = strings.TrimSpace(binding.AttemptID)
 		return descriptor
 	}
 	if actor.Role == ExecutionActorCoordinator {

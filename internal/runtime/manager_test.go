@@ -41,6 +41,7 @@ type fakeRuntimeClient struct {
 	reconfigureErr     error
 	disconnectCalls    int
 	disconnectErr      error
+	disconnectFn       func(context.Context) error
 	interruptCalls     int
 	interruptHook      func()
 	stoppedTasks       []string
@@ -173,8 +174,11 @@ func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermiss
 
 func (c *fakeRuntimeClient) Retire() {}
 
-func (c *fakeRuntimeClient) Disconnect(context.Context) error {
+func (c *fakeRuntimeClient) Disconnect(ctx context.Context) error {
 	c.disconnectCalls++
+	if c.disconnectFn != nil {
+		return c.disconnectFn(ctx)
+	}
 	return c.disconnectErr
 }
 
@@ -1067,6 +1071,7 @@ func TestManagerCloseSessionWaitsForIdleHandlerExit(t *testing.T) {
 }
 
 func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
+	const serverName = "search"
 	tests := []struct {
 		name    string
 		options agentclient.Options
@@ -1075,14 +1080,14 @@ func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
 		{
 			name: "server config",
 			options: agentclient.Options{MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-				managedGoalMCPServerName: sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
+				serverName: sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
 			}}},
 			want: true,
 		},
 		{
 			name: "legacy sdk server",
 			options: agentclient.Options{MCP: agentclient.MCPOptions{SDKServers: map[string]sdkmcp.SDKMCPServer{
-				managedGoalMCPServerName: fakeSDKMCPServer{},
+				serverName: fakeSDKMCPServer{},
 			}}},
 			want: true,
 		},
@@ -1090,38 +1095,10 @@ func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := hasMCPServer(test.options, managedGoalMCPServerName); got != test.want {
+			if got := hasMCPServer(test.options, serverName); got != test.want {
 				t.Fatalf("hasMCPServer() = %v, want %v", got, test.want)
 			}
 		})
-	}
-}
-
-func TestRuntimeRestartsWhenManagedGoalMCPServerSetChanges(t *testing.T) {
-	currentOptions := agentclient.Options{
-		MCP: agentclient.MCPOptions{
-			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
-			},
-		},
-	}
-	nextOptions := agentclient.Options{
-		MCP: agentclient.MCPOptions{
-			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
-				"nexus_goal":       sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
-			},
-		},
-	}
-
-	if !shouldRestartForManagedGoalMCPServerSetChange(currentOptions, nextOptions) {
-		t.Fatal("新增托管 Goal MCP server 时应重建 SDK client")
-	}
-	if shouldRestartForManagedGoalMCPServerSetChange(nextOptions, nextOptions) {
-		t.Fatal("Goal MCP server 集合未变化时不应重建 SDK client")
-	}
-	if !shouldReplaceRuntimeClientAfterReconfigureError(errManagedGoalMCPServerSetChanged) {
-		t.Fatal("托管 Goal MCP server 集合变化错误应触发 client 替换")
 	}
 }
 
@@ -2339,6 +2316,65 @@ func TestManagerGetOrCreateReplacesClientWhenBridgeRequiresRestart(t *testing.T)
 	}
 }
 
+func TestManagerRuntimeReplacementWaitsForSDKCleanupWithoutSyntheticDeadline(t *testing.T) {
+	disconnectStarted := make(chan struct{})
+	releaseDisconnect := make(chan struct{})
+	stale := &fakeRuntimeClient{
+		reconfigureErr: &agentclient.RestartRequiredError{
+			Reason: agentclient.RestartReasonProcessEnvChanged,
+		},
+		disconnectFn: func(ctx context.Context) error {
+			if _, hasDeadline := ctx.Deadline(); hasDeadline {
+				return errors.New("runtime replacement must not race SDK cleanup with a second deadline")
+			}
+			close(disconnectStarted)
+			select {
+			case <-releaseDisconnect:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:restart-cleanup-fence"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	type replacementResult struct {
+		client Client
+		err    error
+	}
+	result := make(chan replacementResult, 1)
+	go func() {
+		client, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+			Env: map[string]string{"NEXUS_TEST_RUNTIME_REVISION": "2"},
+		})
+		result <- replacementResult{client: client, err: err}
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("runtime replacement did not enter SDK cleanup")
+	}
+	select {
+	case premature := <-result:
+		t.Fatalf("replacement published before old SDK cleanup completed: %+v", premature)
+	default:
+	}
+	close(releaseDisconnect)
+	select {
+	case completed := <-result:
+		if completed.err != nil || completed.client != fresh {
+			t.Fatalf("replacement result = %+v, want fresh client", completed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runtime replacement did not finish after SDK cleanup")
+	}
+}
+
 func TestManagerGetOrCreateReplacesClientWhenBypassSwitchRequiresLaunchFlag(t *testing.T) {
 	stale := &fakeRuntimeClient{
 		reconfigureErr: agentclient.ErrBypassPermissionsNotAllowed,
@@ -2392,7 +2428,7 @@ func TestManagerGetOrCreateReplacesClientWhenMCPControlUnsupported(t *testing.T)
 	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
 		MCP: agentclient.MCPOptions{
 			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+				"search": sdkmcp.SDKServerConfig{Name: "search", Instance: fakeSDKMCPServer{}},
 			},
 		},
 	})

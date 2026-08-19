@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
@@ -303,35 +304,24 @@ func (r *roundRunner) lastGoalAssistantMessage() protocol.Message {
 }
 
 func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Message) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() {
-		return
-	}
 	if protocol.MessageRole(message) != "assistant" {
 		return
 	}
-	observations := messageutil.AssistantToolResults(message)
-	if len(observations) > 0 {
-		r.rememberGoalToolProgress(messageutil.AssistantHasCountedToolProgress(
-			message,
-			r.hasGoalBoundExecutionAuthority(),
-		))
+	receipts := r.consumeRuntimeCommandReceipts()
+	if runtimecommand.HasDomain(receipts, runtimecommand.DomainExecution) {
+		r.service.observeExecutionRuntimeCommandReceipts(r.orchestrationActor(), receipts)
 	}
+	if r.service.goals == nil || r.ignoreGoalRuntime() {
+		return
+	}
+	r.rememberGoalToolProgress(runtimecommand.HasGoalProgress(receipts))
 	snapshot := r.assistantGoalUsageSnapshot(message)
-	hasSuccessfulCreate := false
-	hasSuccessfulUpdate := false
-	for _, observation := range observations {
-		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected ||
-			observation.MutationOutcome == protocol.MutationResultSuperseded {
-			continue
-		}
-		switch messageutil.CanonicalToolName(observation.ToolName) {
-		case "create_goal":
-			hasSuccessfulCreate = true
-		case "update_goal":
-			hasSuccessfulUpdate = true
-		}
-	}
+	hasSuccessfulCreate := runtimecommand.HasAppliedOperation(
+		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationCreate,
+	)
+	hasSuccessfulUpdate := runtimecommand.HasAppliedOperation(
+		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationUpdate,
+	)
 	if hasSuccessfulCreate {
 		r.goalUsageMu.Lock()
 		r.goalUsageScopeConsumed = true
@@ -360,8 +350,8 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		// 优先使用结果返回的 exact Goal ID；旧 provider 才回退到本 round 固定
 		// binding。保持该绑定直到 terminal usage 完成最终对账后再关闭。
 		r.goalUsageMu.Lock()
-		if goalID := messageutil.SuccessfulGoalCompletionID(
-			observations,
+		if goalID := runtimecommand.SuccessfulGoalCompletionID(
+			receipts,
 			r.goalIDForUsage,
 		); goalID != "" {
 			r.goalCompletionCandidateID = goalID
@@ -371,6 +361,17 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		}
 		r.goalUsageMu.Unlock()
 	}
+}
+
+func (r *roundRunner) consumeRuntimeCommandReceipts() []runtimecommand.Receipt {
+	if r == nil || r.commandReceipts == nil {
+		return nil
+	}
+	r.goalUsageMu.Lock()
+	receipts, sequence := r.commandReceipts.Since(r.commandReceiptSequence)
+	r.commandReceiptSequence = sequence
+	r.goalUsageMu.Unlock()
+	return receipts
 }
 
 func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionResult) {
@@ -400,10 +401,12 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 		})
 		return
 	}
-	if messageutil.AssistantMissedGoalCompletionTool(r.lastGoalAssistantMessage()) {
-		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
-		r.recordGoalMutation("记录 Goal 完成工具漏调用失败", func() error {
-			_, err := r.service.goals.RecordCompletionToolMiss(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
+	if messageutil.AssistantMissedGoalCompletionCommand(
+		r.lastGoalAssistantMessage(), r.hasGoalCompletionCandidate(),
+	) {
+		reason := "assistant claimed goal completion without an applied nexus goal update_goal command receipt"
+		r.recordGoalMutation("记录 Goal 完成命令漏调用失败", func() error {
+			_, err := r.service.goals.RecordCompletionCommandMiss(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
@@ -421,6 +424,15 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	}, "progressed", progressed)
 }
 
+func (r *roundRunner) hasGoalCompletionCandidate() bool {
+	if r == nil {
+		return false
+	}
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	return strings.TrimSpace(r.goalCompletionCandidateID) != ""
+}
+
 func (r *roundRunner) currentGoalObjectiveRevision() int64 {
 	if r == nil || r.goalObjectiveRevision == nil {
 		return 0
@@ -435,17 +447,6 @@ func (r *roundRunner) hasGoalRoundBinding() bool {
 	r.goalUsageMu.Lock()
 	defer r.goalUsageMu.Unlock()
 	return strings.TrimSpace(r.goalIDForUsage) != ""
-}
-
-// hasGoalBoundExecutionAuthority distinguishes an exact Goal+Execution
-// responsibility from a Goal-only round. A transient or ambient WorkGraph
-// mutation must never keep an unrelated Goal continuation alive.
-func (r *roundRunner) hasGoalBoundExecutionAuthority() bool {
-	if r == nil || !r.hasGoalRoundBinding() || r.responsibilityState == nil {
-		return false
-	}
-	authority, ok := r.responsibilityState.LoadGoalAuthority()
-	return ok && strings.TrimSpace(authority.ExecutionID) != ""
 }
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {

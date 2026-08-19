@@ -21,26 +21,43 @@ func (fn runtimeAutomationRoundTripFunc) RoundTrip(request *http.Request) (*http
 	return fn(request)
 }
 
+func TestRuntimeCommandInputStagingDescribesPreCreatedFile(t *testing.T) {
+	staging := runtimeCommandInputStaging("/private/round/input.json")
+	if staging["path"] != "/private/round/input.json" ||
+		staging["max_bytes"] != maxRuntimeCommandInputBytes ||
+		!strings.Contains(staging["write_precondition"].(string), "Read") ||
+		!strings.Contains(staging["lifetime"].(string), "current physical round") ||
+		!strings.Contains(staging["refresh_rule"].(string), "never reuse") {
+		t.Fatalf("input staging = %+v", staging)
+	}
+	initial, ok := staging["initial_content"].(map[string]any)
+	if !ok || len(initial) != 0 {
+		t.Fatalf("initial input = %#v", staging["initial_content"])
+	}
+}
+
 func TestRuntimeAutomationControllerUsesCapabilityAndStrictEnvelope(t *testing.T) {
 	controller := remoteRuntimeAutomationController{
-		endpoint: "http://127.0.0.1:8010/internal/runtime/automation",
-		token:    "capability",
-		client: &http.Client{Transport: runtimeAutomationRoundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Header.Get(protocol.NexusCommandCapabilityHeader) != "capability" {
-				t.Fatalf("capability header = %q", request.Header.Get(protocol.NexusCommandCapabilityHeader))
-			}
-			payload, err := io.ReadAll(request.Body)
-			if err != nil || !bytes.Contains(payload, []byte(`"action":"contract"`)) {
-				t.Fatalf("request payload = %s err=%v", payload, err)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Status:     "200 OK",
-				Body: io.NopCloser(strings.NewReader(
-					`{"success":true,"data":{"query_operations":["list"],"mutation_operations":[],"mutation_allowed":false,"cross_agent_allowed":false,"operations":{}}}`,
-				)),
-			}, nil
-		})},
+		command: &runtimeSemanticController{
+			endpoint: "http://127.0.0.1:8010/internal/runtime/command",
+			token:    "capability",
+			client: &http.Client{Transport: runtimeAutomationRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if request.Header.Get(protocol.NexusCommandCapabilityHeader) != "capability" {
+					t.Fatalf("capability header = %q", request.Header.Get(protocol.NexusCommandCapabilityHeader))
+				}
+				payload, err := io.ReadAll(request.Body)
+				if err != nil || !bytes.Contains(payload, []byte(`"action":"contract"`)) {
+					t.Fatalf("request payload = %s err=%v", payload, err)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Body: io.NopCloser(strings.NewReader(
+						`{"success":true,"data":{"query_operations":["list"],"mutation_operations":[],"mutation_allowed":false,"cross_agent_allowed":false,"operations":{}}}`,
+					)),
+				}, nil
+			})},
+		},
 	}
 	contract, err := controller.Contract(context.Background())
 	if err != nil {
@@ -66,7 +83,7 @@ func TestRuntimeAutomationInputDefaultsToManagedRoundFile(t *testing.T) {
 	if err := os.WriteFile(inputPath, []byte(`{"name":"引号 ' 与 \" 都保留","instruction":"运行 date '+%Y-%m-%d'"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(protocol.NexusAutomationInputPathEnvName, inputPath)
+	t.Setenv(protocol.NexusCommandInputPathEnvName, inputPath)
 	command := &cobra.Command{Use: "test"}
 	flags := runtimeAutomationFlags{}
 	bindRuntimeAutomationFlags(command, &flags)
@@ -84,7 +101,7 @@ func TestRuntimeAutomationInputRejectsAmbiguousOrUnmanagedFile(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv(protocol.NexusAutomationInputPathEnvName, managedPath)
+	t.Setenv(protocol.NexusCommandInputPathEnvName, managedPath)
 	command := &cobra.Command{Use: "test"}
 	flags := runtimeAutomationFlags{}
 	bindRuntimeAutomationFlags(command, &flags)
@@ -92,7 +109,7 @@ func TestRuntimeAutomationInputRejectsAmbiguousOrUnmanagedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := decodeRuntimeAutomationInputForCommand(command, flags); err == nil ||
-		!strings.Contains(err.Error(), protocol.NexusAutomationInputPathEnvName) {
+		!strings.Contains(err.Error(), protocol.NexusCommandInputPathEnvName) {
 		t.Fatalf("unmanaged --input-file error = %v", err)
 	}
 	if err := command.Flags().Set("input", `{}`); err != nil {
@@ -116,8 +133,8 @@ func TestRuntimeAutomationInputSupportsBoundedStdinAndRejectsSymlink(t *testing.
 	if err != nil || input.Query != "当前会话" {
 		t.Fatalf("stdin input = %+v err=%v", input, err)
 	}
-	if _, err = readLimitedRuntimeAutomationInput(
-		strings.NewReader(strings.Repeat("x", maxRuntimeAutomationInputBytes+1)), "stdin",
+	if _, err = readLimitedRuntimeCommandInput(
+		strings.NewReader(strings.Repeat("x", maxRuntimeCommandInputBytes+1)), "stdin",
 	); err == nil {
 		t.Fatal("oversized stdin was accepted")
 	}
@@ -131,13 +148,13 @@ func TestRuntimeAutomationInputSupportsBoundedStdinAndRejectsSymlink(t *testing.
 	if err = os.Symlink(target, link); err != nil {
 		t.Skipf("symlink unsupported: %v", err)
 	}
-	t.Setenv(protocol.NexusAutomationInputPathEnvName, link)
-	if _, err = readRuntimeAutomationInput(command, link); err == nil {
+	t.Setenv(protocol.NexusCommandInputPathEnvName, link)
+	if _, err = readRuntimeCommandInput(command, link); err == nil {
 		t.Fatal("symlink input file was accepted")
 	}
 }
 
-func TestRuntimeAutomationInputRejectsNonPrivateMode(t *testing.T) {
+func TestRuntimeAutomationInputNormalizesManagedNonPrivateMode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not expose Unix owner/group/other mode bits")
 	}
@@ -148,11 +165,24 @@ func TestRuntimeAutomationInputRejectsNonPrivateMode(t *testing.T) {
 	if err := os.Chmod(inputPath, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(protocol.NexusAutomationInputPathEnvName, inputPath)
+	t.Setenv(protocol.NexusCommandInputPathEnvName, inputPath)
 	command := &cobra.Command{Use: "test"}
-	if _, err := readRuntimeAutomationInput(command, inputPath); err == nil ||
+	raw, err := readRuntimeCommandInput(command, inputPath)
+	if err != nil || string(raw) != `{}` {
+		t.Fatalf("managed input = %q err=%v", raw, err)
+	}
+	info, err := os.Stat(inputPath)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("normalized mode = %v err=%v", info.Mode().Perm(), err)
+	}
+
+	t.Setenv(protocol.NexusCommandInputPathEnvName, "")
+	if err = os.Chmod(inputPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = readRuntimeCommandInput(command, inputPath); err == nil ||
 		!strings.Contains(err.Error(), "owner 私有") {
-		t.Fatalf("non-private input error = %v", err)
+		t.Fatalf("unmanaged non-private input error = %v", err)
 	}
 }
 

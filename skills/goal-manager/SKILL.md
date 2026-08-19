@@ -1,43 +1,70 @@
 ---
 name: goal-manager
-description: 当用户或系统明确要求创建、查看、纠正、完成或阻塞当前会话 Goal，或当前上下文已经绑定 active Goal 时使用。负责 Goal 生命周期操作与按需加载创建、完成或 Room 参考；不从普通任务猜 Goal，不承载 Task、WorkGraph 或 Room 分工选择。
+description: 当用户或系统明确要求创建、查看、纠正、完成或阻塞当前会话 Goal，或当前上下文已经绑定 active Goal 时使用。通过宿主签发的 nexus goal CLI 管理 Goal 生命周期，并按需加载创建、完成或 Room 参考；不从普通任务猜 Goal，不承载 Task、WorkGraph 或 Room 分工选择。
 ---
 
 # Goal Manager
 
-管理当前会话已经选定的长程 objective。是否需要 Goal 的结构选择由 `execution-orchestrator` 负责；本 Skill 不把普通任务、提醒、Room action 或一次性协作升级为 Goal，也不把已选定的 Goal 自动升级为 WorkGraph。
+管理当前会话已经选定的长程 objective。是否需要 Goal 的结构选择由 `execution-orchestrator` 负责；本 Skill 不把普通任务、提醒、Room action 或一次性协作升级为 Goal，也不因 Goal 存在自动建立 WorkGraph。
 
-Skill 只加载使用规则，不替代工具调用。根据当前工具列表使用完整 MCP 名称或裸名：
+使用宿主注入的 `NEXUS_COMMAND_PATH`。宿主把命令绑定到当前 owner、Agent、Session、physical round 和 exact Goal revision；直接执行下面的受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。每条受管命令必须独立执行，不接管道、重定向、`jq`、Python、正则或其他 shell 后处理。Contract 的 schema 与输入槽位于顶层 `contract` / `input_staging`；inspect/invoke 的领域结果位于顶层 `data`。不要声明或覆盖这些身份，不要覆盖任何 `NEXUS_COMMAND_*` 环境变量，不使用 `nexusctl`、其他管理入口或 `/goal` 文本命令。
 
-| 操作 | MCP 名称 | 裸名 |
-| --- | --- | --- |
-| 读取 | `mcp__nexus_goal__get_goal` | `get_goal` |
-| 创建 | `mcp__nexus_goal__create_goal` | `create_goal` |
-| 纠正 | `mcp__nexus_goal__retarget_goal` | `retarget_goal` |
-| 完成审计 | `mcp__nexus_goal__audit_objective_alignment` | `audit_objective_alignment` |
-| 终态更新 | `mcp__nexus_goal__update_goal` | `update_goal` |
+## 命令工作流
 
-优先调用当前工具列表实际暴露的名称，不使用 `/goal` 文本命令，也不向用户索要 session key。
+1. 用户要求设定、查看或更改 Goal，或当前状态未知时，先读取权威状态。
 
-## 使用步骤
+   ```bash
+   "${NEXUS_COMMAND_PATH}" --json goal inspect
+   ```
 
-1. 读取当前 Goal context；用户要求设定或更改 Goal、或状态未知时必须先调用 `get_goal`。
-2. 区分本次意图是创建、纠正、完成还是阻塞。普通补充、追问和模型自己的路线调整不等于 retarget。
-3. 只读取下面与当前生命周期动作对应的参考文件，并完整读完后再调用工具。
-4. 遵守工具返回的 objective revision、Execution transition 和 next action；不要凭文本模拟状态变化。
-5. 完成工具调用后继续交付任务本身。Goal 状态是辅助信息，不是最终成果。
+   Windows 的 PowerShell runtime 使用 `& "${env:NEXUS_COMMAND_PATH}" --json goal contract`。后续命令保持同一种 shell 变量语法。
 
-## 按需参考
+   `inspect` 中当前 objective revision 与 completion criteria 是 Objective Alignment 和完成判断的唯一目标边界；不要从 transcript、旧 Plan、聊天正文或本地草稿反查或拼接标准。
 
-- 创建新 Goal 或明确纠正现有 objective 时，读取 [references/create-and-retarget.md](references/create-and-retarget.md)。
-- 判断完成、提交 Objective Alignment、形成最终交付或确认 blocked 时，读取 [references/complete-and-block.md](references/complete-and-block.md)。
-- 当前 Goal 属于 shared Room 时，额外读取 [references/room-goals.md](references/room-goals.md)。
+   Composer 顶部入口和文本 `/goal` 是宿主控制命令，不经过本 Skill 或 `create_goal`。它们成功后，模型只在宿主启动的新 physical round 中用 `goal inspect` 读取已经持久化的 Goal；不得再次创建或按聊天正文补写。
+
+2. 根据用户意图与 `inspect` 状态选择一个操作；只有无法确定 operation 名称时才按需读取目录，不把完整目录作为每次调用的固定前置。
+
+   ```bash
+   "${NEXUS_COMMAND_PATH}" --json goal contract
+   ```
+
+3. 确定 operation 后，每次新的 mutation 输入写入前，都必须紧邻写入重新读取它的精确 contract，不根据记忆猜 schema 或路径。
+
+   ```bash
+   "${NEXUS_COMMAND_PATH}" --json goal contract --operation create_goal
+   ```
+
+4. 只使用刚刚返回的 exact contract 中的 `input_staging.path`。这是宿主为当前 physical round 预建且初始内容为 `{}` 的私有文件；不要复用记忆、旧输出或上一轮中的绝对路径。某个新返回路径首次写入前先用 Read 工具读一次，再用 Write 覆盖为该操作的一个完整 JSON 对象。即使同轮之前调用过同一 operation，新意图也先重读 exact contract，再覆盖当前路径。不要自行选择路径，不用 Bash、heredoc、`cat`、命令替换或重定向生成 JSON。
+
+5. 用一条单行命令执行操作。`invoke` 只读取当前 physical round 的宿主管理输入槽，不接受 inline JSON 或调用方选择的文件。每个新意图生成一个 8–128 位稳定 `request_id`；同一意图重试必须复用。
+
+   ```bash
+   "${NEXUS_COMMAND_PATH}" --json goal invoke --operation create_goal --request-id 'goal-create-UNIQUE'
+   ```
+
+   PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ...`；输入槽路径仍从 exact contract 的 `input_staging.path` 读取。
+
+6. 只把顶层 `is_error=false` 且顶层 `data.outcome=applied` 的调用视为状态变化。按 `data.nextAction.domain` 与 `data.nextAction.operation` 继续；不存在 `result.data` 或需要自行解包的 MCP 结果。如果命令已返回 applied，不得因自定义后处理失败而重试语义操作。
+
+输入槽由宿主按 physical round 创建为 owner 私有 `0600` 文件并在 round 结束清理，只解决 JSON 传输；Goal、revision、责任与完成状态仍以服务端为准。
+
+## 生命周期分流
+
+- `inspect` 返回空且用户有显式 Goal 意图：读取 [references/create-and-retarget.md](references/create-and-retarget.md)，再执行 `create_goal`。
+- 已有 active Goal 且用户明确替换 objective：读取同一参考，再执行 `retarget_goal`。
+- 判断完成、提交 Objective Alignment 或确认 blocked：读取 [references/complete-and-block.md](references/complete-and-block.md)。
+- 当前 Goal 属于 shared Room：额外读取 [references/room-goals.md](references/room-goals.md)。
+
+只完整读取与当前动作相关的参考文件。
 
 ## 稳定边界
 
 - 创建前 objective 必须具体到可以执行；缺少会改变结果的信息时先询问，不创建占位 Goal。
-- 当前会话已有未结束 Goal 时不创建第二个；用户明确更换 objective 时 retarget 同一个 Goal。
-- `get_goal` 返回空时，显式 Goal 意图走 `create_goal`；返回现有 Goal 时，objective 纠正走 `retarget_goal`。`update_goal` 绝不用于设定或改写 objective。
+- 当前会话已有未结束 Goal 时不创建第二个；明确更换 objective 时 retarget 同一 Goal。
+- `update_goal` 只标记 `complete` 或 `blocked`，绝不设定或改写 objective。
 - `token_budget` 只在用户明确给出预算时设置。
-- 模型只能用 `update_goal` 标记 `complete` 或 `blocked`；暂停、恢复、预算和用量限制属于用户或系统控制面。
+- 暂停、恢复、预算和用量限制属于用户或系统控制面。
 - 提醒、定时和周期任务使用 Automation，不使用 Goal。
+- Goal 与 Execution 是两个独立 command domain：`goal/audit_objective_alignment` 是确认绑定 WorkGraph 后的 Goal 完成证据；`execution/audit_execution_alignment` 只是非终态 Execution 的可选 Gate，不能互相替代。命令返回跨域 `nextAction` 时按 `domain + operation` 切换，不按相似名称猜测。
+- Goal 状态是执行连续性，不是最终成果；完成调用后仍要独立交付 objective 要求的结果。

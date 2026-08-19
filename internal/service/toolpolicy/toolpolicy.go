@@ -1,5 +1,5 @@
-// INPUT: managed skill 名称与 runtime 工具标识。
-// OUTPUT: Goal 等托管能力的允许工具集合。
+// INPUT: managed Skill、runtime CLI 与工具标识。
+// OUTPUT: Nexus 内置能力的精确审批与允许工具集合。
 // POS: Agent runtime 工具策略的统一投影。
 package toolpolicy
 
@@ -12,76 +12,8 @@ import (
 	"unicode"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
-
-const managedGoalSkillName = "goal-manager"
-
-var managedGoalTools = []string{
-	"nexus_goal",
-	"get_goal",
-	"create_goal",
-	"retarget_goal",
-	"audit_objective_alignment",
-	"update_goal",
-}
-
-var managedGoalAllowedTools = []string{
-	"nexus_goal",
-	"mcp__nexus_goal__get_goal",
-	"mcp__nexus_goal__create_goal",
-	"mcp__nexus_goal__retarget_goal",
-	"mcp__nexus_goal__audit_objective_alignment",
-	"mcp__nexus_goal__update_goal",
-	"get_goal",
-	"create_goal",
-	"retarget_goal",
-	"audit_objective_alignment",
-	"update_goal",
-	"Skill",
-}
-
-var managedExecutionTools = []string{
-	"get_execution",
-	"prepare_plan_execution",
-	"plan_execution",
-	"abandon_execution",
-	"assign_work",
-	"submit_work",
-	"review_work",
-	"block_work",
-	"resume_work",
-	"take_over_work",
-	"audit_execution_alignment",
-	"promote_execution_to_goal",
-}
-
-var managedExecutionAllowedTools = []string{
-	"nexus_execution",
-	"mcp__nexus_execution__get_execution",
-	"mcp__nexus_execution__prepare_plan_execution",
-	"mcp__nexus_execution__plan_execution",
-	"mcp__nexus_execution__abandon_execution",
-	"mcp__nexus_execution__assign_work",
-	"mcp__nexus_execution__submit_work",
-	"mcp__nexus_execution__review_work",
-	"mcp__nexus_execution__block_work",
-	"mcp__nexus_execution__resume_work",
-	"mcp__nexus_execution__take_over_work",
-	"mcp__nexus_execution__audit_execution_alignment",
-	"mcp__nexus_execution__promote_execution_to_goal",
-	"get_execution",
-	"prepare_plan_execution",
-	"plan_execution",
-	"abandon_execution",
-	"assign_work",
-	"submit_work",
-	"review_work",
-	"block_work",
-	"resume_work",
-	"take_over_work",
-	"audit_execution_alignment",
-	"promote_execution_to_goal",
-}
 
 var managedVisualizeAllowedTools = []string{
 	"nexus_visualize",
@@ -107,6 +39,9 @@ var managedImagegenAllowedTools = []string{
 
 var managedMainThreadAllowedTools = []string{
 	"Agent",
+	"Bash",
+	"PowerShell",
+	"Skill",
 }
 
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
@@ -178,12 +113,9 @@ var toolNameMatchers = []toolNameMatcher{
 }
 
 var managedToolFamilyPrefixes = map[string][]string{
-	"nexus_automation": {"mcp__nexus_automation__", "nexus_automation__", "nexus_automation."},
-	"nexus_execution":  {"mcp__nexus_execution__", "nexus_execution__", "nexus_execution."},
-	"nexus_goal":       {"mcp__nexus_goal__", "nexus_goal__", "nexus_goal."},
-	"nexus_room":       {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
-	"nexus_visualize":  {"mcp__nexus_visualize__", "nexus_visualize__", "nexus_visualize."},
-	"nexus_imagegen":   {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
+	"nexus_room":      {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
+	"nexus_visualize": {"mcp__nexus_visualize__", "nexus_visualize__", "nexus_visualize."},
+	"nexus_imagegen":  {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
 }
 
 func matchesWrappedToolName(pair toolNamePair) bool {
@@ -229,38 +161,14 @@ func matchesKnownAlias(toolName string, approved string) bool {
 	}
 }
 
-// IsManagedGoalTool 判断请求是否命中 Nexus 托管的 Goal MCP 工具。
-func IsManagedGoalTool(toolName string) bool {
-	for _, item := range managedGoalTools {
-		if MatchesItem(toolName, item) {
-			return true
-		}
-	}
-	return false
-}
-
-// IsManagedGoalSkillRequest 判断 Skill 调用是否只是在加载内置 goal-manager。
-func IsManagedGoalSkillRequest(toolName string, input map[string]any) bool {
+// IsManagedSemanticSkillRequest 判断 Skill 调用是否只是在加载受管的
+// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped nexus CLI。
+func IsManagedSemanticSkillRequest(toolName string, input map[string]any) bool {
 	if !MatchesItem(toolName, "Skill") {
 		return false
 	}
 	for _, key := range []string{"name", "skill", "skill_name", "skillName"} {
-		if canonicalToolName(stringInput(input, key)) == canonicalToolName(managedGoalSkillName) {
-			return true
-		}
-	}
-	return false
-}
-
-// IsManagedGoalPermission 判断权限请求是否属于产品托管 Goal 能力。
-func IsManagedGoalPermission(toolName string, input map[string]any) bool {
-	return IsManagedGoalTool(toolName) || IsManagedGoalSkillRequest(toolName, input)
-}
-
-// IsManagedExecutionTool 判断请求是否命中 Nexus 托管的 Execution MCP 工具。
-func IsManagedExecutionTool(toolName string) bool {
-	for _, item := range managedExecutionTools {
-		if MatchesItem(toolName, item) {
+		if runtimecommand.IsManagedSemanticSkillName(stringInput(input, key)) {
 			return true
 		}
 	}
@@ -273,93 +181,138 @@ func IsManagedVisualizeTool(toolName string) bool {
 	return ok
 }
 
-// WithManagedGoalAutoApproval 让隐藏续跑和模型自启动 Goal 时不被内置 Goal 工具确认卡住。
-func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
-	if handler == nil {
-		return nil
-	}
-	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if IsManagedGoalPermission(request.ToolName, request.Input) {
-			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
-		}
-		return handler(ctx, request)
-	}
-}
-
-// WithManagedRuntimeAutoApproval 放行 Nexus 托管语义工具与只在沙箱前端生效的
-// 生成式 UI 工具，避免内部能力被通用权限卡中断。
+// WithManagedRuntimeAutoApproval 放行内置 Goal/Execution 语义 Skill 与只在
+// 沙箱前端生效的生成式 UI 工具。具体操作只经受管 nexus CLI 自动审批。
 func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
-	handler = WithManagedGoalAutoApproval(handler)
 	if handler == nil {
 		return nil
 	}
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if IsManagedExecutionTool(request.ToolName) || IsManagedVisualizeTool(request.ToolName) {
+		if IsManagedSemanticSkillRequest(request.ToolName, request.Input) || IsManagedVisualizeTool(request.ToolName) {
 			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
 		}
 		return handler(ctx, request)
 	}
 }
 
-// WithNexusRuntimeCLIAutoApproval 只放行一个没有 shell 组合符的 exact
-// `nexus automation` 进程调用。查询/plan 由 round capability 收口，apply 还会在
-// broker 内发起独立原生真人确认，因此这里不能成为领域写入授权。
+// WithNexusRuntimeCLIAutoApproval 只放行没有 shell 组合符的 exact nexus
+// runtime command。round capability、领域 service 与强类型收据仍是最终授权边界。
 func WithNexusRuntimeCLIAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
 	if handler == nil {
 		return nil
 	}
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if IsNexusAutomationCLIRequest(request) {
+		if IsNexusRuntimeCLIRequest(request) {
 			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
 		}
 		return handler(ctx, request)
 	}
 }
 
-// IsNexusAutomationCLIRequest 只识别受管 executable、固定子命令和无 shell
+// WithNexusRuntimeCLICompositionDeny keeps a semantic mutation and its shell
+// exit status atomic. Once a command references the managed executable with
+// --json, it must match the exact single-process grammar; otherwise a pipe or
+// trailing parser could fail after the state change already committed.
+func WithNexusRuntimeCLICompositionDeny(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if isComposedNexusRuntimeCLIRequest(request) {
+			return sdkpermission.Deny(
+				"Goal/Execution/Automation 受管命令必须独立执行；请移除管道、重定向、Python/jq/正则解析或其他 shell 组合，直接读取命令返回的 typed JSON",
+				false,
+			), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+func isComposedNexusRuntimeCLIRequest(request sdkpermission.Request) bool {
+	if IsNexusRuntimeCLIRequest(request) {
+		return false
+	}
+	command, ok := request.Input["command"].(string)
+	if !ok {
+		return false
+	}
+	switch {
+	case MatchesItem(request.ToolName, "Bash"):
+		return strings.Contains(command, `"${NEXUS_COMMAND_PATH}" --json`)
+	case MatchesItem(request.ToolName, "PowerShell"):
+		return strings.Contains(command, `& "${env:NEXUS_COMMAND_PATH}" --json`)
+	default:
+		return false
+	}
+}
+
+// RuntimeCLIInvocation 是经过严格 shell 子集解析的命令身份。
+type RuntimeCLIInvocation struct {
+	Domain string
+	Action string
+}
+
+// IsNexusRuntimeCLIRequest 只识别受管 executable、固定子命令和无 shell
 // 动态语义的单进程调用；任何其他 Bash/PowerShell 语法仍进入普通权限处理器。
-func IsNexusAutomationCLIRequest(request sdkpermission.Request) bool {
-	_, ok := NexusAutomationCLIAction(request)
+func IsNexusRuntimeCLIRequest(request sdkpermission.Request) bool {
+	_, ok := NexusRuntimeCLIInvocation(request)
 	return ok
 }
 
-// NexusAutomationCLIAction 返回经过严格 shell 子集解析后的 Automation action。
+// NexusRuntimeCLIInvocation 返回经过严格 shell 子集解析后的 domain/action。
 // executable 和 input slot 都只能引用宿主注入的精确变量，不能换成同名程序或任意路径。
-func NexusAutomationCLIAction(request sdkpermission.Request) (string, bool) {
+func NexusRuntimeCLIInvocation(request sdkpermission.Request) (RuntimeCLIInvocation, bool) {
+	invalid := RuntimeCLIInvocation{}
 	rawCommand, ok := request.Input["command"].(string)
 	if !ok || rawCommand == "" || strings.ContainsAny(rawCommand, "\n\r\x00") {
-		return "", false
+		return invalid, false
 	}
 	command := strings.Trim(rawCommand, " \t")
 	if command == "" {
-		return "", false
+		return invalid, false
 	}
 	commandToken := ""
 	managedInputToken := ""
 	switch {
 	case MatchesItem(request.ToolName, "Bash"):
 		commandToken = `"${NEXUS_COMMAND_PATH}"`
-		managedInputToken = `"${NEXUS_AUTOMATION_INPUT_PATH}"`
+		managedInputToken = `"${NEXUS_COMMAND_INPUT_PATH}"`
 	case MatchesItem(request.ToolName, "PowerShell"):
 		commandToken = `& "${env:NEXUS_COMMAND_PATH}"`
-		managedInputToken = `"${env:NEXUS_AUTOMATION_INPUT_PATH}"`
+		managedInputToken = `"${env:NEXUS_COMMAND_INPUT_PATH}"`
 	default:
-		return "", false
+		return invalid, false
 	}
 	if !strings.HasPrefix(command, commandToken) ||
-		len(command) == len(commandToken) || !automationShellWhitespace(command[len(commandToken)]) {
-		return "", false
+		len(command) == len(commandToken) || !runtimeCommandShellWhitespace(command[len(commandToken)]) {
+		return invalid, false
 	}
-	arguments, ok := parseAutomationShellArguments(command[len(commandToken):], managedInputToken)
-	if !ok || len(arguments) < 3 || arguments[0] != "--json" || arguments[1] != "automation" {
-		return "", false
+	arguments, ok := parseRuntimeCommandShellArguments(command[len(commandToken):], managedInputToken)
+	if !ok || len(arguments) < 3 || arguments[0] != "--json" {
+		return invalid, false
 	}
-	action := arguments[2]
+	invocation := RuntimeCLIInvocation{Domain: arguments[1], Action: arguments[2]}
+	switch invocation.Domain {
+	case "automation":
+		if !validAutomationCLIArguments(invocation.Action, arguments[3:]) {
+			return invalid, false
+		}
+	case "goal", "execution":
+		if !validSemanticCLIArguments(invocation.Domain, invocation.Action, arguments[3:]) {
+			return invalid, false
+		}
+	default:
+		return invalid, false
+	}
+	return invocation, true
+}
+
+func validAutomationCLIArguments(action string, arguments []string) bool {
 	if action == "contract" {
-		return action, len(arguments) == 3
+		return len(arguments) == 0
 	}
 	if action != "inspect" && action != "plan" && action != "apply" {
-		return "", false
+		return false
 	}
 	allowed := map[string]bool{
 		"--operation":  true,
@@ -371,27 +324,61 @@ func NexusAutomationCLIAction(request sdkpermission.Request) (string, bool) {
 		allowed["--expected-revision"] = true
 	}
 	seen := make(map[string]bool, len(allowed))
-	for index := 3; index < len(arguments); index += 2 {
+	for index := 0; index < len(arguments); index += 2 {
 		if index+1 >= len(arguments) || !allowed[arguments[index]] || seen[arguments[index]] {
-			return "", false
+			return false
 		}
 		seen[arguments[index]] = true
-		if arguments[index] == "--input-file" && arguments[index+1] != automationShellInputPathToken {
-			return "", false
+		if arguments[index] == "--input-file" && arguments[index+1] != runtimeCommandShellInputPathToken {
+			return false
 		}
 	}
 	if !seen["--operation"] || seen["--input"] && seen["--input-file"] {
-		return "", false
+		return false
 	}
-	return action, true
+	return true
 }
 
-const automationShellInputPathToken = "\x00nexus-automation-input-path\x00"
+func validSemanticCLIArguments(domain string, action string, arguments []string) bool {
+	switch action {
+	case "contract":
+		return validRuntimeCLIFlags(arguments, map[string]bool{"--operation": true}, nil)
+	case "inspect":
+		if domain == runtimecommand.DomainExecution {
+			return validRuntimeCLIFlags(arguments, map[string]bool{"--execution-id": true}, nil)
+		}
+		return len(arguments) == 0
+	case "invoke":
+		return validRuntimeCLIFlags(arguments, map[string]bool{
+			"--operation": true, "--request-id": true,
+		}, map[string]bool{"--operation": true, "--request-id": true})
+	default:
+		return false
+	}
+}
 
-func parseAutomationShellArguments(command string, managedInput string) ([]string, bool) {
+func validRuntimeCLIFlags(arguments []string, allowed map[string]bool, required map[string]bool) bool {
+	seen := make(map[string]bool, len(allowed))
+	for index := 0; index < len(arguments); index += 2 {
+		if index+1 >= len(arguments) || !allowed[arguments[index]] || seen[arguments[index]] {
+			return false
+		}
+		seen[arguments[index]] = true
+	}
+	for flag := range required {
+		if !seen[flag] {
+			return false
+		}
+	}
+	return true
+}
+
+const runtimeCommandShellInputPathToken = "\x00nexus-command-input-path\x00"
+
+func parseRuntimeCommandShellArguments(command string, managedInput string) ([]string, bool) {
 	arguments := make([]string, 0, 10)
 	for index := 0; index < len(command); {
-		for index < len(command) && automationShellWhitespace(command[index]) {
+		for index < len(command) && runtimeCommandShellWhitespace(command[index]) {
 			index++
 		}
 		if index == len(command) {
@@ -409,7 +396,7 @@ func parseAutomationShellArguments(command string, managedInput string) ([]strin
 			index = end + 1
 		case '"':
 			if strings.HasPrefix(command[index:], managedInput) {
-				value = automationShellInputPathToken
+				value = runtimeCommandShellInputPathToken
 				index += len(managedInput)
 				break
 			}
@@ -426,15 +413,15 @@ func parseAutomationShellArguments(command string, managedInput string) ([]strin
 			index = end + 1
 		default:
 			start := index
-			for index < len(command) && !automationShellWhitespace(command[index]) {
-				if !automationShellSafeByte(command[index]) {
+			for index < len(command) && !runtimeCommandShellWhitespace(command[index]) {
+				if !runtimeCommandShellSafeByte(command[index]) {
 					return nil, false
 				}
 				index++
 			}
 			value = command[start:index]
 		}
-		if value == "" || index < len(command) && !automationShellWhitespace(command[index]) {
+		if value == "" || index < len(command) && !runtimeCommandShellWhitespace(command[index]) {
 			// 拒绝 shell 的 quoted/unquoted token 拼接；即使结果 argv 相同，也不把
 			// 更大的 shell 语法面纳入自动审批边界。
 			return nil, false
@@ -444,11 +431,11 @@ func parseAutomationShellArguments(command string, managedInput string) ([]strin
 	return arguments, len(arguments) > 0
 }
 
-func automationShellWhitespace(value byte) bool {
+func runtimeCommandShellWhitespace(value byte) bool {
 	return value == ' ' || value == '\t'
 }
 
-func automationShellSafeByte(value byte) bool {
+func runtimeCommandShellSafeByte(value byte) bool {
 	return value >= 'a' && value <= 'z' ||
 		value >= 'A' && value <= 'Z' ||
 		value >= '0' && value <= '9' ||
@@ -494,7 +481,7 @@ func WithNexusControlPlaneDeny(handler sdkpermission.Handler, denied bool) sdkpe
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		if isNexusControlPlaneShellRequest(request) {
 			return sdkpermission.Deny(
-				"Nexus control-plane CLI is unavailable in this runtime context; use the scoped Nexus MCP tools",
+				"Nexus control-plane CLI is unavailable in this runtime context; use round-scoped Nexus CLI and Skills",
 				false,
 			), nil
 		}
@@ -525,22 +512,6 @@ func isNexusControlPlaneShellRequest(request sdkpermission.Request) bool {
 	return false
 }
 
-// WithManagedGoalAllowedTools 预授权 Goal MCP 工具，保留用户原有工具设置。
-func WithManagedGoalAllowedTools(tools []string) []string {
-	if len(NormalizeSet(tools)) == 0 {
-		return tools
-	}
-	return appendDistinctTools(tools, managedGoalAllowedTools...)
-}
-
-// WithManagedExecutionAllowedTools 预授权 Nexus 托管的语义编排工具。
-func WithManagedExecutionAllowedTools(tools []string) []string {
-	if len(NormalizeSet(tools)) == 0 {
-		return tools
-	}
-	return appendDistinctTools(tools, managedExecutionAllowedTools...)
-}
-
 // WithManagedImagegenAllowedTools 预授权图片生成 MCP 工具，保留用户原有工具设置。
 func WithManagedImagegenAllowedTools(tools []string) []string {
 	approved := NormalizeSet(tools)
@@ -554,13 +525,12 @@ func WithManagedImagegenAllowedTools(tools []string) []string {
 	return appendDistinctTools(tools, managedImagegenAllowedTools...)
 }
 
-// WithManagedRuntimeAllowedTools 追加运行时内建 MCP 工具的必要白名单。
+// WithManagedRuntimeAllowedTools 追加内置 Skill、受管 CLI transport 与 UI 能力的必要白名单。
 func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool) []string {
-	result := WithManagedGoalAllowedTools(tools)
+	result := tools
 	if len(NormalizeSet(result)) == 0 {
 		return result
 	}
-	result = WithManagedExecutionAllowedTools(result)
 	result = appendDistinctTools(result, managedMainThreadAllowedTools...)
 	result = appendDistinctTools(result, managedVisualizeAllowedTools...)
 	if !imagegenDefaultEnabled {

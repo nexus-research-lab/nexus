@@ -4,10 +4,37 @@
 package cli
 
 import (
+	"io"
+	"strings"
+
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/spf13/cobra"
 )
+
+// RunRuntime executes the Agent-facing runtime CLI and owns its error envelope.
+func RunRuntime(arguments []string, stderr io.Writer) int {
+	command, err := NewRuntime(LoadRuntimeConfig())
+	if err == nil {
+		command.SetArgs(arguments)
+		err = command.Execute()
+	}
+	if err == nil {
+		return 0
+	}
+	WriteCommandError(stderr, err, RequestedJSON(arguments))
+	return ExitCode(err)
+}
+
+// RuntimeEntrypointArgs recognizes the private multicall entrypoint used by
+// generated runtime shims. Broker capability validation remains authoritative.
+func RuntimeEntrypointArgs(arguments []string) ([]string, bool) {
+	if len(arguments) == 0 || strings.TrimSpace(arguments[0]) != protocol.NexusCommandHostEntrypointArgument {
+		return nil, false
+	}
+	return arguments[1:], true
+}
 
 // NewRuntime 创建 Agent-facing nexus CLI。
 func NewRuntime(cfg config.Config) (*App, error) {
@@ -23,5 +50,7 @@ func NewRuntime(cfg config.Config) (*App, error) {
 		return applyOutputOptions(cfg, nil, *output)
 	}
 	root.AddCommand(newRuntimeAutomationCommand())
+	root.AddCommand(newRuntimeSemanticCommand("goal", "管理当前 round 的 durable Goal"))
+	root.AddCommand(newRuntimeSemanticCommand("execution", "管理当前 round 的 Execution 与 WorkGraph"))
 	return &App{command: root}, nil
 }

@@ -1,6 +1,6 @@
 // INPUT: SDK user tool_result 消息与 assistant tool_use/tool_result 内容块。
-// OUTPUT: durable assistant 工具结果、规范化观察与 Goal 进展判定。
-// POS: runtime 工具结果到产品消息及进展语义的统一投影。
+// OUTPUT: durable assistant 工具结果与规范化观察。
+// POS: runtime 工具结果到产品消息的统一投影；Goal/Execution 语义由宿主 command receipt 投影。
 package message
 
 import (
@@ -14,13 +14,10 @@ import (
 
 // ToolResultObservation 表示 assistant 快照中一次已物化的工具结果。
 type ToolResultObservation struct {
-	ToolUseID       string
-	ToolName        string
-	ErrorCode       string
-	IsError         bool
-	MutationOutcome protocol.MutationResultOutcome
-	GoalID          string
-	GoalStatus      protocol.GoalStatus
+	ToolUseID string
+	ToolName  string
+	ErrorCode string
+	IsError   bool
 	// Recoverable 表示只用于模型自愈的内部工具结果，不代表真实工具执行。
 	Recoverable bool
 }
@@ -204,106 +201,24 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 			continue
 		}
 		metadata := mapValue(block["metadata"])
-		mutationResult, _ := protocol.ParseMutationResultEnvelope(
-			map[string]any{
-				"outcome":     metadata[protocol.MutationOutcomeMetadataKey],
-				"message":     metadata[protocol.MutationMessageMetadataKey],
-				"reason_code": metadata[protocol.MutationReasonCodeMetadataKey],
-			},
-			block["structured_output"],
-			block["content"],
-		)
-		goalStatus, _ := protocol.ParseGoalStatusResult(
-			map[string]any{"goal": map[string]any{"status": metadata[protocol.GoalStatusMetadataKey]}},
-			block["structured_output"],
-			block["content"],
-		)
-		goalID, _ := protocol.ParseGoalIDResult(
-			map[string]any{"goalId": metadata[protocol.GoalIDMetadataKey]},
-			block["structured_output"],
-			block["content"],
-		)
 		observations = append(observations, ToolResultObservation{
-			ToolUseID:       toolUseID,
-			ToolName:        toolNames[toolUseID],
-			ErrorCode:       normalizeString(block["error_code"]),
-			IsError:         boolValue(block["is_error"]),
-			MutationOutcome: mutationResult.Outcome,
-			GoalID:          goalID,
-			GoalStatus:      goalStatus,
-			Recoverable:     normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
+			ToolUseID:   toolUseID,
+			ToolName:    toolNames[toolUseID],
+			ErrorCode:   normalizeString(block["error_code"]),
+			IsError:     boolValue(block["is_error"]),
+			Recoverable: normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
 		})
 	}
 	return observations
 }
 
-// SuccessfulGoalCompletionID 返回当前消息里成功 complete 的精确 Goal ID。
-// 工具结果返回 identity 时以它为准；旧结果没有 identity 时才回退到宿主在
-// 同一物理 round 固定的 Goal binding。两者冲突时 fail closed。
-func SuccessfulGoalCompletionID(
-	observations []ToolResultObservation,
-	boundGoalID string,
-) string {
-	boundGoalID = strings.TrimSpace(boundGoalID)
-	for _, observation := range observations {
-		if observation.Recoverable || observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected ||
-			observation.MutationOutcome == protocol.MutationResultSuperseded ||
-			CanonicalToolName(observation.ToolName) != "update_goal" ||
-			observation.GoalStatus != protocol.GoalStatusComplete {
-			continue
-		}
-		resultGoalID := strings.TrimSpace(observation.GoalID)
-		if resultGoalID != "" {
-			if boundGoalID != "" && boundGoalID != resultGoalID {
-				continue
-			}
-			return resultGoalID
-		}
-		if boundGoalID != "" {
-			return boundGoalID
-		}
-	}
-	return ""
-}
-
-// GoalProgressClass 是 Goal continuation 唯一消费的工具进展分类。
-// Durable collaboration handoff/queue 不经过这里；Room ledger 单独把它
-// 投影为 defer，避免一次 send_message 同时伪装成 mutation progress。
-type GoalProgressClass string
-
-const (
-	GoalProgressNone                   GoalProgressClass = "none"
-	GoalProgressMutation               GoalProgressClass = "goal_mutation"
-	GoalProgressBoundWorkGraphMutation GoalProgressClass = "goal_bound_workgraph_mutation"
-)
-
-// AssistantGoalProgressClass classifies only explicit applied mutation
-// receipts. Unknown tools fail closed even when their transport succeeded.
-func AssistantGoalProgressClass(
-	message protocol.Message,
-	goalBound bool,
-) GoalProgressClass {
-	for _, observation := range AssistantToolResults(message) {
-		if class := toolResultGoalProgressClass(observation, goalBound); class != GoalProgressNone {
-			return class
-		}
-	}
-	return GoalProgressNone
-}
-
-// AssistantHasCountedToolProgress reports whether the typed classification is
-// a real Goal mutation or an applied WorkGraph mutation under exact Goal scope.
-func AssistantHasCountedToolProgress(message protocol.Message, goalBound bool) bool {
-	return AssistantGoalProgressClass(message, goalBound) != GoalProgressNone
-}
-
-// AssistantMissedGoalCompletionTool 判断 assistant 是否声称目标已完成，但把 Goal 完成工具误判为不可用。
-func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
+// AssistantMissedGoalCompletionCommand 判断 assistant 是否声称目标已完成，
+// 但宿主没有收到 applied update_goal command receipt。
+func AssistantMissedGoalCompletionCommand(message protocol.Message, completionRecorded bool) bool {
 	if protocol.MessageRole(message) != "assistant" {
 		return false
 	}
-	if assistantHasSuccessfulGoalUpdateTool(message) {
+	if completionRecorded {
 		return false
 	}
 	text := normalizeCompletionSignalText(ExtractAssistantDisplayText(message))
@@ -316,60 +231,9 @@ func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
 	if claimsFinalGoalWorkComplete(text) {
 		return true
 	}
-	return mentionsGoalUpdateTool(text) &&
-		claimsGoalUpdateToolUnavailable(text) &&
+	return mentionsGoalUpdateCommand(text) &&
+		claimsGoalUpdateCommandUnavailable(text) &&
 		claimsGoalWorkComplete(text)
-}
-
-func toolResultGoalProgressClass(
-	observation ToolResultObservation,
-	goalBound bool,
-) GoalProgressClass {
-	if observation.Recoverable || observation.IsError ||
-		observation.MutationOutcome != protocol.MutationResultApplied {
-		return GoalProgressNone
-	}
-	switch CanonicalToolName(observation.ToolName) {
-	case "create_goal", "retarget_goal", "audit_objective_alignment", "update_goal",
-		"promote_execution_to_goal":
-		return GoalProgressMutation
-	case "plan_execution", "abandon_execution", "assign_work", "submit_work",
-		"review_work", "block_work", "resume_work", "take_over_work",
-		"audit_execution_alignment":
-		if goalBound {
-			return GoalProgressBoundWorkGraphMutation
-		}
-	}
-	return GoalProgressNone
-}
-
-func assistantHasSuccessfulGoalUpdateTool(message protocol.Message) bool {
-	for _, observation := range AssistantToolResults(message) {
-		if observation.IsError ||
-			observation.MutationOutcome == protocol.MutationResultRejected ||
-			observation.MutationOutcome == protocol.MutationResultSuperseded {
-			continue
-		}
-		if CanonicalToolName(observation.ToolName) == "update_goal" {
-			return true
-		}
-	}
-	return false
-}
-
-// CanonicalToolName 把 SDK/MCP 展示名规整为模型工具短名。
-func CanonicalToolName(name string) string {
-	name = normalizeString(name)
-	if name == "" {
-		return ""
-	}
-	if strings.HasPrefix(name, "mcp__") {
-		parts := strings.Split(name, "__")
-		if len(parts) >= 3 {
-			return strings.TrimSpace(parts[len(parts)-1])
-		}
-	}
-	return name
 }
 
 func normalizeCompletionSignalText(text string) string {
@@ -385,12 +249,11 @@ func normalizeCompletionSignalText(text string) string {
 	}, text)
 }
 
-func mentionsGoalUpdateTool(text string) bool {
+func mentionsGoalUpdateCommand(text string) bool {
 	for _, marker := range []string{
-		"mcp__nexus_goal__update_goal",
+		"nexus goal invoke",
 		"update_goal",
-		"nexus_goal",
-		"goal update tool",
+		"goal update command",
 		"更新目标",
 		"停止目标",
 	} {
@@ -401,13 +264,13 @@ func mentionsGoalUpdateTool(text string) bool {
 	return false
 }
 
-func claimsGoalUpdateToolUnavailable(text string) bool {
+func claimsGoalUpdateCommandUnavailable(text string) bool {
 	for _, marker := range []string{
 		"not available",
 		"unavailable",
 		"not exposed",
 		"not visible",
-		"not in the tool list",
+		"not in the command list",
 		"cannot call",
 		"can't call",
 		"could not call",
@@ -424,9 +287,9 @@ func claimsGoalUpdateToolUnavailable(text string) bool {
 		"无法调用",
 		"不能调用",
 		"不可用",
-		"没有这个工具",
-		"没有这样的工具",
-		"工具不存在",
+		"没有这个命令",
+		"没有这样的命令",
+		"命令不存在",
 		"未暴露",
 		"没暴露",
 		"不在工具",

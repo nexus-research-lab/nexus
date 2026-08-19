@@ -306,7 +306,7 @@ func TestRenderUnmanagedExecutionContextMakesRoleAndActionsExplicit(t *testing.T
 	if !strings.Contains(member, `role="member"`) ||
 		!strings.Contains(member, `<action>create_shared_execution</action>`) ||
 		!strings.Contains(memberAllowed, `<action>Agent</action>`) ||
-		strings.Contains(memberAllowed, "<action>get_execution</action>") ||
+		!strings.Contains(memberAllowed, "<action>get_execution</action>") ||
 		strings.Contains(memberAllowed, "<action>plan_execution</action>") {
 		t.Fatalf("unmanaged Room member context = %s", member)
 	}
@@ -336,10 +336,45 @@ func TestRenderConversationExecutionContextKeepsBackgroundWorkGraphUnbound(t *te
 	allowedEnd := strings.Index(rendered, "</allowed_actions>")
 	allowed := rendered[allowedStart:allowedEnd]
 	if !strings.Contains(allowed, "<action>Agent</action>") ||
+		!strings.Contains(allowed, "<action>get_execution</action>") ||
 		strings.Contains(allowed, "<action>submit_work</action>") ||
 		strings.Contains(rendered, "<assigned_work>") ||
 		strings.Contains(rendered, "<active_assignments>") {
 		t.Fatalf("conversation round received WorkGraph authority:\n%s", rendered)
+	}
+}
+
+func TestRenderExecutionContextMakesRoomObservationFullAndReadOnly(t *testing.T) {
+	snapshot := executionContextTestSnapshot()
+	rendered := RenderExecutionContext(
+		&snapshot,
+		ExecutionContextOptions{
+			ActorAgentID: "observer",
+			ScopeKind:    protocol.ExecutionScopeRoom,
+			ObserveOnly:  true,
+		},
+	)
+	for _, expected := range []string{
+		`<lane type="observation" />`,
+		`<graph_digest notation="nexus-dag-v1" scope="full"`,
+		`shared Room WorkGraph observation only`,
+		`<action>get_execution</action>`,
+		`<action>submit_work</action>`,
+		`<action>plan_execution</action>`,
+	} {
+		if !strings.Contains(rendered, expected) {
+			t.Fatalf("Room observation missing %q:\n%s", expected, rendered)
+		}
+	}
+	allowed := rendered[strings.Index(
+		rendered,
+		"<allowed_actions>",
+	):strings.Index(rendered, "</allowed_actions>")]
+	if strings.Contains(allowed, "<action>submit_work</action>") ||
+		strings.Contains(allowed, "<action>plan_execution</action>") ||
+		strings.Contains(rendered, "<assigned_work>") ||
+		strings.Contains(rendered, "<active_assignments>") {
+		t.Fatalf("Room observation leaked mutation authority:\n%s", rendered)
 	}
 }
 
@@ -570,7 +605,7 @@ func TestRenderExecutionContextPublishesOnlyCurrentlyCallableOrchestrationAction
 	):strings.Index(member, "</allowed_actions>")]
 	if !strings.Contains(
 		member,
-		"<action_scope>allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation;",
+		"<action_scope>allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names;",
 	) ||
 		strings.Contains(memberAllowed, "<action>submit_work</action>") ||
 		strings.Contains(memberAllowed, "<action>block_work</action>") {

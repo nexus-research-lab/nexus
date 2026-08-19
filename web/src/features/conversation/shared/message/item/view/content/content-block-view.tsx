@@ -12,6 +12,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 import { hasLiveStreamRevealMarker } from "@/lib/conversation/live-stream-reveal";
+import { isHiddenSystemEvent } from "../../../message-content-model";
 
 import { ImageBlock } from "../../../blocks/artifact/image/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
@@ -19,7 +20,6 @@ import { ThinkingBlock } from "../../../blocks/thinking-block";
 import { ToolUseErrorBlock } from "../../../blocks/tool/tool-use-error-block";
 import { MarkdownRenderer } from "../../../markdown-renderer";
 import {
-  isHiddenSystemEvent,
   shouldMountTextContentBlock,
   type StructuredContentProjection,
 } from "./content-renderer-model";

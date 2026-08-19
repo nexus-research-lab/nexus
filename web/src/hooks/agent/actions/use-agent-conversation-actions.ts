@@ -10,7 +10,10 @@ import type {
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import type { RequestTransportLeaseOptions } from "@/lib/websocket/request-transport-leases";
-import { getGoalRequestAcceptanceTimeoutMs } from "@/config/conversation-policy";
+import {
+  getGoalRequestAcceptanceTimeoutMs,
+  getMessageSendAckTimeoutMs,
+} from "@/config/conversation-policy";
 
 import type { AgentConversationActionContext } from "./conversation-action-context";
 import {
@@ -84,6 +87,9 @@ interface UseAgentConversationActionsParams {
 
 type SendOutboundRequest = () =>
   Promise<OutboundRequestDescriptor | null> | OutboundRequestDescriptor | null;
+type SendPreparedOutboundRequest = (
+  request: OutboundRequestDescriptor,
+) => ReturnType<SendOutboundRequest>;
 type SettleOutboundRequestFailure = (
   request: OutboundRequestDescriptor,
   error: unknown,
@@ -92,11 +98,16 @@ type SettleOutboundRequestFailure = (
 interface SendWithAckOptions {
   ackTimeoutMs?: number;
   preparedRequest?: OutboundRequestDescriptor;
-  preserveTransportAcrossUnmount?: boolean;
+  retainSessionUntilSettled?: boolean;
   timeoutMessage?: string;
 }
 
-const GOAL_REQUEST_TRANSPORT_TIMEOUT_MARGIN_MS = 5_000;
+type DurableSubmissionOptions = Pick<
+  SendWithAckOptions,
+  "ackTimeoutMs" | "timeoutMessage"
+>;
+
+const REQUEST_TRANSPORT_TIMEOUT_MARGIN_MS = 5_000;
 
 /**
  * 装配用户命令与 ACK 生命周期。
@@ -144,6 +155,12 @@ export function useAgentConversationActions({
         ?? actionContextRef.current.sessionKey;
       const requestIdentity = actionContextRef.current.identity;
       const preparedRequest = options.preparedRequest;
+      const ackTimeoutMs = options.ackTimeoutMs ?? getMessageSendAckTimeoutMs();
+      const unknownMessage = options.timeoutMessage
+        ?? "暂时无法确认消息是否已受理；正在核对会话状态";
+      if (options.retainSessionUntilSettled && !preparedRequest) {
+        throw new Error("durable submission requires a prepared request identity");
+      }
       const acceptanceCorrelation = preparedRequest && requestSessionKey
         ? {
             clientMessageId: preparedRequest.client_message_id,
@@ -151,9 +168,9 @@ export function useAgentConversationActions({
             sessionKey: requestSessionKey,
           } satisfies RequestAcceptanceCorrelation
         : null;
-      // Goal 的 raw ACK owner 必须先于命令发送注册；否则极快 ACK 可能在
+      // 用户提交的 raw ACK owner 必须先于命令发送注册；否则极快 ACK 可能在
       // sendRequest 的 Promise continuation 之前到达并被当成 foreign ACK。
-      const releasePreparedTransport = options.preserveTransportAcrossUnmount
+      const releasePreparedTransport = options.retainSessionUntilSettled
         && preparedRequest
         && requestSessionKey
         ? acquireRequestTransportLease({
@@ -177,7 +194,7 @@ export function useAgentConversationActions({
               rejectPendingRequestAck(
                 preparedRequest.client_request_id,
                 new RequestAcceptanceUnknownError(
-                  "暂时无法确认 Goal 是否已受理；正在核对 Goal 状态",
+                  unknownMessage,
                   acceptanceCorrelation,
                 ),
               );
@@ -188,10 +205,7 @@ export function useAgentConversationActions({
               room_id: requestIdentity?.room_id,
               conversation_id: requestIdentity?.conversation_id,
             }),
-            timeoutMs: options.ackTimeoutMs
-              ? options.ackTimeoutMs
-                + GOAL_REQUEST_TRANSPORT_TIMEOUT_MARGIN_MS
-              : undefined,
+            timeoutMs: ackTimeoutMs + REQUEST_TRANSPORT_TIMEOUT_MARGIN_MS,
           })
         : () => {};
       let request: OutboundRequestDescriptor | null;
@@ -236,54 +250,16 @@ export function useAgentConversationActions({
         : null;
       trackPendingRequestAck(
         requestId,
-        options.preserveTransportAcrossUnmount,
+        options.retainSessionUntilSettled,
       );
       trackOutboundRequest(requestId);
-      const releaseRequestTransport = options.preserveTransportAcrossUnmount
-        && !preparedRequest
-        && requestSessionKey
-        ? acquireRequestTransportLease({
-            clientRequestId: requestId,
-            onAccepted: () => {
-              resolvePendingRequestAck(requestId);
-            },
-            onRejected: (reason) => {
-              rejectPendingRequestAck(
-                requestId,
-                new RequestAcceptanceRejectedError(
-                  reason,
-                  requestAcceptanceCorrelation,
-                ),
-              );
-            },
-            onTimeout: () => {
-              rejectPendingRequestAck(
-                requestId,
-                new RequestAcceptanceUnknownError(
-                  "暂时无法确认 Goal 是否已受理；正在核对 Goal 状态",
-                  requestAcceptanceCorrelation,
-                ),
-              );
-            },
-            sessionBinding: buildSessionBindMessage({
-              session_key: requestSessionKey,
-              agent_id: requestIdentity?.agent_id,
-              room_id: requestIdentity?.room_id,
-              conversation_id: requestIdentity?.conversation_id,
-            }),
-            timeoutMs: options.ackTimeoutMs
-              ? options.ackTimeoutMs
-                + GOAL_REQUEST_TRANSPORT_TIMEOUT_MARGIN_MS
-              : undefined,
-          })
-        : releasePreparedTransport;
 
       try {
         await waitForRequestAck(
           requestId,
           () => {
             handleRequestAckTimeout(requestId, clientMessageId, {
-              ...(requestSessionKey && options.preserveTransportAcrossUnmount
+              ...(requestSessionKey && options.retainSessionUntilSettled
                 ? {
                     recoveryScope: {
                       identity: requestIdentity,
@@ -296,7 +272,7 @@ export function useAgentConversationActions({
                 : {}),
             });
           },
-          options.ackTimeoutMs,
+          ackTimeoutMs,
         );
       } catch (error) {
         const currentSessionKey = actionContextRef.current.activeSessionKeyRef.current
@@ -323,7 +299,7 @@ export function useAgentConversationActions({
       } finally {
         // ACK、明确拒绝、状态未知超时和显式 Session reset 都会结束
         // 原请求 Promise；请求级 socket/binding 租约必须在同一边界释放。
-        releaseRequestTransport();
+        releasePreparedTransport();
       }
 
       clearOutboundRequest(requestId);
@@ -341,55 +317,78 @@ export function useAgentConversationActions({
     ],
   );
 
+  const sendDurableSubmission = useCallback(
+    (
+      sendRequest: SendPreparedOutboundRequest,
+      settleFailure: SettleOutboundRequestFailure,
+      options: DurableSubmissionOptions = {},
+      clientMessageId?: string,
+    ): Promise<void> => {
+      const preparedRequest = createOutboundRequestDescriptor(clientMessageId);
+      return sendWithAck(
+        () => sendRequest(preparedRequest),
+        settleFailure,
+        {
+          ...options,
+          preparedRequest,
+          retainSessionUntilSettled: true,
+        },
+      );
+    },
+    [sendWithAck],
+  );
+
   const sendMessage = useCallback(
     (
       content: string,
       options: AgentConversationSendOptions = {},
-    ): Promise<void> => sendWithAck(
-      () => sendSessionMessage(content, actionContextRef.current, options),
+    ): Promise<void> => sendDurableSubmission(
+      (request) => sendSessionMessage(
+        content,
+        actionContextRef.current,
+        options,
+        request,
+      ),
       (request, error) => settleChatAckWaitFailure(
         request.client_request_id,
         request.client_message_id,
         error,
       ),
     ),
-    [sendWithAck, settleChatAckWaitFailure],
+    [sendDurableSubmission, settleChatAckWaitFailure],
   );
 
   const setGoal = useCallback(
     (
       objective: string,
       options: Parameters<typeof setSessionGoal>[2] = {},
-    ): Promise<void> => {
-      const preparedRequest = createOutboundRequestDescriptor();
-      return sendWithAck(
-        () => setSessionGoal(
-          objective,
-          actionContextRef.current,
-          options,
-          preparedRequest,
-        ),
-        (request, error) => settleChatAckWaitFailure(
-          request.client_request_id,
-          request.client_message_id,
-          error,
-        ),
-        {
-          ackTimeoutMs: getGoalRequestAcceptanceTimeoutMs(),
-          preparedRequest,
-          preserveTransportAcrossUnmount: true,
-        },
-      );
-    },
-    [sendWithAck, settleChatAckWaitFailure],
+    ): Promise<void> => sendDurableSubmission(
+      (request) => setSessionGoal(
+        objective,
+        actionContextRef.current,
+        options,
+        request,
+      ),
+      (request, error) => settleChatAckWaitFailure(
+        request.client_request_id,
+        request.client_message_id,
+        error,
+      ),
+      {
+        ackTimeoutMs: getGoalRequestAcceptanceTimeoutMs(),
+        timeoutMessage: "暂时无法确认 Goal 是否已受理；正在核对 Goal 状态",
+      },
+    ),
+    [sendDurableSubmission, settleChatAckWaitFailure],
   );
 
   const rewriteLastMessage = useCallback(
-    (targetRoundId: string, content: string): Promise<void> => sendWithAck(
-      () => rewriteLastUserMessage(
+    (targetRoundId: string, content: string): Promise<void> => sendDurableSubmission(
+      (request) => rewriteLastUserMessage(
         targetRoundId,
         content,
         actionContextRef.current,
+        request,
       ),
       (request, error) => settleChatAckWaitFailure(
         request.client_request_id,
@@ -397,7 +396,7 @@ export function useAgentConversationActions({
         error,
       ),
     ),
-    [sendWithAck, settleChatAckWaitFailure],
+    [sendDurableSubmission, settleChatAckWaitFailure],
   );
 
   const enqueueQueueMessage = useCallback(
@@ -423,23 +422,25 @@ export function useAgentConversationActions({
         inputQueueClientMessageIDsRef.current,
         scopedFingerprint,
       );
-      await sendWithAck(
-        () => enqueueInputQueueMessage(
+      await sendDurableSubmission(
+        (request) => enqueueInputQueueMessage(
           content,
           actionContextRef.current,
           deliveryPolicy,
           attachments,
           targetAgentIDs,
-          clientMessageId,
+          request,
         ),
         (request, error) => settleRequestAckWaitFailure(
           request.client_request_id,
           error,
         ),
+        {},
+        clientMessageId,
       );
       inputQueueClientMessageIDsRef.current.delete(scopedFingerprint);
     },
-    [sendWithAck, settleRequestAckWaitFailure],
+    [sendDurableSubmission, settleRequestAckWaitFailure],
   );
 
   const deleteQueueMessage = useCallback(

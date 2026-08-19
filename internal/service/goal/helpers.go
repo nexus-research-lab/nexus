@@ -111,7 +111,7 @@ func resetGoalContinuationForObjectiveReplacement(item *protocol.Goal) {
 	}
 	item.ContinuationCount = 0
 	item.EmptyProgressCount = 0
-	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
+	item.Metadata = clearContinuationReservations(clearCompletionCommandRetryMetadata(item.Metadata))
 	item.Metadata = cloneMap(item.Metadata)
 	delete(item.Metadata, protocol.GoalMetadataObjectiveAlignment)
 	delete(item.Metadata, protocol.GoalMetadataBlocker)

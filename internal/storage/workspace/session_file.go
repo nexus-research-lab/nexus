@@ -198,12 +198,51 @@ func (s *SessionFileStore) PatchSessionRuntime(
 ) (*protocol.Session, error) {
 	unlock := lockSessionMutation(s.ownerUserID, workspacePath, item.SessionKey)
 	defer unlock()
+	return s.patchSessionRuntimeLocked(workspacePath, item, nil)
+}
+
+// PatchSessionRuntimeAtVersion 只在配置版本仍与后台 runtime 预备快照一致时合并热态。
+// 成功不会推进 configuration_version；用户配置仍只由控制面 writer 推进。
+func (s *SessionFileStore) PatchSessionRuntimeAtVersion(
+	workspacePath string,
+	item protocol.Session,
+	expectedConfigurationVersion int64,
+) (*protocol.Session, error) {
+	if expectedConfigurationVersion < 1 {
+		return nil, errors.New("expected session configuration_version 必须大于 0")
+	}
+	unlock := lockSessionMutation(s.ownerUserID, workspacePath, item.SessionKey)
+	defer unlock()
+	return s.patchSessionRuntimeLocked(
+		workspacePath,
+		item,
+		&expectedConfigurationVersion,
+	)
+}
+
+func (s *SessionFileStore) patchSessionRuntimeLocked(
+	workspacePath string,
+	item protocol.Session,
+	expectedConfigurationVersion *int64,
+) (*protocol.Session, error) {
 	current, _, err := s.FindSession([]string{workspacePath}, item.SessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if current == nil {
+		if expectedConfigurationVersion != nil {
+			return nil, os.ErrNotExist
+		}
 		return s.upsertSessionLocked(workspacePath, item, nil, false)
+	}
+	if expectedConfigurationVersion != nil &&
+		current.ConfigurationVersion != *expectedConfigurationVersion {
+		return nil, fmt.Errorf(
+			"%w: expected=%d actual=%d",
+			ErrSessionConfigurationVersionConflict,
+			*expectedConfigurationVersion,
+			current.ConfigurationVersion,
+		)
 	}
 	merged := item
 	merged.SessionKey = current.SessionKey

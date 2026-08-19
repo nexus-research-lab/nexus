@@ -8,7 +8,8 @@
 //
 // 成员地图：
 //   - agent.go / agent_private.go / skill.go：Agent、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
-//   - session*.go / conversation_turn.go / input_queue.go：会话、消息、轮次、
+//   - session*.go / conversation_message_annotation.go / input_queue.go：会话、消息、轮次、
+//     Connector 继承/显式选择快照、
 //     公开 handoff 回复因果注解、外部 IM 身份、Goal 完成收据、记忆引用、
 //     上下文占用和持久输入队列。
 //   - room*.go：Room、可按好友对恢复的联系人内部通道、成员 participation gate、
@@ -17,8 +18,8 @@
 //     objective revision、非授权 Room collaboration attribution、Execution binding
 //     五态 resolution、用量与对齐审计。
 //   - execution*.go / execution_plan_proposal.go：Execution、Plan/Work Item、
-//     Assignment/Attempt/Submission/Acceptance、dispatch/cancellation、Runtime Graph
-//     与只读 WorkGraph view。当前语义见 docs/specs/execution-orchestration-spec.md
+//     Assignment/Attempt/Submission/Acceptance、dispatch/cancellation、Runtime Graph、
+//     画布专用 append-only WorkGraph history 与只读 WorkGraph view。当前语义见 docs/specs/execution-orchestration-spec.md
 //     和 docs/specs/execution-graph-spec.md。
 //   - automation_run.go / im_permission_command.go：受控 Automation 运行上下文与
 //     普通 runtime/Automation 共用的 IM 权限短命令。

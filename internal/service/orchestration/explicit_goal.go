@@ -197,7 +197,7 @@ func (s *Service) BindExplicitGoal(
 					NoOpResult(snapshot, ""),
 					"Explicit Goal and Execution are durably bound; reverse binding confirmation is pending and will retry automatically.",
 					NextAction{
-						Tool:   "get_execution",
+						Domain: "execution", Operation: "get_execution",
 						Reason: "continue from the durable Execution while background reconciliation confirms the Goal binding",
 					},
 				), nil
@@ -296,7 +296,7 @@ func (s *Service) persistExplicitGoalBinding(
 			}, nextActions(updated, actor)),
 			"Explicit Goal and Execution are durable; reverse binding confirmation is pending and will retry automatically.",
 			NextAction{
-				Tool:   "get_execution",
+				Domain: "execution", Operation: "get_execution",
 				Reason: "continue from the durable Execution while background reconciliation confirms the Goal binding",
 			},
 		), nil

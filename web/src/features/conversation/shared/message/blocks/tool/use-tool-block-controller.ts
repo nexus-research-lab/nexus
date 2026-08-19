@@ -1,11 +1,18 @@
 "use client";
 
+/**
+ * INPUT: Tool 生命周期、权限和可选 generation-bound 完整结果引用。
+ * OUTPUT: 展开/复制/权限动作及稳定 ToolBlock 展示模型。
+ * POS: ToolBlock 的交互与按需完整结果控制器。
+ */
+
 import { useCallback } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
 import type { ToolResultContent } from "@/types/conversation/message/content";
 
@@ -52,11 +59,17 @@ export function useToolBlockController({
     toolUse,
   });
   const copyResult = useCallback(async () => {
-    const content = getToolResultCopyText(toolResult);
-    if (content === null) {
-      return;
+    try {
+      const content = getToolResultCopyText(
+        await resolveCompleteToolResult(toolResult),
+      );
+      if (content === null) {
+        return;
+      }
+      await copy(content);
+    } catch (error) {
+      console.error("[conversation] Failed to copy complete tool result", error);
     }
-    await copy(content);
   }, [copy, toolResult]);
   const allow = useCallback(() => {
     if (!permissionRequest) {
@@ -92,6 +105,18 @@ export function useToolBlockController({
       selectedSuggestionIndex,
     },
   };
+}
+
+async function resolveCompleteToolResult(
+  toolResult: ToolResultContent | undefined,
+): Promise<ToolResultContent | undefined> {
+  const detailRef = toolResult?.detail_ref?.trim();
+  const sessionKey = toolResult?.detail_session_key?.trim();
+  if (!toolResult || !detailRef || !sessionKey) {
+    return toolResult;
+  }
+  const detail = await getSessionMessageDetailApi(sessionKey, detailRef);
+  return { ...toolResult, content: detail.content };
 }
 
 function getToolResultCopyText(

@@ -275,8 +275,9 @@ func (f *fakeDMFactory) OptionAt(index int) agentclient.Options {
 }
 
 type fakeDMRoomSessionStore struct {
-	mu      sync.Mutex
-	updates []fakeDMRoomSessionUpdate
+	mu       sync.Mutex
+	updates  []fakeDMRoomSessionUpdate
+	sessions map[string]protocol.Session
 }
 
 type fakeDMRoomSessionUpdate struct {
@@ -285,11 +286,48 @@ type fakeDMRoomSessionUpdate struct {
 }
 
 func (s *fakeDMRoomSessionStore) GetRoomSessionByKey(
-	context.Context,
-	string,
-	protocol.SessionKey,
+	_ context.Context,
+	_ string,
+	key protocol.SessionKey,
 ) (*protocol.Session, error) {
-	return nil, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.sessions[key.Raw]
+	if !ok {
+		return nil, nil
+	}
+	copy := item
+	return &copy, nil
+}
+
+func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+	_ context.Context,
+	roomSessionID string,
+	sdkSessionID string,
+	expected protocol.SessionConnectorSelection,
+) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, item := range s.sessions {
+		if item.RoomSessionID == nil || strings.TrimSpace(*item.RoomSessionID) != strings.TrimSpace(roomSessionID) {
+			continue
+		}
+		if !protocol.SessionConnectorSelectionFromOptions(item.Options).Equal(expected) {
+			return false, nil
+		}
+		item.SessionID = &sdkSessionID
+		item.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+			item.TranscriptSessionIDs,
+			[]string{sdkSessionID},
+		)
+		s.sessions[key] = item
+		s.updates = append(s.updates, fakeDMRoomSessionUpdate{
+			roomSessionID: strings.TrimSpace(roomSessionID),
+			sdkSessionID:  strings.TrimSpace(sdkSessionID),
+		})
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionID(

@@ -17,6 +17,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
@@ -109,12 +110,20 @@ type Request struct {
 	// trustedQueuedConfigurationContext 只能由本包在成功 claim 宿主 DB
 	// admission 后设置，外部 Request 构造者无法伪造。
 	trustedQueuedConfigurationContext bool
+	// rewriteOverlayOnly 只能由本包 rewrite planner 在确认目标是未进入 SDK
+	// transcript 的 durable 失败 round 后设置，外部 Request 无法绕过 UUID 边界。
+	rewriteOverlayOnly bool
 	// forkSourceSessionID / forkMessageID 只由 Room service 写入，HTTP/WS 请求不能伪造。
 	forkSourceSessionID string
 	forkMessageID       string
-	InputOptions        sdkprotocol.OutboundMessageOptions
-	PermissionMode      sdkpermission.Mode
-	PermissionHandler   sdkpermission.Handler
+	// runtimePreparationOnly 只由 Session 设置提交后的后台预备器设置；它只允许
+	// 物化工具面 fork，不创建用户消息或模型 round。
+	runtimePreparationOnly       bool
+	expectedConfigurationVersion int64
+	expectedConnectorSelection   *protocol.SessionConnectorSelection
+	InputOptions                 sdkprotocol.OutboundMessageOptions
+	PermissionMode               sdkpermission.Mode
+	PermissionHandler            sdkpermission.Handler
 	// RuntimeToolPolicy 仅供 automation 等受控执行传入创建时权限快照。
 	// 普通会话为 nil，继续使用 Agent 当前工具配置。
 	RuntimeToolPolicy *protocol.RuntimeToolPolicy
@@ -168,16 +177,10 @@ type ConfigurationRuntimeEnvironmentBuilder func(
 	string,
 ) (map[string]string, error)
 
-// AutomationRuntimeEnvironmentBuilder 为当前 physical round 签发 Agent-facing nexus CLI 环境。
-type AutomationRuntimeEnvironmentBuilder func(
+// RuntimeCommandEnvironmentBuilder 为当前 physical round 签发 Agent-facing nexus CLI 环境。
+type RuntimeCommandEnvironmentBuilder func(
 	context.Context,
-	*protocol.Agent,
-	string,
-	string,
-	string,
-	string,
-	string,
-	*protocol.AutomationRunContext,
+	runtimecommand.RoundContext,
 ) (map[string]string, error)
 
 // Service 负责编排 DM 实时链路。
@@ -208,11 +211,24 @@ type Service struct {
 	logger                    *slog.Logger
 	mcpServers                MCPServerBuilder
 	configurationRuntimeEnv   ConfigurationRuntimeEnvironmentBuilder
-	automationRuntimeEnv      AutomationRuntimeEnvironmentBuilder
-	executionMCPServers       runtimectx.ExecutionMCPServerBuilder
+	runtimeCommandEnv         RuntimeCommandEnvironmentBuilder
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
+	connectorRuntimeStates    ConnectorRuntimeStateLoader
+	connectorPreparationMu    sync.Mutex
+	connectorPreparations     map[string]*connectorRuntimePreparation
+	connectorPreparationDelay time.Duration
+	connectorPreparationRun   func(context.Context, protocol.Session) error
 }
+
+// ConnectorRuntimeState 是可安全进入模型动态上下文的 Connector 脱敏状态。
+type ConnectorRuntimeState struct {
+	ConnectorID string
+	Configured  bool
+}
+
+// ConnectorRuntimeStateLoader 读取 owner 的 Connector 配置/授权状态，不返回凭据。
+type ConnectorRuntimeStateLoader func(context.Context, string) ([]ConnectorRuntimeState, error)
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
 type ExternalReplyTarget struct {
@@ -278,7 +294,7 @@ type goalContextProvider interface {
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordContinuationProgress(context.Context, string, string, bool, ...int64) (*protocol.Goal, error)
 	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
-	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordCompletionCommandMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
@@ -293,14 +309,16 @@ func NewService(
 	permission *permissionctx.Context,
 ) *Service {
 	return &Service{
-		config:     cfg,
-		agents:     agentService,
-		runtime:    runtimeManager,
-		permission: permission,
-		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		inputQueue: workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		logger:     logx.NewDiscardLogger(),
+		config:                    cfg,
+		agents:                    agentService,
+		runtime:                   runtimeManager,
+		permission:                permission,
+		files:                     workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		history:                   workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		inputQueue:                workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		logger:                    logx.NewDiscardLogger(),
+		connectorPreparations:     make(map[string]*connectorRuntimePreparation),
+		connectorPreparationDelay: defaultConnectorPreparationDelay,
 	}
 }
 
@@ -326,16 +344,11 @@ func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
 	s.configurationRuntimeEnv = builder
 }
 
-// SetAutomationRuntimeEnvironmentBuilder 注入可信 Nexus Automation CLI capability 签发器。
-func (s *Service) SetAutomationRuntimeEnvironmentBuilder(
-	builder AutomationRuntimeEnvironmentBuilder,
+// SetRuntimeCommandEnvironmentBuilder 注入可信 Nexus runtime command capability 签发器。
+func (s *Service) SetRuntimeCommandEnvironmentBuilder(
+	builder RuntimeCommandEnvironmentBuilder,
 ) {
-	s.automationRuntimeEnv = builder
-}
-
-// SetExecutionMCPServerBuilder 注入需要完整 round identity 的 Execution MCP overlay。
-func (s *Service) SetExecutionMCPServerBuilder(builder runtimectx.ExecutionMCPServerBuilder) {
-	s.executionMCPServers = builder
+	s.runtimeCommandEnv = builder
 }
 
 // SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。
@@ -393,6 +406,11 @@ func (s *Service) SetTitleGenerator(generator titleScheduler) {
 // SetExternalReplyDispatcher 注入外部 IM 自然回复投递器。
 func (s *Service) SetExternalReplyDispatcher(dispatcher ExternalReplyDispatcher) {
 	s.replies = dispatcher
+}
+
+// SetConnectorRuntimeStateLoader 注入 Connector 配置/授权状态真相源。
+func (s *Service) SetConnectorRuntimeStateLoader(loader ConnectorRuntimeStateLoader) {
+	s.connectorRuntimeStates = loader
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {

@@ -149,11 +149,12 @@ WorkGraph 必须先完成产品可见性投影，再对主图窗口应用上限�
 
 View 使用与 Runtime Graph 相同的四种 kind：`agent`、`subagent`、`tool`、`gate`。
 
-- Agent 节点以 Work Item 为稳定责任身份；同一 Agent 承担不同 Work Item 时是不同节点。
+- 尚未执行的 Work Item 以自身 ID 作为 planned placeholder；一旦产生 root Attempt，每个 root Attempt 都是独立 Agent 轮次节点，最新轮次可继续使用 Work Item ID 作为当前稳定锚点，旧轮使用 Attempt ID，绝不把驳回、重领或重试压回同一头像节点。
 - 一个 Agent round 可以作为多个串行 Assignment/Attempt 执行段的外层容器；Tool 必须优先按 exact 执行段归属，不能因头像、Agent ID 或共享 AgentRoundID 被全部折叠到最后一个 Work Item。
 - 每个 durable child Attempt 都拥有独立 Subagent 节点，不能按父 Agent 或头像合并。
 - Tool 节点对应独立 Tool NodeRun。
-- Gate 节点必须来自 durable review binding/dispatch 或已观测 runtime Gate，不能从文本猜测。
+- 每个 immutable Submission 都产生独立 review Gate；Acceptance 的 `rejected` 与 `changes_requested` 均保留 Gate 并通过 `loop_back` 指向当前或下一 root Attempt，已验收的旧 Gate 不被最新结果覆盖。
+- Gate 节点必须来自 durable Submission/review binding/dispatch/Acceptance 或已观测 runtime Gate，不能从文本猜测。
 - managed Attempt 与 Runtime NodeRun 只按 exact round/subject identity 合并到 `runs`，避免同一次物理运行重复展示。
 
 ### 5.2 visibility
@@ -198,7 +199,6 @@ visibility 只影响默认展示，不改变运行、权限或责任状态。
 - 外部 MCP capability 调用；
 - 浏览器导航、点击、填写、下载、截图；
 - 创建、更新、提交、发送、发布、部署、生成等明确动作；
-- `submit_work`，因为它是 Work → Review 的真实 control anchor。
 
 默认保留为 `detail` 的支持性动作包括：
 
@@ -206,6 +206,7 @@ visibility 只影响默认展示，不改变运行、权限或责任状态。
 - filesystem/workspace MCP；
 - Tool discovery 与 Skill 加载；
 - 已被 Work Item、Gate 或 Goal 领域节点完整表达的管理工具调用。
+- `nexus goal|execution` 及历史同义 MCP transport，包括 `submit_work`；它们只保留 detail 审计，Work → Review 由 durable Attempt/Submission Gate 表达。
 
 以下结构事实可以把 Tool 从 `detail` 提升到 `nested`：
 
@@ -256,7 +257,7 @@ managed 的最低条件是 Execution 拥有 active Plan，且该 Plan 至少包�
 - 同一目标与侧面的回连可以合流到共享 U 形总线；线与线可以重叠，线不得穿过节点。
 - 回连总线与圆角边框必须保留稳定内缩留白。
 - 普通流程使用可读中性灰；回连使用降饱和暖色和接近的线宽/透明度。
-- review 与 changes-requested 返回应锚定成功的 `submit_work` 节点，而不是笼统连到 Agent 头像。
+- review 从 exact root Attempt 轮次连到该 immutable Submission 的 Gate；`rejected`/`changes_requested` 再从该 Gate 回到同一或下一 Attempt。隐藏的 CLI transport 节点不得成为控制锚点。
 
 ### 8.3 只读白板
 
@@ -284,6 +285,8 @@ managed 的最低条件是 Execution 拥有 active Plan，且该 Plan 至少包�
 10. read model 不暴露 command、lease、capability identity、凭证或完整原始 Tool I/O。
 11. owner、session 与 Execution identity 必须精确匹配；跨 owner/session 数据不得进入视图。
 12. 截断、旧快照和读取失败必须显式呈现，不能伪装成完整实时图。
+13. Snapshot 与 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史必须在同一 read transaction 中读取；前端刷新不得让已出现的轮次短暂消失。
+14. 布局先建立全部非控制边，再判断 `retry`/`loop_back` 是进入新 Attempt 的前向边还是闭环回边；结果不能依赖 JSON 边顺序。
 
 ## 10. 当前非目标
 

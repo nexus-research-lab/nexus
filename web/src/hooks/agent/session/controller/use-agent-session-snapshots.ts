@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前/后台 Session 的可恢复消息与易失运行态。
+ * OUTPUT: 受限后台消息缓存和按 Session 隔离的易失快照恢复。
+ * POS: Session 切换时的非 canonical 浏览器恢复层。
+ */
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
@@ -9,6 +14,7 @@ import {
   upsertMessage,
 } from "../../message/message-collection-model";
 import { latestAssistantResultErrorMessage } from "../../message/assistant-message-model";
+import { boundLoadedMessages } from "../../message/message-window-model";
 import {
   isRecoverableMessage,
   type AgentConversationRuntimeSnapshot,
@@ -61,7 +67,9 @@ export function useAgentSessionSnapshots({
       ?? [];
     backgroundMessagesRef.current.set(
       targetSessionKey,
-      upsertMessage(currentMessages, message),
+      boundLoadedMessages(upsertMessage(currentMessages, message), {
+        preference: "latest",
+      }),
     );
   }, []);
 
@@ -75,9 +83,9 @@ export function useAgentSessionSnapshots({
 
     let restoredMessages = snapshot.messages;
     setMessages((currentMessages) => {
-      restoredMessages = mergeLoadedMessages(
-        snapshot.messages,
-        currentMessages,
+      restoredMessages = boundLoadedMessages(
+        mergeLoadedMessages(snapshot.messages, currentMessages),
+        { preference: "latest" },
       );
       return restoredMessages;
     });

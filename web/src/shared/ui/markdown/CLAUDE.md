@@ -16,4 +16,6 @@ Markdown `hr` 是正文内部的语义分隔，保持内容列宽度；Conversat
 
 Markdown `strong` 统一使用 600 字重；聊天中文正文所用字体只有常规字重，因此只在 `strong` 内允许合成 weight，普通正文继续禁止合成粗体。
 
+会增量追加的段落和引用使用普通换行，禁止 `text-wrap: pretty/balance`；这类算法会随尾部字符到达重新平衡已经展示的行，造成 live 卡片高度反复增减。静态与流式组件保持同一换行契约，terminal 不得再切换排版算法。
+
 Feature 只能通过这里消费通用 Markdown。Conversation 对文件产物等消息协议的解释留在自己的适配器中，不得回流到共享入口。

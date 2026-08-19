@@ -37,6 +37,12 @@ const WRITE_TOOL_NAMES = new Set([
   "write",
 ]);
 
+const WORKFLOW_TOOL_NAMES = new Set([
+  "agent",
+  "skill",
+  "task",
+]);
+
 const BROWSER_ACTION_PREFIXES = [
   "click",
   "fill",
@@ -80,10 +86,7 @@ export function resolveExecutionToolVisualKind(
   if (INSPECT_TOOL_NAMES.has(parsed.leaf)) {
     return "inspect";
   }
-  if (
-    parsed.server.includes("nexusexecution")
-    || parsed.server.includes("nexusgoal")
-  ) {
+  if (WORKFLOW_TOOL_NAMES.has(parsed.leaf)) {
     return "workflow";
   }
   if (

@@ -12,6 +12,7 @@ import (
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 type runtimeCurrentTaskContext struct {
@@ -32,7 +33,7 @@ var runtimeCurrentConversationQueryTerms = []string{
 	"current scheduled task",
 }
 
-func runtimeTaskContextFromActor(actor RuntimeCommandActor) (runtimeCurrentTaskContext, bool) {
+func runtimeTaskContextFromActor(actor runtimecommand.Actor) (runtimeCurrentTaskContext, bool) {
 	sessionKey := strings.TrimSpace(actor.SessionKey)
 	if sessionKey == "" {
 		return runtimeCurrentTaskContext{}, false
@@ -60,7 +61,7 @@ func runtimeTaskContextFromActor(actor RuntimeCommandActor) (runtimeCurrentTaskC
 func runtimeBestMatchingTasks(
 	jobs []automationdomain.ScheduledTask,
 	query string,
-	actor RuntimeCommandActor,
+	actor runtimecommand.Actor,
 ) []automationdomain.ScheduledTask {
 	current, ok := runtimeTaskContextFromActor(actor)
 	if !ok {
@@ -82,7 +83,7 @@ func runtimeBestMatchingTasks(
 func runtimeFilterTasksForList(
 	jobs []automationdomain.ScheduledTask,
 	query string,
-	actor RuntimeCommandActor,
+	actor runtimecommand.Actor,
 ) []automationdomain.ScheduledTask {
 	current, ok := runtimeTaskContextFromActor(actor)
 	if !ok {
@@ -224,7 +225,7 @@ func runtimeEventDetailString(detail map[string]any, key string) string {
 
 func (s *Service) runtimeCurrentContextHistoryItems(
 	ctx context.Context,
-	actor RuntimeCommandActor,
+	actor runtimecommand.Actor,
 	agentID string,
 	query string,
 	includeActive bool,
@@ -317,7 +318,7 @@ func runtimeTaskEventMatchesQuery(event automationdomain.ScheduledTaskEvent, que
 
 func (s *Service) runtimeCurrentConversationReport(
 	ctx context.Context,
-	actor RuntimeCommandActor,
+	actor runtimecommand.Actor,
 	input automationdomain.AutomationCommandInput,
 	agentID string,
 ) (*automationdomain.ScheduledTaskDailyReport, bool, error) {

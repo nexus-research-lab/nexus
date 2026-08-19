@@ -1,3 +1,6 @@
+// INPUT: 最后一条 durable DM 用户消息、其 terminal 结果与可选 SDK transcript 边界。
+// OUTPUT: 严格裁剪旧 round 后启动 replacement round；启动前失败允许精确 overlay-only 裁剪。
+// POS: DM“编辑/重新运行”命令的服务端事务规划边界。
 package dm
 
 import (
@@ -11,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 type rewritePruneInput struct {
@@ -100,10 +104,12 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 	if len(attachments) == 0 {
 		attachments = protocol.ChatAttachmentsFromAny(lastUser["attachments"])
 	}
-	tail, err := ownerHistory.ResolveTranscriptRoundTail(
+	tail, overlayOnly, err := resolveRewriteTail(
+		ownerHistory,
 		agentValue.WorkspacePath,
 		sessionKey,
-		dmdomain.StringPointerValue(sessionItem.SessionID),
+		sessionItem,
+		rows,
 		targetRoundID,
 	)
 	if err != nil {
@@ -137,7 +143,89 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		RewriteRemoveMessageUUIDs: tail.MessageUUIDs,
 		RewriteRemoveRoundIDs:     tail.RoundIDs,
 		RewriteRemoveMessageCount: countHistoryRowsForRound(rows, targetRoundID),
+		rewriteOverlayOnly:        overlayOnly,
 	})
+}
+
+func resolveRewriteTail(
+	history *workspacestore.AgentHistoryStore,
+	workspacePath string,
+	sessionKey string,
+	session protocol.Session,
+	rows []protocol.Message,
+	targetRoundID string,
+) (workspacestore.TranscriptRoundTail, bool, error) {
+	overlayOnlyCandidate := isUnmaterializedFailedRound(rows, targetRoundID)
+	sessionID := dmdomain.StringPointerValue(session.SessionID)
+	if strings.TrimSpace(sessionID) == "" {
+		if overlayOnlyCandidate {
+			return overlayOnlyRewriteTail(targetRoundID), true, nil
+		}
+		return workspacestore.TranscriptRoundTail{}, false, errors.New(
+			"cannot rewrite before the runtime transcript exists",
+		)
+	}
+
+	tail, err := history.ResolveTranscriptRoundTail(
+		workspacePath,
+		sessionKey,
+		sessionID,
+		targetRoundID,
+	)
+	if err == nil {
+		return tail, false, nil
+	}
+	if overlayOnlyCandidate && errors.Is(err, workspacestore.ErrTranscriptRoundNotFound) {
+		return overlayOnlyRewriteTail(targetRoundID), true, nil
+	}
+	return workspacestore.TranscriptRoundTail{}, false, err
+}
+
+func overlayOnlyRewriteTail(targetRoundID string) workspacestore.TranscriptRoundTail {
+	targetRoundID = strings.TrimSpace(targetRoundID)
+	return workspacestore.TranscriptRoundTail{
+		TargetRoundID: targetRoundID,
+		RoundIDs:      []string{targetRoundID},
+	}
+}
+
+// isUnmaterializedFailedRound 只接受精确 user + terminal error 且没有 assistant
+// 物化的 round。普通编辑、成功 round 和 transcript 不一致仍走严格 UUID 边界。
+func isUnmaterializedFailedRound(rows []protocol.Message, targetRoundID string) bool {
+	targetRoundID = strings.TrimSpace(targetRoundID)
+	hasUser := false
+	hasRuntimeAssistant := false
+	hasTerminalError := false
+	for _, row := range rows {
+		if protocol.MessageRoundID(row) != targetRoundID {
+			continue
+		}
+		switch protocol.MessageRole(row) {
+		case "user":
+			hasUser = true
+		case "assistant":
+			if isSyntheticTerminalErrorAssistant(row) {
+				hasTerminalError = true
+				continue
+			}
+			hasRuntimeAssistant = true
+		case "result":
+			hasTerminalError = row["is_error"] == true &&
+				strings.EqualFold(dmdomain.NormalizeString(row["subtype"]), "error")
+		}
+	}
+	return hasUser && hasTerminalError && !hasRuntimeAssistant
+}
+
+func isSyntheticTerminalErrorAssistant(row protocol.Message) bool {
+	summary, ok := row["result_summary"].(map[string]any)
+	if !ok || summary["is_error"] != true ||
+		!strings.EqualFold(dmdomain.NormalizeString(summary["subtype"]), "error") {
+		return false
+	}
+	resultMessageID := strings.TrimSpace(dmdomain.NormalizeString(summary["message_id"]))
+	assistantMessageID := strings.TrimSpace(dmdomain.NormalizeString(row["message_id"]))
+	return resultMessageID != "" && assistantMessageID == "assistant_"+resultMessageID
 }
 
 func (s *Service) validateRewriteRequest(request RewriteRequest) (string, protocol.SessionKey, error) {

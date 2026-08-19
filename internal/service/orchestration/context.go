@@ -23,6 +23,7 @@ const (
 	ExecutionActorSubagent    ExecutionActorRole = "subagent"
 
 	executionGraphDigestEdgeLimit = protocol.ExecutionProjectionCollectionLimit * 4
+	executionActionTransportScope = "allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names; load execution-orchestrator, select from allowed_actions, then read execution contract --operation <selected_action> before invoke; execution inspect takes no operation; use only the host-injected \"${NEXUS_COMMAND_PATH}\" --json execution command, never nexusctl; native Agent delegation and all other task tools remain governed by task and tool policy"
 )
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
@@ -33,6 +34,7 @@ type ExecutionContextOptions struct {
 	WorkBound               bool
 	ReviewBound             bool
 	PlanMode                bool
+	ObserveOnly             bool
 	GoalPromotionReasons    []protocol.GoalActivationReason
 	GoalPromotionBlockers   []string
 	RuntimeGraph            *protocol.ExecutionRuntimeGraph
@@ -53,18 +55,17 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 			role = ExecutionActorMember
 		}
 	}
-	allowed := []string(nil)
+	allowed := []string{"get_execution"}
 	if !options.PlanMode {
 		allowed = append(allowed, "Agent")
 	}
 	if role == ExecutionActorCoordinator {
-		allowed = append(allowed, "get_execution", "prepare_plan_execution")
+		allowed = append(allowed, "prepare_plan_execution")
 		if !options.PlanMode {
 			allowed = append(allowed, "plan_execution")
 		}
 	}
 	forbidden := []string{
-		"get_execution",
 		"prepare_plan_execution",
 		"plan_execution",
 		"abandon_execution",
@@ -81,7 +82,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		forbidden = append(forbidden, "create_shared_execution")
 	} else {
 		forbidden = slices.DeleteFunc(forbidden, func(value string) bool {
-			return value == "get_execution" || value == "prepare_plan_execution" ||
+			return value == "prepare_plan_execution" ||
 				(!options.PlanMode && value == "plan_execution")
 		})
 	}
@@ -129,7 +130,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		&output,
 		2,
 		"action_scope",
-		"allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation; all other task tools remain governed by the task and tool policy",
+		executionActionTransportScope,
 	)
 	renderStringList(&output, "allowed_actions", "action", allowed)
 	renderStringList(&output, "forbidden_actions", "action", forbidden)
@@ -151,12 +152,12 @@ func RenderConversationExecutionContext(
 	if options.Role == ExecutionActorCoordinator {
 		role = ExecutionActorCoordinator
 	}
-	allowed := []string(nil)
+	allowed := []string{"get_execution"}
 	if !options.PlanMode {
 		allowed = append(allowed, "Agent")
 	}
 	if role == ExecutionActorCoordinator {
-		allowed = append(allowed, "get_execution", "prepare_plan_execution")
+		allowed = append(allowed, "prepare_plan_execution")
 		if !options.PlanMode {
 			allowed = append(allowed, "plan_execution")
 		}
@@ -177,7 +178,7 @@ func RenderConversationExecutionContext(
 		forbidden = append(forbidden, "Agent")
 	}
 	if role != ExecutionActorCoordinator {
-		forbidden = append([]string{"get_execution", "prepare_plan_execution", "plan_execution"}, forbidden...)
+		forbidden = append([]string{"prepare_plan_execution", "plan_execution"}, forbidden...)
 	} else if options.PlanMode {
 		forbidden = append([]string{"plan_execution"}, forbidden...)
 	}
@@ -242,7 +243,7 @@ func RenderConversationExecutionContext(
 		&output,
 		2,
 		"action_scope",
-		"normal conversation tools remain governed by the task and tool policy; only the listed bootstrap actions may cross from conversation into coordination",
+		executionActionTransportScope,
 	)
 	renderStringList(&output, "allowed_actions", "action", allowed)
 	renderStringList(&output, "forbidden_actions", "action", forbidden)
@@ -321,22 +322,33 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 		snapshot,
 		role,
 		strings.TrimSpace(options.ActorAgentID),
+		options.ObserveOnly,
 	)
 	renderRuntimeGraphFacts(&output, options)
-	renderAssignedWork(&output, view, options.ActorAgentID)
-	renderActiveAssignments(&output, view, role)
-	renderReadyWork(&output, view, role)
-	renderPendingReviews(&output, view, role, options.ActorAgentID)
-	renderResumableWork(&output, view, role, options.ActorAgentID)
-	renderPlanRevisionBoundary(&output, view, role, options)
-	renderExecutionTransitionBoundary(&output, snapshot, role, options)
-	renderGoalPromotionBoundary(&output, snapshot, options)
-	subagentEligible := renderSubagentAdmissionBoundary(&output, snapshot, options)
+	subagentEligible := false
+	if !options.ObserveOnly {
+		renderAssignedWork(&output, view, options.ActorAgentID)
+		renderActiveAssignments(&output, view, role)
+		renderReadyWork(&output, view, role)
+		renderPendingReviews(&output, view, role, options.ActorAgentID)
+		renderResumableWork(&output, view, role, options.ActorAgentID)
+		renderPlanRevisionBoundary(&output, view, role, options)
+		renderExecutionTransitionBoundary(&output, snapshot, role, options)
+		renderGoalPromotionBoundary(&output, snapshot, options)
+		subagentEligible = renderSubagentAdmissionBoundary(&output, snapshot, options)
+	} else {
+		writeXMLTextElement(
+			&output,
+			2,
+			"boundary",
+			"shared Room WorkGraph observation only; this view grants no assignment, review, submission, plan mutation, or coordination capability",
+		)
+	}
 	writeXMLTextElement(
 		&output,
 		2,
 		"action_scope",
-		"allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation; all other task tools remain governed by the task and tool policy",
+		executionActionTransportScope,
 	)
 	renderActionBoundary(&output, view, role, options, subagentEligible)
 	renderCompletionBlockers(&output, snapshot.CompletionBlockers)
@@ -358,6 +370,7 @@ func renderExecutionGraphDigest(
 	snapshot *protocol.ExecutionSnapshot,
 	role ExecutionActorRole,
 	actorAgentID string,
+	observeOnly bool,
 ) {
 	projected := ProjectExecutionView(snapshot)
 	if projected == nil || projected.Plan == nil || len(projected.WorkItems) == 0 {
@@ -370,13 +383,13 @@ func renderExecutionGraphDigest(
 	included := make(map[string]bool, len(projected.WorkItems))
 	for _, item := range projected.WorkItems {
 		itemsByID[item.ID] = item
-		if role == ExecutionActorCoordinator ||
+		if role == ExecutionActorCoordinator || observeOnly ||
 			executionGraphItemBelongsToActor(item, actorAgentID) {
 			included[item.ID] = true
 		}
 	}
 	scope := "full"
-	if role != ExecutionActorCoordinator {
+	if role != ExecutionActorCoordinator && !observeOnly {
 		scope = "actor_slice"
 		for changed := true; changed; {
 			changed = false
@@ -1150,6 +1163,25 @@ func renderActionBoundary(
 	subagentEligible bool,
 ) {
 	allowed := []string{"get_execution"}
+	if options.ObserveOnly {
+		forbidden := []string{
+			"prepare_plan_execution",
+			"plan_execution",
+			"abandon_execution",
+			"assign_work",
+			"submit_work",
+			"review_work",
+			"block_work",
+			"resume_work",
+			"take_over_work",
+			"audit_execution_alignment",
+			"promote_execution_to_goal",
+			"treat_observation_as_work_binding",
+		}
+		renderStringList(output, "allowed_actions", "action", allowed)
+		renderStringList(output, "forbidden_actions", "action", forbidden)
+		return
+	}
 	if subagentEligible {
 		allowed = append(allowed, "Agent")
 	}
@@ -1993,6 +2025,8 @@ func executionContextLane(
 	options ExecutionContextOptions,
 ) string {
 	switch {
+	case options.ObserveOnly:
+		return "observation"
 	case options.ReviewBound:
 		return "review"
 	case options.WorkBound:

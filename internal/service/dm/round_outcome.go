@@ -16,6 +16,14 @@ import (
 )
 
 func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
+	r.failRoundAtPhase(result, err, "runtime_execution")
+}
+
+func (r *roundRunner) failRoundAtPhase(
+	result exec.RoundExecutionResult,
+	err error,
+	failurePhase string,
+) {
 	if interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
 		r.finishInterrupted(result, interruptReason)
 		return
@@ -51,6 +59,7 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 		"usage":           map[string]any{},
 		"result":          displayError,
 		"is_error":        true,
+		"failure_phase":   strings.TrimSpace(failurePhase),
 	}
 	durableErrorProjected := false
 	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
@@ -118,7 +127,8 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 }
 
 func (r *roundRunner) failRuntimeStartup(err error) {
-	r.failRound(exec.RoundExecutionResult{}, err)
+	r.commandResources.Close()
+	r.failRoundAtPhase(exec.RoundExecutionResult{}, err, "runtime_startup")
 }
 
 func (r *roundRunner) outcomeSessionID() string {

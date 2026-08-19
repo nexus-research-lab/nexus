@@ -95,7 +95,7 @@ func TestRoomMCPBuilderCarriesPhysicalAgentRound(t *testing.T) {
 	svc := &capturingRoomMCPService{}
 	builder := newRoomMCPBuilder(svc, nil)
 	servers := builder(
-		runtimectx.WithMCPRoundLease(context.Background(), "runtime-session", "agent-round-1"),
+		runtimectx.WithRuntimeRoundLease(context.Background(), "runtime-session", "agent-round-1"),
 		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "user-1"},
 		protocol.BuildRoomSharedSessionKey("conversation-1"),
 		"root-round-1",

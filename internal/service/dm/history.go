@@ -5,6 +5,7 @@ package dm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -329,14 +330,21 @@ func (s *Service) syncSDKSessionIDForOwner(
 	runtimeProvider string,
 	runtimeModel string,
 	toolSurfaceFingerprint string,
+	constraints ...sdkSessionSyncConstraint,
 ) (protocol.Session, error) {
+	constraint := sdkSessionSyncConstraint{}
+	if len(constraints) > 0 {
+		constraint = constraints[0]
+	}
 	sync := sdkSessionSync{
-		service:       s,
-		ctx:           ctx,
-		ownerUserID:   strings.TrimSpace(ownerUserID),
-		workspacePath: workspacePath,
-		current:       current,
-		nextSessionID: strings.TrimSpace(sessionID),
+		service:                      s,
+		ctx:                          ctx,
+		ownerUserID:                  strings.TrimSpace(ownerUserID),
+		workspacePath:                workspacePath,
+		current:                      current,
+		nextSessionID:                strings.TrimSpace(sessionID),
+		expectedConfigurationVersion: constraint.configurationVersion,
+		expectedConnectorSelection:   constraint.connectorSelection,
 		nextFingerprint: sessionRuntimeFingerprint{
 			kind:        strings.TrimSpace(runtimeKind),
 			provider:    strings.TrimSpace(runtimeProvider),
@@ -345,6 +353,11 @@ func (s *Service) syncSDKSessionIDForOwner(
 		},
 	}
 	return sync.run()
+}
+
+type sdkSessionSyncConstraint struct {
+	configurationVersion int64
+	connectorSelection   *protocol.SessionConnectorSelection
 }
 
 type sessionRuntimeFingerprint struct {
@@ -375,16 +388,18 @@ func (f sessionRuntimeFingerprint) apply(options map[string]any) {
 }
 
 type sdkSessionSync struct {
-	service            *Service
-	ctx                context.Context
-	ownerUserID        string
-	workspacePath      string
-	current            protocol.Session
-	nextSessionID      string
-	nextFingerprint    sessionRuntimeFingerprint
-	sessionIDChanged   bool
-	fingerprintChanged bool
-	canPersistSession  bool
+	service                      *Service
+	ctx                          context.Context
+	ownerUserID                  string
+	workspacePath                string
+	current                      protocol.Session
+	nextSessionID                string
+	nextFingerprint              sessionRuntimeFingerprint
+	sessionIDChanged             bool
+	fingerprintChanged           bool
+	canPersistSession            bool
+	expectedConfigurationVersion int64
+	expectedConnectorSelection   *protocol.SessionConnectorSelection
 }
 
 func (s *sdkSessionSync) run() (protocol.Session, error) {
@@ -438,7 +453,7 @@ func (s *sdkSessionSync) apply() {
 	nextFingerprint := s.nextFingerprint
 	if s.sessionIDChanged && !s.canPersistSession {
 		// 新 transcript 尚不可恢复时，不能把它的工具面基线提交到旧 SDK session；
-		// 否则下一轮会把旧 K3 identity 误判为已经采用新工具面。
+		// 否则下一轮会把旧物理 identity 误判为已经采用新工具面。
 		nextFingerprint.toolSurface = runtimeFingerprintFromSession(s.current).toolSurface
 	}
 	nextFingerprint.apply(s.current.Options)
@@ -453,18 +468,27 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.service.files.ForOwner(s.ownerUserID).PatchSessionRuntime(
-		s.workspacePath,
-		current,
-	)
+	// Room SQL 拥有 SDK identity 与 pending fork 依赖：先提交权威状态，
+	// workspace 投影写入失败时可由下次 ensureSession 单向修复。
+	if err = s.syncRoomSession(current); err != nil {
+		return protocol.Session{}, err
+	}
+	files := s.service.files.ForOwner(s.ownerUserID)
+	var updated *protocol.Session
+	if s.expectedConfigurationVersion > 0 {
+		updated, err = files.PatchSessionRuntimeAtVersion(
+			s.workspacePath,
+			current,
+			s.expectedConfigurationVersion,
+		)
+	} else {
+		updated, err = files.PatchSessionRuntime(s.workspacePath, current)
+	}
 	if err != nil {
 		return protocol.Session{}, err
 	}
 	if updated == nil {
 		return current, nil
-	}
-	if err = s.syncRoomSession(*updated); err != nil {
-		return protocol.Session{}, err
 	}
 	return *updated, nil
 }
@@ -475,6 +499,32 @@ func (s *sdkSessionSync) syncRoomSession(updated protocol.Session) error {
 	}
 	roomSessionID := strings.TrimSpace(*updated.RoomSessionID)
 	if roomSessionID == "" {
+		return nil
+	}
+	if s.expectedConnectorSelection != nil {
+		store, ok := s.service.roomStore.(interface {
+			UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+				context.Context,
+				string,
+				string,
+				protocol.SessionConnectorSelection,
+			) (bool, error)
+		})
+		if !ok {
+			return errors.New("Room Session store 不支持 Connector 选择版本栅栏")
+		}
+		committed, err := store.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+			s.ctx,
+			roomSessionID,
+			s.nextSessionID,
+			*s.expectedConnectorSelection,
+		)
+		if err != nil {
+			return err
+		}
+		if !committed {
+			return workspacestore.ErrSessionConfigurationVersionConflict
+		}
 		return nil
 	}
 	return s.service.roomStore.UpdateRoomSessionSDKSessionID(s.ctx, roomSessionID, s.nextSessionID)

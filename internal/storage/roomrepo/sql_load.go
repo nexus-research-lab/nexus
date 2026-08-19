@@ -1,5 +1,5 @@
 // INPUT: owner/Room/对话标识及 Room 仓储查询器。
-// OUTPUT: 含配置版本、权限世代、成员、对话和 session 的 Room 聚合。
+// OUTPUT: 含配置版本、权限世代、成员完整 Agent 展示投影、对话和 session 的 Room 聚合。
 // POS: Room 持久化状态的 owner 隔离加载与聚合装配层。
 package roomrepo
 
@@ -204,9 +204,12 @@ SELECT
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
     COALESCE(rt.connector_ids_json, '[]'),
+	COALESCE(rt.skill_ids_json, '[]'),
+	COALESCE(rt.disabled_skill_ids_json, '[]'),
     rt.max_turns,
     rt.max_thinking_tokens,
-    COALESCE(rt.setting_sources_json, '[]')
+	COALESCE(rt.setting_sources_json, '[]'),
+	COALESCE(rt.runtime_version, 0)
 FROM members m
 JOIN agents a ON a.id = m.member_agent_id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id

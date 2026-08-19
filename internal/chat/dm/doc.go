@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - mapper.go：MessageMapper SDK 消息 → DM 事件/持久消息。
-//   - messages.go / session.go：消息模型与会话领域。
+//   - messages.go / session.go：消息模型，以 Room SQL 为 pending fork 依赖真相源的会话合并与 workspace 单向修复。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package dm

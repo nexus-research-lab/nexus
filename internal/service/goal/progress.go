@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	goalCompletionToolRetryMetadataKey = "completion_tool_retry_count"
-	goalCompletionToolMaxRetries       = 1
+	goalCompletionCommandRetryMetadataKey = "completion_command_retry_count"
+	goalCompletionCommandMaxRetries       = 1
 	// One empty round is recoverable: the next hidden turn receives an explicit
 	// action boundary. A second consecutive empty round proves a real loop and
 	// suppresses automatic continuation until explicit activity or resume.
@@ -131,9 +131,9 @@ func (s *Service) SettleContinuationPlan(ctx context.Context, goalID, roundID st
 	return err
 }
 
-// RecordCompletionToolMiss 记录模型已声称目标完成但漏调 Goal 完成工具，并安排一次收尾重试。
-func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, roundID string, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
-	return s.RecordContinuationRuntimeCompletionToolMiss(
+// RecordCompletionCommandMiss 记录模型已声称目标完成但漏调 Goal 完成工具，并安排一次收尾重试。
+func (s *Service) RecordCompletionCommandMiss(ctx context.Context, goalID string, roundID string, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
+	return s.RecordContinuationRuntimeCompletionCommandMiss(
 		ctx,
 		goalID,
 		continuationRuntimeIdentity(roundID),
@@ -142,9 +142,9 @@ func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, r
 	)
 }
 
-// RecordContinuationRuntimeCompletionToolMiss settles the durable launch
+// RecordContinuationRuntimeCompletionCommandMiss settles the durable launch
 // receipt and records the completion miss against the runtime audit round.
-func (s *Service) RecordContinuationRuntimeCompletionToolMiss(ctx context.Context, goalID string, identity ContinuationRuntimeIdentity, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
+func (s *Service) RecordContinuationRuntimeCompletionCommandMiss(ctx context.Context, goalID string, identity ContinuationRuntimeIdentity, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (s *Service) RecordContinuationRuntimeCompletionToolMiss(ctx context.Contex
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordCompletionToolMissForGoal(ctx, item, identity.AuditRoundID, reason, firstExpectedObjectiveRevision(expectedRevision))
+	return s.recordCompletionCommandMissForGoal(ctx, item, identity.AuditRoundID, reason, firstExpectedObjectiveRevision(expectedRevision))
 }
 
 // RecordGoalActivity 记录显式用户/外部活动，让自动续跑 run 从当前轮重新开始计数。
@@ -240,15 +240,15 @@ func (s *Service) recordContinuationFailureForGoal(ctx context.Context, item *pr
 	})
 }
 
-func (s *Service) recordCompletionToolMissForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string, expectedRevision int64) (*protocol.Goal, error) {
+func (s *Service) recordCompletionCommandMissForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string, expectedRevision int64) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
-		if err := rejectPendingObjectiveTransition(*current, "record completion-tool progress"); err != nil {
+		if err := rejectPendingObjectiveTransition(*current, "record completion-command progress"); err != nil {
 			return nil, err
 		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}
-		return s.recordCompletionToolMissForLoadedGoal(ctx, current, roundID, reason)
+		return s.recordCompletionCommandMissForLoadedGoal(ctx, current, roundID, reason)
 	})
 }
 
@@ -321,33 +321,33 @@ func (s *Service) recordContinuationFailureForLoadedGoal(ctx context.Context, it
 	return updated, nil
 }
 
-func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
+func (s *Service) recordCompletionCommandMissForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return item, nil
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		reason = "Goal completion was claimed, but the Goal update tool was not called"
+		reason = "Goal completion was claimed, but the Goal update command was not called"
 	}
-	retryCount := goalCompletionToolRetryCount(item.Metadata)
-	if retryCount >= goalCompletionToolMaxRetries {
-		return s.completeAfterCompletionToolMissRetry(ctx, item, roundID, reason)
+	retryCount := goalCompletionCommandRetryCount(item.Metadata)
+	if retryCount >= goalCompletionCommandMaxRetries {
+		return s.completeAfterCompletionCommandMissRetry(ctx, item, roundID, reason)
 	}
 	expectedVersion := item.Version
 	item.Metadata = cloneMap(item.Metadata)
 	if item.Metadata == nil {
 		item.Metadata = map[string]any{}
 	}
-	item.Metadata[goalCompletionToolRetryMetadataKey] = goalCompletionToolRetryCount(item.Metadata) + 1
+	item.Metadata[goalCompletionCommandRetryMetadataKey] = goalCompletionCommandRetryCount(item.Metadata) + 1
 	item.EmptyProgressCount = 0
 	item.LastError = ""
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	payload := map[string]any{
-		"retry_count": item.Metadata[goalCompletionToolRetryMetadataKey],
+		"retry_count": item.Metadata[goalCompletionCommandRetryMetadataKey],
 		"reason":      reason,
 	}
-	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "completion_tool_retry", protocol.GoalUpdateSourceSystem, roundID, payload)
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "completion_command_retry", protocol.GoalUpdateSourceSystem, roundID, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 	return updated, nil
 }
 
-func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
+func (s *Service) completeAfterCompletionCommandMissRetry(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
 	if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
 		ctx,
 		*item,
@@ -375,14 +375,14 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 	); readinessErr != nil {
 		return s.suppressContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
-	retryCount := goalCompletionToolRetryCount(item.Metadata)
-	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	retryCount := goalCompletionCommandRetryCount(item.Metadata)
+	item.Metadata = clearCompletionCommandRetryMetadata(item.Metadata)
 	item.EmptyProgressCount = 0
 	item.LastError = ""
 	return s.persistTransition(ctx, *item, protocol.GoalStatusComplete, protocol.GoalUpdateSourceSystem, "completed", roundID, map[string]any{
 		"reason":      strings.TrimSpace(reason),
 		"retry_count": retryCount,
-		"source":      "completion_tool_miss",
+		"source":      "completion_command_miss",
 	})
 }
 
@@ -393,14 +393,14 @@ func (s *Service) recordGoalActivityForLoadedGoal(ctx context.Context, item *pro
 	if item.EmptyProgressCount == 0 &&
 		item.ContinuationCount == 0 &&
 		strings.TrimSpace(item.LastError) == "" &&
-		goalCompletionToolRetryCount(item.Metadata) == 0 {
+		goalCompletionCommandRetryCount(item.Metadata) == 0 {
 		return item, nil
 	}
 	expectedVersion := item.Version
 	item.EmptyProgressCount = 0
 	item.ContinuationCount = 0
 	item.LastError = ""
-	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
+	item.Metadata = clearContinuationReservations(clearCompletionCommandRetryMetadata(item.Metadata))
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	payload := map[string]any{
@@ -426,13 +426,13 @@ func (s *Service) recordRoomGoalCollaborationHandbackForLoadedGoal(
 	}
 	if item.EmptyProgressCount == 0 &&
 		strings.TrimSpace(item.LastError) == "" &&
-		goalCompletionToolRetryCount(item.Metadata) == 0 {
+		goalCompletionCommandRetryCount(item.Metadata) == 0 {
 		return item, nil
 	}
 	expectedVersion := item.Version
 	item.EmptyProgressCount = 0
 	item.LastError = ""
-	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	item.Metadata = clearCompletionCommandRetryMetadata(item.Metadata)
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	updated, err := s.persistGoalUpdateWithEvent(
@@ -458,13 +458,13 @@ func (s *Service) recordRoomGoalCollaborationHandbackForLoadedGoal(
 func (s *Service) resetContinuationProgress(ctx context.Context, item *protocol.Goal) (*protocol.Goal, error) {
 	if item.EmptyProgressCount == 0 &&
 		strings.TrimSpace(item.LastError) == "" &&
-		goalCompletionToolRetryCount(item.Metadata) == 0 {
+		goalCompletionCommandRetryCount(item.Metadata) == 0 {
 		return item, nil
 	}
 	expectedVersion := item.Version
 	item.EmptyProgressCount = 0
 	item.LastError = ""
-	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	item.Metadata = clearCompletionCommandRetryMetadata(item.Metadata)
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
@@ -479,7 +479,7 @@ func (s *Service) resetContinuationProgress(ctx context.Context, item *protocol.
 }
 
 func (s *Service) noteEmptyContinuationProgress(ctx context.Context, item *protocol.Goal, roundID string, reasonOverride ...string) (*protocol.Goal, error) {
-	reason := "goal continuation produced no counted tool progress"
+	reason := "goal continuation produced no counted command progress"
 	if len(reasonOverride) > 0 && strings.TrimSpace(reasonOverride[0]) != "" {
 		reason = strings.TrimSpace(reasonOverride[0])
 	}
@@ -524,11 +524,11 @@ func goalContinuationSuppressed(item protocol.Goal) bool {
 	return item.ContinuationState() == protocol.GoalContinuationStateSuspended
 }
 
-func goalCompletionToolRetryCount(metadata map[string]any) int {
+func goalCompletionCommandRetryCount(metadata map[string]any) int {
 	if metadata == nil {
 		return 0
 	}
-	switch value := metadata[goalCompletionToolRetryMetadataKey].(type) {
+	switch value := metadata[goalCompletionCommandRetryMetadataKey].(type) {
 	case int:
 		return value
 	case int32:
@@ -544,12 +544,12 @@ func goalCompletionToolRetryCount(metadata map[string]any) int {
 	}
 }
 
-func clearCompletionToolRetryMetadata(metadata map[string]any) map[string]any {
-	if goalCompletionToolRetryCount(metadata) == 0 {
+func clearCompletionCommandRetryMetadata(metadata map[string]any) map[string]any {
+	if goalCompletionCommandRetryCount(metadata) == 0 {
 		return metadata
 	}
 	copied := cloneMap(metadata)
-	delete(copied, goalCompletionToolRetryMetadataKey)
+	delete(copied, goalCompletionCommandRetryMetadataKey)
 	if len(copied) == 0 {
 		return nil
 	}

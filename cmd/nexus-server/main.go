@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/cli"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -350,6 +351,11 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	if err := workspacepkg.EnsureRuntimeCLICommands(); err != nil {
+		logger.Error("Agent runtime CLI 初始化失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
 	// 宿主 Skill 是桌面可选来源。只在启动窗口创建稳定根，
 	// 内容校验与刷新交给后台 watcher，不应阻断服务健康。
 	if err := workspacepkg.PrepareHostSkillLibrary(cfg); err != nil {
@@ -414,6 +420,12 @@ func runServer() error {
 }
 
 func main() {
+	if arguments, ok := cli.RuntimeEntrypointArgs(os.Args[1:]); ok {
+		if code := cli.RunRuntime(arguments, os.Stderr); code != 0 {
+			os.Exit(code)
+		}
+		return
+	}
 	root := buildRootCommand()
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

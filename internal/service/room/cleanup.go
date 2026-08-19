@@ -26,11 +26,16 @@ func (s *Service) cleanupConversationArtifacts(
 	ctx context.Context,
 	contexts []protocol.ConversationContextAggregate,
 	transcriptReferences []workspacestore.RoomTranscriptReference,
+	protectedTranscriptSessionIDs []string,
 	deleteSharedLog bool,
 	agentFilter map[string]struct{},
 ) error {
 	errs := make([]error, 0)
 	workspaceByOwnerAgent := make(map[string]string)
+	protectedTranscriptIDs := make(map[string]struct{}, len(protectedTranscriptSessionIDs))
+	for _, sessionID := range protocol.MergeTranscriptSessionIDs(protectedTranscriptSessionIDs) {
+		protectedTranscriptIDs[sessionID] = struct{}{}
+	}
 	cleanupCtx := context.WithoutCancel(ctx)
 	for _, contextValue := range contexts {
 		ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
@@ -68,7 +73,7 @@ func (s *Service) cleanupConversationArtifacts(
 			artifact := ensureRoomSessionArtifacts(artifacts, workspacePath, sessionKey)
 			artifact.transcriptSessionIDs = protocol.MergeTranscriptSessionIDs(
 				artifact.transcriptSessionIDs,
-				protocol.RoomSessionTranscriptIDs(sessionValue),
+				protocol.RoomSessionCleanupTranscriptIDs(sessionValue),
 			)
 		}
 		for _, reference := range transcriptReferences {
@@ -88,6 +93,12 @@ func (s *Service) cleanupConversationArtifacts(
 			artifact.transcriptSessionIDs = protocol.MergeTranscriptSessionIDs(
 				artifact.transcriptSessionIDs,
 				[]string{reference.SessionID},
+			)
+		}
+		for _, artifact := range artifacts {
+			artifact.transcriptSessionIDs = unprotectedTranscriptSessionIDs(
+				artifact.transcriptSessionIDs,
+				protectedTranscriptIDs,
 			)
 		}
 
@@ -168,6 +179,20 @@ func (s *Service) cleanupConversationArtifacts(
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func unprotectedTranscriptSessionIDs(
+	values []string,
+	protected map[string]struct{},
+) []string {
+	result := make([]string, 0, len(values))
+	for _, sessionID := range protocol.MergeTranscriptSessionIDs(values) {
+		if _, exists := protected[sessionID]; exists {
+			continue
+		}
+		result = append(result, sessionID)
+	}
+	return result
 }
 
 type roomSessionArtifacts struct {

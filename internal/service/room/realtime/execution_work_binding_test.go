@@ -5,10 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -27,19 +24,7 @@ func TestRoomRuntimeMCPContextClonesStructuredWorkBinding(t *testing.T) {
 		AttemptID:    "attempt-1",
 		DispatchID:   "dispatch-1",
 	}
-	var captured *protocol.ExecutionWorkBinding
-	service := &Service{
-		executionMCPServers: func(
-			_ context.Context,
-			value runtimectx.ExecutionToolContext,
-		) map[string]sdkmcp.ServerConfig {
-			captured = value.WorkBinding
-			if value.WorkBinding != nil {
-				value.WorkBinding.AssignmentID = "assignment-mutated"
-			}
-			return nil
-		},
-	}
+	service := &Service{}
 	execution := &slotExecution{
 		service: service,
 		ctx:     context.Background(),
@@ -62,27 +47,21 @@ func TestRoomRuntimeMCPContextClonesStructuredWorkBinding(t *testing.T) {
 		},
 	}
 
-	execution.runtimeMCPServers("")
+	captured := execution.runtimeCommandRoundContext("").CommandContext.WorkBinding
+	if captured != nil {
+		captured.AssignmentID = "assignment-mutated"
+	}
 
 	if captured == nil || captured == binding {
 		t.Fatalf("captured WorkBinding = %#v", captured)
 	}
 	if binding.AssignmentID != "assignment-1" {
-		t.Fatal("Execution MCP builder mutated the Room slot WorkBinding")
+		t.Fatal("Execution command context builder mutated the Room slot WorkBinding")
 	}
 }
 
-func TestRoomRuntimeSharesDynamicSelfWorkBindingWithMCPAndGraphActor(t *testing.T) {
-	var state *runtimectx.WorkBindingState
-	service := &Service{
-		executionMCPServers: func(
-			_ context.Context,
-			value runtimectx.ExecutionToolContext,
-		) map[string]sdkmcp.ServerConfig {
-			state = value.WorkBindingState
-			return nil
-		},
-	}
+func TestRoomRuntimeSharesDynamicSelfWorkBindingWithCommandAndGraphActor(t *testing.T) {
+	service := &Service{}
 	execution := &slotExecution{
 		service: service,
 		ctx:     context.Background(),
@@ -99,9 +78,9 @@ func TestRoomRuntimeSharesDynamicSelfWorkBindingWithMCPAndGraphActor(t *testing.
 		agent: &protocol.Agent{AgentID: "agent-lead", OwnerUserID: "owner-1"},
 	}
 
-	execution.runtimeMCPServers("")
+	state := execution.runtimeCommandRoundContext("").CommandContext.WorkBindingState
 	if state == nil || state != execution.ensureWorkBindingState() {
-		t.Fatalf("Execution MCP WorkBindingState = %#v", state)
+		t.Fatalf("Execution command WorkBindingState = %#v", state)
 	}
 	if actor := execution.orchestrationActor(); actor.WorkBinding != nil {
 		t.Fatalf("ordinary Room coordinator actor = %+v", actor)

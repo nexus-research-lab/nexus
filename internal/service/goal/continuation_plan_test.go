@@ -366,7 +366,8 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		"Authoritative completion boundary:",
 		"<completion_criteria>",
 		"Objective alignment contract:",
-		"mcp__nexus_goal__audit_objective_alignment",
+		`"${NEXUS_COMMAND_PATH}" --json goal contract|inspect|invoke`,
+		"Goal operation names are not standalone tools; never use nexusctl or a Goal MCP",
 		"one scalar `report_json`",
 		"only an `aligned` report saved for the current objective revision and current round",
 		"complete user-facing delivery surface",
@@ -374,8 +375,7 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		"provide exact links or paths",
 		"Do not make Goal completion the headline",
 		"Blocked audit:",
-		"mcp__nexus_goal__update_goal",
-		"bare `update_goal`",
+		"invoke `update_goal`",
 		"Tokens remaining:",
 	} {
 		if !strings.Contains(plan.Prompt, want) {

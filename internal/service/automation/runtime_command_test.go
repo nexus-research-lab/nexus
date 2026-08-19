@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 func TestRuntimeCommandCreateUsesPlanConfirmationAndIdempotency(t *testing.T) {
@@ -239,30 +240,30 @@ func (s runtimeCommandRoundStub) GetRunningRoundIDs(sessionKey string) []string 
 func TestRuntimeCommandCapabilityReusesSessionTokenAndRequiresUniqueActiveRound(t *testing.T) {
 	fixture := newAutomationCommandFixture(t, "ok")
 	resolver := runtimeCommandRoundStub{rounds: map[string][]string{"runtime-session": {"round-1"}}}
-	fixture.Service.SetRuntimeCommandRoundResolver(resolver)
+	registry := runtimecommand.NewRegistry(resolver)
 	actor := fixture.ServerContext
 	actor.LeaseSessionKey = "runtime-session"
 	actor.LeaseRoundID = "round-1"
-	token, err := fixture.Service.IssueRuntimeCommandCapability(actor)
+	token, err := registry.Issue(actor)
 	if err != nil {
 		t.Fatalf("IssueRuntimeCommandCapability: %v", err)
 	}
 	actor.LeaseRoundID = "round-2"
-	secondToken, err := fixture.Service.IssueRuntimeCommandCapability(actor)
+	secondToken, err := registry.Issue(actor)
 	if err != nil || secondToken != token {
 		t.Fatalf("session token = %q second=%q err=%v", token, secondToken, err)
 	}
-	resolved, err := fixture.Service.ResolveRuntimeCommandCapability(token)
+	resolved, err := registry.Resolve(token)
 	if err != nil || resolved.LeaseRoundID != "round-1" {
 		t.Fatalf("resolved actor = %+v err=%v", resolved, err)
 	}
 	resolver.rounds["runtime-session"] = []string{"round-1", "round-2"}
-	if _, err = fixture.Service.ResolveRuntimeCommandCapability(token); err == nil ||
+	if _, err = registry.Resolve(token); err == nil ||
 		!strings.Contains(err.Error(), "并发 round") {
 		t.Fatalf("concurrent resolve error = %v", err)
 	}
 	resolver.rounds["runtime-session"] = nil
-	if _, err = fixture.Service.ResolveRuntimeCommandCapability(token); err == nil ||
+	if _, err = registry.Resolve(token); err == nil ||
 		!strings.Contains(err.Error(), "已结束") {
 		t.Fatalf("inactive resolve error = %v", err)
 	}
@@ -271,7 +272,7 @@ func TestRuntimeCommandCapabilityReusesSessionTokenAndRequiresUniqueActiveRound(
 func createRuntimeCommandTask(
 	t *testing.T,
 	fixture automationCommandFixture,
-	actor RuntimeCommandActor,
+	actor runtimecommand.Actor,
 	name string,
 	requestID string,
 ) *automationdomain.ScheduledTask {

@@ -1,6 +1,6 @@
 /**
  * INPUT: 会话消息/slot/permission/execution 锚点快照与滚动容器测量值。
- * OUTPUT: 溢出/真实贴底/FOLLOW-READING 转换/测高写入所有权，以及覆盖并行活动回复正文增长的稳定内容版本。
+ * OUTPUT: 溢出/真实贴底/FOLLOW-READING 转换/跟随态测高写入所有权，以及覆盖并行活动回复正文增长的稳定内容版本。
  * POS: DM、Room 与 Thread 跟随滚动的纯模型真相源。
  */
 import type { Message } from "@/types/conversation/message/entity";
@@ -37,7 +37,6 @@ export interface ConversationViewportSizeRevision {
 
 export type ConversationFollowCommitOwner =
   | "bottom"
-  | "viewport-anchor"
   | "virtualizer";
 
 interface ConversationFollowCommitOptions {
@@ -45,7 +44,6 @@ interface ConversationFollowCommitOptions {
   isNewSession: boolean;
   isVirtualFeed: boolean;
   topologyChanged: boolean;
-  viewportAnchorRestored: boolean;
 }
 
 interface ConversationViewportElement {
@@ -84,19 +82,17 @@ export function isAtScrollBottom(element: ScrollMetrics): boolean {
 }
 
 /**
- * 普通正文测高只能有一个 scrollTop 所有者。虚拟 Feed 的原位尺寸修正交给
- * Virtualizer；新节点、会话切换和显式回到底部事务仍由共享 bottom 执行器收口。
+ * FOLLOW 只能有一个 scrollTop 所有者，不能再混入阅读锚点。静态 Feed 的
+ * 聚合高度变化由共享 bottom 执行器收口；虚拟 Feed 的普通逐项测高交给
+ * Virtualizer；新节点、会话切换和显式回到底部事务仍由 bottom 收口。
+ * READING 的可见轮次锚点不进入此模型，由 useFollowScroll 的独立分支持有。
  */
 export function resolveConversationFollowCommitOwner({
   bottomScrollActive,
   isNewSession,
   isVirtualFeed,
   topologyChanged,
-  viewportAnchorRestored,
 }: ConversationFollowCommitOptions): ConversationFollowCommitOwner {
-  if (viewportAnchorRestored) {
-    return "viewport-anchor";
-  }
   if (
     isVirtualFeed
     && !isNewSession

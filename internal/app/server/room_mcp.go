@@ -49,7 +49,7 @@ func newRoomMCPBuilder(
 			SourceContextType:  strings.TrimSpace(sourceContextType),
 			SourceContextLabel: strings.TrimSpace(sourceContextLabel),
 		}
-		if lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx); ok {
+		if lease, ok := runtimectx.RuntimeRoundLeaseFromContext(ctx); ok {
 			sctx.CurrentAgentRoundID = strings.TrimSpace(lease.RoundID)
 		}
 		if getRoom != nil && strings.TrimSpace(sctx.RoomID) != "" {

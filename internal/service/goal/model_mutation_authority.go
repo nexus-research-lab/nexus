@@ -1,6 +1,6 @@
 // INPUT: owner-scoped current Goal、持久 Room lead 或 DM Agent identity。
 // OUTPUT: 允许负责人新 round 使用的精确 Goal/objective revision 快照。
-// POS: Goal MCP 跨 round 负责人权限的持久身份解析边界；不授予 Execution authority。
+// POS: Goal command 跨 round 负责人权限的持久身份解析边界；不授予 Execution authority。
 package goal
 
 import (

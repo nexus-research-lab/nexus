@@ -39,281 +39,25 @@ func TestAssistantToolResultsMapsToolNames(t *testing.T) {
 	}
 }
 
-func TestAssistantToolResultsPreservesGoalTerminalStatus(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		content any
-		want    protocol.GoalStatus
-	}{
-		{
-			name:    "complete",
-			content: `{"goal":{"status":"complete"}}`,
-			want:    protocol.GoalStatusComplete,
-		},
-		{
-			name:    "blocked",
-			content: `{"goal":{"status":"blocked"}}`,
-			want:    protocol.GoalStatusBlocked,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			results := AssistantToolResults(protocol.Message{
-				"role": "assistant",
-				"content": []map[string]any{
-					{"type": "tool_use", "id": "tool-1", "name": "update_goal"},
-					{"type": "tool_result", "tool_use_id": "tool-1", "content": test.content},
-				},
-			})
-			if len(results) != 1 || results[0].GoalStatus != test.want {
-				t.Fatalf("AssistantToolResults() = %+v, want status %q", results, test.want)
-			}
-		})
-	}
-}
-
-func TestProcessorPreservesGoalCompletionIdentityFromRealTranscriptShape(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:goal-receipt",
-		AgentID:    "nexus",
-		RoundID:    "round-goal-receipt",
-		ParentID:   "round-goal-receipt",
-	}, "")
-	processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAssistant,
-		Assistant: &sdkprotocol.AssistantMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				ID: "assistant-update-goal",
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolUseBlock{
-						ID: "tool-update-goal", Name: "mcp__nexus_goal__update_goal",
-					},
-				},
-			},
-		},
-	})
-
-	result := map[string]any{
-		"goal": map[string]any{
-			"status":   "complete",
-			"threadId": "agent:nexus:ws:dm:goal-receipt",
-		},
-		"goalId":         "goal-from-result",
-		"usageFinalized": false,
-	}
-	message, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "user",
-		"message": map[string]any{
-			"role": "user",
-			"content": []any{map[string]any{
-				"type":              "tool_result",
-				"tool_use_id":       "tool-update-goal",
-				"content":           `{"goal":{"status":"complete"},"goalId":"goal-from-result","usageFinalized":false}`,
-				"is_error":          false,
-				"structured_output": result,
-			}},
-		},
-		// nxs/Claude Code transcript 使用 snake_case tool_use_result，并在
-		// content/structuredContent 两处保留同一结果。
-		"tool_use_result": map[string]any{
-			"content":           result,
-			"structuredContent": result,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	output := processor.Process(message)
-	if len(output.DurableMessages) != 1 {
-		t.Fatalf("durable messages = %+v, want one Goal result snapshot", output.DurableMessages)
-	}
-	observations := AssistantToolResults(output.DurableMessages[0])
-	if len(observations) != 1 ||
-		observations[0].GoalID != "goal-from-result" ||
-		observations[0].GoalStatus != protocol.GoalStatusComplete {
-		t.Fatalf("Goal observations = %+v", observations)
-	}
-	if got := SuccessfulGoalCompletionID(observations, ""); got != "goal-from-result" {
-		t.Fatalf("SuccessfulGoalCompletionID() = %q, want result identity", got)
-	}
-}
-
-func TestSuccessfulGoalCompletionIDFailsClosedOnIdentityConflict(t *testing.T) {
-	observations := []ToolResultObservation{{
-		ToolName:   "mcp__nexus_goal__update_goal",
-		GoalID:     "goal-result",
-		GoalStatus: protocol.GoalStatusComplete,
-	}}
-	if got := SuccessfulGoalCompletionID(observations, "goal-bound"); got != "" {
-		t.Fatalf("SuccessfulGoalCompletionID() = %q, want identity conflict rejected", got)
-	}
-}
-
-func TestAssistantHasCountedToolProgress(t *testing.T) {
+func TestAssistantMissedGoalCompletionCommand(t *testing.T) {
 	tests := []struct {
-		name        string
-		toolName    string
-		isError     bool
-		errorCode   string
-		metadata    map[string]any
-		content     string
-		want        bool
-		wantOutcome protocol.MutationResultOutcome
+		name               string
+		text               string
+		completionRecorded bool
+		want               bool
 	}{
-		{name: "ordinary failure", toolName: "read_file", isError: true},
-		{name: "ordinary successful read is not progress", toolName: "read_file"},
-		{name: "ordinary successful send is not progress", toolName: "mcp__nexus_comms__send_message"},
-		{name: "ordinary successful list is not progress", toolName: "TaskList"},
-		{name: "ordinary successful todo is not progress", toolName: "TodoWrite"},
-		{name: "get goal is control-plane read", toolName: "mcp__nexus_goal__get_goal"},
-		{name: "get execution is control-plane read", toolName: "mcp__nexus_execution__get_execution"},
-		{name: "successful audit without receipt", toolName: "mcp__nexus_execution__audit_execution_alignment"},
-		{name: "applied alignment audit", toolName: "mcp__nexus_execution__audit_execution_alignment", content: `{"outcome":"applied"}`, want: true},
-		{name: "update goal", toolName: "update_goal"},
-		{name: "qualified update goal", toolName: "mcp__nexus_goal__update_goal"},
-		{name: "retarget without receipt", toolName: "retarget_goal"},
-		{name: "qualified applied retarget", toolName: "mcp__nexus_goal__retarget_goal", content: `{"outcome":"applied"}`, want: true},
-		{name: "failed retarget goal", toolName: "mcp__nexus_goal__retarget_goal", isError: true},
-		{name: "permission timeout", toolName: "AskUserQuestion", isError: true, errorCode: "permission_request_timeout"},
-		{name: "unmatched result", isError: true},
-		{
-			name:     "recoverable malformed input",
-			toolName: "SendUserMessage",
-			isError:  true,
-			metadata: map[string]any{"_nexus_internal_kind": "malformed_tool_input"},
-		},
-		{
-			name:        "rejected mutation",
-			toolName:    "mcp__nexus_execution__plan_execution",
-			content:     `{"outcome":"rejected","reason_code":"invalid_input","message":"items is required"}`,
-			wantOutcome: protocol.MutationResultRejected,
-		},
-		{
-			name:        "superseded mutation",
-			toolName:    "mcp__nexus_execution__submit_work",
-			content:     `{"outcome":"superseded","reason_code":"execution_terminal","message":"old Assignment was replaced"}`,
-			wantOutcome: protocol.MutationResultSuperseded,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			content := make([]map[string]any, 0, 2)
-			if test.toolName != "" {
-				content = append(content, map[string]any{
-					"type": "tool_use", "id": "tool-1", "name": test.toolName,
-				})
-			}
-			content = append(content, map[string]any{
-				"type":        "tool_result",
-				"tool_use_id": "tool-1",
-				"is_error":    test.isError,
-				"error_code":  test.errorCode,
-				"metadata":    test.metadata,
-				"content":     test.content,
-			})
-			message := protocol.Message{
-				"role":    "assistant",
-				"content": content,
-			}
-			if got := AssistantHasCountedToolProgress(message, true); got != test.want {
-				t.Fatalf("AssistantHasCountedToolProgress() = %t, want %t", got, test.want)
-			}
-			if test.wantOutcome != "" {
-				results := AssistantToolResults(message)
-				if len(results) != 1 || results[0].MutationOutcome != test.wantOutcome {
-					t.Fatalf("AssistantToolResults() = %+v", results)
-				}
-			}
-		})
-	}
-}
-
-func TestWorkGraphAndGoalToolProgressClassificationIsComplete(t *testing.T) {
-	tests := map[string]bool{
-		"mcp__nexus_execution__get_execution":             false,
-		"mcp__nexus_execution__prepare_plan_execution":    false,
-		"mcp__nexus_execution__plan_execution":            true,
-		"mcp__nexus_execution__abandon_execution":         true,
-		"mcp__nexus_execution__assign_work":               true,
-		"mcp__nexus_execution__submit_work":               true,
-		"mcp__nexus_execution__review_work":               true,
-		"mcp__nexus_execution__block_work":                true,
-		"mcp__nexus_execution__resume_work":               true,
-		"mcp__nexus_execution__take_over_work":            true,
-		"mcp__nexus_execution__audit_execution_alignment": true,
-		"mcp__nexus_execution__promote_execution_to_goal": true,
-		"mcp__nexus_goal__get_goal":                       false,
-		"mcp__nexus_goal__create_goal":                    true,
-		"mcp__nexus_goal__retarget_goal":                  true,
-		"mcp__nexus_goal__audit_objective_alignment":      true,
-		"mcp__nexus_goal__update_goal":                    true,
-	}
-	for toolName, want := range tests {
-		t.Run(toolName, func(t *testing.T) {
-			message := protocol.Message{
-				"role": "assistant",
-				"content": []map[string]any{
-					{"type": "tool_use", "id": "tool-1", "name": toolName},
-					{"type": "tool_result", "tool_use_id": "tool-1", "content": `{"outcome":"applied"}`},
-				},
-			}
-			if got := AssistantHasCountedToolProgress(message, true); got != want {
-				t.Fatalf("AssistantHasCountedToolProgress(%s) = %t, want %t", toolName, got, want)
-			}
-		})
-	}
-}
-
-func TestWorkGraphProgressRequiresExactGoalBinding(t *testing.T) {
-	message := protocol.Message{
-		"role": "assistant",
-		"content": []map[string]any{
-			{"type": "tool_use", "id": "tool-1", "name": "mcp__nexus_execution__submit_work"},
-			{"type": "tool_result", "tool_use_id": "tool-1", "content": `{"outcome":"applied"}`},
-		},
-	}
-	if got := AssistantGoalProgressClass(message, false); got != GoalProgressNone {
-		t.Fatalf("unbound applied WorkGraph mutation class = %q, want none", got)
-	}
-	if got := AssistantGoalProgressClass(message, true); got != GoalProgressBoundWorkGraphMutation {
-		t.Fatalf("bound applied WorkGraph mutation class = %q", got)
-	}
-}
-
-func TestAssistantMissedGoalCompletionTool(t *testing.T) {
-	tests := []struct {
-		name             string
-		text             string
-		successfulUpdate bool
-		want             bool
-	}{
-		{
-			name: "missing tool after completion",
-			text: "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。",
-			want: true,
-		},
-		{name: "no completion claim", text: "I cannot call update_goal yet because more verification is needed."},
+		{name: "missing command after completion", text: "任务已经完成，但无法调用 nexus goal invoke --operation update_goal 来标记完成。", want: true},
+		{name: "no completion claim", text: "I cannot run update_goal yet because more verification is needed."},
 		{name: "final claim", text: "PPT 已完成并验证通过：9 页内容、298 行。", want: true},
 		{name: "stage complete", text: "第一阶段已完成，下一步会继续进行 Goal 恢复链路检查。"},
-		{name: "stage complete with update goal", text: "阶段任务已完成；还需要验证 update_goal 后是否清空当前 Goal。"},
-		{name: "english stage complete", text: "Phase 1 is complete; remaining work continues in the next phase."},
 		{name: "all stages verified", text: "所有阶段已完成并验证通过。", want: true},
-		{name: "all stages no continuation", text: "所有阶段已完成，无需继续。", want: true},
-		{name: "successful update", text: "Goal has been completed.", successfulUpdate: true},
+		{name: "receipt recorded", text: "Goal has been completed.", completionRecorded: true},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			content := []map[string]any{{"type": "text", "text": test.text}}
-			if test.successfulUpdate {
-				content = append([]map[string]any{
-					{"type": "tool_use", "id": "tool-1", "name": "mcp__nexus_goal__update_goal"},
-					{"type": "tool_result", "tool_use_id": "tool-1"},
-				}, content...)
-			}
-			message := protocol.Message{"role": "assistant", "content": content}
-			if got := AssistantMissedGoalCompletionTool(message); got != test.want {
-				t.Fatalf("AssistantMissedGoalCompletionTool() = %t, want %t", got, test.want)
+			message := protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": test.text}}}
+			if got := AssistantMissedGoalCompletionCommand(message, test.completionRecorded); got != test.want {
+				t.Fatalf("AssistantMissedGoalCompletionCommand() = %t, want %t", got, test.want)
 			}
 		})
 	}
@@ -578,7 +322,7 @@ func TestProcessorAnnotatesRejectedMutationWithoutChangingTransportError(t *test
 		Assistant: &sdkprotocol.AssistantMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolUseBlock{ID: "tool-plan", Name: "mcp__nexus_execution__plan_execution"},
+					sdkprotocol.ToolUseBlock{ID: "tool-plan", Name: "Bash"},
 				},
 			},
 		},
@@ -590,7 +334,7 @@ func TestProcessorAnnotatesRejectedMutationWithoutChangingTransportError(t *test
 			"role": "user",
 			"content": []any{map[string]any{
 				"type": "tool_result", "tool_use_id": "tool-plan", "is_error": false,
-				"content": `{"outcome":"rejected","reason_code":"invalid_input","message":"items is required"}`,
+				"content": `{"domain":"execution","action":"invoke","operation":"plan_execution","request_id":"plan-rejected-1","result":{"data":{"outcome":"rejected","reason_code":"invalid_input","message":"items is required"}}}`,
 			}},
 		},
 	})

@@ -17,7 +17,7 @@ Objective alignment contract:
 - Use status "unsatisfied" when current evidence confirms a concrete gap, and state that gap.
 - Use status "inconclusive" when evidence is missing, weak, indirect, stale, or contradictory; state what evidence is needed.
 - The overall decision is "aligned" only when every criterion is satisfied, "not_aligned" when at least one criterion is unsatisfied, and otherwise "inconclusive".
-- Submit the report through the visible objective-alignment audit tool as one report_json object. The backend validates criterion coverage and evidence shape before any lifecycle may consume the result.
+- Submit the report through the current Goal command contract as one report_json object. The backend validates criterion coverage and evidence shape before any lifecycle may consume the result.
 - An aligned report is evidence for a lifecycle decision, not the lifecycle transition itself. Goal completion still requires update_goal; a loop guard will independently choose its control edge.
 `)
 }

@@ -12,7 +12,7 @@
 本目录只消费控制器已经推导出的显示状态；不得重新排序消息、匹配权限或选择最终回复。
 Assistant 入口按 header、permissions、direct、process、final、activity、footer 和 layout 消费状态；子视图只接收职责内切片，不索引上层聚合状态。
 Room result 的 activity 仍由共享 `MessageActivityStatus` 呈现：无正文时占据原活动位，正文流式时跟随内容，正文暂歇而 execution 仍 active 时固定在正文尾部；三种阶段不得同时重复。
-流式正文的稳定高度以 Assistant message identity 为边界：同一 turn 内只增不减，工具结果后的新 Assistant turn 即使 execution 仍 active 也必须重置，不得制造跨 Agent 卡片的大段空白。
+流式正文只保持内容身份稳定，不缓存历史最大高度；同一 turn 的 Markdown 前缀按共享公平池追加，工具、活动与 final surface 切换后容器立即服从当前 intrinsic layout，不得用空白偿还先前高度。
 DM 的 final 正文节点从 live 首字到 terminal backlog 排空必须保持同一组件位置；direct 过程与归档过程可以切换，但不得借此迁移或重挂正文。
 `show_widget` 是答案本体，必须从首次流式输入到终态固定在 final surface，不得降级成工具过程卡。
 DM live 工具段只能以首个 `tool_use.id` 作为 React 身份；流式 patch、结果与后续连续工具只能更新同一段，AskUserQuestion 和当前人工交互工具必须留在独立内容段。

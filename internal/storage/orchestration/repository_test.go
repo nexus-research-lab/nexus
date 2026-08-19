@@ -266,6 +266,21 @@ func TestRepositoryRejectRetryAcceptTakeoverAndCompletion(t *testing.T) {
 		t, ctx, repository, snapshot, "assignment-a3", "submission-a3", "acceptance-a3",
 		protocol.WorkAcceptanceAccepted,
 	)
+	viewSnapshot, history, err := repository.GetWorkGraphState(ctx, snapshot.Execution.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if viewSnapshot == nil || viewSnapshot.Execution.Version != snapshot.Execution.Version ||
+		len(history.Assignments) != 3 || len(history.Attempts) != 3 ||
+		len(history.Submissions) != 2 || len(history.Acceptances) != 2 {
+		t.Fatalf("atomic WorkGraph history lost a retry cycle: snapshot=%+v history=%+v", viewSnapshot, history)
+	}
+	if history.Submissions[0].ID != "submission-a2" ||
+		history.Submissions[1].ID != "submission-a3" ||
+		history.Acceptances[0].Decision != protocol.WorkAcceptanceRejected ||
+		history.Acceptances[1].Decision != protocol.WorkAcceptanceAccepted {
+		t.Fatalf("WorkGraph retry history order/content = %+v / %+v", history.Submissions, history.Acceptances)
+	}
 	if !contains(snapshot.ReadyWorkItemIDs, "work-flow-2") {
 		t.Fatalf("accepted dependency did not unlock downstream: %#v", snapshot.ReadyWorkItemIDs)
 	}

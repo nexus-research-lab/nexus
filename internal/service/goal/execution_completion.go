@@ -76,7 +76,12 @@ func (s *Service) ensureExecutionGoalCompletionReady(
 		return fmt.Errorf("check Execution Goal completion readiness: %w", err)
 	}
 	if blocker = strings.TrimSpace(blocker); blocker != "" {
-		return fmt.Errorf("%w: Goal still has outstanding Execution work: %s", ErrGoalInvalidState, blocker)
+		return fmt.Errorf(
+			"%w: %w: Goal still has outstanding Execution work: %s",
+			ErrGoalInvalidState,
+			ErrGoalExecutionNotReady,
+			blocker,
+		)
 	}
 	return nil
 }

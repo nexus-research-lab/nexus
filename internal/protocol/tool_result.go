@@ -1,4 +1,4 @@
-// INPUT: Provider/MCP 工具结果中的结构化对象、JSON 文本或兼容包装层。
+// INPUT: Provider 工具结果中的结构化对象、JSON 文本或 CLI command 包装层。
 // OUTPUT: 跨消息、Goal loop 与 WorkGraph 共用的 mutation 语义结果。
 // POS: 工具传输成功与业务 mutation 结果之间的协议真相源；只识别显式 envelope，不推断 Agent 路线。
 package protocol
@@ -22,7 +22,7 @@ const (
 	MutationResultSuperseded MutationResultOutcome = "superseded"
 )
 
-// MutationResultEnvelope 是模型工具结果里可稳定投影到 UI 与 loop guard 的紧凑语义。
+// MutationResultEnvelope 是模型工具结果里可稳定投影到 UI 的紧凑语义。
 type MutationResultEnvelope struct {
 	Outcome     MutationResultOutcome
 	Message     string
@@ -72,6 +72,8 @@ func parseGoalIDResult(value any, depth int) (string, bool) {
 			}
 		}
 		for _, key := range []string{
+			"result",
+			"data",
 			"structured_output",
 			"structured_content",
 			"structuredContent",
@@ -133,6 +135,8 @@ func parseGoalStatusResult(value any, depth int) (GoalStatus, bool) {
 			}
 		}
 		for _, key := range []string{
+			"result",
+			"data",
 			"structured_output",
 			"structured_content",
 			"structuredContent",
@@ -217,6 +221,8 @@ func parseMutationResultEnvelope(value any, depth int) (MutationResultEnvelope, 
 			}, true
 		}
 		for _, key := range []string{
+			"result",
+			"data",
 			"structured_output",
 			"structured_content",
 			"structuredContent",

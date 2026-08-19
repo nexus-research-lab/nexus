@@ -4,6 +4,8 @@
 package dm
 
 import (
+	"bytes"
+	"encoding/json"
 	"reflect"
 	"slices"
 	"strings"
@@ -43,12 +45,24 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 		switch key {
 		case protocol.OptionSessionProvider,
 			protocol.OptionSessionModel,
-			protocol.OptionSessionPermissionMode:
+			protocol.OptionSessionPermissionMode,
+			protocol.OptionRuntimeRetainedTranscriptSessionIDs:
 			continue
 		default:
 			merged.Options[key] = value
 		}
 	}
+	// Pending fork 依赖与 Room Session 身份同事务持久化；SQL 缺少该字段
+	// 表示 target transcript 已物化，不能被落后的 workspace 投影重新引入。
+	for _, key := range []string{
+		protocol.OptionRuntimeForkSourceSessionID,
+		protocol.OptionRuntimeForkMessageID,
+	} {
+		if _, exists := roomSession.Options[key]; !exists {
+			delete(merged.Options, key)
+		}
+	}
+	delete(merged.Options, protocol.OptionRuntimeRetainedTranscriptSessionIDs)
 	return merged
 }
 
@@ -68,7 +82,16 @@ func SessionsEqual(left protocol.Session, right protocol.Session) bool {
 		left.MessageCount == right.MessageCount &&
 		slices.Equal(left.TranscriptSessionIDs, right.TranscriptSessionIDs) &&
 		reflect.DeepEqual(left.ContextUsage, right.ContextUsage) &&
-		reflect.DeepEqual(left.Options, right.Options)
+		equivalentJSONValue(left.Options, right.Options)
+}
+
+func equivalentJSONValue(left any, right any) bool {
+	leftJSON, leftErr := json.Marshal(left)
+	rightJSON, rightErr := json.Marshal(right)
+	if leftErr != nil || rightErr != nil {
+		return reflect.DeepEqual(left, right)
+	}
+	return bytes.Equal(leftJSON, rightJSON)
 }
 
 // StringPointerValue 返回字符串指针的去空白值。

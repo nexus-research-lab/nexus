@@ -7,6 +7,12 @@ import (
 )
 
 func main() {
+	if arguments, ok := cli.RuntimeEntrypointArgs(os.Args[1:]); ok {
+		if code := cli.RunRuntime(arguments, os.Stderr); code != 0 {
+			os.Exit(code)
+		}
+		return
+	}
 	command, err := cli.NewConfiguration(cli.LoadConfigurationConfig())
 	if err != nil {
 		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))

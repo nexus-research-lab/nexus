@@ -48,6 +48,17 @@ func (s *RoomHistoryStore) historyPageAccess(
 	}
 }
 
+// ReadMessageDetailContext 读取当前 Room generation 中的大型消息 detail。
+func (s *RoomHistoryStore) ReadMessageDetailContext(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	ref string,
+) (HistoryMessageDetail, error) {
+	access := s.historyPageAccess(ownerUserID, conversationID)
+	return access.ReadModel.loadDetail(ctx, access, ref)
+}
+
 func (s *RoomHistoryStore) openRoomHistoryPageIndexRoot(
 	ownerUserID string,
 	conversationID string,

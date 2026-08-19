@@ -215,6 +215,15 @@ func readHistoryPageWithIndex(
 		page, _, buildErr := buildCanonicalHistoryPage(ctx, access, request)
 		return page, buildErr
 	}
+	if historyPageBuildHasLargeDetails(built) {
+		// 大内容 generation 在 ready 前同步发布；优先从读模型返回 detail
+		// 引用。落盘失败时仍回退完整 canonical 页，不牺牲历史可读性。
+		if page, ok, loadErr := loadHistoryPageIndex(ctx, access, request); loadErr == nil && ok {
+			return page, nil
+		} else if errors.Is(loadErr, context.Canceled) || errors.Is(loadErr, context.DeadlineExceeded) {
+			return protocol.MessagePage{}, loadErr
+		}
+	}
 	return paginateHistoryPageIndexedGroups(built.Groups, request), nil
 }
 
@@ -396,16 +405,31 @@ func (m *historyPageRebuildManager) run(
 	if future.built.Sources == nil {
 		future.built.Sources = []historyPageSourceSnapshot{}
 	}
-	// waiter 只等待 canonical 投影完成；派生数据落盘不阻塞首屏。
+	shouldPersist := future.err == nil && future.built.Cacheable &&
+		shouldPersistHistoryPageIndex(future.built)
+	persistBeforeReady := shouldPersist && historyPageBuildHasLargeDetails(future.built)
+	if persistBeforeReady {
+		persistHistoryPageIndex(buildCtx, access, future.built)
+	}
+	// 普通 generation 仍让 waiter 只等待 canonical 投影；包含大型 detail
+	// 的 generation 必须先原子发布引用目标，避免首个页面重新内联大内容。
 	close(future.ready)
-	if future.err == nil && future.built.Cacheable && shouldPersistHistoryPageIndex(future.built) {
-		if access.Persist != nil {
-			_ = access.Persist(buildCtx, future.built)
-		} else if access.ReadModel != nil {
-			_ = access.ReadModel.persist(buildCtx, access, future.built)
-		}
+	if shouldPersist && !persistBeforeReady {
+		persistHistoryPageIndex(buildCtx, access, future.built)
 	}
 	m.finish(access.Scope, future)
+}
+
+func persistHistoryPageIndex(
+	ctx context.Context,
+	access historyPageIndexAccess,
+	built historyPageIndexBuild,
+) {
+	if access.Persist != nil {
+		_ = access.Persist(ctx, built)
+	} else if access.ReadModel != nil {
+		_ = access.ReadModel.persist(ctx, access, built)
+	}
 }
 
 func (m *historyPageRebuildManager) finish(scope string, future *historyPageRebuildFuture) {

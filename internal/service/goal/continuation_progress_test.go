@@ -151,7 +151,7 @@ func TestServicePlanContinuationUsesOneRecoveryTurnBeforeSuppressing(t *testing.
 	}
 }
 
-func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
+func TestServiceCompletionCommandMissAllowsOneFinalizationRetry(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:                true,
@@ -174,7 +174,7 @@ func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.RecordCompletionToolMiss(ctx, created.ID, plan.RoundID, "assistant could not call update_goal"); err != nil {
+	if _, err := service.RecordCompletionCommandMiss(ctx, created.ID, plan.RoundID, "assistant could not call update_goal"); err != nil {
 		t.Fatal(err)
 	}
 	retry, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID)
@@ -187,7 +187,7 @@ func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
 	for _, want := range []string{
 		"Completion finalization retry:",
 		"previous goal-continuation response",
-		"mcp__nexus_goal__update_goal",
+		"invoke `update_goal`",
 		"before any final response",
 	} {
 		if !strings.Contains(retry.Prompt, want) {
@@ -201,15 +201,15 @@ func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.EmptyProgressCount != 0 || goalCompletionToolRetryCount(current.Metadata) != 1 {
+	if current.EmptyProgressCount != 0 || goalCompletionCommandRetryCount(current.Metadata) != 1 {
 		t.Fatalf("current = %#v, want one retry without empty-progress suppression", current)
 	}
-	if got := repo.events[len(repo.events)-2]; got.EventType != "completion_tool_retry" || got.RoundID != plan.RoundID {
-		t.Fatalf("retry event = %#v, want completion_tool_retry for first miss", got)
+	if got := repo.events[len(repo.events)-2]; got.EventType != "completion_command_retry" || got.RoundID != plan.RoundID {
+		t.Fatalf("retry event = %#v, want completion_command_retry for first miss", got)
 	}
 }
 
-func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
+func TestServiceCompletionCommandMissCompletesAfterRetry(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -231,7 +231,7 @@ func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.RecordCompletionToolMiss(ctx, created.ID, plan.RoundID, "first miss"); err != nil {
+	if _, err := service.RecordCompletionCommandMiss(ctx, created.ID, plan.RoundID, "first miss"); err != nil {
 		t.Fatal(err)
 	}
 	retry, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID)
@@ -241,7 +241,7 @@ func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	if retry == nil {
 		t.Fatal("retry = nil, want finalization retry continuation")
 	}
-	if _, err := service.RecordCompletionToolMiss(ctx, created.ID, retry.RoundID, "second miss"); err != nil {
+	if _, err := service.RecordCompletionCommandMiss(ctx, created.ID, retry.RoundID, "second miss"); err != nil {
 		t.Fatal(err)
 	}
 	if next, err := service.PlanContinuationForSession(ctx, created.SessionKey, retry.RoundID); err != nil {
@@ -260,7 +260,7 @@ func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completed.Status != protocol.GoalStatusComplete || goalCompletionToolRetryCount(completed.Metadata) != 0 {
+	if completed.Status != protocol.GoalStatusComplete || goalCompletionCommandRetryCount(completed.Metadata) != 0 {
 		t.Fatalf("completed = %#v, want complete with retry metadata cleared", completed)
 	}
 	if got := repo.events[len(repo.events)-1]; got.EventType != "completed" || got.Payload["reason"] != "second miss" {
@@ -268,7 +268,7 @@ func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	}
 }
 
-func TestServiceCompletionToolMissCannotBypassRoomReadiness(t *testing.T) {
+func TestServiceCompletionCommandMissCannotBypassRoomReadiness(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -289,10 +289,10 @@ func TestServiceCompletionToolMissCannotBypassRoomReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
+	if _, err = service.RecordCompletionCommandMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {
+	if _, err = service.RecordCompletionCommandMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -317,7 +317,7 @@ func TestServiceCompletionToolMissCannotBypassRoomReadiness(t *testing.T) {
 	}
 }
 
-func TestServiceCompletionToolMissCannotBypassExecutionReadiness(t *testing.T) {
+func TestServiceCompletionCommandMissCannotBypassExecutionReadiness(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -343,7 +343,7 @@ func TestServiceCompletionToolMissCannotBypassExecutionReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
+	if _, err = service.RecordCompletionCommandMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = service.AuditObjectiveAlignmentByModel(ctx, created.ID, protocol.AuditGoalObjectiveAlignmentRequest{
@@ -362,7 +362,7 @@ func TestServiceCompletionToolMissCannotBypassExecutionReadiness(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {
+	if _, err = service.RecordCompletionCommandMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -375,7 +375,7 @@ func TestServiceCompletionToolMissCannotBypassExecutionReadiness(t *testing.T) {
 	}
 }
 
-func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *testing.T) {
+func TestServicePlanContinuationCompletesStaleCompletionCommandMissSuppression(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -395,7 +395,7 @@ func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *t
 	}
 	stale := repo.goals[created.ID]
 	stale.EmptyProgressCount = goalContinuationSuppressionThreshold
-	stale.Metadata = map[string]any{goalCompletionToolRetryMetadataKey: 1}
+	stale.Metadata = map[string]any{goalCompletionCommandRetryMetadataKey: 1}
 	stale.Version++
 	repo.goals[created.ID] = stale
 
@@ -414,7 +414,7 @@ func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *t
 		t.Fatalf("current = %#v, want nil after stale completion finalization", current)
 	}
 	completed := repo.goals[created.ID]
-	if completed.Status != protocol.GoalStatusComplete || goalCompletionToolRetryCount(completed.Metadata) != 0 {
+	if completed.Status != protocol.GoalStatusComplete || goalCompletionCommandRetryCount(completed.Metadata) != 0 {
 		t.Fatalf("completed = %#v, want complete with retry metadata cleared", completed)
 	}
 	if !completed.UsageFinalized || completed.UsageFinalizedAt == nil {

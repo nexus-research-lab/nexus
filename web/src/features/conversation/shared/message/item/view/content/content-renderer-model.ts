@@ -5,7 +5,6 @@
  */
 import type {
   ContentBlock,
-  SystemEventContent,
   TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
@@ -16,8 +15,6 @@ import {
   isRejectedToolResult,
   isSupersededToolResult,
 } from "../../../tool-result-semantic-model";
-
-const API_RETRY_VISIBLE_ATTEMPT = 4;
 
 export interface ToolUseProjection {
   index: number;
@@ -99,10 +96,4 @@ export function resolveToolBlockStatus(
     return unresolvedToolStatus;
   }
   return waitingForPermission ? "waiting_permission" : "running";
-}
-
-export function isHiddenSystemEvent(block: SystemEventContent): boolean {
-  return block.subtype === "api_retry" &&
-    typeof block.attempt === "number" &&
-    block.attempt < API_RETRY_VISIBLE_ATTEMPT;
 }

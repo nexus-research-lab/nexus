@@ -151,8 +151,9 @@ func (s *Service) ensureGoalObjectiveAlignmentReady(
 	record, ok := objectiveAlignmentRecordFromGoal(item)
 	if !ok {
 		return fmt.Errorf(
-			"%w: a Goal with a confirmed managed WorkGraph binding requires an objective alignment audit in the current round",
+			"%w: %w: a Goal with a confirmed managed WorkGraph binding requires an objective alignment audit in the current round",
 			ErrGoalInvalidState,
+			ErrGoalAlignmentRefreshRequired,
 		)
 	}
 	if record.ObjectiveRevision != item.ObjectiveRevision() ||
@@ -161,16 +162,18 @@ func (s *Service) ensureGoalObjectiveAlignmentReady(
 			record.AgentID != "" &&
 			record.AgentID != strings.TrimSpace(agentID)) {
 		return fmt.Errorf(
-			"%w: objective alignment audit is stale or belongs to another round or Agent",
+			"%w: %w: objective alignment audit is stale or belongs to another round or Agent",
 			ErrGoalInvalidState,
+			ErrGoalAlignmentRefreshRequired,
 		)
 	}
 	target := goalObjectiveAlignmentTarget(item)
 	fingerprint, err := objectivealignment.Fingerprint(target)
 	if err != nil || fingerprint != record.TargetFingerprint {
 		return fmt.Errorf(
-			"%w: objective alignment target changed after the audit",
+			"%w: %w: objective alignment target changed after the audit",
 			ErrGoalInvalidState,
+			ErrGoalAlignmentRefreshRequired,
 		)
 	}
 	if _, err = objectivealignment.RequireAligned(target, record.Report); err != nil {

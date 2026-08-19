@@ -34,7 +34,7 @@ func TestRenderPendingObjectiveTransitionContextSurvivesRoundRestart(t *testing.
 	rendered := renderPendingObjectiveTransitionContext(item)
 	for _, expected := range []string{
 		`phase="awaiting_plan"`,
-		`tool="prepare_plan_execution"`,
+		`domain="execution" operation="prepare_plan_execution"`,
 		`successor_execution_id="execution-successor"`,
 		`requested_objective="User successor objective"`,
 	} {
@@ -46,7 +46,7 @@ func TestRenderPendingObjectiveTransitionContextSurvivesRoundRestart(t *testing.
 	item.Metadata[protocol.GoalMetadataObjectiveTransition].(map[string]any)["phase"] =
 		string(ObjectiveTransitionPrepared)
 	rendered = renderPendingObjectiveTransitionContext(item)
-	if !strings.Contains(rendered, `tool="retarget_goal"`) {
+	if !strings.Contains(rendered, `domain="goal" operation="retarget_goal"`) {
 		t.Fatalf("prepared transition context = %q", rendered)
 	}
 }

@@ -89,7 +89,7 @@ func TestServiceEnsureDoesNotSilentlyRewriteCurrentExecutionBoundary(t *testing.
 				result.Snapshot == nil ||
 				result.Snapshot.Execution.ID != snapshot.Execution.ID ||
 				len(result.NextActions) != 1 ||
-				result.NextActions[0].Tool != test.nextTool {
+				result.NextActions[0].Operation != test.nextTool {
 				t.Fatalf("boundary-changing ensure = %#v", result)
 			}
 		})
@@ -1422,7 +1422,7 @@ func TestServicePlanModeValidatesProposalWithoutWritingAndRuntimeContextMatches(
 		t.Fatalf("result=%#v plan=%#v", result, written.Plan)
 	}
 	for _, action := range result.NextActions {
-		if action.Tool == "assign_work" {
+		if action.Operation == "assign_work" {
 			t.Fatalf("Plan Mode exposed assign_work: %#v", result.NextActions)
 		}
 	}
@@ -1471,7 +1471,7 @@ func TestServicePlanModeValidatesProposalWithoutCreatingExecution(t *testing.T) 
 	if result.Outcome != MutationNoOp || result.ExecutionID != "" || result.Snapshot != nil {
 		t.Fatalf("result = %#v", result)
 	}
-	if len(result.NextActions) != 1 || result.NextActions[0].Tool != "prepare_plan_execution" {
+	if len(result.NextActions) != 1 || result.NextActions[0].Operation != "prepare_plan_execution" {
 		t.Fatalf("next actions = %#v", result.NextActions)
 	}
 }
@@ -1712,6 +1712,8 @@ func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
 func TestServiceAcceptedTerminalReviewCompletesExecutionAutomatically(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	snapshot.Execution.Version = 13
+	snapshot.Execution.GoalID = "goal-1"
+	snapshot.Execution.GoalObjectiveRevision = 2
 	snapshot.PlanItems[0].Terminal = true
 	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
 	snapshot.Assignments[0].Version = 3
@@ -1763,7 +1765,10 @@ func TestServiceAcceptedTerminalReviewCompletesExecutionAutomatically(t *testing
 		},
 	}
 	service := testService(repository)
-	result, err := service.ReviewWork(context.Background(), coordinatorActor(), ReviewWorkInput{
+	actor := coordinatorActor()
+	actor.GoalID = "goal-1"
+	actor.GoalObjectiveRevision = 2
+	result, err := service.ReviewWork(context.Background(), actor, ReviewWorkInput{
 		ExecutionID:      snapshot.Execution.ID,
 		SnapshotRevision: 13,
 		CommandID:        "tool-review",
@@ -1782,10 +1787,38 @@ func TestServiceAcceptedTerminalReviewCompletesExecutionAutomatically(t *testing
 		strings.Join(calls, ",") != "tool-review:review,tool-review:complete-after-review" {
 		t.Fatalf("result=%#v calls=%#v", result, calls)
 	}
+	if len(result.NextActions) != 1 ||
+		result.NextActions[0].Domain != "goal" ||
+		result.NextActions[0].Operation != "audit_objective_alignment" {
+		t.Fatalf("next actions = %#v, want Goal closure handoff", result.NextActions)
+	}
 	for _, action := range result.NextActions {
-		if action.Tool == "complete_execution" {
+		if action.Operation == "complete_execution" {
 			t.Fatalf("model-facing completion action leaked: %#v", result.NextActions)
 		}
+	}
+}
+
+func TestNextActionsRoutesCompletedGoalBoundExecutionToGoalAudit(t *testing.T) {
+	snapshot := executionSnapshot()
+	snapshot.Execution.Status = protocol.ExecutionStatusCompleted
+	snapshot.Execution.GoalID = "goal-1"
+	snapshot.Execution.GoalObjectiveRevision = 2
+	actor := coordinatorActor()
+	actor.GoalID = "goal-1"
+	actor.GoalObjectiveRevision = 2
+
+	actions := nextActions(snapshot, actor)
+	if len(actions) != 1 ||
+		actions[0].Domain != "goal" ||
+		actions[0].Operation != "audit_objective_alignment" ||
+		!strings.Contains(actions[0].Reason, "do not call audit_execution_alignment") {
+		t.Fatalf("next actions = %#v, want exact Goal closure handoff", actions)
+	}
+
+	actor.GoalObjectiveRevision = 1
+	if staleActions := nextActions(snapshot, actor); len(staleActions) != 0 {
+		t.Fatalf("stale Goal authority received cross-domain action: %#v", staleActions)
 	}
 }
 

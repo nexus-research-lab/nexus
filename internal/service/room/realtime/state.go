@@ -11,6 +11,7 @@ import (
 	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"slices"
 	"strings"
@@ -35,8 +36,49 @@ type roomSlotRuntimeState struct {
 	doneOnce            sync.Once
 	responsibilityOnce  sync.Once
 	responsibilityState *runtimectx.ResponsibilityAuthorityState
+	sdkIdentityOnce     sync.Once
+	sdkSessionIdentity  *runtimectx.SDKSessionIdentityState
+	commandReceiptOnce  sync.Once
+	commandReceipts     *runtimecommand.ReceiptState
+	commandResourceOnce sync.Once
+	commandResources    *runtimecommand.RoundResources
 	workBindingOnce     sync.Once
 	workBindingState    *runtimectx.WorkBindingState
+}
+
+func (s *activeRoomSlot) ensureCommandResources() *runtimecommand.RoundResources {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.commandResourceOnce.Do(func() {
+		runtimeState.commandResources = runtimecommand.NewRoundResources()
+	})
+	return runtimeState.commandResources
+}
+
+func (s *activeRoomSlot) ensureCommandReceiptState() *runtimecommand.ReceiptState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.commandReceiptOnce.Do(func() {
+		runtimeState.commandReceipts = runtimecommand.NewReceiptState()
+	})
+	return runtimeState.commandReceipts
+}
+
+func (s *activeRoomSlot) ensureSDKSessionIdentityState() *runtimectx.SDKSessionIdentityState {
+	if s == nil {
+		return nil
+	}
+	runtimeState := &s.mutable.runtime
+	runtimeState.sdkIdentityOnce.Do(func() {
+		runtimeState.sdkSessionIdentity = runtimectx.NewSDKSessionIdentityState(
+			s.getSDKSessionID(),
+		)
+	})
+	return runtimeState.sdkSessionIdentity
 }
 
 type roomGoalAuthoritySource string
@@ -121,6 +163,7 @@ type roomSlotGoalState struct {
 	completionReceipt       protocol.GoalCompletionReceipt
 	completionReceiptStored bool
 	toolProgress            bool
+	commandReceiptSequence  uint64
 	pendingCollaboration    bool
 	subagentTasks           map[string]struct{}
 	subagentUsagePending    map[string]roomSubagentUsageObservation
@@ -403,6 +446,7 @@ func (s *Service) finishSlot(slot *activeRoomSlot) {
 		return
 	}
 	s.forgetRoomSlotGuidance(slot)
+	slot.ensureCommandResources().Close()
 	slot.closeDone()
 }
 
@@ -459,11 +503,13 @@ func (slot *activeRoomSlot) setSDKSessionID(sessionID string) bool {
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	slot.mutable.runtime.mu.Lock()
-	defer slot.mutable.runtime.mu.Unlock()
 	if sessionID == "" || sessionID == strings.TrimSpace(slot.mutable.runtime.sdkSessionID) {
+		slot.mutable.runtime.mu.Unlock()
 		return false
 	}
 	slot.mutable.runtime.sdkSessionID = sessionID
+	slot.mutable.runtime.mu.Unlock()
+	slot.ensureSDKSessionIdentityState().Set(sessionID)
 	return true
 }
 
@@ -472,11 +518,13 @@ func (slot *activeRoomSlot) clearSDKSessionID() bool {
 		return false
 	}
 	slot.mutable.runtime.mu.Lock()
-	defer slot.mutable.runtime.mu.Unlock()
 	if strings.TrimSpace(slot.mutable.runtime.sdkSessionID) == "" {
+		slot.mutable.runtime.mu.Unlock()
 		return false
 	}
 	slot.mutable.runtime.sdkSessionID = ""
+	slot.mutable.runtime.mu.Unlock()
+	slot.ensureSDKSessionIdentityState().Set("")
 	return true
 }
 
@@ -1068,6 +1116,18 @@ func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
 	return protocol.Clone(slot.mutable.goal.lastAssistant)
 }
 
+func (slot *activeRoomSlot) consumeRuntimeCommandReceipts() []runtimecommand.Receipt {
+	if slot == nil {
+		return nil
+	}
+	state := slot.ensureCommandReceiptState()
+	slot.mutable.goal.mu.Lock()
+	receipts, sequence := state.Since(slot.mutable.goal.commandReceiptSequence)
+	slot.mutable.goal.commandReceiptSequence = sequence
+	slot.mutable.goal.mu.Unlock()
+	return receipts
+}
+
 func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
 	if slot == nil || strings.TrimSpace(goalID) == "" {
 		return
@@ -1075,6 +1135,15 @@ func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
 	slot.mutable.goal.mu.Lock()
 	slot.mutable.goal.completionCandidateID = strings.TrimSpace(goalID)
 	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) hasGoalCompletionCandidate() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return strings.TrimSpace(slot.mutable.goal.completionCandidateID) != ""
 }
 
 func (slot *activeRoomSlot) rememberGoalCompletionAssistant(message protocol.Message) {

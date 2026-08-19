@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - sql.go：只读 Room Session 视图查询与遵循 Room-first 锁协议的 SDK session ID 回写；
+//     Connector 预备回写还必须在同一锁内确认当前 Session 选择未变；
 //     Room conversation 生命周期和版本仍归 roomrepo，不得并入 workspace Session CAS；
 //     SQL messages 计数仅是 legacy import 下限，实时进度由 service 与 workspace 投影合并。
 //

@@ -1,3 +1,8 @@
+/**
+ * INPUT: Agent 会话 identity、消息/运行态依赖和 Session 命令。
+ * OUTPUT: 页面消费的 Session controller 与请求生命周期 refs。
+ * POS: Agent conversation Session 子域的 React composition root。
+ */
 import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
@@ -77,6 +82,7 @@ export function useAgentSessionController({
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [inputQueueItems, setInputQueueItems] = useState<InputQueueItem[]>([]);
   const activeSessionKeyRef = useRef<string | null>(identitySessionKey);
+  const loadAbortControllerRef = useRef<AbortController | null>(null);
   const loadRequestIdRef = useRef(0);
   const clearLiveSessionState = useCallback((): void => {
     clearLiveRuntimeState();
@@ -117,6 +123,7 @@ export function useAgentSessionController({
     backgroundMessagesRef: snapshots.backgroundMessagesRef,
     historyCursorRef: history.historyCursorRef,
     identity,
+    loadAbortControllerRef,
     loadRequestIdRef,
     reconcileRuntimeStateFromSnapshot,
     restoreVolatileSessionSnapshot:

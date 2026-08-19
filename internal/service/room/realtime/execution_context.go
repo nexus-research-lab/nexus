@@ -11,6 +11,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
@@ -21,6 +22,7 @@ type executionContextProvider interface {
 type executionRuntimeGraphObserver interface {
 	BeginRuntimeRound(context.Context, orchestrationsvc.ActorContext) error
 	ObserveRuntimeMessage(context.Context, orchestrationsvc.ActorContext, sdkprotocol.ReceivedMessage) error
+	ObserveRuntimeCommandReceipts(context.Context, orchestrationsvc.ActorContext, []runtimecommand.Receipt) error
 	FinishRuntimeRound(context.Context, orchestrationsvc.ActorContext, string, string) error
 }
 
@@ -59,6 +61,21 @@ func (s *Service) observeExecutionRuntimeGraph(
 	defer cancel()
 	if err := observer.ObserveRuntimeMessage(ctx, actor, message); err != nil {
 		s.logger.Warn("记录 Room Runtime NodeRun 失败", "err", err)
+	}
+}
+
+func (s *Service) observeExecutionRuntimeCommandReceipts(
+	actor orchestrationsvc.ActorContext,
+	receipts []runtimecommand.Receipt,
+) {
+	observer, ok := s.executionContext.(executionRuntimeGraphObserver)
+	if !ok || observer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := observer.ObserveRuntimeCommandReceipts(ctx, actor, receipts); err != nil {
+		s.logger.Warn("核验 Room Execution command NodeRun 失败", "err", err)
 	}
 }
 

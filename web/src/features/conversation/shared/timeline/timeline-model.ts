@@ -293,8 +293,8 @@ function getMessageSourceRoundId(message: Message): string {
     : "";
 }
 
-// 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，
-// 视为纯 no-reply，不在时间线显示。保守判定：任何工具/非文本块都算可见输出。
+// 终态轮次里 assistant 仅剩无回复标记或内部非渲染块时，视为纯 no-reply，
+// 不在时间线显示；可见性与消息 ContentRenderer 的块契约保持一致。
 function hasVisibleUserContent(message: UserMessage): boolean {
   return Boolean(message.content.trim()) || Boolean(message.attachments?.length);
 }
@@ -309,7 +309,7 @@ function isBlankNoReplyRound(messages: Message[]): boolean {
   );
   return !hasVisibleUserMessage
     && assistants.length > 0
-    && !assistants.some(hasVisibleAssistantOutput);
+    && !assistants.some((message) => hasVisibleAssistantOutput(message));
 }
 
 /** 时间线除历史消息外，也要显示已启动但尚未产生消息的运行轮次。 */
