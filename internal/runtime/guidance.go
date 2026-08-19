@@ -207,9 +207,6 @@ func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
 
 // SupportsHookResponseAck 报告当前 session 是否协商了 hook 输出应用确认。
 func (m *Manager) SupportsHookResponseAck(sessionKey string) bool {
-	if m == nil {
-		return false
-	}
 	m.mu.RLock()
 	state := m.sessions[sessionKey]
 	var runtimeClient Client

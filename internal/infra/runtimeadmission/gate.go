@@ -66,9 +66,6 @@ func (l *Lease) Release() {
 
 // Admit 获取一次 runtime admission；安全转场期间等待转场完成。
 func (g *Gate) Admit(ctx context.Context) (*Lease, error) {
-	if g == nil {
-		return NewDetachedLease(ctx), nil
-	}
 	for {
 		g.mu.Lock()
 		if g.transition == nil {
@@ -100,18 +97,6 @@ func (g *Gate) Transition(
 	revoke func(context.Context) error,
 	commit func(context.Context) error,
 ) error {
-	if g == nil {
-		if revoke != nil {
-			if err := revoke(ctx); err != nil {
-				return fmt.Errorf("revoke runtime before security transition: %w", err)
-			}
-		}
-		if commit != nil {
-			return commit(ctx)
-		}
-		return nil
-	}
-
 	state, cancels, err := g.beginTransition(ctx)
 	if err != nil {
 		return err
@@ -129,15 +114,11 @@ func (g *Gate) Transition(
 	if err = ctx.Err(); err != nil {
 		return fmt.Errorf("continue runtime security transition: %w", err)
 	}
-	if revoke != nil {
-		if err = revoke(ctx); err != nil {
-			return fmt.Errorf("revoke runtime before security transition: %w", err)
-		}
+	if err = revoke(ctx); err != nil {
+		return fmt.Errorf("revoke runtime before security transition: %w", err)
 	}
-	if commit != nil {
-		if err = commit(ctx); err != nil {
-			return fmt.Errorf("commit runtime security transition: %w", err)
-		}
+	if err = commit(ctx); err != nil {
+		return fmt.Errorf("commit runtime security transition: %w", err)
 	}
 	return nil
 }
@@ -175,27 +156,16 @@ func (g *Gate) beginTransition(ctx context.Context) (*transitionState, []context
 func (g *Gate) finishTransition(state *transitionState) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.transition != state {
-		return
-	}
 	g.transition = nil
 	close(state.done)
 }
 
 func (g *Gate) release(id uint64) {
 	g.mu.Lock()
-	cancel, ok := g.active[id]
-	if !ok {
-		g.mu.Unlock()
-		return
-	}
+	cancel := g.active[id]
 	delete(g.active, id)
 	if g.transition != nil && len(g.active) == 0 {
-		select {
-		case <-g.transition.drained:
-		default:
-			close(g.transition.drained)
-		}
+		close(g.transition.drained)
 	}
 	g.mu.Unlock()
 	cancel()

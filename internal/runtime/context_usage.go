@@ -33,9 +33,6 @@ func (m *Manager) RecordContextUsage(
 	agentID string,
 	usage protocol.ContextUsageData,
 ) {
-	if m == nil {
-		return
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	agentID = strings.TrimSpace(agentID)
 	if sessionKey == "" || agentID == "" || usage.MaxTokens <= 0 {
@@ -53,9 +50,6 @@ func (m *Manager) RecordContextUsage(
 
 // ContextUsageSnapshots 返回 Session 当前可重放的上下文快照。
 func (m *Manager) ContextUsageSnapshots(sessionKey string) []ContextUsageSnapshot {
-	if m == nil {
-		return nil
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return nil

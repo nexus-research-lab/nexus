@@ -34,16 +34,12 @@ type roomConversationState struct {
 // roomRoundRegistry 只保护 conversation state 索引和 dispatch 引用；
 // 具体 round 数据与派发临界区均由 conversation state 自己保护。
 type roomRoundRegistry struct {
-	mu            *sync.RWMutex
+	mu            sync.RWMutex
 	conversations map[string]*roomConversationState
 }
 
-// 零值注册表只在局部测试构造中出现；共享兜底锁保证懒初始化仍可并发安全。
-var zeroRoomRoundRegistryMu sync.RWMutex
-
 func newRoomRoundRegistry() roomRoundRegistry {
 	return roomRoundRegistry{
-		mu:            &sync.RWMutex{},
 		conversations: make(map[string]*roomConversationState),
 	}
 }
@@ -54,13 +50,6 @@ func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoun
 		registry.register(roundValue)
 	}
 	return registry
-}
-
-func (r *roomRoundRegistry) mutex() *sync.RWMutex {
-	if r == nil || r.mu == nil {
-		return &zeroRoomRoundRegistryMu
-	}
-	return r.mu
 }
 
 func newRoomConversationState() *roomConversationState {
@@ -124,23 +113,19 @@ func roomRoundIdentity(roundValue *activeRoomRound) string {
 }
 
 func (r *roomRoundRegistry) state(conversationID string, create bool) *roomConversationState {
-	if r == nil {
-		return nil
-	}
 	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
 		return nil
 	}
-	mu := r.mutex()
-	mu.RLock()
+	r.mu.RLock()
 	state := r.conversations[conversationID]
-	mu.RUnlock()
+	r.mu.RUnlock()
 	if state != nil || !create {
 		return state
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.conversations == nil {
 		r.conversations = make(map[string]*roomConversationState)
 	}
@@ -157,19 +142,10 @@ func (r *roomRoundRegistry) register(roundValue *activeRoomRound) {
 	}
 	conversationID := roomConversationKey(roundValue.ConversationID, roundValue.SessionKey)
 	state := r.state(conversationID, true)
-	if state == nil {
-		return
-	}
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	state.registrationSequence++
 	roundValue.registrationSequence = state.registrationSequence
-	if state.rounds == nil {
-		state.rounds = make(map[string]*activeRoomRound)
-	}
-	if state.roundKeys == nil {
-		state.roundKeys = make(map[*activeRoomRound]string)
-	}
 	key := roomRegistryRoundKey(roundValue)
 	if key == "" {
 		// 构造态 round 可能还没有业务 ID；注册序号仍能保证同一 shard 内不覆盖。
@@ -237,9 +213,6 @@ func (r *roomRoundRegistry) bindSlot(slot *activeRoomSlot, roundValue *activeRoo
 	}
 	conversationID := roomConversationKey(roundValue.ConversationID, roundValue.SessionKey)
 	state := r.state(conversationID, true)
-	if state == nil {
-		return
-	}
 	state.mu.Lock()
 	slot.bindConversationState(conversationID, state)
 	state.mu.Unlock()
@@ -251,9 +224,6 @@ func (r *roomRoundRegistry) bindSlotToConversation(slot *activeRoomSlot, convers
 	}
 	key := roomConversationKey(conversationID, slot.RuntimeSessionKey)
 	state := r.state(key, true)
-	if state == nil {
-		return
-	}
 	state.mu.Lock()
 	slot.bindConversationState(key, state)
 	state.mu.Unlock()
@@ -264,10 +234,9 @@ func (r *roomRoundRegistry) prune(conversationID string, expected *roomConversat
 	if conversationID == "" || expected == nil {
 		return
 	}
-	mu := r.mutex()
-	mu.Lock()
+	r.mu.Lock()
 	if r.conversations[conversationID] != expected || expected.dispatchRefs != 0 {
-		mu.Unlock()
+		r.mu.Unlock()
 		return
 	}
 	expected.mu.RLock()
@@ -276,7 +245,7 @@ func (r *roomRoundRegistry) prune(conversationID string, expected *roomConversat
 	if empty {
 		delete(r.conversations, conversationID)
 	}
-	mu.Unlock()
+	r.mu.Unlock()
 }
 
 func (r *roomRoundRegistry) snapshot() []*activeRoomRound {
@@ -311,12 +280,8 @@ func (r *roomRoundRegistry) snapshotConversation(conversationID string) []*activ
 }
 
 func (r *roomRoundRegistry) states() []*roomConversationState {
-	if r == nil {
-		return nil
-	}
-	mu := r.mutex()
-	mu.RLock()
-	defer mu.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	result := make([]*roomConversationState, 0, len(r.conversations))
 	for _, state := range r.conversations {
 		if state != nil {
@@ -395,9 +360,6 @@ func (r *roomRoundRegistry) putGuidance(slot *activeRoomSlot, pending pendingRoo
 		return
 	}
 	state.mu.Lock()
-	if state.guidance == nil {
-		state.guidance = make(map[*activeRoomSlot]pendingRoomGuidance)
-	}
 	state.guidance[slot] = pending
 	state.mu.Unlock()
 }
@@ -476,9 +438,6 @@ func (r *roomRoundRegistry) enqueuePublicMention(roundValue *activeRoomRound, wa
 	}
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	if state.publicMentions == nil {
-		state.publicMentions = make(map[*activeRoomRound][]publicMentionWake)
-	}
 	pending := state.publicMentions[roundValue]
 	for _, existing := range pending {
 		if existing.TargetAgentID == wake.TargetAgentID &&
@@ -778,16 +737,12 @@ type roomDispatchLease struct {
 }
 
 func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
-	if r == nil {
-		return nil
-	}
 	key = strings.TrimSpace(key)
 	if key == "" {
 		key = "__room_unknown_conversation__"
 	}
 
-	mu := r.mutex()
-	mu.Lock()
+	r.mu.Lock()
 	if r.conversations == nil {
 		r.conversations = make(map[string]*roomConversationState)
 	}
@@ -797,7 +752,7 @@ func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
 		r.conversations[key] = state
 	}
 	state.dispatchRefs++
-	mu.Unlock()
+	r.mu.Unlock()
 
 	state.dispatchMu.Lock()
 	return &roomDispatchLease{
@@ -808,9 +763,6 @@ func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
 }
 
 func (l *roomDispatchLease) Unlock() {
-	if l == nil || l.registry == nil || l.state == nil {
-		return
-	}
 	l.once.Do(func() {
 		l.state.dispatchMu.Unlock()
 		l.registry.releaseDispatch(l.key, l.state)
@@ -818,21 +770,10 @@ func (l *roomDispatchLease) Unlock() {
 }
 
 func (r *roomRoundRegistry) releaseDispatch(key string, state *roomConversationState) {
-	if r == nil || state == nil {
-		return
-	}
-	mu := r.mutex()
-	mu.Lock()
-	current := r.conversations[key]
-	if current != state {
-		mu.Unlock()
-		return
-	}
-	if state.dispatchRefs > 0 {
-		state.dispatchRefs--
-	}
+	r.mu.Lock()
+	state.dispatchRefs--
 	last := state.dispatchRefs == 0
-	mu.Unlock()
+	r.mu.Unlock()
 	if last {
 		r.prune(key, state)
 	}
@@ -858,8 +799,5 @@ func roomDispatchStateKey(sessionKey string, conversationID string) string {
 }
 
 func (s *Service) lockRoomDispatch(sessionKey string, conversationID string) *roomDispatchLease {
-	if s == nil {
-		return nil
-	}
 	return s.rounds.acquireDispatch(roomDispatchStateKey(sessionKey, conversationID))
 }

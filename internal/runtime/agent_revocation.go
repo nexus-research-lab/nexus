@@ -40,9 +40,6 @@ func (m *Manager) runtimeAgentAdmissionErrorLocked(
 	ownerUserID string,
 	agentID string,
 ) error {
-	if m == nil {
-		return nil
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	agentID = strings.TrimSpace(agentID)
@@ -79,9 +76,6 @@ func (m *Manager) RevokeAgentSessions(
 	ownerUserID string,
 	agentID string,
 ) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
 	identity := newAgentRuntimeIdentity(ownerUserID, agentID)
 	if identity.ownerUserID == "" || identity.agentID == "" {
 		return 0, errors.New("owner_user_id and agent_id are required")

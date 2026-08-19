@@ -9,7 +9,7 @@ import "strings"
 // nxs task follow-up 会复用 task ID，因此高水位跟随 runtime session 生命周期，
 // 不能放在短生命周期的 round runner 中。
 func (m *Manager) ObserveSubagentUsage(sessionKey string, taskID string, cumulativeTokens int64) int64 {
-	if m == nil || cumulativeTokens <= 0 {
+	if cumulativeTokens <= 0 {
 		return 0
 	}
 	sessionKey = strings.TrimSpace(sessionKey)

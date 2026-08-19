@@ -122,7 +122,7 @@ func (c *permissionModeTestClient) SessionID() string { return "" }
 func TestRoomUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
 	t.Parallel()
 	recorder := &fakeTokenUsageRecorder{}
-	service := &Service{usage: recorder}
+	service := &Service{usage: recorder, runtime: runtimectx.NewManager()}
 	roundValue := &activeRoomRound{OwnerUserID: "user-1", SessionKey: "room:session"}
 	slot := &activeRoomSlot{AgentID: "agent-1", AgentRoundID: "agent-round-1"}
 	result := protocol.Message{
@@ -145,7 +145,7 @@ func TestRoomUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
 func TestRoomUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
 	t.Parallel()
 	recorder := &fakeTokenUsageRecorder{}
-	service := &Service{usage: recorder}
+	service := &Service{usage: recorder, runtime: runtimectx.NewManager()}
 	roundValue := &activeRoomRound{OwnerUserID: "user-1", SessionKey: "room:session"}
 	slot := &activeRoomSlot{AgentID: "agent-1", AgentRoundID: "agent-round-1"}
 
@@ -457,7 +457,7 @@ func TestRoomRoundRegistryKeepsPublicWakeAfterRoundUnregister(t *testing.T) {
 // 会话派发状态测试。
 
 func TestRoomDispatchStateUsesConversationBoundary(t *testing.T) {
-	var registry roomRoundRegistry
+	registry := newRoomRoundRegistry()
 	first := registry.acquireDispatch(roomDispatchStateKey("room:shared:conversation-a", "conversation-a"))
 	if got := registry.state("conversation-a", false); got != first.state {
 		t.Fatal("dispatch lease 未绑定到 conversation state")
@@ -503,9 +503,8 @@ func TestRoomDispatchStateUsesConversationBoundary(t *testing.T) {
 		t.Fatal("释放 conversation dispatch 后等待者未获得闸门")
 	}
 
-	mu := registry.mutex()
-	mu.RLock()
-	defer mu.RUnlock()
+	registry.mu.RLock()
+	defer registry.mu.RUnlock()
 	if len(registry.conversations) != 0 {
 		t.Fatalf("dispatch lease 释放后仍残留 conversation state: %d", len(registry.conversations))
 	}

@@ -33,7 +33,7 @@ func (m *Manager) startBackgroundTask(
 	ownerUserID string,
 	task func(context.Context),
 ) bool {
-	if m == nil || task == nil {
+	if task == nil {
 		return false
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -86,7 +86,7 @@ func (m *Manager) startBackgroundTask(
 }
 
 func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, taskID uint64) {
-	if m == nil || state == nil {
+	if state == nil {
 		return
 	}
 	m.mu.Lock()
@@ -115,9 +115,6 @@ func waitBackgroundTasks(ctx context.Context, done <-chan struct{}) error {
 
 // WaitBackgroundTasks 等待 session 已登记的后台文件任务结束。
 func (m *Manager) WaitBackgroundTasks(ctx context.Context, sessionKey string) error {
-	if m == nil {
-		return nil
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	m.mu.RLock()
 	state := m.sessions[sessionKey]

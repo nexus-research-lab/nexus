@@ -22,9 +22,6 @@ type SessionDeletionLease struct {
 
 // BeginSessionDeletion 在任何 runtime 关闭或文件删除前阻断 exact session_key 的新 admission。
 func (m *Manager) BeginSessionDeletion(sessionKey string) (SessionDeletionLease, error) {
-	if m == nil {
-		return SessionDeletionLease{}, errors.New("runtime manager is required")
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return SessionDeletionLease{}, errors.New("session_key is required")
@@ -48,7 +45,7 @@ func (m *Manager) BeginSessionDeletion(sessionKey string) (SessionDeletionLease,
 // AbortSessionDeletion 只在持久删除尚未提交时解除调用方自己的 admission block。
 // 成功删除不调用该方法，使同 key 在本进程内保持不可复活。
 func (m *Manager) AbortSessionDeletion(lease SessionDeletionLease) {
-	if m == nil || strings.TrimSpace(lease.blockKey) == "" || lease.token == 0 {
+	if strings.TrimSpace(lease.blockKey) == "" || lease.token == 0 {
 		return
 	}
 	m.mu.Lock()

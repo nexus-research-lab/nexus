@@ -34,7 +34,7 @@ func (c *gateRuntimeTransitionCoordinator) EnableAuthentication(
 	ctx context.Context,
 	commit func(context.Context) error,
 ) error {
-	return c.gate.Transition(ctx, nil, commit)
+	return c.gate.Transition(ctx, func(context.Context) error { return nil }, commit)
 }
 
 func (f *fakeRuntimeTransitionCoordinator) BeginRuntimeAdmission(

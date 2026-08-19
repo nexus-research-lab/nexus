@@ -261,7 +261,7 @@ func NewService(
 	return NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, defaultRoomClientFactory{})
 }
 
-// NewServiceWithFactory 使用自定义客户端工厂创建服务。
+// NewServiceWithFactory 使用非空自定义客户端工厂创建服务；默认实现使用 NewService。
 func NewServiceWithFactory(
 	cfg config.Config,
 	roomService roomContextStore,
@@ -270,9 +270,6 @@ func NewServiceWithFactory(
 	permission *permissionctx.Context,
 	factory roomClientFactory,
 ) *Service {
-	if factory == nil {
-		factory = defaultRoomClientFactory{}
-	}
 	return &Service{
 		config:              cfg,
 		rooms:               roomService,
@@ -473,9 +470,6 @@ func (s *Service) broadcastSharedEvent(ctx context.Context, sessionKey string, r
 }
 
 func (s *Service) notifyRoomEventObserver(ctx context.Context, sessionKey string, event protocol.EventMessage) {
-	if s == nil {
-		return
-	}
 	roundID := eventRoundID(event)
 	if strings.TrimSpace(roundID) == "" {
 		return

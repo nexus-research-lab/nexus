@@ -31,9 +31,6 @@ type sessionCloseTarget struct {
 // 调用者必须持有 Manager.mu。重复关闭同一 session 时返回 false，并交回
 // 第一次关闭的完成信号，避免两个清理流程同时操作同一个 client。
 func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarget, bool, <-chan struct{}) {
-	if m == nil {
-		return nil, false, nil
-	}
 	state := m.sessions[strings.TrimSpace(sessionKey)]
 	if state == nil {
 		return nil, false, nil
@@ -63,7 +60,7 @@ func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarge
 
 // finishSessionClose 删除仍属于本次关闭的 session，并唤醒并发关闭调用者。
 func (m *Manager) finishSessionClose(target *sessionCloseTarget) {
-	if m == nil || target == nil || target.state == nil {
+	if target == nil || target.state == nil {
 		return
 	}
 	m.mu.Lock()
@@ -79,7 +76,7 @@ func (m *Manager) finishSessionClose(target *sessionCloseTarget) {
 // finishSessionCloseWhenDone 延迟移除仍有 client cleanup、round 或后台任务的
 // session，防止关闭返回后新 runtime 绕过旧进程与迟到写盘的生命周期栅栏。
 func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitClient bool) {
-	if m == nil || target == nil {
+	if target == nil {
 		return
 	}
 	if !waitClient && target.idleMessageDrain == nil && len(target.roundDone) == 0 && target.backgroundDone == nil {

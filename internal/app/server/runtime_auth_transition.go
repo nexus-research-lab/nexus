@@ -29,9 +29,6 @@ func newRuntimeAuthTransition(runtimes ownerRuntimeCloser) *runtimeAuthTransitio
 func (t *runtimeAuthTransition) BeginRuntimeAdmission(
 	ctx context.Context,
 ) (*runtimeadmission.Lease, error) {
-	if t == nil || t.gate == nil {
-		return runtimeadmission.NewDetachedLease(ctx), nil
-	}
 	return t.gate.Admit(ctx)
 }
 
@@ -39,18 +36,9 @@ func (t *runtimeAuthTransition) EnableAuthentication(
 	ctx context.Context,
 	commit func(context.Context) error,
 ) error {
-	if t == nil || t.gate == nil {
-		if commit == nil {
-			return nil
-		}
-		return commit(ctx)
-	}
 	return t.gate.Transition(
 		ctx,
 		func(revokeContext context.Context) error {
-			if t.runtimes == nil {
-				return nil
-			}
 			_, err := t.runtimes.CloseOwnerSessions(revokeContext, authctx.SystemUserID)
 			return err
 		},
