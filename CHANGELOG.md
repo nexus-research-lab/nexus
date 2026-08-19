@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced visible scheduled-task and permission-resume prompt prefixes with trusted hidden run context. Completed results keep their original text and use a subtle metadata-backed UI badge instead.
 
 ### Fixed
+- Preserved the authenticated desktop/password principal when a WebSocket DM round detaches from its request, preventing human-gated Agent, Channel, Connector, and configuration operations from being downgraded to a synthetic runtime identity.
 - Kept ordinary messages, edits, queued inputs, and Goal submissions owned by their original Session after immediate navigation, so exact ACK/rejection still settles in the background and an unknown acceptance can no longer repopulate already-dispatched content into the Composer.
 - Made parallel Room streams share one scroll and presentation clock: FOLLOW commits aggregate real height to the bottom, visible Markdown backlogs advance fairly at a bounded cadence, stable wrapping no longer rebalances prior lines, and live cards no longer retain self-measured maximum heights that left large blanks before terminal collapse.
 - Made all eight DM/Room Goal and WorkGraph entry paths converge on one audited `nexus goal|execution` command grammar: Composer Goals remain durable host controls, dialogue Goals and WorkGraphs use exact contracts, same-round Goal authority now reaches Plan creation, Room members retain bounded observation, and historical Execution reads stay scope-checked without granting authority.
