@@ -477,7 +477,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	if err != nil || !strings.Contains(fmt.Sprint(toolList), "read") {
 		t.Fatalf("fork 飞书 MCP 缺少 read schema: result=%+v err=%v", toolList, err)
 	}
-	if options.Session.ResumeID != oldSessionID || !options.Session.Fork || strings.TrimSpace(options.Session.ID) == "" {
+	if options.Session.ResumeID != oldSessionID || !options.Session.Fork || options.Session.ID != "" {
 		t.Fatalf("工具面变化应从旧 transcript fork: %+v", options.Session)
 	}
 	staleClient.mu.Lock()

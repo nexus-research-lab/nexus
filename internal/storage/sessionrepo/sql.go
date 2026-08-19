@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -163,6 +164,12 @@ JOIN conversations c ON c.id = s.conversation_id
 		currentOptions,
 		[]string{current.String, sdkSessionID},
 	)
+	if strings.TrimSpace(sdkSessionID) != "" {
+		forkSourceSessionID, _ := options[protocol.OptionRuntimeForkSourceSessionID].(string)
+		options = protocol.WithRetainedTranscriptSessionIDs(options, []string{forkSourceSessionID})
+		delete(options, protocol.OptionRuntimeForkSourceSessionID)
+		delete(options, protocol.OptionRuntimeForkMessageID)
+	}
 	optionsJSON, err = jsoncodec.MarshalMap(options)
 	if err != nil {
 		return false, err
