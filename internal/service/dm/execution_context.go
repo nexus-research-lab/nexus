@@ -9,9 +9,9 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 

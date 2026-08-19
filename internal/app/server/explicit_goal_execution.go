@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )

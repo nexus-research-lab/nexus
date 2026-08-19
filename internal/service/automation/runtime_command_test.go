@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 )
 
 func TestRuntimeCommandCreateUsesPlanConfirmationAndIdempotency(t *testing.T) {

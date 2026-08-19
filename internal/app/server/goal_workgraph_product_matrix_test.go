@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"

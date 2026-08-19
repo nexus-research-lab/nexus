@@ -13,12 +13,12 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
-	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"

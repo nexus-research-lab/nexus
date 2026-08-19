@@ -7,9 +7,9 @@ import (
 	"context"
 	"strings"
 
+	goalcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	goalcontract "github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
 )
 
 type goalCommandMutationAuthorityResolver interface {
