@@ -1,4 +1,0 @@
-# PDF 渲染、元数据、字体与视觉检查
-weasyprint>=60
-pypdf>=4
-pymupdf>=1.24

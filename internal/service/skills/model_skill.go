@@ -153,6 +153,7 @@ type curatedCatalog struct {
 		CategoryName   string `json:"category_name"`
 		Recommendation string `json:"recommendation"`
 	} `json:"skills"`
+	RecommendedSkills []ExternalSkillSearchItem `json:"recommended_skills"`
 }
 
 type externalManifest struct {

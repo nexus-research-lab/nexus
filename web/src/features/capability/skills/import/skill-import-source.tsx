@@ -84,6 +84,7 @@ function GitSkillImportSource({
         description={t("capability.skills_import_git_url_description")}
         htmlFor="skill-import-git-url"
         label={t("capability.skills_import_git_url")}
+        required
       >
         <UiInput
           disabled={importing}

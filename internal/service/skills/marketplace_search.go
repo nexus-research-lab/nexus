@@ -3,6 +3,7 @@ package skills
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,7 +20,18 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 func (s *Service) SearchExternalSkillsFromSource(ctx context.Context, query string, includeReadme bool, sourceID string) (*SearchExternalSkillsResponse, error) {
 	needle := strings.TrimSpace(query)
 	if needle == "" {
-		return &SearchExternalSkillsResponse{Query: "", Results: []ExternalSkillSearchItem{}, Sources: []ExternalSkillSourceStatus{}}, nil
+		items := []ExternalSkillSearchItem{}
+		if strings.TrimSpace(sourceID) == "" {
+			catalog := curatedCatalog{}
+			if err := json.Unmarshal(curatedCatalogPayload, &catalog); err != nil {
+				return nil, err
+			}
+			items = catalog.RecommendedSkills
+			if includeReadme {
+				s.attachExternalReadmes(ctx, items)
+			}
+		}
+		return &SearchExternalSkillsResponse{Query: "", Results: items, Sources: []ExternalSkillSourceStatus{}}, nil
 	}
 	sources := s.externalSkillSources(ctx)
 	if selectedSourceID := strings.TrimSpace(sourceID); selectedSourceID != "" {

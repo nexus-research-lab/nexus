@@ -61,9 +61,9 @@ export function useExternalSkillSearch({
   }, []);
 
   useEffect(() => {
-    if (!active || query.trim().length >= MIN_EXTERNAL_SEARCH_LENGTH) return;
+    if (!active || !submittedQuery || query.trim().length >= MIN_EXTERNAL_SEARCH_LENGTH) return;
     clearResults();
-  }, [active, clearResults, query]);
+  }, [active, clearResults, query, submittedQuery]);
 
   useEffect(() => {
     if (!sourceId || sourcesLoading || selectedSourceSearchable) return;
@@ -73,7 +73,7 @@ export function useExternalSkillSearch({
   useEffect(() => {
     if (!active || !selectedSourceSearchable) return;
     const normalizedQuery = submittedQuery.trim();
-    if (normalizedQuery.length < MIN_EXTERNAL_SEARCH_LENGTH) return;
+    if (normalizedQuery.length > 0 && normalizedQuery.length < MIN_EXTERNAL_SEARCH_LENGTH) return;
 
     const requestId = ++searchRequestRef.current;
     searchAbortRef.current?.abort();
@@ -123,13 +123,10 @@ export function useExternalSkillSearch({
 
   const submit = useCallback(() => {
     const normalizedQuery = query.trim();
-    if (normalizedQuery.length < MIN_EXTERNAL_SEARCH_LENGTH) {
-      clearResults();
-      return;
-    }
+    if (normalizedQuery.length < MIN_EXTERNAL_SEARCH_LENGTH) return;
     setSubmittedQuery(normalizedQuery);
     setSearchRevision((value) => value + 1);
-  }, [clearResults, query]);
+  }, [query]);
 
   const closePreview = useCallback(() => {
     previewRequestRef.current += 1;

@@ -49,7 +49,9 @@ export function ExternalResultCard({
       meta={(
         <>
           <span className="truncate">{model.sourceReference}</span>
-          <span className="shrink-0">· {model.installLabel}</span>
+          {model.installLabel ? (
+            <span className="shrink-0">· {model.installLabel}</span>
+          ) : null}
         </>
       )}
       onSelect={onPreview}
