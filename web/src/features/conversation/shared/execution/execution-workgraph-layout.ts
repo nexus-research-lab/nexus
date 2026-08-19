@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度与纯 UI 隐藏节点集合。
- * OUTPUT: 主责任图自上而下展开；每个不可变 Attempt/Review 轮次保持独立层级；每个 Agent/Subagent 的直接子节点从左向右形成独立子树车道，后代始终落在真实拥有者下方；正向流程走中轴，真正成环的控制回连在所属子图框内避让节点并合流到共享 U 形正交总线。
+ * OUTPUT: 主责任图自上而下展开；每个不可变 Attempt/Review 轮次保持独立层级；每个 Agent/Subagent 的直接子节点从左向右形成独立子树车道，后代始终落在真实拥有者下方；正向流程走中轴，真正成环的控制回连在所属子图框内避让节点、合流到共享 U 形正交总线并从目标的正常流程中心锚点收口。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态树形投影；只为一级 Agent/Gate 的完整运行树绘制外框，Subagent 层级只由树线表达，不再嵌套子图框。
  */
 import type {
@@ -28,7 +28,6 @@ const CONTROL_EDGE_GUTTER = 18;
 const CONTROL_EDGE_KIND_LANE_GAP = 8;
 const CONTROL_EDGE_ROUTE_LANE_COUNT = 8;
 const CONTROL_EDGE_NODE_CLEARANCE = 4;
-const CONTROL_EDGE_PORT_STEP = 6;
 const CONTROL_EDGE_FRAME_SAFE_GAP = 16;
 const GROUP_PADDING = 40;
 const HORIZONTAL_PADDING = 24;
@@ -931,7 +930,7 @@ function buildControlEdgePath(
 }
 
 // 子节点先沿正常流程方向离开当前节点层，再从层外的水平轨道接入左右
-// 侧轨，最后水平进入父节点。子图内的左右侧轨与底部总线固定内缩到
+// 侧轨，最后回到目标节点的正常流程中心锚点。子图内的左右侧轨与底部总线固定内缩到
 // 圆角框的安全槽中，避免线条贴住边框或圆角。同一子图、目标与侧面的回连
 // 允许选择完全相同的 U 形总线，仅保留各源节点自己的接入竖线；路由只把
 // 节点碰撞视为硬约束，不再为了躲避其他线条制造大量平行轨道。
@@ -940,20 +939,11 @@ function buildSideControlEdgeCandidates(
   target: ExecutionGraphNodeLayout,
   context: ExecutionControlRouteContext,
 ): ExecutionControlRouteCandidate[] {
-  const maxPortOffset = Math.max(
-    0,
-    target.size / 2 - CONTROL_EDGE_NODE_CLEARANCE - 1,
-  );
-  const portOffsets = [
-    0,
-    -CONTROL_EDGE_PORT_STEP,
-    CONTROL_EDGE_PORT_STEP,
-    -CONTROL_EDGE_PORT_STEP * 2,
-    CONTROL_EDGE_PORT_STEP * 2,
-  ].filter((offset) => Math.abs(offset) <= maxPortOffset);
   const returnsUpward = source.y > target.y;
   const sourceY = source.y
     + (returnsUpward ? source.size / 2 : -source.size / 2);
+  const targetY = target.y
+    + (returnsUpward ? target.size / 2 : -target.size / 2);
   const sourceLayerBoundary = executionControlSourceLayerBoundary(
     source,
     context.nodes,
@@ -986,29 +976,24 @@ function buildSideControlEdgeCandidates(
         : sourceLayerBoundary
           + (returnsUpward ? 1 : -1)
             * (CONTROL_EDGE_GUTTER + lane * CONTROL_EDGE_KIND_LANE_GAP);
-      for (const portOffset of portOffsets) {
-        const approachY = target.y + portOffset;
-        const mergeX = targetX
-          + side
-            * (CONTROL_EDGE_GUTTER
-              + lane * CONTROL_EDGE_KIND_LANE_GAP / 2);
-        const path = [
-          `M ${source.x} ${sourceY}`,
-          `L ${source.x} ${outerY}`,
-          `L ${railX} ${outerY}`,
-          `L ${railX} ${approachY}`,
-          `L ${mergeX} ${approachY}`,
-          `L ${mergeX} ${target.y}`,
-          `L ${targetX} ${target.y}`,
-        ].join(" ");
-        result.push({
-          lane,
-          path,
-          portOffset,
-          segments: executionGraphPathSegments(path),
-          side,
-        });
-      }
+      const approachY = targetY
+        + (returnsUpward ? 1 : -1)
+          * (CONTROL_EDGE_GUTTER + lane * CONTROL_EDGE_KIND_LANE_GAP / 2);
+      const path = [
+        `M ${source.x} ${sourceY}`,
+        `L ${source.x} ${outerY}`,
+        `L ${railX} ${outerY}`,
+        `L ${railX} ${approachY}`,
+        `L ${target.x} ${approachY}`,
+        `L ${target.x} ${targetY}`,
+      ].join(" ");
+      result.push({
+        lane,
+        path,
+        portOffset: 0,
+        segments: executionGraphPathSegments(path),
+        side,
+      });
     }
   }
   return result;

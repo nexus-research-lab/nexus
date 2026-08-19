@@ -995,17 +995,17 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     "a return leaves downward from the child like a normal process edge",
   );
   assert.ok(
-    Math.abs(
-      Math.abs(loopBackPoints.at(-1).x - agentLayout.x)
-        - agentLayout.size / 2,
-    ) < 0.5
-      && Math.abs(loopBackPoints.at(-1).y - agentLayout.y) < 0.5,
-    "the outer U-shaped return enters through the parent side port",
+    Math.abs(loopBackPoints.at(-1).x - agentLayout.x) < 0.5
+      && Math.abs(
+        loopBackPoints.at(-1).y
+          - (agentLayout.y + agentLayout.size / 2),
+      ) < 0.5,
+    "the outer U-shaped return closes on the parent's normal process anchor",
   );
   assert.equal(
     orthogonalPathsShareSegment(loopBackLayout.path, forwardLayout.path),
-    false,
-    "an exact forward/return pair may cross once but never shares a visible segment",
+    true,
+    "an exact forward/return pair aligns on the target's center flow segment",
   );
   assert.doesNotMatch(loopBackLayout.path, /[CQ]/);
   assert.match(loopBackLayout.path, / L .* L .* L /);
@@ -1045,19 +1045,20 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
         downwardRetryPoints[0].y
           - (downwardAgentLayout.y - downwardAgentLayout.size / 2),
       ) < 0.5
+      && Math.abs(downwardRetryPoints.at(-1).x - downwardToolLayout.x) < 0.5
       && Math.abs(
-        Math.abs(downwardRetryPoints.at(-1).x - downwardToolLayout.x)
-          - downwardToolLayout.size / 2,
+        downwardRetryPoints.at(-1).y
+          - (downwardToolLayout.y - downwardToolLayout.size / 2),
       ) < 0.5,
-    "a downward retry first leaves above its source layer and returns through the target side",
+    "a downward retry first leaves above its source layer and closes on the target's normal process anchor",
   );
   assert.equal(
     orthogonalPathsShareSegment(
       downwardRetryEdge.path,
       downwardForwardEdge.path,
     ),
-    false,
-    "a downward retry stays off the normal invoke edge",
+    true,
+    "a downward retry aligns on the target's center flow segment",
   );
 
   const wideReturn = structuredClone(runtimeExecution);
@@ -1110,17 +1111,17 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     "a wide return first follows the normal downward flow out of its source",
   );
   assert.ok(
-    Math.abs(
-      Math.abs(wideReturnPoints.at(-1).x - wideTargetLayout.x)
-        - wideTargetLayout.size / 2,
-    ) < 0.5
-      && Math.abs(wideReturnPoints.at(-1).y - wideTargetLayout.y) < 0.5,
-    "a wide return enters the target from its dedicated outer corridor",
+    Math.abs(wideReturnPoints.at(-1).x - wideTargetLayout.x) < 0.5
+      && Math.abs(
+        wideReturnPoints.at(-1).y
+          - (wideTargetLayout.y + wideTargetLayout.size / 2),
+      ) < 0.5,
+    "a wide return closes on the target's normal process anchor",
   );
   assert.equal(
     orthogonalPathsShareSegment(wideReturnEdge.path, wideForwardEdge.path),
-    false,
-    "a dense ownership fan never forces the return back onto its forward edge",
+    true,
+    "a dense ownership fan still aligns the return with its target flow axis",
   );
   assert.doesNotMatch(wideReturnEdge.path, /[CQ]/);
 
@@ -1181,8 +1182,8 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     ));
     assert.equal(
       orthogonalPathsShareSegment(returnEdge.path, matchingForward.path),
-      false,
-      `return ${returnEdge.id} stays off its exact forward branch`,
+      true,
+      `return ${returnEdge.id} aligns with its exact forward branch at the target anchor`,
     );
     for (const node of crowdedReturnLayout.nodes) {
       if (node.node.id === returnEdge.sourceId
