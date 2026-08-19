@@ -161,9 +161,6 @@ func buildManagedSkillUsageSection(scope promptBuildScope) string {
 			"- 同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
 		}, "\n"))
 	}
-	if len(sections) == 0 {
-		return ""
-	}
 	return strings.Join(sections, "\n\n")
 }
 

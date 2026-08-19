@@ -23,7 +23,7 @@ func newAuthCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			state, err := service.GetState(commandContext(cmd))
+			state, err := service.GetState(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -54,7 +54,7 @@ func newAuthCommand(services *cliServiceProvider) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				item, err := service.InitOwner(commandContext(cmd), authsvc.InitOwnerInput{
+				item, err := service.InitOwner(cmd.Context(), authsvc.InitOwnerInput{
 					Username:    username,
 					DisplayName: displayName,
 					Password:    resolvedPassword,
@@ -93,7 +93,7 @@ func newUserCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := service.ListUsers(commandContext(cmd))
+			items, err := service.ListUsers(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -125,7 +125,7 @@ func newUserCommand(services *cliServiceProvider) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				item, err := service.CreateUser(commandContext(cmd), authsvc.CreateUserInput{
+				item, err := service.CreateUser(cmd.Context(), authsvc.CreateUserInput{
 					Username:    username,
 					DisplayName: displayName,
 					Password:    resolvedPassword,
@@ -169,7 +169,7 @@ func newUserCommand(services *cliServiceProvider) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				item, err := service.ResetPassword(commandContext(cmd), authsvc.ResetPasswordInput{
+				item, err := service.ResetPassword(cmd.Context(), authsvc.ResetPasswordInput{
 					UserID:   userID,
 					Username: username,
 					Password: resolvedPassword,

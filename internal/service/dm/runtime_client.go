@@ -441,18 +441,12 @@ func joinDMRuntimePrompts(stable string, dynamic string) string {
 }
 
 func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
 	return startup.RetireCurrent(closeCtx)
 }
 
 func retireExistingDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
 	return startup.RetireExisting(closeCtx)

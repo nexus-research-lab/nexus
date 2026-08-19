@@ -141,9 +141,6 @@ func (s *Service) RepairGoalTitleFromGoal(
 	if ownerUserID == "" {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	ctx = authctx.WithPrincipal(context.WithoutCancel(ctx), &authctx.Principal{
 		UserID: ownerUserID,
 		Role:   authctx.RoleOwner,

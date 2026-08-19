@@ -119,9 +119,6 @@ func (s *Service) broadcastDeletedGoalEvent(ctx context.Context, item protocol.G
 }
 
 func (s *Service) broadcastGoalEventMessage(ctx context.Context, sessionKey string, message protocol.EventMessage) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	broadcastCtx, cancel := context.WithTimeout(ctx, goalBroadcastTimeout)
 	defer cancel()
 	_ = s.events.BroadcastEvent(broadcastCtx, strings.TrimSpace(sessionKey), message)

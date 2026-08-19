@@ -176,9 +176,6 @@ func (s *Service) Close(ctx context.Context) error {
 		s.background.Wait()
 		close(done)
 	}()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	select {
 	case <-done:
 		return nil

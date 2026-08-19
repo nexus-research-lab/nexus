@@ -140,7 +140,7 @@ func automationCommandIntervalSeconds(value int, unit string) (int, error) {
 }
 
 func automationCommandCronSchedule(expression string, timezone string) (automationdomain.Schedule, error) {
-	fields := strings.Fields(strings.TrimSpace(expression))
+	fields := strings.Fields(expression)
 	if len(fields) != 5 {
 		return automationdomain.Schedule{}, errors.New("schedule.expr must be a standard five-field cron expression")
 	}

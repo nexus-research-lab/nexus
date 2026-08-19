@@ -28,9 +28,6 @@ type continuationTargetChecker interface {
 
 // WithActiveGoalContinuationSuppressed 延后本次 Goal mutation 触发的隐藏续跑。
 func WithActiveGoalContinuationSuppressed(ctx context.Context) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, activeGoalContinuationSuppressedKey{}, true)
 }
 
@@ -47,9 +44,6 @@ func (s *Service) StartAutoResume(ctx context.Context, dispatcher ContinuationDi
 	}
 	if !s.config.GoalAutoContinueEnabled || dispatcher == nil {
 		return func() {}, nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	loopCtx, cancel := context.WithCancel(ctx)
@@ -215,9 +209,6 @@ func (s *Service) clearMissingGoalContinuationTarget(
 }
 
 func activeGoalContinuationSuppressed(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
 	suppressed, _ := ctx.Value(activeGoalContinuationSuppressedKey{}).(bool)
 	return suppressed
 }

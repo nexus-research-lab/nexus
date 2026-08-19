@@ -21,7 +21,7 @@ func newLauncherCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Launcher
-				item, err := service.Query(commandContext(cmd), query)
+				item, err := service.Query(cmd.Context(), query)
 				if err != nil {
 					return err
 				}
@@ -46,7 +46,7 @@ func newLauncherCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Launcher
-			item, err := service.Suggestions(commandContext(cmd))
+			item, err := service.Suggestions(cmd.Context())
 			if err != nil {
 				return err
 			}

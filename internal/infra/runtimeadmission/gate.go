@@ -44,31 +44,20 @@ func NewGate() *Gate {
 
 // NewDetachedLease 创建不参与转场的 lease，供没有动态安全边界的调用方使用。
 func NewDetachedLease(ctx context.Context) *Lease {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	leaseContext, cancel := context.WithCancel(ctx)
 	return &Lease{ctx: leaseContext, cancel: cancel}
 }
 
 // Context 返回可在安全转场时被取消的启动上下文。
 func (l *Lease) Context() context.Context {
-	if l == nil || l.ctx == nil {
-		return context.Background()
-	}
 	return l.ctx
 }
 
 // Release 结束 admission。该操作幂等。
 func (l *Lease) Release() {
-	if l == nil {
-		return
-	}
 	l.once.Do(func() {
 		if l.gate == nil {
-			if l.cancel != nil {
-				l.cancel()
-			}
+			l.cancel()
 			return
 		}
 		l.gate.release(l.id)
@@ -77,15 +66,11 @@ func (l *Lease) Release() {
 
 // Admit 获取一次 runtime admission；安全转场期间等待转场完成。
 func (g *Gate) Admit(ctx context.Context) (*Lease, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if g == nil {
 		return NewDetachedLease(ctx), nil
 	}
 	for {
 		g.mu.Lock()
-		g.ensureActiveLocked()
 		if g.transition == nil {
 			g.nextID++
 			id := g.nextID
@@ -115,9 +100,6 @@ func (g *Gate) Transition(
 	revoke func(context.Context) error,
 	commit func(context.Context) error,
 ) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if g == nil {
 		if revoke != nil {
 			if err := revoke(ctx); err != nil {
@@ -163,7 +145,6 @@ func (g *Gate) Transition(
 func (g *Gate) beginTransition(ctx context.Context) (*transitionState, []context.CancelFunc, error) {
 	for {
 		g.mu.Lock()
-		g.ensureActiveLocked()
 		if g.transition == nil {
 			state := &transitionState{
 				done:    make(chan struct{}),
@@ -218,10 +199,4 @@ func (g *Gate) release(id uint64) {
 	}
 	g.mu.Unlock()
 	cancel()
-}
-
-func (g *Gate) ensureActiveLocked() {
-	if g.active == nil {
-		g.active = make(map[uint64]context.CancelFunc)
-	}
 }

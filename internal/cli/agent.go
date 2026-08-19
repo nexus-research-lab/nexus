@@ -21,7 +21,7 @@ func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Core.Agent
-			items, err := service.ListAgents(commandContext(cmd))
+			items, err := service.ListAgents(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -49,7 +49,7 @@ func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Agent
-				item, err := service.CreateAgent(commandContext(cmd), protocol.CreateRequest{
+				item, err := service.CreateAgent(cmd.Context(), protocol.CreateRequest{
 					Name:        name,
 					Avatar:      avatar,
 					Description: description,
@@ -81,7 +81,7 @@ func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Core.Agent
-			item, err := service.GetAgent(commandContext(cmd), args[0])
+			item, err := service.GetAgent(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}

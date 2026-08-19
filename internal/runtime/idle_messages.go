@@ -103,9 +103,6 @@ func waitIdleMessageDrain(ctx context.Context, drain *idleMessageDrain) error {
 	if drain == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	select {
 	case <-drain.done:
 		return nil

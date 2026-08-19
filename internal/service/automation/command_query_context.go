@@ -381,7 +381,7 @@ func runtimeGenericReportRemainder(remainder string) bool {
 	} {
 		normalized = strings.ReplaceAll(normalized, strings.ToLower(term), " ")
 	}
-	return strings.TrimSpace(strings.Join(strings.Fields(normalized), " ")) == ""
+	return len(strings.Fields(normalized)) == 0
 }
 
 func runtimeMergeDailyReport(

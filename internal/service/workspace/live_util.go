@@ -28,9 +28,6 @@ func (m *liveManager) snapshotListenersLocked(agentID string) []LiveListener {
 }
 
 func (m *liveManager) dispatchListeners(listeners []LiveListener, event LiveEvent) {
-	if len(listeners) == 0 {
-		return
-	}
 	for _, listener := range listeners {
 		if listener == nil {
 			continue

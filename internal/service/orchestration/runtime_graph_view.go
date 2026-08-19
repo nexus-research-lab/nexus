@@ -23,9 +23,6 @@ func mergeExecutionRuntimeGraph(
 	view.Graph.RuntimeEdgeTotal = 0
 	view.Graph.RuntimeNodesTruncated = false
 	view.Graph.RuntimeEdgesTruncated = false
-	if len(runtimeGraph.Nodes) == 0 {
-		return
-	}
 	for index := range runtimeGraph.Nodes {
 		runtimeGraph.Nodes[index].Metadata = maps.Clone(runtimeGraph.Nodes[index].Metadata)
 	}

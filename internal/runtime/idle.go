@@ -15,9 +15,6 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 	if idleFor <= 0 {
 		return 0, nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	now := m.nowTime().UTC()
 	targets := make([]*sessionCloseTarget, 0)

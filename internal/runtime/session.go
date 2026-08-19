@@ -54,9 +54,6 @@ func (m *Manager) beginClientStartup(
 	if m == nil {
 		return nil, agentclient.ErrNotConnected
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -68,9 +65,6 @@ func (m *Manager) beginClientStartup(
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
-	}
-	if m.startupGates == nil {
-		m.startupGates = make(map[string]*sessionStartupGate)
 	}
 	gate := m.startupGates[sessionKey]
 	if gate == nil {
@@ -141,9 +135,6 @@ func (m *Manager) releaseClientStartup(
 }
 
 func (m *Manager) beginSessionCloseGateLocked(sessionKey string) *sessionStartupGate {
-	if m.startupGates == nil {
-		m.startupGates = make(map[string]*sessionStartupGate)
-	}
 	gate := m.startupGates[sessionKey]
 	if gate == nil {
 		gate = &sessionStartupGate{token: make(chan struct{}, 1)}
@@ -283,9 +274,6 @@ func (m *Manager) getOrCreateWithFactory(
 	options agentclient.Options,
 	factory Factory,
 ) (Client, *sessionState, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if factory == nil {
 		factory = m.factory
 	}
@@ -494,9 +482,6 @@ func (m *Manager) runtimeAgentAdmissionError(
 func (m *Manager) Connect(ctx context.Context, sessionKey string, client Client) error {
 	if m == nil || client == nil {
 		return agentclient.ErrNotConnected
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	m.mu.RLock()
@@ -783,9 +768,6 @@ func (m *Manager) connectClient(
 	if m == nil || expected == nil || expectedState == nil {
 		return agentclient.ErrNotConnected
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	m.mu.Lock()
 	state := m.sessions[sessionKey]
@@ -1047,9 +1029,6 @@ func (m *Manager) retireCurrentClient(
 	expected Client,
 	expectedGeneration uint64,
 ) (bool, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	m.mu.Lock()
 	ownershipErr := startup.validateCloseEpochLocked()
 	if ownershipErr == nil {
@@ -1138,9 +1117,6 @@ func (m *Manager) closeSession(
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return false, nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	m.mu.Lock()

@@ -86,9 +86,6 @@ type cacheToolSurfaceManifest struct {
 }
 
 func cacheSurfaceProfileFromOptions(ctx context.Context, options agentclient.Options) (CacheSurfaceProfile, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if err := ctx.Err(); err != nil {
 		return CacheSurfaceProfile{}, err
 	}
@@ -242,9 +239,6 @@ func inspectSDKToolSurface(
 	ctx context.Context,
 	server sdkmcp.SDKMCPServer,
 ) (result any, ok bool, err error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	select {
 	case cacheSurfaceInspectionSlots <- struct{}{}:
 	case <-ctx.Done():

@@ -514,17 +514,11 @@ func WithResponsibilityAuthorityState(
 	if state == nil {
 		return ctx
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, responsibilityAuthorityContextKey{}, state)
 }
 
 // ResponsibilityAuthorityStateFromContext 读取可信 runtime 注入的统一 capability。
 func ResponsibilityAuthorityStateFromContext(ctx context.Context) *ResponsibilityAuthorityState {
-	if ctx == nil {
-		return nil
-	}
 	state, _ := ctx.Value(responsibilityAuthorityContextKey{}).(*ResponsibilityAuthorityState)
 	return state
 }

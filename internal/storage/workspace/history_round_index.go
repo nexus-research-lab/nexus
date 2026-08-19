@@ -135,9 +135,6 @@ func readSessionRoundIndexWithModel(
 	collapseRoomRounds bool,
 	deferIndex bool,
 ) (protocol.SessionRoundIndex, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if err := ctx.Err(); err != nil {
 		return protocol.SessionRoundIndex{}, err
 	}

@@ -22,7 +22,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Automation
-			item, err := service.GetHeartbeatStatus(commandContext(cmd), args[0])
+			item, err := service.GetHeartbeatStatus(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -49,7 +49,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Automation
-				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], automationdomain.HeartbeatUpdateInput{
+				item, err := service.UpdateHeartbeat(cmd.Context(), args[0], automationdomain.HeartbeatUpdateInput{
 					Enabled:      enabled,
 					EverySeconds: everySeconds,
 					TargetMode:   targetMode,
@@ -89,7 +89,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 				if text != "" {
 					request.Text = stringRef(text)
 				}
-				item, err := service.WakeHeartbeat(commandContext(cmd), args[0], request)
+				item, err := service.WakeHeartbeat(cmd.Context(), args[0], request)
 				if err != nil {
 					return err
 				}

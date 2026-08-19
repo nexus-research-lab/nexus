@@ -310,9 +310,6 @@ func relativePathFromNexusWorkspacePath(path string) string {
 			continue
 		}
 		relativeParts := parts[index+3:]
-		if len(relativeParts) == 0 {
-			return ""
-		}
 		return strings.Join(relativeParts, "/")
 	}
 	return ""

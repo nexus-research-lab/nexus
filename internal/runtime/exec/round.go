@@ -91,7 +91,7 @@ func (e *roundExecution) query() error {
 		return err
 	}
 	if err = runtimectx.QueryClientContentWithOptions(e.ctx, e.request.Client, queryContent, e.request.InputOptions); err != nil {
-		if isRoundAbortError(e.ctx, err) {
+		if e.ctx.Err() != nil || isRoundAbortError(err) {
 			return ErrRoundInterrupted
 		}
 		return err

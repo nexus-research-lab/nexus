@@ -215,9 +215,6 @@ func closeDreamSession(session *agentclient.Session) {
 // closeDreamSessionOnCancellation 确保 admission 撤销不只依赖 control RPC
 // 主动观察 context；即使 RPC 未及时返回，也会并发关闭 bridge session。
 func closeDreamSessionOnCancellation(ctx context.Context, closeSession func()) func() {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	var stopOnce sync.Once

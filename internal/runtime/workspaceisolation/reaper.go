@@ -27,9 +27,6 @@ func (r OwnerProcessReaper) ReapOwnerProcesses(ctx context.Context, ownerUserID 
 	if r.Mode != ModeEnforce || runtime.GOOS != "linux" {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" || ownerUserID == "." || ownerUserID == ".." ||
 		filepath.Base(ownerUserID) != ownerUserID ||

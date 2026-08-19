@@ -68,9 +68,6 @@ func (m *Manager) startBackgroundTask(
 		}
 		state.OwnerUserID = ownerUserID
 	}
-	if state.BackgroundTasks == nil {
-		state.BackgroundTasks = make(map[uint64]context.CancelFunc)
-	}
 	if len(state.BackgroundTasks) == 0 {
 		state.BackgroundDone = make(chan struct{})
 	}
@@ -93,12 +90,10 @@ func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, t
 		return
 	}
 	m.mu.Lock()
-	if state.BackgroundTasks != nil {
-		delete(state.BackgroundTasks, taskID)
-		if len(state.BackgroundTasks) == 0 && state.BackgroundDone != nil {
-			close(state.BackgroundDone)
-			state.BackgroundDone = nil
-		}
+	delete(state.BackgroundTasks, taskID)
+	if len(state.BackgroundTasks) == 0 && state.BackgroundDone != nil {
+		close(state.BackgroundDone)
+		state.BackgroundDone = nil
 	}
 	// 仅由后台队列任务临时创建、且从未建立 client/round 的状态不应
 	// 长驻 manager；expected state 防止旧任务退出时误删同 key 的新状态。
@@ -109,9 +104,6 @@ func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, t
 func waitBackgroundTasks(ctx context.Context, done <-chan struct{}) error {
 	if done == nil {
 		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	select {
 	case <-done:

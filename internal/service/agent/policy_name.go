@@ -21,7 +21,7 @@ const (
 
 // NormalizeName 标准化 Agent 名称。
 func NormalizeName(name string) string {
-	return strings.Join(strings.Fields(strings.TrimSpace(name)), " ")
+	return strings.Join(strings.Fields(name), " ")
 }
 
 // BuildWorkspaceDirName 生成安全目录名。

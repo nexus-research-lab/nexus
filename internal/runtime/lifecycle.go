@@ -103,9 +103,6 @@ func waitRoundDoneForClose(ctx context.Context, done []chan struct{}) error {
 	if len(done) == 0 {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if _, ok := ctx.Deadline(); ok {
 		return waitRoundDoneSignals(ctx, done, nil)
 	}
@@ -117,9 +114,6 @@ func waitRoundDoneForClose(ctx context.Context, done []chan struct{}) error {
 func waitSessionClose(ctx context.Context, done <-chan struct{}) error {
 	if done == nil {
 		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	select {
 	case <-done:

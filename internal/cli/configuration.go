@@ -72,7 +72,7 @@ func newConfigurationInspectCommand(services *cliServiceProvider) *cobra.Command
 				return err
 			}
 			inspection, err := controller.Inspect(
-				commandContext(cmd),
+				cmd.Context(),
 				domains,
 				verify,
 			)
@@ -104,7 +104,7 @@ func newConfigurationPlanCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan, err := controller.Plan(commandContext(cmd), request)
+			plan, err := controller.Plan(cmd.Context(), request)
 			if err != nil {
 				return err
 			}
@@ -133,7 +133,7 @@ func newConfigurationApplyCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan, err := controller.Plan(commandContext(cmd), request)
+			plan, err := controller.Plan(cmd.Context(), request)
 			if err != nil {
 				return err
 			}
@@ -169,7 +169,7 @@ func newConfigurationApplyCommand(services *cliServiceProvider) *cobra.Command {
 			request.ExpectedRevision = plan.CurrentRevision
 			request.PlanDigest = plan.PlanDigest
 			result, err := controller.Apply(
-				commandContext(cmd),
+				cmd.Context(),
 				request,
 				configurationsvc.CLIApplyOptions{
 					Confirmed:    confirm,
@@ -206,7 +206,7 @@ func newConfigurationHistoryCommand(services *cliServiceProvider) *cobra.Command
 				return err
 			}
 			items, err := controller.History(
-				commandContext(cmd),
+				cmd.Context(),
 				domain,
 				limit,
 			)
@@ -318,7 +318,7 @@ func configurationCLIController(
 		return nil, err
 	}
 	ownerUserID := strings.TrimSpace(currentCLIUserID(cmd))
-	mainAgent, err := appServices.Core.Agent.GetDefaultAgent(commandContext(cmd))
+	mainAgent, err := appServices.Core.Agent.GetDefaultAgent(cmd.Context())
 	if err != nil {
 		return nil, fmt.Errorf("读取当前 owner 主智能体: %w", err)
 	}

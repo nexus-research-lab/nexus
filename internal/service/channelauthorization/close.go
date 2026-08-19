@@ -24,9 +24,6 @@ func (s *Service) Close(ctx context.Context) error {
 }
 
 func (s *Service) close(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	// Cleanup must outlive an already-cancelled HTTP shutdown context. Returning
 	// before pollers exit would violate the no-post-Close-write contract.
 	cleanupCtx := context.WithoutCancel(ctx)

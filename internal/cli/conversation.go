@@ -27,7 +27,7 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				roomService := appServices.Core.Room
-				items, err := roomService.GetRoomContexts(commandContext(cmd), roomID)
+				items, err := roomService.GetRoomContexts(cmd.Context(), roomID)
 				if err != nil {
 					return err
 				}
@@ -53,7 +53,7 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			roomService := appServices.Core.Room
-			item, err := roomService.GetConversationContext(commandContext(cmd), args[0])
+			item, err := roomService.GetConversationContext(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -77,7 +77,7 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				roomService := appServices.Core.Room
-				item, err := roomService.CreateConversation(commandContext(cmd), roomID, protocol.CreateConversationRequest{
+				item, err := roomService.CreateConversation(cmd.Context(), roomID, protocol.CreateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -109,7 +109,7 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				roomService := appServices.Core.Room
-				item, err := roomService.UpdateConversation(commandContext(cmd), roomID, conversationID, protocol.UpdateConversationRequest{
+				item, err := roomService.UpdateConversation(cmd.Context(), roomID, conversationID, protocol.UpdateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -143,7 +143,7 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				roomService := appServices.Core.Room
-				item, err := roomService.DeleteConversation(commandContext(cmd), roomID, conversationID)
+				item, err := roomService.DeleteConversation(cmd.Context(), roomID, conversationID)
 				if err != nil {
 					return err
 				}
@@ -172,7 +172,7 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				sessionService := appServices.Core.Session
-				items, err := sessionService.GetSessionMessages(commandContext(cmd), fmt.Sprintf("room:group:%s", conversationID))
+				items, err := sessionService.GetSessionMessages(cmd.Context(), fmt.Sprintf("room:group:%s", conversationID))
 				if err != nil {
 					return err
 				}

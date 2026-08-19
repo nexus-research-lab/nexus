@@ -422,7 +422,7 @@ func validatedAuthorizationExtras(
 		normalized[key] = value
 	}
 	for _, required := range provider.RequiredExtraKeys() {
-		if strings.TrimSpace(normalized[required]) == "" {
+		if normalized[required] == "" {
 			return nil, fmt.Errorf("%s 参数缺失", required)
 		}
 	}

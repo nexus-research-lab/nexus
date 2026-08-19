@@ -53,7 +53,7 @@ func newChannelIngressCommand(services *cliServiceProvider) *cobra.Command {
 					AccountID: deliveryAccount,
 				}
 			}
-			result, err := service.Accept(commandContext(cmd), channels.IngressRequest{
+			result, err := service.Accept(cmd.Context(), channels.IngressRequest{
 				Channel:          channel,
 				SessionKey:       sessionKey,
 				AgentID:          agentID,

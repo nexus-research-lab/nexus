@@ -21,7 +21,7 @@ func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Workspace
-				items, err := service.ListFiles(commandContext(cmd), agentID)
+				items, err := service.ListFiles(cmd.Context(), agentID)
 				if err != nil {
 					return err
 				}
@@ -49,7 +49,7 @@ func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Workspace
-				item, err := service.GetFile(commandContext(cmd), agentID, path)
+				item, err := service.GetFile(cmd.Context(), agentID, path)
 				if err != nil {
 					return err
 				}
@@ -80,7 +80,7 @@ func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Workspace
-				item, err := service.UpdateFile(commandContext(cmd), agentID, path, content)
+				item, err := service.UpdateFile(cmd.Context(), agentID, path, content)
 				if err != nil {
 					return err
 				}
@@ -113,7 +113,7 @@ func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Workspace
-				item, err := service.CreateEntry(commandContext(cmd), agentID, path, entryType, content)
+				item, err := service.CreateEntry(cmd.Context(), agentID, path, entryType, content)
 				if err != nil {
 					return err
 				}
@@ -146,7 +146,7 @@ func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Workspace
-				item, err := service.RenameEntry(commandContext(cmd), agentID, path, newPath)
+				item, err := service.RenameEntry(cmd.Context(), agentID, path, newPath)
 				if err != nil {
 					return err
 				}
@@ -178,7 +178,7 @@ func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Workspace
-				item, err := service.DeleteEntry(commandContext(cmd), agentID, path)
+				item, err := service.DeleteEntry(cmd.Context(), agentID, path)
 				if err != nil {
 					return err
 				}

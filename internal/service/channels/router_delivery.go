@@ -21,8 +21,8 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 	if err != nil {
 		return DeliveryResult{}, err
 	}
-	if strings.TrimSpace(normalized.SessionKey) == "" {
-		normalized.SessionKey = strings.TrimSpace(routeSessionKey)
+	if normalized.SessionKey == "" {
+		normalized.SessionKey = routeSessionKey
 	}
 	if err := normalized.Validate(); err != nil {
 		return DeliveryResult{}, err
@@ -67,7 +67,7 @@ func (r *Router) DeliverAutomationResult(
 		delivery.ProducerAgentID = strings.TrimSpace(producerAgentID)
 	}
 	routeAgentID := automationDeliveryRouteAgentID(normalized, producerAgentID)
-	routeSessionKey := strings.TrimSpace(normalized.SessionKey)
+	routeSessionKey := normalized.SessionKey
 	if strings.TrimSpace(text) == "" || normalized.Mode == DeliveryModeNone {
 		return DeliveryResult{Target: normalized}, nil
 	}

@@ -122,10 +122,7 @@ func (s *Service) Grant(
 
 	// ACL 已经落盘后，客户端断开不能取消安全回收，否则旧进程仍可能持有
 	// 变更前的 supplementary GID。保留 trace/value，但切断取消链并设总超时。
-	cleanupParent := context.Background()
-	if ctx != nil {
-		cleanupParent = context.WithoutCancel(ctx)
-	}
+	cleanupParent := context.WithoutCancel(ctx)
 	cleanupCtx, cancel := context.WithTimeout(cleanupParent, runtimeCleanupTimeout)
 	defer cancel()
 	if _, err = s.runtimeCloser.CloseOwnerSessions(cleanupCtx, ownerUserID); err != nil {

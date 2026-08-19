@@ -47,9 +47,6 @@ func (m *Manager) RecordContextUsage(
 	if state.Closing {
 		return
 	}
-	if state.ContextUsageByAgent == nil {
-		state.ContextUsageByAgent = make(map[string]protocol.ContextUsageData)
-	}
 	state.ContextUsageByAgent[agentID] = usage
 	m.touchStateLocked(state)
 }

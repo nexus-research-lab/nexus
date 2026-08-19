@@ -358,7 +358,7 @@ func (m *controlMessage) executeHostCommand(
 }
 
 func isGoalHostCommandContent(content string) bool {
-	fields := strings.Fields(strings.TrimSpace(content))
+	fields := strings.Fields(content)
 	return len(fields) > 0 && strings.EqualFold(fields[0], "/goal")
 }
 

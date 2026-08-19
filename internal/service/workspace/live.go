@@ -130,11 +130,9 @@ func (m *liveManager) Unsubscribe(token string) {
 	delete(m.subscriptions, normalizedToken)
 
 	listeners := m.listeners[subscription.AgentID]
-	if listeners != nil {
-		delete(listeners, normalizedToken)
-		if len(listeners) == 0 {
-			delete(m.listeners, subscription.AgentID)
-		}
+	delete(listeners, normalizedToken)
+	if len(listeners) == 0 {
+		delete(m.listeners, subscription.AgentID)
 	}
 
 	watcherState := m.watchers[subscription.AgentID]

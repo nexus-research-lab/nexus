@@ -176,12 +176,12 @@ func buildRoundStreamClosedError(
 
 func clientStreamAbortError(client Client) error {
 	if streamErrorer, ok := client.(clientStreamErrorer); ok {
-		if err := streamErrorer.StreamError(); isRoundAbortError(nil, err) {
+		if err := streamErrorer.StreamError(); isRoundAbortError(err) {
 			return err
 		}
 	}
 	if waiter, ok := client.(clientWaiter); ok {
-		if err := waiter.Wait(); isRoundAbortError(nil, err) {
+		if err := waiter.Wait(); isRoundAbortError(err) {
 			return err
 		}
 	}

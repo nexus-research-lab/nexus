@@ -174,9 +174,6 @@ func readHistoryPageWithIndex(
 	access historyPageIndexAccess,
 	request historyPageIndexRequest,
 ) (protocol.MessagePage, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if err := ctx.Err(); err != nil {
 		return protocol.MessagePage{}, err
 	}
@@ -328,9 +325,6 @@ func (m *historyPageRebuildManager) startWithAdmission(
 	access historyPageIndexAccess,
 	wait bool,
 ) (*historyPageRebuildFuture, error) {
-	if requestCtx == nil {
-		requestCtx = context.Background()
-	}
 	for {
 		m.mu.Lock()
 		if current := m.futures[access.Scope]; current != nil {

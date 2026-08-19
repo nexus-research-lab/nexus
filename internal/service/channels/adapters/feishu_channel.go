@@ -69,6 +69,7 @@ func NewFeishuChannel(appID string, appSecret string, client *http.Client) *Feis
 		baseURL:        "https://open.feishu.cn",
 		connectionMode: "websocket",
 		eventFactory:   newFeishuSDKEventClient,
+		typingReacts:   make(map[string]string),
 	}
 }
 

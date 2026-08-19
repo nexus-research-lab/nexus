@@ -40,7 +40,7 @@ func newScheduledTaskInspectCommand(services *cliServiceProvider) *cobra.Command
 			if err != nil {
 				return err
 			}
-			item, err := service.GetTaskStatus(commandContext(cmd), args[0], runLimit, eventLimit)
+			item, err := service.GetTaskStatus(cmd.Context(), args[0], runLimit, eventLimit)
 			if err != nil {
 				return err
 			}
@@ -67,7 +67,7 @@ func newScheduledTaskEventsCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			items, err := service.ListTaskEvents(commandContext(cmd), args[0], limit)
+			items, err := service.ListTaskEvents(cmd.Context(), args[0], limit)
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func newScheduledTaskReportCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.GetDailyReport(commandContext(cmd), input)
+			item, err := service.GetDailyReport(cmd.Context(), input)
 			if err != nil {
 				return err
 			}
@@ -121,7 +121,7 @@ func newScheduledTaskRecoverCommand(services *cliServiceProvider) *cobra.Command
 			if err != nil {
 				return err
 			}
-			item, err := service.RecoverTaskRunningRun(commandContext(cmd), args[0], runID)
+			item, err := service.RecoverTaskRunningRun(cmd.Context(), args[0], runID)
 			if err != nil {
 				return err
 			}
@@ -146,7 +146,7 @@ func newScheduledTaskRetryDeliveryCommand(services *cliServiceProvider) *cobra.C
 			if err != nil {
 				return err
 			}
-			item, err := service.RetryRunDelivery(commandContext(cmd), args[0], args[1])
+			item, err := service.RetryRunDelivery(cmd.Context(), args[0], args[1])
 			if err != nil {
 				return err
 			}
@@ -169,7 +169,7 @@ func newScheduledTaskEnableCommand(services *cliServiceProvider) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			item, err := service.UpdateTaskStatus(commandContext(cmd), args[0], true)
+			item, err := service.UpdateTaskStatus(cmd.Context(), args[0], true)
 			if err != nil {
 				return err
 			}
@@ -194,7 +194,7 @@ func newScheduledTaskDisableCommand(services *cliServiceProvider) *cobra.Command
 			if err != nil {
 				return err
 			}
-			item, err := service.UpdateTaskStatus(commandContext(cmd), args[0], false)
+			item, err := service.UpdateTaskStatus(cmd.Context(), args[0], false)
 			if err != nil {
 				return err
 			}
@@ -204,7 +204,7 @@ func newScheduledTaskDisableCommand(services *cliServiceProvider) *cobra.Command
 					expectedRunID = strings.TrimSpace(item.RunningRunID)
 				}
 				if expectedRunID != "" {
-					item, err = service.RecoverTaskRunningRun(commandContext(cmd), args[0], expectedRunID)
+					item, err = service.RecoverTaskRunningRun(cmd.Context(), args[0], expectedRunID)
 					if err != nil {
 						return err
 					}

@@ -36,7 +36,7 @@ func newRoomListCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Core.Room
-			items, err := service.ListRooms(commandContext(cmd), 200)
+			items, err := service.ListRooms(cmd.Context(), 200)
 			if err != nil {
 				return err
 			}
@@ -66,7 +66,7 @@ func newRoomCreateCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := appServices.Core.Room.CreateRoom(commandContext(cmd), protocol.CreateRoomRequest{
+			item, err := appServices.Core.Room.CreateRoom(cmd.Context(), protocol.CreateRoomRequest{
 				AgentIDs:    agentIDs,
 				Name:        name,
 				Description: description,
@@ -99,7 +99,7 @@ func newRoomGetCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Core.Room
-			item, err := service.GetRoom(commandContext(cmd), args[0])
+			item, err := service.GetRoom(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -123,7 +123,7 @@ func newRoomContextsCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Core.Room
-			items, err := service.GetRoomContexts(commandContext(cmd), args[0])
+			items, err := service.GetRoomContexts(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -146,7 +146,7 @@ func newRoomEnsureDMCommand(services *cliServiceProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := appServices.Core.Room.EnsureDirectRoom(commandContext(cmd), agentID)
+			item, err := appServices.Core.Room.EnsureDirectRoom(cmd.Context(), agentID)
 			if err != nil {
 				return err
 			}
@@ -183,7 +183,7 @@ func newRoomUpdateCommand(services *cliServiceProvider) *cobra.Command {
 			if cmd.Flags().Changed("skill-name") {
 				request.SkillNames = &skillNames
 			}
-			item, err := appServices.Core.Room.UpdateRoom(commandContext(cmd), args[0], request)
+			item, err := appServices.Core.Room.UpdateRoom(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
 			}
@@ -208,7 +208,7 @@ func newRoomDeleteCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Core.Room
-			if err := service.DeleteRoom(commandContext(cmd), args[0]); err != nil {
+			if err := service.DeleteRoom(cmd.Context(), args[0]); err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{
