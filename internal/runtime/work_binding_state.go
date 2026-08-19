@@ -4,7 +4,6 @@
 package runtime
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -21,8 +20,9 @@ type WorkBindingState struct {
 // NewWorkBindingState 从宿主已有的 structured Room slot binding 创建状态。
 func NewWorkBindingState(binding *protocol.ExecutionWorkBinding) *WorkBindingState {
 	state := &WorkBindingState{}
-	if completeRuntimeWorkBinding(binding) {
-		state.binding = cloneRuntimeWorkBinding(binding)
+	normalized := binding.Normalized()
+	if normalized.Complete() {
+		state.binding = &normalized
 	}
 	return state
 }
@@ -45,14 +45,14 @@ func (s *WorkBindingState) Load() (*protocol.ExecutionWorkBinding, bool) {
 	}
 	if s.responsibility != nil {
 		authority, _ := s.responsibility.Load()
-		if !completeRuntimeWorkBinding(authority.WorkBinding) {
+		if !authority.WorkBinding.Complete() {
 			return nil, false
 		}
 		return cloneRuntimeWorkBinding(authority.WorkBinding), true
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !completeRuntimeWorkBinding(s.binding) {
+	if !s.binding.Complete() {
 		return nil, false
 	}
 	return cloneRuntimeWorkBinding(s.binding), true
@@ -60,13 +60,17 @@ func (s *WorkBindingState) Load() (*protocol.ExecutionWorkBinding, bool) {
 
 // Bind 消费宿主签发的 exact receipt。重复绑定幂等；未释放的责任不能切换。
 func (s *WorkBindingState) Bind(binding *protocol.ExecutionWorkBinding) bool {
-	if s == nil || !completeRuntimeWorkBinding(binding) {
+	if s == nil {
 		return false
 	}
 	if s.responsibility != nil {
 		return s.responsibility.BindWork(binding)
 	}
-	next := cloneRuntimeWorkBinding(binding)
+	normalized := binding.Normalized()
+	if !normalized.Complete() {
+		return false
+	}
+	next := &normalized
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.binding != nil && !sameRuntimeWorkBinding(s.binding, next) {
@@ -93,38 +97,16 @@ func (s *WorkBindingState) Clear() {
 	s.mu.Unlock()
 }
 
-func completeRuntimeWorkBinding(binding *protocol.ExecutionWorkBinding) bool {
-	return binding != nil &&
-		strings.TrimSpace(binding.ExecutionID) != "" &&
-		strings.TrimSpace(binding.PlanID) != "" &&
-		strings.TrimSpace(binding.WorkItemID) != "" &&
-		strings.TrimSpace(binding.SpecID) != "" &&
-		strings.TrimSpace(binding.AssignmentID) != "" &&
-		strings.TrimSpace(binding.AttemptID) != ""
-}
-
+// sameRuntimeWorkBinding 比较两个已清洗的 binding 是否同一身份。
 func sameRuntimeWorkBinding(left, right *protocol.ExecutionWorkBinding) bool {
-	return left != nil && right != nil &&
-		strings.TrimSpace(left.ExecutionID) == strings.TrimSpace(right.ExecutionID) &&
-		strings.TrimSpace(left.PlanID) == strings.TrimSpace(right.PlanID) &&
-		strings.TrimSpace(left.WorkItemID) == strings.TrimSpace(right.WorkItemID) &&
-		strings.TrimSpace(left.SpecID) == strings.TrimSpace(right.SpecID) &&
-		strings.TrimSpace(left.AssignmentID) == strings.TrimSpace(right.AssignmentID) &&
-		strings.TrimSpace(left.AttemptID) == strings.TrimSpace(right.AttemptID) &&
-		strings.TrimSpace(left.DispatchID) == strings.TrimSpace(right.DispatchID)
+	return left != nil && right != nil && *left == *right
 }
 
+// cloneRuntimeWorkBinding 浅拷贝快照所有权；字段清洗已在 ingress 完成。
 func cloneRuntimeWorkBinding(binding *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
 	if binding == nil {
 		return nil
 	}
 	result := *binding
-	result.ExecutionID = strings.TrimSpace(result.ExecutionID)
-	result.PlanID = strings.TrimSpace(result.PlanID)
-	result.WorkItemID = strings.TrimSpace(result.WorkItemID)
-	result.SpecID = strings.TrimSpace(result.SpecID)
-	result.AssignmentID = strings.TrimSpace(result.AssignmentID)
-	result.AttemptID = strings.TrimSpace(result.AttemptID)
-	result.DispatchID = strings.TrimSpace(result.DispatchID)
 	return &result
 }

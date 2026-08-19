@@ -8,11 +8,12 @@ import (
 
 func TestWorkBindingStateRequiresExplicitClearBeforeResponsibilitySwitch(t *testing.T) {
 	first := &protocol.ExecutionWorkBinding{
-		ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-1",
-		SpecID: "spec-1", AssignmentID: "assignment-1", AttemptID: "attempt-1",
+		ExecutionID: " execution-1 ", PlanID: "plan-1", WorkItemID: "work-1",
+		SpecID: "spec-1", AssignmentID: " assignment-1 ", AttemptID: "attempt-1",
 	}
 	state := NewWorkBindingState(nil)
-	if !state.Bind(first) || !state.Bind(first) {
+	canonical := first.Normalized()
+	if !state.Bind(first) || !state.Bind(&canonical) {
 		t.Fatal("exact host binding must bind and replay idempotently")
 	}
 	loaded, ok := state.Load()

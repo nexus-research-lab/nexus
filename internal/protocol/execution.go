@@ -3,7 +3,10 @@
 // POS: 跨 MCP/runtime/Room/Goal 边界共享的 Execution Orchestration 真相模型。
 package protocol
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // ExecutionStatus 表示一次实际执行的生命周期。
 type ExecutionStatus string
@@ -340,6 +343,35 @@ type ExecutionWorkBinding struct {
 	DispatchID   string `json:"dispatch_id"`
 }
 
+// Normalized 返回去除首尾空白的绑定副本；nil 视为空绑定。binding 的清洗
+// 只发生在 ingress（反序列化 / 构造）这一处，下游一律信任已清洗的值。
+func (b *ExecutionWorkBinding) Normalized() ExecutionWorkBinding {
+	if b == nil {
+		return ExecutionWorkBinding{}
+	}
+	return ExecutionWorkBinding{
+		ExecutionID:  strings.TrimSpace(b.ExecutionID),
+		PlanID:       strings.TrimSpace(b.PlanID),
+		WorkItemID:   strings.TrimSpace(b.WorkItemID),
+		SpecID:       strings.TrimSpace(b.SpecID),
+		AssignmentID: strings.TrimSpace(b.AssignmentID),
+		AttemptID:    strings.TrimSpace(b.AttemptID),
+		DispatchID:   strings.TrimSpace(b.DispatchID),
+	}
+}
+
+// Complete 判断 binding 是否携带全部必需身份字段（Attempt 之后均为必填，
+// DispatchID 允许为空）。对任意输入都成立，不必先 Normalized。
+func (b *ExecutionWorkBinding) Complete() bool {
+	normalized := b.Normalized()
+	return normalized.ExecutionID != "" &&
+		normalized.PlanID != "" &&
+		normalized.WorkItemID != "" &&
+		normalized.SpecID != "" &&
+		normalized.AssignmentID != "" &&
+		normalized.AttemptID != ""
+}
+
 // AttemptExecutorKind 区分责任 Agent 自己与其临时子智能体。
 type AttemptExecutorKind string
 
@@ -581,6 +613,37 @@ type ExecutionReviewBinding struct {
 	SubmissionID     string `json:"submission_id"`
 	ReviewDispatchID string `json:"review_dispatch_id"`
 	TargetAgentID    string `json:"target_agent_id"`
+}
+
+// Normalized 返回去除首尾空白的绑定副本；nil 视为空绑定。清洗只发生在
+// ingress（反序列化 / 构造）这一处，下游一律信任已清洗的值。
+func (b *ExecutionReviewBinding) Normalized() ExecutionReviewBinding {
+	if b == nil {
+		return ExecutionReviewBinding{}
+	}
+	return ExecutionReviewBinding{
+		ExecutionID:      strings.TrimSpace(b.ExecutionID),
+		PlanID:           strings.TrimSpace(b.PlanID),
+		WorkItemID:       strings.TrimSpace(b.WorkItemID),
+		SpecID:           strings.TrimSpace(b.SpecID),
+		AssignmentID:     strings.TrimSpace(b.AssignmentID),
+		SubmissionID:     strings.TrimSpace(b.SubmissionID),
+		ReviewDispatchID: strings.TrimSpace(b.ReviewDispatchID),
+		TargetAgentID:    strings.TrimSpace(b.TargetAgentID),
+	}
+}
+
+// Complete 判断 binding 是否携带全部必需身份字段；对任意输入都成立。
+func (b *ExecutionReviewBinding) Complete() bool {
+	normalized := b.Normalized()
+	return normalized.ExecutionID != "" &&
+		normalized.PlanID != "" &&
+		normalized.WorkItemID != "" &&
+		normalized.SpecID != "" &&
+		normalized.AssignmentID != "" &&
+		normalized.SubmissionID != "" &&
+		normalized.ReviewDispatchID != "" &&
+		normalized.TargetAgentID != ""
 }
 
 // WorkAcceptanceDecision 表示 reviewer 对一个 immutable Submission 的唯一决定。

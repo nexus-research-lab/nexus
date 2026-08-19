@@ -71,8 +71,10 @@ func NewResponsibilityAuthorityState(
 		}
 	}
 
-	validWork := completeRuntimeWorkBinding(workBinding)
-	validReview := completeRuntimeReviewBinding(reviewBinding)
+	normalizedWork := workBinding.Normalized()
+	normalizedReview := reviewBinding.Normalized()
+	validWork := normalizedWork.Complete()
+	validReview := normalizedReview.Complete()
 	if workBinding != nil && !validWork ||
 		reviewBinding != nil && !validReview ||
 		validWork && validReview {
@@ -90,7 +92,7 @@ func NewResponsibilityAuthorityState(
 		return state
 	}
 	if validWork {
-		binding := cloneRuntimeWorkBinding(workBinding)
+		binding := &normalizedWork
 		if state.value.ExecutionID != "" && state.value.ExecutionID != binding.ExecutionID {
 			state.value = ResponsibilityAuthority{Lane: ResponsibilityLaneUnbound}
 			state.initialBindingsInvalid = true
@@ -102,7 +104,7 @@ func NewResponsibilityAuthorityState(
 		return state
 	}
 	if validReview {
-		binding := cloneRuntimeReviewBinding(reviewBinding)
+		binding := &normalizedReview
 		if state.value.ExecutionID != "" && state.value.ExecutionID != binding.ExecutionID {
 			state.value = ResponsibilityAuthority{Lane: ResponsibilityLaneUnbound}
 			state.initialBindingsInvalid = true
@@ -409,10 +411,14 @@ func (s *ResponsibilityAuthorityState) ConfirmGoalExecution(
 // BindWork 消费持久化 self Assignment 后的 exact receipt。未释放的 review 或
 // sibling work responsibility 不能被覆盖。
 func (s *ResponsibilityAuthorityState) BindWork(binding *protocol.ExecutionWorkBinding) bool {
-	if s == nil || !completeRuntimeWorkBinding(binding) {
+	if s == nil {
 		return false
 	}
-	next := cloneRuntimeWorkBinding(binding)
+	normalized := binding.Normalized()
+	if !normalized.Complete() {
+		return false
+	}
+	next := &normalized
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.initialBindingsInvalid {
@@ -476,31 +482,12 @@ func (s *ResponsibilityAuthorityState) RevokeExecution(executionID string) bool 
 	return true
 }
 
-func completeRuntimeReviewBinding(binding *protocol.ExecutionReviewBinding) bool {
-	return binding != nil &&
-		strings.TrimSpace(binding.ExecutionID) != "" &&
-		strings.TrimSpace(binding.PlanID) != "" &&
-		strings.TrimSpace(binding.WorkItemID) != "" &&
-		strings.TrimSpace(binding.SpecID) != "" &&
-		strings.TrimSpace(binding.AssignmentID) != "" &&
-		strings.TrimSpace(binding.SubmissionID) != "" &&
-		strings.TrimSpace(binding.ReviewDispatchID) != "" &&
-		strings.TrimSpace(binding.TargetAgentID) != ""
-}
-
+// cloneRuntimeReviewBinding 浅拷贝快照所有权；字段清洗已在 ingress 完成。
 func cloneRuntimeReviewBinding(binding *protocol.ExecutionReviewBinding) *protocol.ExecutionReviewBinding {
 	if binding == nil {
 		return nil
 	}
 	result := *binding
-	result.ExecutionID = strings.TrimSpace(result.ExecutionID)
-	result.PlanID = strings.TrimSpace(result.PlanID)
-	result.WorkItemID = strings.TrimSpace(result.WorkItemID)
-	result.SpecID = strings.TrimSpace(result.SpecID)
-	result.AssignmentID = strings.TrimSpace(result.AssignmentID)
-	result.SubmissionID = strings.TrimSpace(result.SubmissionID)
-	result.ReviewDispatchID = strings.TrimSpace(result.ReviewDispatchID)
-	result.TargetAgentID = strings.TrimSpace(result.TargetAgentID)
 	return &result
 }
 

@@ -27,8 +27,8 @@ func scopeSnapshotToTrustedWorkBinding(
 		)
 	}
 	if actor.ReviewBinding != nil {
-		binding := normalizeExecutionReviewBinding(actor.ReviewBinding)
-		if !completeExecutionReviewBinding(binding) ||
+		binding := actor.ReviewBinding.Normalized()
+		if !binding.Complete() ||
 			strings.TrimSpace(requestedExecutionID) != binding.ExecutionID ||
 			(actor.ExecutionID != "" &&
 				strings.TrimSpace(actor.ExecutionID) != binding.ExecutionID) ||
@@ -80,7 +80,7 @@ func scopeSnapshotToTrustedWorkBinding(
 		actor.WorkBinding == nil {
 		return snapshot, nil
 	}
-	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+	binding := actor.WorkBinding.Normalized()
 	if err := authorizeStructuredRoomWorkBinding(
 		actor,
 		requestedExecutionID,
@@ -141,7 +141,7 @@ func authorizeStructuredRoomWorkBinding(
 	if snapshot.Execution.Status == protocol.ExecutionStatusPaused {
 		return workBindingMismatch("structured Room WorkBinding targets a paused Execution")
 	}
-	if !completeExecutionWorkBinding(binding) {
+	if !binding.Complete() {
 		return workBindingMismatch("structured Room WorkBinding is incomplete")
 	}
 	actorAgentID := strings.TrimSpace(actor.AgentID)
@@ -561,32 +561,6 @@ func workBindingUpstreamIDs(
 		return nil, err
 	}
 	return values, nil
-}
-
-func normalizeExecutionWorkBinding(
-	binding *protocol.ExecutionWorkBinding,
-) protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return protocol.ExecutionWorkBinding{}
-	}
-	return protocol.ExecutionWorkBinding{
-		ExecutionID:  strings.TrimSpace(binding.ExecutionID),
-		PlanID:       strings.TrimSpace(binding.PlanID),
-		WorkItemID:   strings.TrimSpace(binding.WorkItemID),
-		SpecID:       strings.TrimSpace(binding.SpecID),
-		AssignmentID: strings.TrimSpace(binding.AssignmentID),
-		AttemptID:    strings.TrimSpace(binding.AttemptID),
-		DispatchID:   strings.TrimSpace(binding.DispatchID),
-	}
-}
-
-func completeExecutionWorkBinding(binding protocol.ExecutionWorkBinding) bool {
-	return binding.ExecutionID != "" &&
-		binding.PlanID != "" &&
-		binding.WorkItemID != "" &&
-		binding.SpecID != "" &&
-		binding.AssignmentID != "" &&
-		binding.AttemptID != ""
 }
 
 func workBindingMismatch(message string) error {

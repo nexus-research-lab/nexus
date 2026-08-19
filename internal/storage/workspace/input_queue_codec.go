@@ -64,15 +64,8 @@ func normalizeExecutionWorkBinding(source *protocol.ExecutionWorkBinding) *proto
 	if source == nil {
 		return nil
 	}
-	result := *source
-	result.ExecutionID = strings.TrimSpace(result.ExecutionID)
-	result.PlanID = strings.TrimSpace(result.PlanID)
-	result.WorkItemID = strings.TrimSpace(result.WorkItemID)
-	result.SpecID = strings.TrimSpace(result.SpecID)
-	result.AssignmentID = strings.TrimSpace(result.AssignmentID)
-	result.AttemptID = strings.TrimSpace(result.AttemptID)
-	result.DispatchID = strings.TrimSpace(result.DispatchID)
-	return &result
+	normalized := source.Normalized()
+	return &normalized
 }
 
 func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
@@ -162,16 +155,8 @@ func normalizeExecutionReviewBinding(
 	if source == nil {
 		return nil
 	}
-	result := *source
-	result.ExecutionID = strings.TrimSpace(result.ExecutionID)
-	result.PlanID = strings.TrimSpace(result.PlanID)
-	result.WorkItemID = strings.TrimSpace(result.WorkItemID)
-	result.SpecID = strings.TrimSpace(result.SpecID)
-	result.AssignmentID = strings.TrimSpace(result.AssignmentID)
-	result.SubmissionID = strings.TrimSpace(result.SubmissionID)
-	result.ReviewDispatchID = strings.TrimSpace(result.ReviewDispatchID)
-	result.TargetAgentID = strings.TrimSpace(result.TargetAgentID)
-	return &result
+	normalized := source.Normalized()
+	return &normalized
 }
 
 func executionReviewBindingFromAny(value any) *protocol.ExecutionReviewBinding {

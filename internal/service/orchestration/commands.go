@@ -1060,8 +1060,8 @@ func bindSubmitWorkInputFromTrustedResponsibility(
 		}
 		return input, nil
 	}
-	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
-	if !completeExecutionWorkBinding(binding) {
+	binding := actor.WorkBinding.Normalized()
+	if !binding.Complete() {
 		return input, workBindingMismatch("trusted WorkBinding is incomplete")
 	}
 	if explicitWorkID := strings.TrimSpace(input.WorkItemID); explicitWorkID != "" &&
@@ -1098,8 +1098,8 @@ func bindWorkReferenceFromTrustedResponsibility(
 		}
 		return workItemID, logicalKey, nil
 	}
-	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
-	if !completeExecutionWorkBinding(binding) {
+	binding := actor.WorkBinding.Normalized()
+	if !binding.Complete() {
 		return "", "", workBindingMismatch("trusted WorkBinding is incomplete")
 	}
 	if explicitWorkID := strings.TrimSpace(workItemID); explicitWorkID != "" &&
@@ -1143,8 +1143,8 @@ func bindReviewWorkInputFromTrustedResponsibility(
 	input ReviewWorkInput,
 ) (ReviewWorkInput, error) {
 	if actor.ReviewBinding != nil {
-		binding := normalizeExecutionReviewBinding(actor.ReviewBinding)
-		if !completeExecutionReviewBinding(binding) {
+		binding := actor.ReviewBinding.Normalized()
+		if !binding.Complete() {
 			return input, workBindingMismatch("trusted ReviewBinding is incomplete")
 		}
 		if explicitSubmissionID := strings.TrimSpace(input.SubmissionID); explicitSubmissionID != "" &&
@@ -1335,7 +1335,7 @@ func (s *Service) authorizeRoomReviewActor(
 		return nil
 	}
 	if actor.WorkBinding != nil {
-		binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+		binding := actor.WorkBinding.Normalized()
 		if binding.AssignmentID == assignment.ID &&
 			binding.WorkItemID == assignment.WorkItemID &&
 			binding.SpecID == assignment.SpecID {
