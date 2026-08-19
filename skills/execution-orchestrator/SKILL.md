@@ -60,6 +60,8 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 
 创建 Goal+WorkGraph 时必须串行：先由 `goal-manager` 完成 `create_goal`，确认 applied 后再 `prepare_plan_execution`，并在外层输入使用 `goal_binding=current`；两者不得并行。已有 transient WorkGraph 后才出现明确 Goal 意图时，不再 `create_goal`，而使用 `promote_execution_to_goal`。Composer 已创建 Goal 时由宿主启动携带 exact revision 的新 round，再按同一 `goal_binding=current` 路径建图。Goal reset/retarget 后即使历史里存在 predecessor WorkGraph，只要本轮 `execution inspect` 没有返回 current Execution，successor 的首份 Plan 就必须用 `operation: create`，不能把历史替换关系误写成 `replan`。
 
+Goal+WorkGraph 收口同样跨两个独立 domain：先完成并验收全部 required Work Item；最终 accepted review 会自动终止无 blocker 的 Execution，成功 receipt 会把 `goal/audit_objective_alignment` 作为下一步。切到 `goal-manager` 完成 Goal 审计与 `update_goal`。`execution/audit_execution_alignment` 只是在 current Execution 上记录可选 Gate，不是 Goal 审计，Execution terminal 后不得调用。WorkGraph-only 到 Execution terminal 即结束；Goal-only 不进入本流程。
+
 ## 最小选择表
 
 | 真实需要 | 首选表达 |

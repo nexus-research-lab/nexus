@@ -710,11 +710,11 @@ business operations.
 | `abandon_execution` | Cancels a transient unbound Execution and atomically releases/cancels its live responsibility chain. A Goal-bound Execution must use the Goal retarget path instead. |
 | `assign_work` | Assigns one ready Work Item to one owner and creates the pending root Attempt plus Room dispatch when required. It cannot create parallel current owners. |
 | `submit_work` | Under an exact host-issued WorkBinding, omitted Work Item and Assignment locators default to that trusted binding; explicit values must match. In DM coordination or any other unbound round, `work_item_id` or `logical_key` is required while `assignment_id` remains optional. The mutation appends one immutable Submission and correlates/completes the current Attempt. Downstream hard dependencies remain locked until Acceptance. |
-| `review_work` | Under an exact host-issued ReviewBinding, omitted Submission and Work Item locators default to that immutable review target; permitted self-review similarly defaults from an exact WorkBinding. Explicit values must match. In DM coordination or any other unbound round, at least one of `submission_id`, `work_item_id`, or `logical_key` is required and all supplied locators must agree. The mutation appends one Acceptance decision. Acceptance unlocks dependents; an accepted decision atomically wakes the durable backend completion audit, while rejection or changes requested preserves history and requires fresh work. |
+| `review_work` | Under an exact host-issued ReviewBinding, omitted Submission and Work Item locators default to that immutable review target; permitted self-review similarly defaults from an exact WorkBinding. Explicit values must match. In DM coordination or any other unbound round, at least one of `submission_id`, `work_item_id`, or `logical_key` is required and all supplied locators must agree. The mutation appends one Acceptance decision. Acceptance unlocks dependents; an accepted decision atomically wakes the durable backend completion audit, while rejection or changes requested preserves history and requires fresh work. When final acceptance completes an exactly Goal-bound Execution under current coordinator Goal authority, the mutation result routes the same physical round to Goal `audit_objective_alignment`. |
 | `block_work` | Under an exact WorkBinding, omitted Work Item locators default to that binding and explicit values must match. The mutation moves the Work Item to `waiting_input` for a specific external input/authority blocker and rejects when an unreviewed Submission exists. |
 | `resume_work` | Under an exact WorkBinding, omitted Work Item locators default to that binding and explicit values must match. The mutation records resolution/evidence and moves `waiting_input` back to `open`; it does not recreate an Assignment or revive an Attempt. |
 | `take_over_work` | Coordinator-only atomic replacement: releases the old Assignment, interrupts/cancels its current chain, then creates a fresh Assignment/Attempt/dispatch. It rejects when an unreviewed Submission exists. |
-| `audit_execution_alignment` | Appends an optional visible three-state objective-alignment gate. It does not transition work, reroute, retry, start a Goal, or complete an Execution. |
+| `audit_execution_alignment` | Appends an optional visible three-state objective-alignment gate to a current Execution. It does not transition work, reroute, retry, start a Goal, complete an Execution, or satisfy Goal `audit_objective_alignment`; terminal Execution rejects it. |
 | `promote_execution_to_goal` | Binds a compatible transient Execution to a newly created durable Goal while preserving Plan and history. It enforces objective, state, configuration, authority, and exact binding fences; it does not copy the Plan. |
 
 The model-visible operation contract is stable across bound and unbound rounds. Locator
@@ -807,6 +807,18 @@ Goal completion resolves binding first:
   completion eligibility. A public substantive non-lead reply may still be stored
   as monotonic audit provenance for the durable Goal ID; objective revision fences
   late writes without turning that provenance into authority or a gate.
+
+The canonical mixed-mode closure is ordered across command domains: finish and
+accept required Work Items; let final Acceptance and the completion reconciler
+make the Execution terminal; consume the exact coordinator mutation receipt's
+`goal/audit_objective_alignment` next action; then consume the aligned Goal
+audit's `goal/update_goal` next action. The Goal audit remains independently
+idempotent and may already exist for the same revision/round, preserving the old
+MCP lifecycle semantics. It is never replaced by Execution
+`audit_execution_alignment`, and a terminal Execution must not be mutated merely
+to manufacture a Goal completion Gate. A rejected Goal completion returns a
+domain-qualified recovery action: Goal audit for missing/stale alignment evidence,
+or Execution inspection for unfinished managed work.
 
 For a Goal with a confirmed managed WorkGraph binding, retarget is a successor saga rather than an in-place
 graph edit. It reserves the successor relationship, materializes a fresh

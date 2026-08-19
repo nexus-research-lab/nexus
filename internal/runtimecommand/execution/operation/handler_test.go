@@ -159,6 +159,25 @@ func TestMutationResultKeepsAuthoritativeContextWhenLarge(t *testing.T) {
 	}
 }
 
+func TestMutationResultPreservesGoalClosureNextAction(t *testing.T) {
+	result := mutationResult(orchestration.MutationResult{
+		Outcome: protocol.MutationResultApplied,
+		NextActions: []orchestration.NextAction{{
+			Domain:    "goal",
+			Operation: "audit_objective_alignment",
+			Reason:    "close the bound Goal",
+		}},
+	})
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) != 1 {
+		t.Fatalf("next_actions = %#v, want one cross-domain action", result.StructuredContent["next_actions"])
+	}
+	action, ok := actions[0].(map[string]any)
+	if !ok || action["domain"] != "goal" || action["operation"] != "audit_objective_alignment" {
+		t.Fatalf("next action = %#v, want Goal objective alignment", actions[0])
+	}
+}
+
 func TestCompactRuntimeCommandContextNeverDropsResponsibility(t *testing.T) {
 	t.Parallel()
 

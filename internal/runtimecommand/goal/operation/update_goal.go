@@ -5,12 +5,14 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimecommand "github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 type updateGoalInput struct {
@@ -23,6 +25,7 @@ type updateGoalInput struct {
 const updateGoalDescription = "Update the terminal status of an existing current Goal. Never use this operation to create, set, or change a Goal objective.\n" +
 	"Use it only to mark the Goal complete or blocked; when explicit Goal intent exists but get_goal returns no current Goal, create_goal is the only creation path. Objective correction of an existing Goal uses retarget_goal, and pause, resume, budget and usage states belong to the user or system.\n" +
 	"Complete requires the objective to be achieved with no required work remaining. Only a Goal whose managed WorkGraph binding is confirmed also requires an aligned Objective Alignment report for the current revision and round, plus backend WorkGraph readiness; Goal-only and reserved Goals do not. Room readiness remains independently enforced.\n" +
+	"A rejected completion can return a domain-qualified nextAction. Follow it exactly: Goal audit_objective_alignment supplies missing Goal evidence, while Execution get_execution resumes unfinished WorkGraph responsibility.\n" +
 	"Blocked requires a stable blocker_id, concrete reason, and needed_input so restart recovery and the user-facing audit explain the unblock path. Reuse the same blocker_id only for the same condition. Model policy still requires that blocker to persist for at least three consecutive Goal turns; the backend preserves its exact identity but does not infer provider turns. A shared Room Goal may be updated only by its assigned lead."
 
 const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the same blocker has repeated for at least three consecutive goal turns and progress is impossible without user input or external unblock."
@@ -61,6 +64,9 @@ func updateGoal(svc contract.Service, sctx contract.Context) runtimecommand.Oper
 			}
 			item, err := updateGoalStatus(ctx, svc, current.ID, status, parsed.BlockerID, parsed.Reason, parsed.NeededInput, sctx.CurrentRoundID, sctx.CurrentAgentID, expectedRevision)
 			if err != nil {
+				if status == protocol.GoalStatusComplete {
+					return goalCompletionErrorResult(err), nil
+				}
 				return errorResult(err), nil
 			}
 			if status == protocol.GoalStatusComplete {
@@ -68,6 +74,25 @@ func updateGoal(svc contract.Service, sctx contract.Context) runtimecommand.Oper
 			}
 			return appliedResult("goal marked blocked", goalMutationPayload(item)), nil
 		},
+	}
+}
+
+func goalCompletionErrorResult(err error) runtimecommand.Result {
+	switch {
+	case errors.Is(err, goalsvc.ErrGoalExecutionNotReady):
+		return errorResultWithNextAction(err, map[string]any{
+			"domain":    runtimecommand.DomainExecution,
+			"operation": "get_execution",
+			"reason":    "inspect the bound Execution and finish every required responsibility; a current same-round Goal audit remains valid, then retry Goal completion",
+		})
+	case errors.Is(err, goalsvc.ErrGoalAlignmentRefreshRequired):
+		return errorResultWithNextAction(err, map[string]any{
+			"domain":    runtimecommand.DomainGoal,
+			"operation": "audit_objective_alignment",
+			"reason":    "audit the authoritative Goal criteria in this physical round, then follow the audit result; WorkGraph readiness remains a separate completion gate",
+		})
+	default:
+		return errorResult(err)
 	}
 }
 

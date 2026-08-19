@@ -13,6 +13,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	runtimecommand "github.com/nexus-research-lab/nexus/internal/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/runtimecommand/goal/contract"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 func testGoalAuthority(goalID string, revision int64) *runtimectx.GoalAuthorityState {
@@ -482,6 +483,52 @@ func TestUpdateGoalNoCurrentGoalUsesCodexModelMessage(t *testing.T) {
 	}
 }
 
+func TestUpdateGoalCompletionRejectionReturnsDomainSpecificRecovery(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		completeErr   error
+		wantDomain    string
+		wantOperation string
+	}{
+		{
+			name:          "missing Goal alignment",
+			completeErr:   goalsvc.ErrGoalAlignmentRefreshRequired,
+			wantDomain:    runtimecommand.DomainGoal,
+			wantOperation: "audit_objective_alignment",
+		},
+		{
+			name:          "Execution still active",
+			completeErr:   goalsvc.ErrGoalExecutionNotReady,
+			wantDomain:    runtimecommand.DomainExecution,
+			wantOperation: "get_execution",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			svc := &fakeUpdateGoalService{
+				current:     &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
+				completeErr: test.completeErr,
+			}
+			tool := updateGoal(svc, contract.Context{
+				CurrentSessionKey: "agent:nexus:ws:dm:chat",
+				CurrentRoundID:    "round-1",
+				GoalAuthority:     testGoalAuthority("goal-1", 1),
+			})
+
+			result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.IsError {
+				t.Fatalf("result = %#v, want recoverable command rejection", result)
+			}
+			nextAction, ok := result.StructuredContent["nextAction"].(map[string]any)
+			if !ok || nextAction["domain"] != test.wantDomain || nextAction["operation"] != test.wantOperation {
+				t.Fatalf("nextAction = %#v, want %s/%s", nextAction, test.wantDomain, test.wantOperation)
+			}
+		})
+	}
+}
+
 func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
 	svc := &fakeUpdateGoalService{
 		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
@@ -734,6 +781,7 @@ type fakeUpdateGoalService struct {
 	current          *protocol.Goal
 	currentErr       error
 	completed        *protocol.Goal
+	completeErr      error
 	blocked          *protocol.Goal
 	currentCalls     int
 	completeCalls    int
@@ -801,6 +849,9 @@ func (s *fakeUpdateGoalService) CompleteByModel(_ context.Context, goalID string
 	s.completedRequest = request
 	if s.requiredRevision > 0 && request.ExpectedObjectiveRevision != s.requiredRevision {
 		return nil, errors.New("goal objective changed after this tool call started")
+	}
+	if s.completeErr != nil {
+		return nil, s.completeErr
 	}
 	if s.completed == nil {
 		return nil, errors.New("completed goal not configured")

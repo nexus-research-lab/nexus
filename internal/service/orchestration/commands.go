@@ -1,5 +1,5 @@
 // INPUT: sealed proposal materializer 的内部 Plan primitive，以及模型的 Assignment、Submission、Acceptance、Block/Resume、Takeover 与 complete 意图。
-// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement、统一 MutationResult 与提交后 Execution 失效事实。
+// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调或 Goal 收口衔接、显式 Plan replacement、统一 MutationResult 与提交后 Execution 失效事实。
 // POS: 模型语义 command 到 Repository 原子 command 的应用层适配；不暴露 start_work。
 package orchestration
 
@@ -2637,6 +2637,19 @@ func nextActions(
 		return nil
 	}
 	isCoordinator := snapshot.Execution.CoordinatorAgentID == strings.TrimSpace(actor.AgentID)
+	if isCoordinator &&
+		snapshot.Execution.Status == protocol.ExecutionStatusCompleted &&
+		strings.TrimSpace(snapshot.Execution.GoalID) != "" &&
+		snapshot.Execution.GoalID == strings.TrimSpace(actor.GoalID) &&
+		snapshot.Execution.GoalObjectiveRevision > 0 &&
+		snapshot.Execution.GoalObjectiveRevision == actor.GoalObjectiveRevision {
+		return []NextAction{{
+			Domain:    "goal",
+			Operation: "audit_objective_alignment",
+			Reason: "the Goal-bound Execution is complete; audit the authoritative Goal criteria in this physical round, " +
+				"then follow the Goal audit result—do not call audit_execution_alignment on the terminal Execution",
+		}}
+	}
 	actions := make([]NextAction, 0)
 	if isCoordinator {
 		for _, workID := range snapshot.ReadyWorkItemIDs {

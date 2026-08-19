@@ -24,6 +24,7 @@ type auditObjectiveAlignmentInput struct {
 var auditObjectiveAlignmentDescription = strings.TrimSpace(
 	"Audit the current Goal against its backend-authoritative objective and completion criteria.\n" +
 		"Use this immediately before completing a Goal whose managed WorkGraph binding is confirmed, after inspecting current authoritative evidence. Goal-only and reserved Goals do not require this audit.\n" +
+		"This is the Goal-domain completion audit. Do not substitute the Execution-domain audit_execution_alignment Gate; after a Goal-bound Execution becomes terminal, continue here.\n" +
 		"This operation records a three-state evidence report; it does not complete, block, retarget, or otherwise transition the Goal.\n" +
 		"Submit report_json as one JSON object string, not as nested command arguments. " +
 		objectivealignment.ReportJSONDescription,
