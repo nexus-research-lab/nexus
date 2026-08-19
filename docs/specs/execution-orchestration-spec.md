@@ -641,7 +641,11 @@ grammar as permission policy and persists only a boolean transport classificatio
 never raw command input. Exact `${NEXUS_COMMAND_PATH}` contract, inspect, and invoke
 calls therefore remain `detail` under their direct Agent owner even when they fail,
 retry, carry an Artifact, or would otherwise look important. The read projection also
-classifies the exact retired Goal/Execution MCP operation directory as the same
+classifies exact `${NEXUS_COMMAND_INPUT_PATH}` filesystem operations as companion
+transport and recognizes the canonical owner-private staging suffix for historical
+rows; successful ordinary filesystem mutations require an Artifact or explicit
+visibility fact before they enter the canvas. It also classifies the exact retired
+Goal/Execution MCP operation directory as the same
 control-plane transport, so historical rows remain available in run details without
 restoring an MCP route or authority. A successful ordinary Bash/PowerShell action stays
 in details; only an active run, failure/cancellation/interruption, an exact Artifact, an
@@ -652,7 +656,12 @@ loop-back edges continue to use the structured Work Item/Agent and Gate facts ra
 than a `submit_work` transport node. At each assistant checkpoint, host-owned invoke
 receipts still enrich candidate nodes in one graph read by exact
 `domain + operation + request_id`; arbitrary shell output cannot recreate `assign_work`
-segment authority or any other semantic operation identity.
+segment authority or any other semantic operation identity. A provider Tool lifecycle
+and host receipt carrying that same exact identity are one semantic assignment boundary,
+even when checkpoint ordering persists two audit rows. Historical DM recovery may bind a
+root Attempt without `agent_round_id` only when the exact request, coordinator identity,
+and unique lifecycle interval all agree. `MEMORY.md` and `memory/` maintenance artifacts
+remain available in run details but never promote a WorkGraph canvas node.
 
 `get_execution` does not mutate durable Execution or Plan state. An unbound verified
 member of the exact Room conversation receives a bounded shared WorkGraph

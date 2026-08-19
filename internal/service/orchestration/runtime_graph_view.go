@@ -1161,7 +1161,7 @@ func runtimeGraphPromotedNodeIDs(
 ) map[string]struct{} {
 	result := make(map[string]struct{})
 	for _, node := range graph.Nodes {
-		if len(node.Artifacts) > 0 ||
+		if runtimeGraphNodeHasCanvasArtifact(node) ||
 			runtimeGraphVisibilityHint(node) ||
 			runtimeGraphToolActionVisible(node) {
 			result[node.ID] = struct{}{}
