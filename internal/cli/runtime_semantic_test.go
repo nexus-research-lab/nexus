@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtimecommand"
 )
 
 func TestRuntimeEntrypointArgsRequiresThePrivateHostMarker(t *testing.T) {
@@ -70,5 +71,42 @@ func TestRuntimeSemanticInspectKeepsOnlyTheExecutionHistoryLocator(t *testing.T)
 	goal := newRuntimeSemanticInspectCommand("goal")
 	if goal.Flags().Lookup("execution-id") != nil {
 		t.Fatal("goal inspect must remain the zero-input current Goal read")
+	}
+}
+
+func TestRuntimeSemanticResultEnvelopeIsFlatAndAlwaysTyped(t *testing.T) {
+	payload := runtimeSemanticResultEnvelope(
+		"goal",
+		runtimecommand.ActionInvoke,
+		"audit_objective_alignment",
+		"goal-audit-1",
+		runtimecommand.Result{
+			Content: []map[string]any{{"type": "text", "text": "legacy mirror"}},
+			StructuredContent: map[string]any{
+				"outcome": "applied",
+			},
+		},
+	)
+	if payload["is_error"] != false || payload["operation"] != "audit_objective_alignment" ||
+		payload["request_id"] != "goal-audit-1" ||
+		payload["data"].(map[string]any)["outcome"] != "applied" {
+		t.Fatalf("semantic envelope = %#v", payload)
+	}
+	_, hasResult := payload["result"]
+	_, hasContent := payload["content"]
+	if hasResult || hasContent {
+		t.Fatalf("CLI leaked internal MCP-shaped result mirror: %#v", payload)
+	}
+
+	errorPayload := runtimeSemanticResultEnvelope(
+		"execution",
+		runtimecommand.ActionInspect,
+		"",
+		"",
+		runtimecommand.Result{IsError: true},
+	)
+	if errorPayload["is_error"] != true || errorPayload["data"] == nil ||
+		len(errorPayload["data"].(map[string]any)) != 0 {
+		t.Fatalf("empty semantic error envelope = %#v", errorPayload)
 	}
 }

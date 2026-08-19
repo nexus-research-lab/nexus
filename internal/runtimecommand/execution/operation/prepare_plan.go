@@ -67,6 +67,7 @@ func preparePlanExecution(
 		Name: operationName,
 		Description: "Validate and durably seal one complete Nexus Plan Document v1 without mutating the authoritative Execution, Plan, Goal, Assignment, or Attempt. The sealed proposal itself is durable but non-authoritative until plan_execution commits it. " +
 			"Pass one YAML string with nexus_plan: 1; operation create, replan, or replace; and item kind produce, review, verify, or integrate. " +
+			"Choose operation only from the current execution inspect result: no current Execution means create, including the first successor Plan after Goal reset or retarget; replan requires the current Execution and preserves its objective boundary; replace requires a current transient Goal-free Execution. " +
 			"Every item requires exact keys logical_key, kind, subject, objective, and deliverable. See plan_document schema for the complete parser-backed fields and example, including acceptance_criteria, depends_on, and file:<path>, dir:<path>, or semantic:<key> scopes. " +
 			"For a Goal-bound create, finish create_goal first and set goal_binding=current; never launch it in parallel with preparation. current uses only this round's exact Goal authority and is rejected without it. Use goal_binding=none for a Goal-free create. If omitted, create binds current only when exact Goal authority is already present; it never discovers an ambient session Goal. Replan/replace must inherit the existing Execution boundary. Active-Goal create may omit only root objective; every create/replace requires completion_criteria. Change Goal via retarget_goal. " +
 			"Unknown keys and aliases are rejected. On success, call plan_execution with the returned receipt. Plan Mode may prepare, but plan_execution is disabled until Plan Mode is exited.",
@@ -123,10 +124,14 @@ func preparePlanExecution(
 						}
 						return mutationResult(result), nil
 					}
+					repairReason := "repair the complete Plan Document using the reported validation error"
+					if domainErr.Code == orchestration.ErrorCodeNoCurrentExecution {
+						repairReason = "execution inspect has no current Execution; seal a complete operation: create Plan, using goal_binding current only with this round's exact Goal authority, otherwise none"
+					}
 					return mutationResult(orchestration.RejectedResult(nil, err, []orchestration.NextAction{{
 						Domain:    runtimecommand.DomainExecution,
 						Operation: operationName,
-						Reason:    "repair the complete Plan Document using the reported validation error",
+						Reason:    repairReason,
 					}})), nil
 				}
 				return transportErrorResult(err), nil

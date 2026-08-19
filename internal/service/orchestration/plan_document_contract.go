@@ -1,5 +1,5 @@
 // INPUT: Nexus Plan Document v1 的 parser 字段与稳定 transport 约束。
-// OUTPUT: parser 与模型工具共用、区分外层 command/内层 YAML 且不可变的 schema contract 和有效 create 示例。
+// OUTPUT: parser 与模型工具共用、区分外层 command/内层 YAML、明确 current Execution operation 选择且不可变的 schema contract 和有效 create 示例。
 // POS: strict YAML parser 前的单一字段真相源；具体 operation authority 仍由 proposal service 校验。
 package orchestration
 
@@ -96,9 +96,9 @@ func ExecutionPlanDocumentSchemaContract() PlanDocumentSchemaContract {
 		RequiredItemFields:       cloneStrings(planDocumentRequiredItemFields),
 		AllowedItemFields:        cloneStrings(planDocumentAllowedItemFields),
 		OperationRequirements: map[string]string{
-			"create":  "completion_criteria is required; objective may be omitted only when an active Goal supplies and the service inherits the exact Goal objective; existing_work_item_id is forbidden",
-			"replan":  "revision_reason is required; objective and completion_criteria inherit the immutable current Execution boundary; existing_work_item_id may reuse an unchanged Work Item",
-			"replace": "objective, completion_criteria, and replacement_reason are required; a Goal-bound Execution cannot be replaced",
+			"create":  "required when execution inspect returns no current Execution, including the first successor Plan after Goal reset or retarget; completion_criteria is required; objective may be omitted only when an active Goal supplies and the service inherits the exact Goal objective; existing_work_item_id is forbidden",
+			"replan":  "allowed only when execution inspect returns the current Execution and this proposal adds an immutable Plan revision to that same objective boundary; revision_reason is required; objective and completion_criteria inherit the current Execution boundary; existing_work_item_id may reuse an unchanged Work Item",
+			"replace": "allowed only for a current transient Goal-free Execution that must be replaced as a whole; objective, completion_criteria, and replacement_reason are required; a Goal-bound Execution cannot be replaced",
 		},
 		OutputScopeRequirements: "each scope must be exactly file:<workspace-relative-path>, dir:<workspace-relative-path>, or semantic:<stable-key>; file/dir paths must use forward slashes, cannot be absolute, cannot be '.', and cannot escape with '..'; never copy an owner or Agent absolute workspace path into a scope—use a workspace-relative path when the graph coordinates that shared location, otherwise use semantic:<stable-key> for a member-produced artifact. output_scopes are orchestration scheduling/review declarations, not filesystem-enforced write locks, and are exclusive by default; overlapping exclusive scopes are allowed only when one Work Item reaches the other through an all-hard depends_on path, which transfers ownership after upstream Acceptance; parallel, sibling, unrelated, and soft-only overlap must use distinct scopes, or shared_output_scopes only when concurrent writing is genuinely safe",
 		CommonAliasCorrections: map[string]string{

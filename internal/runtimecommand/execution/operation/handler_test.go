@@ -749,6 +749,43 @@ func TestPreparePlanExecutionEndsStaleGoalAuthorityRoundWithoutRetryLoop(t *test
 	}
 }
 
+func TestPreparePlanExecutionDirectsMissingCurrentExecutionToCreate(t *testing.T) {
+	svc := &fakeExecutionService{
+		prepare: func(
+			orchestration.ActorContext,
+			orchestration.PreparePlanExecutionInput,
+		) (*protocol.ExecutionPlanProposal, error) {
+			return nil, &orchestration.DomainError{
+				Code:    orchestration.ErrorCodeNoCurrentExecution,
+				Message: "replan requires a current Execution",
+			}
+		},
+	}
+	result, err := preparePlanExecution(svc, executionContext()).ContextHandler(
+		context.Background(),
+		map[string]any{
+			"plan_document": strings.Replace(validPlanDocument(), "operation: create", "operation: replan", 1),
+		},
+		&runtimecommand.CallContext{RequestID: "goal-successor-replan-1"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError ||
+		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodeNoCurrentExecution) {
+		t.Fatalf("missing current Execution result = %#v", result)
+	}
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) != 1 {
+		t.Fatalf("missing current Execution actions = %#v", result.StructuredContent["next_actions"])
+	}
+	reason, _ := actions[0].(map[string]any)["reason"].(string)
+	if !strings.Contains(reason, "operation: create") || strings.Contains(reason, "replan") {
+		t.Fatalf("repair reason = %q", reason)
+	}
+}
+
 func TestPlanProposalBoundarySourcesFollowOperationAuthority(t *testing.T) {
 	for _, testCase := range []struct {
 		name      string

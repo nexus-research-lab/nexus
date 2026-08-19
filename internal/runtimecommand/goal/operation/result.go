@@ -103,6 +103,10 @@ func errorResultText(text string) runtimecommand.Result {
 			"type": "text",
 			"text": text,
 		}},
+		StructuredContent: map[string]any{
+			"outcome": "rejected",
+			"message": text,
+		},
 		IsError: true,
 	}
 }

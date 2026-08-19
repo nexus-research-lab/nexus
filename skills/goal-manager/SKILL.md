@@ -7,7 +7,7 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 
 管理当前会话已经选定的长程 objective。是否需要 Goal 的结构选择由 `execution-orchestrator` 负责；本 Skill 不把普通任务、提醒、Room action 或一次性协作升级为 Goal，也不因 Goal 存在自动建立 WorkGraph。
 
-使用宿主注入的 `NEXUS_COMMAND_PATH`。宿主把命令绑定到当前 owner、Agent、Session、physical round 和 exact Goal revision；直接执行下面的受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。不要声明或覆盖这些身份，不要覆盖任何 `NEXUS_COMMAND_*` 环境变量，不使用 `nexusctl`、其他管理入口或 `/goal` 文本命令。
+使用宿主注入的 `NEXUS_COMMAND_PATH`。宿主把命令绑定到当前 owner、Agent、Session、physical round 和 exact Goal revision；直接执行下面的受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。每条受管命令必须独立执行，不接管道、重定向、`jq`、Python、正则或其他 shell 后处理。Contract 的 schema 与输入槽位于顶层 `contract` / `input_staging`；inspect/invoke 的领域结果位于顶层 `data`。不要声明或覆盖这些身份，不要覆盖任何 `NEXUS_COMMAND_*` 环境变量，不使用 `nexusctl`、其他管理入口或 `/goal` 文本命令。
 
 ## 命令工作流
 
@@ -45,7 +45,7 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 
    PowerShell 对应使用 `& "${env:NEXUS_COMMAND_PATH}" ...`；输入槽路径仍从 exact contract 的 `input_staging.path` 读取。
 
-6. 只把 `is_error=false` 且宿主返回 applied receipt 的调用视为状态变化。按 `nextAction.domain` 与 `nextAction.operation` 继续；不要解析 shell 文本、伪造 receipt 或把 plan/no-op 当成已写入。
+6. 只把顶层 `is_error=false` 且顶层 `data.outcome=applied` 的调用视为状态变化。按 `data.nextAction.domain` 与 `data.nextAction.operation` 继续；不存在 `result.data` 或需要自行解包的 MCP 结果。如果命令已返回 applied，不得因自定义后处理失败而重试语义操作。
 
 输入槽由宿主按 physical round 创建为 owner 私有 `0600` 文件并在 round 结束清理，只解决 JSON 传输；Goal、revision、责任与完成状态仍以服务端为准。
 
