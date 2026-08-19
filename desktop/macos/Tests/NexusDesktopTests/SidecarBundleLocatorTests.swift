@@ -18,7 +18,10 @@ final class SidecarBundleLocatorTests: XCTestCase {
         return XCTFail("Expected webDistStale, got \(error)")
       }
       XCTAssertEqual(webDistPath, fixture.webRoot.appendingPathComponent("dist").path)
-      XCTAssertEqual(newerInputPath, sourceURL.path)
+      XCTAssertEqual(
+        URL(fileURLWithPath: newerInputPath).resolvingSymlinksInPath().path,
+        sourceURL.resolvingSymlinksInPath().path
+      )
       XCTAssertTrue(error.localizedDescription.contains("make app-run-dev"))
     }
   }
