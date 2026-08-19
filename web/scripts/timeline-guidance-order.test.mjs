@@ -71,6 +71,86 @@ test("conversation viewport suppresses the browser scroll-region outline", async
     "the programmatically focusable viewport must not expose Safari's native blue outline",
   );
   assert.match(html, /tabindex="-1"/);
+  assert.match(
+    html,
+    /scrollbar-gutter:stable/,
+    "scrollbar appearance must not change the live Markdown measure width",
+  );
+});
+
+test("active Assistant content keeps intrinsic height without a retained high-water mark", async () => {
+  const { MessageAssistantSection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/message-assistant-section.tsx",
+  );
+  const emptyProjection = {
+    content: [],
+    streamingIndexes: new Set(),
+  };
+  const html = await renderWithI18n(React.createElement(
+    MessageAssistantSection,
+    {
+      assistant: {
+        activity: {
+          emptyStreamStatus: null,
+          showCursor: true,
+          standalone: false,
+          state: null,
+        },
+        direct: { projection: emptyProjection, visible: false },
+        final: {
+          content: "正在平滑增长的正文",
+          isStreaming: true,
+          mentions: [],
+          streamingIndexes: new Set(),
+          visible: true,
+        },
+        footer: {
+          copied: false,
+          goalCompletionReceipt: null,
+          memories: [],
+          stats: null,
+          visible: false,
+        },
+        header: {
+          agentId: "agent-1",
+          automationTaskName: null,
+          canStop: false,
+          handoffReply: null,
+          stop: () => {},
+          timestamp: undefined,
+        },
+        hidden: false,
+        permissions: {
+          all: [],
+          matchedByToolUseId: new Map(),
+          owner: "content",
+          unmatched: [],
+        },
+        process: {
+          anchorRef: { current: null },
+          expanded: false,
+          projection: emptyProjection,
+          summary: { entries: [], label: "", visible: false },
+          toggle: () => {},
+          visible: false,
+        },
+        showMaxTokensWarning: false,
+      },
+      assistantContentMode: "room_result",
+      canRespondToPermissions: true,
+      compact: false,
+      hiddenToolNames: [],
+      showHeader: false,
+      workspaceAgentId: "agent-1",
+    },
+  ));
+
+  assert.match(html, /nexus-chat-message-content/);
+  assert.doesNotMatch(
+    html,
+    /min-height:/,
+    "live content must never retain a previously measured container height",
+  );
 });
 
 test("scroll-to-latest requires real viewport overflow", async () => {
@@ -400,11 +480,11 @@ test("Room streaming revisions keep scroll coordination fresh for non-last Agent
   assert.notEqual(
     before,
     after,
-    "任意并行 Agent 的流式正文增长都必须唤醒滚动协调，但不能等同于共享贴底写入",
+    "任意并行 Agent 的流式正文增长都必须进入下一次聚合滚动事务",
   );
 });
 
-test("upper Room Agent streaming delegates virtual height changes without pulling the bottom", async () => {
+test("FOLLOW keeps one scroll owner while parallel Room Agents grow", async () => {
   const { resolveConversationFollowCommitOwner } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
@@ -415,7 +495,6 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: true,
       topologyChanged: false,
-      viewportAnchorRestored: false,
     }),
     "virtualizer",
     "an existing upper Agent stream must not issue a second shared bottom write",
@@ -426,7 +505,6 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: true,
       topologyChanged: false,
-      viewportAnchorRestored: false,
     }),
     "bottom",
     "stream growth during an explicit return-to-latest transaction must still hand off to FOLLOW",
@@ -437,7 +515,6 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: true,
       topologyChanged: true,
-      viewportAnchorRestored: false,
     }),
     "bottom",
     "a genuinely appended tail node still needs the shared bottom owner",
@@ -448,10 +525,9 @@ test("upper Room Agent streaming delegates virtual height changes without pullin
       isNewSession: false,
       isVirtualFeed: false,
       topologyChanged: false,
-      viewportAnchorRestored: true,
     }),
-    "viewport-anchor",
-    "static content growing above the viewport must preserve its visible round",
+    "bottom",
+    "every static Agent resize in FOLLOW belongs to the aggregate bottom transaction",
   );
 });
 
@@ -892,7 +968,7 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
   );
 });
 
-test("non-virtual content growth preserves the first visible Room round", async () => {
+test("READING preserves the first visible Room round during static growth", async () => {
   const { ConversationViewportAnchor } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/conversation-viewport-anchor.ts",
   );
@@ -3516,62 +3592,6 @@ test("Room conversation identity stays stable across physical member sessions", 
     }),
     "room-session:room-session-dm",
     "non-Room conversations keep their physical session boundary",
-  );
-});
-
-test("active MessageItem streaming height spans the whole physical round", async () => {
-  const { resolveMessageItemStreamingLayoutState } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/message/item/view/message-item-streaming-layout.ts",
-  );
-  const tallRound = {
-    active: true,
-    layoutScopeKey: "agent-round-live",
-    minHeight: 960,
-  };
-
-  assert.strictEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallRound,
-      "agent-round-live",
-      true,
-    ),
-    tallRound,
-    "streaming revisions within one physical round retain the monotonic height",
-  );
-  assert.strictEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallRound,
-      "agent-round-live",
-      true,
-    ),
-    tallRound,
-    "tool and Assistant turn transitions cannot shrink the live round",
-  );
-  assert.deepEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallRound,
-      "agent-round-next",
-      true,
-    ),
-    {
-      active: true,
-      layoutScopeKey: "agent-round-next",
-      minHeight: 60,
-    },
-    "a new physical round cannot inherit the preceding round height",
-  );
-  assert.deepEqual(
-    resolveMessageItemStreamingLayoutState(
-      tallRound,
-      "agent-round-live",
-      false,
-    ),
-    {
-      active: false,
-      layoutScopeKey: "agent-round-live",
-      minHeight: 0,
-    },
-    "terminal layout releases the live round height",
   );
 });
 

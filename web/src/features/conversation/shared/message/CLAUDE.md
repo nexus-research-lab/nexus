@@ -15,4 +15,4 @@
 - `MessageItem` 由 `item/message-item.tsx` 直接公开，消费者不得绕回消息目录聚合出口。
 - 消息项控制器只返回按 User/Assistant 和视觉职责分组的具体状态；各视图在消费侧声明所需结构，不共享宽状态接口。
 - Assistant 快照合并必须单调保留 `recalled_memories`，历史载入的引用摘要不得被同进度 live 快照覆盖。
-- `item/view/message-item-streaming-layout.ts` 以物理 `agent_round` 为稳定范围，live 期间按真实 DOM 高度只增不减；Assistant 正文、工具续轮和活动状态切换不得重置高度，round 终态或身份切换才释放。
+- live Assistant 高度只由当前可见内容的 intrinsic layout 决定；禁止用子级 `ResizeObserver` 把历史最高高度回写为 `min-height`，否则过程/正文切换会留下不可自愈的大空白。多 Agent 的展示节奏由 shared Markdown 帧调度器合批，MessageItem 不持有高度状态。

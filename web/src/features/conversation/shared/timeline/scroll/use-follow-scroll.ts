@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话内容版本、历史前插令牌与滚动容器尺寸变化。
- * OUTPUT: DM、Room、Thread 共用的跟随状态、上方增长锚定、定位入口与用户滚动处理器。
- * POS: FOLLOW 尾部贴底、Virtualizer 测高委托、READING 锚定和资源清理的 React 编排层。
+ * OUTPUT: DM、Room、Thread 共用的跟随状态、聚合贴底、阅读锚定、定位入口与用户滚动处理器。
+ * POS: FOLLOW 单一贴底所有权、Virtualizer 测高委托、READING 锚定和资源清理的 React 编排层。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
@@ -221,26 +221,13 @@ export function useFollowScroll({
         viewportAnchorRef.current.reset();
       }
       const feed = feedRef.current;
-      const restoredScrollTop = viewportAnchorRef.current.restore(
-        container,
-        feed,
-        { allowVirtualFeed: topologyChanged },
-      );
-      if (restoredScrollTop !== null) {
-        lastScrollTopRef.current = restoredScrollTop;
-      }
       const owner = resolveConversationFollowCommitOwner({
         bottomScrollActive: animatorRef.current?.isActive?.() ?? false,
         isNewSession,
         isVirtualFeed: feed?.dataset.conversationVirtualFeed === "true",
         topologyChanged,
-        viewportAnchorRestored: restoredScrollTop !== null,
       });
-      setScrollToBottomVisibility(
-        owner === "viewport-anchor"
-          && hasScrollableOverflow(container)
-          && !isAtScrollBottom(container),
-      );
+      setScrollToBottomVisibility(false);
       if (owner === "bottom") {
         if (
           feed?.dataset.conversationVirtualFeed === "true"
@@ -295,8 +282,9 @@ export function useFollowScroll({
     );
   }, [historyPrependToken, setScrollToBottomVisibility]);
 
-  // 只观察内容轨道增长。静态 Feed 用可见锚点区分“上方增长”和“尾部增长”；
-  // 虚拟 Feed 的普通测高只由 Virtualizer 修正，不能再叠加共享 bottom 写入。
+  // 只观察整条内容轨道的聚合尺寸。ResizeObserver 会把同一布局周期里多个
+  // Agent 的子树变化合成一次父轨道通知：FOLLOW 只贴真实 bottom，READING
+  // 只恢复可见轮次；虚拟 Feed 的普通逐项测高仍由 Virtualizer 独占。
   useEffect(() => {
     if (typeof ResizeObserver === "undefined") {
       return;
@@ -310,34 +298,19 @@ export function useFollowScroll({
 
       if (shouldFollowLatestRef.current) {
         const feed = feedRef.current;
-        const restoredScrollTop = viewportAnchorRef.current.restore(
-          currentContainer,
-          feed,
-        );
-        if (restoredScrollTop !== null) {
-          lastScrollTopRef.current = restoredScrollTop;
-        }
         const owner = resolveConversationFollowCommitOwner({
           bottomScrollActive: animatorRef.current?.isActive?.() ?? false,
           isNewSession: false,
           isVirtualFeed: feed?.dataset.conversationVirtualFeed === "true",
           topologyChanged: false,
-          viewportAnchorRestored: restoredScrollTop !== null,
         });
+        setScrollToBottomVisibility(false);
         if (owner === "bottom") {
-          setScrollToBottomVisibility(false);
           scheduleFollowLatest();
           return;
         }
-        const remainsAtBottom = isAtScrollBottom(currentContainer);
-        if (owner === "virtualizer" && !remainsAtBottom) {
-          // Virtualizer 没有把这次变化判为底部跟随时，保留当前画面并进入
-          // READING；后续 token 也不能再由共享 FOLLOW 突然拉回底部。
-          shouldFollowLatestRef.current = false;
-        }
-        setScrollToBottomVisibility(
-          hasScrollableOverflow(currentContainer) && !remainsAtBottom,
-        );
+        // 测量过程中暂时离开数值 bottom 不能替用户切换到 READING；
+        // FOLLOW/READING 只由明确的用户滚动意图改变。
         return;
       }
 

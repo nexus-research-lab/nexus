@@ -2,12 +2,11 @@
 
 /**
  * INPUT: 已平滑显示的 Markdown 正文、流式状态与静态/流式组件集。
- * OUTPUT: 组件身份稳定且可中断更新的 Markdown 子树。
- * POS: 防止打字机排空后重挂载 Markdown 块；不改变正文节奏、块高度或滚动所有权。
+ * OUTPUT: 组件身份稳定、与共享展示帧同步提交的 Markdown 子树。
+ * POS: 防止打字机排空后重挂载 Markdown 块；不再为每条流创建独立延迟提交。
  */
 import {
   memo,
-  useDeferredValue,
   useMemo,
   useRef,
   type ComponentProps,
@@ -86,8 +85,7 @@ export function MarkdownText({
       }],
     [content, shouldKeepStreamBlocks],
   );
-  const deferredBlocks = useDeferredValue(nextBlocks);
-  const blocks = isStreaming ? deferredBlocks : nextBlocks;
+  const blocks = nextBlocks;
 
   return (
     <>

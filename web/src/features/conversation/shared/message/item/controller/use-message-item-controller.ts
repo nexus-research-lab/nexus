@@ -11,7 +11,6 @@ import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import type { MessageItemProps } from "../message-item-types";
 import { resolvePendingInteractionOwner } from "../message-item-projection";
 import { hasTimedOutAskUserQuestion } from "../process/message-question-timeout";
-import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";
 import { resolveAssistantDisplayState } from "./display/message-item-display-model";
 import { useProcessExpansionLifecycle } from "./display/use-process-expansion-lifecycle";
 import { useMessageItemProjection } from "./projection/use-message-item-projection";
@@ -94,11 +93,6 @@ export function useMessageItemController({
       onStopMessage(projection.firstAssistantMessageId);
     }
   }, [onStopMessage, projection.firstAssistantMessageId]);
-  const { contentAreaRef, contentAreaStyle } = useMessageItemStreamingLayout({
-    active: Boolean(isLoading),
-    layoutScopeKey: roundId,
-  });
-
   return {
     userMessages: projection.userMessages,
     assistant: {
@@ -151,10 +145,6 @@ export function useMessageItemController({
         onFork: display.canFork ? onForkConversation : undefined,
         stats: projection.stats,
         visible: display.footerVisible,
-      },
-      layout: {
-        contentAreaRef,
-        contentAreaStyle,
       },
       showMaxTokensWarning: projection.stopReason === "max_tokens",
     },
