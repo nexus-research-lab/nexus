@@ -605,7 +605,7 @@ func TestRenderExecutionContextPublishesOnlyCurrentlyCallableOrchestrationAction
 	):strings.Index(member, "</allowed_actions>")]
 	if !strings.Contains(
 		member,
-		"<action_scope>allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names;",
+		"<action_scope>Use only allowed_actions; load execution-orchestrator and follow the exact round-scoped execution contract for the selected action.</action_scope>",
 	) ||
 		strings.Contains(memberAllowed, "<action>submit_work</action>") ||
 		strings.Contains(memberAllowed, "<action>block_work</action>") {

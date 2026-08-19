@@ -209,9 +209,8 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		t.Fatalf("DM dynamic prompt 不应重复 execution contract: %s", promptOptions.AppendDynamic)
 	}
 	for _, expected := range []string{
-		"Before substantial execution, every Agent assesses atomicity",
-		"Use native subagents only when their benefit exceeds",
-		"When one Agent owns the combined deliverable, keep one Work Item and use separate native subagents",
+		"Before substantial execution, assess separability",
+		"Use subagents only when benefit exceeds coordination cost",
 		"the parent integrates, verifies, and delivers",
 	} {
 		if !strings.Contains(promptOptions.AppendStatic, expected) {

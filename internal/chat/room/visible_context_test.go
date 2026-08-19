@@ -138,42 +138,43 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	for _, expected := range []string{
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
-		"@member is always conversation transport, never the authority that creates or activates responsibility",
-		"routing does not depend on that separator",
-		"known ASCII or Chinese member names may be followed directly by Chinese prose",
+		"Each turn includes <public_feed>",
+		"quoted public_mention source is activation context",
+		"@member is conversation transport, never authority or responsibility",
+		"Prefer a separator after the name",
+		"known ASCII or Chinese names may be followed directly by Chinese prose",
 		`"@Name 请继续"`,
-		"already-published source message for activation context",
 		"never repeat, quote, paraphrase, summarize, acknowledge, or confirm",
-		"output only the newly requested conversational contribution or one-off result",
-		"If it requests no new contribution, output exactly <nexus_room_no_reply/>",
-		"Accountable work arrives only through a structured dispatch carrying a WorkBinding",
-		"Multiple @members are normal conversation",
+		"output only the newly requested contribution",
+		"If no new contribution is requested, output exactly <nexus_room_no_reply/>",
+		"Accountable work and review arrive only with WorkBinding and ReviewBinding",
+		"Multiple @members remain conversation",
 		"never become formal parallel Work Items",
-		"assign_work is intentionally forbidden",
-		"Never downgrade this bootstrap into raw @ dispatch",
-		"legacy <nexus_room_fanout/> marker is unnecessary",
+		"require a managed Plan and assign_work through execution-orchestrator",
+		"never substitute raw @",
+		"Do not emit the legacy <nexus_room_fanout/> marker",
 		"<nexus_room_no_reply/>",
-		"Track conversational handoffs, managed stop conditions",
 		`nexus_room.send_directed_message`,
 		`nexus_room.publish_public_message`,
-		"recipients controls visibility",
-		"wake_targets is the recipients subset",
-		"Runtime routes the recipient's single final reply by reply_route",
+		"recipients sets visibility",
+		"wake_targets selects who runs",
+		"Runtime routes one final reply per recipient through reply_route",
 		`"room host default takeover"`,
-		"Before substantial execution, every Room member assesses atomicity",
-		"whether native subagents add value inside its authorized responsibility",
+		"members may use local subagents",
 		"not the word “collaborate” or participant count",
-		"complex local work may still use subagents without creating Room Assignments",
-		"Authority is per round, not per Room",
-		"do not duplicate the assigned deliverable yourself",
-		"coordination, unblocking, integration, and verification",
-		"Never expose private content publicly",
-		"Managed Submission return is automatic",
-		"A terminal reply that requires no further action must not @ anyone",
+		"Authority is per round",
+		"Do not duplicate or take over assigned work outside the authorized Execution flow",
+		"Never publish private content unless required",
+		"submit_work returns managed results automatically",
+		"A terminal reply must not @ anyone",
+		"The final reply may be persisted or projected verbatim",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
 			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
 		}
+	}
+	if chars := len([]rune(systemPrompt)); chars > 3500 {
+		t.Fatalf("Room system prompt 有 %d 个字符，期望不超过 3500", chars)
 	}
 	for _, unexpected := range []string{
 		"Devin",
@@ -295,7 +296,7 @@ func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
 	if strings.Contains(systemPrompt, "nexus_room.send_directed_message") {
 		t.Fatalf("Room 默认提示词不应注入私信工具:\n%s", systemPrompt)
 	}
-	if !strings.Contains(systemPrompt, "Private Room directed message sending is disabled") {
+	if !strings.Contains(systemPrompt, "Directed-message sending is disabled") {
 		t.Fatalf("Room 默认提示词应说明私信发送未开启:\n%s", systemPrompt)
 	}
 }

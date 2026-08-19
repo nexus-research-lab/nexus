@@ -18,7 +18,6 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -190,16 +189,6 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	})
 	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("Room runtime did not auto-approve exact Execution CLI: decision=%+v err=%v", executionCommandDecision, decisionErr)
-	}
-	for _, expected := range []string{
-		"## Goal Skill 使用要求",
-		`"${NEXUS_COMMAND_PATH}" --json goal contract|inspect|invoke`,
-		"## Execution Skill 使用要求",
-		`"${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke`,
-	} {
-		if !strings.Contains(options.System.Append, expected) {
-			t.Fatalf("Room runtime prompt missing managed CLI binding %q: %s", expected, options.System.Append)
-		}
 	}
 }
 

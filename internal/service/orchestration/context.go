@@ -23,7 +23,7 @@ const (
 	ExecutionActorSubagent    ExecutionActorRole = "subagent"
 
 	executionGraphDigestEdgeLimit = protocol.ExecutionProjectionCollectionLimit * 4
-	executionActionTransportScope = "allowed_actions and forbidden_actions are semantic operation names, not tool-schema or MCP names; load execution-orchestrator, select from allowed_actions, then read execution contract --operation <selected_action> before invoke; execution inspect takes no operation; use only the host-injected \"${NEXUS_COMMAND_PATH}\" --json execution command, never nexusctl; native Agent delegation and all other task tools remain governed by task and tool policy"
+	executionActionScope          = "Use only allowed_actions; load execution-orchestrator and follow the exact round-scoped execution contract for the selected action."
 )
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
@@ -130,7 +130,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		&output,
 		2,
 		"action_scope",
-		executionActionTransportScope,
+		executionActionScope,
 	)
 	renderStringList(&output, "allowed_actions", "action", allowed)
 	renderStringList(&output, "forbidden_actions", "action", forbidden)
@@ -243,7 +243,7 @@ func RenderConversationExecutionContext(
 		&output,
 		2,
 		"action_scope",
-		executionActionTransportScope,
+		executionActionScope,
 	)
 	renderStringList(&output, "allowed_actions", "action", allowed)
 	renderStringList(&output, "forbidden_actions", "action", forbidden)
@@ -348,7 +348,7 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 		&output,
 		2,
 		"action_scope",
-		executionActionTransportScope,
+		executionActionScope,
 	)
 	renderActionBoundary(&output, view, role, options, subagentEligible)
 	renderCompletionBlockers(&output, snapshot.CompletionBlockers)

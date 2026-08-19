@@ -49,7 +49,6 @@ type dmClientPreparation struct {
 	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
 	commandReceipts        *runtimecommand.ReceiptState
 	commandResources       *runtimecommand.RoundResources
-	connectorTurnContext   string
 	permissionMode         sdkpermission.Mode
 }
 
@@ -553,7 +552,6 @@ func (s *Service) ensureClient(
 		sdkSessionIdentity:     sdkSessionIdentity,
 		commandReceipts:        commandReceipts,
 		commandResources:       commandResources,
-		connectorTurnContext:   connectorTurnContext,
 		permissionMode:         permissionMode,
 	}
 	commandResourcesTransferred = true
