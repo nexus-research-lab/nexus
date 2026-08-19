@@ -1,5 +1,5 @@
 // INPUT: nexus goal/execution CLI flags、宿主私有输入槽与 round command capability。
-// OUTPUT: 带自描述精确命令顺序和输入槽写入前置的 contract、inspect、invoke 稳定 JSON envelope。
+// OUTPUT: 带自描述精确命令顺序和输入槽写入前置的 contract、inspect、invoke 单层 typed JSON envelope。
 // POS: Goal/WorkGraph Skill 的唯一命令传输层；业务 identity 与授权只来自宿主 broker。
 package cli
 
@@ -79,6 +79,7 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 			`"${NEXUS_COMMAND_PATH}" --json %s inspect`,
 			domain,
 		),
+		"output": "contract fields stay at top-level contract/input_staging; run inspect and invoke standalone with no pipe, redirection, jq, Python, regex, or shell post-processing, then read their domain, action, is_error, and top-level data object directly",
 	}
 	if domain == runtimecommand.DomainExecution {
 		usage["inspect_explicit"] = `"${NEXUS_COMMAND_PATH}" --json execution inspect --execution-id '<execution-id>'`
@@ -139,7 +140,9 @@ func newRuntimeSemanticInspectCommand(domain string) *cobra.Command {
 			}, &result); err != nil {
 				return err
 			}
-			return emitJSON(map[string]any{"domain": domain, "action": runtimecommand.ActionInspect, "result": result})
+			return emitJSON(runtimeSemanticResultEnvelope(
+				domain, runtimecommand.ActionInspect, "", "", result,
+			))
 		},
 	}
 	if domain == runtimecommand.DomainExecution {
@@ -173,17 +176,48 @@ func newRuntimeSemanticInvokeCommand(domain string) *cobra.Command {
 			}, &result); err != nil {
 				return err
 			}
-			return emitJSON(map[string]any{
-				"domain": domain, "action": runtimecommand.ActionInvoke,
-				"operation": strings.TrimSpace(operation), "request_id": requestID,
-				"result": result,
-			})
+			return emitJSON(runtimeSemanticResultEnvelope(
+				domain,
+				runtimecommand.ActionInvoke,
+				strings.TrimSpace(operation),
+				requestID,
+				result,
+			))
 		},
 	}
 	command.Flags().StringVar(&operation, "operation", "", "contract 返回的精确 operation")
 	_ = command.MarkFlagRequired("operation")
 	command.Flags().StringVar(&requestID, "request-id", "", "8-128 位稳定命令 ID；同一意图重试时必须复用")
 	return command
+}
+
+// runtimeSemanticResultEnvelope removes the internal MCP-compatible Content
+// mirror at the CLI boundary. A managed command has exactly one machine wire:
+// stable metadata plus one always-present top-level data object.
+func runtimeSemanticResultEnvelope(
+	domain string,
+	action string,
+	operation string,
+	requestID string,
+	result runtimecommand.Result,
+) map[string]any {
+	data := result.StructuredContent
+	if data == nil {
+		data = map[string]any{}
+	}
+	payload := map[string]any{
+		"domain":   strings.TrimSpace(domain),
+		"action":   strings.TrimSpace(action),
+		"is_error": result.IsError,
+		"data":     data,
+	}
+	if operation = strings.TrimSpace(operation); operation != "" {
+		payload["operation"] = operation
+	}
+	if requestID = strings.TrimSpace(requestID); requestID != "" {
+		payload["request_id"] = requestID
+	}
+	return payload
 }
 
 func decodeRuntimeSemanticInputForCommand(command *cobra.Command) (map[string]any, error) {

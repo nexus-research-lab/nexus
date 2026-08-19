@@ -336,6 +336,10 @@ func transportErrorResult(err error) runtimecommand.Result {
 			"type": "text",
 			"text": message,
 		}},
+		StructuredContent: map[string]any{
+			"outcome": "rejected",
+			"message": message,
+		},
 		IsError: true,
 	}
 }

@@ -209,6 +209,43 @@ func WithNexusRuntimeCLIAutoApproval(handler sdkpermission.Handler) sdkpermissio
 	}
 }
 
+// WithNexusRuntimeCLICompositionDeny keeps a semantic mutation and its shell
+// exit status atomic. Once a command references the managed executable with
+// --json, it must match the exact single-process grammar; otherwise a pipe or
+// trailing parser could fail after the state change already committed.
+func WithNexusRuntimeCLICompositionDeny(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if isComposedNexusRuntimeCLIRequest(request) {
+			return sdkpermission.Deny(
+				"Goal/Execution/Automation 受管命令必须独立执行；请移除管道、重定向、Python/jq/正则解析或其他 shell 组合，直接读取命令返回的 typed JSON",
+				false,
+			), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+func isComposedNexusRuntimeCLIRequest(request sdkpermission.Request) bool {
+	if IsNexusRuntimeCLIRequest(request) {
+		return false
+	}
+	command, ok := request.Input["command"].(string)
+	if !ok {
+		return false
+	}
+	switch {
+	case MatchesItem(request.ToolName, "Bash"):
+		return strings.Contains(command, `"${NEXUS_COMMAND_PATH}" --json`)
+	case MatchesItem(request.ToolName, "PowerShell"):
+		return strings.Contains(command, `& "${env:NEXUS_COMMAND_PATH}" --json`)
+	default:
+		return false
+	}
+}
+
 // RuntimeCLIInvocation 是经过严格 shell 子集解析的命令身份。
 type RuntimeCLIInvocation struct {
 	Domain string

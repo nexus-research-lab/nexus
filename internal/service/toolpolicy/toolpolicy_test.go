@@ -287,3 +287,41 @@ func TestNexusRuntimeCLIAutoApprovalFallsBackForOtherShell(t *testing.T) {
 		t.Fatalf("ordinary shell should reach fallback: decision=%+v err=%v calls=%d", ordinary, err, fallbackCalls)
 	}
 }
+
+func TestNexusRuntimeCLICompositionDenyPreventsPostMutationParserFailure(t *testing.T) {
+	fallbackCalls := 0
+	handler := WithNexusRuntimeCLICompositionDeny(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		fallbackCalls++
+		return sdkpermission.Allow(request.Input, nil), nil
+	})
+	for _, command := range []string{
+		`"${NEXUS_COMMAND_PATH}" --json goal invoke --operation audit_objective_alignment --request-id goal-audit-1 | python3 -c 'import json'`,
+		`"${NEXUS_COMMAND_PATH}" --json execution inspect | jq .data`,
+	} {
+		decision, err := handler(context.Background(), sdkpermission.Request{
+			ToolName: "Bash",
+			Input:    map[string]any{"command": command},
+		})
+		if err != nil || decision.Behavior != sdkpermission.BehaviorDeny {
+			t.Fatalf("composed command %q decision=%+v err=%v", command, decision, err)
+		}
+	}
+	decision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input: map[string]any{
+			"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`,
+		},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 1 {
+		t.Fatalf("exact command decision=%+v err=%v fallback=%d", decision, err, fallbackCalls)
+	}
+	decision, err = handler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input: map[string]any{
+			"command": `echo "NEXUS_COMMAND_PATH=$NEXUS_COMMAND_PATH"`,
+		},
+	})
+	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 2 {
+		t.Fatalf("ordinary text probe decision=%+v err=%v fallback=%d", decision, err, fallbackCalls)
+	}
+}

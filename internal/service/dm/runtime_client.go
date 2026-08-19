@@ -137,6 +137,7 @@ func (s *Service) ensureClient(
 	}
 	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithNexusRuntimeCLIAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithNexusRuntimeCLICompositionDeny(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return dmClientPreparation{}, err

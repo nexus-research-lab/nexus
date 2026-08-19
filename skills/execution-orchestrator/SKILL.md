@@ -22,7 +22,7 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 
 ## Execution 命令工作流
 
-只有需要读取或改变受管 WorkGraph 时才调用 CLI。使用宿主注入的 `NEXUS_COMMAND_PATH`；身份、Session、Room role、WorkBinding、ReviewBinding、Goal authority 和 physical round 都来自宿主。直接执行下面的受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。不要覆盖 `NEXUS_COMMAND_*`，不要使用 `nexusctl` 或其他编排管理入口。
+只有需要读取或改变受管 WorkGraph 时才调用 CLI。使用宿主注入的 `NEXUS_COMMAND_PATH`；身份、Session、Room role、WorkBinding、ReviewBinding、Goal authority 和 physical round 都来自宿主。直接执行下面的受管命令，不要先用 `echo`、`printenv`、`env`、`set`、`test -n` 或同类命令探测注入变量。每条受管命令必须独立执行，不接管道、重定向、`jq`、Python、正则或其他 shell 后处理。Contract 的 schema 与输入槽位于顶层 `contract` / `input_staging`；inspect/invoke 的领域结果位于顶层 `data`。不要覆盖 `NEXUS_COMMAND_*`，不要使用 `nexusctl` 或其他编排管理入口。
 
 1. 先读取当前 actor 的权威状态。
 
@@ -54,11 +54,11 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
    "${NEXUS_COMMAND_PATH}" --json execution invoke --operation assign_work --request-id 'execution-assign-UNIQUE'
    ```
 
-5. 只把 `is_error=false` 且宿主 applied receipt 对应的结果当成状态变化。按返回的 `next_actions[].domain` / `operation` 行动；普通 snapshot revision 冲突或 `context_status=refresh_required` 可在同一 physical round 重新 `inspect`，不能把它解释成等待宿主换轮；权限拒绝不能通过改身份字段绕过。只有 `context_status=round_refresh_required` 表示 Goal/Execution authority 已被外部换代：立即结束本轮，不再 `inspect`、重写 Plan 或重试 invoke，等待宿主启动 successor round。
+5. 只把顶层 `is_error=false` 且顶层 `data.outcome=applied` 的 mutation 当成状态变化（`prepare_plan_execution` 的成功结果为 `data.outcome=prepared`）。按 `data.next_actions[].domain` / `operation` 行动；不存在 `result.data` 或需要自行解包的 MCP 结果。`data.execution_context` 在 `data.context_status=refresh_required` 时可以为 `null`，此时直接重新 `inspect`，不对它做字符串或正则处理。普通 snapshot revision 冲突或 `refresh_required` 可在同一 physical round 重新 `inspect`，不能把它解释成等待宿主换轮；权限拒绝不能通过改身份字段绕过。只有 `data.context_status=round_refresh_required` 表示 Goal/Execution authority 已被外部换代：立即结束本轮，不再 `inspect`、重写 Plan 或重试 invoke，等待宿主启动 successor round。
 
 输入槽是 round 私有传输介质，不是状态源。CLI 的 operation contract 是当前参数、枚举与 Plan Document 约束的唯一真相；Skill 不复制完整 schema。
 
-创建 Goal+WorkGraph 时必须串行：先由 `goal-manager` 完成 `create_goal`，确认 applied 后再 `prepare_plan_execution`，并在外层输入使用 `goal_binding=current`；两者不得并行。已有 transient WorkGraph 后才出现明确 Goal 意图时，不再 `create_goal`，而使用 `promote_execution_to_goal`。Composer 已创建 Goal 时由宿主启动携带 exact revision 的新 round，再按同一 `goal_binding=current` 路径建图。
+创建 Goal+WorkGraph 时必须串行：先由 `goal-manager` 完成 `create_goal`，确认 applied 后再 `prepare_plan_execution`，并在外层输入使用 `goal_binding=current`；两者不得并行。已有 transient WorkGraph 后才出现明确 Goal 意图时，不再 `create_goal`，而使用 `promote_execution_to_goal`。Composer 已创建 Goal 时由宿主启动携带 exact revision 的新 round，再按同一 `goal_binding=current` 路径建图。Goal reset/retarget 后即使历史里存在 predecessor WorkGraph，只要本轮 `execution inspect` 没有返回 current Execution，successor 的首份 Plan 就必须用 `operation: create`，不能把历史替换关系误写成 `replan`。
 
 ## 最小选择表
 

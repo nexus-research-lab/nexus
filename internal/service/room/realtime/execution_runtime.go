@@ -467,6 +467,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
 	handler = toolpolicy.WithNexusRuntimeCLIAutoApproval(handler)
+	handler = toolpolicy.WithNexusRuntimeCLICompositionDeny(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)
 	return toolpolicy.WithNexusControlPlaneDeny(handler, !e.agent.IsMain)
 }

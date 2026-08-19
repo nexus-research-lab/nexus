@@ -447,6 +447,13 @@ duplicate logical identities, invalid dependency/output relationships, and
 over-limit collections. Callers must use the parser-backed operation contract
 rather than reconstructing a wider YAML format from prose.
 
+The operation is selected only from the current `execution inspect` result. No
+current Execution means `create`, including the first successor Plan after Goal
+reset or retarget even when historical predecessor/successor metadata exists.
+`replan` requires the returned current Execution and preserves that objective
+boundary. `replace` requires a returned current transient Goal-free Execution.
+Historical relationship language never substitutes for current state.
+
 ### 4.2 Prepare
 
 `prepare_plan_execution`:
@@ -544,6 +551,13 @@ staging path remembered from another physical round, and must not invoke before
 loading that exact schema. The broker validates required fields, closed objects,
 types, enums, patterns, and collection bounds before any domain handler or state
 read, matching the retired native MCP schema boundary without restoring its route.
+Inspect and invoke then return exactly one flat JSON wire: stable `domain`/`action`
+metadata, an always-present boolean `is_error`, and one top-level `data` object.
+They do not expose the internal MCP-compatible `Content` mirror or a nested
+`result.data`. Managed commands are atomic single-process calls: permission policy
+rejects pipes, redirection, `jq`, Python, regex, or trailing shell composition, so a
+state change cannot commit successfully and then be misreported as failed by a
+caller-owned parser.
 
 ### 5.1 Agent-facing CLI command audit
 
@@ -601,6 +615,12 @@ Room creates a parallel Goal and tries to bind it afterward. The coordinator use
 the accepted host request and model continuation are different physical rounds;
 the successor receives the exact current revision at launch rather than inheriting
 authority from the WebSocket request context.
+
+After Goal reset or retarget, the predecessor Execution is historical. Until the
+successor is materialized, `execution inspect` has no current Execution, so both DM
+and Room must seal the successor's first Plan as `operation: create` with
+`goal_binding=current`. A one-shot `replan` rejection in this state is a caller
+contract violation, not an expected retry phase.
 
 The managed Goal/Execution Skill catalog is one shared runtime-command truth used
 by Agent defaults, workspace deployment, the Skills catalog, prompts, and permission
