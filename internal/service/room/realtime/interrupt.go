@@ -110,7 +110,7 @@ func (s *Service) collectRoundTargets(
 ) []interruptTarget {
 	targets := make([]interruptTarget, 0)
 	seen := make(map[string]struct{})
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil || !matcher(roundValue) {
 			continue
 		}
@@ -128,7 +128,7 @@ func (s *Service) collectSlotTargets(
 ) []interruptTarget {
 	targets := make([]interruptTarget, 0)
 	seen := make(map[string]struct{})
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil {
 			continue
 		}
@@ -195,7 +195,7 @@ func (s *Service) interruptRound(
 
 func (s *Service) activeRoundsForSession(sessionKey string) []*activeRoomRound {
 	result := make([]*activeRoomRound, 0)
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue != nil && roundValue.SessionKey == sessionKey {
 			result = append(result, roundValue)
 		}
@@ -208,11 +208,11 @@ func (s *Service) findActiveSlotByAgentRoundID(sessionKey string, agentRoundID s
 	if agentRoundID == "" {
 		return nil, nil
 	}
-	return s.rounds.findSlotByAgentRound(sessionKey, agentRoundID)
+	return s.roundsRegistry().findSlotByAgentRound(sessionKey, agentRoundID)
 }
 
 func (s *Service) findActiveRoundByRoundID(sessionKey string, roundID string) *activeRoomRound {
-	return s.rounds.findByRoundID(sessionKey, roundID)
+	return s.roundsRegistry().findByRoundID(sessionKey, roundID)
 }
 
 func (s *Service) findActiveSlot(sessionKey string, msgID string) (*activeRoomRound, *activeRoomSlot) {
@@ -220,7 +220,7 @@ func (s *Service) findActiveSlot(sessionKey string, msgID string) (*activeRoomRo
 	if msgID == "" {
 		return nil, nil
 	}
-	return s.rounds.findSlot(sessionKey, msgID)
+	return s.roundsRegistry().findSlot(sessionKey, msgID)
 }
 
 func (s *Service) interruptActiveSlot(

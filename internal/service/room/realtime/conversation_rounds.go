@@ -38,20 +38,20 @@ type roomRoundRegistry struct {
 	conversations map[string]*roomConversationState
 }
 
-func newRoomRoundRegistry() roomRoundRegistry {
-	return roomRoundRegistry{
+func newRoomRoundRegistry() *roomRoundRegistry {
+	return &roomRoundRegistry{
 		conversations: make(map[string]*roomConversationState),
 	}
 }
 
-func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoundRegistry {
+func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) *roomRoundRegistry {
 	registry := &roomRoundRegistry{
 		conversations: make(map[string]*roomConversationState),
 	}
 	for _, roundValue := range rounds {
 		registry.register(roundValue)
 	}
-	return roomRoundRegistry{conversations: registry.conversations}
+	return registry
 }
 
 func newRoomConversationState() *roomConversationState {
@@ -508,7 +508,7 @@ type ActiveRoundSnapshot struct {
 // CountRunningTasks 返回指定 Agent 当前在 Room 中的活跃任务数。
 func (s *Service) CountRunningTasks(agentID string) int {
 	count := 0
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		for _, slot := range roundValue.Slots {
 			if slot != nil && slot.AgentID == agentID && !slot.isTerminal() {
 				count++
@@ -530,7 +530,7 @@ func (s *Service) SetPermissionModeForAgent(ctx context.Context, agentID string,
 		client runtimectx.Client
 	}
 	targets := make([]permissionModeTarget, 0)
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil {
 			continue
 		}
@@ -586,7 +586,7 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 	pending := make([]protocol.ChatAckPendingSlot, 0)
 	snapshot := &ActiveRoundSnapshot{}
 	rootRoundIDs := make(map[string]struct{})
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(conversationID) {
 		if roundValue == nil || roundValue.ConversationID != conversationID {
 			continue
 		}
@@ -642,7 +642,7 @@ func (s *Service) registerRound(roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
 	}
-	s.rounds.register(roundValue)
+	s.roundsRegistry().register(roundValue)
 }
 
 func (s *Service) finishRound(roundValue *activeRoomRound) {
@@ -650,7 +650,7 @@ func (s *Service) finishRound(roundValue *activeRoomRound) {
 		return
 	}
 	s.runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
-	s.rounds.unregister(roundValue)
+	s.roundsRegistry().unregister(roundValue)
 	roundValue.doneOnce.Do(func() {
 		close(roundValue.Done)
 	})
@@ -800,6 +800,13 @@ func roomDispatchStateKey(sessionKey string, conversationID string) string {
 	return "__room_unknown_conversation__"
 }
 
+func (s *Service) roundsRegistry() *roomRoundRegistry {
+	if s.rounds == nil {
+		s.rounds = newRoomRoundRegistry()
+	}
+	return s.rounds
+}
+
 func (s *Service) lockRoomDispatch(sessionKey string, conversationID string) *roomDispatchLease {
-	return s.rounds.acquireDispatch(roomDispatchStateKey(sessionKey, conversationID))
+	return s.roundsRegistry().acquireDispatch(roomDispatchStateKey(sessionKey, conversationID))
 }

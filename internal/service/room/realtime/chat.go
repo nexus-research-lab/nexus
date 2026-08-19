@@ -885,7 +885,7 @@ func (s *Service) latestActiveRootRoundAgentIDs(sessionKey string, conversationI
 	slotsByRoot := make(map[string][]activeRoomTargetSlot)
 	latestTimestampByRoot := make(map[string]int64)
 	latestSequenceByRoot := make(map[string]uint64)
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {
@@ -1372,7 +1372,7 @@ func (s *Service) findActiveDeliverySlotsByAgent(
 		return result
 	}
 
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {
@@ -1415,7 +1415,7 @@ func (s *Service) findActiveDeliverySlots(
 	// active root 才能原子注入，避免同一 public message 被不同 root 反复改写。
 	slotsByRoot := make(map[string]map[string]*activeRoomSlot)
 	latestTimestampByRoot := make(map[string]int64)
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {

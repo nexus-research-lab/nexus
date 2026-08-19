@@ -65,7 +65,7 @@ func (s *Service) QueueRoomContextualGuidanceInput(
 	sessionKey = strings.TrimSpace(sessionKey)
 	excludedAgentID = strings.TrimSpace(excludedAgentID)
 	targets := map[string]*activeRoomSlot{}
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
 			continue
 		}
@@ -130,7 +130,7 @@ func (s *Service) GoalObjectiveRevisionState(
 	roundID = strings.TrimSpace(roundID)
 	agentID = strings.TrimSpace(agentID)
 	var target *activeRoomSlot
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
 			continue
 		}
@@ -946,7 +946,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 	}
 	rounds := []*activeRoomRound{anchor}
 	seenRounds := map[*activeRoomRound]struct{}{anchor: {}}
-	for _, candidate := range s.rounds.snapshot() {
+	for _, candidate := range s.roundsRegistry().snapshot() {
 		if candidate == nil || strings.TrimSpace(candidate.SessionKey) != sessionKey {
 			continue
 		}
@@ -1118,7 +1118,7 @@ func (s *Service) bindRoomGoalUsage(sessionKey string, goalID string) {
 	if sessionKey == "" || goalID == "" {
 		return
 	}
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
 			continue
 		}
@@ -1159,7 +1159,7 @@ func (s *Service) roomGoalUsageSlotsForScope(
 		slots = append(slots, candidate)
 	}
 	appendSlot(origin)
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil {
 			continue
 		}
@@ -1637,7 +1637,7 @@ func (s *Service) clearRoomGoalUsage(sessionKey string) {
 	if sessionKey == "" {
 		return
 	}
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
 			continue
 		}
@@ -1655,7 +1655,7 @@ func (s *Service) beginRoomGoalUsageFinalizing(sessionKey string) {
 	if sessionKey == "" {
 		return
 	}
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
 			continue
 		}
@@ -1902,7 +1902,7 @@ func (s *Service) activeRoomGoalBlocker(
 	callerAgentID = strings.TrimSpace(callerAgentID)
 	callerRoundID = strings.TrimSpace(callerRoundID)
 
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			strings.TrimSpace(roundValue.SessionKey) != sessionKey ||
 			strings.TrimSpace(roundValue.ConversationID) != conversationID {
@@ -1910,7 +1910,7 @@ func (s *Service) activeRoomGoalBlocker(
 		}
 		// public @ 已从模型输出解析，但尚未交接成目标 slot。
 		// 它挂在当前 shared Goal 的 Room round 上，清空或注册 slot 后自动解锁。
-		if s.rounds.hasPublicMentions(roundValue) {
+		if s.roundsRegistry().hasPublicMentions(roundValue) {
 			return "a Room public-mention wake has not started"
 		}
 		for _, slot := range roundValue.Slots {
@@ -1941,7 +1941,7 @@ func (s *Service) activeRoomGoalBlocker(
 			return fmt.Sprintf("agent %s still has an active Room slot", slotAgentID)
 		}
 	}
-	if s.rounds.hasPublicMentionsForConversation(conversationID) {
+	if s.roundsRegistry().hasPublicMentionsForConversation(conversationID) {
 		return "a Room public-mention wake has not started"
 	}
 	return ""

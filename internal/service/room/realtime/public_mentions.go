@@ -216,14 +216,14 @@ func (s *Service) enqueuePublicMentionWake(roundValue *activeRoomRound, wake pub
 	if roundValue == nil || strings.TrimSpace(wake.TargetAgentID) == "" {
 		return
 	}
-	s.rounds.enqueuePublicMention(roundValue, wake)
+	s.roundsRegistry().enqueuePublicMention(roundValue, wake)
 }
 
 func (s *Service) takePublicMentionWakes(roundValue *activeRoomRound) []publicMentionWake {
 	if roundValue == nil {
 		return nil
 	}
-	return s.rounds.takePublicMentions(roundValue)
+	return s.roundsRegistry().takePublicMentions(roundValue)
 }
 
 func (s *Service) startQueuedPublicMentionWakes(ctx context.Context, roundValue *activeRoomRound) bool {

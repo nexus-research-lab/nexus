@@ -625,7 +625,7 @@ func (s *Service) releaseActiveGoalCollaborationSources(
 	if s == nil || roundValue == nil || binding == nil {
 		return
 	}
-	for _, candidateRound := range s.rounds.snapshot() {
+	for _, candidateRound := range s.roundsRegistry().snapshot() {
 		if candidateRound == nil || candidateRound == roundValue {
 			continue
 		}

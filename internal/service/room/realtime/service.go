@@ -192,7 +192,7 @@ type Service struct {
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration
 
-	rounds              roomRoundRegistry
+	rounds              *roomRoundRegistry
 	goalUsageScopeLocks roomGoalUsageScopeLockRegistry
 	wakeTimers          *roomWakeTimerRegistry
 }
@@ -463,7 +463,7 @@ func (s *Service) notifyRoomEventObserver(ctx context.Context, sessionKey string
 	if strings.TrimSpace(roundID) == "" {
 		return
 	}
-	roundValue := s.rounds.findByRoundID(sessionKey, roundID)
+	roundValue := s.roundsRegistry().findByRoundID(sessionKey, roundID)
 	var observer RoomEventObserver
 	if roundValue != nil {
 		observer = roundValue.EventObserver

@@ -129,7 +129,7 @@ func (s *Service) roomDirectedReplyUsesAutomaticRoute(
 	if sourceAgentRoundID == "" {
 		return false
 	}
-	for _, roundValue := range s.rounds.snapshotConversation(message.ConversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(message.ConversationID) {
 		if roundValue == nil {
 			continue
 		}
@@ -170,7 +170,7 @@ func (s *Service) markActiveGoalCollaborationPending(
 	// belongs to its source round. Scan every live conversation and fence by the
 	// host-trusted root plus exact Goal revision so cross-conversation directed
 	// messages cannot let the source Goal continue early.
-	for _, roundValue := range s.rounds.snapshot() {
+	for _, roundValue := range s.roundsRegistry().snapshot() {
 		if roundValue == nil ||
 			(ownerUserID != "" && strings.TrimSpace(roundValue.OwnerUserID) != ownerUserID) ||
 			(rootRoundID != "" && roomRootRoundID(roundValue) != rootRoundID) {

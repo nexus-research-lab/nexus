@@ -339,7 +339,7 @@ func (s *Service) goalCollaborationBindingForActiveRound(
 	conversationID = strings.TrimSpace(conversationID)
 	sourceAgentID = strings.TrimSpace(sourceAgentID)
 	rootRoundID = strings.TrimSpace(rootRoundID)
-	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(conversationID) {
 		if roundValue == nil || strings.TrimSpace(roundValue.ConversationID) != conversationID {
 			continue
 		}
@@ -402,7 +402,7 @@ func (s *Service) resolveRoomMessageCausality(
 	normalizedSourceAgentID := strings.TrimSpace(sourceAgentID)
 	normalizedRootRoundID := strings.TrimSpace(rootRoundID)
 
-	for _, roundValue := range s.rounds.snapshotConversation(normalizedConversationID) {
+	for _, roundValue := range s.roundsRegistry().snapshotConversation(normalizedConversationID) {
 		if roundValue == nil || strings.TrimSpace(roundValue.ConversationID) != normalizedConversationID {
 			continue
 		}

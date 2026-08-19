@@ -36,9 +36,9 @@ func (s *Service) roomSlotGuidanceHook(
 			}
 		}
 		if roundValue != nil {
-			s.rounds.bindSlot(slot, roundValue)
+			s.roundsRegistry().bindSlot(slot, roundValue)
 		} else {
-			s.rounds.bindSlotToConversation(slot, location.ConversationID)
+			s.roundsRegistry().bindSlotToConversation(slot, location.ConversationID)
 		}
 		if s.hasPendingRoomSlotGuidance(slot) {
 			return sdkhook.Output{}, nil
@@ -172,14 +172,14 @@ func (s *Service) rememberRoomSlotGuidance(
 	if slot == nil || len(items) == 0 {
 		return pendingRoomGuidance{}
 	}
-	s.rounds.bindSlotToConversation(slot, location.ConversationID)
+	s.roundsRegistry().bindSlotToConversation(slot, location.ConversationID)
 	pending := pendingRoomGuidance{location: location, items: slices.Clone(items)}
-	s.rounds.putGuidance(slot, pending)
+	s.roundsRegistry().putGuidance(slot, pending)
 	return pending
 }
 
 func (s *Service) hasPendingRoomSlotGuidance(slot *activeRoomSlot) bool {
-	return s.rounds.hasGuidance(slot)
+	return s.roundsRegistry().hasGuidance(slot)
 }
 
 func (s *Service) hasInFlightRoomGuidance(itemID string) bool {
@@ -187,7 +187,7 @@ func (s *Service) hasInFlightRoomGuidance(itemID string) bool {
 	if itemID == "" {
 		return false
 	}
-	for _, pending := range s.rounds.guidanceSnapshot() {
+	for _, pending := range s.roundsRegistry().guidanceSnapshot() {
 		if slices.ContainsFunc(pending.items, func(item protocol.InputQueueItem) bool { return item.ID == itemID }) {
 			return true
 		}
@@ -229,7 +229,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 	if slot == nil {
 		return nil
 	}
-	pending, ok := s.rounds.loadGuidance(slot)
+	pending, ok := s.roundsRegistry().loadGuidance(slot)
 	if !ok {
 		return nil
 	}
@@ -241,7 +241,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 		return err
 	}
 	if len(claimed) != len(pending.items) {
-		s.rounds.deleteGuidance(slot)
+		s.roundsRegistry().deleteGuidance(slot)
 		return nil
 	}
 	if roundValue != nil && roundValue.Context != nil {
@@ -256,7 +256,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
-					s.rounds.putGuidance(slot, pending)
+					s.roundsRegistry().putGuidance(slot, pending)
 				}
 				return errors.Join(err, restoreErr)
 			}
@@ -266,7 +266,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
-					s.rounds.putGuidance(slot, pending)
+					s.roundsRegistry().putGuidance(slot, pending)
 				}
 				return errors.Join(
 					errors.New("Goal collaboration handoff cannot be acknowledged as ordinary Room guidance"),
@@ -277,13 +277,13 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
-					s.rounds.putGuidance(slot, pending)
+					s.roundsRegistry().putGuidance(slot, pending)
 				}
 				return errors.Join(err, restoreErr)
 			}
 		}
 	}
-	s.rounds.deleteGuidance(slot)
+	s.roundsRegistry().deleteGuidance(slot)
 	if roundValue != nil && roundValue.Context != nil {
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, roundValue.SessionKey, roundValue.Context); err != nil {
 			s.loggerFor(ctx).Warn("广播 Room 引导队列消费快照失败",
@@ -316,7 +316,7 @@ func (s *Service) forgetRoomSlotGuidance(slot *activeRoomSlot) {
 	sessionKey, conversationID := roomSlotDispatchContext(nil, slot)
 	lease := s.lockRoomDispatch(sessionKey, conversationID)
 	defer lease.Unlock()
-	s.rounds.deleteGuidance(slot)
+	s.roundsRegistry().deleteGuidance(slot)
 }
 
 func roomSlotDispatchContext(roundValue *activeRoomRound, slot *activeRoomSlot) (string, string) {
