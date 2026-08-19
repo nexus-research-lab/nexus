@@ -80,7 +80,7 @@ func runtimeExecutionSegmentWorkItemID(
 		return ""
 	}
 	switch segment.Source {
-	case "work_binding", "assign_work_receipt", "legacy_assign_interval":
+	case "work_binding", "assign_work_receipt", "take_over_work_receipt", "legacy_assign_interval":
 		return segment.WorkItemID
 	default:
 		return ""
@@ -120,12 +120,35 @@ func latestRuntimeExecutionSegment(
 	identity runtimeGraphIdentity,
 ) runtimeExecutionSegment {
 	candidates := make([]protocol.ExecutionRuntimeNodeRun, 0, len(nodes))
+	resolvedBoundarySegments := make(map[string]runtimeExecutionSegment)
+	conflictingBoundaryGroups := make(map[string]struct{})
 	for _, node := range nodes {
 		if strings.TrimSpace(node.AgentRoundID) != identity.AgentRoundID ||
 			(node.AgentID != "" && strings.TrimSpace(node.AgentID) != identity.AgentID) {
 			continue
 		}
 		candidates = append(candidates, node)
+		if node.Kind != protocol.ExecutionRuntimeNodeTool ||
+			runtimeGraphAssignmentBoundaryOperationForNode(node) == "" ||
+			runtimeGraphMetadataString(node, runtimeGraphSegmentBoundaryKey) !=
+				runtimeGraphSegmentBoundaryAssign {
+			continue
+		}
+		segment := runtimeExecutionSegmentFromNode(node)
+		if !segment.valid() ||
+			(identity.ExecutionID != "" && segment.ExecutionID != identity.ExecutionID) {
+			continue
+		}
+		groupKey := runtimeGraphAssignmentBoundaryGroupKey(node)
+		if previous := resolvedBoundarySegments[groupKey]; previous.valid() &&
+			previous.AttemptID != segment.AttemptID {
+			delete(resolvedBoundarySegments, groupKey)
+			conflictingBoundaryGroups[groupKey] = struct{}{}
+			continue
+		}
+		if _, conflict := conflictingBoundaryGroups[groupKey]; !conflict {
+			resolvedBoundarySegments[groupKey] = segment
+		}
 	}
 	slices.SortFunc(candidates, func(left, right protocol.ExecutionRuntimeNodeRun) int {
 		leftAt := left.UpdatedAt
@@ -145,6 +168,10 @@ func latestRuntimeExecutionSegment(
 	for _, node := range candidates {
 		if runtimeGraphMetadataString(node, runtimeGraphSegmentBoundaryKey) ==
 			runtimeGraphSegmentBoundaryUnresolved {
+			if resolved := resolvedBoundarySegments[runtimeGraphAssignmentBoundaryGroupKey(node)]; resolved.valid() {
+				active = resolved
+				continue
+			}
 			active = runtimeExecutionSegment{}
 			continue
 		}
@@ -154,7 +181,7 @@ func latestRuntimeExecutionSegment(
 			continue
 		}
 		if node.Kind == protocol.ExecutionRuntimeNodeTool &&
-			runtimeGraphCanonicalToolLeaf(node.Name) == "assignwork" &&
+			runtimeGraphAssignmentBoundaryOperationForNode(node) != "" &&
 			runtimeGraphMetadataString(node, runtimeGraphSegmentBoundaryKey) !=
 				runtimeGraphSegmentBoundaryAssign {
 			// A started/rejected/unresolved assign may carry the preceding segment
@@ -168,28 +195,51 @@ func latestRuntimeExecutionSegment(
 }
 
 // runtimeExecutionSegmentFromMutation accepts only the exact assignment and
-// attempt refs issued by a successful Nexus assign_work result, then resolves
+// attempt refs issued by a successful Nexus assignment-boundary result, then resolves
 // them against the authoritative DM snapshot. Room never enters this path:
 // its coordinator and workers keep their explicit Lead/WorkBinding lanes.
 func (s *Service) runtimeExecutionSegmentFromMutation(
 	ctx context.Context,
 	actor ActorContext,
 	identity runtimeGraphIdentity,
-	toolName string,
+	operation string,
 	evidence runtimeGraphNodeEvidence,
 ) runtimeExecutionSegment {
 	if s == nil || s.repository == nil ||
 		actor.ScopeKind != protocol.ExecutionScopeDM ||
-		runtimeGraphCanonicalToolLeaf(toolName) != "assignwork" ||
+		!runtimeGraphAssignmentBoundaryOperation(operation) ||
 		evidence.mutationOutcome != protocol.MutationResultApplied ||
 		strings.TrimSpace(evidence.executionID) == "" ||
 		(identity.ExecutionID != "" &&
 			strings.TrimSpace(evidence.executionID) != identity.ExecutionID) {
 		return runtimeExecutionSegment{}
 	}
-	executionID := strings.TrimSpace(evidence.executionID)
-	assignmentID, assignmentOK := uniqueRuntimeMutationRef(evidence.changed, "assignment:")
-	attemptID, attemptOK := uniqueRuntimeMutationRef(evidence.changed, "attempt:")
+	return s.runtimeExecutionSegmentFromChangedRefs(
+		ctx,
+		actor,
+		identity,
+		evidence.executionID,
+		evidence.changed,
+		runtimeGraphAssignmentBoundarySource(operation),
+	)
+}
+
+func (s *Service) runtimeExecutionSegmentFromChangedRefs(
+	ctx context.Context,
+	actor ActorContext,
+	identity runtimeGraphIdentity,
+	executionID string,
+	changed []string,
+	source string,
+) runtimeExecutionSegment {
+	executionID = strings.TrimSpace(executionID)
+	if s == nil || s.repository == nil ||
+		actor.ScopeKind != protocol.ExecutionScopeDM || executionID == "" ||
+		(identity.ExecutionID != "" && executionID != identity.ExecutionID) {
+		return runtimeExecutionSegment{}
+	}
+	assignmentID, assignmentOK := uniqueRuntimeMutationRef(changed, "assignment:")
+	attemptID, attemptOK := uniqueRuntimeMutationRef(changed, "attempt:")
 	if !assignmentOK || !attemptOK {
 		return runtimeExecutionSegment{}
 	}
@@ -224,7 +274,48 @@ func (s *Service) runtimeExecutionSegmentFromMutation(
 		WorkItemID:   assignment.WorkItemID,
 		AssignmentID: assignment.ID,
 		AttemptID:    attempt.ID,
-		Source:       "assign_work_receipt",
+		Source:       strings.TrimSpace(source),
+	}
+}
+
+func runtimeGraphAssignmentBoundaryOperation(operation string) bool {
+	switch strings.TrimSpace(operation) {
+	case "assign_work", "take_over_work":
+		return true
+	default:
+		return false
+	}
+}
+
+func runtimeGraphAssignmentBoundarySource(operation string) string {
+	operation = strings.TrimSpace(operation)
+	if !runtimeGraphAssignmentBoundaryOperation(operation) {
+		return ""
+	}
+	return operation + "_receipt"
+}
+
+func runtimeGraphAssignmentBoundaryOperationForNode(
+	node protocol.ExecutionRuntimeNodeRun,
+) string {
+	operation := strings.TrimSpace(runtimeGraphMetadataString(
+		node,
+		runtimeGraphCommandOperationMetadataKey,
+	))
+	if runtimeGraphAssignmentBoundaryOperation(operation) && runtimeGraphIsCommandTransport(node) {
+		return operation
+	}
+	if !runtimeGraphIsLegacyManagedTransport(node.Name) {
+		return ""
+	}
+	leaf := runtimeGraphCanonicalToolLeaf(node.Name)
+	switch leaf {
+	case "assignwork":
+		return "assign_work"
+	case "takeoverwork":
+		return "take_over_work"
+	default:
+		return ""
 	}
 }
 
@@ -246,8 +337,10 @@ func uniqueRuntimeMutationRef(refs []string, prefix string) (string, bool) {
 
 // recoverDMSelfAssignmentRuntimeSegments repairs older DM graphs that predate
 // persisted segment metadata. This is not nearest-time guessing: a successful
-// assign_work lifecycle must uniquely contain the durable root Attempt creation
-// for the same Agent round. Ambiguous boundaries clear the active segment.
+// assignment-boundary lifecycle must uniquely contain the durable root Attempt creation
+// for the same Agent round. The provider Tool lifecycle and its host receipt can be
+// persisted as two rows for one exact command request; they form one semantic boundary,
+// not two consecutive assignments. Ambiguous boundaries clear the active segment.
 func recoverDMSelfAssignmentRuntimeSegments(
 	view *protocol.ExecutionView,
 	nodes []protocol.ExecutionRuntimeNodeRun,
@@ -256,13 +349,12 @@ func recoverDMSelfAssignmentRuntimeSegments(
 		return
 	}
 	segmentsByAttempt := make(map[string]runtimeExecutionSegment)
-	attemptsByRound := make(map[string][]runtimeSegmentAttempt)
+	attempts := make([]runtimeSegmentAttempt, 0)
 	for _, item := range view.WorkItems {
 		for _, attempt := range item.Attempts {
 			if strings.TrimSpace(attempt.ParentAttemptID) != "" ||
 				strings.TrimSpace(attempt.ID) == "" ||
-				strings.TrimSpace(attempt.AssignmentID) == "" ||
-				strings.TrimSpace(attempt.AgentRoundID) == "" {
+				strings.TrimSpace(attempt.AssignmentID) == "" {
 				continue
 			}
 			segment := runtimeExecutionSegment{
@@ -273,47 +365,93 @@ func recoverDMSelfAssignmentRuntimeSegments(
 				Source:       "legacy_assign_interval",
 			}
 			segmentsByAttempt[attempt.ID] = segment
-			attemptsByRound[attempt.AgentRoundID] = append(
-				attemptsByRound[attempt.AgentRoundID],
-				runtimeSegmentAttempt{
-					segment:   segment,
-					agentID:   firstNonEmpty(attempt.ExecutorAgentID, item.OwnerAgentID),
-					createdAt: attempt.CreatedAt,
-				},
-			)
+			attempts = append(attempts, runtimeSegmentAttempt{
+				segment:      segment,
+				agentID:      firstNonEmpty(attempt.ExecutorAgentID, item.OwnerAgentID),
+				agentRoundID: strings.TrimSpace(attempt.AgentRoundID),
+				createdAt:    attempt.CreatedAt,
+			})
 		}
 	}
-	recoveredByNode := make(map[string]runtimeExecutionSegment)
-	candidateByNode := make(map[string]runtimeExecutionSegment)
-	matchCountByAttempt := make(map[string]int)
-	for _, node := range nodes {
+
+	// A receipt can arrive before its provider Tool lifecycle at an assistant
+	// checkpoint. Both rows carry the exact host request identity. Group them so
+	// the later companion cannot erase the segment established by the first row.
+	boundaryNodesByGroup := make(map[string][]int)
+	for index, node := range nodes {
 		if node.Kind != protocol.ExecutionRuntimeNodeTool ||
-			node.Status != protocol.ExecutionRuntimeNodeSucceeded ||
-			runtimeGraphCanonicalToolLeaf(node.Name) != "assignwork" ||
-			node.FinishedAt == nil {
+			runtimeGraphAssignmentBoundaryOperationForNode(node) == "" {
 			continue
 		}
+		groupKey := runtimeGraphAssignmentBoundaryGroupKey(node)
+		boundaryNodesByGroup[groupKey] = append(boundaryNodesByGroup[groupKey], index)
+	}
+
+	recoveredByNode := make(map[string]runtimeExecutionSegment)
+	candidateByGroup := make(map[string]runtimeExecutionSegment)
+	matchCountByAttempt := make(map[string]int)
+	for groupKey, nodeIndexes := range boundaryNodesByGroup {
 		var matched runtimeExecutionSegment
-		matches := 0
-		for _, attempt := range attemptsByRound[node.AgentRoundID] {
-			if attempt.agentID != "" && node.AgentID != "" && attempt.agentID != node.AgentID {
+		matchedAttempts := make(map[string]struct{})
+		for _, nodeIndex := range nodeIndexes {
+			node := nodes[nodeIndex]
+			if node.Status != protocol.ExecutionRuntimeNodeSucceeded || node.FinishedAt == nil {
 				continue
 			}
-			if attempt.createdAt.Before(node.StartedAt) || attempt.createdAt.After(*node.FinishedAt) {
-				continue
+			for _, attempt := range attempts {
+				if !runtimeGraphAttemptMayMatchAssignmentBoundary(view, node, attempt, groupKey) {
+					continue
+				}
+				if attempt.createdAt.Before(node.StartedAt) || attempt.createdAt.After(*node.FinishedAt) {
+					continue
+				}
+				matched = attempt.segment
+				matchedAttempts[attempt.segment.AttemptID] = struct{}{}
 			}
-			matched = attempt.segment
-			matches++
 		}
-		if matches == 1 {
-			candidateByNode[node.ID] = matched
+		if len(matchedAttempts) == 1 {
+			candidateByGroup[groupKey] = matched
 			matchCountByAttempt[matched.AttemptID]++
 		}
 	}
-	for nodeID, candidate := range candidateByNode {
+	for groupKey, candidate := range candidateByGroup {
 		if matchCountByAttempt[candidate.AttemptID] == 1 {
-			recoveredByNode[nodeID] = candidate
+			for _, nodeIndex := range boundaryNodesByGroup[groupKey] {
+				recoveredByNode[nodes[nodeIndex].ID] = candidate
+			}
 		}
+	}
+	// Newer receipt rows may already have the exact segment even when their
+	// provider lifecycle companion does not. Propagate only a single consistent
+	// verified segment across that exact request group.
+	for groupKey, nodeIndexes := range boundaryNodesByGroup {
+		var resolved runtimeExecutionSegment
+		conflict := false
+		for _, nodeIndex := range nodeIndexes {
+			node := nodes[nodeIndex]
+			segment := runtimeExecutionSegmentFromNode(node)
+			expected, ok := segmentsByAttempt[segment.AttemptID]
+			operation := runtimeGraphAssignmentBoundaryOperationForNode(node)
+			if !ok || segment.ExecutionID != expected.ExecutionID ||
+				segment.WorkItemID != expected.WorkItemID ||
+				segment.AssignmentID != expected.AssignmentID ||
+				segment.Source != runtimeGraphAssignmentBoundarySource(operation) ||
+				runtimeGraphMetadataString(node, runtimeGraphSegmentBoundaryKey) != runtimeGraphSegmentBoundaryAssign {
+				continue
+			}
+			if resolved.valid() && resolved.AttemptID != segment.AttemptID {
+				conflict = true
+				break
+			}
+			resolved = segment
+		}
+		if conflict || !resolved.valid() {
+			continue
+		}
+		for _, nodeIndex := range nodeIndexes {
+			recoveredByNode[nodes[nodeIndex].ID] = resolved
+		}
+		delete(candidateByGroup, groupKey)
 	}
 
 	activeByRound := make(map[string]runtimeExecutionSegment)
@@ -337,16 +475,19 @@ func recoverDMSelfAssignmentRuntimeSegments(
 		explicitMatches = explicitMatches && explicit.ExecutionID == expected.ExecutionID &&
 			explicit.WorkItemID == expected.WorkItemID &&
 			explicit.AssignmentID == expected.AssignmentID
-		isAssignWork := node.Kind == protocol.ExecutionRuntimeNodeTool &&
-			runtimeGraphCanonicalToolLeaf(node.Name) == "assignwork"
-		if isAssignWork {
+		isAssignmentBoundary := node.Kind == protocol.ExecutionRuntimeNodeTool &&
+			runtimeGraphAssignmentBoundaryOperationForNode(*node) != ""
+		if isAssignmentBoundary {
 			if node.Metadata == nil {
 				node.Metadata = make(map[string]any)
 			}
 			recovered := recoveredByNode[node.ID]
 			boundary := runtimeGraphMetadataString(*node, runtimeGraphSegmentBoundaryKey)
 			switch {
-			case explicitMatches && explicit.Source == "assign_work_receipt" &&
+			case explicitMatches &&
+				explicit.Source == runtimeGraphAssignmentBoundarySource(
+					runtimeGraphAssignmentBoundaryOperationForNode(*node),
+				) &&
 				boundary == runtimeGraphSegmentBoundaryAssign:
 				activeByRound[roundKey] = explicit
 				if primaryKey := primaryRoundKey[roundID]; primaryKey != "" {
@@ -397,7 +538,48 @@ func recoverDMSelfAssignmentRuntimeSegments(
 }
 
 type runtimeSegmentAttempt struct {
-	segment   runtimeExecutionSegment
-	agentID   string
-	createdAt time.Time
+	segment      runtimeExecutionSegment
+	agentID      string
+	agentRoundID string
+	createdAt    time.Time
+}
+
+func runtimeGraphAssignmentBoundaryGroupKey(
+	node protocol.ExecutionRuntimeNodeRun,
+) string {
+	domain := runtimeGraphMetadataString(node, runtimeGraphCommandDomainMetadataKey)
+	operation := runtimeGraphMetadataString(node, runtimeGraphCommandOperationMetadataKey)
+	requestID := runtimeGraphMetadataString(node, runtimeGraphCommandRequestIDMetadataKey)
+	if domain != "" && operation != "" && requestID != "" {
+		return strings.Join([]string{
+			"request",
+			strings.TrimSpace(node.AgentRoundID),
+			strings.TrimSpace(node.AgentID),
+			domain,
+			operation,
+			requestID,
+		}, "\x00")
+	}
+	return "node\x00" + strings.TrimSpace(node.ID)
+}
+
+func runtimeGraphAttemptMayMatchAssignmentBoundary(
+	view *protocol.ExecutionView,
+	node protocol.ExecutionRuntimeNodeRun,
+	attempt runtimeSegmentAttempt,
+	groupKey string,
+) bool {
+	if attempt.agentID != "" && node.AgentID != "" && attempt.agentID != node.AgentID {
+		return false
+	}
+	if attempt.agentRoundID != "" {
+		return attempt.agentRoundID == strings.TrimSpace(node.AgentRoundID)
+	}
+	// block_work can release the first self Assignment before the runtime has
+	// persisted its round identity. Recover that historical Attempt only from an
+	// exact CLI request and only for the DM coordinator acting as the same Agent.
+	return strings.HasPrefix(groupKey, "request\x00") &&
+		strings.TrimSpace(view.CoordinatorAgentID) != "" &&
+		strings.TrimSpace(node.AgentID) == strings.TrimSpace(view.CoordinatorAgentID) &&
+		attempt.agentID == strings.TrimSpace(view.CoordinatorAgentID)
 }

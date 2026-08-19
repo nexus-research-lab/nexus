@@ -1,5 +1,5 @@
 // INPUT: provider-neutral Runtime Tool NodeRun 名称与既有领域投影。
-// OUTPUT: Tool 是否构成用户可理解、值得进入 WorkGraph 画布的动作分类。
+// OUTPUT: Tool 是否构成用户可理解、值得进入 WorkGraph 画布的动作分类，并固定隐藏 command staging 与记忆维护。
 // POS: Runtime Graph 展示层的 Tool 语义分类；不改变执行、权限、路由或持久化事实。
 package orchestration
 
@@ -14,10 +14,28 @@ import (
 var runtimeGraphVisibleToolFamilies = []string{
 	"WebSearch",
 	"WebFetch",
+}
+
+var runtimeGraphSupportingFilesystemToolFamilies = []string{
+	"Read",
+	"Grep",
+	"Glob",
 	"Write",
 	"Edit",
 	"MultiEdit",
 	"NotebookEdit",
+}
+
+var runtimeGraphSupportingFilesystemToolLeaves = map[string]struct{}{
+	"readfile":          {},
+	"readtextfile":      {},
+	"readmultiplefiles": {},
+	"writefile":         {},
+	"writetextfile":     {},
+	"editfile":          {},
+	"edittextfile":      {},
+	"multiedit":         {},
+	"notebookedit":      {},
 }
 
 // These names are the complete Goal/Execution MCP surface that existed before
@@ -121,6 +139,9 @@ func runtimeGraphToolActionVisible(item protocol.ExecutionRuntimeNodeRun) bool {
 	if runtimeGraphExternalCapabilityVisible(name) {
 		return true
 	}
+	if runtimeGraphSupportingFilesystemTool(name) {
+		return false
+	}
 	leaf := runtimeGraphCanonicalToolLeaf(name)
 	for _, prefix := range runtimeGraphVisibleActionPrefixes {
 		if strings.HasPrefix(leaf, prefix) {
@@ -128,6 +149,21 @@ func runtimeGraphToolActionVisible(item protocol.ExecutionRuntimeNodeRun) bool {
 		}
 	}
 	return strings.HasSuffix(leaf, "codeexecution")
+}
+
+func runtimeGraphNodeHasCanvasArtifact(item protocol.ExecutionRuntimeNodeRun) bool {
+	artifacts := append(
+		append([]protocol.WorkspaceFileArtifactBlock(nil), item.Artifacts...),
+		runtimeGraphNodeArtifacts(item)...,
+	)
+	for _, artifact := range artifacts {
+		path := strings.TrimPrefix(normalizeRuntimeGraphArtifactPath(artifact.Path), "./")
+		if path == "" || path == "MEMORY.md" || strings.HasPrefix(path, "memory/") {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func runtimeGraphIsCommandTransport(item protocol.ExecutionRuntimeNodeRun) bool {
@@ -141,7 +177,84 @@ func runtimeGraphIsCommandTransport(item protocol.ExecutionRuntimeNodeRun) bool 
 			return true
 		}
 	}
-	return runtimeGraphIsLegacyManagedTransport(item.Name)
+	return runtimeGraphIsLegacyManagedTransport(item.Name) ||
+		runtimeGraphIsLegacyCommandInputStaging(item)
+}
+
+func runtimeGraphCommandInputStagingTool(toolName string, input map[string]any) bool {
+	if !runtimeGraphSupportingFilesystemTool(toolName) {
+		return false
+	}
+	for _, key := range []string{"file_path", "path", "notebook_path"} {
+		value, _ := input[key].(string)
+		if runtimeGraphCommandInputStagingPathInText(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func runtimeGraphIsLegacyCommandInputStaging(item protocol.ExecutionRuntimeNodeRun) bool {
+	if !runtimeGraphSupportingFilesystemTool(item.Name) {
+		return false
+	}
+	return runtimeGraphCommandInputStagingPathInText(item.Description) ||
+		runtimeGraphCommandInputStagingPathInText(item.ResultSummary) ||
+		runtimeGraphCommandInputStagingPathInText(item.ErrorSummary)
+}
+
+func runtimeGraphSupportingFilesystemTool(name string) bool {
+	for _, family := range runtimeGraphSupportingFilesystemToolFamilies {
+		if toolpolicy.MatchesItem(name, family) {
+			return true
+		}
+	}
+	_, exists := runtimeGraphSupportingFilesystemToolLeaves[runtimeGraphCanonicalToolLeaf(name)]
+	return exists
+}
+
+func runtimeGraphCommandInputStagingPathInText(value string) bool {
+	value = strings.ReplaceAll(strings.TrimSpace(value), `\`, "/")
+	const marker = "/runtime/tmp/runtime-command-inputs/"
+	for offset := 0; offset < len(value); {
+		index := strings.Index(value[offset:], marker)
+		if index < 0 {
+			return false
+		}
+		start := offset + index + len(marker)
+		const suffixLength = 32 + len("/input.json")
+		if len(value)-start >= suffixLength {
+			directory := value[start : start+32]
+			suffix := value[start+32 : start+suffixLength]
+			boundary := start + suffixLength
+			if runtimeGraphHex(directory) && suffix == "/input.json" &&
+				(boundary == len(value) || !runtimeGraphPathContinuation(value[boundary])) {
+				return true
+			}
+		}
+		offset = start
+	}
+	return false
+}
+
+func runtimeGraphHex(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, current := range value {
+		if current < '0' || current > '9' {
+			lower := current | 0x20
+			if lower < 'a' || lower > 'f' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func runtimeGraphPathContinuation(value byte) bool {
+	return value == '/' || value == '\\' || value == '.' || value == '_' || value == '-' ||
+		value >= '0' && value <= '9' || value >= 'A' && value <= 'Z' || value >= 'a' && value <= 'z'
 }
 
 func runtimeGraphIsLegacyManagedTransport(name string) bool {
