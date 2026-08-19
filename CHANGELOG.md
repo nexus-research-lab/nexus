@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored reliable DM “working” badges after reconnects and across multiple conversations by keeping exact session activity sources isolated, mirroring active DM lifecycle events to the chat container, and preventing an idle sibling conversation from clearing a running one.
 - Made conversation activity state single-owner across Goal, Agent, and Tool layers: active Goals now use one lifecycle/activity badge, visible Tool blocks suppress duplicate message-level activity, completed tools no longer revive stale reply labels, and internal-only Room results no longer leave empty Agent cards.
 - Made initial, older, and around-history requests transport-cancellable; bounded the browser message window by complete rounds and estimated bytes; and removed the obsolete full-scan ConversationTurn/TurnIndex endpoints in favor of the indexed message and round read model.
 - Marked required fields consistently across Provider setup and other configuration forms, and kept submit actions available so missing values receive immediate Nexus-styled inline validation feedback.
@@ -66,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Preserved host ownership of isolated runtime argument files during layout and ACL repair, preventing later Agent launches from failing when the host refreshes their permissions.
+- Restored exact DM WorkGraph runtime attribution across repeated self assignments, block/resume attempts, parallel branches, and takeover boundaries; duplicate provider/receipt rows for one CLI request now form one boundary, a uniquely matched pre-round blocked Attempt remains recoverable, and command staging plus `MEMORY.md`/`memory/` maintenance stay in detail while real deliverable Artifacts remain attached to their exact Attempt.
 - Restored the old MCP mixed Goal+WorkGraph closure semantics on the CLI: final accepted WorkGraph reviews now route exact coordinators to Goal-domain objective alignment, terminal Execution alignment is explicitly rejected as the wrong lifecycle, and Goal completion rejections return domain-qualified recovery actions instead of inviting same-name retries.
 - Made Goal/Execution CLI results a flat, always-typed `data` + `is_error` wire, rejected shell pipelines and custom result parsers before execution, and returned structured error payloads so a committed Goal audit or nullable Execution context cannot be misreported and retried by failing Python/regex post-processing. Plan authoring now also selects `create` when Goal reset/retarget has no current successor Execution, with state-specific repair guidance instead of a speculative `replan` retry.
 - Restored Room WorkGraph retry and review history as distinct immutable Attempt and Submission-gate rounds, read atomically with the current snapshot and matched to runtime tools by exact Attempt/Submission/round identity; rejected reviews now remain visible as loop-backs, layout is independent of edge order, and old rounds no longer collapse into the latest Agent node.

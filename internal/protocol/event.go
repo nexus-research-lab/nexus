@@ -390,6 +390,14 @@ type ChatAckPendingSlot struct {
 	Index          int    `json:"index"`
 }
 
+// ChatActivitySourceSnapshot describes the running roots owned by one exact
+// conversation/session source inside a DM or group chat container.
+type ChatActivitySourceSnapshot struct {
+	SessionKey      string   `json:"session_key"`
+	ConversationID  string   `json:"conversation_id"`
+	RunningRoundIDs []string `json:"running_round_ids"`
+}
+
 // NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id 由后端 mint，
 // client_request_id / client_message_id 原样回传供前端关联。
 func NewChatAckEvent(
@@ -480,15 +488,23 @@ func NewChatPendingSnapshotEvent(
 	return event
 }
 
-// NewChatPendingInteractionSnapshotEvent 构造 Room 全局订阅恢复所需的人工交互快照。
-// 它不声称拥有任何具体 conversation 的执行 slot，避免误清其他会话的工作态。
-func NewChatPendingInteractionSnapshotEvent(pendingInteractionRequestIDs []string) EventMessage {
+// NewChatContainerActivitySnapshotEvent 构造聊天容器全局订阅恢复所需的
+// 人工交互和分 source 执行快照。空 active_sources 同样是权威值。
+func NewChatContainerActivitySnapshotEvent(
+	pendingInteractionRequestIDs []string,
+	activeSources []ChatActivitySourceSnapshot,
+) EventMessage {
 	if pendingInteractionRequestIDs == nil {
 		pendingInteractionRequestIDs = []string{}
+	}
+	if activeSources == nil {
+		activeSources = []ChatActivitySourceSnapshot{}
 	}
 	event := NewEvent(EventTypeChatAck, map[string]any{
 		"pending_interaction_snapshot":    true,
 		"pending_interaction_request_ids": pendingInteractionRequestIDs,
+		"activity_snapshot":               true,
+		"active_sources":                  activeSources,
 	})
 	return event
 }

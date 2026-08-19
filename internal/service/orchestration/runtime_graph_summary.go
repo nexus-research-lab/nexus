@@ -1,5 +1,5 @@
 // INPUT: Bridge provider-neutral lifecycle 事件与当前强类型 runtime 消息。
-// OUTPUT: 有界、脱敏的 NodeRun 结果/错误摘要、耗时与 exact retry 关联线索。
+// OUTPUT: 有界、脱敏的 NodeRun 结果/错误摘要、耗时、exact retry 与私有 command staging 分类。
 // POS: Bridge 原始内容与持久 Runtime Graph 之间的安全观测投影；不推断或触发 Agent 路线。
 package orchestration
 
@@ -140,20 +140,28 @@ func annotateRuntimeGraphCommandTransport(
 		if !ok || strings.TrimSpace(toolUse.ID) != strings.TrimSpace(event.SubjectID) {
 			continue
 		}
+		input := toolUse.InputMap()
 		invocation, ok := toolpolicy.NexusRuntimeCLIInvocation(sdkpermission.Request{
 			ToolName:  toolUse.Name,
-			Input:     toolUse.InputMap(),
+			Input:     input,
 			ToolUseID: toolUse.ID,
 		})
-		if !ok || invocation.Domain != "goal" && invocation.Domain != "execution" {
+		if ok && (invocation.Domain == "goal" || invocation.Domain == "execution") {
+			if event.Metadata == nil {
+				event.Metadata = make(map[string]string)
+			}
+			event.Metadata[runtimeGraphCommandTransportMetadataKey] = "true"
+			event.Metadata[runtimeGraphCommandDomainMetadataKey] = invocation.Domain
+			event.Metadata[runtimeGraphCommandActionMetadataKey] = invocation.Action
 			return
 		}
-		if event.Metadata == nil {
-			event.Metadata = make(map[string]string)
+		if runtimeGraphCommandInputStagingTool(toolUse.Name, input) {
+			if event.Metadata == nil {
+				event.Metadata = make(map[string]string)
+			}
+			event.Metadata[runtimeGraphCommandTransportMetadataKey] = "true"
+			event.Metadata[runtimeGraphCommandActionMetadataKey] = "input_staging"
 		}
-		event.Metadata[runtimeGraphCommandTransportMetadataKey] = "true"
-		event.Metadata[runtimeGraphCommandDomainMetadataKey] = invocation.Domain
-		event.Metadata[runtimeGraphCommandActionMetadataKey] = invocation.Action
 		return
 	}
 }

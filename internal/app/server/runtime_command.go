@@ -412,6 +412,7 @@ func recordRuntimeSemanticReceipt(
 		receipt.Message = stringValue(result.StructuredContent["message"])
 		receipt.ReasonCode = stringValue(result.StructuredContent["reason_code"])
 		receipt.ExecutionID = stringValue(result.StructuredContent["execution_id"])
+		receipt.Changed = stringSliceValue(result.StructuredContent["changed"])
 		receipt.SnapshotRevision = int64Value(result.StructuredContent["snapshot_revision"])
 		if goalValue, ok := result.StructuredContent["goal"].(map[string]any); ok {
 			receipt.GoalStatus = stringValue(goalValue["status"])
@@ -454,6 +455,23 @@ func stringValue(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func stringSliceValue(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if value := stringValue(item); value != "" {
+				result = append(result, value)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
 }
 
 func int64Value(value any) int64 {
