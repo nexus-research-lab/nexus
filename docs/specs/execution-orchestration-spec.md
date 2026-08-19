@@ -653,7 +653,11 @@ explicit visibility hint, a durable retry/loop-back edge, or a visible recovery 
 failure promotes it onto the canvas.
 External observable capability calls retain their semantic visibility. Review and
 loop-back edges continue to use the structured Work Item/Agent and Gate facts rather
-than a `submit_work` transport node. At each assistant checkpoint, host-owned invoke
+than a `submit_work` transport node. Each immutable Submission owns exactly one review
+Gate; its Acceptance updates that Gate's decision and never creates a second current
+snapshot Gate after the Assignment lease is cleared. Rejected or changes-requested
+resubmissions remain distinct because each new Submission owns a new Gate. At each
+assistant checkpoint, host-owned invoke
 receipts still enrich candidate nodes in one graph read by exact
 `domain + operation + request_id`; arbitrary shell output cannot recreate `assign_work`
 segment authority or any other semantic operation identity. A provider Tool lifecycle

@@ -627,6 +627,86 @@ func TestProjectExecutionGraphViewKeepsRejectedReviewCyclesDistinct(t *testing.T
 	}
 }
 
+func TestProjectExecutionGraphViewDoesNotDuplicateAcceptedHistoricalGate(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
+	finished := now.Add(time.Minute)
+	items := []protocol.ExecutionWorkItemView{{
+		ID:            "work-complete",
+		Subject:       "Complete",
+		Position:      0,
+		Status:        protocol.ExecutionWorkItemViewAccepted,
+		OwnerAgentID:  "writer",
+		ReviewAgentID: "lead",
+		Submission: &protocol.ExecutionSubmissionView{
+			ID:           "submission-complete",
+			AssignmentID: "assignment-complete",
+			AttemptID:    "attempt-complete",
+			CreatedAt:    finished,
+		},
+		Acceptance: &protocol.ExecutionAcceptanceView{
+			ID:           "acceptance-complete",
+			Decision:     protocol.WorkAcceptanceAccepted,
+			ReviewerKind: protocol.WorkReviewerAgent,
+			ReviewerID:   "lead",
+			CreatedAt:    finished,
+		},
+	}}
+	history := protocol.ExecutionWorkGraphHistory{
+		Assignments: []protocol.WorkAssignment{{
+			ID:              "assignment-complete",
+			WorkItemID:      "work-complete",
+			OwnerAgentID:    "writer",
+			ReturnToAgentID: "lead",
+		}},
+		Attempts: []protocol.WorkAttempt{{
+			ID:              "attempt-complete",
+			AssignmentID:    "assignment-complete",
+			WorkItemID:      "work-complete",
+			ExecutorAgentID: "writer",
+			Status:          protocol.WorkAttemptStatusSucceeded,
+			CreatedAt:       now,
+			FinishedAt:      &finished,
+		}},
+		Submissions: []protocol.WorkSubmission{{
+			ID:           "submission-complete",
+			AssignmentID: "assignment-complete",
+			AttemptID:    "attempt-complete",
+			WorkItemID:   "work-complete",
+			CreatedAt:    finished,
+		}},
+		Acceptances: []protocol.WorkAcceptance{{
+			ID:           "acceptance-complete",
+			AssignmentID: "assignment-complete",
+			SubmissionID: "submission-complete",
+			WorkItemID:   "work-complete",
+			Decision:     protocol.WorkAcceptanceAccepted,
+			ReviewerKind: protocol.WorkReviewerAgent,
+			ReviewerID:   "lead",
+		}},
+	}
+
+	graph := projectExecutionGraphViewWithHistory(items, history)
+	gateIDs := make([]string, 0, 1)
+	for _, node := range graph.Nodes {
+		if node.Kind == protocol.ExecutionGraphNodeGate {
+			gateIDs = append(gateIDs, node.ID)
+		}
+	}
+	if len(gateIDs) != 1 || gateIDs[0] != "review:submission-complete" {
+		t.Fatalf("accepted Submission produced duplicate current Gate: %v", gateIDs)
+	}
+	if !hasExecutionGraphEdge(
+		graph.Edges,
+		protocol.ExecutionGraphEdgeReview,
+		"work-complete",
+		"review:submission-complete",
+	) {
+		t.Fatalf("accepted historical Gate lost its review edge: %+v", graph.Edges)
+	}
+}
+
 func TestProjectExecutionGraphViewDoesNotTurnContainmentIntoDependency(t *testing.T) {
 	t.Parallel()
 

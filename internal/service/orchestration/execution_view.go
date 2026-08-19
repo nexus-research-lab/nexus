@@ -330,8 +330,9 @@ func workGraphHistoryFromSnapshot(
 }
 
 // projectExecutionGraphViewWithHistory 从画布专用 append-only 历史投影每个
-// root Attempt、immutable Submission 和 Acceptance。Work Item 只在尚未产生
-// Attempt 时作为 planned placeholder；已发生的执行轮次绝不再压进同一 Agent 节点。
+// root Attempt 与 immutable Submission Gate；Acceptance 只更新对应 Gate 的
+// 验收结论。Work Item 只在尚未产生 Attempt 时作为 planned placeholder；已发生的
+// 执行轮次绝不再压进同一 Agent 节点。
 func projectExecutionGraphViewWithHistory(
 	items []protocol.ExecutionWorkItemView,
 	history protocol.ExecutionWorkGraphHistory,
@@ -366,6 +367,8 @@ func projectExecutionGraphViewWithHistory(
 	entryNodeByWorkItemID := make(map[string]string, len(items))
 	exitNodeByWorkItemID := make(map[string]string, len(items))
 	gateAssignmentIDs := make(map[string]struct{}, len(history.Submissions))
+	gateSubmissionIDs := make(map[string]struct{}, len(history.Submissions))
+	gateAcceptanceIDs := make(map[string]struct{}, len(history.Acceptances))
 	rootNodeByAttemptID := make(map[string]string)
 	childNodeByAttemptID := make(map[string]string)
 	for _, item := range items {
@@ -447,14 +450,21 @@ func projectExecutionGraphViewWithHistory(
 				}
 				exitNodeByWorkItemID[item.ID] = nodeID
 				if submission, ok := submissionByAttemptID[attempt.ID]; ok {
-					gateAssignmentIDs[submission.AssignmentID] = struct{}{}
+					if submission.AssignmentID != "" {
+						gateAssignmentIDs[submission.AssignmentID] = struct{}{}
+					}
+					gateSubmissionIDs[submission.ID] = struct{}{}
+					acceptance := acceptanceBySubmissionID[submission.ID]
+					if acceptance.ID != "" {
+						gateAcceptanceIDs[acceptance.ID] = struct{}{}
+					}
 					gate := executionHistoryReviewGateNode(
 						item,
 						attempt,
 						submission,
 						assignment,
 						dispatchBySubmissionID[submission.ID],
-						acceptanceBySubmissionID[submission.ID],
+						acceptance,
 					)
 					result.Nodes = append(result.Nodes, gate)
 					result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
@@ -479,8 +489,12 @@ func projectExecutionGraphViewWithHistory(
 			}
 		}
 
-		_, currentAssignmentHasGate := gateAssignmentIDs[item.AssignmentID]
-		if !currentAssignmentHasGate {
+		if !executionReviewGateAlreadyProjected(
+			item,
+			gateAssignmentIDs,
+			gateSubmissionIDs,
+			gateAcceptanceIDs,
+		) {
 			if gate, ok := executionReviewGateNode(item); ok {
 				result.Nodes = append(result.Nodes, gate)
 				result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
@@ -561,6 +575,32 @@ func projectExecutionGraphViewWithHistory(
 		}
 	}
 	return result
+}
+
+// executionReviewGateAlreadyProjected 只用 immutable Submission/Acceptance
+// identity 判断当前快照是否已由 append-only 历史 Gate 覆盖。Assignment 是运行中
+// lease，完成后允许从 current Work Item 视图清空，不能单独承担 Gate 去重。
+func executionReviewGateAlreadyProjected(
+	item protocol.ExecutionWorkItemView,
+	assignmentIDs map[string]struct{},
+	submissionIDs map[string]struct{},
+	acceptanceIDs map[string]struct{},
+) bool {
+	if item.Submission != nil && item.Submission.ID != "" {
+		if _, ok := submissionIDs[item.Submission.ID]; ok {
+			return true
+		}
+	}
+	if item.Acceptance != nil && item.Acceptance.ID != "" {
+		if _, ok := acceptanceIDs[item.Acceptance.ID]; ok {
+			return true
+		}
+	}
+	if item.AssignmentID != "" {
+		_, ok := assignmentIDs[item.AssignmentID]
+		return ok
+	}
+	return false
 }
 
 func executionAttemptViewFromAttempt(attempt protocol.WorkAttempt) protocol.ExecutionAttemptView {
