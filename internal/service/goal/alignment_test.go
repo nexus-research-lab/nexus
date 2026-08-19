@@ -47,8 +47,8 @@ func TestManagedGoalCompletionRequiresCurrentRoundAlignedAudit(t *testing.T) {
 		ctx,
 		created.ID,
 		completion,
-	); !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("completion without alignment error = %v, want ErrGoalInvalidState", err)
+	); !errors.Is(err, ErrGoalInvalidState) || !errors.Is(err, ErrGoalAlignmentRefreshRequired) {
+		t.Fatalf("completion without alignment error = %v, want invalid state with alignment recovery", err)
 	}
 
 	report := protocol.ObjectiveAlignmentReport{

@@ -15,6 +15,8 @@ var (
 	ErrGoalVersionStale             = errors.New("goal version stale")
 	ErrGoalRevisionStale            = errors.New("goal objective changed after this round started; this round cannot update the retargeted goal")
 	ErrGoalExecutionBindingConflict = errors.New("goal execution binding conflict")
+	ErrGoalExecutionNotReady        = errors.New("goal execution completion is not ready")
+	ErrGoalAlignmentRefreshRequired = errors.New("goal objective alignment must be refreshed")
 	ErrGoalUsageUnavailable         = errors.New("goal usage is unavailable and cannot be finalized authoritatively")
 )
 

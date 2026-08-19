@@ -19,7 +19,9 @@ func auditExecutionAlignment(
 	return runtimecommand.Operation{
 		Name: operationName,
 		Description: "Record an optional three-state evidence audit of the current Execution objective against its authoritative completion criteria as a visible Gate. " +
-			"It never transitions the Execution, starts a Goal, retries work or selects the next route.",
+			"It is valid only while that Execution is current and never transitions the Execution, starts a Goal, retries work or selects the next route. " +
+			"Do not use it as the completion audit for a Goal+WorkGraph flow and do not call it after the final accepted review makes the Execution terminal; " +
+			"that mixed flow continues in the Goal domain with audit_objective_alignment.",
 		SearchHint:  "execution objective alignment gate checkpoint evidence loop",
 		InputSchema: auditExecutionAlignmentSchema(),
 		Annotations: &runtimecommand.OperationAnnotations{IdempotentHint: true},

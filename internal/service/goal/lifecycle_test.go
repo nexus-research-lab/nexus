@@ -743,6 +743,7 @@ func TestRoomLeadCompletionKeepsWorkGraphReadinessIndependentFromCollaborationEv
 		ExpectedObjectiveRevision: created.ObjectiveRevision(),
 	}
 	if _, err = service.CompleteByModel(ctx, created.ID, completion); !errors.Is(err, ErrGoalInvalidState) ||
+		!errors.Is(err, ErrGoalExecutionNotReady) ||
 		!strings.Contains(err.Error(), executionReadiness.blocker) {
 		t.Fatalf("CompleteByModel error = %v, want WorkGraph readiness rejection", err)
 	}
@@ -829,8 +830,9 @@ func TestServiceCompleteByModelRequiresExecutionReadinessForDMGoal(t *testing.T)
 		t.Fatal(err)
 	}
 	completion := protocol.CompleteGoalRequest{RoundID: roundID}
-	if _, err = service.CompleteByModel(ctx, created.ID, completion); !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("CompleteByModel error = %v, want Execution readiness rejection", err)
+	if _, err = service.CompleteByModel(ctx, created.ID, completion); !errors.Is(err, ErrGoalInvalidState) ||
+		!errors.Is(err, ErrGoalExecutionNotReady) {
+		t.Fatalf("CompleteByModel error = %v, want recoverable Execution readiness rejection", err)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
 	if err != nil {

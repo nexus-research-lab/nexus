@@ -6,13 +6,21 @@
 
 只有 objective 已实际实现、所有必要验证完成且没有剩余必需工作时，才尝试完成。预算接近耗尽、准备停止或已有部分进展都不是完成证据。
 
-确认绑定 managed WorkGraph 的 Goal 必须在当前 objective revision 和当前 runtime round 先执行 `audit_objective_alignment`。Goal-only 在成果确实完成后可直接执行 `update_goal`；reserved Execution identity 不把它变成受管 WorkGraph。需要审计时，先读取该 operation contract，把每条权威 completion criterion、状态、证据或缺口组织成一个 JSON 对象，再整体序列化进单个 `report_json` 字符串。
+先区分三种生命周期，不能把 operation 名称相近当成同一件事：
+
+- **Goal-only**：成果确实完成后直接执行 Goal domain 的 `update_goal`；reserved Execution identity 不把它变成受管 WorkGraph。
+- **WorkGraph-only**：完成全部 required Work Item 与 Acceptance 后由 Execution 自己终止；没有 Goal 审计或 Goal 终态更新。
+- **Goal + WorkGraph（confirmed binding）**：先让 required Work Item 全部交付并验收。最终 accepted review 会自动把无 blocker 的 Execution 置为 terminal，并在同一物理 round 的 receipt 中返回 `next_actions[].domain=goal, operation=audit_objective_alignment`。随后切到 Goal domain，读取 exact contract，在当前 objective revision 和当前 runtime round 执行 `audit_objective_alignment`，最后按其 `nextAction` 执行 `update_goal`。
+
+`execution/audit_execution_alignment` 只是在 **current、非终态 Execution** 上记录可选 Gate；它不完成 Execution，也不是 Goal 完成审计。Execution 已 terminal 后绝不调用它。Goal 审计在服务端仍可先于 WorkGraph readiness 留证，这是旧 MCP 保留的幂等能力；但正常收口应遵循上面的顺序，避免拿尚未验收的事实声明 aligned。
+
+需要 Goal 审计时，先读取该 operation contract，把每条权威 completion criterion、状态、证据或缺口组织成一个 JSON 对象，再整体序列化进单个 `report_json` 字符串。
 
 - `aligned`：全部标准有可复查证据；随后立即按 command 流程执行 `update_goal`，输入 `{"status":"complete"}`。
 - `not_aligned`：存在明确缺口；继续执行。
 - `inconclusive`：证据不足；先补证。
 
-审计只记录证据，不完成 Goal，也不选择工作路线。完成时后端始终校验 Goal revision、Room 责任和运行状态；只有当前 Goal 确认绑定已物化 WorkGraph 时才额外校验 Execution/WorkGraph。reserved Execution ID 不是绑定证据。
+Goal 审计只记录证据，不完成 Goal。完成时后端始终校验 Goal revision、Room 责任和运行状态；只有当前 Goal 确认绑定已物化 WorkGraph 时才额外校验 Execution/WorkGraph。reserved Execution ID 不是绑定证据。若 `update_goal` 被拒绝，直接按返回的 domain-qualified `nextAction` 恢复：`goal/audit_objective_alignment` 表示当前轮缺少或已失效的 Goal 对齐证据，`execution/get_execution` 表示图仍有未完成责任；不要盲重试 `update_goal`，也不要在 terminal Execution 上改调 `audit_execution_alignment`。
 
 ## 完成后的最终交付
 

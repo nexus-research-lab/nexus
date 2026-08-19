@@ -111,6 +111,25 @@ func errorResultText(text string) runtimecommand.Result {
 	}
 }
 
+func errorResultWithNextAction(err error, nextAction map[string]any) runtimecommand.Result {
+	text := "goal command failed"
+	if err != nil {
+		text = err.Error()
+	}
+	return runtimecommand.Result{
+		Content: []map[string]any{{
+			"type": "text",
+			"text": text,
+		}},
+		StructuredContent: map[string]any{
+			"outcome":    "rejected",
+			"message":    text,
+			"nextAction": nextAction,
+		},
+		IsError: true,
+	}
+}
+
 func planModeGoalMutationResult(operationName string) runtimecommand.Result {
 	return errorResultText(
 		operationName + " is validation-only in Plan Mode and did not change Goal, Execution, Plan, or cancellation state; leave Plan Mode and retry to persist it",

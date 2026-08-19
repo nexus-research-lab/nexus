@@ -66,4 +66,5 @@ description: 当用户或系统明确要求创建、查看、纠正、完成或�
 - `token_budget` 只在用户明确给出预算时设置。
 - 暂停、恢复、预算和用量限制属于用户或系统控制面。
 - 提醒、定时和周期任务使用 Automation，不使用 Goal。
+- Goal 与 Execution 是两个独立 command domain：`goal/audit_objective_alignment` 是确认绑定 WorkGraph 后的 Goal 完成证据；`execution/audit_execution_alignment` 只是非终态 Execution 的可选 Gate，不能互相替代。命令返回跨域 `nextAction` 时按 `domain + operation` 切换，不按相似名称猜测。
 - Goal 状态是执行连续性，不是最终成果；完成调用后仍要独立交付 objective 要求的结果。

@@ -217,14 +217,14 @@ func promoteExecutionSchema() map[string]any {
 func auditExecutionAlignmentSchema() map[string]any {
 	properties := executionReferenceProperties()
 	properties["decision"] = enumProperty(
-		"Aggregate result derived from every current Execution completion criterion.",
+		"Aggregate result derived from every current Execution completion criterion. This optional current-Execution Gate is not Goal completion evidence.",
 		"aligned",
 		"not_aligned",
 		"inconclusive",
 	)
 	properties["criteria_results"] = map[string]any{
 		"type":        "array",
-		"description": "One result for every authoritative completion criterion, copied exactly. This check is optional and does not choose the next workflow step.",
+		"description": "One result for every authoritative completion criterion, copied exactly. This check is optional, requires a current non-terminal Execution, and does not choose the next workflow step. Goal+WorkGraph closure uses Goal audit_objective_alignment after Execution completion instead.",
 		"items": objectSchema(map[string]any{
 			"criterion": stringProperty("Current Execution completion criterion copied exactly."),
 			"status": enumProperty(

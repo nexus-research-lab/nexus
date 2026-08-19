@@ -28,7 +28,8 @@
 //   - completion_audit_recovery.go：accepted Review 后的 blocker-aware durable
 //     completion reconciler；不替代模型可见 alignment audit。
 //   - invalidation.go / result.go：owner/session 只读投影失效 port、宿主消费的
-//     responsibility advancement receipt 与稳定 mutation outcome/next-action envelope。
+//     responsibility advancement receipt，以及 final Acceptance 到 Goal completion audit
+//     的跨 domain 稳定 mutation outcome/next-action envelope。
 //   - prompt.go / prompt_policy.md：DM、Room 与 Goal continuation 共用执行提示。
 //
 // 主要暴露接口：NewService 与 Service 的 Ensure/Get*/Read*/RuntimeContext、Plan、work、
