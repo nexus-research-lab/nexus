@@ -1,5 +1,5 @@
-// INPUT: Agent 配置、workspace managed skills 与运行时能力。
-// OUTPUT: Agent system prompt、Goal/Execution Skill+CLI 绑定约束与 result-first 交付契约。
+// INPUT: Agent 配置、workspace 提示文件与运行时身份。
+// OUTPUT: Agent 基础提示、身份画像与 workspace 指令。
 // POS: Agent 服务的运行时 prompt 装配入口。
 package agent
 
@@ -15,7 +15,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -35,12 +34,10 @@ type promptBuilder struct {
 }
 
 type promptBuildScope struct {
-	isMainAgent        bool
-	ownerUserID        string
-	workspacePath      string
-	workspaceRoot      string
-	skillNames         []string
-	disabledSkillNames []string
+	isMainAgent   bool
+	ownerUserID   string
+	workspacePath string
+	workspaceRoot string
 }
 
 func newPromptBuilder(cfg config.Config) *promptBuilder {
@@ -60,7 +57,6 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 	for _, section := range buildAgentProfileSections(agentValue, scope) {
 		sections = appendPromptSection(sections, section)
 	}
-	sections = appendPromptSection(sections, buildManagedSkillUsageSection(scope))
 
 	fileSections, err := loadWorkspacePromptSections(scope)
 	if err != nil {
@@ -80,42 +76,12 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 	if workspacePath == "" {
 		workspacePath = ResolveWorkspacePath(b.config, agentValue.OwnerUserID, agentValue.AgentID)
 	}
-	disabledSkillNames := make(map[string]struct{}, len(agentValue.Options.DisabledSkillIDs))
-	disabledSkillList := make([]string, 0, len(agentValue.Options.DisabledSkillIDs))
-	for _, reference := range agentValue.Options.DisabledSkillIDs {
-		name := canonicalPromptSkillName(reference)
-		if name != "" {
-			disabledSkillNames[strings.ToLower(name)] = struct{}{}
-			disabledSkillList = append(disabledSkillList, name)
-		}
-	}
-	skillNames := make([]string, 0, len(agentValue.Options.SkillIDs))
-	for _, reference := range agentValue.Options.SkillIDs {
-		name := canonicalPromptSkillName(reference)
-		if name == "" {
-			continue
-		}
-		if _, disabled := disabledSkillNames[strings.ToLower(name)]; disabled {
-			continue
-		}
-		skillNames = append(skillNames, name)
-	}
 	return promptBuildScope{
-		isMainAgent:        isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
-		ownerUserID:        strings.TrimSpace(agentValue.OwnerUserID),
-		workspacePath:      workspacePath,
-		workspaceRoot:      strings.TrimSpace(b.config.WorkspacePath),
-		skillNames:         skillNames,
-		disabledSkillNames: disabledSkillList,
+		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
+		ownerUserID:   strings.TrimSpace(agentValue.OwnerUserID),
+		workspacePath: workspacePath,
+		workspaceRoot: strings.TrimSpace(b.config.WorkspacePath),
 	}
-}
-
-func canonicalPromptSkillName(reference string) string {
-	name := strings.TrimSpace(reference)
-	if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
-		name = externalName
-	}
-	return name
 }
 
 func (b *promptBuilder) loadStaticPrompt(scope promptBuildScope) string {
@@ -138,46 +104,6 @@ func appendPromptSection(sections []string, section string) []string {
 		return sections
 	}
 	return append(sections, section)
-}
-
-func buildManagedSkillUsageSection(scope promptBuildScope) string {
-	sections := []string{}
-	if hasSelectedSkill(scope, runtimecommand.GoalSkillName) {
-		sections = append(sections, strings.Join([]string{
-			"## Goal Skill 使用要求",
-			"- 用户明确要求启动、设定、继续、纠正、完成或阻塞 Goal，或当前上下文绑定 active Goal 时，必须先使用 Skill 工具加载 goal-manager。",
-			"- 模型管理 Goal 的唯一入口是 goal-manager 规定的宿主注入命令：`\"${NEXUS_COMMAND_PATH}\" --json goal contract|inspect|invoke`；operation 名不是独立工具，不使用 nexusctl、旧 Goal MCP 或 /goal 文本命令。",
-			"- 如果 Skill 加载器明确不可用，仍只通过同一宿主注入命令读取 contract 后继续；不得猜测其他 transport、owner、Session、round 或 Goal revision。",
-			"- `create_goal` 只用于用户或系统/开发者明确要求持久 Goal 且 objective 已 execution-ready 的显式路径；普通一次性请求、提醒和定时任务不创建 Goal。",
-			"- 自适应持久化只在 execution context 开放时通过 `promote_execution_to_goal`；Goal、Plan、Room 或 Subagent 互不机械触发。",
-			"- `retarget_goal` 只响应用户明确替换 objective；`update_goal` 只收口 complete/blocked。token_budget 只有用户明确给出预算时才传。",
-			"- 只有 confirmed WorkGraph-bound Goal 在完成前需要当前 revision/round 的 aligned objective audit；applied completion receipt 后仍须独立、完整地交付 objective 成果。",
-		}, "\n"))
-	}
-	if hasSelectedSkill(scope, runtimecommand.ExecutionSkillName) {
-		sections = append(sections, strings.Join([]string{
-			"## Execution Skill 使用要求",
-			"- 需要持久 WorkGraph、当前上下文包含 `<nexus_execution_context>`，或准备执行结构前，必须先使用 Skill 工具加载 execution-orchestrator。",
-			"- Execution/WorkGraph 的唯一控制入口是宿主注入命令：`\"${NEXUS_COMMAND_PATH}\" --json execution contract|inspect|invoke`；`allowed_actions` 中的名称是语义 operation，不是工具 schema。",
-			"- 不使用 nexusctl、旧 Execution MCP，也不尝试调用同名独立工具。Skill 加载器明确不可用时，仍只通过同一宿主注入命令读取 contract 后继续。",
-			"- WorkGraph 只在责任、依赖、并行、交接、验收或恢复确需持久拓扑时使用；Plan materialize 前不派工，模型必须按当前 allowed_actions 与 exact revision 操作。",
-		}, "\n"))
-	}
-	return strings.Join(sections, "\n\n")
-}
-
-func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
-	for _, disabled := range scope.disabledSkillNames {
-		if strings.EqualFold(strings.TrimSpace(disabled), skillName) {
-			return false
-		}
-	}
-	for _, selected := range scope.skillNames {
-		if strings.EqualFold(strings.TrimSpace(selected), skillName) {
-			return true
-		}
-	}
-	return false
 }
 
 func firstNonEmptyPrompt(values ...string) string {

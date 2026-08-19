@@ -45,11 +45,13 @@ func newRoomRoundRegistry() roomRoundRegistry {
 }
 
 func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoundRegistry {
-	registry := newRoomRoundRegistry()
+	registry := &roomRoundRegistry{
+		conversations: make(map[string]*roomConversationState),
+	}
 	for _, roundValue := range rounds {
 		registry.register(roundValue)
 	}
-	return registry
+	return roomRoundRegistry{conversations: registry.conversations}
 }
 
 func newRoomConversationState() *roomConversationState {

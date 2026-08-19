@@ -8,41 +8,27 @@ import (
 func TestStablePromptDefinesExecutionBoundaries(t *testing.T) {
 	prompt := StablePrompt()
 	for _, expected := range []string{
-		"Deliver the task itself first",
-		"Goal determines what persists",
-		"Choose Goal and WorkGraph independently",
-		"neither implies the other",
-		"create the requested Goal before preparing its WorkGraph",
-		"never in parallel",
-		"Before substantial execution, every Agent assesses atomicity",
-		"Use native subagents only when their benefit exceeds",
+		"Deliver the task first",
+		"Goal, Plan, WorkGraph, Room Assignment, Task/Todo, and subagents are optional",
+		"smallest structure justified by",
+		"Goal and WorkGraph are independent",
+		"create Goal first when both are needed",
+		"Before substantial execution, assess separability",
+		"Use subagents only when benefit exceeds",
 		"the parent integrates, verifies, and delivers",
-		"Parallel execution requires distinct live contexts",
-		"concurrent Work Items to different Room Agents",
-		"keep one Work Item and use separate native subagents",
-		"form a serial queue unless child subagents run",
-		"call them queued, not parallel",
-		"These primitives are optional, not a mandatory pipeline",
-		"Add only structure whose value exceeds coordination cost",
-		"Complexity and participant count trigger assessment",
-		"not the word “collaborate” or `@`",
-		"pre-materialization `assign_work` denial means finish bootstrap",
-		"Load the `execution-orchestrator` Skill",
-		"Graph UI already show lifecycle state",
+		"`<nexus_execution_context>` is authoritative",
+		"load `execution-orchestrator`",
+		"Graph UI show lifecycle state",
 		"`allowed_actions`",
-		`contract --operation <selected_action>`,
-		"Action names are semantic operations, not tool-schema or MCP names",
-		"never use nexusctl",
-		"retired Execution MCP",
-		"Bridge observation records actual Tool and Subagent runs",
-		"never ask the user to send “continue”",
+		"round-scoped contract",
+		"never ask for “continue”",
 	} {
 		if !strings.Contains(prompt, expected) {
 			t.Fatalf("stable execution prompt missing %q", expected)
 		}
 	}
-	if words := len(strings.Fields(prompt)); words > 300 {
-		t.Fatalf("stable execution prompt has %d words, want at most 300", words)
+	if chars := len([]rune(prompt)); chars > 900 {
+		t.Fatalf("stable execution prompt has %d characters, want at most 900", chars)
 	}
 	for _, proceduralDetail := range []string{
 		"native `items` object array",

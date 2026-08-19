@@ -453,17 +453,20 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 			t.Fatalf("fork runtime 动态上下文缺少 Connector 状态 %q: %s", want, options.System.AppendDynamic)
 		}
 	}
-	client.mu.Lock()
-	currentTurnPrompt := strings.Join(client.queryPrompts, "\n")
-	client.mu.Unlock()
 	for _, want := range []string{
 		`<current_turn_connector_tools>`,
 		`"connector_id":"feishu-docx","server_alias":"nexus_feishu_docx"`,
 		`mcp__nexus_feishu_docx__read`,
 	} {
-		if !strings.Contains(currentTurnPrompt, want) {
-			t.Fatalf("当前用户轮次缺少 Connector 工具事实 %q: %s", want, currentTurnPrompt)
+		if !strings.Contains(options.System.AppendDynamic, want) {
+			t.Fatalf("fork runtime system prompt 缺少 Connector 工具事实 %q: %s", want, options.System.AppendDynamic)
 		}
+	}
+	client.mu.Lock()
+	currentTurnPrompt := strings.Join(client.queryPrompts, "\n")
+	client.mu.Unlock()
+	if strings.Contains(currentTurnPrompt, `<current_turn_connector_tools>`) {
+		t.Fatalf("当前用户轮次重复注入 Connector 工具事实: %s", currentTurnPrompt)
 	}
 	feishuConfig, ok := options.MCP.Servers["nexus_feishu_docx"].(sdkmcp.SDKServerConfig)
 	if !ok || feishuConfig.Instance == nil {

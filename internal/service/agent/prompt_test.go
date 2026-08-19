@@ -156,112 +156,32 @@ func TestLoadRuntimeEmotionViewIgnoresLegacyEmotionShape(t *testing.T) {
 	}
 }
 
-func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
-	workspacePath := t.TempDir()
-	skillPath := filepath.Join(workspacePath, ".agents", "skills", "goal-manager")
-	if err := os.MkdirAll(skillPath, 0o755); err != nil {
-		t.Fatalf("创建 goal-manager 目录失败: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: goal-manager\ndescription: test\n---\n"), 0o644); err != nil {
-		t.Fatalf("写入 goal-manager 失败: %v", err)
-	}
-
+func TestServiceBuildRuntimePromptDoesNotDuplicateManagedSkillGuidance(t *testing.T) {
 	service := agentsvc.NewService(config.Config{
 		DefaultAgentID:   "nexus",
 		BaseSystemPrompt: "BASE CUSTOM PROMPT",
 	}, nil)
 
-	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
-		AgentID:       "agent-1",
-		Name:          "planner",
-		WorkspacePath: workspacePath,
-		Options: protocol.Options{
-			SkillIDs: []string{"goal-manager"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("构建运行时提示词失败: %v", err)
-	}
-
-	assertPromptContains(t, prompt, "Goal Skill 使用要求")
-	assertPromptContains(t, prompt, "goal-manager")
-	assertPromptContains(t, prompt, `"${NEXUS_COMMAND_PATH}" --json goal contract|inspect|invoke`)
-	assertPromptContains(t, prompt, "operation 名不是独立工具")
-	assertPromptContains(t, prompt, "不使用 nexusctl、旧 Goal MCP")
-	assertPromptContains(t, prompt, "promote_execution_to_goal")
-}
-
-func TestServiceBuildRuntimePromptDirectsExecutionSkillToExactRuntimeCLI(t *testing.T) {
-	service := agentsvc.NewService(config.Config{
-		DefaultAgentID:   "nexus",
-		BaseSystemPrompt: "BASE CUSTOM PROMPT",
-	}, nil)
 	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
 		AgentID: "agent-1",
 		Name:    "planner",
 		Options: protocol.Options{
-			SkillIDs: []string{"execution-orchestrator"},
+			SkillIDs: []string{"goal-manager", "execution-orchestrator"},
 		},
 	})
 	if err != nil {
 		t.Fatalf("构建运行时提示词失败: %v", err)
 	}
-	assertPromptContains(t, prompt, "Execution Skill 使用要求")
-	assertPromptContains(t, prompt, "execution-orchestrator")
-	assertPromptContains(t, prompt, `"${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke`)
-	assertPromptContains(t, prompt, "allowed_actions` 中的名称是语义 operation，不是工具 schema")
-	assertPromptContains(t, prompt, "不使用 nexusctl、旧 Execution MCP")
-}
 
-func TestServiceBuildRuntimePromptOmitsDisabledGoalSkillGuidance(t *testing.T) {
-	workspacePath := t.TempDir()
-	skillPath := filepath.Join(workspacePath, ".agents", "skills", "goal-manager")
-	if err := os.MkdirAll(skillPath, 0o755); err != nil {
-		t.Fatalf("创建 goal-manager 目录失败: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: goal-manager\ndescription: test\n---\n"), 0o644); err != nil {
-		t.Fatalf("写入 goal-manager 失败: %v", err)
-	}
-
-	service := agentsvc.NewService(config.Config{
-		DefaultAgentID:   "nexus",
-		BaseSystemPrompt: "BASE CUSTOM PROMPT",
-	}, nil)
-	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
-		AgentID:       "agent-1",
-		Name:          "planner",
-		WorkspacePath: workspacePath,
-		Options: protocol.Options{
-			SkillIDs:         []string{"goal-manager"},
-			DisabledSkillIDs: []string{"goal-manager"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("构建运行时提示词失败: %v", err)
-	}
-	if strings.Contains(prompt, "Goal Skill 使用要求") {
-		t.Fatalf("显式停用 goal-manager 后仍注入使用要求: %q", prompt)
-	}
-}
-
-func TestServiceBuildRuntimePromptOmitsDisabledExecutionSkillGuidance(t *testing.T) {
-	service := agentsvc.NewService(config.Config{
-		DefaultAgentID:   "nexus",
-		BaseSystemPrompt: "BASE CUSTOM PROMPT",
-	}, nil)
-	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
-		AgentID: "agent-1",
-		Name:    "planner",
-		Options: protocol.Options{
-			SkillIDs:         []string{"execution-orchestrator"},
-			DisabledSkillIDs: []string{"execution-orchestrator"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("构建运行时提示词失败: %v", err)
-	}
-	if strings.Contains(prompt, "Execution Skill 使用要求") {
-		t.Fatalf("显式停用 execution-orchestrator 后仍注入使用要求: %q", prompt)
+	for _, duplicate := range []string{
+		"Goal Skill 使用要求",
+		"Execution Skill 使用要求",
+		`"${NEXUS_COMMAND_PATH}" --json goal`,
+		`"${NEXUS_COMMAND_PATH}" --json execution`,
+	} {
+		if strings.Contains(prompt, duplicate) {
+			t.Fatalf("运行时提示词重复注入 managed Skill 指引 %q: %q", duplicate, prompt)
+		}
 	}
 }
 
