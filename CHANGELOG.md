@@ -10,13 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added WorkGraph history browsing and owner-scoped prompt-based workflow commands, with fixed `/workgraph` collaboration, Skill-guided `nexus execution` distillation, and cross-Session reuse that excludes tool and run history.
+- Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Fixed
 
+- Prevented initial Room and DM history loading from restoring a stale reading anchor after the view had already followed the latest message.
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
 - Bottom-anchored live Feed height debt, stabilized consecutive Composer interaction heights, and coalesced Generative UI resize corrections so terminal tool layout no longer exposes blank tails or repeatedly resizes the conversation viewport.
 - Made user scrolling authoritative during Room streaming, removed in-Feed unread navigation, kept history pagination out of layout geometry, and exposed distinct waiting and working phases for Agent handoffs.
 - Rebuilt the Nexus CLI Skills as thin domain routers with on-demand Goal, Execution, Automation, Configuration, and owner-control references, while making runtime command contracts self-describe safe transport, staging, request identity, and result handling.
+- Exposed desktop folder mounting in Room chat and applied the folder snapshot to every member runtime in the conversation.
 
 ## [0.1.36] - 2026-08-19
 

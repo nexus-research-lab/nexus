@@ -36,7 +36,7 @@ export interface ComposerPanelProps {
   runtimePhase: AgentConversationRuntimePhase | null;
   runtimeKind: AgentRuntimeKind;
   sessionSettings?: ComposerSessionSettingsScope;
-  /** 桌面端可为该 DM Session 挂载本机目录。 */
+  /** 桌面端可为当前 Session 挂载本机目录。 */
   localDirectorySessionKey?: string;
   onSendMessage: (
     content: string,
