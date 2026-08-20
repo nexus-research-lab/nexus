@@ -150,6 +150,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		orchestration: orchestrationService,
 	})
 	preferencesService := preferencessvc.NewService(cfg)
+	workGraphWorkflowService.SetAbstractor(
+		workgraphworkflowsvc.NewLLMAbstractor(providerService, preferencesService),
+	)
 	providerService.SetDefaultAgentSelectionResolver(func(ctx context.Context, ownerUserID string) (providercfg.DefaultAgentSelection, error) {
 		prefs, err := preferencesService.Get(ctx, ownerUserID)
 		if err != nil {
@@ -256,6 +259,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetRuntimeAdmissionResolver(authService)
 	roomRealtime.SetQueueAdmissionStore(queueAdmissionRepository)
 	roomRealtime.SetTitleGenerator(titleService)
+	workGraphWorkflowService.SetSaveRoundDispatcher(
+		newWorkGraphSaveRoundDispatcher(dmService, roomRealtime),
+	)
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
 	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)

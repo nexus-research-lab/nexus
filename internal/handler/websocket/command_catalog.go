@@ -1,4 +1,4 @@
-// INPUT: WebSocket session 请求、Nexus host/fixed product command、owner Workflow 与内置 runtime 指令快照。
+// INPUT: WebSocket session 请求、Nexus host/fixed product command、owner 命名工作图与内置 runtime 指令快照。
 // OUTPUT: 合并且仅含安全元数据的 session-scoped 动静态 command_catalog 权威事件。
 // POS: Nexus 版本化命令目录到浏览器补全协议的唯一投影边界。
 package websocket

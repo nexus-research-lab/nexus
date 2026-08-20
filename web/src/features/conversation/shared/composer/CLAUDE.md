@@ -17,7 +17,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `slash-command-model.ts`: 解析输入框起始 Slash 查询，并以纯函数完成筛选和插入
 - `use-composer-slash-command.ts`: 管理命令、模型与技能三级补全状态、选择、键盘导航、按需目录加载与草稿清空后的浮层收口
 - `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
-- `controller/use-composer-controller.ts`: 除既有草稿/发送装配外，只接受同一 exact Session 的 WorkGraph 沉淀意图事件，把可见请求写入 Message 草稿并聚焦；不直接调用 Workflow 创建 API
+- `controller/use-composer-controller.ts`: 除既有草稿/发送装配外，只接受同一 exact Session 的命名 WorkGraph 保存意图事件，把可见请求写入 Message 草稿并自动发送；不直接调用命名工作图创建 API
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
 - `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列和 Loop 选择器
 

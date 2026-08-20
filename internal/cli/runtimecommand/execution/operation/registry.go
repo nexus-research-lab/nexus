@@ -1,5 +1,5 @@
 // INPUT: Execution service 与 session-bound runtime context。
-// OUTPUT: 顺序稳定的 Execution 与 Workflow 沉淀语义工具 registry。
+// OUTPUT: 顺序稳定的 Execution 与命名 WorkGraph 保存语义工具 registry。
 // POS: Execution command operation 的唯一注册入口。
 package operation
 

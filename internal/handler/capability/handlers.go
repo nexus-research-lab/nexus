@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
@@ -19,13 +20,19 @@ type ChannelSummaryCounter interface {
 	CountActivePairings(context.Context, string) (int, error)
 }
 
+// WorkGraphDistillationLister 提供 owner-scoped 命名工作图目录。
+type WorkGraphDistillationLister interface {
+	List(context.Context, string) ([]protocol.WorkGraphWorkflow, error)
+}
+
 // Handlers 封装 capability summary handler。
 type Handlers struct {
-	api        *handlershared.API
-	skills     *skillspkg.Service
-	connectors *connectorsvc.Service
-	automation *automationsvc.Service
-	channels   ChannelSummaryCounter
+	api           *handlershared.API
+	skills        *skillspkg.Service
+	connectors    *connectorsvc.Service
+	automation    *automationsvc.Service
+	channels      ChannelSummaryCounter
+	distillations WorkGraphDistillationLister
 }
 
 // New 创建 capability handlers。
@@ -34,18 +41,20 @@ func New(
 	skills *skillspkg.Service,
 	connectors *connectorsvc.Service,
 	automation *automationsvc.Service,
-	channels ...ChannelSummaryCounter,
+	channels ChannelSummaryCounter,
+	distillations ...WorkGraphDistillationLister,
 ) *Handlers {
-	var channelCounter ChannelSummaryCounter
-	if len(channels) > 0 {
-		channelCounter = channels[0]
+	var distillationLister WorkGraphDistillationLister
+	if len(distillations) > 0 {
+		distillationLister = distillations[0]
 	}
 	return &Handlers{
-		api:        api,
-		skills:     skills,
-		connectors: connectors,
-		automation: automation,
-		channels:   channelCounter,
+		api:           api,
+		skills:        skills,
+		connectors:    connectors,
+		automation:    automation,
+		channels:      channels,
+		distillations: distillationLister,
 	}
 }
 
@@ -72,6 +81,7 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 	configuredChannelCount := 0
 	connectedChannelCount := 0
 	activePairingCount := 0
+	workGraphDistillationCount := 0
 	if h.channels != nil {
 		configuredChannelCount, err = h.channels.CountConfiguredChannels(request.Context(), ownerUserID)
 		if err != nil {
@@ -89,6 +99,14 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 			return
 		}
 	}
+	if h.distillations != nil {
+		items, listErr := h.distillations.List(request.Context(), ownerUserID)
+		if listErr != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, listErr.Error())
+			return
+		}
+		workGraphDistillationCount = len(items)
+	}
 
 	h.api.WriteSuccess(writer, map[string]any{
 		"skills_count":                  skillCount,
@@ -98,5 +116,6 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 		"configured_channels_count":     configuredChannelCount,
 		"active_pairings_count":         activePairingCount,
 		"loops_count":                   loopspkg.StaticCount(),
+		"workgraph_distillations_count": workGraphDistillationCount,
 	})
 }

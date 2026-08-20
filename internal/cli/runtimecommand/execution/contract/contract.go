@@ -43,12 +43,12 @@ type Service interface {
 }
 
 // WorkflowService is the owner-scoped semantic library used by the
-// distillation operation. Source session and owner identity stay host-owned.
+// named WorkGraph save operation. Source session and owner identity stay host-owned.
 type WorkflowService interface {
-	CreateFromExecution(
+	SavePreview(
 		context.Context,
 		string,
-		protocol.CreateWorkGraphWorkflowRequest,
+		protocol.SaveWorkGraphWorkflowRequest,
 	) (*protocol.WorkGraphWorkflow, error)
 }
 

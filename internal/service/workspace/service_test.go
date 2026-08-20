@@ -298,7 +298,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"additionalProperties=false",
 			"references/responsibility-and-delivery.md",
 			"references/recovery-and-alignment.md",
-			"references/workflow-reuse.md",
+			"references/workgraph-distillation.md",
 			"`next_actions` 是建议，不授权",
 			"references/structure-selection.md",
 			"substantial execution 前先判断",
@@ -338,11 +338,11 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"promote_execution_to_goal",
 			"Goal + WorkGraph 收口",
 		},
-		filepath.Join("execution-orchestrator", "references", "workflow-reuse.md"): {
-			"distill_workgraph_workflow",
-			"nodes[{work_item_id,role}]",
-			"key|collaboration",
-			"相同 request id 是同一次幂等创建",
+		filepath.Join("execution-orchestrator", "references", "workgraph-distillation.md"): {
+			"distill_workgraph",
+			"schema 只要求 `preview_id`",
+			"用户不选择节点或角色",
+			"不得重新读取源图、重选节点或重写草图",
 		},
 		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {
 			"四个平面",

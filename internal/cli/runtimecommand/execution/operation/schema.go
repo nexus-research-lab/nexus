@@ -126,22 +126,10 @@ func planExecutionSchema() map[string]any {
 
 func distillWorkflowSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"execution_id": nonEmptyStringProperty("Exact source Execution id read with execution inspect. The host fixes the owner and source session."),
-		"slash_name": map[string]any{
-			"type": "string", "pattern": `^[a-z][a-z0-9-]{0,63}$`,
-			"description": "Reusable command name without a leading slash, for example deep-research.",
-		},
-		"title":       nonEmptyStringProperty("Short human-facing workflow title."),
-		"description": stringProperty("What requests should use this workflow."),
-		"nodes": map[string]any{
-			"type": "array", "minItems": 1, "maxItems": protocol.ExecutionProjectionCollectionLimit,
-			"description": "Explicit source Work Items to retain. Tool calls and run history are not valid nodes.",
-			"items": objectSchema(map[string]any{
-				"work_item_id": nonEmptyStringProperty("Exact source Work Item id from the inspected historical Execution."),
-				"role":         enumProperty("key retains reusable delivery structure; collaboration marks an ownership, handoff, review, or integration boundary.", "key", "collaboration"),
-			}, "work_item_id", "role"),
-		},
-	}, "execution_id", "slash_name", "title", "nodes")
+		"preview_id": nonEmptyStringProperty(
+			"Exact opaque preview id from the user-reviewed WorkGraph sketch. Persist this preview unchanged; never infer, rebuild, or replace it.",
+		),
+	}, "preview_id")
 }
 
 func abandonExecutionSchema() map[string]any {

@@ -13,6 +13,7 @@ export interface CapabilitySummary {
   configured_channels_count: number;
   active_pairings_count: number;
   loops_count: number;
+  workgraph_distillations_count: number;
 }
 
 export async function getCapabilitySummaryApi(): Promise<CapabilitySummary> {

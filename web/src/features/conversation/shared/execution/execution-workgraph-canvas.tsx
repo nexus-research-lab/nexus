@@ -1,7 +1,7 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的只读工作板上显示精简图标、可读的中性正交流程边与降饱和控制回连；空白点击关闭悬浮检查器，检查器展示目标、结果、错误、子级运行与 exact control-return 事实。
- * POS: DM/Room 共用的 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示精简图标、可读的中性正交流程边与降饱和控制回连。
+ * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
 
@@ -1039,7 +1039,7 @@ export function ExecutionWorkGraphCanvas({
               <button
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
-                className="absolute z-10 grid place-items-center rounded-[16px] transition-[left,top,transform] duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                className="absolute z-10 grid place-items-center rounded-[16px] transition-[left,top,transform] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
                 data-execution-attempt-id={node.attempt_id || undefined}
                 data-execution-current-node={current ? "true" : undefined}
                 data-execution-graph-node-id={node.id}
