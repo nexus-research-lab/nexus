@@ -19,6 +19,7 @@ import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
   buildGroupConversationRoundAliases,
+  isGroupConversationRoundActivelyGrowing,
   resolveGroupConversationRound,
   type GroupConversationFeedProps,
 } from "./group-conversation-feed-model";
@@ -47,12 +48,19 @@ export function GroupConversationVirtualFeed({
     () => buildGroupConversationRoundAliases(source),
     [source],
   );
+  const activeRoundIds = useMemo(() => new Set(
+    source.roundIds.filter((_roundId, index) => isGroupConversationRoundActivelyGrowing(
+      source,
+      resolveGroupConversationRound(source, index),
+    )),
+  ), [source]);
 
   const heightMap = useMemo(() => {
     const baseHeights = estimateRoundHeights(
       source.roundIds,
       source.messageGroups,
       metrics.containerWidth,
+      activeRoundIds,
     );
     return projectGroupRoundHeights({
       baseHeights,
@@ -61,6 +69,7 @@ export function GroupConversationVirtualFeed({
       roundIds: source.roundIds,
     });
   }, [
+    activeRoundIds,
     metrics.containerWidth,
     source.messageGroups,
     source.pendingSlotGroups,
@@ -76,8 +85,19 @@ export function GroupConversationVirtualFeed({
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
-    shouldAdjustConversationVirtualScrollPosition;
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
+    item,
+    delta,
+    instance,
+  ) => shouldAdjustConversationVirtualScrollPosition(
+    item,
+    delta,
+    instance,
+    {
+      bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
+      followingLatest: refs.isFollowingLatest?.() ?? false,
+    },
+  );
   const scrollToIndex = useCallback(
     (index: number, options?: { behavior?: ScrollBehavior }) => {
       if (index === 0) {

@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话内容版本、历史前插令牌与滚动容器尺寸变化。
- * OUTPUT: DM、Room、Thread 共用的跟随状态、聚合贴底、阅读锚定、定位入口与用户滚动处理器。
- * POS: FOLLOW 单一贴底所有权、Virtualizer 测高委托、READING 锚定和资源清理的 React 编排层。
+ * OUTPUT: DM、Room、Thread 共用的跟随状态、live 高度保护、聚合贴底、阅读锚定、定位入口与用户滚动处理器。
+ * POS: FOLLOW 单一贴底所有权、Virtualizer 测高委托、live 高度负债、READING 锚定和资源清理的 React 编排层。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
@@ -18,6 +18,7 @@ import {
 import { ConversationViewportAnchor } from "./conversation-viewport-anchor";
 import { HistoryPrependAnchor } from "./history-prepend-anchor";
 import { BottomScrollAnimator } from "./scroll-animation";
+import { useConversationLiveHeightGuard } from "./use-conversation-live-height-guard";
 import { useFollowScrollInteractions } from "./use-follow-scroll-interactions";
 
 interface UseFollowScrollOptions {
@@ -25,6 +26,7 @@ interface UseFollowScrollOptions {
   atomicLayoutKey?: string | null;
   contentKey?: string | null;
   historyPrependToken?: number;
+  liveLayoutActive?: boolean;
   sessionKey: string | null;
   topologyKey?: string | null;
 }
@@ -33,6 +35,9 @@ interface UseFollowScrollReturn {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   feedRef: React.RefObject<HTMLDivElement | null>;
   bottomAnchorRef: React.RefObject<HTMLDivElement | null>;
+  isBottomScrollActive: () => boolean;
+  isFollowingLatest: () => boolean;
+  liveLayoutActive: boolean;
   showScrollToBottom: boolean;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   pauseFollowLatest: () => void;
@@ -51,6 +56,7 @@ export function useFollowScroll({
   atomicLayoutKey = null,
   contentKey = null,
   historyPrependToken = 0,
+  liveLayoutActive = false,
   sessionKey,
   topologyKey = null,
 }: UseFollowScrollOptions): UseFollowScrollReturn {
@@ -61,6 +67,7 @@ export function useFollowScroll({
   const lastScrollTopRef = useRef(0);
   const revisionSessionKeyRef = useRef<string | null>(null);
   const previousTopologyKeyRef = useRef<string | null>(null);
+  const bottomCommitPendingRef = useRef(false);
   const viewportSizeRef = useRef<ReturnType<
     typeof getConversationViewportSize
   > | null>(null);
@@ -87,6 +94,32 @@ export function useFollowScroll({
       },
     );
   }
+
+  bottomCommitPendingRef.current = (
+    revisionSessionKeyRef.current !== sessionKey
+    || (
+      revisionSessionKeyRef.current === sessionKey
+      && previousTopologyKeyRef.current !== topologyKey
+    )
+  );
+  useConversationLiveHeightGuard({
+    active: liveLayoutActive,
+    feedRef,
+    revision: `${messageCount}\u001f${topologyKey ?? ""}`,
+    scopeKey: sessionKey,
+  });
+
+  const isBottomScrollActive = useCallback(
+    () => (
+      bottomCommitPendingRef.current
+      || (animatorRef.current?.isActive?.() ?? false)
+    ),
+    [],
+  );
+  const isFollowingLatest = useCallback(
+    () => shouldFollowLatestRef.current,
+    [],
+  );
 
   const setScrollToBottomVisibility = useCallback(
     (visible: boolean) => {
@@ -212,6 +245,7 @@ export function useFollowScroll({
     );
     revisionSessionKeyRef.current = sessionKey;
     previousTopologyKeyRef.current = topologyKey;
+    bottomCommitPendingRef.current = false;
     if (!container) {
       return;
     }
@@ -395,6 +429,9 @@ export function useFollowScroll({
     scrollRef,
     feedRef,
     bottomAnchorRef,
+    isBottomScrollActive,
+    isFollowingLatest,
+    liveLayoutActive,
     showScrollToBottom,
     scrollToBottom,
     pauseFollowLatest,

@@ -17,6 +17,8 @@ import type { SessionRoundIndexItem } from "@/types/conversation/history";
 interface ConversationFeedRefs {
   bottomAnchorRef: RefObject<HTMLDivElement | null>;
   feedRef?: RefObject<HTMLDivElement | null>;
+  isBottomScrollActive?: () => boolean;
+  isFollowingLatest?: () => boolean;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scrollRef?: RefObject<HTMLDivElement | null>;
 }
@@ -38,12 +40,14 @@ export interface ConversationRoundRenderer {
 }
 
 export interface ConversationRoundSource {
+  liveLayoutActive: boolean;
   liveRoundIds: string[];
   messageGroups: Map<string, Message[]>;
   pendingPermissions: PendingPermission[];
   roundIds: string[];
   roundIndexItems?: SessionRoundIndexItem[];
   runtimePhase?: AgentConversationRuntimePhase | null;
+  scopeKey: string | null;
 }
 
 export interface ConversationFeedProps {
@@ -80,6 +84,22 @@ export function resolveConversationRound(
     nodeId: resolveConversationRoundNodeId(messages, roundId),
     roundId,
   };
+}
+
+export function isConversationRoundActivelyGrowing(
+  source: ConversationRoundSource,
+  state: ConversationRoundState,
+): boolean {
+  if (state.isLive || (source.liveLayoutActive && state.isLast)) {
+    return true;
+  }
+  return state.messages.some((message) => (
+    message.role === "assistant"
+    && (message.stream_status === "pending"
+      || message.stream_status === "streaming")
+    && message.is_complete !== true
+    && !message.result_summary
+  ));
 }
 
 /**
