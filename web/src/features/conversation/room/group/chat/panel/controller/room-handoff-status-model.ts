@@ -1,6 +1,6 @@
 /**
  * INPUT: Room realtime final message、Agent public mention queue、pending slot 与 execution 锚点。
- * OUTPUT: 以 handoff_id 为唯一键且 responded > active > queued > preparing 的单调 mention 状态。
+ * OUTPUT: 以 handoff_id 为唯一键且 responded > active > starting > queued > preparing 的单调 mention 状态。
  * POS: Group Chat 面板的 public handoff 纯投影，不持有 React 状态或 feed 节点。
  */
 import type {
@@ -33,8 +33,9 @@ interface SourceHandoffIdentity {
 const HANDOFF_PHASE_PRIORITY: Record<AgentHandoffPhase, number> = {
   preparing: 1,
   queued: 2,
-  active: 3,
-  responded: 4,
+  starting: 3,
+  active: 4,
+  responded: 5,
 };
 
 export function projectRoomAgentHandoffStatuses({
@@ -90,10 +91,19 @@ export function projectRoomAgentHandoffStatuses({
     }
   }
   for (const slot of pendingSlots) {
-    setPhase(slot.handoff_id, "active");
+    setPhase(
+      slot.handoff_id,
+      slot.status === "pending" ? "starting" : "active",
+    );
   }
   for (const execution of executionStates) {
-    setPhase(execution.handoff_id, "active");
+    setPhase(
+      execution.handoff_id,
+      execution.phase === "pending_permission"
+        || execution.phase === "acknowledged"
+        ? "starting"
+        : "active",
+    );
   }
 
   return statuses;

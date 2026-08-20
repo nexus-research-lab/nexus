@@ -97,6 +97,7 @@ export function GroupConversationVirtualFeed({
     {
       bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
       followingLatest: refs.isFollowingLatest?.() ?? false,
+      userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );
   const scrollToIndex = useCallback(

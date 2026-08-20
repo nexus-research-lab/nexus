@@ -23,6 +23,7 @@ interface GroupConversationFeedRefs {
   feedRef?: RefObject<HTMLDivElement | null>;
   isBottomScrollActive?: () => boolean;
   isFollowingLatest?: () => boolean;
+  isUserScrollActive?: () => boolean;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scrollRef?: RefObject<HTMLDivElement | null>;
 }
@@ -38,7 +39,6 @@ export interface GroupConversationRoundSource {
   roundIds: string[];
   roundIndexItems?: SessionRoundIndexItem[];
   scopeKey: string | null;
-  unreadMarkerRoundId?: string | null;
 }
 
 export interface GroupConversationRoundRenderer {
@@ -78,7 +78,6 @@ export interface GroupConversationRoundState {
   roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
   rootRoundId: string;
-  showUnreadMarker: boolean;
 }
 
 export function resolveGroupConversationRound(
@@ -112,7 +111,6 @@ export function resolveGroupConversationRound(
     roomAgentExecutionStates,
     roundId,
     rootRoundId,
-    showUnreadMarker: source.unreadMarkerRoundId === roundId,
   };
 }
 
