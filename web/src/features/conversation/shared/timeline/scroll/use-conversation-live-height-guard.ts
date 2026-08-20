@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话、Feed 实测高度与是否仍处于 live layout epoch。
- * OUTPUT: live 期间单调不减的 Feed 最小高度，并在 epoch 收口后一次性平滑释放高度负债。
+ * OUTPUT: live 期间单调不减、内容底部锚定的 Feed 高度，并在终态异步布局安静后一次性释放顶部高度负债。
  * POS: FOLLOW/READING 共用的 Feed 级几何保护；不冻结消息子树，也不阻止正文和工具块继续自然增长。
  */
 import {
@@ -12,6 +12,7 @@ import {
 } from "react";
 
 const LIVE_HEIGHT_RELEASE_MS = 220;
+const LIVE_HEIGHT_SETTLE_MS = 160;
 const HEIGHT_TOLERANCE_PX = 0.5;
 
 export interface ConversationLiveHeightGuardState {
@@ -79,14 +80,16 @@ export function useConversationLiveHeightGuard({
 }: UseConversationLiveHeightGuardOptions): void {
   const normalizedScopeKey = scopeKey ?? "";
   const activeRef = useRef(active);
+  const requestedActiveRef = useRef(active);
   const stateRef = useRef<ConversationLiveHeightGuardState>({
     minimumHeight: 0,
     scopeKey: normalizedScopeKey,
     wasActive: false,
   });
   const releaseTimerRef = useRef<number | null>(null);
+  const settleTimerRef = useRef<number | null>(null);
   const guardedFeedRef = useRef<HTMLDivElement | null>(null);
-  activeRef.current = active;
+  requestedActiveRef.current = active;
 
   const cancelRelease = useCallback(() => {
     if (releaseTimerRef.current !== null) {
@@ -95,9 +98,20 @@ export function useConversationLiveHeightGuard({
     }
   }, []);
 
-  const applyRevision = useCallback((feed: HTMLDivElement) => {
+  const cancelSettle = useCallback(() => {
+    if (settleTimerRef.current !== null) {
+      window.clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+  }, []);
+
+  const applyRevision = useCallback((
+    feed: HTMLDivElement,
+    effectiveActive: boolean,
+  ) => {
     if (stateRef.current.scopeKey !== normalizedScopeKey) {
       cancelRelease();
+      cancelSettle();
       const previousFeed = guardedFeedRef.current;
       if (previousFeed) {
         clearConversationLiveHeightGuardStyle(previousFeed);
@@ -111,24 +125,25 @@ export function useConversationLiveHeightGuard({
     }
     const previous = stateRef.current;
     let measuredHeight = feed.getBoundingClientRect().height;
-    if (!activeRef.current && previous.wasActive) {
+    if (!effectiveActive && previous.wasActive) {
       // min-height 本身会污染 border-box 测量；结算 epoch 时只在本次
       // layout effect 内短暂读取 intrinsic height，随后恢复 held height。
       clearConversationLiveHeightGuardStyle(feed);
       measuredHeight = feed.getBoundingClientRect().height;
     }
     const next = resolveConversationLiveHeightGuard({
-      active: activeRef.current,
+      active: effectiveActive,
       measuredHeight,
       scopeKey: normalizedScopeKey,
     }, stateRef.current);
     stateRef.current = next.state;
     guardedFeedRef.current = feed;
 
-    if (activeRef.current) {
+    if (effectiveActive) {
       cancelRelease();
       feed.style.transition = "none";
       feed.style.minHeight = `${next.minimumHeight}px`;
+      feed.style.justifyContent = "flex-end";
       feed.dataset.conversationLiveHeightGuard = "active";
       return;
     }
@@ -141,6 +156,7 @@ export function useConversationLiveHeightGuard({
     cancelRelease();
     feed.style.transition = "none";
     feed.style.minHeight = `${previous.minimumHeight}px`;
+    feed.style.justifyContent = "flex-end";
     feed.dataset.conversationLiveHeightGuard = "releasing";
     // 先提交 held height，再平滑收口到 intrinsic height。
     void feed.offsetHeight;
@@ -152,19 +168,45 @@ export function useConversationLiveHeightGuard({
     feed.style.minHeight = `${measuredHeight}px`;
     releaseTimerRef.current = window.setTimeout(() => {
       releaseTimerRef.current = null;
-      if (guardedFeedRef.current === feed && !activeRef.current) {
+      if (guardedFeedRef.current === feed && !requestedActiveRef.current) {
         clearConversationLiveHeightGuardStyle(feed);
       }
     }, LIVE_HEIGHT_RELEASE_MS + 50);
-  }, [cancelRelease, normalizedScopeKey]);
+  }, [cancelRelease, cancelSettle, normalizedScopeKey]);
 
   useLayoutEffect(() => {
     const feed = feedRef.current;
     if (!feed) {
       return;
     }
-    applyRevision(feed);
-  }, [active, applyRevision, feedRef, revision]);
+    if (active) {
+      cancelSettle();
+      activeRef.current = true;
+      applyRevision(feed, true);
+      return;
+    }
+    if (!activeRef.current) {
+      applyRevision(feed, false);
+      return;
+    }
+
+    // terminal message、footer 和 iframe 的最终尺寸通常晚于 runtime 状态一到数帧。
+    // 结算窗口继续持有顶部高度负债，避免先释放、随后又被最终工具尺寸拉动。
+    applyRevision(feed, true);
+    feed.dataset.conversationLiveHeightGuard = "settling";
+    cancelSettle();
+    settleTimerRef.current = window.setTimeout(() => {
+      settleTimerRef.current = null;
+      if (
+        requestedActiveRef.current
+        || guardedFeedRef.current !== feed
+      ) {
+        return;
+      }
+      activeRef.current = false;
+      applyRevision(feed, false);
+    }, LIVE_HEIGHT_SETTLE_MS);
+  }, [active, applyRevision, cancelSettle, feedRef, revision]);
 
   useEffect(() => {
     const feed = feedRef.current;
@@ -175,7 +217,7 @@ export function useConversationLiveHeightGuard({
       if (!activeRef.current) {
         return;
       }
-      applyRevision(feed);
+      applyRevision(feed, true);
     });
     observer.observe(feed);
     return () => observer.disconnect();
@@ -183,15 +225,17 @@ export function useConversationLiveHeightGuard({
 
   useEffect(() => () => {
     cancelRelease();
+    cancelSettle();
     const feed = guardedFeedRef.current;
     if (feed) {
       clearConversationLiveHeightGuardStyle(feed);
     }
-  }, [cancelRelease]);
+  }, [cancelRelease, cancelSettle]);
 }
 
 function clearConversationLiveHeightGuardStyle(feed: HTMLDivElement): void {
   feed.style.removeProperty("min-height");
+  feed.style.removeProperty("justify-content");
   feed.style.removeProperty("transition");
   delete feed.dataset.conversationLiveHeightGuard;
 }

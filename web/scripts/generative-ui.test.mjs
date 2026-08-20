@@ -50,6 +50,28 @@ test("生成式 UI 流式 DOM 可交互，完成文档才执行模型脚本", as
   assert.match(shell, /--nexus-chart-5: #64748b/);
 });
 
+test("show_widget 高度在流式阶段不回缩并只在终态结算一次", async () => {
+  const { resolveGenerativeUIHeightRevision } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/generative-ui-height-model.ts",
+  );
+  assert.deepEqual(
+    resolveGenerativeUIHeightRevision(420, 260, false),
+    { height: 420, settle: false },
+  );
+  assert.deepEqual(
+    resolveGenerativeUIHeightRevision(420, 560, false),
+    { height: 560, settle: false },
+  );
+  assert.deepEqual(
+    resolveGenerativeUIHeightRevision(420, 260, true),
+    { height: 260, settle: true },
+  );
+  assert.deepEqual(
+    resolveGenerativeUIHeightRevision(420, 560, true),
+    { height: 560, settle: false },
+  );
+});
+
 test("show_widget 从工具过程提升到最终回复", async () => {
   const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
