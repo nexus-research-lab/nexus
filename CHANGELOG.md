@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
+
 ### Fixed
 
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
