@@ -20,6 +20,7 @@ import {
   buildConversationAtomicLayoutKey,
   buildConversationScrollContentKey,
   buildConversationScrollTopologyKey,
+  isConversationLiveLayoutActive,
 } from "../timeline/scroll/follow-scroll-model";
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
@@ -87,10 +88,29 @@ export function useConversationSession({
       sessionKey,
     ],
   );
+  const liveLayoutActive = useMemo(
+    () => isConversationLiveLayoutActive({
+      isLoading: conversation.is_loading,
+      liveRoundIds: conversation.live_round_ids,
+      messages: conversation.messages,
+      pendingAgentSlots: conversation.pending_agent_slots,
+      roomAgentExecutionStates: conversation.room_agent_execution_states,
+      runtimePhase: conversation.runtime_phase,
+    }),
+    [
+      conversation.is_loading,
+      conversation.live_round_ids,
+      conversation.messages,
+      conversation.pending_agent_slots,
+      conversation.room_agent_execution_states,
+      conversation.runtime_phase,
+    ],
+  );
   const scroll = useFollowScroll({
     atomicLayoutKey,
     contentKey: scrollContentKey,
     historyPrependToken: conversation.history_prepend_token,
+    liveLayoutActive,
     messageCount: conversation.messages.length,
     sessionKey,
     topologyKey: scrollTopologyKey,

@@ -5,6 +5,7 @@
  */
 import type { Message } from "@/types/conversation/message/entity";
 import type {
+  AgentConversationRuntimePhase,
   RoomAgentExecutionState,
   RoomPendingAgentSlotState,
 } from "@/types/agent/agent-conversation";
@@ -52,6 +53,15 @@ interface ConversationViewportElement {
 
 export type FollowScrollIntent = "down" | "up";
 
+interface ConversationLiveLayoutInput {
+  isLoading: boolean;
+  liveRoundIds: readonly string[];
+  messages: readonly Message[];
+  pendingAgentSlots: readonly RoomPendingAgentSlotState[];
+  roomAgentExecutionStates: readonly RoomAgentExecutionState[];
+  runtimePhase: AgentConversationRuntimePhase;
+}
+
 interface ScrollMessageIdentity {
   messageId: string;
   role: Message["role"] | "";
@@ -79,6 +89,41 @@ export function isAtScrollBottom(element: ScrollMetrics): boolean {
     getScrollBottomTop(element) - element.scrollTop
     <= SCROLL_OVERFLOW_TOLERANCE_PX
   );
+}
+
+/**
+ * live layout epoch 覆盖正文、工具调用、占位 shell 和权限状态的连续变化。
+ * 只要任一来源仍可能改变当前 Feed 的几何结构，就暂不结算高度回缩。
+ */
+export function isConversationLiveLayoutActive({
+  isLoading,
+  liveRoundIds,
+  messages,
+  pendingAgentSlots,
+  roomAgentExecutionStates,
+  runtimePhase,
+}: ConversationLiveLayoutInput): boolean {
+  if (isLoading || runtimePhase !== "idle" || liveRoundIds.length > 0) {
+    return true;
+  }
+  if (pendingAgentSlots.some((slot) => (
+    !slot.hidden_from_user
+    && (slot.status === "pending" || slot.status === "streaming")
+  ))) {
+    return true;
+  }
+  if (roomAgentExecutionStates.some((state) => (
+    !state.hidden_from_user && state.phase !== "terminal"
+  ))) {
+    return true;
+  }
+  return messages.some((message) => (
+    message.role === "assistant"
+    && (message.stream_status === "pending"
+      || message.stream_status === "streaming")
+    && message.is_complete !== true
+    && !message.result_summary
+  ));
 }
 
 /**

@@ -21,11 +21,14 @@ import type { ConversationRoundScrollHandleRef } from "@/features/conversation/s
 interface GroupConversationFeedRefs {
   bottomAnchorRef: RefObject<HTMLDivElement | null>;
   feedRef?: RefObject<HTMLDivElement | null>;
+  isBottomScrollActive?: () => boolean;
+  isFollowingLatest?: () => boolean;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scrollRef?: RefObject<HTMLDivElement | null>;
 }
 
 export interface GroupConversationRoundSource {
+  liveLayoutActive: boolean;
   liveRoundIds: string[];
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
@@ -34,6 +37,7 @@ export interface GroupConversationRoundSource {
   rootRoundIds?: Map<string, string>;
   roundIds: string[];
   roundIndexItems?: SessionRoundIndexItem[];
+  scopeKey: string | null;
   unreadMarkerRoundId?: string | null;
 }
 
@@ -110,6 +114,33 @@ export function resolveGroupConversationRound(
     rootRoundId,
     showUnreadMarker: source.unreadMarkerRoundId === roundId,
   };
+}
+
+export function isGroupConversationRoundActivelyGrowing(
+  source: GroupConversationRoundSource,
+  state: GroupConversationRoundState,
+): boolean {
+  if (state.isLive || (source.liveLayoutActive && state.isLast)) {
+    return true;
+  }
+  if (state.pendingSlots.some((slot) => (
+    !slot.hidden_from_user
+    && (slot.status === "pending" || slot.status === "streaming")
+  ))) {
+    return true;
+  }
+  if (state.roomAgentExecutionStates.some((execution) => (
+    !execution.hidden_from_user && execution.phase !== "terminal"
+  ))) {
+    return true;
+  }
+  return state.messages.some((message) => (
+    message.role === "assistant"
+    && (message.stream_status === "pending"
+      || message.stream_status === "streaming")
+    && message.is_complete !== true
+    && !message.result_summary
+  ));
 }
 
 /** canonical root 导航到它保留的 root node；无 root 正文时落到首个 Agent node。 */

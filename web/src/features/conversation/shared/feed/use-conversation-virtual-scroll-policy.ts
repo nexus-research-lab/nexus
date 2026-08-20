@@ -1,7 +1,7 @@
 /**
  * INPUT: 跨 optimistic ACK 稳定的节点身份与 TanStack Virtual 动态尺寸测量。
- * OUTPUT: 仅在轮次集合真实变化时更新的 item key，以及由 Virtualizer 独占上方补偿与尾部跟随的动态测高策略。
- * POS: DM 与 Room 虚拟消息流共用的身份和尺寸变化滚动协议。
+ * OUTPUT: 仅在轮次集合真实变化时更新的 item key，以及服从共享 scroll owner 与 live 高度保护的动态测高策略。
+ * POS: DM 与 Room 虚拟消息流共用的身份、尺寸变化和单写入者协议。
  */
 import { useCallback, useRef, type RefObject } from "react";
 
@@ -17,6 +17,11 @@ interface VirtualScrollState {
   scrollRect?: {
     height: number;
   } | null;
+}
+
+export interface ConversationVirtualAdjustmentContext {
+  bottomScrollActive: boolean;
+  followingLatest: boolean;
 }
 
 export function useConversationVirtualItemKey(
@@ -57,9 +62,21 @@ export function useConversationVirtualInitialOffset(
 
 export function shouldAdjustConversationVirtualScrollPosition(
   item: VirtualScrollItem,
-  _delta: number,
+  delta: number,
   instance: VirtualScrollState,
+  context: ConversationVirtualAdjustmentContext = {
+    bottomScrollActive: false,
+    followingLatest: false,
+  },
 ): boolean {
+  if (context.bottomScrollActive) {
+    return false;
+  }
+  if (context.followingLatest && delta < 0) {
+    // live epoch 的负向测量由 Feed min-height 吸收；若这里同步回写
+    // scrollTop，会和浏览器 clamp / bottom animator 形成往返震荡。
+    return false;
+  }
   const scrollOffset = instance.scrollOffset ?? 0;
   const itemIsAboveViewport = (
     item.end

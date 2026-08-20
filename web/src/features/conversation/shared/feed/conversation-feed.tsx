@@ -14,15 +14,19 @@ import { ConversationFeedTail } from "./conversation-feed-tail";
 import { ConversationRound } from "./conversation-round";
 import { ConversationVirtualFeed } from "./conversation-virtual-feed";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
+import { useConversationVirtualizationPolicy } from "./use-conversation-virtualization-policy";
 
 const VIRTUAL_ROUND_THRESHOLD = 20;
 
 export const ConversationFeed = memo(function ConversationFeed(
   props: ConversationFeedProps,
 ) {
-  const shouldVirtualize =
-    props.source.roundIds.length >= VIRTUAL_ROUND_THRESHOLD
-    && Boolean(props.refs.scrollRef);
+  const shouldVirtualize = useConversationVirtualizationPolicy({
+    active: props.source.liveLayoutActive,
+    count: props.source.roundIds.length,
+    scopeKey: props.source.scopeKey,
+    threshold: VIRTUAL_ROUND_THRESHOLD,
+  }) && Boolean(props.refs.scrollRef);
 
   if (shouldVirtualize && props.refs.scrollRef) {
     return (

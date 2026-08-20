@@ -46,6 +46,9 @@ type DmChatSession = Omit<
   scroll: ConversationPanelSessionSource["scroll"] & {
     bottomAnchorRef: RefObject<HTMLDivElement | null>;
     feedRef: RefObject<HTMLDivElement | null>;
+    isBottomScrollActive: () => boolean;
+    isFollowingLatest: () => boolean;
+    liveLayoutActive: boolean;
   };
 };
 type DmGoalProjection = Pick<
@@ -222,6 +225,8 @@ function buildDmFeedModel({
     refs: {
       bottomAnchorRef: scroll.bottomAnchorRef,
       feedRef: scroll.feedRef,
+      isBottomScrollActive: scroll.isBottomScrollActive,
+      isFollowingLatest: scroll.isFollowingLatest,
       roundScrollRef,
       scrollRef: scroll.scrollRef,
     },
@@ -237,12 +242,14 @@ function buildDmFeedModel({
       workspaceAgentId,
     },
     source: {
+      liveLayoutActive: scroll.liveLayoutActive,
       liveRoundIds: conversation.live_round_ids,
       messageGroups: timeline.message_groups,
       pendingPermissions: conversation.pending_permissions,
       roundIds: timeline.feed_round_ids,
       roundIndexItems,
       runtimePhase: conversation.runtime_phase,
+      scopeKey: session.sessionKey,
     },
   };
 }
