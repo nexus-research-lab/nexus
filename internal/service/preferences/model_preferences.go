@@ -1,4 +1,4 @@
-// INPUT: 用户级偏好、局部更新请求与 runtime/WebSearch 约束。
+// INPUT: 用户级偏好、局部更新请求与 runtime/WebSearch/浏览器权限约束。
 // OUTPUT: 带单调 version 的规范化 Preferences 及字段校验。
 // POS: Preferences 文件真相源的数据契约；version 只由 Service 写入推进。
 package preferences
@@ -21,6 +21,7 @@ type Preferences struct {
 	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	EmotionEnabled                  bool                        `json:"emotion_enabled,omitempty"`
+	BrowserCDPEnabled               bool                        `json:"browser_cdp_enabled,omitempty"`
 	RuntimeSettings                 RuntimeSettings             `json:"runtime_settings"`
 	WebSearch                       WebSearchSettings           `json:"web_search"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
@@ -36,6 +37,7 @@ type UpdateRequest struct {
 	AgentRuntimeKind                *string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	EmotionEnabled                  *bool                        `json:"emotion_enabled,omitempty"`
+	BrowserCDPEnabled               *bool                        `json:"browser_cdp_enabled,omitempty"`
 	RuntimeSettings                 *RuntimeSettings             `json:"runtime_settings,omitempty"`
 	WebSearch                       *WebSearchSettings           `json:"web_search,omitempty"`
 	WebSearchAPIKey                 *string                      `json:"web_search_api_key,omitempty"`
@@ -205,6 +207,7 @@ func normalizePreferences(item Preferences) Preferences {
 		AgentRuntimeKind:                runtimeKind,
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
 		EmotionEnabled:                  item.EmotionEnabled,
+		BrowserCDPEnabled:               item.BrowserCDPEnabled,
 		RuntimeSettings:                 normalizeRuntimeSettings(item.RuntimeSettings),
 		WebSearch:                       webSearch,
 		DefaultAgentOptions:             options,

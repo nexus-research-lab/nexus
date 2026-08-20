@@ -293,6 +293,7 @@ Copy-Item -Recurse -Force (Join-Path $rootDir "web/dist") (Join-Path $resourcesD
 New-Item -ItemType Directory -Force -Path (Join-Path $resourcesDir "db") | Out-Null
 Copy-Item -Recurse -Force (Join-Path $rootDir "db/migrations") (Join-Path $resourcesDir "db/migrations")
 Copy-Item -Recurse -Force (Join-Path $rootDir "skills") (Join-Path $resourcesDir "skills")
+Copy-Item -Recurse -Force (Join-Path $rootDir "desktop/browser-extension") (Join-Path $resourcesDir "Nexus Browser Extension")
 
 $desktopEnvPath = Join-Path $resourcesDir "desktop.env"
 Remove-Item -Force $desktopEnvPath -ErrorAction SilentlyContinue

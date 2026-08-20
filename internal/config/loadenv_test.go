@@ -138,6 +138,15 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 	}
 }
 
+func TestLoadWebBridgeDefaultsToDesktopMode(t *testing.T) {
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	t.Setenv("NEXUS_WEBBRIDGE_ENABLED", "")
+
+	if cfg := Load(); !cfg.WebBridgeEnabled {
+		t.Fatal("desktop 模式应默认启用 WebBridge")
+	}
+}
+
 func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")

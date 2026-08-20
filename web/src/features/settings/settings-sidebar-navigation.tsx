@@ -5,6 +5,7 @@ import {
   Cable,
   Cpu,
   FolderKanban,
+	MousePointer2,
   Palette,
   Settings2,
   ShieldCheck,
@@ -30,6 +31,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   runtime: Cpu,
   operations: ShieldCheck,
   permissions: ShieldCheck,
+	"computer-use": MousePointer2,
   personal: UserRound,
   providers: Cable,
   workspace: FolderKanban,
@@ -50,6 +52,7 @@ export function SettingsSidebarNavigation({
     items: group.items.filter(
       (item) =>
         (item.key !== "workspace" || isDesktopRuntime()) &&
+				(item.key !== "computer-use" || isDesktopRuntime()) &&
         (item.key !== "operations" ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),

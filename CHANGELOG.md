@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Nexus WebBridge with a guided desktop extension setup, live connection status, multi-tab browser automation, opt-in raw CDP, network inspection, uploads, screenshots, and PDF export.
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Fixed

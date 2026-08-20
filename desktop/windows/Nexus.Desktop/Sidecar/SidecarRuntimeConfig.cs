@@ -5,7 +5,8 @@ public sealed record SidecarRuntimeConfig(
     string SessionToken,
     string AppVersion,
     string BuildNumber,
-    string Platform)
+    string Platform,
+    string AppRoot)
 {
     private const string OAuthCallbackPath = "capability/connectors/oauth/callback";
 

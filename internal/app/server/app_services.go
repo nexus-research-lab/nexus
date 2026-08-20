@@ -40,6 +40,7 @@ import (
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	webbridgesvc "github.com/nexus-research-lab/nexus/internal/service/webbridge"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
@@ -80,6 +81,7 @@ type AppServices struct {
 	Orchestration          *orchestrationsvc.Service
 	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
+	WebBridge              *webbridgesvc.Service
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
 	ownsDB                 bool
@@ -96,6 +98,9 @@ func (s *AppServices) Close(ctx context.Context) error {
 	}
 	if s.Title != nil {
 		closeErrors = append(closeErrors, s.Title.Close(ctx))
+	}
+	if s.WebBridge != nil {
+		s.WebBridge.Close()
 	}
 	if s.ownsDB && s.DB != nil {
 		closeErrors = append(closeErrors, s.DB.Close())
@@ -155,6 +160,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		}, nil
 	})
 	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
+	var webBridgeService *webbridgesvc.Service
+	if cfg.WebBridgeEnabled {
+		webBridgeService = webbridgesvc.NewService()
+	}
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
@@ -375,6 +384,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
+	webBridgeBuilder := newWebBridgeMCPBuilder(webBridgeService, preferencesService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
 		communicationBuilder,
@@ -383,6 +393,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelAuthorizationBuilder,
 		contextOnlyMCPBuilder(visualizeBuilder),
 		contextOnlyMCPBuilder(imagegenBuilder),
+		contextOnlyMCPBuilder(webBridgeBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
 	dmService.SetMCPServerBuilder(mcpBuilder)
@@ -424,6 +435,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Orchestration:          orchestrationService,
 		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,
+		WebBridge:              webBridgeService,
 		SlashCatalog:           slashCommandCatalog,
 		SlashRegistry:          slashCommandRegistry,
 	}

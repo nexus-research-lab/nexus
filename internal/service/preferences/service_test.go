@@ -36,6 +36,9 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if prefs.EmotionEnabled {
 		t.Fatalf("情绪系统默认应关闭: %+v", prefs)
 	}
+	if prefs.BrowserCDPEnabled {
+		t.Fatalf("完整 CDP 访问默认应关闭: %+v", prefs)
+	}
 	if prefs.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
 	}
@@ -73,6 +76,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		AgentRuntimeKind:           stringPointer("nxs"),
 		AgentSDKDiagnosticsEnabled: boolPointer(true),
 		EmotionEnabled:             boolPointer(true),
+		BrowserCDPEnabled:          boolPointer(true),
 		RuntimeSettings: &RuntimeSettings{
 			"nxs":    {ToolSearch: true},
 			"claude": {ToolSearch: true},
@@ -111,6 +115,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if !prefs.EmotionEnabled {
 		t.Fatalf("情绪系统偏好未持久化: %+v", prefs)
 	}
+	if !prefs.BrowserCDPEnabled {
+		t.Fatalf("完整 CDP 访问偏好未持久化: %+v", prefs)
+	}
 	if !prefs.ToolSearchEnabledForRuntime("nxs") || prefs.ToolSearchEnabledForRuntime("claude") {
 		t.Fatalf("ToolSearch 应只在 nxs runtime 生效: %+v", prefs.RuntimeSettings)
 	}
@@ -141,6 +148,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		loaded.AgentRuntimeKind != "nxs" ||
 		!loaded.AgentSDKDiagnosticsEnabled ||
 		!loaded.EmotionEnabled ||
+		!loaded.BrowserCDPEnabled ||
 		!loaded.ToolSearchEnabledForRuntime("nxs") ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)

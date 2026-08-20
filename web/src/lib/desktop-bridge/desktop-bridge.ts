@@ -4,6 +4,7 @@ type DesktopBridgeKind =
   | "app.choose_state_root"
   | "app.relocate_state_root"
   | "app.open_external_url"
+  | "app.start_browser_extension_setup"
   | "app.get_workspace_file_applications"
   | "app.open_workspace_file"
   | "app.export_logs"
@@ -132,6 +133,13 @@ export async function openDesktopExternalURL(url: string): Promise<void> {
   await invokeDesktopBridge<{ url: string }, { opened: boolean }>(
     "app.open_external_url",
     { url },
+  );
+}
+
+export async function startDesktopBrowserExtensionSetup(): Promise<void> {
+  await invokeDesktopBridge<Record<string, never>, { opened: boolean }>(
+    "app.start_browser_extension_setup",
+    {},
   );
 }
 

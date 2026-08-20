@@ -25,7 +25,11 @@ final class SidecarSupervisor {
     startupTimeline?.mark("sidecar.reap_begin")
     orphanReaper.reapIfNeeded()
     port = try SidecarPortAllocator.allocate(startupTimeline: startupTimeline)
-    runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
+    runtimeConfig = SidecarRuntimeConfig(
+      port: port,
+      sessionToken: try DesktopSessionToken.generate(),
+      appRootPath: locator.appRootURL.path
+    )
     startupTimeline?.mark("sidecar.config_resolved", metadata: [
       "mode": locator.projectRoot == nil ? "bundle" : "development",
       "port": "\(port)",
