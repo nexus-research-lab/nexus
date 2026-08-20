@@ -7,6 +7,7 @@ struct SidecarRuntimeConfig {
   let appVersion: String
   let buildNumber: String
   let platform: String
+  let appRootPath: String
 
   init(
     port: Int,
@@ -14,7 +15,8 @@ struct SidecarRuntimeConfig {
     appMode: String = "desktop",
     appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
     buildNumber: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "dev",
-    platform: String = "macos"
+    platform: String = "macos",
+    appRootPath: String = FileManager.default.currentDirectoryPath
   ) {
     self.port = port
     self.sessionToken = sessionToken
@@ -22,6 +24,7 @@ struct SidecarRuntimeConfig {
     self.appVersion = appVersion
     self.buildNumber = buildNumber
     self.platform = platform
+    self.appRootPath = appRootPath
   }
 
   var webURL: URL {

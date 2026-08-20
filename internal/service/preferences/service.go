@@ -159,6 +159,9 @@ func (s *Service) updateLocked(
 	if request.EmotionEnabled != nil {
 		current.EmotionEnabled = *request.EmotionEnabled
 	}
+	if request.BrowserCDPEnabled != nil {
+		current.BrowserCDPEnabled = *request.BrowserCDPEnabled
+	}
 	if request.RuntimeSettings != nil {
 		current.RuntimeSettings = *request.RuntimeSettings
 	}

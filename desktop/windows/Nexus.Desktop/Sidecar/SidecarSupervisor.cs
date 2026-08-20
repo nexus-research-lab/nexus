@@ -34,7 +34,8 @@ internal sealed class SidecarSupervisor : IDisposable
             SessionToken: DesktopSessionToken.Generate(),
             AppVersion: AppVersionInfo.Version,
             BuildNumber: AppVersionInfo.BuildNumber,
-            Platform: "windows");
+            Platform: "windows",
+            AppRoot: locator.AppRoot);
         startupTimeline.Mark("sidecar.config_resolved", new Dictionary<string, string>
         {
             ["mode"] = locator.IsDevelopment ? "development" : "bundle",

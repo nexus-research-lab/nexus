@@ -243,6 +243,7 @@ fi
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/web/dist/" "${RESOURCES_DIR}/Web/"
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/db/migrations/" "${RESOURCES_DIR}/db/migrations/"
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/skills/" "${RESOURCES_DIR}/skills/"
+rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/desktop/browser-extension/" "${RESOURCES_DIR}/Nexus Browser Extension/"
 
 DESKTOP_ENV_PATH="${RESOURCES_DIR}/desktop.env"
 rm -f "${DESKTOP_ENV_PATH}"

@@ -58,6 +58,7 @@ internal sealed class DesktopBridgeHandler
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
+                "app.start_browser_extension_setup" => StartBrowserExtensionSetup(),
                 "app.get_workspace_file_applications" => GetWorkspaceFileApplications(payload),
                 "app.open_workspace_file" => OpenWorkspaceFile(payload),
                 "app.export_logs" => ExportLogs(),
@@ -129,6 +130,30 @@ internal sealed class DesktopBridgeHandler
             FileName = rawUrl,
             UseShellExecute = true,
         });
+        return new { opened = true };
+    }
+
+    private object StartBrowserExtensionSetup()
+    {
+        string[] candidates =
+        [
+            Path.Combine(runtime.AppRoot, "Nexus Browser Extension"),
+            Path.Combine(runtime.AppRoot, "desktop", "browser-extension"),
+        ];
+        string? extensionDirectory = candidates.FirstOrDefault(
+            path => File.Exists(Path.Combine(path, "manifest.json")));
+        if (extensionDirectory is null)
+        {
+            throw new DirectoryNotFoundException("未找到 Nexus 浏览器扩展，请重新安装或更新 Nexus。");
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "chrome.exe",
+            Arguments = "chrome://extensions",
+            UseShellExecute = true,
+        });
+        Process.Start(ExplorerSelection(extensionDirectory));
         return new { opened = true };
     }
 

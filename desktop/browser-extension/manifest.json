@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Nexus WebBridge",
+  "description": "Connects Nexus to Chromium for full browser automation and computer-use actions.",
+  "version": "0.2.0",
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhCvgZ6d/YrpV+rSHU4SiWr6hFYZU+EXbWeo52rG/kjsrV/Pd6HkSkBNPgzigXmTRriNSuJpW9fw546/iBY2gYytPENY21Zb2TZ/CwiWOGUYk+8IUhjWOa9qhrJpcpdWbDGMw7dSAkR/w2+dLUY5Shw+b/6NHgJFVmwWL2ugRZZCtth2Q7y6hGpoB5ifSxrAj1rjesKSHL7rXDBQo5Qlyo50Yh4fxf5Nc6NqYHxmR6wtG51Hc9jUqWEonJlNAKl+ju5i7gWrN+icZExyJ+3x5/tL57GjmlRegPgPt0+QLFSB4DlJSaYxvPg0x3TjJCixDEhCknU/RrzlXr++SVsLwqwIDAQAB",
+  "permissions": [
+    "alarms",
+    "debugger",
+    "storage",
+    "tabGroups",
+    "tabs",
+    "windows"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Nexus WebBridge",
+    "default_popup": "popup.html"
+  }
+}

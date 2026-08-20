@@ -90,6 +90,8 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       let rawURL = request.stringPayload("url")
       try openExternalURL(rawURL)
       return ["opened": true]
+    case "app.start_browser_extension_setup":
+      return try startBrowserExtensionSetup()
     case "app.get_workspace_file_applications":
       return try DesktopWorkspaceFileActions.applicationsPayload(
         for: request.stringPayload("path")
@@ -144,6 +146,34 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       throw DesktopBridgeError.invalidURL
     }
     try DesktopExternalURLPolicy.open(url)
+  }
+
+  private func startBrowserExtensionSetup() throws -> [String: Any] {
+    let root = URL(fileURLWithPath: runtime.appRootPath, isDirectory: true)
+    let candidates = [
+      root.appendingPathComponent("Nexus Browser Extension", isDirectory: true),
+      root.appendingPathComponent("desktop/browser-extension", isDirectory: true),
+    ]
+    guard let extensionURL = candidates.first(where: {
+      FileManager.default.fileExists(atPath: $0.appendingPathComponent("manifest.json").path)
+    }) else {
+      throw DesktopBridgeError.browserExtensionUnavailable
+    }
+    guard let chromeExtensionsURL = URL(string: "chrome://extensions"),
+          let chromeApplicationURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.google.Chrome"
+          ) else {
+      throw DesktopBridgeError.browserExtensionsPageUnavailable
+    }
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    NSWorkspace.shared.open(
+      [chromeExtensionsURL],
+      withApplicationAt: chromeApplicationURL,
+      configuration: configuration
+    ) { _, _ in }
+    NSWorkspace.shared.activateFileViewerSelecting([extensionURL])
+    return ["opened": true]
   }
 
   private func chooseStateRoot(initialPath: String, title: String, prompt: String) -> [String: Any] {
@@ -346,6 +376,8 @@ private enum DesktopBridgeError: LocalizedError {
   case invalidRoute
   case archiveFailed
   case invalidResponse
+  case browserExtensionUnavailable
+  case browserExtensionsPageUnavailable
 
   var errorDescription: String? {
     switch self {
@@ -359,6 +391,10 @@ private enum DesktopBridgeError: LocalizedError {
       return "日志归档失败。"
     case .invalidResponse:
       return "桌面桥接响应生成失败。"
+    case .browserExtensionUnavailable:
+      return "未找到 Nexus 浏览器扩展，请重新安装或更新 Nexus。"
+    case .browserExtensionsPageUnavailable:
+      return "无法打开 Chrome 扩展程序页面，请确认已安装 Google Chrome。"
     }
   }
 }

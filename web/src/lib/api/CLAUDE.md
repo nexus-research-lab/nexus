@@ -6,6 +6,6 @@
 - `account/` 负责登录、个人账户和订阅运营接口。
 - `capability/` 负责技能、连接器、频道、Loop、定时任务和能力摘要接口。
 - `conversation/` 负责 Session、Room、Goal 和子智能体任务接口。
-- `settings/` 负责偏好、Provider、运行时和系统版本接口。
+- `settings/` 负责偏好、Provider、运行时、浏览器扩展状态和系统版本接口。
 
 消费者直接导入职责文件；内部重组不保留旧路径转发层。
