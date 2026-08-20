@@ -19,6 +19,13 @@
 
 Lead 应从任务实际结构判断是否需要持久成员责任，而不是检查用户有没有说“协作”。若完成任务需要多个持久成员分别拥有可追责交付，或存在依赖、并行、汇总、验收、恢复与连续性交接，就先准备完整 Plan Document，并提交服务端返回的 exact sealed proposal，再根据刷新后的 `ready_work` 创建 Assignment。图 materialize 前 `assign_work` 不可用是正常 bootstrap，不是改用裸 `@` 派活的理由。
 
+### Coordinator 分派顺序与 lane 转移
+
+- 在 coordination lane 中，先把当前已 Ready、希望由其他 Room 成员拥有的独立责任逐个 `assign_work`；每个 Assignment 都会改变 snapshot revision，所以 command 必须串行，每次以 mutation 返回的最新 `execution_context` 继续，不并行发出多个责任 mutation。
+- 若 Lead 也要承担一个当前 Ready 的 Work Item，将 self Assignment 放在上述成员分派之后。它不只是写入图：宿主会在同一 physical round 签发 exact WorkBinding，将 Lead 从 coordination lane 切到只对该 Work Item 有权的 work lane。此时先前分派的成员可以与 Lead 真实并行，Lead 也可在自己的责任内启动 Subagent。
+- work/review lane 中只消费 exact binding 和当前 `allowed_actions`。不得因 Lead/coordinator 身份、旧 context 或 `next_actions` 建议去分派兄弟 Work Item、修改 Plan 或接管他人责任，也不通过显式 locator、`@` 或伪造 binding 绕过。
+- 完成当前责任后调用 `submit_work`；如果 Lead 同时是 selected reviewer，再在该 binding 允许时 `review_work`。只有最新 context 明确投影 `lane=coordination` 后才继续分派、replan、takeover 或其他协调动作；外部 reviewer 尚未完成时，Submission 等待是已交付责任，不是另一条协调权限。
+
 只想聊天、brainstorm、投票或获取一次性帮助时，直接使用普通消息和 `@`，不要创建 WorkGraph。成员名后的空格只影响可读性，后端会按已知别名匹配；不要依赖 mention 文本伪造 binding。
 
 父 Agent 与 Subagent 之间遵循同样原则：父 Agent 下发边界和已有证据，子 Agent 返回局部结果，父 Agent 负责整合与最终提交。

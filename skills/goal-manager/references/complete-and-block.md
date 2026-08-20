@@ -36,4 +36,4 @@ Goal 审计只记录证据，不完成 Goal。完成时后端始终校验 Goal r
 
 只有同一个具体阻塞条件在连续 Goal 续跑中重复出现，且没有用户输入、权限或外部状态变化就无法继续时，才标记 `blocked`。当前产品阈值是至少连续三个 Goal turns；blocked Goal 被用户恢复后重新计算这一审计窗口。
 
-不要因一次澄清、不确定、任务困难、执行缓慢或暂时缺证就阻塞。达到阈值后按 command 流程执行 `update_goal`，输入 `{"status":"blocked"}`，并向用户说明具体缺口；不要一边持续报告阻塞，一边让 Goal 保持 active。`update_goal` 只接收终态并由后端校验 Goal/Room/revision 权限，连续三轮是模型必须遵守的行为策略，不是该 status-only operation 能够自行推断的服务端审计。
+不要因一次澄清、不确定、任务困难、执行缓慢或暂时缺证就阻塞。达到阈值后按 command 流程执行 `update_goal`，输入必须同时包含四个字段：`{"status":"blocked","blocker_id":"<stable-id>","reason":"<concrete blocker>","needed_input":"<exact user input, permission, or external change>"}`。相同阻塞条件才复用同一个 stable `blocker_id`；条件变化就换 ID。随后向用户说明具体缺口；不要一边持续报告阻塞，一边让 Goal 保持 active。后端校验 Goal/Room/revision 权限并持久化明确恢复路径，但连续三轮是模型必须遵守的行为策略，不能靠 status 或 blocker 字段让服务端自行推断。
