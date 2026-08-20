@@ -1,4 +1,5 @@
-// Package operation defines the fixed model-facing Execution Orchestration command set.
+// Package operation defines the model-facing Execution Orchestration and
+// WorkGraph Workflow distillation command set.
 //
 // L2 | 父级: internal/cli/runtimecommand/execution（L2 见其 doc.go）
 //
@@ -18,6 +19,9 @@
 // Execution -> Goal mutation whose reverse confirmation is still recovering is
 // returned as applied/noop with goal_confirmation_status=pending and an
 // executable retry next_action, never as a transport IsError.
+// distill_workgraph_workflow is the only model write boundary for reusable
+// Workflow commands: it consumes exact historical Work Item locators and
+// persists semantic nodes/dependencies without runtime or delivery history.
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 doc.go（L2）
 package operation

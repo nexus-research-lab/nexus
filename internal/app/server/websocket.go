@@ -1,5 +1,5 @@
 // INPUT: AppServices 单例、WebSocket transport 依赖与 runtime kind resolver。
-// OUTPUT: 已注入 Room/Goal broadcaster 及 ExecutionInvalidationSink 的 WebSocket handler。
+// OUTPUT: 已注入 Room/Goal broadcaster、owner Workflow command provider 及 ExecutionInvalidationSink 的 WebSocket handler。
 // POS: service 到 handler 的组合根；业务 service 不反向依赖 WebSocket。
 package server
 
@@ -39,6 +39,9 @@ func newWebSocketHandler(
 	)
 	if services != nil && services.Orchestration != nil {
 		services.Orchestration.SetExecutionInvalidationSink(handler)
+	}
+	if services != nil && services.WorkGraphWorkflow != nil {
+		handler.SetWorkGraphWorkflowProvider(services.WorkGraphWorkflow)
 	}
 	if services != nil && services.Automation != nil {
 		handler.SetAutomationPermissionService(services.Automation)

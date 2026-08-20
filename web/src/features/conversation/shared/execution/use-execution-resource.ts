@@ -36,6 +36,7 @@ export interface ExecutionResource {
   isStale: boolean;
   lastSuccessfulAt: number | null;
   refresh: () => void;
+  sessionKey: string | null;
 }
 
 function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
@@ -147,5 +148,6 @@ export function useExecutionResource({
     isStale: Boolean(visibleSnapshot.error && execution),
     lastSuccessfulAt: visibleSnapshot.lastSuccessfulAt,
     refresh: () => void refresh(false),
+    sessionKey,
   };
 }

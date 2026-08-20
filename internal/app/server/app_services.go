@@ -40,10 +40,12 @@ import (
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	workgraphworkflowsvc "github.com/nexus-research-lab/nexus/internal/service/workgraphworkflow"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	workgraphworkflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
 )
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
@@ -78,6 +80,7 @@ type AppServices struct {
 	Goal                   *goalsvc.Service
 	GoalCommand            goalcommandcontract.Service
 	Orchestration          *orchestrationsvc.Service
+	WorkGraphWorkflow      *workgraphworkflowsvc.Service
 	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
 	SlashCatalog           *slashcommandsvc.Catalog
@@ -132,6 +135,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		core.Room,
 	))
 	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
+	workGraphWorkflowService := workgraphworkflowsvc.NewService(
+		workgraphworkflowstore.NewRepository(cfg, db),
+		orchestrationService,
+	)
 	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
 		executionSubagentToolHistory{sessions: core.Session},
 	)
@@ -222,6 +229,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetExecutionContextProvider(orchestrationService)
+	dmService.SetRuntimeSlashExpander(workGraphWorkflowService)
 	dmService.SetSubagentAdmissionProvider(orchestrationService)
 	dmService.SetRuntimeAdmissionResolver(authService)
 	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
@@ -243,6 +251,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetQuotaChecker(subscriptionService)
 	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetExecutionContextProvider(orchestrationService)
+	roomRealtime.SetRuntimeSlashExpander(workGraphWorkflowService)
 	roomRealtime.SetSubagentAdmissionProvider(orchestrationService)
 	roomRealtime.SetRuntimeAdmissionResolver(authService)
 	roomRealtime.SetQueueAdmissionStore(queueAdmissionRepository)
@@ -422,6 +431,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Goal:                   goalService,
 		GoalCommand:            explicitGoalCoordinator,
 		Orchestration:          orchestrationService,
+		WorkGraphWorkflow:      workGraphWorkflowService,
 		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,
 		SlashCatalog:           slashCommandCatalog,

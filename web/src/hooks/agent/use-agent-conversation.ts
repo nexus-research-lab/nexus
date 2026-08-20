@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/features/conversation/shared/execution/workgraph-distillation-intent";
 import type {
   CommandCatalogData,
   ContextUsageData,
@@ -21,6 +22,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 
 import type { AgentConversationActionContext } from "./actions/conversation-action-context";
+import { buildSessionBindMessage } from "./actions/conversation-command-builders";
 import { useAgentConversationActions } from "./actions/use-agent-conversation-actions";
 import { usePendingRequestAcks } from "./actions/use-pending-request-acks";
 import { useRequestAckFailure } from "./actions/use-request-ack-failure";
@@ -264,6 +266,29 @@ export function useAgentConversation(
     onError,
     setError,
   });
+  useEffect(() => {
+    const refreshCommandCatalog = () => {
+      const sessionKey = session.sessionKey?.trim();
+      if (!sessionKey) {
+        return;
+      }
+      wsSend(buildSessionBindMessage({
+        session_key: sessionKey,
+        last_seen_session_seq: sessionSeqCursorRef.current,
+        agent_id: agentId,
+        room_id: roomId,
+        conversation_id: conversationId,
+      }));
+    };
+    window.addEventListener(
+      WORKGRAPH_WORKFLOWS_CHANGED_EVENT,
+      refreshCommandCatalog,
+    );
+    return () => window.removeEventListener(
+      WORKGRAPH_WORKFLOWS_CHANGED_EVENT,
+      refreshCommandCatalog,
+    );
+  }, [agentId, conversationId, roomId, session.sessionKey, wsSend]);
   const actionContext: AgentConversationActionContext = {
     acknowledgePermissionRequest,
     activeSessionKeyRef: session.activeSessionKeyRef,

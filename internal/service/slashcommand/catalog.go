@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	catalogGeneration    = 5
+	catalogGeneration    = 6
 	visualizeCommandName = "visualize"
+	workGraphCommandName = "workgraph"
 )
 
 // RuntimeCatalogSnapshot 是当前 Nexus 版本内置的单个 runtime 指令快照。
@@ -120,16 +121,42 @@ func VisualizeCommandDescriptor() protocol.CommandDescriptor {
 	)
 }
 
+// WorkGraphCommandDescriptor 返回显式启用 Nexus WorkGraph 协作的产品入口。
+// 具体沉淀工作流使用各自的命名 Slash，不复用该固定名称。
+func WorkGraphCommandDescriptor() protocol.CommandDescriptor {
+	return newRuntimeCommand(
+		workGraphCommandName,
+		"Use WorkGraph collaboration for this request",
+		"<request>",
+	)
+}
+
 // ExpandVisualizePrompt 仅在投递 runtime 时把 /visualize 展开为简短提示。
 func ExpandVisualizePrompt(content string) string {
+	return ExpandProductPrompt(content)
+}
+
+// ExpandProductPrompt 只在 runtime 投递边界展开 Nexus 固定产品提示型命令。
+func ExpandProductPrompt(content string) string {
 	name, arguments, ok := parseInvocation(content)
-	if !ok || name != visualizeCommandName {
+	if !ok {
 		return content
 	}
-	if arguments == "" {
-		return "Use Generative UI to create a relevant interactive visual from the current conversation."
+	switch name {
+	case visualizeCommandName:
+		if arguments == "" {
+			return "Use Generative UI to create a relevant interactive visual from the current conversation."
+		}
+		return "Use Generative UI to create an interactive visual for the following request:\n\n" + arguments
+	case workGraphCommandName:
+		request := arguments
+		if request == "" {
+			request = "Use the actionable request already established in this conversation."
+		}
+		return "Use Nexus WorkGraph collaboration for the following request. Load the execution-orchestrator skill, create a fresh managed WorkGraph with explicit deliverables, dependencies, responsibility and review where needed, then execute it. Do not treat mentions as Assignment and do not reuse historical run identities.\n\nRequest:\n" + request
+	default:
+		return content
 	}
-	return "Use Generative UI to create an interactive visual for the following request:\n\n" + arguments
 }
 
 func normalizeRuntimeKind(kind agentclient.RuntimeKind) agentclient.RuntimeKind {

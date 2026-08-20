@@ -41,7 +41,7 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 		data.RuntimeKind != "nxs" ||
 		data.AgentID != "agent-a" ||
 		!strings.HasPrefix(data.Revision, "commands-") ||
-		len(data.Commands) != 4 {
+		len(data.Commands) != 5 {
 		t.Fatalf("catalog = %#v, want scoped ready snapshot", data)
 	}
 	compact := data.Commands[0]
@@ -70,6 +70,12 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 		!visualize.Enabled {
 		t.Fatalf("visualize = %#v, want product runtime prompt", visualize)
 	}
+	workGraph := data.Commands[4]
+	if workGraph.Name != "workgraph" ||
+		workGraph.Execution != protocol.CommandExecutionRuntime ||
+		!workGraph.Enabled {
+		t.Fatalf("workgraph = %#v, want fixed collaboration prompt", workGraph)
+	}
 }
 
 func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T) {
@@ -87,9 +93,10 @@ func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T
 
 	if data.Status != protocol.CommandCatalogStatusUnavailable ||
 		!strings.HasPrefix(data.Revision, "commands-") ||
-		len(data.Commands) != 2 ||
+		len(data.Commands) != 3 ||
 		data.Commands[0].Name != "goal" ||
-		data.Commands[1].Name != "visualize" {
+		data.Commands[1].Name != "visualize" ||
+		data.Commands[2].Name != "workgraph" {
 		t.Fatalf("catalog = %#v, want host and product prompts without runtime catalog", data)
 	}
 }
@@ -109,9 +116,25 @@ func TestProjectCommandCatalogKeepsModelOwnedByNexusHost(t *testing.T) {
 		Enabled:     true,
 	}})
 
-	if len(data.Commands) != 2 ||
+	if len(data.Commands) != 3 ||
 		data.Commands[0].Execution != protocol.CommandExecutionHost ||
 		data.Commands[0].Description != "Nexus model" {
 		t.Fatalf("catalog = %#v, want Nexus host command to reserve /model", data)
+	}
+}
+
+func TestProjectCommandCatalogIncludesOwnerWorkflowCommands(t *testing.T) {
+	data := projectCommandCatalog(
+		slashcommandsvc.RuntimeCatalogSnapshot{Status: protocol.CommandCatalogStatusReady},
+		"agent-a",
+		nil,
+		[]protocol.CommandDescriptor{{
+			Name: "deep-research", Description: "Reusable research graph",
+			ArgumentHint: "<request>", Execution: protocol.CommandExecutionRuntime, Enabled: true,
+		}},
+	)
+	if len(data.Commands) != 3 || data.Commands[0].Name != "deep-research" ||
+		data.Commands[1].Name != "visualize" || data.Commands[2].Name != "workgraph" {
+		t.Fatalf("catalog = %#v, want owner workflow beside fixed product prompts", data)
 	}
 }

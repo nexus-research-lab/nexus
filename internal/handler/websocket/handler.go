@@ -44,6 +44,7 @@ type Handler struct {
 	channels               *channelspkg.Router
 	hostCommands           *slashcommandsvc.Registry
 	commandCatalog         *slashcommandsvc.Catalog
+	workGraphWorkflows     workGraphWorkflowProvider
 	automationPermissions  automationPermissionService
 	runtimeKindResolver    func(context.Context, string) (agentclient.RuntimeKind, error)
 	roomSubs               *roomSubscriptionRegistry
@@ -53,6 +54,17 @@ type Handler struct {
 	executionInvalidations *executionInvalidationRegistry
 	channelAuthorization   *channelAuthorizationTransport
 	allowedOrigins         []string
+}
+
+type workGraphWorkflowProvider interface {
+	CommandDescriptors(context.Context, string) ([]protocol.CommandDescriptor, error)
+}
+
+// SetWorkGraphWorkflowProvider 注入 owner-scoped 动态 Workflow Slash 目录。
+func (h *Handler) SetWorkGraphWorkflowProvider(provider workGraphWorkflowProvider) {
+	if h != nil {
+		h.workGraphWorkflows = provider
+	}
 }
 
 // roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。

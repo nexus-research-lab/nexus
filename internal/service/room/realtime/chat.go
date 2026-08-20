@@ -1,5 +1,5 @@
-// INPUT: Room 用户输入、内部触发与当前 round/queue 状态。
-// OUTPUT: 持久化的共享消息，或带稳定 owner/root usage scope 的串行 Room round。
+// INPUT: Room 用户输入、owner-scoped Slash 展开、内部触发与当前 round/queue 状态。
+// OUTPUT: 保留共享消息原文、向 runtime 投递展开内容的串行 Room round。
 // POS: Room 输入从受理到 runtime 启动的原子交接边界。
 package realtime
 
@@ -23,7 +23,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
-	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -225,7 +224,11 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	}
 	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
-	if _, err = s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments); err != nil {
+	expandedRuntimeContent, err := s.expandRuntimeSlashPrompt(ctx, request.Content)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = s.renderRuntimeContentWithAttachments(ctx, expandedRuntimeContent, attachments); err != nil {
 		return nil, err
 	}
 	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
@@ -317,7 +320,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		conversationID:     conversationID,
 		contextValue:       contextValue,
 		attachments:        attachments,
-		runtimeTriggerText: slashcommandsvc.ExpandVisualizePrompt(request.Content),
+		runtimeTriggerText: expandedRuntimeContent,
 		agentNameByID:      agentNameByID,
 		agentByID:          agentByID,
 		targetAgentIDs:     targetAgentIDs,

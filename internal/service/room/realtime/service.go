@@ -1,5 +1,5 @@
-// INPUT: Room 服务依赖、runtime 事件与实时会话请求。
-// OUTPUT: Room round、队列和共享事件的进程内编排状态。
+// INPUT: Room 服务依赖、runtime 事件、owner-scoped Slash expander 与实时会话请求。
+// OUTPUT: Room round、动态 Workflow、队列和共享事件的进程内编排状态。
 // POS: Room 实时服务装配与共享状态定义。
 package realtime
 
@@ -149,6 +149,11 @@ type RuntimeCommandEnvironmentBuilder func(
 	runtimecommand.RoundContext,
 ) (map[string]string, error)
 
+// RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 Workflow 展开为 runtime prompt。
+type RuntimeSlashExpander interface {
+	ExpandRuntimePrompt(context.Context, string, string) (string, error)
+}
+
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。
 type roomContextStore interface {
 	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
@@ -187,6 +192,7 @@ type Service struct {
 	mcpServers              MCPServerBuilder
 	configurationRuntimeEnv ConfigurationRuntimeEnvironmentBuilder
 	runtimeCommandEnv       RuntimeCommandEnvironmentBuilder
+	runtimeSlashExpander    RuntimeSlashExpander
 	titles                  roomTitleScheduler
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
@@ -363,6 +369,11 @@ func (s *Service) SetRuntimeCommandEnvironmentBuilder(
 	builder RuntimeCommandEnvironmentBuilder,
 ) {
 	s.runtimeCommandEnv = builder
+}
+
+// SetRuntimeSlashExpander 注入 owner-scoped WorkGraph Workflow prompt 展开器。
+func (s *Service) SetRuntimeSlashExpander(expander RuntimeSlashExpander) {
+	s.runtimeSlashExpander = expander
 }
 
 // SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。
