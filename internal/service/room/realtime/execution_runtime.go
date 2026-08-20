@@ -1,5 +1,5 @@
-// INPUT: Room round/slot、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、producer/reviewer capability 绑定、真实 Agent slot lease、revision 绑定且换代安全的 runtime options/client。
+// INPUT: Room round/slot、成员 Session 本机目录、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
+// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、真实 Agent slot lease、revision 绑定且换代安全的 runtime options/client。
 // POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份的 runtime 装配边界。
 package realtime
 
@@ -218,6 +218,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.config, e.agent.OwnerUserID),
+		AdditionalDirectories:      protocol.SessionAdditionalDirectoriesFromOptions(roomAgentSessionOptions(e.round, e.agent.AgentID)),
 		SettingSources:             e.agent.Options.SettingSources,
 		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
 		AppendSystemPromptStatic:   prompt.stable,

@@ -151,10 +151,11 @@ export function useConversationSession({
     scrollRef: scroll.scrollRef,
   });
   const history = useConversationHistoryLoader({
-    autoFillViewport: !useIndexedTimeline,
     cancelHistoryPrependRestore: scroll.cancelHistoryPrependRestore,
+    enabled: !useIndexedTimeline,
     hasMoreHistory: conversation.has_more_history,
     isHistoryLoading: conversation.is_history_loading,
+    isFollowingLatest: scroll.isFollowingLatest,
     isLoading: conversation.is_loading,
     loadOlderMessages: conversation.load_older_messages,
     messageCount: conversation.messages.length,

@@ -363,16 +363,95 @@ case "${ARTIFACT_FORMAT}" in
       echo "hdiutil is required to build macOS dmg artifacts" >&2
       exit 1
     fi
+    DMG_BACKGROUND_PATH="${MACOS_DIR}/Resources/DMGBackground.png"
+    if [[ ! -f "${DMG_BACKGROUND_PATH}" ]]; then
+      echo "missing macOS dmg background: ${DMG_BACKGROUND_PATH}" >&2
+      exit 1
+    fi
+    DMG_RW_PATH="${OUTPUT_DIR}/${DIST_NAME}-rw.dmg"
+    DMG_MOUNT_DIR="${STAGING_ROOT}/${DIST_NAME}-mount"
     rm -rf "${DMG_DIR}"
-    mkdir -p "${DMG_DIR}"
+    rm -f "${DMG_RW_PATH}"
+    mkdir -p "${DMG_DIR}/.background" "${DMG_MOUNT_DIR}"
     rsync -a --delete --exclude ".DS_Store" "${STAGING_DIR}/${APP_NAME}.app/" "${DMG_DIR}/${APP_NAME}.app/"
     ln -s /Applications "${DMG_DIR}/Applications"
+    cp "${DMG_BACKGROUND_PATH}" "${DMG_DIR}/.background/DMGBackground.png"
+    SetFile -a V "${DMG_DIR}/.background"
     COPYFILE_DISABLE=1 hdiutil create \
       -volname "${APP_NAME}" \
       -srcfolder "${DMG_DIR}" \
       -ov \
+      -format UDRW \
+      "${DMG_RW_PATH}" >/dev/null
+
+    DMG_DEVICE=""
+    cleanup_dmg_mount() {
+      if [[ -n "${DMG_DEVICE}" ]]; then
+        hdiutil detach "${DMG_DEVICE}" >/dev/null 2>&1 || true
+      fi
+      rm -f "${DMG_RW_PATH}"
+    }
+    trap cleanup_dmg_mount EXIT
+
+    hdiutil attach \
+      -readwrite \
+      -noverify \
+      -noautoopen \
+      -mountpoint "${DMG_MOUNT_DIR}" \
+      "${DMG_RW_PATH}" >/dev/null
+    DMG_DEVICE="$(df -P "${DMG_MOUNT_DIR}" | awk 'NR == 2 { print $1 }')"
+    if [[ -z "${DMG_DEVICE}" ]]; then
+      echo "failed to resolve mounted macOS dmg device" >&2
+      exit 1
+    fi
+
+    osascript - "${DMG_MOUNT_DIR}" "${APP_NAME}" <<'APPLESCRIPT'
+on run argv
+  set mountPath to item 1 of argv
+  set appName to item 2 of argv
+
+  tell application "Finder"
+    set volumeFolder to POSIX file mountPath as alias
+    set volumeDisk to disk of volumeFolder
+    tell volumeDisk
+      open
+      set current view of container window to icon view
+      set toolbar visible of container window to false
+      set statusbar visible of container window to false
+      set bounds of container window to {100, 100, 820, 580}
+
+      set viewOptions to icon view options of container window
+      set arrangement of viewOptions to not arranged
+      set icon size of viewOptions to 128
+      set text size of viewOptions to 14
+      set label position of viewOptions to bottom
+      set background picture of viewOptions to file ".background:DMGBackground.png"
+
+      set position of item (appName & ".app") to {180, 220}
+      set position of item "Applications" to {540, 220}
+      update without registering applications
+      delay 1
+      close container window
+    end tell
+  end tell
+end run
+APPLESCRIPT
+
+    rm -rf \
+      "${DMG_MOUNT_DIR}/.fseventsd" \
+      "${DMG_MOUNT_DIR}/.Spotlight-V100" \
+      "${DMG_MOUNT_DIR}/.Trashes"
+    sync
+    hdiutil detach "${DMG_DEVICE}" >/dev/null
+    DMG_DEVICE=""
+    hdiutil convert \
+      "${DMG_RW_PATH}" \
+      -ov \
       -format UDZO \
-      "${ARTIFACT_PATH}" >/dev/null
+      -imagekey zlib-level=9 \
+      -o "${ARTIFACT_PATH}" >/dev/null
+    rm -f "${DMG_RW_PATH}"
+    trap - EXIT
     ;;
 esac
 

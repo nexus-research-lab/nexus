@@ -155,9 +155,6 @@ func (s *Service) GetLocalDirectories(
 	if err != nil {
 		return protocol.SessionLocalDirectories{}, err
 	}
-	if protocol.NormalizeSessionChatType(item.ChatType) != protocol.RoomTypeDM {
-		return protocol.SessionLocalDirectories{}, ErrSessionMutationUnsupported
-	}
 	directories := protocol.SessionAdditionalDirectoriesFromOptions(item.Options)
 	if directories == nil {
 		directories = []string{}
@@ -165,7 +162,7 @@ func (s *Service) GetLocalDirectories(
 	return protocol.SessionLocalDirectories{Directories: directories}, nil
 }
 
-// UpdateLocalDirectories 以完整快照更新当前 DM Session 的本机目录。
+// UpdateLocalDirectories 以完整快照更新当前 Session 的本机目录。
 func (s *Service) UpdateLocalDirectories(
 	ctx context.Context,
 	rawSessionKey string,
@@ -184,9 +181,6 @@ func (s *Service) UpdateLocalDirectories(
 	)
 	if err != nil {
 		return protocol.SessionLocalDirectories{}, err
-	}
-	if protocol.NormalizeSessionChatType(item.ChatType) != protocol.RoomTypeDM {
-		return protocol.SessionLocalDirectories{}, ErrSessionMutationUnsupported
 	}
 	item.Options = protocol.WithSessionAdditionalDirectories(
 		item.Options,
