@@ -9,7 +9,7 @@
 - `chat-notification-model.ts` 只做完成事件判定、目标和通知内容纯投影。
 - `browser-notification.ts` 封装浏览器可见性、权限和系统通知副作用。
 - `use-chat-notification-socket.ts` 处理 Room/DM 事件订阅、序列游标和事件分类，并把执行与人工交互生命周期写入 `../room-activity-resource.ts`。
-- `use-chat-completion-notifications.ts` 编排当前页面、未读 Store 与通知策略。
+- `use-chat-completion-notifications.ts` 编排当前页面、未读 Store 与通知策略；精确 Conversation 在活动窗口中时直接确认目标，未读顺序只服务侧栏路由，不得进入 Feed 滚动层。
 
 ## 不变量
 

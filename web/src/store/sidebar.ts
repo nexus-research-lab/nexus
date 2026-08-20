@@ -1,7 +1,7 @@
 /**
- * INPUT: 侧栏布局命令、聊天完成通知及其精确消息锚点。
- * OUTPUT: 导航高亮、可独立确认的聊天入口红点、会话未读/首批消息定位数据、分区折叠和面板宽度状态。
- * POS: 侧栏运行态 Store；入口确认不丢会话未读锚点，未读状态不持久化，布局偏好由 persist 单独保存。
+ * INPUT: 侧栏布局命令、聊天完成通知及其目标路由顺序信息。
+ * OUTPUT: 导航高亮、聊天入口红点、会话未读导航数据、分区折叠和面板宽度状态。
+ * POS: 侧栏运行态 Store；进入精确目标即清除该目标未读，未读状态不持久化，布局偏好由 persist 单独保存。
  */
 
 import { create } from "zustand";
@@ -86,7 +86,7 @@ interface SidebarState {
   chat_unread_targets: Record<string, ChatNotificationTargetState>;
   /** 未读目标最后更新时间，用于点击列表时优先进入最新未读会话。 */
   chat_unread_timestamps: Record<string, number>;
-  /** 每个精确目标的未读完成消息锚点，供 Room 进入后恢复第一条未读 Agent。 */
+  /** 每个精确目标的未读完成消息顺序，仅用于侧栏选择最早未读 Conversation。 */
   chat_unread_anchors: Record<string, ChatUnreadAnchorState>;
   /** 已计入通知的消息 ID，避免 WebSocket 重放或多订阅重复提示。 */
   notified_chat_message_ids: string[];
@@ -102,10 +102,6 @@ interface SidebarActions {
     message: ChatUnreadMessageAnchor,
     options?: RecordChatNotificationOptions,
   ) => boolean;
-  consume_chat_unread_messages: (
-    targetKey: string,
-    messageIds: readonly string[],
-  ) => void;
   clear_chat_notifications_for_target: (targetKey: string | null | undefined) => void;
   clear_chat_notifications_for_room: (roomId: string | null | undefined) => void;
   discard_chat_state_for_room: (roomId: string | null | undefined) => void;
@@ -290,68 +286,6 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
         });
         return didRecord;
       },
-      consume_chat_unread_messages: (targetKey, messageIds) => set((state) => {
-        const normalizedTargetKey = targetKey.trim();
-        const messageIdSet = new Set(
-          messageIds.map((messageId) => messageId.trim()).filter(Boolean),
-        );
-        const currentAnchor = state.chat_unread_anchors[normalizedTargetKey];
-        if (!normalizedTargetKey || !currentAnchor || messageIdSet.size === 0) {
-          return state;
-        }
-        const removedMessages = currentAnchor.messages.filter(
-          (message) => messageIdSet.has(message.message_id),
-        );
-        if (removedMessages.length === 0) {
-          return state;
-        }
-        const remainingMessages = currentAnchor.messages.filter(
-          (message) => !messageIdSet.has(message.message_id),
-        );
-        const nextAnchors = { ...state.chat_unread_anchors };
-        if (remainingMessages.length > 0) {
-          nextAnchors[normalizedTargetKey] = {
-            ...currentAnchor,
-            messages: remainingMessages,
-          };
-        } else {
-          delete nextAnchors[normalizedTargetKey];
-        }
-        const nextCount = Math.max(
-          0,
-          (state.chat_unread_counts[normalizedTargetKey] ?? 0)
-            - removedMessages.length,
-        );
-        const nextCounts = { ...state.chat_unread_counts };
-        const nextTabUnseenCounts = { ...state.chat_tab_unseen_counts };
-        const nextTargets = { ...state.chat_unread_targets };
-        const nextTimestamps = { ...state.chat_unread_timestamps };
-        if (nextCount > 0) {
-          nextCounts[normalizedTargetKey] = nextCount;
-        } else {
-          delete nextCounts[normalizedTargetKey];
-          delete nextTargets[normalizedTargetKey];
-          delete nextTimestamps[normalizedTargetKey];
-        }
-        const nextTabUnseenCount = Math.max(
-          0,
-          (state.chat_tab_unseen_counts[normalizedTargetKey] ?? 0)
-            - removedMessages.length,
-        );
-        if (nextTabUnseenCount > 0) {
-          nextTabUnseenCounts[normalizedTargetKey] = nextTabUnseenCount;
-        } else {
-          delete nextTabUnseenCounts[normalizedTargetKey];
-        }
-        return {
-          chat_badge_count: countChatUnreadTotal(nextTabUnseenCounts),
-          chat_tab_unseen_counts: nextTabUnseenCounts,
-          chat_unread_anchors: nextAnchors,
-          chat_unread_counts: nextCounts,
-          chat_unread_targets: nextTargets,
-          chat_unread_timestamps: nextTimestamps,
-        };
-      }),
       clear_chat_notifications_for_target: (targetKey) => set((state) => {
         const normalizedTargetKey = targetKey?.trim();
         if (

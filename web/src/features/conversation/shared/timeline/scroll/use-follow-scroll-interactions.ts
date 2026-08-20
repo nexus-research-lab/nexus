@@ -42,6 +42,12 @@ export function useFollowScrollInteractions({
   const scrollIntentTimerRef = useRef<number | null>(null);
   const lastTouchYRef = useRef<number | null>(null);
 
+  const isUserScrollActive = useCallback(() => (
+    pointerGestureRef.current
+    || scrollIntentRef.current !== null
+    || lastTouchYRef.current !== null
+  ), []);
+
   const clearTransientScrollIntent = useCallback(() => {
     if (scrollIntentTimerRef.current !== null) {
       window.clearTimeout(scrollIntentTimerRef.current);
@@ -180,6 +186,7 @@ export function useFollowScrollInteractions({
   ]);
 
   return {
+    isUserScrollActive,
     onPointerDown,
     onScroll,
     onTouchEnd,

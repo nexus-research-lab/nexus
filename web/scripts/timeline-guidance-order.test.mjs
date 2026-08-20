@@ -48,7 +48,7 @@ async function renderWithI18n(element, locale = "zh") {
   ));
 }
 
-test("conversation viewport suppresses the browser scroll-region outline", async () => {
+test("conversation viewport keeps focus and history loading out of message geometry", async () => {
   const { ConversationPanelViewport } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
@@ -58,7 +58,7 @@ test("conversation viewport suppresses the browser scroll-region outline", async
       isMobileLayout: false,
       viewport: {
         error: null,
-        isHistoryLoading: false,
+        isHistoryLoading: true,
         scrollRef: { current: null },
       },
     },
@@ -75,6 +75,12 @@ test("conversation viewport suppresses the browser scroll-region outline", async
     html,
     /scrollbar-gutter:stable/,
     "scrollbar appearance must not change the live Markdown measure width",
+  );
+  assert.match(html, /data-conversation-history-loading-overlay="true"/);
+  assert.match(
+    html,
+    /class="[^"]*\bh-0\b[^"]*"/,
+    "history pagination feedback must not insert height above the Feed",
   );
 });
 
@@ -1139,6 +1145,20 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
     true,
     "READING keeps compensating measured items above the viewport",
   );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 300 },
+      40,
+      { scrollOffset: 500 },
+      {
+        bottomScrollActive: false,
+        followingLatest: false,
+        userScrollActive: true,
+      },
+    ),
+    false,
+    "direct user scrolling owns READING and cannot be counter-scrolled by measurement",
+  );
 });
 
 test("READING preserves the first visible Room round during static growth", async () => {
@@ -1183,6 +1203,13 @@ test("READING preserves the first visible Room round during static growth", asyn
   const anchor = new ConversationViewportAnchor();
 
   anchor.capture(container, feed);
+  documentTops.visible += 40;
+  assert.equal(
+    anchor.restore(container, feed, { userScrollActive: true }),
+    null,
+    "a live user gesture absorbs the current geometry instead of writing scrollTop",
+  );
+  assert.equal(scrollTop, 400);
   const visibleTopBeforeGrowth = visible.getBoundingClientRect().top;
   documentTops.visible += 120;
   assert.equal(anchor.restore(container, feed), 520);
@@ -1206,6 +1233,35 @@ test("READING preserves the first visible Room round during static growth", asyn
     "Virtualizer remains the only owner of virtual item size compensation",
   );
   assert.equal(scrollTop, 520);
+});
+
+test("history prepend preserves scrolling performed while the page was loading", async () => {
+  const { HistoryPrependAnchor } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/history-prepend-anchor.ts",
+  );
+  let scrollHeight = 1_000;
+  let scrollTop = 80;
+  const container = {
+    get scrollHeight() {
+      return scrollHeight;
+    },
+    get scrollTop() {
+      return scrollTop;
+    },
+    set scrollTop(value) {
+      scrollTop = value;
+    },
+  };
+  const anchor = new HistoryPrependAnchor();
+  anchor.prepare(container);
+  scrollTop = 210;
+  scrollHeight = 1_480;
+  assert.equal(anchor.restore(container), 690);
+  assert.equal(
+    scrollTop,
+    690,
+    "the prepend delta is added to the latest user position, not the request-start position",
+  );
 });
 
 test("viewport anchor survives a static-to-virtual Room feed switch", async () => {

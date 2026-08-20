@@ -37,6 +37,7 @@ interface UseFollowScrollReturn {
   bottomAnchorRef: React.RefObject<HTMLDivElement | null>;
   isBottomScrollActive: () => boolean;
   isFollowingLatest: () => boolean;
+  isUserScrollActive: () => boolean;
   liveLayoutActive: boolean;
   showScrollToBottom: boolean;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
@@ -236,6 +237,14 @@ export function useFollowScroll({
     historyAnchorRef.current.cancel();
   }, []);
 
+  const interactions = useFollowScrollInteractions({
+    lastScrollTopRef,
+    pauseFollowLatest,
+    scrollRef,
+    updateFollowState,
+  });
+  const isUserScrollActive = interactions.isUserScrollActive;
+
   useLayoutEffect(() => {
     const container = scrollRef.current;
     const isNewSession = revisionSessionKeyRef.current !== sessionKey;
@@ -280,7 +289,10 @@ export function useFollowScroll({
     const restoredScrollTop = viewportAnchorRef.current.restore(
       container,
       feedRef.current,
-      { allowVirtualFeed: topologyChanged },
+      {
+        allowVirtualFeed: topologyChanged,
+        userScrollActive: isUserScrollActive(),
+      },
     );
     if (restoredScrollTop !== null) {
       lastScrollTopRef.current = restoredScrollTop;
@@ -292,6 +304,7 @@ export function useFollowScroll({
     atomicLayoutKey,
     cancelAnimation,
     contentKey,
+    isUserScrollActive,
     messageCount,
     scheduleFollowLatest,
     scheduleScrollToBottom,
@@ -351,6 +364,7 @@ export function useFollowScroll({
       const restoredScrollTop = viewportAnchorRef.current.restore(
         currentContainer,
         feedRef.current,
+        { userScrollActive: isUserScrollActive() },
       );
       if (restoredScrollTop !== null) {
         lastScrollTopRef.current = restoredScrollTop;
@@ -367,6 +381,7 @@ export function useFollowScroll({
     return () => observer.disconnect();
   }, [
     messageCount,
+    isUserScrollActive,
     scheduleFollowLatest,
     sessionKey,
     setScrollToBottomVisibility,
@@ -410,12 +425,6 @@ export function useFollowScroll({
 
   useEffect(() => cancelAnimation, [cancelAnimation]);
 
-  const interactions = useFollowScrollInteractions({
-    lastScrollTopRef,
-    pauseFollowLatest,
-    scrollRef,
-    updateFollowState,
-  });
   const interactionOnScroll = interactions.onScroll;
   const onScroll = useCallback(() => {
     interactionOnScroll();

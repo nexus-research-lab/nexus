@@ -16,6 +16,7 @@ interface ConversationViewportAnchorSnapshot {
 
 interface ConversationViewportRestoreOptions {
   allowVirtualFeed?: boolean;
+  userScrollActive?: boolean;
 }
 
 export class ConversationViewportAnchor {
@@ -55,6 +56,7 @@ export class ConversationViewportAnchor {
     if (
       !snapshot
       || !feed
+      || options.userScrollActive
       || (
         feed.dataset.conversationVirtualFeed === "true"
         && !options.allowVirtualFeed
