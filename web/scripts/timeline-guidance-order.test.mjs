@@ -986,6 +986,41 @@ test("FOLLOW has no active animation across a Composer or App viewport resize", 
   }
 });
 
+test("initial FOLLOW cannot start a legacy history prepend", async () => {
+  const { shouldLoadOlderConversationMessages } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/use-history-loader.ts",
+  );
+  const readyReading = {
+    allowWhileFollowing: false,
+    enabled: true,
+    followingLatest: false,
+    hasMoreHistory: true,
+    hasNavigationTarget: false,
+    isHistoryLoading: false,
+    isLoading: false,
+    scrollTop: 0,
+  };
+
+  assert.equal(shouldLoadOlderConversationMessages(readyReading), true);
+  assert.equal(shouldLoadOlderConversationMessages({
+    ...readyReading,
+    followingLatest: true,
+  }), false, "programmatic FOLLOW scroll must not create a reading anchor");
+  assert.equal(shouldLoadOlderConversationMessages({
+    ...readyReading,
+    allowWhileFollowing: true,
+    followingLatest: true,
+  }), true, "short legacy conversations may still auto-fill after loading");
+  assert.equal(shouldLoadOlderConversationMessages({
+    ...readyReading,
+    enabled: false,
+  }), false, "indexed timelines own their history through window loading");
+  assert.equal(shouldLoadOlderConversationMessages({
+    ...readyReading,
+    isLoading: true,
+  }), false, "initial session loading cannot race a prepend transaction");
+});
+
 test("virtual resize correction ignores a long reply crossing the viewport", async () => {
   const {
     resolveConversationVirtualInitialOffset,
