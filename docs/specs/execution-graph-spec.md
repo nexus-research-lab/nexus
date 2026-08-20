@@ -234,9 +234,31 @@ managed 的最低条件是 Execution 拥有 active Plan，且该 Plan 至少包�
 
 接口只接受已认证 owner scope 内的 `session_key`，并返回 `ExecutionView` 的安全投影。它没有写入、重试、路由或状态推进能力。
 
-### 7.2 前端资源策略
+### 7.2 历史读取与命名 Workflow
 
-- Header 与移动端“工作图”入口固定常驻；没有 managed WorkGraph 时打开统一明确空态。
+`GET /executions/history?session_key=<exact>&limit=<bounded>` 只返回同一认证 owner、
+同一 exact session 的 managed ExecutionView 列表；每一项复用单图读取的同一
+transaction 与安全投影，不能用消息文本、标题或时间邻近猜 source Execution。
+
+owner 可以把历史图中的显式 Work Item 子图沉淀为命名 Workflow：
+
+- Workflow 只保存节点的 logical key、kind、subject、objective、deliverable、
+  acceptance criteria、required/terminal、parent、`key|collaboration` 角色，以及
+  所选节点之间的 dependency；
+- source execution/session/work item ID 只作 provenance，复用时不成为新图身份；
+- Runtime Graph、Tool input/output、Agent identity、Assignment、Attempt、结果、
+  Artifact、Submission、Review、Acceptance 和旧状态永不进入 Workflow；
+- 创建只有一个模型入口：`execution-orchestrator` Skill 按 fresh contract 调用
+  `nexus execution invoke --operation distill_workgraph_workflow`。UI 不提供创建 API；
+- `GET /workgraph/workflows` 与 owner-scoped command catalog 提供读取，删除只删除
+  Workflow aggregate，不删除源历史图。
+
+固定 `/workgraph` 只启用当前请求的 WorkGraph 协作；保存后的 `/<workflow>` 是
+prompt-based 模板，每次都通过现有 prepare/commit command 创建 fresh managed 图。
+
+### 7.3 前端资源策略
+
+- Header 与移动端“工作图”入口固定常驻；Surface 由当前图标题旁的向下箭头展开并切换 exact 历史图，命令库保留顶栏独立入口；没有 managed WorkGraph 时打开统一明确空态。
 - Composer Agent Dock 只在当前 managed WorkGraph 非终态活动时显示。
 - runtime-only graph 不能填充 Surface、替换已保留的 managed 图或触发 Composer Dock。
 - 资源读取失败时可以保留最后一次成功快照，但必须显式标记 stale 与最后成功时间。
@@ -271,7 +293,7 @@ managed 的最低条件是 Execution 拥有 active Plan，且该 Plan 至少包�
 - 用空白点击或 Escape 关闭检查器；
 - 从 Tool Run 的安全 workspace 相对 Artifact 跳转到既有 Workspace 打开链路。
 
-这些操作只修改当前用户的本地视图状态，不得修改权威拓扑、运行状态、责任人或路线。UI 不提供 Graph 状态写入按钮。
+这些操作只修改当前用户的本地视图状态，不得修改权威拓扑、运行状态、责任人或路线。UI 不提供 Graph 状态写入按钮。历史图的“沉淀为命令”只向当前 Composer 写入可见 Agent 请求，随后仍由 Skill + CLI mutation 保存独立 Workflow aggregate。
 
 ## 9. 安全与一致性不变量
 
@@ -289,10 +311,12 @@ managed 的最低条件是 Execution 拥有 active Plan，且该 Plan 至少包�
 12. 截断、旧快照和读取失败必须显式呈现，不能伪装成完整实时图。
 13. Snapshot 与 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史必须在同一 read transaction 中读取；前端刷新不得让已出现的轮次短暂消失。
 14. 布局先建立全部非控制边，再判断 `retry`/`loop_back` 是进入新 Attempt 的前向边还是闭环回边；结果不能依赖 JSON 边顺序。
+15. Workflow 只来自 exact managed Execution 的显式 Work Item 选择；不允许从 Runtime Graph、工具名、聊天正文或 UI 布局反推模板节点。
+16. `/workgraph`、`/<workflow>` 与 `distill_workgraph_workflow` 是三种不同语义：当前协作、复用模板与保存模板不得混用。
 
 ## 10. 当前非目标
 
-- 不提供通用图写入 API。
+- 不提供通用图写入 API；Workflow 沉淀 mutation 不修改源图或当前图。
 - 不允许前端直接改边、状态、责任人或运行路线。
 - 不把 Runtime Graph 当作模型必须遵循的固定脚本。
 - 不从普通聊天、Goal、Task、Tool 名称或 UI 布局反推 managed WorkGraph。

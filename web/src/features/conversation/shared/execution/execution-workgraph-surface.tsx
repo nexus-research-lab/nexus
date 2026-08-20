@@ -1,17 +1,36 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以标题为主的 WorkGraph 主视图，仅在非 active 生命周期或投影异常时补充提示。
+ * OUTPUT: 以标题旁下拉切换精确历史的 WorkGraph 主视图，并提供独立命令库入口。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
 
-import { CircleAlert, LoaderCircle, RotateCw, Workflow } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  Clock3,
+  GitBranchPlus,
+  Library,
+  LoaderCircle,
+  RotateCw,
+  Trash2,
+  Workflow,
+} from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import type { ExecutionStatus } from "@/types/conversation/execution";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import {
+  UiActionMenu,
+  type UiActionMenuItem,
+} from "@/shared/ui/menu/action-menu";
+import type { ExecutionStatus, ExecutionView } from "@/types/conversation/execution";
+import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
 
 import {
   hasExecutionGraph,
@@ -21,6 +40,10 @@ import {
 } from "./execution-process-model";
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
+import { useWorkGraphLibraryResource } from "./use-workgraph-library-resource";
+import { WorkGraphDistillationDialog } from "./workgraph-distillation-dialog";
+
+type WorkGraphSurfaceMode = "current" | "history" | "workflows";
 
 const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, string> = {
   active: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
@@ -47,9 +70,28 @@ export function ExecutionWorkGraphSurface({
   taskRuns: readonly ConversationTaskRun[];
 }) {
   const { t } = useI18n();
-  const execution = hasManagedExecutionGraph(resource.execution)
+  const [mode, setMode] = useState<WorkGraphSurfaceMode>("current");
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [distillExecution, setDistillExecution] = useState<ExecutionView | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<WorkGraphWorkflow | null>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const library = useWorkGraphLibraryResource(
+    resource.sessionKey,
+    mode !== "current" || historyMenuOpen,
+  );
+  useEffect(() => {
+    if (!selectedHistoryId && library.history.length > 0) {
+      setSelectedHistoryId(library.history[0].id);
+    }
+  }, [library.history, selectedHistoryId]);
+  const currentExecution = hasManagedExecutionGraph(resource.execution)
     ? resource.execution
     : null;
+  const historyExecution = library.history.find(
+    (item) => item.id === selectedHistoryId,
+  ) ?? library.history[0] ?? null;
+  const execution = mode === "history" ? historyExecution : currentExecution;
   const header = execution
     ? resolveExecutionWorkGraphHeaderModel(execution)
     : null;
@@ -61,25 +103,116 @@ export function ExecutionWorkGraphSurface({
   const lastSuccessfulAt = resource.lastSuccessfulAt
     ? new Date(resource.lastSuccessfulAt).toISOString()
     : null;
+  const currentHeader = currentExecution
+    ? resolveExecutionWorkGraphHeaderModel(currentExecution)
+    : null;
+  const historicalExecutions = library.history.filter(
+    (item) => item.id !== currentExecution?.id,
+  );
+  const historyMenuItems: UiActionMenuItem[] = [];
+  if (currentExecution) {
+    historyMenuItems.push({
+      active: mode === "current",
+      description: t("execution.surface_current"),
+      icon: <Workflow className="h-3.5 w-3.5" />,
+      label: currentHeader?.summary || t("execution.label"),
+      trailing: mode === "current" ? <Check className="h-3.5 w-3.5 text-(--success)" /> : null,
+      value: "current",
+    });
+  }
+  historicalExecutions.forEach((item) => {
+    const active = mode === "history" && item.id === execution?.id;
+    historyMenuItems.push({
+      active,
+      description: `${new Date(item.updated_at).toLocaleDateString()} · ${item.work_items?.length ?? 0} ${t("execution.workflow_nodes_short")}`,
+      icon: <Clock3 className="h-3.5 w-3.5" />,
+      label: item.objective,
+      trailing: active ? <Check className="h-3.5 w-3.5 text-(--success)" /> : null,
+      value: `history:${item.id}`,
+    });
+  });
+  if (library.isLoading) {
+    historyMenuItems.push({
+      disabled: true,
+      icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
+      label: t("execution.surface_loading"),
+      value: "loading",
+    });
+  } else if (historicalExecutions.length === 0) {
+    historyMenuItems.push({
+      disabled: true,
+      icon: <Archive className="h-3.5 w-3.5" />,
+      label: t("execution.surface_history_empty"),
+      value: "empty",
+    });
+  }
+
+  const openDistillation = (source: ExecutionView | null) => {
+    if (source && resource.sessionKey && (source.work_items?.length ?? 0) > 0) {
+      setDistillExecution(source);
+    }
+  };
 
   return (
     <section
       aria-label={t("execution.label")}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
       data-execution-workgraph-surface
-      data-execution-workgraph-stale={resource.isStale ? "true" : undefined}
-      data-execution-workgraph-partial={runtimeProjectionPartial ? "true" : undefined}
+      data-execution-workgraph-stale={mode === "current" && resource.isStale ? "true" : undefined}
+      data-execution-workgraph-partial={mode !== "workflows" && runtimeProjectionPartial ? "true" : undefined}
       data-execution-last-successful-at={lastSuccessfulAt ?? undefined}
     >
       <header
         className="flex min-h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3 py-2"
-        data-execution-header-status={header?.status}
+        data-execution-header-status={mode !== "workflows" ? header?.status : undefined}
       >
-        <Workflow className="h-4 w-4 shrink-0 text-(--icon-muted)" />
-        <div className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)">
-          {header?.summary || t("execution.label")}
-        </div>
-        {header && header.status !== "active" ? (
+        {mode === "workflows" ? (
+          <div className="min-w-0 max-w-[48%] truncate text-compact font-semibold text-(--text-strong)">
+            {t("execution.workflow_library")}
+          </div>
+        ) : (
+          <div className="min-w-0 max-w-[48%] truncate text-compact font-semibold text-(--text-strong)">
+            {header?.summary || t("execution.label")}
+          </div>
+        )}
+        {mode !== "workflows" ? (
+          <>
+            <UiIconButton
+              ref={historyTriggerRef}
+              aria-expanded={historyMenuOpen}
+              aria-haspopup="menu"
+              aria-label={t("execution.surface_history")}
+              onClick={() => setHistoryMenuOpen((open) => !open)}
+              size="sm"
+              title={t("execution.surface_history")}
+              variant="ghost"
+            >
+              <ChevronDown className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                historyMenuOpen && "rotate-180",
+              )} />
+            </UiIconButton>
+            <UiActionMenu
+              anchorRef={historyTriggerRef}
+              ariaLabel={t("execution.surface_history")}
+              density="compact"
+              isOpen={historyMenuOpen}
+              items={historyMenuItems}
+              minWidth={280}
+              onClose={() => setHistoryMenuOpen(false)}
+              onSelect={(value) => {
+                if (value === "current") {
+                  setMode("current");
+                } else if (value.startsWith("history:")) {
+                  setSelectedHistoryId(value.slice("history:".length));
+                  setMode("history");
+                }
+              }}
+              placement="bottom"
+            />
+          </>
+        ) : null}
+        {mode !== "workflows" && header && header.status !== "active" ? (
           <span
             className={cn(
               "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 text-[11px] font-semibold leading-4",
@@ -90,7 +223,7 @@ export function ExecutionWorkGraphSurface({
             {t(header.statusLabelKey)}
           </span>
         ) : null}
-        {runtimeProjectionPartial ? (
+        {mode !== "workflows" && runtimeProjectionPartial ? (
           <span
             aria-label={t("execution.surface_partial", {
               nodes: execution?.graph?.runtime_node_total ?? 0,
@@ -106,7 +239,7 @@ export function ExecutionWorkGraphSurface({
             <span>{t("execution.surface_partial_short")}</span>
           </span>
         ) : null}
-        {resource.isStale ? (
+        {mode === "current" && resource.isStale ? (
           <span
             aria-label={t("execution.surface_stale")}
             className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
@@ -118,7 +251,7 @@ export function ExecutionWorkGraphSurface({
             <span>{t("execution.surface_stale_short")}</span>
           </span>
         ) : null}
-        {resource.error ? (
+        {mode === "current" && resource.error ? (
           <UiIconButton
             aria-label={t("execution.refresh")}
             onClick={resource.refresh}
@@ -129,9 +262,45 @@ export function ExecutionWorkGraphSurface({
             <RotateCw className="h-3.5 w-3.5" />
           </UiIconButton>
         ) : null}
+        {mode !== "workflows" && execution && (execution.work_items?.length ?? 0) > 0 ? (
+          <UiIconButton
+            aria-label={t("execution.workflow_distill_action")}
+            onClick={() => openDistillation(execution)}
+            size="sm"
+            title={t("execution.workflow_distill_action")}
+            variant="ghost"
+          >
+            <GitBranchPlus className="h-3.5 w-3.5" />
+          </UiIconButton>
+        ) : null}
+        {mode === "workflows" ? (
+          <UiIconButton
+            aria-label={t("execution.refresh")}
+            disabled={library.isLoading}
+            onClick={library.refresh}
+            size="sm"
+            title={t("execution.refresh")}
+            variant="ghost"
+          >
+            <RotateCw className={cn("h-3.5 w-3.5", library.isLoading && "animate-spin")} />
+          </UiIconButton>
+        ) : null}
+        <UiIconButton
+          aria-label={mode === "workflows" ? t("execution.surface_current") : t("execution.surface_workflows")}
+          onClick={() => setMode(mode === "workflows" ? "current" : "workflows")}
+          size="sm"
+          title={mode === "workflows" ? t("execution.surface_current") : t("execution.surface_workflows")}
+          variant="ghost"
+        >
+          {mode === "workflows" ? (
+            <Workflow className="h-3.5 w-3.5" />
+          ) : (
+            <Library className="h-3.5 w-3.5" />
+          )}
+        </UiIconButton>
       </header>
 
-      {execution && hasNodes ? (
+      {mode !== "workflows" && execution && hasNodes ? (
         <ExecutionWorkGraphCanvas
           currentId={header?.currentNodeId ?? null}
           directory={directory}
@@ -140,26 +309,125 @@ export function ExecutionWorkGraphSurface({
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           taskRuns={taskRuns}
         />
+      ) : mode === "workflows" ? (
+        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <div className="mb-3 flex items-start gap-3 rounded-[10px] border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)] px-3 py-2.5">
+            <Archive className="mt-0.5 h-4 w-4 shrink-0 text-(--primary)" />
+            <div className="min-w-0 text-xs leading-5 text-(--text-soft)">
+              <div className="font-semibold text-(--text-strong)">{t("execution.workflow_library_intro_title")}</div>
+              {t("execution.workflow_library_intro")}
+            </div>
+          </div>
+          {library.error ? (
+            <div className="mb-3 flex items-center gap-2 rounded-[9px] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] px-3 py-2 text-xs text-(--warning)">
+              <CircleAlert className="h-4 w-4" />
+              <span>{library.error}</span>
+            </div>
+          ) : null}
+          {library.isLoading && library.workflows.length === 0 ? (
+            <div className="grid min-h-48 place-items-center text-(--text-soft)">
+              <LoaderCircle className="h-5 w-5 animate-spin" />
+            </div>
+          ) : library.workflows.length > 0 ? (
+            <div className="space-y-2" data-workgraph-workflow-library>
+              {library.workflows.map((workflow) => {
+                const collaborationCount = workflow.nodes.filter(
+                  (node) => node.role === "collaboration",
+                ).length;
+                return (
+                  <article
+                    key={workflow.id}
+                    className="rounded-[11px] border border-(--surface-control-border) bg-(--surface-control-background) px-3 py-3 shadow-(--surface-control-shadow)"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)">
+                        <GitBranchPlus className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <code className="truncate font-mono text-sm font-semibold text-(--text-strong)">/{workflow.slash_name}</code>
+                          <span className="rounded-full border dialog-divider px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-(--text-muted)">v{workflow.version}</span>
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-(--text-default)">{workflow.title}</div>
+                      </div>
+                      <UiIconButton
+                        aria-label={t("execution.workflow_delete")}
+                        onClick={() => setDeleteCandidate(workflow)}
+                        size="sm"
+                        title={t("execution.workflow_delete")}
+                        variant="ghost"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </UiIconButton>
+                    </div>
+                    {workflow.description ? (
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-(--text-soft)">{workflow.description}</p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-(--text-muted)">
+                      <span>{workflow.nodes.length} {t("execution.workflow_nodes_short")}</span>
+                      <span>·</span>
+                      <span>{collaborationCount} {t("execution.workflow_collaboration_short")}</span>
+                      <span>·</span>
+                      <span>{workflow.dependencies?.length ?? 0} {t("execution.workflow_dependencies_short")}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid min-h-48 place-items-center px-6 text-center">
+              <div className="max-w-64 text-(--text-soft)">
+                <Library className="mx-auto mb-2 h-5 w-5 text-(--icon-muted)" />
+                <p className="text-compact leading-5">{t("execution.workflow_library_empty")}</p>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="grid min-h-0 flex-1 place-items-center px-6 py-8 text-center">
           <div className="flex max-w-64 flex-col items-center gap-2 text-(--text-soft)">
-            {resource.isLoading ? (
+            {(mode === "history" ? library.isLoading : resource.isLoading) ? (
               <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted)" />
-            ) : resource.error ? (
+            ) : (mode === "history" ? library.error : resource.error) ? (
               <CircleAlert className="h-5 w-5 text-(--warning)" />
             ) : (
               <Workflow className="h-5 w-5 text-(--icon-muted)" />
             )}
             <p className="text-compact leading-5">
-              {resource.isLoading
+              {(mode === "history" ? library.isLoading : resource.isLoading)
                 ? t("execution.surface_loading")
-                : resource.error
+                : (mode === "history" ? library.error : resource.error)
                 ? t("execution.surface_error")
+                : mode === "history"
+                ? t("execution.surface_history_empty")
                 : t("execution.surface_empty")}
             </p>
           </div>
         </div>
       )}
+      {distillExecution && resource.sessionKey ? (
+        <WorkGraphDistillationDialog
+          execution={distillExecution}
+          sessionKey={resource.sessionKey}
+          onClose={() => setDistillExecution(null)}
+        />
+      ) : null}
+      <ConfirmDialog
+        confirmText={t("execution.workflow_delete")}
+        isOpen={Boolean(deleteCandidate)}
+        message={deleteCandidate
+          ? t("execution.workflow_delete_message", { command: `/${deleteCandidate.slash_name}` })
+          : ""}
+        title={t("execution.workflow_delete_title")}
+        variant="danger"
+        onCancel={() => setDeleteCandidate(null)}
+        onConfirm={() => {
+          if (deleteCandidate) {
+            void library.deleteWorkflow(deleteCandidate.id).catch(() => undefined);
+          }
+          setDeleteCandidate(null);
+        }}
+      />
     </section>
   );
 }

@@ -1,5 +1,5 @@
-// INPUT: WebSocket session 请求、Nexus host command 与内置 runtime 指令快照。
-// OUTPUT: 合并且仅含安全元数据的 session-scoped command_catalog 权威事件。
+// INPUT: WebSocket session 请求、Nexus host/fixed product command、owner Workflow 与内置 runtime 指令快照。
+// OUTPUT: 合并且仅含安全元数据的 session-scoped 动静态 command_catalog 权威事件。
 // POS: Nexus 版本化命令目录到浏览器补全协议的唯一投影边界。
 package websocket
 
@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 
@@ -48,6 +49,13 @@ func (h *Handler) commandCatalogData(
 	parsed protocol.SessionKey,
 	agentID string,
 ) (protocol.CommandCatalogData, error) {
+	workflowCommands, err := h.workGraphWorkflowCommands(
+		ctx,
+		authctx.OwnerUserID(ctx),
+	)
+	if err != nil {
+		return protocol.CommandCatalogData{}, err
+	}
 	switch parsed.Kind {
 	case protocol.SessionKeyKindAgent:
 		snapshot, err := h.commandCatalogSnapshot(ctx, agentID)
@@ -62,6 +70,7 @@ func (h *Handler) commandCatalogData(
 			snapshot,
 			agentID,
 			hostCommands,
+			workflowCommands,
 		), nil
 	case protocol.SessionKeyKindRoom:
 		return projectCommandCatalog(
@@ -70,10 +79,21 @@ func (h *Handler) commandCatalogData(
 			},
 			agentID,
 			h.hostCommandDescriptors(slashcommandsvc.ScopeRoom),
+			workflowCommands,
 		), nil
 	default:
 		return protocol.CommandCatalogData{}, errors.New("command catalog requires an agent or Room session")
 	}
+}
+
+func (h *Handler) workGraphWorkflowCommands(
+	ctx context.Context,
+	ownerUserID string,
+) ([]protocol.CommandDescriptor, error) {
+	if h == nil || h.workGraphWorkflows == nil {
+		return nil, nil
+	}
+	return h.workGraphWorkflows.CommandDescriptors(ctx, ownerUserID)
 }
 
 func (h *Handler) resolveCommandCatalogAgent(
@@ -168,10 +188,23 @@ func projectCommandCatalog(
 	snapshot slashcommandsvc.RuntimeCatalogSnapshot,
 	agentID string,
 	hostCommands []protocol.CommandDescriptor,
+	workflowCommands ...[]protocol.CommandDescriptor,
 ) protocol.CommandCatalogData {
 	commands := projectHostCommands(hostCommands)
-	if command, ok := projectRuntimeCommand(slashcommandsvc.VisualizeCommandDescriptor()); ok {
-		commands = append(commands, command)
+	for _, productCommand := range []protocol.CommandDescriptor{
+		slashcommandsvc.VisualizeCommandDescriptor(),
+		slashcommandsvc.WorkGraphCommandDescriptor(),
+	} {
+		if command, ok := projectRuntimeCommand(productCommand); ok {
+			commands = append(commands, command)
+		}
+	}
+	for _, workflowSet := range workflowCommands {
+		for _, workflowCommand := range workflowSet {
+			if command, ok := projectRuntimeCommand(workflowCommand); ok {
+				commands = append(commands, command)
+			}
+		}
 	}
 	if snapshot.Status == protocol.CommandCatalogStatusReady {
 		for _, command := range snapshot.Commands {

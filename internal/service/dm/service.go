@@ -1,5 +1,5 @@
-// INPUT: DM 领域依赖、runtime Manager 与持久存储。
-// OUTPUT: 可串行处理显式输入、队列接力和 Goal continuation 的 Service。
+// INPUT: DM 领域依赖、runtime Manager、持久存储与 owner-scoped Slash expander。
+// OUTPUT: 可串行处理显式输入、动态 Workflow、队列接力和 Goal continuation 的 Service。
 // POS: DM 服务装配和共享状态所有者。
 package dm
 
@@ -183,6 +183,11 @@ type RuntimeCommandEnvironmentBuilder func(
 	runtimecommand.RoundContext,
 ) (map[string]string, error)
 
+// RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 Workflow 展开为 runtime prompt。
+type RuntimeSlashExpander interface {
+	ExpandRuntimePrompt(context.Context, string, string) (string, error)
+}
+
 // Service 负责编排 DM 实时链路。
 type Service struct {
 	config       config.Config
@@ -212,6 +217,7 @@ type Service struct {
 	mcpServers                MCPServerBuilder
 	configurationRuntimeEnv   ConfigurationRuntimeEnvironmentBuilder
 	runtimeCommandEnv         RuntimeCommandEnvironmentBuilder
+	runtimeSlashExpander      RuntimeSlashExpander
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
 	connectorRuntimeStates    ConnectorRuntimeStateLoader
@@ -349,6 +355,11 @@ func (s *Service) SetRuntimeCommandEnvironmentBuilder(
 	builder RuntimeCommandEnvironmentBuilder,
 ) {
 	s.runtimeCommandEnv = builder
+}
+
+// SetRuntimeSlashExpander 注入 owner-scoped WorkGraph Workflow prompt 展开器。
+func (s *Service) SetRuntimeSlashExpander(expander RuntimeSlashExpander) {
+	s.runtimeSlashExpander = expander
 }
 
 // SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。

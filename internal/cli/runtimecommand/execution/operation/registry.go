@@ -1,5 +1,5 @@
 // INPUT: Execution service 与 session-bound runtime context。
-// OUTPUT: 顺序稳定、固定十二个语义工具的 registry。
+// OUTPUT: 顺序稳定的 Execution 与 Workflow 沉淀语义工具 registry。
 // POS: Execution command operation 的唯一注册入口。
 package operation
 
@@ -10,9 +10,13 @@ import (
 
 // BuildAll returns the complete semantic surface. There is deliberately no
 // start_work, attempt-state, command-id, or snapshot-revision operation.
-func BuildAll(svc contract.Service, sctx contract.Context) []runtimecommand.Operation {
+func BuildAll(
+	svc contract.Service,
+	sctx contract.Context,
+	workflowServices ...contract.WorkflowService,
+) []runtimecommand.Operation {
 	planGuard := &planTransportGuard{attempts: sctx.CommandAttempts}
-	return []runtimecommand.Operation{
+	operations := []runtimecommand.Operation{
 		getExecution(svc, sctx),
 		preparePlanExecution(svc, sctx, planGuard),
 		planExecution(svc, sctx, planGuard),
@@ -26,4 +30,8 @@ func BuildAll(svc contract.Service, sctx contract.Context) []runtimecommand.Oper
 		auditExecutionAlignment(svc, sctx),
 		promoteExecutionToGoal(svc, sctx),
 	}
+	if len(workflowServices) > 0 && workflowServices[0] != nil {
+		operations = append(operations, distillWorkGraphWorkflow(workflowServices[0], sctx))
+	}
+	return operations
 }

@@ -476,8 +476,12 @@ test("WorkGraph surface keeps an active title-only header and one non-active lif
         taskRuns: [],
       },
     ));
+    const headerHtml = html.slice(0, html.indexOf("</header>"));
     assert.match(html, new RegExp(`data-execution-header-status="${status}"`));
     assert.match(html, />实现 UI</);
+    assert.doesNotMatch(headerHtml, /lucide-workflow h-4 w-4/);
+    assert.doesNotMatch(headerHtml, /min-w-0 flex-1 truncate/);
+    assert.match(headerHtml, /实现 UI.*aria-label="历史".*aria-label="命令库"/);
     if (statusLabel) {
       assert.match(
         html,
@@ -492,7 +496,36 @@ test("WorkGraph surface keeps an active title-only header and one non-active lif
     assert.doesNotMatch(html, /data-execution-completion-blockers/);
     assert.doesNotMatch(html, /data-execution-node-progress/);
     assert.doesNotMatch(html, /Plan v2|必需节点已验收|完成阻塞|第 2 \/ 3 节点/);
+    assert.match(html, /aria-label="历史"/);
+    assert.match(html, /lucide-chevron-down/);
+    assert.match(html, /aria-label="命令库"/);
+    assert.doesNotMatch(html, /aria-current="page"/);
+    assert.match(html, /aria-label="沉淀为命令"/);
   }
+});
+
+test("WorkGraph distillation builds a visible Skill and CLI request without runtime facts", async () => {
+  const { buildDistillationPrompt } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/workgraph-distillation-model.ts",
+  );
+  const prompt = buildDistillationPrompt({
+    description: "适合证据驱动研究",
+    execution,
+    selections: new Map([
+      ["research", { enabled: true, role: "key" }],
+      ["build", { enabled: false, role: "key" }],
+      ["integrate", { enabled: true, role: "collaboration" }],
+    ]),
+    slashName: "deep-research",
+    title: "深度研究",
+  });
+  assert.match(prompt, /execution-orchestrator Skill/);
+  assert.match(prompt, /distill_workgraph_workflow/);
+  assert.match(prompt, /命令名：\/deep-research/);
+  assert.match(prompt, /work_item_id=research/);
+  assert.match(prompt, /work_item_id=integrate/);
+  assert.doesNotMatch(prompt, /work_item_id=build/);
+  assert.doesNotMatch(prompt, /tool_use|attempt-root|sdk-task-child/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {
@@ -1612,6 +1645,7 @@ const nexusCommandTitles = [
   ["execution invoke --operation take_over_work", "接管工作项"],
   ["execution invoke --operation audit_execution_alignment", "审计执行对齐"],
   ["execution invoke --operation promote_execution_to_goal", "升级为 Goal"],
+  ["execution invoke --operation distill_workgraph_workflow", "沉淀工作流命令"],
   ["goal inspect", "读取 Goal"],
   ["goal invoke --operation create_goal", "创建 Goal"],
   ["goal invoke --operation retarget_goal", "调整 Goal 目标"],

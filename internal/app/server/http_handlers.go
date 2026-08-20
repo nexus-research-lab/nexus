@@ -1,3 +1,6 @@
+// INPUT: AppServices 与共享 HTTP API adapter。
+// OUTPUT: 含 Execution 历史和 Workflow 目录管理的完整 handlerSet。
+// POS: 领域 service 到 HTTP handler 的唯一装配入口。
 package server
 
 import (
@@ -86,7 +89,7 @@ func newHandlerSet(
 		provider:     providerhandler.New(api, services.Provider, services.Preferences),
 		subscription: subscriptionhandler.New(api, services.Subscription),
 		goal:         goalhandler.New(api, services.Goal),
-		execution:    executionhandler.New(api, services.Orchestration),
+		execution:    executionhandler.New(api, services.Orchestration, services.WorkGraphWorkflow),
 		launcher:     launcherhandler.New(api, services.Launcher),
 		loop:         loophandler.New(api, services.Loops),
 		workspace:    workspacehandler.New(api, services.Workspace),
