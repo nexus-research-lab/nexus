@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented initial Room and DM history loading from restoring a stale reading anchor after the view had already followed the latest message.
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
 - Exposed desktop folder mounting in Room chat and applied the folder snapshot to every member runtime in the conversation.
 

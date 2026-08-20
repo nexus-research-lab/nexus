@@ -449,6 +449,7 @@ function ContactConversation({
     cancelHistoryPrependRestore: scroll.cancelHistoryPrependRestore,
     hasMoreHistory,
     isHistoryLoading,
+    isFollowingLatest: scroll.isFollowingLatest,
     isLoading,
     loadOlderMessages: onLoadOlderMessages,
     messageCount: messages.length,

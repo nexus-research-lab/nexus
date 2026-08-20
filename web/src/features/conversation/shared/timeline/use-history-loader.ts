@@ -5,12 +5,45 @@ import { getConversationRoundNavigationTarget } from "./scroll/round-scroll";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
+interface ConversationHistoryLoadDecision {
+  allowWhileFollowing: boolean;
+  enabled: boolean;
+  followingLatest: boolean;
+  hasMoreHistory: boolean;
+  hasNavigationTarget: boolean;
+  isHistoryLoading: boolean;
+  isLoading: boolean;
+  scrollTop: number;
+}
+
+export function shouldLoadOlderConversationMessages({
+  allowWhileFollowing,
+  enabled,
+  followingLatest,
+  hasMoreHistory,
+  hasNavigationTarget,
+  isHistoryLoading,
+  isLoading,
+  scrollTop,
+}: ConversationHistoryLoadDecision): boolean {
+  return (
+    enabled
+    && hasMoreHistory
+    && !isHistoryLoading
+    && !isLoading
+    && !hasNavigationTarget
+    && (allowWhileFollowing || !followingLatest)
+    && scrollTop <= HISTORY_LOAD_THRESHOLD_PX
+  );
+}
+
 interface UseConversationHistoryLoaderOptions {
-  autoFillViewport?: boolean;
+  enabled?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   messageCount: number;
   hasMoreHistory: boolean;
   isHistoryLoading: boolean;
+  isFollowingLatest: () => boolean;
   isLoading: boolean;
   loadOlderMessages: () => Promise<boolean>;
   prepareHistoryPrependRestore: () => void;
@@ -19,25 +52,36 @@ interface UseConversationHistoryLoaderOptions {
 }
 
 export function useConversationHistoryLoader({
-  autoFillViewport = true,
+  enabled = true,
   scrollRef,
   messageCount,
   hasMoreHistory,
   isHistoryLoading,
+  isFollowingLatest,
   isLoading,
   loadOlderMessages,
   prepareHistoryPrependRestore,
   cancelHistoryPrependRestore,
   onScroll,
 }: UseConversationHistoryLoaderOptions) {
-  const maybeLoadOlderMessages = useCallback(async () => {
+  const maybeLoadOlderMessages = useCallback(async (
+    allowWhileFollowing = false,
+  ) => {
     const container = scrollRef.current;
     if (
-      !container ||
-      !hasMoreHistory ||
-      isHistoryLoading ||
-      getConversationRoundNavigationTarget(container) ||
-      container.scrollTop > HISTORY_LOAD_THRESHOLD_PX
+      !container
+      || !shouldLoadOlderConversationMessages({
+        allowWhileFollowing,
+        enabled,
+        followingLatest: isFollowingLatest(),
+        hasMoreHistory,
+        hasNavigationTarget: Boolean(
+          getConversationRoundNavigationTarget(container),
+        ),
+        isHistoryLoading,
+        isLoading,
+        scrollTop: container.scrollTop,
+      })
     ) {
       return;
     }
@@ -49,8 +93,11 @@ export function useConversationHistoryLoader({
     }
   }, [
     cancelHistoryPrependRestore,
+    enabled,
     hasMoreHistory,
     isHistoryLoading,
+    isFollowingLatest,
+    isLoading,
     loadOlderMessages,
     prepareHistoryPrependRestore,
     scrollRef,
@@ -64,21 +111,13 @@ export function useConversationHistoryLoader({
   useEffect(() => {
     const container = scrollRef.current;
     if (
-      !autoFillViewport ||
       !container ||
-      !hasMoreHistory ||
-      isHistoryLoading ||
-      isLoading ||
       container.scrollHeight > container.clientHeight + 24
     ) {
       return;
     }
-    void maybeLoadOlderMessages();
+    void maybeLoadOlderMessages(true);
   }, [
-    autoFillViewport,
-    hasMoreHistory,
-    isHistoryLoading,
-    isLoading,
     maybeLoadOlderMessages,
     messageCount,
     scrollRef,
