@@ -13,6 +13,7 @@
 | Room Skill 编写 | [中文指南](./guides/room-skill-authoring.md) · [英文指南](./guides/room-skill-authoring.en.md) |
 | Linux 生产隔离 | [Linux Runtime 隔离运维](./operations/runtime-isolation.md) |
 | OpenAI Responses runtime | [OpenAI Responses runtime 集成](./specs/openai-responses-runtime-spec.md) |
+| 维护者回归测试 | [Nexus 回归测试总目录](./testing/nexus-regression-catalog.md) · [会话打开与最新消息滚动](./testing/conversation-latest-scroll-regression.md) |
 
 ## 维护者规范
 
