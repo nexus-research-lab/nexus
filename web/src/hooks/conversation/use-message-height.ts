@@ -51,6 +51,10 @@ const CODE_BLOCK_MIN_HEIGHT = 80;
 
 const TOOL_BLOCK_HEIGHT = 60;
 
+// live 正文的 backend target 可能远快于 Markdown reveal；此时只给未测量节点
+// 一个保守起点，让真实 DOM 以正向 delta 驱动增长，不能提前预支整段目标高度。
+export const ACTIVE_ROUND_ESTIMATED_HEIGHT = 96;
+
 const ignoreHeightMetrics = () => undefined;
 
 const CONTENT_BLOCK_METRIC_COLLECTORS = {
@@ -151,6 +155,7 @@ export function estimateRoundHeights(
   roundIds: string[],
   messageGroups: Map<string, Message[]>,
   containerWidth: number,
+  activeRoundIds: ReadonlySet<string> = new Set(),
 ): Map<string, number> {
   const result = new Map<string, number>();
 
@@ -160,6 +165,10 @@ export function estimateRoundHeights(
   }
 
   for (const id of roundIds) {
+    if (activeRoundIds.has(id)) {
+      result.set(id, ACTIVE_ROUND_ESTIMATED_HEIGHT);
+      continue;
+    }
     const messages = messageGroups.get(id) ?? [];
     const metrics = projectRoundHeightMetrics(messages);
     const codeBlockHeight = estimateCodeBlockHeight(metrics.text);

@@ -10,6 +10,7 @@ import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import {
+  isConversationRoundActivelyGrowing,
   resolveConversationRound,
   type ConversationFeedProps,
 } from "./conversation-feed-model";
@@ -47,13 +48,20 @@ export function ConversationVirtualFeed({
   );
   const getItemKey = useConversationVirtualItemKey(roundNodeIds);
   const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
+  const activeRoundIds = useMemo(() => new Set(
+    source.roundIds.filter((_roundId, index) => isConversationRoundActivelyGrowing(
+      source,
+      resolveConversationRound(source, index),
+    )),
+  ), [source]);
   const heightMap = useMemo(
     () => estimateRoundHeights(
       source.roundIds,
       source.messageGroups,
       metrics.containerWidth,
+      activeRoundIds,
     ),
-    [metrics.containerWidth, source.messageGroups, source.roundIds],
+    [activeRoundIds, metrics.containerWidth, source.messageGroups, source.roundIds],
   );
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
@@ -65,8 +73,19 @@ export function ConversationVirtualFeed({
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
-    shouldAdjustConversationVirtualScrollPosition;
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
+    item,
+    delta,
+    instance,
+  ) => shouldAdjustConversationVirtualScrollPosition(
+    item,
+    delta,
+    instance,
+    {
+      bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
+      followingLatest: refs.isFollowingLatest?.() ?? false,
+    },
+  );
   const scrollToIndex = useCallback((
     index: number,
     options?: { behavior?: ScrollBehavior },

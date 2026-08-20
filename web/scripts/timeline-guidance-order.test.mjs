@@ -531,6 +531,89 @@ test("FOLLOW keeps one scroll owner while parallel Room Agents grow", async () =
   );
 });
 
+test("live Room layout holds negative height debt until every Agent settles", async () => {
+  const { resolveConversationLiveHeightGuard } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/use-conversation-live-height-guard.ts",
+  );
+  const initial = {
+    minimumHeight: 0,
+    scopeKey: "room-a",
+    wasActive: false,
+  };
+  const opened = resolveConversationLiveHeightGuard({
+    active: true,
+    measuredHeight: 900,
+    scopeKey: "room-a",
+  }, initial);
+  const corrected = resolveConversationLiveHeightGuard({
+    active: true,
+    measuredHeight: 620,
+    scopeKey: "room-a",
+  }, opened.state);
+  assert.equal(corrected.minimumHeight, 900);
+  assert.equal(corrected.releasing, false);
+
+  const grown = resolveConversationLiveHeightGuard({
+    active: true,
+    measuredHeight: 1_080,
+    scopeKey: "room-a",
+  }, corrected.state);
+  assert.equal(grown.minimumHeight, 1_080);
+
+  const settled = resolveConversationLiveHeightGuard({
+    active: false,
+    measuredHeight: 760,
+    scopeKey: "room-a",
+  }, grown.state);
+  assert.equal(settled.minimumHeight, 0);
+  assert.equal(settled.releasing, true);
+
+  const switched = resolveConversationLiveHeightGuard({
+    active: true,
+    measuredHeight: 320,
+    scopeKey: "room-b",
+  }, grown.state);
+  assert.equal(switched.minimumHeight, 320, "height debt cannot cross sessions");
+});
+
+test("live layout epoch includes parallel message, slot, and execution sources", async () => {
+  const { isConversationLiveLayoutActive } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+  const idle = {
+    isLoading: false,
+    liveRoundIds: [],
+    messages: [],
+    pendingAgentSlots: [],
+    roomAgentExecutionStates: [],
+    runtimePhase: "idle",
+  };
+  assert.equal(isConversationLiveLayoutActive(idle), false);
+  assert.equal(isConversationLiveLayoutActive({
+    ...idle,
+    pendingAgentSlots: [{
+      agent_id: "agent-1",
+      agent_round_id: "agent-round-1",
+      msg_id: "slot-1",
+      round_id: "root-1",
+      status: "streaming",
+      timestamp: 1,
+    }],
+  }), true);
+  assert.equal(isConversationLiveLayoutActive({
+    ...idle,
+    roomAgentExecutionStates: [{
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      display_order: 2,
+      first_seen_at: 2,
+      phase: "active",
+      round_id: "root-1",
+      status: "streaming",
+    }],
+  }), true);
+});
+
 test("auto follow settles again after virtual Room measurement", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
@@ -965,6 +1048,36 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
     ),
     false,
     "the same tail growth must not move a reader who is away from the bottom",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 300 },
+      -240,
+      { scrollOffset: 500 },
+      { bottomScrollActive: false, followingLatest: true },
+    ),
+    false,
+    "negative live measurement is absorbed by the feed height guard",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 300 },
+      40,
+      { scrollOffset: 500 },
+      { bottomScrollActive: true, followingLatest: true },
+    ),
+    false,
+    "Virtualizer cannot write while the shared bottom owner is active",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 300 },
+      -40,
+      { scrollOffset: 500 },
+      { bottomScrollActive: false, followingLatest: false },
+    ),
+    true,
+    "READING keeps compensating measured items above the viewport",
   );
 });
 
@@ -1825,10 +1938,10 @@ test("Room public activity survives the pause between reply text and tool work",
     status: "pending",
   });
   assert.match(pendingHtml, /正在思考/);
-  assert.match(
+  assert.doesNotMatch(
     pendingHtml,
     /room-agent-execution-enter/,
-    "the first pending shell receives one bounded compositor-only entrance animation",
+    "a pending shell must not add translated geometry during parallel growth",
   );
   assert.equal(
     pendingHtml.match(/message-activity-spinner-track/g)?.length,
@@ -6906,6 +7019,37 @@ test("Room stopping controls and unresolved tools share the interrupted terminal
     "success",
     "a real provider result must outrank the terminal fallback",
   );
+});
+
+test("live virtual rounds do not pre-allocate unrevealed Markdown height", async () => {
+  const {
+    ACTIVE_ROUND_ESTIMATED_HEIGHT,
+    estimateRoundHeights,
+  } = await server.ssrLoadModule(
+    "/src/hooks/conversation/use-message-height.ts",
+  );
+  const roundId = "streaming-round";
+  const messages = new Map([[roundId, [assistantMessage({
+    agentId: "agent-streaming-height",
+    agentRoundId: "agent-round-streaming-height",
+    messageId: "assistant-streaming-height",
+    text: "尚未 reveal 的正文 ".repeat(500),
+    timestamp: 1,
+  })]]]);
+  const settledHeight = estimateRoundHeights(
+    [roundId],
+    messages,
+    640,
+  ).get(roundId);
+  const liveHeight = estimateRoundHeights(
+    [roundId],
+    messages,
+    640,
+    new Set([roundId]),
+  ).get(roundId);
+
+  assert.equal(liveHeight, ACTIVE_ROUND_ESTIMATED_HEIGHT);
+  assert.ok(settledHeight > liveHeight);
 });
 
 test("Room virtual height keeps Composer interactions out of the feed estimate", async () => {

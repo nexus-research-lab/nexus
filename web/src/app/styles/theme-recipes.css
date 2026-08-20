@@ -384,18 +384,6 @@
     background: color-mix(in srgb, var(--text-muted) 28%, transparent);
   }
 
-  /*
-   * 新 handoff 先建立稳定 execution shell，再仅动画合成层；
-   * 状态和流式正文继续复用同一节点，不逐帧改高度或触发虚拟列表校正。
-   */
-  .room-agent-execution-enter {
-    animation:
-      nexus-room-agent-execution-enter
-      var(--motion-duration-normal)
-      var(--motion-ease-standard)
-      both;
-  }
-
   .content-workspace-file {
     display: inline-flex;
     align-items: center;

@@ -15,6 +15,7 @@ import {
 import { GroupConversationRound } from "./group-conversation-round";
 import { GroupConversationVirtualFeed } from "./group-conversation-virtual-feed";
 import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
+import { useConversationVirtualizationPolicy } from "@/features/conversation/shared/feed/use-conversation-virtualization-policy";
 
 const VIRTUAL_ROUND_THRESHOLD = 20;
 
@@ -22,8 +23,12 @@ export const GroupConversationFeed = memo(function GroupConversationFeed(
   props: GroupConversationFeedProps,
 ) {
   const { isMobileLayout, refs, renderer, source } = props;
-  const shouldVirtualize =
-    source.roundIds.length >= VIRTUAL_ROUND_THRESHOLD && Boolean(refs.scrollRef);
+  const shouldVirtualize = useConversationVirtualizationPolicy({
+    active: source.liveLayoutActive,
+    count: source.roundIds.length,
+    scopeKey: source.scopeKey,
+    threshold: VIRTUAL_ROUND_THRESHOLD,
+  }) && Boolean(refs.scrollRef);
 
   if (shouldVirtualize && refs.scrollRef) {
     return (

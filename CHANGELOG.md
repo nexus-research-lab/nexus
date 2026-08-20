@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
 - Exposed desktop folder mounting in Room chat and applied the folder snapshot to every member runtime in the conversation.
 
 ## [0.1.36] - 2026-08-19

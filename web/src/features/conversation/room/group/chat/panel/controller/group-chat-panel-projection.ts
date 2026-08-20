@@ -76,6 +76,9 @@ type GroupChatSession = Omit<
   scroll: ConversationPanelSessionSource["scroll"] & {
     bottomAnchorRef: RefObject<HTMLDivElement | null>;
     feedRef: RefObject<HTMLDivElement | null>;
+    isBottomScrollActive: () => boolean;
+    isFollowingLatest: () => boolean;
+    liveLayoutActive: boolean;
   };
 };
 
@@ -229,6 +232,8 @@ function buildFeedModel({
     refs: {
       bottomAnchorRef: scroll.bottomAnchorRef,
       feedRef: scroll.feedRef,
+      isBottomScrollActive: scroll.isBottomScrollActive,
+      isFollowingLatest: scroll.isFollowingLatest,
       roundScrollRef,
       scrollRef: scroll.scrollRef,
     },
@@ -247,6 +252,7 @@ function buildFeedModel({
       stoppingAgentRoundIds: conversation.stopping_agent_round_ids,
     },
     source: {
+      liveLayoutActive: scroll.liveLayoutActive,
       liveRoundIds: conversation.live_round_ids,
       messageGroups: feedTimeline.messageGroups,
       pendingPermissionGroups: feedTimeline.pendingPermissionGroups,
@@ -256,6 +262,7 @@ function buildFeedModel({
       rootRoundIds: feedTimeline.rootRoundIds,
       roundIds: feedTimeline.roundIds,
       roundIndexItems,
+      scopeKey: session.sessionKey,
       unreadMarkerRoundId: unread.markerRoundId,
     },
   };

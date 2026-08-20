@@ -20,7 +20,7 @@
 - Feed 同时消费按 root 分组的 execution 首见锚点；权限提交成功后的 acknowledged 节点只保持原 shell 与活动反馈，不再携带可响应交互。
 - 缺少 `agent_round_id` 的 legacy terminal 只有在 `parent_id` 精确命中同 Agent slot `msg_id` 时才能从 root 消费；不得按 Agent 唯一候选猜测执行归属。
 - 任何阻塞 runtime、等待用户响应的请求，即使先于 Agent 消息或 slot 到达，或承载消息已经完成，也必须进入主 Room Composer；Feed 与 Thread 只保留只读等待证据。
-- `group-conversation-height-model.ts` 只在共享消息估高上补入 slot-only 外壳；Composer-owned question/permission 不得在 Feed 重复预留高度。
-- 最后 root 的全部连续 Agent 节点按真实高度进入 shared feed；新增 shell 必须立即推动 FOLLOW，禁止尾部 runway 或逐 Agent `min-height`。
+- `group-conversation-height-model.ts` 只在共享消息估高上补入 slot-only 外壳；Composer-owned question/permission 不得在 Feed 重复预留高度。活跃 Agent 节点不得按完整未 reveal 正文预估高度。
+- 最后 root 的全部连续 Agent 节点按真实高度进入 shared feed；新增 shell 必须立即推动 FOLLOW，禁止尾部 runway 或逐 Agent `min-height`。并行 live source 的负向校正只允许在共享父 Feed 暂存，并在整个 epoch 终态后统一释放。
 - 导航优先定位已挂载 DOM；虚拟列表未挂载时才回退到索引滚动。
 - 模型文件只做纯数据转换，不读取 Store、不触发副作用。
