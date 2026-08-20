@@ -36,6 +36,28 @@ func TestRuntimeCommandInputStagingDescribesPreCreatedFile(t *testing.T) {
 	}
 }
 
+func TestRuntimeAutomationContractUsageDescribesTheWholeMutationLifecycle(t *testing.T) {
+	usage := runtimeAutomationContractCommandUsage()
+	for _, key := range []string{
+		"contract", "inspect", "plan", "apply", "verify", "input", "output", "request_id", "shell", "next",
+	} {
+		if strings.TrimSpace(usage[key]) == "" {
+			t.Fatalf("automation command usage missing %q: %#v", key, usage)
+		}
+	}
+	if !strings.Contains(usage["apply"], "--expected-revision '<plan.current_revision>'") ||
+		!strings.Contains(usage["apply"], "--request-id '<stable-request-id>'") ||
+		!strings.Contains(usage["input"], "unchanged between plan") ||
+		!strings.Contains(usage["next"], "inspect, plan, apply, then verify") {
+		t.Fatalf("automation command usage = %#v", usage)
+	}
+	for _, key := range []string{"inspect", "plan", "apply"} {
+		if strings.Contains(usage[key], "--input") {
+			t.Fatalf("%s should use the host-managed default input slot: %q", key, usage[key])
+		}
+	}
+}
+
 func TestRuntimeAutomationControllerUsesCapabilityAndStrictEnvelope(t *testing.T) {
 	controller := remoteRuntimeAutomationController{
 		command: &runtimeSemanticController{

@@ -202,18 +202,57 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("automation", "SKILL.md"): {
 			"NEXUS_COMMAND_PATH",
 			"automation contract",
-			"inspect → plan → apply",
+			"inspect → plan → apply → verify",
+			"command_usage",
 			"原生真人确认",
-			"后台 scheduled run 只有查询权限",
-			"IM `/y`、`/a`、`/d`",
-			"references/operations.md",
+			"后台 scheduled run 只有宿主绑定 job/run 的查询权限",
+			"页面或 IM 的 `/y`、`/a`、`/d`",
+			"references/queries.md",
+			"references/scheduled-tasks.md",
+			"references/heartbeat.md",
 		},
-		filepath.Join("automation", "references", "operations.md"): {
-			"Automation CLI 操作",
+		filepath.Join("automation", "references", "queries.md"): {
+			"Automation 查询",
+			"scheduled run",
+			"job_id",
+		},
+		filepath.Join("automation", "references", "scheduled-tasks.md"): {
 			"retry_delivery",
-			"set_heartbeat",
+			"inspect → plan → apply → verify",
 			"cross_agent_allowed",
-			"current_revision",
+		},
+		filepath.Join("automation", "references", "heartbeat.md"): {
+			"set_heartbeat",
+			"next-heartbeat",
+			"scheduled task",
+		},
+		filepath.Join("nexus-configuration", "SKILL.md"): {
+			"NEXUSCFG_COMMAND_PATH",
+			"inspect → plan",
+			"requires_confirmation",
+			"references/roles-and-domains.md",
+			"--secrets-stdin",
+		},
+		filepath.Join("nexus-configuration", "references", "roles-and-domains.md"): {
+			"owner_main",
+			"agent_self",
+			"room_host",
+			"room_member",
+			"nexus-manager",
+		},
+		filepath.Join("nexus-manager", "SKILL.md"): {
+			"NEXUSCTL_COMMAND_PATH",
+			"success=true",
+			"references/accounts-and-agents.md",
+			"references/rooms-and-sessions.md",
+			"references/workspaces.md",
+			"references/skills.md",
+		},
+		filepath.Join("nexus-manager", "references", "rooms-and-sessions.md"): {
+			"room ensure-dm",
+			"conversation messages",
+			"session delete",
+			"conversation prune-empty",
 		},
 		filepath.Join("visualize", "SKILL.md"): {
 			"在 Nexus 对话中生成交互式图表",
@@ -225,10 +264,14 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
 			"--json goal contract",
-			"input_staging.path",
+			"input_staging",
+			"additionalProperties=false",
 			"references/create-and-retarget.md",
+			"references/complete-and-block.md",
+			"references/room-goals.md",
 			"execution-orchestrator",
 			"token_budget",
+			"Plan Mode",
 		},
 		filepath.Join("goal-manager", "references", "create-and-retarget.md"): {
 			"promote_execution_to_goal",
@@ -239,6 +282,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"audit_objective_alignment",
 			"最终回复必须脱离过程消息",
 			"至少连续三个 Goal turns",
+			"blocker_id",
+			"needed_input",
 		},
 		filepath.Join("goal-manager", "references", "room-goals.md"): {
 			"Lead 身份",
@@ -247,17 +292,23 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"不是完成门槛",
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
-			"Goal 决定持续追求什么",
+			"Goal 管理“什么目标需要跨轮持续追求”",
 			"--json execution contract",
-			"input_staging.path",
-			"最小选择表",
+			"input_staging",
+			"additionalProperties=false",
+			"references/responsibility-and-delivery.md",
+			"references/recovery-and-alignment.md",
+			"references/workflow-reuse.md",
+			"`next_actions` 是建议，不授权",
 			"references/structure-selection.md",
-			"substantial execution 前评估任务是否原子",
-			"只加入价值高于协调成本的结构",
+			"substantial execution 前先判断",
 			"不因 handoff 要求用户发送“继续”",
 		},
 		filepath.Join("execution-orchestrator", "references", "structure-selection.md"): {
 			"独立判断信号",
+			"不把“理解任务”本身交给子 Agent",
+			"不共享可变状态、重叠编辑范围",
+			"terminal 状态不等于父责任已交付",
 			"用例只是校验",
 			"加载 `goal-manager`",
 		},
@@ -266,13 +317,39 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"nexus_plan: 1",
 			"document_contract",
 			"Skill 不复制完整字段表",
+			"supersede_active_work: true",
+			"最多 64 KiB",
 			"自审折叠在同一 Agent 节点",
 			"Goal 生命周期不是使用 Loop 的前提",
+		},
+		filepath.Join("execution-orchestrator", "references", "responsibility-and-delivery.md"): {
+			"Responsibility 与交付",
+			"assign_work",
+			"submit_work",
+			"review_work",
+			"take_over_work",
+			"WorkBinding",
+			"self Assignment applied",
+		},
+		filepath.Join("execution-orchestrator", "references", "recovery-and-alignment.md"): {
+			"block_work",
+			"resume_work",
+			"audit_execution_alignment",
+			"promote_execution_to_goal",
+			"Goal + WorkGraph 收口",
+		},
+		filepath.Join("execution-orchestrator", "references", "workflow-reuse.md"): {
+			"distill_workgraph_workflow",
+			"nodes[{work_item_id,role}]",
+			"key|collaboration",
+			"相同 request id 是同一次幂等创建",
 		},
 		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {
 			"四个平面",
 			"command 可以记录交付状态",
 			"用户有没有说“协作”",
+			"Coordinator 分派顺序与 lane 转移",
+			"command 必须串行",
 			"不要要求用户发送“继续”",
 		},
 	}
@@ -285,6 +362,17 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			if !strings.Contains(string(payload), expected) {
 				t.Fatalf("系统托管 Skill 文件 %s 缺少 %q", relativePath, expected)
 			}
+		}
+	}
+	for _, skillName := range []string{
+		"automation", "execution-orchestrator", "goal-manager", "nexus-configuration", "nexus-manager",
+	} {
+		payload, readErr := os.ReadFile(filepath.Join(platformAgentSkills, skillName, "SKILL.md"))
+		if readErr != nil {
+			t.Fatalf("读取分层 Skill 入口 %s 失败: %v", skillName, readErr)
+		}
+		if len(payload) > 5<<10 {
+			t.Fatalf("分层 Skill 入口 %s 过大: %d bytes", skillName, len(payload))
 		}
 	}
 

@@ -29,9 +29,14 @@ func TestRuntimeEntrypointArgsRequiresThePrivateHostMarker(t *testing.T) {
 func TestRuntimeSemanticContractCommandUsageMakesExactContractMandatory(t *testing.T) {
 	directory := runtimeSemanticContractCommandUsage("execution", "", "get_execution")
 	if !strings.Contains(directory["next"], "exact operation contract") ||
+		directory["contract"] != `"${NEXUS_COMMAND_PATH}" --json execution contract` ||
 		directory["operation_contract"] != `"${NEXUS_COMMAND_PATH}" --json execution contract --operation '<operation>'` ||
 		directory["inspect"] != `"${NEXUS_COMMAND_PATH}" --json execution inspect` ||
-		directory["inspect_explicit"] != `"${NEXUS_COMMAND_PATH}" --json execution inspect --execution-id '<execution-id>'` {
+		directory["inspect_explicit"] != `"${NEXUS_COMMAND_PATH}" --json execution inspect --execution-id '<execution-id>'` ||
+		!strings.Contains(directory["input"], "closed JSON object") ||
+		!strings.Contains(directory["output"], "there is no result.data") ||
+		!strings.Contains(directory["request_id"], "8-128") ||
+		!strings.Contains(directory["shell"], "standalone process") {
 		t.Fatalf("directory usage = %#v", directory)
 	}
 
@@ -40,9 +45,9 @@ func TestRuntimeSemanticContractCommandUsageMakesExactContractMandatory(t *testi
 		"prepare_plan_execution",
 		"get_execution",
 	)
-	if !strings.Contains(exact["next"], "input_staging.path") ||
-		!strings.Contains(exact["next"], "Read") ||
-		!strings.Contains(exact["next"], "every new mutation input write") ||
+	if !strings.Contains(exact["input"], "input_staging.path") ||
+		!strings.Contains(exact["input"], "Read") ||
+		!strings.Contains(exact["input"], "every new mutation intent") ||
 		!strings.Contains(exact["next"], "never reuse a remembered path") ||
 		!strings.Contains(exact["invoke"], "--operation 'prepare_plan_execution'") ||
 		strings.Contains(exact["invoke"], "--input") {

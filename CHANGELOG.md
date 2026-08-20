@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
 - Bottom-anchored live Feed height debt, stabilized consecutive Composer interaction heights, and coalesced Generative UI resize corrections so terminal tool layout no longer exposes blank tails or repeatedly resizes the conversation viewport.
+- Rebuilt the Nexus CLI Skills as thin domain routers with on-demand Goal, Execution, Automation, Configuration, and owner-control references, while making runtime command contracts self-describe safe transport, staging, request identity, and result handling.
 
 ## [0.1.36] - 2026-08-19
 

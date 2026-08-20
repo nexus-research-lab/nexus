@@ -25,7 +25,7 @@
 
 1. 形成 execution-ready objective。
 2. 用宿主注入的 `"${NEXUS_COMMAND_PATH}" --json goal inspect` 确认当前会话没有未结束 Goal。
-3. 按 Skill 的 contract → input staging → invoke 流程执行 `create_goal`；只有用户明确给出预算时才传 `token_budget`。
+3. 按 Skill 的 contract → input staging → invoke 流程执行 `create_goal`；只有用户明确给出正数预算时才传 `token_budget`，零数、负数或模型估算都省略。
 4. 如果当前已经有 objective/owner/scope 兼容的 transient WorkGraph，不执行 `create_goal`；按 Execution 命令流程执行 `promote_execution_to_goal`，并使用 `activation_reason=persistence_requested` 在原图上建立显式 Goal。只有两者都尚不存在、且还要建立 WorkGraph 时，才等待 `create_goal` 的 applied receipt，再执行 `prepare_plan_execution`；两步有因果顺序，不能并行。Plan 会从 exact active Goal 继承 objective。
 5. 创建成功后用一句话确认目标，然后继续执行，不解释底层工具。
 
