@@ -23,11 +23,7 @@ type planExecutionInput struct {
 }
 
 type distillWorkflowInput struct {
-	ExecutionID string                                    `json:"execution_id"`
-	SlashName   string                                    `json:"slash_name"`
-	Title       string                                    `json:"title"`
-	Description string                                    `json:"description,omitempty"`
-	Nodes       []protocol.WorkGraphWorkflowNodeSelection `json:"nodes"`
+	PreviewID string `json:"preview_id"`
 }
 
 type abandonExecutionInput struct {

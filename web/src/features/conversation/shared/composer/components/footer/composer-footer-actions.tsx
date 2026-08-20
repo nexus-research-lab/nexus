@@ -7,6 +7,7 @@ import {
   Plus,
   Repeat2,
   Target,
+  GitBranchPlus,
 } from "lucide-react";
 
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
@@ -19,12 +20,13 @@ import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
 import type { ComposerLocalDirectoriesController } from "../../controller/use-composer-local-directories";
 
-type ComposerActionValue = "attachment" | "directory" | "goal" | "loop";
+type ComposerActionValue = "attachment" | "directory" | "goal" | "loop" | "workgraph";
 
 interface ComposerFooterActionsProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
   canCreateGoal: boolean;
   canUseLoop: boolean;
+  canUseWorkGraphDistillations: boolean;
   isActionMenuOpen: boolean;
   isGoalCreating: boolean;
   isGoalMode: boolean;
@@ -35,6 +37,7 @@ interface ComposerFooterActionsProps {
   onAttachmentSelect: () => void;
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
+  onWorkGraphDistillationsSelect: () => void;
   onLocalDirectorySelect: () => void;
   sessionSettingsController: ComposerSessionSettingsController;
   sessionSettingsDisabled: boolean;
@@ -49,6 +52,7 @@ export function ComposerFooterActions({
   actionButtonRef,
   canCreateGoal,
   canUseLoop,
+  canUseWorkGraphDistillations,
   isActionMenuOpen,
   isGoalCreating,
   isGoalMode,
@@ -59,6 +63,7 @@ export function ComposerFooterActions({
   onAttachmentSelect,
   onGoalToggle,
   onLoopSelect,
+  onWorkGraphDistillationsSelect,
   onLocalDirectorySelect,
   sessionSettingsController,
   sessionSettingsDisabled,
@@ -68,6 +73,7 @@ export function ComposerFooterActions({
     canCreateGoal,
     canUseLocalDirectories: localDirectoriesController.available,
     canUseLoop,
+    canUseWorkGraphDistillations,
     goalSwitch: (
       <span
         onClick={(event) => event.stopPropagation()}
@@ -95,12 +101,14 @@ export function ComposerFooterActions({
       directory: t("composer.add_local_directory"),
       goal: t("composer.start_goal"),
       loop: t("composer.insert_loop"),
+      workgraph: t("composer.open_workgraph_distillations"),
     },
   });
   const commands = new Map<string, () => void>([
     ["attachment", onAttachmentSelect],
     ["directory", onLocalDirectorySelect],
     ["loop", onLoopSelect],
+    ["workgraph", onWorkGraphDistillationsSelect],
     ["goal", () => onGoalToggle(!isGoalMode)],
   ]);
   for (const connector of sessionSettingsController.connectors) {
@@ -197,6 +205,7 @@ function buildActionItems({
   canCreateGoal,
   canUseLocalDirectories,
   canUseLoop,
+  canUseWorkGraphDistillations,
   goalSwitch,
   isGoalCreating,
   isGoalMode,
@@ -207,6 +216,7 @@ function buildActionItems({
   canCreateGoal: boolean;
   canUseLocalDirectories: boolean;
   canUseLoop: boolean;
+  canUseWorkGraphDistillations: boolean;
   goalSwitch: ReactNode;
   isGoalCreating: boolean;
   isGoalMode: boolean;
@@ -240,6 +250,14 @@ function buildActionItems({
         value: "loop",
       },
       visible: canUseLoop,
+    },
+    {
+      item: {
+        icon: <GitBranchPlus className="h-4 w-4 text-(--icon-muted)" />,
+        label: labels.workgraph,
+        value: "workgraph",
+      },
+      visible: canUseWorkGraphDistillations,
     },
     {
       item: {

@@ -61,7 +61,7 @@ func TestWorkGraphCommandEnablesCollaborationWithoutDistillation(t *testing.T) {
 		!containsAll(expanded, "execution-orchestrator", "fresh managed WorkGraph", "compare storage engines") {
 		t.Fatalf("workgraph expansion = %q", expanded)
 	}
-	if containsAll(expanded, "distill_workgraph_workflow") {
+	if containsAll(expanded, "distill_workgraph") {
 		t.Fatalf("fixed /workgraph acquired workflow-saving semantics: %q", expanded)
 	}
 }

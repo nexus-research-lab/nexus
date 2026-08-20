@@ -3,16 +3,12 @@
  * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型。
  * POS: Shared Composer 的顶层交互编排入口。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { CommandCatalogData } from "@/types/generated/protocol";
-import {
-  WORKGRAPH_DISTILLATION_INTENT_EVENT,
-  type WorkGraphDistillationIntentDetail,
-} from "@/features/conversation/shared/execution/workgraph-distillation-intent";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
 import {
@@ -70,7 +66,6 @@ export function useComposerController({
   );
   const draft = useComposerDraft(draftScopeKey);
   const {
-    applyPrompt,
     setAttachments,
     setActionMenuOpen,
     setGoalError,
@@ -91,21 +86,6 @@ export function useComposerController({
       }
     });
   }, []);
-  useEffect(() => {
-    const handleIntent = (event: Event) => {
-      const detail = (event as CustomEvent<WorkGraphDistillationIntentDetail>).detail;
-      if (!detail || detail.sessionKey !== localDirectorySessionKey) {
-        return;
-      }
-      applyPrompt(detail.prompt, "message");
-      focusTextareaAtEnd();
-    };
-    window.addEventListener(WORKGRAPH_DISTILLATION_INTENT_EVENT, handleIntent);
-    return () => window.removeEventListener(
-      WORKGRAPH_DISTILLATION_INTENT_EVENT,
-      handleIntent,
-    );
-  }, [applyPrompt, focusTextareaAtEnd, localDirectorySessionKey]);
   const isGoalMode = draftState.inputMode === "goal";
   const attachments = useComposerAttachments({
     attachments: draftState.attachments,

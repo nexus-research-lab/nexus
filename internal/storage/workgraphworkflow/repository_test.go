@@ -26,6 +26,8 @@ func TestRepositoryPersistsWorkflowAggregateAndOwnerScope(t *testing.T) {
 	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	now := time.Date(2026, 8, 20, 4, 5, 6, 0, time.UTC)
 	created, err := repository.Create(context.Background(), protocol.WorkGraphWorkflow{
@@ -50,7 +52,9 @@ func TestRepositoryPersistsWorkflowAggregateAndOwnerScope(t *testing.T) {
 	if hidden, getErr := repository.GetByID(context.Background(), "owner-b", created.ID); getErr != nil || hidden != nil {
 		t.Fatalf("cross-owner read = %#v, err=%v", hidden, getErr)
 	}
-	listed, err := repository.List(context.Background(), "owner-a")
+	listCtx, cancelList := context.WithTimeout(context.Background(), time.Second)
+	defer cancelList()
+	listed, err := repository.List(listCtx, "owner-a")
 	if err != nil || len(listed) != 1 || listed[0].SlashName != "deep-research" {
 		t.Fatalf("list = %#v, err=%v", listed, err)
 	}

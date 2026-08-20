@@ -51,6 +51,9 @@ const ConnectorsPage = lazy(() =>
 const LoopsPage = lazy(() =>
   import("@/pages/loops/loops-page").then((m) => ({ default: m.LoopsPage })),
 );
+const WorkGraphDistillationsPage = lazy(() =>
+  import("@/pages/workgraph-distillations/workgraph-distillations-page").then((m) => ({ default: m.WorkGraphDistillationsPage })),
+);
 const ConnectorOAuthCallbackPage = lazy(() =>
   import("@/pages/connectors/connector-oauth-callback-page").then((m) => ({
     default: m.ConnectorOAuthCallbackPage,
@@ -119,6 +122,8 @@ export function AppRouter() {
                   {/* 能力子路由 */}
                   <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loops} />
                   <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loopDetail} />
+                  <Route element={<WorkGraphDistillationsPage />} path={APP_ROUTE_PATHS.workGraphDistillations} />
+                  <Route element={<WorkGraphDistillationsPage />} path={APP_ROUTE_PATHS.workGraphDistillationDetail} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectorDetail} />
                   <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduledTasks} />

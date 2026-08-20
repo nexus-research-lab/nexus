@@ -178,6 +178,7 @@ export function useGroupChatComposerModel({
           localDirectoryAgentId,
         )
       : undefined,
+    workGraphSessionKey: sessionKey ?? undefined,
     onCreateGoal: sessionKey
       ? (objective: string) => createGoal(objective)
       : undefined,

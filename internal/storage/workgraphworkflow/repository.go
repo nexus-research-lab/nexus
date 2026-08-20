@@ -1,6 +1,6 @@
-// INPUT: 已验证的 WorkGraph Workflow aggregate、owner/name 查询与 SQL 方言。
+// INPUT: 已验证的 WorkGraph 沉淀 aggregate、owner/name 查询与 SQL 方言。
 // OUTPUT: 原子持久化的 workflow、节点和依赖；owner scope 外一律不可见。
-// POS: 可复用 WorkGraph Workflow 的关系数据库边界。
+// POS: 可复用 WorkGraph 沉淀的关系数据库边界。
 package workgraphworkflow
 
 import (
@@ -17,7 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
-// Repository 持久化 WorkGraph Workflow aggregate。
+// Repository 持久化 WorkGraph 沉淀 aggregate。
 type Repository struct {
 	db      *sql.DB
 	dialect storage.SQLDialect
@@ -133,7 +133,7 @@ INSERT INTO workgraph_workflow_dependencies (
 	return r.GetByID(ctx, workflow.OwnerUserID, workflow.ID)
 }
 
-// List 返回 owner 的完整 Workflow aggregates，供 UI 和命令目录共同消费。
+// List 返回 owner 的完整沉淀 aggregates，供 UI 和命令目录共同消费。
 func (r *Repository) List(
 	ctx context.Context,
 	ownerUserID string,
@@ -144,20 +144,29 @@ ORDER BY updated_at DESC, workflow_id ASC`, strings.TrimSpace(ownerUserID))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	items := make([]protocol.WorkGraphWorkflow, 0)
 	for rows.Next() {
 		workflow, scanErr := scanWorkflow(rows)
 		if scanErr != nil {
+			_ = rows.Close()
 			return nil, scanErr
-		}
-		if loadErr := r.loadGraph(ctx, &workflow); loadErr != nil {
-			return nil, loadErr
 		}
 		items = append(items, workflow)
 	}
 	if err = rows.Err(); err != nil {
+		_ = rows.Close()
 		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	// SQLite intentionally uses one pooled connection. Close the aggregate rows
+	// before loading child nodes and dependencies so nested reads cannot wait on
+	// the connection still owned by this query.
+	for index := range items {
+		if err = r.loadGraph(ctx, &items[index]); err != nil {
+			return nil, err
+		}
 	}
 	return items, nil
 }

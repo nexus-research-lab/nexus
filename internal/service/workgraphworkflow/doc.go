@@ -1,9 +1,10 @@
-// Package workgraphworkflow 从历史 managed Execution 提炼可复用的命名 WorkGraph Workflow。
+// Package workgraphworkflow 从完成态 managed Execution 生成临时结构草图，并在用户确认后调度隐藏 Agent round 保存可复用命名 WorkGraph。
 //
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go：供受管 Execution CLI 使用的 owner-scoped 幂等创建、读取/删除、Slash descriptor 投影与 runtime prompt 展开。
+//   - service.go：完成图预览、owner/session-scoped 临时 preview、受管 CLI 幂等保存、读取/删除、Slash descriptor 投影与 runtime prompt 展开。
+//   - abstraction.go：使用默认后台模型自动选择源 logical-key 子集、抽象通用语义，并校验主路径/terminal 与来源边界。
 //
-// Workflow 只复制 Skill 显式选择的 Work Item 语义契约和内部 DAG；运行、工具与交付历史保持在源 Execution。
+// 用户不选择节点；HTTP 不直接持久化，只用 HiddenFromUser 内部 round 把 exact preview_id 交给 Skill + CLI。运行、工具与交付历史始终留在源 Execution。
 package workgraphworkflow

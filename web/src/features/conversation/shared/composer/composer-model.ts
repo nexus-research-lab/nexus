@@ -38,6 +38,8 @@ export interface ComposerPanelProps {
   sessionSettings?: ComposerSessionSettingsScope;
   /** 桌面端可为当前 Session 挂载本机目录。 */
   localDirectorySessionKey?: string;
+  /** 当前 WorkGraph/命名保存归属的 canonical Session。 */
+  workGraphSessionKey?: string;
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,

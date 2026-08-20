@@ -1,6 +1,6 @@
-// INPUT: 已认证 owner、session_key/exact Workflow 查询参数。
-// OUTPUT: 当前/历史安全 WorkGraph JSON 投影，以及 owner Workflow 目录读取/删除。
-// POS: Web/桌面端 WorkGraph 管理 HTTP 边界；Workflow 创建只允许 Skill + CLI。
+// INPUT: 已认证 owner、session_key/exact Execution/草图确认与命名工作图查询参数。
+// OUTPUT: 当前/历史安全 WorkGraph、非持久化草图、隐藏后台保存调度及命名工作图目录读取/删除。
+// POS: Web/桌面端 WorkGraph 管理 HTTP 边界；草图持久化只允许后台 Agent 的 Skill + CLI。
 package execution
 
 import (
@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	workgraphworkflowsvc "github.com/nexus-research-lab/nexus/internal/service/workgraphworkflow"
 )
 
 type executionViewer interface {
@@ -27,8 +28,13 @@ type executionHistoryViewer interface {
 }
 
 type workflowManager interface {
+	PreviewFromExecution(context.Context, string, protocol.PreviewWorkGraphWorkflowRequest) (*protocol.WorkGraphWorkflowPreview, error)
 	List(context.Context, string) ([]protocol.WorkGraphWorkflow, error)
 	Delete(context.Context, string, string) (bool, error)
+}
+
+type workflowSaveScheduler interface {
+	ScheduleSave(context.Context, string, protocol.ScheduleWorkGraphWorkflowSaveRequest) (*protocol.WorkGraphWorkflowSaveReceipt, error)
 }
 
 // Handlers 封装 Execution WorkGraph 只读接口。
@@ -80,13 +86,13 @@ func (h *Handlers) HandleListExecutionHistory(
 	h.api.WriteSuccess(writer, views)
 }
 
-// HandleListWorkGraphWorkflows 返回当前 owner 的命名 Workflow 目录。
+// HandleListWorkGraphWorkflows 返回当前 owner 的命名工作图目录。
 func (h *Handlers) HandleListWorkGraphWorkflows(
 	writer http.ResponseWriter,
 	request *http.Request,
 ) {
 	if h.workflows == nil {
-		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "WorkGraph Workflow 服务不可用")
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图服务不可用")
 		return
 	}
 	items, err := h.workflows.List(
@@ -94,19 +100,85 @@ func (h *Handlers) HandleListWorkGraphWorkflows(
 		authsvc.OwnerUserID(request.Context()),
 	)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, "WorkGraph Workflow 读取失败")
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "工作图读取失败")
 		return
 	}
 	h.api.WriteSuccess(writer, items)
 }
 
-// HandleDeleteWorkGraphWorkflow 删除命名 Workflow 及其 Slash command。
+// HandlePreviewWorkGraphWorkflow 使用默认后台模型从 exact 完成图生成临时只读草图。
+func (h *Handlers) HandlePreviewWorkGraphWorkflow(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if h.workflows == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图服务不可用")
+		return
+	}
+	var payload protocol.PreviewWorkGraphWorkflowRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	preview, err := h.workflows.PreviewFromExecution(
+		request.Context(),
+		authsvc.OwnerUserID(request.Context()),
+		payload,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, workgraphworkflowsvc.ErrInvalidInput):
+			h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "只能从完成态工作图生成草图")
+		case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
+			h.api.WriteFailure(writer, http.StatusNotFound, "工作图不存在")
+		default:
+			h.api.WriteFailure(writer, http.StatusInternalServerError, "工作图草图生成失败")
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, preview)
+}
+
+// HandleScheduleWorkGraphWorkflowSave 将确认过的 preview 交给不进入聊天时间线的内部 Agent round。
+func (h *Handlers) HandleScheduleWorkGraphWorkflowSave(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	scheduler, ok := h.workflows.(workflowSaveScheduler)
+	if !ok || scheduler == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图后台保存服务不可用")
+		return
+	}
+	var payload protocol.ScheduleWorkGraphWorkflowSaveRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	payload.PreviewID = strings.TrimSpace(chi.URLParam(request, "preview_id"))
+	receipt, err := scheduler.ScheduleSave(
+		request.Context(),
+		authsvc.OwnerUserID(request.Context()),
+		payload,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, workgraphworkflowsvc.ErrInvalidInput):
+			h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "工作图草图保存请求无效")
+		case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
+			h.api.WriteFailure(writer, http.StatusNotFound, "工作图草图不存在或已过期")
+		default:
+			h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图后台保存启动失败")
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, receipt)
+}
+
+// HandleDeleteWorkGraphWorkflow 删除命名工作图及其 Slash command。
 func (h *Handlers) HandleDeleteWorkGraphWorkflow(
 	writer http.ResponseWriter,
 	request *http.Request,
 ) {
 	if h.workflows == nil {
-		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "WorkGraph Workflow 服务不可用")
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图服务不可用")
 		return
 	}
 	deleted, err := h.workflows.Delete(
@@ -115,7 +187,7 @@ func (h *Handlers) HandleDeleteWorkGraphWorkflow(
 		chi.URLParam(request, "workflow_id"),
 	)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, "WorkGraph Workflow 删除失败")
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "工作图删除失败")
 		return
 	}
 	if !deleted {

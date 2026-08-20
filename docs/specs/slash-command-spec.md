@@ -8,7 +8,7 @@ Nexus 同时承载 nxs 与 Claude Code（CC）两种 runtime。两者都通过�
 Composer 目录。
 
 Composer 固定目录的真相源是 Nexus 仓内的版本化静态清单；owner 从历史 WorkGraph
-沉淀的命名 Workflow 由持久目录在 bind 时追加。Claude Code 的 initialize
+保存的命名工作图由持久目录在 bind 时追加。Claude Code 的 initialize
 control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用，但 Nexus
 不会在 App 或 session 生命周期内读取它们。runtime 新增且尚未进入当前清单的
 指令仍可手动输入并原样透传，只是不参与补全。
@@ -20,9 +20,9 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 | nxs / Claude Code | 解析收到的 `/name args` 普通用户文本；解析并展开各自的 Skill Slash | 维护 Nexus Composer 目录；识别或执行 Nexus host 指令 |
 | `nexus-agent-sdk-bridge` | 统一普通文本发送和单轮隐藏上下文清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
-| Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单与 `/visualize`、`/workgraph` 固定产品提示 | 读取 runtime 私有 metadata；保存命名 Workflow；绑定 session |
-| Nexus `service/workgraphworkflow` | 从 exact 历史 managed Execution 的显式 Work Item 选择保存 owner-scoped 命名 Workflow，并在 runtime 投递时展开动态 Slash | 保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；修改当前 WorkGraph |
-| WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime 与 owner Workflow 描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
+| Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单与 `/visualize`、`/workgraph` 固定产品提示 | 读取 runtime 私有 metadata；保存命名工作图；绑定 session |
+| Nexus `service/workgraphworkflow` | 从 exact 完成态 managed Execution 自动抽取临时结构草图，用户确认后由 Skill + CLI 保存 owner-scoped 命名工作图，并在 runtime 投递时展开动态 Slash | 让用户选择节点；通过 HTTP 直接持久化；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
+| WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime 与 owner 命名工作图描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
 | Web Composer | 只消费当前 session 的完整快照，选择后发送原始 Slash 文本 | 启动 runtime、查询目录、判断命令归属 |
 
 Host 命令先进入合并结果，因此与 runtime 同名时 Nexus host 命令保留该名称，
@@ -35,20 +35,20 @@ canonical 名称。
 - Claude Code runtime：`compact`、`skills`
 - Nexus host：`model`
 - Nexus 固定产品提示：`visualize`、`workgraph`
-- Nexus owner 动态 Workflow：用户沉淀的命名项，例如 `deep-research`
+- Nexus owner 命名工作图：用户保存的命名项，例如 `deep-research`
 
 两个 runtime 在 Composer 中最终都展示 `compact`、`model`、`skills`、`visualize`
-与 `workgraph` 五个核心入口，并追加当前 owner 的动态 Workflow，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
+与 `workgraph` 五个核心入口，并追加当前 owner 的命名工作图，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
 校验并持久化 Agent 的 Provider/模型选择，`skills` 由 Composer 打开完整 Skill
 选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime；
 `visualize` 由 Nexus 在投递 runtime 时展开为简短的 Generative UI 提示；`workgraph`
-只要求当前请求使用 fresh WorkGraph 协作，不承担保存语义。动态 `/<workflow>` 在同一
+只要求当前请求使用 fresh WorkGraph 协作，不承担保存语义。动态 `/<command>` 在同一
 投递边界展开为语义节点和依赖模板，再由 `execution-orchestrator` Skill 通过
 `nexus execution` 创建 fresh Plan/WorkGraph。
 nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公开 Slash 指令；
 需要立即释放上下文时统一使用 `/compact [instructions]`。
 
-固定清单只承诺 Nexus 版本内置指令；owner Workflow 是 Nexus 自己持久化并验证的
+固定清单只承诺 Nexus 版本内置指令；owner 命名工作图是 Nexus 自己持久化并验证的
 动态目录，不等同于扫描用户本机 Skill、插件或 MCP 命令，也不能跨 owner 投影。
 
 ## 生命周期
@@ -57,7 +57,7 @@ nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公�
    nxs 和 Claude Code 静态清单；这个过程没有文件 IO、子进程或 runtime session。
 2. 浏览器发送 `bind_session`，只携带会话地址和已有的 Room/Agent 作用域信息。
 3. WebSocket handler 解析当前 Agent 的 runtime 偏好，选择对应内置清单，与当前
-   作用域的 Nexus host、固定产品描述与 owner Workflow 合并、校验、排序后发送一条完整 `command_catalog`
+   作用域的 Nexus host、固定产品描述与 owner 命名工作图合并、校验、排序后发送一条完整 `command_catalog`
    权威快照。这个过程不创建 DM/Room runtime session。
 4. 浏览器按 session key 和 Agent 身份接收完整快照，只替换本地目录状态；
    浏览器不发送 `get_command_catalog` 或 `ensure_runtime_session`。
@@ -92,13 +92,16 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   DM/Room 的 runtime 投递边界展开为一段简短的 Generative UI 提示；
 - `/workgraph [request]` 同样保留原始文本，只在投递边界要求模型加载
   `execution-orchestrator` 并为当前请求创建 fresh managed WorkGraph；它不保存模板；
-- `/<workflow> [request]` 从当前 owner 目录读取已保存的责任节点、协作角色和依赖，
-  展开为 prompt-based workflow。每次调用必须创建新的 Execution/Plan/Work Item identity，
+- `/<command> [request]` 从当前 owner 目录读取已保存的抽象责任节点、协作角色和依赖。
+  每次调用必须创建新的 Execution/Plan/Work Item identity，
   不得复制源图的 Agent、状态、结果、Artifact 或审核事实；
-- 用户要求沉淀当前/历史图时，Agent 先用 `nexus execution inspect [--execution-id]`
-  读取 exact 图，由 `execution-orchestrator` 选择 `key|collaboration` Work Item，再通过
-  fresh contract + `distill_workgraph_workflow` CLI mutation 保存为用户命名的 Slash。
-  Web UI 只生成这条可见 Agent 请求，不能直接创建 Workflow；
+- 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用
+  默认后台模型从完整实际图自动选择源 logical-key 子集、生成通用命名和结构草图；preview
+  只在 owner/session-scoped 内存中短期保留，不进入数据库或命令目录。用户只读确认后，
+  Web 调用 preview save 调度端点，宿主启动 `HiddenFromUser + Synthetic +
+  purpose=workgraph_distillation` 的内部 Agent round，不生成聊天消息或改写 Composer；
+  `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。
+  Agent 不得重新 inspect、选节点、命名或抽象，HTTP 调度端点不得直接创建命名图；
 - inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为
   tool result、普通用户正文或 Nexus next-turn context；`context: fork` 由 runtime
   自己执行并只回写本地结果。
@@ -124,5 +127,5 @@ atomic Slash 发送前会清理 bridge 尚未消费的旧隐藏上下文；Skill
 ## 维护规则
 
 - runtime 固定指令变化时，在升级 Nexus 支持的 runtime 版本时同步更新静态清单
-  和目录测试；项目 Skill、插件命令等动态内容不进入产品补全。owner Workflow 只从
+  和目录测试；项目 Skill、插件命令等动态内容不进入产品补全。owner 命名 WorkGraph 只从
   `workgraph_workflows` 权威目录投影，并按 owner fence 读取、删除。

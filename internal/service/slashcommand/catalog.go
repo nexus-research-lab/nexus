@@ -122,7 +122,7 @@ func VisualizeCommandDescriptor() protocol.CommandDescriptor {
 }
 
 // WorkGraphCommandDescriptor 返回显式启用 Nexus WorkGraph 协作的产品入口。
-// 具体沉淀工作流使用各自的命名 Slash，不复用该固定名称。
+// 具体命名工作图使用各自的 Slash，不复用该固定名称。
 func WorkGraphCommandDescriptor() protocol.CommandDescriptor {
 	return newRuntimeCommand(
 		workGraphCommandName,

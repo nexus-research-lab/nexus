@@ -149,7 +149,7 @@ type RuntimeCommandEnvironmentBuilder func(
 	runtimecommand.RoundContext,
 ) (map[string]string, error)
 
-// RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 Workflow 展开为 runtime prompt。
+// RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 WorkGraph 沉淀展开为 runtime prompt。
 type RuntimeSlashExpander interface {
 	ExpandRuntimePrompt(context.Context, string, string) (string, error)
 }
@@ -371,7 +371,7 @@ func (s *Service) SetRuntimeCommandEnvironmentBuilder(
 	s.runtimeCommandEnv = builder
 }
 
-// SetRuntimeSlashExpander 注入 owner-scoped WorkGraph Workflow prompt 展开器。
+// SetRuntimeSlashExpander 注入 owner-scoped WorkGraph 沉淀 prompt 展开器。
 func (s *Service) SetRuntimeSlashExpander(expander RuntimeSlashExpander) {
 	s.runtimeSlashExpander = expander
 }

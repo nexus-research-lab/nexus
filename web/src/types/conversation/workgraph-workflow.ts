@@ -1,12 +1,12 @@
 /**
  * INPUT: internal/protocol/workgraph_workflow.go 的 owner-safe JSON。
- * OUTPUT: 历史责任图沉淀出的命名 Slash workflow 展示类型。
- * POS: WorkGraph 历史、命令库与沉淀意图 UI 的协议镜像；不包含运行事实。
+ * OUTPUT: 后台模型抽取的临时草图与用户确认保存的命名 Slash 工作图展示类型。
+ * POS: WorkGraph 草图预览、目录与复用 UI 的协议镜像；不包含运行事实。
  */
 
 import type { ExecutionWorkItemKind } from "./execution";
 
-export type WorkGraphWorkflowNodeRole = "key" | "collaboration";
+export type WorkGraphWorkflowNodeRole = "auto" | "key" | "collaboration";
 
 export interface WorkGraphWorkflowNode {
   logical_key: string;
@@ -43,4 +43,23 @@ export interface WorkGraphWorkflow {
   version: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkGraphWorkflowPreview {
+  preview_id: string;
+  slash_name: string;
+  title: string;
+  description?: string;
+  source_execution_id: string;
+  source_session_key: string;
+  objective: string;
+  completion_criteria?: string[];
+  nodes: WorkGraphWorkflowNode[];
+  dependencies?: WorkGraphWorkflowDependency[];
+  expires_at: string;
+}
+
+export interface WorkGraphWorkflowSaveReceipt {
+  preview_id: string;
+  status: "scheduled";
 }

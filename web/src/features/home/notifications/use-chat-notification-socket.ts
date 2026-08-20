@@ -18,6 +18,8 @@ import {
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { notifySessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
+import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/features/conversation/shared/execution/workgraph-distillation-intent";
 import { isStringArray, readString } from "@/lib/unknown-value";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
@@ -62,6 +64,10 @@ export function useChatNotificationSocket({
       return;
     }
     if (event.event_type === "directory_changed") {
+      if (readString(event.data, "reason") === "workgraph_distillation_changed") {
+        notifyCapabilitySummaryMutated({ domain: "workgraph_distillation" });
+        window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
+      }
       if (
         readString(event.data, "reason")
         === "session_runtime_settings_updated"
