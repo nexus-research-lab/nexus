@@ -33,7 +33,7 @@ endif
 NEXUS_NXS_RUNTIME_RELEASE ?= nxs-stable
 HOST_DATA_DIR ?= ./data
 NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEXUS_NXS_RUNTIME_RELEASE)"
-NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
+NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 DEV_RUNTIME_CLI_BIN_DIR ?= $(abspath cache/dev-runtime-cli)
 COMPOSE_CMD ?= HOST_DATA_DIR="$(HOST_DATA_DIR)" docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 PNPM ?= pnpm
@@ -101,7 +101,7 @@ dev: ## Run both frontend and backend in development mode
 dev-nxs: ## Run dev servers with local Go SDK nxs runtime
 	@if [ -z "$$NEXUS_NXS_COMMAND_PATH" ] && [ ! -x "$(NXS_DEV_RUNTIME_PATH)" ]; then \
 		echo "Error: dev nxs runtime not found: $(NXS_DEV_RUNTIME_PATH)"; \
-		echo "Hint: run 'make -C ../nexus-agent-sdk/nexus-agent-sdk-go build-nxs' first."; \
+		echo "Hint: run 'make -C ../nexus-agent-sdk-go build-nxs' first."; \
 		exit 1; \
 	fi
 	NEXUS_AGENT_RUNTIME_KIND=nxs NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" $(MAKE) dev BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
@@ -154,13 +154,18 @@ app-build-dev: ## 构建 macOS 桌面开发版 shell
 	./scripts/desktop/build-macos-dev.sh
 
 app-run-dev: ## 构建并运行 macOS 桌面开发版 shell
-	./scripts/desktop/run-macos-dev.sh
+	NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" ./scripts/desktop/run-macos-dev.sh
 
 app-build: ## 构建 ad-hoc macOS .app
-	./scripts/desktop/build-macos-app.sh
+	NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="$${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}" \
+		NEXUS_DESKTOP_NXS_RUNTIME_PATH="$${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}}" \
+		./scripts/desktop/build-macos-app.sh
 
 app-run: ## 构建并运行 ad-hoc macOS .app
-	./scripts/desktop/run-macos-app.sh
+	NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" \
+		NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="$${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}" \
+		NEXUS_DESKTOP_NXS_RUNTIME_PATH="$${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}}" \
+		./scripts/desktop/run-macos-app.sh
 
 app-run-onboarding: ## 使用隔离状态构建并运行 macOS 首次初始化测试 App
 	@run_id="$$(date +%s)"; \
