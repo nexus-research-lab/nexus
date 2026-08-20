@@ -1,6 +1,6 @@
 /**
- * INPUT: Room Composer 会话、精确 Agent execution/slot/stopping 状态与发送资源。
- * OUTPUT: 带点击时精确目标快照“全部停止”的 Room Composer 模型。
+ * INPUT: Room Composer 会话、成员 Session、精确 Agent execution/slot/stopping 状态与发送资源。
+ * OUTPUT: 带共享本机目录和点击时精确目标快照“全部停止”的 Room Composer 模型。
  * POS: Room 会话能力到共享 Composer Props 的唯一动作装配边界。
  */
 import { useCallback } from "react";
@@ -80,6 +80,7 @@ export function useGroupChatComposerModel({
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
   const draftScopeKey = buildComposerDraftScopeKey({ roomId, sessionKey });
   const historyScopeKey = buildComposerHistoryScopeKey({ roomId });
+  const localDirectoryAgentId = agentId ?? roomMembers[0]?.agent_id ?? null;
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!roomId || !conversationId) {
@@ -171,6 +172,12 @@ export function useGroupChatComposerModel({
       conversation.input_queue_items,
     ),
     isLoading: conversation.is_loading,
+    localDirectorySessionKey: conversationId && localDirectoryAgentId
+      ? buildRoomAgentSessionKey(
+          conversationId,
+          localDirectoryAgentId,
+        )
+      : undefined,
     onCreateGoal: sessionKey
       ? (objective: string) => createGoal(objective)
       : undefined,

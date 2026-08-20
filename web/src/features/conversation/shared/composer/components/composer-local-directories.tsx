@@ -23,7 +23,7 @@ export function ComposerLocalDirectories({
   return (
     <div
       aria-label={t("composer.local_directories_label")}
-      className="mb-2 flex min-h-8 flex-wrap items-center gap-1.5 px-1"
+      className="scrollbar-hide mb-2 flex min-h-8 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1"
     >
       {controller.directories.length > 0 ? (
         <span className="radius-control-sm inline-flex h-8 shrink-0 items-center gap-1.5 border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-2.5 text-xs font-medium text-(--text-soft)">
@@ -35,7 +35,7 @@ export function ComposerLocalDirectories({
         const name = localDirectoryName(directory);
         return (
           <div
-            className="radius-control-sm group flex h-8 min-w-0 items-center gap-1.5 border border-(--divider-subtle-color) bg-(--surface-raised-background) px-2.5 text-xs text-(--text-default)"
+            className="radius-control-sm group flex h-8 min-w-0 shrink-0 items-center gap-1.5 border border-(--divider-subtle-color) bg-(--surface-raised-background) px-2.5 text-xs text-(--text-default)"
             key={directory}
             title={directory}
           >
@@ -67,7 +67,7 @@ export function ComposerLocalDirectories({
       {controller.error ? (
         <span
           aria-live="polite"
-          className="radius-control-sm inline-flex min-h-8 max-w-full items-center gap-1.5 bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-2.5 text-xs text-(--destructive)"
+          className="radius-control-sm inline-flex min-h-8 max-w-full shrink-0 items-center gap-1.5 bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-2.5 text-xs text-(--destructive)"
           role="status"
         >
           <CircleAlert className="h-3.5 w-3.5 shrink-0" />

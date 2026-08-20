@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Exposed desktop folder mounting in Room chat and applied the folder snapshot to every member runtime in the conversation.
+
 ## [0.1.36] - 2026-08-19
 
 ### Added
