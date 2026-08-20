@@ -197,7 +197,7 @@ WHERE id = `+r.dialect.Bind(3)+`
 	return true, nil
 }
 
-// UpdateRoomConversationRuntimeSettings 更新目标 Agent 模型，并统一 Conversation 权限。
+// UpdateRoomConversationRuntimeSettings 更新目标 Agent 模型，并统一 Conversation 权限与本机目录。
 func (r *SQLRepository) UpdateRoomConversationRuntimeSettings(
 	ctx context.Context,
 	roomSessionID string,
@@ -251,6 +251,7 @@ WHERE target.id = `+r.dialect.Bind(1)+`
 		return nil, sql.ErrNoRows
 	}
 
+	directories := protocol.SessionAdditionalDirectoriesFromOptions(targetOptions)
 	for _, item := range sessionOptions {
 		options := item.options
 		if item.id == roomSessionID {
@@ -259,6 +260,7 @@ WHERE target.id = `+r.dialect.Bind(1)+`
 		settings := protocol.SessionRuntimeSettingsFromOptions(options)
 		settings.PermissionMode = permissionMode
 		options = protocol.WithSessionRuntimeSettings(options, settings)
+		options = protocol.WithSessionAdditionalDirectories(options, directories)
 		optionsJSON, marshalErr := jsoncodec.MarshalMap(options)
 		if marshalErr != nil {
 			return nil, marshalErr

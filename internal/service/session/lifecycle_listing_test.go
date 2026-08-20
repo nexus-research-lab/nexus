@@ -730,6 +730,44 @@ func TestSessionLocalDirectoriesRequireDesktopAndPersist(t *testing.T) {
 		loaded.Directories[1] != secondDirectory {
 		t.Fatalf("读取 Room-backed DM 本机目录 = %+v, err=%v", loaded, err)
 	}
+
+	peerAgent, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "本机目录协作者",
+	})
+	if err != nil {
+		t.Fatalf("创建协作 Agent 失败: %v", err)
+	}
+	groupContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID, peerAgent.AgentID},
+		Name:     "本机目录群聊",
+	})
+	if err != nil {
+		t.Fatalf("创建群聊失败: %v", err)
+	}
+	groupSessionKey := protocol.BuildRoomAgentSessionKey(
+		groupContext.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeGroup,
+	)
+	peerGroupSessionKey := protocol.BuildRoomAgentSessionKey(
+		groupContext.Conversation.ID,
+		peerAgent.AgentID,
+		protocol.RoomTypeGroup,
+	)
+	if _, err = sessionService.UpdateLocalDirectories(
+		desktopCtx,
+		groupSessionKey,
+		protocol.SessionLocalDirectories{Directories: []string{directory}},
+	); err != nil {
+		t.Fatalf("更新群聊本机目录失败: %v", err)
+	}
+	loaded, err = sessionService.GetLocalDirectories(
+		desktopCtx,
+		peerGroupSessionKey,
+	)
+	if err != nil || len(loaded.Directories) != 1 || loaded.Directories[0] != directory {
+		t.Fatalf("群聊本机目录未同步到协作 Agent: %+v, err=%v", loaded, err)
+	}
 }
 
 func TestSessionServiceListsExternalIMSessions(t *testing.T) {
