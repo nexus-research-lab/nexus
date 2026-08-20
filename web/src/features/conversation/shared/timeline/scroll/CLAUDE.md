@@ -1,7 +1,7 @@
 # Conversation Timeline Scroll
 
 - `use-follow-scroll.ts` 只编排 FOLLOW、READING、live 高度保护、内容变化和滚动资源：FOLLOW 的全部正向增长都按父 Feed 聚合后的真实高度贴底，live epoch 的负向校正暂存为父 Feed 高度负债；READING 永不调用贴底执行器。
-- `use-conversation-live-height-guard.ts` 在单个会话 live epoch 内维护单调不减的 Feed 最小高度；正文与工具块仍按真实 DOM 自然增长，所有 live source 终态后才一次性平滑释放负向估高/shell 收口负债，会话切换必须立即清空。
+- `use-conversation-live-height-guard.ts` 在单个会话 live epoch 内维护单调不减的 Feed 最小高度，并让静态内容栈与完整虚拟画布贴住底部，使负向估高/shell 收口负债只留在消息上方；正文与工具块仍按真实 DOM 自然增长，所有 live source 终态且异步终态布局经过短暂安静窗口后才一次性平滑释放，会话切换必须立即清空。
 - `scroll-animation.ts` 独占共享 FOLLOW 与显式回到底部的 `scrollTop` 写入：静态尾部增长在 layout effect / ResizeObserver 中同步写入真实 bottom，不创建 RAF；用户触发的回到底部只对点击时已有距离保留 smooth 阻尼，后续内容高度提交必须取消该事务并把真实 bottom 交还 FOLLOW。初始化/新拓扑的 `auto` 必须保留到虚拟测高连续稳定后再交权。
 - `history-prepend-anchor.ts` 管理历史前插的一次性锚点事务，取消、失败和会话切换必须清理快照。
 - `conversation-viewport-anchor.ts` 按稳定 round 身份持续记录首个可见轮次；节点拓扑变化或静态/虚拟 Feed 切换后重新寻找同一节点并补偿视口，普通虚拟项测高仍由 Virtualizer 补偿。

@@ -28,6 +28,7 @@ import {
   COMPOSER_SHELL_CLASS_NAME,
 } from "./composer-styles";
 import { useComposerController } from "./controller/use-composer-controller";
+import { useComposerInteractionHeightGuard } from "./use-composer-interaction-height-guard";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();
@@ -41,6 +42,11 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
     slashCommand,
     state,
   } = useComposerController(props);
+  useComposerInteractionHeightGuard({
+    active: Boolean(props.interactionSurface),
+    elementRef: refs.composerShellRef,
+    scopeKey: props.draftScopeKey,
+  });
 
   return (
     <section

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
+- Bottom-anchored live Feed height debt, stabilized consecutive Composer interaction heights, and coalesced Generative UI resize corrections so terminal tool layout no longer exposes blank tails or repeatedly resizes the conversation viewport.
 
 ## [0.1.36] - 2026-08-19
 

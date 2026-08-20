@@ -576,6 +576,66 @@ test("live Room layout holds negative height debt until every Agent settles", as
   assert.equal(switched.minimumHeight, 320, "height debt cannot cross sessions");
 });
 
+test("Composer interaction height stays monotonic until the request queue clears", async () => {
+  const { resolveComposerInteractionHeightGuard } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/use-composer-interaction-height-guard.ts",
+  );
+  const initial = {
+    minimumHeight: 0,
+    scopeKey: "room-a",
+    wasActive: false,
+  };
+  const opened = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 280,
+    scopeKey: "room-a",
+  }, initial);
+  const shorterRequest = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 160,
+    scopeKey: "room-a",
+  }, opened.state);
+  assert.equal(shorterRequest.minimumHeight, 280);
+
+  const tallerRequest = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 360,
+    scopeKey: "room-a",
+  }, shorterRequest.state);
+  assert.equal(tallerRequest.minimumHeight, 360);
+
+  const restoredInput = resolveComposerInteractionHeightGuard({
+    active: false,
+    measuredHeight: 102,
+    scopeKey: "room-a",
+  }, tallerRequest.state);
+  assert.equal(restoredInput.releasing, true);
+  assert.equal(restoredInput.minimumHeight, 0);
+
+  const switched = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 190,
+    scopeKey: "room-b",
+  }, tallerRequest.state);
+  assert.equal(switched.minimumHeight, 190);
+  assert.equal(switched.releasing, false);
+});
+
+test("virtual conversation canvas keeps held height above the message plane", async () => {
+  const { ConversationVirtualCanvas } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/conversation-virtual-canvas.tsx",
+  );
+  const markup = renderToStaticMarkup(React.createElement(
+    ConversationVirtualCanvas,
+    { offset: 240, totalSize: 960 },
+    React.createElement("div", null, "visible rounds"),
+  ));
+  assert.match(markup, /data-conversation-virtual-canvas="true"/);
+  assert.match(markup, /bottom-0/);
+  assert.match(markup, /height:960px/);
+  assert.match(markup, /translateY\(240px\)/);
+});
+
 test("live layout epoch includes parallel message, slot, and execution sources", async () => {
   const { isConversationLiveLayoutActive } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
