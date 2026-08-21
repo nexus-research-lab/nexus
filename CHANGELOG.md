@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made initial Room and DM history wait for deferred indexing to finish, so first entry no longer leaves an empty conversation that only recovers after switching away and back.
 - Grouped the completed WorkGraph header into clear context and action regions, and simplified sketch-saving guidance around Slash-command and Composer-menu reuse.
 - Matched Composer Slash-command suggestions only by command-name prefix, with alphabetical ordering for predictable results.
 - Prevented initial Room and DM history loading from restoring a stale reading anchor after the view had already followed the latest message.

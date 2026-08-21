@@ -54,9 +54,13 @@ test("history pages request deferred indexing by default and preserve its retry 
 });
 
 test("indexing responses stay in the request loop instead of becoming empty history", async () => {
-  const [historySource, roundIndexApi, roundIndexHook] = await Promise.all([
+  const [historySource, lifecycleSource, roundIndexApi, roundIndexHook] = await Promise.all([
     readFile(
       path.join(webRoot, "src/hooks/agent/session/conversation-history.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(webRoot, "src/hooks/agent/session/conversation-lifecycle.ts"),
       "utf8",
     ),
     readFile(
@@ -68,14 +72,39 @@ test("indexing responses stay in the request loop instead of becoming empty hist
       "utf8",
     ),
   ]);
-  assert.match(historySource, /if \(!page\.indexing\) \{\s*return page;/);
-  assert.match(historySource, /await waitForHistoryIndex\(page\.retry_after_ms, signal\)/);
-  assert.match(historySource, /signal: AbortSignal/);
-  assert.match(historySource, /signal\.addEventListener\("abort"/);
+  assert.match(historySource, /requestConversationHistoryPageUntilReady/);
+  assert.match(lifecycleSource, /requestConversationHistoryPageUntilReady/);
   assert.match(roundIndexApi, /if \(!result\.indexing\)/);
   assert.match(roundIndexApi, /await waitForSessionRoundIndex/);
   assert.match(roundIndexHook, /new AbortController\(\)/);
   assert.match(roundIndexHook, /return \(\) => controller\.abort\(\)/);
+});
+
+test("initial history waits for deferred indexing instead of committing an empty page", async () => {
+  const { requestConversationHistoryPageUntilReady } = await server.ssrLoadModule(
+    "/src/hooks/agent/session/conversation-history-request.ts",
+  );
+  let requestCount = 0;
+  const loadedPage = {
+    has_more: false,
+    indexing: false,
+    items: [{ message_id: "message-1" }],
+    next_before_round_id: null,
+    next_before_round_timestamp: null,
+    retry_after_ms: 0,
+  };
+
+  const page = await requestConversationHistoryPageUntilReady({
+    loadPage: async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? { ...loadedPage, indexing: true, items: [], retry_after_ms: 1 }
+        : loadedPage;
+    },
+  });
+
+  assert.equal(requestCount, 2);
+  assert.deepEqual(page, loadedPage);
 });
 
 test("message history keeps complete root rounds inside a bounded browser window", async () => {
