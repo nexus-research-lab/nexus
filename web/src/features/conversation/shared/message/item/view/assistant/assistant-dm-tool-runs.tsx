@@ -1,6 +1,6 @@
 /**
  * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
- * OUTPUT: 覆盖整段 process 的单行执行摘要；点开后显示完整旁白、思考与调用，生成物继续外露。
+ * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；展开显示完整旁白、思考与调用。
  * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
  */
 "use client";
@@ -280,9 +280,6 @@ function formatToolRunSummary(
   t: I18nContextValue["t"],
 ): string {
   const toolUseCount = segment.toolUseIds.length;
-  const countKey = toolUseCount === 1
-    ? "message.tool_run_count_one"
-    : "message.tool_run_count_other";
   let statusKey: TranslationKey | null = null;
   if (phase === "active") {
     statusKey = "message.tool_run_active";
@@ -296,12 +293,18 @@ function formatToolRunSummary(
   const firstToolUse = segment.projection.content.find(
     (block) => block.type === "tool_use",
   );
-  const fallbackLabel = toolUseCount === 1 && firstToolUse?.type === "tool_use"
-    ? getLocalizedToolTitle(firstToolUse.name, t, firstToolUse.input)
-    : t(countKey, { count: toolUseCount });
   const naturalSummary = segment.summaryText?.trim() || null;
-  const parts = [naturalSummary ?? fallbackLabel];
-  if (statusKey && !(phase === "active" && naturalSummary)) {
+  const activeFallback = toolUseCount === 1 && firstToolUse?.type === "tool_use"
+    ? getLocalizedToolTitle(firstToolUse.name, t, firstToolUse.input)
+    : t("message.tool_run_active");
+  const parts = [phase === "active"
+    ? naturalSummary ?? activeFallback
+    : t("message.tool_run_history")];
+  if (
+    statusKey
+    && !(phase === "active" && naturalSummary)
+    && parts[0] !== t(statusKey)
+  ) {
     parts.push(t(statusKey));
   }
   if (segment.errorCount > 0) {
