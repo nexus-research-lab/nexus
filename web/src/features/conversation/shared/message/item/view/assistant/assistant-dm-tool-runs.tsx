@@ -338,6 +338,7 @@ function ToolProcessSegmentContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
+      showTrailingActivity={!expandToolDetails}
       streamingBlockIndexes={projection.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}

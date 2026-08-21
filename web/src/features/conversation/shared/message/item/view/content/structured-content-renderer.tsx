@@ -51,6 +51,7 @@ export function StructuredContentRenderer(
     pendingInteractionOwner,
     pendingPermissionsByToolUseId,
     permissionReadOnlyReason,
+    showTrailingActivity,
     showTimelineDots,
     streamingBlockIndexes,
     unresolvedToolStatus,
@@ -131,7 +132,7 @@ export function StructuredContentRenderer(
           />
         )
       ))}
-      {activityState ? (
+      {showTrailingActivity && activityState ? (
         <LocalizedMessageActivityStatus
           className="pt-1"
           label={fallbackActivityLabel}
@@ -196,6 +197,7 @@ function normalizeStructuredContentRendererProps(
     hiddenToolNames: props.hiddenToolNames ?? EMPTY_HIDDEN_TOOL_NAMES,
     isStreaming: props.isStreaming ?? false,
     pendingInteractionOwner: props.pendingInteractionOwner ?? "content",
+    showTrailingActivity: props.showTrailingActivity ?? true,
     showTimelineDots: props.showTimelineDots ?? false,
   };
 }

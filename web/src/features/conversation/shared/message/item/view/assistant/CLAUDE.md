@@ -2,7 +2,7 @@
 
 - `assistant-message-model.ts`: 声明消费侧窄状态，并投影 Agent 作用域与紧凑/展开布局。
 - `message-assistant-section.tsx`: 只组合助手外壳、头部、正文和统计。
-- `assistant-message-content.tsx`: 按活动、direct 过程、归档过程、稳定最终回复、警告和权限顺序组合正文段；Room 把全部 pending request 固定交给唯一交互轨道，并在已有公区正文之后保留同一活动提示，DM 只保留 Composer-owned 请求的只读过程证据。
+- `assistant-message-content.tsx`: 按活动、direct 过程、归档过程、稳定最终回复、警告和权限顺序组合正文段；Room 把全部 pending request 固定交给唯一交互轨道，DM 只保留 Composer-owned 请求的只读过程证据。direct 执行栏存在时由它独占瞬时状态，流式 final 只显示正文，不得在尾部重复同一 ToolUseSummary 或同义活动提示。
 - `assistant-message-header.tsx`: 组合 32px、8px 圆角的头像与垂直居中的名称；宿主 handoff reply 以不可点击的“回应 @Agent”身份 chip 展示，不注入正文 mention 或动作；展开态不混入时间和模型，紧凑态才显示它们，并保留外部动作与停止动作。
 - `assistant-message-stats.tsx`: 只渲染控制器已判定可见的结果统计、模型、复制动作、Assistant 记忆引用入口，以及附着在最终回复下方且省略未知耗时/token 的 Goal 完成收据；内部 goal/round ID 永不展示，也不接收运行态。
 - `goal-completion-receipt.ts`: 负责 Goal 完成收据的可见字段选择、耗时格式化与本地化拼装；未知值不生成任何占位文案。
