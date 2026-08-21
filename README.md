@@ -28,7 +28,7 @@ Compared with traditional single-agent AI office tools, Nexus provides:
 
 - Multi-agent collaboration: multiple agents can participate in the same task and produce results together
 - Persistent memory and knowledge accumulation: the bundled `nxs` runtime maintains a `MEMORY.md` index and topic files under `memory/` in each Agent workspace
-- Proactive execution: agents can drive work forward through scheduled tasks, heartbeat tasks, and environment awareness
+- Proactive execution: Echo follow-ups, scheduled tasks, and environment awareness help agents move work forward
 - Flexible extensibility: Skills extend agent capabilities, and Connectors integrate external services such as GitHub and Gmail
 
 Nexus brings agent management, task collaboration, and external service connections into one unified platform for a modern AI collaboration ecosystem.
@@ -54,7 +54,7 @@ Nexus brings agent management, task collaboration, and external service connecti
 |--------------|------------------|-------------|
 | **Agent Management** | Independent identity, workspace, skill configuration, and runtime-managed file memory | Continuous workflows with less repeated context |
 | **Room Collaboration** | Multi-agent collaboration with @mentions, targeted replies, and multi-threaded progress | Clear division of work for team-style collaboration |
-| **Proactive Execution** | Heartbeats, scheduled tasks, and environment awareness | Agents can move work forward instead of only responding |
+| **Proactive Execution** | Echo follow-ups, scheduled tasks, and environment awareness | Agents can move work forward instead of only responding |
 | **Skills & Connectors** | Skill extensions and Connector integrations with external services | Extensible business logic and integration with existing systems |
 | **Deployment Flexibility** | Web UI, Docker/source server deployment, and native macOS/Windows desktop apps | Fits multiple platforms and deployment scenarios |
 

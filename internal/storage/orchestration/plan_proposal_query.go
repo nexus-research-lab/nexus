@@ -246,6 +246,7 @@ func scanPlanProposal(
 	item.NextAttemptAt = nullTimePointer(nextAttemptAt)
 	item.LastError = nullStringValue(lastError)
 	item.MaterializedAt = nullTimePointer(materializedAt)
+	item = item.Normalized()
 	digest, err := protocol.DigestExecutionPlanProposalImmutable(item)
 	if err != nil {
 		return protocol.ExecutionPlanProposal{}, fmt.Errorf("digest immutable execution plan proposal: %w", err)

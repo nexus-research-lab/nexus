@@ -5,7 +5,9 @@ import {
   Loader2,
   Paperclip,
   Plus,
+  RadioTower,
   Repeat2,
+  RotateCcw,
   Target,
 } from "lucide-react";
 
@@ -97,11 +99,29 @@ export function ComposerFooterActions({
       loop: t("composer.insert_loop"),
     },
   });
+  const toggleEcho = () => sessionSettingsController.updateEchoMode(
+    sessionSettingsController.echo.enabled ? "disabled" : "enabled",
+  );
+  const echoItems = buildEchoItems({
+    controller: sessionSettingsController,
+    disabled: sessionSettingsDisabled,
+    labels: {
+      disabled: t("composer.echo_disabled"),
+      enabled: t("composer.echo_enabled"),
+      inheritedDisabled: t("composer.echo_inherited_disabled"),
+      inheritedEnabled: t("composer.echo_inherited_enabled"),
+      reset: t("composer.echo_reset"),
+      title: t("composer.echo_title"),
+    },
+    toggle: toggleEcho,
+  });
   const commands = new Map<string, () => void>([
     ["attachment", onAttachmentSelect],
     ["directory", onLocalDirectorySelect],
     ["loop", onLoopSelect],
     ["goal", () => onGoalToggle(!isGoalMode)],
+    ["echo:toggle", () => void toggleEcho()],
+    ["echo:inherit", () => void sessionSettingsController.updateEchoMode("inherit")],
   ]);
   for (const connector of sessionSettingsController.connectors) {
     commands.set(`connector:${connector.connector_id}`, () => {
@@ -136,13 +156,72 @@ export function ComposerFooterActions({
         ariaLabel={t("composer.open_actions")}
         isOpen={isActionMenuOpen}
         footerItems={connectorItems}
-        items={items}
+        items={[...items, ...echoItems]}
         onClose={onActionMenuClose}
         onSelect={(value) => commands.get(value)?.()}
         placement="top"
       />
     </div>
   );
+}
+
+function buildEchoItems({
+  controller,
+  disabled,
+  labels,
+  toggle,
+}: {
+  controller: ComposerSessionSettingsController;
+  disabled: boolean;
+  labels: Record<
+    "disabled" | "enabled" | "inheritedDisabled" | "inheritedEnabled" | "reset" | "title",
+    string
+  >;
+  toggle: () => void;
+}): UiActionMenuItem[] {
+  if (!controller.echoAvailable) {
+    return [];
+  }
+  const inherited = controller.echo.mode === "inherit";
+  const description = inherited
+    ? controller.echo.enabled
+      ? labels.inheritedEnabled
+      : labels.inheritedDisabled
+    : controller.echo.enabled
+      ? labels.enabled
+      : labels.disabled;
+  const items: UiActionMenuItem[] = [{
+    active: controller.echo.enabled,
+    description,
+    disabled: disabled || controller.busy,
+    icon: <RadioTower className="h-4 w-4 text-(--icon-muted)" />,
+    label: labels.title,
+    trailing: (
+      <span
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        role="presentation"
+      >
+        <GlassSwitch
+          aria-label={labels.title}
+          checked={controller.echo.enabled}
+          disabled={disabled || controller.busy}
+          onChange={toggle}
+          size="xs"
+        />
+      </span>
+    ),
+    value: "echo:toggle",
+  }];
+  if (!inherited) {
+    items.push({
+      disabled: disabled || controller.busy,
+      icon: <RotateCcw className="h-4 w-4 text-(--icon-muted)" />,
+      label: labels.reset,
+      value: "echo:inherit",
+    });
+  }
+  return items;
 }
 
 function buildConnectorItems({

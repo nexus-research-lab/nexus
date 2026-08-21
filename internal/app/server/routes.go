@@ -88,6 +88,8 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
+	s.router.Get(s.prefixPath("/settings/echo"), s.handlers.echo.HandleGetEcho)
+	s.router.Put(s.prefixPath("/settings/echo"), s.handlers.echo.HandleUpdateEcho)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
@@ -150,6 +152,8 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleSessionRuntimeSettings)
 	s.router.Put(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleUpdateSessionRuntimeSettings)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/echo"), s.handlers.echo.HandleGetSessionEcho)
+	s.router.Put(s.prefixPath("/sessions/{session_key}/echo"), s.handlers.echo.HandleUpdateSessionEcho)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleSessionLocalDirectories)
 	s.router.Put(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleUpdateSessionLocalDirectories)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks"), s.handlers.agent.HandleSessionSubagentTasks)
@@ -287,9 +291,6 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/scheduled/tasks/{job_id}/runs/{run_id}/delivery/retry"), s.handlers.automation.HandleRetryScheduledTaskRunDelivery)
 	s.router.Post(s.prefixPath("/scheduled/tasks/{job_id}/runs/{run_id}/permission/resume"), s.handlers.automation.HandleResumePermissionRun)
 
-	s.router.Get(s.prefixPath("/automation/heartbeat/{agent_id}"), s.handlers.automation.HandleGetHeartbeat)
-	s.router.Put(s.prefixPath("/automation/heartbeat/{agent_id}"), s.handlers.automation.HandleUpdateHeartbeat)
-	s.router.Post(s.prefixPath("/automation/heartbeat/{agent_id}/wake"), s.handlers.automation.HandleWakeHeartbeat)
 }
 
 // mountGoalRoutes 挂载 Goal 相关路由。

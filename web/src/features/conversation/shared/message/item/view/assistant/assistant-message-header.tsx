@@ -4,7 +4,7 @@
  * POS: Assistant 消息头视图，不解析正文 mention 也不发起通讯。
  */
 import type { ReactNode } from "react";
-import { Bot, Clock3, Square } from "lucide-react";
+import { Bot, Clock3, RadioTower, Square } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
@@ -22,6 +22,7 @@ interface AssistantMessageHeaderProps {
   automationTaskName?: string | null;
   canStop: boolean;
   compact: boolean;
+  echo: boolean;
   agentMentionDirectory?: AgentMentionDirectory;
   headerAction?: ReactNode;
   handoffReplySourceAgentId?: string | null;
@@ -43,6 +44,7 @@ export function AssistantMessageHeader({
   automationTaskName,
   canStop,
   compact,
+  echo,
   agentMentionDirectory,
   headerAction,
   handoffReplySourceAgentId,
@@ -73,6 +75,7 @@ export function AssistantMessageHeader({
         {displayName}
       </span>
       <AssistantAutomationBadge taskName={automationTaskName} />
+      <AssistantEchoBadge visible={echo} />
       {handoffReplySourceAgentId ? (
         <AgentHandoffReplyChip
           agentId={handoffReplySourceAgentId}
@@ -89,6 +92,19 @@ export function AssistantMessageHeader({
       <AssistantHeaderAction action={headerAction} />
       <AssistantStopAction canStop={canStop} onStop={onStop} />
     </div>
+  );
+}
+
+function AssistantEchoBadge({ visible }: { visible: boolean }) {
+  const { t } = useI18n();
+  if (!visible) {
+    return null;
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-[10px] font-medium leading-none text-(--text-muted)">
+      <RadioTower className="h-2.5 w-2.5" />
+      {t("message.echo")}
+    </span>
   );
 }
 

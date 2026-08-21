@@ -4,12 +4,12 @@
 // L2 | Parent: internal/infra (L1 in AGENTS.md)
 //
 // Members:
-//   - loop.go: coalesced wake, one-shot deadline timer, low-frequency audit and
+//   - loop.go: coalesced wake, one-shot deadline timer, optional audit and
 //     bounded error retry lifecycle.
 //
 // The package is deliberately unaware of databases and business states. A
-// durable domain row plus claim/CAS remains the source of truth; notifications
-// only reduce latency and audits recover missed notifications.
+// durable domain row plus claim/CAS remains the source of truth. Coordinators
+// may opt into audits when they need recovery from out-of-process mutations.
 //
 // [PROTOCOL]: behavior changes require checking domain coordinators and AGENTS.md.
 package duework

@@ -520,6 +520,41 @@ type ExecutionCancellationDispatch struct {
 	Metadata          map[string]any                      `json:"metadata,omitempty"`
 }
 
+// Normalized 返回去除首尾空白的 dispatch 副本。清洗只发生在构造（outbox 写入）
+// 一次；target kind 判定与 consumer 匹配一律基于已清洗值。
+func (d ExecutionCancellationDispatch) Normalized() ExecutionCancellationDispatch {
+	d.ID = strings.TrimSpace(d.ID)
+	d.ExecutionID = strings.TrimSpace(d.ExecutionID)
+	d.PlanID = strings.TrimSpace(d.PlanID)
+	d.WorkItemID = strings.TrimSpace(d.WorkItemID)
+	d.SpecID = strings.TrimSpace(d.SpecID)
+	d.AssignmentID = strings.TrimSpace(d.AssignmentID)
+	d.AttemptID = strings.TrimSpace(d.AttemptID)
+	d.RuntimeAttemptID = strings.TrimSpace(d.RuntimeAttemptID)
+	d.DispatchID = strings.TrimSpace(d.DispatchID)
+	d.CommandID = strings.TrimSpace(d.CommandID)
+	d.DedupeKey = strings.TrimSpace(d.DedupeKey)
+	d.ScopeSessionKey = strings.TrimSpace(d.ScopeSessionKey)
+	d.RoomID = strings.TrimSpace(d.RoomID)
+	d.ConversationID = strings.TrimSpace(d.ConversationID)
+	d.TargetAgentID = strings.TrimSpace(d.TargetAgentID)
+	d.RuntimeSessionKey = strings.TrimSpace(d.RuntimeSessionKey)
+	d.RoomSessionID = strings.TrimSpace(d.RoomSessionID)
+	d.SDKSessionID = strings.TrimSpace(d.SDKSessionID)
+	d.RuntimeRoundID = strings.TrimSpace(d.RuntimeRoundID)
+	d.RootRoundID = strings.TrimSpace(d.RootRoundID)
+	d.AgentRoundID = strings.TrimSpace(d.AgentRoundID)
+	d.ChildSessionID = strings.TrimSpace(d.ChildSessionID)
+	d.SDKTaskID = strings.TrimSpace(d.SDKTaskID)
+	d.ToolUseID = strings.TrimSpace(d.ToolUseID)
+	d.Reason = strings.TrimSpace(d.Reason)
+	d.LimitationCode = strings.TrimSpace(d.LimitationCode)
+	d.Receipt = strings.TrimSpace(d.Receipt)
+	d.LeaseOwner = strings.TrimSpace(d.LeaseOwner)
+	d.LastError = strings.TrimSpace(d.LastError)
+	return d
+}
+
 // ExecutionCancellationBinding 是 consumer 使用的不可变精确 interrupt identity。
 // 它同时保留逻辑 Attempt 与实际 runtime root Attempt，避免 subagent 回收误伤 successor。
 type ExecutionCancellationBinding struct {

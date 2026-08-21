@@ -130,10 +130,50 @@ type Request struct {
 	// AutomationRun 只由 Automation 调度器签发，作为 runtime/MCP 的可信 run 身份。
 	AutomationRun       *protocol.AutomationRunContext
 	ExternalReplyTarget *ExternalReplyTarget
+	// StartAdmission 在 runtime 注册后、模型请求前执行最终后台准入。
+	StartAdmission func(context.Context) error
+	// DeferredAssistant 让后台 round 只在最终准入通过后写入 assistant 消息。
+	DeferredAssistant *DeferredAssistantHooks
 	// continuationStartAdmission is host-only. It advances the durable
 	// continuation receipt after exact runtime registration and before the
 	// provider receives a query.
 	continuationStartAdmission func(context.Context) error
+}
+
+// DeferredAssistantCandidate 是后台 round 提交前的最终 assistant 快照。
+type DeferredAssistantCandidate struct {
+	Message        protocol.Message
+	TerminalStatus string
+	ResultSubtype  string
+	ErrorMessage   string
+}
+
+// DeferredAssistantOutcome 描述后台消息最终是否成功写入。
+type DeferredAssistantOutcome struct {
+	Status string
+	Error  error
+}
+
+// DeferredAssistantHooks 控制后台 assistant 的最终准入与尝试收口。
+type DeferredAssistantHooks struct {
+	Admit    func(context.Context, DeferredAssistantCandidate) (protocol.Message, bool, error)
+	Complete func(context.Context, DeferredAssistantOutcome)
+}
+
+// EchoTerminalRound 是 Echo 需要观察的最小成功 DM 终态。
+type EchoTerminalRound struct {
+	OwnerUserID string
+	AgentID     string
+	SessionKey  string
+	RoundID     string
+	AssistantID string
+	FinishedAt  time.Time
+}
+
+// EchoLifecycleHooks 把普通 DM 用户活动与成功终态交给 Echo 域。
+type EchoLifecycleHooks struct {
+	OnUserActivity func(context.Context, string, string) ([]string, error)
+	OnTerminal     func(context.Context, EchoTerminalRound)
 }
 
 // RewriteRequest 表示一次 DM 最后一条用户消息重写请求。replacement round_id 由后端 mint。
@@ -219,6 +259,7 @@ type Service struct {
 	connectorPreparations     map[string]*connectorRuntimePreparation
 	connectorPreparationDelay time.Duration
 	connectorPreparationRun   func(context.Context, protocol.Session) error
+	echoHooks                 EchoLifecycleHooks
 }
 
 // ConnectorRuntimeState 是可安全进入模型动态上下文的 Connector 脱敏状态。
@@ -381,6 +422,11 @@ func (s *Service) SetUsageRecorder(recorder usageRecorder) {
 // SetGoalContextProvider 注入 Goal runtime context provider。
 func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
 	s.goals = provider
+}
+
+// SetEchoLifecycleHooks 注入 Echo 的取消与调度回调。
+func (s *Service) SetEchoLifecycleHooks(hooks EchoLifecycleHooks) {
+	s.echoHooks = hooks
 }
 
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。

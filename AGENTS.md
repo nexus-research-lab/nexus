@@ -31,12 +31,13 @@ skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
-  service/    - 业务服务（agent / communication / dm / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
+  service/    - 业务服务（agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
   service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
-  automation/ - 定时任务 / heartbeat 调度域（任务级 capability grant、持久审批、run 阻塞与安全恢复）
+  echo/       - 用户级 DM 主动跟进策略、attempt 状态与会话覆盖领域模型
+  automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
   cli/        - 命令子系统；根目录无 Go 包，按信任边界分为三个子包：
     agent/          - Agent-facing round-scoped nexus CLI；不打开数据库，只经 broker capability 调用宿主

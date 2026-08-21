@@ -39,6 +39,9 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if prefs.BrowserCDPEnabled {
 		t.Fatalf("完整 CDP 访问默认应关闭: %+v", prefs)
 	}
+	if prefs.EchoEnabled {
+		t.Fatalf("主动跟进默认应关闭: %+v", prefs)
+	}
 	if prefs.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
 	}
@@ -59,11 +62,34 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if normalized.EmotionEnabled {
 		t.Fatalf("空偏好归一化后情绪系统应关闭: %+v", normalized)
 	}
+	if normalized.EchoEnabled {
+		t.Fatalf("空偏好归一化后主动跟进应关闭: %+v", normalized)
+	}
 	if normalized.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
 	}
 	if !normalized.WebSearch.Enabled || normalized.WebSearch.Provider != "anysearch" {
 		t.Fatalf("空偏好归一化后 WebSearch provider 应为 anysearch: %+v", normalized.WebSearch)
+	}
+}
+
+func TestServicePersistsEchoEnabled(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")})
+
+	updated, err := service.SetEchoEnabled(context.Background(), "user/1", true)
+	if err != nil {
+		t.Fatalf("开启主动跟进失败: %v", err)
+	}
+	if !updated.EchoEnabled {
+		t.Fatalf("主动跟进未开启: %+v", updated)
+	}
+
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取主动跟进设置失败: %v", err)
+	}
+	if !loaded.EchoEnabled {
+		t.Fatalf("主动跟进未持久化: %+v", loaded)
 	}
 }
 

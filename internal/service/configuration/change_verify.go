@@ -372,6 +372,7 @@ func (s *Service) verifyRoomLifecycleChange(
 		if err := strictDecodeJSON(request.Input, &input); err != nil {
 			return nil, err
 		}
+		input = input.Normalized()
 		if input.Paused == nil {
 			return nil, errors.New("核对 Room 成员参与状态缺少 paused")
 		}
@@ -382,7 +383,7 @@ func (s *Service) verifyRoomLifecycleChange(
 		if roomValue == nil {
 			return nil, errors.New("重新读取 Room 成员参与状态得到空结果")
 		}
-		memberID := strings.TrimSpace(input.AgentID)
+		memberID := input.AgentID
 		for _, member := range roomValue.Members {
 			if member.MemberType != protocol.MemberTypeAgent ||
 				strings.TrimSpace(member.MemberAgentID) != memberID {

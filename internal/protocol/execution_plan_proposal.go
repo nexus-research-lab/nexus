@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -129,6 +130,33 @@ type ExecutionPlanProposal struct {
 	CreatedAt         time.Time                              `json:"created_at"`
 	UpdatedAt         time.Time                              `json:"updated_at"`
 	MaterializedAt    *time.Time                             `json:"materialized_at,omitempty"`
+}
+
+// Normalized 返回去除首尾空白的 proposal 副本。清洗只发生在 storage ingress
+// （写入校验）与 egress（行扫描）各一次；materialization 等消费方一律信任
+// 已清洗的值，不再逐字段 trim。
+func (p ExecutionPlanProposal) Normalized() ExecutionPlanProposal {
+	p.ID = strings.TrimSpace(p.ID)
+	p.OwnerUserID = strings.TrimSpace(p.OwnerUserID)
+	p.SessionKey = strings.TrimSpace(p.SessionKey)
+	p.RoomID = strings.TrimSpace(p.RoomID)
+	p.ConversationID = strings.TrimSpace(p.ConversationID)
+	p.CoordinatorAgentID = strings.TrimSpace(p.CoordinatorAgentID)
+	p.RootRoundID = strings.TrimSpace(p.RootRoundID)
+	p.RuntimeRoundID = strings.TrimSpace(p.RuntimeRoundID)
+	p.AgentRoundID = strings.TrimSpace(p.AgentRoundID)
+	p.TargetExecutionID = strings.TrimSpace(p.TargetExecutionID)
+	p.BasePlanID = strings.TrimSpace(p.BasePlanID)
+	p.GoalID = strings.TrimSpace(p.GoalID)
+	p.GoalReservedExecutionID = strings.TrimSpace(p.GoalReservedExecutionID)
+	p.ReplacesExecutionID = strings.TrimSpace(p.ReplacesExecutionID)
+	p.ReservedExecutionID = strings.TrimSpace(p.ReservedExecutionID)
+	p.MaterializationCommandID = strings.TrimSpace(p.MaterializationCommandID)
+	p.MaterializedExecutionID = strings.TrimSpace(p.MaterializedExecutionID)
+	p.MaterializedPlanID = strings.TrimSpace(p.MaterializedPlanID)
+	p.ContentDigest = strings.TrimSpace(p.ContentDigest)
+	p.LastError = strings.TrimSpace(p.LastError)
+	return p
 }
 
 // MarshalExecutionPlanProposalDocument encodes a typed canonical document.

@@ -78,6 +78,8 @@ type roundRunner struct {
 	mapper                      *dmdomain.MessageMapper
 	inputOptions                sdkprotocol.OutboundMessageOptions
 	internal                    bool
+	executionOrigin             string
+	deferredAssistant           *DeferredAssistantHooks
 	trustedExternalInteractive  bool
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
@@ -145,6 +147,10 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.failRound(result, err)
 		return
 	}
+	if r.deferredAssistant != nil {
+		r.finishDeferredAssistant(result)
+		return
+	}
 	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
 			r.failRound(result, err)
@@ -173,6 +179,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.scheduleEchoAfterTerminal(result, finalAssistant)
 	r.broadcastContextUsage()
 	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
@@ -301,6 +308,9 @@ func (r *roundRunner) executeRound(
 			return r.handleDurableMessage(message)
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
+			if r.deferredAssistant != nil {
+				return nil
+			}
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			return nil
 		},
@@ -388,6 +398,12 @@ func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
 
 func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	role := protocol.MessageRole(message)
+	if r.deferredAssistant != nil {
+		if role == "result" {
+			r.recordUsage(message)
+		}
+		return nil
+	}
 	if role == "assistant" || (role == "result" && message["is_error"] != true &&
 		(dmdomain.NormalizeString(message["subtype"]) == "" || dmdomain.NormalizeString(message["subtype"]) == "success")) {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {

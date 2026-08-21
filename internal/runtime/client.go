@@ -35,6 +35,14 @@ type Client interface {
 	SessionID() string
 }
 
+// SupportsMessageExecutionPolicy 判断 runtime 是否保证消息级工具隔离与输出预算。
+func SupportsMessageExecutionPolicy(client Client) bool {
+	capable, ok := client.(interface {
+		Supports(bridge.Capability) bool
+	})
+	return ok && capable.Supports(bridge.CapabilityMessageExecutionPolicy)
+}
+
 // Factory 负责创建 Agent client。
 type Factory interface {
 	New(bridge.Options) Client

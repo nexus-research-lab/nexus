@@ -368,18 +368,5 @@ func executionReviewBindingEqual(
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
-	return strings.TrimSpace(left.ExecutionID) ==
-		strings.TrimSpace(right.ExecutionID) &&
-		strings.TrimSpace(left.PlanID) == strings.TrimSpace(right.PlanID) &&
-		strings.TrimSpace(left.WorkItemID) ==
-			strings.TrimSpace(right.WorkItemID) &&
-		strings.TrimSpace(left.SpecID) == strings.TrimSpace(right.SpecID) &&
-		strings.TrimSpace(left.AssignmentID) ==
-			strings.TrimSpace(right.AssignmentID) &&
-		strings.TrimSpace(left.SubmissionID) ==
-			strings.TrimSpace(right.SubmissionID) &&
-		strings.TrimSpace(left.ReviewDispatchID) ==
-			strings.TrimSpace(right.ReviewDispatchID) &&
-		strings.TrimSpace(left.TargetAgentID) ==
-			strings.TrimSpace(right.TargetAgentID)
+	return left.Normalized() == right.Normalized()
 }

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1200 920" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="echo-flow-title echo-flow-description">
+  <title id="echo-flow-title">Nexus Echo 主动跟进整体流程</title>
+  <desc id="echo-flow-description">一次正常 DM 成功结束后，系统创建延迟候选。候选到期先通过设置、会话锚点、忙碌状态、冷却和日限预检，再由后台模型判断是否值得跟进。通过后由原 Agent 在原 Session 中执行无工具隐藏回合，并在最终提交前再次检查。无效候选静默结束，有效消息一次性提交为带主动跟进标识的普通 assistant 消息。</desc>
+
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5f5e5a"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5b72ff"/>
+    </marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d5da8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="920" fill="#f9f9f7"/>
+
+  <!-- 连线先于节点绘制，保证节点遮住连接线。 -->
+  <line x1="440" y1="72" x2="440" y2="104" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="168" x2="440" y2="184" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="280" x2="440" y2="320" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="416" x2="440" y2="456" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="520" x2="440" y2="544" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="640" x2="440" y2="680" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <line x1="440" y1="744" x2="440" y2="784" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+  <!-- 暂时不适合时回到 scheduled。 -->
+  <path d="M 336 232 H 168 Q 160 232 160 224 V 144 Q 160 136 168 136 H 280" fill="none" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- 三类静默出口使用不同附着边，避免连接线重叠。 -->
+  <path d="M 544 232 H 928 Q 936 232 936 240 V 328" fill="none" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="544" y1="368" x2="816" y2="368" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 544 592 H 928 Q 936 592 936 584 V 408" fill="none" stroke="#5f5e5a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- 分支标签均与连接线保留可见间距。 -->
+  <rect x="220" y="212" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="244" y="220" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">延后</text>
+  <rect x="700" y="212" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="724" y="220" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">失效</text>
+  <rect x="452" y="292" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="476" y="300" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">通过</text>
+  <rect x="660" y="348" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="684" y="356" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">跳过</text>
+  <rect x="452" y="428" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="476" y="436" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">跟进</text>
+  <rect x="700" y="572" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="724" y="580" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">失效</text>
+  <rect x="452" y="652" width="48" height="12" rx="4" fill="#f9f9f7"/>
+  <text x="476" y="660" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">通过</text>
+
+  <!-- 起点。 -->
+  <rect x="320" y="24" width="240" height="48" rx="24" fill="rgba(95,94,90,0.10)" stroke="#6d6b67" stroke-width="1"/>
+  <text x="440" y="52" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">正常 DM 成功结束</text>
+
+  <!-- 延迟候选。 -->
+  <rect x="280" y="104" width="320" height="64" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="440" y="132" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">创建延迟候选</text>
+  <text x="440" y="152" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SCHEDULED · +6H · ACTIVE 09:00–22:00</text>
+
+  <!-- 确定性预检。 -->
+  <polygon points="440,184 544,232 440,280 336,232" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="440" y="228" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">当前可评估？</text>
+  <text x="440" y="248" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">POLICY · ANCHOR · BUSY · LIMIT</text>
+
+  <!-- 后台模型 Gate。 -->
+  <polygon points="440,320 544,368 440,416 336,368" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="440" y="364" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">值得主动跟进？</text>
+  <text x="440" y="384" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">GATE · 12 MESSAGES · STRICT JSON</text>
+
+  <!-- 所有无可见投递的终态合并展示。 -->
+  <rect x="816" y="328" width="240" height="80" rx="40" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+  <text x="936" y="360" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">静默收口</text>
+  <text x="936" y="384" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SUPPRESSED · CANCELLED · FAILED</text>
+
+  <!-- 原 Agent 无工具生成。 -->
+  <rect x="280" y="456" width="320" height="64" rx="8" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="440" y="484" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">原 Agent 生成跟进</text>
+  <text x="440" y="504" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">RUNNING · SAME SESSION · NO TOOLS · 400 TOKENS</text>
+
+  <!-- 提交前再次检查。 -->
+  <polygon points="440,544 544,592 440,640 336,592" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="440" y="588" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">仍可提交？</text>
+  <text x="440" y="608" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">RECHECK ACTIVITY · POLICY · IDENTITY</text>
+
+  <!-- 唯一焦点：一次性提交。 -->
+  <rect x="280" y="680" width="320" height="64" rx="8" fill="#f9f9f7"/>
+  <rect x="280" y="680" width="320" height="64" rx="8" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1.2"/>
+  <text x="440" y="708" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">一次性提交普通消息</text>
+  <text x="440" y="728" fill="#5b72ff" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">COMMITTING · PERSIST + BROADCAST</text>
+
+  <!-- 用户活动拥有最高优先级。 -->
+  <line x1="760" y1="648" x2="760" y2="720" stroke="#5b72ff" stroke-width="1"/>
+  <text x="784" y="664" fill="#131313" font-size="12" font-style="italic" font-family="'Instrument Serif', serif">用户新消息、关闭全局开关或暂停会话</text>
+  <text x="784" y="684" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">CANCEL ACTIVE ATTEMPT</text>
+  <text x="784" y="704" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace">INTERRUPT RUNNING ECHO ROUND</text>
+
+  <!-- 可见终态。 -->
+  <rect x="320" y="784" width="240" height="48" rx="24" fill="rgba(91,114,255,0.08)" stroke="#5b72ff" stroke-width="1"/>
+  <text x="440" y="812" fill="#131313" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">主动跟进已送达</text>
+
+  <!-- 图例。 -->
+  <line x1="40" y1="864" x2="1160" y2="864" stroke="rgba(19,19,19,0.10)" stroke-width="0.8"/>
+  <text x="40" y="884" fill="#5f5e5a" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.16em">LEGEND · SHAPE CARRIES TYPE</text>
+  <rect x="304" y="880" width="32" height="16" rx="8" fill="rgba(19,19,19,0.05)" stroke="#5f5e5a" stroke-width="1"/>
+  <text x="348" y="892" fill="#5f5e5a" font-size="8" font-family="'Geist', system-ui, sans-serif">开始 / 终态</text>
+  <rect x="472" y="880" width="32" height="16" rx="4" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="516" y="892" fill="#5f5e5a" font-size="8" font-family="'Geist', system-ui, sans-serif">动作</text>
+  <polygon points="640,888 656,880 672,888 656,896" fill="#ffffff" stroke="#131313" stroke-width="1"/>
+  <text x="684" y="892" fill="#5f5e5a" font-size="8" font-family="'Geist', system-ui, sans-serif">判断</text>
+  <line x1="816" y1="888" x2="848" y2="888" stroke="#5b72ff" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <text x="860" y="892" fill="#5f5e5a" font-size="8" font-family="'Geist', system-ui, sans-serif">可见提交路径</text>
+</svg>
