@@ -426,6 +426,114 @@ func TestAgentHistoryStoreUsesHiddenRoundMarkerForTranscriptAlignment(t *testing
 	}
 }
 
+func TestAgentHistoryStoreOnlyShowsAdmittedEchoAssistant(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Nexus")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:nexus:ws:dm:echo-history"
+	sessionID := "echo-history-session"
+	if err := history.AppendRoundMarkerWithOptions(
+		workspacePath,
+		sessionKey,
+		"round-echo",
+		"echo prompt",
+		1000,
+		RoundMarkerOptions{
+			HiddenFromUser: true,
+			Synthetic:      true,
+			Purpose:        "echo_followup",
+			Metadata: map[string]string{
+				"echo_attempt_id": "echo-1",
+			},
+		},
+	); err != nil {
+		t.Fatalf("写入 Echo round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":             "user",
+			"uuid":             "transcript-user-echo",
+			"sessionId":        sessionID,
+			"timestamp":        "2026-08-21T10:00:00.000Z",
+			"hidden_from_user": true,
+			"is_synthetic":     true,
+			"purpose":          "echo_followup",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "<system-reminder>internal</system-reminder>\n\necho prompt",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-echo",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-echo",
+			"message": map[string]any{
+				"id":          "echo-assistant",
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "主动跟进正文"},
+				},
+			},
+		},
+	})
+
+	session := protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "nexus",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}
+	rows, err := history.ReadMessages(workspacePath, session, nil)
+	if err != nil {
+		t.Fatalf("读取 Echo 历史失败: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("Echo 原始输入和未准入输出都不应进入可见历史: %+v", rows)
+	}
+
+	if err = history.AppendOverlayMessage(workspacePath, sessionKey, protocol.Message{
+		"message_id":  "echo-assistant",
+		"session_key": sessionKey,
+		"agent_id":    "nexus",
+		"round_id":    "round-echo",
+		"role":        "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "主动跟进正文"},
+		},
+		"metadata": map[string]any{
+			"source":          "echo",
+			"echo_attempt_id": "echo-1",
+		},
+		"timestamp":   int64(2000),
+		"stop_reason": "end_turn",
+		"is_complete": true,
+	}); err != nil {
+		t.Fatalf("写入准入后的 Echo assistant 失败: %v", err)
+	}
+
+	rows, err = history.ReadMessages(workspacePath, session, nil)
+	if err != nil {
+		t.Fatalf("重新读取 Echo 历史失败: %v", err)
+	}
+	if len(rows) != 1 || rows[0]["role"] != "assistant" || rows[0]["round_id"] != "round-echo" {
+		t.Fatalf("只应展示准入后的 Echo assistant: %+v", rows)
+	}
+	metadata, _ := rows[0]["metadata"].(map[string]any)
+	if metadata["source"] != "echo" {
+		t.Fatalf("Echo 来源信息未持久化: %+v", rows[0])
+	}
+}
+
 func TestAgentHistoryStoreRestoresMixedTranscriptRoundsWithoutLosingUsers(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")
