@@ -18,7 +18,7 @@ import (
 
 const (
 	// ProtocolVersion 是 Nexus 宿主与浏览器扩展的线协议版本。
-	ProtocolVersion = "1"
+	ProtocolVersion = "2"
 	// WebSocketSubprotocol 防止普通网页把内部端点当作通用 WebSocket 使用。
 	WebSocketSubprotocol = "nexus.browser.v1"
 	// BrowserExtensionID 来自 Nexus 扩展 manifest 的稳定公钥。
@@ -51,10 +51,12 @@ func SupportedActions() []string {
 }
 
 type client struct {
-	id               uint64
-	extensionVersion string
-	send             func(context.Context, any) error
-	close            func()
+	id                uint64
+	extensionVersion  string
+	browserInstance   string
+	browserGeneration string
+	send              func(context.Context, any) error
+	close             func()
 }
 
 type commandResponse struct {
@@ -62,19 +64,25 @@ type commandResponse struct {
 	err  error
 }
 
+type browserTab struct {
+	id  int64
+	ref string
+}
+
 type browserSession struct {
-	activeTabID int64
-	tabIDs      map[int64]struct{}
+	activeTabRef string
+	tabs         map[string]browserTab
 }
 
 // Service 管理唯一浏览器扩展连接和各 runtime Session 的多标签页状态。
 type Service struct {
-	mu       sync.Mutex
-	client   *client
-	pending  map[string]chan commandResponse
-	sessions map[string]browserSession
-	sequence atomic.Uint64
-	closed   bool
+	mu              sync.Mutex
+	client          *client
+	pending         map[string]chan commandResponse
+	sessions        map[string]browserSession
+	browserIdentity string
+	sequence        atomic.Uint64
+	closed          bool
 }
 
 // NewService 创建 Browser 服务。
@@ -88,19 +96,26 @@ func NewService() *Service {
 // Attach 注册已完成握手的浏览器扩展；新连接会替换旧连接并终止旧请求。
 func (s *Service) Attach(
 	extensionVersion string,
+	browserInstance string,
+	browserGeneration string,
 	send func(context.Context, any) error,
 	closeClient func(),
 ) (uint64, func()) {
-	if s == nil || send == nil {
+	browserInstance = strings.TrimSpace(browserInstance)
+	browserGeneration = strings.TrimSpace(browserGeneration)
+	if s == nil || send == nil || browserInstance == "" || browserGeneration == "" {
 		return 0, func() {}
 	}
 	id := s.sequence.Add(1)
 	next := &client{
-		id:               id,
-		extensionVersion: strings.TrimSpace(extensionVersion),
-		send:             send,
-		close:            closeClient,
+		id:                id,
+		extensionVersion:  strings.TrimSpace(extensionVersion),
+		browserInstance:   browserInstance,
+		browserGeneration: browserGeneration,
+		send:              send,
+		close:             closeClient,
 	}
+	nextIdentity := next.browserInstance + ":" + next.browserGeneration
 
 	s.mu.Lock()
 	if s.closed {
@@ -111,6 +126,10 @@ func (s *Service) Attach(
 		return 0, func() {}
 	}
 	previous := s.client
+	if s.browserIdentity != "" && s.browserIdentity != nextIdentity {
+		clear(s.sessions)
+	}
+	s.browserIdentity = nextIdentity
 	s.client = next
 	pending := s.takePendingLocked()
 	s.mu.Unlock()
@@ -271,7 +290,8 @@ func (s *Service) prepareParams(
 	input map[string]any,
 ) (map[string]any, map[string]any, error) {
 	params := cloneMap(input)
-	for _, key := range []string{"action", "owned", "session", "group_title", "tab_ids"} {
+	requestedTabRef := stringValue(params["tab_ref"])
+	for _, key := range []string{"action", "owned", "session", "group_title", "tab_id", "tab_ids", "tab_ref", "tab_refs"} {
 		delete(params, key)
 	}
 	params["session"] = sessionKey
@@ -280,7 +300,11 @@ func (s *Service) prepareParams(
 	s.mu.Lock()
 	state, hasSession := s.sessions[sessionKey]
 	s.mu.Unlock()
-	tabIDs := orderedTabIDs(state.tabIDs)
+	tabs := orderedTabs(state.tabs)
+	tabRefs := make([]string, 0, len(tabs))
+	for _, tab := range tabs {
+		tabRefs = append(tabRefs, tab.ref)
+	}
 
 	switch action {
 	case "list_tabs":
@@ -294,18 +318,17 @@ func (s *Service) prepareParams(
 		}
 		params["scope"] = scope
 		if scope == "all" {
-			delete(params, "tab_ids")
+			delete(params, "tab_refs")
 		} else {
-			params["tab_ids"] = tabIDs
+			params["tab_refs"] = tabRefs
 		}
 	case "attach_active":
 		delete(params, "tab_id")
 	case "attach_tab":
-		tabID, ok := integerValue(params["tab_id"])
-		if !ok || tabID <= 0 {
-			return nil, nil, errors.New("attach_tab 需要正整数 tab_id")
+		if requestedTabRef == "" {
+			return nil, nil, errors.New("attach_tab 需要 list_tabs 返回的 tab_ref")
 		}
-		params["tab_id"] = tabID
+		params["tab_ref"] = requestedTabRef
 	case "navigate":
 		if stringValue(params["url"]) == "" {
 			return nil, nil, errors.New("navigate 需要非空 url")
@@ -315,8 +338,8 @@ func (s *Service) prepareParams(
 			return nil, nil, err
 		}
 		delete(params, "tab_id")
-		if hasSession && state.activeTabID > 0 && !newTab {
-			params["tab_id"] = state.activeTabID
+		if hasSession && state.activeTabRef != "" && !newTab {
+			setActiveTab(params, state)
 		}
 	case "find_tab":
 		if stringValue(params["url"]) == "" {
@@ -326,7 +349,7 @@ func (s *Service) prepareParams(
 			return nil, nil, err
 		}
 		delete(params, "tab_id")
-		params["tab_ids"] = tabIDs
+		params["tab_refs"] = tabRefs
 	case "history":
 		if err := optionalString(params, "query"); err != nil {
 			return nil, nil, err
@@ -385,15 +408,16 @@ func (s *Service) prepareParams(
 			}
 		}
 	case "close_session":
-		if len(tabIDs) == 0 {
-			return nil, map[string]any{"closed": 0, "tab_ids": []int64{}}, nil
+		if len(tabRefs) == 0 {
+			return nil, map[string]any{"closed": 0, "tab_refs": []string{}}, nil
 		}
-		params = map[string]any{"session": sessionKey, "tab_ids": tabIDs}
+		params = map[string]any{"session": sessionKey, "tab_refs": tabRefs}
 	case "close_tab", "close":
-		if !hasSession || state.activeTabID <= 0 {
+		if !hasSession || state.activeTabRef == "" {
 			return nil, map[string]any{"closed": false, "reason": "session has no tab"}, nil
 		}
-		params = map[string]any{"session": sessionKey, "tab_id": state.activeTabID}
+		params = map[string]any{"session": sessionKey}
+		setActiveTab(params, state)
 	case "back", "forward", "reload":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
@@ -725,29 +749,59 @@ func (s *Service) updateSession(
 	defer s.mu.Unlock()
 	state, ok := s.sessions[sessionKey]
 	if !ok {
-		state = browserSession{tabIDs: make(map[int64]struct{})}
+		state = browserSession{tabs: make(map[string]browserTab)}
 	}
 	switch action {
 	case "attach_active", "attach_tab", "navigate", "find_tab":
 		tabID, valid := integerValue(result["tab_id"])
-		if !valid || tabID <= 0 {
+		tabRef := stringValue(result["tab_ref"])
+		if !valid || tabID <= 0 || tabRef == "" {
 			return
 		}
-		state.tabIDs[tabID] = struct{}{}
-		state.activeTabID = tabID
+		for existingRef, tab := range state.tabs {
+			if tab.id == tabID && existingRef != tabRef {
+				delete(state.tabs, existingRef)
+			}
+		}
+		state.tabs[tabRef] = browserTab{id: tabID, ref: tabRef}
+		state.activeTabRef = tabRef
+		s.sessions[sessionKey] = state
+	case "list_tabs":
+		items, _ := result["tabs"].([]any)
+		if stringValue(result["scope"]) != "session" || items == nil {
+			return
+		}
+		next := make(map[string]browserTab, len(items))
+		for _, item := range items {
+			value, _ := item.(map[string]any)
+			tabID, valid := integerValue(value["tab_id"])
+			tabRef := stringValue(value["tab_ref"])
+			if valid && tabID > 0 && tabRef != "" {
+				next[tabRef] = browserTab{id: tabID, ref: tabRef}
+			}
+		}
+		state.tabs = next
+		if _, exists := next[state.activeTabRef]; !exists {
+			ordered := orderedTabs(next)
+			state.activeTabRef = ""
+			if len(ordered) > 0 {
+				state.activeTabRef = ordered[len(ordered)-1].ref
+			}
+		}
+		if state.activeTabRef == "" {
+			delete(s.sessions, sessionKey)
+			return
+		}
 		s.sessions[sessionKey] = state
 	case "close_tab", "close":
-		tabID, valid := integerValue(result["tab_id"])
-		if !valid {
-			tabID, _ = integerValue(params["tab_id"])
-		}
-		delete(state.tabIDs, tabID)
-		remaining := orderedTabIDs(state.tabIDs)
+		tabRef := stringValue(params["tab_ref"])
+		delete(state.tabs, tabRef)
+		remaining := orderedTabs(state.tabs)
 		if len(remaining) == 0 {
 			delete(s.sessions, sessionKey)
 			return
 		}
-		state.activeTabID = remaining[len(remaining)-1]
+		state.activeTabRef = remaining[len(remaining)-1].ref
 		s.sessions[sessionKey] = state
 	case "close_session":
 		delete(s.sessions, sessionKey)
@@ -755,11 +809,20 @@ func (s *Service) updateSession(
 }
 
 func requireActiveTab(params *map[string]any, state browserSession, hasSession bool, action string) error {
-	if !hasSession || state.activeTabID <= 0 {
+	if !hasSession || state.activeTabRef == "" {
 		return missingTabError(action)
 	}
-	(*params)["tab_id"] = state.activeTabID
+	setActiveTab(*params, state)
 	return nil
+}
+
+func setActiveTab(params map[string]any, state browserSession) {
+	tab, ok := state.tabs[state.activeTabRef]
+	if !ok {
+		return
+	}
+	params["tab_id"] = tab.id
+	params["tab_ref"] = tab.ref
 }
 
 func normalizeSelector(params map[string]any, action string) error {
@@ -919,12 +982,12 @@ func validStringList(value any) bool {
 	}
 }
 
-func orderedTabIDs(tabIDs map[int64]struct{}) []int64 {
-	result := make([]int64, 0, len(tabIDs))
-	for tabID := range tabIDs {
-		result = append(result, tabID)
+func orderedTabs(tabs map[string]browserTab) []browserTab {
+	result := make([]browserTab, 0, len(tabs))
+	for _, tab := range tabs {
+		result = append(result, tab)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	sort.Slice(result, func(i, j int) bool { return result[i].id < result[j].id })
 	return result
 }
 

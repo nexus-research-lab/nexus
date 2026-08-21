@@ -1,4 +1,4 @@
-const PROTOCOL_VERSION = "1";
+const PROTOCOL_VERSION = "2";
 const SUBPROTOCOL = "nexus.browser.v1";
 const DEFAULT_ENDPOINTS = [
   "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws",
@@ -7,6 +7,8 @@ const DEFAULT_ENDPOINTS = [
 const RECONNECT_ALARM = "nexus-browser-reconnect";
 const STORAGE_URL = "browser_url";
 const STORAGE_ENABLED = "browser_enabled";
+const STORAGE_INSTANCE_ID = "browser_instance_id";
+const BROWSER_GENERATION = crypto.randomUUID();
 const INTERACTIVE_ROLES = new Set([
   "button",
   "link",
@@ -60,6 +62,9 @@ class BrowserController {
     this.consoleEntries = new Map();
     this.dialogs = new Map();
     this.groupBySession = new Map();
+    this.tabTokens = new Map();
+    this.browserInstanceID = "";
+    this.browserGeneration = "";
     this.platform = null;
 
     chrome.tabs.onRemoved.addListener((tabId) => this.clearTab(tabId));
@@ -82,7 +87,20 @@ class BrowserController {
     });
   }
 
+  setIdentity(instanceID, generation) {
+    this.browserInstanceID = this.requireText(instanceID, "browser instance id is required");
+    this.browserGeneration = this.requireText(generation, "browser generation is required");
+  }
+
   async execute(action, params = {}) {
+    params = { ...params };
+    if (params.tab_ref !== undefined) {
+      const tabId = this.parseTabRef(params.tab_ref);
+      if (params.tab_id !== undefined && params.tab_id !== tabId) {
+        throw new Error("tab_ref does not match tab_id");
+      }
+      params.tab_id = tabId;
+    }
     switch (action) {
       case "list_tabs":
         return this.listTabs(params);
@@ -213,7 +231,7 @@ class BrowserController {
       }
     }
     if (!tab) {
-      for (const tabId of this.tabIDs(params.tab_ids)) {
+      for (const tabId of this.tabRefs(params.tab_refs)) {
         try {
           const candidate = await chrome.tabs.get(tabId);
           if (this.matchesURL(candidate.url || candidate.pendingUrl || "", pattern)) {
@@ -238,7 +256,7 @@ class BrowserController {
       return { scope: "all", tabs: await Promise.all(tabs.map((tab) => this.tabResult(tab))) };
     }
     const tabs = [];
-    for (const tabId of this.tabIDs(params.tab_ids)) {
+    for (const tabId of this.tabRefs(params.tab_refs)) {
       try {
         tabs.push(await this.tabResult(await chrome.tabs.get(tabId)));
       } catch {
@@ -1373,7 +1391,7 @@ class BrowserController {
 
   async closeSession(params) {
     const existing = [];
-    for (const tabId of this.tabIDs(params.tab_ids)) {
+    for (const tabId of this.tabRefs(params.tab_refs)) {
       try {
         await chrome.tabs.get(tabId);
         existing.push(tabId);
@@ -1435,6 +1453,7 @@ class BrowserController {
     }
     return {
       tab_id: tab.id,
+      tab_ref: this.tabRef(tab.id),
       title: tab.title || "",
       url: tab.url || tab.pendingUrl || "",
       active: Boolean(tab.active),
@@ -1534,8 +1553,46 @@ class BrowserController {
     return value;
   }
 
-  tabIDs(values) {
-    return Array.isArray(values) ? [...new Set(values.filter((value) => Number.isInteger(value) && value > 0))] : [];
+  tabRef(tabId) {
+    tabId = this.parseTabID(tabId);
+    if (!this.browserInstanceID || !this.browserGeneration) {
+      throw new Error("Browser identity is not initialized");
+    }
+    let token = this.tabTokens.get(tabId);
+    if (!token) {
+      token = crypto.randomUUID();
+      this.tabTokens.set(tabId, token);
+    }
+    return JSON.stringify([this.browserInstanceID, this.browserGeneration, tabId, token]);
+  }
+
+  parseTabRef(value) {
+    let parts;
+    try {
+      parts = JSON.parse(this.requireText(value, "A valid tab_ref is required"));
+    } catch {
+      throw new Error("A valid tab_ref is required; run list_tabs again");
+    }
+    if (!Array.isArray(parts) || parts.length !== 4 ||
+        parts[0] !== this.browserInstanceID || parts[1] !== this.browserGeneration ||
+        !Number.isInteger(parts[2]) || parts[2] <= 0 ||
+        this.tabTokens.get(parts[2]) !== parts[3]) {
+      throw new Error("Stale tab_ref; run list_tabs or attach_active again");
+    }
+    return parts[2];
+  }
+
+  tabRefs(values) {
+    if (!Array.isArray(values)) return [];
+    const tabIds = [];
+    for (const value of values) {
+      try {
+        tabIds.push(this.parseTabRef(value));
+      } catch {
+        // 已关闭或来自旧扩展代次的标签页不再属于当前 Session。
+      }
+    }
+    return [...new Set(tabIds)];
   }
 
   requireText(value, message) {
@@ -1608,6 +1665,7 @@ class BrowserController {
     this.consoleTabs.delete(tabId);
     this.consoleEntries.delete(tabId);
     this.dialogs.delete(tabId);
+    this.tabTokens.delete(tabId);
   }
 }
 
@@ -1623,6 +1681,13 @@ class BrowserClient {
   }
 
   async start() {
+    const stored = await chrome.storage.local.get(STORAGE_INSTANCE_ID);
+    let instanceID = String(stored[STORAGE_INSTANCE_ID] || "").trim();
+    if (!instanceID) {
+      instanceID = crypto.randomUUID();
+      await chrome.storage.local.set({ [STORAGE_INSTANCE_ID]: instanceID });
+    }
+    this.controller.setIdentity(instanceID, BROWSER_GENERATION);
     chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 0.5 });
     chrome.alarms.onAlarm.addListener((alarm) => {
       if (alarm.name === RECONNECT_ALARM) void this.reconcile();
@@ -1739,6 +1804,8 @@ class BrowserClient {
           type: "browser.ready",
           protocol_version: PROTOCOL_VERSION,
           extension_version: chrome.runtime.getManifest().version,
+          browser_instance_id: this.controller.browserInstanceID,
+          browser_generation: this.controller.browserGeneration,
         }));
       });
       socket.addEventListener("message", (event) => {

@@ -26,12 +26,14 @@ const (
 )
 
 type wireMessage struct {
-	Type             string         `json:"type"`
-	ID               string         `json:"id,omitempty"`
-	ProtocolVersion  string         `json:"protocol_version,omitempty"`
-	ExtensionVersion string         `json:"extension_version,omitempty"`
-	Result           map[string]any `json:"result,omitempty"`
-	Error            string         `json:"error,omitempty"`
+	Type              string         `json:"type"`
+	ID                string         `json:"id,omitempty"`
+	ProtocolVersion   string         `json:"protocol_version,omitempty"`
+	ExtensionVersion  string         `json:"extension_version,omitempty"`
+	BrowserInstance   string         `json:"browser_instance_id,omitempty"`
+	BrowserGeneration string         `json:"browser_generation,omitempty"`
+	Result            map[string]any `json:"result,omitempty"`
+	Error             string         `json:"error,omitempty"`
 }
 
 // Handler 处理 Nexus 浏览器扩展连接。
@@ -85,7 +87,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	err = wsjson.Read(readyCtx, connection, &ready)
 	readyCancel()
 	if err != nil || ready.Type != "browser.ready" ||
-		ready.ProtocolVersion != browsersvc.ProtocolVersion {
+		ready.ProtocolVersion != browsersvc.ProtocolVersion ||
+		strings.TrimSpace(ready.BrowserInstance) == "" ||
+		strings.TrimSpace(ready.BrowserGeneration) == "" {
 		_ = connection.Close(websocket.StatusPolicyViolation, "invalid Browser handshake")
 		return
 	}
@@ -100,6 +104,8 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	}
 	clientID, detach := h.service.Attach(
 		ready.ExtensionVersion,
+		ready.BrowserInstance,
+		ready.BrowserGeneration,
 		send,
 		func() { _ = connection.CloseNow() },
 	)

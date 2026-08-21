@@ -23,13 +23,15 @@ runtime MCP browser
 - WebSocket 路由固定为 `/nexus/v1/internal/browser/ws`，子协议为 `nexus.browser.v1`。
 - 扩展依次发送和接收 `browser.ready`、`browser.accepted`、`browser.command`、`browser.result`、`browser.ping` 与 `browser.pong`。
 - Handler 只接受 manifest 固定 ID 对应的 `chrome-extension://` Origin。
+- `browser.ready` 携带稳定浏览器实例 ID 与当前扩展进程代次；代次变化时宿主立即废弃旧标签页引用。
 - 同一时刻只有一个扩展连接；新连接替换旧连接并结束旧连接上的等待请求。
 
 ## Session 与标签页
 
-- 每个 runtime Session 保存自己的活动标签页与已归属标签页集合。
+- 每个 runtime Session 保存自己的活动标签页与已归属标签页集合；宿主只复用扩展签发的 `tab_ref`，整数 `tab_id` 仅作结果展示。
 - `navigate`、`find_tab`、`attach_active` 和 `attach_tab` 建立 Session 归属；后续页面动作只能使用该 Session 的活动标签页。
-- `list_tabs scope=session` 只列出本 Session 标签页，`scope=all` 只用于发现浏览器标签页；模型仍需 `attach_tab` 后才能操作发现的标签页。
+- `list_tabs scope=session` 只列出本 Session 标签页，`scope=all` 只用于发现浏览器标签页；模型必须把结果中的 `tab_ref` 交给 `attach_tab` 后才能操作发现的标签页。
+- `tab_ref` 同时绑定浏览器实例、扩展进程代次、标签页 ID 和标签页实例 token；关闭后复用的整数 ID、扩展重启前的引用或模型自行构造的引用都会失败关闭。
 - 新建标签页按 Session 放入独立 Chrome 标签组；`close_session` 只关闭该 Session 已归属的标签页。
 
 ## Browser action
