@@ -4,26 +4,26 @@
  * POS: 与 React 和 Markdown 无关的流速时钟；传输停顿期间保持同一时间轴。
  */
 
-const DEFAULT_ARRIVAL_CPS = 50;
+const DEFAULT_ARRIVAL_CPS = 36;
 const ARRIVAL_RATE_ALPHA = 0.18;
 const ARRIVAL_WINDOW_MS = 3000;
-const MIN_OBSERVED_CPS = 12;
-const MAX_OBSERVED_CPS = 360;
+const MIN_OBSERVED_CPS = 8;
+const MAX_OBSERVED_CPS = 180;
 const API_STALL_GAP_MS = 300;
 const MIN_SAFE_GAP_MS = 500;
 const MAX_SAFE_GAP_MS = 1200;
-const MIN_INITIAL_BUFFER_CHARS = 24;
-const MAX_INITIAL_BUFFER_CHARS = 52;
-const INITIAL_BUFFER_SECONDS = 0.45;
-const MAX_INITIAL_WAIT_MS = 900;
-const MIN_LIVE_CPS = 15;
-const MAX_LIVE_CPS = 720;
-const LIVE_CATCH_UP_THRESHOLD_CHARS = 240;
-const LIVE_MAX_BACKLOG_SECONDS = 2.5;
-const MIN_FLUSH_CPS = 18;
-const MAX_FLUSH_CPS = 2400;
-const FLUSH_SPEEDUP = 1.2;
-const FLUSH_MAX_SECONDS = 2;
+const MIN_INITIAL_BUFFER_CHARS = 12;
+const MAX_INITIAL_BUFFER_CHARS = 28;
+const INITIAL_BUFFER_SECONDS = 0.3;
+const MAX_INITIAL_WAIT_MS = 600;
+const MIN_LIVE_CPS = 18;
+const MAX_LIVE_CPS = 90;
+const LIVE_CATCH_UP_THRESHOLD_CHARS = 180;
+const LIVE_MAX_BACKLOG_SECONDS = 5;
+const MIN_FLUSH_CPS = 24;
+const MAX_FLUSH_CPS = 120;
+const FLUSH_SPEEDUP = 1.05;
+const FLUSH_MAX_SECONDS = 8;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
