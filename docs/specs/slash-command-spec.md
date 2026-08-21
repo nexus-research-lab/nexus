@@ -99,8 +99,9 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   默认后台模型从完整实际图自动选择源 logical-key 子集、生成通用命名和结构草图；preview
   只在 owner/session-scoped 内存中短期保留，不进入数据库或命令目录。除英文 kebab-case
   `slash_name` 与 logical key 外，模型输出跟随当前界面语言；模型同时接收 owner 当前命令目录与固定保留名，
-  优先生成不重复的 1 至 3 个短词命令，service 仍负责最终冲突校验。用户可以直接修改命令名、
-  标题和描述，或进入从源 transcript exact round boundary 创建的目录隐藏短期 DM fork；该分支复用标准
+  默认生成一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不生成三个及以上词；若模型仍返回
+  多词候选，service 按语义核心词优先收敛到未占用的单词，并继续负责最终冲突校验。用户可以直接修改命令名、标题和描述，或进入从源 transcript 最近一个已完成
+  助手轮次创建的目录隐藏短期 DM fork；该分支复用标准
   DM 展示与 Composer，只挂载 owner/session-scoped 草图修改工具。模型可新增、删除、合并或拆分节点并修改
   objective、父子结构和依赖，每次提交带 revision 的完整草图；服务端校验 logical key、kind、DAG、key
   主路径与 terminal 交付，取消不改原 preview，明确应用才替换。用户确认后，

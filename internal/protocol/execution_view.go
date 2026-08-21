@@ -245,14 +245,12 @@ type ExecutionWorkItemView struct {
 
 // ExecutionView 是 DM/Room 共用的当前或最近一次 WorkGraph 展示快照。
 type ExecutionView struct {
-	ID                 string             `json:"id"`
-	SessionKey         string             `json:"session_key"`
-	ScopeKind          ExecutionScopeKind `json:"scope_kind"`
-	RoomID             string             `json:"room_id,omitempty"`
-	ConversationID     string             `json:"conversation_id,omitempty"`
-	CoordinatorAgentID string             `json:"coordinator_agent_id,omitempty"`
-	// RootRoundID 只供宿主从实际 Execution transcript 创建受限临时分支，不进入 HTTP wire。
-	RootRoundID           string                  `json:"-"`
+	ID                    string                  `json:"id"`
+	SessionKey            string                  `json:"session_key"`
+	ScopeKind             ExecutionScopeKind      `json:"scope_kind"`
+	RoomID                string                  `json:"room_id,omitempty"`
+	ConversationID        string                  `json:"conversation_id,omitempty"`
+	CoordinatorAgentID    string                  `json:"coordinator_agent_id,omitempty"`
 	Objective             string                  `json:"objective"`
 	CompletionCriteria    []string                `json:"completion_criteria,omitempty"`
 	GoalID                string                  `json:"goal_id,omitempty"`

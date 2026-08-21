@@ -148,7 +148,7 @@ func TestPreviewThenSaveKeepsExactModelExtractedSketch(t *testing.T) {
 	if repository.createCount != 0 || len(repository.items) != 0 {
 		t.Fatalf("preview persisted data: creates=%d items=%d", repository.createCount, len(repository.items))
 	}
-	if preview.SlashName != "deep-research" || len(preview.Nodes) != 2 || len(preview.Dependencies) != 1 {
+	if preview.SlashName != "research" || len(preview.Nodes) != 2 || len(preview.Dependencies) != 1 {
 		t.Fatalf("preview = %#v", preview)
 	}
 	if preview.Nodes[0].LogicalKey != "research" || preview.Nodes[1].Role != protocol.WorkGraphWorkflowNodeCollaboration {
@@ -178,6 +178,43 @@ func TestPreviewThenSaveKeepsExactModelExtractedSketch(t *testing.T) {
 	}
 	if changeCount != 1 {
 		t.Fatalf("directory change count = %d, want 1", changeCount)
+	}
+}
+
+func TestPreviewPrefersAvailableSingleWordSlashName(t *testing.T) {
+	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
+		"existing-research": {ID: "existing-research", OwnerUserID: "owner-a", SlashName: "research"},
+	}}
+	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
+	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
+
+	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
+		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.SlashName != "deep" {
+		t.Fatalf("slash name = %q, want next available single word", preview.SlashName)
+	}
+}
+
+func TestPreviewUsesTwoWordSlashNameOnlyAfterSingleWordConflicts(t *testing.T) {
+	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
+		"existing-research": {ID: "existing-research", OwnerUserID: "owner-a", SlashName: "research"},
+		"existing-deep":     {ID: "existing-deep", OwnerUserID: "owner-a", SlashName: "deep"},
+	}}
+	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
+	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
+
+	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
+		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.SlashName != "deep-research" {
+		t.Fatalf("slash name = %q, want two-word fallback", preview.SlashName)
 	}
 }
 
@@ -344,7 +381,7 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	if editor.Revision != 1 || editor.Preview.Title != "研究审查" || editor.SessionKey == "" || len(sessions.created) != 1 {
 		t.Fatalf("started editor = %#v", editor)
 	}
-	if sessions.created[0].SourceRoundID != "round-root-a" || sessions.created[0].SourceSessionKey != "session-a" {
+	if sessions.created[0].SourceSessionKey != "session-a" {
 		t.Fatalf("transient fork request = %#v", sessions.created[0])
 	}
 	nodes := cloneWorkflowNodes(editor.Preview.Nodes)
@@ -411,7 +448,7 @@ func TestExpandRuntimePromptMaterializesFreshGraphWithoutRunFacts(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	expanded, err := service.ExpandRuntimePrompt(context.Background(), "owner-a", "/deep-research compare storage engines")
+	expanded, err := service.ExpandRuntimePrompt(context.Background(), "owner-a", "/research compare storage engines")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,8 +511,8 @@ func TestPreviewRejectsInventedModelNode(t *testing.T) {
 func workflowSourceView() *protocol.ExecutionView {
 	return &protocol.ExecutionView{
 		ID: "execution-a", SessionKey: "session-a", Status: protocol.ExecutionStatusCompleted,
-		CoordinatorAgentID: "agent-a", RootRoundID: "round-root-a",
-		Objective: "Research and review", Plan: &protocol.ExecutionPlanView{ID: "plan-a"},
+		CoordinatorAgentID: "agent-a",
+		Objective:          "Research and review", Plan: &protocol.ExecutionPlanView{ID: "plan-a"},
 		WorkItems: []protocol.ExecutionWorkItemView{
 			{ID: "work-research", LogicalKey: "research", Kind: protocol.WorkItemKindProduce, Subject: "Research", Objective: "Collect evidence", Deliverable: "Evidence brief", Required: true, Position: 1, Status: protocol.ExecutionWorkItemViewAccepted},
 			{ID: "work-incidental", LogicalKey: "incidental", Kind: protocol.WorkItemKindVerify, Subject: "One-off formatting", Objective: "Task-specific cleanup", Deliverable: "Temporary formatting", Position: 2, DependencyIDs: []string{"work-research"}, Status: protocol.ExecutionWorkItemViewAccepted},

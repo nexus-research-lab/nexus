@@ -1,4 +1,4 @@
-// INPUT: 同 Agent 的源 DM/Room transcript 边界与宿主生成的隐藏目标 Session。
+// INPUT: 同 Agent 的源 DM/Room Session、可选 transcript 边界与宿主生成的隐藏目标 Session。
 // OUTPUT: 继承模型上下文、但从普通目录隐藏且只展示新分支消息的临时 DM Session。
 // POS: WorkGraph 等受限嵌入式编辑器复用标准 DM runtime 的 fork 边界。
 package dm
@@ -6,10 +6,12 @@ package dm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // TransientForkRequest 只由宿主组合层构造；HTTP/WS 不能写入 Session 用途或 fork identity。
@@ -37,8 +39,7 @@ func (s *Service) CreateTransientFork(
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(request.TargetRoundID) == "" ||
-		strings.TrimSpace(request.Purpose) == "" ||
+	if strings.TrimSpace(request.Purpose) == "" ||
 		request.DisplayAfterUnixMilli <= 0 {
 		return nil, errors.New("transient fork boundary is incomplete")
 	}
@@ -53,10 +54,22 @@ func (s *Service) CreateTransientFork(
 	if err != nil {
 		return nil, err
 	}
+	targetRoundID := strings.TrimSpace(request.TargetRoundID)
+	if targetRoundID == "" {
+		targetRoundID, err = s.resolveLatestCompletedForkRound(
+			ctx,
+			agentValue,
+			sourceSession,
+			source.Raw,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
 	sourceSessionID, sourceMessageID, err := s.prepareConversationFork(
 		ctx,
 		source.Raw,
-		request.TargetRoundID,
+		targetRoundID,
 		validateTransientForkSourceKey,
 	)
 	if err != nil {
@@ -96,7 +109,7 @@ func (s *Service) CreateTransientFork(
 		ctx,
 		source.Raw,
 		target.Raw,
-		request.TargetRoundID,
+		targetRoundID,
 		sourceSessionID,
 		sourceMessageID,
 		validateTransientForkKeys,
@@ -112,4 +125,41 @@ func (s *Service) CreateTransientFork(
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (s *Service) resolveLatestCompletedForkRound(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+	sourceSession protocol.Session,
+	sourceSessionKey string,
+) (string, error) {
+	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
+	query := workspacestore.HistoryPageQuery{Limit: 32}
+	for {
+		page, err := s.history.ForOwner(agentValue.OwnerUserID).ReadMessagesPageContext(
+			ctx,
+			agentValue.WorkspacePath,
+			sourceSession,
+			activeRoundIDs,
+			query,
+		)
+		if err != nil {
+			return "", fmt.Errorf("读取 source conversation 最近轮次: %w", err)
+		}
+		if roundID := latestCompletedAssistantRound(page.Items, activeRoundIDs); roundID != "" {
+			return roundID, nil
+		}
+		if !page.HasMore || page.NextBeforeRoundID == nil {
+			break
+		}
+		query.BeforeRoundID = strings.TrimSpace(*page.NextBeforeRoundID)
+		query.BeforeRoundTimestamp = 0
+		if page.NextBeforeRoundTimestamp != nil {
+			query.BeforeRoundTimestamp = *page.NextBeforeRoundTimestamp
+		}
+		if query.BeforeRoundID == "" {
+			break
+		}
+	}
+	return "", errors.New("source conversation 没有可分支的已完成助手回复")
 }

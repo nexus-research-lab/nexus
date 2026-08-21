@@ -301,6 +301,24 @@ func completedAssistantRound(rows []protocol.Message, roundID string, activeRoun
 	return hasAssistant && !hasNonSuccessfulTerminal
 }
 
+func latestCompletedAssistantRound(rows []protocol.Message, activeRoundIDs []string) string {
+	seen := make(map[string]struct{})
+	for index := len(rows) - 1; index >= 0; index-- {
+		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
+		if roundID == "" {
+			continue
+		}
+		if _, duplicate := seen[roundID]; duplicate {
+			continue
+		}
+		seen[roundID] = struct{}{}
+		if completedAssistantRound(rows, roundID, activeRoundIDs) {
+			return roundID
+		}
+	}
+	return ""
+}
+
 func successfulForkResult(value any) bool {
 	status := strings.ToLower(strings.TrimSpace(forkStringValue(value)))
 	return status != "" && status != "running" && status != "interrupted" && status != "cancelled" && status != "error"

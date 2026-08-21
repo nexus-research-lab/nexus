@@ -574,3 +574,27 @@ func TestCompletedAssistantRoundUsesPagedMessageSemantics(t *testing.T) {
 		})
 	}
 }
+
+func TestLatestCompletedAssistantRoundSkipsActiveAndFailedTail(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"round_id": "round-success",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+		{
+			"round_id":    "round-failed",
+			"role":        "assistant",
+			"stop_reason": "error",
+		},
+		{
+			"round_id": "round-active",
+			"role":     "assistant",
+		},
+	}
+	if got := latestCompletedAssistantRound(rows, []string{"round-active"}); got != "round-success" {
+		t.Fatalf("latestCompletedAssistantRound() = %q, want round-success", got)
+	}
+}

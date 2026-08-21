@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” locale-aware default-background-model structure extraction, editable metadata and graph structure through a constrained temporary DM fork, hidden background Agent persistence through the Skill and `nexus execution` without chat messages, single-connection-safe directory loading, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
+- Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” locale-aware default-background-model structure extraction, single-word-first non-conflicting Slash naming, editable metadata and graph structure through a constrained temporary DM fork at the latest completed assistant boundary, hidden background Agent persistence through the Skill and `nexus execution` without chat messages, single-connection-safe directory loading, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Fixed
