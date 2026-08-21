@@ -16,6 +16,8 @@ const (
 	ErrorCodeInvalidInput            ErrorCode = "invalid_input"
 	ErrorCodePlanDocumentInvalid     ErrorCode = "plan_document_invalid"
 	ErrorCodePlanProposalNotFound    ErrorCode = "plan_proposal_not_found"
+	ErrorCodePlanProposalBinding     ErrorCode = "plan_proposal_binding_missing"
+	ErrorCodePlanProposalMismatch    ErrorCode = "plan_proposal_binding_mismatch"
 	ErrorCodePlanProposalDigest      ErrorCode = "plan_proposal_digest_mismatch"
 	ErrorCodePlanProposalStale       ErrorCode = "plan_proposal_stale"
 	ErrorCodePlanProposalBlocked     ErrorCode = "plan_proposal_blocked"

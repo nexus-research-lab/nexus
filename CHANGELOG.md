@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bound sealed Plan proposals to the exact owner/session/scope/coordinator in durable host state, so `plan_execution` no longer requires models to copy opaque proposal IDs or digests and remains exact across Plan Mode exits, retries, and restarts.
 - Made initial Room and DM history wait for deferred indexing to finish, so first entry no longer leaves an empty conversation that only recovers after switching away and back.
 - Grouped the completed WorkGraph header into clear context and action regions, and simplified sketch-saving guidance around Slash-command and Composer-menu reuse.
 - Matched Composer Slash-command suggestions only by command-name prefix, with alphabetical ordering for predictable results.

@@ -462,20 +462,33 @@ Historical relationship language never substitutes for current state.
 2. validates static business and ownership constraints;
 3. resolves the requested Goal boundary;
 4. seals a durable proposal with an opaque `proposal_id` and digest;
-5. returns the exact receipt required for materialization.
+5. atomically binds that exact proposal to the trusted
+   owner/session/scope/coordinator key;
+6. returns commit guidance without exposing machine proposal identifiers to the
+   model.
 
 Prepare does not create authoritative Work Items, activate a Plan, assign work, or
 grant general coordination authority. It is allowed in Plan Mode because it only
-produces a non-authoritative proposal.
+produces a non-authoritative proposal. The durable binding is an explicit pointer,
+not a query for the newest proposal. One physical round may own only one sealed
+proposal; a second distinct prepare in that round is rejected. A newly inserted
+prepare from a successor round supersedes prior sealed proposals in the same exact
+binding scope; a late replay of a superseded prepare cannot move the pointer
+backward, and a materializing proposal cannot be superseded.
 
 ### 4.3 Materialize
 
-`plan_execution` accepts the exact `proposal_id` and `proposal_digest`. It validates
-the sealed content, caller authority, owner/session/scope, base Plan fences, Goal
-fences, and proposal lifecycle before transactionally materializing it.
+`plan_execution` normally accepts an empty input. The host resolves the exact
+durable proposal binding and internally supplies its `proposal_id` and
+`proposal_digest` to the materializer. It validates the sealed content, caller
+authority, owner/session/scope, base Plan fences, Goal fences, and proposal
+lifecycle before transactionally materializing it. During compatibility rollout,
+an explicitly supplied legacy pair is accepted only when both fields are present
+and exactly match the host binding; it never selects another proposal.
 
 Materialization is idempotent for the same valid receipt. Replaying a materialized
-receipt returns the existing result; it does not duplicate the graph.
+binding returns the existing result; it does not duplicate the graph. The binding
+survives physical-round and process boundaries, including Plan Mode exit.
 
 `plan_execution` is rejected in Plan Mode because it mutates authoritative state
 and may issue runtime coordination capability.
@@ -573,7 +586,7 @@ WorkBinding, ReviewBinding, and coordination authority.
 | `get_execution` (current) | `nexus --json execution inspect` | Reads the actor-filtered current WorkGraph. For an exact current Room coordinator this also establishes only a round-local coordination binding. |
 | `get_execution` (historical) | `nexus --json execution inspect --execution-id <id>` | The only explicit read locator. It is non-authorizing and remains scope checked; historical selection never changes the current Execution. |
 | `prepare_plan_execution` | `execution inspect` → `execution contract --operation prepare_plan_execution` → stage complete input → `execution invoke --operation prepare_plan_execution --request-id <stable-id>` | Strictly validates and durably seals a complete Plan proposal. It does not materialize the WorkGraph. |
-| `plan_execution` | exact contract → stage the returned `proposal_id` and `proposal_digest` → `execution invoke --operation plan_execution --request-id <stable-id>` | Atomically materializes only the sealed proposal. Separating validation from commit supplies restart-safe retry, CAS, and Goal-revision fencing without accepting a second graph payload. |
+| `plan_execution` | exact contract → stage `{}` → `execution invoke --operation plan_execution --request-id <stable-id>` | Atomically resolves and materializes only the host-bound sealed proposal. Separating validation from commit supplies restart-safe retry, CAS, and Goal-revision fencing without asking the model to copy machine receipts or accepting a second graph payload. |
 | `abandon_execution`, `assign_work`, `submit_work`, `review_work`, `block_work`, `resume_work`, `take_over_work`, `audit_execution_alignment`, `promote_execution_to_goal` | `execution inspect` → exact operation contract → stage input → `execution invoke --operation <operation> --request-id <stable-id>` | Stable schemas remain visible in every authorized runtime topology, while service state and exact bindings decide whether the operation is allowed. Locator omission is legal only when a host binding supplies the same target. |
 
 Goal/Execution `invoke` has exactly one input transport: the owner-private,
@@ -602,7 +615,7 @@ control above the input box accepts the Goal before a model continuation starts.
 | --- | --- | --- |
 | DM · dialogue Goal | `goal inspect` → exact `create_goal` contract → stage → `goal invoke create_goal` | One standalone Goal. The DM Session Agent becomes the durable responsible Agent; no Execution is created. |
 | DM · Composer Goal | Host `set_goal` transaction: create Goal → persist the exact `client_message_id` control record → start successor continuation; successor uses `goal inspect` | One standalone Goal and one visible control record that never enters the model as an ordinary prompt. No model `create_goal` call occurs. |
-| DM · dialogue WorkGraph | `execution inspect` → exact `prepare_plan_execution` contract → stage `goal_binding=none` → invoke → exact `plan_execution` contract → stage sealed receipt → invoke | One transient Goal-free Execution with an authoritative Plan. |
+| DM · dialogue WorkGraph | `execution inspect` → exact `prepare_plan_execution` contract → stage `goal_binding=none` → invoke → exact `plan_execution` contract → stage `{}` → invoke | One transient Goal-free Execution with an authoritative Plan. |
 | DM · dialogue Goal+WorkGraph | Complete `create_goal` first; after its applied receipt run the two Execution Plan commands with outer `goal_binding=current` | One Goal and one bilaterally confirmed Goal-bound Execution. Same-round dynamic authority carries the newly created Goal revision into Execution. |
 | Room · dialogue Goal | Same Goal CLI sequence as DM | One standalone Room Goal. The server-verified current Agent is persisted as creator and lead; other members can inspect but cannot mutate it. |
 | Room · Composer Goal | Host Room `set_goal` transaction with exactly one verified selected lead → durable public control record → lead successor continuation uses `goal inspect` | One standalone Room Goal with an exact lead and durable acceptance evidence. No model `create_goal` call occurs. |
@@ -718,8 +731,8 @@ business operations.
 | Operation | Atomic semantics |
 | --- | --- |
 | `get_execution` | Returns a bounded actor-specific view without changing durable Execution/Plan state. An exact Room member receives a full shared graph digest in an observation lane with only `get_execution` allowed; it carries no responsibility evidence or mutation authority. Bound workers/reviewers retain their responsibility-scoped view. A verified current-coordinator read mints coordination authority for the current physical round, so this is the explicit recovery entry and is not a pure `ReadOnly`-annotated operation. |
-| `prepare_plan_execution` | Strictly parses, validates, normalizes, and seals a non-authoritative proposal. It never creates authoritative graph state and is allowed in Plan Mode. |
-| `plan_execution` | Materializes the exact sealed receipt as `create`, `replan`, or `replace` under CAS, identity, base-Plan, and Goal fences. It is transactional and idempotent; Plan Mode rejects it. |
+| `prepare_plan_execution` | Strictly parses, validates, normalizes, seals, and durably binds one non-authoritative proposal. It never creates authoritative graph state and is allowed in Plan Mode. |
+| `plan_execution` | Resolves the host-owned exact proposal binding from empty model input, then materializes it as `create`, `replan`, or `replace` under CAS, identity, base-Plan, and Goal fences. It is transactional and idempotent; Plan Mode rejects it. |
 | `abandon_execution` | Cancels a transient unbound Execution and atomically releases/cancels its live responsibility chain. A Goal-bound Execution must use the Goal retarget path instead. |
 | `assign_work` | Assigns one ready Work Item to one owner and creates the pending root Attempt plus Room dispatch when required. It cannot create parallel current owners. |
 | `submit_work` | Under an exact host-issued WorkBinding, omitted Work Item and Assignment locators default to that trusted binding; explicit values must match. In DM coordination or any other unbound round, `work_item_id` or `logical_key` is required while `assignment_id` remains optional. The mutation appends one immutable Submission and correlates/completes the current Attempt. Downstream hard dependencies remain locked until Acceptance. |

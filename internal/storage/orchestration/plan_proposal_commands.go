@@ -1,6 +1,6 @@
-// INPUT: sealed proposal、exact owner/session/scope/coordinator access 与 expected proposal version。
-// OUTPUT: Create-or-get、materialization/confirmation receipt CAS 和 recoverable query command。
-// POS: 非权威 ExecutionPlanProposal aggregate 的持久化命令契约；不复用 Execution event command。
+// INPUT: sealed proposal、exact owner/session/scope/coordinator binding/access 与 expected proposal version。
+// OUTPUT: Create-or-bind、materialization/confirmation receipt CAS 和 recoverable query command。
+// POS: 非权威 ExecutionPlanProposal aggregate 与唯一 active binding 的持久化命令契约；不复用 Execution event command。
 package orchestration
 
 import (
@@ -21,6 +21,17 @@ type PlanProposalAccess struct {
 	CoordinatorAgentID string
 }
 
+// PlanProposalBindingAccess 定位一个 trusted scope 当前显式绑定的 proposal。
+// 它不接受 proposal id；id 只能由 prepare 写入的宿主持久 binding 解析。
+type PlanProposalBindingAccess struct {
+	OwnerUserID        string
+	SessionKey         string
+	ScopeKind          protocol.ExecutionScopeKind
+	RoomID             string
+	ConversationID     string
+	CoordinatorAgentID string
+}
+
 // CreateOrGetPlanProposalCommand 按调用方给出的 deterministic proposal ID
 // 原子创建 sealed immutable proposal，或返回完全相同的既有 aggregate。
 type CreateOrGetPlanProposalCommand struct {
@@ -30,6 +41,11 @@ type CreateOrGetPlanProposalCommand struct {
 // GetPlanProposalQuery 按 exact scope/coordinator 权限读取 proposal。
 type GetPlanProposalQuery struct {
 	Access PlanProposalAccess
+}
+
+// GetBoundPlanProposalQuery 按 exact scope/coordinator 读取 prepare 最后明确绑定的 proposal。
+type GetBoundPlanProposalQuery struct {
+	Access PlanProposalBindingAccess
 }
 
 // MarkPlanProposalMaterializingCommand 持久化 authoritative mutation 前的

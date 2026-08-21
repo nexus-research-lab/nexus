@@ -6,7 +6,8 @@
 // The fixed operation surface accepts semantic intent only.
 // prepare_plan_execution seals one complete strict Plan Document string plus a
 // none/current/inherit Goal binding intent; current consumes only exact round authority;
-// plan_execution materializes only its proposal id+digest. The document operation
+// plan_execution uses empty model input and materializes only the host-owned durable
+// proposal binding; optional legacy id+digest can only match that binding. The document operation
 // distinguishes immutable replanning from atomic transient objective replacement;
 // abandon_execution cancels a transient graph without a successor.
 // Adapters reload authoritative state, inject revisions and idempotency keys,

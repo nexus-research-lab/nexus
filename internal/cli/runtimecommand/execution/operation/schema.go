@@ -116,12 +116,12 @@ func planDocumentSchemaDescription() string {
 func planExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"proposal_id": nonEmptyStringProperty(
-			"Opaque sealed proposal id returned by prepare_plan_execution.",
+			"Deprecated compatibility field. Omit it; the host resolves the exact durable proposal binding. If present, it must match that binding and proposal_digest must also be present.",
 		),
 		"proposal_digest": nonEmptyStringProperty(
-			"Exact digest returned with the same proposal_id. It binds the document and trusted target fence.",
+			"Deprecated compatibility field. Omit it; the host verifies the bound proposal digest. If present, it must match the active binding and proposal_id must also be present.",
 		),
-	}, "proposal_id", "proposal_digest")
+	})
 }
 
 func distillWorkflowSchema() map[string]any {

@@ -1,6 +1,6 @@
-// INPUT: canonical sealed ExecutionPlanProposal and exact access/version CAS commands.
-// OUTPUT: durable proposal identity, materialization receipt, confirmation progress and replay-safe state.
-// POS: non-authoritative proposal aggregate's only SQL mutation boundary; authoritative Execution/Plan writes stay elsewhere.
+// INPUT: canonical sealed ExecutionPlanProposal and exact binding/access/version CAS commands.
+// OUTPUT: durable proposal identity plus active binding, materialization receipt, confirmation progress and replay-safe state.
+// POS: non-authoritative proposal aggregate's SQL mutation boundary; authoritative Execution/Plan writes stay elsewhere.
 package orchestration
 
 import (
@@ -23,7 +23,12 @@ func (r *Repository) CreateOrGetPlanProposal(
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `
 INSERT INTO execution_plan_proposals (
     proposal_id, owner_user_id, session_key, scope_kind,
     room_id, conversation_id, coordinator_agent_id,
@@ -65,7 +70,11 @@ ON CONFLICT (proposal_id) DO NOTHING`,
 	if err != nil {
 		return nil, err
 	}
-	existing, err := r.getPlanProposal(ctx, r.db, item.ID)
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	existing, err := r.getPlanProposal(ctx, tx, item.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +87,12 @@ ON CONFLICT (proposal_id) DO NOTHING`,
 			ErrCommandConflict,
 			item.ID,
 		)
+	}
+	if err = r.bindPreparedPlanProposal(ctx, tx, *existing, affected == 1); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
 	}
 	return existing, nil
 }

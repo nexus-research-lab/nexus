@@ -1,6 +1,6 @@
 // INPUT: 当前 owner/Agent/scope/session/round identity、统一动态 Responsibility authority 与 Orchestration 应用服务。
-// OUTPUT: 十二个模型语义工具共用、每次调用原子读取 Goal/Execution/Work/Review identity 的权威 actor context 和窄服务接口。
-// POS: command operation adapter 与 service/orchestration 之间不接受模型伪造业务身份的消费侧契约。
+// OUTPUT: 模型语义工具共用、每次调用原子读取 Goal/Execution/Work/Review 与 durable Plan proposal binding 的权威 context 和窄服务接口。
+// POS: command operation adapter 与 service/orchestration 之间不接受模型伪造业务身份或 proposal 选择的消费侧契约。
 package contract
 
 import (
@@ -22,6 +22,7 @@ type Service interface {
 	ReadCurrent(context.Context, orchestration.ActorContext) (*protocol.ExecutionSnapshot, error)
 	ReadSnapshot(context.Context, orchestration.ActorContext, string) (*protocol.ExecutionSnapshot, error)
 	PreparePlanExecution(context.Context, orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
+	ResolvePlanExecutionProposal(context.Context, orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error)
 	MaterializePlanExecution(context.Context, orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) (orchestration.MutationResult, error)
 	AbandonExecution(context.Context, orchestration.ActorContext, orchestration.AbandonExecutionInput) (orchestration.MutationResult, error)
 	AssignWork(context.Context, orchestration.ActorContext, orchestration.AssignWorkInput) (orchestration.MutationResult, error)

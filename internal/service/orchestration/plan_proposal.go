@@ -1,6 +1,6 @@
 // INPUT: 单个 strict Nexus Plan Document、显式 Goal binding intent、trusted actor/scope/Goal authority 与当前 Execution snapshot。
-// OUTPUT: 按 intent/document/current Execution 选择并 canonicalize root boundary、跨 round 可恢复且绑定 exact target fence 的 sealed ExecutionPlanProposal。
-// POS: Provider 字符串传输与权威 Plan materialization 之间的非权威应用服务边界；ambient Goal 不参与 proposal sealing。
+// OUTPUT: canonical sealed proposal、跨 round durable active binding 与 exact target-fence commit receipt。
+// POS: Provider 字符串传输与权威 Plan materialization 之间的非权威应用服务边界；ambient Goal 和 caller-supplied proposal id 都不参与选择。
 package orchestration
 
 import (
@@ -27,6 +27,10 @@ type PlanProposalRepository interface {
 	GetPlanProposal(
 		context.Context,
 		orchestrationstore.GetPlanProposalQuery,
+	) (*protocol.ExecutionPlanProposal, error)
+	GetBoundPlanProposal(
+		context.Context,
+		orchestrationstore.GetBoundPlanProposalQuery,
 	) (*protocol.ExecutionPlanProposal, error)
 	MarkPlanProposalMaterializing(
 		context.Context,
@@ -210,9 +214,48 @@ func (s *Service) PreparePlanExecution(
 		orchestrationstore.CreateOrGetPlanProposalCommand{Proposal: proposal},
 	)
 	if err != nil {
+		if errors.Is(err, orchestrationstore.ErrCommandConflict) {
+			return nil, domainError(
+				ErrorCodePlanProposalMismatch,
+				"this prepare request no longer owns the active Plan proposal binding; inspect current state before preparing again",
+			)
+		}
 		return nil, err
 	}
 	return created, nil
+}
+
+// ResolvePlanExecutionProposal loads the proposal selected by the host-owned durable
+// binding for this exact scope. The model never supplies or chooses its opaque receipt.
+func (s *Service) ResolvePlanExecutionProposal(
+	ctx context.Context,
+	actor ActorContext,
+) (*protocol.ExecutionPlanProposal, error) {
+	if err := validateActor(actor); err != nil {
+		return nil, err
+	}
+	if err := requireExecutionCoordinator(actor); err != nil {
+		return nil, err
+	}
+	if s == nil || s.planProposals == nil {
+		return nil, errors.New("execution plan proposal repository is unavailable")
+	}
+	proposal, err := s.planProposals.GetBoundPlanProposal(
+		ctx,
+		orchestrationstore.GetBoundPlanProposalQuery{
+			Access: proposalBindingAccess(actor),
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if proposal == nil {
+		return nil, domainError(
+			ErrorCodePlanProposalBinding,
+			"no prepared Plan proposal is bound to this owner, session, scope, and coordinator",
+		)
+	}
+	return proposal, nil
 }
 
 func (s *Service) resolveProposalGoalActivation(
@@ -474,6 +517,17 @@ func validateProposalGoalFence(goalID string, revision int64) error {
 func deterministicPlanProposalID(commandID, digest string) string {
 	hash := sha256.Sum256([]byte(strings.TrimSpace(commandID) + "\x00" + strings.TrimSpace(digest)))
 	return "plan_proposal_" + hex.EncodeToString(hash[:20])
+}
+
+func proposalBindingAccess(actor ActorContext) orchestrationstore.PlanProposalBindingAccess {
+	return orchestrationstore.PlanProposalBindingAccess{
+		OwnerUserID:        strings.TrimSpace(actor.OwnerUserID),
+		SessionKey:         strings.TrimSpace(actor.SessionKey),
+		ScopeKind:          normalizedProposalScope(actor.ScopeKind),
+		RoomID:             strings.TrimSpace(actor.RoomID),
+		ConversationID:     strings.TrimSpace(actor.ConversationID),
+		CoordinatorAgentID: strings.TrimSpace(actor.AgentID),
+	}
 }
 
 func deterministicProposalExecutionID(proposalID, digest string) string {
