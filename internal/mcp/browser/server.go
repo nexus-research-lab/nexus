@@ -29,7 +29,8 @@ func NewServer(
 		Name: "browser",
 		Description: "通过 Nexus Browser 完整控制 Chromium。" +
 			"支持标签页、历史、导航、页面内容、可访问性快照、CSS/ref 与坐标交互、" +
-			"JavaScript、CDP、网络、控制台、对话框、剪贴板、上传下载、截图与 PDF。",
+			"JavaScript、CDP、网络、控制台、对话框、剪贴板、上传下载、截图与 PDF。" +
+			"snapshot 默认返回相对上一版的增量；操作后再取新快照，不要在无变化时重复调用。",
 		SearchHint:  "browser chrome web navigate history cdp network snapshot click fill screenshot download tab 浏览器 网页 操作",
 		InputSchema: browserSchema(),
 		Annotations: &sdktool.ToolAnnotations{
@@ -190,6 +191,9 @@ func browserSchema() map[string]any {
 			},
 			"full_page": map[string]any{
 				"type": "boolean", "description": "screenshot 是否捕获完整页面。",
+			},
+			"full": map[string]any{
+				"type": "boolean", "description": "snapshot 是否强制返回完整 AX 树；默认在合适时返回相对上一版的增量。",
 			},
 			"paper_format": map[string]any{
 				"type": "string", "enum": []string{"letter", "legal", "a4", "a3", "tabloid"},
