@@ -23,7 +23,7 @@ func (s *Service) listWorkspaceSessions(ctx context.Context) ([]protocol.Session
 		}
 		for _, item := range items {
 			projected := s.applyRuntimeStateToSession(item)
-			if protocol.IsRoomSharedSessionKey(projected.SessionKey) {
+			if shouldHideWorkspaceSession(projected) {
 				continue
 			}
 			result = append(result, projected)

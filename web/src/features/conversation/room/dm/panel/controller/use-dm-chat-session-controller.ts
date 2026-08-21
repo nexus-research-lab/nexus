@@ -25,6 +25,7 @@ interface UseDmChatSessionControllerOptions {
   onGoalEvent: () => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
+  visibleAfterUnixMilli?: number;
 }
 
 export function useDmChatSessionController({
@@ -33,6 +34,7 @@ export function useDmChatSessionController({
   onGoalEvent,
   onRoomEvent,
   onTodosChange,
+  visibleAfterUnixMilli,
 }: UseDmChatSessionControllerOptions) {
   const handleRoomEvent = useCallback(
     (eventType: string, data: RoomEventPayload): void => {
@@ -48,6 +50,7 @@ export function useDmChatSessionController({
     debugName: "DmChatPanel",
     identity,
     onRoomEvent: handleRoomEvent,
+    visibleAfterUnixMilli,
   });
 
   const taskRuns = useDmConversationObservers({

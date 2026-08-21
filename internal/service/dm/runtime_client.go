@@ -96,6 +96,17 @@ func (s *Service) ensureClient(
 	if latestSession != nil {
 		sessionItem = *latestSession
 	}
+	scopedPolicy := protocol.ScopedSessionRuntimePolicy{}
+	scopedPolicyActive := false
+	if s.scopedSessionPolicy != nil {
+		scopedPolicy, scopedPolicyActive, err = s.scopedSessionPolicy.RuntimeEditorPolicy(
+			agentValue.OwnerUserID,
+			sessionKey,
+		)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+	}
 	if request.runtimePreparationOnly &&
 		sessionItem.ConfigurationVersion != request.expectedConfigurationVersion {
 		return dmClientPreparation{}, fmt.Errorf(
@@ -137,28 +148,34 @@ func (s *Service) ensureClient(
 	permissionHandler = toolpolicy.WithNexusRuntimeCLIAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithNexusRuntimeCLICompositionDeny(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
-	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
-		return dmClientPreparation{}, err
-	}
-	if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
-		return dmClientPreparation{}, err
-	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
-	if err != nil {
-		return dmClientPreparation{}, err
-	}
-	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
-		s.config,
-		*agentValue,
-	)
-	if err != nil {
-		return dmClientPreparation{}, err
+	var runtimeSkillNames, runtimeDisabledSkillNames []string
+	if !scopedPolicyActive || !scopedPolicy.DisableSkills {
+		if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
+			return dmClientPreparation{}, err
+		}
+		if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
+			return dmClientPreparation{}, err
+		}
+		runtimeSkillNames, err = workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+		runtimeDisabledSkillNames, err = workspacepkg.RuntimeDisabledSkillNamesForAgent(
+			s.config,
+			*agentValue,
+		)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
 	}
 	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
 	staticSystemPrompt := orchestration.StablePrompt()
+	if scopedPolicyActive {
+		dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, scopedPolicy.SystemPrompt)
+	}
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	explicitGoalID := strings.TrimSpace(request.GoalID)
 	executionID := strings.TrimSpace(request.ExecutionID)
@@ -209,7 +226,7 @@ func (s *Service) ensureClient(
 		AutomationRun:      cloneAutomationRunContext(request.AutomationRun),
 	}
 	configurationRuntimeEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly && s.configurationRuntimeEnv != nil {
+	if !request.runtimePreparationOnly && !scopedPolicyActive && s.configurationRuntimeEnv != nil {
 		configurationRuntimeEnv, err = s.configurationRuntimeEnv(
 			runtimeBuilderContext,
 			agentValue,
@@ -223,7 +240,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	runtimeCommandEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly && s.runtimeCommandEnv != nil {
+	if !request.runtimePreparationOnly && !scopedPolicyActive && s.runtimeCommandEnv != nil {
 		runtimeCommandEnv, err = s.runtimeCommandEnv(
 			runtimeBuilderContext,
 			runtimecommand.RoundContext{
@@ -243,6 +260,9 @@ func (s *Service) ensureClient(
 		agentValue.Options.ConnectorIDs,
 		sessionItem.Options,
 	)
+	if scopedPolicyActive && scopedPolicy.DisableConnectors {
+		enabledConnectorIDs = []string{}
+	}
 	dynamicSystemPrompt = joinDMRuntimePrompts(
 		dynamicSystemPrompt,
 		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
@@ -300,9 +320,13 @@ func (s *Service) ensureClient(
 	); err != nil {
 		return dmClientPreparation{}, err
 	}
+	toolPolicy := request.RuntimeToolPolicy
+	if scopedPolicyActive {
+		toolPolicy = &scopedPolicy.ToolPolicy
+	}
 	allowedTools, disallowedTools := resolveDMRuntimeToolPolicy(
 		agentValue.Options,
-		request.RuntimeToolPolicy,
+		toolPolicy,
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
@@ -321,7 +345,7 @@ func (s *Service) ensureClient(
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
-		AdditionalDirectories:      protocol.SessionAdditionalDirectoriesFromOptions(sessionItem.Options),
+		AdditionalDirectories:      scopedSessionAdditionalDirectories(sessionItem, scopedPolicyActive),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
 		AppendSystemPromptStatic:   staticSystemPrompt,
@@ -676,6 +700,13 @@ func resolveDMRuntimeToolPolicy(
 		agentOptions.AllowedTools,
 		imagegenDefaultEnabled,
 	), append([]string(nil), agentOptions.DisallowedTools...)
+}
+
+func scopedSessionAdditionalDirectories(session protocol.Session, scoped bool) []string {
+	if scoped {
+		return nil
+	}
+	return protocol.SessionAdditionalDirectoriesFromOptions(session.Options)
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64) {

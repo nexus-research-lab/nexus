@@ -6,11 +6,11 @@
 
 import type { ExecutionWorkItemKind } from "./execution";
 
-export type WorkGraphWorkflowNodeRole = "auto" | "key" | "collaboration";
+export type WorkGraphWorkflowNodeRole = "key" | "collaboration";
 
 export interface WorkGraphWorkflowNode {
   logical_key: string;
-  source_work_item_id: string;
+  source_work_item_id?: string;
   role: WorkGraphWorkflowNodeRole;
   kind: ExecutionWorkItemKind;
   subject: string;
@@ -62,4 +62,14 @@ export interface WorkGraphWorkflowPreview {
 export interface WorkGraphWorkflowSaveReceipt {
   preview_id: string;
   status: "scheduled";
+}
+
+export interface WorkGraphWorkflowEditorSession {
+  editor_id: string;
+  revision: number;
+  agent_id: string;
+  session_key: string;
+  display_after_unix_milli: number;
+  preview: WorkGraphWorkflowPreview;
+  expires_at: string;
 }

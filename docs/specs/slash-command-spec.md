@@ -97,7 +97,13 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   不得复制源图的 Agent、状态、结果、Artifact 或审核事实；
 - 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用
   默认后台模型从完整实际图自动选择源 logical-key 子集、生成通用命名和结构草图；preview
-  只在 owner/session-scoped 内存中短期保留，不进入数据库或命令目录。用户只读确认后，
+  只在 owner/session-scoped 内存中短期保留，不进入数据库或命令目录。除英文 kebab-case
+  `slash_name` 与 logical key 外，模型输出跟随当前界面语言；模型同时接收 owner 当前命令目录与固定保留名，
+  优先生成不重复的 1 至 3 个短词命令，service 仍负责最终冲突校验。用户可以直接修改命令名、
+  标题和描述，或进入从源 transcript exact round boundary 创建的目录隐藏短期 DM fork；该分支复用标准
+  DM 展示与 Composer，只挂载 owner/session-scoped 草图修改工具。模型可新增、删除、合并或拆分节点并修改
+  objective、父子结构和依赖，每次提交带 revision 的完整草图；服务端校验 logical key、kind、DAG、key
+  主路径与 terminal 交付，取消不改原 preview，明确应用才替换。用户确认后，
   Web 调用 preview save 调度端点，宿主启动 `HiddenFromUser + Synthetic +
   purpose=workgraph_distillation` 的内部 Agent round，不生成聊天消息或改写 Composer；
   `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。

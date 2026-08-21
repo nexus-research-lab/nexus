@@ -8,6 +8,7 @@ import { requestApi } from "@/lib/api/core/http";
 import type { ExecutionView } from "@/types/conversation/execution";
 import type {
   WorkGraphWorkflow,
+  WorkGraphWorkflowEditorSession,
   WorkGraphWorkflowPreview,
   WorkGraphWorkflowSaveReceipt,
 } from "@/types/conversation/workgraph-workflow";
@@ -21,6 +22,62 @@ export async function getLatestExecutionApi(
   return requestApi<ExecutionView | null>(
     `${AGENT_API_BASE_URL}/executions/latest?${query.toString()}`,
     { method: "GET" },
+  );
+}
+
+export async function startWorkGraphWorkflowEditorApi(
+  sessionKey: string,
+  preview: WorkGraphWorkflowPreview,
+  outputLanguage: "zh" | "en",
+): Promise<WorkGraphWorkflowEditorSession> {
+  return requestApi<WorkGraphWorkflowEditorSession>(
+    `${AGENT_API_BASE_URL}/workgraph/previews/${encodeURIComponent(preview.preview_id)}/editor`,
+    {
+      body: {
+        description: preview.description,
+        output_language: outputLanguage,
+        slash_name: preview.slash_name,
+        source_session_key: sessionKey,
+        title: preview.title,
+      },
+      method: "POST",
+    },
+  );
+}
+
+export async function getWorkGraphWorkflowEditorApi(
+  sessionKey: string,
+  editorId: string,
+): Promise<WorkGraphWorkflowEditorSession> {
+  const query = new URLSearchParams({ source_session_key: sessionKey });
+  return requestApi<WorkGraphWorkflowEditorSession>(
+    `${AGENT_API_BASE_URL}/workgraph/editors/${encodeURIComponent(editorId)}?${query.toString()}`,
+    { method: "GET" },
+  );
+}
+
+export async function applyWorkGraphWorkflowEditorApi(
+  sessionKey: string,
+  editorId: string,
+  revision: number,
+): Promise<WorkGraphWorkflowPreview> {
+  return requestApi<WorkGraphWorkflowPreview>(
+    `${AGENT_API_BASE_URL}/workgraph/editors/${encodeURIComponent(editorId)}/apply`,
+    {
+      body: { revision, source_session_key: sessionKey },
+      method: "POST",
+    },
+  );
+}
+
+export async function closeWorkGraphWorkflowEditorApi(
+  sessionKey: string,
+  editorId: string,
+): Promise<{ deleted: boolean }> {
+  const query = new URLSearchParams({ source_session_key: sessionKey });
+  return requestApi<{ deleted: boolean }>(
+    `${AGENT_API_BASE_URL}/workgraph/editors/${encodeURIComponent(editorId)}?${query.toString()}`,
+    { method: "DELETE" },
   );
 }
 
@@ -48,6 +105,7 @@ export async function getWorkGraphWorkflowsApi(): Promise<WorkGraphWorkflow[]> {
 export async function previewWorkGraphWorkflowApi(
   sessionKey: string,
   executionId: string,
+  outputLanguage: "zh" | "en",
 ): Promise<WorkGraphWorkflowPreview> {
   return requestApi<WorkGraphWorkflowPreview>(
     `${AGENT_API_BASE_URL}/workgraph/previews`,
@@ -55,6 +113,7 @@ export async function previewWorkGraphWorkflowApi(
       body: {
         source_execution_id: executionId,
         source_session_key: sessionKey,
+        output_language: outputLanguage,
       },
       method: "POST",
     },
@@ -64,11 +123,17 @@ export async function previewWorkGraphWorkflowApi(
 export async function scheduleWorkGraphWorkflowSaveApi(
   sessionKey: string,
   previewId: string,
+  metadata: Pick<WorkGraphWorkflowPreview, "description" | "slash_name" | "title">,
 ): Promise<WorkGraphWorkflowSaveReceipt> {
   return requestApi<WorkGraphWorkflowSaveReceipt>(
     `${AGENT_API_BASE_URL}/workgraph/previews/${encodeURIComponent(previewId)}/save`,
     {
-      body: { source_session_key: sessionKey },
+      body: {
+        description: metadata.description,
+        slash_name: metadata.slash_name,
+        source_session_key: sessionKey,
+        title: metadata.title,
+      },
       method: "POST",
     },
   );

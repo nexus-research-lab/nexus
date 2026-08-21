@@ -16,9 +16,14 @@ export interface DmChatPanelProps {
   runtimeKind: AgentRuntimeKind;
   todos: TodoItem[];
   layout: "desktop" | "mobile";
+  embeddedEditor?: {
+    placeholder: string;
+    visibleAfterUnixMilli: number;
+  };
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
   onExecutionTaskRunsChange?: (runs: ConversationTaskRun[]) => void;
+  onBusyChange?: (busy: boolean) => void;
   onForkConversation?: (roundId: string) => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (

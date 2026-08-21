@@ -13,11 +13,13 @@ import { useDmGoalController } from "./use-dm-goal-controller";
 
 export function useDmChatPanelModel({
   currentAgent,
+  embeddedEditor,
   executionResource,
   initialDraft,
   layout,
   onConversationSnapshotChange,
   onExecutionTaskRunsChange,
+  onBusyChange,
   onForkConversation,
   onInitialDraftConsumed,
   onOpenAgentContact,
@@ -43,7 +45,11 @@ export function useDmChatPanelModel({
     onGoalEvent: goal.refresh,
     onRoomEvent,
     onTodosChange,
+    visibleAfterUnixMilli: embeddedEditor?.visibleAfterUnixMilli,
   });
+  useEffect(() => {
+    onBusyChange?.(session.conversation.is_loading);
+  }, [onBusyChange, session.conversation.is_loading]);
   useEffect(() => {
     onExecutionTaskRunsChange?.(session.taskRuns);
   }, [onExecutionTaskRunsChange, session.taskRuns]);
@@ -57,6 +63,7 @@ export function useDmChatPanelModel({
     scrollToBottom: session.scroll.scrollToBottom,
     sessionKey,
     runtimeKind,
+    embeddedPlaceholder: embeddedEditor?.placeholder,
   });
   const reconcileGoalSubmission = useComposerGoalSubmissionReconciliation(
     composer.draftScopeKey,
@@ -69,7 +76,7 @@ export function useDmChatPanelModel({
     },
     [rewriteLastUserMessage],
   );
-  return buildDmChatPanelViewModel({
+  const model = buildDmChatPanelViewModel({
     composer,
     currentAgentAvatar: currentAgent.avatar ?? null,
     currentAgentName: currentAgent.name,
@@ -88,4 +95,10 @@ export function useDmChatPanelModel({
     todos,
     workspaceAgentId: sessionIdentity?.agent_id ?? null,
   });
+  model.embedded = Boolean(embeddedEditor);
+  if (embeddedEditor) {
+    model.executionPanel = null;
+    model.todos = [];
+  }
+  return model;
 }

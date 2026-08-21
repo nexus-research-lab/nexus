@@ -4,5 +4,6 @@
 - 消费者只提供聊天类型、身份和 Room 事件回调，不重复拼接底层 hooks。
 - 导航、回到底部和视口投影各自定义最小 Session Source，不得从 Hook 实现推导完整返回类型。
 - 会话键只从 `identity.session_key` 派生，不维护第二份输入状态。
+- `visibleAfterUnixMilli` 只为 exact transcript fork 隐藏边界前的继承消息；它必须在统一 timeline 输入处过滤，不能改变 runtime resume 上下文。
 - live layout epoch 必须合并 runtime phase、live round、Assistant stream、slot 与 execution source；任一可见来源仍活跃时都不能提前结算 Feed 高度回缩。
 - 本目录负责会话基础设施，不包含 Goal、Composer、快照或具体视图逻辑。

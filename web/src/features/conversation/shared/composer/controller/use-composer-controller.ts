@@ -36,6 +36,7 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
   compact,
+  defaultPlaceholder,
   defaultDeliveryPolicy,
   draftScopeKey,
   enableLoops = false,
@@ -257,7 +258,7 @@ export function useComposerController({
     canUseLoop: goal.canUseLoop,
     compact,
     copy: {
-      defaultPlaceholder: t("composer.default_placeholder"),
+      defaultPlaceholder: defaultPlaceholder ?? t("composer.default_placeholder"),
       goalConfirm: t("composer.goal_confirm"),
       goalPlaceholder: t("composer.goal_placeholder"),
       sendMessage: t("composer.send_message"),

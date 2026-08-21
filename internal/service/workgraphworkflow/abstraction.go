@@ -28,9 +28,10 @@ const (
 3. 删除具体课题、专有名词、章节名、文件路径、项目名、时间与一次性数据；保留阶段目的、交付物类型和可验证标准。
 4. key 表示即使单 Agent 执行也必须保留的主路径、验证或最终交付。
 5. collaboration 只表示实际分工、跨 owner 交接、独立复核或汇总整合边界；参考 delegated、assignment_strategy、independent_review 等实际信号，普通并行节点不是天然 collaboration。
-6. slash_name 必须是通用英文 kebab-case，匹配 ^[a-z][a-z0-9-]{0,63}$，不能含具体课题名。
-7. 验收条件应保持严格但改写为与主题无关的可验证表述。
-8. 只输出一个 JSON 对象，不要 Markdown、解释或代码围栏。
+6. slash_name 必须是通用英文 kebab-case，匹配 ^[a-z][a-z0-9-]{0,63}$，不能含具体课题名；优先使用 1 至 3 个短词，不要把所有节点名机械拼接，并且不得与 existing_slash_names 中的已有或保留命令重复。
+7. 除 slash_name 和必须原样保留的 logical_key 外，title、description、objective、completion_criteria 及节点 subject/objective/deliverable/acceptance_criteria 必须使用%s；即使输入主要为其他语言，也要翻译后再抽象。简体中文输出不得保留“Core Subject Summary”这类可自然翻译的纯英文标题，专有名词除外。
+8. 验收条件应保持严格但改写为与主题无关的可验证表述。
+9. 只输出一个 JSON 对象，不要 Markdown、解释或代码围栏。
 JSON 结构：{"slash_name":"...","title":"...","description":"...","objective":"...","completion_criteria":["..."],"nodes":[{"logical_key":"...","role":"key|collaboration","subject":"...","objective":"...","deliverable":"...","acceptance_criteria":["..."]}]}`
 )
 
@@ -58,6 +59,8 @@ type AbstractionInput struct {
 	Objective          string                  `json:"objective"`
 	CompletionCriteria []string                `json:"completion_criteria"`
 	Nodes              []AbstractionSourceNode `json:"nodes"`
+	OutputLanguage     string                  `json:"output_language"`
+	ExistingSlashNames []string                `json:"existing_slash_names,omitempty"`
 }
 
 type AbstractedNode struct {
@@ -121,7 +124,7 @@ func (a *LLMAbstractor) Abstract(ctx context.Context, ownerUserID string, input 
 	requestCtx, cancel := context.WithTimeout(ctx, abstractionTimeout)
 	defer cancel()
 	raw, err := a.client.GenerateText(requestCtx, llm.GenerateTextRequest{
-		Config: config, System: abstractionSystemPrompt,
+		Config: config, System: fmt.Sprintf(abstractionSystemPrompt, abstractionOutputLanguage(input.OutputLanguage)),
 		Messages:  []llm.Message{{Role: "user", Content: string(payload)}},
 		MaxTokens: abstractionMaxTokens, Temperature: 0, DisableReasoning: true,
 	})
@@ -133,6 +136,13 @@ func (a *LLMAbstractor) Abstract(ctx context.Context, ownerUserID string, input 
 		return AbstractionOutput{}, fmt.Errorf("invalid abstraction JSON: %w", err)
 	}
 	return output, nil
+}
+
+func abstractionOutputLanguage(language string) string {
+	if strings.EqualFold(strings.TrimSpace(language), "en") {
+		return "自然、简洁的英文"
+	}
+	return "自然、简洁的简体中文"
 }
 
 func stripJSONFence(value string) string {

@@ -15,6 +15,8 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 Plan operation 只按本轮 `execution inspect` 返回的 current Execution 选择，不能从历史图或 Goal 的 predecessor 关系猜测：没有 current Execution 时使用 `create`；存在同一 objective boundary 的 current Execution、确实只增加 Plan revision 时才使用 `replan`；只有当前 transient、Goal-free Execution 需要整体替换时才考虑 `replace`。Goal reset/retarget 会把旧 Execution 变为 predecessor；如果 successor 尚未 materialize，此时虽然是在替换历史链路，successor 的第一份 Plan 仍是 `create`，并在 exact Goal authority 下使用外层 `goal_binding=current`。
 
+Plan 中面向用户的 objective、completion criteria、subject、deliverable 与 acceptance criteria 跟随当前对话语言；中文对话优先使用自然简洁的中文标题和说明。只有 `logical_key`、opaque identity、路径、命令和无法翻译的专有名词保留英文，不要因为 schema 字段名是英文就生成英文节点标题。
+
 - `create`：必须有 `completion_criteria`；没有 exact Goal 继承时还必须有 `objective`；任何 item 都不能带 `existing_work_item_id`。
 - `replan`：必须有非空 `revision_reason`，继承 current Execution 的 objective 与 completion criteria；只有语义契约未改变的旧节点才能用 `existing_work_item_id` 复用。普通 replan 只能单调追加节点或下游边；删除/改写节点或依赖、或在 current Assignment 存在时换 Plan，必须显式 `supersede_active_work: true`，并接受它会原子释放当前责任链。未审核 Submission 必须先 review。
 - `replace`：必须有完整 `objective`、`completion_criteria`、`replacement_reason`；不能带 `supersede_active_work` 或 `existing_work_item_id`，Goal-bound Execution 不能 replace。

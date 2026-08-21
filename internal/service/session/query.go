@@ -21,6 +21,9 @@ func (s *Service) ResolveDeliverySession(
 	if errors.Is(err, ErrSessionNotFound) {
 		return nil, nil
 	}
+	if err == nil && item != nil && protocol.SessionIsHiddenFromDirectory(*item) {
+		return nil, nil
+	}
 	return item, err
 }
 
@@ -84,7 +87,7 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		if reconcileErr != nil {
 			return nil, reconcileErr
 		}
-		if protocol.IsRoomSharedSessionKey(reconciled.SessionKey) {
+		if shouldHideWorkspaceSession(reconciled) {
 			continue
 		}
 		filteredFileSessions = append(filteredFileSessions, reconciled)

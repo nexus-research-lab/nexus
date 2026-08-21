@@ -37,6 +37,13 @@ type workflowSaveScheduler interface {
 	ScheduleSave(context.Context, string, protocol.ScheduleWorkGraphWorkflowSaveRequest) (*protocol.WorkGraphWorkflowSaveReceipt, error)
 }
 
+type workflowMetadataEditor interface {
+	StartMetadataEditor(context.Context, string, protocol.StartWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
+	GetMetadataEditor(string, protocol.GetWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
+	ApplyMetadataEditor(string, protocol.ApplyWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowPreview, error)
+	CloseMetadataEditor(context.Context, string, string, string) (bool, error)
+}
+
 // Handlers 封装 Execution WorkGraph 只读接口。
 type Handlers struct {
 	api        *handlershared.API
@@ -164,12 +171,110 @@ func (h *Handlers) HandleScheduleWorkGraphWorkflowSave(
 			h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "工作图草图保存请求无效")
 		case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
 			h.api.WriteFailure(writer, http.StatusNotFound, "工作图草图不存在或已过期")
+		case errors.Is(err, workgraphworkflowsvc.ErrNameConflict):
+			h.api.WriteFailure(writer, http.StatusConflict, "斜杠命令已存在或不可使用")
 		default:
 			h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图后台保存启动失败")
 		}
 		return
 	}
 	h.api.WriteSuccess(writer, receipt)
+}
+
+// HandleStartWorkGraphWorkflowEditor 从 exact preview 创建不进入普通会话目录的临时编辑分支。
+func (h *Handlers) HandleStartWorkGraphWorkflowEditor(writer http.ResponseWriter, request *http.Request) {
+	editor, ok := h.workflows.(workflowMetadataEditor)
+	if !ok || editor == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图编辑服务不可用")
+		return
+	}
+	var payload protocol.StartWorkGraphWorkflowEditorRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	payload.PreviewID = strings.TrimSpace(chi.URLParam(request, "preview_id"))
+	session, err := editor.StartMetadataEditor(request.Context(), authsvc.OwnerUserID(request.Context()), payload)
+	if err != nil {
+		h.writeWorkflowEditorError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, session)
+}
+
+// HandleGetWorkGraphWorkflowEditor 读取临时 DM 工具提交的最新草图版本。
+func (h *Handlers) HandleGetWorkGraphWorkflowEditor(writer http.ResponseWriter, request *http.Request) {
+	editor, ok := h.workflows.(workflowMetadataEditor)
+	if !ok || editor == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图编辑服务不可用")
+		return
+	}
+	payload := protocol.GetWorkGraphWorkflowEditorRequest{
+		SourceSessionKey: request.URL.Query().Get("source_session_key"),
+		EditorID:         strings.TrimSpace(chi.URLParam(request, "editor_id")),
+	}
+	session, err := editor.GetMetadataEditor(authsvc.OwnerUserID(request.Context()), payload)
+	if err != nil {
+		h.writeWorkflowEditorError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, session)
+}
+
+// HandleApplyWorkGraphWorkflowEditor 把 exact 临时 revision 应用到原 preview。
+func (h *Handlers) HandleApplyWorkGraphWorkflowEditor(writer http.ResponseWriter, request *http.Request) {
+	editor, ok := h.workflows.(workflowMetadataEditor)
+	if !ok || editor == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图编辑服务不可用")
+		return
+	}
+	var payload protocol.ApplyWorkGraphWorkflowEditorRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	payload.EditorID = strings.TrimSpace(chi.URLParam(request, "editor_id"))
+	preview, err := editor.ApplyMetadataEditor(authsvc.OwnerUserID(request.Context()), payload)
+	if err != nil {
+		h.writeWorkflowEditorError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, preview)
+}
+
+// HandleCloseWorkGraphWorkflowEditor 主动释放临时编辑分支。
+func (h *Handlers) HandleCloseWorkGraphWorkflowEditor(writer http.ResponseWriter, request *http.Request) {
+	editor, ok := h.workflows.(workflowMetadataEditor)
+	if !ok || editor == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图编辑服务不可用")
+		return
+	}
+	deleted, err := editor.CloseMetadataEditor(
+		request.Context(),
+		authsvc.OwnerUserID(request.Context()),
+		request.URL.Query().Get("source_session_key"),
+		chi.URLParam(request, "editor_id"),
+	)
+	if err != nil {
+		h.writeWorkflowEditorError(writer, err)
+		return
+	}
+	if !deleted {
+		h.api.WriteFailure(writer, http.StatusNotFound, "工作图编辑会话不存在或已过期")
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]bool{"deleted": true})
+}
+
+func (h *Handlers) writeWorkflowEditorError(writer http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, workgraphworkflowsvc.ErrInvalidInput):
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "工作图编辑请求无效或版本已变化")
+	case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
+		h.api.WriteFailure(writer, http.StatusNotFound, "工作图编辑会话不存在或已过期")
+	case errors.Is(err, workgraphworkflowsvc.ErrNameConflict):
+		h.api.WriteFailure(writer, http.StatusConflict, "斜杠命令已存在或不可使用")
+	default:
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "工作图编辑失败")
+	}
 }
 
 // HandleDeleteWorkGraphWorkflow 删除命名工作图及其 Slash command。

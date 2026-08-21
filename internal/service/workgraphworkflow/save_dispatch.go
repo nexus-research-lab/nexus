@@ -43,22 +43,37 @@ func (s *Service) ScheduleSave(
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	request.SourceSessionKey = strings.TrimSpace(request.SourceSessionKey)
 	request.PreviewID = strings.TrimSpace(request.PreviewID)
+	request.SlashName = normalizeSlashName(request.SlashName)
+	request.Title = strings.TrimSpace(request.Title)
+	request.Description = strings.TrimSpace(request.Description)
 	if ownerUserID == "" || request.SourceSessionKey == "" || request.PreviewID == "" {
 		return nil, fmt.Errorf("%w: source session and preview_id are required", ErrInvalidInput)
 	}
-	if s == nil || s.saveDispatcher == nil {
+	if s == nil || s.repository == nil || s.saveDispatcher == nil {
 		return nil, errors.New("workgraph background save dispatcher is unavailable")
 	}
 	preview, alreadyScheduled, err := s.claimPreviewForSave(
 		ownerUserID,
 		request.SourceSessionKey,
 		request.PreviewID,
+		request.SlashName,
+		request.Title,
+		request.Description,
 	)
 	if err != nil {
 		return nil, err
 	}
 	if alreadyScheduled {
 		return scheduledSaveReceipt(preview.PreviewID), nil
+	}
+	existing, err := s.repository.GetBySlashName(ctx, ownerUserID, preview.SlashName)
+	if err != nil {
+		s.releasePreviewSaveClaim(ownerUserID, preview.PreviewID)
+		return nil, err
+	}
+	if existing != nil {
+		s.releasePreviewSaveClaim(ownerUserID, preview.PreviewID)
+		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
 	}
 	dispatchRequest := SaveRoundRequest{
 		OwnerUserID: ownerUserID,

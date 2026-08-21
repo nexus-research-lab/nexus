@@ -36,7 +36,7 @@ type WorkGraphWorkflow struct {
 type WorkGraphWorkflowNode struct {
 	WorkflowID         string                    `json:"-"`
 	LogicalKey         string                    `json:"logical_key"`
-	SourceWorkItemID   string                    `json:"source_work_item_id"`
+	SourceWorkItemID   string                    `json:"source_work_item_id,omitempty"`
 	Role               WorkGraphWorkflowNodeRole `json:"role"`
 	Kind               WorkItemKind              `json:"kind"`
 	Subject            string                    `json:"subject"`
@@ -57,7 +57,8 @@ type WorkGraphWorkflowDependency struct {
 	Kind                WorkDependencyKind `json:"kind"`
 }
 
-// WorkGraphWorkflowPreview 是尚未持久化或进入 Slash 目录的只读抽象草图。
+// WorkGraphWorkflowPreview 是尚未持久化或进入 Slash 目录的抽象草图。
+// 用户可在受限临时 DM 分支中要求模型修订元信息、节点与依赖；保存前仍须通过完整结构校验。
 type WorkGraphWorkflowPreview struct {
 	PreviewID          string                        `json:"preview_id"`
 	SlashName          string                        `json:"slash_name"`
@@ -76,6 +77,7 @@ type WorkGraphWorkflowPreview struct {
 type PreviewWorkGraphWorkflowRequest struct {
 	SourceSessionKey  string `json:"source_session_key"`
 	SourceExecutionID string `json:"source_execution_id"`
+	OutputLanguage    string `json:"output_language,omitempty"`
 }
 
 // SaveWorkGraphWorkflowRequest 通过受管 CLI 保存用户确认过的 exact 草图。
@@ -89,10 +91,59 @@ type SaveWorkGraphWorkflowRequest struct {
 type ScheduleWorkGraphWorkflowSaveRequest struct {
 	SourceSessionKey string `json:"source_session_key"`
 	PreviewID        string `json:"preview_id"`
+	SlashName        string `json:"slash_name,omitempty"`
+	Title            string `json:"title,omitempty"`
+	Description      string `json:"description,omitempty"`
 }
 
 // WorkGraphWorkflowSaveReceipt 表示 exact preview 已交给后台 Agent；它不表示 CLI 已经落库。
 type WorkGraphWorkflowSaveReceipt struct {
 	PreviewID string `json:"preview_id"`
 	Status    string `json:"status"`
+}
+
+// WorkGraphWorkflowEditorSession 是从源 transcript fork、但不会进入普通会话目录的临时 DM 分支。
+type WorkGraphWorkflowEditorSession struct {
+	EditorID              string                   `json:"editor_id"`
+	Revision              int64                    `json:"revision"`
+	AgentID               string                   `json:"agent_id"`
+	SessionKey            string                   `json:"session_key"`
+	DisplayAfterUnixMilli int64                    `json:"display_after_unix_milli"`
+	Preview               WorkGraphWorkflowPreview `json:"preview"`
+	ExpiresAt             time.Time                `json:"expires_at"`
+}
+
+// StartWorkGraphWorkflowEditorRequest 创建 owner/source-session-scoped 临时编辑分支。
+type StartWorkGraphWorkflowEditorRequest struct {
+	SourceSessionKey string `json:"source_session_key"`
+	PreviewID        string `json:"preview_id"`
+	OutputLanguage   string `json:"output_language,omitempty"`
+	SlashName        string `json:"slash_name,omitempty"`
+	Title            string `json:"title,omitempty"`
+	Description      string `json:"description,omitempty"`
+}
+
+// GetWorkGraphWorkflowEditorRequest 读取精确临时分支的最新草图版本。
+type GetWorkGraphWorkflowEditorRequest struct {
+	SourceSessionKey string `json:"source_session_key"`
+	EditorID         string `json:"editor_id"`
+}
+
+// ApplyWorkGraphWorkflowEditorRequest 把临时分支的 exact revision 原子应用到原 preview。
+type ApplyWorkGraphWorkflowEditorRequest struct {
+	SourceSessionKey string `json:"source_session_key"`
+	EditorID         string `json:"editor_id"`
+	Revision         int64  `json:"revision"`
+}
+
+// ReviseWorkGraphWorkflowPreviewRequest 是编辑 Agent 通过受限 MCP 一次性提交的完整草图版本。
+type ReviseWorkGraphWorkflowPreviewRequest struct {
+	Revision           int64                         `json:"revision"`
+	SlashName          string                        `json:"slash_name"`
+	Title              string                        `json:"title"`
+	Description        string                        `json:"description"`
+	Objective          string                        `json:"objective"`
+	CompletionCriteria []string                      `json:"completion_criteria,omitempty"`
+	Nodes              []WorkGraphWorkflowNode       `json:"nodes"`
+	Dependencies       []WorkGraphWorkflowDependency `json:"dependencies,omitempty"`
 }

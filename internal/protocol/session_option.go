@@ -33,7 +33,35 @@ const (
 	OptionSessionConnectorIDs = "session_connector_ids"
 	// OptionSessionAdditionalDirectories 表示桌面会话显式挂载的本机目录。
 	OptionSessionAdditionalDirectories = "session_additional_directories"
+	// OptionSessionHiddenFromDirectory 表示宿主创建、只由精确业务入口读取的短期 Session。
+	OptionSessionHiddenFromDirectory = "session_hidden_from_directory"
+	// OptionSessionPurpose 表示宿主签发的短期 Session 用途；普通用户输入不能改写。
+	OptionSessionPurpose = "session_purpose"
+	// OptionSessionDisplayAfterUnixMilli 让 fork Session 继承模型上下文时，只在嵌入视图展示分支后的消息。
+	OptionSessionDisplayAfterUnixMilli = "session_display_after_unix_milli"
 )
+
+const SessionPurposeWorkGraphEditor = "workgraph_editor"
+
+// ScopedSessionRuntimePolicy 是宿主为精确业务 Session 签发的系统提示与完整工具覆盖。
+type ScopedSessionRuntimePolicy struct {
+	SystemPrompt      string
+	ToolPolicy        RuntimeToolPolicy
+	DisableSkills     bool
+	DisableConnectors bool
+}
+
+// SessionIsHiddenFromDirectory 判断 Session 是否只属于精确业务入口。
+func SessionIsHiddenFromDirectory(session Session) bool {
+	hidden, _ := session.Options[OptionSessionHiddenFromDirectory].(bool)
+	return hidden
+}
+
+// SessionPurpose 返回宿主签发的 Session 用途。
+func SessionPurpose(session Session) string {
+	purpose, _ := session.Options[OptionSessionPurpose].(string)
+	return strings.TrimSpace(purpose)
+}
 
 // SessionRuntimeSettings 表示当前 Nexus Session 的运行时覆盖。
 //

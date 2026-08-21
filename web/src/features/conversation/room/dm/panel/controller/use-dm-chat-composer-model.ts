@@ -40,6 +40,7 @@ interface UseDmChatComposerModelOptions {
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sessionKey: string | null;
   runtimeKind: AgentRuntimeKind;
+  embeddedPlaceholder?: string;
 }
 
 export function useDmChatComposerModel({
@@ -51,6 +52,7 @@ export function useDmChatComposerModel({
   scrollToBottom,
   sessionKey,
   runtimeKind,
+  embeddedPlaceholder,
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const agentId = agent.agent_id;
@@ -88,17 +90,20 @@ export function useDmChatComposerModel({
   }, [sessionKey, setGoal, t]);
 
   return {
-    commandCatalog: conversation.command_catalog,
-    contextUsage: conversation.context_usage,
+    commandCatalog: embeddedPlaceholder
+      ? { commands: [], status: "cold" }
+      : conversation.command_catalog,
+    contextUsage: embeddedPlaceholder ? null : conversation.context_usage,
+    defaultPlaceholder: embeddedPlaceholder,
     defaultDeliveryPolicy,
     draftScopeKey,
     goalScopeLabel,
     historyScopeKey,
     inputQueueItems: conversation.input_queue_items,
     isLoading: conversation.is_loading,
-    localDirectorySessionKey: sessionKey ?? undefined,
-    workGraphSessionKey: sessionKey ?? undefined,
-    onCreateGoal: sessionKey ? createGoal : undefined,
+    localDirectorySessionKey: embeddedPlaceholder ? undefined : sessionKey ?? undefined,
+    workGraphSessionKey: embeddedPlaceholder ? undefined : sessionKey ?? undefined,
+    onCreateGoal: !embeddedPlaceholder && sessionKey ? createGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
@@ -108,7 +113,7 @@ export function useDmChatComposerModel({
     onStop: conversation.stop_generation,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,
-    sessionSettings: sessionKey
+    sessionSettings: !embeddedPlaceholder && sessionKey
       ? {
           initialTargetId: agent.agent_id,
           runtimeKind,
@@ -124,6 +129,7 @@ export function useDmChatComposerModel({
           }],
         }
       : undefined,
+    showActionMenu: !embeddedPlaceholder,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
 }

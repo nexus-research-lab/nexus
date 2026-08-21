@@ -20,7 +20,18 @@ func (s *Service) PrepareConversationFork(
 	sourceSessionKey string,
 	targetRoundID string,
 ) (string, string, error) {
-	source, err := validateConversationForkSourceKey(sourceSessionKey)
+	return s.prepareConversationFork(ctx, sourceSessionKey, targetRoundID, validateConversationForkSourceKey)
+}
+
+type conversationForkSourceValidator func(string) (protocol.SessionKey, error)
+
+func (s *Service) prepareConversationFork(
+	ctx context.Context,
+	sourceSessionKey string,
+	targetRoundID string,
+	validateSource conversationForkSourceValidator,
+) (string, string, error) {
+	source, err := validateSource(sourceSessionKey)
 	if err != nil {
 		return "", "", err
 	}
@@ -77,7 +88,29 @@ func (s *Service) ForkConversationSession(
 	sourceSessionID string,
 	forkMessageID string,
 ) error {
-	source, target, err := validateConversationForkKeys(sourceSessionKey, targetSessionKey)
+	return s.forkConversationSession(
+		ctx,
+		sourceSessionKey,
+		targetSessionKey,
+		targetRoundID,
+		sourceSessionID,
+		forkMessageID,
+		validateConversationForkKeys,
+	)
+}
+
+type conversationForkPairValidator func(string, string) (protocol.SessionKey, protocol.SessionKey, error)
+
+func (s *Service) forkConversationSession(
+	ctx context.Context,
+	sourceSessionKey string,
+	targetSessionKey string,
+	targetRoundID string,
+	sourceSessionID string,
+	forkMessageID string,
+	validateKeys conversationForkPairValidator,
+) error {
+	source, target, err := validateKeys(sourceSessionKey, targetSessionKey)
 	if err != nil {
 		return err
 	}
@@ -203,6 +236,29 @@ func validateConversationForkSourceKey(raw string) (protocol.SessionKey, error) 
 		return protocol.SessionKey{}, errors.New("conversation fork requires a DM session")
 	}
 	return key, nil
+}
+
+func validateTransientForkSourceKey(raw string) (protocol.SessionKey, error) {
+	key := protocol.ParseSessionKey(raw)
+	if !key.IsStructured || key.Kind != protocol.SessionKeyKindAgent ||
+		key.Channel != protocol.SessionChannelWebSocketSegment ||
+		(key.ChatType != protocol.RoomTypeDM && key.ChatType != "group") ||
+		strings.TrimSpace(key.AgentID) == "" || strings.TrimSpace(key.Ref) == "" {
+		return protocol.SessionKey{}, errors.New("transient conversation fork requires a websocket Agent session")
+	}
+	return key, nil
+}
+
+func validateTransientForkKeys(sourceRaw string, targetRaw string) (protocol.SessionKey, protocol.SessionKey, error) {
+	source, err := validateTransientForkSourceKey(sourceRaw)
+	if err != nil {
+		return protocol.SessionKey{}, protocol.SessionKey{}, err
+	}
+	target := protocol.ParseSessionKey(targetRaw)
+	if !validConversationForkKey(target) || source.AgentID != target.AgentID || source.Raw == target.Raw {
+		return protocol.SessionKey{}, protocol.SessionKey{}, errors.New("transient conversation fork requires a distinct DM session for the same Agent")
+	}
+	return source, target, nil
 }
 
 func validConversationForkKey(key protocol.SessionKey) bool {

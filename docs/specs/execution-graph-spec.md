@@ -248,12 +248,18 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 - source execution/session/work item ID 只作 provenance，复用时不成为新图身份；
 - Runtime Graph、Tool input/output、Agent identity、Assignment、Attempt、结果、
   Artifact、Submission、Review、Acceptance 和旧状态永不进入命名图；
-- 用户不选择节点或角色。默认后台模型必须在 preview 阶段自动选择非空 source logical-key
+- 初始 preview 不要求用户选择节点或角色。默认后台模型必须自动选择非空 source logical-key
   子集，保留 key 主路径与 terminal 最终交付，删除具体课题、专名、章节、路径和一次性数据；
   `key` 是单 Agent 执行也必须保留的主路径，`collaboration` 只表示实际分工、交接、汇总、
   独立复核或整合边界。模型不可用、输出虚构节点、缺主路径/最终交付或语义无效时失败关闭；
-- `POST /workgraph/previews` 只生成两小时内有效的 owner/session-scoped 临时预览，不持久化。
-  用户确认后，preview save HTTP 只调度 `HiddenFromUser + Synthetic +
+- `POST /workgraph/previews` 只生成两小时内有效的 owner/session-scoped 临时预览，不持久化；
+  面向用户的字段跟随请求界面语言；Slash 命令生成同时参考 owner 当前目录与固定保留名，优先使用
+  不重复的 1 至 3 个短词，最终仍由 service 校验冲突。用户可直接修改 Slash 命令、标题和描述，或进入从源 transcript
+  exact round boundary 创建的目录隐藏短期 DM fork；该分支复用标准消息、流式、Tool 与 Composer，
+  禁用 Skill、Connector 和 workspace 工具，只挂载 exact owner/session-scoped 草图修改 MCP。模型可按
+  用户要求新增、删除、合并或拆分节点并修改 objective、父子结构与依赖，每次提交带 revision 的完整草图；
+  服务端校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。取消丢弃分支，明确应用才替换
+  原 preview。用户确认后，preview save HTTP 冻结完整草图，只调度 `HiddenFromUser + Synthetic +
   purpose=workgraph_distillation` 的内部 Agent round，不写聊天消息、不改 Composer、也不直接持久化；
   唯一模型持久化入口仍是该 round 内的 `execution-orchestrator` Skill 按 fresh contract 只提交
   exact `preview_id` 给 `nexus execution invoke --operation distill_workgraph`；CLI 原样保存该预览，
@@ -267,7 +273,7 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 ### 7.3 前端资源策略
 
 - Header 与移动端“工作图”入口固定常驻；Surface 只由当前图标题旁的向下箭头展开并切换 exact 历史图，不承载命名工作图目录按钮；没有 managed WorkGraph 时打开统一明确空态。
-- “工作图”在能力侧栏与 Loop 同级，并在 Composer 能力菜单提供同层级的查看与复用入口；两处只展示用户已经固定保存的草图。保存入口只在 Surface 当前或历史 exact 完成图的生命周期徽标旁；点击后查看后台模型自动抽取的只读结构草图，并只选择保存或放弃。
+- “工作图”在能力侧栏与 Loop 同级，并在 Composer 能力菜单提供同层级的查看与复用入口；两处只展示用户已经固定保存的草图。保存入口只在 Surface 当前或历史 exact 完成图的生命周期徽标旁；点击后查看后台模型自动抽取的结构草图，可直接修改命令名、标题和描述，也可通过临时 DM 让模型调整节点和依赖，应用后再选择保存或放弃。
 - Composer Agent Dock 只在当前 managed WorkGraph 非终态活动时显示。
 - runtime-only graph 不能填充 Surface、替换已保留的 managed 图或触发 Composer Dock。
 - 资源读取失败时可以保留最后一次成功快照，但必须显式标记 stale 与最后成功时间。
@@ -299,11 +305,11 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 - 平移、缩放、双击聚焦、适配视口和定位当前节点；
 - 搜索、折叠/展开 ownership subtree；
 - 点击节点或边打开检查器；
-- 完成态图可以请求后台模型自动抽取结构草图，并在只读预览中选择保存或放弃；
+- 完成态图可以请求后台模型自动抽取结构草图，直接调整命令名、标题和描述，或通过受限临时 DM 调整节点与依赖后选择应用、保存或放弃；
 - 用空白点击或 Escape 关闭检查器；
 - 从 Tool Run 的安全 workspace 相对 Artifact 跳转到既有 Workspace 打开链路。
 
-这些操作不修改权威拓扑、运行状态、责任人或路线。草图预览不持久化；保存确认只启动当前 Session 的隐藏内部 Agent round，不生成用户消息；该 round 仍由 Skill + CLI mutation 原样保存独立命名工作图 aggregate。
+这些操作不修改源 Execution 的权威拓扑、运行状态、责任人或路线。草图预览和编辑分支不持久化为命名图；保存确认只启动当前 Session 的隐藏内部 Agent round，不生成用户消息；该 round 仍由 Skill + CLI mutation 原样保存独立命名工作图 aggregate。
 
 ## 9. 安全与一致性不变量
 
@@ -321,12 +327,12 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 12. 截断、旧快照和读取失败必须显式呈现，不能伪装成完整实时图。
 13. Snapshot 与 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史必须在同一 read transaction 中读取；前端刷新不得让已出现的轮次短暂消失。
 14. 布局先建立全部非控制边，再判断 `retry`/`loop_back` 是进入新 Attempt 的前向边还是闭环回边；结果不能依赖 JSON 边顺序。
-15. 命名工作图只来自默认后台模型对 exact managed Execution 的 source Work Item 子集抽取；用户不选节点，也不允许从 Runtime Graph、工具名、聊天正文或 UI 布局反推节点。
+15. 命名工作图的初始草图只来自默认后台模型对 exact managed Execution 的 source Work Item 子集抽取；后续节点修改只接受 exact 临时编辑 Session 的受限完整草图 mutation，不允许从 Runtime Graph、工具名、普通聊天正文或 UI 布局反推节点。
 16. `/workgraph`、`/<command>` 与 `distill_workgraph` 是三种不同语义：当前协作、复用命名图与保存命名图不得混用。
 
 ## 10. 当前非目标
 
-- 不提供通用图写入 API；命名工作图保存 mutation 不修改源图或当前图。
+- 不提供通用图写入 API；临时编辑 mutation 只改 owner/session-scoped preview，命名工作图保存 mutation 不修改源图或当前图。
 - 不允许前端直接改边、状态、责任人或运行路线。
 - 不把 Runtime Graph 当作模型必须遵循的固定脚本。
 - 不从普通聊天、Goal、Task、Tool 名称或 UI 布局反推 managed WorkGraph。

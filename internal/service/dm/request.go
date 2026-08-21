@@ -313,15 +313,17 @@ func (e *dmChatExecution) runAcceptedRound() {
 	}
 	e.runner.bindRuntime(preparation)
 	e.registerRunner()
-	e.service.scheduleTitleGeneration(
-		e.roundCtx,
-		e.parsed,
-		e.runner.session,
-		e.runner.content,
-		e.initialMessageCount,
-		e.runner.runtimeProvider,
-		e.runner.runtimeModel,
-	)
+	if !protocol.SessionIsHiddenFromDirectory(e.runner.session) {
+		e.service.scheduleTitleGeneration(
+			e.roundCtx,
+			e.parsed,
+			e.runner.session,
+			e.runner.content,
+			e.initialMessageCount,
+			e.runner.runtimeProvider,
+			e.runner.runtimeModel,
+		)
+	}
 	e.runner.run(e.roundCtx)
 }
 
@@ -747,7 +749,7 @@ func (e *dmChatExecution) failPersistence(err error, cancelReason, refreshWarnin
 }
 
 func (e *dmChatExecution) launch() {
-	if !e.request.Internal {
+	if !e.request.Internal && !protocol.SessionIsHiddenFromDirectory(e.runner.session) {
 		e.service.scheduleTitleGeneration(
 			e.ctx,
 			e.parsed,
