@@ -236,6 +236,7 @@ type activeRoomSlot struct {
 	WorkspacePath         string
 	Index                 int
 	TimestampMS           int64
+	HiddenFromUser        bool
 	Trigger               roomTrigger
 	TriggerAttachments    []protocol.ChatAttachment
 	WorkBinding           *protocol.ExecutionWorkBinding

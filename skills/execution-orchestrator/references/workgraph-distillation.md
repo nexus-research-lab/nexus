@@ -6,7 +6,7 @@
 
 - `/workgraph <request>` 只为当前请求启用 WorkGraph 协作，不创建或更新命名图。
 - `/<command> <request>` 是用户已保存的 WorkGraph 命令。它提供抽象责任节点和依赖模板；每次调用仍创建新的 Execution、Plan、Work Item 和运行身份。
-- 用户只能在完成态 WorkGraph 标题栏请求“保存为草图”。宿主先用 owner 的默认后台模型从完整实际图自动选择、抽象结构，并按界面语言生成有时效的 preview；生成模型会收到当前命令目录与固定保留名，`slash_name` 默认选择一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不使用三个及以上词；若模型仍返回多词候选，服务端按语义核心词优先收敛到未占用的单词，并继续做最终冲突校验。用户可直接修改元信息，或在宿主从源 transcript 最近一个已完成助手轮次创建的短期受限 DM 分支中让模型修改文案、节点、父子结构与依赖；宿主校验完整草图的 revision、DAG、key 主路径与 terminal 交付后，只有用户明确应用才替换原 preview。
+- 用户只能在完成态 WorkGraph 标题栏请求“保存为草图”。宿主先用 owner 的默认后台模型从完整实际图自动选择、抽象结构，并按界面语言生成有时效的 preview；生成模型会收到当前命令目录与固定保留名，`slash_name` 默认选择一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不使用三个及以上词；若模型仍返回多词候选，服务端按语义核心词优先收敛到未占用的单词，并继续做最终冲突校验。用户可直接修改元信息，或在宿主从源 transcript 最近一个已完成助手轮次创建的短期受限 DM 分支中让模型修改文案、节点、父子结构与依赖；该分支不挂载 MCP，只开放本 Skill 与 `revise_workgraph_preview` CLI。宿主校验完整草图的 revision、DAG、key 主路径与 terminal 交付后，只有用户明确应用才替换原 preview。
 - 保存命名图必须由宿主 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` 的内部 Agent round 调用 `nexus execution invoke --operation distill_workgraph` 完成。该 mutation 只接收用户刚确认的 exact `preview_id`；UI 调度端点不直接落库，Agent 也不得重新读取源图、重选节点或重写草图，更不能向聊天时间线补发保存请求。
 - 该内部保存 round 的思考摘要、过程状态、工具调用说明和结束文本必须使用简体中文；只有命令、Skill 名称和标识符保留原始形式，禁止输出英文叙述。
 - 模型不可用、JSON 无效、输出不是源 logical key 子集、缺少 key 主路径/terminal 交付或语义字段不完整时预览失败关闭，绝不回退展示或保存原始具体内容。
@@ -29,6 +29,16 @@
    ```
 
 4. 只有顶层 `is_error=false` 且 `data.outcome=applied` 才表示已保存。结束内部 round，由宿主目录变更事件刷新 WorkGraph 与 Slash 目录，不在聊天中补发结果；同一意图重试复用 request id。preview 过期或与当前 Session 不符时，由 UI 提示用户回到完成图重新生成并确认，禁止用其他图或字段代替。
+
+## 临时编辑草图
+
+宿主明确说明当前是短期 WorkGraph 草图编辑 Session 时，这是独立于普通 Execution 的受限模式：
+
+1. 只响应用户对当前草图的修改或提问，不执行草图任务，不读 workspace，也不调用 MCP。
+2. 不运行 `execution inspect`。每次修改前只读取 fresh `execution contract --operation revise_workgraph_preview`。
+3. 按 contract 的私有输入槽规则写入带当前 revision 的完整草图；保留所有未被用户要求改变的字段，不能只提交 diff。
+4. 只调用单进程 `execution invoke --operation revise_workgraph_preview`。服务端会校验 owner/editor Session、revision CAS、命令冲突、节点类型、父子结构、DAG、key 主路径与 terminal 交付。
+5. applied 后简短说明用户可见变化；冲突或过期时说明需要基于最新预览重试，不得转用普通 Execution operation。
 
 ## 复用命名 WorkGraph 命令
 

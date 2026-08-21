@@ -1,6 +1,6 @@
 // INPUT: exact WorkGraph preview、源 transcript identity 与临时 DM 中模型提交的完整草图版本。
 // OUTPUT: 隐藏目录的短期 fork Session、CAS preview revision，以及应用前的 DAG/交付语义校验。
-// POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务只拥有草图状态与受限修改授权。
+// POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务只拥有草图状态与受限 CLI 修改授权。
 package workgraphworkflow
 
 import (
@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	workGraphEditorToolName = "mcp__nexus_workgraph_editor__revise_workgraph_preview"
 	workGraphEditorMaxNodes = 64
 	workGraphEditorMaxEdges = 256
 )
@@ -163,7 +162,7 @@ func (s *Service) GetMetadataEditor(
 	return editorSession(editorID, record), nil
 }
 
-// RuntimeEditorPolicy 为 exact 临时 Session 提供完整当前草图与唯一允许的修改工具。
+// RuntimeEditorPolicy 为 exact 临时 Session 提供完整当前草图与唯一允许的 Skill + CLI 修改路径。
 func (s *Service) RuntimeEditorPolicy(
 	ownerUserID string,
 	sessionKey string,
@@ -193,9 +192,9 @@ func (s *Service) RuntimeEditorPolicy(
 	if record.language == "en" {
 		languageRule = "Write title, description, objective, completion criteria, every node's subject/objective/deliverable/acceptance criteria, and the final reply in concise, natural English"
 	}
-	prompt := fmt.Sprintf(`你正在一个短期 WorkGraph 草图编辑 Session 中。只处理用户对这张草图的修改要求，不执行草图中的任务，也不读写 workspace。
+	prompt := fmt.Sprintf(`你正在一个短期 WorkGraph 草图编辑 Session 中。只处理用户对这张草图的修改要求，不执行草图中的任务，也不读取 workspace。
 允许修改 slash_name、title、description、objective、completion_criteria、nodes、父子结构与 dependencies；可以新增、删除、合并或拆分节点。slash_name 和 logical_key 使用英文标识，其余面向用户的字段遵循当前界面语言。slash_name 先尝试所有语义准确的单词候选，默认只使用一个简短、可辨识的英文词；只有这些单词都冲突时才使用两个短词，不得使用三个及以上词，也不能与下方 unavailable_slash_names 重复。
-每次确认修改时，必须调用 revise_workgraph_preview，并提交修改后的完整草图；不能只提交差异。工具成功后再简短说明改了什么。若用户只是提问且不要求修改，可以直接回答。
+需要修改时，先加载 execution-orchestrator Skill，再读取 fresh execution contract --operation revise_workgraph_preview，按 contract 的私有输入槽规则提交带当前 revision 的完整草图，最后用单进程 execution invoke --operation revise_workgraph_preview 应用；不能只提交差异，也不能调用 execution inspect。CLI 成功后再简短说明改了什么。若用户只是提问且不要求修改，可以直接回答。
 %s。不要在回复中输出内部 objective JSON、工具参数或源 Execution identity。
 
 当前草图（revision=%d）：
@@ -205,15 +204,34 @@ unavailable_slash_names：%s`, languageRule, record.revision, payload, unavailab
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: prompt,
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools:    []string{workGraphEditorToolName},
-			DisallowedTools: []string{"Bash", "Read", "Write", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch"},
+			AllowedTools: []string{"Skill", "Write", "Bash", "PowerShell"},
+			DisallowedTools: []string{
+				"Agent", "Read", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
+				"nexus_visualize", "nexus_imagegen",
+			},
 		},
-		DisableSkills:     true,
+		AllowedSkillNames: []string{"execution-orchestrator"},
+		DisableSkills:     false,
 		DisableConnectors: true,
 	}, true, nil
 }
 
-// ReviseEditorPreview 接收受限 MCP 的完整草图提交，并以 revision CAS 推进临时版本。
+// RuntimeEditorActive 判断 exact owner/session 是否仍拥有未过期的临时草图修改授权。
+func (s *Service) RuntimeEditorActive(ownerUserID string, sessionKey string) bool {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if s == nil || ownerUserID == "" || sessionKey == "" {
+		return false
+	}
+	s.previewMu.Lock()
+	defer s.previewMu.Unlock()
+	s.cleanupExpiredPreviews(s.now().UTC())
+	key := s.editorBySession[sessionKey]
+	record, ok := s.editors[key]
+	return ok && record.ownerUserID == ownerUserID && record.sessionKey == sessionKey
+}
+
+// ReviseEditorPreview 接收受限 Execution CLI 的完整草图提交，并以 revision CAS 推进临时版本。
 func (s *Service) ReviseEditorPreview(
 	ctx context.Context,
 	ownerUserID string,

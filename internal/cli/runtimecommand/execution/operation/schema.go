@@ -132,6 +132,41 @@ func distillWorkflowSchema() map[string]any {
 	}, "preview_id")
 }
 
+func reviseWorkflowPreviewSchema() map[string]any {
+	nodeSchema := objectSchema(map[string]any{
+		"logical_key":         nonEmptyStringProperty("稳定英文标识；新增节点必须创建新的 logical_key。"),
+		"role":                enumProperty("节点在草图中的责任角色。", "key", "collaboration"),
+		"kind":                enumProperty("节点交付类型。", "produce", "review", "verify", "integrate"),
+		"subject":             nonEmptyStringProperty("面向用户的节点标题。"),
+		"objective":           nonEmptyStringProperty("节点目的。"),
+		"deliverable":         nonEmptyStringProperty("可验证交付物。"),
+		"acceptance_criteria": stringArrayProperty("节点验收标准。"),
+		"required":            booleanProperty("是否为必需节点。"),
+		"terminal":            booleanProperty("是否为最终交付节点。"),
+		"parent_logical_key":  stringProperty("可选父节点 logical_key。"),
+		"position":            map[string]any{"type": "integer", "minimum": 0},
+	}, "logical_key", "role", "kind", "subject", "objective", "deliverable", "required", "terminal")
+	edgeSchema := objectSchema(map[string]any{
+		"logical_key":            nonEmptyStringProperty("下游节点 logical_key。"),
+		"depends_on_logical_key": nonEmptyStringProperty("上游节点 logical_key。"),
+		"kind":                   enumProperty("依赖强度。", "hard", "soft"),
+	}, "logical_key", "depends_on_logical_key", "kind")
+	return objectSchema(map[string]any{
+		"revision":            map[string]any{"type": "integer", "minimum": 1},
+		"slash_name":          nonEmptyStringProperty("英文 kebab-case 命令名，不含斜杠。"),
+		"title":               nonEmptyStringProperty("草图标题。"),
+		"description":         nonEmptyStringProperty("草图用途说明。"),
+		"objective":           nonEmptyStringProperty("复用时发送给模型的内部执行目标。"),
+		"completion_criteria": stringArrayProperty("整张草图的完成标准。"),
+		"nodes": map[string]any{
+			"type": "array", "minItems": 1, "maxItems": 64, "items": nodeSchema,
+		},
+		"dependencies": map[string]any{
+			"type": "array", "maxItems": 256, "items": edgeSchema,
+		},
+	}, "revision", "slash_name", "title", "description", "objective", "nodes", "dependencies")
+}
+
 func abandonExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"execution_id": nonEmptyStringProperty("Opaque current transient Execution id from nexus_execution_context."),

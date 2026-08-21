@@ -2120,6 +2120,10 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 	if !roomSlotHiddenFromUser(privateSlot) {
 		t.Fatal("私域 directed-message slot 应显式隐藏")
 	}
+	internalSlot := &activeRoomSlot{HiddenFromUser: true, Trigger: roomTrigger{TriggerType: "public_chat"}}
+	if !roomSlotHiddenFromUser(internalSlot) {
+		t.Fatal("宿主内部 round 的 slot 应在整个生命周期中保持隐藏")
+	}
 }
 
 func TestSetRoomDisplayOrderKeepsSlotStartAcrossCompletion(t *testing.T) {

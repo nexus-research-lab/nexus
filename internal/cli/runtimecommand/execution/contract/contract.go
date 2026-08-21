@@ -53,6 +53,18 @@ type WorkflowService interface {
 	) (*protocol.WorkGraphWorkflow, error)
 }
 
+// WorkflowEditorService 是隐藏临时 DM 中唯一可写的草图 revision 边界。
+// owner 与 editor Session identity 只来自 runtime capability，不进入模型输入。
+type WorkflowEditorService interface {
+	RuntimeEditorActive(string, string) bool
+	ReviseEditorPreview(
+		context.Context,
+		string,
+		string,
+		protocol.ReviseWorkGraphWorkflowPreviewRequest,
+	) (*protocol.WorkGraphWorkflowEditorSession, error)
+}
+
 // Context contains authoritative runtime identity. None of these fields
 // are accepted from command input.
 type Context struct {

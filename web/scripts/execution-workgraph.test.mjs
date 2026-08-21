@@ -580,6 +580,12 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /getWorkGraphWorkflowEditorApi/);
   assert.match(editorSource, /closeWorkGraphWorkflowEditorApi/);
   assert.match(editorSource, /NamedWorkGraphSketch/);
+  assert.ok(
+    editorSource.indexOf("<DmChatPanel") < editorSource.indexOf("<NamedWorkGraphSketch"),
+    "editor should place the standard DM conversation before the live WorkGraph preview",
+  );
+  assert.match(editorSource, /md:grid-cols-\[minmax\(320px,0\.9fr\)_minmax\(0,1\.1fr\)\]/);
+  assert.doesNotMatch(editorSource, /workflow_editor_chat_label/);
   assert.match(editorSource, /onApply\(applied\)/);
   assert.match(dialogSource, /setWorkingPreview\(nextPreview\)/);
   assert.match(dialogSource, /dependencies=\{workingPreview\.dependencies\}/);
