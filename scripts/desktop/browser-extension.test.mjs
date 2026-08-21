@@ -194,6 +194,8 @@ test("Browser round 收尾关闭临时页并释放用户页", async () => {
   detachedTabs.length = 0;
   removedTabs.length = 0;
   ungroupedTabs.length = 0;
+  cursorMessages.length = 0;
+  cursorReceiverAvailable = true;
   for (const [tabId, owned, mark] of [
     [1, true, ""],
     [2, false, ""],
@@ -216,6 +218,10 @@ test("Browser round 收尾关闭临时页并释放用户页", async () => {
   assert.deepEqual(removedTabs, [1]);
   assert.deepEqual(detachedTabs, [2, 3, 6]);
   assert.deepEqual(ungroupedTabs, [3]);
+  assert.deepEqual(
+    cursorMessages.map(({ tabId, message }) => [tabId, message.type]),
+    [[2, "NEXUS_CURSOR_HIDE"], [3, "NEXUS_CURSOR_HIDE"], [4, "NEXUS_CURSOR_HIDE"], [6, "NEXUS_CURSOR_HIDE"]],
+  );
   assert.equal(controller.leaseByTab.has(1), false);
   assert.equal(controller.leaseByTab.has(2), false);
   assert.equal(controller.leaseByTab.has(3), false);
@@ -253,7 +259,7 @@ test("Browser 标签页事件同步并在导航时废弃旧快照", async () => 
   assert.equal(events.map(({ eventName }) => eventName).join(","), "tab_updated,tab_activated,tab_removed");
 });
 
-test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () => {
+test("Browser 标准点击等待可见光标抵达后再发送 CDP 事件", async () => {
   const { BrowserController } = context.__test;
   const controller = new BrowserController();
   actionOrder.length = 0;
@@ -266,7 +272,7 @@ test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () =
     return {};
   };
 
-  await controller.mouseClick({ tab_id: 9 });
+  await controller.click({ tab_id: 9, selector: "@e1" });
 
   assert.deepEqual(actionOrder, [
     "cursor",
@@ -282,7 +288,7 @@ test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () =
   assert.equal(cursorMessages[1].message.y, 80);
 });
 
-test("Browser 光标只在当前可见标签页显示", async () => {
+test("Browser 光标首个动作沿轨迹移动且只在当前可见标签页显示", async () => {
   let messageListener;
   let visibilityListener;
   const documentStub = {
@@ -306,6 +312,11 @@ test("Browser 光标只在当前可见标签页显示", async () => {
     document: documentStub,
     MutationObserver: MutationObserverStub,
     setTimeout,
+    window: {
+      innerHeight: 800,
+      innerWidth: 1000,
+      matchMedia: () => ({ matches: false }),
+    },
   });
   vm.runInContext(
     cursorSource + "\n;globalThis.__cursorOverlay = cursorOverlay;",
@@ -327,4 +338,29 @@ test("Browser 光标只在当前可见标签页显示", async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(response.ok, true);
   assert.equal(overlay.host, null);
+
+  let frames;
+  documentStub.hidden = false;
+  overlay.mount = () => {};
+  overlay.cursor = {
+    animate(value) {
+      frames = value;
+      return { cancel() {}, finished: Promise.resolve() };
+    },
+    style: { opacity: "0" },
+  };
+  await overlay.move(120, 80);
+  assert.ok(frames.length >= 8);
+  assert.match(frames[0].transform, /^translate3d\(500px, 440/);
+  assert.equal(frames.at(-1).transform, "translate3d(120px, 80px, 0)");
+  assert.equal(overlay.cursor.style.opacity, "1");
+
+  overlay.cursor.style.opacity = "1";
+  assert.equal(messageListener(
+    { type: "NEXUS_CURSOR_HIDE" },
+    null,
+    (value) => { response = value; },
+  ), false);
+  assert.equal(response.ok, true);
+  assert.equal(overlay.cursor.style.opacity, "0");
 });

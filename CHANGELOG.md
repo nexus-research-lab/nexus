@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept a clean Browser pointer visible through the active round, animated first and subsequent moves, and routed standard clicks through visible CDP mouse input instead of invisible DOM clicks.
 - Prevented macOS WebView resume probes from reloading routes while an explicit navigation is still starting.
 - Removed delivered Browser result tabs from temporary Nexus groups without changing borrowed user tabs.
 - Constrained Browser subcommands by action so invalid combinations are rejected before execution.
