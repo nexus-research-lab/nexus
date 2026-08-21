@@ -32,6 +32,7 @@ runtime MCP browser
 - `navigate`、`find_tab`、`attach_active` 和 `attach_tab` 建立 Session 归属；后续页面动作只能使用该 Session 的活动标签页。
 - `list_tabs scope=session` 只列出本 Session 标签页，`scope=all` 只用于发现浏览器标签页；模型必须把结果中的 `tab_ref` 交给 `attach_tab` 后才能操作发现的标签页。
 - `tab_ref` 同时绑定浏览器实例、扩展进程代次、标签页 ID 和标签页实例 token；关闭后复用的整数 ID、扩展重启前的引用或模型自行构造的引用都会失败关闭。
+- 扩展监听 `webNavigation.onCreatedNavigationTarget`；由已归属标签页创建的新标签页继承来源 Session 和标签组，并以 `browser.event/tab_created` 主动更新宿主活动页。事件丢失时，扩展侧 Session 租约会在下一次 `list_tabs` 中补回。
 - 新建标签页按 Session 放入独立 Chrome 标签组；`close_session` 只关闭该 Session 已归属的标签页。
 
 ## Browser action

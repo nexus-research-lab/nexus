@@ -33,6 +33,9 @@ const chrome = {
   tabGroups: { onRemoved: event },
   tabs: {
     onRemoved: event,
+    async get(tabId) {
+      return { id: tabId, title: "Child", url: "https://example.com/child", groupId: -1, windowId: 1 };
+    },
     async sendMessage(tabId, message) {
       actionOrder.push("cursor");
       cursorMessages.push({ tabId, message });
@@ -40,6 +43,7 @@ const chrome = {
       return { ok: true };
     },
   },
+  webNavigation: { onCreatedNavigationTarget: event },
 };
 class WebSocketStub {}
 WebSocketStub.OPEN = 1;
@@ -110,6 +114,27 @@ test("Browser 标签页引用绑定扩展代次和标签页实例", () => {
 
   controller.setIdentity("browser-a", "generation-b");
   assert.throws(() => controller.parseTabRef(ref), /Stale tab_ref/);
+});
+
+test("Browser 新建导航目标继承来源标签页的 Session", async () => {
+  const { BrowserController } = context.__test;
+  const controller = new BrowserController();
+  controller.setIdentity("browser-a", "generation-a");
+  controller.claimTab(9, { session: "session-a", group_title: "Agent A" }, false);
+  const sourceRef = controller.tabRef(9);
+  const events = [];
+  controller.setEventSink((eventName, data) => events.push({ eventName, data }));
+  controller.groupTab = async () => {};
+
+  await controller.inheritCreatedTab({ sourceTabId: 9, tabId: 10 });
+
+  assert.equal(JSON.stringify(controller.sessionTabIDs({ session: "session-a", tab_refs: [sourceRef] })), "[9,10]");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventName, "tab_created");
+  assert.equal(events[0].data.session, "session-a");
+  assert.equal(events[0].data.source_tab_ref, sourceRef);
+  assert.equal(events[0].data.tab.tab_id, 10);
+  assert.equal(controller.parseTabRef(events[0].data.tab.tab_ref), 10);
 });
 
 test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () => {

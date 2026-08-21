@@ -1,5 +1,5 @@
-// INPUT: WebSocket 请求、固定 Nexus 扩展 Origin 与 browser.result 消息。
-// OUTPUT: 已认证的 Browser 连接注册及回执投递。
+// INPUT: WebSocket 请求、固定 Nexus 扩展 Origin、browser.result 回执与 browser.event 生命周期事件。
+// OUTPUT: 已认证的 Browser 连接注册、回执投递及扩展事件转交。
 // POS: Browser transport 信任边界；不解释浏览器动作或保存 Session 状态。
 package browser
 
@@ -32,6 +32,8 @@ type wireMessage struct {
 	ExtensionVersion  string         `json:"extension_version,omitempty"`
 	BrowserInstance   string         `json:"browser_instance_id,omitempty"`
 	BrowserGeneration string         `json:"browser_generation,omitempty"`
+	Event             string         `json:"event,omitempty"`
+	Data              map[string]any `json:"data,omitempty"`
 	Result            map[string]any `json:"result,omitempty"`
 	Error             string         `json:"error,omitempty"`
 }
@@ -126,10 +128,12 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		if err = wsjson.Read(ctx, connection, &inbound); err != nil {
 			return
 		}
-		if inbound.Type != "browser.result" {
-			continue
+		switch inbound.Type {
+		case "browser.result":
+			h.service.Resolve(inbound.ID, inbound.Result, inbound.Error)
+		case "browser.event":
+			h.service.ObserveEvent(inbound.Event, inbound.Data)
 		}
-		h.service.Resolve(inbound.ID, inbound.Result, inbound.Error)
 	}
 }
 

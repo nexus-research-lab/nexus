@@ -17,6 +17,7 @@
     "storage",
     "tabGroups",
     "tabs",
+    "webNavigation",
     "windows"
   ],
   "host_permissions": [
