@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from "react";
 
 import {
+  clearConversationRoundNavigationTarget,
   type ConversationRoundScrollHandleRef,
 } from "../../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../../timeline/timeline-model";
@@ -45,6 +46,13 @@ export function usePendingRoundJump({
       }),
       onCancel: () => cancelNavigation(target),
       onLand: (navigationRoundId) => {
+        const scrollElement = scrollRef.current;
+        if (scrollElement) {
+          clearConversationRoundNavigationTarget(
+            scrollElement,
+            target.navigationRoundId,
+          );
+        }
         activateRound(navigationRoundId);
         completeNavigation(target);
       },

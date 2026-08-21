@@ -101,7 +101,10 @@ func (r *roundRunner) failRoundAtPhase(
 	}
 	r.refreshSessionMetaAfterRoundFinished()
 	if !durableErrorProjected {
-		errorEvent := protocol.NewErrorEvent(r.sessionKey, displayError)
+		errorEvent := protocol.WithConversationFailureCode(
+			protocol.NewErrorEvent(r.sessionKey, displayError),
+			protocol.ConversationFailureRoundFailed,
+		)
 		errorEvent.AgentID = r.agent.AgentID
 		errorEvent.RoundID = r.roundID
 		errorEvent.AgentRoundID = r.agentRoundID

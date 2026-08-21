@@ -40,6 +40,8 @@ export const enCapabilityMessages = {
   "capability.workgraph_loading_failed": "Failed to load WorkGraphs",
   "capability.workgraph_delete_failed": "Failed to delete the WorkGraph",
   "capability.workgraph_copy": "Copy Slash command",
+  "capability.workgraph_edit": "Continue editing",
+  "capability.workgraph_edit_failed": "Failed to open the WorkGraph editor",
   "capability.skills_tab_catalog": "Global library",
   "capability.skills_tab_external": "Community",
   "capability.skills_intro_title": "Manage work skills",

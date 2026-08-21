@@ -1,5 +1,5 @@
-// INPUT: DM 领域依赖、runtime Manager、持久存储与 owner-scoped Slash expander。
-// OUTPUT: 可串行处理显式输入、动态 Workflow、队列接力和 Goal continuation 的 Service。
+// INPUT: DM 领域依赖、runtime Manager、持久存储、owner-scoped Slash expander 与宿主签发的隔离 WorkGraph 保存 scope。
+// OUTPUT: 可串行处理显式输入、动态 Workflow、隔离内部保存、队列接力和 Goal continuation 的 Service。
 // POS: DM 服务装配和共享状态所有者。
 package dm
 
@@ -104,6 +104,9 @@ type Request struct {
 	TrustedConfigurationContext bool
 	// ExecutionOrigin 由服务端调度器写入；非空值不会获得持久配置 capability。
 	ExecutionOrigin string
+	// WorkGraphSaveSourceSessionKey 只由宿主的 WorkGraph 保存调度器写入，
+	// 让隔离内部 Session 的 exact CLI capability 绑定原 preview 来源而不续写其 transcript。
+	WorkGraphSaveSourceSessionKey string
 	// TrustedExternalInteractiveContext 仅由 channels ingress 在实时复核 active
 	// pairing 后设置；只提升同 Agent 私聊能力，不授予 owner-wide 控制面权限。
 	TrustedExternalInteractiveContext bool

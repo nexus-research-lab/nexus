@@ -1,6 +1,6 @@
-// INPUT: 用户已经看过并确认保存的 exact preview_id 与 owner/session scope。
-// OUTPUT: 强制简体中文过程文本且不进入聊天时间线的内部 Agent 保存 round 调度回执。
-// POS: 草图确认与 execution-orchestrator Skill + Nexus CLI 持久化之间的后台调度边界。
+// INPUT: 用户已经看过并确认保存的 exact preview_id、来源 scope 与 coordinator Agent。
+// OUTPUT: 在独立隐藏 DM 中运行、且不续写来源 transcript 的内部 Agent 保存 round 调度回执。
+// POS: 草图确认与 execution-orchestrator Skill + Nexus CLI 持久化之间的隔离后台调度边界。
 package workgraphworkflow
 
 import (
@@ -16,13 +16,14 @@ const workGraphSavePurpose = "workgraph_distillation"
 
 // SaveRoundRequest 是宿主内部 round 的最小可信输入；不包含草图节点或运行事实。
 type SaveRoundRequest struct {
-	OwnerUserID string
-	SessionKey  string
-	PreviewID   string
-	Prompt      string
+	OwnerUserID      string
+	AgentID          string
+	SourceSessionKey string
+	PreviewID        string
+	Prompt           string
 }
 
-// SaveRoundDispatcher 由宿主把 exact preview 保存请求路由到 DM 或 Room 的隐藏 Agent round。
+// SaveRoundDispatcher 由宿主把 exact preview 保存请求路由到独立隐藏 DM Agent round。
 type SaveRoundDispatcher interface {
 	DispatchWorkGraphSave(context.Context, SaveRoundRequest) error
 }
@@ -52,7 +53,8 @@ func (s *Service) ScheduleSave(
 	if s == nil || s.repository == nil || s.saveDispatcher == nil {
 		return nil, errors.New("workgraph background save dispatcher is unavailable")
 	}
-	preview, alreadyScheduled, err := s.claimPreviewForSave(
+	preview, sourceAgentID, alreadyScheduled, err := s.claimPreviewForSave(
+		ctx,
 		ownerUserID,
 		request.SourceSessionKey,
 		request.PreviewID,
@@ -68,21 +70,22 @@ func (s *Service) ScheduleSave(
 	}
 	existing, err := s.repository.GetBySlashName(ctx, ownerUserID, preview.SlashName)
 	if err != nil {
-		s.releasePreviewSaveClaim(ownerUserID, preview.PreviewID)
+		s.releasePreviewSaveClaim(ctx, ownerUserID, preview.PreviewID)
 		return nil, err
 	}
 	if existing != nil {
-		s.releasePreviewSaveClaim(ownerUserID, preview.PreviewID)
+		s.releasePreviewSaveClaim(ctx, ownerUserID, preview.PreviewID)
 		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
 	}
 	dispatchRequest := SaveRoundRequest{
-		OwnerUserID: ownerUserID,
-		SessionKey:  preview.SourceSessionKey,
-		PreviewID:   preview.PreviewID,
-		Prompt:      renderBackgroundSavePrompt(preview),
+		OwnerUserID:      ownerUserID,
+		AgentID:          sourceAgentID,
+		SourceSessionKey: preview.SourceSessionKey,
+		PreviewID:        preview.PreviewID,
+		Prompt:           renderBackgroundSavePrompt(preview),
 	}
 	if err = s.saveDispatcher.DispatchWorkGraphSave(ctx, dispatchRequest); err != nil {
-		s.releasePreviewSaveClaim(ownerUserID, preview.PreviewID)
+		s.releasePreviewSaveClaim(ctx, ownerUserID, preview.PreviewID)
 		return nil, err
 	}
 	return scheduledSaveReceipt(preview.PreviewID), nil

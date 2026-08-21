@@ -557,6 +557,9 @@ test("WorkGraph sketch confirmation keeps copy focused on reuse", async () => {
 });
 
 test("WorkGraph sketch editor reuses DM and applies a validated graph revision", async () => {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
   const editorSource = await readFile(path.join(
     webRoot,
     "src/features/conversation/shared/execution/workgraph-metadata-editor-dialog.tsx",
@@ -565,6 +568,22 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
     webRoot,
     "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
   ), "utf8");
+  const panelModelSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/room/dm/panel/controller/use-dm-chat-panel-model.ts",
+  ), "utf8");
+  const panelViewSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/room/dm/panel/view/dm-chat-panel-view.tsx",
+  ), "utf8");
+  const feedSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/feed/conversation-feed.tsx",
+  ), "utf8");
+  const followScrollSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts",
+  ), "utf8");
   const apiSource = await readFile(path.join(
     webRoot,
     "src/lib/api/conversation/execution-api.ts",
@@ -572,26 +591,158 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /startWorkGraphWorkflowEditorApi/);
   assert.match(editorSource, /agents\.find\(\(item\) => item\.agent_id === editor\.agent_id\)/);
   assert.doesNotMatch(editorSource, /\}, \[agents, locale, sessionKey, t, updateEditor\]\);/);
-  assert.match(editorSource, /\}, \[sessionKey, updateEditor\]\);/);
+  assert.match(editorSource, /\}, \[sessionKey, startAttempt, updateEditor\]\);/);
   assert.doesNotMatch(editorSource, /getAgents\(\)/);
   assert.match(editorSource, /<DmChatPanel/);
   assert.match(editorSource, /embeddedEditor=/);
+  assert.match(editorSource, /visibleAfterUnixMilli: editor\.display_after_unix_milli/);
+  assert.match(editorSource, /execution\.workflow_editor_intro_title/);
+  assert.match(editorSource, /execution\.workflow_editor_intro_example_metadata/);
+  assert.match(editorSource, /--conversation-composer-backdrop:var\(--surface-muted-background\)/);
+  assert.match(panelModelSource, /embeddedEditor\.introduction/);
+  assert.match(panelModelSource, /initialScrollAnchor: embeddedEditor \? "top" : "bottom"/);
+  assert.match(panelModelSource, /liveContentAlignment: embeddedEditor \? "start" : "end"/);
+  assert.match(panelViewSource, /data-embedded-editor-introduction/);
+  assert.match(panelViewSource, /<ConversationFeed[\s\S]*leadingContent=/);
+  assert.doesNotMatch(panelViewSource, /<EmbeddedEditorIntroduction[^>]*\/>\s*<ConversationFeed/);
+  assert.match(feedSource, /props\.leadingContent == null/);
+  assert.match(feedSource, /\{leadingContent\}\s*\{source\.roundIds\.map/);
+  assert.match(followScrollSource, /isNewSession && initialScrollAnchor === "top"/);
+  assert.ok(
+    followScrollSource.indexOf('isNewSession && initialScrollAnchor === "top"')
+      < followScrollSource.indexOf("if (shouldFollowLatestRef.current)"),
+    "the editor's initial top anchor must reset prior FOLLOW/READING state before normal bottom following",
+  );
+  assert.doesNotMatch(panelViewSource, /send_message|sendMessage|messages\.push/);
+  const introduction = [
+    MESSAGES.zh["execution.workflow_editor_intro_description"],
+    MESSAGES.zh["execution.workflow_editor_intro_example_split"],
+    MESSAGES.zh["execution.workflow_editor_intro_footer"],
+  ].join("\n");
+  assert.match(introduction, /修改命令、标题、目标、节点、层级和依赖/);
+  assert.match(introduction, /拆成两个并行节点/);
+  assert.match(introduction, /点击右上角“应用”/);
+  assert.doesNotMatch(editorSource, /<UiDialogHeader/);
+  assert.match(editorSource, /<UiDialogCloseButton/);
+  assert.doesNotMatch(editorSource, /<UiDialogFooter/);
   assert.match(editorSource, /applyWorkGraphWorkflowEditorApi/);
   assert.match(editorSource, /getWorkGraphWorkflowEditorApi/);
-  assert.match(editorSource, /closeWorkGraphWorkflowEditorApi/);
-  assert.match(editorSource, /NamedWorkGraphSketch/);
+  assert.match(editorSource, /selectWorkGraphWorkflowEditorVersionApi/);
+  assert.match(editorSource, /editor\.versions\.map/);
+  assert.match(editorSource, /current\.selected_revision/);
+  assert.doesNotMatch(editorSource, /closeWorkGraphWorkflowEditorApi/);
+  assert.match(editorSource, /ExecutionWorkGraphCanvas/);
+  assert.match(editorSource, /projectWorkGraphWorkflowCanvasExecution/);
+  assert.match(editorSource, /<div className="flex min-h-0 flex-1">\s*<ExecutionWorkGraphCanvas/);
+  assert.doesNotMatch(editorSource, /NamedWorkGraphSketch/);
   assert.ok(
-    editorSource.indexOf("<DmChatPanel") < editorSource.indexOf("<NamedWorkGraphSketch"),
-    "editor should place the standard DM conversation before the live WorkGraph preview",
+    editorSource.indexOf("<DmChatPanel") < editorSource.indexOf("<ExecutionWorkGraphCanvas"),
+    "editor should place the standard DM conversation before the shared Room/DM WorkGraph canvas",
   );
-  assert.match(editorSource, /md:grid-cols-\[minmax\(320px,0\.9fr\)_minmax\(0,1\.1fr\)\]/);
+  assert.match(editorSource, /md:grid-cols-\[minmax\(360px,0\.42fr\)_minmax\(0,0\.58fr\)\]/);
   assert.doesNotMatch(editorSource, /workflow_editor_chat_label/);
+  assert.doesNotMatch(editorSource, /\{currentPreview\.description\}/);
+  assert.match(editorSource, /execution\.workflow_editor_retry/);
   assert.match(editorSource, /onApply\(applied\)/);
   assert.match(dialogSource, /setWorkingPreview\(nextPreview\)/);
   assert.match(dialogSource, /dependencies=\{workingPreview\.dependencies\}/);
   assert.doesNotMatch(editorSource, /messages\.map|reviseWorkGraphWorkflowMetadataApi/);
   assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/apply/);
+  assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/versions\/select/);
   assert.doesNotMatch(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/messages/);
+});
+
+test("Saved WorkGraph capability reopens the same Draft editor and schedules an update", async () => {
+  const directorySource = await readFile(path.join(
+    webRoot,
+    "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
+  ), "utf8");
+  const apiSource = await readFile(path.join(
+    webRoot,
+    "src/lib/api/conversation/execution-api.ts",
+  ), "utf8");
+
+  assert.match(directorySource, /previewSavedWorkGraphWorkflowApi/);
+  assert.match(directorySource, /<WorkGraphMetadataEditorDialog/);
+  assert.match(directorySource, /scheduleWorkGraphWorkflowSaveApi/);
+  assert.match(directorySource, /capability\.workgraph_edit/);
+  assert.match(apiSource, /workgraph\/workflows\/\$\{encodeURIComponent\(workflowId\)\}\/preview/);
+});
+
+test("WorkGraph editor projects sketches into the complete Room and DM canvas contract", async () => {
+  const { projectWorkGraphWorkflowCanvasExecution } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/workgraph-workflow-canvas-model.ts",
+  );
+  const preview = {
+    preview_id: "preview-1",
+    slash_name: "survey",
+    title: "Survey",
+    source_execution_id: "execution-1",
+    source_session_key: "room:group:conversation-1",
+    objective: "Produce a report",
+    nodes: [
+      {
+        logical_key: "research",
+        role: "key",
+        kind: "produce",
+        subject: "Research",
+        objective: "Collect sources",
+        deliverable: "Notes",
+        required: true,
+        position: 0,
+      },
+      {
+        logical_key: "review",
+        role: "collaboration",
+        kind: "review",
+        subject: "Review",
+        objective: "Cross-check notes",
+        deliverable: "Reviewed notes",
+        required: true,
+        terminal: true,
+        position: 1,
+      },
+    ],
+    dependencies: [{
+      logical_key: "review",
+      depends_on_logical_key: "research",
+      kind: "hard",
+    }],
+    expires_at: "2026-08-21T00:00:00.000Z",
+  };
+  const projected = projectWorkGraphWorkflowCanvasExecution(preview, 3);
+
+  assert.equal(projected.id, "preview-1:revision:3");
+  assert.equal(projected.scope_kind, "room");
+  assert.equal(projected.work_items.length, 2);
+  assert.deepEqual(projected.work_items[1].dependency_ids, ["workflow-node:research"]);
+  assert.equal(projected.graph.nodes[1].kind, "gate");
+  assert.deepEqual(projected.graph.edges[0], {
+    id: "workflow-edge:research:review",
+    kind: "dependency",
+    source_node_id: "workflow-node:research",
+    target_node_id: "workflow-node:review",
+  });
+  assert.equal(projected.graph.nodes.some((node) => node.agent_id || node.attempt_id), false);
+});
+
+test("Named WorkGraph cards keep generated node prose in their compact directory preview", async () => {
+  const { NamedWorkGraphSketch } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/named-workgraph-sketch.tsx",
+  );
+  const nodes = [{
+    logical_key: "draft",
+    objective: "Verbose generated objective that belongs in details, not on the canvas.",
+    position: 0,
+    subject: "Draft",
+    terminal: false,
+  }];
+  const cardHtml = await renderWithI18n(React.createElement(
+    NamedWorkGraphSketch,
+    { dependencies: [], nodes },
+  ));
+  assert.match(cardHtml, />Draft</);
+  assert.match(cardHtml, /Verbose generated objective/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {

@@ -1,6 +1,6 @@
-// INPUT: 可信 runtime round、loopback nexus CLI 请求、Goal/Execution/Automation services 与 runtime permission context。
-// OUTPUT: 三个领域共用的 command capability 环境、按需 contract、语义调用结果与 typed mutation receipt。
-// POS: Agent-facing Nexus command broker；身份、责任绑定、Plan Mode 与 Automation 真人确认均由宿主固定。
+// INPUT: 可信 runtime round、loopback nexus CLI 请求、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
+// OUTPUT: 三个领域共用的 command capability 环境、隔离 WorkGraph 专用 registry、按需 contract、语义调用结果与 typed mutation receipt。
+// POS: Agent-facing Nexus command broker；身份、责任、preview、Plan Mode 与 Automation 真人确认均由宿主固定。
 package server
 
 import (
@@ -144,6 +144,19 @@ func trustedRuntimeCommandActor(ctx context.Context, agent *protocol.Agent, acto
 			parsed.ChatType == protocol.RoomTypeDM &&
 			strings.TrimSpace(parsed.AgentID) == actor.AgentID &&
 			actor.SourceContextID == actor.AgentID
+	case protocol.SessionPurposeWorkGraphDistillation:
+		if _, _, _, ok := trustedRuntimePrincipal(ctx, actor.OwnerUserID); !ok {
+			return false
+		}
+		parsed := protocol.ParseSessionKey(actor.SessionKey)
+		return actor.SessionKey == actor.LeaseSessionKey &&
+			parsed.IsStructured && parsed.Kind == protocol.SessionKeyKindAgent &&
+			parsed.Channel == protocol.SessionChannelInternalSegment &&
+			parsed.ChatType == protocol.RoomTypeDM &&
+			strings.TrimSpace(parsed.AgentID) == actor.AgentID &&
+			actor.SourceContextID == actor.AgentID &&
+			strings.TrimSpace(actor.Round.CommandContext.ScopeSessionKey) != "" &&
+			strings.TrimSpace(actor.Round.CommandContext.WorkGraphPreviewID) != ""
 	case "agent":
 		if _, _, _, ok := trustedRuntimePrincipal(ctx, actor.OwnerUserID); !ok {
 			return false
@@ -226,9 +239,10 @@ func newRuntimeCommandHandler(
 			return
 		}
 		var result any
-		if actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor &&
+		if (actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+			actor.SourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
 			strings.ToLower(strings.TrimSpace(command.Domain)) != runtimecommand.DomainExecution {
-			writeRuntimeCommandError(writer, http.StatusUnprocessableEntity, "临时工作图编辑 Session 只允许 execution domain")
+			writeRuntimeCommandError(writer, http.StatusUnprocessableEntity, "临时 WorkGraph Session 只允许 execution domain")
 			return
 		}
 		switch strings.ToLower(strings.TrimSpace(command.Domain)) {
@@ -349,6 +363,31 @@ func handleExecutionRuntimeCommand(
 	command runtimecommand.Request,
 	workflowServices ...executioncontract.WorkflowService,
 ) (any, error) {
+	if actor.SourceContextType == protocol.SessionPurposeWorkGraphDistillation {
+		if len(workflowServices) == 0 || workflowServices[0] == nil {
+			return nil, errors.New("WorkGraph distillation command service 尚未装配")
+		}
+		roundContext := actor.Round.CommandContext
+		sctx := executioncontract.Context{
+			OwnerUserID:        actor.OwnerUserID,
+			AgentID:            actor.AgentID,
+			ScopeSessionKey:    strings.TrimSpace(roundContext.ScopeSessionKey),
+			RuntimeSessionKey:  actor.SessionKey,
+			RootRoundID:        actor.RoundID,
+			RuntimeRoundID:     actor.LeaseRoundID,
+			AgentRoundID:       strings.TrimSpace(roundContext.AgentRoundID),
+			CommandAttempts:    actor.Round.Attempts,
+			WorkGraphPreviewID: strings.TrimSpace(roundContext.WorkGraphPreviewID),
+		}
+		return handleSemanticRuntimeCommand(
+			ctx,
+			actor,
+			runtimecommand.DomainExecution,
+			"",
+			executionoperation.BuildWorkGraphDistillation(workflowServices[0], sctx),
+			command,
+		)
+	}
 	if actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor {
 		if len(workflowServices) == 0 || workflowServices[0] == nil {
 			return nil, errors.New("WorkGraph editor command service 尚未装配")
@@ -376,10 +415,34 @@ func handleExecutionRuntimeCommand(
 			command,
 		)
 	}
+	roundContext := actor.Round.CommandContext
+	authoringScopeSessionKey := strings.TrimSpace(roundContext.ScopeSessionKey)
+	if authoringScopeSessionKey == "" {
+		authoringScopeSessionKey = strings.TrimSpace(actor.SessionKey)
+	}
+	var authoringOperations []runtimecommand.Operation
+	if len(workflowServices) > 0 {
+		if authoring, ok := workflowServices[0].(executioncontract.WorkflowAuthoringService); ok {
+			authoringOperations = executionoperation.BuildWorkGraphAuthoring(
+				authoring,
+				executioncontract.Context{
+					OwnerUserID: actor.OwnerUserID, AgentID: actor.AgentID,
+					ScopeSessionKey: authoringScopeSessionKey, RuntimeSessionKey: actor.SessionKey,
+					RootRoundID: actor.RoundID, RuntimeRoundID: actor.LeaseRoundID,
+					AgentRoundID:    strings.TrimSpace(roundContext.AgentRoundID),
+					CommandAttempts: actor.Round.Attempts,
+				},
+			)
+		}
+	}
 	if svc == nil {
+		if len(authoringOperations) > 0 {
+			return handleSemanticRuntimeCommand(
+				ctx, actor, runtimecommand.DomainExecution, "", authoringOperations, command,
+			)
+		}
 		return nil, errors.New("Execution command service 尚未装配")
 	}
-	roundContext := actor.Round.CommandContext
 	// Goal create/retarget can advance exact authority during this physical
 	// round. Execution must consume the same host-owned state instead of the
 	// immutable launch snapshot, or Goal+WorkGraph will self-conflict.
@@ -387,6 +450,11 @@ func handleExecutionRuntimeCommand(
 	roundContext.ResponsibilityAuthority = actor.GoalResponsibilityState
 	sctx, ok := resolveExecutionCommandContext(ctx, svc, roundContext)
 	if !ok {
+		if len(authoringOperations) > 0 {
+			return handleSemanticRuntimeCommand(
+				ctx, actor, runtimecommand.DomainExecution, "", authoringOperations, command,
+			)
+		}
 		return nil, errors.New("当前 round 没有有效的 Execution command identity")
 	}
 	sctx.CommandAttempts = actor.Round.Attempts

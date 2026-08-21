@@ -209,6 +209,42 @@ func TestTrustedWorkGraphEditorActorRequiresExactWebSocketDM(t *testing.T) {
 	}
 }
 
+func TestTrustedWorkGraphDistillationActorRequiresExactInternalBinding(t *testing.T) {
+	agent := &protocol.Agent{AgentID: "worker", OwnerUserID: "owner"}
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: "owner", Role: authctx.RoleOwner, AuthMethod: "session",
+	})
+	sessionKey := protocol.BuildAgentSessionKey(
+		"worker", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM, "preview-a", "",
+	)
+	actor := runtimecommand.Actor{
+		OwnerUserID: "owner", AgentID: "worker",
+		SessionKey: sessionKey, RoundID: "round-1",
+		LeaseSessionKey: sessionKey, LeaseRoundID: "round-1",
+		SourceContextType: protocol.SessionPurposeWorkGraphDistillation,
+		SourceContextID:   "worker",
+		Round: runtimecommand.RoundContext{CommandContext: runtimectx.RuntimeCommandContext{
+			ScopeSessionKey:    "room:group:conversation-a",
+			WorkGraphPreviewID: "preview-a",
+		}},
+	}
+	if !trustedRuntimeCommandActor(ctx, agent, actor) {
+		t.Fatal("exact isolated WorkGraph distillation actor was rejected")
+	}
+	actor.Round.CommandContext.WorkGraphPreviewID = ""
+	if trustedRuntimeCommandActor(ctx, agent, actor) {
+		t.Fatal("WorkGraph distillation accepted a missing preview binding")
+	}
+	actor.Round.CommandContext.WorkGraphPreviewID = "preview-a"
+	actor.SessionKey = protocol.BuildAgentSessionKey(
+		"worker", protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "preview-a", "",
+	)
+	actor.LeaseSessionKey = actor.SessionKey
+	if trustedRuntimeCommandActor(ctx, agent, actor) {
+		t.Fatal("WorkGraph distillation accepted a user WebSocket Session")
+	}
+}
+
 func TestSemanticRuntimeCommandRecordsHostTypedExecutionReceipt(t *testing.T) {
 	workBinding := &protocol.ExecutionWorkBinding{
 		ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-1",

@@ -37,6 +37,8 @@ export const zhCapabilityMessages = {
   "capability.workgraph_loading_failed": "加载工作图失败",
   "capability.workgraph_delete_failed": "删除工作图失败",
   "capability.workgraph_copy": "复制 Slash 命令",
+  "capability.workgraph_edit": "继续编辑",
+  "capability.workgraph_edit_failed": "无法打开工作图编辑会话",
   "capability.skills_tab_catalog": "全局技能库",
   "capability.skills_tab_external": "社区技能",
   "capability.skills_intro_title": "管理工作技能",

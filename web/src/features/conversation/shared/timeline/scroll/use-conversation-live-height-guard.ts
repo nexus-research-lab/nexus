@@ -1,7 +1,7 @@
 /**
- * INPUT: 当前会话、Feed 实测高度与是否仍处于 live layout epoch。
- * OUTPUT: live 自动变化期间单调不减、用户主动收起时精确回退、内容底部锚定的 Feed 高度。
- * POS: FOLLOW/READING 共用的 Feed 级几何保护；不冻结消息子树，也不阻止正文和工具块继续自然增长。
+ * INPUT: 当前会话、Feed 实测高度、内容对齐方向与是否仍处于 live layout epoch。
+ * OUTPUT: live 自动变化期间单调不减、用户主动收起时精确回退、按目标锚点对齐的 Feed 高度。
+ * POS: FOLLOW/READING 共用的 Feed 级几何保护；普通聊天底部锚定，显式编辑流可从顶部向下增长。
  */
 import {
   useCallback,
@@ -16,7 +16,6 @@ import {
   getConversationExplicitShrinkDetail,
 } from "./conversation-layout-events";
 
-const LIVE_HEIGHT_RELEASE_MS = 220;
 const LIVE_HEIGHT_SETTLE_MS = 160;
 const HEIGHT_TOLERANCE_PX = 0.5;
 
@@ -85,13 +84,23 @@ export function resolveConversationLiveHeightGuard({
 
 interface UseConversationLiveHeightGuardOptions {
   active: boolean;
+  contentAlignment?: ConversationLiveContentAlignment;
   feedRef: RefObject<HTMLDivElement | null>;
   revision: string;
   scopeKey: string | null;
 }
 
+export type ConversationLiveContentAlignment = "start" | "end";
+
+export function resolveConversationLiveContentJustifyContent(
+  alignment: ConversationLiveContentAlignment,
+): "flex-start" | "flex-end" {
+  return alignment === "start" ? "flex-start" : "flex-end";
+}
+
 export function useConversationLiveHeightGuard({
   active,
+  contentAlignment = "end",
   feedRef,
   revision,
   scopeKey,
@@ -104,17 +113,9 @@ export function useConversationLiveHeightGuard({
     scopeKey: normalizedScopeKey,
     wasActive: false,
   });
-  const releaseTimerRef = useRef<number | null>(null);
   const settleTimerRef = useRef<number | null>(null);
   const guardedFeedRef = useRef<HTMLDivElement | null>(null);
   requestedActiveRef.current = active;
-
-  const cancelRelease = useCallback(() => {
-    if (releaseTimerRef.current !== null) {
-      window.clearTimeout(releaseTimerRef.current);
-      releaseTimerRef.current = null;
-    }
-  }, []);
 
   const cancelSettle = useCallback(() => {
     if (settleTimerRef.current !== null) {
@@ -128,7 +129,6 @@ export function useConversationLiveHeightGuard({
     effectiveActive: boolean,
   ) => {
     if (stateRef.current.scopeKey !== normalizedScopeKey) {
-      cancelRelease();
       cancelSettle();
       const previousFeed = guardedFeedRef.current;
       if (previousFeed) {
@@ -158,10 +158,9 @@ export function useConversationLiveHeightGuard({
     guardedFeedRef.current = feed;
 
     if (effectiveActive) {
-      cancelRelease();
       feed.style.transition = "none";
       feed.style.minHeight = `${next.minimumHeight}px`;
-      feed.style.justifyContent = "flex-end";
+      feed.style.justifyContent = resolveConversationLiveContentJustifyContent(contentAlignment);
       feed.dataset.conversationLiveHeightGuard = "active";
       return;
     }
@@ -171,26 +170,10 @@ export function useConversationLiveHeightGuard({
       return;
     }
 
-    cancelRelease();
-    feed.style.transition = "none";
-    feed.style.minHeight = `${previous.minimumHeight}px`;
-    feed.style.justifyContent = "flex-end";
-    feed.dataset.conversationLiveHeightGuard = "releasing";
-    // 先提交 held height，再平滑收口到 intrinsic height。
-    void feed.offsetHeight;
-    feed.style.transition = [
-      "min-height",
-      `${LIVE_HEIGHT_RELEASE_MS}ms`,
-      "cubic-bezier(0.2, 0.8, 0.2, 1)",
-    ].join(" ");
-    feed.style.minHeight = `${measuredHeight}px`;
-    releaseTimerRef.current = window.setTimeout(() => {
-      releaseTimerRef.current = null;
-      if (guardedFeedRef.current === feed && !requestedActiveRef.current) {
-        clearConversationLiveHeightGuardStyle(feed);
-      }
-    }, LIVE_HEIGHT_RELEASE_MS + 50);
-  }, [cancelRelease, cancelSettle, normalizedScopeKey]);
+    // 安静窗口结束后只提交一次 intrinsic 几何。min-height transition 会在每一帧
+    // 触发 ResizeObserver，并与 follow/virtualizer 的 scrollTop 写入形成反馈环。
+    clearConversationLiveHeightGuardStyle(feed);
+  }, [cancelSettle, contentAlignment, normalizedScopeKey]);
 
   useLayoutEffect(() => {
     const feed = feedRef.current;
@@ -262,7 +245,7 @@ export function useConversationLiveHeightGuard({
       stateRef.current = next;
       feed.style.transition = "none";
       feed.style.minHeight = `${next.minimumHeight}px`;
-      feed.style.justifyContent = "flex-end";
+      feed.style.justifyContent = resolveConversationLiveContentJustifyContent(contentAlignment);
       feed.dataset.conversationLiveHeightGuard = "active";
     };
     document.addEventListener(
@@ -273,16 +256,15 @@ export function useConversationLiveHeightGuard({
       CONVERSATION_EXPLICIT_SHRINK_EVENT,
       handleExplicitShrink,
     );
-  }, [feedRef]);
+  }, [contentAlignment, feedRef]);
 
   useEffect(() => () => {
-    cancelRelease();
     cancelSettle();
     const feed = guardedFeedRef.current;
     if (feed) {
       clearConversationLiveHeightGuardStyle(feed);
     }
-  }, [cancelRelease, cancelSettle]);
+  }, [cancelSettle]);
 }
 
 function clearConversationLiveHeightGuardStyle(feed: HTMLDivElement): void {

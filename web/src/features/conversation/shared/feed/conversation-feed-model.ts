@@ -1,9 +1,9 @@
 /**
- * INPUT: 会话轮次、消息分组、运行态与 Feed renderer/refs。
- * OUTPUT: canonical 业务轮次及跨 optimistic ACK 稳定的视图节点身份。
+ * INPUT: 会话轮次、消息分组、可选本地前导内容、运行态与 Feed renderer/refs。
+ * OUTPUT: canonical 业务轮次、同栈本地前导内容及跨 optimistic ACK 稳定的视图节点身份。
  * POS: DM 静态/虚拟 Feed 共用的纯投影契约。
  */
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
@@ -53,6 +53,7 @@ export interface ConversationRoundSource {
 
 export interface ConversationFeedProps {
   isMobileLayout: boolean;
+  leadingContent?: ReactNode;
   refs: ConversationFeedRefs;
   renderer: ConversationRoundRenderer;
   source: ConversationRoundSource;

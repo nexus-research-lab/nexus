@@ -102,7 +102,7 @@ export function attemptPendingRoundJumpLanding({
     target.scrollRoundId,
     {
       align: "focus",
-      behavior: loaded ? "auto" : "smooth",
+      behavior: "auto",
     },
   );
   if (!didScroll) {

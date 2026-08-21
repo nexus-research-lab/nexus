@@ -1,5 +1,5 @@
 // INPUT: Execution service 与 session-bound runtime context。
-// OUTPUT: 顺序稳定的 Execution 与命名 WorkGraph 保存语义工具 registry。
+// OUTPUT: 顺序稳定的普通 Execution 语义工具 registry；命名 WorkGraph 保存只由隔离专用 registry 暴露。
 // POS: Execution command operation 的唯一注册入口。
 package operation
 
@@ -30,8 +30,10 @@ func BuildAll(
 		auditExecutionAlignment(svc, sctx),
 		promoteExecutionToGoal(svc, sctx),
 	}
-	if len(workflowServices) > 0 && workflowServices[0] != nil {
-		operations = append(operations, distillWorkGraphWorkflow(workflowServices[0], sctx))
+	if len(workflowServices) > 0 {
+		if authoring, ok := workflowServices[0].(contract.WorkflowAuthoringService); ok {
+			operations = append(operations, BuildWorkGraphAuthoring(authoring, sctx)...)
+		}
 	}
 	return operations
 }

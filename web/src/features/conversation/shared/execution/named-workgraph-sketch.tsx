@@ -1,7 +1,7 @@
 /**
- * INPUT: 后台模型抽取或已保存的抽象 WorkGraph 节点与依赖。
- * OUTPUT: 不含运行身份和工具事实的只读蓝图式结构草图。
- * POS: 草图确认、Composer 复用目录与能力详情共用的唯一结构预览。
+ * INPUT: 默认对话模型抽取或已保存的抽象 WorkGraph 节点与依赖。
+ * OUTPUT: 不含运行身份和工具事实的卡片式只读结构草图。
+ * POS: 草图确认、Composer 复用目录与能力详情共用的紧凑结构预览；对话编辑台使用完整 ExecutionWorkGraphCanvas。
  */
 "use client";
 

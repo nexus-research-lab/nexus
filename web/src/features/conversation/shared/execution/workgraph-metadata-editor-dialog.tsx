@@ -1,19 +1,19 @@
 /**
  * INPUT: exact WorkGraph preview 与源 Session。
- * OUTPUT: 左侧标准 DM 对话 + 右侧实时草图预览的短期 fork 编辑页。
- * POS: 只装配既有草图与 DM 组件的对话编辑页；目录刷新不重建临时 Session，应用前不改写原 preview。
+ * OUTPUT: 左侧展示本地接待说明与隐藏专用 DM 的持续对话，右侧展示 Room/DM 共用画布和版本选择。
+ * POS: 关闭页面不删除会话；应用只投影所选版本，画布容器保持 flex 高度且不改写源 Execution/聊天。
  */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoaderCircle, MessageSquareText } from "lucide-react";
+import { Check, History, LoaderCircle } from "lucide-react";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import {
   applyWorkGraphWorkflowEditorApi,
-  closeWorkGraphWorkflowEditorApi,
   getWorkGraphWorkflowEditorApi,
+  selectWorkGraphWorkflowEditorVersionApi,
   startWorkGraphWorkflowEditorApi,
 } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
@@ -21,8 +21,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
   UiDialogBody,
-  UiDialogFooter,
-  UiDialogHeader,
+  UiDialogCloseButton,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
@@ -35,11 +34,12 @@ import type {
   WorkGraphWorkflowPreview,
 } from "@/types/conversation/workgraph-workflow";
 
-import { NamedWorkGraphSketch } from "./named-workgraph-sketch";
+import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
+import { projectWorkGraphWorkflowCanvasExecution } from "./workgraph-workflow-canvas-model";
 
 interface WorkGraphMetadataEditorDialogProps {
   agents: readonly Agent[];
-  onApply: (preview: WorkGraphWorkflowPreview) => void;
+  onApply: (preview: WorkGraphWorkflowPreview) => void | Promise<void>;
   onClose: () => void;
   preview: WorkGraphWorkflowPreview;
   sessionKey: string;
@@ -71,12 +71,13 @@ export function WorkGraphMetadataEditorDialog({
     failureMessage: t("execution.workflow_editor_start_failed"),
   });
   const editorRef = useRef<WorkGraphWorkflowEditorSession | null>(null);
-  const closedRef = useRef(false);
   const [editor, setEditor] = useState<WorkGraphWorkflowEditorSession | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectingRevision, setSelectingRevision] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [startAttempt, setStartAttempt] = useState(0);
 
   const updateEditor = useCallback((next: WorkGraphWorkflowEditorSession) => {
     editorRef.current = next;
@@ -85,7 +86,6 @@ export function WorkGraphMetadataEditorDialog({
 
   useEffect(() => {
     let active = true;
-    closedRef.current = false;
     const initialPreview = initialPreviewRef.current;
     const startContext = startContextRef.current;
     void startWorkGraphWorkflowEditorApi(sessionKey, initialPreview, startContext.locale)
@@ -103,17 +103,18 @@ export function WorkGraphMetadataEditorDialog({
       });
     return () => {
       active = false;
-      const current = editorRef.current;
-      if (current && !closedRef.current) {
-        closedRef.current = true;
-        void closeWorkGraphWorkflowEditorApi(sessionKey, current.editor_id).catch(() => undefined);
-      }
     };
-  }, [sessionKey, updateEditor]);
+  }, [sessionKey, startAttempt, updateEditor]);
+
+  const handleRetryStart = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    setStartAttempt((attempt) => attempt + 1);
+  }, []);
 
   const refreshEditor = useCallback(async () => {
     const current = editorRef.current;
-    if (!current || closedRef.current) return current;
+    if (!current) return current;
     try {
       const next = await getWorkGraphWorkflowEditorApi(sessionKey, current.editor_id);
       updateEditor(next);
@@ -129,17 +130,27 @@ export function WorkGraphMetadataEditorDialog({
     void refreshEditor();
   }, [refreshEditor]);
 
-  const disposeEditor = useCallback(async () => {
-    const current = editorRef.current;
-    if (!current || closedRef.current) return;
-    closedRef.current = true;
-    await closeWorkGraphWorkflowEditorApi(sessionKey, current.editor_id).catch(() => undefined);
-  }, [sessionKey]);
+  const handleClose = useCallback(() => onClose(), [onClose]);
 
-  const handleClose = useCallback(() => {
-    void disposeEditor();
-    onClose();
-  }, [disposeEditor, onClose]);
+  const handleSelectRevision = useCallback(async (selectedRevision: number) => {
+    const current = editorRef.current;
+    if (!current || busy || applying || selectingRevision !== null || current.selected_revision === selectedRevision) return;
+    setSelectingRevision(selectedRevision);
+    setError(null);
+    try {
+      const next = await selectWorkGraphWorkflowEditorVersionApi(
+        sessionKey,
+        current.editor_id,
+        current.revision,
+        selectedRevision,
+      );
+      updateEditor(next);
+    } catch (reason: unknown) {
+      setError(getErrorMessage(reason, t("execution.workflow_editor_version_failed")));
+    } finally {
+      setSelectingRevision(null);
+    }
+  }, [applying, busy, selectingRevision, sessionKey, t, updateEditor]);
 
   const handleApply = useCallback(async () => {
     const current = await refreshEditor();
@@ -152,14 +163,13 @@ export function WorkGraphMetadataEditorDialog({
         current.editor_id,
         current.revision,
       );
-      await disposeEditor();
-      onApply(applied);
+      await onApply(applied);
     } catch (reason: unknown) {
       setError(getErrorMessage(reason, t("execution.workflow_editor_apply_failed")));
     } finally {
       setApplying(false);
     }
-  }, [applying, busy, disposeEditor, onApply, refreshEditor, sessionKey, t]);
+  }, [applying, busy, onApply, refreshEditor, sessionKey, t]);
 
   const sessionIdentity = useMemo(() => editor ? {
     agent_id: editor.agent_id,
@@ -173,6 +183,13 @@ export function WorkGraphMetadataEditorDialog({
     [agents, editor],
   );
   const currentPreview = editor?.preview ?? preview;
+  const canvasExecution = useMemo(
+    () => projectWorkGraphWorkflowCanvasExecution(
+      currentPreview,
+      editor?.revision ?? 1,
+    ),
+    [currentPreview, editor?.revision],
+  );
 
   return (
     <UiDialogPortal>
@@ -181,17 +198,20 @@ export function WorkGraphMetadataEditorDialog({
         labelledBy="workgraph-metadata-editor-title"
         onClose={handleClose}
       >
-        <UiDialogShell className="pointer-events-auto h-[min(720px,86vh)] max-h-[86vh]" size="wide">
-          <UiDialogHeader
-            icon={<MessageSquareText className="h-4 w-4" />}
-            iconClassName="text-(--primary)"
+        <UiDialogShell
+          className="pointer-events-auto relative h-[min(840px,calc(100dvh-56px))] max-h-[calc(100dvh-56px)]"
+          size="wide"
+          style={{ maxWidth: "min(1440px, calc(100vw - 56px))" }}
+        >
+          <h2 className="sr-only" id="workgraph-metadata-editor-title">
+            {currentPreview.title}
+          </h2>
+          <UiDialogCloseButton
+            className="absolute right-5 top-5 z-30 bg-(--surface-control-background) shadow-(--surface-control-shadow)"
             onClose={handleClose}
-            subtitle={t("execution.workflow_editor_subtitle")}
-            title={t("execution.workflow_editor_title")}
-            titleId="workgraph-metadata-editor-title"
           />
-          <UiDialogBody className="grid min-h-0 flex-1 overflow-hidden p-0 md:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
-            <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-canvas-background)">
+          <UiDialogBody className="grid min-h-0 flex-1 overflow-hidden p-0 md:grid-cols-[minmax(360px,0.42fr)_minmax(0,0.58fr)]">
+            <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-(--divider-subtle-color) bg-(--surface-muted-background) [--conversation-composer-backdrop:var(--surface-muted-background)]">
               {loading ? (
                 <div className="grid min-h-0 flex-1 place-items-center text-xs text-(--text-muted)">
                   <span className="inline-flex items-center gap-2">
@@ -203,6 +223,17 @@ export function WorkGraphMetadataEditorDialog({
                 <DmChatPanel
                   currentAgent={agent}
                   embeddedEditor={{
+                    introduction: {
+                      description: t("execution.workflow_editor_intro_description"),
+                      examples: [
+                        t("execution.workflow_editor_intro_example_metadata"),
+                        t("execution.workflow_editor_intro_example_split"),
+                        t("execution.workflow_editor_intro_example_dependency"),
+                      ],
+                      examplesLabel: t("execution.workflow_editor_intro_examples"),
+                      footer: t("execution.workflow_editor_intro_footer"),
+                      title: t("execution.workflow_editor_intro_title"),
+                    },
                     placeholder: t("execution.workflow_editor_placeholder"),
                     visibleAfterUnixMilli: editor.display_after_unix_milli,
                   }}
@@ -215,49 +246,84 @@ export function WorkGraphMetadataEditorDialog({
                   onConversationSnapshotChange={handleSnapshotChange}
                 />
               ) : (
-                <div className="grid min-h-0 flex-1 place-items-center px-5 text-center text-xs leading-5 text-(--destructive)">
-                  {error ?? t("execution.workflow_editor_start_failed")}
+                <div className="grid min-h-0 flex-1 place-items-center px-5 text-center">
+                  <div className="flex max-w-72 flex-col items-center gap-3">
+                    <p className="text-xs leading-5 text-(--destructive)" role="alert">
+                      {error ?? t("execution.workflow_editor_start_failed")}
+                    </p>
+                    <button
+                      className={getDialogActionClassName("default", "compact")}
+                      type="button"
+                      onClick={handleRetryStart}
+                    >
+                      {t("execution.workflow_editor_retry")}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-(--divider-subtle-color) bg-(--surface-muted-background)">
-              <div className="shrink-0 border-b border-(--divider-subtle-color) px-4 py-3">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <h3 className="truncate text-sm font-semibold text-(--text-strong)">{currentPreview.title}</h3>
-                  <code className="rounded-[6px] bg-(--surface-control-background) px-1.5 py-0.5 text-[11px] text-(--text-soft)">/{currentPreview.slash_name}</code>
+            <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-canvas-background)">
+              <div className="shrink-0 border-b border-(--divider-subtle-color) px-8 py-5 pr-16">
+                <div className="flex min-w-0 items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-[19px] font-semibold leading-7 tracking-[-0.015em] text-(--text-strong)">{currentPreview.title}</h3>
+                    <code className="mt-1 block text-xs text-(--text-soft)">/{currentPreview.slash_name}</code>
+                  </div>
+                  <button
+                    className={getDialogActionClassName("primary", "compact")}
+                    disabled={!editor || busy || applying}
+                    type="button"
+                    onClick={() => void handleApply()}
+                  >
+                    {applying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {t("execution.workflow_editor_apply")}
+                  </button>
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-(--text-muted)">{currentPreview.description}</p>
+                {editor && editor.versions.length > 1 ? (
+                  <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-(--divider-subtle-color) pt-3">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
+                      <History className="h-3.5 w-3.5" />
+                      {t("execution.workflow_editor_versions")}
+                    </span>
+                    <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {editor.versions.map((version) => (
+                        <button
+                          key={version.revision}
+                          aria-pressed={version.selected}
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                            version.selected
+                              ? "border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] font-semibold text-(--primary)"
+                              : "border-(--divider-subtle-color) bg-(--surface-control-background) text-(--text-muted) hover:text-(--text-strong)"
+                          }`}
+                          disabled={busy || applying || selectingRevision !== null}
+                          title={`${version.title} · ${version.node_count} ${t("execution.workflow_editor_version_nodes")}`}
+                          type="button"
+                          onClick={() => void handleSelectRevision(version.revision)}
+                        >
+                          {version.selected ? <Check className="h-3 w-3" /> : null}
+                          v{version.revision}
+                          {selectingRevision === version.revision ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {error && editor ? (
+                  <p className="mt-3 text-xs text-(--destructive)" role="alert">{error}</p>
+                ) : null}
               </div>
-              <div className="min-h-0 flex-1 p-3">
-                <NamedWorkGraphSketch
+              <div className="flex min-h-0 flex-1">
+                <ExecutionWorkGraphCanvas
                   key={editor?.revision ?? 0}
-                  className="h-full min-h-0"
-                  dependencies={currentPreview.dependencies}
-                  nodes={currentPreview.nodes}
+                  currentId={null}
+                  directory={{}}
+                  execution={canvasExecution}
+                  taskRuns={[]}
                 />
               </div>
             </div>
           </UiDialogBody>
-          <UiDialogFooter className="items-center justify-between gap-3">
-            <span className="min-w-0 flex-1 truncate text-xs text-(--destructive)" role={error ? "alert" : undefined}>
-              {error}
-            </span>
-            <div className="flex shrink-0 items-center gap-2">
-              <button className={getDialogActionClassName("default", "compact")} type="button" onClick={handleClose}>
-                {t("common.cancel")}
-              </button>
-              <button
-                className={getDialogActionClassName("primary", "compact")}
-                disabled={!editor || busy || applying}
-                type="button"
-                onClick={() => void handleApply()}
-              >
-                {applying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
-                {t("execution.workflow_editor_apply")}
-              </button>
-            </div>
-          </UiDialogFooter>
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>

@@ -26,6 +26,21 @@ type distillWorkflowInput struct {
 	PreviewID string `json:"preview_id"`
 }
 
+type extractWorkflowPreviewInput struct {
+	SourceExecutionID string `json:"source_execution_id"`
+	OutputLanguage    string `json:"output_language"`
+}
+
+type getWorkflowPreviewInput struct {
+	PreviewID string `json:"preview_id"`
+}
+
+type selectWorkflowPreviewRevisionInput struct {
+	PreviewID        string `json:"preview_id"`
+	Revision         int64  `json:"revision"`
+	SelectedRevision int64  `json:"selected_revision"`
+}
+
 type abandonExecutionInput struct {
 	ExecutionID string `json:"execution_id"`
 	Reason      string `json:"reason"`

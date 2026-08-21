@@ -21,6 +21,8 @@ import type { TodoItem } from "@/types/conversation/todo";
 
 interface UseDmChatSessionControllerOptions {
   identity: AgentConversationIdentity | null;
+  initialScrollAnchor?: "bottom" | "top";
+  liveContentAlignment?: "end" | "start";
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;
   onGoalEvent: () => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
@@ -30,6 +32,8 @@ interface UseDmChatSessionControllerOptions {
 
 export function useDmChatSessionController({
   identity,
+  initialScrollAnchor,
+  liveContentAlignment,
   onConversationSnapshotChange,
   onGoalEvent,
   onRoomEvent,
@@ -49,6 +53,8 @@ export function useDmChatSessionController({
     chatType: "dm",
     debugName: "DmChatPanel",
     identity,
+    initialScrollAnchor,
+    liveContentAlignment,
     onRoomEvent: handleRoomEvent,
     visibleAfterUnixMilli,
   });

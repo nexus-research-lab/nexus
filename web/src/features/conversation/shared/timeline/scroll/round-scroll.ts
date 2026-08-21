@@ -9,6 +9,7 @@ export const CONVERSATION_ROUND_SELECTOR = "[data-conversation-round-id]";
 const CONVERSATION_ROUND_USER_ANCHOR_SELECTOR =
   '[data-conversation-round-user-anchor="true"]';
 const ROUND_NAVIGATION_TARGET_DATA_KEY = "conversationRoundNavigationTarget";
+const ROUND_FOCUS_LANDING_INSET_PX = 4;
 
 export interface ConversationRoundScrollOptions {
   align?: "start" | "focus";
@@ -99,7 +100,13 @@ export function scrollToConversationRoundElement(
   ).getBoundingClientRect();
   const offset =
     options?.align === "focus"
-      ? getConversationRoundFocusOffset(scrollElement)
+      // 把目标顶部稳定放到焦点线之前。若精确落在同一坐标，浏览器的
+      // sub-pixel scrollTop 量化可能让上一轮仍包含焦点并抢走 active 状态。
+      ? Math.max(
+        24,
+        getConversationRoundFocusOffset(scrollElement)
+          - ROUND_FOCUS_LANDING_INSET_PX,
+      )
       : 24;
   const maxScrollTop = Math.max(
     0,

@@ -1,13 +1,12 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以标题旁唯一的下拉入口切换精确历史的 WorkGraph 主视图。
+ * OUTPUT: 以标题旁唯一的下拉入口展示当前项并切换已有历史的 WorkGraph 主视图。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Archive,
   Check,
   ChevronDown,
   CircleAlert,
@@ -145,13 +144,6 @@ export function ExecutionWorkGraphSurface({
       icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
       label: t("execution.surface_loading"),
       value: "loading",
-    });
-  } else if (historicalExecutions.length === 0) {
-    historyMenuItems.push({
-      disabled: true,
-      icon: <Archive className="h-3.5 w-3.5" />,
-      label: t("execution.surface_history_empty"),
-      value: "empty",
     });
   }
 

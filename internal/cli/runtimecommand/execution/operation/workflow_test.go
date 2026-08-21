@@ -44,6 +44,21 @@ func (s *workflowEditorCommandService) ReviseEditorPreview(
 	}, nil
 }
 
+func (s *workflowEditorCommandService) SelectEditorVersionBySession(
+	_ context.Context,
+	owner string,
+	sessionKey string,
+	headRevision int64,
+	selectedRevision int64,
+) (*protocol.WorkGraphWorkflowEditorSession, error) {
+	s.owner = owner
+	s.sessionKey = sessionKey
+	return &protocol.WorkGraphWorkflowEditorSession{
+		EditorID: "editor-a", Revision: headRevision,
+		SelectedRevision: selectedRevision,
+	}, nil
+}
+
 func (s *workflowCommandService) SavePreview(
 	_ context.Context,
 	owner string,
@@ -62,6 +77,7 @@ func TestDistillWorkGraphUsesTrustedOwnerSessionAndExactPreview(t *testing.T) {
 	definition := distillWorkGraphWorkflow(service, contract.Context{
 		OwnerUserID: "owner-a", ScopeSessionKey: "session-a",
 		RootRoundID: "round-a", RuntimeRoundID: "round-a", AgentID: "agent-a",
+		WorkGraphPreviewID: "workgraph_preview_a",
 	})
 	result, err := definition.Invoke(context.Background(), map[string]any{
 		"preview_id": "workgraph_preview_a",
@@ -79,6 +95,25 @@ func TestDistillWorkGraphUsesTrustedOwnerSessionAndExactPreview(t *testing.T) {
 		strings.Contains(definition.Description, "Persist the exact") ||
 		result.StructuredContent["message"] != "WorkGraph 命令已保存，可以在其他会话中复用。" {
 		t.Fatalf("non-Chinese workflow contract or receipt: description=%q result=%#v", definition.Description, result.StructuredContent)
+	}
+}
+
+func TestDistillWorkGraphRejectsPreviewOutsideHostBinding(t *testing.T) {
+	service := &workflowCommandService{}
+	operations := BuildWorkGraphDistillation(service, contract.Context{
+		OwnerUserID: "owner-a", ScopeSessionKey: "session-a",
+		RuntimeSessionKey: "isolated-save-session-a",
+		RootRoundID:       "round-a", RuntimeRoundID: "round-a", AgentID: "agent-a",
+		WorkGraphPreviewID: "workgraph_preview_a",
+	})
+	if len(operations) != 1 || operations[0].Name != "distill_workgraph" {
+		t.Fatalf("distillation operations = %#v", operations)
+	}
+	result, err := operations[0].Invoke(context.Background(), map[string]any{
+		"preview_id": "workgraph_preview_b",
+	}, &runtimecommand.CallContext{RequestID: "workflow-request-1"})
+	if err != nil || !result.IsError || service.request.PreviewID != "" {
+		t.Fatalf("mismatched preview result = %#v, request=%#v, err=%v", result, service.request, err)
 	}
 }
 
@@ -104,7 +139,8 @@ func TestReviseWorkGraphPreviewUsesOnlyTrustedEditorIdentity(t *testing.T) {
 		OwnerUserID: "owner-a", ScopeSessionKey: "source-session-a",
 		RuntimeSessionKey: "editor-session-a", RootRoundID: "round-a",
 	})
-	if len(operations) != 1 || operations[0].Name != "revise_workgraph_preview" {
+	if len(operations) != 2 || operations[0].Name != "revise_workgraph_preview" ||
+		operations[1].Name != "select_workgraph_preview_revision" {
 		t.Fatalf("editor operations = %#v", operations)
 	}
 	input := map[string]any{

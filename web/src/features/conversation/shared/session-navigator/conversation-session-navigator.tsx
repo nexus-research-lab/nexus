@@ -123,7 +123,7 @@ export function ConversationSessionNavigator({
                   }}
                 >
                   <span
-                    className="block h-[2px] rounded-full transition-[width,opacity,filter] duration-[90ms] ease-out"
+                    className="block h-[2px] rounded-full"
                     style={tickVisual}
                   />
                 </button>

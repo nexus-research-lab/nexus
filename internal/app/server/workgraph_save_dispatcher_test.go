@@ -5,41 +5,41 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workgraphworkflowsvc "github.com/nexus-research-lab/nexus/internal/service/workgraphworkflow"
 )
 
-type workGraphDMRoundRecorder struct {
-	owner   string
-	request dmsvc.Request
+type workGraphIsolatedRoundRecorder struct {
+	owner          string
+	sessionRequest dmsvc.TransientSessionRequest
+	request        dmsvc.Request
 }
 
-func (r *workGraphDMRoundRecorder) HandleChat(ctx context.Context, request dmsvc.Request) error {
+func (r *workGraphIsolatedRoundRecorder) CreateTransientSession(
+	ctx context.Context,
+	request dmsvc.TransientSessionRequest,
+) (*protocol.Session, error) {
+	r.owner = authctx.OwnerUserID(ctx)
+	r.sessionRequest = request
+	return &protocol.Session{SessionKey: request.TargetSessionKey, AgentID: request.AgentID}, nil
+}
+
+func (r *workGraphIsolatedRoundRecorder) HandleChat(ctx context.Context, request dmsvc.Request) error {
 	r.owner = authctx.OwnerUserID(ctx)
 	r.request = request
 	return nil
 }
 
-type workGraphRoomRoundRecorder struct {
-	owner   string
-	request roomrealtime.ChatRequest
-}
-
-func (r *workGraphRoomRoundRecorder) HandleChat(ctx context.Context, request roomrealtime.ChatRequest) error {
-	r.owner = authctx.OwnerUserID(ctx)
-	r.request = request
-	return nil
-}
-
-func TestWorkGraphSaveDispatcherUsesHiddenInternalDMRound(t *testing.T) {
-	dm := &workGraphDMRoundRecorder{}
-	dispatcher := newWorkGraphSaveRoundDispatcher(dm, nil)
+func TestWorkGraphSaveDispatcherUsesIsolatedHiddenInternalDMRound(t *testing.T) {
+	dm := &workGraphIsolatedRoundRecorder{}
+	dispatcher := newWorkGraphSaveRoundDispatcher(dm)
 	err := dispatcher.DispatchWorkGraphSave(context.Background(), workgraphworkflowsvc.SaveRoundRequest{
-		OwnerUserID: "owner-a",
-		SessionKey:  "agent:agent-a:websocket:dm:conversation-a",
-		PreviewID:   "preview-a",
-		Prompt:      "save exact preview",
+		OwnerUserID:      "owner-a",
+		AgentID:          "agent-a",
+		SourceSessionKey: "agent:agent-a:websocket:dm:conversation-a",
+		PreviewID:        "preview-a",
+		Prompt:           "save exact preview",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -47,6 +47,16 @@ func TestWorkGraphSaveDispatcherUsesHiddenInternalDMRound(t *testing.T) {
 	request := dm.request
 	if dm.owner != "owner-a" || request.AgentID != "agent-a" || request.Content != "save exact preview" || !request.Internal {
 		t.Fatalf("DM background request = %#v, owner=%q", request, dm.owner)
+	}
+	if request.SessionKey == request.WorkGraphSaveSourceSessionKey ||
+		request.WorkGraphSaveSourceSessionKey != "agent:agent-a:websocket:dm:conversation-a" ||
+		request.SessionKey != dm.sessionRequest.TargetSessionKey {
+		t.Fatalf("isolated save identities: session=%q source=%q create=%#v", request.SessionKey, request.WorkGraphSaveSourceSessionKey, dm.sessionRequest)
+	}
+	parsed := protocol.ParseSessionKey(request.SessionKey)
+	if parsed.Channel != protocol.SessionChannelInternalSegment || parsed.AgentID != "agent-a" ||
+		dm.sessionRequest.Purpose != protocol.SessionPurposeWorkGraphDistillation {
+		t.Fatalf("isolated Session = %#v parsed=%#v", dm.sessionRequest, parsed)
 	}
 	if !request.InputOptions.HiddenFromUser || !request.InputOptions.Synthetic || request.InputOptions.Purpose != workGraphSaveRoundPurpose || request.InputOptions.Priority != "internal" || request.InputOptions.Metadata["preview_id"] != "preview-a" {
 		t.Fatalf("DM input options = %#v", request.InputOptions)
@@ -56,26 +66,28 @@ func TestWorkGraphSaveDispatcherUsesHiddenInternalDMRound(t *testing.T) {
 	}
 }
 
-func TestWorkGraphSaveDispatcherUsesHiddenInternalRoomRound(t *testing.T) {
-	room := &workGraphRoomRoundRecorder{}
-	dispatcher := newWorkGraphSaveRoundDispatcher(nil, room)
+func TestWorkGraphSaveDispatcherKeepsRoomSourceOnlyAsCommandScope(t *testing.T) {
+	dm := &workGraphIsolatedRoundRecorder{}
+	dispatcher := newWorkGraphSaveRoundDispatcher(dm)
 	err := dispatcher.DispatchWorkGraphSave(context.Background(), workgraphworkflowsvc.SaveRoundRequest{
-		OwnerUserID: "owner-a",
-		SessionKey:  "room:group:conversation-a",
-		PreviewID:   "preview-a",
-		Prompt:      "save exact preview",
+		OwnerUserID:      "owner-a",
+		AgentID:          "agent-a",
+		SourceSessionKey: "room:group:conversation-a",
+		PreviewID:        "preview-a",
+		Prompt:           "save exact preview",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := room.request
-	if room.owner != "owner-a" || request.ConversationID != "conversation-a" || request.Content != "save exact preview" || !request.Internal {
-		t.Fatalf("Room background request = %#v, owner=%q", request, room.owner)
+	request := dm.request
+	if dm.owner != "owner-a" || request.SessionKey == "room:group:conversation-a" ||
+		request.WorkGraphSaveSourceSessionKey != "room:group:conversation-a" || request.Content != "save exact preview" || !request.Internal {
+		t.Fatalf("isolated Room-source request = %#v, owner=%q", request, dm.owner)
 	}
 	if !request.InputOptions.HiddenFromUser || !request.InputOptions.Synthetic || request.InputOptions.Purpose != workGraphSaveRoundPurpose || request.InputOptions.Metadata["preview_id"] != "preview-a" {
-		t.Fatalf("Room input options = %#v", request.InputOptions)
+		t.Fatalf("isolated input options = %#v", request.InputOptions)
 	}
 	if request.BroadcastUserMessage {
-		t.Fatal("Room background save broadcast a user message")
+		t.Fatal("isolated background save broadcast a user message")
 	}
 }

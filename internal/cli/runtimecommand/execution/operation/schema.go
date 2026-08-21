@@ -132,6 +132,55 @@ func distillWorkflowSchema() map[string]any {
 	}, "preview_id")
 }
 
+func extractWorkflowPreviewSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"source_execution_id": nonEmptyStringProperty("当前 Session 的 completed WorkGraph execution_id；先查询 WorkGraph library，不得从文字猜测。"),
+		"output_language":     enumProperty("草图面向用户字段的语言。", "zh", "en"),
+	}, "source_execution_id", "output_language")
+}
+
+func getWorkflowPreviewSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"preview_id": nonEmptyStringProperty("当前 Session WorkGraph Draft 目录中的 exact preview_id。"),
+	}, "preview_id")
+}
+
+func reviseWorkflowDraftSchema() map[string]any {
+	schema := reviseWorkflowPreviewSchema()
+	properties := schema["properties"].(map[string]any)
+	properties["preview_id"] = nonEmptyStringProperty("当前 Session WorkGraph Draft 的 exact preview_id。")
+	required := schema["required"].([]string)
+	schema["required"] = append([]string{"preview_id"}, required...)
+	return schema
+}
+
+func selectWorkflowPreviewRevisionSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"preview_id": nonEmptyStringProperty("当前 Session WorkGraph Draft 的 exact preview_id。"),
+		"revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "Draft 当前 head_revision，用作并发 CAS。",
+		},
+		"selected_revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "用户明确选中的既有不可变版本。",
+		},
+	}, "preview_id", "revision", "selected_revision")
+}
+
+func selectBoundWorkflowPreviewRevisionSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "当前隐藏编辑 Session 的 head_revision。",
+		},
+		"selected_revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "用户明确选中的既有不可变版本。",
+		},
+	}, "revision", "selected_revision")
+}
+
 func reviseWorkflowPreviewSchema() map[string]any {
 	nodeSchema := objectSchema(map[string]any{
 		"logical_key":         nonEmptyStringProperty("稳定英文标识；新增节点必须创建新的 logical_key。"),

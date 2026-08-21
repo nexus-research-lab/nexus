@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -540,6 +541,7 @@ test("FOLLOW keeps one scroll owner while parallel Room Agents grow", async () =
 test("live Room layout holds only automatic negative height debt until every Agent settles", async () => {
   const {
     resolveConversationLiveHeightAfterExplicitShrink,
+    resolveConversationLiveContentJustifyContent,
     resolveConversationLiveHeightGuard,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/use-conversation-live-height-guard.ts",
@@ -549,6 +551,8 @@ test("live Room layout holds only automatic negative height debt until every Age
     scopeKey: "room-a",
     wasActive: false,
   };
+  assert.equal(resolveConversationLiveContentJustifyContent("start"), "flex-start");
+  assert.equal(resolveConversationLiveContentJustifyContent("end"), "flex-end");
   const opened = resolveConversationLiveHeightGuard({
     active: true,
     measuredHeight: 900,
@@ -648,6 +652,129 @@ test("Composer interaction height stays monotonic until the request queue clears
   }, tallerRequest.state);
   assert.equal(switched.minimumHeight, 190);
   assert.equal(switched.releasing, false);
+});
+
+test("conversation geometry debt releases without frame-by-frame height animation", async () => {
+  const [
+    feedGuard,
+    composerGuard,
+    localAnchor,
+    navigator,
+    activityStyle,
+  ] = await Promise.all([
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/timeline/scroll/use-conversation-live-height-guard.ts",
+    ), "utf8"),
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/use-composer-interaction-height-guard.ts",
+    ), "utf8"),
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/timeline/scroll/use-scroll-anchored-state.ts",
+    ), "utf8"),
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx",
+    ), "utf8"),
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/message/item/view/message-activity-status.css",
+    ), "utf8"),
+  ]);
+
+  for (const source of [feedGuard, composerGuard]) {
+    assert.doesNotMatch(source, /offsetHeight/);
+    assert.doesNotMatch(source, /transition\s*=\s*\[\s*["']min-height/);
+  }
+  assert.doesNotMatch(navigator, /transition-\[width,opacity,filter\]/);
+  assert.doesNotMatch(activityStyle, /animation:|will-change|background-position/);
+  assert.match(localAnchor, /data-conversation-virtual-feed/);
+  assert.match(localAnchor, /notifyConversationExplicitShrink/);
+  assert.match(feedGuard, /CONVERSATION_EXPLICIT_SHRINK_EVENT/);
+});
+
+test("round navigation uses one atomic scroll transaction while data loads", async () => {
+  const { attemptPendingRoundJumpLanding } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/jump/pending-round-jump-runtime.ts",
+  );
+  let scrollOptions = null;
+  const result = attemptPendingRoundJumpLanding({
+    roundScrollHandle: {
+      scrollToRoundId: (_roundId, options) => {
+        scrollOptions = options;
+        return true;
+      },
+    },
+    scrollElement: null,
+    target: {
+      navigationRoundId: "round-old",
+      scopeKey: "session-a",
+      scrollRoundId: "round-old",
+    },
+    timeline: {
+      live_round_ids: [],
+      message_groups: new Map(),
+    },
+  });
+
+  assert.equal(result.status, "waiting");
+  assert.equal(scrollOptions?.behavior, "auto");
+});
+
+test("round landing crosses the focus line despite sub-pixel scroll quantization", async () => {
+  const { scrollToConversationRoundElement } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/round-scroll.ts",
+  );
+  let requestedTop = null;
+  const scrollElement = {
+    clientHeight: 600,
+    getBoundingClientRect: () => ({ bottom: 600, top: 0 }),
+    scrollHeight: 1_200,
+    scrollTo: ({ top }) => {
+      requestedTop = top;
+    },
+    scrollTop: 100,
+  };
+  const target = {
+    getBoundingClientRect: () => ({ bottom: 420, top: 300 }),
+  };
+
+  scrollToConversationRoundElement(scrollElement, target, {
+    align: "focus",
+    behavior: "auto",
+    target: "round",
+  });
+  assert.equal(requestedTop, 224);
+  assert.equal(
+    300 + scrollElement.scrollTop - requestedTop,
+    176,
+    "the target must begin before the 180px active-round focus line",
+  );
+});
+
+test("asynchronous conversation images reserve stable geometry before loading", async () => {
+  const { createMarkdownComponents } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/core/markdown-components.tsx",
+  );
+  const image = createMarkdownComponents(() => null).img({
+    alt: "preview",
+    src: "https://example.com/preview.png",
+  });
+  const markdownHtml = renderToStaticMarkup(image);
+  assert.match(markdownHtml, /content-media-frame/);
+  assert.doesNotMatch(markdownHtml, /\bh-auto\b|\bw-auto\b/);
+
+  const artifactSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx",
+  ), "utf8");
+  assert.equal(
+    [...artifactSource.matchAll(/content-media-frame/g)].length,
+    3,
+    "loading, image, and missing states must keep one media-frame geometry",
+  );
 });
 
 test("virtual conversation canvas keeps held height above the message plane", async () => {
@@ -7485,7 +7612,6 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
         },
       },
       sessionKey: "room:group:conversation-stop",
-      },
       setMessages: () => {},
       setPendingPermissions: (next) => {
         permissions = typeof next === "function" ? next(permissions) : next;

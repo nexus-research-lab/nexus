@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话 session_key 与 exact 完成态 Execution。
- * OUTPUT: managed WorkGraph 读取、非持久化草图预览和已保存草图目录。
- * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；不负责持久化草图。
+ * OUTPUT: managed WorkGraph 读取、durable Draft/版本编辑、已保存草图目录与隐藏保存调度。
+ * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；命名图持久化仍由隐藏 Skill + CLI round 完成。
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
@@ -70,6 +70,25 @@ export async function applyWorkGraphWorkflowEditorApi(
   );
 }
 
+export async function selectWorkGraphWorkflowEditorVersionApi(
+  sessionKey: string,
+  editorId: string,
+  revision: number,
+  selectedRevision: number,
+): Promise<WorkGraphWorkflowEditorSession> {
+  return requestApi<WorkGraphWorkflowEditorSession>(
+    `${AGENT_API_BASE_URL}/workgraph/editors/${encodeURIComponent(editorId)}/versions/select`,
+    {
+      body: {
+        revision,
+        selected_revision: selectedRevision,
+        source_session_key: sessionKey,
+      },
+      method: "POST",
+    },
+  );
+}
+
 export async function closeWorkGraphWorkflowEditorApi(
   sessionKey: string,
   editorId: string,
@@ -99,6 +118,16 @@ export async function getWorkGraphWorkflowsApi(): Promise<WorkGraphWorkflow[]> {
   return requestApi<WorkGraphWorkflow[]>(
     `${AGENT_API_BASE_URL}/workgraph/workflows`,
     { method: "GET" },
+  );
+}
+
+export async function previewSavedWorkGraphWorkflowApi(
+  workflowId: string,
+  outputLanguage: "zh" | "en",
+): Promise<WorkGraphWorkflowPreview> {
+  return requestApi<WorkGraphWorkflowPreview>(
+    `${AGENT_API_BASE_URL}/workgraph/workflows/${encodeURIComponent(workflowId)}/preview`,
+    { body: { output_language: outputLanguage }, method: "POST" },
   );
 }
 

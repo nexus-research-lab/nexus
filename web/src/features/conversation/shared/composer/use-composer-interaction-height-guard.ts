@@ -1,6 +1,6 @@
 /**
  * INPUT: Composer 输入壳、当前人工介入 epoch 与 Session 草稿作用域。
- * OUTPUT: 同一权限/问答队列内单调不减的外壳高度，并在恢复输入框时一次性平滑释放高度负债。
+ * OUTPUT: 同一权限/问答队列内单调不减的外壳高度，并在恢复输入框时原子释放高度负债。
  * POS: Composer 人工介入替换面的几何稳定层；内容继续在既有 max-height 内独立滚动。
  */
 import {
@@ -11,7 +11,6 @@ import {
   type RefObject,
 } from "react";
 
-const COMPOSER_HEIGHT_RELEASE_MS = 180;
 const HEIGHT_TOLERANCE_PX = 0.5;
 
 interface ComposerInteractionHeightState {
@@ -78,7 +77,6 @@ export function useComposerInteractionHeightGuard({
 }): void {
   const activeRef = useRef(active);
   const guardedElementRef = useRef<HTMLDivElement | null>(null);
-  const releaseTimerRef = useRef<number | null>(null);
   const stateRef = useRef<ComposerInteractionHeightState>({
     minimumHeight: 0,
     scopeKey,
@@ -86,16 +84,8 @@ export function useComposerInteractionHeightGuard({
   });
   activeRef.current = active;
 
-  const cancelRelease = useCallback(() => {
-    if (releaseTimerRef.current !== null) {
-      window.clearTimeout(releaseTimerRef.current);
-      releaseTimerRef.current = null;
-    }
-  }, []);
-
   const applyRevision = useCallback((element: HTMLDivElement) => {
     if (stateRef.current.scopeKey !== scopeKey) {
-      cancelRelease();
       const previousElement = guardedElementRef.current;
       if (previousElement) {
         clearComposerInteractionHeightStyle(previousElement);
@@ -123,7 +113,6 @@ export function useComposerInteractionHeightGuard({
     guardedElementRef.current = element;
 
     if (activeRef.current) {
-      cancelRelease();
       element.style.transition = "none";
       element.style.minHeight = `${next.minimumHeight}px`;
       element.dataset.composerInteractionHeightGuard = "active";
@@ -134,24 +123,9 @@ export function useComposerInteractionHeightGuard({
       return;
     }
 
-    cancelRelease();
-    element.style.transition = "none";
-    element.style.minHeight = `${previous.minimumHeight}px`;
-    element.dataset.composerInteractionHeightGuard = "releasing";
-    void element.offsetHeight;
-    element.style.transition = [
-      "min-height",
-      `${COMPOSER_HEIGHT_RELEASE_MS}ms`,
-      "cubic-bezier(0.2, 0.8, 0.2, 1)",
-    ].join(" ");
-    element.style.minHeight = `${measuredHeight}px`;
-    releaseTimerRef.current = window.setTimeout(() => {
-      releaseTimerRef.current = null;
-      if (guardedElementRef.current === element && !activeRef.current) {
-        clearComposerInteractionHeightStyle(element);
-      }
-    }, COMPOSER_HEIGHT_RELEASE_MS + 50);
-  }, [cancelRelease, scopeKey]);
+    // 一次性提交 intrinsic 高度，避免 transition 每帧触发外层 viewport 重算。
+    clearComposerInteractionHeightStyle(element);
+  }, [scopeKey]);
 
   useLayoutEffect(() => {
     const element = elementRef.current;
@@ -175,12 +149,11 @@ export function useComposerInteractionHeightGuard({
   }, [active, applyRevision, elementRef]);
 
   useEffect(() => () => {
-    cancelRelease();
     const element = guardedElementRef.current;
     if (element) {
       clearComposerInteractionHeightStyle(element);
     }
-  }, [cancelRelease]);
+  }, []);
 }
 
 function clearComposerInteractionHeightStyle(element: HTMLDivElement): void {

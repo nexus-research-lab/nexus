@@ -3,6 +3,8 @@ package dm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -596,6 +598,91 @@ func TestLatestCompletedAssistantRoundSkipsActiveAndFailedTail(t *testing.T) {
 	}
 	if got := latestCompletedAssistantRound(rows, []string{"round-active"}); got != "round-success" {
 		t.Fatalf("latestCompletedAssistantRound() = %q, want round-success", got)
+	}
+}
+
+func TestLatestForkableAssistantRoundSkipsOverlayOnlyProjection(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"round_id": "round-transcript",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+		{
+			"round_id": "round-overlay",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+	}
+	resolved := make([]string, 0, 2)
+	roundID, err := latestForkableAssistantRound(rows, nil, func(candidate string) error {
+		resolved = append(resolved, candidate)
+		if candidate == "round-overlay" {
+			return fmt.Errorf("%w: %s", workspacestore.ErrTranscriptRoundNotFound, candidate)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundID != "round-transcript" {
+		t.Fatalf("latest forkable round = %q, want round-transcript", roundID)
+	}
+	if !slices.Equal(resolved, []string{"round-overlay", "round-transcript"}) {
+		t.Fatalf("resolved candidates = %v", resolved)
+	}
+}
+
+func TestLatestForkableAssistantRoundSkipsIncompleteTranscriptProjection(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"round_id": "round-transcript",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+		{
+			"round_id": "round-partial-page",
+			"role":     "assistant",
+		},
+	}
+	resolved := make([]string, 0, 2)
+	roundID, err := latestForkableAssistantRound(rows, nil, func(candidate string) error {
+		resolved = append(resolved, candidate)
+		if candidate == "round-partial-page" {
+			return errTransientForkRoundNotCompleted
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundID != "round-transcript" {
+		t.Fatalf("latest forkable round = %q, want round-transcript", roundID)
+	}
+	if !slices.Equal(resolved, []string{"round-partial-page", "round-transcript"}) {
+		t.Fatalf("resolved candidates = %v", resolved)
+	}
+}
+
+func TestLatestForkableAssistantRoundPreservesBoundaryFailure(t *testing.T) {
+	boundaryErr := errors.New("transcript is unreadable")
+	_, err := latestForkableAssistantRound([]protocol.Message{{
+		"round_id": "round-target",
+		"role":     "assistant",
+		"result_summary": map[string]any{
+			"subtype": "success",
+		},
+	}}, nil, func(string) error {
+		return boundaryErr
+	})
+	if !errors.Is(err, boundaryErr) {
+		t.Fatalf("boundary error = %v, want %v", err, boundaryErr)
 	}
 }
 

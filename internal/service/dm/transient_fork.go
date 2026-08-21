@@ -1,6 +1,6 @@
 // INPUT: 同 Agent 的源 DM/Room Session、可选 transcript 边界与宿主生成的隐藏目标 Session。
-// OUTPUT: 继承模型上下文、但从普通目录隐藏且只展示新分支消息的临时 DM Session。
-// POS: WorkGraph 等受限嵌入式编辑器复用标准 DM runtime 的 fork 边界。
+// OUTPUT: 跳过 overlay-only 或不完整助手投影后，继承最近完整可分支 transcript 上下文且从普通目录隐藏的临时 DM Session。
+// POS: 仍需继承模型上下文的其他受限嵌入式编辑器复用标准 DM runtime 的 fork 边界。
 package dm
 
 import (
@@ -13,6 +13,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+var errTransientForkRoundNotCompleted = errors.New("transient fork round is not a completed assistant transcript round")
 
 // TransientForkRequest 只由宿主组合层构造；HTTP/WS 不能写入 Session 用途或 fork identity。
 type TransientForkRequest struct {
@@ -134,9 +136,10 @@ func (s *Service) resolveLatestCompletedForkRound(
 	sourceSessionKey string,
 ) (string, error) {
 	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
+	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
 	query := workspacestore.HistoryPageQuery{Limit: 32}
 	for {
-		page, err := s.history.ForOwner(agentValue.OwnerUserID).ReadMessagesPageContext(
+		page, err := ownerHistory.ReadMessagesPageContext(
 			ctx,
 			agentValue.WorkspacePath,
 			sourceSession,
@@ -146,7 +149,40 @@ func (s *Service) resolveLatestCompletedForkRound(
 		if err != nil {
 			return "", fmt.Errorf("读取 source conversation 最近轮次: %w", err)
 		}
-		if roundID := latestCompletedAssistantRound(page.Items, activeRoundIDs); roundID != "" {
+		roundID, resolveErr := latestForkableAssistantRound(
+			page.Items,
+			activeRoundIDs,
+			func(candidate string) error {
+				candidatePage, candidateErr := ownerHistory.ReadMessagesPageContext(
+					ctx,
+					agentValue.WorkspacePath,
+					sourceSession,
+					activeRoundIDs,
+					workspacestore.HistoryPageQuery{
+						AroundRoundID: candidate,
+						AroundLimit:   1,
+					},
+				)
+				if candidateErr != nil {
+					return fmt.Errorf("读取 source conversation 候选轮次: %w", candidateErr)
+				}
+				if !completedAssistantRound(candidatePage.Items, candidate, activeRoundIDs) {
+					return errTransientForkRoundNotCompleted
+				}
+				_, _, boundaryErr := resolveConversationForkBoundary(
+					ownerHistory,
+					agentValue.WorkspacePath,
+					sourceSessionKey,
+					sourceSession,
+					candidate,
+				)
+				return boundaryErr
+			},
+		)
+		if resolveErr != nil {
+			return "", fmt.Errorf("解析 source conversation 最近可分支轮次: %w", resolveErr)
+		}
+		if roundID != "" {
 			return roundID, nil
 		}
 		if !page.HasMore || page.NextBeforeRoundID == nil {
@@ -162,4 +198,34 @@ func (s *Service) resolveLatestCompletedForkRound(
 		}
 	}
 	return "", errors.New("source conversation 没有可分支的已完成助手回复")
+}
+
+func latestForkableAssistantRound(
+	rows []protocol.Message,
+	activeRoundIDs []string,
+	resolveBoundary func(string) error,
+) (string, error) {
+	seen := make(map[string]struct{})
+	for index := len(rows) - 1; index >= 0; index-- {
+		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
+		if roundID == "" {
+			continue
+		}
+		if _, duplicate := seen[roundID]; duplicate {
+			continue
+		}
+		seen[roundID] = struct{}{}
+		if !completedAssistantRound(rows, roundID, activeRoundIDs) {
+			continue
+		}
+		if err := resolveBoundary(roundID); err != nil {
+			if errors.Is(err, workspacestore.ErrTranscriptRoundNotFound) ||
+				errors.Is(err, errTransientForkRoundNotCompleted) {
+				continue
+			}
+			return "", err
+		}
+		return roundID, nil
+	}
+	return "", nil
 }
