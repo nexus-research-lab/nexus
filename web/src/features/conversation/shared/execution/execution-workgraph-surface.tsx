@@ -165,120 +165,130 @@ export function ExecutionWorkGraphSurface({
         className="flex min-h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3 py-2"
         data-execution-header-status={header?.status}
       >
-        <div className="min-w-0 max-w-[48%] truncate text-compact font-semibold text-(--text-strong)">
-          {header?.summary || t("execution.label")}
-        </div>
-        <UiIconButton
-          ref={historyTriggerRef}
-          aria-expanded={historyMenuOpen}
-          aria-haspopup="menu"
-          aria-label={t("execution.surface_history")}
-          onClick={() => setHistoryMenuOpen((open) => !open)}
-          size="sm"
-          title={t("execution.surface_history")}
-          variant="ghost"
+        <div
+          className="flex min-w-0 flex-1 items-center gap-0.5"
+          data-execution-header-context
         >
-          <ChevronDown className={cn(
-            "h-3.5 w-3.5 transition-transform",
-            historyMenuOpen && "rotate-180",
-          )} />
-        </UiIconButton>
-        <UiActionMenu
-          anchorRef={historyTriggerRef}
-          ariaLabel={t("execution.surface_history")}
-          density="compact"
-          isOpen={historyMenuOpen}
-          items={historyMenuItems}
-          minWidth={280}
-          onClose={() => setHistoryMenuOpen(false)}
-          onSelect={(value) => {
-            if (value === "current") {
-              setMode("current");
-            } else if (value.startsWith("history:")) {
-              setSelectedHistoryId(value.slice("history:".length));
-              setMode("history");
-            }
-          }}
-          placement="bottom"
-        />
-        {header && header.status !== "active" ? (
-          <span
-            className={cn(
-              "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 text-[11px] font-semibold leading-4",
-              EXECUTION_HEADER_STATUS_TONE[header.status],
-            )}
-            data-execution-header-notice-status={header.status}
-          >
-            {t(header.statusLabelKey)}
-          </span>
-        ) : null}
-        {header?.status === "completed" && execution && sketchSessionKey ? (
-          <button
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 text-[11px] font-semibold text-(--text-strong) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:cursor-wait disabled:opacity-60"
-            data-workgraph-save-sketch
-            disabled={sketchLoading}
-            onClick={() => {
-              setSketchLoading(true);
-              setSketchError(null);
-              void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id)
-                .then(setSketchPreview)
-                .catch((reason: unknown) => {
-                  setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
-                })
-                .finally(() => setSketchLoading(false));
-            }}
-            type="button"
-          >
-            {sketchLoading
-              ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              : <GitBranchPlus className="h-3.5 w-3.5" />}
-            {t(sketchLoading
-              ? "execution.workflow_extracting_sketch"
-              : "execution.workflow_save_as_sketch")}
-          </button>
-        ) : null}
-        {sketchError ? (
-          <span className="max-w-56 truncate text-[10px] text-(--destructive)" title={sketchError}>{sketchError}</span>
-        ) : null}
-        {runtimeProjectionPartial ? (
-          <span
-            aria-label={t("execution.surface_partial", {
-              nodes: execution?.graph?.runtime_node_total ?? 0,
-              edges: execution?.graph?.runtime_edge_total ?? 0,
-            })}
-            className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
-            title={t("execution.surface_partial", {
-              nodes: execution?.graph?.runtime_node_total ?? 0,
-              edges: execution?.graph?.runtime_edge_total ?? 0,
-            })}
-          >
-            <CircleAlert aria-hidden="true" className="h-3 w-3" />
-            <span>{t("execution.surface_partial_short")}</span>
-          </span>
-        ) : null}
-        {mode === "current" && resource.isStale ? (
-          <span
-            aria-label={t("execution.surface_stale")}
-            className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
-            title={lastSuccessfulAt
-              ? t("execution.surface_stale_at", { time: lastSuccessfulAt })
-              : t("execution.surface_stale")}
-          >
-            <CircleAlert aria-hidden="true" className="h-3 w-3" />
-            <span>{t("execution.surface_stale_short")}</span>
-          </span>
-        ) : null}
-        {mode === "current" && resource.error ? (
+          <div className="min-w-0 truncate text-compact font-semibold text-(--text-strong)">
+            {header?.summary || t("execution.label")}
+          </div>
           <UiIconButton
-            aria-label={t("execution.refresh")}
-            onClick={resource.refresh}
+            ref={historyTriggerRef}
+            aria-expanded={historyMenuOpen}
+            aria-haspopup="menu"
+            aria-label={t("execution.surface_history")}
+            onClick={() => setHistoryMenuOpen((open) => !open)}
             size="sm"
-            title={t("execution.refresh")}
+            title={t("execution.surface_history")}
             variant="ghost"
           >
-            <RotateCw className="h-3.5 w-3.5" />
+            <ChevronDown className={cn(
+              "h-3.5 w-3.5 transition-transform",
+              historyMenuOpen && "rotate-180",
+            )} />
           </UiIconButton>
-        ) : null}
+          <UiActionMenu
+            anchorRef={historyTriggerRef}
+            ariaLabel={t("execution.surface_history")}
+            density="compact"
+            isOpen={historyMenuOpen}
+            items={historyMenuItems}
+            minWidth={280}
+            onClose={() => setHistoryMenuOpen(false)}
+            onSelect={(value) => {
+              if (value === "current") {
+                setMode("current");
+              } else if (value.startsWith("history:")) {
+                setSelectedHistoryId(value.slice("history:".length));
+                setMode("history");
+              }
+            }}
+            placement="bottom"
+          />
+        </div>
+        <div
+          className="ml-auto flex shrink-0 items-center gap-2"
+          data-execution-header-actions
+        >
+          {header && header.status !== "active" ? (
+            <span
+              className={cn(
+                "inline-flex h-6 shrink-0 items-center rounded-full border px-2 text-[11px] font-semibold leading-none",
+                EXECUTION_HEADER_STATUS_TONE[header.status],
+              )}
+              data-execution-header-notice-status={header.status}
+            >
+              {t(header.statusLabelKey)}
+            </span>
+          ) : null}
+          {header?.status === "completed" && execution && sketchSessionKey ? (
+            <button
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-control-border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface-control-background))] px-2.5 text-[11px] font-semibold text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,var(--surface-control-background))] disabled:cursor-wait disabled:opacity-60"
+              data-workgraph-save-sketch
+              disabled={sketchLoading}
+              onClick={() => {
+                setSketchLoading(true);
+                setSketchError(null);
+                void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id)
+                  .then(setSketchPreview)
+                  .catch((reason: unknown) => {
+                    setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
+                  })
+                  .finally(() => setSketchLoading(false));
+              }}
+              type="button"
+            >
+              {sketchLoading
+                ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                : <GitBranchPlus className="h-3.5 w-3.5" />}
+              {t(sketchLoading
+                ? "execution.workflow_extracting_sketch"
+                : "execution.workflow_save_as_sketch")}
+            </button>
+          ) : null}
+          {sketchError ? (
+            <span className="max-w-56 truncate text-[10px] text-(--destructive)" title={sketchError}>{sketchError}</span>
+          ) : null}
+          {runtimeProjectionPartial ? (
+            <span
+              aria-label={t("execution.surface_partial", {
+                nodes: execution?.graph?.runtime_node_total ?? 0,
+                edges: execution?.graph?.runtime_edge_total ?? 0,
+              })}
+              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+              title={t("execution.surface_partial", {
+                nodes: execution?.graph?.runtime_node_total ?? 0,
+                edges: execution?.graph?.runtime_edge_total ?? 0,
+              })}
+            >
+              <CircleAlert aria-hidden="true" className="h-3 w-3" />
+              <span>{t("execution.surface_partial_short")}</span>
+            </span>
+          ) : null}
+          {mode === "current" && resource.isStale ? (
+            <span
+              aria-label={t("execution.surface_stale")}
+              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+              title={lastSuccessfulAt
+                ? t("execution.surface_stale_at", { time: lastSuccessfulAt })
+                : t("execution.surface_stale")}
+            >
+              <CircleAlert aria-hidden="true" className="h-3 w-3" />
+              <span>{t("execution.surface_stale_short")}</span>
+            </span>
+          ) : null}
+          {mode === "current" && resource.error ? (
+            <UiIconButton
+              aria-label={t("execution.refresh")}
+              onClick={resource.refresh}
+              size="sm"
+              title={t("execution.refresh")}
+              variant="ghost"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </UiIconButton>
+          ) : null}
+        </div>
       </header>
 
       {execution && hasNodes ? (

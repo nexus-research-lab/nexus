@@ -63,44 +63,19 @@ export function filterSlashCommands(
   query: string,
 ): CommandDescriptor[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const rankedCommands = commands.flatMap((command) => {
-    const rank = normalizedQuery
-      ? getSlashCommandMatchRank(command, normalizedQuery)
-      : 0;
-    return rank === null ? [] : [{ command, rank }];
-  });
-  return rankedCommands
-    .sort((left, right) => (
-      left.rank - right.rank
-      || slashCommandNameCollator.compare(
-        normalizeSlashCommandName(left.command.name),
-        normalizeSlashCommandName(right.command.name),
-      )
-    ))
-    .map(({ command }) => command);
+  const matchingCommands = normalizedQuery
+    ? commands.filter((command) => normalizeSlashCommandName(command.name)
+      .toLocaleLowerCase()
+      .startsWith(normalizedQuery))
+    : [...commands];
+  return matchingCommands.sort((left, right) => slashCommandNameCollator.compare(
+    normalizeSlashCommandName(left.name),
+    normalizeSlashCommandName(right.name),
+  ));
 }
 
 function normalizeSlashCommandName(name: string): string {
   return name.trim().replace(/^\/+/, "");
-}
-
-function getSlashCommandMatchRank(
-  command: CommandDescriptor,
-  normalizedQuery: string,
-): number | null {
-  const normalizedName = normalizeSlashCommandName(command.name)
-    .toLocaleLowerCase();
-  if (normalizedName.startsWith(normalizedQuery)) {
-    return 0;
-  }
-  if (normalizedName.includes(normalizedQuery)) {
-    return 1;
-  }
-  const metadata = [
-    command.description ?? "",
-    command.argument_hint ?? "",
-  ].join("\n").toLocaleLowerCase();
-  return metadata.includes(normalizedQuery) ? 2 : null;
 }
 
 export function filterSlashSkills(

@@ -95,15 +95,23 @@ export function WorkGraphDistillationDialog({
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
                 <div>
                   <div className="font-semibold text-(--text-strong)">{t("execution.workflow_scheduled_title")}</div>
-                  <div className="mt-0.5 leading-5 text-(--text-muted)">{t("execution.workflow_scheduled_message")}</div>
+                  <div className="mt-0.5 leading-5 text-(--text-muted)">
+                    {t("execution.workflow_scheduled_message", {
+                      command: `/${preview.slash_name}`,
+                    })}
+                  </div>
                 </div>
               </div>
             ) : null}
           </UiDialogBody>
-          <UiDialogFooter className="justify-between gap-3">
-            <span className={`max-w-lg text-xs leading-4 ${saveError ? "text-(--destructive)" : "text-(--text-muted)"}`}>
-              {saveError ?? t("execution.workflow_cli_notice")}
-            </span>
+          <UiDialogFooter className={saveState === "scheduled" ? "justify-end gap-3" : "justify-between gap-3"}>
+            {saveState !== "scheduled" ? (
+              <span className={`max-w-lg text-xs leading-4 ${saveError ? "text-(--destructive)" : "text-(--text-muted)"}`}>
+                {saveError ?? t("execution.workflow_reuse_notice", {
+                  command: `/${preview.slash_name}`,
+                })}
+              </span>
+            ) : null}
             <div className="flex shrink-0 gap-2">
               {saveState === "scheduled" ? (
                 <button className={getDialogActionClassName("primary", "compact")} type="button" onClick={onClose}>
