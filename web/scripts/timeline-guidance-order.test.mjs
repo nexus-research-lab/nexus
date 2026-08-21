@@ -2171,6 +2171,12 @@ test("Room public activity survives the pause between reply text and tool work",
         name: "WebSearch",
         type: "tool_use",
       },
+      {
+        preceding_tool_use_ids: ["tool-public-search"],
+        subtype: "tool_use_summary",
+        text: "搜索产品线资料",
+        type: "progress_update",
+      },
     ],
   };
   const workingHtml = renderShell({
@@ -2180,13 +2186,16 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingHtml, /我先搜索产品线信息。/);
   assert.match(
     workingHtml,
-    /网络搜索 · 正在执行/,
-    "tool continuation keeps one localized folded activity row after its preceding text stops streaming",
+    /搜索产品线资料/,
+    "Room main feed replaces its generic activity copy with ToolUseSummary",
   );
+  assert.match(workingHtml, /text-primary/);
+  assert.doesNotMatch(workingHtml, /data-tool-run-list|data-tool-run-id/);
+  assert.doesNotMatch(workingHtml, /网络搜索|M3 product line/);
   assert.equal(
     workingHtml.match(/message-activity-spinner-track/g)?.length,
-    undefined,
-    "the folded tool row owns activity without adding a second spinner row",
+    1,
+    "Room main feed keeps one non-expandable activity surface",
   );
 
   const terminalHtml = renderShell({

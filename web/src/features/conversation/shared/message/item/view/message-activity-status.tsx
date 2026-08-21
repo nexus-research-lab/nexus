@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、逐帧提示，以及可替换通用状态的自然语言活动标签。
+ * OUTPUT: 图标、逐帧提示、可替换通用状态的自然语言活动标签，以及 Room 公区统一主色投影。
  * POS: DM/Room 共用的单行活动呈现；不推导 runtime 状态，也不把即时标签伪装成正式回复。
  */
 import {
@@ -90,10 +90,12 @@ export function LocalizedMessageActivityStatus({
   className,
   label,
   state,
+  uniformTone = false,
 }: {
   className?: string;
   label?: string | null;
   state: MessageActivityState;
+  uniformTone?: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -101,6 +103,7 @@ export function LocalizedMessageActivityStatus({
       className={className}
       label={label?.trim() || t(ACTIVITY_PRESENTATION[state].labelKey)}
       state={state}
+      uniformTone={uniformTone}
     />
   );
 }
@@ -109,10 +112,12 @@ export function MessageActivityStatus({
   className,
   label,
   state,
+  uniformTone = false,
 }: {
   className?: string;
   label: string;
   state: MessageActivityState;
+  uniformTone?: boolean;
 }) {
   const presentation = ACTIVITY_PRESENTATION[state];
   const ActivityIcon = presentation.icon;
@@ -120,7 +125,7 @@ export function MessageActivityStatus({
     <div className={cn("flex min-w-0 items-center", className)}>
       <div className={cn(
         "inline-flex min-w-0 items-center gap-2 py-1 text-xs font-medium transition-colors",
-        presentation.toneClassName,
+        uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
         <span className="shrink-0 opacity-75">
           <ActivityIcon className="h-3.5 w-3.5" />
