@@ -526,7 +526,7 @@ test("WorkGraph sketch confirmation schedules a hidden background round without 
     webRoot,
     "src/lib/api/conversation/execution-api.ts",
   ), "utf8");
-  assert.match(dialogSource, /scheduleWorkGraphWorkflowSaveApi\(sessionKey, preview\.preview_id\)/);
+  assert.match(dialogSource, /scheduleWorkGraphWorkflowSaveApi\(sessionKey, workingPreview\.preview_id, \{/);
   assert.match(apiSource, /workgraph\/previews\/\$\{encodeURIComponent\(previewId\)\}\/save/);
   assert.doesNotMatch(dialogSource, /dispatchWorkGraphDistillationIntent|buildDistillationPrompt|onSendMessage/);
   assert.doesNotMatch(controllerSource, /WORKGRAPH_DISTILLATION_INTENT_EVENT|pendingWorkGraphPromptRef/);
@@ -550,7 +550,40 @@ test("WorkGraph sketch confirmation keeps copy focused on reuse", async () => {
   assert.match(copy, /输入框左下角的“\+”/);
   assert.doesNotMatch(copy, /后台 Agent|Skill 与 Nexus CLI|不进入聊天时间线/);
   assert.match(dialogSource, /execution\.workflow_reuse_notice/);
-  assert.match(dialogSource, /command: `\/\$\{preview\.slash_name\}`/);
+  assert.match(dialogSource, /command: `\/\$\{normalizedSlashName\}`/);
+  assert.match(dialogSource, /workgraph-title/);
+  assert.match(dialogSource, /workgraph-description/);
+  assert.doesNotMatch(dialogSource, /workflow_reusable_objective/);
+});
+
+test("WorkGraph sketch editor reuses DM and applies a validated graph revision", async () => {
+  const editorSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-metadata-editor-dialog.tsx",
+  ), "utf8");
+  const dialogSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+  ), "utf8");
+  const apiSource = await readFile(path.join(
+    webRoot,
+    "src/lib/api/conversation/execution-api.ts",
+  ), "utf8");
+  assert.match(editorSource, /startWorkGraphWorkflowEditorApi/);
+  assert.match(editorSource, /agents\.find\(\(item\) => item\.agent_id === session\.agent_id\)/);
+  assert.doesNotMatch(editorSource, /getAgents\(\)/);
+  assert.match(editorSource, /<DmChatPanel/);
+  assert.match(editorSource, /embeddedEditor=/);
+  assert.match(editorSource, /applyWorkGraphWorkflowEditorApi/);
+  assert.match(editorSource, /getWorkGraphWorkflowEditorApi/);
+  assert.match(editorSource, /closeWorkGraphWorkflowEditorApi/);
+  assert.match(editorSource, /NamedWorkGraphSketch/);
+  assert.match(editorSource, /onApply\(applied\)/);
+  assert.match(dialogSource, /setWorkingPreview\(nextPreview\)/);
+  assert.match(dialogSource, /dependencies=\{workingPreview\.dependencies\}/);
+  assert.doesNotMatch(editorSource, /messages\.map|reviseWorkGraphWorkflowMetadataApi/);
+  assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/apply/);
+  assert.doesNotMatch(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/messages/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {

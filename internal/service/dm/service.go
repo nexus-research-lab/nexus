@@ -218,6 +218,7 @@ type Service struct {
 	configurationRuntimeEnv   ConfigurationRuntimeEnvironmentBuilder
 	runtimeCommandEnv         RuntimeCommandEnvironmentBuilder
 	runtimeSlashExpander      RuntimeSlashExpander
+	scopedSessionPolicy       scopedSessionRuntimePolicyProvider
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
 	connectorRuntimeStates    ConnectorRuntimeStateLoader
@@ -279,6 +280,10 @@ type titleScheduler interface {
 
 type runtimePreferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
+type scopedSessionRuntimePolicyProvider interface {
+	RuntimeEditorPolicy(string, string) (protocol.ScopedSessionRuntimePolicy, bool, error)
 }
 
 type queueAdmissionStore interface {
@@ -360,6 +365,11 @@ func (s *Service) SetRuntimeCommandEnvironmentBuilder(
 // SetRuntimeSlashExpander 注入 owner-scoped WorkGraph 沉淀 prompt 展开器。
 func (s *Service) SetRuntimeSlashExpander(expander RuntimeSlashExpander) {
 	s.runtimeSlashExpander = expander
+}
+
+// SetScopedSessionRuntimePolicyProvider 注入宿主签发的精确临时 Session 工具面与系统提示。
+func (s *Service) SetScopedSessionRuntimePolicyProvider(provider scopedSessionRuntimePolicyProvider) {
+	s.scopedSessionPolicy = provider
 }
 
 // SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。

@@ -91,6 +91,12 @@ export function RoomMobileAuxiliaryOverlay({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {activeTab === "workgraph" ? (
           <ExecutionWorkGraphSurface
+            agents={[
+              ...roomMembers.filter((agent) => (
+                agent.agent_id !== currentAgent.agent_id
+              )),
+              currentAgent,
+            ]}
             directory={buildExecutionAgentDirectory([
               ...roomMembers.filter((agent) => (
                 agent.agent_id !== currentAgent.agent_id

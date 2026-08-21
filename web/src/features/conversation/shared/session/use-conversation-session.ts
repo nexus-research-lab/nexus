@@ -31,6 +31,7 @@ interface UseConversationSessionOptions {
   debugName: string;
   identity: AgentConversationIdentity | null;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
+  visibleAfterUnixMilli?: number;
 }
 
 export function useConversationSession({
@@ -38,6 +39,7 @@ export function useConversationSession({
   debugName,
   identity,
   onRoomEvent,
+  visibleAfterUnixMilli,
 }: UseConversationSessionOptions) {
   const sessionKey = identity?.session_key ?? null;
   const roundScrollRef = useRef<ConversationRoundScrollHandle | null>(null);
@@ -52,20 +54,30 @@ export function useConversationSession({
     on_error: handleError,
     on_room_event: onRoomEvent,
   });
+  const visibleMessages = useMemo(
+    () => visibleAfterUnixMilli
+      ? conversation.messages.filter((message) => messageTimestamp(message) >= visibleAfterUnixMilli)
+      : conversation.messages,
+    [conversation.messages, visibleAfterUnixMilli],
+  );
+  const visibleConversation = useMemo(
+    () => ({ ...conversation, messages: visibleMessages }),
+    [conversation, visibleMessages],
+  );
   const scrollContentKey = useMemo(
-    () => buildConversationScrollContentKey(sessionKey, conversation.messages),
-    [conversation.messages, sessionKey],
+    () => buildConversationScrollContentKey(sessionKey, visibleMessages),
+    [sessionKey, visibleMessages],
   );
   const scrollTopologyKey = useMemo(
     () => buildConversationScrollTopologyKey(
       sessionKey,
-      conversation.messages,
+      visibleMessages,
       conversation.pending_agent_slots,
       conversation.pending_permissions,
       conversation.room_agent_execution_states,
     ),
     [
-      conversation.messages,
+      visibleMessages,
       conversation.pending_agent_slots,
       conversation.pending_permissions,
       conversation.room_agent_execution_states,
@@ -76,14 +88,14 @@ export function useConversationSession({
     () => [
       buildConversationAtomicLayoutKey(
         sessionKey,
-        conversation.messages,
+        visibleMessages,
         conversation.pending_permissions,
       ),
       conversation.error ?? "",
     ].join("\u001f"),
     [
       conversation.error,
-      conversation.messages,
+      visibleMessages,
       conversation.pending_permissions,
       sessionKey,
     ],
@@ -92,7 +104,7 @@ export function useConversationSession({
     () => isConversationLiveLayoutActive({
       isLoading: conversation.is_loading,
       liveRoundIds: conversation.live_round_ids,
-      messages: conversation.messages,
+      messages: visibleMessages,
       pendingAgentSlots: conversation.pending_agent_slots,
       roomAgentExecutionStates: conversation.room_agent_execution_states,
       runtimePhase: conversation.runtime_phase,
@@ -100,7 +112,7 @@ export function useConversationSession({
     [
       conversation.is_loading,
       conversation.live_round_ids,
-      conversation.messages,
+      visibleMessages,
       conversation.pending_agent_slots,
       conversation.room_agent_execution_states,
       conversation.runtime_phase,
@@ -111,7 +123,7 @@ export function useConversationSession({
     contentKey: scrollContentKey,
     historyPrependToken: conversation.history_prepend_token,
     liveLayoutActive,
-    messageCount: conversation.messages.length,
+    messageCount: visibleMessages.length,
     sessionKey,
     topologyKey: scrollTopologyKey,
   });
@@ -126,7 +138,7 @@ export function useConversationSession({
   const timeline = useConversationTimeline({
     chat_type: chatType,
     live_round_ids: conversation.live_round_ids,
-    messages: conversation.messages,
+    messages: visibleMessages,
     pending_agent_slots: conversation.pending_agent_slots,
     pending_permissions: conversation.pending_permissions,
     room_agent_execution_states: conversation.room_agent_execution_states,
@@ -141,7 +153,7 @@ export function useConversationSession({
     revision: buildVisibleRoundRevision({
       feedRoundCount: timeline.feed_round_ids.length,
       liveRoundCount: conversation.live_round_ids.length,
-      messageCount: conversation.messages.length,
+      messageCount: visibleMessages.length,
       pendingAgentSlotCount: conversation.pending_agent_slots.length,
       pendingPermissionCount: conversation.pending_permissions.length,
       roomAgentExecutionStateCount:
@@ -158,14 +170,14 @@ export function useConversationSession({
     isFollowingLatest: scroll.isFollowingLatest,
     isLoading: conversation.is_loading,
     loadOlderMessages: conversation.load_older_messages,
-    messageCount: conversation.messages.length,
+    messageCount: visibleMessages.length,
     onScroll: scroll.onScroll,
     prepareHistoryPrependRestore: scroll.prepareHistoryPrependRestore,
     scrollRef: scroll.scrollRef,
   });
 
   return {
-    conversation,
+    conversation: visibleConversation,
     history,
     roundIndexItems,
     roundScrollRef,
@@ -173,6 +185,13 @@ export function useConversationSession({
     sessionKey,
     timeline,
   };
+}
+
+function messageTimestamp(message: { timestamp?: unknown }): number {
+  const value = typeof message.timestamp === "number"
+    ? message.timestamp
+    : Number(message.timestamp ?? 0);
+  return Number.isFinite(value) ? value : 0;
 }
 
 interface VisibleRoundRevisionInput {

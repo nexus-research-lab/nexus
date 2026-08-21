@@ -321,6 +321,22 @@ func (s *Server) mountExecutionRoutes() {
 		s.prefixPath("/workgraph/previews/{preview_id}/save"),
 		s.handlers.execution.HandleScheduleWorkGraphWorkflowSave,
 	)
+	s.router.Post(
+		s.prefixPath("/workgraph/previews/{preview_id}/editor"),
+		s.handlers.execution.HandleStartWorkGraphWorkflowEditor,
+	)
+	s.router.Get(
+		s.prefixPath("/workgraph/editors/{editor_id}"),
+		s.handlers.execution.HandleGetWorkGraphWorkflowEditor,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/editors/{editor_id}/apply"),
+		s.handlers.execution.HandleApplyWorkGraphWorkflowEditor,
+	)
+	s.router.Delete(
+		s.prefixPath("/workgraph/editors/{editor_id}"),
+		s.handlers.execution.HandleCloseWorkGraphWorkflowEditor,
+	)
 	s.router.Delete(
 		s.prefixPath("/workgraph/workflows/{workflow_id}"),
 		s.handlers.execution.HandleDeleteWorkGraphWorkflow,

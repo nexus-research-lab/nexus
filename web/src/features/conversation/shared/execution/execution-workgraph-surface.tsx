@@ -28,6 +28,7 @@ import {
   UiActionMenu,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
+import type { Agent } from "@/types/agent/agent";
 import type { ExecutionStatus } from "@/types/conversation/execution";
 import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
@@ -55,11 +56,13 @@ const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, string> = {
 };
 
 export function ExecutionWorkGraphSurface({
+  agents,
   directory,
   onOpenWorkspaceFile,
   resource,
   taskRuns,
 }: {
+  agents: readonly Agent[];
   directory: ExecutionAgentDirectory;
   onOpenWorkspaceFile?: (
     path: string,
@@ -68,7 +71,7 @@ export function ExecutionWorkGraphSurface({
   resource: ExecutionResource;
   taskRuns: readonly ConversationTaskRun[];
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [mode, setMode] = useState<WorkGraphSurfaceMode>("current");
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
@@ -229,7 +232,7 @@ export function ExecutionWorkGraphSurface({
               onClick={() => {
                 setSketchLoading(true);
                 setSketchError(null);
-                void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id)
+                void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id, locale)
                   .then(setSketchPreview)
                   .catch((reason: unknown) => {
                     setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
@@ -324,6 +327,7 @@ export function ExecutionWorkGraphSurface({
       )}
       {sketchPreview ? (
         <WorkGraphDistillationDialog
+          agents={agents}
           onClose={() => setSketchPreview(null)}
           preview={sketchPreview}
           sessionKey={sketchSessionKey}

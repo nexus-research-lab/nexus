@@ -321,6 +321,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"最多 64 KiB",
 			"自审折叠在同一 Agent 节点",
 			"Goal 生命周期不是使用 Loop 的前提",
+			"中文对话优先使用自然简洁的中文标题和说明",
 		},
 		filepath.Join("execution-orchestrator", "references", "responsibility-and-delivery.md"): {
 			"Responsibility 与交付",
@@ -341,7 +342,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("execution-orchestrator", "references", "workgraph-distillation.md"): {
 			"distill_workgraph",
 			"schema 只要求 `preview_id`",
-			"用户不选择节点或角色",
+			"短期受限 DM 分支",
+			"key 主路径与 terminal 交付",
 			"不得重新读取源图、重选节点或重写草图",
 		},
 		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {

@@ -85,10 +85,11 @@ export function RoomSurfaceAuxiliaryPanel({
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
   const { t } = useI18n();
-  const executionDirectory = buildExecutionAgentDirectory([
+  const executionAgents = [
     ...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id),
     currentAgent,
-  ]);
+  ];
+  const executionDirectory = buildExecutionAgentDirectory(executionAgents);
   const persistentPanels: Array<{
     content: ReactNode;
     key: "workgraph" | "workspace" | "about";
@@ -97,6 +98,7 @@ export function RoomSurfaceAuxiliaryPanel({
       key: "workgraph",
       content: (
         <ExecutionWorkGraphSurface
+          agents={executionAgents}
           directory={executionDirectory}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           resource={executionResource}

@@ -233,12 +233,16 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetExecutionContextProvider(orchestrationService)
 	dmService.SetRuntimeSlashExpander(workGraphWorkflowService)
+	dmService.SetScopedSessionRuntimePolicyProvider(workGraphWorkflowService)
 	dmService.SetSubagentAdmissionProvider(orchestrationService)
 	dmService.SetRuntimeAdmissionResolver(authService)
 	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	core.Room.SetConversationSessionForker(dmService)
+	workGraphWorkflowService.SetEditorSessionManager(workGraphEditorSessionManager{
+		dm: dmService, sessions: core.Session,
+	})
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
@@ -391,7 +395,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	mcpBuilder := combinedMCPBuilder(
+	standardMCPBuilder := combinedMCPBuilder(
 		communicationBuilder,
 		connectorBuilder,
 		connectorAuthorizationBuilder,
@@ -400,8 +404,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		contextOnlyMCPBuilder(imagegenBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
-	dmService.SetMCPServerBuilder(mcpBuilder)
-	roomRealtime.SetMCPServerBuilder(mcpBuilder)
+	mcpBuilder := workGraphEditorAwareMCPBuilder(workGraphWorkflowService, standardMCPBuilder)
+	dmService.SetMCPServerBuilder(dmsvc.MCPServerBuilder(mcpBuilder))
+	roomRealtime.SetMCPServerBuilder(roomrealtime.MCPServerBuilder(mcpBuilder))
 	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
 
 	warnIfProviderMissing(providerService, logger)

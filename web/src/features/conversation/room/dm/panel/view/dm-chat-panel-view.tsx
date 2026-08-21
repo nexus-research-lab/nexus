@@ -37,6 +37,7 @@ type FeedModel = ComponentProps<typeof ConversationFeed>;
 type GoalPanelModel = Omit<ComponentProps<typeof GoalPanel>, "compact">;
 
 export interface DmChatPanelViewModel extends ConversationPanelFrameModel {
+  embedded: boolean;
   composer: DmChatComposerModel;
   composerInteraction: ComposerInteractionSurfaceProps;
   feed: FeedModel;
@@ -59,7 +60,7 @@ export function DmChatPanelView({
   return (
     <ConversationPanelLayout>
       <ConversationPanelViewportArea
-        navigator={!isMobileLayout && model.sessionKey ? (
+        navigator={!model.embedded && !isMobileLayout && model.sessionKey ? (
           <ConversationSessionNavigator
             {...model.navigator}
             className="absolute inset-y-0 left-3 z-20"
@@ -67,11 +68,9 @@ export function DmChatPanelView({
         ) : undefined}
       >
         <ConversationPanelViewport
-          floatingDockOccupied={
-            model.executionPanel !== null
-            || model.todos.length > 0
-            || model.scrollToLatest.visible
-          }
+          floatingDockOccupied={model.scrollToLatest.visible || (!model.embedded && (
+            model.executionPanel !== null || model.todos.length > 0
+          ))}
           isMobileLayout={isMobileLayout}
           tourAnchor={CONVERSATION_TOUR_ANCHORS.feed}
           viewport={viewport}
@@ -80,7 +79,7 @@ export function DmChatPanelView({
         </ConversationPanelViewport>
       </ConversationPanelViewportArea>
       <ConversationPanelBottomArea
-        activity={
+        activity={!model.embedded ? (
           model.executionPanel
             ? <ExecutionProcessPanel {...model.executionPanel} />
             : model.todos.length > 0
@@ -91,8 +90,8 @@ export function DmChatPanelView({
                 />
               )
             : undefined
-        }
-        goal={<GoalPanel {...model.goalPanel} compact={isMobileLayout} />}
+        ) : undefined}
+        goal={!model.embedded ? <GoalPanel {...model.goalPanel} compact={isMobileLayout} /> : undefined}
         isMobileLayout={isMobileLayout}
         providerWarningVisible={model.providerWarningVisible}
         scrollToLatest={model.scrollToLatest}
