@@ -1,6 +1,6 @@
 /**
  * INPUT: 会话历史、slot/权限/execution 运行态与 round 索引。
- * OUTPUT: feed、navigator 与当前轮次共享的 session 视图状态。
+ * OUTPUT: feed、navigator、历史窗口加载反馈与当前轮次共享的 session 视图状态。
  * POS: 会话页面消费统一时间线模型的 React 装配入口。
  */
 import { useCallback, useMemo, useRef } from "react";
@@ -25,6 +25,7 @@ import {
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
 import { useVisibleRoundWindowLoader } from "../timeline/window-loader/use-visible-window-loader";
+import { buildVisibleRoundRevision } from "../timeline/window-loader/visible-window-revision";
 
 interface UseConversationSessionOptions {
   chatType: AgentConversationChatType;
@@ -59,10 +60,6 @@ export function useConversationSession({
       ? conversation.messages.filter((message) => messageTimestamp(message) >= visibleAfterUnixMilli)
       : conversation.messages,
     [conversation.messages, visibleAfterUnixMilli],
-  );
-  const visibleConversation = useMemo(
-    () => ({ ...conversation, messages: visibleMessages }),
-    [conversation, visibleMessages],
   );
   const scrollContentKey = useMemo(
     () => buildConversationScrollContentKey(sessionKey, visibleMessages),
@@ -147,12 +144,13 @@ export function useConversationSession({
   });
   const roundIndexItems = timeline.round_index_items;
   const useIndexedTimeline = roundIndexItems.length > 0;
-  useVisibleRoundWindowLoader({
+  const indexedHistory = useVisibleRoundWindowLoader({
     enabled: useIndexedTimeline,
     loadRoundWindow: conversation.load_round_window,
     revision: buildVisibleRoundRevision({
       feedRoundCount: timeline.feed_round_ids.length,
       liveRoundCount: conversation.live_round_ids.length,
+      loadedRoundIds: timeline.loaded_round_ids,
       messageCount: visibleMessages.length,
       pendingAgentSlotCount: conversation.pending_agent_slots.length,
       pendingPermissionCount: conversation.pending_permissions.length,
@@ -175,6 +173,15 @@ export function useConversationSession({
     prepareHistoryPrependRestore: scroll.prepareHistoryPrependRestore,
     scrollRef: scroll.scrollRef,
   });
+  const visibleConversation = useMemo(
+    () => ({
+      ...conversation,
+      is_history_loading:
+        conversation.is_history_loading || indexedHistory.isLoading,
+      messages: visibleMessages,
+    }),
+    [conversation, indexedHistory.isLoading, visibleMessages],
+  );
 
   return {
     conversation: visibleConversation,
@@ -192,31 +199,4 @@ function messageTimestamp(message: { timestamp?: unknown }): number {
     ? message.timestamp
     : Number(message.timestamp ?? 0);
   return Number.isFinite(value) ? value : 0;
-}
-
-interface VisibleRoundRevisionInput {
-  feedRoundCount: number;
-  liveRoundCount: number;
-  messageCount: number;
-  pendingAgentSlotCount: number;
-  pendingPermissionCount: number;
-  roomAgentExecutionStateCount: number;
-}
-
-function buildVisibleRoundRevision({
-  feedRoundCount,
-  liveRoundCount,
-  messageCount,
-  pendingAgentSlotCount,
-  pendingPermissionCount,
-  roomAgentExecutionStateCount,
-}: VisibleRoundRevisionInput): string {
-  return [
-    feedRoundCount,
-    messageCount,
-    pendingAgentSlotCount,
-    pendingPermissionCount,
-    roomAgentExecutionStateCount,
-    liveRoundCount,
-  ].join(":");
 }

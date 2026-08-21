@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 轮次投影、渲染器与共享滚动/feed refs。
- * OUTPUT: 使用稳定身份、真实内容高度、pending slot 估高和可见锚点策略的群聊虚拟消息流。
+ * OUTPUT: 使用稳定身份、可拉取的未加载占位、真实内容高度和 pending slot 估高的群聊虚拟消息流。
  * POS: Room 会话超过虚拟化阈值后的 Feed 渲染入口。
  */
 import { useCallback, useMemo } from "react";
@@ -11,6 +11,7 @@ import { ConversationVirtualCanvas } from "@/features/conversation/shared/feed/c
 import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "@/features/conversation/shared/feed/use-conversation-virtual-metrics";
 import {
+  resolveConversationVirtualPlaceholderHeight,
   shouldAdjustConversationVirtualScrollPosition,
   useConversationVirtualInitialOffset,
   useConversationVirtualItemKey,
@@ -148,6 +149,10 @@ export function GroupConversationVirtualFeed({
               isMobileLayout={isMobileLayout}
               key={state.roundId}
               measureRef={virtualizer.measureElement}
+              placeholderHeight={resolveConversationVirtualPlaceholderHeight(
+                state.isLoaded,
+                heightMap.get(state.roundId),
+              )}
               renderer={renderer}
               state={state}
             />

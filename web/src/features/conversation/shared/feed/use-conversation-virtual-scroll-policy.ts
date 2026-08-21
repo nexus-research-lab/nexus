@@ -1,11 +1,12 @@
 /**
  * INPUT: 跨 optimistic ACK 稳定的节点身份与 TanStack Virtual 动态尺寸测量。
- * OUTPUT: 仅在轮次集合真实变化时更新的 item key，以及服从共享 scroll owner 与 live 高度保护的动态测高策略。
+ * OUTPUT: 稳定 item key、未加载索引轮次的占位高度，以及服从共享 scroll owner 的动态测高策略。
  * POS: DM 与 Room 虚拟消息流共用的身份、尺寸变化和单写入者协议。
  */
 import { useCallback, useRef, type RefObject } from "react";
 
 const VIRTUAL_ANCHOR_TOLERANCE_PX = 1;
+const UNLOADED_ROUND_FALLBACK_HEIGHT_PX = 80;
 
 interface VirtualScrollItem {
   end: number;
@@ -23,6 +24,19 @@ export interface ConversationVirtualAdjustmentContext {
   bottomScrollActive: boolean;
   followingLatest: boolean;
   userScrollActive: boolean;
+}
+
+export function resolveConversationVirtualPlaceholderHeight(
+  isLoaded: boolean,
+  estimatedHeight: number | undefined,
+): number | undefined {
+  if (isLoaded) {
+    return undefined;
+  }
+  if (typeof estimatedHeight === "number" && Number.isFinite(estimatedHeight)) {
+    return Math.max(UNLOADED_ROUND_FALLBACK_HEIGHT_PX, estimatedHeight);
+  }
+  return UNLOADED_ROUND_FALLBACK_HEIGHT_PX;
 }
 
 export function useConversationVirtualItemKey(

@@ -1,6 +1,6 @@
 /**
  * INPUT: DM 单轮状态、消息 source 与渲染动作。
- * OUTPUT: 通用 MessageItem，并暴露稳定轮次身份与测量边界。
+ * OUTPUT: 通用 MessageItem，或保持索引估高的未加载轮次测量边界。
  * POS: DM 静态与虚拟 Feed 共用的轮次展示节点。
  */
 import type { Ref } from "react";
@@ -17,6 +17,7 @@ import {
 interface ConversationRoundProps {
   isMobileLayout: boolean;
   measureRef?: Ref<HTMLDivElement>;
+  placeholderHeight?: number;
   renderer: ConversationRoundRenderer;
   source: ConversationRoundSource;
   state: ConversationRoundState;
@@ -25,6 +26,7 @@ interface ConversationRoundProps {
 export function ConversationRound({
   isMobileLayout,
   measureRef,
+  placeholderHeight,
   renderer,
   source,
   state,
@@ -38,6 +40,7 @@ export function ConversationRound({
     <div
       ref={measureRef}
       className={isMobileLayout ? "pb-4" : "pb-1"}
+      style={placeholderHeight ? { minHeight: placeholderHeight } : undefined}
       data-index={measureRef ? state.index : undefined}
       data-conversation-round-id={state.roundId}
       data-conversation-round-index={state.index}

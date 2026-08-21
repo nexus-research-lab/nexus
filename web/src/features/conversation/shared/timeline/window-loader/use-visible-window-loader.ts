@@ -1,7 +1,13 @@
+/**
+ * INPUT: 当前索引时间线、滚动视口、消息驻留窗口 revision 与 round window loader。
+ * OUTPUT: 可见旧轮次的串行加载、顶部下拉显式重试和零布局加载状态。
+ * POS: 索引时间线按需恢复历史正文的 React 调度层。
+ */
 import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type RefObject,
 } from "react";
 
@@ -11,12 +17,13 @@ import {
   LOAD_RECHECK_DELAY_MS,
   buildExcludedRoundIds,
   cancelWindowLoaderRuntime,
-  clearWindowLoadAttempts,
   createWindowLoaderRuntime,
   createWindowLoadRequest,
   isCurrentWindowLoadRequest,
   recordWindowLoadResult,
+  refreshWindowLoaderContent,
   resetWindowLoaderScope,
+  shouldRefreshWindowLoaderFromPull,
   updateWindowLoaderScroll,
   type WindowLoaderRuntime,
   type WindowLoadRequest,
@@ -39,6 +46,7 @@ export function useVisibleRoundWindowLoader({
   scrollRef,
 }: UseVisibleRoundWindowLoaderOptions) {
   const frameRef = useRef<number | null>(null);
+  const [loadingRequest, setLoadingRequest] = useState<WindowLoadRequest | null>(null);
   const requestSequenceRef = useRef(0);
   const runCheckRef = useRef<() => void>(() => {});
   const runtimeRef = useRef(createWindowLoaderRuntime());
@@ -95,8 +103,16 @@ export function useVisibleRoundWindowLoader({
       roundId,
     );
     runtime.activeRequest = request;
+    setLoadingRequest(request);
     void runWindowLoad({
       loader: latest.loadRoundWindow!,
+      onSettled: () => {
+        setLoadingRequest((current) => (
+          current?.generation === request.generation && current.id === request.id
+            ? null
+            : current
+        ));
+      },
       request,
       runtime: runtimeRef,
       scheduleRetry,
@@ -113,7 +129,7 @@ export function useVisibleRoundWindowLoader({
   }, [scheduleCheck, scopeKey, scrollRef]);
 
   useEffect(() => {
-    clearWindowLoadAttempts(runtimeRef.current);
+    refreshWindowLoaderContent(runtimeRef.current);
     scheduleCheck();
   }, [revision, scheduleCheck]);
 
@@ -129,20 +145,68 @@ export function useVisibleRoundWindowLoader({
 
     const runtime = runtimeRef.current;
     updateWindowLoaderScroll(runtime, scrollElement.scrollTop);
+    let touchStartY: number | null = null;
+    const refreshFromPull = (pullDistance: number) => {
+      if (!shouldRefreshWindowLoaderFromPull(
+        scrollElement.scrollTop,
+        pullDistance,
+      )) {
+        return;
+      }
+      refreshWindowLoaderContent(runtime);
+      scheduleCheck();
+    };
     const handleScroll = () => {
       updateWindowLoaderScroll(runtime, scrollElement.scrollTop);
       scheduleCheck();
     };
+    const handleWheel = (event: WheelEvent) => {
+      refreshFromPull(-event.deltaY);
+    };
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartY = scrollElement.scrollTop <= 12
+        ? event.touches.item(0)?.clientY ?? null
+        : null;
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const currentY = event.touches.item(0)?.clientY;
+      if (touchStartY === null || currentY === undefined) {
+        return;
+      }
+      refreshFromPull(currentY - touchStartY);
+    };
+    const handleTouchEnd = () => {
+      touchStartY = null;
+    };
     scheduleCheck();
     scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+    scrollElement.addEventListener("wheel", handleWheel, { passive: true });
+    scrollElement.addEventListener("touchstart", handleTouchStart, { passive: true });
+    scrollElement.addEventListener("touchmove", handleTouchMove, { passive: true });
+    scrollElement.addEventListener("touchend", handleTouchEnd, { passive: true });
+    scrollElement.addEventListener("touchcancel", handleTouchEnd, { passive: true });
     window.addEventListener("resize", handleScroll);
     return () => {
       scrollElement.removeEventListener("scroll", handleScroll);
+      scrollElement.removeEventListener("wheel", handleWheel);
+      scrollElement.removeEventListener("touchstart", handleTouchStart);
+      scrollElement.removeEventListener("touchmove", handleTouchMove);
+      scrollElement.removeEventListener("touchend", handleTouchEnd);
+      scrollElement.removeEventListener("touchcancel", handleTouchEnd);
       window.removeEventListener("resize", handleScroll);
       cancelWindowLoaderRuntime(runtime);
       cancelScheduledCheck(frameRef, timeoutRef);
     };
   }, [scheduleCheck, scrollRef]);
+
+  return {
+    isLoading: Boolean(
+      enabled
+      && loadingRequest
+      && loadingRequest.generation === runtimeRef.current.generation
+      && runtimeRef.current.scopeKey === scopeKey,
+    ),
+  };
 }
 
 function canStartWindowLoad(
@@ -167,11 +231,13 @@ function canStartWindowLoad(
 
 async function runWindowLoad({
   loader,
+  onSettled,
   request,
   runtime,
   scheduleRetry,
 }: {
   loader: (roundId: string) => Promise<boolean>;
+  onSettled: () => void;
   request: WindowLoadRequest;
   runtime: RefObject<WindowLoaderRuntime>;
   scheduleRetry: (delay: number) => void;
@@ -200,6 +266,7 @@ async function runWindowLoad({
       return;
     }
     currentRuntime.activeRequest = null;
+    onSettled();
     if (nextCheckDelay !== null) {
       scheduleRetry(nextCheckDelay);
     }
