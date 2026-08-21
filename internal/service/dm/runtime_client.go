@@ -167,6 +167,28 @@ func (s *Service) ensureClient(
 		if err != nil {
 			return dmClientPreparation{}, err
 		}
+		if scopedPolicyActive && len(scopedPolicy.AllowedSkillNames) > 0 {
+			allowedSkillNames := make(map[string]struct{}, len(scopedPolicy.AllowedSkillNames))
+			for _, skillName := range scopedPolicy.AllowedSkillNames {
+				skillName = strings.TrimSpace(skillName)
+				if skillName != "" {
+					allowedSkillNames[skillName] = struct{}{}
+				}
+			}
+			filteredDisabledSkillNames := make([]string, 0, len(runtimeDisabledSkillNames)+len(runtimeSkillNames))
+			for _, skillName := range runtimeDisabledSkillNames {
+				if _, allowed := allowedSkillNames[strings.TrimSpace(skillName)]; !allowed {
+					filteredDisabledSkillNames = append(filteredDisabledSkillNames, skillName)
+				}
+			}
+			for _, skillName := range runtimeSkillNames {
+				if _, allowed := allowedSkillNames[strings.TrimSpace(skillName)]; !allowed {
+					filteredDisabledSkillNames = append(filteredDisabledSkillNames, skillName)
+				}
+			}
+			runtimeSkillNames = append([]string(nil), scopedPolicy.AllowedSkillNames...)
+			runtimeDisabledSkillNames = filteredDisabledSkillNames
+		}
 	}
 	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
@@ -213,13 +235,16 @@ func (s *Service) ensureClient(
 	}()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
+	if scopedPolicyActive {
+		sourceContextType = protocol.SessionPurposeWorkGraphEditor
+	}
 	runtimeBuilderContext := runtimectx.WithRuntimeRoundLease(ctx, sessionKey, request.RoundID)
 	runtimeCommandContext := runtimectx.RuntimeCommandContext{
 		Agent: agentValue, ScopeSessionKey: sessionKey, RuntimeSessionKey: sessionKey,
 		ExecutionID:        executionID,
 		CoordinatorAgentID: agentValue.AgentID,
 		RootRoundID:        request.RoundID, AgentRoundID: request.AgentRoundID,
-		SourceContextType: "agent", SourceContextID: agentValue.AgentID,
+		SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 		SourceContextLabel: agentValue.Name, PermissionMode: permissionMode,
 		GoalAuthority: goalAuthority, ResponsibilityAuthority: responsibilityState,
 		SDKSessionIdentity: sdkSessionIdentity,
@@ -240,7 +265,9 @@ func (s *Service) ensureClient(
 		}
 	}
 	runtimeCommandEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly && !scopedPolicyActive && s.runtimeCommandEnv != nil {
+	if !request.runtimePreparationOnly &&
+		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor) &&
+		s.runtimeCommandEnv != nil {
 		runtimeCommandEnv, err = s.runtimeCommandEnv(
 			runtimeBuilderContext,
 			runtimecommand.RoundContext{
@@ -268,7 +295,7 @@ func (s *Service) ensureClient(
 		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
 	)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
-	if s.mcpServers != nil {
+	if s.mcpServers != nil && !scopedPolicyActive {
 		mcpContext := runtimeBuilderContext
 		mcpContext = runtimectx.WithEnabledConnectorIDs(
 			mcpContext,

@@ -101,12 +101,12 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   `slash_name` 与 logical key 外，模型输出跟随当前界面语言；模型同时接收 owner 当前命令目录与固定保留名，
   默认生成一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不生成三个及以上词；若模型仍返回
   多词候选，service 按语义核心词优先收敛到未占用的单词，并继续负责最终冲突校验。用户可以直接修改命令名、标题和描述，或进入从源 transcript 最近一个已完成
-  助手轮次创建的目录隐藏短期 DM fork；该分支复用标准
-  DM 展示与 Composer，只挂载 owner/session-scoped 草图修改工具。模型可新增、删除、合并或拆分节点并修改
+  助手轮次创建的目录隐藏短期 DM fork；该分支采用左侧标准 DM、右侧实时预览的扁平双栏，
+  不挂载 MCP，只开放 `execution-orchestrator` Skill 与 owner/session-scoped `revise_workgraph_preview` CLI。模型可新增、删除、合并或拆分节点并修改
   objective、父子结构和依赖，每次提交带 revision 的完整草图；服务端校验 logical key、kind、DAG、key
   主路径与 terminal 交付，取消不改原 preview，明确应用才替换。用户确认后，
   Web 调用 preview save 调度端点，宿主启动 `HiddenFromUser + Synthetic +
-  purpose=workgraph_distillation` 的内部 Agent round，不生成聊天消息或改写 Composer；
+  purpose=workgraph_distillation` 的内部 Agent round，pending、过程、工具与完成事件全程隐藏，不生成聊天消息或改写 Composer；
   `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。
   Agent 不得重新 inspect、选节点、命名或抽象，HTTP 调度端点不得直接创建命名图；
 - inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为

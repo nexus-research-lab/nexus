@@ -133,6 +133,17 @@ func trustedRuntimeCommandActor(ctx context.Context, agent *protocol.Agent, acto
 		return false
 	}
 	switch actor.SourceContextType {
+	case protocol.SessionPurposeWorkGraphEditor:
+		if _, _, _, ok := trustedRuntimePrincipal(ctx, actor.OwnerUserID); !ok {
+			return false
+		}
+		parsed := protocol.ParseSessionKey(actor.SessionKey)
+		return actor.SessionKey == actor.LeaseSessionKey &&
+			parsed.IsStructured && parsed.Kind == protocol.SessionKeyKindAgent &&
+			parsed.Channel == protocol.SessionChannelWebSocketSegment &&
+			parsed.ChatType == protocol.RoomTypeDM &&
+			strings.TrimSpace(parsed.AgentID) == actor.AgentID &&
+			actor.SourceContextID == actor.AgentID
 	case "agent":
 		if _, _, _, ok := trustedRuntimePrincipal(ctx, actor.OwnerUserID); !ok {
 			return false
@@ -215,6 +226,11 @@ func newRuntimeCommandHandler(
 			return
 		}
 		var result any
+		if actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor &&
+			strings.ToLower(strings.TrimSpace(command.Domain)) != runtimecommand.DomainExecution {
+			writeRuntimeCommandError(writer, http.StatusUnprocessableEntity, "临时工作图编辑 Session 只允许 execution domain")
+			return
+		}
 		switch strings.ToLower(strings.TrimSpace(command.Domain)) {
 		case runtimecommand.DomainAutomation:
 			result, err = handleAutomationRuntimeCommand(request.Context(), automation, permissions, actor, command)
@@ -333,6 +349,33 @@ func handleExecutionRuntimeCommand(
 	command runtimecommand.Request,
 	workflowServices ...executioncontract.WorkflowService,
 ) (any, error) {
+	if actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor {
+		if len(workflowServices) == 0 || workflowServices[0] == nil {
+			return nil, errors.New("WorkGraph editor command service 尚未装配")
+		}
+		editorService, ok := workflowServices[0].(executioncontract.WorkflowEditorService)
+		if !ok || !editorService.RuntimeEditorActive(actor.OwnerUserID, actor.SessionKey) {
+			return nil, errors.New("当前 round 没有有效的 WorkGraph editor command identity")
+		}
+		sctx := executioncontract.Context{
+			OwnerUserID:       actor.OwnerUserID,
+			AgentID:           actor.AgentID,
+			ScopeSessionKey:   actor.SessionKey,
+			RuntimeSessionKey: actor.SessionKey,
+			RootRoundID:       actor.RoundID,
+			RuntimeRoundID:    actor.LeaseRoundID,
+			AgentRoundID:      actor.Round.CommandContext.AgentRoundID,
+			CommandAttempts:   actor.Round.Attempts,
+		}
+		return handleSemanticRuntimeCommand(
+			ctx,
+			actor,
+			runtimecommand.DomainExecution,
+			"",
+			executionoperation.BuildWorkGraphEditor(editorService, sctx),
+			command,
+		)
+	}
 	if svc == nil {
 		return nil, errors.New("Execution command service 尚未装配")
 	}

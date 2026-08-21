@@ -49,6 +49,7 @@ const SessionPurposeWorkGraphEditor = "workgraph_editor"
 type ScopedSessionRuntimePolicy struct {
 	SystemPrompt      string
 	ToolPolicy        RuntimeToolPolicy
+	AllowedSkillNames []string
 	DisableSkills     bool
 	DisableConnectors bool
 }

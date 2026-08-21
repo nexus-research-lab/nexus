@@ -1,6 +1,6 @@
 /**
  * INPUT: exact WorkGraph preview 与源 Session。
- * OUTPUT: 左侧实时草图 + 右侧标准 DM 消息/流式/工具/Composer 的短期 fork 编辑页。
+ * OUTPUT: 左侧标准 DM 对话 + 右侧实时草图预览的短期 fork 编辑页。
  * POS: 只装配既有草图与 DM 组件的对话编辑页；目录刷新不重建临时 Session，应用前不改写原 preview。
  */
 "use client";
@@ -181,7 +181,7 @@ export function WorkGraphMetadataEditorDialog({
         labelledBy="workgraph-metadata-editor-title"
         onClose={handleClose}
       >
-        <UiDialogShell className="pointer-events-auto h-[min(780px,88vh)] max-h-[88vh]" size="xl">
+        <UiDialogShell className="pointer-events-auto h-[min(720px,86vh)] max-h-[86vh]" size="wide">
           <UiDialogHeader
             icon={<MessageSquareText className="h-4 w-4" />}
             iconClassName="text-(--primary)"
@@ -190,27 +190,8 @@ export function WorkGraphMetadataEditorDialog({
             title={t("execution.workflow_editor_title")}
             titleId="workgraph-metadata-editor-title"
           />
-          <UiDialogBody className="grid min-h-0 flex-1 gap-3 overflow-hidden p-3 md:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-            <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-              <div className="shrink-0 rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-semibold text-(--text-strong)">{currentPreview.title}</h3>
-                  <code className="rounded-[6px] bg-(--surface-control-background) px-1.5 py-0.5 text-[11px] text-(--text-soft)">/{currentPreview.slash_name}</code>
-                </div>
-                <p className="mt-1.5 text-xs leading-5 text-(--text-muted)">{currentPreview.description}</p>
-              </div>
-              <NamedWorkGraphSketch
-                key={editor?.revision ?? 0}
-                className="min-h-0 flex-1"
-                dependencies={currentPreview.dependencies}
-                nodes={currentPreview.nodes}
-              />
-            </div>
-
-            <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-canvas-background)">
-              <div className="shrink-0 border-b border-(--divider-subtle-color) px-3 py-2 text-[11px] font-semibold text-(--text-soft)">
-                {t("execution.workflow_editor_chat_label")}
-              </div>
+          <UiDialogBody className="grid min-h-0 flex-1 overflow-hidden p-0 md:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+            <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-canvas-background)">
               {loading ? (
                 <div className="grid min-h-0 flex-1 place-items-center text-xs text-(--text-muted)">
                   <span className="inline-flex items-center gap-2">
@@ -238,6 +219,24 @@ export function WorkGraphMetadataEditorDialog({
                   {error ?? t("execution.workflow_editor_start_failed")}
                 </div>
               )}
+            </div>
+
+            <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-(--divider-subtle-color) bg-(--surface-muted-background)">
+              <div className="shrink-0 border-b border-(--divider-subtle-color) px-4 py-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <h3 className="truncate text-sm font-semibold text-(--text-strong)">{currentPreview.title}</h3>
+                  <code className="rounded-[6px] bg-(--surface-control-background) px-1.5 py-0.5 text-[11px] text-(--text-soft)">/{currentPreview.slash_name}</code>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-(--text-muted)">{currentPreview.description}</p>
+              </div>
+              <div className="min-h-0 flex-1 p-3">
+                <NamedWorkGraphSketch
+                  key={editor?.revision ?? 0}
+                  className="h-full min-h-0"
+                  dependencies={currentPreview.dependencies}
+                  nodes={currentPreview.nodes}
+                />
+              </div>
             </div>
           </UiDialogBody>
           <UiDialogFooter className="items-center justify-between gap-3">

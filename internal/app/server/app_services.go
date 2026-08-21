@@ -404,7 +404,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		contextOnlyMCPBuilder(imagegenBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
-	mcpBuilder := workGraphEditorAwareMCPBuilder(workGraphWorkflowService, standardMCPBuilder)
+	mcpBuilder := standardMCPBuilder
 	dmService.SetMCPServerBuilder(dmsvc.MCPServerBuilder(mcpBuilder))
 	roomRealtime.SetMCPServerBuilder(roomrealtime.MCPServerBuilder(mcpBuilder))
 	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
