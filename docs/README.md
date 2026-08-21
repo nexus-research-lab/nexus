@@ -13,6 +13,7 @@
 | Room Skill 编写 | [中文指南](./guides/room-skill-authoring.md) · [英文指南](./guides/room-skill-authoring.en.md) |
 | Linux 生产隔离 | [Linux Runtime 隔离运维](./operations/runtime-isolation.md) |
 | OpenAI Responses runtime | [OpenAI Responses runtime 集成](./specs/openai-responses-runtime-spec.md) |
+| Echo 主动跟进 | [Echo 主动跟进模块](./specs/echo-spec.md) |
 | 维护者回归测试 | [Nexus 回归测试总目录](./testing/nexus-regression-catalog.md) · [会话打开与最新消息滚动](./testing/conversation-latest-scroll-regression.md) |
 
 ## 维护者规范
@@ -41,8 +42,9 @@
 - [Nexus Skill 模型与运行时规范](./specs/skill-spec.md)
 - [Connector OAuth 规范](./specs/connector-oauth-spec.md)
 - [定时自动化权限规范](./specs/automation-permission-pipeline-spec.md)
-- [Nexus 对话配置控制面](./specs/conversational-configuration-control-spec.md)
+- [Echo 主动跟进模块规范](./specs/echo-spec.md)
 - [Browser 能力规范](./specs/browser-spec.md)
+- [Nexus 对话配置控制面](./specs/conversational-configuration-control-spec.md)
 
 ## API 状态
 

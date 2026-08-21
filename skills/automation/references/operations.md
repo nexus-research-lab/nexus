@@ -23,7 +23,6 @@ contract 同时返回宿主为当前 physical round 预建的 `input_staging.pat
 - `get`：`job_id` 或可唯一定位的 `query`；可选 `run_limit`、`event_limit`。
 - `runs` / `events`：`job_id` 或唯一 `query`；支持已删除任务历史。
 - `report`：可选 `date`、`timezone`、`agent_id`、`job_id` 或唯一 `query`。
-- `heartbeat`：可选 `agent_id`；外部 IM round 不开放。
 
 后台 scheduled run 省略 `job_id` 时自动使用宿主绑定的当前任务；不能改查其他任务。
 
@@ -84,10 +83,3 @@ Cron 接受标准五段表达式。日/周与每月表达式会映射为可视�
 - `delete`：`job_id` 或唯一 `query`。
 - `run`：`job_id` 或唯一 `query`；只触发一次，不改变排程，也不自动启用停用任务。
 - `retry_delivery`：`job_id` 或唯一 `query`，以及失败投递的精确 `run_id`；只重投递结果。
-
-### set_heartbeat / wake
-
-- `set_heartbeat`：可选 `agent_id`、`enabled`、`every_seconds`、`target_mode=none|last`、`ack_max_chars`。
-- `wake`：可选 `agent_id`、`mode=now|next-heartbeat`、`text`。
-
-Heartbeat 是宽松周期机制。需要保证用户在准确时间看到结果时创建 scheduled task。

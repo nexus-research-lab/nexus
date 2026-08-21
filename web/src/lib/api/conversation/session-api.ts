@@ -40,6 +40,13 @@ export interface SessionRuntimeSettings {
   connector_ids: string[] | null;
 }
 
+export type SessionEchoMode = "inherit" | "enabled" | "disabled";
+
+export interface SessionEchoOverride {
+  mode: SessionEchoMode;
+  enabled: boolean;
+}
+
 export interface SessionLocalDirectories {
   directories: string[];
 }
@@ -210,6 +217,30 @@ export async function updateSessionRuntimeSettingsApi(
     {
       method: "PUT",
       body: JSON.stringify(settings),
+    },
+  );
+}
+
+export async function getSessionEchoApi(
+  sessionKey: string,
+): Promise<SessionEchoOverride> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  return requestApi<SessionEchoOverride>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}/echo`,
+    { method: "GET" },
+  );
+}
+
+export async function updateSessionEchoApi(
+  sessionKey: string,
+  mode: SessionEchoMode,
+): Promise<SessionEchoOverride> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  return requestApi<SessionEchoOverride>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}/echo`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ mode }),
     },
   );
 }

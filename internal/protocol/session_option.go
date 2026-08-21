@@ -33,6 +33,8 @@ const (
 	OptionSessionConnectorIDs = "session_connector_ids"
 	// OptionSessionAdditionalDirectories 表示桌面会话显式挂载的本机目录。
 	OptionSessionAdditionalDirectories = "session_additional_directories"
+	// OptionSessionEchoMode 表示当前 DM 对用户级 Echo 策略的覆盖。
+	OptionSessionEchoMode = "session_echo_mode"
 )
 
 // SessionRuntimeSettings 表示当前 Nexus Session 的运行时覆盖。
@@ -157,6 +159,26 @@ func WithSessionAdditionalDirectories(
 		delete(result, OptionSessionAdditionalDirectories)
 	} else {
 		result[OptionSessionAdditionalDirectories] = normalized
+	}
+	return result
+}
+
+// SessionEchoModeFromOptions 读取会话级 Echo 覆盖；空值表示继承。
+func SessionEchoModeFromOptions(options map[string]any) string {
+	return sessionOptionString(options[OptionSessionEchoMode])
+}
+
+// WithSessionEchoMode 返回应用 Echo 覆盖后的 options 副本。
+func WithSessionEchoMode(options map[string]any, mode string) map[string]any {
+	result := make(map[string]any, len(options)+1)
+	for key, value := range options {
+		result[key] = value
+	}
+	mode = strings.TrimSpace(mode)
+	if mode == "" || mode == "inherit" {
+		delete(result, OptionSessionEchoMode)
+	} else {
+		result[OptionSessionEchoMode] = mode
 	}
 	return result
 }

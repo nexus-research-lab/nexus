@@ -70,6 +70,7 @@ export interface AssistantFooterStats {
 interface AssistantHeaderState {
   agentId: string | null;
   automationTaskName: string | null;
+  echo: boolean;
   canStop: boolean;
   handoffReply: PublicHandoffReply | null;
   stop: () => void;

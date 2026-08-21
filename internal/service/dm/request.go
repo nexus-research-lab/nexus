@@ -62,6 +62,7 @@ func (s *Service) handleChat(
 	if err != nil {
 		return err
 	}
+	execution.cancelEchoForUserActivity()
 	if handled, routeErr := execution.routeRunningInput(); handled || routeErr != nil {
 		return routeErr
 	}
@@ -362,6 +363,12 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		)
 		return dmRuntimePreparation{}, err
 	}
+	if (strings.TrimSpace(e.request.InputOptions.ToolAccess) != "" ||
+		e.request.InputOptions.MaxOutputTokens > 0) &&
+		!runtimectx.SupportsMessageExecutionPolicy(clientPreparation.client) {
+		clientPreparation.commandResources.Close()
+		return dmRuntimePreparation{}, errors.New("当前 Agent runtime 不支持消息级执行策略")
+	}
 	resourcesTransferred := false
 	defer func() {
 		if !resourcesTransferred {
@@ -427,6 +434,8 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		internal:                   e.request.Internal,
 		trustedExternalInteractive: e.request.TrustedExternalInteractiveContext,
 		externalReplyTarget:        e.request.ExternalReplyTarget,
+		executionOrigin:            strings.TrimSpace(e.request.ExecutionOrigin),
+		deferredAssistant:          e.request.DeferredAssistant,
 		executionID:                strings.TrimSpace(e.request.ExecutionID),
 		goalObjectiveRevision:      &atomic.Int64{},
 		goalUsage:                  goalsvc.NewRuntimeUsageAccumulator(false),
@@ -552,10 +561,18 @@ func (e *dmChatExecution) startRound() bool {
 // claimed receipt while runtime setup is in flight; that cancellation must be
 // observed before the goroutine is allowed to query the model.
 func (e *dmChatExecution) admitContinuationStart() error {
-	if e == nil || e.request.continuationStartAdmission == nil {
+	if e == nil {
 		return nil
 	}
-	return e.request.continuationStartAdmission(e.ctx)
+	if e.request.StartAdmission != nil {
+		if err := e.request.StartAdmission(e.ctx); err != nil {
+			return err
+		}
+	}
+	if e.request.continuationStartAdmission != nil {
+		return e.request.continuationStartAdmission(e.ctx)
+	}
+	return nil
 }
 
 // abortRegisteredRound removes only the just-registered physical round. No
@@ -752,13 +769,17 @@ func (e *dmChatExecution) launch() {
 		)
 		e.broadcastAck()
 	}
-	e.broadcastRoundStarted(e.ctx)
+	if e.request.DeferredAssistant == nil {
+		e.broadcastRoundStarted(e.ctx)
+	}
 	go e.runner.run(e.roundCtx)
 }
 
 func (e *dmChatExecution) broadcastAcceptance() {
 	e.broadcastAck()
-	e.broadcastRoundStarted(e.runtimeContext())
+	if e.request.DeferredAssistant == nil {
+		e.broadcastRoundStarted(e.runtimeContext())
+	}
 }
 
 func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {

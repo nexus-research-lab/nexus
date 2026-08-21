@@ -211,7 +211,6 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("automation", "references", "operations.md"): {
 			"Automation CLI 操作",
 			"retry_delivery",
-			"set_heartbeat",
 			"cross_agent_allowed",
 			"current_revision",
 		},

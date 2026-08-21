@@ -1,4 +1,4 @@
-// INPUT: 用户级偏好、局部更新请求与 runtime/WebSearch/浏览器权限约束。
+// INPUT: 用户级偏好、局部更新请求与 runtime/WebSearch/浏览器/主动跟进约束。
 // OUTPUT: 带单调 version 的规范化 Preferences 及字段校验。
 // POS: Preferences 文件真相源的数据契约；version 只由 Service 写入推进。
 package preferences
@@ -22,6 +22,7 @@ type Preferences struct {
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	EmotionEnabled                  bool                        `json:"emotion_enabled,omitempty"`
 	BrowserCDPEnabled               bool                        `json:"browser_cdp_enabled,omitempty"`
+	EchoEnabled                     bool                        `json:"echo_enabled,omitempty"`
 	RuntimeSettings                 RuntimeSettings             `json:"runtime_settings"`
 	WebSearch                       WebSearchSettings           `json:"web_search"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
@@ -45,6 +46,7 @@ type UpdateRequest struct {
 	DefaultImageModelSelection      *ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultVisionModelSelection     *ModelSelection              `json:"default_vision_model_selection,omitempty"`
 	DefaultBackgroundModelSelection *ModelSelection              `json:"default_background_model_selection,omitempty"`
+	echoEnabled                     *bool
 }
 
 // RuntimeSettings 保存按 runtime 隔离的设置。
@@ -208,6 +210,7 @@ func normalizePreferences(item Preferences) Preferences {
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
 		EmotionEnabled:                  item.EmotionEnabled,
 		BrowserCDPEnabled:               item.BrowserCDPEnabled,
+		EchoEnabled:                     item.EchoEnabled,
 		RuntimeSettings:                 normalizeRuntimeSettings(item.RuntimeSettings),
 		WebSearch:                       webSearch,
 		DefaultAgentOptions:             options,

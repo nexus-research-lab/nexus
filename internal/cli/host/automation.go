@@ -13,7 +13,6 @@ func newAutomationCommand(services *cliServiceProvider) *cobra.Command {
 		Short: "automation 领域命令",
 	}
 	command.AddCommand(newScheduledTaskCommand(services))
-	command.AddCommand(newHeartbeatCommand(services))
 	return command
 }
 
@@ -90,14 +89,12 @@ type scheduledTaskTargetFlags struct {
 	kind            string
 	boundSessionKey string
 	namedSessionKey string
-	wakeMode        string
 }
 
 func (f *scheduledTaskTargetFlags) bind(command *cobra.Command, defaultKind string) {
 	command.Flags().StringVar(&f.kind, "target-kind", defaultKind, "isolated|main|bound|named")
 	command.Flags().StringVar(&f.boundSessionKey, "bound-session-key", "", "bound session key")
 	command.Flags().StringVar(&f.namedSessionKey, "named-session-key", "", "named session key")
-	command.Flags().StringVar(&f.wakeMode, "wake-mode", automationdomain.WakeModeNextHeartbeat, "now|next-heartbeat")
 }
 
 func (f scheduledTaskTargetFlags) value() automationdomain.SessionTarget {
@@ -105,7 +102,7 @@ func (f scheduledTaskTargetFlags) value() automationdomain.SessionTarget {
 		Kind:            f.kind,
 		BoundSessionKey: f.boundSessionKey,
 		NamedSessionKey: f.namedSessionKey,
-		WakeMode:        f.wakeMode,
+		WakeMode:        automationdomain.WakeModeNextHeartbeat,
 	}
 }
 

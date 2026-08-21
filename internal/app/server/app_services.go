@@ -26,6 +26,7 @@ import (
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	echosvc "github.com/nexus-research-lab/nexus/internal/service/echo"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
@@ -71,6 +72,7 @@ type AppServices struct {
 	ChannelAuthorization   *channelauthorizationsvc.Service
 	Communication          *communicationsvc.Service
 	DM                     *dmsvc.Service
+	Echo                   *echosvc.Service
 	Ingress                *channels.IngressService
 	RoomRealtime           *roomrealtime.Service
 	Automation             *automationsvc.Service
@@ -239,6 +241,21 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Room.SetConversationSessionForker(dmService)
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
+	echoService := echosvc.NewService(
+		cfg,
+		db,
+		core.Agent,
+		core.Session,
+		dmService,
+		runtimeManager,
+		providerService,
+		preferencesService,
+	)
+	echoService.SetLogger(logger.With("component", "echo"))
+	dmService.SetEchoLifecycleHooks(dmsvc.EchoLifecycleHooks{
+		OnUserActivity: echoService.OnUserActivity,
+		OnTerminal:     echoService.OnTerminal,
+	})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
@@ -425,6 +442,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		ChannelAuthorization:   channelAuthorization,
 		Communication:          communicationService,
 		DM:                     dmService,
+		Echo:                   echoService,
 		Ingress:                ingressService,
 		RoomRealtime:           roomRealtime,
 		Automation:             automationService,

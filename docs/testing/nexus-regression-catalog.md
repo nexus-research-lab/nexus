@@ -498,7 +498,7 @@ cd ../nexus-agent-sdk-go && GOWORK=off go test ./...
 | NX-CHAN-05 | 外部回复 | 文本、工具状态、权限提示和终态按平台能力投递；平台失败不吞 Nexus 内部结果 |
 | NX-CHAN-06 | 外部权限命令 | `/y`、`/a`、`/d` 只处理当前会话唯一 pending；歧义或跨 Agent 请求 fail closed |
 
-### 7.5 Automation、Heartbeat 与恢复
+### 7.5 Automation、Echo 与恢复
 
 | 用例 | 功能 | 核心通过标准 |
 | --- | --- | --- |
@@ -511,7 +511,10 @@ cd ../nexus-agent-sdk-go && GOWORK=off go test ./...
 | NX-AUTO-07 | Crash recovery | server/runtime 在不同阶段退出后，recover 按 durable state 续跑或明确终止 |
 | NX-AUTO-08 | Session rebind | 绑定 Session 删除后任务停用为 rebind-required；改绑成功前不能继续运行 |
 | NX-AUTO-09 | Daily report | 日期、时区、成功/失败/待确认统计和费用与 run ledger 一致 |
-| NX-HEART-01 | Heartbeat | 配置、读取和手动 wake 幂等；并发 wake 合并且不越过 Agent/owner scope |
+| NX-ECHO-01 | Echo 候选 | 成功 DM round 只产生一个候选；内部 round、Room 与外部 IM 不产生候选 |
+| NX-ECHO-02 | Echo 让路 | 新用户输入、全局关闭或会话暂停能取消等待、判断中与生成中的 Echo |
+| NX-ECHO-03 | Echo 限频 | 活跃时段、同 Session cooldown、用户级每日上限和 7 天过期边界正确 |
+| NX-ECHO-04 | Echo 隔离 | 最终消息只提交一次并显示 Echo 标识；无工具、无权限、无维护任务，超出输出预算时静默 |
 
 ### 7.6 Goal、Execution 与配置控制面
 
@@ -691,7 +694,7 @@ go test ./internal/provider/... ./internal/tools/... ./internal/memory/...
 | 账户、Agent 或 Session | NX-AUTH、NX-AGENT、NX-SESSION 全组 |
 | Workspace、附件或 Skill | NX-WS、NX-ATTACH、NX-MEMUI、NX-SKILL 全组 |
 | Connector、MCP 或外部通道 | NX-CONN、NX-MCP、NX-CHAN 与 NXS-MCP 全组 |
-| Automation 或 Heartbeat | NX-AUTO、NX-HEART、PERM-03、ROOM-04 |
+| Automation 或 Echo | NX-AUTO、NX-ECHO、PERM-03、SESSION-03 |
 | Goal、Execution 或配置控制面 | NX-GOAL、NX-EXEC、NX-AUTHZ、NX-CONFIG 全组 |
 | NXS 公开 API/control wire | NXS-API、NXS-CTRL、NXS-WIRE 全组 |
 | NXS Provider | NXS-PROV 全组，凭据允许时补 live tests |

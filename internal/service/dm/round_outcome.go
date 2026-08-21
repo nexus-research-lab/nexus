@@ -24,6 +24,10 @@ func (r *roundRunner) failRoundAtPhase(
 	err error,
 	failurePhase string,
 ) {
+	if r.deferredAssistant != nil {
+		r.finishDeferredFailure(echoDeferredStatusFailed, err)
+		return
+	}
 	if interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
 		r.finishInterrupted(result, interruptReason)
 		return
@@ -176,6 +180,10 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 }
 
 func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, resultText string) {
+	if r.deferredAssistant != nil {
+		r.finishDeferredFailure(echoDeferredStatusCancelled, errors.New(strings.TrimSpace(resultText)))
+		return
+	}
 	resultText = messagepkg.NormalizeInterruptDisplayText(resultText)
 	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,

@@ -9,6 +9,7 @@ import (
 	channelhandler "github.com/nexus-research-lab/nexus/internal/handler/channel"
 	connectorhandler "github.com/nexus-research-lab/nexus/internal/handler/connector"
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
+	echohandler "github.com/nexus-research-lab/nexus/internal/handler/echo"
 	executionhandler "github.com/nexus-research-lab/nexus/internal/handler/execution"
 	goalhandler "github.com/nexus-research-lab/nexus/internal/handler/goal"
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
@@ -37,6 +38,7 @@ type handlerSet struct {
 	subscription *subscriptionhandler.Handlers
 	goal         *goalhandler.Handlers
 	execution    *executionhandler.Handlers
+	echo         *echohandler.Handlers
 	launcher     *launcherhandler.Handlers
 	loop         *loophandler.Handlers
 	workspace    *workspacehandler.Handlers
@@ -89,6 +91,7 @@ func newHandlerSet(
 		subscription: subscriptionhandler.New(api, services.Subscription),
 		goal:         goalhandler.New(api, services.Goal),
 		execution:    executionhandler.New(api, services.Orchestration),
+		echo:         echohandler.New(api, services.Echo),
 		launcher:     launcherhandler.New(api, services.Launcher),
 		loop:         loophandler.New(api, services.Loops),
 		workspace:    workspacehandler.New(api, services.Workspace),

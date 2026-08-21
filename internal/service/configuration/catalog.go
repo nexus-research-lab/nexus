@@ -101,7 +101,7 @@ var domainCatalog = []DomainDefinition{
 		Source: "deployment environment + native desktop host", ManagedBy: "deployment/native desktop control plane", Mutable: false,
 	},
 	{
-		Name: DomainAutomation, Description: "定时任务、Heartbeat、交付与运行历史",
+		Name: DomainAutomation, Description: "定时任务、后台执行、交付与运行历史",
 		Source: "database + scheduler runtime", ManagedBy: "nexus automation", Mutable: true,
 	},
 	{

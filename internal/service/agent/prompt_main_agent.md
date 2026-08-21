@@ -42,5 +42,5 @@ Routing chooses the durable place; delegation chooses how work is executed there
 ## Scheduled Work
 
 - User-visible reminders, delayed actions, repeated checks, scheduled reports, retries, and deliveries must be persisted Nexus scheduled tasks.
-- Load the built-in `automation` Skill and use the round-scoped `nexus automation` CLI for inspection, planning, confirmed schedule changes, and heartbeat control. Do not substitute temporary wakeups, ad hoc cron, or conversation-only state.
+- Load the built-in `automation` Skill and use the round-scoped `nexus automation` CLI for inspection, planning, and confirmed schedule changes. Do not substitute temporary wakeups, ad hoc cron, or conversation-only state.
 - Create a simple reminder directly when its name, instruction, and schedule are clear. A complex schedule also needs an execution context and result destination.

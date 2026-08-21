@@ -102,14 +102,14 @@ func (s *Service) materializeLoadedPlanProposal(
 	for attempt := 0; attempt < 3; attempt++ {
 		switch proposal.Status {
 		case protocol.ExecutionPlanProposalStatusSealed:
-			reservedExecutionID := strings.TrimSpace(proposal.TargetExecutionID)
+			reservedExecutionID := proposal.TargetExecutionID
 			if proposal.Document.Operation != protocol.ExecutionPlanProposalReplan {
 				reservedExecutionID = deterministicProposalExecutionID(
 					proposal.ID,
 					proposal.ContentDigest,
 				)
-				if strings.TrimSpace(proposal.GoalReservedExecutionID) != "" {
-					reservedExecutionID = strings.TrimSpace(proposal.GoalReservedExecutionID)
+				if proposal.GoalReservedExecutionID != "" {
+					reservedExecutionID = proposal.GoalReservedExecutionID
 				}
 			}
 			nextAttemptAt := s.currentTime().Add(planProposalRetryDelay)
@@ -258,11 +258,11 @@ func (s *Service) materializeAuthoritativePlan(
 	}
 	materializationActor := proposalActor(proposal)
 	materializationActor.ActorKind = normalizeActorKind(actor.ActorKind)
-	materializationActor.ExecutionID = strings.TrimSpace(proposal.TargetExecutionID)
+	materializationActor.ExecutionID = proposal.TargetExecutionID
 
 	document := proposal.Document
 	input := PlanExecutionInput{
-		ExecutionID:         strings.TrimSpace(proposal.TargetExecutionID),
+		ExecutionID:         proposal.TargetExecutionID,
 		SnapshotRevision:    proposal.TargetExecutionVersion,
 		CommandID:           proposal.MaterializationCommandID,
 		ReservedExecutionID: proposal.ReservedExecutionID,
@@ -405,13 +405,13 @@ func (s *Service) validateProposalTargetFence(
 	if current.Plan != nil {
 		basePlanID = strings.TrimSpace(current.Plan.ID)
 	}
-	if basePlanID != strings.TrimSpace(proposal.BasePlanID) {
+	if basePlanID != proposal.BasePlanID {
 		return nil, domainError(
 			ErrorCodePlanProposalStale,
 			"active Plan changed after this proposal was sealed",
 		)
 	}
-	if strings.TrimSpace(current.Execution.GoalID) != strings.TrimSpace(proposal.GoalID) ||
+	if strings.TrimSpace(current.Execution.GoalID) != proposal.GoalID ||
 		current.Execution.GoalObjectiveRevision != proposal.GoalObjectiveRevision {
 		return nil, domainError(
 			ErrorCodePlanProposalStale,
@@ -431,7 +431,7 @@ func (s *Service) recoverProposalMaterialization(
 	actor ActorContext,
 	proposal *protocol.ExecutionPlanProposal,
 ) (*recoveredPlanMaterialization, error) {
-	reservedExecutionID := strings.TrimSpace(proposal.ReservedExecutionID)
+	reservedExecutionID := proposal.ReservedExecutionID
 	if reservedExecutionID == "" {
 		return nil, errors.New("materializing proposal has no reserved Execution identity")
 	}
@@ -485,7 +485,7 @@ func proposalMatchesSnapshot(
 	case protocol.ExecutionPlanProposalCreate:
 		if snapshot.Execution.ID != proposal.ReservedExecutionID ||
 			strings.TrimSpace(snapshot.Execution.ReplacesExecutionID) !=
-				strings.TrimSpace(proposal.ReplacesExecutionID) {
+				proposal.ReplacesExecutionID {
 			return false, nil
 		}
 	case protocol.ExecutionPlanProposalReplan:
@@ -501,7 +501,7 @@ func proposalMatchesSnapshot(
 		return false, nil
 	}
 	if proposal.Document.Operation != protocol.ExecutionPlanProposalReplan {
-		if strings.TrimSpace(snapshot.Execution.Objective) != strings.TrimSpace(proposal.Document.Objective) ||
+		if strings.TrimSpace(snapshot.Execution.Objective) != proposal.Document.Objective ||
 			!slices.Equal(
 				normalizeNonEmptyValues(snapshot.Execution.CompletionCriteria),
 				normalizeNonEmptyValues(proposal.Document.CompletionCriteria),
@@ -509,7 +509,7 @@ func proposalMatchesSnapshot(
 			return false, nil
 		}
 	}
-	if strings.TrimSpace(snapshot.Execution.GoalID) != strings.TrimSpace(proposal.GoalID) ||
+	if strings.TrimSpace(snapshot.Execution.GoalID) != proposal.GoalID ||
 		snapshot.Execution.GoalObjectiveRevision != proposal.GoalObjectiveRevision {
 		return false, nil
 	}
@@ -521,12 +521,12 @@ func sealedProposalGoalBinding(proposal *protocol.ExecutionPlanProposal) *Explic
 		return &ExplicitGoalBinding{}
 	}
 	return &ExplicitGoalBinding{
-		ExecutionID:           strings.TrimSpace(proposal.ReservedExecutionID),
-		GoalID:                strings.TrimSpace(proposal.GoalID),
+		ExecutionID:           proposal.ReservedExecutionID,
+		GoalID:                proposal.GoalID,
 		GoalObjectiveRevision: proposal.GoalObjectiveRevision,
 		ActivationOrigin:      proposal.GoalActivationOrigin,
 		ActivationReason:      proposal.GoalActivationReason,
-		ReplacesExecutionID:   strings.TrimSpace(proposal.ReplacesExecutionID),
+		ReplacesExecutionID:   proposal.ReplacesExecutionID,
 	}
 }
 
@@ -538,26 +538,26 @@ func proposalGoalActivationMatches(
 		return false
 	}
 	if activation == nil {
-		return strings.TrimSpace(proposal.GoalID) == "" &&
+		return proposal.GoalID == "" &&
 			proposal.GoalObjectiveRevision == 0 &&
 			proposal.GoalActivationOrigin == "" &&
 			proposal.GoalActivationReason == "" &&
-			strings.TrimSpace(proposal.GoalReservedExecutionID) == "" &&
-			strings.TrimSpace(proposal.ReplacesExecutionID) == ""
+			proposal.GoalReservedExecutionID == "" &&
+			proposal.ReplacesExecutionID == ""
 	}
-	proposalReservedExecutionID := strings.TrimSpace(proposal.GoalReservedExecutionID)
+	proposalReservedExecutionID := proposal.GoalReservedExecutionID
 	activationReservedExecutionID := strings.TrimSpace(activation.ReservedExecutionID)
 	reservationMatches := proposalReservedExecutionID == activationReservedExecutionID
 	if proposalReservedExecutionID == "" && activationReservedExecutionID != "" {
 		reservationMatches = true
 	}
-	return strings.TrimSpace(proposal.GoalID) == strings.TrimSpace(activation.GoalID) &&
+	return proposal.GoalID == strings.TrimSpace(activation.GoalID) &&
 		proposal.GoalObjectiveRevision == activation.GoalObjectiveRevision &&
-		strings.TrimSpace(proposal.Document.Objective) == strings.TrimSpace(activation.Objective) &&
+		proposal.Document.Objective == strings.TrimSpace(activation.Objective) &&
 		proposal.GoalActivationOrigin == activation.ActivationOrigin &&
 		proposal.GoalActivationReason == activation.ActivationReason &&
 		reservationMatches &&
-		strings.TrimSpace(proposal.ReplacesExecutionID) ==
+		proposal.ReplacesExecutionID ==
 			strings.TrimSpace(activation.ReplacesExecutionID)
 }
 
@@ -700,8 +700,8 @@ func exactMaterializedPlanProposalReceipt(
 ) bool {
 	return proposal != nil &&
 		proposal.Status == protocol.ExecutionPlanProposalStatusMaterialized &&
-		strings.TrimSpace(proposal.MaterializedExecutionID) == strings.TrimSpace(executionID) &&
-		strings.TrimSpace(proposal.MaterializedPlanID) == strings.TrimSpace(planID)
+		proposal.MaterializedExecutionID == strings.TrimSpace(executionID) &&
+		proposal.MaterializedPlanID == strings.TrimSpace(planID)
 }
 
 func (s *Service) finishMaterializedPlanProposal(
@@ -709,7 +709,7 @@ func (s *Service) finishMaterializedPlanProposal(
 	actor ActorContext,
 	proposal *protocol.ExecutionPlanProposal,
 ) (MutationResult, error) {
-	executionID := strings.TrimSpace(proposal.MaterializedExecutionID)
+	executionID := proposal.MaterializedExecutionID
 	snapshot, err := s.GetSnapshot(ctx, actor, executionID)
 	if err != nil {
 		return MutationResult{}, err
@@ -883,20 +883,20 @@ func (s *Service) reloadPlanProposal(
 
 func proposalActor(proposal *protocol.ExecutionPlanProposal) ActorContext {
 	return ActorContext{
-		OwnerUserID:           strings.TrimSpace(proposal.OwnerUserID),
-		SessionKey:            strings.TrimSpace(proposal.SessionKey),
-		ExecutionID:           strings.TrimSpace(proposal.TargetExecutionID),
-		GoalID:                strings.TrimSpace(proposal.GoalID),
+		OwnerUserID:           proposal.OwnerUserID,
+		SessionKey:            proposal.SessionKey,
+		ExecutionID:           proposal.TargetExecutionID,
+		GoalID:                proposal.GoalID,
 		GoalObjectiveRevision: proposal.GoalObjectiveRevision,
-		AgentID:               strings.TrimSpace(proposal.CoordinatorAgentID),
+		AgentID:               proposal.CoordinatorAgentID,
 		Role:                  ExecutionActorCoordinator,
 		ActorKind:             protocol.ExecutionActorAgent,
 		ScopeKind:             proposal.ScopeKind,
-		RoomID:                strings.TrimSpace(proposal.RoomID),
-		ConversationID:        strings.TrimSpace(proposal.ConversationID),
-		RootRoundID:           strings.TrimSpace(proposal.RootRoundID),
-		RuntimeRoundID:        strings.TrimSpace(proposal.RuntimeRoundID),
-		AgentRoundID:          strings.TrimSpace(proposal.AgentRoundID),
+		RoomID:                proposal.RoomID,
+		ConversationID:        proposal.ConversationID,
+		RootRoundID:           proposal.RootRoundID,
+		RuntimeRoundID:        proposal.RuntimeRoundID,
+		AgentRoundID:          proposal.AgentRoundID,
 	}
 }
 

@@ -21,27 +21,7 @@ func normalizeAndValidatePlanProposal(
 	input protocol.ExecutionPlanProposal,
 	now time.Time,
 ) (protocol.ExecutionPlanProposal, string, error) {
-	item := input
-	item.ID = strings.TrimSpace(item.ID)
-	item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
-	item.SessionKey = strings.TrimSpace(item.SessionKey)
-	item.RoomID = strings.TrimSpace(item.RoomID)
-	item.ConversationID = strings.TrimSpace(item.ConversationID)
-	item.CoordinatorAgentID = strings.TrimSpace(item.CoordinatorAgentID)
-	item.RootRoundID = strings.TrimSpace(item.RootRoundID)
-	item.RuntimeRoundID = strings.TrimSpace(item.RuntimeRoundID)
-	item.AgentRoundID = strings.TrimSpace(item.AgentRoundID)
-	item.TargetExecutionID = strings.TrimSpace(item.TargetExecutionID)
-	item.BasePlanID = strings.TrimSpace(item.BasePlanID)
-	item.GoalID = strings.TrimSpace(item.GoalID)
-	item.GoalReservedExecutionID = strings.TrimSpace(item.GoalReservedExecutionID)
-	item.ReplacesExecutionID = strings.TrimSpace(item.ReplacesExecutionID)
-	item.ReservedExecutionID = strings.TrimSpace(item.ReservedExecutionID)
-	item.MaterializationCommandID = strings.TrimSpace(item.MaterializationCommandID)
-	item.MaterializedExecutionID = strings.TrimSpace(item.MaterializedExecutionID)
-	item.MaterializedPlanID = strings.TrimSpace(item.MaterializedPlanID)
-	item.ContentDigest = strings.TrimSpace(item.ContentDigest)
-	item.LastError = strings.TrimSpace(item.LastError)
+	item := input.Normalized()
 	if item.RootRoundID == "" {
 		return protocol.ExecutionPlanProposal{}, "", fmt.Errorf(
 			"%w: sealed proposal requires root round provenance",

@@ -494,7 +494,7 @@ func (s *Service) executeChange(
 		if err := decode(&input); err != nil {
 			return nil, err
 		}
-		input.AgentID = strings.TrimSpace(input.AgentID)
+		input = input.Normalized()
 		if stateVersion <= 0 {
 			return nil, errors.New("Skills 安装缺少目标 Agent runtime_version；请重新 plan")
 		}
@@ -516,7 +516,7 @@ func (s *Service) executeChange(
 		if err := decode(&input); err != nil {
 			return nil, err
 		}
-		input.AgentID = strings.TrimSpace(input.AgentID)
+		input = input.Normalized()
 		if stateVersion <= 0 {
 			return nil, errors.New("Skills 停用缺少目标 Agent runtime_version；请重新 plan")
 		}
@@ -755,6 +755,7 @@ func (s *Service) executeChange(
 		if err := decode(&input); err != nil {
 			return nil, err
 		}
+		input = input.Normalized()
 		if stateVersion <= 0 {
 			return nil, errors.New("Room 移除成员缺少 configuration_version；请重新 plan")
 		}
@@ -762,7 +763,7 @@ func (s *Service) executeChange(
 		if err != nil {
 			return nil, err
 		}
-		if strings.TrimSpace(current.Room.HostAgentID) == strings.TrimSpace(input.AgentID) {
+		if strings.TrimSpace(current.Room.HostAgentID) == input.AgentID {
 			return nil, errors.New("不能直接移除当前群主；请先用 transfer_host 指定继任者")
 		}
 		value, err := s.rooms.RemoveRoomMemberAtVersion(ctx, request.Target, input.AgentID, stateVersion)
@@ -784,6 +785,7 @@ func (s *Service) executeChange(
 		if err := decode(&input); err != nil {
 			return nil, err
 		}
+		input = input.Normalized()
 		if input.Paused == nil {
 			return nil, errors.New("Room 成员参与状态缺少 paused")
 		}
@@ -797,7 +799,7 @@ func (s *Service) executeChange(
 		value, err := controller.SetRoomMemberParticipationAtVersion(
 			ctx,
 			request.Target,
-			strings.TrimSpace(input.AgentID),
+			input.AgentID,
 			*input.Paused,
 			stateVersion,
 		)
@@ -810,11 +812,11 @@ func (s *Service) executeChange(
 		if err := decode(&input); err != nil {
 			return nil, err
 		}
+		input = input.Normalized()
 		if stateVersion <= 0 {
 			return nil, errors.New("Room 群主转让缺少 configuration_version；请重新 plan")
 		}
-		hostID := strings.TrimSpace(input.AgentID)
-		update := protocol.UpdateRoomRequest{HostAgentID: &hostID}
+		update := protocol.UpdateRoomRequest{HostAgentID: &input.AgentID}
 		update.ExpectedConfigurationVersion = &stateVersion
 		value, err := s.rooms.UpdateRoom(ctx, request.Target, update)
 		if err == nil {

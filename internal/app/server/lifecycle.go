@@ -71,6 +71,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	starters := []func(context.Context) (func(), error){
 		s.startSessionDeletionRecovery,
 		s.startChannels,
+		s.startEcho,
 		s.startAutomation,
 		s.startRoomPublicHandoffs,
 		s.startRoomDirectedWakes,
@@ -102,6 +103,18 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startEcho(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Echo == nil {
+		return nil, nil
+	}
+	s.api.BaseLogger().Info("启动 Echo 调度器")
+	if err := s.services.Echo.Start(ctx); err != nil {
+		s.api.BaseLogger().Error("启动 Echo 调度器失败", "err", err)
+		return nil, err
+	}
+	return s.services.Echo.Stop, nil
 }
 
 func (s *Server) startOrchestrationRecovery(ctx context.Context) (func(), error) {
