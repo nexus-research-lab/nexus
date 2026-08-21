@@ -150,30 +150,46 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
 
   private func startBrowserExtensionSetup() throws -> [String: Any] {
     let root = URL(fileURLWithPath: runtime.appRootPath, isDirectory: true)
-    let candidates = [
+    let extensionCandidates = [
       root.appendingPathComponent("Nexus Browser Extension", isDirectory: true),
       root.appendingPathComponent("desktop/browser-extension", isDirectory: true),
     ]
-    guard let extensionURL = candidates.first(where: {
+    guard let extensionURL = extensionCandidates.first(where: {
       FileManager.default.fileExists(atPath: $0.appendingPathComponent("manifest.json").path)
     }) else {
       throw DesktopBridgeError.browserExtensionUnavailable
     }
-    guard let chromeExtensionsURL = URL(string: "chrome://extensions"),
-          let chromeApplicationURL = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: "com.google.Chrome"
-          ) else {
+    let browserCandidates = [
+      (kind: "chrome", name: "Google Chrome", bundleID: "com.google.Chrome", extensionsURL: "chrome://extensions"),
+      (kind: "edge", name: "Microsoft Edge", bundleID: "com.microsoft.edgemac", extensionsURL: "edge://extensions"),
+    ]
+    var browser: (kind: String, name: String, applicationURL: URL, extensionsURL: URL)?
+    for candidate in browserCandidates {
+      guard let applicationURL = NSWorkspace.shared.urlForApplication(
+              withBundleIdentifier: candidate.bundleID
+            ),
+            let extensionsURL = URL(string: candidate.extensionsURL) else {
+        continue
+      }
+      browser = (candidate.kind, candidate.name, applicationURL, extensionsURL)
+      break
+    }
+    guard let browser else {
       throw DesktopBridgeError.browserExtensionsPageUnavailable
     }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true
     NSWorkspace.shared.open(
-      [chromeExtensionsURL],
-      withApplicationAt: chromeApplicationURL,
+      [browser.extensionsURL],
+      withApplicationAt: browser.applicationURL,
       configuration: configuration
     ) { _, _ in }
     NSWorkspace.shared.activateFileViewerSelecting([extensionURL])
-    return ["opened": true]
+    return [
+      "browser": browser.kind,
+      "browser_name": browser.name,
+      "opened": true,
+    ]
   }
 
   private func chooseStateRoot(initialPath: String, title: String, prompt: String) -> [String: Any] {
@@ -394,7 +410,7 @@ private enum DesktopBridgeError: LocalizedError {
     case .browserExtensionUnavailable:
       return "未找到 Nexus 浏览器扩展，请重新安装或更新 Nexus。"
     case .browserExtensionsPageUnavailable:
-      return "无法打开 Chrome 扩展程序页面，请确认已安装 Google Chrome。"
+      return "无法打开浏览器扩展程序页面，请确认已安装 Google Chrome 或 Microsoft Edge。"
     }
   }
 }

@@ -147,14 +147,74 @@ internal sealed class DesktopBridgeHandler
             throw new DirectoryNotFoundException("未找到 Nexus 浏览器扩展，请重新安装或更新 Nexus。");
         }
 
-        Process.Start(new ProcessStartInfo
+        (string Kind, string Name, string ExecutablePath, string ExtensionsUrl)? browser = InstalledBrowser();
+        if (browser is null)
         {
-            FileName = "chrome.exe",
-            Arguments = "chrome://extensions",
-            UseShellExecute = true,
-        });
+            throw new FileNotFoundException(
+                "无法打开浏览器扩展程序页面，请确认已安装 Google Chrome 或 Microsoft Edge。");
+        }
+        ProcessStartInfo browserStartInfo = new(browser.Value.ExecutablePath)
+        {
+            UseShellExecute = false,
+        };
+        browserStartInfo.ArgumentList.Add(browser.Value.ExtensionsUrl);
+        Process.Start(browserStartInfo);
         Process.Start(ExplorerSelection(extensionDirectory));
-        return new { opened = true };
+        return new
+        {
+            browser = browser.Value.Kind,
+            browser_name = browser.Value.Name,
+            opened = true,
+        };
+    }
+
+    private static (string Kind, string Name, string ExecutablePath, string ExtensionsUrl)? InstalledBrowser()
+    {
+        string? chromePath = InstalledApplicationPath(
+            "chrome.exe",
+            (Environment.SpecialFolder.LocalApplicationData, @"Google\Chrome\Application\chrome.exe"),
+            (Environment.SpecialFolder.ProgramFiles, @"Google\Chrome\Application\chrome.exe"),
+            (Environment.SpecialFolder.ProgramFilesX86, @"Google\Chrome\Application\chrome.exe"));
+        if (chromePath is not null)
+        {
+            return ("chrome", "Google Chrome", chromePath, "chrome://extensions");
+        }
+
+        string? edgePath = InstalledApplicationPath(
+            "msedge.exe",
+            (Environment.SpecialFolder.ProgramFilesX86, @"Microsoft\Edge\Application\msedge.exe"),
+            (Environment.SpecialFolder.ProgramFiles, @"Microsoft\Edge\Application\msedge.exe"));
+        return edgePath is null
+            ? null
+            : ("edge", "Microsoft Edge", edgePath, "edge://extensions");
+    }
+
+    private static string? InstalledApplicationPath(
+        string executableName,
+        params (Environment.SpecialFolder Root, string RelativePath)[] fallbacks)
+    {
+        foreach (string hive in new[] { "HKEY_CURRENT_USER", "HKEY_LOCAL_MACHINE" })
+        {
+            string key = $@"{hive}\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{executableName}";
+            if (Registry.GetValue(key, "", null) is string registeredPath
+                && File.Exists(registeredPath.Trim().Trim('"')))
+            {
+                return registeredPath.Trim().Trim('"');
+            }
+        }
+        foreach ((Environment.SpecialFolder root, string relativePath) in fallbacks)
+        {
+            string rootPath = Environment.GetFolderPath(root);
+            if (!string.IsNullOrWhiteSpace(rootPath))
+            {
+                string candidate = Path.Combine(rootPath, relativePath);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     private static object GetWorkspaceFileApplications(JsonElement payload)

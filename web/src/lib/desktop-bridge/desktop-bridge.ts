@@ -78,6 +78,12 @@ export interface DesktopUpdateStartResult {
   status: "disabled" | "in_progress" | "started" | "unavailable";
 }
 
+export interface DesktopBrowserExtensionSetupResult {
+  browser: "chrome" | "edge";
+  browser_name: string;
+  opened: boolean;
+}
+
 interface NativeDesktopBridge {
   invoke<TPayload, TResult>(message: DesktopBridgeRequest<TPayload>): Promise<TResult>;
 }
@@ -136,8 +142,8 @@ export async function openDesktopExternalURL(url: string): Promise<void> {
   );
 }
 
-export async function startDesktopBrowserExtensionSetup(): Promise<void> {
-  await invokeDesktopBridge<Record<string, never>, { opened: boolean }>(
+export async function startDesktopBrowserExtensionSetup(): Promise<DesktopBrowserExtensionSetupResult> {
+  return invokeDesktopBridge<Record<string, never>, DesktopBrowserExtensionSetupResult>(
     "app.start_browser_extension_setup",
     {},
   );

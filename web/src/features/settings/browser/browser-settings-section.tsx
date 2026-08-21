@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  AppWindow,
   CheckCircle2,
-  Chrome,
   FolderOpen,
   Loader2,
   RefreshCw,
@@ -12,7 +12,10 @@ import {
 
 import { getBrowserExtensionStatusApi, type BrowserExtensionStatus } from "@/lib/api/settings/browser-api";
 import { getUserPreferencesApi, updateUserPreferencesApi } from "@/lib/api/settings/preferences-api";
-import { startDesktopBrowserExtensionSetup } from "@/lib/desktop-bridge/desktop-bridge";
+import {
+  startDesktopBrowserExtensionSetup,
+  type DesktopBrowserExtensionSetupResult,
+} from "@/lib/desktop-bridge/desktop-bridge";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -46,7 +49,7 @@ export function BrowserSettingsSection() {
   const [status, setStatus] = useState<BrowserExtensionStatus | null>(null);
   const [statusError, setStatusError] = useState("");
   const [statusRefresh, setStatusRefresh] = useState(0);
-  const [setupStarted, setSetupStarted] = useState(false);
+  const [setup, setSetup] = useState<DesktopBrowserExtensionSetupResult | null>(null);
   const [openingSetup, setOpeningSetup] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [cdpEnabled, setCDPEnabled] = useState(false);
@@ -98,8 +101,7 @@ export function BrowserSettingsSection() {
     setOpeningSetup(true);
     setSetupError("");
     try {
-      await startDesktopBrowserExtensionSetup();
-      setSetupStarted(true);
+      setSetup(await startDesktopBrowserExtensionSetup());
     } catch (error) {
       setSetupError(getErrorMessage(error, t("settings.browser.install_failed")));
     } finally {
@@ -124,11 +126,25 @@ export function BrowserSettingsSection() {
   }, [cdpEnabled, t]);
 
   const connected = status?.connected === true;
+  const incompatible = status?.connection_state === "incompatible";
+  const browserName = status?.browser_name ?? setup?.browser_name ?? t("settings.browser.chromium_title");
   const statusLabel = status === null && statusError === ""
     ? t("settings.browser.status_checking")
     : connected
       ? t("settings.browser.status_connected")
-      : t("settings.browser.status_disconnected");
+      : incompatible
+        ? t("settings.browser.status_incompatible")
+        : t("settings.browser.status_disconnected");
+  const statusColor = connected
+    ? "text-(--success)"
+    : incompatible
+      ? "text-(--warning)"
+      : "text-(--text-soft)";
+  const statusDot = connected
+    ? "bg-(--success)"
+    : incompatible
+      ? "bg-(--warning)"
+      : "bg-(--icon-muted)";
 
   return (
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} flex flex-col`}>
@@ -142,17 +158,17 @@ export function BrowserSettingsSection() {
           <div className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-                <Chrome className="h-5 w-5" />
+                <AppWindow className="h-5 w-5" />
               </div>
               <div className="min-w-0">
                 <h2 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
-                  {t("settings.browser.chrome_title")}
+                  {browserName}
                 </h2>
                 <div aria-live="polite" className="mt-1 flex flex-wrap items-center gap-2 text-compact">
-                  <span className={connected ? "text-(--success)" : "text-(--text-soft)"}>
+                  <span className={statusColor}>
                     <span
                       aria-hidden="true"
-                      className={`mr-1.5 inline-block h-2 w-2 rounded-full ${connected ? "bg-(--success)" : "bg-(--icon-muted)"}`}
+                      className={`mr-1.5 inline-block h-2 w-2 rounded-full ${statusDot}`}
                     />
                     {statusLabel}
                   </span>
@@ -175,7 +191,9 @@ export function BrowserSettingsSection() {
               {openingSetup ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
               {openingSetup
                 ? t("settings.browser.install_opening")
-                : connected || setupStarted
+                : incompatible
+                  ? t("settings.browser.install_update")
+                  : connected || setup !== null
                   ? t("settings.browser.install_reopen")
                   : t("settings.browser.install_action")}
             </UiButton>
@@ -185,12 +203,28 @@ export function BrowserSettingsSection() {
             {connected ? (
               <div className="flex items-center gap-2 text-compact text-(--success)">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>{t("settings.browser.install_success")}</span>
+                <span>{t("settings.browser.install_success", { browser: browserName })}</span>
               </div>
-            ) : setupStarted ? (
+            ) : incompatible ? (
+              <div className="flex items-start gap-2.5 text-(--warning)" role="alert">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="text-compact font-semibold">
+                    {t("settings.browser.incompatible_title")}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
+                    {t("settings.browser.incompatible_description", {
+                      current: status?.observed_protocol_version ?? "?",
+                      expected: status?.protocol_version ?? "?",
+                      version: status?.observed_extension_version ?? "?",
+                    })}
+                  </p>
+                </div>
+              </div>
+            ) : setup !== null ? (
               <div>
                 <p className="text-compact font-semibold text-(--text-strong)">
-                  {t("settings.browser.install_guide_title")}
+                  {t("settings.browser.install_guide_title", { browser: browserName })}
                 </p>
                 <ol className="mt-3 grid gap-4 md:grid-cols-3">
                   {INSTALL_STEPS.map((step, index) => (
@@ -200,7 +234,9 @@ export function BrowserSettingsSection() {
                       </span>
                       <div>
                         <p className="text-compact font-semibold text-(--text-strong)">{t(step.titleKey)}</p>
-                        <p className="mt-1 text-xs leading-5 text-(--text-soft)">{t(step.descriptionKey)}</p>
+                        <p className="mt-1 text-xs leading-5 text-(--text-soft)">
+                          {t(step.descriptionKey, { browser: browserName })}
+                        </p>
                       </div>
                     </li>
                   ))}

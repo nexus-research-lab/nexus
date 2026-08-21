@@ -2,8 +2,12 @@ import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
 export interface BrowserExtensionStatus {
+  browser_name?: string;
   connected: boolean;
+  connection_state: "connected" | "disconnected" | "incompatible";
   extension_version?: string;
+  observed_extension_version?: string;
+  observed_protocol_version?: string;
   protocol_version: string;
 }
 
