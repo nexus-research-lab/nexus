@@ -24,7 +24,7 @@
 - 最小 native bridge 已支持版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
-- 窗口遮挡、最小化和恢复事件会进入启动时间线，便于继续验证 occlusion 下的 WebView 行为。
+- 窗口遮挡、最小化和恢复事件会进入启动时间线；恢复探针受导航代次栅栏保护，不会在显式路由仍启动时二次 reload。
 - WebView 内容进程终止时，Shell 会记录 `webview.content_process_terminated`、写入 `~/.nexus/app/logs/webcontent-terminated-*.json` 并 reload 当前路由，避免 WebContent crash 后停在空白窗口。
 - Shell 会记录外链打开、未知 scheme 阻断和右键菜单抑制，便于桌面 QA 追踪 native 行为。
 - 前端 ready signal 会带 source 和 performance marks；隐藏窗口 rAF 被节流时会用短 timer 兜底，避免主窗口等待 ready 时只能靠原生 fallback reveal。sidecar 会记录桌面 Web 静态资源请求摘要；两边都只记录 path 和 query key，不记录 OAuth code/state/token 等 query value。
