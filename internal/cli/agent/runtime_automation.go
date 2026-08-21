@@ -1,5 +1,5 @@
 // INPUT: nexus automation CLI flags 与宿主注入的 broker capability。
-// OUTPUT: 带输入槽写入前置的 contract、inspect、plan、apply 稳定 JSON envelope。
+// OUTPUT: 带完整自描述命令顺序、输入槽写入前置的 contract、inspect、plan、apply 稳定 JSON envelope。
 // POS: Automation Skill 的命令传输层；业务授权、确认和写入只发生在宿主 service。
 package agent
 
@@ -62,15 +62,30 @@ func newRuntimeAutomationContractCommand() *cobra.Command {
 			}
 			payload := map[string]any{
 				"domain": "automation", "action": "contract", "contract": contract,
-				"command_usage": map[string]string{
-					"next": "immediately before every new input write, run automation contract again and use only the input_staging.path in that fresh result; never reuse a remembered path from an earlier physical round; Read each newly returned path once before its first Write",
-				},
+				"command_usage": runtimeAutomationContractCommandUsage(),
 			}
 			if inputPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandInputPathEnvName)); inputPath != "" {
 				payload["input_staging"] = runtimeCommandInputStaging(inputPath)
 			}
 			return emitJSON(payload)
 		},
+	}
+}
+
+// runtimeAutomationContractCommandUsage keeps Automation transport mechanics
+// in the CLI contract so the Skill only needs to describe scheduling decisions.
+func runtimeAutomationContractCommandUsage() map[string]string {
+	return map[string]string{
+		"contract":   `"${NEXUS_COMMAND_PATH}" --json automation contract`,
+		"inspect":    `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation '<query-operation>'`,
+		"plan":       `"${NEXUS_COMMAND_PATH}" --json automation plan --operation '<mutation-operation>'`,
+		"apply":      `"${NEXUS_COMMAND_PATH}" --json automation apply --operation '<same-mutation-operation>' --expected-revision '<plan.current_revision>' --request-id '<stable-request-id>'`,
+		"verify":     `write a fresh query input, then run "${NEXUS_COMMAND_PATH}" --json automation inspect --operation get`,
+		"input":      "immediately before every new intent input write, run automation contract again; use only its fresh input_staging.path, Read that pre-created file once before its first Write, and overwrite it with one complete closed JSON object; keep the same file content unchanged between plan and its matching apply",
+		"output":     "contract fields stay at top-level contract/input_staging; inspect returns top-level data, plan returns top-level plan, and apply returns top-level plan/result; read these objects directly without shell post-processing",
+		"request_id": "apply requires a stable request id; reuse it only for a retry of the same operation and unchanged input, and create a new id for a changed intent",
+		"shell":      "run each managed command as one standalone process using the injected NEXUS_COMMAND_PATH; do not probe or override NEXUS_COMMAND_* and do not add a pipe, redirection, jq, Python, regex, or shell post-processing",
+		"next":       "choose only an operation present in the current contract; queries use inspect, while every mutation follows inspect, plan, apply, then verify",
 	}
 }
 

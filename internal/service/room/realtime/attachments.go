@@ -1,5 +1,5 @@
-// INPUT: Room 聊天附件、conversation 身份与 Agent workspace。
-// OUTPUT: 归一化附件和 runtime 可读取的消息内容。
+// INPUT: Room 聊天附件、conversation/owner 身份、Agent workspace 与固定/动态 Slash 原文。
+// OUTPUT: 归一化附件和只在 runtime 投递边界展开的消息内容。
 // POS: Room 公共附件进入实时 runtime 的路径解析边界。
 package realtime
 
@@ -44,10 +44,24 @@ func (s *Service) renderRuntimeContentWithAttachments(
 ) (conversationsvc.RuntimeContent, error) {
 	return conversationsvc.RenderRuntimeContentWithAttachments(
 		ctx,
-		slashcommandsvc.ExpandVisualizePrompt(content),
+		content,
 		attachments,
 		s.resolveRuntimeAttachmentPath,
 	)
+}
+
+func (s *Service) expandRuntimeSlashPrompt(
+	ctx context.Context,
+	content string,
+) (string, error) {
+	if s.runtimeSlashExpander != nil {
+		return s.runtimeSlashExpander.ExpandRuntimePrompt(
+			ctx,
+			authctx.OwnerUserID(ctx),
+			content,
+		)
+	}
+	return slashcommandsvc.ExpandProductPrompt(content), nil
 }
 
 func (s *Service) appendRuntimeUserContext(

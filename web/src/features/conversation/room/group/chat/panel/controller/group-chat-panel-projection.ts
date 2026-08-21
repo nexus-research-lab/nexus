@@ -1,6 +1,6 @@
 /**
  * INPUT: Group Chat 会话、Room 目录、Goal、Composer 与面板环境。
- * OUTPUT: Feed、交接 mention、Goal、首条未读导航和输入区的纯视图模型。
+ * OUTPUT: Feed、交接 mention、Goal、统一回到底部动作和输入区的纯视图模型。
  * POS: Group Chat 控制器状态到纯视图 props 的唯一投影入口。
  */
 import type { RefObject } from "react";
@@ -36,9 +36,6 @@ import type {
 import type {
   GroupAgentTimelineProjection,
 } from "../../feed/group-agent-timeline-model";
-import type {
-  GroupConversationUnreadModel,
-} from "../../feed/use-group-conversation-unread";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 import { projectRoomAgentHandoffStatuses } from "./room-handoff-status-model";
 
@@ -78,6 +75,7 @@ type GroupChatSession = Omit<
     feedRef: RefObject<HTMLDivElement | null>;
     isBottomScrollActive: () => boolean;
     isFollowingLatest: () => boolean;
+    isUserScrollActive: () => boolean;
     liveLayoutActive: boolean;
   };
 };
@@ -109,7 +107,6 @@ interface BuildGroupChatPanelViewModelOptions {
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
   session: GroupChatSession;
-  unread: GroupConversationUnreadModel;
 }
 
 export function buildGroupChatPanelViewModel({
@@ -131,10 +128,8 @@ export function buildGroupChatPanelViewModel({
   roomHostAutoReplyEnabled,
   roomMembers,
   session,
-  unread,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
   const frame = buildConversationPanelFrameModel(session, environment);
-  const hasUnreadJump = unread.unreadCount > 0 && unread.direction !== null;
   return {
     ...frame,
     composer,
@@ -162,7 +157,6 @@ export function buildGroupChatPanelViewModel({
       onOpenSubagentTask,
       onOpenWorkspaceFile,
       session,
-      unread,
     }),
     executionPanel: isExecutionActivityVisible(execution.execution)
       ? {
@@ -188,15 +182,7 @@ export function buildGroupChatPanelViewModel({
       session,
     }),
     onCreateConversation,
-    scrollToLatest: {
-      ...frame.scrollToLatest,
-      direction: hasUnreadJump ? unread.direction : null,
-      onClick: hasUnreadJump
-        ? unread.jumpToFirstUnread
-        : frame.scrollToLatest.onClick,
-      unreadCount: hasUnreadJump ? unread.unreadCount : 0,
-      visible: frame.scrollToLatest.visible || hasUnreadJump,
-    },
+    scrollToLatest: frame.scrollToLatest,
     taskProcesses: session.taskProcesses,
     taskProcessMembers: roomMembers,
   };
@@ -212,7 +198,6 @@ function buildFeedModel({
   onOpenSubagentTask,
   onOpenWorkspaceFile,
   session,
-  unread,
 }: Pick<
   BuildGroupChatPanelViewModelOptions,
   | "currentAgentAvatar"
@@ -224,7 +209,6 @@ function buildFeedModel({
   | "onOpenSubagentTask"
   | "onOpenWorkspaceFile"
   | "session"
-  | "unread"
 >): GroupChatPanelViewModel["feed"] {
   const { conversation, roundIndexItems, roundScrollRef, scroll } = session;
   return {
@@ -234,6 +218,7 @@ function buildFeedModel({
       feedRef: scroll.feedRef,
       isBottomScrollActive: scroll.isBottomScrollActive,
       isFollowingLatest: scroll.isFollowingLatest,
+      isUserScrollActive: scroll.isUserScrollActive,
       roundScrollRef,
       scrollRef: scroll.scrollRef,
     },
@@ -263,7 +248,6 @@ function buildFeedModel({
       roundIds: feedTimeline.roundIds,
       roundIndexItems,
       scopeKey: session.sessionKey,
-      unreadMarkerRoundId: unread.markerRoundId,
     },
   };
 }

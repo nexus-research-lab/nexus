@@ -15,6 +15,7 @@ import {
   type ConversationFeedProps,
 } from "./conversation-feed-model";
 import { ConversationFeedTail } from "./conversation-feed-tail";
+import { ConversationVirtualCanvas } from "./conversation-virtual-canvas";
 import { ConversationRound } from "./conversation-round";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
@@ -84,6 +85,7 @@ export function ConversationVirtualFeed({
     {
       bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
       followingLatest: refs.isFollowingLatest?.() ?? false,
+      userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );
   const scrollToIndex = useCallback((
@@ -110,6 +112,7 @@ export function ConversationVirtualFeed({
   });
 
   const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
   return (
     <div
       ref={refs.feedRef}
@@ -119,11 +122,11 @@ export function ConversationVirtualFeed({
           ? "nexus-chat-feed relative"
           : `nexus-chat-feed relative ${CONVERSATION_CONTENT_LANE_CLASS_NAME}`
       }
-      style={{ height: virtualizer.getTotalSize() }}
+      style={{ height: totalSize }}
     >
-      <div
-        className="absolute left-0 top-0 w-full"
-        style={{ transform: `translateY(${virtualItems[0]?.start ?? 0}px)` }}
+      <ConversationVirtualCanvas
+        offset={virtualItems[0]?.start ?? 0}
+        totalSize={totalSize}
       >
         {virtualItems.map((item) => {
           const state = resolveConversationRound(source, item.index);
@@ -138,7 +141,7 @@ export function ConversationVirtualFeed({
             />
           );
         })}
-      </div>
+      </ConversationVirtualCanvas>
       <ConversationFeedTail
         bottomAnchorRef={refs.bottomAnchorRef}
         className="absolute bottom-0 h-px w-full"

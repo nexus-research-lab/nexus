@@ -14,6 +14,7 @@ import {
 export type AgentHandoffPhase =
   | "preparing"
   | "queued"
+  | "starting"
   | "active"
   | "responded";
 export type AgentHandoffStatusMap = Readonly<Record<string, AgentHandoffPhase>>;

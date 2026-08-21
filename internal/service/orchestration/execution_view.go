@@ -1,5 +1,5 @@
-// INPUT: owner/session 只读查询、当前或最近一次有界 ExecutionSnapshot、完整 WorkGraph Assignment/Attempt/Submission/Review/Acceptance 历史与 visibility 投影前运行事实。
-// OUTPUT: 去除控制面 identity、保留每个 root/child Attempt 与 immutable Submission Gate、按 Plan position 排序并派生交付阶段的 protocol.ExecutionView。
+// INPUT: owner/session/exact Execution 只读查询、当前/最近/历史有界 ExecutionSnapshot、完整 WorkGraph Assignment/Attempt/Submission/Review/Acceptance 历史与 visibility 投影前运行事实。
+// OUTPUT: 去除控制面 identity、保留每个 root/child Attempt 与 immutable Submission Gate、按 Plan position 排序并派生交付阶段的一个或多个 protocol.ExecutionView。
 // POS: Execution 状态机到 HTTP/DM/Room WorkGraph UI 的唯一展示投影。
 package orchestration
 
@@ -19,6 +19,10 @@ type latestExecutionRepository interface {
 type managedExecutionViewRepository interface {
 	FindCurrentManaged(context.Context, string, string) (*protocol.Execution, error)
 	FindLatestManaged(context.Context, string, string) (*protocol.Execution, error)
+}
+
+type managedExecutionHistoryRepository interface {
+	ListManaged(context.Context, string, string, int) ([]protocol.Execution, error)
 }
 
 type workGraphAttemptRepository interface {
@@ -82,8 +86,82 @@ func (s *Service) GetLatestView(
 	if execution == nil {
 		return nil, nil
 	}
+	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+}
+
+// GetView 按 owner/session/execution 精确读取一个历史 managed WorkGraph。
+func (s *Service) GetView(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+) (*protocol.ExecutionView, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	executionID = strings.TrimSpace(executionID)
+	if ownerUserID == "" || sessionKey == "" || executionID == "" {
+		return nil, domainError(ErrorCodeInvalidInput, "owner, session_key and execution_id are required")
+	}
+	if s == nil || s.repository == nil {
+		return nil, fmt.Errorf("orchestration repository is nil")
+	}
+	execution, err := s.repository.Get(ctx, executionID)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	if execution.OwnerUserID != ownerUserID || execution.SessionKey != sessionKey {
+		return nil, domainError(ErrorCodeWrongOwner, "Execution is outside the requested owner/session")
+	}
+	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+}
+
+// ListHistoryViews 返回当前 session 最近的 managed WorkGraph 历史。
+func (s *Service) ListHistoryViews(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	limit int,
+) ([]protocol.ExecutionView, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if ownerUserID == "" || sessionKey == "" {
+		return nil, domainError(ErrorCodeInvalidInput, "owner and session_key are required")
+	}
+	repository, ok := s.repository.(managedExecutionHistoryRepository)
+	if !ok {
+		return []protocol.ExecutionView{}, nil
+	}
+	executions, err := repository.ListManaged(ctx, ownerUserID, sessionKey, limit)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]protocol.ExecutionView, 0, len(executions))
+	for index := range executions {
+		view, viewErr := s.getViewForExecution(
+			ctx,
+			ownerUserID,
+			sessionKey,
+			&executions[index],
+		)
+		if viewErr != nil {
+			return nil, viewErr
+		}
+		if view != nil {
+			views = append(views, *view)
+		}
+	}
+	return views, nil
+}
+
+func (s *Service) getViewForExecution(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	execution *protocol.Execution,
+) (*protocol.ExecutionView, error) {
 	var workGraphHistory *protocol.ExecutionWorkGraphHistory
 	var snapshot *protocol.ExecutionSnapshot
+	var err error
 	if repository, ok := s.repository.(workGraphStateRepository); ok {
 		stateSnapshot, history, stateErr := repository.GetWorkGraphState(ctx, execution.ID)
 		snapshot, err = stateSnapshot, stateErr

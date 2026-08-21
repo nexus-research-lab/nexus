@@ -9,7 +9,7 @@
 //   - room_subscription_handler.go / session_binding.go / broadcast.go / automation_permission_events.go：
 //     房间订阅（含按 Conversation/Session source 隔离的权威活动快照）、会话绑定、Session 元数据、热缓存上下文和 Automation 持久权限按 Agent 重放、广播。
 //   - command_catalog.go：在 bind_session 时选择 Nexus 内置的 runtime 清单，合并
-//     Nexus host 命令，并把安全权威目录投影到共享或私有 Composer。
+//     Nexus host、固定产品命令和当前 owner 的命名 WorkGraph 沉淀，并把安全权威目录投影到共享或私有 Composer。
 //   - goal_rpc_handler.go / goal_rpc_registry.go / goal_event_broadcaster.go：
 //     Codex app-server Goal RPC、并发/绑定冲突的稳定 server-error reason_code、授权成功后的 owner/thread 双重隔离订阅注册与事件广播。
 //   - execution_invalidation.go：只把 orchestration 成功 mutation 投影为 owner/session 双重隔离的 WorkGraph 失效事件。

@@ -22,6 +22,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
+type capabilityDistillationLister map[string]int
+
+func (l capabilityDistillationLister) List(_ context.Context, owner string) ([]protocol.WorkGraphWorkflow, error) {
+	return make([]protocol.WorkGraphWorkflow, l[owner]), nil
+}
+
 func TestHandleCapabilitySummaryScopesCountsByOwner(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	cfg.ConnectorCredentialsKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -34,7 +40,10 @@ func TestHandleCapabilitySummaryScopesCountsByOwner(t *testing.T) {
 	skillService := skillspkg.NewService(cfg, agentService, workspaceService)
 	connectorService := connectorsvc.NewService(cfg, db)
 	automationService := automationsvc.NewService(cfg, db, nil, nil, nil, nil, nil, nil)
-	handler := New(handlershared.NewAPI(nil), skillService, connectorService, automationService)
+	handler := New(
+		handlershared.NewAPI(nil), skillService, connectorService, automationService, nil,
+		capabilityDistillationLister{"owner-a": 2},
+	)
 
 	ctxA := capabilityOwnerContext("owner-a")
 	ctxB := capabilityOwnerContext("owner-b")
@@ -58,6 +67,9 @@ func TestHandleCapabilitySummaryScopesCountsByOwner(t *testing.T) {
 	}
 	if summaryA["skills_count"] != summaryB["skills_count"]+1 {
 		t.Fatalf("skill count 未按 owner 私有 registry 统计: owner-a=%+v owner-b=%+v", summaryA, summaryB)
+	}
+	if summaryA["workgraph_distillations_count"] != 2 || summaryB["workgraph_distillations_count"] != 0 {
+		t.Fatalf("工作图沉淀计数未按 owner 隔离: owner-a=%+v owner-b=%+v", summaryA, summaryB)
 	}
 }
 

@@ -1,3 +1,6 @@
+// INPUT: DM 附件、workspace 与 owner-scoped 固定/动态 Slash 原始文本。
+// OUTPUT: 附件归一化及只在 runtime 投递边界展开的消息内容。
+// POS: DM 用户时间线原文到 runtime 可读消息的附件与产品提示适配层。
 package dm
 
 import (
@@ -26,10 +29,24 @@ func (s *Service) renderRuntimeContentWithAttachments(
 ) (conversationsvc.RuntimeContent, error) {
 	return conversationsvc.RenderRuntimeContentWithAttachments(
 		ctx,
-		slashcommandsvc.ExpandVisualizePrompt(content),
+		content,
 		attachments,
 		s.resolveRuntimeAttachmentPath,
 	)
+}
+
+func (s *Service) expandRuntimeSlashPrompt(
+	ctx context.Context,
+	content string,
+) (string, error) {
+	if s.runtimeSlashExpander != nil {
+		return s.runtimeSlashExpander.ExpandRuntimePrompt(
+			ctx,
+			authctx.OwnerUserID(ctx),
+			content,
+		)
+	}
+	return slashcommandsvc.ExpandProductPrompt(content), nil
 }
 
 func (s *Service) resolveRuntimeAttachmentPath(

@@ -124,6 +124,14 @@ func planExecutionSchema() map[string]any {
 	}, "proposal_id", "proposal_digest")
 }
 
+func distillWorkflowSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"preview_id": nonEmptyStringProperty(
+			"Exact opaque preview id from the user-reviewed WorkGraph sketch. Persist this preview unchanged; never infer, rebuild, or replace it.",
+		),
+	}, "preview_id")
+}
+
 func abandonExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"execution_id": nonEmptyStringProperty("Opaque current transient Execution id from nexus_execution_context."),

@@ -17,9 +17,10 @@
 //   - goal*.go / objective_alignment.go：Goal 生命周期、独立 host Goal command、
 //     objective revision、非授权 Room collaboration attribution、Execution binding
 //     五态 resolution、用量与对齐审计。
-//   - execution*.go / execution_plan_proposal.go：Execution、Plan/Work Item、
+//   - execution*.go / execution_plan_proposal.go / workgraph_workflow.go：Execution、Plan/Work Item、
 //     Assignment/Attempt/Submission/Acceptance、dispatch/cancellation、Runtime Graph、
-//     画布专用 append-only WorkGraph history 与只读 WorkGraph view。当前语义见 docs/specs/execution-orchestration-spec.md
+//     画布专用 append-only WorkGraph history、只读 WorkGraph view 与不含运行事实的
+//     owner-scoped 命名工作图。当前语义见 docs/specs/execution-orchestration-spec.md
 //     和 docs/specs/execution-graph-spec.md。
 //   - automation_run.go / im_permission_command.go：受控 Automation 运行上下文与
 //     普通 runtime/Automation 共用的 IM 权限短命令。

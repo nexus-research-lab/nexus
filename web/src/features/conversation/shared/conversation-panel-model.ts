@@ -134,9 +134,7 @@ function buildConversationScrollToLatestModel(
   session: ConversationScrollToLatestSessionSource,
 ): ConversationScrollToLatestModel {
   return {
-    direction: null,
     onClick: () => session.scroll.scrollToBottom("smooth"),
-    unreadCount: 0,
     visible: session.scroll.showScrollToBottom,
   };
 }

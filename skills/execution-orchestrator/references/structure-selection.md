@@ -29,6 +29,10 @@ Task 是当前 Agent 内部的局部清单。它应展开在对应 Agent 或 Wor
 
 Subagent 帮助父 Agent 完成父 Agent 当前拥有的责任。只有上下文隔离、专业视角或局部并行的收益高于启动与合并成本时才使用；父 Agent 仍负责整合、验证和提交。
 
+父 Agent 先自己理解用户目标、权威来源、依赖和交付边界，不把“理解任务”本身交给子 Agent。每个 Subagent 请求都给出一个有界的局部 objective、已知上下文与 source of truth、必须遵守的范围/约束，以及期望返回的结果或证据。不给多个子 Agent 重叠的 owner 范围或同一可变交付物。
+
+只有子问题输入稳定、互不依赖、不需要频繁协调，且不共享可变状态、重叠编辑范围或 exclusive output scope 时才并行启动；下游必须消费上游结果时串行。Subagent 的 terminal 状态不等于父责任已交付；父 Agent 把返回内容当作证据，解决冲突、复核关键结论，并与自己的工作整合后再 submit 或交付。
+
 ### Work Item 与 Room member
 
 Work Item 表达“谁交付什么”。同一 Agent 可以拥有多个节点；不同 Agent 也可以协作一个上层责任，但必须明确最终 owner。需要持久身份、跨轮交接或共享验收时使用 Room Assignment；只需要讨论或一次性建议时使用普通消息。

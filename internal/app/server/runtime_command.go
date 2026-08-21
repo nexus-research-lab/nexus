@@ -190,6 +190,7 @@ func newRuntimeCommandHandler(
 	goals goalcontract.Service,
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
+	workflowServices ...executioncontract.WorkflowService,
 ) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if registry == nil || !runtimeConfigurationLoopbackRequest(request) {
@@ -220,7 +221,9 @@ func newRuntimeCommandHandler(
 		case runtimecommand.DomainGoal:
 			result, err = handleGoalRuntimeCommand(request.Context(), goals, actor, command)
 		case runtimecommand.DomainExecution:
-			result, err = handleExecutionRuntimeCommand(request.Context(), execution, actor, command)
+			result, err = handleExecutionRuntimeCommand(
+				request.Context(), execution, actor, command, workflowServices...,
+			)
 		default:
 			err = fmt.Errorf("未知 Nexus runtime command domain %q", command.Domain)
 		}
@@ -328,6 +331,7 @@ func handleExecutionRuntimeCommand(
 	svc executioncontract.Service,
 	actor runtimecommand.Actor,
 	command runtimecommand.Request,
+	workflowServices ...executioncontract.WorkflowService,
 ) (any, error) {
 	if svc == nil {
 		return nil, errors.New("Execution command service 尚未装配")
@@ -343,7 +347,7 @@ func handleExecutionRuntimeCommand(
 		return nil, errors.New("当前 round 没有有效的 Execution command identity")
 	}
 	sctx.CommandAttempts = actor.Round.Attempts
-	operations := executionoperation.BuildAll(svc, sctx)
+	operations := executionoperation.BuildAll(svc, sctx, workflowServices...)
 	return handleSemanticRuntimeCommand(
 		ctx, actor, runtimecommand.DomainExecution, "get_execution", operations, command,
 	)

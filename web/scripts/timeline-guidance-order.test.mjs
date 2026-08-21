@@ -48,7 +48,7 @@ async function renderWithI18n(element, locale = "zh") {
   ));
 }
 
-test("conversation viewport suppresses the browser scroll-region outline", async () => {
+test("conversation viewport keeps focus and history loading out of message geometry", async () => {
   const { ConversationPanelViewport } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
@@ -58,7 +58,7 @@ test("conversation viewport suppresses the browser scroll-region outline", async
       isMobileLayout: false,
       viewport: {
         error: null,
-        isHistoryLoading: false,
+        isHistoryLoading: true,
         scrollRef: { current: null },
       },
     },
@@ -75,6 +75,12 @@ test("conversation viewport suppresses the browser scroll-region outline", async
     html,
     /scrollbar-gutter:stable/,
     "scrollbar appearance must not change the live Markdown measure width",
+  );
+  assert.match(html, /data-conversation-history-loading-overlay="true"/);
+  assert.match(
+    html,
+    /class="[^"]*\bh-0\b[^"]*"/,
+    "history pagination feedback must not insert height above the Feed",
   );
 });
 
@@ -574,6 +580,66 @@ test("live Room layout holds negative height debt until every Agent settles", as
     scopeKey: "room-b",
   }, grown.state);
   assert.equal(switched.minimumHeight, 320, "height debt cannot cross sessions");
+});
+
+test("Composer interaction height stays monotonic until the request queue clears", async () => {
+  const { resolveComposerInteractionHeightGuard } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/use-composer-interaction-height-guard.ts",
+  );
+  const initial = {
+    minimumHeight: 0,
+    scopeKey: "room-a",
+    wasActive: false,
+  };
+  const opened = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 280,
+    scopeKey: "room-a",
+  }, initial);
+  const shorterRequest = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 160,
+    scopeKey: "room-a",
+  }, opened.state);
+  assert.equal(shorterRequest.minimumHeight, 280);
+
+  const tallerRequest = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 360,
+    scopeKey: "room-a",
+  }, shorterRequest.state);
+  assert.equal(tallerRequest.minimumHeight, 360);
+
+  const restoredInput = resolveComposerInteractionHeightGuard({
+    active: false,
+    measuredHeight: 102,
+    scopeKey: "room-a",
+  }, tallerRequest.state);
+  assert.equal(restoredInput.releasing, true);
+  assert.equal(restoredInput.minimumHeight, 0);
+
+  const switched = resolveComposerInteractionHeightGuard({
+    active: true,
+    measuredHeight: 190,
+    scopeKey: "room-b",
+  }, tallerRequest.state);
+  assert.equal(switched.minimumHeight, 190);
+  assert.equal(switched.releasing, false);
+});
+
+test("virtual conversation canvas keeps held height above the message plane", async () => {
+  const { ConversationVirtualCanvas } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/conversation-virtual-canvas.tsx",
+  );
+  const markup = renderToStaticMarkup(React.createElement(
+    ConversationVirtualCanvas,
+    { offset: 240, totalSize: 960 },
+    React.createElement("div", null, "visible rounds"),
+  ));
+  assert.match(markup, /data-conversation-virtual-canvas="true"/);
+  assert.match(markup, /bottom-0/);
+  assert.match(markup, /height:960px/);
+  assert.match(markup, /translateY\(240px\)/);
 });
 
 test("live layout epoch includes parallel message, slot, and execution sources", async () => {
@@ -1114,6 +1180,20 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
     true,
     "READING keeps compensating measured items above the viewport",
   );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 300 },
+      40,
+      { scrollOffset: 500 },
+      {
+        bottomScrollActive: false,
+        followingLatest: false,
+        userScrollActive: true,
+      },
+    ),
+    false,
+    "direct user scrolling owns READING and cannot be counter-scrolled by measurement",
+  );
 });
 
 test("READING preserves the first visible Room round during static growth", async () => {
@@ -1158,6 +1238,13 @@ test("READING preserves the first visible Room round during static growth", asyn
   const anchor = new ConversationViewportAnchor();
 
   anchor.capture(container, feed);
+  documentTops.visible += 40;
+  assert.equal(
+    anchor.restore(container, feed, { userScrollActive: true }),
+    null,
+    "a live user gesture absorbs the current geometry instead of writing scrollTop",
+  );
+  assert.equal(scrollTop, 400);
   const visibleTopBeforeGrowth = visible.getBoundingClientRect().top;
   documentTops.visible += 120;
   assert.equal(anchor.restore(container, feed), 520);
@@ -1181,6 +1268,35 @@ test("READING preserves the first visible Room round during static growth", asyn
     "Virtualizer remains the only owner of virtual item size compensation",
   );
   assert.equal(scrollTop, 520);
+});
+
+test("history prepend preserves scrolling performed while the page was loading", async () => {
+  const { HistoryPrependAnchor } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/history-prepend-anchor.ts",
+  );
+  let scrollHeight = 1_000;
+  let scrollTop = 80;
+  const container = {
+    get scrollHeight() {
+      return scrollHeight;
+    },
+    get scrollTop() {
+      return scrollTop;
+    },
+    set scrollTop(value) {
+      scrollTop = value;
+    },
+  };
+  const anchor = new HistoryPrependAnchor();
+  anchor.prepare(container);
+  scrollTop = 210;
+  scrollHeight = 1_480;
+  assert.equal(anchor.restore(container), 690);
+  assert.equal(
+    scrollTop,
+    690,
+    "the prepend delta is added to the latest user position, not the request-start position",
+  );
 });
 
 test("viewport anchor survives a static-to-virtual Room feed switch", async () => {

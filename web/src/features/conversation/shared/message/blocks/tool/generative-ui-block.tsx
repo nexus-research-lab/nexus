@@ -24,11 +24,11 @@ import {
   GENERATIVE_UI_RESIZE_MESSAGE,
   GENERATIVE_UI_UPDATE_MESSAGE,
 } from "./generative-ui-document";
+import { resolveGenerativeUIHeightRevision } from "./generative-ui-height-model";
 
 const UPDATE_DELAY_MS = 150;
+const FINAL_HEIGHT_SETTLE_MS = 80;
 const INITIAL_HEIGHT = 320;
-const MIN_HEIGHT = 180;
-const MAX_HEIGHT = 4000;
 const MAX_ERROR_MESSAGE_LENGTH = 240;
 
 type RenderState =
@@ -45,6 +45,9 @@ export function GenerativeUIBlock({
   const { theme } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
+  const heightRef = useRef(INITIAL_HEIGHT);
+  const completeRef = useRef(complete);
+  const heightSettleTimerRef = useRef<number | null>(null);
   const [renderState, setRenderState] = useState<RenderState>({
     status: "loading",
   });
@@ -54,6 +57,7 @@ export function GenerativeUIBlock({
     ? input.widget_code
     : "";
   const visualTheme = theme === "sunny" ? "light" : theme;
+  completeRef.current = complete;
   const shellDocument = useMemo(
     () => buildGenerativeUIShellDocument(visualTheme),
     [visualTheme],
@@ -71,6 +75,32 @@ export function GenerativeUIBlock({
     }, "*");
   }, [complete, widgetCode]);
 
+  const cancelHeightSettle = useCallback(() => {
+    if (heightSettleTimerRef.current !== null) {
+      window.clearTimeout(heightSettleTimerRef.current);
+      heightSettleTimerRef.current = null;
+    }
+  }, []);
+
+  const applyReportedHeight = useCallback((reportedHeight: number) => {
+    const revision = resolveGenerativeUIHeightRevision(
+      heightRef.current,
+      reportedHeight,
+      completeRef.current,
+    );
+    cancelHeightSettle();
+    if (!revision.settle) {
+      heightRef.current = revision.height;
+      setHeight(revision.height);
+      return;
+    }
+    heightSettleTimerRef.current = window.setTimeout(() => {
+      heightSettleTimerRef.current = null;
+      heightRef.current = revision.height;
+      setHeight(revision.height);
+    }, FINAL_HEIGHT_SETTLE_MS);
+  }, [cancelHeightSettle]);
+
   useEffect(() => {
     if (complete) {
       sendWidgetUpdate();
@@ -79,6 +109,12 @@ export function GenerativeUIBlock({
     const timer = window.setTimeout(sendWidgetUpdate, UPDATE_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [complete, sendWidgetUpdate]);
+
+  useEffect(() => {
+    cancelHeightSettle();
+  }, [cancelHeightSettle, complete, widgetCode]);
+
+  useEffect(() => cancelHeightSettle, [cancelHeightSettle]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -94,7 +130,7 @@ export function GenerativeUIBlock({
         && typeof data.height === "number"
         && Number.isFinite(data.height)
       ) {
-        setHeight(Math.ceil(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, data.height))));
+        applyReportedHeight(data.height);
         return;
       }
       if (data.type === GENERATIVE_UI_READY_MESSAGE) {
@@ -110,7 +146,7 @@ export function GenerativeUIBlock({
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [applyReportedHeight]);
 
   const loading = !complete || renderState.status === "loading";
 

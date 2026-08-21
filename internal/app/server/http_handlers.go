@@ -1,6 +1,11 @@
+// INPUT: AppServices 与共享 HTTP API adapter。
+// OUTPUT: 含 Execution 历史和命名工作图目录管理的完整 handlerSet。
+// POS: 领域 service 到 HTTP handler 的唯一装配入口。
 package server
 
 import (
+	"context"
+
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	automationhandler "github.com/nexus-research-lab/nexus/internal/handler/automation"
@@ -59,6 +64,18 @@ func newHandlerSet(
 		services.Preferences,
 	)
 	core.SetRuntimeManager(services.Runtime)
+	if services.WorkGraphWorkflow != nil {
+		services.WorkGraphWorkflow.SetChangeNotifier(func(
+			ctx context.Context,
+			ownerUserID string,
+		) {
+			websocketHandler.BroadcastDirectoryChanged(
+				ctx,
+				"workgraph_distillation_changed",
+				map[string]any{"owner_user_id": ownerUserID},
+			)
+		})
+	}
 	return handlerSet{
 		auth: authhandler.New(api, services.Auth, services.Usage, services.Subscription),
 		core: core,
@@ -82,7 +99,7 @@ func newHandlerSet(
 			websocketHandler.RemoveRoom,
 			websocketHandler.BroadcastDirectoryChanged,
 		),
-		capability:   capabilityhandler.New(api, services.Skills, services.Connectors, services.Automation, services.ChannelControl),
+		capability:   capabilityhandler.New(api, services.Skills, services.Connectors, services.Automation, services.ChannelControl, services.WorkGraphWorkflow),
 		skill:        skillhandler.New(api, services.Skills),
 		connector:    connectorhandler.New(api, services.Connectors),
 		channel:      channelhandler.New(api, services.Ingress, services.ChannelControl),
@@ -90,7 +107,7 @@ func newHandlerSet(
 		provider:     providerhandler.New(api, services.Provider, services.Preferences),
 		subscription: subscriptionhandler.New(api, services.Subscription),
 		goal:         goalhandler.New(api, services.Goal),
-		execution:    executionhandler.New(api, services.Orchestration),
+		execution:    executionhandler.New(api, services.Orchestration, services.WorkGraphWorkflow),
 		echo:         echohandler.New(api, services.Echo),
 		launcher:     launcherhandler.New(api, services.Launcher),
 		loop:         loophandler.New(api, services.Loops),

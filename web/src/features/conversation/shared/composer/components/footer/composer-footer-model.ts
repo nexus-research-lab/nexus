@@ -17,6 +17,7 @@ export interface ComposerFooterProps {
   activeError: string | null;
   canCreateGoal: boolean;
   canUseLoop: boolean;
+  canUseWorkGraphDistillations: boolean;
   charCount: number;
   contextUsage: ContextUsageData | null;
   contextUsageItems?: readonly ComposerContextUsageItem[];
@@ -39,6 +40,7 @@ export interface ComposerFooterProps {
   onCancelGoal: () => void;
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
+  onWorkGraphDistillationsSelect: () => void;
   onLocalDirectorySelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
   sessionSettingsController: ComposerSessionSettingsController;

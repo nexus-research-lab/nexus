@@ -183,6 +183,52 @@ func (r *Repository) FindLatestManaged(
 	return r.findManagedExecution(ctx, ownerUserID, sessionKey, false)
 }
 
+// ListManaged 返回 session 的 managed Execution 历史，供用户回看并提炼 Workflow。
+func (r *Repository) ListManaged(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	limit int,
+) ([]protocol.Execution, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	rows, err := r.db.QueryContext(ctx, r.executionSelect()+`
+WHERE executions.owner_user_id = `+r.bind(1)+`
+  AND executions.session_key = `+r.bind(2)+`
+  AND EXISTS (
+      SELECT 1
+      FROM execution_plan_revisions plan
+      JOIN execution_plan_items item
+        ON item.plan_id = plan.plan_id
+       AND item.execution_id = plan.execution_id
+      WHERE plan.execution_id = executions.execution_id
+        AND plan.status = 'active'
+  )
+ORDER BY executions.updated_at DESC, executions.execution_id DESC
+LIMIT `+r.bind(3),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(sessionKey),
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]protocol.Execution, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanExecution(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (r *Repository) findManagedExecution(
 	ctx context.Context,
 	ownerUserID string,

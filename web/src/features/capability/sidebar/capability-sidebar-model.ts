@@ -6,6 +6,7 @@ import {
   Radio,
   Repeat2,
   Users2,
+  GitBranchPlus,
 } from "lucide-react";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -44,6 +45,13 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
     id: SIDEBAR_CAPABILITY_ITEM_IDS.loops,
     labelKey: "capability.loops",
     path: AppRouteBuilders.loops(),
+  },
+  {
+    countKey: "workgraph_distillations_count",
+    icon: GitBranchPlus,
+    id: SIDEBAR_CAPABILITY_ITEM_IDS.workGraphDistillations,
+    labelKey: "capability.workgraph_distillations",
+    path: AppRouteBuilders.workGraphDistillations(),
   },
   {
     countKey: "connected_connectors_count",

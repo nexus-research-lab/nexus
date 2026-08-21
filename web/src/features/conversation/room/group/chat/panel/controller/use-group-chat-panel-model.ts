@@ -1,6 +1,6 @@
 /**
  * INPUT: Group Chat props、共享 Session/Composer/Goal 资源与 Room Agent 时间线。
- * OUTPUT: 含首条未读 Agent 定位、Feed、Composer、Goal 与 Agent 终态驱动的 WorkGraph 刷新模型。
+ * OUTPUT: 含稳定滚动、Feed、Composer、Goal 与 Agent 终态驱动的 WorkGraph 刷新模型。
  * POS: Group Chat 有状态装配入口；纯投影与未读队列分别下沉到专属模块。
  */
 import { useEffect, useMemo } from "react";
@@ -12,7 +12,6 @@ import type { Agent } from "@/types/agent/agent";
 import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
 
 import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
-import { useGroupConversationUnread } from "../../feed/use-group-conversation-unread";
 import { useRoomThreadSource } from "../../../thread/live/use-room-thread-source";
 import type { GroupChatPanelProps } from "../group-chat-panel-types";
 import type { GroupChatPanelViewModel } from "../view/group-chat-panel-view";
@@ -82,16 +81,6 @@ export function useGroupChatPanelModel({
     }),
     [session.timeline],
   );
-  const unread = useGroupConversationUnread({
-    conversationId,
-    loadRoundWindow: session.conversation.load_round_window,
-    pauseFollowLatest: session.scroll.pauseFollowLatest,
-    roomId,
-    roundScrollRef: session.roundScrollRef,
-    scrollRef: session.scroll.scrollRef,
-    sessionKey: session.sessionKey,
-    source: feedTimeline,
-  });
   const directory = useRoomAgentDirectory(roomMembers);
   const composer = useGroupChatComposerModel({
     agentId,
@@ -143,7 +132,6 @@ export function useGroupChatPanelModel({
     roomHostAutoReplyEnabled,
     roomMembers,
     session,
-    unread,
   });
 }
 
