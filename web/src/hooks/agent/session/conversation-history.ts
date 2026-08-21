@@ -37,7 +37,6 @@ interface AgentConversationHistoryContext {
   historyCursorRef: MutableRefObject<AgentConversationHistoryCursor>;
   identity: AgentConversationIdentity | null;
   signal: AbortSignal;
-  setError: Dispatch<SetStateAction<string | null>>;
   setHasMoreHistory: (nextValue: boolean) => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
 }
@@ -151,12 +150,9 @@ function commitRoundWindowHistoryPage(
 
 function reportHistoryLoadError(
   error: unknown,
-  context: AgentConversationHistoryContext,
   logMessage: string,
-  fallbackMessage: string,
 ): void {
   console.error(logMessage, error);
-  context.setError(error instanceof Error ? error.message : fallbackMessage);
 }
 
 export async function loadOlderAgentConversationMessages(
@@ -191,9 +187,7 @@ export async function loadOlderAgentConversationMessages(
     }
     reportHistoryLoadError(
       error,
-      context,
       "[useAgentConversation] 加载更早消息失败:",
-      "Failed to load older messages",
     );
     return false;
   } finally {
@@ -236,9 +230,7 @@ export async function loadAgentConversationMessagesAroundRound(
     }
     reportHistoryLoadError(
       error,
-      context,
       "[useAgentConversation] 加载目标轮次附近消息失败:",
-      "Failed to load target messages",
     );
     return false;
   } finally {

@@ -20,6 +20,15 @@ test.after(async () => {
   await server.close();
 });
 
+const NOOP_RELIABILITY = {
+  changeScope: () => {},
+  observeProviderRetry: () => {},
+  observeRecovery: () => {},
+  observeTransport: () => {},
+  reconcileSession: () => {},
+  reportFailure: () => {},
+};
+
 function websocketEvent(eventType, data, sessionKey = "dm:session-a") {
   return {
     data,
@@ -373,7 +382,7 @@ test("request ACK settles its original request after the view switches sessions"
       isCurrentSessionEvent: (sessionKey) => sessionKey === "session-new",
     },
     state: {
-      setError: () => calls.push("show-current-error"),
+      reliability: NOOP_RELIABILITY,
     },
   };
   AGENT_SESSION_EVENT_HANDLERS.chat_ack({
@@ -643,8 +652,8 @@ test("input queue enqueue command carries ACK correlation IDs", async () => {
       },
       messages: [],
       pendingPermissions: [],
+      reliability: NOOP_RELIABILITY,
       sessionKey: "room:group:conversation-1",
-      setError: () => {},
       setMessages: () => {},
       setPendingPermissions: () => {},
       wsSend: (message) => {
@@ -686,8 +695,8 @@ test("chat dispatch preserves its caller-owned request identity", async () => {
       },
       messages,
       pendingPermissions: [],
+      reliability: NOOP_RELIABILITY,
       sessionKey: "agent:nexus:ws:dm:session-a",
-      setError: () => {},
       setMessages: (updater) => {
         messages = updater(messages);
       },
@@ -1339,6 +1348,9 @@ test("input queue ACK resolves only accepted requests", async () => {
     },
     scope: {
       isCurrentSessionEvent: () => true,
+    },
+    state: {
+      reliability: NOOP_RELIABILITY,
     },
   };
   const data = {

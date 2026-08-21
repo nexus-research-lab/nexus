@@ -44,10 +44,14 @@ test("workspace subscription errors do not mutate conversation state", async () 
       updateMessageStatus: (...args) => calls.push(["message", ...args]),
     },
     scope: {
+      chatType: "dm",
       isCurrentSessionEvent: () => true,
+      sessionKey: "session-1",
     },
     state: {
-      setError: (...args) => calls.push(["error", ...args]),
+      reliability: {
+        reportFailure: (...args) => calls.push(["failure", ...args]),
+      },
     },
   };
 
@@ -66,7 +70,7 @@ test("workspace subscription errors do not mutate conversation state", async () 
   assert.deepEqual(calls, []);
 });
 
-test("session-scoped chat errors retain their existing behavior", async () => {
+test("session-scoped chat errors expose a stable failure code", async () => {
   const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
   );
@@ -78,10 +82,14 @@ test("session-scoped chat errors retain their existing behavior", async () => {
       updateMessageStatus: (...args) => calls.push(["message", ...args]),
     },
     scope: {
+      chatType: "dm",
       isCurrentSessionEvent: (sessionKey) => sessionKey === "session-1",
+      sessionKey: "session-1",
     },
     state: {
-      setError: (...args) => calls.push(["error", ...args]),
+      reliability: {
+        reportFailure: (...args) => calls.push(["failure", ...args]),
+      },
     },
   };
 
@@ -102,6 +110,12 @@ test("session-scoped chat errors retain their existing behavior", async () => {
   assert.deepEqual(calls, [
     ["round", "round-1", "error"],
     ["message", "message-1", "error", "round-1"],
-    ["error", "模型暂时不可用"],
+    ["failure", {
+      agent_round_id: null,
+      client_request_id: null,
+      code: "provider_unavailable",
+      round_id: "round-1",
+      session_key: "session-1",
+    }],
   ]);
 });

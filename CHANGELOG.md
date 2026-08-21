@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced raw conversation error bubbles with a unified recoverable reliability state: WebSocket failures now retry before becoming terminal, reconnects replay bindings and reconcile durable DM/Room state, runtime API retries clear on exact round progress, Room member failures stay scoped to their Agent round, and user-facing notices no longer expose technical details or stale errors after recovery.
 - Gave the floating Task summary a persistent translucent surface so scrolling conversation text no longer overlaps its labels.
 - Kept compact single-line labels descender-safe across Room and Task Agent selectors, Goal binding badges, primary navigation, mentions, Slash tokens, and assistant receipts and statistics.
 - Made indexed conversation history reliably pull older rounds back into bounded browser windows, including explicit top-pull retries, reloadable evicted rounds, stable virtual placeholders, and visible loading feedback.

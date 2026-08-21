@@ -29,6 +29,7 @@ import type {
   WebSocketSendResult,
   WebSocketState,
 } from "@/types/system/websocket";
+import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
 
 type ConversationSocketSend = (
   payload: WebSocketMessage,
@@ -36,6 +37,7 @@ type ConversationSocketSend = (
 
 interface AgentEventScope {
   agentId: string | null;
+  chatType: "dm" | "group";
   conversationId: string | null;
   roomId: string | null;
   sessionKey: string | null;
@@ -52,11 +54,11 @@ interface AgentEventTransport {
 }
 
 interface AgentEventState {
+  reliability: ConversationReliabilityController;
   setCommandCatalog: Dispatch<SetStateAction<CommandCatalogData>>;
   setContextUsageByAgent: Dispatch<
     SetStateAction<Record<string, ContextUsageData>>
   >;
-  setError: Dispatch<SetStateAction<string | null>>;
   setInputQueueItems: Dispatch<SetStateAction<InputQueueItem[]>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setPendingPermissions: Dispatch<SetStateAction<PendingPermission[]>>;

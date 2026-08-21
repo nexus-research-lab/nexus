@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 )
 
@@ -130,5 +131,30 @@ func TestNewGatewayErrorEventUsesRoundID(t *testing.T) {
 	}
 	if got := event.Data["round_id"]; got != "round-1" {
 		t.Fatalf("error data.round_id = %#v, want round-1", got)
+	}
+	if got := event.Data["failure_code"]; got != protocol.ConversationFailureProviderUnavailable {
+		t.Fatalf("error failure_code = %#v, want provider_unavailable", got)
+	}
+}
+
+func TestGatewayFailureCodeUsesStructuredProductCategory(t *testing.T) {
+	tests := []struct {
+		name      string
+		errorType string
+		err       error
+		want      protocol.ConversationFailureCode
+	}{
+		{name: "usage", errorType: "chat_error", err: subscriptionsvc.QuotaExceededError{UsedTokens: 10, LimitTokens: 10}, want: protocol.ConversationFailureUsageLimited},
+		{name: "provider config", errorType: "chat_error", err: errors.New("authentication_error"), want: protocol.ConversationFailureProviderConfiguration},
+		{name: "provider capacity", errorType: "chat_error", err: errors.New("provider_error=server_overload"), want: protocol.ConversationFailureProviderUnavailable},
+		{name: "validation", errorType: "invalid_session_key", err: errors.New("invalid"), want: protocol.ConversationFailureValidationFailed},
+		{name: "permission", errorType: "permission_request_not_found", err: errors.New("missing"), want: protocol.ConversationFailurePermissionNotSent},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := gatewayFailureCode(test.errorType, test.err); got != test.want {
+				t.Fatalf("gatewayFailureCode() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }

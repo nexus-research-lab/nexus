@@ -82,16 +82,12 @@ export function useConversationSession({
     ],
   );
   const atomicLayoutKey = useMemo(
-    () => [
-      buildConversationAtomicLayoutKey(
-        sessionKey,
-        visibleMessages,
-        conversation.pending_permissions,
-      ),
-      conversation.error ?? "",
-    ].join("\u001f"),
+    () => buildConversationAtomicLayoutKey(
+      sessionKey,
+      visibleMessages,
+      conversation.pending_permissions,
+    ),
     [
-      conversation.error,
       visibleMessages,
       conversation.pending_permissions,
       sessionKey,

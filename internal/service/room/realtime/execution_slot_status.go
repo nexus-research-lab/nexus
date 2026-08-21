@@ -320,7 +320,22 @@ func (s *Service) handleSlotFailure(
 				),
 			)
 		} else {
-			s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", displayError, roundValue.RootRoundID))
+			errorEvent := roomdomain.NewErrorEvent(
+				roundValue.SessionKey,
+				roundValue.RoomID,
+				roundValue.ConversationID,
+				"room_error",
+				displayError,
+				roundValue.RootRoundID,
+			)
+			errorEvent.AgentID = slot.AgentID
+			errorEvent.AgentRoundID = slot.AgentRoundID
+			s.broadcastSharedEventWithTimeout(
+				ctx,
+				roundValue.SessionKey,
+				roundValue.RoomID,
+				errorEvent,
+			)
 		}
 	}
 	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {

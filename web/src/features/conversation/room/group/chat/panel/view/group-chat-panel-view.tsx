@@ -133,6 +133,7 @@ function ActiveGroupConversation({
         )}
         isMobileLayout={isMobileLayout}
         providerWarningVisible={model.providerWarningVisible}
+        reliability={model.reliability}
         scrollToLatest={model.scrollToLatest}
       >
         <ComposerPanel

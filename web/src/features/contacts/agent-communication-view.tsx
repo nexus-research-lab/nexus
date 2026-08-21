@@ -465,7 +465,6 @@ function ContactConversation({
           floatingDockOccupied={false}
           isMobileLayout={isCompactLayout}
           viewport={{
-            error,
             isHistoryLoading,
             onPointerDown: scroll.onPointerDown,
             onScroll: history.handleScroll,
@@ -509,6 +508,13 @@ function ContactConversation({
       <ConversationPanelBottomArea
         isMobileLayout={isCompactLayout}
         providerWarningVisible={false}
+        reliability={{
+          failure: error && sessionKey
+            ? { code: "session_load_failed", session_key: sessionKey }
+            : null,
+          provider_retry: null,
+          transport_phase: "healthy",
+        }}
         scrollToLatest={HIDDEN_SCROLL_CONTROL}
       >
         <ComposerPanel
