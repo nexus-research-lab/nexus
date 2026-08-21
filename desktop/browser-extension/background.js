@@ -1541,7 +1541,7 @@ class BrowserController {
         this.leaseByTab.set(tabId, lease);
         result.handoff += 1;
       } else if (lease.mark === "deliverable" || !lease.owned) {
-        await this.releaseTab(tabId);
+        await this.releaseTab(tabId, lease.owned && lease.mark === "deliverable");
         result.released += 1;
       } else {
         await this.closeTab({ tab_id: tabId });
@@ -1777,12 +1777,19 @@ class BrowserController {
     }
   }
 
-  async releaseTab(tabId) {
+  async releaseTab(tabId, removeFromGroup = false) {
     if (this.attachedTabs.has(tabId)) {
       try {
         await chrome.debugger.detach({ tabId });
       } catch {
         // 页面关闭或调试会话先行结束时，只需清理本地租约。
+      }
+    }
+    if (removeFromGroup) {
+      try {
+        await chrome.tabs.ungroup(tabId);
+      } catch {
+        // 标签页已离组或关闭时仍可直接交还用户。
       }
     }
     this.clearTab(tabId);
