@@ -9,7 +9,7 @@ import (
 )
 
 func TestBrowserStatusDoesNotRequireExtensionConnection(t *testing.T) {
-	server := NewServer(browsersvc.NewService(), "session-a", "Agent A", nil)
+	server := NewServer(browsersvc.NewService(), "session-a", "round-a", "Agent A", nil)
 	response, err := server.HandleMessage(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,

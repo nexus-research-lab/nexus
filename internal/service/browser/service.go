@@ -18,7 +18,7 @@ import (
 
 const (
 	// ProtocolVersion 是 Nexus 宿主与浏览器扩展的线协议版本。
-	ProtocolVersion = "2"
+	ProtocolVersion = "3"
 	// WebSocketSubprotocol 防止普通网页把内部端点当作通用 WebSocket 使用。
 	WebSocketSubprotocol = "nexus.browser.v1"
 	// BrowserExtensionID 来自 Nexus 扩展 manifest 的稳定公钥。
@@ -27,6 +27,7 @@ const (
 	BrowserExtensionOrigin = "chrome-extension://" + BrowserExtensionID
 
 	commandTimeout = 90 * time.Second
+	cleanupTimeout = 15 * time.Second
 )
 
 var (
@@ -41,7 +42,7 @@ var (
 // SupportedActions 返回 Browser service 接受的稳定 action 名称。
 func SupportedActions() []string {
 	return []string{
-		"status", "navigate", "find_tab", "list_tabs", "attach_active", "attach_tab",
+		"status", "navigate", "find_tab", "list_tabs", "attach_active", "attach_tab", "mark_tab",
 		"back", "forward", "reload", "history", "evaluate", "page_content", "wait_for", "wait_for_url",
 		"network", "console", "dialog", "snapshot", "click", "fill", "check", "uncheck",
 		"select_option", "mouse_click", "double_click", "hover", "mouse_move", "drag", "scroll",
@@ -65,8 +66,11 @@ type commandResponse struct {
 }
 
 type browserTab struct {
-	id  int64
-	ref string
+	id      int64
+	ref     string
+	owned   bool
+	roundID string
+	mark    string
 }
 
 type browserSession struct {
@@ -198,10 +202,16 @@ func (s *Service) ObserveEvent(event string, data map[string]any) bool {
 	if !ok {
 		return false
 	}
-	if _, ok = state.tabs[sourceTabRef]; !ok {
+	sourceTab, ok := state.tabs[sourceTabRef]
+	if !ok {
 		return false
 	}
-	rememberTab(&state, browserTab{id: tabID, ref: tabRef})
+	rememberTab(&state, browserTab{
+		id:      tabID,
+		ref:     tabRef,
+		owned:   true,
+		roundID: sourceTab.roundID,
+	})
 	state.activeTabRef = tabRef
 	s.sessions[sessionKey] = state
 	return true
@@ -211,6 +221,7 @@ func (s *Service) ObserveEvent(event string, data map[string]any) bool {
 func (s *Service) Execute(
 	ctx context.Context,
 	sessionKey string,
+	roundID string,
 	sessionLabel string,
 	action string,
 	input map[string]any,
@@ -227,15 +238,30 @@ func (s *Service) Execute(
 		return nil, ErrCDPDisabled
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
-	if sessionKey == "" {
-		return nil, errors.New("Browser 缺少 runtime Session identity")
+	roundID = strings.TrimSpace(roundID)
+	if sessionKey == "" || roundID == "" {
+		return nil, errors.New("Browser 缺少 runtime Session/round identity")
 	}
 	params, immediate, err := s.prepareParams(sessionKey, sessionLabel, action, input)
 	if err != nil || immediate != nil {
 		return immediate, err
 	}
+	params["round_id"] = roundID
+	result, err := s.sendCommand(ctx, action, params, commandTimeout)
+	if err != nil {
+		return nil, err
+	}
+	s.updateSession(sessionKey, roundID, action, params, result)
+	return result, nil
+}
 
-	callCtx, cancel := context.WithTimeout(ctx, commandTimeout)
+func (s *Service) sendCommand(
+	ctx context.Context,
+	action string,
+	params map[string]any,
+	timeout time.Duration,
+) (map[string]any, error) {
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	requestID := fmt.Sprintf("browser-%d", s.sequence.Add(1))
 	waiter := make(chan commandResponse, 1)
@@ -255,7 +281,7 @@ func (s *Service) Execute(
 		"action": action,
 		"params": params,
 	}
-	if err = sender(callCtx, message); err != nil {
+	if err := sender(callCtx, message); err != nil {
 		s.removePending(requestID)
 		return nil, fmt.Errorf("发送 Browser 命令失败: %w", err)
 	}
@@ -265,12 +291,76 @@ func (s *Service) Execute(
 		if response.err != nil {
 			return nil, response.err
 		}
-		s.updateSession(sessionKey, action, params, response.data)
 		return response.data, nil
 	case <-callCtx.Done():
 		s.removePending(requestID)
 		return nil, fmt.Errorf("Browser 动作 %s 超时: %w", action, callCtx.Err())
 	}
+}
+
+// FinalizeRound 关闭本轮 Agent 新建的临时页，并释放用户页或显式交付页。
+func (s *Service) FinalizeRound(ctx context.Context, sessionKey string, roundID string) error {
+	if s == nil {
+		return nil
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	roundID = strings.TrimSpace(roundID)
+	if sessionKey == "" || roundID == "" {
+		return nil
+	}
+
+	s.mu.Lock()
+	state, ok := s.sessions[sessionKey]
+	refs := make([]string, 0, len(state.tabs))
+	if ok {
+		for _, tab := range state.tabs {
+			if tab.roundID == roundID {
+				refs = append(refs, tab.ref)
+			}
+		}
+	}
+	s.mu.Unlock()
+	if len(refs) == 0 {
+		return nil
+	}
+	sort.Strings(refs)
+	_, err := s.sendCommand(ctx, "finalize_round", map[string]any{
+		"session":  sessionKey,
+		"round_id": roundID,
+		"tab_refs": refs,
+	}, cleanupTimeout)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok = s.sessions[sessionKey]
+	if !ok {
+		return nil
+	}
+	for ref, tab := range state.tabs {
+		if tab.roundID != roundID {
+			continue
+		}
+		if tab.mark == "handoff" {
+			tab.roundID = ""
+			tab.mark = ""
+			state.tabs[ref] = tab
+			continue
+		}
+		delete(state.tabs, ref)
+	}
+	remaining := orderedTabs(state.tabs)
+	if len(remaining) == 0 {
+		delete(s.sessions, sessionKey)
+		return nil
+	}
+	if _, exists := state.tabs[state.activeTabRef]; !exists {
+		state.activeTabRef = remaining[len(remaining)-1].ref
+	}
+	s.sessions[sessionKey] = state
+	return nil
 }
 
 // Status 返回不包含浏览数据的连接状态。
@@ -320,7 +410,9 @@ func (s *Service) prepareParams(
 ) (map[string]any, map[string]any, error) {
 	params := cloneMap(input)
 	requestedTabRef := stringValue(params["tab_ref"])
-	for _, key := range []string{"action", "owned", "session", "group_title", "tab_id", "tab_ids", "tab_ref", "tab_refs"} {
+	for _, key := range []string{
+		"action", "owned", "session", "group_title", "round_id", "tab_id", "tab_ids", "tab_ref", "tab_refs",
+	} {
 		delete(params, key)
 	}
 	params["session"] = sessionKey
@@ -358,6 +450,15 @@ func (s *Service) prepareParams(
 			return nil, nil, errors.New("attach_tab 需要 list_tabs 返回的 tab_ref")
 		}
 		params["tab_ref"] = requestedTabRef
+	case "mark_tab":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		mark := strings.ToLower(stringValue(params["mark"]))
+		if mark != "none" && mark != "deliverable" && mark != "handoff" {
+			return nil, nil, errors.New("mark_tab 的 mark 必须是 none、deliverable 或 handoff")
+		}
+		params["mark"] = mark
 	case "navigate":
 		if stringValue(params["url"]) == "" {
 			return nil, nil, errors.New("navigate 需要非空 url")
@@ -770,6 +871,7 @@ func (s *Service) prepareParams(
 
 func (s *Service) updateSession(
 	sessionKey string,
+	roundID string,
 	action string,
 	params map[string]any,
 	result map[string]any,
@@ -787,7 +889,12 @@ func (s *Service) updateSession(
 		if !valid || tabID <= 0 || tabRef == "" {
 			return
 		}
-		rememberTab(&state, browserTab{id: tabID, ref: tabRef})
+		rememberTab(&state, browserTab{
+			id:      tabID,
+			ref:     tabRef,
+			owned:   boolValue(result["owned"]),
+			roundID: roundID,
+		})
 		state.activeTabRef = tabRef
 		s.sessions[sessionKey] = state
 	case "list_tabs":
@@ -801,7 +908,13 @@ func (s *Service) updateSession(
 			tabID, valid := integerValue(value["tab_id"])
 			tabRef := stringValue(value["tab_ref"])
 			if valid && tabID > 0 && tabRef != "" {
-				next[tabRef] = browserTab{id: tabID, ref: tabRef}
+				next[tabRef] = browserTab{
+					id:      tabID,
+					ref:     tabRef,
+					owned:   boolValue(value["owned"]),
+					roundID: stringValue(value["round_id"]),
+					mark:    stringValue(value["mark"]),
+				}
 			}
 		}
 		state.tabs = next
@@ -829,6 +942,28 @@ func (s *Service) updateSession(
 		s.sessions[sessionKey] = state
 	case "close_session":
 		delete(s.sessions, sessionKey)
+	case "mark_tab":
+		tabRef := stringValue(params["tab_ref"])
+		tab, exists := state.tabs[tabRef]
+		if !exists {
+			return
+		}
+		tab.roundID = roundID
+		tab.mark = stringValue(params["mark"])
+		if tab.mark == "none" {
+			tab.mark = ""
+		}
+		state.tabs[tabRef] = tab
+		s.sessions[sessionKey] = state
+	default:
+		tabRef := stringValue(params["tab_ref"])
+		tab, exists := state.tabs[tabRef]
+		if !exists {
+			return
+		}
+		tab.roundID = roundID
+		state.tabs[tabRef] = tab
+		s.sessions[sessionKey] = state
 	}
 }
 
@@ -862,6 +997,11 @@ func rememberTab(state *browserSession, next browserTab) {
 		}
 	}
 	state.tabs[next.ref] = next
+}
+
+func boolValue(value any) bool {
+	result, _ := value.(bool)
+	return result
 }
 
 func normalizeSelector(params map[string]any, action string) error {

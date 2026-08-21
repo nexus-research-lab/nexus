@@ -300,14 +300,19 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	state, ok := m.sessions[sessionKey]
-	if !ok {
+	if !ok || state.Rounds.get(roundID) == nil {
+		m.mu.Unlock()
 		return
 	}
 	m.markRoundTerminalLocked(state, roundID)
 	state.Rounds.cleanup(roundID)
 	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
+	observer := m.roundFinishedObserver
+	m.mu.Unlock()
+	if observer != nil {
+		observer(sessionKey, roundID)
+	}
 }
 
 func (m *Manager) markRoundTerminalLocked(state *sessionState, roundID string) {

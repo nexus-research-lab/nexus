@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const event = { addListener() {}, removeListener() {} };
 const actionOrder = [];
 const cursorMessages = [];
+const detachedTabs = [];
+const removedTabs = [];
 let cursorReceiverAvailable = true;
 const chrome = {
   action: {
@@ -15,7 +17,11 @@ const chrome = {
     async setBadgeText() {},
   },
   alarms: { create() {}, onAlarm: event },
-  debugger: { onDetach: event, onEvent: event },
+  debugger: {
+    onDetach: event,
+    onEvent: event,
+    async detach({ tabId }) { detachedTabs.push(tabId); },
+  },
   runtime: { getManifest: () => ({ version: "test" }), onMessage: event },
   scripting: {
     async executeScript() {
@@ -36,6 +42,7 @@ const chrome = {
     async get(tabId) {
       return { id: tabId, title: "Child", url: "https://example.com/child", groupId: -1, windowId: 1 };
     },
+    async remove(tabId) { removedTabs.push(tabId); },
     async sendMessage(tabId, message) {
       actionOrder.push("cursor");
       cursorMessages.push({ tabId, message });
@@ -120,7 +127,7 @@ test("Browser 新建导航目标继承来源标签页的 Session", async () => {
   const { BrowserController } = context.__test;
   const controller = new BrowserController();
   controller.setIdentity("browser-a", "generation-a");
-  controller.claimTab(9, { session: "session-a", group_title: "Agent A" }, false);
+  controller.claimTab(9, { session: "session-a", group_title: "Agent A", round_id: "round-a" }, false);
   const sourceRef = controller.tabRef(9);
   const events = [];
   controller.setEventSink((eventName, data) => events.push({ eventName, data }));
@@ -135,6 +142,42 @@ test("Browser 新建导航目标继承来源标签页的 Session", async () => {
   assert.equal(events[0].data.source_tab_ref, sourceRef);
   assert.equal(events[0].data.tab.tab_id, 10);
   assert.equal(controller.parseTabRef(events[0].data.tab.tab_ref), 10);
+  assert.equal(controller.leaseByTab.get(10).owned, true);
+  assert.equal(controller.leaseByTab.get(10).roundID, "round-a");
+});
+
+test("Browser round 收尾关闭临时页并释放用户页", async () => {
+  const { BrowserController } = context.__test;
+  const controller = new BrowserController();
+  controller.setIdentity("browser-a", "generation-a");
+  detachedTabs.length = 0;
+  removedTabs.length = 0;
+  for (const [tabId, owned, mark] of [
+    [1, true, ""],
+    [2, false, ""],
+    [3, true, "deliverable"],
+    [4, true, "handoff"],
+  ]) {
+    controller.claimTab(tabId, { session: "session-a", round_id: "round-a" }, owned);
+    controller.leaseByTab.get(tabId).mark = mark;
+    controller.attachedTabs.add(tabId);
+  }
+  controller.claimTab(5, { session: "session-a", round_id: "round-b" }, true);
+
+  const result = await controller.execute("finalize_round", {
+    session: "session-a",
+    round_id: "round-a",
+  });
+
+  assert.equal(JSON.stringify(result), JSON.stringify({ closed: 1, released: 2, handoff: 1 }));
+  assert.deepEqual(removedTabs, [1]);
+  assert.deepEqual(detachedTabs, [2, 3]);
+  assert.equal(controller.leaseByTab.has(1), false);
+  assert.equal(controller.leaseByTab.has(2), false);
+  assert.equal(controller.leaseByTab.has(3), false);
+  assert.equal(controller.leaseByTab.get(4).roundID, "");
+  assert.equal(controller.leaseByTab.get(4).mark, "");
+  assert.equal(controller.leaseByTab.get(5).roundID, "round-b");
 });
 
 test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () => {
