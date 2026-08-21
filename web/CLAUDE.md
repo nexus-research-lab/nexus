@@ -123,16 +123,16 @@ src/
 - 锚定浮层共用 `shared/ui/overlay/` 的定位、Portal 和关闭生命周期；Select/MultiSelect 在 `shared/ui/menu/` 复用内部开关、触发键盘协议和 listbox 框架，ActionMenu 保持外部受控，消费者直接导入具体组件
 - 全局反馈只通过 `shared/ui/feedback/feedback-banner-viewport.tsx` 展示当前单条状态；tone 视觉与时长归纯定义表，业务消费者不得恢复单元素 Stack 数组
 - Launcher 按 `console/` 与 `hero/` 分离 API/导航和视觉/输入；服务端动作使用完整分发表，Hero 不直接访问领域 API
-- Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器
+- Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器。Artifact 与 Markdown 异步图片必须在请求前后复用同一有界媒体框，加载、成功和失败状态不得用 intrinsic image size 改写消息几何
 - Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块
 - DM/Room 虚拟消息流共用 `features/conversation/shared/feed/` 的容器测量与轮次导航协议；高度估算必须响应容器宽度变化
-- DM/Room canonical 根轮次只从 `features/conversation/shared/timeline/timeline-model.ts` 派生；隐藏消息、私域 Room execution 的 slot/permission/execution 证据及其 live round 在这个入口一次性过滤，Feed、Thread 与 navigator 不得再次解释可见性；Room Feed 再由 `room/group/chat/feed/group-agent-timeline-model.ts` 把各 `agent_round` 投影为保留根因果关系的稳定时间线节点，并在节点生成前移除明确无公开回复的 entry，Thread 仍使用 canonical root；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求，并在有界消息窗口淘汰已加载 round 后按实际驻留 identity 重新开放；用户顶部下拉可显式重开耗尽的自动重试
+- DM/Room canonical 根轮次只从 `features/conversation/shared/timeline/timeline-model.ts` 派生；隐藏消息、私域 Room execution 的 slot/permission/execution 证据及其 live round 在这个入口一次性过滤，Feed、Thread 与 navigator 不得再次解释可见性；Room Feed 再由 `room/group/chat/feed/group-agent-timeline-model.ts` 把各 `agent_round` 投影为保留根因果关系的稳定时间线节点，并在节点生成前移除明确无公开回复的 entry，Thread 仍使用 canonical root；indexed resident window 必须为已驻留窗口保留有界相邻加载边界，不能依赖未挂载 DOM 才发现缺页；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求，并在有界消息窗口淘汰已加载 round 后按实际驻留 identity 重新开放；用户顶部下拉可显式重开耗尽的自动重试
 - Room 未读 Agent 队列只使用完成事件的精确消息身份、`room_seq` 和稳定 `room-agent-round` 节点；Agent 节点可能插入旧 root，标记必须以不改变测量高度的 overlay 随真实节点渲染，Composer 上方入口按目标相对视口显示向上或向下，static/virtual Feed 共用同一状态且不得改变 DM 的回到底部控件
-- 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记
+- 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；FOLLOW、READING、Virtualizer、历史前插、轮次导航和局部展开任一几何提交都必须服从单一 `scrollTop` owner，面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记；Feed/Composer 高度负债只允许在安静窗口后原子释放，禁止连续高度动画形成 ResizeObserver 反馈
 - 对话历史请求默认携带 `defer_index=true`；后端返回 `indexing` 时必须保留 loading、按 `retry_after_ms` 短请求重试，所有首屏/向前/around 请求必须持有可在切换会话或重置分页时 abort 的请求信号，禁止把空 `items` 当成已加载的空会话；Round Navigator 复用同一 generation 与短轮询协议
 - 浏览器消息集合按完整 root round 同时受 round 数与估算驻留字节预算约束；淘汰不得拆开 round，around 窗口保留目标锚点，实时/乐观消息优先于可重取的历史。超过阈值的历史 Tool result 与内联图片只在消息页保留当前 generation 引用和有界预览，展开 Tool 或挂载图片时才通过带认证、可取消的 detail 请求读取完整内容
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导
-- 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用
+- 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离 exact 索引目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，落点前导航独占滚动且不得提前切换活动态，DOM 确认可见后立即交还 Virtualizer/READING，失效目标不得产生副作用
 - 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态、结果元数据结算资格与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，不得根据 streaming 自行隐藏或恢复模型与统计，DM live 的连续普通工具由 `item/process/dm-tool-run-segments.ts` 以首个 `tool_use.id` 稳定成段，未解析或新增长段保持展开，已解析段在叙事/final 恢复边界后折叠，Room 与人工交互工具不进入该压缩路径；User 视图按展示模型、头部、正文和编辑器分工，未匹配权限只进入 Composer 队列，不得在消息正文恢复独立操作面
 - `MessageItem` 直接从 `message/item/message-item.tsx` 导入；消息目录不提供只做转发的聚合出口
 - 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；Question 的卡片展示与草稿/提交控制分别归 `question/{card,controller}/`，跨消息项的工具名称与输入摘要归消息域 `tool-activity.ts`，Tool 的执行阶段与权限详情只由 `tool/tool-block-model.ts` 派生，头部交互由 `tool/header/` 的纯投影解释

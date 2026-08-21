@@ -20,9 +20,14 @@
 // Execution -> Goal mutation whose reverse confirmation is still recovering is
 // returned as applied/noop with goal_confirmation_status=pending and an
 // executable retry next_action, never as a transport IsError.
-// distill_workgraph is the only model persistence boundary for reusable WorkGraph
-// commands: it consumes only the exact user-reviewed preview_id and persists that
-// host-generated sketch unchanged, without source locators, runtime or delivery history.
+// WorkGraph authoring is one service with two constrained registries. Ordinary
+// DM/Room rounds can inspect exact-session sources and Drafts, extract/reuse one
+// completed graph, append a full CAS revision, select an immutable version, and
+// save only after explicit user confirmation. Hidden Nexus-main-Agent editor
+// Sessions expose only revise/select for their bound Draft. UI confirmation uses
+// an isolated internal registry where distill_workgraph consumes only the exact
+// host-bound preview_id and persists that selected sketch unchanged, without
+// source transcript, runtime or delivery history.
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 doc.go（L2）
 package operation

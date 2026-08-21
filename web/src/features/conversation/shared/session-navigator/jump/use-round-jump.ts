@@ -95,7 +95,9 @@ export function useRoundJump({
         scrollElement,
         roundScrollRef?.current ?? null,
         target.scrollRoundId,
-        { align: "focus", behavior: "smooth" },
+        // Navigation owns this scroll transaction. Native smooth scrolling can
+        // outlive the async load and race the exact landing correction.
+        { align: "focus", behavior: "auto" },
       );
 
       if (!loaded && !enqueueNavigationLoad(target)) {

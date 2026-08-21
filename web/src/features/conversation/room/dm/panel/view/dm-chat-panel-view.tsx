@@ -1,6 +1,6 @@
 /**
- * INPUT: DM 会话 Frame、Feed、Goal、Task 与 Composer 视图模型。
- * OUTPUT: 共享 viewport 与从 Composer 向上堆叠 Goal、Task、滚动入口的 DM 对话布局。
+ * INPUT: DM 会话 Frame、Feed、嵌入编辑器接待话术、Goal、Task 与 Composer 视图模型。
+ * OUTPUT: 共享 viewport、与修改消息同 Feed 的仅 UI 接待说明，以及从 Composer 向上堆叠的 DM 对话布局。
  * POS: DM 面板的纯视图层。
  */
 
@@ -23,11 +23,14 @@ import { ExecutionProcessPanel } from "@/features/conversation/shared/execution/
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import {
   WorkspaceTaskPanel,
   type WorkspaceTaskSource,
 } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import type { TodoItem } from "@/types/conversation/todo";
+
+import type { DmEmbeddedEditorIntroduction } from "../dm-chat-panel-types";
 
 export type DmChatComposerModel = Omit<
   ComponentProps<typeof ComposerPanel>,
@@ -38,6 +41,10 @@ type GoalPanelModel = Omit<ComponentProps<typeof GoalPanel>, "compact">;
 
 export interface DmChatPanelViewModel extends ConversationPanelFrameModel {
   embedded: boolean;
+  embeddedIntroduction: (DmEmbeddedEditorIntroduction & {
+    agentAvatar: string | null;
+    agentName: string;
+  }) | null;
   composer: DmChatComposerModel;
   composerInteraction: ComposerInteractionSurfaceProps;
   feed: FeedModel;
@@ -75,7 +82,12 @@ export function DmChatPanelView({
           tourAnchor={CONVERSATION_TOUR_ANCHORS.feed}
           viewport={viewport}
         >
-          <ConversationFeed {...model.feed} />
+          <ConversationFeed
+            {...model.feed}
+            leadingContent={model.embeddedIntroduction ? (
+              <EmbeddedEditorIntroduction {...model.embeddedIntroduction} />
+            ) : undefined}
+          />
         </ConversationPanelViewport>
       </ConversationPanelViewportArea>
       <ConversationPanelBottomArea
@@ -105,5 +117,46 @@ export function DmChatPanelView({
         />
       </ConversationPanelBottomArea>
     </ConversationPanelLayout>
+  );
+}
+
+function EmbeddedEditorIntroduction({
+  agentAvatar,
+  agentName,
+  description,
+  examples,
+  examplesLabel,
+  footer,
+  title,
+}: NonNullable<DmChatPanelViewModel["embeddedIntroduction"]>) {
+  return (
+    <section
+      aria-label={title}
+      className="pb-2 pt-1"
+      data-embedded-editor-introduction
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <UiAgentAvatar avatar={agentAvatar} name={agentName} size="sm" />
+        <span className="truncate text-sm font-medium text-(--text-strong)">
+          {agentName}
+        </span>
+      </div>
+      <div className="ml-9 mt-2.5 min-w-0 text-[13px] leading-5.5 text-(--text-muted)">
+        <p className="font-medium text-(--text-strong)">{title}</p>
+        <p className="mt-1">{description}</p>
+        <p className="mt-4 text-xs font-medium text-(--text-soft)">{examplesLabel}</p>
+        <ul className="mt-2.5 space-y-2">
+          {examples.map((example) => (
+            <li
+              className="border-l-2 border-[color:color-mix(in_srgb,var(--primary)_44%,var(--divider-subtle-color))] pl-3 text-(--text-strong)"
+              key={example}
+            >
+              “{example}”
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-xs text-(--text-soft)">{footer}</p>
+      </div>
+    </section>
   );
 }

@@ -41,6 +41,8 @@ export function useDmChatPanelModel({
   });
   const session = useDmChatSessionController({
     identity: sessionIdentity,
+    initialScrollAnchor: embeddedEditor ? "top" : "bottom",
+    liveContentAlignment: embeddedEditor ? "start" : "end",
     onConversationSnapshotChange,
     onGoalEvent: goal.refresh,
     onRoomEvent,
@@ -96,6 +98,11 @@ export function useDmChatPanelModel({
     workspaceAgentId: sessionIdentity?.agent_id ?? null,
   });
   model.embedded = Boolean(embeddedEditor);
+  model.embeddedIntroduction = embeddedEditor ? {
+    ...embeddedEditor.introduction,
+    agentAvatar: currentAgent.avatar ?? null,
+    agentName: currentAgent.name,
+  } : null;
   if (embeddedEditor) {
     model.executionPanel = null;
     model.todos = [];

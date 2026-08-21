@@ -342,7 +342,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("execution-orchestrator", "references", "workgraph-distillation.md"): {
 			"distill_workgraph",
 			"schema 只要求 `preview_id`",
-			"短期受限 DM 分支",
+			"隐藏专用 DM",
+			"不可变版本",
 			"key 主路径与 terminal 交付",
 			"不得重新读取源图、重选节点或重写草图",
 		},

@@ -1,6 +1,6 @@
-// INPUT: owner、完成态 ExecutionView、默认后台模型草图与受管 CLI 确认。
-// OUTPUT: 非持久化结构草图、确认后的命名 WorkGraph、动态 Slash descriptor 与复用 prompt。
-// POS: 完成图提炼、用户预览确认和跨 Session 复用的唯一业务入口。
+// INPUT: owner、完成态 ExecutionView、默认对话模型草图、durable Draft 与受管 CLI 确认。
+// OUTPUT: 可恢复版本化草图、确认后的命名 WorkGraph、动态 Slash descriptor 与复用 prompt。
+// POS: 完成图提炼、UI/对话统一编辑确认和跨 Session 复用的唯一业务入口。
 package workgraphworkflow
 
 import (
@@ -23,7 +23,7 @@ import (
 
 const (
 	maxWorkflowCount   = 128
-	workflowPreviewTTL = 2 * time.Hour
+	workflowPreviewTTL = 30 * 24 * time.Hour
 )
 
 var workflowSlashNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
@@ -49,10 +49,32 @@ var (
 // Repository 是 Workflow service 所需的最小持久化能力。
 type Repository interface {
 	Create(context.Context, protocol.WorkGraphWorkflow) (*protocol.WorkGraphWorkflow, error)
+	Update(context.Context, protocol.WorkGraphWorkflow) (*protocol.WorkGraphWorkflow, error)
 	List(context.Context, string) ([]protocol.WorkGraphWorkflow, error)
 	GetByID(context.Context, string, string) (*protocol.WorkGraphWorkflow, error)
 	GetBySlashName(context.Context, string, string) (*protocol.WorkGraphWorkflow, error)
 	Delete(context.Context, string, string) (bool, error)
+}
+
+// DraftRepository 是生产 repository 提供的可恢复草图与不可变版本能力。
+// 测试替身可不实现，Service 会保留进程内语义。
+type DraftRepository interface {
+	CreateDraft(context.Context, protocol.WorkGraphWorkflowDraft) (*protocol.WorkGraphWorkflowDraft, error)
+	GetDraftByID(context.Context, string, string) (*protocol.WorkGraphWorkflowDraft, error)
+	GetDraftBySource(context.Context, string, string, string) (*protocol.WorkGraphWorkflowDraft, error)
+	GetDraftByEditorSession(context.Context, string, string) (*protocol.WorkGraphWorkflowDraft, error)
+	GetDraftBySavedWorkflowID(context.Context, string, string) (*protocol.WorkGraphWorkflowDraft, error)
+	ListDrafts(context.Context, string, string) ([]protocol.WorkGraphWorkflowDraft, error)
+	RenewDraftLease(context.Context, string, string, time.Time, time.Time) error
+	AppendDraftVersion(context.Context, string, string, int64, protocol.WorkGraphWorkflowPreview, time.Time, time.Time) (*protocol.WorkGraphWorkflowDraft, error)
+	SelectDraftVersion(context.Context, string, string, int64, int64, time.Time) (*protocol.WorkGraphWorkflowDraft, error)
+	BindDraftEditor(context.Context, string, string, string, string, string, int64, time.Time) (*protocol.WorkGraphWorkflowDraft, error)
+	SetDraftSaveState(context.Context, string, string, bool, string, int64, time.Time) error
+}
+
+// MainAgentResolver 为所有草图编辑统一选择 owner 的 Nexus 主智能体。
+type MainAgentResolver interface {
+	GetDefaultAgent(context.Context) (*protocol.Agent, error)
 }
 
 // ExecutionViewer 提供源历史图的 owner/session 安全读取。
@@ -65,6 +87,7 @@ type Service struct {
 	repository      Repository
 	executions      ExecutionViewer
 	abstractor      Abstractor
+	agents          MainAgentResolver
 	editorSessions  EditorSessionManager
 	saveDispatcher  SaveRoundDispatcher
 	onChanged       func(context.Context, string)
@@ -74,6 +97,7 @@ type Service struct {
 	previews        map[string]workflowPreviewRecord
 	editors         map[string]workflowEditorRecord
 	editorBySession map[string]string
+	editorByPreview map[string]string
 }
 
 type workflowPreviewRecord struct {
@@ -81,7 +105,10 @@ type workflowPreviewRecord struct {
 	preview              protocol.WorkGraphWorkflowPreview
 	sourceAgentID        string
 	sourceConversationID string
+	outputLanguage       string
 	saveScheduled        bool
+	savedWorkflowID      string
+	savedRevision        int64
 }
 
 // NewService 创建 WorkGraph Workflow service。
@@ -94,17 +121,25 @@ func NewService(repository Repository, executions ExecutionViewer) *Service {
 		previews:        make(map[string]workflowPreviewRecord),
 		editors:         make(map[string]workflowEditorRecord),
 		editorBySession: make(map[string]string),
+		editorByPreview: make(map[string]string),
 	}
 }
 
-// SetAbstractor 注入默认后台模型抽象审查器；未配置时草图生成失败关闭。
+// SetAbstractor 注入默认对话模型抽象审查器；未配置时草图生成失败关闭。
 func (s *Service) SetAbstractor(abstractor Abstractor) {
 	if s != nil {
 		s.abstractor = abstractor
 	}
 }
 
-// SetEditorSessionManager 注入隐藏临时 DM Session 的创建与安全删除能力。
+// SetMainAgentResolver 注入 owner 的 Nexus 主智能体解析器。
+func (s *Service) SetMainAgentResolver(resolver MainAgentResolver) {
+	if s != nil {
+		s.agents = resolver
+	}
+}
+
+// SetEditorSessionManager 注入隐藏专用 DM Session 的创建与显式丢弃能力。
 func (s *Service) SetEditorSessionManager(manager EditorSessionManager) {
 	if s != nil {
 		s.editorSessions = manager
@@ -118,7 +153,7 @@ func (s *Service) SetChangeNotifier(notifier func(context.Context, string)) {
 	}
 }
 
-// PreviewFromExecution 从完整完成图自动抽取非持久化草图，供用户确认结构并修订展示元信息。
+// PreviewFromExecution 从完整完成图自动抽取或复用 durable Draft，供用户确认和版本化修订。
 func (s *Service) PreviewFromExecution(
 	ctx context.Context,
 	ownerUserID string,
@@ -136,6 +171,17 @@ func (s *Service) PreviewFromExecution(
 	}
 	if s == nil || s.repository == nil || s.executions == nil || s.abstractor == nil {
 		return nil, errors.New("workgraph sketch service is unavailable")
+	}
+	if existing, existingErr := s.findReusableDraft(
+		ctx,
+		ownerUserID,
+		request.SourceSessionKey,
+		request.SourceExecutionID,
+	); existingErr != nil {
+		return nil, existingErr
+	} else if existing != nil {
+		result := cloneWorkflowPreview(existing.Preview)
+		return &result, nil
 	}
 	workflows, err := s.repository.List(ctx, ownerUserID)
 	if err != nil {
@@ -167,7 +213,7 @@ func (s *Service) PreviewFromExecution(
 	if err != nil {
 		return nil, fmt.Errorf("workgraph abstraction failed: %w", err)
 	}
-	validated, err := applyAbstraction(sourceNodes, abstracted)
+	validated, err := applyAbstraction(sourceNodes, abstractionNodes, abstracted)
 	if err != nil {
 		return nil, err
 	}
@@ -191,10 +237,21 @@ func (s *Service) PreviewFromExecution(
 	if sourceAgentID == "" {
 		sourceAgentID = strings.TrimSpace(protocol.ParseSessionKey(source.SessionKey).AgentID)
 	}
-	s.storePreview(ownerUserID, preview, now, workflowPreviewSource{
+	if err = s.storePreview(ctx, ownerUserID, preview, now, request.OutputLanguage, workflowPreviewSource{
 		AgentID:        sourceAgentID,
 		ConversationID: source.ConversationID,
-	})
+	}); err != nil {
+		if existing, lookupErr := s.findReusableDraft(
+			ctx,
+			ownerUserID,
+			request.SourceSessionKey,
+			request.SourceExecutionID,
+		); lookupErr == nil && existing != nil {
+			result := cloneWorkflowPreview(existing.Preview)
+			return &result, nil
+		}
+		return nil, err
+	}
 	result := cloneWorkflowPreview(preview)
 	return &result, nil
 }
@@ -228,6 +285,13 @@ func (s *Service) SavePreview(
 	if s == nil || s.repository == nil {
 		return nil, errors.New("workgraph sketch service is unavailable")
 	}
+	draft, err := s.loadDraftByID(ctx, ownerUserID, request.PreviewID)
+	if err != nil {
+		return nil, err
+	}
+	if draft != nil && draft.SourceSessionKey != request.SourceSessionKey {
+		return nil, ErrNotFound
+	}
 	workflowID := ""
 	if commandID := strings.TrimSpace(request.CommandID); commandID != "" {
 		workflowID = workflowIDForCommand(ownerUserID, commandID)
@@ -236,10 +300,17 @@ func (s *Service) SavePreview(
 			return nil, getErr
 		}
 		if existing != nil {
+			if drafts, supported := s.repository.(DraftRepository); supported {
+				savedRevision := int64(0)
+				if draft != nil {
+					savedRevision = draft.SelectedRevision
+				}
+				_ = drafts.SetDraftSaveState(ctx, ownerUserID, request.PreviewID, false, existing.ID, savedRevision, s.now().UTC())
+			}
 			return existing, nil
 		}
 	}
-	preview, err := s.getPreview(ownerUserID, request.SourceSessionKey, request.PreviewID)
+	preview, err := s.getPreview(ctx, ownerUserID, request.SourceSessionKey, request.PreviewID)
 	if err != nil {
 		return nil, err
 	}
@@ -247,17 +318,59 @@ func (s *Service) SavePreview(
 	if err != nil {
 		return nil, err
 	}
-	if existing != nil {
+	if existing != nil && (draft == nil || existing.ID != draft.SavedWorkflowID) {
 		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
 	}
-	workflows, err := s.repository.List(ctx, ownerUserID)
-	if err != nil {
-		return nil, err
-	}
-	if len(workflows) >= maxWorkflowCount {
-		return nil, fmt.Errorf("%w: at most %d workflows are allowed", ErrInvalidInput, maxWorkflowCount)
+	if draft == nil || draft.SavedWorkflowID == "" {
+		workflows, listErr := s.repository.List(ctx, ownerUserID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		if len(workflows) >= maxWorkflowCount {
+			return nil, fmt.Errorf("%w: at most %d workflows are allowed", ErrInvalidInput, maxWorkflowCount)
+		}
 	}
 	now := s.now().UTC()
+	if draft != nil && draft.SavedWorkflowID != "" {
+		target, getErr := s.repository.GetByID(ctx, ownerUserID, draft.SavedWorkflowID)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if target == nil {
+			return nil, ErrNotFound
+		}
+		if draft.SavedRevision == draft.SelectedRevision {
+			if drafts, supported := s.repository.(DraftRepository); supported {
+				_ = drafts.SetDraftSaveState(ctx, ownerUserID, preview.PreviewID, false, target.ID, draft.SavedRevision, now)
+			}
+			s.setPreviewSavedState(ownerUserID, preview.PreviewID, false, target.ID, draft.SavedRevision)
+			return target, nil
+		}
+		updated, updateErr := s.repository.Update(ctx, protocol.WorkGraphWorkflow{
+			ID: target.ID, OwnerUserID: ownerUserID,
+			SlashName: preview.SlashName, Title: preview.Title, Description: preview.Description,
+			SourceExecutionID: preview.SourceExecutionID, SourceSessionKey: preview.SourceSessionKey,
+			Objective: preview.Objective, CompletionCriteria: slices.Clone(preview.CompletionCriteria),
+			Nodes: cloneWorkflowNodes(preview.Nodes), Dependencies: slices.Clone(preview.Dependencies),
+			Version: target.Version + 1, CreatedAt: target.CreatedAt, UpdatedAt: now,
+		})
+		if updateErr != nil {
+			if duplicateWorkflowError(updateErr) {
+				return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
+			}
+			return nil, updateErr
+		}
+		if drafts, supported := s.repository.(DraftRepository); supported {
+			if err = drafts.SetDraftSaveState(ctx, ownerUserID, preview.PreviewID, false, updated.ID, draft.SelectedRevision, now); err != nil {
+				return nil, err
+			}
+		}
+		s.setPreviewSavedState(ownerUserID, preview.PreviewID, false, updated.ID, draft.SelectedRevision)
+		if s.onChanged != nil {
+			s.onChanged(ctx, ownerUserID)
+		}
+		return updated, nil
+	}
 	workflow := protocol.WorkGraphWorkflow{
 		ID: workflowID, OwnerUserID: ownerUserID,
 		SlashName: preview.SlashName, Title: preview.Title, Description: preview.Description,
@@ -279,7 +392,30 @@ func (s *Service) SavePreview(
 	if s.onChanged != nil {
 		s.onChanged(ctx, ownerUserID)
 	}
+	if drafts, supported := s.repository.(DraftRepository); supported {
+		savedRevision := int64(1)
+		if draft != nil {
+			savedRevision = draft.SelectedRevision
+		}
+		if err = drafts.SetDraftSaveState(ctx, ownerUserID, preview.PreviewID, false, created.ID, savedRevision, s.now().UTC()); err != nil {
+			return nil, err
+		}
+		s.setPreviewSavedState(ownerUserID, preview.PreviewID, false, created.ID, savedRevision)
+	} else {
+		s.setPreviewSavedState(ownerUserID, preview.PreviewID, true, created.ID, 1)
+	}
 	return created, nil
+}
+
+func (s *Service) setPreviewSavedState(ownerUserID, previewID string, scheduled bool, workflowID string, savedRevision int64) {
+	s.previewMu.Lock()
+	defer s.previewMu.Unlock()
+	if record, ok := s.previews[previewCacheKey(ownerUserID, previewID)]; ok {
+		record.savedWorkflowID = strings.TrimSpace(workflowID)
+		record.savedRevision = savedRevision
+		record.saveScheduled = scheduled
+		s.previews[previewCacheKey(ownerUserID, previewID)] = record
+	}
 }
 
 func workflowIDForCommand(ownerUserID string, commandID string) string {
@@ -405,6 +541,28 @@ func buildSourceWorkflowGraph(source *protocol.ExecutionView) ([]protocol.WorkGr
 			IndependentReview:  item.ReviewAgentID != "" || item.ReviewDispatchID != "" || item.ReviewStatus != "",
 			AttemptCount:       len(item.Attempts),
 		})
+	}
+	structuralReferences := make(map[string]struct{}, len(abstractionNodes))
+	for _, node := range abstractionNodes {
+		if node.ParentLogicalKey != "" {
+			structuralReferences[node.ParentLogicalKey] = struct{}{}
+		}
+		for _, dependencyLogicalKey := range node.DependencyLogicalKeys {
+			structuralReferences[dependencyLogicalKey] = struct{}{}
+		}
+	}
+	for index := range abstractionNodes {
+		node := &abstractionNodes[index]
+		_, referenced := structuralReferences[node.LogicalKey]
+		node.MustPreserve = node.Required ||
+			node.Terminal ||
+			node.ParentLogicalKey != "" ||
+			len(node.DependencyLogicalKeys) > 0 ||
+			referenced ||
+			node.Delegated ||
+			node.IndependentReview ||
+			node.Kind == protocol.WorkItemKindReview ||
+			node.Kind == protocol.WorkItemKindVerify
 	}
 	return sourceNodes, abstractionNodes
 }
@@ -575,7 +733,37 @@ type workflowPreviewSource struct {
 	ConversationID string
 }
 
-func (s *Service) storePreview(ownerUserID string, preview protocol.WorkGraphWorkflowPreview, now time.Time, source workflowPreviewSource) {
+func (s *Service) storePreview(
+	ctx context.Context,
+	ownerUserID string,
+	preview protocol.WorkGraphWorkflowPreview,
+	now time.Time,
+	outputLanguage string,
+	source workflowPreviewSource,
+) error {
+	if drafts, ok := s.repository.(DraftRepository); ok {
+		_, err := drafts.CreateDraft(ctx, protocol.WorkGraphWorkflowDraft{
+			PreviewID:            preview.PreviewID,
+			OwnerUserID:          ownerUserID,
+			SourceExecutionID:    preview.SourceExecutionID,
+			SourceSessionKey:     preview.SourceSessionKey,
+			SourceAgentID:        strings.TrimSpace(source.AgentID),
+			SourceConversationID: strings.TrimSpace(source.ConversationID),
+			OutputLanguage:       outputLanguage,
+			HeadRevision:         1,
+			SelectedRevision:     1,
+			Preview:              cloneWorkflowPreview(preview),
+			Versions: []protocol.WorkGraphWorkflowPreviewVersion{{
+				Revision: 1, Preview: cloneWorkflowPreview(preview), CreatedAt: now,
+			}},
+			ExpiresAt: preview.ExpiresAt,
+			CreatedAt: now,
+			UpdatedAt: now,
+		})
+		if err != nil {
+			return err
+		}
+	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	s.cleanupExpiredPreviews(now)
@@ -584,10 +772,15 @@ func (s *Service) storePreview(ownerUserID string, preview protocol.WorkGraphWor
 		preview:              cloneWorkflowPreview(preview),
 		sourceAgentID:        strings.TrimSpace(source.AgentID),
 		sourceConversationID: strings.TrimSpace(source.ConversationID),
+		outputLanguage:       outputLanguage,
 	}
+	return nil
 }
 
-func (s *Service) getPreview(ownerUserID string, sessionKey string, previewID string) (protocol.WorkGraphWorkflowPreview, error) {
+func (s *Service) getPreview(ctx context.Context, ownerUserID string, sessionKey string, previewID string) (protocol.WorkGraphWorkflowPreview, error) {
+	if _, err := s.loadDraftByID(ctx, ownerUserID, previewID); err != nil {
+		return protocol.WorkGraphWorkflowPreview{}, err
+	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	now := s.now().UTC()
@@ -600,20 +793,29 @@ func (s *Service) getPreview(ownerUserID string, sessionKey string, previewID st
 }
 
 func (s *Service) claimPreviewForSave(
+	ctx context.Context,
 	ownerUserID string,
 	sessionKey string,
 	previewID string,
 	slashName string,
 	title string,
 	description string,
-) (protocol.WorkGraphWorkflowPreview, bool, error) {
+) (protocol.WorkGraphWorkflowPreview, string, bool, error) {
+	loadedDraft, err := s.loadDraftByID(ctx, ownerUserID, previewID)
+	if err != nil {
+		return protocol.WorkGraphWorkflowPreview{}, "", false, err
+	}
 	s.previewMu.Lock()
-	defer s.previewMu.Unlock()
 	s.cleanupExpiredPreviews(s.now().UTC())
 	key := previewCacheKey(ownerUserID, previewID)
 	record, ok := s.previews[key]
 	if !ok || record.ownerUserID != ownerUserID || record.preview.SourceSessionKey != sessionKey {
-		return protocol.WorkGraphWorkflowPreview{}, false, ErrNotFound
+		s.previewMu.Unlock()
+		return protocol.WorkGraphWorkflowPreview{}, "", false, ErrNotFound
+	}
+	if strings.TrimSpace(record.sourceAgentID) == "" {
+		s.previewMu.Unlock()
+		return protocol.WorkGraphWorkflowPreview{}, "", false, fmt.Errorf("%w: source Execution has no coordinator Agent", ErrInvalidInput)
 	}
 	if slashName == "" {
 		slashName = record.preview.SlashName
@@ -625,24 +827,61 @@ func (s *Service) claimPreviewForSave(
 		description = record.preview.Description
 	}
 	if !workflowSlashNamePattern.MatchString(slashName) || title == "" || description == "" || len([]rune(title)) > 120 || len([]rune(description)) > 500 {
-		return protocol.WorkGraphWorkflowPreview{}, false, fmt.Errorf("%w: confirmed workflow metadata is invalid", ErrInvalidInput)
+		s.previewMu.Unlock()
+		return protocol.WorkGraphWorkflowPreview{}, "", false, fmt.Errorf("%w: confirmed workflow metadata is invalid", ErrInvalidInput)
 	}
 	if _, reserved := reservedWorkflowSlashNames[slashName]; reserved {
-		return protocol.WorkGraphWorkflowPreview{}, false, fmt.Errorf("%w: /%s", ErrNameConflict, slashName)
+		s.previewMu.Unlock()
+		return protocol.WorkGraphWorkflowPreview{}, "", false, fmt.Errorf("%w: /%s", ErrNameConflict, slashName)
 	}
 	alreadyScheduled := record.saveScheduled
 	if alreadyScheduled && (record.preview.SlashName != slashName || record.preview.Title != title || record.preview.Description != description) {
-		return protocol.WorkGraphWorkflowPreview{}, false, fmt.Errorf("%w: preview was already confirmed with different metadata", ErrInvalidInput)
+		s.previewMu.Unlock()
+		return protocol.WorkGraphWorkflowPreview{}, "", false, fmt.Errorf("%w: preview was already confirmed with different metadata", ErrInvalidInput)
 	}
 	record.preview.SlashName = slashName
 	record.preview.Title = title
 	record.preview.Description = description
 	record.saveScheduled = true
 	s.previews[key] = record
-	return cloneWorkflowPreview(record.preview), alreadyScheduled, nil
+	result := cloneWorkflowPreview(record.preview)
+	sourceAgentID := strings.TrimSpace(record.sourceAgentID)
+	s.previewMu.Unlock()
+	if drafts, supported := s.repository.(DraftRepository); supported {
+		if loadedDraft != nil &&
+			(loadedDraft.Preview.SlashName != result.SlashName ||
+				loadedDraft.Preview.Title != result.Title ||
+				loadedDraft.Preview.Description != result.Description) {
+			updated, appendErr := drafts.AppendDraftVersion(
+				ctx, ownerUserID, previewID, loadedDraft.HeadRevision,
+				result, s.now().UTC(), s.now().UTC().Add(workflowPreviewTTL),
+			)
+			if appendErr != nil {
+				s.releasePreviewSaveClaim(ctx, ownerUserID, previewID)
+				return protocol.WorkGraphWorkflowPreview{}, "", false, appendErr
+			}
+			s.hydrateDraft(*updated)
+			result = cloneWorkflowPreview(updated.Preview)
+		}
+		savedRevision := record.savedRevision
+		if loadedDraft != nil {
+			savedRevision = loadedDraft.SavedRevision
+		}
+		if err := drafts.SetDraftSaveState(ctx, ownerUserID, previewID, true, record.savedWorkflowID, savedRevision, s.now().UTC()); err != nil {
+			s.releasePreviewSaveClaim(ctx, ownerUserID, previewID)
+			return protocol.WorkGraphWorkflowPreview{}, "", false, err
+		}
+	}
+	s.previewMu.Lock()
+	if latest, ok := s.previews[key]; ok {
+		latest.saveScheduled = true
+		s.previews[key] = latest
+	}
+	s.previewMu.Unlock()
+	return result, sourceAgentID, alreadyScheduled, nil
 }
 
-func (s *Service) releasePreviewSaveClaim(ownerUserID string, previewID string) {
+func (s *Service) releasePreviewSaveClaim(ctx context.Context, ownerUserID string, previewID string) {
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	key := previewCacheKey(ownerUserID, previewID)
@@ -652,6 +891,9 @@ func (s *Service) releasePreviewSaveClaim(ownerUserID string, previewID string) 
 	}
 	record.saveScheduled = false
 	s.previews[key] = record
+	if drafts, supported := s.repository.(DraftRepository); supported {
+		_ = drafts.SetDraftSaveState(ctx, ownerUserID, previewID, false, record.savedWorkflowID, record.savedRevision, s.now().UTC())
+	}
 }
 
 func (s *Service) cleanupExpiredPreviews(now time.Time) {
@@ -663,6 +905,7 @@ func (s *Service) cleanupExpiredPreviews(now time.Time) {
 	for key, record := range s.editors {
 		if !record.expiresAt.After(now) {
 			delete(s.editorBySession, record.sessionKey)
+			delete(s.editorByPreview, previewCacheKey(record.ownerUserID, record.previewID))
 			delete(s.editors, key)
 		}
 	}

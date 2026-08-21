@@ -1,6 +1,6 @@
-// INPUT: owner-scoped exact preview 保存请求与当前 DM/Room session key。
-// OUTPUT: HiddenFromUser + Synthetic 的内部 Agent round；不写入用户聊天时间线。
-// POS: HTTP 草图确认到 DM/Room runtime 的宿主路由；实际持久化仍由 round 内 Skill + CLI 完成。
+// INPUT: owner-scoped exact preview、来源 DM/Room scope 与 coordinator Agent。
+// OUTPUT: 在独立目录隐藏内部 DM Session 中运行的 HiddenFromUser + Synthetic Agent round。
+// POS: HTTP 草图确认到隔离 runtime 的宿主路由；不 fork/续写来源 transcript，实际持久化仍由 round 内 Skill + CLI 完成。
 package server
 
 import (
@@ -12,7 +12,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workgraphworkflowsvc "github.com/nexus-research-lab/nexus/internal/service/workgraphworkflow"
 )
 
@@ -22,20 +21,22 @@ type workGraphDMRoundDispatcher interface {
 	HandleChat(context.Context, dmsvc.Request) error
 }
 
-type workGraphRoomRoundDispatcher interface {
-	HandleChat(context.Context, roomrealtime.ChatRequest) error
+type workGraphTransientSessionCreator interface {
+	CreateTransientSession(context.Context, dmsvc.TransientSessionRequest) (*protocol.Session, error)
 }
 
 type workGraphSaveRoundDispatcher struct {
-	dm   workGraphDMRoundDispatcher
-	room workGraphRoomRoundDispatcher
+	dm       workGraphDMRoundDispatcher
+	sessions workGraphTransientSessionCreator
 }
 
 func newWorkGraphSaveRoundDispatcher(
-	dm workGraphDMRoundDispatcher,
-	room workGraphRoomRoundDispatcher,
+	dm interface {
+		workGraphDMRoundDispatcher
+		workGraphTransientSessionCreator
+	},
 ) *workGraphSaveRoundDispatcher {
-	return &workGraphSaveRoundDispatcher{dm: dm, room: room}
+	return &workGraphSaveRoundDispatcher{dm: dm, sessions: dm}
 }
 
 func (d *workGraphSaveRoundDispatcher) DispatchWorkGraphSave(
@@ -43,20 +44,39 @@ func (d *workGraphSaveRoundDispatcher) DispatchWorkGraphSave(
 	request workgraphworkflowsvc.SaveRoundRequest,
 ) error {
 	request.OwnerUserID = strings.TrimSpace(request.OwnerUserID)
-	request.SessionKey = strings.TrimSpace(request.SessionKey)
+	request.AgentID = strings.TrimSpace(request.AgentID)
+	request.SourceSessionKey = strings.TrimSpace(request.SourceSessionKey)
 	request.PreviewID = strings.TrimSpace(request.PreviewID)
 	request.Prompt = strings.TrimSpace(request.Prompt)
-	if request.OwnerUserID == "" || request.SessionKey == "" || request.PreviewID == "" || request.Prompt == "" {
+	if request.OwnerUserID == "" || request.AgentID == "" || request.SourceSessionKey == "" || request.PreviewID == "" || request.Prompt == "" {
 		return errors.New("workgraph background save request is incomplete")
 	}
-	parsed := protocol.ParseSessionKey(request.SessionKey)
-	if !parsed.IsStructured {
+	parsedSource := protocol.ParseSessionKey(request.SourceSessionKey)
+	if !parsedSource.IsStructured {
 		return protocol.StructuredSessionKeyError{Message: "workgraph background save requires a structured session_key"}
+	}
+	if d == nil || d.dm == nil || d.sessions == nil {
+		return errors.New("WorkGraph isolated background save dispatcher is unavailable")
 	}
 	ownerCtx := authctx.WithPrincipal(ctx, &authctx.Principal{
 		UserID: request.OwnerUserID,
 		Role:   authctx.RoleOwner,
 	})
+	runtimeSessionKey := protocol.BuildAgentSessionKey(
+		request.AgentID,
+		protocol.SessionChannelInternalSegment,
+		protocol.RoomTypeDM,
+		request.PreviewID,
+		"",
+	)
+	if _, err := d.sessions.CreateTransientSession(ownerCtx, dmsvc.TransientSessionRequest{
+		AgentID:          request.AgentID,
+		TargetSessionKey: runtimeSessionKey,
+		Purpose:          protocol.SessionPurposeWorkGraphDistillation,
+		Title:            "保存工作图草图",
+	}); err != nil {
+		return err
+	}
 	inputOptions := sdkprotocol.OutboundMessageOptions{
 		HiddenFromUser: true,
 		Synthetic:      true,
@@ -66,32 +86,13 @@ func (d *workGraphSaveRoundDispatcher) DispatchWorkGraphSave(
 			"preview_id": request.PreviewID,
 		},
 	}
-	switch parsed.Kind {
-	case protocol.SessionKeyKindAgent:
-		if d == nil || d.dm == nil {
-			return errors.New("DM background save dispatcher is unavailable")
-		}
-		return d.dm.HandleChat(ownerCtx, dmsvc.Request{
-			SessionKey:      request.SessionKey,
-			AgentID:         parsed.AgentID,
-			Content:         request.Prompt,
-			Internal:        true,
-			ExecutionOrigin: workGraphSaveRoundPurpose,
-			InputOptions:    inputOptions,
-		})
-	case protocol.SessionKeyKindRoom:
-		if d == nil || d.room == nil {
-			return errors.New("Room background save dispatcher is unavailable")
-		}
-		return d.room.HandleChat(ownerCtx, roomrealtime.ChatRequest{
-			SessionKey:      request.SessionKey,
-			ConversationID:  parsed.ConversationID,
-			Content:         request.Prompt,
-			Internal:        true,
-			ExecutionOrigin: workGraphSaveRoundPurpose,
-			InputOptions:    inputOptions,
-		})
-	default:
-		return errors.New("workgraph background save supports only DM or Room sessions")
-	}
+	return d.dm.HandleChat(ownerCtx, dmsvc.Request{
+		SessionKey:                    runtimeSessionKey,
+		AgentID:                       request.AgentID,
+		Content:                       request.Prompt,
+		Internal:                      true,
+		ExecutionOrigin:               workGraphSaveRoundPurpose,
+		WorkGraphSaveSourceSessionKey: request.SourceSessionKey,
+		InputOptions:                  inputOptions,
+	})
 }

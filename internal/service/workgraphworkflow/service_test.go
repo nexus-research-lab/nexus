@@ -2,12 +2,18 @@ package workgraphworkflow
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
+	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 type workflowMemoryRepository struct {
@@ -19,6 +25,19 @@ func (r *workflowMemoryRepository) Create(_ context.Context, workflow protocol.W
 	r.createCount++
 	if r.items == nil {
 		r.items = make(map[string]protocol.WorkGraphWorkflow)
+	}
+	r.items[workflow.ID] = workflow
+	result := workflow
+	return &result, nil
+}
+
+func (r *workflowMemoryRepository) Update(_ context.Context, workflow protocol.WorkGraphWorkflow) (*protocol.WorkGraphWorkflow, error) {
+	if r.items == nil {
+		return nil, ErrNotFound
+	}
+	current, ok := r.items[workflow.ID]
+	if !ok || current.OwnerUserID != workflow.OwnerUserID || current.Version+1 != workflow.Version {
+		return nil, ErrNotFound
 	}
 	r.items[workflow.ID] = workflow
 	result := workflow
@@ -83,6 +102,14 @@ type workflowEditorSessionManager struct {
 	deleted []string
 }
 
+type workflowMainAgentResolver struct {
+	agent *protocol.Agent
+}
+
+func (r workflowMainAgentResolver) GetDefaultAgent(context.Context) (*protocol.Agent, error) {
+	return r.agent, nil
+}
+
 func (m *workflowEditorSessionManager) CreateWorkGraphEditorSession(_ context.Context, request EditorSessionCreateRequest) (*protocol.Session, error) {
 	m.created = append(m.created, request)
 	return &protocol.Session{AgentID: request.AgentID, SessionKey: request.TargetSessionKey}, nil
@@ -104,15 +131,11 @@ func (r *workflowSaveRoundRecorder) DispatchWorkGraphSave(_ context.Context, req
 }
 
 func reusableTestAbstractor(_ context.Context, _ string, input AbstractionInput) (AbstractionOutput, error) {
-	selected := map[string]protocol.WorkGraphWorkflowNodeRole{
-		"research": protocol.WorkGraphWorkflowNodeKey,
-		"review":   protocol.WorkGraphWorkflowNodeCollaboration,
-	}
-	nodes := make([]AbstractedNode, 0, len(selected))
+	nodes := make([]AbstractedNode, 0, len(input.Nodes))
 	for _, node := range input.Nodes {
-		role, keep := selected[node.LogicalKey]
-		if !keep {
-			continue
+		role := protocol.WorkGraphWorkflowNodeKey
+		if node.LogicalKey == "review" {
+			role = protocol.WorkGraphWorkflowNodeCollaboration
 		}
 		nodes = append(nodes, AbstractedNode{
 			LogicalKey: node.LogicalKey, Role: role,
@@ -148,13 +171,14 @@ func TestPreviewThenSaveKeepsExactModelExtractedSketch(t *testing.T) {
 	if repository.createCount != 0 || len(repository.items) != 0 {
 		t.Fatalf("preview persisted data: creates=%d items=%d", repository.createCount, len(repository.items))
 	}
-	if preview.SlashName != "research" || len(preview.Nodes) != 2 || len(preview.Dependencies) != 1 {
+	if preview.SlashName != "research" || len(preview.Nodes) != 3 || len(preview.Dependencies) != 2 {
 		t.Fatalf("preview = %#v", preview)
 	}
-	if preview.Nodes[0].LogicalKey != "research" || preview.Nodes[1].Role != protocol.WorkGraphWorkflowNodeCollaboration {
+	if preview.Nodes[0].LogicalKey != "research" || preview.Nodes[2].Role != protocol.WorkGraphWorkflowNodeCollaboration {
 		t.Fatalf("nodes = %#v", preview.Nodes)
 	}
-	if preview.Dependencies[0].LogicalKey != "review" || preview.Dependencies[0].DependsOnLogicalKey != "research" {
+	if preview.Dependencies[0].LogicalKey != "incidental" || preview.Dependencies[0].DependsOnLogicalKey != "research" ||
+		preview.Dependencies[1].LogicalKey != "review" || preview.Dependencies[1].DependsOnLogicalKey != "incidental" {
 		t.Fatalf("projected dependencies = %#v", preview.Dependencies)
 	}
 	if strings.Contains(preview.Description, "tool-secret") {
@@ -178,6 +202,93 @@ func TestPreviewThenSaveKeepsExactModelExtractedSketch(t *testing.T) {
 	}
 	if changeCount != 1 {
 		t.Fatalf("directory change count = %d, want 1", changeCount)
+	}
+}
+
+func TestPreviewReusesDraftForExactSourceExecution(t *testing.T) {
+	repository := &workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)}
+	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
+	abstractionCount := 0
+	service.SetAbstractor(workflowAbstractor(func(ctx context.Context, owner string, input AbstractionInput) (AbstractionOutput, error) {
+		abstractionCount++
+		return reusableTestAbstractor(ctx, owner, input)
+	}))
+
+	request := protocol.PreviewWorkGraphWorkflowRequest{
+		SourceSessionKey: "session-a", SourceExecutionID: "execution-a", OutputLanguage: "zh",
+	}
+	first, err := service.PreviewFromExecution(context.Background(), "owner-a", request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.PreviewFromExecution(context.Background(), "owner-a", request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if abstractionCount != 1 || first.PreviewID != second.PreviewID {
+		t.Fatalf("reused preview IDs = (%q, %q), abstractions=%d", first.PreviewID, second.PreviewID, abstractionCount)
+	}
+}
+
+func TestSavedWorkflowReopensItsDraftAndPersistsSelectedRevisionAsUpdate(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "workgraph-authoring.db")
+	db, err := sql.Open("sqlite", databasePath+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	repository := workflowstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
+	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
+	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
+	service.SetMainAgentResolver(workflowMainAgentResolver{agent: &protocol.Agent{
+		AgentID: "agent-main", OwnerUserID: "owner-a", IsMain: true,
+	}})
+
+	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
+		SourceSessionKey: "session-a", SourceExecutionID: "execution-a", OutputLanguage: "zh",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
+		CommandID: "save-v1", SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := service.GetDraft(context.Background(), "owner-a", "session-a", preview.PreviewID)
+	if err != nil || draft.SavedWorkflowID != created.ID || draft.SavedRevision != 1 || draft.SaveScheduled {
+		t.Fatalf("saved Draft = %#v, err=%v", draft, err)
+	}
+	revised, err := service.ReviseDraftPreview(context.Background(), "owner-a", "session-a", protocol.ReviseWorkGraphWorkflowDraftRequest{
+		PreviewID: preview.PreviewID,
+		ReviseWorkGraphWorkflowPreviewRequest: protocol.ReviseWorkGraphWorkflowPreviewRequest{
+			Revision: 1, SlashName: preview.SlashName, Title: "更偏好的研究流程",
+			Description: preview.Description, Objective: preview.Objective,
+			CompletionCriteria: preview.CompletionCriteria,
+			Nodes:              preview.Nodes, Dependencies: preview.Dependencies,
+		},
+	})
+	if err != nil || revised.HeadRevision != 2 || revised.SelectedRevision != 2 {
+		t.Fatalf("revised Draft = %#v, err=%v", revised, err)
+	}
+	updated, err := service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
+		CommandID: "save-v2", SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
+	})
+	if err != nil || updated.ID != created.ID || updated.Version != 2 || updated.Title != "更偏好的研究流程" {
+		t.Fatalf("updated workflow = %#v, err=%v", updated, err)
+	}
+	reopened, err := service.PreviewSavedWorkflow(context.Background(), "owner-a", updated.ID, "zh")
+	if err != nil || reopened.PreviewID != preview.PreviewID || reopened.Title != updated.Title {
+		t.Fatalf("reopened saved workflow = %#v, err=%v", reopened, err)
 	}
 }
 
@@ -228,9 +339,11 @@ func TestPreviewPassesRequestedOutputLanguageToAbstraction(t *testing.T) {
 	)
 	gotLanguage := ""
 	gotExistingSlashNames := []string(nil)
+	gotNodes := []AbstractionSourceNode(nil)
 	service.SetAbstractor(workflowAbstractor(func(ctx context.Context, owner string, input AbstractionInput) (AbstractionOutput, error) {
 		gotLanguage = input.OutputLanguage
 		gotExistingSlashNames = input.ExistingSlashNames
+		gotNodes = input.Nodes
 		return reusableTestAbstractor(ctx, owner, input)
 	}))
 	_, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
@@ -241,6 +354,12 @@ func TestPreviewPassesRequestedOutputLanguageToAbstraction(t *testing.T) {
 	}
 	if gotLanguage != "en" {
 		t.Fatalf("output language = %q, want en", gotLanguage)
+	}
+	if len(gotNodes) != 3 || !gotNodes[0].MustPreserve || !gotNodes[1].MustPreserve || !gotNodes[2].MustPreserve {
+		t.Fatalf("abstraction nodes = %#v", gotNodes)
+	}
+	if len(gotNodes[2].DependencyLogicalKeys) != 1 || gotNodes[2].DependencyLogicalKeys[0] != "incidental" {
+		t.Fatalf("review dependencies = %#v", gotNodes[2].DependencyLogicalKeys)
 	}
 	joinedNames := strings.Join(gotExistingSlashNames, ",")
 	if !strings.Contains(joinedNames, "component-integrate-verify") || !strings.Contains(joinedNames, "workgraph") {
@@ -303,7 +422,7 @@ func TestScheduleSaveDispatchesOneHiddenPromptWithoutGraphContent(t *testing.T) 
 		t.Fatalf("receipt=%#v requests=%#v", receipt, dispatcher.requests)
 	}
 	dispatched := dispatcher.requests[0]
-	if dispatched.OwnerUserID != "owner-a" || dispatched.SessionKey != "session-a" || dispatched.PreviewID != preview.PreviewID {
+	if dispatched.OwnerUserID != "owner-a" || dispatched.AgentID != "agent-a" || dispatched.SourceSessionKey != "session-a" || dispatched.PreviewID != preview.PreviewID {
 		t.Fatalf("dispatch request = %#v", dispatched)
 	}
 	for _, expected := range []string{
@@ -372,6 +491,9 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
 	sessions := &workflowEditorSessionManager{}
 	service.SetEditorSessionManager(sessions)
+	service.SetMainAgentResolver(workflowMainAgentResolver{agent: &protocol.Agent{
+		AgentID: "agent-main", OwnerUserID: "owner-a", IsMain: true,
+	}})
 	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
 		SourceSessionKey: "session-a", SourceExecutionID: "execution-a", OutputLanguage: "zh",
 	})
@@ -388,8 +510,8 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	if editor.Revision != 1 || editor.Preview.Title != "研究审查" || editor.SessionKey == "" || len(sessions.created) != 1 {
 		t.Fatalf("started editor = %#v", editor)
 	}
-	if sessions.created[0].SourceSessionKey != "session-a" {
-		t.Fatalf("transient fork request = %#v", sessions.created[0])
+	if sessions.created[0].AgentID != "agent-main" || editor.AgentID != "agent-main" {
+		t.Fatalf("hidden editor request = %#v", sessions.created[0])
 	}
 	nodes := cloneWorkflowNodes(editor.Preview.Nodes)
 	for index := range nodes {
@@ -414,11 +536,12 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if revised.Revision != 2 || revised.Preview.Title != "证据简报" || len(revised.Preview.Nodes) != 3 {
+	if revised.Revision != 2 || revised.SelectedRevision != 2 || len(revised.Versions) != 2 ||
+		revised.Preview.Title != "证据简报" || len(revised.Preview.Nodes) != 4 {
 		t.Fatalf("revised editor = %#v", revised)
 	}
-	unchanged, err := service.getPreview("owner-a", "session-a", preview.PreviewID)
-	if err != nil || len(unchanged.Nodes) != 2 {
+	unchanged, err := service.getPreview(context.Background(), "owner-a", "session-a", preview.PreviewID)
+	if err != nil || len(unchanged.Nodes) != 3 {
 		t.Fatalf("unapplied preview = %#v, err=%v", unchanged, err)
 	}
 	if _, err = service.ReviseEditorPreview(context.Background(), "owner-a", editor.SessionKey, protocol.ReviseWorkGraphWorkflowPreviewRequest{
@@ -430,8 +553,22 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	applied, err := service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
 		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: revised.Revision,
 	})
-	if err != nil || len(applied.Nodes) != 3 || applied.Nodes[2].LogicalKey != "publish" {
+	if err != nil || len(applied.Nodes) != 4 || applied.Nodes[3].LogicalKey != "publish" {
 		t.Fatalf("applied preview = %#v, err=%v", applied, err)
+	}
+	selected, err := service.SelectMetadataEditorVersion(context.Background(), "owner-a", protocol.SelectWorkGraphWorkflowEditorVersionRequest{
+		SourceSessionKey: "session-a", EditorID: editor.EditorID,
+		Revision: revised.Revision, SelectedRevision: 1,
+	})
+	if err != nil || selected.Revision != 2 || selected.SelectedRevision != 1 || selected.Preview.Title != "研究审查" {
+		t.Fatalf("selected old version = %#v, err=%v", selected, err)
+	}
+	reopened, err := service.StartMetadataEditor(context.Background(), "owner-a", protocol.StartWorkGraphWorkflowEditorRequest{
+		SourceSessionKey: "session-a", PreviewID: preview.PreviewID, OutputLanguage: "zh",
+	})
+	if err != nil || reopened.EditorID != editor.EditorID || reopened.SessionKey != editor.SessionKey ||
+		len(sessions.created) != 1 || reopened.SelectedRevision != 1 {
+		t.Fatalf("reopened editor = %#v, sessions=%#v, err=%v", reopened, sessions.created, err)
 	}
 	closed, err := service.CloseMetadataEditor(context.Background(), "owner-a", "session-a", editor.EditorID)
 	if err != nil || !closed || len(sessions.deleted) != 1 || sessions.deleted[0] != editor.SessionKey {

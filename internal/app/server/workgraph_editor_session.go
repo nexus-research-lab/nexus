@@ -1,5 +1,5 @@
-// INPUT: WorkGraph 服务签发的源/目标 Session identity。
-// OUTPUT: 标准 DM transcript fork 与安全 Session 删除主链。
+// INPUT: WorkGraph 服务签发的 Nexus 主智能体与隐藏目标 Session identity。
+// OUTPUT: 不继承源 transcript 的可恢复专用 DM 与安全 Session 删除主链。
 // POS: workgraphworkflow 与 dm/session 服务之间的组合层适配器。
 package server
 
@@ -25,8 +25,8 @@ func (m workGraphEditorSessionManager) CreateWorkGraphEditorSession(
 	if m.dm == nil {
 		return nil, errors.New("DM service is unavailable")
 	}
-	return m.dm.CreateTransientFork(ctx, dmsvc.TransientForkRequest{
-		SourceSessionKey:      request.SourceSessionKey,
+	return m.dm.CreateTransientSession(ctx, dmsvc.TransientSessionRequest{
+		AgentID:               request.AgentID,
 		TargetSessionKey:      request.TargetSessionKey,
 		Purpose:               protocol.SessionPurposeWorkGraphEditor,
 		Title:                 "调整草图",

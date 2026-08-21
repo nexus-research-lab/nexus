@@ -1,12 +1,12 @@
 /**
  * INPUT: owner-scoped 命名工作图目录与可选详情路由。
- * OUTPUT: 与 Loop 同构的能力目录、抽象节点详情、复制与删除操作。
+ * OUTPUT: 与 Loop 同构的能力目录、抽象节点详情、复制、继续编辑与删除操作。
  * POS: “能力 > 工作图”的唯一页面入口。
  */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, GitBranchPlus, Trash2 } from "lucide-react";
+import { Check, Copy, GitBranchPlus, Pencil, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -20,11 +20,14 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
+import { WorkGraphMetadataEditorDialog } from "@/features/conversation/shared/execution/workgraph-metadata-editor-dialog";
 import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/features/conversation/shared/execution/workgraph-distillation-intent";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import {
   deleteWorkGraphWorkflowApi,
   getWorkGraphWorkflowsApi,
+  previewSavedWorkGraphWorkflowApi,
+  scheduleWorkGraphWorkflowSaveApi,
 } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -34,10 +37,11 @@ import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
+import { useAgentStore } from "@/store/agent";
+import type { WorkGraphWorkflow, WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
 export function WorkGraphDistillationsDirectory() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { distillationId } = useParams<{ distillationId?: string }>();
   const [items, setItems] = useState<WorkGraphWorkflow[]>([]);
@@ -46,6 +50,11 @@ export function WorkGraphDistillationsDirectory() {
   const [error, setError] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<WorkGraphWorkflow | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
+  const [editingPreview, setEditingPreview] = useState<WorkGraphWorkflowPreview | null>(null);
+  const [openingEditorId, setOpeningEditorId] = useState<string | null>(null);
+  const agents = useAgentStore((state) => state.agents);
+  const loadAgents = useAgentStore((state) => state.load_agents_from_server);
 
   useEffect(() => {
     let active = true;
@@ -82,6 +91,22 @@ export function WorkGraphDistillationsDirectory() {
     window.setTimeout(() => setCopiedId((current) => current === item.id ? null : current), 1800);
   };
 
+  const openEditor = async (item: WorkGraphWorkflow) => {
+    if (openingEditorId) return;
+    setOpeningEditorId(item.id);
+    setError(null);
+    try {
+      if (agents.length === 0) await loadAgents();
+      const preview = await previewSavedWorkGraphWorkflowApi(item.id, locale);
+      setEditingWorkflowId(item.id);
+      setEditingPreview(preview);
+    } catch (reason: unknown) {
+      setError(getErrorMessage(reason, t("capability.workgraph_edit_failed")));
+    } finally {
+      setOpeningEditorId(null);
+    }
+  };
+
   return (
     <WorkspaceSurfaceScaffold bodyScrollable stableGutter>
       <CapabilityPageLayout
@@ -108,6 +133,7 @@ export function WorkGraphDistillationsDirectory() {
             item={selected}
             onBack={() => navigate(AppRouteBuilders.workGraphDistillations())}
             onCopy={() => void copyCommand(selected)}
+            onEdit={() => void openEditor(selected)}
           />
         ) : filtered.length === 0 ? (
           <UiStateBlock
@@ -127,6 +153,9 @@ export function WorkGraphDistillationsDirectory() {
                   onClick={() => navigate(AppRouteBuilders.workGraphDistillationDetail(item.id))}
                   right={(
                     <div className="flex shrink-0 gap-1">
+                      <UiIconButton aria-label={t("capability.workgraph_edit")} disabled={openingEditorId !== null} onClick={(event) => { event.stopPropagation(); void openEditor(item); }} size="md" variant="ghost">
+                        <Pencil className="h-4 w-4" />
+                      </UiIconButton>
                       <UiIconButton aria-label={t("capability.workgraph_copy")} onClick={(event) => { event.stopPropagation(); void copyCommand(item); }} size="md" variant="ghost">
                         {copiedId === item.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       </UiIconButton>
@@ -164,11 +193,47 @@ export function WorkGraphDistillationsDirectory() {
         title={t("execution.workflow_delete_title")}
         variant="danger"
       />
+      {editingPreview ? (
+        <WorkGraphMetadataEditorDialog
+          agents={agents}
+          preview={editingPreview}
+          sessionKey={editingPreview.source_session_key}
+          onApply={async (nextPreview) => {
+            await scheduleWorkGraphWorkflowSaveApi(nextPreview.source_session_key, nextPreview.preview_id, {
+              description: nextPreview.description,
+              slash_name: nextPreview.slash_name,
+              title: nextPreview.title,
+            });
+            const workflowId = editingWorkflowId;
+            if (workflowId) {
+              setItems((current) => current.map((item) => item.id === workflowId ? {
+                ...item,
+                completion_criteria: nextPreview.completion_criteria,
+                dependencies: nextPreview.dependencies,
+                description: nextPreview.description,
+                nodes: nextPreview.nodes,
+                objective: nextPreview.objective,
+                slash_name: nextPreview.slash_name,
+                title: nextPreview.title,
+                // The save is scheduled asynchronously; keep the persisted aggregate
+                // version until the refreshed directory confirms the new revision.
+                version: item.version,
+              } : item));
+            }
+            setEditingPreview(null);
+            setEditingWorkflowId(null);
+          }}
+          onClose={() => {
+            setEditingPreview(null);
+            setEditingWorkflowId(null);
+          }}
+        />
+      ) : null}
     </WorkspaceSurfaceScaffold>
   );
 }
 
-function WorkGraphDistillationDetail({ item, onBack, onCopy }: { item: WorkGraphWorkflow; onBack: () => void; onCopy: () => void }) {
+function WorkGraphDistillationDetail({ item, onBack, onCopy, onEdit }: { item: WorkGraphWorkflow; onBack: () => void; onCopy: () => void; onEdit: () => void }) {
   const { t } = useI18n();
   return (
     <div className="space-y-4">
@@ -178,7 +243,10 @@ function WorkGraphDistillationDetail({ item, onBack, onCopy }: { item: WorkGraph
           <h2 className="mt-2 text-lg font-semibold text-(--text-strong)">/{item.slash_name}</h2>
           <p className="mt-1 text-sm text-(--text-muted)">{item.description}</p>
         </div>
-        <button className="rounded-[8px] bg-(--brand-action) px-3 py-2 text-xs font-semibold text-white" onClick={onCopy} type="button">{t("capability.workgraph_copy")}</button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-control-background) px-3 py-2 text-xs font-semibold text-(--text-strong)" onClick={onEdit} type="button">{t("capability.workgraph_edit")}</button>
+          <button className="rounded-[8px] bg-(--brand-action) px-3 py-2 text-xs font-semibold text-white" onClick={onCopy} type="button">{t("capability.workgraph_copy")}</button>
+        </div>
       </div>
       <div className="rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-muted-background) p-3 text-sm text-(--text-default)">{item.objective}</div>
       <NamedWorkGraphSketch dependencies={item.dependencies} nodes={item.nodes} />

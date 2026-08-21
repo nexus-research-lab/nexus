@@ -1,3 +1,6 @@
+// INPUT: Nexus Session 的宿主签发用途、runtime 覆盖与目录/隔离选项。
+// OUTPUT: 跨 DM/runtime/session service 共用的规范化 option key、purpose 与读取投影。
+// POS: Session 持久选项和短期业务 Session 身份的 protocol 真相源。
 package protocol
 
 import (
@@ -39,11 +42,14 @@ const (
 	OptionSessionHiddenFromDirectory = "session_hidden_from_directory"
 	// OptionSessionPurpose 表示宿主签发的短期 Session 用途；普通用户输入不能改写。
 	OptionSessionPurpose = "session_purpose"
-	// OptionSessionDisplayAfterUnixMilli 让 fork Session 继承模型上下文时，只在嵌入视图展示分支后的消息。
+	// OptionSessionDisplayAfterUnixMilli 让嵌入式 Session 只展示业务创建边界后的消息；不代表它继承了 transcript。
 	OptionSessionDisplayAfterUnixMilli = "session_display_after_unix_milli"
 )
 
-const SessionPurposeWorkGraphEditor = "workgraph_editor"
+const (
+	SessionPurposeWorkGraphEditor       = "workgraph_editor"
+	SessionPurposeWorkGraphDistillation = "workgraph_distillation"
+)
 
 // ScopedSessionRuntimePolicy 是宿主为精确业务 Session 签发的系统提示与完整工具覆盖。
 type ScopedSessionRuntimePolicy struct {

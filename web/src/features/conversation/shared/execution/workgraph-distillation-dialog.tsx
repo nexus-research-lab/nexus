@@ -1,5 +1,5 @@
 /**
- * INPUT: 默认后台模型从 exact 完成图抽取的临时草图。
+ * INPUT: 默认对话模型从 exact 完成图抽取的临时草图。
  * OUTPUT: 用户可修订命令、说明与图结构后保存或放弃。
  * POS: 完成态 WorkGraph 到后台 execution-orchestrator Skill + Nexus CLI 的确认层。
  */

@@ -1,6 +1,6 @@
-// INPUT: 当前 owner/Agent/scope/session/round identity、统一动态 Responsibility authority 与 Orchestration 应用服务。
-// OUTPUT: 模型语义工具共用、每次调用原子读取 Goal/Execution/Work/Review 与 durable Plan proposal binding 的权威 context 和窄服务接口。
-// POS: command operation adapter 与 service/orchestration 之间不接受模型伪造业务身份或 proposal 选择的消费侧契约。
+// INPUT: 当前 owner/Agent/scope/session/round identity、exact WorkGraph preview、统一动态 Responsibility authority 与 Orchestration 应用服务。
+// OUTPUT: 模型语义工具共用、每次调用原子读取 Goal/Execution/Work/Review、preview 与 durable Plan proposal binding 的权威 context 和窄服务接口。
+// POS: command operation adapter 与 service/orchestration 之间不接受模型伪造业务身份、preview 或 proposal 选择的消费侧契约。
 package contract
 
 import (
@@ -53,7 +53,18 @@ type WorkflowService interface {
 	) (*protocol.WorkGraphWorkflow, error)
 }
 
-// WorkflowEditorService 是隐藏临时 DM 中唯一可写的草图 revision 边界。
+// WorkflowAuthoringService 是普通 DM/Room 中由 execution-orchestrator Skill 使用的统一草图能力。
+// owner 与 source Session identity 由 runtime capability 固定；模型只能选择该 Session 内的 source/preview/version。
+type WorkflowAuthoringService interface {
+	InspectLibrary(context.Context, string, string) (*protocol.WorkGraphWorkflowLibrary, error)
+	PreviewFromExecution(context.Context, string, protocol.PreviewWorkGraphWorkflowRequest) (*protocol.WorkGraphWorkflowPreview, error)
+	GetDraft(context.Context, string, string, string) (*protocol.WorkGraphWorkflowDraft, error)
+	ReviseDraftPreview(context.Context, string, string, protocol.ReviseWorkGraphWorkflowDraftRequest) (*protocol.WorkGraphWorkflowDraft, error)
+	SelectDraftRevision(context.Context, string, string, string, int64, int64) (*protocol.WorkGraphWorkflowDraft, error)
+	SavePreview(context.Context, string, protocol.SaveWorkGraphWorkflowRequest) (*protocol.WorkGraphWorkflow, error)
+}
+
+// WorkflowEditorService 是隐藏专用 DM 中唯一可写的草图 revision/selection 边界。
 // owner 与 editor Session identity 只来自 runtime capability，不进入模型输入。
 type WorkflowEditorService interface {
 	RuntimeEditorActive(string, string) bool
@@ -63,6 +74,7 @@ type WorkflowEditorService interface {
 		string,
 		protocol.ReviseWorkGraphWorkflowPreviewRequest,
 	) (*protocol.WorkGraphWorkflowEditorSession, error)
+	SelectEditorVersionBySession(context.Context, string, string, int64, int64) (*protocol.WorkGraphWorkflowEditorSession, error)
 }
 
 // Context contains authoritative runtime identity. None of these fields
@@ -89,6 +101,7 @@ type Context struct {
 	RoomSessionID           string
 	PlanMode                bool
 	CommandAttempts         *runtimecommand.AttemptState
+	WorkGraphPreviewID      string
 }
 
 // Actor projects runtime command identity into the application service authority boundary.

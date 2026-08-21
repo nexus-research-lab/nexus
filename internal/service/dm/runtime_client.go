@@ -1,6 +1,6 @@
-// INPUT: DM session、稳定 execution contract、exact Goal authority、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork，并让 Goal/Execution command 共用同一 round authority 的换代安全 runtime client。
-// POS: DM 服务的 runtime client 装配边界。
+// INPUT: DM session、稳定 execution contract、exact Goal authority、隔离 WorkGraph 保存绑定、Agent runtime 配置与 guidance 队列位置。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy，以及共用同轮 authority 的 Goal/Execution command runtime client。
+// POS: DM 服务的 runtime client 装配与 owner-private command scope 签发边界。
 package dm
 
 import (
@@ -106,6 +106,10 @@ func (s *Service) ensureClient(
 		if err != nil {
 			return dmClientPreparation{}, err
 		}
+	}
+	if !scopedPolicyActive && protocol.SessionPurpose(sessionItem) == protocol.SessionPurposeWorkGraphDistillation {
+		scopedPolicy = workGraphDistillationRuntimePolicy()
+		scopedPolicyActive = true
 	}
 	if request.runtimePreparationOnly &&
 		sessionItem.ConfigurationVersion != request.expectedConfigurationVersion {
@@ -236,11 +240,20 @@ func (s *Service) ensureClient(
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	if scopedPolicyActive {
-		sourceContextType = protocol.SessionPurposeWorkGraphEditor
+		sourceContextType = protocol.SessionPurpose(sessionItem)
+	}
+	commandScopeSessionKey := sessionKey
+	workGraphPreviewID := ""
+	if sourceContextType == protocol.SessionPurposeWorkGraphDistillation {
+		commandScopeSessionKey = strings.TrimSpace(request.WorkGraphSaveSourceSessionKey)
+		workGraphPreviewID = strings.TrimSpace(request.InputOptions.Metadata["preview_id"])
+		if commandScopeSessionKey == "" || workGraphPreviewID == "" {
+			return dmClientPreparation{}, errors.New("WorkGraph distillation round is missing its exact source or preview binding")
+		}
 	}
 	runtimeBuilderContext := runtimectx.WithRuntimeRoundLease(ctx, sessionKey, request.RoundID)
 	runtimeCommandContext := runtimectx.RuntimeCommandContext{
-		Agent: agentValue, ScopeSessionKey: sessionKey, RuntimeSessionKey: sessionKey,
+		Agent: agentValue, ScopeSessionKey: commandScopeSessionKey, RuntimeSessionKey: sessionKey,
 		ExecutionID:        executionID,
 		CoordinatorAgentID: agentValue.AgentID,
 		RootRoundID:        request.RoundID, AgentRoundID: request.AgentRoundID,
@@ -249,6 +262,7 @@ func (s *Service) ensureClient(
 		GoalAuthority: goalAuthority, ResponsibilityAuthority: responsibilityState,
 		SDKSessionIdentity: sdkSessionIdentity,
 		AutomationRun:      cloneAutomationRunContext(request.AutomationRun),
+		WorkGraphPreviewID: workGraphPreviewID,
 	}
 	configurationRuntimeEnv := map[string]string(nil)
 	if !request.runtimePreparationOnly && !scopedPolicyActive && s.configurationRuntimeEnv != nil {
@@ -266,7 +280,8 @@ func (s *Service) ensureClient(
 	}
 	runtimeCommandEnv := map[string]string(nil)
 	if !request.runtimePreparationOnly &&
-		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor) &&
+		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+			sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
 		s.runtimeCommandEnv != nil {
 		runtimeCommandEnv, err = s.runtimeCommandEnv(
 			runtimeBuilderContext,
@@ -609,6 +624,21 @@ func (s *Service) ensureClient(
 	}
 	commandResourcesTransferred = true
 	return preparation, nil
+}
+
+func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
+	return protocol.ScopedSessionRuntimePolicy{
+		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
+		ToolPolicy: protocol.RuntimeToolPolicy{
+			AllowedTools: []string{"Skill", "Write", "Bash", "PowerShell"},
+			DisallowedTools: []string{
+				"Agent", "Read", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
+				"nexus_visualize", "nexus_imagegen",
+			},
+		},
+		AllowedSkillNames: []string{"execution-orchestrator"},
+		DisableConnectors: true,
+	}
 }
 
 func conversationForkResumeAt(options map[string]any, forkMessageID string) string {

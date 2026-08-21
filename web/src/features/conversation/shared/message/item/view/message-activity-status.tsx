@@ -178,7 +178,7 @@ function MessageLoadingDots({
       style={{ width: `${spinnerWidth}ch` }}
     >
       <span
-        className="message-activity-spinner-track flex flex-col font-mono leading-none will-change-transform"
+        className="message-activity-spinner-track flex flex-col font-mono leading-none"
         style={trackStyle}
       >
         {trackFrames.map((frame, index) => (
