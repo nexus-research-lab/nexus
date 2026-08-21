@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
@@ -40,5 +41,39 @@ func TestBrowserSchemaIncludesCompleteActionSet(t *testing.T) {
 	values := action["enum"].([]string)
 	if expected := browsersvc.SupportedActions(); !reflect.DeepEqual(values, expected) {
 		t.Fatalf("browser schema actions = %v, want %v", values, expected)
+	}
+}
+
+func TestBrowserSchemaConstrainsCommandsByAction(t *testing.T) {
+	schema := browserSchema()
+	alternatives := schema["anyOf"].([]any)
+	want := map[string][]string{
+		"network":   {"start", "stop", "list", "detail"},
+		"console":   {"start", "stop", "list"},
+		"dialog":    {"get", "accept", "dismiss"},
+		"downloads": {"list", "wait", "show"},
+		"clipboard": {"read", "write"},
+	}
+	got := make(map[string][]string, len(want))
+	for _, rawAlternative := range alternatives {
+		alternative := rawAlternative.(map[string]any)
+		properties := alternative["properties"].(map[string]any)
+		actions := properties["action"].(map[string]any)["enum"].([]string)
+		commands, constrained := properties["cmd"]
+		if !constrained {
+			for action := range want {
+				if slices.Contains(actions, action) {
+					t.Fatalf("普通 action 分支不应包含命令 action %q", action)
+				}
+			}
+			continue
+		}
+		if len(actions) != 1 {
+			t.Fatalf("命令分支 action = %v", actions)
+		}
+		got[actions[0]] = commands.(map[string]any)["enum"].([]string)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("browser command constraints = %v, want %v", got, want)
 	}
 }
