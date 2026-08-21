@@ -10,7 +10,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
-import { getBrowserExtensionStatusApi, type BrowserExtensionStatus } from "@/lib/api/settings/webbridge-api";
+import { getBrowserExtensionStatusApi, type BrowserExtensionStatus } from "@/lib/api/settings/browser-api";
 import { getUserPreferencesApi, updateUserPreferencesApi } from "@/lib/api/settings/preferences-api";
 import { startDesktopBrowserExtensionSetup } from "@/lib/desktop-bridge/desktop-bridge";
 import { getErrorMessage } from "@/lib/error-message";
@@ -28,20 +28,20 @@ const INSTALL_STEPS: ReadonlyArray<{
   titleKey: TranslationKey;
 }> = [
   {
-    titleKey: "settings.computer_use.install_step_developer_title",
-    descriptionKey: "settings.computer_use.install_step_developer_description",
+    titleKey: "settings.browser.install_step_developer_title",
+    descriptionKey: "settings.browser.install_step_developer_description",
   },
   {
-    titleKey: "settings.computer_use.install_step_load_title",
-    descriptionKey: "settings.computer_use.install_step_load_description",
+    titleKey: "settings.browser.install_step_load_title",
+    descriptionKey: "settings.browser.install_step_load_description",
   },
   {
-    titleKey: "settings.computer_use.install_step_wait_title",
-    descriptionKey: "settings.computer_use.install_step_wait_description",
+    titleKey: "settings.browser.install_step_wait_title",
+    descriptionKey: "settings.browser.install_step_wait_description",
   },
 ];
 
-export function ComputerUseSettingsSection() {
+export function BrowserSettingsSection() {
   const { t } = useI18n();
   const [status, setStatus] = useState<BrowserExtensionStatus | null>(null);
   const [statusError, setStatusError] = useState("");
@@ -64,7 +64,7 @@ export function ComputerUseSettingsSection() {
         setStatusError("");
       } catch (error) {
         if (!active) return;
-        setStatusError(getErrorMessage(error, t("settings.computer_use.status_failed")));
+        setStatusError(getErrorMessage(error, t("settings.browser.status_failed")));
       }
     };
     void load();
@@ -83,7 +83,7 @@ export function ComputerUseSettingsSection() {
       })
       .catch((error: unknown) => {
         if (active) {
-          setCDPError(getErrorMessage(error, t("settings.computer_use.cdp_load_failed")));
+          setCDPError(getErrorMessage(error, t("settings.browser.cdp_load_failed")));
         }
       })
       .finally(() => {
@@ -101,7 +101,7 @@ export function ComputerUseSettingsSection() {
       await startDesktopBrowserExtensionSetup();
       setSetupStarted(true);
     } catch (error) {
-      setSetupError(getErrorMessage(error, t("settings.computer_use.install_failed")));
+      setSetupError(getErrorMessage(error, t("settings.browser.install_failed")));
     } finally {
       setOpeningSetup(false);
     }
@@ -117,7 +117,7 @@ export function ComputerUseSettingsSection() {
       setCDPEnabled(preferences.browser_cdp_enabled === true);
     } catch (error) {
       setCDPEnabled(previous);
-      setCDPError(getErrorMessage(error, t("settings.computer_use.cdp_save_failed")));
+      setCDPError(getErrorMessage(error, t("settings.browser.cdp_save_failed")));
     } finally {
       setCDPSaving(false);
     }
@@ -125,16 +125,16 @@ export function ComputerUseSettingsSection() {
 
   const connected = status?.connected === true;
   const statusLabel = status === null && statusError === ""
-    ? t("settings.computer_use.status_checking")
+    ? t("settings.browser.status_checking")
     : connected
-      ? t("settings.computer_use.status_connected")
-      : t("settings.computer_use.status_disconnected");
+      ? t("settings.browser.status_connected")
+      : t("settings.browser.status_disconnected");
 
   return (
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} flex flex-col`}>
       <WorkspaceContentHeader
-        description={t("settings.computer_use.section_description")}
-        title={t("settings.computer_use.section_title")}
+        description={t("settings.browser.section_description")}
+        title={t("settings.browser.section_title")}
       />
 
       <section className="space-y-2.5">
@@ -146,7 +146,7 @@ export function ComputerUseSettingsSection() {
               </div>
               <div className="min-w-0">
                 <h2 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
-                  {t("settings.computer_use.chrome_title")}
+                  {t("settings.browser.chrome_title")}
                 </h2>
                 <div aria-live="polite" className="mt-1 flex flex-wrap items-center gap-2 text-compact">
                   <span className={connected ? "text-(--success)" : "text-(--text-soft)"}>
@@ -158,7 +158,7 @@ export function ComputerUseSettingsSection() {
                   </span>
                   {connected && status?.extension_version ? (
                     <span className="text-(--text-soft)">
-                      {t("settings.computer_use.status_version", { version: status.extension_version })}
+                      {t("settings.browser.status_version", { version: status.extension_version })}
                     </span>
                   ) : null}
                 </div>
@@ -174,10 +174,10 @@ export function ComputerUseSettingsSection() {
             >
               {openingSetup ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
               {openingSetup
-                ? t("settings.computer_use.install_opening")
+                ? t("settings.browser.install_opening")
                 : connected || setupStarted
-                  ? t("settings.computer_use.install_reopen")
-                  : t("settings.computer_use.install_action")}
+                  ? t("settings.browser.install_reopen")
+                  : t("settings.browser.install_action")}
             </UiButton>
           </div>
 
@@ -185,12 +185,12 @@ export function ComputerUseSettingsSection() {
             {connected ? (
               <div className="flex items-center gap-2 text-compact text-(--success)">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>{t("settings.computer_use.install_success")}</span>
+                <span>{t("settings.browser.install_success")}</span>
               </div>
             ) : setupStarted ? (
               <div>
                 <p className="text-compact font-semibold text-(--text-strong)">
-                  {t("settings.computer_use.install_guide_title")}
+                  {t("settings.browser.install_guide_title")}
                 </p>
                 <ol className="mt-3 grid gap-4 md:grid-cols-3">
                   {INSTALL_STEPS.map((step, index) => (
@@ -208,7 +208,7 @@ export function ComputerUseSettingsSection() {
               </div>
             ) : (
               <p className="text-compact leading-5 text-(--text-soft)">
-                {t("settings.computer_use.install_hint")}
+                {t("settings.browser.install_hint")}
               </p>
             )}
 
@@ -228,8 +228,8 @@ export function ComputerUseSettingsSection() {
                 >
                   <RefreshCw className="h-3 w-3" />
                   {setupError
-                    ? t("settings.computer_use.install_action")
-                    : t("settings.computer_use.refresh")}
+                    ? t("settings.browser.install_action")
+                    : t("settings.browser.refresh")}
                 </UiButton>
               </div>
             ) : null}
@@ -239,7 +239,7 @@ export function ComputerUseSettingsSection() {
 
       <section className="mt-7 space-y-2.5">
         <h2 className="px-1 text-md font-semibold tracking-tight text-(--text-strong)">
-          {t("settings.computer_use.developer_title")}
+          {t("settings.browser.developer_title")}
         </h2>
         <div className="rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-4 py-4">
           <div className="flex items-start justify-between gap-4">
@@ -247,19 +247,19 @@ export function ComputerUseSettingsSection() {
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
               <div>
                 <p className="text-xs font-semibold text-(--warning)">
-                  {t("settings.computer_use.cdp_risk")}
+                  {t("settings.browser.cdp_risk")}
                 </p>
                 <h3 className="mt-1 text-[14px] font-semibold tracking-tight text-(--text-strong)">
-                  {t("settings.computer_use.cdp_title")}
+                  {t("settings.browser.cdp_title")}
                 </h3>
                 <p className="mt-1 max-w-[720px] text-compact leading-5 text-(--text-soft)">
-                  {t("settings.computer_use.cdp_description")}
+                  {t("settings.browser.cdp_description")}
                 </p>
                 {cdpError ? <p className="mt-2 text-xs text-(--destructive)" role="alert">{cdpError}</p> : null}
               </div>
             </div>
             <GlassSwitch
-              aria-label={t("settings.computer_use.cdp_toggle")}
+              aria-label={t("settings.browser.cdp_toggle")}
               checked={cdpEnabled}
               disabled={cdpLoading || cdpSaving}
               onChange={(enabled) => void updateCDPAccess(enabled)}

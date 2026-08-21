@@ -38,7 +38,7 @@ type Config struct {
 	WebDistDir                       string
 	AppMode                          string
 	DesktopSessionToken              string
-	WebBridgeEnabled                 bool
+	BrowserEnabled                   bool
 	SkillsAPIURL                     string
 	SkillsSourceURLs                 string
 	SkillsDefaultSourcesEnabled      bool
@@ -133,7 +133,7 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	appMode := getEnv("NEXUS_APP_MODE", "")
-	webBridgeEnabled := mustBool(getEnv("NEXUS_WEBBRIDGE_ENABLED", strconv.FormatBool(appMode == "desktop")))
+	browserEnabled := mustBool(getEnv("NEXUS_BROWSER_ENABLED", strconv.FormatBool(appMode == "desktop")))
 	return Config{
 		Host:        getEnv("HOST", "0.0.0.0"),
 		Port:        parseIntEnv(getEnv("PORT", "8010"), 8010),
@@ -165,7 +165,7 @@ func Load() Config {
 		WebDistDir:                  getEnv("WEB_DIST_DIR", ""),
 		AppMode:                     appMode,
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
-		WebBridgeEnabled:            webBridgeEnabled,
+		BrowserEnabled:              browserEnabled,
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),

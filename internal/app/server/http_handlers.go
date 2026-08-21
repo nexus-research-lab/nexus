@@ -4,6 +4,7 @@ import (
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	automationhandler "github.com/nexus-research-lab/nexus/internal/handler/automation"
+	browserhandler "github.com/nexus-research-lab/nexus/internal/handler/browser"
 	capabilityhandler "github.com/nexus-research-lab/nexus/internal/handler/capability"
 	channelhandler "github.com/nexus-research-lab/nexus/internal/handler/channel"
 	connectorhandler "github.com/nexus-research-lab/nexus/internal/handler/connector"
@@ -18,7 +19,6 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	skillhandler "github.com/nexus-research-lab/nexus/internal/handler/skill"
 	subscriptionhandler "github.com/nexus-research-lab/nexus/internal/handler/subscription"
-	webbridgehandler "github.com/nexus-research-lab/nexus/internal/handler/webbridge"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	workspacehandler "github.com/nexus-research-lab/nexus/internal/handler/workspace"
 )
@@ -42,7 +42,7 @@ type handlerSet struct {
 	workspace    *workspacehandler.Handlers
 	project      *projectpermissionhandler.Handlers
 	websocket    *handlerwebsocket.Handler
-	webbridge    *webbridgehandler.Handler
+	browser      *browserhandler.Handler
 }
 
 func newHandlerSet(
@@ -94,6 +94,6 @@ func newHandlerSet(
 		workspace:    workspacehandler.New(api, services.Workspace),
 		project:      projectpermissionhandler.New(api, services.ProjectPermission),
 		websocket:    websocketHandler,
-		webbridge:    webbridgehandler.New(api, services.WebBridge),
+		browser:      browserhandler.New(api, services.Browser),
 	}
 }

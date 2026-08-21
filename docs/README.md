@@ -42,6 +42,7 @@
 - [Connector OAuth 规范](./specs/connector-oauth-spec.md)
 - [定时自动化权限规范](./specs/automation-permission-pipeline-spec.md)
 - [Nexus 对话配置控制面](./specs/conversational-configuration-control-spec.md)
+- [Browser 能力规范](./specs/browser-spec.md)
 
 ## API 状态
 

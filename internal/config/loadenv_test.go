@@ -138,12 +138,12 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 	}
 }
 
-func TestLoadWebBridgeDefaultsToDesktopMode(t *testing.T) {
+func TestLoadBrowserDefaultsToDesktopMode(t *testing.T) {
 	t.Setenv("NEXUS_APP_MODE", "desktop")
-	t.Setenv("NEXUS_WEBBRIDGE_ENABLED", "")
+	t.Setenv("NEXUS_BROWSER_ENABLED", "")
 
-	if cfg := Load(); !cfg.WebBridgeEnabled {
-		t.Fatal("desktop 模式应默认启用 WebBridge")
+	if cfg := Load(); !cfg.BrowserEnabled {
+		t.Fatal("desktop 模式应默认启用 Browser")
 	}
 }
 

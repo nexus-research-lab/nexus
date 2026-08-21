@@ -21,14 +21,14 @@ func (s *Server) mountRoutes() {
 			s.services.Permission,
 		),
 	)
-	if s.handlers.webbridge != nil {
+	if s.handlers.browser != nil {
 		s.router.Get(
-			s.prefixPath("/internal/webbridge/status"),
-			s.handlers.webbridge.HandleStatus,
+			s.prefixPath("/internal/browser/status"),
+			s.handlers.browser.HandleStatus,
 		)
 		s.router.Get(
-			s.prefixPath("/internal/webbridge/ws"),
-			s.handlers.webbridge.HandleWebSocket,
+			s.prefixPath("/internal/browser/ws"),
+			s.handlers.browser.HandleWebSocket,
 		)
 	}
 	s.mountCoreRoutes()

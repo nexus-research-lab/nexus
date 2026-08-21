@@ -1,12 +1,12 @@
 const PROTOCOL_VERSION = "1";
-const SUBPROTOCOL = "nexus.webbridge.v1";
+const SUBPROTOCOL = "nexus.browser.v1";
 const DEFAULT_ENDPOINTS = [
-  "ws://127.0.0.1:34343/nexus/v1/internal/webbridge/ws",
-  "ws://127.0.0.1:8010/nexus/v1/internal/webbridge/ws",
+  "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws",
+  "ws://127.0.0.1:8010/nexus/v1/internal/browser/ws",
 ];
-const RECONNECT_ALARM = "nexus-webbridge-reconnect";
-const STORAGE_URL = "webbridge_url";
-const STORAGE_ENABLED = "webbridge_enabled";
+const RECONNECT_ALARM = "nexus-browser-reconnect";
+const STORAGE_URL = "browser_url";
+const STORAGE_ENABLED = "browser_enabled";
 const INTERACTIVE_ROLES = new Set([
   "button",
   "link",
@@ -41,19 +41,23 @@ class BrowserController {
     this.refsByTab = new Map();
     this.networkTabs = new Set();
     this.networkRequests = new Map();
+    this.consoleTabs = new Set();
+    this.consoleEntries = new Map();
+    this.dialogs = new Map();
     this.groupBySession = new Map();
     this.platform = null;
 
     chrome.tabs.onRemoved.addListener((tabId) => this.clearTab(tabId));
     chrome.debugger.onDetach.addListener((source) => {
       if (source.tabId !== undefined) {
-        this.attachedTabs.delete(source.tabId);
-        this.networkTabs.delete(source.tabId);
+        this.clearTab(source.tabId);
       }
     });
     chrome.debugger.onEvent.addListener((source, method, params) => {
       if (source.tabId !== undefined) {
         this.handleNetworkEvent(source.tabId, method, params);
+        this.handleConsoleEvent(source.tabId, method, params);
+        this.handleDialogEvent(source.tabId, method, params);
       }
     });
     chrome.tabGroups.onRemoved.addListener((group) => {
@@ -75,20 +79,53 @@ class BrowserController {
         return this.navigate(params);
       case "find_tab":
         return this.findTab(params);
+      case "back":
+      case "forward":
+      case "reload":
+        return this.navigateHistory(action, params);
+      case "history":
+        return this.history(params);
       case "evaluate":
         return this.evaluate(params);
+      case "page_content":
+        return this.pageContent(params);
+      case "wait_for":
+        return this.waitForElement(params);
+      case "wait_for_url":
+        return this.waitForURL(params);
       case "network":
         return this.network(params);
+      case "console":
+        return this.console(params);
+      case "dialog":
+        return this.dialog(params);
       case "snapshot":
         return this.snapshot(params);
       case "click":
         return this.click(params);
       case "fill":
         return this.fill(params);
+      case "check":
+        return this.setChecked(params, true);
+      case "uncheck":
+        return this.setChecked(params, false);
+      case "select_option":
+        return this.selectOption(params);
       case "mouse_click":
         return this.mouseClick(params);
+      case "double_click":
+        return this.mouseClick({ ...params, click_count: 2 });
+      case "hover":
+      case "mouse_move":
+        return this.mouseMove(params);
+      case "drag":
+        return this.drag(params);
+      case "scroll":
+        return this.scroll(params);
       case "cdp":
         return this.rawCDP(params);
+      case "clipboard":
+        return this.clipboard(params);
       case "key_type":
         return this.keyType(params);
       case "send_keys":
@@ -101,6 +138,10 @@ class BrowserController {
         return this.saveAsPDF(params);
       case "upload":
         return this.upload(params);
+      case "download":
+        return this.download(params);
+      case "downloads":
+        return this.downloads(params);
       case "close_tab":
       case "close":
         return this.closeTab(params);
@@ -177,6 +218,10 @@ class BrowserController {
   }
 
   async listTabs(params) {
+    if (params.scope === "all") {
+      const tabs = await chrome.tabs.query({});
+      return { scope: "all", tabs: await Promise.all(tabs.map((tab) => this.tabResult(tab))) };
+    }
     const tabs = [];
     for (const tabId of this.tabIDs(params.tab_ids)) {
       try {
@@ -185,7 +230,7 @@ class BrowserController {
         // 标签页可能在宿主发出请求前已由用户关闭。
       }
     }
-    return { tabs };
+    return { scope: "session", tabs };
   }
 
   async attachActive() {
@@ -199,6 +244,42 @@ class BrowserController {
     const tab = await this.getTab(params.tab_id);
     await this.attachDebugger(tab.id);
     return { ...await this.tabResult(tab), borrowed: true, owned: false };
+  }
+
+  async navigateHistory(action, params) {
+    const tab = await this.getTab(params.tab_id);
+    const loading = this.waitForNextLoad(tab.id);
+    try {
+      if (action === "back") await chrome.tabs.goBack(tab.id);
+      else if (action === "forward") await chrome.tabs.goForward(tab.id);
+      else await chrome.tabs.reload(tab.id, { bypassCache: false });
+      await loading;
+    } catch (error) {
+      void loading.catch(() => {});
+      throw error;
+    }
+    return { action, ...await this.tabResult(await chrome.tabs.get(tab.id)) };
+  }
+
+  async history(params) {
+    const query = {
+      text: String(params.query || ""),
+      maxResults: Number.isInteger(params.max_results) ? params.max_results : 100,
+    };
+    if (Number.isFinite(params.start_time)) query.startTime = params.start_time;
+    if (Number.isFinite(params.end_time)) query.endTime = params.end_time;
+    const items = await chrome.history.search(query);
+    return {
+      count: items.length,
+      items: items.map((item) => ({
+        id: item.id,
+        url: item.url || "",
+        title: item.title || "",
+        last_visit_time: item.lastVisitTime,
+        visit_count: item.visitCount,
+        typed_count: item.typedCount,
+      })),
+    };
   }
 
   async evaluate(params) {
@@ -217,6 +298,118 @@ class BrowserController {
       description: response.result?.description || "",
       unserializable_value: response.result?.unserializableValue,
     };
+  }
+
+  async pageContent(params) {
+    const tab = await this.getTab(params.tab_id);
+    const selector = String(params.selector || "").trim();
+    const format = String(params.page_format || "text").toLowerCase();
+    const maxChars = Number.isInteger(params.max_chars) ? params.max_chars : 200000;
+    let objectId;
+    if (selector) {
+      objectId = await this.resolveElement(tab.id, selector);
+    } else {
+      const root = await this.command(tab.id, "Runtime.evaluate", {
+        expression: "document.documentElement",
+        returnByValue: false,
+      });
+      this.assertRuntimeResult(root);
+      objectId = root.result?.objectId;
+    }
+    if (!objectId) throw new Error("Unable to resolve page content root");
+    try {
+      const response = await this.command(tab.id, "Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: [
+          "function(nextFormat, limit) {",
+          "  const content = nextFormat === 'html' ? this.outerHTML : (this.innerText || this.textContent || '');",
+          "  return { content: content.slice(0, limit), length: content.length, truncated: content.length > limit };",
+          "}",
+        ].join("\n"),
+        arguments: [{ value: format }, { value: maxChars }],
+        returnByValue: true,
+      });
+      this.assertRuntimeResult(response);
+      return {
+        tab_id: tab.id,
+        title: tab.title || "",
+        url: tab.url || "",
+        format,
+        ...(response.result?.value || { content: "", length: 0, truncated: false }),
+      };
+    } finally {
+      await this.releaseObject(tab.id, objectId);
+    }
+  }
+
+  async waitForElement(params) {
+    const tab = await this.getTab(params.tab_id);
+    const selector = this.requireText(params.selector, "wait_for requires selector");
+    const state = String(params.state || "visible").toLowerCase();
+    const expectedText = params.text === undefined ? null : String(params.text);
+    const timeout = Number.isInteger(params.timeout_ms) ? params.timeout_ms : 30000;
+    const deadline = Date.now() + timeout;
+    while (Date.now() <= deadline) {
+      const current = await this.elementState(tab.id, selector);
+      const textMatches = expectedText === null || String(current.text).includes(expectedText);
+      const matched = textMatches && (
+        (state === "attached" && current.attached) ||
+        (state === "detached" && !current.attached) ||
+        (state === "visible" && current.visible) ||
+        (state === "hidden" && (!current.attached || !current.visible))
+      );
+      if (matched) return { tab_id: tab.id, selector, state, matched: true, ...current };
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Timed out waiting for ${selector} to become ${state}`);
+  }
+
+  async waitForURL(params) {
+    const tabId = this.parseTabID(params.tab_id);
+    const pattern = this.requireText(params.url, "wait_for_url requires url");
+    const timeout = Number.isInteger(params.timeout_ms) ? params.timeout_ms : 30000;
+    const deadline = Date.now() + timeout;
+    while (Date.now() <= deadline) {
+      const tab = await chrome.tabs.get(tabId);
+      const currentURL = tab.url || tab.pendingUrl || "";
+      if (this.matchesURL(currentURL, pattern)) {
+        return { tab_id: tabId, url: currentURL, title: tab.title || "", matched: true };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Timed out waiting for URL ${pattern}`);
+  }
+
+  async elementState(tabId, selector) {
+    const declaration = [
+      "function() {",
+      "  const style = getComputedStyle(this);",
+      "  const rect = this.getBoundingClientRect();",
+      "  const visible = style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;",
+      "  return { attached: this.isConnected, visible, text: this.innerText || this.textContent || '' };",
+      "}",
+    ].join("\n");
+    let objectId;
+    try {
+      objectId = await this.resolveElement(tabId, selector);
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (message.startsWith("No element matches") || message.startsWith("Unable to resolve ref")) {
+        return { attached: false, visible: false, text: "" };
+      }
+      throw error;
+    }
+    try {
+      const response = await this.command(tabId, "Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: declaration,
+        returnByValue: true,
+      });
+      this.assertRuntimeResult(response);
+      return response.result?.value || { attached: false, visible: false, text: "" };
+    } finally {
+      await this.releaseObject(tabId, objectId);
+    }
   }
 
   async network(params) {
@@ -336,6 +529,99 @@ class BrowserController {
     }
   }
 
+  async console(params) {
+    const tab = await this.getTab(params.tab_id);
+    const cmd = String(params.cmd || "").toLowerCase();
+    if (cmd === "start") {
+      await this.command(tab.id, "Runtime.enable");
+      await this.command(tab.id, "Log.enable");
+      this.consoleTabs.add(tab.id);
+      this.consoleEntries.set(tab.id, []);
+      return { tab_id: tab.id, recording: true };
+    }
+    if (cmd === "stop") {
+      this.consoleTabs.delete(tab.id);
+      await Promise.allSettled([
+        this.command(tab.id, "Runtime.disable"),
+        this.command(tab.id, "Log.disable"),
+      ]);
+      return { tab_id: tab.id, recording: false, count: this.consoleEntries.get(tab.id)?.length || 0 };
+    }
+    if (cmd === "list") {
+      const filter = String(params.filter || "").toLowerCase();
+      const limit = Number.isInteger(params.max_results) ? params.max_results : 100;
+      const entries = (this.consoleEntries.get(tab.id) || [])
+        .filter((entry) => !filter || JSON.stringify(entry).toLowerCase().includes(filter))
+        .slice(-limit);
+      return { tab_id: tab.id, recording: this.consoleTabs.has(tab.id), count: entries.length, entries };
+    }
+    throw new Error("console cmd must be start, stop, or list");
+  }
+
+  handleConsoleEvent(tabId, method, params) {
+    if (!this.consoleTabs.has(tabId)) return;
+    const entries = this.consoleEntries.get(tabId) || [];
+    if (method === "Runtime.consoleAPICalled") {
+      entries.push({
+        source: "console",
+        level: params.type || "log",
+        timestamp: params.timestamp,
+        values: (params.args || []).map((value) => this.remoteValue(value)),
+        stack_trace: params.stackTrace,
+      });
+    } else if (method === "Log.entryAdded") {
+      const entry = params.entry || {};
+      entries.push({
+        source: entry.source || "log",
+        level: entry.level || "info",
+        text: entry.text || "",
+        url: entry.url || "",
+        line_number: entry.lineNumber,
+        timestamp: entry.timestamp,
+        stack_trace: entry.stackTrace,
+      });
+    } else {
+      return;
+    }
+    if (entries.length > 1000) entries.splice(0, entries.length - 1000);
+    this.consoleEntries.set(tabId, entries);
+  }
+
+  remoteValue(value) {
+    if (Object.prototype.hasOwnProperty.call(value || {}, "value")) return value.value;
+    return value?.unserializableValue || value?.description || value?.type || "undefined";
+  }
+
+  async dialog(params) {
+    const tab = await this.getTab(params.tab_id);
+    const cmd = String(params.cmd || "").toLowerCase();
+    if (cmd === "get") {
+      return { tab_id: tab.id, dialog: this.dialogs.get(tab.id) || null };
+    }
+    const current = this.dialogs.get(tab.id) || null;
+    if (!current) return { tab_id: tab.id, handled: false, reason: "no open dialog" };
+    const accept = cmd === "accept";
+    const commandParams = { accept };
+    if (accept && params.prompt_text !== undefined) commandParams.promptText = String(params.prompt_text);
+    await this.command(tab.id, "Page.handleJavaScriptDialog", commandParams);
+    this.dialogs.delete(tab.id);
+    return { tab_id: tab.id, handled: true, accepted: accept, dialog: current };
+  }
+
+  handleDialogEvent(tabId, method, params) {
+    if (method === "Page.javascriptDialogOpening") {
+      this.dialogs.set(tabId, {
+        type: params.type || "alert",
+        message: params.message || "",
+        default_prompt: params.defaultPrompt || "",
+        url: params.url || "",
+        has_browser_handler: Boolean(params.hasBrowserHandler),
+      });
+    } else if (method === "Page.javascriptDialogClosed") {
+      this.dialogs.delete(tabId);
+    }
+  }
+
   async snapshot(params) {
     const tab = await this.getTab(params.tab_id);
     const response = await this.command(tab.id, "Accessibility.getFullAXTree");
@@ -445,29 +731,173 @@ class BrowserController {
     }
   }
 
-  async mouseClick(params) {
+  async setChecked(params, checked) {
     const tab = await this.getTab(params.tab_id);
     const objectId = await this.resolveElement(tab.id, params.selector);
     try {
-      await this.command(tab.id, "Runtime.callFunctionOn", {
+      const response = await this.command(tab.id, "Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: [
+          "function(nextChecked) {",
+          "  if (!(this instanceof HTMLInputElement) || !['checkbox', 'radio'].includes(this.type)) {",
+          "    throw new Error('Element must be a checkbox or radio input');",
+          "  }",
+          "  if (!nextChecked && this.type === 'radio') throw new Error('Radio inputs cannot be unchecked directly');",
+          "  if (this.checked !== nextChecked) {",
+          "    this.checked = nextChecked;",
+          "    this.dispatchEvent(new Event('input', { bubbles: true }));",
+          "    this.dispatchEvent(new Event('change', { bubbles: true }));",
+          "  }",
+          "  return { tag: this.tagName, type: this.type, checked: this.checked };",
+          "}",
+        ].join("\n"),
+        arguments: [{ value: checked }],
+        returnByValue: true,
+        userGesture: true,
+      });
+      this.assertRuntimeResult(response);
+      return { tab_id: tab.id, selector: params.selector, ...(response.result?.value || {}) };
+    } finally {
+      await this.releaseObject(tab.id, objectId);
+    }
+  }
+
+  async selectOption(params) {
+    const tab = await this.getTab(params.tab_id);
+    const values = Array.isArray(params.values) ? params.values.map(String) : [String(params.value ?? "")];
+    const objectId = await this.resolveElement(tab.id, params.selector);
+    try {
+      const response = await this.command(tab.id, "Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: [
+          "function(nextValues) {",
+          "  if (!(this instanceof HTMLSelectElement)) throw new Error('Element must be a select');",
+          "  const expected = new Set(nextValues);",
+          "  for (const option of this.options) option.selected = expected.has(option.value) || expected.has(option.label);",
+          "  this.dispatchEvent(new Event('input', { bubbles: true }));",
+          "  this.dispatchEvent(new Event('change', { bubbles: true }));",
+          "  return { values: Array.from(this.selectedOptions, option => option.value) };",
+          "}",
+        ].join("\n"),
+        arguments: [{ value: values }],
+        returnByValue: true,
+        userGesture: true,
+      });
+      this.assertRuntimeResult(response);
+      return { tab_id: tab.id, selector: params.selector, ...(response.result?.value || {}) };
+    } finally {
+      await this.releaseObject(tab.id, objectId);
+    }
+  }
+
+  async mouseClick(params) {
+    const tab = await this.getTab(params.tab_id);
+    const point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
+    const button = String(params.button || "left").toLowerCase();
+    const clickCount = Number.isInteger(params.click_count) ? params.click_count : 1;
+    const buttons = { left: 1, right: 2, middle: 4, back: 8, forward: 16 }[button];
+    await this.command(tab.id, "Input.dispatchMouseEvent", {
+      type: "mouseMoved", x: point.x, y: point.y, button: "none",
+    });
+    for (let count = 1; count <= clickCount; count += 1) {
+      await this.command(tab.id, "Input.dispatchMouseEvent", {
+        type: "mousePressed", x: point.x, y: point.y, button, buttons, clickCount: count,
+      });
+      await this.command(tab.id, "Input.dispatchMouseEvent", {
+        type: "mouseReleased", x: point.x, y: point.y, button, buttons: 0, clickCount: count,
+      });
+    }
+    return { tab_id: tab.id, clicked: true, button, click_count: clickCount, ...point };
+  }
+
+  async mouseMove(params) {
+    const tab = await this.getTab(params.tab_id);
+    const point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
+    await this.command(tab.id, "Input.dispatchMouseEvent", {
+      type: "mouseMoved", x: point.x, y: point.y, button: "none",
+    });
+    return { tab_id: tab.id, moved: true, ...point };
+  }
+
+  async drag(params) {
+    const tab = await this.getTab(params.tab_id);
+    const start = params.selector
+      ? await this.pointerPoint(tab.id, params, "selector", "from_x", "from_y")
+      : { x: Number(params.from_x), y: Number(params.from_y) };
+    const target = params.target_selector
+      ? await this.pointerPoint(tab.id, params, "target_selector", "to_x", "to_y")
+      : { x: Number(params.to_x), y: Number(params.to_y) };
+    const steps = Number.isInteger(params.steps) ? params.steps : 10;
+    await this.command(tab.id, "Input.dispatchMouseEvent", {
+      type: "mouseMoved", x: start.x, y: start.y, button: "none",
+    });
+    await this.command(tab.id, "Input.dispatchMouseEvent", {
+      type: "mousePressed", x: start.x, y: start.y, button: "left", buttons: 1, clickCount: 1,
+    });
+    for (let step = 1; step <= steps; step += 1) {
+      const ratio = step / steps;
+      await this.command(tab.id, "Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: start.x + (target.x - start.x) * ratio,
+        y: start.y + (target.y - start.y) * ratio,
+        button: "left",
+        buttons: 1,
+      });
+    }
+    await this.command(tab.id, "Input.dispatchMouseEvent", {
+      type: "mouseReleased", x: target.x, y: target.y, button: "left", buttons: 0, clickCount: 1,
+    });
+    return { tab_id: tab.id, dragged: true, from: start, to: target, steps };
+  }
+
+  async scroll(params) {
+    const tab = await this.getTab(params.tab_id);
+    let point;
+    if (params.selector) {
+      point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
+    } else if (Number.isFinite(params.x) && Number.isFinite(params.y)) {
+      point = { x: params.x, y: params.y };
+    } else {
+      const metrics = await this.command(tab.id, "Page.getLayoutMetrics");
+      const viewport = metrics.cssVisualViewport || metrics.visualViewport || {};
+      point = { x: (viewport.clientWidth || 0) / 2, y: (viewport.clientHeight || 0) / 2 };
+    }
+    const deltaX = Number(params.delta_x || 0);
+    const deltaY = Number(params.delta_y || 0);
+    if (deltaX || deltaY) {
+      await this.command(tab.id, "Input.dispatchMouseEvent", {
+        type: "mouseWheel", x: point.x, y: point.y, deltaX, deltaY,
+      });
+    }
+    return { tab_id: tab.id, scrolled: true, x: point.x, y: point.y, delta_x: deltaX, delta_y: deltaY };
+  }
+
+  async pointerPoint(tabId, params, selectorKey, xKey, yKey) {
+    const selector = String(params[selectorKey] || "").trim();
+    if (selector) return this.elementPoint(tabId, selector);
+    const x = Number(params[xKey]);
+    const y = Number(params[yKey]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`A valid ${xKey}/${yKey} point is required`);
+    return { x, y };
+  }
+
+  async elementPoint(tabId, selector) {
+    const objectId = await this.resolveElement(tabId, selector);
+    try {
+      await this.command(tabId, "Runtime.callFunctionOn", {
         objectId,
         functionDeclaration: "function() { this.scrollIntoView({ block: 'center', inline: 'center' }); }",
       });
-      const box = await this.command(tab.id, "DOM.getBoxModel", { objectId });
+      const box = await this.command(tabId, "DOM.getBoxModel", { objectId });
       const quad = box.model?.border || box.model?.content;
-      if (!Array.isArray(quad) || quad.length < 8) throw new Error("Element has no clickable layout box");
-      const x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
-      const y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
-      await this.command(tab.id, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
-      await this.command(tab.id, "Input.dispatchMouseEvent", {
-        type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1,
-      });
-      await this.command(tab.id, "Input.dispatchMouseEvent", {
-        type: "mouseReleased", x, y, button: "left", buttons: 0, clickCount: 1,
-      });
-      return { tab_id: tab.id, clicked: true, selector: params.selector, x, y };
+      if (!Array.isArray(quad) || quad.length < 8) throw new Error("Element has no layout box");
+      return {
+        selector,
+        x: (quad[0] + quad[2] + quad[4] + quad[6]) / 4,
+        y: (quad[1] + quad[3] + quad[5] + quad[7]) / 4,
+      };
     } finally {
-      await this.releaseObject(tab.id, objectId);
+      await this.releaseObject(tabId, objectId);
     }
   }
 
@@ -479,6 +909,39 @@ class BrowserController {
       method,
       result: await this.command(tab.id, method, params.params || {}),
     };
+  }
+
+  async clipboard(params) {
+    const tab = await this.getTab(params.tab_id);
+    const cmd = String(params.cmd || "").toLowerCase();
+    await this.ensureOffscreenDocument();
+    const response = await chrome.runtime.sendMessage({
+      target: "nexus-browser-offscreen",
+      type: cmd === "write" ? "CLIPBOARD_WRITE" : "CLIPBOARD_READ",
+      text: String(params.text ?? ""),
+    });
+    if (!response?.ok) throw new Error(response?.error || "Clipboard operation failed");
+    return cmd === "write"
+      ? { tab_id: tab.id, written: true, text_length: [...String(params.text ?? "")].length }
+      : { tab_id: tab.id, text: response.text || "" };
+  }
+
+  async ensureOffscreenDocument() {
+    const offscreenURL = chrome.runtime.getURL("offscreen.html");
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [offscreenURL],
+    });
+    if (contexts.length) return;
+    try {
+      await chrome.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["CLIPBOARD"],
+        justification: "Read and write the Browser session clipboard",
+      });
+    } catch (error) {
+      if (!String(error?.message || "").includes("single offscreen document")) throw error;
+    }
   }
 
   async keyType(params) {
@@ -602,10 +1065,17 @@ class BrowserController {
     const commandParams = {
       format,
       fromSurface: true,
-      captureBeyondViewport: Boolean(params.selector),
+      captureBeyondViewport: Boolean(params.selector || params.full_page),
     };
     if (format === "jpeg" && Number.isInteger(params.quality)) commandParams.quality = params.quality;
-    if (params.selector) commandParams.clip = await this.elementClip(tab.id, params.selector);
+    if (params.selector) {
+      commandParams.clip = await this.elementClip(tab.id, params.selector);
+    } else if (params.full_page) {
+      const metrics = await this.command(tab.id, "Page.getLayoutMetrics");
+      const size = metrics.cssContentSize || metrics.contentSize;
+      if (!size?.width || !size?.height) throw new Error("Unable to measure full page");
+      commandParams.clip = { x: 0, y: 0, width: size.width, height: size.height, scale: 1 };
+    }
     const response = await this.command(tab.id, "Page.captureScreenshot", commandParams);
     if (!response.data) throw new Error("Chrome returned an empty screenshot");
     return {
@@ -613,6 +1083,7 @@ class BrowserController {
       title: tab.title || "",
       url: tab.url || "",
       mime_type: "image/" + format,
+      full_page: Boolean(params.full_page),
       data: response.data,
     };
   }
@@ -687,6 +1158,96 @@ class BrowserController {
     } finally {
       await this.releaseObject(tab.id, objectId);
     }
+  }
+
+  async download(params) {
+    const url = this.requireText(params.url, "download requires url");
+    const options = {
+      url,
+      conflictAction: "uniquify",
+      saveAs: Boolean(params.save_as),
+    };
+    if (params.file_name) options.filename = this.safeFileName(params.file_name, true);
+    const downloadId = await chrome.downloads.download(options);
+    return { download_id: downloadId, url, file_name: options.filename || "", started: true };
+  }
+
+  async downloads(params) {
+    const cmd = String(params.cmd || "").toLowerCase();
+    if (cmd === "list") {
+      const query = {
+        limit: Number.isInteger(params.max_results) ? params.max_results : 100,
+        orderBy: ["-startTime"],
+      };
+      if (params.query) query.query = [String(params.query)];
+      if (params.download_state) query.state = params.download_state;
+      const items = await chrome.downloads.search(query);
+      return { count: items.length, items: items.map((item) => this.downloadResult(item)) };
+    }
+    const downloadId = Number(params.download_id);
+    if (cmd === "show") {
+      const [item] = await chrome.downloads.search({ id: downloadId });
+      if (!item) throw new Error("Unknown download: " + downloadId);
+      await chrome.downloads.show(downloadId);
+      return { shown: true, item: this.downloadResult(item) };
+    }
+    if (cmd === "wait") {
+      return { item: await this.waitForDownload(downloadId, params.timeout_ms) };
+    }
+    throw new Error("downloads cmd must be list, wait, or show");
+  }
+
+  waitForDownload(downloadId, rawTimeout) {
+    const timeoutMs = Number.isInteger(rawTimeout) ? rawTimeout : 60000;
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = async (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        chrome.downloads.onChanged.removeListener(listener);
+        if (error) {
+          reject(error);
+          return;
+        }
+        try {
+          const [item] = await chrome.downloads.search({ id: downloadId });
+          if (!item) reject(new Error("Unknown download: " + downloadId));
+          else resolve(this.downloadResult(item));
+        } catch (searchError) {
+          reject(searchError);
+        }
+      };
+      const listener = (delta) => {
+        if (delta.id !== downloadId) return;
+        const state = delta.state?.current;
+        if (state === "complete" || state === "interrupted") void finish();
+      };
+      const timeout = setTimeout(() => void finish(new Error("Download wait timed out")), timeoutMs);
+      chrome.downloads.onChanged.addListener(listener);
+      chrome.downloads.search({ id: downloadId }).then(([item]) => {
+        if (!item) void finish(new Error("Unknown download: " + downloadId));
+        else if (item.state === "complete" || item.state === "interrupted") void finish();
+      }, (error) => void finish(error));
+    });
+  }
+
+  downloadResult(item) {
+    return {
+      download_id: item.id,
+      url: item.url || "",
+      final_url: item.finalUrl || "",
+      file_name: item.filename || "",
+      mime_type: item.mime || "",
+      state: item.state || "",
+      paused: Boolean(item.paused),
+      bytes_received: item.bytesReceived || 0,
+      total_bytes: item.totalBytes || 0,
+      start_time: item.startTime,
+      end_time: item.endTime,
+      error: item.error || "",
+      exists: item.exists,
+    };
   }
 
   async closeTab(params) {
@@ -834,7 +1395,18 @@ class BrowserController {
     try {
       await chrome.debugger.attach({ tabId }, "1.3");
       this.attachedTabs.add(tabId);
+      await chrome.debugger.sendCommand({ tabId }, "Page.enable");
+      await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
+      await chrome.debugger.sendCommand({ tabId }, "Log.enable");
+      this.consoleTabs.add(tabId);
+      if (!this.consoleEntries.has(tabId)) this.consoleEntries.set(tabId, []);
     } catch (error) {
+      this.attachedTabs.delete(tabId);
+      try {
+        await chrome.debugger.detach({ tabId });
+      } catch {
+        // attach 失败时不一定存在可清理的调试会话。
+      }
       throw new Error("Cannot attach debugger to tab " + tabId + ": " + error.message);
     }
   }
@@ -918,10 +1490,13 @@ class BrowserController {
     this.refsByTab.delete(tabId);
     this.networkTabs.delete(tabId);
     this.networkRequests.delete(tabId);
+    this.consoleTabs.delete(tabId);
+    this.consoleEntries.delete(tabId);
+    this.dialogs.delete(tabId);
   }
 }
 
-class BridgeClient {
+class BrowserClient {
   constructor(controller) {
     this.controller = controller;
     this.socket = null;
@@ -938,6 +1513,7 @@ class BridgeClient {
       if (alarm.name === RECONNECT_ALARM) void this.reconcile();
     });
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.target === "nexus-browser-offscreen") return false;
       this.handleControlMessage(message).then(sendResponse, (error) => {
         sendResponse({ ok: false, error: error?.message || String(error) });
       });
@@ -1044,7 +1620,7 @@ class BridgeClient {
 
       socket.addEventListener("open", () => {
         socket.send(JSON.stringify({
-          type: "bridge.ready",
+          type: "browser.ready",
           protocol_version: PROTOCOL_VERSION,
           extension_version: chrome.runtime.getManifest().version,
         }));
@@ -1056,7 +1632,7 @@ class BridgeClient {
         } catch {
           return;
         }
-        if (!accepted && message.type === "bridge.accepted") {
+        if (!accepted && message.type === "browser.accepted") {
           if (generation !== this.generation) {
             socket.close();
             finish(false);
@@ -1090,8 +1666,8 @@ class BridgeClient {
   }
 
   handleMessage(socket, message) {
-    if (message.type === "bridge.ping") {
-      this.send(socket, { type: "bridge.pong" });
+    if (message.type === "browser.ping") {
+      this.send(socket, { type: "browser.pong" });
       return;
     }
     if (message.type !== "browser.command" || !message.id || !message.action) return;
@@ -1158,5 +1734,5 @@ class BridgeClient {
   }
 }
 
-const bridge = new BridgeClient(new BrowserController());
-void bridge.start();
+const browserClient = new BrowserClient(new BrowserController());
+void browserClient.start();
