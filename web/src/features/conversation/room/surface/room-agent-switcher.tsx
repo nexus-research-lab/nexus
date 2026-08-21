@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 成员目录、当前选择与业务外观语境。
- * OUTPUT: 复用共享菜单生命周期的成员身份切换器及 Panel/Task 紧凑触发器。
+ * OUTPUT: 复用共享菜单生命周期的成员身份切换器及行高自适应的 Panel/Task 紧凑触发器。
  * POS: Workspace、Subagent 与 Room 进程共用的成员切换视图。
  */
 "use client";
@@ -85,7 +85,7 @@ export function RoomAgentSwitcher({
           name: selectedMember.name,
         })}
         className={cn(
-          "flex h-7 w-full min-w-0 items-center gap-1 rounded-[7px] px-1.5 text-compact font-semibold leading-none text-(--text-strong) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+          "flex min-h-7 w-full min-w-0 items-center gap-1 rounded-[7px] px-1.5 py-1 text-compact font-semibold text-(--text-strong) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
           isOpen && "bg-(--surface-interactive-active-background)",
         )}
         onClick={() => setIsOpen((prev) => !prev)}
@@ -95,7 +95,7 @@ export function RoomAgentSwitcher({
           className="h-4 w-4"
           member={selectedMember}
         />
-        <span className="min-w-0 flex-1 truncate text-left text-compact font-semibold leading-none">
+        <span className="min-w-0 flex-1 truncate text-left text-compact font-semibold leading-normal">
           {selectedMember.name}
         </span>
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
