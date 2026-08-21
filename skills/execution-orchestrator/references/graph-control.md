@@ -11,13 +11,25 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 ## Plan Document 传输
 
-需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 写入 `prepare_plan_execution` 的 command input，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。`goal_binding` 是外层 command JSON 中与 `plan_document` 并列的字段，绝不是 Plan YAML root 字段。fresh Goal-free `create` 的外层输入明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 的 applied receipt，再准备绑定它的 Plan；不要并行执行二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先执行 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
+需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 写入 `prepare_plan_execution` 的 command input，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。Plan Mode 允许 prepare 和校验，但 `plan_execution` 不会 commit；退出 Plan Mode 后复用该 sealed pair 提交，不要重做 YAML 或混合另一份 proposal。`goal_binding` 是外层 command JSON 中与 `plan_document` 并列的字段，绝不是 Plan YAML root 字段。fresh Goal-free `create` 的外层输入明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 的 applied receipt，再准备绑定它的 Plan；不要并行执行二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先执行 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
 
 Plan operation 只按本轮 `execution inspect` 返回的 current Execution 选择，不能从历史图或 Goal 的 predecessor 关系猜测：没有 current Execution 时使用 `create`；存在同一 objective boundary 的 current Execution、确实只增加 Plan revision 时才使用 `replan`；只有当前 transient、Goal-free Execution 需要整体替换时才考虑 `replace`。Goal reset/retarget 会把旧 Execution 变为 predecessor；如果 successor 尚未 materialize，此时虽然是在替换历史链路，successor 的第一份 Plan 仍是 `create`，并在 exact Goal authority 下使用外层 `goal_binding=current`。
 
+- `create`：必须有 `completion_criteria`；没有 exact Goal 继承时还必须有 `objective`；任何 item 都不能带 `existing_work_item_id`。
+- `replan`：必须有非空 `revision_reason`，继承 current Execution 的 objective 与 completion criteria；只有语义契约未改变的旧节点才能用 `existing_work_item_id` 复用。普通 replan 只能单调追加节点或下游边；删除/改写节点或依赖、或在 current Assignment 存在时换 Plan，必须显式 `supersede_active_work: true`，并接受它会原子释放当前责任链。未审核 Submission 必须先 review。
+- `replace`：必须有完整 `objective`、`completion_criteria`、`replacement_reason`；不能带 `supersede_active_work` 或 `existing_work_item_id`，Goal-bound Execution 不能 replace。
+
 Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`execution contract --operation prepare_plan_execution` 返回的 input schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
 
+传输必须是一个有效 UTF-8、最多 64 KiB、且只有一个 root mapping 的 YAML document。parser 拒绝未知字段、重复 key、多 document、anchor/alias/merge key、显式 tag、null、timestamp、非标准 scalar，以及超出 contract 集合/深度/node 限制的输入；不要利用 YAML 隐式类型或别名压缩绕过 closed schema。
+
 `prepare_plan_execution` 的文档校验失败才允许在同一 physical round 修正文档。若返回 `context_status=round_refresh_required`，说明启动本轮时固定的 Goal/Execution authority 已被用户 retarget 或宿主 successor 替换；`inspect` 只能读新状态，不能给旧 round 换发 authority，因此本轮必须结束并等待宿主 continuation，不能把它当作 YAML 错误重试。
+
+## Plan lifecycle operation
+
+- `prepare_plan_execution` 的输入只包含完整 `plan_document` 和可选外层 `goal_binding`。成功后保存同一 receipt 的 opaque `proposal_id` 与 `proposal_digest`；不要重建 digest、重发 YAML 或拼接两次 proposal。
+- `plan_execution` 只提交上述 sealed pair。它们必须来自同一次 prepare 并绑定当前 trusted target fence；普通 validation/revision 错误回到 fresh inspect/contract，不靠添加隐藏 identity 字段修复。
+- `abandon_execution` 只由 current coordinator 对 current transient、Goal-free Execution 使用，提交 exact `execution_id` 与用户明确停止该 objective、且不创建 successor 的具体 `reason`。Goal-bound Execution 不走 abandon；Plan Mode 只验证提议，不产生 mutation。
 
 下面只是一个最小 create 示例，不是第二份 schema：
 

@@ -982,6 +982,25 @@ test("Room handoff mention phases are host-acknowledged, monotonic, and reconnec
         display_order: 1,
         first_seen_at: 12,
         handoff_id: handoffId,
+        phase: "acknowledged",
+        round_id: "root-round",
+        status: "pending",
+      }],
+      inputQueueItems: [],
+      messages: [liveFinalMessage],
+      pendingSlots: [],
+    })[handoffId],
+    "starting",
+    "an acknowledged wake shows progress before the target runtime starts",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [{
+        agent_id: "agent-target",
+        agent_round_id: "agent-round-target",
+        display_order: 1,
+        first_seen_at: 12,
+        handoff_id: handoffId,
         phase: "active",
         round_id: "root-round",
         status: "streaming",
@@ -1002,6 +1021,25 @@ test("Room handoff mention phases are host-acknowledged, monotonic, and reconnec
     })[handoffId],
     "active",
     "late queue/message evidence cannot regress an active handoff",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [liveFinalMessage],
+      pendingSlots: [{
+        agent_id: "agent-target",
+        agent_round_id: "agent-round-target",
+        handoff_id: handoffId,
+        index: 0,
+        msg_id: "slot-target",
+        round_id: "root-round",
+        status: "pending",
+        timestamp: 12,
+      }],
+    })[handoffId],
+    "starting",
+    "a pending target slot remains in the visible wake-up phase",
   );
   assert.equal(
     projectRoomAgentHandoffStatuses({
@@ -1106,10 +1144,11 @@ test("Agent mention chip updates one inline handoff surface without adding a rep
   );
   const translations = {
     "room.agent_contact_open": "打开 Target 的联络",
-    "room.agent_handoff_active": "已交接",
+    "room.agent_handoff_active": "处理中",
     "room.agent_handoff_preparing": "交接中",
-    "room.agent_handoff_queued": "排队中",
+    "room.agent_handoff_queued": "等待调度",
     "room.agent_handoff_responded": "已回应",
+    "room.agent_handoff_starting": "正在唤醒",
   };
   const html = renderToStaticMarkup(createElement(
     I18N_CONTEXT.Provider,

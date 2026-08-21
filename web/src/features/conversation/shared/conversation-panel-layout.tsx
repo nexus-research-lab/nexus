@@ -29,9 +29,7 @@ export type ConversationViewportModel = ScrollViewportEvents & {
 };
 
 export interface ConversationScrollToLatestModel {
-  direction: "above" | "below" | null;
   onClick: () => void;
-  unreadCount: number;
   visible: boolean;
 }
 
@@ -91,8 +89,13 @@ export function ConversationPanelViewport({
       onWheel={viewport.onWheel}
     >
       {viewport.isHistoryLoading ? (
-        <div className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} mb-3 flex items-center justify-center text-xs text-muted-foreground`}>
-          {t("room.loading_earlier_messages")}
+        <div
+          className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} pointer-events-none sticky top-2 z-20 flex h-0 justify-center`}
+          data-conversation-history-loading-overlay
+        >
+          <span className="inline-flex h-6 items-center rounded-full border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 text-xs text-muted-foreground shadow-(--surface-control-shadow)">
+            {t("room.loading_earlier_messages")}
+          </span>
         </div>
       ) : null}
       {children}
@@ -152,9 +155,7 @@ export function ConversationPanelFloatingControls({
         data-conversation-dock-scroll
       >
         <ScrollToLatestButton
-          direction={scrollToLatest.direction}
           onClick={scrollToLatest.onClick}
-          unreadCount={scrollToLatest.unreadCount}
           visible={scrollToLatest.visible}
         />
       </div>

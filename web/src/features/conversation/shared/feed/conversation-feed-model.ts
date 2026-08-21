@@ -19,6 +19,7 @@ interface ConversationFeedRefs {
   feedRef?: RefObject<HTMLDivElement | null>;
   isBottomScrollActive?: () => boolean;
   isFollowingLatest?: () => boolean;
+  isUserScrollActive?: () => boolean;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scrollRef?: RefObject<HTMLDivElement | null>;
 }

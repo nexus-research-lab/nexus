@@ -22,6 +22,10 @@ type planExecutionInput struct {
 	ProposalDigest string `json:"proposal_digest"`
 }
 
+type distillWorkflowInput struct {
+	PreviewID string `json:"preview_id"`
+}
+
 type abandonExecutionInput struct {
 	ExecutionID string `json:"execution_id"`
 	Reason      string `json:"reason"`

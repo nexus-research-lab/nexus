@@ -6,7 +6,7 @@
  * POS: DM 与 Room 共用 Composer 的纯视图装配入口。
  */
 
-import { memo } from "react";
+import { memo, useState } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -19,6 +19,7 @@ import { ComposerInputRow } from "./components/composer-input-row";
 import { ComposerLocalDirectories } from "./components/composer-local-directories";
 import { ComposerPendingQueue } from "./components/pending-queue/composer-pending-queue";
 import { LoopPickerDialog } from "./components/loop-picker/loop-picker-dialog";
+import { WorkGraphDistillationPickerDialog } from "./components/workgraph-distillation-picker/workgraph-distillation-picker-dialog";
 import {
   MAX_COMPOSER_INPUT_LENGTH,
   type ComposerPanelProps,
@@ -28,9 +29,11 @@ import {
   COMPOSER_SHELL_CLASS_NAME,
 } from "./composer-styles";
 import { useComposerController } from "./controller/use-composer-controller";
+import { useComposerInteractionHeightGuard } from "./use-composer-interaction-height-guard";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();
+  const [isWorkGraphPickerOpen, setWorkGraphPickerOpen] = useState(false);
   const {
     actions,
     attachments,
@@ -41,6 +44,11 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
     slashCommand,
     state,
   } = useComposerController(props);
+  useComposerInteractionHeightGuard({
+    active: Boolean(props.interactionSurface),
+    elementRef: refs.composerShellRef,
+    scopeKey: props.draftScopeKey,
+  });
 
   return (
     <section
@@ -68,6 +76,14 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           isOpen={state.isLoopPickerOpen}
           onClose={() => actions.setIsLoopPickerOpen(false)}
           onSelect={actions.handleLoopSelect}
+        />
+      ) : null}
+      {props.workGraphSessionKey && !props.interactionSurface ? (
+        <WorkGraphDistillationPickerDialog
+          isOpen={isWorkGraphPickerOpen}
+          onClose={() => setWorkGraphPickerOpen(false)}
+          onUseCommand={(command) => actions.handleInputChange(command)}
+          sessionKey={props.workGraphSessionKey}
         />
       ) : null}
 
@@ -162,6 +178,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 activeError={state.activeError}
                 canCreateGoal={state.canCreateGoal}
                 canUseLoop={state.canUseLoop}
+                canUseWorkGraphDistillations={Boolean(props.workGraphSessionKey)}
                 charCount={state.charCount}
                 contextUsage={props.contextUsage}
                 contextUsageItems={props.contextUsageItems}
@@ -186,6 +203,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onCancelGoal={actions.cancelGoalInput}
                 onGoalToggle={actions.toggleGoalInput}
                 onLoopSelect={actions.openLoopPicker}
+                onWorkGraphDistillationsSelect={() => {
+                  actions.setIsActionMenuOpen(false);
+                  setWorkGraphPickerOpen(true);
+                }}
                 onLocalDirectorySelect={actions.openLocalDirectoryPicker}
                 runtimeActivity={state.runtimeActivity}
                 sessionSettingsController={sessionSettings}

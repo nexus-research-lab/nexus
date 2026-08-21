@@ -1,63 +1,48 @@
 ---
 name: nexus-configuration
 title: Nexus 配置
-description: 在当前 Nexus 私聊或 Room 中安全读取、修改并验证调用者有权管理的产品配置。用户要求检查、启用、关闭、测试或修复 Agent 自身、Room、Provider、偏好、Channel、Connector、Skill、会话、模型、工具或 MCP 设置时使用。
+description: 在当前 Nexus 私聊或 Room 中读取、规划、确认并验证调用者有权管理的产品配置，包括 Agent、Room、Provider、偏好、Channel、Connector、Skill、Session、模型、工具和 MCP 设置。
 scope: any
 tags: [nexus, configuration, settings, agent, room]
 ---
 
 # Nexus 配置
 
-使用宿主注入的 `nexuscfg`。宿主会把命令绑定到当前 Agent、DM 或 Room round；配置服务根据真实身份返回 `owner_main`、`agent_self`、`room_host` 或 `room_member` 权限。不要自行声明 owner、Agent、Room 或 session。
+配置命令使用宿主注入的 `NEXUSCFG_COMMAND_PATH`；示例中的 `nexuscfg` 只代表该入口。宿主绑定当前 Agent、DM/Room round 与 owner scope，服务端返回真实 `owner_main|agent_self|room_host|room_member` authority。不要声明、切换或覆盖 identity/scope，也不要使用 `nexusctl`、数据库或配置文件替代本控制面。
 
-## 命令入口
+## 固定生命周期
 
-优先运行 `NEXUSCFG_COMMAND_PATH` 指向的命令，示例里的 `nexuscfg` 只是简写。所有 Agent 调用都加 `--json`。不要搜索源码入口、手写 `go run ./cmd/nexuscfg`、传 `--scope-user-id` / `--global-scope`，也不要覆盖 `NEXUSCFG_*` 环境变量。
+所有 mutation 固定走 `inspect → plan → apply → verify`。
 
-## 工作流
-
-1. 只 inspect 相关域；排障时加 `--verify`。
+1. 只 inspect 相关 domain；排障时加 `--verify`：
 
    ```bash
-   nexuscfg --json inspect --domain agents --verify
+   "$NEXUSCFG_COMMAND_PATH" --json inspect --domain agents --verify
    ```
 
-2. 以返回的 `authority`、`access.allowed_operations`、`definition.operations`、`revision` 和 `checks` 为准。普通 Agent 可管理自己的安全子集；Room 权限只作用于当前 Room；只有主智能体私聊拥有 owner 全局能力。不要猜 operation、target 或输入字段。
-3. 写入前运行 plan，参数中不得出现明文秘密。
+   PowerShell 使用 `& "${env:NEXUSCFG_COMMAND_PATH}" ...`，不要混用 shell 变量语法。
+
+2. 以顶层 `inspection` 中的 `authority`、`access.allowed_operations`、`definition.operations`、`revision` 与 checks 为准。不要根据 Skill 猜 operation、target 或 input；需要角色与 domain 分流时读取 [references/roles-and-domains.md](references/roles-and-domains.md)。
+3. mutation 先用同一 domain/operation/target/input 执行 plan。输入必须是一个不含秘密的 JSON object：
 
    ```bash
-   nexuscfg --json plan \
-     --domain agents \
-     --operation update_self_profile \
-     --input '{"name":"新名称"}'
+   "$NEXUSCFG_COMMAND_PATH" --json plan --domain agents --operation update_self_profile --input '{"name":"新名称"}'
    ```
 
-4. 向用户说明 `summary`、`risk`、`runtime_effect` 和确认要求。`requires_confirmation=true` 时等待用户明确同意；获得同意后才给 apply 加 `--confirm`。
+4. 核对 plan 的 normalized change、summary、risk、runtime effect、`current_revision`、`plan_digest` 与 confirmation/secret slots。`requires_confirmation=true` 时等待用户针对该 plan 明确同意；只有随后 apply 才加 `--confirm`。
+5. apply 保持同一 change，携带 plan revision 与稳定 request ID；revision 冲突时回到 inspect/plan，不覆盖新状态：
 
    ```bash
-   nexuscfg --json apply \
-     --domain agents \
-     --operation update_self_profile \
-     --input '{"name":"新名称"}' \
-     --expected-revision REVISION
+   "$NEXUSCFG_COMMAND_PATH" --json apply --domain agents --operation update_self_profile --input '{"name":"新名称"}' --expected-revision '<revision>' --request-id 'config-agent-profile-UNIQUE'
    ```
 
-5. 检查 apply 的写后验证；不确定时重新 inspect 或查询 history。revision 冲突时重新 inspect/plan，不覆盖新状态。
+6. 读取顶层 `result` 的写后 checks；不确定时重新 inspect `--verify` 或用 `history --domain '<domain>'` 核对。数据库已写入不等于 runtime 已生效，以返回的 runtime effect 和验证结果为准。
 
-需要核对角色矩阵、域边界或生效时机时，读取 [references/operations.md](references/operations.md)。
+## 秘密与权限
 
-## 秘密与授权
+- 不向用户索取或在聊天、命令参数、文件、日志中写入 token、密码、私有 header、授权码或密钥。Agent 永不使用 `--secrets-stdin`；出现 secret slot 时，引导用户在 Settings 或人工终端完成。
+- Connector OAuth/device 与 Channel 扫码、验证码继续使用对应专用授权流程，不把凭据塞进通用 config input。
+- permission denied 表示当前 Agent/DM/Room 没有该 operation。报告真实边界，不换 target、不伪造身份，也不传隐藏的 `--scope-user-id` / `--global-scope`。
+- `host` 只读；部署环境、启动参数和桌面状态根通过部署或原生桌面控制面修改。
 
-- 不向用户索取或在聊天、命令参数、文件、日志中写入 token、密码、私有 header、授权码或密钥。
-- Agent 不使用 `--secrets-stdin`。需要 secret slot 时，引导用户在 Settings 或自己的人工终端完成。
-- Connector OAuth/device 和 Channel 扫码、验证码继续使用对应的专用授权工具。
-
-## 边界
-
-- 不直接编辑 Nexus 数据库、状态文件、运行时环境或产品配置文件，也不用 `nexusctl` 代替 `nexuscfg`。
-- `host` 只读；部署环境、启动参数和桌面状态根通过部署或桌面控制面修改。
-- 权限被拒绝表示当前 Agent/DM/Room 没有该 operation。报告真实边界，不尝试切换 target、伪造身份或绕过 capability。
-
-## 回复
-
-简要说明改了什么、作用域、生效时机和验证结果。
+回复简要说明真实变更、作用域、生效时机和验证结果；不要输出脱敏前配置、capability 或完整审计载荷。

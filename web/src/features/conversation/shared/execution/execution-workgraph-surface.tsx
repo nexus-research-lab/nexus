@@ -1,17 +1,35 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以标题为主的 WorkGraph 主视图，仅在非 active 生命周期或投影异常时补充提示。
+ * OUTPUT: 以标题旁唯一的下拉入口切换精确历史的 WorkGraph 主视图。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
 
-import { CircleAlert, LoaderCircle, RotateCw, Workflow } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  Clock3,
+  GitBranchPlus,
+  LoaderCircle,
+  RotateCw,
+  Workflow,
+} from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
+import { previewWorkGraphWorkflowApi } from "@/lib/api/conversation/execution-api";
+import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import {
+  UiActionMenu,
+  type UiActionMenuItem,
+} from "@/shared/ui/menu/action-menu";
 import type { ExecutionStatus } from "@/types/conversation/execution";
+import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
 import {
   hasExecutionGraph,
@@ -21,6 +39,10 @@ import {
 } from "./execution-process-model";
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
+import { useWorkGraphHistoryResource } from "./use-workgraph-history-resource";
+import { WorkGraphDistillationDialog } from "./workgraph-distillation-dialog";
+
+type WorkGraphSurfaceMode = "current" | "history";
 
 const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, string> = {
   active: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
@@ -47,9 +69,34 @@ export function ExecutionWorkGraphSurface({
   taskRuns: readonly ConversationTaskRun[];
 }) {
   const { t } = useI18n();
-  const execution = hasManagedExecutionGraph(resource.execution)
+  const [mode, setMode] = useState<WorkGraphSurfaceMode>("current");
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [sketchPreview, setSketchPreview] = useState<WorkGraphWorkflowPreview | null>(null);
+  const [sketchLoading, setSketchLoading] = useState(false);
+  const [sketchError, setSketchError] = useState<string | null>(null);
+  const sketchSessionKey = resource.sessionKey ?? "";
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const historyResource = useWorkGraphHistoryResource(
+    resource.sessionKey,
+    mode === "history" || historyMenuOpen,
+  );
+  useEffect(() => {
+    if (!selectedHistoryId && historyResource.history.length > 0) {
+      setSelectedHistoryId(historyResource.history[0].id);
+    }
+  }, [historyResource.history, selectedHistoryId]);
+  const currentExecution = hasManagedExecutionGraph(resource.execution)
     ? resource.execution
     : null;
+  const historyExecution = historyResource.history.find(
+    (item) => item.id === selectedHistoryId,
+  ) ?? historyResource.history[0] ?? null;
+  const execution = mode === "history" ? historyExecution : currentExecution;
+  useEffect(() => {
+    setSketchPreview(null);
+    setSketchError(null);
+  }, [execution?.id, resource.sessionKey]);
   const header = execution
     ? resolveExecutionWorkGraphHeaderModel(execution)
     : null;
@@ -61,13 +108,56 @@ export function ExecutionWorkGraphSurface({
   const lastSuccessfulAt = resource.lastSuccessfulAt
     ? new Date(resource.lastSuccessfulAt).toISOString()
     : null;
+  const currentHeader = currentExecution
+    ? resolveExecutionWorkGraphHeaderModel(currentExecution)
+    : null;
+  const historicalExecutions = historyResource.history.filter(
+    (item) => item.id !== currentExecution?.id,
+  );
+  const historyMenuItems: UiActionMenuItem[] = [];
+  if (currentExecution) {
+    historyMenuItems.push({
+      active: mode === "current",
+      description: t("execution.surface_current"),
+      icon: <Workflow className="h-3.5 w-3.5" />,
+      label: currentHeader?.summary || t("execution.label"),
+      trailing: mode === "current" ? <Check className="h-3.5 w-3.5 text-(--success)" /> : null,
+      value: "current",
+    });
+  }
+  historicalExecutions.forEach((item) => {
+    const active = mode === "history" && item.id === execution?.id;
+    historyMenuItems.push({
+      active,
+      description: `${new Date(item.updated_at).toLocaleDateString()} · ${item.work_items?.length ?? 0} ${t("execution.workflow_nodes_short")}`,
+      icon: <Clock3 className="h-3.5 w-3.5" />,
+      label: item.objective,
+      trailing: active ? <Check className="h-3.5 w-3.5 text-(--success)" /> : null,
+      value: `history:${item.id}`,
+    });
+  });
+  if (historyResource.isLoading) {
+    historyMenuItems.push({
+      disabled: true,
+      icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
+      label: t("execution.surface_loading"),
+      value: "loading",
+    });
+  } else if (historicalExecutions.length === 0) {
+    historyMenuItems.push({
+      disabled: true,
+      icon: <Archive className="h-3.5 w-3.5" />,
+      label: t("execution.surface_history_empty"),
+      value: "empty",
+    });
+  }
 
   return (
     <section
       aria-label={t("execution.label")}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
       data-execution-workgraph-surface
-      data-execution-workgraph-stale={resource.isStale ? "true" : undefined}
+      data-execution-workgraph-stale={mode === "current" && resource.isStale ? "true" : undefined}
       data-execution-workgraph-partial={runtimeProjectionPartial ? "true" : undefined}
       data-execution-last-successful-at={lastSuccessfulAt ?? undefined}
     >
@@ -75,10 +165,42 @@ export function ExecutionWorkGraphSurface({
         className="flex min-h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3 py-2"
         data-execution-header-status={header?.status}
       >
-        <Workflow className="h-4 w-4 shrink-0 text-(--icon-muted)" />
-        <div className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)">
+        <div className="min-w-0 max-w-[48%] truncate text-compact font-semibold text-(--text-strong)">
           {header?.summary || t("execution.label")}
         </div>
+        <UiIconButton
+          ref={historyTriggerRef}
+          aria-expanded={historyMenuOpen}
+          aria-haspopup="menu"
+          aria-label={t("execution.surface_history")}
+          onClick={() => setHistoryMenuOpen((open) => !open)}
+          size="sm"
+          title={t("execution.surface_history")}
+          variant="ghost"
+        >
+          <ChevronDown className={cn(
+            "h-3.5 w-3.5 transition-transform",
+            historyMenuOpen && "rotate-180",
+          )} />
+        </UiIconButton>
+        <UiActionMenu
+          anchorRef={historyTriggerRef}
+          ariaLabel={t("execution.surface_history")}
+          density="compact"
+          isOpen={historyMenuOpen}
+          items={historyMenuItems}
+          minWidth={280}
+          onClose={() => setHistoryMenuOpen(false)}
+          onSelect={(value) => {
+            if (value === "current") {
+              setMode("current");
+            } else if (value.startsWith("history:")) {
+              setSelectedHistoryId(value.slice("history:".length));
+              setMode("history");
+            }
+          }}
+          placement="bottom"
+        />
         {header && header.status !== "active" ? (
           <span
             className={cn(
@@ -89,6 +211,34 @@ export function ExecutionWorkGraphSurface({
           >
             {t(header.statusLabelKey)}
           </span>
+        ) : null}
+        {header?.status === "completed" && execution && sketchSessionKey ? (
+          <button
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 text-[11px] font-semibold text-(--text-strong) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:cursor-wait disabled:opacity-60"
+            data-workgraph-save-sketch
+            disabled={sketchLoading}
+            onClick={() => {
+              setSketchLoading(true);
+              setSketchError(null);
+              void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id)
+                .then(setSketchPreview)
+                .catch((reason: unknown) => {
+                  setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
+                })
+                .finally(() => setSketchLoading(false));
+            }}
+            type="button"
+          >
+            {sketchLoading
+              ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              : <GitBranchPlus className="h-3.5 w-3.5" />}
+            {t(sketchLoading
+              ? "execution.workflow_extracting_sketch"
+              : "execution.workflow_save_as_sketch")}
+          </button>
+        ) : null}
+        {sketchError ? (
+          <span className="max-w-56 truncate text-[10px] text-(--destructive)" title={sketchError}>{sketchError}</span>
         ) : null}
         {runtimeProjectionPartial ? (
           <span
@@ -106,7 +256,7 @@ export function ExecutionWorkGraphSurface({
             <span>{t("execution.surface_partial_short")}</span>
           </span>
         ) : null}
-        {resource.isStale ? (
+        {mode === "current" && resource.isStale ? (
           <span
             aria-label={t("execution.surface_stale")}
             className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
@@ -118,7 +268,7 @@ export function ExecutionWorkGraphSurface({
             <span>{t("execution.surface_stale_short")}</span>
           </span>
         ) : null}
-        {resource.error ? (
+        {mode === "current" && resource.error ? (
           <UiIconButton
             aria-label={t("execution.refresh")}
             onClick={resource.refresh}
@@ -143,23 +293,32 @@ export function ExecutionWorkGraphSurface({
       ) : (
         <div className="grid min-h-0 flex-1 place-items-center px-6 py-8 text-center">
           <div className="flex max-w-64 flex-col items-center gap-2 text-(--text-soft)">
-            {resource.isLoading ? (
+            {(mode === "history" ? historyResource.isLoading : resource.isLoading) ? (
               <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted)" />
-            ) : resource.error ? (
+            ) : (mode === "history" ? historyResource.error : resource.error) ? (
               <CircleAlert className="h-5 w-5 text-(--warning)" />
             ) : (
               <Workflow className="h-5 w-5 text-(--icon-muted)" />
             )}
             <p className="text-compact leading-5">
-              {resource.isLoading
+              {(mode === "history" ? historyResource.isLoading : resource.isLoading)
                 ? t("execution.surface_loading")
-                : resource.error
+                : (mode === "history" ? historyResource.error : resource.error)
                 ? t("execution.surface_error")
+                : mode === "history"
+                ? t("execution.surface_history_empty")
                 : t("execution.surface_empty")}
             </p>
           </div>
         </div>
       )}
+      {sketchPreview ? (
+        <WorkGraphDistillationDialog
+          onClose={() => setSketchPreview(null)}
+          preview={sketchPreview}
+          sessionKey={sketchSessionKey}
+        />
+      ) : null}
     </section>
   );
 }

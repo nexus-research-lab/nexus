@@ -48,6 +48,7 @@ type DmChatSession = Omit<
     feedRef: RefObject<HTMLDivElement | null>;
     isBottomScrollActive: () => boolean;
     isFollowingLatest: () => boolean;
+    isUserScrollActive: () => boolean;
     liveLayoutActive: boolean;
   };
 };
@@ -227,6 +228,7 @@ function buildDmFeedModel({
       feedRef: scroll.feedRef,
       isBottomScrollActive: scroll.isBottomScrollActive,
       isFollowingLatest: scroll.isFollowingLatest,
+      isUserScrollActive: scroll.isUserScrollActive,
       roundScrollRef,
       scrollRef: scroll.scrollRef,
     },

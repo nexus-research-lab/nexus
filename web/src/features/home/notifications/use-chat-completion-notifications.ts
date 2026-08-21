@@ -1,7 +1,7 @@
 /**
  * INPUT: 全局聊天完成事件、共享聊天目录、当前路由与窗口可见性。
- * OUTPUT: 浏览器通知、侧栏未读数字及供 Room Feed 认领的精确消息锚点。
- * POS: 聊天完成通知副作用入口；不推导 Feed 节点或首条未读位置。
+ * OUTPUT: 浏览器通知、侧栏未读数字及用于选择目标 Conversation 的消息顺序。
+ * POS: 聊天完成通知副作用入口；当前可见目标直接确认，不向 Feed 注入未读定位。
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
@@ -77,6 +77,7 @@ export function useChatCompletionNotifications(): void {
         activeTarget.room_id,
       );
       if (!activeRoom || activeRoom.room_type === "room") {
+        clearTarget(activeTarget.key);
         return;
       }
       clearRoomNotifications(activeTarget.room_id);
@@ -148,6 +149,10 @@ export function useChatCompletionNotifications(): void {
       } else {
         clearTarget(target.key);
       }
+      return;
+    }
+    if (isActive) {
+      clearTarget(target.key);
       return;
     }
     const messageId = getNotificationMessageId(event, message, target.key);

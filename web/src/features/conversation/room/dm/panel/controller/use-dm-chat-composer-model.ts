@@ -97,6 +97,7 @@ export function useDmChatComposerModel({
     inputQueueItems: conversation.input_queue_items,
     isLoading: conversation.is_loading,
     localDirectorySessionKey: sessionKey ?? undefined,
+    workGraphSessionKey: sessionKey ?? undefined,
     onCreateGoal: sessionKey ? createGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
     onEnqueueMessage: conversation.enqueue_input_queue_message,

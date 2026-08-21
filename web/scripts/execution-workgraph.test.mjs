@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -472,12 +473,17 @@ test("WorkGraph surface keeps an active title-only header and one non-active lif
           isStale: false,
           lastSuccessfulAt: Date.parse("2026-08-11T00:00:00Z"),
           refresh: () => {},
+          sessionKey: execution.session_key,
         },
         taskRuns: [],
       },
     ));
+    const headerHtml = html.slice(0, html.indexOf("</header>"));
     assert.match(html, new RegExp(`data-execution-header-status="${status}"`));
     assert.match(html, />实现 UI</);
+    assert.doesNotMatch(headerHtml, /lucide-workflow h-4 w-4/);
+    assert.doesNotMatch(headerHtml, /min-w-0 flex-1 truncate/);
+    assert.match(headerHtml, /实现 UI.*aria-label="历史"/);
     if (statusLabel) {
       assert.match(
         html,
@@ -492,7 +498,36 @@ test("WorkGraph surface keeps an active title-only header and one non-active lif
     assert.doesNotMatch(html, /data-execution-completion-blockers/);
     assert.doesNotMatch(html, /data-execution-node-progress/);
     assert.doesNotMatch(html, /Plan v2|必需节点已验收|完成阻塞|第 2 \/ 3 节点/);
+    assert.match(html, /aria-label="历史"/);
+    assert.match(html, /lucide-chevron-down/);
+    assert.doesNotMatch(html, /aria-label="命令库"/);
+    assert.doesNotMatch(html, /aria-current="page"/);
+    if (status === "completed") {
+      assert.match(html, /data-workgraph-save-sketch="true"/);
+      assert.match(html, />保存为草图</);
+    } else {
+      assert.doesNotMatch(html, /data-workgraph-save-sketch/);
+    }
   }
+});
+
+test("WorkGraph sketch confirmation schedules a hidden background round without sending chat", async () => {
+  const dialogSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+  ), "utf8");
+  const controllerSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/composer/controller/use-composer-controller.ts",
+  ), "utf8");
+  const apiSource = await readFile(path.join(
+    webRoot,
+    "src/lib/api/conversation/execution-api.ts",
+  ), "utf8");
+  assert.match(dialogSource, /scheduleWorkGraphWorkflowSaveApi\(sessionKey, preview\.preview_id\)/);
+  assert.match(apiSource, /workgraph\/previews\/\$\{encodeURIComponent\(previewId\)\}\/save/);
+  assert.doesNotMatch(dialogSource, /dispatchWorkGraphDistillationIntent|buildDistillationPrompt|onSendMessage/);
+  assert.doesNotMatch(controllerSource, /WORKGRAPH_DISTILLATION_INTENT_EVENT|pendingWorkGraphPromptRef/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {
@@ -1612,6 +1647,7 @@ const nexusCommandTitles = [
   ["execution invoke --operation take_over_work", "接管工作项"],
   ["execution invoke --operation audit_execution_alignment", "审计执行对齐"],
   ["execution invoke --operation promote_execution_to_goal", "升级为 Goal"],
+  ["execution invoke --operation distill_workgraph", "保存工作图草图"],
   ["goal inspect", "读取 Goal"],
   ["goal invoke --operation create_goal", "创建 Goal"],
   ["goal invoke --operation retarget_goal", "调整 Goal 目标"],

@@ -1,5 +1,5 @@
-// INPUT: DM 用户请求、内部 Goal 续跑与当前会话运行态。
-// OUTPUT: 运行中投递、持久队列登记或新 round 启动。
+// INPUT: DM 用户请求、内部 Goal 续跑、owner-scoped Slash 展开与当前会话运行态。
+// OUTPUT: 保留时间线原文、向 runtime 投递展开内容的队列登记或新 round 启动。
 // POS: DM 输入受理与 runtime 启动的串行交接边界。
 package dm
 
@@ -339,9 +339,16 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if slashInput && len(e.request.Attachments) > 0 {
 		return dmRuntimePreparation{}, slashCommandAttachmentError{}
 	}
-	runtimeContent, err := e.service.renderRuntimeContentWithAttachments(
+	expandedContent, err := e.service.expandRuntimeSlashPrompt(
 		runtimeCtx,
 		e.request.Content,
+	)
+	if err != nil {
+		return dmRuntimePreparation{}, err
+	}
+	runtimeContent, err := e.service.renderRuntimeContentWithAttachments(
+		runtimeCtx,
+		expandedContent,
 		e.request.Attachments,
 	)
 	if err != nil {

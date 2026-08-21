@@ -30,6 +30,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
             actionButtonRef={props.actionButtonRef}
             canCreateGoal={props.canCreateGoal}
             canUseLoop={props.canUseLoop}
+            canUseWorkGraphDistillations={props.canUseWorkGraphDistillations}
             isActionMenuOpen={props.isActionMenuOpen}
             isGoalCreating={props.isGoalCreating}
             isGoalMode={props.isGoalMode}
@@ -40,6 +41,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
             onAttachmentSelect={props.onAttachmentSelect}
             onGoalToggle={props.onGoalToggle}
             onLoopSelect={props.onLoopSelect}
+            onWorkGraphDistillationsSelect={props.onWorkGraphDistillationsSelect}
             onLocalDirectorySelect={props.onLocalDirectorySelect}
             sessionSettingsController={props.sessionSettingsController}
             sessionSettingsDisabled={props.sessionSettingsDisabled}

@@ -22,6 +22,7 @@ interface VirtualScrollState {
 export interface ConversationVirtualAdjustmentContext {
   bottomScrollActive: boolean;
   followingLatest: boolean;
+  userScrollActive: boolean;
 }
 
 export function useConversationVirtualItemKey(
@@ -67,9 +68,16 @@ export function shouldAdjustConversationVirtualScrollPosition(
   context: ConversationVirtualAdjustmentContext = {
     bottomScrollActive: false,
     followingLatest: false,
+    userScrollActive: false,
   },
 ): boolean {
   if (context.bottomScrollActive) {
+    return false;
+  }
+  if (context.userScrollActive && !context.followingLatest) {
+    // READING 的直接操控优先于估高补偿；用户滚动时写回 delta 会让滚轮/
+    // 触摸位移与 Virtualizer 互相拉扯。新测量仍进入缓存，只是不反向改写
+    // 这一手势 epoch 的 scrollTop。
     return false;
   }
   if (context.followingLatest && delta < 0) {

@@ -1,6 +1,7 @@
 package slashcommand
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -47,4 +48,29 @@ func TestVisualizeCommandExpandsOnlyRuntimePrompt(t *testing.T) {
 	if got := ExpandVisualizePrompt("/model nxs/default"); got != "/model nxs/default" {
 		t.Fatalf("unrelated command changed to %q", got)
 	}
+}
+
+func TestWorkGraphCommandEnablesCollaborationWithoutDistillation(t *testing.T) {
+	descriptor := WorkGraphCommandDescriptor()
+	if descriptor.Name != "workgraph" || descriptor.ArgumentHint != "<request>" ||
+		descriptor.Execution != protocol.CommandExecutionRuntime || !descriptor.Enabled {
+		t.Fatalf("workgraph descriptor = %#v", descriptor)
+	}
+	expanded := ExpandProductPrompt("/workgraph compare storage engines")
+	if expanded == "/workgraph compare storage engines" ||
+		!containsAll(expanded, "execution-orchestrator", "fresh managed WorkGraph", "compare storage engines") {
+		t.Fatalf("workgraph expansion = %q", expanded)
+	}
+	if containsAll(expanded, "distill_workgraph") {
+		t.Fatalf("fixed /workgraph acquired workflow-saving semantics: %q", expanded)
+	}
+}
+
+func containsAll(value string, candidates ...string) bool {
+	for _, candidate := range candidates {
+		if !strings.Contains(value, candidate) {
+			return false
+		}
+	}
+	return true
 }

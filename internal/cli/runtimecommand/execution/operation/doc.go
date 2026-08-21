@@ -1,4 +1,5 @@
-// Package operation defines the fixed model-facing Execution Orchestration command set.
+// Package operation defines the model-facing Execution Orchestration and
+// Named WorkGraph save command set.
 //
 // L2 | 父级: internal/cli/runtimecommand/execution（L2 见其 doc.go）
 //
@@ -18,6 +19,9 @@
 // Execution -> Goal mutation whose reverse confirmation is still recovering is
 // returned as applied/noop with goal_confirmation_status=pending and an
 // executable retry next_action, never as a transport IsError.
+// distill_workgraph is the only model persistence boundary for reusable WorkGraph
+// commands: it consumes only the exact user-reviewed preview_id and persists that
+// host-generated sketch unchanged, without source locators, runtime or delivery history.
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 doc.go（L2）
 package operation

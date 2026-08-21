@@ -42,6 +42,16 @@ type Service interface {
 	) (orchestration.MutationResult, error)
 }
 
+// WorkflowService is the owner-scoped semantic library used by the
+// named WorkGraph save operation. Source session and owner identity stay host-owned.
+type WorkflowService interface {
+	SavePreview(
+		context.Context,
+		string,
+		protocol.SaveWorkGraphWorkflowRequest,
+	) (*protocol.WorkGraphWorkflow, error)
+}
+
 // Context contains authoritative runtime identity. None of these fields
 // are accepted from command input.
 type Context struct {

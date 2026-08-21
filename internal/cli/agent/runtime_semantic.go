@@ -75,11 +75,18 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 	operation = strings.TrimSpace(operation)
 	inspectOperation = strings.TrimSpace(inspectOperation)
 	usage := map[string]string{
+		"contract": fmt.Sprintf(
+			`"${NEXUS_COMMAND_PATH}" --json %s contract`,
+			domain,
+		),
 		"inspect": fmt.Sprintf(
 			`"${NEXUS_COMMAND_PATH}" --json %s inspect`,
 			domain,
 		),
-		"output": "contract fields stay at top-level contract/input_staging; run inspect and invoke standalone with no pipe, redirection, jq, Python, regex, or shell post-processing, then read their domain, action, is_error, and top-level data object directly",
+		"input":      "for every new mutation intent, read the exact operation contract immediately before writing; use only its fresh input_staging.path, Read that pre-created file once before its first Write, then overwrite it with one complete closed JSON object containing only input_schema properties",
+		"output":     "contract fields stay at top-level contract/input_staging; inspect and invoke return domain, action, is_error, and one top-level data object; there is no result.data or MCP Content mirror",
+		"request_id": "use 8-128 ASCII letters, digits, dot, underscore, colon, or hyphen; reuse the same id only when retrying the same semantic intent, and create a new id when the operation, target, or input changes",
+		"shell":      "run each managed command as one standalone process using the injected NEXUS_COMMAND_PATH; do not probe or override NEXUS_COMMAND_* and do not add a pipe, redirection, jq, Python, regex, or shell post-processing",
 	}
 	if domain == runtimecommand.DomainExecution {
 		usage["inspect_explicit"] = `"${NEXUS_COMMAND_PATH}" --json execution inspect --execution-id '<execution-id>'`
@@ -96,7 +103,7 @@ func runtimeSemanticContractCommandUsage(domain, operation, inspectOperation str
 		usage["next"] = "use inspect; the domain read operation is not invokable"
 		return usage
 	}
-	usage["next"] = "immediately before every new mutation input write, run this exact operation contract again and use only the input_staging.path in that fresh result; never reuse a remembered path from an earlier physical round; Read each newly returned path once before its first Write, overwrite it with one complete JSON object, then invoke with one stable request id"
+	usage["next"] = "follow input and request_id above, then invoke this operation; never reuse a remembered path from an earlier physical round"
 	usage["invoke"] = fmt.Sprintf(
 		`"${NEXUS_COMMAND_PATH}" --json %s invoke --operation '%s' --request-id '<stable-request-id>'`,
 		domain,

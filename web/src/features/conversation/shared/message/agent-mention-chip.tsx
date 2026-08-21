@@ -34,6 +34,7 @@ const HANDOFF_STATUS_LABEL = {
   preparing: "room.agent_handoff_preparing",
   queued: "room.agent_handoff_queued",
   responded: "room.agent_handoff_responded",
+  starting: "room.agent_handoff_starting",
 } as const satisfies Record<AgentHandoffPhase, string>;
 
 export function AgentMentionChip({
@@ -84,7 +85,7 @@ export function AgentMentionChip({
             aria-hidden="true"
             className={cn(
               "h-1.5 w-1.5 rounded-full bg-current",
-              handoffStatus === "preparing" && "animate-pulse",
+              handoffStatus !== "responded" && "motion-safe:animate-pulse",
             )}
           />
           {handoffLabel}

@@ -19,6 +19,7 @@ func (s *Server) mountRoutes() {
 			s.services.GoalCommand,
 			s.services.Orchestration,
 			s.services.Permission,
+			s.services.WorkGraphWorkflow,
 		),
 	)
 	if s.handlers.browser != nil {
@@ -309,11 +310,31 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/app-server/thread/goal/clear"), s.handlers.goal.HandleThreadGoalClear)
 }
 
-// mountExecutionRoutes 挂载 WorkGraph 只读投影。
+// mountExecutionRoutes 挂载 WorkGraph 历史读取、草图预览与已保存草图目录。
 func (s *Server) mountExecutionRoutes() {
 	s.router.Get(
 		s.prefixPath("/executions/latest"),
 		s.handlers.execution.HandleGetLatestExecution,
+	)
+	s.router.Get(
+		s.prefixPath("/executions/history"),
+		s.handlers.execution.HandleListExecutionHistory,
+	)
+	s.router.Get(
+		s.prefixPath("/workgraph/workflows"),
+		s.handlers.execution.HandleListWorkGraphWorkflows,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/previews"),
+		s.handlers.execution.HandlePreviewWorkGraphWorkflow,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/previews/{preview_id}/save"),
+		s.handlers.execution.HandleScheduleWorkGraphWorkflowSave,
+	)
+	s.router.Delete(
+		s.prefixPath("/workgraph/workflows/{workflow_id}"),
+		s.handlers.execution.HandleDeleteWorkGraphWorkflow,
 	)
 }
 

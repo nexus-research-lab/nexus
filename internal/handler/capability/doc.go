@@ -3,7 +3,7 @@
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - handlers.go：Handlers 及 ChannelSummaryCounter 计数聚合。
+//   - handlers.go：Handlers、ChannelSummaryCounter 与 owner-scoped 命名工作图计数聚合。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package capability
