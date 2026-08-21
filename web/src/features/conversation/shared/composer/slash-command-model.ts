@@ -30,6 +30,11 @@ export interface SlashModelOption {
 
 type SkillDescriptionResolver = (skill: SkillInfo) => string;
 
+const slashCommandNameCollator = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base",
+});
+
 export function findSlashCommandTextMatch(
   input: string,
   cursorPosition: number,
@@ -58,17 +63,24 @@ export function filterSlashCommands(
   query: string,
 ): CommandDescriptor[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return commands;
-  }
-  return commands.filter((command) => {
-    const searchableText = [
-      command.name,
-      command.description ?? "",
-      command.argument_hint ?? "",
-    ].join("\n").toLocaleLowerCase();
-    return searchableText.includes(normalizedQuery);
-  });
+  const filteredCommands = normalizedQuery
+    ? commands.filter((command) => {
+      const searchableText = [
+        command.name,
+        command.description ?? "",
+        command.argument_hint ?? "",
+      ].join("\n").toLocaleLowerCase();
+      return searchableText.includes(normalizedQuery);
+    })
+    : [...commands];
+  return filteredCommands.sort((left, right) => slashCommandNameCollator.compare(
+    normalizeSlashCommandName(left.name),
+    normalizeSlashCommandName(right.name),
+  ));
+}
+
+function normalizeSlashCommandName(name: string): string {
+  return name.trim().replace(/^\/+/, "");
 }
 
 export function filterSlashSkills(
