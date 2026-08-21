@@ -2236,6 +2236,75 @@ test("resolved history rounds remain only when visible content was projected", a
   );
 });
 
+test("indexed latest windows retain a bounded predecessor load boundary", async () => {
+  const {
+    buildIndexedConversationWindow,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/timeline-model.ts",
+  );
+  const items = Array.from(
+    { length: 8 },
+    (_value, index) => roundIndexItem(`round-${index}`),
+  );
+
+  const latestWindow = buildIndexedConversationWindow(
+    items,
+    ["round-5", "round-6", "round-7"],
+  );
+  assert.deepEqual(
+    latestWindow,
+    {
+      roundIds: ["round-4", "round-5", "round-6", "round-7"],
+      unloadedRoundIds: ["round-4"],
+    },
+    "the latest resident page needs one pullable predecessor without mounting the full index",
+  );
+
+  const indexBeforeMessages = buildIndexedConversationWindow(items, []);
+  assert.deepEqual(
+    indexBeforeMessages,
+    {
+      roundIds: ["round-7"],
+      unloadedRoundIds: ["round-7"],
+    },
+    "an index-first response must mount a recoverable latest boundary instead of an empty feed",
+  );
+});
+
+test("indexed window loading falls back to data boundaries when DOM is not mounted", async () => {
+  const { resolveBoundaryUnloadedRoundId } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/window-loader/visible-round-candidate.ts",
+  );
+  const base = {
+    clientHeight: 700,
+    excludedRoundIds: new Set(),
+    loadedRoundIds: ["round-5", "round-6", "round-7"],
+    roundIds: ["round-4", "round-5", "round-6", "round-7"],
+    scrollHeight: 1400,
+  };
+
+  assert.equal(
+    resolveBoundaryUnloadedRoundId({ ...base, scrollTop: 0 }),
+    "round-4",
+  );
+  assert.equal(
+    resolveBoundaryUnloadedRoundId({ ...base, scrollTop: 350 }),
+    null,
+    "a collapsed middle gap must not load until its own boundary is reached",
+  );
+  assert.equal(
+    resolveBoundaryUnloadedRoundId({
+      ...base,
+      loadedRoundIds: [],
+      roundIds: ["round-7"],
+      scrollHeight: 700,
+      scrollTop: 0,
+    }),
+    "round-7",
+    "an index-only session can bootstrap without a rendered message node",
+  );
+});
+
 test("partial DM round indexes preserve loaded transcript chronology after remount", async () => {
   const {
     buildIndexedTimelineRoundIds,
@@ -2329,6 +2398,61 @@ test("conversation navigation fallbacks follow the interface language", async ()
     formatSpeakerSummary(navigationItems[0], localization.t),
     "User",
   );
+});
+
+test("conversation navigation summarizes the first visible assistant reply", async () => {
+  const { buildSessionNavigationItems } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-model.ts",
+  );
+  const localization = await loadI18nValue("zh");
+  const roundId = "round-tool-then-answer";
+  const toolOnly = {
+    ...assistantMessage({
+      messageId: "assistant-tool",
+      roundId,
+      text: "",
+      timestamp: 2,
+    }),
+    content: [{
+      id: "tool-search",
+      input: { query: "强化学习" },
+      name: "WebSearch",
+      type: "tool_use",
+    }],
+  };
+  const finalAnswer = assistantMessage({
+    messageId: "assistant-answer",
+    roundId,
+    text: "强化学习调研已经完成。",
+    timestamp: 3,
+  });
+  const messages = [
+    userMessage({
+      content: "调研强化学习",
+      messageId: "user-research",
+      roundId,
+      timestamp: 1,
+    }),
+    toolOnly,
+    finalAnswer,
+  ];
+  const navigationItems = buildSessionNavigationItems(
+    {
+      feed_round_ids: [roundId],
+      indexed_window: { roundIds: [roundId], unloadedRoundIds: [] },
+      live_round_ids: [],
+      loaded_round_ids: [roundId],
+      message_groups: new Map([[roundId, messages]]),
+      pending_permission_groups: new Map(),
+      pending_slot_groups: new Map(),
+      room_agent_execution_state_groups: new Map(),
+      round_index_items: [roundIndexItem(roundId, { hasUserMessage: true })],
+    },
+    localization,
+  );
+
+  assert.equal(navigationItems[0].summary, "强化学习调研已经完成。");
+  assert.notEqual(navigationItems[0].summary, "尚无回复内容");
 });
 
 test("deferred input ACK keeps queued user text out of the timeline", async () => {

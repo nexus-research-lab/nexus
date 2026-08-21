@@ -9,6 +9,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
+import { getConversationRoundNavigationTarget } from "../timeline/scroll/round-scroll";
 import {
   isConversationRoundActivelyGrowing,
   resolveConversationRound,
@@ -86,6 +87,10 @@ export function ConversationVirtualFeed({
     {
       bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
       followingLatest: refs.isFollowingLatest?.() ?? false,
+      navigationActive: Boolean(
+        refs.scrollRef.current
+        && getConversationRoundNavigationTarget(refs.scrollRef.current),
+      ),
       userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );

@@ -71,10 +71,16 @@ export function useActiveRound({
           navigationTarget,
         );
       }
-      const nextRoundId =
-        navigationTarget && roundIdSet.has(navigationTarget)
-          ? navigationTarget
-          : resolveVisibleRoundId(scrollElement, roundIds, roundIdSet);
+      // 导航目标只是进行中的滚动事务，不是已经可见的 active round。
+      // 真正落点后由 pending jump 显式提交，加载/测量期间保留当前选择。
+      if (navigationTarget && roundIdSet.has(navigationTarget)) {
+        return;
+      }
+      const nextRoundId = resolveVisibleRoundId(
+        scrollElement,
+        roundIds,
+        roundIdSet,
+      );
       if (nextRoundId) {
         activateRound(nextRoundId);
       }
@@ -117,11 +123,15 @@ export function useActiveRound({
     scrollElement.addEventListener("touchstart", clearNavigationTarget, {
       passive: true,
     });
+    scrollElement.addEventListener("pointerdown", clearNavigationTarget, {
+      passive: true,
+    });
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       clearNavigationTarget();
       scrollElement.removeEventListener("wheel", clearNavigationTarget);
       scrollElement.removeEventListener("touchstart", clearNavigationTarget);
+      scrollElement.removeEventListener("pointerdown", clearNavigationTarget);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [scopeKey, scrollRef]);

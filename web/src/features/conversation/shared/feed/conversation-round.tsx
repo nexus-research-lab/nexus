@@ -13,6 +13,7 @@ import {
   type ConversationRoundState,
   type ConversationRoundSource,
 } from "./conversation-feed-model";
+import { resolveConversationVirtualPlaceholderHeight } from "./use-conversation-virtual-scroll-policy";
 
 interface ConversationRoundProps {
   isMobileLayout: boolean;
@@ -35,12 +36,18 @@ export function ConversationRound({
     state.messages,
     renderer.workspaceAgentId,
   );
+  const resolvedPlaceholderHeight = resolveConversationVirtualPlaceholderHeight(
+    state.isLoaded,
+    placeholderHeight,
+  );
 
   return (
     <div
       ref={measureRef}
       className={isMobileLayout ? "pb-4" : "pb-1"}
-      style={placeholderHeight ? { minHeight: placeholderHeight } : undefined}
+      style={resolvedPlaceholderHeight
+        ? { minHeight: resolvedPlaceholderHeight }
+        : undefined}
       data-index={measureRef ? state.index : undefined}
       data-conversation-round-id={state.roundId}
       data-conversation-round-index={state.index}

@@ -81,7 +81,7 @@ export function useRoundJump({
       const target: PendingRoundJump = {
         navigationRoundId: item.roundId,
         scopeKey,
-        scrollRoundId: item.inputRoundId,
+        scrollRoundId: item.roundId,
       };
       const loaded = isRoundLoaded(timeline, target.scrollRoundId);
 
@@ -90,7 +90,6 @@ export function useRoundJump({
         scrollElement,
         target.navigationRoundId,
       );
-      activateRound(target.navigationRoundId);
       setPendingNavigation(target);
       scrollToTimelineRound(
         scrollElement,
@@ -104,7 +103,6 @@ export function useRoundJump({
       }
     },
     [
-      activateRound,
       cancelNavigation,
       enqueueNavigationLoad,
       onNavigateStart,

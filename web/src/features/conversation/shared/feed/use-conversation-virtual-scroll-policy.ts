@@ -23,6 +23,7 @@ interface VirtualScrollState {
 export interface ConversationVirtualAdjustmentContext {
   bottomScrollActive: boolean;
   followingLatest: boolean;
+  navigationActive?: boolean;
   userScrollActive: boolean;
 }
 
@@ -82,10 +83,11 @@ export function shouldAdjustConversationVirtualScrollPosition(
   context: ConversationVirtualAdjustmentContext = {
     bottomScrollActive: false,
     followingLatest: false,
+    navigationActive: false,
     userScrollActive: false,
   },
 ): boolean {
-  if (context.bottomScrollActive) {
+  if (context.bottomScrollActive || context.navigationActive) {
     return false;
   }
   if (context.userScrollActive && !context.followingLatest) {

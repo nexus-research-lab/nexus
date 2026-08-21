@@ -18,6 +18,10 @@ import {
 import { ConversationViewportAnchor } from "./conversation-viewport-anchor";
 import { HistoryPrependAnchor } from "./history-prepend-anchor";
 import { BottomScrollAnimator } from "./scroll-animation";
+import {
+  clearConversationRoundNavigationTarget,
+  getConversationRoundNavigationTarget,
+} from "./round-scroll";
 import { useConversationLiveHeightGuard } from "./use-conversation-live-height-guard";
 import { useFollowScrollInteractions } from "./use-follow-scroll-interactions";
 
@@ -161,6 +165,9 @@ export function useFollowScroll({
     if (!sizeRevision.changed) {
       return false;
     }
+    if (getConversationRoundNavigationTarget(container)) {
+      return false;
+    }
     const resizeState = resolveConversationViewportResizeState(
       container,
       lastScrollTopRef.current,
@@ -184,6 +191,9 @@ export function useFollowScroll({
 
   const scheduleFollowLatest = useCallback(() => {
     const container = scrollRef.current;
+    if (container && getConversationRoundNavigationTarget(container)) {
+      return;
+    }
     if (
       container
       && retainPositionForViewportResize(container)
@@ -201,6 +211,10 @@ export function useFollowScroll({
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
+      const container = scrollRef.current;
+      if (container) {
+        clearConversationRoundNavigationTarget(container);
+      }
       shouldFollowLatestRef.current = true;
       viewportAnchorRef.current.reset();
       setScrollToBottomVisibility(false);
@@ -256,6 +270,14 @@ export function useFollowScroll({
     previousTopologyKeyRef.current = topologyKey;
     bottomCommitPendingRef.current = false;
     if (!container) {
+      return;
+    }
+
+    if (getConversationRoundNavigationTarget(container)) {
+      cancelAnimation();
+      setScrollToBottomVisibility(
+        hasScrollableOverflow(container) && !isAtScrollBottom(container),
+      );
       return;
     }
 
@@ -342,6 +364,9 @@ export function useFollowScroll({
       if (!currentContainer) {
         return;
       }
+      if (getConversationRoundNavigationTarget(currentContainer)) {
+        return;
+      }
 
       if (shouldFollowLatestRef.current) {
         const feed = feedRef.current;
@@ -399,6 +424,10 @@ export function useFollowScroll({
       return;
     }
     const observer = new ResizeObserver(() => {
+      if (getConversationRoundNavigationTarget(container)) {
+        viewportSizeRef.current = getConversationViewportSize(container);
+        return;
+      }
       retainPositionForViewportResize(container);
     });
     observer.observe(container);
@@ -413,6 +442,9 @@ export function useFollowScroll({
     historyAnchorRef.current.cancel();
     viewportAnchorRef.current.reset();
     const container = scrollRef.current;
+    if (container) {
+      clearConversationRoundNavigationTarget(container);
+    }
     viewportSizeRef.current = container
       ? getConversationViewportSize(container)
       : null;

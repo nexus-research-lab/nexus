@@ -17,6 +17,7 @@ import {
   useConversationVirtualItemKey,
 } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
+import { getConversationRoundNavigationTarget } from "@/features/conversation/shared/timeline/scroll/round-scroll";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
@@ -98,6 +99,10 @@ export function GroupConversationVirtualFeed({
     {
       bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
       followingLatest: refs.isFollowingLatest?.() ?? false,
+      navigationActive: Boolean(
+        refs.scrollRef.current
+        && getConversationRoundNavigationTarget(refs.scrollRef.current),
+      ),
       userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );
