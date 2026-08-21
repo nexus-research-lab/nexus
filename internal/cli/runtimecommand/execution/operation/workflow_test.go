@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	runtimecommand "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
@@ -45,6 +46,11 @@ func TestDistillWorkGraphUsesTrustedOwnerSessionAndExactPreview(t *testing.T) {
 	if result.StructuredContent["command"] != "/deep-research" || result.StructuredContent["outcome"] != "applied" {
 		t.Fatalf("result = %#v", result.StructuredContent)
 	}
+	if !strings.Contains(definition.Description, "原样持久化") ||
+		strings.Contains(definition.Description, "Persist the exact") ||
+		result.StructuredContent["message"] != "WorkGraph 命令已保存，可以在其他会话中复用。" {
+		t.Fatalf("non-Chinese workflow contract or receipt: description=%q result=%#v", definition.Description, result.StructuredContent)
+	}
 }
 
 func TestDistillWorkGraphSchemaAcceptsOnlyPreviewID(t *testing.T) {
@@ -56,5 +62,9 @@ func TestDistillWorkGraphSchemaAcceptsOnlyPreviewID(t *testing.T) {
 	required := schema["required"].([]string)
 	if len(required) != 1 || required[0] != "preview_id" {
 		t.Fatalf("required = %#v", required)
+	}
+	description := properties["preview_id"].(map[string]any)["description"].(string)
+	if !strings.Contains(description, "用户已确认") || strings.Contains(description, "Exact opaque") {
+		t.Fatalf("preview_id description = %q", description)
 	}
 }

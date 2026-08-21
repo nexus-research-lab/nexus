@@ -267,7 +267,8 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
   purpose=workgraph_distillation` 的内部 Agent round，不写聊天消息、不改 Composer、也不直接持久化；
   唯一模型持久化入口仍是该 round 内的 `execution-orchestrator` Skill 按 fresh contract 只提交
   exact `preview_id` 给 `nexus execution invoke --operation distill_workgraph`；CLI 原样保存该预览，
-  Agent 不重新读取或重写源图；
+  Agent 不重新读取或重写源图。该内部 round 的宿主 prompt、operation contract、schema 说明、
+  过程摘要与自然语言回执固定使用简体中文，只有命令、Skill 名称和标识符保留原始形式；
 - `GET /workgraph/workflows` 与 owner-scoped command catalog 提供读取，删除只删除
   命名工作图 aggregate，不删除源历史图。
 

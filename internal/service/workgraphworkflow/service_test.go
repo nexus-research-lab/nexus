@@ -306,7 +306,14 @@ func TestScheduleSaveDispatchesOneHiddenPromptWithoutGraphContent(t *testing.T) 
 	if dispatched.OwnerUserID != "owner-a" || dispatched.SessionKey != "session-a" || dispatched.PreviewID != preview.PreviewID {
 		t.Fatalf("dispatch request = %#v", dispatched)
 	}
-	for _, expected := range []string{"execution-orchestrator Skill", "distill_workgraph", preview.PreviewID, "/evidence-review"} {
+	for _, expected := range []string{
+		"execution-orchestrator Skill",
+		"distill_workgraph",
+		preview.PreviewID,
+		"/evidence-review",
+		"所有思考摘要、过程状态、工具调用说明和最终回复都必须使用简体中文",
+		"禁止输出英文叙述",
+	} {
 		if !strings.Contains(dispatched.Prompt, expected) {
 			t.Fatalf("background prompt missing %q: %s", expected, dispatched.Prompt)
 		}

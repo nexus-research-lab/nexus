@@ -1,5 +1,5 @@
 // INPUT: 用户已经看过并确认保存的 exact preview_id 与 owner/session scope。
-// OUTPUT: 不进入聊天时间线的内部 Agent 保存 round 调度回执。
+// OUTPUT: 强制简体中文过程文本且不进入聊天时间线的内部 Agent 保存 round 调度回执。
 // POS: 草图确认与 execution-orchestrator Skill + Nexus CLI 持久化之间的后台调度边界。
 package workgraphworkflow
 
@@ -98,12 +98,14 @@ func scheduledSaveReceipt(previewID string) *protocol.WorkGraphWorkflowSaveRecei
 func renderBackgroundSavePrompt(preview protocol.WorkGraphWorkflowPreview) string {
 	return fmt.Sprintf(`这是用户在 WorkGraph 草图确认界面发起的内部后台保存任务，不要输出面向用户的对话说明。
 
-请使用 execution-orchestrator Skill 和受管 Nexus CLI，原样保存用户已经确认的 exact WorkGraph 草图。
+语言要求：除命令、Skill 名称和标识符外，所有思考摘要、过程状态、工具调用说明和最终回复都必须使用简体中文，禁止输出英文叙述。
 
-草图 preview_id：%s
-保存后命令：/%s
+请使用 execution-orchestrator Skill 和受管的 Nexus 命令行工具，原样保存用户已经确认的精确 WorkGraph 草图。
 
-请读取 distill_workgraph 的 fresh contract，只提交 preview_id。不要重新读取源图、重新选择节点、重做抽象或改写草图。`,
+草图标识 preview_id：%s
+保存后的命令：/%s
+
+请读取 distill_workgraph 的最新操作契约，只提交 preview_id。不要重新读取源图、重新选择节点、重做抽象或改写草图。任务完成后直接结束内部任务轮次；如果运行时要求输出过程或结束文本，也只能使用简体中文。`,
 		preview.PreviewID,
 		preview.SlashName,
 	)
