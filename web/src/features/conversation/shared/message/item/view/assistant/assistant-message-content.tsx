@@ -1,7 +1,7 @@
 /**
  * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
- * OUTPUT: DM/Room 共用的折叠工具段、live/terminal 固定位置的 final 正文，以及只在 owner 轨道挂载一次的人工响应面。
- * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层。
+ * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的单行活动摘要、固定位置的 final 正文与唯一人工响应面。
+ * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层；Room 公区不消费具体工具过程。
  */
 import { AlertTriangle } from "lucide-react";
 
@@ -45,6 +45,11 @@ export function AssistantMessageContent({
     <>
       <StandaloneActivity activity={activity} />
       <EmptyStreamStatus status={activity.emptyStreamStatus} />
+      <RoomResultProcessActivity
+        activity={activity}
+        direct={direct}
+        environment={environment}
+      />
       <AssistantDirectContent
         activity={activity}
         direct={direct}
@@ -76,6 +81,32 @@ export function AssistantMessageContent({
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
     </>
+  );
+}
+
+function RoomResultProcessActivity({
+  activity,
+  direct,
+  environment,
+}: {
+  activity: AssistantActivityState;
+  direct: AssistantDirectState;
+  environment: AssistantContentEnvironment;
+}) {
+  if (
+    environment.mode !== "room_result"
+    || !direct.visible
+    || !activity.state
+  ) {
+    return null;
+  }
+  return (
+    <LocalizedMessageActivityStatus
+      className="py-1"
+      label={activity.label}
+      state={activity.state}
+      uniformTone
+    />
   );
 }
 
@@ -143,6 +174,9 @@ function AssistantDirectContent({
   responseStreaming: boolean;
 }) {
   if (!direct.visible) {
+    return null;
+  }
+  if (environment.mode === "room_result") {
     return null;
   }
   if (environment.mode !== "dm_archived") {
