@@ -18,7 +18,15 @@
 
       <p id="hint" class="hint">保持 Nexus Desktop 运行，扩展会自动完成连接。</p>
 
+      <section id="active-tab" class="active-tab" hidden>
+        <p class="eyebrow">当前页面</p>
+        <p id="active-tab-title" class="active-tab-title"></p>
+        <p id="active-tab-url" class="active-tab-url"></p>
+        <p id="active-tab-state" class="hint"></p>
+      </section>
+
       <div class="primary-actions">
+        <button id="ask-nexus" class="primary" hidden>在 Nexus 中询问</button>
         <button id="connect" class="primary">立即重试</button>
       </div>
       <details>

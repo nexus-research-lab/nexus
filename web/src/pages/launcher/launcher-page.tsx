@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * INPUT: 共享 Home 目录、主题、当前 Agent 与 Launcher 导航命令。
- * OUTPUT: 加载、首次失败、stale 降级和正常 Console 四种 Launcher 页面状态。
+ * INPUT: 共享 Home 目录、主题、当前 Agent、可选初始草稿与 Launcher 导航命令。
+ * OUTPUT: 加载、首次失败、stale 降级和带可确认草稿的正常 Console 页面状态。
  * POS: Launcher 页面装配层；目录请求与重试状态仍归 Home 共享资源。
  */
 import { CircleAlert } from "lucide-react";
 import { useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getDefaultAgentId } from "@/config/runtime-options";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
@@ -40,6 +40,8 @@ export function LauncherPage() {
   const currentAgentId = useAgentStore((state) => state.current_agent_id);
   const setCurrentAgent = useAgentStore((state) => state.set_current_agent);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialQuery = (searchParams.get("initial") ?? "").trim().slice(0, 4000);
   const setActivePanelItem = useSidebarStore(
     (state) => state.set_active_panel_item,
   );
@@ -128,6 +130,7 @@ export function LauncherPage() {
         agents={agents}
         conversations={conversations}
         currentAgentId={currentAgentId}
+        initialQuery={initialQuery}
         onOpenMainAgentDm={handleOpenMainAgentDm}
         onOpenRoute={openNavigationRoute}
         onSelectAgent={handleSelectAgent}

@@ -108,7 +108,13 @@ enum DesktopURLRouter {
       return DesktopWebRoute(path: "/settings", entry: .settings)
     }
     if isLauncherURL(url) {
-      return DesktopWebRoute(path: "/launcher", entry: .app)
+      let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+      return DesktopWebRoute(
+        path: "/launcher",
+        percentEncodedQuery: components?.percentEncodedQuery,
+        percentEncodedFragment: components?.percentEncodedFragment,
+        entry: .app
+      )
     }
     if isConnectorOAuthCallbackURL(url) {
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)

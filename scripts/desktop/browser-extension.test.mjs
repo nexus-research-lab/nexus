@@ -17,12 +17,13 @@ const chrome = {
     async setBadgeText() {},
   },
   alarms: { create() {}, onAlarm: event },
+  contextMenus: { create() {}, onClicked: event, remove(_id, callback) { callback(); } },
   debugger: {
     onDetach: event,
     onEvent: event,
     async detach({ tabId }) { detachedTabs.push(tabId); },
   },
-  runtime: { getManifest: () => ({ version: "test" }), onMessage: event },
+  runtime: { getManifest: () => ({ version: "test" }), onInstalled: event, onMessage: event },
   scripting: {
     async executeScript() {
       actionOrder.push("inject");
@@ -41,10 +42,12 @@ const chrome = {
     onActivated: event,
     onRemoved: event,
     onUpdated: event,
+    async create() {},
     async get(tabId) {
       return { id: tabId, title: "Child", url: "https://example.com/child", groupId: -1, windowId: 1 };
     },
     async remove(tabId) { removedTabs.push(tabId); },
+    async query() { return []; },
     async sendMessage(tabId, message) {
       actionOrder.push("cursor");
       cursorMessages.push({ tabId, message });
@@ -73,7 +76,7 @@ const context = vm.createContext({
   WebSocket: WebSocketStub,
 });
 vm.runInContext(
-  source + "\n;globalThis.__test = { BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES, browserNameFromUserAgent };",
+  source + "\n;globalThis.__test = { BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES, browserNameFromUserAgent, buildNexusContextPrompt, buildNexusLaunchURL, isControllableURL };",
   context,
   { filename: testPath },
 );
@@ -82,6 +85,19 @@ test("Browser 能识别 Chrome 与 Edge", () => {
   const { browserNameFromUserAgent } = context.__test;
   assert.equal(browserNameFromUserAgent("Mozilla/5.0 Chrome/151.0 Safari/537.36"), "Google Chrome");
   assert.equal(browserNameFromUserAgent("Mozilla/5.0 Chrome/151.0 Edg/151.0"), "Microsoft Edge");
+});
+
+test("Browser 右键入口只交接可控网页上下文", () => {
+  const { buildNexusContextPrompt, buildNexusLaunchURL, isControllableURL } = context.__test;
+  const prompt = buildNexusContextPrompt(
+    { pageUrl: "https://example.com/post", selectionText: "一段选中文本" },
+    { title: "Example", url: "https://example.com/post" },
+  );
+  assert.match(prompt, /一段选中文本/);
+  assert.match(prompt, /https:\/\/example\.com\/post/);
+  assert.equal(new URL(buildNexusLaunchURL(prompt)).searchParams.get("initial"), prompt);
+  assert.equal(isControllableURL("https://example.com"), true);
+  assert.equal(isControllableURL("chrome://settings"), false);
 });
 
 test("Browser 快照有界且 evaluate 等待 Promise", async () => {

@@ -39,7 +39,7 @@ internal static class DesktopProtocolRouter
         string path = uri.AbsolutePath.TrimEnd('/');
         if (host is "launcher" or "open")
         {
-            return DesktopWebRoute.Launcher;
+            return DesktopWebRoute.FromPath($"/launcher{uri.Query}");
         }
         if (host == "settings")
         {

@@ -8,6 +8,8 @@ const RECONNECT_ALARM = "nexus-browser-reconnect";
 const STORAGE_URL = "browser_url";
 const STORAGE_ENABLED = "browser_enabled";
 const STORAGE_INSTANCE_ID = "browser_instance_id";
+const CONTEXT_MENU_ID = "ask-nexus";
+const CONTEXT_TEXT_MAX_CHARS = 2000;
 const BROWSER_GENERATION = crypto.randomUUID();
 const INTERACTIVE_ROLES = new Set([
   "button",
@@ -54,6 +56,29 @@ const PAPER_FORMATS = {
 
 function browserNameFromUserAgent(userAgent) {
   return /\bEdg\//.test(String(userAgent || "")) ? "Microsoft Edge" : "Google Chrome";
+}
+
+function isControllableURL(rawURL) {
+  return /^https?:\/\//i.test(String(rawURL || "").trim());
+}
+
+function buildNexusContextPrompt(info, tab) {
+  const selection = String(info?.selectionText || "").trim().slice(0, CONTEXT_TEXT_MAX_CHARS);
+  const targetURL = [info?.linkUrl, info?.srcUrl, info?.pageUrl, tab?.url]
+    .map((value) => String(value || "").trim())
+    .find(isControllableURL) || "";
+  const title = String(tab?.title || "").trim();
+  if (selection) {
+    return `请结合这段网页内容帮我：\n\n${selection}${targetURL ? `\n\n来源：${targetURL}` : ""}`;
+  }
+  if (isControllableURL(info?.linkUrl)) return `请查看并处理这个链接：${targetURL}`;
+  return `请查看并处理这个网页${title ? `「${title}」` : ""}${targetURL ? `：${targetURL}` : ""}`;
+}
+
+function buildNexusLaunchURL(prompt) {
+  const url = new URL("nexus://launcher");
+  url.searchParams.set("initial", String(prompt || "").trim());
+  return url.href;
 }
 
 class BrowserController {
@@ -1966,6 +1991,9 @@ class BrowserClient {
         await chrome.storage.local.remove(STORAGE_URL);
         await this.configure(undefined, true);
         return { ok: true, ...await this.status() };
+      case "OPEN_IN_NEXUS":
+        await this.openInNexus();
+        return { ok: true };
       default:
         throw new Error("Unknown extension command");
     }
@@ -1992,6 +2020,8 @@ class BrowserClient {
 
   async status() {
     const config = await chrome.storage.local.get([STORAGE_URL, STORAGE_ENABLED]);
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeURL = String(activeTab?.url || "");
     return {
       connected: this.socket?.readyState === WebSocket.OPEN,
       enabled: config[STORAGE_ENABLED] !== false,
@@ -1999,7 +2029,22 @@ class BrowserClient {
       configured_url: config[STORAGE_URL] || "",
       current_url: this.currentURL,
       default_url: DEFAULT_ENDPOINTS[0],
+      active_tab: activeTab?.id === undefined ? null : {
+        controlled: this.controller.leaseByTab.has(activeTab.id),
+        controllable: isControllableURL(activeURL),
+        title: activeTab.title || "",
+        url: activeURL,
+      },
     };
+  }
+
+  async openInNexus(info = {}, tab) {
+    const activeTab = tab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    const prompt = buildNexusContextPrompt(info, activeTab);
+    if (!prompt || ![info?.linkUrl, info?.srcUrl, info?.pageUrl, activeTab?.url].some(isControllableURL)) {
+      throw new Error("当前页面不支持交给 Nexus");
+    }
+    await chrome.tabs.create({ url: buildNexusLaunchURL(prompt) });
   }
 
   async reconcile() {
@@ -2165,4 +2210,22 @@ class BrowserClient {
 }
 
 const browserClient = new BrowserClient(new BrowserController());
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.remove(CONTEXT_MENU_ID, () => {
+    void chrome.runtime.lastError;
+    chrome.contextMenus.create({
+      contexts: ["page", "selection", "link", "image"],
+      documentUrlPatterns: ["http://*/*", "https://*/*"],
+      id: CONTEXT_MENU_ID,
+      title: "在 Nexus 中询问",
+    });
+  });
+});
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === CONTEXT_MENU_ID) {
+    void browserClient.openInNexus(info, tab).catch((error) => {
+      console.warn("Unable to open Nexus context", error);
+    });
+  }
+});
 void browserClient.start();

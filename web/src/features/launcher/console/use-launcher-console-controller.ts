@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import {
@@ -25,20 +25,26 @@ type RecentEntryKind = "conversation" | "dm" | "room";
 type RecentEntryHandler = (entry: RecentLauncherEntry) => Promise<void>;
 
 interface UseLauncherConsoleControllerOptions {
+  initialQuery: string;
   onOpenMainAgentDm: LauncherConsoleProps["onOpenMainAgentDm"];
   onOpenRoute: LauncherConsoleProps["onOpenRoute"];
   onSelectAgent: LauncherConsoleProps["onSelectAgent"];
 }
 
 export function useLauncherConsoleController({
+  initialQuery,
   onOpenMainAgentDm,
   onOpenRoute,
   onSelectAgent,
 }: UseLauncherConsoleControllerOptions) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const queryInFlightRef = useRef(false);
   const setActivePanelItem = useSidebarStore((state) => state.set_active_panel_item);
+
+  useEffect(() => {
+    if (initialQuery) setQuery(initialQuery);
+  }, [initialQuery]);
 
   const openConversation = useCallback((
     roomId: string,

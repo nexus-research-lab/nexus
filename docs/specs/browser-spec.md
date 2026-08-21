@@ -23,6 +23,7 @@ runtime MCP browser
 - 桌面构建把扩展放在应用资源目录；设置页不下载或复制第二份扩展。
 - 安装入口优先打开已安装的 Google Chrome，其次打开 Microsoft Edge 的扩展程序页面，并在 Finder 或 Explorer 中定位同一扩展目录。
 - 状态接口区分未连接、已连接和协议不兼容；不兼容握手会保留扩展版本与协议版本，成功连接后立即清除。
+- 扩展弹窗显示当前活动页与控制状态；弹窗按钮和网页右键菜单通过 `nexus://launcher?initial=...` 打开 Launcher 草稿，用户仍需自行选择 Agent 或发送消息。
 
 ## 连接协议
 
