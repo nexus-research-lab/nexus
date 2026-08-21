@@ -40,7 +40,7 @@ test("slash query only opens at the beginning of a message", async () => {
   assert.equal(findSlashCommandTextMatch("/rev", 4, false), null);
 });
 
-test("slash selection inserts a normal host or runtime message", async () => {
+test("slash commands filter and sort by command name", async () => {
   const {
     filterSlashCommands,
     insertSlashCommand,
@@ -75,7 +75,7 @@ test("slash selection inserts a normal host or runtime message", async () => {
   );
   assert.deepEqual(
     filterSlashCommands(commands, "").map((command) => command.name),
-    ["review", "compact", "github:review (MCP)"],
+    ["compact", "github:review (MCP)", "review"],
   );
   assert.equal(isSelectableSlashCommand(commands[0]), true);
   assert.equal(
