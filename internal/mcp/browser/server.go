@@ -60,6 +60,7 @@ func NewServer(
 }
 
 func browserSchema() map[string]any {
+	commandValues, actionAlternatives := browserCommandConstraints()
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -106,8 +107,8 @@ func browserSchema() map[string]any {
 			},
 			"cmd": map[string]any{
 				"type":        "string",
-				"enum":        []string{"start", "stop", "list", "detail", "get", "accept", "dismiss", "wait", "show", "read", "write"},
-				"description": "network、console、dialog、downloads 或 clipboard 子命令。",
+				"enum":        commandValues,
+				"description": "子命令；必须与 action 对应：network=start|stop|list|detail，console=start|stop|list，dialog=get|accept|dismiss，downloads=list|wait|show，clipboard=read|write。",
 			},
 			"filter": map[string]any{
 				"type": "string", "description": "network/console list 的可选文本过滤条件。",
@@ -229,9 +230,58 @@ func browserSchema() map[string]any {
 				"description": "upload 写入 file input 的本机绝对路径。",
 			},
 		},
+		"anyOf":                actionAlternatives,
 		"required":             []string{"action"},
 		"additionalProperties": false,
 	}
+}
+
+func browserCommandConstraints() ([]string, []any) {
+	definitions := []struct {
+		action   string
+		commands []string
+	}{
+		{action: "network", commands: []string{"start", "stop", "list", "detail"}},
+		{action: "console", commands: []string{"start", "stop", "list"}},
+		{action: "dialog", commands: []string{"get", "accept", "dismiss"}},
+		{action: "downloads", commands: []string{"list", "wait", "show"}},
+		{action: "clipboard", commands: []string{"read", "write"}},
+	}
+	commandActions := make(map[string]struct{}, len(definitions))
+	commandSet := make(map[string]struct{})
+	commandValues := make([]string, 0)
+	alternatives := make([]any, 0, len(definitions)+1)
+	for _, definition := range definitions {
+		commandActions[definition.action] = struct{}{}
+		for _, command := range definition.commands {
+			if _, exists := commandSet[command]; exists {
+				continue
+			}
+			commandSet[command] = struct{}{}
+			commandValues = append(commandValues, command)
+		}
+		alternatives = append(alternatives, map[string]any{
+			"properties": map[string]any{
+				"action": map[string]any{"type": "string", "enum": []string{definition.action}},
+				"cmd":    map[string]any{"type": "string", "enum": definition.commands},
+			},
+			"required": []string{"action", "cmd"},
+		})
+	}
+
+	plainActions := make([]string, 0)
+	for _, action := range browsersvc.SupportedActions() {
+		if _, usesCommand := commandActions[action]; !usesCommand {
+			plainActions = append(plainActions, action)
+		}
+	}
+	plainAlternative := map[string]any{
+		"properties": map[string]any{
+			"action": map[string]any{"type": "string", "enum": plainActions},
+		},
+		"required": []string{"action"},
+	}
+	return commandValues, append([]any{plainAlternative}, alternatives...)
 }
 
 func renderResult(action string, result map[string]any) sdktool.ToolResult {
