@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Sorted Composer Slash-command suggestions alphabetically by command name, including filtered results.
+- Ranked Composer Slash-command suggestions by command-name prefix, command-name substring, and metadata matches, with alphabetical ordering inside each tier.
 - Prevented initial Room and DM history loading from restoring a stale reading anchor after the view had already followed the latest message.
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
 - Bottom-anchored live Feed height debt, stabilized consecutive Composer interaction heights, and coalesced Generative UI resize corrections so terminal tool layout no longer exposes blank tails or repeatedly resizes the conversation viewport.
