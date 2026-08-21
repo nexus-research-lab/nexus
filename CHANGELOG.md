@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made indexed conversation history reliably pull older rounds back into bounded browser windows, including explicit top-pull retries, reloadable evicted rounds, stable virtual placeholders, and visible loading feedback.
 - Kept the hidden WorkGraph-save Agent round in Simplified Chinese across its host prompt, operation contract, schema guidance, progress narration, and final receipt.
 - Kept conversational WorkGraph editing on one transient DM Session across directory refreshes, with live sketch revisions and provider-compatible transcript-tail forks.
 - Bound sealed Plan proposals to the exact owner/session/scope/coordinator in durable host state, so `plan_execution` no longer requires models to copy opaque proposal IDs or digests and remains exact across Plan Mode exits, retries, and restarts.
