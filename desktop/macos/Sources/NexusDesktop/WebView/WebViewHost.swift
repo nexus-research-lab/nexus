@@ -88,6 +88,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   func load(_ url: URL? = nil) {
     let targetURL = url ?? runtime.webURL
     navigationRequestID += 1
+    navigationInFlight = true
     let requestID = navigationRequestID
     lastRequestedURL = targetURL
     updateLastRoute(from: targetURL)
@@ -110,12 +111,15 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
         url: targetURL,
         extra: ["navigation_request_id": "\(requestID)"]
       ))
-      self.webView.load(URLRequest(url: targetURL))
+      if self.webView.load(URLRequest(url: targetURL)) == nil {
+        self.navigationInFlight = false
+      }
     }
   }
 
   func reload() {
     navigationRequestID += 1
+    navigationInFlight = true
     let requestID = navigationRequestID
     startupTimeline?.mark("webview.reload", metadata: webMetadata(
       url: webView.url,
@@ -130,7 +134,9 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
         ])
         return
       }
-      self.webView.reload()
+      if self.webView.reload() == nil {
+        self.navigationInFlight = false
+      }
     }
   }
 
@@ -139,13 +145,9 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       return
     }
 
-    if navigationInFlight || webView.isLoading {
-      startupTimeline?.mark("webview.resume_check_skipped", metadata: [
-        "path": lastRoute.path,
-        "reason": reason,
-        "skip_reason": "navigation_in_flight",
-        "surface": surfaceName,
-      ])
+    let observedNavigationRequestID = navigationRequestID
+    if shouldSkipResumeCheck(observedNavigationRequestID) {
+      skipResumeCheck(reason: reason, observedNavigationRequestID: observedNavigationRequestID)
       return
     }
 
@@ -163,9 +165,10 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     ])
     webView.needsDisplay = true
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-      self?.captureResumeProbe { probe in
-        self?.handleResumeProbe(reason: reason, probe: probe)
-      }
+      self?.captureResumeProbeIfCurrent(
+        reason: reason,
+        observedNavigationRequestID: observedNavigationRequestID
+      )
     }
   }
 
@@ -283,6 +286,9 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   }
 
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    if !navigationInFlight {
+      navigationRequestID += 1
+    }
     navigationInFlight = true
     startupTimeline?.mark("webview.navigation_started", metadata: webMetadata(url: lastRequestedURL ?? webView.url))
   }
@@ -388,6 +394,60 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
 
       completion(Self.parseResumeProbe(result))
     }
+  }
+
+  private func captureResumeProbeIfCurrent(
+    reason: String,
+    observedNavigationRequestID: Int
+  ) {
+    if shouldSkipResumeCheck(observedNavigationRequestID) {
+      skipResumeCheck(reason: reason, observedNavigationRequestID: observedNavigationRequestID)
+      return
+    }
+    captureResumeProbe { [weak self] probe in
+      guard let self else {
+        return
+      }
+      if self.shouldSkipResumeCheck(observedNavigationRequestID) {
+        self.skipResumeCheck(reason: reason, observedNavigationRequestID: observedNavigationRequestID)
+        return
+      }
+      self.handleResumeProbe(reason: reason, probe: probe)
+    }
+  }
+
+  private func shouldSkipResumeCheck(_ observedNavigationRequestID: Int) -> Bool {
+    Self.shouldSkipResumeCheck(
+      observedNavigationRequestID: observedNavigationRequestID,
+      currentNavigationRequestID: navigationRequestID,
+      navigationInFlight: navigationInFlight,
+      webViewIsLoading: webView.isLoading
+    )
+  }
+
+  static func shouldSkipResumeCheck(
+    observedNavigationRequestID: Int,
+    currentNavigationRequestID: Int,
+    navigationInFlight: Bool,
+    webViewIsLoading: Bool
+  ) -> Bool {
+    observedNavigationRequestID != currentNavigationRequestID
+      || navigationInFlight
+      || webViewIsLoading
+  }
+
+  private func skipResumeCheck(reason: String, observedNavigationRequestID: Int) {
+    resumeCheckInFlight = false
+    startupTimeline?.mark("webview.resume_check_skipped", metadata: [
+      "current_navigation_request_id": "\(navigationRequestID)",
+      "navigation_request_id": "\(observedNavigationRequestID)",
+      "path": lastRoute.path,
+      "reason": reason,
+      "skip_reason": observedNavigationRequestID == navigationRequestID
+        ? "navigation_in_flight"
+        : "navigation_changed",
+      "surface": surfaceName,
+    ])
   }
 
   private func handleResumeProbe(reason: String, probe: ResumeProbeResult) {

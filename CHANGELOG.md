@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented macOS WebView resume probes from reloading routes while an explicit navigation is still starting.
 - Removed delivered Browser result tabs from temporary Nexus groups without changing borrowed user tabs.
 - Constrained Browser subcommands by action so invalid combinations are rejected before execution.
 - Removed suppressed, cancelled, and failed Echo turns from runtime history before later conversation input is dispatched.
