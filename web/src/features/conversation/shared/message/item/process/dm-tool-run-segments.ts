@@ -1,6 +1,6 @@
 /**
  * INPUT: DM/Room live 过程内容、流式索引、ToolUseSummary 与当前人工交互工具身份。
- * OUTPUT: 以独立交互为边界、首个 tool_use.id 稳定标识的连续执行段，以及没有工具承接的独立内容段。
+ * OUTPUT: 以独立交互为边界、首个 tool_use.id 稳定标识且按最后动作判定终态的连续执行段，以及独立内容段。
  * POS: 会话 live 过程压缩的纯投影边界；摘要持续更新包含其 preceding_tool_use_ids 的执行段，权限动作保持独立。
  */
 import type {
@@ -191,13 +191,11 @@ function buildToolRunSegment({
   );
   const phase: ToolRunPhase = !terminal
     ? "active"
-    : errorCount > 0
-    ? "error"
-    : rejectedCount > 0
-    ? "rejected"
-    : supersededCount > 0
-    ? "superseded"
-    : "complete";
+    : resolveTerminalToolRunPhase(
+        toolUseIds[toolUseIds.length - 1],
+        run.indexes,
+        projection.content,
+      );
   return {
     errorCount,
     id: `tool-run:${toolUseIds[0]}`,
@@ -349,6 +347,54 @@ function countToolRunErrors(
     }
   });
   return count;
+}
+
+function resolveTerminalToolRunPhase(
+  lastToolUseId: string | undefined,
+  indexes: ReadonlySet<number>,
+  content: readonly ContentBlock[],
+): Exclude<ToolRunPhase, "active"> {
+  if (!lastToolUseId) {
+    return "complete";
+  }
+  let lastToolUseIndex = -1;
+  indexes.forEach((index) => {
+    const block = content[index];
+    if (
+      block?.type === "tool_use"
+      && block.id === lastToolUseId
+      && index > lastToolUseIndex
+    ) {
+      lastToolUseIndex = index;
+    }
+  });
+  let phase: Exclude<ToolRunPhase, "active"> = "complete";
+  [...indexes]
+    .sort((left, right) => left - right)
+    .forEach((index) => {
+      if (index <= lastToolUseIndex) {
+        return;
+      }
+      const block = content[index];
+      if (block?.type === "tool_use_error") {
+        phase = "error";
+        return;
+      }
+      if (
+        block?.type !== "tool_result"
+        || block.tool_use_id !== lastToolUseId
+      ) {
+        return;
+      }
+      phase = block.is_error
+        ? "error"
+        : isRejectedToolResult(block)
+        ? "rejected"
+        : isSupersededToolResult(block)
+        ? "superseded"
+        : "complete";
+    });
+  return phase;
 }
 
 function countUnresolvedToolUses(
