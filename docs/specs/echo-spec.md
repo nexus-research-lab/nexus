@@ -30,7 +30,7 @@ Echo 不是提醒器，也不是让 Agent 定时找话说。它表达的是：�
 
 - 让同一个 Agent 在同一个 DM 中自然延续未完成语境；
 - 把“是否值得说”与“具体说什么”分开，降低误触发和人格漂移；
-- 为主动消息提供显式开关、内部活跃时段与限频、会话级暂停和可恢复执行状态；
+- 为主动消息提供全局显式开关、内部活跃时段与限频和可恢复执行状态；
 - 用户产生新输入时立即让路，绝不与用户争夺对话；
 - 在服务重启、超时和重复调度下保持最多一次可见投递；
 - 为后续 Room 群主主动参与保留同一领域模型，但不提前引入多人路由复杂度。
@@ -96,7 +96,6 @@ Echo 不是提醒器，也不是让 Agent 定时找话说。它表达的是：�
 | --- | --- |
 | Settings | 当前用户共享的 Echo 全局开关 |
 | Policy | 系统内部维护的时段与限频策略 |
-| Session override | 单个 DM 的 `inherit / enabled / disabled` 覆盖 |
 | Signal | 可能产生 Echo 的可信系统事件；v1 只有 `conversation_idle` |
 | Anchor | 产生候选的原始成功 round 和最后一条可见 assistant message |
 | Attempt | 一次从等待、判断到投递或静默的持久记录 |
@@ -140,21 +139,7 @@ scheduled ──claim──> evaluating ──follow_up──> running ──com
 
 时区、活跃时段、安静等待、cooldown 与每日上限属于产品内部策略，不从用户 API 读取，也不按用户持久化。时区依次使用服务端 `DefaultTimezone` 与 `Asia/Shanghai`，其余默认值见第 17 节。
 
-### 7.2 Session override
-
-不新增第三张表。DM Session 已有持久 `Options`，新增独立的 `session_echo_mode`：
-
-```json
-{
-  "session_echo_mode": "enabled"
-}
-```
-
-允许值只有 `inherit`、`enabled`、`disabled`。这不是 runtime model setting，必须使用专用协议 helper 读写，不能混入 `SessionRuntimeSettings`。
-
-生效规则固定为：`disabled` 总是关闭，`enabled` 总是开启，`inherit` 继承用户级设置的 `enabled`。等待时间、活跃时段、cooldown 和每日上限始终来自内部 policy；Session 不复制这些字段。
-
-### 7.3 `echo_attempts`
+### 7.2 `echo_attempts`
 
 | 字段 | 说明 |
 | --- | --- |
@@ -211,7 +196,7 @@ Echo service 复用 [`internal/infra/duework`](../../internal/infra/duework/loop
 
 worker claim 到期 attempt 后，先按固定顺序执行不耗模型的检查：
 
-1. policy 和 Session override 仍有效开启；
+1. 用户级全局 policy 仍有效开启；
 2. Agent、Session 和 anchor 仍存在；
 3. `expires_at` 尚未到达；
 4. 当前位于活跃时段；否则只更新 `due_at`，不调用 gate；
@@ -221,7 +206,7 @@ worker claim 到期 attempt 后，先按固定顺序执行不耗模型的检查�
 8. Agent 当日本地时区 delivered 数未达到 `daily_limit`；
 9. attempt 仍处于当前 worker 可以推进的状态。
 
-新用户输入、全局关闭 Echo 和 Session 暂停 Echo 会主动取消对应 attempt；Session 删除或其他 round 改变可见 anchor 时，最终检查保持静默并关闭 attempt。
+新用户输入和全局关闭 Echo 会主动取消对应 attempt；Session 删除或其他 round 改变可见 anchor 时，最终检查保持静默并关闭 attempt。
 
 ## 10. Gate 合同
 
@@ -327,7 +312,7 @@ runtime 使用不超过 400 completion tokens 的输出预算。宿主不截断 
 Echo assistant 输出不能边生成边显示。DM runtime 应捕获本 round 的候选 final，直到以下条件在提交闸门中再次成立：
 
 - attempt 仍为 `running` 且没有被新输入取消；
-- policy 和 Session override 仍开启；
+- 用户级全局 policy 仍开启；
 - anchor 后没有新的非 Echo 活动；
 - 当前 Echo round 仍拥有稳定提交身份；
 - 内容非空、不是 no-reply，且通过正常输出安全检查。
@@ -367,7 +352,6 @@ Echo assistant 输出不能边生成边显示。DM runtime 应捕获本 round �
 ### 12.2 资源生命周期
 
 - 关闭全局 Echo：取消当前用户的所有非终态 attempt，保留历史；
-- 暂停 Session Echo：取消该 Session 的所有非终态 attempt；
 - 删除 Session：attempt 保留最小审计字段，到期检查时安全关闭，正文仍不复制；
 - 删除 Agent：全局 policy 不变，attempt 保留 agent ID 快照并在后续检查时安全关闭；
 - 删除 owner：按现有 owner 数据生命周期级联删除全部 Echo 数据。
@@ -380,10 +364,8 @@ Echo assistant 输出不能边生成边显示。DM runtime 应捕获本 round �
 | --- | --- |
 | `GET /nexus/v1/settings/echo` | 读取用户级全局开关 `{ enabled }` |
 | `PUT /nexus/v1/settings/echo` | 更新用户级全局开关 `{ enabled }` |
-| `GET /nexus/v1/sessions/{session_key}/echo` | 读取会话 override 与生效状态 |
-| `PUT /nexus/v1/sessions/{session_key}/echo` | 更新 `inherit / enabled / disabled` |
 
-所有路由只接受当前 owner 下的资源。会话枚举在领域边界校验；内部时间策略使用 IANA timezone 和 `HH:mm`，跨午夜窗口有明确测试。v1 不提供“立即运行 Echo”接口，手动运行会混淆主动判断与普通消息发送。
+所有路由只操作当前 owner 的设置。内部时间策略使用 IANA timezone 和 `HH:mm`，跨午夜窗口有明确测试。v1 不提供“立即运行 Echo”接口，手动运行会混淆主动判断与普通消息发送。
 
 领域与 wire 校验集中在 `internal/echo`，HTTP handler 只做 owner-scoped 适配。Attempt 只服务于内部调度、幂等和恢复，不提供用户读取接口。
 
@@ -393,15 +375,9 @@ Echo assistant 输出不能边生成边显示。DM runtime 应捕获本 round �
 
 常规设置中只提供一个对当前用户所有 Agent 生效的“主动跟进”开关，英文名为 `Echo`，并固定说明：`Agent 会在合适的时候主动跟进值得继续的对话。`。开关即时保存；失败时原位回滚并在同一行显示 Nexus 风格错误，不改变布局高度。
 
-### 14.2 DM 控制
+### 14.2 DM 展现
 
-DM 更多菜单提供：
-
-- `暂停此对话的主动跟进`；
-- 已暂停时显示 `恢复此对话的主动跟进`；
-- `使用全局设置`，恢复 `inherit`。
-
-用户不需要理解 attempt、gate 或内部调度。关闭/暂停后立即消失的是未来跟进资格，不删除已经发送的正常消息。
+用户不需要理解 attempt、gate 或内部调度。关闭全局开关后立即消失的是未来跟进资格，不删除已经发送的正常消息。
 
 主动跟进不提供“最近记录”界面。已经投递的消息是原 Agent Session 中带轻量“主动跟进”标识的普通 assistant message；未投递的内部判断状态没有独立用户价值。
 
@@ -442,7 +418,6 @@ Room 的最终提交还要校验 host identity、Room authority epoch、public c
 | 配置 | v1 默认值 |
 | --- | --- |
 | 全局 Echo | 关闭 |
-| Session override | `inherit` |
 | 安静等待 | 6 小时 |
 | 活跃时段 | 09:00–22:00，policy timezone |
 | 同 Session cooldown | 24 小时 |
@@ -485,7 +460,7 @@ web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 
 ## 19. 当前交付边界
 
-当前交付为 Nexus WebSocket DM opt-in：message-only、延迟提交、用户输入抢占、常规设置全局开关和 Session 覆盖已经接通。投递结果直接保留在原 Agent Session，不提供重复的运行记录页面。Room 群主、外部 IM、事件型 Signal 和工具型主动工作仍不支持；它们分别需要 Room authority、transport 授权或 Automation 权限设计，不能由 DM 开关隐式扩大。
+当前交付为 Nexus WebSocket DM opt-in：message-only、延迟提交、用户输入抢占和常规设置全局开关已经接通。投递结果直接保留在原 Agent Session，不提供重复的运行记录页面。Room 群主、外部 IM、事件型 Signal 和工具型主动工作仍不支持；它们分别需要 Room authority、transport 授权或 Automation 权限设计，不能由 DM 开关隐式扩大。
 
 ## 20. 验收标准
 
@@ -494,7 +469,7 @@ web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 - 开启 Echo 后，符合条件的成功 DM round 只创建一个 candidate；
 - gate `skip`、no-reply 和异常都不会出现空消息或用户气泡；
 - delivered 消息来自原 Agent、原 Session，并显示一个 `Echo` 标识；
-- 暂停会话、关闭全局 Echo、删除 Session 后不再投递；
+- 关闭全局 Echo、删除 Session 后不再投递；
 - 活跃时段、cooldown、每日上限和跨午夜窗口行为确定；
 - Echo 不调用任何工具，也不会产生权限请求。
 
@@ -508,7 +483,7 @@ web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 
 ### 20.3 安全与隔离
 
-- owner A 无法读取或修改 owner B 的设置、Session override 和 attempt；
+- owner A 无法读取或修改 owner B 的设置和 attempt；
 - runtime 无法覆盖宿主写入的 Echo source 或 attempt metadata；
 - gate 输入不包含其他 Session 或 Room 私域内容；
 - 数据库与常规日志没有隐藏 prompt、对话副本和思维链；

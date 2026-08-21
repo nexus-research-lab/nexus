@@ -17,12 +17,8 @@ import {
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/lib/agent-options";
 import {
-  getSessionEchoApi,
   getSessionRuntimeSettingsApi,
-  type SessionEchoMode,
-  type SessionEchoOverride,
   type SessionRuntimeSettings,
-  updateSessionEchoApi,
   updateSessionRuntimeSettingsApi,
 } from "@/lib/api/conversation/session-api";
 import { getConnectorsApi } from "@/lib/api/capability/connector-api";
@@ -44,11 +40,6 @@ const EMPTY_SETTINGS: SessionRuntimeSettings = {
   provider: "",
 };
 
-const EMPTY_ECHO: SessionEchoOverride = {
-  enabled: false,
-  mode: "inherit",
-};
-
 export function useComposerSessionSettings(
   scope?: ComposerSessionSettingsScope,
 ) {
@@ -59,9 +50,6 @@ export function useComposerSessionSettings(
   const [settingsBySession, setSettingsBySession] = useState<
     Record<string, SessionRuntimeSettings>
   >({});
-  const [echoBySession, setEchoBySession] = useState<
-    Record<string, SessionEchoOverride>
-  >({});
   const [providerOptions, setProviderOptions] =
     useState<ProviderOptionsResponse | null>(null);
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
@@ -69,17 +57,13 @@ export function useComposerSessionSettings(
   const [connectorsLoading, setConnectorsLoading] = useState(false);
   const [connectorsError, setConnectorsError] = useState<string | null>(null);
   const [loadingSessionKeys, setLoadingSessionKeys] = useState<string[]>([]);
-  const [echoLoadingSessionKeys, setEchoLoadingSessionKeys] = useState<string[]>([]);
   const [savingSessionKey, setSavingSessionKey] = useState<string | null>(null);
-  const [echoSavingSessionKey, setEchoSavingSessionKey] = useState<string | null>(null);
   const [providerError, setProviderError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [preferencesRevision, setPreferencesRevision] = useState(0);
   const previousInitialTargetRef = useRef(scope?.initialTargetId ?? "");
   const loadingSessionKeysRef = useRef(new Set<string>());
-  const echoLoadingSessionKeysRef = useRef(new Set<string>());
   const settingsBySessionRef = useRef(settingsBySession);
-  const echoBySessionRef = useRef(echoBySession);
   const target = scope?.targets.find(
     (candidate) => candidate.agentId === selectedTargetId,
   ) ?? scope?.targets.find(
@@ -88,11 +72,6 @@ export function useComposerSessionSettings(
   const settings = target
     ? settingsBySession[target.sessionKey] ?? EMPTY_SETTINGS
     : EMPTY_SETTINGS;
-  const echoAvailable = Boolean(scope?.echoAvailable && target);
-  const echo = target
-    ? echoBySession[target.sessionKey] ?? EMPTY_ECHO
-    : EMPTY_ECHO;
-
   useEffect(() => {
     const initialTargetId = scope?.initialTargetId ?? "";
     const initialTargetChanged =
@@ -207,17 +186,6 @@ export function useComposerSessionSettings(
     });
   }, []);
 
-  const cacheEcho = useCallback((
-    sessionKey: string,
-    nextEcho: SessionEchoOverride,
-  ) => {
-    setEchoBySession((current) => {
-      const next = { ...current, [sessionKey]: nextEcho };
-      echoBySessionRef.current = next;
-      return next;
-    });
-  }, []);
-
   const loadSettings = useCallback(async (sessionKey: string) => {
     if (
       !sessionKey
@@ -247,34 +215,6 @@ export function useComposerSessionSettings(
     }
   }, [cacheSettings, t]);
 
-  const loadEcho = useCallback(async (sessionKey: string) => {
-    if (
-      !sessionKey
-      || echoBySessionRef.current[sessionKey]
-      || echoLoadingSessionKeysRef.current.has(sessionKey)
-    ) {
-      return;
-    }
-    echoLoadingSessionKeysRef.current.add(sessionKey);
-    setEchoLoadingSessionKeys((current) => (
-      current.includes(sessionKey) ? current : [...current, sessionKey]
-    ));
-    setSettingsError(null);
-    try {
-      cacheEcho(sessionKey, await getSessionEchoApi(sessionKey));
-    } catch (requestError) {
-      setSettingsError(resolveErrorMessage(
-        requestError,
-        t("composer.echo_load_failed"),
-      ));
-    } finally {
-      echoLoadingSessionKeysRef.current.delete(sessionKey);
-      setEchoLoadingSessionKeys((current) => (
-        current.filter((candidate) => candidate !== sessionKey)
-      ));
-    }
-  }, [cacheEcho, t]);
-
   useEffect(() => subscribeSessionRuntimeSettingsUpdated((sessionKey) => {
     const current = settingsBySessionRef.current;
     if (!current[sessionKey]) {
@@ -292,12 +232,6 @@ export function useComposerSessionSettings(
       void loadSettings(target.sessionKey);
     }
   }, [loadSettings, settingsBySession, target?.sessionKey]);
-
-  useEffect(() => {
-    if (echoAvailable && target?.sessionKey && !echoBySession[target.sessionKey]) {
-      void loadEcho(target.sessionKey);
-    }
-  }, [echoAvailable, echoBySession, loadEcho, target?.sessionKey]);
 
   const updateSettings = useCallback(async (
     next: SessionRuntimeSettings,
@@ -327,36 +261,6 @@ export function useComposerSessionSettings(
     }
   }, [cacheSettings, t, target]);
 
-  const updateEcho = useCallback(async (mode: SessionEchoMode) => {
-    if (!echoAvailable || !target) {
-      return;
-    }
-    const { sessionKey } = target;
-    const previous = echoBySessionRef.current[sessionKey] ?? EMPTY_ECHO;
-    setSettingsError(null);
-    setEchoSavingSessionKey(sessionKey);
-    cacheEcho(sessionKey, {
-      enabled: mode === "enabled"
-        ? true
-        : mode === "disabled"
-          ? false
-          : previous.enabled,
-      mode,
-    });
-    try {
-      cacheEcho(sessionKey, await updateSessionEchoApi(sessionKey, mode));
-    } catch (requestError) {
-      cacheEcho(sessionKey, previous);
-      setSettingsError(resolveErrorMessage(
-        requestError,
-        t("composer.echo_save_failed"),
-      ));
-    } finally {
-      setEchoSavingSessionKey((current) => (
-        current === sessionKey ? null : current
-      ));
-    }
-  }, [cacheEcho, echoAvailable, t, target]);
   const selectTarget = useCallback((agentId: string) => {
     setSettingsError(null);
     setSelectedTargetId(agentId);
@@ -387,8 +291,6 @@ export function useComposerSessionSettings(
     && (
       loadingSessionKeys.includes(target.sessionKey)
       || savingSessionKey === target.sessionKey
-      || (echoAvailable && echoLoadingSessionKeys.includes(target.sessionKey))
-      || echoSavingSessionKey === target.sessionKey
     )
   );
   const targetViews = useMemo(() => (
@@ -420,8 +322,6 @@ export function useComposerSessionSettings(
     connectors,
     connectorsError,
     connectorsLoading,
-    echo,
-    echoAvailable,
     enabledConnectorIds,
     ensureTargetsLoaded,
     error: settingsError ?? providerError,
@@ -441,7 +341,7 @@ export function useComposerSessionSettings(
     ),
     providerOptions,
     resetTarget,
-    saving: savingSessionKey !== null || echoSavingSessionKey !== null,
+    saving: savingSessionKey !== null,
     scope,
     selectTarget,
     settings,
@@ -465,7 +365,6 @@ export function useComposerSessionSettings(
       ...settings,
       permission_mode: permissionMode,
     }),
-    updateEchoMode: updateEcho,
     toggleConnector: (connectorId: string) => {
       const nextConnectorIds = enabledConnectorIds.includes(connectorId)
         ? enabledConnectorIds.filter((value) => value !== connectorId)

@@ -56,8 +56,12 @@ func TestParseGateDecision(t *testing.T) {
 	if err != nil || decision.Decision != gateFollowUp || decision.Focus != "确认部署窗口" {
 		t.Fatalf("decision = %+v, err = %v", decision, err)
 	}
+	decision, err = parseGateDecision("```json\n{\"decision\":\"skip\",\"reason_code\":\"concluded\",\"focus\":\"\"}\n```")
+	if err != nil || decision.Decision != gateSkip || decision.ReasonCode != "concluded" {
+		t.Fatalf("fenced decision = %+v, err = %v", decision, err)
+	}
 	invalid := []string{
-		"```json\n{\"decision\":\"skip\",\"reason_code\":\"concluded\",\"focus\":\"\"}\n```",
+		"before\n```json\n{\"decision\":\"skip\",\"reason_code\":\"concluded\",\"focus\":\"\"}\n```",
 		`{"decision":"follow_up","reason_code":"awaiting_answer","focus":""}`,
 		`{"decision":"follow_up","reason_code":"concluded","focus":"继续"}`,
 		`{"decision":"skip","reason_code":"concluded","focus":"","extra":true}`,

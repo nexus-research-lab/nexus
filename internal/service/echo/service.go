@@ -1,5 +1,5 @@
 // INPUT: Echo attempt 仓储、用户 Preferences、Agent/Session/DM 服务、轻量模型与 runtime 状态。
-// OUTPUT: 用户级开关、DM 覆盖、用户活动取消与后台调度生命周期。
+// OUTPUT: 用户级开关、用户活动取消与后台调度生命周期。
 // POS: Echo 应用服务装配根。
 package echo
 
@@ -36,8 +36,6 @@ type agentService interface {
 type sessionService interface {
 	GetSession(context.Context, string) (*protocol.Session, error)
 	GetSessionMessages(context.Context, string) ([]protocol.Message, error)
-	GetEchoOverride(context.Context, string) (echodomain.SessionOverride, error)
-	UpdateEchoOverride(context.Context, string, echodomain.SessionOverride) (echodomain.SessionOverride, error)
 }
 
 type providerResolver interface {
@@ -203,66 +201,6 @@ func (s *Service) globalPolicy(ctx context.Context, ownerUserID string) (echodom
 	}
 	policy.Enabled = preferences.EchoEnabled
 	return policy, nil
-}
-
-// GetSessionOverride 返回 DM 的 Echo 覆盖。
-func (s *Service) GetSessionOverride(ctx context.Context, sessionKey string) (echodomain.SessionOverride, error) {
-	override, err := s.sessions.GetEchoOverride(ctx, sessionKey)
-	if err != nil {
-		return echodomain.SessionOverride{}, err
-	}
-	return s.resolveSessionOverride(ctx, sessionKey, override)
-}
-
-// UpdateSessionOverride 更新 DM 的 Echo 覆盖。
-func (s *Service) UpdateSessionOverride(
-	ctx context.Context,
-	sessionKey string,
-	override echodomain.SessionOverride,
-) (echodomain.SessionOverride, error) {
-	updated, err := s.sessions.UpdateEchoOverride(ctx, sessionKey, override)
-	if err != nil {
-		return echodomain.SessionOverride{}, err
-	}
-	if updated.Mode == echodomain.SessionModeDisabled {
-		roundIDs, cancelErr := s.OnUserActivity(ctx, authctx.OwnerUserID(ctx), sessionKey)
-		if cancelErr != nil {
-			return echodomain.SessionOverride{}, cancelErr
-		}
-		s.interruptRounds(ctx, sessionKey, roundIDs)
-	}
-	s.loop.Notify()
-	return s.resolveSessionOverride(ctx, sessionKey, updated)
-}
-
-func (s *Service) resolveSessionOverride(
-	ctx context.Context,
-	sessionKey string,
-	override echodomain.SessionOverride,
-) (echodomain.SessionOverride, error) {
-	session, err := s.sessions.GetSession(ctx, sessionKey)
-	if err != nil {
-		return echodomain.SessionOverride{}, err
-	}
-	if session == nil {
-		return echodomain.SessionOverride{}, sql.ErrNoRows
-	}
-	if protocol.NormalizeSessionKeyChannelSegment(session.ChannelType) != protocol.SessionChannelWebSocketSegment ||
-		strings.TrimSpace(session.ChatType) != protocol.RoomTypeDM {
-		return echodomain.SessionOverride{}, echodomain.ErrUnsupportedSession
-	}
-	policy, err := s.globalPolicy(ctx, authctx.OwnerUserID(ctx))
-	if err != nil {
-		return echodomain.SessionOverride{}, err
-	}
-	enabled := policy.Enabled
-	if override.Mode == echodomain.SessionModeEnabled {
-		enabled = true
-	} else if override.Mode == echodomain.SessionModeDisabled {
-		enabled = false
-	}
-	override.EffectiveEnabled = enabled
-	return override, nil
 }
 
 // OnUserActivity 取消该 DM 尚未提交的 Echo；精确中断由 DM 主链执行。
