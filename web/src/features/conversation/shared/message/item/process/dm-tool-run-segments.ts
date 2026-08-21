@@ -1,7 +1,7 @@
 /**
- * INPUT: DM live 过程内容、流式索引与当前人工交互工具身份。
- * OUTPUT: 以首个 tool_use.id 稳定标识的连续工具段，以及保持原顺序的非工具内容段。
- * POS: 单智能体 live 过程压缩的纯投影边界；不解释 Room、权限动作或具体视图。
+ * INPUT: DM/Room live 过程内容、流式索引、ToolUseSummary 与当前人工交互工具身份。
+ * OUTPUT: 以正文为边界、首个 tool_use.id 稳定标识的连续执行段，以及保持原顺序的独立内容段。
+ * POS: 会话 live 过程压缩的纯投影边界；摘要持续更新包含其 preceding_tool_use_ids 的执行段，权限动作保持独立。
  */
 import type {
   ContentBlock,
@@ -13,42 +13,47 @@ import {
   isRejectedToolResult,
   isSupersededToolResult,
 } from "../../tool-result-semantic-model";
-import type { ContentProjection } from "../message-item-projection";
+import type {
+  ContentProjection,
+  ToolUseSummaryProjection,
+} from "../message-item-projection";
 
-export type DmToolRunPhase =
+export type ToolRunPhase =
   | "active"
   | "complete"
   | "error"
   | "rejected"
   | "superseded";
 
-export interface DmToolRunSegment {
+export interface ToolRunSegment {
   errorCount: number;
   id: string;
   kind: "tool_run";
-  phase: DmToolRunPhase;
+  phase: ToolRunPhase;
   projection: ContentProjection;
   rejectedCount: number;
   supersededCount: number;
+  summaryText: string | null;
   toolUseIds: string[];
   unresolvedToolUseCount: number;
 }
 
-export interface DmProcessContentSegment {
+export interface ToolProcessContentSegment {
   id: string;
   kind: "content";
   projection: ContentProjection;
 }
 
-export type DmProcessSegment =
-  | DmProcessContentSegment
-  | DmToolRunSegment;
+export type ToolProcessSegment =
+  | ToolProcessContentSegment
+  | ToolRunSegment;
 
-interface DmToolRunSegmentOptions {
+interface ToolRunSegmentOptions {
   interactiveToolUseIds: ReadonlySet<string>;
   live: boolean;
   projection: ContentProjection;
   responseResumed: boolean;
+  toolUseSummary: ToolUseSummaryProjection | null;
 }
 
 interface PendingToolRun {
@@ -58,20 +63,32 @@ interface PendingToolRun {
 
 const EMPTY_INDEXES: ReadonlySet<number> = new Set<number>();
 
-export function projectDmToolRunSegments({
+export function projectToolRunSegments({
   interactiveToolUseIds,
   live,
   projection,
   responseResumed,
-}: DmToolRunSegmentOptions): DmProcessSegment[] {
+  toolUseSummary,
+}: ToolRunSegmentOptions): ToolProcessSegment[] {
   const supportIndexesByToolUseId = collectToolSupportIndexes(
     projection.content,
   );
   const claimedSupportIndexes = collectClaimedSupportIndexes(
     supportIndexesByToolUseId,
   );
-  const segments: DmProcessSegment[] = [];
+  const segments: ToolProcessSegment[] = [];
+  let pendingProcessIndexes: number[] = [];
   let pendingToolRun: PendingToolRun | null = null;
+
+  const flushPendingProcess = () => {
+    pendingProcessIndexes.forEach((index) => {
+      const block = projection.content[index];
+      if (block) {
+        segments.push(buildContentSegment(block, index, projection));
+      }
+    });
+    pendingProcessIndexes = [];
+  };
 
   const flushToolRun = (closed: boolean) => {
     if (!pendingToolRun) {
@@ -94,6 +111,7 @@ export function projectDmToolRunSegments({
     if (block.type === "tool_use") {
       if (isInteractiveToolUse(block, interactiveToolUseIds)) {
         flushToolRun(true);
+        flushPendingProcess();
         segments.push(buildInteractiveToolSegment(
           block,
           index,
@@ -104,9 +122,10 @@ export function projectDmToolRunSegments({
       }
 
       pendingToolRun ??= {
-        indexes: new Set<number>(),
+        indexes: new Set<number>(pendingProcessIndexes),
         toolUses: [],
       };
+      pendingProcessIndexes = [];
       pendingToolRun.indexes.add(index);
       pendingToolRun.toolUses.push(block);
       addIndexes(
@@ -121,12 +140,23 @@ export function projectDmToolRunSegments({
       return;
     }
 
+    if (isCollapsibleProcessBlock(block)) {
+      if (pendingToolRun) {
+        pendingToolRun.indexes.add(index);
+      } else {
+        pendingProcessIndexes.push(index);
+      }
+      return;
+    }
+
     flushToolRun(true);
+    flushPendingProcess();
     segments.push(buildContentSegment(block, index, projection));
   });
 
   flushToolRun(responseResumed || !live);
-  return segments;
+  flushPendingProcess();
+  return attachToolUseSummary(segments, toolUseSummary);
 }
 
 function buildToolRunSegment({
@@ -139,7 +169,7 @@ function buildToolRunSegment({
   live: boolean;
   projection: ContentProjection;
   run: PendingToolRun;
-}): DmToolRunSegment {
+}): ToolRunSegment {
   const toolUseIds = run.toolUses.map((block) => block.id);
   const errorCount = countToolRunErrors(run.indexes, projection.content);
   const rejectedCount = countToolRunRejections(
@@ -159,7 +189,7 @@ function buildToolRunSegment({
     closed
     && (!live || unresolvedToolUseCount === 0)
   );
-  const phase: DmToolRunPhase = !terminal
+  const phase: ToolRunPhase = !terminal
     ? "active"
     : errorCount > 0
     ? "error"
@@ -175,6 +205,7 @@ function buildToolRunSegment({
     phase,
     projection: selectProjectionIndexes(projection, run.indexes),
     rejectedCount,
+    summaryText: null,
     supersededCount,
     toolUseIds,
     unresolvedToolUseCount,
@@ -186,7 +217,7 @@ function buildInteractiveToolSegment(
   index: number,
   projection: ContentProjection,
   supportIndexes: ReadonlySet<number>,
-): DmProcessContentSegment {
+): ToolProcessContentSegment {
   const indexes = new Set<number>([index]);
   addIndexes(indexes, supportIndexes);
   return {
@@ -200,7 +231,7 @@ function buildContentSegment(
   block: ContentBlock,
   index: number,
   projection: ContentProjection,
-): DmProcessContentSegment {
+): ToolProcessContentSegment {
   return {
     id: contentSegmentId(block, index),
     kind: "content",
@@ -269,6 +300,14 @@ function isTrailingToolSupport(block: ContentBlock): boolean {
     block.type === "tool_result"
     || block.type === "task_progress"
     || block.type === "tool_use_error"
+  );
+}
+
+function isCollapsibleProcessBlock(block: ContentBlock): boolean {
+  return (
+    block.type === "thinking"
+    || block.type === "redacted_thinking"
+    || block.type === "progress_update"
   );
 }
 
@@ -374,4 +413,36 @@ function addIndexes(
   source: ReadonlySet<number> | undefined,
 ): void {
   source?.forEach((index) => target.add(index));
+}
+
+function attachToolUseSummary(
+  segments: ToolProcessSegment[],
+  summary: ToolUseSummaryProjection | null,
+): ToolProcessSegment[] {
+  if (!summary?.text.trim()) {
+    return segments;
+  }
+  const summaryToolUseIds = new Set(summary.precedingToolUseIds);
+  let targetIndex = -1;
+  if (summaryToolUseIds.size > 0) {
+    targetIndex = segments.findIndex((segment) => (
+      segment.kind === "tool_run"
+      && segment.toolUseIds.length > 0
+      && [...summaryToolUseIds].every((toolUseId) => (
+        segment.toolUseIds.includes(toolUseId)
+      ))
+    ));
+  } else {
+    targetIndex = segments.findLastIndex(
+      (segment) => segment.kind === "tool_run",
+    );
+  }
+  if (targetIndex < 0) {
+    return segments;
+  }
+  return segments.map((segment, index) => (
+    index === targetIndex && segment.kind === "tool_run"
+      ? { ...segment, summaryText: summary.text.trim() }
+      : segment
+  ));
 }

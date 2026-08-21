@@ -90,6 +90,12 @@ export interface ContentProjection {
   streamingIndexes: Set<number>;
 }
 
+/** Provider summary bound to the exact completed tool batch it describes. */
+export interface ToolUseSummaryProjection {
+  precedingToolUseIds: string[];
+  text: string;
+}
+
 export function projectionFromOrderedEntries(
   entries: OrderedAssistantEntry[],
   streamingBlockIndexes: ReadonlySet<number>,

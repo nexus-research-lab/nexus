@@ -137,6 +137,7 @@ export function useMessageItemController({
         showCursor: display.showCursor,
         standalone: display.standaloneActivity,
         state: projection.liveActivityState,
+        toolUseSummary: projection.liveToolUseSummary,
       },
       footer: {
         copied: copiedAssistant,

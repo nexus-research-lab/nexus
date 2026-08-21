@@ -60,7 +60,7 @@ const FINAL_ASSISTANT_CONTENT_RESOLVERS: Readonly<Record<
 >> = {
   dm_archived: resolveArchivedFinalAssistantContent,
   dm_live: resolveArchivedFinalAssistantContent,
-  room_result: resolveRoomResultFinalAssistantContent,
+  room_result: resolveRoomResultFinalAssistantContentFromContext,
   room_thread: resolveHiddenFinalAssistantContent,
   room_thread_process: resolveHiddenFinalAssistantContent,
 };
@@ -203,9 +203,13 @@ function resolveDirectOrderedProjection(
   orderedProjection: ContentProjection,
   archivedProcessProjection: ContentProjection,
 ): ContentProjection {
-  if (mode === "dm_live" || mode === "room_thread_process") {
-    // DM 的最终回复固定在 final surface；Room Thread 的最终回复固定在主 Feed。
-    // 两种 direct surface 都只承载思考、工具和系统过程。
+  if (
+    mode === "dm_live"
+    || mode === "room_result"
+    || mode === "room_thread_process"
+  ) {
+    // DM/Room Result 的最终回复固定在 final surface；Room Thread 的最终回复固定在主 Feed。
+    // 这些 direct surface 只承载思考、工具和系统过程，供同一个工具批次视图折叠。
     return archivedProcessProjection;
   }
   return resolveAssistantResponseSurface(mode) === "direct"
@@ -228,6 +232,9 @@ function resolveFinalStreamingIndexes(
   fallbackStreamingIndexes: Set<number>,
 ): Set<number> {
   if (
+    content == null
+    || (Array.isArray(content) && content.length === 0)
+    ||
     resolveAssistantResponseSurface(mode) === "direct"
     || typeof content === "string"
   ) {
@@ -451,6 +458,26 @@ function resolveArchivedFinalAssistantContent({
     ];
   }
   return narrativeContent ?? resultText ?? null;
+}
+
+function resolveRoomResultFinalAssistantContentFromContext({
+  finalAssistantTurn,
+  finalTailEntries,
+  generativeUIContent,
+  resultText,
+}: FinalAssistantContentContext): ContentBlock[] | null {
+  const narrativeContent = finalTailEntries.length > 0
+    ? finalTailEntries.map((entry) => entry.block)
+    : finalAssistantTurn?.textContent.length
+    ? finalAssistantTurn.textContent
+    : null;
+  const fallbackFinalAssistantContent = generativeUIContent.length > 0
+    ? [...generativeUIContent, ...(narrativeContent ?? [])]
+    : narrativeContent;
+  return resolveRoomResultFinalAssistantContent({
+    fallbackFinalAssistantContent,
+    resultText,
+  });
 }
 
 function resolveGenerativeUIEntries(
