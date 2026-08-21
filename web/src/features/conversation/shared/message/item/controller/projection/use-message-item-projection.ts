@@ -22,6 +22,7 @@ import type { MessageActivityState } from "../../activity/message-activity-state
 import {
   projectionFromOrderedEntries,
   type AssistantContentMode,
+  type ToolUseSummaryProjection,
 } from "../../message-item-projection";
 import { buildProcessSummary } from "../../process/message-process-summary";
 import { resolveMessageItemFinalProjection } from "./message-item-final-projection";
@@ -145,13 +146,14 @@ export function useMessageItemProjection({
       runtimePhase,
     ],
   );
-  const liveActivityLabel = useMemo(
-    () => resolveActivityProgressLabel(
+  const liveToolUseSummary = useMemo(
+    () => resolveActivityToolUseSummary(
       contentMerge.mergedContent,
       liveActivityState,
     ),
     [contentMerge.mergedContent, liveActivityState],
   );
+  const liveActivityLabel = liveToolUseSummary?.text ?? null;
   const processSummary = useMemo(
     () => buildProcessSummary({
       pendingPermissionCount: pendingPermissions.length,
@@ -174,6 +176,7 @@ export function useMessageItemProjection({
     userMessages: contentMerge.userMessages,
     liveActivityState,
     liveActivityLabel,
+    liveToolUseSummary,
     goalCompletionReceipt,
     processSummary,
     recalledMemories,
@@ -197,13 +200,31 @@ export function resolveActivityProgressLabel(
   content: readonly ContentBlock[],
   activityState: MessageActivityState | null,
 ): string | null {
+  return resolveActivityToolUseSummary(content, activityState)?.text ?? null;
+}
+
+export function resolveActivityToolUseSummary(
+  content: readonly ContentBlock[],
+  activityState: MessageActivityState | null,
+): ToolUseSummaryProjection | null {
   if (!activityState || !PROGRESS_LABEL_ACTIVITY_STATES.has(activityState)) {
     return null;
   }
   for (let index = content.length - 1; index >= 0; index -= 1) {
     const block = content[index];
     if (block.type === "progress_update") {
-      return block.text.trim() || null;
+      const text = block.text.trim();
+      if (!text) {
+        return null;
+      }
+      return {
+        precedingToolUseIds: [...new Set(
+          (block.preceding_tool_use_ids ?? [])
+            .map((toolUseId) => toolUseId.trim())
+            .filter(Boolean),
+        )],
+        text,
+      };
     }
   }
   return null;

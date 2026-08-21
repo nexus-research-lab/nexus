@@ -40,6 +40,7 @@ export function StructuredContentRenderer(
     canRespondToPermissions,
     className,
     content,
+    defaultToolDetailsExpanded,
     fallbackActivityLabel,
     fallbackActivityState,
     hiddenToolNames,
@@ -70,6 +71,7 @@ export function StructuredContentRenderer(
   });
   const renderContext: ContentBlockRenderContext = {
     canRespondToPermissions,
+    defaultToolDetailsExpanded,
     hiddenToolNames: hiddenToolNameSet,
     onOpenSubagentTask,
     onOpenWorkspaceFile,
@@ -188,6 +190,7 @@ function normalizeStructuredContentRendererProps(
   return {
     ...props,
     canRespondToPermissions: props.canRespondToPermissions ?? true,
+    defaultToolDetailsExpanded: props.defaultToolDetailsExpanded ?? false,
     fallbackActivityLabel: props.fallbackActivityLabel ?? null,
     fallbackActivityState: props.fallbackActivityState ?? null,
     hiddenToolNames: props.hiddenToolNames ?? EMPTY_HIDDEN_TOOL_NAMES,

@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
- * OUTPUT: DM live 连续工具段、live/terminal 固定位置的 final 正文，以及只在 owner 轨道挂载一次的人工响应面。
+ * OUTPUT: DM/Room 共用的折叠工具段、live/terminal 固定位置的 final 正文，以及只在 owner 轨道挂载一次的人工响应面。
  * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层。
  */
 import { AlertTriangle } from "lucide-react";
@@ -18,7 +18,7 @@ import type {
   AssistantPermissionState,
   AssistantProcessState,
 } from "./assistant-message-model";
-import { AssistantDmToolRuns } from "./assistant-dm-tool-runs";
+import { AssistantToolRuns } from "./assistant-dm-tool-runs";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
 
 interface AssistantMessageContentProps {
@@ -69,6 +69,7 @@ export function AssistantMessageContent({
       />
       <RoomResultTrailingActivity
         activity={activity}
+        direct={direct}
         environment={environment}
         final={final}
       />
@@ -79,22 +80,31 @@ export function AssistantMessageContent({
 
 function RoomResultTrailingActivity({
   activity,
+  direct,
   environment,
   final,
 }: {
   activity: AssistantActivityState;
+  direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
 }) {
   if (
     environment.mode !== "room_result"
     || activity.standalone
+    || direct.visible
     || final.isStreaming
     || !activity.state
   ) {
     return null;
   }
-  return <LocalizedMessageActivityStatus className="pt-1" label={activity.label} state={activity.state} />;
+  return (
+    <LocalizedMessageActivityStatus
+      className="pt-1"
+      label={activity.label}
+      state={activity.state}
+    />
+  );
 }
 
 function StandaloneActivity({
@@ -105,7 +115,13 @@ function StandaloneActivity({
   if (!activity.standalone || !activity.state) {
     return null;
   }
-  return <LocalizedMessageActivityStatus className="py-1" label={activity.label} state={activity.state} />;
+  return (
+    <LocalizedMessageActivityStatus
+      className="py-1"
+      label={activity.label}
+      state={activity.state}
+    />
+  );
 }
 
 function AssistantDirectContent({
@@ -128,9 +144,9 @@ function AssistantDirectContent({
   if (!direct.visible) {
     return null;
   }
-  if (environment.mode === "dm_live") {
+  if (environment.mode !== "dm_archived") {
     return (
-      <AssistantDmToolRuns
+      <AssistantToolRuns
         activity={activity}
         environment={environment}
         generatedFilesLabel={generatedFilesLabel}

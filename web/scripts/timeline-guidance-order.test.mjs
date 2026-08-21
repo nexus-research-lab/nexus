@@ -2157,13 +2157,13 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingHtml, /我先搜索产品线信息。/);
   assert.match(
     workingHtml,
-    /正在浏览/,
-    "tool continuation remains visibly active after its preceding text stops streaming",
+    /网络搜索 · 正在执行/,
+    "tool continuation keeps one localized folded activity row after its preceding text stops streaming",
   );
   assert.equal(
     workingHtml.match(/message-activity-spinner-track/g)?.length,
-    1,
-    "the public tool activity appends to the same MessageItem instead of adding a second card",
+    undefined,
+    "the folded tool row owns activity without adding a second spinner row",
   );
 
   const terminalHtml = renderShell({
@@ -3183,8 +3183,8 @@ test("terminal Room entries ignore internal-only content blocks", async () => {
   }], undefined, "done"), false);
 });
 
-test("DM live keeps one stable open segment across consecutive tool patches", async () => {
-  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+test("live conversations keep one stable tool segment across consecutive patches", async () => {
+  const { projectToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
   );
   const toolA = {
@@ -3212,11 +3212,12 @@ test("DM live keeps one stable open segment across consecutive tool patches", as
   const project = (
     content,
     { live = true, responseResumed = false } = {},
-  ) => projectDmToolRunSegments({
+  ) => projectToolRunSegments({
     interactiveToolUseIds: new Set(),
     live,
     projection: { content, streamingIndexes: new Set() },
     responseResumed,
+    toolUseSummary: null,
   });
 
   for (const content of [
@@ -3256,8 +3257,8 @@ test("DM live keeps one stable open segment across consecutive tool patches", as
   assert.equal(terminal.phase, "complete");
 });
 
-test("DM tool segments split on narrative and preserve interactions and errors", async () => {
-  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+test("tool segments absorb reasoning but preserve interactions and errors", async () => {
+  const { projectToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
   );
   const failedTool = {
@@ -3329,7 +3330,7 @@ test("DM tool segments split on narrative and preserve interactions and errors",
     },
     trailingTool,
   ];
-  const [activeFailedSegment] = projectDmToolRunSegments({
+  const [activeFailedSegment] = projectToolRunSegments({
     interactiveToolUseIds: new Set(),
     live: true,
     projection: {
@@ -3337,10 +3338,11 @@ test("DM tool segments split on narrative and preserve interactions and errors",
       streamingIndexes: new Set(),
     },
     responseResumed: false,
+    toolUseSummary: null,
   });
   assert.equal(activeFailedSegment.phase, "active");
   assert.equal(activeFailedSegment.errorCount, 1);
-  const segments = projectDmToolRunSegments({
+  const segments = projectToolRunSegments({
     interactiveToolUseIds: new Set([permissionTool.id]),
     live: true,
     projection: {
@@ -3348,6 +3350,7 @@ test("DM tool segments split on narrative and preserve interactions and errors",
       streamingIndexes: new Set([5]),
     },
     responseResumed: false,
+    toolUseSummary: null,
   });
 
   assert.deepEqual(
@@ -3358,7 +3361,6 @@ test("DM tool segments split on narrative and preserve interactions and errors",
         kind: "tool_run",
         phase: "error",
       },
-      { id: "content:thinking:5", kind: "content", phase: undefined },
       {
         id: "interactive-tool:tool-question-boundary",
         kind: "content",
@@ -3386,31 +3388,143 @@ test("DM tool segments split on narrative and preserve interactions and errors",
       "task_progress",
       "system_event",
       "workspace_file_artifact",
+      "thinking",
     ],
   );
   assert.deepEqual(
-    [...segments[1].projection.streamingIndexes],
-    [0],
-    "segment slicing remaps the original streaming block index",
+    [...failedSegment.projection.streamingIndexes],
+    [5],
+    "folded execution preserves the remapped streaming reasoning index",
   );
   assert.deepEqual(
-    segments[2].projection.content.map(({ type }) => type),
+    segments[1].projection.content.map(({ type }) => type),
     ["tool_use", "tool_result"],
     "AskUserQuestion keeps its own stable interaction segment",
   );
   assert.deepEqual(
-    segments[3].projection.content.map(({ type }) => type),
+    segments[2].projection.content.map(({ type }) => type),
     ["tool_use", "tool_result"],
     "a pending permission tool stays outside the collapsible run",
   );
 });
 
-test("DM tool run view expands only the active segment and leaves Room direct content unchanged", async () => {
-  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+test("ToolUseSummary continuously updates one execution row and visible text splits it", async () => {
+  const { projectToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const toolA = {
+    type: "tool_use",
+    id: "tool-summary-a",
+    name: "Read",
+    input: { file_path: "a.ts" },
+  };
+  const toolB = {
+    type: "tool_use",
+    id: "tool-summary-b",
+    name: "Grep",
+    input: { pattern: "needle" },
+  };
+  const segments = projectToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection: {
+      content: [
+        { type: "thinking", thinking: "先看现有实现" },
+        toolA,
+        { type: "tool_result", tool_use_id: toolA.id, content: "a" },
+        { type: "thinking", thinking: "继续核对调用点" },
+        toolB,
+        { type: "tool_result", tool_use_id: toolB.id, content: "b" },
+      ],
+      streamingIndexes: new Set(),
+    },
+    responseResumed: false,
+    toolUseSummary: {
+      precedingToolUseIds: [toolB.id],
+      text: "定位时间线折叠入口",
+    },
+  });
+
+  assert.deepEqual(
+    segments.map(({ phase, summaryText, toolUseIds }) => ({
+      phase,
+      summaryText,
+      toolUseIds,
+    })),
+    [
+      {
+        phase: "active",
+        summaryText: "定位时间线折叠入口",
+        toolUseIds: [toolA.id, toolB.id],
+      },
+    ],
+  );
+  assert.deepEqual(
+    segments[0].projection.content.map(({ type }) => type),
+    [
+      "thinking",
+      "tool_use",
+      "tool_result",
+      "thinking",
+      "tool_use",
+      "tool_result",
+    ],
+  );
+
+  const splitSegments = projectToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection: {
+      content: [
+        toolA,
+        { type: "tool_result", tool_use_id: toolA.id, content: "a" },
+        { type: "text", text: "这里是给用户看的阶段结论" },
+        toolB,
+        { type: "tool_result", tool_use_id: toolB.id, content: "b" },
+      ],
+      streamingIndexes: new Set(),
+    },
+    responseResumed: false,
+    toolUseSummary: {
+      precedingToolUseIds: [toolB.id],
+      text: "定位时间线折叠入口",
+    },
+  });
+  assert.deepEqual(
+    splitSegments.map(({ kind, summaryText, toolUseIds }) => ({
+      kind,
+      summaryText,
+      toolUseIds,
+    })),
+    [
+      {
+        kind: "tool_run",
+        summaryText: null,
+        toolUseIds: [toolA.id],
+      },
+      {
+        kind: "content",
+        summaryText: undefined,
+        toolUseIds: undefined,
+      },
+      {
+        kind: "tool_run",
+        summaryText: "定位时间线折叠入口",
+        toolUseIds: [toolB.id],
+      },
+    ],
+  );
+});
+
+test("DM and Room tool runs stay folded until the summary row is opened", async () => {
+  const { AssistantToolRuns } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
   );
   const { AssistantMessageContent } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
+  );
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
   );
   const { I18nProvider } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-provider.tsx",
@@ -3431,7 +3545,7 @@ test("DM tool run view expands only the active segment and leaves Room direct co
       {
         type: "tool_result",
         tool_use_id: tool.id,
-        content: "view",
+        content: "完整结果",
       },
     ],
     streamingIndexes: new Set(),
@@ -3447,9 +3561,11 @@ test("DM tool run view expands only the active segment and leaves Room direct co
   };
   const activity = {
     emptyStreamStatus: null,
+    label: null,
     showCursor: true,
     standalone: false,
     state: "executing",
+    toolUseSummary: null,
   };
   const permissions = {
     all: [],
@@ -3469,7 +3585,7 @@ test("DM tool run view expands only the active segment and leaves Room direct co
     React.createElement(
       I18nProvider,
       null,
-      React.createElement(AssistantDmToolRuns, {
+      React.createElement(AssistantToolRuns, {
         activity,
         environment,
         generatedFilesLabel: "生成文件",
@@ -3485,22 +3601,25 @@ test("DM tool run view expands only the active segment and leaves Room direct co
     activeHtml,
     /data-conversation-process-group-id="tool-run:tool-view"/,
   );
-  assert.match(activeHtml, /data-dm-tool-run-phase="active"/);
-  assert.match(activeHtml, /aria-expanded="true"/);
+  assert.match(activeHtml, /data-tool-run-phase="active"/);
+  assert.match(activeHtml, /aria-expanded="false"/);
   assert.match(activeHtml, /读取内容/);
+  assert.match(activeHtml, /正在执行/);
+  assert.doesNotMatch(activeHtml, /view\.ts/);
 
   const completedHtml = renderDm(true);
-  assert.match(completedHtml, /data-dm-tool-run-phase="complete"/);
+  assert.match(completedHtml, /data-tool-run-phase="complete"/);
   assert.match(completedHtml, /aria-expanded="false"/);
+  assert.doesNotMatch(completedHtml, /已完成/);
   assert.doesNotMatch(
     completedHtml,
-    /读取内容/,
+    /view\.ts/,
     "completed tool details stay out of the live reading path until expanded",
   );
 
   const unresolvedResponseHtml = renderDm(true, unresolvedProjection);
-  assert.match(unresolvedResponseHtml, /data-dm-tool-run-phase="active"/);
-  assert.match(unresolvedResponseHtml, /aria-expanded="true"/);
+  assert.match(unresolvedResponseHtml, /data-tool-run-phase="active"/);
+  assert.match(unresolvedResponseHtml, /aria-expanded="false"/);
 
   const staleFinalHtml = renderToStaticMarkup(
     React.createElement(
@@ -3532,10 +3651,10 @@ test("DM tool run view expands only the active segment and leaves Room direct co
   );
   assert.match(
     staleFinalHtml,
-    /data-dm-tool-run-phase="active"/,
+    /data-tool-run-phase="active"/,
     "old final text already visible must not close a newer live tool",
   );
-  assert.match(staleFinalHtml, /aria-expanded="true"/);
+  assert.match(staleFinalHtml, /aria-expanded="false"/);
 
   const roomHtml = renderToStaticMarkup(
     React.createElement(
@@ -3565,12 +3684,53 @@ test("DM tool run view expands only the active segment and leaves Room direct co
       }),
     ),
   );
-  assert.doesNotMatch(roomHtml, /data-dm-tool-run-list/);
+  assert.match(roomHtml, /data-tool-run-list/);
+  assert.match(roomHtml, /aria-expanded="false"/);
   assert.match(roomHtml, /读取内容/);
+
+  const summarizedHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantToolRuns, {
+        activity: {
+          ...activity,
+          label: "核对视图实现",
+          toolUseSummary: {
+            precedingToolUseIds: [tool.id],
+            text: "核对视图实现",
+          },
+        },
+        environment,
+        generatedFilesLabel: "生成文件",
+        permissions,
+        projection: resolvedProjection,
+        responseResumed: false,
+      }),
+    ),
+  );
+  assert.match(summarizedHtml, /核对视图实现/);
+  assert.match(summarizedHtml, /data-tool-run-phase="active"/);
+  assert.match(summarizedHtml, /aria-expanded="false"/);
+  assert.doesNotMatch(summarizedHtml, /正在执行|已完成/);
+  assert.doesNotMatch(summarizedHtml, /view\.ts/);
+
+  const expandedDetailsHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ContentRenderer, {
+        content: resolvedProjection.content,
+        defaultToolDetailsExpanded: true,
+      }),
+    ),
+  );
+  assert.match(expandedDetailsHtml, /view\.ts/);
+  assert.match(expandedDetailsHtml, /完整结果/);
 });
 
 test("semantic tool rejection stays distinct from transport completion in DM and Room", async () => {
-  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+  const { AssistantToolRuns } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
   );
   const { ContentRenderer } = await server.ssrLoadModule(
@@ -3582,7 +3742,7 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   const { ToolBlockResult } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
   );
-  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+  const { projectToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
   );
   const { buildProcessSummary } = await server.ssrLoadModule(
@@ -3623,11 +3783,12 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     content: [tool, result],
     streamingIndexes: new Set(),
   };
-  const [segment] = projectDmToolRunSegments({
+  const [segment] = projectToolRunSegments({
     interactiveToolUseIds: new Set(),
     live: true,
     projection,
     responseResumed: true,
+    toolUseSummary: null,
   });
   assert.equal(segment.phase, "rejected");
   assert.equal(segment.rejectedCount, 1);
@@ -3650,13 +3811,15 @@ test("semantic tool rejection stays distinct from transport completion in DM and
 
   const provider = (child) => React.createElement(I18nProvider, null, child);
   const dmHtml = renderToStaticMarkup(provider(React.createElement(
-    AssistantDmToolRuns,
+    AssistantToolRuns,
     {
       activity: {
         emptyStreamStatus: null,
+        label: null,
         showCursor: true,
         standalone: false,
         state: "executing",
+        toolUseSummary: null,
       },
       environment: {
         canRespondToPermissions: true,
@@ -3674,7 +3837,7 @@ test("semantic tool rejection stays distinct from transport completion in DM and
       responseResumed: true,
     },
   )));
-  assert.match(dmHtml, /data-dm-tool-run-phase="rejected"/);
+  assert.match(dmHtml, /data-tool-run-phase="rejected"/);
   assert.match(dmHtml, /已拒绝/);
   assert.doesNotMatch(dmHtml, />完成</);
 
@@ -3697,7 +3860,7 @@ test("semantic tool rejection stays distinct from transport completion in DM and
 });
 
 test("superseded WorkGraph result is muted and does not count as failure", async () => {
-  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+  const { AssistantToolRuns } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
   );
   const { ContentRenderer } = await server.ssrLoadModule(
@@ -3709,7 +3872,7 @@ test("superseded WorkGraph result is muted and does not count as failure", async
   const { ToolBlockResult } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
   );
-  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+  const { projectToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
   );
   const { buildProcessSummary } = await server.ssrLoadModule(
@@ -3745,11 +3908,12 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     content: [tool, result],
     streamingIndexes: new Set(),
   };
-  const [segment] = projectDmToolRunSegments({
+  const [segment] = projectToolRunSegments({
     interactiveToolUseIds: new Set(),
     live: true,
     projection,
     responseResumed: true,
+    toolUseSummary: null,
   });
   assert.equal(segment.phase, "superseded");
   assert.equal(segment.supersededCount, 1);
@@ -3766,13 +3930,15 @@ test("superseded WorkGraph result is muted and does not count as failure", async
 
   const provider = (child) => React.createElement(I18nProvider, null, child);
   const dmHtml = renderToStaticMarkup(provider(React.createElement(
-    AssistantDmToolRuns,
+    AssistantToolRuns,
     {
       activity: {
         emptyStreamStatus: null,
+        label: null,
         showCursor: true,
         standalone: false,
         state: "executing",
+        toolUseSummary: null,
       },
       environment: {
         canRespondToPermissions: true,
@@ -3790,7 +3956,7 @@ test("superseded WorkGraph result is muted and does not count as failure", async
       responseResumed: true,
     },
   )));
-  assert.match(dmHtml, /data-dm-tool-run-phase="superseded"/);
+  assert.match(dmHtml, /data-tool-run-phase="superseded"/);
   assert.match(dmHtml, /已被替换/);
   assert.doesNotMatch(dmHtml, /执行失败|已拒绝/);
 
@@ -5504,6 +5670,7 @@ test("Room canonical assistant replaces its temporary synthetic result", async (
 test("conversation welcome keeps its model fact out of the chat display", async () => {
   const {
     resolveActivityProgressLabel,
+    resolveActivityToolUseSummary,
     resolveAssistantModel,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/use-message-item-projection.ts",
@@ -5526,7 +5693,11 @@ test("conversation welcome keeps its model fact out of the chat display", async 
 
   assert.equal(resolveAssistantModel([regular], regular), "agent-conversation-model");
   assert.equal(resolveAssistantModel([welcome], welcome), undefined);
-  const progress = { type: "progress_update", text: "  正在把线索串起来  " };
+  const progress = {
+    type: "progress_update",
+    text: "  正在把线索串起来  ",
+    preceding_tool_use_ids: [" tool-a ", "tool-a", "tool-b"],
+  };
   assert.equal(
     resolveActivityProgressLabel([progress], "thinking"),
     "正在把线索串起来",
@@ -5535,6 +5706,13 @@ test("conversation welcome keeps its model fact out of the chat display", async 
     resolveActivityProgressLabel([progress], "waiting_permission"),
     null,
     "人工确认状态不能被模型旁白覆盖",
+  );
+  assert.deepEqual(
+    resolveActivityToolUseSummary([progress], "executing"),
+    {
+      precedingToolUseIds: ["tool-a", "tool-b"],
+      text: "正在把线索串起来",
+    },
   );
 });
 

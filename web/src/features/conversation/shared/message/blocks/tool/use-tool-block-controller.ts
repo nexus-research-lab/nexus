@@ -20,6 +20,7 @@ import { buildToolBlockViewModel } from "./tool-block-model";
 import type { ToolBlockProps } from "./tool-block-types";
 
 export function useToolBlockController({
+  defaultExpanded = false,
   endTime,
   interactionDisabled = false,
   interactionDisabledReason,
@@ -31,6 +32,7 @@ export function useToolBlockController({
   toolUse,
 }: Pick<
   ToolBlockProps,
+  | "defaultExpanded"
   | "endTime"
   | "interactionDisabled"
   | "interactionDisabledReason"
@@ -42,7 +44,7 @@ export function useToolBlockController({
   | "toolUse"
 >) {
   const localization = useI18n();
-  const expansion = useScrollAnchoredState(false);
+  const expansion = useScrollAnchoredState(defaultExpanded);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] =
     useResettableState(-1, permissionRequest?.request_id ?? null);
   const { copied, copy } = useCopyToClipboard();

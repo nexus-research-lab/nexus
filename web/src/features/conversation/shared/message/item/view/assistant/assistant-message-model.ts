@@ -25,6 +25,7 @@ import type {
   AssistantContentMode,
   ContentProjection,
   PendingInteractionOwner,
+  ToolUseSummaryProjection,
 } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 import type { ProcessSummaryProjection } from "../../process/message-process-summary";
@@ -36,6 +37,7 @@ export interface AssistantActivityState {
   showCursor: boolean;
   standalone: boolean;
   state: MessageActivityState | null;
+  toolUseSummary: ToolUseSummaryProjection | null;
 }
 
 export interface AssistantDirectState {

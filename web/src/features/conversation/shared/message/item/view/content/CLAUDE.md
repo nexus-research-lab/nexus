@@ -2,7 +2,7 @@
 
 - `content-renderer.tsx`: 只区分 Markdown 与结构化内容入口。
 - `content-renderer-contract.ts`: 定义入口与结构化编排器共同消费的窄属性契约，包括未返回 `tool_result` 时由 execution terminal evidence 提供的 stopped/error 收口。
-- `structured-content-renderer.tsx`: 建立一次内容投影并编排块视图、时间线和流式活动状态；消息级活动只在没有可见叶子块持有状态时作为 fallback，运行中或等待中的 ToolBlock 已展示自己的状态后不得再叠加同义“正在执行/等待”行。非时间线中的连续 Agent/Task 启动只在存在子智能体导航命令时合并为可换行的紧凑任务入口组，待权限工具仍保持独立。
+- `structured-content-renderer.tsx`: 建立一次内容投影并编排块视图、时间线和流式活动状态；消息级活动只在没有可见叶子块持有状态时作为 fallback，运行中或等待中的 ToolBlock 已展示自己的状态后不得再叠加同义“正在执行/等待”行。ToolUseSummary 外层组展开时可显式要求内部 ToolBlock 首次挂载即展开完整详情；其他入口保持自身默认。非时间线中的连续 Agent/Task 启动只在存在子智能体导航命令时合并为可换行的紧凑任务入口组，待权限工具仍保持独立。
 - `content-renderer-model.ts`: 建立 toolUse/result、任务进度、已消费块索引与 live 文本挂载判定。
 - `content-block-view.tsx`: 通过穷尽注册表分派 ContentBlock，并拥有空节点和时间线框架；live 空文本必须先挂载 Markdown 身份，让首批正文进入平滑 backlog，静态空文本仍不占布局；`progress_update` 是非渲染协议块，由消息活动投影读取，不得包装成正文或过程摘要。
 - `content-tool-block.tsx`: 普通消息内工具统一投影为静态 ToolBlock 证据；内建 `show_widget` 是唯一生成式 UI 视图分支。`AskUserQuestion` 无论处于 pending、历史完成、恢复或未匹配状态，都不得在 DM、Room、Thread 或过程展开中重新挂载选项树，唯一可操作入口属于 Composer。

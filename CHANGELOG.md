@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Folded each continuous DM and Room execution phase into one in-place ToolUseSummary row that absorbs reasoning and ordinary tools until user-visible text creates a new phase, prefers natural Chinese labels for Chinese conversations, omits redundant completion wording, and expands to the complete ordered process on demand; permission prompts, generated UI, and artifacts remain visible.
 - Routed owner background-model selection through the DM/Room runtime bridge for native `ToolUseSummary` progress, replacing generic thinking/replying text in place and clearing it at exact Agent-round completion; same-provider failures fall back to the main model without blocking the conversation.
 - Slowed streamed Markdown to a readable typewriter cadence with bounded, gentle terminal catch-up instead of near-instant response expansion.
 
