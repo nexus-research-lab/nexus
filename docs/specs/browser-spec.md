@@ -42,7 +42,7 @@ runtime MCP browser
 - 扩展监听 `webNavigation.onCreatedNavigationTarget`；由已归属标签页创建的新标签页继承来源 Session 和标签组，并以 `browser.event/tab_created` 主动更新宿主活动页。事件丢失时，扩展侧 Session 租约会在下一次 `list_tabs` 中补回。
 - 扩展通过 `tab_updated`、`tab_activated` 与 `tab_removed` 事件同步受控页的导航、激活和关闭状态；宿主只接受当前 Session 已持有的不透明引用。
 - 新建标签页按 Session 放入独立 Chrome 标签组；`close_session` 只关闭该 Session 已归属的标签页。
-- 标签页租约绑定当前 runtime round。round 结束时，扩展关闭本轮 Agent 新建且未标记的临时页，并对借用的用户页或 `deliverable` 结果页解除调试连接；`handoff` 页保留 Session 归属，供下一轮继续控制。
+- 标签页租约绑定当前 runtime round。round 结束时，扩展关闭本轮 Agent 新建且未标记的临时页，并对借用的用户页或 `deliverable` 结果页解除调试连接；Agent 新建的 `deliverable` 结果页同时移出 Nexus 临时标签组，借用页保留用户原有分组；`handoff` 页保留 Session 归属，供下一轮继续控制。
 
 ## Browser action
 

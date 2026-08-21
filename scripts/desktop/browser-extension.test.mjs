@@ -10,6 +10,7 @@ const actionOrder = [];
 const cursorMessages = [];
 const detachedTabs = [];
 const removedTabs = [];
+const ungroupedTabs = [];
 let cursorReceiverAvailable = true;
 const chrome = {
   action: {
@@ -54,6 +55,7 @@ const chrome = {
       if (!cursorReceiverAvailable) throw new Error("No receiving end");
       return { ok: true };
     },
+    async ungroup(tabId) { ungroupedTabs.push(tabId); },
   },
   webNavigation: { onCreatedNavigationTarget: event },
 };
@@ -191,11 +193,13 @@ test("Browser round 收尾关闭临时页并释放用户页", async () => {
   controller.setIdentity("browser-a", "generation-a");
   detachedTabs.length = 0;
   removedTabs.length = 0;
+  ungroupedTabs.length = 0;
   for (const [tabId, owned, mark] of [
     [1, true, ""],
     [2, false, ""],
     [3, true, "deliverable"],
     [4, true, "handoff"],
+    [6, false, "deliverable"],
   ]) {
     controller.claimTab(tabId, { session: "session-a", round_id: "round-a" }, owned);
     controller.leaseByTab.get(tabId).mark = mark;
@@ -208,12 +212,14 @@ test("Browser round 收尾关闭临时页并释放用户页", async () => {
     round_id: "round-a",
   });
 
-  assert.equal(JSON.stringify(result), JSON.stringify({ closed: 1, released: 2, handoff: 1 }));
+  assert.equal(JSON.stringify(result), JSON.stringify({ closed: 1, released: 3, handoff: 1 }));
   assert.deepEqual(removedTabs, [1]);
-  assert.deepEqual(detachedTabs, [2, 3]);
+  assert.deepEqual(detachedTabs, [2, 3, 6]);
+  assert.deepEqual(ungroupedTabs, [3]);
   assert.equal(controller.leaseByTab.has(1), false);
   assert.equal(controller.leaseByTab.has(2), false);
   assert.equal(controller.leaseByTab.has(3), false);
+  assert.equal(controller.leaseByTab.has(6), false);
   assert.equal(controller.leaseByTab.get(4).roundID, "");
   assert.equal(controller.leaseByTab.get(4).mark, "");
   assert.equal(controller.leaseByTab.get(5).roundID, "round-b");
