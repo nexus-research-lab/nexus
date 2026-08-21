@@ -28,7 +28,6 @@ func (m workGraphEditorSessionManager) CreateWorkGraphEditorSession(
 	return m.dm.CreateTransientFork(ctx, dmsvc.TransientForkRequest{
 		SourceSessionKey:      request.SourceSessionKey,
 		TargetSessionKey:      request.TargetSessionKey,
-		TargetRoundID:         request.SourceRoundID,
 		Purpose:               protocol.SessionPurposeWorkGraphEditor,
 		Title:                 "调整草图",
 		DisplayAfterUnixMilli: request.DisplayAfterUnixMilli,

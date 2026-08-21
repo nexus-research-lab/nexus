@@ -253,9 +253,10 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
   `key` 是单 Agent 执行也必须保留的主路径，`collaboration` 只表示实际分工、交接、汇总、
   独立复核或整合边界。模型不可用、输出虚构节点、缺主路径/最终交付或语义无效时失败关闭；
 - `POST /workgraph/previews` 只生成两小时内有效的 owner/session-scoped 临时预览，不持久化；
-  面向用户的字段跟随请求界面语言；Slash 命令生成同时参考 owner 当前目录与固定保留名，优先使用
-  不重复的 1 至 3 个短词，最终仍由 service 校验冲突。用户可直接修改 Slash 命令、标题和描述，或进入从源 transcript
-  exact round boundary 创建的目录隐藏短期 DM fork；该分支复用标准消息、流式、Tool 与 Composer，
+  面向用户的字段跟随请求界面语言；Slash 命令生成同时参考 owner 当前目录与固定保留名，默认使用
+  一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不生成三个及以上词；若模型仍返回
+  多词候选，service 按语义核心词优先收敛到未占用的单词，并继续校验冲突。用户可直接修改 Slash 命令、标题和描述，或进入从源 transcript 最近一个已完成助手轮次
+  创建的目录隐藏短期 DM fork；该分支复用标准消息、流式、Tool 与 Composer，
   禁用 Skill、Connector 和 workspace 工具，只挂载 exact owner/session-scoped 草图修改 MCP。模型可按
   用户要求新增、删除、合并或拆分节点并修改 objective、父子结构与依赖，每次提交带 revision 的完整草图；
   服务端校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。取消丢弃分支，明确应用才替换

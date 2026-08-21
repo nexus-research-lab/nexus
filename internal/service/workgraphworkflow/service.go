@@ -80,7 +80,6 @@ type workflowPreviewRecord struct {
 	ownerUserID          string
 	preview              protocol.WorkGraphWorkflowPreview
 	sourceAgentID        string
-	sourceRoundID        string
 	sourceConversationID string
 	saveScheduled        bool
 }
@@ -194,7 +193,6 @@ func (s *Service) PreviewFromExecution(
 	}
 	s.storePreview(ownerUserID, preview, now, workflowPreviewSource{
 		AgentID:        sourceAgentID,
-		RoundID:        source.RootRoundID,
 		ConversationID: source.ConversationID,
 	})
 	result := cloneWorkflowPreview(preview)
@@ -503,7 +501,23 @@ func nearestSelectedDependencies(itemByID map[string]protocol.ExecutionWorkItemV
 }
 
 func (s *Service) availableSlashName(ctx context.Context, ownerUserID string, base string) (string, error) {
-	base = normalizeSlashName(base)
+	candidates := preferredSlashNameCandidates(base)
+	for _, candidate := range candidates {
+		if _, reserved := reservedWorkflowSlashNames[candidate]; reserved {
+			continue
+		}
+		existing, err := s.repository.GetBySlashName(ctx, ownerUserID, candidate)
+		if err != nil {
+			return "", err
+		}
+		if existing == nil {
+			return candidate, nil
+		}
+	}
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("%w: generated slash_name is invalid", ErrInvalidInput)
+	}
+	base = candidates[0]
 	if _, reserved := reservedWorkflowSlashNames[base]; reserved {
 		base = strings.TrimSuffix(base, "-") + "-graph"
 	}
@@ -532,9 +546,32 @@ func (s *Service) availableSlashName(ctx context.Context, ownerUserID string, ba
 	return "", fmt.Errorf("%w: /%s", ErrNameConflict, base)
 }
 
+func preferredSlashNameCandidates(value string) []string {
+	parts := strings.Split(normalizeSlashName(value), "-")
+	result := make([]string, 0, len(parts)+1)
+	seen := make(map[string]struct{}, len(parts)+1)
+	appendCandidate := func(candidate string) {
+		candidate = normalizeSlashName(candidate)
+		if !workflowSlashNamePattern.MatchString(candidate) {
+			return
+		}
+		if _, duplicate := seen[candidate]; duplicate {
+			return
+		}
+		seen[candidate] = struct{}{}
+		result = append(result, candidate)
+	}
+	for index := len(parts) - 1; index >= 0; index-- {
+		appendCandidate(parts[index])
+	}
+	if len(parts) > 1 {
+		appendCandidate(strings.Join(parts[len(parts)-2:], "-"))
+	}
+	return result
+}
+
 type workflowPreviewSource struct {
 	AgentID        string
-	RoundID        string
 	ConversationID string
 }
 
@@ -546,7 +583,6 @@ func (s *Service) storePreview(ownerUserID string, preview protocol.WorkGraphWor
 		ownerUserID:          ownerUserID,
 		preview:              cloneWorkflowPreview(preview),
 		sourceAgentID:        strings.TrimSpace(source.AgentID),
-		sourceRoundID:        strings.TrimSpace(source.RoundID),
 		sourceConversationID: strings.TrimSpace(source.ConversationID),
 	}
 }

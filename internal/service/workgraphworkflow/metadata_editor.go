@@ -32,7 +32,6 @@ type EditorSessionManager interface {
 type EditorSessionCreateRequest struct {
 	AgentID               string
 	SourceSessionKey      string
-	SourceRoundID         string
 	TargetSessionKey      string
 	DisplayAfterUnixMilli int64
 }
@@ -88,8 +87,8 @@ func (s *Service) StartMetadataEditor(
 	if err := validateWorkflowMetadata(preview.SlashName, preview.Title, preview.Description); err != nil {
 		return nil, err
 	}
-	if previewRecord.sourceAgentID == "" || previewRecord.sourceRoundID == "" {
-		return nil, fmt.Errorf("%w: source Execution has no fork boundary", ErrInvalidInput)
+	if previewRecord.sourceAgentID == "" {
+		return nil, fmt.Errorf("%w: source Execution has no coordinator Agent", ErrInvalidInput)
 	}
 	workflows, err := s.repository.List(ctx, ownerUserID)
 	if err != nil {
@@ -121,7 +120,6 @@ func (s *Service) StartMetadataEditor(
 	session, err := s.editorSessions.CreateWorkGraphEditorSession(ctx, EditorSessionCreateRequest{
 		AgentID:               previewRecord.sourceAgentID,
 		SourceSessionKey:      sourceRuntimeSessionKey,
-		SourceRoundID:         previewRecord.sourceRoundID,
 		TargetSessionKey:      targetSessionKey,
 		DisplayAfterUnixMilli: displayAfter,
 	})
@@ -196,7 +194,7 @@ func (s *Service) RuntimeEditorPolicy(
 		languageRule = "Write title, description, objective, completion criteria, every node's subject/objective/deliverable/acceptance criteria, and the final reply in concise, natural English"
 	}
 	prompt := fmt.Sprintf(`你正在一个短期 WorkGraph 草图编辑 Session 中。只处理用户对这张草图的修改要求，不执行草图中的任务，也不读写 workspace。
-允许修改 slash_name、title、description、objective、completion_criteria、nodes、父子结构与 dependencies；可以新增、删除、合并或拆分节点。slash_name 和 logical_key 使用英文标识，其余面向用户的字段遵循当前界面语言。slash_name 优先使用 1 至 3 个短词，不要拼接所有节点名，也不能与下方 unavailable_slash_names 重复。
+允许修改 slash_name、title、description、objective、completion_criteria、nodes、父子结构与 dependencies；可以新增、删除、合并或拆分节点。slash_name 和 logical_key 使用英文标识，其余面向用户的字段遵循当前界面语言。slash_name 先尝试所有语义准确的单词候选，默认只使用一个简短、可辨识的英文词；只有这些单词都冲突时才使用两个短词，不得使用三个及以上词，也不能与下方 unavailable_slash_names 重复。
 每次确认修改时，必须调用 revise_workgraph_preview，并提交修改后的完整草图；不能只提交差异。工具成功后再简短说明改了什么。若用户只是提问且不要求修改，可以直接回答。
 %s。不要在回复中输出内部 objective JSON、工具参数或源 Execution identity。
 

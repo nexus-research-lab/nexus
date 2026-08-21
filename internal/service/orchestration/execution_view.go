@@ -292,7 +292,6 @@ func projectExecutionView(
 		RoomID:                execution.RoomID,
 		ConversationID:        execution.ConversationID,
 		CoordinatorAgentID:    execution.CoordinatorAgentID,
-		RootRoundID:           execution.RootRoundID,
 		Objective:             execution.Objective,
 		CompletionCriteria:    slices.Clone(execution.CompletionCriteria),
 		GoalID:                execution.GoalID,
