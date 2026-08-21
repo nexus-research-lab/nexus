@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.
 - Made Browser accessibility refs stable within a page, returned compact snapshot diffs, and synchronized controlled-tab navigation, activation, and removal events.
 - Removed Heartbeat from the user-facing Automation surface while retaining the internal main-session event dispatcher used by scheduled tasks.
 

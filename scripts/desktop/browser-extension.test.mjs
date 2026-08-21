@@ -73,10 +73,16 @@ const context = vm.createContext({
   WebSocket: WebSocketStub,
 });
 vm.runInContext(
-  source + "\n;globalThis.__test = { BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES };",
+  source + "\n;globalThis.__test = { BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES, browserNameFromUserAgent };",
   context,
   { filename: testPath },
 );
+
+test("Browser 能识别 Chrome 与 Edge", () => {
+  const { browserNameFromUserAgent } = context.__test;
+  assert.equal(browserNameFromUserAgent("Mozilla/5.0 Chrome/151.0 Safari/537.36"), "Google Chrome");
+  assert.equal(browserNameFromUserAgent("Mozilla/5.0 Chrome/151.0 Edg/151.0"), "Microsoft Edge");
+});
 
 test("Browser 快照有界且 evaluate 等待 Promise", async () => {
   const { BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES } = context.__test;

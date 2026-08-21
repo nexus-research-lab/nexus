@@ -24,7 +24,8 @@ func TestHandleStatusReturnsDisconnectedState(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode status: %v", err)
 	}
-	if response.Code != http.StatusOK || payload.Data["connected"] != false {
+	if response.Code != http.StatusOK || payload.Data["connected"] != false ||
+		payload.Data["connection_state"] != "disconnected" {
 		t.Fatalf("status = %d, payload = %+v", response.Code, payload.Data)
 	}
 }

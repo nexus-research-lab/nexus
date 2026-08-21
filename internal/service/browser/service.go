@@ -1,5 +1,5 @@
-// INPUT: 已验证浏览器扩展连接、runtime Session identity 与浏览器动作参数。
-// OUTPUT: browser.command 请求、browser.result 回执及按 Session 保存的多标签页状态。
+// INPUT: 浏览器扩展握手状态、runtime Session identity 与浏览器动作参数。
+// OUTPUT: 连接诊断、browser.command 请求、browser.result 回执及按 Session 保存的多标签页状态。
 // POS: Browser 业务真相源；HTTP/WebSocket 与 MCP 只做 transport 适配。
 package browser
 
@@ -18,7 +18,7 @@ import (
 
 const (
 	// ProtocolVersion 是 Nexus 宿主与浏览器扩展的线协议版本。
-	ProtocolVersion = "4"
+	ProtocolVersion = "5"
 	// WebSocketSubprotocol 防止普通网页把内部端点当作通用 WebSocket 使用。
 	WebSocketSubprotocol = "nexus.browser.v1"
 	// BrowserExtensionID 来自 Nexus 扩展 manifest 的稳定公钥。
@@ -54,6 +54,7 @@ func SupportedActions() []string {
 type client struct {
 	id                uint64
 	extensionVersion  string
+	browserName       string
 	browserInstance   string
 	browserGeneration string
 	send              func(context.Context, any) error
@@ -78,10 +79,16 @@ type browserSession struct {
 	tabs         map[string]browserTab
 }
 
+type incompatibleExtension struct {
+	version  string
+	protocol string
+}
+
 // Service 管理唯一浏览器扩展连接和各 runtime Session 的多标签页状态。
 type Service struct {
 	mu              sync.Mutex
 	client          *client
+	incompatible    *incompatibleExtension
 	pending         map[string]chan commandResponse
 	sessions        map[string]browserSession
 	browserIdentity string
@@ -100,6 +107,7 @@ func NewService() *Service {
 // Attach 注册已完成握手的浏览器扩展；新连接会替换旧连接并终止旧请求。
 func (s *Service) Attach(
 	extensionVersion string,
+	browserName string,
 	browserInstance string,
 	browserGeneration string,
 	send func(context.Context, any) error,
@@ -114,6 +122,7 @@ func (s *Service) Attach(
 	next := &client{
 		id:                id,
 		extensionVersion:  strings.TrimSpace(extensionVersion),
+		browserName:       strings.TrimSpace(browserName),
 		browserInstance:   browserInstance,
 		browserGeneration: browserGeneration,
 		send:              send,
@@ -135,6 +144,7 @@ func (s *Service) Attach(
 	}
 	s.browserIdentity = nextIdentity
 	s.client = next
+	s.incompatible = nil
 	pending := s.takePendingLocked()
 	s.mu.Unlock()
 
@@ -143,6 +153,23 @@ func (s *Service) Attach(
 		previous.close()
 	}
 	return id, func() { s.Detach(id) }
+}
+
+// ObserveIncompatibleHandshake 记录可信扩展的协议不兼容状态，供设置页给出修复提示。
+func (s *Service) ObserveIncompatibleHandshake(extensionVersion string, protocolVersion string) {
+	protocolVersion = strings.TrimSpace(protocolVersion)
+	if s == nil || protocolVersion == "" || protocolVersion == ProtocolVersion {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.client != nil {
+		return
+	}
+	s.incompatible = &incompatibleExtension{
+		version:  strings.TrimSpace(extensionVersion),
+		protocol: protocolVersion,
+	}
 }
 
 // Detach 仅在连接仍是当前连接时注销，避免旧连接关闭误伤新连接。
@@ -393,6 +420,7 @@ func (s *Service) FinalizeRound(ctx context.Context, sessionKey string, roundID 
 func (s *Service) Status() map[string]any {
 	result := map[string]any{
 		"connected":        false,
+		"connection_state": "disconnected",
 		"protocol_version": ProtocolVersion,
 	}
 	if s == nil {
@@ -402,7 +430,13 @@ func (s *Service) Status() map[string]any {
 	defer s.mu.Unlock()
 	if s.client != nil && !s.closed {
 		result["connected"] = true
+		result["connection_state"] = "connected"
 		result["extension_version"] = s.client.extensionVersion
+		result["browser_name"] = s.client.browserName
+	} else if s.incompatible != nil && !s.closed {
+		result["connection_state"] = "incompatible"
+		result["observed_extension_version"] = s.incompatible.version
+		result["observed_protocol_version"] = s.incompatible.protocol
 	}
 	return result
 }

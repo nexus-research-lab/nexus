@@ -18,12 +18,18 @@ runtime MCP browser
 - `desktop/browser-extension` 是 Chromium Manifest V3 扩展，负责调用 Chrome API 与 Chrome DevTools Protocol。
 - `web/src/features/settings/browser` 只负责安装引导、连接状态与完整 CDP 开关，不承载浏览器数据或动作。
 
+## 安装与状态
+
+- 桌面构建把扩展放在应用资源目录；设置页不下载或复制第二份扩展。
+- 安装入口优先打开已安装的 Google Chrome，其次打开 Microsoft Edge 的扩展程序页面，并在 Finder 或 Explorer 中定位同一扩展目录。
+- 状态接口区分未连接、已连接和协议不兼容；不兼容握手会保留扩展版本与协议版本，成功连接后立即清除。
+
 ## 连接协议
 
 - WebSocket 路由固定为 `/nexus/v1/internal/browser/ws`，子协议为 `nexus.browser.v1`。
 - 扩展依次发送和接收 `browser.ready`、`browser.accepted`、`browser.command`、`browser.result`、`browser.event`、`browser.ping` 与 `browser.pong`。
 - Handler 只接受 manifest 固定 ID 对应的 `chrome-extension://` Origin。
-- `browser.ready` 携带稳定浏览器实例 ID 与当前扩展进程代次；代次变化时宿主立即废弃旧标签页引用。
+- `browser.ready` 携带浏览器名称、稳定浏览器实例 ID 与当前扩展进程代次；代次变化时宿主立即废弃旧标签页引用。
 - 同一时刻只有一个扩展连接；新连接替换旧连接并结束旧连接上的等待请求。
 
 ## Session 与标签页

@@ -1,5 +1,5 @@
 // INPUT: WebSocket 请求、固定 Nexus 扩展 Origin、browser.result 回执与 browser.event 生命周期事件。
-// OUTPUT: 已认证的 Browser 连接注册、回执投递及扩展事件转交。
+// OUTPUT: 已认证的 Browser 连接注册、协议不兼容诊断、回执投递及扩展事件转交。
 // POS: Browser transport 信任边界；不解释浏览器动作或保存 Session 状态。
 package browser
 
@@ -30,6 +30,7 @@ type wireMessage struct {
 	ID                string         `json:"id,omitempty"`
 	ProtocolVersion   string         `json:"protocol_version,omitempty"`
 	ExtensionVersion  string         `json:"extension_version,omitempty"`
+	BrowserName       string         `json:"browser_name,omitempty"`
 	BrowserInstance   string         `json:"browser_instance_id,omitempty"`
 	BrowserGeneration string         `json:"browser_generation,omitempty"`
 	Event             string         `json:"event,omitempty"`
@@ -88,6 +89,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	var ready wireMessage
 	err = wsjson.Read(readyCtx, connection, &ready)
 	readyCancel()
+	if err == nil && ready.Type == "browser.ready" && ready.ProtocolVersion != browsersvc.ProtocolVersion {
+		h.service.ObserveIncompatibleHandshake(ready.ExtensionVersion, ready.ProtocolVersion)
+	}
 	if err != nil || ready.Type != "browser.ready" ||
 		ready.ProtocolVersion != browsersvc.ProtocolVersion ||
 		strings.TrimSpace(ready.BrowserInstance) == "" ||
@@ -106,6 +110,7 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	}
 	clientID, detach := h.service.Attach(
 		ready.ExtensionVersion,
+		ready.BrowserName,
 		ready.BrowserInstance,
 		ready.BrowserGeneration,
 		send,

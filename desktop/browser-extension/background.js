@@ -1,4 +1,4 @@
-const PROTOCOL_VERSION = "4";
+const PROTOCOL_VERSION = "5";
 const SUBPROTOCOL = "nexus.browser.v1";
 const DEFAULT_ENDPOINTS = [
   "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws",
@@ -51,6 +51,10 @@ const PAPER_FORMATS = {
   a3: [11.69, 16.54],
   tabloid: [11, 17],
 };
+
+function browserNameFromUserAgent(userAgent) {
+  return /\bEdg\//.test(String(userAgent || "")) ? "Microsoft Edge" : "Google Chrome";
+}
 
 class BrowserController {
   constructor() {
@@ -2046,6 +2050,7 @@ class BrowserClient {
           type: "browser.ready",
           protocol_version: PROTOCOL_VERSION,
           extension_version: chrome.runtime.getManifest().version,
+          browser_name: browserNameFromUserAgent(globalThis.navigator?.userAgent),
           browser_instance_id: this.controller.browserInstanceID,
           browser_generation: this.controller.browserGeneration,
         }));

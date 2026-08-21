@@ -16,7 +16,7 @@ import (
 func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	service := NewService()
 	commands := make(chan map[string]any, 8)
-	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
 		commands <- payload.(map[string]any)
 		return nil
 	}, nil)
@@ -126,7 +126,7 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 	}
 
 	commands := make(chan map[string]any, 1)
-	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
 		commands <- payload.(map[string]any)
 		return nil
 	}, nil)
@@ -231,7 +231,7 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 func TestFinalizeRoundKeepsOnlyHandoffAndOtherRounds(t *testing.T) {
 	service := NewService()
 	commands := make(chan map[string]any, 1)
-	_, detach := service.Attach("0.5.0", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+	_, detach := service.Attach("0.5.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
 		commands <- payload.(map[string]any)
 		return nil
 	}, nil)
@@ -276,7 +276,7 @@ func TestFinalizeRoundKeepsOnlyHandoffAndOtherRounds(t *testing.T) {
 
 func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
 	service := NewService()
-	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(context.Context, any) error {
+	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(context.Context, any) error {
 		return nil
 	}, nil)
 	defer detach()
@@ -285,13 +285,35 @@ func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
 		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
 	}
 
-	_, detachNext := service.Attach("0.1.0", "browser-a", "generation-b", func(context.Context, any) error {
+	_, detachNext := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-b", func(context.Context, any) error {
 		return nil
 	}, nil)
 	defer detachNext()
 
 	if _, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "snapshot", nil, false); err == nil {
 		t.Fatal("扩展代次变化后不应继续使用旧标签页引用")
+	}
+}
+
+func TestStatusExplainsIncompatibleExtension(t *testing.T) {
+	service := NewService()
+	service.ObserveIncompatibleHandshake("0.6.0", "4")
+
+	status := service.Status()
+	if status["connection_state"] != "incompatible" ||
+		status["observed_extension_version"] != "0.6.0" ||
+		status["observed_protocol_version"] != "4" {
+		t.Fatalf("incompatible status = %+v", status)
+	}
+
+	_, detach := service.Attach("0.7.0", "Google Chrome", "browser-a", "generation-a", func(context.Context, any) error {
+		return nil
+	}, nil)
+	defer detach()
+	status = service.Status()
+	if status["connection_state"] != "connected" || status["extension_version"] != "0.7.0" ||
+		status["browser_name"] != "Google Chrome" {
+		t.Fatalf("connected status = %+v", status)
 	}
 }
 
