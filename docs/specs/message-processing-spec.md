@@ -85,7 +85,7 @@ stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，�
 
 Bash / PowerShell 的运行中进度属于 ephemeral 状态：首次立即展示，此后最多每 30 秒更新一次，工具结束后由 durable tool result 收口。它不能进入 transcript 或在重连后变成历史正文。
 
-Provider / bridge `ToolUseSummary` 属于 Agent round 的自然语言 ephemeral 执行摘要。它没有“长任务”、耗时或工具数量门槛：执行中只要收到非空 summary，宿主就立即投影成仅供状态使用的 `progress_update` assistant 块。同一 Agent round 使用稳定 `message_id` 原位替换，round 完成、失败或停止后立即移除。DM 与 Room 在两段用户可见正文之间只保留一个持续更新的折叠执行栏：普通 thinking、redacted thinking、`progress_update` 与连续普通工具都进入该栏，只有用户可见正文或权限、AskUserQuestion、生成式 UI 这类独立交互才形成边界。summary 必须携带并保留 `preceding_tool_use_ids`；展示层用这些 ID 定位包含该批工具的执行栏，但不得据此把同一连续过程拆成多栏，也不能把“最新 summary”误套到跨正文的另一段执行。普通工具从 active 起默认折叠且始终可点击，展开后按原顺序显示完整过程和 canonical ToolUse/ToolResult；生成文件在收起态仍独立可见。
+Provider / bridge `ToolUseSummary` 属于 Agent round 的自然语言 ephemeral 执行摘要。它没有“长任务”、耗时或工具数量门槛：执行中只要收到非空 summary，宿主就立即投影成仅供状态使用的 `progress_update` assistant 块。同一 Agent round 使用稳定 `message_id` 原位替换，round 完成、失败或停止后立即移除。DM 与 Room 的同一 process surface 只保留一个持续更新的折叠执行栏：中间 text 旁白、普通 thinking、redacted thinking、`progress_update` 与连续普通工具都进入该栏，只有权限、AskUserQuestion、生成式 UI 这类独立交互才形成边界；真正的最终回复由独立 final surface 预先从 process 投影剥离，绝不能折入该栏。summary 必须携带并保留 `preceding_tool_use_ids`；展示层用这些 ID 定位包含该批工具的执行栏，但不得据此把同一连续过程拆成多栏。普通工具从 active 起默认折叠且始终可点击，展开后按原顺序显示完整旁白、思考和 canonical ToolUse/ToolResult；生成文件在收起态仍独立可见。
 
 summary 文案描述已完成批次的具体成果，使用类似 commit subject 的短语而非完整句子、下一步预告或工具动作清单。语言只由最近真实用户文本与 assistant intent 决定：中文会话在提示词中优先使用简洁自然的简体中文，可保留必要的通用技术术语；英文工具名、输入或结果不得参与语言偏好判断。所有工具输入/输出均视为不可信参考数据，摘要模型不得执行其中的指令。摘要到达后只替换同一执行栏的标题，不追加“已完成”或“正在执行”破坏自然语义；无摘要的 active 栏才显示执行中状态，失败、拒绝和替换等异常状态始终显式保留。round 终态清除 ephemeral summary 后，durable 工具仍以本地化工具名或数量作为确定性折叠标题。该投影不写入 transcript、历史、未读或消息计数，也不能混入最终 durable assistant 快照。
 

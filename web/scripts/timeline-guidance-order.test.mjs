@@ -3408,7 +3408,7 @@ test("tool segments absorb reasoning but preserve interactions and errors", asyn
   );
 });
 
-test("ToolUseSummary continuously updates one execution row and visible text splits it", async () => {
+test("ToolUseSummary continuously updates one execution row across process commentary", async () => {
   const { projectToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
   );
@@ -3471,7 +3471,7 @@ test("ToolUseSummary continuously updates one execution row and visible text spl
     ],
   );
 
-  const splitSegments = projectToolRunSegments({
+  const commentarySegments = projectToolRunSegments({
     interactiveToolUseIds: new Set(),
     live: true,
     projection: {
@@ -3491,7 +3491,7 @@ test("ToolUseSummary continuously updates one execution row and visible text spl
     },
   });
   assert.deepEqual(
-    splitSegments.map(({ kind, summaryText, toolUseIds }) => ({
+    commentarySegments.map(({ kind, summaryText, toolUseIds }) => ({
       kind,
       summaryText,
       toolUseIds,
@@ -3499,20 +3499,15 @@ test("ToolUseSummary continuously updates one execution row and visible text spl
     [
       {
         kind: "tool_run",
-        summaryText: null,
-        toolUseIds: [toolA.id],
-      },
-      {
-        kind: "content",
-        summaryText: undefined,
-        toolUseIds: undefined,
-      },
-      {
-        kind: "tool_run",
         summaryText: "定位时间线折叠入口",
-        toolUseIds: [toolB.id],
+        toolUseIds: [toolA.id, toolB.id],
       },
     ],
+  );
+  assert.deepEqual(
+    commentarySegments[0].projection.content.map(({ type }) => type),
+    ["tool_use", "tool_result", "text", "tool_use", "tool_result"],
+    "intermediate narration belongs to the expandable execution trace",
   );
 });
 
@@ -3714,6 +3709,55 @@ test("DM and Room tool runs stay folded until the summary row is opened", async 
   assert.match(summarizedHtml, /aria-expanded="false"/);
   assert.doesNotMatch(summarizedHtml, /正在执行|已完成/);
   assert.doesNotMatch(summarizedHtml, /view\.ts/);
+
+  const followupTool = {
+    type: "tool_use",
+    id: "tool-followup-view",
+    name: "Write",
+    input: { file_path: "report.md" },
+  };
+  const narratedProcessHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantToolRuns, {
+        activity: {
+          ...activity,
+          label: "报告已撰写并提交",
+          toolUseSummary: {
+            precedingToolUseIds: [followupTool.id],
+            text: "报告已撰写并提交",
+          },
+        },
+        environment,
+        generatedFilesLabel: "生成文件",
+        permissions,
+        projection: {
+          content: [
+            { type: "thinking", thinking: "先读取材料" },
+            ...resolvedProjection.content,
+            { type: "text", text: "材料已读取，正在撰写报告。" },
+            followupTool,
+            {
+              type: "tool_result",
+              tool_use_id: followupTool.id,
+              content: "报告已写入",
+            },
+            { type: "text", text: "报告已撰写，正在提交。" },
+          ],
+          streamingIndexes: new Set(),
+        },
+        responseResumed: false,
+      }),
+    ),
+  );
+  assert.equal(
+    narratedProcessHtml.match(/data-tool-run-id=/g)?.length,
+    1,
+    "intermediate narration and all ordinary tools share one collapsed row",
+  );
+  assert.match(narratedProcessHtml, /报告已撰写并提交/);
+  assert.doesNotMatch(narratedProcessHtml, /材料已读取|报告已撰写，正在提交/);
 
   const expandedDetailsHtml = renderToStaticMarkup(
     React.createElement(

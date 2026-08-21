@@ -1,6 +1,6 @@
 /**
  * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
- * OUTPUT: 以正文为边界持续更新的单行执行摘要；点开后显示完整过程与调用，生成物继续外露。
+ * OUTPUT: 覆盖整段 process 的单行执行摘要；点开后显示完整旁白、思考与调用，生成物继续外露。
  * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
  */
 "use client";

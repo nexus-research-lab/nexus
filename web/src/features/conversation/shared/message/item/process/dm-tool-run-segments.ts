@@ -1,6 +1,6 @@
 /**
  * INPUT: DM/Room live 过程内容、流式索引、ToolUseSummary 与当前人工交互工具身份。
- * OUTPUT: 以正文为边界、首个 tool_use.id 稳定标识的连续执行段，以及保持原顺序的独立内容段。
+ * OUTPUT: 以独立交互为边界、首个 tool_use.id 稳定标识的连续执行段，以及没有工具承接的独立内容段。
  * POS: 会话 live 过程压缩的纯投影边界；摘要持续更新包含其 preceding_tool_use_ids 的执行段，权限动作保持独立。
  */
 import type {
@@ -305,7 +305,8 @@ function isTrailingToolSupport(block: ContentBlock): boolean {
 
 function isCollapsibleProcessBlock(block: ContentBlock): boolean {
   return (
-    block.type === "thinking"
+    block.type === "text"
+    || block.type === "thinking"
     || block.type === "redacted_thinking"
     || block.type === "progress_update"
   );
