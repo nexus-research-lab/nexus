@@ -143,11 +143,11 @@ func TestTestProviderAutoSelectsTestedModel(t *testing.T) {
 	}
 }
 
-func TestTestModelAutoSelectsTestedModel(t *testing.T) {
+func TestTestModelAutoSelectsNXSDefaultModel(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/v1/messages" {
+		if request.URL.Path != "/chat/completions" {
 			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
 		}
 		writer.WriteHeader(http.StatusOK)
@@ -158,7 +158,7 @@ func TestTestModelAutoSelectsTestedModel(t *testing.T) {
 	record, err := service.Create(ctx, CreateInput{
 		Provider:  "test-model-default",
 		PresetKey: presetCustom,
-		APIFormat: APIFormatAnthropicMessages,
+		APIFormat: APIFormatChatCompletions,
 		AuthToken: "model-key",
 		BaseURL:   server.URL,
 		Enabled:   true,
@@ -173,7 +173,7 @@ func TestTestModelAutoSelectsTestedModel(t *testing.T) {
 	if !result.Success || result.Model != "manual-model" {
 		t.Fatalf("模型测试结果不正确: %+v", result)
 	}
-	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, record.Provider, "")
+	runtimeConfig, err := service.ResolveRuntimeConfigForRuntime(ctx, "", "", "nxs")
 	if err != nil {
 		t.Fatalf("测试模型成功后应可解析 runtime config: %v", err)
 	}
