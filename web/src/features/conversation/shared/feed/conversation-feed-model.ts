@@ -28,6 +28,7 @@ export interface ConversationRoundRenderer {
   compact?: boolean;
   currentAgentAvatar?: string | null;
   currentAgentName: string | null;
+  historyDividerLabel?: string;
   onEditLastUserMessage?: (messageId: string, newContent: string) => void;
   onForkRound?: (roundId: string) => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;

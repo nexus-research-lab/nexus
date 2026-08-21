@@ -1,6 +1,7 @@
 package echo
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,22 @@ func TestParseGateDecision(t *testing.T) {
 	for _, raw := range invalid {
 		if _, err = parseGateDecision(raw); err == nil {
 			t.Fatalf("invalid decision was accepted: %s", raw)
+		}
+	}
+}
+
+func TestBuildFollowUpPromptRequiresNaturalReentry(t *testing.T) {
+	t.Parallel()
+	prompt := buildFollowUpPrompt("确认部署窗口")
+	for _, want := range []string{
+		"确认部署窗口",
+		"自然承接上文",
+		"具体的新价值",
+		"不要固定套用模板",
+		echoNoReplyMarker,
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("Echo prompt 缺少 %q: %s", want, prompt)
 		}
 	}
 }

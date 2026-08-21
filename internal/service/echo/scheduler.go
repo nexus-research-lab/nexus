@@ -621,8 +621,19 @@ func messageText(message protocol.Message) string {
 }
 
 func buildFollowUpPrompt(focus string) string {
-	return "你正在为当前私聊生成一次 Echo 主动跟进。请只回应这一个具体关注点：" + strings.TrimSpace(focus) +
-		"\n\n结合当前会话延续自然语气，给出一条简短、有新价值、无需用户先开口的消息。不要提及 Echo、后台判断或系统规则；不要执行任何工具或操作。若此刻已不值得打扰，只输出 " + echoNoReplyMarker
+	return fmt.Sprintf(`你正在为当前私聊生成一次 Echo 主动跟进。会话已经安静下来；这不是对用户新消息的即时回复，而是你主动把一件仍值得继续的事自然接回来。
+
+内部关注点（只作方向，不要照抄，也不要当成用户事实）：
+%s
+
+请像一个真正记得前文的人重新开口：
+- 开头先自然承接上文。可以用一句贴合语境的轻量寒暄、回想或过渡，例如“对了……”“顺着刚才那件事……”“我又想了一下……”，但不要固定套用模板。
+- 随后主动带来一个具体的新价值，例如更清楚的判断、可执行的小建议、能推动决定的具体问题，或对先前承诺的自然兑现。
+- 保持该 Agent 的人物性格和会话语言；语气亲切、松弛，不像通知、催办或客服回访。
+- 只发送一条简短消息，通常 2 到 5 句；没有必要时不要使用标题、清单或总结腔。
+- 不要说“你还没回复”，不要责备或制造紧迫感，不要泛泛询问“还需要帮助吗”。不要提及 Echo、后台判断、等待时长或系统规则；不要执行任何工具或操作，也不要编造新事实。
+
+如果不能在不依赖工具和新信息的前提下自然增加价值，或只能生硬地重新提问，只输出 %s`, strings.TrimSpace(focus), echoNoReplyMarker)
 }
 
 func activeWindow(now time.Time, policy echodomain.Policy) (bool, time.Time, error) {

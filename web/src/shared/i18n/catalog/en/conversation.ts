@@ -581,6 +581,7 @@ export const enConversationMessages = {
   "message.assistant_fallback": "Collaborator",
   "message.scheduled_task": "Scheduled task",
   "message.echo": "Echo",
+  "message.history_above": "Earlier messages",
   "message.copy_reply": "Copy reply",
   "message.fork_to_new_chat": "Branch in new chat",
   "message.forking": "Creating branch",
