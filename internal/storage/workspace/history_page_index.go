@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	historyPageIndexVersion      = 3
+	historyPageIndexVersion      = 4
 	historyPageEdgeHashBytes     = 4 * 1024
 	historyPageBuildAttempts     = 2
 	historyPageRebuildTimeout    = 15 * time.Minute
