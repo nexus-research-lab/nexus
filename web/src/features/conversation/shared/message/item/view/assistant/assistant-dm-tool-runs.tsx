@@ -190,21 +190,13 @@ function ToolRun({
       || segment.toolUseIds.length > closedToolUseCount
     )
   );
-  const phase = active
-    ? "active"
-    : segment.errorCount > 0
-    ? "error"
-    : segment.rejectedCount > 0
-    ? "rejected"
-    : segment.supersededCount > 0
-    ? "superseded"
-    : "complete";
+  const phase = active ? "active" : segment.phase;
   const expanded = expansion.isOpen;
   const artifacts = useWorkspaceFileArtifactsFromContent(
     segment.projection.content,
   );
   const contentId = `${segment.id}-content`;
-  const error = segment.errorCount > 0 || segment.rejectedCount > 0;
+  const warning = phase === "error" || phase === "rejected";
   const summary = formatToolRunSummary(
     segment,
     phase,
@@ -227,7 +219,7 @@ function ToolRun({
             active
               ? "text-primary hover:text-primary"
               : "text-(--text-muted) hover:text-(--text-strong)",
-            error && "text-rose-500 hover:text-rose-600",
+            warning && "text-rose-500 hover:text-rose-600",
           )}
           data-timeline-anchor
           data-timeline-anchor-mode="box"
@@ -307,7 +299,7 @@ function formatToolRunSummary(
   ) {
     parts.push(t(statusKey));
   }
-  if (segment.errorCount > 0) {
+  if (phase === "error" && segment.errorCount > 0) {
     const errorKey = segment.errorCount === 1
       ? "message.tool_run_error_one"
       : "message.tool_run_error_other";

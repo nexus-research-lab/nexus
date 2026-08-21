@@ -3637,6 +3637,35 @@ test("DM and Room tool runs stay folded until the summary row is opened", async 
     "completed tool details stay out of the live reading path until expanded",
   );
 
+  const recoveredTool = {
+    type: "tool_use",
+    id: "tool-recovered-view",
+    name: "Grep",
+    input: { pattern: "fallback" },
+  };
+  const recoveredHtml = renderDm(true, {
+    content: [
+      tool,
+      {
+        type: "tool_result",
+        tool_use_id: tool.id,
+        content: "temporary failure",
+        is_error: true,
+      },
+      { type: "thinking", thinking: "换一种方法继续" },
+      recoveredTool,
+      {
+        type: "tool_result",
+        tool_use_id: recoveredTool.id,
+        content: "recovered",
+      },
+    ],
+    streamingIndexes: new Set(),
+  });
+  assert.match(recoveredHtml, /data-tool-run-phase="complete"/);
+  assert.match(recoveredHtml, /执行过程/);
+  assert.doesNotMatch(recoveredHtml, /异常|执行失败|text-rose-500/);
+
   const unresolvedResponseHtml = renderDm(true, unresolvedProjection);
   assert.match(unresolvedResponseHtml, /data-tool-run-phase="active"/);
   assert.match(unresolvedResponseHtml, /aria-expanded="false"/);
