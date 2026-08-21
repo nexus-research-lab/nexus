@@ -16,11 +16,10 @@
         </div>
       </header>
 
-      <p class="hint">保持 Nexus Desktop 运行，扩展会自动完成连接。</p>
+      <p id="hint" class="hint">保持 Nexus Desktop 运行，扩展会自动完成连接。</p>
 
       <div class="primary-actions">
-        <button id="connect" class="primary">连接 Nexus</button>
-        <button id="disconnect">断开</button>
+        <button id="connect" class="primary">立即重试</button>
       </div>
       <details>
         <summary>高级设置</summary>
@@ -32,9 +31,11 @@
             <button id="test">测试地址</button>
             <button id="reset">恢复默认</button>
           </div>
+          <button id="disconnect" class="danger">暂停自动连接</button>
         </div>
       </details>
       <p id="message" role="status" aria-live="polite"></p>
+      <p class="version">版本 <span id="version">—</span></p>
     </main>
     <script src="popup.js"></script>
   </body>

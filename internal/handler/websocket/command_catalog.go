@@ -192,6 +192,7 @@ func projectCommandCatalog(
 ) protocol.CommandCatalogData {
 	commands := projectHostCommands(hostCommands)
 	for _, productCommand := range []protocol.CommandDescriptor{
+		slashcommandsvc.BrowserCommandDescriptor(),
 		slashcommandsvc.VisualizeCommandDescriptor(),
 		slashcommandsvc.WorkGraphCommandDescriptor(),
 	} {
