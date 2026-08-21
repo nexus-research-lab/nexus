@@ -66,6 +66,7 @@ export function AssistantMessageContent({
         environment={environment}
         final={final}
         permissions={permissions}
+        showTrailingActivity={!direct.visible}
       />
       <RoomResultTrailingActivity
         activity={activity}
@@ -185,11 +186,13 @@ function AssistantFinalContent({
   environment,
   final,
   permissions,
+  showTrailingActivity,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
   permissions: AssistantPermissionState;
+  showTrailingActivity: boolean;
 }) {
   if (!final.visible) {
     return null;
@@ -207,6 +210,7 @@ function AssistantFinalContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
+      showTrailingActivity={showTrailingActivity}
       streamingBlockIndexes={final.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}

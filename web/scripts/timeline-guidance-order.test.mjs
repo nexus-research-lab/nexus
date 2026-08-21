@@ -3764,6 +3764,49 @@ test("DM and Room tool runs stay folded until the summary row is opened", async 
   assert.doesNotMatch(summarizedHtml, /正在执行|已完成/);
   assert.doesNotMatch(summarizedHtml, /view\.ts/);
 
+  const combinedSummaryHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantMessageContent, {
+        activity: {
+          ...activity,
+          label: "核对视图实现",
+          toolUseSummary: {
+            precedingToolUseIds: [tool.id],
+            text: "核对视图实现",
+          },
+        },
+        direct: { projection: unresolvedProjection, visible: true },
+        environment,
+        final: {
+          content: [{ type: "text", text: "材料齐了，正在整理报告。" }],
+          isStreaming: true,
+          mentions: [],
+          streamingIndexes: new Set([0]),
+          visible: true,
+        },
+        permissions: { ...permissions, owner: "composer" },
+        process: {
+          anchorRef: { current: null },
+          expanded: false,
+          projection: { content: [], streamingIndexes: new Set() },
+          summary: "",
+          toggle: () => {},
+          visible: false,
+        },
+        showMaxTokensWarning: false,
+      }),
+    ),
+  );
+  assert.equal(
+    combinedSummaryHtml.match(/核对视图实现/g)?.length,
+    1,
+    "ToolUseSummary must have one visible owner when final text is also streaming",
+  );
+  assert.match(combinedSummaryHtml, /材料齐了，正在整理报告。/);
+  assert.doesNotMatch(combinedSummaryHtml, /message-activity-label-flow/);
+
   const followupTool = {
     type: "tool_use",
     id: "tool-followup-view",
