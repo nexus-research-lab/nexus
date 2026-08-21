@@ -68,6 +68,7 @@ interface BuildDmChatPanelViewModelOptions {
   };
   goal: DmGoalProjection;
   goalScopeLabel: string;
+  historyDividerLabel: string;
   onEditLastUserMessage: (messageId: string, content: string) => void;
   onForkConversation?: (roundId: string) => Promise<void>;
   onGoalChange: (goal: Goal | null) => void;
@@ -91,6 +92,7 @@ export function buildDmChatPanelViewModel({
   execution,
   goal,
   goalScopeLabel,
+  historyDividerLabel,
   onEditLastUserMessage,
   onForkConversation,
   onGoalChange,
@@ -122,6 +124,7 @@ export function buildDmChatPanelViewModel({
       currentAgentAvatar,
       currentAgentName,
       environment,
+      historyDividerLabel,
       onEditLastUserMessage,
       onForkConversation,
       onOpenAgentContact,
@@ -199,6 +202,7 @@ function buildDmFeedModel({
   currentAgentAvatar,
   currentAgentName,
   environment,
+  historyDividerLabel,
   onEditLastUserMessage,
   onForkConversation,
   onOpenAgentContact,
@@ -211,6 +215,7 @@ function buildDmFeedModel({
   | "currentAgentAvatar"
   | "currentAgentName"
   | "environment"
+  | "historyDividerLabel"
   | "onEditLastUserMessage"
   | "onForkConversation"
   | "onOpenAgentContact"
@@ -235,6 +240,7 @@ function buildDmFeedModel({
     renderer: {
       currentAgentAvatar,
       currentAgentName,
+      historyDividerLabel,
       onEditLastUserMessage,
       onForkRound: onForkConversation,
       onOpenAgentContact,

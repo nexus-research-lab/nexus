@@ -286,9 +286,11 @@ dm.Request{
 }
 ```
 
-隐藏输入只告诉 Agent：这是一次由系统触发的 Echo 候选，不是用户新消息；请基于真实 Session 历史写至多一条简短跟进。如果重新阅读后已经不值得发送，返回专用控制标记 `<nexus_echo_no_reply/>`。
+隐藏输入告诉 Agent：这是一次由系统触发的 Echo 候选，不是用户新消息，也不是对上一条消息的即时回答。Agent 应像真正记得前文的人自然重新开口，先用贴合语境的轻量寒暄、回想或过渡承接上文，再主动带来一个具体的新价值，例如更清楚的判断、可执行的小建议、能推动决定的问题或对先前承诺的兑现。开头可以参考“对了……”“顺着刚才那件事……”“我又想了一下……”的语感，但不得固定套用模板。
 
-最终措辞由原 Agent runtime 生成，保留 persona、模型、上下文和正常 Markdown 能力。Gate 的 `focus` 只是内部聚焦提示，不能被当作用户事实。
+跟进应保持原 Agent 的人物性格和会话语言，通常只写 2 到 5 句，不使用无必要的标题、清单或总结腔。不得说“你还没回复”、责备用户、制造紧迫感、泛泛询问“还需要帮助吗”，也不得虚构等待时长、新事实或用户意图。Gate 的 `focus` 只是内部方向，不能照抄或当作用户事实。如果重新阅读后无法自然增加价值、只能生硬重复问题或已经不值得发送，返回专用控制标记 `<nexus_echo_no_reply/>`。
+
+最终措辞由原 Agent runtime 生成，保留 persona、模型、上下文和正常 Markdown 能力；Gate 只负责是否发送与确定内部方向，不代写可见消息。
 
 ### 11.2 Message-only policy
 
@@ -341,7 +343,7 @@ Echo assistant 输出不能边生成边显示。DM runtime 应捕获本 round �
 
 `HiddenFromUser` 只控制 Nexus 的可见历史投影，不代表该轮是无状态的。DM service 会先持久化隐藏 round marker，runtime 再把隐藏 user turn 与生成的 assistant turn 写入原 Session transcript。成功投递后的真实角色顺序是 `... U-A-U_echo-A_echo-U_next-A_next ...`；界面隐藏 `U_echo`，所以用户看到的是 `... U-A-A_echo-U_next-A_next ...`。后续 turn 会继续携带这组 runtime 历史。
 
-当前 runtime 合同还不能把一个已开始的 turn 按最终准入结果原子提交或丢弃。因此 no-reply 会在 runtime transcript 中留下内部 `U_echo-A_no_reply`；若用户在 assistant 产生前打断，可能只留下尾部 `U_echo`，NXS 会在下一次 provider 请求中把相邻 user 内容合并。可见历史不会泄漏这些内容，但“不可见”不等于“不进入后续模型上下文”。生产收口前需要补齐 transcript 的 commit/discard 语义：只有 delivered Echo 保留完整 `U_echo-A_echo`，suppressed/cancelled Echo 必须同时从后续上下文丢弃。不能只删除 Nexus overlay marker，也不能依赖相邻角色归一化掩盖语义污染。
+DM service 为隐藏输入指定稳定 runtime UUID，并记录该 round 流出的全部消息 UUID。最终准入成功时保留完整 `U_echo-A_echo`；`suppressed / cancelled / failed` 则在派发下一条输入前通过 runtime control 同时删除隐藏输入及其输出。因此 no-reply、生成后被新活动取消和 assistant 产生前中断都不会进入后续模型上下文。不能只删除 Nexus overlay marker，也不能依赖相邻角色归一化掩盖语义污染。
 
 ## 12. 幂等、恢复与删除
 
@@ -469,6 +471,7 @@ web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 - 开启 Echo 后，符合条件的成功 DM round 只创建一个 candidate；
 - gate `skip`、no-reply 和异常都不会出现空消息或用户气泡；
 - delivered 消息来自原 Agent、原 Session，并显示一个 `Echo` 标识；
+- delivered 消息先自然承接原会话，再提供一个具体新价值，不表现为催办、客服回访或突兀追问；
 - 关闭全局 Echo、删除 Session 后不再投递；
 - 活跃时段、cooldown、每日上限和跨午夜窗口行为确定；
 - Echo 不调用任何工具，也不会产生权限请求。

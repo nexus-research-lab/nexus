@@ -33,6 +33,10 @@ export function ConversationRound({
     state.messages,
     renderer.workspaceAgentId,
   );
+  const showHistoryDivider = state.index > 0 && state.messages.some(
+    (message) => message.role === "assistant"
+      && message.metadata?.source === "echo",
+  );
 
   return (
     <div
@@ -43,6 +47,19 @@ export function ConversationRound({
       data-conversation-round-index={state.index}
       data-conversation-round-loaded={state.isLoaded ? "true" : "false"}
     >
+      {showHistoryDivider ? (
+        <div
+          aria-label={renderer.historyDividerLabel}
+          className="flex items-center gap-3 px-2 pb-2 pt-1 text-[11px] font-medium text-(--text-soft)"
+          role="separator"
+        >
+          <span className="h-px flex-1 bg-(--content-divider-color)" />
+          {renderer.historyDividerLabel ? (
+            <span className="shrink-0">{renderer.historyDividerLabel}</span>
+          ) : null}
+          <span className="h-px flex-1 bg-(--content-divider-color)" />
+        </div>
+      ) : null}
       {state.isLoaded ? (
         <MessageItem
           animateEntry={false}

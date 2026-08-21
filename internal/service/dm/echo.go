@@ -11,6 +11,7 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
 
@@ -90,11 +91,11 @@ func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) 
 	message, admitted, err := hooks.Admit(context.Background(), candidate)
 	if err != nil {
 		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusFailed, Error: err})
-		r.finishDeferredRuntime()
+		r.finishDeferredRuntime(false)
 		return
 	}
 	if !admitted {
-		r.finishDeferredRuntime()
+		r.finishDeferredRuntime(false)
 		return
 	}
 	if protocol.MessageRole(message) != "assistant" {
@@ -109,12 +110,12 @@ func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) 
 	} else {
 		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusFailed, Error: err})
 	}
-	r.finishDeferredRuntime()
+	r.finishDeferredRuntime(err == nil)
 }
 
 func (r *roundRunner) finishDeferredFailure(status string, err error) {
 	r.completeDeferredAssistant(DeferredAssistantOutcome{Status: status, Error: err})
-	r.finishDeferredRuntime()
+	r.finishDeferredRuntime(false)
 }
 
 func (r *roundRunner) completeDeferredAssistant(outcome DeferredAssistantOutcome) {
@@ -124,10 +125,36 @@ func (r *roundRunner) completeDeferredAssistant(outcome DeferredAssistantOutcome
 	r.deferredAssistant.Complete(context.Background(), outcome)
 }
 
-func (r *roundRunner) finishDeferredRuntime() {
+func (r *roundRunner) finishDeferredRuntime(preserveTranscript bool) {
+	if !preserveTranscript {
+		if err := r.discardDeferredRuntimeMessages(); err != nil {
+			r.service.loggerFor(context.Background()).Error("删除未投递后台 assistant runtime 历史失败",
+				"session_key", r.sessionKey,
+				"round_id", r.roundID,
+				"err", err,
+			)
+		}
+	}
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.refreshSessionMetaAfterRoundFinished()
 	r.dispatchNextInputQueueItem()
+}
+
+func (r *roundRunner) discardDeferredRuntimeMessages() error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+	messageUUIDs := make([]string, 0, len(r.deferredRuntimeMessageUUIDs)+1)
+	if uuid := strings.TrimSpace(r.userMessageID); uuid != "" {
+		messageUUIDs = append(messageUUIDs, uuid)
+	}
+	messageUUIDs = append(messageUUIDs, r.deferredRuntimeMessageUUIDs...)
+	if len(messageUUIDs) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	return r.client.RemoveMessages(ctx, messageUUIDs)
 }
 
 func (r *roundRunner) broadcastDeferredAssistant(message protocol.Message) {
