@@ -1,6 +1,6 @@
-// INPUT: Execution operation 的模型可见 JSON 参数；Plan 通过 document string、Goal binding 标量与 sealed proposal reference 传输。
+// INPUT: Execution operation 的模型可见 JSON 参数；Plan 通过 document string/Goal intent 与零输入 host-bound commit 传输。
 // OUTPUT: 严格解码且不含 command_id/snapshot_revision/runtime identity 的 typed semantic intent。
-// POS: command schema 与 service command 之间的无权限输入层；跨 Provider 传输后由领域层复核完整图。
+// POS: command schema 与 service command 之间的无权限输入层；legacy proposal reference 只能匹配宿主 binding，不能选择对象。
 package operation
 
 import (
@@ -18,8 +18,8 @@ type preparePlanExecutionInput struct {
 }
 
 type planExecutionInput struct {
-	ProposalID     string `json:"proposal_id"`
-	ProposalDigest string `json:"proposal_digest"`
+	ProposalID     string `json:"proposal_id,omitempty"`
+	ProposalDigest string `json:"proposal_digest,omitempty"`
 }
 
 type distillWorkflowInput struct {

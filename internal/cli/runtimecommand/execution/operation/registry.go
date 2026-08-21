@@ -19,7 +19,7 @@ func BuildAll(
 	operations := []runtimecommand.Operation{
 		getExecution(svc, sctx),
 		preparePlanExecution(svc, sctx, planGuard),
-		planExecution(svc, sctx, planGuard),
+		planExecution(svc, sctx),
 		abandonExecution(svc, sctx),
 		assignWork(svc, sctx),
 		submitWork(svc, sctx),
