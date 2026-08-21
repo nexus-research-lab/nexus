@@ -65,6 +65,9 @@ export function hasRoomAgentExecutionDetails(
       if (block.type === "thinking") {
         return Boolean(stripRoomControlMarkers(block.thinking));
       }
+      if (block.type === "progress_update") {
+        return false;
+      }
       return true;
     },
   ));
@@ -182,6 +185,10 @@ function resolveLiveMessageActivity(
     }
     if (block.type === "task_progress") {
       return resolveProgressActivityState(block);
+    }
+    if (block.type === "progress_update" && block.text.trim()) {
+      // 文案由共享 MessageItem 投影到这一行；这里保留活动图标与布局身份。
+      return "thinking";
     }
     if (block.type === "thinking" && block.thinking.trim()) {
       return "thinking";

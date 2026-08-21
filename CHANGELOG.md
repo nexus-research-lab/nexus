@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added model-generated first-conversation greetings for user-opened Agent DMs and new Rooms, with a dedicated Nexus main-Agent introduction, explicit Room-host identity, safe no-host `@` guidance, background-to-default model fallback, hidden greeting-only model labels, and deterministic failure copy.
 - Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” locale-aware default-background-model structure extraction, single-word-first non-conflicting Slash naming, editable metadata and graph structure through a constrained temporary DM fork at the latest completed assistant boundary, hidden background Agent persistence through the Skill and `nexus execution` without chat messages, single-connection-safe directory loading, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
+
+### Changed
+
+- Routed owner background-model selection through the DM/Room runtime bridge for native `ToolUseSummary` progress, replacing generic thinking/replying text in place and clearing it at exact Agent-round completion; same-provider failures fall back to the main model without blocking the conversation.
+- Slowed streamed Markdown to a readable typewriter cadence with bounded, gentle terminal catch-up instead of near-instant response expansion.
 
 ### Fixed
 

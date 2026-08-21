@@ -24,6 +24,7 @@ import (
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/welcomegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
@@ -63,6 +64,7 @@ type AppServices struct {
 	Configuration          *configurationsvc.Service
 	Launcher               *launcher.Service
 	Title                  *titlegen.Service
+	Welcome                *welcomegen.Service
 	Usage                  *usagesvc.Service
 	Preferences            *preferencessvc.Service
 	Permission             *permissionctx.Context
@@ -99,6 +101,9 @@ func (s *AppServices) Close(ctx context.Context) error {
 	}
 	if s.Title != nil {
 		closeErrors = append(closeErrors, s.Title.Close(ctx))
+	}
+	if s.Welcome != nil {
+		closeErrors = append(closeErrors, s.Welcome.Close(ctx))
 	}
 	if s.ownsDB && s.DB != nil {
 		closeErrors = append(closeErrors, s.DB.Close())
@@ -178,6 +183,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetGoalCompletionUsageProvider(goalService)
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
+	welcomeService := welcomegen.NewService(cfg, providerService, preferencesService, core.Agent)
+	welcomeService.SetLogger(logger.With("component", "welcome"))
+	core.Room.SetInitialConversationObserver(welcomeService)
 	runtimeManager := runtimectx.NewManager()
 	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
@@ -426,6 +434,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Configuration:          configurationService,
 		Launcher:               launcherService,
 		Title:                  titleService,
+		Welcome:                welcomeService,
 		Usage:                  usageService,
 		Permission:             permission,
 		Runtime:                runtimeManager,

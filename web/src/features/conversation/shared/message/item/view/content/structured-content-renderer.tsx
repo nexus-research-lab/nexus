@@ -24,6 +24,7 @@ import {
 const EMPTY_HIDDEN_TOOL_NAMES: readonly string[] = [];
 const NON_RENDERING_CONTENT_BLOCK_TYPES = new Set<ContentBlock["type"]>([
   "document",
+  "progress_update",
   "redacted_thinking",
   "resource_link",
   "search_result",
@@ -39,6 +40,7 @@ export function StructuredContentRenderer(
     canRespondToPermissions,
     className,
     content,
+    fallbackActivityLabel,
     fallbackActivityState,
     hiddenToolNames,
     isStreaming,
@@ -128,7 +130,11 @@ export function StructuredContentRenderer(
         )
       ))}
       {activityState ? (
-        <LocalizedMessageActivityStatus className="pt-1" state={activityState} />
+        <LocalizedMessageActivityStatus
+          className="pt-1"
+          label={fallbackActivityLabel}
+          state={activityState}
+        />
       ) : null}
     </div>
   );
@@ -182,6 +188,7 @@ function normalizeStructuredContentRendererProps(
   return {
     ...props,
     canRespondToPermissions: props.canRespondToPermissions ?? true,
+    fallbackActivityLabel: props.fallbackActivityLabel ?? null,
     fallbackActivityState: props.fallbackActivityState ?? null,
     hiddenToolNames: props.hiddenToolNames ?? EMPTY_HIDDEN_TOOL_NAMES,
     isStreaming: props.isStreaming ?? false,

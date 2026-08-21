@@ -85,6 +85,12 @@ stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，�
 
 Bash / PowerShell 的运行中进度属于 ephemeral 状态：首次立即展示，此后最多每 30 秒更新一次，工具结束后由 durable tool result 收口。它不能进入 transcript 或在重连后变成历史正文。
 
+Provider / bridge `ToolUseSummary` 属于 Agent round 的自然语言 ephemeral 执行旁白。它没有“长任务”、耗时或工具数量门槛：执行中只要收到非空 summary，宿主就立即投影成仅供状态使用的 `progress_update` assistant 块。同一 Agent round 使用稳定 `message_id` 原位替换，round 完成、失败或停止后立即移除。展示层用最新旁白替换同一行的通用“正在思考/正在回复”，不能再创建第二个气泡、过程摘要或正式回复；等待权限/用户输入等需要行动的状态优先，不得被旁白覆盖。文案保留模型的自然表达，不套固定“正在执行第 N 步”模板；可以生动，但不得增写未经 summary 支持的完成事实。该投影不写入 transcript、历史、未读或消息计数，也不能混入最终 durable assistant 快照。
+
+Nexus 启动 DM/Room bridge 时必须把 owner 当前后台模型选择投影给 runtime。nxs 使用同一 Provider 下的后台模型生成旁白；Claude Code 使用其原生小模型/ToolUseSummary 通道。后台模型缺失、解析失败、协议不兼容或属于另一 Provider 时只回退当前主模型，不能阻断主会话启动。bridge 只负责生成和转发，Nexus message processor 仍是 ephemeral/durable 边界的唯一真相源。
+
+用户主动打开首次 DM 或显式创建 Room 时，宿主可以异步追加一条 durable `conversation_welcome` assistant 消息。欢迎语不创建 runtime round、不消费 draft，也不把 conversation 标记为已有用户输入；同一 conversation 使用稳定消息身份幂等写入。生成模型优先使用 owner 的后台任务模型，缺失或不可用时依次回退到用户默认模型、发言 Agent 模型和 Provider 默认模型；模型调用失败仍写入确定性静态欢迎语。Nexus 主智能体 DM、普通 Agent DM、Room 群主和无群主介绍成员必须使用四套独立身份提示词；主智能体可介绍宿主控制入口能力，普通 DM 不得借用该权限语义。实际生成模型继续作为内部消息事实持久化，但聊天界面不得在该欢迎语的消息头或页脚展示模型名，以免把后台生成模型误示为 Agent 的会话模型。内部自动化投递、启动恢复和其他仅为路由而发生的 DM 物化不得触发欢迎语。
+
 Nexus host 指令的完成确认属于 transient 状态：它不是 runtime 回复，也不应写入
 transcript，但必须在当前时间线中保留，让用户确认本地操作已经生效。对应
 `chat_ack` 使用 `user_message_delivery_mode=transient` 把 optimistic 用户指令

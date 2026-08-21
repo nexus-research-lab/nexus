@@ -3,6 +3,7 @@ package clientopts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -211,6 +212,121 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 	if _, ok := claudeOptions.Env[enableToolSearchEnvName]; ok {
 		t.Fatalf("Claude runtime 不应接收 nxs ToolSearch 设置: %+v", claudeOptions.Env)
+	}
+}
+
+func TestToolUseSummaryRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
+	mainConfig := &RuntimeConfig{
+		Provider:  "glm",
+		Model:     "glm-main",
+		APIFormat: apiFormatAnthropicMessages,
+	}
+	env := toolUseSummaryRuntimeEnv(
+		context.Background(),
+		fakeRuntimeConfigResolver{config: &RuntimeConfig{
+			Provider:  "glm",
+			Model:     "glm-air",
+			APIFormat: apiFormatAnthropicMessages,
+		}},
+		AgentClientOptionsInput{
+			Provider:           "glm",
+			Model:              "glm-main",
+			BackgroundProvider: "glm",
+			BackgroundModel:    "glm-air",
+		},
+		mainConfig,
+		runtimeKindNXS,
+	)
+	if env[nexusBackgroundModelEnvName] != "glm-air" ||
+		env[claudeEmitToolUseSummariesEnvName] != "1" {
+		t.Fatalf("nxs ToolUseSummary 后台模型环境不正确: %+v", env)
+	}
+}
+
+func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
+	mainConfig := &RuntimeConfig{
+		Provider:  "main-provider",
+		Model:     "main-model",
+		APIFormat: apiFormatAnthropicMessages,
+	}
+	tests := []struct {
+		name     string
+		resolver RuntimeConfigResolver
+		input    AgentClientOptionsInput
+	}{
+		{
+			name:     "background provider differs",
+			resolver: fakeRuntimeConfigResolver{err: errors.New("must not resolve")},
+			input: AgentClientOptionsInput{
+				BackgroundProvider: "other-provider",
+				BackgroundModel:    "other-model",
+			},
+		},
+		{
+			name:     "background resolution fails",
+			resolver: fakeRuntimeConfigResolver{err: errors.New("temporarily unavailable")},
+			input: AgentClientOptionsInput{
+				BackgroundProvider: "main-provider",
+				BackgroundModel:    "small-model",
+			},
+		},
+		{
+			name: "background api format differs",
+			resolver: fakeRuntimeConfigResolver{config: &RuntimeConfig{
+				Provider:  "main-provider",
+				Model:     "small-model",
+				APIFormat: apiFormatResponses,
+			}},
+			input: AgentClientOptionsInput{
+				BackgroundProvider: "main-provider",
+				BackgroundModel:    "small-model",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.input.Provider = "main-provider"
+			test.input.Model = "main-model"
+			env := toolUseSummaryRuntimeEnv(
+				context.Background(),
+				test.resolver,
+				test.input,
+				mainConfig,
+				runtimeKindNXS,
+			)
+			if env[nexusBackgroundModelEnvName] != "main-model" ||
+				env[claudeEmitToolUseSummariesEnvName] != "1" {
+				t.Fatalf("ToolUseSummary 应回退主模型: %+v", env)
+			}
+		})
+	}
+}
+
+func TestToolUseSummaryRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
+	mainConfig := &RuntimeConfig{
+		Provider:  "glm",
+		Model:     "glm-main",
+		APIFormat: apiFormatAnthropicMessages,
+	}
+	env := toolUseSummaryRuntimeEnv(
+		context.Background(),
+		fakeRuntimeConfigResolver{config: &RuntimeConfig{
+			Provider:  "glm",
+			Model:     "glm-air",
+			APIFormat: apiFormatAnthropicMessages,
+		}},
+		AgentClientOptionsInput{
+			Provider:           "glm",
+			Model:              "glm-main",
+			BackgroundProvider: "glm",
+			BackgroundModel:    "glm-air",
+		},
+		mainConfig,
+		runtimeKindClaude,
+	)
+	if env[anthropicSmallFastModelEnvName] != "glm-air" ||
+		env[claudeEmitToolUseSummariesEnvName] != "1" {
+		t.Fatalf("Claude ToolUseSummary 后台模型环境不正确: %+v", env)
 	}
 }
 

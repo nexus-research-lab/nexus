@@ -60,6 +60,7 @@ const ignoreHeightMetrics = () => undefined;
 const CONTENT_BLOCK_METRIC_COLLECTORS = {
   document: ignoreHeightMetrics,
   image: ignoreHeightMetrics,
+  progress_update: ignoreHeightMetrics,
   redacted_thinking: ignoreHeightMetrics,
   resource_link: ignoreHeightMetrics,
   search_result: ignoreHeightMetrics,

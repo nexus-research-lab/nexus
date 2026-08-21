@@ -386,9 +386,14 @@ export function applyTerminalAgentRoundMessageStatus(
   }
   const terminalStatus = getTerminalMessageStatus(status);
   return reconcileMessages(messages, (message) => {
+    if (message.agent_round_id?.trim() !== normalizedAgentRoundId) {
+      return KEEP_MESSAGE;
+    }
+    if (isEphemeralMessage(message)) {
+      return REMOVE_MESSAGE;
+    }
     if (
       message.role !== "assistant"
-      || message.agent_round_id?.trim() !== normalizedAgentRoundId
       || TERMINAL_ASSISTANT_STATUSES.has(
         message.stream_status ?? "pending",
       )

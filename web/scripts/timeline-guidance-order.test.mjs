@@ -2684,9 +2684,15 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
     agent_round_id: "agent-round-active",
     message_id: "assistant-active",
   };
+  const progressSnapshot = {
+    ...thinkingSnapshot,
+    content: [{ type: "progress_update", text: "正在核对最后一项" }],
+    delivery_mode: "ephemeral",
+    message_id: "assistant-progress",
+  };
 
   const reconciled = applyTerminalAgentRoundMessageStatus(
-    [thinkingSnapshot, unrelatedSnapshot],
+    [thinkingSnapshot, progressSnapshot, unrelatedSnapshot],
     "agent-round-no-reply",
     "finished",
   );
@@ -2700,6 +2706,11 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
     reconciled[1],
     unrelatedSnapshot,
     "slot 终态只能收口精确匹配的 agent_round_id",
+  );
+  assert.equal(
+    reconciled.some((message) => message.message_id === "assistant-progress"),
+    false,
+    "slot 终态必须清除同 agent_round 的临时自然语言进度",
   );
   const thread = buildRoomThreadPanelModel({
     agentAvatarMap: {},
@@ -3695,6 +3706,14 @@ test("thinking and replying indicators render a real stepped frame track", async
       `${state} must animate through multiple frames instead of freezing one glyph`,
     );
   }
+
+  const progressHtml = renderToStaticMarkup(React.createElement(
+    MessageActivityStatus,
+    { label: "摸到线索了，正在确认最后一处边界。", state: "thinking" },
+  ));
+  assert.match(progressHtml, /摸到线索了，正在确认最后一处边界。/);
+  assert.match(progressHtml, /lucide-brain/);
+  assert.match(progressHtml, /message-activity-spinner-track/);
 });
 
 test("live empty text mounts before the first stream batch while history stays sparse", async () => {
@@ -5356,6 +5375,43 @@ test("Room canonical assistant replaces its temporary synthetic result", async (
     "最终模型回复",
   );
   assert.equal(entries[0]?.assistant_messages[0]?.model, "canonical-model");
+});
+
+test("conversation welcome keeps its model fact out of the chat display", async () => {
+  const {
+    resolveActivityProgressLabel,
+    resolveAssistantModel,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/use-message-item-projection.ts",
+  );
+  const regular = assistantMessage({
+    messageId: "assistant-regular",
+    model: "agent-conversation-model",
+    text: "普通回复",
+    timestamp: 10,
+  });
+  const welcome = {
+    ...assistantMessage({
+      messageId: "assistant-welcome",
+      model: "background-task-model",
+      text: "欢迎使用",
+      timestamp: 20,
+    }),
+    metadata: { subtype: "conversation_welcome" },
+  };
+
+  assert.equal(resolveAssistantModel([regular], regular), "agent-conversation-model");
+  assert.equal(resolveAssistantModel([welcome], welcome), undefined);
+  const progress = { type: "progress_update", text: "  正在把线索串起来  " };
+  assert.equal(
+    resolveActivityProgressLabel([progress], "thinking"),
+    "正在把线索串起来",
+  );
+  assert.equal(
+    resolveActivityProgressLabel([progress], "waiting_permission"),
+    null,
+    "人工确认状态不能被模型旁白覆盖",
+  );
 });
 
 test("Room consumes a legacy synthetic result by its parent slot with repeated agents", async () => {

@@ -116,6 +116,13 @@ export interface TaskProgressContent {
   usage?: Record<string, unknown>;
 }
 
+/** Provider 在执行中给出的当前轮次自然语言旁白；收到即展示且只以 ephemeral 消息存在。 */
+export interface ProgressUpdateContent {
+  type: "progress_update";
+  text: string;
+  preceding_tool_use_ids?: string[];
+}
+
 export interface WorkspaceFileArtifactContent {
   type: "workspace_file_artifact";
   id?: string;
@@ -164,6 +171,7 @@ export type ContentBlock =
   | SearchResultContent
   | ResourceLinkContent
   | TaskProgressContent
+  | ProgressUpdateContent
   | WorkspaceFileArtifactContent
   | SystemEventContent
   | UnsupportedContent;

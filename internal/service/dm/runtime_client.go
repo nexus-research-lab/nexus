@@ -363,6 +363,8 @@ func (s *Service) ensureClient(
 		RuntimeKind:                runtimeSelection.RuntimeKind,
 		Provider:                   runtimeSelection.Provider,
 		Model:                      runtimeSelection.Model,
+		BackgroundProvider:         runtimeSelection.BackgroundProvider,
+		BackgroundModel:            runtimeSelection.BackgroundModel,
 		VisionProvider:             runtimeSelection.VisionProvider,
 		VisionModel:                runtimeSelection.VisionModel,
 		PermissionMode:             permissionMode,

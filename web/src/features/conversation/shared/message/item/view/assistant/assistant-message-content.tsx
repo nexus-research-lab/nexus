@@ -7,7 +7,6 @@ import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 
-import type { MessageActivityState } from "../../activity/message-activity-state";
 import { shouldShowAssistantTimeline } from "../../message-item-projection";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
@@ -63,7 +62,7 @@ export function AssistantMessageContent({
         process={process}
       />
       <AssistantFinalContent
-        activityState={activity.state}
+        activity={activity}
         environment={environment}
         final={final}
         permissions={permissions}
@@ -95,7 +94,7 @@ function RoomResultTrailingActivity({
   ) {
     return null;
   }
-  return <LocalizedMessageActivityStatus className="pt-1" state={activity.state} />;
+  return <LocalizedMessageActivityStatus className="pt-1" label={activity.label} state={activity.state} />;
 }
 
 function StandaloneActivity({
@@ -106,7 +105,7 @@ function StandaloneActivity({
   if (!activity.standalone || !activity.state) {
     return null;
   }
-  return <LocalizedMessageActivityStatus className="py-1" state={activity.state} />;
+  return <LocalizedMessageActivityStatus className="py-1" label={activity.label} state={activity.state} />;
 }
 
 function AssistantDirectContent({
@@ -145,6 +144,7 @@ function AssistantDirectContent({
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={direct.projection.content}
+      fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
       isStreaming={activity.showCursor && !responseStreaming}
@@ -165,12 +165,12 @@ function AssistantDirectContent({
 }
 
 function AssistantFinalContent({
-  activityState,
+  activity,
   environment,
   final,
   permissions,
 }: {
-  activityState: MessageActivityState | null;
+  activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
   permissions: AssistantPermissionState;
@@ -182,7 +182,8 @@ function AssistantFinalContent({
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={final.content ?? []}
-      fallbackActivityState={activityState}
+      fallbackActivityLabel={activity.label}
+      fallbackActivityState={activity.state}
       isStreaming={final.isStreaming}
       onOpenSubagentTask={environment.onOpenSubagentTask}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}

@@ -74,6 +74,7 @@ type ErasedContentBlockRenderer = (
 const CONTENT_BLOCK_RENDERERS = {
   document: renderHiddenBlock,
   image: renderImageBlock,
+  progress_update: renderHiddenBlock,
   redacted_thinking: renderHiddenBlock,
   resource_link: renderHiddenBlock,
   search_result: renderHiddenBlock,
