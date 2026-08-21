@@ -94,7 +94,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	if params["tab_id"] != int64(43) {
 		t.Fatalf("snapshot 未使用最新 Session tab: %+v", params)
 	}
-	service.Resolve(command["id"].(string), map[string]any{"tree": []any{}}, "")
+	service.Resolve(command["id"].(string), map[string]any{"snapshot": "", "truncated": false}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("snapshot error = %v", err)
 	}
@@ -183,6 +183,7 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 		input  map[string]any
 	}{
 		{name: "screenshot quality", action: "screenshot", input: map[string]any{"quality": json.Number("80")}},
+		{name: "evaluate timeout", action: "evaluate", input: map[string]any{"code": "Promise.resolve(true)", "timeout_ms": json.Number("30000")}},
 		{name: "wait timeout", action: "wait_for_url", input: map[string]any{"url": "*wd=*", "timeout_ms": json.Number("10000")}},
 		{name: "console result limit", action: "console", input: map[string]any{"cmd": "list", "max_results": json.Number("10")}},
 	} {

@@ -62,8 +62,9 @@ func browserSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"action": map[string]any{
-				"type": "string",
-				"enum": browsersvc.SupportedActions(),
+				"type":        "string",
+				"enum":        browsersvc.SupportedActions(),
+				"description": "一次只执行一个 action。页面交互优先先用 snapshot 获取最新 @e ref，再调用固定动作；固定动作无法完成时才使用 evaluate 或 cdp。",
 			},
 			"url": map[string]any{
 				"type": "string", "description": "navigate/download 的目标 URL，或 find_tab/wait_for_url 的 URL、主机名或通配模式。",
@@ -95,7 +96,7 @@ func browserSchema() map[string]any {
 				"description": "history、console 或 downloads 最大返回数量。",
 			},
 			"code": map[string]any{
-				"type": "string", "description": "evaluate 执行的 JavaScript。",
+				"type": "string", "description": "evaluate 执行的一段有效 JavaScript；返回 Promise 时会等待其完成。",
 			},
 			"cmd": map[string]any{
 				"type":        "string",
@@ -130,7 +131,7 @@ func browserSchema() map[string]any {
 			},
 			"timeout_ms": map[string]any{
 				"type": "integer", "minimum": 100, "maximum": 80000,
-				"description": "wait_for 或 downloads wait 的等待时长。",
+				"description": "evaluate、wait_for、wait_for_url 或 downloads wait 的等待时长。",
 			},
 			"page_format": map[string]any{
 				"type": "string", "enum": []string{"text", "html"},

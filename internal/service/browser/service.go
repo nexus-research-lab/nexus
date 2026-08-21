@@ -405,6 +405,9 @@ func (s *Service) prepareParams(
 		if stringValue(params["code"]) == "" {
 			return nil, nil, errors.New("evaluate 需要非空 code")
 		}
+		if err := optionalBoundedInteger(params, "timeout_ms", 100, 80000); err != nil {
+			return nil, nil, err
+		}
 	case "page_content":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err

@@ -26,6 +26,21 @@ const INTERACTIVE_ROLES = new Set([
   "tab",
   "treeitem",
 ]);
+const SNAPSHOT_CONTEXT_ROLES = new Set([
+  "dialog",
+  "document",
+  "form",
+  "heading",
+  "main",
+  "navigation",
+  "region",
+  "rootwebarea",
+]);
+const SNAPSHOT_MAX_NODES = 300;
+const SNAPSHOT_MAX_BYTES = 24000;
+const SNAPSHOT_TEXT_MAX_CHARS = 240;
+const CURSOR_MOVE_MESSAGE = "NEXUS_CURSOR_MOVE";
+const CURSOR_ARRIVAL_TIMEOUT_MS = 1500;
 const GROUP_COLORS = ["blue", "purple", "cyan", "green", "yellow", "orange", "red", "pink", "grey"];
 const PAPER_FORMATS = {
   letter: [8.5, 11],
@@ -287,7 +302,8 @@ class BrowserController {
     const response = await this.command(tab.id, "Runtime.evaluate", {
       expression: this.requireText(params.code, "evaluate requires code"),
       returnByValue: true,
-      awaitPromise: false,
+      awaitPromise: true,
+      timeout: Number.isInteger(params.timeout_ms) ? params.timeout_ms : 80000,
       userGesture: true,
     });
     this.assertRuntimeResult(response);
@@ -625,56 +641,103 @@ class BrowserController {
   async snapshot(params) {
     const tab = await this.getTab(params.tab_id);
     const response = await this.command(tab.id, "Accessibility.getFullAXTree");
-    const rendered = this.buildAccessibilityTree(tab.id, response.nodes || []);
+    const rendered = this.buildAccessibilitySnapshot(tab.id, response.nodes || []);
     return {
       tab_id: tab.id,
       title: tab.title || "",
       url: tab.url || "",
-      tree: rendered.tree,
+      snapshot: rendered.snapshot,
+      nodes: rendered.nodeCount,
+      total_nodes: rendered.totalNodes,
       refs: rendered.refCount,
+      truncated: rendered.truncated,
     };
   }
 
-  buildAccessibilityTree(tabId, nodes) {
+  buildAccessibilitySnapshot(tabId, nodes) {
     const byId = new Map(nodes.map((node) => [node.nodeId, node]));
     const childIds = new Set(nodes.flatMap((node) => node.childIds || []));
     const roots = nodes.filter((node) => !childIds.has(node.nodeId));
-    const refs = new Map();
     const visited = new Set();
-    let nextRef = 1;
+    const candidates = [];
 
-    const build = (nodeId) => {
+    const visit = (nodeId, depth = 0) => {
       const node = byId.get(nodeId);
-      if (!node || visited.has(nodeId)) return [];
+      if (!node || visited.has(nodeId)) return;
       visited.add(nodeId);
-      const children = (node.childIds || []).flatMap(build);
       const role = this.cleanText(node.role?.value).toLowerCase();
-      const name = this.cleanText(node.name?.value);
-      const value = this.cleanText(node.value?.value);
-      if (node.ignored || ((!role || role === "none" || role === "generic") && !name && !value)) {
-        return children;
+      const name = this.compactSnapshotText(node.name?.value);
+      const value = this.compactSnapshotText(node.value?.value);
+      const meaningful = !node.ignored && (name || value || (role && role !== "none" && role !== "generic"));
+      if (meaningful) {
+        const states = [];
+        for (const key of ["disabled", "focused", "checked", "selected", "expanded", "level"]) {
+          const property = node.properties?.find((candidate) => candidate.name === key)?.value?.value;
+          if (property === true) states.push(key);
+          else if (property !== undefined && property !== false) states.push(key + "=" + String(property));
+          else if (property === false && ["checked", "selected", "expanded"].includes(key)) states.push(key + "=false");
+        }
+        const interactive = INTERACTIVE_ROLES.has(role) && node.backendDOMNodeId !== undefined;
+        candidates.push({
+          role: role || "unknown",
+          name,
+          value,
+          description: this.compactSnapshotText(node.description?.value),
+          states,
+          interactive,
+          backendDOMNodeId: node.backendDOMNodeId,
+          depth,
+          order: candidates.length,
+          priority: interactive ? 0 : SNAPSHOT_CONTEXT_ROLES.has(role) ? 1 : name || value ? 2 : 3,
+        });
       }
-      const item = { role: role || "unknown" };
-      if (name) item.name = name;
-      if (value && value !== name) item.value = value;
-      const description = this.cleanText(node.description?.value);
-      if (description) item.description = description;
-      for (const key of ["disabled", "focused", "checked", "selected", "expanded", "level"]) {
-        const property = node.properties?.find((candidate) => candidate.name === key)?.value?.value;
-        if (property !== undefined) item[key] = property;
-      }
-      if (INTERACTIVE_ROLES.has(role) && node.backendDOMNodeId !== undefined) {
-        const ref = "@e" + nextRef++;
-        refs.set(ref, node.backendDOMNodeId);
-        item.ref = ref;
-      }
-      if (children.length) item.children = children;
-      return [item];
+      const childDepth = depth + (meaningful ? 1 : 0);
+      for (const childId of node.childIds || []) visit(childId, childDepth);
     };
 
-    const tree = (roots.length ? roots : nodes.slice(0, 1)).flatMap((node) => build(node.nodeId));
+    for (const root of roots.length ? roots : nodes.slice(0, 1)) visit(root.nodeId);
+
+    let usedBytes = 0;
+    const encoder = new TextEncoder();
+    const selected = [];
+    const prioritized = [...candidates].sort((left, right) => left.priority - right.priority || left.order - right.order);
+    for (const candidate of prioritized) {
+      if (selected.length >= SNAPSHOT_MAX_NODES) break;
+      const estimate = encoder.encode(
+        this.renderAccessibilityNode(candidate, candidate.interactive ? "@e000" : "") + "\n",
+      ).length;
+      if (usedBytes + estimate > SNAPSHOT_MAX_BYTES) continue;
+      selected.push(candidate);
+      usedBytes += estimate;
+    }
+    selected.sort((left, right) => left.order - right.order);
+
+    const refs = new Map();
+    let nextRef = 1;
+    const lines = selected.map((candidate) => {
+      const ref = candidate.interactive ? "@e" + nextRef++ : "";
+      if (ref) refs.set(ref, candidate.backendDOMNodeId);
+      return this.renderAccessibilityNode(candidate, ref);
+    });
     this.refsByTab.set(tabId, refs);
-    return { tree, refCount: refs.size };
+    return {
+      snapshot: lines.join("\n"),
+      nodeCount: selected.length,
+      totalNodes: candidates.length,
+      refCount: refs.size,
+      truncated: selected.length < candidates.length,
+    };
+  }
+
+  renderAccessibilityNode(node, ref) {
+    const parts = ["  ".repeat(Math.min(node.depth, 8)) + "-", ref, node.role].filter(Boolean);
+    if (node.name) parts.push(JSON.stringify(node.name));
+    if (node.value && node.value !== node.name) parts.push("value=" + JSON.stringify(node.value));
+    if (node.description && node.description !== node.name) {
+      parts.push("description=" + JSON.stringify(node.description));
+    }
+    if (node.states.length) parts.push("[" + node.states.join(", ") + "]");
+    return parts.join(" ");
   }
 
   async click(params) {
@@ -796,6 +859,7 @@ class BrowserController {
     const button = String(params.button || "left").toLowerCase();
     const clickCount = Number.isInteger(params.click_count) ? params.click_count : 1;
     const buttons = { left: 1, right: 2, middle: 4, back: 8, forward: 16 }[button];
+    await this.moveCursor(tab.id, point);
     await this.command(tab.id, "Input.dispatchMouseEvent", {
       type: "mouseMoved", x: point.x, y: point.y, button: "none",
     });
@@ -813,6 +877,7 @@ class BrowserController {
   async mouseMove(params) {
     const tab = await this.getTab(params.tab_id);
     const point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
+    await this.moveCursor(tab.id, point);
     await this.command(tab.id, "Input.dispatchMouseEvent", {
       type: "mouseMoved", x: point.x, y: point.y, button: "none",
     });
@@ -828,12 +893,14 @@ class BrowserController {
       ? await this.pointerPoint(tab.id, params, "target_selector", "to_x", "to_y")
       : { x: Number(params.to_x), y: Number(params.to_y) };
     const steps = Number.isInteger(params.steps) ? params.steps : 10;
+    await this.moveCursor(tab.id, start);
     await this.command(tab.id, "Input.dispatchMouseEvent", {
       type: "mouseMoved", x: start.x, y: start.y, button: "none",
     });
     await this.command(tab.id, "Input.dispatchMouseEvent", {
       type: "mousePressed", x: start.x, y: start.y, button: "left", buttons: 1, clickCount: 1,
     });
+    const cursorMove = this.moveCursor(tab.id, target);
     for (let step = 1; step <= steps; step += 1) {
       const ratio = step / steps;
       await this.command(tab.id, "Input.dispatchMouseEvent", {
@@ -844,6 +911,7 @@ class BrowserController {
         buttons: 1,
       });
     }
+    await cursorMove;
     await this.command(tab.id, "Input.dispatchMouseEvent", {
       type: "mouseReleased", x: target.x, y: target.y, button: "left", buttons: 0, clickCount: 1,
     });
@@ -864,12 +932,53 @@ class BrowserController {
     }
     const deltaX = Number(params.delta_x || 0);
     const deltaY = Number(params.delta_y || 0);
+    await this.moveCursor(tab.id, point);
     if (deltaX || deltaY) {
       await this.command(tab.id, "Input.dispatchMouseEvent", {
         type: "mouseWheel", x: point.x, y: point.y, deltaX, deltaY,
       });
     }
     return { tab_id: tab.id, scrolled: true, x: point.x, y: point.y, delta_x: deltaX, delta_y: deltaY };
+  }
+
+  async moveCursor(tabId, point) {
+    try {
+      await this.sendCursorMove(tabId, point);
+      return;
+    } catch {
+      try {
+        await chrome.scripting.executeScript({
+          files: ["cursor.js"],
+          injectImmediately: true,
+          target: { tabId },
+        });
+        await this.sendCursorMove(tabId, point);
+      } catch {
+        return;
+      }
+    }
+  }
+
+  sendCursorMove(tabId, point) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (error) reject(error); else resolve();
+      };
+      const timeout = setTimeout(() => finish(new Error("Cursor arrival timed out")), CURSOR_ARRIVAL_TIMEOUT_MS);
+      try {
+        chrome.tabs.sendMessage(tabId, {
+          type: CURSOR_MOVE_MESSAGE,
+          x: point.x,
+          y: point.y,
+        }).then(() => finish(), finish);
+      } catch (error) {
+        finish(error);
+      }
+    });
   }
 
   async pointerPoint(tabId, params, selectorKey, xKey, yKey) {
@@ -1439,6 +1548,12 @@ class BrowserController {
     return String(value ?? "").replace(/\s+/g, " ").trim();
   }
 
+  compactSnapshotText(value) {
+    const text = this.cleanText(value);
+    if (text.length <= SNAPSHOT_TEXT_MAX_CHARS) return text;
+    return text.slice(0, SNAPSHOT_TEXT_MAX_CHARS - 1) + "…";
+  }
+
   safeFileName(value, preserveExtension = false) {
     const cleaned = String(value || "page").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim();
     const result = cleaned || "page";
@@ -1569,6 +1684,7 @@ class BrowserClient {
     return {
       connected: this.socket?.readyState === WebSocket.OPEN,
       enabled: config[STORAGE_ENABLED] !== false,
+      extension_version: chrome.runtime.getManifest().version,
       configured_url: config[STORAGE_URL] || "",
       current_url: this.currentURL,
       default_url: DEFAULT_ENDPOINTS[0],
