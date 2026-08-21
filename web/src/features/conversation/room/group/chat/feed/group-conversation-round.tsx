@@ -6,6 +6,7 @@
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { resolveConversationVirtualPlaceholderHeight } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
@@ -46,12 +47,18 @@ export function GroupConversationRound({
     pendingPermissions,
     roomAgentExecutionStates,
   );
+  const resolvedPlaceholderHeight = resolveConversationVirtualPlaceholderHeight(
+    isLoaded,
+    placeholderHeight,
+  );
 
   return (
     <div
       ref={measureRef}
       className={`relative ${isMobileLayout ? "pb-4" : "pb-1"}`}
-      style={placeholderHeight ? { minHeight: placeholderHeight } : undefined}
+      style={resolvedPlaceholderHeight
+        ? { minHeight: resolvedPlaceholderHeight }
+        : undefined}
       data-index={measureRef ? index : undefined}
       data-conversation-round-id={roundId}
       data-conversation-root-round-id={

@@ -20,7 +20,6 @@ export interface SessionNavigationItem {
   agentIds: string[];
   hasUserMessage: boolean;
   index: number;
-  inputRoundId: string;
   isLive: boolean;
   meta: string;
   roundId: string;
@@ -150,16 +149,32 @@ function projectAssistantRoundSnapshot(
   messages: AssistantMessage[],
 ): AssistantRoundSnapshot {
   const firstAssistant = messages[0];
-  const lastAssistant = messages.at(-1);
-  const resultSummary = projectResultSummary(lastAssistant?.result_summary);
+  const firstText = messages
+    .map((message) => extractTextFromContentBlocks(message.content).trim())
+    .find(Boolean) ?? "";
+  const resultSummary = projectResultSummary(
+    findLastResultSummary(messages),
+  );
   return {
     agentIds: messages.map((message) => message.agent_id),
     durationMs: resultSummary.durationMs,
-    firstText: extractTextFromContentBlocks(firstAssistant?.content),
+    firstText,
     result: resultSummary.result,
     status: resultSummary.status,
     timestamp: firstAssistant?.timestamp ?? resultSummary.timestamp,
   };
+}
+
+function findLastResultSummary(
+  messages: readonly AssistantMessage[],
+): ResultSummary | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const summary = messages[index]?.result_summary;
+    if (summary) {
+      return summary;
+    }
+  }
+  return undefined;
 }
 
 function formatDuration(durationMs: number | null | undefined): string | null {
@@ -248,7 +263,6 @@ function projectNavigationItem(
     agentIds: normalizeAgentIds(source.agentIds),
     hasUserMessage: source.hasUserMessage,
     index,
-    inputRoundId: source.roundId,
     isLive: source.isLive,
     meta: [source.status, duration].filter(Boolean).join(" "),
     roundId: source.roundId,
@@ -263,21 +277,6 @@ function projectNavigationItem(
       localization.t("room.session_navigator_round", { count: index + 1 }),
     ),
   };
-}
-
-function bindInputRoundIds(
-  items: SessionNavigationItem[],
-): SessionNavigationItem[] {
-  let currentInputRoundId: string | null = null;
-  return items.map((item) => {
-    if (item.hasUserMessage) {
-      currentInputRoundId = item.roundId;
-    }
-    return {
-      ...item,
-      inputRoundId: currentInputRoundId ?? item.roundId,
-    };
-  });
 }
 
 /** 将唯一时间线投影转换为导航条展示模型，不在组件中重新分组消息。 */
@@ -320,5 +319,5 @@ export function buildSessionNavigationItems(
       localization,
     )
   ));
-  return bindInputRoundIds([...indexedItems, ...liveItems]);
+  return [...indexedItems, ...liveItems];
 }

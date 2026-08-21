@@ -12,7 +12,10 @@ import {
 } from "react";
 
 import { getConversationRoundNavigationTarget } from "../scroll/round-scroll";
-import { resolveVisibleUnloadedRoundId } from "./visible-round-candidate";
+import {
+  resolveBoundaryUnloadedRoundId,
+  resolveVisibleUnloadedRoundId,
+} from "./visible-round-candidate";
 import {
   LOAD_RECHECK_DELAY_MS,
   buildExcludedRoundIds,
@@ -33,17 +36,21 @@ import {
 interface UseVisibleRoundWindowLoaderOptions {
   enabled: boolean;
   loadRoundWindow?: (roundId: string) => Promise<boolean>;
+  loadedRoundIds: readonly string[];
   revision: string | number;
   scopeKey: string | null;
   scrollRef: RefObject<HTMLDivElement | null>;
+  windowRoundIds: readonly string[];
 }
 
 export function useVisibleRoundWindowLoader({
   enabled,
   loadRoundWindow,
+  loadedRoundIds,
   revision,
   scopeKey,
   scrollRef,
+  windowRoundIds,
 }: UseVisibleRoundWindowLoaderOptions) {
   const frameRef = useRef<number | null>(null);
   const [loadingRequest, setLoadingRequest] = useState<WindowLoadRequest | null>(null);
@@ -51,8 +58,20 @@ export function useVisibleRoundWindowLoader({
   const runCheckRef = useRef<() => void>(() => {});
   const runtimeRef = useRef(createWindowLoaderRuntime());
   const timeoutRef = useRef<number | null>(null);
-  const latestOptionsRef = useRef({ enabled, loadRoundWindow, scopeKey });
-  latestOptionsRef.current = { enabled, loadRoundWindow, scopeKey };
+  const latestOptionsRef = useRef({
+    enabled,
+    loadedRoundIds,
+    loadRoundWindow,
+    scopeKey,
+    windowRoundIds,
+  });
+  latestOptionsRef.current = {
+    enabled,
+    loadedRoundIds,
+    loadRoundWindow,
+    scopeKey,
+    windowRoundIds,
+  };
 
   const scheduleCheck = useCallback(() => {
     if (frameRef.current !== null) {
@@ -88,11 +107,19 @@ export function useVisibleRoundWindowLoader({
     if (!scrollElement || getConversationRoundNavigationTarget(scrollElement)) {
       return;
     }
+    const excludedRoundIds = buildExcludedRoundIds(runtime, Date.now());
     const roundId = resolveVisibleUnloadedRoundId(
       scrollElement,
-      buildExcludedRoundIds(runtime, Date.now()),
+      excludedRoundIds,
       runtime.scrollDirection,
-    );
+    ) ?? resolveBoundaryUnloadedRoundId({
+      clientHeight: scrollElement.clientHeight,
+      excludedRoundIds,
+      loadedRoundIds: latest.loadedRoundIds,
+      roundIds: latest.windowRoundIds,
+      scrollHeight: scrollElement.scrollHeight,
+      scrollTop: scrollElement.scrollTop,
+    });
     if (!roundId) {
       return;
     }
@@ -213,13 +240,17 @@ function canStartWindowLoad(
   runtime: WindowLoaderRuntime,
   options: {
     enabled: boolean;
+    loadedRoundIds: readonly string[];
     loadRoundWindow?: (roundId: string) => Promise<boolean>;
     scopeKey: string | null;
+    windowRoundIds: readonly string[];
   },
 ): options is {
   enabled: true;
+  loadedRoundIds: readonly string[];
   loadRoundWindow: (roundId: string) => Promise<boolean>;
   scopeKey: string | null;
+  windowRoundIds: readonly string[];
 } {
   return Boolean(
     options.enabled &&

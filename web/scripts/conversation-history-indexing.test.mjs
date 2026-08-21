@@ -240,6 +240,25 @@ test("indexed history detects equal-size window replacement and keeps pullable g
   assert.equal(resolveConversationVirtualPlaceholderHeight(true, 180), undefined);
   assert.equal(resolveConversationVirtualPlaceholderHeight(false, 180), 180);
   assert.equal(resolveConversationVirtualPlaceholderHeight(false, undefined), 80);
+
+  const { shouldAdjustConversationVirtualScrollPosition } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 100 },
+      20,
+      { scrollOffset: 200, scrollRect: { height: 600 } },
+      {
+        bottomScrollActive: false,
+        followingLatest: false,
+        navigationActive: true,
+        userScrollActive: false,
+      },
+    ),
+    false,
+    "virtual measurement must not overwrite an explicit round navigation",
+  );
 });
 
 test("large message details load only on demand and remain abortable", async () => {

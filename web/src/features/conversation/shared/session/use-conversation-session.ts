@@ -147,6 +147,7 @@ export function useConversationSession({
   const indexedHistory = useVisibleRoundWindowLoader({
     enabled: useIndexedTimeline,
     loadRoundWindow: conversation.load_round_window,
+    loadedRoundIds: timeline.loaded_round_ids,
     revision: buildVisibleRoundRevision({
       feedRoundCount: timeline.feed_round_ids.length,
       liveRoundCount: conversation.live_round_ids.length,
@@ -159,6 +160,7 @@ export function useConversationSession({
     }),
     scopeKey: sessionKey,
     scrollRef: scroll.scrollRef,
+    windowRoundIds: timeline.indexed_window.roundIds,
   });
   const history = useConversationHistoryLoader({
     cancelHistoryPrependRestore: scroll.cancelHistoryPrependRestore,
