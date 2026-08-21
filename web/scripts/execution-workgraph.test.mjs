@@ -480,6 +480,8 @@ test("WorkGraph surface keeps an active title-only header and one non-active lif
     ));
     const headerHtml = html.slice(0, html.indexOf("</header>"));
     assert.match(html, new RegExp(`data-execution-header-status="${status}"`));
+    assert.match(headerHtml, /data-execution-header-context/);
+    assert.match(headerHtml, /data-execution-header-actions/);
     assert.match(html, />实现 UI</);
     assert.doesNotMatch(headerHtml, /lucide-workflow h-4 w-4/);
     assert.doesNotMatch(headerHtml, /min-w-0 flex-1 truncate/);
@@ -528,6 +530,27 @@ test("WorkGraph sketch confirmation schedules a hidden background round without 
   assert.match(apiSource, /workgraph\/previews\/\$\{encodeURIComponent\(previewId\)\}\/save/);
   assert.doesNotMatch(dialogSource, /dispatchWorkGraphDistillationIntent|buildDistillationPrompt|onSendMessage/);
   assert.doesNotMatch(controllerSource, /WORKGRAPH_DISTILLATION_INTENT_EVENT|pendingWorkGraphPromptRef/);
+});
+
+test("WorkGraph sketch confirmation keeps copy focused on reuse", async () => {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const dialogSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+  ), "utf8");
+  const copy = [
+    MESSAGES.zh["execution.workflow_distill_subtitle"],
+    MESSAGES.zh["execution.workflow_reuse_notice"],
+    MESSAGES.zh["execution.workflow_scheduled_message"],
+  ].join("\n").replaceAll("{command}", "/integrate-reports");
+  assert.match(copy, /确认草图内容后保存/);
+  assert.match(copy, /输入 \/integrate-reports/);
+  assert.match(copy, /输入框左下角的“\+”/);
+  assert.doesNotMatch(copy, /后台 Agent|Skill 与 Nexus CLI|不进入聊天时间线/);
+  assert.match(dialogSource, /execution\.workflow_reuse_notice/);
+  assert.match(dialogSource, /command: `\/\$\{preview\.slash_name\}`/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {
