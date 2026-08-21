@@ -55,13 +55,13 @@ runtime MCP browser
 | 键盘与鼠标 | `clipboard`、`key_type`、`send_keys`、`press_key`、`mouse_click`、`double_click`、`hover`、`mouse_move`、`drag`、`scroll` |
 | 文件与图像 | `download`、`downloads`、`screenshot`、`save_as_pdf` |
 
-`click` 使用 DOM click；`mouse_click` 与其余鼠标 action 使用真实 CDP 输入事件。DOM action 接受 CSS selector 或最近一次 `snapshot` 返回的 `@e` ref，鼠标 action 也可直接使用视口坐标。
+`click` 与其余鼠标 action 使用真实 CDP 输入事件；`click` 固定为左键单击，`mouse_click` 额外接受坐标、按钮与点击次数。DOM action 接受 CSS selector 或最近一次 `snapshot` 返回的 `@e` ref，鼠标 action 也可直接使用视口坐标。页面点击不得用 `evaluate` 调用 `element.click()` 绕过真实输入与可见指针。
 
 `mark_tab` 的 `mark` 接受 `deliverable`、`handoff` 或 `none`。`deliverable` 在本轮结束后保留页面并交还用户，`handoff` 保留控制权供下一轮继续，`none` 恢复默认收尾策略。
 
 需要 `cmd` 的 action 使用判别式输入约束：`network` 只接受 `start|stop|list|detail`，`console` 只接受 `start|stop|list`，`dialog` 只接受 `get|accept|dismiss`，`downloads` 只接受 `list|wait|show`，`clipboard` 只接受 `read|write`。MCP schema 在模型生成参数时约束组合，Browser service 在执行前再次校验。
 
-扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针，因此安装前已打开的标签页无需刷新。标签页进入后台时立即隐藏指针，后台收到动作也不显示。普通移动与点击先等待指针抵达再发送 CDP 输入；拖拽只在起点和释放前同步，指针脚本不可用或 1.5 秒内未响应时继续执行原始 CDP 操作。
+扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针，因此安装前已打开的标签页无需刷新。标签页进入后台时立即隐藏指针，后台收到动作也不显示。首次操作从视口中部起步，普通移动与点击沿平滑弧线等待指针抵达后再发送 CDP 输入，抵达后保持到本轮结束；拖拽只在起点和释放前同步，指针脚本不可用或 1.5 秒内未响应时继续执行原始 CDP 操作。
 
 `snapshot` 返回按页面顺序排列的紧凑可访问性文本，并优先保留可交互节点与页面结构。单次结果最多包含 300 个有效节点和 24 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。`evaluate` 会等待返回的 Promise 完成，并在 `timeout_ms` 或默认 80 秒后终止执行。
 

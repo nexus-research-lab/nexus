@@ -44,6 +44,7 @@ const SNAPSHOT_MAX_NODES = 300;
 const SNAPSHOT_MAX_BYTES = 24000;
 const SNAPSHOT_TEXT_MAX_CHARS = 240;
 const CURSOR_MOVE_MESSAGE = "NEXUS_CURSOR_MOVE";
+const CURSOR_HIDE_MESSAGE = "NEXUS_CURSOR_HIDE";
 const CURSOR_ARRIVAL_TIMEOUT_MS = 1500;
 const GROUP_COLORS = ["blue", "purple", "cyan", "green", "yellow", "orange", "red", "pink", "grey"];
 const PAPER_FORMATS = {
@@ -882,20 +883,7 @@ class BrowserController {
   }
 
   async click(params) {
-    const tab = await this.getTab(params.tab_id);
-    const objectId = await this.resolveElement(tab.id, params.selector);
-    try {
-      const response = await this.command(tab.id, "Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: "function() { this.scrollIntoView({ block: 'center', inline: 'center' }); this.click(); return { tag: this.tagName }; }",
-        returnByValue: true,
-        userGesture: true,
-      });
-      this.assertRuntimeResult(response);
-      return { tab_id: tab.id, clicked: true, selector: params.selector, ...(response.result?.value || {}) };
-    } finally {
-      await this.releaseObject(tab.id, objectId);
-    }
+    return this.mouseClick({ ...params, button: "left", click_count: 1 });
   }
 
   async fill(params) {
@@ -1120,6 +1108,14 @@ class BrowserController {
         finish(error);
       }
     });
+  }
+
+  async hideCursor(tabId) {
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: CURSOR_HIDE_MESSAGE });
+    } catch {
+      // 未注入光标脚本的页面无需清理。
+    }
   }
 
   async pointerPoint(tabId, params, selectorKey, xKey, yKey) {
@@ -1536,6 +1532,7 @@ class BrowserController {
     const result = { closed: 0, released: 0, handoff: 0 };
     for (const [tabId, lease] of tabs) {
       if (lease.mark === "handoff") {
+        await this.hideCursor(tabId);
         lease.roundID = "";
         lease.mark = "";
         this.leaseByTab.set(tabId, lease);
@@ -1778,6 +1775,7 @@ class BrowserController {
   }
 
   async releaseTab(tabId, removeFromGroup = false) {
+    await this.hideCursor(tabId);
     if (this.attachedTabs.has(tabId)) {
       try {
         await chrome.debugger.detach({ tabId });
