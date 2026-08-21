@@ -1,6 +1,6 @@
 /**
  * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
- * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；展开显示完整旁白、思考与调用。
+ * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；首层展开过程目录，各子项再独立展开详情。
  * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
  */
 "use client";
@@ -141,9 +141,9 @@ function ToolProcessSegmentView({
       <ToolProcessSegmentContent
         activity={activity}
         environment={environment}
-        expandToolDetails={false}
         permissions={permissions}
         projection={segment.projection}
+        showTrailingActivity
         streaming={streaming}
       />
     </TimelineBlock>
@@ -247,9 +247,9 @@ function ToolRun({
             <ToolProcessSegmentContent
               activity={activity}
               environment={environment}
-              expandToolDetails
               permissions={permissions}
               projection={segment.projection}
+              showTrailingActivity={false}
               streaming={streaming && active}
             />
           </div>
@@ -311,23 +311,22 @@ function formatToolRunSummary(
 function ToolProcessSegmentContent({
   activity,
   environment,
-  expandToolDetails,
   permissions,
   projection,
+  showTrailingActivity,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  expandToolDetails: boolean;
   permissions: AssistantPermissionState;
   projection: ContentProjection;
+  showTrailingActivity: boolean;
   streaming: boolean;
 }) {
   return (
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={projection.content}
-      defaultToolDetailsExpanded={expandToolDetails}
       fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
@@ -338,7 +337,7 @@ function ToolProcessSegmentContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
-      showTrailingActivity={!expandToolDetails}
+      showTrailingActivity={showTrailingActivity}
       streamingBlockIndexes={projection.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}

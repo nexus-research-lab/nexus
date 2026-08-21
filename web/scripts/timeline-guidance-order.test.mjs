@@ -3543,7 +3543,7 @@ test("ToolUseSummary continuously updates one execution row across process comme
   );
 });
 
-test("DM and Room tool runs stay folded until the summary row is opened", async () => {
+test("DM and Room process layers only expand at their own level", async () => {
   const { AssistantToolRuns } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
   );
@@ -3865,6 +3865,23 @@ test("DM and Room tool runs stay folded until the summary row is opened", async 
   assert.match(narratedProcessHtml, /报告已撰写并提交/);
   assert.doesNotMatch(narratedProcessHtml, /材料已读取|报告已撰写，正在提交/);
 
+  const firstLayerHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ContentRenderer, {
+        content: resolvedProjection.content,
+        defaultToolDetailsExpanded: false,
+      }),
+    ),
+  );
+  assert.match(firstLayerHtml, /view\.ts/);
+  assert.doesNotMatch(
+    firstLayerHtml,
+    /完整结果/,
+    "opening the process row reveals child rows without opening their details",
+  );
+
   const expandedDetailsHtml = renderToStaticMarkup(
     React.createElement(
       I18nProvider,
@@ -3877,6 +3894,17 @@ test("DM and Room tool runs stay folded until the summary row is opened", async 
   );
   assert.match(expandedDetailsHtml, /view\.ts/);
   assert.match(expandedDetailsHtml, /完整结果/);
+
+  const { readFile: readSourceFile } = await import("node:fs/promises");
+  const toolRunViewSource = await readSourceFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
+  ), "utf8");
+  assert.doesNotMatch(
+    toolRunViewSource,
+    /defaultToolDetailsExpanded/,
+    "the parent process fold must not cascade an expanded default into child tools",
+  );
 });
 
 test("semantic tool rejection stays distinct from transport completion in DM and Room", async () => {
