@@ -8,6 +8,7 @@
 - `/<command> <request>` 是用户已保存的 WorkGraph 命令。它提供抽象责任节点和依赖模板；每次调用仍创建新的 Execution、Plan、Work Item 和运行身份。
 - 用户只能在完成态 WorkGraph 标题栏请求“保存为草图”。宿主先用 owner 的默认后台模型从完整实际图自动选择、抽象结构，并按界面语言生成有时效的 preview；生成模型会收到当前命令目录与固定保留名，`slash_name` 默认选择一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不使用三个及以上词；若模型仍返回多词候选，服务端按语义核心词优先收敛到未占用的单词，并继续做最终冲突校验。用户可直接修改元信息，或在宿主从源 transcript 最近一个已完成助手轮次创建的短期受限 DM 分支中让模型修改文案、节点、父子结构与依赖；宿主校验完整草图的 revision、DAG、key 主路径与 terminal 交付后，只有用户明确应用才替换原 preview。
 - 保存命名图必须由宿主 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` 的内部 Agent round 调用 `nexus execution invoke --operation distill_workgraph` 完成。该 mutation 只接收用户刚确认的 exact `preview_id`；UI 调度端点不直接落库，Agent 也不得重新读取源图、重选节点或重写草图，更不能向聊天时间线补发保存请求。
+- 该内部保存 round 的思考摘要、过程状态、工具调用说明和结束文本必须使用简体中文；只有命令、Skill 名称和标识符保留原始形式，禁止输出英文叙述。
 - 模型不可用、JSON 无效、输出不是源 logical key 子集、缺少 key 主路径/terminal 交付或语义字段不完整时预览失败关闭，绝不回退展示或保存原始具体内容。
 
 ## 保存用户已确认的草图

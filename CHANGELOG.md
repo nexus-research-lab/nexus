@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept the hidden WorkGraph-save Agent round in Simplified Chinese across its host prompt, operation contract, schema guidance, progress narration, and final receipt.
 - Kept conversational WorkGraph editing on one transient DM Session across directory refreshes, with live sketch revisions and provider-compatible transcript-tail forks.
 - Bound sealed Plan proposals to the exact owner/session/scope/coordinator in durable host state, so `plan_execution` no longer requires models to copy opaque proposal IDs or digests and remains exact across Plan Mode exits, retries, and restarts.
 - Made initial Room and DM history wait for deferred indexing to finish, so first entry no longer leaves an empty conversation that only recovers after switching away and back.

@@ -127,7 +127,7 @@ func planExecutionSchema() map[string]any {
 func distillWorkflowSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"preview_id": nonEmptyStringProperty(
-			"Exact opaque preview id from the user-reviewed WorkGraph sketch. Persist this preview unchanged; never infer, rebuild, or replace it.",
+			"用户已确认的 WorkGraph 草图所对应的精确不透明 preview ID。必须原样保存该预览，不得猜测、重建或替换。",
 		),
 	}, "preview_id")
 }
