@@ -38,29 +38,44 @@ class NexusCursorOverlay {
     const style = document.createElement("style");
     style.textContent = `
       .cursor {
-        filter: drop-shadow(0 2px 2px rgba(15, 23, 42, .36)) drop-shadow(0 5px 10px rgba(15, 23, 42, .16));
+        filter: drop-shadow(0 2px 2px rgba(15, 23, 42, .5)) drop-shadow(0 0 14px rgba(15, 23, 42, .32));
         height: 29px;
         left: 0;
         opacity: 0;
         pointer-events: none;
         position: absolute;
         top: 0;
-        transform-origin: 3px 3px;
         transition: opacity 160ms ease;
         width: 24px;
         will-change: transform, opacity;
       }
       .cursor svg { display: block; height: 100%; width: 100%; }
+      .pointer {
+        animation: nexus-cursor-idle 1.8s ease-in-out infinite;
+        height: 100%;
+        transform-origin: 4px 4px;
+        width: 100%;
+      }
+      .cursor.moving .pointer { animation: none; }
+      @keyframes nexus-cursor-idle {
+        0%, 100% { transform: rotate(-5deg); }
+        50% { transform: rotate(5deg); }
+      }
       @media print { .cursor { display: none; } }
-      @media (prefers-reduced-motion: reduce) { .cursor { transition: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        .cursor { transition: none; }
+        .pointer { animation: none; }
+      }
     `;
     const cursor = document.createElement("div");
     cursor.className = "cursor";
     cursor.setAttribute("aria-hidden", "true");
     cursor.innerHTML = `
-      <svg viewBox="0 0 24 29" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2.5 1.8v21.3l5.7-5.4 4.5 9.5 4.8-2.3-4.5-9.3h8.3L2.5 1.8Z" fill="#fff" stroke="#202124" stroke-width="1.7" stroke-linejoin="round"/>
-      </svg>
+      <div class="pointer">
+        <svg viewBox="0 0 24 29" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3.1 2.3 21 15.2c.8.6.4 1.8-.6 1.9l-7.1 1.3-4.4 6.5c-.6.9-1.9.6-2.1-.4L1.4 4.1c-.3-1.1.8-2.4 1.7-1.8Z" fill="#64748b" fill-opacity=".78" stroke="#fff" stroke-width="2.1" stroke-linejoin="round"/>
+        </svg>
+      </div>
     `;
     shadow.append(style, cursor);
     document.documentElement.appendChild(host);
@@ -81,12 +96,14 @@ class NexusCursorOverlay {
     const distance = Math.hypot(x - start.x, y - start.y);
     if (distance < 0.5 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       this.animation?.cancel();
+      this.cursor.classList.remove("moving");
       this.current = target;
       this.applyPoint(target);
       return;
     }
 
     this.applyPoint(start);
+    this.cursor.classList.add("moving");
     const animation = this.cursor.animate(this.frames(start, target, distance), {
       duration: Math.min(CURSOR_MAX_MOVE_DURATION_MS, Math.max(CURSOR_MIN_MOVE_DURATION_MS, distance * 0.9)),
       easing: "cubic-bezier(.22,.8,.28,1)",
@@ -105,6 +122,7 @@ class NexusCursorOverlay {
     this.applyPoint(target);
     animation.cancel();
     this.animation = null;
+    this.cursor.classList.remove("moving");
   }
 
   initialPoint() {
@@ -136,6 +154,7 @@ class NexusCursorOverlay {
   hide() {
     this.animation?.cancel();
     this.animation = null;
+    this.cursor?.classList?.remove("moving");
     if (this.cursor) this.cursor.style.opacity = "0";
   }
 }
