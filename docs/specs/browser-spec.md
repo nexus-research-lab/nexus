@@ -34,12 +34,13 @@ runtime MCP browser
 - `tab_ref` 同时绑定浏览器实例、扩展进程代次、标签页 ID 和标签页实例 token；关闭后复用的整数 ID、扩展重启前的引用或模型自行构造的引用都会失败关闭。
 - 扩展监听 `webNavigation.onCreatedNavigationTarget`；由已归属标签页创建的新标签页继承来源 Session 和标签组，并以 `browser.event/tab_created` 主动更新宿主活动页。事件丢失时，扩展侧 Session 租约会在下一次 `list_tabs` 中补回。
 - 新建标签页按 Session 放入独立 Chrome 标签组；`close_session` 只关闭该 Session 已归属的标签页。
+- 标签页租约绑定当前 runtime round。round 结束时，扩展关闭本轮 Agent 新建且未标记的临时页，并对借用的用户页或 `deliverable` 结果页解除调试连接；`handoff` 页保留 Session 归属，供下一轮继续控制。
 
 ## Browser action
 
 | 能力 | action |
 | --- | --- |
-| 状态与标签页 | `status`、`navigate`、`find_tab`、`list_tabs`、`attach_active`、`attach_tab`、`back`、`forward`、`reload`、`close_tab`、`close_session`、`close` |
+| 状态与标签页 | `status`、`navigate`、`find_tab`、`list_tabs`、`attach_active`、`attach_tab`、`mark_tab`、`back`、`forward`、`reload`、`close_tab`、`close_session`、`close` |
 | 页面读取与等待 | `history`、`evaluate`、`page_content`、`wait_for`、`wait_for_url`、`snapshot` |
 | 页面调试 | `network`、`console`、`dialog`、`cdp` |
 | DOM 与表单 | `click`、`fill`、`check`、`uncheck`、`select_option`、`upload` |
@@ -47,6 +48,8 @@ runtime MCP browser
 | 文件与图像 | `download`、`downloads`、`screenshot`、`save_as_pdf` |
 
 `click` 使用 DOM click；`mouse_click` 与其余鼠标 action 使用真实 CDP 输入事件。DOM action 接受 CSS selector 或最近一次 `snapshot` 返回的 `@e` ref，鼠标 action 也可直接使用视口坐标。
+
+`mark_tab` 的 `mark` 接受 `deliverable`、`handoff` 或 `none`。`deliverable` 在本轮结束后保留页面并交还用户，`handoff` 保留控制权供下一轮继续，`none` 恢复默认收尾策略。
 
 扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针，因此安装前已打开的标签页无需刷新。标签页进入后台时立即隐藏指针，后台收到动作也不显示。普通移动与点击先等待指针抵达再发送 CDP 输入；拖拽只在起点和释放前同步，指针脚本不可用或 1.5 秒内未响应时继续执行原始 CDP 操作。
 

@@ -194,6 +194,15 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
 		LauncherPath: cfg.RuntimeLauncherPath,
 	})
+	if browserService != nil {
+		runtimeManager.SetRoundFinishedObserver(func(sessionKey string, roundID string) {
+			go func() {
+				if err := browserService.FinalizeRound(context.Background(), sessionKey, roundID); err != nil {
+					logger.Warn("Browser round 收尾失败", "session_key", sessionKey, "round_id", roundID, "err", err)
+				}
+			}()
+		})
+	}
 	runtimeTransition := newRuntimeAuthTransition(runtimeManager)
 	authService.SetRuntimeTransitionCoordinator(runtimeTransition)
 	projectPermissionService.SetRuntimeSessionCloser(runtimeManager)
@@ -425,7 +434,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelAuthorizationBuilder,
 		contextOnlyMCPBuilder(visualizeBuilder),
 		contextOnlyMCPBuilder(imagegenBuilder),
-		contextOnlyMCPBuilder(browserBuilder),
+		roundContextMCPBuilder(browserBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
 	dmService.SetMCPServerBuilder(mcpBuilder)

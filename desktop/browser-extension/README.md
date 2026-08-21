@@ -19,6 +19,7 @@ Nexus 自有的 Chromium 扩展，通过 WebSocket 把完整 Browser 能力交�
 
 - 每个 Nexus Session 通过绑定扩展代次和标签页实例的不透明引用独立管理多个标签页，支持导航、新建、查找、借用、前进后退、刷新、列出全部标签页和读取历史。
 - 受控页面创建的 OAuth、登录或 `target=_blank` 子标签页会自动继承来源 Session、标签组与活动页控制。
+- 每个 runtime round 结束时自动关闭 Agent 新建的临时页并解除用户页面控制；Agent 可用 `mark_tab` 把结果页交付给用户，或留给下一轮继续操作。
 - 支持紧凑且有上限的可访问性树快照、页面正文/HTML、元素等待，以及 CSS selector / 最新快照 `@e` ref 或坐标驱动的点击、双击、悬停、拖拽、滚动和表单操作。
 - 鼠标操作只在当前可见标签页显示带 Nexus 蓝紫光晕的指针；指针抵达目标后才执行点击，受限页面无法显示时自动退回原有 CDP 操作。
 - 支持文本插入、组合键、重复按键、剪贴板文本读写、会等待 Promise 的任意 JavaScript，以及用户明确开启后的完整 Chrome DevTools Protocol 命令。

@@ -1,4 +1,4 @@
-// INPUT: 当前 runtime Session identity、上下文名称与 browser action。
+// INPUT: 当前 runtime Session/round identity、上下文名称与 browser action。
 // OUTPUT: 浏览器状态、标签页、页面/网络数据、交互结果、截图或 PDF MCP content。
 // POS: Browser 的完整浏览器工具适配层。
 package browser
@@ -21,6 +21,7 @@ const ServerName = "nexus_browser"
 func NewServer(
 	service *browsersvc.Service,
 	sessionKey string,
+	roundID string,
 	sessionLabel string,
 	resolveCDPAccess func(context.Context) (bool, error),
 ) *sdktool.SimpleSDKMCPServer {
@@ -48,7 +49,7 @@ func NewServer(
 					return errorResult(err), nil
 				}
 			}
-			result, err := service.Execute(ctx, sessionKey, sessionLabel, action, input, allowCDP)
+			result, err := service.Execute(ctx, sessionKey, roundID, sessionLabel, action, input, allowCDP)
 			if err != nil {
 				return errorResult(err), nil
 			}
@@ -77,6 +78,10 @@ func browserSchema() map[string]any {
 			},
 			"tab_ref": map[string]any{
 				"type": "string", "description": "attach_tab 使用的不透明标签页引用；只能取自最近一次 list_tabs 结果。",
+			},
+			"mark": map[string]any{
+				"type": "string", "enum": []string{"none", "deliverable", "handoff"},
+				"description": "mark_tab 设置本轮结束策略：deliverable 保留页面并交还用户，handoff 留给下一轮继续控制，none 恢复默认。",
 			},
 			"scope": map[string]any{
 				"type": "string", "enum": []string{"session", "all"},

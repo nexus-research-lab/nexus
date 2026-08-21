@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	resultCh := make(chan map[string]any, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		result, err := service.Execute(context.Background(), "session-a", "Agent A", "navigate", map[string]any{
+		result, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "navigate", map[string]any{
 			"url": "https://example.com",
 		}, false)
 		resultCh <- result
@@ -53,7 +54,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	}
 
 	go func() {
-		_, err := service.Execute(context.Background(), "session-a", "Agent A", "navigate", map[string]any{
+		_, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "navigate", map[string]any{
 			"url": "https://example.org", "new_tab": true,
 		}, false)
 		errCh <- err
@@ -71,7 +72,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	}
 
 	go func() {
-		_, err := service.Execute(context.Background(), "session-a", "Agent A", "list_tabs", nil, false)
+		_, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "list_tabs", nil, false)
 		errCh <- err
 	}()
 	command = receiveCommand(t, commands)
@@ -92,7 +93,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	}
 
 	go func() {
-		_, err := service.Execute(context.Background(), "session-a", "Agent A", "snapshot", nil, false)
+		_, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "snapshot", nil, false)
 		errCh <- err
 	}()
 	command = receiveCommand(t, commands)
@@ -105,7 +106,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 		t.Fatalf("snapshot error = %v", err)
 	}
 
-	if _, err := service.Execute(context.Background(), "session-b", "Agent B", "snapshot", nil, false); err == nil {
+	if _, err := service.Execute(context.Background(), "session-b", "round-b", "Agent B", "snapshot", nil, false); err == nil {
 		t.Fatal("另一 Session 不应继承 session-a 的标签页")
 	}
 }
@@ -115,6 +116,7 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 	if _, err := service.Execute(
 		context.Background(),
 		"session-a",
+		"round-a",
 		"Agent A",
 		"cdp",
 		map[string]any{"method": "Browser.getVersion"},
@@ -138,6 +140,7 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 		_, err := service.Execute(
 			context.Background(),
 			"session-a",
+			"round-a",
 			"Agent A",
 			"cdp",
 			map[string]any{"method": "Browser.getVersion"},
@@ -179,6 +182,12 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	}); err == nil {
 		t.Fatal("attach_tab 不应接受可复用的整数 tab_id")
 	}
+	marked, _, err := service.prepareParams("session-a", "Agent A", "mark_tab", map[string]any{
+		"mark": "deliverable",
+	})
+	if err != nil || marked["tab_ref"] != "ref-42" || marked["mark"] != "deliverable" {
+		t.Fatalf("mark_tab params = %+v, err = %v", marked, err)
+	}
 
 	mouse, _, err := service.prepareParams("session-a", "Agent A", "mouse_click", map[string]any{
 		"x": json.Number("12.5"), "y": json.Number("24.5"), "click_count": json.Number("2"),
@@ -218,6 +227,52 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	}
 }
 
+func TestFinalizeRoundKeepsOnlyHandoffAndOtherRounds(t *testing.T) {
+	service := NewService()
+	commands := make(chan map[string]any, 1)
+	_, detach := service.Attach("0.5.0", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+		commands <- payload.(map[string]any)
+		return nil
+	}, nil)
+	defer detach()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-4",
+		tabs: map[string]browserTab{
+			"ref-1": {id: 1, ref: "ref-1", owned: true, roundID: "round-a"},
+			"ref-2": {id: 2, ref: "ref-2", roundID: "round-a"},
+			"ref-3": {id: 3, ref: "ref-3", owned: true, roundID: "round-a", mark: "deliverable"},
+			"ref-4": {id: 4, ref: "ref-4", owned: true, roundID: "round-a", mark: "handoff"},
+			"ref-5": {id: 5, ref: "ref-5", owned: true, roundID: "round-b"},
+		},
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.FinalizeRound(context.Background(), "session-a", "round-a")
+	}()
+	command := receiveCommand(t, commands)
+	if command["action"] != "finalize_round" {
+		t.Fatalf("收尾 action = %v", command["action"])
+	}
+	params := command["params"].(map[string]any)
+	wantRefs := []string{"ref-1", "ref-2", "ref-3", "ref-4"}
+	if got, _ := params["tab_refs"].([]string); !slices.Equal(got, wantRefs) {
+		t.Fatalf("收尾 tab_refs = %#v", got)
+	}
+	service.Resolve(command["id"].(string), map[string]any{"closed": 1, "released": 2, "handoff": 1}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("FinalizeRound() error = %v", err)
+	}
+
+	state := service.sessions["session-a"]
+	if len(state.tabs) != 2 || state.tabs["ref-4"].roundID != "" || state.tabs["ref-4"].mark != "" {
+		t.Fatalf("收尾后的 Session = %+v", state)
+	}
+	if _, ok := state.tabs["ref-5"]; !ok {
+		t.Fatal("其他 round 的标签页不应被清理")
+	}
+}
+
 func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
 	service := NewService()
 	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(context.Context, any) error {
@@ -234,7 +289,7 @@ func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
 	}, nil)
 	defer detachNext()
 
-	if _, err := service.Execute(context.Background(), "session-a", "Agent A", "snapshot", nil, false); err == nil {
+	if _, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "snapshot", nil, false); err == nil {
 		t.Fatal("扩展代次变化后不应继续使用旧标签页引用")
 	}
 }

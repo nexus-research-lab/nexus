@@ -3485,6 +3485,23 @@ func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
 	}
 }
 
+func TestManagerNotifiesRoundFinishedOnce(t *testing.T) {
+	manager := NewManager()
+	var calls []string
+	manager.SetRoundFinishedObserver(func(sessionKey string, roundID string) {
+		calls = append(calls, sessionKey+":"+roundID)
+	})
+	if err := manager.StartRound(context.Background(), "session-a", "round-a", nil); err != nil {
+		t.Fatalf("StartRound() error = %v", err)
+	}
+
+	manager.MarkRoundFinished("session-a", "round-a")
+	manager.MarkRoundFinished("session-a", "round-a")
+	if len(calls) != 1 || calls[0] != "session-a:round-a" {
+		t.Fatalf("round observer calls = %#v", calls)
+	}
+}
+
 func TestAgentClientDisconnectDeadlineDoesNotCancelSharedCleanup(t *testing.T) {
 	cleanupStarted := make(chan struct{})
 	cleanupRelease := make(chan struct{})

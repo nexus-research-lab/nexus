@@ -1,4 +1,4 @@
-// INPUT: Browser 服务与当前 Agent runtime Session identity。
+// INPUT: Browser 服务与当前 Agent runtime Session/round identity。
 // OUTPUT: 启用时稳定注入的 nexus_browser SDK MCP server。
 // POS: 浏览器扩展能力在 DM/Room runtime 的组合根适配器。
 package server
@@ -24,16 +24,18 @@ func newBrowserMCPBuilder(
 	string,
 	string,
 	string,
+	string,
 ) map[string]sdkmcp.ServerConfig {
 	return func(
 		_ context.Context,
 		agentValue *protocol.Agent,
 		sessionKey string,
+		roundID string,
 		_ string,
 		_ string,
 		sourceContextLabel string,
 	) map[string]sdkmcp.ServerConfig {
-		if service == nil || agentValue == nil || strings.TrimSpace(sessionKey) == "" {
+		if service == nil || agentValue == nil || strings.TrimSpace(sessionKey) == "" || strings.TrimSpace(roundID) == "" {
 			return nil
 		}
 		resolveCDPAccess := func(ctx context.Context) (bool, error) {
@@ -49,6 +51,7 @@ func newBrowserMCPBuilder(
 				Instance: browsermcp.NewServer(
 					service,
 					sessionKey,
+					roundID,
 					sourceContextLabel,
 					resolveCDPAccess,
 				),

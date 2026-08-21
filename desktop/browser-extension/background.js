@@ -1,4 +1,4 @@
-const PROTOCOL_VERSION = "2";
+const PROTOCOL_VERSION = "3";
 const SUBPROTOCOL = "nexus.browser.v1";
 const DEFAULT_ENDPOINTS = [
   "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws",
@@ -110,6 +110,7 @@ class BrowserController {
       }
       params.tab_id = tabId;
     }
+    this.touchLease(params);
     switch (action) {
       case "list_tabs":
         return this.listTabs(params);
@@ -117,6 +118,8 @@ class BrowserController {
         return this.attachActive(params);
       case "attach_tab":
         return this.attachTab(params);
+      case "mark_tab":
+        return this.markTab(params);
       case "navigate":
         return this.navigate(params);
       case "find_tab":
@@ -189,6 +192,8 @@ class BrowserController {
         return this.closeTab(params);
       case "close_session":
         return this.closeSession(params);
+      case "finalize_round":
+        return this.finalizeRound(params);
       default:
         throw new Error("Unsupported browser action: " + action);
     }
@@ -225,7 +230,7 @@ class BrowserController {
     tab = await chrome.tabs.get(tab.id);
     await this.attachDebugger(tab.id);
     this.claimTab(tab.id, params, created);
-    return { ...await this.tabResult(tab), owned: created, created };
+    return { ...await this.tabResult(tab), created };
   }
 
   async findTab(params) {
@@ -258,7 +263,7 @@ class BrowserController {
     }
     await this.attachDebugger(tab.id);
     this.claimTab(tab.id, params, false);
-    return { ...await this.tabResult(tab), borrowed, owned: false };
+    return { ...await this.tabResult(tab), borrowed };
   }
 
   async listTabs(params) {
@@ -282,14 +287,29 @@ class BrowserController {
     if (!tab?.id) throw new Error("No active browser tab found");
     await this.attachDebugger(tab.id);
     this.claimTab(tab.id, params, false);
-    return { ...await this.tabResult(tab), borrowed: true, owned: false };
+    return { ...await this.tabResult(tab), borrowed: true };
   }
 
   async attachTab(params) {
     const tab = await this.getTab(params.tab_id);
     await this.attachDebugger(tab.id);
     this.claimTab(tab.id, params, false);
-    return { ...await this.tabResult(tab), borrowed: true, owned: false };
+    return { ...await this.tabResult(tab), borrowed: true };
+  }
+
+  async markTab(params) {
+    const tab = await this.getTab(params.tab_id);
+    const lease = this.leaseByTab.get(tab.id);
+    const session = this.requireText(params.session, "mark_tab requires session");
+    if (!lease || lease.session !== session) throw new Error("Tab does not belong to this Session");
+    const mark = String(params.mark || "").toLowerCase();
+    if (!["none", "deliverable", "handoff"].includes(mark)) {
+      throw new Error("mark_tab mark must be none, deliverable, or handoff");
+    }
+    lease.roundID = this.requireText(params.round_id, "mark_tab requires round_id");
+    lease.mark = mark === "none" ? "" : mark;
+    this.leaseByTab.set(tab.id, lease);
+    return { ...await this.tabResult(tab), marked: mark };
   }
 
   async navigateHistory(action, params) {
@@ -1417,6 +1437,30 @@ class BrowserController {
     return { closed: existing.length, tab_ids: existing };
   }
 
+  async finalizeRound(params) {
+    const session = this.requireText(params.session, "finalize_round requires session");
+    const roundID = this.requireText(params.round_id, "finalize_round requires round_id");
+    const tabs = [...this.leaseByTab.entries()]
+      .filter(([, lease]) => lease.session === session && lease.roundID === roundID)
+      .sort(([left], [right]) => left - right);
+    const result = { closed: 0, released: 0, handoff: 0 };
+    for (const [tabId, lease] of tabs) {
+      if (lease.mark === "handoff") {
+        lease.roundID = "";
+        lease.mark = "";
+        this.leaseByTab.set(tabId, lease);
+        result.handoff += 1;
+      } else if (lease.mark === "deliverable" || !lease.owned) {
+        await this.releaseTab(tabId);
+        result.released += 1;
+      } else {
+        await this.closeTab({ tab_id: tabId });
+        result.closed += 1;
+      }
+    }
+    return result;
+  }
+
   async resolveElement(tabId, rawSelector) {
     const selector = this.requireText(rawSelector, "selector is required");
     const ref = selector.match(/^@?e\d+$/i) ? "@" + selector.replace(/^@/, "").toLowerCase() : "";
@@ -1464,6 +1508,7 @@ class BrowserController {
         groupTitle = "";
       }
     }
+    const lease = this.leaseByTab.get(tab.id);
     return {
       tab_id: tab.id,
       tab_ref: this.tabRef(tab.id),
@@ -1473,6 +1518,9 @@ class BrowserController {
       window_id: tab.windowId,
       group_id: tab.groupId,
       group_title: groupTitle,
+      owned: Boolean(lease?.owned),
+      round_id: lease?.roundID || "",
+      mark: lease?.mark || "",
     };
   }
 
@@ -1480,11 +1528,25 @@ class BrowserController {
     const session = String(params.session || "").trim();
     if (!session || !Number.isInteger(tabId) || tabId <= 0) return;
     const current = this.leaseByTab.get(tabId);
+    const roundID = String(params.round_id || current?.roundID || "").trim();
     this.leaseByTab.set(tabId, {
       session,
       groupTitle: String(params.group_title || current?.groupTitle || "Nexus").trim() || "Nexus",
       owned: Boolean(owned || current?.owned),
+      roundID,
+      mark: current?.roundID === roundID ? current.mark || "" : "",
     });
+  }
+
+  touchLease(params) {
+    if (!Number.isInteger(params.tab_id) || params.tab_id <= 0) return;
+    const lease = this.leaseByTab.get(params.tab_id);
+    const session = String(params.session || "").trim();
+    const roundID = String(params.round_id || "").trim();
+    if (!lease || !session || lease.session !== session || !roundID) return;
+    if (lease.roundID !== roundID) lease.mark = "";
+    lease.roundID = roundID;
+    this.leaseByTab.set(params.tab_id, lease);
   }
 
   async inheritCreatedTab(details) {
@@ -1495,6 +1557,7 @@ class BrowserController {
     this.claimTab(tabId, {
       session: lease.session,
       group_title: lease.groupTitle,
+      round_id: lease.roundID,
     }, true);
     try {
       await this.groupTab(tabId, lease.session, lease.groupTitle);
@@ -1584,6 +1647,17 @@ class BrowserController {
       }
       throw new Error("Cannot attach debugger to tab " + tabId + ": " + error.message);
     }
+  }
+
+  async releaseTab(tabId) {
+    if (this.attachedTabs.has(tabId)) {
+      try {
+        await chrome.debugger.detach({ tabId });
+      } catch {
+        // 页面关闭或调试会话先行结束时，只需清理本地租约。
+      }
+    }
+    this.clearTab(tabId);
   }
 
   async command(tabId, method, params = {}) {

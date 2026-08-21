@@ -55,6 +55,7 @@ type Manager struct {
 	factory               Factory
 	now                   func() time.Time
 	ownerProcessReaper    OwnerProcessReaper
+	roundFinishedObserver func(string, string)
 	owners                map[string]*ownerLifecycle
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
 	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
@@ -90,6 +91,13 @@ func NewManagerWithFactory(factory Factory) *Manager {
 func (m *Manager) SetOwnerProcessReaper(reaper OwnerProcessReaper) {
 	m.mu.Lock()
 	m.ownerProcessReaper = reaper
+	m.mu.Unlock()
+}
+
+// SetRoundFinishedObserver 注入物理 round 完成后的业务清理入口。
+func (m *Manager) SetRoundFinishedObserver(observer func(string, string)) {
+	m.mu.Lock()
+	m.roundFinishedObserver = observer
 	m.mu.Unlock()
 }
 
