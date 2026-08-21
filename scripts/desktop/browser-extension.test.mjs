@@ -340,17 +340,26 @@ test("Browser 光标首个动作沿轨迹移动且只在当前可见标签页显
   assert.equal(overlay.host, null);
 
   let frames;
+  let movingDuringAnimation = false;
+  const cursorClasses = new Set();
   documentStub.hidden = false;
   overlay.mount = () => {};
   overlay.cursor = {
     animate(value) {
       frames = value;
+      movingDuringAnimation = cursorClasses.has("moving");
       return { cancel() {}, finished: Promise.resolve() };
+    },
+    classList: {
+      add(value) { cursorClasses.add(value); },
+      remove(value) { cursorClasses.delete(value); },
     },
     style: { opacity: "0" },
   };
   await overlay.move(120, 80);
   assert.ok(frames.length >= 8);
+  assert.equal(movingDuringAnimation, true);
+  assert.equal(cursorClasses.has("moving"), false);
   assert.match(frames[0].transform, /^translate3d\(500px, 440/);
   assert.equal(frames.at(-1).transform, "translate3d(120px, 80px, 0)");
   assert.equal(overlay.cursor.style.opacity, "1");

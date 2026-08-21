@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restyled the Browser action pointer with a translucent shape, soft shadow, and subtle idle sway.
 - Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.
 - Made Browser accessibility refs stable within a page, returned compact snapshot diffs, and synchronized controlled-tab navigation, activation, and removal events.
 - Separated Echo follow-ups from earlier direct-message history with a labeled timeline divider and made their wording resume the conversation more naturally.
