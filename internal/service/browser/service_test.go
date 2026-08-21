@@ -239,6 +239,35 @@ func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
 	}
 }
 
+func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
+	service := NewService()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+
+	if !service.ObserveEvent("tab_created", map[string]any{
+		"session":        "session-a",
+		"source_tab_ref": "ref-42",
+		"tab": map[string]any{
+			"tab_id": float64(43), "tab_ref": "ref-43",
+		},
+	}) {
+		t.Fatal("来源标签页创建的子标签页应继承 Session")
+	}
+	params, _, err := service.prepareParams("session-a", "Agent A", "snapshot", nil)
+	if err != nil || params["tab_id"] != int64(43) || params["tab_ref"] != "ref-43" {
+		t.Fatalf("继承后的活动标签页 = %+v, err = %v", params, err)
+	}
+	if service.ObserveEvent("tab_created", map[string]any{
+		"session":        "session-a",
+		"source_tab_ref": "unknown",
+		"tab":            map[string]any{"tab_id": float64(44), "tab_ref": "ref-44"},
+	}) {
+		t.Fatal("未知来源标签页不应注入 Session")
+	}
+}
+
 func TestBrowserExtensionHandlesEveryServiceAction(t *testing.T) {
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {

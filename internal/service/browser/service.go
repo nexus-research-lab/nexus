@@ -178,6 +178,35 @@ func (s *Service) Resolve(requestID string, data map[string]any, message string)
 	return true
 }
 
+// ObserveEvent 接收扩展主动上报的标签页生命周期事件。
+func (s *Service) ObserveEvent(event string, data map[string]any) bool {
+	if s == nil || strings.TrimSpace(event) != "tab_created" {
+		return false
+	}
+	sessionKey := stringValue(data["session"])
+	sourceTabRef := stringValue(data["source_tab_ref"])
+	tabValue, _ := data["tab"].(map[string]any)
+	tabID, valid := integerValue(tabValue["tab_id"])
+	tabRef := stringValue(tabValue["tab_ref"])
+	if sessionKey == "" || sourceTabRef == "" || !valid || tabID <= 0 || tabRef == "" {
+		return false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok := s.sessions[sessionKey]
+	if !ok {
+		return false
+	}
+	if _, ok = state.tabs[sourceTabRef]; !ok {
+		return false
+	}
+	rememberTab(&state, browserTab{id: tabID, ref: tabRef})
+	state.activeTabRef = tabRef
+	s.sessions[sessionKey] = state
+	return true
+}
+
 // Execute 校验模型输入，把动作发送给扩展，并维护当前 Session 的标签页状态。
 func (s *Service) Execute(
 	ctx context.Context,
@@ -758,12 +787,7 @@ func (s *Service) updateSession(
 		if !valid || tabID <= 0 || tabRef == "" {
 			return
 		}
-		for existingRef, tab := range state.tabs {
-			if tab.id == tabID && existingRef != tabRef {
-				delete(state.tabs, existingRef)
-			}
-		}
-		state.tabs[tabRef] = browserTab{id: tabID, ref: tabRef}
+		rememberTab(&state, browserTab{id: tabID, ref: tabRef})
 		state.activeTabRef = tabRef
 		s.sessions[sessionKey] = state
 	case "list_tabs":
@@ -823,6 +847,21 @@ func setActiveTab(params map[string]any, state browserSession) {
 	}
 	params["tab_id"] = tab.id
 	params["tab_ref"] = tab.ref
+}
+
+func rememberTab(state *browserSession, next browserTab) {
+	if state == nil || next.id <= 0 || next.ref == "" {
+		return
+	}
+	if state.tabs == nil {
+		state.tabs = make(map[string]browserTab)
+	}
+	for existingRef, tab := range state.tabs {
+		if tab.id == next.id && existingRef != next.ref {
+			delete(state.tabs, existingRef)
+		}
+	}
+	state.tabs[next.ref] = next
 }
 
 func normalizeSelector(params map[string]any, action string) error {

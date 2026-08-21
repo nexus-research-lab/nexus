@@ -62,9 +62,11 @@ class BrowserController {
     this.consoleEntries = new Map();
     this.dialogs = new Map();
     this.groupBySession = new Map();
+    this.leaseByTab = new Map();
     this.tabTokens = new Map();
     this.browserInstanceID = "";
     this.browserGeneration = "";
+    this.eventSink = () => {};
     this.platform = null;
 
     chrome.tabs.onRemoved.addListener((tabId) => this.clearTab(tabId));
@@ -85,11 +87,18 @@ class BrowserController {
         if (groupId === group.id) this.groupBySession.delete(session);
       }
     });
+    chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+      void this.inheritCreatedTab(details);
+    });
   }
 
   setIdentity(instanceID, generation) {
     this.browserInstanceID = this.requireText(instanceID, "browser instance id is required");
     this.browserGeneration = this.requireText(generation, "browser generation is required");
+  }
+
+  setEventSink(sink) {
+    this.eventSink = typeof sink === "function" ? sink : () => {};
   }
 
   async execute(action, params = {}) {
@@ -105,7 +114,7 @@ class BrowserController {
       case "list_tabs":
         return this.listTabs(params);
       case "attach_active":
-        return this.attachActive();
+        return this.attachActive(params);
       case "attach_tab":
         return this.attachTab(params);
       case "navigate":
@@ -215,6 +224,7 @@ class BrowserController {
 
     tab = await chrome.tabs.get(tab.id);
     await this.attachDebugger(tab.id);
+    this.claimTab(tab.id, params, created);
     return { ...await this.tabResult(tab), owned: created, created };
   }
 
@@ -231,7 +241,7 @@ class BrowserController {
       }
     }
     if (!tab) {
-      for (const tabId of this.tabRefs(params.tab_refs)) {
+      for (const tabId of this.sessionTabIDs(params)) {
         try {
           const candidate = await chrome.tabs.get(tabId);
           if (this.matchesURL(candidate.url || candidate.pendingUrl || "", pattern)) {
@@ -247,6 +257,7 @@ class BrowserController {
       throw new Error("No matching tab found");
     }
     await this.attachDebugger(tab.id);
+    this.claimTab(tab.id, params, false);
     return { ...await this.tabResult(tab), borrowed, owned: false };
   }
 
@@ -256,7 +267,7 @@ class BrowserController {
       return { scope: "all", tabs: await Promise.all(tabs.map((tab) => this.tabResult(tab))) };
     }
     const tabs = [];
-    for (const tabId of this.tabRefs(params.tab_refs)) {
+    for (const tabId of this.sessionTabIDs(params)) {
       try {
         tabs.push(await this.tabResult(await chrome.tabs.get(tabId)));
       } catch {
@@ -266,16 +277,18 @@ class BrowserController {
     return { scope: "session", tabs };
   }
 
-  async attachActive() {
+  async attachActive(params) {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab?.id) throw new Error("No active browser tab found");
     await this.attachDebugger(tab.id);
+    this.claimTab(tab.id, params, false);
     return { ...await this.tabResult(tab), borrowed: true, owned: false };
   }
 
   async attachTab(params) {
     const tab = await this.getTab(params.tab_id);
     await this.attachDebugger(tab.id);
+    this.claimTab(tab.id, params, false);
     return { ...await this.tabResult(tab), borrowed: true, owned: false };
   }
 
@@ -1391,7 +1404,7 @@ class BrowserController {
 
   async closeSession(params) {
     const existing = [];
-    for (const tabId of this.tabRefs(params.tab_refs)) {
+    for (const tabId of this.sessionTabIDs(params)) {
       try {
         await chrome.tabs.get(tabId);
         existing.push(tabId);
@@ -1461,6 +1474,40 @@ class BrowserController {
       group_id: tab.groupId,
       group_title: groupTitle,
     };
+  }
+
+  claimTab(tabId, params, owned) {
+    const session = String(params.session || "").trim();
+    if (!session || !Number.isInteger(tabId) || tabId <= 0) return;
+    const current = this.leaseByTab.get(tabId);
+    this.leaseByTab.set(tabId, {
+      session,
+      groupTitle: String(params.group_title || current?.groupTitle || "Nexus").trim() || "Nexus",
+      owned: Boolean(owned || current?.owned),
+    });
+  }
+
+  async inheritCreatedTab(details) {
+    const sourceTabId = details?.sourceTabId;
+    const tabId = details?.tabId;
+    const lease = this.leaseByTab.get(sourceTabId);
+    if (!lease || !Number.isInteger(tabId) || tabId <= 0) return;
+    this.claimTab(tabId, {
+      session: lease.session,
+      group_title: lease.groupTitle,
+    }, true);
+    try {
+      await this.groupTab(tabId, lease.session, lease.groupTitle);
+      const tab = await chrome.tabs.get(tabId);
+      this.eventSink("tab_created", {
+        session: lease.session,
+        source_tab_ref: this.tabRef(sourceTabId),
+        tab: await this.tabResult(tab),
+        owned: true,
+      });
+    } catch {
+      this.clearTab(tabId);
+    }
   }
 
   async groupTab(tabId, rawSession, rawTitle) {
@@ -1595,6 +1642,17 @@ class BrowserController {
     return [...new Set(tabIds)];
   }
 
+  sessionTabIDs(params) {
+    const tabIds = new Set(this.tabRefs(params.tab_refs));
+    const session = String(params.session || "").trim();
+    if (session) {
+      for (const [tabId, lease] of this.leaseByTab) {
+        if (lease.session === session) tabIds.add(tabId);
+      }
+    }
+    return [...tabIds];
+  }
+
   requireText(value, message) {
     const result = String(value ?? "").trim();
     if (!result) throw new Error(message);
@@ -1665,6 +1723,7 @@ class BrowserController {
     this.consoleTabs.delete(tabId);
     this.consoleEntries.delete(tabId);
     this.dialogs.delete(tabId);
+    this.leaseByTab.delete(tabId);
     this.tabTokens.delete(tabId);
   }
 }
@@ -1678,6 +1737,9 @@ class BrowserClient {
     this.connecting = false;
     this.generation = 0;
     this.queue = Promise.resolve();
+    this.controller.setEventSink((event, data) => {
+      if (this.socket) this.send(this.socket, { type: "browser.event", event, data });
+    });
   }
 
   async start() {
