@@ -1,4 +1,4 @@
-// INPUT: WebBridge 服务与当前 Agent runtime Session identity。
+// INPUT: Browser 服务与当前 Agent runtime Session identity。
 // OUTPUT: 启用时稳定注入的 nexus_browser SDK MCP server。
 // POS: 浏览器扩展能力在 DM/Room runtime 的组合根适配器。
 package server
@@ -8,14 +8,14 @@ import (
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	webbridgemcp "github.com/nexus-research-lab/nexus/internal/mcp/webbridge"
+	browsermcp "github.com/nexus-research-lab/nexus/internal/mcp/browser"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
-	webbridgesvc "github.com/nexus-research-lab/nexus/internal/service/webbridge"
 )
 
-func newWebBridgeMCPBuilder(
-	service *webbridgesvc.Service,
+func newBrowserMCPBuilder(
+	service *browsersvc.Service,
 	preferences *preferencessvc.Service,
 ) func(
 	context.Context,
@@ -44,9 +44,9 @@ func newWebBridgeMCPBuilder(
 			return item.BrowserCDPEnabled, err
 		}
 		return map[string]sdkmcp.ServerConfig{
-			webbridgemcp.ServerName: sdkmcp.SDKServerConfig{
-				Name: webbridgemcp.ServerName,
-				Instance: webbridgemcp.NewServer(
+			browsermcp.ServerName: sdkmcp.SDKServerConfig{
+				Name: browsermcp.ServerName,
+				Instance: browsermcp.NewServer(
 					service,
 					sessionKey,
 					sourceContextLabel,

@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added Nexus WebBridge with a guided desktop extension setup, live connection status, multi-tab browser automation, opt-in raw CDP, network inspection, uploads, screenshots, and PDF export.
+- Added Nexus Browser with a branded extension icon, guided setup, live status, Session-scoped tabs, history, page/coordinate interaction, network and console inspection, dialog handling, clipboard access, uploads, downloads, full-page screenshots, PDF export, and opt-in raw CDP.
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Fixed
 
+- Fixed valid numeric Browser parameters being rejected by the runtime input validator.
 - Reduced and aligned the desktop default model selectors and their menus.
 - Automatically selected the first successfully tested NXS-compatible Provider model when no default model exists.
 - Prevented initial Room and DM history loading from restoring a stale reading anchor after the view had already followed the latest message.

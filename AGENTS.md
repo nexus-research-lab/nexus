@@ -26,7 +26,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 <directory>
 cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；nxs/Claude 共用的 Agent-facing nexus CLI；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
-desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-extension（窗口 chrome、bridge、sidecar 生命周期、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗；Chromium 扩展经 WebBridge 提供 browser computer-use 与用户启用后的完整 CDP 操作）
+desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-extension（窗口 chrome、bridge、sidecar 生命周期、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗；Chromium 扩展为 Browser 提供页面、标签页、历史、下载、交互与用户启用后的完整 CDP 操作）
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
@@ -43,7 +43,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
     host/           - nexusctl / nexuscfg 宿主命令行装配（按领域文件组织）
     runtimecommand/ - Goal/Execution 的 transport-neutral operation contract、round capability 与 typed receipt
   app/        - HTTP 服务装配与生命周期
-  mcp/ connectors/ workspace/ - 能力域；模型侧只通过内置 Skill 和 round-scoped `nexus goal|execution` CLI 使用 runtime command；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，mcp/webbridge 通过单个 computer 工具提供完整浏览器操作、任意 JavaScript、用户启用后的原始 CDP、网络记录、上传、截图与 PDF，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；Automation 模型控制复用全 Agent 内置 automation Skill 与 round-scoped `nexus automation` CLI，不再挂载 Automation MCP；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
+  mcp/ connectors/ workspace/ - 能力域；模型侧只通过内置 Skill 和 round-scoped `nexus goal|execution` CLI 使用 runtime command；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，mcp/browser 通过单个 browser 工具提供完整浏览器操作、任意 JavaScript、用户启用后的原始 CDP、网络记录、上传、下载、截图与 PDF，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；Automation 模型控制复用全 Agent 内置 automation Skill 与 round-scoped `nexus automation` CLI，不再挂载 Automation MCP；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>

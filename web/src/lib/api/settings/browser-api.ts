@@ -7,10 +7,10 @@ export interface BrowserExtensionStatus {
   protocol_version: string;
 }
 
-const WEBBRIDGE_STATUS_API_URL = `${getAgentApiBaseUrl()}/internal/webbridge/status`;
+const BROWSER_STATUS_API_URL = `${getAgentApiBaseUrl()}/internal/browser/status`;
 
 export async function getBrowserExtensionStatusApi(): Promise<BrowserExtensionStatus> {
-  return requestApi<BrowserExtensionStatus>(WEBBRIDGE_STATUS_API_URL, {
+  return requestApi<BrowserExtensionStatus>(BROWSER_STATUS_API_URL, {
     method: "GET",
     timeout_ms: 5_000,
   });

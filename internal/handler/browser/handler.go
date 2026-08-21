@@ -1,7 +1,7 @@
 // INPUT: WebSocket 请求、固定 Nexus 扩展 Origin 与 browser.result 消息。
-// OUTPUT: 已认证的 WebBridge 连接注册及回执投递。
-// POS: WebBridge transport 信任边界；不解释浏览器动作或保存 Session 状态。
-package webbridge
+// OUTPUT: 已认证的 Browser 连接注册及回执投递。
+// POS: Browser transport 信任边界；不解释浏览器动作或保存 Session 状态。
+package browser
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	webbridgesvc "github.com/nexus-research-lab/nexus/internal/service/webbridge"
+	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -37,11 +37,11 @@ type wireMessage struct {
 // Handler 处理 Nexus 浏览器扩展连接。
 type Handler struct {
 	api     *handlershared.API
-	service *webbridgesvc.Service
+	service *browsersvc.Service
 }
 
-// New 创建 WebBridge handler。
-func New(api *handlershared.API, service *webbridgesvc.Service) *Handler {
+// New 创建 Browser handler。
+func New(api *handlershared.API, service *browsersvc.Service) *Handler {
 	if api == nil || service == nil {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	connection, err := websocket.Accept(writer, request, &websocket.AcceptOptions{
 		// Origin 已在 trustedRequest 中按完整 scheme 和扩展 ID 精确校验。
 		InsecureSkipVerify: true,
-		Subprotocols:       []string{webbridgesvc.WebSocketSubprotocol},
+		Subprotocols:       []string{browsersvc.WebSocketSubprotocol},
 	})
 	if err != nil {
 		return
@@ -84,9 +84,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	var ready wireMessage
 	err = wsjson.Read(readyCtx, connection, &ready)
 	readyCancel()
-	if err != nil || ready.Type != "bridge.ready" ||
-		ready.ProtocolVersion != webbridgesvc.ProtocolVersion {
-		_ = connection.Close(websocket.StatusPolicyViolation, "invalid WebBridge handshake")
+	if err != nil || ready.Type != "browser.ready" ||
+		ready.ProtocolVersion != browsersvc.ProtocolVersion {
+		_ = connection.Close(websocket.StatusPolicyViolation, "invalid Browser handshake")
 		return
 	}
 
@@ -108,8 +108,8 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	}
 	defer detach()
 	if err = send(ctx, map[string]any{
-		"type":             "bridge.accepted",
-		"protocol_version": webbridgesvc.ProtocolVersion,
+		"type":             "browser.accepted",
+		"protocol_version": browsersvc.ProtocolVersion,
 	}); err != nil {
 		return
 	}
@@ -140,7 +140,7 @@ func keepAlive(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := send(ctx, map[string]any{"type": "bridge.ping"}); err != nil {
+			if err := send(ctx, map[string]any{"type": "browser.ping"}); err != nil {
 				cancel()
 				_ = connection.CloseNow()
 				return
@@ -155,13 +155,13 @@ func trustedRequest(request *http.Request) bool {
 	}
 	origin, err := url.Parse(strings.TrimSpace(request.Header.Get("Origin")))
 	if err != nil || origin.Scheme != "chrome-extension" ||
-		origin.Host != webbridgesvc.BrowserExtensionID ||
+		origin.Host != browsersvc.BrowserExtensionID ||
 		(origin.Path != "" && origin.Path != "/") ||
 		origin.RawQuery != "" || origin.User != nil {
 		return false
 	}
 	for _, item := range strings.Split(request.Header.Get("Sec-WebSocket-Protocol"), ",") {
-		if strings.TrimSpace(item) == webbridgesvc.WebSocketSubprotocol {
+		if strings.TrimSpace(item) == browsersvc.WebSocketSubprotocol {
 			return true
 		}
 	}

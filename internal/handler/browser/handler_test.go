@@ -1,4 +1,4 @@
-package webbridge
+package browser
 
 import (
 	"encoding/json"
@@ -7,15 +7,15 @@ import (
 	"testing"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	webbridgesvc "github.com/nexus-research-lab/nexus/internal/service/webbridge"
+	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 )
 
 func TestHandleStatusReturnsDisconnectedState(t *testing.T) {
-	handler := New(handlershared.NewAPI(nil), webbridgesvc.NewService())
+	handler := New(handlershared.NewAPI(nil), browsersvc.NewService())
 	response := httptest.NewRecorder()
 	handler.HandleStatus(
 		response,
-		httptest.NewRequest(http.MethodGet, "/internal/webbridge/status", nil),
+		httptest.NewRequest(http.MethodGet, "/internal/browser/status", nil),
 	)
 
 	var payload struct {
@@ -30,10 +30,10 @@ func TestHandleStatusReturnsDisconnectedState(t *testing.T) {
 }
 
 func TestTrustedRequestRequiresNexusExtensionAndSubprotocol(t *testing.T) {
-	valid := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/internal/webbridge/ws", nil)
+	valid := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/internal/browser/ws", nil)
 	valid.RemoteAddr = "127.0.0.1:54321"
-	valid.Header.Set("Origin", webbridgesvc.BrowserExtensionOrigin)
-	valid.Header.Set("Sec-WebSocket-Protocol", webbridgesvc.WebSocketSubprotocol)
+	valid.Header.Set("Origin", browsersvc.BrowserExtensionOrigin)
+	valid.Header.Set("Sec-WebSocket-Protocol", browsersvc.WebSocketSubprotocol)
 	if !trustedRequest(valid) {
 		t.Fatal("合法 Nexus 扩展请求被拒绝")
 	}
@@ -56,7 +56,7 @@ func TestTrustedRequestRequiresNexusExtensionAndSubprotocol(t *testing.T) {
 			request.Header = valid.Header.Clone()
 			mutate(request)
 			if trustedRequest(request) {
-				t.Fatal("不可信 WebBridge 请求被接受")
+				t.Fatal("不可信 Browser 请求被接受")
 			}
 		})
 	}

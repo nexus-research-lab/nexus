@@ -10,7 +10,7 @@ async function send(type, payload = {}) {
 }
 
 function render(status) {
-  urlNode.placeholder = status.default_url || "ws://127.0.0.1:34343/nexus/v1/internal/webbridge/ws";
+  urlNode.placeholder = status.default_url || "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws";
   if (!urlNode.value) urlNode.value = status.configured_url || "";
   if (status.connected) {
     statusNode.textContent = "已连接";

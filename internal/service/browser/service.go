@@ -1,12 +1,14 @@
 // INPUT: 已验证浏览器扩展连接、runtime Session identity 与浏览器动作参数。
 // OUTPUT: browser.command 请求、browser.result 回执及按 Session 保存的多标签页状态。
-// POS: WebBridge 业务真相源；HTTP/WebSocket 与 MCP 只做 transport 适配。
-package webbridge
+// POS: Browser 业务真相源；HTTP/WebSocket 与 MCP 只做 transport 适配。
+package browser
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -18,10 +20,10 @@ const (
 	// ProtocolVersion 是 Nexus 宿主与浏览器扩展的线协议版本。
 	ProtocolVersion = "1"
 	// WebSocketSubprotocol 防止普通网页把内部端点当作通用 WebSocket 使用。
-	WebSocketSubprotocol = "nexus.webbridge.v1"
+	WebSocketSubprotocol = "nexus.browser.v1"
 	// BrowserExtensionID 来自 Nexus 扩展 manifest 的稳定公钥。
 	BrowserExtensionID = "leljaammmcdgaalkopjbeppkmjghobjf"
-	// BrowserExtensionOrigin 是 WebBridge 唯一接受的浏览器扩展来源。
+	// BrowserExtensionOrigin 是 Browser 唯一接受的浏览器扩展来源。
 	BrowserExtensionOrigin = "chrome-extension://" + BrowserExtensionID
 
 	commandTimeout = 90 * time.Second
@@ -29,12 +31,24 @@ const (
 
 var (
 	// ErrNotConnected 表示 Nexus 浏览器扩展尚未连接。
-	ErrNotConnected = errors.New("Nexus WebBridge 扩展未连接；请安装并启用 desktop/browser-extension")
+	ErrNotConnected = errors.New("Nexus Browser 扩展未连接；请安装并启用 desktop/browser-extension")
 	// ErrConnectionClosed 表示等待期间扩展连接已经关闭或被替换。
-	ErrConnectionClosed = errors.New("Nexus WebBridge 扩展连接已关闭")
+	ErrConnectionClosed = errors.New("Nexus Browser 扩展连接已关闭")
 	// ErrCDPDisabled 表示用户尚未开启完整 CDP 访问。
-	ErrCDPDisabled = errors.New("完整 CDP 访问未启用；请先在电脑操控设置中开启")
+	ErrCDPDisabled = errors.New("完整 CDP 访问未启用；请先在 Browser 设置中开启")
 )
+
+// SupportedActions 返回 Browser service 接受的稳定 action 名称。
+func SupportedActions() []string {
+	return []string{
+		"status", "navigate", "find_tab", "list_tabs", "attach_active", "attach_tab",
+		"back", "forward", "reload", "history", "evaluate", "page_content", "wait_for", "wait_for_url",
+		"network", "console", "dialog", "snapshot", "click", "fill", "check", "uncheck",
+		"select_option", "mouse_click", "double_click", "hover", "mouse_move", "drag", "scroll",
+		"cdp", "clipboard", "key_type", "send_keys", "press_key", "screenshot", "save_as_pdf", "upload",
+		"download", "downloads", "close_tab", "close_session", "close",
+	}
+}
 
 type client struct {
 	id               uint64
@@ -63,7 +77,7 @@ type Service struct {
 	closed   bool
 }
 
-// NewService 创建 WebBridge 服务。
+// NewService 创建 Browser 服务。
 func NewService() *Service {
 	return &Service{
 		pending:  make(map[string]chan commandResponse),
@@ -166,7 +180,7 @@ func (s *Service) Execute(
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
-		return nil, errors.New("WebBridge 缺少 runtime Session identity")
+		return nil, errors.New("Browser 缺少 runtime Session identity")
 	}
 	params, immediate, err := s.prepareParams(sessionKey, sessionLabel, action, input)
 	if err != nil || immediate != nil {
@@ -195,7 +209,7 @@ func (s *Service) Execute(
 	}
 	if err = sender(callCtx, message); err != nil {
 		s.removePending(requestID)
-		return nil, fmt.Errorf("发送 WebBridge 命令失败: %w", err)
+		return nil, fmt.Errorf("发送 Browser 命令失败: %w", err)
 	}
 
 	select {
@@ -207,7 +221,7 @@ func (s *Service) Execute(
 		return response.data, nil
 	case <-callCtx.Done():
 		s.removePending(requestID)
-		return nil, fmt.Errorf("WebBridge 动作 %s 超时: %w", action, callCtx.Err())
+		return nil, fmt.Errorf("Browser 动作 %s 超时: %w", action, callCtx.Err())
 	}
 }
 
@@ -271,7 +285,19 @@ func (s *Service) prepareParams(
 	switch action {
 	case "list_tabs":
 		delete(params, "tab_id")
-		params["tab_ids"] = tabIDs
+		scope := strings.ToLower(stringValue(params["scope"]))
+		if scope == "" {
+			scope = "session"
+		}
+		if scope != "session" && scope != "all" {
+			return nil, nil, errors.New("list_tabs 的 scope 必须是 session 或 all")
+		}
+		params["scope"] = scope
+		if scope == "all" {
+			delete(params, "tab_ids")
+		} else {
+			params["tab_ids"] = tabIDs
+		}
 	case "attach_active":
 		delete(params, "tab_id")
 	case "attach_tab":
@@ -301,6 +327,63 @@ func (s *Service) prepareParams(
 		}
 		delete(params, "tab_id")
 		params["tab_ids"] = tabIDs
+	case "history":
+		if err := optionalString(params, "query"); err != nil {
+			return nil, nil, err
+		}
+		for _, key := range []string{"start_time", "end_time"} {
+			if err := optionalNonNegativeNumber(params, key); err != nil {
+				return nil, nil, err
+			}
+		}
+		if start, startOK := numberValue(params["start_time"]); startOK {
+			if end, endOK := numberValue(params["end_time"]); endOK && start > end {
+				return nil, nil, errors.New("history 的 start_time 不能晚于 end_time")
+			}
+		}
+		if err := optionalBoundedInteger(params, "max_results", 1, 1000); err != nil {
+			return nil, nil, err
+		}
+	case "download":
+		if stringValue(params["url"]) == "" {
+			return nil, nil, errors.New("download 需要非空 url")
+		}
+		if err := optionalString(params, "file_name"); err != nil {
+			return nil, nil, err
+		}
+		if _, err := optionalBool(params, "save_as"); err != nil {
+			return nil, nil, err
+		}
+	case "downloads":
+		command := strings.ToLower(stringValue(params["cmd"]))
+		if command != "list" && command != "wait" && command != "show" {
+			return nil, nil, errors.New("downloads 的 cmd 必须是 list、wait 或 show")
+		}
+		params["cmd"] = command
+		if command == "list" {
+			if err := optionalString(params, "query"); err != nil {
+				return nil, nil, err
+			}
+			state := strings.ToLower(stringValue(params["download_state"]))
+			if state != "" && state != "in_progress" && state != "complete" && state != "interrupted" {
+				return nil, nil, errors.New("downloads 的 download_state 无效")
+			}
+			if state != "" {
+				params["download_state"] = state
+			}
+			if err := optionalBoundedInteger(params, "max_results", 1, 1000); err != nil {
+				return nil, nil, err
+			}
+		} else {
+			if err := requiredPositiveInteger(params, "download_id"); err != nil {
+				return nil, nil, err
+			}
+			if command == "wait" {
+				if err := optionalBoundedInteger(params, "timeout_ms", 100, 80000); err != nil {
+					return nil, nil, err
+				}
+			}
+		}
 	case "close_session":
 		if len(tabIDs) == 0 {
 			return nil, map[string]any{"closed": 0, "tab_ids": []int64{}}, nil
@@ -311,12 +394,65 @@ func (s *Service) prepareParams(
 			return nil, map[string]any{"closed": false, "reason": "session has no tab"}, nil
 		}
 		params = map[string]any{"session": sessionKey, "tab_id": state.activeTabID}
+	case "back", "forward", "reload":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
 	case "evaluate":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
 		if stringValue(params["code"]) == "" {
 			return nil, nil, errors.New("evaluate 需要非空 code")
+		}
+	case "page_content":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		format := strings.ToLower(stringValue(params["page_format"]))
+		if format == "" {
+			format = "text"
+		}
+		if format != "text" && format != "html" {
+			return nil, nil, errors.New("page_content 的 page_format 必须是 text 或 html")
+		}
+		params["page_format"] = format
+		if selector := selectorValue(params); selector != "" {
+			params["selector"] = selector
+		}
+		if err := optionalBoundedInteger(params, "max_chars", 1, 2_000_000); err != nil {
+			return nil, nil, err
+		}
+	case "wait_for":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		if err := normalizeSelector(params, action); err != nil {
+			return nil, nil, err
+		}
+		waitState := strings.ToLower(stringValue(params["state"]))
+		if waitState == "" {
+			waitState = "visible"
+		}
+		if waitState != "attached" && waitState != "detached" && waitState != "visible" && waitState != "hidden" {
+			return nil, nil, errors.New("wait_for 的 state 无效")
+		}
+		params["state"] = waitState
+		if err := optionalString(params, "text"); err != nil {
+			return nil, nil, err
+		}
+		if err := optionalBoundedInteger(params, "timeout_ms", 100, 80000); err != nil {
+			return nil, nil, err
+		}
+	case "wait_for_url":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		if stringValue(params["url"]) == "" {
+			return nil, nil, errors.New("wait_for_url 需要非空 url")
+		}
+		if err := optionalBoundedInteger(params, "timeout_ms", 100, 80000); err != nil {
+			return nil, nil, err
 		}
 	case "network":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
@@ -335,11 +471,38 @@ func (s *Service) prepareParams(
 				return nil, nil, errors.New("network 的 filter 必须是字符串")
 			}
 		}
+	case "console":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		command := strings.ToLower(stringValue(params["cmd"]))
+		if command != "start" && command != "stop" && command != "list" {
+			return nil, nil, errors.New("console 的 cmd 必须是 start、stop 或 list")
+		}
+		params["cmd"] = command
+		if err := optionalString(params, "filter"); err != nil {
+			return nil, nil, err
+		}
+		if err := optionalBoundedInteger(params, "max_results", 1, 1000); err != nil {
+			return nil, nil, err
+		}
+	case "dialog":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		command := strings.ToLower(stringValue(params["cmd"]))
+		if command != "get" && command != "accept" && command != "dismiss" {
+			return nil, nil, errors.New("dialog 的 cmd 必须是 get、accept 或 dismiss")
+		}
+		params["cmd"] = command
+		if err := optionalString(params, "prompt_text"); err != nil {
+			return nil, nil, err
+		}
 	case "snapshot":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-	case "click", "mouse_click":
+	case "click", "check", "uncheck":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
@@ -356,6 +519,88 @@ func (s *Service) prepareParams(
 		if _, ok := params["value"].(string); !ok {
 			return nil, nil, errors.New("fill 的 value 必须是字符串")
 		}
+	case "select_option":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		if err := normalizeSelector(params, action); err != nil {
+			return nil, nil, err
+		}
+		if value, exists := params["values"]; exists {
+			if !validStringList(value) {
+				return nil, nil, errors.New("select_option 的 values 必须是非空字符串数组")
+			}
+		} else if _, ok := params["value"].(string); !ok {
+			return nil, nil, errors.New("select_option 需要 value 或 values")
+		}
+	case "mouse_click", "double_click":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		if err := normalizePointer(params, action, "x", "y"); err != nil {
+			return nil, nil, err
+		}
+		button := strings.ToLower(stringValue(params["button"]))
+		if button != "" && button != "left" && button != "middle" && button != "right" && button != "back" && button != "forward" {
+			return nil, nil, fmt.Errorf("%s 的 button 无效", action)
+		}
+		if button != "" {
+			params["button"] = button
+		}
+		if err := optionalBoundedInteger(params, "click_count", 1, 3); err != nil {
+			return nil, nil, err
+		}
+	case "hover", "mouse_move":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		if err := normalizePointer(params, action, "x", "y"); err != nil {
+			return nil, nil, err
+		}
+	case "drag":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		selector := selectorValue(params)
+		targetSelector := stringValue(params["target_selector"])
+		if selector != "" || targetSelector != "" {
+			if selector == "" || targetSelector == "" {
+				return nil, nil, errors.New("drag 需要同时提供 selector 和 target_selector")
+			}
+			params["selector"] = selector
+			params["target_selector"] = targetSelector
+		} else {
+			if err := requirePoint(params, "drag", "from_x", "from_y"); err != nil {
+				return nil, nil, err
+			}
+			if err := requirePoint(params, "drag", "to_x", "to_y"); err != nil {
+				return nil, nil, err
+			}
+		}
+		if err := optionalBoundedInteger(params, "steps", 1, 100); err != nil {
+			return nil, nil, err
+		}
+	case "scroll":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		if selector := selectorValue(params); selector != "" {
+			params["selector"] = selector
+		}
+		if _, err := optionalPoint(params, "x", "y"); err != nil {
+			return nil, nil, err
+		}
+		deltaProvided := false
+		for _, key := range []string{"delta_x", "delta_y"} {
+			provided, err := optionalFiniteNumber(params, key)
+			if err != nil {
+				return nil, nil, err
+			}
+			deltaProvided = deltaProvided || provided
+		}
+		if selectorValue(params) == "" && !deltaProvided {
+			return nil, nil, errors.New("scroll 需要 selector 或 delta_x/delta_y")
+		}
 	case "cdp":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
@@ -366,6 +611,20 @@ func (s *Service) prepareParams(
 		if value, exists := params["params"]; exists {
 			if _, ok := value.(map[string]any); !ok {
 				return nil, nil, errors.New("cdp 的 params 必须是对象")
+			}
+		}
+	case "clipboard":
+		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
+			return nil, nil, err
+		}
+		command := strings.ToLower(stringValue(params["cmd"]))
+		if command != "read" && command != "write" {
+			return nil, nil, errors.New("clipboard 的 cmd 必须是 read 或 write")
+		}
+		params["cmd"] = command
+		if command == "write" {
+			if _, ok := params["text"].(string); !ok {
+				return nil, nil, errors.New("clipboard write 的 text 必须是字符串")
 			}
 		}
 	case "key_type":
@@ -413,6 +672,9 @@ func (s *Service) prepareParams(
 		if selector := selectorValue(params); selector != "" {
 			params["selector"] = selector
 		}
+		if _, err := optionalBool(params, "full_page"); err != nil {
+			return nil, nil, err
+		}
 	case "save_as_pdf":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
@@ -445,7 +707,7 @@ func (s *Service) prepareParams(
 			return nil, nil, errors.New("upload 的 files 必须是非空路径数组")
 		}
 	default:
-		return nil, nil, fmt.Errorf("不支持的 WebBridge action: %s", action)
+		return nil, nil, fmt.Errorf("不支持的 Browser action: %s", action)
 	}
 	return params, nil, nil
 }
@@ -523,6 +785,108 @@ func optionalBool(params map[string]any, key string) (bool, error) {
 		return false, fmt.Errorf("%s 必须是布尔值", key)
 	}
 	return result, nil
+}
+
+func optionalString(params map[string]any, key string) error {
+	value, exists := params[key]
+	if !exists {
+		return nil
+	}
+	if _, ok := value.(string); !ok {
+		return fmt.Errorf("%s 必须是字符串", key)
+	}
+	return nil
+}
+
+func optionalNonNegativeNumber(params map[string]any, key string) error {
+	provided, err := optionalFiniteNumber(params, key)
+	if err != nil || !provided {
+		return err
+	}
+	value, _ := numberValue(params[key])
+	if value < 0 {
+		return fmt.Errorf("%s 不能小于 0", key)
+	}
+	return nil
+}
+
+func optionalFiniteNumber(params map[string]any, key string) (bool, error) {
+	value, exists := params[key]
+	if !exists {
+		return false, nil
+	}
+	number, ok := numberValue(value)
+	if !ok || math.IsNaN(number) || math.IsInf(number, 0) {
+		return false, fmt.Errorf("%s 必须是有限数字", key)
+	}
+	params[key] = number
+	return true, nil
+}
+
+func optionalBoundedInteger(params map[string]any, key string, minimum int64, maximum int64) error {
+	value, exists := params[key]
+	if !exists {
+		return nil
+	}
+	integer, ok := integerValue(value)
+	if !ok || integer < minimum || integer > maximum {
+		return fmt.Errorf("%s 必须在 %d 到 %d 之间", key, minimum, maximum)
+	}
+	params[key] = integer
+	return nil
+}
+
+func requiredPositiveInteger(params map[string]any, key string) error {
+	value, ok := integerValue(params[key])
+	if !ok || value <= 0 {
+		return fmt.Errorf("%s 需要正整数", key)
+	}
+	params[key] = value
+	return nil
+}
+
+func optionalPoint(params map[string]any, xKey string, yKey string) (bool, error) {
+	_, hasX := params[xKey]
+	_, hasY := params[yKey]
+	if hasX != hasY {
+		return false, fmt.Errorf("%s 和 %s 必须同时提供", xKey, yKey)
+	}
+	if !hasX {
+		return false, nil
+	}
+	if _, err := optionalFiniteNumber(params, xKey); err != nil {
+		return false, err
+	}
+	if _, err := optionalFiniteNumber(params, yKey); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func requirePoint(params map[string]any, action string, xKey string, yKey string) error {
+	provided, err := optionalPoint(params, xKey, yKey)
+	if err != nil {
+		return err
+	}
+	if !provided {
+		return fmt.Errorf("%s 需要 %s 和 %s", action, xKey, yKey)
+	}
+	return nil
+}
+
+func normalizePointer(params map[string]any, action string, xKey string, yKey string) error {
+	selector := selectorValue(params)
+	pointProvided, err := optionalPoint(params, xKey, yKey)
+	if err != nil {
+		return err
+	}
+	if selector == "" && !pointProvided {
+		return fmt.Errorf("%s 需要 selector/ref 或 %s/%s", action, xKey, yKey)
+	}
+	if selector != "" {
+		params["selector"] = selector
+	}
+	return nil
 }
 
 func validStringList(value any) bool {
@@ -610,6 +974,13 @@ func integerValue(value any) (int64, bool) {
 	case float64:
 		converted := int64(typed)
 		return converted, float64(converted) == typed
+	case json.Number:
+		if converted, err := typed.Int64(); err == nil {
+			return converted, true
+		}
+		parsed, err := typed.Float64()
+		converted := int64(parsed)
+		return converted, err == nil && float64(converted) == parsed
 	default:
 		return 0, false
 	}
@@ -623,6 +994,9 @@ func numberValue(value any) (float64, bool) {
 		return float64(typed), true
 	case float64:
 		return typed, true
+	case json.Number:
+		parsed, err := typed.Float64()
+		return parsed, err == nil
 	default:
 		return 0, false
 	}

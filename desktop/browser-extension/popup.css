@@ -22,15 +22,9 @@ header {
 }
 
 .mark {
-  display: grid;
   width: 38px;
   height: 38px;
-  place-items: center;
-  border-radius: 12px;
-  color: white;
-  font-weight: 750;
-  background: linear-gradient(145deg, #6558ee, #8a5cf6);
-  box-shadow: 0 7px 18px rgb(101 88 238 / 24%);
+  object-fit: contain;
 }
 
 h1,

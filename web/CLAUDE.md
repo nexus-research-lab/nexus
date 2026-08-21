@@ -111,7 +111,7 @@ src/
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
 - 停止动作按执行所有权归属：DM 可由 Composer 提供当前会话 `onStop`；Room Agent execution 常驻控制条通过自身 `agent_round_id` 定向中断，Composer 的“全部停止”只聚合点击瞬间仍 active 且尚未 stopping 的精确目标并逐个发送同一命令，禁止退化为无目标 session interrupt
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
-- 桌面浏览器操控设置归 `features/settings/computer-use/`；安装引导只打开宿主打包的固定扩展目录，连接状态来自 WebBridge，完整 CDP 权限默认关闭并持久化到用户偏好
+- Browser 设置归 `features/settings/browser/`；安装引导只打开宿主打包的固定扩展目录，连接状态来自 Browser 服务，完整 CDP 权限默认关闭并持久化到用户偏好
 - 设置目录由 `features/settings/settings-navigation-model.ts` 定义，主应用侧栏与独立设置窗口必须复用 `settings-sidebar-navigation.tsx`；当前分区只由 URL 查询参数派生，不维护第二份选中状态；运营分区只对非桌面端 owner/admin 暴露，旧 `/operations` 入口必须收敛到设置目录
 - 运营能力归 `features/settings/operations/`，可以组合设置域内的 Provider 与共享视图；不得恢复与 `settings` 双向依赖的顶层 `features/operations/`
 - Personal 设置只通过 `features/settings/personal/use-personal-settings-controller.ts` 读写资料；密码规则由纯模型的有序规则表定义，区块视图不得直接调用 Auth API
