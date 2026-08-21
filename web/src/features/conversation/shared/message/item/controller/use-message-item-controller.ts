@@ -133,6 +133,7 @@ export function useMessageItemController({
       },
       activity: {
         emptyStreamStatus: display.emptyStreamStatus,
+        label: projection.liveActivityLabel,
         showCursor: display.showCursor,
         standalone: display.standaloneActivity,
         state: projection.liveActivityState,

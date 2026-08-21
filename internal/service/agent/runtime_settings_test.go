@@ -28,8 +28,11 @@ func TestEnsureRuntimeSettingsProjectionWritesManagedRuntimeAndMemoryDefaults(t 
 	}
 	settings := readProjectedSettings(t, agentpkg.RuntimeSettingsPath(workspace))
 	runtimeSettings := settings["runtime"].(map[string]any)
-	if runtimeSettings["managedBy"] != "nexus" || runtimeSettings["providerRef"] != "provider-a" || runtimeSettings["model"] != "model-a" || runtimeSettings["backgroundModel"] != "model-a" {
+	if runtimeSettings["managedBy"] != "nexus" || runtimeSettings["providerRef"] != "provider-a" || runtimeSettings["model"] != "model-a" {
 		t.Fatalf("runtime settings = %#v, want managed Agent projection", runtimeSettings)
+	}
+	if _, exists := runtimeSettings["backgroundModel"]; exists {
+		t.Fatalf("runtime.backgroundModel 应由 bridge 启动环境投影: %#v", runtimeSettings)
 	}
 	memorySettings := settings["memory"].(map[string]any)
 	if _, exists := memorySettings["directory"]; exists {

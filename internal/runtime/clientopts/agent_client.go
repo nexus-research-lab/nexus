@@ -1,5 +1,5 @@
-// INPUT: Agent runtime/provider/权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 经统一校验、最小输入目录授权、环境投影与 MCP 名称隔离后的 SDK client options。
+// INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
+// OUTPUT: 经统一校验、最小输入目录授权、后台进度模型环境投影与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -66,16 +66,18 @@ type AgentClientOptionsInput struct {
 	OwnerUserID   string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
 	// 只有该宿主事实可启用 owner-scoped nexusctl；nexuscfg 由独立 round capability 授权。
-	IsMainAgent       bool
-	RuntimeKind       string
-	Provider          string
-	Model             string
-	VisionProvider    string
-	VisionModel       string
-	PermissionMode    sdkpermission.Mode
-	PermissionHandler sdkpermission.Handler
-	AllowedTools      []string
-	DisallowedTools   []string
+	IsMainAgent        bool
+	RuntimeKind        string
+	Provider           string
+	Model              string
+	BackgroundProvider string
+	BackgroundModel    string
+	VisionProvider     string
+	VisionModel        string
+	PermissionMode     sdkpermission.Mode
+	PermissionHandler  sdkpermission.Handler
+	AllowedTools       []string
+	DisallowedTools    []string
 	// SkillIDs 是宿主保存的 Skill 引用，进入 SDK 前投影为当前 runtime 的 Skill 名称白名单。
 	SkillIDs []string
 	// DisabledSkillIDs 是当前 Agent 明确停用或未绑定的 Skill 名称。
@@ -151,6 +153,13 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolUseSummaryRuntimeEnv(
+		ctx,
+		resolver,
+		input,
+		runtimeConfig,
+		effectiveRuntimeKind,
+	))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
 	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
 	if err != nil {
@@ -275,6 +284,75 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	return options, runtimeConfig, nil
+}
+
+// toolUseSummaryRuntimeEnv 把 owner 后台模型投影给当前 bridge。工具进度是纯展示能力：
+// 后台模型缺失、解析失败或属于另一 Provider 时回退主模型，不能阻断 Agent 启动。
+func toolUseSummaryRuntimeEnv(
+	ctx context.Context,
+	resolver RuntimeConfigResolver,
+	input AgentClientOptionsInput,
+	mainConfig *RuntimeConfig,
+	runtimeKind string,
+) map[string]string {
+	mainProvider := strings.TrimSpace(input.Provider)
+	mainModel := strings.TrimSpace(input.Model)
+	mainAPIFormat := ""
+	if mainConfig != nil {
+		mainProvider = firstNonEmptyRuntimeValue(mainConfig.Provider, mainProvider)
+		mainModel = firstNonEmptyRuntimeValue(mainConfig.Model, mainModel)
+		mainAPIFormat = normalizedRuntimeAPIFormat(mainConfig.APIFormat)
+	}
+	selectedModel := mainModel
+	backgroundProvider := strings.TrimSpace(input.BackgroundProvider)
+	backgroundModel := strings.TrimSpace(input.BackgroundModel)
+	if backgroundProvider != "" && backgroundModel != "" &&
+		strings.EqualFold(backgroundProvider, mainProvider) {
+		backgroundConfig, err := resolveRuntimeConfig(
+			ctx,
+			resolver,
+			backgroundProvider,
+			backgroundModel,
+			runtimeKind,
+		)
+		switch {
+		case err != nil:
+			// Cosmetic progress falls back to the already validated main model.
+		case backgroundConfig == nil:
+			if resolver == nil {
+				selectedModel = backgroundModel
+			}
+		case normalizedRuntimeAPIFormat(backgroundConfig.APIFormat) == mainAPIFormat:
+			selectedModel = firstNonEmptyRuntimeValue(backgroundConfig.Model, backgroundModel)
+		}
+	}
+	if selectedModel == "" {
+		return nil
+	}
+	env := map[string]string{claudeEmitToolUseSummariesEnvName: "1"}
+	if runtimeProfileForKind(runtimeKind).isNXS() {
+		env[nexusBackgroundModelEnvName] = selectedModel
+	} else {
+		env[anthropicSmallFastModelEnvName] = selectedModel
+	}
+	return env
+}
+
+func normalizedRuntimeAPIFormat(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return apiFormatAnthropicMessages
+	}
+	return value
+}
+
+func firstNonEmptyRuntimeValue(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // validateRuntimeCommandInputDirectory narrows a host-signed input file to its

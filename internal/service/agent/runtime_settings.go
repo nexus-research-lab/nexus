@@ -143,7 +143,9 @@ func projectAgentRuntimeSettings(settings map[string]any, agentValue protocol.Ag
 	runtimeSettings["version"] = 1
 	setOptionalString(runtimeSettings, "providerRef", agentValue.Options.Provider)
 	setOptionalString(runtimeSettings, "model", agentValue.Options.Model)
-	setOptionalString(runtimeSettings, "backgroundModel", agentValue.Options.Model)
+	// 后台模型属于 owner 偏好，可能与 Agent 主模型不同；由宿主在每次启动
+	// bridge 时按当前选择写入环境，不能在 workspace 固化成旧的 Agent 模型。
+	delete(runtimeSettings, "backgroundModel")
 	settings["runtime"] = runtimeSettings
 }
 

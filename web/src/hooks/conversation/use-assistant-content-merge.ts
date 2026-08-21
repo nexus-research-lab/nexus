@@ -1,6 +1,6 @@
 /**
  * INPUT: 一个根轮次内按到达顺序保存的 user / assistant 消息。
- * OUTPUT: 按时间排序的可见 user 消息，以及去重合并后的 assistant 内容。
+ * OUTPUT: 按时间排序的可见 user 消息，以及不让 ephemeral 抢占正文流身份的 assistant 内容。
  * POS: MessageItem 的轮次内容投影入口，不承担视觉状态。
  */
 
@@ -65,6 +65,8 @@ export function useAssistantContentMerge({
     for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
       const message = assistantMessages[index];
       if (
+        message.delivery_mode !== "ephemeral"
+        &&
         message.stream_status !== 'done'
         && message.stream_status !== 'cancelled'
         && message.stream_status !== 'error'

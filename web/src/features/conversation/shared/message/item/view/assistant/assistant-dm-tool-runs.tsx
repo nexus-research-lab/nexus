@@ -311,6 +311,7 @@ function DmProcessSegmentContent({
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={projection.content}
+      fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
       isStreaming={streaming}

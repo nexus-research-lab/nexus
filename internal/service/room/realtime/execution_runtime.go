@@ -209,6 +209,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,
+		BackgroundProvider:         selection.BackgroundProvider,
+		BackgroundModel:            selection.BackgroundModel,
 		VisionProvider:             selection.VisionProvider,
 		VisionModel:                selection.VisionModel,
 		PermissionMode:             permissionMode,

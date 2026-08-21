@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - agent_client.go / runtime_env.go / runtime_profile.go：client 选项、nxs/Claude
-//     Skill 动态发现与显式停用投影、单次模型配置解析、provider 协议环境、
+//     Skill 动态发现与显式停用投影、主模型配置解析、同 Provider 后台进度模型回退、provider 协议环境、
 //     按 owner 锁定的 workspace/长期记忆环境、nexuscfg / Agent-facing nexus
 //     physical-round capability、按 runtime 隔离的模型上限环境与 profile。
 //   - mcp_servers.go：严格解析 Agent 持久化 stdio/http/sse MCP 配置并在禁止覆盖内建名称的前提下合并。

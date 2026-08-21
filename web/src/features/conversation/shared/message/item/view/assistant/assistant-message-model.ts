@@ -32,6 +32,7 @@ import type { UnresolvedToolStatus } from "../content/content-renderer-contract"
 
 export interface AssistantActivityState {
   emptyStreamStatus: "cancelled" | "error" | null;
+  label: string | null;
   showCursor: boolean;
   standalone: boolean;
   state: MessageActivityState | null;

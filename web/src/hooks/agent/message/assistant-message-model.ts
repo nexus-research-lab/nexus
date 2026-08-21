@@ -49,6 +49,7 @@ const IMAGE_IDENTITY_RESOLVERS: readonly ImageIdentityResolver[] = [
 const CONTENT_BLOCK_KEY_RESOLVERS = {
   document: (block) => `document:${block.title ?? ""}:${stableBlockValue(block.source)}`,
   image: (block) => imageContentBlockKey(block),
+  progress_update: () => "progress_update",
   redacted_thinking: () => "redacted_thinking",
   resource_link: (block) => `resource_link:${block.uri ?? ""}:${block.name ?? ""}`,
   search_result: (block) => `search_result:${block.url ?? ""}:${block.title ?? ""}`,

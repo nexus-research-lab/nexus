@@ -83,6 +83,12 @@ type conversationSessionForker interface {
 	ForkConversationSession(context.Context, string, string, string, string, string) error
 }
 
+// InitialConversationObserver 观察刚创建的 DM/Room 主 conversation。
+// 实现只能追加派生展示内容，不能改变 Room 创建事务结果。
+type InitialConversationObserver interface {
+	Schedule(context.Context, protocol.ConversationContextAggregate)
+}
+
 // SessionArtifactDeletionCoordinator 统一撤销 Room 成员 Session 的 runtime 与持久 artifact。
 type SessionArtifactDeletionCoordinator interface {
 	DeleteSessionArtifacts(context.Context, string, string, string, string) error
@@ -103,6 +109,7 @@ type Service struct {
 	sessionForker    conversationSessionForker
 	sessionArtifacts SessionArtifactDeletionCoordinator
 	deletion         *deletionsvc.Coordinator
+	initialObserver  InitialConversationObserver
 }
 
 // NewService 创建 Room 服务。
@@ -115,6 +122,11 @@ func NewService(cfg config.Config, agents *agentsvc.Service, repository Reposito
 		history:     workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory: workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 	}
+}
+
+// SetInitialConversationObserver 注入首次 conversation 的派生内容调度器。
+func (s *Service) SetInitialConversationObserver(observer InitialConversationObserver) {
+	s.initialObserver = observer
 }
 
 // SetGoalCleaner 注入 Room 删除时的 Goal 级联清理器。

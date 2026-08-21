@@ -42,6 +42,8 @@ const BLOCK_PROJECTORS: BlockProjector[] = [
   (block, context) => block.type === "task_progress"
     ? (context.showTaskProgress ? [block] : [])
     : null,
+  // 即时旁白只替换活动文案，不进入 direct/process/final 内容面。
+  (block) => block.type === "progress_update" ? [] : null,
   (block) => block.type === "tool_use_error"
     ? (block.content.trim() ? [block] : [])
     : null,

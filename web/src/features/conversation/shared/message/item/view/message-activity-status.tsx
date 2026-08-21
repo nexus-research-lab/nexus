@@ -2,8 +2,8 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、逐帧提示和统一的活动文字流光。
- * POS: DM/Room 共用的活动呈现；不推导 runtime 状态，也不占用消息正文身份。
+ * OUTPUT: 图标、逐帧提示，以及可替换通用状态的自然语言活动标签。
+ * POS: DM/Room 共用的单行活动呈现；不推导 runtime 状态，也不把即时标签伪装成正式回复。
  */
 import {
   Brain,
@@ -88,16 +88,18 @@ const ACTIVITY_PRESENTATION: Record<
 
 export function LocalizedMessageActivityStatus({
   className,
+  label,
   state,
 }: {
   className?: string;
+  label?: string | null;
   state: MessageActivityState;
 }) {
   const { t } = useI18n();
   return (
     <MessageActivityStatus
       className={className}
-      label={t(ACTIVITY_PRESENTATION[state].labelKey)}
+      label={label?.trim() || t(ACTIVITY_PRESENTATION[state].labelKey)}
       state={state}
     />
   );
