@@ -29,6 +29,7 @@ export function LauncherConsole({
   agents,
   conversations,
   currentAgentId,
+  initialQuery,
   onOpenMainAgentDm,
   onOpenRoute,
   onSelectAgent,
@@ -36,6 +37,7 @@ export function LauncherConsole({
 }: LauncherConsoleProps) {
   const { t } = useI18n();
   const controller = useLauncherConsoleController({
+    initialQuery,
     onOpenMainAgentDm,
     onOpenRoute,
     onSelectAgent,

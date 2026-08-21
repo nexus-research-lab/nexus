@@ -4,6 +4,11 @@ const messageNode = document.querySelector("#message");
 const urlNode = document.querySelector("#url");
 const versionNode = document.querySelector("#version");
 const connectButton = document.querySelector("#connect");
+const activeTabNode = document.querySelector("#active-tab");
+const activeTabTitleNode = document.querySelector("#active-tab-title");
+const activeTabURLNode = document.querySelector("#active-tab-url");
+const activeTabStateNode = document.querySelector("#active-tab-state");
+const askNexusButton = document.querySelector("#ask-nexus");
 const buttons = [...document.querySelectorAll("button")];
 
 async function send(type, payload = {}) {
@@ -16,6 +21,7 @@ function render(status) {
   urlNode.placeholder = status.default_url || "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws";
   if (!urlNode.value) urlNode.value = status.configured_url || "";
   versionNode.textContent = status.extension_version || chrome.runtime.getManifest().version;
+  renderActiveTab(status.active_tab);
   if (status.connected) {
     statusNode.textContent = "已连接到 Nexus";
     statusNode.dataset.state = "connected";
@@ -36,6 +42,23 @@ function render(status) {
   }
 }
 
+function renderActiveTab(tab) {
+  activeTabNode.hidden = !tab;
+  askNexusButton.hidden = !tab?.controllable;
+  if (!tab) return;
+  activeTabTitleNode.textContent = tab.title || "未命名页面";
+  try {
+    activeTabURLNode.textContent = new URL(tab.url).host;
+  } catch {
+    activeTabURLNode.textContent = tab.url;
+  }
+  activeTabStateNode.textContent = tab.controlled
+    ? "Nexus 正在使用此页面"
+    : tab.controllable
+      ? "可在 Nexus 任务中使用"
+      : "此浏览器页面不支持控制";
+}
+
 async function run(task, successMessage) {
   buttons.forEach((button) => { button.disabled = true; });
   messageNode.textContent = "正在处理…";
@@ -52,6 +75,9 @@ async function run(task, successMessage) {
 
 document.querySelector("#connect").addEventListener("click", () => {
   void run(() => send("CONNECT", { url: urlNode.value.trim() }), "连接设置已保存");
+});
+askNexusButton.addEventListener("click", () => {
+  void run(() => send("OPEN_IN_NEXUS"), "已交给 Nexus");
 });
 document.querySelector("#disconnect").addEventListener("click", () => {
   void run(() => send("DISCONNECT"), "已断开");

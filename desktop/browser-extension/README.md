@@ -15,6 +15,10 @@ Nexus 自有的 Chromium 扩展，通过 WebSocket 把完整 Browser 能力交�
 
 源码开发时，先设置 `NEXUS_BROWSER_ENABLED=true` 再启动端口 8010 的 Nexus Server。扩展默认依次尝试桌面固定端口 `34343` 和开发端口 `8010`；也可以在扩展弹窗中填写任意 `ws://` 或 `wss://` 地址并测试、连接或断开。
 
+## 页面入口
+
+扩展弹窗显示当前活动页是否可控、是否正在被 Nexus 使用，并可直接把页面带到 Nexus Launcher。网页、选中文本、链接和图片的右键菜单也提供「在 Nexus 中询问」，只把用户显式选择的页面上下文写入 Launcher 草稿，不会自动发送消息。
+
 ## 能力
 
 - 每个 Nexus Session 通过绑定扩展代次和标签页实例的不透明引用独立管理多个标签页，支持导航、新建、查找、借用、前进后退、刷新、列出全部标签页和读取历史。
@@ -27,7 +31,7 @@ Nexus 自有的 Chromium 扩展，通过 WebSocket 把完整 Browser 能力交�
 - 支持网络记录、请求过滤、响应详情、控制台日志与 JavaScript 对话框处理。
 - 支持本机文件上传、浏览器下载管理、PNG/JPEG 整页或元素截图，以及常用纸张规格的 PDF 导出。
 
-扩展使用 `debugger`、`tabs`、`tabGroups`、`webNavigation`、`history`、`downloads`、`clipboardRead`、`clipboardWrite`、`offscreen`、`scripting`、`storage`、`windows` 与 `<all_urls>` 权限完成上述操作。
+扩展使用 `debugger`、`tabs`、`tabGroups`、`webNavigation`、`history`、`downloads`、`clipboardRead`、`clipboardWrite`、`contextMenus`、`offscreen`、`scripting`、`storage`、`windows` 与 `<all_urls>` 权限完成上述操作。
 
 ## 图标
 
