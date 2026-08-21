@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Kept DM and Room Thread process details in one expandable ToolUseSummary row while simplifying the Room main Feed to a single uniform-color, non-expandable live summary that replaces generic thinking/replying copy; concrete thinking, tools, MCP/CLI calls, counts, and errors remain available only in Thread, and the separate final reply stays visible.
+- Made DM and Room Thread process expansion hierarchical: opening the ToolUseSummary row now reveals a collapsed item list, while each Thought, Agent, MCP, or ordinary tool requires its own second click before inputs and results appear.
 - Allowed user-requested process and tool-detail collapses to release their exact live Feed height immediately instead of leaving an expanded-height blank area until the run ends.
 - Kept recovered intermediate tool failures in expanded audit details without leaving the active or successfully completed process row in a persistent warning state.
 - Gave each live ToolUseSummary one visible owner, so a streaming final reply no longer repeats the execution summary in a trailing activity row.
