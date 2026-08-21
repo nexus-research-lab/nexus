@@ -38,7 +38,9 @@ const chrome = {
   },
   tabGroups: { onRemoved: event },
   tabs: {
+    onActivated: event,
     onRemoved: event,
+    onUpdated: event,
     async get(tabId) {
       return { id: tabId, title: "Child", url: "https://example.com/child", groupId: -1, windowId: 1 };
     },
@@ -97,6 +99,21 @@ test("Browser 快照有界且 evaluate 等待 Promise", async () => {
   assert.ok(new TextEncoder().encode(snapshot.snapshot).length <= SNAPSHOT_MAX_BYTES);
   assert.match(snapshot.snapshot, /@e1 button "发布"/);
   assert.equal(controller.refsByTab.get(9).get("@e1"), 999);
+
+  const firstRevision = controller.buildSnapshotRevision(9, snapshot.snapshot, false);
+  const unchanged = controller.buildAccessibilitySnapshot(9, nodes);
+  const secondRevision = controller.buildSnapshotRevision(9, unchanged.snapshot, false);
+  assert.equal(firstRevision.snapshot_type, "full");
+  assert.equal(secondRevision.snapshot_type, "unchanged");
+  assert.match(unchanged.snapshot, /@e1 button "发布"/);
+
+  nodes.at(-1).name.value = "确认发布";
+  const changed = controller.buildAccessibilitySnapshot(9, nodes);
+  const thirdRevision = controller.buildSnapshotRevision(9, changed.snapshot, false);
+  assert.equal(thirdRevision.snapshot_type, "diff");
+  assert.match(thirdRevision.snapshot, /- .*@e1 button "发布"/);
+  assert.match(thirdRevision.snapshot, /\+ .*@e1 button "确认发布"/);
+  assert.equal(controller.buildSnapshotRevision(9, changed.snapshot, true).snapshot_type, "full");
 
   let evaluateParams;
   controller.getTab = async () => ({ id: 9 });
@@ -178,6 +195,34 @@ test("Browser round 收尾关闭临时页并释放用户页", async () => {
   assert.equal(controller.leaseByTab.get(4).roundID, "");
   assert.equal(controller.leaseByTab.get(4).mark, "");
   assert.equal(controller.leaseByTab.get(5).roundID, "round-b");
+});
+
+test("Browser 标签页事件同步并在导航时废弃旧快照", async () => {
+  const { BrowserController } = context.__test;
+  const controller = new BrowserController();
+  controller.setIdentity("browser-a", "generation-a");
+  controller.claimTab(9, { session: "session-a", round_id: "round-a" }, false);
+  controller.tabRef(9);
+  controller.refsByTab.set(9, new Map([["@e1", 999]]));
+  controller.snapshotByTab.set(9, { id: 1, lines: ["- @e1 button"] });
+  const events = [];
+  controller.setEventSink((eventName, data) => events.push({ eventName, data }));
+
+  await controller.handleTabUpdated(9, { status: "loading", url: "https://example.com/next" }, {
+    id: 9,
+    title: "Next",
+    url: "https://example.com/next",
+    status: "loading",
+    active: true,
+    groupId: -1,
+    windowId: 1,
+  });
+  await controller.handleTabActivated(9);
+  controller.handleTabRemoved(9);
+
+  assert.equal(controller.refsByTab.has(9), false);
+  assert.equal(controller.snapshotByTab.has(9), false);
+  assert.equal(events.map(({ eventName }) => eventName).join(","), "tab_updated,tab_activated,tab_removed");
 });
 
 test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () => {

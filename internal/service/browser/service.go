@@ -18,7 +18,7 @@ import (
 
 const (
 	// ProtocolVersion 是 Nexus 宿主与浏览器扩展的线协议版本。
-	ProtocolVersion = "3"
+	ProtocolVersion = "4"
 	// WebSocketSubprotocol 防止普通网页把内部端点当作通用 WebSocket 使用。
 	WebSocketSubprotocol = "nexus.browser.v1"
 	// BrowserExtensionID 来自 Nexus 扩展 manifest 的稳定公钥。
@@ -184,15 +184,12 @@ func (s *Service) Resolve(requestID string, data map[string]any, message string)
 
 // ObserveEvent 接收扩展主动上报的标签页生命周期事件。
 func (s *Service) ObserveEvent(event string, data map[string]any) bool {
-	if s == nil || strings.TrimSpace(event) != "tab_created" {
+	if s == nil {
 		return false
 	}
+	event = strings.TrimSpace(event)
 	sessionKey := stringValue(data["session"])
-	sourceTabRef := stringValue(data["source_tab_ref"])
-	tabValue, _ := data["tab"].(map[string]any)
-	tabID, valid := integerValue(tabValue["tab_id"])
-	tabRef := stringValue(tabValue["tab_ref"])
-	if sessionKey == "" || sourceTabRef == "" || !valid || tabID <= 0 || tabRef == "" {
+	if sessionKey == "" {
 		return false
 	}
 
@@ -202,17 +199,46 @@ func (s *Service) ObserveEvent(event string, data map[string]any) bool {
 	if !ok {
 		return false
 	}
-	sourceTab, ok := state.tabs[sourceTabRef]
-	if !ok {
+
+	switch event {
+	case "tab_created":
+		sourceTab, exists := state.tabs[stringValue(data["source_tab_ref"])]
+		tab, valid := eventTab(data["tab"])
+		if !exists || !valid {
+			return false
+		}
+		tab.owned = true
+		tab.roundID = sourceTab.roundID
+		rememberTab(&state, tab)
+		state.activeTabRef = tab.ref
+	case "tab_updated", "tab_activated":
+		tab, valid := eventTab(data["tab"])
+		current, exists := state.tabs[tab.ref]
+		if !valid || !exists {
+			return false
+		}
+		current.id = tab.id
+		state.tabs[tab.ref] = current
+		if event == "tab_activated" {
+			state.activeTabRef = tab.ref
+		}
+	case "tab_removed":
+		tabRef := stringValue(data["tab_ref"])
+		if _, exists := state.tabs[tabRef]; !exists {
+			return false
+		}
+		delete(state.tabs, tabRef)
+		remaining := orderedTabs(state.tabs)
+		if len(remaining) == 0 {
+			delete(s.sessions, sessionKey)
+			return true
+		}
+		if state.activeTabRef == tabRef {
+			state.activeTabRef = remaining[len(remaining)-1].ref
+		}
+	default:
 		return false
 	}
-	rememberTab(&state, browserTab{
-		id:      tabID,
-		ref:     tabRef,
-		owned:   true,
-		roundID: sourceTab.roundID,
-	})
-	state.activeTabRef = tabRef
 	s.sessions[sessionKey] = state
 	return true
 }
@@ -659,6 +685,9 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
+		if _, err := optionalBool(params, "full"); err != nil {
+			return nil, nil, err
+		}
 	case "click", "check", "uncheck":
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
@@ -1002,6 +1031,13 @@ func rememberTab(state *browserSession, next browserTab) {
 func boolValue(value any) bool {
 	result, _ := value.(bool)
 	return result
+}
+
+func eventTab(value any) (browserTab, bool) {
+	tabValue, _ := value.(map[string]any)
+	tabID, valid := integerValue(tabValue["tab_id"])
+	tabRef := stringValue(tabValue["tab_ref"])
+	return browserTab{id: tabID, ref: tabRef}, valid && tabID > 0 && tabRef != ""
 }
 
 func normalizeSelector(params map[string]any, action string) error {

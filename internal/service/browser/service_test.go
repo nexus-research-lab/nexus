@@ -212,6 +212,7 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 		{name: "evaluate timeout", action: "evaluate", input: map[string]any{"code": "Promise.resolve(true)", "timeout_ms": json.Number("30000")}},
 		{name: "wait timeout", action: "wait_for_url", input: map[string]any{"url": "*wd=*", "timeout_ms": json.Number("10000")}},
 		{name: "console result limit", action: "console", input: map[string]any{"cmd": "list", "max_results": json.Number("10")}},
+		{name: "full snapshot", action: "snapshot", input: map[string]any{"full": true}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if _, _, err := service.prepareParams("session-a", "Agent A", test.action, test.input); err != nil {
@@ -320,6 +321,25 @@ func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
 		"tab":            map[string]any{"tab_id": float64(44), "tab_ref": "ref-44"},
 	}) {
 		t.Fatal("未知来源标签页不应注入 Session")
+	}
+	if !service.ObserveEvent("tab_activated", map[string]any{
+		"session": "session-a",
+		"tab":     map[string]any{"tab_id": float64(42), "tab_ref": "ref-42"},
+	}) {
+		t.Fatal("已归属标签页激活事件应更新 Session")
+	}
+	params, _, err = service.prepareParams("session-a", "Agent A", "snapshot", nil)
+	if err != nil || params["tab_ref"] != "ref-42" {
+		t.Fatalf("激活后的标签页 = %+v, err = %v", params, err)
+	}
+	if !service.ObserveEvent("tab_removed", map[string]any{
+		"session": "session-a", "tab_ref": "ref-42",
+	}) {
+		t.Fatal("标签页关闭事件应移除 Session 引用")
+	}
+	params, _, err = service.prepareParams("session-a", "Agent A", "snapshot", nil)
+	if err != nil || params["tab_ref"] != "ref-43" {
+		t.Fatalf("关闭活动页后的标签页 = %+v, err = %v", params, err)
 	}
 }
 

@@ -1,4 +1,4 @@
-const PROTOCOL_VERSION = "3";
+const PROTOCOL_VERSION = "4";
 const SUBPROTOCOL = "nexus.browser.v1";
 const DEFAULT_ENDPOINTS = [
   "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws",
@@ -56,6 +56,10 @@ class BrowserController {
   constructor() {
     this.attachedTabs = new Set();
     this.refsByTab = new Map();
+    this.refByBackendByTab = new Map();
+    this.nextRefByTab = new Map();
+    this.snapshotByTab = new Map();
+    this.snapshotSequence = 0;
     this.networkTabs = new Set();
     this.networkRequests = new Map();
     this.consoleTabs = new Set();
@@ -69,7 +73,13 @@ class BrowserController {
     this.eventSink = () => {};
     this.platform = null;
 
-    chrome.tabs.onRemoved.addListener((tabId) => this.clearTab(tabId));
+    chrome.tabs.onRemoved.addListener((tabId) => this.handleTabRemoved(tabId));
+    chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+      void this.handleTabUpdated(tabId, change, tab);
+    });
+    chrome.tabs.onActivated.addListener(({ tabId }) => {
+      void this.handleTabActivated(tabId);
+    });
     chrome.debugger.onDetach.addListener((source) => {
       if (source.tabId !== undefined) {
         this.clearTab(source.tabId);
@@ -693,11 +703,12 @@ class BrowserController {
     const tab = await this.getTab(params.tab_id);
     const response = await this.command(tab.id, "Accessibility.getFullAXTree");
     const rendered = this.buildAccessibilitySnapshot(tab.id, response.nodes || []);
+    const revision = this.buildSnapshotRevision(tab.id, rendered.snapshot, Boolean(params.full));
     return {
       tab_id: tab.id,
       title: tab.title || "",
       url: tab.url || "",
-      snapshot: rendered.snapshot,
+      ...revision,
       nodes: rendered.nodeCount,
       total_nodes: rendered.totalNodes,
       refs: rendered.refCount,
@@ -764,13 +775,21 @@ class BrowserController {
     selected.sort((left, right) => left.order - right.order);
 
     const refs = new Map();
-    let nextRef = 1;
+    const previousRefs = this.refByBackendByTab.get(tabId) || new Map();
+    const currentRefs = new Map();
+    let nextRef = this.nextRefByTab.get(tabId) || 1;
     const lines = selected.map((candidate) => {
-      const ref = candidate.interactive ? "@e" + nextRef++ : "";
-      if (ref) refs.set(ref, candidate.backendDOMNodeId);
+      let ref = "";
+      if (candidate.interactive) {
+        ref = previousRefs.get(candidate.backendDOMNodeId) || "@e" + nextRef++;
+        refs.set(ref, candidate.backendDOMNodeId);
+        currentRefs.set(candidate.backendDOMNodeId, ref);
+      }
       return this.renderAccessibilityNode(candidate, ref);
     });
     this.refsByTab.set(tabId, refs);
+    this.refByBackendByTab.set(tabId, currentRefs);
+    this.nextRefByTab.set(tabId, nextRef);
     return {
       snapshot: lines.join("\n"),
       nodeCount: selected.length,
@@ -778,6 +797,48 @@ class BrowserController {
       refCount: refs.size,
       truncated: selected.length < candidates.length,
     };
+  }
+
+  buildSnapshotRevision(tabId, snapshot, forceFull) {
+    const lines = snapshot ? snapshot.split("\n") : [];
+    const previous = this.snapshotByTab.get(tabId);
+    const snapshotId = ++this.snapshotSequence;
+    this.snapshotByTab.set(tabId, { id: snapshotId, lines });
+    if (!previous || forceFull) {
+      return { snapshot, snapshot_type: "full", snapshot_id: snapshotId };
+    }
+
+    const removed = this.lineDifference(previous.lines, lines).map((line) => "- " + line);
+    const added = this.lineDifference(lines, previous.lines).map((line) => "+ " + line);
+    const diff = [...removed, ...added].join("\n");
+    if (!diff) {
+      return {
+        snapshot: "No accessibility changes.",
+        snapshot_type: "unchanged",
+        snapshot_id: snapshotId,
+        base_snapshot_id: previous.id,
+      };
+    }
+    if (new TextEncoder().encode(diff).length >= new TextEncoder().encode(snapshot).length) {
+      return { snapshot, snapshot_type: "full", snapshot_id: snapshotId };
+    }
+    return {
+      snapshot: diff,
+      snapshot_type: "diff",
+      snapshot_id: snapshotId,
+      base_snapshot_id: previous.id,
+    };
+  }
+
+  lineDifference(left, right) {
+    const counts = new Map();
+    for (const line of right) counts.set(line, (counts.get(line) || 0) + 1);
+    return left.filter((line) => {
+      const count = counts.get(line) || 0;
+      if (!count) return true;
+      counts.set(line, count - 1);
+      return false;
+    });
   }
 
   renderAccessibilityNode(node, ref) {
@@ -1573,6 +1634,44 @@ class BrowserController {
     }
   }
 
+  handleTabRemoved(tabId) {
+    const lease = this.leaseByTab.get(tabId);
+    const tabRef = this.tabTokens.has(tabId) ? this.tabRef(tabId) : "";
+    if (lease && tabRef) {
+      this.eventSink("tab_removed", { session: lease.session, tab_ref: tabRef });
+    }
+    this.clearTab(tabId);
+  }
+
+  async handleTabUpdated(tabId, change, tab) {
+    if (change.url || change.status === "loading") this.invalidateTabSnapshot(tabId);
+    const lease = this.leaseByTab.get(tabId);
+    if (!lease || !(change.url || change.title || change.status)) return;
+    try {
+      const current = tab?.id === tabId ? tab : await chrome.tabs.get(tabId);
+      this.eventSink("tab_updated", {
+        session: lease.session,
+        tab: await this.tabResult(current),
+        status: change.status || current.status || "",
+      });
+    } catch {
+      this.handleTabRemoved(tabId);
+    }
+  }
+
+  async handleTabActivated(tabId) {
+    const lease = this.leaseByTab.get(tabId);
+    if (!lease) return;
+    try {
+      this.eventSink("tab_activated", {
+        session: lease.session,
+        tab: await this.tabResult(await chrome.tabs.get(tabId)),
+      });
+    } catch {
+      this.handleTabRemoved(tabId);
+    }
+  }
+
   async groupTab(tabId, rawSession, rawTitle) {
     const session = String(rawSession || "").trim();
     if (!session) return;
@@ -1789,9 +1888,16 @@ class BrowserController {
     });
   }
 
+  invalidateTabSnapshot(tabId) {
+    this.refsByTab.delete(tabId);
+    this.refByBackendByTab.delete(tabId);
+    this.nextRefByTab.delete(tabId);
+    this.snapshotByTab.delete(tabId);
+  }
+
   clearTab(tabId) {
     this.attachedTabs.delete(tabId);
-    this.refsByTab.delete(tabId);
+    this.invalidateTabSnapshot(tabId);
     this.networkTabs.delete(tabId);
     this.networkRequests.delete(tabId);
     this.consoleTabs.delete(tabId);
