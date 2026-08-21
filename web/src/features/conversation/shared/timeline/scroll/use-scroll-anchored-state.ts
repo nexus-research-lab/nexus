@@ -7,9 +7,16 @@ import {
   type SetStateAction,
 } from "react";
 
+import { notifyConversationExplicitShrink } from "./conversation-layout-events";
+
 interface ScrollAnchorSnapshot {
   container: HTMLElement;
   distanceFromBottom: number;
+}
+
+interface PendingCollapseSnapshot {
+  anchor: HTMLElement;
+  height: number;
 }
 
 interface UseScrollAnchoredStateReturn {
@@ -29,19 +36,37 @@ export function useScrollAnchoredState(
   const [isOpen, setOpen] = useState(initialValue);
   const anchorRef = useRef<HTMLElement | null>(null);
   const snapshotRef = useRef<ScrollAnchorSnapshot | null>(null);
+  const pendingCollapseRef = useRef<PendingCollapseSnapshot | null>(null);
 
   const toggle = useCallback(() => {
-    const container = findScrollContainer(anchorRef.current);
+    const anchor = anchorRef.current;
+    const container = findScrollContainer(anchor);
     if (container) {
       snapshotRef.current = {
         container,
         distanceFromBottom: container.scrollHeight - container.scrollTop,
       };
     }
-    setOpen((current) => !current);
-  }, []);
+    pendingCollapseRef.current = isOpen && anchor
+      ? {
+          anchor,
+          height: anchor.getBoundingClientRect().height,
+        }
+      : null;
+    setOpen(!isOpen);
+  }, [isOpen]);
 
   useLayoutEffect(() => {
+    const pendingCollapse = pendingCollapseRef.current;
+    if (pendingCollapse) {
+      pendingCollapseRef.current = null;
+      const anchor = anchorRef.current ?? pendingCollapse.anchor;
+      notifyConversationExplicitShrink(
+        anchor,
+        pendingCollapse.height - anchor.getBoundingClientRect().height,
+      );
+    }
+
     const snapshot = snapshotRef.current;
     if (!snapshot) {
       return;

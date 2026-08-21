@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话、Feed 实测高度与是否仍处于 live layout epoch。
- * OUTPUT: live 期间单调不减、内容底部锚定的 Feed 高度，并在终态异步布局安静后一次性释放顶部高度负债。
+ * OUTPUT: live 自动变化期间单调不减、用户主动收起时精确回退、内容底部锚定的 Feed 高度。
  * POS: FOLLOW/READING 共用的 Feed 级几何保护；不冻结消息子树，也不阻止正文和工具块继续自然增长。
  */
 import {
@@ -10,6 +10,11 @@ import {
   useRef,
   type RefObject,
 } from "react";
+
+import {
+  CONVERSATION_EXPLICIT_SHRINK_EVENT,
+  getConversationExplicitShrinkDetail,
+} from "./conversation-layout-events";
 
 const LIVE_HEIGHT_RELEASE_MS = 220;
 const LIVE_HEIGHT_SETTLE_MS = 160;
@@ -31,6 +36,19 @@ export interface ConversationLiveHeightGuardRevision {
   minimumHeight: number;
   releasing: boolean;
   state: ConversationLiveHeightGuardState;
+}
+
+export function resolveConversationLiveHeightAfterExplicitShrink(
+  previous: ConversationLiveHeightGuardState,
+  heightDelta: number,
+): ConversationLiveHeightGuardState {
+  const normalizedDelta = Number.isFinite(heightDelta)
+    ? Math.max(0, heightDelta)
+    : 0;
+  return {
+    ...previous,
+    minimumHeight: Math.max(0, previous.minimumHeight - normalizedDelta),
+  };
 }
 
 export function resolveConversationLiveHeightGuard({
@@ -222,6 +240,40 @@ export function useConversationLiveHeightGuard({
     observer.observe(feed);
     return () => observer.disconnect();
   }, [applyRevision, feedRef, revision]);
+
+  useEffect(() => {
+    const handleExplicitShrink = (event: Event) => {
+      const feed = feedRef.current;
+      const target = event.target;
+      const detail = getConversationExplicitShrinkDetail(event);
+      if (
+        !feed
+        || !activeRef.current
+        || !(target instanceof Node)
+        || !feed.contains(target)
+        || !detail
+      ) {
+        return;
+      }
+      const next = resolveConversationLiveHeightAfterExplicitShrink(
+        stateRef.current,
+        detail.heightDelta,
+      );
+      stateRef.current = next;
+      feed.style.transition = "none";
+      feed.style.minHeight = `${next.minimumHeight}px`;
+      feed.style.justifyContent = "flex-end";
+      feed.dataset.conversationLiveHeightGuard = "active";
+    };
+    document.addEventListener(
+      CONVERSATION_EXPLICIT_SHRINK_EVENT,
+      handleExplicitShrink,
+    );
+    return () => document.removeEventListener(
+      CONVERSATION_EXPLICIT_SHRINK_EVENT,
+      handleExplicitShrink,
+    );
+  }, [feedRef]);
 
   useEffect(() => () => {
     cancelRelease();

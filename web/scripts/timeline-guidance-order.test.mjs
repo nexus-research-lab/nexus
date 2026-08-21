@@ -537,8 +537,11 @@ test("FOLLOW keeps one scroll owner while parallel Room Agents grow", async () =
   );
 });
 
-test("live Room layout holds negative height debt until every Agent settles", async () => {
-  const { resolveConversationLiveHeightGuard } = await server.ssrLoadModule(
+test("live Room layout holds only automatic negative height debt until every Agent settles", async () => {
+  const {
+    resolveConversationLiveHeightAfterExplicitShrink,
+    resolveConversationLiveHeightGuard,
+  } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/use-conversation-live-height-guard.ts",
   );
   const initial = {
@@ -558,6 +561,26 @@ test("live Room layout holds negative height debt until every Agent settles", as
   }, opened.state);
   assert.equal(corrected.minimumHeight, 900);
   assert.equal(corrected.releasing, false);
+
+  const explicitlyCollapsed = resolveConversationLiveHeightAfterExplicitShrink(
+    corrected.state,
+    280,
+  );
+  assert.equal(
+    explicitlyCollapsed.minimumHeight,
+    620,
+    "a user-requested collapse releases exactly its own held height",
+  );
+  const collapsedMeasurement = resolveConversationLiveHeightGuard({
+    active: true,
+    measuredHeight: 620,
+    scopeKey: "room-a",
+  }, explicitlyCollapsed);
+  assert.equal(
+    collapsedMeasurement.minimumHeight,
+    620,
+    "the live guard cannot restore debt released by an explicit collapse",
+  );
 
   const grown = resolveConversationLiveHeightGuard({
     active: true,
@@ -3605,6 +3628,8 @@ test("DM and Room tool runs stay folded until the summary row is opened", async 
   const completedHtml = renderDm(true);
   assert.match(completedHtml, /data-tool-run-phase="complete"/);
   assert.match(completedHtml, /aria-expanded="false"/);
+  assert.match(completedHtml, /执行过程/);
+  assert.doesNotMatch(completedHtml, /工具调用/);
   assert.doesNotMatch(completedHtml, /已完成/);
   assert.doesNotMatch(
     completedHtml,

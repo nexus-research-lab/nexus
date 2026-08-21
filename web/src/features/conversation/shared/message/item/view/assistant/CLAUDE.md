@@ -6,7 +6,7 @@
 - `assistant-message-header.tsx`: 组合 32px、8px 圆角的头像与垂直居中的名称；宿主 handoff reply 以不可点击的“回应 @Agent”身份 chip 展示，不注入正文 mention 或动作；展开态不混入时间和模型，紧凑态才显示它们，并保留外部动作与停止动作。
 - `assistant-message-stats.tsx`: 只渲染控制器已判定可见的结果统计、模型、复制动作、Assistant 记忆引用入口，以及附着在最终回复下方且省略未知耗时/token 的 Goal 完成收据；内部 goal/round ID 永不展示，也不接收运行态。
 - `goal-completion-receipt.ts`: 负责 Goal 完成收据的可见字段选择、耗时格式化与本地化拼装；未知值不生成任何占位文案。
-- `assistant-dm-tool-runs.tsx`: 在 DM/Room live direct 过程中把中间旁白、thinking 与连续普通工具压缩成一个默认收起、持续更新的单行时间线块；最终回复由独立 final surface 保持可见，ToolUseSummary 按精确工具 ID 替换执行段标题，active 也允许点击展开完整过程，生成文件仍保留在收起态；自然 summary 与正常完成态不再追加冗余状态词。
+- `assistant-dm-tool-runs.tsx`: 在 DM/Room live direct 过程中把中间旁白、thinking 与连续普通工具压缩成一个默认收起、持续更新的单行时间线块；最终回复由独立 final surface 保持可见，ToolUseSummary 按精确工具 ID 替换执行段标题，active 也允许点击展开完整过程，生成文件仍保留在收起态；自然 summary 不追加冗余状态词，终态则改为中性的“执行过程”审计入口，不再用工具次数冒充进展。
 - `assistant-process-callchain.tsx`: 独立管理过程折叠、过程内容和收起态生成文件。
 
 本目录只消费控制器已经推导出的显示状态；不得重新排序消息、匹配权限或选择最终回复。
