@@ -339,29 +339,38 @@ test("Browser 光标首个动作沿轨迹移动且只在当前可见标签页显
   assert.equal(response.ok, true);
   assert.equal(overlay.host, null);
 
-  let frames;
-  let movingDuringAnimation = false;
-  const cursorClasses = new Set();
+  let motionFrames;
+  let motionOptions;
+  let settleFrames;
+  let settleOptions;
   documentStub.hidden = false;
   overlay.mount = () => {};
   overlay.cursor = {
-    animate(value) {
-      frames = value;
-      movingDuringAnimation = cursorClasses.has("moving");
+    animate(value, options) {
+      motionFrames = value;
+      motionOptions = options;
       return { cancel() {}, finished: Promise.resolve() };
-    },
-    classList: {
-      add(value) { cursorClasses.add(value); },
-      remove(value) { cursorClasses.delete(value); },
     },
     style: { opacity: "0" },
   };
+  overlay.pointer = {
+    animate(value, options) {
+      settleFrames = value;
+      settleOptions = options;
+      return { cancel() {}, finished: Promise.resolve() };
+    },
+  };
   await overlay.move(120, 80);
-  assert.ok(frames.length >= 8);
-  assert.equal(movingDuringAnimation, true);
-  assert.equal(cursorClasses.has("moving"), false);
-  assert.match(frames[0].transform, /^translate3d\(500px, 440/);
-  assert.equal(frames.at(-1).transform, "translate3d(120px, 80px, 0)");
+  assert.ok(motionFrames.length >= 16);
+  assert.equal(motionOptions.easing, "linear");
+  assert.match(motionFrames[0].transform, /^translate3d\(577\.5px, 438\.2px, 0\)/);
+  assert.match(motionFrames.at(-1).transform, /^translate3d\(117\.5px, 78\.2px, 0\)/);
+  assert.ok(motionFrames.some(({ transform }) => /rotate\((?!0(?:\.0+)?deg)/.test(transform)));
+  assert.equal(settleFrames.length, 48);
+  assert.equal(settleOptions.duration, 1410);
+  assert.equal(settleFrames[0].transform, "rotate(0deg)");
+  assert.equal(settleFrames.at(-1).transform, "rotate(0deg)");
+  assert.ok(settleFrames.some(({ transform }) => transform !== "rotate(0deg)"));
   assert.equal(overlay.cursor.style.opacity, "1");
 
   overlay.cursor.style.opacity = "1";
@@ -372,4 +381,5 @@ test("Browser 光标首个动作沿轨迹移动且只在当前可见标签页显
   ), false);
   assert.equal(response.ok, true);
   assert.equal(overlay.cursor.style.opacity, "0");
+  assert.equal(overlay.current, null);
 });
