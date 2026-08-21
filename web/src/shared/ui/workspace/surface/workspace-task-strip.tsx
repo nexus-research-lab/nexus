@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话投影出的任务列表、来源 Agent 与可选来源控件。
- * OUTPUT: 带 Agent 来源、44px 局部热区、32px 平面状态锚点、顺序键盘导航与可读状态的任务摘要及向上明细。
+ * OUTPUT: 带行高自适应 Agent 来源、44px 局部热区、32px 半透明状态锚点、顺序键盘导航与可读状态的任务摘要及向上明细。
  * POS: 锚在 Composer 顶边的 Workspace 会话级只读任务入口。
  */
 "use client";
@@ -134,7 +134,7 @@ export function WorkspaceTaskPanel({
         type="button"
       >
         <span
-          className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-[9px] px-2 text-xs text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-interactive-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+          className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-[9px] border border-[color:color-mix(in_srgb,var(--surface-popover-border)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-popover-background)_92%,transparent)] px-2 text-xs text-(--text-default) shadow-[0_4px_14px_color-mix(in_srgb,var(--shadow-color)_8%,transparent)] backdrop-blur-[12px] transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) group-hover:border-(--surface-interactive-hover-border) group-hover:bg-[color:color-mix(in_srgb,var(--surface-popover-background)_97%,var(--surface-interactive-hover-background)_3%)] group-hover:text-(--text-strong) group-focus-visible:bg-[color:color-mix(in_srgb,var(--surface-popover-background)_97%,var(--surface-interactive-hover-background)_3%)] group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
           data-workspace-task-visual
         >
           {source ? (
@@ -294,7 +294,7 @@ function WorkspaceTaskSourceIdentity({
         name={source.name}
         size="xs"
       />
-      <span className="min-w-0 truncate text-xs font-medium leading-none text-(--text-default)">
+      <span className="min-w-0 truncate text-xs font-medium leading-normal text-(--text-default)">
         {source.name}
       </span>
     </span>
