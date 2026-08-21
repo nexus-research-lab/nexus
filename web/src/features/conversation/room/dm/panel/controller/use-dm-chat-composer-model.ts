@@ -110,7 +110,6 @@ export function useDmChatComposerModel({
     runtimeKind,
     sessionSettings: sessionKey
       ? {
-          echoAvailable: true,
           initialTargetId: agent.agent_id,
           runtimeKind,
           targets: [{

@@ -20,17 +20,9 @@ const (
 	StatusSuppressed = "suppressed"
 	StatusCancelled  = "cancelled"
 	StatusFailed     = "failed"
-
-	SessionModeInherit  = "inherit"
-	SessionModeEnabled  = "enabled"
-	SessionModeDisabled = "disabled"
 )
 
-var (
-	ErrAttemptNotAdmitted = errors.New("Echo 尝试已失效")
-	ErrUnsupportedSession = errors.New("Echo 仅支持 WebSocket 私聊")
-	ErrInvalidSessionMode = errors.New("Echo 会话设置无效")
-)
+var ErrAttemptNotAdmitted = errors.New("Echo 尝试已失效")
 
 // Settings 是用户可见的 Echo 全局开关。
 type Settings struct {
@@ -85,25 +77,6 @@ type Attempt struct {
 	StartedAt          *time.Time `json:"started_at,omitempty"`
 	FinishedAt         *time.Time `json:"finished_at,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
-}
-
-// SessionOverride 表示单个 DM 是否覆盖用户级默认策略。
-type SessionOverride struct {
-	Mode             string `json:"mode"`
-	EffectiveEnabled bool   `json:"enabled"`
-}
-
-// NormalizeSessionMode 归一化会话级覆盖。
-func NormalizeSessionMode(mode string) (string, error) {
-	mode = strings.ToLower(strings.TrimSpace(mode))
-	switch mode {
-	case "", SessionModeInherit:
-		return SessionModeInherit, nil
-	case SessionModeEnabled, SessionModeDisabled:
-		return mode, nil
-	default:
-		return "", ErrInvalidSessionMode
-	}
 }
 
 // ParseClock 把 HH:mm 转成当天分钟数。

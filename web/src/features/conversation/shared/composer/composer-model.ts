@@ -95,7 +95,6 @@ export interface ComposerSessionSettingsTarget {
 }
 
 export interface ComposerSessionSettingsScope {
-  echoAvailable?: boolean;
   initialTargetId: string;
   runtimeKind: AgentRuntimeKind;
   targets: ComposerSessionSettingsTarget[];

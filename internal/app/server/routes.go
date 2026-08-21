@@ -153,8 +153,6 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleSessionRuntimeSettings)
 	s.router.Put(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleUpdateSessionRuntimeSettings)
-	s.router.Get(s.prefixPath("/sessions/{session_key}/echo"), s.handlers.echo.HandleGetSessionEcho)
-	s.router.Put(s.prefixPath("/sessions/{session_key}/echo"), s.handlers.echo.HandleUpdateSessionEcho)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleSessionLocalDirectories)
 	s.router.Put(s.prefixPath("/sessions/{session_key}/local-directories"), s.handlers.agent.HandleUpdateSessionLocalDirectories)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks"), s.handlers.agent.HandleSessionSubagentTasks)

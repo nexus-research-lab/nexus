@@ -53,7 +53,7 @@ type eligibility struct {
 // OnTerminal 为一次成功且用户可见的 DM round 建立唯一空闲尝试。
 func (s *Service) OnTerminal(ctx context.Context, terminal dmsvc.EchoTerminalRound) {
 	ctx = ownerContext(context.WithoutCancel(ctx), terminal.OwnerUserID)
-	policy, enabled, err := s.effectivePolicy(ctx, terminal.SessionKey)
+	policy, enabled, err := s.effectivePolicy(ctx)
 	if err != nil {
 		s.logger.Warn("Echo 读取策略失败", "session_key", terminal.SessionKey, "err", err)
 		return
@@ -360,7 +360,7 @@ func (s *Service) checkEligibility(
 	if !attempt.ExpiresAt.IsZero() && !now.Before(attempt.ExpiresAt) {
 		return eligibility{status: echodomain.StatusCancelled, reason: "expired"}, nil
 	}
-	policy, enabled, err := s.effectivePolicy(ctx, attempt.SessionKey)
+	policy, enabled, err := s.effectivePolicy(ctx)
 	if err != nil {
 		return eligibility{}, err
 	}
@@ -389,9 +389,6 @@ func (s *Service) checkEligibility(
 	history, err := s.sessions.GetSessionMessages(ctx, attempt.SessionKey)
 	if err != nil {
 		return eligibility{}, err
-	}
-	if latestVisibleRoundID(history) != strings.TrimSpace(attempt.AnchorRoundID) {
-		return eligibility{status: echodomain.StatusCancelled, reason: "conversation_changed"}, nil
 	}
 	running := s.runtime.GetRunningRoundIDs(attempt.SessionKey)
 	if allowOwnRound {
@@ -454,24 +451,12 @@ func (s *Service) checkEligibility(
 
 func (s *Service) effectivePolicy(
 	ctx context.Context,
-	sessionKey string,
 ) (echodomain.Policy, bool, error) {
 	policy, err := s.globalPolicy(ctx, authctx.OwnerUserID(ctx))
 	if err != nil {
 		return echodomain.Policy{}, false, err
 	}
-	override, err := s.sessions.GetEchoOverride(ctx, sessionKey)
-	if err != nil {
-		return echodomain.Policy{}, false, err
-	}
-	enabled := policy.Enabled
-	switch override.Mode {
-	case echodomain.SessionModeEnabled:
-		enabled = true
-	case echodomain.SessionModeDisabled:
-		enabled = false
-	}
-	return policy, enabled, nil
+	return policy, policy.Enabled, nil
 }
 
 func (s *Service) evaluateConversation(
@@ -529,7 +514,7 @@ func (s *Service) resolveGateConfig(
 
 func parseGateDecision(raw string) (gateDecision, error) {
 	var decision gateDecision
-	decoder := json.NewDecoder(strings.NewReader(strings.TrimSpace(raw)))
+	decoder := json.NewDecoder(strings.NewReader(trimGateJSONFence(raw)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&decision); err != nil {
 		return gateDecision{}, fmt.Errorf("Echo Gate 返回格式无效: %w", err)
@@ -554,6 +539,16 @@ func parseGateDecision(raw string) (gateDecision, error) {
 		decision.Focus = ""
 	}
 	return decision, nil
+}
+
+func trimGateJSONFence(raw string) string {
+	raw = strings.TrimSpace(raw)
+	for _, prefix := range []string{"```json\n", "```\n"} {
+		if strings.HasPrefix(raw, prefix) && strings.HasSuffix(raw, "\n```") {
+			return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, prefix), "\n```"))
+		}
+	}
+	return raw
 }
 
 func validGateReason(decision string, reason string) bool {
@@ -599,19 +594,6 @@ func buildGateHistory(messages []protocol.Message) string {
 		value = string(runes[len(runes)-echoHistoryRunes:])
 	}
 	return value
-}
-
-func latestVisibleRoundID(messages []protocol.Message) string {
-	for index := len(messages) - 1; index >= 0; index-- {
-		message := messages[index]
-		role := protocol.MessageRole(message)
-		if (role == "user" || role == "assistant") && message["hidden_from_user"] != true {
-			if roundID := protocol.MessageRoundID(message); roundID != "" {
-				return roundID
-			}
-		}
-	}
-	return ""
 }
 
 func messageText(message protocol.Message) string {

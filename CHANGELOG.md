@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added opt-in Echo follow-ups for Nexus direct messages, with one global switch, internally managed pacing, session overrides, and a message-only runtime policy.
+- Added opt-in Echo follow-ups for Nexus direct messages, with one global switch, internally managed pacing, durable exact-deadline scheduling, and a message-only runtime policy.
 - Added Nexus Browser with a branded extension icon, guided setup, live status, Session-scoped tabs, history, page/coordinate interaction, network and console inspection, dialog handling, clipboard access, uploads, downloads, full-page screenshots, PDF export, and opt-in raw CDP.
 - Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” automatic default-background-model structure extraction, read-only user confirmation, hidden background Agent persistence through the Skill and `nexus execution` without chat messages, single-connection-safe directory loading, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.

@@ -58,11 +58,11 @@ ON CONFLICT(owner_user_id, session_key, trigger_kind, anchor_round_id) DO NOTHIN
 // NextDueAt 返回最早的待判断时间。
 func (r *Repository) NextDueAt(ctx context.Context) (*time.Time, error) {
 	query := `SELECT MIN(due_at) FROM echo_attempts WHERE status = 'scheduled'`
-	var value sql.NullTime
+	var value any
 	if err := r.db.QueryRowContext(ctx, query).Scan(&value); err != nil {
 		return nil, err
 	}
-	return nullTime(value), nil
+	return storage.NullableTime(value)
 }
 
 // ClaimDue 原子领取一条到期尝试。
@@ -220,11 +220,11 @@ AND status = 'delivered' AND finished_at >= ` + r.dialect.Bind(2)
 func (r *Repository) LastDeliveredAtForSession(ctx context.Context, ownerUserID string, sessionKey string) (*time.Time, error) {
 	query := `SELECT MAX(finished_at) FROM echo_attempts WHERE owner_user_id = ` + r.dialect.Bind(1) + `
 AND session_key = ` + r.dialect.Bind(2) + ` AND status = 'delivered'`
-	var value sql.NullTime
+	var value any
 	if err := r.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(sessionKey)).Scan(&value); err != nil {
 		return nil, err
 	}
-	return nullTime(value), nil
+	return storage.NullableTime(value)
 }
 
 const attemptColumns = `attempt_id, owner_user_id, agent_id, session_key, trigger_kind,
