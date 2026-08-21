@@ -256,7 +256,10 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
   面向用户的字段跟随请求界面语言；Slash 命令生成同时参考 owner 当前目录与固定保留名，默认使用
   一个不重复的短词，只有语义准确的单词候选都冲突时才退到两个词，不生成三个及以上词；若模型仍返回
   多词候选，service 按语义核心词优先收敛到未占用的单词，并继续校验冲突。用户可直接修改 Slash 命令、标题和描述，或进入从源 transcript 最近一个已完成助手轮次
-  创建的目录隐藏短期 DM fork；该分支复用标准消息、流式、Tool 与 Composer，
+  创建的目录隐藏短期 DM fork；编辑小页只装配既有结构草图渲染器与标准 DM 面板，该分支复用标准消息、流式、Tool 与 Composer，
+  Agent 目录或界面语言刷新不能关闭并重建临时 Session；每次模型提交的新 revision 直接驱动同页草图实时重绘。
+  当选定轮次已是 source transcript 尾部且 provider 消息边界不满足目标 runtime 的 resume-at 格式时，runtime 必须复制完整 source transcript，
+  不得把 provider-specific message ID 作为无效边界传入。
   禁用 Skill、Connector 和 workspace 工具，只挂载 exact owner/session-scoped 草图修改 MCP。模型可按
   用户要求新增、删除、合并或拆分节点并修改 objective、父子结构与依赖，每次提交带 revision 的完整草图；
   服务端校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。取消丢弃分支，明确应用才替换
