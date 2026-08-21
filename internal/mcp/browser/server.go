@@ -75,8 +75,8 @@ func browserSchema() map[string]any {
 			"active": map[string]any{
 				"type": "boolean", "description": "find_tab 是否允许借用当前前台标签页。",
 			},
-			"tab_id": map[string]any{
-				"type": "integer", "minimum": 1, "description": "attach_tab 使用的标签页 ID。",
+			"tab_ref": map[string]any{
+				"type": "string", "description": "attach_tab 使用的不透明标签页引用；只能取自最近一次 list_tabs 结果。",
 			},
 			"scope": map[string]any{
 				"type": "string", "enum": []string{"session", "all"},

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { webcrypto } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
@@ -52,6 +53,7 @@ const context = vm.createContext({
   chrome,
   clearTimeout,
   console,
+  crypto: webcrypto,
   setTimeout,
   TextEncoder,
   URL,
@@ -94,6 +96,20 @@ test("Browser 快照有界且 evaluate 等待 Promise", async () => {
   assert.equal((await controller.evaluate({ tab_id: 9, code: "Promise.resolve('done')" })).value, "done");
   assert.equal(evaluateParams.awaitPromise, true);
   assert.equal(evaluateParams.timeout, 80000);
+});
+
+test("Browser 标签页引用绑定扩展代次和标签页实例", () => {
+  const { BrowserController } = context.__test;
+  const controller = new BrowserController();
+  controller.setIdentity("browser-a", "generation-a");
+
+  const ref = controller.tabRef(9);
+  assert.equal(controller.parseTabRef(ref), 9);
+  controller.clearTab(9);
+  assert.throws(() => controller.parseTabRef(ref), /Stale tab_ref/);
+
+  controller.setIdentity("browser-a", "generation-b");
+  assert.throws(() => controller.parseTabRef(ref), /Stale tab_ref/);
 });
 
 test("Browser 鼠标等待可见光标抵达后再发送 CDP 事件", async () => {

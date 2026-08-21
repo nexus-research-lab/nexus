@@ -15,7 +15,7 @@ import (
 func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	service := NewService()
 	commands := make(chan map[string]any, 8)
-	_, detach := service.Attach("0.1.0", func(_ context.Context, payload any) error {
+	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(_ context.Context, payload any) error {
 		commands <- payload.(map[string]any)
 		return nil
 	}, nil)
@@ -43,7 +43,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 		t.Fatalf("导航缺少会话分组信息: %+v", params)
 	}
 	service.Resolve(command["id"].(string), map[string]any{
-		"tab_id": float64(42), "owned": true, "url": "https://example.com",
+		"tab_id": float64(42), "tab_ref": "ref-42", "owned": true, "url": "https://example.com",
 	}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("navigate error = %v", err)
@@ -64,7 +64,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 		t.Fatalf("new_tab 不应复用旧标签页: %+v", params)
 	}
 	service.Resolve(command["id"].(string), map[string]any{
-		"tab_id": float64(43), "owned": true, "url": "https://example.org",
+		"tab_id": float64(43), "tab_ref": "ref-43", "owned": true, "url": "https://example.org",
 	}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("new tab navigate error = %v", err)
@@ -76,11 +76,17 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	}()
 	command = receiveCommand(t, commands)
 	params = command["params"].(map[string]any)
-	tabIDs := params["tab_ids"].([]int64)
-	if len(tabIDs) != 2 || tabIDs[0] != 42 || tabIDs[1] != 43 {
+	tabRefs := params["tab_refs"].([]string)
+	if len(tabRefs) != 2 || tabRefs[0] != "ref-42" || tabRefs[1] != "ref-43" {
 		t.Fatalf("list_tabs 未携带完整会话标签页: %+v", params)
 	}
-	service.Resolve(command["id"].(string), map[string]any{"tabs": []any{}}, "")
+	service.Resolve(command["id"].(string), map[string]any{
+		"scope": "session",
+		"tabs": []any{
+			map[string]any{"tab_id": float64(42), "tab_ref": "ref-42"},
+			map[string]any{"tab_id": float64(43), "tab_ref": "ref-43"},
+		},
+	}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("list_tabs error = %v", err)
 	}
@@ -91,7 +97,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	}()
 	command = receiveCommand(t, commands)
 	params = command["params"].(map[string]any)
-	if params["tab_id"] != int64(43) {
+	if params["tab_id"] != int64(43) || params["tab_ref"] != "ref-43" {
 		t.Fatalf("snapshot 未使用最新 Session tab: %+v", params)
 	}
 	service.Resolve(command["id"].(string), map[string]any{"snapshot": "", "truncated": false}, "")
@@ -118,14 +124,14 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 	}
 
 	commands := make(chan map[string]any, 1)
-	_, detach := service.Attach("0.1.0", func(_ context.Context, payload any) error {
+	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(_ context.Context, payload any) error {
 		commands <- payload.(map[string]any)
 		return nil
 	}, nil)
 	defer detach()
 	service.sessions["session-a"] = browserSession{
-		activeTabID: 42,
-		tabIDs:      map[int64]struct{}{42: {}},
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
 	}
 	errCh := make(chan error, 1)
 	go func() {
@@ -149,8 +155,8 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	service := NewService()
 	service.sessions["session-a"] = browserSession{
-		activeTabID: 42,
-		tabIDs:      map[int64]struct{}{42: {}},
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
 	}
 
 	allTabs, _, err := service.prepareParams("session-a", "Agent A", "list_tabs", map[string]any{
@@ -159,14 +165,25 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	if err != nil || allTabs["scope"] != "all" {
 		t.Fatalf("list_tabs all params = %+v, err = %v", allTabs, err)
 	}
-	if _, exists := allTabs["tab_ids"]; exists {
+	if _, exists := allTabs["tab_refs"]; exists {
 		t.Fatalf("list_tabs all 不应限制 Session 标签页: %+v", allTabs)
+	}
+	attached, _, err := service.prepareParams("session-a", "Agent A", "attach_tab", map[string]any{
+		"tab_ref": "ref-99",
+	})
+	if err != nil || attached["tab_ref"] != "ref-99" {
+		t.Fatalf("attach_tab params = %+v, err = %v", attached, err)
+	}
+	if _, _, err = service.prepareParams("session-a", "Agent A", "attach_tab", map[string]any{
+		"tab_id": 99,
+	}); err == nil {
+		t.Fatal("attach_tab 不应接受可复用的整数 tab_id")
 	}
 
 	mouse, _, err := service.prepareParams("session-a", "Agent A", "mouse_click", map[string]any{
 		"x": json.Number("12.5"), "y": json.Number("24.5"), "click_count": json.Number("2"),
 	})
-	if err != nil || mouse["tab_id"] != int64(42) || mouse["click_count"] != int64(2) {
+	if err != nil || mouse["tab_id"] != int64(42) || mouse["tab_ref"] != "ref-42" || mouse["click_count"] != int64(2) {
 		t.Fatalf("mouse_click params = %+v, err = %v", mouse, err)
 	}
 
@@ -201,6 +218,27 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	}
 }
 
+func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
+	service := NewService()
+	_, detach := service.Attach("0.1.0", "browser-a", "generation-a", func(context.Context, any) error {
+		return nil
+	}, nil)
+	defer detach()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+
+	_, detachNext := service.Attach("0.1.0", "browser-a", "generation-b", func(context.Context, any) error {
+		return nil
+	}, nil)
+	defer detachNext()
+
+	if _, err := service.Execute(context.Background(), "session-a", "Agent A", "snapshot", nil, false); err == nil {
+		t.Fatal("扩展代次变化后不应继续使用旧标签页引用")
+	}
+}
+
 func TestBrowserExtensionHandlesEveryServiceAction(t *testing.T) {
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -210,6 +248,9 @@ func TestBrowserExtensionHandlesEveryServiceAction(t *testing.T) {
 	content, err := os.ReadFile(backgroundPath)
 	if err != nil {
 		t.Fatalf("读取 Browser 扩展: %v", err)
+	}
+	if !strings.Contains(string(content), `const PROTOCOL_VERSION = "`+ProtocolVersion+`";`) {
+		t.Fatalf("Browser 扩展协议版本未与宿主 %s 对齐", ProtocolVersion)
 	}
 	for _, action := range SupportedActions() {
 		if action == "status" {

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bound Browser tabs to opaque extension-generation references so restarted extensions and reused Chromium tab IDs cannot redirect an Agent action to the wrong page.
 - Bounded Browser accessibility snapshots, prioritized actionable refs, awaited asynchronous JavaScript evaluation, and simplified extension connection status to prevent oversized or avoidable failed tool calls.
 - Fixed valid numeric Browser parameters being rejected by the runtime input validator.
 - Reduced and aligned the desktop default model selectors and their menus.
