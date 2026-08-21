@@ -13,7 +13,7 @@ import {
   mergeLoadedMessages,
   upsertMessage,
 } from "../../message/message-collection-model";
-import { latestAssistantResultErrorMessage } from "../../message/assistant-message-model";
+import type { ConversationReliabilityController } from "../../reliability/use-conversation-reliability";
 import { boundLoadedMessages } from "../../message/message-window-model";
 import {
   isRecoverableMessage,
@@ -30,23 +30,25 @@ import {
 } from "../../runtime/snapshot/conversation-volatile-storage";
 
 interface UseAgentSessionSnapshotsOptions {
+  chatType: "dm" | "group";
   messages: Message[];
   pendingAgentSlots: RoomPendingAgentSlotState[];
   reconcileRuntimeStateFromSnapshot: (messages: Message[]) => void;
   runtimeSnapshot: AgentConversationRuntimeSnapshot;
   sessionKey: string | null;
-  setError: Dispatch<SetStateAction<string | null>>;
+  reliability: ConversationReliabilityController;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setPendingAgentSlots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
 }
 
 export function useAgentSessionSnapshots({
+  chatType,
   messages,
   pendingAgentSlots,
   reconcileRuntimeStateFromSnapshot,
   runtimeSnapshot,
   sessionKey,
-  setError,
+  reliability,
   setMessages,
   setPendingAgentSlots,
 }: UseAgentSessionSnapshotsOptions): {
@@ -92,15 +94,16 @@ export function useAgentSessionSnapshots({
     setPendingAgentSlots((currentSlots) => (
       mergePendingAgentSlots(snapshot.pending_agent_slots, currentSlots)
     ));
-    setError(latestAssistantResultErrorMessage(restoredMessages));
+    reliability.reconcileSession(targetSessionKey, restoredMessages, chatType);
     reconcileRuntimeStateFromSnapshot(restoredMessages);
     return (
       restoredMessages.length > 0
       || snapshot.pending_agent_slots.length > 0
     );
   }, [
+    chatType,
     reconcileRuntimeStateFromSnapshot,
-    setError,
+    reliability,
     setMessages,
     setPendingAgentSlots,
   ]);

@@ -29,10 +29,11 @@ src/
 - Agent WebSocket 信封校验与事件路由位于 `hooks/agent/transport/`，业务处理器不得回流到组件层
 - Agent WebSocket 业务事件按 `transport/handlers/` 的消息、权限、重同步、Session 和作用域映射分域；权限事件在 `handlers/permission/` 分离未知载荷解码与状态副作用，当前 Session 守卫、字段回退和事件所有权不得重复实现
 - Agent conversation 公共 Hook 只做领域装配；消息去重、ACK 失败和稳定事件分发分别归属 `message/`、`actions/` 与 `transport/`
+- Conversation reliability 只由 `hooks/agent/reliability/` 的纯状态机和 React 适配层维护；transport retry、provider retry、request failure 与 round failure 不得退化成共享错误字符串。恢复只能消费 exact request/round/Agent-round 或 durable Session 对账证据；原始错误与关联 ID 不进入用户文案
 - Agent Session 由 `hooks/agent/session/controller/` 分离身份迁移、后台/易失快照与加载上下文；总控制器不复制 React setter
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - Agent 目录 Store 只保留静态目录与当前选择；运行态事件只在会话/工作区链路中消费，不回写 Agent 目录状态
-- WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列；Room/DM 的 Session bind 由共享通道内部的逻辑租约统一引用计数并在重连后重放，单个组件 cleanup 不得直接解绑仍被其他消费者使用的 Session。已派发的用户消息、编辑重跑、队列输入与 Goal 都由 exact `client_request_id` 请求租约继续持有原物理连接与 Session binding，零 React subscriber、普通切页和新建 Session 都不得取消；raw ACK/error、明确 reset 或有界 hard timeout 才释放
+- WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列；Room/DM 的 Session bind 由共享通道内部的逻辑租约统一引用计数并在重连后重放，单个组件 cleanup 不得直接解绑仍被其他消费者使用的 Session。已派发的用户消息、编辑重跑、队列输入与 Goal 都由 exact `client_request_id` 请求租约继续持有原物理连接与 Session binding，零 React subscriber、普通切页和新建 Session 都不得取消；raw ACK/error、明确 reset 或有界 hard timeout 才释放。通道恢复必须在 binding replay 后重拉当前 durable Session；Room 再叠加 room_seq replay 与 subscription snapshot，Web 不得自动重发业务命令或工具调用
 - Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，首次进入只打开恢复目标，历史会话只在用户显式选择后加入；活动标签必须属于打开集合，视图不得直接修正集合状态
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
@@ -57,7 +58,7 @@ src/
 - 应用 Tour 目录和引导中心归 `features/onboarding/`；页面只注册当前 Tour 与锚点，跨页面导航、自动启动和目录投影不得下沉到 `shared/ui`
 - Room 群聊面板只在 `panel/` 组合会话、Goal 与输入区模型；普通和虚拟消息流必须共用 `feed/group-conversation-round.tsx`，不得复制轮次分支
 - DM 与 Room 只通过 `shared/session/use-conversation-session.ts` 串联运行时、滚动、历史和时间线；具体面板只装配业务模型
-- DM/Room 滚动视口、历史提示、错误和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class
+- DM/Room 滚动视口、历史提示、可靠性状态和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class；可靠性提示只进入 Composer 状态栈，不进入 Feed 几何、transcript、历史或未读
 - Room 与子智能体统一消费 `conversation/shared/thread/` 的 Thread 轮次契约和消息面板；共享域不得反向依赖 Room 私有目录
 - 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导

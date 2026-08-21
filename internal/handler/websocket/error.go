@@ -1,11 +1,16 @@
+// INPUT: WebSocket gateway 的内部错误、命令类型与可选关联身份。
+// OUTPUT: 脱敏 message、稳定 failure_code 和精确 round/request 字段的 error event。
+// POS: Conversation gateway 错误到公开 wire 的唯一分类边界。
 package websocket
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 )
 
 func (h *Handler) sendGatewayError(
@@ -17,7 +22,40 @@ func (h *Handler) sendGatewayError(
 	details map[string]any,
 ) {
 	message := h.errorEventDetail(errorType, err)
+	if details == nil {
+		details = make(map[string]any)
+	}
+	details["failure_code"] = gatewayFailureCode(errorType, err)
 	_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(sessionKey, errorType, message, details))
+}
+
+func gatewayFailureCode(errorType string, err error) protocol.ConversationFailureCode {
+	switch errorType {
+	case "validation_error", "invalid_room_subscription", "invalid_workspace_subscription", "invalid_session_key", "unknown_message_type":
+		return protocol.ConversationFailureValidationFailed
+	case "permission_request_not_found":
+		return protocol.ConversationFailurePermissionNotSent
+	case "chat_error", "command_catalog_error":
+		message := ""
+		if err != nil {
+			message = strings.ToLower(strings.TrimSpace(err.Error()))
+		}
+		switch {
+		case errors.Is(err, subscriptionsvc.ErrQuotaExceeded):
+			return protocol.ConversationFailureUsageLimited
+		case protocol.IsProviderContentFilterError(message):
+			return protocol.ConversationFailureSafetyRejected
+		case strings.Contains(message, "authentication_error"),
+			strings.Contains(message, "invalid api key"),
+			strings.Contains(message, "未配置默认模型"),
+			strings.Contains(message, "配置不完整"):
+			return protocol.ConversationFailureProviderConfiguration
+		default:
+			return protocol.ConversationFailureProviderUnavailable
+		}
+	default:
+		return protocol.ConversationFailureRequestRejected
+	}
 }
 
 func (h *Handler) errorEventDetail(errorType string, err error) string {
@@ -109,8 +147,9 @@ func (h *Handler) newGatewayErrorEvent(
 	details map[string]any,
 ) protocol.EventMessage {
 	data := map[string]any{
-		"message":    message,
-		"error_type": errorType,
+		"message":      message,
+		"error_type":   errorType,
+		"failure_code": gatewayFailureCode(errorType, nil),
 	}
 	for key, value := range details {
 		data[key] = value

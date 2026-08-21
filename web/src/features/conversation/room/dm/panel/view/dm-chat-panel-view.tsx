@@ -94,6 +94,7 @@ export function DmChatPanelView({
         goal={!model.embedded ? <GoalPanel {...model.goalPanel} compact={isMobileLayout} /> : undefined}
         isMobileLayout={isMobileLayout}
         providerWarningVisible={model.providerWarningVisible}
+        reliability={model.reliability}
         scrollToLatest={model.scrollToLatest}
       >
         <ComposerPanel

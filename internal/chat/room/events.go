@@ -146,9 +146,14 @@ func WrapLifecycleEvent(eventType protocol.EventType, sessionKey string, roomID 
 
 // NewErrorEvent 构建 Room 错误事件。roundID 可为空。
 func NewErrorEvent(sessionKey string, roomID string, conversationID string, errorType string, message string, roundID string) protocol.EventMessage {
+	failureCode := protocol.ConversationFailureRequestRejected
+	if errorType == "room_error" {
+		failureCode = protocol.ConversationFailureRoundFailed
+	}
 	event := protocol.NewEvent(protocol.EventTypeError, map[string]any{
-		"error_type": errorType,
-		"message":    message,
+		"error_type":   errorType,
+		"failure_code": failureCode,
+		"message":      message,
 	})
 	event.SessionKey = sessionKey
 	event.RoomID = roomID

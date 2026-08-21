@@ -1,12 +1,13 @@
 /**
  * INPUT: Assistant 实时增量、终态/历史快照与 ContentBlock。
- * OUTPUT: 内容不回退且宿主 durable annotation 不丢失的 Assistant 消息。
+ * OUTPUT: 内容不回退、durable annotation 不丢失的 Assistant 消息，以及不含内部详情的终态失败身份/分类。
  * POS: 会话 transport 汇流前的 Assistant 单消息归一/合并边界。
  */
 import type {
   AssistantMessage,
   Message,
 } from "@/types/conversation/message/entity";
+import type { ConversationFailureCode } from "@/types/agent/agent-conversation-reliability";
 import type {
   ContentBlock,
   ImageContent,
@@ -33,6 +34,32 @@ type ImageIdentityResolver = (
 
 export const DEFAULT_ASSISTANT_ERROR_MESSAGE =
   "本轮执行失败，模型或工具没有正常完成。请稍后重试。";
+
+export interface AssistantResultFailureIdentity {
+  agent_round_id: string | null;
+  code: ConversationFailureCode;
+  round_id: string | null;
+}
+
+export function resolveAssistantFailureCode(
+  message: AssistantMessage,
+): ConversationFailureCode {
+  switch (message.result_summary?.terminal_reason?.trim().toLowerCase()) {
+    case "content_filtered":
+      return "safety_rejected";
+    case "rate_limit":
+    case "server_overload":
+      return "provider_unavailable";
+    case "subscription_quota":
+    case "usage_limit":
+      return "usage_limited";
+    case "authentication_error":
+    case "provider_configuration":
+      return "provider_configuration";
+    default:
+      return "round_failed";
+  }
+}
 
 // 顺序是图片跨快照合并的身份优先级，新增来源时必须显式选择位置。
 const IMAGE_IDENTITY_RESOLVERS: readonly ImageIdentityResolver[] = [
@@ -207,6 +234,48 @@ export function latestAssistantResultErrorMessage(
     if (error) {
       return error;
     }
+  }
+  return null;
+}
+
+/**
+ * Session 对账只恢复失败的关联身份，不把 runtime 原因带入界面状态。
+ * Room 是否需要全局展示由上层 chat type 决定。
+ */
+export function latestAssistantResultFailure(
+  messages: readonly Message[],
+): AssistantResultFailureIdentity | null {
+  let latestAssistant: AssistantMessage | null = null;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === "assistant") {
+      latestAssistant = message;
+      break;
+    }
+  }
+  if (!latestAssistant) {
+    return null;
+  }
+  const latestRoundId = latestAssistant.round_id?.trim() ?? "";
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message.role !== "assistant"
+      || (latestRoundId && message.round_id?.trim() !== latestRoundId)
+    ) {
+      continue;
+    }
+    if (!resolveAssistantResultErrorBannerMessage(message)) {
+      if (!latestRoundId) {
+        return null;
+      }
+      continue;
+    }
+    return {
+      agent_round_id: message.agent_round_id?.trim() || null,
+      code: resolveAssistantFailureCode(message),
+      round_id: message.round_id?.trim() || null,
+    };
   }
   return null;
 }

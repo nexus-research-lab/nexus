@@ -4691,7 +4691,7 @@ test("round status updates lifecycle without duplicating durable error copy", as
     "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
   );
   const applied = [];
-  let errorWrites = 0;
+  let failureWrites = 0;
   const context = {
     runtime: {
       applyAgentRoundStatus: (payload) => {
@@ -4701,10 +4701,17 @@ test("round status updates lifecycle without duplicating durable error copy", as
         applied.push(["round", status]);
       },
     },
-    scope: { isCurrentSessionEvent: () => true },
+    scope: {
+      chatType: "group",
+      isCurrentSessionEvent: () => true,
+      sessionKey: "room:group:conversation-1",
+    },
     state: {
-      setError: () => {
-        errorWrites += 1;
+      reliability: {
+        observeRecovery: () => {},
+        reportFailure: () => {
+          failureWrites += 1;
+        },
       },
     },
   };
@@ -4737,7 +4744,7 @@ test("round status updates lifecycle without duplicating durable error copy", as
   }, context);
 
   assert.deepEqual(applied, [["agent", "error"], ["round", "error"]]);
-  assert.equal(errorWrites, 0);
+  assert.equal(failureWrites, 0);
 });
 
 test("terminal round status keeps its displayable error message", async () => {
@@ -7469,9 +7476,15 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
         timestamp: 1,
       })],
       pendingPermissions: permissions,
+      reliability: {
+        observeRecovery: () => {
+          error = null;
+        },
+        reportFailure: (failure) => {
+          error = failure.code;
+        },
+      },
       sessionKey: "room:group:conversation-stop",
-      setError: (next) => {
-        error = typeof next === "function" ? next(error) : next;
       },
       setMessages: () => {},
       setPendingPermissions: (next) => {
@@ -7524,7 +7537,7 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
     ],
     "a failed interrupt must leave runtime-facing interaction state retryable",
   );
-  assert.equal(dropped.read().error, "中断请求发送失败，请稍后重试");
+  assert.equal(dropped.read().error, "connection_unavailable");
 });
 
 test("Room exact stop survives slot cleanup and settles ACK/terminal races per Agent", async () => {

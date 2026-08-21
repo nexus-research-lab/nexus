@@ -9,7 +9,7 @@
 - `conversation-panel-model.ts`：把共享会话控制器和面板环境投影为 Frame、导航、视口和滚动控件模型。
 - `use-conversation-panel-environment.ts`：统一读取布局模式和 Provider 告警状态；用户头像已退出消息渲染契约，不得沿面板链保留无消费字段。
 - `use-conversation-snapshot-reporter.ts`：按会话作用域报告稳定快照，并统一活跃时间、当前已加载消息计数与显式 `has_user_input` 投影；只有可见且非 synthetic 的 user 消息属于用户输入，消息计数不得代替该事实。Conversation scope 切换后的首个 effect 必须跳过，且消息 identity 必须属于当前 scope，防止上一会话的消息集合在清空前污染新 draft。
-- `conversation-error-bubble.tsx`：按有序诊断规则投影用户可执行的错误说明并渲染统一错误消息。
+- `conversation-reliability-notice.tsx`：只消费结构化可靠性快照，在 Composer 状态栈投影连接恢复、Provider retry 和用户级失败文案；不渲染内部详情。
 - `slash-command-presentation.ts` 与 `slash-command-token.tsx`：识别消息开头的通用 `/<command>`，为 Composer 镜像和用户消息提供同一轻量命令标签，不改写草稿或持久化正文。
 - `execution/`：读取后端安全的 managed `ExecutionView`，以同一 WorkGraph 在 DM/Room 投影目标、Plan revision、Work Item、依赖、Assignment、Attempt、Submission 与 Acceptance；planless/runtime-only Graph 不属于这个公共资源，也不得填充固定工作图入口的 Surface 或触发 Agent Dock。
 
@@ -17,7 +17,7 @@
 
 - 共享层只承载 DM 与 Room 语义完全一致的结构，不吸收各领域的差异字段。
 - 纯投影不得持有 React 状态或调用领域 API。
-- 错误分类按具体 Provider、实时连接、通用后端的顺序匹配，不在视图中追加条件分支。
+- 可靠性展示按 transport recovery、Provider retry、用户级 failure 的优先级投影；分类与恢复证据归 `hooks/agent/reliability/`，视图不得解析错误文本或关联 ID。
 - 具体 Feed、Goal、Execution 和 Composer 模型由各自领域定义。
 - active Plan 且包含 Work Items 的 managed Execution 存在时替代 legacy Todo 浮动进程；planless Execution、runtime-only round、普通聊天、裸 `@` 通信与原生 Todo 继续使用原路径，视图不得把 Goal、参与人数、mention 或运行节点推断成 Plan。
 - 常规桌面保持紧凑阅读宽度；超宽屏只按共享阶梯放宽消息轨道和 Composer，助手正文使用更小的可读上限，禁止各消费面自行复制宽度断点。

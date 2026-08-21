@@ -79,6 +79,20 @@
 
 同一个 `message_id` 的 durable snapshot 必须更新同一条消息投影，不能按 snapshot 数量追加多条气泡。`round_status`、`agent_round_status`、input queue 和 handoff 事件只更新状态投影，不直接变成正文消息。
 
+### 3.3 Conversation reliability 与恢复闭环
+
+Conversation reliability 必须把 transport、请求受理、Agent round 和工具过程分成独立状态，禁止用一个全局错误字符串同时代表这些阶段：
+
+- WebSocket `onerror` 只是连接异常证据，不是业务终态。共享客户端按统一策略执行最多 5 次指数退避重连；重试期间只在 Composer 工作栈显示“连接中断，正在恢复…”，只有重试耗尽进入 `unavailable` 后才显示“连接尚未恢复，请稍后重试。”
+- 物理通道恢复后必须先重放仍有效的 Session binding，再对当前 Session 拉取 durable 消息快照。DM 以该快照和随后实时事件按消息身份合并；Room 还必须同时恢复 `room_seq` replay、Room subscription snapshot、pending Agent slot 和 pending interaction。连接恢复本身只能清除 transport 故障，不能覆盖一个仍由 durable round 证明的终态失败。
+- Provider/runtime 的 API retry 只由 runtime 发起并以当前 round 的 ephemeral `api_retry` 事实投影；Web 显示“模型服务暂时不可用，正在重试…”，但不得自行重发 prompt、工具调用或任何可能产生副作用的命令。新的 stream/message/成功 round status 必须按 exact `round_id`/`agent_round_id` 清除对应 retry；最终 error 才转成失败分类。
+- 用户消息、Goal、queue、permission 和 interrupt 的受理按 exact `client_request_id` 对账。ACK 丢失时客户端可以重连和读取 durable 状态，但不得自动重发；正向 ACK、durable `client_message_id`、input queue snapshot 或后续 round 事实只清除其精确请求故障，不能清除其他 Session 的状态。
+- 错误事件使用结构化 `failure_code`；原始 Provider 文本、HTTP 状态、Session/round/request ID 和内部堆栈只进入日志。普通用户界面不提供“查看详情”，只显示可执行的产品文案；未单独分类的终态统一为“暂时无法响应，请稍后重试。”
+- 用户发起新提交即开始新的恢复尝试并撤销当前 Session 的旧全局失败提示；同一失败 round 后续重新出现 stream/message，或重连后的 durable 对账证明该失败已不存在时，也必须自动撤销。提示不能作为遮罩、不能冻结 Composer，终态后的下一条用户输入继续沿原 Session 进入 runtime recovery context。
+- Room 的 transport 故障属于整个页面；带 exact `agent_round_id` 的 retry/error 只属于对应 Agent shell/Thread，不得把 root round 或其他成员标成失败。只有权威 root `round_status=error`，或没有 Agent round 身份且明确影响整个 Room 的错误，才允许进入 Room 全局失败状态。
+
+可靠性状态只进入 Composer 上方的统一状态栈，不写入 Feed、transcript、历史、未读或消息计数，也不参与 Feed 高度与滚动锚点。
+
 Goal 完成收据由宿主在成功的 `update_goal(complete)` 后生成，并以内部 `goal_id + round_id` 精确绑定到该轮最终 assistant 的同一 `message_id` durable snapshot；`goal_id` 优先取成功工具结果返回的权威 identity，旧 Provider 未返回 identity 时才回退到该物理 round 的固定 Goal binding，两者冲突必须 fail closed。这两个绑定 ID 进入历史但不进入用户文案。收据始终可显示“Goal 已完成”，只在 Goal 聚合报告存在正耗时时附加耗时，只在 `usage_finalized=true` 时附加 actual token。结算仍在进行、Provider usage 永久不可得或查询失败时，未知 token 项必须完全省略，不得显示“结算中”“不可用”，也不得把未知值当成 0。后续结算成功或兼容修复推进了同一 Goal 聚合真相时，历史读取必须按隐藏的 `goal_id` 用当前 finalized report 静默刷新收据，而不是永久保留旧 snapshot 的错误数值。
 
 stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，但只有累计输入构成完整 JSON 后才更新可解释的工具参数。兼容网关漏发 `content_block_start` 时，处理器按 delta 类型建立临时块，随后由完整 assistant 快照原位替换，不能生成孤儿工具块或终止 round。嵌套调用通过 `parent_tool_use_id` 绑定父工具；事件未重复携带该字段时沿用本条 stream 在 `message_start` 建立的父链，新 assistant 段开始时必须重新取值，不能继承上一段的 parent。

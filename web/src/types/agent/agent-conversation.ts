@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、独立 set_goal 控制参数、Room execution/handoff/精确停止易失锚点、execution invalidation payload 与历史窗口解析状态
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions、带可靠性快照的 UseAgentConversationReturn、独立 set_goal 控制参数、Room execution/handoff/精确停止易失锚点、execution invalidation payload 与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -18,6 +18,7 @@ import type {
   ContextUsageData,
 } from '@/types/generated/protocol';
 import { WebSocketState } from '@/types/system/websocket';
+import type { ConversationReliabilitySnapshot } from '@/types/agent/agent-conversation-reliability';
 
 export type AgentConversationChatType = 'dm' | 'group';
 export type AgentConversationRuntimePhase =
@@ -91,7 +92,7 @@ export interface UseAgentConversationReturn {
   history_prepend_token: number;
   resolved_history_round_ids: string[];
   runtime_phase: AgentConversationRuntimePhase;
-  error: string | null;
+  reliability: ConversationReliabilitySnapshot;
   pending_agent_slots: RoomPendingAgentSlotState[];
   room_agent_execution_states: RoomAgentExecutionState[];
   /** 已发送且尚未被 terminal event 或 interrupt_ack 收口的精确停止目标。 */

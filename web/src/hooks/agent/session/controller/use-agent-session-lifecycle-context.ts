@@ -16,6 +16,7 @@ import type { PendingPermission } from "@/types/conversation/interaction/permiss
 
 import type { AgentConversationLifecycleContext } from "../conversation-lifecycle";
 import type { AgentConversationHistoryCursor } from "../conversation-history-model";
+import type { ConversationReliabilityController } from "../../reliability/use-conversation-reliability";
 
 interface UseAgentSessionLifecycleContextOptions {
   activeSessionKeyRef: RefObject<string | null>;
@@ -26,7 +27,7 @@ interface UseAgentSessionLifecycleContextOptions {
   loadRequestIdRef: RefObject<number>;
   reconcileRuntimeStateFromSnapshot: (messages: Message[]) => void;
   restoreVolatileSessionSnapshot: (sessionKey: string) => boolean;
-  setError: Dispatch<SetStateAction<string | null>>;
+  reliability: ConversationReliabilityController;
   setHasMoreHistory: (nextValue: boolean) => void;
   setInputQueueItems: Dispatch<SetStateAction<InputQueueItem[]>>;
   setIsSessionLoading: Dispatch<SetStateAction<boolean>>;
@@ -45,7 +46,7 @@ export function useAgentSessionLifecycleContext({
   loadRequestIdRef,
   reconcileRuntimeStateFromSnapshot,
   restoreVolatileSessionSnapshot,
-  setError,
+  reliability,
   setHasMoreHistory,
   setInputQueueItems,
   setIsSessionLoading,
@@ -63,7 +64,7 @@ export function useAgentSessionLifecycleContext({
       loadRequestId: loadRequestIdRef,
     },
     state: {
-      setError,
+      reliability,
       setInputQueueItems,
       setIsSessionLoading,
       setMessages,
@@ -91,7 +92,7 @@ export function useAgentSessionLifecycleContext({
     loadRequestIdRef,
     reconcileRuntimeStateFromSnapshot,
     restoreVolatileSessionSnapshot,
-    setError,
+    reliability,
     setHasMoreHistory,
     setInputQueueItems,
     setIsSessionLoading,
