@@ -598,3 +598,25 @@ func TestLatestCompletedAssistantRoundSkipsActiveAndFailedTail(t *testing.T) {
 		t.Fatalf("latestCompletedAssistantRound() = %q, want round-success", got)
 	}
 }
+
+func TestTransientForkAtTranscriptTailOmitsProviderSpecificMessageBoundary(t *testing.T) {
+	legacyMessageID := "msg_20260821090320f5fbc914cb404581-2"
+	if got := conversationForkResumeAt(map[string]any{
+		protocol.OptionRuntimeForkAtTranscriptTail: true,
+	}, legacyMessageID); got != "" {
+		t.Fatalf("conversationForkResumeAt() = %q, want full source transcript", got)
+	}
+	if got := conversationForkResumeAt(nil, legacyMessageID); got != legacyMessageID {
+		t.Fatalf("bounded conversationForkResumeAt() = %q, want %q", got, legacyMessageID)
+	}
+	if !transcriptRoundIsSessionTail(workspacestore.TranscriptRoundTail{
+		RoundIDs: []string{"round-target"},
+	}, "round-target") {
+		t.Fatal("single terminal round was not recognized as the transcript tail")
+	}
+	if transcriptRoundIsSessionTail(workspacestore.TranscriptRoundTail{
+		RoundIDs: []string{"round-target", "round-later"},
+	}, "round-target") {
+		t.Fatal("historical round was incorrectly recognized as the transcript tail")
+	}
+}

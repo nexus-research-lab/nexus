@@ -162,6 +162,22 @@ func (s *Service) forkConversationSession(
 	if actualSessionID != sourceSessionID || actualMessageID != forkMessageID {
 		return errors.New("fork transcript boundary changed before target materialization")
 	}
+	if purpose, _ := targetSession.Options[protocol.OptionSessionPurpose].(string); strings.TrimSpace(purpose) == protocol.SessionPurposeWorkGraphEditor {
+		tail, tailErr := ownerHistory.ResolveTranscriptRoundTail(
+			agentValue.WorkspacePath,
+			sourceSessionKey,
+			actualSessionID,
+			targetRoundID,
+		)
+		if tailErr != nil {
+			return fmt.Errorf("确认临时 fork transcript 尾部: %w", tailErr)
+		}
+		if transcriptRoundIsSessionTail(tail, targetRoundID) {
+			targetSession.Options[protocol.OptionRuntimeForkAtTranscriptTail] = true
+		} else {
+			delete(targetSession.Options, protocol.OptionRuntimeForkAtTranscriptTail)
+		}
+	}
 	targetSession.Options[protocol.OptionRuntimeForkSourceSessionID] = sourceSessionID
 	targetSession.Options[protocol.OptionRuntimeForkMessageID] = forkMessageID
 	forkRows, err := ownerHistory.ReadMessages(agentValue.WorkspacePath, targetSession, nil)
@@ -177,6 +193,13 @@ func (s *Service) forkConversationSession(
 		return fmt.Errorf("持久化 fork conversation: %w", err)
 	}
 	return nil
+}
+
+func transcriptRoundIsSessionTail(tail workspacestore.TranscriptRoundTail, targetRoundID string) bool {
+	targetRoundID = strings.TrimSpace(targetRoundID)
+	return targetRoundID != "" &&
+		len(tail.RoundIDs) == 1 &&
+		strings.TrimSpace(tail.RoundIDs[0]) == targetRoundID
 }
 
 func pendingConversationFork(options map[string]any) (string, string) {

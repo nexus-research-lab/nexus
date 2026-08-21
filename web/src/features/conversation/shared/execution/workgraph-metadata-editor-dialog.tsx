@@ -1,7 +1,7 @@
 /**
  * INPUT: exact WorkGraph preview 与源 Session。
  * OUTPUT: 左侧实时草图 + 右侧标准 DM 消息/流式/工具/Composer 的短期 fork 编辑页。
- * POS: 对话式草图编辑 UI；不复制 DM 气泡或发送状态，应用前不改写原 preview。
+ * POS: 只装配既有草图与 DM 组件的对话编辑页；目录刷新不重建临时 Session，应用前不改写原 preview。
  */
 "use client";
 
@@ -66,10 +66,13 @@ export function WorkGraphMetadataEditorDialog({
   const { locale, t } = useI18n();
   const runtimeKind = useDefaultAgentRuntimeKind();
   const initialPreviewRef = useRef(preview);
+  const startContextRef = useRef({
+    locale,
+    failureMessage: t("execution.workflow_editor_start_failed"),
+  });
   const editorRef = useRef<WorkGraphWorkflowEditorSession | null>(null);
   const closedRef = useRef(false);
   const [editor, setEditor] = useState<WorkGraphWorkflowEditorSession | null>(null);
-  const [agent, setAgent] = useState<Agent | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -82,20 +85,17 @@ export function WorkGraphMetadataEditorDialog({
 
   useEffect(() => {
     let active = true;
+    closedRef.current = false;
     const initialPreview = initialPreviewRef.current;
-    void startWorkGraphWorkflowEditorApi(sessionKey, initialPreview, locale)
+    const startContext = startContextRef.current;
+    void startWorkGraphWorkflowEditorApi(sessionKey, initialPreview, startContext.locale)
       .then((session) => {
         if (!active) return;
-        const editorAgent = agents.find((item) => item.agent_id === session.agent_id) ?? null;
-        if (!editorAgent) {
-          throw new Error(t("execution.workflow_editor_agent_missing"));
-        }
         updateEditor(session);
-        setAgent(editorAgent);
       })
       .catch((reason: unknown) => {
         if (active) {
-          setError(getErrorMessage(reason, t("execution.workflow_editor_start_failed")));
+          setError(getErrorMessage(reason, startContext.failureMessage));
         }
       })
       .finally(() => {
@@ -109,7 +109,7 @@ export function WorkGraphMetadataEditorDialog({
         void closeWorkGraphWorkflowEditorApi(sessionKey, current.editor_id).catch(() => undefined);
       }
     };
-  }, [agents, locale, sessionKey, t, updateEditor]);
+  }, [sessionKey, updateEditor]);
 
   const refreshEditor = useCallback(async () => {
     const current = editorRef.current;
@@ -166,6 +166,12 @@ export function WorkGraphMetadataEditorDialog({
     chat_type: "dm" as const,
     session_key: editor.session_key,
   } : null, [editor]);
+  const agent = useMemo(
+    () => editor
+      ? agents.find((item) => item.agent_id === editor.agent_id) ?? null
+      : null,
+    [agents, editor],
+  );
   const currentPreview = editor?.preview ?? preview;
 
   return (

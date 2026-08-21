@@ -570,7 +570,9 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
     "src/lib/api/conversation/execution-api.ts",
   ), "utf8");
   assert.match(editorSource, /startWorkGraphWorkflowEditorApi/);
-  assert.match(editorSource, /agents\.find\(\(item\) => item\.agent_id === session\.agent_id\)/);
+  assert.match(editorSource, /agents\.find\(\(item\) => item\.agent_id === editor\.agent_id\)/);
+  assert.doesNotMatch(editorSource, /\}, \[agents, locale, sessionKey, t, updateEditor\]\);/);
+  assert.match(editorSource, /\}, \[sessionKey, updateEditor\]\);/);
   assert.doesNotMatch(editorSource, /getAgents\(\)/);
   assert.match(editorSource, /<DmChatPanel/);
   assert.match(editorSource, /embeddedEditor=/);

@@ -436,7 +436,7 @@ func (s *Service) ensureClient(
 		sessionItem = latest
 	}
 	options.Session.ResumeID = resumeID
-	options.Session.ResumeAt = forkMessageID
+	options.Session.ResumeAt = conversationForkResumeAt(sessionItem.Options, forkMessageID)
 	options.Session.Fork = forking
 	if toolSurfaceFork {
 		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
@@ -580,6 +580,13 @@ func (s *Service) ensureClient(
 	}
 	commandResourcesTransferred = true
 	return preparation, nil
+}
+
+func conversationForkResumeAt(options map[string]any, forkMessageID string) string {
+	if atTail, _ := options[protocol.OptionRuntimeForkAtTranscriptTail].(bool); atTail {
+		return ""
+	}
+	return strings.TrimSpace(forkMessageID)
 }
 
 func forkSessionStateCommitted(
