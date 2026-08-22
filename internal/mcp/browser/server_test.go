@@ -77,3 +77,28 @@ func TestBrowserSchemaConstrainsCommandsByAction(t *testing.T) {
 		t.Fatalf("browser command constraints = %v, want %v", got, want)
 	}
 }
+
+func TestBrowserSchemaRequiresBatchActions(t *testing.T) {
+	schema := browserSchema()
+	properties := schema["properties"].(map[string]any)
+	actions := properties["actions"].(map[string]any)
+	items := actions["items"].(map[string]any)
+	itemProperties := items["properties"].(map[string]any)
+	values := itemProperties["action"].(map[string]any)["enum"].([]string)
+	if expected := browsersvc.BatchActions(); !reflect.DeepEqual(values, expected) {
+		t.Fatalf("batch schema actions = %v, want %v", values, expected)
+	}
+
+	found := false
+	for _, rawAlternative := range schema["anyOf"].([]any) {
+		alternative := rawAlternative.(map[string]any)
+		alternativeProperties := alternative["properties"].(map[string]any)
+		actionValues := alternativeProperties["action"].(map[string]any)["enum"].([]string)
+		if slices.Contains(actionValues, "batch") {
+			found = reflect.DeepEqual(alternative["required"], []string{"action", "actions"})
+		}
+	}
+	if !found {
+		t.Fatal("batch schema 应要求 action 和 actions")
+	}
+}

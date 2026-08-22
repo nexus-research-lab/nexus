@@ -155,6 +155,59 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 	}
 }
 
+func TestExecuteBatchRunsActionsAndReturnsFinalSnapshot(t *testing.T) {
+	service := NewService()
+	commands := make(chan map[string]any, 4)
+	_, detach := service.Attach("0.8.4", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+		commands <- payload.(map[string]any)
+		return nil
+	}, nil)
+	defer detach()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+
+	resultCh := make(chan map[string]any, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "batch", map[string]any{
+			"actions": []any{
+				map[string]any{"action": "fill", "selector": "@e1", "value": "Nexus"},
+				map[string]any{"action": "click", "selector": "@e2"},
+			},
+		}, false)
+		resultCh <- result
+		errCh <- err
+	}()
+
+	for _, want := range []string{"fill", "click", "snapshot"} {
+		command := receiveCommand(t, commands)
+		if command["action"] != want {
+			t.Fatalf("batch action = %v, want %s", command["action"], want)
+		}
+		response := map[string]any{"ok": true}
+		if want == "snapshot" {
+			response = map[string]any{"snapshot": "button \"Done\"", "snapshot_type": "diff"}
+		}
+		service.Resolve(command["id"].(string), response, "")
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("batch error = %v", err)
+	}
+	result := <-resultCh
+	if result["completed"] != 2 {
+		t.Fatalf("batch result = %+v", result)
+	}
+	finalSnapshot, _ := result["final_snapshot"].(map[string]any)
+	if finalSnapshot["snapshot_type"] != "diff" {
+		t.Fatalf("batch final snapshot = %+v", finalSnapshot)
+	}
+	if _, _, err := parseBatchActions([]any{map[string]any{"action": "cdp"}}); err == nil {
+		t.Fatal("batch 不应接受依赖中间结果或高风险的 cdp")
+	}
+}
+
 func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	service := NewService()
 	service.sessions["session-a"] = browserSession{
@@ -379,7 +432,7 @@ func TestBrowserExtensionHandlesEveryServiceAction(t *testing.T) {
 		t.Fatalf("Browser 扩展协议版本未与宿主 %s 对齐", ProtocolVersion)
 	}
 	for _, action := range SupportedActions() {
-		if action == "status" {
+		if action == "status" || action == "batch" {
 			continue
 		}
 		if !strings.Contains(string(content), `case "`+action+`":`) {
