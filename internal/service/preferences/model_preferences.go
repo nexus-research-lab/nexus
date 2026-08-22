@@ -151,7 +151,7 @@ func DefaultPreferences() Preferences {
 		ChatDefaultDeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 		AgentRuntimeKind:          "nxs",
 		RuntimeSettings: RuntimeSettings{
-			runtimeprovider.RuntimeKindNXS: {ToolSearch: true},
+			runtimeprovider.RuntimeKindNXS: {},
 		},
 		WebSearch: WebSearchSettings{Enabled: true},
 		DefaultAgentOptions: protocol.Options{
@@ -317,7 +317,7 @@ func validateWebSearchSettings(settings WebSearchSettings) error {
 
 func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
 	result := make(RuntimeSettings, len(settings)+1)
-	result[runtimeprovider.RuntimeKindNXS] = RuntimeSettingsForKind{ToolSearch: true}
+	result[runtimeprovider.RuntimeKindNXS] = RuntimeSettingsForKind{}
 	for kind, item := range settings {
 		normalizedKind := normalizeRuntimeSettingKind(kind)
 		if normalizedKind == "" {
