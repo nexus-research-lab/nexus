@@ -25,6 +25,17 @@ export async function getLatestExecutionApi(
   );
 }
 
+export async function getExecutionApi(
+  sessionKey: string,
+  executionId: string,
+): Promise<ExecutionView> {
+  const query = new URLSearchParams({ session_key: sessionKey });
+  return requestApi<ExecutionView>(
+    `${AGENT_API_BASE_URL}/executions/${encodeURIComponent(executionId)}?${query.toString()}`,
+    { method: "GET" },
+  );
+}
+
 export async function startWorkGraphWorkflowEditorApi(
   sessionKey: string,
   preview: WorkGraphWorkflowPreview,

@@ -21,6 +21,7 @@ import (
 
 type executionViewer interface {
 	GetLatestView(context.Context, string, string) (*protocol.ExecutionView, error)
+	GetView(context.Context, string, string, string) (*protocol.ExecutionView, error)
 }
 
 type executionHistoryViewer interface {
@@ -398,6 +399,38 @@ func (h *Handlers) HandleGetLatestExecution(
 			return
 		}
 		h.api.WriteFailure(writer, http.StatusInternalServerError, "Execution 状态读取失败")
+		return
+	}
+	h.api.WriteSuccess(writer, view)
+}
+
+// HandleGetExecution 按 exact owner/session/execution 读取来源 WorkGraph，供草图对照使用。
+func (h *Handlers) HandleGetExecution(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	executionID := strings.TrimSpace(chi.URLParam(request, "execution_id"))
+	if sessionKey == "" || executionID == "" {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "session_key 和 execution_id 不能为空")
+		return
+	}
+	if h.executions == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "Execution 服务不可用")
+		return
+	}
+	view, err := h.executions.GetView(
+		request.Context(),
+		authsvc.OwnerUserID(request.Context()),
+		sessionKey,
+		executionID,
+	)
+	if err != nil {
+		h.writeExecutionError(writer, err, "Execution 状态读取失败")
+		return
+	}
+	if view == nil {
+		h.api.WriteFailure(writer, http.StatusNotFound, "Execution 不存在")
 		return
 	}
 	h.api.WriteSuccess(writer, view)

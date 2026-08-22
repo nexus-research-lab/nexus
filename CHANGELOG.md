@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added durable WorkGraph sketch cards to ordinary DM/Room replies, with exact on-demand source-graph comparison, desktop side-by-side canvases, and narrow-screen source/sketch switching.
 - Added model-generated first-conversation greetings for user-opened Agent DMs and new Rooms, with a dedicated Nexus main-Agent introduction, explicit Room-host identity, safe no-host `@` guidance, background-to-default model fallback, hidden greeting-only model labels, and deterministic failure copy.
 - Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” locale-aware default-chat-model structure extraction, single-word-first non-conflicting Slash naming, durable Drafts and immutable edit versions, a hidden Nexus-main-Agent editing conversation, hidden background persistence through the Skill and `nexus execution`, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
 - Added current-page status and an explicit “Ask Nexus” handoff to the Browser extension popup and web context menu.
@@ -39,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed hidden WorkGraph editor and save sessions denying the `Read` step required by the host-created CLI input-slot contract, which previously forced invalid shell-redirection fallbacks.
 - Fixed WorkGraph editing opened from a Room or Agent DM being misreported as unavailable when its hidden Nexus main Agent was not part of the source conversation's member list.
 - Replaced raw conversation error bubbles with a unified recoverable reliability state: WebSocket failures now retry before becoming terminal, reconnects replay bindings and reconcile durable DM/Room state, runtime API retries clear on exact round progress, Room member failures stay scoped to their Agent round, and user-facing notices no longer expose technical details or stale errors after recovery.
 - Gave the floating Task summary a persistent translucent surface so scrolling conversation text no longer overlaps its labels.

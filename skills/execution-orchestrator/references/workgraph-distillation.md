@@ -12,6 +12,7 @@
 - 草图编辑统一由 owner 的 Nexus 主智能体承载在隐藏专用 DM 中。它不进入主智能体普通 DM 目录，不继承来源 DM/Room transcript、连接器或权限；来源只通过完整 Draft 与 source WorkGraph 事实提供。关闭 UI 不删除该 Session，再次打开继续同一对话。该 Session 只开放本 Skill、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`。
 - 保存命名图必须由宿主在独立目录隐藏内部 DM 中启动 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` Agent round，并调用 `nexus execution invoke --operation distill_workgraph` 完成；该 Session 不 fork、resume 或续写源 transcript。mutation 只接收用户刚确认、由宿主 capability 绑定的 exact `preview_id`；UI 调度端点不直接落库，Agent 也不得重新读取源图、重选节点或重写草图，更不能向聊天时间线补发保存请求。
 - 用户在普通对话中明确要求保存当前 Draft 时，不需要再创建 UI round：读取 `save_workgraph_preview` fresh contract，以 exact preview_id 直接保存 selected version。保存前必须已经向用户展示或概述当前 Draft 且本轮存在明确保存意图；“看看”“比较”“先改一下”不构成保存确认。
+- 普通 DM/Room 中，成功的 `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision` 和 `save_workgraph_preview` 会由宿主把最后一份完整图自动渲染为当前回复里的草图卡片；卡片可按需打开“来源图 / 当前草图”对照。这是回答“草图在哪看、是否已更新、怎么对照”时使用的界面事实，不是每次回复都要重复的固定话术。不要复述完整节点 JSON，或假装自己另外绘制了界面；没有 applied/ready/selected 成功结果时不得声称卡片已更新。
 - 已保存工作图从能力页“继续编辑”时必须恢复其原 Draft、selected revision 和隐藏编辑 Session；若历史数据尚无 Draft，则从该命名图建立一次可继续编辑的初始版本。再次保存更新同一个命名 WorkGraph 并追加聚合版本，不重复抽取、不创建同名副本。
 - 该内部保存 round 的思考摘要、过程状态、工具调用说明和结束文本必须使用简体中文；只有命令、Skill 名称和标识符保留原始形式，禁止输出英文叙述。
 - 模型不可用、JSON 无效、输出不是源 logical key 子集、遗漏宿主标记的结构关键节点、缺少 key 主路径/terminal 交付或语义字段不完整时预览失败关闭，绝不回退展示或保存原始具体内容。
@@ -25,6 +26,8 @@
 3. 修改前调用 `get_workgraph_preview`，读取 selected 完整图、head revision 和版本目录；再读取 `revise_workgraph_preview` contract并提交完整草图。保留用户未要求改变的字段，不能只提交 diff。
 4. 用户明确选择旧版本时调用 `select_workgraph_preview_revision`，提交 exact preview_id、head revision 和 selected revision。选择成功后不要继续修改，除非用户同时明确要求。
 5. 用户明确确认保存时读取并调用 `save_workgraph_preview`。只有 applied receipt 才表示保存成功；回复当前用户即可，不向任何来源会话或其他 Session 补发结果。
+
+用户询问界面时可回答：提取或修改后的当前版本显示在回复草图卡片中，点“与来源图对照”查看来源图和当前草图；保存成功后卡片会标记为已保存。正常操作回复只需说明对用户有用的结果，不必主动介绍这些界面。不要把“测试草图展示”理解成执行草图中的任务——如果用户是在验证展示链路，只完成最小的提取或修改即可。
 
 ## UI 隐藏 round 保存用户已确认的草图
 
@@ -54,6 +57,8 @@
 3. 按 contract 的私有输入槽规则写入带当前 head revision 的完整草图；保留所有未被用户要求改变的字段，不能只提交 diff。当前内容是 selected revision，用户切回旧版本后必须从它继续。
 4. 只调用单进程 `execution invoke --operation revise_workgraph_preview`。服务端会校验 owner/editor Session、revision CAS、命令冲突、节点类型、父子结构、DAG、key 主路径与 terminal 交付。
 5. applied 后简短说明用户可见变化；冲突或过期时说明需要基于最新预览重试，不得转用普通 Execution operation。
+
+隐藏编辑 Session 的右侧是宿主实时草图预览窗，applied 后宿主会从 durable Draft 刷新它。只有用户询问展示位置或刷新状态时才需要说明这个界面事实；正常修改回复不必反复提右侧。不要在左侧对话重复整张图；只回答问题而未 mutation 时，不得声称右侧已经更新。
 
 ## 复用命名 WorkGraph 命令
 

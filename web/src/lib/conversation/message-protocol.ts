@@ -39,6 +39,7 @@ const CONTENT_BLOCK_TYPES = new Set<ContentBlock["type"]>([
   "tool_use",
   "tool_use_error",
   "unsupported",
+  "workgraph_artifact",
   "workspace_file_artifact",
 ]);
 const MESSAGE_IDENTITY_STRING_FIELDS = [
@@ -96,6 +97,9 @@ function hasContentBlockShape(
       return typeof record.text === "string";
     case "workspace_file_artifact":
       return typeof record.path === "string";
+    case "workgraph_artifact":
+      return typeof record.state === "string"
+        && (asUnknownRecord(record.preview) !== null || asUnknownRecord(record.workflow) !== null);
     case "system_event":
       return typeof record.content === "string" && typeof record.label === "string";
     case "unsupported":

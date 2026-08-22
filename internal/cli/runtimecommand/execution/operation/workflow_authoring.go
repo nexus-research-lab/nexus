@@ -190,8 +190,9 @@ func saveWorkGraphPreview(
 			return jsonResult(map[string]any{
 				"outcome": "applied", "workflow_id": created.ID,
 				"slash_name": created.SlashName, "command": "/" + created.SlashName,
-				"changed": []string{"workgraph_workflow:" + created.ID},
-				"message": "WorkGraph 命名图已保存。",
+				"workflow": created,
+				"changed":  []string{"workgraph_workflow:" + created.ID},
+				"message":  "WorkGraph 命名图已保存。",
 			}), nil
 		},
 	}
