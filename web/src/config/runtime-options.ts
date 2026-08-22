@@ -24,7 +24,7 @@ let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
 let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
 let DEFAULT_EMOTION_ENABLED = false;
 let DEFAULT_RUNTIME_SETTINGS: UserPreferences["runtime_settings"] = {
-  nxs: { tool_search: true },
+  nxs: { tool_search: false },
 };
 let DEFAULT_WEB_SEARCH: UserPreferences["web_search"] = {
   enabled: true,
@@ -164,7 +164,7 @@ function normalizeRuntimeSettings(
   return {
     ...settings,
     nxs: {
-      tool_search: settings?.nxs?.tool_search ?? true,
+      tool_search: settings?.nxs?.tool_search === true,
     },
   };
 }
