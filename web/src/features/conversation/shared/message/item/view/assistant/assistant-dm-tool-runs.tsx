@@ -215,7 +215,7 @@ function ToolRun({
           aria-controls={contentId}
           aria-expanded={expanded}
           className={cn(
-            "flex w-full items-center gap-2 py-1 text-left text-xs font-medium transition-colors duration-(--motion-duration-fast)",
+            "flex w-full items-center gap-2 py-1 text-left text-sm font-medium transition-colors duration-(--motion-duration-fast)",
             active
               ? "text-primary hover:text-primary"
               : "text-(--text-muted) hover:text-(--text-strong)",

@@ -124,7 +124,7 @@ export function MessageActivityStatus({
   return (
     <div className={cn("flex min-w-0 items-center", className)}>
       <div className={cn(
-        "inline-flex min-w-0 items-center gap-2 py-1 text-xs font-medium transition-colors",
+        "inline-flex min-w-0 items-center gap-2 py-1 text-sm font-medium transition-colors",
         uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
         <span className="shrink-0 opacity-75">

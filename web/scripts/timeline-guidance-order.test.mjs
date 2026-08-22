@@ -2317,6 +2317,11 @@ test("Room public activity survives the pause between reply text and tool work",
     "Room main feed replaces its generic activity copy with ToolUseSummary",
   );
   assert.match(workingHtml, /text-primary/);
+  assert.match(
+    workingHtml,
+    /inline-flex min-w-0 items-center gap-2 py-1 text-sm font-medium transition-colors text-primary/,
+    "Room ToolUseSummary stays just below the normal reply size",
+  );
   assert.doesNotMatch(workingHtml, /data-tool-run-list|data-tool-run-id/);
   assert.doesNotMatch(workingHtml, /网络搜索|M3 product line/);
   assert.equal(
@@ -3896,6 +3901,7 @@ test("DM and Room process layers only expand at their own level", async () => {
   );
   assert.match(summarizedHtml, /核对视图实现/);
   assert.match(summarizedHtml, /data-tool-run-phase="active"/);
+  assert.match(summarizedHtml, /text-left text-sm font-medium/);
   assert.match(summarizedHtml, /aria-expanded="false"/);
   assert.doesNotMatch(summarizedHtml, /正在执行|已完成/);
   assert.doesNotMatch(summarizedHtml, /view\.ts/);
