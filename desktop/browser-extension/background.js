@@ -41,7 +41,8 @@ const SNAPSHOT_CONTEXT_ROLES = new Set([
   "rootwebarea",
 ]);
 const SNAPSHOT_MAX_NODES = 300;
-const SNAPSHOT_MAX_BYTES = 24000;
+const SNAPSHOT_MAX_BYTES = 12000;
+const PAGE_CONTENT_DEFAULT_MAX_CHARS = 12000;
 const SNAPSHOT_TEXT_MAX_CHARS = 240;
 const CURSOR_MOVE_MESSAGE = "NEXUS_CURSOR_MOVE";
 const CURSOR_HIDE_MESSAGE = "NEXUS_CURSOR_HIDE";
@@ -411,7 +412,7 @@ class BrowserController {
     const tab = await this.getTab(params.tab_id);
     const selector = String(params.selector || "").trim();
     const format = String(params.page_format || "text").toLowerCase();
-    const maxChars = Number.isInteger(params.max_chars) ? params.max_chars : 200000;
+    const maxChars = Number.isInteger(params.max_chars) ? params.max_chars : PAGE_CONTENT_DEFAULT_MAX_CHARS;
     let objectId;
     if (selector) {
       objectId = await this.resolveElement(tab.id, selector);

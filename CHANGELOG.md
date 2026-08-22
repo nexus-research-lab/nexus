@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Separated compact Browser model text from complete structured UI results, reduced accessibility snapshots to 12 KB, and bounded default page content to 12,000 characters with a 200,000-character explicit ceiling.
 - Enabled nxs ToolSearch by default so Browser and other deferred schemas load only when needed, while preserving the explicit opt-out.
 - Restyled the Browser action pointer with an accurate hotspot, branded glow, spring-guided travel, directional motion, and a one-shot settling sway.
 - Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.

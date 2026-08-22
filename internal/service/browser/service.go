@@ -33,6 +33,15 @@ const (
 // MaxBatchActions 限制单次 batch 的动作数量。
 const MaxBatchActions = 20
 
+const (
+	// DefaultPageContentMaxChars 是 page_content 的默认正文预算。
+	DefaultPageContentMaxChars = 12_000
+	// MaxPageContentChars 是 page_content 可显式请求的最大正文预算。
+	MaxPageContentChars = 200_000
+	// MaxSnapshotTextBytes 是模型可见 AX 快照的最大 UTF-8 字节数。
+	MaxSnapshotTextBytes = 12_000
+)
+
 var batchActions = []string{
 	"navigate", "find_tab", "attach_active", "attach_tab", "mark_tab", "back", "forward", "reload",
 	"wait_for", "wait_for_url", "click", "fill", "check", "uncheck", "select_option", "mouse_click",
@@ -750,7 +759,10 @@ func (s *Service) prepareParams(
 		if selector := selectorValue(params); selector != "" {
 			params["selector"] = selector
 		}
-		if err := optionalBoundedInteger(params, "max_chars", 1, 2_000_000); err != nil {
+		if _, exists := params["max_chars"]; !exists {
+			params["max_chars"] = int64(DefaultPageContentMaxChars)
+		}
+		if err := optionalBoundedInteger(params, "max_chars", 1, MaxPageContentChars); err != nil {
 			return nil, nil, err
 		}
 	case "wait_for":

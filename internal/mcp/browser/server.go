@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
@@ -162,8 +163,8 @@ func browserSchema() map[string]any {
 				"description": "page_content 返回纯文本或 HTML。",
 			},
 			"max_chars": map[string]any{
-				"type": "integer", "minimum": 1, "maximum": 2000000,
-				"description": "page_content 最大字符数。",
+				"type": "integer", "minimum": 1, "maximum": browsersvc.MaxPageContentChars,
+				"description": "page_content 最大字符数，默认 12000；优先用 selector 缩小范围。",
 			},
 			"method": map[string]any{
 				"type": "string", "description": "cdp 调用的方法名。",
@@ -309,6 +310,12 @@ func browserCommandConstraints() ([]string, []any) {
 
 func renderResult(action string, result map[string]any) sdktool.ToolResult {
 	switch action {
+	case "batch":
+		return batchResult(result)
+	case "snapshot":
+		return compactTextResult(result, "snapshot", browsersvc.MaxSnapshotTextBytes)
+	case "page_content":
+		return compactTextResult(result, "content", 0)
 	case "screenshot":
 		return binaryResult(result, "image")
 	case "save_as_pdf":
@@ -316,6 +323,78 @@ func renderResult(action string, result map[string]any) sdktool.ToolResult {
 	default:
 		return jsonResult(result)
 	}
+}
+
+func batchResult(result map[string]any) sdktool.ToolResult {
+	metadata := withoutKey(result, "final_snapshot")
+	payload, err := json.Marshal(metadata)
+	if err != nil {
+		return errorResult(err)
+	}
+	text := string(payload)
+	if snapshot, ok := result["final_snapshot"].(map[string]any); ok {
+		snapshotText, err := compactModelText(snapshot, "snapshot", browsersvc.MaxSnapshotTextBytes)
+		if err != nil {
+			return errorResult(err)
+		}
+		text += "\n" + snapshotText
+	}
+	return sdktool.ToolResult{
+		Content:           []map[string]any{{"type": "text", "text": text}},
+		StructuredContent: result,
+	}
+}
+
+func compactTextResult(result map[string]any, bodyKey string, maxBytes int) sdktool.ToolResult {
+	text, err := compactModelText(result, bodyKey, maxBytes)
+	if err != nil {
+		return errorResult(err)
+	}
+	return sdktool.ToolResult{
+		Content:           []map[string]any{{"type": "text", "text": text}},
+		StructuredContent: result,
+	}
+}
+
+func compactModelText(result map[string]any, bodyKey string, maxBytes int) (string, error) {
+	metadata := withoutKey(result, bodyKey)
+	body, _ := result[bodyKey].(string)
+	if maxBytes > 0 {
+		var truncated bool
+		body, truncated = boundedText(body, maxBytes)
+		if truncated {
+			metadata["model_text_truncated"] = true
+		}
+	}
+	payload, err := json.Marshal(metadata)
+	if err != nil || body == "" {
+		return string(payload), err
+	}
+	return string(payload) + "\n" + body, nil
+}
+
+func withoutKey(result map[string]any, excluded string) map[string]any {
+	metadata := make(map[string]any, len(result))
+	for key, value := range result {
+		if key != excluded {
+			metadata[key] = value
+		}
+	}
+	return metadata
+}
+
+func boundedText(text string, maxBytes int) (string, bool) {
+	if len(text) <= maxBytes {
+		return text, false
+	}
+	end := maxBytes
+	for end > 0 && !utf8.ValidString(text[:end]) {
+		end--
+	}
+	if lineEnd := strings.LastIndexByte(text[:end], '\n'); lineEnd > 0 {
+		end = lineEnd
+	}
+	return strings.TrimSpace(text[:end]), true
 }
 
 func binaryResult(result map[string]any, contentType string) sdktool.ToolResult {
