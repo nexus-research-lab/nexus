@@ -1,0 +1,400 @@
+package browser
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
+	service := NewService()
+	commands := make(chan map[string]any, 8)
+	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+		commands <- payload.(map[string]any)
+		return nil
+	}, nil)
+	defer detach()
+
+	resultCh := make(chan map[string]any, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "navigate", map[string]any{
+			"url": "https://example.com",
+		}, false)
+		resultCh <- result
+		errCh <- err
+	}()
+
+	command := receiveCommand(t, commands)
+	if command["action"] != "navigate" {
+		t.Fatalf("首个动作 = %v", command["action"])
+	}
+	params := command["params"].(map[string]any)
+	if _, exists := params["tab_id"]; exists {
+		t.Fatalf("首次导航不应携带旧 tab_id: %+v", params)
+	}
+	if params["session"] != "session-a" || params["group_title"] != "Agent A" {
+		t.Fatalf("导航缺少会话分组信息: %+v", params)
+	}
+	service.Resolve(command["id"].(string), map[string]any{
+		"tab_id": float64(42), "tab_ref": "ref-42", "owned": true, "url": "https://example.com",
+	}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("navigate error = %v", err)
+	}
+	if result := <-resultCh; result["tab_id"] != float64(42) {
+		t.Fatalf("navigate result = %+v", result)
+	}
+
+	go func() {
+		_, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "navigate", map[string]any{
+			"url": "https://example.org", "new_tab": true,
+		}, false)
+		errCh <- err
+	}()
+	command = receiveCommand(t, commands)
+	params = command["params"].(map[string]any)
+	if _, exists := params["tab_id"]; exists {
+		t.Fatalf("new_tab 不应复用旧标签页: %+v", params)
+	}
+	service.Resolve(command["id"].(string), map[string]any{
+		"tab_id": float64(43), "tab_ref": "ref-43", "owned": true, "url": "https://example.org",
+	}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("new tab navigate error = %v", err)
+	}
+
+	go func() {
+		_, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "list_tabs", nil, false)
+		errCh <- err
+	}()
+	command = receiveCommand(t, commands)
+	params = command["params"].(map[string]any)
+	tabRefs := params["tab_refs"].([]string)
+	if len(tabRefs) != 2 || tabRefs[0] != "ref-42" || tabRefs[1] != "ref-43" {
+		t.Fatalf("list_tabs 未携带完整会话标签页: %+v", params)
+	}
+	service.Resolve(command["id"].(string), map[string]any{
+		"scope": "session",
+		"tabs": []any{
+			map[string]any{"tab_id": float64(42), "tab_ref": "ref-42"},
+			map[string]any{"tab_id": float64(43), "tab_ref": "ref-43"},
+		},
+	}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("list_tabs error = %v", err)
+	}
+
+	go func() {
+		_, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "snapshot", nil, false)
+		errCh <- err
+	}()
+	command = receiveCommand(t, commands)
+	params = command["params"].(map[string]any)
+	if params["tab_id"] != int64(43) || params["tab_ref"] != "ref-43" {
+		t.Fatalf("snapshot 未使用最新 Session tab: %+v", params)
+	}
+	service.Resolve(command["id"].(string), map[string]any{"snapshot": "", "truncated": false}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("snapshot error = %v", err)
+	}
+
+	if _, err := service.Execute(context.Background(), "session-b", "round-b", "Agent B", "snapshot", nil, false); err == nil {
+		t.Fatal("另一 Session 不应继承 session-a 的标签页")
+	}
+}
+
+func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
+	service := NewService()
+	if _, err := service.Execute(
+		context.Background(),
+		"session-a",
+		"round-a",
+		"Agent A",
+		"cdp",
+		map[string]any{"method": "Browser.getVersion"},
+		false,
+	); !errors.Is(err, ErrCDPDisabled) {
+		t.Fatalf("cdp error = %v", err)
+	}
+
+	commands := make(chan map[string]any, 1)
+	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+		commands <- payload.(map[string]any)
+		return nil
+	}, nil)
+	defer detach()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := service.Execute(
+			context.Background(),
+			"session-a",
+			"round-a",
+			"Agent A",
+			"cdp",
+			map[string]any{"method": "Browser.getVersion"},
+			true,
+		)
+		errCh <- err
+	}()
+	command := receiveCommand(t, commands)
+	service.Resolve(command["id"].(string), map[string]any{"product": "Chrome"}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("启用后的 cdp error = %v", err)
+	}
+}
+
+func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
+	service := NewService()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+
+	allTabs, _, err := service.prepareParams("session-a", "Agent A", "list_tabs", map[string]any{
+		"scope": "all",
+	})
+	if err != nil || allTabs["scope"] != "all" {
+		t.Fatalf("list_tabs all params = %+v, err = %v", allTabs, err)
+	}
+	if _, exists := allTabs["tab_refs"]; exists {
+		t.Fatalf("list_tabs all 不应限制 Session 标签页: %+v", allTabs)
+	}
+	attached, _, err := service.prepareParams("session-a", "Agent A", "attach_tab", map[string]any{
+		"tab_ref": "ref-99",
+	})
+	if err != nil || attached["tab_ref"] != "ref-99" {
+		t.Fatalf("attach_tab params = %+v, err = %v", attached, err)
+	}
+	if _, _, err = service.prepareParams("session-a", "Agent A", "attach_tab", map[string]any{
+		"tab_id": 99,
+	}); err == nil {
+		t.Fatal("attach_tab 不应接受可复用的整数 tab_id")
+	}
+	marked, _, err := service.prepareParams("session-a", "Agent A", "mark_tab", map[string]any{
+		"mark": "deliverable",
+	})
+	if err != nil || marked["tab_ref"] != "ref-42" || marked["mark"] != "deliverable" {
+		t.Fatalf("mark_tab params = %+v, err = %v", marked, err)
+	}
+
+	mouse, _, err := service.prepareParams("session-a", "Agent A", "mouse_click", map[string]any{
+		"x": json.Number("12.5"), "y": json.Number("24.5"), "click_count": json.Number("2"),
+	})
+	if err != nil || mouse["tab_id"] != int64(42) || mouse["tab_ref"] != "ref-42" || mouse["click_count"] != int64(2) {
+		t.Fatalf("mouse_click params = %+v, err = %v", mouse, err)
+	}
+
+	history, _, err := service.prepareParams("session-a", "Agent A", "history", map[string]any{
+		"start_time": json.Number("100"), "end_time": json.Number("200"), "max_results": json.Number("50"),
+	})
+	if err != nil || history["max_results"] != int64(50) {
+		t.Fatalf("history params = %+v, err = %v", history, err)
+	}
+
+	for _, test := range []struct {
+		name   string
+		action string
+		input  map[string]any
+	}{
+		{name: "screenshot quality", action: "screenshot", input: map[string]any{"quality": json.Number("80")}},
+		{name: "evaluate timeout", action: "evaluate", input: map[string]any{"code": "Promise.resolve(true)", "timeout_ms": json.Number("30000")}},
+		{name: "wait timeout", action: "wait_for_url", input: map[string]any{"url": "*wd=*", "timeout_ms": json.Number("10000")}},
+		{name: "console result limit", action: "console", input: map[string]any{"cmd": "list", "max_results": json.Number("10")}},
+		{name: "full snapshot", action: "snapshot", input: map[string]any{"full": true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, _, err := service.prepareParams("session-a", "Agent A", test.action, test.input); err != nil {
+				t.Fatalf("%s params error = %v", test.action, err)
+			}
+		})
+	}
+
+	if _, _, err = service.prepareParams("session-a", "Agent A", "drag", map[string]any{
+		"from_x": 1, "from_y": 2, "to_x": 3,
+	}); err == nil {
+		t.Fatal("drag 缺少 to_y 时应拒绝")
+	}
+}
+
+func TestFinalizeRoundKeepsOnlyHandoffAndOtherRounds(t *testing.T) {
+	service := NewService()
+	commands := make(chan map[string]any, 1)
+	_, detach := service.Attach("0.5.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
+		commands <- payload.(map[string]any)
+		return nil
+	}, nil)
+	defer detach()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-4",
+		tabs: map[string]browserTab{
+			"ref-1": {id: 1, ref: "ref-1", owned: true, roundID: "round-a"},
+			"ref-2": {id: 2, ref: "ref-2", roundID: "round-a"},
+			"ref-3": {id: 3, ref: "ref-3", owned: true, roundID: "round-a", mark: "deliverable"},
+			"ref-4": {id: 4, ref: "ref-4", owned: true, roundID: "round-a", mark: "handoff"},
+			"ref-5": {id: 5, ref: "ref-5", owned: true, roundID: "round-b"},
+		},
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.FinalizeRound(context.Background(), "session-a", "round-a")
+	}()
+	command := receiveCommand(t, commands)
+	if command["action"] != "finalize_round" {
+		t.Fatalf("收尾 action = %v", command["action"])
+	}
+	params := command["params"].(map[string]any)
+	wantRefs := []string{"ref-1", "ref-2", "ref-3", "ref-4"}
+	if got, _ := params["tab_refs"].([]string); !slices.Equal(got, wantRefs) {
+		t.Fatalf("收尾 tab_refs = %#v", got)
+	}
+	service.Resolve(command["id"].(string), map[string]any{"closed": 1, "released": 2, "handoff": 1}, "")
+	if err := <-errCh; err != nil {
+		t.Fatalf("FinalizeRound() error = %v", err)
+	}
+
+	state := service.sessions["session-a"]
+	if len(state.tabs) != 2 || state.tabs["ref-4"].roundID != "" || state.tabs["ref-4"].mark != "" {
+		t.Fatalf("收尾后的 Session = %+v", state)
+	}
+	if _, ok := state.tabs["ref-5"]; !ok {
+		t.Fatal("其他 round 的标签页不应被清理")
+	}
+}
+
+func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
+	service := NewService()
+	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(context.Context, any) error {
+		return nil
+	}, nil)
+	defer detach()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+
+	_, detachNext := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-b", func(context.Context, any) error {
+		return nil
+	}, nil)
+	defer detachNext()
+
+	if _, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "snapshot", nil, false); err == nil {
+		t.Fatal("扩展代次变化后不应继续使用旧标签页引用")
+	}
+}
+
+func TestStatusExplainsIncompatibleExtension(t *testing.T) {
+	service := NewService()
+	service.ObserveIncompatibleHandshake("0.6.0", "4")
+
+	status := service.Status()
+	if status["connection_state"] != "incompatible" ||
+		status["observed_extension_version"] != "0.6.0" ||
+		status["observed_protocol_version"] != "4" {
+		t.Fatalf("incompatible status = %+v", status)
+	}
+
+	_, detach := service.Attach("0.7.0", "Google Chrome", "browser-a", "generation-a", func(context.Context, any) error {
+		return nil
+	}, nil)
+	defer detach()
+	status = service.Status()
+	if status["connection_state"] != "connected" || status["extension_version"] != "0.7.0" ||
+		status["browser_name"] != "Google Chrome" {
+		t.Fatalf("connected status = %+v", status)
+	}
+}
+
+func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
+	service := NewService()
+	service.sessions["session-a"] = browserSession{
+		activeTabRef: "ref-42",
+		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
+	}
+
+	if !service.ObserveEvent("tab_created", map[string]any{
+		"session":        "session-a",
+		"source_tab_ref": "ref-42",
+		"tab": map[string]any{
+			"tab_id": float64(43), "tab_ref": "ref-43",
+		},
+	}) {
+		t.Fatal("来源标签页创建的子标签页应继承 Session")
+	}
+	params, _, err := service.prepareParams("session-a", "Agent A", "snapshot", nil)
+	if err != nil || params["tab_id"] != int64(43) || params["tab_ref"] != "ref-43" {
+		t.Fatalf("继承后的活动标签页 = %+v, err = %v", params, err)
+	}
+	if service.ObserveEvent("tab_created", map[string]any{
+		"session":        "session-a",
+		"source_tab_ref": "unknown",
+		"tab":            map[string]any{"tab_id": float64(44), "tab_ref": "ref-44"},
+	}) {
+		t.Fatal("未知来源标签页不应注入 Session")
+	}
+	if !service.ObserveEvent("tab_activated", map[string]any{
+		"session": "session-a",
+		"tab":     map[string]any{"tab_id": float64(42), "tab_ref": "ref-42"},
+	}) {
+		t.Fatal("已归属标签页激活事件应更新 Session")
+	}
+	params, _, err = service.prepareParams("session-a", "Agent A", "snapshot", nil)
+	if err != nil || params["tab_ref"] != "ref-42" {
+		t.Fatalf("激活后的标签页 = %+v, err = %v", params, err)
+	}
+	if !service.ObserveEvent("tab_removed", map[string]any{
+		"session": "session-a", "tab_ref": "ref-42",
+	}) {
+		t.Fatal("标签页关闭事件应移除 Session 引用")
+	}
+	params, _, err = service.prepareParams("session-a", "Agent A", "snapshot", nil)
+	if err != nil || params["tab_ref"] != "ref-43" {
+		t.Fatalf("关闭活动页后的标签页 = %+v, err = %v", params, err)
+	}
+}
+
+func TestBrowserExtensionHandlesEveryServiceAction(t *testing.T) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("无法定位 Browser service 测试文件")
+	}
+	backgroundPath := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "desktop", "browser-extension", "background.js")
+	content, err := os.ReadFile(backgroundPath)
+	if err != nil {
+		t.Fatalf("读取 Browser 扩展: %v", err)
+	}
+	if !strings.Contains(string(content), `const PROTOCOL_VERSION = "`+ProtocolVersion+`";`) {
+		t.Fatalf("Browser 扩展协议版本未与宿主 %s 对齐", ProtocolVersion)
+	}
+	for _, action := range SupportedActions() {
+		if action == "status" {
+			continue
+		}
+		if !strings.Contains(string(content), `case "`+action+`":`) {
+			t.Errorf("Browser 扩展缺少 action %q", action)
+		}
+	}
+}
+
+func receiveCommand(t *testing.T, commands <-chan map[string]any) map[string]any {
+	t.Helper()
+	select {
+	case command := <-commands:
+		return command
+	case <-time.After(time.Second):
+		t.Fatal("未收到 Browser 命令")
+		return nil
+	}
+}

@@ -21,7 +21,6 @@ var runtimeAutomationQueryOperations = []string{
 	automationdomain.AutomationCommandOperationRuns,
 	automationdomain.AutomationCommandOperationEvents,
 	automationdomain.AutomationCommandOperationReport,
-	automationdomain.AutomationCommandOperationHeartbeat,
 }
 
 var runtimeAutomationMutationOperations = []string{
@@ -30,8 +29,6 @@ var runtimeAutomationMutationOperations = []string{
 	automationdomain.AutomationCommandOperationDelete,
 	automationdomain.AutomationCommandOperationRun,
 	automationdomain.AutomationCommandOperationRetryDelivery,
-	automationdomain.AutomationCommandOperationSetHeartbeat,
-	automationdomain.AutomationCommandOperationWake,
 }
 
 // RuntimeCommandContract 返回当前 Actor 的按需操作目录，不泄漏路由或 capability。
@@ -50,16 +47,8 @@ func (s *Service) RuntimeCommandContract(
 	if actor.MutationAllowed() {
 		mutations = append(mutations, runtimeAutomationMutationOperations...)
 	}
-	queryOperations := make([]string, 0, len(runtimeAutomationQueryOperations))
-	for _, operation := range runtimeAutomationQueryOperations {
-		if strings.TrimSpace(actor.SourceContextType) == "agent_paired" &&
-			operation == automationdomain.AutomationCommandOperationHeartbeat {
-			continue
-		}
-		queryOperations = append(queryOperations, operation)
-	}
 	return automationdomain.AutomationCommandContract{
-		QueryOperations:    queryOperations,
+		QueryOperations:    runtimeAutomationQueryOperations,
 		MutationOperations: mutations,
 		MutationAllowed:    actor.MutationAllowed(),
 		CrossAgentAllowed:  actor.CrossAgentAllowed(),
@@ -71,15 +60,11 @@ func runtimeAutomationOperationContracts(
 	actor runtimecommand.Actor,
 ) map[string]automationdomain.AutomationCommandOperationContract {
 	contracts := map[string]automationdomain.AutomationCommandOperationContract{
-		"list":      {Kind: "query", Optional: []string{"query", "agent_id", "include_active", "include_deleted", "enabled", "limit"}},
-		"get":       {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "run_limit", "event_limit"}, Notes: []string{"job_id or a unique query is required outside a scheduled run"}},
-		"runs":      {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "run_limit"}},
-		"events":    {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "event_limit"}},
-		"report":    {Kind: "query", Optional: []string{"date", "timezone", "agent_id", "job_id", "query"}},
-		"heartbeat": {Kind: "query", Optional: []string{"agent_id"}},
-	}
-	if strings.TrimSpace(actor.SourceContextType) == "agent_paired" {
-		delete(contracts, automationdomain.AutomationCommandOperationHeartbeat)
+		"list":   {Kind: "query", Optional: []string{"query", "agent_id", "include_active", "include_deleted", "enabled", "limit"}},
+		"get":    {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "run_limit", "event_limit"}, Notes: []string{"job_id or a unique query is required outside a scheduled run"}},
+		"runs":   {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "run_limit"}},
+		"events": {Kind: "query", Optional: []string{"job_id", "query", "agent_id", "event_limit"}},
+		"report": {Kind: "query", Optional: []string{"date", "timezone", "agent_id", "job_id", "query"}},
 	}
 	if !actor.MutationAllowed() {
 		return contracts
@@ -96,8 +81,6 @@ func runtimeAutomationOperationContracts(
 	contracts["delete"] = automationdomain.AutomationCommandOperationContract{Kind: "mutation", Optional: []string{"job_id", "query"}}
 	contracts["run"] = automationdomain.AutomationCommandOperationContract{Kind: "mutation", Optional: []string{"job_id", "query"}}
 	contracts["retry_delivery"] = automationdomain.AutomationCommandOperationContract{Kind: "mutation", Required: []string{"run_id"}, Optional: []string{"job_id", "query"}}
-	contracts["set_heartbeat"] = automationdomain.AutomationCommandOperationContract{Kind: "mutation", Optional: []string{"agent_id", "enabled", "every_seconds", "target_mode", "ack_max_chars"}}
-	contracts["wake"] = automationdomain.AutomationCommandOperationContract{Kind: "mutation", Optional: []string{"agent_id", "mode", "text"}}
 	if actor.CrossAgentAllowed() {
 		advanced := []string{"agent_id", "execution_mode", "reply_mode", "selected_session_key", "named_session_key", "selected_reply_session_key", "reply_session_key"}
 		create := contracts["create"]

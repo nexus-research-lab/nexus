@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,6 +167,36 @@ func TestRoundRunnerSkipsExternalReplyForWebSocketSession(t *testing.T) {
 
 	if calls := dispatcher.callsSnapshot(); len(calls) != 0 {
 		t.Fatalf("WebSocket 会话不应触发外部回复: %+v", calls)
+	}
+}
+
+func TestRoundRunnerDiscardsUncommittedDeferredRuntimeMessages(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeDMClient{}
+	runner := &roundRunner{
+		client:            client,
+		userMessageID:     "echo-user-1",
+		internal:          true,
+		deferredAssistant: &DeferredAssistantHooks{},
+	}
+	if got := runner.runtimeInputOptions().MessageUUID; got != "echo-user-1" {
+		t.Fatalf("deferred runtime message uuid = %q, want echo-user-1", got)
+	}
+	runner.observeDeferredRuntimeMessage(sdkprotocol.ReceivedMessage{UUID: "echo-assistant-1"})
+	runner.observeDeferredRuntimeMessage(sdkprotocol.ReceivedMessage{UUID: "echo-assistant-2"})
+	if err := runner.discardDeferredRuntimeMessages(); err != nil {
+		t.Fatal(err)
+	}
+
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.removeMessages) != 1 {
+		t.Fatalf("remove messages calls = %#v, want one call", client.removeMessages)
+	}
+	got := strings.Join(client.removeMessages[0], ",")
+	if want := "echo-user-1,echo-assistant-1,echo-assistant-2"; got != want {
+		t.Fatalf("removed runtime messages = %q, want %q", got, want)
 	}
 }
 

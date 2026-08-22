@@ -117,7 +117,9 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 	sessionValue protocol.Session,
 	message protocol.Message,
 ) error {
-	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
+	metadata, _ := message["metadata"].(map[string]any)
+	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) &&
+		dmdomain.NormalizeString(metadata["source"]) != "echo" {
 		return nil
 	}
 	return s.history.ForOwner(ownerUserID).AppendOverlayMessage(

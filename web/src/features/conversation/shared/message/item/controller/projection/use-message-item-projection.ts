@@ -57,6 +57,7 @@ interface OrderedContentProjectionOptions {
 interface AssistantIdentityProjection {
   assistantAgentId: string | null;
   automationTaskName: string | null;
+  echo: boolean;
   firstAssistantMessageId: string | null;
   model: string | undefined;
   stopReason: string | null;
@@ -386,6 +387,7 @@ function projectAssistantIdentity(
     return {
       assistantAgentId: null,
       automationTaskName: null,
+      echo: false,
       firstAssistantMessageId: null,
       model: undefined,
       stopReason: null,
@@ -395,6 +397,7 @@ function projectAssistantIdentity(
   return {
     assistantAgentId: identityAssistant.agent_id ?? null,
     automationTaskName: resolveAutomationTaskName(identityAssistant),
+    echo: identityAssistant.metadata?.source === "echo",
     firstAssistantMessageId: messages[0]?.message_id ?? null,
     model: resolveAssistantModel(messages, identityAssistant),
     stopReason: identityAssistant.stop_reason ?? null,

@@ -19,7 +19,7 @@ schedule 形状：
 - interval：`kind=interval` + 正数 `interval_value` + `interval_unit=seconds|minutes|hours`；省略 unit 表示 seconds。
 - cron：`kind=cron` + 标准五段 `expr`，按需加 timezone。不要把六段含秒表达式当成五段 Cron。
 
-精确时间提醒、报表和投递使用 scheduled task；允许抖动的周期自检使用 heartbeat。
+提醒、报表、周期自检、持续关注和结果投递都使用 scheduled task。
 
 ## update
 

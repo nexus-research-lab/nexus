@@ -78,6 +78,8 @@ type roundRunner struct {
 	mapper                      *dmdomain.MessageMapper
 	inputOptions                sdkprotocol.OutboundMessageOptions
 	internal                    bool
+	executionOrigin             string
+	deferredAssistant           *DeferredAssistantHooks
 	trustedExternalInteractive  bool
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
@@ -116,6 +118,7 @@ type roundRunner struct {
 	permissionMode              sdkpermission.Mode
 	permissionHandler           sdkpermission.Handler
 	resultUsageWritten          bool
+	deferredRuntimeMessageUUIDs []string
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration
@@ -143,6 +146,10 @@ func (r *roundRunner) run(ctx context.Context) {
 			return
 		}
 		r.failRound(result, err)
+		return
+	}
+	if r.deferredAssistant != nil {
+		r.finishDeferredAssistant(result)
 		return
 	}
 	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
@@ -173,6 +180,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.scheduleEchoAfterTerminal(result, finalAssistant)
 	r.broadcastContextUsage()
 	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
@@ -252,6 +260,7 @@ func (r *roundRunner) executeRound(
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			r.observeDeferredRuntimeMessage(incoming)
 			r.service.observeExecutionRuntimeGraph(actor, incoming)
 			r.observeExecutionPersistenceEvidence(actor, incoming)
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
@@ -301,6 +310,9 @@ func (r *roundRunner) executeRound(
 			return r.handleDurableMessage(message)
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
+			if r.deferredAssistant != nil {
+				return nil
+			}
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			return nil
 		},
@@ -377,17 +389,38 @@ func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
 
 // runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。
 func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
+	if r == nil {
+		return sdkprotocol.OutboundMessageOptions{}
+	}
 	options := runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation")
 	options.RecallQuery = ""
-	if r == nil || r.internal || r.atomicInput || options.Meta || options.Synthetic || options.HiddenFromUser {
+	if r.deferredAssistant != nil {
+		options.MessageUUID = strings.TrimSpace(r.userMessageID)
+	}
+	if r.internal || r.atomicInput || options.Meta || options.Synthetic || options.HiddenFromUser {
 		return options
 	}
 	options.RecallQuery = strings.TrimSpace(r.content)
 	return options
 }
 
+func (r *roundRunner) observeDeferredRuntimeMessage(incoming sdkprotocol.ReceivedMessage) {
+	if r == nil || r.deferredAssistant == nil {
+		return
+	}
+	if uuid := strings.TrimSpace(incoming.UUID); uuid != "" {
+		r.deferredRuntimeMessageUUIDs = append(r.deferredRuntimeMessageUUIDs, uuid)
+	}
+}
+
 func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	role := protocol.MessageRole(message)
+	if r.deferredAssistant != nil {
+		if role == "result" {
+			r.recordUsage(message)
+		}
+		return nil
+	}
 	if role == "assistant" || (role == "result" && message["is_error"] != true &&
 		(dmdomain.NormalizeString(message["subtype"]) == "" || dmdomain.NormalizeString(message["subtype"]) == "success")) {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {

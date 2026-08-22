@@ -614,6 +614,8 @@ export const zhConversationMessages = {
   "message.show_less": "收起",
   "message.assistant_fallback": "协作成员",
   "message.scheduled_task": "定时任务",
+  "message.echo": "主动跟进",
+  "message.history_above": "以上为历史消息",
   "message.copy_reply": "复制回答",
   "message.fork_to_new_chat": "分支到新聊天",
   "message.forking": "正在创建分支",

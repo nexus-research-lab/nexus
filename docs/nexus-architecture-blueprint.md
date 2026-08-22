@@ -78,12 +78,13 @@ Product 后端遵循单向依赖。命令入口和桌面 Sidecar 负责启动，
 | 领域 | 职责 |
 | --- | --- |
 | Agent 与 Session | Agent 身份、工作区、Runtime 配置和会话归属 |
-| DM | 单 Agent 持续对话、历史投影和运行状态 |
+| DM | 单 Agent 持续对话、历史投影、运行状态和用户优先输入 |
+| Echo | 用户级配置、原 DM 中可覆盖的主动跟进、安静窗口判断、限频与最终提交闸门 |
 | Room | 多 Agent 成员、共享消息、定向通信、参与状态和实时调度 |
 | Goal 与 Execution | 目标生命周期、执行计划、WorkGraph、分派、提交与评审证据 |
 | Runtime | Bridge Client、Session 复用、Round 生命周期、中断和运行时控制 |
 | Message | Runtime 消息到产品事件、Assistant 快照和工作区产物的统一投影 |
-| Automation | 定时任务、Heartbeat、后台执行和运行记录 |
+| Automation | 定时任务、后台执行、交付和运行记录 |
 | Capability | Skill、Connector、Channel、MCP 和权限策略 |
 | Storage | 数据库连接、迁移、事务锁和敏感载荷加密存储 |
 
@@ -234,7 +235,7 @@ Execution 的分派、评审返回和取消通过持久 Outbox 恢复。取消�
 
 Linux 服务端可通过 root-owned `nexus-runtime-launcher` 为 Runtime 分配不可登录 OS 用户、UID 与 GID、POSIX ACL、cgroup v2 和 Landlock 文件规则。Launcher 只接受受信任宿主配置，按 allowlist 构造环境，并移除宿主秘密和原始控制面能力。
 
-普通 Agent 通过稳定的内建能力使用 Nexus，并通过宿主按 runtime round 签发的 `nexuscfg` capability 管理自己的安全配置子集。定时任务与 heartbeat 使用内置 `automation` Skill 和同样按 round 签发的 Agent-facing `nexus automation`：后台 run 只读且绑定 exact job/run，交互 mutation 经过 plan/revision/digest 与当前会话真人确认。主 Agent 额外获得宿主注入的 `nexusctl` 路径管理 owner 资源，并在私聊中通过 `nexuscfg` 和 `nexus automation` 获得各自明确的 owner 能力；owner、Agent、DM/Room 和 workspace 均由宿主锁定，Runtime Policy 拒绝作用域与 capability 覆盖。
+普通 Agent 通过稳定的内建能力使用 Nexus，并通过宿主按 runtime round 签发的 `nexuscfg` capability 管理自己的安全配置子集。定时任务使用内置 `automation` Skill 和同样按 round 签发的 Agent-facing `nexus automation`：后台 run 只读且绑定 exact job/run，交互 mutation 经过 plan/revision/digest 与当前会话真人确认。Echo 则由宿主为单次 DM round 签发 message-only 策略，禁用工具、权限申请、后台维护和续写。主 Agent 额外获得宿主注入的 `nexusctl` 路径管理 owner 资源，并在私聊中通过 `nexuscfg` 和 `nexus automation` 获得各自明确的 owner 能力；owner、Agent、DM/Room 和 workspace 均由宿主锁定，Runtime Policy 拒绝作用域与 capability 覆盖。
 
 ### 凭据
 

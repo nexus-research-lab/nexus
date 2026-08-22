@@ -1,9 +1,9 @@
 ---
 name: automation
 title: Nexus 自动化
-description: 查询或管理 Nexus scheduled task 与 Agent heartbeat，包括提醒、定期检查、报表、补跑、结果重投递、持续关注、权限阻塞和唤醒。只使用当前 round 可信会话与宿主签发的 Automation authority。
+description: 通过宿主签发的 Nexus runtime CLI 查询、规划、确认并管理 scheduled task。用户要求提醒、延迟执行、周期检查、定时报表、补跑、结果重投递、持续关注、修改或删除任务、处理任务权限阻塞时使用；同时适用于定时任务后台 run 检查自身状态。
 scope: any
-tags: [automation, scheduled-task, reminder, heartbeat]
+tags: [automation, scheduled-task, reminder]
 ---
 
 # Nexus 自动化
@@ -28,14 +28,13 @@ Automation 使用宿主注入的 `NEXUS_COMMAND_PATH`，并绑定当前 owner、
 
 - list/get/runs/events/report 与 scheduled-run 只读范围：[references/queries.md](references/queries.md)
 - create/update/delete/run/retry_delivery、schedule 与投递语义：[references/scheduled-tasks.md](references/scheduled-tasks.md)
-- heartbeat 查询、配置与 wake：[references/heartbeat.md](references/heartbeat.md)
 
 只读取当前动作需要的参考；字段目录以 current contract 的 operation definition 为准。
 
 ## 权限边界
 
 - 普通 Agent 只能管理自身任务；Room 与外部 IM 自动绑定当前可信会话。只有主智能体自己的 Nexus 私有 DM 且 `cross_agent_allowed=true` 时，才能选择其他真实 Agent/Session。
-- channel、account、target、thread、Session、DeliveryGrant、job/run runtime identity 由宿主固定；不要猜、回显或写进输入。外部 IM 的空查询默认只覆盖当前会话，且不开放 heartbeat 配置读取。
+- channel、account、target、thread、Session、DeliveryGrant、job/run runtime identity 由宿主固定；不要猜、回显或写进输入。外部 IM 的空查询默认只覆盖当前会话。
 - 后台 scheduled run 只有宿主绑定 job/run 的查询权限，不得创建、修改、运行或删除任务。
 - apply 的确认只批准管理命令。任务运行时仍服从其 permission mode、工具 allow/deny 快照与持久审批；页面或 IM 的 `/y`、`/a`、`/d` 只恢复对应 logical run，CLI 不直接批准工具 permission request。
 - `script` task 属于人工控制面，Agent CLI 不创建、修改、删除、修复或立即运行。

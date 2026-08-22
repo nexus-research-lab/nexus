@@ -143,33 +143,7 @@ func buildCancellationDispatch(
 	reason string,
 	now time.Time,
 ) protocol.ExecutionCancellationDispatch {
-	targetKind := protocol.ExecutionCancellationTargetUnavailable
-	limitationCode := "runtime_identity_unavailable"
-	if attempt.Status == protocol.WorkAttemptStatusPending {
-		targetKind = protocol.ExecutionCancellationTargetNotStarted
-		limitationCode = "attempt_not_started"
-	} else {
-		switch execution.ScopeKind {
-		case protocol.ExecutionScopeRoom:
-			if strings.TrimSpace(execution.SessionKey) != "" &&
-				strings.TrimSpace(execution.RoomID) != "" &&
-				strings.TrimSpace(execution.ConversationID) != "" &&
-				strings.TrimSpace(assignment.OwnerAgentID) != "" &&
-				strings.TrimSpace(runtimeAttempt.DispatchID) != "" &&
-				strings.TrimSpace(runtimeAttempt.RuntimeSessionKey) != "" &&
-				strings.TrimSpace(runtimeAttempt.AgentRoundID) != "" {
-				targetKind = protocol.ExecutionCancellationTargetRoomSlot
-				limitationCode = ""
-			}
-		case protocol.ExecutionScopeDM:
-			if strings.TrimSpace(runtimeAttempt.RuntimeSessionKey) != "" &&
-				strings.TrimSpace(runtimeAttempt.RuntimeRoundID) != "" {
-				targetKind = protocol.ExecutionCancellationTargetRuntimeRound
-				limitationCode = ""
-			}
-		}
-	}
-	return protocol.ExecutionCancellationDispatch{
+	item := protocol.ExecutionCancellationDispatch{
 		ID:                cancellationDispatchID(attempt.ID),
 		ExecutionID:       attempt.ExecutionID,
 		PlanID:            attempt.PlanID,
@@ -178,28 +152,26 @@ func buildCancellationDispatch(
 		AssignmentID:      attempt.AssignmentID,
 		AttemptID:         attempt.ID,
 		RuntimeAttemptID:  runtimeAttempt.ID,
-		DispatchID:        strings.TrimSpace(runtimeAttempt.DispatchID),
-		CommandID:         strings.TrimSpace(commandID),
+		DispatchID:        runtimeAttempt.DispatchID,
+		CommandID:         commandID,
 		DedupeKey:         "attempt:" + attempt.ID,
 		ScopeKind:         execution.ScopeKind,
-		ScopeSessionKey:   strings.TrimSpace(execution.SessionKey),
-		RoomID:            strings.TrimSpace(execution.RoomID),
-		ConversationID:    strings.TrimSpace(execution.ConversationID),
+		ScopeSessionKey:   execution.SessionKey,
+		RoomID:            execution.RoomID,
+		ConversationID:    execution.ConversationID,
 		ExecutorKind:      attempt.ExecutorKind,
-		TargetKind:        targetKind,
-		TargetAgentID:     strings.TrimSpace(assignment.OwnerAgentID),
-		RuntimeSessionKey: strings.TrimSpace(runtimeAttempt.RuntimeSessionKey),
-		RoomSessionID:     strings.TrimSpace(runtimeAttempt.RoomSessionID),
-		SDKSessionID:      strings.TrimSpace(runtimeAttempt.SDKSessionID),
-		RuntimeRoundID:    strings.TrimSpace(runtimeAttempt.RuntimeRoundID),
-		RootRoundID:       strings.TrimSpace(runtimeAttempt.RootRoundID),
-		AgentRoundID:      strings.TrimSpace(runtimeAttempt.AgentRoundID),
-		ChildSessionID:    strings.TrimSpace(attempt.ChildSessionID),
-		SDKTaskID:         strings.TrimSpace(attempt.SDKTaskID),
-		ToolUseID:         strings.TrimSpace(attempt.ToolUseID),
+		TargetAgentID:     assignment.OwnerAgentID,
+		RuntimeSessionKey: runtimeAttempt.RuntimeSessionKey,
+		RoomSessionID:     runtimeAttempt.RoomSessionID,
+		SDKSessionID:      runtimeAttempt.SDKSessionID,
+		RuntimeRoundID:    runtimeAttempt.RuntimeRoundID,
+		RootRoundID:       runtimeAttempt.RootRoundID,
+		AgentRoundID:      runtimeAttempt.AgentRoundID,
+		ChildSessionID:    attempt.ChildSessionID,
+		SDKTaskID:         attempt.SDKTaskID,
+		ToolUseID:         attempt.ToolUseID,
 		Status:            protocol.ExecutionCancellationDispatchPending,
-		Reason:            strings.TrimSpace(reason),
-		LimitationCode:    limitationCode,
+		Reason:            reason,
 		Version:           1,
 		AvailableAt:       now,
 		CreatedAt:         now,
@@ -207,7 +179,33 @@ func buildCancellationDispatch(
 		Metadata: map[string]any{
 			"source_attempt_status": attempt.Status,
 		},
+	}.Normalized()
+	item.TargetKind, item.LimitationCode = cancellationDispatchTarget(item, attempt.Status)
+	return item
+}
+
+// cancellationDispatchTarget 从已清洗的 dispatch 身份推导取消目标；RoomSlot
+// 需要 slot 七元身份齐全，DM runtime round 需要 session 与 round 齐全。
+func cancellationDispatchTarget(
+	item protocol.ExecutionCancellationDispatch,
+	attemptStatus protocol.WorkAttemptStatus,
+) (protocol.ExecutionCancellationTargetKind, string) {
+	if attemptStatus == protocol.WorkAttemptStatusPending {
+		return protocol.ExecutionCancellationTargetNotStarted, "attempt_not_started"
 	}
+	switch item.ScopeKind {
+	case protocol.ExecutionScopeRoom:
+		if item.ScopeSessionKey != "" && item.RoomID != "" && item.ConversationID != "" &&
+			item.TargetAgentID != "" && item.DispatchID != "" &&
+			item.RuntimeSessionKey != "" && item.AgentRoundID != "" {
+			return protocol.ExecutionCancellationTargetRoomSlot, ""
+		}
+	case protocol.ExecutionScopeDM:
+		if item.RuntimeSessionKey != "" && item.RuntimeRoundID != "" {
+			return protocol.ExecutionCancellationTargetRuntimeRound, ""
+		}
+	}
+	return protocol.ExecutionCancellationTargetUnavailable, "runtime_identity_unavailable"
 }
 
 func cancellationDispatchID(attemptID string) string {

@@ -56,6 +56,7 @@ func projectTranscriptChainWithFilter(
 ) []protocol.Message {
 	projected := make([]protocol.Message, 0, len(chain))
 	currentRoundID := ""
+	currentRoundPurpose := ""
 	var processor *message.Processor
 	var lastTimestamp int64
 	alignedMarkers := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkip)
@@ -105,6 +106,10 @@ func projectTranscriptChainWithFilter(
 				continue
 			}
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
+			currentRoundPurpose = firstNonEmpty(
+				strings.TrimSpace(marker.Purpose),
+				stringFromAny(entry.Data["purpose"]),
+			)
 			userContent := transcriptUserContent(entry.Data)
 			if !transcriptRoundMarkerPresent(marker) &&
 				shouldSuppressUnmatchedTranscriptUserTurn(
@@ -120,6 +125,7 @@ func projectTranscriptChainWithFilter(
 			currentParentID := firstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
 			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
 			if marker.HiddenFromUser ||
+				boolValueAny(entry.Data["hidden_from_user"]) ||
 				isTranscriptGoalContextOnlyUserTurn(entry.Data) {
 				continue
 			}
@@ -147,6 +153,10 @@ func projectTranscriptChainWithFilter(
 			sdkprotocol.MessageTypeAttachment,
 			sdkprotocol.MessageTypeSystem,
 			sdkprotocol.MessageTypeTaskProgress:
+			// Echo 输出必须通过宿主准入后的 overlay 才能进入用户历史。
+			if currentRoundPurpose == "echo_followup" {
+				continue
+			}
 			if processor == nil {
 				currentRoundID = buildTranscriptRoundID(decoded.UUID)
 				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)

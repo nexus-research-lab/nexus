@@ -86,6 +86,7 @@ export function useDmChatPanelModel({
     execution: executionResource,
     goal,
     goalScopeLabel,
+    historyDividerLabel: t("message.history_above"),
     onGoalChange: reconcileGoalSubmission,
     onEditLastUserMessage: handleEditLastUserMessage,
     onForkConversation,

@@ -93,7 +93,7 @@ func (s *Service) shouldAutoDefaultDiscoveredModel(
 	}
 	switch item.ProviderKind {
 	case ProviderKindLLM:
-		if !isAgentRuntimeProvider(item) {
+		if !isAnyAgentRuntimeProvider(item) {
 			return false, nil
 		}
 		target, err := s.defaultRuntimeSelection(ctx)

@@ -50,6 +50,18 @@ func TestVisualizeCommandExpandsOnlyRuntimePrompt(t *testing.T) {
 	}
 }
 
+func TestBrowserCommandExpandsToBrowserToolRequest(t *testing.T) {
+	descriptor := BrowserCommandDescriptor()
+	if descriptor.Name != "browser" || descriptor.ArgumentHint != "<request>" ||
+		descriptor.Execution != protocol.CommandExecutionRuntime || !descriptor.Enabled {
+		t.Fatalf("browser descriptor = %#v", descriptor)
+	}
+	expanded := ExpandProductPrompt("/browser research Nexus releases")
+	if !containsAll(expanded, "Nexus Browser tool", "browser tool", "research Nexus releases") {
+		t.Fatalf("browser expansion = %q", expanded)
+	}
+}
+
 func TestWorkGraphCommandEnablesCollaborationWithoutDistillation(t *testing.T) {
 	descriptor := WorkGraphCommandDescriptor()
 	if descriptor.Name != "workgraph" || descriptor.ArgumentHint != "<request>" ||

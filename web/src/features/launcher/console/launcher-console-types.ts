@@ -11,6 +11,7 @@ export interface LauncherConsoleProps {
   rooms: LauncherRoomSummary[];
   conversations: LauncherConversationSummary[];
   currentAgentId: string | null;
+  initialQuery: string;
   onOpenMainAgentDm: (initialPrompt?: string) => void;
   onOpenRoute: (route: string) => void;
   onSelectAgent: (agentId: string) => void;

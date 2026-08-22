@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nexus Browser</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <img class="mark" src="icons/icon-48.png" alt="">
+        <div>
+          <h1>Nexus Browser</h1>
+          <p id="status" data-state="idle">正在检查连接…</p>
+        </div>
+      </header>
+
+      <p id="hint" class="hint">保持 Nexus Desktop 运行，扩展会自动完成连接。</p>
+
+      <section id="active-tab" class="active-tab" hidden>
+        <p class="eyebrow">当前页面</p>
+        <p id="active-tab-title" class="active-tab-title"></p>
+        <p id="active-tab-url" class="active-tab-url"></p>
+        <p id="active-tab-state" class="hint"></p>
+      </section>
+
+      <div class="primary-actions">
+        <button id="ask-nexus" class="primary" hidden>在 Nexus 中询问</button>
+        <button id="connect" class="primary">立即重试</button>
+      </div>
+      <details>
+        <summary>高级设置</summary>
+        <div class="advanced-settings">
+          <label for="url">WebSocket 地址</label>
+          <input id="url" type="url" spellcheck="false" autocomplete="off">
+          <p class="hint">留空时自动连接本机 Nexus Desktop。</p>
+          <div class="secondary-actions">
+            <button id="test">测试地址</button>
+            <button id="reset">恢复默认</button>
+          </div>
+          <button id="disconnect" class="danger">暂停自动连接</button>
+        </div>
+      </details>
+      <p id="message" role="status" aria-live="polite"></p>
+      <p class="version">版本 <span id="version">—</span></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
