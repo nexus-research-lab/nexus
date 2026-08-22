@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified UI and conversational WorkGraph authoring on one durable Draft service and `execution-orchestrator` Skill: agents can list all completed sources and Drafts in a Session, reuse an existing extraction, append/select immutable versions, and explicitly save the selected version even without an active Execution.
 - Routed owner background-model selection through the DM/Room runtime bridge for native `ToolUseSummary` progress, replacing generic thinking/replying text in place and clearing it at exact Agent-round completion; same-provider failures fall back to the main model without blocking the conversation.
 - Slowed streamed Markdown to a readable typewriter cadence with bounded, gentle terminal catch-up instead of near-instant response expansion.
+- Restyled the Browser action pointer with an accurate hotspot, branded glow, spring-guided travel, directional motion, and a one-shot settling sway.
 - Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.
 - Made Browser accessibility refs stable within a page, returned compact snapshot diffs, and synchronized controlled-tab navigation, activation, and removal events.
 - Separated Echo follow-ups from earlier direct-message history with a labeled timeline divider and made their wording resume the conversation more naturally.
@@ -57,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made initial Room and DM history wait for deferred indexing to finish, so first entry no longer leaves an empty conversation that only recovers after switching away and back.
 - Grouped the completed WorkGraph header into clear context and action regions, and simplified sketch-saving guidance around Slash-command and Composer-menu reuse.
 - Matched Composer Slash-command suggestions only by command-name prefix, with alphabetical ordering for predictable results.
+- Prevented the Windows WebView2 composition input window from remaining over the desktop and swallowing mouse input after Nexus is minimized or hidden to the tray.
+- Hid the desktop-only Browser Slash command when the Browser service is unavailable, including on the web app.
+- Kept a clean Browser pointer visible through the active round, animated first and subsequent moves, and routed standard clicks through visible CDP mouse input instead of invisible DOM clicks.
 - Prevented macOS WebView resume probes from reloading routes while an explicit navigation is still starting.
 - Removed delivered Browser result tabs from temporary Nexus groups without changing borrowed user tabs.
 - Constrained Browser subcommands by action so invalid combinations are rejected before execution.

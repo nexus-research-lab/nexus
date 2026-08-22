@@ -44,6 +44,7 @@ type Handler struct {
 	channels               *channelspkg.Router
 	hostCommands           *slashcommandsvc.Registry
 	commandCatalog         *slashcommandsvc.Catalog
+	browserCommandEnabled  bool
 	workGraphWorkflows     workGraphWorkflowProvider
 	automationPermissions  automationPermissionService
 	runtimeKindResolver    func(context.Context, string) (agentclient.RuntimeKind, error)
@@ -58,6 +59,13 @@ type Handler struct {
 
 type workGraphWorkflowProvider interface {
 	CommandDescriptors(context.Context, string) ([]protocol.CommandDescriptor, error)
+}
+
+// SetBrowserCommandEnabled 控制仅桌面端可用的 Browser Slash 入口。
+func (h *Handler) SetBrowserCommandEnabled(enabled bool) {
+	if h != nil {
+		h.browserCommandEnabled = enabled
+	}
 }
 
 // SetWorkGraphWorkflowProvider 注入 owner-scoped 动态 Workflow Slash 目录。

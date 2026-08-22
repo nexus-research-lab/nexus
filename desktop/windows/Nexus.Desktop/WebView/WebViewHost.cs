@@ -21,8 +21,10 @@ internal sealed class WebViewHost : IDisposable
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
     private readonly Func<string> updateStarter;
     private DesktopBridgeHandler? bridgeHandler;
+    private WebViewCompositionWindowGuard? compositionWindowGuard;
     private ulong? activeNavigationId;
     private bool disposed;
+    private bool hostWindowInteractive = true;
     private bool resumeCheckInFlight;
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
@@ -45,8 +47,10 @@ internal sealed class WebViewHost : IDisposable
         this.updateStarter = updateStarter;
     }
 
-    public async Task InitializeAsync()
+    public async Task InitializeAsync(IntPtr ownerWindow, bool interactive)
     {
+        hostWindowInteractive = interactive;
+        ApplyHostInteractionState();
         startupTimeline.Mark("webview.initialize_begin");
         string userDataFolder = Path.Combine(DesktopPaths.CacheDirectory, "WebView2", "main");
         Directory.CreateDirectory(userDataFolder);
@@ -65,6 +69,8 @@ internal sealed class WebViewHost : IDisposable
         await webView.EnsureCoreWebView2Async(environment);
 
         CoreWebView2 core = webView.CoreWebView2;
+        compositionWindowGuard = new WebViewCompositionWindowGuard(core.BrowserProcessId, ownerWindow);
+        SynchronizeCompositionWindow("initialized", forceLog: true);
         await DesktopWebCacheInvalidator.ClearCachesIfNeededAsync(core, runtime, startupTimeline);
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreDevToolsEnabled = true;
@@ -114,6 +120,19 @@ internal sealed class WebViewHost : IDisposable
             _ = recreateWebViewAsync(lastRoute, "process_failed", args.ProcessFailedKind.ToString());
         };
         startupTimeline.Mark("webview.initialize_ready");
+    }
+
+    public void SetHostWindowInteractive(bool interactive, string reason)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        bool changed = hostWindowInteractive != interactive;
+        hostWindowInteractive = interactive;
+        ApplyHostInteractionState();
+        SynchronizeCompositionWindow(reason, forceLog: changed);
     }
 
     public Task LoadRouteAsync(DesktopWebRoute route)
@@ -264,6 +283,7 @@ internal sealed class WebViewHost : IDisposable
         {
             return;
         }
+        SetHostWindowInteractive(interactive: false, "dispose");
         disposed = true;
         try
         {
@@ -273,6 +293,39 @@ internal sealed class WebViewHost : IDisposable
         {
         }
         webView.Dispose();
+        compositionWindowGuard = null;
+    }
+
+    private void ApplyHostInteractionState()
+    {
+        webView.IsHitTestVisible = hostWindowInteractive;
+        webView.Visibility = hostWindowInteractive ? Visibility.Visible : Visibility.Hidden;
+    }
+
+    private void SynchronizeCompositionWindow(string reason, bool forceLog)
+    {
+        if (compositionWindowGuard is null)
+        {
+            return;
+        }
+
+        WebViewCompositionWindowGuardResult result = compositionWindowGuard.Synchronize(hostWindowInteractive);
+        if (!forceLog && result.OwnerChangeCount == 0 && result.StyleChangeCount == 0)
+        {
+            return;
+        }
+
+        startupTimeline.Mark("webview.composition_input_guard", new Dictionary<string, string>
+        {
+            ["browser_process_id"] = compositionWindowGuard.BrowserProcessId.ToString(),
+            ["owner_changes"] = result.OwnerChangeCount.ToString(),
+            ["owned_windows"] = result.OwnedWindowCount.ToString(),
+            ["pass_through_windows"] = result.PassThroughWindowCount.ToString(),
+            ["reason"] = reason,
+            ["state"] = hostWindowInteractive ? "interactive" : "suspended",
+            ["style_changes"] = result.StyleChangeCount.ToString(),
+            ["target_windows"] = result.TargetWindowCount.ToString(),
+        });
     }
 
     private async Task HandleResumeProbeFailureAsync(

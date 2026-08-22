@@ -70,6 +70,7 @@ func (h *Handler) commandCatalogData(
 			snapshot,
 			agentID,
 			hostCommands,
+			h.browserCommandEnabled,
 			workflowCommands,
 		), nil
 	case protocol.SessionKeyKindRoom:
@@ -79,6 +80,7 @@ func (h *Handler) commandCatalogData(
 			},
 			agentID,
 			h.hostCommandDescriptors(slashcommandsvc.ScopeRoom),
+			h.browserCommandEnabled,
 			workflowCommands,
 		), nil
 	default:
@@ -188,14 +190,18 @@ func projectCommandCatalog(
 	snapshot slashcommandsvc.RuntimeCatalogSnapshot,
 	agentID string,
 	hostCommands []protocol.CommandDescriptor,
+	browserCommandEnabled bool,
 	workflowCommands ...[]protocol.CommandDescriptor,
 ) protocol.CommandCatalogData {
 	commands := projectHostCommands(hostCommands)
-	for _, productCommand := range []protocol.CommandDescriptor{
-		slashcommandsvc.BrowserCommandDescriptor(),
+	productCommands := []protocol.CommandDescriptor{
 		slashcommandsvc.VisualizeCommandDescriptor(),
 		slashcommandsvc.WorkGraphCommandDescriptor(),
-	} {
+	}
+	if browserCommandEnabled {
+		productCommands = append(productCommands, slashcommandsvc.BrowserCommandDescriptor())
+	}
+	for _, productCommand := range productCommands {
 		if command, ok := projectRuntimeCommand(productCommand); ok {
 			commands = append(commands, command)
 		}
