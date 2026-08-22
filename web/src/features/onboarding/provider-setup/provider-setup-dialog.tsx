@@ -1142,7 +1142,7 @@ function SceneMessage({
 }) {
   return (
     <div>
-      <h3 className="text-[22px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+      <h3 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
         {title}
       </h3>
       <p className="mt-2 max-w-[42ch] text-sm leading-5 text-(--text-muted)">

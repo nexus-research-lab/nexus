@@ -1,6 +1,6 @@
 /**
  * INPUT: owner-scoped 命名工作图目录与可选详情路由。
- * OUTPUT: 与 Loop 同构的能力目录、抽象节点详情、复制、继续编辑与删除操作。
+ * OUTPUT: 带来源说明与创建指引的工作图目录、节点详情、复制、编辑与删除操作。
  * POS: “能力 > 工作图”的唯一页面入口。
  */
 "use client";
@@ -16,7 +16,6 @@ import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityPageLayout,
-  CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
@@ -120,10 +119,6 @@ export function WorkGraphDistillationsDirectory() {
             value={query}
           />
         </CapabilityFilterBar>
-        <CapabilitySectionHeader
-          count={t("capability.result_count", { count: filtered.length })}
-          title={t("capability.workgraph_distillations")}
-        />
         {loading ? (
           <div className="py-10 text-sm text-(--text-muted)">{t("capability.workgraph_loading")}</div>
         ) : error ? (
@@ -166,7 +161,7 @@ export function WorkGraphDistillationsDirectory() {
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-[14px] font-medium text-(--text-strong)">/{item.slash_name}</h3>
+                    <h3 className="truncate text-base font-medium text-(--text-strong)">/{item.slash_name}</h3>
                     <p className="mt-0.5 truncate text-compact text-(--text-muted)">{item.title}</p>
                     <div className="mt-0.5 text-2xs text-(--text-soft)">{item.nodes.length} {t("execution.workflow_nodes_short")}</div>
                   </div>

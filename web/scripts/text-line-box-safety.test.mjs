@@ -35,6 +35,8 @@ test("known nested single-line surfaces keep descender-safe inherited leading", 
   assert.match(assistantStats, /overflow-hidden whitespace-nowrap leading-tight/);
   assert.match(roomSwitcher, /truncate text-left text-compact font-semibold leading-normal/);
   assert.match(taskStrip, /truncate text-xs font-medium leading-normal/);
+  assert.match(taskStrip, /whitespace-normal break-words text-left leading-4/);
+  assert.doesNotMatch(taskStrip, /truncate text-\(--text-muted\)/);
 });
 
 function read(relativePath) {

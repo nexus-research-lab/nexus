@@ -1,3 +1,8 @@
+/**
+ * INPUT: Loop slug、本地化资源与返回动作。
+ * OUTPUT: Loop 步骤、退出条件、护栏和启动指令详情。
+ * POS: 工作循环长内容详情；目录统计不在此重复堆叠。
+ */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -93,12 +98,6 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
             </span>
             <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
               {metadata?.triggerLabel}
-            </span>
-            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-              {metadata?.viewsLabel}
-            </span>
-            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-              {metadata?.installsLabel}
             </span>
           </div>
           <WorkspaceContentHeader

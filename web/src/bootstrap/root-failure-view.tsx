@@ -35,7 +35,7 @@ export function RootFailureScreen({
           N
         </div>
         <h1 className="text-lg font-semibold text-(--text-strong)">{title}</h1>
-        <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
+        <p className="mt-2 text-base leading-6 text-(--text-muted)">{description}</p>
         <button
           className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
           onClick={() => window.location.reload()}

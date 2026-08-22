@@ -33,10 +33,7 @@ func TestRealtimeDirectUserQueueKeepsConfigurationContextAfterAdmissionClaim(t *
 		t.Fatal(err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
-		UserID: authctx.SystemUserID, Role: authctx.RoleOwner,
-		AuthMethod: authctx.AuthMethodLocal,
-	})
+	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
 	host := createTestAgent(t, agentService, ctx, "Queue Host")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
 		AgentIDs:    []string{host.AgentID},
@@ -159,6 +156,89 @@ WHERE queue_item_id = ? AND scope = 'room'`,
 	}
 	if running := service.CountRunningTasks(host.AgentID); running != 0 {
 		t.Fatalf("Room queue round did not settle: running=%d", running)
+	}
+}
+
+type rejectingRoomQueueAdmissionStore struct {
+	err error
+}
+
+func (s rejectingRoomQueueAdmissionStore) Record(context.Context, queueadmissionstore.Admission) error {
+	return s.err
+}
+
+func (rejectingRoomQueueAdmissionStore) Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error) {
+	return queueadmissionstore.Claim{}, false, nil
+}
+
+func (rejectingRoomQueueAdmissionStore) Release(context.Context, queueadmissionstore.Claim) error {
+	return nil
+}
+
+func (rejectingRoomQueueAdmissionStore) Consume(context.Context, queueadmissionstore.Claim) error {
+	return nil
+}
+
+func (rejectingRoomQueueAdmissionStore) Revoke(context.Context, queueadmissionstore.Binding) error {
+	return nil
+}
+
+func TestRealtimeQueueAdmissionFailureKeepsDurableUserInput(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
+	host := createTestAgent(t, agentService, ctx, "Queue Retention Host")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{host.AgentID}, HostAgentID: host.AgentID,
+		Name: "queue retention", Title: "main",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	admissionErr := errors.New("queue admission unavailable")
+	service.SetQueueAdmissionStore(rejectingRoomQueueAdmissionStore{err: admissionErr})
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	_, err = service.HandleInputQueue(ctx, realtimesvc.InputQueueRequest{
+		SessionKey: sharedSessionKey, RoomID: roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		ClientMessageID: "client-room-queue-retained", Action: "enqueue",
+		Content:        "keep this input for an idempotent retry",
+		TargetAgentIDs: []string{host.AgentID}, TrustedConfigurationContext: true,
+	})
+	if !errors.Is(err, admissionErr) {
+		t.Fatalf("HandleInputQueue error = %v, want %v", err, admissionErr)
+	}
+	location := workspacestore.InputQueueLocation{
+		OwnerUserID: host.OwnerUserID, Scope: protocol.InputQueueScopeRoom,
+		WorkspacePath: host.WorkspacePath,
+		SessionKey: protocol.BuildRoomAgentSessionKey(
+			roomContext.Conversation.ID,
+			host.AgentID,
+			roomContext.Room.RoomType,
+		),
+		RoomID: roomContext.Room.ID, ConversationID: roomContext.Conversation.ID,
+	}
+	items, snapshotErr := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(location)
+	if snapshotErr != nil {
+		t.Fatal(snapshotErr)
+	}
+	if len(items) != 1 ||
+		items[0].ClientMessageID != "client-room-queue-retained" ||
+		items[0].Content != "keep this input for an idempotent retry" {
+		t.Fatalf("durable input was lost after admission failure: %+v", items)
 	}
 }
 

@@ -466,7 +466,7 @@
     min-width: 0;
     overflow: hidden;
     font-family: var(--font-sans);
-    font-size: 0.75rem;
+    font-size: var(--text-compact);
     line-height: 1rem;
     padding: 0.875rem 0.875rem 0;
     text-overflow: ellipsis;
@@ -518,7 +518,7 @@
     padding: 0;
     color: var(--text-muted);
     font-family: var(--font-sans);
-    font-size: 1rem;
+    font-size: var(--text-md);
     line-height: 1;
     backdrop-filter: blur(12px);
     transition:
@@ -1007,7 +1007,7 @@
   }
 
   .dialog-title {
-    font-size: 1.0625rem;
+    font-size: var(--text-md);
     font-weight: 600;
     letter-spacing: 0;
     line-height: 1.25;
@@ -1015,14 +1015,14 @@
   }
 
   .dialog-title[data-size="hero"] {
-    font-size: 1.5rem;
+    font-size: var(--text-xl);
     font-weight: 600;
     letter-spacing: 0;
   }
 
   .dialog-subtitle {
     margin-top: 0.3rem;
-    font-size: 0.875rem;
+    font-size: var(--text-base);
     line-height: 1.55;
     color: var(--text-muted);
   }
@@ -1063,7 +1063,7 @@
   }
 
   .dialog-label {
-    font-size: 12px;
+    font-size: var(--text-compact);
     font-weight: 500;
     letter-spacing: 0;
     text-transform: none;
@@ -1377,7 +1377,7 @@
   .nexus-workspace-file-markdown.nexus-markdown-body {
     gap: 0.5rem;
     font-family: var(--font-sans);
-    font-size: 0.875rem;
+    font-size: var(--text-base);
     line-height: 1.55;
   }
 
@@ -1394,7 +1394,7 @@
   .nexus-workspace-file-markdown h1[data-markdown-anchor] {
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
-    font-size: 1.25rem;
+    font-size: var(--text-lg);
     font-weight: 600;
     line-height: 1.55;
   }
@@ -1402,7 +1402,7 @@
   .nexus-workspace-file-markdown h2[data-markdown-anchor] {
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
-    font-size: 1.125rem;
+    font-size: var(--text-md);
     font-weight: 600;
     line-height: 1.55;
   }
@@ -1410,7 +1410,7 @@
   .nexus-workspace-file-markdown :is(h3, h4, h5, h6)[data-markdown-anchor] {
     margin-top: 0.5rem;
     margin-bottom: -0.25rem;
-    font-size: 1rem;
+    font-size: var(--text-base);
     font-weight: 600;
     line-height: 1.55;
   }

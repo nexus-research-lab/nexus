@@ -32,12 +32,12 @@ function GuardState({
           N
         </div>
         <h1 className="text-lg font-semibold text-(--text-strong)">{title}</h1>
-        <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
+        <p className="mt-2 text-base leading-6 text-(--text-muted)">{description}</p>
         {actionLabel && onAction ? (
           <button
             className={getUiButtonClassName(
               { size: "lg", tone: "primary", variant: "solid" },
-              "mt-5 rounded-full px-5 text-[14px]",
+              "mt-5 rounded-full px-5 text-base",
             )}
             onClick={onAction}
             type="button"

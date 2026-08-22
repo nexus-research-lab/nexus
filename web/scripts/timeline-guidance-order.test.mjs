@@ -606,7 +606,22 @@ test("live Room layout holds only automatic negative height debt until every Age
     measuredHeight: 320,
     scopeKey: "room-b",
   }, grown.state);
-  assert.equal(switched.minimumHeight, 320, "height debt cannot cross sessions");
+  assert.equal(
+    switched.minimumHeight,
+    0,
+    "the first new-scope measurement may still belong to the previous Room",
+  );
+  assert.equal(switched.state.wasActive, false);
+  const primed = resolveConversationLiveHeightGuard({
+    active: true,
+    measuredHeight: 320,
+    scopeKey: "room-b",
+  }, switched.state);
+  assert.equal(
+    primed.minimumHeight,
+    320,
+    "the new Room establishes its own baseline on the next committed measurement",
+  );
 });
 
 test("Composer interaction height stays monotonic until the request queue clears", async () => {
@@ -7828,6 +7843,16 @@ test("Room stopping controls and unresolved tools share the interrupted terminal
   )));
   assert.match(shellHtml, /停止中…/);
   assert.match(shellHtml, /disabled=""/);
+  assert.equal(
+    shellHtml.match(/data-room-agent-execution-actions/g)?.length,
+    1,
+    "Thread and exact stop must share one Agent-header action group",
+  );
+  assert.match(
+    shellHtml,
+    /data-room-agent-action="stop"[\s\S]*data-room-agent-action="thread"/,
+    "the stable Thread entry stays at the right edge when stop appears",
+  );
 
   const toolUse = {
     id: "tool-interrupted",

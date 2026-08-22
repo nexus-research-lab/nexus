@@ -58,7 +58,7 @@ function SubscriptionPlanRow({
   return (
     <div className="grid gap-4 px-4 py-4 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-start">
       <div className="min-w-0">
-        <p className="truncate text-[14px] font-semibold text-(--text-strong)">
+        <p className="truncate text-base font-semibold text-(--text-strong)">
           {plan.display_name}
         </p>
         <p className="mt-1 truncate font-mono text-xs text-(--text-muted)">

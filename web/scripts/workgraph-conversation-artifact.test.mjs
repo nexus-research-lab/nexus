@@ -145,3 +145,107 @@ test("conversation ordering preserves the WorkGraph artifact for final projectio
   assert.equal(entries.length, 1);
   assert.equal(entries[0].block, artifact);
 });
+
+test("WorkGraph delivery stays after the final text and outside process folding", async () => {
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const thinking = { type: "thinking", thinking: "检查草图" };
+  const artifact = {
+    type: "workgraph_artifact",
+    id: "workgraph:tool-1",
+    state: "draft",
+    operation: "get_workgraph_preview",
+    preview: {
+      preview_id: "preview-1",
+      slash_name: "briefing",
+      title: "协作简报",
+      source_execution_id: "execution-1",
+      source_session_key: "room:conversation-1",
+      objective: "形成简报",
+      nodes: [{
+        logical_key: "draft",
+        role: "key",
+        kind: "produce",
+        subject: "起草简报",
+        objective: "整合来源",
+        deliverable: "简报",
+        required: true,
+        terminal: true,
+        position: 0,
+      }],
+      dependencies: [],
+      expires_at: "2026-08-23T00:00:00Z",
+    },
+  };
+  const finalText = { type: "text", text: "草图已读取并检查完毕。" };
+  const processMessage = {
+    role: "assistant",
+    message_id: "assistant-process",
+    round_id: "round-1",
+    parent_id: "tool-1",
+    content: [thinking, artifact],
+  };
+  const finalMessage = {
+    role: "assistant",
+    message_id: "assistant-final",
+    round_id: "round-1",
+    parent_id: "user-1",
+    content: [finalText],
+  };
+  const orderedEntries = [
+    [thinking, processMessage.message_id],
+    [artifact, processMessage.message_id],
+    [finalText, finalMessage.message_id],
+  ].map(([block, sourceMessageId], mergedIndex) => ({
+    block,
+    mergedIndex,
+    sourceMessageId,
+    sourceOrder: mergedIndex,
+  }));
+  const visibleAssistantTurns = [
+    {
+      content: processMessage.content,
+      messageId: processMessage.message_id,
+      streamingIndexes: new Set(),
+      textContent: [],
+      textStreamingIndexes: new Set(),
+    },
+    {
+      content: finalMessage.content,
+      messageId: finalMessage.message_id,
+      streamingIndexes: new Set(),
+      textContent: [finalText],
+      textStreamingIndexes: new Set(),
+    },
+  ];
+  const project = (assistantContentMode) => resolveMessageItemFinalProjection({
+    assistantContentMode,
+    assistantMessages: [processMessage, finalMessage],
+    orderedProjection: {
+      content: [thinking, artifact, finalText],
+      streamingIndexes: new Set(),
+    },
+    resultSummary: undefined,
+    roundId: "round-1",
+    userMessageId: "user-1",
+    streamingBlockIndexes: new Set(),
+    visibleAssistantTurns,
+    visibleOrderedAssistantEntries: orderedEntries,
+  });
+
+  const live = project("dm_live");
+  const archived = project("dm_archived");
+  assert.deepEqual(
+    live.directOrderedProjection.content.map((block) => block.type),
+    ["thinking"],
+  );
+  assert.deepEqual(
+    archived.processProjection.content.map((block) => block.type),
+    ["thinking"],
+  );
+  assert.deepEqual(
+    archived.finalAssistantContent.map((block) => block.type),
+    ["text", "workgraph_artifact"],
+  );
+});

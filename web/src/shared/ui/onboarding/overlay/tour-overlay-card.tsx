@@ -63,7 +63,7 @@ export const TourOverlayCard = forwardRef<
       ) : null}
 
       <div className="flex items-start justify-between gap-4">
-        <h3 className="mt-0.5 min-w-0 text-[16px] font-semibold tracking-tight text-(--text-strong)">
+        <h3 className="mt-0.5 min-w-0 text-md font-semibold tracking-tight text-(--text-strong)">
           {step.title}
         </h3>
         <button

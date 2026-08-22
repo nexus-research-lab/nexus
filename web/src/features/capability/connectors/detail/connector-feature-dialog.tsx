@@ -36,7 +36,7 @@ export function ConnectorFeatureDialog({
             title={feature.name}
           />
           <UiDialogBody className="space-y-4" scrollable>
-            <p className="text-[14px] leading-7 text-(--text-default)">
+            <p className="text-base leading-7 text-(--text-default)">
               {feature.description}
             </p>
             {feature.items?.length ? (

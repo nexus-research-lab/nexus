@@ -1,3 +1,8 @@
+/**
+ * INPUT: 已投影的频道身份、状态、使用元数据与配置动作。
+ * OUTPUT: 显示平台用途、状态和使用事实的频道条目。
+ * POS: 频道目录卡片纯视图。
+ */
 import {
   Clock3,
   ExternalLink,
@@ -67,7 +72,7 @@ function ChannelCardContent({
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-[14px] font-medium text-(--text-strong)">
+        <span className="truncate text-base font-medium text-(--text-strong)">
           {title}
         </span>
         {model.badges.map((badge) => (

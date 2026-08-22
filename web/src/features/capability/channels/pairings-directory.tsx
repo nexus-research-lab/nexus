@@ -1,9 +1,13 @@
+/**
+ * INPUT: owner 配对资源、筛选、创建更新删除命令。
+ * OUTPUT: 展示授权目的、外部对象与处理智能体的频道配对目录。
+ * POS: “能力 > 频道配对”的唯一页面入口。
+ */
 "use client";
 
 import {
   Plus,
   RefreshCw,
-  SearchX,
   ShieldCheck,
 } from "lucide-react";
 
@@ -67,7 +71,6 @@ export function PairingsDirectory() {
         >
           {controller.loading && controller.items.length === 0 ? (
             <UiStateBlock
-              description={t("capability.pairings_loading_description")}
               size="sm"
               title={t("capability.pairings_loading_title")}
             />
@@ -169,14 +172,10 @@ function PairingNoResults({ onClear }: { onClear: () => void }) {
   const { t } = useI18n();
 
   return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-      <SearchX className="h-7 w-7 text-(--icon-muted)" />
-      <h2 className="mt-3 text-base font-semibold text-(--text-strong)">
+    <div className="flex min-h-[180px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+      <h2 className="text-base font-semibold text-(--text-strong)">
         {t("capability.pairings_no_results_title")}
       </h2>
-      <p className="mt-1 text-sm text-(--text-muted)">
-        {t("capability.pairings_no_results_description")}
-      </p>
       <UiButton className="mt-4" onClick={onClear} size="sm" type="button">
         {t("capability.clear_filters")}
       </UiButton>

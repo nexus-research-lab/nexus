@@ -1,5 +1,5 @@
 // INPUT: Room 输入队列控制请求与持久化队列快照。
-// OUTPUT: 跨成员幂等受理结果、队列变更、guide 消费轮身份同步和共享快照事件。
+// OUTPUT: 跨成员幂等受理与可恢复 admission、队列变更、guide 消费轮身份同步和共享快照事件。
 // POS: Room 用户输入队列的控制面。
 package realtime
 
@@ -172,6 +172,29 @@ func (s *Service) HandleInputQueue(
 			); err != nil {
 				return protocol.InputQueueMutationResult{}, err
 			}
+			currentItems, snapshotErr := s.inputQueue.Snapshot(acceptedEntry.Location)
+			if snapshotErr != nil {
+				return protocol.InputQueueMutationResult{}, snapshotErr
+			}
+			pending := slices.ContainsFunc(currentItems, func(item protocol.InputQueueItem) bool {
+				return item.ID == acceptedEntry.Item.ID
+			})
+			if pending {
+				if broadcastErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); broadcastErr != nil {
+					s.loggerFor(ctx).Warn("广播恢复受理的 Room input_queue 快照失败",
+						"session_key", sessionKey,
+						"item_id", acceptedEntry.Item.ID,
+						"err", broadcastErr,
+					)
+				}
+				s.startSessionBackgroundTask(
+					sessionKey,
+					ownerUserID,
+					func(taskCtx context.Context) {
+						s.dispatchNextInputQueueItem(taskCtx, sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
+					},
+				)
+			}
 			return protocol.InputQueueMutationResult{
 				Action:    action,
 				ItemID:    acceptedEntry.Item.ID,
@@ -200,8 +223,6 @@ func (s *Service) HandleInputQueue(
 			enqueueResult.Item,
 			request.TrustedConfigurationContext,
 		); err != nil {
-			_ = s.revokeRoomQueueAdmission(ctx, location, enqueueResult.Item)
-			_, _ = s.inputQueue.Delete(location, enqueueResult.Item.ID)
 			return protocol.InputQueueMutationResult{}, err
 		}
 		if !enqueueResult.Duplicate {

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 单项定时任务、命令状态与任务动作。
+ * OUTPUT: 名称、指令摘要、计划、时间状态和单一注意事项摘要。
+ * POS: 定时任务看板卡片；指令用于识别任务，诊断细节延后展示。
+ */
 "use client";
 
 import { useCallback, useRef, useState } from "react";
@@ -203,7 +208,7 @@ export function ScheduledTaskCard({
                 onSelect={(value) => actionHandlers[value as TaskMenuAction]()}
               />
             </div>
-            <h3 className="mt-1 truncate text-[14px] font-semibold leading-5 text-(--text-strong)">
+            <h3 className="mt-1 truncate text-base font-semibold leading-5 text-(--text-strong)">
               {task.name}
             </h3>
           </div>

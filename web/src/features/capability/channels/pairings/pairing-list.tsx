@@ -1,3 +1,8 @@
+/**
+ * INPUT: 分组配对、Agent 目录与配对写命令。
+ * OUTPUT: 可识别的外部对象摘要和按需展开的内部技术详情。
+ * POS: 配对目录列表纯视图；外部身份属于管理对象，内部绑定键才延后展示。
+ */
 "use client";
 
 import {
@@ -206,7 +211,7 @@ function PairingRow({
           <ChannelIcon type={item.channel_type} />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-(--text-strong)">
+              <div className="min-w-0 flex-1 truncate text-base font-medium text-(--text-strong)">
                 {pairingDisplayName(item)}
               </div>
               <UiBadge tone={STATUS_TONES[item.status]}>

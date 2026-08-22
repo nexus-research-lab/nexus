@@ -80,7 +80,7 @@ function ProjectCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FolderKanban className="h-4 w-4 shrink-0 text-primary" />
-            <p className="truncate text-[14px] font-semibold text-(--text-strong)">
+            <p className="truncate text-base font-semibold text-(--text-strong)">
               {project.project_id}
             </p>
           </div>

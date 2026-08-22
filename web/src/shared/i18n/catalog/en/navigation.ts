@@ -56,6 +56,7 @@ export const enNavigationMessages = {
   "home.delete_confirm": "Delete confirmation",
   "home.delete_message": "Delete “{name}”? This cannot be undone.",
   "contacts.title": "Agent Management",
+  "contacts.back_to_directory": "Back to agents",
   "contacts.description": "Create and configure agents, then start collaborating.",
   "contacts.new_agent": "New Agent",
   "contacts.new_agent_description": "Create an AI member for chats and teams",

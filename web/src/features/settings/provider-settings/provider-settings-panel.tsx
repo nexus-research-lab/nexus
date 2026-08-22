@@ -1,3 +1,8 @@
+/**
+ * INPUT: Provider 可见范围、目录资源、草稿与写命令。
+ * OUTPUT: Provider 目录、当前配置和模型操作，首层不展示预设宣传说明。
+ * POS: 设置与运营复用的 Provider 管理工作区。
+ */
 "use client";
 
 import { useState } from "react";
@@ -46,10 +51,11 @@ export function ProviderSettingsPanel({
   const panelContent = (
     <div className={cn(
       layout === "page" ? WORKSPACE_CONTENT_PAGE_CLASS_NAME : undefined,
-      "flex h-full min-h-0 flex-col",
+      "flex min-h-0 flex-col sm:h-full",
     )}>
       {layout === "page" ? (
         <WorkspaceContentHeader
+          className="max-sm:hidden"
           description={t(visibilityScope === "public"
             ? "settings.providers.public_section_description"
             : "settings.providers.section_description")}
@@ -58,7 +64,7 @@ export function ProviderSettingsPanel({
             : "settings.providers.section_title")}
         />
       ) : null}
-      <div className="flex min-h-0 flex-1 items-stretch gap-5 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-visible sm:flex-row sm:items-stretch sm:gap-5 sm:overflow-hidden">
         <ProviderSettingsSidebar
           configuredByPreset={state.configuredByPreset}
           customProviders={state.customProviders}
@@ -76,9 +82,9 @@ export function ProviderSettingsPanel({
           showCCSwitchImport={canImportFromCCSwitch}
         />
 
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
           {state.isEmptyMode ? null : (
-            <div className="flex min-h-0 flex-1 flex-col bg-transparent px-5 py-2">
+            <div className="flex min-h-0 flex-1 flex-col bg-transparent py-2 sm:px-5">
               <ProviderSettingsDetailHeader
                 detailTitle={state.detailTitle}
                 enabled={state.draft.enabled}
@@ -88,7 +94,6 @@ export function ProviderSettingsPanel({
                 onEnabledChange={actions.handleEnabledChange}
                 onTestSelection={modelActions.handleTestSelection}
                 pendingAction={state.pendingAction}
-                presetDescription={state.currentPreset?.description}
                 selectedCanManage={state.selectedCanManage}
                 testModelOptions={modelActions.testModelOptions}
               />

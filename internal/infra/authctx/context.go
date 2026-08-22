@@ -114,6 +114,41 @@ func QueuedHumanPrincipalBindingFromContext(
 	return binding, true
 }
 
+// DirectHumanPrincipalBindingFromContext resolves the host-auth identity that
+// may be persisted with a direct WebSocket queue admission. Local single-user
+// Web mode has no login principal, so its authenticated host boundary is
+// represented by the sessionless system owner instead of rejecting the input.
+func DirectHumanPrincipalBindingFromContext(
+	ctx context.Context,
+	ownerUserID string,
+) (QueuedHumanPrincipalBinding, bool) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return QueuedHumanPrincipalBinding{}, false
+	}
+	principal := PrincipalFromContext(ctx)
+	if principal == nil {
+		if !IsLocalSingleUserControlPlane(ctx, ownerUserID) {
+			return QueuedHumanPrincipalBinding{}, false
+		}
+		return QueuedHumanPrincipalBinding{
+			UserID:     SystemUserID,
+			AuthMethod: AuthMethodLocal,
+		}, true
+	}
+	binding := QueuedHumanPrincipalBinding{
+		UserID:     strings.TrimSpace(principal.UserID),
+		AuthMethod: strings.TrimSpace(principal.AuthMethod),
+	}
+	if principal.SessionID != nil {
+		binding.SessionID = strings.TrimSpace(*principal.SessionID)
+	}
+	if binding.UserID != ownerUserID || !validQueuedHumanPrincipalBinding(binding) {
+		return QueuedHumanPrincipalBinding{}, false
+	}
+	return binding, true
+}
+
 func validQueuedHumanPrincipalBinding(binding QueuedHumanPrincipalBinding) bool {
 	userID := strings.TrimSpace(binding.UserID)
 	authMethod := strings.TrimSpace(binding.AuthMethod)

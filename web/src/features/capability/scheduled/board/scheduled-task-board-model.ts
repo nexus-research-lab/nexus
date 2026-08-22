@@ -1,3 +1,8 @@
+/**
+ * INPUT: 定时任务协议对象、命令状态与本地化函数。
+ * OUTPUT: 看板分列、排序、卡片状态和快速创建预设。
+ * POS: 定时任务看板唯一纯投影模型。
+ */
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
@@ -19,7 +24,6 @@ export type ScheduledTaskBoardColumnId =
   | "stopped";
 
 interface ScheduledTaskBoardColumnDefinition {
-  emptyDescription: string;
   id: ScheduledTaskBoardColumnId;
   title: string;
   tone: "primary" | "success" | "warning" | "muted";
@@ -128,25 +132,21 @@ export function buildScheduledTaskSuggestions(
 
 export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] = [
   {
-    emptyDescription: "当前没有任务在执行",
     id: "running",
     title: "执行中",
     tone: "primary",
   },
   {
-    emptyDescription: "没有等待调度的任务",
     id: "scheduled",
     title: "已计划",
     tone: "success",
   },
   {
-    emptyDescription: "没有需要处理的问题",
     id: "attention",
     title: "需处理",
     tone: "warning",
   },
   {
-    emptyDescription: "没有停止的任务",
     id: "stopped",
     title: "已停止",
     tone: "muted",
