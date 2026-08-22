@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added model-generated first-conversation greetings for user-opened Agent DMs and new Rooms, with a dedicated Nexus main-Agent introduction, explicit Room-host identity, safe no-host `@` guidance, background-to-default model fallback, hidden greeting-only model labels, and deterministic failure copy.
 - Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” locale-aware default-chat-model structure extraction, single-word-first non-conflicting Slash naming, durable Drafts and immutable edit versions, a hidden Nexus-main-Agent editing conversation, hidden background persistence through the Skill and `nexus execution`, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
+- Added current-page status and an explicit “Ask Nexus” handoff to the Browser extension popup and web context menu.
+- Added round-scoped Browser tab cleanup with automatic temporary-tab closing, borrowed-page release, and explicit deliverable or handoff marks.
+- Added automatic Browser Session inheritance for OAuth, popup, and `target=_blank` tabs opened from an Agent-controlled page.
+- Added opt-in Echo follow-ups for Nexus direct messages, with one global switch, internally managed pacing, durable exact-deadline scheduling, and a message-only runtime policy.
+- Added Nexus Browser with a `/browser` Composer entry, branded extension icon, guided setup, live status, a visible agent cursor, Session-scoped tabs, history, page/coordinate interaction, network and console inspection, dialog handling, clipboard access, uploads, downloads, full-page screenshots, PDF export, and opt-in raw CDP.
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Changed
@@ -26,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified UI and conversational WorkGraph authoring on one durable Draft service and `execution-orchestrator` Skill: agents can list all completed sources and Drafts in a Session, reuse an existing extraction, append/select immutable versions, and explicitly save the selected version even without an active Execution.
 - Routed owner background-model selection through the DM/Room runtime bridge for native `ToolUseSummary` progress, replacing generic thinking/replying text in place and clearing it at exact Agent-round completion; same-provider failures fall back to the main model without blocking the conversation.
 - Slowed streamed Markdown to a readable typewriter cadence with bounded, gentle terminal catch-up instead of near-instant response expansion.
+- Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.
+- Made Browser accessibility refs stable within a page, returned compact snapshot diffs, and synchronized controlled-tab navigation, activation, and removal events.
+- Separated Echo follow-ups from earlier direct-message history with a labeled timeline divider and made their wording resume the conversation more naturally.
+- Removed Heartbeat from the user-facing Automation surface while retaining the internal main-session event dispatcher used by scheduled tasks.
+- Updated the Agent SDK bridge to the capability-compatible v0.1.30 prerelease required by Echo message-level tool and output policies.
 
 ### Fixed
 
@@ -43,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made initial Room and DM history wait for deferred indexing to finish, so first entry no longer leaves an empty conversation that only recovers after switching away and back.
 - Grouped the completed WorkGraph header into clear context and action regions, and simplified sketch-saving guidance around Slash-command and Composer-menu reuse.
 - Matched Composer Slash-command suggestions only by command-name prefix, with alphabetical ordering for predictable results.
+- Prevented macOS WebView resume probes from reloading routes while an explicit navigation is still starting.
+- Removed delivered Browser result tabs from temporary Nexus groups without changing borrowed user tabs.
+- Constrained Browser subcommands by action so invalid combinations are rejected before execution.
+- Removed suppressed, cancelled, and failed Echo turns from runtime history before later conversation input is dispatched.
+- Bound Browser tabs to opaque extension-generation references so restarted extensions and reused Chromium tab IDs cannot redirect an Agent action to the wrong page.
+- Bounded Browser accessibility snapshots, prioritized actionable refs, awaited asynchronous JavaScript evaluation, and simplified extension connection status to prevent oversized or avoidable failed tool calls.
+- Fixed valid numeric Browser parameters being rejected by the runtime input validator.
+- Reduced and aligned the desktop default model selectors and their menus.
+- Automatically selected the first successfully tested NXS-compatible Provider model when no default model exists.
 - Prevented initial Room and DM history loading from restoring a stale reading anchor after the view had already followed the latest message.
 - Stabilized parallel Room streaming with a single scroll owner, monotonic live Feed height, conservative virtual estimates, and renderer switching only after live output settles, while preserving incremental Markdown and tool-call growth.
 - Bottom-anchored live Feed height debt, stabilized consecutive Composer interaction heights, and coalesced Generative UI resize corrections so terminal tool layout no longer exposes blank tails or repeatedly resizes the conversation viewport.

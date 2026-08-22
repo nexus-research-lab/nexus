@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	defaultAuditInterval = 30 * time.Second
 	defaultErrorRetry    = time.Second
 	defaultErrorRetryMax = 30 * time.Second
 )
@@ -34,6 +33,7 @@ type ErrorHandler func(error)
 // Options configures a Loop. Now exists so domain tests can share a clock; a
 // production loop should normally leave it unset.
 type Options struct {
+	// AuditInterval 为零时不做周期审计，只响应 Notify 与 NextDueAt。
 	AuditInterval time.Duration
 	ErrorRetry    time.Duration
 	ErrorRetryMax time.Duration
@@ -59,8 +59,8 @@ type Loop struct {
 // New constructs an idle loop. It does not start a goroutine.
 func New(options Options) *Loop {
 	auditInterval := options.AuditInterval
-	if auditInterval <= 0 {
-		auditInterval = defaultAuditInterval
+	if auditInterval < 0 {
+		auditInterval = 0
 	}
 	errorRetry := options.ErrorRetry
 	if errorRetry <= 0 {
@@ -87,8 +87,8 @@ func New(options Options) *Loop {
 	}
 }
 
-// Notify records a lossy, coalesced process-local hint. Durable state and the
-// audit path guarantee recovery; callers therefore never block on a busy loop.
+// Notify records a lossy, coalesced process-local hint. Callers that disable
+// audits must notify after every mutation that can make work eligible.
 func (l *Loop) Notify() {
 	if l == nil {
 		return
@@ -100,8 +100,8 @@ func (l *Loop) Notify() {
 }
 
 // Run immediately reconciles startup state, then sleeps until a mutation,
-// exact deadline, audit boundary or cancellation. It returns only on context
-// cancellation or invalid concurrent use.
+// exact deadline, optional audit boundary or cancellation. It returns only on
+// context cancellation or invalid concurrent use.
 func (l *Loop) Run(ctx context.Context, reconcile ReconcileFunc) error {
 	if l == nil {
 		return errors.New("due work loop is nil")
@@ -133,33 +133,47 @@ func (l *Loop) Run(ctx context.Context, reconcile ReconcileFunc) error {
 		}
 
 		wait := l.auditInterval
+		useTimer := wait > 0
 		if err != nil {
 			if l.onError != nil {
 				l.onError(err)
 			}
-			wait = minDuration(wait, errorRetry)
+			if !useTimer || errorRetry < wait {
+				wait = errorRetry
+			}
+			useTimer = true
 			errorRetry = nextBackoff(errorRetry, l.errorRetryMax)
 		} else if result.HasMore {
 			errorRetry = l.errorRetry
 			wait = 0
+			useTimer = true
 		} else if result.NextDueAt != nil {
 			errorRetry = l.errorRetry
 			untilDue := result.NextDueAt.UTC().Sub(l.now().UTC())
 			if untilDue < 0 {
 				untilDue = 0
 			}
-			wait = minDuration(wait, untilDue)
+			if !useTimer || untilDue < wait {
+				wait = untilDue
+			}
+			useTimer = true
 		} else {
 			errorRetry = l.errorRetry
 		}
 
-		resetTimer(timer, wait)
+		var timerC <-chan time.Time
+		if useTimer {
+			resetTimer(timer, wait)
+			timerC = timer.C
+		} else {
+			stopTimer(timer)
+		}
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-l.wake:
 			stopTimer(timer)
-		case <-timer.C:
+		case <-timerC:
 		}
 	}
 }
@@ -185,13 +199,6 @@ func (l *Loop) discardPendingWake() {
 	case <-l.wake:
 	default:
 	}
-}
-
-func minDuration(left time.Duration, right time.Duration) time.Duration {
-	if right < left {
-		return right
-	}
-	return left
 }
 
 func nextBackoff(current time.Duration, maximum time.Duration) time.Duration {

@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	catalogGeneration    = 6
+	catalogGeneration    = 7
+	browserCommandName   = "browser"
 	visualizeCommandName = "visualize"
 	workGraphCommandName = "workgraph"
 )
@@ -121,6 +122,15 @@ func VisualizeCommandDescriptor() protocol.CommandDescriptor {
 	)
 }
 
+// BrowserCommandDescriptor 返回产品内置的浏览器操作入口。
+func BrowserCommandDescriptor() protocol.CommandDescriptor {
+	return newRuntimeCommand(
+		browserCommandName,
+		"Control the browser with Nexus Browser",
+		"<request>",
+	)
+}
+
 // WorkGraphCommandDescriptor 返回显式启用 Nexus WorkGraph 协作的产品入口。
 // 具体命名工作图使用各自的 Slash，不复用该固定名称。
 func WorkGraphCommandDescriptor() protocol.CommandDescriptor {
@@ -143,6 +153,12 @@ func ExpandProductPrompt(content string) string {
 		return content
 	}
 	switch name {
+	case browserCommandName:
+		request := arguments
+		if request == "" {
+			request = "Use the actionable request already established in this conversation."
+		}
+		return "Use the Nexus Browser tool to complete the following request. Use the browser tool for browser inspection and interaction.\n\nRequest:\n" + request
 	case visualizeCommandName:
 		if arguments == "" {
 			return "Use Generative UI to create a relevant interactive visual from the current conversation."

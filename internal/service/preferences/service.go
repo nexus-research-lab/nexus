@@ -76,6 +76,17 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	})
 }
 
+// SetEchoEnabled 保存主动跟进开关；调用方仍负责关闭后的业务收口。
+func (s *Service) SetEchoEnabled(
+	ctx context.Context,
+	ownerUserID string,
+	enabled bool,
+) (Preferences, error) {
+	return s.update(ctx, ownerUserID, nil, func(Preferences) (UpdateRequest, error) {
+		return UpdateRequest{echoEnabled: &enabled}, nil
+	})
+}
+
 // UpdateAtVersion 仅在当前持久化 version 等于 expectedVersion 时合并并写入偏好。
 func (s *Service) UpdateAtVersion(
 	ctx context.Context,
@@ -158,6 +169,12 @@ func (s *Service) updateLocked(
 	}
 	if request.EmotionEnabled != nil {
 		current.EmotionEnabled = *request.EmotionEnabled
+	}
+	if request.BrowserCDPEnabled != nil {
+		current.BrowserCDPEnabled = *request.BrowserCDPEnabled
+	}
+	if request.echoEnabled != nil {
+		current.EchoEnabled = *request.echoEnabled
 	}
 	if request.RuntimeSettings != nil {
 		current.RuntimeSettings = *request.RuntimeSettings

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -142,14 +143,30 @@ type roomAgentTarget struct {
 	AgentID string `json:"agent_id"`
 }
 
+func (i roomAgentTarget) Normalized() roomAgentTarget {
+	i.AgentID = strings.TrimSpace(i.AgentID)
+	return i
+}
+
 type roomMemberParticipationInput struct {
 	AgentID string `json:"agent_id"`
 	Paused  *bool  `json:"paused"`
 }
 
+func (i roomMemberParticipationInput) Normalized() roomMemberParticipationInput {
+	i.AgentID = strings.TrimSpace(i.AgentID)
+	return i
+}
+
 type roomConversationTarget struct {
 	ConversationID string `json:"conversation_id"`
 	Title          string `json:"title,omitempty"`
+}
+
+func (i roomConversationTarget) Normalized() roomConversationTarget {
+	i.ConversationID = strings.TrimSpace(i.ConversationID)
+	i.Title = strings.TrimSpace(i.Title)
+	return i
 }
 
 type providerModelTarget struct {
@@ -172,6 +189,12 @@ type skillAgentTarget struct {
 	AgentID        string                         `json:"agent_id,omitempty"`
 	TargetScope    skillsvc.AgentSkillTargetScope `json:"target_scope"`
 	SourceIdentity string                         `json:"source_identity"`
+}
+
+func (i skillAgentTarget) Normalized() skillAgentTarget {
+	i.AgentID = strings.TrimSpace(i.AgentID)
+	i.SourceIdentity = strings.TrimSpace(i.SourceIdentity)
+	return i
 }
 
 type skillSearchInput struct {

@@ -8,8 +8,11 @@ import (
 	"time"
 )
 
-func TestLoopCoalescesWakeAndStopsWithoutPolling(t *testing.T) {
-	loop := New(Options{AuditInterval: time.Hour})
+func TestLoopWithoutAuditCoalescesWakeAndStopsWithoutPolling(t *testing.T) {
+	loop := New(Options{})
+	if loop.auditInterval != 0 {
+		t.Fatalf("audit interval = %s, want disabled", loop.auditInterval)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var calls atomic.Int32

@@ -6,11 +6,13 @@ import {
   Image,
   MessageSquareText,
   MonitorCog,
+  RadioTower,
   ScanEye,
   Sparkles,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
@@ -34,6 +36,10 @@ interface SettingsGeneralBehaviorSectionProps {
   agentSdkDiagnosticsEnabled: boolean;
   chatDefaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   emotionEnabled: boolean;
+  echoEnabled: boolean;
+  echoFeedbackMessage?: string | null;
+  echoLoading: boolean;
+  echoSaving: boolean;
   defaultBackgroundModelOptions: UiSelectMenuOption[];
   defaultBackgroundModelValue: string;
   defaultImageModelOptions: UiSelectMenuOption[];
@@ -46,6 +52,7 @@ interface SettingsGeneralBehaviorSectionProps {
   defaultModelValue: string;
   onAgentSdkDiagnosticsChange: (checked: boolean) => void;
   onEmotionEnabledChange: (checked: boolean) => void;
+  onEchoEnabledChange: (checked: boolean) => void;
   onDefaultDeliveryPolicyChange: (
     value: AgentConversationDefaultDeliveryPolicy,
   ) => void;
@@ -63,6 +70,10 @@ export function SettingsGeneralBehaviorSection({
   agentSdkDiagnosticsEnabled,
   chatDefaultDeliveryPolicy,
   emotionEnabled,
+  echoEnabled,
+  echoFeedbackMessage,
+  echoLoading,
+  echoSaving,
   defaultBackgroundModelOptions,
   defaultBackgroundModelValue,
   defaultImageModelOptions,
@@ -75,6 +86,7 @@ export function SettingsGeneralBehaviorSection({
   defaultModelValue,
   onAgentSdkDiagnosticsChange,
   onEmotionEnabledChange,
+  onEchoEnabledChange,
   onDefaultDeliveryPolicyChange,
   onDefaultModelChange,
   onResetTours,
@@ -140,6 +152,44 @@ export function SettingsGeneralBehaviorSection({
               checked={emotionEnabled}
               disabled={preferencesLoading || preferencesSaving}
               onChange={onEmotionEnabledChange}
+              size="sm"
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-(--divider-subtle-color)" />
+
+        <div className={SETTINGS_ROW_CLASS_NAME}>
+          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+            <div className={SETTINGS_ICON_CLASS_NAME}>
+              <RadioTower className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                {t("settings.general.echo_title")}
+              </h3>
+              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                {t("settings.general.echo_description")}
+              </p>
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+            <span
+              aria-live="polite"
+              className={cn(
+                SETTINGS_CONTROL_LABEL_CLASS_NAME,
+                "max-w-40 truncate",
+                echoFeedbackMessage && "text-(--danger-text-color)",
+              )}
+              title={echoFeedbackMessage ?? undefined}
+            >
+              {echoFeedbackMessage ?? t("settings.general.echo_label")}
+            </span>
+            <GlassSwitch
+              aria-label={t("settings.general.echo_label")}
+              checked={echoEnabled}
+              disabled={echoLoading || echoSaving}
+              onChange={onEchoEnabledChange}
               size="sm"
             />
           </div>

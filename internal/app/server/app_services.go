@@ -18,6 +18,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
+	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 	channelauthorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
@@ -26,6 +27,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/welcomegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	echosvc "github.com/nexus-research-lab/nexus/internal/service/echo"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
@@ -74,6 +76,7 @@ type AppServices struct {
 	ChannelAuthorization   *channelauthorizationsvc.Service
 	Communication          *communicationsvc.Service
 	DM                     *dmsvc.Service
+	Echo                   *echosvc.Service
 	Ingress                *channels.IngressService
 	RoomRealtime           *roomrealtime.Service
 	Automation             *automationsvc.Service
@@ -85,6 +88,7 @@ type AppServices struct {
 	WorkGraphWorkflow      *workgraphworkflowsvc.Service
 	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
+	Browser                *browsersvc.Service
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
 	ownsDB                 bool
@@ -104,6 +108,9 @@ func (s *AppServices) Close(ctx context.Context) error {
 	}
 	if s.Welcome != nil {
 		closeErrors = append(closeErrors, s.Welcome.Close(ctx))
+	}
+	if s.Browser != nil {
+		s.Browser.Close()
 	}
 	if s.ownsDB && s.DB != nil {
 		closeErrors = append(closeErrors, s.DB.Close())
@@ -171,6 +178,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		}, nil
 	})
 	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
+	var browserService *browsersvc.Service
+	if cfg.BrowserEnabled {
+		browserService = browsersvc.NewService()
+	}
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
@@ -192,6 +203,15 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
 		LauncherPath: cfg.RuntimeLauncherPath,
 	})
+	if browserService != nil {
+		runtimeManager.SetRoundFinishedObserver(func(sessionKey string, roundID string) {
+			go func() {
+				if err := browserService.FinalizeRound(context.Background(), sessionKey, roundID); err != nil {
+					logger.Warn("Browser round 收尾失败", "session_key", sessionKey, "round_id", roundID, "err", err)
+				}
+			}()
+		})
+	}
 	runtimeTransition := newRuntimeAuthTransition(runtimeManager)
 	authService.SetRuntimeTransitionCoordinator(runtimeTransition)
 	projectPermissionService.SetRuntimeSessionCloser(runtimeManager)
@@ -254,6 +274,21 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	})
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
+	echoService := echosvc.NewService(
+		cfg,
+		db,
+		core.Agent,
+		core.Session,
+		dmService,
+		runtimeManager,
+		providerService,
+		preferencesService,
+	)
+	echoService.SetLogger(logger.With("component", "echo"))
+	dmService.SetEchoLifecycleHooks(dmsvc.EchoLifecycleHooks{
+		OnUserActivity: echoService.OnUserActivity,
+		OnTerminal:     echoService.OnTerminal,
+	})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
@@ -403,6 +438,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
 	visualizeBuilder := newVisualizeMCPBuilder()
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
+	browserBuilder := newBrowserMCPBuilder(browserService, preferencesService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	standardMCPBuilder := combinedMCPBuilder(
 		communicationBuilder,
@@ -411,6 +447,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelAuthorizationBuilder,
 		contextOnlyMCPBuilder(visualizeBuilder),
 		contextOnlyMCPBuilder(imagegenBuilder),
+		roundContextMCPBuilder(browserBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
 	mcpBuilder := standardMCPBuilder
@@ -444,6 +481,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		ChannelAuthorization:   channelAuthorization,
 		Communication:          communicationService,
 		DM:                     dmService,
+		Echo:                   echoService,
 		Ingress:                ingressService,
 		RoomRealtime:           roomRealtime,
 		Automation:             automationService,
@@ -455,6 +493,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		WorkGraphWorkflow:      workGraphWorkflowService,
 		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,
+		Browser:                browserService,
 		SlashCatalog:           slashCommandCatalog,
 		SlashRegistry:          slashCommandRegistry,
 	}

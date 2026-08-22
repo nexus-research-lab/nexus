@@ -38,7 +38,7 @@ type runtimeAutomationController interface {
 }
 
 func newRuntimeAutomationCommand() *cobra.Command {
-	command := &cobra.Command{Use: "automation", Short: "管理 scheduled task 与 heartbeat"}
+	command := &cobra.Command{Use: "automation", Short: "管理 scheduled task"}
 	command.AddCommand(
 		newRuntimeAutomationContractCommand(),
 		newRuntimeAutomationInspectCommand(),

@@ -72,7 +72,6 @@ export function useComposerSessionSettings(
   const settings = target
     ? settingsBySession[target.sessionKey] ?? EMPTY_SETTINGS
     : EMPTY_SETTINGS;
-
   useEffect(() => {
     const initialTargetId = scope?.initialTargetId ?? "";
     const initialTargetChanged =
@@ -261,6 +260,7 @@ export function useComposerSessionSettings(
       );
     }
   }, [cacheSettings, t, target]);
+
   const selectTarget = useCallback((agentId: string) => {
     setSettingsError(null);
     setSelectedTargetId(agentId);

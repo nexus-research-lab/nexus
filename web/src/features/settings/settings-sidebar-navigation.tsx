@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Cable,
+  Chrome,
   Cpu,
   FolderKanban,
   Palette,
@@ -30,6 +31,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   runtime: Cpu,
   operations: ShieldCheck,
   permissions: ShieldCheck,
+	browser: Chrome,
   personal: UserRound,
   providers: Cable,
   workspace: FolderKanban,
@@ -50,6 +52,7 @@ export function SettingsSidebarNavigation({
     items: group.items.filter(
       (item) =>
         (item.key !== "workspace" || isDesktopRuntime()) &&
+				(item.key !== "browser" || isDesktopRuntime()) &&
         (item.key !== "operations" ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),

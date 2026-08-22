@@ -182,8 +182,7 @@ func skillChangeTarget(actor *resolvedActor, request ChangeRequest) (skillAgentT
 		if err := json.Unmarshal(request.Input, &input); err != nil {
 			return skillAgentTarget{}, true, fmt.Errorf("解析 Skills 目标 Agent: %w", err)
 		}
-		input.AgentID = strings.TrimSpace(input.AgentID)
-		input.SourceIdentity = strings.TrimSpace(input.SourceIdentity)
+		input = input.Normalized()
 		if input.AgentID == "" {
 			return skillAgentTarget{}, true, errors.New("skills install/uninstall 的 agent_id 不能为空")
 		}
@@ -201,8 +200,7 @@ func skillChangeTarget(actor *resolvedActor, request ChangeRequest) (skillAgentT
 			return skillAgentTarget{}, true, fmt.Errorf("解析 Skills self 目标: %w", err)
 		}
 		input.AgentID = agentID
-		input.SourceIdentity = strings.TrimSpace(input.SourceIdentity)
-		return input, true, nil
+		return input.Normalized(), true, nil
 	default:
 		return skillAgentTarget{}, false, nil
 	}

@@ -209,7 +209,6 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"页面或 IM 的 `/y`、`/a`、`/d`",
 			"references/queries.md",
 			"references/scheduled-tasks.md",
-			"references/heartbeat.md",
 		},
 		filepath.Join("automation", "references", "queries.md"): {
 			"Automation 查询",
@@ -220,11 +219,6 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"retry_delivery",
 			"inspect → plan → apply → verify",
 			"cross_agent_allowed",
-		},
-		filepath.Join("automation", "references", "heartbeat.md"): {
-			"set_heartbeat",
-			"next-heartbeat",
-			"scheduled task",
 		},
 		filepath.Join("nexus-configuration", "SKILL.md"): {
 			"NEXUSCFG_COMMAND_PATH",

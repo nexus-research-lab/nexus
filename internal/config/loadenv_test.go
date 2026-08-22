@@ -138,6 +138,15 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 	}
 }
 
+func TestLoadBrowserDefaultsToDesktopMode(t *testing.T) {
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	t.Setenv("NEXUS_BROWSER_ENABLED", "")
+
+	if cfg := Load(); !cfg.BrowserEnabled {
+		t.Fatal("desktop 模式应默认启用 Browser")
+	}
+}
+
 func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")

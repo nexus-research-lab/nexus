@@ -62,6 +62,7 @@ export function MessageAssistantSection({
               automationTaskName={assistant.header.automationTaskName}
               canStop={assistant.header.canStop}
               compact={compact}
+              echo={assistant.header.echo}
               headerAction={assistantHeaderAction}
               handoffReplySourceAgentId={
                 assistant.header.handoffReply?.source_agent_id ?? null

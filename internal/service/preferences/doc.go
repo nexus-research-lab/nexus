@@ -8,8 +8,9 @@
 //   - model_preferences.go：含持久化 version 的偏好模型、规范化和 WebSearch 校验。
 //   - imagegen_tool.go：Web 与对话配置共用的默认图片工具投影。
 //
-// 暴露接口：NewService、Get、Update、UpdateAtVersion、UpdatePrepared、
-// UpdatePreparedAtVersion、RestoreIfVersion、DefaultPreferences、ReconcileImagegenDefaultTool。
+// 暴露接口：NewService、Get、Update、SetEchoEnabled、UpdateAtVersion、
+// UpdatePrepared、UpdatePreparedAtVersion、RestoreIfVersion、DefaultPreferences、
+// ReconcileImagegenDefaultTool。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package preferences

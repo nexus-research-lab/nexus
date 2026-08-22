@@ -461,7 +461,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		if err := decode(&input); err != nil {
 			return err
 		}
-		if strings.TrimSpace(input.AgentID) == "" {
+		if input.Normalized().AgentID == "" {
 			return errors.New("agent_id 不能为空")
 		}
 		return nil
@@ -470,7 +470,7 @@ func validateChangeRequest(request ChangeRequest) error {
 		if err := decode(&input); err != nil {
 			return err
 		}
-		if strings.TrimSpace(input.AgentID) == "" {
+		if input.Normalized().AgentID == "" {
 			return errors.New("agent_id 不能为空")
 		}
 		if input.Paused == nil {
@@ -491,10 +491,10 @@ func validateChangeRequest(request ChangeRequest) error {
 		if err := decode(&input); err != nil {
 			return err
 		}
-		if strings.TrimSpace(input.ConversationID) == "" {
+		if input.Normalized().ConversationID == "" {
 			return errors.New("conversation_id 不能为空")
 		}
-		if strings.TrimSpace(input.Title) == "" {
+		if input.Normalized().Title == "" {
 			return errors.New("title 不能为空")
 		}
 		return nil
@@ -506,10 +506,10 @@ func validateChangeRequest(request ChangeRequest) error {
 		if err := decode(&input); err != nil {
 			return err
 		}
-		if strings.TrimSpace(input.ConversationID) == "" {
+		if input.Normalized().ConversationID == "" {
 			return errors.New("conversation_id 不能为空")
 		}
-		if strings.TrimSpace(input.Title) != "" {
+		if input.Normalized().Title != "" {
 			return errors.New("rooms.delete_conversation 不接受 title")
 		}
 		return nil
@@ -563,10 +563,11 @@ func rejectScopedSkillOptionFields(input json.RawMessage, container string) erro
 }
 
 func validateSkillSelectionInput(input skillAgentTarget, requireAgentID bool) error {
-	if requireAgentID && strings.TrimSpace(input.AgentID) == "" {
+	input = input.Normalized()
+	if requireAgentID && input.AgentID == "" {
 		return errors.New("Skills 变更要求 input.agent_id")
 	}
-	if !requireAgentID && strings.TrimSpace(input.AgentID) != "" {
+	if !requireAgentID && input.AgentID != "" {
 		return errors.New("Skills self 变更不能指定 agent_id")
 	}
 	switch input.TargetScope {
@@ -574,7 +575,7 @@ func validateSkillSelectionInput(input skillAgentTarget, requireAgentID bool) er
 	default:
 		return errors.New("Skills 变更的 target_scope 必须是 global_library 或 agent_workspace")
 	}
-	if strings.TrimSpace(input.SourceIdentity) == "" {
+	if input.SourceIdentity == "" {
 		return errors.New("Skills 变更要求 inspect 返回的 source_identity")
 	}
 	return nil
@@ -662,11 +663,12 @@ func (s *Service) validateScopedChange(
 			if err := strictDecodeJSON(request.Input, &input); err != nil {
 				return err
 			}
+			input = input.Normalized()
 			roomValue, err := s.rooms.GetRoom(ctx, request.Target)
 			if err != nil {
 				return fmt.Errorf("核对 Room 成员参与状态: %w", err)
 			}
-			memberID := strings.TrimSpace(input.AgentID)
+			memberID := input.AgentID
 			memberFound := false
 			for _, member := range roomValue.Members {
 				if member.MemberType == protocol.MemberTypeAgent &&
