@@ -4,6 +4,10 @@
 
 import type { ToolInput } from "../../system/sdk";
 import type { MessageAttachmentScope } from "./attachment";
+import type {
+  WorkGraphWorkflow,
+  WorkGraphWorkflowPreview,
+} from "../workgraph-workflow";
 
 interface DeferredMessageDetail {
   detail_ref?: string;
@@ -139,6 +143,19 @@ export interface WorkspaceFileArtifactContent {
   source_tool_name?: string | null;
 }
 
+export interface WorkGraphArtifactContent {
+  type: "workgraph_artifact";
+  id?: string;
+  state: "draft" | "saved";
+  operation: string;
+  head_revision?: number;
+  selected_revision?: number;
+  version_count?: number;
+  preview?: WorkGraphWorkflowPreview;
+  workflow?: WorkGraphWorkflow;
+  source_tool_use_id?: string;
+}
+
 type SystemEventTone = "neutral" | "warning";
 export type SystemEventIcon = "retry" | "progress" | "status" | "guide";
 
@@ -173,5 +190,6 @@ export type ContentBlock =
   | TaskProgressContent
   | ProgressUpdateContent
   | WorkspaceFileArtifactContent
+  | WorkGraphArtifactContent
   | SystemEventContent
   | UnsupportedContent;

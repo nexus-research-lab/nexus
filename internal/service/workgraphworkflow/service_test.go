@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -512,6 +513,14 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	}
 	if sessions.created[0].AgentID != "agent-main" || editor.AgentID != "agent-main" {
 		t.Fatalf("hidden editor request = %#v", sessions.created[0])
+	}
+	policy, active, err := service.RuntimeEditorPolicy("owner-a", editor.SessionKey)
+	if err != nil || !active {
+		t.Fatalf("editor runtime policy unavailable: active=%v err=%v", active, err)
+	}
+	if !slices.Contains(policy.ToolPolicy.AllowedTools, "Read") ||
+		slices.Contains(policy.ToolPolicy.DisallowedTools, "Read") {
+		t.Fatalf("editor must support the CLI input-slot Read→Write contract: %#v", policy.ToolPolicy)
 	}
 	nodes := cloneWorkflowNodes(editor.Preview.Nodes)
 	for index := range nodes {

@@ -16,6 +16,7 @@ import { isHiddenSystemEvent } from "../../../message-content-model";
 
 import { ImageBlock } from "../../../blocks/artifact/image/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
+import { WorkGraphArtifactBlock } from "../../../blocks/artifact/workgraph/workgraph-artifact-block";
 import { ThinkingBlock } from "../../../blocks/thinking-block";
 import { ToolUseErrorBlock } from "../../../blocks/tool/tool-use-error-block";
 import { MarkdownRenderer } from "../../../markdown-renderer";
@@ -87,6 +88,7 @@ const CONTENT_BLOCK_RENDERERS = {
   tool_use: renderToolUseBlock,
   tool_use_error: renderToolUseErrorBlock,
   unsupported: renderHiddenBlock,
+  workgraph_artifact: renderWorkGraphArtifactBlock,
   workspace_file_artifact: renderWorkspaceFileArtifactBlock,
 } satisfies ContentBlockRendererMap;
 
@@ -194,6 +196,12 @@ function renderWorkspaceFileArtifactBlock(
       onOpenWorkspaceFile={context.onOpenWorkspaceFile}
     />
   );
+}
+
+function renderWorkGraphArtifactBlock(
+  block: ContentBlockOf<"workgraph_artifact">,
+) {
+  return <WorkGraphArtifactBlock artifact={block} />;
 }
 
 function renderToolUseBlock(

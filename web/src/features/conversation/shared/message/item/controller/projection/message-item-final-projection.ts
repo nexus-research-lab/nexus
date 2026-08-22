@@ -490,10 +490,20 @@ function resolveGenerativeUIEntries(
         : []
     )),
   );
-  return entries.filter(({ block }) => (
+  const generativeUIEntries = entries.filter(({ block }) => (
     (block.type === "tool_use" && toolUseIds.has(block.id))
     || (block.type === "tool_result" && toolUseIds.has(block.tool_use_id))
   ));
+  // 同一轮可能先 get 再 revise；最终回复只展示最后一张完整图快照，
+  // 其余命令仍留在过程区，避免对话里连续堆叠旧版本卡片。
+  const latestWorkGraphArtifact = entries.findLast(
+    ({ block }) => block.type === "workgraph_artifact",
+  );
+  return latestWorkGraphArtifact
+    ? [...generativeUIEntries, latestWorkGraphArtifact].sort(
+        (left, right) => left.mergedIndex - right.mergedIndex,
+      )
+    : generativeUIEntries;
 }
 
 export function resolveRoomResultFinalAssistantContent({

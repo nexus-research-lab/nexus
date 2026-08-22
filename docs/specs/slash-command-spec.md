@@ -101,7 +101,7 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   purpose=workgraph_distillation` 的 Agent round；该 Session 不 fork 或续写源 transcript，只通过 capability 绑定原 source session 与 exact preview，pending、过程、工具与完成事件全程隐藏，不生成聊天消息或改写源 Composer；
   `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。
   Agent 不得重新 inspect、选节点、命名或抽象，HTTP 调度端点不得直接创建命名图；
-- 普通 DM/Room 中用户也可以要求智能体沉淀或继续编辑 WorkGraph。模型加载 `execution-orchestrator`，先调用 `inspect_workgraph_library` 读取当前 Session 的 completed sources、Drafts 和 owner 命名图，再用 exact `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision`、`save_workgraph_preview`；这些 operation 不依赖 active Execution，保存只接受当前对话中的明确确认，并且只回复当前会话，不向来源或其他 Session 透传；
+- 普通 DM/Room 中用户也可以要求智能体沉淀或继续编辑 WorkGraph。模型加载 `execution-orchestrator`，先调用 `inspect_workgraph_library` 读取当前 Session 的 completed sources、Drafts 和 owner 命名图，再用 exact `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision`、`save_workgraph_preview`；这些 operation 不依赖 active Execution，保存只接受当前对话中的明确确认，并且只回复当前会话，不向来源或其他 Session 透传。成功结果自动把最后一份完整图快照渲染为当前回复的草图卡片，来源对照只在用户显式打开后按 exact source identity 加载；
 - 已保存命名图可从能力页恢复原 Draft、selected revision 和隐藏编辑 Session；旧数据没有 Draft 时只建立一次初始版本。后续保存更新同一命名图 aggregate 并追加版本，不重复抽取、不制造同名副本；
 - inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为
   tool result、普通用户正文或 Nexus next-turn context；`context: fork` 由 runtime

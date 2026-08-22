@@ -98,6 +98,11 @@ const CONTENT_BLOCK_KEY_RESOLVERS = {
   tool_use: (block) => (block.id ? `tool_use:${block.id}` : null),
   tool_use_error: (block) => `tool_use_error:${block.content}`,
   unsupported: (block) => `unsupported:${block.original_type}:${stableBlockValue(block.payload)}`,
+  workgraph_artifact: (block) => (
+    block.id
+      ? `workgraph_artifact:${block.id}`
+      : `workgraph_artifact:${block.preview?.preview_id ?? block.workflow?.id ?? ""}:${block.selected_revision ?? ""}`
+  ),
   workspace_file_artifact: (block) => (
     block.id
       ? `workspace_file_artifact:${block.id}`

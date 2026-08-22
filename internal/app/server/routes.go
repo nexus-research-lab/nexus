@@ -319,6 +319,10 @@ func (s *Server) mountExecutionRoutes() {
 		s.handlers.execution.HandleListExecutionHistory,
 	)
 	s.router.Get(
+		s.prefixPath("/executions/{execution_id}"),
+		s.handlers.execution.HandleGetExecution,
+	)
+	s.router.Get(
 		s.prefixPath("/workgraph/workflows"),
 		s.handlers.execution.HandleListWorkGraphWorkflows,
 	)

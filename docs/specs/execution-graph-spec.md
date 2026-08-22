@@ -239,6 +239,8 @@ managed 的最低条件是 Execution 拥有 active Plan，且该 Plan 至少包�
 `GET /executions/history?session_key=<exact>&limit=<bounded>` 只返回同一认证 owner、
 同一 exact session 的 managed ExecutionView 列表；每一项复用单图读取的同一
 transaction 与安全投影，不能用消息文本、标题或时间邻近猜 source Execution。
+`GET /executions/{execution_id}?session_key=<exact>` 使用相同 owner/session 安全边界读取一张
+exact managed ExecutionView，供草图来源对照使用；跨 owner/session identity 必须失败关闭。
 
 owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工作图：
 
@@ -255,6 +257,7 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
   面向用户的字段跟随请求界面语言；Slash 命令生成同时参考 owner 当前目录与固定保留名，默认使用一个不重复短词，只有准确单词都冲突时才退到两个词。用户可直接修改元信息，也可进入 owner Nexus 主智能体承载的目录隐藏专用 DM。该 Session 不 fork、resume 或继承来源 DM/Room transcript、Connector、workspace 或权限，来源只通过完整 Draft 与 source WorkGraph 事实提供；关闭 UI 不删除会话，再次打开恢复同一对话。
   编辑页固定为左侧标准 DM、右侧实时结构和版本目录。左侧展示不进入 transcript 或模型上下文的本地接待说明，以及该隐藏 Session 自身的编辑消息；首次进入从顶部向下增长，恢复已有对话或溢出后使用共享 FOLLOW/READING。右侧每次 revision 直接重绘 selected 完整草图。编辑 Session 只开放 `execution-orchestrator`、受管 CLI transport、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`；模型提交完整草图，服务端校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。应用只把 selected version 投影回确认页，编辑消息绝不合并回源会话。
   普通 DM/Room 同样通过 `execution-orchestrator` 和 round-scoped `nexus execution` 查询 library、提取/复用 Draft、读取、修改、选择版本，并只在用户明确确认后保存；这些 authoring operation 在当前没有 active Execution 时仍可用，不能靠聊天记忆推断历史图。
+  每次成功 authoring 的 typed CLI result 会在 assistant 消息中追加一条带完整不可变图快照的 `workgraph_artifact`；同一轮只把最后一张图提升到最终回复。聊天流默认展示当前草图或已保存图的紧凑卡片，不同时铺开原图；用户点击对照后才用 artifact 绑定的 exact source session/execution 加载来源图，桌面双栏、窄屏在来源图和草图间切换。历史 artifact 固定展示当时版本，不追随当前 Draft head 漂移。
   已保存命名图在能力页提供“继续编辑”：恢复其原 Draft、selected revision 和隐藏编辑 Session；兼容旧数据时从命名图建立一次初始 Draft。再次确认保存必须更新同一个命名图 aggregate 并追加 aggregate version，不重复抽取或创建同名副本。Draft 的到期时间是可续期的空闲 lease，读取、列举或恢复编辑时续期，不得因页面关闭丢失。
   UI 用户确认后，preview save HTTP 只在 fresh 目录隐藏内部 DM Session 调度 `HiddenFromUser + Synthetic +
   purpose=workgraph_distillation` 的 Agent round；该 Session 不 fork、resume 或续写源 transcript，只把宿主签发的 source session 和 exact preview 作为 CLI capability，
@@ -273,6 +276,7 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 
 - Header 与移动端“工作图”入口固定常驻；Surface 只由当前图标题旁的向下箭头展开并切换 exact 历史图，不承载命名工作图目录按钮；没有 managed WorkGraph 时打开统一明确空态。
 - “工作图”在能力侧栏与 Loop 同级，并在 Composer 能力菜单提供同层级的查看与复用入口；两处只展示用户已经固定保存的草图。保存入口只在 Surface 当前或历史 exact 完成图的生命周期徽标旁；点击后生成或恢复 durable Draft，可直接修改元信息，也可通过隐藏 Nexus 主智能体编辑会话调整节点、依赖和版本，应用后再选择保存或继续编辑。
+- 普通对话中的 authoring 结果只内联当前草图卡片；来源图与草图的并排画布属于用户显式打开的对照层，不占用默认聊天宽度。
 - Composer Agent Dock 只在当前 managed WorkGraph 非终态活动时显示。
 - runtime-only graph 不能填充 Surface、替换已保留的 managed 图或触发 Composer Dock。
 - 资源读取失败时可以保留最后一次成功快照，但必须显式标记 stale 与最后成功时间。
@@ -305,6 +309,7 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 - 搜索、折叠/展开 ownership subtree；
 - 点击节点或边打开检查器；
 - 完成态图可以请求默认对话模型抽取或恢复结构草图，直接调整元信息，或通过隐藏专用 DM 调整节点、依赖和所选版本后选择应用、保存或继续编辑；
+- 普通 DM/Room 的草图卡片可以打开 exact 来源图对照；桌面并排、窄屏切换，默认聊天只渲染当前草图；
 - 用空白点击或 Escape 关闭检查器；
 - 从 Tool Run 的安全 workspace 相对 Artifact 跳转到既有 Workspace 打开链路。
 
