@@ -80,13 +80,13 @@ cd ../nexus-agent-sdk-go
 go test ./internal/tools/runtime ./internal/query
 ```
 
-### RUN-02 ToolSearch 默认关闭
+### RUN-02 ToolSearch 默认开启
 
 分别用默认环境、显式开启和显式关闭三组配置启动会话：
 
-- 默认环境不向模型暴露 `ToolSearch`，也不注入 deferred-tools 公告。
-- 只有显式开启时才省略延迟工具 schema，并在发现后稳定恢复对应 schema。
-- 关闭实验能力时，即使 Provider 支持，也不得偷偷开启。
+- 默认环境向模型暴露 `ToolSearch`，省略延迟工具 schema，并在发现后稳定恢复对应 schema。
+- 显式关闭时不暴露 `ToolSearch`，当前可见工具的 schema 全量内联。
+- 关闭实验能力时不得发送 Provider 私有 beta，仍可使用本地 schema promotion。
 - 开启后的公告只存在于请求期，不写入 transcript；同一会话的公告集合冻结，不能因 MCP 热变更破坏缓存前缀。
 
 ### RUN-03 NXS、Claude runtime 与原生 Claude 客户端对比
@@ -626,7 +626,7 @@ NEXUS_LIVE_TESTS=1 go test ./tests/live -run 'TestNativeAnthropicLive|TestOpenAI
 | NXS-TOOL-16 | `read_result` | 大工具结果分页读取保持 tool use 归属，越界和过期引用明确失败 |
 | NXS-TOOL-17 | ViewImage/vision | 支持模型直通图片；不支持模型 fail closed，不把本地路径泄漏到远端文本 |
 | NXS-TOOL-18 | 可选工具 | NotebookEdit、worktree、LSP、PowerShell、REPL 只有显式能力/runner 时出现 |
-| NXS-TOOL-19 | ToolSearch opt-in | 默认隐藏；开启时权限后检索、schema promotion、历史发现恢复和 MCP 断连失效正确 |
+| NXS-TOOL-19 | ToolSearch | 默认开启；权限后检索、schema promotion、历史发现恢复、MCP 断连失效和显式关闭均正确 |
 | NXS-TOOL-20 | 工具结果错误 | `is_error`、`error_code`、stderr、结构化结果和模型可见正文各自职责清晰 |
 
 ### 8.4 MCP、权限、hooks 与 sandbox
@@ -797,7 +797,7 @@ App version/包路径：
 runtime 路径与版本：
 NEXUS_STATE_ROOT：隔离/现有，只写类别，不记录敏感路径
 Provider/模型：
-ToolSearch：默认关闭/显式开启
+ToolSearch：默认开启/显式关闭
 权限模式：
 Room/Conversation/Session：
 唯一输入与末条标记：

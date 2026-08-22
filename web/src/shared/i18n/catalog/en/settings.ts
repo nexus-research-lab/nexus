@@ -70,7 +70,7 @@ export const enSettingsMessages = {
   "settings.runtime.kernel_claude": "Claude",
   "settings.runtime.kernel_nxs": "nxs",
   "settings.runtime.tool_search_title": "ToolSearch",
-  "settings.runtime.tool_search_description": "Let nxs discover deferred tools on demand. Off by default; when off, schemas stay inline.",
+  "settings.runtime.tool_search_description": "Let nxs discover deferred tools on demand. On by default; when off, schemas stay inline.",
   "settings.runtime.tool_search_label": "Tool search",
   "settings.runtime.web_search_title": "WebSearch",
   "settings.runtime.web_search_description": "Choose a search provider and enter the configuration required to run it.",
