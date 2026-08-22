@@ -1,6 +1,6 @@
 /**
- * INPUT: exact WorkGraph preview 与源 Session。
- * OUTPUT: 左侧展示本地接待说明与隐藏专用 DM 的持续对话，右侧展示 Room/DM 共用画布和版本选择。
+ * INPUT: exact WorkGraph preview、源 Session 与源会话可见 Agent。
+ * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，左侧展示本地接待说明与专用 DM，右侧展示共用画布和版本选择。
  * POS: 关闭页面不删除会话；应用只投影所选版本，画布容器保持 flex 高度且不改写源 Execution/聊天。
  */
 "use client";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useAgentStore } from "@/store/agent";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -66,6 +67,9 @@ export function WorkGraphMetadataEditorDialog({
   const { locale, t } = useI18n();
   const runtimeKind = useDefaultAgentRuntimeKind();
   const initialPreviewRef = useRef(preview);
+  const sourceAgentsRef = useRef(agents);
+  const catalogAgents = useAgentStore((state) => state.agents);
+  const loadAgents = useAgentStore((state) => state.load_agents_from_server);
   const startContextRef = useRef({
     locale,
     failureMessage: t("execution.workflow_editor_start_failed"),
@@ -89,7 +93,14 @@ export function WorkGraphMetadataEditorDialog({
     const initialPreview = initialPreviewRef.current;
     const startContext = startContextRef.current;
     void startWorkGraphWorkflowEditorApi(sessionKey, initialPreview, startContext.locale)
-      .then((session) => {
+      .then(async (session) => {
+        if (!active) return;
+        const hasEditorAgent = sourceAgentsRef.current.some(
+          (item) => item.agent_id === session.agent_id,
+        ) || useAgentStore.getState().get_agent(session.agent_id) !== undefined;
+        if (!hasEditorAgent) {
+          await loadAgents();
+        }
         if (!active) return;
         updateEditor(session);
       })
@@ -104,7 +115,7 @@ export function WorkGraphMetadataEditorDialog({
     return () => {
       active = false;
     };
-  }, [sessionKey, startAttempt, updateEditor]);
+  }, [loadAgents, sessionKey, startAttempt, updateEditor]);
 
   const handleRetryStart = useCallback(() => {
     setError(null);
@@ -178,9 +189,11 @@ export function WorkGraphMetadataEditorDialog({
   } : null, [editor]);
   const agent = useMemo(
     () => editor
-      ? agents.find((item) => item.agent_id === editor.agent_id) ?? null
+      ? agents.find((item) => item.agent_id === editor.agent_id)
+        ?? catalogAgents.find((item) => item.agent_id === editor.agent_id)
+        ?? null
       : null,
-    [agents, editor],
+    [agents, catalogAgents, editor],
   );
   const currentPreview = editor?.preview ?? preview;
   const canvasExecution = useMemo(
