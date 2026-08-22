@@ -37,6 +37,7 @@ func newWebSocketHandler(
 		services.SlashCatalog,
 		newRuntimeKindResolver(services),
 	)
+	handler.SetBrowserCommandEnabled(services != nil && services.Browser != nil)
 	if services != nil && services.Orchestration != nil {
 		services.Orchestration.SetExecutionInvalidationSink(handler)
 	}

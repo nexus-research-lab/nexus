@@ -36,7 +36,7 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 		},
 	}
 
-	data := projectCommandCatalog(snapshot, "agent-a", nil)
+	data := projectCommandCatalog(snapshot, "agent-a", nil, true)
 	if data.Status != protocol.CommandCatalogStatusReady ||
 		data.RuntimeKind != "nxs" ||
 		data.AgentID != "agent-a" ||
@@ -95,7 +95,7 @@ func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T
 		Name:      "goal",
 		Execution: protocol.CommandExecutionHost,
 		Enabled:   true,
-	}})
+	}}, true)
 
 	if data.Status != protocol.CommandCatalogStatusUnavailable ||
 		!strings.HasPrefix(data.Revision, "commands-") ||
@@ -121,7 +121,7 @@ func TestProjectCommandCatalogKeepsModelOwnedByNexusHost(t *testing.T) {
 		Description: "Nexus model",
 		Execution:   protocol.CommandExecutionHost,
 		Enabled:     true,
-	}})
+	}}, true)
 
 	if len(data.Commands) != 4 ||
 		data.Commands[1].Execution != protocol.CommandExecutionHost ||
@@ -135,6 +135,7 @@ func TestProjectCommandCatalogIncludesOwnerWorkflowCommands(t *testing.T) {
 		slashcommandsvc.RuntimeCatalogSnapshot{Status: protocol.CommandCatalogStatusReady},
 		"agent-a",
 		nil,
+		true,
 		[]protocol.CommandDescriptor{{
 			Name: "deep-research", Description: "Reusable research graph",
 			ArgumentHint: "<request>", Execution: protocol.CommandExecutionRuntime, Enabled: true,
@@ -144,5 +145,17 @@ func TestProjectCommandCatalogIncludesOwnerWorkflowCommands(t *testing.T) {
 		data.Commands[1].Name != "deep-research" || data.Commands[2].Name != "visualize" ||
 		data.Commands[3].Name != "workgraph" {
 		t.Fatalf("catalog = %#v, want owner workflow beside fixed product prompts", data)
+	}
+}
+
+func TestProjectCommandCatalogHidesBrowserWhenServiceUnavailable(t *testing.T) {
+	data := projectCommandCatalog(
+		slashcommandsvc.RuntimeCatalogSnapshot{Status: protocol.CommandCatalogStatusUnavailable},
+		"agent-a",
+		nil,
+		false,
+	)
+	if len(data.Commands) != 2 || data.Commands[0].Name != "visualize" || data.Commands[1].Name != "workgraph" {
+		t.Fatalf("catalog = %#v, want product prompts without desktop-only Browser", data)
 	}
 }

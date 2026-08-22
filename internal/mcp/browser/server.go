@@ -30,6 +30,7 @@ func NewServer(
 		Description: "通过 Nexus Browser 完整控制 Chromium。" +
 			"支持标签页、历史、导航、页面内容、可访问性快照、CSS/ref 与坐标交互、" +
 			"JavaScript、CDP、网络、控制台、对话框、剪贴板、上传下载、截图与 PDF。" +
+			"页面点击统一使用 click，不要用 evaluate 调用 element.click() 绕过真实输入和可见指针。" +
 			"snapshot 默认返回相对上一版的增量；操作后再取新快照，不要在无变化时重复调用。",
 		SearchHint:  "browser chrome web navigate history cdp network snapshot click fill screenshot download tab 浏览器 网页 操作",
 		InputSchema: browserSchema(),
@@ -103,7 +104,7 @@ func browserSchema() map[string]any {
 				"description": "history、console 或 downloads 最大返回数量。",
 			},
 			"code": map[string]any{
-				"type": "string", "description": "evaluate 执行的一段有效 JavaScript；返回 Promise 时会等待其完成。",
+				"type": "string", "description": "evaluate 执行的一段有效 JavaScript；返回 Promise 时会等待其完成。页面点击必须使用 click，不要在此调用 element.click()。",
 			},
 			"cmd": map[string]any{
 				"type":        "string",
