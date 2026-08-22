@@ -12,10 +12,17 @@ Add-Type -AssemblyName UIAutomationTypes
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 
 public static class NexusWindowChromeProbe
 {
+    private const long LayeredStyle = 0x00080000;
+    private const long NoActivateStyle = 0x08000000;
+    private const long ToolWindowStyle = 0x00000080;
+    private const long TransparentStyle = 0x00000020;
+    private const uint AlphaAttribute = 0x00000002;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect
     {
@@ -62,6 +69,42 @@ public static class NexusWindowChromeProbe
     [DllImport("user32.dll")]
     public static extern bool IsZoomed(IntPtr hwnd);
 
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindowAsync(IntPtr hwnd, int command);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hwnd, StringBuilder className, int maximumCount);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetLayeredWindowAttributes(
+        IntPtr hwnd,
+        out uint colorKey,
+        out byte alpha,
+        out uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong32(IntPtr hwnd, int index);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static extern IntPtr GetWindowLongPointer64(IntPtr hwnd, int index);
+
+    private delegate bool EnumWindowsCallback(IntPtr hwnd, IntPtr parameter);
+
     public static string ValidateResizeBoundary(IntPtr hwnd)
     {
         IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
@@ -107,6 +150,92 @@ public static class NexusWindowChromeProbe
                 _ = SetThreadDpiAwarenessContext(previousDpi);
             }
         }
+    }
+
+    public static bool RestoreWindow(IntPtr hwnd)
+    {
+        return ShowWindowAsync(hwnd, 9);
+    }
+
+    public static string ValidateCompositionWindowOwner(uint browserProcessId, IntPtr ownerWindow)
+    {
+        int targetCount = 0;
+        string error = string.Empty;
+        _ = EnumWindows((hwnd, _) =>
+        {
+            if (!IsCompositionInputWindow(hwnd, browserProcessId))
+            {
+                return true;
+            }
+
+            targetCount++;
+            IntPtr actualOwner = GetWindow(hwnd, 4);
+            if (actualOwner == ownerWindow)
+            {
+                return true;
+            }
+
+            error = $"composition window 0x{hwnd.ToInt64():X} owner is 0x{actualOwner.ToInt64():X}, expected 0x{ownerWindow.ToInt64():X}";
+            return false;
+        }, IntPtr.Zero);
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            return error;
+        }
+        return string.Empty;
+    }
+
+    public static string ValidateSuspendedCompositionInput(uint browserProcessId)
+    {
+        string error = string.Empty;
+        _ = EnumWindows((hwnd, _) =>
+        {
+            if (!IsCompositionInputWindow(hwnd, browserProcessId) || !IsWindowVisible(hwnd))
+            {
+                return true;
+            }
+
+            long style = GetWindowLongPointer(hwnd, -20).ToInt64();
+            if ((style & TransparentStyle) != 0)
+            {
+                return true;
+            }
+
+            error = $"visible composition window 0x{hwnd.ToInt64():X} still accepts desktop input";
+            return false;
+        }, IntPtr.Zero);
+        return error;
+    }
+
+    private static bool IsCompositionInputWindow(IntPtr hwnd, uint browserProcessId)
+    {
+        _ = GetWindowThreadProcessId(hwnd, out uint processId);
+        if (processId != browserProcessId)
+        {
+            return false;
+        }
+
+        var className = new StringBuilder(64);
+        if (GetClassName(hwnd, className, className.Capacity) == 0 ||
+            !string.Equals(className.ToString(), "Chrome_WidgetWin_1", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        long style = GetWindowLongPointer(hwnd, -20).ToInt64();
+        long requiredStyles = LayeredStyle | NoActivateStyle | ToolWindowStyle;
+        return (style & requiredStyles) == requiredStyles &&
+            GetLayeredWindowAttributes(hwnd, out _, out byte alpha, out uint flags) &&
+            (flags & AlphaAttribute) != 0 &&
+            alpha == 0;
+    }
+
+    private static IntPtr GetWindowLongPointer(IntPtr hwnd, int index)
+    {
+        return IntPtr.Size == 8
+            ? GetWindowLongPointer64(hwnd, index)
+            : new IntPtr(GetWindowLong32(hwnd, index));
     }
 
     public static string ValidateDragBehavior(
@@ -470,6 +599,25 @@ try {
     throw "Expected Nexus main window handle"
   }
   Start-Sleep -Milliseconds 500
+  $currentLog = Read-Log $logPath
+  $currentLog = $currentLog.Substring(
+    $currentLog.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
+  )
+  $browserProcessMatches = [regex]::Matches(
+    $currentLog,
+    'event=webview\.composition_input_guard[^\r\n]*browser_process_id=(\d+)[^\r\n]*reason=initialized'
+  )
+  if ($browserProcessMatches.Count -eq 0) {
+    throw "Missing initialized WebView2 composition input guard event"
+  }
+  $browserProcessId = [uint]$browserProcessMatches[$browserProcessMatches.Count - 1].Groups[1].Value
+  $ownerError = [NexusWindowChromeProbe]::ValidateCompositionWindowOwner(
+    $browserProcessId,
+    $mainWindowHandle
+  )
+  if (-not [string]::IsNullOrEmpty($ownerError)) {
+    throw "Invalid WebView2 composition window owner: $ownerError"
+  }
   $dragError = [NexusWindowChromeProbe]::ValidateDragBehavior(
     $mainWindowHandle,
     17,
@@ -518,6 +666,36 @@ try {
   Test-FileMenuPopup $mainWindowHandle $process.Id
   Test-AboutDialog $mainWindowHandle $process.Id
 
+  Write-Host "==> Validating minimized WebView input"
+  Invoke-CaptionButton $mainWindowHandle "最小化"
+  Wait-Until {
+    $log = Read-Log $logPath
+    $markerIndex = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
+    if ($markerIndex -lt 0) {
+      return $false
+    }
+    $current = $log.Substring($markerIndex)
+    return [NexusWindowChromeProbe]::IsIconic($mainWindowHandle) -and
+      $current.Contains("reason=window_minimized state=suspended")
+  } 10 "window minimize input suspension"
+  $minimizedInputError = [NexusWindowChromeProbe]::ValidateSuspendedCompositionInput($browserProcessId)
+  if (-not [string]::IsNullOrEmpty($minimizedInputError)) {
+    throw "Minimized WebView2 input still covers the desktop: $minimizedInputError"
+  }
+  if (-not [NexusWindowChromeProbe]::RestoreWindow($mainWindowHandle)) {
+    throw "Could not restore Nexus after the minimized input check"
+  }
+  Wait-Until {
+    $log = Read-Log $logPath
+    $markerIndex = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
+    if ($markerIndex -lt 0) {
+      return $false
+    }
+    $current = $log.Substring($markerIndex)
+    return -not [NexusWindowChromeProbe]::IsIconic($mainWindowHandle) -and
+      $current.Contains("reason=window_restored state=interactive")
+  } 10 "window restore input activation"
+
   Write-Host "==> Closing app to tray"
   [void]$process.CloseMainWindow()
   Wait-Until {
@@ -527,12 +705,18 @@ try {
       return $false
     }
     $current = $log.Substring($markerIndex)
-    return $current.Contains("event=main_window.hidden_to_tray")
+    return $current.Contains("event=main_window.hidden_to_tray") -and
+      $current.Contains("event=webview.composition_input_guard") -and
+      $current.Contains("reason=tray_hide state=suspended")
   } 10 "window hidden to tray"
 
   $process.Refresh()
   if ($process.HasExited) {
     throw "Expected window close to keep Nexus running in the tray"
+  }
+  $suspendedInputError = [NexusWindowChromeProbe]::ValidateSuspendedCompositionInput($browserProcessId)
+  if (-not [string]::IsNullOrEmpty($suspendedInputError)) {
+    throw "WebView2 input still covers the desktop: $suspendedInputError"
   }
 
   Write-Host "==> Exiting app"

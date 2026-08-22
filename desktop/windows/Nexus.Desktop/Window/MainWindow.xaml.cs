@@ -73,6 +73,7 @@ public partial class MainWindow : System.Windows.Window
             return;
         }
 
+        webViewHost?.SetHostWindowInteractive(interactive: false, "exit");
         base.OnClosing(e);
     }
 
@@ -93,12 +94,17 @@ public partial class MainWindow : System.Windows.Window
     protected override void OnActivated(EventArgs e)
     {
         base.OnActivated(e);
+        webViewHost?.SetHostWindowInteractive(IsWebViewInteractive(), "activated");
         _ = webViewHost?.RecoverAfterWindowShownAsync("activated");
     }
 
     protected override void OnStateChanged(EventArgs e)
     {
         base.OnStateChanged(e);
+        bool interactive = IsWebViewInteractive();
+        webViewHost?.SetHostWindowInteractive(
+            interactive,
+            interactive ? "window_restored" : "window_minimized");
         if (WindowState != WindowState.Minimized)
         {
             _ = webViewHost?.RecoverAfterWindowShownAsync("state_changed");
@@ -121,7 +127,7 @@ public partial class MainWindow : System.Windows.Window
             startupTimeline.Mark("main_window.create_begin");
             webViewHost = CreateWebViewHost(GetOrCreateWebViewControl());
             ShowMainWindow();
-            await webViewHost.InitializeAsync();
+            await webViewHost.InitializeAsync(new WindowInteropHelper(this).Handle, IsWebViewInteractive());
             startupTimeline.Mark("main_window.created");
         }
         else
@@ -200,7 +206,7 @@ public partial class MainWindow : System.Windows.Window
             ConfigureWebViewSurface(replacement);
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
-            await webViewHost.InitializeAsync();
+            await webViewHost.InitializeAsync(new WindowInteropHelper(this).Handle, IsWebViewInteractive());
             startupTimeline.Mark(WebViewRecreateEventName(trigger, "ready"), new Dictionary<string, string>
             {
                 ["path"] = route.Path,
@@ -248,6 +254,7 @@ public partial class MainWindow : System.Windows.Window
         }
 
         startupTimeline.Mark("main_window.hidden_to_tray");
+        webViewHost?.SetHostWindowInteractive(interactive: false, "tray_hide");
         Hide();
     }
 
@@ -331,8 +338,14 @@ public partial class MainWindow : System.Windows.Window
         {
             WindowState = WindowState.Normal;
         }
+        webViewHost?.SetHostWindowInteractive(interactive: true, "window_shown");
         Activate();
         Focus();
+    }
+
+    private bool IsWebViewInteractive()
+    {
+        return !closed && IsVisible && WindowState != WindowState.Minimized;
     }
 
     private static string TrimMetadata(string value)

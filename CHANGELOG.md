@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented the Windows WebView2 composition input window from remaining over the desktop and swallowing mouse input after Nexus is minimized or hidden to the tray.
 - Hid the desktop-only Browser Slash command when the Browser service is unavailable, including on the web app.
 - Kept a clean Browser pointer visible through the active round, animated first and subsequent moves, and routed standard clicks through visible CDP mouse input instead of invisible DOM clicks.
 - Prevented macOS WebView resume probes from reloading routes while an explicit navigation is still starting.
