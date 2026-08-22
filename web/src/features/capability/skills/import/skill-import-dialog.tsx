@@ -1,7 +1,11 @@
+/**
+ * INPUT: Skill 导入模式、Git 草稿、本地文件入口与提交状态。
+ * OUTPUT: 单列导入表单和按需展开的格式要求。
+ * POS: 技能市场导入边界，不复制导入协议说明到标题区。
+ */
 "use client";
 
-import { type ComponentType, type RefObject } from "react";
-import { GitBranch, PackageCheck } from "lucide-react";
+import { type RefObject } from "react";
 
 import {
   UiDialogBackdrop,
@@ -27,14 +31,6 @@ interface SkillImportDialogProps {
   onSelectMode: (mode: SkillImportDialogMode) => void;
 }
 
-const MODE_ICONS: Record<
-  SkillImportDialogMode,
-  ComponentType<{ className?: string }>
-> = {
-  git: GitBranch,
-  local: PackageCheck,
-};
-
 export function SkillImportDialog({
   fileInputRef,
   importing,
@@ -53,8 +49,6 @@ export function SkillImportDialog({
   if (!mode) {
     return null;
   }
-  const HeaderIcon = MODE_ICONS[mode];
-
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
@@ -67,13 +61,12 @@ export function SkillImportDialog({
           size="xl"
         >
           <UiDialogHeader
-            icon={<HeaderIcon className="h-4 w-4" />}
+            appearance="plain"
             onClose={controller.dismissAction}
-            subtitle={t("capability.skills_import_subtitle")}
             title={t("capability.skills_import_title")}
           />
           <UiDialogBody
-            className="grid min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]"
+            className="min-h-0 space-y-5"
             scrollable
           >
             <SkillImportSource

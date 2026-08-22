@@ -532,7 +532,7 @@ test("WorkGraph sketch confirmation schedules a hidden background round without 
   assert.doesNotMatch(controllerSource, /WORKGRAPH_DISTILLATION_INTENT_EVENT|pendingWorkGraphPromptRef/);
 });
 
-test("WorkGraph sketch confirmation keeps copy focused on reuse", async () => {
+test("WorkGraph sketch confirmation keeps one quiet naming-and-structure surface", async () => {
   const { MESSAGES } = await server.ssrLoadModule(
     "/src/shared/i18n/messages.ts",
   );
@@ -540,16 +540,15 @@ test("WorkGraph sketch confirmation keeps copy focused on reuse", async () => {
     webRoot,
     "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
   ), "utf8");
-  const copy = [
-    MESSAGES.zh["execution.workflow_distill_subtitle"],
-    MESSAGES.zh["execution.workflow_reuse_notice"],
-    MESSAGES.zh["execution.workflow_scheduled_message"],
-  ].join("\n").replaceAll("{command}", "/integrate-reports");
-  assert.match(copy, /确认草图内容后保存/);
-  assert.match(copy, /输入 \/integrate-reports/);
-  assert.match(copy, /输入框左下角的“\+”/);
-  assert.doesNotMatch(copy, /后台 Agent|Skill 与 Nexus CLI|不进入聊天时间线/);
-  assert.match(dialogSource, /execution\.workflow_reuse_notice/);
+  const copy = MESSAGES.zh["execution.workflow_scheduled_message"]
+    .replaceAll("{command}", "/integrate-reports");
+  assert.match(copy, /保存后可用 \/integrate-reports 复用/);
+  assert.doesNotMatch(copy, /确认草图|输入框左下角|后台|模型|Agent|Skill|Nexus CLI|不进入聊天时间线/);
+  assert.doesNotMatch(dialogSource, /<UiDialogHeader|<UiDialogFooter/);
+  assert.match(dialogSource, /<UiDialogCloseButton/);
+  assert.match(dialogSource, /md:grid-cols-\[360px_minmax\(0,1fr\)\]/);
+  assert.match(dialogSource, /appearance="editor"/);
+  assert.doesNotMatch(dialogSource, /workflow_(?:distill_subtitle|reuse_notice|model_extracted|metadata_title|discard_sketch)/);
   assert.match(dialogSource, /command: `\/\$\{normalizedSlashName\}`/);
   assert.match(dialogSource, /workgraph-title/);
   assert.match(dialogSource, /workgraph-description/);
@@ -600,7 +599,10 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /embeddedEditor=/);
   assert.match(editorSource, /visibleAfterUnixMilli: editor\.display_after_unix_milli/);
   assert.match(editorSource, /execution\.workflow_editor_intro_title/);
-  assert.match(editorSource, /execution\.workflow_editor_intro_example_metadata/);
+  assert.match(editorSource, /examples: \[\]/);
+  assert.match(editorSource, /examplesLabel: ""/);
+  assert.match(editorSource, /footer: ""/);
+  assert.doesNotMatch(editorSource, /workflow_editor_intro_(?:examples|example_|footer)/);
   assert.match(editorSource, /--conversation-composer-backdrop:var\(--surface-muted-background\)/);
   assert.match(panelModelSource, /embeddedEditor\.introduction/);
   assert.match(panelModelSource, /initialScrollAnchor: embeddedEditor \? "top" : "bottom"/);
@@ -617,14 +619,11 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
     "the editor's initial top anchor must reset prior FOLLOW/READING state before normal bottom following",
   );
   assert.doesNotMatch(panelViewSource, /send_message|sendMessage|messages\.push/);
-  const introduction = [
-    MESSAGES.zh["execution.workflow_editor_intro_description"],
-    MESSAGES.zh["execution.workflow_editor_intro_example_split"],
-    MESSAGES.zh["execution.workflow_editor_intro_footer"],
-  ].join("\n");
-  assert.match(introduction, /修改命令、标题、目标、节点、层级和依赖/);
-  assert.match(introduction, /拆成两个并行节点/);
-  assert.match(introduction, /点击右上角“应用”/);
+  const introduction = MESSAGES.zh["execution.workflow_editor_intro_description"];
+  assert.match(introduction, /告诉我需要怎么改/);
+  assert.ok(introduction.length <= 28);
+  assert.match(panelViewSource, /examples\.length \?/);
+  assert.match(panelViewSource, /footer \?/);
   assert.doesNotMatch(editorSource, /<UiDialogHeader/);
   assert.match(editorSource, /<UiDialogCloseButton/);
   assert.doesNotMatch(editorSource, /<UiDialogFooter/);
@@ -729,7 +728,7 @@ test("WorkGraph editor projects sketches into the complete Room and DM canvas co
   assert.equal(projected.graph.nodes.some((node) => node.agent_id || node.attempt_id), false);
 });
 
-test("Named WorkGraph cards keep generated node prose in their compact directory preview", async () => {
+test("Named WorkGraph directory cards retain details while save confirmation hides generated prose", async () => {
   const { NamedWorkGraphSketch } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/named-workgraph-sketch.tsx",
   );
@@ -744,8 +743,14 @@ test("Named WorkGraph cards keep generated node prose in their compact directory
     NamedWorkGraphSketch,
     { dependencies: [], nodes },
   ));
+  const editorHtml = await renderWithI18n(React.createElement(
+    NamedWorkGraphSketch,
+    { appearance: "editor", dependencies: [], nodes },
+  ));
   assert.match(cardHtml, />Draft</);
   assert.match(cardHtml, /Verbose generated objective/);
+  assert.match(editorHtml, />Draft</);
+  assert.doesNotMatch(editorHtml, /Verbose generated objective/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {

@@ -12,7 +12,7 @@
 - Agent 名称允许重复，workspace 由稳定 Agent ID 定位；编辑器只做与服务端规则一致的本地格式预检，不发送名称可用性请求或显示成功占位。
 - `editor/` 管理草稿、异步校验和保存事务，组合控制器只返回内容与动作模型。
 - `components/` 只渲染身份、技能、权限、内容选择、动作和弹窗导航视图。
-- `dialog/` 提供 Contacts 创建/编辑 Agent 的 Portal 壳层；宽桌面弹窗使用稳定的视口高度，切换栏目时只更新内部内容并由内容区独立滚动；手机弹窗接近全屏、隐藏装饰性 Header 信息，底部操作始终固定。
+- `dialog/` 提供 Contacts 创建/编辑 Agent 的 Portal 壳层；壳层使用 plain 标题，不显示设置图标、生成式副标题或内部 Agent ID；宽桌面弹窗使用稳定的视口高度，切换栏目时只更新内部内容并由内容区独立滚动；手机弹窗接近全屏，底部操作始终固定。
 - `agent-options-mutation.ts` 定义创建和更新共用的字段边界，`use-existing-agent-options-commands.ts` 负责既有 Agent 的保存与名称校验。
 - 可编辑 Options 只由 `lib/agent-options.ts` 的 `pickAgentEditableOptions` 投影，编辑器初值和持久化载荷不得各维护一份字段表。
 - Agent Options 业务组件不得放入 `shared/ui/dialog/`。

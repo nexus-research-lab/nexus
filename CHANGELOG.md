@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Completed the current Web dialog audit across 59 modal roots and 5 dialog overlays: pairing, custom MCP, Goal, contacts, guides, CC Switch, Provider onboarding, history, mobile conversation switching, and anchored pickers now use quieter plain chrome, direct copy, flatter rows, and product-native confirmations without internal IDs or marketing filler.
+- Flattened Composer Loop and saved-WorkGraph pickers into quiet searchable directories, reduced attachment previews to filename-only chrome, and kept Mermaid enlargement as a title-free canvas.
+- Simplified Skill import, source management, community previews, and Scheduled task dialogs with plain chrome, collapsed format/diagnostic details, flat source rows, task-name history, and no native browser confirmations or internal IDs in headers.
+- Simplified Agent, Provider, and Room form dialogs into plain settings surfaces: internal IDs and repeated subtitles are gone, model capabilities are compact setting rows, Provider deletion shows only real consequences and Agent names, and Room actions now use the shared form chrome.
+- Continued the dialog polish across Connector and Channel setup with plain headers and footers, compact credential forms, terse Device Flow states, collapsed platform instructions, and security copy limited to the active authorization step.
+- Started the phased dialog polish with quiet shared decision prompts, a flat WorkGraph naming-and-structure save surface, terse embedded-editor guidance, and a title-free source comparison canvas that removes generated implementation prose without changing confirmation or revision behavior.
 - Increased ToolUseSummary typography in Room feeds, DMs, and Threads to sit just below normal reply text instead of reading like secondary metadata.
 - Removed the redundant disabled “no historical WorkGraphs” row when the current WorkGraph is the selector's only choice.
 - Kept DM and Room Thread process details in one expandable ToolUseSummary row while simplifying the Room main Feed to a single uniform-color, non-expandable live summary that replaces generic thinking/replying copy; concrete thinking, tools, MCP/CLI calls, counts, and errors remain available only in Thread, and the separate final reply stays visible.
@@ -42,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced generic “service internal error” UI text with the current operation's actionable fallback while preserving specific business errors.
 - Fixed hidden WorkGraph editor and save sessions denying the `Read` step required by the host-created CLI input-slot contract, which previously forced invalid shell-redirection fallbacks.
 - Fixed WorkGraph editing opened from a Room or Agent DM being misreported as unavailable when its hidden Nexus main Agent was not part of the source conversation's member list.
 - Replaced raw conversation error bubbles with a unified recoverable reliability state: WebSocket failures now retry before becoming terminal, reconnects replay bindings and reconcile durable DM/Room state, runtime API retries clear on exact round progress, Room member failures stay scoped to their Agent round, and user-facing notices no longer expose technical details or stale errors after recovery.

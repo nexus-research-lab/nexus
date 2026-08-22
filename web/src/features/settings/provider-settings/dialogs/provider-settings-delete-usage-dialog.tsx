@@ -1,4 +1,6 @@
-import { Trash2 } from "lucide-react";
+// INPUT: 仍被 Agent 使用的 Provider、精确使用者和强制删除动作。
+// OUTPUT: 目标、具体后果与使用者列表组成的 plain 高风险弹窗。
+// POS: Provider 删除前的占用确认面，不展示内部 Agent ID 或装饰性危险卡。
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -50,27 +52,26 @@ export function ProviderDeleteUsageDialog({
       >
         <UiDialogShell size="sm">
           <UiDialogHeader
-            icon={<Trash2 className="h-4.5 w-4.5" />}
+            appearance="plain"
             onClose={onCancel}
-            subtitle={t("settings.providers.delete_usage_subtitle", { name: getProviderTitle(deleteTargetRecord) })}
-            title={t("settings.providers.delete_usage_title")}
+            title={t("settings.providers.delete_usage_subtitle", { name: getProviderTitle(deleteTargetRecord) })}
             titleId="provider-delete-blocked-title"
           />
-          <UiDialogBody className="space-y-3">
-            <div className="rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2 text-compact leading-5 text-(--text-muted)">
+          <UiDialogBody className="space-y-3 px-5">
+            <p className="text-sm leading-6 text-(--text-muted)">
               {t("settings.providers.force_delete_description")}
-            </div>
+            </p>
             {deleteUsageAgents.length > 0 ? (
-              <div className="max-h-64 overflow-y-auto rounded-[12px] border border-(--divider-subtle-color)">
-                {deleteUsageAgents.map((agent) => (
-                  <div
-                    className="flex min-h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2 last:border-b-0"
-                    key={agent.agent_id}
-                  >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) bg-(--background) text-xs font-semibold text-(--text-muted)">
-                      {(getUsageAgentTitle(agent).slice(0, 2) || "AG").toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
+              <section className="space-y-1.5">
+                <h3 className="text-xs font-medium text-(--text-muted)">
+                  {t("settings.providers.used_by_agents")}
+                </h3>
+                <div className="max-h-64 divide-y divide-(--divider-subtle-color) overflow-y-auto border-y border-(--divider-subtle-color)">
+                  {deleteUsageAgents.map((agent) => (
+                    <div
+                      className="flex min-h-10 items-center px-1 py-2"
+                      key={agent.agent_id}
+                    >
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-sm font-semibold text-(--text-strong)">
                           {getUsageAgentTitle(agent)}
@@ -81,20 +82,17 @@ export function ProviderDeleteUsageDialog({
                           </span>
                         ) : null}
                       </div>
-                      <div className="truncate font-mono text-xs text-(--text-soft)">
-                        {agent.agent_id}
-                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </section>
             ) : (
-              <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-3 text-compact leading-5 text-(--text-muted)">
+              <p className="text-compact leading-5 text-(--text-muted)">
                 {t("settings.providers.delete_usage_stale", { count: deleteTargetRecord.usage_count })}
-              </div>
+              </p>
             )}
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton
               onClick={onCancel}
               type="button"

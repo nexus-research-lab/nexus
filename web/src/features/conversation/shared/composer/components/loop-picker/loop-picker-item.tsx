@@ -1,4 +1,8 @@
-import { UiButton } from "@/shared/ui/button/button";
+/**
+ * INPUT: 单个 Loop、当前启动状态与选择动作。
+ * OUTPUT: 一次点击即可选择的扁平目录行。
+ * POS: Loop picker 列表项，不复制弹窗动作或状态说明。
+ */
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
@@ -15,42 +19,27 @@ export function LoopPickerItem({
   const actionLabel = busySlug === loop.slug
     ? t("composer.loop_starting")
     : t("composer.use_loop");
-  const select = () => void onSelect(loop);
   return (
-    <div className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-raised-background) p-3 transition-colors hover:bg-(--surface-interactive-hover-background)">
-      <div className="flex items-start justify-between gap-3">
-        <button
-          className="min-w-0 flex-1 text-left"
-          disabled={busySlug !== null}
-          onClick={select}
-          type="button"
-        >
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-[6px] bg-(--surface-interactive-hover-background) px-2 py-0.5 text-xs text-(--text-soft)">
-              {loop.category}
-            </span>
-            <span className="rounded-[6px] bg-(--surface-interactive-hover-background) px-2 py-0.5 text-xs text-(--text-soft)">
-              {loop.trigger_type}
-            </span>
-          </div>
-          <div className="mt-2 text-[14px] font-semibold text-(--text-strong)">
-            {loop.title}
-          </div>
-          <p className="mt-1 line-clamp-2 text-compact leading-5 text-(--text-muted)">
-            {loop.description}
-          </p>
-        </button>
-        <UiButton
-          className="mt-1 shrink-0"
-          disabled={busySlug !== null}
-          onClick={select}
-          size="xs"
-          tone="primary"
-          variant="solid"
-        >
+    <button
+      className="flex w-full items-center gap-4 bg-(--surface-raised-background) px-4 py-3 text-left transition-colors hover:bg-(--surface-interactive-hover-background) disabled:cursor-wait disabled:opacity-60"
+      disabled={busySlug !== null}
+      onClick={() => void onSelect(loop)}
+      type="button"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-semibold text-(--text-strong)">
+          {loop.title}
+        </span>
+        <span className="mt-0.5 block line-clamp-2 text-compact leading-5 text-(--text-muted)">
+          {loop.description}
+        </span>
+        <span className="mt-1.5 block text-xs text-(--text-soft)">
+          {loop.category} · {loop.trigger_type}
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-semibold text-(--brand-action)">
           {actionLabel}
-        </UiButton>
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }

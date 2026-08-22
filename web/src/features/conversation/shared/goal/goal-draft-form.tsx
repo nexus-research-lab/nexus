@@ -1,7 +1,12 @@
+/**
+ * INPUT: Goal 草稿、预算、校验结果与提交命令。
+ * OUTPUT: 无装饰标题的 plain Goal 编辑表单。
+ * POS: Conversation Goal 编辑边界；只保留目标和可选预算。
+ */
 "use client";
 
 import { type FormEvent, useRef } from "react";
-import { Loader2, Target } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import {
   UiDialogBackdrop,
@@ -63,8 +68,7 @@ export function GoalDraftForm({
           onSubmit={onSubmit}
         >
           <UiDialogHeader
-            icon={<Target className="h-4 w-4" />}
-            iconClassName="text-(--primary)"
+            appearance="plain"
             title="编辑 Goal"
             titleId="goal-edit-dialog-title"
             onClose={model.canClose ? onCancel : undefined}
@@ -106,7 +110,7 @@ export function GoalDraftForm({
             </UiField>
           </UiDialogBody>
 
-          <UiDialogFooter className="justify-end gap-3">
+          <UiDialogFooter appearance="plain" className="justify-end gap-3">
             <button
               className={getDialogActionClassName("default")}
               disabled={model.fieldsDisabled}

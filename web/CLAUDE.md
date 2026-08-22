@@ -117,7 +117,7 @@ src/
 - 运营能力归 `features/settings/operations/`，可以组合设置域内的 Provider 与共享视图；不得恢复与 `settings` 双向依赖的顶层 `features/operations/`
 - Personal 设置只通过 `features/settings/personal/use-personal-settings-controller.ts` 读写资料；密码规则由纯模型的有序规则表定义，区块视图不得直接调用 Auth API
 - Provider 由 `features/settings/provider-settings/workspace/` 管理原子状态与请求代次，`actions/config/` 和 `actions/model/` 分离配置及模型事务，目录、格式和能力标志只由纯展示模型投影
-- CC Switch 本地 Provider 导入归 `features/provider-imports/cc-switch/`；初始化向导与 Provider 设置只组合桌面入口、默认模型策略和同步完成回调，不复制预览、选择或同步状态机
+- CC Switch 本地 Provider 导入归 `features/provider-imports/cc-switch/`；初始化向导与 Provider 设置只组合桌面入口、默认模型策略和同步完成回调，不复制预览、选择或同步状态机。导入弹窗使用内容高度的 plain 选择器，路径栏和空态不叠加装饰图标或向导式说明
 - Agent 身份页由 `features/agents/options/components/identity/` 的单一布局结构组合；资料、标签和模型选择各自拥有窄接口，待添加标签草稿必须绑定编辑作用域
 - 通用 Markdown 只归 `shared/ui/markdown/`；Conversation 的 `message/markdown-renderer.tsx` 只解释消息文件产物协议，不得成为其他 Feature 的渲染入口
 - 通用 Mention 只归 `shared/ui/mention/`；目标分类和标记由消费者投影，共享视图不得解释 Agent 或 Room

@@ -1,8 +1,6 @@
 export const zhAgentMessages = {
   "agent_options.default_name": "Agent",
   "agent_options.title_create": "创建 Agent",
-  "agent_options.subtitle_create": "配置身份、技能、权限和行为方式",
-  "agent_options.id_prefix": "ID",
   "agent_options.close_dialog": "关闭对话框",
   "agent_options.delete_agent": "删除 Agent",
   "agent_options.save_changes": "保存更改",

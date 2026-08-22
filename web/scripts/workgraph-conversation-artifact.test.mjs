@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -82,9 +83,22 @@ test("conversation WorkGraph result renders one compact current-sketch card", as
   assert.match(markup, /data-workgraph-artifact="draft"/);
   assert.match(markup, /当前草图/);
   assert.match(markup, /协作简报/);
-  assert.match(markup, /与来源图对照/);
+  assert.match(markup, /来源对照/);
   assert.match(markup, /data-workgraph-sketch-node="draft"/);
   assert.match(markup, />v2</);
+});
+
+test("WorkGraph source comparison is a flat canvas pair without explanatory chrome", async () => {
+  const source = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/message/blocks/artifact/workgraph/workgraph-artifact-block.tsx",
+  ), "utf8");
+
+  assert.match(source, /<UiDialogCloseButton/);
+  assert.doesNotMatch(source, /<UiDialogHeader/);
+  assert.doesNotMatch(source, /workflow_artifact_(?:source_description|draft_description)/);
+  assert.match(source, /hidden min-h-0 grid-cols-2/);
+  assert.match(source, /className="sr-only" id="workgraph-compare-title"/);
 });
 
 test("conversation ordering preserves the WorkGraph artifact for final projection", async () => {

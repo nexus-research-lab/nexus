@@ -1,7 +1,7 @@
 /**
  * INPUT: assistant 消息中持久化的完整 WorkGraph Draft/命名图快照。
- * OUTPUT: 对话内紧凑草图卡片，以及按需加载 exact 来源图的响应式对照弹窗。
- * POS: 普通 DM/Room WorkGraph authoring 结果的最终回复视图；默认不把双画布塞进聊天流。
+ * OUTPUT: 对话内紧凑草图卡片，以及无说明标题、按需加载 exact 来源图的扁平对照弹窗。
+ * POS: 普通 DM/Room WorkGraph authoring 结果的最终回复视图；默认不把双画布或实现说明塞进聊天流。
  */
 "use client";
 
@@ -23,7 +23,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
   UiDialogBody,
-  UiDialogHeader,
+  UiDialogCloseButton,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
@@ -158,7 +158,6 @@ function WorkGraphCompareDialog({
   const sourcePane = (
     <CompareCanvasPanel
       badge={t("execution.workflow_artifact_source_badge")}
-      description={t("execution.workflow_artifact_source_description")}
       title={t("execution.workflow_artifact_source")}
     >
       {loading ? (
@@ -183,7 +182,6 @@ function WorkGraphCompareDialog({
   const draftPane = (
     <CompareCanvasPanel
       badge={`v${revision}`}
-      description={t("execution.workflow_artifact_draft_description")}
       title={artifact.state === "saved"
         ? t("execution.workflow_artifact_saved")
         : t("execution.workflow_artifact_draft")}
@@ -195,17 +193,16 @@ function WorkGraphCompareDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop className="z-[9998]" labelledBy="workgraph-compare-title" onClose={onClose}>
-        <UiDialogShell className="max-h-[92dvh] max-w-[min(94vw,1440px)]" size="wide">
-          <UiDialogHeader
-            icon={<GitCompareArrows className="h-4 w-4" />}
-            iconClassName="text-(--primary)"
+        <UiDialogShell className="h-[min(820px,calc(100dvh-56px))] max-h-[calc(100dvh-56px)] max-w-[min(94vw,1440px)]" size="wide">
+          <h2 className="sr-only" id="workgraph-compare-title">
+            {t("execution.workflow_artifact_compare_title")}: /{graph.slash_name} · {graph.title}
+          </h2>
+          <UiDialogCloseButton
+            className="absolute right-4 top-4 z-30 bg-(--surface-panel-background)"
             onClose={onClose}
-            subtitle={`/${graph.slash_name} · ${graph.title}`}
-            title={t("execution.workflow_artifact_compare_title")}
-            titleId="workgraph-compare-title"
           />
-          <UiDialogBody className="min-h-0 p-0">
-            <div className="flex gap-1 border-b border-(--divider-subtle-color) bg-(--surface-muted-background) p-2 lg:hidden">
+          <UiDialogBody className="flex min-h-0 flex-1 flex-col p-0">
+            <div className="flex gap-1 border-b border-(--divider-subtle-color) bg-(--surface-muted-background) p-2 pr-14 lg:hidden">
               {(["source", "draft"] as const).map((pane) => (
                 <button
                   aria-pressed={activePane === pane}
@@ -233,24 +230,21 @@ function WorkGraphCompareDialog({
 function CompareCanvasPanel({
   badge,
   children,
-  description,
   title,
 }: {
   badge: string;
   children: React.ReactNode;
-  description: string;
   title: string;
 }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-col bg-(--surface-canvas-background)">
       <header className="shrink-0 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex min-h-7 items-center justify-between gap-3 pr-10">
           <h3 className="text-sm font-semibold text-(--text-strong)">{title}</h3>
           <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[10px] text-(--text-muted)">{badge}</span>
         </div>
-        <p className="mt-1 text-[11px] leading-4 text-(--text-soft)">{description}</p>
       </header>
-      <div className="flex h-[min(66dvh,720px)] min-h-[420px] min-w-0">{children}</div>
+      <div className="flex min-h-[420px] min-w-0 flex-1">{children}</div>
     </section>
   );
 }

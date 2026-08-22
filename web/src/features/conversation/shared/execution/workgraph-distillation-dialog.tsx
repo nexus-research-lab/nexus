@@ -1,21 +1,19 @@
 /**
  * INPUT: 默认对话模型从 exact 完成图抽取的临时草图。
- * OUTPUT: 用户可修订命令、说明与图结构后保存或放弃。
- * POS: 完成态 WorkGraph 到后台 execution-orchestrator Skill + Nexus CLI 的确认层。
+ * OUTPUT: 左侧命名表单、右侧低文字结构预览，以及明确的保存/调整动作。
+ * POS: 完成态 WorkGraph 到持久化流程的克制确认台，不展示模型或后台实现自述。
  */
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, GitBranchPlus, LoaderCircle, MessageSquareText, Sparkles } from "lucide-react";
+import { CheckCircle2, LoaderCircle, MessageSquareText } from "lucide-react";
 
 import { scheduleWorkGraphWorkflowSaveApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
-  UiDialogBody,
-  UiDialogFooter,
-  UiDialogHeader,
+  UiDialogCloseButton,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
@@ -77,36 +75,30 @@ export function WorkGraphDistillationDialog({
         onClose={onClose}
         trapFocus={!editorOpen}
       >
-        <UiDialogShell className="pointer-events-auto max-h-[86vh]" size="xl">
-          <UiDialogHeader
-            icon={<GitBranchPlus className="h-4 w-4" />}
-            iconClassName="text-(--primary)"
+        <UiDialogShell
+          className="pointer-events-auto h-[min(760px,calc(100dvh-64px))] max-h-[calc(100dvh-64px)]"
+          size="wide"
+          style={{ maxWidth: "min(1180px, calc(100vw - 64px))" }}
+        >
+          <UiDialogCloseButton
+            className="absolute right-5 top-5 z-30"
             onClose={onClose}
-            subtitle={t("execution.workflow_distill_subtitle")}
-            title={t("execution.workflow_distill_title")}
-            titleId="workgraph-distillation-dialog-title"
           />
-          <UiDialogBody className="flex flex-col gap-4" scrollable>
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs font-semibold text-(--text-strong)">{t("execution.workflow_metadata_title")}</div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2 py-1 text-[10px] font-medium text-(--primary)">
-                  <Sparkles className="h-3 w-3" />
-                  {t("execution.workflow_model_extracted")}
-                </span>
-                <button
-                  className={getDialogActionClassName("default", "compact")}
-                  disabled={saveState !== "idle" || metadataError !== null}
-                  type="button"
-                  onClick={() => setEditorOpen(true)}
+          <div className="grid min-h-0 flex-1 md:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="flex min-h-0 flex-col border-r border-(--divider-subtle-color) bg-(--surface-muted-background) px-7 pb-6 pt-7">
+              <header className="pr-10">
+                <h2
+                  className="text-[19px] font-semibold tracking-[-0.01em] text-(--text-strong)"
+                  id="workgraph-distillation-dialog-title"
                 >
-                  <MessageSquareText className="h-3.5 w-3.5" />
-                  {t("execution.workflow_edit_with_chat")}
-                </button>
-              </div>
-            </div>
+                  {t("execution.workflow_distill_title")}
+                </h2>
+                <code className="mt-2 inline-flex rounded-md bg-(--surface-panel-background) px-2 py-1 text-xs text-(--text-muted)">
+                  /{normalizedSlashName || "—"}
+                </code>
+              </header>
 
-            <div className="grid gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) p-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+              <div className="soft-scrollbar mt-7 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <UiField
                 error={metadataError && !/^[a-z][a-z0-9-]{0,63}$/.test(normalizedSlashName) ? metadataError : null}
                 htmlFor="workgraph-slash-name"
@@ -139,13 +131,12 @@ export function WorkGraphDistillationDialog({
                 />
               </UiField>
               <UiField
-                className="sm:col-span-2"
                 error={metadataError && (!title.trim() || !description.trim()) ? metadataError : null}
                 htmlFor="workgraph-description"
                 label={t("execution.workflow_description")}
               >
                 <UiTextarea
-                  className="min-h-20 resize-none"
+                  className="min-h-28 resize-none"
                   disabled={saveState !== "idle"}
                   id="workgraph-description"
                   maxLength={500}
@@ -154,54 +145,63 @@ export function WorkGraphDistillationDialog({
                   onChange={(event) => setDescription(event.target.value)}
                 />
               </UiField>
-            </div>
+              </div>
 
-            <NamedWorkGraphSketch
-              className="min-h-56"
-              dependencies={workingPreview.dependencies}
-              nodes={workingPreview.nodes}
-            />
-
-            {saveState === "scheduled" ? (
-              <div className="flex items-start gap-2 rounded-[10px] border border-[color:color-mix(in_srgb,var(--success)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--success)_7%,transparent)] px-3 py-2.5 text-xs text-(--text-default)">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
-                <div>
-                  <div className="font-semibold text-(--text-strong)">{t("execution.workflow_scheduled_title")}</div>
-                  <div className="mt-0.5 leading-5 text-(--text-muted)">
+              <div className="mt-5 space-y-3">
+                {saveState === "scheduled" ? (
+                  <div className="flex items-start gap-2 text-xs text-(--text-default)">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
+                    <div>
+                      <div className="font-semibold text-(--text-strong)">{t("execution.workflow_scheduled_title")}</div>
+                      <div className="mt-0.5 leading-5 text-(--text-muted)">
                     {t("execution.workflow_scheduled_message", {
                       command: `/${normalizedSlashName}`,
                     })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : null}
-          </UiDialogBody>
-          <UiDialogFooter className={saveState === "scheduled" ? "justify-end gap-3" : "justify-between gap-3"}>
-            {saveState !== "scheduled" ? (
-              <span className={`max-w-lg text-xs leading-4 ${saveError ? "text-(--destructive)" : "text-(--text-muted)"}`}>
-                {saveError ?? t("execution.workflow_reuse_notice", {
-                  command: `/${normalizedSlashName}`,
-                })}
-              </span>
-            ) : null}
-            <div className="flex shrink-0 gap-2">
-              {saveState === "scheduled" ? (
-                <button className={getDialogActionClassName("primary", "compact")} type="button" onClick={onClose}>
-                  {t("common.close")}
-                </button>
-              ) : (
-                <>
-                  <button className={getDialogActionClassName("default", "compact")} disabled={saveState === "saving"} type="button" onClick={onClose}>
-                    {t("execution.workflow_discard_sketch")}
+                ) : null}
+                {saveError ? (
+                  <p className="text-xs leading-5 text-(--destructive)" role="alert">{saveError}</p>
+                ) : null}
+                {saveState === "scheduled" ? (
+                  <button className={`${getDialogActionClassName("primary", "compact")} w-full`} type="button" onClick={onClose}>
+                    {t("common.close")}
                   </button>
-                  <button className={getDialogActionClassName("primary", "compact")} disabled={saveState === "saving" || metadataError !== null} type="button" onClick={() => void handleSave()}>
+                ) : (
+                  <button className={`${getDialogActionClassName("primary", "compact")} w-full`} disabled={saveState === "saving" || metadataError !== null} type="button" onClick={() => void handleSave()}>
                     {saveState === "saving" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
                     {t(saveState === "saving" ? "execution.workflow_scheduling" : "execution.workflow_save_sketch")}
                   </button>
-                </>
-              )}
-            </div>
-          </UiDialogFooter>
+                )}
+              </div>
+            </aside>
+
+            <main className="flex min-h-0 flex-col bg-(--surface-canvas-background)">
+              <header className="flex shrink-0 items-center justify-between gap-4 border-b border-(--divider-subtle-color) px-7 py-5 pr-16">
+                <h3 className="text-sm font-semibold text-(--text-strong)">
+                  {t("execution.workflow_sketch_label")}
+                </h3>
+                <button
+                  className={getDialogActionClassName("default", "compact")}
+                  disabled={saveState !== "idle" || metadataError !== null}
+                  type="button"
+                  onClick={() => setEditorOpen(true)}
+                >
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  {t("execution.workflow_edit_with_chat")}
+                </button>
+              </header>
+              <div className="soft-scrollbar min-h-0 flex-1 overflow-auto">
+                <NamedWorkGraphSketch
+                  appearance="editor"
+                  className="min-h-full"
+                  dependencies={workingPreview.dependencies}
+                  nodes={workingPreview.nodes}
+                />
+              </div>
+            </main>
+          </div>
         </UiDialogShell>
       </UiDialogBackdrop>
       {editorOpen ? (

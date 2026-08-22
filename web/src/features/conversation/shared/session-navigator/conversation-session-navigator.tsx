@@ -1,17 +1,13 @@
+/**
+ * INPUT: 统一会话时间线、当前滚动位置与跳转命令。
+ * OUTPUT: 时间刻度和轻量轮次预览浮层。
+ * POS: Conversation 桌面宽屏导航；预览不是模态弹窗。
+ */
 import type { RefObject } from "react";
-import { ChevronRight, MessageSquareText } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
-import {
-  UiDialogBody,
-  UiDialogHeader,
-  UiDialogShell,
-} from "@/shared/ui/dialog/dialog";
-import {
-  DIALOG_HEADER_ICON_CLASS_NAME,
-  DIALOG_HEADER_LEADING_CLASS_NAME,
-} from "@/shared/ui/dialog/dialog-styles";
 
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../timeline/timeline-model";
@@ -131,10 +127,9 @@ export function ConversationSessionNavigator({
             })}
 
             {previewItem ? (
-              <UiDialogShell
-                className="pointer-events-auto absolute left-12 z-[60] w-[min(332px,calc(100vw-96px))] max-w-none -translate-y-1/2 outline-none"
+              <button
+                className="dialog-shell surface-radius-lg pointer-events-auto absolute left-12 z-[60] w-[min(332px,calc(100vw-96px))] -translate-y-1/2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                 data-session-navigator-preview="true"
-                size="sm"
                 style={{
                   top: `${getTickDisplayPercent(
                     previewItem.index,
@@ -150,48 +145,25 @@ export function ConversationSessionNavigator({
                 onPointerMove={(event) => {
                   event.stopPropagation();
                 }}
+                onClick={() => {
+                  jumpToRound(previewItem);
+                }}
+                type="button"
               >
-                <UiDialogHeader
-                  className="cursor-pointer gap-2 px-3 py-2.5"
-                  onClick={() => {
-                    jumpToRound(previewItem);
-                  }}
-                >
-                  <div
-                    className={cn(
-                      DIALOG_HEADER_LEADING_CLASS_NAME,
-                      "min-w-0 flex-1 items-center",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        DIALOG_HEADER_ICON_CLASS_NAME,
-                        "h-7 w-7 rounded-[10px] bg-primary/10 text-primary",
-                      )}
-                    >
-                      <MessageSquareText className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-sm font-semibold leading-[18px] text-(--text-strong)">
-                        {previewItem.title}
-                      </h3>
-                      <p className="mt-0.5 truncate text-xs leading-4 text-(--text-muted)">
-                        {previewItem.time}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-                  </div>
-                </UiDialogHeader>
-                <UiDialogBody
-                  className="cursor-pointer px-3 py-2.5"
-                  onClick={() => {
-                    jumpToRound(previewItem);
-                  }}
-                >
-                  <p className="line-clamp-2 text-xs leading-[18px] text-(--text-default)">
+                <span className="flex min-w-0 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2.5">
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-[18px] text-(--text-strong)">
+                    {previewItem.title}
+                  </span>
+                  <span className="shrink-0 text-xs leading-4 text-(--text-muted)">
+                    {previewItem.time}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+                </span>
+                <span className="block px-3 py-2.5">
+                  <span className="line-clamp-2 text-xs leading-[18px] text-(--text-default)">
                     {previewItem.summary}
-                  </p>
-                  <div className="mt-2 flex min-w-0 items-center gap-1.5 text-2xs font-medium leading-4 text-(--text-soft)">
+                  </span>
+                  <span className="mt-2 flex min-w-0 items-center gap-1.5 text-2xs font-medium leading-4 text-(--text-soft)">
                     <span
                       className={cn(
                         "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -208,9 +180,9 @@ export function ConversationSessionNavigator({
                     </span>
                     <span className="text-(--text-soft)">·</span>
                     <span className="truncate">{previewItem.meta}</span>
-                  </div>
-                </UiDialogBody>
-              </UiDialogShell>
+                  </span>
+                </span>
+              </button>
             ) : null}
           </div>
         </div>

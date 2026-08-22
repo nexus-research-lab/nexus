@@ -1,3 +1,8 @@
+/**
+ * INPUT: 定时任务资源、写命令与页面导航。
+ * OUTPUT: 定时任务目录、编辑/历史工作面和产品内删除确认。
+ * POS: Scheduled 页面装配边界；不使用浏览器原生确认框。
+ */
 "use client";
 
 import { useState } from "react";
@@ -7,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner";
@@ -35,6 +41,7 @@ export function ScheduledTasksDirectory() {
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<TaskDialogState>({ kind: "closed" });
   const [historyTask, setHistoryTask] = useState<ScheduledTaskItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduledTaskItem | null>(null);
   const resource = useScheduledTasksResource();
   const commands = useScheduledTaskCommands({
     refresh: resource.refresh,
@@ -68,10 +75,11 @@ export function ScheduledTasksDirectory() {
       ));
     }).catch(() => undefined);
   };
-  const deleteTask = (task: ScheduledTaskItem) => {
-    if (!window.confirm(`确认删除任务“${task.name}”吗？`)) {
-      return;
-    }
+  const deleteTask = (task: ScheduledTaskItem) => setDeleteTarget(task);
+  const confirmDeleteTask = () => {
+    const task = deleteTarget;
+    if (!task) return;
+    setDeleteTarget(null);
     void commands.deleteTask(task).then(() => {
       setHistoryTask((current) => (
         current?.job_id === task.job_id ? null : current
@@ -158,6 +166,15 @@ export function ScheduledTasksDirectory() {
           await commands.runTask(task);
         }}
         task={historyTask}
+      />
+      <ConfirmDialog
+        confirmText="删除"
+        isOpen={deleteTarget !== null}
+        message={deleteTarget ? `删除“${deleteTarget.name}”后，这个任务将不再运行。` : ""}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteTask}
+        title="删除任务"
+        variant="danger"
       />
 
       <FeedbackBannerViewport item={feedbackItem} />

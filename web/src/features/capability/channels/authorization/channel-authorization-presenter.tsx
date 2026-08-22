@@ -1,3 +1,6 @@
+// INPUT: Channel 授权 WebSocket 展示/结果事件与用户提交动作。
+// OUTPUT: 仅内存保存当前展示，向弹窗投影精确提交、取消和短错误状态。
+// POS: Channel 授权协议与可见弹窗之间的 presenter，不持久化敏感材料。
 "use client";
 
 import { useCallback, useState } from "react";
@@ -63,7 +66,7 @@ export function ChannelAuthorizationPresenter() {
     });
     if (result.disposition !== "sent") {
       setBusy(false);
-      setError("安全连接当前不可用，验证码未发送；请恢复连接后重试。");
+      setError("连接中断，验证码未发送。");
       return;
     }
     setBusy(true);
@@ -81,7 +84,7 @@ export function ChannelAuthorizationPresenter() {
     });
     if (result.disposition !== "sent") {
       setBusy(false);
-      setError("安全连接当前不可用，授权尚未取消；请恢复连接后重试。");
+      setError("连接中断，授权尚未取消。");
       return;
     }
     setBusy(true);

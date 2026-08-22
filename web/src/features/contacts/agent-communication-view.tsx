@@ -583,7 +583,7 @@ function AddContactDialog({
           size="sm"
         >
           <UiDialogHeader
-            icon={<UserRoundPlus className="h-[18px] w-[18px]" />}
+            appearance="plain"
             onClose={onClose}
             title={t("agent_options.contact.add_friend")}
             titleId={titleId}
@@ -651,12 +651,12 @@ function AddContactDialog({
               />
             </UiField>
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton onClick={onClose} type="button" variant="ghost">
               {t("common.cancel")}
             </UiButton>
             <UiButton disabled={!selectedAgentId || isPending} tone="primary" type="submit">
-              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserRoundPlus className="h-4 w-4" />}
+              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {t("agent_options.contact.add_friend")}
             </UiButton>
           </UiDialogFooter>

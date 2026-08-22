@@ -1,6 +1,9 @@
+// INPUT: OAuth Connector 的应用配置、现有身份与保存/删除动作。
+// OUTPUT: 回调地址和应用凭据组成的 plain 配置弹窗，删除与保存动作保持分离。
+// POS: Connector OAuth 客户端配置的人机边界，不重复解释内部授权流程。
 "use client";
 
-import { Check, Copy, ExternalLink, KeyRound, Save, Trash2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Trash2 } from "lucide-react";
 import {
   type Dispatch,
   type FormEvent,
@@ -55,16 +58,15 @@ export function ConnectorOAuthClientDialog({
         size="sm"
       >
         <UiDialogHeader
-          icon={<KeyRound className="h-4 w-4" />}
-          iconClassName="h-9 w-9 radius-control-lg"
+          appearance="plain"
           onClose={onClose}
-          subtitle={model.title}
-          title="配置应用"
+          title={`配置 ${model.title}`}
         />
         <ConnectorOauthClientBody form={form} model={model} />
         <ConnectorOauthClientFooter
           busy={busy}
           model={model}
+          onClose={onClose}
           onDelete={onDelete}
         />
       </UiDialogFormShell>
@@ -115,7 +117,7 @@ function ConnectorOauthClientBody({
   model: ConnectorOauthClientDialogModel;
 }) {
   return (
-    <UiDialogBody className="space-y-3" scrollable>
+    <UiDialogBody className="space-y-4 px-5" scrollable>
       <ConnectorOauthClientIntroduction model={model} />
       <ConnectorOauthCallbackField callbackUrl={model.callbackUrl} />
       <ConnectorOauthClientFields form={form} model={model} />
@@ -130,9 +132,9 @@ function ConnectorOauthClientIntroduction({
 }) {
   return (
     <>
-      <UiPanel className="text-compact leading-relaxed" padding="sm" variant="inset">
-        在{model.providerName}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
-      </UiPanel>
+      <p className="text-sm leading-6 text-(--text-muted)">
+        先在{model.providerName}添加回调地址，再填写应用凭据。
+      </p>
       {model.docsUrl ? (
         <UiLinkButton
           className="w-fit"
@@ -225,15 +227,18 @@ function ConnectorOauthClientFields({
 function ConnectorOauthClientFooter({
   busy,
   model,
+  onClose,
   onDelete,
 }: {
   busy: boolean;
   model: ConnectorOauthClientDialogModel;
+  onClose: ConnectorOAuthClientDialogProps["onClose"];
   onDelete: ConnectorOAuthClientDialogProps["onDelete"];
 }) {
   return (
-    <UiDialogFooter className="flex-wrap gap-1.5">
-      {model.configured ? (
+    <UiDialogFooter appearance="plain" className="justify-between">
+      <div>
+        {model.configured ? (
         <UiButton
           disabled={busy}
           onClick={() => onDelete(model.connectorId)}
@@ -245,17 +250,22 @@ function ConnectorOauthClientFooter({
           <Trash2 className="h-3.5 w-3.5" />
           删除配置
         </UiButton>
-      ) : null}
-      <UiButton
-        disabled={busy}
-        size="sm"
-        tone="primary"
-        type="submit"
-        variant="solid"
-      >
-        <Save className="h-3.5 w-3.5" />
-        保存配置
-      </UiButton>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <UiButton disabled={busy} onClick={onClose} size="sm" type="button">
+          取消
+        </UiButton>
+        <UiButton
+          disabled={busy}
+          size="sm"
+          tone="primary"
+          type="submit"
+          variant="solid"
+        >
+          保存
+        </UiButton>
+      </div>
     </UiDialogFooter>
   );
 }

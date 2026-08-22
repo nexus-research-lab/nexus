@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前任务、运行记录动作与历史刷新命令。
+ * OUTPUT: 绑定精确 Job 的动作状态、恢复确认目标与反馈。
+ * POS: Scheduled 运行历史动作控制器；决策由产品内确认框承载。
+ */
 "use client";
 
 import { useCallback, useLayoutEffect, useRef } from "react";
@@ -22,6 +27,7 @@ interface RunHistoryActionState {
   copiedRunId: string | null;
   message: string | null;
   pending: RunHistoryPendingActions;
+  recoveryTarget: ScheduledTaskRunItem | null;
 }
 
 interface RunHistoryActionCommands {
@@ -52,6 +58,7 @@ function createInitialActionState(): RunHistoryActionState {
     copiedRunId: null,
     message: null,
     pending: createPendingCommandState(RUN_HISTORY_ACTIONS),
+    recoveryTarget: null,
   };
 }
 
@@ -175,9 +182,29 @@ export function useScheduledTaskRunHistoryActions({
   ), [onRetryDelivery, runAction]);
 
   const recover = useCallback((run: ScheduledTaskRunItem): Promise<void> => {
-    if (!window.confirm(`确认释放 run ${run.run_id} 的运行占用吗？该 run 会被标记为 cancelled。`)) {
-      return Promise.resolve();
-    }
+    if (!task) return Promise.resolve();
+    updateActiveState(task.job_id, (current) => ({
+      ...current,
+      recoveryTarget: run,
+    }));
+    return Promise.resolve();
+  }, [task, updateActiveState]);
+
+  const cancelRecovery = useCallback(() => {
+    if (!task) return;
+    updateActiveState(task.job_id, (current) => ({
+      ...current,
+      recoveryTarget: null,
+    }));
+  }, [task, updateActiveState]);
+
+  const confirmRecovery = useCallback((): Promise<void> => {
+    if (!task || !state.recoveryTarget) return Promise.resolve();
+    const run = state.recoveryTarget;
+    updateActiveState(task.job_id, (current) => ({
+      ...current,
+      recoveryTarget: null,
+    }));
     return runAction("recover", run, (activeTask) => (
       onRecoverTaskRun(activeTask, run)
     ), {
@@ -185,10 +212,12 @@ export function useScheduledTaskRunHistoryActions({
       refreshFailure: "运行历史刷新失败",
       success: "已释放运行占用",
     });
-  }, [onRecoverTaskRun, runAction]);
+  }, [onRecoverTaskRun, runAction, state.recoveryTarget, task, updateActiveState]);
 
   return {
     ...state,
+    cancelRecovery,
+    confirmRecovery,
     copyDiagnostic,
     recover,
     retry,
