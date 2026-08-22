@@ -1,3 +1,8 @@
+/**
+ * INPUT: Loop 目录、筛选、复制动作与可选详情路由。
+ * OUTPUT: 展示用途、触发方式与步骤规模的工作循环目录或当前 Loop 详情。
+ * POS: “能力 > 工作循环”的唯一页面入口。
+ */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +17,6 @@ import {
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
   CapabilityPageLayout,
-  CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -132,11 +136,6 @@ export function LoopsDirectory() {
             />
           </CapabilityFilterBar>
 
-          <CapabilitySectionHeader
-            count={t("capability.result_count", { count: filteredLoops.length })}
-            title={t("capability.loops")}
-          />
-
           {loading ? (
             <div className="py-10 text-sm text-(--text-muted)">
               {t("capability.loops_loading")}
@@ -179,7 +178,7 @@ export function LoopsDirectory() {
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-[14px] font-medium text-(--text-strong)">
+                    <h3 className="truncate text-base font-medium text-(--text-strong)">
                       {loop.title}
                     </h3>
                     <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">

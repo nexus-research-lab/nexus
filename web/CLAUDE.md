@@ -41,6 +41,7 @@ src/
 - 共享 UI 基础组件按 `button/`、`form/`、`display/`、`list/` 与 `navigation/` 分组；消费者直接导入职责文件，不恢复根级聚合出口
 - Surface 搜索入口统一由 `UiSearchInput` 提供中性灰白底、hairline 边界及交互态；消费者只调整尺寸和布局，不得局部覆写背景、边框或阴影
 - Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根不透明 hairline，展开态从物理窗口顶端贯穿到底部，折叠态从 Header 底部开始以避开原生窗口按钮，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
+- App Typography 由 `app/styles/theme-tokens.css` 的语义字号阶梯定义：系统 UI 字体栈保持原生，普通控件使用 14px，页面标题使用 16px，20px 以上只承担对象主标题、品牌或特定空态；根节点不得用界面 token 覆盖继承字号，对话、文件和其他阅读正文继续由所属 Surface 显式声明。业务组件不得用 15/17/22px 等近似任意值恢复旧界面尺度；字体收紧不得同步削减输入框、按钮或移动端触控热区。完整合同见 `docs/specs/web-surface-density-spec.md`
 - 主侧栏品牌栏只保留 Launcher 字标与折叠控制；一级导航只承载聊天、联系人和能力，Nexus 主智能体以不可删除的默认 DM 固定在聊天目录顶部；底部统一承载设置、引导与按认证状态显示的退出，展开态将退出和常用入口分居两侧
 - Liquid Glass 由专用 Hook 持有能力启用与 Web Animation 生命周期，Filter 视图只描述 SVG 资源链；组件 render 阶段不得写状态，消费者不得通过目录 barrel 导入
 - 样式类名组合只由 `shared/ui/class-name.ts` 提供；时间、Token 和头像规则分别归 `lib/format/` 与 `lib/avatar.ts`，不得恢复混合 `lib/utils.ts`
@@ -63,7 +64,7 @@ src/
 - 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
-- Room 成员的 `participation_paused` 是 Room 级持久调度状态：管理弹窗只维护成员草稿，页面命令只提交真实差异；后端暂停时收口该成员当前 slot 并闸住 queue、Agent wake、Goal continuation 与 WorkGraph dispatch，恢复后继续原样保留的工作，前端不得把它降格为一次性停止输出
+- Room 成员的 `participation_paused` 是 Room 级持久调度状态：管理弹窗只维护成员草稿，页面命令只提交真实差异；后端暂停时收口该成员当前 slot 并闸住 queue、Agent wake、Goal continuation 与 WorkGraph dispatch，恢复后继续原样保留的工作。状态通过 realtime event 刷新并在 Room 顶栏/成员面常驻可见，不得降格为一次性停止输出，也不得写成 transcript/system message、未读或模型上下文
 - Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求由单飞状态机持有，在途失效只合并一次补刷、最后订阅者卸载才取消 I/O，首次失败与合法空目录必须分离，stale 失败继续展示最后成功数据；全局目录事件不得在消费者中重复实现；聊天执行态与待确认人工交互统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
 - Group Room 完成事件须同时记录精确消息锚点与未读计数；Room 导航不得预先清除它们，只有对应 Feed 证明消息已进入视口后才逐条消费。DM 仍在进入会话时清理自身未读，未读计数和最后更新时间不能推断第一条未读 Agent 回复
@@ -85,7 +86,8 @@ src/
 - Contacts 页面使用互斥编辑状态，Agent 目录与 Agent 视角通讯客户端的联系人、Session、消息和命令归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层、固定 48px 一级导航 Dock 和系统操作，Dock 图标交互面与 32px 聊天头像同尺度，只有目录可见性与外层宽度变化，路由/Store 同步只留在控制器
 - 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI
-- 能力、设置与联系人等管理页面共用 `shared/ui/layout/workspace-content-layout.ts` 定义的铺满内容面，并由单一 `--workspace-content-gutter` 在 20–32px 间随屏幕平滑调整；正文、共享 Surface Header、Agent 内联详情和横向滚动区必须保持同一左右基线。页面用 `workspace-content-header.tsx` 统一标题、单句说明与动作；能力目录由 `features/capability/shared/capability-page-layout.tsx` 组合筛选、分区节奏、三列间距、可见条目边框与无品牌资源时的方形身份图标，工作循环条目按稳定 `slug` 复用公共数学曲线头像。普通目录在桌面统一使用三列，窄窗逐级收拢；定时任务正式看板保持四列，宽度不足时横向滚动而不折成两列。不得再用 Surface Header 重复“图标 + 能力名”，作用于搜索结果的来源模式进入筛选工具区，窄屏复用应用返回栏而不重复身份标题。目录行只展示标题、一行说明和一行元数据，完整步骤与技术字段进入详情或折叠区；详情页继续使用适合长文阅读的窄版心
+- 能力、设置与联系人等管理页面共用 `shared/ui/layout/workspace-content-layout.ts` 定义的铺满内容面，并由单一 `--workspace-content-gutter` 在 20–32px 间随屏幕平滑调整；正文、共享 Surface Header、Agent 内联详情和横向滚动区必须保持同一左右基线。页面用 `workspace-content-header.tsx` 统一标题与动作，会影响识别、比较或决策的用途说明必须保留；能力目录由 `features/capability/shared/capability-page-layout.tsx` 组合用途说明、筛选、分区节奏、三列间距、可见条目边框与无品牌资源时的方形身份图标，工作循环条目按稳定 `slug` 复用公共数学曲线头像。普通目录在桌面统一使用三列，窄窗逐级收拢；定时任务正式看板保持四列，宽度不足时横向滚动而不折成两列。能力标题使用名词或明确任务短语，单一目录不重复同名分区或结果计数，分类计数、装饰空态和默认事实不占用首屏；目录行保留真实用途摘要、状态和当前选择所需元数据，说明可最多两行。完整指令、协议实现、内部 Session/绑定键与诊断字段进入详情或折叠区；外部账号或配对标识若用于区分被管理对象则直接展示。详情页继续使用适合长文阅读的窄版心。当前规范见 `docs/specs/capability-page-design-spec.md`
+- 所有主页面遵循 `docs/specs/web-surface-density-spec.md`：首层只回答页面身份、当前对象、状态和可执行动作；能力与管理目录没有真实摘要时不显示占位句，联系人侧栏保留“暂无描述”的稳定双行结构；候选配置不同时展开全部说明，Token、成本、模型、原始 ID 与诊断事实进入按需详情，但普通 Agent 身份页的 AGENTS.md 保持完整可审阅；移动端不得在应用栏和正文重复同一页面身份。
 - 工作循环的触发协议与统计值只由 `features/capability/loops/loop-presentation.ts` 投影为当前语言；目录和详情不得直接展示后端枚举或拼接固定英文单位
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；Nexus 内置 Skill 的双语说明统一由 `lib/skill-description.ts` 做只读展示投影，并由目录、详情、Agent、Room 与 Composer 复用；能力页已安装、更新与社区结果共用 `features/capability/skills/shared/skill-directory-card.tsx`，但已安装目录卡只保留名称、说明和真实动作，来源、作用域、标签与启用位置进入详情；所有 Skill 资源头像只通过 `shared/ui/display/seeded-avatar.tsx` 按稳定名称生成跨目录、详情和预览一致、圆心固定的静态数学曲线身份；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名

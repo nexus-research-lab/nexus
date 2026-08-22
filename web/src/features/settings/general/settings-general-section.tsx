@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前常规设置分区与偏好控制器状态。
+ * OUTPUT: 单一分区标题及对应设置内容，移动端由应用栏承载页面身份。
+ * POS: 常规、外观、工作区和权限分区的页面装配层。
+ */
 "use client";
 
 import { cn } from "@/shared/ui/class-name";
@@ -57,6 +62,7 @@ export function SettingsGeneralSection({
       )}
     >
       <WorkspaceContentHeader
+        className="max-sm:hidden"
         description={t(copy.description)}
         title={t(copy.title)}
       />

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 Provider 名称、启用状态、测试选项与写权限。
+ * OUTPUT: 名称、真实状态和直接操作组成的紧凑详情头。
+ * POS: Provider 配置正文的对象身份栏，不承载预设营销说明。
+ */
 import { Loader2, Play } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -16,7 +21,6 @@ interface ProviderSettingsDetailHeaderProps {
   onEnabledChange: (checked: boolean) => void;
   onTestSelection: (value: string) => void;
   pendingAction: ProviderPendingAction | null;
-  presetDescription?: string | null;
   selectedCanManage: boolean;
   testModelOptions: Array<{ label: string; value: string }>;
 }
@@ -100,7 +104,6 @@ export function ProviderSettingsDetailHeader({
   onEnabledChange,
   onTestSelection,
   pendingAction,
-  presetDescription,
   selectedCanManage,
   testModelOptions,
 }: ProviderSettingsDetailHeaderProps) {
@@ -118,11 +121,6 @@ export function ProviderSettingsDetailHeader({
           </h2>
           <ProviderStatusBadge enabled={enabled} visible={hasSelectedRecord} />
         </div>
-        {presetDescription ? (
-          <p className="mt-1 max-w-2xl truncate text-compact leading-5 text-(--text-muted)">
-            {presetDescription}
-          </p>
-        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-2 pt-0.5">

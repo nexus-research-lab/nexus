@@ -1,9 +1,14 @@
+/**
+ * INPUT: 已连接频道账号、删除状态与删除动作。
+ * OUTPUT: 展示可识别账号身份、连接状态、更新时间与当前错误的管理列表。
+ * POS: 频道连接详情的账号管理区；账号/用户标识是被管理对象，不是可隐藏的诊断字段。
+ */
 import {
   Loader2,
   Trash2,
 } from "lucide-react";
 
-import { ChannelAccountView } from "@/lib/api/capability/channel-api";
+import type { ChannelAccountView } from "@/lib/api/capability/channel-api";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { channelAccountStatusLabel } from "./channel-connection-model";
@@ -26,9 +31,9 @@ export function ChannelAccountsPanel({
         <UiBadge size="xs">{accounts.length} 个</UiBadge>
       </div>
       {accounts.length === 0 ? (
-        <div className="mt-3 rounded-[10px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-compact text-(--text-muted)">
+        <p className="mt-3 text-compact text-(--text-muted)">
           暂无已连接账号
-        </div>
+        </p>
       ) : (
         <div className="mt-2 space-y-1.5">
           {accounts.map((account) => (
@@ -38,15 +43,21 @@ export function ChannelAccountsPanel({
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <code className="min-w-0 truncate text-compact font-semibold text-(--text-strong)" title={account.account_id}>
-                    {account.account_id}
+                  <code
+                    className="min-w-0 truncate text-compact font-semibold text-(--text-strong)"
+                    title={account.user_id || account.account_id}
+                  >
+                    {account.user_id || account.account_id}
                   </code>
                   <UiBadge size="xs" tone={account.status === "error" ? "danger" : "success"}>
                     {channelAccountStatusLabel(account.status)}
                   </UiBadge>
                 </div>
                 <div className="mt-0.5 truncate text-xs text-(--text-muted)">
-                  {account.user_id ? `用户 ${account.user_id} · ` : ""}更新 {new Date(account.updated_at).toLocaleString()}
+                  {account.user_id && account.user_id !== account.account_id
+                    ? `账号 ${account.account_id} · `
+                    : ""}
+                  更新于 {new Date(account.updated_at).toLocaleString()}
                 </div>
                 {account.last_error ? (
                   <div className="mt-0.5 truncate text-xs text-(--destructive)" title={account.last_error}>

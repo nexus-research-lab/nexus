@@ -1,4 +1,9 @@
-import { Loader2, Puzzle } from "lucide-react";
+/**
+ * INPUT: 已分组 Skill 目录、加载状态与目录命令。
+ * OUTPUT: 无结果计数的分类网格和短空态。
+ * POS: 已安装 Skill 目录纯视图。
+ */
+import { Loader2 } from "lucide-react";
 
 import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -34,18 +39,10 @@ export function SkillsCatalogGrid({
 
   if (!groupedSkills.length) {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-transparent">
-          <Puzzle className="h-4 w-4 text-(--text-muted)" />
-        </div>
-        <div>
-          <p className="text-[14px] font-medium text-(--text-default)">
-            {t("capability.skills_empty_title")}
-          </p>
-          <p className="mt-0.5 text-compact text-(--text-soft)">
-            {t("capability.skills_empty_description")}
-          </p>
-        </div>
+      <div className="flex min-h-48 items-center justify-center text-center">
+        <p className="text-base font-medium text-(--text-default)">
+          {t("capability.skills_empty_title")}
+        </p>
       </div>
     );
   }
@@ -54,10 +51,7 @@ export function SkillsCatalogGrid({
     <div className="space-y-6">
       {groupedSkills.map(([categoryName, items]) => (
         <section key={categoryName}>
-          <CapabilitySectionHeader
-            count={t("capability.result_count", { count: items.length })}
-            title={categoryName}
-          />
+          <CapabilitySectionHeader title={categoryName} />
           <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`}>
             {items.map((skill: SkillInfo) => (
               <SkillsCard

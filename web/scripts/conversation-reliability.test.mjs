@@ -308,4 +308,6 @@ test("user notice contains product copy but no transport or request details", as
   );
   assert.match(html, /暂时无法响应，请稍后重试。/);
   assert.doesNotMatch(html, /secret-request-id|secret-round-id|secret-session|查看详情/);
+  assert.match(html, /data-conversation-failure-code="round_failed"/);
+  assert.match(html, /role="alert"/);
 });

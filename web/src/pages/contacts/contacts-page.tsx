@@ -1,3 +1,8 @@
+/**
+ * INPUT: Contacts 页面控制器、路由协调器与 Agent 联络资源。
+ * OUTPUT: 可在目录、Agent 详情和创建/删除决策之间往返的页面装配。
+ * POS: Contacts 路由页面；业务状态和导航动作分别下沉到 controller 与 orchestration。
+ */
 import type { ComponentProps } from "react";
 
 import { AgentOptionsDialog } from "@/features/agents/options/dialog/agent-options-dialog";
@@ -51,6 +56,7 @@ export function ContactsPage() {
   });
   const actions: ContactsPageActions = {
     onAddContact: communication.addContact,
+    onBackToAgentDirectory: navigation.openDirectory,
     onBackToCommunicationDirectory: communication.clearSelection,
     onCreateCommunicationConversation: communication.createConversation,
     onLoadOlderCommunicationMessages: communication.loadOlderMessages,
@@ -137,6 +143,7 @@ function ContactsPageContent({
             agents={agents}
             communication={communication}
             onAddContact={actions.onAddContact}
+            onBackToAgentDirectory={actions.onBackToAgentDirectory}
             onBackToCommunicationDirectory={actions.onBackToCommunicationDirectory}
             onCreateCommunicationConversation={actions.onCreateCommunicationConversation}
             onLoadOlderCommunicationMessages={actions.onLoadOlderCommunicationMessages}

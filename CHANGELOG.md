@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored the Composer task strip to a flat presentation without card chrome, while keeping the complete task summary visible through viewport-safe wrapping and preserving task progress and expansion.
+- Consolidated each active Room Agent's Thread and exact-stop actions into one quiet header toolbar, keeping Thread in a stable position and shortening the visible stop label without scattering controls through the reply.
+- Calibrated desktop controls to a 14px system-UI baseline and tightened the semantic title scale without changing the explicit conversation or document body typography or accessible control hit areas.
+- Added an explicit desktop return from Agent details to the Agent directory while keeping the existing single app-level back action on narrow screens.
+- Continued the Web-wide information-hierarchy audit beyond dialogs and Capability: Agent and contact directories retain descriptions, permission, Provider, tool, and Skill facts needed for comparison while ordinary Agent identity pages keep the full AGENTS.md behavior file available for review; permission, tool, connector, and setting choices keep their behavioral explanations. Settings keep one mobile page identity and full-width Provider forms, memory rows pair readable summaries with distinguishable filenames, channel accounts keep their identity and current errors visible, and personal settings retain Token-composition insight without rendering unavailable password forms.
+- Refined all seven Capability pages as decision-oriented management directories: concise purpose copy, real summaries, Loop triggers, scheduled-task instructions, Channel purposes, Skill availability differences, and external pairing identities remain visible; duplicate section chrome, empty board-column prose, protocol implementation, internal binding keys, and long diagnostics remain deferred; mobile actions sit beside the app-bar title while the content keeps a short purpose line.
+- Displayed the managed WorkGraph and Goal Skills as `WorkGraph Orchestrator` and `Goal Manager` while preserving their hyphenated runtime identifiers.
 - Completed the current Web dialog audit across 59 modal roots and 5 dialog overlays: pairing, custom MCP, Goal, contacts, guides, CC Switch, Provider onboarding, history, mobile conversation switching, and anchored pickers now use quieter plain chrome, direct copy, flatter rows, and product-native confirmations without internal IDs or marketing filler.
 - Flattened Composer Loop and saved-WorkGraph pickers into quiet searchable directories, reduced attachment previews to filename-only chrome, and kept Mermaid enlargement as a title-free canvas.
 - Simplified Skill import, source management, community previews, and Scheduled task dialogs with plain chrome, collapsed format/diagnostic details, flat source rows, task-name history, and no native browser confirmations or internal IDs in headers.
@@ -48,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept DM and Room interjections durable when queue-admission bookkeeping is temporarily unavailable, restored retry dispatch for the original client message, accepted local single-user Web input without a synthetic login principal, and aligned the recoverable error notice with the Composer while preserving the draft.
+- Prevented an active Room from inheriting the previous conversation's transient Feed height during a switch or preserved hot-reload state, which could leave a viewport-sized blank area until refresh.
 - Replaced generic “service internal error” UI text with the current operation's actionable fallback while preserving specific business errors.
 - Fixed hidden WorkGraph editor and save sessions denying the `Read` step required by the host-created CLI input-slot contract, which previously forced invalid shell-redirection fallbacks.
 - Fixed WorkGraph editing opened from a Room or Agent DM being misreported as unavailable when its hidden Nexus main Agent was not part of the source conversation's member list.

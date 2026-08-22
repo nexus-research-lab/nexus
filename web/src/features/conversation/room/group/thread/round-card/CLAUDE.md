@@ -24,4 +24,4 @@
 - 每个 pending interaction 只由 Composer 提供操作面；Agent 槽位与终态正文不得重复渲染结构化问题或批准按钮。
 - 带 root round 与 `agent_round_id` 的权限若对应 execution 已由 lifecycle 收口，必须在卡片与 root fallback 两层同时过滤，不能以通用交互卡重新出现。
 - 所有会让 runtime 等待用户响应的请求都由 Composer 原位替换输入框并成为唯一操作面；Room 主卡片与 Thread 只保留请求身份、等待状态和执行结果等只读证据，不得重复批准、回答或计划确认按钮。
-- 每个活动卡片的 Thread/停止控制条不依赖 pending slot 或某一条 Assistant message；停止按钮只绑定 entry 自身的精确 `agent_round_id`，`stopping` 时原位禁用，terminal/ACK 到达后不得被迟到的 streaming 事件复活。
+- 每个活动卡片只在 Agent 标题行右侧保留一组单层 Thread/停止工具栏，不把运行操作散落到状态行或正文；Thread 固定为最右侧入口，停止只在运行时出现在其左侧并绑定 entry 自身的精确 `agent_round_id`，`stopping` 时原位禁用，terminal/ACK 到达后不得被迟到的 streaming 事件复活。

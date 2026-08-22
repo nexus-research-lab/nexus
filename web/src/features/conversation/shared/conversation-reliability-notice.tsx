@@ -1,6 +1,6 @@
 /**
  * INPUT: Conversation reliability 的 transport、provider retry 与用户级失败分类。
- * OUTPUT: Composer 上方不含技术详情、可随恢复证据自动消失的紧凑状态提示。
+ * OUTPUT: 与 Composer 输入框内缘对齐、不含技术详情、可随恢复证据自动消失的紧凑状态卡。
  * POS: DM 与 Room 共用的可靠性状态展示；不进入消息 Feed。
  */
 "use client";
@@ -14,6 +14,8 @@ import type {
   ConversationFailureCode,
   ConversationReliabilitySnapshot,
 } from "@/types/agent/agent-conversation-reliability";
+
+import { CONVERSATION_COMPOSER_LANE_CLASS_NAME } from "./conversation-panel-styles";
 
 const FAILURE_MESSAGE_KEYS: Record<ConversationFailureCode, TranslationKey> = {
   connection_unavailable: "conversation.reliability.connection_unavailable",
@@ -43,6 +45,7 @@ export function ConversationReliabilityNotice({
         message: t("conversation.reliability.connection_recovering"),
         spinning: true,
         tone: "recovering" as const,
+        failureCode: null,
       }
     : reliability.transport_phase === "unavailable"
     ? {
@@ -50,6 +53,7 @@ export function ConversationReliabilityNotice({
         message: t("conversation.reliability.connection_unavailable"),
         spinning: false,
         tone: "failure" as const,
+        failureCode: "connection_unavailable" as const,
       }
     : reliability.provider_retry
     ? {
@@ -57,6 +61,7 @@ export function ConversationReliabilityNotice({
         message: t("conversation.reliability.provider_retrying"),
         spinning: true,
         tone: "recovering" as const,
+        failureCode: null,
       }
     : reliability.failure
     ? {
@@ -64,6 +69,7 @@ export function ConversationReliabilityNotice({
         message: t(FAILURE_MESSAGE_KEYS[reliability.failure.code]),
         spinning: false,
         tone: "failure" as const,
+        failureCode: reliability.failure.code,
       }
     : null;
 
@@ -73,22 +79,39 @@ export function ConversationReliabilityNotice({
   const Icon = presentation.icon;
   return (
     <div
-      aria-live="polite"
       className={cn(
-        "mx-auto flex min-h-8 w-full items-center gap-2 border-y px-3 py-1.5 text-xs",
-        compact ? "max-w-full" : "max-w-[880px] sm:px-5 xl:px-6",
-        presentation.tone === "failure"
-          ? "border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] text-(--destructive)"
-          : "border-(--surface-control-border) bg-(--surface-control-background) text-(--text-muted)",
+        compact
+          ? "px-4 pt-1"
+          : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pt-1 sm:px-5 xl:px-6`,
       )}
+      data-conversation-failure-code={presentation.failureCode ?? undefined}
       data-conversation-reliability={presentation.tone}
-      role={presentation.tone === "failure" ? "status" : undefined}
     >
-      <Icon
-        aria-hidden="true"
-        className={cn("h-3.5 w-3.5 shrink-0", presentation.spinning && "animate-spin")}
-      />
-      <span>{presentation.message}</span>
+      <div
+        aria-live={presentation.tone === "failure" ? "assertive" : "polite"}
+        className={cn(
+          "flex min-h-9 w-full items-center gap-2 rounded-[10px] border px-2.5 py-1.5 text-xs shadow-[0_1px_2px_color-mix(in_srgb,var(--shadow-color)_6%,transparent)]",
+        presentation.tone === "failure"
+          ? "border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,var(--surface-control-background))] text-(--destructive)"
+          : "border-(--surface-control-border) bg-(--surface-control-background) text-(--text-muted)",
+        )}
+        role={presentation.tone === "failure" ? "alert" : "status"}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px]",
+            presentation.tone === "failure"
+              ? "bg-[color:color-mix(in_srgb,var(--destructive)_9%,transparent)]"
+              : "bg-(--surface-control-field-background)",
+          )}
+        >
+          <Icon
+            className={cn("h-3.5 w-3.5", presentation.spinning && "animate-spin")}
+          />
+        </span>
+        <span className="min-w-0 flex-1 leading-5">{presentation.message}</span>
+      </div>
     </div>
   );
 }

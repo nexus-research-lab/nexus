@@ -1,5 +1,5 @@
 // INPUT: DM 待发送项、当前运行 round 与队列控制动作。
-// OUTPUT: 队列入队幂等结果、串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
+// OUTPUT: 不因 admission 暂时失败而删除的幂等入队、串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
 // POS: DM 输入队列控制面与派发边界。
 package dm
 
@@ -81,11 +81,9 @@ func (s *Service) HandleInputQueue(
 			enqueueResult.Item,
 			request.TrustedConfigurationContext,
 		); err != nil {
-			_ = s.revokeQueueAdmission(ctx, location, enqueueResult.Item)
-			_, _ = s.inputQueue.Delete(location, enqueueResult.Item.ID)
 			return protocol.InputQueueMutationResult{}, err
 		}
-		if !enqueueResult.Duplicate {
+		if _, pending := inputQueueItemByID(enqueueResult.Items, enqueueResult.Item.ID); pending {
 			s.broadcastInputQueueSnapshot(ctx, sessionKey, enqueueResult.Items)
 			s.startSessionBackgroundTask(sessionKey, ownerUserID, func(taskCtx context.Context) {
 				s.dispatchNextInputQueueItemAtLocation(taskCtx, sessionKey, request.AgentID, location)

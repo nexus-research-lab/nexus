@@ -1,12 +1,16 @@
+/**
+ * INPUT: owner 级自定义 MCP 目录及增删改命令。
+ * OUTPUT: 不重复页签标题和启用教程的 MCP 目录。
+ * POS: Connector 页的自定义 MCP 子目录视图。
+ */
 "use client";
 
-import { Cable, Pencil, Plus, Server, Trash2 } from "lucide-react";
+import { Pencil, Plus, Server, Trash2 } from "lucide-react";
 
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
   CapabilityItemIcon,
-  CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -45,17 +49,11 @@ export function CustomMCPGrid({
   if (servers.length === 0) {
     return (
       <div className="flex min-h-48 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-        <Cable className="h-7 w-7 text-(--icon-muted)" />
-        <h2 className="mt-3 text-base font-medium text-(--text-strong)">
+        <h2 className="text-base font-medium text-(--text-strong)">
           {hasServers
             ? t("capability.custom_mcp_no_results_title")
             : t("capability.custom_mcp_empty_title")}
         </h2>
-        <p className="mt-1 max-w-[480px] text-compact leading-5 text-(--text-muted)">
-          {hasServers
-            ? t("capability.custom_mcp_no_results_description")
-            : t("capability.custom_mcp_empty_description")}
-        </p>
         {!hasServers ? (
           <UiButton
             className="mt-4"
@@ -75,11 +73,6 @@ export function CustomMCPGrid({
 
   return (
     <section>
-      <CapabilitySectionHeader
-        count={t("capability.result_count", { count: servers.length })}
-        description={t("capability.custom_mcp_enable_hint")}
-        title={t("capability.custom_mcp_section_title")}
-      />
       <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
         {servers.map((server) => (
           <UiPanel

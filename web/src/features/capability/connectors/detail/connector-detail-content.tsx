@@ -1,3 +1,8 @@
+/**
+ * INPUT: Connector 详情、连接状态、能力条目与文档地址。
+ * OUTPUT: 当前对象的状态、能力与文档，不重复通用协议介绍。
+ * POS: Connector 详情正文纯视图。
+ */
 import type { ReactNode } from "react";
 import { Check, ChevronRight, ExternalLink } from "lucide-react";
 
@@ -150,9 +155,6 @@ export function ConnectorDetailContent({
 }) {
   return (
     <div className="mt-6 space-y-5">
-      <p className="text-sm leading-5 text-(--text-default)">
-        连接后，Agent 会通过安全的 MCP 协议访问此应用。你可以在需要时断开连接，OAuth 类型连接器也可以在原应用侧撤销授权。
-      </p>
       <ConnectorStatusBadges detail={detail} state={state} />
       <ConnectorConfigurationError error={state.configurationError} />
       <ConnectorFeatureList features={features} onSelect={onSelectFeature} />

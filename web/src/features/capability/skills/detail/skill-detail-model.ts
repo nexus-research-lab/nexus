@@ -156,7 +156,7 @@ export function buildSkillDetailPresentation(
     badges,
     canDelete: skill.deletable,
     canUpdate: skill.source_type === "external" && skill.has_update,
-    description: description || localization.t("capability.skills_no_description"),
+    description,
     displayName,
     locked: skill.locked,
     readmeMarkdown: skill.readme_markdown,

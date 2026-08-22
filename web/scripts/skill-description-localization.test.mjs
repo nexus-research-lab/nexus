@@ -20,6 +20,7 @@ test.after(async () => {
 
 const BUNDLED_SKILLS = [
   ["imagegen", "system", undefined],
+  ["execution-orchestrator", "system", undefined],
   ["goal-manager", "system", undefined],
   ["ima-skill", "builtin", "nexus_platform"],
   ["wechat-article-search", "builtin", "nexus_platform"],
@@ -64,6 +65,29 @@ test("Nexus 全部内置 Skill 都按界面语言投影说明", async () => {
     assert.notEqual(enDescription, skill.description, `${name} 缺少英文说明`);
     assert.notEqual(zhDescription, enDescription, `${name} 双语说明未区分`);
     assert.deepEqual(skill, before, `${name} 的真实元数据被修改`);
+  }
+});
+
+test("WorkGraph 与 Goal 系统 Skill 使用无连字符的稳定英文展示名", async () => {
+  const [{ getSkillDisplayTitle }, { MESSAGES }] = await Promise.all([
+    server.ssrLoadModule("/src/lib/skill-description.ts"),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const expectedTitles = new Map([
+    ["execution-orchestrator", "WorkGraph Orchestrator"],
+    ["goal-manager", "Goal Manager"],
+  ]);
+
+  for (const [name, expectedTitle] of expectedTitles) {
+    const skill = createSkill(name, "system");
+    assert.equal(
+      getSkillDisplayTitle(skill, (key) => MESSAGES.zh[key]),
+      expectedTitle,
+    );
+    assert.equal(
+      getSkillDisplayTitle(skill, (key) => MESSAGES.en[key]),
+      expectedTitle,
+    );
   }
 });
 

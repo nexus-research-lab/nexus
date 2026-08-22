@@ -70,6 +70,8 @@ export const enAgentMessages = {
   "agent_options.identity.description": "Description",
   "agent_options.identity.description_placeholder": "Describe this Agent's goal or background...",
   "agent_options.identity.profile_template": "Behavior template",
+  "agent_options.identity.profile_template_view": "View",
+  "agent_options.identity.profile_template_hide": "Collapse",
   "agent_options.identity.profile_template_hint": "This Markdown is saved as AGENTS.md and becomes the Agent's durable role and working rules.",
   "agent_options.identity.profile_template_loading": "Loading the default template...",
   "agent_options.identity.profile_template_load_failed": "Could not load the default template. You can still create the Agent with the server default.",

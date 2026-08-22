@@ -1,6 +1,9 @@
+/**
+ * INPUT: 过滤后的 Connector、分组规则与连接命令。
+ * OUTPUT: 无分类计数的 Connector 网格或短空态。
+ * POS: Connector 目录纯视图。
+ */
 "use client";
-
-import { Link2 } from "lucide-react";
 
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
@@ -47,10 +50,7 @@ export function ConnectorsGrid({
 
   if (connectors.length === 0) {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-(--text-muted)">
-        <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-transparent">
-          <Link2 className="h-4 w-4" />
-        </div>
+      <div className="flex min-h-48 items-center justify-center text-(--text-muted)">
         <p className="text-compact">{t("capability.connectors_empty")}</p>
       </div>
     );
@@ -67,12 +67,7 @@ export function ConnectorsGrid({
     <div className="space-y-6">
       {sections.map((section) => (
         <section key={section.key}>
-          <CapabilitySectionHeader
-            count={t("capability.result_count", {
-              count: section.connectors.length,
-            })}
-            title={section.title}
-          />
+          <CapabilitySectionHeader title={section.title} />
           <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
             {section.connectors.map((connector) => (
               <ConnectorCard

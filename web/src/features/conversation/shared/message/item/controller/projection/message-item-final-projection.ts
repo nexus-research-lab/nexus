@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 内容模式、streamed ContentBlock、过程尾部与 canonical Room result。
- * OUTPUT: DM 单调正文、Room 公区最终回复与 Thread 纯过程投影。
+ * OUTPUT: DM 单调正文、正文后独立 WorkGraph 交付物、Room 公区最终回复与 Thread 纯过程投影。
  * POS: MessageItem 最终回复与过程归档的纯投影真相源。
  */
 import type {
@@ -135,7 +135,7 @@ export function resolveMessageItemFinalProjection({
   const finalAssistantMentions = resolveFinalAssistantMentions(
     assistantMessages,
     finalAssistantTurn?.messageId ?? null,
-    generativeUIEntries.length,
+    countLeadingGenerativeUIEntries(generativeUIEntries),
   );
   const finalAssistantHandoffReply = resolveFinalAssistantHandoffReply(
     assistantMessages,
@@ -374,7 +374,10 @@ function resolveFallbackFinalAssistantContent(
     );
   }
   return generativeUIContent.length > 0
-    ? [...generativeUIContent, ...(fallbackContent ?? [])]
+    ? composeFinalAssistantContent(
+        generativeUIContent,
+        fallbackContent ?? [],
+      )
     : fallbackContent;
 }
 
@@ -385,29 +388,56 @@ function resolveFallbackFinalAssistantStreamingIndexes(
   streamingBlockIndexes: Set<number>,
 ) {
   const nextIndexes = new Set<number>();
-  generativeUIEntries.forEach((entry, index) => {
+  const { leading, trailing } = partitionGenerativeUIEntries(
+    generativeUIEntries,
+  );
+  leading.forEach((entry, index) => {
     if (streamingBlockIndexes.has(entry.mergedIndex)) {
       nextIndexes.add(index);
     }
   });
-  const offset = generativeUIEntries.length;
+  const offset = leading.length;
   if (finalTailEntries.length > 0) {
     finalTailEntries.forEach((entry, index) => {
       if (streamingBlockIndexes.has(entry.mergedIndex)) {
         nextIndexes.add(offset + index);
       }
     });
+    appendTrailingStreamingIndexes({
+      nextIndexes,
+      offset: offset + finalTailEntries.length,
+      streamingBlockIndexes,
+      trailing,
+    });
     return nextIndexes;
   }
   if (!finalAssistantTurn) {
+    appendTrailingStreamingIndexes({
+      nextIndexes,
+      offset,
+      streamingBlockIndexes,
+      trailing,
+    });
     return nextIndexes;
   }
   if (finalAssistantTurn.textContent.length > 0) {
     finalAssistantTurn.textStreamingIndexes.forEach(
       (index) => nextIndexes.add(offset + index),
     );
+    appendTrailingStreamingIndexes({
+      nextIndexes,
+      offset: offset + finalAssistantTurn.textContent.length,
+      streamingBlockIndexes,
+      trailing,
+    });
     return nextIndexes;
   }
+  appendTrailingStreamingIndexes({
+    nextIndexes,
+    offset,
+    streamingBlockIndexes,
+    trailing,
+  });
   return generativeUIEntries.length > 0
     ? nextIndexes
     : finalAssistantTurn.streamingIndexes;
@@ -450,12 +480,12 @@ function resolveArchivedFinalAssistantContent({
     ? finalAssistantTurn.textContent
     : null;
   if (generativeUIContent.length > 0) {
-    return [
-      ...generativeUIContent,
-      ...(narrativeContent ?? (resultText
+    return composeFinalAssistantContent(
+      generativeUIContent,
+      narrativeContent ?? (resultText
         ? [{ type: "text" as const, text: resultText }]
-        : [])),
-    ];
+        : []),
+    );
   }
   return narrativeContent ?? resultText ?? null;
 }
@@ -472,7 +502,10 @@ function resolveRoomResultFinalAssistantContentFromContext({
     ? finalAssistantTurn.textContent
     : null;
   const fallbackFinalAssistantContent = generativeUIContent.length > 0
-    ? [...generativeUIContent, ...(narrativeContent ?? [])]
+    ? composeFinalAssistantContent(
+        generativeUIContent,
+        narrativeContent ?? [],
+      )
     : narrativeContent;
   return resolveRoomResultFinalAssistantContent({
     fallbackFinalAssistantContent,
@@ -504,6 +537,61 @@ function resolveGenerativeUIEntries(
         (left, right) => left.mergedIndex - right.mergedIndex,
       )
     : generativeUIEntries;
+}
+
+function countLeadingGenerativeUIEntries(
+  entries: OrderedAssistantEntry[],
+): number {
+  return partitionGenerativeUIEntries(entries).leading.length;
+}
+
+function composeFinalAssistantContent(
+  promotedContent: ContentBlock[],
+  narrativeContent: ContentBlock[],
+): ContentBlock[] {
+  const leading = promotedContent.filter(
+    (block) => block.type !== "workgraph_artifact",
+  );
+  const trailing = promotedContent.filter(
+    (block) => block.type === "workgraph_artifact",
+  );
+  // 可交互 Widget 沿用回复前置语义；完整工作图是交付物，固定放在正文后。
+  // 这样 Thought/Tool 折叠区、最终叙述和工作图卡片各自拥有稳定层级。
+  return [...leading, ...narrativeContent, ...trailing];
+}
+
+function partitionGenerativeUIEntries(
+  entries: OrderedAssistantEntry[],
+): {
+  leading: OrderedAssistantEntry[];
+  trailing: OrderedAssistantEntry[];
+} {
+  return {
+    leading: entries.filter(
+      ({ block }) => block.type !== "workgraph_artifact",
+    ),
+    trailing: entries.filter(
+      ({ block }) => block.type === "workgraph_artifact",
+    ),
+  };
+}
+
+function appendTrailingStreamingIndexes({
+  nextIndexes,
+  offset,
+  streamingBlockIndexes,
+  trailing,
+}: {
+  nextIndexes: Set<number>;
+  offset: number;
+  streamingBlockIndexes: Set<number>;
+  trailing: OrderedAssistantEntry[];
+}) {
+  trailing.forEach((entry, index) => {
+    if (streamingBlockIndexes.has(entry.mergedIndex)) {
+      nextIndexes.add(offset + index);
+    }
+  });
 }
 
 export function resolveRoomResultFinalAssistantContent({

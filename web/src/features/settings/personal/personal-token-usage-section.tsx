@@ -1,3 +1,8 @@
+/**
+ * INPUT: 用户 Token 用量汇总。
+ * OUTPUT: 总量、额度、三类明细、构成比例和覆盖范围。
+ * POS: 个人设置的用量摘要；数值用于精确阅读，图表用于快速比较构成。
+ */
 "use client";
 
 import type { ReactNode } from "react";
@@ -135,7 +140,7 @@ function UsageMetric({
         <div className="truncate text-xs font-medium text-(--text-soft)">
           {label}
         </div>
-        <div className="mt-1 truncate text-[14px] font-semibold text-(--text-strong)">
+        <div className="mt-1 truncate text-base font-semibold text-(--text-strong)">
           {value}
         </div>
       </div>

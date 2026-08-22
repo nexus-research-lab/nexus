@@ -98,7 +98,7 @@ function UiListRowDefaultContent({
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-base font-semibold">{title}</span>
         {meta}
       </div>
       {description || subtitleTrailing ? (

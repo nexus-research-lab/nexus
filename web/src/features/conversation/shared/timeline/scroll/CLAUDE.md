@@ -1,7 +1,7 @@
 # Conversation Timeline Scroll
 
 - `use-follow-scroll.ts` 只编排 FOLLOW、READING、首次滚动锚点、live 高度保护、内容变化和滚动资源：普通会话的全部正向增长按父 Feed 聚合后的真实高度贴底；显式 `top` 起始的编辑 Session 首次挂载必须先重置旧 FOLLOW/READING 状态并提交 `scrollTop=0`，之后未溢出时从上向下增长、溢出后才由 FOLLOW 跟随最新回复；READING 永不调用跟随执行器。
-- `use-conversation-live-height-guard.ts` 在单个会话 live epoch 内维护单调不减的 Feed 最小高度；普通会话让静态内容栈与完整虚拟画布贴住底部，显式编辑流让同一内容栈贴住顶部，负向估高/shell 收口负债只能留在目标锚点的另一侧。正文与工具块仍按真实 DOM 自然增长，用户主动收起局部内容时必须按实测高度差同步释放对应负债。所有 live source 终态且异步终态布局经过短暂安静窗口后才原子释放；禁止用 `min-height` transition 逐帧结算并触发 ResizeObserver 反馈，会话切换必须立即清空。
+- `use-conversation-live-height-guard.ts` 在单个会话 live epoch 内维护单调不减的 Feed 最小高度；普通会话让静态内容栈与完整虚拟画布贴住底部，显式编辑流让同一内容栈贴住顶部，负向估高/shell 收口负债只能留在目标锚点的另一侧。正文与工具块仍按真实 DOM 自然增长，用户主动收起局部内容时必须按实测高度差同步释放对应负债。所有 live source 终态且异步终态布局经过短暂安静窗口后才原子释放；禁止用 `min-height` transition 逐帧结算并触发 ResizeObserver 反馈。会话切换必须立即清空，并忽略仍可能属于旧会话的首个 DOM 高度，待新 scope 内容提交后再建立基线；React Refresh 保留的旧 inline 高度也必须自愈。
 - `scroll-animation.ts` 独占共享 FOLLOW 与显式回到底部的 `scrollTop` 写入：静态尾部增长在 layout effect / ResizeObserver 中同步写入真实 bottom，不创建 RAF；用户触发的回到底部只对点击时已有距离保留 smooth 阻尼，后续内容高度提交必须取消该事务并把真实 bottom 交还 FOLLOW。初始化/新拓扑的 `auto` 必须保留到虚拟测高连续稳定后再交权。
 - `history-prepend-anchor.ts` 管理历史前插的一次性锚点事务；提交时必须把新增高度叠加到用户等待期间形成的最新 `scrollTop`，取消、失败和会话切换必须清理快照。
 - `conversation-viewport-anchor.ts` 按稳定 round 身份持续记录首个可见轮次；节点拓扑变化或静态/虚拟 Feed 切换后重新寻找同一节点并补偿视口，普通虚拟项测高仍由 Virtualizer 补偿。

@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话、Feed 实测高度、内容对齐方向与是否仍处于 live layout epoch。
- * OUTPUT: live 自动变化期间单调不减、用户主动收起时精确回退、按目标锚点对齐的 Feed 高度。
+ * OUTPUT: live 自动变化期间单调不减、切换会话时延后一帧建基线、用户主动收起时精确回退、按目标锚点对齐的 Feed 高度。
  * POS: FOLLOW/READING 共用的 Feed 级几何保护；普通聊天底部锚定，显式编辑流可从顶部向下增长。
  */
 import {
@@ -18,6 +18,8 @@ import {
 
 const LIVE_HEIGHT_SETTLE_MS = 160;
 const HEIGHT_TOLERANCE_PX = 0.5;
+// React Refresh 会保留 Hook ref；模块协议更新后必须丢弃旧 inline 高度。
+const LIVE_HEIGHT_GUARD_PROTOCOL = {};
 
 export interface ConversationLiveHeightGuardState {
   minimumHeight: number;
@@ -57,11 +59,13 @@ export function resolveConversationLiveHeightGuard({
 }: ConversationLiveHeightGuardInput, previous: ConversationLiveHeightGuardState): ConversationLiveHeightGuardRevision {
   const normalizedHeight = Math.max(0, measuredHeight);
   if (previous.scopeKey !== scopeKey) {
-    const minimumHeight = active ? normalizedHeight : 0;
+    // scope 改变后的首个 layout effect 仍可能看到上一会话的 DOM。这里仅
+    // 清空旧负债，不用这次测量建立新基线；新会话内容提交或 ResizeObserver
+    // 首次回调后，再从同 scope 的真实 intrinsic height 开始保护。
     return {
-      minimumHeight,
+      minimumHeight: 0,
       releasing: false,
-      state: { minimumHeight, scopeKey, wasActive: active },
+      state: { minimumHeight: 0, scopeKey, wasActive: false },
     };
   }
   if (active) {
@@ -115,6 +119,12 @@ export function useConversationLiveHeightGuard({
   });
   const settleTimerRef = useRef<number | null>(null);
   const guardedFeedRef = useRef<HTMLDivElement | null>(null);
+  const protocolRef = useRef(LIVE_HEIGHT_GUARD_PROTOCOL);
+  const protocolResetPendingRef = useRef(false);
+  if (protocolRef.current !== LIVE_HEIGHT_GUARD_PROTOCOL) {
+    protocolRef.current = LIVE_HEIGHT_GUARD_PROTOCOL;
+    protocolResetPendingRef.current = true;
+  }
   requestedActiveRef.current = active;
 
   const cancelSettle = useCallback(() => {
@@ -128,18 +138,23 @@ export function useConversationLiveHeightGuard({
     feed: HTMLDivElement,
     effectiveActive: boolean,
   ) => {
-    if (stateRef.current.scopeKey !== normalizedScopeKey) {
+    const protocolResetPending = protocolResetPendingRef.current;
+    const scopeChanged = stateRef.current.scopeKey !== normalizedScopeKey;
+    if (protocolResetPending || scopeChanged) {
       cancelSettle();
       const previousFeed = guardedFeedRef.current;
       if (previousFeed) {
         clearConversationLiveHeightGuardStyle(previousFeed);
       }
       clearConversationLiveHeightGuardStyle(feed);
-      stateRef.current = {
-        minimumHeight: 0,
-        scopeKey: normalizedScopeKey,
-        wasActive: false,
-      };
+      protocolResetPendingRef.current = false;
+      if (protocolResetPending) {
+        stateRef.current = {
+          minimumHeight: 0,
+          scopeKey: normalizedScopeKey,
+          wasActive: false,
+        };
+      }
     }
     const previous = stateRef.current;
     let measuredHeight = feed.getBoundingClientRect().height;

@@ -61,10 +61,9 @@ const SKILL_UPDATE_STATUS_RULES: readonly SkillUpdateStatusRule[] = [
 export function buildSkillCardModel(
   skill: SkillInfo,
   description: string,
-  emptyDescription: string,
 ): SkillCardModel {
   return {
-    description: description || emptyDescription,
+    description,
     showDelete: skill.deletable,
     showUpdate: skill.has_update,
     title: skill.title || skill.name,
