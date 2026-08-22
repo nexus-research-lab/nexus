@@ -1,10 +1,11 @@
+// INPUT: 飞书连接入口状态、扫码/手工分支与提交动作。
+// OUTPUT: 两种连接方式或手工凭据字段组成的 plain 弹窗。
+// POS: 飞书 Connector 连接方式选择边界，扫码为主、手工配置仅作明确兜底。
 "use client";
 
 import {
   ArrowLeft,
   ChevronRight,
-  KeyRound,
-  ScanLine,
 } from "lucide-react";
 import { type FormEvent } from "react";
 
@@ -21,7 +22,6 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { UiPanel } from "@/shared/ui/panel";
 
 import { feishuManualCredentialsComplete } from "./feishu-app-connection-model";
 
@@ -65,12 +65,11 @@ export function FeishuAppConnectionDialog({
         <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
           <UiDialogFormShell onSubmit={handleSubmit} size="sm">
             <UiDialogHeader
-              icon={<KeyRound className="h-4 w-4" />}
+              appearance="plain"
               onClose={onClose}
-              subtitle="仅在官方扫码流程不可用时手工提供应用凭据。"
-              title="手动配置飞书应用"
+              title="手动连接飞书"
             />
-            <UiDialogBody className="space-y-4">
+            <UiDialogBody className="space-y-4 px-5">
               <UiButton
                 className="w-fit"
                 disabled={busy}
@@ -80,15 +79,11 @@ export function FeishuAppConnectionDialog({
                 variant="text"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                返回选择连接方式
+                返回
               </UiButton>
-              <UiPanel
-                className="text-compact leading-6 text-(--text-muted)"
-                padding="sm"
-                variant="inset"
-              >
-                这是兜底方式。提交 App ID 和 App Secret 后，Nexus 会直接显示当前用户的飞书授权链接；该阶段不再把链接生成为二维码。
-              </UiPanel>
+              <p className="text-sm leading-6 text-(--text-muted)">
+                仅在扫码不可用时填写应用凭据。
+              </p>
               <UiField htmlFor="feishu-existing-app-id" label="App ID" required>
                 <UiInput
                   autoCapitalize="off"
@@ -131,7 +126,7 @@ export function FeishuAppConnectionDialog({
                 />
               </UiField>
             </UiDialogBody>
-            <UiDialogFooter>
+            <UiDialogFooter appearance="plain">
               <UiButton disabled={busy} onClick={onClose} type="button">
                 取消
               </UiButton>
@@ -141,7 +136,7 @@ export function FeishuAppConnectionDialog({
                 type="submit"
                 variant="solid"
               >
-                保存并继续授权
+                继续
               </UiButton>
             </UiDialogFooter>
           </UiDialogFormShell>
@@ -155,22 +150,16 @@ export function FeishuAppConnectionDialog({
       <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
         <UiDialogShell size="sm">
           <UiDialogHeader
-            icon={<ScanLine className="h-4 w-4" />}
+            appearance="plain"
             onClose={onClose}
-            subtitle="优先使用飞书官方扫码；历史 App ID 不会被自动复用。"
             title="连接飞书云文档"
           />
-          <UiDialogBody>
-            <UiPanel className="divide-y divide-(--divider-subtle-color)" padding="none" variant="inset">
+          <UiDialogBody className="px-5">
+            <div className="radius-control-lg divide-y divide-(--divider-subtle-color) overflow-hidden border border-(--divider-subtle-color)">
               <UiListRow
                 aria-disabled={busy}
                 className={busy ? "opacity-(--disabled-opacity)" : ""}
-                description="在飞书官方页面选择已有应用或创建新应用，并自动补齐云文档权限。"
-                leading={(
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color)">
-                    <ScanLine className="h-4 w-4 text-(--icon-default)" />
-                  </span>
-                )}
+                description="在飞书页面选择或创建应用。"
                 onClick={busy ? undefined : onScan}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
                 title="扫码连接"
@@ -178,19 +167,14 @@ export function FeishuAppConnectionDialog({
               <UiListRow
                 aria-disabled={busy}
                 className={busy ? "opacity-(--disabled-opacity)" : ""}
-                description="扫码不可用时，手动填写 App ID 和 App Secret 继续连接。"
-                leading={(
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color)">
-                    <KeyRound className="h-4 w-4 text-(--icon-default)" />
-                  </span>
-                )}
+                description="填写 App ID 和 App Secret。"
                 onClick={busy ? undefined : () => setView("manual")}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
-                title="手动配置（兜底）"
+                title="手动配置"
               />
-            </UiPanel>
+            </div>
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} type="button">
               取消
             </UiButton>

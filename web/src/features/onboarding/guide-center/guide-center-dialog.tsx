@@ -1,3 +1,8 @@
+/**
+ * INPUT: 可用引导、完成状态与打开/重置命令。
+ * OUTPUT: 无介绍套话的 plain 引导目录。
+ * POS: Onboarding 引导选择边界；条目直接说明目的和动作。
+ */
 "use client";
 
 import { Check, RotateCcw } from "lucide-react";
@@ -16,7 +21,6 @@ import type { GuideCenterItem } from "./guide-center-model";
 
 interface GuideCenterDialogProps {
   closeLabel: string;
-  description: string;
   isOpen: boolean;
   items: readonly GuideCenterItem[];
   onClose: () => void;
@@ -26,12 +30,10 @@ interface GuideCenterDialogProps {
   title: string;
 }
 
-const GUIDE_CENTER_DESCRIPTION_ID = "onboarding-guide-center-description";
 const GUIDE_CENTER_TITLE_ID = "onboarding-guide-center-title";
 
 export function GuideCenterDialog({
   closeLabel,
-  description,
   isOpen,
   items,
   onClose,
@@ -48,32 +50,18 @@ export function GuideCenterDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         className="z-[11050]"
-        describedBy={GUIDE_CENTER_DESCRIPTION_ID}
         labelledBy={GUIDE_CENTER_TITLE_ID}
         onClose={onClose}
       >
         <div className="w-full max-w-lg">
           <UiDialogShell>
             <UiDialogHeader
-              className="!px-5 !py-4"
+              appearance="plain"
               closeLabel={closeLabel}
               onClose={onClose}
-            >
-              <div className="min-w-0 flex-1">
-                <h3
-                  className="text-[16px] font-semibold tracking-tight text-(--text-strong)"
-                  id={GUIDE_CENTER_TITLE_ID}
-                >
-                  {title}
-                </h3>
-                <p
-                  className="mt-1 text-compact leading-5 text-(--text-soft)"
-                  id={GUIDE_CENTER_DESCRIPTION_ID}
-                >
-                  {description}
-                </p>
-              </div>
-            </UiDialogHeader>
+              title={title}
+              titleId={GUIDE_CENTER_TITLE_ID}
+            />
 
             <UiDialogBody className="!px-5 !py-1">
               <div className="divide-y divide-(--divider-subtle-color)">
@@ -119,7 +107,7 @@ export function GuideCenterDialog({
               </div>
             </UiDialogBody>
 
-            <UiDialogFooter className="!px-5 !py-3">
+            <UiDialogFooter appearance="plain" className="!px-5 !py-3">
               <button
                 className={getUiButtonClassName(
                   { size: "xs", tone: "default", variant: "text" },

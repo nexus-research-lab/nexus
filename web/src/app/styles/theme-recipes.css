@@ -999,6 +999,13 @@
     padding: 0.875rem 1.125rem;
   }
 
+  .dialog-header--plain {
+    align-items: flex-start;
+    background: var(--modal-dialog-body-background);
+    border-bottom: 0;
+    padding: 1.25rem 1.25rem 0.5rem;
+  }
+
   .dialog-title {
     font-size: 1.0625rem;
     font-weight: 600;
@@ -1041,6 +1048,12 @@
     background: var(--modal-dialog-footer-background);
     border-top: 1px solid var(--modal-divider-color);
     padding: 0.8125rem 1.125rem;
+  }
+
+  .dialog-footer--plain {
+    background: var(--modal-dialog-body-background);
+    border-top: 0;
+    padding: 0.75rem 1.25rem 1.25rem;
   }
 
   .dialog-field {

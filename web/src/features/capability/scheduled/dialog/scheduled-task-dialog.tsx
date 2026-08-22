@@ -1,6 +1,9 @@
+/**
+ * INPUT: 定时任务初值、创建/更新回调与当前 Agent 作用域。
+ * OUTPUT: plain 双栏任务表单及原有提交事务。
+ * POS: 定时任务创建/编辑模态边界，不在标题区复述表单结构。
+ */
 "use client";
-
-import { Pencil } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -83,10 +86,8 @@ export function ScheduledTaskDialog({
           size="wide"
         >
           <UiDialogHeader
+            appearance="plain"
             onClose={onClose}
-            subtitle={initialTask
-              ? t("capability.scheduled_dialog_edit_subtitle")
-              : t("capability.scheduled_dialog_new_subtitle")}
             title={initialTask
               ? t("capability.scheduled_dialog_edit_title")
               : t("capability.scheduled_dialog_new_title")}
@@ -128,7 +129,7 @@ export function ScheduledTaskDialog({
             ) : null}
           </UiDialogBody>
 
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton
               className="min-w-[104px]"
               disabled={controller.isSubmitting}
@@ -146,12 +147,7 @@ export function ScheduledTaskDialog({
                 type="submit"
                 variant="solid"
               >
-                {controller.isSubmitting ? submittingLabel : (
-                  <>
-                    {initialTask ? <Pencil className="h-3.5 w-3.5" /> : null}
-                    {submitLabel}
-                  </>
-                )}
+                {controller.isSubmitting ? submittingLabel : submitLabel}
               </UiButton>
             ) : null}
           </UiDialogFooter>

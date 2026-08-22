@@ -4,8 +4,6 @@ import type { zhAgentMessages } from "../zh/agent";
 export const enAgentMessages = {
   "agent_options.default_name": "Agent",
   "agent_options.title_create": "Create Agent",
-  "agent_options.subtitle_create": "Configure identity, skills, permissions, and behavior.",
-  "agent_options.id_prefix": "ID",
   "agent_options.close_dialog": "Close dialog",
   "agent_options.delete_agent": "Delete Agent",
   "agent_options.save_changes": "Save changes",

@@ -1,9 +1,7 @@
-import {
-  Loader2,
-  Power,
-  QrCode,
-  Trash2,
-} from "lucide-react";
+// INPUT: Channel 保存、扫码、删除与等待状态及对应动作。
+// OUTPUT: plain 弹窗底部的断开、取消和单一主动作。
+// POS: Channel 连接弹窗的动作投影，不解释状态机或重复表单内容。
+import { Loader2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
 import { UiDialogFooter } from "@/shared/ui/dialog/dialog";
@@ -45,49 +43,42 @@ export function ChannelConnectDialogFooter({
   const submitDisabled = busy || loginRunning || !agentId || planned;
 
   return (
-    <UiDialogFooter>
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-h-10">
-          {configured && !planned ? (
-            <UiButton
-              className="min-w-[118px]"
-              disabled={busy}
-              onClick={onRequestDelete}
-              size="lg"
-              tone="danger"
-              type="button"
-            >
-              {deleting
-                ? <Loader2 className="h-5 w-5 animate-spin" />
-                : <Trash2 className="h-5 w-5" />}
-              {deleting ? "断开中..." : "断开频道"}
-            </UiButton>
-          ) : null}
-        </div>
-        <div className="flex justify-end gap-3">
+    <UiDialogFooter appearance="plain" className="justify-between">
+      <div>
+        {configured && !planned ? (
           <UiButton
-            className="min-w-[104px]"
-            disabled={deleting}
-            onClick={onCancel}
-            size="lg"
+            disabled={busy}
+            onClick={onRequestDelete}
+            size="sm"
+            tone="danger"
             type="button"
+            variant="text"
           >
-            取消
+            {deleting
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : null}
+            {deleting ? "断开中..." : "断开频道"}
           </UiButton>
-          <UiButton
-            className="min-w-[124px]"
-            disabled={submitDisabled}
-            size="lg"
-            tone="primary"
-            type="submit"
-            variant="solid"
-          >
-            {supportsQRCode
-              ? <QrCode className="h-5 w-5" />
-              : <Power className="h-5 w-5" />}
-            {getChannelSubmitLabel(submitState)}
-          </UiButton>
-        </div>
+        ) : null}
+      </div>
+      <div className="flex justify-end gap-2">
+        <UiButton
+          disabled={deleting}
+          onClick={onCancel}
+          size="sm"
+          type="button"
+        >
+          取消
+        </UiButton>
+        <UiButton
+          disabled={submitDisabled}
+          size="sm"
+          tone="primary"
+          type="submit"
+          variant="solid"
+        >
+          {getChannelSubmitLabel(submitState)}
+        </UiButton>
       </div>
     </UiDialogFooter>
   );

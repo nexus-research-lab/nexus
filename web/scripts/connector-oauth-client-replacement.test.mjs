@@ -50,15 +50,15 @@ test("Feishu Docs presents official QR as the primary choose-or-create flow", as
   );
 
   const appSelection = getFeishuDeviceAuthPresentation("app_selection");
-  assert.equal(appSelection.title, "选择或创建飞书应用");
-  assert.match(appSelection.subtitle, /选择已有应用或创建新应用/);
+  assert.equal(appSelection.title, "选择飞书应用");
+  assert.equal("subtitle" in appSelection, false);
   assert.equal(appSelection.showQRCode, true);
   assert.equal(appSelection.actionLabel, "打开飞书");
 
   const userAuthorization = getFeishuDeviceAuthPresentation(
     "user_authorization",
   );
-  assert.equal(userAuthorization.title, "授权飞书云文档");
+  assert.equal(userAuthorization.title, "连接飞书云文档");
   assert.equal(userAuthorization.showQRCode, false);
   assert.equal(userAuthorization.actionLabel, "继续飞书授权");
 

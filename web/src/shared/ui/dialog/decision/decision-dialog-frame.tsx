@@ -60,7 +60,7 @@ export function DecisionDialogActions({
   onConfirm,
 }: DecisionDialogActionsProps) {
   return (
-    <UiDialogFooter>
+    <UiDialogFooter className="!border-t-0 !bg-transparent !px-5 !pb-5 !pt-0">
       <button
         className={getDialogActionClassName("default")}
         onClick={onCancel}

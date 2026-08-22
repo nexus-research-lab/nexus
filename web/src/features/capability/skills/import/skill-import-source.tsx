@@ -1,8 +1,13 @@
+/**
+ * INPUT: 当前导入模式、Git 草稿与本地文件入口。
+ * OUTPUT: 文字分段选择及对应的单一导入表单。
+ * POS: Skill 导入弹窗的主内容，不承载格式教程。
+ */
 import {
   type ComponentType,
   type RefObject,
 } from "react";
-import { FolderUp, GitBranch, Loader2 } from "lucide-react";
+import { FolderUp, Loader2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -33,11 +38,6 @@ interface SourceViewProps extends Omit<
   "mode" | "onSelectMode"
 > {}
 
-const MODE_ICONS: Record<SkillImportDialogMode, ComponentType<{ className?: string }>> = {
-  git: GitBranch,
-  local: FolderUp,
-};
-
 function SkillImportModeTabs({
   importing,
   mode,
@@ -47,7 +47,6 @@ function SkillImportModeTabs({
   return (
     <div className="inline-flex rounded-[10px] border border-(--divider-subtle-color) p-1">
       {SKILL_IMPORT_MODES.map((option) => {
-        const Icon = MODE_ICONS[option.key];
         const isActive = mode === option.key;
         return (
           <button
@@ -62,7 +61,6 @@ function SkillImportModeTabs({
             onClick={() => onSelectMode(option.key)}
             type="button"
           >
-            <Icon className="h-3.5 w-3.5" />
             {t(option.labelKey)}
           </button>
         );
@@ -141,12 +139,8 @@ function LocalSkillImportSource({
 }: SourceViewProps) {
   const { t } = useI18n();
   return (
-    <div className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
-      <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)">
-          <FolderUp className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
+    <div className="rounded-[10px] border border-dashed border-(--divider-subtle-color) px-4 py-5">
+        <div className="min-w-0 text-center">
           <h3 className="text-sm font-medium text-(--text-strong)">
             {t("capability.skills_import_zip_title")}
           </h3>
@@ -166,7 +160,6 @@ function LocalSkillImportSource({
               ? t("capability.skills_importing")
               : t("capability.skills_import_choose_zip")}
           </UiButton>
-        </div>
       </div>
     </div>
   );

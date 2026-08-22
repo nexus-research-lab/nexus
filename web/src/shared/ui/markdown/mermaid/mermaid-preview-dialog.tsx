@@ -1,3 +1,8 @@
+/**
+ * INPUT: 已渲染 Mermaid SVG、开放状态与关闭动作。
+ * OUTPUT: 无可见标题栏、支持拖拽浏览的放大画布。
+ * POS: Mermaid 主视图的瞬时预览层，不解释图表业务语义。
+ */
 import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";

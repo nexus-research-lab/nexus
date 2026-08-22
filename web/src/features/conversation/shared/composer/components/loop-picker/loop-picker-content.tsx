@@ -1,3 +1,8 @@
+/**
+ * INPUT: Loop 目录的加载、错误、空态或筛选结果。
+ * OUTPUT: 单一状态消息或无卡片嵌套的 Loop 列表。
+ * POS: Loop picker 的内容投影，不维护选择器生命周期。
+ */
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -32,8 +37,8 @@ export function LoopPickerContent({
     empty: <LoopPickerMessage message={t("composer.loop_picker_empty")} />,
     error: <LoopPickerMessage destructive message={error ?? ""} />,
     list: (
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="grid grid-cols-1 gap-2">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto rounded-[10px] border border-(--divider-subtle-color)">
+        <div className="divide-y divide-(--divider-subtle-color)">
           {loops.map((loop) => (
             <LoopPickerItem
               key={loop.slug}

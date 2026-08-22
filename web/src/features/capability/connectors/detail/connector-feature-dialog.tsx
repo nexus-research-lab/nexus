@@ -1,6 +1,8 @@
-import { Check } from "lucide-react";
-
-import { UiBadge } from "@/shared/ui/display/badge";
+/**
+ * INPUT: Connector 名称与单项能力详情。
+ * OUTPUT: 正文优先、技术 scopes 按需展开的 plain 能力预览。
+ * POS: Connector 详情页的只读能力说明弹窗。
+ */
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -8,7 +10,6 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorFeatureDetail } from "@/types/capability/connector";
 
 interface ConnectorFeatureDialogProps {
@@ -30,9 +31,8 @@ export function ConnectorFeatureDialog({
       <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
         <UiDialogShell className="max-h-[min(84vh,640px)]" size="lg">
           <UiDialogHeader
-            icon={<Check className="h-4 w-4" />}
+            appearance="plain"
             onClose={onClose}
-            subtitle={`${connectorTitle} 能力`}
             title={feature.name}
           />
           <UiDialogBody className="space-y-4" scrollable>
@@ -40,37 +40,40 @@ export function ConnectorFeatureDialog({
               {feature.description}
             </p>
             {feature.items?.length ? (
-              <UiPanel padding="sm" radius="sm" variant="inset">
-                <div className="mb-2 text-compact font-semibold text-(--text-strong)">
-                  能力范围
-                </div>
-                <div className="space-y-2">
+              <section>
+                <h3 className="mb-2 text-compact font-semibold text-(--text-strong)">
+                  包括
+                </h3>
+                <ul className="space-y-2 pl-4">
                   {feature.items.map((item) => (
-                    <div
-                      className="flex gap-2 text-sm leading-6 text-(--text-default)"
+                    <li
+                      className="list-disc text-sm leading-6 text-(--text-default) marker:text-(--text-soft)"
                       key={item}
                     >
-                      <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-(--primary)" />
-                      <span>{item}</span>
-                    </div>
+                      {item}
+                    </li>
                   ))}
-                </div>
-              </UiPanel>
+                </ul>
+              </section>
             ) : null}
             {feature.scopes?.length ? (
-              <div>
-                <div className="mb-2 text-compact font-medium text-(--text-muted)">
-                  相关 OAuth scopes
-                </div>
-                <div className="flex flex-wrap gap-1.5">
+              <details className="border-t border-(--divider-subtle-color) pt-3 text-xs">
+                <summary className="cursor-pointer select-none font-medium text-(--text-muted) hover:text-(--text-strong)">
+                  OAuth scopes
+                </summary>
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {feature.scopes.map((scope) => (
-                    <UiBadge key={scope} size="xs">
+                    <code
+                      className="rounded-[5px] bg-(--surface-interactive-hover-background) px-1.5 py-0.5 text-(--text-muted)"
+                      key={scope}
+                    >
                       {scope}
-                    </UiBadge>
+                    </code>
                   ))}
                 </div>
-              </div>
+              </details>
             ) : null}
+            <p className="sr-only">{connectorTitle}</p>
           </UiDialogBody>
         </UiDialogShell>
       </UiDialogBackdrop>

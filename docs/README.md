@@ -39,6 +39,7 @@
 
 ### 平台能力
 
+- [Web 弹窗设计规范](./specs/dialog-design-spec.md)
 - [Nexus Skill 模型与运行时规范](./specs/skill-spec.md)
 - [Connector OAuth 规范](./specs/connector-oauth-spec.md)
 - [定时自动化权限规范](./specs/automation-permission-pipeline-spec.md)

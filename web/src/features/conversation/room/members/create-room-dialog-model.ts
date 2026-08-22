@@ -1,3 +1,6 @@
+// INPUT: Room 创建/管理 Props、模式与窄翻译函数。
+// OUTPUT: 完整内容参数、稳定重建 key 与标题/主动作标签。
+// POS: Room 弹窗可选参数和可见标签的唯一纯模型，不生成说明性副标题。
 import type {
   CreateRoomDialogProps,
   RoomDialogMode,
@@ -8,12 +11,10 @@ import type {
 const ROOM_DIALOG_LABEL_KEYS = {
   create: {
     confirm: "room.create_action",
-    subtitle: "room.create_dialog_subtitle",
     title: "room.create_dialog_title",
   },
   manage: {
     confirm: "common.save",
-    subtitle: "room.manage_dialog_subtitle",
     title: "room.manage_dialog_title",
   },
 } as const;
@@ -40,7 +41,6 @@ export interface RoomDialogContentProps {
 
 interface RoomDialogLabels {
   confirm: string;
-  subtitle: string;
   title: string;
 }
 
@@ -102,7 +102,6 @@ export function resolveRoomDialogLabels(
   const keys = ROOM_DIALOG_LABEL_KEYS[mode];
   return {
     confirm: translate(keys.confirm),
-    subtitle: translate(keys.subtitle),
     title: translate(keys.title),
   };
 }

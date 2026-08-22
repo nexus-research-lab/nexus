@@ -1,6 +1,6 @@
 /**
  * INPUT: DM 会话 Frame、Feed、嵌入编辑器接待话术、Goal、Task 与 Composer 视图模型。
- * OUTPUT: 共享 viewport、与修改消息同 Feed 的仅 UI 接待说明，以及从 Composer 向上堆叠的 DM 对话布局。
+ * OUTPUT: 共享 viewport、可收敛为短句的仅 UI 接待说明，以及从 Composer 向上堆叠的 DM 对话布局。
  * POS: DM 面板的纯视图层。
  */
 
@@ -144,18 +144,22 @@ function EmbeddedEditorIntroduction({
       <div className="ml-9 mt-2.5 min-w-0 text-[13px] leading-5.5 text-(--text-muted)">
         <p className="font-medium text-(--text-strong)">{title}</p>
         <p className="mt-1">{description}</p>
-        <p className="mt-4 text-xs font-medium text-(--text-soft)">{examplesLabel}</p>
-        <ul className="mt-2.5 space-y-2">
-          {examples.map((example) => (
-            <li
-              className="border-l-2 border-[color:color-mix(in_srgb,var(--primary)_44%,var(--divider-subtle-color))] pl-3 text-(--text-strong)"
-              key={example}
-            >
-              “{example}”
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-xs text-(--text-soft)">{footer}</p>
+        {examples.length ? (
+          <>
+            {examplesLabel ? <p className="mt-4 text-xs font-medium text-(--text-soft)">{examplesLabel}</p> : null}
+            <ul className="mt-2.5 space-y-2">
+              {examples.map((example) => (
+                <li
+                  className="border-l-2 border-[color:color-mix(in_srgb,var(--primary)_44%,var(--divider-subtle-color))] pl-3 text-(--text-strong)"
+                  key={example}
+                >
+                  “{example}”
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {footer ? <p className="mt-4 text-xs text-(--text-soft)">{footer}</p> : null}
       </div>
     </section>
   );

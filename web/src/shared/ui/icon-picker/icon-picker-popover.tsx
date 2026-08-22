@@ -1,3 +1,8 @@
+/**
+ * INPUT: 图标族、当前值、锚点触发器与选择命令。
+ * OUTPUT: 带可访问名称的紧凑锚定图标网格。
+ * POS: 共享图标选择浮层；不显示无语义的图标数量标题。
+ */
 "use client";
 
 import {
@@ -123,12 +128,9 @@ export function IconPickerPopover({
           style={overlayStyle}
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
-          <div className="mb-3 flex items-center justify-between gap-3 px-0.5">
+          <div className="mb-3 px-0.5">
             <span className="text-sm font-semibold text-(--text-strong)">
               {ariaLabel}
-            </span>
-            <span className="text-xs text-(--text-soft)">
-              {maxIcons}
             </span>
           </div>
           <IconPicker

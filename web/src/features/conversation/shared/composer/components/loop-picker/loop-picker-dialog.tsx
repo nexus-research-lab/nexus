@@ -1,6 +1,9 @@
+/**
+ * INPUT: 当前开放状态、Loop 目录选择动作与关闭动作。
+ * OUTPUT: 以搜索和分类筛选为主的紧凑 Loop 选择器。
+ * POS: Composer 能力菜单中的 Loop 选择边界；不解释 Goal 执行状态。
+ */
 "use client";
-
-import { Repeat2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -44,9 +47,8 @@ function OpenLoopPickerDialog({
           style={{ maxHeight: "min(640px, calc(100vh - 96px))" }}
         >
           <UiDialogHeader
-            icon={<Repeat2 className="h-4 w-4" />}
+            appearance="plain"
             onClose={onClose}
-            subtitle={t("composer.loop_picker_subtitle")}
             title={t("composer.loop_picker_title")}
           />
           <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-3">

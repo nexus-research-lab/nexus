@@ -1,6 +1,6 @@
 /**
  * INPUT: exact WorkGraph preview、源 Session 与源会话可见 Agent。
- * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，左侧展示本地接待说明与专用 DM，右侧展示共用画布和版本选择。
+ * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，左侧用一段短接待说明衔接专用 DM，右侧展示共用画布和版本选择。
  * POS: 关闭页面不删除会话；应用只投影所选版本，画布容器保持 flex 高度且不改写源 Execution/聊天。
  */
 "use client";
@@ -238,13 +238,9 @@ export function WorkGraphMetadataEditorDialog({
                   embeddedEditor={{
                     introduction: {
                       description: t("execution.workflow_editor_intro_description"),
-                      examples: [
-                        t("execution.workflow_editor_intro_example_metadata"),
-                        t("execution.workflow_editor_intro_example_split"),
-                        t("execution.workflow_editor_intro_example_dependency"),
-                      ],
-                      examplesLabel: t("execution.workflow_editor_intro_examples"),
-                      footer: t("execution.workflow_editor_intro_footer"),
+                      examples: [],
+                      examplesLabel: "",
+                      footer: "",
                       title: t("execution.workflow_editor_intro_title"),
                     },
                     placeholder: t("execution.workflow_editor_placeholder"),

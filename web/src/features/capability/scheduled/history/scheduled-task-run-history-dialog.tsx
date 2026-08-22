@@ -1,8 +1,14 @@
+/**
+ * INPUT: 当前定时任务、运行历史资源与恢复/重试动作。
+ * OUTPUT: 以任务名和状态命名的 plain 运行历史工作面。
+ * POS: Scheduled 历史模态边界；内部 Job ID 只留在诊断详情。
+ */
 "use client";
 
 import { RefreshCw } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -60,65 +66,74 @@ export function ScheduledTaskRunHistoryDialog({
 
   const taskStatus = getTaskStatusMeta(activeTask);
   return (
-    <UiDialogPortal>
-      <UiDialogBackdrop
-        closeOnBackdrop={false}
-        labelledBy="scheduled-task-run-history-title"
-        onClose={onClose}
-      >
-        <UiDialogShell className="h-[82vh]" size="xl">
-          <UiDialogHeader
-            actions={(
-              <UiButton
-                onClick={() => void resource.refresh().catch(() => undefined)}
-                size="xs"
-                type="button"
-                variant="text"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                刷新
-              </UiButton>
-            )}
-            onClose={onClose}
-          >
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="dialog-title" id="scheduled-task-run-history-title">
-                {activeTask.name} 运行历史
-              </h2>
-              <WorkspaceStatusBadge
-                label={taskStatus.label}
-                size="compact"
-                tone={taskStatus.tone}
-              />
-            </div>
-            <p className="dialog-subtitle mt-1">Job ID: {activeTask.job_id}</p>
-            {actions.message ? (
-              <p className="mt-2 text-xs font-medium text-(--text-default)">
-                {actions.message}
-              </p>
-            ) : null}
-          </div>
-          </UiDialogHeader>
+    <>
+      <UiDialogPortal>
+        <UiDialogBackdrop
+          closeOnBackdrop={false}
+          labelledBy="scheduled-task-run-history-title"
+          onClose={onClose}
+        >
+          <UiDialogShell className="h-[82vh]" size="xl">
+            <UiDialogHeader
+              appearance="plain"
+              actions={(
+                <UiButton
+                  onClick={() => void resource.refresh().catch(() => undefined)}
+                  size="xs"
+                  type="button"
+                  variant="text"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  刷新
+                </UiButton>
+              )}
+              onClose={onClose}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <h2 className="dialog-title" id="scheduled-task-run-history-title">
+                  {activeTask.name}
+                </h2>
+                <WorkspaceStatusBadge
+                  label={taskStatus.label}
+                  size="compact"
+                  tone={taskStatus.tone}
+                />
+              </div>
+            </UiDialogHeader>
 
-          <UiDialogBody className="min-h-0 flex-1" scrollable>
-            <ScheduledTaskRunHistoryContent
-              copiedRunId={actions.copiedRunId}
-              errorMessage={resource.errorMessage}
-              isLoading={resource.isLoading}
-              onCopyDiagnostic={actions.copyDiagnostic}
-              onRecover={actions.recover}
-              onRetry={actions.retry}
-              onRetryDelivery={actions.retryDelivery}
-              pendingRecoveries={actions.pending.get("recover") ?? EMPTY_PENDING_RUN_IDS}
-              pendingRetries={actions.pending.get("retry") ?? EMPTY_PENDING_RUN_IDS}
-              pendingRetryDeliveries={actions.pending.get("retryDelivery") ?? EMPTY_PENDING_RUN_IDS}
-              runs={resource.runs}
-              task={activeTask}
-            />
-          </UiDialogBody>
-        </UiDialogShell>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
+            <UiDialogBody className="min-h-0 flex-1" scrollable>
+              {actions.message ? (
+                <p className="mb-3 text-xs font-medium text-(--text-default)">
+                  {actions.message}
+                </p>
+              ) : null}
+              <ScheduledTaskRunHistoryContent
+                copiedRunId={actions.copiedRunId}
+                errorMessage={resource.errorMessage}
+                isLoading={resource.isLoading}
+                onCopyDiagnostic={actions.copyDiagnostic}
+                onRecover={actions.recover}
+                onRetry={actions.retry}
+                onRetryDelivery={actions.retryDelivery}
+                pendingRecoveries={actions.pending.get("recover") ?? EMPTY_PENDING_RUN_IDS}
+                pendingRetries={actions.pending.get("retry") ?? EMPTY_PENDING_RUN_IDS}
+                pendingRetryDeliveries={actions.pending.get("retryDelivery") ?? EMPTY_PENDING_RUN_IDS}
+                runs={resource.runs}
+                task={activeTask}
+              />
+            </UiDialogBody>
+          </UiDialogShell>
+        </UiDialogBackdrop>
+      </UiDialogPortal>
+      <ConfirmDialog
+        confirmText="释放占用"
+        isOpen={actions.recoveryTarget !== null}
+        message="这次运行会标记为已取消，任务随后可以重新运行。"
+        onCancel={actions.cancelRecovery}
+        onConfirm={() => void actions.confirmRecovery()}
+        title="释放运行占用"
+        variant="danger"
+      />
+    </>
   );
 }

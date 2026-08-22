@@ -1,10 +1,14 @@
+/**
+ * INPUT: 外部 Skill 预览模型与导入、关闭动作。
+ * OUTPUT: 以正文为主、来源元数据为辅的 plain 预览弹窗。
+ * POS: 社区 Skill 搜索结果的只读预览与导入入口。
+ */
 "use client";
 
 import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiButton } from "@/shared/ui/button/button";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import {
@@ -42,10 +46,8 @@ export function ExternalSkillPreviewDialog({
       <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
         <UiDialogShell className="h-[84vh]" size="xl">
           <UiDialogHeader
-            icon={<UiSeededAvatar seed={model.avatarSeed} size="xs" />}
-            iconClassName="overflow-visible bg-transparent"
+            appearance="plain"
             onClose={onClose}
-            subtitle={model.subtitle}
             title={model.title}
           />
           <UiDialogBody scrollable>
@@ -60,7 +62,7 @@ export function ExternalSkillPreviewDialog({
             />
           </UiDialogBody>
 
-          <UiDialogFooter className="flex-wrap justify-between gap-3">
+          <UiDialogFooter appearance="plain" className="flex-wrap justify-between gap-3">
             {model.detailUrl ? (
               <a
                 className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
