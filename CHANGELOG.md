@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Increased ToolUseSummary typography in Room feeds, DMs, and Threads to sit just below normal reply text instead of reading like secondary metadata.
 - Removed the redundant disabled “no historical WorkGraphs” row when the current WorkGraph is the selector's only choice.
 - Kept DM and Room Thread process details in one expandable ToolUseSummary row while simplifying the Room main Feed to a single uniform-color, non-expandable live summary that replaces generic thinking/replying copy; concrete thinking, tools, MCP/CLI calls, counts, and errors remain available only in Thread, and the separate final reply stays visible.
 - Made DM and Room Thread process expansion hierarchical: opening the ToolUseSummary row now reveals a collapsed item list, while each Thought, Agent, MCP, or ordinary tool requires its own second click before inputs and results appear.
