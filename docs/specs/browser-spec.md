@@ -66,7 +66,9 @@ runtime MCP browser
 
 扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针，因此安装前已打开的标签页无需刷新。标签页进入后台时立即隐藏指针，后台收到动作也不显示。首次操作从视口中部起步，普通移动与点击沿平滑弧线等待指针抵达后再发送 CDP 输入，抵达后轻微左右摆动并保持到本轮结束；拖拽只在起点和释放前同步，指针脚本不可用或 1.5 秒内未响应时继续执行原始 CDP 操作。
 
-`snapshot` 返回按页面顺序排列的紧凑可访问性文本，并优先保留可交互节点与页面结构。单次结果最多包含 300 个有效节点和 24 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。`evaluate` 会等待返回的 Promise 完成，并在 `timeout_ms` 或默认 80 秒后终止执行。
+`snapshot` 返回按页面顺序排列的紧凑可访问性文本，并优先保留可交互节点与页面结构。单次结果最多包含 300 个有效节点和 12 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。`page_content` 默认返回 12,000 个字符、允许显式提高到 200,000，并优先通过 `selector` 缩小正文范围；超过 runtime 内联预算的显式大结果继续使用 `read_result`。`evaluate` 会等待返回的 Promise 完成，并在 `timeout_ms` 或默认 80 秒后终止执行。
+
+MCP 结果把模型可见正文与界面结构化数据分开：`snapshot`、`page_content` 和 `batch` 使用无 JSON 转义的紧凑文字作为 `content`，完整 metadata 保留在 `structuredContent`，不会重复进入模型上下文。
 
 ## 完整 CDP
 

@@ -255,6 +255,10 @@ func TestPrepareParamsCoversBrowserCapabilityInputs(t *testing.T) {
 	if err != nil || history["max_results"] != int64(50) {
 		t.Fatalf("history params = %+v, err = %v", history, err)
 	}
+	pageContent, _, err := service.prepareParams("session-a", "Agent A", "page_content", nil)
+	if err != nil || pageContent["max_chars"] != int64(DefaultPageContentMaxChars) {
+		t.Fatalf("page_content 默认预算 = %+v, err = %v", pageContent, err)
+	}
 
 	for _, test := range []struct {
 		name   string

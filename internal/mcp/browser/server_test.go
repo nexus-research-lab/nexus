@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
@@ -100,5 +101,43 @@ func TestBrowserSchemaRequiresBatchActions(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("batch schema 应要求 action 和 actions")
+	}
+}
+
+func TestRenderResultKeepsBrowserDataCompactForTheModel(t *testing.T) {
+	snapshot := strings.Repeat("button \"Open\" @e1\n", 1_000)
+	result := map[string]any{
+		"snapshot":      snapshot,
+		"snapshot_type": "full",
+		"snapshot_id":   1,
+		"nodes":         1_000,
+		"total_nodes":   1_000,
+		"refs":          1_000,
+	}
+	rendered := renderResult("snapshot", result)
+	text := rendered.Content[0]["text"].(string)
+	if strings.Contains(text, `"snapshot":`) || !strings.Contains(text, `"snapshot_type":"full"`) {
+		t.Fatalf("snapshot model text = %q", text[:min(len(text), 200)])
+	}
+	if len(text) >= len(snapshot) || !strings.Contains(text, `"model_text_truncated":true`) {
+		t.Fatalf("snapshot model text length = %d, raw = %d", len(text), len(snapshot))
+	}
+	if rendered.StructuredContent["snapshot"] != snapshot {
+		t.Fatal("完整 snapshot 应保留在 structured content")
+	}
+	batch := renderResult("batch", map[string]any{
+		"completed": 1, "final_snapshot": result,
+	})
+	batchText := batch.Content[0]["text"].(string)
+	if strings.Contains(batchText, `"final_snapshot":`) || !strings.Contains(batchText, `"snapshot_type":"full"`) {
+		t.Fatalf("batch model text = %q", batchText[:min(len(batchText), 200)])
+	}
+
+	page := renderResult("page_content", map[string]any{
+		"format": "text", "url": "https://example.com", "content": "visible page text", "length": 17,
+	})
+	pageText := page.Content[0]["text"].(string)
+	if strings.Contains(pageText, `"content":`) || !strings.HasSuffix(pageText, "\nvisible page text") {
+		t.Fatalf("page_content model text = %q", pageText)
 	}
 }
