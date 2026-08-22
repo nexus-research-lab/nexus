@@ -31,6 +31,7 @@ func NewServer(
 			"支持标签页、历史、导航、页面内容、可访问性快照、CSS/ref 与坐标交互、" +
 			"JavaScript、CDP、网络、控制台、对话框、剪贴板、上传下载、截图与 PDF。" +
 			"页面点击统一使用 click，不要用 evaluate 调用 element.click() 绕过真实输入和可见指针。" +
+			"连续且无需读取中间结果的操作使用 batch，宿主会复用相同校验并在末尾返回一次快照。" +
 			"snapshot 默认返回相对上一版的增量；操作后再取新快照，不要在无变化时重复调用。",
 		SearchHint:  "browser chrome web navigate history cdp network snapshot click fill screenshot download tab 浏览器 网页 操作",
 		InputSchema: browserSchema(),
@@ -68,7 +69,22 @@ func browserSchema() map[string]any {
 			"action": map[string]any{
 				"type":        "string",
 				"enum":        browsersvc.SupportedActions(),
-				"description": "一次只执行一个 action。页面交互优先先用 snapshot 获取最新 @e ref，再调用固定动作；固定动作无法完成时才使用 evaluate 或 cdp。",
+				"description": "执行一个 action；连续且不需要中间结果的交互用 batch。页面交互优先先用 snapshot 获取最新 @e ref，再调用固定动作；固定动作无法完成时才使用 evaluate 或 cdp。",
+			},
+			"actions": map[string]any{
+				"type": "array", "minItems": 1, "maxItems": browsersvc.MaxBatchActions,
+				"description": "batch 的有序动作；每项直接平铺同一 browser 工具的参数。读取、调试、截图、下载和 batch 本身不能嵌套。",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"action": map[string]any{"type": "string", "enum": browsersvc.BatchActions()},
+					},
+					"required":             []string{"action"},
+					"additionalProperties": true,
+				},
+			},
+			"snapshot_after": map[string]any{
+				"type": "boolean", "description": "batch 完成后是否返回最终 AX 快照，默认 true。",
 			},
 			"url": map[string]any{
 				"type": "string", "description": "navigate/download 的目标 URL，或 find_tab/wait_for_url 的 URL、主机名或通配模式。",
@@ -195,7 +211,7 @@ func browserSchema() map[string]any {
 				"type": "boolean", "description": "screenshot 是否捕获完整页面。",
 			},
 			"full": map[string]any{
-				"type": "boolean", "description": "snapshot 是否强制返回完整 AX 树；默认在合适时返回相对上一版的增量。",
+				"type": "boolean", "description": "snapshot 或 batch 最终快照是否强制返回完整 AX 树；默认在合适时返回相对上一版的增量。",
 			},
 			"paper_format": map[string]any{
 				"type": "string", "enum": []string{"letter", "legal", "a4", "a3", "tabloid"},
@@ -272,7 +288,7 @@ func browserCommandConstraints() ([]string, []any) {
 
 	plainActions := make([]string, 0)
 	for _, action := range browsersvc.SupportedActions() {
-		if _, usesCommand := commandActions[action]; !usesCommand {
+		if _, usesCommand := commandActions[action]; !usesCommand && action != "batch" {
 			plainActions = append(plainActions, action)
 		}
 	}
@@ -282,7 +298,13 @@ func browserCommandConstraints() ([]string, []any) {
 		},
 		"required": []string{"action"},
 	}
-	return commandValues, append([]any{plainAlternative}, alternatives...)
+	batchAlternative := map[string]any{
+		"properties": map[string]any{
+			"action": map[string]any{"type": "string", "enum": []string{"batch"}},
+		},
+		"required": []string{"action", "actions"},
+	}
+	return commandValues, append([]any{plainAlternative, batchAlternative}, alternatives...)
 }
 
 func renderResult(action string, result map[string]any) sdktool.ToolResult {

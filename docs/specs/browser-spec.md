@@ -48,6 +48,7 @@ runtime MCP browser
 
 | 能力 | action |
 | --- | --- |
+| 批处理 | `batch` |
 | 状态与标签页 | `status`、`navigate`、`find_tab`、`list_tabs`、`attach_active`、`attach_tab`、`mark_tab`、`back`、`forward`、`reload`、`close_tab`、`close_session`、`close` |
 | 页面读取与等待 | `history`、`evaluate`、`page_content`、`wait_for`、`wait_for_url`、`snapshot` |
 | 页面调试 | `network`、`console`、`dialog`、`cdp` |
@@ -56,6 +57,8 @@ runtime MCP browser
 | 文件与图像 | `download`、`downloads`、`screenshot`、`save_as_pdf` |
 
 `click` 与其余鼠标 action 使用真实 CDP 输入事件；`click` 固定为左键单击，`mouse_click` 额外接受坐标、按钮与点击次数。DOM action 接受 CSS selector 或最近一次 `snapshot` 返回的 `@e` ref，鼠标 action 也可直接使用视口坐标。页面点击不得用 `evaluate` 调用 `element.click()` 绕过真实输入与可见指针。
+
+`batch` 在宿主内顺序复用现有 action 和输入校验，不增加扩展线协议。它最多接受 20 个不需要消费中间结果的导航、等待、表单、键鼠或上传动作，默认在全部动作结束后只返回一次最终 AX 快照；失败会报告精确动作序号和已完成数量，禁止嵌套 `batch`、读取结果、调试、截图、下载或原始 CDP。
 
 `mark_tab` 的 `mark` 接受 `deliverable`、`handoff` 或 `none`。`deliverable` 在本轮结束后保留页面并交还用户，`handoff` 保留控制权供下一轮继续，`none` 恢复默认收尾策略。
 

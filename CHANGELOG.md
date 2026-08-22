@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added host-side Browser action batching with shared validation, bounded sequencing, indexed partial-failure errors, and one final accessibility snapshot.
 - Added current-page status and an explicit “Ask Nexus” handoff to the Browser extension popup and web context menu.
 - Added round-scoped Browser tab cleanup with automatic temporary-tab closing, borrowed-page release, and explicit deliverable or handoff marks.
 - Added automatic Browser Session inheritance for OAuth, popup, and `target=_blank` tabs opened from an Agent-controlled page.

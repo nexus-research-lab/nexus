@@ -30,6 +30,15 @@ const (
 	cleanupTimeout = 15 * time.Second
 )
 
+// MaxBatchActions 限制单次 batch 的动作数量。
+const MaxBatchActions = 20
+
+var batchActions = []string{
+	"navigate", "find_tab", "attach_active", "attach_tab", "mark_tab", "back", "forward", "reload",
+	"wait_for", "wait_for_url", "click", "fill", "check", "uncheck", "select_option", "mouse_click",
+	"double_click", "hover", "mouse_move", "drag", "scroll", "key_type", "send_keys", "press_key", "upload",
+}
+
 var (
 	// ErrNotConnected 表示 Nexus 浏览器扩展尚未连接。
 	ErrNotConnected = errors.New("Nexus Browser 扩展未连接；请安装并启用 desktop/browser-extension")
@@ -42,13 +51,18 @@ var (
 // SupportedActions 返回 Browser service 接受的稳定 action 名称。
 func SupportedActions() []string {
 	return []string{
-		"status", "navigate", "find_tab", "list_tabs", "attach_active", "attach_tab", "mark_tab",
+		"status", "batch", "navigate", "find_tab", "list_tabs", "attach_active", "attach_tab", "mark_tab",
 		"back", "forward", "reload", "history", "evaluate", "page_content", "wait_for", "wait_for_url",
 		"network", "console", "dialog", "snapshot", "click", "fill", "check", "uncheck",
 		"select_option", "mouse_click", "double_click", "hover", "mouse_move", "drag", "scroll",
 		"cdp", "clipboard", "key_type", "send_keys", "press_key", "screenshot", "save_as_pdf", "upload",
 		"download", "downloads", "close_tab", "close_session", "close",
 	}
+}
+
+// BatchActions 返回 batch 可串行执行且无需消费中间结果的动作。
+func BatchActions() []string {
+	return append([]string(nil), batchActions...)
 }
 
 type client struct {
@@ -295,6 +309,9 @@ func (s *Service) Execute(
 	if sessionKey == "" || roundID == "" {
 		return nil, errors.New("Browser 缺少 runtime Session/round identity")
 	}
+	if action == "batch" {
+		return s.executeBatch(ctx, sessionKey, roundID, sessionLabel, input, allowCDP)
+	}
 	params, immediate, err := s.prepareParams(sessionKey, sessionLabel, action, input)
 	if err != nil || immediate != nil {
 		return immediate, err
@@ -306,6 +323,102 @@ func (s *Service) Execute(
 	}
 	s.updateSession(sessionKey, roundID, action, params, result)
 	return result, nil
+}
+
+func (s *Service) executeBatch(
+	ctx context.Context,
+	sessionKey string,
+	roundID string,
+	sessionLabel string,
+	input map[string]any,
+	allowCDP bool,
+) (map[string]any, error) {
+	actions, names, err := parseBatchActions(input["actions"])
+	if err != nil {
+		return nil, err
+	}
+	snapshotAfter := true
+	if _, exists := input["snapshot_after"]; exists {
+		snapshotAfter, err = optionalBool(input, "snapshot_after")
+		if err != nil {
+			return nil, err
+		}
+	}
+	full, err := optionalBool(input, "full")
+	if err != nil {
+		return nil, err
+	}
+
+	batchCtx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+	for index, step := range actions {
+		if _, err := s.Execute(batchCtx, sessionKey, roundID, sessionLabel, names[index], step, allowCDP); err != nil {
+			return nil, fmt.Errorf(
+				"Browser batch 第 %d/%d 个动作 %s 失败；前 %d 个动作已完成: %w",
+				index+1,
+				len(actions),
+				names[index],
+				index,
+				err,
+			)
+		}
+	}
+	result := map[string]any{
+		"completed": len(actions),
+		"actions":   names,
+	}
+	if !snapshotAfter {
+		return result, nil
+	}
+	snapshot, err := s.Execute(batchCtx, sessionKey, roundID, sessionLabel, "snapshot", map[string]any{
+		"full": full,
+	}, allowCDP)
+	if err != nil {
+		result["snapshot_error"] = err.Error()
+		return result, nil
+	}
+	result["final_snapshot"] = snapshot
+	return result, nil
+}
+
+func parseBatchActions(value any) ([]map[string]any, []string, error) {
+	var actions []map[string]any
+	switch items := value.(type) {
+	case []any:
+		actions = make([]map[string]any, 0, len(items))
+		for _, item := range items {
+			action, ok := item.(map[string]any)
+			if !ok {
+				return nil, nil, errors.New("batch 的 actions 必须是对象数组")
+			}
+			actions = append(actions, action)
+		}
+	case []map[string]any:
+		actions = items
+	default:
+		return nil, nil, errors.New("batch 需要 actions 对象数组")
+	}
+	if len(actions) == 0 || len(actions) > MaxBatchActions {
+		return nil, nil, fmt.Errorf("batch 的 actions 数量必须在 1 到 %d 之间", MaxBatchActions)
+	}
+	names := make([]string, len(actions))
+	for index, action := range actions {
+		name := strings.ToLower(stringValue(action["action"]))
+		if !isBatchAction(name) {
+			return nil, nil, fmt.Errorf("batch 第 %d 个 action 不支持: %s", index+1, name)
+		}
+		names[index] = name
+	}
+	return actions, names, nil
+}
+
+func isBatchAction(action string) bool {
+	for _, candidate := range batchActions {
+		if action == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) sendCommand(
