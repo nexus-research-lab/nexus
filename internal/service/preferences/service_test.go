@@ -42,8 +42,8 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if prefs.EchoEnabled {
 		t.Fatalf("主动跟进默认应关闭: %+v", prefs)
 	}
-	if prefs.ToolSearchEnabledForRuntime("nxs") {
-		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
+	if !prefs.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("nxs ToolSearch 默认应开启: %+v", prefs)
 	}
 	if !prefs.WebSearch.Enabled || prefs.WebSearch.Provider != "anysearch" {
 		t.Fatalf("WebSearch 默认 provider 应为 anysearch: %+v", prefs.WebSearch)
@@ -65,8 +65,14 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if normalized.EchoEnabled {
 		t.Fatalf("空偏好归一化后主动跟进应关闭: %+v", normalized)
 	}
-	if normalized.ToolSearchEnabledForRuntime("nxs") {
-		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
+	if !normalized.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("空偏好归一化后 nxs ToolSearch 应开启: %+v", normalized)
+	}
+	disabled := normalizePreferences(Preferences{RuntimeSettings: RuntimeSettings{
+		"nxs": {ToolSearch: false},
+	}})
+	if disabled.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("显式关闭的 nxs ToolSearch 应保留: %+v", disabled)
 	}
 	if !normalized.WebSearch.Enabled || normalized.WebSearch.Provider != "anysearch" {
 		t.Fatalf("空偏好归一化后 WebSearch provider 应为 anysearch: %+v", normalized.WebSearch)

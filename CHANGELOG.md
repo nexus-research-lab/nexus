@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Enabled nxs ToolSearch by default so Browser and other deferred schemas load only when needed, while preserving the explicit opt-out.
 - Restyled the Browser action pointer with an accurate hotspot, branded glow, spring-guided travel, directional motion, and a one-shot settling sway.
 - Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.
 - Made Browser accessibility refs stable within a page, returned compact snapshot diffs, and synchronized controlled-tab navigation, activation, and removal events.

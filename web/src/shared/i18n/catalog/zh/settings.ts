@@ -67,7 +67,7 @@ export const zhSettingsMessages = {
   "settings.runtime.kernel_claude": "Claude",
   "settings.runtime.kernel_nxs": "nxs",
   "settings.runtime.tool_search_title": "ToolSearch",
-  "settings.runtime.tool_search_description": "允许 nxs 按需发现延迟工具。默认关闭，关闭时直接以内联 schema 运行。",
+  "settings.runtime.tool_search_description": "允许 nxs 按需发现延迟工具。默认开启，关闭时直接以内联 schema 运行。",
   "settings.runtime.tool_search_label": "工具搜索",
   "settings.runtime.web_search_title": "WebSearch",
   "settings.runtime.web_search_description": "选择搜索 provider，并填写其运行所需配置。",
