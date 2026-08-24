@@ -7,9 +7,16 @@ import {
   type SetStateAction,
 } from "react";
 
+import { notifyConversationExplicitShrink } from "./conversation-layout-events";
+
 interface ScrollAnchorSnapshot {
   container: HTMLElement;
   distanceFromBottom: number;
+}
+
+interface PendingCollapseSnapshot {
+  anchor: HTMLElement;
+  height: number;
 }
 
 interface UseScrollAnchoredStateReturn {
@@ -29,19 +36,44 @@ export function useScrollAnchoredState(
   const [isOpen, setOpen] = useState(initialValue);
   const anchorRef = useRef<HTMLElement | null>(null);
   const snapshotRef = useRef<ScrollAnchorSnapshot | null>(null);
+  const pendingCollapseRef = useRef<PendingCollapseSnapshot | null>(null);
 
   const toggle = useCallback(() => {
-    const container = findScrollContainer(anchorRef.current);
-    if (container) {
+    const anchor = anchorRef.current;
+    const container = findScrollContainer(anchor);
+    if (
+      container
+      && !anchor?.closest('[data-conversation-virtual-feed="true"]')
+    ) {
       snapshotRef.current = {
         container,
         distanceFromBottom: container.scrollHeight - container.scrollTop,
       };
+    } else {
+      // Virtualizer 已按 item 测高维护视口。这里再写一次 scrollTop 会把同一
+      // 展开/收起 delta 计算两遍，表现为先位移再弹回。
+      snapshotRef.current = null;
     }
-    setOpen((current) => !current);
-  }, []);
+    pendingCollapseRef.current = isOpen && anchor
+      ? {
+          anchor,
+          height: anchor.getBoundingClientRect().height,
+        }
+      : null;
+    setOpen(!isOpen);
+  }, [isOpen]);
 
   useLayoutEffect(() => {
+    const pendingCollapse = pendingCollapseRef.current;
+    if (pendingCollapse) {
+      pendingCollapseRef.current = null;
+      const anchor = anchorRef.current ?? pendingCollapse.anchor;
+      notifyConversationExplicitShrink(
+        anchor,
+        pendingCollapse.height - anchor.getBoundingClientRect().height,
+      );
+    }
+
     const snapshot = snapshotRef.current;
     if (!snapshot) {
       return;

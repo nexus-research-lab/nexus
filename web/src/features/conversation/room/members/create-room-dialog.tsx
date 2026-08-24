@@ -1,15 +1,18 @@
+// INPUT: 创建或管理 Room 的完整初值、Agent 目录和提交/取消动作。
+// OUTPUT: 名称/设置、成员和 Skill 组成的 plain 表单工作台。
+// POS: Room 创建与管理的模态装配层，不用图标或副标题重复表单要求。
 "use client";
 
-import { MessageCirclePlus } from "lucide-react";
-
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 
 import {
   buildRoomDialogInstanceKey,
@@ -90,14 +93,13 @@ function CreateRoomDialogContent({
           size="xl"
         >
           <UiDialogHeader
-            icon={<MessageCirclePlus className="h-5 w-5" />}
+            appearance="plain"
             onClose={onCancel}
-            subtitle={<span className="max-sm:hidden">{labels.subtitle}</span>}
             title={labels.title}
             titleId="create-room-dialog-title"
           />
 
-          <div className="dialog-body soft-scrollbar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+          <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-5 px-5" scrollable>
             <div className="grid min-h-0 grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)] gap-6 max-md:grid-cols-1">
               <RoomSettingsForm
                 avatarFallbackTitle={labels.title}
@@ -136,27 +138,27 @@ function CreateRoomDialogContent({
               query={form.state.skillQuery}
               value={form.state.selectedSkillNames}
             />
-          </div>
+          </UiDialogBody>
 
-          <div className="dialog-footer justify-end gap-3">
-            <button
-              className={getDialogActionClassName("default")}
+          <UiDialogFooter appearance="plain">
+            <UiButton
               onClick={onCancel}
+              size="sm"
               type="button"
             >
               {t("common.cancel")}
-            </button>
-            <button
-              className={getDialogActionClassName(
-                canSubmit ? "primary" : "default",
-              )}
+            </UiButton>
+            <UiButton
               disabled={!canSubmit}
               onClick={handleSubmit}
+              size="sm"
+              tone="primary"
               type="button"
+              variant="solid"
             >
               {isCreating ? t("room.creating_action") : labels.confirm}
-            </button>
-          </div>
+            </UiButton>
+          </UiDialogFooter>
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>

@@ -1,7 +1,10 @@
+/**
+ * INPUT: 共享 WebSocket、Session/Room 订阅身份、reliability controller 与重连对账回调。
+ * OUTPUT: 自动重连的发送面、binding/subscription replay 和连接恢复后的 durable Session 对账触发。
+ * POS: Agent Conversation transport 生命周期边界；不重发业务命令。
+ */
 import {
-  Dispatch,
   MutableRefObject,
-  SetStateAction,
   useEffect,
   useRef,
 } from "react";
@@ -19,10 +22,9 @@ import {
   buildRoomSubscriptionMessage,
   buildSessionBindMessage,
 } from "../actions/conversation-command-builders";
+import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
 
 type ConversationSocketSend = (payload: WebSocketMessage) => WebSocketSendResult;
-
-const WEBSOCKET_ERROR_MESSAGE = "WebSocket error occurred";
 
 interface UseAgentConversationSocketOptions {
   wsUrl: string;
@@ -37,7 +39,18 @@ interface UseAgentConversationSocketOptions {
   wsStateRef: MutableRefObject<WebSocketState>;
   onMessage: (backendMessage: unknown) => void;
   onError?: (error: Error) => void;
-  setError: Dispatch<SetStateAction<string | null>>;
+  onReconnected: () => Promise<unknown>;
+  reliability: ConversationReliabilityController;
+}
+
+export function shouldReconcileConversationAfterReconnect(
+  hasConnected: boolean,
+  previousState: WebSocketState,
+  currentState: WebSocketState,
+): boolean {
+  return hasConnected
+    && previousState !== "connected"
+    && currentState === "connected";
 }
 
 export function useAgentConversationSocket({
@@ -53,9 +66,11 @@ export function useAgentConversationSocket({
   wsStateRef,
   onMessage,
   onError,
-  setError,
+  onReconnected,
+  reliability,
 }: UseAgentConversationSocketOptions) {
   const hasConnectedRef = useRef(false);
+  const previousStateRef = useRef<WebSocketState>("disconnected");
   const sessionBindingLeaseRef = useRef<object>({});
 
   const {
@@ -83,10 +98,8 @@ export function useAgentConversationSocket({
         return;
       }
 
-      const errorMessage = WEBSOCKET_ERROR_MESSAGE;
       console.error("[useAgentConversation] WebSocket error:", event);
-      setError(errorMessage);
-      onError?.(new Error(errorMessage));
+      onError?.(new Error("Conversation realtime transport error"));
     },
   });
 
@@ -103,14 +116,22 @@ export function useAgentConversationSocket({
   }, [wsState, wsStateRef]);
 
   useEffect(() => {
+    reliability.observeTransport(wsState);
+    if (shouldReconcileConversationAfterReconnect(
+      hasConnectedRef.current,
+      previousStateRef.current,
+      wsState,
+    )) {
+      // 共享通道会先重放 Session binding，再通知订阅者 connected。
+      // 此处重拉 durable 快照，与随后到达的实时事件按消息身份合并，闭合 DM gap；
+      // Room 还会额外使用 room_seq replay 和 subscribe snapshot 对账。
+      void onReconnected();
+    }
     if (wsState === "connected") {
       hasConnectedRef.current = true;
-      // 重连只清理本 hook 产生的连接错误，不能覆盖已持久化的终态错误。
-      setError((current) => (
-        current === WEBSOCKET_ERROR_MESSAGE ? null : current
-      ));
     }
-  }, [setError, wsState]);
+    previousStateRef.current = wsState;
+  }, [onReconnected, reliability, wsState]);
 
   useEffect(() => {
     if (!agentId || wsState !== "connected") {

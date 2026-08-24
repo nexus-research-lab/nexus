@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	runtimecommand "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
@@ -12,6 +13,50 @@ import (
 type workflowCommandService struct {
 	owner   string
 	request protocol.SaveWorkGraphWorkflowRequest
+}
+
+type workflowEditorCommandService struct {
+	active     bool
+	owner      string
+	sessionKey string
+	request    protocol.ReviseWorkGraphWorkflowPreviewRequest
+}
+
+func (s *workflowEditorCommandService) RuntimeEditorActive(owner, sessionKey string) bool {
+	return s.active && owner == "owner-a" && sessionKey == "editor-session-a"
+}
+
+func (s *workflowEditorCommandService) ReviseEditorPreview(
+	_ context.Context,
+	owner string,
+	sessionKey string,
+	request protocol.ReviseWorkGraphWorkflowPreviewRequest,
+) (*protocol.WorkGraphWorkflowEditorSession, error) {
+	s.owner = owner
+	s.sessionKey = sessionKey
+	s.request = request
+	return &protocol.WorkGraphWorkflowEditorSession{
+		EditorID: "editor-a",
+		Revision: request.Revision + 1,
+		Preview: protocol.WorkGraphWorkflowPreview{
+			Title: request.Title, Nodes: request.Nodes, Dependencies: request.Dependencies,
+		},
+	}, nil
+}
+
+func (s *workflowEditorCommandService) SelectEditorVersionBySession(
+	_ context.Context,
+	owner string,
+	sessionKey string,
+	headRevision int64,
+	selectedRevision int64,
+) (*protocol.WorkGraphWorkflowEditorSession, error) {
+	s.owner = owner
+	s.sessionKey = sessionKey
+	return &protocol.WorkGraphWorkflowEditorSession{
+		EditorID: "editor-a", Revision: headRevision,
+		SelectedRevision: selectedRevision,
+	}, nil
 }
 
 func (s *workflowCommandService) SavePreview(
@@ -32,6 +77,7 @@ func TestDistillWorkGraphUsesTrustedOwnerSessionAndExactPreview(t *testing.T) {
 	definition := distillWorkGraphWorkflow(service, contract.Context{
 		OwnerUserID: "owner-a", ScopeSessionKey: "session-a",
 		RootRoundID: "round-a", RuntimeRoundID: "round-a", AgentID: "agent-a",
+		WorkGraphPreviewID: "workgraph_preview_a",
 	})
 	result, err := definition.Invoke(context.Background(), map[string]any{
 		"preview_id": "workgraph_preview_a",
@@ -45,6 +91,30 @@ func TestDistillWorkGraphUsesTrustedOwnerSessionAndExactPreview(t *testing.T) {
 	if result.StructuredContent["command"] != "/deep-research" || result.StructuredContent["outcome"] != "applied" {
 		t.Fatalf("result = %#v", result.StructuredContent)
 	}
+	if !strings.Contains(definition.Description, "原样持久化") ||
+		strings.Contains(definition.Description, "Persist the exact") ||
+		result.StructuredContent["message"] != "WorkGraph 命令已保存，可以在其他会话中复用。" {
+		t.Fatalf("non-Chinese workflow contract or receipt: description=%q result=%#v", definition.Description, result.StructuredContent)
+	}
+}
+
+func TestDistillWorkGraphRejectsPreviewOutsideHostBinding(t *testing.T) {
+	service := &workflowCommandService{}
+	operations := BuildWorkGraphDistillation(service, contract.Context{
+		OwnerUserID: "owner-a", ScopeSessionKey: "session-a",
+		RuntimeSessionKey: "isolated-save-session-a",
+		RootRoundID:       "round-a", RuntimeRoundID: "round-a", AgentID: "agent-a",
+		WorkGraphPreviewID: "workgraph_preview_a",
+	})
+	if len(operations) != 1 || operations[0].Name != "distill_workgraph" {
+		t.Fatalf("distillation operations = %#v", operations)
+	}
+	result, err := operations[0].Invoke(context.Background(), map[string]any{
+		"preview_id": "workgraph_preview_b",
+	}, &runtimecommand.CallContext{RequestID: "workflow-request-1"})
+	if err != nil || !result.IsError || service.request.PreviewID != "" {
+		t.Fatalf("mismatched preview result = %#v, request=%#v, err=%v", result, service.request, err)
+	}
 }
 
 func TestDistillWorkGraphSchemaAcceptsOnlyPreviewID(t *testing.T) {
@@ -56,5 +126,64 @@ func TestDistillWorkGraphSchemaAcceptsOnlyPreviewID(t *testing.T) {
 	required := schema["required"].([]string)
 	if len(required) != 1 || required[0] != "preview_id" {
 		t.Fatalf("required = %#v", required)
+	}
+	description := properties["preview_id"].(map[string]any)["description"].(string)
+	if !strings.Contains(description, "用户已确认") || strings.Contains(description, "Exact opaque") {
+		t.Fatalf("preview_id description = %q", description)
+	}
+}
+
+func TestReviseWorkGraphPreviewUsesOnlyTrustedEditorIdentity(t *testing.T) {
+	service := &workflowEditorCommandService{active: true}
+	operations := BuildWorkGraphEditor(service, contract.Context{
+		OwnerUserID: "owner-a", ScopeSessionKey: "source-session-a",
+		RuntimeSessionKey: "editor-session-a", RootRoundID: "round-a",
+	})
+	if len(operations) != 2 || operations[0].Name != "revise_workgraph_preview" ||
+		operations[1].Name != "select_workgraph_preview_revision" {
+		t.Fatalf("editor operations = %#v", operations)
+	}
+	input := map[string]any{
+		"revision": float64(3), "slash_name": "review", "title": "复核流程",
+		"description": "先产出，再复核。", "objective": "形成经过复核的交付。",
+		"nodes": []any{map[string]any{
+			"logical_key": "report", "role": "key", "kind": "integrate",
+			"subject": "整合报告", "objective": "汇总内容", "deliverable": "报告",
+			"required": true, "terminal": true, "position": float64(0),
+		}},
+		"dependencies": []any{},
+	}
+	result, err := operations[0].Invoke(
+		context.Background(), input, &runtimecommand.CallContext{RequestID: "editor-request-1"},
+	)
+	if err != nil || result.IsError {
+		t.Fatalf("invoke result = %#v, err=%v", result, err)
+	}
+	if service.owner != "owner-a" || service.sessionKey != "editor-session-a" ||
+		service.request.Revision != 3 || service.request.SlashName != "review" {
+		t.Fatalf("trusted editor mutation = owner %q session %q request %#v", service.owner, service.sessionKey, service.request)
+	}
+	if result.StructuredContent["outcome"] != "applied" ||
+		result.StructuredContent["revision"] != float64(4) {
+		t.Fatalf("result = %#v", result.StructuredContent)
+	}
+}
+
+func TestReviseWorkGraphPreviewSchemaIsClosedAndComplete(t *testing.T) {
+	schema := reviseWorkflowPreviewSchema()
+	if schema["additionalProperties"] != false {
+		t.Fatalf("schema must be closed: %#v", schema)
+	}
+	properties := schema["properties"].(map[string]any)
+	for _, name := range []string{
+		"revision", "slash_name", "title", "description", "objective", "completion_criteria", "nodes", "dependencies",
+	} {
+		if properties[name] == nil {
+			t.Fatalf("missing property %q: %#v", name, properties)
+		}
+	}
+	node := properties["nodes"].(map[string]any)["items"].(map[string]any)
+	if node["additionalProperties"] != false {
+		t.Fatalf("node schema must be closed: %#v", node)
 	}
 }

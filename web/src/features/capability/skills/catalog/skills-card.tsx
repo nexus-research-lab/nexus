@@ -2,7 +2,10 @@
 
 import { Trash2 } from "lucide-react";
 
-import { getSkillDisplayDescription } from "@/lib/skill-description";
+import {
+  getSkillDisplayDescription,
+  getSkillDisplayTitle,
+} from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
@@ -29,7 +32,6 @@ export function SkillsCard({
   const model = buildSkillCardModel(
     skill,
     getSkillDisplayDescription(skill, t),
-    t("capability.skills_no_description"),
   );
   return (
     <SkillDirectoryCard
@@ -55,7 +57,7 @@ export function SkillsCard({
       description={model.description}
       onSelect={onSelect}
       seed={skill.name}
-      title={model.title}
+      title={getSkillDisplayTitle(skill, t)}
     />
   );
 }

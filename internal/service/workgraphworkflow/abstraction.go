@@ -1,6 +1,6 @@
-// INPUT: 完整实际 WorkGraph 的责任语义、依赖与非内容型执行信号。
-// OUTPUT: 默认后台模型自动抽取的最小通用草图、命名 Slash 与 key/collaboration 角色。
-// POS: WorkGraph 草图预览前的强制抽象边界；模型失败、虚构节点或结构漂移时失败关闭。
+// INPUT: 完整实际 WorkGraph 的全部结构节点、责任语义、依赖与非内容型执行信号。
+// OUTPUT: 默认保留关键拓扑、只抽象具体任务语义的通用草图、命名 Slash 与 key/collaboration 角色。
+// POS: WorkGraph 草图预览前的结构保真边界；模型失败、关键节点遗漏、虚构节点或结构漂移时失败关闭。
 package workgraphworkflow
 
 import (
@@ -21,16 +21,18 @@ import (
 const (
 	abstractionTimeout      = 45 * time.Second
 	abstractionMaxTokens    = 4096
-	abstractionSystemPrompt = `你是 WorkGraph 结构提炼器。请根据一张已经实际执行完成的责任图，提取可跨 Session、跨主题复用的最小结构草图。
+	abstractionSystemPrompt = `你是 WorkGraph 结构提炼器。请根据一张已经实际执行完成的责任图，提取可跨 Session、跨主题复用且尽量保留原结构的草图。
 严格要求：
-1. 自动选择真正构成可复用骨架的 Work Item；省略一次性细节、偶发分支和仅服务于具体课题的节点。用户不会手动选节点。
-2. 输出节点必须是输入 logical_key 的非空子集；不得增加、合并、拆分或虚构节点。至少保留一条 key 主路径和一个 terminal 最终交付。
-3. 删除具体课题、专有名词、章节名、文件路径、项目名、时间与一次性数据；保留阶段目的、交付物类型和可验证标准。
-4. key 表示即使单 Agent 执行也必须保留的主路径、验证或最终交付。
-5. collaboration 只表示实际分工、跨 owner 交接、独立复核或汇总整合边界；参考 delegated、assignment_strategy、independent_review 等实际信号，普通并行节点不是天然 collaboration。
-6. slash_name 必须是通用英文 kebab-case，匹配 ^[a-z][a-z0-9-]{0,63}$，不能含具体课题名。
-7. 验收条件应保持严格但改写为与主题无关的可验证表述。
-8. 只输出一个 JSON 对象，不要 Markdown、解释或代码围栏。
+1. input.nodes 是宿主提供的完整权威结构。默认逐个保留节点及其 logical_key、父子层级和依赖拓扑；主要工作是抽象每个节点的具体任务语义，不是压缩节点数量。
+2. must_preserve=true 的节点必须出现在输出中。只有 must_preserve=false 且节点确实只是与主题绑定、移除后不损失阶段、分支、依赖、父子边界、分工、交接、验证、复核、汇总或最终交付语义时才能省略；无法确定时保留。
+3. 输出节点必须是输入 logical_key 的非空子集；不得增加、合并、拆分或虚构节点。至少保留一条 key 主路径和一个 terminal 最终交付。
+4. 对保留节点，删除具体课题、专有名词、章节名、文件路径、项目名、时间与一次性数据，把具体动作改写成可复用的阶段职责；保留阶段目的、交付物类型和可验证标准。
+5. key 表示即使单 Agent 执行也必须保留的主路径、验证或最终交付。
+6. collaboration 只表示实际分工、跨 owner 交接、独立复核或汇总整合边界；参考 delegated、assignment_strategy、independent_review 等实际信号，普通并行节点不是天然 collaboration。
+7. slash_name 必须是通用英文 kebab-case，匹配 ^[a-z][a-z0-9-]{0,63}$，不能含具体课题名；先尝试所有语义准确的单词候选，默认只输出一个简短、可辨识的英文词。只有这些单词都与 existing_slash_names 中的已有或保留命令重复时，才使用两个短词；不得使用三个及以上词，也不要把所有节点名机械拼接。
+8. 除 slash_name 和必须原样保留的 logical_key 外，title、description、objective、completion_criteria 及节点 subject/objective/deliverable/acceptance_criteria 必须使用%s；即使输入主要为其他语言，也要翻译后再抽象。简体中文输出不得保留“Core Subject Summary”这类可自然翻译的纯英文标题，专有名词除外。
+9. 验收条件应保持严格但改写为与主题无关的可验证表述。
+10. 只输出一个 JSON 对象，不要 Markdown、解释或代码围栏。
 JSON 结构：{"slash_name":"...","title":"...","description":"...","objective":"...","completion_criteria":["..."],"nodes":[{"logical_key":"...","role":"key|collaboration","subject":"...","objective":"...","deliverable":"...","acceptance_criteria":["..."]}]}`
 )
 
@@ -51,6 +53,7 @@ type AbstractionSourceNode struct {
 	Delegated             bool                                 `json:"delegated,omitempty"`
 	IndependentReview     bool                                 `json:"independent_review,omitempty"`
 	AttemptCount          int                                  `json:"attempt_count,omitempty"`
+	MustPreserve          bool                                 `json:"must_preserve"`
 }
 
 // AbstractionInput 不包含 Tool、身份、结果正文或 Artifact。
@@ -58,6 +61,8 @@ type AbstractionInput struct {
 	Objective          string                  `json:"objective"`
 	CompletionCriteria []string                `json:"completion_criteria"`
 	Nodes              []AbstractionSourceNode `json:"nodes"`
+	OutputLanguage     string                  `json:"output_language"`
+	ExistingSlashNames []string                `json:"existing_slash_names,omitempty"`
 }
 
 type AbstractedNode struct {
@@ -90,7 +95,7 @@ type preferencesReader interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
-// LLMAbstractor 使用 owner 的默认后台模型进行结构提炼。
+// LLMAbstractor 使用 owner 的默认对话模型进行结构提炼。
 type LLMAbstractor struct {
 	providers providerResolver
 	prefs     preferencesReader
@@ -103,14 +108,17 @@ func NewLLMAbstractor(providers providerResolver, prefs preferencesReader) *LLMA
 
 func (a *LLMAbstractor) Abstract(ctx context.Context, ownerUserID string, input AbstractionInput) (AbstractionOutput, error) {
 	if a == nil || a.providers == nil || a.prefs == nil || a.client == nil {
-		return AbstractionOutput{}, errors.New("background abstraction model is unavailable")
+		return AbstractionOutput{}, errors.New("default abstraction model is unavailable")
 	}
 	prefs, err := a.prefs.Get(ctx, strings.TrimSpace(ownerUserID))
 	if err != nil {
 		return AbstractionOutput{}, err
 	}
-	selection := prefs.DefaultBackgroundModelSelection
-	config, err := a.providers.ResolveLLMConfig(ctx, strings.TrimSpace(selection.Provider), strings.TrimSpace(selection.Model))
+	config, err := a.providers.ResolveLLMConfig(
+		ctx,
+		strings.TrimSpace(prefs.DefaultAgentOptions.Provider),
+		strings.TrimSpace(prefs.DefaultAgentOptions.Model),
+	)
 	if err != nil {
 		return AbstractionOutput{}, err
 	}
@@ -121,7 +129,7 @@ func (a *LLMAbstractor) Abstract(ctx context.Context, ownerUserID string, input 
 	requestCtx, cancel := context.WithTimeout(ctx, abstractionTimeout)
 	defer cancel()
 	raw, err := a.client.GenerateText(requestCtx, llm.GenerateTextRequest{
-		Config: config, System: abstractionSystemPrompt,
+		Config: config, System: fmt.Sprintf(abstractionSystemPrompt, abstractionOutputLanguage(input.OutputLanguage)),
 		Messages:  []llm.Message{{Role: "user", Content: string(payload)}},
 		MaxTokens: abstractionMaxTokens, Temperature: 0, DisableReasoning: true,
 	})
@@ -133,6 +141,13 @@ func (a *LLMAbstractor) Abstract(ctx context.Context, ownerUserID string, input 
 		return AbstractionOutput{}, fmt.Errorf("invalid abstraction JSON: %w", err)
 	}
 	return output, nil
+}
+
+func abstractionOutputLanguage(language string) string {
+	if strings.EqualFold(strings.TrimSpace(language), "en") {
+		return "自然、简洁的英文"
+	}
+	return "自然、简洁的简体中文"
 }
 
 func stripJSONFence(value string) string {
@@ -154,7 +169,7 @@ type ValidatedAbstraction struct {
 	Nodes              []protocol.WorkGraphWorkflowNode
 }
 
-func applyAbstraction(sourceNodes []protocol.WorkGraphWorkflowNode, output AbstractionOutput) (ValidatedAbstraction, error) {
+func applyAbstraction(sourceNodes []protocol.WorkGraphWorkflowNode, abstractionNodes []AbstractionSourceNode, output AbstractionOutput) (ValidatedAbstraction, error) {
 	output.SlashName = normalizeSlashName(output.SlashName)
 	output.Title = strings.TrimSpace(output.Title)
 	output.Description = strings.TrimSpace(output.Description)
@@ -187,6 +202,13 @@ func applyAbstraction(sourceNodes []protocol.WorkGraphWorkflowNode, output Abstr
 	}
 	if !hasKey {
 		return ValidatedAbstraction{}, fmt.Errorf("%w: abstraction omitted the key path", ErrInvalidInput)
+	}
+	for _, source := range abstractionNodes {
+		if source.MustPreserve {
+			if _, ok := byKey[source.LogicalKey]; !ok {
+				return ValidatedAbstraction{}, fmt.Errorf("%w: abstraction omitted structural node %s", ErrInvalidInput, source.LogicalKey)
+			}
+		}
 	}
 	nodes := make([]protocol.WorkGraphWorkflowNode, 0, len(output.Nodes))
 	hasTerminal := false

@@ -294,10 +294,15 @@ function createPermissionContext(decisionPermission) {
       },
       messages: [],
       pendingPermissions: permissions,
-      sessionKey: "agent:agent-a:web:dm:conversation-a",
-      setError: (next) => {
-        error = typeof next === "function" ? next(error) : next;
+      reliability: {
+        observeRecovery: () => {
+          error = null;
+        },
+        reportFailure: (failure) => {
+          error = failure.code;
+        },
       },
+      sessionKey: "agent:agent-a:web:dm:conversation-a",
       setMessages: () => {},
       setPendingPermissions: (next) => {
         permissions = typeof next === "function"

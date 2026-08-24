@@ -23,13 +23,11 @@ export interface ExternalSkillListItemModel {
 }
 
 export interface ExternalSkillPreviewModel {
-  avatarSeed: string;
   detailUrl: string;
   importState: ExternalSkillImportModel;
   item: ExternalSkillSearchItem;
   markdown: string;
   sourceLabel: string;
-  subtitle: string;
   title: string;
 }
 
@@ -123,13 +121,11 @@ export function buildExternalSkillPreviewModel(
     localization,
   );
   return {
-    avatarSeed: listItem.avatarSeed,
     detailUrl: item.detail_url,
     importState: listItem.importState,
     item,
     markdown: buildPreviewMarkdown(item, loading, localization),
     sourceLabel: listItem.sourceLabel,
-    subtitle: [listItem.sourceReference, listItem.installLabel].filter(Boolean).join(" · "),
     title: listItem.title,
   };
 }
@@ -195,3 +191,8 @@ function formatInstallCount(count: number): string {
   if (count < 1000) return `${count}`;
   return `${(count / 1000).toFixed(count >= 100000 ? 0 : 1)}K`;
 }
+/**
+ * INPUT: 外部 Skill 原始目录项、导入状态与当前语言。
+ * OUTPUT: 列表/预览所需的最小展示模型与稳定外部身份。
+ * POS: 外部 Skill 展示真相源；预览模型不制造组合副标题。
+ */

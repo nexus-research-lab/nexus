@@ -133,6 +133,102 @@ INSERT INTO workgraph_workflow_dependencies (
 	return r.GetByID(ctx, workflow.OwnerUserID, workflow.ID)
 }
 
+// Update 以 aggregate version CAS 原子替换命名图语义、节点和依赖。
+func (r *Repository) Update(
+	ctx context.Context,
+	workflow protocol.WorkGraphWorkflow,
+) (*protocol.WorkGraphWorkflow, error) {
+	if workflow.Version <= 1 {
+		return nil, errors.New("updated WorkGraph workflow requires version > 1")
+	}
+	criteriaJSON, err := marshalJSON(workflow.CompletionCriteria)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `
+UPDATE workgraph_workflows
+SET slash_name = `+r.bind(1)+`, title = `+r.bind(2)+`, description = `+r.bind(3)+`,
+    source_execution_id = `+r.bind(4)+`, source_session_key = `+r.bind(5)+`,
+    objective = `+r.bind(6)+`, completion_criteria_json = `+r.jsonBind(7)+`,
+    version = `+r.bind(8)+`, updated_at = `+r.bind(9)+`
+WHERE owner_user_id = `+r.bind(10)+` AND workflow_id = `+r.bind(11)+`
+  AND version = `+r.bind(12),
+		workflow.SlashName, workflow.Title, nullString(workflow.Description),
+		workflow.SourceExecutionID, workflow.SourceSessionKey, workflow.Objective,
+		criteriaJSON, workflow.Version, r.timestamp(workflow.UpdatedAt),
+		workflow.OwnerUserID, workflow.ID, workflow.Version-1,
+	)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected != 1 {
+		return nil, errors.New("WorkGraph workflow version changed")
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM workgraph_workflow_dependencies WHERE workflow_id = `+r.bind(1), workflow.ID); err != nil {
+		return nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM workgraph_workflow_nodes WHERE workflow_id = `+r.bind(1), workflow.ID); err != nil {
+		return nil, err
+	}
+	for _, node := range workflow.Nodes {
+		acceptanceJSON, marshalErr := marshalJSON(node.AcceptanceCriteria)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO workgraph_workflow_nodes (
+    workflow_id, logical_key, source_work_item_id, role, kind,
+    subject, objective, deliverable, acceptance_criteria_json,
+    is_required, is_terminal, parent_logical_key, position
+) VALUES (`+
+			r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`,`+r.bind(5)+`,`+
+			r.bind(6)+`,`+r.bind(7)+`,`+r.bind(8)+`,`+r.jsonBind(9)+`,`+
+			r.bind(10)+`,`+r.bind(11)+`,`+r.bind(12)+`,`+r.bind(13)+`)`,
+			workflow.ID, node.LogicalKey, node.SourceWorkItemID, node.Role, node.Kind,
+			node.Subject, node.Objective, node.Deliverable, acceptanceJSON,
+			node.Required, node.Terminal, nil, node.Position,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, node := range workflow.Nodes {
+		if strings.TrimSpace(node.ParentLogicalKey) == "" {
+			continue
+		}
+		if _, err = tx.ExecContext(ctx, `
+UPDATE workgraph_workflow_nodes SET parent_logical_key = `+r.bind(1)+`
+WHERE workflow_id = `+r.bind(2)+` AND logical_key = `+r.bind(3),
+			node.ParentLogicalKey, workflow.ID, node.LogicalKey,
+		); err != nil {
+			return nil, err
+		}
+	}
+	for _, dependency := range workflow.Dependencies {
+		if _, err = tx.ExecContext(ctx, `
+INSERT INTO workgraph_workflow_dependencies (
+    workflow_id, logical_key, depends_on_logical_key, dependency_kind
+) VALUES (`+r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`)`,
+			workflow.ID, dependency.LogicalKey, dependency.DependsOnLogicalKey, dependency.Kind,
+		); err != nil {
+			return nil, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(ctx, workflow.OwnerUserID, workflow.ID)
+}
+
 // List 返回 owner 的完整沉淀 aggregates，供 UI 和命令目录共同消费。
 func (r *Repository) List(
 	ctx context.Context,

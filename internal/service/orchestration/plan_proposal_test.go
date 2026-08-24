@@ -77,6 +77,50 @@ func TestPreparePlanExecutionSealsProposalInPlanModeWithoutAuthoritativeWrite(t 
 	}
 }
 
+func TestResolvePlanExecutionProposalCarriesExactBindingAcrossRounds(t *testing.T) {
+	repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
+	service := testService(repository)
+	prepareActor := coordinatorActor()
+	prepareActor.RootRoundID = "round-plan-mode"
+	prepareActor.AgentRoundID = "agent-round-plan-mode"
+	prepareActor.PlanMode = true
+	prepared, err := service.PreparePlanExecution(
+		context.Background(),
+		prepareActor,
+		PreparePlanExecutionInput{
+			CommandID:    "tool-plan-mode-prepare",
+			PlanDocument: createPlanProposalDocument,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commitActor := prepareActor
+	commitActor.RootRoundID = "round-after-plan-mode"
+	commitActor.AgentRoundID = "agent-round-after-plan-mode"
+	commitActor.PlanMode = false
+	resolved, err := service.ResolvePlanExecutionProposal(context.Background(), commitActor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved == nil || resolved.ID != prepared.ID ||
+		resolved.ContentDigest != prepared.ContentDigest ||
+		resolved.RootRoundID != prepareActor.RootRoundID {
+		t.Fatalf("resolved proposal = %#v, prepared = %#v", resolved, prepared)
+	}
+
+	wrongSession := commitActor
+	wrongSession.SessionKey = "another-session"
+	if _, err = service.ResolvePlanExecutionProposal(context.Background(), wrongSession); err == nil {
+		t.Fatal("cross-session proposal binding unexpectedly resolved")
+	} else {
+		var domainErr *DomainError
+		if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodePlanProposalBinding {
+			t.Fatalf("cross-session error = %v", err)
+		}
+	}
+}
+
 func TestMaterializePlanExecutionCreatesOnceAndReplaysReceipt(t *testing.T) {
 	createCalls := 0
 	main := &fakeRepository{}
@@ -799,6 +843,16 @@ func (r *planProposalTestRepository) GetPlanProposal(
 	return r.proposal, nil
 }
 
+func (r *planProposalTestRepository) GetBoundPlanProposal(
+	_ context.Context,
+	query orchestrationstore.GetBoundPlanProposalQuery,
+) (*protocol.ExecutionPlanProposal, error) {
+	if r.proposal == nil || !planProposalTestBindingAccessMatches(*r.proposal, query.Access) {
+		return nil, nil
+	}
+	return r.proposal, nil
+}
+
 func (r *planProposalTestRepository) MarkPlanProposalMaterializing(
 	_ context.Context,
 	command orchestrationstore.MarkPlanProposalMaterializingCommand,
@@ -940,6 +994,18 @@ func planProposalTestAccessMatches(
 ) bool {
 	return proposal.ID == access.ProposalID &&
 		proposal.OwnerUserID == access.OwnerUserID &&
+		proposal.SessionKey == access.SessionKey &&
+		proposal.ScopeKind == access.ScopeKind &&
+		proposal.RoomID == access.RoomID &&
+		proposal.ConversationID == access.ConversationID &&
+		proposal.CoordinatorAgentID == access.CoordinatorAgentID
+}
+
+func planProposalTestBindingAccessMatches(
+	proposal protocol.ExecutionPlanProposal,
+	access orchestrationstore.PlanProposalBindingAccess,
+) bool {
+	return proposal.OwnerUserID == access.OwnerUserID &&
 		proposal.SessionKey == access.SessionKey &&
 		proposal.ScopeKind == access.ScopeKind &&
 		proposal.RoomID == access.RoomID &&

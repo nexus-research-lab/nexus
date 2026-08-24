@@ -26,8 +26,9 @@ import {
   mergeLoadedMessages,
   sortMessages,
 } from "../message/message-collection-model";
-import { latestAssistantResultErrorMessage } from "../message/assistant-message-model";
+import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
 import { boundLoadedMessages } from "../message/message-window-model";
+import { requestConversationHistoryPageUntilReady } from "./conversation-history-request";
 
 interface AgentConversationLifecycleRefs {
   activeSessionKey: RefObject<string | null>;
@@ -37,7 +38,7 @@ interface AgentConversationLifecycleRefs {
 }
 
 interface AgentConversationLifecycleState {
-  setError: Dispatch<SetStateAction<string | null>>;
+  reliability: ConversationReliabilityController;
   setInputQueueItems: Dispatch<SetStateAction<InputQueueItem[]>>;
   setIsSessionLoading: Dispatch<SetStateAction<boolean>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
@@ -65,14 +66,12 @@ export interface AgentConversationLifecycleContext {
 
 function resetSessionView(
   context: AgentConversationLifecycleContext,
-  nextError: string | null = null,
 ): void {
   const { state } = context;
   state.setMessages([]);
   state.setPendingAgentSlots([]);
   state.setInputQueueItems([]);
   state.setPendingPermissions([]);
-  state.setError(nextError);
 }
 
 function createSessionKey(
@@ -97,6 +96,7 @@ export function startAgentSession(
   const sessionKey = createSessionKey(context.identity);
   context.refs.loadRequestId.current += 1;
   context.refs.activeSessionKey.current = sessionKey;
+  context.state.reliability.changeScope(sessionKey);
   context.state.setSessionKey(sessionKey);
   context.state.setIsSessionLoading(false);
   resetSessionView(context);
@@ -124,10 +124,10 @@ function prepareSessionLoad(
   const requestId = context.refs.loadRequestId.current + 1;
   context.refs.loadRequestId.current = requestId;
   context.refs.activeSessionKey.current = sessionKey;
+  context.state.reliability.changeScope(sessionKey);
   context.state.setSessionKey(sessionKey);
 
   if (isReload) {
-    context.state.setError(null);
     return { controller, requestId };
   }
 
@@ -136,7 +136,6 @@ function prepareSessionLoad(
   if (cachedMessages?.length) {
     context.state.setMessages(sortMessages(cachedMessages));
     context.state.setPendingPermissions([]);
-    context.state.setError(null);
   } else {
     resetSessionView(context);
   }
@@ -154,15 +153,17 @@ export async function readAgentSessionMessagePage(
   signal?: AbortSignal,
 ): Promise<ConversationMessagePage> {
   const query = { limit: getMessageHistoryRoundPageSize() };
-  if (identity?.room_id && identity.conversation_id) {
-    return getRoomConversationMessages(
-      identity.room_id,
-      identity.conversation_id,
-      query,
-      signal,
-    );
-  }
-  return getSessionMessagesApi(sessionKey, query, signal);
+  return requestConversationHistoryPageUntilReady({
+    loadPage: () => identity?.room_id && identity.conversation_id
+      ? getRoomConversationMessages(
+        identity.room_id,
+        identity.conversation_id,
+        query,
+        signal,
+      )
+      : getSessionMessagesApi(sessionKey, query, signal),
+    signal,
+  });
 }
 
 /** ACK recovery 只读取捕获的原 Session；调用者可选地持有取消所有权。 */
@@ -189,10 +190,11 @@ function commitSessionMessages(
     );
     return mergedMessages;
   });
-  const resultError = latestAssistantResultErrorMessage(mergedMessages);
-  if (resultError) {
-    context.state.setError(resultError);
-  }
+  context.state.reliability.reconcileSession(
+    sessionKey,
+    mergedMessages,
+    context.identity?.chat_type ?? "dm",
+  );
   context.onSessionMessagesLoaded(mergedMessages, {
     hasMoreHistory: page.has_more,
     isReload,
@@ -233,9 +235,10 @@ export async function loadAgentSession(
     }
     if (isCurrentLoad(context, requestId, sessionKey)) {
       console.error("[loadSession] 加载 session 失败:", error);
-      context.state.setError(
-        error instanceof Error ? error.message : "Failed to load session",
-      );
+      context.state.reliability.reportFailure({
+        code: "session_load_failed",
+        session_key: sessionKey,
+      });
     }
   } finally {
     if (context.refs.loadAbortController.current === controller) {
@@ -255,6 +258,7 @@ export function clearAgentSession(
   context.refs.loadAbortController.current = null;
   context.refs.loadRequestId.current += 1;
   context.refs.activeSessionKey.current = null;
+  context.state.reliability.changeScope(null);
   context.state.setSessionKey(null);
   context.state.setIsSessionLoading(false);
   resetSessionView(context);

@@ -18,6 +18,7 @@ import type { AgentRuntimeKind } from "@/types/settings/preferences";
 export interface ComposerPanelProps {
   compact: boolean;
   commandCatalog: CommandCatalogData;
+  defaultPlaceholder?: string;
   contextUsage: ContextUsageData | null;
   /** 纯文本消费者可隐藏附件、Goal 与 Loop 动作入口。 */
   showActionMenu?: boolean;

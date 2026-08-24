@@ -30,6 +30,7 @@ import {
 
 interface ContentToolBlockContext {
   canRespondToPermissions: boolean;
+  defaultToolDetailsExpanded: boolean;
   onOpenSubagentTask?: (
     toolUseId: string,
     hostAgentId?: string | null,
@@ -83,6 +84,7 @@ function renderStandardToolBlock(
   return (
     <div className="min-w-0">
       <ToolBlock
+        defaultExpanded={context.defaultToolDetailsExpanded}
         interactionDisabled={!context.canRespondToPermissions}
         interactionDisabledReason={context.permissionReadOnlyReason}
         liveProgress={context.projection.taskProgressByToolUseId.get(block.id) ?? null}

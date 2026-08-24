@@ -1,4 +1,8 @@
-import { FileText, Info } from "lucide-react";
+/**
+ * INPUT: 当前语言与导入在途状态。
+ * OUTPUT: 默认收起的 Skill 格式要求、示例与指南下载动作。
+ * POS: Skill 导入表单的次级帮助，不占据首屏主栏。
+ */
 
 import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -41,13 +45,13 @@ function downloadRoomCollaborationMechanism(locale: Locale) {
 export function SkillImportGuide({ importing }: { importing: boolean }) {
   const { locale, t } = useI18n();
   return (
-    <aside className="space-y-3">
-      <div className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
-            <Info className="h-4 w-4 text-(--primary)" />
-            {t("capability.skills_import_guide_title")}
-          </div>
+    <aside className="border-t border-(--divider-subtle-color) pt-4">
+      <details className="group">
+        <summary className="cursor-pointer select-none text-sm font-medium text-(--text-muted) hover:text-(--text-strong)">
+          {t("capability.skills_import_guide_title")}
+        </summary>
+        <div className="mt-3 space-y-3 pl-4">
+          <div className="flex justify-end">
           <UiButton
             aria-label={t("capability.skills_import_guide_download_aria")}
             className="shrink-0"
@@ -55,23 +59,23 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
             onClick={() => downloadRoomCollaborationMechanism(locale)}
             size="xs"
             tone="primary"
-            variant="surface"
+            variant="text"
           >
-            <FileText className="h-3.5 w-3.5" />
             {t("capability.skills_import_guide_download")}
           </UiButton>
+          </div>
+          <ul className="space-y-1.5 text-xs leading-5 text-(--text-muted)">
+            <li>{t("capability.skills_import_rule_name")}</li>
+            <li>{t("capability.skills_import_rule_scope")}</li>
+            <li>{t("capability.skills_import_rule_room_guide")}</li>
+            <li>{t("capability.skills_import_rule_room_enable")}</li>
+            <li>{t("capability.skills_import_rule_git_tracking")}</li>
+          </ul>
+          <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-xs leading-5 text-(--text-default)">
+            {buildSkillFrontmatterExample(t)}
+          </pre>
         </div>
-        <ul className="space-y-1.5 text-xs leading-5 text-(--text-muted)">
-          <li>{t("capability.skills_import_rule_name")}</li>
-          <li>{t("capability.skills_import_rule_scope")}</li>
-          <li>{t("capability.skills_import_rule_room_guide")}</li>
-          <li>{t("capability.skills_import_rule_room_enable")}</li>
-          <li>{t("capability.skills_import_rule_git_tracking")}</li>
-        </ul>
-      </div>
-      <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-xs leading-5 text-(--text-default)">
-        {buildSkillFrontmatterExample(t)}
-      </pre>
+      </details>
     </aside>
   );
 }

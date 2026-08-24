@@ -1,12 +1,14 @@
+/**
+ * INPUT: CC Switch 本地配置预览、选择状态与同步命令。
+ * OUTPUT: plain 服务选择器、路径切换和同步反馈。
+ * POS: Provider 导入边界；内部路径按需展示，不制造向导式说明。
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check,
   Database,
-  FolderCog,
   Loader2,
-  RefreshCw,
   RotateCcw,
 } from "lucide-react";
 
@@ -160,7 +162,7 @@ export function ProviderCCSwitchDialog({
         onClose={syncing ? undefined : onClose}
       >
         <UiDialogFormShell
-          className="h-[500px] max-h-[calc(100dvh-2rem)] !max-w-[620px]"
+          className="max-h-[min(82dvh,680px)] !max-w-[620px]"
           onSubmit={(event) => {
             event.preventDefault();
             void handleSync();
@@ -168,7 +170,7 @@ export function ProviderCCSwitchDialog({
           size="lg"
         >
           <UiDialogHeader
-            icon={<RefreshCw className="h-4.5 w-4.5" />}
+            appearance="plain"
             onClose={syncing ? undefined : onClose}
             title={requireDefault
               ? t("settings.providers.ccswitch_import_title")
@@ -231,14 +233,13 @@ export function ProviderCCSwitchDialog({
             </div>
           ) : null}
 
-          <UiDialogFooter className="justify-between gap-4">
+          <UiDialogFooter appearance="plain" className="justify-between gap-4">
             <div className="min-w-0">
               {selectedSources.size > 0 && requireDefault ? (
                 <div className={cn(
                   "flex items-center gap-2 text-xs text-(--text-muted)",
                   !canSetDefault && "opacity-(--disabled-opacity)",
                 )}>
-                  <Check className="h-3.5 w-3.5 text-(--brand-action)" />
                   {t("settings.providers.ccswitch_set_default")}
                 </div>
               ) : null}
@@ -280,9 +281,7 @@ export function ProviderCCSwitchDialog({
                 type="submit"
                 variant="solid"
               >
-                {syncing
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Check className="h-3.5 w-3.5" />}
+                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                 {syncing
                   ? t(requireDefault
                     ? "settings.providers.ccswitch_importing"
@@ -319,8 +318,7 @@ function CCSwitchSourceBar({
   const { t } = useI18n();
   if (editingPath) {
     return (
-      <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) bg-(--surface-muted-background) px-5 py-3">
-        <FolderCog className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+      <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) px-5 py-3">
         <UiInput
           aria-label={t("settings.providers.ccswitch_path")}
           className="min-w-0 flex-1 font-mono text-xs"
@@ -337,7 +335,7 @@ function CCSwitchSourceBar({
     );
   }
   return (
-    <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) bg-(--surface-muted-background) px-5 py-3">
+    <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) px-5 py-3">
       <Database className="h-4 w-4 shrink-0 text-(--icon-muted)" />
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-(--text-muted)" title={databasePath}>
         {databasePath}
@@ -414,7 +412,6 @@ function CCSwitchProviderRow({
 function CCSwitchEmptyState({ title, description }: { title: string; description: string }) {
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center px-8 text-center">
-      <Database className="mb-3 h-8 w-8 text-(--icon-soft)" />
       <div className="text-sm font-semibold text-(--text-strong)">{title}</div>
       <div className="mt-1 max-w-[360px] text-xs leading-5 text-(--text-muted)">{description}</div>
     </div>

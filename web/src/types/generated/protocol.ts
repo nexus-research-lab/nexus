@@ -47,6 +47,19 @@ export type EventType =
 
 export type DeliveryMode = 'durable' | 'ephemeral' | 'transient';
 
+export type ConversationFailureCode =
+  | 'connection_unavailable'
+  | 'delivery_unknown'
+  | 'permission_not_sent'
+  | 'provider_configuration'
+  | 'provider_unavailable'
+  | 'request_rejected'
+  | 'round_failed'
+  | 'safety_rejected'
+  | 'session_load_failed'
+  | 'usage_limited'
+  | 'validation_failed';
+
 export interface EventMessage {
   envelope_id?: string;
   protocol_version: number;
@@ -72,6 +85,7 @@ export interface RoundStatusData {
   is_terminal: boolean;
   result_subtype?: string;
   message?: string;
+  failure_code?: ConversationFailureCode;
 }
 
 export interface AgentRoundStatusData {

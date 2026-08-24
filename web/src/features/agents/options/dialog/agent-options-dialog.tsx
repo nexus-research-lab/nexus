@@ -1,6 +1,7 @@
+// INPUT: Contacts 的创建/编辑 Agent 状态与保存、删除、关闭动作。
+// OUTPUT: plain 标题和持续可切换的 Agent 设置工作台，不展示内部 ID 副标题。
+// POS: Agent Options 的模态壳层，字段与事务全部委托给编辑器。
 "use client";
-
-import { Settings } from "lucide-react";
 
 import { AgentOptionsDialogEditor } from "@/features/agents/options/agent-options-editor";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -15,7 +16,7 @@ import type {
 } from "../agent-options-editor-model";
 import {
   type AgentOptionsDialogState,
-  getAgentOptionsDialogHeader,
+  getAgentOptionsDialogTitle,
 } from "./agent-options-dialog-model";
 
 interface AgentOptionsDialogProps {
@@ -39,7 +40,7 @@ export function AgentOptionsDialog({
   if (state.kind === "closed") {
     return null;
   }
-  const header = getAgentOptionsDialogHeader(state, t);
+  const title = getAgentOptionsDialogTitle(state, t);
 
   return (
     <UiDialogPortal>
@@ -55,12 +56,11 @@ export function AgentOptionsDialog({
           style={{ maxWidth: "900px" }}
         >
           <UiDialogHeader
+            appearance="plain"
             className="max-sm:px-4 max-sm:py-3"
             closeLabel={t("agent_options.close_dialog")}
-            icon={<Settings className="h-4 w-4" />}
             onClose={onClose}
-            subtitle={<span className="max-sm:hidden">{header.subtitle}</span>}
-            title={header.title}
+            title={title}
             titleId="agent-options-dialog-title"
           />
 

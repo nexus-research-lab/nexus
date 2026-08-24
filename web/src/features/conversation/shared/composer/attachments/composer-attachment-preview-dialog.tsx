@@ -82,6 +82,7 @@ function ComposerImagePreviewDialog({
           size="xl"
         >
           <UiDialogHeader
+            appearance="plain"
             actions={
               <UiDialogCloseButton
                 ariaLabel={t("composer.close_attachment_preview")}
@@ -91,16 +92,13 @@ function ComposerImagePreviewDialog({
             }
             className="gap-2 px-3 py-1.5"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center">
               <h2
                 className="min-w-0 flex-1 truncate text-sm font-medium text-(--text-strong)"
                 id={IMAGE_PREVIEW_TITLE_ID}
               >
                 {attachment.file.name}
               </h2>
-              <span className="shrink-0 text-xs text-(--text-soft)">
-                {t("composer.image_preview")}
-              </span>
             </div>
           </UiDialogHeader>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-(--surface-paper-background) p-3 sm:p-4">
@@ -145,6 +143,7 @@ function ComposerTextPreviewDialog({
           size="lg"
         >
           <UiDialogHeader
+            appearance="plain"
             actions={
               <UiDialogCloseButton
                 ariaLabel={t("composer.close_attachment_preview")}
@@ -154,16 +153,13 @@ function ComposerTextPreviewDialog({
             }
             className="gap-2 px-3 py-1.5"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center">
               <h2
                 className="min-w-0 flex-1 truncate text-sm font-medium text-(--text-strong)"
                 id={TEXT_PREVIEW_TITLE_ID}
               >
                 {attachment.file.name}
               </h2>
-              <span className="shrink-0 text-xs text-(--text-soft)">
-                {t("composer.text_preview")}
-              </span>
             </div>
           </UiDialogHeader>
           <div className="flex min-h-0 flex-1 flex-col bg-(--surface-paper-background)">

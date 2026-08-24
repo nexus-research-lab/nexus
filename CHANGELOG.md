@@ -8,8 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-
 - Added host-side Browser action batching with shared validation, bounded sequencing, indexed partial-failure errors, and one final accessibility snapshot.
+- Added durable WorkGraph sketch cards to ordinary DM/Room replies, with exact on-demand source-graph comparison, desktop side-by-side canvases, and narrow-screen source/sketch switching.
+- Added model-generated first-conversation greetings for user-opened Agent DMs and new Rooms, with a dedicated Nexus main-Agent introduction, explicit Room-host identity, safe no-host `@` guidance, background-to-default model fallback, hidden greeting-only model labels, and deterministic failure copy.
+- Added WorkGraph history browsing and owner-scoped named WorkGraphs, with fixed `/workgraph` collaboration, completed-graph “Save as sketch,” locale-aware default-chat-model structure extraction, single-word-first non-conflicting Slash naming, durable Drafts and immutable edit versions, a hidden Nexus-main-Agent editing conversation, hidden background persistence through the Skill and `nexus execution`, Capability/Composer browsing, and cross-Session reuse that excludes tool and run history.
 - Added current-page status and an explicit “Ask Nexus” handoff to the Browser extension popup and web context menu.
 - Added round-scoped Browser tab cleanup with automatic temporary-tab closing, borrowed-page release, and explicit deliverable or handoff marks.
 - Added automatic Browser Session inheritance for OAuth, popup, and `target=_blank` tabs opened from an Agent-controlled page.
@@ -19,16 +21,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Changed
-
 - Separated compact Browser model text from complete structured UI results, reduced accessibility snapshots to 12 KB, and bounded default page content to 12,000 characters with a 200,000-character explicit ceiling.
 - Restyled the Browser action pointer with an accurate hotspot, branded glow, spring-guided travel, directional motion, and a one-shot settling sway.
+- Restored the Composer task strip to a flat presentation without card chrome, while keeping the complete task summary visible through viewport-safe wrapping and preserving task progress and expansion.
+- Consolidated each active Room Agent's Thread and exact-stop actions into one quiet header toolbar, keeping Thread in a stable position and shortening the visible stop label without scattering controls through the reply.
+- Calibrated desktop controls to a 14px system-UI baseline and tightened the semantic title scale without changing the explicit conversation or document body typography or accessible control hit areas.
+- Added an explicit desktop return from Agent details to the Agent directory while keeping the existing single app-level back action on narrow screens.
+- Continued the Web-wide information-hierarchy audit beyond dialogs and Capability: Agent and contact directories retain descriptions, permission, Provider, tool, and Skill facts needed for comparison while ordinary Agent identity pages keep the full AGENTS.md behavior file available for review; permission, tool, connector, and setting choices keep their behavioral explanations. Settings keep one mobile page identity and full-width Provider forms, memory rows pair readable summaries with distinguishable filenames, channel accounts keep their identity and current errors visible, and personal settings retain Token-composition insight without rendering unavailable password forms.
+- Refined all seven Capability pages as decision-oriented management directories: concise purpose copy, real summaries, Loop triggers, scheduled-task instructions, Channel purposes, Skill availability differences, and external pairing identities remain visible; duplicate section chrome, empty board-column prose, protocol implementation, internal binding keys, and long diagnostics remain deferred; mobile actions sit beside the app-bar title while the content keeps a short purpose line.
+- Displayed the managed WorkGraph and Goal Skills as `WorkGraph Orchestrator` and `Goal Manager` while preserving their hyphenated runtime identifiers.
+- Completed the current Web dialog audit across 59 modal roots and 5 dialog overlays: pairing, custom MCP, Goal, contacts, guides, CC Switch, Provider onboarding, history, mobile conversation switching, and anchored pickers now use quieter plain chrome, direct copy, flatter rows, and product-native confirmations without internal IDs or marketing filler.
+- Flattened Composer Loop and saved-WorkGraph pickers into quiet searchable directories, reduced attachment previews to filename-only chrome, and kept Mermaid enlargement as a title-free canvas.
+- Simplified Skill import, source management, community previews, and Scheduled task dialogs with plain chrome, collapsed format/diagnostic details, flat source rows, task-name history, and no native browser confirmations or internal IDs in headers.
+- Simplified Agent, Provider, and Room form dialogs into plain settings surfaces: internal IDs and repeated subtitles are gone, model capabilities are compact setting rows, Provider deletion shows only real consequences and Agent names, and Room actions now use the shared form chrome.
+- Continued the dialog polish across Connector and Channel setup with plain headers and footers, compact credential forms, terse Device Flow states, collapsed platform instructions, and security copy limited to the active authorization step.
+- Started the phased dialog polish with quiet shared decision prompts, a flat WorkGraph naming-and-structure save surface, terse embedded-editor guidance, and a title-free source comparison canvas that removes generated implementation prose without changing confirmation or revision behavior.
+- Increased ToolUseSummary typography in Room feeds, DMs, and Threads to sit just below normal reply text instead of reading like secondary metadata.
+- Removed the redundant disabled “no historical WorkGraphs” row when the current WorkGraph is the selector's only choice.
+- Kept DM and Room Thread process details in one expandable ToolUseSummary row while simplifying the Room main Feed to a single uniform-color, non-expandable live summary that replaces generic thinking/replying copy; concrete thinking, tools, MCP/CLI calls, counts, and errors remain available only in Thread, and the separate final reply stays visible.
+- Made DM and Room Thread process expansion hierarchical: opening the ToolUseSummary row now reveals a collapsed item list, while each Thought, Agent, MCP, or ordinary tool requires its own second click before inputs and results appear.
+- Allowed user-requested process and tool-detail collapses to release their exact live Feed height immediately instead of leaving an expanded-height blank area until the run ends.
+- Kept recovered intermediate tool failures in expanded audit details without leaving the active or successfully completed process row in a persistent warning state.
+- Gave each live ToolUseSummary one visible owner, so a streaming final reply no longer repeats the execution summary in a trailing activity row.
+- Switched initial WorkGraph sketch extraction from the background task model to the owner's default chat model so structural abstraction uses the higher-quality primary selection.
+- Made initial WorkGraph sketch extraction structure-preserving: the model now receives every source node, parent, and dependency, must retain host-marked structural nodes, and abstracts task-specific semantics instead of minimizing the graph by default.
+- Unified UI and conversational WorkGraph authoring on one durable Draft service and `execution-orchestrator` Skill: agents can list all completed sources and Drafts in a Session, reuse an existing extraction, append/select immutable versions, and explicitly save the selected version even without an active Execution.
+- Routed owner background-model selection through the DM/Room runtime bridge for native `ToolUseSummary` progress, replacing generic thinking/replying text in place and clearing it at exact Agent-round completion; same-provider failures fall back to the main model without blocking the conversation.
+- Slowed streamed Markdown to a readable typewriter cadence with bounded, gentle terminal catch-up instead of near-instant response expansion.
 - Made Browser setup select installed Chrome or Edge automatically and report incompatible extension versions with an actionable update path.
 - Made Browser accessibility refs stable within a page, returned compact snapshot diffs, and synchronized controlled-tab navigation, activation, and removal events.
 - Separated Echo follow-ups from earlier direct-message history with a labeled timeline divider and made their wording resume the conversation more naturally.
 - Removed Heartbeat from the user-facing Automation surface while retaining the internal main-session event dispatcher used by scheduled tasks.
+- Updated the Agent SDK bridge to the capability-compatible v0.1.30 prerelease required by Echo message-level tool and output policies.
 
 ### Fixed
 
+- Kept DM and Room interjections durable when queue-admission bookkeeping is temporarily unavailable, restored retry dispatch for the original client message, accepted local single-user Web input without a synthetic login principal, and aligned the recoverable error notice with the Composer while preserving the draft.
+- Prevented an active Room from inheriting the previous conversation's transient Feed height during a switch or preserved hot-reload state, which could leave a viewport-sized blank area until refresh.
+- Replaced generic “service internal error” UI text with the current operation's actionable fallback while preserving specific business errors.
+- Fixed hidden WorkGraph editor and save sessions denying the `Read` step required by the host-created CLI input-slot contract, which previously forced invalid shell-redirection fallbacks.
+- Fixed WorkGraph editing opened from a Room or Agent DM being misreported as unavailable when its hidden Nexus main Agent was not part of the source conversation's member list.
+- Replaced raw conversation error bubbles with a unified recoverable reliability state: WebSocket failures now retry before becoming terminal, reconnects replay bindings and reconcile durable DM/Room state, runtime API retries clear on exact round progress, Room member failures stay scoped to their Agent round, and user-facing notices no longer expose technical details or stale errors after recovery.
+- Gave the floating Task summary a persistent translucent surface so scrolling conversation text no longer overlaps its labels.
+- Kept compact single-line labels descender-safe across Room and Task Agent selectors, Goal binding badges, primary navigation, mentions, Slash tokens, and assistant receipts and statistics.
+- Reworked the WorkGraph sketch editor into a spacious conversation-and-canvas layout that directly reuses the Room/DM WorkGraph canvas, controls, edges, and inspectors instead of a second sketch renderer; fixed its flex height so projected nodes cannot be clipped behind an empty grid and added recoverable version selection.
+- Isolated WorkGraph editing in a hidden Nexus main-Agent DM that does not inherit source DM/Room transcript or permissions, while showing a local introduction and continuous edit history; closing and reopening now resumes the same conversation, and apply/save never append internal prompts or replies to the source conversation.
+- Made indexed conversation history reliably pull every exact round back into bounded browser windows, including data-backed adjacent load boundaries, explicit top-pull retries, reloadable evicted rounds, stable virtual placeholders, complete navigator summaries, and exact landing after asynchronous loads.
+- Removed competing conversation scroll and geometry writers by making navigation atomic, delegating virtual item resizing to Virtualizer alone, releasing Feed/Composer height debt in one settled commit, reserving stable asynchronous image frames, and dropping persistent navigator/progress compositing effects that could cause jitter or ghosting.
+- Replaced the temporary WorkGraph editor MCP with the existing `execution-orchestrator` Skill and round-scoped `nexus execution` CLI, simplified the editor to a conversation/preview split view, and kept hidden background-save slots out of the visible Room timeline.
+- Kept the hidden WorkGraph-save Agent round in Simplified Chinese across its host prompt, operation contract, schema guidance, progress narration, and final receipt.
+- Kept conversational WorkGraph editing on one durable hidden DM Session across page closes, directory refreshes, and host restarts, with live immutable sketch revisions, selected-version preference, and a Capability-page “Continue editing” path that updates the same saved WorkGraph instead of extracting or duplicating it.
+- Bound sealed Plan proposals to the exact owner/session/scope/coordinator in durable host state, so `plan_execution` no longer requires models to copy opaque proposal IDs or digests and remains exact across Plan Mode exits, retries, and restarts.
+- Made initial Room and DM history wait for deferred indexing to finish, so first entry no longer leaves an empty conversation that only recovers after switching away and back.
+- Grouped the completed WorkGraph header into clear context and action regions, and simplified sketch-saving guidance around Slash-command and Composer-menu reuse.
+- Matched Composer Slash-command suggestions only by command-name prefix, with alphabetical ordering for predictable results.
 - Prevented the Windows WebView2 composition input window from remaining over the desktop and swallowing mouse input after Nexus is minimized or hidden to the tray.
 - Hid the desktop-only Browser Slash command when the Browser service is unavailable, including on the web app.
 - Kept a clean Browser pointer visible through the active round, animated first and subsequent moves, and routed standard clicks through visible CDP mouse input instead of invisible DOM clicks.

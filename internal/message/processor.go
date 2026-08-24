@@ -131,6 +131,7 @@ var messageHandlers = map[sdkprotocol.MessageType]messageHandler{
 	sdkprotocol.MessageTypeTaskStarted:      handleTaskStarted,
 	sdkprotocol.MessageTypeTaskProgress:     handleTaskProgress,
 	sdkprotocol.MessageTypeToolProgress:     handleToolProgress,
+	sdkprotocol.MessageTypeToolUseSummary:   handleToolUseSummary,
 	sdkprotocol.MessageTypeTaskNotification: handleTaskNotification,
 	sdkprotocol.MessageTypeUser:             handleUser,
 }
@@ -207,6 +208,17 @@ func handleToolProgress(p *Processor, message sdkprotocol.ReceivedMessage, outpu
 		return output
 	}
 	return appendDurableMessage(output, progress)
+}
+
+func handleToolUseSummary(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	if message.ToolUseSummary == nil {
+		return output
+	}
+	progress := p.projectToolUseSummary(*message.ToolUseSummary)
+	if progress != nil {
+		output.EphemeralMessages = append(output.EphemeralMessages, *progress)
+	}
+	return output
 }
 
 func handleTaskNotification(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {

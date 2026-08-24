@@ -1,3 +1,6 @@
+// INPUT: Nexus Session 的宿主签发用途、runtime 覆盖与目录/隔离选项。
+// OUTPUT: 跨 DM/runtime/session service 共用的规范化 option key、purpose 与读取投影。
+// POS: Session 持久选项和短期业务 Session 身份的 protocol 真相源。
 package protocol
 
 import (
@@ -21,6 +24,8 @@ const (
 	OptionRuntimeForkSourceSessionID = "runtime_fork_source_session_id"
 	// OptionRuntimeForkMessageID 表示尚待首次用户输入物化的 fork transcript 边界。
 	OptionRuntimeForkMessageID = "runtime_fork_message_id"
+	// OptionRuntimeForkAtTranscriptTail 表示 fork 边界已经是 source transcript 尾部，runtime 可直接复制完整 source。
+	OptionRuntimeForkAtTranscriptTail = "runtime_fork_at_transcript_tail"
 	// OptionRuntimeRetainedTranscriptSessionIDs 表示不进入读模型、但由该 Room Session 延迟回收的 transcript。
 	OptionRuntimeRetainedTranscriptSessionIDs = "runtime_retained_transcript_session_ids"
 	// OptionSessionProvider 表示当前 Nexus Session 显式覆盖的 provider。
@@ -33,7 +38,39 @@ const (
 	OptionSessionConnectorIDs = "session_connector_ids"
 	// OptionSessionAdditionalDirectories 表示桌面会话显式挂载的本机目录。
 	OptionSessionAdditionalDirectories = "session_additional_directories"
+	// OptionSessionHiddenFromDirectory 表示宿主创建、只由精确业务入口读取的短期 Session。
+	OptionSessionHiddenFromDirectory = "session_hidden_from_directory"
+	// OptionSessionPurpose 表示宿主签发的短期 Session 用途；普通用户输入不能改写。
+	OptionSessionPurpose = "session_purpose"
+	// OptionSessionDisplayAfterUnixMilli 让嵌入式 Session 只展示业务创建边界后的消息；不代表它继承了 transcript。
+	OptionSessionDisplayAfterUnixMilli = "session_display_after_unix_milli"
 )
+
+const (
+	SessionPurposeWorkGraphEditor       = "workgraph_editor"
+	SessionPurposeWorkGraphDistillation = "workgraph_distillation"
+)
+
+// ScopedSessionRuntimePolicy 是宿主为精确业务 Session 签发的系统提示与完整工具覆盖。
+type ScopedSessionRuntimePolicy struct {
+	SystemPrompt      string
+	ToolPolicy        RuntimeToolPolicy
+	AllowedSkillNames []string
+	DisableSkills     bool
+	DisableConnectors bool
+}
+
+// SessionIsHiddenFromDirectory 判断 Session 是否只属于精确业务入口。
+func SessionIsHiddenFromDirectory(session Session) bool {
+	hidden, _ := session.Options[OptionSessionHiddenFromDirectory].(bool)
+	return hidden
+}
+
+// SessionPurpose 返回宿主签发的 Session 用途。
+func SessionPurpose(session Session) string {
+	purpose, _ := session.Options[OptionSessionPurpose].(string)
+	return strings.TrimSpace(purpose)
+}
 
 // SessionRuntimeSettings 表示当前 Nexus Session 的运行时覆盖。
 //

@@ -1,6 +1,11 @@
+/**
+ * INPUT: 自定义 MCP 服务、脱敏秘密草稿与保存命令。
+ * OUTPUT: 随内容增长的 plain MCP 表单及可增删参数/秘密行。
+ * POS: 自定义 Connector 的创建编辑边界；标题只命名动作。
+ */
 "use client";
 
-import { Cable, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -78,14 +83,13 @@ export function CustomMCPDialog({
         onClose={busy ? undefined : onClose}
       >
         <UiDialogFormShell
-          className="h-[min(82dvh,760px)] max-sm:h-[calc(100dvh-16px)]"
+          className="max-h-[min(82dvh,760px)] max-sm:max-h-[calc(100dvh-16px)]"
           onSubmit={(event) => void submit(event)}
           size="lg"
         >
           <UiDialogHeader
-            icon={<Cable className="h-4 w-4" />}
+            appearance="plain"
             onClose={busy ? undefined : onClose}
-            subtitle={t("capability.custom_mcp_dialog_description")}
             title={server
               ? t("capability.custom_mcp_edit_title")
               : t("capability.custom_mcp_add_title")}
@@ -135,7 +139,7 @@ export function CustomMCPDialog({
               <RemoteFields draft={draft} updateDraft={updateDraft} />
             )}
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} type="button">
               {t("common.cancel")}
             </UiButton>
@@ -337,7 +341,7 @@ function SecretListEditor({
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div
-            className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto] items-center gap-2"
+            className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]"
             key={index}
           >
             <UiInput
@@ -379,7 +383,7 @@ function SecretListEditor({
 
 function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <UiButton className="w-full" onClick={onClick} size="sm" type="button">
+    <UiButton className="w-fit" onClick={onClick} size="sm" type="button" variant="text">
       <Plus className="h-3.5 w-3.5" />
       {label}
     </UiButton>
@@ -391,6 +395,7 @@ function RemoveRowButton({ onClick }: { onClick: () => void }) {
   return (
     <UiIconButton
       aria-label={t("common.delete")}
+      className="justify-self-end"
       onClick={onClick}
       size="md"
       title={t("common.delete")}

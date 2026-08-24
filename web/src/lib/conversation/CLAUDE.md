@@ -8,7 +8,7 @@
 - `room-directory-events.ts` 只广播 Room/DM 目录快照失效，不解释刷新策略。
 - `pending-permission-match.ts` 只按消息与工具调用身份精确匹配待处理权限，不解释展示状态。
 - `configuration-secret-permission.ts` 将敏感配置草稿绑定到精确权限 request，并只选择服务端声明且完整填写的槽位。
-- `message-protocol.ts` 在事件边界通过统一身份字段集合解码消息实体与流式载荷，并补齐信封提供的 Session 身份；消息恢复边界只接受 `durable`、`ephemeral` 与 `transient` 三种值。
+- `message-protocol.ts` 在事件边界通过统一身份字段集合解码消息实体与流式载荷，并补齐信封提供的 Session 身份；消息恢复边界只接受 `durable`、`ephemeral` 与 `transient` 三种值；`workgraph_artifact` 只有带完整 preview 或 workflow 快照时才进入渲染。
 - `live-stream-reveal.ts` 用本地 Symbol 连接实时 reducer 与 Markdown 首帧；标记不得进入持久协议，历史与恢复快照不得获得重播身份。
 - `generative-ui.ts` 统一识别内建 `show_widget` 在各 runtime 中的包装名，供消息投影与虚拟列表估高共用。
 - 仅由单一 Feature 消费的展示能力规则必须归还所属 Feature，不得以通用 helper 名义放入基础协议。

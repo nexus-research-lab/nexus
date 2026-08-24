@@ -15,6 +15,7 @@ import { isSubagentToolName } from "../../message-tool-names";
 import { SubagentTaskToolEntry } from "./subagent-task-tool-entry";
 
 export function ToolBlock({
+  defaultExpanded = false,
   toolUse,
   toolResult,
   liveProgress,
@@ -29,6 +30,7 @@ export function ToolBlock({
   workspaceAgentId,
 }: ToolBlockProps) {
   const controller = useToolBlockController({
+    defaultExpanded,
     endTime,
     interactionDisabled,
     interactionDisabledReason,

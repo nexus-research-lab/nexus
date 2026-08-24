@@ -1,6 +1,6 @@
 /**
- * INPUT: 会话历史、slot/权限/execution 运行态与 round 索引。
- * OUTPUT: feed、navigator 与当前轮次共享的 session 视图状态。
+ * INPUT: 会话历史、初始/实时内容锚点、slot/权限/execution 运行态与 round 索引。
+ * OUTPUT: feed、navigator、可顶部起始的滚动、历史窗口加载反馈与当前轮次共享的 session 视图状态。
  * POS: 会话页面消费统一时间线模型的 React 装配入口。
  */
 import { useCallback, useMemo, useRef } from "react";
@@ -25,19 +25,26 @@ import {
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
 import { useVisibleRoundWindowLoader } from "../timeline/window-loader/use-visible-window-loader";
+import { buildVisibleRoundRevision } from "../timeline/window-loader/visible-window-revision";
 
 interface UseConversationSessionOptions {
   chatType: AgentConversationChatType;
   debugName: string;
   identity: AgentConversationIdentity | null;
+  initialScrollAnchor?: "bottom" | "top";
+  liveContentAlignment?: "end" | "start";
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
+  visibleAfterUnixMilli?: number;
 }
 
 export function useConversationSession({
   chatType,
   debugName,
   identity,
+  initialScrollAnchor,
+  liveContentAlignment,
   onRoomEvent,
+  visibleAfterUnixMilli,
 }: UseConversationSessionOptions) {
   const sessionKey = identity?.session_key ?? null;
   const roundScrollRef = useRef<ConversationRoundScrollHandle | null>(null);
@@ -52,20 +59,26 @@ export function useConversationSession({
     on_error: handleError,
     on_room_event: onRoomEvent,
   });
+  const visibleMessages = useMemo(
+    () => visibleAfterUnixMilli
+      ? conversation.messages.filter((message) => messageTimestamp(message) >= visibleAfterUnixMilli)
+      : conversation.messages,
+    [conversation.messages, visibleAfterUnixMilli],
+  );
   const scrollContentKey = useMemo(
-    () => buildConversationScrollContentKey(sessionKey, conversation.messages),
-    [conversation.messages, sessionKey],
+    () => buildConversationScrollContentKey(sessionKey, visibleMessages),
+    [sessionKey, visibleMessages],
   );
   const scrollTopologyKey = useMemo(
     () => buildConversationScrollTopologyKey(
       sessionKey,
-      conversation.messages,
+      visibleMessages,
       conversation.pending_agent_slots,
       conversation.pending_permissions,
       conversation.room_agent_execution_states,
     ),
     [
-      conversation.messages,
+      visibleMessages,
       conversation.pending_agent_slots,
       conversation.pending_permissions,
       conversation.room_agent_execution_states,
@@ -73,17 +86,13 @@ export function useConversationSession({
     ],
   );
   const atomicLayoutKey = useMemo(
-    () => [
-      buildConversationAtomicLayoutKey(
-        sessionKey,
-        conversation.messages,
-        conversation.pending_permissions,
-      ),
-      conversation.error ?? "",
-    ].join("\u001f"),
+    () => buildConversationAtomicLayoutKey(
+      sessionKey,
+      visibleMessages,
+      conversation.pending_permissions,
+    ),
     [
-      conversation.error,
-      conversation.messages,
+      visibleMessages,
       conversation.pending_permissions,
       sessionKey,
     ],
@@ -92,7 +101,7 @@ export function useConversationSession({
     () => isConversationLiveLayoutActive({
       isLoading: conversation.is_loading,
       liveRoundIds: conversation.live_round_ids,
-      messages: conversation.messages,
+      messages: visibleMessages,
       pendingAgentSlots: conversation.pending_agent_slots,
       roomAgentExecutionStates: conversation.room_agent_execution_states,
       runtimePhase: conversation.runtime_phase,
@@ -100,7 +109,7 @@ export function useConversationSession({
     [
       conversation.is_loading,
       conversation.live_round_ids,
-      conversation.messages,
+      visibleMessages,
       conversation.pending_agent_slots,
       conversation.room_agent_execution_states,
       conversation.runtime_phase,
@@ -110,8 +119,10 @@ export function useConversationSession({
     atomicLayoutKey,
     contentKey: scrollContentKey,
     historyPrependToken: conversation.history_prepend_token,
+    initialScrollAnchor,
     liveLayoutActive,
-    messageCount: conversation.messages.length,
+    liveContentAlignment,
+    messageCount: visibleMessages.length,
     sessionKey,
     topologyKey: scrollTopologyKey,
   });
@@ -126,7 +137,7 @@ export function useConversationSession({
   const timeline = useConversationTimeline({
     chat_type: chatType,
     live_round_ids: conversation.live_round_ids,
-    messages: conversation.messages,
+    messages: visibleMessages,
     pending_agent_slots: conversation.pending_agent_slots,
     pending_permissions: conversation.pending_permissions,
     room_agent_execution_states: conversation.room_agent_execution_states,
@@ -135,13 +146,15 @@ export function useConversationSession({
   });
   const roundIndexItems = timeline.round_index_items;
   const useIndexedTimeline = roundIndexItems.length > 0;
-  useVisibleRoundWindowLoader({
+  const indexedHistory = useVisibleRoundWindowLoader({
     enabled: useIndexedTimeline,
     loadRoundWindow: conversation.load_round_window,
+    loadedRoundIds: timeline.loaded_round_ids,
     revision: buildVisibleRoundRevision({
       feedRoundCount: timeline.feed_round_ids.length,
       liveRoundCount: conversation.live_round_ids.length,
-      messageCount: conversation.messages.length,
+      loadedRoundIds: timeline.loaded_round_ids,
+      messageCount: visibleMessages.length,
       pendingAgentSlotCount: conversation.pending_agent_slots.length,
       pendingPermissionCount: conversation.pending_permissions.length,
       roomAgentExecutionStateCount:
@@ -149,6 +162,7 @@ export function useConversationSession({
     }),
     scopeKey: sessionKey,
     scrollRef: scroll.scrollRef,
+    windowRoundIds: timeline.indexed_window.roundIds,
   });
   const history = useConversationHistoryLoader({
     cancelHistoryPrependRestore: scroll.cancelHistoryPrependRestore,
@@ -158,14 +172,23 @@ export function useConversationSession({
     isFollowingLatest: scroll.isFollowingLatest,
     isLoading: conversation.is_loading,
     loadOlderMessages: conversation.load_older_messages,
-    messageCount: conversation.messages.length,
+    messageCount: visibleMessages.length,
     onScroll: scroll.onScroll,
     prepareHistoryPrependRestore: scroll.prepareHistoryPrependRestore,
     scrollRef: scroll.scrollRef,
   });
+  const visibleConversation = useMemo(
+    () => ({
+      ...conversation,
+      is_history_loading:
+        conversation.is_history_loading || indexedHistory.isLoading,
+      messages: visibleMessages,
+    }),
+    [conversation, indexedHistory.isLoading, visibleMessages],
+  );
 
   return {
-    conversation,
+    conversation: visibleConversation,
     history,
     roundIndexItems,
     roundScrollRef,
@@ -175,29 +198,9 @@ export function useConversationSession({
   };
 }
 
-interface VisibleRoundRevisionInput {
-  feedRoundCount: number;
-  liveRoundCount: number;
-  messageCount: number;
-  pendingAgentSlotCount: number;
-  pendingPermissionCount: number;
-  roomAgentExecutionStateCount: number;
-}
-
-function buildVisibleRoundRevision({
-  feedRoundCount,
-  liveRoundCount,
-  messageCount,
-  pendingAgentSlotCount,
-  pendingPermissionCount,
-  roomAgentExecutionStateCount,
-}: VisibleRoundRevisionInput): string {
-  return [
-    feedRoundCount,
-    messageCount,
-    pendingAgentSlotCount,
-    pendingPermissionCount,
-    roomAgentExecutionStateCount,
-    liveRoundCount,
-  ].join(":");
+function messageTimestamp(message: { timestamp?: unknown }): number {
+  const value = typeof message.timestamp === "number"
+    ? message.timestamp
+    : Number(message.timestamp ?? 0);
+  return Number.isFinite(value) ? value : 0;
 }

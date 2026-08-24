@@ -1,12 +1,13 @@
-import type { CSSProperties } from "react";
+/**
+ * INPUT: 通用确认框的语气与输入框键盘事件。
+ * OUTPUT: 只决定操作按钮语气和明确的提交动作，不生成通用风险套话。
+ * POS: 决策弹窗的无 UI 规则层；具体后果必须由业务调用方表达。
+ */
 
 export type ConfirmDialogVariant = "danger" | "default";
 
 export interface ConfirmDialogPresentation {
   actionTone: "danger" | "primary";
-  iconStyle?: CSSProperties;
-  noteTone: "danger" | "default";
-  subtitle: string;
 }
 
 const CONFIRM_PRESENTATION_BY_VARIANT: Readonly<Record<
@@ -15,20 +16,9 @@ const CONFIRM_PRESENTATION_BY_VARIANT: Readonly<Record<
 >> = {
   danger: {
     actionTone: "danger",
-    iconStyle: {
-      background:
-        "color-mix(in srgb, var(--destructive) 12%, var(--modal-dialog-body-background))",
-      border:
-        "1px solid color-mix(in srgb, var(--destructive) 22%, var(--modal-card-border))",
-      color: "var(--destructive)",
-    },
-    noteTone: "danger",
-    subtitle: "此操作会立即生效，且不可恢复。",
   },
   default: {
     actionTone: "primary",
-    noteTone: "default",
-    subtitle: "请确认是否继续执行该操作。",
   },
 };
 

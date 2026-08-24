@@ -41,7 +41,7 @@ func (s *Service) MaterializePlanExecution(
 	if actor.PlanMode {
 		return RejectedResult(nil, planModeError(), []NextAction{{
 			Domain: "execution", Operation: "plan_execution",
-			Reason: "leave Plan Mode, then commit the same proposal_id and proposal_digest",
+			Reason: "leave Plan Mode, then invoke plan_execution without proposal identifiers; the host retains the exact binding",
 		}}), nil
 	}
 	proposalID := strings.TrimSpace(input.ProposalID)
@@ -49,10 +49,10 @@ func (s *Service) MaterializePlanExecution(
 	if proposalID == "" || digest == "" {
 		return RejectedResult(nil, domainError(
 			ErrorCodeInvalidInput,
-			"proposal_id and proposal_digest are required",
+			"resolved proposal binding requires both internal id and digest",
 		), []NextAction{{
 			Domain: "execution", Operation: "prepare_plan_execution",
-			Reason: "submit one complete Nexus Plan Document before committing it",
+			Reason: "submit one complete Nexus Plan Document so the host can establish an exact binding",
 		}}), nil
 	}
 	if s == nil || s.planProposals == nil {
@@ -88,7 +88,7 @@ func (s *Service) MaterializePlanExecution(
 			"proposal_digest does not match the sealed proposal and target fence",
 		), []NextAction{{
 			Domain: "execution", Operation: "prepare_plan_execution",
-			Reason: "use the exact proposal_id and proposal_digest returned together by preparation",
+			Reason: "prepare again so the host can establish a fresh exact proposal binding",
 		}}), nil
 	}
 	return s.materializeLoadedPlanProposal(ctx, actor, proposal)

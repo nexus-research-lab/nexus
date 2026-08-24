@@ -46,6 +46,10 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 			AgentRuntimeKind:           "nxs",
 			AgentSDKDiagnosticsEnabled: true,
 			EmotionEnabled:             true,
+			DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
+				Provider: "background-provider",
+				Model:    "background-model",
+			},
 			RuntimeSettings: preferencessvc.RuntimeSettings{
 				"nxs": {ToolSearch: true},
 			},
@@ -78,6 +82,10 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 	}
 	if !selection.ToolSearchEnabled {
 		t.Fatalf("nxs ToolSearch 偏好应透传: %+v", selection)
+	}
+	if selection.BackgroundProvider != "background-provider" ||
+		selection.BackgroundModel != "background-model" {
+		t.Fatalf("后台模型偏好应透传给 bridge: %+v", selection)
 	}
 }
 

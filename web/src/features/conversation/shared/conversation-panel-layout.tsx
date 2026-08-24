@@ -1,13 +1,13 @@
 /**
- * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及向活动组件下发本地可用宽度的 Composer 底部工作栈。
+ * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、可靠性快照、底部活动入口与统一输入事件。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
 import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 
-import { ConversationErrorBubble } from "./conversation-error-bubble";
+import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "./conversation-panel-styles";
 import { ProviderUnavailableBanner } from "./provider-unavailable-banner";
 import { ScrollToLatestButton } from "./scroll-to-latest-button";
@@ -23,7 +23,6 @@ type ScrollViewportEvents = Pick<
 >;
 
 export type ConversationViewportModel = ScrollViewportEvents & {
-  error: string | null;
   isHistoryLoading: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
 };
@@ -99,20 +98,6 @@ export function ConversationPanelViewport({
         </div>
       ) : null}
       {children}
-      {viewport.error ? (
-        <div
-          className={
-            isMobileLayout
-              ? "mt-4"
-              : `${CONVERSATION_CONTENT_LANE_CLASS_NAME} mt-2`
-          }
-        >
-          <ConversationErrorBubble
-            compact={isMobileLayout}
-            error={viewport.error}
-          />
-        </div>
-      ) : null}
       {floatingDockOccupied ? (
         <div
           aria-hidden="true"
@@ -169,6 +154,7 @@ export function ConversationPanelBottomArea({
   goal,
   isMobileLayout,
   providerWarningVisible,
+  reliability,
   scrollToLatest,
 }: {
   activity?: ReactNode;
@@ -176,6 +162,7 @@ export function ConversationPanelBottomArea({
   goal?: ReactNode;
   isMobileLayout: boolean;
   providerWarningVisible: boolean;
+  reliability: ComponentProps<typeof ConversationReliabilityNotice>["reliability"];
   scrollToLatest: ConversationScrollToLatestModel;
 }) {
   return (
@@ -193,6 +180,10 @@ export function ConversationPanelBottomArea({
           scrollToLatest={scrollToLatest}
         />
         <div data-conversation-status-stack>
+          <ConversationReliabilityNotice
+            compact={isMobileLayout}
+            reliability={reliability}
+          />
           {providerWarningVisible ? (
             <ProviderUnavailableBanner compact={isMobileLayout} />
           ) : null}

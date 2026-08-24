@@ -35,21 +35,16 @@ func (s *Service) recordTrustedQueueAdmission(
 	if err != nil {
 		return err
 	}
-	principal := authctx.PrincipalFromContext(ctx)
-	if principal == nil ||
-		strings.TrimSpace(principal.UserID) != binding.OwnerUserID {
+	principal, ok := authctx.DirectHumanPrincipalBindingFromContext(ctx, binding.OwnerUserID)
+	if !ok {
 		return errors.New("trusted DM queue admission requires the authenticated owner principal")
-	}
-	authSessionID := ""
-	if principal.SessionID != nil {
-		authSessionID = strings.TrimSpace(*principal.SessionID)
 	}
 	return s.queueTrust.Record(ctx, queueadmissionstore.Admission{
 		Binding: binding,
 		Principal: queueadmissionstore.PrincipalBinding{
-			UserID:     strings.TrimSpace(principal.UserID),
-			AuthMethod: strings.TrimSpace(principal.AuthMethod),
-			SessionID:  authSessionID,
+			UserID:     principal.UserID,
+			AuthMethod: principal.AuthMethod,
+			SessionID:  principal.SessionID,
 		},
 	})
 }

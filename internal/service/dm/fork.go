@@ -20,7 +20,18 @@ func (s *Service) PrepareConversationFork(
 	sourceSessionKey string,
 	targetRoundID string,
 ) (string, string, error) {
-	source, err := validateConversationForkSourceKey(sourceSessionKey)
+	return s.prepareConversationFork(ctx, sourceSessionKey, targetRoundID, validateConversationForkSourceKey)
+}
+
+type conversationForkSourceValidator func(string) (protocol.SessionKey, error)
+
+func (s *Service) prepareConversationFork(
+	ctx context.Context,
+	sourceSessionKey string,
+	targetRoundID string,
+	validateSource conversationForkSourceValidator,
+) (string, string, error) {
+	source, err := validateSource(sourceSessionKey)
 	if err != nil {
 		return "", "", err
 	}
@@ -77,7 +88,29 @@ func (s *Service) ForkConversationSession(
 	sourceSessionID string,
 	forkMessageID string,
 ) error {
-	source, target, err := validateConversationForkKeys(sourceSessionKey, targetSessionKey)
+	return s.forkConversationSession(
+		ctx,
+		sourceSessionKey,
+		targetSessionKey,
+		targetRoundID,
+		sourceSessionID,
+		forkMessageID,
+		validateConversationForkKeys,
+	)
+}
+
+type conversationForkPairValidator func(string, string) (protocol.SessionKey, protocol.SessionKey, error)
+
+func (s *Service) forkConversationSession(
+	ctx context.Context,
+	sourceSessionKey string,
+	targetSessionKey string,
+	targetRoundID string,
+	sourceSessionID string,
+	forkMessageID string,
+	validateKeys conversationForkPairValidator,
+) error {
+	source, target, err := validateKeys(sourceSessionKey, targetSessionKey)
 	if err != nil {
 		return err
 	}
@@ -129,6 +162,22 @@ func (s *Service) ForkConversationSession(
 	if actualSessionID != sourceSessionID || actualMessageID != forkMessageID {
 		return errors.New("fork transcript boundary changed before target materialization")
 	}
+	if purpose, _ := targetSession.Options[protocol.OptionSessionPurpose].(string); strings.TrimSpace(purpose) == protocol.SessionPurposeWorkGraphEditor {
+		tail, tailErr := ownerHistory.ResolveTranscriptRoundTail(
+			agentValue.WorkspacePath,
+			sourceSessionKey,
+			actualSessionID,
+			targetRoundID,
+		)
+		if tailErr != nil {
+			return fmt.Errorf("确认临时 fork transcript 尾部: %w", tailErr)
+		}
+		if transcriptRoundIsSessionTail(tail, targetRoundID) {
+			targetSession.Options[protocol.OptionRuntimeForkAtTranscriptTail] = true
+		} else {
+			delete(targetSession.Options, protocol.OptionRuntimeForkAtTranscriptTail)
+		}
+	}
 	targetSession.Options[protocol.OptionRuntimeForkSourceSessionID] = sourceSessionID
 	targetSession.Options[protocol.OptionRuntimeForkMessageID] = forkMessageID
 	forkRows, err := ownerHistory.ReadMessages(agentValue.WorkspacePath, targetSession, nil)
@@ -144,6 +193,13 @@ func (s *Service) ForkConversationSession(
 		return fmt.Errorf("持久化 fork conversation: %w", err)
 	}
 	return nil
+}
+
+func transcriptRoundIsSessionTail(tail workspacestore.TranscriptRoundTail, targetRoundID string) bool {
+	targetRoundID = strings.TrimSpace(targetRoundID)
+	return targetRoundID != "" &&
+		len(tail.RoundIDs) == 1 &&
+		strings.TrimSpace(tail.RoundIDs[0]) == targetRoundID
 }
 
 func pendingConversationFork(options map[string]any) (string, string) {
@@ -205,6 +261,29 @@ func validateConversationForkSourceKey(raw string) (protocol.SessionKey, error) 
 	return key, nil
 }
 
+func validateTransientForkSourceKey(raw string) (protocol.SessionKey, error) {
+	key := protocol.ParseSessionKey(raw)
+	if !key.IsStructured || key.Kind != protocol.SessionKeyKindAgent ||
+		key.Channel != protocol.SessionChannelWebSocketSegment ||
+		(key.ChatType != protocol.RoomTypeDM && key.ChatType != "group") ||
+		strings.TrimSpace(key.AgentID) == "" || strings.TrimSpace(key.Ref) == "" {
+		return protocol.SessionKey{}, errors.New("transient conversation fork requires a websocket Agent session")
+	}
+	return key, nil
+}
+
+func validateTransientForkKeys(sourceRaw string, targetRaw string) (protocol.SessionKey, protocol.SessionKey, error) {
+	source, err := validateTransientForkSourceKey(sourceRaw)
+	if err != nil {
+		return protocol.SessionKey{}, protocol.SessionKey{}, err
+	}
+	target := protocol.ParseSessionKey(targetRaw)
+	if !validConversationForkKey(target) || source.AgentID != target.AgentID || source.Raw == target.Raw {
+		return protocol.SessionKey{}, protocol.SessionKey{}, errors.New("transient conversation fork requires a distinct DM session for the same Agent")
+	}
+	return source, target, nil
+}
+
 func validConversationForkKey(key protocol.SessionKey) bool {
 	return key.IsStructured &&
 		key.Kind == protocol.SessionKeyKindAgent &&
@@ -243,6 +322,24 @@ func completedAssistantRound(rows []protocol.Message, roundID string, activeRoun
 		}
 	}
 	return hasAssistant && !hasNonSuccessfulTerminal
+}
+
+func latestCompletedAssistantRound(rows []protocol.Message, activeRoundIDs []string) string {
+	seen := make(map[string]struct{})
+	for index := len(rows) - 1; index >= 0; index-- {
+		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
+		if roundID == "" {
+			continue
+		}
+		if _, duplicate := seen[roundID]; duplicate {
+			continue
+		}
+		seen[roundID] = struct{}{}
+		if completedAssistantRound(rows, roundID, activeRoundIDs) {
+			return roundID
+		}
+	}
+	return ""
 }
 
 func successfulForkResult(value any) bool {

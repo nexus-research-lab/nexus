@@ -81,7 +81,7 @@ export function useRoundJump({
       const target: PendingRoundJump = {
         navigationRoundId: item.roundId,
         scopeKey,
-        scrollRoundId: item.inputRoundId,
+        scrollRoundId: item.roundId,
       };
       const loaded = isRoundLoaded(timeline, target.scrollRoundId);
 
@@ -90,13 +90,14 @@ export function useRoundJump({
         scrollElement,
         target.navigationRoundId,
       );
-      activateRound(target.navigationRoundId);
       setPendingNavigation(target);
       scrollToTimelineRound(
         scrollElement,
         roundScrollRef?.current ?? null,
         target.scrollRoundId,
-        { align: "focus", behavior: "smooth" },
+        // Navigation owns this scroll transaction. Native smooth scrolling can
+        // outlive the async load and race the exact landing correction.
+        { align: "focus", behavior: "auto" },
       );
 
       if (!loaded && !enqueueNavigationLoad(target)) {
@@ -104,7 +105,6 @@ export function useRoundJump({
       }
     },
     [
-      activateRound,
       cancelNavigation,
       enqueueNavigationLoad,
       onNavigateStart,

@@ -20,6 +20,7 @@ type fakeExecutionService struct {
 	currentReads  int
 	snapshotReads int
 	prepare       func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
+	resolvePlan   func(orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error)
 	materialize   func(orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) orchestration.MutationResult
 	abandon       func(orchestration.AbandonExecutionInput) orchestration.MutationResult
 	assign        func(orchestration.AssignWorkInput) orchestration.MutationResult
@@ -234,6 +235,16 @@ func (s *fakeExecutionService) PreparePlanExecution(
 		return nil, errors.New("unexpected PreparePlanExecution call")
 	}
 	return s.prepare(actor, input)
+}
+
+func (s *fakeExecutionService) ResolvePlanExecutionProposal(
+	_ context.Context,
+	actor orchestration.ActorContext,
+) (*protocol.ExecutionPlanProposal, error) {
+	if s.resolvePlan != nil {
+		return s.resolvePlan(actor)
+	}
+	return sealedPlanProposal(), nil
 }
 
 func (s *fakeExecutionService) MaterializePlanExecution(
@@ -717,14 +728,19 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 		t.Fatalf("command adapter read authoritative state outside service: current=%d snapshot=%d", svc.currentReads, svc.snapshotReads)
 	}
 	if result.StructuredContent["outcome"] != "prepared" ||
-		result.StructuredContent["proposal_id"] != proposal.ID ||
-		result.StructuredContent["proposal_digest"] != proposal.ContentDigest ||
+		result.StructuredContent["proposal_bound"] != true ||
 		result.StructuredContent["proposal_status"] != string(protocol.ExecutionPlanProposalStatusSealed) ||
 		result.StructuredContent["goal_binding"] != string(orchestration.PlanGoalBindingCurrent) ||
 		result.StructuredContent["objective_source"] != "goal" ||
 		result.StructuredContent["completion_criteria_source"] != "plan_document" ||
 		result.StructuredContent["item_count"] != float64(2) {
 		t.Fatalf("prepared result = %#v", result.StructuredContent)
+	}
+	if _, exposed := result.StructuredContent["proposal_id"]; exposed {
+		t.Fatalf("prepared result exposed host-owned proposal id: %#v", result.StructuredContent)
+	}
+	if _, exposed := result.StructuredContent["proposal_digest"]; exposed {
+		t.Fatalf("prepared result exposed host-owned proposal digest: %#v", result.StructuredContent)
 	}
 	actions, ok := result.StructuredContent["next_actions"].([]any)
 	if !ok || len(actions) != 1 || actions[0].(map[string]any)["operation"] != "plan_execution" {
@@ -802,6 +818,38 @@ func TestPreparePlanExecutionDirectsMissingCurrentExecutionToCreate(t *testing.T
 	reason, _ := actions[0].(map[string]any)["reason"].(string)
 	if !strings.Contains(reason, "operation: create") || strings.Contains(reason, "replan") {
 		t.Fatalf("repair reason = %q", reason)
+	}
+}
+
+func TestPreparePlanExecutionConflictCommitsExistingHostBinding(t *testing.T) {
+	svc := &fakeExecutionService{
+		prepare: func(
+			orchestration.ActorContext,
+			orchestration.PreparePlanExecutionInput,
+		) (*protocol.ExecutionPlanProposal, error) {
+			return nil, &orchestration.DomainError{
+				Code:    orchestration.ErrorCodePlanProposalMismatch,
+				Message: "physical round already owns a sealed proposal",
+			}
+		},
+	}
+	result, err := preparePlanExecution(svc, executionContext()).ContextHandler(
+		context.Background(),
+		validPreparePlanCommandInput(),
+		&runtimecommand.CallContext{RequestID: "prepare-conflict-1"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError ||
+		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodePlanProposalMismatch) {
+		t.Fatalf("prepare conflict result = %#v", result)
+	}
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) != 1 ||
+		actions[0].(map[string]any)["operation"] != "plan_execution" {
+		t.Fatalf("prepare conflict actions = %#v", result.StructuredContent["next_actions"])
 	}
 }
 
@@ -957,55 +1005,42 @@ func TestPlanOperationsStrictlyRejectUnknownTopLevelFieldsBeforeService(t *testi
 }
 
 func TestPlanTransportEmptyArgumentsOfferAtMostOneRetry(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		definition func(*planTransportGuard) runtimecommand.Operation
-		input      map[string]any
-	}{
-		{
-			name: "prepare",
-			definition: func(guard *planTransportGuard) runtimecommand.Operation {
-				return preparePlanExecution(&fakeExecutionService{}, executionContext(), guard)
-			},
-			input: map[string]any{"plan_document": ""},
-		},
-		{
-			name: "commit",
-			definition: func(guard *planTransportGuard) runtimecommand.Operation {
-				return planExecution(&fakeExecutionService{}, executionContext(), guard)
-			},
-			input: map[string]any{"proposal_id": "", "proposal_digest": ""},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			definition := test.definition(&planTransportGuard{})
-			first, err := definition.ContextHandler(context.Background(), test.input, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			second, err := definition.ContextHandler(context.Background(), test.input, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if first.IsError || second.IsError ||
-				first.StructuredContent["outcome"] != "rejected" ||
-				second.StructuredContent["outcome"] != "rejected" ||
-				first.StructuredContent["next_actions"] == nil ||
-				second.StructuredContent["next_actions"] != nil {
-				t.Fatalf("first=%#v second=%#v", first.StructuredContent, second.StructuredContent)
-			}
-			if !strings.Contains(second.StructuredContent["message"].(string), "stop retrying") {
-				t.Fatalf("second retry message = %#v", second.StructuredContent)
-			}
-		})
+	definition := preparePlanExecution(
+		&fakeExecutionService{},
+		executionContext(),
+		&planTransportGuard{},
+	)
+	input := map[string]any{"plan_document": ""}
+	first, err := definition.ContextHandler(context.Background(), input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := definition.ContextHandler(context.Background(), input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.IsError || second.IsError ||
+		first.StructuredContent["outcome"] != "rejected" ||
+		second.StructuredContent["outcome"] != "rejected" ||
+		first.StructuredContent["next_actions"] == nil ||
+		second.StructuredContent["next_actions"] != nil {
+		t.Fatalf("first=%#v second=%#v", first.StructuredContent, second.StructuredContent)
+	}
+	if !strings.Contains(second.StructuredContent["message"].(string), "stop retrying") {
+		t.Fatalf("second retry message = %#v", second.StructuredContent)
 	}
 }
 
-func TestPlanExecutionMaterializesExactSealedReference(t *testing.T) {
+func TestPlanExecutionMaterializesHostBoundProposalWithoutModelIDs(t *testing.T) {
 	var capturedActor orchestration.ActorContext
 	var capturedInput orchestration.MaterializePlanExecutionInput
 	snapshot := executionSnapshot(4)
+	proposal := sealedPlanProposal()
 	svc := &fakeExecutionService{
+		resolvePlan: func(actor orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error) {
+			capturedActor = actor
+			return proposal, nil
+		},
 		materialize: func(
 			actor orchestration.ActorContext,
 			input orchestration.MaterializePlanExecutionInput,
@@ -1017,19 +1052,81 @@ func TestPlanExecutionMaterializesExactSealedReference(t *testing.T) {
 	}
 	sctx := executionContext()
 	sctx.ExecutionID = snapshot.Execution.ID
-	input := validPlanCommitCommandInput()
+	input := map[string]any{}
 	result, err := planExecution(svc, sctx).ContextHandler(context.Background(), input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.IsError ||
-		capturedInput.ProposalID != input["proposal_id"] ||
-		capturedInput.ProposalDigest != input["proposal_digest"] ||
+		capturedInput.ProposalID != proposal.ID ||
+		capturedInput.ProposalDigest != proposal.ContentDigest ||
 		capturedActor.ExecutionID != snapshot.Execution.ID {
 		t.Fatalf("result=%#v actor=%#v input=%#v", result, capturedActor, capturedInput)
 	}
 	if svc.currentReads != 0 || svc.snapshotReads != 0 {
 		t.Fatalf("commit must resolve the exact sealed fence inside the service: current=%d snapshot=%d", svc.currentReads, svc.snapshotReads)
+	}
+}
+
+func TestPlanExecutionRejectsLegacyReceiptThatDoesNotMatchHostBinding(t *testing.T) {
+	materialized := false
+	proposal := sealedPlanProposal()
+	svc := &fakeExecutionService{
+		resolvePlan: func(orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error) {
+			return proposal, nil
+		},
+		materialize: func(
+			orchestration.ActorContext,
+			orchestration.MaterializePlanExecutionInput,
+		) orchestration.MutationResult {
+			materialized = true
+			return orchestration.MutationResult{}
+		},
+	}
+	result, err := planExecution(svc, executionContext()).ContextHandler(
+		context.Background(),
+		map[string]any{
+			"proposal_id":     "plan_proposal_stale",
+			"proposal_digest": strings.Repeat("f", 64),
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if materialized || result.IsError ||
+		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodePlanProposalMismatch) {
+		t.Fatalf("result=%#v materialized=%t", result, materialized)
+	}
+}
+
+func TestPlanExecutionMissingHostBindingDirectsFreshPreparation(t *testing.T) {
+	svc := &fakeExecutionService{
+		resolvePlan: func(orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error) {
+			return nil, &orchestration.DomainError{
+				Code:    orchestration.ErrorCodePlanProposalBinding,
+				Message: "no prepared proposal is bound",
+			}
+		},
+	}
+	result, err := planExecution(svc, executionContext()).ContextHandler(
+		context.Background(),
+		map[string]any{},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError ||
+		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
+		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodePlanProposalBinding) {
+		t.Fatalf("missing binding result = %#v", result)
+	}
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) != 1 ||
+		actions[0].(map[string]any)["operation"] != "prepare_plan_execution" {
+		t.Fatalf("missing binding actions = %#v", result.StructuredContent["next_actions"])
 	}
 }
 

@@ -16,6 +16,7 @@ import { isHiddenSystemEvent } from "../../../message-content-model";
 
 import { ImageBlock } from "../../../blocks/artifact/image/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
+import { WorkGraphArtifactBlock } from "../../../blocks/artifact/workgraph/workgraph-artifact-block";
 import { ThinkingBlock } from "../../../blocks/thinking-block";
 import { ToolUseErrorBlock } from "../../../blocks/tool/tool-use-error-block";
 import { MarkdownRenderer } from "../../../markdown-renderer";
@@ -32,6 +33,7 @@ import type { UnresolvedToolStatus } from "./content-renderer-contract";
 
 export interface ContentBlockRenderContext {
   canRespondToPermissions: boolean;
+  defaultToolDetailsExpanded: boolean;
   hiddenToolNames: ReadonlySet<string>;
   onOpenSubagentTask?: (
     toolUseId: string,
@@ -74,6 +76,7 @@ type ErasedContentBlockRenderer = (
 const CONTENT_BLOCK_RENDERERS = {
   document: renderHiddenBlock,
   image: renderImageBlock,
+  progress_update: renderHiddenBlock,
   redacted_thinking: renderHiddenBlock,
   resource_link: renderHiddenBlock,
   search_result: renderHiddenBlock,
@@ -85,6 +88,7 @@ const CONTENT_BLOCK_RENDERERS = {
   tool_use: renderToolUseBlock,
   tool_use_error: renderToolUseErrorBlock,
   unsupported: renderHiddenBlock,
+  workgraph_artifact: renderWorkGraphArtifactBlock,
   workspace_file_artifact: renderWorkspaceFileArtifactBlock,
 } satisfies ContentBlockRendererMap;
 
@@ -194,6 +198,12 @@ function renderWorkspaceFileArtifactBlock(
   );
 }
 
+function renderWorkGraphArtifactBlock(
+  block: ContentBlockOf<"workgraph_artifact">,
+) {
+  return <WorkGraphArtifactBlock artifact={block} />;
+}
+
 function renderToolUseBlock(
   block: ContentBlockOf<"tool_use">,
   context: ContentBlockRenderContext,
@@ -206,6 +216,7 @@ function renderToolUseBlock(
       block={block}
       context={{
         canRespondToPermissions: context.canRespondToPermissions,
+        defaultToolDetailsExpanded: context.defaultToolDetailsExpanded,
         onOpenSubagentTask: context.onOpenSubagentTask,
         onOpenWorkspaceFile: context.onOpenWorkspaceFile,
         onPermissionResponse: context.onPermissionResponse,

@@ -227,7 +227,8 @@ func NewEvent(eventType EventType, data map[string]any) EventMessage {
 // NewErrorEvent 构造错误事件。
 func NewErrorEvent(sessionKey string, message string) EventMessage {
 	event := NewEvent(EventTypeError, map[string]any{
-		"message": message,
+		"failure_code": ConversationFailureRequestRejected,
+		"message":      message,
 	})
 	event.SessionKey = sessionKey
 	return event
@@ -373,6 +374,7 @@ func NewRoundStatusErrorEvent(sessionKey string, roundID string, message string)
 	if trimmed := strings.TrimSpace(message); trimmed != "" {
 		event.Data["message"] = trimmed
 	}
+	event.Data["failure_code"] = ConversationFailureRoundFailed
 	return event
 }
 

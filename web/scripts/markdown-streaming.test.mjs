@@ -58,8 +58,8 @@ test("并行 Markdown 流共用一个帧提交且空闲后停止调度", async (
     consumptions
       .filter((entry) => entry.timestamp === 16)
       .reduce((total, entry) => total + entry.grant, 0),
-    12,
-    "the default aggregate reveal cap must stay at 12 graphemes",
+    4,
+    "the default aggregate reveal cap must stay at 4 graphemes",
   );
   assert.equal(frames.length, 2, "active streams schedule one shared next frame");
 
@@ -253,8 +253,8 @@ test("大块 live backlog 平滑追赶且 terminal 在有界时间排空", async
   });
   assert.equal(liveFrame.phase, "rendering");
   assert.ok(
-    liveFrame.cps >= 400 && liveFrame.revealCount > 0,
-    "a large first snapshot must drain smoothly instead of waiting at the default arrival rate",
+    liveFrame.cps >= 80 && liveFrame.cps <= 90 && liveFrame.revealCount > 0,
+    "a large first snapshot must advance at a visible reading pace",
   );
 
   const terminalFrame = clock.resolveFrame({
@@ -265,8 +265,9 @@ test("大块 live backlog 平滑追赶且 terminal 在有界时间排空", async
   });
   assert.equal(terminalFrame.phase, "flushing");
   assert.ok(
-    terminalFrame.cps >= 600 && terminalFrame.revealCount > liveFrame.revealCount,
-    "terminal drain must catch up without one immediate full-height jump",
+    terminalFrame.cps >= 110 && terminalFrame.cps <= 120
+      && terminalFrame.revealCount > liveFrame.revealCount,
+    "terminal drain must speed up gently without one immediate full-height jump",
   );
 });
 
@@ -293,8 +294,9 @@ test("全局帧额度不足时流时钟保留未展示字符预算", async () =>
     streaming: false,
     timestamp: 1_001,
   });
-  assert.ok(
-    nextFrame.revealCount >= 17,
+  assert.equal(
+    nextFrame.revealCount,
+    1,
     "budget accumulated before the global cap must remain available",
   );
 });
@@ -319,7 +321,7 @@ test("四条低速流的公平轮转等待不会被截成 50ms", async () => {
     timestamp: 1_000,
   }));
 
-  assert.deepEqual(frames.map((frame) => frame.cps), [15, 15, 15, 15]);
+  assert.deepEqual(frames.map((frame) => frame.cps), [18, 18, 18, 18]);
   assert.deepEqual(
     frames.map((frame) => frame.revealCount),
     [2, 2, 2, 2],

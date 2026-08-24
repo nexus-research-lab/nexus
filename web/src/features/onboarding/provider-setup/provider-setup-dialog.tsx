@@ -1,3 +1,8 @@
+/**
+ * INPUT: 模型服务目录、已有配置、连接验证与默认模型命令。
+ * OUTPUT: 单栏 plain 模型服务连接向导。
+ * POS: 首次使用的 Provider 配置边界；不承担品牌展示或功能营销。
+ */
 "use client";
 
 import {
@@ -5,7 +10,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import {
   ArrowDownToLine,
@@ -13,14 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
-  Clock3,
   ExternalLink,
   Loader2,
-  MessageSquare,
-  PlugZap,
-  Puzzle,
   Settings2,
-  UsersRound,
 } from "lucide-react";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
@@ -97,7 +96,6 @@ interface ProviderConnectionDraft {
 
 const FEATURED_PROVIDER_COUNT = 4;
 const DIALOG_TITLE_ID = "provider-setup-dialog-title";
-const DIALOG_DESCRIPTION_ID = "provider-setup-dialog-description";
 
 export function ProviderSetupDialog({
   isOpen,
@@ -425,37 +423,32 @@ export function ProviderSetupDialog({
         <UiDialogBackdrop
           className="z-[11050]"
           closeOnBackdrop={!busy}
-          describedBy={DIALOG_DESCRIPTION_ID}
           labelledBy={DIALOG_TITLE_ID}
           onClose={close}
         >
-          <div className="w-full max-w-[620px]">
-            <UiDialogShell className="h-[500px] max-h-[calc(100dvh-2rem)]" size="lg">
-            <UiDialogHeader className="!h-12 !border-b-0 !px-5 !py-0" closeLabel={t("common.close")} onClose={close}>
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <img alt="" className="h-6 w-6" src="/logo.webp" />
-                <h2 className="text-xs font-semibold text-(--text-strong)" id={DIALOG_TITLE_ID}>
-                  {t("onboarding.provider_setup_title")}
-                </h2>
-                <p className="sr-only" id={DIALOG_DESCRIPTION_ID}>
-                  {t("onboarding.provider_setup_description")}
-                </p>
-              </div>
-            </UiDialogHeader>
+          <UiDialogShell
+            className="h-[min(620px,calc(100dvh-2rem))] !max-w-[620px]"
+            size="lg"
+          >
+            <UiDialogHeader
+              appearance="plain"
+              closeLabel={t("common.close")}
+              onClose={close}
+              title={t("onboarding.provider_setup_title")}
+              titleId={DIALOG_TITLE_ID}
+            />
 
             <UiDialogBody className="!min-h-0 !flex-1 !overflow-hidden !p-0">
-              <div className="grid h-full min-h-0 w-full md:grid-cols-[176px_minmax(0,1fr)]">
-                <NexusPresence ready={scene === "ready"} />
+              <div
+                className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-5 pt-4 sm:px-6"
+                key={scene}
+              >
+                <JourneyProgress scene={scene} />
                 <div
-                  className="flex min-h-0 min-w-0 flex-col overflow-hidden px-5 pt-2 sm:px-7"
-                  key={scene}
+                  className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden animate-in fade-in-0 slide-in-from-bottom-1 duration-(--motion-duration-layout)"
                 >
-                  <JourneyProgress scene={scene} />
-                  <div
-                    className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden animate-in fade-in-0 slide-in-from-bottom-1 duration-(--motion-duration-layout)"
-                  >
-                    {scene === "provider" ? (
-                      <ProviderScene
+                  {scene === "provider" ? (
+                    <ProviderScene
                         error={error}
                         loading={loading}
                         onContinue={() => {
@@ -477,10 +470,10 @@ export function ProviderSetupDialog({
                         showAll={showAllProviders}
                         supportsCCSwitch={canImportFromCCSwitch}
                         supportsCustom={customSetups.length > 0}
-                      />
-                    ) : null}
-                    {scene === "credentials" && selected ? (
-                      <CredentialsScene
+                    />
+                  ) : null}
+                  {scene === "credentials" && selected ? (
+                    <CredentialsScene
                         apiKey={apiKey}
                         apiKeyRequired={apiKeyRequired}
                         baseUrl={baseUrl}
@@ -503,10 +496,10 @@ export function ProviderSetupDialog({
                         }}
                         onSubmit={handleSubmit}
                         setup={selected}
-                      />
-                    ) : null}
-                    {scene === "custom" ? (
-                      <CustomProviderScene
+                    />
+                  ) : null}
+                  {scene === "custom" ? (
+                    <CustomProviderScene
                         apiFormat={customApiFormat}
                         apiKey={customApiKey}
                         baseUrl={customBaseUrl}
@@ -542,21 +535,19 @@ export function ProviderSetupDialog({
                         }}
                         onSubmit={handleCustomSubmit}
                         providerName={customProviderName}
-                      />
-                    ) : null}
-                    {scene === "verify" ? <VerifyScene phase={verifyPhase} /> : null}
-                    {scene === "ready" && result ? (
-                      <ReadyScene
-                        onStart={start}
-                        result={result}
-                      />
-                    ) : null}
-                  </div>
+                    />
+                  ) : null}
+                  {scene === "verify" ? <VerifyScene phase={verifyPhase} /> : null}
+                  {scene === "ready" && result ? (
+                    <ReadyScene
+                      onStart={start}
+                      result={result}
+                    />
+                  ) : null}
                 </div>
               </div>
             </UiDialogBody>
-            </UiDialogShell>
-          </div>
+          </UiDialogShell>
         </UiDialogBackdrop>
       </UiDialogPortal>
       {canImportFromCCSwitch ? (
@@ -605,24 +596,6 @@ function JourneyProgress({ scene }: { scene: SetupScene }) {
         ))}
       </div>
     </div>
-  );
-}
-
-function NexusPresence({ ready }: { ready: boolean }) {
-  return (
-    <aside
-      aria-hidden="true"
-      className="relative hidden min-h-0 items-center justify-center overflow-hidden border-r border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--brand)_5%,var(--modal-dialog-body-background))] md:flex"
-    >
-      <img
-        alt=""
-        className={[
-          "h-[286px] max-w-none translate-y-3 object-contain transition-[transform,filter] duration-500",
-          ready ? "-rotate-2 scale-[1.03] drop-shadow-[0_14px_22px_rgba(54,63,91,0.12)]" : "scale-100",
-        ].join(" ")}
-        src="/nexus/nexus-mascot-front-wave.png"
-      />
-    </aside>
   );
 }
 
@@ -917,7 +890,6 @@ function CredentialsScene({
           {t("onboarding.provider_setup_back")}
         </UiButton>
         <UiButton size="sm" tone="primary" type="submit" variant="solid">
-          <PlugZap className="h-3.5 w-3.5" />
           {t("onboarding.provider_setup_submit")}
         </UiButton>
       </div>
@@ -1095,7 +1067,6 @@ function CustomProviderScene({
           {t("onboarding.provider_setup_back")}
         </UiButton>
         <UiButton size="sm" tone="primary" type="submit" variant="solid">
-          <PlugZap className="h-3.5 w-3.5" />
           {t("onboarding.provider_setup_submit")}
         </UiButton>
       </div>
@@ -1152,36 +1123,7 @@ function ReadyScene({
         })}
         title={t("onboarding.provider_setup_success_title")}
       />
-      <div className="flex flex-1 items-center py-5">
-        <div className="w-full">
-          <p className="mb-2 text-xs font-medium text-(--text-strong)">
-            {t("onboarding.provider_setup_features_title")}
-          </p>
-          <div className="grid grid-cols-2 border-y border-(--divider-subtle-color)">
-            <FeatureItem
-              className="border-b border-r border-(--divider-subtle-color) pr-3"
-              icon={<MessageSquare className="h-4 w-4" />}
-              title={t("onboarding.provider_setup_feature_agent_title")}
-            />
-            <FeatureItem
-              className="border-b border-(--divider-subtle-color) pl-3"
-              icon={<UsersRound className="h-4 w-4" />}
-              title={t("onboarding.provider_setup_feature_room_title")}
-            />
-            <FeatureItem
-              className="border-r border-(--divider-subtle-color) pr-3"
-              icon={<Puzzle className="h-4 w-4" />}
-              title={t("onboarding.provider_setup_feature_capability_title")}
-            />
-            <FeatureItem
-              className="pl-3"
-              icon={<Clock3 className="h-4 w-4" />}
-              title={t("onboarding.provider_setup_feature_context_title")}
-            />
-          </div>
-        </div>
-      </div>
-      <div className="flex shrink-0 justify-end pb-5">
+      <div className="mt-auto flex shrink-0 justify-end border-t border-(--divider-subtle-color) pb-5 pt-3">
         <UiButton onClick={onStart} size="sm" tone="primary" variant="solid">
           {t("onboarding.provider_setup_enter_chat")}
           <ChevronRight className="h-3.5 w-3.5" />
@@ -1200,29 +1142,12 @@ function SceneMessage({
 }) {
   return (
     <div>
-      <h3 className="text-[22px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+      <h3 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
         {title}
       </h3>
       <p className="mt-2 max-w-[42ch] text-sm leading-5 text-(--text-muted)">
         {body}
       </p>
-    </div>
-  );
-}
-
-function FeatureItem({
-  className,
-  icon,
-  title,
-}: {
-  className: string;
-  icon: ReactNode;
-  title: string;
-}) {
-  return (
-    <div className={`flex min-w-0 items-center gap-2.5 py-3 ${className}`}>
-      <span className="shrink-0 text-(--brand-action)">{icon}</span>
-      <span className="truncate text-xs font-medium text-(--text-strong)">{title}</span>
     </div>
   );
 }

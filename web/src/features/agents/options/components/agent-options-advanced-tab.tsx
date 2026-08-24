@@ -1,7 +1,7 @@
 /**
- * AgentOptions Advanced Tab
- *
- * 权限控制 + 工具授权
+ * INPUT: Agent 权限模式、预授权工具和连接器选择状态。
+ * OUTPUT: 同时展示模式差异、工具用途、连接器状态与对应开关的高级配置页。
+ * POS: Agent 详情中的授权决策面；说明用于比较选择而非装饰。
  */
 
 "use client";
@@ -108,7 +108,6 @@ export function AgentOptionsAdvancedTab({
             );
           })}
         </div>
-
         {isBypassPermissionMode ? (
           <div className="flex items-start gap-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />

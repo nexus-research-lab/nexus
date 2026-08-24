@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-/* 整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌。 */
+/* 整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌；界面控件以 14px 为基准，阅读正文自行声明字号。 */
 :root,
 :root[data-theme="light"] {
   --nexus-page-background-light: transparent;
@@ -657,16 +657,19 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
 
-  /* 语义化字号规范 — 替代散落的 text-[Npx] 任意值；Tailwind v4 的字号命名空间是 --text-*。 */
+  /*
+   * 桌面 App 以 14px 为常规界面基准；小字只承担元数据，阅读正文保留所属 Surface 的显式字号。
+   * 保留紧凑的 10–13px 档位，避免全局缩放把已经稳定的侧栏与说明文字继续压小。
+   */
   --text-2xs: 10px;
   --text-xs: 11px;
   --text-compact: 12px;
   --text-sm: 13px;
-  --text-base: 15px;
-  --text-md: 17px;
-  --text-lg: 22px;
-  --text-xl: 28px;
-  --text-2xl: 42px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 36px;
 
   --font-sans:
     -apple-system,

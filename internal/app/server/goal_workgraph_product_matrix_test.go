@@ -224,8 +224,9 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 				if prepared.IsError || prepared.StructuredContent["outcome"] != "prepared" {
 					t.Fatalf("prepare_plan_execution command result = %#v", prepared)
 				}
-				proposalID, _ := prepared.StructuredContent["proposal_id"].(string)
-				proposalDigest, _ := prepared.StructuredContent["proposal_digest"].(string)
+				if prepared.StructuredContent["proposal_bound"] != true {
+					t.Fatalf("prepare_plan_execution did not establish host binding: %#v", prepared)
+				}
 				materializedValue, materializedErr := handleExecutionRuntimeCommand(
 					context.Background(), executionService, commandActor,
 					runtimecommand.Request{
@@ -233,10 +234,7 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 						Action:    runtimecommand.ActionInvoke,
 						Operation: "plan_execution",
 						RequestID: "materialize-" + strings.ReplaceAll(test.name, " ", "-"),
-						Input: map[string]any{
-							"proposal_id":     proposalID,
-							"proposal_digest": proposalDigest,
-						},
+						Input:     map[string]any{},
 					},
 				)
 				materialized := productMatrixCommandResult(t, materializedValue, materializedErr)

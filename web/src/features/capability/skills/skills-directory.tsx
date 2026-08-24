@@ -1,3 +1,8 @@
+/**
+ * INPUT: Skill 目录/社区资源、筛选、导入更新动作与可选详情路由。
+ * OUTPUT: 一行摘要的 Skill 管理目录或当前 Skill 详情。
+ * POS: “能力 > 技能”的唯一页面装配入口。
+ */
 "use client";
 
 import { useCallback } from "react";

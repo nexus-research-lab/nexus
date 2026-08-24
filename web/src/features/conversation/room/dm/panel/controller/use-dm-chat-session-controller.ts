@@ -21,18 +21,24 @@ import type { TodoItem } from "@/types/conversation/todo";
 
 interface UseDmChatSessionControllerOptions {
   identity: AgentConversationIdentity | null;
+  initialScrollAnchor?: "bottom" | "top";
+  liveContentAlignment?: "end" | "start";
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;
   onGoalEvent: () => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
+  visibleAfterUnixMilli?: number;
 }
 
 export function useDmChatSessionController({
   identity,
+  initialScrollAnchor,
+  liveContentAlignment,
   onConversationSnapshotChange,
   onGoalEvent,
   onRoomEvent,
   onTodosChange,
+  visibleAfterUnixMilli,
 }: UseDmChatSessionControllerOptions) {
   const handleRoomEvent = useCallback(
     (eventType: string, data: RoomEventPayload): void => {
@@ -47,7 +53,10 @@ export function useDmChatSessionController({
     chatType: "dm",
     debugName: "DmChatPanel",
     identity,
+    initialScrollAnchor,
+    liveContentAlignment,
     onRoomEvent: handleRoomEvent,
+    visibleAfterUnixMilli,
   });
 
   const taskRuns = useDmConversationObservers({

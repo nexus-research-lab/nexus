@@ -6,8 +6,8 @@
 //   - repository.go / commands.go / errors.go：事务、command 幂等、CAS 与稳定错误。
 //   - execution*.go / goal_retarget.go / evidence.go：Execution 创建、转换、Goal
 //     predecessor/successor binding（含不改写既有 terminal predecessor 的幂等 successor reservation）、持久证据与 owner/session managed history 查询。
-//   - plan.go / plan_proposal*.go：immutable Plan 与 non-authoritative sealed proposal、
-//     materialization lease/receipt/recovery。
+//   - plan.go / plan_proposal*.go：immutable Plan、non-authoritative sealed proposal、
+//     exact owner/session/scope active binding 与 materialization lease/receipt/recovery。
 //   - goal_confirmation.go：与 Goal-bound Execution mutation 同事务的 pending receipt、
 //     confirmed CAS 与跨进程扫描。
 //   - completion_audit.go：与 accepted Review 同事务的 completion receipt、
@@ -24,6 +24,6 @@
 //
 // 主要暴露接口：NewRepository/NewSQLRepository 与 Repository 的事务 command、
 // owner/session/Goal 查询、GetSnapshot/GetWorkGraphState、outbox claim/deliver/retry、Runtime Graph
-// upsert/read，以及 Plan proposal、Goal confirmation 和 completion audit recovery
+// upsert/read，以及 Plan proposal binding/materialization、Goal confirmation 和 completion audit recovery
 // receipt 方法，以及 background deadline snapshots。
 package orchestration

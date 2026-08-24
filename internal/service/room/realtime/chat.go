@@ -734,6 +734,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			WorkspacePath:         agentValue.WorkspacePath,
 			Index:                 index,
 			TimestampMS:           normalizeInt64(e.userMessage["timestamp"]),
+			HiddenFromUser:        activeRound.Internal || activeRound.InputOptions.HiddenFromUser,
 			Trigger:               slotTrigger,
 			TriggerAttachments:    e.attachments,
 		}
@@ -746,13 +747,14 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		}
 		activeRound.Slots[msgID] = slot
 		pending = append(pending, protocol.ChatAckPendingSlot{
-			AgentID:      agentID,
-			AgentRoundID: agentRoundID,
-			MsgID:        msgID,
-			RoundID:      roomRootRoundID(activeRound),
-			Status:       "pending",
-			Timestamp:    normalizeInt64(e.userMessage["timestamp"]),
-			Index:        index,
+			AgentID:        agentID,
+			AgentRoundID:   agentRoundID,
+			MsgID:          msgID,
+			RoundID:        roomRootRoundID(activeRound),
+			HiddenFromUser: roomSlotHiddenFromUser(slot),
+			Status:         "pending",
+			Timestamp:      normalizeInt64(e.userMessage["timestamp"]),
+			Index:          index,
 		})
 	}
 	return activeRound, pending

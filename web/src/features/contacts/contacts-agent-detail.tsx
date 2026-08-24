@@ -1,7 +1,13 @@
+/**
+ * INPUT: 当前 Agent、可编辑配置、联络资源与目录/协作导航命令。
+ * OUTPUT: 带显式桌面目录返回入口的 Agent 分栏详情页。
+ * POS: 联系人目录的二级页面；手机返回由应用页头承载。
+ */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   Check,
   CircleAlert,
   LoaderCircle,
@@ -52,6 +58,7 @@ interface ContactsAgentDetailProps {
   agents: Agent[];
   communication: AgentCommunicationViewState;
   onAddContact: (contactAgentId: string, alias: string) => Promise<boolean>;
+  onBackToAgentDirectory: () => void;
   onBackToCommunicationDirectory: () => void;
   onCreateCommunicationConversation: (title?: string) => Promise<string | null>;
   onLoadOlderCommunicationMessages: () => Promise<boolean>;
@@ -81,6 +88,7 @@ export function ContactsAgentDetail({
   agents,
   communication,
   onAddContact,
+  onBackToAgentDirectory,
   onBackToCommunicationDirectory,
   onCreateCommunicationConversation,
   onLoadOlderCommunicationMessages,
@@ -178,12 +186,26 @@ export function ContactsAgentDetail({
       {actionControls}
     </div>
   );
+  const directoryNavigation = !isCompactLayout ? (
+    <UiButton
+      aria-label={t("contacts.back_to_directory")}
+      onClick={onBackToAgentDirectory}
+      size="sm"
+      title={t("contacts.back_to_directory")}
+      variant="ghost"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      {t("contacts.title")}
+    </UiButton>
+  ) : undefined;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
         compactTabsLabel={t("contacts.title")}
+        leading={directoryNavigation}
+        leadingClassName="!h-auto !w-auto !bg-transparent"
         onChangeTab={setActiveTab}
         tabs={configTabs}
         trailing={trailing}

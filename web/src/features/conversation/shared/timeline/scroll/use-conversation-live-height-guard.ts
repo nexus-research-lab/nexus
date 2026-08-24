@@ -1,7 +1,7 @@
 /**
- * INPUT: 当前会话、Feed 实测高度与是否仍处于 live layout epoch。
- * OUTPUT: live 期间单调不减、内容底部锚定的 Feed 高度，并在终态异步布局安静后一次性释放顶部高度负债。
- * POS: FOLLOW/READING 共用的 Feed 级几何保护；不冻结消息子树，也不阻止正文和工具块继续自然增长。
+ * INPUT: 当前会话、Feed 实测高度、内容对齐方向与是否仍处于 live layout epoch。
+ * OUTPUT: live 自动变化期间单调不减、切换会话时延后一帧建基线、用户主动收起时精确回退、按目标锚点对齐的 Feed 高度。
+ * POS: FOLLOW/READING 共用的 Feed 级几何保护；普通聊天底部锚定，显式编辑流可从顶部向下增长。
  */
 import {
   useCallback,
@@ -11,9 +11,15 @@ import {
   type RefObject,
 } from "react";
 
-const LIVE_HEIGHT_RELEASE_MS = 220;
+import {
+  CONVERSATION_EXPLICIT_SHRINK_EVENT,
+  getConversationExplicitShrinkDetail,
+} from "./conversation-layout-events";
+
 const LIVE_HEIGHT_SETTLE_MS = 160;
 const HEIGHT_TOLERANCE_PX = 0.5;
+// React Refresh 会保留 Hook ref；模块协议更新后必须丢弃旧 inline 高度。
+const LIVE_HEIGHT_GUARD_PROTOCOL = {};
 
 export interface ConversationLiveHeightGuardState {
   minimumHeight: number;
@@ -33,6 +39,19 @@ export interface ConversationLiveHeightGuardRevision {
   state: ConversationLiveHeightGuardState;
 }
 
+export function resolveConversationLiveHeightAfterExplicitShrink(
+  previous: ConversationLiveHeightGuardState,
+  heightDelta: number,
+): ConversationLiveHeightGuardState {
+  const normalizedDelta = Number.isFinite(heightDelta)
+    ? Math.max(0, heightDelta)
+    : 0;
+  return {
+    ...previous,
+    minimumHeight: Math.max(0, previous.minimumHeight - normalizedDelta),
+  };
+}
+
 export function resolveConversationLiveHeightGuard({
   active,
   measuredHeight,
@@ -40,11 +59,13 @@ export function resolveConversationLiveHeightGuard({
 }: ConversationLiveHeightGuardInput, previous: ConversationLiveHeightGuardState): ConversationLiveHeightGuardRevision {
   const normalizedHeight = Math.max(0, measuredHeight);
   if (previous.scopeKey !== scopeKey) {
-    const minimumHeight = active ? normalizedHeight : 0;
+    // scope 改变后的首个 layout effect 仍可能看到上一会话的 DOM。这里仅
+    // 清空旧负债，不用这次测量建立新基线；新会话内容提交或 ResizeObserver
+    // 首次回调后，再从同 scope 的真实 intrinsic height 开始保护。
     return {
-      minimumHeight,
+      minimumHeight: 0,
       releasing: false,
-      state: { minimumHeight, scopeKey, wasActive: active },
+      state: { minimumHeight: 0, scopeKey, wasActive: false },
     };
   }
   if (active) {
@@ -67,13 +88,23 @@ export function resolveConversationLiveHeightGuard({
 
 interface UseConversationLiveHeightGuardOptions {
   active: boolean;
+  contentAlignment?: ConversationLiveContentAlignment;
   feedRef: RefObject<HTMLDivElement | null>;
   revision: string;
   scopeKey: string | null;
 }
 
+export type ConversationLiveContentAlignment = "start" | "end";
+
+export function resolveConversationLiveContentJustifyContent(
+  alignment: ConversationLiveContentAlignment,
+): "flex-start" | "flex-end" {
+  return alignment === "start" ? "flex-start" : "flex-end";
+}
+
 export function useConversationLiveHeightGuard({
   active,
+  contentAlignment = "end",
   feedRef,
   revision,
   scopeKey,
@@ -86,17 +117,15 @@ export function useConversationLiveHeightGuard({
     scopeKey: normalizedScopeKey,
     wasActive: false,
   });
-  const releaseTimerRef = useRef<number | null>(null);
   const settleTimerRef = useRef<number | null>(null);
   const guardedFeedRef = useRef<HTMLDivElement | null>(null);
+  const protocolRef = useRef(LIVE_HEIGHT_GUARD_PROTOCOL);
+  const protocolResetPendingRef = useRef(false);
+  if (protocolRef.current !== LIVE_HEIGHT_GUARD_PROTOCOL) {
+    protocolRef.current = LIVE_HEIGHT_GUARD_PROTOCOL;
+    protocolResetPendingRef.current = true;
+  }
   requestedActiveRef.current = active;
-
-  const cancelRelease = useCallback(() => {
-    if (releaseTimerRef.current !== null) {
-      window.clearTimeout(releaseTimerRef.current);
-      releaseTimerRef.current = null;
-    }
-  }, []);
 
   const cancelSettle = useCallback(() => {
     if (settleTimerRef.current !== null) {
@@ -109,19 +138,23 @@ export function useConversationLiveHeightGuard({
     feed: HTMLDivElement,
     effectiveActive: boolean,
   ) => {
-    if (stateRef.current.scopeKey !== normalizedScopeKey) {
-      cancelRelease();
+    const protocolResetPending = protocolResetPendingRef.current;
+    const scopeChanged = stateRef.current.scopeKey !== normalizedScopeKey;
+    if (protocolResetPending || scopeChanged) {
       cancelSettle();
       const previousFeed = guardedFeedRef.current;
       if (previousFeed) {
         clearConversationLiveHeightGuardStyle(previousFeed);
       }
       clearConversationLiveHeightGuardStyle(feed);
-      stateRef.current = {
-        minimumHeight: 0,
-        scopeKey: normalizedScopeKey,
-        wasActive: false,
-      };
+      protocolResetPendingRef.current = false;
+      if (protocolResetPending) {
+        stateRef.current = {
+          minimumHeight: 0,
+          scopeKey: normalizedScopeKey,
+          wasActive: false,
+        };
+      }
     }
     const previous = stateRef.current;
     let measuredHeight = feed.getBoundingClientRect().height;
@@ -140,10 +173,9 @@ export function useConversationLiveHeightGuard({
     guardedFeedRef.current = feed;
 
     if (effectiveActive) {
-      cancelRelease();
       feed.style.transition = "none";
       feed.style.minHeight = `${next.minimumHeight}px`;
-      feed.style.justifyContent = "flex-end";
+      feed.style.justifyContent = resolveConversationLiveContentJustifyContent(contentAlignment);
       feed.dataset.conversationLiveHeightGuard = "active";
       return;
     }
@@ -153,26 +185,10 @@ export function useConversationLiveHeightGuard({
       return;
     }
 
-    cancelRelease();
-    feed.style.transition = "none";
-    feed.style.minHeight = `${previous.minimumHeight}px`;
-    feed.style.justifyContent = "flex-end";
-    feed.dataset.conversationLiveHeightGuard = "releasing";
-    // 先提交 held height，再平滑收口到 intrinsic height。
-    void feed.offsetHeight;
-    feed.style.transition = [
-      "min-height",
-      `${LIVE_HEIGHT_RELEASE_MS}ms`,
-      "cubic-bezier(0.2, 0.8, 0.2, 1)",
-    ].join(" ");
-    feed.style.minHeight = `${measuredHeight}px`;
-    releaseTimerRef.current = window.setTimeout(() => {
-      releaseTimerRef.current = null;
-      if (guardedFeedRef.current === feed && !requestedActiveRef.current) {
-        clearConversationLiveHeightGuardStyle(feed);
-      }
-    }, LIVE_HEIGHT_RELEASE_MS + 50);
-  }, [cancelRelease, cancelSettle, normalizedScopeKey]);
+    // 安静窗口结束后只提交一次 intrinsic 几何。min-height transition 会在每一帧
+    // 触发 ResizeObserver，并与 follow/virtualizer 的 scrollTop 写入形成反馈环。
+    clearConversationLiveHeightGuardStyle(feed);
+  }, [cancelSettle, contentAlignment, normalizedScopeKey]);
 
   useLayoutEffect(() => {
     const feed = feedRef.current;
@@ -223,14 +239,47 @@ export function useConversationLiveHeightGuard({
     return () => observer.disconnect();
   }, [applyRevision, feedRef, revision]);
 
+  useEffect(() => {
+    const handleExplicitShrink = (event: Event) => {
+      const feed = feedRef.current;
+      const target = event.target;
+      const detail = getConversationExplicitShrinkDetail(event);
+      if (
+        !feed
+        || !activeRef.current
+        || !(target instanceof Node)
+        || !feed.contains(target)
+        || !detail
+      ) {
+        return;
+      }
+      const next = resolveConversationLiveHeightAfterExplicitShrink(
+        stateRef.current,
+        detail.heightDelta,
+      );
+      stateRef.current = next;
+      feed.style.transition = "none";
+      feed.style.minHeight = `${next.minimumHeight}px`;
+      feed.style.justifyContent = resolveConversationLiveContentJustifyContent(contentAlignment);
+      feed.dataset.conversationLiveHeightGuard = "active";
+    };
+    document.addEventListener(
+      CONVERSATION_EXPLICIT_SHRINK_EVENT,
+      handleExplicitShrink,
+    );
+    return () => document.removeEventListener(
+      CONVERSATION_EXPLICIT_SHRINK_EVENT,
+      handleExplicitShrink,
+    );
+  }, [contentAlignment, feedRef]);
+
   useEffect(() => () => {
-    cancelRelease();
     cancelSettle();
     const feed = guardedFeedRef.current;
     if (feed) {
       clearConversationLiveHeightGuardStyle(feed);
     }
-  }, [cancelRelease, cancelSettle]);
+  }, [cancelSettle]);
 }
 
 function clearConversationLiveHeightGuardStyle(feed: HTMLDivElement): void {

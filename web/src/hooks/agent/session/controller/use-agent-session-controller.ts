@@ -22,11 +22,12 @@ import { useAgentConversationSession } from "../use-agent-conversation-session";
 import { useAgentSessionIdentity } from "./use-agent-session-identity";
 import { useAgentSessionLifecycleContext } from "./use-agent-session-lifecycle-context";
 import { useAgentSessionSnapshots } from "./use-agent-session-snapshots";
+import type { ConversationReliabilityController } from "../../reliability/use-conversation-reliability";
 
 interface AgentSessionState {
   messages: Message[];
   pendingAgentSlots: RoomPendingAgentSlotState[];
-  setError: Dispatch<SetStateAction<string | null>>;
+  reliability: ConversationReliabilityController;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setPendingAgentSlots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   setPendingPermissions: Dispatch<SetStateAction<PendingPermission[]>>;
@@ -70,7 +71,7 @@ export function useAgentSessionController({
   const {
     messages,
     pendingAgentSlots,
-    setError,
+    reliability,
     setMessages,
     setPendingAgentSlots,
     setPendingPermissions,
@@ -94,16 +95,16 @@ export function useAgentSessionController({
   const history = useAgentConversationHistory({
     activeSessionKeyRef,
     identity,
-    setError,
     setMessages,
   });
   const snapshots = useAgentSessionSnapshots({
+    chatType: identity?.chat_type ?? "dm",
     messages,
     pendingAgentSlots,
     reconcileRuntimeStateFromSnapshot,
     runtimeSnapshot,
     sessionKey,
-    setError,
+    reliability,
     setMessages,
     setPendingAgentSlots,
   });
@@ -128,7 +129,7 @@ export function useAgentSessionController({
     reconcileRuntimeStateFromSnapshot,
     restoreVolatileSessionSnapshot:
       snapshots.restoreVolatileSessionSnapshot,
-    setError,
+    reliability,
     setHasMoreHistory: history.setHasMoreHistory,
     setInputQueueItems,
     setIsSessionLoading,

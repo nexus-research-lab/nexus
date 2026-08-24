@@ -1,6 +1,11 @@
+/**
+ * INPUT: Agent 目录、配对草稿与创建命令。
+ * OUTPUT: 必填信息优先、可选路由字段按需展开的 plain 配对表单。
+ * POS: IM 配对目录的手动创建边界；不在标题区解释匹配协议。
+ */
 "use client";
 
-import { Loader2, Plus, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   type FormEvent,
   useEffect,
@@ -109,10 +114,9 @@ export function CreatePairingDialog({
           size="lg"
         >
           <UiDialogHeader
-            icon={<ShieldCheck className="h-5 w-5" />}
+            appearance="plain"
             onClose={onClose}
-            subtitle="为已知外部用户、群或话题预先建立 IM 授权关系；只有渠道、会话类型、外部 ID 和 Thread 都相同时才会更新已有配对。"
-            title="新增 IM 配对"
+            title="新增配对"
             titleId="create-pairing-dialog-title"
           />
 
@@ -163,39 +167,16 @@ export function CreatePairingDialog({
               />
             </UiField>
 
-            <UiField
-              description="可选；多扫码账号或多机器人账号时用于区分同一个外部对象。"
-              label="通道账号 ID"
-            >
+            <UiField label="显示名称">
               <UiInput
-                onChange={(event) => setField("accountId", event.target.value)}
-                placeholder="可选，例如扫码账号 ID / bot id"
-                value={draft.accountId}
+                onChange={(event) => setField("externalName", event.target.value)}
+                placeholder="可选，用于配对列表识别"
+                value={draft.externalName}
                 variant="dialog"
               />
             </UiField>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <UiField label="Thread / 话题 ID">
-                <UiInput
-                  onChange={(event) => setField("threadId", event.target.value)}
-                  placeholder="可选，例如 Telegram topic 或 Discord thread"
-                  value={draft.threadId}
-                  variant="dialog"
-                />
-              </UiField>
-              <UiField label="显示名称">
-                <UiInput
-                  onChange={(event) => setField("externalName", event.target.value)}
-                  placeholder="可选，用于配对列表识别"
-                  value={draft.externalName}
-                  variant="dialog"
-                />
-              </UiField>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <UiField label="处理智能体" required>
+            <UiField label="处理智能体" required>
                 <UiSelectMenu
                   ariaLabel="选择处理智能体"
                   disabled={agents.length === 0}
@@ -207,47 +188,66 @@ export function CreatePairingDialog({
                   size="sm"
                   value={draft.agentId}
                 />
-              </UiField>
-              <UiField label="初始状态">
-                <UiSelectMenu
-                  ariaLabel="选择初始配对状态"
-                  onChange={(value) => setField(
-                    "status",
-                    value as ImPairingStatus,
-                  )}
-                  options={CREATE_PAIRING_STATUS_OPTIONS}
-                  size="sm"
-                  value={draft.status}
-                />
-              </UiField>
-            </div>
+            </UiField>
 
-            <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
-              手动配对适用于已经从外部平台拿到稳定会话 ID 的场景。首次入站消息仍会自动创建待处理配对。
-            </div>
+            <details className="border-t border-(--divider-subtle-color) pt-3">
+              <summary className="cursor-pointer select-none text-sm font-medium text-(--text-muted) hover:text-(--text-strong)">
+                账号、话题与初始状态
+              </summary>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <UiField
+                  description="多账号接入时用于区分同一个外部对象。"
+                  label="通道账号 ID"
+                >
+                  <UiInput
+                    onChange={(event) => setField("accountId", event.target.value)}
+                    placeholder="扫码账号 ID / bot id"
+                    value={draft.accountId}
+                    variant="dialog"
+                  />
+                </UiField>
+                <UiField label="Thread / 话题 ID">
+                  <UiInput
+                    onChange={(event) => setField("threadId", event.target.value)}
+                    placeholder="Telegram topic / Discord thread"
+                    value={draft.threadId}
+                    variant="dialog"
+                  />
+                </UiField>
+                <UiField label="初始状态">
+                  <UiSelectMenu
+                    ariaLabel="选择初始配对状态"
+                    onChange={(value) => setField(
+                      "status",
+                      value as ImPairingStatus,
+                    )}
+                    options={CREATE_PAIRING_STATUS_OPTIONS}
+                    size="sm"
+                    value={draft.status}
+                  />
+                </UiField>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-(--text-soft)">
+                仅在已知稳定外部 ID 时手动创建；首次入站消息仍会生成待处理配对。
+              </p>
+            </details>
           </UiDialogBody>
 
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton
-              className="min-w-[104px]"
               disabled={saving}
               onClick={onClose}
-              size="lg"
               type="button"
             >
               取消
             </UiButton>
             <UiButton
-              className="min-w-[124px]"
               disabled={saving || !draft.agentId}
-              size="lg"
               tone="primary"
               type="submit"
               variant="solid"
             >
-              {saving
-                ? <Loader2 className="h-5 w-5 animate-spin" />
-                : <Plus className="h-5 w-5" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {saving ? "创建中..." : "新增配对"}
             </UiButton>
           </UiDialogFooter>

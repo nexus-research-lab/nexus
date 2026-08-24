@@ -1,3 +1,8 @@
+/**
+ * INPUT: 频道目录、状态筛选、连接命令和配置弹窗状态。
+ * OUTPUT: 呈现平台用途、连接状态与使用事实的频道目录。
+ * POS: “能力 > 频道”的唯一页面入口。
+ */
 "use client";
 
 import {
@@ -13,7 +18,6 @@ import {
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
   CapabilityPageLayout,
-  CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -102,12 +106,6 @@ export function ChannelsDirectory() {
             />
           ) : (
             <section>
-              <CapabilitySectionHeader
-                count={t("capability.result_count", {
-                  count: controller.visibleChannels.length,
-                })}
-                title={t("capability.channels_section_title")}
-              />
               <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
                 {controller.visibleChannels.map((item) => (
                   <ChannelCard

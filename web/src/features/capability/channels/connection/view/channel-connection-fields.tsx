@@ -1,3 +1,6 @@
+// INPUT: Channel 配置快照、表单草稿、登录状态与字段更新动作。
+// OUTPUT: 首屏配置字段，以及按需展开的完整平台准备和 runtime 说明。
+// POS: Channel 连接弹窗的字段视图，不复制控制器状态机。
 import { ExternalLink } from "lucide-react";
 
 import type {
@@ -54,13 +57,7 @@ export function ChannelConnectionFields({
   const { currentItem, draft } = controller;
   return (
     <>
-      <ChannelGuide item={currentItem} />
-
-      {currentItem.runtime_note ? (
-        <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 text-compact font-medium leading-5 text-(--text-default)">
-          {currentItem.runtime_note}
-        </div>
-      ) : null}
+      <ChannelGuide item={currentItem} runtimeNote={currentItem.runtime_note} />
 
       {controller.showsQRCode ? (
         <ChannelLoginPanel

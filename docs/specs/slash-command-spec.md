@@ -21,7 +21,7 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 | `nexus-agent-sdk-bridge` | 统一普通文本发送和单轮隐藏上下文清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
 | Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单与 `/visualize`、`/workgraph` 固定产品提示 | 读取 runtime 私有 metadata；保存命名工作图；绑定 session |
-| Nexus `service/workgraphworkflow` | 从 exact 完成态 managed Execution 自动抽取临时结构草图，用户确认后由 Skill + CLI 保存 owner-scoped 命名工作图，并在 runtime 投递时展开动态 Slash | 让用户选择节点；通过 HTTP 直接持久化；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
+| Nexus `service/workgraphworkflow` | 从 exact 完成态 managed Execution 生成/复用 durable Draft，统一 UI 与普通对话的查询、版本化编辑、选择和确认保存，并在 runtime 投递时展开动态 Slash | 让模型伪造 owner/session/source；通过 UI HTTP 直接持久化命名图；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
 | WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime 与 owner 命名工作图描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
 | Web Composer | 只消费当前 session 的完整快照，选择后发送原始 Slash 文本 | 启动 runtime、查询目录、判断命令归属 |
 
@@ -95,13 +95,14 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
 - `/<command> [request]` 从当前 owner 目录读取已保存的抽象责任节点、协作角色和依赖。
   每次调用必须创建新的 Execution/Plan/Work Item identity，
   不得复制源图的 Agent、状态、结果、Artifact 或审核事实；
-- 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用
-  默认后台模型从完整实际图自动选择源 logical-key 子集、生成通用命名和结构草图；preview
-  只在 owner/session-scoped 内存中短期保留，不进入数据库或命令目录。用户只读确认后，
-  Web 调用 preview save 调度端点，宿主启动 `HiddenFromUser + Synthetic +
-  purpose=workgraph_distillation` 的内部 Agent round，不生成聊天消息或改写 Composer；
+- 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用 owner 默认对话模型接收完整 source logical-key、父子层级和依赖，默认保留宿主标记的结构关键节点，并主要抽象具体任务语义。Draft 按 owner/session/source Execution 唯一并进入数据库，不进入命令目录；再次请求同一 source 直接恢复。每次修改保存不可变完整版本，`head_revision` 做 CAS，`selected_revision` 表达用户偏好。一个 Session 有多张 WorkGraph 时通过 exact execution_id/preview_id 区分。
+  用户可直接修改元信息，也可进入 Nexus 主智能体承载的目录隐藏专用 DM；该 Session 不 fork 或继承来源 transcript、Connector、workspace 或权限，关闭 UI 不删除，再次打开继续对话。左侧展示本地接待说明和隐藏会话自身的编辑消息，右侧展示实时 preview 与版本目录；只开放 `execution-orchestrator`、`revise_workgraph_preview` 与 `select_workgraph_preview_revision`。服务端校验完整草图、revision、logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。用户确认后，
+  Web 调用 preview save 调度端点，宿主在 fresh 目录隐藏内部 DM Session 启动 `HiddenFromUser + Synthetic +
+  purpose=workgraph_distillation` 的 Agent round；该 Session 不 fork 或续写源 transcript，只通过 capability 绑定原 source session 与 exact preview，pending、过程、工具与完成事件全程隐藏，不生成聊天消息或改写源 Composer；
   `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。
   Agent 不得重新 inspect、选节点、命名或抽象，HTTP 调度端点不得直接创建命名图；
+- 普通 DM/Room 中用户也可以要求智能体沉淀或继续编辑 WorkGraph。模型加载 `execution-orchestrator`，先调用 `inspect_workgraph_library` 读取当前 Session 的 completed sources、Drafts 和 owner 命名图，再用 exact `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision`、`save_workgraph_preview`；这些 operation 不依赖 active Execution，保存只接受当前对话中的明确确认，并且只回复当前会话，不向来源或其他 Session 透传。成功结果自动把最后一份完整图快照渲染为当前回复的草图卡片，来源对照只在用户显式打开后按 exact source identity 加载；
+- 已保存命名图可从能力页恢复原 Draft、selected revision 和隐藏编辑 Session；旧数据没有 Draft 时只建立一次初始版本。后续保存更新同一命名图 aggregate 并追加版本，不重复抽取、不制造同名副本；
 - inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为
   tool result、普通用户正文或 Nexus next-turn context；`context: fork` 由 runtime
   自己执行并只回写本地结果。

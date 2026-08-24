@@ -101,8 +101,7 @@ function UpdateSkillCard({
         </UiBadge>
       )}
       busy={busy}
-      description={getSkillDisplayDescription(skill, t)
-        || t("capability.skills_no_description")}
+      description={getSkillDisplayDescription(skill, t)}
       meta={(
         <>
           <span className="truncate">
@@ -150,7 +149,7 @@ export function SkillsUpdateHighlight({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+            <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
               {model.title}
             </h2>
             {model.badgeLabel ? <UiBadge tone="warning">{model.badgeLabel}</UiBadge> : null}

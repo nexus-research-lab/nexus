@@ -1,5 +1,5 @@
 // INPUT: Agent、session 覆盖项与用户 runtime 偏好。
-// OUTPUT: 已归一化的 runtime、模型和能力启动配置。
+// OUTPUT: 已归一化的 runtime、主/后台/视觉模型和能力启动配置。
 // POS: handler/业务编排与底层 runtime clientopts 之间的选择和投影边界。
 package runtimeselection
 
@@ -34,6 +34,8 @@ type Selection struct {
 	Provider                   string
 	Model                      string
 	FallbackFromExplicit       bool
+	BackgroundProvider         string
+	BackgroundModel            string
 	VisionProvider             string
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
@@ -88,6 +90,8 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 		selection.EmotionEnabled = prefs.EmotionEnabled
 		selection.ToolSearchEnabled = prefs.ToolSearchEnabledForRuntime(selection.RuntimeKind)
 		selection.WebSearch = WebSearchConfigFromPreferences(prefs.WebSearch)
+		selection.BackgroundProvider = strings.TrimSpace(prefs.DefaultBackgroundModelSelection.Provider)
+		selection.BackgroundModel = strings.TrimSpace(prefs.DefaultBackgroundModelSelection.Model)
 		selection.VisionProvider = strings.TrimSpace(prefs.DefaultVisionModelSelection.Provider)
 		selection.VisionModel = strings.TrimSpace(prefs.DefaultVisionModelSelection.Model)
 		if selection.Provider == "" || selection.Model == "" {

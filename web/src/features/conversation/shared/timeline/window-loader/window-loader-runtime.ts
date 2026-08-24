@@ -1,8 +1,15 @@
+/**
+ * INPUT: 当前会话代次、可见轮次加载结果、滚动方向与用户顶部下拉意图。
+ * OUTPUT: 可失效的完成/重试账本，以及决定下一次加载资格的纯状态转换。
+ * POS: 索引时间线可见窗口加载器的状态机；React Hook 只负责事件和异步调度。
+ */
 import type { ScrollDirection } from "./visible-round-candidate";
 
 export const LOAD_RECHECK_DELAY_MS = 80;
 
 const RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
+const PULL_REFRESH_TOP_TOLERANCE_PX = 12;
+const PULL_REFRESH_DISTANCE_PX = 32;
 
 export interface WindowLoadRequest {
   generation: number;
@@ -119,8 +126,28 @@ export function recordWindowLoadResult(
   return count < RETRY_DELAYS_MS.length ? retryDelay : null;
 }
 
-export function clearWindowLoadAttempts(runtime: WindowLoaderRuntime): void {
+/**
+ * 消息驻留窗口变化或用户再次顶部下拉时，旧的 completed/missing 结论都不再
+ * 能代表当前 DOM：已成功加载的 round 可能已被浏览器窗口淘汰，失败也应获得
+ * 一次新的显式用户重试机会。
+ */
+export function refreshWindowLoaderContent(
+  runtime: WindowLoaderRuntime,
+): void {
   runtime.attempts.clear();
+  runtime.completedRoundIds.clear();
+}
+
+export function shouldRefreshWindowLoaderFromPull(
+  scrollTop: number,
+  pullDistance: number,
+): boolean {
+  return (
+    Number.isFinite(scrollTop)
+    && Number.isFinite(pullDistance)
+    && scrollTop <= PULL_REFRESH_TOP_TOLERANCE_PX
+    && pullDistance >= PULL_REFRESH_DISTANCE_PX
+  );
 }
 
 export function updateWindowLoaderScroll(

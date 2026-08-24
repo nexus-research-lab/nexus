@@ -1,5 +1,8 @@
+// INPUT: 当前 Provider 的手工模型草稿、启用选择和添加命令状态。
+// OUTPUT: Model ID 与一个启用开关组成的 plain 表单弹窗。
+// POS: Provider 手工模型入口，不重复解释后续模型配置能力。
 import { useEffect, useRef } from "react";
-import { ListPlus, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -72,13 +75,12 @@ export function ProviderAddModelDialog({
           size="md"
         >
           <UiDialogHeader
-            icon={<ListPlus className="h-4.5 w-4.5" />}
+            appearance="plain"
             onClose={onClose}
-            subtitle={t("settings.providers.add_model_subtitle")}
             title={t("settings.providers.add_model_title")}
             titleId="provider-add-model-title"
           />
-          <UiDialogBody className="space-y-4">
+          <UiDialogBody className="space-y-4 px-5">
             <UiField
               description={t("settings.providers.add_model_description")}
               htmlFor="provider-model-id"
@@ -89,7 +91,7 @@ export function ProviderAddModelDialog({
                 aria-label={t("settings.providers.model_id")}
                 autoCapitalize="off"
                 autoCorrect="off"
-                controlSize="lg"
+                controlSize="md"
                 className="font-mono"
                 id="provider-model-id"
                 ref={modelInputRef}
@@ -101,7 +103,7 @@ export function ProviderAddModelDialog({
                 value={manualModelId}
               />
             </UiField>
-            <div className="surface-radius-md flex items-center justify-between gap-3 border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
+            <div className="flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) py-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-(--text-strong)">
                   {t("settings.providers.enable_after_add")}
@@ -118,7 +120,7 @@ export function ProviderAddModelDialog({
               />
             </div>
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton
               onClick={onClose}
               type="button"
@@ -132,7 +134,7 @@ export function ProviderAddModelDialog({
               type="submit"
               variant="solid"
             >
-              {isAdding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}
+              {isAdding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
               {manualModelEnabled
                 ? t("settings.providers.add_and_enable")
                 : t("settings.providers.add")}

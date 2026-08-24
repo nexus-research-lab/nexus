@@ -11,7 +11,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
   ChevronDown,
-  Clock3,
   History,
   Loader2,
   Minus,
@@ -277,18 +276,13 @@ export function RoomHistoryMenu({
             height: menuStyle.maxHeight,
           }}
         >
-          <header className="flex shrink-0 items-center justify-between border-b border-(--divider-subtle-color) px-3.5 py-2">
-            <div className="min-w-0">
-              <h2
-                className="truncate text-compact font-semibold text-(--text-strong)"
-                id={historyTitleId}
-              >
-                {t("room.history")}
-              </h2>
-              <p className="mt-0.5 text-2xs text-(--text-soft)">
-                {t("room.conversation_count", { count: entries.length })}
-              </p>
-            </div>
+          <header className="flex shrink-0 items-center border-b border-(--divider-subtle-color) px-3.5 py-2.5">
+            <h2
+              className="truncate text-compact font-semibold text-(--text-strong)"
+              id={historyTitleId}
+            >
+              {t("room.history")}
+            </h2>
           </header>
 
           {isSelecting ? (
@@ -367,13 +361,9 @@ export function RoomHistoryMenu({
                 ))}
               </div>
             ) : (
-              <div className="flex h-full min-h-[150px] flex-col items-center justify-center px-5 py-8 text-center">
-                <Clock3 className="h-4 w-4 text-(--icon-muted)" />
-                <p className="mt-3 text-sm font-semibold text-(--text-strong)">
+              <div className="flex h-full min-h-[150px] items-center justify-center px-5 py-8 text-center">
+                <p className="text-sm text-(--text-soft)">
                   {t("room.no_conversations")}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-(--text-soft)">
-                  {t("room.history_empty_hint")}
                 </p>
               </div>
             )}

@@ -14,9 +14,9 @@ export type StreamFrameSubscriber = (
 const STREAM_PRESENTATION_FRAME_INTERVAL_MS = 1000 / 30;
 const STREAM_PRESENTATION_FRAME_EPSILON_MS = 0.5;
 // 无论同时存在多少个 Agent，每个展示帧最多只让真实 DOM 增长这一份额度。
-// 12 个 grapheme 在 30Hz 下把全 Room 的展示上限保守控制在约 360/s；多个
+// 4 个 grapheme 在 30Hz 下把全 Room 的展示上限控制在约 120/s；多个
 // Agent 交错增长，避免同帧多张卡片一起跨行。
-const STREAM_PRESENTATION_REVEAL_CAP = 12;
+const STREAM_PRESENTATION_REVEAL_CAP = 4;
 
 interface StreamFrameDriver {
   cancel: (frameId: number) => void;

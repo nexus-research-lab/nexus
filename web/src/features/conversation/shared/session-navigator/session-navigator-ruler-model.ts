@@ -70,7 +70,6 @@ export function buildTickVisual(
 
   return {
     background,
-    filter: isPreviewed ? "saturate(1.18)" : undefined,
     opacity,
     width: hasPreview ? tickWidth(wave) : 5,
   };

@@ -1,3 +1,8 @@
+/**
+ * INPUT: Skill 详情快照、Agent 使用矩阵与更新删除命令。
+ * OUTPUT: Skill 身份、范围说明、Agent 状态差异和完整正文详情。
+ * POS: Skill 详情纯视图；开关附近保留影响当前决策的说明。
+ */
 "use client";
 
 import {
@@ -9,7 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { getSkillDisplayDescription } from "@/lib/skill-description";
+import {
+  getSkillDisplayDescription,
+  getSkillDisplayTitle,
+} from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -158,11 +166,14 @@ function SkillDetailContent({
       agentToggleError={agentToggleError}
       agentsLoading={agentsLoading}
       busyAgentId={busyAgentId}
-      model={buildSkillDetailPresentation(
-        snapshot.skill,
-        getSkillDisplayDescription(snapshot.skill, t),
-        { t },
-      )}
+      model={{
+        ...buildSkillDetailPresentation(
+          snapshot.skill,
+          getSkillDisplayDescription(snapshot.skill, t),
+          { t },
+        ),
+        displayName: getSkillDisplayTitle(snapshot.skill, t),
+      }}
       onAgentToggle={onAgentToggle}
       onDelete={onDelete}
       onUpdate={onUpdate}
@@ -215,7 +226,7 @@ function SkillDetailReady({
           />
         )}
         <section>
-          <h2 className="mb-3 text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h2 className="mb-3 text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
             {t("capability.skills_detail_description")}
           </h2>
           <UiPanel padding="md" radius="md" variant="inset">
@@ -236,7 +247,7 @@ function RoomSkillUsage() {
   const { t } = useI18n();
   return (
     <section>
-      <h2 className="text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+      <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
         {t("capability.skills_detail_room_scope")}
       </h2>
       <p className="mt-1 text-sm text-(--text-muted)">
@@ -267,7 +278,7 @@ function SkillAgentBindings({
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
             {t("capability.skills_detail_agent_scope")}
           </h2>
           <p className="mt-1 text-sm text-(--text-muted)">
@@ -365,9 +376,11 @@ function SkillDetailHero({
             <span className="truncate">{model.displayName}</span>
           </h1>
         </div>
-        <p className="mt-3 text-sm leading-5 text-(--text-muted)">
-          {model.description}
-        </p>
+        {model.description ? (
+          <p className="mt-3 text-sm leading-5 text-(--text-muted)">
+            {model.description}
+          </p>
+        ) : null}
       </div>
       <SkillDetailActions
         activeAction={activeAction}

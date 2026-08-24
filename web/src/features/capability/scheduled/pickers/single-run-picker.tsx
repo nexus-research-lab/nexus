@@ -109,7 +109,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
               <button className="text-sm font-semibold text-(--text-default)" onClick={onPrevMonth} type="button">
                 {t("capability.scheduled_dialog_previous_month")}
               </button>
-              <span className="text-[14px] font-semibold text-(--text-strong)">{monthLabel}</span>
+              <span className="text-base font-semibold text-(--text-strong)">{monthLabel}</span>
               <button className="text-sm font-semibold text-(--text-default)" onClick={onNextMonth} type="button">
                 {t("capability.scheduled_dialog_next_month")}
               </button>

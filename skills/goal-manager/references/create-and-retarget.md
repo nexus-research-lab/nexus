@@ -40,6 +40,6 @@
 1. 用 `goal inspect` 确认 active Goal。
 2. 按精确 operation contract 执行 `retarget_goal`，传入完整替代 objective。
 3. 保留同一 Goal 身份和累计用量，不先完成旧 Goal，也不创建新 Goal。
-4. Goal-only retarget 应直接返回新 objective revision，仍保持 Goal-only。只有当前 command round 自己成功执行 `retarget_goal`、共享 authority receipt 已前移到新 revision，且返回 pending Goal/Execution rebase 时，才按 `nextAction` 在同一轮准备完整 successor Plan Document，再将 exact `proposal_id` 与 `proposal_digest` 交给 `plan_execution`。app-server/Composer 发起的用户 retarget 由后端启动专用 successor-planning continuation；旧 round 若看到 `context_status=round_refresh_required` 必须立即结束，不能通过 `inspect` 获取新 authority，用户也无需再发一条消息。不得自行拼接或复用旧 WorkGraph；Goal-only 若被要求新建 successor Plan，应视为链路错误，不通过造图绕过。
+4. Goal-only retarget 应直接返回新 objective revision，仍保持 Goal-only。只有当前 command round 自己成功执行 `retarget_goal`、共享 authority receipt 已前移到新 revision，且返回 pending Goal/Execution rebase 时，才按 `nextAction` 在同一轮准备完整 successor Plan Document，再以空 input 调用 `plan_execution`；proposal identity 与 digest 由宿主持有。app-server/Composer 发起的用户 retarget 由后端启动专用 successor-planning continuation；旧 round 若看到 `context_status=round_refresh_required` 必须立即结束，不能通过 `inspect` 获取新 authority，用户也无需再发一条消息。不得自行拼接或复用旧 WorkGraph；Goal-only 若被要求新建 successor Plan，应视为链路错误，不通过造图绕过。
 
 暂停、blocked 或 usage-limited Goal 的显式 retarget 由后端决定如何激活；budget-limited Goal 仍需要用户或控制面调整预算。

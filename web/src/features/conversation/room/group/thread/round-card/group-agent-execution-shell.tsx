@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Room Agent 执行身份、消息、stopping/人工介入状态、局部说话人边界与用户动作。
- * OUTPUT: 从 pending、stopping 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳与精确控制条，首次 handoff 也直接占据真实几何位置。
+ * OUTPUT: 从 pending、stopping 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳与单层精确控制条，首次 handoff 也直接占据真实几何位置。
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
 import { Square } from "lucide-react";
@@ -116,6 +116,12 @@ function GroupAgentExecutionShellInner({
   const showThread = isActive
     || pendingPermissions.length > 0
     || hasRoomAgentExecutionDetails(messages);
+  const stopLabel = t(isStopping
+    ? "room.agent_stopping"
+    : "room.agent_stop");
+  const stopActionLabel = t(isStopping
+    ? "room.agent_stopping"
+    : "room.agent_stop_action");
 
   return (
     <div
@@ -133,37 +139,41 @@ function GroupAgentExecutionShellInner({
         agentMentionDirectory={agentMentionDirectory}
         animateEntry={false}
         assistantContentMode="room_result"
-        assistantHeaderAction={(
-          <div className="flex items-center gap-1.5">
+        assistantHeaderAction={showThread || showStop ? (
+          <div
+            aria-label={t("room.agent_actions")}
+            className="inline-flex h-7 items-center rounded-lg bg-(--surface-control-field-background) p-0.5"
+            data-room-agent-execution-actions
+            role="group"
+          >
+            {showStop ? (
+              <button
+                aria-label={stopActionLabel}
+                className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-(--text-muted) transition-colors hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-wait disabled:opacity-70"
+                data-room-agent-action="stop"
+                disabled={isStopping}
+                onClick={onStopAgentRound}
+                title={stopActionLabel}
+                type="button"
+              >
+                <Square className="h-3 w-3 fill-current" />
+                <span className="hidden sm:inline">{stopLabel}</span>
+              </button>
+            ) : null}
+            {showStop && showThread ? (
+              <span
+                aria-hidden="true"
+                className="mx-0.5 h-3.5 w-px bg-(--divider-subtle-color)"
+              />
+            ) : null}
             {showThread ? (
               <ThreadActionButton
                 active={isThreadActive}
                 onClick={onClickThread}
               />
             ) : null}
-            {showStop ? (
-              <button
-                aria-label={t(isStopping
-                  ? "room.agent_stopping"
-                  : "room.agent_stop")}
-                className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-(--text-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--text-default) disabled:cursor-wait disabled:opacity-70"
-                disabled={isStopping}
-                onClick={onStopAgentRound}
-                title={t(isStopping
-                  ? "room.agent_stopping"
-                  : "room.agent_stop")}
-                type="button"
-              >
-                <Square className="h-3 w-3 fill-current" />
-                <span className="hidden sm:inline">
-                  {t(isStopping
-                    ? "room.agent_stopping"
-                    : "room.agent_stop")}
-                </span>
-              </button>
-            ) : null}
           </div>
-        )}
+        ) : undefined}
         currentAgentAvatar={agentAvatar}
         currentAgentName={agentName}
         activityState={activityState}

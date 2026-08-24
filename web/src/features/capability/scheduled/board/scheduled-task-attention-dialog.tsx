@@ -1,11 +1,11 @@
+/**
+ * INPUT: 定时任务注意事项、权限事实与后续动作。
+ * OUTPUT: 以任务名为标题的处理面，技术身份按需展开。
+ * POS: Scheduled 看板的异常/权限处理边界，不制造状态自述卡片。
+ */
 "use client";
 
-import {
-  CircleAlert,
-  History,
-  Link2Off,
-  ShieldAlert,
-} from "lucide-react";
+import { History } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -100,15 +100,9 @@ export function ScheduledTaskAttentionDialog({
       >
         <UiDialogShell className="max-h-[86vh]" size="lg">
           <UiDialogHeader
-            icon={isBindingAttention
-              ? <Link2Off className="h-4 w-4" />
-              : hasPermissionAttention
-              ? <ShieldAlert className="h-4 w-4" />
-              : <CircleAlert className="h-4 w-4" />}
-            iconClassName={isBindingAttention || hasPermissionAttention ? "text-(--warning)" : "text-(--destructive)"}
+            appearance="plain"
             onClose={onClose}
-            subtitle={task.name}
-            title={isBindingAttention || hasPermissionAttention ? title || "任务需要处理" : "最近运行异常"}
+            title={task.name}
             titleId={titleId}
           />
 
@@ -116,26 +110,23 @@ export function ScheduledTaskAttentionDialog({
             {isBindingAttention ? (
               <section aria-labelledby={`${titleId}-binding`}>
                 <h3
-                  className="text-xs font-semibold uppercase tracking-[0.08em] text-(--text-soft)"
+                  className="text-sm font-semibold text-(--text-strong)"
                   id={`${titleId}-binding`}
                 >
-                  当前状态
+                  {title || "重新绑定会话"}
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-(--text-default)">
                   {description}
-                </p>
-                <p className="mt-3 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3 text-xs leading-5 text-(--text-default)">
-                  原任务的名称、指令、调度和权限快照都已保留；选择有效会话并保存后即可重新启用。
                 </p>
               </section>
             ) : request ? (
               <section aria-labelledby={`${titleId}-request`}>
                 <div className="flex items-center justify-between gap-3">
                   <h3
-                    className="text-xs font-semibold uppercase tracking-[0.08em] text-(--text-soft)"
+                    className="text-sm font-semibold text-(--text-strong)"
                     id={`${titleId}-request`}
                   >
-                    当前请求
+                    {title || capabilityLabel || "权限请求"}
                   </h3>
                   <span className="rounded-full border border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] px-2 py-0.5 text-[11px] font-medium text-(--warning)">
                     {requestStatusLabel}
@@ -208,10 +199,10 @@ export function ScheduledTaskAttentionDialog({
             ) : hasPermissionAttention ? (
               <section aria-labelledby={`${titleId}-state`}>
                 <h3
-                  className="text-xs font-semibold uppercase tracking-[0.08em] text-(--text-soft)"
+                  className="text-sm font-semibold text-(--text-strong)"
                   id={`${titleId}-state`}
                 >
-                  当前状态
+                  {title || "任务需要处理"}
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-(--text-default)">
                   {description || "任务权限状态已经变化，请刷新后再执行下一步操作。"}
@@ -222,7 +213,7 @@ export function ScheduledTaskAttentionDialog({
             {errorCopy && !errorEchoesPermission ? (
               <section
                 aria-labelledby={`${titleId}-diagnostic`}
-                className="rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_4%,transparent)] p-3"
+                className="border-t border-(--divider-subtle-color) pt-4"
               >
                 <h3
                   className="text-xs font-semibold text-(--destructive)"
@@ -237,7 +228,7 @@ export function ScheduledTaskAttentionDialog({
             ) : null}
           </UiDialogBody>
 
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <div className="flex w-full flex-wrap items-center justify-between gap-2">
               <UiButton
                 onClick={() => closeThen(() => onOpenHistory(task))}

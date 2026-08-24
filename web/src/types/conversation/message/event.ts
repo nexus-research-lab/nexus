@@ -8,6 +8,7 @@ import type { SessionId } from "../../system/sdk";
 import type {
   ChatAckData as ProtocolChatAckData,
   ChatAckPendingSlot as ProtocolChatAckPendingSlot,
+  ConversationFailureCode,
 } from "../../generated/protocol";
 import type { ContentBlock } from "./content";
 import type {
@@ -38,6 +39,7 @@ export interface RoundStatusEventPayload {
   result_subtype?: ResultSummary["subtype"] | null;
   /** 失败轮次的可展示原因；旧服务端可能不提供。 */
   error_message?: string | null;
+  failure_code?: ConversationFailureCode | null;
 }
 
 export interface AgentRoundStatusEventPayload {

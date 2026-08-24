@@ -111,7 +111,7 @@ function SubscriptionAccountRow({
     <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(180px,1.1fr)_minmax(0,1fr)_auto] lg:items-start">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-[14px] font-semibold text-(--text-strong)">
+          <p className="truncate text-base font-semibold text-(--text-strong)">
             {displayName}
           </p>
           <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-2xs font-semibold uppercase text-(--text-muted)">

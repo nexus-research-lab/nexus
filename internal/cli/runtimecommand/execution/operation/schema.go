@@ -116,20 +116,104 @@ func planDocumentSchemaDescription() string {
 func planExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"proposal_id": nonEmptyStringProperty(
-			"Opaque sealed proposal id returned by prepare_plan_execution.",
+			"Deprecated compatibility field. Omit it; the host resolves the exact durable proposal binding. If present, it must match that binding and proposal_digest must also be present.",
 		),
 		"proposal_digest": nonEmptyStringProperty(
-			"Exact digest returned with the same proposal_id. It binds the document and trusted target fence.",
+			"Deprecated compatibility field. Omit it; the host verifies the bound proposal digest. If present, it must match the active binding and proposal_id must also be present.",
 		),
-	}, "proposal_id", "proposal_digest")
+	})
 }
 
 func distillWorkflowSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"preview_id": nonEmptyStringProperty(
-			"Exact opaque preview id from the user-reviewed WorkGraph sketch. Persist this preview unchanged; never infer, rebuild, or replace it.",
+			"用户已确认的 WorkGraph 草图所对应的精确不透明 preview ID。必须原样保存该预览，不得猜测、重建或替换。",
 		),
 	}, "preview_id")
+}
+
+func extractWorkflowPreviewSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"source_execution_id": nonEmptyStringProperty("当前 Session 的 completed WorkGraph execution_id；先查询 WorkGraph library，不得从文字猜测。"),
+		"output_language":     enumProperty("草图面向用户字段的语言。", "zh", "en"),
+	}, "source_execution_id", "output_language")
+}
+
+func getWorkflowPreviewSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"preview_id": nonEmptyStringProperty("当前 Session WorkGraph Draft 目录中的 exact preview_id。"),
+	}, "preview_id")
+}
+
+func reviseWorkflowDraftSchema() map[string]any {
+	schema := reviseWorkflowPreviewSchema()
+	properties := schema["properties"].(map[string]any)
+	properties["preview_id"] = nonEmptyStringProperty("当前 Session WorkGraph Draft 的 exact preview_id。")
+	required := schema["required"].([]string)
+	schema["required"] = append([]string{"preview_id"}, required...)
+	return schema
+}
+
+func selectWorkflowPreviewRevisionSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"preview_id": nonEmptyStringProperty("当前 Session WorkGraph Draft 的 exact preview_id。"),
+		"revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "Draft 当前 head_revision，用作并发 CAS。",
+		},
+		"selected_revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "用户明确选中的既有不可变版本。",
+		},
+	}, "preview_id", "revision", "selected_revision")
+}
+
+func selectBoundWorkflowPreviewRevisionSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "当前隐藏编辑 Session 的 head_revision。",
+		},
+		"selected_revision": map[string]any{
+			"type": "integer", "minimum": 1,
+			"description": "用户明确选中的既有不可变版本。",
+		},
+	}, "revision", "selected_revision")
+}
+
+func reviseWorkflowPreviewSchema() map[string]any {
+	nodeSchema := objectSchema(map[string]any{
+		"logical_key":         nonEmptyStringProperty("稳定英文标识；新增节点必须创建新的 logical_key。"),
+		"role":                enumProperty("节点在草图中的责任角色。", "key", "collaboration"),
+		"kind":                enumProperty("节点交付类型。", "produce", "review", "verify", "integrate"),
+		"subject":             nonEmptyStringProperty("面向用户的节点标题。"),
+		"objective":           nonEmptyStringProperty("节点目的。"),
+		"deliverable":         nonEmptyStringProperty("可验证交付物。"),
+		"acceptance_criteria": stringArrayProperty("节点验收标准。"),
+		"required":            booleanProperty("是否为必需节点。"),
+		"terminal":            booleanProperty("是否为最终交付节点。"),
+		"parent_logical_key":  stringProperty("可选父节点 logical_key。"),
+		"position":            map[string]any{"type": "integer", "minimum": 0},
+	}, "logical_key", "role", "kind", "subject", "objective", "deliverable", "required", "terminal")
+	edgeSchema := objectSchema(map[string]any{
+		"logical_key":            nonEmptyStringProperty("下游节点 logical_key。"),
+		"depends_on_logical_key": nonEmptyStringProperty("上游节点 logical_key。"),
+		"kind":                   enumProperty("依赖强度。", "hard", "soft"),
+	}, "logical_key", "depends_on_logical_key", "kind")
+	return objectSchema(map[string]any{
+		"revision":            map[string]any{"type": "integer", "minimum": 1},
+		"slash_name":          nonEmptyStringProperty("英文 kebab-case 命令名，不含斜杠。"),
+		"title":               nonEmptyStringProperty("草图标题。"),
+		"description":         nonEmptyStringProperty("草图用途说明。"),
+		"objective":           nonEmptyStringProperty("复用时发送给模型的内部执行目标。"),
+		"completion_criteria": stringArrayProperty("整张草图的完成标准。"),
+		"nodes": map[string]any{
+			"type": "array", "minItems": 1, "maxItems": 64, "items": nodeSchema,
+		},
+		"dependencies": map[string]any{
+			"type": "array", "maxItems": 256, "items": edgeSchema,
+		},
+	}, "revision", "slash_name", "title", "description", "objective", "nodes", "dependencies")
 }
 
 func abandonExecutionSchema() map[string]any {

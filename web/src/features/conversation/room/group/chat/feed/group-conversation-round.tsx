@@ -1,11 +1,12 @@
 /**
  * INPUT: Room feed 节点、Agent 目录、权限与交互回调。
- * OUTPUT: Agent 执行卡或普通 root 轮次，并暴露稳定轮次身份与测量边界。
+ * OUTPUT: Agent 执行卡、普通 root 轮次，或保持索引估高的未加载测量边界。
  * POS: Group feed 单节点的唯一渲染分派入口。
  */
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { resolveConversationVirtualPlaceholderHeight } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
@@ -18,6 +19,7 @@ import {
 interface GroupConversationRoundProps {
   isMobileLayout: boolean;
   measureRef?: Ref<HTMLDivElement>;
+  placeholderHeight?: number;
   renderer: GroupConversationRoundRenderer;
   state: GroupConversationRoundState;
 }
@@ -25,6 +27,7 @@ interface GroupConversationRoundProps {
 export function GroupConversationRound({
   isMobileLayout,
   measureRef,
+  placeholderHeight,
   renderer,
   state,
 }: GroupConversationRoundProps) {
@@ -44,11 +47,18 @@ export function GroupConversationRound({
     pendingPermissions,
     roomAgentExecutionStates,
   );
+  const resolvedPlaceholderHeight = resolveConversationVirtualPlaceholderHeight(
+    isLoaded,
+    placeholderHeight,
+  );
 
   return (
     <div
       ref={measureRef}
       className={`relative ${isMobileLayout ? "pb-4" : "pb-1"}`}
+      style={resolvedPlaceholderHeight
+        ? { minHeight: resolvedPlaceholderHeight }
+        : undefined}
       data-index={measureRef ? index : undefined}
       data-conversation-round-id={roundId}
       data-conversation-root-round-id={

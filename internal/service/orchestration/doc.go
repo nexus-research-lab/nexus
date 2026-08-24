@@ -10,7 +10,7 @@
 //   - execution*.go / goal_retarget.go / plan_validation.go：Execution 生命周期、
 //     predecessor/successor、Plan revision 与 DAG 校验。
 //   - plan_document*.go / plan_proposal*.go / plan_materialization.go：严格 Plan
-//     document、非权威 sealed proposal、原子 materialization 与重启恢复。
+//     document、非权威 sealed proposal、跨 round exact binding、原子 materialization 与重启恢复。
 //   - commands.go：Assignment、Attempt、Submission、Acceptance、
 //     Block/Resume/Takeover 与 completion。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /

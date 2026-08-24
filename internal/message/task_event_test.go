@@ -201,6 +201,80 @@ func TestProcessorMapsShellProgressToThrottledEphemeralTaskProgress(t *testing.T
 	}
 }
 
+func TestProcessorMapsToolUseSummaryToReplaceableEphemeralProgress(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey:   "agent:nexus:ws:dm:test",
+		AgentID:      "nexus",
+		RoundID:      "round-tool-summary",
+		AgentRoundID: "agent-round-tool-summary",
+	}, "sdk-session-tool-summary")
+
+	first := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeToolUseSummary,
+		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
+			Summary:             "已经完成代码检索，正在核对消息持久化边界。",
+			PrecedingToolUseIDs: []string{"tool-read", "tool-grep"},
+		},
+	})
+	if len(first.DurableMessages) != 0 || len(first.EphemeralMessages) != 1 {
+		t.Fatalf("tool use summary = %+v, want one ephemeral message", first)
+	}
+	message := first.EphemeralMessages[0]
+	blocks, _ := message["content"].([]map[string]any)
+	if len(blocks) != 1 || blocks[0]["type"] != "progress_update" {
+		t.Fatalf("progress update block = %+v", blocks)
+	}
+	if blocks[0]["text"] != "已经完成代码检索，正在核对消息持久化边界。" {
+		t.Fatalf("progress update text = %#v", blocks[0]["text"])
+	}
+	if message["is_complete"] != false {
+		t.Fatalf("progress update 不应成为 assistant 终态: %+v", message)
+	}
+
+	second := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeToolUseSummary,
+		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
+			Summary: "测试已通过，正在整理最终结果。",
+		},
+	})
+	if len(second.EphemeralMessages) != 1 ||
+		second.EphemeralMessages[0]["message_id"] != message["message_id"] {
+		t.Fatalf("同一 Agent round 的进度快照应原位替换: first=%+v second=%+v", message, second)
+	}
+
+	empty := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:           sdkprotocol.MessageTypeToolUseSummary,
+		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{Summary: "  \n  "},
+	})
+	if len(empty.EphemeralMessages) != 0 {
+		t.Fatalf("空 tool use summary 不应投影: %+v", empty)
+	}
+}
+
+func TestEventMapperPublishesToolUseSummaryAsEphemeralMessage(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{Context: MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-tool-summary-event",
+	}})
+	result, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeToolUseSummary,
+		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
+			Summary: "正在整理检查结果。",
+		},
+	})
+	if err != nil {
+		t.Fatalf("映射 tool use summary 失败: %v", err)
+	}
+	if len(result.DurableMessages) != 0 || len(result.Events) != 1 {
+		t.Fatalf("tool use summary event 投影不正确: %+v", result)
+	}
+	event := result.Events[0]
+	if event.EventType != protocol.EventTypeMessage || event.DeliveryMode != protocol.DeliveryModeEphemeral {
+		t.Fatalf("tool use summary 应为 ephemeral message: %+v", event)
+	}
+}
+
 func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:host:ws:dm:thread-metadata",

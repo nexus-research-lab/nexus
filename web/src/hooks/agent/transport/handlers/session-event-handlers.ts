@@ -7,6 +7,7 @@ import { readString } from "@/lib/unknown-value";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { AssistantMessageStatus } from "@/types/conversation/message/entity";
 import type { EventMessage } from "@/types/generated/protocol";
+import type { ConversationFailureCode } from "@/types/agent/agent-conversation-reliability";
 
 import type {
   AgentEventHandler,
@@ -43,6 +44,42 @@ function isWorkspaceSubscriptionError(event: EventMessage): boolean {
     || readString(event.data, "error_type") === "invalid_workspace_subscription";
 }
 
+const CONVERSATION_FAILURE_CODES = new Set<ConversationFailureCode>([
+  "connection_unavailable",
+  "delivery_unknown",
+  "permission_not_sent",
+  "provider_configuration",
+  "provider_unavailable",
+  "request_rejected",
+  "round_failed",
+  "safety_rejected",
+  "session_load_failed",
+  "usage_limited",
+  "validation_failed",
+]);
+
+function failureCodeForErrorEvent(event: EventMessage): ConversationFailureCode {
+  const declaredCode = readString(event.data, "failure_code") as ConversationFailureCode | null;
+  if (declaredCode && CONVERSATION_FAILURE_CODES.has(declaredCode)) {
+    return declaredCode;
+  }
+  const errorType = readString(event.data, "error_type");
+  switch (errorType) {
+    case "chat_error":
+    case "command_catalog_error":
+      return "provider_unavailable" as const;
+    case "invalid_session_key":
+    case "validation_error":
+      return "validation_failed" as const;
+    case "permission_request_not_found":
+      return "permission_not_sent" as const;
+    case "room_error":
+      return "round_failed" as const;
+    default:
+      return "request_rejected" as const;
+  }
+}
+
 const handleErrorEvent: AgentEventHandler = (event, context) => {
   if (isWorkspaceSubscriptionError(event)) {
     return;
@@ -63,13 +100,40 @@ const handleErrorEvent: AgentEventHandler = (event, context) => {
   }
 
   const roundId = getEventRoundId(event);
-  if (roundId) {
+  const agentRoundId = event.agent_round_id
+    ?? readString(event.data, "agent_round_id");
+  const eventAgentId = event.agent_id ?? readString(event.data, "agent_id");
+  if (roundId && context.scope.chatType === "dm") {
     context.runtime.applyRoundStatus(roundId, "error");
+  } else if (roundId && agentRoundId && eventAgentId) {
+    context.runtime.applyAgentRoundStatus({
+      agent_id: eventAgentId,
+      agent_round_id: agentRoundId,
+      is_terminal: true,
+      round_id: roundId,
+      status: "error",
+    });
   }
   if (event.message_id) {
     context.runtime.updateMessageStatus(event.message_id, "error", roundId);
   }
-  context.state.setError(message);
+  console.error("[useAgentConversation] Backend conversation error:", {
+    errorType: readString(event.data, "error_type"),
+    message,
+  });
+  if (context.scope.chatType === "group" && agentRoundId) {
+    return;
+  }
+  const sessionKey = incomingSessionKey ?? context.scope.sessionKey;
+  if (sessionKey) {
+    context.state.reliability.reportFailure({
+      agent_round_id: agentRoundId,
+      client_request_id: clientRequestId || null,
+      code: failureCodeForErrorEvent(event),
+      round_id: roundId,
+      session_key: sessionKey,
+    });
+  }
 };
 
 const handleSessionStatus = withCurrentSessionEvent((event, context) => {
@@ -133,6 +197,11 @@ const handleInputQueueAck: AgentEventHandler = (event, context) => {
   const ack = parseInputQueueAckData(event.data);
   if (ack?.accepted) {
     context.runtime.resolvePendingRequestAck(ack.client_request_id);
+    context.state.reliability.observeRecovery({
+      client_request_id: ack.client_request_id,
+      kind: "request_accepted",
+      session_key: event.session_key,
+    });
   }
 };
 
@@ -140,6 +209,11 @@ const handleInterruptAck: AgentEventHandler = (event, context) => {
   const ack = parseInterruptAckData(event.data);
   if (ack?.accepted) {
     context.runtime.resolvePendingRequestAck(ack.client_request_id);
+    context.state.reliability.observeRecovery({
+      client_request_id: ack.client_request_id,
+      kind: "request_accepted",
+      session_key: event.session_key,
+    });
   }
 };
 
@@ -161,6 +235,26 @@ const handleRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseRoundStatusEventPayload(event.data);
   if (payload) {
     context.runtime.applyRoundStatus(payload.round_id, payload.status);
+    const sessionKey = event.session_key || context.scope.sessionKey;
+    if (sessionKey && payload.status !== "error") {
+      context.state.reliability.observeRecovery({
+        kind: "round_progress",
+        round_id: payload.round_id,
+        session_key: sessionKey,
+      });
+    } else if (
+      sessionKey
+      && context.scope.chatType === "dm"
+      && payload.status === "error"
+    ) {
+      context.state.reliability.reportFailure({
+        code: payload.failure_code && CONVERSATION_FAILURE_CODES.has(payload.failure_code)
+          ? payload.failure_code
+          : "round_failed",
+        round_id: payload.round_id,
+        session_key: sessionKey,
+      });
+    }
   }
   context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
@@ -169,6 +263,15 @@ const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseAgentRoundStatusEventPayload(event.data);
   if (payload) {
     context.runtime.applyAgentRoundStatus(payload);
+    const sessionKey = event.session_key || context.scope.sessionKey;
+    if (sessionKey && payload.status !== "error") {
+      context.state.reliability.observeRecovery({
+        agent_round_id: payload.agent_round_id,
+        kind: "round_progress",
+        round_id: payload.round_id,
+        session_key: sessionKey,
+      });
+    }
   }
   context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
@@ -180,10 +283,20 @@ const handleChatAck: AgentEventHandler = (event, context) => {
   }
   if (context.scope.isCurrentSessionEvent(event.session_key || null)) {
     context.runtime.trackChatAck(ack);
+    context.state.reliability.observeRecovery({
+      client_request_id: ack.client_request_id,
+      kind: "request_accepted",
+      session_key: event.session_key,
+    });
     return;
   }
   // 会话切换只阻止旧消息投影进当前 Feed，不能吞掉旧请求的 ACK。
   context.runtime.resolvePendingRequestAck(ack.client_request_id);
+  context.state.reliability.observeRecovery({
+    client_request_id: ack.client_request_id,
+    kind: "request_accepted",
+    session_key: event.session_key,
+  });
 };
 
 function createMessageStatusHandler(
@@ -197,6 +310,16 @@ function createMessageStatusHandler(
         status,
         readString(event.data, "round_id"),
       );
+    }
+    const roundId = getEventRoundId(event);
+    const sessionKey = event.session_key || context.scope.sessionKey;
+    if (roundId && sessionKey && status !== "error") {
+      context.state.reliability.observeRecovery({
+        agent_round_id: event.agent_round_id ?? readString(event.data, "agent_round_id"),
+        kind: "round_progress",
+        round_id: roundId,
+        session_key: sessionKey,
+      });
     }
   });
 }

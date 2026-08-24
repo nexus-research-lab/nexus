@@ -50,7 +50,7 @@ export function SkillImportFooter({
 }) {
   const { t } = useI18n();
   return (
-    <UiDialogFooter className="gap-2">
+    <UiDialogFooter appearance="plain" className="gap-2">
       <UiButton disabled={importing} onClick={onClose} size="sm" variant="surface">
         {t("common.cancel")}
       </UiButton>
@@ -62,3 +62,8 @@ export function SkillImportFooter({
     </UiDialogFooter>
   );
 }
+/**
+ * INPUT: 当前导入模式、在途状态与关闭动作。
+ * OUTPUT: 只保留取消和当前模式主动作的 plain Footer。
+ * POS: Skill 导入弹窗动作区。
+ */

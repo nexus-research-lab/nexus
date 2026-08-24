@@ -1,3 +1,8 @@
+/**
+ * INPUT: Provider 预设、已配置记录、当前选择与目录动作。
+ * OUTPUT: 桌面纵向侧栏；窄屏上方双列、限高可滚动的服务目录。
+ * POS: Provider 工作区的对象选择面，不承载配置表单。
+ */
 "use client";
 
 import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
@@ -56,17 +61,16 @@ export function ProviderSettingsSidebar({
 
   return (
     <aside
-      className="max-w-full shrink-0 border-r border-(--divider-subtle-color) pr-4"
-      style={{ width: 190 }}
+      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 sm:w-[190px] sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
     >
-      <div className="soft-scrollbar h-full min-h-0 overflow-y-auto pr-2">
+      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto sm:h-full sm:max-h-none sm:pr-2">
         {loading ? (
           <div className="flex min-h-[260px] items-center justify-center text-(--text-soft)">
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-1 py-2">
-            <div className="mb-2 space-y-1 border-b border-(--divider-subtle-color) pb-2">
+          <div className="grid grid-cols-2 gap-1 py-2 sm:block sm:space-y-1">
+            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 sm:block sm:space-y-1">
               <button
                 className={cn(
                   "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",

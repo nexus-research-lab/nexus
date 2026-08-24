@@ -1,5 +1,8 @@
+// INPUT: 单个 Provider 模型的能力、窗口、输出限制和 JSON Options 草稿。
+// OUTPUT: 目标模型明确、设置行克制的 plain 配置弹窗。
+// POS: Provider 模型覆写入口，不把每项能力包装成图标卡片。
 import { type Dispatch, type SetStateAction } from "react";
-import { Brain, Database, Eye, Image, Loader2, SlidersHorizontal, Wrench } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -49,21 +52,15 @@ export function ProviderModelOptionsDialog({
       >
         <UiDialogShell className="max-w-[620px]" size="lg">
           <UiDialogHeader
-            icon={<SlidersHorizontal className="h-4.5 w-4.5" />}
-            iconClassName="rounded-[12px]"
+            appearance="plain"
             onClose={onClose}
-            subtitle={(
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <span>{t("settings.providers.model_options_subtitle")}</span>
-                <code className="max-w-[260px] truncate radius-control-sm bg-(--surface-muted-background) px-1.5 py-0.5 font-mono text-xs text-(--text-default)">
-                  {modelOptions.model.model_id}
-                </code>
-              </span>
-            )}
             title={t("settings.providers.model_options")}
             titleId="provider-model-options-title"
           />
-          <UiDialogBody className="space-y-5" scrollable>
+          <UiDialogBody className="space-y-5 px-5" scrollable>
+            <code className="block truncate font-mono text-xs text-(--text-muted)">
+              {modelOptions.model.model_id}
+            </code>
             <section className="space-y-2.5">
               <div>
                 <h3 className="text-sm font-semibold text-(--text-strong)">
@@ -73,10 +70,9 @@ export function ProviderModelOptionsDialog({
                   {t("settings.providers.model_capabilities_description")}
                 </p>
               </div>
-              <div className="grid gap-2.5 md:grid-cols-2">
+              <div className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
                 <CapabilitySwitch
                   checked={!!modelOptions.capabilities.vision}
-                  icon={<Eye className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_vision")}
                   onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
@@ -85,7 +81,6 @@ export function ProviderModelOptionsDialog({
                 />
                 <CapabilitySwitch
                   checked={!!modelOptions.capabilities.image_output}
-                  icon={<Image className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_image_output")}
                   onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
@@ -94,7 +89,6 @@ export function ProviderModelOptionsDialog({
                 />
                 <CapabilitySwitch
                   checked={!!modelOptions.capabilities.tool_calling}
-                  icon={<Wrench className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_tool_calling")}
                   onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
@@ -103,7 +97,6 @@ export function ProviderModelOptionsDialog({
                 />
                 <CapabilitySwitch
                   checked={!!modelOptions.capabilities.reasoning}
-                  icon={<Brain className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_reasoning")}
                   onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
@@ -112,7 +105,6 @@ export function ProviderModelOptionsDialog({
                 />
                 <CapabilitySwitch
                   checked={!!modelOptions.capabilities.embedding}
-                  icon={<Database className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_embedding")}
                   onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
@@ -162,7 +154,7 @@ export function ProviderModelOptionsDialog({
               />
             </label>
           </UiDialogBody>
-          <UiDialogFooter className="gap-2">
+          <UiDialogFooter appearance="plain" className="gap-2">
             <UiButton
               onClick={onClose}
               size="sm"
