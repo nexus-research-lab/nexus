@@ -383,10 +383,11 @@ func TestBuildAgentClientOptionsKeepsClaudeSkillDiscoveryDynamic(t *testing.T) {
 
 func TestBuildAgentClientOptionsProjectsCompactionConfigByRuntime(t *testing.T) {
 	config := &RuntimeConfig{
-		Provider:      "glm",
-		BaseURL:       "https://provider.example.com",
-		Model:         "glm-5.2",
-		ContextWindow: 300_000,
+		Provider:        "glm",
+		BaseURL:         "https://provider.example.com",
+		Model:           "glm-5.2",
+		ContextWindow:   300_000,
+		MaxOutputTokens: 96_000,
 	}
 
 	nxsOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{config: config}, AgentClientOptionsInput{
@@ -396,7 +397,8 @@ func TestBuildAgentClientOptionsProjectsCompactionConfigByRuntime(t *testing.T) 
 		t.Fatalf("构建 nxs options 失败: %v", err)
 	}
 	if nxsOptions.Env[nexusAutoCompactPctOverrideEnvName] != defaultAutoCompactPctOverride ||
-		nxsOptions.Env[nexusMaxContextTokensEnvName] != "300000" {
+		nxsOptions.Env[nexusMaxContextTokensEnvName] != "300000" ||
+		nxsOptions.Env[nexusMaxOutputTokensEnvName] != "96000" {
 		t.Fatalf("nxs 压缩配置未按原生环境变量投影: %+v", nxsOptions.Env)
 	}
 	for _, key := range []string{claudeAutoCompactPctOverrideEnvName, claudeAutoCompactWindowEnvName} {
@@ -415,7 +417,7 @@ func TestBuildAgentClientOptionsProjectsCompactionConfigByRuntime(t *testing.T) 
 		claudeOptions.Env[claudeAutoCompactWindowEnvName] != "300000" {
 		t.Fatalf("Claude Code 压缩配置未按原生环境变量投影: %+v", claudeOptions.Env)
 	}
-	for _, key := range []string{nexusAutoCompactPctOverrideEnvName, nexusMaxContextTokensEnvName} {
+	for _, key := range []string{nexusAutoCompactPctOverrideEnvName, nexusMaxContextTokensEnvName, nexusMaxOutputTokensEnvName} {
 		if _, ok := claudeOptions.Env[key]; ok {
 			t.Fatalf("Claude Code 不应接收 nxs 环境变量 %s: %+v", key, claudeOptions.Env)
 		}

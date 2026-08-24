@@ -94,6 +94,17 @@ func TestRemoteModelCardPrefersProviderContextWindow(t *testing.T) {
 	}
 }
 
+func TestRemoteModelCardPrefersProviderMaxOutputTokens(t *testing.T) {
+	t.Parallel()
+
+	providerValue := 64_000
+	model := remoteModel{ID: "deepseek-v4-flash", MaxOutputTokens: &providerValue}
+	_, _, _, maxOutputTokens := model.modelCard()
+	if maxOutputTokens == nil || *maxOutputTokens != providerValue {
+		t.Fatalf("Provider max_output_tokens 应覆盖内置目录: %v", maxOutputTokens)
+	}
+}
+
 func TestRemoteModelCardPrefersProviderVisionCapability(t *testing.T) {
 	t.Parallel()
 
@@ -146,7 +157,7 @@ func TestDefaultModelCardFillsKnownContextWindow(t *testing.T) {
 	}
 }
 
-func TestStoredModelWithoutContextUsesKnownWindow(t *testing.T) {
+func TestStoredModelWithoutLimitsUsesKnownCatalog(t *testing.T) {
 	t.Parallel()
 
 	model := providerstore.ModelEntity{ModelID: "deepseek-v4-pro"}
@@ -156,6 +167,12 @@ func TestStoredModelWithoutContextUsesKnownWindow(t *testing.T) {
 	record := toModelRecord(model)
 	if record.ContextWindow == nil || *record.ContextWindow != 1_000_000 {
 		t.Fatalf("模型列表未展示内置上下文窗口: %v", record.ContextWindow)
+	}
+	if got := modelMaxOutputTokens(&model); got != 384_000 {
+		t.Fatalf("历史模型卡未应用内置输出上限: %d", got)
+	}
+	if record.MaxOutputTokens == nil || *record.MaxOutputTokens != 384_000 {
+		t.Fatalf("模型列表未展示内置输出上限: %v", record.MaxOutputTokens)
 	}
 }
 

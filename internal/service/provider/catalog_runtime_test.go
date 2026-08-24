@@ -212,10 +212,12 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		t.Fatalf("未设置模型的 Kimi Code 应被 Agent runtime 拒绝: %v", err)
 	}
 	contextWindow := 300000
+	maxOutputTokens := 96000
 	if _, err = service.UpdateModel(ctx, "kimi-code", "kimi-for-coding", UpdateModelInput{
-		Enabled:       true,
-		IsDefault:     true,
-		ContextWindow: &contextWindow,
+		Enabled:         true,
+		IsDefault:       true,
+		ContextWindow:   &contextWindow,
+		MaxOutputTokens: &maxOutputTokens,
 		CapabilitiesOverride: ModelCapabilities{
 			Reasoning: boolPointer(true),
 		},
@@ -237,6 +239,9 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 	if runtimeConfig.ContextWindow != contextWindow {
 		t.Fatalf("runtime context window 未透传: %+v", runtimeConfig)
+	}
+	if runtimeConfig.MaxOutputTokens != maxOutputTokens {
+		t.Fatalf("runtime max output tokens 未透传: %+v", runtimeConfig)
 	}
 	runtimeConfig, err = service.ResolveRuntimeConfig(ctx, "kimi-code", "")
 	if err != nil {

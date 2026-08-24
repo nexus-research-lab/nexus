@@ -183,6 +183,7 @@ func (s *Service) llmConfigFromTarget(
 		Reasoning:              modelHasReasoningCapability(*modelRecord),
 		Vision:                 modelHasVisionCapability(*modelRecord),
 		ContextWindow:          modelContextWindow(modelRecord),
+		MaxOutputTokens:        modelMaxOutputTokens(modelRecord),
 	}, nil
 }
 
@@ -196,4 +197,16 @@ func modelContextWindow(model *providerstore.ModelEntity) int {
 		return 0
 	}
 	return *contextWindow
+}
+
+// modelMaxOutputTokens 把模型卡的可选值投影为运行时零值语义。
+func modelMaxOutputTokens(model *providerstore.ModelEntity) int {
+	if model == nil {
+		return 0
+	}
+	maxOutputTokens := maxOutputTokensOrKnown(model.ModelID, model.MaxOutputTokens)
+	if maxOutputTokens == nil || *maxOutputTokens <= 0 {
+		return 0
+	}
+	return *maxOutputTokens
 }

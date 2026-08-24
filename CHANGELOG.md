@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Propagated Provider model output limits to the nxs runtime and added the documented 384K output limit for DeepSeek V4 Pro and Flash models.
+
 ## [0.1.37] - 2026-08-24
 
 ### Added
