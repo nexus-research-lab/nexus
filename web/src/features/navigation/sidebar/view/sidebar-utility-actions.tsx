@@ -44,7 +44,7 @@ const FOOTER_ACTION_GAP = 6;
 const FOOTER_ACTION_STRIDE = FOOTER_ACTION_SIZE + FOOTER_ACTION_GAP;
 const FOOTER_HORIZONTAL_GAP = 10;
 const FOOTER_PADDING = 12;
-const FOOTER_LEFT = 8;
+const FOOTER_LEFT = 16;
 
 export function SidebarPanelToggleAction(
   props: SidebarPanelToggleActionProps,
