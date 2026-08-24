@@ -64,6 +64,7 @@ const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
 const nexusMaxContextTokensEnvName = "NEXUS_MAX_CONTEXT_TOKENS"
+const nexusMaxOutputTokensEnvName = "NEXUS_MAX_OUTPUT_TOKENS"
 const nexusModelSupportsVisionEnvName = "NEXUS_MODEL_SUPPORTS_VISION"
 const nexusMultimodalUserContentEnvName = "NEXUS_MULTIMODAL_USER_CONTENT"
 const nexusMultimodalToolResultEnvName = "NEXUS_MULTIMODAL_TOOL_RESULT"
@@ -127,6 +128,9 @@ func applyNXSModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeConfi
 	}
 	if runtimeConfig.ContextWindow > 0 {
 		env[nexusMaxContextTokensEnvName] = strconv.Itoa(runtimeConfig.ContextWindow)
+	}
+	if runtimeConfig.MaxOutputTokens > 0 {
+		env[nexusMaxOutputTokensEnvName] = strconv.Itoa(runtimeConfig.MaxOutputTokens)
 	}
 	env[nexusModelSupportsVisionEnvName] = strconv.FormatBool(runtimeConfig.Vision)
 	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)

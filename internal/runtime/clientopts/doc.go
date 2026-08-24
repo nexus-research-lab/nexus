@@ -9,7 +9,7 @@
 //     physical-round capability、按 runtime 隔离的模型上限环境与 profile。
 //   - mcp_servers.go：严格解析 Agent 持久化 stdio/http/sse MCP 配置并在禁止覆盖内建名称的前提下合并。
 //   - web_search.go：runtime 自有的 WebSearch 配置与环境投影。
-//   - model_provider.go：运行时 Provider、模型能力与上下文上限解析结果。
+//   - model_provider.go：运行时 Provider、模型能力、上下文和输出上限解析结果。
 //   - log_runtime.go：runtime 日志选项。
 //   - runtime_admission.go：认证转场到 Agent runtime admission 与强隔离要求的动态依赖边界。
 //

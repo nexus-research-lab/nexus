@@ -5,16 +5,17 @@ import (
 	"strings"
 )
 
-// knownModelContext 描述官方文档明确给出的模型上下文窗口。
+// knownModelLimit 描述官方文档明确给出的模型 token 上限。
 //
 // 目录只负责补齐 Provider 模型列表缺失的字段。远端返回值和用户显式配置始终优先，
 // 未列出的模型保持未知，避免通过相似名称猜测运行时限制。
-type knownModelContext struct {
-	Family string
-	Tokens int
+type knownModelLimit struct {
+	Family          string
+	Tokens          int
+	MaxOutputTokens int
 }
 
-var knownModelContexts = []knownModelContext{
+var knownModelLimits = []knownModelLimit{
 	// OpenAI。
 	{Family: "gpt-5.6-terra", Tokens: 1_050_000},
 	{Family: "gpt-5.6-luna", Tokens: 1_050_000},
@@ -89,8 +90,8 @@ var knownModelContexts = []knownModelContext{
 	{Family: "gemini-2.5-flash-lite", Tokens: 1_048_576},
 
 	// DeepSeek。
-	{Family: "deepseek-v4-pro", Tokens: 1_000_000},
-	{Family: "deepseek-v4-flash", Tokens: 1_000_000},
+	{Family: "deepseek-v4-pro", Tokens: 1_000_000, MaxOutputTokens: 384_000},
+	{Family: "deepseek-v4-flash", Tokens: 1_000_000, MaxOutputTokens: 384_000},
 	{Family: "deepseek-chat", Tokens: 1_000_000},
 	{Family: "deepseek-reasoner", Tokens: 1_000_000},
 
@@ -168,9 +169,20 @@ func knownVisionCapability(modelID string) *bool {
 
 func knownContextWindow(modelID string) *int {
 	normalized := normalizeCatalogModelID(modelID)
-	for _, item := range knownModelContexts {
+	for _, item := range knownModelLimits {
 		if modelIDMatchesFamily(normalized, item.Family) {
 			value := item.Tokens
+			return &value
+		}
+	}
+	return nil
+}
+
+func knownMaxOutputTokens(modelID string) *int {
+	normalized := normalizeCatalogModelID(modelID)
+	for _, item := range knownModelLimits {
+		if item.MaxOutputTokens > 0 && modelIDMatchesFamily(normalized, item.Family) {
+			value := item.MaxOutputTokens
 			return &value
 		}
 	}
@@ -182,6 +194,13 @@ func contextWindowOrKnown(modelID string, contextWindow *int) *int {
 		return contextWindow
 	}
 	return knownContextWindow(modelID)
+}
+
+func maxOutputTokensOrKnown(modelID string, maxOutputTokens *int) *int {
+	if maxOutputTokens != nil {
+		return maxOutputTokens
+	}
+	return knownMaxOutputTokens(modelID)
 }
 
 func normalizeCatalogModelID(modelID string) string {
