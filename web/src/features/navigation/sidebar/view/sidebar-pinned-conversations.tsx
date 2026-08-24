@@ -43,22 +43,27 @@ export function SidebarPinnedConversations({
         {items.map((item) => (
           <div
             className={cn(
-              "group/pinned relative h-14 w-14 shrink-0 rounded-[12px] transition-[background,color] duration-(--motion-duration-fast)",
+              "group/pinned relative h-14 w-14 shrink-0 transition-colors duration-(--motion-duration-fast)",
               item.active
-                ? SIDEBAR_SELECTION_CLASS_NAME
-                : "hover:bg-(--surface-interactive-hover-background)",
+                ? "text-(--text-strong)"
+                : "text-(--text-muted)",
             )}
             data-pinned-conversation-id={item.conversationId}
             key={item.key}
           >
             <button
               aria-current={item.active ? "page" : undefined}
-              className="absolute inset-0 min-w-0 rounded-[12px] text-2xs font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)]"
+              className="absolute inset-0 min-w-0 rounded-[12px] text-2xs font-medium transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)]"
               onClick={() => onSelect(item)}
               title={item.title}
               type="button"
             >
-              <span className="absolute left-1/2 top-0 flex h-8 w-8 -translate-x-1/2 items-center justify-center">
+              <span className={cn(
+                "absolute left-1/2 top-0 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-[10px] transition-[background,color] duration-(--motion-duration-fast)",
+                item.active
+                  ? SIDEBAR_SELECTION_CLASS_NAME
+                  : "group-hover/pinned:bg-(--surface-interactive-hover-background)",
+              )}>
                 <MessageSquareText className="h-[17px] w-[17px]" />
               </span>
               <span className="absolute inset-x-0 bottom-2 block truncate px-1 text-center leading-tight">
