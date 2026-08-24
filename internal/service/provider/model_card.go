@@ -15,7 +15,7 @@ type remoteModel struct {
 }
 
 func defaultModelCard(modelID string) (ModelCapabilities, string, *int, *int) {
-	return ModelCapabilities{}, "chat", contextWindowOrKnown(modelID, nil), nil
+	return ModelCapabilities{}, "chat", contextWindowOrKnown(modelID, nil), maxOutputTokensOrKnown(modelID, nil)
 }
 
 func (model remoteModel) modelCard() (ModelCapabilities, string, *int, *int) {
@@ -24,7 +24,8 @@ func (model remoteModel) modelCard() (ModelCapabilities, string, *int, *int) {
 		category = "chat"
 	}
 	contextWindow := contextWindowOrKnown(model.ID, model.ContextWindow)
-	return model.Capabilities, category, contextWindow, model.MaxOutputTokens
+	maxOutputTokens := maxOutputTokensOrKnown(model.ID, model.MaxOutputTokens)
+	return model.Capabilities, category, contextWindow, maxOutputTokens
 }
 
 func remoteModelFromCard(card map[string]any) remoteModel {
