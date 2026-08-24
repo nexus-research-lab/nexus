@@ -1,5 +1,5 @@
 // INPUT: Skill frontmatter、来源元数据与目标 Agent 的目录状态。
-// OUTPUT: 共享系统 Skill 目录、列表/详情模型及绑定 runtime_version 的 AgentSkillState。
+// OUTPUT: 含默认产品说明的共享系统 Skill 目录、列表/详情模型及绑定 runtime_version 的 AgentSkillState。
 // POS: Skills 服务跨目录、HTTP、配置控制面与 runtimecommand 绑定的协议模型。
 package skills
 
@@ -59,6 +59,7 @@ func buildSystemSkillNames() map[string]struct{} {
 		"visualize":           {},
 		"automation":          {},
 		"nexus-configuration": {},
+		"nexus-product-guide": {},
 	}
 	for _, skillName := range runtimecommand.ManagedSemanticSkillNames() {
 		result[skillName] = struct{}{}

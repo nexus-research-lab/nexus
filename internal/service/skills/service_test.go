@@ -36,6 +36,7 @@ func TestMain(m *testing.M) {
 		"automation",
 		"nexus-manager",
 		"nexus-configuration",
+		"nexus-product-guide",
 		"room-playbook",
 		"wechat-article-search",
 		"werewolf-6p",
@@ -87,6 +88,10 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if automationSkill.SourceType != sourceTypeSystem || !automationSkill.Locked || automationSkill.Deletable || !automationSkill.EnabledForAgent {
 		t.Fatalf("automation 应作为已启用的系统内置 skill: %+v", automationSkill)
+	}
+	productGuideSkill, ok := findSkill(items, "nexus-product-guide")
+	if !ok || productGuideSkill.SourceType != sourceTypeSystem || !productGuideSkill.Locked || productGuideSkill.Deletable || !productGuideSkill.EnabledForAgent {
+		t.Fatalf("产品指南应作为所有 Agent 默认启用的系统内置 Skill: %+v", productGuideSkill)
 	}
 	if !containsSkill(items, "goal-manager") {
 		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
@@ -155,6 +160,9 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "automation"); err == nil {
 		t.Fatal("系统托管 automation skill 不应允许手动安装")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "nexus-product-guide"); err == nil {
+		t.Fatal("系统托管 nexus-product-guide skill 不应允许手动安装")
 	}
 
 	agentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "agent-only-skill")
