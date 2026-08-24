@@ -68,12 +68,17 @@ func (s *Service) ScheduleSave(
 	if alreadyScheduled {
 		return scheduledSaveReceipt(preview.PreviewID), nil
 	}
-	existing, err := s.repository.GetBySlashName(ctx, ownerUserID, preview.SlashName)
+	availability, err := s.CheckSlashNameAvailability(
+		ctx,
+		ownerUserID,
+		preview.SlashName,
+		preview.PreviewID,
+	)
 	if err != nil {
 		s.releasePreviewSaveClaim(ctx, ownerUserID, preview.PreviewID)
 		return nil, err
 	}
-	if existing != nil {
+	if !availability.Available {
 		s.releasePreviewSaveClaim(ctx, ownerUserID, preview.PreviewID)
 		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
 	}

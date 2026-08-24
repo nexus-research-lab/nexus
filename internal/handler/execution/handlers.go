@@ -39,6 +39,10 @@ type workflowSaveScheduler interface {
 	ScheduleSave(context.Context, string, protocol.ScheduleWorkGraphWorkflowSaveRequest) (*protocol.WorkGraphWorkflowSaveReceipt, error)
 }
 
+type workflowSlashNameChecker interface {
+	CheckSlashNameAvailability(context.Context, string, string, string) (*protocol.WorkGraphWorkflowSlashNameAvailability, error)
+}
+
 type workflowMetadataEditor interface {
 	StartMetadataEditor(context.Context, string, protocol.StartWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
 	GetMetadataEditor(string, protocol.GetWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
@@ -136,6 +140,33 @@ func (h *Handlers) HandleListWorkGraphWorkflows(
 		return
 	}
 	h.api.WriteSuccess(writer, items)
+}
+
+// HandleCheckWorkGraphWorkflowSlashName 返回 owner/exact Draft 视角下的命名 Slash 可用性。
+func (h *Handlers) HandleCheckWorkGraphWorkflowSlashName(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	checker, ok := h.workflows.(workflowSlashNameChecker)
+	if !ok || checker == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图命名检查服务不可用")
+		return
+	}
+	availability, err := checker.CheckSlashNameAvailability(
+		request.Context(),
+		authsvc.OwnerUserID(request.Context()),
+		request.URL.Query().Get("slash_name"),
+		request.URL.Query().Get("preview_id"),
+	)
+	if err != nil {
+		if errors.Is(err, workgraphworkflowsvc.ErrInvalidInput) {
+			h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "斜杠命令格式无效")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "斜杠命令检查失败")
+		return
+	}
+	h.api.WriteSuccess(writer, availability)
 }
 
 // HandlePreviewSavedWorkGraphWorkflow 恢复能力目录命名图的关联 Draft 以继续编辑。

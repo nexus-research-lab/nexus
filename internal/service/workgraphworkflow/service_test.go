@@ -265,6 +265,25 @@ func TestSavedWorkflowReopensItsDraftAndPersistsSelectedRevisionAsUpdate(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
+	availability, err := service.CheckSlashNameAvailability(context.Background(), "owner-a", created.SlashName, preview.PreviewID)
+	if err != nil || !availability.Available {
+		t.Fatalf("saved Draft slash availability = %#v, err=%v", availability, err)
+	}
+	conflict, err := service.CheckSlashNameAvailability(context.Background(), "owner-a", created.SlashName, "")
+	if err != nil || conflict.Available {
+		t.Fatalf("unbound duplicate slash availability = %#v, err=%v", conflict, err)
+	}
+	reserved, err := service.CheckSlashNameAvailability(context.Background(), "owner-a", "goal", preview.PreviewID)
+	if err != nil || reserved.Available {
+		t.Fatalf("reserved slash availability = %#v, err=%v", reserved, err)
+	}
+	fresh, err := service.CheckSlashNameAvailability(context.Background(), "owner-a", "fresh-review", preview.PreviewID)
+	if err != nil || !fresh.Available {
+		t.Fatalf("fresh slash availability = %#v, err=%v", fresh, err)
+	}
+	if _, err = service.CheckSlashNameAvailability(context.Background(), "owner-a", "Invalid_Name", preview.PreviewID); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("invalid slash availability error = %v, want ErrInvalidInput", err)
+	}
 	draft, err := service.GetDraft(context.Background(), "owner-a", "session-a", preview.PreviewID)
 	if err != nil || draft.SavedWorkflowID != created.ID || draft.SavedRevision != 1 || draft.SaveScheduled {
 		t.Fatalf("saved Draft = %#v, err=%v", draft, err)
@@ -457,6 +476,32 @@ func TestScheduleSaveDispatchesOneHiddenPromptWithoutGraphContent(t *testing.T) 
 	}
 	if _, err = service.ScheduleSave(context.Background(), "owner-a", request); err != nil || len(dispatcher.requests) != 1 {
 		t.Fatalf("post-save replay err=%v requests=%d, want idempotent receipt", err, len(dispatcher.requests))
+	}
+}
+
+func TestScheduleSaveRejectsConflictingSlashNameBeforeDispatch(t *testing.T) {
+	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
+		"existing": {ID: "existing", OwnerUserID: "owner-a", SlashName: "evidence-review"},
+	}}
+	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
+	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
+	dispatcher := &workflowSaveRoundRecorder{}
+	service.SetSaveRoundDispatcher(dispatcher)
+	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
+		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.ScheduleSave(context.Background(), "owner-a", protocol.ScheduleWorkGraphWorkflowSaveRequest{
+		SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
+		SlashName: "evidence-review", Title: "证据审查", Description: "整理证据并完成独立复核",
+	})
+	if !errors.Is(err, ErrNameConflict) {
+		t.Fatalf("schedule conflict error = %v, want ErrNameConflict", err)
+	}
+	if len(dispatcher.requests) != 0 {
+		t.Fatalf("conflicting save dispatched %d background rounds", len(dispatcher.requests))
 	}
 }
 

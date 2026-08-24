@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added persistent pinned conversation shortcuts below the sidebar capability entry, with tab pin toggles and an independent hover/focus X action for unpinning.
 
+### Changed
+
+- Unified the WorkGraph save preview with the full interactive WorkGraph canvas and refined the Slash command naming form with inline duplicate-name validation.
+
 ## [0.1.37] - 2026-08-24
 
 ### Added
