@@ -377,7 +377,18 @@ case "${ARTIFACT_FORMAT}" in
     ln -s /Applications "${DMG_DIR}/Applications"
     cp "${DMG_BACKGROUND_PATH}" "${DMG_DIR}/.background/DMGBackground.png"
     SetFile -a V "${DMG_DIR}/.background"
-    COPYFILE_DISABLE=1 hdiutil create \
+
+    retry_hdiutil() {
+      local attempt
+      for attempt in 1 2 3; do
+        if hdiutil "$@" >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep "${attempt}"
+      done
+      hdiutil "$@" >/dev/null
+    }
+    COPYFILE_DISABLE=1 retry_hdiutil create \
       -volname "${APP_NAME}" \
       -srcfolder "${DMG_DIR}" \
       -ov \
@@ -455,7 +466,7 @@ APPLESCRIPT
     sync
     detach_dmg "${DMG_DEVICE}"
     DMG_DEVICE=""
-    hdiutil convert \
+    retry_hdiutil convert \
       "${DMG_RW_PATH}" \
       -ov \
       -format UDZO \
