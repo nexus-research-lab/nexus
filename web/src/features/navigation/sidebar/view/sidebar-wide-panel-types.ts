@@ -10,6 +10,17 @@ export interface SidebarPrimaryTabItem {
   label: string;
 }
 
+export interface SidebarPinnedConversationItem {
+  active: boolean;
+  conversationId: string;
+  key: string;
+  roomId: string;
+  route: string;
+  title: string;
+}
+
+export type SidebarPinnedConversationPlacement = "after" | "before";
+
 export interface SidebarUtilityLabels {
   collapse: string;
   expand: string;

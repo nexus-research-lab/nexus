@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - service.go / save_dispatch.go：完成图抽取/复用、coordinator 绑定的隔离内部保存调度、受管 CLI 幂等保存、读取/删除、Slash descriptor 投影与 runtime prompt 展开。
+//   - slash_name_availability.go：按 owner 与 exact Draft 判断命名 Slash 是否被固定命令或其他命名图占用。
 //   - abstraction.go：把完整源节点/拓扑交给默认对话模型，默认保留结构关键 logical key、抽象具体任务语义，并校验主路径/terminal/关键节点与来源边界。
 //   - draft_state.go / authoring.go：持久 Draft cache 恢复、一个 Session 多来源图目录，以及普通 DM/Room 的查询、提取、完整修订、版本选择和保存能力。
 //   - metadata_editor.go：由 owner 的 Nexus 主智能体承载目录隐藏专用 DM，不继承源 transcript/权限，通过 execution-orchestrator Skill + round-scoped CLI 对完整草图做版本化修改与应用。

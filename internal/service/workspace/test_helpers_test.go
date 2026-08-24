@@ -25,6 +25,7 @@ func TestMain(m *testing.M) {
 		"automation",
 		"nexus-manager",
 		"nexus-configuration",
+		"nexus-product-guide",
 		"pdf",
 		"pptx",
 		"room-playbook",

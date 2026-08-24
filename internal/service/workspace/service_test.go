@@ -110,9 +110,13 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "automation", "SKILL.md")); err != nil {
 		t.Fatalf("平台全局 automation skill 未同步: %v", err)
 	}
+	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "nexus-product-guide", "SKILL.md")); err != nil {
+		t.Fatalf("平台全局产品指南 skill 未同步: %v", err)
+	}
 	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "visualize") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "automation") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "nexus-product-guide") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "goal-manager") ||
 		!slices.Contains(agentValue.Options.SkillIDs, "execution-orchestrator") {
 		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
@@ -362,7 +366,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		}
 	}
 	for _, skillName := range []string{
-		"automation", "execution-orchestrator", "goal-manager", "nexus-configuration", "nexus-manager",
+		"automation", "execution-orchestrator", "goal-manager", "nexus-configuration", "nexus-manager", "nexus-product-guide",
 	} {
 		payload, readErr := os.ReadFile(filepath.Join(platformAgentSkills, skillName, "SKILL.md"))
 		if readErr != nil {

@@ -23,6 +23,7 @@ const BUNDLED_SKILLS = [
   ["docx", "builtin", "nexus_platform"],
   ["execution-orchestrator", "system", undefined],
   ["goal-manager", "system", undefined],
+  ["nexus-product-guide", "system", undefined],
   ["ima-skill", "builtin", "nexus_platform"],
   ["wechat-article-search", "builtin", "nexus_platform"],
   ["room-playbook", "builtin", "nexus_platform"],

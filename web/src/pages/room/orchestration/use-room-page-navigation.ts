@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Room 路由、当前显式草稿与页面写命令。
- * [OUTPUT]: 会话选择、按 Room 单飞创建、最后标签带导航代次/作用域校验的替换、删除回退和目录导航。
+ * [OUTPUT]: 会话选择、按 Room 单飞创建、最后标签带导航代次/作用域校验的替换、删除回退、固定偏好清理和目录导航。
  * [POS]: Room 页面浏览器协调层；拥有路由提交顺序，不解释服务端会话协议。
  */
 
@@ -61,13 +61,6 @@ interface UseRoomPageNavigationOptions {
   closeConversation: (conversationId: string) => Promise<void>;
   createConversation: (title?: string) => Promise<string | null>;
   deleteConversation: (conversationId: string) => Promise<string | null>;
-}
-
-function buildConversationRoute(roomId: string, conversationId: string): string {
-  const externalSessionKey = getExternalSessionKeyFromConversationId(conversationId);
-  return externalSessionKey
-    ? AppRouteBuilders.roomSession(roomId, externalSessionKey)
-    : AppRouteBuilders.roomConversation(roomId, conversationId);
 }
 
 export function useRoomPageNavigation({
@@ -139,7 +132,7 @@ export function useRoomPageNavigation({
     if (roomId) {
       navigationEpochRef.current += 1;
       rememberLastActiveConversation(roomId, conversationId);
-      navigate(buildConversationRoute(roomId, conversationId));
+      navigate(AppRouteBuilders.conversation(roomId, conversationId));
     }
   }, [navigate, rememberLastActiveConversation, roomId]);
 
@@ -186,7 +179,7 @@ export function useRoomPageNavigation({
       return null;
     }
     rememberLastActiveConversation(scopeRoomId, conversationId);
-    navigate(buildConversationRoute(scopeRoomId, conversationId));
+    navigate(AppRouteBuilders.conversation(scopeRoomId, conversationId));
     return conversationId;
   }, [ensureConversation, navigate, rememberLastActiveConversation, roomId]);
 
@@ -247,13 +240,16 @@ export function useRoomPageNavigation({
       return null;
     }
     const fallbackConversationId = await deleteConversation(conversationId);
+    if (roomId) {
+      forgetConversation(roomId, conversationId);
+    }
     if (!roomId || !isDeletingSelectedConversation) {
       return fallbackConversationId;
     }
 
     navigate(
       fallbackConversationId
-        ? buildConversationRoute(roomId, fallbackConversationId)
+        ? AppRouteBuilders.conversation(roomId, fallbackConversationId)
         : AppRouteBuilders.room(roomId),
     );
     if (fallbackConversationId) {
@@ -289,7 +285,7 @@ export function useRoomPageNavigation({
       return;
     }
 
-    navigate(buildConversationRoute(roomId, selectedConversationId), {replace: true});
+    navigate(AppRouteBuilders.conversation(roomId, selectedConversationId), {replace: true});
   }, [
     currentRoomId,
     initialDraft,
