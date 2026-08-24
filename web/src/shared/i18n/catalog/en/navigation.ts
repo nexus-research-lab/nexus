@@ -15,6 +15,7 @@ export const enNavigationMessages = {
   "sidebar.tab_contacts": "Contacts",
   "sidebar.tab_capabilities": "Capabilities",
   "sidebar.pinned_conversations": "Pinned conversations",
+  "sidebar.reorder_pinned_conversation": "Drag to reorder",
   "sidebar.unpin_conversation": "Unpin",
   "sidebar.search_conversations": "Search chats",
   "sidebar.search_contacts": "Search contacts",

@@ -19,6 +19,8 @@ export interface SidebarPinnedConversationItem {
   title: string;
 }
 
+export type SidebarPinnedConversationPlacement = "after" | "before";
+
 export interface SidebarUtilityLabels {
   collapse: string;
   expand: string;

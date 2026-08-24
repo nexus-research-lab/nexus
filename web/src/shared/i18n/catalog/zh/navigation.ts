@@ -12,6 +12,7 @@ export const zhNavigationMessages = {
   "sidebar.tab_contacts": "联系人",
   "sidebar.tab_capabilities": "能力",
   "sidebar.pinned_conversations": "固定会话",
+  "sidebar.reorder_pinned_conversation": "拖动调整顺序",
   "sidebar.unpin_conversation": "取消固定",
   "sidebar.search_conversations": "搜索聊天",
   "sidebar.search_contacts": "搜索联系人",

@@ -16,7 +16,7 @@ src/
   hooks/       - 自定义 React Hooks；`agent/` 按动作、消息模型、会话、运行态和传输协议分层
   lib/         - 无业务状态的基础函数与协议客户端；根目录保存错误、头像和未知值等跨领域纯投影，`format/` 按展示值类型分离格式化规则，`api/` 按 core/agent/account/capability/conversation/settings 分离传输与领域协议，`websocket/` 按策略、心跳、单连接客户端、共享通道和 React 生命周期分层
   shared/      - 无业务所有权的 UI、认证 Context、i18n 和跨页面原语；`ui/` 按 button/form/display/list/navigation 分离基础交互职责，`ui/liquid-glass/` 分离能力探测、动画资源、滤镜链和组件装配，`i18n/catalog/` 按领域分离双语文案并逐分片校验键集合，`ui/markdown/` 统一 Markdown 渲染，`ui/mention/` 统一目标选择、文本匹配和插入，`ui/overlay/` 统一锚点定位与浏览器生命周期，`ui/menu/` 保存具体菜单语义
-  store/       - Zustand 状态管理（agent + session 独立 store，room-navigation 按 Room 持久化标签集合、顺序与活动会话，并保存跨 Room 的固定会话偏好）
+  store/       - Zustand 状态管理（agent + session 独立 store，room-navigation 按 Room 持久化标签集合、顺序与活动会话，并保存跨 Room 的有序固定会话偏好）
   types/       - 跨领域协议类型；`capability/scheduled-task/` 分离任务定义与运行结果，`conversation/message/` 分离附件、内容、实体和事件，`conversation/interaction/` 保存权限和用户问答协议
 ```
 
@@ -34,7 +34,7 @@ src/
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - Agent 目录 Store 只保留静态目录与当前选择；运行态事件只在会话/工作区链路中消费，不回写 Agent 目录状态
 - WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列；Room/DM 的 Session bind 由共享通道内部的逻辑租约统一引用计数并在重连后重放，单个组件 cleanup 不得直接解绑仍被其他消费者使用的 Session。已派发的用户消息、编辑重跑、队列输入与 Goal 都由 exact `client_request_id` 请求租约继续持有原物理连接与 Session binding，零 React subscriber、普通切页和新建 Session 都不得取消；raw ACK/error、明确 reset 或有界 hard timeout 才释放。通道恢复必须在 binding replay 后重拉当前 durable Session；Room 再叠加 room_seq replay 与 subscription snapshot，Web 不得自动重发业务命令或工具调用
-- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，并保存标签栏与主侧栏共用的固定会话集合；首次进入只打开恢复目标，历史会话只在用户显式选择后加入；关闭标签不取消固定，删除会话必须同时清理固定项，活动标签必须属于打开集合，视图不得直接修正集合状态
+- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，并保存标签栏与主侧栏共用且可拖放排序的固定会话集合；首次进入只打开恢复目标，历史会话只在用户显式选择后加入；关闭标签不取消固定，删除会话必须同时清理固定项，活动标签必须属于打开集合，视图不得直接修正集合状态
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层
@@ -42,7 +42,7 @@ src/
 - Surface 搜索入口统一由 `UiSearchInput` 提供中性灰白底、hairline 边界及交互态；消费者只调整尺寸和布局，不得局部覆写背景、边框或阴影
 - Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根不透明 hairline，展开态从物理窗口顶端贯穿到底部，折叠态从 Header 底部开始以避开原生窗口按钮，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
 - App Typography 由 `app/styles/theme-tokens.css` 的语义字号阶梯定义：系统 UI 字体栈保持原生，普通控件使用 14px，页面标题使用 16px，20px 以上只承担对象主标题、品牌或特定空态；根节点不得用界面 token 覆盖继承字号，对话、文件和其他阅读正文继续由所属 Surface 显式声明。业务组件不得用 15/17/22px 等近似任意值恢复旧界面尺度；字体收紧不得同步削减输入框、按钮或移动端触控热区。完整合同见 `docs/specs/web-surface-density-spec.md`
-- 主侧栏品牌栏只保留 Launcher 字标与折叠控制；一级导航承载聊天、联系人和能力，能力下方仅在存在用户固定会话时显示分割线与固定区，每项的 X 只取消固定、不关闭或删除会话；Nexus 主智能体以不可删除的默认 DM 固定在聊天目录顶部；底部统一承载设置、引导与按认证状态显示的退出，展开态将退出和常用入口分居两侧
+- 主侧栏品牌栏只保留 Launcher 字标与折叠控制；一级导航承载聊天、联系人和能力，能力下方仅在存在用户固定会话时显示分割线与可拖放排序的固定区，每项的 X 只取消固定、不关闭或删除会话；Nexus 主智能体以不可删除的默认 DM 固定在聊天目录顶部；底部统一承载设置、引导与按认证状态显示的退出，展开态将退出和常用入口分居两侧
 - Liquid Glass 由专用 Hook 持有能力启用与 Web Animation 生命周期，Filter 视图只描述 SVG 资源链；组件 render 阶段不得写状态，消费者不得通过目录 barrel 导入
 - 样式类名组合只由 `shared/ui/class-name.ts` 提供；时间、Token 和头像规则分别归 `lib/format/` 与 `lib/avatar.ts`，不得恢复混合 `lib/utils.ts`
 - Agent Options 默认值、权限/工具目录、默认 Connector、归一化和可编辑字段投影只由 `lib/agent-options.ts` 定义；Config、Settings、Contacts、Room 与编辑器不得跨 Feature 取规则

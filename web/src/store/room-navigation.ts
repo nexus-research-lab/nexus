@@ -1,8 +1,8 @@
 /**
  * Room 导航偏好 Store
  *
- * [INPUT]: Room 内显式会话选择、标签打开集合、固定会话与有效会话路由
- * [OUTPUT]: 按 Room 持久化标签顺序和活动 Conversation，并保存全局固定会话偏好
+ * [INPUT]: Room 内显式会话选择、标签打开集合、固定会话排序与有效会话路由
+ * [OUTPUT]: 按 Room 持久化标签顺序和活动 Conversation，并保存有序的全局固定会话偏好
  * [POS]: store 模块的页面导航工作区状态，不参与服务端会话排序
  */
 
@@ -22,6 +22,13 @@ export interface PinnedConversationPreference {
   session_key: string;
   title: string;
 }
+
+export type PinnedConversationPlacement = "after" | "before";
+
+type PinnedConversationIdentity = Pick<
+  PinnedConversationPreference,
+  "conversation_id" | "room_id"
+>;
 
 interface PersistedRoomNavigationState {
   conversation_tabs_by_room?: Record<string, RoomConversationTabsState>;
@@ -44,6 +51,11 @@ interface RoomNavigationState {
     roomId: string,
     openConversationIds: readonly string[],
     activeConversationId: string,
+  ) => void;
+  reorder_pinned_conversation: (
+    source: PinnedConversationIdentity,
+    target: PinnedConversationIdentity,
+    placement: PinnedConversationPlacement,
   ) => void;
   toggle_pinned_conversation: (
     conversation: PinnedConversationPreference,
@@ -147,6 +159,52 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
             [normalizedRoomId]: nextTabs,
           },
         };
+      }),
+      reorder_pinned_conversation: (source, target, placement) => set((state) => {
+        const sourceKey = getNormalizedPinnedConversationKey(source);
+        const targetKey = getNormalizedPinnedConversationKey(target);
+        if (
+          !sourceKey
+          || !targetKey
+          || sourceKey === targetKey
+          || (placement !== "before" && placement !== "after")
+        ) {
+          return state;
+        }
+        const sourceIndex = state.pinned_conversations.findIndex(
+          (conversation) => getPinnedConversationKey(
+            conversation.room_id,
+            conversation.conversation_id,
+          ) === sourceKey,
+        );
+        const targetIndex = state.pinned_conversations.findIndex(
+          (conversation) => getPinnedConversationKey(
+            conversation.room_id,
+            conversation.conversation_id,
+          ) === targetKey,
+        );
+        if (sourceIndex < 0 || targetIndex < 0) {
+          return state;
+        }
+        const nextPinnedConversations = [...state.pinned_conversations];
+        const [movedConversation] = nextPinnedConversations.splice(sourceIndex, 1);
+        const adjustedTargetIndex = nextPinnedConversations.findIndex(
+          (conversation) => getPinnedConversationKey(
+            conversation.room_id,
+            conversation.conversation_id,
+          ) === targetKey,
+        );
+        nextPinnedConversations.splice(
+          adjustedTargetIndex + (placement === "after" ? 1 : 0),
+          0,
+          movedConversation,
+        );
+        if (nextPinnedConversations.every(
+          (conversation, index) => conversation === state.pinned_conversations[index],
+        )) {
+          return state;
+        }
+        return {pinned_conversations: nextPinnedConversations};
       }),
       toggle_pinned_conversation: (conversation) => set((state) => {
         const normalizedConversation = normalizePinnedConversation(conversation);
@@ -331,6 +389,16 @@ function matchesPinnedConversation(
 
 function getPinnedConversationKey(roomId: string, conversationId: string): string {
   return `${roomId}\u0000${conversationId}`;
+}
+
+function getNormalizedPinnedConversationKey(
+  conversation: PinnedConversationIdentity,
+): string | null {
+  const roomId = conversation.room_id.trim();
+  const conversationId = conversation.conversation_id.trim();
+  return roomId && conversationId
+    ? getPinnedConversationKey(roomId, conversationId)
+    : null;
 }
 
 function areConversationTabsEqual(

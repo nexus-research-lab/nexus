@@ -29,6 +29,7 @@ import type {
   SidebarPrimaryTab,
   SidebarPrimaryTabItem,
   SidebarPinnedConversationItem,
+  SidebarPinnedConversationPlacement,
   SidebarUtilityLabels,
 } from "./sidebar-wide-panel-types";
 
@@ -46,8 +47,14 @@ interface SidebarPanelProps {
   pinnedConversations: {
     items: SidebarPinnedConversationItem[];
     label: string;
+    onReorder: (
+      source: SidebarPinnedConversationItem,
+      target: SidebarPinnedConversationItem,
+      placement: SidebarPinnedConversationPlacement,
+    ) => void;
     onSelect: (item: SidebarPinnedConversationItem) => void;
     onUnpin: (item: SidebarPinnedConversationItem) => void;
+    reorderLabel: string;
     unpinLabel: string;
   };
   resizable: boolean;

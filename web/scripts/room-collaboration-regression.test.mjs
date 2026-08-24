@@ -1438,6 +1438,9 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
   const { SidebarPinnedConversations } = await server.ssrLoadModule(
     "/src/features/navigation/sidebar/view/sidebar-pinned-conversations.tsx",
   );
+  const { resolveSidebarPinnedConversationDropPlacement } = await server.ssrLoadModule(
+    "/src/features/navigation/sidebar/view/sidebar-pinned-conversations-model.ts",
+  );
   useRoomNavigationStore.setState({
     conversation_tabs_by_room: {},
     pinned_conversations: [],
@@ -1481,8 +1484,10 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
     {
       items,
       label: "固定会话",
+      onReorder: () => {},
       onSelect: () => {},
       onUnpin: () => {},
+      reorderLabel: "拖动调整顺序",
       unpinLabel: "取消固定",
     },
   ));
@@ -1490,6 +1495,8 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
   assert.match(html, /data-pinned-conversation-id="conversation-important"/);
   assert.match(html, /data-pinned-conversation-scroll-region="true"/);
   assert.match(html, /data-pinned-conversation-unpin="true"/);
+  assert.match(html, /draggable="true"/);
+  assert.match(html, /拖动调整顺序/);
   assert.match(html, /overflow-y-auto/);
   assert.match(html, /h-14 w-14/);
   assert.match(html, /left-1\/2 top-0/);
@@ -1499,6 +1506,14 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
     /<span class="[^"]*h-8 w-8[^"]*bg-\(--surface-sidebar-active-background\)[^"]*">/,
   );
   assert.match(html, /h-6 w-6/);
+  assert.equal(
+    resolveSidebarPinnedConversationDropPlacement(119, 100, 40),
+    "before",
+  );
+  assert.equal(
+    resolveSidebarPinnedConversationDropPlacement(120, 100, 40),
+    "after",
+  );
 
   useRoomNavigationStore.getState().unpin_conversation(
     "room-important",
@@ -1512,6 +1527,57 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
     useRoomNavigationStore.getState().pinned_conversations,
     [],
     "再次点击标签图钉应取消固定",
+  );
+});
+
+test("固定会话拖放顺序写回持久偏好", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  const pinnedConversations = [
+    {
+      conversation_id: "first",
+      room_id: "room-a",
+      session_key: "session-first",
+      title: "First",
+    },
+    {
+      conversation_id: "second",
+      room_id: "room-b",
+      session_key: "session-second",
+      title: "Second",
+    },
+    {
+      conversation_id: "third",
+      room_id: "room-c",
+      session_key: "session-third",
+      title: "Third",
+    },
+  ];
+  useRoomNavigationStore.setState({pinned_conversations: pinnedConversations});
+
+  useRoomNavigationStore.getState().reorder_pinned_conversation(
+    {conversation_id: "third", room_id: "room-c"},
+    {conversation_id: "first", room_id: "room-a"},
+    "before",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().pinned_conversations.map(
+      (conversation) => conversation.conversation_id,
+    ),
+    ["third", "first", "second"],
+  );
+
+  useRoomNavigationStore.getState().reorder_pinned_conversation(
+    {conversation_id: "third", room_id: "room-c"},
+    {conversation_id: "second", room_id: "room-b"},
+    "after",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().pinned_conversations.map(
+      (conversation) => conversation.conversation_id,
+    ),
+    ["first", "second", "third"],
   );
 });
 
