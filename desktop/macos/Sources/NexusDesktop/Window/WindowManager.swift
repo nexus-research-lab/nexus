@@ -96,8 +96,17 @@ final class WindowManager: NSObject, NSWindowDelegate {
           let surface = surfaceName(for: window) else {
       return
     }
+    DesktopWindowMetrics.alignWindowControls(in: window)
     startupTimeline.mark("\(surface)_window.became_key")
     recoverMainWebViewIfNeeded(reason: "became_key")
+  }
+
+  func windowDidResize(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow,
+          surfaceName(for: window) != nil else {
+      return
+    }
+    DesktopWindowMetrics.alignWindowControls(in: window)
   }
 
   func windowDidMiniaturize(_ notification: Notification) {
@@ -154,15 +163,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.titleVisibility = .hidden
       window.titlebarAppearsTransparent = true
       window.titlebarSeparatorStyle = .none
-      let toolbar = NSToolbar(identifier: "NexusMainWindowToolbar")
-      toolbar.displayMode = .iconOnly
-      toolbar.sizeMode = .small
-      toolbar.allowsUserCustomization = false
-      toolbar.autosavesConfiguration = false
-      window.toolbar = toolbar
-      window.toolbarStyle = .unified
-      window.showsToolbarButton = false
       window.contentView?.layoutSubtreeIfNeeded()
+      DesktopWindowMetrics.alignWindowControls(in: window)
       let windowControlsLeadingInset =
         DesktopWindowMetrics.windowControlsLeadingInset(in: window)
       let windowCloseButtonCenter =

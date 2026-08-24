@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a playful macOS DMG layout with a guided drag path and a Nexus mascot peeking from behind Applications.
 
 ### Changed
+- Reduced the native macOS app window curvature while preserving a spacious 48px shared header and aligning Launcher decoration to the measured traffic-light center.
 - Separated compact Browser model text from complete structured UI results, reduced accessibility snapshots to 12 KB, and bounded default page content to 12,000 characters with a 200,000-character explicit ceiling.
 - Restyled the Browser action pointer with an accurate hotspot, branded glow, spring-guided travel, directional motion, and a one-shot settling sway.
 - Restored the Composer task strip to a flat presentation without card chrome, while keeping the complete task summary visible through viewport-safe wrapping and preserving task progress and expansion.
