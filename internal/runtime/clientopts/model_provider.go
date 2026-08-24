@@ -13,4 +13,5 @@ type RuntimeConfig struct {
 	Reasoning              bool
 	Vision                 bool
 	ContextWindow          int
+	MaxOutputTokens        int
 }
