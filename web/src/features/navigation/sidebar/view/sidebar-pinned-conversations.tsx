@@ -43,7 +43,7 @@ export function SidebarPinnedConversations({
         {items.map((item) => (
           <div
             className={cn(
-              "group/pinned relative h-[58px] w-14 shrink-0 rounded-[12px] transition-[background,color] duration-(--motion-duration-fast)",
+              "group/pinned relative h-14 w-14 shrink-0 rounded-[12px] transition-[background,color] duration-(--motion-duration-fast)",
               item.active
                 ? SIDEBAR_SELECTION_CLASS_NAME
                 : "hover:bg-(--surface-interactive-hover-background)",
@@ -61,7 +61,7 @@ export function SidebarPinnedConversations({
               <span className="absolute left-1/2 top-0 flex h-8 w-8 -translate-x-1/2 items-center justify-center">
                 <MessageSquareText className="h-[17px] w-[17px]" />
               </span>
-              <span className="absolute inset-x-0 bottom-1 block truncate px-1 text-center leading-tight">
+              <span className="absolute inset-x-0 bottom-2 block truncate px-1 text-center leading-tight">
                 {item.title}
               </span>
             </button>
