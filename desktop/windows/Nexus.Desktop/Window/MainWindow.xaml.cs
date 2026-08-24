@@ -480,7 +480,11 @@ public partial class MainWindow : System.Windows.Window
 
     private void ExitApplication(object sender, RoutedEventArgs e) => ExitFromTray();
 
-    private void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void MinimizeWindow(object sender, RoutedEventArgs e)
+    {
+        webViewHost?.SetHostWindowInteractive(interactive: false, "window_minimized");
+        SystemCommands.MinimizeWindow(this);
+    }
 
     private void MaximizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MaximizeWindow(this);
 
