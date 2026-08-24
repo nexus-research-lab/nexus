@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stabilized indexed history, round navigation, scrolling, Room streaming, queued interjections, reconnect retries, and recoverable conversation errors.
 - Hardened WorkGraph editing and saves across isolated hidden sessions, restarts, immutable version selection, and durable Plan proposal binding.
 - Fixed Browser tab and reference lifecycle, command validation, bounded snapshots, pointer input, and desktop-only availability.
-- Fixed Windows WebView input capture, macOS resume probes, default Provider selection, and compact responsive label clipping.
+- Fixed late-created Windows WebView input windows, macOS resume probes and DMG assembly, default Provider selection, and compact responsive label clipping.
 
 ## [0.1.36] - 2026-08-19
 
