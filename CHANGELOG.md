@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added persistent pinned conversation shortcuts below the sidebar capability entry, with tab pin toggles and an independent hover/focus X action for unpinning.
+- Added persistent pinned conversation shortcuts below the sidebar capability entry, with tab pin toggles, drag reordering, and an independent hover/focus X action for unpinning.
 
 ### Changed
 

@@ -28,8 +28,11 @@ import {
   buildSidebarUtilityLabels,
   deriveSidebarPrimaryTab,
 } from "./sidebar-wide-panel-model";
-import type { SidebarPrimaryTab } from "./view/sidebar-wide-panel-types";
-import type { SidebarPinnedConversationItem } from "./view/sidebar-wide-panel-types";
+import type {
+  SidebarPinnedConversationItem,
+  SidebarPinnedConversationPlacement,
+  SidebarPrimaryTab,
+} from "./view/sidebar-wide-panel-types";
 import { useSidebarPanelResize } from "./use-sidebar-panel-resize";
 
 export function useSidebarWidePanelController({
@@ -44,6 +47,9 @@ export function useSidebarWidePanelController({
   const directory = useHomeDirectory();
   const pinnedConversations = useRoomNavigationStore(
     (state) => state.pinned_conversations,
+  );
+  const reorderPinnedConversation = useRoomNavigationStore(
+    (state) => state.reorder_pinned_conversation,
   );
   const unpinConversation = useRoomNavigationStore(
     (state) => state.unpin_conversation,
@@ -128,6 +134,23 @@ export function useSidebarWidePanelController({
   const removePinnedConversation = useCallback((item: SidebarPinnedConversationItem) => {
     unpinConversation(item.roomId, item.conversationId);
   }, [unpinConversation]);
+  const reorderPinnedConversationItem = useCallback((
+    source: SidebarPinnedConversationItem,
+    target: SidebarPinnedConversationItem,
+    placement: SidebarPinnedConversationPlacement,
+  ) => {
+    reorderPinnedConversation(
+      {
+        conversation_id: source.conversationId,
+        room_id: source.roomId,
+      },
+      {
+        conversation_id: target.conversationId,
+        room_id: target.roomId,
+      },
+      placement,
+    );
+  }, [reorderPinnedConversation]);
 
   return {
     collapsed: widePanelCollapsed,
@@ -151,8 +174,10 @@ export function useSidebarWidePanelController({
       pinnedConversations: {
         items: pinnedConversationItems,
         label: t("sidebar.pinned_conversations"),
+        onReorder: reorderPinnedConversationItem,
         onSelect: selectPinnedConversation,
         onUnpin: removePinnedConversation,
+        reorderLabel: t("sidebar.reorder_pinned_conversation"),
         unpinLabel: t("sidebar.unpin_conversation"),
       },
       tabs,
