@@ -58,7 +58,7 @@ export function SidebarPinnedConversations({
               title={item.title}
               type="button"
             >
-              <span className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center">
+              <span className="absolute left-1/2 top-0 flex h-8 w-8 -translate-x-1/2 items-center justify-center">
                 <MessageSquareText className="h-[17px] w-[17px]" />
               </span>
               <span className="absolute inset-x-0 bottom-1 block truncate px-1 text-center leading-tight">
@@ -67,7 +67,7 @@ export function SidebarPinnedConversations({
             </button>
             <button
               aria-label={`${unpinLabel}：${item.title}`}
-              className="absolute right-0 top-0 z-10 flex h-6 w-6 items-center justify-center rounded-full text-(--icon-muted) opacity-0 transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background) hover:text-(--text-strong) focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)] group-focus-within/pinned:opacity-100 group-hover/pinned:opacity-100"
+              className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full text-(--icon-muted) opacity-0 transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background) hover:text-(--text-strong) focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)] group-focus-within/pinned:opacity-100 group-hover/pinned:opacity-100"
               data-pinned-conversation-unpin="true"
               onClick={() => onUnpin(item)}
               title={unpinLabel}

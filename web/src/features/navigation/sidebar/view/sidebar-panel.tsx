@@ -178,7 +178,7 @@ export function SidebarPanel({
               aria-label={navigationLabel}
               className="shell-navigation-rail flex min-h-0 w-16 shrink-0 flex-col"
             >
-              <div className="w-12 shrink-0">
+              <div className="w-full shrink-0">
                 <SidebarPrimaryTabs
                   activeTab={activeTab}
                   items={tabs}

@@ -1492,6 +1492,8 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
   assert.match(html, /data-pinned-conversation-unpin="true"/);
   assert.match(html, /overflow-y-auto/);
   assert.match(html, /h-\[58px\] w-14/);
+  assert.match(html, /left-1\/2 top-0/);
+  assert.match(html, /-translate-x-1\/2/);
   assert.match(html, /h-6 w-6/);
 
   useRoomNavigationStore.getState().unpin_conversation(
