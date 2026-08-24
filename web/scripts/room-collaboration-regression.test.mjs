@@ -1494,6 +1494,10 @@ test("固定会话可从标签切换，并由侧栏 X 独立取消", async () =>
   assert.match(html, /h-14 w-14/);
   assert.match(html, /left-1\/2 top-0/);
   assert.match(html, /-translate-x-1\/2/);
+  assert.match(
+    html,
+    /<span class="[^"]*h-8 w-8[^"]*bg-\(--surface-sidebar-active-background\)[^"]*">/,
+  );
   assert.match(html, /h-6 w-6/);
 
   useRoomNavigationStore.getState().unpin_conversation(
