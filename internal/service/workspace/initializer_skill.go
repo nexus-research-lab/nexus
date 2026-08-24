@@ -1,5 +1,5 @@
 // INPUT: 平台或用户 Skill 源目录、已授权 workspace 根与模板上下文。
-// OUTPUT: nxs/Claude Skill 入口及包含非可选 Goal/Execution 绑定的运行时可见/停用 Skill 名称。
+// OUTPUT: nxs/Claude Skill 入口及包含默认产品说明、非可选 Goal/Execution 绑定的运行时可见/停用 Skill 名称。
 // POS: 宿主同步 Skill 文件时的双向 confinedfs 边界。
 package workspace
 
@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation"}, runtimecommand.ManagedSemanticSkillNames()...), "nexus-configuration")
+	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation"}, runtimecommand.ManagedSemanticSkillNames()...), "nexus-configuration", "nexus-product-guide")
 	mainAgentSkillNames = []string{"nexus-manager"}
 	// createSymlink 仅作为平台能力探针；真正的创建由 confinedfs.Root.Symlink 完成。
 	createSymlink = func(string, string) error { return nil }

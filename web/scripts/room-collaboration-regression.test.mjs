@@ -561,14 +561,18 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
     );
   const active = resolveWorkspaceConversationTabPresentation({
     canClose: true,
+    canPin: true,
     externalSessionLabel: null,
     isActive: true,
+    isPinned: true,
     title: "active",
   });
   const inactive = resolveWorkspaceConversationTabPresentation({
     canClose: true,
+    canPin: true,
     externalSessionLabel: null,
     isActive: false,
+    isPinned: false,
     title: "inactive",
   });
 
@@ -593,6 +597,9 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
     inactive.rootClassName,
     /\bworkspace-surface-header-active-tab\b/,
   );
+  assert.equal(active.showPin, true);
+  assert.match(active.pinClassName, /text-\(--primary\)/);
+  assert.match(active.contentClassName, /pr-\[52px\]/);
 });
 
 test("关闭最后标签直接提交正常 draft 并安全停止旧 runtime", async () => {
@@ -1421,16 +1428,216 @@ test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () 
 
 });
 
+test("固定会话可从标签切换，并由侧栏 X 独立取消", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  const { buildSidebarPinnedConversations } = await server.ssrLoadModule(
+    "/src/features/navigation/sidebar/sidebar-wide-panel-model.ts",
+  );
+  const { SidebarPinnedConversations } = await server.ssrLoadModule(
+    "/src/features/navigation/sidebar/view/sidebar-pinned-conversations.tsx",
+  );
+  const { resolveSidebarPinnedConversationDropPlacement } = await server.ssrLoadModule(
+    "/src/features/navigation/sidebar/view/sidebar-pinned-conversations-model.ts",
+  );
+  useRoomNavigationStore.setState({
+    conversation_tabs_by_room: {},
+    pinned_conversations: [],
+  });
+
+  const preference = {
+    conversation_id: "conversation-important",
+    room_id: "room-important",
+    session_key: "room:conversation-important",
+    title: "旧标题",
+  };
+  useRoomNavigationStore.getState().toggle_pinned_conversation(preference);
+  assert.deepEqual(useRoomNavigationStore.getState().pinned_conversations, [preference]);
+
+  const items = buildSidebarPinnedConversations({
+    conversations: [{
+      conversation_id: "conversation-important",
+      last_activity: "2026-08-24T08:00:00Z",
+      message_count: 2,
+      room_id: "room-important",
+      room_type: "dm",
+      session_key: "room:conversation-important",
+      title: "重要会话",
+    }],
+    pathname: "/rooms/room-important/conversations/conversation-important",
+    pinnedConversations: useRoomNavigationStore.getState().pinned_conversations,
+    untitledLabel: "新会话",
+  });
+  assert.deepEqual(items.map((item) => ({
+    active: item.active,
+    route: item.route,
+    title: item.title,
+  })), [{
+    active: true,
+    route: "/rooms/room-important/conversations/conversation-important",
+    title: "重要会话",
+  }]);
+
+  const html = renderToStaticMarkup(React.createElement(
+    SidebarPinnedConversations,
+    {
+      items,
+      label: "固定会话",
+      onReorder: () => {},
+      onSelect: () => {},
+      onUnpin: () => {},
+      reorderLabel: "拖动调整顺序",
+      unpinLabel: "取消固定",
+    },
+  ));
+  assert.match(html, /aria-label="取消固定：重要会话"/);
+  assert.match(html, /data-pinned-conversation-id="conversation-important"/);
+  assert.match(html, /data-pinned-conversation-scroll-region="true"/);
+  assert.match(html, /data-pinned-conversation-unpin="true"/);
+  assert.match(html, /draggable="true"/);
+  assert.match(html, /拖动调整顺序/);
+  assert.match(html, /overflow-y-auto/);
+  assert.match(html, /h-14 w-14/);
+  assert.match(html, /left-1\/2 top-0/);
+  assert.match(html, /-translate-x-1\/2/);
+  assert.match(
+    html,
+    /<span class="[^"]*h-8 w-8[^"]*bg-\(--surface-sidebar-active-background\)[^"]*">/,
+  );
+  assert.match(html, /h-6 w-6/);
+  assert.equal(
+    resolveSidebarPinnedConversationDropPlacement(119, 100, 40),
+    "before",
+  );
+  assert.equal(
+    resolveSidebarPinnedConversationDropPlacement(120, 100, 40),
+    "after",
+  );
+
+  useRoomNavigationStore.getState().unpin_conversation(
+    "room-important",
+    "conversation-important",
+  );
+  assert.deepEqual(useRoomNavigationStore.getState().pinned_conversations, []);
+
+  useRoomNavigationStore.getState().toggle_pinned_conversation(preference);
+  useRoomNavigationStore.getState().toggle_pinned_conversation(preference);
+  assert.deepEqual(
+    useRoomNavigationStore.getState().pinned_conversations,
+    [],
+    "再次点击标签图钉应取消固定",
+  );
+});
+
+test("固定会话拖放顺序写回持久偏好", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  const pinnedConversations = [
+    {
+      conversation_id: "first",
+      room_id: "room-a",
+      session_key: "session-first",
+      title: "First",
+    },
+    {
+      conversation_id: "second",
+      room_id: "room-b",
+      session_key: "session-second",
+      title: "Second",
+    },
+    {
+      conversation_id: "third",
+      room_id: "room-c",
+      session_key: "session-third",
+      title: "Third",
+    },
+  ];
+  useRoomNavigationStore.setState({pinned_conversations: pinnedConversations});
+
+  useRoomNavigationStore.getState().reorder_pinned_conversation(
+    {conversation_id: "third", room_id: "room-c"},
+    {conversation_id: "first", room_id: "room-a"},
+    "before",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().pinned_conversations.map(
+      (conversation) => conversation.conversation_id,
+    ),
+    ["third", "first", "second"],
+  );
+
+  useRoomNavigationStore.getState().reorder_pinned_conversation(
+    {conversation_id: "third", room_id: "room-c"},
+    {conversation_id: "second", room_id: "room-b"},
+    "after",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().pinned_conversations.map(
+      (conversation) => conversation.conversation_id,
+    ),
+    ["first", "second", "third"],
+  );
+});
+
+test("固定会话迁移会清洗空身份并保持首次固定顺序", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  const migrate = useRoomNavigationStore.persist.getOptions().migrate;
+  const migrated = await migrate({
+    pinned_conversations: [
+      {
+        conversation_id: " first ",
+        room_id: " room-a ",
+        session_key: " session-a ",
+        title: " First ",
+      },
+      {
+        conversation_id: "first",
+        room_id: "room-a",
+        session_key: "duplicate",
+        title: "Duplicate",
+      },
+      {
+        conversation_id: "",
+        room_id: "room-b",
+        session_key: "invalid",
+        title: "Invalid",
+      },
+    ],
+  }, 4);
+  assert.deepEqual(migrated, {
+    conversation_tabs_by_room: {},
+    pinned_conversations: [{
+      conversation_id: "first",
+      room_id: "room-a",
+      session_key: "session-a",
+      title: "First",
+    }],
+  });
+});
+
 test("删除外部 IM Session 会从持久化标签栏移除旧身份", async () => {
   const { useRoomNavigationStore } = await server.ssrLoadModule(
     "/src/store/room-navigation.ts",
   );
-  useRoomNavigationStore.setState({conversation_tabs_by_room: {}});
+  useRoomNavigationStore.setState({
+    conversation_tabs_by_room: {},
+    pinned_conversations: [],
+  });
   useRoomNavigationStore.getState().save_room_conversation_tabs(
     "room-im",
     ["local", "external-session:agent:a:tg:dm:old"],
     "external-session:agent:a:tg:dm:old",
   );
+  useRoomNavigationStore.getState().toggle_pinned_conversation({
+    conversation_id: "external-session:agent:a:tg:dm:old",
+    room_id: "room-im",
+    session_key: "agent:a:tg:dm:old",
+    title: "旧 IM 会话",
+  });
 
   useRoomNavigationStore.getState().forget_conversation(
     "room-im",
@@ -1444,6 +1651,7 @@ test("删除外部 IM Session 会从持久化标签栏移除旧身份", async ()
       open_conversation_ids: ["local"],
     },
   );
+  assert.deepEqual(useRoomNavigationStore.getState().pinned_conversations, []);
 });
 
 test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {

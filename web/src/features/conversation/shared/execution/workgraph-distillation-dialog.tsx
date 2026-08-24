@@ -1,14 +1,21 @@
 /**
  * INPUT: 默认对话模型从 exact 完成图抽取的临时草图。
- * OUTPUT: 左侧命名表单、右侧低文字结构预览，以及明确的保存/调整动作。
- * POS: 完成态 WorkGraph 到持久化流程的克制确认台，不展示模型或后台实现自述。
+ * OUTPUT: 带防抖重复命名检测的左侧命名表单、右侧共用完整工作图画布，以及明确的保存/调整动作。
+ * POS: 完成态 WorkGraph 到持久化流程的克制确认台；预览与调整页共用 WorkGraph 画布，命名预检不替代服务端保存栅栏。
  */
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, LoaderCircle, MessageSquareText } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  LoaderCircle,
+  MessageSquareText,
+  SquareTerminal,
+  Workflow,
+} from "lucide-react";
 
 import { scheduleWorkGraphWorkflowSaveApi } from "@/lib/api/conversation/execution-api";
+import { ApiRequestError } from "@/lib/api/core/http-error";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -22,8 +29,12 @@ import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import type { Agent } from "@/types/agent/agent";
 import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
-import { NamedWorkGraphSketch } from "./named-workgraph-sketch";
+import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import { WorkGraphMetadataEditorDialog } from "./workgraph-metadata-editor-dialog";
+import { projectWorkGraphWorkflowCanvasExecution } from "./workgraph-workflow-canvas-model";
+import { useWorkGraphSlashNameAvailability } from "./use-workgraph-slash-name-availability";
+
+const WORKGRAPH_SLASH_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 
 export function WorkGraphDistillationDialog({
   agents,
@@ -44,12 +55,36 @@ export function WorkGraphDistillationDialog({
   const [slashName, setSlashName] = useState(preview.slash_name);
   const [title, setTitle] = useState(preview.title);
   const [description, setDescription] = useState(preview.description ?? "");
+  const [confirmedConflictName, setConfirmedConflictName] = useState<string | null>(null);
   const normalizedSlashName = slashName.trim().replace(/^\/+/, "").toLowerCase();
-  const metadataError = !/^[a-z][a-z0-9-]{0,63}$/.test(normalizedSlashName)
+  const slashNameFormatError = !WORKGRAPH_SLASH_NAME_PATTERN.test(normalizedSlashName)
     ? t("execution.workflow_slash_invalid")
+    : null;
+  const slashNameAvailability = useWorkGraphSlashNameAvailability({
+    enabled: slashNameFormatError === null && saveState === "idle",
+    previewId: workingPreview.preview_id,
+    slashName: normalizedSlashName,
+  });
+  const availabilityMatchesInput = slashNameAvailability.slashName === normalizedSlashName;
+  const slashNameUnavailable = confirmedConflictName === normalizedSlashName || (
+    availabilityMatchesInput && slashNameAvailability.status === "unavailable"
+  );
+  const slashNameCheckFailed = availabilityMatchesInput && slashNameAvailability.status === "error";
+  const slashNameAvailable = confirmedConflictName !== normalizedSlashName
+    && availabilityMatchesInput
+    && slashNameAvailability.status === "available";
+  const slashNameError = slashNameFormatError
+    ?? (slashNameUnavailable ? t("execution.workflow_slash_unavailable") : null)
+    ?? (slashNameCheckFailed ? t("execution.workflow_slash_check_failed") : null);
+  const metadataError = slashNameError
+    ? slashNameError
     : !title.trim() || !description.trim()
       ? t("execution.workflow_metadata_required")
       : null;
+  const canvasExecution = useMemo(
+    () => projectWorkGraphWorkflowCanvasExecution(workingPreview, 1),
+    [workingPreview],
+  );
 
   const handleSave = async () => {
     setSaveState("saving");
@@ -62,7 +97,12 @@ export function WorkGraphDistillationDialog({
       });
       setSaveState("scheduled");
     } catch (reason: unknown) {
-      setSaveError(getErrorMessage(reason, t("execution.workflow_schedule_failed")));
+      if (reason instanceof ApiRequestError && reason.status === 409) {
+        setConfirmedConflictName(normalizedSlashName);
+        setSaveError(null);
+      } else {
+        setSaveError(getErrorMessage(reason, t("execution.workflow_schedule_failed")));
+      }
       setSaveState("idle");
     }
   };
@@ -86,68 +126,98 @@ export function WorkGraphDistillationDialog({
           />
           <div className="grid min-h-0 flex-1 md:grid-cols-[360px_minmax(0,1fr)]">
             <aside className="flex min-h-0 flex-col border-r border-(--divider-subtle-color) bg-(--surface-muted-background) px-7 pb-6 pt-7">
-              <header className="pr-10">
-                <h2
-                  className="text-[19px] font-semibold tracking-[-0.01em] text-(--text-strong)"
-                  id="workgraph-distillation-dialog-title"
-                >
-                  {t("execution.workflow_distill_title")}
-                </h2>
-                <code className="mt-2 inline-flex rounded-md bg-(--surface-panel-background) px-2 py-1 text-xs text-(--text-muted)">
-                  /{normalizedSlashName || "—"}
-                </code>
+              <header className="flex items-start gap-3 pr-10">
+                <span className="radius-control-md grid h-9 w-9 shrink-0 place-items-center border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default) shadow-[0_1px_0_color-mix(in_srgb,var(--text-strong)_4%,transparent)]">
+                  <Workflow className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 pt-0.5">
+                  <h2
+                    className="text-[19px] font-semibold leading-6 tracking-[-0.01em] text-(--text-strong)"
+                    id="workgraph-distillation-dialog-title"
+                  >
+                    {t("execution.workflow_distill_title")}
+                  </h2>
+                  <p className="mt-1 text-xs text-(--text-muted)">
+                    {t("execution.workflow_sketch_label")} · {workingPreview.nodes.length} {t("execution.workflow_nodes_short")}
+                  </p>
+                </div>
               </header>
 
-              <div className="soft-scrollbar mt-7 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-              <UiField
-                error={metadataError && !/^[a-z][a-z0-9-]{0,63}$/.test(normalizedSlashName) ? metadataError : null}
-                htmlFor="workgraph-slash-name"
-                label={t("execution.workflow_slash_name")}
-              >
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-mono text-sm text-(--text-soft)">/</span>
-                  <UiInput
-                    autoCapitalize="none"
-                    autoComplete="off"
-                    className="pl-6 font-mono"
-                    disabled={saveState !== "idle"}
-                    id="workgraph-slash-name"
-                    maxLength={64}
-                    spellCheck={false}
-                    value={slashName}
-                    variant="dialog"
-                    onChange={(event) => setSlashName(event.target.value)}
-                  />
+              <div className="soft-scrollbar mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
+                <UiField
+                  className="surface-radius-md border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] p-3.5"
+                  description={slashNameFormatError === null && availabilityMatchesInput ? (
+                    slashNameAvailability.status === "checking" ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        {t("execution.workflow_slash_checking")}
+                      </span>
+                    ) : slashNameAvailable ? (
+                      <span className="inline-flex items-center gap-1.5 text-(--success)">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {t("execution.workflow_slash_available")}
+                      </span>
+                    ) : null
+                  ) : null}
+                  error={slashNameError}
+                  htmlFor="workgraph-slash-name"
+                  label={(
+                    <span className="inline-flex items-center gap-1.5 font-medium text-(--text-default)">
+                      <SquareTerminal className="h-3.5 w-3.5 text-(--primary)" />
+                      {t("execution.workflow_slash_name")}
+                    </span>
+                  )}
+                >
+                  <div className="relative">
+                    <span className="radius-control-xs pointer-events-none absolute bottom-1 left-1 top-1 z-10 grid w-8 place-items-center bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] font-mono text-sm font-semibold text-(--primary)">/</span>
+                    <UiInput
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      className="h-10 pl-11 font-mono font-medium tracking-[-0.01em]"
+                      disabled={saveState !== "idle"}
+                      id="workgraph-slash-name"
+                      maxLength={64}
+                      spellCheck={false}
+                      value={slashName}
+                      variant="dialog"
+                      onChange={(event) => {
+                        setConfirmedConflictName(null);
+                        setSlashName(event.target.value);
+                      }}
+                    />
+                  </div>
+                </UiField>
+
+                <div className="space-y-4 border-t border-(--divider-subtle-color) pt-5">
+                  <UiField htmlFor="workgraph-title" label={t("execution.workflow_title")}>
+                    <UiInput
+                      disabled={saveState !== "idle"}
+                      id="workgraph-title"
+                      maxLength={120}
+                      value={title}
+                      variant="dialog"
+                      onChange={(event) => setTitle(event.target.value)}
+                    />
+                  </UiField>
+                  <UiField
+                    error={metadataError && (!title.trim() || !description.trim()) ? metadataError : null}
+                    htmlFor="workgraph-description"
+                    label={t("execution.workflow_description")}
+                  >
+                    <UiTextarea
+                      className="min-h-28 resize-none leading-6"
+                      disabled={saveState !== "idle"}
+                      id="workgraph-description"
+                      maxLength={500}
+                      value={description}
+                      variant="dialog"
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </UiField>
                 </div>
-              </UiField>
-              <UiField htmlFor="workgraph-title" label={t("execution.workflow_title")}>
-                <UiInput
-                  disabled={saveState !== "idle"}
-                  id="workgraph-title"
-                  maxLength={120}
-                  value={title}
-                  variant="dialog"
-                  onChange={(event) => setTitle(event.target.value)}
-                />
-              </UiField>
-              <UiField
-                error={metadataError && (!title.trim() || !description.trim()) ? metadataError : null}
-                htmlFor="workgraph-description"
-                label={t("execution.workflow_description")}
-              >
-                <UiTextarea
-                  className="min-h-28 resize-none"
-                  disabled={saveState !== "idle"}
-                  id="workgraph-description"
-                  maxLength={500}
-                  value={description}
-                  variant="dialog"
-                  onChange={(event) => setDescription(event.target.value)}
-                />
-              </UiField>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-5 space-y-3 border-t border-(--divider-subtle-color) pt-5">
                 {saveState === "scheduled" ? (
                   <div className="flex items-start gap-2 text-xs text-(--text-default)">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
@@ -169,7 +239,7 @@ export function WorkGraphDistillationDialog({
                     {t("common.close")}
                   </button>
                 ) : (
-                  <button className={`${getDialogActionClassName("primary", "compact")} w-full`} disabled={saveState === "saving" || metadataError !== null} type="button" onClick={() => void handleSave()}>
+                  <button className={`${getDialogActionClassName("primary", "compact")} w-full`} disabled={saveState === "saving" || metadataError !== null || !slashNameAvailable} type="button" onClick={() => void handleSave()}>
                     {saveState === "saving" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
                     {t(saveState === "saving" ? "execution.workflow_scheduling" : "execution.workflow_save_sketch")}
                   </button>
@@ -192,12 +262,12 @@ export function WorkGraphDistillationDialog({
                   {t("execution.workflow_edit_with_chat")}
                 </button>
               </header>
-              <div className="soft-scrollbar min-h-0 flex-1 overflow-auto">
-                <NamedWorkGraphSketch
-                  appearance="editor"
-                  className="min-h-full"
-                  dependencies={workingPreview.dependencies}
-                  nodes={workingPreview.nodes}
+              <div className="flex min-h-0 flex-1">
+                <ExecutionWorkGraphCanvas
+                  currentId={null}
+                  directory={{}}
+                  execution={canvasExecution}
+                  taskRuns={[]}
                 />
               </div>
             </main>
@@ -216,6 +286,7 @@ export function WorkGraphDistillationDialog({
           sessionKey={sessionKey}
           onApply={(nextPreview) => {
             setWorkingPreview(nextPreview);
+            setConfirmedConflictName(null);
             setSlashName(nextPreview.slash_name);
             setTitle(nextPreview.title);
             setDescription(nextPreview.description ?? "");

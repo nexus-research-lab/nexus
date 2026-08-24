@@ -77,7 +77,11 @@ function handleListRowKeyDown(
   onClick: UiListRowProps["onClick"],
 ): void {
   onKeyDown?.(event);
-  if (!onClick || event.defaultPrevented) {
+  if (
+    !onClick
+    || event.defaultPrevented
+    || event.target !== event.currentTarget
+  ) {
     return;
   }
   if (event.key === "Enter" || event.key === " ") {

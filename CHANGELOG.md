@@ -12,14 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added bundled Word, PDF, PowerPoint, and Excel Skills with task-specific reading, creation, editing, conversion, and delivery workflows.
+- Added persistent pinned conversation shortcuts with tab pinning, drag reordering, and direct unpin actions.
+- Expanded the Guide Center and added a source-checked Nexus product guide Skill covering conversations, Rooms, Goals, WorkGraphs, proactive follow-up, scheduled tasks, Browser, external services, messaging, and settings.
 
 ### Changed
 
 - Updated the bundled nxs runtime to v0.1.29 with authoritative native runtime-state reporting and a leaner Nexus-focused tool surface.
+- Improved WorkGraph saving with the full interactive preview, inline Slash-name validation, missing-context questions, and an explicit review checkpoint.
+- Updated welcome messages to guide users toward Nexus features while preserving Room `@AgentName` routing rules.
 
 ### Fixed
 
 - Switched Windows WebView2 minimize and tray handling to its supported visibility lifecycle, preserving desktop and keyboard input after updates and window restores.
+- Prevented keyboard actions on nested list controls from also opening their parent row.
 
 ## [0.1.37] - 2026-08-24
 

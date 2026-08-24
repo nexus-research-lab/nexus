@@ -1,3 +1,10 @@
+/**
+ * INPUT: 产品页面的稳定资源身份，以及 Room 内部/外部 Conversation 身份。
+ * OUTPUT: 全应用 canonical 路由模板与编码后的导航构造器。
+ * POS: App 路由与跨 Feature 导航的路径真相源。
+ */
+import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
+
 export const APP_ROUTE_PATHS = {
   landing: "/",
   login: "/login",
@@ -34,6 +41,12 @@ export const AppRouteBuilders = {
     `/rooms/${encodeURIComponent(roomId)}/sessions/${encodeURIComponent(sessionKey)}`,
   roomConversation: (roomId: string, conversationId: string) =>
     `/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
+  conversation: (roomId: string, conversationId: string) => {
+    const externalSessionKey = getExternalSessionKeyFromConversationId(conversationId);
+    return externalSessionKey
+      ? `/rooms/${encodeURIComponent(roomId)}/sessions/${encodeURIComponent(externalSessionKey)}`
+      : `/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`;
+  },
   contacts: () => APP_ROUTE_PATHS.contacts,
   contactAgent: (agentId: string) => `${APP_ROUTE_PATHS.contacts}?agent=${encodeURIComponent(agentId)}`,
   contactsCreate: () => `${APP_ROUTE_PATHS.contacts}?view=create`,

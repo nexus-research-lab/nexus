@@ -1,3 +1,6 @@
+// INPUT: Agent 创建请求、owner 身份与平台默认配置。
+// OUTPUT: 带默认产品说明及受管能力绑定的 Agent 持久化记录。
+// POS: Agent 创建阶段的默认选项与记录构造入口。
 package agent
 
 import (
@@ -123,7 +126,7 @@ func defaultMainAgentOptions() protocol.Options {
 func defaultAgentOptions(isMain bool) protocol.Options {
 	skillIDs := []string{"imagegen", "visualize", "automation"}
 	skillIDs, _ = runtimecommand.BindManagedSemanticSkills(skillIDs, nil)
-	skillIDs = append(skillIDs, "nexus-configuration")
+	skillIDs = append(skillIDs, "nexus-configuration", "nexus-product-guide")
 	if isMain {
 		skillIDs = append(skillIDs, "nexus-manager")
 	}

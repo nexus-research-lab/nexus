@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentId } from "@/config/runtime-options";
+import { useHomeDirectory } from "@/features/home/home-directory-resource";
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -19,13 +20,19 @@ import {
   deriveSidebarItemIdFromPath,
   useSidebarStore,
 } from "@/store/sidebar";
+import { useRoomNavigationStore } from "@/store/room-navigation";
 
 import {
+  buildSidebarPinnedConversations,
   buildSidebarPrimaryTabs,
   buildSidebarUtilityLabels,
   deriveSidebarPrimaryTab,
 } from "./sidebar-wide-panel-model";
-import type { SidebarPrimaryTab } from "./view/sidebar-wide-panel-types";
+import type {
+  SidebarPinnedConversationItem,
+  SidebarPinnedConversationPlacement,
+  SidebarPrimaryTab,
+} from "./view/sidebar-wide-panel-types";
 import { useSidebarPanelResize } from "./use-sidebar-panel-resize";
 
 export function useSidebarWidePanelController({
@@ -37,6 +44,16 @@ export function useSidebarWidePanelController({
   const { logout, status: authStatus } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const directory = useHomeDirectory();
+  const pinnedConversations = useRoomNavigationStore(
+    (state) => state.pinned_conversations,
+  );
+  const reorderPinnedConversation = useRoomNavigationStore(
+    (state) => state.reorder_pinned_conversation,
+  );
+  const unpinConversation = useRoomNavigationStore(
+    (state) => state.unpin_conversation,
+  );
   const activePanelItemId = useSidebarStore((state) => state.active_panel_item_id);
   const chatBadgeCount = useSidebarStore((state) => state.chat_badge_count);
   const acknowledgeChatTab = useSidebarStore(
@@ -101,7 +118,39 @@ export function useSidebarWidePanelController({
     () => buildSidebarPrimaryTabs(t, activeTab, chatBadgeCount),
     [activeTab, chatBadgeCount, t],
   );
+  const pinnedConversationItems = useMemo(
+    () => buildSidebarPinnedConversations({
+      conversations: directory.conversations,
+      pathname,
+      pinnedConversations,
+      untitledLabel: t("room.new_conversation"),
+    }),
+    [directory.conversations, pathname, pinnedConversations, t],
+  );
   const utilityLabels = useMemo(() => buildSidebarUtilityLabels(t), [t]);
+  const selectPinnedConversation = useCallback((item: SidebarPinnedConversationItem) => {
+    navigate(item.route);
+  }, [navigate]);
+  const removePinnedConversation = useCallback((item: SidebarPinnedConversationItem) => {
+    unpinConversation(item.roomId, item.conversationId);
+  }, [unpinConversation]);
+  const reorderPinnedConversationItem = useCallback((
+    source: SidebarPinnedConversationItem,
+    target: SidebarPinnedConversationItem,
+    placement: SidebarPinnedConversationPlacement,
+  ) => {
+    reorderPinnedConversation(
+      {
+        conversation_id: source.conversationId,
+        room_id: source.roomId,
+      },
+      {
+        conversation_id: target.conversationId,
+        room_id: target.roomId,
+      },
+      placement,
+    );
+  }, [reorderPinnedConversation]);
 
   return {
     collapsed: widePanelCollapsed,
@@ -122,6 +171,15 @@ export function useSidebarWidePanelController({
       activeTab,
       navigationLabel: t("sidebar.workspace_title"),
       onSelectTab: selectPrimaryTab,
+      pinnedConversations: {
+        items: pinnedConversationItems,
+        label: t("sidebar.pinned_conversations"),
+        onReorder: reorderPinnedConversationItem,
+        onSelect: selectPinnedConversation,
+        onUnpin: removePinnedConversation,
+        reorderLabel: t("sidebar.reorder_pinned_conversation"),
+        unpinLabel: t("sidebar.unpin_conversation"),
+      },
       tabs,
       utility: {
         guideOpen: guideCenter.isGuideCenterOpen,

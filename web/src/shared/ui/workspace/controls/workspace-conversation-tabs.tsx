@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room 会话集合、当前选择、标签事务回调与可选固定能力。
+ * OUTPUT: 历史/标签/创建导航带，以及与主侧栏同步的固定图钉动作。
+ * POS: Workspace 会话标签编排层；集合事务归控制器，单项样式归 tab 视图。
+ */
 "use client";
 
 import { Plus } from "lucide-react";
@@ -10,6 +15,7 @@ import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conve
 import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import { useConversationTabsController } from "@/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-controller";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
+import { useRoomNavigationStore } from "@/store/room-navigation";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
 interface WorkspaceConversationTabsProps {
@@ -21,6 +27,7 @@ interface WorkspaceConversationTabsProps {
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
   onReplaceFinalConversation?: FinalConversationReplacementHandler;
+  pinningEnabled?: boolean;
 }
 
 const TRACK_CLASS_NAME =
@@ -35,8 +42,15 @@ export function WorkspaceConversationTabs({
   onCloseConversation,
   onCreateConversation,
   onReplaceFinalConversation,
+  pinningEnabled = true,
 }: WorkspaceConversationTabsProps) {
   const { t } = useI18n();
+  const pinnedConversations = useRoomNavigationStore(
+    (state) => state.pinned_conversations,
+  );
+  const togglePinnedConversation = useRoomNavigationStore(
+    (state) => state.toggle_pinned_conversation,
+  );
   const controller = useConversationTabsController({
     conversations,
     conversationId,
@@ -72,19 +86,38 @@ export function WorkspaceConversationTabs({
           {controller.orderedConversations.map((conversation) => {
             const conversationId = conversation.conversation_id;
             const isActive = conversationId === controller.activeConversationId;
+            const title = conversation.title?.trim() || t("room.new_conversation");
+            const canPin = pinningEnabled && Boolean(
+              conversation.room_id.trim() && conversationId.trim(),
+            );
+            const isPinned = pinnedConversations.some((item) => (
+              item.room_id === conversation.room_id
+              && item.conversation_id === conversationId
+            ));
 
             return (
               <WorkspaceConversationTab
                 canClose={controller.orderedConversations.length > 1 || Boolean(onReplaceFinalConversation)}
+                canPin={canPin}
                 closeLabel={t("room.close_conversation")}
                 conversationId={conversationId}
                 externalSessionLabel={getExternalSessionConversationLabel(conversation)}
                 isActive={isActive}
+                isPinned={isPinned}
                 key={conversationId}
                 onClose={() => controller.closeConversation(conversationId)}
                 onSelect={() => controller.selectConversation(conversationId)}
+                onTogglePin={() => togglePinnedConversation({
+                  conversation_id: conversationId,
+                  room_id: conversation.room_id,
+                  session_key: conversation.session_key,
+                  title,
+                })}
+                pinLabel={t(isPinned
+                  ? "room.unpin_conversation"
+                  : "room.pin_conversation")}
                 tabWidth={controller.tabWidths.get(conversationId)}
-                title={conversation.title?.trim() || t("room.new_conversation")}
+                title={title}
               />
             );
           })}

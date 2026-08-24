@@ -96,7 +96,7 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   每次调用必须创建新的 Execution/Plan/Work Item identity，
   不得复制源图的 Agent、状态、结果、Artifact 或审核事实；
 - 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用 owner 默认对话模型接收完整 source logical-key、父子层级和依赖，默认保留宿主标记的结构关键节点，并主要抽象具体任务语义。Draft 按 owner/session/source Execution 唯一并进入数据库，不进入命令目录；再次请求同一 source 直接恢复。每次修改保存不可变完整版本，`head_revision` 做 CAS，`selected_revision` 表达用户偏好。一个 Session 有多张 WorkGraph 时通过 exact execution_id/preview_id 区分。
-  用户可直接修改元信息，也可进入 Nexus 主智能体承载的目录隐藏专用 DM；该 Session 不 fork 或继承来源 transcript、Connector、workspace 或权限，关闭 UI 不删除，再次打开继续对话。左侧展示本地接待说明和隐藏会话自身的编辑消息，右侧展示实时 preview 与版本目录；只开放 `execution-orchestrator`、`revise_workgraph_preview` 与 `select_workgraph_preview_revision`。服务端校验完整草图、revision、logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。用户确认后，
+  用户可直接修改元信息，也可进入 Nexus 主智能体承载的目录隐藏专用 DM；该 Session 不 fork 或继承来源 transcript、Connector、workspace 或权限，关闭 UI 不删除，再次打开继续对话。左侧展示本地接待说明和隐藏会话自身的编辑消息，右侧展示实时 preview 与版本目录；只开放 `execution-orchestrator`、`revise_workgraph_preview` 与 `select_workgraph_preview_revision`。服务端校验完整草图、revision、logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。对本地格式合法的 `slash_name`，保存确认页通过 owner-scoped availability 查询做防抖预检，并携带 exact `preview_id` 以允许已保存 aggregate 保留自己的命令名；格式错误、名称占用和检查失败必须分开反馈，只有当前输入的查询结果为可用时才能提交。该预检不替代保存调度中的同源检查和数据库唯一索引；并发冲突仍以 HTTP 409 回到命名输入框。用户确认后，
   Web 调用 preview save 调度端点，宿主在 fresh 目录隐藏内部 DM Session 启动 `HiddenFromUser + Synthetic +
   purpose=workgraph_distillation` 的 Agent round；该 Session 不 fork 或续写源 transcript，只通过 capability 绑定原 source session 与 exact preview，pending、过程、工具与完成事件全程隐藏，不生成聊天消息或改写源 Composer；
   `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。

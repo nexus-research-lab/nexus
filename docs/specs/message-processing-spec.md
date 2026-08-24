@@ -105,7 +105,7 @@ summary 文案描述已完成批次的具体成果，使用类似 commit subject
 
 Nexus 启动 DM/Room bridge 时必须把 owner 当前后台模型选择投影给 runtime。nxs 使用同一 Provider 下的后台模型生成折叠标题；Claude Code 使用其原生小模型/ToolUseSummary 通道。后台模型缺失、解析失败、协议不兼容或属于另一 Provider 时只回退当前主模型，不能阻断主会话启动。bridge 只负责生成和转发，Nexus message processor 仍是 ephemeral/durable 边界的唯一真相源。
 
-用户主动打开首次 DM 或显式创建 Room 时，宿主可以异步追加一条 durable `conversation_welcome` assistant 消息。欢迎语不创建 runtime round、不消费 draft，也不把 conversation 标记为已有用户输入；同一 conversation 使用稳定消息身份幂等写入。生成模型优先使用 owner 的后台任务模型，缺失或不可用时依次回退到用户默认模型、发言 Agent 模型和 Provider 默认模型；模型调用失败仍写入确定性静态欢迎语。Nexus 主智能体 DM、普通 Agent DM、Room 群主和无群主介绍成员必须使用四套独立身份提示词；主智能体可介绍宿主控制入口能力，普通 DM 不得借用该权限语义。实际生成模型继续作为内部消息事实持久化，但聊天界面不得在该欢迎语的消息头或页脚展示模型名，以免把后台生成模型误示为 Agent 的会话模型。内部自动化投递、启动恢复和其他仅为路由而发生的 DM 物化不得触发欢迎语。
+用户主动打开首次 DM 或显式创建 Room 时，宿主可以异步追加一条 durable `conversation_welcome` assistant 消息。欢迎语不创建 runtime round、不消费 draft，也不把 conversation 标记为已有用户输入；同一 conversation 使用稳定消息身份幂等写入。生成模型优先使用 owner 的后台任务模型，缺失或不可用时依次回退到用户默认模型、发言 Agent 模型和 Provider 默认模型；模型调用失败仍写入确定性静态欢迎语。Nexus 主智能体 DM、普通 Agent DM、Room 群主和无群主介绍成员必须使用四套独立身份提示词；主智能体可介绍宿主控制入口能力，普通 DM 不得借用该权限语义。所有欢迎语最后都必须自然告诉用户：不了解 Nexus 某项功能能做什么、入口在哪里或怎么使用时，可以继续询问；DM 与自动接管 Room 可以直接询问当前发言 Agent，其他 Room 必须准确提示用 `@AgentName` 指定成员。实际生成模型继续作为内部消息事实持久化，但聊天界面不得在该欢迎语的消息头或页脚展示模型名，以免把后台生成模型误示为 Agent 的会话模型。内部自动化投递、启动恢复和其他仅为路由而发生的 DM 物化不得触发欢迎语。
 
 Nexus host 指令的完成确认属于 transient 状态：它不是 runtime 回复，也不应写入
 transcript，但必须在当前时间线中保留，让用户确认本地操作已经生效。对应

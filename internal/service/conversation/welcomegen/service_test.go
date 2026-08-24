@@ -3,6 +3,7 @@ package welcomegen
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -144,6 +145,9 @@ func TestSchedulePersistsHostWelcomeOnceAndBroadcastsResync(t *testing.T) {
 	if messages[0]["agent_id"] != "host-1" {
 		t.Fatalf("Room 欢迎语未归因到群主: %+v", messages[0])
 	}
+	if !strings.Contains(fmt.Sprint(messages[0]["content"]), "想了解 Nexus") {
+		t.Fatalf("Room 欢迎语缺少产品功能求助入口: %+v", messages[0]["content"])
+	}
 	metadata, _ := messages[0]["metadata"].(map[string]any)
 	if metadata["subtype"] != "conversation_welcome" ||
 		metadata["generated_by"] != "background_model" ||
@@ -232,7 +236,8 @@ func TestNoHostWelcomeUsesPrimaryAgentAndRequiresMention(t *testing.T) {
 		t.Fatalf("无群主时应使用主成员介绍: %+v", speaker)
 	}
 	fallback := fallbackWelcome(aggregate, speaker)
-	if strings.Contains(fallback, "群主") || !strings.Contains(fallback, "@AgentName") {
+	if strings.Contains(fallback, "群主") || !strings.Contains(fallback, "@AgentName") ||
+		!strings.Contains(fallback, "想了解 Nexus") {
 		t.Fatalf("无群主静态欢迎语规则不正确: %s", fallback)
 	}
 }
@@ -250,8 +255,76 @@ func TestNexusMainWelcomeUsesDedicatedControlEntryPrompt(t *testing.T) {
 		t.Fatalf("Nexus 主智能体欢迎语未使用独立权限提示词: %s", prompt)
 	}
 	fallback := fallbackWelcome(aggregate, speaker)
-	if !strings.Contains(fallback, "main Agent") || !strings.Contains(fallback, "control entry") {
+	if !strings.Contains(fallback, "main Agent") || !strings.Contains(fallback, "control entry") ||
+		!strings.Contains(fallback, "where to find a feature") {
 		t.Fatalf("Nexus 主智能体静态欢迎语身份不明确: %s", fallback)
+	}
+}
+
+func TestProductHelpInvitationMatchesConversationRouting(t *testing.T) {
+	cases := []struct {
+		name      string
+		aggregate protocol.ConversationContextAggregate
+		speaker   protocol.Agent
+		want      string
+	}{
+		{
+			name: "普通中文 DM 可以直接询问",
+			aggregate: protocol.ConversationContextAggregate{
+				Room: protocol.RoomRecord{RoomType: protocol.RoomTypeDM},
+			},
+			speaker: protocol.Agent{Name: "小助理"},
+			want:    "也可以直接问我",
+		},
+		{
+			name: "自动接管的 Room 可以直接询问群主",
+			aggregate: protocol.ConversationContextAggregate{
+				Room: protocol.RoomRecord{
+					RoomType:             protocol.RoomTypeGroup,
+					HostAgentID:          "host-1",
+					HostAutoReplyEnabled: true,
+				},
+			},
+			speaker: protocol.Agent{AgentID: "host-1", Name: "主持人"},
+			want:    "也可以直接问我",
+		},
+		{
+			name: "未自动接管的 Room 要求指定成员",
+			aggregate: protocol.ConversationContextAggregate{
+				Room: protocol.RoomRecord{
+					RoomType:    protocol.RoomTypeGroup,
+					HostAgentID: "host-1",
+				},
+			},
+			speaker: protocol.Agent{AgentID: "host-1", Name: "主持人"},
+			want:    "用 @AgentName 向成员提问",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := appendProductHelpInvitation("欢迎开始使用。", testCase.aggregate, testCase.speaker)
+			if !strings.Contains(got, testCase.want) {
+				t.Fatalf("欢迎语产品求助入口 = %q，期望包含 %q", got, testCase.want)
+			}
+		})
+	}
+
+	directAggregate := protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{RoomType: protocol.RoomTypeDM},
+	}
+	directSpeaker := protocol.Agent{Name: "小助理"}
+	longWelcome := appendProductHelpInvitation(
+		strings.Repeat("长", welcomeMaxRunes),
+		directAggregate,
+		directSpeaker,
+	)
+	if len([]rune(longWelcome)) > welcomeMaxRunes || !strings.Contains(longWelcome, "也可以直接问我") {
+		t.Fatalf("长欢迎语未在长度限制内保留产品求助入口: %d %q", len([]rune(longWelcome)), longWelcome)
+	}
+	existingInvitation := "想了解 Nexus 的功能可以问我。"
+	if got := appendProductHelpInvitation(existingInvitation, directAggregate, directSpeaker); got != existingInvitation {
+		t.Fatalf("已有产品求助入口不应重复追加: %q", got)
 	}
 }
 

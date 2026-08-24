@@ -64,6 +64,11 @@ export interface WorkGraphWorkflowSaveReceipt {
   status: "scheduled";
 }
 
+export interface WorkGraphWorkflowSlashNameAvailability {
+  slash_name: string;
+  available: boolean;
+}
+
 export interface WorkGraphWorkflowEditorSession {
   editor_id: string;
   revision: number;

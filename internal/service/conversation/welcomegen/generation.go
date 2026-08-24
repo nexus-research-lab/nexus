@@ -1,5 +1,5 @@
 // INPUT: 新 conversation 的 Room 配置、成员身份与 owner 模型偏好。
-// OUTPUT: 按 Nexus 主智能体、普通 DM、Room 群主或介绍成员分别生成的欢迎语。
+// OUTPUT: 按 Nexus 主智能体、普通 DM、Room 群主或介绍成员生成欢迎语，并补充产品功能求助入口。
 // POS: 欢迎语内容与模型选择语义真相源。
 package welcomegen
 
@@ -21,6 +21,7 @@ import (
 
 const (
 	welcomeMaxTokens = 512
+	welcomeMaxRunes  = 600
 
 	welcomeKindNexusMainDM welcomeKind = "nexus_main_dm"
 	welcomeKindAgentDM     welcomeKind = "agent_dm"
@@ -286,7 +287,7 @@ func (s *Service) generateWelcome(
 	if err = validateWelcome(text, kind, displayAgentName(speaker)); err != nil {
 		return "", err
 	}
-	return text, nil
+	return appendProductHelpInvitation(text, aggregate, speaker), nil
 }
 
 func resolveWelcomeKind(
@@ -350,14 +351,17 @@ func sanitizeWelcome(value string) string {
 		value = strings.TrimPrefix(value, "text")
 		value = strings.TrimSpace(strings.TrimSuffix(value, "```"))
 	}
-	const maxRunes = 600
-	if utf8.RuneCountInString(value) > maxRunes {
-		value = string([]rune(value)[:maxRunes])
+	if utf8.RuneCountInString(value) > welcomeMaxRunes {
+		value = string([]rune(value)[:welcomeMaxRunes])
 	}
 	return strings.TrimSpace(value)
 }
 
 func fallbackWelcome(aggregate protocol.ConversationContextAggregate, speaker protocol.Agent) string {
+	return appendProductHelpInvitation(fallbackWelcomeBody(aggregate, speaker), aggregate, speaker)
+}
+
+func fallbackWelcomeBody(aggregate protocol.ConversationContextAggregate, speaker protocol.Agent) string {
 	name := displayAgentName(speaker)
 	english := prefersEnglishWelcome(aggregate, speaker)
 	if aggregate.Room.RoomType == protocol.RoomTypeDM && speaker.IsMain {
@@ -396,6 +400,50 @@ func fallbackWelcome(aggregate protocol.ConversationContextAggregate, speaker pr
 		return fmt.Sprintf("大家好，我是%s，这个 Room 的群主。这里由多个 Agent 一起协作；发消息时请用 @AgentName 指定成员。", name)
 	}
 	return fmt.Sprintf("大家好，我是%s，先介绍一下这个 Room：这里由多个 Agent 一起协作。发消息时请用 @AgentName 指定成员。", name)
+}
+
+func appendProductHelpInvitation(
+	value string,
+	aggregate protocol.ConversationContextAggregate,
+	speaker protocol.Agent,
+) string {
+	value = sanitizeWelcome(value)
+	if containsProductHelpInvitation(value) {
+		return value
+	}
+
+	requiresMention := aggregate.Room.RoomType != protocol.RoomTypeDM &&
+		(strings.TrimSpace(aggregate.Room.HostAgentID) == "" || !aggregate.Room.HostAutoReplyEnabled)
+	english := prefersEnglishWelcome(aggregate, speaker)
+	invitation := "想了解 Nexus 还有哪些功能、入口在哪里或怎么使用，也可以直接问我。"
+	if requiresMention {
+		invitation = "想了解 Nexus 有哪些功能、入口在哪里或怎么使用，也可以用 @AgentName 向成员提问。"
+	}
+	if english {
+		invitation = "You can also ask me what Nexus can do, where to find a feature, or how to use it."
+		if requiresMention {
+			invitation = "You can also use @AgentName to ask a member what Nexus can do, where to find a feature, or how to use it."
+		}
+	}
+
+	invitationRunes := utf8.RuneCountInString(invitation)
+	maxBodyRunes := welcomeMaxRunes - invitationRunes - 1
+	if utf8.RuneCountInString(value) > maxBodyRunes {
+		value = strings.TrimSpace(string([]rune(value)[:maxBodyRunes]))
+	}
+	if value == "" {
+		return invitation
+	}
+	return value + " " + invitation
+}
+
+func containsProductHelpInvitation(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	hasQuestion := strings.Contains(normalized, "问") || strings.Contains(normalized, "ask")
+	hasFeature := strings.Contains(normalized, "功能") ||
+		strings.Contains(normalized, "feature") ||
+		strings.Contains(normalized, "what nexus can do")
+	return hasQuestion && hasFeature
 }
 
 func prefersEnglishWelcome(

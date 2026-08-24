@@ -1,3 +1,8 @@
+/**
+ * INPUT: 上层已装配的一级导航、固定会话、目录内容与侧栏系统动作。
+ * OUTPUT: 展开/收起共用的主侧栏壳层及唯一导航轨。
+ * POS: 主侧栏纯视图边界，不读取路由、Store 或业务 API。
+ */
 import type {
   ComponentType,
   PointerEventHandler,
@@ -14,6 +19,7 @@ import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarBrandLink } from "./sidebar-brand-link";
+import { SidebarPinnedConversations } from "./sidebar-pinned-conversations";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
   SidebarFooterActions,
@@ -22,6 +28,8 @@ import {
 import type {
   SidebarPrimaryTab,
   SidebarPrimaryTabItem,
+  SidebarPinnedConversationItem,
+  SidebarPinnedConversationPlacement,
   SidebarUtilityLabels,
 } from "./sidebar-wide-panel-types";
 
@@ -36,6 +44,19 @@ interface SidebarPanelProps {
   onPointerMove: PointerEventHandler<HTMLDivElement>;
   onPointerUp: PointerEventHandler<HTMLDivElement>;
   onSelectTab: (tab: SidebarPrimaryTab) => void;
+  pinnedConversations: {
+    items: SidebarPinnedConversationItem[];
+    label: string;
+    onReorder: (
+      source: SidebarPinnedConversationItem,
+      target: SidebarPinnedConversationItem,
+      placement: SidebarPinnedConversationPlacement,
+    ) => void;
+    onSelect: (item: SidebarPinnedConversationItem) => void;
+    onUnpin: (item: SidebarPinnedConversationItem) => void;
+    reorderLabel: string;
+    unpinLabel: string;
+  };
   resizable: boolean;
   resizeHotzoneActive: boolean;
   resizing: boolean;
@@ -57,7 +78,7 @@ interface SidebarPanelProps {
   };
 }
 
-const COLLAPSED_SIDEBAR_WIDTH = 52;
+const COLLAPSED_SIDEBAR_WIDTH = 68;
 
 const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
   capabilities: CapabilityPanel,
@@ -76,6 +97,7 @@ export function SidebarPanel({
   onPointerMove,
   onPointerUp,
   onSelectTab,
+  pinnedConversations,
   resizable,
   resizeHotzoneActive,
   resizing,
@@ -161,15 +183,16 @@ export function SidebarPanel({
           <div className="flex min-h-0 flex-1">
             <nav
               aria-label={navigationLabel}
-              className="shell-navigation-rail flex w-12 shrink-0 flex-col"
+              className="shell-navigation-rail flex min-h-0 w-16 shrink-0 flex-col"
             >
-              <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
+              <div className="w-full shrink-0">
                 <SidebarPrimaryTabs
                   activeTab={activeTab}
                   items={tabs}
                   onSelect={onSelectTab}
                 />
               </div>
+              <SidebarPinnedConversations {...pinnedConversations} />
             </nav>
             <div
               aria-hidden={collapsed || undefined}

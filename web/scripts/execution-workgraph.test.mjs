@@ -547,12 +547,41 @@ test("WorkGraph sketch confirmation keeps one quiet naming-and-structure surface
   assert.doesNotMatch(dialogSource, /<UiDialogHeader|<UiDialogFooter/);
   assert.match(dialogSource, /<UiDialogCloseButton/);
   assert.match(dialogSource, /md:grid-cols-\[360px_minmax\(0,1fr\)\]/);
-  assert.match(dialogSource, /appearance="editor"/);
+  assert.match(dialogSource, /<ExecutionWorkGraphCanvas/);
+  assert.match(dialogSource, /projectWorkGraphWorkflowCanvasExecution\(workingPreview, 1\)/);
+  assert.doesNotMatch(dialogSource, /NamedWorkGraphSketch|appearance="editor"/);
   assert.doesNotMatch(dialogSource, /workflow_(?:distill_subtitle|reuse_notice|model_extracted|metadata_title|discard_sketch)/);
   assert.match(dialogSource, /command: `\/\$\{normalizedSlashName\}`/);
   assert.match(dialogSource, /workgraph-title/);
   assert.match(dialogSource, /workgraph-description/);
   assert.doesNotMatch(dialogSource, /workflow_reusable_objective/);
+});
+
+test("WorkGraph Slash naming checks owner-scoped availability before save", async () => {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const dialogSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+  ), "utf8");
+  const availabilitySource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/use-workgraph-slash-name-availability.ts",
+  ), "utf8");
+  const apiSource = await readFile(path.join(
+    webRoot,
+    "src/lib/api/conversation/execution-api.ts",
+  ), "utf8");
+  assert.match(dialogSource, /useWorkGraphSlashNameAvailability/);
+  assert.match(dialogSource, /workflow_slash_unavailable/);
+  assert.match(dialogSource, /ApiRequestError/);
+  assert.match(dialogSource, /!slashNameAvailable/);
+  assert.match(availabilitySource, /SLASH_NAME_CHECK_DELAY_MS = 350/);
+  assert.match(availabilitySource, /new AbortController\(\)/);
+  assert.match(apiSource, /workgraph\/workflows\/slash-name-availability/);
+  assert.match(MESSAGES.zh["execution.workflow_slash_unavailable"], /已被占用/);
+  assert.match(MESSAGES.zh["execution.workflow_slash_check_failed"], /暂时无法检查/);
 });
 
 test("WorkGraph sketch editor reuses DM and applies a validated graph revision", async () => {
@@ -647,7 +676,7 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /execution\.workflow_editor_retry/);
   assert.match(editorSource, /onApply\(applied\)/);
   assert.match(dialogSource, /setWorkingPreview\(nextPreview\)/);
-  assert.match(dialogSource, /dependencies=\{workingPreview\.dependencies\}/);
+  assert.match(dialogSource, /projectWorkGraphWorkflowCanvasExecution\(workingPreview, 1\)/);
   assert.doesNotMatch(editorSource, /messages\.map|reviseWorkGraphWorkflowMetadataApi/);
   assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/apply/);
   assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/versions\/select/);
@@ -728,10 +757,14 @@ test("WorkGraph editor projects sketches into the complete Room and DM canvas co
   assert.equal(projected.graph.nodes.some((node) => node.agent_id || node.attempt_id), false);
 });
 
-test("Named WorkGraph directory cards retain details while save confirmation hides generated prose", async () => {
+test("Named WorkGraph cards retain details while save confirmation uses the shared canvas", async () => {
   const { NamedWorkGraphSketch } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/named-workgraph-sketch.tsx",
   );
+  const dialogSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+  ), "utf8");
   const nodes = [{
     logical_key: "draft",
     objective: "Verbose generated objective that belongs in details, not on the canvas.",
@@ -743,14 +776,10 @@ test("Named WorkGraph directory cards retain details while save confirmation hid
     NamedWorkGraphSketch,
     { dependencies: [], nodes },
   ));
-  const editorHtml = await renderWithI18n(React.createElement(
-    NamedWorkGraphSketch,
-    { appearance: "editor", dependencies: [], nodes },
-  ));
   assert.match(cardHtml, />Draft</);
   assert.match(cardHtml, /Verbose generated objective/);
-  assert.match(editorHtml, />Draft</);
-  assert.doesNotMatch(editorHtml, /Verbose generated objective/);
+  assert.match(dialogSource, /<ExecutionWorkGraphCanvas/);
+  assert.doesNotMatch(dialogSource, /NamedWorkGraphSketch/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {
