@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Propagated Provider model output limits to the nxs runtime and added the documented 384K output limit for DeepSeek V4 Pro and Flash models.
-
 ## [0.1.37] - 2026-08-24
 
 ### Added
@@ -31,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened WorkGraph editing and saves across isolated hidden sessions, restarts, immutable version selection, and durable Plan proposal binding.
 - Fixed Browser tab and reference lifecycle, command validation, bounded snapshots, pointer input, and desktop-only availability.
 - Fixed late-created Windows WebView input windows, macOS resume probes and DMG assembly, default Provider selection, and compact responsive label clipping.
+- Propagated Provider model output limits to nxs, including the documented 384K output limits for DeepSeek V4 Pro and Flash.
 
 ## [0.1.36] - 2026-08-19
 
