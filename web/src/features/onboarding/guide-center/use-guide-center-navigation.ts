@@ -47,14 +47,21 @@ export function useGuideCenterNavigation({
 }: UseGuideCenterNavigationOptions) {
   const navigate = useNavigate();
 
+  const openDestination = useCallback((
+    route: string,
+    sidebarItemId?: string | null,
+  ) => {
+    closeGuideCenter();
+    if (sidebarItemId) {
+      setActivePanelItem(sidebarItemId);
+    }
+    navigate(route);
+  }, [closeGuideCenter, navigate, setActivePanelItem]);
+
   const requestPageTour = useCallback((request: PageTourRequest) => {
     setRequestedTourId(request.tourId);
-    closeGuideCenter();
-    if (request.sidebarItemId) {
-      setActivePanelItem(request.sidebarItemId);
-    }
-    navigate(request.route);
-  }, [closeGuideCenter, navigate, setActivePanelItem]);
+    openDestination(request.route, request.sidebarItemId);
+  }, [openDestination]);
 
   const openLauncherTour = useCallback(() => {
     requestPageTour({
@@ -67,11 +74,7 @@ export function useGuideCenterNavigation({
     startTourFromCenter(SIDEBAR_NAVIGATION_TOUR_ID);
   }, [startTourFromCenter]);
 
-  const openDmTour = useCallback(async () => {
-    if (isDmTourRegistered) {
-      startTourFromCenter(DM_CONVERSATION_TOUR_ID);
-      return;
-    }
+  const openDefaultDm = useCallback(async (tourId?: string) => {
     closeGuideCenter();
     if (!defaultAgentId) {
       navigate(AppRouteBuilders.contacts());
@@ -79,27 +82,31 @@ export function useGuideCenterNavigation({
     }
     try {
       const target = await resolveDirectRoomNavigationTarget(defaultAgentId);
-      setRequestedTourId(DM_CONVERSATION_TOUR_ID);
+      if (tourId) {
+        setRequestedTourId(tourId);
+      }
       setActivePanelItem(target.context.room.id);
       navigate(target.route);
     } catch (error) {
-      console.error("[GuideCenter] 打开 DM 引导失败:", error);
+      console.error("[GuideCenter] 打开 DM 失败:", error);
       navigate(AppRouteBuilders.contacts());
     }
   }, [
     closeGuideCenter,
     defaultAgentId,
-    isDmTourRegistered,
     navigate,
     setActivePanelItem,
-    startTourFromCenter,
   ]);
 
-  const openRoomTour = useCallback(async () => {
-    if (registeredRoomTourId) {
-      startTourFromCenter(registeredRoomTourId);
+  const openDmTour = useCallback(async () => {
+    if (isDmTourRegistered) {
+      startTourFromCenter(DM_CONVERSATION_TOUR_ID);
       return;
     }
+    await openDefaultDm(DM_CONVERSATION_TOUR_ID);
+  }, [isDmTourRegistered, openDefaultDm, startTourFromCenter]);
+
+  const openLatestRoom = useCallback(async (requestTour: boolean) => {
     closeGuideCenter();
     try {
       const target = resolveRoomTourNavigationTarget(
@@ -109,22 +116,30 @@ export function useGuideCenterNavigation({
         navigate(AppRouteBuilders.home());
         return;
       }
-      setRequestedTourId(target.tourId);
+      if (requestTour) {
+        setRequestedTourId(target.tourId);
+      }
       setActivePanelItem(target.roomId);
       navigate(target.conversationId
         ? AppRouteBuilders.roomConversation(target.roomId, target.conversationId)
         : AppRouteBuilders.room(target.roomId));
     } catch (error) {
-      console.error("[GuideCenter] 打开 Room 引导失败:", error);
+      console.error("[GuideCenter] 打开 Room 失败:", error);
       navigate(AppRouteBuilders.home());
     }
   }, [
     closeGuideCenter,
     navigate,
-    registeredRoomTourId,
     setActivePanelItem,
-    startTourFromCenter,
   ]);
+
+  const openRoomTour = useCallback(async () => {
+    if (registeredRoomTourId) {
+      startTourFromCenter(registeredRoomTourId);
+      return;
+    }
+    await openLatestRoom(true);
+  }, [openLatestRoom, registeredRoomTourId, startTourFromCenter]);
 
   const openSkillsTour = useCallback(() => {
     if (isSkillsTourRegistered) {
@@ -138,11 +153,51 @@ export function useGuideCenterNavigation({
     });
   }, [isSkillsTourRegistered, requestPageTour, startTourFromCenter]);
 
+  const openWorkGraphGuide = useCallback(() => {
+    openDestination(
+      AppRouteBuilders.workGraphDistillations(),
+      SIDEBAR_CAPABILITY_ITEM_IDS.workGraphDistillations,
+    );
+  }, [openDestination]);
+
+  const openAutomationsGuide = useCallback(() => {
+    openDestination(
+      AppRouteBuilders.scheduledTasks(),
+      SIDEBAR_CAPABILITY_ITEM_IDS.scheduledTasks,
+    );
+  }, [openDestination]);
+
+  const openConnectorsGuide = useCallback(() => {
+    openDestination(
+      AppRouteBuilders.connectors(),
+      SIDEBAR_CAPABILITY_ITEM_IDS.connectors,
+    );
+  }, [openDestination]);
+
+  const openProvidersGuide = useCallback(() => {
+    openDestination(AppRouteBuilders.settings("providers"));
+  }, [openDestination]);
+
+  const openConversationFeatureGuide = useCallback(async () => {
+    await openDefaultDm();
+  }, [openDefaultDm]);
+
+  const openThreadGuide = useCallback(async () => {
+    await openLatestRoom(false);
+  }, [openLatestRoom]);
+
   return {
+    openAutomationsGuide,
+    openConnectorsGuide,
     openDmTour,
+    openGoalGuide: openConversationFeatureGuide,
     openLauncherTour,
+    openProvidersGuide,
     openRoomTour,
     openSidebarTour,
     openSkillsTour,
+    openSubagentsGuide: openConversationFeatureGuide,
+    openThreadGuide,
+    openWorkGraphGuide,
   };
 }
