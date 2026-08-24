@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.38] - 2026-08-24
+
 ### Added
 
 - Added bundled Word, PDF, PowerPoint, and Excel Skills with task-specific reading, creation, editing, conversion, and delivery workflows.
+
+### Changed
+
+- Updated the bundled nxs runtime to v0.1.29 with authoritative native runtime-state reporting and a leaner Nexus-focused tool surface.
 
 ### Fixed
 
