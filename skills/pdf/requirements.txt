@@ -1,0 +1,3 @@
+pdfplumber>=0.11,<1
+pypdf>=5,<7
+reportlab>=4,<5

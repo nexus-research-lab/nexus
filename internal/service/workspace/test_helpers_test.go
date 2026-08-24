@@ -18,15 +18,19 @@ func TestMain(m *testing.M) {
 		m,
 		"execution-orchestrator",
 		"goal-manager",
+		"docx",
 		"ima-skill",
 		"imagegen",
 		"visualize",
 		"automation",
 		"nexus-manager",
 		"nexus-configuration",
+		"pdf",
+		"pptx",
 		"room-playbook",
 		"wechat-article-search",
 		"werewolf-6p",
+		"xlsx",
 	))
 }
 

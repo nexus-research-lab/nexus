@@ -106,25 +106,25 @@
       "name": "docx",
       "category_key": "content-docs",
       "category_name": "内容与文档",
-      "recommendation": "适合读取、提取和分析 Word 文档，也能识别后缀与实际格式不一致的文件。"
+      "recommendation": "适合读取、创建和编辑 Word 文档，并通过重新打开和逐页预览校验交付质量。"
     },
     {
       "name": "pptx",
       "category_key": "content-docs",
       "category_name": "内容与文档",
-      "recommendation": "适合演示文稿创建与修改。"
+      "recommendation": "适合读取、创建和编辑 PowerPoint，并通过内容回读和逐页渲染检查交付质量。"
     },
     {
       "name": "pdf",
-      "category_key": "data-automation",
-      "category_name": "数据与自动化",
-      "recommendation": "适合 PDF 读取、表单处理与批量生成。"
+      "category_key": "content-docs",
+      "category_name": "内容与文档",
+      "recommendation": "适合读取、创建和处理 PDF，并通过结构回读与逐页视觉检查验证结果。"
     },
     {
       "name": "xlsx",
       "category_key": "data-automation",
       "category_name": "数据与自动化",
-      "recommendation": "适合表格分析、批处理和格式化输出。"
+      "recommendation": "适合读取、创建和编辑 Excel，并通过公式重算、错误扫描和整表预览验收。"
     },
     {
       "name": "apify-ecommerce",

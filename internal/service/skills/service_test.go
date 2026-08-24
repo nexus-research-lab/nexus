@@ -30,15 +30,19 @@ func TestMain(m *testing.M) {
 		m,
 		"execution-orchestrator",
 		"goal-manager",
+		"docx",
 		"ima-skill",
 		"imagegen",
 		"visualize",
 		"automation",
 		"nexus-manager",
 		"nexus-configuration",
+		"pdf",
+		"pptx",
 		"room-playbook",
 		"wechat-article-search",
 		"werewolf-6p",
+		"xlsx",
 	))
 }
 
@@ -80,6 +84,11 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if !containsSkill(items, "imagegen") {
 		t.Fatalf("图片生成系统 skill 未暴露: %+v", items)
+	}
+	for _, skillName := range []string{"docx", "pdf", "pptx", "xlsx"} {
+		if !containsSkill(items, skillName) {
+			t.Fatalf("办公文件 Skill %s 未暴露: %+v", skillName, items)
+		}
 	}
 	automationSkill, ok := findSkill(items, "automation")
 	if !ok {

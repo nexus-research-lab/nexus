@@ -29,7 +29,7 @@ Compared with traditional single-agent AI office tools, Nexus provides:
 - Multi-agent collaboration: multiple agents can participate in the same task and produce results together
 - Persistent memory and knowledge accumulation: the bundled `nxs` runtime maintains a `MEMORY.md` index and topic files under `memory/` in each Agent workspace
 - Proactive execution: Echo follow-ups, scheduled tasks, and environment awareness help agents move work forward
-- Flexible extensibility: Skills extend agent capabilities, and Connectors integrate external services such as GitHub and Gmail
+- Flexible extensibility: bundled Skills read, create, edit, render, and verify Word, PDF, PowerPoint, and Excel files, while Connectors integrate Feishu Docs, DingTalk AI Tables, Tencent Docs, Yuque, and custom MCP services
 
 Nexus brings agent management, task collaboration, and external service connections into one unified platform for a modern AI collaboration ecosystem.
 

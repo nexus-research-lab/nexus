@@ -45,6 +45,8 @@ __pycache__/
 *.egg-info/
 dist/
 tests/
+!skills/*/tests/
+!skills/*/tests/**
 !desktop/macos/Tests/
 !desktop/macos/Tests/**
 alembic/
