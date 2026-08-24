@@ -1,17 +1,39 @@
 import AppKit
 
 enum DesktopWindowMetrics {
-  private static let fallbackCloseButtonCenter = CGPoint(x: 28, y: 26)
+  static let windowControlsCenterY: CGFloat = 24
+
+  private static let fallbackCloseButtonCenter = CGPoint(
+    x: 16,
+    y: windowControlsCenterY
+  )
   private static let fallbackWindowControlsLeadingInset: CGFloat = 96
   private static let windowControlsTrailingPadding: CGFloat = 16
+  private static let windowButtonTypes: [NSWindow.ButtonType] = [
+    .closeButton,
+    .miniaturizeButton,
+    .zoomButton,
+  ]
+
+  static func alignWindowControls(in window: NSWindow) {
+    let offset = windowControlsCenterY - windowCloseButtonCenter(in: window).y
+    guard abs(offset) >= 0.5 else {
+      return
+    }
+    windowButtonTypes.forEach { buttonType in
+      guard let button = window.standardWindowButton(buttonType),
+            !button.isHidden,
+            let buttonSuperview = button.superview else {
+        return
+      }
+      var origin = button.frame.origin
+      origin.y += buttonSuperview.isFlipped ? offset : -offset
+      button.setFrameOrigin(origin)
+    }
+  }
 
   static func windowControlsLeadingInset(in window: NSWindow) -> CGFloat {
-    let buttonTypes: [NSWindow.ButtonType] = [
-      .closeButton,
-      .miniaturizeButton,
-      .zoomButton,
-    ]
-    let trailingEdge = buttonTypes.compactMap { buttonType -> CGFloat? in
+    let trailingEdge = windowButtonTypes.compactMap { buttonType -> CGFloat? in
       guard let button = window.standardWindowButton(buttonType),
             !button.isHidden else {
         return nil

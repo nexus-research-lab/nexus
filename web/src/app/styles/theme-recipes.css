@@ -100,7 +100,9 @@
   }
 
   :root[data-desktop-platform="macos"] .launcher-console-spotlights {
+    top: var(--desktop-window-close-button-center-y, 24px);
     left: var(--desktop-window-controls-inset, 84px);
+    transform: translateY(-50%);
   }
 
   .launcher-console-wordmark {

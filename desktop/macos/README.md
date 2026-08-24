@@ -17,7 +17,7 @@
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/.nexus/app/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
-- 主窗口用无业务项的原生 unified toolbar 建立 52pt 标题栏几何，同时让 full-size Web Header 延伸到同一平面并保留系统 traffic lights；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，由 Y 中心推导共享顶栏高度，使 NEXUS、折叠动作和红灯共用水平中线且上下等距，并由 X 中心把侧栏 Dock 图标对齐红灯。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。
+- 主窗口使用 titlebar-only 原生框保留 16pt 系统圆角，标准 traffic lights 在每次原生布局后对齐 24pt 中线，让 full-size Web Header 获得 48pt 高度；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，使 NEXUS、Launcher 灯组、折叠动作和红灯共用水平中线且上下等距，并由 X 中心把侧栏 Dock 图标对齐红灯。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
