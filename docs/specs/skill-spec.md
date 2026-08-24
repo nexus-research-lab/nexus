@@ -238,6 +238,23 @@ reference 路由；项目门禁将上述五个入口限制在 5 KiB。按操作�
 任何 authority、identity、revision 和服务端状态门槛仍必须在 broker/service fail
 closed；Skill 规则不是授权来源。
 
+### 7.2 默认产品说明 Skill
+
+`nexus-product-guide` 是所有新建 Agent 默认绑定的系统内置 Skill；迁移会为既有
+Agent 补齐同一绑定。它只负责把用户目标映射到当前产品功能、可见界面入口、操作
+步骤、结果和当前限制，并在用户要求实际变更时路由到 Goal、Execution、Automation、
+Configuration 或主智能体资源管理等专用 Skill。说明覆盖会话与固定入口、Agent 与
+Room、Goal 与命名 WorkGraph、Echo、Automation、Browser、Skill、Connector、外部
+消息和设置；分主题 reference 按需加载，维护来源表负责把每项说明追溯到当前 UI 与
+现行产品规范。
+
+该 Skill 不是产品协议、权限或运行状态的真相源，不得根据手册宣称能力已经启用、
+连接或执行成功；具体状态仍以当前 UI、服务端读取结果和对应领域合同为准。说明内容
+必须先确认当前实现，再追求覆盖完整，不得把未来方案或未挂载入口写成已交付能力。
+对用户优先使用用途、入口和普通操作语言，不先暴露 Session、distillation、CDP、
+wire schema 等内部术语，也不暴露内部 URL 或 ID。窄屏、角色、权限和前置状态造成
+入口差异时，必须以条件式导航解释，而不是虚构固定布局。
+
 ## 8. 生命周期语义
 
 | 动作 | 全局 Skill | Agent workspace Skill |

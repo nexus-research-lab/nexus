@@ -10,8 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added persistent pinned conversation shortcuts below the sidebar capability entry, with tab pin toggles, drag reordering, and an independent hover/focus X action for unpinning.
+- Added a default, source-checked Nexus product guide Skill so every Agent can explain the current app in plain language, including conversations, Rooms, Goals, reusable WorkGraphs, proactive follow-up, scheduled tasks, Browser, external services, messaging, and settings.
 
 ### Changed
+
+- Welcome messages now invite users to ask what Nexus features do, where to find them, and how to use them, while preserving each Room's `@AgentName` routing rules.
 
 - Unified the WorkGraph save preview with the full interactive WorkGraph canvas and refined the Slash command naming form with inline duplicate-name validation.
 - Added an explicit WorkGraph draft review checkpoint, with native user questions for material missing context and post-render confirmation before saving.
