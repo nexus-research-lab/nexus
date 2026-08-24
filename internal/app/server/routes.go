@@ -326,6 +326,10 @@ func (s *Server) mountExecutionRoutes() {
 		s.prefixPath("/workgraph/workflows"),
 		s.handlers.execution.HandleListWorkGraphWorkflows,
 	)
+	s.router.Get(
+		s.prefixPath("/workgraph/workflows/slash-name-availability"),
+		s.handlers.execution.HandleCheckWorkGraphWorkflowSlashName,
+	)
 	s.router.Post(
 		s.prefixPath("/workgraph/workflows/{workflow_id}/preview"),
 		s.handlers.execution.HandlePreviewSavedWorkGraphWorkflow,

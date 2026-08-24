@@ -11,6 +11,7 @@ import type {
   WorkGraphWorkflowEditorSession,
   WorkGraphWorkflowPreview,
   WorkGraphWorkflowSaveReceipt,
+  WorkGraphWorkflowSlashNameAvailability,
 } from "@/types/conversation/workgraph-workflow";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
@@ -129,6 +130,21 @@ export async function getWorkGraphWorkflowsApi(): Promise<WorkGraphWorkflow[]> {
   return requestApi<WorkGraphWorkflow[]>(
     `${AGENT_API_BASE_URL}/workgraph/workflows`,
     { method: "GET" },
+  );
+}
+
+export async function checkWorkGraphWorkflowSlashNameApi(
+  slashName: string,
+  previewId: string,
+  signal?: AbortSignal,
+): Promise<WorkGraphWorkflowSlashNameAvailability> {
+  const query = new URLSearchParams({
+    preview_id: previewId,
+    slash_name: slashName,
+  });
+  return requestApi<WorkGraphWorkflowSlashNameAvailability>(
+    `${AGENT_API_BASE_URL}/workgraph/workflows/slash-name-availability?${query.toString()}`,
+    { method: "GET", signal },
   );
 }
 
