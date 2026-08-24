@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Unified the WorkGraph save preview with the full interactive WorkGraph canvas and refined the Slash command naming form with inline duplicate-name validation.
+- Added an explicit WorkGraph draft review checkpoint, with native user questions for material missing context and post-render confirmation before saving.
 
 ## [0.1.37] - 2026-08-24
 
