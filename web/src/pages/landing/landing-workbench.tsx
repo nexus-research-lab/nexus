@@ -241,6 +241,7 @@ function LandingWorkbenchMain() {
                 conversations={demoConversations}
                 onCreateConversation={async () => "conv-new"}
                 onSelectConversation={() => undefined}
+                pinningEnabled={false}
               />
             )}
             trailing={(

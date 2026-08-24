@@ -1,8 +1,8 @@
 /**
  * Room 导航偏好 Store
  *
- * [INPUT]: Room 内显式会话选择、标签打开集合与有效会话路由
- * [OUTPUT]: 按 Room 持久化用户离开时的标签顺序和活动 Conversation
+ * [INPUT]: Room 内显式会话选择、标签打开集合、固定会话与有效会话路由
+ * [OUTPUT]: 按 Room 持久化标签顺序和活动 Conversation，并保存全局固定会话偏好
  * [POS]: store 模块的页面导航工作区状态，不参与服务端会话排序
  */
 
@@ -16,13 +16,22 @@ export interface RoomConversationTabsState {
   open_conversation_ids: string[];
 }
 
+export interface PinnedConversationPreference {
+  conversation_id: string;
+  room_id: string;
+  session_key: string;
+  title: string;
+}
+
 interface PersistedRoomNavigationState {
   conversation_tabs_by_room?: Record<string, RoomConversationTabsState>;
   last_active_conversation_by_room?: Record<string, string>;
+  pinned_conversations?: PinnedConversationPreference[];
 }
 
 interface RoomNavigationState {
   conversation_tabs_by_room: Record<string, RoomConversationTabsState>;
+  pinned_conversations: PinnedConversationPreference[];
   forget_conversation: (
     roomId: string,
     conversationId: string,
@@ -36,26 +45,46 @@ interface RoomNavigationState {
     openConversationIds: readonly string[],
     activeConversationId: string,
   ) => void;
+  toggle_pinned_conversation: (
+    conversation: PinnedConversationPreference,
+  ) => void;
+  unpin_conversation: (
+    roomId: string,
+    conversationId: string,
+  ) => void;
 }
 
 export const useRoomNavigationStore = create<RoomNavigationState>()(
   persist(
     (set) => ({
       conversation_tabs_by_room: {},
+      pinned_conversations: [],
       forget_conversation: (roomId, conversationId) => set((state) => {
         const normalizedRoomId = roomId.trim();
         const normalizedConversationId = conversationId.trim();
         const currentTabs = state.conversation_tabs_by_room[normalizedRoomId];
-        if (!normalizedRoomId || !normalizedConversationId || !currentTabs) {
+        if (!normalizedRoomId || !normalizedConversationId) {
           return state;
         }
-        const openConversationIds = currentTabs.open_conversation_ids.filter(
-          (id) => id !== normalizedConversationId,
+        const nextPinnedConversations = state.pinned_conversations.filter(
+          (item) => !matchesPinnedConversation(
+            item,
+            normalizedRoomId,
+            normalizedConversationId,
+          ),
         );
-        if (openConversationIds.length === currentTabs.open_conversation_ids.length) {
+        const openConversationIds = currentTabs?.open_conversation_ids.filter(
+          (id) => id !== normalizedConversationId,
+        ) ?? [];
+        const tabsChanged = Boolean(
+          currentTabs
+          && openConversationIds.length !== currentTabs.open_conversation_ids.length,
+        );
+        const pinChanged = nextPinnedConversations.length !== state.pinned_conversations.length;
+        if (!tabsChanged && !pinChanged) {
           return state;
         }
-        const nextTabs = openConversationIds.length > 0
+        const nextTabs = currentTabs && openConversationIds.length > 0
           ? buildConversationTabsState(
               openConversationIds,
               currentTabs.active_conversation_id === normalizedConversationId
@@ -69,7 +98,10 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
         } else {
           delete nextTabsByRoom[normalizedRoomId];
         }
-        return {conversation_tabs_by_room: nextTabsByRoom};
+        return {
+          conversation_tabs_by_room: nextTabsByRoom,
+          pinned_conversations: nextPinnedConversations,
+        };
       }),
       remember_last_active_conversation: (roomId, conversationId) => set((state) => {
         const normalizedRoomId = roomId.trim();
@@ -116,15 +148,59 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
           },
         };
       }),
+      toggle_pinned_conversation: (conversation) => set((state) => {
+        const normalizedConversation = normalizePinnedConversation(conversation);
+        if (!normalizedConversation) {
+          return state;
+        }
+        const existingIndex = state.pinned_conversations.findIndex(
+          (item) => matchesPinnedConversation(
+            item,
+            normalizedConversation.room_id,
+            normalizedConversation.conversation_id,
+          ),
+        );
+        if (existingIndex >= 0) {
+          return {
+            pinned_conversations: state.pinned_conversations.filter(
+              (_, index) => index !== existingIndex,
+            ),
+          };
+        }
+        return {
+          pinned_conversations: [
+            ...state.pinned_conversations,
+            normalizedConversation,
+          ],
+        };
+      }),
+      unpin_conversation: (roomId, conversationId) => set((state) => {
+        const normalizedRoomId = roomId.trim();
+        const normalizedConversationId = conversationId.trim();
+        if (!normalizedRoomId || !normalizedConversationId) {
+          return state;
+        }
+        const nextPinnedConversations = state.pinned_conversations.filter(
+          (item) => !matchesPinnedConversation(
+            item,
+            normalizedRoomId,
+            normalizedConversationId,
+          ),
+        );
+        return nextPinnedConversations.length === state.pinned_conversations.length
+          ? state
+          : {pinned_conversations: nextPinnedConversations};
+      }),
     }),
     {
       name: "nexus-room-navigation",
       partialize: (state) => ({
         conversation_tabs_by_room: state.conversation_tabs_by_room,
+        pinned_conversations: state.pinned_conversations,
       }),
       storage: createBrowserJsonStorage(),
-      // v3 曾短暂允许 active=null；v4 重新按非空标签契约清洗该快照。
-      version: 4,
+      // v3 曾短暂允许 active=null；v4 清洗标签，v5 加入全局固定会话。
+      version: 5,
       migrate: (persistedState: unknown): PersistedRoomNavigationState => {
         const state = (persistedState ?? {}) as PersistedRoomNavigationState;
         const conversationTabsByRoom = normalizePersistedConversationTabs(
@@ -139,7 +215,15 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
             conversationTabsByRoom[normalizedRoomId] = tabs;
           }
         }
-        return { conversation_tabs_by_room: conversationTabsByRoom };
+        const pinnedConversations = normalizePinnedConversations(
+          state.pinned_conversations,
+        );
+        return pinnedConversations.length > 0
+          ? {
+              conversation_tabs_by_room: conversationTabsByRoom,
+              pinned_conversations: pinnedConversations,
+            }
+          : {conversation_tabs_by_room: conversationTabsByRoom};
       },
     },
   ),
@@ -182,6 +266,71 @@ function normalizePersistedConversationTabs(
     }
   }
   return normalizedTabsByRoom;
+}
+
+function normalizePinnedConversations(
+  conversations: PinnedConversationPreference[] | undefined,
+): PinnedConversationPreference[] {
+  const normalizedConversations: PinnedConversationPreference[] = [];
+  const seen = new Set<string>();
+  for (const conversation of Array.isArray(conversations) ? conversations : []) {
+    const normalizedConversation = normalizePinnedConversation(conversation);
+    if (!normalizedConversation) {
+      continue;
+    }
+    const key = getPinnedConversationKey(
+      normalizedConversation.room_id,
+      normalizedConversation.conversation_id,
+    );
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalizedConversations.push(normalizedConversation);
+  }
+  return normalizedConversations;
+}
+
+function normalizePinnedConversation(
+  conversation: PinnedConversationPreference,
+): PinnedConversationPreference | null {
+  if (!conversation || typeof conversation !== "object") {
+    return null;
+  }
+  const roomId = typeof conversation.room_id === "string"
+    ? conversation.room_id.trim()
+    : "";
+  const conversationId = typeof conversation.conversation_id === "string"
+    ? conversation.conversation_id.trim()
+    : "";
+  if (!roomId || !conversationId) {
+    return null;
+  }
+  return {
+    conversation_id: conversationId,
+    room_id: roomId,
+    session_key: typeof conversation.session_key === "string"
+      ? conversation.session_key.trim()
+      : "",
+    title: typeof conversation.title === "string"
+      ? conversation.title.trim()
+      : "",
+  };
+}
+
+function matchesPinnedConversation(
+  conversation: PinnedConversationPreference,
+  roomId: string,
+  conversationId: string,
+): boolean {
+  return getPinnedConversationKey(
+    conversation.room_id,
+    conversation.conversation_id,
+  ) === getPinnedConversationKey(roomId, conversationId);
+}
+
+function getPinnedConversationKey(roomId: string, conversationId: string): string {
+  return `${roomId}\u0000${conversationId}`;
 }
 
 function areConversationTabsEqual(
