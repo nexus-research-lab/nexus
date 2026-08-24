@@ -127,7 +127,7 @@ public partial class MainWindow : System.Windows.Window
             startupTimeline.Mark("main_window.create_begin");
             webViewHost = CreateWebViewHost(GetOrCreateWebViewControl());
             ShowMainWindow();
-            await webViewHost.InitializeAsync(new WindowInteropHelper(this).Handle, IsWebViewInteractive());
+            await webViewHost.InitializeAsync(IsWebViewInteractive());
             startupTimeline.Mark("main_window.created");
         }
         else
@@ -206,7 +206,7 @@ public partial class MainWindow : System.Windows.Window
             ConfigureWebViewSurface(replacement);
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
-            await webViewHost.InitializeAsync(new WindowInteropHelper(this).Handle, IsWebViewInteractive());
+            await webViewHost.InitializeAsync(IsWebViewInteractive());
             startupTimeline.Mark(WebViewRecreateEventName(trigger, "ready"), new Dictionary<string, string>
             {
                 ["path"] = route.Path,
