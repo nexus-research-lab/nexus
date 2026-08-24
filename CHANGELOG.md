@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added bundled Word, PDF, PowerPoint, and Excel Skills with task-specific reading, creation, editing, conversion, and delivery workflows.
+
 ### Fixed
 
 - Switched Windows WebView2 minimize and tray handling to its supported visibility lifecycle, preserving desktop and keyboard input after updates and window restores.

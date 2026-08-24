@@ -10,25 +10,33 @@ type Translate = (key: TranslationKey) => string;
 
 const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
   automation: "capability.skill_description.automation",
+  docx: "capability.skill_description.docx",
   "execution-orchestrator": "capability.skill_description.execution_orchestrator",
   "goal-manager": "capability.skill_description.goal_manager",
   "ima-skill": "capability.skill_description.ima",
   imagegen: "capability.skill_description.imagegen",
   "nexus-configuration": "capability.skill_description.nexus_configuration",
+  pdf: "capability.skill_description.pdf",
+  pptx: "capability.skill_description.pptx",
   "room-playbook": "capability.skill_description.room_playbook",
   "wechat-article-search": "capability.skill_description.wechat_article_search",
   "werewolf-6p": "capability.skill_description.werewolf_6p",
+  xlsx: "capability.skill_description.xlsx",
 } as const satisfies Readonly<Record<string, TranslationKey>>;
 
 const NEXUS_SKILL_TITLE_KEY_BY_NAME = {
   automation: "capability.skill_title.automation",
+  docx: "capability.skill_title.docx",
   "execution-orchestrator": "capability.skill_title.execution_orchestrator",
   "goal-manager": "capability.skill_title.goal_manager",
   imagegen: "capability.skill_title.imagegen",
   "nexus-configuration": "capability.skill_title.nexus_configuration",
+  pdf: "capability.skill_title.pdf",
+  pptx: "capability.skill_title.pptx",
   "room-playbook": "capability.skill_title.room_playbook",
   visualize: "capability.skill_title.visualize",
   "werewolf-6p": "capability.skill_title.werewolf_6p",
+  xlsx: "capability.skill_title.xlsx",
 } as const satisfies Readonly<Record<string, TranslationKey>>;
 
 type LocalizedSkillName = keyof typeof NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME;

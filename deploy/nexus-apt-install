@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly DEFAULT_ALLOWLIST="ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip"
+readonly DEFAULT_ALLOWLIST="ca-certificates curl ffmpeg fonts-liberation fonts-noto-cjk git imagemagick iputils-ping jq less libreoffice-calc libreoffice-impress libreoffice-writer poppler-utils procps ripgrep rsync unzip vim wget zip"
 readonly LOG_DIR="/home/agent/.nexus/app/logs"
 readonly LOG_FILE="${LOG_DIR}/system-package-install.log"
 readonly LOCK_FILE="/var/lock/nexus-apt-install.lock"

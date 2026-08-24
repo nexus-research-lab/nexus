@@ -20,12 +20,16 @@ test.after(async () => {
 
 const BUNDLED_SKILLS = [
   ["imagegen", "system", undefined],
+  ["docx", "builtin", "nexus_platform"],
   ["execution-orchestrator", "system", undefined],
   ["goal-manager", "system", undefined],
   ["ima-skill", "builtin", "nexus_platform"],
   ["wechat-article-search", "builtin", "nexus_platform"],
   ["room-playbook", "builtin", "nexus_platform"],
+  ["pdf", "builtin", "nexus_platform"],
+  ["pptx", "builtin", "nexus_platform"],
   ["werewolf-6p", "builtin", "nexus_platform"],
+  ["xlsx", "builtin", "nexus_platform"],
 ];
 
 function createSkill(name, sourceType, sourceKind) {
@@ -87,6 +91,22 @@ test("WorkGraph 与 Goal 系统 Skill 使用无连字符的稳定英文展示名
     assert.equal(
       getSkillDisplayTitle(skill, (key) => MESSAGES.en[key]),
       expectedTitle,
+    );
+  }
+});
+
+test("办公 Skill 标题跟随界面语言", async () => {
+  const [{ getSkillDisplayTitle }, { MESSAGES }] = await Promise.all([
+    server.ssrLoadModule("/src/lib/skill-description.ts"),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+
+  for (const name of ["docx", "pdf", "pptx", "xlsx"]) {
+    const skill = createSkill(name, "builtin", "nexus_platform");
+    assert.notEqual(
+      getSkillDisplayTitle(skill, (key) => MESSAGES.en[key]),
+      getSkillDisplayTitle(skill, (key) => MESSAGES.zh[key]),
+      `${name} 双语标题未区分`,
     );
   }
 });

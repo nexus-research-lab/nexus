@@ -46,6 +46,37 @@ tags: [screen, context]
 	}
 }
 
+func TestParseSkillFrontmatterReadsNexusMetadataContainer(t *testing.T) {
+	parsed := parseSkillFrontmatter(`---
+name: office-demo
+description: Office demo
+metadata:
+  title: Office Demo
+  version: 2.0.0
+  category_key: content-docs
+  category_name: 内容与文档
+  recommendation: 适合创建和校验办公文件。
+  tags:
+    - office
+    - document-editing
+---
+
+# Office Demo
+`, "office-demo")
+	if parsed.Title != "Office Demo" || parsed.Version != "2.0.0" {
+		t.Fatalf("metadata 标题或版本解析不正确: %+v", parsed)
+	}
+	if parsed.CategoryKey != "content-docs" || parsed.CategoryName != "内容与文档" {
+		t.Fatalf("metadata 分类解析不正确: %+v", parsed)
+	}
+	if parsed.Recommendation != "适合创建和校验办公文件。" {
+		t.Fatalf("metadata 推荐语解析不正确: %q", parsed.Recommendation)
+	}
+	if len(parsed.Tags) != 2 || parsed.Tags[0] != "office" || parsed.Tags[1] != "document-editing" {
+		t.Fatalf("metadata 标签解析不正确: %#v", parsed.Tags)
+	}
+}
+
 func TestStripFrontmatterReturnsSkillBody(t *testing.T) {
 	tests := []struct {
 		name    string
