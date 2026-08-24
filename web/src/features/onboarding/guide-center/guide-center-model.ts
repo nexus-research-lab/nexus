@@ -1,8 +1,15 @@
 import {
+  Bot,
+  CalendarClock,
+  Cable,
   Compass,
+  Cpu,
   type LucideIcon,
   MessageSquare,
+  MessagesSquare,
   Rocket,
+  Target,
+  Workflow,
   Wrench,
 } from "lucide-react";
 
@@ -28,23 +35,44 @@ type GuideCenterTourId =
   | typeof ROOM_CONVERSATION_TOUR_ID
   | typeof SKILLS_TOUR_ID;
 
-export type GuideCenterTourActions = Record<GuideCenterTourId, () => void>;
+export const GUIDE_CENTER_ADVANCED_ITEM_IDS = {
+  automations: "advanced-automations",
+  connectors: "advanced-connectors",
+  goal: "advanced-goal",
+  providers: "advanced-providers",
+  subagents: "advanced-subagents",
+  thread: "advanced-thread",
+  workgraph: "advanced-workgraph",
+} as const;
+
+type GuideCenterAdvancedItemId = typeof GUIDE_CENTER_ADVANCED_ITEM_IDS[
+  keyof typeof GUIDE_CENTER_ADVANCED_ITEM_IDS
+];
+
+type GuideCenterItemId = GuideCenterTourId | GuideCenterAdvancedItemId;
+
+export type GuideCenterSection = "basics" | "advanced";
+
+export type GuideCenterActions = Record<GuideCenterItemId, () => void>;
 
 interface GuideCenterDefinition {
-  completedTourIds: readonly string[];
+  actionLabelKey: TranslationKey;
+  completedTourIds?: readonly string[];
   descriptionKey: TranslationKey;
   icon: LucideIcon;
-  id: GuideCenterTourId;
+  id: GuideCenterItemId;
+  section: GuideCenterSection;
   titleKey: TranslationKey;
 }
 
 export interface GuideCenterItem {
   actionLabel: string;
-  completed: boolean;
+  completed: boolean | null;
   description: string;
   icon: LucideIcon;
-  id: GuideCenterTourId;
+  id: GuideCenterItemId;
   onAction: () => void;
+  section: GuideCenterSection;
   title: string;
 }
 
@@ -58,27 +86,34 @@ export interface RoomTourNavigationTarget {
 
 const GUIDE_CENTER_DEFINITIONS: readonly GuideCenterDefinition[] = [
   {
+    actionLabelKey: "common.view_guide",
     completedTourIds: [LAUNCHER_TOUR_ID],
     descriptionKey: "launcher.tour_intro_description",
     icon: Rocket,
     id: LAUNCHER_TOUR_ID,
+    section: "basics",
     titleKey: "launcher.tour_intro_title",
   },
   {
+    actionLabelKey: "common.view_guide",
     completedTourIds: [SIDEBAR_NAVIGATION_TOUR_ID],
     descriptionKey: "sidebar.tour_intro_description",
     icon: Compass,
     id: SIDEBAR_NAVIGATION_TOUR_ID,
+    section: "basics",
     titleKey: "sidebar.tour_intro_title",
   },
   {
+    actionLabelKey: "common.view_guide",
     completedTourIds: [DM_CONVERSATION_TOUR_ID],
     descriptionKey: "room.tour_dm_intro_description",
     icon: MessageSquare,
     id: DM_CONVERSATION_TOUR_ID,
+    section: "basics",
     titleKey: "room.tour_dm_intro_title",
   },
   {
+    actionLabelKey: "common.view_guide",
     completedTourIds: [
       ROOM_CONVERSATION_TOUR_ID,
       ROOM_EMPTY_CONVERSATION_TOUR_ID,
@@ -86,14 +121,73 @@ const GUIDE_CENTER_DEFINITIONS: readonly GuideCenterDefinition[] = [
     descriptionKey: "room.tour_group_intro_description",
     icon: MessageSquare,
     id: ROOM_CONVERSATION_TOUR_ID,
+    section: "basics",
     titleKey: "room.tour_group_intro_title",
   },
   {
+    actionLabelKey: "common.view_guide",
     completedTourIds: [SKILLS_TOUR_ID],
     descriptionKey: "capability.skills_tour_intro_description",
     icon: Wrench,
     id: SKILLS_TOUR_ID,
+    section: "basics",
     titleKey: "capability.skills_tour_intro_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.goal_description",
+    icon: Target,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.goal,
+    section: "advanced",
+    titleKey: "guide_center.goal_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.workgraph_description",
+    icon: Workflow,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.workgraph,
+    section: "advanced",
+    titleKey: "guide_center.workgraph_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.subagents_description",
+    icon: Bot,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.subagents,
+    section: "advanced",
+    titleKey: "guide_center.subagents_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.thread_description",
+    icon: MessagesSquare,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.thread,
+    section: "advanced",
+    titleKey: "guide_center.thread_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.automations_description",
+    icon: CalendarClock,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.automations,
+    section: "advanced",
+    titleKey: "guide_center.automations_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.connectors_description",
+    icon: Cable,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.connectors,
+    section: "advanced",
+    titleKey: "guide_center.connectors_title",
+  },
+  {
+    actionLabelKey: "guide_center.open_feature",
+    descriptionKey: "guide_center.providers_description",
+    icon: Cpu,
+    id: GUIDE_CENTER_ADVANCED_ITEM_IDS.providers,
+    section: "advanced",
+    titleKey: "guide_center.providers_title",
   },
 ];
 
@@ -105,15 +199,16 @@ const REGISTERED_ROOM_TOUR_PRIORITY = [
 export function buildGuideCenterItems(
   t: I18nContextValue["t"],
   hasCompletedTour: (tourId: string) => boolean,
-  actions: GuideCenterTourActions,
+  actions: GuideCenterActions,
 ): GuideCenterItem[] {
   return GUIDE_CENTER_DEFINITIONS.map((definition) => ({
-    actionLabel: t("common.view_guide"),
-    completed: definition.completedTourIds.some(hasCompletedTour),
+    actionLabel: t(definition.actionLabelKey),
+    completed: definition.completedTourIds?.some(hasCompletedTour) ?? null,
     description: t(definition.descriptionKey),
     icon: definition.icon,
     id: definition.id,
     onAction: actions[definition.id],
+    section: definition.section,
     title: t(definition.titleKey),
   }));
 }

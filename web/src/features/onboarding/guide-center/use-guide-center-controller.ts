@@ -17,7 +17,8 @@ import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 
 import {
   buildGuideCenterItems,
-  type GuideCenterTourActions,
+  type GuideCenterActions,
+  GUIDE_CENTER_ADVANCED_ITEM_IDS,
   resolveRegisteredRoomTourId,
 } from "./guide-center-model";
 import { useAutoStartSidebarTour } from "./use-auto-start-sidebar-tour";
@@ -80,11 +81,18 @@ export function useGuideCenterController({
 
   const registeredRoomTourId = resolveRegisteredRoomTourId(isTourRegistered);
   const {
+    openAutomationsGuide,
+    openConnectorsGuide,
     openDmTour,
+    openGoalGuide,
     openLauncherTour,
+    openProvidersGuide,
     openRoomTour,
     openSidebarTour,
     openSkillsTour,
+    openSubagentsGuide,
+    openThreadGuide,
+    openWorkGraphGuide,
   } = useGuideCenterNavigation({
     closeGuideCenter,
     defaultAgentId,
@@ -94,18 +102,32 @@ export function useGuideCenterController({
     setActivePanelItem,
     startTourFromCenter,
   });
-  const actions = useMemo<GuideCenterTourActions>(() => ({
+  const actions = useMemo<GuideCenterActions>(() => ({
     [DM_CONVERSATION_TOUR_ID]: () => void openDmTour(),
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.automations]: openAutomationsGuide,
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.connectors]: openConnectorsGuide,
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.goal]: () => void openGoalGuide(),
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.providers]: openProvidersGuide,
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.subagents]: () => void openSubagentsGuide(),
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.thread]: () => void openThreadGuide(),
+    [GUIDE_CENTER_ADVANCED_ITEM_IDS.workgraph]: openWorkGraphGuide,
     [LAUNCHER_TOUR_ID]: openLauncherTour,
     [ROOM_CONVERSATION_TOUR_ID]: () => void openRoomTour(),
     [SIDEBAR_NAVIGATION_TOUR_ID]: openSidebarTour,
     [SKILLS_TOUR_ID]: openSkillsTour,
   }), [
+    openAutomationsGuide,
+    openConnectorsGuide,
     openDmTour,
+    openGoalGuide,
     openLauncherTour,
+    openProvidersGuide,
     openRoomTour,
     openSidebarTour,
     openSkillsTour,
+    openSubagentsGuide,
+    openThreadGuide,
+    openWorkGraphGuide,
   ]);
   const items = useMemo(
     () => buildGuideCenterItems(t, hasCompletedTour, actions),
@@ -119,6 +141,10 @@ export function useGuideCenterController({
     onReset: resetGuides,
     resetLabel: t("common.reset_guides"),
     reviewedLabel: t("common.reviewed"),
+    sectionLabels: {
+      advanced: t("guide_center.section_advanced"),
+      basics: t("guide_center.section_basics"),
+    },
     title: t("common.guide_center"),
   }), [closeGuideCenter, isGuideCenterOpen, items, resetGuides, t]);
 

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added persistent pinned conversation shortcuts below the sidebar capability entry, with tab pin toggles, drag reordering, and an independent hover/focus X action for unpinning.
+- Expanded the Guide Center with advanced entry points for Goals, WorkGraphs, Subagents, Threads, scheduled tasks, Connectors, and model providers.
 - Added a default, source-checked Nexus product guide Skill so every Agent can explain the current app in plain language, including conversations, Rooms, Goals, reusable WorkGraphs, proactive follow-up, scheduled tasks, Browser, external services, messaging, and settings.
 
 ### Changed
