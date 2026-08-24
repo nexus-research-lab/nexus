@@ -319,8 +319,16 @@ func (s *Server) mountExecutionRoutes() {
 		s.handlers.execution.HandleListExecutionHistory,
 	)
 	s.router.Get(
+		s.prefixPath("/executions/{execution_id}"),
+		s.handlers.execution.HandleGetExecution,
+	)
+	s.router.Get(
 		s.prefixPath("/workgraph/workflows"),
 		s.handlers.execution.HandleListWorkGraphWorkflows,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/workflows/{workflow_id}/preview"),
+		s.handlers.execution.HandlePreviewSavedWorkGraphWorkflow,
 	)
 	s.router.Post(
 		s.prefixPath("/workgraph/previews"),
@@ -329,6 +337,26 @@ func (s *Server) mountExecutionRoutes() {
 	s.router.Post(
 		s.prefixPath("/workgraph/previews/{preview_id}/save"),
 		s.handlers.execution.HandleScheduleWorkGraphWorkflowSave,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/previews/{preview_id}/editor"),
+		s.handlers.execution.HandleStartWorkGraphWorkflowEditor,
+	)
+	s.router.Get(
+		s.prefixPath("/workgraph/editors/{editor_id}"),
+		s.handlers.execution.HandleGetWorkGraphWorkflowEditor,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/editors/{editor_id}/apply"),
+		s.handlers.execution.HandleApplyWorkGraphWorkflowEditor,
+	)
+	s.router.Post(
+		s.prefixPath("/workgraph/editors/{editor_id}/versions/select"),
+		s.handlers.execution.HandleSelectWorkGraphWorkflowEditorVersion,
+	)
+	s.router.Delete(
+		s.prefixPath("/workgraph/editors/{editor_id}"),
+		s.handlers.execution.HandleCloseWorkGraphWorkflowEditor,
 	)
 	s.router.Delete(
 		s.prefixPath("/workgraph/workflows/{workflow_id}"),

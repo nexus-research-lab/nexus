@@ -19,7 +19,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
 - `controller/use-composer-controller.ts`: 除既有草稿/发送装配外，只接受同一 exact Session 的命名 WorkGraph 保存意图事件，把可见请求写入 Message 草稿并自动发送；不直接调用命名工作图创建 API
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
-- `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列和 Loop 选择器
+- `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列，以及 Loop / 已保存工作图选择器
 
 DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不公开入口。附加目录独立于 Agent workspace CWD，保存期间与模型/权限设置一样阻止新一轮提交。
 
@@ -28,7 +28,7 @@ DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不�
 发送目标先投影为 `send/enqueue + delivery policy`，消息提交按资格判断、附件准备、投递和收尾分阶段执行。
 未发送草稿胶囊包含正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标，以包含 Session ID 的 Room/DM 作用域保存在客户端内存 Store；切换 Session 时恢复各自完整待发送状态，切换逻辑聊天时同样隔离。成功投递的消息正文仍使用不含 Session ID 的逻辑聊天作用域保存在客户端本地持久化 Store，Web 浏览器与桌面 App WebView 各自独立，禁止接入服务端或跨设备同步；每个作用域最多保留 50 条，总持久化条目保持有界。弹层开关、上传中、错误提示、Mention 匹配浮层、历史游标和召回前的未发送正文属于瞬时 UI，不进入持久化历史。每次 Session 草稿作用域变化都要把 textarea 聚焦到正文末尾并显示最后一行，不能把光标停在首字符前；历史召回后同样把光标放到正文末尾。消息在本地协议派发并建立 optimistic/queue 请求后立即认领并清空提交时修订号仍未变化的当前 Session 完整胶囊；Goal、普通消息、编辑重跑与队列输入都由 exact durable transport owner 跨 Session 切换或新建继续等待，只有页面级请求取消；ACK/拒绝按 client_request_id 收口且只在原 Session 投影。发送前失败或后端明确拒绝只在用户没有继续输入时恢复该胶囊，受理未知绝不恢复，避免重复发送。Goal 的 post-send 明确失败另建 recovery receipt，迟到 durable Goal/控制记录只撤回同一恢复修订号和过时错误，用户后续编辑必须保留，新重试则原子替换旧 receipt；受理未知进入确认中。Goal 创建由 ACK、越过提交前 version fence 的 durable Goal，或原 Session exact client_message_id durable 控制记录收口。
 中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter、Slash 导航和 Mention 导航守卫；Safari 守卫只消费 composition 结束后的 Enter 并阻止浏览器默认提交。
-Slash 命令目录只消费后端从版本化内置清单合成的快照中的公开名称、说明、参数提示和执行类型；输入恰为 `/` 时展示当前快照的全部指令，继续输入字母后按名称、说明和参数提示筛选。`/skills` 是宿主侧技能入口：一级命令只负责进入技能子面板，技能列表按快照中的当前 Agent ID 拉取并在子面板中筛选，Nexus 内置 Skill 使用共享双语说明参与展示与搜索，最终只把 `/<skill> ` 写回正文；未为当前 Agent 启用的 Skill 以弱化的“单次使用”状态显示并允许显式选择，完整 `SKILL.md` 的读取、参数展开和单轮上下文注入全部由所选 runtime 负责。`/model` 同样进入模型子面板，按当前 runtime 拉取 Nexus Provider 模型选项，并为 Claude runtime 合入版本内置别名；Provider 模型选择写回 `/model <provider>/<model> `，由 Nexus 原子更新当前 Session 的 Provider/模型覆盖，Claude 内置别名保持原生 `/model <alias> ` 透传。其他 host/runtime 选择只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链。所有消息开头的 `/<command>` 都通过不接管指针的同步镜像显示为轻量命令标签，原生 textarea 仍独占输入、光标、选择、IME 与滚动；`/visualize` 同样只写回原始指令，后端在 runtime 投递边界展开简短的 Generative UI 提示，前端不得拼接隐藏提示。前端不得查询命令目录或按浮层打开触发 runtime，浮层查询和选中位置不进入草稿持久化。发送收尾或其他程序化草稿变更使正文不再匹配 Slash 查询时，浮层必须同步关闭。
+Slash 命令目录只消费后端从版本化内置清单合成的快照中的公开名称、说明、参数提示和执行类型；输入恰为 `/` 时按公开命令名（忽略前导 `/` 与大小写）字母序展示当前快照的全部指令，继续输入字母后只保留命令名前缀匹配并维持字母序，说明与参数提示只用于展示、不参与匹配。`/skills` 是宿主侧技能入口：一级命令只负责进入技能子面板，技能列表按快照中的当前 Agent ID 拉取并在子面板中筛选，Nexus 内置 Skill 使用共享双语说明参与展示与搜索，最终只把 `/<skill> ` 写回正文；未为当前 Agent 启用的 Skill 以弱化的“单次使用”状态显示并允许显式选择，完整 `SKILL.md` 的读取、参数展开和单轮上下文注入全部由所选 runtime 负责。`/model` 同样进入模型子面板，按当前 runtime 拉取 Nexus Provider 模型选项，并为 Claude runtime 合入版本内置别名；Provider 模型选择写回 `/model <provider>/<model> `，由 Nexus 原子更新当前 Session 的 Provider/模型覆盖，Claude 内置别名保持原生 `/model <alias> ` 透传。其他 host/runtime 选择只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链。所有消息开头的 `/<command>` 都通过不接管指针的同步镜像显示为轻量命令标签，原生 textarea 仍独占输入、光标、选择、IME 与滚动；`/visualize` 同样只写回原始指令，后端在 runtime 投递边界展开简短的 Generative UI 提示，前端不得拼接隐藏提示。前端不得查询命令目录或按浮层打开触发 runtime，浮层查询和选中位置不进入草稿持久化。发送收尾或其他程序化草稿变更使正文不再匹配 Slash 查询时，浮层必须同步关闭。
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。
 紧凑 Composer 只用于手机与窄窗专注模式：外层至少保留 16px 横向安全留白，较宽窄窗保持 720px 居中上限，底部留白必须覆盖常规间距与系统 safe area；不得把输入壳铺满整个视口。
 常规桌面 Composer 在底部保留 8px 呼吸区，使输入壳贴近窗口底边但不截断边框与阴影；不得通过改变输入壳自身高度模拟抬升。紧凑模式继续取常规间距与系统 safe area 的较大值。
@@ -44,3 +44,4 @@ Composer 的可用发送、排队与 Goal 确认使用 Nexus 品牌行动蓝，�
 队列命令和附件准备是 DM/Room 的共同能力；DM Composer 的停止针对当前会话，Room Composer 的“全部停止”必须在点击时冻结所有 active slot 的精确 `agent_round_id`，逐个复用定向停止，禁止退化为无目标的 session interrupt。
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。Slash 键盘导航不得注册 document 级监听，必须由 textarea 或子面板搜索框显式分派；外部点击、Escape 收口及 resize/scroll 重定位统一复用 `shared/ui/overlay/anchored-overlay-layer.ts`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。
+Composer 的 Loop 与工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。

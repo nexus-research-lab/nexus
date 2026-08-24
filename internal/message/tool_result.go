@@ -55,6 +55,9 @@ func (p *Processor) processToolResultMessage(
 		enrichedBlock := p.enrichToolResultBlock(block, structuredOutput)
 		enrichedBlocks = append(enrichedBlocks, enrichedBlock)
 		enrichedBlocks = append(enrichedBlocks, p.workspaceFileArtifactsForToolResult(enrichedBlock)...)
+		if artifact := p.workGraphArtifactForToolResult(enrichedBlock); artifact != nil {
+			enrichedBlocks = append(enrichedBlocks, artifact)
+		}
 	}
 	if len(enrichedBlocks) == 0 {
 		return nil

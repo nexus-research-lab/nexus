@@ -1,3 +1,6 @@
+// INPUT: 飞书 Device Flow 阶段与手工凭据草稿。
+// OUTPUT: 当前用户动作所需的短标题、状态、二维码/跳转模式和完整性判断。
+// POS: 飞书连接弹窗的纯展示模型，不携带教程式副标题。
 import type {
   ConnectorDeviceAuthStart,
   ConnectorDeviceAuthStage,
@@ -8,7 +11,6 @@ export interface FeishuDeviceAuthPresentation {
   qrAlt?: string;
   initialMessage: string;
   showQRCode: boolean;
-  subtitle: string;
   title: string;
 }
 
@@ -19,17 +21,15 @@ const FEISHU_DEVICE_AUTH_PRESENTATION: Record<
   app_selection: {
     actionLabel: "打开飞书",
     qrAlt: "飞书应用选择二维码",
-    initialMessage: "等待飞书选择或创建应用",
+    initialMessage: "等待选择应用",
     showQRCode: true,
-    subtitle: "使用飞书扫码，在官方页面选择已有应用或创建新应用并补齐云文档权限。",
-    title: "选择或创建飞书应用",
+    title: "选择飞书应用",
   },
   user_authorization: {
     actionLabel: "继续飞书授权",
-    initialMessage: "等待当前用户授予云文档权限",
+    initialMessage: "等待授权",
     showQRCode: false,
-    subtitle: "应用已经确定，Nexus 将打开飞书页面完成当前用户的云文档授权。",
-    title: "授权飞书云文档",
+    title: "连接飞书云文档",
   },
 };
 

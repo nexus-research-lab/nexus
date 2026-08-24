@@ -40,7 +40,7 @@ test("slash query only opens at the beginning of a message", async () => {
   assert.equal(findSlashCommandTextMatch("/rev", 4, false), null);
 });
 
-test("slash selection inserts a normal host or runtime message", async () => {
+test("slash commands match name prefixes and sort by name", async () => {
   const {
     filterSlashCommands,
     insertSlashCommand,
@@ -71,11 +71,35 @@ test("slash selection inserts a normal host or runtime message", async () => {
 
   assert.deepEqual(
     filterSlashCommands(commands, "code").map((command) => command.name),
-    ["review"],
+    [],
+  );
+  assert.deepEqual(
+    filterSlashCommands([
+      {
+        argument_hint: "<objective>",
+        description: "Set the Goal",
+        enabled: true,
+        execution: "host",
+        name: "goal",
+      },
+      {
+        description: "Generate project files",
+        enabled: true,
+        execution: "runtime",
+        name: "scaffold",
+      },
+      {
+        description: "Coordinate agents",
+        enabled: true,
+        execution: "host",
+        name: "collaborate",
+      },
+    ], "c").map((command) => command.name),
+    ["collaborate"],
   );
   assert.deepEqual(
     filterSlashCommands(commands, "").map((command) => command.name),
-    ["review", "compact", "github:review (MCP)"],
+    ["compact", "github:review (MCP)", "review"],
   );
   assert.equal(isSelectableSlashCommand(commands[0]), true);
   assert.equal(

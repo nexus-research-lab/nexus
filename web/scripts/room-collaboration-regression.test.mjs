@@ -64,8 +64,11 @@ test("手输 /goal 在 ACK 前也投影为 Goal 控制记录", async () => {
       identity: { agent_id: "nexus", chat_type: "dm" },
       messages,
       pendingPermissions: [],
+      reliability: {
+        observeRecovery: () => {},
+        reportFailure: () => {},
+      },
       sessionKey: "agent:nexus:ws:dm:goal-optimistic",
-      setError: () => {},
       setMessages: (update) => {
         messages = typeof update === "function" ? update(messages) : update;
       },

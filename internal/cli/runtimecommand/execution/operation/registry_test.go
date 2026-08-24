@@ -111,7 +111,7 @@ func TestExecutionOperationSchemasHideFencingAndIdempotency(t *testing.T) {
 	}
 }
 
-func TestPlanOperationSchemasExposeDocumentGoalIntentThenExactSealedReference(t *testing.T) {
+func TestPlanOperationSchemasExposeDocumentIntentThenHostBoundCommit(t *testing.T) {
 	prepare := preparePlanExecution(nil, contract.Context{})
 	commit := planExecution(nil, contract.Context{})
 
@@ -145,7 +145,11 @@ func TestPlanOperationSchemasExposeDocumentGoalIntentThenExactSealedReference(t 
 	if len(commitProperties) != 2 ||
 		commitProperties["proposal_id"].(map[string]any)["type"] != "string" ||
 		commitProperties["proposal_digest"].(map[string]any)["type"] != "string" ||
-		!slices.Equal(commitRequired, []string{"proposal_id", "proposal_digest"}) {
+		len(commitRequired) != 0 ||
+		!strings.Contains(
+			commitProperties["proposal_id"].(map[string]any)["description"].(string),
+			"host resolves",
+		) {
 		t.Fatalf("commit schema = %#v", commit.InputSchema)
 	}
 

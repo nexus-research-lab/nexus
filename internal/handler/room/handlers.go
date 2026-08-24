@@ -194,7 +194,7 @@ func (h *Handlers) HandleDeleteRoom(writer http.ResponseWriter, request *http.Re
 
 // HandleEnsureDirectRoom 确保 DM room 存在。
 func (h *Handlers) HandleEnsureDirectRoom(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.roomService.EnsureDirectRoom(request.Context(), chi.URLParam(request, "agent_id"))
+	item, err := h.roomService.EnsureDirectRoomWithWelcome(request.Context(), chi.URLParam(request, "agent_id"))
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return

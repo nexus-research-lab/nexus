@@ -60,6 +60,7 @@ const ignoreHeightMetrics = () => undefined;
 const CONTENT_BLOCK_METRIC_COLLECTORS = {
   document: ignoreHeightMetrics,
   image: ignoreHeightMetrics,
+  progress_update: ignoreHeightMetrics,
   redacted_thinking: ignoreHeightMetrics,
   resource_link: ignoreHeightMetrics,
   search_result: ignoreHeightMetrics,
@@ -77,6 +78,11 @@ const CONTENT_BLOCK_METRIC_COLLECTORS = {
   },
   tool_use_error: ignoreHeightMetrics,
   unsupported: ignoreHeightMetrics,
+  workgraph_artifact: (_block, metrics) => {
+    // 草图卡片约等于六个紧凑工具行；先给虚拟列表合理估高，
+    // 实际 DOM ResizeObserver 再校正，避免 FOLLOW 锚点在卡片出现时下跳。
+    metrics.toolBlockCount += 6;
+  },
   workspace_file_artifact: ignoreHeightMetrics,
 } satisfies ContentBlockMetricCollectorMap;
 

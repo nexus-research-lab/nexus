@@ -1,6 +1,6 @@
 /**
  * INPUT: Agent mention/宿主 handoff reply 身份、目录与可选联系人动作。
- * OUTPUT: 可点击 mention chip 的原位阶段，以及不可点击的 reply 身份 chip。
+ * OUTPUT: 可点击且单行文字不裁剪的 mention chip 原位阶段，以及不可点击的 reply 身份 chip。
  * POS: Agent @ 身份的共享视觉边界，reply 不创建 mention、wake 或 execution 卡片。
  */
 "use client";
@@ -59,7 +59,7 @@ export function AgentMentionChip({
         handoffLabel,
       ].filter(Boolean).join("，")}
       className={cn(
-        "mx-0.5 inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 align-middle text-[0.9em] font-medium leading-none transition-colors",
+        "mx-0.5 inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 align-middle text-[0.9em] font-medium leading-tight transition-colors",
         "border-primary/20 bg-primary/8 text-primary",
         interactive && "cursor-pointer hover:border-primary/40 hover:bg-primary/14",
         !interactive && "cursor-default",

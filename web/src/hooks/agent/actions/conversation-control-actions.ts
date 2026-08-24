@@ -27,13 +27,39 @@ function getLatestUserRoundId(messages: Message[]): string | undefined {
   return undefined;
 }
 
+function reportControlFailure(
+  context: AgentConversationActionContext,
+  code: "connection_unavailable" | "permission_not_sent" | "validation_failed",
+): void {
+  const sessionKey = context.sessionKey || context.activeSessionKeyRef.current;
+  if (sessionKey) {
+    context.reliability.reportFailure({ code, session_key: sessionKey });
+  }
+}
+
+function observeControlSubmission(context: AgentConversationActionContext): void {
+  const sessionKey = context.sessionKey || context.activeSessionKeyRef.current;
+  if (sessionKey) {
+    context.reliability.observeRecovery({
+      kind: "submission_started",
+      session_key: sessionKey,
+    });
+  }
+}
+
 export function stopSessionGeneration(
   context: AgentConversationActionContext,
   agentRoundId?: string,
 ): OutboundRequestDescriptor | null {
   const result = resolveConversationActionContext(context);
   if (!result.ok) {
-    context.setError(conversationContextError(result.reason));
+    reportControlFailure(
+      context,
+      result.reason === "disconnected"
+        ? "connection_unavailable"
+        : "validation_failed",
+    );
+    console.warn(conversationContextError(result.reason));
     return null;
   }
 
@@ -46,7 +72,7 @@ export function stopSessionGeneration(
     ...(agentRoundId ? { agent_round_id: agentRoundId } : {}),
   } as WebSocketMessage;
   if (context.wsSend(command).disposition !== "sent") {
-    context.setError("中断请求发送失败，请稍后重试");
+    reportControlFailure(context, "connection_unavailable");
     return null;
   }
   if (agentRoundId) {
@@ -58,7 +84,7 @@ export function stopSessionGeneration(
   } else {
     context.setPendingPermissions([]);
   }
-  context.setError(null);
+  observeControlSubmission(context);
   return request;
 }
 
@@ -210,19 +236,19 @@ export function sendSessionPermissionResponse(
     removePendingPermission(context, plan.removeRequestId);
   }
   if (plan.errorMessage) {
-    context.setError(plan.errorMessage);
+    reportControlFailure(context, "validation_failed");
   }
   if (!plan.response) {
     return false;
   }
   if (context.wsSend(plan.response).disposition !== "sent") {
-    context.setError("权限决策发送失败，请稍后重试");
+    reportControlFailure(context, "permission_not_sent");
     return false;
   }
   // 先留下 keyed execution tombstone，再移除交互权限；同一帧不会卸载
   // Agent shell，也不会继续暴露可重复提交的问题表单。
   context.acknowledgePermissionRequest(payload.request_id);
   removePendingPermission(context, payload.request_id);
-  context.setError(null);
+  observeControlSubmission(context);
   return true;
 }

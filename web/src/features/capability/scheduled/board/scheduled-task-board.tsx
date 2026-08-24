@@ -1,13 +1,15 @@
+/**
+ * INPUT: 定时任务集合、资源状态、建议预设与任务命令。
+ * OUTPUT: 快速创建目录或四列真实状态看板。
+ * POS: 定时任务主内容视图；空列由标题与数量自解释。
+ */
 "use client";
 
 import type { LucideIcon } from "lucide-react";
 import {
   BellRing,
-  CalendarCheck2,
   CircleAlert,
-  CirclePause,
   ClipboardList,
-  LoaderCircle,
   MonitorCheck,
   Plus,
   RefreshCw,
@@ -71,13 +73,6 @@ const COLUMN_TONE_CLASS_NAMES: Record<
   warning: "bg-(--warning)",
 };
 
-const COLUMN_EMPTY_ICONS: Record<ScheduledTaskBoardColumn["id"], LucideIcon> = {
-  attention: CircleAlert,
-  running: LoaderCircle,
-  scheduled: CalendarCheck2,
-  stopped: CirclePause,
-};
-
 const SUGGESTION_ICONS: Record<ScheduledTaskSuggestion["icon"], LucideIcon> = {
   briefing: BellRing,
   monitor: MonitorCheck,
@@ -137,7 +132,7 @@ function ScheduledTaskErrorState({
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
       <CircleAlert className="h-8 w-8 text-(--destructive)" />
-      <h2 className="mt-4 text-[16px] font-semibold text-(--text-strong)">
+      <h2 className="mt-4 text-md font-semibold text-(--text-strong)">
         {t("capability.scheduled_load_failed")}
       </h2>
       <p className="mt-1 max-w-md text-compact leading-5 text-(--text-muted)">{message}</p>
@@ -166,7 +161,7 @@ function ScheduledTaskSuggestions({
     >
       <div className="max-w-[720px]">
         <h2
-          className="text-[16px] font-medium tracking-[-0.01em] text-(--text-strong)"
+          className="text-md font-medium tracking-[-0.01em] text-(--text-strong)"
           id="scheduled-task-suggestions-title"
         >
           {t("capability.scheduled_quick_start_title")}
@@ -239,7 +234,6 @@ function ScheduledTaskBoardColumnView({
   onToggleEnabled: ScheduledTaskBoardProps["onToggleEnabled"];
   pending: ScheduledTaskPendingCommands;
 }) {
-  const EmptyIcon = COLUMN_EMPTY_ICONS[column.id];
   return (
     <section
       className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0"
@@ -284,12 +278,7 @@ function ScheduledTaskBoardColumnView({
           ))}
         </div>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center px-5 pb-12 text-center">
-          <EmptyIcon className="h-6 w-6 text-(--icon-muted)" />
-          <p className="mt-2 text-xs leading-5 text-(--text-soft)">
-            {column.emptyDescription}
-          </p>
-        </div>
+        <div className="flex-1" aria-hidden="true" />
       )}
     </section>
   );

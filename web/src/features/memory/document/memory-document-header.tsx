@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前记忆文档、编辑状态、实时写入状态与操作。
+ * OUTPUT: 可读摘要标题、更新时间和真实编辑/删除动作。
+ * POS: 记忆正文唯一 Header；内部路径只保留为悬停诊断。
+ */
 import {
   ArrowLeft,
   LoaderCircle,
@@ -12,6 +17,7 @@ import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import type { MemoryDocument } from "@/types/memory/memory";
 
 import { formatMemoryModifiedTime } from "../memory-utils";
+import { getMemoryDocumentDisplayTitle } from "../catalog/memory-catalog-presentation";
 import {
   buildMemoryDocumentHeaderModel,
   type MemoryDocumentHeaderAction,
@@ -73,10 +79,10 @@ export function MemoryDocumentHeader({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h2
-              className="truncate text-[14px] font-semibold text-(--text-strong)"
+              className="truncate text-base font-semibold text-(--text-strong)"
               title={document.path}
             >
-              {document.title}
+              {getMemoryDocumentDisplayTitle(document)}
             </h2>
             {runtimeWriting ? <MemoryRuntimeWritingStatus /> : null}
           </div>

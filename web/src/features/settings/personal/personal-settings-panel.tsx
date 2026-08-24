@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前用户资料、密码与用量资源。
+ * OUTPUT: 个人设置分区及反馈，移动端页面身份由应用栏承载。
+ * POS: 设置目录的个人账户页面装配层。
+ */
 "use client";
 
 import { Loader2 } from "lucide-react";
@@ -24,6 +29,7 @@ export function PersonalSettingsPanel() {
         "flex flex-col",
       )}>
         <WorkspaceContentHeader
+          className="max-sm:hidden"
           description={t("settings.personal.section_description")}
           title={t("settings.personal.section_title")}
         />

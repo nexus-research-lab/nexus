@@ -1,3 +1,8 @@
+/**
+ * INPUT: Agent/Room Conversation identity、共享 transport、Session/runtime 子域与事件回调。
+ * OUTPUT: 消息、运行态、可靠性快照和带 ACK 所有权的 Conversation 公共命令。
+ * POS: Agent Conversation 的 React composition root。
+ */
 import {
   useCallback,
   useEffect,
@@ -33,6 +38,7 @@ import { useAgentSessionController } from "./session/controller/use-agent-sessio
 import { useAgentConversationSocket } from "./transport/use-agent-conversation-socket";
 import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
 import { useConversationStreamBuffer } from "./transport/use-conversation-stream-buffer";
+import { useConversationReliability } from "./reliability/use-conversation-reliability";
 import {
   buildAgentConversationResult,
   resolveAgentConversationConfig,
@@ -70,7 +76,7 @@ export function useAgentConversation(
   const [contextUsageByAgent, setContextUsageByAgent] = useState<
     Record<string, ContextUsageData>
   >({});
-  const [error, setError] = useState<string | null>(null);
+  const reliability = useConversationReliability();
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
   const wsSendRef = useRef<
@@ -141,7 +147,7 @@ export function useAgentConversation(
     state: {
       messages,
       pendingAgentSlots,
-      setError,
+      reliability: reliability.controller,
       setMessages,
       setPendingAgentSlots,
       setPendingPermissions,
@@ -178,6 +184,7 @@ export function useAgentConversation(
     settleChatAckWaitFailure,
     settleRequestAckWaitFailure,
   } = useRequestAckFailure({
+    activeSessionKeyRef: session.activeSessionKeyRef,
     clearOutboundRequest,
     getInputQueueItems,
     hasPendingRequestAck,
@@ -185,7 +192,7 @@ export function useAgentConversation(
     rejectPendingRequestAck,
     reloadCurrentSession: session.reloadCurrentSession,
     resolvePendingRequestAck,
-    setError,
+    reliability: reliability.controller,
     setMessages,
     wsReconnectRef,
     wsStateRef,
@@ -225,6 +232,7 @@ export function useAgentConversation(
     },
     scope: {
       agentId,
+      chatType,
       conversationId,
       isCurrentRoomEvent,
       isCurrentSessionEvent: session.isCurrentSessionEvent,
@@ -232,9 +240,9 @@ export function useAgentConversation(
       sessionKey: session.sessionKey,
     },
     state: {
+      reliability: reliability.controller,
       setCommandCatalog,
       setContextUsageByAgent,
-      setError,
       setInputQueueItems: session.setInputQueueItems,
       setMessages,
       setPendingPermissions,
@@ -264,7 +272,8 @@ export function useAgentConversation(
     wsStateRef,
     onMessage: handleWebsocketMessage,
     onError,
-    setError,
+    onReconnected: session.reloadCurrentSession,
+    reliability: reliability.controller,
   });
   useEffect(() => {
     const refreshCommandCatalog = () => {
@@ -295,8 +304,8 @@ export function useAgentConversation(
     identity,
     messages,
     pendingPermissions,
+    reliability: reliability.controller,
     sessionKey: session.sessionKey,
-    setError,
     setMessages,
     setPendingPermissions,
     wsSend,
@@ -326,8 +335,8 @@ export function useAgentConversation(
     commandCatalog,
     contextUsage: agentId ? contextUsageByAgent[agentId] ?? null : null,
     contextUsageByAgent,
-    error,
     messages,
+    reliability: reliability.projectSnapshot(session.sessionKey),
     runtime: {
       pendingAgentSlots,
       pendingPermissions,

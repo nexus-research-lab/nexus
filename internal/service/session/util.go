@@ -77,6 +77,9 @@ func shouldHideWorkspaceSession(item protocol.Session) bool {
 	if protocol.IsRoomSharedSessionKey(item.SessionKey) {
 		return true
 	}
+	if protocol.SessionIsHiddenFromDirectory(item) {
+		return true
+	}
 	return item.RoomSessionID != nil && strings.TrimSpace(*item.RoomSessionID) != ""
 }
 

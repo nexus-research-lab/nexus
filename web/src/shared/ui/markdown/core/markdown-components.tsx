@@ -279,10 +279,13 @@ export function createMarkdownComponents(
       const imageSrc = resolvedPath && currentAgentId
         ? getWorkspaceFilePreviewUrl(currentAgentId, resolvedPath)
         : rawSrc;
+      const interactive = Boolean(resolvedPath && onOpenWorkspaceFile);
       const image = (
         <img
           alt={alt || ""}
-          className="content-media block h-auto max-h-[420px] w-auto max-w-full object-contain sm:max-w-[560px]"
+          className={interactive
+            ? "content-media block h-full w-full object-contain"
+            : "content-media content-media-frame block object-contain"}
           loading="lazy"
           src={imageSrc}
         />
@@ -291,7 +294,7 @@ export function createMarkdownComponents(
       if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <button
-            className="content-media-action block w-fit max-w-full text-left"
+            className="content-media-action content-media-frame block text-left"
             onClick={() => onOpenWorkspaceFile(resolvedPath, currentAgentId)}
             title={resolvedPath}
             type="button"

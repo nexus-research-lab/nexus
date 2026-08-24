@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 Session/transport/action 状态与结构化 reliability controller。
+ * OUTPUT: 经身份校验的命令作用域、发送结果和无原始错误泄露的失败分类。
+ * POS: Conversation 用户命令进入 WebSocket 前的统一守卫。
+ */
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { resolveAgentId } from "@/config/runtime-options";
@@ -10,6 +15,8 @@ import type {
   WebSocketSendResult,
   WebSocketState,
 } from "@/types/system/websocket";
+import type { ConversationFailureCode } from "@/types/agent/agent-conversation-reliability";
+import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
 
 export interface AgentConversationActionContext {
   acknowledgePermissionRequest: (requestId: string) => void;
@@ -18,7 +25,7 @@ export interface AgentConversationActionContext {
   messages: Message[];
   pendingPermissions: PendingPermission[];
   sessionKey: string | null;
-  setError: Dispatch<SetStateAction<string | null>>;
+  reliability: ConversationReliabilityController;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setPendingPermissions: Dispatch<SetStateAction<PendingPermission[]>>;
   wsSend: (message: WebSocketMessage) => WebSocketSendResult;
@@ -126,15 +133,27 @@ export function requireConversationActionContext(
     return result.value;
   }
   const message = conversationContextError(result.reason);
-  context.setError(message);
+  const sessionKey = context.sessionKey || context.activeSessionKeyRef.current;
+  if (sessionKey) {
+    context.reliability.reportFailure({
+      code: result.reason === "disconnected"
+        ? "connection_unavailable"
+        : "validation_failed",
+      session_key: sessionKey,
+    });
+  }
   throw new Error(message);
 }
 
 export function failConversationAction(
   context: AgentConversationActionContext,
   message: string,
+  code: ConversationFailureCode = "validation_failed",
 ): never {
-  context.setError(message);
+  const sessionKey = context.sessionKey || context.activeSessionKeyRef.current;
+  if (sessionKey) {
+    context.reliability.reportFailure({ code, session_key: sessionKey });
+  }
   throw new Error(message);
 }
 
@@ -144,8 +163,14 @@ export function sendConversationCommand(
   failureMessage: string,
 ): void {
   if (context.wsSend(command).disposition === "sent") {
-    context.setError(null);
+    const sessionKey = context.sessionKey || context.activeSessionKeyRef.current;
+    if (sessionKey) {
+      context.reliability.observeRecovery({
+        kind: "submission_started",
+        session_key: sessionKey,
+      });
+    }
     return;
   }
-  failConversationAction(context, failureMessage);
+  failConversationAction(context, failureMessage, "connection_unavailable");
 }

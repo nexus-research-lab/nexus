@@ -7,11 +7,16 @@ import type { Message } from "@/types/conversation/message/entity";
 import type { WebSocketState } from "@/types/system/websocket";
 
 import { removeFailedOutboundUserMessage } from "../runtime/model/conversation-runtime-reconciliation";
-import { RequestAcceptanceUnknownError } from "./use-pending-request-acks";
+import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
+import {
+  RequestAcceptanceRejectedError,
+  RequestAcceptanceUnknownError,
+} from "./use-pending-request-acks";
 
 export { RequestAcceptanceUnknownError } from "./use-pending-request-acks";
 
 interface UseRequestAckFailureOptions {
+  activeSessionKeyRef: RefObject<string | null>;
   clearOutboundRequest: (clientRequestId: string) => void;
   getInputQueueItems: () => readonly InputQueueItem[];
   hasPendingRequestAck: (clientRequestId: string) => boolean;
@@ -25,7 +30,7 @@ interface UseRequestAckFailureOptions {
   ) => Promise<Message[]>;
   reloadCurrentSession: () => Promise<Message[] | null>;
   resolvePendingRequestAck: (clientRequestId?: string | null) => boolean;
-  setError: Dispatch<SetStateAction<string | null>>;
+  reliability: ConversationReliabilityController;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   wsReconnectRef: RefObject<() => void>;
   wsStateRef: RefObject<WebSocketState>;
@@ -115,6 +120,7 @@ export async function recoverRequestAckTimeout({
 }
 
 export function useRequestAckFailure({
+  activeSessionKeyRef,
   clearOutboundRequest,
   getInputQueueItems,
   hasPendingRequestAck,
@@ -122,7 +128,7 @@ export function useRequestAckFailure({
   rejectPendingRequestAck,
   reloadCurrentSession,
   resolvePendingRequestAck,
-  setError,
+  reliability,
   setMessages,
   wsReconnectRef,
   wsStateRef,
@@ -182,8 +188,22 @@ export function useRequestAckFailure({
       ? cause.message
       : "消息未送达后端，请重试";
     clearOutboundRequest(clientRequestId);
-    setError(message);
-  }, [clearOutboundRequest, setError]);
+    console.error("[useAgentConversation] 请求受理失败:", message);
+    const correlation = cause instanceof RequestAcceptanceUnknownError
+        || cause instanceof RequestAcceptanceRejectedError
+      ? cause.correlation
+      : null;
+    const sessionKey = correlation?.sessionKey ?? activeSessionKeyRef.current;
+    if (sessionKey) {
+      reliability.reportFailure({
+        client_request_id: clientRequestId,
+        code: cause instanceof RequestAcceptanceRejectedError
+          ? "request_rejected"
+          : "delivery_unknown",
+        session_key: sessionKey,
+      });
+    }
+  }, [activeSessionKeyRef, clearOutboundRequest, reliability]);
 
   const settleChatAckWaitFailure = useCallback((
     clientRequestId: string,

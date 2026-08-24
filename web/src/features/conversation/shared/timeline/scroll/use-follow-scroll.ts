@@ -1,7 +1,7 @@
 /**
- * INPUT: 会话内容版本、历史前插令牌与滚动容器尺寸变化。
- * OUTPUT: DM、Room、Thread 共用的跟随状态、live 高度保护、聚合贴底、阅读锚定、定位入口与用户滚动处理器。
- * POS: FOLLOW 单一贴底所有权、Virtualizer 测高委托、live 高度负债、READING 锚定和资源清理的 React 编排层。
+ * INPUT: 会话内容版本、初始/实时内容锚点、历史前插令牌与滚动容器尺寸变化。
+ * OUTPUT: DM、Room、Thread 共用的跟随状态、可顶部起始的 live 高度保护、阅读锚定与用户滚动处理器。
+ * POS: FOLLOW 单一滚动所有权、Virtualizer 测高委托、live 高度负债、READING 锚定和资源清理的 React 编排层。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
@@ -18,7 +18,14 @@ import {
 import { ConversationViewportAnchor } from "./conversation-viewport-anchor";
 import { HistoryPrependAnchor } from "./history-prepend-anchor";
 import { BottomScrollAnimator } from "./scroll-animation";
-import { useConversationLiveHeightGuard } from "./use-conversation-live-height-guard";
+import {
+  clearConversationRoundNavigationTarget,
+  getConversationRoundNavigationTarget,
+} from "./round-scroll";
+import {
+  useConversationLiveHeightGuard,
+  type ConversationLiveContentAlignment,
+} from "./use-conversation-live-height-guard";
 import { useFollowScrollInteractions } from "./use-follow-scroll-interactions";
 
 interface UseFollowScrollOptions {
@@ -26,6 +33,8 @@ interface UseFollowScrollOptions {
   atomicLayoutKey?: string | null;
   contentKey?: string | null;
   historyPrependToken?: number;
+  initialScrollAnchor?: "bottom" | "top";
+  liveContentAlignment?: ConversationLiveContentAlignment;
   liveLayoutActive?: boolean;
   sessionKey: string | null;
   topologyKey?: string | null;
@@ -57,6 +66,8 @@ export function useFollowScroll({
   atomicLayoutKey = null,
   contentKey = null,
   historyPrependToken = 0,
+  initialScrollAnchor = "bottom",
+  liveContentAlignment = "end",
   liveLayoutActive = false,
   sessionKey,
   topologyKey = null,
@@ -105,6 +116,7 @@ export function useFollowScroll({
   );
   useConversationLiveHeightGuard({
     active: liveLayoutActive,
+    contentAlignment: liveContentAlignment,
     feedRef,
     revision: `${messageCount}\u001f${topologyKey ?? ""}`,
     scopeKey: sessionKey,
@@ -161,6 +173,9 @@ export function useFollowScroll({
     if (!sizeRevision.changed) {
       return false;
     }
+    if (getConversationRoundNavigationTarget(container)) {
+      return false;
+    }
     const resizeState = resolveConversationViewportResizeState(
       container,
       lastScrollTopRef.current,
@@ -184,6 +199,9 @@ export function useFollowScroll({
 
   const scheduleFollowLatest = useCallback(() => {
     const container = scrollRef.current;
+    if (container && getConversationRoundNavigationTarget(container)) {
+      return;
+    }
     if (
       container
       && retainPositionForViewportResize(container)
@@ -201,6 +219,10 @@ export function useFollowScroll({
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
+      const container = scrollRef.current;
+      if (container) {
+        clearConversationRoundNavigationTarget(container);
+      }
       shouldFollowLatestRef.current = true;
       viewportAnchorRef.current.reset();
       setScrollToBottomVisibility(false);
@@ -259,6 +281,25 @@ export function useFollowScroll({
       return;
     }
 
+    if (getConversationRoundNavigationTarget(container)) {
+      cancelAnimation();
+      setScrollToBottomVisibility(
+        hasScrollableOverflow(container) && !isAtScrollBottom(container),
+      );
+      return;
+    }
+
+    if (isNewSession && initialScrollAnchor === "top") {
+      cancelAnimation();
+      viewportAnchorRef.current.reset();
+      container.scrollTop = 0;
+      lastScrollTopRef.current = 0;
+      shouldFollowLatestRef.current = true;
+      setScrollToBottomVisibility(false);
+      viewportAnchorRef.current.capture(container, feedRef.current);
+      return;
+    }
+
     if (shouldFollowLatestRef.current) {
       if (isNewSession) {
         viewportAnchorRef.current.reset();
@@ -304,6 +345,7 @@ export function useFollowScroll({
     atomicLayoutKey,
     cancelAnimation,
     contentKey,
+    initialScrollAnchor,
     isUserScrollActive,
     messageCount,
     scheduleFollowLatest,
@@ -340,6 +382,9 @@ export function useFollowScroll({
     const observer = new ResizeObserver(() => {
       const currentContainer = scrollRef.current;
       if (!currentContainer) {
+        return;
+      }
+      if (getConversationRoundNavigationTarget(currentContainer)) {
         return;
       }
 
@@ -399,6 +444,10 @@ export function useFollowScroll({
       return;
     }
     const observer = new ResizeObserver(() => {
+      if (getConversationRoundNavigationTarget(container)) {
+        viewportSizeRef.current = getConversationViewportSize(container);
+        return;
+      }
       retainPositionForViewportResize(container);
     });
     observer.observe(container);
@@ -413,6 +462,9 @@ export function useFollowScroll({
     historyAnchorRef.current.cancel();
     viewportAnchorRef.current.reset();
     const container = scrollRef.current;
+    if (container) {
+      clearConversationRoundNavigationTarget(container);
+    }
     viewportSizeRef.current = container
       ? getConversationViewportSize(container)
       : null;

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 能力页面标题、可选说明、页面动作、筛选控件、分区与目录条目。
+ * OUTPUT: 能力管理页的共享内容轴、用途说明、移动页头动作投影和响应式网格。
+ * POS: 能力域页面级设计语法；通过应用布局动作槽适配手机页头，不解释具体领域状态。
+ */
 "use client";
 
 import {
@@ -5,7 +10,9 @@ import {
   type KeyboardEventHandler,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
+import { useMobileAppPageHeaderActionsTarget } from "@/app/layout/mobile-app-page-header-actions-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
@@ -20,7 +27,7 @@ interface CapabilityPageLayoutProps {
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
-  description: ReactNode;
+  description?: ReactNode;
   headerAnchor?: string;
   title: ReactNode;
 }
@@ -76,7 +83,7 @@ export const CAPABILITY_DIRECTORY_GRID_CLASS_NAME =
 
 /** 目录条目保留清晰外框，让不同能力类型共享同一内容层级。 */
 export const CAPABILITY_DIRECTORY_ROW_CLASS_NAME =
-  "min-h-[88px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
+  "min-h-[80px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
 
 /** 能力目录复用共享管理内容轴，标题、工具和内容始终保持同一基线。 */
 export function CapabilityPageLayout({
@@ -87,16 +94,40 @@ export function CapabilityPageLayout({
   headerAnchor,
   title,
 }: CapabilityPageLayoutProps) {
+  const mobileHeaderActionsTarget = useMobileAppPageHeaderActionsTarget();
+  const mobileActions = mobileHeaderActionsTarget && actions
+    ? createPortal(
+        <div
+          className="flex items-center"
+          data-tour-anchor={headerAnchor}
+        >
+          {actions}
+        </div>,
+        mobileHeaderActionsTarget,
+      )
+    : null;
+
   return (
-    <div className={cn(WORKSPACE_CONTENT_PAGE_CLASS_NAME, className)}>
-      <WorkspaceContentHeader
-        actions={actions}
-        description={description}
-        headerAnchor={headerAnchor}
-        title={title}
-      />
-      {children}
-    </div>
+    <>
+      {mobileActions}
+      <div className={cn(WORKSPACE_CONTENT_PAGE_CLASS_NAME, className)}>
+        <WorkspaceContentHeader
+          actions={!mobileHeaderActionsTarget && actions
+            ? <div className="flex w-full justify-end">{actions}</div>
+            : undefined}
+          className="max-sm:hidden"
+          description={description}
+          headerAnchor={headerAnchor}
+          title={title}
+        />
+        {description ? (
+          <p className="mb-5 text-compact leading-5 text-(--text-muted) sm:hidden">
+            {description}
+          </p>
+        ) : null}
+        {children}
+      </div>
+    </>
   );
 }
 

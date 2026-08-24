@@ -15,6 +15,7 @@ import type {
   ContextUsageData,
 } from "@/types/generated/protocol";
 import type { WebSocketState } from "@/types/system/websocket";
+import type { ConversationReliabilitySnapshot } from "@/types/agent/agent-conversation-reliability";
 
 import type { AgentConversationRuntimeSnapshot } from "./runtime/model/conversation-runtime-state";
 
@@ -95,8 +96,8 @@ interface BuildAgentConversationResultOptions {
   commandCatalog: CommandCatalogData;
   contextUsage: ContextUsageData | null;
   contextUsageByAgent: Readonly<Record<string, ContextUsageData>>;
-  error: string | null;
   messages: Message[];
+  reliability: ConversationReliabilitySnapshot;
   runtime: AgentConversationPublicRuntime;
   session: AgentConversationPublicSession;
   wsState: WebSocketState;
@@ -107,8 +108,8 @@ export function buildAgentConversationResult({
   commandCatalog,
   contextUsage,
   contextUsageByAgent,
-  error,
   messages,
+  reliability,
   runtime,
   session,
   wsState,
@@ -121,7 +122,6 @@ export function buildAgentConversationResult({
     context_usage_by_agent: contextUsageByAgent,
     delete_input_queue_message: actions.deleteQueueMessage,
     enqueue_input_queue_message: actions.enqueueQueueMessage,
-    error,
     guide_input_queue_message: actions.guideQueueMessage,
     has_more_history: session.hasMoreHistory,
     history_prepend_token: session.historyPrependToken,
@@ -136,6 +136,7 @@ export function buildAgentConversationResult({
     messages,
     pending_agent_slots: runtime.pendingAgentSlots,
     pending_permissions: runtime.pendingPermissions,
+    reliability,
     room_agent_execution_states: runtime.roomAgentExecutionStates,
     resolved_history_round_ids: session.resolvedHistoryRoundIds,
     reorder_input_queue_messages: actions.reorderQueueMessages,

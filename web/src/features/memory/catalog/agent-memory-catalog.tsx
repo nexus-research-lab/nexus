@@ -1,3 +1,8 @@
+/**
+ * INPUT: 已投影的记忆分区、筛选、查询和目录动作。
+ * OUTPUT: 紧凑记忆目录，以可读摘要为主标题并保留可区分的文档名。
+ * POS: Agent 记忆页左栏，不读取正文或解释路径协议。
+ */
 import { RefreshCw, Search } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -12,7 +17,10 @@ import {
   type MemoryCatalogSection,
   type MemoryFilter,
 } from "./memory-catalog-model";
-import { getMemoryDocumentIcon } from "./memory-catalog-presentation";
+import {
+  getMemoryDocumentDisplayTitle,
+  getMemoryDocumentIcon,
+} from "./memory-catalog-presentation";
 
 interface AgentMemoryCatalogProps {
   emptyFilterVisible: boolean;
@@ -167,9 +175,8 @@ function MemoryDocumentRow({
 }) {
   const { document, isSelected } = row;
   const Icon = getMemoryDocumentIcon(document);
-  const description = document.description && document.description !== document.path
-    ? document.description
-    : "";
+  const displayTitle = getMemoryDocumentDisplayTitle(document);
+  const showDocumentTitle = displayTitle !== document.title;
   return (
     <button
       className={cn(
@@ -179,6 +186,7 @@ function MemoryDocumentRow({
           : "hover:bg-(--surface-interactive-hover-background)",
       )}
       onClick={() => onSelect(document.path)}
+      title={document.path}
       type="button"
     >
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-(--surface-panel-subtle-background) text-(--icon-muted)">
@@ -186,11 +194,11 @@ function MemoryDocumentRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {document.title}
+          {displayTitle}
         </span>
-        {description ? (
+        {showDocumentTitle ? (
           <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
-            {description}
+            {document.title}
           </span>
         ) : null}
       </span>

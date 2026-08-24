@@ -1,3 +1,8 @@
+/**
+ * INPUT: 桌面浏览器扩展状态、安装命令和 CDP 偏好。
+ * OUTPUT: Browser 设置、连接状态与可执行恢复动作。
+ * POS: 设置目录的 Browser 分区，移动端页面身份由应用栏承载。
+ */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -149,6 +154,7 @@ export function BrowserSettingsSection() {
   return (
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} flex flex-col`}>
       <WorkspaceContentHeader
+        className="max-sm:hidden"
         description={t("settings.browser.section_description")}
         title={t("settings.browser.section_title")}
       />
@@ -161,7 +167,7 @@ export function BrowserSettingsSection() {
                 <AppWindow className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
+                <h2 className="text-base font-semibold tracking-tight text-(--text-strong)">
                   {browserName}
                 </h2>
                 <div aria-live="polite" className="mt-1 flex flex-wrap items-center gap-2 text-compact">
@@ -285,7 +291,7 @@ export function BrowserSettingsSection() {
                 <p className="text-xs font-semibold text-(--warning)">
                   {t("settings.browser.cdp_risk")}
                 </p>
-                <h3 className="mt-1 text-[14px] font-semibold tracking-tight text-(--text-strong)">
+                <h3 className="mt-1 text-base font-semibold tracking-tight text-(--text-strong)">
                   {t("settings.browser.cdp_title")}
                 </h3>
                 <p className="mt-1 max-w-[720px] text-compact leading-5 text-(--text-soft)">

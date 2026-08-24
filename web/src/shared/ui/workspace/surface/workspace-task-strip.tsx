@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话投影出的任务列表、来源 Agent 与可选来源控件。
- * OUTPUT: 带 Agent 来源、44px 局部热区、32px 平面状态锚点、顺序键盘导航与可读状态的任务摘要及向上明细。
+ * OUTPUT: 带 Agent 来源、44px 起始热区、可完整换行的平面状态锚点、顺序键盘导航与可读状态的任务摘要及向上明细。
  * POS: 锚在 Composer 顶边的 Workspace 会话级只读任务入口。
  */
 "use client";
@@ -118,7 +118,7 @@ export function WorkspaceTaskPanel({
       aria-live="polite"
       data-workspace-task-panel
       className={cn(
-        "pointer-events-none relative flex min-w-0 max-w-[min(30rem,calc(100vw-4rem))] justify-center",
+        "pointer-events-none relative flex min-w-0 max-w-[min(42rem,calc(100vw-4rem))] justify-center",
         className,
       )}
     >
@@ -127,14 +127,14 @@ export function WorkspaceTaskPanel({
         aria-controls={panelId}
         aria-expanded={isExpanded}
         aria-label={isExpanded ? t("tasks.collapse_panel") : t("tasks.expand_panel")}
-        className="group pointer-events-auto flex h-11 min-w-0 max-w-full items-center focus-visible:outline-none"
+        className="group pointer-events-auto flex min-h-11 min-w-0 max-w-full items-center focus-visible:outline-none"
         data-workspace-task-summary={summary}
         data-workspace-task-trigger
         onClick={() => setIsExpanded((current) => !current)}
         type="button"
       >
         <span
-          className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-[9px] px-2 text-xs text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-interactive-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+          className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1.5 rounded-[9px] px-2 py-1 text-xs text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-interactive-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
           data-workspace-task-visual
         >
           {source ? (
@@ -155,7 +155,9 @@ export function WorkspaceTaskPanel({
               total: totalCount,
             })}
           </span>
-          <span className="min-w-0 truncate text-(--text-muted)">{summary}</span>
+          <span className="min-w-0 whitespace-normal break-words text-left leading-4 text-(--text-muted)">
+            {summary}
+          </span>
           <ChevronDown
             className={cn(
               "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-200",
@@ -294,7 +296,7 @@ function WorkspaceTaskSourceIdentity({
         name={source.name}
         size="xs"
       />
-      <span className="min-w-0 truncate text-xs font-medium leading-none text-(--text-default)">
+      <span className="min-w-0 truncate text-xs font-medium leading-normal text-(--text-default)">
         {source.name}
       </span>
     </span>

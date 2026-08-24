@@ -1,6 +1,6 @@
-// INPUT: deterministic proposal ID、exact owner/session/scope/coordinator access、recovery deadline 与 command receipt。
+// INPUT: deterministic proposal ID 或 durable binding、exact owner/session/scope/coordinator access、recovery deadline 与 command receipt。
 // OUTPUT: typed canonical ExecutionPlanProposal 或有界 recoverable/persisted-receipt proposal 集合。
-// POS: 非权威 Plan proposal 的唯一 SQL read/scan 边界。
+// POS: 非权威 Plan proposal aggregate 的 SQL read/scan 边界；active pointer 读取见 plan_proposal_binding.go。
 package orchestration
 
 import (
@@ -262,15 +262,46 @@ func scanPlanProposal(
 
 func normalizePlanProposalAccess(access PlanProposalAccess) (PlanProposalAccess, error) {
 	access.ProposalID = strings.TrimSpace(access.ProposalID)
+	if access.ProposalID == "" {
+		return PlanProposalAccess{}, fmt.Errorf(
+			"%w: proposal id is required",
+			ErrInvariant,
+		)
+	}
+	binding, err := normalizePlanProposalBindingAccess(PlanProposalBindingAccess{
+		OwnerUserID:        access.OwnerUserID,
+		SessionKey:         access.SessionKey,
+		ScopeKind:          access.ScopeKind,
+		RoomID:             access.RoomID,
+		ConversationID:     access.ConversationID,
+		CoordinatorAgentID: access.CoordinatorAgentID,
+	})
+	if err != nil {
+		return PlanProposalAccess{}, err
+	}
+	access.OwnerUserID = binding.OwnerUserID
+	access.SessionKey = binding.SessionKey
+	access.ScopeKind = binding.ScopeKind
+	access.RoomID = binding.RoomID
+	access.ConversationID = binding.ConversationID
+	access.CoordinatorAgentID = binding.CoordinatorAgentID
+	if err = validatePlanProposalStringWidth("proposal id", access.ProposalID, 64); err != nil {
+		return PlanProposalAccess{}, err
+	}
+	return access, nil
+}
+
+func normalizePlanProposalBindingAccess(
+	access PlanProposalBindingAccess,
+) (PlanProposalBindingAccess, error) {
 	access.OwnerUserID = strings.TrimSpace(access.OwnerUserID)
 	access.SessionKey = strings.TrimSpace(access.SessionKey)
 	access.RoomID = strings.TrimSpace(access.RoomID)
 	access.ConversationID = strings.TrimSpace(access.ConversationID)
 	access.CoordinatorAgentID = strings.TrimSpace(access.CoordinatorAgentID)
-	if access.ProposalID == "" || access.OwnerUserID == "" || access.SessionKey == "" ||
-		access.CoordinatorAgentID == "" {
-		return PlanProposalAccess{}, fmt.Errorf(
-			"%w: proposal id, owner, session and coordinator are required",
+	if access.OwnerUserID == "" || access.SessionKey == "" || access.CoordinatorAgentID == "" {
+		return PlanProposalBindingAccess{}, fmt.Errorf(
+			"%w: proposal binding owner, session and coordinator are required",
 			ErrInvariant,
 		)
 	}
@@ -279,7 +310,6 @@ func normalizePlanProposalAccess(access PlanProposalAccess) (PlanProposalAccess,
 		value string
 		limit int
 	}{
-		{name: "proposal id", value: access.ProposalID, limit: 64},
 		{name: "owner user id", value: access.OwnerUserID, limit: 128},
 		{name: "session key", value: access.SessionKey, limit: 512},
 		{name: "room id", value: access.RoomID, limit: 64},
@@ -287,20 +317,20 @@ func normalizePlanProposalAccess(access PlanProposalAccess) (PlanProposalAccess,
 		{name: "coordinator agent id", value: access.CoordinatorAgentID, limit: 128},
 	} {
 		if err := validatePlanProposalStringWidth(field.name, field.value, field.limit); err != nil {
-			return PlanProposalAccess{}, err
+			return PlanProposalBindingAccess{}, err
 		}
 	}
 	switch access.ScopeKind {
 	case protocol.ExecutionScopeDM:
 		if access.RoomID != "" || access.ConversationID != "" {
-			return PlanProposalAccess{}, fmt.Errorf("%w: DM proposal cannot carry Room identity", ErrInvariant)
+			return PlanProposalBindingAccess{}, fmt.Errorf("%w: DM proposal cannot carry Room identity", ErrInvariant)
 		}
 	case protocol.ExecutionScopeRoom:
 		if access.RoomID == "" || access.ConversationID == "" {
-			return PlanProposalAccess{}, fmt.Errorf("%w: Room proposal requires room and conversation identity", ErrInvariant)
+			return PlanProposalBindingAccess{}, fmt.Errorf("%w: Room proposal requires room and conversation identity", ErrInvariant)
 		}
 	default:
-		return PlanProposalAccess{}, fmt.Errorf("%w: proposal scope %q is invalid", ErrInvariant, access.ScopeKind)
+		return PlanProposalBindingAccess{}, fmt.Errorf("%w: proposal scope %q is invalid", ErrInvariant, access.ScopeKind)
 	}
 	return access, nil
 }

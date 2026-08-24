@@ -1010,7 +1010,8 @@ func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource 
 }
 
 func roomSlotHiddenFromUser(slot *activeRoomSlot) bool {
-	return slot != nil && strings.TrimSpace(slot.Trigger.TriggerType) == roomDirectedMessageTriggerType
+	return slot != nil && (slot.HiddenFromUser ||
+		strings.TrimSpace(slot.Trigger.TriggerType) == roomDirectedMessageTriggerType)
 }
 
 func roomWakeRoundID(wakes []publicMentionWake) string {

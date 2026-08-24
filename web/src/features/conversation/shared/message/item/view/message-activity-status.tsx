@@ -2,8 +2,8 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、逐帧提示和统一的活动文字流光。
- * POS: DM/Room 共用的活动呈现；不推导 runtime 状态，也不占用消息正文身份。
+ * OUTPUT: 图标、逐帧提示、可替换通用状态的自然语言活动标签，以及 Room 公区统一主色投影。
+ * POS: DM/Room 共用的单行活动呈现；不推导 runtime 状态，也不把即时标签伪装成正式回复。
  */
 import {
   Brain,
@@ -88,17 +88,22 @@ const ACTIVITY_PRESENTATION: Record<
 
 export function LocalizedMessageActivityStatus({
   className,
+  label,
   state,
+  uniformTone = false,
 }: {
   className?: string;
+  label?: string | null;
   state: MessageActivityState;
+  uniformTone?: boolean;
 }) {
   const { t } = useI18n();
   return (
     <MessageActivityStatus
       className={className}
-      label={t(ACTIVITY_PRESENTATION[state].labelKey)}
+      label={label?.trim() || t(ACTIVITY_PRESENTATION[state].labelKey)}
       state={state}
+      uniformTone={uniformTone}
     />
   );
 }
@@ -107,18 +112,20 @@ export function MessageActivityStatus({
   className,
   label,
   state,
+  uniformTone = false,
 }: {
   className?: string;
   label: string;
   state: MessageActivityState;
+  uniformTone?: boolean;
 }) {
   const presentation = ACTIVITY_PRESENTATION[state];
   const ActivityIcon = presentation.icon;
   return (
     <div className={cn("flex min-w-0 items-center", className)}>
       <div className={cn(
-        "inline-flex min-w-0 items-center gap-2 py-1 text-xs font-medium transition-colors",
-        presentation.toneClassName,
+        "inline-flex min-w-0 items-center gap-2 py-1 text-sm font-medium transition-colors",
+        uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
         <span className="shrink-0 opacity-75">
           <ActivityIcon className="h-3.5 w-3.5" />
@@ -171,7 +178,7 @@ function MessageLoadingDots({
       style={{ width: `${spinnerWidth}ch` }}
     >
       <span
-        className="message-activity-spinner-track flex flex-col font-mono leading-none will-change-transform"
+        className="message-activity-spinner-track flex flex-col font-mono leading-none"
         style={trackStyle}
       >
         {trackFrames.map((frame, index) => (

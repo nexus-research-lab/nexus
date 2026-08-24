@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -110,11 +111,74 @@ func TestTamperedDMQueuePayloadLosesConfigurationContextAndRevokesAdmission(t *t
 	finishDMQueueRound(client, "result-tamper-queued")
 }
 
+type rejectingDMQueueAdmissionStore struct {
+	err error
+}
+
+func (s rejectingDMQueueAdmissionStore) Record(context.Context, queueadmissionstore.Admission) error {
+	return s.err
+}
+
+func (rejectingDMQueueAdmissionStore) Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error) {
+	return queueadmissionstore.Claim{}, false, nil
+}
+
+func (rejectingDMQueueAdmissionStore) Release(context.Context, queueadmissionstore.Claim) error {
+	return nil
+}
+
+func (rejectingDMQueueAdmissionStore) Consume(context.Context, queueadmissionstore.Claim) error {
+	return nil
+}
+
+func (rejectingDMQueueAdmissionStore) Revoke(context.Context, queueadmissionstore.Binding) error {
+	return nil
+}
+
+func TestDMQueueAdmissionFailureKeepsAndRecoversDurableUserInput(t *testing.T) {
+	service, client, _, _, prompts, db, sessionKey := newDMQueueProvenanceFixture(t)
+	admissionErr := errors.New("queue admission unavailable")
+	service.SetQueueAdmissionStore(rejectingDMQueueAdmissionStore{err: admissionErr})
+	request := InputQueueRequest{
+		SessionKey: sessionKey, ClientMessageID: "client-dm-queue-retained",
+		Action: "enqueue", Content: "keep this DM input for retry",
+		TrustedConfigurationContext: true,
+	}
+	if _, err := service.HandleInputQueue(trustedDMQueueContext(), request); !errors.Is(err, admissionErr) {
+		t.Fatalf("HandleInputQueue error = %v, want %v", err, admissionErr)
+	}
+	_, location, err := service.resolveInputQueueLocation(
+		context.Background(),
+		sessionKey,
+		service.config.DefaultAgentID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 ||
+		items[0].ClientMessageID != request.ClientMessageID ||
+		items[0].Content != request.Content {
+		t.Fatalf("durable DM input was lost after admission failure: %+v", items)
+	}
+
+	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(service.config, db))
+	retry, err := service.HandleInputQueue(trustedDMQueueContext(), request)
+	if err != nil {
+		t.Fatalf("retry retained DM input: %v", err)
+	}
+	if !retry.Duplicate || retry.ItemID != items[0].ID {
+		t.Fatalf("retry result = %+v, want original item %q", retry, items[0].ID)
+	}
+	expectDMQueuePrompt(t, prompts, request.Content)
+	finishDMQueueRound(client, "result-retained-dm-queue")
+}
+
 func trustedDMQueueContext() context.Context {
-	return authctx.WithPrincipal(context.Background(), &authctx.Principal{
-		UserID: authctx.SystemUserID, Role: authctx.RoleOwner,
-		AuthMethod: authctx.AuthMethodLocal,
-	})
+	return authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
 }
 
 func newDMQueueProvenanceFixture(

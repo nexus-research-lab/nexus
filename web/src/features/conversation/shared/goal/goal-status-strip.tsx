@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Goal status projection inputs, server-derived clear reason and action callbacks.
- * OUTPUT: accessible Goal status strip with primary lifecycle and only meaningful WorkGraph binding state.
+ * OUTPUT: accessible Goal status strip with primary lifecycle, descender-safe compact labels and only meaningful WorkGraph binding state.
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
 
@@ -219,7 +219,7 @@ function GoalBindingBadge({
     <span
       aria-label={title}
       className={cn(
-        "inline-flex max-w-32 shrink-0 items-center truncate rounded-[6px] border px-1.5 py-0.5 text-2xs font-medium leading-none",
+        "inline-flex max-w-32 shrink-0 items-center truncate rounded-[6px] border px-1.5 py-0.5 text-2xs font-medium leading-tight",
         GOAL_BINDING_BADGE_TONE[model.tone],
       )}
       data-goal-binding-state={model.state}

@@ -1,6 +1,6 @@
-// INPUT: sealed proposal fixtures, access fences, stale versions and simulated restart deadlines.
-// OUTPUT: deterministic create, exact CAS receipts, permission isolation and recovery behavior proofs.
-// POS: persistent ExecutionPlanProposal aggregate behavior tests independent of MCP/service materialization.
+// INPUT: sealed proposal fixtures, durable active binding, access fences, stale versions and simulated restart deadlines.
+// OUTPUT: deterministic bind/create, exact CAS receipts, supersede isolation and recovery behavior proofs.
+// POS: persistent ExecutionPlanProposal aggregate and host-owned selection behavior tests independent of model input.
 package orchestration
 
 import (
@@ -11,6 +11,125 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestPlanProposalBindingSupersedesSealedProposalWithoutAllowingLateReplay(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	first := transientPlanProposal("binding-first")
+	createdFirst, err := repository.CreateOrGetPlanProposal(
+		ctx,
+		CreateOrGetPlanProposalCommand{Proposal: first},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access := planProposalBindingAccessFor(*createdFirst)
+	bound, err := repository.GetBoundPlanProposal(
+		ctx,
+		GetBoundPlanProposalQuery{Access: access},
+	)
+	if err != nil || bound == nil || bound.ID != createdFirst.ID {
+		t.Fatalf("initial binding = %#v err=%v", bound, err)
+	}
+	sameRound := transientPlanProposal("binding-same-round")
+	sameRound.SessionKey = first.SessionKey
+	sameRound.RootRoundID = first.RootRoundID
+	sameRound.RuntimeRoundID = first.RuntimeRoundID
+	sameRound.AgentRoundID = first.AgentRoundID
+	if _, err = repository.CreateOrGetPlanProposal(
+		ctx,
+		CreateOrGetPlanProposalCommand{Proposal: sameRound},
+	); !errors.Is(err, ErrCommandConflict) {
+		t.Fatalf("same-round second proposal error = %v, want ErrCommandConflict", err)
+	}
+	bound, err = repository.GetBoundPlanProposal(
+		ctx,
+		GetBoundPlanProposalQuery{Access: access},
+	)
+	if err != nil || bound == nil || bound.ID != createdFirst.ID {
+		t.Fatalf("same-round conflict changed binding = %#v err=%v", bound, err)
+	}
+
+	second := transientPlanProposal("binding-second")
+	second.SessionKey = first.SessionKey
+	createdSecond, err := repository.CreateOrGetPlanProposal(
+		ctx,
+		CreateOrGetPlanProposalCommand{Proposal: second},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err = repository.GetBoundPlanProposal(
+		ctx,
+		GetBoundPlanProposalQuery{Access: access},
+	)
+	if err != nil || bound == nil || bound.ID != createdSecond.ID {
+		t.Fatalf("superseding binding = %#v err=%v", bound, err)
+	}
+	discarded, err := repository.GetPlanProposal(
+		ctx,
+		GetPlanProposalQuery{Access: planProposalAccessFor(*createdFirst)},
+	)
+	if err != nil || discarded == nil ||
+		discarded.Status != protocol.ExecutionPlanProposalStatusDiscarded ||
+		discarded.Version != createdFirst.Version+1 {
+		t.Fatalf("superseded proposal = %#v err=%v", discarded, err)
+	}
+	if _, err = repository.CreateOrGetPlanProposal(
+		ctx,
+		CreateOrGetPlanProposalCommand{Proposal: first},
+	); !errors.Is(err, ErrCommandConflict) {
+		t.Fatalf("late replay error = %v, want ErrCommandConflict", err)
+	}
+	bound, err = repository.GetBoundPlanProposal(
+		ctx,
+		GetBoundPlanProposalQuery{Access: access},
+	)
+	if err != nil || bound == nil || bound.ID != createdSecond.ID {
+		t.Fatalf("late replay changed binding = %#v err=%v", bound, err)
+	}
+}
+
+func TestPlanProposalBindingCannotSupersedeMaterializingProposal(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	created, err := repository.CreateOrGetPlanProposal(
+		ctx,
+		CreateOrGetPlanProposalCommand{Proposal: transientPlanProposal("binding-materializing")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repository.MarkPlanProposalMaterializing(
+		ctx,
+		MarkPlanProposalMaterializingCommand{
+			Access:                   planProposalAccessFor(*created),
+			ExpectedVersion:          created.Version,
+			ReservedExecutionID:      "execution-binding-materializing",
+			MaterializationCommandID: "materialize-binding-materializing",
+			NextAttemptAt:            proposalTestFutureTime(),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tooLate := transientPlanProposal("binding-too-late")
+	tooLate.SessionKey = created.SessionKey
+	if _, err = repository.CreateOrGetPlanProposal(
+		ctx,
+		CreateOrGetPlanProposalCommand{Proposal: tooLate},
+	); !errors.Is(err, ErrCommandConflict) {
+		t.Fatalf("materializing supersede error = %v, want ErrCommandConflict", err)
+	}
+	bound, err := repository.GetBoundPlanProposal(
+		ctx,
+		GetBoundPlanProposalQuery{Access: planProposalBindingAccessFor(*created)},
+	)
+	if err != nil || bound == nil || bound.ID != created.ID ||
+		bound.Status != protocol.ExecutionPlanProposalStatusMaterializing {
+		t.Fatalf("materializing binding = %#v err=%v", bound, err)
+	}
+}
 
 func TestPlanProposalLifecycleRecoveryAndExactReplay(t *testing.T) {
 	repository := newRepositoryTestStore(t)

@@ -465,7 +465,6 @@ function ContactConversation({
           floatingDockOccupied={false}
           isMobileLayout={isCompactLayout}
           viewport={{
-            error,
             isHistoryLoading,
             onPointerDown: scroll.onPointerDown,
             onScroll: history.handleScroll,
@@ -509,6 +508,13 @@ function ContactConversation({
       <ConversationPanelBottomArea
         isMobileLayout={isCompactLayout}
         providerWarningVisible={false}
+        reliability={{
+          failure: error && sessionKey
+            ? { code: "session_load_failed", session_key: sessionKey }
+            : null,
+          provider_retry: null,
+          transport_phase: "healthy",
+        }}
         scrollToLatest={HIDDEN_SCROLL_CONTROL}
       >
         <ComposerPanel
@@ -577,7 +583,7 @@ function AddContactDialog({
           size="sm"
         >
           <UiDialogHeader
-            icon={<UserRoundPlus className="h-[18px] w-[18px]" />}
+            appearance="plain"
             onClose={onClose}
             title={t("agent_options.contact.add_friend")}
             titleId={titleId}
@@ -645,12 +651,12 @@ function AddContactDialog({
               />
             </UiField>
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton onClick={onClose} type="button" variant="ghost">
               {t("common.cancel")}
             </UiButton>
             <UiButton disabled={!selectedAgentId || isPending} tone="primary" type="submit">
-              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserRoundPlus className="h-4 w-4" />}
+              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {t("agent_options.contact.add_friend")}
             </UiButton>
           </UiDialogFooter>

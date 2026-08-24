@@ -12,7 +12,7 @@
 //   - prompt_build.go / prompt_default.go：BuildRuntimePrompt 运行时附加提示词、
 //     默认模板与主智能体委派边界。
 //   - repository.go / factory_record.go：持久化、默认平台 Skill 引用与记录构造。
-//   - emotion_state.go / runtime_settings.go：带 Agent scope 锁与 version CAS 的 runtime 情绪态及 nxs settings 投影。
+//   - emotion_state.go / runtime_settings.go：带 Agent scope 锁与 version CAS 的 runtime 情绪态及 nxs 非敏感主模型 settings 投影；owner 后台模型只在 bridge 启动环境中投影。
 //   - policy_name.go / scope_owner.go / workspace_path.go：命名策略、归属与 workspace 路径。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

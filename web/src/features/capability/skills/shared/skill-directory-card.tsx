@@ -1,3 +1,8 @@
+/**
+ * INPUT: Skill 身份、标题、一行摘要、必要元数据与领域动作。
+ * OUTPUT: 已安装、更新和社区结果共用的两行摘要目录卡片。
+ * POS: Skill 目录视觉合同；摘要用于选择，完整正文留给详情。
+ */
 "use client";
 
 import type { ReactNode } from "react";
@@ -10,7 +15,7 @@ interface SkillDirectoryCardProps {
   action?: ReactNode;
   badges?: ReactNode;
   busy?: boolean;
-  description: string;
+  description?: string;
   meta?: ReactNode;
   onSelect: () => void;
   seed: string;
@@ -49,7 +54,7 @@ export function SkillDirectoryCard({
         <UiSeededAvatar seed={seed} />
         <div className="flex min-h-10 min-w-0 items-center">
           <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
-            <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-(--text-strong)">
+            <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-(--text-strong)">
               {title}
             </h3>
             {badges}
@@ -61,9 +66,11 @@ export function SkillDirectoryCard({
           </div>
         ) : null}
 
-        <p className="col-span-3 min-h-9 line-clamp-2 text-compact leading-[1.125rem] text-(--text-muted)">
-          {description}
-        </p>
+        {description ? (
+          <p className="col-span-3 min-h-9 line-clamp-2 text-compact leading-[1.125rem] text-(--text-muted)">
+            {description}
+          </p>
+        ) : null}
         {meta ? (
           <div className="col-span-3 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
             {meta}

@@ -1,6 +1,9 @@
+/**
+ * INPUT: 运行历史资源状态、任务与运行命令。
+ * OUTPUT: 紧凑加载/错误/空态或按时间排列的运行目录。
+ * POS: Scheduled 历史弹窗正文，不解释请求身份。
+ */
 "use client";
-
-import { History } from "lucide-react";
 
 import { UiSkeletonCardList } from "@/shared/ui/display/skeleton";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
@@ -46,9 +49,8 @@ export function ScheduledTaskRunHistoryContent({
         <UiStateBlock description={errorMessage} title="运行历史加载失败" tone="danger" />
       ) : runs.length === 0 ? (
         <UiStateBlock
-          description="手动执行或等调度器首次触发后，这里会显示每次运行的状态、耗时和错误信息。"
-          icon={<History className="h-6 w-6 text-(--icon-strong)" />}
-          title="还没有运行记录"
+          description="任务运行后，记录会显示在这里。"
+          title="暂无运行记录"
         />
       ) : (
         <div className="divide-y divide-(--divider-subtle-color)">

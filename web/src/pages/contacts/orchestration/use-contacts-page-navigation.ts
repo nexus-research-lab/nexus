@@ -1,3 +1,8 @@
+/**
+ * INPUT: 联系人目录、URL 查询参数与 Agent/Room 命令。
+ * OUTPUT: 目录、详情、私聊和群聊之间的稳定路由动作。
+ * POS: Contacts 页面唯一的路由协调入口。
+ */
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -56,6 +61,9 @@ export function useContactsPageNavigation({
   const openAgent = useCallback((agentId: string) => {
     navigate(AppRouteBuilders.contactAgent(agentId));
   }, [navigate]);
+  const openDirectory = useCallback(() => {
+    navigate(AppRouteBuilders.contacts());
+  }, [navigate]);
 
   const createTeam = useCallback((agentId: string) => {
     void createRoom({agent_ids: [agentId]}).then((context) => {
@@ -83,6 +91,7 @@ export function useContactsPageNavigation({
     selectedAgent,
     closeEditor,
     openAgent,
+    openDirectory,
     openDirectRoom,
     createTeam,
     confirmDelete,

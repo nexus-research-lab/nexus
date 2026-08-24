@@ -30,13 +30,13 @@ import {
   type AgentConversationHistoryCursor,
   type ConversationHistoryRequest,
 } from "./conversation-history-model";
+import { requestConversationHistoryPageUntilReady } from "./conversation-history-request";
 
 interface AgentConversationHistoryContext {
   activeSessionKeyRef: RefObject<string | null>;
   historyCursorRef: MutableRefObject<AgentConversationHistoryCursor>;
   identity: AgentConversationIdentity | null;
   signal: AbortSignal;
-  setError: Dispatch<SetStateAction<string | null>>;
   setHasMoreHistory: (nextValue: boolean) => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
 }
@@ -58,53 +58,22 @@ interface LoadRoundWindowMessagesParams
 
 async function requestHistoryPage(
   request: ConversationHistoryRequest,
-  isCurrent: () => boolean,
   signal: AbortSignal,
-): Promise<ConversationMessagePage | null> {
-  for (;;) {
-    const page = request.source.kind === "room"
-      ? await getRoomConversationMessages(
+): Promise<ConversationMessagePage> {
+  return requestConversationHistoryPageUntilReady({
+    loadPage: () => request.source.kind === "room"
+      ? getRoomConversationMessages(
         request.source.roomId,
         request.source.conversationId,
         request.query,
         signal,
       )
-      : await getSessionMessagesApi(
+      : getSessionMessagesApi(
         request.source.sessionKey,
         request.query,
         signal,
-      );
-    if (!page.indexing) {
-      return page;
-    }
-    if (!isCurrent()) {
-      return null;
-    }
-    await waitForHistoryIndex(page.retry_after_ms, signal);
-    if (!isCurrent()) {
-      return null;
-    }
-  }
-}
-
-function waitForHistoryIndex(
-  retryAfterMs: number,
-  signal: AbortSignal,
-): Promise<void> {
-  if (signal.aborted) {
-    return Promise.reject(new DOMException("Aborted", "AbortError"));
-  }
-  const delay = Math.min(Math.max(retryAfterMs, 100), 5_000);
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      signal.removeEventListener("abort", handleAbort);
-      resolve();
-    }, delay);
-    const handleAbort = (): void => {
-      window.clearTimeout(timeout);
-      reject(new DOMException("Aborted", "AbortError"));
-    };
-    signal.addEventListener("abort", handleAbort, { once: true });
+      ),
+    signal,
   });
 }
 
@@ -181,12 +150,9 @@ function commitRoundWindowHistoryPage(
 
 function reportHistoryLoadError(
   error: unknown,
-  context: AgentConversationHistoryContext,
   logMessage: string,
-  fallbackMessage: string,
 ): void {
   console.error(logMessage, error);
-  context.setError(error instanceof Error ? error.message : fallbackMessage);
 }
 
 export async function loadOlderAgentConversationMessages(
@@ -207,10 +173,9 @@ export async function loadOlderAgentConversationMessages(
   try {
     const page = await requestHistoryPage(
       request,
-      () => isCurrentHistoryRequest(request, context.activeSessionKeyRef),
       context.signal,
     );
-    return page && isCurrentHistoryRequest(request, context.activeSessionKeyRef)
+    return isCurrentHistoryRequest(request, context.activeSessionKeyRef)
       ? commitOlderHistoryPage(page, context)
       : false;
   } catch (error) {
@@ -222,9 +187,7 @@ export async function loadOlderAgentConversationMessages(
     }
     reportHistoryLoadError(
       error,
-      context,
       "[useAgentConversation] 加载更早消息失败:",
-      "Failed to load older messages",
     );
     return false;
   } finally {
@@ -251,10 +214,9 @@ export async function loadAgentConversationMessagesAroundRound(
   try {
     const page = await requestHistoryPage(
       request,
-      () => isCurrentHistoryRequest(request, context.activeSessionKeyRef),
       context.signal,
     );
-    if (!page || !isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
+    if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
     }
     context.onRoundResolved(context.roundId);
@@ -268,9 +230,7 @@ export async function loadAgentConversationMessagesAroundRound(
     }
     reportHistoryLoadError(
       error,
-      context,
       "[useAgentConversation] 加载目标轮次附近消息失败:",
-      "Failed to load target messages",
     );
     return false;
   } finally {

@@ -113,7 +113,6 @@ export function useGuideCenterController({
   );
   const guideCenterProps = useMemo(() => ({
     closeLabel: t("common.close"),
-    description: t("onboarding.guide_center_description"),
     isOpen: isGuideCenterOpen,
     items,
     onClose: closeGuideCenter,

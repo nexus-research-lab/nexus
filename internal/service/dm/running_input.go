@@ -1,5 +1,5 @@
 // INPUT: 运行中 DM round 与用户 queue/guide 输入。
-// OUTPUT: queue 持久等待下一轮，guide 等 runtime applied ACK 后归入实际消费它的 root round。
+// OUTPUT: queue 先持久保留再等待可信 admission/下一轮，guide 等 runtime applied ACK 后归入实际消费它的 root round。
 // POS: DM 轮内插话的唯一受理入口。
 package dm
 
@@ -58,8 +58,6 @@ func (s *Service) queueRunningInput(
 		acceptedItem,
 		request.TrustedConfigurationContext,
 	); err != nil {
-		_ = s.revokeQueueAdmission(ctx, location, acceptedItem)
-		_, _ = s.inputQueue.Delete(location, acceptedItem.ID)
 		return false, err
 	}
 	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)

@@ -1,3 +1,8 @@
+/**
+ * INPUT: Connector/自定义 MCP 目录、详情路由与认证命令。
+ * OUTPUT: 低密度连接器目录、配置入口或详情页面。
+ * POS: “能力 > 连接器”的唯一页面装配入口。
+ */
 "use client";
 
 import { Plus } from "lucide-react";

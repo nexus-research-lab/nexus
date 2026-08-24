@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前运营标签、访问范围与返回动作。
+ * OUTPUT: 运营设置页签和对应管理内容，移动端避免重复页面标题。
+ * POS: 设置内嵌与独立运营入口共用的页面装配层。
+ */
 "use client";
 
 import { ArrowLeft } from "lucide-react";
@@ -91,6 +96,7 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
             {t("settings.back_to_workspace")}
           </WorkspaceSurfaceToolbarAction>
         ) : undefined}
+        className="max-sm:hidden"
         description={t("operations.description")}
         title={t("operations.page_title")}
       />

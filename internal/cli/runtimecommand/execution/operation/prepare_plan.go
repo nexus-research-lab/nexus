@@ -17,14 +17,10 @@ import (
 
 type planTransportGuard struct {
 	emptyPrepare atomic.Uint32
-	emptyCommit  atomic.Uint32
 	attempts     *runtimecommand.AttemptState
 }
 
-const (
-	prepareEmptyAttemptKey = "execution.prepare_plan_execution.empty_input"
-	commitEmptyAttemptKey  = "execution.plan_execution.empty_input"
-)
+const prepareEmptyAttemptKey = "execution.prepare_plan_execution.empty_input"
 
 func (g *planTransportGuard) incrementPrepare() uint32 {
 	if g != nil && g.attempts != nil {
@@ -41,21 +37,6 @@ func (g *planTransportGuard) resetPrepare() {
 	g.emptyPrepare.Store(0)
 }
 
-func (g *planTransportGuard) incrementCommit() uint32 {
-	if g != nil && g.attempts != nil {
-		return g.attempts.Increment(commitEmptyAttemptKey)
-	}
-	return g.emptyCommit.Add(1)
-}
-
-func (g *planTransportGuard) resetCommit() {
-	if g != nil && g.attempts != nil {
-		g.attempts.Reset(commitEmptyAttemptKey)
-		return
-	}
-	g.emptyCommit.Store(0)
-}
-
 func preparePlanExecution(
 	svc contract.Service,
 	sctx contract.Context,
@@ -70,7 +51,7 @@ func preparePlanExecution(
 			"Choose operation only from the current execution inspect result: no current Execution means create, including the first successor Plan after Goal reset or retarget; replan requires the current Execution and preserves its objective boundary; replace requires a current transient Goal-free Execution. " +
 			"Every item requires exact keys logical_key, kind, subject, objective, and deliverable. See plan_document schema for the complete parser-backed fields and example, including acceptance_criteria, depends_on, and file:<path>, dir:<path>, or semantic:<key> scopes. " +
 			"For a Goal-bound create, finish create_goal first and set goal_binding=current; never launch it in parallel with preparation. current uses only this round's exact Goal authority and is rejected without it. Use goal_binding=none for a Goal-free create. If omitted, create binds current only when exact Goal authority is already present; it never discovers an ambient session Goal. Replan/replace must inherit the existing Execution boundary. Active-Goal create may omit only root objective; every create/replace requires completion_criteria. Change Goal via retarget_goal. " +
-			"Unknown keys and aliases are rejected. On success, call plan_execution with the returned receipt. Plan Mode may prepare, but plan_execution is disabled until Plan Mode is exited.",
+			"Unknown keys and aliases are rejected. On success, the host durably binds the sealed proposal; call plan_execution without proposal identifiers. Plan Mode may prepare, but plan_execution is disabled until Plan Mode is exited.",
 		SearchHint:  "prepare validate plan document yaml work graph goal binding goal-free proposal depends_on acceptance_criteria",
 		InputSchema: preparePlanExecutionSchema(),
 		Annotations: &runtimecommand.OperationAnnotations{IdempotentHint: true},
@@ -124,6 +105,13 @@ func preparePlanExecution(
 						}
 						return mutationResult(result), nil
 					}
+					if domainErr.Code == orchestration.ErrorCodePlanProposalMismatch {
+						return mutationResult(orchestration.RejectedResult(nil, err, []orchestration.NextAction{{
+							Domain:    runtimecommand.DomainExecution,
+							Operation: "plan_execution",
+							Reason:    "the host already owns the exact active proposal binding; invoke plan_execution with an empty input instead of preparing another proposal",
+						}})), nil
+					}
 					repairReason := "repair the complete Plan Document using the reported validation error"
 					if domainErr.Code == orchestration.ErrorCodeNoCurrentExecution {
 						repairReason = "execution inspect has no current Execution; seal a complete operation: create Plan, using goal_binding current only with this round's exact Goal authority, otherwise none"
@@ -136,16 +124,15 @@ func preparePlanExecution(
 				}
 				return transportErrorResult(err), nil
 			}
-			nextActionReason := "pass this exact proposal_id and proposal_digest to atomically materialize the sealed Plan"
-			message := "Complete Plan proposal is sealed; commit it without changing the document."
+			nextActionReason := "invoke plan_execution with no proposal identifiers; the host will atomically materialize this bound sealed Plan"
+			message := "Complete Plan proposal is sealed and durably bound; commit it without resending identifiers or the document."
 			if sctx.PlanMode {
-				nextActionReason = "leave Plan Mode, then pass this exact proposal_id and proposal_digest to materialize the sealed Plan"
-				message = "Complete Plan proposal is sealed; leave Plan Mode before committing the unchanged receipt."
+				nextActionReason = "leave Plan Mode, then invoke plan_execution with no proposal identifiers; the host retains this exact binding across rounds"
+				message = "Complete Plan proposal is sealed and durably bound; leave Plan Mode before committing it without identifiers."
 			}
 			return jsonResult(map[string]any{
 				"outcome":                    "prepared",
-				"proposal_id":                proposal.ID,
-				"proposal_digest":            proposal.ContentDigest,
+				"proposal_bound":             true,
 				"proposal_status":            proposal.Status,
 				"operation":                  proposal.Document.Operation,
 				"target_execution_id":        emptyStringToNil(proposal.TargetExecutionID),

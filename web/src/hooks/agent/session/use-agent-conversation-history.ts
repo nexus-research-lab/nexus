@@ -24,7 +24,6 @@ import type { AgentConversationHistoryCursor } from "./conversation-history-mode
 interface UseAgentConversationHistoryParams {
   activeSessionKeyRef: RefObject<string | null>;
   identity: AgentConversationIdentity | null;
-  setError: Dispatch<SetStateAction<string | null>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
 }
 
@@ -35,7 +34,6 @@ interface UseAgentConversationHistoryParams {
 export function useAgentConversationHistory({
   activeSessionKeyRef,
   identity,
-  setError,
   setMessages,
 }: UseAgentConversationHistoryParams) {
   const [isHistoryLoading, setIsHistoryLoadingState] = useState(false);
@@ -100,7 +98,6 @@ export function useAgentConversationHistory({
         historyCursorRef,
         identity,
         isHistoryLoadingRef,
-        setError,
         setHasMoreHistory,
         setHistoryLoading,
         setHistoryPrependToken,
@@ -113,7 +110,6 @@ export function useAgentConversationHistory({
   }, [
     activeSessionKeyRef,
     identity,
-    setError,
     setHasMoreHistory,
     setHistoryLoading,
     setMessages,
@@ -130,7 +126,6 @@ export function useAgentConversationHistory({
         isRoundWindowLoadingRef,
         onRoundResolved: markHistoryRoundResolved,
         roundId,
-        setError,
         setHasMoreHistory,
         setMessages,
         signal: controller.signal,
@@ -142,7 +137,6 @@ export function useAgentConversationHistory({
     activeSessionKeyRef,
     identity,
     markHistoryRoundResolved,
-    setError,
     setHasMoreHistory,
     setMessages,
   ]);

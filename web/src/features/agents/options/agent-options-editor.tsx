@@ -1,8 +1,12 @@
+// INPUT: Agent Options 创建/编辑来源、当前栏目和持久化动作。
+// OUTPUT: 内联或模态设置工作台；模态底部使用 plain 动作区。
+// POS: Agent Options 两种明确壳层的编辑器装配，不持有业务字段副本。
 import { useEffect } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { UiDialogFooter } from "@/shared/ui/dialog/dialog";
 
 import {
   AgentOptionsEditorActions,
@@ -107,13 +111,13 @@ export function AgentOptionsDialogEditor({
           />
         </div>
       </div>
-      <div className="dialog-footer">
+      <UiDialogFooter appearance="plain">
         <AgentOptionsEditorActions
           {...controller.actions}
           cancelAction={cancelAction}
           saveButtonSize="md"
         />
-      </div>
+      </UiDialogFooter>
     </>
   );
 }

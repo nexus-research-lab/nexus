@@ -24,8 +24,15 @@ export interface ConversationTimeline {
   pending_permission_groups: Map<string, PendingPermission[]>;
   loaded_round_ids: string[];
   feed_round_ids: string[];
+  indexed_window: IndexedConversationWindow;
   round_index_items: SessionRoundIndexItem[];
   live_round_ids: string[];
+}
+
+/** 索引顺序与当前浏览器驻留窗口之间的显式边界。 */
+export interface IndexedConversationWindow {
+  roundIds: string[];
+  unloadedRoundIds: string[];
 }
 
 export interface VisibleRoomTimelineEvidence {
@@ -477,36 +484,21 @@ function getIndexedLoadedRoundIndexes(
   return Array.from(indexes).sort((left, right) => left - right);
 }
 
-function isLatestLoadedWindow(
-  indexedRoundIds: string[],
-  loadedIndexes: number[],
-): boolean {
-  if (loadedIndexes.length === 0) {
-    return false;
-  }
-  const firstLoadedIndex = loadedIndexes[0];
-  const expectedLength = indexedRoundIds.length - firstLoadedIndex;
-  if (expectedLength !== loadedIndexes.length) {
-    return false;
-  }
-  return loadedIndexes.every(
-    (index, offset) => index === firstLoadedIndex + offset,
-  );
-}
-
 /**
  * 用完整索引确定 feed 顺序，但正文只渲染已加载窗口。
  *
- * 最新历史页不插入未加载哨兵，避免新打开旧 session 时因为全量索引
- * 直接产生很长的空滚动；非最新窗口保留相邻哨兵，让点击定位后还能
- * 继续通过正常滚动触发局部加载。哨兵不渲染任何用户可见状态。
+ * 每个驻留窗口只保留紧邻的未加载边界；这既避免全量索引制造空滚动，
+ * 又保证最新页、稀疏 around 窗口和纯索引首屏始终拥有可加载入口。
  */
-export function buildIndexedTimelineRoundIds(
+export function buildIndexedConversationWindow(
   roundIndexItems: SessionRoundIndexItem[],
   loadedRoundIds: string[],
-): string[] {
+): IndexedConversationWindow {
   if (roundIndexItems.length === 0) {
-    return loadedRoundIds;
+    return {
+      roundIds: loadedRoundIds,
+      unloadedRoundIds: [],
+    };
   }
 
   const indexedRoundIds = mergeIndexedAndLoadedRoundIds(
@@ -518,13 +510,17 @@ export function buildIndexedTimelineRoundIds(
     indexedRoundIds,
     loadedRoundIds,
   );
-  const shouldIncludeBoundaryPlaceholders =
-    !isLatestLoadedWindow(indexedRoundIds, loadedIndexes);
+  const loadedRoundIdSet = new Set(normalizeRoundIds(loadedRoundIds));
   const seen = new Set<string>();
   const roundIds: string[] = [];
 
   const visibleIndexSet = new Set(loadedIndexes);
-  if (shouldIncludeBoundaryPlaceholders) {
+  if (loadedIndexes.length === 0) {
+    // Round index may arrive before the first message page. Mount one latest
+    // boundary so the indexed loader can recover instead of rendering a dead
+    // empty feed.
+    visibleIndexSet.add(indexedRoundIds.length - 1);
+  } else {
     for (const index of loadedIndexes) {
       if (index > 0) {
         visibleIndexSet.add(index - 1);
@@ -543,5 +539,20 @@ export function buildIndexedTimelineRoundIds(
       appendUniqueRoundId(roundIds, seen, roundId);
     }
   }
-  return roundIds;
+  return {
+    roundIds,
+    unloadedRoundIds: roundIds.filter(
+      (roundId) => !loadedRoundIdSet.has(roundId),
+    ),
+  };
+}
+
+export function buildIndexedTimelineRoundIds(
+  roundIndexItems: SessionRoundIndexItem[],
+  loadedRoundIds: string[],
+): string[] {
+  return buildIndexedConversationWindow(
+    roundIndexItems,
+    loadedRoundIds,
+  ).roundIds;
 }

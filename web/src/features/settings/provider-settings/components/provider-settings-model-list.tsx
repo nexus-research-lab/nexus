@@ -89,7 +89,7 @@ function ProviderModelListHeader({
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-baseline gap-2">
-        <h3 className="text-[14px] font-semibold tracking-tight text-(--text-strong)">
+        <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
           {t("settings.providers.models")}
         </h3>
         {selectedRecord ? (

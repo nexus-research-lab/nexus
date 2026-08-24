@@ -1,3 +1,6 @@
+// INPUT: 当前 Channel 授权展示、过期时间、提交/取消与本地关闭动作。
+// OUTPUT: 二维码或验证码的 plain 授权弹窗，保留必要的会话边界与失效提示。
+// POS: Channel 敏感授权材料的唯一可见面，不把安全实现细节扩写成教程或状态卡。
 "use client";
 
 import {
@@ -8,11 +11,7 @@ import {
   useState,
 } from "react";
 import {
-  KeyRound,
-  QrCode,
-  ShieldCheck,
   TimerReset,
-  TriangleAlert,
 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
@@ -95,14 +94,12 @@ function ChannelAuthorizationQRCodeDialog({
       >
         <UiDialogShell className="max-h-[92vh]" size="sm">
           <UiDialogHeader
-            icon={<ShieldCheck className="h-6 w-6" />}
-            iconClassName="border-[color:color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
+            appearance="plain"
             onClose={onClose}
-            subtitle="仅当前登录会话可见，不会进入智能体消息或工具记录"
-            title="安全连接 Channel"
+            title="连接频道"
             titleId="channel-authorization-title"
           />
-          <UiDialogBody className="space-y-4" scrollable>
+          <UiDialogBody className="space-y-4 px-5" scrollable>
             <AuthorizationIdentityStrip
               channelType={presentation.channel_type}
               expiry={expiry}
@@ -113,22 +110,19 @@ function ChannelAuthorizationQRCodeDialog({
             >
               {presentation.prompt}
             </p>
-            <div className="relative mx-auto w-fit">
-              <div className="pointer-events-none absolute -inset-3 rounded-[18px] bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--primary)_10%,transparent),transparent_68%)]" />
-              <div className="relative">
-                <UiQRCode
-                  alt={`${presentation.channel_type} 安全授权二维码`}
-                  payload={presentation.qr_payload ?? ""}
-                  showPayload={false}
-                />
-              </div>
+            <div className="mx-auto w-fit">
+              <UiQRCode
+                alt={`${presentation.channel_type} 授权二维码`}
+                payload={presentation.qr_payload ?? ""}
+                showPayload={false}
+              />
             </div>
             {error ? <AuthorizationError message={error} /> : null}
-            <SecurityBoundaryNote />
+            <SecurityBoundaryNote>授权信息只用于本次连接。</SecurityBoundaryNote>
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} variant="surface">
-              仅关闭弹窗
+              关闭
             </UiButton>
             <UiButton
               disabled={busy}
@@ -136,7 +130,7 @@ function ChannelAuthorizationQRCodeDialog({
               tone="danger"
               variant="solid"
             >
-              {busy ? "取消中…" : "取消授权"}
+              {busy ? "取消中…" : "取消连接"}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>
@@ -190,14 +184,12 @@ function ChannelAuthorizationCodeDialog({
       >
         <UiDialogFormShell autoComplete="off" onSubmit={submit} size="sm">
           <UiDialogHeader
-            icon={<KeyRound className="h-6 w-6" />}
-            iconClassName="border-[color:color-mix(in_srgb,var(--warning)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)"
+            appearance="plain"
             onClose={onClose}
-            subtitle="验证码直接送入平台授权会话，智能体无法读取"
-            title="输入平台验证码"
+            title="输入验证码"
             titleId="channel-authorization-code-title"
           />
-          <UiDialogBody className="space-y-4">
+          <UiDialogBody className="space-y-4 px-5">
             <AuthorizationIdentityStrip
               channelType={presentation.channel_type}
               expiry={expiry}
@@ -209,8 +201,8 @@ function ChannelAuthorizationCodeDialog({
               {presentation.prompt}
             </p>
             <label className="block space-y-2" htmlFor="channel-authorization-code">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-(--text-muted)">
-                一次性验证码
+              <span className="text-xs font-medium text-(--text-muted)">
+                验证码
               </span>
               <UiInput
                 ref={inputRef}
@@ -231,11 +223,11 @@ function ChannelAuthorizationCodeDialog({
             {error ? (
               <AuthorizationError message={error} />
             ) : null}
-            <SecurityBoundaryNote />
+            <SecurityBoundaryNote>验证码只用于本次连接。</SecurityBoundaryNote>
           </UiDialogBody>
-          <UiDialogFooter>
+          <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} variant="surface">
-              仅关闭弹窗
+              关闭
             </UiButton>
             <UiButton
               disabled={busy}
@@ -243,7 +235,7 @@ function ChannelAuthorizationCodeDialog({
               tone="danger"
               variant="surface"
             >
-              取消授权
+              取消连接
             </UiButton>
             <UiButton
               disabled={!code.trim() || busy || expiry.expired}
@@ -251,7 +243,7 @@ function ChannelAuthorizationCodeDialog({
               type="submit"
               variant="solid"
             >
-              {busy ? "安全提交中…" : "安全提交"}
+              {busy ? "提交中…" : "提交"}
             </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>
@@ -262,13 +254,12 @@ function ChannelAuthorizationCodeDialog({
 
 function AuthorizationError({ message }: { message: string }) {
   return (
-    <div
-      className="flex items-start gap-2 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-3 py-2.5 text-xs leading-5 text-(--destructive)"
+    <p
+      className="text-xs leading-5 text-(--destructive)"
       role="alert"
     >
-      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{message}</span>
-    </div>
+      {message}
+    </p>
   );
 }
 
@@ -280,8 +271,8 @@ function AuthorizationIdentityStrip({
   expiry: AuthorizationExpiry;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--card)_55%,transparent)] px-3 py-2.5">
-      <UiBadge icon={<QrCode className="h-3.5 w-3.5" />} size="xs" tone="info">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <UiBadge size="xs" tone="default">
         {channelType}
       </UiBadge>
       <div
@@ -296,14 +287,11 @@ function AuthorizationIdentityStrip({
   );
 }
 
-function SecurityBoundaryNote() {
+function SecurityBoundaryNote({ children }: { children: string }) {
   return (
-    <div className="flex items-start gap-2 border-t border-(--divider-subtle-color) pt-3 text-xs leading-5 text-(--text-muted)">
-      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
-      <span>
-        Nexus 只把本次材料投递到发起授权的登录用户与业务会话；切换账号、会话失效或服务重启都会拒绝提交。
-      </span>
-    </div>
+    <p className="border-t border-(--divider-subtle-color) pt-3 text-xs leading-5 text-(--text-muted)">
+      {children}
+    </p>
   );
 }
 

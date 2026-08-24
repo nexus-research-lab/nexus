@@ -1,6 +1,6 @@
-// INPUT: DM session、稳定 execution contract、exact Goal authority、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork，并让 Goal/Execution command 共用同一 round authority 的换代安全 runtime client。
-// POS: DM 服务的 runtime client 装配边界。
+// INPUT: DM session、稳定 execution contract、exact Goal authority、隔离 WorkGraph 保存绑定、Agent runtime 配置与 guidance 队列位置。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy，以及共用同轮 authority 的 Goal/Execution command runtime client。
+// POS: DM 服务的 runtime client 装配与 owner-private command scope 签发边界。
 package dm
 
 import (
@@ -96,6 +96,21 @@ func (s *Service) ensureClient(
 	if latestSession != nil {
 		sessionItem = *latestSession
 	}
+	scopedPolicy := protocol.ScopedSessionRuntimePolicy{}
+	scopedPolicyActive := false
+	if s.scopedSessionPolicy != nil {
+		scopedPolicy, scopedPolicyActive, err = s.scopedSessionPolicy.RuntimeEditorPolicy(
+			agentValue.OwnerUserID,
+			sessionKey,
+		)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+	}
+	if !scopedPolicyActive && protocol.SessionPurpose(sessionItem) == protocol.SessionPurposeWorkGraphDistillation {
+		scopedPolicy = workGraphDistillationRuntimePolicy()
+		scopedPolicyActive = true
+	}
 	if request.runtimePreparationOnly &&
 		sessionItem.ConfigurationVersion != request.expectedConfigurationVersion {
 		return dmClientPreparation{}, fmt.Errorf(
@@ -137,28 +152,56 @@ func (s *Service) ensureClient(
 	permissionHandler = toolpolicy.WithNexusRuntimeCLIAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithNexusRuntimeCLICompositionDeny(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
-	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
-		return dmClientPreparation{}, err
-	}
-	if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
-		return dmClientPreparation{}, err
-	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
-	if err != nil {
-		return dmClientPreparation{}, err
-	}
-	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
-		s.config,
-		*agentValue,
-	)
-	if err != nil {
-		return dmClientPreparation{}, err
+	var runtimeSkillNames, runtimeDisabledSkillNames []string
+	if !scopedPolicyActive || !scopedPolicy.DisableSkills {
+		if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
+			return dmClientPreparation{}, err
+		}
+		if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
+			return dmClientPreparation{}, err
+		}
+		runtimeSkillNames, err = workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+		runtimeDisabledSkillNames, err = workspacepkg.RuntimeDisabledSkillNamesForAgent(
+			s.config,
+			*agentValue,
+		)
+		if err != nil {
+			return dmClientPreparation{}, err
+		}
+		if scopedPolicyActive && len(scopedPolicy.AllowedSkillNames) > 0 {
+			allowedSkillNames := make(map[string]struct{}, len(scopedPolicy.AllowedSkillNames))
+			for _, skillName := range scopedPolicy.AllowedSkillNames {
+				skillName = strings.TrimSpace(skillName)
+				if skillName != "" {
+					allowedSkillNames[skillName] = struct{}{}
+				}
+			}
+			filteredDisabledSkillNames := make([]string, 0, len(runtimeDisabledSkillNames)+len(runtimeSkillNames))
+			for _, skillName := range runtimeDisabledSkillNames {
+				if _, allowed := allowedSkillNames[strings.TrimSpace(skillName)]; !allowed {
+					filteredDisabledSkillNames = append(filteredDisabledSkillNames, skillName)
+				}
+			}
+			for _, skillName := range runtimeSkillNames {
+				if _, allowed := allowedSkillNames[strings.TrimSpace(skillName)]; !allowed {
+					filteredDisabledSkillNames = append(filteredDisabledSkillNames, skillName)
+				}
+			}
+			runtimeSkillNames = append([]string(nil), scopedPolicy.AllowedSkillNames...)
+			runtimeDisabledSkillNames = filteredDisabledSkillNames
+		}
 	}
 	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
 	staticSystemPrompt := orchestration.StablePrompt()
+	if scopedPolicyActive {
+		dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, scopedPolicy.SystemPrompt)
+	}
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	explicitGoalID := strings.TrimSpace(request.GoalID)
 	executionID := strings.TrimSpace(request.ExecutionID)
@@ -196,20 +239,33 @@ func (s *Service) ensureClient(
 	}()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
+	if scopedPolicyActive {
+		sourceContextType = protocol.SessionPurpose(sessionItem)
+	}
+	commandScopeSessionKey := sessionKey
+	workGraphPreviewID := ""
+	if sourceContextType == protocol.SessionPurposeWorkGraphDistillation {
+		commandScopeSessionKey = strings.TrimSpace(request.WorkGraphSaveSourceSessionKey)
+		workGraphPreviewID = strings.TrimSpace(request.InputOptions.Metadata["preview_id"])
+		if commandScopeSessionKey == "" || workGraphPreviewID == "" {
+			return dmClientPreparation{}, errors.New("WorkGraph distillation round is missing its exact source or preview binding")
+		}
+	}
 	runtimeBuilderContext := runtimectx.WithRuntimeRoundLease(ctx, sessionKey, request.RoundID)
 	runtimeCommandContext := runtimectx.RuntimeCommandContext{
-		Agent: agentValue, ScopeSessionKey: sessionKey, RuntimeSessionKey: sessionKey,
+		Agent: agentValue, ScopeSessionKey: commandScopeSessionKey, RuntimeSessionKey: sessionKey,
 		ExecutionID:        executionID,
 		CoordinatorAgentID: agentValue.AgentID,
 		RootRoundID:        request.RoundID, AgentRoundID: request.AgentRoundID,
-		SourceContextType: "agent", SourceContextID: agentValue.AgentID,
+		SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 		SourceContextLabel: agentValue.Name, PermissionMode: permissionMode,
 		GoalAuthority: goalAuthority, ResponsibilityAuthority: responsibilityState,
 		SDKSessionIdentity: sdkSessionIdentity,
 		AutomationRun:      cloneAutomationRunContext(request.AutomationRun),
+		WorkGraphPreviewID: workGraphPreviewID,
 	}
 	configurationRuntimeEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly && s.configurationRuntimeEnv != nil {
+	if !request.runtimePreparationOnly && !scopedPolicyActive && s.configurationRuntimeEnv != nil {
 		configurationRuntimeEnv, err = s.configurationRuntimeEnv(
 			runtimeBuilderContext,
 			agentValue,
@@ -223,7 +279,10 @@ func (s *Service) ensureClient(
 		}
 	}
 	runtimeCommandEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly && s.runtimeCommandEnv != nil {
+	if !request.runtimePreparationOnly &&
+		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+			sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
+		s.runtimeCommandEnv != nil {
 		runtimeCommandEnv, err = s.runtimeCommandEnv(
 			runtimeBuilderContext,
 			runtimecommand.RoundContext{
@@ -243,12 +302,15 @@ func (s *Service) ensureClient(
 		agentValue.Options.ConnectorIDs,
 		sessionItem.Options,
 	)
+	if scopedPolicyActive && scopedPolicy.DisableConnectors {
+		enabledConnectorIDs = []string{}
+	}
 	dynamicSystemPrompt = joinDMRuntimePrompts(
 		dynamicSystemPrompt,
 		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
 	)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
-	if s.mcpServers != nil {
+	if s.mcpServers != nil && !scopedPolicyActive {
 		mcpContext := runtimeBuilderContext
 		mcpContext = runtimectx.WithEnabledConnectorIDs(
 			mcpContext,
@@ -300,9 +362,13 @@ func (s *Service) ensureClient(
 	); err != nil {
 		return dmClientPreparation{}, err
 	}
+	toolPolicy := request.RuntimeToolPolicy
+	if scopedPolicyActive {
+		toolPolicy = &scopedPolicy.ToolPolicy
+	}
 	allowedTools, disallowedTools := resolveDMRuntimeToolPolicy(
 		agentValue.Options,
-		request.RuntimeToolPolicy,
+		toolPolicy,
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
@@ -312,6 +378,8 @@ func (s *Service) ensureClient(
 		RuntimeKind:                runtimeSelection.RuntimeKind,
 		Provider:                   runtimeSelection.Provider,
 		Model:                      runtimeSelection.Model,
+		BackgroundProvider:         runtimeSelection.BackgroundProvider,
+		BackgroundModel:            runtimeSelection.BackgroundModel,
 		VisionProvider:             runtimeSelection.VisionProvider,
 		VisionModel:                runtimeSelection.VisionModel,
 		PermissionMode:             permissionMode,
@@ -321,7 +389,7 @@ func (s *Service) ensureClient(
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
-		AdditionalDirectories:      protocol.SessionAdditionalDirectoriesFromOptions(sessionItem.Options),
+		AdditionalDirectories:      scopedSessionAdditionalDirectories(sessionItem, scopedPolicyActive),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
 		AppendSystemPromptStatic:   staticSystemPrompt,
@@ -412,7 +480,7 @@ func (s *Service) ensureClient(
 		sessionItem = latest
 	}
 	options.Session.ResumeID = resumeID
-	options.Session.ResumeAt = forkMessageID
+	options.Session.ResumeAt = conversationForkResumeAt(sessionItem.Options, forkMessageID)
 	options.Session.Fork = forking
 	if toolSurfaceFork {
 		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
@@ -558,6 +626,28 @@ func (s *Service) ensureClient(
 	return preparation, nil
 }
 
+func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
+	return protocol.ScopedSessionRuntimePolicy{
+		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
+		ToolPolicy: protocol.RuntimeToolPolicy{
+			AllowedTools: []string{"Skill", "Read", "Write", "Bash", "PowerShell"},
+			DisallowedTools: []string{
+				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
+				"nexus_visualize", "nexus_imagegen",
+			},
+		},
+		AllowedSkillNames: []string{"execution-orchestrator"},
+		DisableConnectors: true,
+	}
+}
+
+func conversationForkResumeAt(options map[string]any, forkMessageID string) string {
+	if atTail, _ := options[protocol.OptionRuntimeForkAtTranscriptTail].(bool); atTail {
+		return ""
+	}
+	return strings.TrimSpace(forkMessageID)
+}
+
 func forkSessionStateCommitted(
 	sessionItem protocol.Session,
 	sessionID string,
@@ -676,6 +766,13 @@ func resolveDMRuntimeToolPolicy(
 		agentOptions.AllowedTools,
 		imagegenDefaultEnabled,
 	), append([]string(nil), agentOptions.DisallowedTools...)
+}
+
+func scopedSessionAdditionalDirectories(session protocol.Session, scoped bool) []string {
+	if scoped {
+		return nil
+	}
+	return protocol.SessionAdditionalDirectoriesFromOptions(session.Options)
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64) {

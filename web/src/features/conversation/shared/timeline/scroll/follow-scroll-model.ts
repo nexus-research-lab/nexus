@@ -299,6 +299,9 @@ function projectAssistantScrollRevision(message: Message): string | null {
       case "task_progress":
         renderedLength += block.description.length;
         break;
+      case "progress_update":
+        // 只替换既有单行活动文案，不改变 Feed 高度。
+        break;
       case "search_result":
         renderedLength +=
           (block.title?.length ?? 0)

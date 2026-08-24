@@ -4,6 +4,10 @@
 
 import type { ToolInput } from "../../system/sdk";
 import type { MessageAttachmentScope } from "./attachment";
+import type {
+  WorkGraphWorkflow,
+  WorkGraphWorkflowPreview,
+} from "../workgraph-workflow";
 
 interface DeferredMessageDetail {
   detail_ref?: string;
@@ -116,6 +120,13 @@ export interface TaskProgressContent {
   usage?: Record<string, unknown>;
 }
 
+/** Provider 在执行中给出的当前轮次自然语言旁白；收到即展示且只以 ephemeral 消息存在。 */
+export interface ProgressUpdateContent {
+  type: "progress_update";
+  text: string;
+  preceding_tool_use_ids?: string[];
+}
+
 export interface WorkspaceFileArtifactContent {
   type: "workspace_file_artifact";
   id?: string;
@@ -130,6 +141,19 @@ export interface WorkspaceFileArtifactContent {
   workspace_agent_id?: string | null;
   source_tool_use_id?: string | null;
   source_tool_name?: string | null;
+}
+
+export interface WorkGraphArtifactContent {
+  type: "workgraph_artifact";
+  id?: string;
+  state: "draft" | "saved";
+  operation: string;
+  head_revision?: number;
+  selected_revision?: number;
+  version_count?: number;
+  preview?: WorkGraphWorkflowPreview;
+  workflow?: WorkGraphWorkflow;
+  source_tool_use_id?: string;
 }
 
 type SystemEventTone = "neutral" | "warning";
@@ -164,6 +188,8 @@ export type ContentBlock =
   | SearchResultContent
   | ResourceLinkContent
   | TaskProgressContent
+  | ProgressUpdateContent
   | WorkspaceFileArtifactContent
+  | WorkGraphArtifactContent
   | SystemEventContent
   | UnsupportedContent;

@@ -1,7 +1,16 @@
+/**
+ * INPUT: 当前路径与查询参数。
+ * OUTPUT: 移动端目录/详情布局、返回目标和与当前分区一致的页头标题。
+ * POS: AppLayout 的纯路由展示模型，不维护导航状态。
+ */
 import {
   APP_ROUTE_PATHS,
   AppRouteBuilders,
 } from "@/app/router/route-paths";
+import {
+  getSettingsSectionLabelKey,
+  parseSettingsSection,
+} from "@/features/settings/settings-navigation-model";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 export type MobileAppRoutePresentation =
@@ -34,6 +43,11 @@ const MOBILE_CAPABILITY_ROUTES: MobileCapabilityRoute[] = [
     detailPrefix: `${APP_ROUTE_PATHS.loops}/`,
     rootPath: APP_ROUTE_PATHS.loops,
     titleKey: "capability.loops",
+  },
+  {
+    detailPrefix: `${APP_ROUTE_PATHS.workGraphDistillations}/`,
+    rootPath: APP_ROUTE_PATHS.workGraphDistillations,
+    titleKey: "capability.workgraph_distillations",
   },
   {
     rootPath: APP_ROUTE_PATHS.scheduledTasks,
@@ -99,10 +113,11 @@ export function resolveMobileAppRoute({
     };
   }
   if (pathname === APP_ROUTE_PATHS.settings) {
+    const searchParams = new URLSearchParams(search);
     return {
       backPath: AppRouteBuilders.home(),
       mode: "detail",
-      titleKey: "settings.title",
+      titleKey: getSettingsSectionLabelKey(parseSettingsSection(searchParams)),
     };
   }
   if (pathname === APP_ROUTE_PATHS.operations) {

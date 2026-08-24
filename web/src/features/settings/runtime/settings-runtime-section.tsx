@@ -1,3 +1,8 @@
+/**
+ * INPUT: 运行引擎、工具发现与网页搜索偏好。
+ * OUTPUT: 以用户任务语言展示的运行设置和按需高级搜索配置。
+ * POS: 设置目录的运行分区，不暴露底层 schema 或 bridge 教学。
+ */
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -113,6 +118,7 @@ export function SettingsRuntimeSection() {
       )}
     >
       <WorkspaceContentHeader
+        className="max-sm:hidden"
         description={t("settings.runtime.section_description")}
         title={t("settings.runtime.section_title")}
       />

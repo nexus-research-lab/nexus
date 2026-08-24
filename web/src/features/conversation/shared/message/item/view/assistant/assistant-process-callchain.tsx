@@ -213,6 +213,7 @@ function ExpandedProcessContent({
         canRespondToPermissions={environment.canRespondToPermissions}
         className="ml-1"
         content={process.projection.content}
+        fallbackActivityLabel={activity.label}
         fallbackActivityState={activity.state}
         hiddenToolNames={environment.hiddenToolNames}
         isStreaming={activity.showCursor}

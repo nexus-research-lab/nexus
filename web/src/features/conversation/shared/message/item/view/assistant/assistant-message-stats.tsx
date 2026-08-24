@@ -1,3 +1,8 @@
+/**
+ * INPUT: Assistant 统计、Goal 完成回执、模型与记忆引用投影。
+ * OUTPUT: 可压缩且不裁剪下伸字符的消息尾部元数据与操作。
+ * POS: Assistant 消息正文下方的唯一统计与回执展示面。
+ */
 import {
   BookOpenText,
   Check,
@@ -77,7 +82,7 @@ export function AssistantMessageStats({
     <div className="nexus-chat-message-stats min-w-0 pt-1.5 text-xs text-(--text-muted)">
       {receiptItems.length > 0 ? (
         <div
-          className="flex min-w-0 items-center gap-1.5 leading-none text-[color:color-mix(in_srgb,var(--success)_82%,var(--text-default)_18%)]"
+          className="flex min-w-0 items-center gap-1.5 leading-tight text-[color:color-mix(in_srgb,var(--success)_82%,var(--text-default)_18%)]"
           data-goal-completion-receipt
         >
           <CircleCheck aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -107,7 +112,7 @@ export function AssistantMessageStats({
         )}>
           <div className="flex min-w-0 flex-1 items-center">
             {statsItems.length > 0 ? (
-              <div className="nexus-chat-message-stat-list flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap leading-none">
+              <div className="nexus-chat-message-stat-list flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap leading-tight">
                 {statsItems.map((item, index) => (
                   <span className="contents" key={`${item}-${index}`}>
                     {index > 0 ? (

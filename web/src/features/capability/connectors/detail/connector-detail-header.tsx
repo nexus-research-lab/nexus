@@ -143,7 +143,7 @@ export function ConnectorDetailBreadcrumb({
 }) {
   return (
     <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2 text-[14px] text-(--text-muted)">
+      <div className="flex min-w-0 items-center gap-2 text-base text-(--text-muted)">
         <button
           className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
           onClick={onBack}

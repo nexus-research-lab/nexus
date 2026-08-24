@@ -19,6 +19,8 @@ export interface ContentRendererProps {
   canRespondToPermissions?: boolean;
   className?: string;
   content: string | ContentBlock[];
+  defaultToolDetailsExpanded?: boolean;
+  fallbackActivityLabel?: string | null;
   fallbackActivityState?: MessageActivityState | null;
   hiddenToolNames?: readonly string[];
   isStreaming?: boolean;
@@ -32,6 +34,8 @@ export interface ContentRendererProps {
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   permissionReadOnlyReason?: string;
   renderLeadingSlashCommand?: boolean;
+  /** 外层过程栏已拥有瞬时状态时，禁止再追加同义尾随活动。 */
+  showTrailingActivity?: boolean;
   showTimelineDots?: boolean;
   streamingBlockIndexes?: ReadonlySet<number>;
   /** 执行已终止但 provider 未返回 tool_result 时的权威消息级收口。 */

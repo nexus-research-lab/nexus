@@ -1,13 +1,12 @@
 /**
  * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
- * OUTPUT: DM live 连续工具段、live/terminal 固定位置的 final 正文，以及只在 owner 轨道挂载一次的人工响应面。
- * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层。
+ * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的单行活动摘要、固定位置的 final 正文与唯一人工响应面。
+ * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层；Room 公区不消费具体工具过程。
  */
 import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 
-import type { MessageActivityState } from "../../activity/message-activity-state";
 import { shouldShowAssistantTimeline } from "../../message-item-projection";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
@@ -19,7 +18,7 @@ import type {
   AssistantPermissionState,
   AssistantProcessState,
 } from "./assistant-message-model";
-import { AssistantDmToolRuns } from "./assistant-dm-tool-runs";
+import { AssistantToolRuns } from "./assistant-dm-tool-runs";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
 
 interface AssistantMessageContentProps {
@@ -46,6 +45,11 @@ export function AssistantMessageContent({
     <>
       <StandaloneActivity activity={activity} />
       <EmptyStreamStatus status={activity.emptyStreamStatus} />
+      <RoomResultProcessActivity
+        activity={activity}
+        direct={direct}
+        environment={environment}
+      />
       <AssistantDirectContent
         activity={activity}
         direct={direct}
@@ -63,13 +67,15 @@ export function AssistantMessageContent({
         process={process}
       />
       <AssistantFinalContent
-        activityState={activity.state}
+        activity={activity}
         environment={environment}
         final={final}
         permissions={permissions}
+        showTrailingActivity={!direct.visible}
       />
       <RoomResultTrailingActivity
         activity={activity}
+        direct={direct}
         environment={environment}
         final={final}
       />
@@ -78,24 +84,59 @@ export function AssistantMessageContent({
   );
 }
 
+function RoomResultProcessActivity({
+  activity,
+  direct,
+  environment,
+}: {
+  activity: AssistantActivityState;
+  direct: AssistantDirectState;
+  environment: AssistantContentEnvironment;
+}) {
+  if (
+    environment.mode !== "room_result"
+    || !direct.visible
+    || !activity.state
+  ) {
+    return null;
+  }
+  return (
+    <LocalizedMessageActivityStatus
+      className="py-1"
+      label={activity.label}
+      state={activity.state}
+      uniformTone
+    />
+  );
+}
+
 function RoomResultTrailingActivity({
   activity,
+  direct,
   environment,
   final,
 }: {
   activity: AssistantActivityState;
+  direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
 }) {
   if (
     environment.mode !== "room_result"
     || activity.standalone
+    || direct.visible
     || final.isStreaming
     || !activity.state
   ) {
     return null;
   }
-  return <LocalizedMessageActivityStatus className="pt-1" state={activity.state} />;
+  return (
+    <LocalizedMessageActivityStatus
+      className="pt-1"
+      label={activity.label}
+      state={activity.state}
+    />
+  );
 }
 
 function StandaloneActivity({
@@ -106,7 +147,13 @@ function StandaloneActivity({
   if (!activity.standalone || !activity.state) {
     return null;
   }
-  return <LocalizedMessageActivityStatus className="py-1" state={activity.state} />;
+  return (
+    <LocalizedMessageActivityStatus
+      className="py-1"
+      label={activity.label}
+      state={activity.state}
+    />
+  );
 }
 
 function AssistantDirectContent({
@@ -129,9 +176,12 @@ function AssistantDirectContent({
   if (!direct.visible) {
     return null;
   }
-  if (environment.mode === "dm_live") {
+  if (environment.mode === "room_result") {
+    return null;
+  }
+  if (environment.mode !== "dm_archived") {
     return (
-      <AssistantDmToolRuns
+      <AssistantToolRuns
         activity={activity}
         environment={environment}
         generatedFilesLabel={generatedFilesLabel}
@@ -145,6 +195,7 @@ function AssistantDirectContent({
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={direct.projection.content}
+      fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
       isStreaming={activity.showCursor && !responseStreaming}
@@ -165,15 +216,17 @@ function AssistantDirectContent({
 }
 
 function AssistantFinalContent({
-  activityState,
+  activity,
   environment,
   final,
   permissions,
+  showTrailingActivity,
 }: {
-  activityState: MessageActivityState | null;
+  activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
   permissions: AssistantPermissionState;
+  showTrailingActivity: boolean;
 }) {
   if (!final.visible) {
     return null;
@@ -182,7 +235,8 @@ function AssistantFinalContent({
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={final.content ?? []}
-      fallbackActivityState={activityState}
+      fallbackActivityLabel={activity.label}
+      fallbackActivityState={activity.state}
       isStreaming={final.isStreaming}
       onOpenSubagentTask={environment.onOpenSubagentTask}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
@@ -190,6 +244,7 @@ function AssistantFinalContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
+      showTrailingActivity={showTrailingActivity}
       streamingBlockIndexes={final.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}

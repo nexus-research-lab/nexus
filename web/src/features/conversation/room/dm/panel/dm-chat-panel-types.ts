@@ -9,6 +9,14 @@ import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
+export interface DmEmbeddedEditorIntroduction {
+  description: string;
+  examples: readonly string[];
+  examplesLabel: string;
+  footer: string;
+  title: string;
+}
+
 export interface DmChatPanelProps {
   currentAgent: Agent;
   executionResource: ExecutionResource;
@@ -16,9 +24,15 @@ export interface DmChatPanelProps {
   runtimeKind: AgentRuntimeKind;
   todos: TodoItem[];
   layout: "desktop" | "mobile";
+  embeddedEditor?: {
+    introduction: DmEmbeddedEditorIntroduction;
+    placeholder: string;
+    visibleAfterUnixMilli: number;
+  };
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
   onExecutionTaskRunsChange?: (runs: ConversationTaskRun[]) => void;
+  onBusyChange?: (busy: boolean) => void;
   onForkConversation?: (roundId: string) => Promise<void>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenSubagentTask?: (

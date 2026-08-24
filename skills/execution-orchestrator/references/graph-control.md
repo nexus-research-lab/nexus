@@ -11,9 +11,11 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 ## Plan Document 传输
 
-需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 写入 `prepare_plan_execution` 的 command input，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。Plan Mode 允许 prepare 和校验，但 `plan_execution` 不会 commit；退出 Plan Mode 后复用该 sealed pair 提交，不要重做 YAML 或混合另一份 proposal。`goal_binding` 是外层 command JSON 中与 `plan_document` 并列的字段，绝不是 Plan YAML root 字段。fresh Goal-free `create` 的外层输入明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 的 applied receipt，再准备绑定它的 Plan；不要并行执行二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先执行 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
+需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 写入 `prepare_plan_execution` 的 command input；校验成功后宿主会持久绑定 exact sealed proposal，随后以空对象调用一次 `plan_execution`，不要传 proposal id/digest，也不要重做 YAML。Plan Mode 允许 prepare 和校验，但 `plan_execution` 不会 commit；退出 Plan Mode 后仍以空对象提交，宿主会跨 round 保留同一 exact binding。`goal_binding` 是外层 command JSON 中与 `plan_document` 并列的字段，绝不是 Plan YAML root 字段。fresh Goal-free `create` 的外层输入明确使用 `goal_binding=none`；只有当前 round 已持有 exact Goal authority 且确实要绑定时才用 `goal_binding=current`；`replan`/`replace` 省略或使用 `inherit`，不能改变既有边界。如果还需新建 Goal 并把图绑定给它，先等待 `create_goal` 的 applied receipt，再准备绑定它的 Plan；不要并行执行二者，因为 Goal 身份与 objective 是 proposal 的权威 fence。只有 exact Goal-bound context 下的 fresh `create` 可以省略 root `objective`，服务端会继承 exact Goal objective；同一 session 中只是存在 ambient Goal 不等于绑定。每个 `create`/`replace` 都必须填写 `completion_criteria`，Goal-free `create`/`replace` 还必须填写 `objective`，`replan` 则继承当前 Execution 的 objective 与 completion criteria。改变已绑定 Goal 先执行 `retarget_goal`，不要在 Plan 中改写或概述成另一个权威目标。
 
 Plan operation 只按本轮 `execution inspect` 返回的 current Execution 选择，不能从历史图或 Goal 的 predecessor 关系猜测：没有 current Execution 时使用 `create`；存在同一 objective boundary 的 current Execution、确实只增加 Plan revision 时才使用 `replan`；只有当前 transient、Goal-free Execution 需要整体替换时才考虑 `replace`。Goal reset/retarget 会把旧 Execution 变为 predecessor；如果 successor 尚未 materialize，此时虽然是在替换历史链路，successor 的第一份 Plan 仍是 `create`，并在 exact Goal authority 下使用外层 `goal_binding=current`。
+
+Plan 中面向用户的 objective、completion criteria、subject、deliverable 与 acceptance criteria 跟随当前对话语言；中文对话优先使用自然简洁的中文标题和说明。只有 `logical_key`、opaque identity、路径、命令和无法翻译的专有名词保留英文，不要因为 schema 字段名是英文就生成英文节点标题。
 
 - `create`：必须有 `completion_criteria`；没有 exact Goal 继承时还必须有 `objective`；任何 item 都不能带 `existing_work_item_id`。
 - `replan`：必须有非空 `revision_reason`，继承 current Execution 的 objective 与 completion criteria；只有语义契约未改变的旧节点才能用 `existing_work_item_id` 复用。普通 replan 只能单调追加节点或下游边；删除/改写节点或依赖、或在 current Assignment 存在时换 Plan，必须显式 `supersede_active_work: true`，并接受它会原子释放当前责任链。未审核 Submission 必须先 review。
@@ -27,8 +29,8 @@ Plan Document 的精确字段、枚举和条件必填项只有一个真相源：
 
 ## Plan lifecycle operation
 
-- `prepare_plan_execution` 的输入只包含完整 `plan_document` 和可选外层 `goal_binding`。成功后保存同一 receipt 的 opaque `proposal_id` 与 `proposal_digest`；不要重建 digest、重发 YAML 或拼接两次 proposal。
-- `plan_execution` 只提交上述 sealed pair。它们必须来自同一次 prepare 并绑定当前 trusted target fence；普通 validation/revision 错误回到 fresh inspect/contract，不靠添加隐藏 identity 字段修复。
+- `prepare_plan_execution` 的输入只包含完整 `plan_document` 和可选外层 `goal_binding`。成功后 proposal identity 与 digest 由宿主持有；不要保存或重建它们，也不要重发 YAML。
+- `plan_execution` 的 input 写入 `{}`。宿主只提交当前 exact durable binding；普通 validation/revision 错误回到 fresh inspect/contract，不靠添加隐藏 identity 字段修复。
 - `abandon_execution` 只由 current coordinator 对 current transient、Goal-free Execution 使用，提交 exact `execution_id` 与用户明确停止该 objective、且不创建 successor 的具体 `reason`。Goal-bound Execution 不走 abandon；Plan Mode 只验证提议，不产生 mutation。
 
 下面只是一个最小 create 示例，不是第二份 schema：

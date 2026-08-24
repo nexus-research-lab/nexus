@@ -1,10 +1,14 @@
+/**
+ * INPUT: Connector 身份、短摘要、状态动作与选择命令。
+ * OUTPUT: 不重复分类元数据的紧凑 Connector 目录条目。
+ * POS: Connector 目录卡片纯视图。
+ */
 "use client";
 
 import { Clock3, KeyRound, Loader2, Plus, Settings2, Unplug } from "lucide-react";
 import { type MouseEvent } from "react";
 
 import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/shared/capability-page-layout";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -17,7 +21,6 @@ import {
   type ConnectorCardBadgeModel,
   type ConnectorCardTrailingModel,
 } from "./connector-card-model";
-import { getConnectorCategoryLabel } from "./connectors-categories";
 
 interface ConnectorCardProps {
   busy?: boolean;
@@ -34,7 +37,6 @@ export function ConnectorCard({
   onDisconnect,
   onSelect,
 }: ConnectorCardProps) {
-  const { t } = useI18n();
   const model = buildConnectorCardModel(connector, busy);
 
   const handleActionClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -67,16 +69,13 @@ export function ConnectorCard({
     >
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[14px] font-medium text-(--text-strong)">
+          <span className="truncate text-base font-medium text-(--text-strong)">
             {connector.title}
           </span>
           <ConnectorCardBadge badge={model.badge} />
         </span>
         <span className="mt-0.5 block truncate text-compact leading-[1.125rem] text-(--text-muted)">
           {connector.description}
-        </span>
-        <span className="mt-0.5 block text-2xs leading-4 text-(--text-soft)">
-          {getConnectorCategoryLabel(connector.category, t)}
         </span>
       </span>
     </UiListRow>

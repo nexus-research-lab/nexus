@@ -20,8 +20,22 @@ func TestWrapRoundStatusErrorEventCarriesRoomIdentity(t *testing.T) {
 	if event.Data["status"] != "error" || event.Data["message"] != "provider unavailable" {
 		t.Fatalf("error round status data = %#v", event.Data)
 	}
+	if event.Data["failure_code"] != protocol.ConversationFailureRoundFailed {
+		t.Fatalf("error round status failure_code = %#v", event.Data["failure_code"])
+	}
 	if event.DeliveryMode != "durable" || event.RoomID != "room-1" || event.ConversationID != "conversation-1" {
 		t.Fatalf("error round status identity = %+v", event)
+	}
+}
+
+func TestNewErrorEventClassifiesRoomAndRequestFailures(t *testing.T) {
+	roomFailure := NewErrorEvent("session-1", "room-1", "conversation-1", "room_error", "failed", "round-1")
+	if roomFailure.Data["failure_code"] != protocol.ConversationFailureRoundFailed {
+		t.Fatalf("room failure_code = %#v", roomFailure.Data["failure_code"])
+	}
+	requestFailure := NewErrorEvent("session-1", "room-1", "conversation-1", "input_queue_error", "failed", "queue-1")
+	if requestFailure.Data["failure_code"] != protocol.ConversationFailureRequestRejected {
+		t.Fatalf("request failure_code = %#v", requestFailure.Data["failure_code"])
 	}
 }
 

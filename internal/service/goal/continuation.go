@@ -1,5 +1,5 @@
 // INPUT: active Goal、上一轮结果、objective transition 与当前 session 可调度状态。
-// OUTPUT: 带版本约束的普通 Goal continuation、awaiting_plan 专用 successor-planning continuation，或明确的延迟/终止决定。
+// OUTPUT: 带版本约束的普通 Goal continuation、使用 host-bound 空输入 commit 的 awaiting_plan successor continuation，或明确的延迟/终止决定。
 // POS: Goal 自动续跑与 Goal-bound successor 规划的唯一计划和最终有效性校验入口。
 package goal
 
@@ -808,7 +808,7 @@ Goal objective:
 The predecessor WorkGraph is already fenced. Build the fresh successor WorkGraph now:
 1. Load execution-orchestrator and use only the host-injected "${NEXUS_COMMAND_PATH}" --json execution contract|inspect|invoke workflow; operation names are not standalone tools and nexusctl is forbidden.
 2. Invoke prepare_plan_execution once with one complete Nexus Plan Document and goal_binding=current.
-3. Commit exactly the returned proposal_id and proposal_digest by invoking plan_execution through the same CLI.
+3. Invoke plan_execution with an empty input; the host retains and verifies the exact prepared proposal binding.
 4. Do not reuse, mutate, or resume the superseded predecessor Execution.
 5. Do not call retarget_goal again unless the user changes the objective again.
 

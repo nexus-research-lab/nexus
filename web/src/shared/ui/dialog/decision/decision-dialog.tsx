@@ -1,3 +1,8 @@
+/**
+ * INPUT: 业务提供的明确标题、后果文案、输入值与确认/取消动作。
+ * OUTPUT: 无默认警告套话、无装饰图标和消息卡片的紧凑决策弹窗。
+ * POS: 全站轻量确认框与输入框；业务风险只能由调用方具体说明。
+ */
 "use client";
 
 import {
@@ -8,18 +13,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { AlertTriangle } from "lucide-react";
-
 import {
   UiDialogBody,
   UiDialogCloseButton,
-  UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import {
-  DIALOG_HEADER_ICON_CLASS_NAME,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
-} from "@/shared/ui/dialog/dialog-styles";
 
 import {
   DecisionDialogActions,
@@ -84,31 +81,23 @@ export function ConfirmDialog({
       labelledBy={titleId}
       onClose={onCancel}
     >
-      <UiDialogHeader className="items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div
-            className={DIALOG_HEADER_ICON_CLASS_NAME}
-            style={presentation.iconStyle}
-          >
-            <AlertTriangle className="h-4.5 w-4.5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="dialog-title" id={titleId}>{title}</h3>
-            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
-              {subtitle ?? presentation.subtitle}
-            </p>
-          </div>
-        </div>
-        <UiDialogCloseButton onClose={onCancel} />
-      </UiDialogHeader>
-      <UiDialogBody>
-        <div
-          className={getDialogNoteClassName(presentation.noteTone)}
+      <UiDialogCloseButton
+        className="absolute right-3 top-3 z-10"
+        onClose={onCancel}
+      />
+      <UiDialogBody className="px-5 pb-4 pt-5 pr-14">
+        <h3 className="dialog-title" id={titleId}>{title}</h3>
+        {subtitle ? (
+          <p className="mt-1.5 text-compact leading-5 text-(--text-soft)">
+            {subtitle}
+          </p>
+        ) : null}
+        <p
+          className="mt-3 whitespace-pre-wrap text-sm leading-6 text-(--text-default)"
           id={messageId}
-          style={getDialogNoteStyle(presentation.noteTone)}
         >
           {message}
-        </div>
+        </p>
       </UiDialogBody>
       <DecisionDialogActions
         cancelText={cancelText}
@@ -207,15 +196,14 @@ function PromptDialogContent({
       labelledBy={titleId}
       onClose={cancel}
     >
-      <UiDialogHeader>
-        <div className="min-w-0 flex-1">
-          <h3 className="dialog-title" id={titleId}>{title}</h3>
-        </div>
-        <UiDialogCloseButton onClose={cancel} />
-      </UiDialogHeader>
-      <UiDialogBody>
+      <UiDialogCloseButton
+        className="absolute right-3 top-3 z-10"
+        onClose={cancel}
+      />
+      <UiDialogBody className="px-5 pb-4 pt-5 pr-14">
+        <h3 className="dialog-title" id={titleId}>{title}</h3>
         {message ? (
-          <p className="pb-3 text-sm leading-6 text-muted-foreground">{message}</p>
+          <p className="pb-3 pt-2 text-sm leading-6 text-(--text-muted)">{message}</p>
         ) : null}
         <PromptInput
           inputRef={inputRef}

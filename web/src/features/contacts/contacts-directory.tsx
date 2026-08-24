@@ -1,3 +1,8 @@
+/**
+ * INPUT: Agent 目录与创建、详情、私聊、群聊导航命令。
+ * OUTPUT: 可搜索的响应式 Agent 管理目录，窄屏摘要、桌面完整比较。
+ * POS: 联系人正文根目录；承载选择 Agent 所需的识别和能力概况。
+ */
 "use client";
 
 import { Plus } from "lucide-react";

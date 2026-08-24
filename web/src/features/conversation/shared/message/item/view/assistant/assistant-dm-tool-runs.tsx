@@ -1,7 +1,7 @@
 /**
- * INPUT: DM live direct 过程、当前活动状态、final 恢复信号与人工交互工具集合。
- * OUTPUT: 连续工具调用的单一时间线块；新执行段展开，叙事/final 边界后默认折叠。
- * POS: Assistant DM live 专用过程视图，不参与 Room 或权限响应面的所有权选择。
+ * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
+ * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；首层展开过程目录，各子项再独立展开详情。
+ * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
  */
 "use client";
 
@@ -10,17 +10,20 @@ import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import type { ContentBlock } from "@/types/conversation/message/content";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
+import { getLocalizedToolTitle } from "../../../tool-activity";
 import {
-  projectDmToolRunSegments,
-  type DmProcessSegment,
-  type DmToolRunSegment,
+  projectToolRunSegments,
+  type ToolProcessSegment,
+  type ToolRunSegment,
 } from "../../process/dm-tool-run-segments";
 import { ContentRenderer } from "../content/content-renderer";
 import {
@@ -34,7 +37,7 @@ import type {
 } from "./assistant-message-model";
 import type { ContentProjection } from "../../message-item-projection";
 
-interface AssistantDmToolRunsProps {
+interface AssistantToolRunsProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   generatedFilesLabel: string;
@@ -43,33 +46,36 @@ interface AssistantDmToolRunsProps {
   responseResumed: boolean;
 }
 
-export function AssistantDmToolRuns({
+export function AssistantToolRuns({
   activity,
   environment,
   generatedFilesLabel,
   permissions,
   projection,
   responseResumed,
-}: AssistantDmToolRunsProps) {
+}: AssistantToolRunsProps) {
   const interactiveToolUseIds = useMemo(
     () => collectInteractiveToolUseIds(
       permissions.all,
       permissions.matchedByToolUseId,
+      projection.content,
     ),
-    [permissions.all, permissions.matchedByToolUseId],
+    [permissions.all, permissions.matchedByToolUseId, projection.content],
   );
   const segments = useMemo(
-    () => projectDmToolRunSegments({
+    () => projectToolRunSegments({
       interactiveToolUseIds,
       live: activity.showCursor,
       projection,
       responseResumed,
+      toolUseSummary: activity.toolUseSummary,
     }),
     [
       activity.showCursor,
       interactiveToolUseIds,
       projection,
       responseResumed,
+      activity.toolUseSummary,
     ],
   );
 
@@ -79,7 +85,7 @@ export function AssistantDmToolRuns({
         "nexus-chat-block-stack min-w-0 space-y-2.5",
         TIMELINE_LINE_CLASS_NAME,
       )}
-      data-dm-tool-run-list="true"
+      data-tool-run-list="true"
     >
       {segments.map((segment, index) => {
         const streaming = (
@@ -88,7 +94,7 @@ export function AssistantDmToolRuns({
           && index === segments.length - 1
         );
         return (
-          <DmProcessSegmentView
+          <ToolProcessSegmentView
             activity={activity}
             environment={environment}
             generatedFilesLabel={generatedFilesLabel}
@@ -103,7 +109,7 @@ export function AssistantDmToolRuns({
   );
 }
 
-function DmProcessSegmentView({
+function ToolProcessSegmentView({
   activity,
   environment,
   generatedFilesLabel,
@@ -115,12 +121,12 @@ function DmProcessSegmentView({
   environment: AssistantContentEnvironment;
   generatedFilesLabel: string;
   permissions: AssistantPermissionState;
-  segment: DmProcessSegment;
+  segment: ToolProcessSegment;
   streaming: boolean;
 }) {
   if (segment.kind === "tool_run") {
     return (
-      <DmToolRun
+      <ToolRun
         activity={activity}
         environment={environment}
         generatedFilesLabel={generatedFilesLabel}
@@ -132,18 +138,19 @@ function DmProcessSegmentView({
   }
   return (
     <TimelineBlock active={streaming}>
-      <DmProcessSegmentContent
+      <ToolProcessSegmentContent
         activity={activity}
         environment={environment}
         permissions={permissions}
         projection={segment.projection}
+        showTrailingActivity
         streaming={streaming}
       />
     </TimelineBlock>
   );
 }
 
-function DmToolRun({
+function ToolRun({
   activity,
   environment,
   generatedFilesLabel,
@@ -155,7 +162,7 @@ function DmToolRun({
   environment: AssistantContentEnvironment;
   generatedFilesLabel: string;
   permissions: AssistantPermissionState;
-  segment: DmToolRunSegment;
+  segment: ToolRunSegment;
   streaming: boolean;
 }) {
   const { t } = useI18n();
@@ -183,24 +190,15 @@ function DmToolRun({
       || segment.toolUseIds.length > closedToolUseCount
     )
   );
-  const phase = active
-    ? "active"
-    : segment.errorCount > 0
-    ? "error"
-    : segment.rejectedCount > 0
-    ? "rejected"
-    : segment.supersededCount > 0
-    ? "superseded"
-    : "complete";
-  const expanded = active || expansion.isOpen;
+  const phase = active ? "active" : segment.phase;
+  const expanded = expansion.isOpen;
   const artifacts = useWorkspaceFileArtifactsFromContent(
     segment.projection.content,
   );
   const contentId = `${segment.id}-content`;
-  const error = segment.errorCount > 0 || segment.rejectedCount > 0;
-  const summary = formatDmToolRunSummary(
-    segment.toolUseIds.length,
-    segment.errorCount,
+  const warning = phase === "error" || phase === "rejected";
+  const summary = formatToolRunSummary(
+    segment,
     phase,
     t,
   );
@@ -209,24 +207,23 @@ function DmToolRun({
     <TimelineBlock active={streaming && active}>
       <div
         data-conversation-process-group-id={segment.id}
-        data-dm-tool-run-id={segment.id}
-        data-dm-tool-run-phase={phase}
+        data-tool-run-id={segment.id}
+        data-tool-run-phase={phase}
         ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       >
         <button
           aria-controls={contentId}
-          aria-disabled={active}
           aria-expanded={expanded}
           className={cn(
-            "flex w-full items-center gap-2 py-1 text-left text-xs font-medium transition-colors duration-(--motion-duration-fast)",
+            "flex w-full items-center gap-2 py-1 text-left text-sm font-medium transition-colors duration-(--motion-duration-fast)",
             active
-              ? "cursor-default text-primary"
+              ? "text-primary hover:text-primary"
               : "text-(--text-muted) hover:text-(--text-strong)",
-            error && "text-rose-500 hover:text-rose-600",
+            warning && "text-rose-500 hover:text-rose-600",
           )}
           data-timeline-anchor
           data-timeline-anchor-mode="box"
-          onClick={active ? undefined : expansion.toggle}
+          onClick={expansion.toggle}
           type="button"
         >
           <Wrench
@@ -247,11 +244,12 @@ function DmToolRun({
 
         {expanded ? (
           <div className="pt-1" id={contentId}>
-            <DmProcessSegmentContent
+            <ToolProcessSegmentContent
               activity={activity}
               environment={environment}
               permissions={permissions}
               projection={segment.projection}
+              showTrailingActivity={false}
               streaming={streaming && active}
             />
           </div>
@@ -268,49 +266,68 @@ function DmToolRun({
   );
 }
 
-function formatDmToolRunSummary(
-  toolUseCount: number,
-  errorCount: number,
-  phase: DmToolRunSegment["phase"],
+function formatToolRunSummary(
+  segment: ToolRunSegment,
+  phase: ToolRunSegment["phase"],
   t: I18nContextValue["t"],
 ): string {
-  const countKey = toolUseCount === 1
-    ? "message.tool_run_count_one"
-    : "message.tool_run_count_other";
-  const statusKey = {
-    active: "message.tool_run_active",
-    complete: "message.tool_run_complete",
-    error: "message.tool_run_failed",
-    rejected: "message.tool_run_rejected",
-    superseded: "message.tool_run_superseded",
-  }[phase] as TranslationKey;
-  const parts = [t(countKey, { count: toolUseCount }), t(statusKey)];
-  if (errorCount > 0) {
-    const errorKey = errorCount === 1
+  const toolUseCount = segment.toolUseIds.length;
+  let statusKey: TranslationKey | null = null;
+  if (phase === "active") {
+    statusKey = "message.tool_run_active";
+  } else if (phase === "error") {
+    statusKey = "message.tool_run_failed";
+  } else if (phase === "rejected") {
+    statusKey = "message.tool_run_rejected";
+  } else if (phase === "superseded") {
+    statusKey = "message.tool_run_superseded";
+  }
+  const firstToolUse = segment.projection.content.find(
+    (block) => block.type === "tool_use",
+  );
+  const naturalSummary = segment.summaryText?.trim() || null;
+  const activeFallback = toolUseCount === 1 && firstToolUse?.type === "tool_use"
+    ? getLocalizedToolTitle(firstToolUse.name, t, firstToolUse.input)
+    : t("message.tool_run_active");
+  const parts = [phase === "active"
+    ? naturalSummary ?? activeFallback
+    : t("message.tool_run_history")];
+  if (
+    statusKey
+    && !(phase === "active" && naturalSummary)
+    && parts[0] !== t(statusKey)
+  ) {
+    parts.push(t(statusKey));
+  }
+  if (phase === "error" && segment.errorCount > 0) {
+    const errorKey = segment.errorCount === 1
       ? "message.tool_run_error_one"
       : "message.tool_run_error_other";
-    parts.push(t(errorKey, { count: errorCount }));
+    parts.push(t(errorKey, { count: segment.errorCount }));
   }
   return parts.join(" · ");
 }
 
-function DmProcessSegmentContent({
+function ToolProcessSegmentContent({
   activity,
   environment,
   permissions,
   projection,
+  showTrailingActivity,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   permissions: AssistantPermissionState;
   projection: ContentProjection;
+  showTrailingActivity: boolean;
   streaming: boolean;
 }) {
   return (
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
       content={projection.content}
+      fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
       isStreaming={streaming}
@@ -320,9 +337,12 @@ function DmProcessSegmentContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
+      showTrailingActivity={showTrailingActivity}
       streamingBlockIndexes={projection.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}
+      agentMentionDirectory={environment.agentMentionDirectory}
+      onOpenAgentContact={environment.onOpenAgentContact}
     />
   );
 }
@@ -330,6 +350,7 @@ function DmProcessSegmentContent({
 function collectInteractiveToolUseIds(
   permissions: AssistantPermissionState["all"],
   matchedByToolUseId: AssistantPermissionState["matchedByToolUseId"],
+  content: readonly ContentBlock[],
 ): Set<string> {
   const toolUseIds = new Set<string>(
     matchedByToolUseId.keys(),
@@ -337,6 +358,14 @@ function collectInteractiveToolUseIds(
   permissions.forEach((permission) => {
     if (permission.tool_use_id) {
       toolUseIds.add(permission.tool_use_id);
+    }
+  });
+  content.forEach((block) => {
+    if (
+      block.type === "tool_use"
+      && isGenerativeUIWidgetToolName(block.name)
+    ) {
+      toolUseIds.add(block.id);
     }
   });
   return toolUseIds;

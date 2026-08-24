@@ -4,7 +4,7 @@
  * POS: Room 窄窗历史投影视图，不维护标签目录、路由或选中真相。
  */
 
-import { Clock3, MessageSquare, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -49,18 +49,13 @@ export function RoomMobileConversationSwitcher({
         className="absolute inset-x-0 top-[52px] z-40 flex max-h-[56dvh] flex-col overflow-hidden rounded-b-[16px] border-b border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_84%,var(--surface-panel-background)_16%)] shadow-(--surface-popover-shadow) backdrop-blur-[20px] animate-in fade-in-0 slide-in-from-top-2 duration-(--motion-duration-fast)"
         role="dialog"
       >
-        <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b divider-subtle px-4 py-2.5">
-          <div className="min-w-0">
-            <h2
-              className="truncate text-sm font-semibold text-(--text-strong)"
-              id="mobile-conversation-switcher-title"
-            >
-              {t("room.switch_conversation")}
-            </h2>
-            <p className="mt-0.5 text-xs text-(--text-soft)">
-              {t("room.conversation_count", { count: historyConversations.length })}
-            </p>
-          </div>
+        <header className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-b divider-subtle px-4 py-2">
+          <h2
+            className="truncate text-sm font-semibold text-(--text-strong)"
+            id="mobile-conversation-switcher-title"
+          >
+            {t("room.switch_conversation")}
+          </h2>
 
           <button
             aria-label={t("common.close")}
@@ -80,7 +75,7 @@ export function RoomMobileConversationSwitcher({
                 key={conversation.conversation_id}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "group relative flex min-h-[68px] w-full items-center gap-3 overflow-hidden rounded-[12px] px-3 py-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast)",
+                  "group relative flex min-h-12 w-full items-center gap-3 overflow-hidden rounded-[10px] px-3 py-2 text-left transition-[background-color,color] duration-(--motion-duration-fast)",
                   isActive
                     ? "bg-(--surface-sidebar-active-background) text-(--text-strong)"
                     : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
@@ -91,13 +86,6 @@ export function RoomMobileConversationSwitcher({
                 }}
                 type="button"
               >
-                <span className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_50%,transparent)] text-(--icon-muted)",
-                  isActive && "border-(--divider-strong-color) bg-(--surface-interactive-hover-background) text-(--icon-strong)",
-                )}>
-                  <MessageSquare className="h-[18px] w-[18px]" />
-                </span>
-
                 <div className="min-w-0 flex-1">
                   <p className={cn(
                     "truncate text-[14px]",
@@ -108,10 +96,9 @@ export function RoomMobileConversationSwitcher({
                     {conversation.title?.trim() || t("room.new_conversation")}
                   </p>
                   <span className={cn(
-                    "mt-1 flex items-center gap-1.5 text-xs",
+                    "mt-0.5 block text-xs",
                     isActive ? "text-(--text-muted)" : "text-(--text-soft)",
                   )}>
-                    <Clock3 className="h-3 w-3 shrink-0" />
                     {formatRelativeTime(conversation.last_activity_at)}
                   </span>
                 </div>

@@ -451,6 +451,7 @@ func (s *sdkSessionSync) apply() {
 	if s.canPersistSession && s.sessionIDChanged {
 		delete(s.current.Options, protocol.OptionRuntimeForkSourceSessionID)
 		delete(s.current.Options, protocol.OptionRuntimeForkMessageID)
+		delete(s.current.Options, protocol.OptionRuntimeForkAtTranscriptTail)
 	}
 	nextFingerprint := s.nextFingerprint
 	if s.sessionIDChanged && !s.canPersistSession {

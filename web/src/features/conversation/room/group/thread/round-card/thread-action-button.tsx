@@ -18,11 +18,12 @@ export function ThreadActionButton({
     <button
       aria-label={actionLabel}
       className={cn(
-        "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+        "inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
         active
-          ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
-          : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
+          ? "bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
+          : "text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
       )}
+      data-room-agent-action="thread"
       onClick={onClick}
       title={actionLabel}
       type="button"

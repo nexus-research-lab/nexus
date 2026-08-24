@@ -1,16 +1,16 @@
 /**
  * INPUT: internal/protocol/workgraph_workflow.go 的 owner-safe JSON。
- * OUTPUT: 后台模型抽取的临时草图与用户确认保存的命名 Slash 工作图展示类型。
- * POS: WorkGraph 草图预览、目录与复用 UI 的协议镜像；不包含运行事实。
+ * OUTPUT: 默认对话模型抽取的 durable Draft/版本与用户确认保存的命名 Slash 工作图展示类型。
+ * POS: WorkGraph 草图编辑、目录与复用 UI 的协议镜像；不包含运行事实。
  */
 
 import type { ExecutionWorkItemKind } from "./execution";
 
-export type WorkGraphWorkflowNodeRole = "auto" | "key" | "collaboration";
+export type WorkGraphWorkflowNodeRole = "key" | "collaboration";
 
 export interface WorkGraphWorkflowNode {
   logical_key: string;
-  source_work_item_id: string;
+  source_work_item_id?: string;
   role: WorkGraphWorkflowNodeRole;
   kind: ExecutionWorkItemKind;
   subject: string;
@@ -62,4 +62,26 @@ export interface WorkGraphWorkflowPreview {
 export interface WorkGraphWorkflowSaveReceipt {
   preview_id: string;
   status: "scheduled";
+}
+
+export interface WorkGraphWorkflowEditorSession {
+  editor_id: string;
+  revision: number;
+  selected_revision: number;
+  agent_id: string;
+  session_key: string;
+  display_after_unix_milli: number;
+  preview: WorkGraphWorkflowPreview;
+  versions: WorkGraphWorkflowPreviewVersionSummary[];
+  expires_at: string;
+}
+
+export interface WorkGraphWorkflowPreviewVersionSummary {
+  revision: number;
+  slash_name: string;
+  title: string;
+  node_count: number;
+  dependency_count: number;
+  selected: boolean;
+  created_at: string;
 }

@@ -1,6 +1,6 @@
 /**
  * INPUT: DM 轮次数据、渲染器与共享滚动/feed refs。
- * OUTPUT: 使用稳定身份、真实轨道估高、紧凑尾锚和可见锚点策略的虚拟消息流。
+ * OUTPUT: 使用稳定身份、可拉取的未加载占位、真实轨道估高和可见锚点策略的虚拟消息流。
  * POS: 普通会话超过虚拟化阈值后的 Feed 渲染入口。
  */
 import { useCallback, useMemo } from "react";
@@ -9,6 +9,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
+import { getConversationRoundNavigationTarget } from "../timeline/scroll/round-scroll";
 import {
   isConversationRoundActivelyGrowing,
   resolveConversationRound,
@@ -20,6 +21,7 @@ import { ConversationRound } from "./conversation-round";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
 import {
+  resolveConversationVirtualPlaceholderHeight,
   shouldAdjustConversationVirtualScrollPosition,
   useConversationVirtualInitialOffset,
   useConversationVirtualItemKey,
@@ -85,6 +87,10 @@ export function ConversationVirtualFeed({
     {
       bottomScrollActive: refs.isBottomScrollActive?.() ?? false,
       followingLatest: refs.isFollowingLatest?.() ?? false,
+      navigationActive: Boolean(
+        refs.scrollRef.current
+        && getConversationRoundNavigationTarget(refs.scrollRef.current),
+      ),
       userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );
@@ -135,6 +141,10 @@ export function ConversationVirtualFeed({
               isMobileLayout={isMobileLayout}
               key={state.nodeId}
               measureRef={virtualizer.measureElement}
+              placeholderHeight={resolveConversationVirtualPlaceholderHeight(
+                state.isLoaded,
+                heightMap.get(state.roundId),
+              )}
               renderer={renderer}
               source={source}
               state={state}

@@ -61,7 +61,7 @@ interface ConversationRuntimeSessionSource {
 interface ConversationViewportSessionSource {
   conversation: Pick<
     UseAgentConversationReturn,
-    "error" | "is_history_loading"
+    "is_history_loading" | "reliability"
   >;
   history: {
     handleScroll: () => void;
@@ -97,6 +97,7 @@ export interface ConversationPanelFrameModel {
   isMobileLayout: boolean;
   navigator: ConversationNavigatorModel;
   providerWarningVisible: boolean;
+  reliability: UseAgentConversationReturn["reliability"];
   scrollToLatest: ConversationScrollToLatestModel;
   sessionKey: string | null;
   viewport: ConversationViewportModel;
@@ -110,6 +111,7 @@ export function buildConversationPanelFrameModel(
     isMobileLayout: environment.isMobileLayout,
     navigator: buildConversationNavigatorModel(session),
     providerWarningVisible: environment.providerWarningVisible,
+    reliability: session.conversation.reliability,
     scrollToLatest: buildConversationScrollToLatestModel(session),
     sessionKey: session.sessionKey,
     viewport: buildConversationViewportModel(session),
@@ -144,7 +146,6 @@ function buildConversationViewportModel(
 ): ConversationViewportModel {
   const { conversation, history, scroll } = session;
   return {
-    error: conversation.error,
     isHistoryLoading: conversation.is_history_loading,
     onPointerDown: scroll.onPointerDown,
     onScroll: history.handleScroll,

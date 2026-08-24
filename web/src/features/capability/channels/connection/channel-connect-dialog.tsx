@@ -1,3 +1,6 @@
+// INPUT: Channel 配置快照、Agent 列表与保存/删除动作。
+// OUTPUT: plain 标题、可折叠接入说明和配置字段组成的连接弹窗。
+// POS: Channel 配置主弹窗，只编排表单与确认，不展开业务请求实现。
 "use client";
 
 import type { FormEvent } from "react";
@@ -14,7 +17,6 @@ import {
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { Agent } from "@/types/agent/agent";
 
-import { ChannelIcon } from "../channel-icon";
 import { useChannelConnectionController } from "./use-channel-connection-controller";
 import { ChannelConnectDialogFooter } from "./view/channel-connect-dialog-footer";
 import { getChannelDeleteDialogCopy } from "./view/channel-connect-dialog-model";
@@ -70,14 +72,13 @@ export function ChannelConnectDialog({
             size="lg"
           >
             <UiDialogHeader
-              icon={<ChannelIcon type={controller.currentItem.channel_type} size="dialog" />}
-              iconClassName="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
+              appearance="plain"
               onClose={onClose}
               title={`连接 ${controller.currentItem.title}`}
               titleId="channel-connect-dialog-title"
             />
 
-            <UiDialogBody className="space-y-5" scrollable>
+            <UiDialogBody className="space-y-5 px-5" scrollable>
               {controller.planned ? (
                 <UiStateBlock
                   description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"

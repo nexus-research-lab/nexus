@@ -1,5 +1,5 @@
-// INPUT: 当前 DM/Room round 的完整 actor、scope、permission、Automation、统一 Responsibility authority 与 runtime identity。
-// OUTPUT: Goal/Execution/Automation command 共用的 producer/reviewer trusted capability、动态责任身份与调用时 SDK Session identity。
+// INPUT: 当前 DM/Room round 的完整 actor、scope、permission、Automation、WorkGraph 保存绑定、统一 Responsibility authority 与 runtime identity。
+// OUTPUT: Goal/Execution/Automation command 共用的 producer/reviewer trusted capability、exact preview 保存绑定、动态责任身份与调用时 SDK Session identity。
 // POS: round-scoped nexus command broker 的可信上下文；不接受模型输入覆盖。
 package runtime
 
@@ -68,6 +68,7 @@ type RuntimeCommandContext struct {
 	ResponsibilityAuthority *ResponsibilityAuthorityState
 	SDKSessionIdentity      *SDKSessionIdentityState
 	AutomationRun           *protocol.AutomationRunContext
+	WorkGraphPreviewID      string
 }
 
 // CurrentSDKSessionID 在 command 真正调用时读取动态 provider identity。

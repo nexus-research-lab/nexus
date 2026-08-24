@@ -54,9 +54,13 @@ test("history pages request deferred indexing by default and preserve its retry 
 });
 
 test("indexing responses stay in the request loop instead of becoming empty history", async () => {
-  const [historySource, roundIndexApi, roundIndexHook] = await Promise.all([
+  const [historySource, lifecycleSource, roundIndexApi, roundIndexHook] = await Promise.all([
     readFile(
       path.join(webRoot, "src/hooks/agent/session/conversation-history.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(webRoot, "src/hooks/agent/session/conversation-lifecycle.ts"),
       "utf8",
     ),
     readFile(
@@ -68,14 +72,39 @@ test("indexing responses stay in the request loop instead of becoming empty hist
       "utf8",
     ),
   ]);
-  assert.match(historySource, /if \(!page\.indexing\) \{\s*return page;/);
-  assert.match(historySource, /await waitForHistoryIndex\(page\.retry_after_ms, signal\)/);
-  assert.match(historySource, /signal: AbortSignal/);
-  assert.match(historySource, /signal\.addEventListener\("abort"/);
+  assert.match(historySource, /requestConversationHistoryPageUntilReady/);
+  assert.match(lifecycleSource, /requestConversationHistoryPageUntilReady/);
   assert.match(roundIndexApi, /if \(!result\.indexing\)/);
   assert.match(roundIndexApi, /await waitForSessionRoundIndex/);
   assert.match(roundIndexHook, /new AbortController\(\)/);
   assert.match(roundIndexHook, /return \(\) => controller\.abort\(\)/);
+});
+
+test("initial history waits for deferred indexing instead of committing an empty page", async () => {
+  const { requestConversationHistoryPageUntilReady } = await server.ssrLoadModule(
+    "/src/hooks/agent/session/conversation-history-request.ts",
+  );
+  let requestCount = 0;
+  const loadedPage = {
+    has_more: false,
+    indexing: false,
+    items: [{ message_id: "message-1" }],
+    next_before_round_id: null,
+    next_before_round_timestamp: null,
+    retry_after_ms: 0,
+  };
+
+  const page = await requestConversationHistoryPageUntilReady({
+    loadPage: async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? { ...loadedPage, indexing: true, items: [], retry_after_ms: 1 }
+        : loadedPage;
+    },
+  });
+
+  assert.equal(requestCount, 2);
+  assert.deepEqual(page, loadedPage);
 });
 
 test("message history keeps complete root rounds inside a bounded browser window", async () => {
@@ -139,6 +168,96 @@ test("message history keeps complete root rounds inside a bounded browser window
     [...new Set(byteBounded.map((message) => message.round_id))],
     ["large-new"],
     "one oversized latest round remains atomic without retaining older rounds",
+  );
+});
+
+test("indexed history reloads evicted rounds and lets an explicit top pull retry", async () => {
+  const {
+    buildExcludedRoundIds,
+    createWindowLoaderRuntime,
+    createWindowLoadRequest,
+    recordWindowLoadResult,
+    refreshWindowLoaderContent,
+    shouldRefreshWindowLoaderFromPull,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/window-loader/window-loader-runtime.ts",
+  );
+  const runtime = createWindowLoaderRuntime();
+  const request = createWindowLoadRequest(runtime, 1, "round-evicted");
+
+  recordWindowLoadResult(runtime, request, { status: "loaded" }, 1_000);
+  assert.equal(buildExcludedRoundIds(runtime, 1_000).has("round-evicted"), true);
+
+  refreshWindowLoaderContent(runtime);
+  assert.equal(
+    buildExcludedRoundIds(runtime, 1_000).has("round-evicted"),
+    false,
+    "a round evicted from the bounded message window must become loadable again",
+  );
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    recordWindowLoadResult(
+      runtime,
+      request,
+      { status: "missing" },
+      2_000 + attempt * 4_000,
+    );
+  }
+  assert.equal(buildExcludedRoundIds(runtime, 20_000).has("round-evicted"), true);
+  assert.equal(shouldRefreshWindowLoaderFromPull(0, 36), true);
+  assert.equal(shouldRefreshWindowLoaderFromPull(24, 36), false);
+  assert.equal(shouldRefreshWindowLoaderFromPull(0, 12), false);
+
+  refreshWindowLoaderContent(runtime);
+  assert.equal(
+    buildExcludedRoundIds(runtime, 20_000).has("round-evicted"),
+    false,
+    "a fresh user pull must reopen an exhausted automatic retry",
+  );
+});
+
+test("indexed history detects equal-size window replacement and keeps pullable geometry", async () => {
+  const { buildVisibleRoundRevision } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/window-loader/visible-window-revision.ts",
+  );
+  const { resolveConversationVirtualPlaceholderHeight } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts",
+  );
+  const base = {
+    feedRoundCount: 80,
+    liveRoundCount: 0,
+    messageCount: 24,
+    pendingAgentSlotCount: 0,
+    pendingPermissionCount: 0,
+    roomAgentExecutionStateCount: 0,
+  };
+
+  assert.notEqual(
+    buildVisibleRoundRevision({ ...base, loadedRoundIds: ["round-20", "round-21"] }),
+    buildVisibleRoundRevision({ ...base, loadedRoundIds: ["round-18", "round-19"] }),
+    "bounded windows with equal counts still carry different resident identities",
+  );
+  assert.equal(resolveConversationVirtualPlaceholderHeight(true, 180), undefined);
+  assert.equal(resolveConversationVirtualPlaceholderHeight(false, 180), 180);
+  assert.equal(resolveConversationVirtualPlaceholderHeight(false, undefined), 80);
+
+  const { shouldAdjustConversationVirtualScrollPosition } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 100 },
+      20,
+      { scrollOffset: 200, scrollRect: { height: 600 } },
+      {
+        bottomScrollActive: false,
+        followingLatest: false,
+        navigationActive: true,
+        userScrollActive: false,
+      },
+    ),
+    false,
+    "virtual measurement must not overwrite an explicit round navigation",
   );
 });
 

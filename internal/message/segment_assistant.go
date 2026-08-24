@@ -422,6 +422,7 @@ var assistantBlockMatchers = map[string]assistantBlockMatcher{
 	},
 	"tool_result":   blockFieldMatcher("tool_use_id"),
 	"task_progress": blockFieldMatcher("task_id"),
+	protocol.ContentBlockTypeWorkGraphArtifact: blockFieldMatcher("id"),
 	protocol.ContentBlockTypeWorkspaceFileArtifact: func(current map[string]any, incoming map[string]any) bool {
 		return workspaceFileArtifactKey(current) == workspaceFileArtifactKey(incoming)
 	},

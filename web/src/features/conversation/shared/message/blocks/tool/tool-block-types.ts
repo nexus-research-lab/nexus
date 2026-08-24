@@ -38,6 +38,8 @@ export interface ToolPermissionRequest {
 export interface ToolBlockProps {
   toolUse: ToolUseContent;
   toolResult?: ToolResultContent;
+  /** 外层过程组展开时，首次挂载即展示完整输入与结果。 */
+  defaultExpanded?: boolean;
   /** 子智能体进度只属于当前工具执行，不进入独立时间线。 */
   liveProgress?: TaskProgressContent | null;
   status?: ToolBlockStatus;

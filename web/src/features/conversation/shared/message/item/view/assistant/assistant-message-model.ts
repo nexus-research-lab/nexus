@@ -25,6 +25,7 @@ import type {
   AssistantContentMode,
   ContentProjection,
   PendingInteractionOwner,
+  ToolUseSummaryProjection,
 } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 import type { ProcessSummaryProjection } from "../../process/message-process-summary";
@@ -32,9 +33,11 @@ import type { UnresolvedToolStatus } from "../content/content-renderer-contract"
 
 export interface AssistantActivityState {
   emptyStreamStatus: "cancelled" | "error" | null;
+  label: string | null;
   showCursor: boolean;
   standalone: boolean;
   state: MessageActivityState | null;
+  toolUseSummary: ToolUseSummaryProjection | null;
 }
 
 export interface AssistantDirectState {

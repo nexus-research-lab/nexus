@@ -1,6 +1,6 @@
 /**
- * INPUT: 一个 root round 的消息、权限与 runtime 状态。
- * OUTPUT: MessageItem 所需的 user 列表、assistant 内容及最终执行身份展示状态。
+ * INPUT: 一个 root round 的消息（含结构化来源 metadata）、权限与 runtime 状态。
+ * OUTPUT: MessageItem 所需的 user/assistant 内容、排除 ephemeral 的身份、欢迎语模型隐藏和即时自然语言活动标签。
  * POS: 会话消息实体到单轮视图模型的投影边界。
  */
 import { useMemo } from "react";
@@ -22,6 +22,7 @@ import type { MessageActivityState } from "../../activity/message-activity-state
 import {
   projectionFromOrderedEntries,
   type AssistantContentMode,
+  type ToolUseSummaryProjection,
 } from "../../message-item-projection";
 import { buildProcessSummary } from "../../process/message-process-summary";
 import { resolveMessageItemFinalProjection } from "./message-item-final-projection";
@@ -146,6 +147,14 @@ export function useMessageItemProjection({
       runtimePhase,
     ],
   );
+  const liveToolUseSummary = useMemo(
+    () => resolveActivityToolUseSummary(
+      contentMerge.mergedContent,
+      liveActivityState,
+    ),
+    [contentMerge.mergedContent, liveActivityState],
+  );
+  const liveActivityLabel = liveToolUseSummary?.text ?? null;
   const processSummary = useMemo(
     () => buildProcessSummary({
       pendingPermissionCount: pendingPermissions.length,
@@ -167,6 +176,8 @@ export function useMessageItemProjection({
     ...permissionMatch,
     userMessages: contentMerge.userMessages,
     liveActivityState,
+    liveActivityLabel,
+    liveToolUseSummary,
     goalCompletionReceipt,
     processSummary,
     recalledMemories,
@@ -177,6 +188,47 @@ export function useMessageItemProjection({
       contentMerge.resultSummary,
     ),
   };
+}
+
+const PROGRESS_LABEL_ACTIVITY_STATES = new Set<MessageActivityState>([
+  "browsing",
+  "executing",
+  "replying",
+  "thinking",
+]);
+
+export function resolveActivityProgressLabel(
+  content: readonly ContentBlock[],
+  activityState: MessageActivityState | null,
+): string | null {
+  return resolveActivityToolUseSummary(content, activityState)?.text ?? null;
+}
+
+export function resolveActivityToolUseSummary(
+  content: readonly ContentBlock[],
+  activityState: MessageActivityState | null,
+): ToolUseSummaryProjection | null {
+  if (!activityState || !PROGRESS_LABEL_ACTIVITY_STATES.has(activityState)) {
+    return null;
+  }
+  for (let index = content.length - 1; index >= 0; index -= 1) {
+    const block = content[index];
+    if (block.type === "progress_update") {
+      const text = block.text.trim();
+      if (!text) {
+        return null;
+      }
+      return {
+        precedingToolUseIds: [...new Set(
+          (block.preceding_tool_use_ids ?? [])
+            .map((toolUseId) => toolUseId.trim())
+            .filter(Boolean),
+        )],
+        text,
+      };
+    }
+  }
+  return null;
 }
 
 function resolveGoalCompletionReceipt(
@@ -366,17 +418,28 @@ function selectAssistantIdentity(
 ): AssistantMessage | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message.result_summary || message.stop_reason || message.is_complete) {
+    if (
+      message.delivery_mode !== "ephemeral"
+      && (message.result_summary || message.stop_reason || message.is_complete)
+    ) {
       return message;
+    }
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].delivery_mode !== "ephemeral") {
+      return messages[index];
     }
   }
   return messages.at(-1);
 }
 
-function resolveAssistantModel(
+export function resolveAssistantModel(
   messages: AssistantMessage[],
   identity: AssistantMessage,
 ): string | undefined {
+  if (identity.metadata?.subtype === "conversation_welcome") {
+    return undefined;
+  }
   if (identity.model?.trim()) {
     return identity.model;
   }

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 配对协议对象、Agent 目录、筛选与创建草稿。
+ * OUTPUT: 配对分组、计数、搜索值、友好名称与技术绑定键。
+ * POS: 配对目录的唯一纯展示与载荷模型。
+ */
 import type {
   CreatePairingPayload,
   ImChannelType,
@@ -141,7 +146,13 @@ export function countPairingStatuses(
 }
 
 export function pairingDisplayName(item: PairingView): string {
-  return item.external_name || item.external_ref;
+  const name = item.external_name?.trim();
+  if (name && name !== item.external_ref.trim()) {
+    return name;
+  }
+  const channel = CHANNEL_LABELS[item.channel_type] ?? item.channel_type;
+  const chatType = CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type;
+  return `${channel}${chatType}`;
 }
 
 export function pairingTarget(item: PairingView): string {

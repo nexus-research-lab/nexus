@@ -1,3 +1,8 @@
+/**
+ * INPUT: Agent 身份与打开详情、私聊、群聊的页面命令。
+ * OUTPUT: 窄屏摘要卡与桌面完整卡，展示识别、权限、模型和能力概况。
+ * POS: 联系人管理目录卡片；默认层承担 Agent 选择所需的比较信息。
+ */
 "use client";
 
 import { MessageCirclePlus, MessageSquareText } from "lucide-react";
@@ -24,12 +29,12 @@ interface ContactsAgentCardProps {
 }
 
 interface ContactsAgentCardViewProps extends ContactsAgentCardProps {
-  editLabel: string;
+  allowedToolsCount: number;
   chatLabel: string;
   createTeamLabel: string;
+  editLabel: string;
   permissionMode: string;
   provider: string;
-  allowedToolsCount: number;
   skillsCount: number;
 }
 
@@ -119,7 +124,7 @@ function ContactsAgentCompactCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-[16px] font-semibold text-(--text-strong)">
+            <h3 className="min-w-0 flex-1 truncate text-md font-semibold text-(--text-strong)">
               {agent.name}
             </h3>
             <span className="inline-flex max-w-[112px] shrink-0 truncate rounded-[6px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-soft)">

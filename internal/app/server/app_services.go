@@ -25,6 +25,7 @@ import (
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/welcomegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	echosvc "github.com/nexus-research-lab/nexus/internal/service/echo"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -65,6 +66,7 @@ type AppServices struct {
 	Configuration          *configurationsvc.Service
 	Launcher               *launcher.Service
 	Title                  *titlegen.Service
+	Welcome                *welcomegen.Service
 	Usage                  *usagesvc.Service
 	Preferences            *preferencessvc.Service
 	Permission             *permissionctx.Context
@@ -103,6 +105,9 @@ func (s *AppServices) Close(ctx context.Context) error {
 	}
 	if s.Title != nil {
 		closeErrors = append(closeErrors, s.Title.Close(ctx))
+	}
+	if s.Welcome != nil {
+		closeErrors = append(closeErrors, s.Welcome.Close(ctx))
 	}
 	if s.Browser != nil {
 		s.Browser.Close()
@@ -160,6 +165,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	workGraphWorkflowService.SetAbstractor(
 		workgraphworkflowsvc.NewLLMAbstractor(providerService, preferencesService),
 	)
+	workGraphWorkflowService.SetMainAgentResolver(core.Agent)
 	providerService.SetDefaultAgentSelectionResolver(func(ctx context.Context, ownerUserID string) (providercfg.DefaultAgentSelection, error) {
 		prefs, err := preferencesService.Get(ctx, ownerUserID)
 		if err != nil {
@@ -189,6 +195,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetGoalCompletionUsageProvider(goalService)
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
+	welcomeService := welcomegen.NewService(cfg, providerService, preferencesService, core.Agent)
+	welcomeService.SetLogger(logger.With("component", "welcome"))
+	core.Room.SetInitialConversationObserver(welcomeService)
 	runtimeManager := runtimectx.NewManager()
 	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
@@ -253,12 +262,16 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetExecutionContextProvider(orchestrationService)
 	dmService.SetRuntimeSlashExpander(workGraphWorkflowService)
+	dmService.SetScopedSessionRuntimePolicyProvider(workGraphWorkflowService)
 	dmService.SetSubagentAdmissionProvider(orchestrationService)
 	dmService.SetRuntimeAdmissionResolver(authService)
 	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	core.Room.SetConversationSessionForker(dmService)
+	workGraphWorkflowService.SetEditorSessionManager(workGraphEditorSessionManager{
+		dm: dmService, sessions: core.Session,
+	})
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	echoService := echosvc.NewService(
@@ -295,7 +308,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetQueueAdmissionStore(queueAdmissionRepository)
 	roomRealtime.SetTitleGenerator(titleService)
 	workGraphWorkflowService.SetSaveRoundDispatcher(
-		newWorkGraphSaveRoundDispatcher(dmService, roomRealtime),
+		newWorkGraphSaveRoundDispatcher(dmService),
 	)
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
@@ -427,7 +440,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
 	browserBuilder := newBrowserMCPBuilder(browserService, preferencesService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	mcpBuilder := combinedMCPBuilder(
+	standardMCPBuilder := combinedMCPBuilder(
 		communicationBuilder,
 		connectorBuilder,
 		connectorAuthorizationBuilder,
@@ -437,8 +450,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		roundContextMCPBuilder(browserBuilder),
 		roundContextMCPBuilder(roomBuilder),
 	)
-	dmService.SetMCPServerBuilder(mcpBuilder)
-	roomRealtime.SetMCPServerBuilder(mcpBuilder)
+	mcpBuilder := standardMCPBuilder
+	dmService.SetMCPServerBuilder(dmsvc.MCPServerBuilder(mcpBuilder))
+	roomRealtime.SetMCPServerBuilder(roomrealtime.MCPServerBuilder(mcpBuilder))
 	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
 
 	warnIfProviderMissing(providerService, logger)
@@ -458,6 +472,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Configuration:          configurationService,
 		Launcher:               launcherService,
 		Title:                  titleService,
+		Welcome:                welcomeService,
 		Usage:                  usageService,
 		Permission:             permission,
 		Runtime:                runtimeManager,

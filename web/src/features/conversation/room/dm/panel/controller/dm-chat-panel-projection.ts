@@ -106,6 +106,8 @@ export function buildDmChatPanelViewModel({
 }: BuildDmChatPanelViewModelOptions): DmChatPanelViewModel {
   return {
     ...buildConversationPanelFrameModel(session, environment),
+    embedded: false,
+    embeddedIntroduction: null,
     composer,
     composerInteraction: {
       agentAvatarMap: workspaceAgentId

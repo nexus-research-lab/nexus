@@ -59,7 +59,7 @@ export function ImageBlock({
     <figure className="my-3 min-w-0 max-w-full">
       <button
         className={cn(
-          "content-artifact-image w-fit text-left",
+          "content-artifact-image content-media-frame text-left",
           projection.openClassName,
         )}
         disabled={!projection.canOpen}
@@ -69,7 +69,7 @@ export function ImageBlock({
       >
         <img
           alt={projection.alt}
-          className="content-artifact-image-preview max-h-[420px] w-auto max-w-full object-contain sm:max-w-[560px]"
+          className="content-artifact-image-preview h-full w-full object-contain"
           loading="lazy"
           src={projection.source.src}
         />
@@ -128,7 +128,7 @@ function useDeferredImageDetail(block: ImageContent): {
 
 function LoadingImageArtifact({ label }: { label: string }) {
   return (
-    <div className="content-artifact-empty my-2 flex max-w-md items-center gap-2 px-3 py-2 text-sm">
+    <div className="content-artifact-empty content-media-frame my-2 flex items-center justify-center gap-2 px-3 py-2 text-sm">
       <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
       {label}
     </div>
@@ -150,7 +150,7 @@ function openImageArtifact(
 
 function MissingImageArtifact() {
   return (
-    <div className="content-artifact-empty my-2 flex max-w-md items-center gap-2 px-3 py-2 text-sm">
+    <div className="content-artifact-empty content-media-frame my-2 flex items-center justify-center gap-2 px-3 py-2 text-sm">
       <ImageIcon className="h-4 w-4 shrink-0" />
       图片内容缺少可展示的数据
     </div>

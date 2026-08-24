@@ -1,24 +1,20 @@
-import { type ReactNode } from "react";
-
+// INPUT: 单项模型能力、当前开关值与更新动作。
+// OUTPUT: 与桌面设置行一致的纯文字开关，不为每项制造图标卡片。
+// POS: Provider 模型能力设置的最小行组件。
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 
 export function CapabilitySwitch({
   checked,
   label,
-  icon,
   onChange,
 }: {
   checked: boolean;
   label: string;
-  icon: ReactNode;
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="flex min-h-10 items-center justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_78%,transparent)] px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-(--text-strong)">
-        <span className="text-(--icon-default)">{icon}</span>
-        <span className="truncate">{label}</span>
-      </div>
+    <div className="flex min-h-11 items-center justify-between gap-3 px-1 py-2">
+      <span className="truncate text-sm font-medium text-(--text-strong)">{label}</span>
       <GlassSwitch
         aria-label={label}
         checked={checked}

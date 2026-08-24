@@ -1,6 +1,6 @@
 /**
- * INPUT: DM 轮次 source、渲染器与共享滚动 refs。
- * OUTPUT: 静态/虚拟 Feed，并以真实内容高度驱动贴底增长。
+ * INPUT: DM 轮次 source、可选同栈前导内容、渲染器与共享滚动 refs。
+ * OUTPUT: 含本地前导内容的静态 Feed或普通虚拟 Feed，并以真实内容高度驱动贴底增长。
  * POS: DM 主消息流的分支装配入口。
  */
 import { memo, useRef } from "react";
@@ -21,12 +21,15 @@ const VIRTUAL_ROUND_THRESHOLD = 20;
 export const ConversationFeed = memo(function ConversationFeed(
   props: ConversationFeedProps,
 ) {
-  const shouldVirtualize = useConversationVirtualizationPolicy({
+  const virtualizationEnabled = useConversationVirtualizationPolicy({
     active: props.source.liveLayoutActive,
     count: props.source.roundIds.length,
     scopeKey: props.source.scopeKey,
     threshold: VIRTUAL_ROUND_THRESHOLD,
-  }) && Boolean(props.refs.scrollRef);
+  });
+  const shouldVirtualize = props.leadingContent == null
+    && virtualizationEnabled
+    && Boolean(props.refs.scrollRef);
 
   if (shouldVirtualize && props.refs.scrollRef) {
     return (
@@ -41,6 +44,7 @@ export const ConversationFeed = memo(function ConversationFeed(
 
 function StaticConversationFeed({
   isMobileLayout,
+  leadingContent,
   refs,
   renderer,
   source,
@@ -61,6 +65,7 @@ function StaticConversationFeed({
           : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`
       }
     >
+      {leadingContent}
       {source.roundIds.map((_roundId, index) => {
         const state = resolveConversationRound(source, index);
         return (

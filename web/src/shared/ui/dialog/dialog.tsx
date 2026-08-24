@@ -1,3 +1,6 @@
+// INPUT: 业务弹窗提供标题、正文、动作与可选的默认或 plain chrome。
+// OUTPUT: 统一的可访问模态骨架；plain chrome 用于连接、授权与紧凑表单，不制造装饰性层级。
+// POS: Web 共享弹窗结构真相源，业务层只选择语义密度，不自行重写遮罩、焦点与关闭协议。
 "use client";
 
 import {
@@ -21,6 +24,7 @@ import {
 } from "@/shared/ui/dialog/dialog-styles";
 
 type UiDialogSize = "sm" | "md" | "lg" | "xl" | "wide";
+type UiDialogChrome = "default" | "plain";
 
 const DIALOG_SIZE_CLASS_MAP: Record<UiDialogSize, string> = {
   sm: "max-w-md",
@@ -59,6 +63,7 @@ interface UiDialogFormShellProps extends FormHTMLAttributes<HTMLFormElement> {
 
 interface UiDialogHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
+  appearance?: UiDialogChrome;
   children?: ReactNode;
   className?: string;
   closeLabel?: string;
@@ -77,6 +82,7 @@ interface UiDialogBodyProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 interface UiDialogFooterProps extends HTMLAttributes<HTMLDivElement> {
+  appearance?: UiDialogChrome;
   children: ReactNode;
   className?: string;
 }
@@ -183,6 +189,7 @@ export function UiDialogFormShell({
 
 export function UiDialogHeader({
   actions,
+  appearance = "default",
   children,
   className,
   closeLabel,
@@ -195,7 +202,14 @@ export function UiDialogHeader({
   ...props
 }: UiDialogHeaderProps) {
   return (
-    <div className={cn("dialog-header", className)} {...props}>
+    <div
+      className={cn(
+        "dialog-header",
+        appearance === "plain" && "dialog-header--plain",
+        className,
+      )}
+      {...props}
+    >
       {children ?? (
         <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
           {icon ? (
@@ -240,12 +254,20 @@ export function UiDialogBody({
 }
 
 export function UiDialogFooter({
+  appearance = "default",
   children,
   className,
   ...props
 }: UiDialogFooterProps) {
   return (
-    <div className={cn("dialog-footer", className)} {...props}>
+    <div
+      className={cn(
+        "dialog-footer",
+        appearance === "plain" && "dialog-footer--plain",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </div>
   );

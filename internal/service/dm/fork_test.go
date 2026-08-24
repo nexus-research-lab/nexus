@@ -3,6 +3,8 @@ package dm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -572,5 +574,136 @@ func TestCompletedAssistantRoundUsesPagedMessageSemantics(t *testing.T) {
 				t.Fatalf("completedAssistantRound() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestLatestCompletedAssistantRoundSkipsActiveAndFailedTail(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"round_id": "round-success",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+		{
+			"round_id":    "round-failed",
+			"role":        "assistant",
+			"stop_reason": "error",
+		},
+		{
+			"round_id": "round-active",
+			"role":     "assistant",
+		},
+	}
+	if got := latestCompletedAssistantRound(rows, []string{"round-active"}); got != "round-success" {
+		t.Fatalf("latestCompletedAssistantRound() = %q, want round-success", got)
+	}
+}
+
+func TestLatestForkableAssistantRoundSkipsOverlayOnlyProjection(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"round_id": "round-transcript",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+		{
+			"round_id": "round-overlay",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+	}
+	resolved := make([]string, 0, 2)
+	roundID, err := latestForkableAssistantRound(rows, nil, func(candidate string) error {
+		resolved = append(resolved, candidate)
+		if candidate == "round-overlay" {
+			return fmt.Errorf("%w: %s", workspacestore.ErrTranscriptRoundNotFound, candidate)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundID != "round-transcript" {
+		t.Fatalf("latest forkable round = %q, want round-transcript", roundID)
+	}
+	if !slices.Equal(resolved, []string{"round-overlay", "round-transcript"}) {
+		t.Fatalf("resolved candidates = %v", resolved)
+	}
+}
+
+func TestLatestForkableAssistantRoundSkipsIncompleteTranscriptProjection(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"round_id": "round-transcript",
+			"role":     "assistant",
+			"result_summary": map[string]any{
+				"subtype": "success",
+			},
+		},
+		{
+			"round_id": "round-partial-page",
+			"role":     "assistant",
+		},
+	}
+	resolved := make([]string, 0, 2)
+	roundID, err := latestForkableAssistantRound(rows, nil, func(candidate string) error {
+		resolved = append(resolved, candidate)
+		if candidate == "round-partial-page" {
+			return errTransientForkRoundNotCompleted
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundID != "round-transcript" {
+		t.Fatalf("latest forkable round = %q, want round-transcript", roundID)
+	}
+	if !slices.Equal(resolved, []string{"round-partial-page", "round-transcript"}) {
+		t.Fatalf("resolved candidates = %v", resolved)
+	}
+}
+
+func TestLatestForkableAssistantRoundPreservesBoundaryFailure(t *testing.T) {
+	boundaryErr := errors.New("transcript is unreadable")
+	_, err := latestForkableAssistantRound([]protocol.Message{{
+		"round_id": "round-target",
+		"role":     "assistant",
+		"result_summary": map[string]any{
+			"subtype": "success",
+		},
+	}}, nil, func(string) error {
+		return boundaryErr
+	})
+	if !errors.Is(err, boundaryErr) {
+		t.Fatalf("boundary error = %v, want %v", err, boundaryErr)
+	}
+}
+
+func TestTransientForkAtTranscriptTailOmitsProviderSpecificMessageBoundary(t *testing.T) {
+	legacyMessageID := "msg_20260821090320f5fbc914cb404581-2"
+	if got := conversationForkResumeAt(map[string]any{
+		protocol.OptionRuntimeForkAtTranscriptTail: true,
+	}, legacyMessageID); got != "" {
+		t.Fatalf("conversationForkResumeAt() = %q, want full source transcript", got)
+	}
+	if got := conversationForkResumeAt(nil, legacyMessageID); got != legacyMessageID {
+		t.Fatalf("bounded conversationForkResumeAt() = %q, want %q", got, legacyMessageID)
+	}
+	if !transcriptRoundIsSessionTail(workspacestore.TranscriptRoundTail{
+		RoundIDs: []string{"round-target"},
+	}, "round-target") {
+		t.Fatal("single terminal round was not recognized as the transcript tail")
+	}
+	if transcriptRoundIsSessionTail(workspacestore.TranscriptRoundTail{
+		RoundIDs: []string{"round-target", "round-later"},
+	}, "round-target") {
+		t.Fatal("historical round was incorrectly recognized as the transcript tail")
 	}
 }

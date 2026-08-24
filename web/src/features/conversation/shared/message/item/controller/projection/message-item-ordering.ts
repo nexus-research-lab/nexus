@@ -42,6 +42,11 @@ const BLOCK_PROJECTORS: BlockProjector[] = [
   (block, context) => block.type === "task_progress"
     ? (context.showTaskProgress ? [block] : [])
     : null,
+  // 完整 WorkGraph 快照属于答案内容，不是 Tool 过程；保留到 final projection，
+  // 由其挑选本轮最后一个版本并渲染草图卡片。
+  (block) => block.type === "workgraph_artifact" ? [block] : null,
+  // 即时旁白只替换活动文案，不进入 direct/process/final 内容面。
+  (block) => block.type === "progress_update" ? [] : null,
   (block) => block.type === "tool_use_error"
     ? (block.content.trim() ? [block] : [])
     : null,
