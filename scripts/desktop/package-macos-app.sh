@@ -385,9 +385,20 @@ case "${ARTIFACT_FORMAT}" in
       "${DMG_RW_PATH}" >/dev/null
 
     DMG_DEVICE=""
+    detach_dmg() {
+      local device="$1"
+      local attempt
+      for attempt in 1 2 3; do
+        if hdiutil detach "${device}" >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep "${attempt}"
+      done
+      hdiutil detach -force "${device}" >/dev/null
+    }
     cleanup_dmg_mount() {
       if [[ -n "${DMG_DEVICE}" ]]; then
-        hdiutil detach "${DMG_DEVICE}" >/dev/null 2>&1 || true
+        detach_dmg "${DMG_DEVICE}" >/dev/null 2>&1 || true
       fi
       rm -f "${DMG_RW_PATH}"
     }
@@ -442,7 +453,7 @@ APPLESCRIPT
       "${DMG_MOUNT_DIR}/.Spotlight-V100" \
       "${DMG_MOUNT_DIR}/.Trashes"
     sync
-    hdiutil detach "${DMG_DEVICE}" >/dev/null
+    detach_dmg "${DMG_DEVICE}"
     DMG_DEVICE=""
     hdiutil convert \
       "${DMG_RW_PATH}" \

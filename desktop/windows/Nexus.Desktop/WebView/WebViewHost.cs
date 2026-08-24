@@ -752,6 +752,7 @@ internal sealed class WebViewHost : IDisposable
 
     private void HandleNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
     {
+        SynchronizeCompositionWindow("navigation_completed", forceLog: false);
         if (activeNavigationId == args.NavigationId)
         {
             activeNavigationId = null;
