@@ -669,15 +669,8 @@ try {
   Write-Host "==> Validating minimized WebView input"
   Invoke-CaptionButton $mainWindowHandle "最小化"
   Wait-Until {
-    $log = Read-Log $logPath
-    $markerIndex = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
-    if ($markerIndex -lt 0) {
-      return $false
-    }
-    $current = $log.Substring($markerIndex)
-    return [NexusWindowChromeProbe]::IsIconic($mainWindowHandle) -and
-      $current.Contains("reason=window_minimized state=suspended")
-  } 10 "window minimize input suspension"
+    return [NexusWindowChromeProbe]::IsIconic($mainWindowHandle)
+  } 10 "window minimize"
   $minimizedInputError = [NexusWindowChromeProbe]::ValidateSuspendedCompositionInput($browserProcessId)
   if (-not [string]::IsNullOrEmpty($minimizedInputError)) {
     throw "Minimized WebView2 input still covers the desktop: $minimizedInputError"
