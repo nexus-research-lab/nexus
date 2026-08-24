@@ -85,9 +85,6 @@ public static class NexusWindowChromeProbe
     private static extern int GetClassName(IntPtr hwnd, StringBuilder className, int maximumCount);
 
     [DllImport("user32.dll")]
-    private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
-
-    [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hwnd);
 
     [DllImport("user32.dll")]
@@ -155,35 +152,6 @@ public static class NexusWindowChromeProbe
     public static bool RestoreWindow(IntPtr hwnd)
     {
         return ShowWindowAsync(hwnd, 9);
-    }
-
-    public static string ValidateCompositionWindowOwner(uint browserProcessId, IntPtr ownerWindow)
-    {
-        int targetCount = 0;
-        string error = string.Empty;
-        _ = EnumWindows((hwnd, _) =>
-        {
-            if (!IsCompositionInputWindow(hwnd, browserProcessId))
-            {
-                return true;
-            }
-
-            targetCount++;
-            IntPtr actualOwner = GetWindow(hwnd, 4);
-            if (actualOwner == ownerWindow)
-            {
-                return true;
-            }
-
-            error = $"composition window 0x{hwnd.ToInt64():X} owner is 0x{actualOwner.ToInt64():X}, expected 0x{ownerWindow.ToInt64():X}";
-            return false;
-        }, IntPtr.Zero);
-
-        if (!string.IsNullOrEmpty(error))
-        {
-            return error;
-        }
-        return string.Empty;
     }
 
     public static string ValidateSuspendedCompositionInput(uint browserProcessId)
@@ -605,19 +573,12 @@ try {
   )
   $browserProcessMatches = [regex]::Matches(
     $currentLog,
-    'event=webview\.composition_input_guard[^\r\n]*browser_process_id=(\d+)[^\r\n]*reason=initialized'
+    'event=webview\.initialize_ready[^\r\n]*browser_process_id=(\d+)'
   )
   if ($browserProcessMatches.Count -eq 0) {
-    throw "Missing initialized WebView2 composition input guard event"
+    throw "Missing initialized WebView2 browser process event"
   }
   $browserProcessId = [uint]$browserProcessMatches[$browserProcessMatches.Count - 1].Groups[1].Value
-  $ownerError = [NexusWindowChromeProbe]::ValidateCompositionWindowOwner(
-    $browserProcessId,
-    $mainWindowHandle
-  )
-  if (-not [string]::IsNullOrEmpty($ownerError)) {
-    throw "Invalid WebView2 composition window owner: $ownerError"
-  }
   $dragError = [NexusWindowChromeProbe]::ValidateDragBehavior(
     $mainWindowHandle,
     17,
@@ -688,7 +649,6 @@ try {
     return -not [NexusWindowChromeProbe]::IsIconic($mainWindowHandle) -and
       $current.Contains("reason=window_restored state=interactive")
   } 10 "window restore input activation"
-
   Write-Host "==> Closing app to tray"
   [void]$process.CloseMainWindow()
   Wait-Until {
@@ -699,7 +659,7 @@ try {
     }
     $current = $log.Substring($markerIndex)
     return $current.Contains("event=main_window.hidden_to_tray") -and
-      $current.Contains("event=webview.composition_input_guard") -and
+      $current.Contains("event=webview.visibility_changed") -and
       $current.Contains("reason=tray_hide state=suspended")
   } 10 "window hidden to tray"
 

@@ -21,10 +21,8 @@ internal sealed class WebViewHost : IDisposable
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
     private readonly Func<string> updateStarter;
     private DesktopBridgeHandler? bridgeHandler;
-    private WebViewCompositionWindowGuard? compositionWindowGuard;
     private ulong? activeNavigationId;
     private bool disposed;
-    private bool hostWindowInteractive = true;
     private bool resumeCheckInFlight;
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
@@ -47,10 +45,8 @@ internal sealed class WebViewHost : IDisposable
         this.updateStarter = updateStarter;
     }
 
-    public async Task InitializeAsync(IntPtr ownerWindow, bool interactive)
+    public async Task InitializeAsync(bool interactive)
     {
-        hostWindowInteractive = interactive;
-        ApplyHostInteractionState();
         startupTimeline.Mark("webview.initialize_begin");
         string userDataFolder = Path.Combine(DesktopPaths.CacheDirectory, "WebView2", "main");
         Directory.CreateDirectory(userDataFolder);
@@ -67,10 +63,9 @@ internal sealed class WebViewHost : IDisposable
         };
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
         await webView.EnsureCoreWebView2Async(environment);
+        SetHostWindowInteractive(interactive, "initialized");
 
         CoreWebView2 core = webView.CoreWebView2;
-        compositionWindowGuard = new WebViewCompositionWindowGuard(core.BrowserProcessId, ownerWindow);
-        SynchronizeCompositionWindow("initialized", forceLog: true);
         await DesktopWebCacheInvalidator.ClearCachesIfNeededAsync(core, runtime, startupTimeline);
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreDevToolsEnabled = true;
@@ -119,7 +114,10 @@ internal sealed class WebViewHost : IDisposable
             startupTimeline.Mark("webview.process_failed", metadata);
             _ = recreateWebViewAsync(lastRoute, "process_failed", args.ProcessFailedKind.ToString());
         };
-        startupTimeline.Mark("webview.initialize_ready");
+        startupTimeline.Mark("webview.initialize_ready", new Dictionary<string, string>
+        {
+            ["browser_process_id"] = core.BrowserProcessId.ToString(),
+        });
     }
 
     public void SetHostWindowInteractive(bool interactive, string reason)
@@ -129,10 +127,19 @@ internal sealed class WebViewHost : IDisposable
             return;
         }
 
-        bool changed = hostWindowInteractive != interactive;
-        hostWindowInteractive = interactive;
-        ApplyHostInteractionState();
-        SynchronizeCompositionWindow(reason, forceLog: changed);
+        Visibility visibility = interactive ? Visibility.Visible : Visibility.Hidden;
+        if (webView.Visibility == visibility)
+        {
+            return;
+        }
+
+        // WebView2CompositionControl 会把 WPF IsVisibleChanged 映射到 controller.IsVisible。
+        webView.Visibility = visibility;
+        startupTimeline.Mark("webview.visibility_changed", new Dictionary<string, string>
+        {
+            ["reason"] = reason,
+            ["state"] = interactive ? "interactive" : "suspended",
+        });
     }
 
     public Task LoadRouteAsync(DesktopWebRoute route)
@@ -293,39 +300,6 @@ internal sealed class WebViewHost : IDisposable
         {
         }
         webView.Dispose();
-        compositionWindowGuard = null;
-    }
-
-    private void ApplyHostInteractionState()
-    {
-        webView.IsHitTestVisible = hostWindowInteractive;
-        webView.Visibility = hostWindowInteractive ? Visibility.Visible : Visibility.Hidden;
-    }
-
-    private void SynchronizeCompositionWindow(string reason, bool forceLog)
-    {
-        if (compositionWindowGuard is null)
-        {
-            return;
-        }
-
-        WebViewCompositionWindowGuardResult result = compositionWindowGuard.Synchronize(hostWindowInteractive);
-        if (!forceLog && result.OwnerChangeCount == 0 && result.StyleChangeCount == 0)
-        {
-            return;
-        }
-
-        startupTimeline.Mark("webview.composition_input_guard", new Dictionary<string, string>
-        {
-            ["browser_process_id"] = compositionWindowGuard.BrowserProcessId.ToString(),
-            ["owner_changes"] = result.OwnerChangeCount.ToString(),
-            ["owned_windows"] = result.OwnedWindowCount.ToString(),
-            ["pass_through_windows"] = result.PassThroughWindowCount.ToString(),
-            ["reason"] = reason,
-            ["state"] = hostWindowInteractive ? "interactive" : "suspended",
-            ["style_changes"] = result.StyleChangeCount.ToString(),
-            ["target_windows"] = result.TargetWindowCount.ToString(),
-        });
     }
 
     private async Task HandleResumeProbeFailureAsync(
@@ -752,7 +726,6 @@ internal sealed class WebViewHost : IDisposable
 
     private void HandleNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
     {
-        SynchronizeCompositionWindow("navigation_completed", forceLog: false);
         if (activeNavigationId == args.NavigationId)
         {
             activeNavigationId = null;
