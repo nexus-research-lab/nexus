@@ -316,6 +316,8 @@ export const zhConversationMessages = {
   "room.session_navigator_user": "用户",
   "room.session_navigator_unloaded": "未加载",
   "room.close_conversation": "关闭标签页",
+  "room.pin_conversation": "固定到侧边栏",
+  "room.unpin_conversation": "从侧边栏取消固定",
   "room.switch_conversation": "切换会话",
   "room.chat_render_error_title": "聊天面板渲染失败",
   "room.chat_render_error_description": "当前会话在渲染阶段触发异常，错误详情已经输出到控制台。",

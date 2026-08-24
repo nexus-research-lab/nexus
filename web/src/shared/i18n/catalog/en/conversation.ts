@@ -319,6 +319,8 @@ export const enConversationMessages = {
   "room.session_navigator_user": "User",
   "room.session_navigator_unloaded": "Not loaded",
   "room.close_conversation": "Close tab",
+  "room.pin_conversation": "Pin to sidebar",
+  "room.unpin_conversation": "Unpin from sidebar",
   "room.switch_conversation": "Switch conversation",
   "room.chat_render_error_title": "Chat panel failed to render",
   "room.chat_render_error_description": "This conversation hit a rendering error. Details were written to the console.",

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added persistent pinned conversation shortcuts below the sidebar capability entry, with tab pin toggles and an independent hover/focus X action for unpinning.
+
 ## [0.1.37] - 2026-08-24
 
 ### Added
