@@ -46,5 +46,5 @@ Execution 管理“当前责任如何交付”；Goal 管理“什么目标需�
 - observation 只授予读取共享图的可见性，不授予 coordination、WorkBinding、ReviewBinding、Submission 或 Plan mutation。
 - Goal+WorkGraph 创建必须串行：先由 `goal-manager` 创建 Goal 并取得 applied receipt，再用 `goal_binding=current` prepare Plan。已有 transient WorkGraph 后出现明确 Goal 意图时使用 `promote_execution_to_goal`，不创建第二张图。
 - required Work Item 的最终 accepted review 可以自动终止无 blocker Execution；确认绑定 Goal 时，再按 receipt 切到 Goal domain 执行 `audit_objective_alignment` 与 `update_goal`。`execution/audit_execution_alignment` 只是非终态 Execution 的可选 Gate，不能替代 Goal 审计。
-- `/workgraph` 只启用当前 WorkGraph 协作。用户在普通对话中要求查询、沉淀、继续编辑或选择草图版本时，按 WorkGraph authoring 参考使用 `inspect_workgraph_library` 与 exact Draft operations；同一 source Execution 已有 Draft 时复用，不重复提取。UI 隐藏编辑 Session 与 UI 隐藏保存 round 使用更窄的 host-bound operation，均不得把内部结果投影回来源聊天。
+- `/workgraph` 只启用当前 WorkGraph 协作。用户在普通对话中要求查询、沉淀、继续编辑或选择草图版本时，按 WorkGraph authoring 参考使用 `inspect_workgraph_library` 与 exact Draft operations；同一 source Execution 已有 Draft 时复用，不重复提取。会实质改变草图的信息不足时先用 `AskUserQuestion` 补齐；每次生成或修改可见草图后都必须暂停请用户检查，未经草图后的明确确认不得保存。UI 隐藏编辑 Session 与 UI 隐藏保存 round 使用更窄的 host-bound operation，均不得把内部结果投影回来源聊天。
 - mutation、分派和交付推进到真实结果、明确外部 blocker 或终态；不因 handoff 要求用户发送“继续”。
