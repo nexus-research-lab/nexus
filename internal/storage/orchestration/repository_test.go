@@ -1308,6 +1308,101 @@ WHERE work_item_id = ?`,
 	}
 }
 
+func TestRepositoryPlanRevisionInheritsAcceptedDependencyAndHistory(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("revision-accepted"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPlan := testPlanCommand(
+		"revision-accepted",
+		snapshot.Execution.Version,
+		"revision-accepted-old",
+		"",
+		1,
+	)
+	snapshot, err = repository.WritePlan(ctx, oldPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptedWorkID := oldPlan.WorkItems[0].WorkItem.ID
+	acceptedSpecID := oldPlan.WorkItems[0].Spec.ID
+	snapshot, err = repository.Assign(ctx, assignTestCommand(
+		snapshot,
+		acceptedWorkID,
+		acceptedSpecID,
+		"revision-accepted-old",
+		"agent-worker",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot = startTestAttempt(t, ctx, repository, snapshot, "assignment-revision-accepted-old", "attempt-revision-accepted-old")
+	snapshot = finishTestAttempt(t, ctx, repository, snapshot, "attempt-revision-accepted-old", protocol.WorkAttemptStatusSucceeded)
+	snapshot = submitTestWork(
+		t, ctx, repository, snapshot,
+		"assignment-revision-accepted-old", "attempt-revision-accepted-old",
+		"submission-revision-accepted-old", "agent-worker",
+	)
+	snapshot = reviewTestWork(
+		t, ctx, repository, snapshot,
+		"assignment-revision-accepted-old", "submission-revision-accepted-old",
+		"acceptance-revision-accepted-old", protocol.WorkAcceptanceAccepted,
+	)
+
+	newPlanID := "plan-revision-accepted-new"
+	replacement := oldPlan
+	replacement.ExpectedExecutionVersion = snapshot.Execution.Version
+	replacement.Plan.ID = newPlanID
+	replacement.Plan.Revision = 2
+	replacement.Plan.BasePlanID = oldPlan.Plan.ID
+	replacement.Plan.RevisionReason = "append another evidence iteration"
+	newWork := testPlanWork(
+		snapshot.Execution.ID,
+		newPlanID,
+		"work-revision-accepted-new-3",
+		"spec-revision-accepted-new-3",
+		2,
+	)
+	replacement.WorkItems = append(replacement.WorkItems, newWork)
+	replacement.Dependencies = []protocol.ExecutionPlanDependency{{
+		WorkItemID:          newWork.WorkItem.ID,
+		DependsOnWorkItemID: acceptedWorkID,
+		Kind:                protocol.WorkDependencyHard,
+	}}
+	replacement.Meta = testMeta("plan-revision-accepted-new")
+	snapshot, err = repository.WritePlan(ctx, replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contains(snapshot.ReadyWorkItemIDs, acceptedWorkID) ||
+		!contains(snapshot.ReadyWorkItemIDs, newWork.WorkItem.ID) {
+		t.Fatalf("cross-revision readiness = %v, want only appended dependent ready", snapshot.ReadyWorkItemIDs)
+	}
+	if len(snapshot.Acceptances) != 1 || snapshot.Acceptances[0].ID != "acceptance-revision-accepted-old" {
+		t.Fatalf("active Snapshot lost prior Plan acceptance: %+v", snapshot.Acceptances)
+	}
+	snapshot, err = repository.Assign(ctx, assignTestCommand(
+		snapshot,
+		newWork.WorkItem.ID,
+		newWork.Spec.ID,
+		"revision-accepted-new",
+		"agent-worker",
+	))
+	if err != nil {
+		t.Fatalf("assign appended work after inherited acceptance: %v", err)
+	}
+	_, history, err := repository.GetWorkGraphState(ctx, snapshot.Execution.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history.Assignments) != 2 || len(history.Attempts) != 2 ||
+		len(history.Submissions) != 1 || len(history.Acceptances) != 1 {
+		t.Fatalf("cross-Plan WorkGraph history = %+v", history)
+	}
+}
+
 func TestRepositoryPlanRevisionNeverDropsUnreviewedSubmission(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()

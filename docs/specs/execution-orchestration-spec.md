@@ -509,14 +509,18 @@ parallel because preparation needs the authoritative Goal identity and revision.
 
 ### 4.5 Live revision boundary
 
-The implementation does **not** hot-carry Assignment, Dispatch, WorkBinding,
-Attempt, Submission, ReviewBinding, or Acceptance into a new active Plan revision.
+The implementation does **not** hot-carry live Assignment, Dispatch, WorkBinding,
+Attempt, or ReviewBinding responsibility into a new active Plan revision. When the
+new revision reuses the exact stable Work Item and spec, its latest reviewed
+Submission and Acceptance remain authoritative satisfaction facts for that same
+Execution; changing the spec fences those facts out.
 
 Ordinary replan waits for a quiescent responsibility boundary. When explicitly
 allowed to supersede active work, the transaction releases the old Assignment,
 interrupts or cancels its live Attempt/dispatch chain, and activates the new
-revision. That is teardown followed by fresh orchestration, not carry-over.
-Unreviewed Submission fences remain protected.
+revision. That is teardown followed by fresh orchestration, not live responsibility
+carry-over. Unreviewed Submission fences remain protected, and the WorkGraph canvas
+keeps append-only lifecycle history across every revision of the same Execution.
 
 ## 5. Runtime authority and entry lanes
 
@@ -965,8 +969,9 @@ was interrupted; terminal fences still prevent late output from mutating state.
 ## 9. Current limits and explicit non-goals
 
 1. **No live responsibility hot carry.** Plan revision never carries current
-   Assignment, Dispatch, WorkBinding, Attempt, Submission, ReviewBinding, or
-   Acceptance into the new revision.
+   Assignment, Dispatch, WorkBinding, Attempt, or ReviewBinding into the new
+   revision. Exact stable Work Item/spec Submission and Acceptance facts remain
+   visible across revisions of the same Execution; a changed spec cannot inherit them.
 2. **No generic writable `control_edge`.** Plan dependencies are authored through
    the strict Plan Document. Runtime invoke/spawn/guard/loop-back/retry edges are
    observed read-only facts in the Execution Graph projection. Control outcomes

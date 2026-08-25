@@ -329,7 +329,7 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 10. read model 不暴露 command、lease、capability identity、凭证或完整原始 Tool I/O。
 11. owner、session 与 Execution identity 必须精确匹配；跨 owner/session 数据不得进入视图。
 12. 截断、旧快照和读取失败必须显式呈现，不能伪装成完整实时图。
-13. Snapshot 与 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史必须在同一 read transaction 中读取；前端刷新不得让已出现的轮次短暂消失。
+13. Snapshot 与同一 Execution 跨 Plan revision 的 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史必须在同一 read transaction 中读取；前端刷新或追加研究迭代不得让已出现的轮次短暂消失。
 14. 布局先建立全部非控制边，再判断 `retry`/`loop_back` 是进入新 Attempt 的前向边还是闭环回边；结果不能依赖 JSON 边顺序。
 15. 初始草图只来自 owner 默认对话模型对 exact managed Execution source Work Item 的结构保真抽取；后续修改只接受 exact Session/Draft capability 的完整草图 mutation，不允许从 Runtime Graph、工具名、普通聊天正文或 UI 布局反推节点。
 16. `/workgraph`、普通对话 Draft authoring、`/<command>` 与 UI 内部 `distill_workgraph` 分别表示当前协作、提取/编辑/确认、复用命名图和隔离保存，权限与投影不得混用。

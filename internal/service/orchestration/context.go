@@ -1696,7 +1696,6 @@ func (view executionContextView) acceptedDelivery(
 	for _, acceptance := range view.snapshot.Acceptances {
 		if acceptance.Decision != protocol.WorkAcceptanceAccepted ||
 			acceptance.ExecutionID != view.snapshot.Execution.ID ||
-			acceptance.PlanID != view.snapshot.Plan.ID ||
 			acceptance.WorkItemID != workItemID ||
 			acceptance.SpecID != specID {
 			continue
@@ -1704,7 +1703,6 @@ func (view executionContextView) acceptedDelivery(
 		submission, exists := view.submissionsByID[acceptance.SubmissionID]
 		if !exists ||
 			submission.ExecutionID != view.snapshot.Execution.ID ||
-			submission.PlanID != view.snapshot.Plan.ID ||
 			submission.WorkItemID != workItemID ||
 			submission.SpecID != specID ||
 			submission.ID != acceptance.SubmissionID ||

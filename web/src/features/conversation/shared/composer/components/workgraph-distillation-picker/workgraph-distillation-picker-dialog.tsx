@@ -56,7 +56,7 @@ function OpenWorkGraphDistillationPickerDialog({
   onUseCommand: (command: string) => void;
   sessionKey?: string;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [items, setItems] = useState<WorkGraphWorkflow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -66,7 +66,7 @@ function OpenWorkGraphDistillationPickerDialog({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getWorkGraphWorkflowsApi().then((nextItems) => {
+    getWorkGraphWorkflowsApi(locale).then((nextItems) => {
       if (!active) return;
       setItems(nextItems);
       setSelectedId(nextItems[0]?.id ?? null);
@@ -78,7 +78,7 @@ function OpenWorkGraphDistillationPickerDialog({
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [t]);
+  }, [locale, t]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -128,7 +128,10 @@ function OpenWorkGraphDistillationPickerDialog({
                       type="button"
                     >
                       <div className="truncate text-sm font-medium text-(--text-strong)">{item.title}</div>
-                      <code className="mt-1 block text-xs text-(--text-soft)">/{item.slash_name}</code>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-(--text-soft)">
+                        <code>/{item.slash_name}</code>
+                        {item.built_in ? <span>{t("capability.workgraph_builtin")}</span> : null}
+                      </div>
                     </button>
                   ))}
                 </div>

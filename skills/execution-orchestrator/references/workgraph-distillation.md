@@ -1,12 +1,12 @@
 # 命名 WorkGraph 的保存与复用
 
-只在用户要求查看历史工作图、提取或继续编辑草图、选择草图版本、把一张图保存为可复用命名工作图，或当前 prompt 明确来自一个已保存的命名 Slash 时读取本文件。
+只在用户要求查看历史工作图、提取或继续编辑草图、选择草图版本、把一张图保存为可复用命名工作图，或当前 prompt 明确来自一个内置/已保存的命名 Slash 时读取本文件。
 
 ## 命令边界
 
 - `/workgraph <request>` 只为当前请求启用 WorkGraph 协作，不创建或更新命名图。
-- `/<command> <request>` 是用户已保存的 WorkGraph 命令。它提供抽象责任节点和依赖模板；每次调用仍创建新的 Execution、Plan、Work Item 和运行身份。
-- UI 标题栏和普通对话都是同一 WorkGraph Draft 能力的入口。UI 可由宿主直接调用 authoring service；普通对话必须先读取 fresh `inspect_workgraph_library` contract 并调用该 operation，不能凭 transcript、记忆或数量描述推断历史图。返回值会同时列出当前 Session 的 completed source、Draft 和 owner 命名图，因此一个会话有多张图时必须使用 exact `execution_id` / `preview_id`。
+- `/<command> <request>` 可以是 Nexus 只读内置 WorkGraph 模板，也可以是用户已保存的 WorkGraph 命令。两者都只提供抽象责任节点和依赖模板；每次调用仍创建新的 Execution、Plan、Work Item 和运行身份。内置模板没有 source Execution，不进入 Draft 编辑或删除链路。
+- UI 标题栏和普通对话都是同一 WorkGraph Draft 能力的入口。UI 可由宿主直接调用 authoring service；普通对话必须先读取 fresh `inspect_workgraph_library` contract 并调用该 operation，不能凭 transcript、记忆或数量描述推断历史图。返回值会同时列出当前 Session 的 completed source、Draft、只读内置模板和 owner 命名图，因此一个会话有多张图时必须使用 exact `execution_id` / `preview_id`；用户明确询问“自己保存的”图时排除 `built_in=true` 项。
 - 提取只接受当前 Session 的 completed source Execution。调用 `extract_workgraph_preview` 时，宿主会先按 owner/session/source 查找可恢复 Draft；已有 Draft 直接返回，不重复模型提取。首次提取把完整 source logical-key、父子层级和依赖交给抽象模型，强制保留 required/terminal、拓扑引用、验证/复核和协作边界等关键节点，主要抽象节点内的具体任务语义；只有不影响任何结构语义的非关键孤立节点才可省略，无法确定时保留。`slash_name` 默认用不冲突的短单词，只有准确单词均冲突时才用两个短词。
 - Draft 按 source Execution 唯一并跨页面恢复。每次修改追加不可变版本；`head_revision` 是并发 CAS，`selected_revision` 是用户当前偏好版本。选择旧版本不删除新版本，下一次修改从 selected 内容继续但仍提交 fresh head revision。模型不得把“选择 v1”解释成重写一份近似 v1。
 - 草图编辑统一由 owner 的 Nexus 主智能体承载在隐藏专用 DM 中。它不进入主智能体普通 DM 目录，不继承来源 DM/Room transcript、连接器或权限；来源只通过完整 Draft 与 source WorkGraph 事实提供。关闭 UI 不删除该 Session，再次打开继续同一对话。该 Session 只开放本 Skill、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`。

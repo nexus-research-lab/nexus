@@ -126,9 +126,10 @@ export async function getExecutionHistoryApi(
   );
 }
 
-export async function getWorkGraphWorkflowsApi(): Promise<WorkGraphWorkflow[]> {
+export async function getWorkGraphWorkflowsApi(locale = "en"): Promise<WorkGraphWorkflow[]> {
+  const query = new URLSearchParams({ locale });
   return requestApi<WorkGraphWorkflow[]>(
-    `${AGENT_API_BASE_URL}/workgraph/workflows`,
+    `${AGENT_API_BASE_URL}/workgraph/workflows?${query.toString()}`,
     { method: "GET" },
   );
 }
