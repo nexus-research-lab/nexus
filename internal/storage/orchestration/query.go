@@ -400,13 +400,13 @@ func (r *Repository) getSnapshot(
 	if snapshot.Attempts, err = r.listSnapshotAttempts(ctx, queryer, plan.ID); err != nil {
 		return nil, err
 	}
-	if snapshot.Submissions, err = r.listSnapshotSubmissions(ctx, queryer, plan.ID); err != nil {
+	if snapshot.Submissions, err = r.listSnapshotSubmissions(ctx, queryer, executionID, plan.ID); err != nil {
 		return nil, err
 	}
 	if snapshot.ReviewDispatches, err = r.listSnapshotReviewDispatches(ctx, queryer, plan.ID); err != nil {
 		return nil, err
 	}
-	if snapshot.Acceptances, err = r.listSnapshotAcceptances(ctx, queryer, plan.ID); err != nil {
+	if snapshot.Acceptances, err = r.listSnapshotAcceptances(ctx, queryer, executionID, plan.ID); err != nil {
 		return nil, err
 	}
 	deriveSnapshot(snapshot)
@@ -575,17 +575,27 @@ ORDER BY attempt.work_item_id, attempt.created_at, attempt.attempt_id`, planID)
 	return scanRows(rows, scanAttempt)
 }
 
-func (r *Repository) listSnapshotSubmissions(ctx context.Context, q sqlQueryer, planID string) ([]protocol.WorkSubmission, error) {
+func (r *Repository) listSnapshotSubmissions(
+	ctx context.Context,
+	q sqlQueryer,
+	executionID string,
+	planID string,
+) ([]protocol.WorkSubmission, error) {
 	rows, err := q.QueryContext(ctx, r.submissionSelect("submission.")+`
 FROM execution_submissions submission
-WHERE submission.plan_id = `+r.bind(1)+`
+JOIN execution_plan_items active_item
+  ON active_item.plan_id = `+r.bind(1)+`
+ AND active_item.work_item_id = submission.work_item_id
+ AND active_item.spec_id = submission.spec_id
+WHERE submission.execution_id = `+r.bind(2)+`
   AND NOT EXISTS (
       SELECT 1 FROM execution_submissions newer
-      WHERE newer.work_item_id = submission.work_item_id
+      WHERE newer.execution_id = submission.execution_id
+        AND newer.work_item_id = submission.work_item_id
         AND newer.spec_id = submission.spec_id
         AND newer.submission_sequence > submission.submission_sequence
   )
-ORDER BY submission.work_item_id, submission.submission_sequence`, planID)
+ORDER BY submission.work_item_id, submission.submission_sequence`, planID, executionID)
 	if err != nil {
 		return nil, err
 	}
@@ -626,18 +636,28 @@ ORDER BY cancellation.created_at, cancellation.cancellation_dispatch_id`,
 	return scanRows(rows, scanCancellationDispatch)
 }
 
-func (r *Repository) listSnapshotAcceptances(ctx context.Context, q sqlQueryer, planID string) ([]protocol.WorkAcceptance, error) {
+func (r *Repository) listSnapshotAcceptances(
+	ctx context.Context,
+	q sqlQueryer,
+	executionID string,
+	planID string,
+) ([]protocol.WorkAcceptance, error) {
 	rows, err := q.QueryContext(ctx, r.acceptanceSelect("acceptance.")+`
 FROM execution_acceptances acceptance
 JOIN execution_submissions submission ON submission.submission_id = acceptance.submission_id
-WHERE acceptance.plan_id = `+r.bind(1)+`
+JOIN execution_plan_items active_item
+  ON active_item.plan_id = `+r.bind(1)+`
+ AND active_item.work_item_id = acceptance.work_item_id
+ AND active_item.spec_id = acceptance.spec_id
+WHERE acceptance.execution_id = `+r.bind(2)+`
   AND NOT EXISTS (
       SELECT 1 FROM execution_submissions newer
-      WHERE newer.work_item_id = submission.work_item_id
+      WHERE newer.execution_id = submission.execution_id
+        AND newer.work_item_id = submission.work_item_id
         AND newer.spec_id = submission.spec_id
         AND newer.submission_sequence > submission.submission_sequence
   )
-ORDER BY acceptance.work_item_id, acceptance.created_at`, planID)
+ORDER BY acceptance.work_item_id, acceptance.created_at`, planID, executionID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,5 @@
-// INPUT: Room round/slot 生命周期、structured WorkBinding/ReviewBinding、运行时消息与并发状态变更。
-// OUTPUT: 固定权限世代、trusted dispatch identity、稳定 owner/root usage scope、Work/Goal 绑定、结算屏障、游标与最终回复快照。
+// INPUT: Room round/slot 生命周期、原子 Slash 输入、structured WorkBinding/ReviewBinding、运行时消息与并发状态变更。
+// OUTPUT: 固定权限世代、trusted dispatch identity、稳定 owner/root usage scope、原子 runtime 输入、Work/Goal 绑定、结算屏障、游标与最终回复快照。
 // POS: Room 实时执行过程的内存状态与权限能力模型。
 package realtime
 
@@ -239,6 +239,7 @@ type activeRoomSlot struct {
 	HiddenFromUser        bool
 	Trigger               roomTrigger
 	TriggerAttachments    []protocol.ChatAttachment
+	AtomicRuntimeInput    string
 	WorkBinding           *protocol.ExecutionWorkBinding
 	ReviewBinding         *protocol.ExecutionReviewBinding
 	mutable               roomSlotMutableState

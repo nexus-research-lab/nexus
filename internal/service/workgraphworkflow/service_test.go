@@ -330,7 +330,7 @@ func TestPreviewPrefersAvailableSingleWordSlashName(t *testing.T) {
 	}
 }
 
-func TestPreviewUsesTwoWordSlashNameOnlyAfterSingleWordConflicts(t *testing.T) {
+func TestPreviewUsesNumberedFallbackWhenSinglesAndBuiltinNameConflict(t *testing.T) {
 	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
 		"existing-research": {ID: "existing-research", OwnerUserID: "owner-a", SlashName: "research"},
 		"existing-deep":     {ID: "existing-deep", OwnerUserID: "owner-a", SlashName: "deep"},
@@ -344,8 +344,8 @@ func TestPreviewUsesTwoWordSlashNameOnlyAfterSingleWordConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if preview.SlashName != "deep-research" {
-		t.Fatalf("slash name = %q, want two-word fallback", preview.SlashName)
+	if preview.SlashName != "research-2" {
+		t.Fatalf("slash name = %q, want fallback that preserves the built-in command", preview.SlashName)
 	}
 }
 

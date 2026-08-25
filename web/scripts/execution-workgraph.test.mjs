@@ -100,11 +100,12 @@ function orthogonalPathsShareNonTerminalSegment(leftPath, rightPath) {
 }
 
 function orthogonalPathCrossesNode(pathValue, node) {
-  const half = node.size / 2;
-  const left = node.x - half;
-  const right = node.x + half;
-  const top = node.y - half;
-  const bottom = node.y + half;
+  const halfWidth = (node.width ?? node.size) / 2;
+  const halfHeight = (node.height ?? node.size) / 2;
+  const left = node.x - halfWidth;
+  const right = node.x + halfWidth;
+  const top = node.y - halfHeight;
+  const bottom = node.y + halfHeight;
   return orthogonalPathSegments(pathValue).some((segment) => {
     if (segment.axis === "vertical") {
       return segment.fixed > left
@@ -540,6 +541,10 @@ test("WorkGraph sketch confirmation keeps one quiet naming-and-structure surface
     webRoot,
     "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
   ), "utf8");
+  const canvasPreviewSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-workflow-canvas-preview.tsx",
+  ), "utf8");
   const copy = MESSAGES.zh["execution.workflow_scheduled_message"]
     .replaceAll("{command}", "/integrate-reports");
   assert.match(copy, /保存后可用 \/integrate-reports 复用/);
@@ -547,8 +552,11 @@ test("WorkGraph sketch confirmation keeps one quiet naming-and-structure surface
   assert.doesNotMatch(dialogSource, /<UiDialogHeader|<UiDialogFooter/);
   assert.match(dialogSource, /<UiDialogCloseButton/);
   assert.match(dialogSource, /md:grid-cols-\[360px_minmax\(0,1fr\)\]/);
-  assert.match(dialogSource, /<ExecutionWorkGraphCanvas/);
-  assert.match(dialogSource, /projectWorkGraphWorkflowCanvasExecution\(workingPreview, 1\)/);
+  assert.match(dialogSource, /<WorkGraphWorkflowCanvasPreview/);
+  assert.match(dialogSource, /revision=\{1\}/);
+  assert.match(dialogSource, /workflow=\{workingPreview\}/);
+  assert.match(canvasPreviewSource, /<ExecutionWorkGraphCanvas/);
+  assert.match(canvasPreviewSource, /projectWorkGraphWorkflowCanvasExecution\(workflow, resolvedRevision\)/);
   assert.doesNotMatch(dialogSource, /NamedWorkGraphSketch|appearance="editor"/);
   assert.doesNotMatch(dialogSource, /workflow_(?:distill_subtitle|reuse_notice|model_extracted|metadata_title|discard_sketch)/);
   assert.match(dialogSource, /command: `\/\$\{normalizedSlashName\}`/);
@@ -676,7 +684,8 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /execution\.workflow_editor_retry/);
   assert.match(editorSource, /onApply\(applied\)/);
   assert.match(dialogSource, /setWorkingPreview\(nextPreview\)/);
-  assert.match(dialogSource, /projectWorkGraphWorkflowCanvasExecution\(workingPreview, 1\)/);
+  assert.match(dialogSource, /<WorkGraphWorkflowCanvasPreview/);
+  assert.match(dialogSource, /workflow=\{workingPreview\}/);
   assert.doesNotMatch(editorSource, /messages\.map|reviseWorkGraphWorkflowMetadataApi/);
   assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/apply/);
   assert.match(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/versions\/select/);
@@ -697,12 +706,18 @@ test("Saved WorkGraph capability reopens the same Draft editor and schedules an 
   assert.match(directorySource, /<WorkGraphMetadataEditorDialog/);
   assert.match(directorySource, /scheduleWorkGraphWorkflowSaveApi/);
   assert.match(directorySource, /capability\.workgraph_edit/);
+  assert.match(directorySource, /!item\.built_in/);
+  assert.match(directorySource, /capability\.workgraph_builtin/);
   assert.match(apiSource, /workgraph\/workflows\/\$\{encodeURIComponent\(workflowId\)\}\/preview/);
+  assert.match(apiSource, /workgraph\/workflows\?\$\{query\.toString\(\)\}/);
 });
 
 test("WorkGraph editor projects sketches into the complete Room and DM canvas contract", async () => {
   const { projectWorkGraphWorkflowCanvasExecution } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/workgraph-workflow-canvas-model.ts",
+  );
+  const { buildExecutionGraphLayout } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",
   );
   const preview = {
     preview_id: "preview-1",
@@ -755,15 +770,51 @@ test("WorkGraph editor projects sketches into the complete Room and DM canvas co
     target_node_id: "workflow-node:review",
   });
   assert.equal(projected.graph.nodes.some((node) => node.agent_id || node.attempt_id), false);
+
+  const summaryLayout = buildExecutionGraphLayout(
+    projected,
+    900,
+    new Set(),
+    "summary",
+  );
+  assert.equal(summaryLayout.nodes.every((node) => node.width === 200), true);
+  assert.equal(summaryLayout.nodes.every((node) => node.height === 64), true);
+  const summarySource = summaryLayout.nodes.find((node) => node.node.id === "workflow-node:research");
+  const summaryTarget = summaryLayout.nodes.find((node) => node.node.id === "workflow-node:review");
+  const summaryEdge = summaryLayout.edges[0];
+  assert.ok(summarySource);
+  assert.ok(summaryTarget);
+  assert.ok(summaryEdge);
+  const summaryEdgePoints = orthogonalPathPoints(summaryEdge.path);
+  assert.equal(summaryEdgePoints[0].y, summarySource.y + summarySource.height / 2);
+  assert.equal(summaryEdgePoints.at(-1).y, summaryTarget.y - summaryTarget.height / 2);
+
+  const savedWorkflow = {
+    ...preview,
+    id: "workflow-1",
+    version: 7,
+  };
+  delete savedWorkflow.preview_id;
+  const savedProjection = projectWorkGraphWorkflowCanvasExecution(savedWorkflow, savedWorkflow.version);
+  assert.equal(savedProjection.id, "workflow-1:revision:7");
+  assert.equal(savedProjection.plan?.id, "workflow-1:plan");
 });
 
-test("Named WorkGraph cards retain details while save confirmation uses the shared canvas", async () => {
+test("Named WorkGraph cards stay compact while dialog and capability detail reuse one full canvas preview", async () => {
   const { NamedWorkGraphSketch } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/named-workgraph-sketch.tsx",
   );
   const dialogSource = await readFile(path.join(
     webRoot,
     "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+  ), "utf8");
+  const directorySource = await readFile(path.join(
+    webRoot,
+    "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
+  ), "utf8");
+  const canvasPreviewSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/workgraph-workflow-canvas-preview.tsx",
   ), "utf8");
   const nodes = [{
     logical_key: "draft",
@@ -778,8 +829,33 @@ test("Named WorkGraph cards retain details while save confirmation uses the shar
   ));
   assert.match(cardHtml, />Draft</);
   assert.match(cardHtml, /Verbose generated objective/);
-  assert.match(dialogSource, /<ExecutionWorkGraphCanvas/);
+  assert.match(dialogSource, /<WorkGraphWorkflowCanvasPreview/);
+  assert.match(directorySource, /<WorkGraphWorkflowCanvasPreview/);
+  assert.match(directorySource, /bodyClassName=\{selected \? "flex flex-col" : undefined\}/);
+  assert.match(directorySource, /className=\{selected \? "flex min-h-full flex-1 flex-col" : undefined\}/);
+  assert.match(directorySource, /className="flex min-h-0 flex-1 flex-col gap-4"/);
+  assert.match(directorySource, /className="min-h-\[360px\] flex-1 overflow-hidden/);
+  assert.doesNotMatch(directorySource, /66dvh|62dvh|sm:h-\[clamp/);
+  assert.doesNotMatch(directorySource, /<NamedWorkGraphSketch/);
+  assert.match(canvasPreviewSource, /<ExecutionWorkGraphCanvas/);
+  assert.match(canvasPreviewSource, /nodePresentation="summary"/);
+  assert.match(canvasPreviewSource, /data-workgraph-workflow-canvas-preview/);
   assert.doesNotMatch(dialogSource, /NamedWorkGraphSketch/);
+});
+
+test("WorkGraph workflow preview cards expose the node title, objective, and key marks", async () => {
+  const canvasSource = await readFile(path.join(
+    webRoot,
+    "src/features/conversation/shared/execution/execution-workgraph-canvas.tsx",
+  ), "utf8");
+
+  assert.match(canvasSource, /data-execution-node-presentation=\{nodePresentation\}/);
+  assert.match(canvasSource, /\{summaryHeading\}/);
+  assert.match(canvasSource, /\{summaryObjective\}/);
+  assert.match(canvasSource, /grid-cols-\[auto_minmax\(0,1fr\)\]/);
+  assert.match(canvasSource, /line-clamp-2 max-h-\[30px\] overflow-hidden/);
+  assert.match(canvasSource, /t\("execution\.required"\)/);
+  assert.match(canvasSource, /t\("execution\.workflow_terminal_short"\)/);
 });
 
 test("WorkGraph partial warning names display-worthy canvas totals", async () => {
@@ -1803,6 +1879,7 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     projectExecutionGraphCollapse,
     resolveExecutionGraphAnchoredScroll,
     resolveExecutionGraphFitZoom,
+    resolveExecutionGraphInitialScroll,
     resolveExecutionGraphNodeAncestors,
     resolveExecutionGraphPanPadding,
     resolveExecutionGraphWheelZoom,
@@ -1864,6 +1941,30 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
   }), 0.58);
   assert.equal(resolveExecutionGraphPanPadding(1_000), 500);
   assert.equal(resolveExecutionGraphPanPadding(0), 48);
+  assert.deepEqual(resolveExecutionGraphInitialScroll({
+    contentHeight: 700,
+    contentWidth: 448,
+    panPaddingX: 800,
+    panPaddingY: 500,
+    viewportHeight: 1_000,
+    viewportWidth: 1_600,
+    zoom: 1,
+  }), {
+    left: 224,
+    top: 350,
+  });
+  assert.deepEqual(resolveExecutionGraphInitialScroll({
+    contentHeight: 1_400,
+    contentWidth: 448,
+    panPaddingX: 800,
+    panPaddingY: 500,
+    viewportHeight: 1_000,
+    viewportWidth: 1_600,
+    zoom: 1,
+  }), {
+    left: 224,
+    top: 500,
+  });
   assert.deepEqual(resolveExecutionGraphAnchoredScroll({
     currentZoom: 1,
     nextZoom: 1.5,

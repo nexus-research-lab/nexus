@@ -29,12 +29,16 @@ const (
 var workflowSlashNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 var reservedWorkflowSlashNames = map[string]struct{}{
-	"compact":   {},
-	"goal":      {},
-	"model":     {},
-	"skills":    {},
-	"visualize": {},
-	"workgraph": {},
+	"build-ship":     {},
+	"compact":        {},
+	"decision-brief": {},
+	"deep-research":  {},
+	"goal":           {},
+	"model":          {},
+	"review-improve": {},
+	"skills":         {},
+	"visualize":      {},
+	"workgraph":      {},
 }
 
 var (
@@ -318,6 +322,10 @@ func (s *Service) SavePreview(
 	if err != nil {
 		return nil, err
 	}
+	if _, reserved := reservedWorkflowSlashNames[preview.SlashName]; reserved &&
+		!canKeepLegacyBuiltinSlashName(preview.SlashName, existing, savedWorkflowID(draft)) {
+		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
+	}
 	if existing != nil && (draft == nil || existing.ID != draft.SavedWorkflowID) {
 		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, preview.SlashName)
 	}
@@ -423,15 +431,54 @@ func workflowIDForCommand(ownerUserID string, commandID string) string {
 	return "wgw-" + hex.EncodeToString(digest[:16])
 }
 
-// List 返回 owner 的 Workflow catalog。
+func savedWorkflowID(draft *protocol.WorkGraphWorkflowDraft) string {
+	if draft == nil {
+		return ""
+	}
+	return strings.TrimSpace(draft.SavedWorkflowID)
+}
+
+func canKeepLegacyBuiltinSlashName(
+	slashName string,
+	existing *protocol.WorkGraphWorkflow,
+	savedID string,
+) bool {
+	return isBuiltinWorkflowSlashName(slashName) && existing != nil &&
+		strings.TrimSpace(existing.ID) == strings.TrimSpace(savedID)
+}
+
+// List 返回系统内置模板与 owner 保存图合并后的英文 Workflow catalog。
 func (s *Service) List(
 	ctx context.Context,
 	ownerUserID string,
 ) ([]protocol.WorkGraphWorkflow, error) {
+	return s.ListLocalized(ctx, ownerUserID, "en")
+}
+
+// ListLocalized 返回按展示语言本地化的系统模板与 owner 保存图；历史同名保存图优先。
+func (s *Service) ListLocalized(
+	ctx context.Context,
+	ownerUserID string,
+	locale string,
+) ([]protocol.WorkGraphWorkflow, error) {
 	if s == nil || s.repository == nil {
 		return nil, errors.New("workgraph workflow service is unavailable")
 	}
-	return s.repository.List(ctx, strings.TrimSpace(ownerUserID))
+	workflows, err := s.repository.List(ctx, strings.TrimSpace(ownerUserID))
+	if err != nil {
+		return nil, err
+	}
+	usedNames := make(map[string]struct{}, len(workflows))
+	for _, workflow := range workflows {
+		usedNames[normalizeSlashName(workflow.SlashName)] = struct{}{}
+	}
+	result := make([]protocol.WorkGraphWorkflow, 0, len(workflows)+len(builtinWorkflowDefinitions))
+	for _, workflow := range builtinWorkflows(locale) {
+		if _, shadowed := usedNames[workflow.SlashName]; !shadowed {
+			result = append(result, workflow)
+		}
+	}
+	return append(result, workflows...), nil
 }
 
 // Delete 删除 owner scope 内的 Workflow。
@@ -442,6 +489,9 @@ func (s *Service) Delete(
 ) (bool, error) {
 	if s == nil || s.repository == nil {
 		return false, errors.New("workgraph workflow service is unavailable")
+	}
+	if isBuiltinWorkflowID(workflowID) {
+		return false, nil
 	}
 	return s.repository.Delete(
 		ctx,
@@ -496,7 +546,10 @@ func (s *Service) ExpandRuntimePrompt(
 		return "", err
 	}
 	if workflow == nil {
-		return content, nil
+		workflow = builtinWorkflowBySlashName(name, "en")
+		if workflow == nil {
+			return content, nil
+		}
 	}
 	return renderWorkflowPrompt(*workflow, arguments), nil
 }
@@ -805,6 +858,16 @@ func (s *Service) claimPreviewForSave(
 	if err != nil {
 		return protocol.WorkGraphWorkflowPreview{}, "", false, err
 	}
+	legacyReservedSlashName := ""
+	if savedID := savedWorkflowID(loadedDraft); savedID != "" {
+		target, targetErr := s.repository.GetByID(ctx, ownerUserID, savedID)
+		if targetErr != nil {
+			return protocol.WorkGraphWorkflowPreview{}, "", false, targetErr
+		}
+		if target != nil && isBuiltinWorkflowSlashName(target.SlashName) {
+			legacyReservedSlashName = normalizeSlashName(target.SlashName)
+		}
+	}
 	s.previewMu.Lock()
 	s.cleanupExpiredPreviews(s.now().UTC())
 	key := previewCacheKey(ownerUserID, previewID)
@@ -830,7 +893,7 @@ func (s *Service) claimPreviewForSave(
 		s.previewMu.Unlock()
 		return protocol.WorkGraphWorkflowPreview{}, "", false, fmt.Errorf("%w: confirmed workflow metadata is invalid", ErrInvalidInput)
 	}
-	if _, reserved := reservedWorkflowSlashNames[slashName]; reserved {
+	if _, reserved := reservedWorkflowSlashNames[slashName]; reserved && slashName != legacyReservedSlashName {
 		s.previewMu.Unlock()
 		return protocol.WorkGraphWorkflowPreview{}, "", false, fmt.Errorf("%w: /%s", ErrNameConflict, slashName)
 	}

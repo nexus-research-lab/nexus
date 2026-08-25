@@ -28,6 +28,9 @@ func (s *Service) PreviewSavedWorkflow(
 	if ownerUserID == "" || workflowID == "" || outputLanguage == "" {
 		return nil, fmt.Errorf("%w: saved WorkGraph preview scope is incomplete", ErrInvalidInput)
 	}
+	if isBuiltinWorkflowID(workflowID) {
+		return nil, fmt.Errorf("%w: built-in WorkGraph templates are read-only", ErrInvalidInput)
+	}
 	drafts, ok := s.repository.(DraftRepository)
 	if !ok {
 		return nil, errorsUnavailableDraftPersistence()
@@ -109,7 +112,7 @@ func (s *Service) PreviewSavedWorkflow(
 	return &result, nil
 }
 
-// InspectLibrary 返回当前 Session 的 completed source、Draft 及 owner 命名图。
+// InspectLibrary 返回当前 Session 的 completed source、Draft、只读内置模板及 owner 命名图。
 func (s *Service) InspectLibrary(
 	ctx context.Context,
 	ownerUserID string,
@@ -183,12 +186,13 @@ func (s *Service) ReviseDraftPreview(
 	if err != nil {
 		return nil, err
 	}
-	if _, reserved := reservedWorkflowSlashNames[next.SlashName]; reserved {
-		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)
-	}
 	existing, err := s.repository.GetBySlashName(ctx, strings.TrimSpace(ownerUserID), next.SlashName)
 	if err != nil {
 		return nil, err
+	}
+	if _, reserved := reservedWorkflowSlashNames[next.SlashName]; reserved &&
+		!canKeepLegacyBuiltinSlashName(next.SlashName, existing, draft.SavedWorkflowID) {
+		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)
 	}
 	if existing != nil && existing.ID != draft.SavedWorkflowID {
 		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)

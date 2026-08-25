@@ -32,6 +32,7 @@ type workflowManager interface {
 	PreviewFromExecution(context.Context, string, protocol.PreviewWorkGraphWorkflowRequest) (*protocol.WorkGraphWorkflowPreview, error)
 	PreviewSavedWorkflow(context.Context, string, string, string) (*protocol.WorkGraphWorkflowPreview, error)
 	List(context.Context, string) ([]protocol.WorkGraphWorkflow, error)
+	ListLocalized(context.Context, string, string) ([]protocol.WorkGraphWorkflow, error)
 	Delete(context.Context, string, string) (bool, error)
 }
 
@@ -131,9 +132,10 @@ func (h *Handlers) HandleListWorkGraphWorkflows(
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图服务不可用")
 		return
 	}
-	items, err := h.workflows.List(
+	items, err := h.workflows.ListLocalized(
 		request.Context(),
 		authsvc.OwnerUserID(request.Context()),
+		request.URL.Query().Get("locale"),
 	)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, "工作图读取失败")

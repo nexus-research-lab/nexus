@@ -1,6 +1,6 @@
 /**
- * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度与纯 UI 隐藏节点集合。
- * OUTPUT: 主责任图自上而下展开；每个不可变 Attempt/Review 轮次保持独立层级；每个 Agent/Subagent 的直接子节点从左向右形成独立子树车道，后代始终落在真实拥有者下方；正向流程走中轴，真正成环的控制回连在所属子图框内避让节点、合流到共享 U 形正交总线并从目标的正常流程中心锚点收口。
+ * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度、节点展示密度与纯 UI 隐藏节点集合。
+ * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和锚点；每个不可变 Attempt/Review 轮次保持独立层级；正向流程走中轴，真正成环的控制回连在所属子图框内避让节点、合流到共享 U 形正交总线并从目标的正常流程中心锚点收口。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态树形投影；只为一级 Agent/Gate 的完整运行树绘制外框，Subagent 层级只由树线表达，不再嵌套子图框。
  */
 import type {
@@ -18,6 +18,8 @@ import {
 
 const AGENT_NODE_SIZE = 48;
 const NESTED_NODE_SIZE = 38;
+const SUMMARY_NODE_WIDTH = 200;
+const SUMMARY_NODE_HEIGHT = 64;
 const MAIN_VERTICAL_GAP = 72;
 const PREFERRED_MAIN_LAYER_HORIZONTAL_GAP = 36;
 const MIN_MAIN_LAYER_HORIZONTAL_GAP = 24;
@@ -36,12 +38,16 @@ const MIN_CANVAS_WIDTH = 340;
 const MIN_CANVAS_HEIGHT = 136;
 
 interface ExecutionGraphNodeLayout {
+  height: number;
   item: ExecutionWorkItemView | null;
   node: ExecutionGraphNodeView;
   size: number;
+  width: number;
   x: number;
   y: number;
 }
+
+export type ExecutionGraphNodePresentation = "icon" | "summary";
 
 interface ExecutionGraphEdgeLayout {
   edge: ExecutionGraphEdgeView;
@@ -117,6 +123,7 @@ export function buildExecutionGraphLayout(
   execution: ExecutionView,
   availableWidth?: number,
   hiddenNodeIds: ReadonlySet<string> = new Set(),
+  nodePresentation: ExecutionGraphNodePresentation = "icon",
 ): ExecutionGraphLayout {
   const constrainedWidth = normalizeAvailableWidth(availableWidth);
   const graphNodes = orderedExecutionGraphNodes(execution).filter(
@@ -153,6 +160,7 @@ export function buildExecutionGraphLayout(
       graphNodeById.get(rootId) ?? members[0],
       members,
       ownership.parentByNodeId,
+      nodePresentation,
     )
   ));
   const clusterEdges = collapseClusterEdges(graphEdges, rootByNodeId);
@@ -251,10 +259,13 @@ export function buildExecutionGraphLayout(
       x: width / 2,
       y: height / 2,
     };
+    const dimensions = graphNodeDimensions(node, nodePresentation);
     return {
+      height: dimensions.height,
       item: itemById.get(node.work_item_id) ?? null,
       node,
-      size: graphNodeSize(node),
+      size: dimensions.size,
+      width: dimensions.width,
       x: point.x,
       y: point.y,
     };
@@ -502,6 +513,7 @@ function buildExecutionGraphCluster(
   root: ExecutionGraphNodeView,
   members: ExecutionGraphNodeView[],
   parentByNodeId: Map<string, string>,
+  nodePresentation: ExecutionGraphNodePresentation,
 ): ExecutionGraphCluster {
   const memberById = new Map(members.map((node) => [node.id, node]));
   const clusterParentByNodeId = new Map<string, string>();
@@ -539,7 +551,10 @@ function buildExecutionGraphCluster(
   const layerHeights = Array.from({ length: maxDepth + 1 }, () => 0);
   for (const node of members) {
     const depth = node.id === root.id ? 0 : Math.max(1, depthById[node.id] ?? 1);
-    layerHeights[depth] = Math.max(layerHeights[depth], graphNodeSize(node));
+    layerHeights[depth] = Math.max(
+      layerHeights[depth],
+      graphNodeDimensions(node, nodePresentation).height,
+    );
   }
   const layerCenters: number[] = [];
   let layerTop = padding;
@@ -551,6 +566,7 @@ function buildExecutionGraphCluster(
     root,
     childrenByOwnerId,
     new Set(),
+    nodePresentation,
   );
   const contentWidth = tree.width;
   const contentHeight = layerHeights.reduce((total, value) => total + value, 0)
@@ -581,6 +597,7 @@ function buildExecutionOwnershipTree(
   node: ExecutionGraphNodeView,
   childrenByOwnerId: Map<string, ExecutionGraphNodeView[]>,
   ancestors: Set<string>,
+  nodePresentation: ExecutionGraphNodePresentation,
 ): ExecutionOwnershipTree {
   const nextAncestors = new Set(ancestors).add(node.id);
   const children = (childrenByOwnerId.get(node.id) ?? [])
@@ -589,12 +606,16 @@ function buildExecutionOwnershipTree(
       child,
       childrenByOwnerId,
       nextAncestors,
+      nodePresentation,
     ));
   const childrenWidth = executionOwnershipChildrenWidth(children);
   return {
     children,
     node,
-    width: Math.max(graphNodeSize(node), childrenWidth),
+    width: Math.max(
+      graphNodeDimensions(node, nodePresentation).width,
+      childrenWidth,
+    ),
   };
 }
 
@@ -674,10 +695,10 @@ function buildExecutionGraphGroups(
     if (scope.length <= 1) {
       continue;
     }
-    const left = Math.min(...scope.map((child) => child.x - child.size / 2));
-    const right = Math.max(...scope.map((child) => child.x + child.size / 2));
-    const top = Math.min(...scope.map((child) => child.y - child.size / 2));
-    const bottom = Math.max(...scope.map((child) => child.y + child.size / 2));
+    const left = Math.min(...scope.map((child) => child.x - child.width / 2));
+    const right = Math.max(...scope.map((child) => child.x + child.width / 2));
+    const top = Math.min(...scope.map((child) => child.y - child.height / 2));
+    const bottom = Math.max(...scope.map((child) => child.y + child.height / 2));
     result.push({
       height: bottom - top + GROUP_PADDING * 2,
       id: owner.id,
@@ -882,18 +903,24 @@ function resolveMainLayerHorizontalGap(
   );
 }
 
-function graphNodeSize(node: ExecutionGraphNodeView): number {
-  return node.kind === "subagent" || node.kind === "tool"
+function graphNodeDimensions(
+  node: ExecutionGraphNodeView,
+  presentation: ExecutionGraphNodePresentation,
+): { height: number; size: number; width: number } {
+  const size = node.kind === "subagent" || node.kind === "tool"
     ? NESTED_NODE_SIZE
     : AGENT_NODE_SIZE;
+  return presentation === "summary"
+    ? { height: SUMMARY_NODE_HEIGHT, size, width: SUMMARY_NODE_WIDTH }
+    : { height: size, size, width: size };
 }
 
 function buildNestedEdgePath(
   source: ExecutionGraphNodeLayout,
   target: ExecutionGraphNodeLayout,
 ): string {
-  const sourceY = source.y + source.size / 2;
-  const targetY = target.y - target.size / 2;
+  const sourceY = source.y + source.height / 2;
+  const targetY = target.y - target.height / 2;
   if (targetY <= sourceY) {
     return buildMainEdgePath(source, target);
   }
@@ -941,9 +968,9 @@ function buildSideControlEdgeCandidates(
 ): ExecutionControlRouteCandidate[] {
   const returnsUpward = source.y > target.y;
   const sourceY = source.y
-    + (returnsUpward ? source.size / 2 : -source.size / 2);
+    + (returnsUpward ? source.height / 2 : -source.height / 2);
   const targetY = target.y
-    + (returnsUpward ? target.size / 2 : -target.size / 2);
+    + (returnsUpward ? target.height / 2 : -target.height / 2);
   const sourceLayerBoundary = executionControlSourceLayerBoundary(
     source,
     context.nodes,
@@ -953,14 +980,14 @@ function buildSideControlEdgeCandidates(
   const sides: Array<-1 | 1> = [preferredSide, preferredSide === -1 ? 1 : -1];
   const result: ExecutionControlRouteCandidate[] = [];
   for (const side of sides) {
-    const targetX = target.x + side * target.size / 2;
+    const targetX = target.x + side * target.width / 2;
     const baseRailX = context.group
       ? side < 0
         ? context.group.x + CONTROL_EDGE_FRAME_SAFE_GAP
         : context.group.x + context.group.width - CONTROL_EDGE_FRAME_SAFE_GAP
       : side < 0
-        ? Math.min(source.x - source.size / 2, targetX) - CONTROL_EDGE_GUTTER
-        : Math.max(source.x + source.size / 2, targetX) + CONTROL_EDGE_GUTTER;
+        ? Math.min(source.x - source.width / 2, targetX) - CONTROL_EDGE_GUTTER
+        : Math.max(source.x + source.width / 2, targetX) + CONTROL_EDGE_GUTTER;
     for (let lane = 0; lane < CONTROL_EDGE_ROUTE_LANE_COUNT; lane += 1) {
       const railX = context.group
         ? baseRailX - side * lane * CONTROL_EDGE_KIND_LANE_GAP
@@ -1004,15 +1031,15 @@ function executionControlSourceLayerBoundary(
   nodes: ExecutionGraphNodeLayout[],
   returnsUpward: boolean,
 ): number {
-  const sourceTop = source.y - source.size / 2;
-  const sourceBottom = source.y + source.size / 2;
+  const sourceTop = source.y - source.height / 2;
+  const sourceBottom = source.y + source.height / 2;
   const peers = nodes.filter((node) => (
-    node.y - node.size / 2 < sourceBottom + 1
-      && node.y + node.size / 2 > sourceTop - 1
+    node.y - node.height / 2 < sourceBottom + 1
+      && node.y + node.height / 2 > sourceTop - 1
   ));
   return returnsUpward
-    ? Math.max(...peers.map((node) => node.y + node.size / 2))
-    : Math.min(...peers.map((node) => node.y - node.size / 2));
+    ? Math.max(...peers.map((node) => node.y + node.height / 2))
+    : Math.min(...peers.map((node) => node.y - node.height / 2));
 }
 
 function buildSiblingControlEdgeCandidate(
@@ -1020,8 +1047,8 @@ function buildSiblingControlEdgeCandidate(
   target: ExecutionGraphNodeLayout,
   lane: number,
 ): ExecutionControlRouteCandidate {
-  const sourceY = source.y + source.size / 2;
-  const targetY = target.y + target.size / 2;
+  const sourceY = source.y + source.height / 2;
+  const targetY = target.y + target.height / 2;
   const railY = Math.max(sourceY, targetY)
     + CONTROL_EDGE_GUTTER
     + lane * CONTROL_EDGE_KIND_LANE_GAP;
@@ -1095,11 +1122,12 @@ function executionGraphSegmentNodeOverlap(
   segment: ExecutionGraphPathSegment,
   node: ExecutionGraphNodeLayout,
 ): number {
-  const half = node.size / 2 + CONTROL_EDGE_NODE_CLEARANCE;
-  const left = node.x - half;
-  const right = node.x + half;
-  const top = node.y - half;
-  const bottom = node.y + half;
+  const halfWidth = node.width / 2 + CONTROL_EDGE_NODE_CLEARANCE;
+  const halfHeight = node.height / 2 + CONTROL_EDGE_NODE_CLEARANCE;
+  const left = node.x - halfWidth;
+  const right = node.x + halfWidth;
+  const top = node.y - halfHeight;
+  const bottom = node.y + halfHeight;
   if (segment.axis === "vertical") {
     return segment.fixed > left && segment.fixed < right
       ? executionGraphRangeOverlap(segment.start, segment.end, top, bottom)
@@ -1169,11 +1197,11 @@ function buildMainEdgePath(
   source: ExecutionGraphNodeLayout,
   target: ExecutionGraphNodeLayout,
 ): string {
-  const sourceY = source.y + source.size / 2;
-  const targetY = target.y - target.size / 2;
+  const sourceY = source.y + source.height / 2;
+  const targetY = target.y - target.height / 2;
   if (targetY <= sourceY) {
-    const reverseSourceY = source.y - source.size / 2;
-    const reverseTargetY = target.y + target.size / 2;
+    const reverseSourceY = source.y - source.height / 2;
+    const reverseTargetY = target.y + target.height / 2;
     const sideDirection = source.x <= target.x ? -1 : 1;
     const railX = sideDirection < 0
       ? Math.min(source.x, target.x) - 38

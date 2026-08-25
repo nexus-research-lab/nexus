@@ -31,6 +31,7 @@ export interface WorkGraphWorkflowDependency {
 
 export interface WorkGraphWorkflow {
   id: string;
+  built_in?: boolean;
   slash_name: string;
   title: string;
   description?: string;

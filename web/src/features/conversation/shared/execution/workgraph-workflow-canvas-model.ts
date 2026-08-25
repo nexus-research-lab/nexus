@@ -1,5 +1,5 @@
 /**
- * INPUT: 不含运行事实的 WorkGraph workflow preview。
+ * INPUT: 不含运行事实的命名 WorkGraph workflow 或临时 preview。
  * OUTPUT: 仅供共用 ExecutionWorkGraphCanvas 渲染的中性 ExecutionView 投影。
  * POS: 命名草图协议到 Room/DM 工作图画布的唯一适配层；不伪造 Agent、Attempt、Tool、Submission 或验收事实。
  */
@@ -11,6 +11,7 @@ import type {
   ExecutionWorkItemView,
 } from "@/types/conversation/execution";
 import type {
+  WorkGraphWorkflow,
   WorkGraphWorkflowDependency,
   WorkGraphWorkflowPreview,
 } from "@/types/conversation/workgraph-workflow";
@@ -18,9 +19,10 @@ import type {
 const WORKFLOW_PREVIEW_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 
 export function projectWorkGraphWorkflowCanvasExecution(
-  preview: WorkGraphWorkflowPreview,
+  preview: WorkGraphWorkflow | WorkGraphWorkflowPreview,
   revision: number,
 ): ExecutionView {
+  const workflowIdentity = "preview_id" in preview ? preview.preview_id : preview.id;
   const nodeIdByLogicalKey = new Map(
     preview.nodes.map((node) => [node.logical_key, workflowNodeId(node.logical_key)]),
   );
@@ -78,7 +80,7 @@ export function projectWorkGraphWorkflowCanvasExecution(
   const requiredCount = preview.nodes.filter((node) => node.required).length;
 
   return {
-    id: `${preview.preview_id}:revision:${revision}`,
+    id: `${workflowIdentity}:revision:${revision}`,
     session_key: preview.source_session_key,
     scope_kind: preview.source_session_key.startsWith("room:") ? "room" : "dm",
     objective: preview.objective,
@@ -86,7 +88,7 @@ export function projectWorkGraphWorkflowCanvasExecution(
     status: "active",
     version: revision,
     plan: {
-      id: `${preview.preview_id}:plan`,
+      id: `${workflowIdentity}:plan`,
       revision,
       status: "active",
       created_at: WORKFLOW_PREVIEW_TIMESTAMP,
