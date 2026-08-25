@@ -9,9 +9,10 @@ internal static class DesktopStateRootMigration
     private const string MigrateArgument = "--nexus-state-root-migrate";
     private const string RelaunchArgument = "--nexus-state-root-relaunch";
     private const string ParentPIDArgument = "--parent-pid";
+    private const string BrowserPIDArgument = "--browser-pid";
     private const string SourceArgument = "--source";
     private const string TargetArgument = "--target";
-    private const int ParentExitTimeoutMilliseconds = 45_000;
+    private const int ProcessExitTimeoutMilliseconds = 45_000;
     private static readonly object ScheduleLock = new();
     private static bool migrationScheduled;
 
@@ -24,13 +25,24 @@ internal static class DesktopStateRootMigration
         }
 
         string? source = ValueAfter(SourceArgument, arguments);
+        Process? browserProcess = null;
         try
         {
             if (!int.TryParse(ValueAfter(ParentPIDArgument, arguments), out int parentPID))
             {
                 throw new ArgumentException("状态根迁移参数无效。");
             }
+            if (arguments.Contains(MigrateArgument, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!int.TryParse(ValueAfter(BrowserPIDArgument, arguments), out int browserPID))
+                {
+                    throw new ArgumentException("WebView2 迁移参数无效。");
+                }
+                // 先固定进程句柄；宿主退出后 WebView2 仍可能短暂占用 UDF，且 PID 可能被复用。
+                browserProcess = TryGetProcess(browserPID);
+            }
             WaitForParentExit(parentPID);
+            WaitForBrowserExit(browserProcess);
             if (arguments.Contains(MigrateArgument, StringComparer.OrdinalIgnoreCase))
             {
                 string target = ValueAfter(TargetArgument, arguments)
@@ -51,6 +63,10 @@ internal static class DesktopStateRootMigration
             }
             Trace.WriteLine($"[Nexus State Root] migration helper failed: {exception.Message}");
         }
+        finally
+        {
+            browserProcess?.Dispose();
+        }
 
         try
         {
@@ -63,7 +79,7 @@ internal static class DesktopStateRootMigration
         return true;
     }
 
-    public static string ScheduleMigration(string rawPath)
+    public static string ScheduleMigration(string rawPath, uint browserProcessID)
     {
         lock (ScheduleLock)
         {
@@ -80,6 +96,8 @@ internal static class DesktopStateRootMigration
                 MigrateArgument,
                 ParentPIDArgument,
                 Environment.ProcessId.ToString(),
+                BrowserPIDArgument,
+                browserProcessID.ToString(),
                 SourceArgument,
                 source,
                 TargetArgument,
@@ -229,13 +247,33 @@ internal static class DesktopStateRootMigration
         try
         {
             using Process parent = Process.GetProcessById(parentPID);
-            if (!parent.WaitForExit(ParentExitTimeoutMilliseconds))
+            if (!parent.WaitForExit(ProcessExitTimeoutMilliseconds))
             {
                 throw new TimeoutException("Nexus 主进程未能及时退出，迁移已取消。");
             }
         }
         catch (ArgumentException)
         {
+        }
+    }
+
+    private static Process? TryGetProcess(int processID)
+    {
+        try
+        {
+            return Process.GetProcessById(processID);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private static void WaitForBrowserExit(Process? browserProcess)
+    {
+        if (browserProcess is not null && !browserProcess.WaitForExit(ProcessExitTimeoutMilliseconds))
+        {
+            throw new TimeoutException("WebView2 未能及时释放数据目录，迁移已取消。");
         }
     }
 
