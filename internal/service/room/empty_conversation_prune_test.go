@@ -387,10 +387,11 @@ func TestPruneEmptyConversationsPreservesConservativeActivityEvidence(t *testing
 
 	databaseSessionID := findRoomSessionID(t, *databaseMessage, agentA.AgentID)
 	seedRoomDatabaseMessageRound(t, db, databaseMessage.Conversation.ID, databaseSessionID, "prune-evidence")
-	if err = roomService.UpdateSessionSDKSessionID(
+	if err = roomService.UpdateSessionRuntimeIdentity(
 		ctx,
 		findRoomSessionID(t, *sdkSession, agentA.AgentID),
 		"sdk-session-prune-evidence",
+		"",
 	); err != nil {
 		t.Fatalf("写入 SDK session 证据失败: %v", err)
 	}

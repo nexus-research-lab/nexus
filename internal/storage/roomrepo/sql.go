@@ -969,8 +969,13 @@ WHERE id = `+r.dialect.Bind(2)+` AND room_id = `+r.dialect.Bind(3),
 	return r.getContextByConversation(ctx, ownerUserID, roomID, conversationID)
 }
 
-// UpdateSessionSDKSessionID 更新房间会话记录上的 SDK session_id。
-func (r *SQLRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
+// UpdateSessionRuntimeIdentity 原子更新房间会话的 SDK identity 与工具面基线。
+func (r *SQLRepository) UpdateSessionRuntimeIdentity(
+	ctx context.Context,
+	sessionID string,
+	sdkSessionID string,
+	toolSurfaceFingerprint string,
+) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -1003,6 +1008,12 @@ WHERE id = `+r.dialect.Bind(1)+`
 		jsoncodec.ParseMap(optionsJSON),
 		[]string{currentSDKSessionID.String, sdkSessionID},
 	)
+	toolSurfaceFingerprint = strings.TrimSpace(toolSurfaceFingerprint)
+	if strings.TrimSpace(sdkSessionID) == "" || toolSurfaceFingerprint == "" {
+		delete(options, protocol.OptionRuntimeToolSurfaceFingerprint)
+	} else {
+		options[protocol.OptionRuntimeToolSurfaceFingerprint] = toolSurfaceFingerprint
+	}
 	if strings.TrimSpace(sdkSessionID) != "" {
 		forkSourceSessionID, _ := options[protocol.OptionRuntimeForkSourceSessionID].(string)
 		options = protocol.WithRetainedTranscriptSessionIDs(

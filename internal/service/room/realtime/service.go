@@ -158,7 +158,7 @@ type RuntimeSlashExpander interface {
 type roomContextStore interface {
 	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
 	GetConversationContextForSystem(context.Context, string) (*protocol.ConversationContextAggregate, error)
-	UpdateSessionSDKSessionID(context.Context, string, string) error
+	UpdateSessionRuntimeIdentity(context.Context, string, string, string) error
 	TouchConversationActivity(context.Context, string, time.Time) error
 	MarkConversationStarted(context.Context, string, time.Time) error
 	BuildRoomSkillPrompt(context.Context, []string) (string, error)

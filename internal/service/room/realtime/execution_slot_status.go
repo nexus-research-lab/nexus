@@ -1,5 +1,5 @@
 // INPUT: Room slot 的 runtime result、failure/interruption、WorkBinding 与消息 mapper。
-// OUTPUT: 经最终权限 admission 的 usage/handoff/cursor、可见终态与 structured root Attempt 原子终态，或静默撤销旧 slot。
+// OUTPUT: 原子持久化的 runtime identity、经最终权限 admission 的 usage/handoff/cursor、可见终态与 structured root Attempt 终态，或静默撤销旧 slot。
 // POS: 单 slot 所有终态路径的统一结算边界；不得隐式创建 Submission/Acceptance。
 package realtime
 
@@ -17,19 +17,32 @@ import (
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 )
 
-func (s *Service) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {
+func (s *Service) syncSlotRuntimeIdentity(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	sessionID string,
+	toolSurfaceFingerprint string,
+) (bool, error) {
 	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" || sessionID == slot.getSDKSessionID() {
-		return nil
+	if sessionID == "" {
+		return false, nil
 	}
 	if !s.canPersistSlotSDKSessionID(ctx, slot, sessionID) {
-		return nil
+		return false, nil
+	}
+	if s.rooms != nil {
+		if err := s.rooms.UpdateSessionRuntimeIdentity(
+			ctx,
+			slot.RoomSessionID,
+			sessionID,
+			strings.TrimSpace(toolSurfaceFingerprint),
+		); err != nil {
+			return false, err
+		}
 	}
 	slot.setSDKSessionID(sessionID)
-	if s.rooms == nil {
-		return nil
-	}
-	return s.rooms.UpdateSessionSDKSessionID(ctx, slot.RoomSessionID, sessionID)
+	slot.ensureSDKSessionIdentityState().Set(sessionID)
+	return true, nil
 }
 
 func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
@@ -66,15 +79,17 @@ func (s *Service) clearSlotSDKSessionID(ctx context.Context, slot *activeRoomSlo
 	if slot == nil {
 		return nil
 	}
+	if s.rooms != nil {
+		roomSessionID := strings.TrimSpace(slot.RoomSessionID)
+		if roomSessionID != "" {
+			if err := s.rooms.UpdateSessionRuntimeIdentity(ctx, roomSessionID, "", ""); err != nil {
+				return err
+			}
+		}
+	}
 	slot.clearSDKSessionID()
-	if s.rooms == nil {
-		return nil
-	}
-	roomSessionID := strings.TrimSpace(slot.RoomSessionID)
-	if roomSessionID == "" {
-		return nil
-	}
-	return s.rooms.UpdateSessionSDKSessionID(ctx, roomSessionID, "")
+	slot.ensureSDKSessionIdentityState().Set("")
+	return nil
 }
 
 func slotAgentID(slot *activeRoomSlot) string {

@@ -115,10 +115,11 @@ func TestRoomServiceForkConversationCreatesIndependentDMConversation(t *testing.
 	if err != nil {
 		t.Fatalf("更新 source 标题失败: %v", err)
 	}
-	if err = roomService.UpdateSessionSDKSessionID(
+	if err = roomService.UpdateSessionRuntimeIdentity(
 		ctx,
 		source.Sessions[0].ID,
 		"source-sdk-session",
+		"",
 	); err != nil {
 		t.Fatalf("写入 source SDK session 失败: %v", err)
 	}

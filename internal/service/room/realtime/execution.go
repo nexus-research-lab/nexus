@@ -44,17 +44,20 @@ func appendPromptSection(base string, section string) string {
 
 // slotExecution 收拢单个 Room slot 的执行态，避免业务阶段之间传递成组参数。
 type slotExecution struct {
-	service        *Service
-	ctx            context.Context
-	round          *activeRoomRound
-	slot           *activeRoomSlot
-	history        []protocol.Message
-	agentNameByID  map[string]string
-	agent          *protocol.Agent
-	logger         *slog.Logger
-	streamLogger   *slog.Logger
-	mapper         *roomdomain.SlotMessageMapper
-	emotionEnabled bool
+	service                  *Service
+	ctx                      context.Context
+	round                    *activeRoomRound
+	slot                     *activeRoomSlot
+	history                  []protocol.Message
+	agentNameByID            map[string]string
+	agent                    *protocol.Agent
+	logger                   *slog.Logger
+	streamLogger             *slog.Logger
+	mapper                   *roomdomain.SlotMessageMapper
+	emotionEnabled           bool
+	toolSurfaceFingerprint   string
+	forkSourceSessionID      string
+	runtimeIdentityCommitted bool
 }
 
 type roomRoundMapperAdapter struct {
@@ -439,11 +442,17 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 			e.observeIncomingMessage(incoming)
 		},
 		SyncSessionID: func(sessionID string) error {
-			return e.service.syncSlotSDKSessionID(e.ctx, e.slot, sessionID)
+			return e.syncRuntimeIdentity(sessionID)
 		},
 		HandleDurableMessage: e.handleDurableMessage,
 		EmitEvent:            e.emitEvent,
 	})
+	if executeErr == nil && strings.TrimSpace(e.forkSourceSessionID) != "" {
+		executeErr = errors.New("Room runtime fork 未提交可恢复的独立 SDK session")
+	}
+	if executeErr != nil && strings.TrimSpace(e.forkSourceSessionID) != "" {
+		e.closeUncommittedForkRuntime(client, executeErr)
+	}
 	failureReason := ""
 	if executeErr != nil {
 		failureReason = executeErr.Error()
@@ -454,6 +463,43 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		failureReason,
 	)
 	return result, executeErr
+}
+
+func (e *slotExecution) syncRuntimeIdentity(sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sourceID := strings.TrimSpace(e.forkSourceSessionID); sourceID != "" && sessionID == sourceID {
+		return errors.New("Room runtime fork 仍返回 source SDK session")
+	}
+	if e.runtimeIdentityCommitted && sessionID == e.slot.getSDKSessionID() {
+		return nil
+	}
+	committed, err := e.service.syncSlotRuntimeIdentity(
+		e.ctx,
+		e.slot,
+		sessionID,
+		e.toolSurfaceFingerprint,
+	)
+	if err != nil {
+		return err
+	}
+	if committed {
+		e.forkSourceSessionID = ""
+		e.runtimeIdentityCommitted = true
+	}
+	return nil
+}
+
+func (e *slotExecution) closeUncommittedForkRuntime(client runtimectx.Client, forkErr error) {
+	lease, ok := e.service.runtime.CaptureClientLease(e.slot.RuntimeSessionKey, client)
+	if !ok {
+		return
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
+	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+		e.logger.Warn("关闭未提交的 Room fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
+	}
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {

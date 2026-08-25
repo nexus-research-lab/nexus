@@ -43,7 +43,7 @@ WHERE id = ?`, `{"runtime_fork_source_session_id":"source-sdk","runtime_fork_mes
 		t.Fatalf("写入 pending fork 依赖失败: %v", err)
 	}
 
-	if err = roomService.UpdateSessionSDKSessionID(ctx, roomSessionID, "target-sdk"); err != nil {
+	if err = roomService.UpdateSessionRuntimeIdentity(ctx, roomSessionID, "target-sdk", ""); err != nil {
 		t.Fatalf("物化 target SDK session 失败: %v", err)
 	}
 	contextValue, err := roomService.GetConversationContext(ctx, created.Conversation.ID)
@@ -90,7 +90,7 @@ func TestRoomSessionKeepsTranscriptLineageAcrossSDKIdentityChanges(t *testing.T)
 	firstID := "550e8400-e29b-41d4-a716-446655440000"
 	secondID := "650e8400-e29b-41d4-a716-446655440000"
 	for _, sdkSessionID := range []string{firstID, secondID, ""} {
-		if err = roomService.UpdateSessionSDKSessionID(ctx, roomSessionID, sdkSessionID); err != nil {
+		if err = roomService.UpdateSessionRuntimeIdentity(ctx, roomSessionID, sdkSessionID, ""); err != nil {
 			t.Fatalf("更新 SDK session id %q 失败: %v", sdkSessionID, err)
 		}
 	}

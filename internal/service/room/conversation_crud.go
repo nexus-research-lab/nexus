@@ -289,14 +289,24 @@ func remainingConversationTranscriptSessionIDs(
 	return protocol.MergeTranscriptSessionIDs(groups...)
 }
 
-// UpdateSessionSDKSessionID 更新房间会话记录中的 SDK session_id。
-func (s *Service) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
+// UpdateSessionRuntimeIdentity 原子更新房间会话的 SDK identity 与工具面基线。
+func (s *Service) UpdateSessionRuntimeIdentity(
+	ctx context.Context,
+	sessionID string,
+	sdkSessionID string,
+	toolSurfaceFingerprint string,
+) error {
 	sessionID = strings.TrimSpace(sessionID)
 	sdkSessionID = strings.TrimSpace(sdkSessionID)
 	if sessionID == "" {
 		return nil
 	}
-	return s.repository.UpdateSessionSDKSessionID(ctx, sessionID, sdkSessionID)
+	return s.repository.UpdateSessionRuntimeIdentity(
+		ctx,
+		sessionID,
+		sdkSessionID,
+		strings.TrimSpace(toolSurfaceFingerprint),
+	)
 }
 
 // TouchConversationActivity 更新 conversation 级最近活动时间。

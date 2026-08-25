@@ -1,5 +1,5 @@
 // INPUT: Room round/slot、成员 Session 本机目录、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、真实 Agent slot lease、revision 绑定且换代安全的 runtime options/client。
+// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、真实 Agent slot lease、工具面换代且 revision 绑定的 runtime options/client。
 // POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份的 runtime 装配边界。
 package realtime
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -33,12 +34,16 @@ const (
 	nexusRoomIDEnvName             = "NEXUS_ROOM_ID"
 	nexusRoomConversationIDEnvName = "NEXUS_ROOM_CONVERSATION_ID"
 	nexusRoomAgentIDEnvName        = "NEXUS_ROOM_AGENT_ID"
+	roomToolSurfaceRetireTimeout   = 2*runtimectx.RoundIdleAbortTimeout + time.Second
 )
 
 type preparedSlotRuntime struct {
-	options   agentclient.Options
-	selection runtimeselectionsvc.Selection
-	provider  string
+	options                agentclient.Options
+	selection              runtimeselectionsvc.Selection
+	provider               string
+	toolSurfaceFingerprint string
+	toolSurfaceComplete    bool
+	forkLegacyToolSurface  bool
 }
 
 type roomRuntimePrompt struct {
@@ -134,6 +139,8 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	)
 	if sessionID := strings.TrimSpace(client.SessionID()); sessionID != "" {
 		e.slot.ensureSDKSessionIdentityState().Set(sessionID)
+	} else if e.forkSourceSessionID != "" {
+		e.slot.ensureSDKSessionIdentityState().Set("")
 	}
 	return client, nil
 }
@@ -249,7 +256,21 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	e.slot.setRuntimeKind(string(options.Runtime.Kind))
 	options = e.applyRuntimeHooks(options)
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(selection.Provider, options)
-	return preparedSlotRuntime{options: options, selection: selection, provider: runtimeProvider}, nil
+	toolSurfaceFingerprint, toolSurfaceComplete, err := runtimectx.ModelToolSurfaceFingerprint(e.ctx, options)
+	if err != nil {
+		return preparedSlotRuntime{}, fmt.Errorf("计算 Room runtime 工具面指纹: %w", err)
+	}
+	return preparedSlotRuntime{
+		options:                options,
+		selection:              selection,
+		provider:               runtimeProvider,
+		toolSurfaceFingerprint: toolSurfaceFingerprint,
+		toolSurfaceComplete:    toolSurfaceComplete,
+		forkLegacyToolSurface: len(protocol.EffectiveSessionConnectorIDs(
+			e.agent.Options.ConnectorIDs,
+			roomAgentSessionOptions(e.round, e.agent.AgentID),
+		)) > 0,
+	}, nil
 }
 
 func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.Mode, error) {
@@ -499,7 +520,7 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		return nil, err
 	}
 	defer startup.Close()
-	currentResumeID, err := e.reloadSlotSDKSessionID()
+	currentResumeID, storedToolSurface, err := e.reloadSlotRuntimeIdentity()
 	if err != nil {
 		return nil, err
 	}
@@ -513,10 +534,36 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 	if err != nil {
 		return nil, err
 	}
+	toolSurfaceFork := resumeID != "" && sessionresumesvc.RequiresToolSurfaceFork(
+		storedToolSurface,
+		runtimeValue.toolSurfaceFingerprint,
+		runtimeValue.forkLegacyToolSurface,
+	)
+	if toolSurfaceFork && !runtimeValue.toolSurfaceComplete {
+		return nil, errors.New("Room runtime 工具面检查不完整，无法安全 fork 旧 SDK session")
+	}
 	runtimeValue.options.Session.ResumeID = resumeID
+	runtimeValue.options.Session.Fork = toolSurfaceFork
+	e.toolSurfaceFingerprint = strings.TrimSpace(runtimeValue.toolSurfaceFingerprint)
+	e.forkSourceSessionID = ""
+	e.runtimeIdentityCommitted = resumeID != "" &&
+		strings.TrimSpace(storedToolSurface) == e.toolSurfaceFingerprint &&
+		!toolSurfaceFork
+	if toolSurfaceFork {
+		retired, retireErr := retireExistingRoomRuntimeClient(e.ctx, startup)
+		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
+			return nil, fmt.Errorf("换代 Room runtime 工具面: %w", retireErr)
+		}
+		e.forkSourceSessionID = resumeID
+		e.logger.Info("Room Session 工具面变化，从旧 transcript fork 新 SDK session",
+			"runtime_session_key", e.slot.RuntimeSessionKey,
+			"sdk_session_id", resumeID,
+			"retired_warm_client", retired,
+		)
+	}
 
 	client, err := e.connectRuntimeOnce(startup, *runtimeValue)
-	if err != nil && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
+	if err != nil && !toolSurfaceFork && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
 		e.logger.Warn("Room SDK session resume 失效，清除后重试",
 			append(roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err),
 				"sdk_session_id", strings.TrimSpace(runtimeValue.options.Session.ResumeID),
@@ -534,12 +581,18 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 				return nil, clearErr
 			}
 			runtimeValue.options.Session.ResumeID = ""
+			runtimeValue.options.Session.Fork = false
 			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
 				client, err = e.connectRuntimeOnce(startup, *runtimeValue)
 			}
 		}
 	}
 	if err == nil {
+		if sourceID := strings.TrimSpace(e.forkSourceSessionID); sourceID != "" &&
+			strings.TrimSpace(client.SessionID()) == sourceID {
+			_, _ = retireRoomRuntimeClient(startup)
+			return nil, errors.New("Room runtime fork 仍返回 source SDK session")
+		}
 		return client, nil
 	}
 	if _, closeErr := retireRoomRuntimeClient(startup); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
@@ -549,17 +602,17 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 	return nil, err
 }
 
-func (e *slotExecution) reloadSlotSDKSessionID() (string, error) {
+func (e *slotExecution) reloadSlotRuntimeIdentity() (string, string, error) {
 	cached := e.slot.getSDKSessionID()
 	if e.service.rooms == nil || strings.TrimSpace(e.round.ConversationID) == "" {
-		return cached, nil
+		return cached, "", nil
 	}
 	contextValue, err := e.service.rooms.GetConversationContext(e.ctx, e.round.ConversationID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if contextValue == nil {
-		return cached, nil
+		return cached, "", nil
 	}
 	roomSessionID := strings.TrimSpace(e.slot.RoomSessionID)
 	for _, sessionRecord := range contextValue.Sessions {
@@ -572,15 +625,26 @@ func (e *slotExecution) reloadSlotSDKSessionID() (string, error) {
 		} else {
 			e.slot.setSDKSessionID(resumeID)
 		}
-		return resumeID, nil
+		toolSurface, _ := sessionRecord.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
+		return resumeID, strings.TrimSpace(toolSurface), nil
 	}
-	return cached, nil
+	return cached, "", nil
 }
 
 func retireRoomRuntimeClient(startup *runtimectx.ClientStartup) (bool, error) {
 	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
 	return startup.RetireCurrent(closeCtx)
+}
+
+func retireExistingRoomRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Process transport 的优雅退出与强制回收各有一个窗口，换代必须等完两阶段。
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), roomToolSurfaceRetireTimeout)
+	defer cancel()
+	return startup.RetireExisting(closeCtx)
 }
 
 func (e *slotExecution) connectRuntimeOnce(

@@ -425,10 +425,12 @@ func (s *Service) hydrateRoomHistorySession(
 	if roomSessionID == "" && fileSessionID != "" {
 		merged.SessionID = fileSession.SessionID
 		if merged.RoomSessionID != nil && strings.TrimSpace(*merged.RoomSessionID) != "" {
-			if updateErr := s.repository.UpdateRoomSessionSDKSessionID(
+			toolSurface, _ := fileSession.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
+			if updateErr := s.repository.UpdateRoomSessionRuntimeIdentity(
 				ctx,
 				strings.TrimSpace(*merged.RoomSessionID),
 				fileSessionID,
+				strings.TrimSpace(toolSurface),
 			); updateErr != nil {
 				return nil, updateErr
 			}
