@@ -7,8 +7,9 @@ Nexus 同时承载 nxs 与 Claude Code（CC）两种 runtime。两者都通过�
 的前提下，把当前产品版本支持的 runtime 指令和 Nexus 自有指令投影为一个稳定的
 Composer 目录。
 
-Composer 固定目录的真相源是 Nexus 仓内的版本化静态清单；owner 从历史 WorkGraph
-保存的命名工作图由持久目录在 bind 时追加。Claude Code 的 initialize
+Composer 固定目录的真相源是 Nexus 仓内的版本化静态清单；Nexus 内置 WorkGraph
+模板由版本化模板目录追加，owner 从历史 WorkGraph 保存的命名工作图由持久目录在
+bind 时追加。Claude Code 的 initialize
 control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用，但 Nexus
 不会在 App 或 session 生命周期内读取它们。runtime 新增且尚未进入当前清单的
 指令仍可手动输入并原样透传，只是不参与补全。
@@ -21,8 +22,8 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 | `nexus-agent-sdk-bridge` | 统一普通文本发送和单轮隐藏上下文清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
 | Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单与 `/visualize`、`/workgraph` 固定产品提示 | 读取 runtime 私有 metadata；保存命名工作图；绑定 session |
-| Nexus `service/workgraphworkflow` | 从 exact 完成态 managed Execution 生成/复用 durable Draft，统一 UI 与普通对话的查询、版本化编辑、选择和确认保存，并在 runtime 投递时展开动态 Slash | 让模型伪造 owner/session/source；通过 UI HTTP 直接持久化命名图；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
-| WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime 与 owner 命名工作图描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
+| Nexus `service/workgraphworkflow` | 维护只读内置 WorkGraph 模板；从 exact 完成态 managed Execution 生成/复用 durable Draft；统一 UI 与普通对话的查询、版本化编辑、选择和确认保存；在 runtime 投递时展开动态 Slash | 让模型伪造 owner/session/source；把内置模板写进 owner 数据；通过 UI HTTP 直接持久化命名图；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
+| WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime、内置模板与 owner 命名工作图描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
 | Web Composer | 只消费当前 session 的完整快照，选择后发送原始 Slash 文本 | 启动 runtime、查询目录、判断命令归属 |
 
 Host 命令先进入合并结果，因此与 runtime 同名时 Nexus host 命令保留该名称，
@@ -35,10 +36,11 @@ canonical 名称。
 - Claude Code runtime：`compact`、`skills`
 - Nexus host：`model`
 - Nexus 固定产品提示：`visualize`、`workgraph`
-- Nexus owner 命名工作图：用户保存的命名项，例如 `deep-research`
+- Nexus 内置工作图模板：`deep-research`、`build-ship`、`decision-brief`、`review-improve`
+- Nexus owner 命名工作图：用户保存的命名项，例如 `market-scan`
 
 两个 runtime 在 Composer 中最终都展示 `compact`、`model`、`skills`、`visualize`
-与 `workgraph` 五个核心入口，并追加当前 owner 的命名工作图，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
+与 `workgraph` 五个核心入口，并追加 Nexus 内置模板及当前 owner 的命名工作图，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
 校验并持久化 Agent 的 Provider/模型选择，`skills` 由 Composer 打开完整 Skill
 选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime；
 `visualize` 由 Nexus 在投递 runtime 时展开为简短的 Generative UI 提示；`workgraph`
@@ -48,8 +50,49 @@ canonical 名称。
 nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公开 Slash 指令；
 需要立即释放上下文时统一使用 `/compact [instructions]`。
 
-固定清单只承诺 Nexus 版本内置指令；owner 命名工作图是 Nexus 自己持久化并验证的
-动态目录，不等同于扫描用户本机 Skill、插件或 MCP 命令，也不能跨 owner 投影。
+内置模板固定保留“可并行分支 → 显式汇合 Gate → 独立验证 → 终态交付”的最小拓扑：
+
+| Slash | 标准拓扑 |
+| --- | --- |
+| `/deep-research` | 问题定界 → 第 1 轮拆分与策略 → 权威/对照证据并行收集 → 充分性评估；不足时在同一工作图按需追加第 N+1 轮“缺口诊断 → 策略调整 → 两条定向证据线并行重收集 → 再评估”，充分后才进入综合 → 事实与引用复核 → 报告 |
+| `/build-ship` | 范围 → 设计 → 实现 → 验证/审查并行 → 交付就绪 Gate；不足时按 blocker 类型定向修复并重新验证/评审 → 集成交付 |
+| `/decision-brief` | 决策定界 → 证据/选项并行 → 权衡评估 → 独立挑战 Gate；不足时按证据/标准/方案/实验缺口追加必要分支 → 建议 |
+| `/review-improve` | 基线 → 质量审计/体验审计并行 → 优先级 → 修改 → 独立复核 Gate；不足时按未修复/回归/无改善/rubric 错误选择定向修订、重审计或重建基线 → 改进后交付物 |
+
+验证或审查节点可通过 WorkGraph review 的 `changes_requested` 回到责任节点返工，
+模板本身仍保持 DAG，不用静态环伪造迭代。验证记录不是最终交付物，因此终态只标在
+报告、集成交付、建议或改进后交付物节点。
+
+`/deep-research` 默认不是单轮或固定两轮搜索：某轮评估即使准确得出“证据不足”，该评估工作
+本身仍可验收，但其 verdict 必须阻止综合，并在同一 Execution、同一 WorkGraph 中按需追加
+下一段带编号的“缺口诊断—策略调整—并行定向收集—重新评估”节点。每次追加都把综合节点的
+前置依赖移到最新评估；只有累计证据充分时才进入下游。迭代次数由证据缺口决定，直到充分或
+触发研究策略预先声明的迭代上限/停止条件；不能新建另一张工作图、覆盖前一轮事实，或为了结束
+而直接综合。底层 immutable Plan revision 只记录同一工作图的拓扑演进，不是面向用户的“第二版”。
+
+`/build-ship` 的迭代单位是一次有边界的修复，而不是重复完整开发流程。质量 Gate 把 blocker
+区分为范围、设计、实现、测试、文档或外部依赖问题，只追加必要修复节点；若发生实质变更，
+必须重新并行执行验证与独立评审，再汇合到新的质量 Gate。无法在当前边界解决的外部依赖应
+显式 block 或触发 replan，不能用重复尝试伪装进展。
+
+`/decision-brief` 的迭代由挑战性评审诊断：缺证据时追加定向收集或低成本实验，标准有误时
+修正 rubric，方案缺失时补方案；只有两个以上独立缺口才并行。随后重新比较并再次挑战。
+收口结果可以是稳健建议、明确的有条件/延后决策，或一个有边界的实验计划；不要求为了得出
+确定答案而无限收集信息。
+
+`/review-improve` 的迭代由复核失败类型决定：问题未关闭或局部回归进入诊断—定向修订—受影响
+检查与回归检查；大范围修改才重新触发质量/体验审计；基线或 rubric 无效则回到基线与优先级。
+每轮继续保留前一轮审计、改动与复核事实，最新复核充分后才允许交付。
+
+DM 与 Room 都只把用户输入的 Slash 原文写入可见时间线，并在 runtime 投递边界展开；
+Slash runtime 输入是独立原子消息，不追加用户画像等宿主动态后缀。Room 的展开结果不进入
+有界 public/private history 拼装，因此不会因公共上下文压缩丢失模板尾部节点；后续普通
+Room round 仍只从持久历史看到用户原始命令。
+
+固定清单只承诺 Nexus 版本内置指令；内置 WorkGraph 模板只读且不写 owner 数据；owner
+命名工作图是 Nexus 自己持久化并验证的动态目录，不等同于扫描用户本机 Skill、插件
+或 MCP 命令，也不能跨 owner 投影。升级前已存在的同名 owner 图优先于新增内置模板，
+避免改变既有 Slash 的用户语义；新保存图不能占用内置模板名称。
 
 ## 生命周期
 
@@ -57,7 +100,7 @@ nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公�
    nxs 和 Claude Code 静态清单；这个过程没有文件 IO、子进程或 runtime session。
 2. 浏览器发送 `bind_session`，只携带会话地址和已有的 Room/Agent 作用域信息。
 3. WebSocket handler 解析当前 Agent 的 runtime 偏好，选择对应内置清单，与当前
-   作用域的 Nexus host、固定产品描述与 owner 命名工作图合并、校验、排序后发送一条完整 `command_catalog`
+   作用域的 Nexus host、固定产品描述、内置模板与 owner 命名工作图合并、校验、排序后发送一条完整 `command_catalog`
    权威快照。这个过程不创建 DM/Room runtime session。
 4. 浏览器按 session key 和 Agent 身份接收完整快照，只替换本地目录状态；
    浏览器不发送 `get_command_catalog` 或 `ensure_runtime_session`。
@@ -92,7 +135,7 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   DM/Room 的 runtime 投递边界展开为一段简短的 Generative UI 提示；
 - `/workgraph [request]` 同样保留原始文本，只在投递边界要求模型加载
   `execution-orchestrator` 并为当前请求创建 fresh managed WorkGraph；它不保存模板；
-- `/<command> [request]` 从当前 owner 目录读取已保存的抽象责任节点、协作角色和依赖。
+- `/<command> [request]` 从有效模板目录读取内置或当前 owner 已保存的抽象责任节点、协作角色和依赖。
   每次调用必须创建新的 Execution/Plan/Work Item identity，
   不得复制源图的 Agent、状态、结果、Artifact 或审核事实；
 - 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用 owner 默认对话模型接收完整 source logical-key、父子层级和依赖，默认保留宿主标记的结构关键节点，并主要抽象具体任务语义。Draft 按 owner/session/source Execution 唯一并进入数据库，不进入命令目录；再次请求同一 source 直接恢复。每次修改保存不可变完整版本，`head_revision` 做 CAS，`selected_revision` 表达用户偏好。一个 Session 有多张 WorkGraph 时通过 exact execution_id/preview_id 区分。
@@ -128,5 +171,6 @@ atomic Slash 发送前会清理 bridge 尚未消费的旧隐藏上下文；Skill
 ## 维护规则
 
 - runtime 固定指令变化时，在升级 Nexus 支持的 runtime 版本时同步更新静态清单
-  和目录测试；项目 Skill、插件命令等动态内容不进入产品补全。owner 命名 WorkGraph 只从
+  和目录测试；项目 Skill、插件命令等动态内容不进入产品补全。系统 WorkGraph 模板只从
+  `internal/service/workgraphworkflow/builtins.go` 投影并保持只读；owner 命名 WorkGraph 只从
   `workgraph_workflows` 权威目录投影，并按 owner fence 读取、删除。

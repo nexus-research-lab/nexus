@@ -1,6 +1,6 @@
 /**
- * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示精简图标、可读的中性正交流程边与降饱和控制回连。
+ * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、中性正交流程边与降饱和控制回连。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -48,7 +48,10 @@ import {
   type ExecutionAgentDirectory,
   WORK_ITEM_STATUS_LABEL_KEY,
 } from "./execution-process-model";
-import { buildExecutionGraphLayout } from "./execution-workgraph-layout";
+import {
+  buildExecutionGraphLayout,
+  type ExecutionGraphNodePresentation,
+} from "./execution-workgraph-layout";
 import { ExecutionWorkGraphControls } from "./execution-workgraph-controls";
 import {
   clampExecutionGraphZoom,
@@ -57,6 +60,7 @@ import {
   projectExecutionGraphCollapse,
   resolveExecutionGraphAnchoredScroll,
   resolveExecutionGraphFitZoom,
+  resolveExecutionGraphInitialScroll,
   resolveExecutionGraphNodeAncestors,
   resolveExecutionGraphPanPadding,
   resolveExecutionGraphWheelZoom,
@@ -164,12 +168,14 @@ export function ExecutionWorkGraphCanvas({
   currentId,
   directory,
   execution,
+  nodePresentation = "icon",
   onOpenWorkspaceFile,
   taskRuns,
 }: {
   currentId: string | null;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
+  nodePresentation?: ExecutionGraphNodePresentation;
   onOpenWorkspaceFile?: (
     path: string,
     workspaceAgentId?: string | null,
@@ -217,8 +223,9 @@ export function ExecutionWorkGraphCanvas({
       execution,
       viewportSize.width || undefined,
       collapse.hiddenNodeIds,
+      nodePresentation,
     ),
-    [collapse.hiddenNodeIds, execution, viewportSize.width],
+    [collapse.hiddenNodeIds, execution, nodePresentation, viewportSize.width],
   );
   const searchResultIds = useMemo(
     () => searchExecutionGraphNodes(execution, query),
@@ -247,7 +254,7 @@ export function ExecutionWorkGraphCanvas({
         layout.width,
         selectedLayoutNode.x,
         selectedLayoutNode.y,
-        selectedLayoutNode.size,
+        selectedLayoutNode.width,
         zoom,
       )
     : undefined;
@@ -365,7 +372,7 @@ export function ExecutionWorkGraphCanvas({
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport) {
+    if (!viewport || viewportSize.height <= 0 || viewportSize.width <= 0) {
       return;
     }
     const pendingZoom = pendingZoomRef.current;
@@ -382,11 +389,28 @@ export function ExecutionWorkGraphCanvas({
       viewport.scrollLeft += panPaddingX - previousPadding.x;
       viewport.scrollTop += panPaddingY - previousPadding.y;
     } else {
-      viewport.scrollLeft = panPaddingX;
-      viewport.scrollTop = panPaddingY;
+      const initialScroll = resolveExecutionGraphInitialScroll({
+        contentHeight: layout.height,
+        contentWidth: layout.width,
+        panPaddingX,
+        panPaddingY,
+        viewportHeight: viewportSize.height,
+        viewportWidth: viewportSize.width,
+        zoom,
+      });
+      viewport.scrollLeft = initialScroll.left;
+      viewport.scrollTop = initialScroll.top;
     }
     panPaddingRef.current = { x: panPaddingX, y: panPaddingY };
-  }, [layout.height, layout.width, panPaddingX, panPaddingY, zoom]);
+  }, [
+    layout.height,
+    layout.width,
+    panPaddingX,
+    panPaddingY,
+    viewportSize.height,
+    viewportSize.width,
+    zoom,
+  ]);
 
   const revealNode = (nodeId: string | null) => {
     if (!nodeId) {
@@ -1026,12 +1050,18 @@ export function ExecutionWorkGraphCanvas({
             />
           ))}
 
-          {layout.nodes.map(({ item, node, size, x, y }) => {
+          {layout.nodes.map(({ height, item, node, size, width, x, y }) => {
             const owner = resolveExecutionGraphNodeAgent(directory, node, item);
             const status = resolveExecutionGraphNodeStatus(node, item);
             const selected = node.id === selectedId;
             const current = node.id === currentId;
             const title = graphNodeTitle(node, item, owner?.name, t);
+            const summaryHeading = item?.subject.trim()
+              || graphNodeHeading(node, item, t);
+            const summaryObjective = compactExecutionNodeObjective(
+              item?.objective ?? node.description ?? "",
+              owner?.name,
+            );
             const descendantCount = collapse.descendantCountByNodeId.get(node.id) ?? 0;
             const collapsed = collapsedNodeIds.has(node.id);
             return (
@@ -1039,10 +1069,19 @@ export function ExecutionWorkGraphCanvas({
               <button
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
-                className="absolute z-10 grid place-items-center rounded-[16px] transition-[left,top,transform] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                className={cn(
+                  "absolute z-10 transition-[left,top,transform,border-color,box-shadow] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
+                  nodePresentation === "summary"
+                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-[0_5px_18px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))] hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--shadow-color)_13%,transparent)]"
+                    : "grid place-items-center rounded-[16px]",
+                  selected
+                    && nodePresentation === "summary"
+                    && "border-(--primary) ring-2 ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]",
+                )}
                 data-execution-attempt-id={node.attempt_id || undefined}
                 data-execution-current-node={current ? "true" : undefined}
                 data-execution-graph-node-id={node.id}
+                data-execution-node-presentation={nodePresentation}
                 data-execution-node-selected={selected ? "true" : undefined}
                 data-execution-work-item-id={node.work_item_id || undefined}
                 onClick={() => {
@@ -1050,26 +1089,62 @@ export function ExecutionWorkGraphCanvas({
                   setSelectedId(node.id);
                 }}
                 style={{
-                  height: size + 8,
-                  left: x - (size + 8) / 2,
-                  top: y - (size + 8) / 2,
-                  width: size + 8,
+                  height: nodePresentation === "summary" ? height : size + 8,
+                  left: x - (nodePresentation === "summary" ? width : size + 8) / 2,
+                  top: y - (nodePresentation === "summary" ? height : size + 8) / 2,
+                  width: nodePresentation === "summary" ? width : size + 8,
                 }}
                 title={title}
                 type="button"
               >
-                <ExecutionNodeAvatar
-                  agent={owner}
-                  current={current}
-                  kind={node.kind}
-                  selected={selected}
-                  size={node.kind === "subagent" || node.kind === "tool"
-                    ? "nested"
-                    : "graph"}
-                  status={status}
-                  title={title}
-                  toolName={node.name}
-                />
+                {nodePresentation === "summary" ? (
+                  <>
+                    <ExecutionNodeAvatar
+                      agent={owner}
+                      current={current}
+                      kind={node.kind}
+                      selected={selected}
+                      size="nested"
+                      status={status}
+                      title={title}
+                      toolName={node.name}
+                    />
+                    <span className="min-h-0 min-w-0 overflow-hidden">
+                      <span className="flex min-w-0 items-center gap-1">
+                        <span className="min-w-0 flex-1 truncate text-xs font-semibold leading-4 text-(--text-strong)">
+                          {summaryHeading}
+                        </span>
+                        {item?.terminal ? (
+                          <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-muted-background))] px-1.5 py-0.5 text-[9px] font-medium leading-3 text-(--primary)">
+                            {t("execution.workflow_terminal_short")}
+                          </span>
+                        ) : item?.required ? (
+                          <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[9px] font-medium leading-3 text-(--text-soft)">
+                            {t("execution.required")}
+                          </span>
+                        ) : null}
+                      </span>
+                      {summaryObjective ? (
+                        <span className="mt-0.5 line-clamp-2 max-h-[30px] overflow-hidden text-[10px] leading-[15px] text-(--text-muted)">
+                          {summaryObjective}
+                        </span>
+                      ) : null}
+                    </span>
+                  </>
+                ) : (
+                  <ExecutionNodeAvatar
+                    agent={owner}
+                    current={current}
+                    kind={node.kind}
+                    selected={selected}
+                    size={node.kind === "subagent" || node.kind === "tool"
+                      ? "nested"
+                      : "graph"}
+                    status={status}
+                    title={title}
+                    toolName={node.name}
+                  />
+                )}
               </button>
               {descendantCount > 0 ? (
                 <button
@@ -1090,8 +1165,8 @@ export function ExecutionWorkGraphCanvas({
                     return next;
                   })}
                   style={{
-                    left: x + size / 2 - 5,
-                    top: y + size / 2 - 5,
+                    left: x + width / 2 - 5,
+                    top: y + height / 2 - 5,
                   }}
                   title={collapsed
                     ? t("execution.expand_node")

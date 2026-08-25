@@ -1,5 +1,5 @@
 // INPUT: Room 用户输入、owner-scoped Slash 展开、内部触发与当前 round/queue 状态。
-// OUTPUT: 保留共享消息原文、向 runtime 投递展开内容的串行 Room round。
+// OUTPUT: 保留共享消息原文、把 Slash 作为独立原子输入投递给 runtime 的串行 Room round。
 // POS: Room 输入从受理到 runtime 启动的原子交接边界。
 package realtime
 
@@ -22,6 +22,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -37,6 +38,7 @@ type roomChatExecution struct {
 	contextValue       *protocol.ConversationContextAggregate
 	attachments        []protocol.ChatAttachment
 	runtimeTriggerText string
+	atomicRuntimeInput string
 	agentNameByID      map[string]string
 	agentByID          map[string]*protocol.Agent
 	targetAgentIDs     []string
@@ -228,6 +230,12 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	if err != nil {
 		return nil, err
 	}
+	runtimeTriggerText := expandedRuntimeContent
+	atomicRuntimeInput := ""
+	if conversationsvc.IsSlashCommandInput(request.Content) {
+		runtimeTriggerText = strings.TrimSpace(request.Content)
+		atomicRuntimeInput = expandedRuntimeContent
+	}
 	if _, err = s.renderRuntimeContentWithAttachments(ctx, expandedRuntimeContent, attachments); err != nil {
 		return nil, err
 	}
@@ -320,7 +328,8 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		conversationID:     conversationID,
 		contextValue:       contextValue,
 		attachments:        attachments,
-		runtimeTriggerText: expandedRuntimeContent,
+		runtimeTriggerText: runtimeTriggerText,
+		atomicRuntimeInput: atomicRuntimeInput,
 		agentNameByID:      agentNameByID,
 		agentByID:          agentByID,
 		targetAgentIDs:     targetAgentIDs,
@@ -737,6 +746,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			HiddenFromUser:        activeRound.Internal || activeRound.InputOptions.HiddenFromUser,
 			Trigger:               slotTrigger,
 			TriggerAttachments:    e.attachments,
+			AtomicRuntimeInput:    strings.TrimSpace(e.atomicRuntimeInput),
 		}
 		slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 		slot.setStatus("pending")

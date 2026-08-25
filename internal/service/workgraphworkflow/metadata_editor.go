@@ -329,15 +329,22 @@ func (s *Service) ReviseEditorPreview(
 	if err != nil {
 		return nil, err
 	}
-	if _, reserved := reservedWorkflowSlashNames[next.SlashName]; reserved {
-		return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)
+	savedID := ""
+	if draft, draftErr := s.loadDraftByID(ctx, ownerUserID, record.previewID); draftErr != nil {
+		return nil, draftErr
+	} else {
+		savedID = savedWorkflowID(draft)
 	}
 	if s.repository != nil {
 		existing, lookupErr := s.repository.GetBySlashName(ctx, ownerUserID, next.SlashName)
 		if lookupErr != nil {
 			return nil, lookupErr
 		}
-		if existing != nil {
+		if _, reserved := reservedWorkflowSlashNames[next.SlashName]; reserved &&
+			!canKeepLegacyBuiltinSlashName(next.SlashName, existing, savedID) {
+			return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)
+		}
+		if existing != nil && existing.ID != savedID {
 			return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)
 		}
 	}

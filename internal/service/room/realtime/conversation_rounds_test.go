@@ -7,16 +7,18 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestRoomChatExecutionBuildRoundUsesRuntimeTriggerText(t *testing.T) {
+func TestRoomChatExecutionBuildRoundSeparatesSlashTriggerFromAtomicRuntimeInput(t *testing.T) {
+	const rawSlash = "/visualize quarterly revenue"
 	const runtimePrompt = "Use Generative UI to create an interactive visual"
 	execution := roomChatExecution{
 		ctx: context.Background(),
 		request: ChatRequest{
-			Content:       "/visualize quarterly revenue",
+			Content:       rawSlash,
 			RoundID:       "round-visualize",
 			UserMessageID: "message-visualize",
 		},
-		runtimeTriggerText: runtimePrompt,
+		runtimeTriggerText: rawSlash,
+		atomicRuntimeInput: runtimePrompt,
 		contextValue: &protocol.ConversationContextAggregate{
 			Room: protocol.RoomRecord{RoomType: protocol.RoomTypeGroup},
 			Sessions: []protocol.SessionRecord{{
@@ -36,8 +38,11 @@ func TestRoomChatExecutionBuildRoundUsesRuntimeTriggerText(t *testing.T) {
 
 	roundValue, _ := execution.buildRound()
 	for _, slot := range roundValue.Slots {
-		if slot.Trigger.Content != runtimePrompt {
-			t.Fatalf("Room trigger = %q, want runtime-only prompt", slot.Trigger.Content)
+		if slot.Trigger.Content != rawSlash {
+			t.Fatalf("Room trigger = %q, want raw Slash %q", slot.Trigger.Content, rawSlash)
+		}
+		if slot.AtomicRuntimeInput != runtimePrompt {
+			t.Fatalf("Room atomic runtime input = %q, want %q", slot.AtomicRuntimeInput, runtimePrompt)
 		}
 		return
 	}

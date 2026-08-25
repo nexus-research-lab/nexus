@@ -1,5 +1,5 @@
-// INPUT: Room slot、trusted WorkBinding/ReviewBinding、运行时消息流、实时插话确认与 Goal 执行上下文。
-// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、usage barrier 与 producer root Attempt 终态。
+// INPUT: Room slot、原子 Slash 输入、trusted WorkBinding/ReviewBinding、运行时消息流、实时插话确认与 Goal 执行上下文。
+// OUTPUT: 单个 Room Agent round 的精确 runtime 输入、ACK 门控事件、持久化快照、usage barrier 与 producer root Attempt 终态。
 // POS: Room 实时编排中把 runtime 输出投影为产品语义及结构化工作终态的执行主链。
 
 package realtime
@@ -503,6 +503,20 @@ func (e *slotExecution) closeUncommittedForkRuntime(client runtimectx.Client, fo
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
+	if atomicInput := strings.TrimSpace(e.slot.AtomicRuntimeInput); atomicInput != "" {
+		if err := e.service.recordPrivateRoundMarker(e.round, e.slot, atomicInput); err != nil {
+			return nil, err
+		}
+		runtimeContent, err := e.service.renderRuntimeContentWithAttachments(
+			e.ctx,
+			atomicInput,
+			e.slot.TriggerAttachments,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return runtimeContent.Payload(), nil
+	}
 	dispatchPrompt, err := e.service.buildSlotVisibleContext(e.ctx, e.round, e.slot, e.history, e.agentNameByID)
 	if err != nil {
 		return nil, err
