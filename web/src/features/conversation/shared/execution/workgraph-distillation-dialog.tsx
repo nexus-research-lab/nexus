@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
@@ -29,9 +29,8 @@ import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import type { Agent } from "@/types/agent/agent";
 import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
-import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import { WorkGraphMetadataEditorDialog } from "./workgraph-metadata-editor-dialog";
-import { projectWorkGraphWorkflowCanvasExecution } from "./workgraph-workflow-canvas-model";
+import { WorkGraphWorkflowCanvasPreview } from "./workgraph-workflow-canvas-preview";
 import { useWorkGraphSlashNameAvailability } from "./use-workgraph-slash-name-availability";
 
 const WORKGRAPH_SLASH_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
@@ -81,11 +80,6 @@ export function WorkGraphDistillationDialog({
     : !title.trim() || !description.trim()
       ? t("execution.workflow_metadata_required")
       : null;
-  const canvasExecution = useMemo(
-    () => projectWorkGraphWorkflowCanvasExecution(workingPreview, 1),
-    [workingPreview],
-  );
-
   const handleSave = async () => {
     setSaveState("saving");
     setSaveError(null);
@@ -262,14 +256,11 @@ export function WorkGraphDistillationDialog({
                   {t("execution.workflow_edit_with_chat")}
                 </button>
               </header>
-              <div className="flex min-h-0 flex-1">
-                <ExecutionWorkGraphCanvas
-                  currentId={null}
-                  directory={{}}
-                  execution={canvasExecution}
-                  taskRuns={[]}
-                />
-              </div>
+              <WorkGraphWorkflowCanvasPreview
+                className="flex-1"
+                revision={1}
+                workflow={workingPreview}
+              />
             </main>
           </div>
         </UiDialogShell>

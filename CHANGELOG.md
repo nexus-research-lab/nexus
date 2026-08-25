@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
+
+### Fixed
+
+- Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
+- Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
+
 ## [0.1.38] - 2026-08-24
 
 ### Added

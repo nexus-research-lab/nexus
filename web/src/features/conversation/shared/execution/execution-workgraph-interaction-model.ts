@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、平移、缩放及焦点意图。
- * OUTPUT: 可隐藏节点、祖先路径、全文检索结果、有界 viewport 比例、对称平移留白与焦点稳定的缩放滚动位置。
+ * OUTPUT: 可隐藏节点、祖先路径、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白与焦点稳定的缩放滚动位置。
  * POS: WorkGraph 画布的纯交互模型；不改变后端拓扑、节点状态或 Agent 路线。
  */
 import type {
@@ -132,6 +132,42 @@ export function resolveExecutionGraphPanPadding(viewportExtent: number): number 
     EXECUTION_GRAPH_MIN_PAN_PADDING,
     Math.floor(viewportExtent / 2),
   );
+}
+
+export function resolveExecutionGraphInitialScroll({
+  contentHeight,
+  contentWidth,
+  panPaddingX,
+  panPaddingY,
+  viewportHeight,
+  viewportWidth,
+  zoom,
+}: {
+  contentHeight: number;
+  contentWidth: number;
+  panPaddingX: number;
+  panPaddingY: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  zoom: number;
+}): { left: number; top: number } {
+  const safeZoom = clampExecutionGraphZoom(zoom);
+  const scaledHeight = Math.max(0, contentHeight) * safeZoom;
+  const scaledWidth = Math.max(0, contentWidth) * safeZoom;
+  const safeViewportHeight = Math.max(0, viewportHeight);
+  const safeViewportWidth = Math.max(0, viewportWidth);
+  return {
+    left: Math.max(
+      0,
+      panPaddingX + scaledWidth / 2 - safeViewportWidth / 2,
+    ),
+    top: scaledHeight <= safeViewportHeight
+      ? Math.max(
+          0,
+          panPaddingY + scaledHeight / 2 - safeViewportHeight / 2,
+        )
+      : Math.max(0, panPaddingY),
+  };
 }
 
 export function resolveExecutionGraphAnchoredScroll({

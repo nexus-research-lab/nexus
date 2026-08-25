@@ -29,20 +29,21 @@ func (s *Service) CheckSlashNameAvailability(
 		return nil, errors.New("workgraph workflow service is unavailable")
 	}
 	result := &protocol.WorkGraphWorkflowSlashNameAvailability{SlashName: slashName}
-	if _, reserved := reservedWorkflowSlashNames[slashName]; reserved {
-		return result, nil
-	}
 	existing, err := s.repository.GetBySlashName(ctx, ownerUserID, slashName)
 	if err != nil {
 		return nil, err
 	}
-	if existing == nil {
-		result.Available = true
-		return result, nil
-	}
 	savedWorkflowID, err := s.savedWorkflowIDForPreview(ctx, ownerUserID, previewID)
 	if err != nil {
 		return nil, err
+	}
+	if _, reserved := reservedWorkflowSlashNames[slashName]; reserved {
+		result.Available = canKeepLegacyBuiltinSlashName(slashName, existing, savedWorkflowID)
+		return result, nil
+	}
+	if existing == nil {
+		result.Available = true
+		return result, nil
 	}
 	result.Available = existing.ID == savedWorkflowID
 	return result, nil

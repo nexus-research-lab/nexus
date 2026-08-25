@@ -1,5 +1,5 @@
 // INPUT: explicit waiting_input/resume command 与 active Plan current projection。
-// OUTPUT: Work Item lifecycle CAS、阻塞时旧 Assignment/执行链收束、派生 readiness 与 completion blockers。
+// OUTPUT: Work Item lifecycle CAS、跨同一 Execution Plan revision 的稳定验收继承、派生 readiness 与 completion blockers。
 // POS: stable state 和 delivery projection 不重复持久化的边界。
 package orchestration
 
@@ -286,11 +286,13 @@ func (r *Repository) workEligible(
 	var accepted int
 	if err = queryer.QueryRowContext(ctx, `
 SELECT COUNT(1)
-FROM execution_acceptances
-WHERE plan_id = `+r.bind(1)+`
-  AND work_item_id = `+r.bind(2)+`
-  AND spec_id = `+r.bind(3)+`
-  AND decision = 'accepted'`,
+FROM execution_acceptances acceptance
+JOIN execution_plan_revisions active_plan
+  ON active_plan.plan_id = `+r.bind(1)+`
+ AND active_plan.execution_id = acceptance.execution_id
+WHERE acceptance.work_item_id = `+r.bind(2)+`
+  AND acceptance.spec_id = `+r.bind(3)+`
+  AND acceptance.decision = 'accepted'`,
 		planID, workItemID, specID,
 	).Scan(&accepted); err != nil {
 		return false, "", err
@@ -311,7 +313,7 @@ WHERE dependency.plan_id = `+r.bind(1)+`
   AND NOT EXISTS (
       SELECT 1
       FROM execution_acceptances acceptance
-      WHERE acceptance.plan_id = dependency.plan_id
+      WHERE acceptance.execution_id = dependency.execution_id
         AND acceptance.work_item_id = upstream.work_item_id
         AND acceptance.spec_id = upstream.spec_id
         AND acceptance.decision = 'accepted'
@@ -329,8 +331,10 @@ SELECT COUNT(1)
 FROM execution_submissions submission
 LEFT JOIN execution_acceptances acceptance
   ON acceptance.submission_id = submission.submission_id
-WHERE submission.plan_id = `+r.bind(1)+`
-  AND submission.work_item_id = `+r.bind(2)+`
+JOIN execution_plan_revisions active_plan
+  ON active_plan.plan_id = `+r.bind(1)+`
+ AND active_plan.execution_id = submission.execution_id
+WHERE submission.work_item_id = `+r.bind(2)+`
   AND submission.spec_id = `+r.bind(3)+`
   AND acceptance.acceptance_id IS NULL`,
 		planID, workItemID, specID,

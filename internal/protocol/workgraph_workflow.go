@@ -1,6 +1,6 @@
-// INPUT: 当前/历史 managed Execution 经模型抽取的结构草图、不可变编辑版本与隔离后台保存请求。
-// OUTPUT: 可恢复 Draft、可选择的版本、Slash 名称可用性、可预览或跨 Session 调用的命名 WorkGraph；保存 capability 不携带运行事实。
-// POS: WorkGraph 提取、查询、对话编辑、版本选择、独立内部 Session 保存、Slash 目录和 runtime prompt 展开共用的跨边界协议。
+// INPUT: 系统内置结构模板、当前/历史 managed Execution 经模型抽取的结构草图、不可变编辑版本与隔离后台保存请求。
+// OUTPUT: 可恢复 Draft、可选择的版本、Slash 名称可用性、只读内置或 owner 保存的命名 WorkGraph；保存 capability 不携带运行事实。
+// POS: WorkGraph 模板、提取、查询、对话编辑、版本选择、独立内部 Session 保存、Slash 目录和 runtime prompt 展开共用的跨边界协议。
 package protocol
 
 import "time"
@@ -18,6 +18,7 @@ const (
 type WorkGraphWorkflow struct {
 	ID                 string                        `json:"id"`
 	OwnerUserID        string                        `json:"-"`
+	BuiltIn            bool                          `json:"built_in,omitempty"`
 	SlashName          string                        `json:"slash_name"`
 	Title              string                        `json:"title"`
 	Description        string                        `json:"description,omitempty"`
@@ -142,7 +143,7 @@ type WorkGraphWorkflowSourceSummary struct {
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
-// WorkGraphWorkflowLibrary 把一个 Session 的来源图、Draft 与 owner 命名图统一投影给 Skill。
+// WorkGraphWorkflowLibrary 把一个 Session 的来源图、Draft、只读内置模板与 owner 命名图统一投影给 Skill。
 type WorkGraphWorkflowLibrary struct {
 	Sources   []WorkGraphWorkflowSourceSummary `json:"sources"`
 	Drafts    []WorkGraphWorkflowDraftSummary  `json:"drafts"`
