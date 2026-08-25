@@ -102,10 +102,11 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 		"delete-room",
 	)
 	topicAgentADBSessionID := findRoomSessionID(t, topicContextAfterAdd, agentA.AgentID)
-	if err = roomService.UpdateSessionSDKSessionID(
+	if err = roomService.UpdateSessionRuntimeIdentity(
 		ctx,
 		topicAgentADBSessionID,
 		"sdk-topic-agent-a",
+		"",
 	); err != nil {
 		t.Fatalf("写入待清理 SDK session_id 失败: %v", err)
 	}

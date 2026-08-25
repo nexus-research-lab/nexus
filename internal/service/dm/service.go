@@ -311,7 +311,7 @@ type ExternalReplyDispatcher interface {
 
 type roomSessionStore interface {
 	GetRoomSessionByKey(context.Context, string, protocol.SessionKey) (*protocol.Session, error)
-	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
+	UpdateRoomSessionRuntimeIdentity(context.Context, string, string, string) error
 }
 
 type roomConversationActivityStore interface {

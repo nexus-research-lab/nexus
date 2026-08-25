@@ -426,6 +426,35 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 		agentPeer.AgentID,
 		protocol.RoomTypeGroup,
 	)
+	primaryRoomSession, err := sessionService.GetSession(ctx, primaryRoomKey)
+	if err != nil || primaryRoomSession.RoomSessionID == nil {
+		t.Fatalf("读取群聊成员 Session 失败: session=%+v err=%v", primaryRoomSession, err)
+	}
+	if err = roomService.UpdateSessionRuntimeIdentity(
+		ctx,
+		*primaryRoomSession.RoomSessionID,
+		"group-runtime-session",
+		"surface-before-settings",
+	); err != nil {
+		t.Fatalf("预写入 Room runtime identity 失败: %v", err)
+	}
+	staleOptions := protocol.WithSessionRuntimeSettings(primaryRoomSession.Options, want)
+	repository := sessionrepo.NewSQLRepository(cfg.DatabaseDriver, db)
+	if _, err = repository.UpdateRoomConversationRuntimeSettings(
+		ctx,
+		*primaryRoomSession.RoomSessionID,
+		staleOptions,
+		want.PermissionMode,
+	); err != nil {
+		t.Fatalf("用旧设置快照更新 Room Session 失败: %v", err)
+	}
+	primaryRoomSession, err = sessionService.GetSession(ctx, primaryRoomKey)
+	if err != nil {
+		t.Fatalf("重读群聊成员 Session 失败: %v", err)
+	}
+	if primaryRoomSession.Options[protocol.OptionRuntimeToolSurfaceFingerprint] != "surface-before-settings" {
+		t.Fatalf("旧设置快照不应覆盖 runtime 工具面基线: %+v", primaryRoomSession.Options)
+	}
 	peerSettings := protocol.SessionRuntimeSettings{
 		Provider:       "peer-session-provider",
 		Model:          "peer-session-model",
@@ -589,10 +618,11 @@ func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	repository := sessionrepo.NewSQLRepository(cfg.DatabaseDriver, db)
-	committed, err := repository.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+	committed, err := repository.UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
 		ctx,
 		*roomSession.RoomSessionID,
 		"stale-fork-session",
+		"stale-surface",
 		staleSelection,
 	)
 	if err != nil || committed {
@@ -612,10 +642,11 @@ func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	currentSelection := protocol.SessionConnectorSelectionFromOptions(current.Options)
-	committed, err = repository.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+	committed, err = repository.UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
 		ctx,
 		*roomSession.RoomSessionID,
 		"current-fork-session",
+		"current-surface",
 		currentSelection,
 	)
 	if err != nil || !committed {
@@ -638,6 +669,9 @@ func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
 	}
 	if retained := protocol.RetainedTranscriptSessionIDsFromOptions(reloaded.Options); len(retained) != 1 || retained[0] != "source-fork-session" {
 		t.Fatalf("fork source 清理所有权=%v", retained)
+	}
+	if reloaded.Options[protocol.OptionRuntimeToolSurfaceFingerprint] != "current-surface" {
+		t.Fatalf("fork identity 未与工具面基线共同提交: %+v", reloaded.Options)
 	}
 }
 

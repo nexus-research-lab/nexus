@@ -300,10 +300,11 @@ func (s *fakeDMRoomSessionStore) GetRoomSessionByKey(
 	return &copy, nil
 }
 
-func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+func (s *fakeDMRoomSessionStore) UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
 	_ context.Context,
 	roomSessionID string,
 	sdkSessionID string,
+	toolSurfaceFingerprint string,
 	expected protocol.SessionConnectorSelection,
 ) (bool, error) {
 	s.mu.Lock()
@@ -320,6 +321,10 @@ func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionIDAtConnectorSelecti
 			item.TranscriptSessionIDs,
 			[]string{sdkSessionID},
 		)
+		if item.Options == nil {
+			item.Options = map[string]any{}
+		}
+		item.Options[protocol.OptionRuntimeToolSurfaceFingerprint] = strings.TrimSpace(toolSurfaceFingerprint)
 		s.sessions[key] = item
 		s.updates = append(s.updates, fakeDMRoomSessionUpdate{
 			roomSessionID: strings.TrimSpace(roomSessionID),
@@ -330,10 +335,11 @@ func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionIDAtConnectorSelecti
 	return false, nil
 }
 
-func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionID(
+func (s *fakeDMRoomSessionStore) UpdateRoomSessionRuntimeIdentity(
 	_ context.Context,
 	roomSessionID string,
 	sdkSessionID string,
+	_ string,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

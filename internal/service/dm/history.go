@@ -506,8 +506,9 @@ func (s *sdkSessionSync) syncRoomSession(updated protocol.Session) error {
 	}
 	if s.expectedConnectorSelection != nil {
 		store, ok := s.service.roomStore.(interface {
-			UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+			UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
 				context.Context,
+				string,
 				string,
 				string,
 				protocol.SessionConnectorSelection,
@@ -516,10 +517,11 @@ func (s *sdkSessionSync) syncRoomSession(updated protocol.Session) error {
 		if !ok {
 			return errors.New("Room Session store 不支持 Connector 选择版本栅栏")
 		}
-		committed, err := store.UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+		committed, err := store.UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
 			s.ctx,
 			roomSessionID,
 			s.nextSessionID,
+			s.nextFingerprint.toolSurface,
 			*s.expectedConnectorSelection,
 		)
 		if err != nil {
@@ -530,7 +532,12 @@ func (s *sdkSessionSync) syncRoomSession(updated protocol.Session) error {
 		}
 		return nil
 	}
-	return s.service.roomStore.UpdateRoomSessionSDKSessionID(s.ctx, roomSessionID, s.nextSessionID)
+	return s.service.roomStore.UpdateRoomSessionRuntimeIdentity(
+		s.ctx,
+		roomSessionID,
+		s.nextSessionID,
+		s.nextFingerprint.toolSurface,
+	)
 }
 
 func (s *Service) canPersistSDKSessionIDForOwner(
@@ -609,7 +616,7 @@ func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Se
 	if roomSessionID == "" {
 		return nil
 	}
-	return s.roomStore.UpdateRoomSessionSDKSessionID(ctx, roomSessionID, "")
+	return s.roomStore.UpdateRoomSessionRuntimeIdentity(ctx, roomSessionID, "", "")
 }
 
 func (s *Service) preservePersistedSessionTitle(

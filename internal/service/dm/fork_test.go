@@ -37,7 +37,7 @@ func (s forkRoomSessionStore) GetRoomSessionByKey(
 	return &copy, nil
 }
 
-func (s forkRoomSessionStore) UpdateRoomSessionSDKSessionID(context.Context, string, string) error {
+func (s forkRoomSessionStore) UpdateRoomSessionRuntimeIdentity(context.Context, string, string, string) error {
 	return s.updateErr
 }
 

@@ -264,6 +264,145 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	if updatedContext.Sessions[0].SDKSessionID != client.sessionID {
 		t.Fatalf("room sdk_session_id 未回写数据库: %+v", updatedContext.Sessions[0])
 	}
+	fingerprint, _ := updatedContext.Sessions[0].Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
+	if strings.TrimSpace(fingerprint) == "" {
+		t.Fatalf("room SDK session 未同步持久化工具面基线: %+v", updatedContext.Sessions[0])
+	}
+}
+
+func TestRealtimeServiceForksLegacyRoomSessionForConnectorToolSurface(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "飞书助手")
+	agentOptions := agentValue.Options
+	agentOptions.ConnectorIDs = []string{"feishu-docx"}
+	agentValue, err = agentService.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{
+		Options: &agentOptions,
+	})
+	if err != nil {
+		t.Fatalf("开启 Agent Connector 失败: %v", err)
+	}
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "Connector 换代房间",
+		Title:    "老会话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	db, err = sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer db.Close()
+	legacySessionID := "77777777-7777-4777-8777-777777777777"
+	if _, err = db.Exec(
+		`UPDATE sessions SET sdk_session_id = ? WHERE id = ?`,
+		legacySessionID,
+		roomContext.Sessions[0].ID,
+	); err != nil {
+		t.Fatalf("预写入旧 Room SDK session 失败: %v", err)
+	}
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, legacySessionID, []map[string]any{{
+		"type":       "result",
+		"session_id": legacySessionID,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339Nano),
+	}})
+
+	newSessionID := "88888888-8888-4888-8888-888888888888"
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, newSessionID, []map[string]any{{
+		"type":       "result",
+		"session_id": newSessionID,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339Nano),
+	}})
+	client := newFakeRoomClient()
+	client.sessionID = ""
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: newSessionID,
+				UUID:      "room-result-tool-surface-fork",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		factory,
+	)
+	service.SetMCPServerBuilder(func(
+		context.Context,
+		*protocol.Agent,
+		string,
+		string,
+		string,
+		string,
+		string,
+		*atomic.Int64,
+		sdkpermission.Mode,
+	) map[string]sdkmcp.ServerConfig {
+		return map[string]sdkmcp.ServerConfig{
+			"feishu-docx": sdkmcp.StdioServerConfig{Command: "feishu-docx"},
+		}
+	})
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-tool-surface-fork-sender")
+	permission.BindSession(sharedSessionKey, sender)
+	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "请使用飞书文档",
+		RoundID:        "room-round-tool-surface-fork",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Session.ResumeID != legacySessionID || !options.Session.Fork {
+		t.Fatalf("旧 Room 工具面无基线时应从旧 transcript fork: %+v", options.Session)
+	}
+	expectedFingerprint, _, err := runtimectx.ModelToolSurfaceFingerprint(ctx, options)
+	if err != nil {
+		t.Fatalf("计算期望工具面指纹失败: %v", err)
+	}
+	updatedContext, err := roomService.GetConversationContext(ctx, roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取换代后的 Room context 失败: %v", err)
+	}
+	updatedSession := updatedContext.Sessions[0]
+	if updatedSession.SDKSessionID != newSessionID {
+		t.Fatalf("未持久化 fork 后的 SDK session: %+v", updatedSession)
+	}
+	if updatedSession.Options[protocol.OptionRuntimeToolSurfaceFingerprint] != expectedFingerprint {
+		t.Fatalf("未与 SDK session 原子持久化工具面指纹: %+v", updatedSession.Options)
+	}
 }
 
 func TestRealtimeServiceSkipsRoomSDKSessionIDWhenTranscriptMissing(t *testing.T) {
@@ -473,6 +612,10 @@ func TestRealtimeServiceDoesNotPersistRoomSDKSessionIDWithoutTranscript(t *testi
 	}
 	if strings.TrimSpace(updatedContext.Sessions[0].SDKSessionID) != "" {
 		t.Fatalf("transcript 未落盘时不应写入 room sdk_session_id: %+v", updatedContext.Sessions[0])
+	}
+	fingerprint, _ := updatedContext.Sessions[0].Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
+	if strings.TrimSpace(fingerprint) != "" {
+		t.Fatalf("transcript 未落盘时不应前移工具面基线: %+v", updatedContext.Sessions[0])
 	}
 }
 

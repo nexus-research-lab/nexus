@@ -46,7 +46,7 @@ func (s *authorityFenceRoomStore) GetConversationContextForSystem(
 	return s.snapshot(), nil
 }
 
-func (*authorityFenceRoomStore) UpdateSessionSDKSessionID(context.Context, string, string) error {
+func (*authorityFenceRoomStore) UpdateSessionRuntimeIdentity(context.Context, string, string, string) error {
 	return nil
 }
 

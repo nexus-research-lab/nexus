@@ -1,5 +1,5 @@
-// INPUT: owner-scoped Room session 查询与 SDK session ID 回写。
-// OUTPUT: Room session 视图及遵循 Room-first 锁顺序的 session mutation。
+// INPUT: owner-scoped Room session 查询、runtime identity 与 Session 设置。
+// OUTPUT: Room session 视图及遵循 Room-first 锁顺序的 identity/设置原子 mutation。
 // POS: Session service 的 Room SQL 投影仓储；写入不得先锁 session 再访问 Room。
 package sessionrepo
 
@@ -86,41 +86,46 @@ LIMIT 1`, ownerUserID, key.AgentID, key.Ref)
 	return &item, nil
 }
 
-// UpdateRoomSessionSDKSessionID 回写 Room 成员会话的 sdk_session_id。
-func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
+// UpdateRoomSessionRuntimeIdentity 原子回写 Room 成员会话的 runtime identity。
+func (r *SQLRepository) UpdateRoomSessionRuntimeIdentity(
 	ctx context.Context,
 	roomSessionID string,
 	sdkSessionID string,
+	toolSurfaceFingerprint string,
 ) error {
-	_, err := r.updateRoomSessionSDKSessionID(
+	_, err := r.updateRoomSessionRuntimeIdentity(
 		ctx,
 		roomSessionID,
 		sdkSessionID,
+		toolSurfaceFingerprint,
 		nil,
 	)
 	return err
 }
 
-// UpdateRoomSessionSDKSessionIDAtConnectorSelection 仅在 SQL Session 的 Connector
+// UpdateRoomSessionRuntimeIdentityAtConnectorSelection 仅在 SQL Session 的 Connector
 // 选择仍等于后台预备快照时提交 fork identity。
-func (r *SQLRepository) UpdateRoomSessionSDKSessionIDAtConnectorSelection(
+func (r *SQLRepository) UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
 	ctx context.Context,
 	roomSessionID string,
 	sdkSessionID string,
+	toolSurfaceFingerprint string,
 	expected protocol.SessionConnectorSelection,
 ) (bool, error) {
-	return r.updateRoomSessionSDKSessionID(
+	return r.updateRoomSessionRuntimeIdentity(
 		ctx,
 		roomSessionID,
 		sdkSessionID,
+		toolSurfaceFingerprint,
 		&expected,
 	)
 }
 
-func (r *SQLRepository) updateRoomSessionSDKSessionID(
+func (r *SQLRepository) updateRoomSessionRuntimeIdentity(
 	ctx context.Context,
 	roomSessionID string,
 	sdkSessionID string,
+	toolSurfaceFingerprint string,
 	expected *protocol.SessionConnectorSelection,
 ) (bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -164,6 +169,12 @@ JOIN conversations c ON c.id = s.conversation_id
 		currentOptions,
 		[]string{current.String, sdkSessionID},
 	)
+	toolSurfaceFingerprint = strings.TrimSpace(toolSurfaceFingerprint)
+	if strings.TrimSpace(sdkSessionID) == "" || toolSurfaceFingerprint == "" {
+		delete(options, protocol.OptionRuntimeToolSurfaceFingerprint)
+	} else {
+		options[protocol.OptionRuntimeToolSurfaceFingerprint] = toolSurfaceFingerprint
+	}
 	if strings.TrimSpace(sdkSessionID) != "" {
 		forkSourceSessionID, _ := options[protocol.OptionRuntimeForkSourceSessionID].(string)
 		options = protocol.WithRetainedTranscriptSessionIDs(options, []string{forkSourceSessionID})
@@ -211,6 +222,21 @@ func (r *SQLRepository) UpdateRoomConversationRuntimeSettings(
 	defer func() {
 		_ = tx.Rollback()
 	}()
+	var roomID string
+	err = tx.QueryRowContext(ctx, `
+SELECT c.room_id
+FROM sessions s
+JOIN conversations c ON c.id = s.conversation_id
+WHERE s.id = `+r.dialect.Bind(1), roomSessionID).Scan(&roomID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, sql.ErrNoRows
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = storage.LockRoomForMutation(ctx, tx, r.dialect, "", roomID); err != nil {
+		return nil, err
+	}
 
 	rows, err := tx.QueryContext(ctx, `
 SELECT sibling.id, sibling.options_json
@@ -251,13 +277,14 @@ WHERE target.id = `+r.dialect.Bind(1)+`
 		return nil, sql.ErrNoRows
 	}
 
+	targetSettings := protocol.SessionRuntimeSettingsFromOptions(targetOptions)
 	directories := protocol.SessionAdditionalDirectoriesFromOptions(targetOptions)
 	for _, item := range sessionOptions {
 		options := item.options
-		if item.id == roomSessionID {
-			options = targetOptions
-		}
 		settings := protocol.SessionRuntimeSettingsFromOptions(options)
+		if item.id == roomSessionID {
+			settings = targetSettings
+		}
 		settings.PermissionMode = permissionMode
 		options = protocol.WithSessionRuntimeSettings(options, settings)
 		options = protocol.WithSessionAdditionalDirectories(options, directories)

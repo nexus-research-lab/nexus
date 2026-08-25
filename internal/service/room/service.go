@@ -60,7 +60,7 @@ type Repository interface {
 	DeleteConversationAtVersion(context.Context, string, string, string, int64) (*protocol.ConversationContextAggregate, error)
 	SetRoomDraftConversation(context.Context, string, string, string) error
 	HasConversationReferences(context.Context, string, string, string, []string) (bool, error)
-	UpdateSessionSDKSessionID(context.Context, string, string) error
+	UpdateSessionRuntimeIdentity(context.Context, string, string, string) error
 	TouchConversationActivity(context.Context, string, time.Time) error
 	MarkConversationStarted(context.Context, string, time.Time) error
 }

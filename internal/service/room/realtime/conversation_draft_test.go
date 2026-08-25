@@ -37,7 +37,7 @@ func (s *systemOnlyRoomContextStore) GetConversationContextForSystem(
 	return s.contextValue, nil
 }
 
-func (*systemOnlyRoomContextStore) UpdateSessionSDKSessionID(context.Context, string, string) error {
+func (*systemOnlyRoomContextStore) UpdateSessionRuntimeIdentity(context.Context, string, string, string) error {
 	return nil
 }
 
