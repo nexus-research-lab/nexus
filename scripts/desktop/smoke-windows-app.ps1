@@ -683,6 +683,11 @@ try {
   Wait-Until {
     return @(Find-SidecarProcess $process.Id $AppDir).Count -eq 0
   } 15 "sidecar cleanup"
+
+  Wait-Until {
+    $browser = Get-Process -Id $browserProcessId -ErrorAction SilentlyContinue
+    return $null -eq $browser -or $browser.ProcessName -ne "msedgewebview2"
+  } $TimeoutSeconds "WebView2 browser process cleanup"
 } finally {
   if (-not $process.HasExited) {
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue

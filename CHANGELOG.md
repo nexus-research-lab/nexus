@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.
+- Waited for the Windows WebView2 process to release its user-data files before relocating the complete desktop data directory.
 
 ## [0.1.38] - 2026-08-24
 

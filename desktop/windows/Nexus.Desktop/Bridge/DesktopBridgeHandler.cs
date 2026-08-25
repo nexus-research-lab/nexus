@@ -269,9 +269,11 @@ internal sealed class DesktopBridgeHandler
         return filePath;
     }
 
-    private static object RelocateStateRoot(JsonElement payload)
+    private object RelocateStateRoot(JsonElement payload)
     {
-        string targetPath = DesktopStateRootMigration.ScheduleMigration(StringPayload(payload, "path"));
+        string targetPath = DesktopStateRootMigration.ScheduleMigration(
+            StringPayload(payload, "path"),
+            webView.BrowserProcessId);
         return new
         {
             restarting = true,
