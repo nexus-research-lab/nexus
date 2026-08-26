@@ -405,6 +405,19 @@ case "${ARTIFACT_FORMAT}" in
         fi
         sleep "${attempt}"
       done
+      # Force detach can also hit transient EBUSY (e.g. diskimages-helper
+      # still holding the volume after the AppleScript/Finder styling step).
+      # Retry the force path with backoff instead of failing the build on
+      # a single attempt.
+      for attempt in 1 2 3; do
+        if hdiutil detach -force "${device}" >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep "$((attempt * 2))"
+      done
+      # Final attempt: keep stderr visible and dump volume state so CI logs
+      # show which process still holds the device instead of a bare EBUSY.
+      hdiutil info | grep -A5 "${device}" >&2 || true
       hdiutil detach -force "${device}" >/dev/null
     }
     cleanup_dmg_mount() {
