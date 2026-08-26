@@ -16,6 +16,7 @@ import {
   startComputerUseApi,
   stopComputerUseApi,
   type ComputerUseDoctorReport,
+  type ComputerUseSidecarState,
   type ComputerUseStatus,
   updateComputerUseApi,
 } from "@/lib/api/settings/computer-use-api";
@@ -125,6 +126,13 @@ export function ComputerUseSettingsSection() {
   const packageStatus = status?.package;
   const sidecar = status?.sidecar;
   const ready = sidecar?.state === "ready";
+  const sidecarStateLabels: Record<ComputerUseSidecarState, string> = {
+    stopped: t("settings.computer_use.state_stopped"),
+    starting: t("settings.computer_use.state_starting"),
+    ready: t("settings.computer_use.state_ready"),
+    stopping: t("settings.computer_use.state_stopping"),
+    failed: t("settings.computer_use.state_failed"),
+  };
 
   return (
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} flex flex-col`}>
@@ -158,7 +166,7 @@ export function ComputerUseSettingsSection() {
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-compact">
             <StatusItem label={t("settings.computer_use.package_label")} value={packageStatus?.installed ? `v${packageStatus.version ?? "?"}` : t("settings.computer_use.not_installed")} />
             <StatusItem label={t("settings.computer_use.platform_label")} value={packageStatus ? `${packageStatus.platform} / ${packageStatus.architecture}` : "—"} />
-            <StatusItem label={t("settings.computer_use.runtime_label")} value={sidecar ? t(`settings.computer_use.state_${sidecar.state}`) : "—"} />
+            <StatusItem label={t("settings.computer_use.runtime_label")} value={sidecar ? sidecarStateLabels[sidecar.state] ?? "—" : "—"} />
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
