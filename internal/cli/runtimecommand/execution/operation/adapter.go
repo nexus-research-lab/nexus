@@ -1,4 +1,4 @@
-// INPUT: MCP 业务字段、宿主 CallContext 与 session-bound Context。
+// INPUT: command JSON、CallContext 与 session-bound Context。
 // OUTPUT: strict typed intent、最新 Execution snapshot、服务端 fencing/idempotency 与紧凑模型结果。
 // POS: 所有 Execution operation 共享的可靠性适配层。
 package operation
@@ -83,7 +83,7 @@ func commandID(
 	}
 	canonical, err := json.Marshal(input)
 	if err != nil {
-		return "", fmt.Errorf("canonicalize operation input: %w", err)
+		return "", fmt.Errorf("canonicalize command input: %w", err)
 	}
 	parts := []string{
 		strings.TrimSpace(sctx.ScopeSessionKey),

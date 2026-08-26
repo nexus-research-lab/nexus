@@ -2,7 +2,6 @@ package toolpolicy
 
 import (
 	"context"
-	"slices"
 	"testing"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -83,7 +82,7 @@ func TestManagedVisualizeToolOnlyMatchesBuiltInServer(t *testing.T) {
 	}
 }
 
-func TestManagedRuntimeAutoApprovalUsesSemanticSkillsNexusToolsAndVisualize(t *testing.T) {
+func TestManagedRuntimeAutoApprovalUsesSemanticSkillsStructuredCommandAndVisualize(t *testing.T) {
 	fallbackCalls := 0
 	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		fallbackCalls++
@@ -92,8 +91,7 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsNexusToolsAndVisualize(t *t
 	for _, request := range []sdkpermission.Request{
 		{ToolName: "Skill", Input: map[string]any{"name": "goal-manager"}},
 		{ToolName: "Skill", Input: map[string]any{"name": "execution-orchestrator"}},
-		{ToolName: "mcp__nexus__goal_read"},
-		{ToolName: "mcp__nexus__execution_write", Input: map[string]any{"operation": "assign_work"}},
+		{ToolName: "mcp__nexus__command", Input: map[string]any{"domain": "goal", "action": "inspect"}},
 		{ToolName: "mcp__nexus_visualize__show_widget", Input: map[string]any{"title": "diagram"}},
 	} {
 		decision, err := handler(context.Background(), request)
@@ -103,7 +101,6 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsNexusToolsAndVisualize(t *t
 	}
 	for _, request := range []sdkpermission.Request{
 		{ToolName: "Bash", Input: map[string]any{"command": "echo unrelated"}},
-		{ToolName: "mcp__nexus__command"},
 		{ToolName: "mcp__nexus_runtime__command"},
 		{ToolName: "mcp__external__update_record"},
 	} {
@@ -112,8 +109,8 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsNexusToolsAndVisualize(t *t
 			t.Fatalf("unmanaged request must reach fallback: decision=%+v err=%v", decision, err)
 		}
 	}
-	if fallbackCalls != 4 {
-		t.Fatalf("fallback calls = %d, want 4", fallbackCalls)
+	if fallbackCalls != 3 {
+		t.Fatalf("fallback calls = %d, want 3", fallbackCalls)
 	}
 }
 
@@ -171,9 +168,7 @@ func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.
 	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, true)
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
-		"Read", "Agent", "Skill", "mcp__nexus__goal_read", "mcp__nexus__goal_write",
-		"mcp__nexus__execution_read", "mcp__nexus__execution_write",
-		"mcp__nexus__automation_read", "mcp__nexus__automation_plan", "mcp__nexus__automation_apply",
+		"Read", "Agent", "Skill", "mcp__nexus__command",
 		"mcp__nexus_visualize__show_widget",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
@@ -181,9 +176,6 @@ func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected runtime allowed tools to include %q: %+v", toolName, tools)
 		}
-	}
-	if slices.Contains(tools, "mcp__nexus__command") {
-		t.Fatalf("retired command envelope remains in exact allow list: %+v", tools)
 	}
 }
 
@@ -193,7 +185,7 @@ func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testi
 	if Contains(approved, "mcp__nexus_imagegen__generate_image") {
 		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
 	}
-	for _, required := range []string{"Skill", "mcp__nexus__goal_read", "mcp__nexus__execution_write"} {
+	for _, required := range []string{"Skill", "mcp__nexus__command"} {
 		if !Contains(approved, required) {
 			t.Fatalf("managed command transport %q should remain enabled: %+v", required, tools)
 		}

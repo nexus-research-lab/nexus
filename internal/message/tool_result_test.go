@@ -46,7 +46,7 @@ func TestAssistantMissedGoalCompletionCommand(t *testing.T) {
 		completionRecorded bool
 		want               bool
 	}{
-		{name: "missing command after completion", text: "任务已经完成，但无法通过 nexus.goal_write 调用 update_goal 来标记完成。", want: true},
+		{name: "missing command after completion", text: "任务已经完成，但无法通过 nexus.command 调用 update_goal 来标记完成。", want: true},
 		{name: "no completion claim", text: "I cannot run update_goal yet because more verification is needed."},
 		{name: "final claim", text: "PPT 已完成并验证通过：9 页内容、298 行。", want: true},
 		{name: "stage complete", text: "第一阶段已完成，下一步会继续进行 Goal 恢复链路检查。"},

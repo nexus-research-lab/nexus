@@ -184,8 +184,8 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		}
 	}
 	executionCommandDecision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus__execution_read",
-		Input:    map[string]any{"operation": "get_execution"},
+		ToolName: "mcp__nexus__command",
+		Input:    map[string]any{"domain": "execution", "action": "inspect"},
 	})
 	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("Room runtime did not auto-approve exact Execution command: decision=%+v err=%v", executionCommandDecision, decisionErr)
@@ -643,8 +643,10 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus__goal_write",
-		Input:    map[string]any{"operation": "update_goal"},
+		ToolName: "mcp__nexus__command",
+		Input: map[string]any{
+			"domain": "goal", "action": "invoke", "operation": "update_goal", "request_id": "room-goal-complete-1",
+		},
 	})
 	if err != nil {
 		t.Fatalf("执行 room Goal 权限处理器失败: %v", err)

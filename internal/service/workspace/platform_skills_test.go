@@ -108,7 +108,7 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 	}
 	for _, canonicalGuidance := range []string{
 		"prepare_plan_execution",
-		"parser-backed 描述",
+		"document_contract",
 		"Skill 不复制完整字段表",
 		"不要根据单个报错逐字段删改",
 	} {

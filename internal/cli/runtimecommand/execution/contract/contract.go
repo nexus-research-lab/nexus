@@ -78,7 +78,7 @@ type WorkflowEditorService interface {
 }
 
 // Context contains authoritative runtime identity. None of these fields
-// are accepted from model input.
+// are accepted from command input.
 type Context struct {
 	OwnerUserID             string
 	AgentID                 string

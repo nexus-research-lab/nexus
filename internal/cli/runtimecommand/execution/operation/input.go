@@ -1,6 +1,6 @@
 // INPUT: Execution operation 的模型可见 JSON 参数；Plan 通过 document string/Goal intent 与零输入 host-bound commit 传输。
 // OUTPUT: 严格解码且不含 command_id/snapshot_revision/runtime identity 的 typed semantic intent。
-// POS: MCP schema 与领域 service 之间的无权限输入层；宿主身份不进入模型参数。
+// POS: command schema 与 service command 之间的无权限输入层；legacy proposal reference 只能匹配宿主 binding，不能选择对象。
 package operation
 
 import (
@@ -15,6 +15,11 @@ type getExecutionInput struct {
 type preparePlanExecutionInput struct {
 	PlanDocument string                              `json:"plan_document"`
 	GoalBinding  orchestration.PlanGoalBindingIntent `json:"goal_binding,omitempty"`
+}
+
+type planExecutionInput struct {
+	ProposalID     string `json:"proposal_id,omitempty"`
+	ProposalDigest string `json:"proposal_digest,omitempty"`
 }
 
 type distillWorkflowInput struct {

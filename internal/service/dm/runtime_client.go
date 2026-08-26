@@ -621,7 +621,7 @@ func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "nexus", "mcp__nexus__execution_write"},
+			AllowedTools: []string{"Skill", "nexus", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
 				"nexus_visualize", "nexus_imagegen",

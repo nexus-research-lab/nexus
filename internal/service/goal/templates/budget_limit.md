@@ -15,4 +15,4 @@ Budget:
 
 The system has marked the goal as budget_limited, so do not start new substantive work for this goal. Wrap up this turn soon: summarize useful progress, identify remaining work or blockers, and leave the user with a clear next step.
 
-Do not invoke `update_goal` unless the goal is actually complete; if needed, load `goal-manager` and use only `nexus.goal_read` / `nexus.goal_write`, never nexusctl.
+Do not invoke `update_goal` unless the goal is actually complete; if needed, load `goal-manager` and use only `nexus.command` with the goal domain and contract|inspect|invoke actions, never nexusctl.
