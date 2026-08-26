@@ -1,6 +1,6 @@
-// INPUT: 可信 runtime round、结构化 nexus.command 调用、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
-// OUTPUT: 三个领域共用的 round-scoped MCP server、按需 contract、语义调用结果与 typed mutation receipt。
-// POS: Agent-facing Nexus command adapter；身份、责任、preview、Plan Mode 与 Automation 真人确认均由宿主固定。
+// INPUT: 可信 runtime round、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
+// OUTPUT: 按领域读写边界拆分的 round-scoped Nexus MCP tools、语义结果与 typed mutation receipt。
+// POS: Agent-facing Nexus MCP adapter；工具 schema 就是模型合同，身份、责任、preview、Plan Mode 与 Automation 真人确认均由宿主固定。
 package server
 
 import (
@@ -26,11 +26,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
-)
-
-const (
-	runtimeCommandMCPServerName = "nexus"
-	runtimeCommandMCPToolName   = "command"
 )
 
 func newRuntimeCommandMCPServerBuilder(
@@ -95,90 +90,506 @@ func newRuntimeCommandMCPServerBuilder(
 		if actor.GoalMutationAuthority != round.CommandContext.GoalAuthority {
 			actor.GoalResponsibilityState = nil
 		}
-		inputSchema := runtimeCommandMCPInputSchema()
+		definitions := runtimeCommandMCPTools(
+			ctx,
+			automation,
+			goals,
+			execution,
+			permissions,
+			actor,
+			workflowServices...,
+		)
+		if len(definitions) == 0 {
+			return nil, nil
+		}
 		server := sdktool.NewSimpleSDKMCPServer(
-			runtimeCommandMCPServerName,
+			protocol.NexusMCPServerName,
 			"1.0.0",
-			[]sdktool.Tool{{
-				Name: runtimeCommandMCPToolName,
-				Description: "调用 Nexus 托管的 Goal、Execution 或 Automation 命令。" +
-					"先用 contract 获取操作目录和精确输入 schema，再用 inspect/invoke 或 plan/apply 执行。",
-				SearchHint:  "nexus goal execution automation contract inspect invoke plan apply 目标 执行 自动化",
-				AlwaysLoad:  true,
-				InputSchema: inputSchema,
-				Annotations: &sdktool.ToolAnnotations{Destructive: true},
-				Handler: func(callCtx context.Context, input map[string]any) (sdktool.ToolResult, error) {
-					if err := runtimecommand.ValidateInput(inputSchema, input); err != nil {
-						return runtimeCommandMCPError(err), nil
-					}
-					command := runtimeCommandRequestFromMCP(input)
-					result, err := dispatchRuntimeCommand(
-						callCtx,
-						automation,
-						goals,
-						execution,
-						permissions,
-						actor,
-						command,
-						workflowServices...,
-					)
-					if err != nil {
-						return runtimeCommandMCPError(err), nil
-					}
-					return runtimeCommandMCPResult(result), nil
-				},
-			}},
+			definitions,
 		)
 		return map[string]sdkmcp.ServerConfig{
-			runtimeCommandMCPServerName: sdkmcp.SDKServerConfig{
-				Name: runtimeCommandMCPServerName, Instance: server,
+			protocol.NexusMCPServerName: sdkmcp.SDKServerConfig{
+				Name: protocol.NexusMCPServerName, Instance: server,
 			},
 		}, nil
 	}
 }
 
-func runtimeCommandMCPInputSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"domain": map[string]any{
-				"type": "string", "enum": []string{
-					runtimecommand.DomainAutomation,
-					runtimecommand.DomainGoal,
-					runtimecommand.DomainExecution,
-				},
-			},
-			"action": map[string]any{
-				"type": "string", "enum": []string{
-					runtimecommand.ActionContract,
-					runtimecommand.ActionInspect,
-					runtimecommand.ActionInvoke,
-					runtimecommand.ActionPlan,
-					runtimecommand.ActionApply,
-				},
-			},
-			"operation":         map[string]any{"type": "string"},
-			"input":             map[string]any{"type": "object", "additionalProperties": true},
-			"request_id":        map[string]any{"type": "string"},
-			"expected_revision": map[string]any{"type": "string"},
-			"plan_digest":       map[string]any{"type": "string"},
+func runtimeCommandMCPTools(
+	ctx context.Context,
+	automation *automationsvc.Service,
+	goals goalcontract.Service,
+	execution executioncontract.Service,
+	permissions *permissionctx.Context,
+	actor runtimecommand.Actor,
+	workflowServices ...executioncontract.WorkflowService,
+) []sdktool.Tool {
+	definitions := make([]sdktool.Tool, 0, len(protocol.NexusManagedToolNames()))
+	goalOperations, _ := goalRuntimeOperations(goals, actor)
+	definitions = appendSemanticRuntimeTools(
+		definitions,
+		protocol.NexusGoalReadToolName,
+		protocol.NexusGoalWriteToolName,
+		"读取当前会话的权威 Goal。",
+		"创建、重定向、审计或更新当前 Goal。",
+		goalOperations,
+		func(callCtx context.Context, operation string, input map[string]any, write bool, requestID string) (any, error) {
+			fresh, err := goalRuntimeOperations(goals, actor)
+			if err != nil {
+				return nil, err
+			}
+			return invokeRuntimeSemanticOperation(callCtx, actor, runtimecommand.DomainGoal, fresh, operation, input, write, requestID)
 		},
-		"required":             []string{"domain", "action"},
+	)
+
+	executionOperations, _, _ := executionRuntimeOperations(ctx, execution, actor, workflowServices...)
+	definitions = appendSemanticRuntimeTools(
+		definitions,
+		protocol.NexusExecutionReadToolName,
+		protocol.NexusExecutionWriteToolName,
+		"读取当前 Execution、WorkGraph 与草图状态。",
+		"规划、分派、提交、审查或修改 Execution 与 WorkGraph。",
+		executionOperations,
+		func(callCtx context.Context, operation string, input map[string]any, write bool, requestID string) (any, error) {
+			fresh, _, err := executionRuntimeOperations(callCtx, execution, actor, workflowServices...)
+			if err != nil {
+				return nil, err
+			}
+			return invokeRuntimeSemanticOperation(callCtx, actor, runtimecommand.DomainExecution, fresh, operation, input, write, requestID)
+		},
+	)
+
+	if automation == nil {
+		return definitions
+	}
+	contract, err := automation.RuntimeCommandContract(ctx, actor)
+	if err != nil {
+		return definitions
+	}
+	definitions = appendAutomationRuntimeTools(definitions, automation, permissions, actor, contract)
+	return definitions
+}
+
+type semanticRuntimeToolHandler func(context.Context, string, map[string]any, bool, string) (any, error)
+
+func appendSemanticRuntimeTools(
+	definitions []sdktool.Tool,
+	readName string,
+	writeName string,
+	readDescription string,
+	writeDescription string,
+	operations []runtimecommand.Operation,
+	handler semanticRuntimeToolHandler,
+) []sdktool.Tool {
+	reads, writes := splitRuntimeOperations(operations)
+	if len(reads) > 0 {
+		definitions = append(definitions, semanticRuntimeTool(
+			readName,
+			readDescription,
+			reads,
+			true,
+			handler,
+		))
+	}
+	if len(writes) > 0 {
+		definitions = append(definitions, semanticRuntimeTool(
+			writeName,
+			writeDescription,
+			writes,
+			false,
+			handler,
+		))
+	}
+	return definitions
+}
+
+func semanticRuntimeTool(
+	name string,
+	description string,
+	operations []runtimecommand.Operation,
+	readOnly bool,
+	handler semanticRuntimeToolHandler,
+) sdktool.Tool {
+	schema := runtimeOperationToolSchema(operations)
+	annotationReadOnly := readOnly
+	for _, operation := range operations {
+		annotationReadOnly = annotationReadOnly && runtimeOperationReadOnly(operation)
+	}
+	fixedOperation := ""
+	if name == protocol.NexusGoalReadToolName && len(operations) == 1 &&
+		operations[0].Name == "get_goal" {
+		fixedOperation = operations[0].Name
+		schema = operations[0].InputSchema
+	}
+	return sdktool.Tool{
+		Name:        name,
+		Description: description,
+		SearchHint:  runtimeOperationSearchHint(operations),
+		AlwaysLoad:  true,
+		InputSchema: schema,
+		Annotations: &sdktool.ToolAnnotations{
+			ReadOnly: annotationReadOnly, ReadOnlyHint: annotationReadOnly, Destructive: !readOnly,
+		},
+		ContextHandler: func(
+			ctx context.Context,
+			input map[string]any,
+			callContext *sdktool.CallContext,
+		) (sdktool.ToolResult, error) {
+			requestID := ""
+			if !readOnly {
+				requestID = runtimeMCPRequestID(callContext)
+				if !runtimecommand.ValidRequestID(requestID) {
+					return runtimeCommandMCPError(errors.New("runtime 未提供有效的 tool_use_id；请升级 Agent SDK Bridge")), nil
+				}
+			}
+			operation := stringValue(input["operation"])
+			if fixedOperation != "" {
+				operation = fixedOperation
+			}
+			result, err := handler(
+				ctx,
+				operation,
+				runtimeOperationInput(input),
+				!readOnly,
+				requestID,
+			)
+			if err != nil {
+				return runtimeCommandMCPError(err), nil
+			}
+			return runtimeCommandMCPResult(result), nil
+		},
+	}
+}
+
+func splitRuntimeOperations(operations []runtimecommand.Operation) ([]runtimecommand.Operation, []runtimecommand.Operation) {
+	reads := make([]runtimecommand.Operation, 0, len(operations))
+	writes := make([]runtimecommand.Operation, 0, len(operations))
+	for _, operation := range operations {
+		if runtimeOperationReadGroup(operation) {
+			reads = append(reads, operation)
+		} else {
+			writes = append(writes, operation)
+		}
+	}
+	return reads, writes
+}
+
+func runtimeOperationReadOnly(operation runtimecommand.Operation) bool {
+	return operation.ReadOnly || operation.Annotations != nil &&
+		(operation.Annotations.ReadOnly || operation.Annotations.ReadOnlyHint)
+}
+
+func runtimeOperationReadGroup(operation runtimecommand.Operation) bool {
+	return operation.Name == "get_execution" || runtimeOperationReadOnly(operation)
+}
+
+func runtimeOperationToolSchema(operations []runtimecommand.Operation) map[string]any {
+	properties := map[string]any{}
+	names := make([]string, 0, len(operations))
+	alternatives := make([]any, 0, len(operations))
+	for _, operation := range operations {
+		name := strings.TrimSpace(operation.Name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+		branchProperties := map[string]any{
+			"operation": map[string]any{
+				"type": "string", "enum": []string{name}, "description": operation.Description,
+			},
+		}
+		required := []string{"operation"}
+		if schemaProperties, ok := operation.InputSchema["properties"].(map[string]any); ok {
+			for field, schema := range schemaProperties {
+				branchProperties[field] = schema
+				if _, exists := properties[field]; !exists {
+					properties[field] = map[string]any{}
+				}
+			}
+		}
+		required = append(required, schemaStringSlice(operation.InputSchema["required"])...)
+		alternatives = append(alternatives, map[string]any{
+			"properties":           branchProperties,
+			"required":             required,
+			"additionalProperties": false,
+		})
+	}
+	properties["operation"] = map[string]any{"type": "string", "enum": names}
+	return map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"anyOf":                alternatives,
+		"required":             []string{"operation"},
 		"additionalProperties": false,
 	}
 }
 
-func runtimeCommandRequestFromMCP(input map[string]any) runtimecommand.Request {
-	command := runtimecommand.Request{
-		Domain:           stringValue(input["domain"]),
-		Action:           stringValue(input["action"]),
-		Operation:        stringValue(input["operation"]),
-		RequestID:        stringValue(input["request_id"]),
-		ExpectedRevision: stringValue(input["expected_revision"]),
-		PlanDigest:       stringValue(input["plan_digest"]),
+func runtimeOperationSearchHint(operations []runtimecommand.Operation) string {
+	parts := make([]string, 0, len(operations))
+	for _, operation := range operations {
+		parts = append(parts, strings.TrimSpace(operation.Name+" "+operation.SearchHint))
 	}
-	command.Input, _ = input["input"].(map[string]any)
-	return command
+	return strings.Join(parts, " ")
+}
+
+func runtimeOperationInput(input map[string]any) map[string]any {
+	result := make(map[string]any, len(input))
+	for key, value := range input {
+		if key != "operation" {
+			result[key] = value
+		}
+	}
+	return result
+}
+
+func runtimeMCPRequestID(callContext *sdktool.CallContext) string {
+	if callContext == nil {
+		return ""
+	}
+	return strings.TrimSpace(callContext.ToolUseID)
+}
+
+func schemaStringSlice(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok {
+				result = append(result, text)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
+func appendAutomationRuntimeTools(
+	definitions []sdktool.Tool,
+	svc *automationsvc.Service,
+	permissions *permissionctx.Context,
+	actor runtimecommand.Actor,
+	contract automationdomain.AutomationCommandContract,
+) []sdktool.Tool {
+	if len(contract.QueryOperations) > 0 {
+		definitions = append(definitions, automationRuntimeTool(
+			protocol.NexusAutomationReadToolName,
+			"查询当前 Actor 可见的自动化任务、运行记录与报告。",
+			runtimecommand.ActionInspect,
+			contract.QueryOperations,
+			contract,
+			svc,
+			permissions,
+			actor,
+		))
+	}
+	if len(contract.MutationOperations) == 0 {
+		return definitions
+	}
+	definitions = append(definitions,
+		automationRuntimeTool(
+			protocol.NexusAutomationPlanToolName,
+			"生成自动化变更计划；不写入状态。",
+			runtimecommand.ActionPlan,
+			contract.MutationOperations,
+			contract,
+			svc,
+			permissions,
+			actor,
+		),
+		automationRuntimeTool(
+			protocol.NexusAutomationApplyToolName,
+			"按 plan 返回的 revision 与 digest 应用自动化变更，并在需要时请求真人确认。",
+			runtimecommand.ActionApply,
+			contract.MutationOperations,
+			contract,
+			svc,
+			permissions,
+			actor,
+		),
+	)
+	return definitions
+}
+
+func automationRuntimeTool(
+	name string,
+	description string,
+	action string,
+	operations []string,
+	contract automationdomain.AutomationCommandContract,
+	svc *automationsvc.Service,
+	permissions *permissionctx.Context,
+	actor runtimecommand.Actor,
+) sdktool.Tool {
+	schema := automationRuntimeToolSchema(contract, operations, action == runtimecommand.ActionApply)
+	readOnly := action != runtimecommand.ActionApply
+	return sdktool.Tool{
+		Name:        name,
+		Description: description,
+		SearchHint:  "automation scheduled task reminder schedule run history report 定时任务 提醒 计划 执行 历史 报告",
+		AlwaysLoad:  true,
+		InputSchema: schema,
+		Annotations: &sdktool.ToolAnnotations{
+			ReadOnly: readOnly, ReadOnlyHint: readOnly, Destructive: !readOnly,
+		},
+		ContextHandler: func(
+			ctx context.Context,
+			input map[string]any,
+			callContext *sdktool.CallContext,
+		) (sdktool.ToolResult, error) {
+			if err := runtimecommand.ValidateInput(schema, input); err != nil {
+				return runtimeCommandMCPError(err), nil
+			}
+			requestID := ""
+			if action == runtimecommand.ActionApply {
+				requestID = runtimeMCPRequestID(callContext)
+				if !runtimecommand.ValidRequestID(requestID) {
+					return runtimeCommandMCPError(errors.New("runtime 未提供有效的 tool_use_id；请升级 Agent SDK Bridge")), nil
+				}
+			}
+			operationInput := runtimeOperationInput(input)
+			delete(operationInput, "expected_revision")
+			delete(operationInput, "plan_digest")
+			result, err := handleAutomationRuntimeCommand(ctx, svc, permissions, actor, runtimecommand.Request{
+				Domain:           runtimecommand.DomainAutomation,
+				Action:           action,
+				Operation:        stringValue(input["operation"]),
+				Input:            operationInput,
+				RequestID:        requestID,
+				ExpectedRevision: stringValue(input["expected_revision"]),
+				PlanDigest:       stringValue(input["plan_digest"]),
+			})
+			if err != nil {
+				return runtimeCommandMCPError(err), nil
+			}
+			return runtimeCommandMCPResult(result), nil
+		},
+	}
+}
+
+func automationRuntimeToolSchema(
+	contract automationdomain.AutomationCommandContract,
+	operations []string,
+	apply bool,
+) map[string]any {
+	allProperties := automationRuntimeInputProperties()
+	expectedRevisionSchema := map[string]any{
+		"type": "string", "description": "Required. current_revision returned by automation_plan.",
+	}
+	planDigestSchema := map[string]any{
+		"type": "string", "description": "Required. plan_digest returned by automation_plan.",
+	}
+	properties := map[string]any{}
+	names := make([]string, 0, len(operations))
+	alternatives := make([]any, 0, len(operations))
+	for _, name := range operations {
+		operationContract, ok := contract.Operations[name]
+		if !ok {
+			continue
+		}
+		names = append(names, name)
+		description := strings.Join(operationContract.Notes, " ")
+		branchProperties := map[string]any{
+			"operation": map[string]any{
+				"type": "string", "enum": []string{name}, "description": description,
+			},
+		}
+		fields := append(append([]string{}, operationContract.Required...), operationContract.Optional...)
+		for _, field := range fields {
+			if schema, exists := allProperties[field]; exists {
+				branchProperties[field] = schema
+				properties[field] = schema
+			}
+		}
+		required := append([]string{"operation"}, operationContract.Required...)
+		if apply {
+			branchProperties["expected_revision"] = expectedRevisionSchema
+			branchProperties["plan_digest"] = planDigestSchema
+			required = append(required, "expected_revision", "plan_digest")
+		}
+		alternatives = append(alternatives, map[string]any{
+			"properties":           branchProperties,
+			"required":             required,
+			"additionalProperties": false,
+		})
+	}
+	properties["operation"] = map[string]any{"type": "string", "enum": names}
+	if apply {
+		properties["expected_revision"] = expectedRevisionSchema
+		properties["plan_digest"] = planDigestSchema
+	}
+	return map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"anyOf":                alternatives,
+		"required":             []string{"operation"},
+		"additionalProperties": false,
+	}
+}
+
+func automationRuntimeInputProperties() map[string]any {
+	text := func(description string) map[string]any {
+		return map[string]any{"type": "string", "description": description}
+	}
+	integer := func(description string) map[string]any {
+		return map[string]any{"type": "integer", "description": description}
+	}
+	boolean := func(description string) map[string]any {
+		return map[string]any{"type": "boolean", "description": description}
+	}
+	return map[string]any{
+		"job_id":             text("Exact scheduled task ID."),
+		"run_id":             text("Exact task run ID."),
+		"query":              text("Task search query used only when an exact ID is unavailable."),
+		"agent_id":           text("Target Agent ID when the current Actor has cross-Agent authority."),
+		"name":               text("Task display name."),
+		"instruction":        text("Complete task instruction."),
+		"instruction_append": text("Text appended to the existing instruction."),
+		"schedule": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"kind":           map[string]any{"type": "string", "enum": []string{"single", "daily", "interval", "cron"}},
+				"run_at":         text("One-time RFC3339 execution time."),
+				"daily_time":     text("Daily local time."),
+				"weekdays":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"interval_value": integer("Positive interval value."),
+				"interval_unit":  text("Interval unit."),
+				"expr":           text("Cron expression."),
+				"timezone":       text("IANA timezone."),
+			},
+			"required":             []string{"kind"},
+			"additionalProperties": false,
+		},
+		"execution_kind":             text("Execution kind."),
+		"permission_mode":            text("Runtime permission mode."),
+		"context_mode":               text("Task context mode."),
+		"deliver_result":             boolean("Whether to deliver the task result."),
+		"overlap_policy":             text("Concurrent run policy."),
+		"expires_at":                 text("Optional RFC3339 expiration time."),
+		"clear_expires_at":           boolean("Clear the current expiration time."),
+		"enabled":                    boolean("Whether the task is enabled."),
+		"cancel_active_run":          boolean("Cancel an active run when required by the operation."),
+		"execution_mode":             text("Host-authorized execution route."),
+		"reply_mode":                 text("Host-authorized reply route."),
+		"selected_session_key":       text("Host-authorized selected execution Session."),
+		"named_session_key":          text("Host-authorized named execution Session."),
+		"selected_reply_session_key": text("Host-authorized selected reply Session."),
+		"reply_session_key":          text("Host-authorized reply Session."),
+		"include_active":             boolean("Include active tasks."),
+		"include_deleted":            boolean("Include deleted task history."),
+		"limit":                      integer("Maximum task count."),
+		"run_limit":                  integer("Maximum run count."),
+		"event_limit":                integer("Maximum event count."),
+		"date":                       text("Report date."),
+		"timezone":                   text("IANA timezone."),
+		"every_seconds":              integer("Heartbeat interval in seconds."),
+		"target_mode":                text("Heartbeat delivery target mode."),
+		"ack_max_chars":              integer("Heartbeat acknowledgement limit."),
+		"mode":                       text("Wake mode."),
+		"text":                       text("Optional wake text."),
+	}
 }
 
 func runtimeCommandMCPResult(value any) sdktool.ToolResult {
@@ -204,7 +615,7 @@ func runtimeCommandMCPResult(value any) sdktool.ToolResult {
 }
 
 func runtimeCommandMCPError(err error) sdktool.ToolResult {
-	message := "Nexus command 失败"
+	message := "Nexus 工具调用失败"
 	if err != nil && strings.TrimSpace(err.Error()) != "" {
 		message = err.Error()
 	}
@@ -395,6 +806,19 @@ func handleGoalRuntimeCommand(
 	actor runtimecommand.Actor,
 	command runtimecommand.Request,
 ) (any, error) {
+	operations, err := goalRuntimeOperations(svc, actor)
+	if err != nil {
+		return nil, err
+	}
+	return handleSemanticRuntimeCommand(
+		ctx, actor, runtimecommand.DomainGoal, "get_goal", operations, command,
+	)
+}
+
+func goalRuntimeOperations(
+	svc goalcontract.Service,
+	actor runtimecommand.Actor,
+) ([]runtimecommand.Operation, error) {
 	if svc == nil {
 		return nil, errors.New("Goal command service 尚未装配")
 	}
@@ -407,10 +831,7 @@ func handleGoalRuntimeCommand(
 		AllowUserRetarget:       allowsTrustedUserGoalRetarget(actor.SourceContextType),
 		PlanMode:                permissionctx.NormalizeMode(actor.Round.CommandContext.PermissionMode) == sdkpermission.ModePlan,
 	}
-	operations := goaloperation.BuildAll(svc, sctx)
-	return handleSemanticRuntimeCommand(
-		ctx, actor, runtimecommand.DomainGoal, "get_goal", operations, command,
-	)
+	return goaloperation.BuildAll(svc, sctx), nil
 }
 
 func handleExecutionRuntimeCommand(
@@ -420,9 +841,31 @@ func handleExecutionRuntimeCommand(
 	command runtimecommand.Request,
 	workflowServices ...executioncontract.WorkflowService,
 ) (any, error) {
+	operations, inspectOperation, err := executionRuntimeOperations(
+		ctx, svc, actor, workflowServices...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return handleSemanticRuntimeCommand(
+		ctx,
+		actor,
+		runtimecommand.DomainExecution,
+		inspectOperation,
+		operations,
+		command,
+	)
+}
+
+func executionRuntimeOperations(
+	ctx context.Context,
+	svc executioncontract.Service,
+	actor runtimecommand.Actor,
+	workflowServices ...executioncontract.WorkflowService,
+) ([]runtimecommand.Operation, string, error) {
 	if actor.SourceContextType == protocol.SessionPurposeWorkGraphDistillation {
 		if len(workflowServices) == 0 || workflowServices[0] == nil {
-			return nil, errors.New("WorkGraph distillation command service 尚未装配")
+			return nil, "", errors.New("WorkGraph distillation command service 尚未装配")
 		}
 		roundContext := actor.Round.CommandContext
 		sctx := executioncontract.Context{
@@ -436,22 +879,15 @@ func handleExecutionRuntimeCommand(
 			CommandAttempts:    actor.Round.Attempts,
 			WorkGraphPreviewID: strings.TrimSpace(roundContext.WorkGraphPreviewID),
 		}
-		return handleSemanticRuntimeCommand(
-			ctx,
-			actor,
-			runtimecommand.DomainExecution,
-			"",
-			executionoperation.BuildWorkGraphDistillation(workflowServices[0], sctx),
-			command,
-		)
+		return executionoperation.BuildWorkGraphDistillation(workflowServices[0], sctx), "", nil
 	}
 	if actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor {
 		if len(workflowServices) == 0 || workflowServices[0] == nil {
-			return nil, errors.New("WorkGraph editor command service 尚未装配")
+			return nil, "", errors.New("WorkGraph editor command service 尚未装配")
 		}
 		editorService, ok := workflowServices[0].(executioncontract.WorkflowEditorService)
 		if !ok || !editorService.RuntimeEditorActive(actor.OwnerUserID, actor.SessionKey) {
-			return nil, errors.New("当前 round 没有有效的 WorkGraph editor command identity")
+			return nil, "", errors.New("当前 round 没有有效的 WorkGraph editor command identity")
 		}
 		sctx := executioncontract.Context{
 			OwnerUserID:       actor.OwnerUserID,
@@ -463,14 +899,7 @@ func handleExecutionRuntimeCommand(
 			AgentRoundID:      actor.Round.CommandContext.AgentRoundID,
 			CommandAttempts:   actor.Round.Attempts,
 		}
-		return handleSemanticRuntimeCommand(
-			ctx,
-			actor,
-			runtimecommand.DomainExecution,
-			"",
-			executionoperation.BuildWorkGraphEditor(editorService, sctx),
-			command,
-		)
+		return executionoperation.BuildWorkGraphEditor(editorService, sctx), "", nil
 	}
 	roundContext := actor.Round.CommandContext
 	authoringScopeSessionKey := strings.TrimSpace(roundContext.ScopeSessionKey)
@@ -494,11 +923,9 @@ func handleExecutionRuntimeCommand(
 	}
 	if svc == nil {
 		if len(authoringOperations) > 0 {
-			return handleSemanticRuntimeCommand(
-				ctx, actor, runtimecommand.DomainExecution, "", authoringOperations, command,
-			)
+			return authoringOperations, "", nil
 		}
-		return nil, errors.New("Execution command service 尚未装配")
+		return nil, "", errors.New("Execution command service 尚未装配")
 	}
 	// Goal create/retarget can advance exact authority during this physical
 	// round. Execution must consume the same host-owned state instead of the
@@ -508,17 +935,13 @@ func handleExecutionRuntimeCommand(
 	sctx, ok := resolveExecutionCommandContext(ctx, svc, roundContext)
 	if !ok {
 		if len(authoringOperations) > 0 {
-			return handleSemanticRuntimeCommand(
-				ctx, actor, runtimecommand.DomainExecution, "", authoringOperations, command,
-			)
+			return authoringOperations, "", nil
 		}
-		return nil, errors.New("当前 round 没有有效的 Execution command identity")
+		return nil, "", errors.New("当前 round 没有有效的 Execution command identity")
 	}
 	sctx.CommandAttempts = actor.Round.Attempts
 	operations := executionoperation.BuildAll(svc, sctx, workflowServices...)
-	return handleSemanticRuntimeCommand(
-		ctx, actor, runtimecommand.DomainExecution, "get_execution", operations, command,
-	)
+	return operations, "get_execution", nil
 }
 
 func handleSemanticRuntimeCommand(
@@ -537,32 +960,55 @@ func handleSemanticRuntimeCommand(
 		if strings.TrimSpace(command.Operation) != "" {
 			return nil, errors.New("inspect operation 由领域固定，不能覆盖")
 		}
-		operation, ok := runtimecommand.FindOperation(operations, inspectOperation)
-		if !ok {
+		if _, ok := runtimecommand.FindOperation(operations, inspectOperation); !ok {
 			return nil, fmt.Errorf("%s inspect operation 未装配", domain)
 		}
-		return operation.Invoke(ctx, command.Input, nil)
+		return invokeRuntimeSemanticOperation(
+			ctx, actor, domain, operations, inspectOperation, command.Input, false, "",
+		)
 	case runtimecommand.ActionInvoke:
-		if !runtimecommand.ValidRequestID(command.RequestID) {
-			return nil, errors.New("invoke request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
-		}
 		operation, ok := runtimecommand.FindOperation(operations, command.Operation)
 		if !ok || operation.Name == inspectOperation {
 			return nil, fmt.Errorf("未知或不可 invoke 的 %s operation %q", domain, command.Operation)
 		}
-		result, err := operation.Invoke(ctx, command.Input, &runtimecommand.CallContext{
-			RequestID: command.RequestID,
-			SessionID: actor.Round.CommandContext.CurrentSDKSessionID(),
-		})
-		if err == nil {
-			recordRuntimeSemanticReceipt(
-				actor, command.RequestID, domain, operation.Name, command.Input, result,
-			)
+		write := !runtimeOperationReadOnly(operation)
+		if write && !runtimecommand.ValidRequestID(command.RequestID) {
+			return nil, errors.New("invoke request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
 		}
-		return result, err
+		return invokeRuntimeSemanticOperation(
+			ctx, actor, domain, operations, operation.Name, command.Input, write, command.RequestID,
+		)
 	default:
 		return nil, fmt.Errorf("%s 只支持 contract、inspect、invoke", domain)
 	}
+}
+
+func invokeRuntimeSemanticOperation(
+	ctx context.Context,
+	actor runtimecommand.Actor,
+	domain string,
+	operations []runtimecommand.Operation,
+	operationName string,
+	input map[string]any,
+	write bool,
+	requestID string,
+) (any, error) {
+	operation, ok := runtimecommand.FindOperation(operations, operationName)
+	if !ok || runtimeOperationReadGroup(operation) == write {
+		kind := "read"
+		if write {
+			kind = "write"
+		}
+		return nil, fmt.Errorf("未知或不可 %s 的 %s operation %q", kind, domain, operationName)
+	}
+	result, err := operation.Invoke(ctx, input, &runtimecommand.CallContext{
+		RequestID: requestID,
+		SessionID: actor.Round.CommandContext.CurrentSDKSessionID(),
+	})
+	if write && err == nil {
+		recordRuntimeSemanticReceipt(actor, requestID, domain, operation.Name, input, result)
+	}
+	return result, err
 }
 
 func recordRuntimeSemanticReceipt(

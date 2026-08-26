@@ -139,21 +139,23 @@ func annotateRuntimeGraphCommandTransport(
 			continue
 		}
 		input := toolUse.InputMap()
-		if toolpolicy.IsManagedRuntimeCommandTool(toolUse.Name) {
-			domain := mapString(input, "domain")
-			if domain != "goal" && domain != "execution" {
-				return
-			}
+		identity, current := protocol.ParseNexusManagedToolIdentity(toolUse.Name, input)
+		if !current {
+			identity, current = protocol.ParseLegacyNexusCommandToolIdentity(toolUse.Name, input)
+		}
+		if current && (identity.Domain == "goal" || identity.Domain == "execution") {
 			if event.Metadata == nil {
 				event.Metadata = make(map[string]string)
 			}
 			event.Metadata[runtimeGraphCommandTransportMetadataKey] = "true"
-			event.Metadata[runtimeGraphCommandDomainMetadataKey] = domain
-			event.Metadata[runtimeGraphCommandActionMetadataKey] = mapString(input, "action")
-			if operation := mapString(input, "operation"); operation != "" {
-				event.Metadata[runtimeGraphCommandOperationMetadataKey] = operation
+			event.Metadata[runtimeGraphCommandDomainMetadataKey] = identity.Domain
+			event.Metadata[runtimeGraphCommandActionMetadataKey] = identity.Action
+			event.Metadata[runtimeGraphCommandOperationMetadataKey] = identity.Operation
+			requestID := identity.RequestID
+			if protocol.IsNexusManagedToolName(toolUse.Name) {
+				requestID = strings.TrimSpace(toolUse.ID)
 			}
-			if requestID := mapString(input, "request_id"); requestID != "" {
+			if requestID != "" {
 				event.Metadata[runtimeGraphCommandRequestIDMetadataKey] = requestID
 			}
 			return

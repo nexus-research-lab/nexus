@@ -60,8 +60,8 @@ func TestProcessorAddsWorkGraphArtifactForStructuredRuntimeCommand(t *testing.T)
 		Type: sdkprotocol.MessageTypeAssistant,
 		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
 			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
-				ID: "tool-workgraph-native", Name: "mcp__nexus__command",
-				Input: json.RawMessage(`{"domain":"execution","action":"invoke","operation":"get_workgraph_preview","request_id":"get-preview-native-1","input":{"preview_id":"preview-1"}}`),
+				ID: "tool-workgraph-native", Name: "mcp__nexus__execution_read",
+				Input: json.RawMessage(`{"operation":"get_workgraph_preview","preview_id":"preview-1"}`),
 			}},
 		}},
 	})

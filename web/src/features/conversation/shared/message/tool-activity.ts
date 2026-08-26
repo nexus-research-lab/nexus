@@ -84,6 +84,7 @@ const TOOL_TITLE_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
 };
 
 const INPUT_SUMMARY_KEYS = [
+  "operation",
   "file_path",
   "path",
   "url",
@@ -170,8 +171,33 @@ const RUNTIME_COMMAND_TOOL_NAMES = new Set([
   "nexus/command",
 ]);
 
+const NEXUS_SEMANTIC_TOOL_NAMES = new Set([
+  "goal_read",
+  "goal_write",
+  "execution_read",
+  "execution_write",
+  "automation_read",
+  "automation_plan",
+  "automation_apply",
+]);
+
 export function getSemanticToolName(toolName: string, input?: unknown): string {
   const record = asRecord(input);
+  const nexusToolName = getNexusSemanticToolName(toolName);
+  if (nexusToolName) {
+    switch (nexusToolName) {
+      case "goal_read":
+        return "get_goal";
+      case "automation_read":
+        return "automation_inspect";
+      case "automation_plan":
+        return "automation_plan";
+      case "automation_apply":
+        return "automation_apply";
+      default:
+        return getStringField(record, "operation") ?? nexusToolName;
+    }
+  }
   if (RUNTIME_COMMAND_TOOL_NAMES.has(toolName) && isRuntimeCommandInput(record)) {
     const domain = getStringField(record, "domain");
     const action = getStringField(record, "action");
@@ -206,6 +232,16 @@ export function getSemanticToolName(toolName: string, input?: unknown): string {
     return domain === "goal" ? "get_goal" : "get_execution";
   }
   return command.match(RUNTIME_COMMAND_OPERATION_PATTERN)?.[1] ?? toolName;
+}
+
+function getNexusSemanticToolName(toolName: string): string | null {
+  for (const prefix of ["mcp__nexus__", "nexus__", "nexus.", "nexus/"]) {
+    if (toolName.startsWith(prefix)) {
+      const leaf = toolName.slice(prefix.length);
+      return NEXUS_SEMANTIC_TOOL_NAMES.has(leaf) ? leaf : null;
+    }
+  }
+  return NEXUS_SEMANTIC_TOOL_NAMES.has(toolName) ? toolName : null;
 }
 
 function isRuntimeCommandInput(record: Record<string, unknown> | null): record is Record<string, unknown> {

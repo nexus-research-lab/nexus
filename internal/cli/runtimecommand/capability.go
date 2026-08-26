@@ -1,6 +1,6 @@
 // INPUT: 宿主验证过的 runtime physical round 与动态 authority state。
-// OUTPUT: Goal/Execution/Automation command 共用的可信 Actor。
-// POS: round-scoped nexus.command 的身份边界；模型输入不能声明 Actor 或责任绑定。
+// OUTPUT: Goal/Execution/Automation MCP adapter 共用的可信 Actor。
+// POS: round-scoped Nexus MCP 的宿主身份边界；模型输入不能声明 Actor 或责任绑定。
 package runtimecommand
 
 import (
@@ -10,7 +10,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
-// RoundContext 是一个 physical round 的完整 command identity 与共享动态 authority。
+// RoundContext 是一个 physical round 的完整调用身份与共享动态 authority。
 type RoundContext struct {
 	SessionKey         string
 	RoundID            string
@@ -22,7 +22,7 @@ type RoundContext struct {
 	Attempts           *AttemptState
 }
 
-// Actor 是宿主为一个 physical round 固定的 command 调用身份。
+// Actor 是宿主为一个 physical round 固定的 MCP 调用身份。
 type Actor struct {
 	OwnerUserID        string
 	AgentID            string

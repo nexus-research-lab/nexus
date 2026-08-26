@@ -20,10 +20,10 @@ func TestCatalogRoutesSpecializedDomains(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if definition.ManagedBy != "automation Skill + nexus.command" {
+	if definition.ManagedBy != "automation Skill + Nexus Automation MCP" {
 		t.Fatalf("automation managed_by = %q", definition.ManagedBy)
 	}
-	if _, err = operationFor(definition, "create"); err == nil || !strings.Contains(err.Error(), "nexus.command") {
+	if _, err = operationFor(definition, "create"); err == nil || !strings.Contains(err.Error(), "Nexus Automation MCP") {
 		t.Fatalf("delegated write should point to the structured runtime command: %v", err)
 	}
 }

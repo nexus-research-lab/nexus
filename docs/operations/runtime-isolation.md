@@ -110,7 +110,7 @@ OS 身份，也不宣称具备强隔离。`off` 完全保持旧行为。
 broker 再按当前 Agent/DM/Room 身份调用 configuration 服务。官方容器因此把
 `/usr/local/bin/nexuscfg` 设为 `root:root 0755`，但缺少有效 capability、round 已结束、
 并发 round 或越权 operation 都会失败。Goal、Execution 与 Automation 不再安装
-Agent-facing executable；结构化业务输入通过 round-scoped `nexus.command`
+Agent-facing executable；结构化业务输入通过 round-scoped `nexus` 语义 MCP
 直接进入宿主。进程内 actor 固定 source、Session 与可选 job/run，Automation mutation
 还必须经过 plan digest、revision 与当前会话真人确认。
 
@@ -119,8 +119,8 @@ Nexus 主智能体是宿主控制面主体，在 enforce 下保留宿主身份�
 `NEXUS_RUNTIME_SCOPE_MODE` 与 owner 后，CLI 帮助会隐藏人工作用域选择参数；显式覆盖
 会返回可重试的 usage 错误。Hook 对 `nexusctl`、`nexuscfg` 的作用域/capability
 覆盖继续早期拒绝；最终权限分别由 DAC/宿主 scope 与 configuration 角色矩阵收口。
-`nexus.command` 不经过 shell 或文件系统，最终权限由 round actor 与对应领域
-command service 收口。
+Nexus 语义 MCP 不经过 shell 或文件系统，最终权限由 round actor 与对应领域
+service 收口；mutation request identity 来自 Bridge 透传的真实 tool-use ID。
 
 为兼容终端、临时文件和部分开发工具，当前 Landlock 规则允许 runtime 使用
 `/dev/null`、`/dev/tty`，并对 `/dev/shm` 保留共享写入能力；这不是跨租户的

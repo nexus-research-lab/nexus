@@ -349,7 +349,7 @@ NEXUS_MEMORY_DIR=<agent_workspace>
   只把命令转发给宿主 loopback broker；宿主签发的 round capability 固定 owner、Agent、
   DM/Room 和 runtime lease，configuration 角色矩阵决定最终 operation。CLI 作用域或
   capability 覆盖返回可重试错误，Hook 对这类 shell 文本仍做早期拒绝。Goal、Execution
-  与 Automation 使用进程内 round-scoped `nexus.command`；后台 run 固定 job/run
+  与 Automation 使用进程内 round-scoped `nexus` 语义 MCP；后台 run 固定 job/run
   且只读，交互 mutation 还需 service plan/revision/digest 与当前会话真人确认。结构化
   input 经 SDK MCP 通道直达宿主，不创建临时文件，不进入 shell，也不扩大文件系统权限；
 - 不返回 `updatedInput`，只允许放行或拒绝；
@@ -367,9 +367,9 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 `NEXUS_SIMPLE`、`CLAUDE_CODE_SIMPLE`、`--bare` 或类似模式不能绕过最终访问校验；
 launcher 会拒绝禁用 hook 的 argv/环境。即使 runtime hook 被跳过，Landlock 仍在
 整个 nxs/Claude 进程（包括其子进程）上生效。`nexusctl`、`nexuscfg` 与 SDK 内的
-`nexus.command` 属于控制面而不是用户文件系统。生产部署必须继续通过
+Nexus Goal/Execution/Automation 语义 MCP 属于控制面而不是用户文件系统。生产部署必须继续通过
 DAC/容器镜像边界让普通 runtime UID 无法执行 `nexusctl`；`nexuscfg` 的最终边界是
-宿主 round capability 与配置服务授权，结构化 command 的最终边界是进程内 round actor 与对应领域服务授权，
+宿主 round capability 与配置服务授权，语义 MCP 的最终边界是进程内 round actor 与对应领域服务授权，
 不能只依赖 Hook 文本识别。主智能体保留宿主身份是明确的控制面信任边界，不宣称
 具备普通 Agent 的 Landlock 隔离等级。
 

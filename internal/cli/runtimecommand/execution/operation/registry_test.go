@@ -137,19 +137,12 @@ func TestPlanOperationSchemasExposeDocumentIntentThenHostBoundCommit(t *testing.
 		t.Fatalf("prepare schema omits output scope path boundary: %s", planDocumentDescription)
 	}
 	if !strings.Contains(planDocumentDescription, "goal_binding is not a YAML field") ||
-		!strings.Contains(goalBinding["description"].(string), "Outer command input beside plan_document") {
-		t.Fatalf("prepare schema blurs outer command input and Plan YAML: %#v", prepare.InputSchema)
+		!strings.Contains(goalBinding["description"].(string), "Tool parameter beside plan_document") {
+		t.Fatalf("prepare schema blurs tool input and Plan YAML: %#v", prepare.InputSchema)
 	}
 	commitProperties := commit.InputSchema["properties"].(map[string]any)
 	commitRequired := commit.InputSchema["required"].([]string)
-	if len(commitProperties) != 2 ||
-		commitProperties["proposal_id"].(map[string]any)["type"] != "string" ||
-		commitProperties["proposal_digest"].(map[string]any)["type"] != "string" ||
-		len(commitRequired) != 0 ||
-		!strings.Contains(
-			commitProperties["proposal_id"].(map[string]any)["description"].(string),
-			"host resolves",
-		) {
+	if len(commitProperties) != 0 || len(commitRequired) != 0 {
 		t.Fatalf("commit schema = %#v", commit.InputSchema)
 	}
 

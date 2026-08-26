@@ -1,6 +1,6 @@
 // INPUT: 可选 explicit Execution id 与 session-bound actor identity。
 // OUTPUT: current/explicit 权威状态的紧凑 actor-specific context；Room 成员得到共享图只读投影，verified current coordinator 同时进入当前 physical round 的临时 coordination scope。
-// POS: 十二工具集合中的显式恢复/协调入口；成员读取不授予 capability，coordinator 读取会建立 round-local capability，因此不能标记 ReadOnly。
+// POS: Execution operation 集合中的显式恢复/协调入口；成员读取不授予 capability，coordinator 读取会建立 round-local capability，因此不能标记 ReadOnly。
 package operation
 
 import (
