@@ -1686,7 +1686,7 @@ func roomGoalCompletionCommandMissAssistantMessage() protocol.Message {
 	return protocol.Message{
 		"role": "assistant",
 		"content": []map[string]any{
-			{"type": "text", "text": "任务已经完成，但无法通过 nexus_runtime.command 调用 update_goal 来标记完成。"},
+			{"type": "text", "text": "任务已经完成，但无法通过 nexus.command 调用 update_goal 来标记完成。"},
 		},
 	}
 }

@@ -207,7 +207,7 @@ visibility 只影响默认展示，不改变运行、权限或责任状态。
 - Tool discovery 与 Skill 加载；
 - `MEMORY.md` 与 `memory/` 下的长期记忆维护；即使消息层生成 workspace Artifact，它也不是当前 Work Item 交付物；
 - 已被 Work Item、Gate 或 Goal 领域节点完整表达的管理工具调用。
-- 当前 `nexus_runtime.command` 及历史 Goal/Execution CLI/MCP transport，包括 `submit_work`；它们只保留 detail 审计，Work → Review 由 durable Attempt/Submission Gate 表达。
+- 当前 `nexus.command` 及历史 Goal/Execution CLI/MCP transport，包括 `submit_work`；它们只保留 detail 审计，Work → Review 由 durable Attempt/Submission Gate 表达。
 - 历史 `${NEXUS_COMMAND_INPUT_PATH}` 对应的 owner-private `runtime/tmp/runtime-command-inputs/<round-digest>/input.json` 读写；只为旧轨迹保留分类，即使失败或缺少新 metadata 也不得进入画布。
 
 以下结构事实可以把 Tool 从 `detail` 提升到 `nested`：
@@ -255,15 +255,15 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
   独立复核或整合边界。模型不可用、输出虚构节点、缺主路径/最终交付或语义无效时失败关闭；
 - `POST /workgraph/previews` 生成或复用 owner/source-session/source-execution-scoped durable Draft；同一 exact source Execution 不重复模型提取。Draft 进入数据库但不进入 Slash 目录，按不可变完整版本保存；`head_revision` 是 mutation CAS，`selected_revision` 是用户当前偏好，选择旧版本不会删除新版本。一个 Session 可通过 exact execution_id/preview_id 查询多张 source、Draft 与 owner 命名图；
   面向用户的字段跟随请求界面语言；Slash 命令生成同时参考 owner 当前目录与固定保留名，默认使用一个不重复短词，只有准确单词都冲突时才退到两个词。用户可直接修改元信息，也可进入 owner Nexus 主智能体承载的目录隐藏专用 DM。该 Session 不 fork、resume 或继承来源 DM/Room transcript、Connector、workspace 或权限，来源只通过完整 Draft 与 source WorkGraph 事实提供；关闭 UI 不删除会话，再次打开恢复同一对话。
-  编辑页固定为左侧标准 DM、右侧实时结构和版本目录。左侧展示不进入 transcript 或模型上下文的本地接待说明，以及该隐藏 Session 自身的编辑消息；首次进入从顶部向下增长，恢复已有对话或溢出后使用共享 FOLLOW/READING。右侧每次 revision 直接重绘 selected 完整草图。编辑 Session 只开放 `execution-orchestrator`、受管 `nexus_runtime.command`、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`；模型提交完整草图，服务端校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。应用只把 selected version 投影回确认页，编辑消息绝不合并回源会话。
-  普通 DM/Room 同样通过 `execution-orchestrator` 和 round-scoped `nexus_runtime.command` 查询 library、提取/复用 Draft、读取、修改、选择版本，并只在用户明确确认后保存；这些 authoring operation 在当前没有 active Execution 时仍可用，不能靠聊天记忆推断历史图。
+  编辑页固定为左侧标准 DM、右侧实时结构和版本目录。左侧展示不进入 transcript 或模型上下文的本地接待说明，以及该隐藏 Session 自身的编辑消息；首次进入从顶部向下增长，恢复已有对话或溢出后使用共享 FOLLOW/READING。右侧每次 revision 直接重绘 selected 完整草图。编辑 Session 只开放 `execution-orchestrator`、受管 `nexus.command`、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`；模型提交完整草图，服务端校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。应用只把 selected version 投影回确认页，编辑消息绝不合并回源会话。
+  普通 DM/Room 同样通过 `execution-orchestrator` 和 round-scoped `nexus.command` 查询 library、提取/复用 Draft、读取、修改、选择版本，并只在用户明确确认后保存；这些 authoring operation 在当前没有 active Execution 时仍可用，不能靠聊天记忆推断历史图。
   每次成功 authoring 的 typed command result 会在 assistant 消息中追加一条带完整不可变图快照的 `workgraph_artifact`；同一轮只把最后一张图提升到最终回复。聊天流默认展示当前草图或已保存图的紧凑卡片，不同时铺开原图；用户点击对照后才用 artifact 绑定的 exact source session/execution 加载来源图，桌面双栏、窄屏在来源图和草图间切换。历史 artifact 固定展示当时版本，不追随当前 Draft head 漂移。
   已保存命名图在能力页提供“继续编辑”：恢复其原 Draft、selected revision 和隐藏编辑 Session；兼容旧数据时从命名图建立一次初始 Draft。再次确认保存必须更新同一个命名图 aggregate 并追加 aggregate version，不重复抽取或创建同名副本。Draft 的到期时间是可续期的空闲 lease，读取、列举或恢复编辑时续期，不得因页面关闭丢失。
   UI 用户确认后，preview save HTTP 只在 fresh 目录隐藏内部 DM Session 调度 `HiddenFromUser + Synthetic +
   purpose=workgraph_distillation` 的 Agent round；该 Session 不 fork、resume 或续写源 transcript，只把宿主签发的 source session 和 exact preview 作为 round authority，
   从首个 pending slot、过程状态、工具调用到完成事件都保持隐藏，不写聊天消息、不改源 Composer、也不直接持久化；
   唯一模型持久化入口仍是该 round 内的 `execution-orchestrator` Skill 按 fresh contract 只提交
-  exact `preview_id` 给 `nexus_runtime.command` 的 `distill_workgraph` operation；宿主原样保存该预览，
+  exact `preview_id` 给 `nexus.command` 的 `distill_workgraph` operation；宿主原样保存该预览，
   Agent 不重新读取或重写源图。该内部 round 的宿主 prompt、operation contract、schema 说明、
   过程摘要与自然语言回执固定使用简体中文，只有命令、Skill 名称和标识符保留原始形式；
 - `GET /workgraph/workflows` 与 owner-scoped command catalog 提供读取；`POST /workgraph/workflows/{workflow_id}/preview` 恢复可继续编辑的 Draft。删除只删除

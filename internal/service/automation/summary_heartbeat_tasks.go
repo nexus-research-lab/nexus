@@ -39,9 +39,9 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 		lines = append(lines, formatScheduledTaskLine(job))
 	}
 	if len(jobs) > limit {
-		lines = append(lines, fmt.Sprintf("(+%d more, use nexus_runtime.command automation inspect/list for full list)", len(jobs)-limit))
+		lines = append(lines, fmt.Sprintf("(+%d more, use nexus.command automation inspect/list for full list)", len(jobs)-limit))
 	}
-	return "Scheduled tasks (manage these through the built-in automation Skill and nexus_runtime.command):\n- " + strings.Join(lines, "\n- ")
+	return "Scheduled tasks (manage these through the built-in automation Skill and nexus.command):\n- " + strings.Join(lines, "\n- ")
 }
 
 // snapshotJobsForAgent 从 in-memory jobStates 拷贝当前 agent 的任务视图。

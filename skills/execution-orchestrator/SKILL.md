@@ -10,7 +10,7 @@ Execution 管理“当前责任如何交付”；Goal 管理“什么目标需�
 ## 入口与命令协议
 
 1. substantial execution 前先判断直接执行、局部 Task、Subagent、WorkGraph、Room Assignment、Gate/Loop 或 Goal 中哪些结构真的降低风险；简单原子任务直接完成。
-2. 只有需要读取或改变受管责任图时才调用宿主提供的 `nexus_runtime.command`。先调用：
+2. 只有需要读取或改变受管责任图时才调用宿主提供的 `nexus.command`。先调用：
 
    ```json
    {"domain":"execution","action":"inspect"}

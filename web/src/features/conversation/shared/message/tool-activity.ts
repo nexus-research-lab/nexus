@@ -164,10 +164,10 @@ function formatCommandSummary(command: string): string {
 const RUNTIME_COMMAND_PATTERN = /^\s*(?:"\$\{NEXUS_COMMAND_PATH\}"|&\s+"\$\{env:NEXUS_COMMAND_PATH\}")\s+--json\s+(goal|execution)\s+(contract|inspect|invoke)(?:\s|$)/;
 const RUNTIME_COMMAND_OPERATION_PATTERN = /(?:^|\s)--operation\s+([a-z][a-z0-9_]*)(?:\s|$)/;
 const RUNTIME_COMMAND_TOOL_NAMES = new Set([
-  "mcp__nexus_runtime__command",
-  "nexus_runtime__command",
-  "nexus_runtime.command",
-  "nexus_runtime/command",
+  "mcp__nexus__command",
+  "nexus__command",
+  "nexus.command",
+  "nexus/command",
 ]);
 
 export function getSemanticToolName(toolName: string, input?: unknown): string {

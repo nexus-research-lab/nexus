@@ -46,7 +46,7 @@ canonical 名称。
 `visualize` 由 Nexus 在投递 runtime 时展开为简短的 Generative UI 提示；`workgraph`
 只要求当前请求使用 fresh WorkGraph 协作，不承担保存语义。动态 `/<command>` 在同一
 投递边界展开为语义节点和依赖模板，再由 `execution-orchestrator` Skill 通过
-`nexus_runtime.command` 创建 fresh Plan/WorkGraph。
+`nexus.command` 创建 fresh Plan/WorkGraph。
 nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公开 Slash 指令；
 需要立即释放上下文时统一使用 `/compact [instructions]`。
 

@@ -91,7 +91,7 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsStructuredCommandAndVisuali
 	for _, request := range []sdkpermission.Request{
 		{ToolName: "Skill", Input: map[string]any{"name": "goal-manager"}},
 		{ToolName: "Skill", Input: map[string]any{"name": "execution-orchestrator"}},
-		{ToolName: "mcp__nexus_runtime__command", Input: map[string]any{"domain": "goal", "action": "inspect"}},
+		{ToolName: "mcp__nexus__command", Input: map[string]any{"domain": "goal", "action": "inspect"}},
 		{ToolName: "mcp__nexus_visualize__show_widget", Input: map[string]any{"title": "diagram"}},
 	} {
 		decision, err := handler(context.Background(), request)
@@ -101,6 +101,7 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsStructuredCommandAndVisuali
 	}
 	for _, request := range []sdkpermission.Request{
 		{ToolName: "Bash", Input: map[string]any{"command": "echo unrelated"}},
+		{ToolName: "mcp__nexus_runtime__command"},
 		{ToolName: "mcp__external__update_record"},
 	} {
 		decision, err := handler(context.Background(), request)
@@ -108,8 +109,8 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsStructuredCommandAndVisuali
 			t.Fatalf("unmanaged request must reach fallback: decision=%+v err=%v", decision, err)
 		}
 	}
-	if fallbackCalls != 2 {
-		t.Fatalf("fallback calls = %d, want 2", fallbackCalls)
+	if fallbackCalls != 3 {
+		t.Fatalf("fallback calls = %d, want 3", fallbackCalls)
 	}
 }
 
@@ -167,7 +168,7 @@ func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.
 	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, true)
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
-		"Read", "Agent", "Skill", "mcp__nexus_runtime__command",
+		"Read", "Agent", "Skill", "mcp__nexus__command",
 		"mcp__nexus_visualize__show_widget",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
@@ -184,7 +185,7 @@ func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testi
 	if Contains(approved, "mcp__nexus_imagegen__generate_image") {
 		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
 	}
-	for _, required := range []string{"Skill", "mcp__nexus_runtime__command"} {
+	for _, required := range []string{"Skill", "mcp__nexus__command"} {
 		if !Contains(approved, required) {
 			t.Fatalf("managed command transport %q should remain enabled: %+v", required, tools)
 		}

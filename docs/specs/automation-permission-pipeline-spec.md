@@ -74,11 +74,11 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 ## Agent Automation command
 
-所有 Agent 通过内置 `automation` Skill 调用 physical-round scoped `nexus_runtime.command`。宿主把 owner、Agent、DM/Room/IM Session、source、DeliveryGrant 与可选 job/run 固定在进程内 MCP server 实例中；模型输入只能声明 `domain/action/operation/input/request_id/expected_revision/plan_digest`，不能覆盖这些 identity。
+所有 Agent 通过内置 `automation` Skill 调用 physical-round scoped `nexus.command`。宿主把 owner、Agent、DM/Room/IM Session、source、DeliveryGrant 与可选 job/run 固定在进程内 MCP server 实例中；模型输入只能声明 `domain/action/operation/input/request_id/expected_revision/plan_digest`，不能覆盖这些 identity。
 
 业务参数直接作为 MCP tool input 的 closed object 传入，沿现有 SDK `stream-json` 通道到达宿主并复用同一领域 parser、schema 校验、权限确认与 typed receipt。Nexus 不再创建 `runtime-command-inputs/.../input.json`，不注入命令 broker/token/path，不授予临时可写目录，也不为 command transport 启动 shell 或 loopback HTTP 请求。每轮 server 实例由 bridge 原地替换，因此 actor/authority 更新不会要求 runtime 进程重启。
 
-`nexus_runtime.command` 由受管工具策略自动审批进入领域处理；最终写权限仍由 round actor、Automation service、revision/digest 栅栏和原生真人确认共同决定。后台 run 的同一工具只获得宿主绑定 job/run 的查询能力，mutation 在 service 边界失败关闭。
+`nexus.command` 由受管工具策略自动审批进入领域处理；最终写权限仍由 round actor、Automation service、revision/digest 栅栏和原生真人确认共同决定。后台 run 的同一工具只获得宿主绑定 job/run 的查询能力，mutation 在 service 边界失败关闭。
 
 查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。确认载荷必须投影规范化变更字段，不能只显示泛化标题。真正写入继续使用 plan 观察到的 configuration version；`cancel_active_run` 还把 plan 观察到的 run_id 放进同一条件更新，过期确认必须在任何配置字段落库前失败。模型伪造的确认字段、聊天正文同意或通用工具 allow 都不能替代这次领域确认。
 

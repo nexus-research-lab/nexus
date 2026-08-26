@@ -9,7 +9,7 @@ Goal 是跨物理 round 持续追求的服务端目标，不是普通聊天、Ta
 
 ## 入口与命令协议
 
-1. 先通过 `nexus_runtime.command` 读取当前 Goal：
+1. 先通过 `nexus.command` 读取当前 Goal：
 
    ```json
    {"domain":"goal","action":"inspect"}

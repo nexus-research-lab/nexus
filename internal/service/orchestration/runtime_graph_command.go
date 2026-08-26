@@ -1,6 +1,6 @@
 // INPUT: current round Actor、host-owned Execution command receipts 与候选 CLI Tool NodeRun。
 // OUTPUT: 经 receipt 精确核验并恢复 operation 名、责任分段和审核锚点的 Runtime Graph 节点。
-// POS: nexus_runtime transport 与 WorkGraph 结构语义之间的可信桥；不从模型输入授予 authority。
+// POS: nexus.command transport 与 WorkGraph 结构语义之间的可信桥；不从模型输入授予 authority。
 package orchestration
 
 import (

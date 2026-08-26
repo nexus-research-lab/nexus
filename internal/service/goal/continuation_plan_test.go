@@ -366,7 +366,7 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		"Authoritative completion boundary:",
 		"<completion_criteria>",
 		"Objective alignment contract:",
-		"use only `nexus_runtime.command` with the goal domain and contract|inspect|invoke actions",
+		"use only `nexus.command` with the goal domain and contract|inspect|invoke actions",
 		"Goal operation names are not standalone tools; never use nexusctl",
 		"one scalar `report_json`",
 		"only an `aligned` report saved for the current objective revision and current round",

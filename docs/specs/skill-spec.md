@@ -224,7 +224,7 @@ nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Ski
 
 依赖 Nexus 控制面的内置 Skill 不共享一个宽泛的自动触发入口。信任边界和业务决策
 保持为独立顶层 Skill：Goal、Execution、Automation 共享 round-scoped
-`nexus_runtime.command`，Configuration 使用 round-scoped `nexuscfg`，owner 平台资源
+`nexus.command`，Configuration 使用 round-scoped `nexuscfg`，owner 平台资源
 管理使用仅主智能体可见的 `nexusctl`。一个领域被选中时，runtime 只需要加载该领域的
 根 `SKILL.md`。
 
@@ -232,7 +232,7 @@ nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Ski
 reference 路由；项目门禁将上述五个入口限制在 5 KiB。按操作阶段拆分的
 `references/` 只在当前动作需要时读取，不维护一个每次全量加载的 operation 大表。
 
-精确 tool schema、request identity 与结果 envelope 由 `nexus_runtime.command`
+精确 tool schema、request identity 与结果 envelope 由 `nexus.command`
 自描述；operation 字段、枚举、required、集合上限和 parser contract 由 runtime
 command registry/schema 返回。Skill reference 只补充模型必须做出的
 跨字段选择、状态转换、恢复和权限边界，不复制代码已经提供的完整 wire schema。

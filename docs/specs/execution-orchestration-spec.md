@@ -549,7 +549,7 @@ channel/Agent approval. If admitted, the round-scoped server still derives owner
 identity and applies the same lane and SQL checks above.
 
 Goal and Execution share one model-visible, always-loaded MCP tool:
-`nexus_runtime.command`. The bundled Skills own model decisions; the host captures
+`nexus.command`. The bundled Skills own model decisions; the host captures
 owner, Agent, Session, Room role, Goal revision, WorkBinding, ReviewBinding and
 coordination authority in a physical-round server instance. The model can submit
 only `domain`, `action`, `operation`, closed `input`, `request_id` and the explicit
@@ -625,7 +625,7 @@ canonical Agent service; the display projection never authorizes a runtime. The
 round-scoped SDK server is replaced in process when those profiles or authorities
 change, without expanding workspace write roots or restarting nxs.
 
-Current `nexus_runtime.command` calls are control-plane transport, not independent
+Current `nexus.command` calls are control-plane transport, not independent
 WorkGraph work. The runtime observer recognizes the exact managed tool identity and
 persists only `domain + action + operation + request_id`, never business input. These
 calls remain `detail` under their direct Agent owner even when they fail, retry, carry
@@ -697,7 +697,7 @@ ingress, or Agent-to-Agent handoffs.
 ## 6. Execution operations
 
 The Execution operation directory exposes exactly 12 operations through round-scoped
-`nexus_runtime.command`. Each operation owns one atomic control-plane
+`nexus.command`. Each operation owns one atomic control-plane
 transition; `contract`, `inspect`, and `invoke` are transport actions, not extra
 business operations.
 
@@ -765,7 +765,7 @@ idempotency identity where provided.
 ## 7. Goal operations
 
 The Goal operation directory exposes exactly 5 operations through round-scoped
-`nexus_runtime.command`. Goal-only operation remains valid; WorkGraph-specific gates apply
+`nexus.command`. Goal-only operation remains valid; WorkGraph-specific gates apply
 only to a `confirmed` managed binding.
 
 | Operation | Atomic semantics |
