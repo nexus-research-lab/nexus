@@ -175,6 +175,12 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
+	runtimeSkillNames, runtimeDisabledSkillNames = e.service.bindComputerUseSkill(
+		e.ctx,
+		e.agent.OwnerUserID,
+		runtimeSkillNames,
+		runtimeDisabledSkillNames,
+	)
 	allowedTools, disallowedTools, snapshottedToolPolicy := roomRoundToolPolicy(e.round, e.agent)
 	allowedTools = roomAllowedTools(allowedTools, e.round.Context.Room.PrivateMessagesEnabled)
 	if !snapshottedToolPolicy {

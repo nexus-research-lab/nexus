@@ -12,6 +12,7 @@ import (
 	browserhandler "github.com/nexus-research-lab/nexus/internal/handler/browser"
 	capabilityhandler "github.com/nexus-research-lab/nexus/internal/handler/capability"
 	channelhandler "github.com/nexus-research-lab/nexus/internal/handler/channel"
+	computerusehandler "github.com/nexus-research-lab/nexus/internal/handler/computeruse"
 	connectorhandler "github.com/nexus-research-lab/nexus/internal/handler/connector"
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
 	echohandler "github.com/nexus-research-lab/nexus/internal/handler/echo"
@@ -50,6 +51,7 @@ type handlerSet struct {
 	project      *projectpermissionhandler.Handlers
 	websocket    *handlerwebsocket.Handler
 	browser      *browserhandler.Handler
+	computerUse  *computerusehandler.Handlers
 }
 
 func newHandlerSet(
@@ -115,5 +117,6 @@ func newHandlerSet(
 		project:      projectpermissionhandler.New(api, services.ProjectPermission),
 		websocket:    websocketHandler,
 		browser:      browserhandler.New(api, services.Browser),
+		computerUse:  computerusehandler.New(api, services.ComputerUse),
 	}
 }

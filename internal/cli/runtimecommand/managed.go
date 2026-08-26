@@ -10,6 +10,8 @@ const (
 	GoalSkillName = "goal-manager"
 	// ExecutionSkillName is the canonical Skill binding for Execution/WorkGraph command semantics.
 	ExecutionSkillName = "execution-orchestrator"
+	// ComputerUseSkillName is selected only while the owner has explicitly enabled Computer Use.
+	ComputerUseSkillName = "computer-use"
 )
 
 var managedSemanticSkillNames = []string{
@@ -31,6 +33,35 @@ func IsManagedSemanticSkillName(name string) bool {
 		}
 	}
 	return false
+}
+
+// BindComputerUseSkill projects the owner preference into the runtime Skill
+// allow/deny sets. Installation alone never makes desktop control available.
+func BindComputerUseSkill(
+	selectedSkillNames []string,
+	disabledSkillNames []string,
+	enabled bool,
+) ([]string, []string) {
+	selected := removeSkillName(selectedSkillNames, ComputerUseSkillName)
+	disabled := removeSkillName(disabledSkillNames, ComputerUseSkillName)
+	if enabled {
+		selected = append(selected, ComputerUseSkillName)
+	} else {
+		disabled = append(disabled, ComputerUseSkillName)
+	}
+	return selected, disabled
+}
+
+func removeSkillName(values []string, target string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || strings.EqualFold(value, target) {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
 }
 
 // BindManagedSemanticSkills makes Goal/Execution bindings non-optional while

@@ -42,6 +42,7 @@ type Actor struct {
 	OwnerUserID        string
 	AgentID            string
 	AgentName          string
+	WorkspacePath      string
 	SessionKey         string
 	SessionLabel       string
 	RoundID            string
@@ -67,6 +68,7 @@ func (a Actor) normalized() Actor {
 	result.OwnerUserID = strings.TrimSpace(result.OwnerUserID)
 	result.AgentID = strings.TrimSpace(result.AgentID)
 	result.AgentName = strings.TrimSpace(result.AgentName)
+	result.WorkspacePath = strings.TrimSpace(result.WorkspacePath)
 	result.SessionKey = strings.TrimSpace(result.SessionKey)
 	result.SessionLabel = strings.TrimSpace(result.SessionLabel)
 	result.RoundID = strings.TrimSpace(result.RoundID)
