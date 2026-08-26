@@ -47,20 +47,16 @@ var nexuscfgCommandTextPattern = regexp.MustCompile(
 var shellEscapeReplacer = strings.NewReplacer(`\`, "", "^", "", "`", "")
 
 var nexusctlScopeEnvironmentNames = map[string]struct{}{
-	"CLAUDE_CONFIG_DIR":              {},
-	"NEXUS_CONFIG_DIR":               {},
-	"NEXUS_RUNTIME_SCOPE_MODE":       {},
-	"NEXUS_STATE_ROOT":               {},
-	"NEXUSCTL_USER_ID":               {},
-	"NEXUSCTL_WORKSPACE_PATH":        {},
-	"NEXUSCTL_COMMAND_PATH":          {},
-	"NEXUSCFG_COMMAND_PATH":          {},
-	"NEXUSCFG_BROKER_URL":            {},
-	"NEXUSCFG_CAPABILITY_TOKEN":      {},
-	"NEXUS_COMMAND_PATH":             {},
-	"NEXUS_COMMAND_BROKER_URL":       {},
-	"NEXUS_COMMAND_CAPABILITY_TOKEN": {},
-	"NEXUS_COMMAND_INPUT_PATH":       {},
+	"CLAUDE_CONFIG_DIR":         {},
+	"NEXUS_CONFIG_DIR":          {},
+	"NEXUS_RUNTIME_SCOPE_MODE":  {},
+	"NEXUS_STATE_ROOT":          {},
+	"NEXUSCTL_USER_ID":          {},
+	"NEXUSCTL_WORKSPACE_PATH":   {},
+	"NEXUSCTL_COMMAND_PATH":     {},
+	"NEXUSCFG_COMMAND_PATH":     {},
+	"NEXUSCFG_BROKER_URL":       {},
+	"NEXUSCFG_CAPABILITY_TOKEN": {},
 }
 
 var nexusctlScopeFlags = map[string]struct{}{
@@ -82,14 +78,6 @@ var nexuscfgExecutableNames = map[string]struct{}{
 	"nexuscfg.cmd": {},
 	"nexuscfg.exe": {},
 	"nexuscfg.ps1": {},
-}
-
-var nexusRuntimeExecutableNames = map[string]struct{}{
-	"nexus":     {},
-	"nexus.bat": {},
-	"nexus.cmd": {},
-	"nexus.exe": {},
-	"nexus.ps1": {},
 }
 
 var powerShellEnvironmentMutationCommands = map[string]struct{}{
@@ -969,9 +957,7 @@ func forbiddenNexusctlScope(policy Policy, command string, syntax shellSyntax) s
 	usesNexuscfg := shellCommandUsesNexuscfg(parts) ||
 		commandReferencesBracedNexuscfgVariable(command) ||
 		nexuscfgCommandTextPattern.MatchString(command)
-	usesRuntimeCommand := shellCommandUsesNexusRuntime(parts) ||
-		commandReferencesBracedNexusRuntimeVariable(command)
-	if !usesNexusctl && !usesNexuscfg && !usesRuntimeCommand {
+	if !usesNexusctl && !usesNexuscfg {
 		return ""
 	}
 	if usesNexusctl && !policy.IsMainAgent {
@@ -1010,23 +996,6 @@ func shellCommandUsesNexuscfg(parts []shellCommandPart) bool {
 				candidate = value
 			}
 			if nexuscfgCommandVariable(candidate) || nexuscfgExecutable(candidate) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func shellCommandUsesNexusRuntime(parts []shellCommandPart) bool {
-	for _, part := range parts {
-		if part.operator != 0 {
-			continue
-		}
-		for _, candidate := range shellTokenCandidates(part) {
-			if _, value, assigned := strings.Cut(candidate, "="); assigned {
-				candidate = value
-			}
-			if nexusRuntimeCommandVariable(candidate) || nexusRuntimeExecutable(candidate) {
 				return true
 			}
 		}
@@ -1116,12 +1085,6 @@ func commandReferencesBracedNexuscfgVariable(command string) bool {
 		strings.Contains(upper, "${ENV:NEXUSCFG_COMMAND_PATH}")
 }
 
-func commandReferencesBracedNexusRuntimeVariable(command string) bool {
-	upper := strings.ToUpper(command)
-	return strings.Contains(upper, "${NEXUS_COMMAND_PATH}") ||
-		strings.Contains(upper, "${ENV:NEXUS_COMMAND_PATH}")
-}
-
 func shellTokenCandidates(part shellCommandPart) []string {
 	candidates := []string{part.value}
 	unescaped := shellEscapeReplacer.Replace(part.value)
@@ -1158,21 +1121,8 @@ func nexuscfgCommandVariable(value string) bool {
 	}
 }
 
-func nexusRuntimeCommandVariable(value string) bool {
-	switch strings.ToUpper(strings.TrimSpace(value)) {
-	case "$NEXUS_COMMAND_PATH",
-		"${NEXUS_COMMAND_PATH}",
-		"%NEXUS_COMMAND_PATH%",
-		"$ENV:NEXUS_COMMAND_PATH",
-		"${ENV:NEXUS_COMMAND_PATH}":
-		return true
-	default:
-		return false
-	}
-}
-
 func nexusControlCommandVariable(value string) bool {
-	return nexusctlCommandVariable(value) || nexuscfgCommandVariable(value) || nexusRuntimeCommandVariable(value)
+	return nexusctlCommandVariable(value) || nexuscfgCommandVariable(value)
 }
 
 func nexusctlExecutable(value string) bool {
@@ -1188,14 +1138,6 @@ func nexuscfgExecutable(value string) bool {
 		value = value[index+1:]
 	}
 	_, ok := nexuscfgExecutableNames[strings.ToLower(strings.TrimSpace(value))]
-	return ok
-}
-
-func nexusRuntimeExecutable(value string) bool {
-	if index := strings.LastIndexAny(value, `/\`); index >= 0 {
-		value = value[index+1:]
-	}
-	_, ok := nexusRuntimeExecutableNames[strings.ToLower(strings.TrimSpace(value))]
 	return ok
 }
 

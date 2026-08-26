@@ -40,21 +40,8 @@ type roomSlotRuntimeState struct {
 	sdkSessionIdentity  *runtimectx.SDKSessionIdentityState
 	commandReceiptOnce  sync.Once
 	commandReceipts     *runtimecommand.ReceiptState
-	commandResourceOnce sync.Once
-	commandResources    *runtimecommand.RoundResources
 	workBindingOnce     sync.Once
 	workBindingState    *runtimectx.WorkBindingState
-}
-
-func (s *activeRoomSlot) ensureCommandResources() *runtimecommand.RoundResources {
-	if s == nil {
-		return nil
-	}
-	runtimeState := &s.mutable.runtime
-	runtimeState.commandResourceOnce.Do(func() {
-		runtimeState.commandResources = runtimecommand.NewRoundResources()
-	})
-	return runtimeState.commandResources
 }
 
 func (s *activeRoomSlot) ensureCommandReceiptState() *runtimecommand.ReceiptState {
@@ -448,7 +435,6 @@ func (s *Service) finishSlot(slot *activeRoomSlot) {
 		return
 	}
 	s.forgetRoomSlotGuidance(slot)
-	slot.ensureCommandResources().Close()
 	slot.closeDone()
 }
 

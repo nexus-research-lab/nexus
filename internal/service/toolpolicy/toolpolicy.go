@@ -39,9 +39,19 @@ var managedImagegenAllowedTools = []string{
 
 var managedMainThreadAllowedTools = []string{
 	"Agent",
-	"Bash",
-	"PowerShell",
 	"Skill",
+}
+
+var managedRuntimeCommandAllowedTools = []string{
+	"nexus_runtime",
+	"mcp__nexus_runtime__command",
+}
+
+var managedRuntimeCommandToolNames = map[string]struct{}{
+	"mcp__nexus_runtime__command": {},
+	"nexus_runtime__command":      {},
+	"nexus_runtime.command":       {},
+	"nexus_runtime/command":       {},
 }
 
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
@@ -114,6 +124,7 @@ var toolNameMatchers = []toolNameMatcher{
 
 var managedToolFamilyPrefixes = map[string][]string{
 	"nexus_room":      {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
+	"nexus_runtime":   {"mcp__nexus_runtime__", "nexus_runtime__", "nexus_runtime."},
 	"nexus_visualize": {"mcp__nexus_visualize__", "nexus_visualize__", "nexus_visualize."},
 	"nexus_imagegen":  {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
 }
@@ -162,7 +173,7 @@ func matchesKnownAlias(toolName string, approved string) bool {
 }
 
 // IsManagedSemanticSkillRequest 判断 Skill 调用是否只是在加载受管的
-// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped nexus CLI。
+// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped nexus_runtime。
 func IsManagedSemanticSkillRequest(toolName string, input map[string]any) bool {
 	if !MatchesItem(toolName, "Skill") {
 		return false
@@ -181,86 +192,36 @@ func IsManagedVisualizeTool(toolName string) bool {
 	return ok
 }
 
-// WithManagedRuntimeAutoApproval 放行内置 Goal/Execution 语义 Skill 与只在
-// 沙箱前端生效的生成式 UI 工具。具体操作只经受管 nexus CLI 自动审批。
+// IsManagedRuntimeCommandTool 判断请求是否命中 round-scoped Nexus command 工具。
+func IsManagedRuntimeCommandTool(toolName string) bool {
+	_, ok := managedRuntimeCommandToolNames[strings.TrimSpace(toolName)]
+	return ok
+}
+
+// WithManagedRuntimeAutoApproval 放行内置 Goal/Execution 语义 Skill、结构化
+// Nexus command 与只在沙箱前端生效的生成式 UI 工具。
 func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
 	if handler == nil {
 		return nil
 	}
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if IsManagedSemanticSkillRequest(request.ToolName, request.Input) || IsManagedVisualizeTool(request.ToolName) {
+		if IsManagedSemanticSkillRequest(request.ToolName, request.Input) ||
+			IsManagedRuntimeCommandTool(request.ToolName) ||
+			IsManagedVisualizeTool(request.ToolName) {
 			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
 		}
 		return handler(ctx, request)
 	}
 }
 
-// WithNexusRuntimeCLIAutoApproval 只放行没有 shell 组合符的 exact nexus
-// runtime command。round capability、领域 service 与强类型收据仍是最终授权边界。
-func WithNexusRuntimeCLIAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
-	if handler == nil {
-		return nil
-	}
-	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if IsNexusRuntimeCLIRequest(request) {
-			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
-		}
-		return handler(ctx, request)
-	}
-}
-
-// WithNexusRuntimeCLICompositionDeny keeps a semantic mutation and its shell
-// exit status atomic. Once a command references the managed executable with
-// --json, it must match the exact single-process grammar; otherwise a pipe or
-// trailing parser could fail after the state change already committed.
-func WithNexusRuntimeCLICompositionDeny(handler sdkpermission.Handler) sdkpermission.Handler {
-	if handler == nil {
-		return nil
-	}
-	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if isComposedNexusRuntimeCLIRequest(request) {
-			return sdkpermission.Deny(
-				"Goal/Execution/Automation 受管命令必须独立执行；请移除管道、重定向、Python/jq/正则解析或其他 shell 组合，直接读取命令返回的 typed JSON",
-				false,
-			), nil
-		}
-		return handler(ctx, request)
-	}
-}
-
-func isComposedNexusRuntimeCLIRequest(request sdkpermission.Request) bool {
-	if IsNexusRuntimeCLIRequest(request) {
-		return false
-	}
-	command, ok := request.Input["command"].(string)
-	if !ok {
-		return false
-	}
-	switch {
-	case MatchesItem(request.ToolName, "Bash"):
-		return strings.Contains(command, `"${NEXUS_COMMAND_PATH}" --json`)
-	case MatchesItem(request.ToolName, "PowerShell"):
-		return strings.Contains(command, `& "${env:NEXUS_COMMAND_PATH}" --json`)
-	default:
-		return false
-	}
-}
-
-// RuntimeCLIInvocation 是经过严格 shell 子集解析的命令身份。
+// RuntimeCLIInvocation 是历史轨迹中经过严格 shell 子集解析的命令身份。
 type RuntimeCLIInvocation struct {
 	Domain string
 	Action string
 }
 
-// IsNexusRuntimeCLIRequest 只识别受管 executable、固定子命令和无 shell
-// 动态语义的单进程调用；任何其他 Bash/PowerShell 语法仍进入普通权限处理器。
-func IsNexusRuntimeCLIRequest(request sdkpermission.Request) bool {
-	_, ok := NexusRuntimeCLIInvocation(request)
-	return ok
-}
-
-// NexusRuntimeCLIInvocation 返回经过严格 shell 子集解析后的 domain/action。
-// executable 和 input slot 都只能引用宿主注入的精确变量，不能换成同名程序或任意路径。
+// NexusRuntimeCLIInvocation 只为旧 Runtime Graph 返回历史 CLI 的 domain/action。
+// 它不参与当前工具审批，也不恢复已删除的 CLI transport。
 func NexusRuntimeCLIInvocation(request sdkpermission.Request) (RuntimeCLIInvocation, bool) {
 	invalid := RuntimeCLIInvocation{}
 	rawCommand, ok := request.Input["command"].(string)
@@ -525,13 +486,14 @@ func WithManagedImagegenAllowedTools(tools []string) []string {
 	return appendDistinctTools(tools, managedImagegenAllowedTools...)
 }
 
-// WithManagedRuntimeAllowedTools 追加内置 Skill、受管 CLI transport 与 UI 能力的必要白名单。
+// WithManagedRuntimeAllowedTools 追加内置 Skill、结构化 command 与 UI 能力的必要白名单。
 func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool) []string {
 	result := tools
 	if len(NormalizeSet(result)) == 0 {
 		return result
 	}
 	result = appendDistinctTools(result, managedMainThreadAllowedTools...)
+	result = appendDistinctTools(result, managedRuntimeCommandAllowedTools...)
 	result = appendDistinctTools(result, managedVisualizeAllowedTools...)
 	if !imagegenDefaultEnabled {
 		return withoutManagedImagegenAllowedTools(result)

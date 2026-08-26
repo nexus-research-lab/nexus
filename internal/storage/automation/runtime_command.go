@@ -1,6 +1,6 @@
 // INPUT: owner-scoped runtime command request_id、actor、operation 与 plan digest。
 // OUTPUT: 原子 claim、已完成结果重放或不可安全重放的 uncertain 状态。
-// POS: Agent-facing Automation CLI 副作用命令的 durable idempotency ledger。
+// POS: Agent-facing Automation command 副作用命令的 durable idempotency ledger。
 package automation
 
 import (

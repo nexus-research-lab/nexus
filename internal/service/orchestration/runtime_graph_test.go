@@ -325,6 +325,41 @@ func TestRuntimeGraphMarksOnlyExactManagedCLITransportAsDetail(t *testing.T) {
 	}
 }
 
+func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
+	t.Parallel()
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant", "uuid": "assistant-structured-command",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use", "id": "tool-runtime-1", "name": "mcp__nexus_runtime__command",
+				"input": map[string]any{
+					"domain": "execution", "action": "invoke", "operation": "assign_work",
+					"request_id": "assign-structured-1", "input": map[string]any{"work_item_id": "private"},
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := runtimeGraphLifecycleEvents(message)
+	if len(events) != 1 {
+		t.Fatalf("lifecycle events = %+v", events)
+	}
+	metadata := events[0].Metadata
+	if metadata[runtimeGraphCommandTransportMetadataKey] != "true" ||
+		metadata[runtimeGraphCommandDomainMetadataKey] != "execution" ||
+		metadata[runtimeGraphCommandActionMetadataKey] != "invoke" ||
+		metadata[runtimeGraphCommandOperationMetadataKey] != "assign_work" ||
+		metadata[runtimeGraphCommandRequestIDMetadataKey] != "assign-structured-1" {
+		t.Fatalf("structured command metadata = %+v", metadata)
+	}
+	if _, leaked := metadata["input"]; leaked {
+		t.Fatalf("structured command leaked business input: %+v", metadata)
+	}
+}
+
 func TestRuntimeGraphPersistsManagedCLITransportWithoutRawCommand(t *testing.T) {
 	t.Parallel()
 

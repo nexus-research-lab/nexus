@@ -1,6 +1,6 @@
 // INPUT: runtime Actor 的结构化 SessionKey、任务来源/执行/投递快照与自然语言查询。
 // OUTPUT: 只属于当前 DM/Room/外部 IM 会话的任务集合和日报聚合。
-// POS: Automation CLI 的会话语义边界；“这里/当前会话”与外部 IM 默认查询不能放大到 Agent 全域。
+// POS: Automation command 的会话语义边界；“这里/当前会话”与外部 IM 默认查询不能放大到 Agent 全域。
 package automation
 
 import (

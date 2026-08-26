@@ -192,7 +192,6 @@ func runBuiltinAdaptiveWorkflowSessionE2E(
 		conversationID,
 		roundID,
 	)
-	t.Cleanup(commandActor.Round.Resources.Close)
 	client := newBuiltinWorkflowE2EClient(func(runCtx context.Context, prompt string) builtinWorkflowE2EOutcome {
 		runResult, runErr := runWorkflowThroughRuntimeCommands(
 			runCtx,
@@ -361,7 +360,6 @@ func builtinWorkflowCommandActor(
 			SessionKey: scopeSessionKey,
 			RoundID:    roundID,
 			Receipts:   runtimecommand.NewReceiptState(),
-			Resources:  runtimecommand.NewRoundResources(),
 			CommandContext: runtimectx.RuntimeCommandContext{
 				Agent:                   agentValue,
 				ScopeSessionKey:         scopeSessionKey,

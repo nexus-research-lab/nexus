@@ -5,10 +5,11 @@ import (
 	"testing"
 )
 
-func TestWorkGraphDistillationPolicyAllowsInputSlotRead(t *testing.T) {
+func TestWorkGraphDistillationPolicyUsesStructuredRuntimeCommand(t *testing.T) {
 	policy := workGraphDistillationRuntimePolicy()
-	if !slices.Contains(policy.ToolPolicy.AllowedTools, "Read") ||
-		slices.Contains(policy.ToolPolicy.DisallowedTools, "Read") {
-		t.Fatalf("distillation must support the CLI input-slot Read→Write contract: %#v", policy.ToolPolicy)
+	if !slices.Contains(policy.ToolPolicy.AllowedTools, "mcp__nexus_runtime__command") ||
+		slices.Contains(policy.ToolPolicy.AllowedTools, "Read") ||
+		slices.Contains(policy.ToolPolicy.AllowedTools, "Write") {
+		t.Fatalf("distillation must use the structured runtime command without file staging: %#v", policy.ToolPolicy)
 	}
 }

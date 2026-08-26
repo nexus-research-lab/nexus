@@ -1,6 +1,6 @@
 // INPUT: current round Actor、host-owned Execution command receipts 与候选 CLI Tool NodeRun。
 // OUTPUT: 经 receipt 精确核验并恢复 operation 名、责任分段和审核锚点的 Runtime Graph 节点。
-// POS: nexus CLI transport 与 WorkGraph 结构语义之间的可信桥；不从任意 Bash 输出授予 authority。
+// POS: nexus_runtime transport 与 WorkGraph 结构语义之间的可信桥；不从模型输入授予 authority。
 package orchestration
 
 import (
@@ -22,8 +22,8 @@ const (
 	runtimeGraphCommandActionMetadataKey    = "runtime_command_action"
 )
 
-// ObserveRuntimeCommandReceipts reconciles provider Tool nodes only after their CLI
-// envelopes match broker-owned receipts. One graph read serves the whole assistant
+// ObserveRuntimeCommandReceipts reconciles provider Tool nodes only after their
+// structured identity matches host-owned receipts. One graph read serves the whole assistant
 // checkpoint; providers without Tool lifecycle receive deterministic fallback nodes.
 func (s *Service) ObserveRuntimeCommandReceipts(
 	ctx context.Context,

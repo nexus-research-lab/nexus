@@ -240,7 +240,7 @@ func workspaceManagedStateReady(rootFS *confinedfs.Root, isMain bool) bool {
 }
 
 func sharedRuntimeCLIShimsReady() bool {
-	for _, name := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd", "nexus", "nexus.cmd"} {
+	for _, name := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd"} {
 		info, err := os.Lstat(filepath.Join(appfs.AgentRuntimeBinDir(), name))
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return false

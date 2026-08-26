@@ -1,6 +1,6 @@
 // INPUT: runtime command Actor 与模型表达的上下文/投递意图。
 // OUTPUT: 宿主绑定的目标 Agent、SessionTarget、DeliveryTarget 和不可伪造 Source。
-// POS: Automation CLI 跨 Agent、Room、IM 与 Session 路由的唯一翻译边界。
+// POS: Automation command 跨 Agent、Room、IM 与 Session 路由的唯一翻译边界。
 package automation
 
 import (

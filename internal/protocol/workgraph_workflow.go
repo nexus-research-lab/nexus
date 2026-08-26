@@ -240,7 +240,7 @@ type ReviseWorkGraphWorkflowDraftRequest struct {
 	ReviseWorkGraphWorkflowPreviewRequest
 }
 
-// ReviseWorkGraphWorkflowPreviewRequest 是编辑 Agent 通过受限 Execution CLI 一次性提交的完整草图版本。
+// ReviseWorkGraphWorkflowPreviewRequest 是编辑 Agent 通过受限 Execution command 一次性提交的完整草图版本。
 type ReviseWorkGraphWorkflowPreviewRequest struct {
 	Revision           int64                         `json:"revision"`
 	SlashName          string                        `json:"slash_name"`

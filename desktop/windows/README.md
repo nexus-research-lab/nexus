@@ -69,7 +69,7 @@ package 脚本默认从 bridge runtime release 的 `nxs-stable` 通道下载并�
 
 package 脚本默认用 self-contained .NET 发布 shell，当前只构建 `win-x64`；安装器允许在 x64-compatible Windows 上运行，也就是 x64 Windows 和支持 x64 仿真的 Windows 11 ARM64。
 
-如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nexuscfg.exe`、`Resources\bin\nexus.exe`、`Resources\bin\nxs.exe` 和安装器：
+如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nexuscfg.exe`、`Resources\bin\nxs.exe` 和安装器：
 
 ```powershell
 $env:NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64 = "<base64 pfx>"

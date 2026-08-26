@@ -187,7 +187,6 @@ final class SidecarSupervisor {
     for (name, environmentKey) in [
       ("nexusctl", "NEXUSCTL_COMMAND_PATH"),
       ("nexuscfg", "NEXUSCFG_COMMAND_PATH"),
-      ("nexus", "NEXUS_COMMAND_PATH"),
     ] {
       let timelineKey = "sidecar.\(name)_command"
       if let override = environment[environmentKey], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

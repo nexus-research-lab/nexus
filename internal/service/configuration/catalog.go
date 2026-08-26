@@ -102,7 +102,7 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainAutomation, Description: "定时任务、后台执行、交付与运行历史",
-		Source: "database + scheduler runtime", ManagedBy: "nexus automation", Mutable: true,
+		Source: "database + scheduler runtime", ManagedBy: "automation Skill + nexus_runtime.command", Mutable: true,
 	},
 	{
 		Name: DomainSessions, Description: "Owner workspace 中的 Agent 对话目录与安全生命周期",
@@ -135,11 +135,11 @@ var domainCatalog = []DomainDefinition{
 	},
 	{
 		Name: DomainGoals, Description: "持久 Goal objective、生命周期、继续执行与使用状态",
-		Source: "database + goal runtime", ManagedBy: "goal-manager Skill + nexus goal CLI", Mutable: true,
+		Source: "database + goal runtime", ManagedBy: "goal-manager Skill + nexus_runtime.command", Mutable: true,
 	},
 	{
 		Name: DomainExecutions, Description: "Execution、Plan、WorkGraph、Assignment、验收与恢复状态",
-		Source: "database + execution runtime", ManagedBy: "execution-orchestrator Skill + nexus execution CLI", Mutable: true,
+		Source: "database + execution runtime", ManagedBy: "execution-orchestrator Skill + nexus_runtime.command", Mutable: true,
 	},
 }
 

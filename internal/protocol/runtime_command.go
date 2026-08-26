@@ -1,6 +1,6 @@
-// INPUT: 宿主签发给当前 Agent runtime 的 Nexus command broker、稳定 capability、私有输入槽与同版本 host multicall。
-// OUTPUT: nxs/Claude、CLI 与本机 broker 共用且不可由模型覆盖的环境变量、请求头与私有入口名称。
-// POS: Goal、Execution、Automation 共用的 Agent-facing Nexus CLI 跨进程最小 wire。
+// INPUT: 历史 Goal/Execution CLI 输出或当前结构化 command result。
+// OUTPUT: 可与宿主 typed receipt 精确对账的 command identity。
+// POS: Runtime Graph 的兼容读取边界；不参与当前 nexus_runtime 授权。
 package protocol
 
 import (
@@ -8,17 +8,8 @@ import (
 	"strings"
 )
 
-const (
-	NexusCommandPathEnvName            = "NEXUS_COMMAND_PATH"
-	NexusCommandBrokerURLEnvName       = "NEXUS_COMMAND_BROKER_URL"
-	NexusCommandCapabilityTokenEnvName = "NEXUS_COMMAND_CAPABILITY_TOKEN"
-	NexusCommandInputPathEnvName       = "NEXUS_COMMAND_INPUT_PATH"
-	NexusCommandCapabilityHeader       = "X-Nexus-Runtime-Command-Capability"
-	NexusCommandHostEntrypointArgument = "__nexus_runtime_command__"
-)
-
-// RuntimeCommandResultIdentity 是 nexus CLI invoke 输出中可与宿主 typed receipt
-// 精确对账的候选身份。它本身不授权，也不能替代 broker receipt。
+// RuntimeCommandResultIdentity 是历史 nexus CLI invoke 输出中可与宿主 typed receipt
+// 精确对账的候选身份。它本身不授权，也不能替代宿主 receipt。
 type RuntimeCommandResultIdentity struct {
 	Domain    string
 	Action    string
@@ -26,7 +17,7 @@ type RuntimeCommandResultIdentity struct {
 	RequestID string
 }
 
-// ParseRuntimeCommandResultIdentity 只识别 CLI 的顶层 JSON envelope。调用方必须
+// ParseRuntimeCommandResultIdentity 只识别历史 CLI 的顶层 JSON envelope。调用方必须
 // 再与当前 round 的 host-owned receipt 对账，不能信任任意 shell 输出自报的身份。
 func ParseRuntimeCommandResultIdentity(values ...any) (RuntimeCommandResultIdentity, bool) {
 	for _, value := range values {

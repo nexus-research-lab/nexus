@@ -13,25 +13,21 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const (
 	nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 	nexuscfgCommandPathEnvName = "NEXUSCFG_COMMAND_PATH"
-	nexusCommandPathEnvName    = "NEXUS_COMMAND_PATH"
 )
 
 type runtimeCLIShimDefinition struct {
 	Name               string
 	CommandPathEnvName string
-	StableHostFallback bool
 }
 
 var runtimeCLIShimDefinitions = []runtimeCLIShimDefinition{
 	{Name: "nexusctl", CommandPathEnvName: nexusctlCommandPathEnvName},
 	{Name: "nexuscfg", CommandPathEnvName: nexuscfgCommandPathEnvName},
-	{Name: "nexus", CommandPathEnvName: nexusCommandPathEnvName, StableHostFallback: true},
 }
 
 var runtimeCLIShimMu sync.Mutex
@@ -43,9 +39,7 @@ type runtimeCLIShimTarget struct {
 	Arguments   []string
 }
 
-// EnsureRuntimeCLICommands refreshes process-bound multicall shims during host
-// startup. A development `go run` host has a new executable path after every
-// restart, independently of Agent workspace initialization markers.
+// EnsureRuntimeCLICommands refreshes host control shims during startup。
 func EnsureRuntimeCLICommands() error {
 	return ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), map[string]string{
 		"project_root": appfs.Root(),
@@ -63,6 +57,11 @@ func ensureRuntimeCLIShims(binDir string, context map[string]string) error {
 		return err
 	}
 	defer root.Close()
+	for _, retired := range []string{"nexus", "nexus.cmd"} {
+		if err = root.Remove(retired); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
 	for _, definition := range runtimeCLIShimDefinitions {
 		target, resolveErr := resolveRuntimeCLIShimTarget(
 			binDir,
@@ -103,19 +102,6 @@ func resolveRuntimeCLIShimTarget(
 			return runtimeCLIShimTarget{}, err
 		}
 		return runtimeCLIShimTarget{Kind: "executable", CommandPath: filepath.Clean(commandPath)}, nil
-	}
-	if definition.StableHostFallback {
-		hostPath, err := os.Executable()
-		if err != nil {
-			return runtimeCLIShimTarget{}, fmt.Errorf("解析 Nexus 宿主可执行文件: %w", err)
-		}
-		if err = validateRuntimeCLIExecutable(hostPath, definition.Name); err != nil {
-			return runtimeCLIShimTarget{}, fmt.Errorf("Nexus 宿主不能承载 runtime CLI: %w", err)
-		}
-		return runtimeCLIShimTarget{
-			Kind: "executable", CommandPath: filepath.Clean(hostPath),
-			Arguments: []string{protocol.NexusCommandHostEntrypointArgument},
-		}, nil
 	}
 	for _, candidate := range packagedRuntimeCLICandidates(root, definition.Name) {
 		if err := validateRuntimeCLIExecutable(candidate, definition.Name); err == nil {
@@ -295,8 +281,7 @@ func looksLikeGeneratedRuntimeCLIShim(content string) bool {
 	return strings.Contains(content, "NEXUSCTL_WORKSPACE_PATH") &&
 		(strings.Contains(content, "go run ./cmd/nexusctl") ||
 			strings.Contains(content, "go run ./cmd/nexuscfg") ||
-			strings.Contains(content, "go run ./cmd/nexus") ||
-			strings.Contains(content, protocol.NexusCommandHostEntrypointArgument) ||
+			strings.Contains(content, "--nexus-runtime-command") ||
 			strings.Contains(content, "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl") ||
 			strings.Contains(content, "exit /b %ERRORLEVEL%"))
 }

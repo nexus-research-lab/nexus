@@ -493,7 +493,7 @@ func cloneRuntimeReviewBinding(binding *protocol.ExecutionReviewBinding) *protoc
 
 type responsibilityAuthorityContextKey struct{}
 
-// WithResponsibilityAuthorityState 把当前 round 的统一 capability 交给 command broker 与运行图消费者。
+// WithResponsibilityAuthorityState 把当前 round 的统一 authority 交给 command adapter 与运行图消费者。
 func WithResponsibilityAuthorityState(
 	ctx context.Context,
 	state *ResponsibilityAuthorityState,

@@ -35,26 +35,16 @@ func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 	}
 
 	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
+		ToolName: "mcp__nexus_runtime__command",
 		Input: map[string]any{
-			"command": `"${NEXUS_COMMAND_PATH}" --json automation inspect --operation get --input '{}'`,
+			"domain": "automation", "action": "inspect", "operation": "get",
 		},
 	})
 	if err != nil {
-		t.Fatalf("Automation CLI 查询权限处理失败: %v", err)
+		t.Fatalf("Automation command 查询权限处理失败: %v", err)
 	}
 	if wrappedDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("exact Automation CLI 查询应由 job/run capability 收口并允许启动: %+v", wrappedDecision)
-	}
-	mutationDecision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json automation apply --operation delete`},
-	})
-	if err != nil {
-		t.Fatalf("Automation CLI 变更权限处理失败: %v", err)
-	}
-	if mutationDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("后台 scheduled run 不应获得 Automation CLI mutation Bash 权限: %+v", mutationDecision)
+		t.Fatalf("exact Automation command 查询应由 job/run authority 收口并允许启动: %+v", wrappedDecision)
 	}
 
 	writeDecision, err := handler(context.Background(), sdkpermission.Request{ToolName: "Write"})

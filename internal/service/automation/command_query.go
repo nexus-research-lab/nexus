@@ -1,6 +1,6 @@
 // INPUT: round-scoped Automation Actor、只读 operation 与封闭 CLI input。
 // OUTPUT: owner/Agent/job/run/会话范围收紧后的任务、报告或 heartbeat 投影。
-// POS: Nexus Automation CLI 的只读 command service；后台 run 只能读取宿主绑定的当前任务。
+// POS: Nexus Automation command 的只读 service；后台 run 只能读取宿主绑定的当前任务。
 package automation
 
 import (

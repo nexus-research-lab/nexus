@@ -48,7 +48,6 @@ type dmClientPreparation struct {
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
 	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
 	commandReceipts        *runtimecommand.ReceiptState
-	commandResources       *runtimecommand.RoundResources
 	permissionMode         sdkpermission.Mode
 }
 
@@ -149,8 +148,6 @@ func (s *Service) ensureClient(
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
-	permissionHandler = toolpolicy.WithNexusRuntimeCLIAutoApproval(permissionHandler)
-	permissionHandler = toolpolicy.WithNexusRuntimeCLICompositionDeny(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	var runtimeSkillNames, runtimeDisabledSkillNames []string
 	if !scopedPolicyActive || !scopedPolicy.DisableSkills {
@@ -230,13 +227,6 @@ func (s *Service) ensureClient(
 		dmdomain.StringPointerValue(sessionItem.SessionID),
 	)
 	commandReceipts := runtimecommand.NewReceiptState()
-	commandResources := runtimecommand.NewRoundResources()
-	commandResourcesTransferred := false
-	defer func() {
-		if !commandResourcesTransferred {
-			commandResources.Close()
-		}
-	}()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	if scopedPolicyActive {
@@ -278,25 +268,6 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
-	runtimeCommandEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly &&
-		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
-			sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
-		s.runtimeCommandEnv != nil {
-		runtimeCommandEnv, err = s.runtimeCommandEnv(
-			runtimeBuilderContext,
-			runtimecommand.RoundContext{
-				SessionKey: sessionKey, RoundID: request.RoundID,
-				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
-				SourceContextLabel: agentValue.Name,
-				CommandContext:     runtimeCommandContext, Receipts: commandReceipts,
-				Resources: commandResources,
-			},
-		)
-		if err != nil {
-			return dmClientPreparation{}, err
-		}
-	}
 	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
 	enabledConnectorIDs := protocol.EffectiveSessionConnectorIDs(
 		agentValue.Options.ConnectorIDs,
@@ -332,6 +303,29 @@ func (s *Service) ensureClient(
 			goalObjectiveRevision,
 			permissionMode,
 		)
+	}
+	if !request.runtimePreparationOnly &&
+		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+			sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
+		s.runtimeCommandMCP != nil {
+		runtimeServers, runtimeErr := s.runtimeCommandMCP(
+			runtimeBuilderContext,
+			runtimecommand.RoundContext{
+				SessionKey: sessionKey, RoundID: request.RoundID,
+				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
+				SourceContextLabel: agentValue.Name,
+				CommandContext:     runtimeCommandContext, Receipts: commandReceipts,
+			},
+		)
+		if runtimeErr != nil {
+			return dmClientPreparation{}, runtimeErr
+		}
+		if len(runtimeServers) > 0 && mcpServers == nil {
+			mcpServers = make(map[string]sdkmcp.ServerConfig, len(runtimeServers))
+		}
+		for name, server := range runtimeServers {
+			mcpServers[name] = server
+		}
 	}
 	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
 	dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, connectorTurnContext)
@@ -400,7 +394,6 @@ func (s *Service) ensureClient(
 		MCPServers:                 mcpServers,
 		AgentMCPServers:            agentValue.Options.MCPServers,
 		ConfigurationEnv:           configurationRuntimeEnv,
-		RuntimeCommandEnv:          runtimeCommandEnv,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
@@ -619,10 +612,8 @@ func (s *Service) ensureClient(
 		responsibilityState:    responsibilityState,
 		sdkSessionIdentity:     sdkSessionIdentity,
 		commandReceipts:        commandReceipts,
-		commandResources:       commandResources,
 		permissionMode:         permissionMode,
 	}
-	commandResourcesTransferred = true
 	return preparation, nil
 }
 
@@ -630,7 +621,7 @@ func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "Read", "Write", "Bash", "PowerShell"},
+			AllowedTools: []string{"Skill", "nexus_runtime", "mcp__nexus_runtime__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
 				"nexus_visualize", "nexus_imagegen",

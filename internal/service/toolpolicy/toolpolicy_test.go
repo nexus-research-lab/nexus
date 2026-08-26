@@ -82,7 +82,7 @@ func TestManagedVisualizeToolOnlyMatchesBuiltInServer(t *testing.T) {
 	}
 }
 
-func TestManagedRuntimeAutoApprovalUsesSemanticSkillsAndVisualizeOnly(t *testing.T) {
+func TestManagedRuntimeAutoApprovalUsesSemanticSkillsStructuredCommandAndVisualize(t *testing.T) {
 	fallbackCalls := 0
 	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		fallbackCalls++
@@ -91,6 +91,7 @@ func TestManagedRuntimeAutoApprovalUsesSemanticSkillsAndVisualizeOnly(t *testing
 	for _, request := range []sdkpermission.Request{
 		{ToolName: "Skill", Input: map[string]any{"name": "goal-manager"}},
 		{ToolName: "Skill", Input: map[string]any{"name": "execution-orchestrator"}},
+		{ToolName: "mcp__nexus_runtime__command", Input: map[string]any{"domain": "goal", "action": "inspect"}},
 		{ToolName: "mcp__nexus_visualize__show_widget", Input: map[string]any{"title": "diagram"}},
 	} {
 		decision, err := handler(context.Background(), request)
@@ -162,11 +163,11 @@ func TestWithManagedImagegenAllowedToolsAppendsDistinctTools(t *testing.T) {
 	}
 }
 
-func TestWithManagedRuntimeAllowedToolsAddsSkillAndCLITransport(t *testing.T) {
+func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.T) {
 	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, true)
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
-		"Read", "Agent", "Bash", "PowerShell", "Skill",
+		"Read", "Agent", "Skill", "mcp__nexus_runtime__command",
 		"mcp__nexus_visualize__show_widget",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
@@ -183,9 +184,9 @@ func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testi
 	if Contains(approved, "mcp__nexus_imagegen__generate_image") {
 		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
 	}
-	for _, required := range []string{"Bash", "PowerShell", "Skill"} {
+	for _, required := range []string{"Skill", "mcp__nexus_runtime__command"} {
 		if !Contains(approved, required) {
-			t.Fatalf("managed CLI transport %q should remain enabled: %+v", required, tools)
+			t.Fatalf("managed command transport %q should remain enabled: %+v", required, tools)
 		}
 	}
 }
@@ -240,9 +241,6 @@ func TestNexusRuntimeCLIRequestRequiresExactManagedInvocation(t *testing.T) {
 		if ok != test.ok || got.Domain != test.domain || got.Action != test.action {
 			t.Fatalf("NexusRuntimeCLIInvocation(%q) = %+v, %v; want %q/%q, %v", test.command, got, ok, test.domain, test.action, test.ok)
 		}
-		if IsNexusRuntimeCLIRequest(request) != test.ok {
-			t.Fatalf("IsNexusRuntimeCLIRequest(%q) mismatch", test.command)
-		}
 	}
 }
 
@@ -261,67 +259,9 @@ func TestNexusRuntimePowerShellRequestRequiresManagedInvocation(t *testing.T) {
 	}
 	for _, test := range tests {
 		request := sdkpermission.Request{ToolName: "PowerShell", Input: map[string]any{"command": test.command}}
-		if got := IsNexusRuntimeCLIRequest(request); got != test.ok {
-			t.Fatalf("IsNexusRuntimeCLIRequest(%q) = %v, want %v", test.command, got, test.ok)
+		_, got := NexusRuntimeCLIInvocation(request)
+		if got != test.ok {
+			t.Fatalf("NexusRuntimeCLIInvocation(%q) = %v, want %v", test.command, got, test.ok)
 		}
-	}
-}
-
-func TestNexusRuntimeCLIAutoApprovalFallsBackForOtherShell(t *testing.T) {
-	fallbackCalls := 0
-	handler := WithNexusRuntimeCLIAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		fallbackCalls++
-		return sdkpermission.Deny(request.ToolName, false), nil
-	})
-	managed, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`},
-	})
-	if err != nil || managed.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 0 {
-		t.Fatalf("managed CLI should be allowed: decision=%+v err=%v calls=%d", managed, err, fallbackCalls)
-	}
-	ordinary, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash", Input: map[string]any{"command": "go test ./..."},
-	})
-	if err != nil || ordinary.Behavior != sdkpermission.BehaviorDeny || fallbackCalls != 1 {
-		t.Fatalf("ordinary shell should reach fallback: decision=%+v err=%v calls=%d", ordinary, err, fallbackCalls)
-	}
-}
-
-func TestNexusRuntimeCLICompositionDenyPreventsPostMutationParserFailure(t *testing.T) {
-	fallbackCalls := 0
-	handler := WithNexusRuntimeCLICompositionDeny(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		fallbackCalls++
-		return sdkpermission.Allow(request.Input, nil), nil
-	})
-	for _, command := range []string{
-		`"${NEXUS_COMMAND_PATH}" --json goal invoke --operation audit_objective_alignment --request-id goal-audit-1 | python3 -c 'import json'`,
-		`"${NEXUS_COMMAND_PATH}" --json execution inspect | jq .data`,
-	} {
-		decision, err := handler(context.Background(), sdkpermission.Request{
-			ToolName: "Bash",
-			Input:    map[string]any{"command": command},
-		})
-		if err != nil || decision.Behavior != sdkpermission.BehaviorDeny {
-			t.Fatalf("composed command %q decision=%+v err=%v", command, decision, err)
-		}
-	}
-	decision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input: map[string]any{
-			"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`,
-		},
-	})
-	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 1 {
-		t.Fatalf("exact command decision=%+v err=%v fallback=%d", decision, err, fallbackCalls)
-	}
-	decision, err = handler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input: map[string]any{
-			"command": `echo "NEXUS_COMMAND_PATH=$NEXUS_COMMAND_PATH"`,
-		},
-	})
-	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalls != 2 {
-		t.Fatalf("ordinary text probe decision=%+v err=%v fallback=%d", decision, err, fallbackCalls)
 	}
 }

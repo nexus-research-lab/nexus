@@ -11,6 +11,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -344,12 +345,10 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 		if toolpolicy.MatchesItem(toolName, "AskUserQuestion") {
 			return sdkpermission.Deny("后台 heartbeat 不支持交互式确认；请先把必要信息写入配置", true), nil
 		}
-		// Agent-facing CLI 仍经 Bash transport，但 exact contract/inspect 命令的最终
-		// scope 由只读 job/run capability 和 service 收口，不能要求任务获得任意 Bash 权限。
-		if readOnlyAutomationCLIRequest(request) {
-			return sdkpermission.Allow(request.Input, nil), nil
-		}
-		if toolpolicy.IsNexusRuntimeCLIRequest(request) {
+		if toolpolicy.IsManagedRuntimeCommandTool(toolName) {
+			if readOnlyAutomationCommandRequest(request) {
+				return sdkpermission.Allow(request.Input, nil), nil
+			}
 			return sdkpermission.Deny("后台 scheduled run 只能读取 Automation contract/inspect，不能调用 runtime mutation 命令", true), nil
 		}
 		if toolpolicy.Contains(disallowedByAgent, toolName) {
@@ -365,11 +364,12 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 	}
 }
 
-func readOnlyAutomationCLIRequest(request sdkpermission.Request) bool {
-	invocation, ok := toolpolicy.NexusRuntimeCLIInvocation(request)
-	if !ok || invocation.Domain != "automation" {
+func readOnlyAutomationCommandRequest(request sdkpermission.Request) bool {
+	domain, domainOK := request.Input["domain"].(string)
+	action, actionOK := request.Input["action"].(string)
+	if !domainOK || !actionOK || strings.TrimSpace(domain) != runtimecommand.DomainAutomation {
 		return false
 	}
-	return invocation.Action == automationdomain.AutomationCommandActionContract ||
-		invocation.Action == automationdomain.AutomationCommandActionInspect
+	return strings.TrimSpace(action) == automationdomain.AutomationCommandActionContract ||
+		strings.TrimSpace(action) == automationdomain.AutomationCommandActionInspect
 }

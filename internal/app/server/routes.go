@@ -11,17 +11,6 @@ func (s *Server) mountRoutes() {
 		s.prefixPath("/internal/runtime/configuration"),
 		newRuntimeConfigurationHandler(s.services.Configuration),
 	)
-	s.router.Post(
-		s.prefixPath("/internal/runtime/command"),
-		newRuntimeCommandHandler(
-			s.services.RuntimeCommand,
-			s.services.Automation,
-			s.services.GoalCommand,
-			s.services.Orchestration,
-			s.services.Permission,
-			s.services.WorkGraphWorkflow,
-		),
-	)
 	if s.handlers.browser != nil {
 		s.router.Get(
 			s.prefixPath("/internal/browser/status"),

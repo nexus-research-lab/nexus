@@ -1,6 +1,6 @@
-// INPUT: broker 已执行的 Goal/Execution operation、typed result 与调用时 exact Goal binding。
+// INPUT: adapter 已执行的 Goal/Execution operation、typed result 与调用时 exact Goal binding。
 // OUTPUT: DM/Room runtime 可按 sequence 单调消费、包含 exact changed refs 的 host-side mutation receipt。
-// POS: CLI transport 与 Goal usage/continuation/完成收据之间的事实桥；禁止解析 shell stdout 推断。
+// POS: 结构化 command 与 Goal usage/continuation/完成收据之间的事实桥；禁止从模型文本推断。
 package runtimecommand
 
 import (

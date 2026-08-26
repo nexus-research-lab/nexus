@@ -818,7 +818,7 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
 	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
-	t.Setenv(protocol.NexusCommandPathEnvName, "/opt/nexus/bin/nexus")
+	t.Setenv(legacyNexusCommandPathEnvName, "/opt/nexus/bin/nexus")
 	t.Setenv(nexusctlUserIDEnvName, "ambient-owner")
 	t.Setenv(nexusctlWorkspacePathEnvName, "/ambient/workspace")
 	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
@@ -835,55 +835,10 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 		nexusctlWorkspacePathEnvName,
 		protocol.NexusConfigBrokerURLEnvName,
 		protocol.NexusConfigCapabilityTokenEnvName,
-		protocol.NexusCommandPathEnvName,
-		protocol.NexusCommandBrokerURLEnvName,
-		protocol.NexusCommandCapabilityTokenEnvName,
-		protocol.NexusCommandInputPathEnvName,
+		legacyNexusCommandPathEnvName,
 	} {
 		if value := strings.TrimSpace(options.Env[key]); value != "" {
 			t.Fatalf("Agent runtime 泄漏原始 CLI 环境 %s=%q: %+v", key, value, options.Env)
-		}
-	}
-}
-
-func TestBuildAgentClientOptionsExposesRoundScopedNexusRuntimeCLI(t *testing.T) {
-	t.Setenv(protocol.NexusCommandPathEnvName, "/opt/nexus/bin/nexus")
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		OwnerUserID:   "owner-a",
-		WorkspacePath: "/tmp/ordinary-agent",
-		RuntimeCommandEnv: map[string]string{
-			protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/automation",
-			protocol.NexusCommandCapabilityTokenEnvName: "automation-token",
-			protocol.NexusCommandInputPathEnvName:       "/private/round/input.json",
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.Env[protocol.NexusCommandPathEnvName] != "/opt/nexus/bin/nexus" ||
-		options.Env[protocol.NexusCommandCapabilityTokenEnvName] != "automation-token" ||
-		options.Env[protocol.NexusCommandInputPathEnvName] != "/private/round/input.json" {
-		t.Fatalf("ordinary Agent did not receive round-scoped nexus CLI: %+v", options.Env)
-	}
-	if options.Env[nexusctlCommandPathEnvName] != "" || options.Env[nexusctlUserIDEnvName] != "" {
-		t.Fatalf("runtime nexus CLI leaked nexusctl owner authority: %+v", options.Env)
-	}
-	if !slices.Contains(options.AdditionalDirectories, "/private/round") {
-		t.Fatalf("runtime command input directory was not granted to this round: %+v", options.AdditionalDirectories)
-	}
-}
-
-func TestBuildAgentClientOptionsRejectsInvalidRuntimeCommandInputBoundary(t *testing.T) {
-	for _, inputPath := range []string{"", "relative/input.json", "/input.json"} {
-		_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-			RuntimeCommandEnv: map[string]string{
-				protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/command",
-				protocol.NexusCommandCapabilityTokenEnvName: "round-token",
-				protocol.NexusCommandInputPathEnvName:       inputPath,
-			},
-		})
-		if err == nil {
-			t.Fatalf("runtime command input path %q should fail closed", inputPath)
 		}
 	}
 }

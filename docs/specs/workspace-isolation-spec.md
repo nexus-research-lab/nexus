@@ -341,18 +341,17 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 - 对 `Read/Write/Edit/Glob/Grep` 等路径工具执行路径归一化和 root containment；
 - 当前 owner 的 `users/<owner_user_id>` 整棵数据根统一允许读写，不再为
   transcript、session-memory 或 `state` 维护单文件例外；跨 owner 路径仍拒绝；
-- 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` / `nexuscfg` / `nexus` 管理入口的早期检查；普通系统命令
+- 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` / `nexuscfg` 管理入口的早期检查；普通系统命令
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
 - enforce Hook 对普通 Agent 的 `nexusctl` 管理命令做早期拒绝；打包部署额外把
   `nexusctl` executable 设为宿主组专用。Nexus 主智能体是宿主控制面主体，可使用
   `NEXUSCTL_COMMAND_PATH` 的当前 owner scope。`nexuscfg` 对所有交互 Agent 可执行，但
   只把命令转发给宿主 loopback broker；宿主签发的 round capability 固定 owner、Agent、
   DM/Room 和 runtime lease，configuration 角色矩阵决定最终 operation。CLI 作用域或
-  capability 覆盖返回可重试错误，Hook 对这类 shell 文本仍做早期拒绝。Agent-facing
-  `nexus automation` 同样只转发给 loopback broker；后台 run 固定 job/run 且只读，
-  交互 mutation 还需 service plan/revision/digest 与当前会话真人确认。其 JSON 输入只写入
-  owner 私有 `runtime/tmp` 下宿主按 round 创建的 `0600` 槽位；Bash/PowerShell 自动审批只接受
-  各自 shell 中精确的受管 executable、受管 input path 和无动态展开的单命令语法；
+  capability 覆盖返回可重试错误，Hook 对这类 shell 文本仍做早期拒绝。Goal、Execution
+  与 Automation 使用进程内 round-scoped `nexus_runtime.command`；后台 run 固定 job/run
+  且只读，交互 mutation 还需 service plan/revision/digest 与当前会话真人确认。结构化
+  input 经 SDK MCP 通道直达宿主，不创建临时文件，不进入 shell，也不扩大文件系统权限；
 - 不返回 `updatedInput`，只允许放行或拒绝；
 - Hook 本身不返回 `allow` 决策，避免覆盖其他 hook 或用户权限处理；越界时返回
   `deny`。Hook 失效不构成安全放行，enforce 进程仍必须通过 launcher 的最终边界；
@@ -367,9 +366,10 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 
 `NEXUS_SIMPLE`、`CLAUDE_CODE_SIMPLE`、`--bare` 或类似模式不能绕过最终访问校验；
 launcher 会拒绝禁用 hook 的 argv/环境。即使 runtime hook 被跳过，Landlock 仍在
-整个 nxs/Claude 进程（包括其子进程）上生效。`nexusctl`、`nexuscfg` 与 Agent-facing `nexus` 属于控制面而不是
-用户文件系统。生产部署必须继续通过 DAC/容器镜像边界让普通 runtime UID 无法执行
-`nexusctl`；`nexuscfg` / `nexus` 的最终边界是宿主 round capability 与对应领域服务授权，
+整个 nxs/Claude 进程（包括其子进程）上生效。`nexusctl`、`nexuscfg` 与 SDK 内的
+`nexus_runtime.command` 属于控制面而不是用户文件系统。生产部署必须继续通过
+DAC/容器镜像边界让普通 runtime UID 无法执行 `nexusctl`；`nexuscfg` 的最终边界是
+宿主 round capability 与配置服务授权，结构化 command 的最终边界是进程内 round actor 与对应领域服务授权，
 不能只依赖 Hook 文本识别。主智能体保留宿主身份是明确的控制面信任边界，不宣称
 具备普通 Agent 的 Landlock 隔离等级。
 
