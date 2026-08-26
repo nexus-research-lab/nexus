@@ -332,10 +332,9 @@ func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
 		"message": map[string]any{
 			"role": "assistant",
 			"content": []any{map[string]any{
-				"type": "tool_use", "id": "tool-runtime-1", "name": "mcp__nexus__command",
+				"type": "tool_use", "id": "tool-runtime-1", "name": "mcp__nexus__execution_write",
 				"input": map[string]any{
-					"domain": "execution", "action": "invoke", "operation": "assign_work",
-					"request_id": "assign-structured-1", "input": map[string]any{"work_item_id": "private"},
+					"operation": "assign_work", "work_item_id": "private",
 				},
 			}},
 		},
@@ -352,7 +351,7 @@ func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
 		metadata[runtimeGraphCommandDomainMetadataKey] != "execution" ||
 		metadata[runtimeGraphCommandActionMetadataKey] != "invoke" ||
 		metadata[runtimeGraphCommandOperationMetadataKey] != "assign_work" ||
-		metadata[runtimeGraphCommandRequestIDMetadataKey] != "assign-structured-1" {
+		metadata[runtimeGraphCommandRequestIDMetadataKey] != "tool-runtime-1" {
 		t.Fatalf("structured command metadata = %+v", metadata)
 	}
 	if _, leaked := metadata["input"]; leaked {

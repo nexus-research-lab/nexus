@@ -22,8 +22,8 @@
 //   - permission_im_command.go / im_notification.go：只在会话内唯一请求上解析的无 ID `/y`、`/a`、`/d` IM 审批，以及面向 Nexus Session 与外部 IM、带任务身份的控制面通知；普通结果保持原文。
 //   - task_support.go：任务容量与 isolated Session 清理；Session 删除时保留任务、停用调度并持久标记待重绑，创建来源只保留 provenance。
 //   - summary_heartbeat_tasks.go：heartbeat 汇总。
-//   - command_*.go / runtime_command_capability.go：Agent-facing nexus CLI 的严格
-//     contract/inspect/plan/apply、当前会话查询、跨 Agent/Session 路由、配置/run 双重
+//   - command_*.go / runtime_command_capability.go：Agent-facing Nexus MCP 的严格
+//     read/plan/apply、当前会话查询、跨 Agent/Session 路由、配置/run 双重
 //     revision/digest、durable command replay 与只在唯一活跃 physical round 生效的 capability。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

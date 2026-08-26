@@ -988,17 +988,13 @@ func TestPlanOperationsStrictlyRejectUnknownTopLevelFieldsBeforeService(t *testi
 					return orchestration.MutationResult{}
 				},
 			}
-			result, err := test.definition(svc, executionContext()).ContextHandler(
+			_, err := test.definition(svc, executionContext()).Invoke(
 				context.Background(),
 				test.input,
 				nil,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if called || !result.IsError || len(result.Content) != 1 ||
-				!strings.Contains(result.Content[0]["text"].(string), "unknown field") {
-				t.Fatalf("strict decode result=%#v service_called=%t", result, called)
+			if called || err == nil || !strings.Contains(err.Error(), "not allowed") {
+				t.Fatalf("strict validation error=%v service_called=%t", err, called)
 			}
 		})
 	}
@@ -1065,39 +1061,6 @@ func TestPlanExecutionMaterializesHostBoundProposalWithoutModelIDs(t *testing.T)
 	}
 	if svc.currentReads != 0 || svc.snapshotReads != 0 {
 		t.Fatalf("commit must resolve the exact sealed fence inside the service: current=%d snapshot=%d", svc.currentReads, svc.snapshotReads)
-	}
-}
-
-func TestPlanExecutionRejectsLegacyReceiptThatDoesNotMatchHostBinding(t *testing.T) {
-	materialized := false
-	proposal := sealedPlanProposal()
-	svc := &fakeExecutionService{
-		resolvePlan: func(orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error) {
-			return proposal, nil
-		},
-		materialize: func(
-			orchestration.ActorContext,
-			orchestration.MaterializePlanExecutionInput,
-		) orchestration.MutationResult {
-			materialized = true
-			return orchestration.MutationResult{}
-		},
-	}
-	result, err := planExecution(svc, executionContext()).ContextHandler(
-		context.Background(),
-		map[string]any{
-			"proposal_id":     "plan_proposal_stale",
-			"proposal_digest": strings.Repeat("f", 64),
-		},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if materialized || result.IsError ||
-		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
-		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodePlanProposalMismatch) {
-		t.Fatalf("result=%#v materialized=%t", result, materialized)
 	}
 }
 
@@ -1306,18 +1269,18 @@ func TestPlanExecutionRefreshesSuccessorContextWithoutOldBindings(t *testing.T) 
 	sctx.ExecutionID = old.Execution.ID
 	sctx.WorkBinding = &protocol.ExecutionWorkBinding{ExecutionID: old.Execution.ID}
 	sctx.ReviewBinding = &protocol.ExecutionReviewBinding{ExecutionID: old.Execution.ID}
-	input := validPlanCommitCommandInput()
+	proposal := sealedPlanProposal()
 	result, err := planExecution(svc, sctx).ContextHandler(
 		context.Background(),
-		input,
+		validPlanCommitCommandInput(),
 		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.IsError ||
-		committed.ProposalID != input["proposal_id"] ||
-		committed.ProposalDigest != input["proposal_digest"] {
+		committed.ProposalID != proposal.ID ||
+		committed.ProposalDigest != proposal.ContentDigest {
 		t.Fatalf("result=%#v commit=%#v", result, committed)
 	}
 	if contextActor.ExecutionID != successor.Execution.ID ||
@@ -1510,11 +1473,7 @@ func validPreparePlanCommandInput() map[string]any {
 }
 
 func validPlanCommitCommandInput() map[string]any {
-	proposal := sealedPlanProposal()
-	return map[string]any{
-		"proposal_id":     proposal.ID,
-		"proposal_digest": proposal.ContentDigest,
-	}
+	return map[string]any{}
 }
 
 func validPlanDocument() string {

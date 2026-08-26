@@ -1,4 +1,4 @@
-// INPUT: host-owned durable proposal binding、可选 legacy exact pair 与当前 trusted runtime identity。
+// INPUT: host-owned durable proposal binding 与当前 trusted runtime identity；模型参数为空。
 // OUTPUT: bound proposal 的幂等原子 materialization、确认后的同轮 Goal authority、恢复回执或 exact-fence 拒绝。
 // POS: 模型唯一的权威 Plan 提交入口；正常调用零输入，caller 不能选择 proposal 或重发 WorkGraph。
 package operation
@@ -28,13 +28,9 @@ func planExecution(
 		Annotations: &runtimecommand.OperationAnnotations{IdempotentHint: true},
 		ContextHandler: func(
 			ctx context.Context,
-			input map[string]any,
+			_ map[string]any,
 			_ *runtimecommand.CallContext,
 		) (runtimecommand.Result, error) {
-			var parsed planExecutionInput
-			if err := decodeInput(input, &parsed); err != nil {
-				return transportErrorResult(err), nil
-			}
 			actor := sctx.Actor()
 			proposal, err := svc.ResolvePlanExecutionProposal(ctx, actor)
 			if err != nil {
@@ -50,21 +46,6 @@ func planExecution(
 			if proposal == nil || strings.TrimSpace(proposal.ID) == "" ||
 				strings.TrimSpace(proposal.ContentDigest) == "" {
 				return transportErrorResult(errors.New("resolved Plan proposal binding is incomplete")), nil
-			}
-			legacyID := strings.TrimSpace(parsed.ProposalID)
-			legacyDigest := strings.TrimSpace(parsed.ProposalDigest)
-			if (legacyID == "") != (legacyDigest == "") {
-				return planProposalBindingMismatchResult(
-					orchestration.ErrorCodeInvalidInput,
-					"legacy proposal_id and proposal_digest must either both be omitted or both be present",
-				), nil
-			}
-			if legacyID != "" &&
-				(legacyID != proposal.ID || legacyDigest != proposal.ContentDigest) {
-				return planProposalBindingMismatchResult(
-					orchestration.ErrorCodePlanProposalMismatch,
-					"caller-supplied proposal receipt does not match the host-owned active binding",
-				), nil
 			}
 			result, err := svc.MaterializePlanExecution(
 				ctx,
@@ -93,16 +74,4 @@ func planExecution(
 			return mutationResult(withFreshExecutionContext(ctx, svc, contextActor, result)), nil
 		},
 	}
-}
-
-func planProposalBindingMismatchResult(
-	code orchestration.ErrorCode,
-	message string,
-) runtimecommand.Result {
-	return mutationResult(orchestration.RejectedResult(nil, &orchestration.DomainError{
-		Code: code, Message: message,
-	}, []orchestration.NextAction{{
-		Domain: runtimecommand.DomainExecution, Operation: "plan_execution",
-		Reason: "retry plan_execution with an empty input so the host can use its exact durable binding",
-	}}))
 }

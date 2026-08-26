@@ -1,5 +1,5 @@
 // INPUT: Goal service 与 command context context。
-// OUTPUT: 模型可见的完整 Goal 工具集合。
+// OUTPUT: 模型可见的完整 Goal operation 集合。
 // POS: Goal command 操作注册入口。
 package operation
 

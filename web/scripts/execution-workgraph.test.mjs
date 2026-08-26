@@ -2063,17 +2063,23 @@ test("Nexus commands render semantic titles in real ToolBlocks and collapsed pro
     assert.doesNotMatch(processHtml, /mcp__nexus_/);
   }
   const structuredInput = {
-    domain: "execution",
-    action: "invoke",
     operation: "assign_work",
-    request_id: "assign-native-1",
-    input: { work_item_id: "private-work-item" },
+    work_item_id: "private-work-item",
   };
   assert.equal(
-    getToolTitle("mcp__nexus__command", structuredInput),
+    getToolTitle("mcp__nexus__execution_write", structuredInput),
     "指派工作项",
   );
   assert.equal(getToolInputSummary(structuredInput), "assign_work");
+  assert.equal(
+    getToolTitle("mcp__nexus__command", {
+      domain: "execution",
+      action: "invoke",
+      operation: "assign_work",
+      request_id: "assign-legacy-1",
+    }),
+    "指派工作项",
+  );
   assert.equal(
     getToolInputSummary({
       proposal_id: "proposal-secret",

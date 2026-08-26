@@ -933,7 +933,7 @@ func TestRoundRunnerRecordsGoalCompletionCommandMiss(t *testing.T) {
 	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	misses := goalProvider.recordedCompletionMisses()
-	if len(misses) != 1 || !strings.Contains(misses[0], "nexus.command update_goal receipt") {
+	if len(misses) != 1 || !strings.Contains(misses[0], "nexus.goal_write update_goal receipt") {
 		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
 	}
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {

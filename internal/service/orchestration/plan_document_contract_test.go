@@ -13,7 +13,7 @@ func TestExecutionPlanDocumentSchemaContractMatchesParser(t *testing.T) {
 	t.Parallel()
 
 	contract := ExecutionPlanDocumentSchemaContract()
-	if correction := contract.CommonAliasCorrections["goal_binding"]; !strings.Contains(correction, "outer command input") {
+	if correction := contract.CommonAliasCorrections["goal_binding"]; !strings.Contains(correction, "tool parameter") {
 		t.Fatalf("goal_binding correction = %q", correction)
 	}
 	assertPlanDocumentFieldSet(t, "root", contract.AllowedRootFields, planDocumentFields)
