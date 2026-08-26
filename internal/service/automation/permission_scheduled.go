@@ -11,6 +11,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -348,7 +349,7 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 			if readOnlyAutomationCommandRequest(request) {
 				return sdkpermission.Allow(request.Input, nil), nil
 			}
-			return sdkpermission.Deny("后台 scheduled run 只能调用 nexus.automation_read，不能调用 runtime mutation 工具", true), nil
+			return sdkpermission.Deny("后台 scheduled run 只能读取 Automation contract/inspect，不能调用 runtime mutation 命令", true), nil
 		}
 		if toolpolicy.Contains(disallowedByAgent, toolName) {
 			return sdkpermission.Deny(fmt.Sprintf("当前 Agent 已禁用工具 %s，后台运行不会自动授权", toolName), false), nil
@@ -364,6 +365,11 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 }
 
 func readOnlyAutomationCommandRequest(request sdkpermission.Request) bool {
-	identity, ok := protocol.ParseNexusManagedToolIdentity(request.ToolName, request.Input)
-	return ok && identity.Domain == "automation" && identity.Action == "inspect"
+	domain, domainOK := request.Input["domain"].(string)
+	action, actionOK := request.Input["action"].(string)
+	if !domainOK || !actionOK || strings.TrimSpace(domain) != runtimecommand.DomainAutomation {
+		return false
+	}
+	return strings.TrimSpace(action) == automationdomain.AutomationCommandActionContract ||
+		strings.TrimSpace(action) == automationdomain.AutomationCommandActionInspect
 }

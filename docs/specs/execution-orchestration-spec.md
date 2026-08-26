@@ -447,7 +447,7 @@ duplicate logical identities, invalid dependency/output relationships, and
 over-limit collections. Callers must use the parser-backed operation contract
 rather than reconstructing a wider YAML format from prose.
 
-The operation is selected only from the current `nexus.execution_read` `get_execution` result. No
+The operation is selected only from the current `execution inspect` result. No
 current Execution means `create`, including the first successor Plan after Goal
 reset or retarget even when historical predecessor/successor metadata exists.
 `replan` requires the returned current Execution and preserves that objective
@@ -548,42 +548,40 @@ invocation remains denied by default on channel ingress and requires explicit
 channel/Agent approval. If admitted, the round-scoped server still derives owner/session
 identity and applies the same lane and SQL checks above.
 
-Goal and Execution share one round-scoped `nexus` MCP server with four semantic tools:
-`goal_read`, `goal_write`, `execution_read`, and `execution_write`. The bundled Skills own model decisions; the host captures
+Goal and Execution share one model-visible, always-loaded MCP tool:
+`nexus.command`. The bundled Skills own model decisions; the host captures
 owner, Agent, Session, Room role, Goal revision, WorkBinding, ReviewBinding and
-coordination authority in a physical-round server instance. The model submits an
-operation plus its closed business fields; it cannot submit domain/action envelopes,
-request identity, or host authority.
+coordination authority in a physical-round server instance. The model can submit
+only `domain`, `action`, `operation`, closed `input`, `request_id` and the explicit
+revision/digest fields used by Automation.
 
-MCP `tools/list` exposes the exact operation schemas directly; no model-visible
-contract or generic command dispatch exists. Read and write handlers resolve the
-operation from the in-process registry and re-read current authority. Business input
-travels directly through the existing SDK `stream-json` MCP call. Nexus creates no
-temporary input file, writable staging root, shell process, environment capability,
-loopback broker or command shim. The bridge replaces the per-round SDK server
-instance without restarting the runtime process and forwards the provider tool-use ID
-from MCP `_meta` into the host call context.
+`contract` loads only the requested operation schema, `inspect` performs one
+actor-filtered read, and `invoke` resolves the operation from the in-process
+directory. Business input travels directly through the existing SDK `stream-json`
+MCP call. Nexus creates no temporary input file, writable staging root, shell
+process, environment capability, loopback broker or command shim. The bridge
+replaces the per-round SDK server instance without restarting the runtime process.
 The adapter validates required fields, closed objects, types, enums, patterns and
 collection bounds before any domain handler or state read, then reuses the existing
 typed result and receipt ledger.
 
-### 5.1 Agent-facing semantic MCP audit
+### 5.1 Agent-facing structured command audit
 
-DM and Room use the same seven-tool Nexus MCP surface. Host-bound identity is never
-accepted from model input.
+DM and Room use the same tool. Host-bound identity is never accepted from model
+input.
 
 | Business operation | Exact tool sequence | Design boundary |
 | --- | --- | --- |
-| `get_goal` | `nexus.goal_read {}` | Current Goal only. It has no mutation input. |
-| `create_goal`, `retarget_goal`, `audit_objective_alignment`, `update_goal` | `nexus.goal_write` with `operation` plus the operation's direct business fields | Goal id, revision, owner, Agent, Room lead and round remain host facts. |
-| `get_execution` (current or historical) | `nexus.execution_read`; historical reads add only `execution_id` | Historical selection is non-authorizing and never changes current Execution. |
-| `prepare_plan_execution` | `nexus.execution_write` with the complete Plan input | Strictly validates and durably seals a complete Plan proposal without materializing the WorkGraph. |
-| `plan_execution` | `nexus.execution_write {"operation":"plan_execution"}` | Atomically materializes only the host-bound sealed proposal, preserving replay, CAS and Goal-revision fences. |
-| Remaining Execution mutations | `nexus.execution_write` with `operation` plus current business fields | Current schema stays visible; service state and exact bindings decide authority. |
+| `get_goal` | `{"domain":"goal","action":"inspect"}` | Current Goal only. It has no mutation input. |
+| `create_goal`, `retarget_goal`, `audit_objective_alignment`, `update_goal` | Goal inspect → exact contract → `invoke` with the business object in `input` and a stable `request_id` | Goal id, revision, owner, Agent, Room lead and round remain host facts. |
+| `get_execution` (current or historical) | Execution inspect; historical reads add only `input.execution_id` | Historical selection is non-authorizing and never changes current Execution. |
+| `prepare_plan_execution` | Execution inspect → exact contract → `invoke` with the complete Plan input | Strictly validates and durably seals a complete Plan proposal without materializing the WorkGraph. |
+| `plan_execution` | Exact contract → `invoke` with `{}` and a stable `request_id` | Atomically materializes only the host-bound sealed proposal, preserving retry, CAS and Goal-revision fences. |
+| Remaining Execution mutations | Execution inspect → exact contract → `invoke` with the current business input and stable `request_id` | Stable schemas remain visible; current service state and exact bindings decide authority. |
 
-The bridge supplies the provider's real tool-use ID to the host receipt and replay
-ledger. It never appears in model input. No transport path is exposed to the model,
-so stale rounds cannot redirect input or carry authority forward.
+A stable `request_id` identifies one semantic intent and is reused for retries.
+Changing operation, target or input requires a new ID. No transport path is exposed
+to the model, so stale rounds cannot redirect input or carry authority forward.
 
 ### 5.2 Eight supported product entry paths
 
@@ -591,31 +589,31 @@ These are product entry paths, not eight tool variants. “Dialogue” means the
 asks the active model to create the structure; “Composer” means the trusted host
 control above the input box accepts the Goal before a model continuation starts.
 
-| Scope and user entry | Authoritative tool sequence | Required resulting state |
+| Scope and user entry | Authoritative command sequence | Required resulting state |
 | --- | --- | --- |
-| DM · dialogue Goal | `nexus.goal_read` → `nexus.goal_write create_goal` | One standalone Goal. The DM Session Agent becomes the durable responsible Agent; no Execution is created. |
-| DM · Composer Goal | Host `set_goal` transaction: create Goal → persist the exact `client_message_id` control record → start successor continuation; successor uses `nexus.goal_read` | One standalone Goal and one visible control record that never enters the model as an ordinary prompt. No model `create_goal` call occurs. |
-| DM · dialogue WorkGraph | `nexus.execution_read get_execution` → `nexus.execution_write prepare_plan_execution` with `goal_binding=none` → `nexus.execution_write plan_execution` | One transient Goal-free Execution with an authoritative Plan. |
-| DM · dialogue Goal+WorkGraph | Complete `create_goal` first; after its applied receipt run the two Execution write operations with `goal_binding=current` | One Goal and one bilaterally confirmed Goal-bound Execution. Same-round dynamic authority carries the newly created Goal revision into Execution. |
+| DM · dialogue Goal | Goal inspect → exact `create_goal` contract → structured invoke | One standalone Goal. The DM Session Agent becomes the durable responsible Agent; no Execution is created. |
+| DM · Composer Goal | Host `set_goal` transaction: create Goal → persist the exact `client_message_id` control record → start successor continuation; successor uses Goal inspect | One standalone Goal and one visible control record that never enters the model as an ordinary prompt. No model `create_goal` call occurs. |
+| DM · dialogue WorkGraph | Execution inspect → exact `prepare_plan_execution` contract → invoke with `goal_binding=none` → exact `plan_execution` contract → invoke with `{}` | One transient Goal-free Execution with an authoritative Plan. |
+| DM · dialogue Goal+WorkGraph | Complete `create_goal` first; after its applied receipt run the two Execution Plan commands with outer `goal_binding=current` | One Goal and one bilaterally confirmed Goal-bound Execution. Same-round dynamic authority carries the newly created Goal revision into Execution. |
 | Room · dialogue Goal | Same structured Goal sequence as DM | One standalone Room Goal. The server-verified current Agent is persisted as creator and lead; other members can inspect but cannot mutate it. |
-| Room · Composer Goal | Host Room `set_goal` transaction with exactly one verified selected lead → durable public control record → lead successor continuation uses `nexus.goal_read` | One standalone Room Goal with an exact lead and durable acceptance evidence. No model `create_goal` call occurs. |
+| Room · Composer Goal | Host Room `set_goal` transaction with exactly one verified selected lead → durable public control record → lead successor continuation uses Goal inspect | One standalone Room Goal with an exact lead and durable acceptance evidence. No model `create_goal` call occurs. |
 | Room · dialogue WorkGraph | Same two-phase structured Execution sequence as DM with `goal_binding=none` | One transient Room Execution whose coordinator is host verified. Room members receive observation reads; only exact bindings authorize work or review mutations. |
 | Room · dialogue Goal+WorkGraph | Lead completes `create_goal`, then the same round prepares and materializes with `goal_binding=current` | One confirmed Room Goal+Execution binding. The Goal lead/coordinator may coordinate; every member still needs its own WorkBinding or ReviewBinding to deliver or accept work. |
 
 If a transient WorkGraph already exists before explicit Goal intent, neither DM nor
 Room creates a parallel Goal and tries to bind it afterward. The coordinator uses
-`nexus.execution_write` `promote_execution_to_goal`. If Composer created the Goal,
+`promote_execution_to_goal` with the exact contract. If Composer created the Goal,
 the accepted host request and model continuation are different physical rounds;
 the successor receives the exact current revision at launch rather than inheriting
 authority from the WebSocket request context.
 
 After Goal reset or retarget, the predecessor Execution is historical. Until the
-successor is materialized, `get_execution` has no current Execution, so both DM
+successor is materialized, Execution inspect has no current Execution, so both DM
 and Room must seal the successor's first Plan as `operation: create` with
 `goal_binding=current`. A one-shot `replan` rejection in this state is a caller
 contract violation, not an expected retry phase.
 
-The managed Goal/Execution Skill catalog is one shared semantic MCP truth used
+The managed Goal/Execution Skill catalog is one shared runtime-command truth used
 by Agent defaults, workspace deployment, the Skills catalog, prompts, and permission
 policy. Existing Agents are migrated into that binding and cannot retain an old
 Execution disable. The canonical Agent read model and the final runtime launch
@@ -627,9 +625,9 @@ canonical Agent service; the display projection never authorizes a runtime. The
 round-scoped SDK server is replaced in process when those profiles or authorities
 change, without expanding workspace write roots or restarting nxs.
 
-Current Nexus Goal/Execution semantic MCP calls are control-plane transport, not independent
+Current `nexus.command` calls are control-plane transport, not independent
 WorkGraph work. The runtime observer recognizes the exact managed tool identity and
-persists only host-projected `domain + action + operation + tool_use_id(request_id)`, never business input. These
+persists only `domain + action + operation + request_id`, never business input. These
 calls remain `detail` under their direct Agent owner even when they fail, retry, carry
 an Artifact, or would otherwise look important. Read projection continues to classify
 historical exact `${NEXUS_COMMAND_PATH}` calls, retired Goal/Execution MCP tools and
@@ -698,9 +696,10 @@ ingress, or Agent-to-Agent handoffs.
 
 ## 6. Execution operations
 
-The Execution operation directory exposes exactly 12 core operations through round-scoped
-`nexus.execution_read|write`. Each operation owns one atomic control-plane transition;
-the MCP schema is the transport contract, not an extra business operation.
+The Execution operation directory exposes exactly 12 operations through round-scoped
+`nexus.command`. Each operation owns one atomic control-plane
+transition; `contract`, `inspect`, and `invoke` are transport actions, not extra
+business operations.
 
 | Operation | Atomic semantics |
 | --- | --- |
@@ -749,9 +748,9 @@ stop-old-round signal, not a failed submission and not evidence of Goal progress
 When a Plan preparation reaches the service with exact Goal authority that was
 valid at physical-round launch but conflicts with the current Goal/Execution
 revision, it returns `context_status: round_refresh_required` with no same-round
-next action. `nexus.execution_read` may expose the successor state but cannot mutate the old
+next action. `inspect` may expose the successor state but cannot mutate the old
 round's authorization provenance; the old round terminates and the host-owned
-successor continuation performs the next operation.
+successor continuation performs the next command.
 
 Plain `context_status: refresh_required` is a same-round reread instruction and
 never means that the physical round should wait for a successor. Result compaction
@@ -760,13 +759,13 @@ the authoritative responsibility/review/action/blocker context even when that wi
 is large; size alone must not fabricate either refresh status or end a round.
 
 No operation may combine planning, assignment, execution, submission, and acceptance
-into one implicit mutation. The host uses the provider's stable tool-use identity for
-receipt reconciliation and idempotency where required.
+into one implicit mutation. Command retries must use their stable request identity and receipt
+idempotency identity where provided.
 
 ## 7. Goal operations
 
 The Goal operation directory exposes exactly 5 operations through round-scoped
-`nexus.goal_read|write`. Goal-only operation remains valid; WorkGraph-specific gates apply
+`nexus.command`. Goal-only operation remains valid; WorkGraph-specific gates apply
 only to a `confirmed` managed binding.
 
 | Operation | Atomic semantics |
@@ -818,7 +817,7 @@ MCP lifecycle semantics. It is never replaced by Execution
 `audit_execution_alignment`, and a terminal Execution must not be mutated merely
 to manufacture a Goal completion Gate. A rejected Goal completion returns a
 domain-qualified recovery action: Goal audit for missing/stale alignment evidence,
-or `nexus.execution_read` for unfinished managed work.
+or Execution inspection for unfinished managed work.
 
 For a Goal with a confirmed managed WorkGraph binding, retarget is a successor saga rather than an in-place
 graph edit. It reserves the successor relationship, materializes a fresh
@@ -852,7 +851,7 @@ The required atomic groups are:
 | Execution completion | Terminal Execution event/state and completion-audit settlement | Recovery cannot re-complete or leave a pending receipt behind a terminal graph. |
 
 Round-local responsibility replacement happens synchronously from the successful
-service receipt before the next tool invocation returns to dispatch. It is not another
+service receipt before the next command invocation returns to dispatch. It is not another
 durable aggregate: every later call still revalidates the durable records. A
 review/retarget/successor-plan chain therefore clears predecessor Review/Work
 capabilities and binds the successor Execution in the same physical round, while
@@ -1005,7 +1004,7 @@ the following layers together:
 - strict Plan Document parser and parser-backed contract;
 - storage transaction and reconciliation behavior;
 - runtime coordination, WorkBinding, ReviewBinding, and Goal authority;
-- Nexus MCP input schemas, operation descriptions, and directory;
+- runtime command input schemas, operation descriptions, and directory;
 - bundled Skills and system prompts;
 - actor-filtered HTTP/WS snapshots and the read-only Execution Graph projection;
 - migrations and focused service/storage/runtime-command/frontend tests.

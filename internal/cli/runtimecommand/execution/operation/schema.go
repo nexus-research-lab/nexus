@@ -84,7 +84,7 @@ func preparePlanExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"plan_document": nonEmptyStringProperty(planDocumentSchemaDescription()),
 		"goal_binding": enumProperty(
-			"Tool parameter beside plan_document; never put goal_binding inside the Plan Document YAML. For operation: create, use current only to bind the exact Goal authority granted to this round, or none for a Goal-free WorkGraph. Omit to use current only when this round already has exact Goal id+revision authority; otherwise omission means none. For operation: replan or replace, use inherit or omit because those operations preserve the current Execution boundary.",
+			"Outer command input beside plan_document; never put goal_binding inside the Plan Document YAML. For operation: create, use current only to bind the exact Goal authority granted to this round, or none for a Goal-free WorkGraph. Omit to use current only when this round already has exact Goal id+revision authority; otherwise omission means none. For operation: replan or replace, use inherit or omit because those operations preserve the current Execution boundary.",
 			string(orchestration.PlanGoalBindingNone),
 			string(orchestration.PlanGoalBindingCurrent),
 			string(orchestration.PlanGoalBindingInherit),
@@ -95,7 +95,7 @@ func preparePlanExecutionSchema() map[string]any {
 func planDocumentSchemaDescription() string {
 	contract := orchestration.ExecutionPlanDocumentSchemaContract()
 	return fmt.Sprintf(
-		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. goal_binding is not a YAML field: it is the sibling tool parameter beside plan_document. Select operation only from nexus.execution_read get_execution: no current Execution means create even after Goal reset/retarget; replan requires the returned current Execution and preserves its objective boundary; replace requires a current transient Goal-free Execution. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Output scope requirements: %s. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call, then set goal_binding to current; never launch them in parallel. Use goal_binding none for a Goal-free create. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
+		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. goal_binding is not a YAML field: it is the sibling outer command input beside plan_document. Select operation only from execution inspect: no current Execution means create even after Goal reset/retarget; replan requires the returned current Execution and preserves its objective boundary; replace requires a current transient Goal-free Execution. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Output scope requirements: %s. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call, then set the outer goal_binding input to current; never launch them in parallel. Use outer goal_binding none for a Goal-free create. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
 		contract.Version,
 		strings.Join(contract.ParserRequiredRootFields, ", "),
 		strings.Join(contract.AllowedRootFields, ", "),
@@ -114,7 +114,14 @@ func planDocumentSchemaDescription() string {
 }
 
 func planExecutionSchema() map[string]any {
-	return objectSchema(nil)
+	return objectSchema(map[string]any{
+		"proposal_id": nonEmptyStringProperty(
+			"Deprecated compatibility field. Omit it; the host resolves the exact durable proposal binding. If present, it must match that binding and proposal_digest must also be present.",
+		),
+		"proposal_digest": nonEmptyStringProperty(
+			"Deprecated compatibility field. Omit it; the host verifies the bound proposal digest. If present, it must match the active binding and proposal_id must also be present.",
+		),
+	})
 }
 
 func distillWorkflowSchema() map[string]any {

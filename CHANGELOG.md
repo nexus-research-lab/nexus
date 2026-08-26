@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Replaced Goal, Execution, and Automation command JSON staging and the generic `nexus.command`/contract envelope with seven round-scoped semantic MCP tools, direct closed inputs, and host-owned provider tool-use identities while keeping nxs reusable across rounds.
+- Moved Goal, Execution, and Automation model commands to the round-scoped structured `nexus.command` MCP tool, removing temporary JSON input files, shell shims, loopback brokers, command tokens, and extra writable roots while keeping nxs reusable across rounds.
 - Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
 - Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
 - Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.

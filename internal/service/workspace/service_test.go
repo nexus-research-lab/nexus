@@ -186,10 +186,10 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
 	managedSkillContracts := map[string][]string{
 		filepath.Join("automation", "SKILL.md"): {
-			"nexus.automation_read",
-			`{"operation":"list"}`,
-			"read → plan → apply → verify",
-			"不要通过 shell 或文件构造命令",
+			"nexus.command",
+			`{"domain":"automation","action":"contract"}`,
+			"inspect → plan → apply → verify",
+			"不要落盘或通过 shell 转码",
 			"原生真人确认",
 			"后台 scheduled run 只有宿主绑定 job/run 的查询权限",
 			"页面或 IM 的 `/y`、`/a`、`/d`",
@@ -203,8 +203,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("automation", "references", "scheduled-tasks.md"): {
 			"retry_delivery",
-			"read → plan → apply → verify",
-			"高级 Agent/Session 字段",
+			"inspect → plan → apply → verify",
+			"cross_agent_allowed",
 		},
 		filepath.Join("nexus-configuration", "SKILL.md"): {
 			"NEXUSCFG_COMMAND_PATH",
@@ -243,8 +243,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
-			"nexus.goal_read",
-			`{"operation":"<operation>","<field>":"<value>"}`,
+			"nexus.command",
+			`{"domain":"goal","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",
 			"references/create-and-retarget.md",
 			"references/complete-and-block.md",
@@ -273,8 +273,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 管理“什么目标需要跨轮持续追求”",
-			"nexus.execution_read",
-			`{"operation":"<operation>","<field>":"<value>"}`,
+			"nexus.command",
+			`{"domain":"execution","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",
 			"references/responsibility-and-delivery.md",
 			"references/recovery-and-alignment.md",
@@ -295,7 +295,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		filepath.Join("execution-orchestrator", "references", "graph-control.md"): {
 			"两层图",
 			"nexus_plan: 1",
-			"parser-backed 描述",
+			"document_contract",
 			"Skill 不复制完整字段表",
 			"supersede_active_work: true",
 			"最多 64 KiB",
@@ -321,7 +321,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "references", "workgraph-distillation.md"): {
 			"distill_workgraph",
-			"且只要求 `preview_id`",
+			"schema 只要求 `preview_id`",
 			"隐藏专用 DM",
 			"不可变版本",
 			"key 主路径与 terminal 交付",

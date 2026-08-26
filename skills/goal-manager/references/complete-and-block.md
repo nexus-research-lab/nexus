@@ -10,11 +10,11 @@
 
 - **Goal-only**：成果确实完成后直接执行 Goal domain 的 `update_goal`；reserved Execution identity 不把它变成受管 WorkGraph。
 - **WorkGraph-only**：完成全部 required Work Item 与 Acceptance 后由 Execution 自己终止；没有 Goal 审计或 Goal 终态更新。
-- **Goal + WorkGraph（confirmed binding）**：先让 required Work Item 全部交付并验收。最终 accepted review 会自动把无 blocker 的 Execution 置为 terminal，并在同一物理 round 的 receipt 中返回 `next_actions[].domain=goal, operation=audit_objective_alignment`。随后切到 Goal domain，在当前 objective revision 和当前 runtime round 通过 `nexus.goal_write` 执行 `audit_objective_alignment`，最后按其 `nextAction` 执行 `update_goal`。
+- **Goal + WorkGraph（confirmed binding）**：先让 required Work Item 全部交付并验收。最终 accepted review 会自动把无 blocker 的 Execution 置为 terminal，并在同一物理 round 的 receipt 中返回 `next_actions[].domain=goal, operation=audit_objective_alignment`。随后切到 Goal domain，读取 exact contract，在当前 objective revision 和当前 runtime round 执行 `audit_objective_alignment`，最后按其 `nextAction` 执行 `update_goal`。
 
 `execution/audit_execution_alignment` 只是在 **current、非终态 Execution** 上记录可选 Gate；它不完成 Execution，也不是 Goal 完成审计。Execution 已 terminal 后绝不调用它。Goal 审计在服务端仍可先于 WorkGraph readiness 留证，这是旧 MCP 保留的幂等能力；但正常收口应遵循上面的顺序，避免拿尚未验收的事实声明 aligned。
 
-需要 Goal 审计时，按 `audit_objective_alignment` 的当前 schema，把每条权威 completion criterion、状态、证据或缺口组织成一个 JSON 对象，再整体序列化进单个 `report_json` 字符串。
+需要 Goal 审计时，先读取该 operation contract，把每条权威 completion criterion、状态、证据或缺口组织成一个 JSON 对象，再整体序列化进单个 `report_json` 字符串。
 
 - `aligned`：全部标准有可复查证据；随后立即按 command 流程执行 `update_goal`，输入 `{"status":"complete"}`。
 - `not_aligned`：存在明确缺口；继续执行。
@@ -36,4 +36,4 @@ Goal 审计只记录证据，不完成 Goal。完成时后端始终校验 Goal r
 
 只有同一个具体阻塞条件在连续 Goal 续跑中重复出现，且没有用户输入、权限或外部状态变化就无法继续时，才标记 `blocked`。当前产品阈值是至少连续三个 Goal turns；blocked Goal 被用户恢复后重新计算这一审计窗口。
 
-不要因一次澄清、不确定、任务困难、执行缓慢或暂时缺证就阻塞。达到阈值后通过 `nexus.goal_write` 执行 `update_goal`，直接提交四个业务字段：`{"operation":"update_goal","status":"blocked","blocker_id":"<stable-id>","reason":"<concrete blocker>","needed_input":"<exact user input, permission, or external change>"}`。相同阻塞条件才复用同一个 stable `blocker_id`；条件变化就换 ID。随后向用户说明具体缺口；不要一边持续报告阻塞，一边让 Goal 保持 active。后端校验 Goal/Room/revision 权限并持久化明确恢复路径，但连续三轮是模型必须遵守的行为策略，不能靠 status 或 blocker 字段让服务端自行推断。
+不要因一次澄清、不确定、任务困难、执行缓慢或暂时缺证就阻塞。达到阈值后按 command 流程执行 `update_goal`，输入必须同时包含四个字段：`{"status":"blocked","blocker_id":"<stable-id>","reason":"<concrete blocker>","needed_input":"<exact user input, permission, or external change>"}`。相同阻塞条件才复用同一个 stable `blocker_id`；条件变化就换 ID。随后向用户说明具体缺口；不要一边持续报告阻塞，一边让 Goal 保持 active。后端校验 Goal/Room/revision 权限并持久化明确恢复路径，但连续三轮是模型必须遵守的行为策略，不能靠 status 或 blocker 字段让服务端自行推断。

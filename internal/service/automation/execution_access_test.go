@@ -35,8 +35,10 @@ func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 	}
 
 	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus__automation_read",
-		Input:    map[string]any{"operation": "get"},
+		ToolName: "mcp__nexus__command",
+		Input: map[string]any{
+			"domain": "automation", "action": "inspect", "operation": "get",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Automation command 查询权限处理失败: %v", err)

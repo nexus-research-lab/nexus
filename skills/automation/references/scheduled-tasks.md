@@ -1,6 +1,6 @@
 # Scheduled task
 
-只在 create、update、delete、run 或 retry_delivery 时读取本文件。所有 mutation 都遵循主 Skill 的 `read → plan → apply → verify`，字段只认当前工具 schema。
+只在 create、update、delete、run 或 retry_delivery 时读取本文件。所有 mutation 都遵循主 Skill 的 `inspect → plan → apply → verify`，字段只认 current contract。
 
 ## create 与 schedule
 
@@ -26,7 +26,7 @@ schedule 形状：
 - 使用 exact `job_id` 或唯一 query；其余字段是局部修改。`instruction` 完整替换，`instruction_append` 追加，两者不能同时出现。
 - `expires_at` 与 `clear_expires_at=true` 互斥。空 update 会被拒绝，不用无效变更推进 revision。
 - 取消卡住的 active run 时，同时提交 `enabled=false`、`cancel_active_run=true` 和当前 exact `run_id`；不能同时要求 `enabled=true`。run 已变化时重新 inspect/plan。
-- 跨 Agent 修改必须在同一 update 中给出当前 schema 允许的 execution/delivery Session 意图，并由服务端重新验证；不要只改裸 Agent ID 或路由字符串。
+- 跨 Agent 修改必须在同一 update 中给出 current contract 允许的 execution/delivery Session 意图，并由服务端重新验证；不要只改裸 Agent ID 或路由字符串。
 
 ## delete、run 与 retry_delivery
 
@@ -34,4 +34,4 @@ schedule 形状：
 - run 触发一次新的执行，不改变 schedule，也不自动启用已停用任务。执行失败、需要重新计算结果时使用它。
 - retry_delivery 需要失败投递的 exact `run_id`，只重投递已存在结果。结果已经产生而仅发送失败时用它，不要重新 run。
 
-主智能体 Nexus 私有 DM 只有在 `automation_plan` / `automation_apply` schema 实际暴露高级 Agent/Session 字段时才可使用；目标必须是当前 owner 下已存在且服务端可验证的真实 Session。
+主智能体 Nexus 私有 DM 只有在 contract 返回 `cross_agent_allowed=true` 时，才可使用其中列出的高级 Agent/Session 字段；目标必须是当前 owner 下已存在且服务端可验证的真实 Session。

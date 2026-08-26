@@ -254,7 +254,6 @@ func normalizeCompletionSignalText(text string) string {
 
 func mentionsGoalUpdateCommand(text string) bool {
 	for _, marker := range []string{
-		"nexus.goal_write",
 		"nexus.command",
 		"nexus goal invoke",
 		"update_goal",

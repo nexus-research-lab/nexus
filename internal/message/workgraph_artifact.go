@@ -1,4 +1,4 @@
-// INPUT: exact Nexus Execution MCP tool_use、历史 command/CLI tool_use 与成功的 typed tool_result。
+// INPUT: exact nexus.command tool_use、历史 CLI tool_use 与成功的 typed tool_result。
 // OUTPUT: 带完整 Draft/命名图快照的 workgraph_artifact assistant 内容块。
 // POS: 受管 WorkGraph authoring 结果进入普通 DM/Room 最终回复的唯一消息投影。
 package message
@@ -86,15 +86,18 @@ func (p *Processor) workGraphArtifactForToolResult(
 func managedExecutionCommandOperation(toolUse map[string]any) (string, bool) {
 	name := normalizeString(toolUse["name"])
 	input := mapValue(toolUse["input"])
-	identity, current := protocol.ParseNexusManagedToolIdentity(name, input)
-	if !current {
-		identity, current = protocol.ParseLegacyNexusCommandToolIdentity(name, input)
-	}
-	if current && identity.Domain == "execution" {
-		if _, ok := workGraphArtifactOperations[identity.Operation]; ok {
-			return identity.Operation, true
+	if name == "mcp__nexus__command" || name == "nexus__command" ||
+		name == "nexus.command" || name == "nexus/command" {
+		operation := normalizeString(input["operation"])
+		if normalizeString(input["domain"]) != "execution" ||
+			normalizeString(input["action"]) != "invoke" ||
+			normalizeString(input["request_id"]) == "" {
+			return "", false
 		}
-		return "", false
+		if _, ok := workGraphArtifactOperations[operation]; !ok {
+			return "", false
+		}
+		return operation, true
 	}
 	if name != "Bash" && name != "PowerShell" {
 		return "", false

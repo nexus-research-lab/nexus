@@ -7,24 +7,24 @@ description: 为 substantial task 选择最小充分执行结构，并在当前 
 
 Execution 管理“当前责任如何交付”；Goal 管理“什么目标需要跨轮持续追求”。两者可以独立存在，也可以显式绑定，不以任务长度、Room 人数或是否调用 Subagent 相互推断。
 
-## 入口与工具协议
+## 入口与命令协议
 
 1. substantial execution 前先判断直接执行、局部 Task、Subagent、WorkGraph、Room Assignment、Gate/Loop 或 Goal 中哪些结构真的降低风险；简单原子任务直接完成。
-2. 只有需要读取或改变受管责任图时才调用宿主提供的 Nexus Execution 工具。先调用 `nexus.execution_read`：
+2. 只有需要读取或改变受管责任图时才调用宿主提供的 `nexus.command`。先调用：
 
    ```json
-   {"operation":"get_execution"}
+   {"domain":"execution","action":"inspect"}
    ```
 
-   明确读取同一可信 scope 的历史图时才直接传 `execution_id`。
-3. 只从最新 `data.execution_context.allowed_actions` 选择动作，再从 `nexus.execution_write` 当前 schema 选择 operation：
+   明确读取同一可信 scope 的历史图时才传 `input.execution_id`。
+3. 只从最新 `data.execution_context.allowed_actions` 选择动作。mutation 前读取 fresh exact contract：
 
    ```json
-   {"operation":"<operation>","<field>":"<value>"}
+   {"domain":"execution","action":"contract","operation":"<operation>"}
    ```
 
-   工具 schema 就是当前合同；不要凭 Skill、记忆或旧 round 重建字段、identity、authority 或 revision。
-4. 输入是 `additionalProperties=false` 的 closed object。只提交当前 operation schema 中属于当前意图的字段；opaque locator 来自 read/receipt，不从标题或正文猜。不要提交 request ID，宿主从真实 tool use 生成并对账。
+   完整遵守返回的 contract；不要凭 Skill、记忆或旧 round 重建字段、identity、authority 或 revision。
+4. 业务输入是 `additionalProperties=false` 的 closed object，直接放在工具的 `input` 字段中。只提交 fresh `input_schema.properties` 中属于当前意图的字段；opaque locator 来自 inspect/receipt，不从标题或正文猜。相同语义重试复用 `request_id`，operation、目标或输入变化时换新 ID。
 5. 只有顶层 `is_error=false` 且 `data.outcome=applied` 表示 mutation 已应用；`prepare_plan_execution` 成功是 `data.outcome=prepared`。`next_actions` 是建议，不授权，始终服从同一结果里的最新 lane、binding 和 `allowed_actions`。
 
 `context_status=refresh_required` 时在本轮重新 inspect；`round_refresh_required` 表示旧 round authority 已失效，立即结束本轮，不再 inspect、改 Plan 或重试 mutation，等待宿主 successor round。

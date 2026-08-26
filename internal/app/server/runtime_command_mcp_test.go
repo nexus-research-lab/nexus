@@ -16,7 +16,7 @@ import (
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 )
 
-func TestRuntimeCommandMCPExposesSemanticToolsWithoutCommandEnvelope(t *testing.T) {
+func TestRuntimeCommandMCPUsesStructuredInputWithoutStagingFile(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
 	agent := &protocol.Agent{AgentID: "worker", OwnerUserID: "owner"}
@@ -61,85 +61,25 @@ func TestRuntimeCommandMCPExposesSemanticToolsWithoutCommandEnvelope(t *testing.
 	response, err := configValue.Instance.HandleMessage(ctx, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
-		"method":  "tools/list",
+		"method":  "tools/call",
+		"params": map[string]any{
+			"name": runtimeCommandMCPToolName,
+			"arguments": map[string]any{
+				"domain": runtimecommand.DomainAutomation,
+				"action": runtimecommand.ActionContract,
+			},
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := response["result"].(map[string]any)
-	tools := result["tools"].([]map[string]any)
-	want := map[string]bool{
-		protocol.NexusAutomationReadToolName:  false,
-		protocol.NexusAutomationPlanToolName:  false,
-		protocol.NexusAutomationApplyToolName: false,
-	}
-	for _, tool := range tools {
-		name := tool["name"].(string)
-		if name == "command" {
-			t.Fatal("retired command envelope is still exposed")
-		}
-		if _, ok := want[name]; ok {
-			want[name] = true
-		}
-		properties := tool["inputSchema"].(map[string]any)["properties"].(map[string]any)
-		for _, retired := range []string{"domain", "action", "input", "request_id"} {
-			if _, exists := properties[retired]; exists {
-				t.Fatalf("tool %s still exposes retired field %s", name, retired)
-			}
-		}
-	}
-	for name, found := range want {
-		if !found {
-			t.Fatalf("semantic tool %s is missing: %#v", name, tools)
-		}
+	result, _ := response["result"].(map[string]any)
+	structured, _ := result["structuredContent"].(map[string]any)
+	if structured["mutation_allowed"] != true {
+		t.Fatalf("runtime command result = %#v", result)
 	}
 	stagingRoot := filepath.Join(stateRoot, "users", "owner", "runtime", "tmp", "runtime-command-inputs")
 	if _, err = os.Stat(stagingRoot); !os.IsNotExist(err) {
 		t.Fatalf("runtime command created staging path: %v", err)
-	}
-}
-
-func TestSemanticRuntimeToolValidatesTheSelectedOperationSchema(t *testing.T) {
-	called := false
-	operations := []runtimecommand.Operation{
-		{
-			Name: "text", ReadOnly: true,
-			InputSchema: map[string]any{
-				"type": "object", "properties": map[string]any{
-					"value": map[string]any{"type": "string"},
-				}, "required": []string{"value"}, "additionalProperties": false,
-			},
-		},
-		{
-			Name: "count", ReadOnly: true,
-			InputSchema: map[string]any{
-				"type": "object", "properties": map[string]any{
-					"value": map[string]any{"type": "integer"},
-				}, "required": []string{"value"}, "additionalProperties": false,
-			},
-			Handler: func(context.Context, map[string]any) (runtimecommand.Result, error) {
-				called = true
-				return runtimecommand.Result{}, nil
-			},
-		},
-	}
-	tool := semanticRuntimeTool(
-		"read", "read", operations, true,
-		func(ctx context.Context, operationName string, input map[string]any, _ bool, _ string) (any, error) {
-			operation, _ := runtimecommand.FindOperation(operations, operationName)
-			return operation.Invoke(ctx, input, nil)
-		},
-	)
-	result, err := tool.ContextHandler(context.Background(), map[string]any{
-		"operation": "count", "value": 2,
-	}, nil)
-	if err != nil || result.IsError || !called {
-		t.Fatalf("selected operation result = %+v, err = %v, called = %v", result, err, called)
-	}
-	result, err = tool.ContextHandler(context.Background(), map[string]any{
-		"operation": "count", "value": "two",
-	}, nil)
-	if err != nil || !result.IsError {
-		t.Fatalf("invalid selected operation result = %+v, err = %v", result, err)
 	}
 }

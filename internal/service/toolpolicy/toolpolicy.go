@@ -13,7 +13,6 @@ import (
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 var managedVisualizeAllowedTools = []string{
@@ -43,13 +42,17 @@ var managedMainThreadAllowedTools = []string{
 	"Skill",
 }
 
-var managedRuntimeCommandAllowedTools = func() []string {
-	result := []string{protocol.NexusMCPServerName}
-	for _, name := range protocol.NexusManagedToolNames() {
-		result = append(result, "mcp__"+protocol.NexusMCPServerName+"__"+name)
-	}
-	return result
-}()
+var managedRuntimeCommandAllowedTools = []string{
+	"nexus",
+	"mcp__nexus__command",
+}
+
+var managedRuntimeCommandToolNames = map[string]struct{}{
+	"mcp__nexus__command": {},
+	"nexus__command":      {},
+	"nexus.command":       {},
+	"nexus/command":       {},
+}
 
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
 func NormalizeSet(items []string) map[string]struct{} {
@@ -170,7 +173,7 @@ func matchesKnownAlias(toolName string, approved string) bool {
 }
 
 // IsManagedSemanticSkillRequest 判断 Skill 调用是否只是在加载受管的
-// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped Nexus MCP。
+// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped nexus.command。
 func IsManagedSemanticSkillRequest(toolName string, input map[string]any) bool {
 	if !MatchesItem(toolName, "Skill") {
 		return false
@@ -189,13 +192,14 @@ func IsManagedVisualizeTool(toolName string) bool {
 	return ok
 }
 
-// IsManagedRuntimeCommandTool 判断请求是否命中当前 round-scoped Nexus MCP 工具。
+// IsManagedRuntimeCommandTool 判断请求是否命中 round-scoped Nexus command 工具。
 func IsManagedRuntimeCommandTool(toolName string) bool {
-	return protocol.IsNexusManagedToolName(toolName)
+	_, ok := managedRuntimeCommandToolNames[strings.TrimSpace(toolName)]
+	return ok
 }
 
-// WithManagedRuntimeAutoApproval 放行内置 Goal/Execution 语义 Skill、Nexus
-// 语义 MCP 与只在沙箱前端生效的生成式 UI 工具。
+// WithManagedRuntimeAutoApproval 放行内置 Goal/Execution 语义 Skill、结构化
+// Nexus command 与只在沙箱前端生效的生成式 UI 工具。
 func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
 	if handler == nil {
 		return nil

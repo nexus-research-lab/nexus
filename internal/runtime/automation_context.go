@@ -31,7 +31,7 @@ func AutomationRunContextualInputs(binding *protocol.AutomationRunContext) []Con
 	if normalized.PermissionPolicyRevision > 0 {
 		attributes = append(attributes, fmt.Sprintf(`permission_revision="%d"`, normalized.PermissionPolicyRevision))
 	}
-	body := "This turn is a scheduled-task run. The scheduler owns result delivery; return only the requested result and do not address or route the destination yourself. nexus.automation_read is already scoped to this task; mutation tools are unavailable."
+	body := "This turn is a scheduled-task run. The scheduler owns result delivery; return only the requested result and do not address or route the destination yourself. nexus.command is read-only and already scoped to this task."
 	if normalized.ResumeToolName != "" {
 		body += fmt.Sprintf(
 			" The user approved a previous permission request. Call tool %q again with the task's original arguments",

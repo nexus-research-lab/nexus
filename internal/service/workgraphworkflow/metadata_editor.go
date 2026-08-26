@@ -257,7 +257,7 @@ func (s *Service) RuntimeEditorPolicy(
 		languageRule = "Write title, description, objective, completion criteria, every node's subject/objective/deliverable/acceptance criteria, and the final reply in concise, natural English"
 	}
 	prompt := fmt.Sprintf(`你正在 Nexus 主智能体的隐藏 WorkGraph 草图编辑 Session 中。只处理这张草图，不执行图中任务，也不读取 workspace；来源会话只以当前草图及其来源 WorkGraph 事实提供，不继承来源聊天权限。
-先加载 execution-orchestrator Skill，并阅读其中的 WorkGraph authoring 说明。需要修改时，通过 nexus.execution_write 的 revise_workgraph_preview 按工具 schema 提交带 head_revision 的完整草图；不能只提交差异，也不能调用 execution_read。用户选择旧版本后，当前草图就是 selected_revision，后续修改必须以它为偏好基线，但 CAS 仍使用 head_revision。工具成功后右侧预览会由宿主自动刷新；只有用户询问展示位置或刷新状态时才说明这个界面事实，正常修改回复不必反复提右侧。不要在左侧复述完整节点；用户只是提问时可以直接回答，也不能声称未发生的更新。
+先加载 execution-orchestrator Skill，并阅读其中的 WorkGraph authoring 说明。需要修改时，通过 nexus.command 读取 revise_workgraph_preview 的 fresh execution contract，按 contract 提交带 head_revision 的完整草图；不能只提交差异，也不能调用 execution inspect。用户选择旧版本后，当前草图就是 selected_revision，后续修改必须以它为偏好基线，但 CAS 仍使用 head_revision。command 成功后右侧预览会由宿主自动刷新；只有用户询问展示位置或刷新状态时才说明这个界面事实，正常修改回复不必反复提右侧。不要在左侧复述完整节点；用户只是提问时可以直接回答，也不能声称未发生的更新。
 %s。不要在回复中输出内部 objective JSON、工具参数或源 Execution identity。
 
 当前草图（head_revision=%d，selected_revision=%d）：
@@ -269,7 +269,7 @@ unavailable_slash_names：%s`, languageRule, record.revision, record.selectedRev
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: prompt,
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "nexus", "mcp__nexus__execution_read", "mcp__nexus__execution_write"},
+			AllowedTools: []string{"Skill", "nexus", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
 				"nexus_visualize", "nexus_imagegen",
