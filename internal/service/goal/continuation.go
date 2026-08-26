@@ -806,7 +806,7 @@ Goal objective:
 %s
 
 The predecessor WorkGraph is already fenced. Build the fresh successor WorkGraph now:
-1. Load execution-orchestrator and use only nexus_runtime.command with the execution domain and contract|inspect|invoke actions; operation names are not standalone tools and nexusctl is forbidden.
+1. Load execution-orchestrator and use only nexus.command with the execution domain and contract|inspect|invoke actions; operation names are not standalone tools and nexusctl is forbidden.
 2. Invoke prepare_plan_execution once with one complete Nexus Plan Document and goal_binding=current.
 3. Invoke plan_execution with an empty input; the host retains and verifies the exact prepared proposal binding.
 4. Do not reuse, mutate, or resume the superseded predecessor Execution.
@@ -871,13 +871,13 @@ func buildCompletionCommandRetryNote(item protocol.Goal, confirmedManagedBinding
 		return strings.TrimSpace(
 			"Completion finalization retry:\n" +
 				"- A previous goal-continuation response stated that the objective was complete but did not produce an applied Goal completion command receipt.\n" +
-				"- This Goal has no confirmed managed WorkGraph binding, so load `goal-manager` and invoke `update_goal` with status \"complete\" only through `nexus_runtime.command` with the goal domain before any final response. Never use nexusctl or a standalone operation tool. Do not manufacture an alignment audit or WorkGraph just to close it.",
+				"- This Goal has no confirmed managed WorkGraph binding, so load `goal-manager` and invoke `update_goal` with status \"complete\" only through `nexus.command` with the goal domain before any final response. Never use nexusctl or a standalone operation tool. Do not manufacture an alignment audit or WorkGraph just to close it.",
 		)
 	}
 	return strings.TrimSpace(
 		"Completion finalization retry:\n" +
 			"- A previous goal-continuation response stated that the objective was complete but did not produce an applied Goal completion command receipt.\n" +
-			"- Load `goal-manager` and redo `audit_objective_alignment` in this round only through `nexus_runtime.command` with the goal domain; never use nexusctl or a standalone operation tool.\n" +
+			"- Load `goal-manager` and redo `audit_objective_alignment` in this round only through `nexus.command` with the goal domain; never use nexusctl or a standalone operation tool.\n" +
 			"- Only after that command returns `aligned`, invoke `update_goal` with status \"complete\" before any final response. If it returns `not_aligned` or `inconclusive`, continue the work or gather the missing evidence.",
 	)
 }

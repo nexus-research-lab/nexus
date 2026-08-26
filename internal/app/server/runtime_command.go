@@ -1,4 +1,4 @@
-// INPUT: 可信 runtime round、结构化 nexus_runtime 调用、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
+// INPUT: 可信 runtime round、结构化 nexus.command 调用、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
 // OUTPUT: 三个领域共用的 round-scoped MCP server、按需 contract、语义调用结果与 typed mutation receipt。
 // POS: Agent-facing Nexus command adapter；身份、责任、preview、Plan Mode 与 Automation 真人确认均由宿主固定。
 package server
@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	runtimeCommandMCPServerName = "nexus_runtime"
+	runtimeCommandMCPServerName = "nexus"
 	runtimeCommandMCPToolName   = "command"
 )
 
@@ -204,7 +204,7 @@ func runtimeCommandMCPResult(value any) sdktool.ToolResult {
 }
 
 func runtimeCommandMCPError(err error) sdktool.ToolResult {
-	message := "Nexus runtime command 失败"
+	message := "Nexus command 失败"
 	if err != nil && strings.TrimSpace(err.Error()) != "" {
 		message = err.Error()
 	}
@@ -318,7 +318,7 @@ func dispatchRuntimeCommand(
 	case runtimecommand.DomainExecution:
 		return handleExecutionRuntimeCommand(ctx, execution, actor, command, workflowServices...)
 	default:
-		return nil, fmt.Errorf("未知 Nexus runtime command domain %q", command.Domain)
+		return nil, fmt.Errorf("未知 Nexus command domain %q", command.Domain)
 	}
 }
 

@@ -83,7 +83,7 @@ func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *test
 				t.Fatalf("%s 未签发 paired interactive context: %+v", channelType, handler.requests)
 			}
 			decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-				ToolName: "mcp__nexus_runtime__command",
+				ToolName: "mcp__nexus__command",
 				Input: map[string]any{
 					"domain": "automation", "action": "plan", "operation": "create",
 				},

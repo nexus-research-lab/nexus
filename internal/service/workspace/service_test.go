@@ -186,7 +186,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
 	managedSkillContracts := map[string][]string{
 		filepath.Join("automation", "SKILL.md"): {
-			"nexus_runtime.command",
+			"nexus.command",
 			`{"domain":"automation","action":"contract"}`,
 			"inspect → plan → apply → verify",
 			"不要落盘或通过 shell 转码",
@@ -243,7 +243,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
-			"nexus_runtime.command",
+			"nexus.command",
 			`{"domain":"goal","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",
 			"references/create-and-retarget.md",
@@ -273,7 +273,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 管理“什么目标需要跨轮持续追求”",
-			"nexus_runtime.command",
+			"nexus.command",
 			`{"domain":"execution","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",
 			"references/responsibility-and-delivery.md",

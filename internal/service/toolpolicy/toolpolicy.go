@@ -43,15 +43,15 @@ var managedMainThreadAllowedTools = []string{
 }
 
 var managedRuntimeCommandAllowedTools = []string{
-	"nexus_runtime",
-	"mcp__nexus_runtime__command",
+	"nexus",
+	"mcp__nexus__command",
 }
 
 var managedRuntimeCommandToolNames = map[string]struct{}{
-	"mcp__nexus_runtime__command": {},
-	"nexus_runtime__command":      {},
-	"nexus_runtime.command":       {},
-	"nexus_runtime/command":       {},
+	"mcp__nexus__command": {},
+	"nexus__command":      {},
+	"nexus.command":       {},
+	"nexus/command":       {},
 }
 
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
@@ -124,7 +124,7 @@ var toolNameMatchers = []toolNameMatcher{
 
 var managedToolFamilyPrefixes = map[string][]string{
 	"nexus_room":      {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
-	"nexus_runtime":   {"mcp__nexus_runtime__", "nexus_runtime__", "nexus_runtime."},
+	"nexus":           {"mcp__nexus__", "nexus__", "nexus."},
 	"nexus_visualize": {"mcp__nexus_visualize__", "nexus_visualize__", "nexus_visualize."},
 	"nexus_imagegen":  {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
 }
@@ -173,7 +173,7 @@ func matchesKnownAlias(toolName string, approved string) bool {
 }
 
 // IsManagedSemanticSkillRequest 判断 Skill 调用是否只是在加载受管的
-// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped nexus_runtime。
+// Goal/Execution 语义 Skill。具体副作用仍只能走 round-scoped nexus.command。
 func IsManagedSemanticSkillRequest(toolName string, input map[string]any) bool {
 	if !MatchesItem(toolName, "Skill") {
 		return false

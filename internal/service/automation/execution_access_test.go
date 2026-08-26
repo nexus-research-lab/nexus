@@ -35,7 +35,7 @@ func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 	}
 
 	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_runtime__command",
+		ToolName: "mcp__nexus__command",
 		Input: map[string]any{
 			"domain": "automation", "action": "inspect", "operation": "get",
 		},

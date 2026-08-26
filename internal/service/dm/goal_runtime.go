@@ -404,7 +404,7 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	if messageutil.AssistantMissedGoalCompletionCommand(
 		r.lastGoalAssistantMessage(), r.hasGoalCompletionCandidate(),
 	) {
-		reason := "assistant claimed goal completion without an applied nexus_runtime.command update_goal receipt"
+		reason := "assistant claimed goal completion without an applied nexus.command update_goal receipt"
 		r.recordGoalMutation("记录 Goal 完成命令漏调用失败", func() error {
 			_, err := r.service.goals.RecordCompletionCommandMiss(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
 			return err

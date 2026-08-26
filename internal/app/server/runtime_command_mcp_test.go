@@ -54,7 +54,7 @@ func TestRuntimeCommandMCPUsesStructuredInputWithoutStagingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	configValue, ok := servers[runtimeCommandMCPServerName].(sdkmcp.SDKServerConfig)
+	configValue, ok := servers["nexus"].(sdkmcp.SDKServerConfig)
 	if !ok || configValue.Instance == nil {
 		t.Fatalf("runtime MCP server = %#v", servers)
 	}

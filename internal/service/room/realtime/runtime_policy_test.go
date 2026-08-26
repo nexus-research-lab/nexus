@@ -184,7 +184,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		}
 	}
 	executionCommandDecision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_runtime__command",
+		ToolName: "mcp__nexus__command",
 		Input:    map[string]any{"domain": "execution", "action": "inspect"},
 	})
 	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
@@ -643,7 +643,7 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_runtime__command",
+		ToolName: "mcp__nexus__command",
 		Input: map[string]any{
 			"domain": "goal", "action": "invoke", "operation": "update_goal", "request_id": "room-goal-complete-1",
 		},

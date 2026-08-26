@@ -1,6 +1,6 @@
 // INPUT: 当前 DM/Room round 的完整 actor、scope、permission、Automation、WorkGraph 保存绑定、统一 Responsibility authority 与 runtime identity。
 // OUTPUT: Goal/Execution/Automation command 共用的 producer/reviewer trusted authority、exact preview 保存绑定、动态责任身份与调用时 SDK Session identity。
-// POS: round-scoped nexus_runtime server 的可信上下文；不接受模型输入覆盖。
+// POS: round-scoped nexus MCP server 的可信上下文；不接受模型输入覆盖。
 package runtime
 
 import (

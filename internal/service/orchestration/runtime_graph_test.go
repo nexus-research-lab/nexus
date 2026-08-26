@@ -332,7 +332,7 @@ func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
 		"message": map[string]any{
 			"role": "assistant",
 			"content": []any{map[string]any{
-				"type": "tool_use", "id": "tool-runtime-1", "name": "mcp__nexus_runtime__command",
+				"type": "tool_use", "id": "tool-runtime-1", "name": "mcp__nexus__command",
 				"input": map[string]any{
 					"domain": "execution", "action": "invoke", "operation": "assign_work",
 					"request_id": "assign-structured-1", "input": map[string]any{"work_item_id": "private"},

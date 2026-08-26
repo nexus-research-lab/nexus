@@ -1,6 +1,6 @@
 // INPUT: 宿主验证过的 runtime physical round 与动态 authority state。
 // OUTPUT: Goal/Execution/Automation command 共用的可信 Actor。
-// POS: round-scoped nexus_runtime 的身份边界；模型输入不能声明 Actor 或责任绑定。
+// POS: round-scoped nexus.command 的身份边界；模型输入不能声明 Actor 或责任绑定。
 package runtimecommand
 
 import (

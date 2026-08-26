@@ -430,7 +430,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	}
 
 	// 把平台通讯、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
-	// Goal、Execution 与 Automation 共用的 nexus_runtime 由 physical round 单独装配。
+	// Goal、Execution 与 Automation 共用的 nexus MCP server 由 physical round 单独装配。
 	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
 	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)

@@ -201,7 +201,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 		t.Fatalf("Execution Skill 应自动放行: decision=%+v err=%v", executionSkillDecision, err)
 	}
 	goalCommandDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_runtime__command",
+		ToolName: "mcp__nexus__command",
 		Input: map[string]any{
 			"domain": "goal", "action": "invoke", "operation": "update_goal", "request_id": "goal-complete-1",
 		},
@@ -213,7 +213,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 		t.Fatalf("Goal command 应自动放行: %+v", goalCommandDecision)
 	}
 	executionCommandDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_runtime__command",
+		ToolName: "mcp__nexus__command",
 		Input:    map[string]any{"domain": "execution", "action": "inspect"},
 	})
 	if err != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {

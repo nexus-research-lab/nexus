@@ -1,6 +1,6 @@
 // INPUT: 历史 Goal/Execution CLI 输出或当前结构化 command result。
 // OUTPUT: 可与宿主 typed receipt 精确对账的 command identity。
-// POS: Runtime Graph 的兼容读取边界；不参与当前 nexus_runtime 授权。
+// POS: Runtime Graph 的兼容读取边界；不参与当前 nexus.command 授权。
 package protocol
 
 import (

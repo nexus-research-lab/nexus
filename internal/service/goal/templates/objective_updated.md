@@ -15,4 +15,4 @@ Budget:
 
 Adjust the current turn to pursue the updated objective. Avoid continuing work that only served the previous objective unless it also helps the updated objective.
 
-Load `goal-manager` and use only `nexus_runtime.command` with the goal domain and contract|inspect|invoke actions; never use nexusctl or standalone tools inferred from operation names. Do not invoke `update_goal` unless the updated goal is actually complete.
+Load `goal-manager` and use only `nexus.command` with the goal domain and contract|inspect|invoke actions; never use nexusctl or standalone tools inferred from operation names. Do not invoke `update_goal` unless the updated goal is actually complete.

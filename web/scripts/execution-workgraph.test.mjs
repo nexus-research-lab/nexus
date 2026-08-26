@@ -2008,7 +2008,7 @@ const nexusCommandTitles = [
   ["goal invoke --operation update_goal", "更新 Goal 状态"],
 ];
 
-test("Nexus runtime commands render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
+test("Nexus commands render semantic titles in real ToolBlocks and collapsed process summaries", async () => {
   const { getSemanticToolName, getToolInputSummary, getToolTitle } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/tool-activity.ts",
   );
@@ -2070,7 +2070,7 @@ test("Nexus runtime commands render semantic titles in real ToolBlocks and colla
     input: { work_item_id: "private-work-item" },
   };
   assert.equal(
-    getToolTitle("mcp__nexus_runtime__command", structuredInput),
+    getToolTitle("mcp__nexus__command", structuredInput),
     "指派工作项",
   );
   assert.equal(getToolInputSummary(structuredInput), "assign_work");

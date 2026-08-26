@@ -322,7 +322,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	if messageutil.AssistantMissedGoalCompletionCommand(
 		finalAssistant, slot.hasGoalCompletionCandidate(),
 	) {
-		reason := "assistant claimed goal completion without an applied nexus_runtime.command update_goal receipt"
+		reason := "assistant claimed goal completion without an applied nexus.command update_goal receipt"
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成命令漏调用失败", func() error {
 			_, err := s.goals.RecordContinuationRuntimeCompletionCommandMiss(
 				ctx, goalID, runtimeIdentity, reason, objectiveRevision,
