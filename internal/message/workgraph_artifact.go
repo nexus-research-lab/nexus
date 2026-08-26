@@ -1,4 +1,4 @@
-// INPUT: exact Bash/PowerShell execution CLI tool_use 与成功的 typed JSON tool_result。
+// INPUT: exact nexus_runtime tool_use、历史 CLI tool_use 与成功的 typed tool_result。
 // OUTPUT: 带完整 Draft/命名图快照的 workgraph_artifact assistant 内容块。
 // POS: 受管 WorkGraph authoring 结果进入普通 DM/Room 最终回复的唯一消息投影。
 package message
@@ -19,21 +19,29 @@ var workGraphArtifactOperations = map[string]struct{}{
 	"save_workgraph_preview":            {},
 }
 
-func (p *Processor) workGraphArtifactForToolResult(toolResult map[string]any) map[string]any {
+func (p *Processor) workGraphArtifactForToolResult(
+	toolResult map[string]any,
+	structuredOutput map[string]any,
+) map[string]any {
 	if boolValue(toolResult["is_error"]) {
 		return nil
 	}
 	toolUseID := normalizeString(toolResult["tool_use_id"])
 	toolUse := p.segment.FindToolUse(toolUseID)
-	commandOperation := managedExecutionCLIOperation(toolUse)
+	commandOperation, native := managedExecutionCommandOperation(toolUse)
 	if toolUseID == "" || len(toolUse) == 0 || commandOperation == "" {
 		return nil
 	}
-	payload := firstWorkGraphArtifactPayload(toolResultContentText(toolResult["content"]))
-	operation := normalizeString(payload["operation"])
-	if normalizeString(payload["domain"]) != "execution" ||
-		normalizeString(payload["action"]) != "invoke" || boolValue(payload["is_error"]) {
-		return nil
+	operation := commandOperation
+	data := structuredOutput
+	if !native {
+		payload := firstWorkGraphArtifactPayload(toolResultContentText(toolResult["content"]))
+		operation = normalizeString(payload["operation"])
+		if normalizeString(payload["domain"]) != "execution" ||
+			normalizeString(payload["action"]) != "invoke" || boolValue(payload["is_error"]) {
+			return nil
+		}
+		data = mapValue(payload["data"])
 	}
 	if _, ok := workGraphArtifactOperations[operation]; !ok {
 		return nil
@@ -41,7 +49,6 @@ func (p *Processor) workGraphArtifactForToolResult(toolResult map[string]any) ma
 	if commandOperation != operation {
 		return nil
 	}
-	data := mapValue(payload["data"])
 	if len(data) == 0 {
 		return nil
 	}
@@ -76,15 +83,28 @@ func (p *Processor) workGraphArtifactForToolResult(toolResult map[string]any) ma
 	return artifact.Map()
 }
 
-func managedExecutionCLIOperation(toolUse map[string]any) string {
+func managedExecutionCommandOperation(toolUse map[string]any) (string, bool) {
 	name := normalizeString(toolUse["name"])
-	if name != "Bash" && name != "PowerShell" {
-		return ""
-	}
 	input := mapValue(toolUse["input"])
+	if name == "mcp__nexus_runtime__command" || name == "nexus_runtime__command" ||
+		name == "nexus_runtime.command" || name == "nexus_runtime/command" {
+		operation := normalizeString(input["operation"])
+		if normalizeString(input["domain"]) != "execution" ||
+			normalizeString(input["action"]) != "invoke" ||
+			normalizeString(input["request_id"]) == "" {
+			return "", false
+		}
+		if _, ok := workGraphArtifactOperations[operation]; !ok {
+			return "", false
+		}
+		return operation, true
+	}
+	if name != "Bash" && name != "PowerShell" {
+		return "", false
+	}
 	command := strings.TrimSpace(normalizeString(input["command"]))
 	if strings.ContainsAny(command, "\n\r|;<>`") || strings.Contains(command, "$(") {
-		return ""
+		return "", false
 	}
 	commandToken := `"${NEXUS_COMMAND_PATH}"`
 	if name == "PowerShell" {
@@ -92,33 +112,33 @@ func managedExecutionCLIOperation(toolUse map[string]any) string {
 	}
 	if !strings.HasPrefix(command, commandToken) ||
 		len(command) == len(commandToken) || !isWorkGraphCommandWhitespace(command[len(commandToken)]) {
-		return ""
+		return "", false
 	}
 	arguments := strings.Fields(command[len(commandToken):])
 	if len(arguments) != 7 || arguments[0] != "--json" ||
 		arguments[1] != "execution" || arguments[2] != "invoke" {
-		return ""
+		return "", false
 	}
 	values := make(map[string]string, 2)
 	for index := 3; index < len(arguments); index += 2 {
 		flag := arguments[index]
 		if index+1 >= len(arguments) || (flag != "--operation" && flag != "--request-id") || values[flag] != "" {
-			return ""
+			return "", false
 		}
 		value, ok := unquoteWorkGraphCommandArgument(arguments[index+1])
 		if !ok {
-			return ""
+			return "", false
 		}
 		values[flag] = value
 	}
 	operation := values["--operation"]
 	if operation == "" || values["--request-id"] == "" {
-		return ""
+		return "", false
 	}
 	if _, ok := workGraphArtifactOperations[operation]; !ok {
-		return ""
+		return "", false
 	}
-	return operation
+	return operation, false
 }
 
 func isWorkGraphCommandWhitespace(value byte) bool {

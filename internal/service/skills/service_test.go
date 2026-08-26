@@ -142,8 +142,16 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 		t.Fatalf("读取狼人杀 skill 详情失败: %v", err)
 	}
 	for _, rule := range []string{
+		"The host Agent is always the moderator and never a player",
+		"Ask the user exactly once whether to join as a player or spectate",
+		"A participating user enters the same randomized role pool as every Agent player",
+		"The user can only join as a player and can never replace the host",
+		"`用户玩家` is not an Agent recipient or wake target",
+		"only the host uses `AskUserQuestion`",
+		"Spectator comments and out-of-turn messages never change game state",
 		"Never expose the private actor, collector, target, decision, or who the host is waiting for",
-		"The final pending actor for that night gets",
+		"If the final pending actor is an Agent",
+		"If the final pending actor is the user",
 		"Nothing about who attacked, who saved or poisoned, why nobody died",
 		"Announce only the resolved death list",
 		"between 60 and 120 Chinese characters",

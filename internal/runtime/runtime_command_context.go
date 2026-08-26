@@ -1,6 +1,6 @@
 // INPUT: 当前 DM/Room round 的完整 actor、scope、permission、Automation、WorkGraph 保存绑定、统一 Responsibility authority 与 runtime identity。
-// OUTPUT: Goal/Execution/Automation command 共用的 producer/reviewer trusted capability、exact preview 保存绑定、动态责任身份与调用时 SDK Session identity。
-// POS: round-scoped nexus command broker 的可信上下文；不接受模型输入覆盖。
+// OUTPUT: Goal/Execution/Automation command 共用的 producer/reviewer trusted authority、exact preview 保存绑定、动态责任身份与调用时 SDK Session identity。
+// POS: round-scoped nexus_runtime server 的可信上下文；不接受模型输入覆盖。
 package runtime
 
 import (
@@ -13,8 +13,8 @@ import (
 )
 
 // SDKSessionIdentityState 保存当前物理 round 已由宿主确认的 provider Session
-// identity。CLI broker 可能早于 provider init/fork 事件创建，因此调用时必须读取
-// 这份动态状态，不能把启动阶段的空值或旧值固化进 command capability。
+// identity。command server 可能早于 provider init/fork 事件创建，因此调用时必须读取
+// 这份动态状态，不能把启动阶段的空值或旧值固化进 round actor。
 type SDKSessionIdentityState struct {
 	mu        sync.RWMutex
 	sessionID string

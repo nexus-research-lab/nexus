@@ -9,7 +9,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -80,7 +79,6 @@ type AppServices struct {
 	Ingress                *channels.IngressService
 	RoomRealtime           *roomrealtime.Service
 	Automation             *automationsvc.Service
-	RuntimeCommand         *runtimecommand.Registry
 	Imagegen               *imagegensvc.Service
 	Goal                   *goalsvc.Service
 	GoalCommand            goalcommandcontract.Service
@@ -340,15 +338,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetTaskReferenceResolver(automationService)
 	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
-	runtimeCommandRegistry := runtimecommand.NewRegistry(runtimeManager)
-	runtimeCommandEnvironmentBuilder := newRuntimeCommandEnvironmentBuilder(
+	runtimeCommandMCPServerBuilder := newRuntimeCommandMCPServerBuilder(
 		cfg,
-		runtimeCommandRegistry,
 		core.Agent,
+		automationService,
 		explicitGoalCoordinator,
+		orchestrationService,
+		permission,
+		workGraphWorkflowService,
 	)
-	dmService.SetRuntimeCommandEnvironmentBuilder(runtimeCommandEnvironmentBuilder)
-	roomRealtime.SetRuntimeCommandEnvironmentBuilder(runtimeCommandEnvironmentBuilder)
+	dmService.SetRuntimeCommandMCPServerBuilder(runtimeCommandMCPServerBuilder)
+	roomRealtime.SetRuntimeCommandMCPServerBuilder(runtimeCommandMCPServerBuilder)
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 	configurationService := configurationsvc.NewService(
@@ -430,7 +430,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	}
 
 	// 把平台通讯、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
-	// Automation 由内置 Skill + round-scoped nexus CLI 提供，不再占用模型 MCP 工具面。
+	// Goal、Execution 与 Automation 共用的 nexus_runtime 由 physical round 单独装配。
 	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
 	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
@@ -485,7 +485,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Ingress:                ingressService,
 		RoomRealtime:           roomRealtime,
 		Automation:             automationService,
-		RuntimeCommand:         runtimeCommandRegistry,
 		Imagegen:               imagegenService,
 		Goal:                   goalService,
 		GoalCommand:            explicitGoalCoordinator,

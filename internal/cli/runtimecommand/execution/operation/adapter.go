@@ -272,7 +272,7 @@ func compactRuntimeCommandContext(rendered string) string {
 	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "graph_digest"))
 	// Responsibility, review, action and blocker sections are authoritative.
 	// They may exceed this transport-size preference, but must never be erased
-	// or replaced with a fabricated refresh state. The CLI transports the one
+	// or replaced with a fabricated refresh state. The structured command transports the one
 	// structured wire as-is; only the optional observed graph facts above are
 	// eligible for compaction.
 	return rendered

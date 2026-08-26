@@ -90,7 +90,6 @@ type roundRunner struct {
 	responsibilityState         *runtimectx.ResponsibilityAuthorityState
 	sdkSessionIdentity          *runtimectx.SDKSessionIdentityState
 	commandReceipts             *runtimecommand.ReceiptState
-	commandResources            *runtimecommand.RoundResources
 	commandReceiptSequence      uint64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
@@ -127,7 +126,6 @@ type roundRunner struct {
 }
 
 func (r *roundRunner) run(ctx context.Context) {
-	defer r.commandResources.Close()
 	defer r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
 	logger := r.service.loggerFor(ctx).With(

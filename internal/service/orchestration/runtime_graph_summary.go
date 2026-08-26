@@ -1,5 +1,5 @@
 // INPUT: Bridge provider-neutral lifecycle 事件与当前强类型 runtime 消息。
-// OUTPUT: 有界、脱敏的 NodeRun 结果/错误摘要、耗时、exact retry 与私有 command staging 分类。
+// OUTPUT: 有界、脱敏的 NodeRun 结果/错误摘要、耗时、exact retry 与受管 command 分类。
 // POS: Bridge 原始内容与持久 Runtime Graph 之间的安全观测投影；不推断或触发 Agent 路线。
 package orchestration
 
@@ -123,10 +123,8 @@ func runtimeGraphSubagentToolEvents(
 	return result
 }
 
-// annotateRuntimeGraphCommandTransport projects only a boolean semantic fact
-// from the exact ToolUse input. The strict parser rejects pipelines, chaining,
-// substitutions, arbitrary executables and non-managed input files; raw command
-// text and Tool input never enter Runtime Graph persistence.
+// annotateRuntimeGraphCommandTransport 只从 exact ToolUse input 投影受管
+// command identity；业务 input 本身永不进入 Runtime Graph persistence。
 func annotateRuntimeGraphCommandTransport(
 	message sdkprotocol.ReceivedMessage,
 	event *sdkprotocol.RuntimeLifecycleEvent,
@@ -141,6 +139,25 @@ func annotateRuntimeGraphCommandTransport(
 			continue
 		}
 		input := toolUse.InputMap()
+		if toolpolicy.IsManagedRuntimeCommandTool(toolUse.Name) {
+			domain := mapString(input, "domain")
+			if domain != "goal" && domain != "execution" {
+				return
+			}
+			if event.Metadata == nil {
+				event.Metadata = make(map[string]string)
+			}
+			event.Metadata[runtimeGraphCommandTransportMetadataKey] = "true"
+			event.Metadata[runtimeGraphCommandDomainMetadataKey] = domain
+			event.Metadata[runtimeGraphCommandActionMetadataKey] = mapString(input, "action")
+			if operation := mapString(input, "operation"); operation != "" {
+				event.Metadata[runtimeGraphCommandOperationMetadataKey] = operation
+			}
+			if requestID := mapString(input, "request_id"); requestID != "" {
+				event.Metadata[runtimeGraphCommandRequestIDMetadataKey] = requestID
+			}
+			return
+		}
 		invocation, ok := toolpolicy.NexusRuntimeCLIInvocation(sdkpermission.Request{
 			ToolName:  toolUse.Name,
 			Input:     input,

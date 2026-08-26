@@ -109,15 +109,17 @@ OS 身份，也不宣称具备强隔离。`off` 完全保持旧行为。
 每个可信交互 round 注入 loopback broker 地址与随机 capability，CLI 只转发命令，
 broker 再按当前 Agent/DM/Room 身份调用 configuration 服务。官方容器因此把
 `/usr/local/bin/nexuscfg` 设为 `root:root 0755`，但缺少有效 capability、round 已结束、
-并发 round 或越权 operation 都会失败。Agent-facing `/usr/local/bin/nexus` 使用相同部署
-边界；当前 `automation` 子命令另由 Automation round capability 固定 source、Session
-和可选 job/run，mutation 还必须经过 plan digest、revision 与当前会话真人确认。
+并发 round 或越权 operation 都会失败。Goal、Execution 与 Automation 不再安装
+Agent-facing executable；结构化业务输入通过 round-scoped `nexus_runtime.command`
+直接进入宿主。进程内 actor 固定 source、Session 与可选 job/run，Automation mutation
+还必须经过 plan digest、revision 与当前会话真人确认。
 
 Nexus 主智能体是宿主控制面主体，在 enforce 下保留宿主身份并通过
 `NEXUSCTL_COMMAND_PATH` 调用当前 owner scope 的 CLI。宿主注入
 `NEXUS_RUNTIME_SCOPE_MODE` 与 owner 后，CLI 帮助会隐藏人工作用域选择参数；显式覆盖
-会返回可重试的 usage 错误。Hook 对 `nexusctl`、`nexuscfg` 和 `nexus` 的作用域/capability
-覆盖继续早期拒绝；最终权限分别由 DAC/宿主 scope、configuration 角色矩阵与对应领域
+会返回可重试的 usage 错误。Hook 对 `nexusctl`、`nexuscfg` 的作用域/capability
+覆盖继续早期拒绝；最终权限分别由 DAC/宿主 scope 与 configuration 角色矩阵收口。
+`nexus_runtime.command` 不经过 shell 或文件系统，最终权限由 round actor 与对应领域
 command service 收口。
 
 为兼容终端、临时文件和部分开发工具，当前 Landlock 规则允许 runtime 使用

@@ -1,6 +1,6 @@
 // INPUT: round-scoped Actor、Automation mutation operation 与 CLI intent。
 // OUTPUT: 不写入的确定性 plan，或经 digest/revision/人工确认后的领域写入结果。
-// POS: Nexus Automation CLI 的唯一变更入口；MCP、CLI flag 和模型文本都不能绕过本层。
+// POS: Nexus Automation command 的唯一变更入口；tool input 和模型文本都不能绕过本层。
 package automation
 
 import (

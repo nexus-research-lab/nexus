@@ -1,6 +1,6 @@
-// INPUT: 可信 runtime round、loopback nexus CLI 请求、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
-// OUTPUT: 三个领域共用的 command capability 环境、隔离 WorkGraph 专用 registry、按需 contract、语义调用结果与 typed mutation receipt。
-// POS: Agent-facing Nexus command broker；身份、责任、preview、Plan Mode 与 Automation 真人确认均由宿主固定。
+// INPUT: 可信 runtime round、结构化 nexus_runtime 调用、Goal/Execution/Automation services、exact WorkGraph preview binding 与 runtime permission context。
+// OUTPUT: 三个领域共用的 round-scoped MCP server、按需 contract、语义调用结果与 typed mutation receipt。
+// POS: Agent-facing Nexus command adapter；身份、责任、preview、Plan Mode 与 Automation 真人确认均由宿主固定。
 package server
 
 import (
@@ -9,13 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
@@ -25,24 +21,30 @@ import (
 	goalcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
 	goaloperation "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/operation"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 )
 
-const maxRuntimeCommandRequestBytes = 1 << 20
+const (
+	runtimeCommandMCPServerName = "nexus_runtime"
+	runtimeCommandMCPToolName   = "command"
+)
 
-func newRuntimeCommandEnvironmentBuilder(
+func newRuntimeCommandMCPServerBuilder(
 	cfg config.Config,
-	registry *runtimecommand.Registry,
 	agents runtimeAgentResolver,
+	automation *automationsvc.Service,
 	goals goalcontract.Service,
-) func(context.Context, runtimecommand.RoundContext) (map[string]string, error) {
-	endpoint := runtimeCommandBrokerURL(cfg)
-	return func(ctx context.Context, round runtimecommand.RoundContext) (map[string]string, error) {
+	execution executioncontract.Service,
+	permissions *permissionctx.Context,
+	workflowServices ...executioncontract.WorkflowService,
+) func(context.Context, runtimecommand.RoundContext) (map[string]sdkmcp.ServerConfig, error) {
+	return func(ctx context.Context, round runtimecommand.RoundContext) (map[string]sdkmcp.ServerConfig, error) {
 		agentValue := round.CommandContext.Agent
-		if registry == nil || agents == nil || agentValue == nil || round.Receipts == nil {
+		if agents == nil || agentValue == nil || round.Receipts == nil {
 			return nil, nil
 		}
 		agentID := strings.TrimSpace(agentValue.AgentID)
@@ -93,27 +95,123 @@ func newRuntimeCommandEnvironmentBuilder(
 		if actor.GoalMutationAuthority != round.CommandContext.GoalAuthority {
 			actor.GoalResponsibilityState = nil
 		}
-		token, err := registry.Issue(actor)
-		if err != nil {
-			return nil, err
-		}
-		environment := map[string]string{
-			protocol.NexusCommandBrokerURLEnvName:       endpoint,
-			protocol.NexusCommandCapabilityTokenEnvName: token,
-		}
-		inputPath, cleanup, stagingErr := prepareRuntimeCommandInput(
-			actor.OwnerUserID, actor.LeaseRoundID, token,
+		inputSchema := runtimeCommandMCPInputSchema()
+		server := sdktool.NewSimpleSDKMCPServer(
+			runtimeCommandMCPServerName,
+			"1.0.0",
+			[]sdktool.Tool{{
+				Name: runtimeCommandMCPToolName,
+				Description: "调用 Nexus 托管的 Goal、Execution 或 Automation 命令。" +
+					"先用 contract 获取操作目录和精确输入 schema，再用 inspect/invoke 或 plan/apply 执行。",
+				SearchHint:  "nexus goal execution automation contract inspect invoke plan apply 目标 执行 自动化",
+				AlwaysLoad:  true,
+				InputSchema: inputSchema,
+				Annotations: &sdktool.ToolAnnotations{Destructive: true},
+				Handler: func(callCtx context.Context, input map[string]any) (sdktool.ToolResult, error) {
+					if err := runtimecommand.ValidateInput(inputSchema, input); err != nil {
+						return runtimeCommandMCPError(err), nil
+					}
+					command := runtimeCommandRequestFromMCP(input)
+					result, err := dispatchRuntimeCommand(
+						callCtx,
+						automation,
+						goals,
+						execution,
+						permissions,
+						actor,
+						command,
+						workflowServices...,
+					)
+					if err != nil {
+						return runtimeCommandMCPError(err), nil
+					}
+					return runtimeCommandMCPResult(result), nil
+				},
+			}},
 		)
-		if stagingErr != nil {
-			return nil, stagingErr
+		return map[string]sdkmcp.ServerConfig{
+			runtimeCommandMCPServerName: sdkmcp.SDKServerConfig{
+				Name: runtimeCommandMCPServerName, Instance: server,
+			},
+		}, nil
+	}
+}
+
+func runtimeCommandMCPInputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"domain": map[string]any{
+				"type": "string", "enum": []string{
+					runtimecommand.DomainAutomation,
+					runtimecommand.DomainGoal,
+					runtimecommand.DomainExecution,
+				},
+			},
+			"action": map[string]any{
+				"type": "string", "enum": []string{
+					runtimecommand.ActionContract,
+					runtimecommand.ActionInspect,
+					runtimecommand.ActionInvoke,
+					runtimecommand.ActionPlan,
+					runtimecommand.ActionApply,
+				},
+			},
+			"operation":         map[string]any{"type": "string"},
+			"input":             map[string]any{"type": "object", "additionalProperties": true},
+			"request_id":        map[string]any{"type": "string"},
+			"expected_revision": map[string]any{"type": "string"},
+			"plan_digest":       map[string]any{"type": "string"},
+		},
+		"required":             []string{"domain", "action"},
+		"additionalProperties": false,
+	}
+}
+
+func runtimeCommandRequestFromMCP(input map[string]any) runtimecommand.Request {
+	command := runtimecommand.Request{
+		Domain:           stringValue(input["domain"]),
+		Action:           stringValue(input["action"]),
+		Operation:        stringValue(input["operation"]),
+		RequestID:        stringValue(input["request_id"]),
+		ExpectedRevision: stringValue(input["expected_revision"]),
+		PlanDigest:       stringValue(input["plan_digest"]),
+	}
+	command.Input, _ = input["input"].(map[string]any)
+	return command
+}
+
+func runtimeCommandMCPResult(value any) sdktool.ToolResult {
+	if result, ok := value.(runtimecommand.Result); ok {
+		return sdktool.ToolResult{
+			Content: result.Content, StructuredContent: result.StructuredContent, IsError: result.IsError,
 		}
-		if round.Resources == nil {
-			cleanup()
-			return nil, errors.New("runtime command physical round 缺少资源所有者")
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return runtimeCommandMCPError(err)
+	}
+	structured := map[string]any{}
+	if value != nil {
+		if err = json.Unmarshal(payload, &structured); err != nil {
+			return runtimeCommandMCPError(err)
 		}
-		round.Resources.Add(cleanup)
-		environment[protocol.NexusCommandInputPathEnvName] = inputPath
-		return environment, nil
+	}
+	return sdktool.ToolResult{
+		Content:           []map[string]any{{"type": "text", "text": string(payload)}},
+		StructuredContent: structured,
+	}
+}
+
+func runtimeCommandMCPError(err error) sdktool.ToolResult {
+	message := "Nexus runtime command 失败"
+	if err != nil && strings.TrimSpace(err.Error()) != "" {
+		message = err.Error()
+	}
+	return sdktool.ToolResult{
+		Content:           []map[string]any{{"type": "text", "text": message}},
+		StructuredContent: map[string]any{"error": message},
+		IsError:           true,
 	}
 }
 
@@ -197,71 +295,30 @@ func trustedMainRuntimeCommandActor(actor runtimecommand.Actor) bool {
 		strings.TrimSpace(parsed.AgentID) == strings.TrimSpace(actor.AgentID)
 }
 
-func runtimeCommandBrokerURL(cfg config.Config) string {
-	prefix := "/" + strings.Trim(strings.TrimSpace(cfg.APIPrefix), "/")
-	if prefix == "/" {
-		prefix = ""
-	}
-	return (&url.URL{
-		Scheme: "http", Host: net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.Port)),
-		Path: prefix + "/internal/runtime/command",
-	}).String()
-}
-
-func newRuntimeCommandHandler(
-	registry *runtimecommand.Registry,
+func dispatchRuntimeCommand(
+	ctx context.Context,
 	automation *automationsvc.Service,
 	goals goalcontract.Service,
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
+	actor runtimecommand.Actor,
+	command runtimecommand.Request,
 	workflowServices ...executioncontract.WorkflowService,
-) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		if registry == nil || !runtimeConfigurationLoopbackRequest(request) {
-			writeRuntimeCommandError(writer, http.StatusForbidden, "runtime command broker 只接受本机请求")
-			return
-		}
-		actor, err := registry.Resolve(request.Header.Get(protocol.NexusCommandCapabilityHeader))
-		if err != nil {
-			writeRuntimeCommandError(writer, http.StatusUnauthorized, err.Error())
-			return
-		}
-		var command runtimecommand.Request
-		decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, maxRuntimeCommandRequestBytes))
-		decoder.DisallowUnknownFields()
-		if err = decoder.Decode(&command); err != nil {
-			writeRuntimeCommandError(writer, http.StatusBadRequest, "请求参数错误: "+err.Error())
-			return
-		}
-		var extra any
-		if err = decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-			writeRuntimeCommandError(writer, http.StatusBadRequest, "请求只能包含一个 JSON 对象")
-			return
-		}
-		var result any
-		if (actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor ||
-			actor.SourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
-			strings.ToLower(strings.TrimSpace(command.Domain)) != runtimecommand.DomainExecution {
-			writeRuntimeCommandError(writer, http.StatusUnprocessableEntity, "临时 WorkGraph Session 只允许 execution domain")
-			return
-		}
-		switch strings.ToLower(strings.TrimSpace(command.Domain)) {
-		case runtimecommand.DomainAutomation:
-			result, err = handleAutomationRuntimeCommand(request.Context(), automation, permissions, actor, command)
-		case runtimecommand.DomainGoal:
-			result, err = handleGoalRuntimeCommand(request.Context(), goals, actor, command)
-		case runtimecommand.DomainExecution:
-			result, err = handleExecutionRuntimeCommand(
-				request.Context(), execution, actor, command, workflowServices...,
-			)
-		default:
-			err = fmt.Errorf("未知 Nexus runtime command domain %q", command.Domain)
-		}
-		if err != nil {
-			writeRuntimeCommandError(writer, http.StatusUnprocessableEntity, err.Error())
-			return
-		}
-		writeRuntimeCommandJSON(writer, http.StatusOK, map[string]any{"success": true, "data": result})
+) (any, error) {
+	if (actor.SourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+		actor.SourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
+		strings.ToLower(strings.TrimSpace(command.Domain)) != runtimecommand.DomainExecution {
+		return nil, errors.New("临时 WorkGraph Session 只允许 execution domain")
+	}
+	switch strings.ToLower(strings.TrimSpace(command.Domain)) {
+	case runtimecommand.DomainAutomation:
+		return handleAutomationRuntimeCommand(ctx, automation, permissions, actor, command)
+	case runtimecommand.DomainGoal:
+		return handleGoalRuntimeCommand(ctx, goals, actor, command)
+	case runtimecommand.DomainExecution:
+		return handleExecutionRuntimeCommand(ctx, execution, actor, command, workflowServices...)
+	default:
+		return nil, fmt.Errorf("未知 Nexus runtime command domain %q", command.Domain)
 	}
 }
 
@@ -671,18 +728,4 @@ func runtimeAutomationConfirmationInput(plan automationdomain.AutomationCommandP
 		input["changes"] = changes
 	}
 	return input
-}
-
-func writeRuntimeCommandError(writer http.ResponseWriter, status int, message string) {
-	writeRuntimeCommandJSON(writer, status, map[string]any{
-		"success": false, "error": map[string]any{"message": strings.TrimSpace(message)},
-	})
-}
-
-func writeRuntimeCommandJSON(writer http.ResponseWriter, status int, payload map[string]any) {
-	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-	writer.WriteHeader(status)
-	encoder := json.NewEncoder(writer)
-	encoder.SetEscapeHTML(false)
-	_ = encoder.Encode(payload)
 }

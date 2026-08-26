@@ -198,14 +198,20 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 			return preparedSlotRuntime{}, err
 		}
 	}
-	runtimeCommandEnv := map[string]string(nil)
-	if e.service.runtimeCommandEnv != nil {
-		runtimeCommandEnv, err = e.service.runtimeCommandEnv(
+	mcpServers := e.runtimeMCPServers(permissionMode)
+	if e.service.runtimeCommandMCP != nil {
+		runtimeServers, runtimeErr := e.service.runtimeCommandMCP(
 			e.runtimeBuilderContext(),
 			e.runtimeCommandRoundContext(permissionMode),
 		)
-		if err != nil {
-			return preparedSlotRuntime{}, err
+		if runtimeErr != nil {
+			return preparedSlotRuntime{}, runtimeErr
+		}
+		if len(runtimeServers) > 0 && mcpServers == nil {
+			mcpServers = make(map[string]sdkmcp.ServerConfig, len(runtimeServers))
+		}
+		for name, server := range runtimeServers {
+			mcpServers[name] = server
 		}
 	}
 	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
@@ -235,11 +241,10 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		ResumeSessionID:            e.slot.getSDKSessionID(),
 		MaxThinkingTokens:          e.agent.Options.MaxThinkingTokens,
 		MaxTurns:                   e.agent.Options.MaxTurns,
-		MCPServers:                 e.runtimeMCPServers(permissionMode),
+		MCPServers:                 mcpServers,
 		AgentMCPServers:            e.agent.Options.MCPServers,
 		ExtraEnv:                   extraEnv,
 		ConfigurationEnv:           configurationRuntimeEnv,
-		RuntimeCommandEnv:          runtimeCommandEnv,
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
@@ -444,7 +449,6 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 		SourceContextType: roomCommandSourceContextType(e.round),
 		SourceContextID:   e.round.RoomID, SourceContextLabel: roomSourceContextLabel(e.round),
 		CommandContext: commandContext, Receipts: e.slot.ensureCommandReceiptState(),
-		Resources: e.slot.ensureCommandResources(),
 	}
 }
 
@@ -491,8 +495,6 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 		disallowedTools,
 	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
-	handler = toolpolicy.WithNexusRuntimeCLIAutoApproval(handler)
-	handler = toolpolicy.WithNexusRuntimeCLICompositionDeny(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)
 	return toolpolicy.WithNexusControlPlaneDeny(handler, !e.agent.IsMain)
 }

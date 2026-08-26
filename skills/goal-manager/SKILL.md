@@ -9,21 +9,21 @@ Goal 是跨物理 round 持续追求的服务端目标，不是普通聊天、Ta
 
 ## 入口与命令协议
 
-1. 先独立读取当前 Goal：
+1. 先通过 `nexus_runtime.command` 读取当前 Goal：
 
-   ```bash
-   "${NEXUS_COMMAND_PATH}" --json goal inspect
+   ```json
+   {"domain":"goal","action":"inspect"}
    ```
 
-   PowerShell 使用 `& "${env:NEXUS_COMMAND_PATH}" ...`。不要探测或覆盖 `NEXUS_COMMAND_*`，不要使用 `nexusctl`、其他管理入口或 `/goal` 文本代替 command。
+   不要探测命令路径、临时文件或环境变量，不要使用 `nexusctl`、其他管理入口或 `/goal` 文本代替 command。
 2. 读取最新 Goal/objective revision 与 completion criteria 后选择 operation；mutation 前读取 fresh exact contract：
 
-   ```bash
-   "${NEXUS_COMMAND_PATH}" --json goal contract --operation '<operation>'
+   ```json
+   {"domain":"goal","action":"contract","operation":"<operation>"}
    ```
 
-   完整遵守返回的顶层 `command_usage`、`contract` 和 `input_staging`。命令独立执行，不接管道、重定向、`jq`、Python、正则或其他后处理。
-3. 输入是 `additionalProperties=false` 的 closed JSON object，只写 fresh schema 暴露的业务字段。不要提交 Goal/owner/Agent/Session/Room/round identity、authority、revision、receipt 或其他隐藏字段。
+   完整遵守返回的 contract。
+3. 业务输入是 `additionalProperties=false` 的 closed object，直接放在工具的 `input` 字段中，只写 fresh schema 暴露的业务字段。不要提交 Goal/owner/Agent/Session/Room/round identity、authority、revision、receipt 或其他隐藏字段。
 4. 相同语义重试复用 request ID；operation、目标或输入变化时生成新 ID。只有顶层 `is_error=false` 且 `data.outcome=applied` 表示状态已改变；`nextAction` 只给 domain-qualified 恢复方向，不携带新 authority，继续前仍读取目标 domain 的 current state 与 exact contract。
 
 ## 按当前动作读取参考

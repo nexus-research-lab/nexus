@@ -1,6 +1,6 @@
-// INPUT: Agent runtime 通过受管 nexus CLI 提交的领域、操作、严格 JSON 输入与稳定 request identity。
-// OUTPUT: Goal、Execution 与 Automation 共用的 contract/inspect/invoke wire，以及 transport-neutral operation result。
-// POS: Skill、CLI、loopback broker 与领域 command adapter 之间的线格式真相；不依赖 MCP 或 Provider tool schema。
+// INPUT: Agent runtime 通过受管 MCP tool 提交的领域、操作、结构化输入与稳定 request identity。
+// OUTPUT: Goal、Execution 与 Automation 共用的 contract/inspect/invoke 请求，以及 transport-neutral operation result。
+// POS: Skill、round-scoped tool schema 与领域 command adapter 之间的线格式真相；不依赖具体 Provider。
 package runtimecommand
 
 import (
@@ -28,7 +28,7 @@ const (
 	ActionReplay   = "replay"
 )
 
-// Request 是 nexus CLI 到宿主 command broker 的唯一请求 envelope。
+// Request 是 round-scoped MCP adapter 到领域服务的唯一请求 envelope。
 type Request struct {
 	Domain           string         `json:"domain"`
 	Action           string         `json:"action"`
@@ -58,7 +58,7 @@ type Contract struct {
 
 // CallContext 只包含宿主生成或验证过的调用 identity；领域输入不能覆盖。
 type CallContext struct {
-	// RequestID 是 CLI broker 验证过的稳定 request_id。
+	// RequestID 是宿主 command adapter 验证过的稳定 request_id。
 	RequestID string
 	SessionID string
 }

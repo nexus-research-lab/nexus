@@ -1505,7 +1505,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionCommandMiss(t
 	)
 
 	misses := goalProvider.recordedCompletionMisses()
-	if len(misses) != 1 || !strings.Contains(misses[0], "nexus goal update_goal command receipt") {
+	if len(misses) != 1 || !strings.Contains(misses[0], "nexus_runtime.command update_goal receipt") {
 		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
 	}
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {

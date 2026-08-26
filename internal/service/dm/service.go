@@ -220,11 +220,11 @@ type ConfigurationRuntimeEnvironmentBuilder func(
 	string,
 ) (map[string]string, error)
 
-// RuntimeCommandEnvironmentBuilder 为当前 physical round 签发 Agent-facing nexus CLI 环境。
-type RuntimeCommandEnvironmentBuilder func(
+// RuntimeCommandMCPServerBuilder 为当前 physical round 构造结构化 Nexus command server。
+type RuntimeCommandMCPServerBuilder func(
 	context.Context,
 	runtimecommand.RoundContext,
-) (map[string]string, error)
+) (map[string]sdkmcp.ServerConfig, error)
 
 // RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 WorkGraph 沉淀展开为 runtime prompt。
 type RuntimeSlashExpander interface {
@@ -259,7 +259,7 @@ type Service struct {
 	logger                    *slog.Logger
 	mcpServers                MCPServerBuilder
 	configurationRuntimeEnv   ConfigurationRuntimeEnvironmentBuilder
-	runtimeCommandEnv         RuntimeCommandEnvironmentBuilder
+	runtimeCommandMCP         RuntimeCommandMCPServerBuilder
 	runtimeSlashExpander      RuntimeSlashExpander
 	scopedSessionPolicy       scopedSessionRuntimePolicyProvider
 	titles                    titleScheduler
@@ -399,11 +399,11 @@ func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
 	s.configurationRuntimeEnv = builder
 }
 
-// SetRuntimeCommandEnvironmentBuilder 注入可信 Nexus runtime command capability 签发器。
-func (s *Service) SetRuntimeCommandEnvironmentBuilder(
-	builder RuntimeCommandEnvironmentBuilder,
+// SetRuntimeCommandMCPServerBuilder 注入可信 Nexus runtime command server 工厂。
+func (s *Service) SetRuntimeCommandMCPServerBuilder(
+	builder RuntimeCommandMCPServerBuilder,
 ) {
-	s.runtimeCommandEnv = builder
+	s.runtimeCommandMCP = builder
 }
 
 // SetRuntimeSlashExpander 注入 owner-scoped WorkGraph 沉淀 prompt 展开器。

@@ -307,7 +307,6 @@ func productMatrixCommandActor(
 		SessionKey: sessionKey,
 		RoundID:    "round-product-matrix",
 		Receipts:   runtimecommand.NewReceiptState(),
-		Resources:  runtimecommand.NewRoundResources(),
 		CommandContext: runtimectx.RuntimeCommandContext{
 			Agent:                   &protocol.Agent{AgentID: agentID, OwnerUserID: ownerID},
 			ScopeSessionKey:         sessionKey,

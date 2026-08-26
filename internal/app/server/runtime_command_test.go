@@ -1,36 +1,18 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 )
-
-type runtimeAutomationRoundResolver struct {
-	sessionKey string
-	roundID    string
-}
-
-func (r runtimeAutomationRoundResolver) GetRunningRoundIDs(sessionKey string) []string {
-	if sessionKey == r.sessionKey {
-		return []string{r.roundID}
-	}
-	return nil
-}
 
 type runtimeAutomationPermissionSender struct {
 	events chan protocol.EventMessage
@@ -112,39 +94,6 @@ func TestRuntimeAutomationConfirmationShowsNormalizedChangesWithoutRouteSecrets(
 		if _, leaked := changes[routeField]; leaked {
 			t.Fatalf("confirmation leaked host route field %q: %#v", routeField, changes)
 		}
-	}
-}
-
-func TestRuntimeCommandHandlerResolvesAutomationCapabilityWithoutMCP(t *testing.T) {
-	service := automationsvc.NewService(config.Config{}, nil, nil, nil, nil, nil, nil, nil)
-	actor := runtimecommand.Actor{
-		OwnerUserID: "owner", AgentID: "worker",
-		SessionKey: "agent:worker:websocket:dm:owner:", RoundID: "round-1",
-		LeaseSessionKey: "runtime-session", LeaseRoundID: "round-1",
-		SourceContextType: "agent", SourceContextID: "worker",
-		Round: runtimecommand.RoundContext{Receipts: runtimecommand.NewReceiptState()},
-	}
-	registry := runtimecommand.NewRegistry(runtimeAutomationRoundResolver{
-		sessionKey: actor.LeaseSessionKey, roundID: actor.LeaseRoundID,
-	})
-	token, err := registry.Issue(actor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload, _ := json.Marshal(runtimecommand.Request{
-		Domain: runtimecommand.DomainAutomation,
-		Action: runtimecommand.ActionContract,
-	})
-	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/runtime/command", bytes.NewReader(payload))
-	request.RemoteAddr = "127.0.0.1:43210"
-	request.Header.Set(protocol.NexusCommandCapabilityHeader, token)
-	recorder := httptest.NewRecorder()
-	newRuntimeCommandHandler(registry, service, nil, nil, nil).ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"mutation_allowed":true`) {
-		t.Fatalf("contract response status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	if strings.Contains(recorder.Body.String(), "automation_query") || strings.Contains(recorder.Body.String(), "automation_update") {
-		t.Fatalf("runtime contract leaked retired MCP names: %s", recorder.Body.String())
 	}
 }
 

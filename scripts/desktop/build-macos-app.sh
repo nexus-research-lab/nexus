@@ -47,7 +47,6 @@ SIDECAR_BUILD_DIR="${APP_BUILD_DIR}/.intermediates"
 SIDECAR_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-server"
 NEXUSCTL_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexusctl"
 NEXUSCFG_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexuscfg"
-NEXUS_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus"
 SWIFT_PRODUCT="NexusDesktop"
 BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
 NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
@@ -161,13 +160,6 @@ CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go buil
   -o "${NEXUSCFG_BUILD_PATH}" \
   ./cmd/nexuscfg
 
-echo "==> Building nexus"
-CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
-  -trimpath \
-  -ldflags="-s -w" \
-  -o "${NEXUS_BUILD_PATH}" \
-  ./cmd/nexus
-
 echo "==> Building Swift shell (${TARGET_ARCH})"
 swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}"
 SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}" --show-bin-path)"
@@ -181,7 +173,6 @@ cp "${SWIFT_BIN_PATH}/${SWIFT_PRODUCT}" "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME
 cp "${SIDECAR_BUILD_PATH}" "${MACOS_CONTENTS_DIR}/nexus-server"
 cp "${NEXUSCTL_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexusctl"
 cp "${NEXUSCFG_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexuscfg"
-cp "${NEXUS_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexus"
 cp "${MACOS_DIR}/Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 
 if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
@@ -220,7 +211,6 @@ require_macho_architecture "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
 require_macho_architecture "${MACOS_CONTENTS_DIR}/nexus-server"
 require_macho_architecture "${RESOURCES_DIR}/bin/nexusctl"
 require_macho_architecture "${RESOURCES_DIR}/bin/nexuscfg"
-require_macho_architecture "${RESOURCES_DIR}/bin/nexus"
 if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
   require_macho_architecture "${RESOURCES_DIR}/bin/nxs"
 fi
@@ -231,8 +221,7 @@ fi
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
   "${MACOS_CONTENTS_DIR}/nexus-server" \
   "${RESOURCES_DIR}/bin/nexusctl" \
-  "${RESOURCES_DIR}/bin/nexuscfg" \
-  "${RESOURCES_DIR}/bin/nexus"
+  "${RESOURCES_DIR}/bin/nexuscfg"
 if [[ -f "${RESOURCES_DIR}/bin/nxs" ]]; then
   chmod 0755 "${RESOURCES_DIR}/bin/nxs"
 fi
@@ -273,7 +262,6 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   codesign_target "${MACOS_CONTENTS_DIR}/nexus-server"
   codesign_target "${RESOURCES_DIR}/bin/nexusctl"
   codesign_target "${RESOURCES_DIR}/bin/nexuscfg"
-  codesign_target "${RESOURCES_DIR}/bin/nexus"
   if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
     codesign_target "${RESOURCES_DIR}/bin/nxs"
   fi

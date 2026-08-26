@@ -38,7 +38,7 @@
 
 ## Runtime permission mode
 
-Agent 任务持久化一个具体 SDK permission mode：`default`、`plan`、`acceptEdits`、`bypassPermissions` 或 `dontAsk`。UI 的“复制当前权限”和 Automation CLI 省略 `permission_mode` 都执行上述复制语义；用户也可以在创建时或之后选择具体模式。
+Agent 任务持久化一个具体 SDK permission mode：`default`、`plan`、`acceptEdits`、`bypassPermissions` 或 `dontAsk`。UI 的“复制当前权限”和 Automation command 省略 `permission_mode` 都执行上述复制语义；用户也可以在创建时或之后选择具体模式。
 
 每次 DM 或 Room 派发都同时传入任务保存的 mode 与工具策略快照。`bypassPermissions` 会明确跳过 SDK 权限检查，只能由用户主动选择。SDK 仍产生额外权限请求时，下面的 Automation 持久审批流水线继续作为决定来源。
 
@@ -72,15 +72,15 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 存量 `script` 任务只保留兼容读取和原执行行为，可启停、立即运行、查看历史或删除，但不能通过页面或 Agent 对话新建、编辑。缺少权限快照的存量任务在首次读取或执行时按当前 Agent 默认设置初始化，既有脚本授权继续绑定精确内容哈希、owner 和 Agent。
 
-## Agent Automation CLI
+## Agent Automation command
 
-所有 Agent 通过内置 `automation` Skill 调用宿主签发的 `NEXUS_COMMAND_PATH`。`nexus automation` 只连接 loopback broker，不打开数据库；同一 runtime session 复用不可猜测 token，broker 每次只解析仍在运行且唯一的 physical round。CLI 参数不能声明或覆盖 owner、Agent、Room、Session、source、DeliveryGrant、当前 job/run 或 capability。
+所有 Agent 通过内置 `automation` Skill 调用 physical-round scoped `nexus_runtime.command`。宿主把 owner、Agent、DM/Room/IM Session、source、DeliveryGrant 与可选 job/run 固定在进程内 MCP server 实例中；模型输入只能声明 `domain/action/operation/input/request_id/expected_revision/plan_digest`，不能覆盖这些 identity。
 
-每个 round 还由宿主在 owner 私有 `runtime/tmp/runtime-command-inputs/` 下创建一个按 capability+round 隔离、权限为 `0600`、初始内容为 `{}` 的通用 JSON 输入槽，通过 `NEXUS_COMMAND_INPUT_PATH` 和 contract 输出交给 runtime。contract 必须同时声明该预建事实和写入前置：每个 physical round 第一次 Write 前先 Read 一次，同轮后续意图可直接覆盖，避免 runtime 编辑器将正常写入误判为未读文件。编辑器原子替换如果把 mode 改成默认值，CLI 在受管 exact path 上先通过普通文件、symlink、hardlink 和替换竞态校验，再将已打开 inode 收紧回 `0600`；模型不执行 `chmod`。Goal、Execution 与 Automation CLI 共用这条输入生命周期边界；Goal/Execution `invoke` 总是隐式读取该槽且不暴露 `--input-file`，Automation 的显式 `--input-file` 在受管 runtime 中只能引用宿主签发的精确路径。非受管路径仍拒绝 Unix group/other 权限；所有路径都拒绝符号链接、硬链接、非普通文件和超过 1 MiB 的内容。槽位随 physical round context 清理，进程异常遗留项由后续 round 按 capability TTL 回收；它不进入数据库，不成为任务定义、运行历史或 UI 详情真相源。
+业务参数直接作为 MCP tool input 的 closed object 传入，沿现有 SDK `stream-json` 通道到达宿主并复用同一领域 parser、schema 校验、权限确认与 typed receipt。Nexus 不再创建 `runtime-command-inputs/.../input.json`，不注入命令 broker/token/path，不授予临时可写目录，也不为 command transport 启动 shell 或 loopback HTTP 请求。每轮 server 实例由 bridge 原地替换，因此 actor/authority 更新不会要求 runtime 进程重启。
 
-shell 自动审批只接受单进程、单行、固定 flag 语法：Bash 必须以精确 `"${NEXUS_COMMAND_PATH}" --json automation ...` 开头，Windows PowerShell 必须以精确 `& "${env:NEXUS_COMMAND_PATH}" --json automation ...` 开头；受管文件参数也只能使用各自 shell 的精确 `NEXUS_COMMAND_INPUT_PATH` 变量。裸 `nexus`、同名工作区程序、路径伪装、环境覆盖、命令替换、其他变量展开、管道、重定向、命令串、quoted/unquoted 拼接和多行命令都不进入自动审批。后台 run 只在同一解析器确认 action 为 `contract|inspect` 后绕过任意 shell allowlist。
+`nexus_runtime.command` 由受管工具策略自动审批进入领域处理；最终写权限仍由 round actor、Automation service、revision/digest 栅栏和原生真人确认共同决定。后台 run 的同一工具只获得宿主绑定 job/run 的查询能力，mutation 在 service 边界失败关闭。
 
-查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。确认载荷必须投影规范化变更字段，不能只显示泛化标题。真正写入继续使用 plan 观察到的 configuration version；`cancel_active_run` 还把 plan 观察到的 run_id 放进同一条件更新，过期确认必须在任何配置字段落库前失败。模型提供的 `--confirm`、聊天正文同意或通用 Bash allow 都不能替代这次领域确认。
+查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。确认载荷必须投影规范化变更字段，不能只显示泛化标题。真正写入继续使用 plan 观察到的 configuration version；`cancel_active_run` 还把 plan 观察到的 run_id 放进同一条件更新，过期确认必须在任何配置字段落库前失败。模型伪造的确认字段、聊天正文同意或通用工具 allow 都不能替代这次领域确认。
 
 每个 apply 使用 owner-scoped 稳定 `request_id`。durable command ledger 把它绑定到 Actor、operation、不含瞬时 revision 的 intent digest，以及当前 Session permission context 生成的真人 approval request ID：相同意图重放返回首次结果，不同意图冲突；命令已经开始但进程未能持久化结果时进入 uncertain 并禁止自动重放，调用方必须 inspect 权威状态后以新命令处理，不能冒险重复 run、wake 或外部投递。
 
@@ -90,13 +90,13 @@ shell 自动审批只接受单进程、单行、固定 flag 语法：Bash 必须
 - `deliver_result=true|false`
 - 可选 `permission_mode`
 
-在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 CLI wire 不暴露 channel、account、target 或 thread 等宿主路由参数；严格 JSON 解码拒绝未知字段，service 再按 capability 自动绑定真实路由。只有主智能体自己的 Nexus WebSocket 私有 DM capability 可以使用跨 Agent/Session 高级字段，且目标仍必须是当前 owner 下已存在、可验证的真实 Session，不能创建合成 Agent 收件箱。后台 scheduled run capability 固定为只读并绑定 exact job/run。
+在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 tool schema 不暴露 channel、account、target 或 thread 等宿主路由参数；严格结构化解码拒绝未知字段，service 再按 round actor 自动绑定真实路由。只有主智能体自己的 Nexus WebSocket 私有 DM authority 可以使用跨 Agent/Session 高级字段，且目标仍必须是当前 owner 下已存在、可验证的真实 Session，不能创建合成 Agent 收件箱。后台 scheduled run authority 固定为只读并绑定 exact job/run。
 
 list/get 的“这里、当前群、当前会话”等词按 Actor 的结构化 SessionKey 匹配任务 source、bound execution Session 和 delivery Session。active-paired 外部 IM 的空 list/report 默认也只覆盖当前会话，零匹配返回空而不能回退到 Agent 全量；外部 IM 不开放 heartbeat 配置查询。已删除任务的 runs/events 仍接受精确 job_id；`enabled` 和会话过滤必须在用户 limit 之前执行。
 
 ## IM transport 与审批
 
-Discord、Telegram、DingTalk、WeCom、个人微信和飞书使用同一 channel-neutral 边界。完全匹配 active pairing 的私聊是同一个 Agent 的另一种 transport，因此加载同一 Agent 的 Skill、当前 permission mode、工具 allow/deny，并可使用同 Agent Automation CLI mutation。pairing 只证明 transport 身份，不构成第二套工具权限系统。群聊、失效配对及跨 Agent/owner 操作继续 fail closed。
+Discord、Telegram、DingTalk、WeCom、个人微信和飞书使用同一 channel-neutral 边界。完全匹配 active pairing 的私聊是同一个 Agent 的另一种 transport，因此加载同一 Agent 的 Skill、当前 permission mode、工具 allow/deny，并可使用同 Agent Automation command mutation。pairing 只证明 transport 身份，不构成第二套工具权限系统。群聊、失效配对及跨 Agent/owner 操作继续 fail closed。
 
 普通 Agent runtime 的临时权限请求与 Automation 持久请求仍是两种状态，但复用同一套 IM 控制命令：
 

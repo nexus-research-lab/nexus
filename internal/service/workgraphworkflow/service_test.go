@@ -563,9 +563,10 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	if err != nil || !active {
 		t.Fatalf("editor runtime policy unavailable: active=%v err=%v", active, err)
 	}
-	if !slices.Contains(policy.ToolPolicy.AllowedTools, "Read") ||
-		slices.Contains(policy.ToolPolicy.DisallowedTools, "Read") {
-		t.Fatalf("editor must support the CLI input-slot Read→Write contract: %#v", policy.ToolPolicy)
+	if !slices.Contains(policy.ToolPolicy.AllowedTools, "mcp__nexus_runtime__command") ||
+		slices.Contains(policy.ToolPolicy.AllowedTools, "Read") ||
+		slices.Contains(policy.ToolPolicy.AllowedTools, "Write") {
+		t.Fatalf("editor must use the structured runtime command without file staging: %#v", policy.ToolPolicy)
 	}
 	nodes := cloneWorkflowNodes(editor.Preview.Nodes)
 	for index := range nodes {

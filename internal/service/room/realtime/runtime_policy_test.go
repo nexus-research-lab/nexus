@@ -184,11 +184,11 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		}
 	}
 	executionCommandDecision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`},
+		ToolName: "mcp__nexus_runtime__command",
+		Input:    map[string]any{"domain": "execution", "action": "inspect"},
 	})
 	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("Room runtime did not auto-approve exact Execution CLI: decision=%+v err=%v", executionCommandDecision, decisionErr)
+		t.Fatalf("Room runtime did not auto-approve exact Execution command: decision=%+v err=%v", executionCommandDecision, decisionErr)
 	}
 }
 
@@ -643,8 +643,10 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id room-goal-complete-1`},
+		ToolName: "mcp__nexus_runtime__command",
+		Input: map[string]any{
+			"domain": "goal", "action": "invoke", "operation": "update_goal", "request_id": "room-goal-complete-1",
+		},
 	})
 	if err != nil {
 		t.Fatalf("执行 room Goal 权限处理器失败: %v", err)

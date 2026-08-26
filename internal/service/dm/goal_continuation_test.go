@@ -532,10 +532,10 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	}
 	service.SetGoalContextProvider(goalProvider)
 	roundContext := make(chan runtimecommand.RoundContext, 1)
-	service.SetRuntimeCommandEnvironmentBuilder(func(
+	service.SetRuntimeCommandMCPServerBuilder(func(
 		ctx context.Context,
 		round runtimecommand.RoundContext,
-	) (map[string]string, error) {
+	) (map[string]sdkmcp.ServerConfig, error) {
 		goalProvider.mu.Lock()
 		claimCalls := goalProvider.claimCalls
 		goalProvider.mu.Unlock()
@@ -556,7 +556,7 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	select {
 	case commandRound = <-roundContext:
 	case <-time.After(2 * time.Second):
-		t.Fatal("runtime did not build command environment")
+		t.Fatal("runtime did not build command MCP server")
 	}
 	goalAuthority := commandRound.CommandContext.GoalAuthority
 	state := goalAuthority.ObjectiveRevisionState()

@@ -22,6 +22,10 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   Task: "委派任务",
   goal_contract: "读取 Goal 命令契约",
   execution_contract: "读取工作图命令契约",
+  automation_contract: "读取自动化命令契约",
+  automation_inspect: "查询自动化",
+  automation_plan: "规划自动化",
+  automation_apply: "应用自动化",
   get_execution: "读取工作图",
   prepare_plan_execution: "封存计划提案",
   plan_execution: "提交计划提案",
@@ -119,6 +123,11 @@ export function getToolInputSummary(input: unknown): string | null {
   const record = asRecord(input);
   if (!record) return null;
 
+  if (isRuntimeCommandInput(record)) {
+    return getStringField(record, "operation") ??
+      `${getStringField(record, "domain")}/${getStringField(record, "action")}`;
+  }
+
   for (const key of INPUT_SUMMARY_KEYS) {
     const value = getStringField(record, key);
     if (value) return value;
@@ -154,12 +163,34 @@ function formatCommandSummary(command: string): string {
 
 const RUNTIME_COMMAND_PATTERN = /^\s*(?:"\$\{NEXUS_COMMAND_PATH\}"|&\s+"\$\{env:NEXUS_COMMAND_PATH\}")\s+--json\s+(goal|execution)\s+(contract|inspect|invoke)(?:\s|$)/;
 const RUNTIME_COMMAND_OPERATION_PATTERN = /(?:^|\s)--operation\s+([a-z][a-z0-9_]*)(?:\s|$)/;
+const RUNTIME_COMMAND_TOOL_NAMES = new Set([
+  "mcp__nexus_runtime__command",
+  "nexus_runtime__command",
+  "nexus_runtime.command",
+  "nexus_runtime/command",
+]);
 
 export function getSemanticToolName(toolName: string, input?: unknown): string {
+  const record = asRecord(input);
+  if (RUNTIME_COMMAND_TOOL_NAMES.has(toolName) && isRuntimeCommandInput(record)) {
+    const domain = getStringField(record, "domain");
+    const action = getStringField(record, "action");
+    const operation = getStringField(record, "operation");
+    if (domain === "automation") {
+      return action === "contract" ? "automation_contract" : `automation_${action}`;
+    }
+    if (action === "contract") {
+      return `${domain}_contract`;
+    }
+    if (action === "inspect") {
+      return domain === "goal" ? "get_goal" : "get_execution";
+    }
+    return operation ?? toolName;
+  }
   if (toolName !== "Bash" && toolName !== "PowerShell") {
     return toolName;
   }
-  const command = getStringField(asRecord(input), "command");
+  const command = getStringField(record, "command");
   if (!command) {
     return toolName;
   }
@@ -175,6 +206,13 @@ export function getSemanticToolName(toolName: string, input?: unknown): string {
     return domain === "goal" ? "get_goal" : "get_execution";
   }
   return command.match(RUNTIME_COMMAND_OPERATION_PATTERN)?.[1] ?? toolName;
+}
+
+function isRuntimeCommandInput(record: Record<string, unknown> | null): record is Record<string, unknown> {
+  const domain = getStringField(record, "domain");
+  const action = getStringField(record, "action");
+  return (domain === "automation" || domain === "goal" || domain === "execution") &&
+    action !== null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

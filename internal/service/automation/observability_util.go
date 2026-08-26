@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	runtimeAutomationInspectSuggestion = "nexus automation inspect"
-	runtimeAutomationApplySuggestion   = "nexus automation apply"
+	runtimeAutomationInspectSuggestion = "nexus_runtime.command automation inspect"
+	runtimeAutomationApplySuggestion   = "nexus_runtime.command automation apply"
 )
 
 func deriveTaskRunDeliveryStatus(run automationdomain.ScheduledTaskRun) string {
