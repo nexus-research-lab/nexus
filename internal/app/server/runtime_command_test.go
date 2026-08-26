@@ -18,6 +18,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
+	computerusesvc "github.com/nexus-research-lab/nexus/internal/service/computeruse"
 )
 
 type runtimeAutomationRoundResolver struct {
@@ -139,12 +140,42 @@ func TestRuntimeCommandHandlerResolvesAutomationCapabilityWithoutMCP(t *testing.
 	request.RemoteAddr = "127.0.0.1:43210"
 	request.Header.Set(protocol.NexusCommandCapabilityHeader, token)
 	recorder := httptest.NewRecorder()
-	newRuntimeCommandHandler(registry, service, nil, nil, nil).ServeHTTP(recorder, request)
+	newRuntimeCommandHandler(registry, service, nil, nil, nil, nil).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"mutation_allowed":true`) {
 		t.Fatalf("contract response status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	if strings.Contains(recorder.Body.String(), "automation_query") || strings.Contains(recorder.Body.String(), "automation_update") {
 		t.Fatalf("runtime contract leaked retired MCP names: %s", recorder.Body.String())
+	}
+}
+
+func TestRuntimeCommandHandlerExposesComputerContractWithoutMCPOrTransportSecrets(t *testing.T) {
+	actor := runtimecommand.Actor{
+		OwnerUserID: "owner", AgentID: "worker", WorkspacePath: t.TempDir(),
+		SessionKey: "agent:worker:websocket:dm:owner:", RoundID: "round-1",
+		LeaseSessionKey: "runtime-session", LeaseRoundID: "round-1",
+		SourceContextType: "agent", SourceContextID: "worker",
+		Round: runtimecommand.RoundContext{Receipts: runtimecommand.NewReceiptState(), Resources: runtimecommand.NewRoundResources()},
+	}
+	registry := runtimecommand.NewRegistry(runtimeAutomationRoundResolver{sessionKey: actor.LeaseSessionKey, roundID: actor.LeaseRoundID})
+	token, err := registry.Issue(actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(runtimecommand.Request{Domain: runtimecommand.DomainComputer, Action: runtimecommand.ActionContract})
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/runtime/command", bytes.NewReader(payload))
+	request.RemoteAddr = "127.0.0.1:43210"
+	request.Header.Set(protocol.NexusCommandCapabilityHeader, token)
+	recorder := httptest.NewRecorder()
+	computer := computerusesvc.NewService(false, nil, nil, nil)
+	newRuntimeCommandHandler(registry, nil, nil, nil, computer, nil).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"name":"select_target"`) {
+		t.Fatalf("computer contract response status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	for _, secret := range []string{"token_file", "endpoint", "artifact_root", "executable_path", "session_manifest"} {
+		if strings.Contains(recorder.Body.String(), secret) {
+			t.Fatalf("computer contract leaked %q: %s", secret, recorder.Body.String())
+		}
 	}
 }
 

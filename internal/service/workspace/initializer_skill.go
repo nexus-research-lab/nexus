@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation"}, runtimecommand.ManagedSemanticSkillNames()...), "nexus-configuration", "nexus-product-guide")
+	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation", runtimecommand.ComputerUseSkillName}, runtimecommand.ManagedSemanticSkillNames()...), "nexus-configuration", "nexus-product-guide")
 	mainAgentSkillNames = []string{"nexus-manager"}
 	// createSymlink 仅作为平台能力探针；真正的创建由 confinedfs.Root.Symlink 完成。
 	createSymlink = func(string, string) error { return nil }

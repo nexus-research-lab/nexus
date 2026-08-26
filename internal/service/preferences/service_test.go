@@ -39,6 +39,9 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if prefs.BrowserCDPEnabled {
 		t.Fatalf("完整 CDP 访问默认应关闭: %+v", prefs)
 	}
+	if prefs.ComputerUseEnabled {
+		t.Fatalf("Computer Use 默认应关闭: %+v", prefs)
+	}
 	if prefs.EchoEnabled {
 		t.Fatalf("主动跟进默认应关闭: %+v", prefs)
 	}
@@ -61,6 +64,9 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	}
 	if normalized.EmotionEnabled {
 		t.Fatalf("空偏好归一化后情绪系统应关闭: %+v", normalized)
+	}
+	if normalized.ComputerUseEnabled {
+		t.Fatalf("空偏好归一化后 Computer Use 应关闭: %+v", normalized)
 	}
 	if normalized.EchoEnabled {
 		t.Fatalf("空偏好归一化后主动跟进应关闭: %+v", normalized)
@@ -103,6 +109,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		AgentSDKDiagnosticsEnabled: boolPointer(true),
 		EmotionEnabled:             boolPointer(true),
 		BrowserCDPEnabled:          boolPointer(true),
+		ComputerUseEnabled:         boolPointer(true),
 		RuntimeSettings: &RuntimeSettings{
 			"nxs":    {ToolSearch: true},
 			"claude": {ToolSearch: true},
@@ -144,6 +151,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if !prefs.BrowserCDPEnabled {
 		t.Fatalf("完整 CDP 访问偏好未持久化: %+v", prefs)
 	}
+	if !prefs.ComputerUseEnabled {
+		t.Fatalf("Computer Use 偏好未持久化: %+v", prefs)
+	}
 	if !prefs.ToolSearchEnabledForRuntime("nxs") || prefs.ToolSearchEnabledForRuntime("claude") {
 		t.Fatalf("ToolSearch 应只在 nxs runtime 生效: %+v", prefs.RuntimeSettings)
 	}
@@ -175,6 +185,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		!loaded.AgentSDKDiagnosticsEnabled ||
 		!loaded.EmotionEnabled ||
 		!loaded.BrowserCDPEnabled ||
+		!loaded.ComputerUseEnabled ||
 		!loaded.ToolSearchEnabledForRuntime("nxs") ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
