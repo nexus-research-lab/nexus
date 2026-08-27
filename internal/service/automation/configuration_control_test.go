@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 func TestCreateTaskRequestIDIsIdempotentBeforeCapacityCheck(t *testing.T) {
@@ -60,6 +62,86 @@ func TestCreateTaskRequestIDIsIdempotentBeforeCapacityCheck(t *testing.T) {
 	conflicting.Name = "different intent"
 	if _, err = service.CreateTask(context.Background(), conflicting); !errors.Is(err, automationdomain.ErrCreateRequestConflict) {
 		t.Fatalf("conflicting replay error = %v, want ErrCreateRequestConflict", err)
+	}
+}
+
+func TestCreateTaskReplayPrecedesMutableExpirationValidation(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	createdAt := time.Date(2026, 8, 27, 8, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return createdAt }
+	expiresAt := createdAt.Add(time.Hour)
+	input := automationConfigurationTaskInput("replay-after-expiry")
+	input.RequestID = "request-replay-after-expiry"
+	input.ExpiresAt = &expiresAt
+
+	first, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("first CreateTask: %v", err)
+	}
+	service.nowFn = func() time.Time { return expiresAt.Add(time.Hour) }
+	replayed, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("committed replay must not re-run expiration validation: %v", err)
+	}
+	if replayed.JobID != first.JobID {
+		t.Fatalf("replay job_id = %q, want %q", replayed.JobID, first.JobID)
+	}
+}
+
+func TestCreateTaskReplayReportsCommittedTaskWasDeleted(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	input := automationConfigurationTaskInput("deleted-create-result")
+	input.RequestID = "request-deleted-create-result"
+	created, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	ownerCtx := contextForOwner(context.Background(), created.OwnerUserID)
+	status, err := service.GetTaskCreateRequestStatus(ownerCtx, input.RequestID)
+	if err != nil {
+		t.Fatalf("GetTaskCreateRequestStatus committed: %v", err)
+	}
+	if status.Status != automationdomain.TaskCreateRequestStatusCommitted ||
+		status.Task == nil || status.Task.JobID != created.JobID {
+		t.Fatalf("committed create status = %+v", status)
+	}
+	if err = service.repository.DeleteScheduledTask(context.Background(), created.OwnerUserID, created.JobID); err != nil {
+		t.Fatalf("DeleteScheduledTask: %v", err)
+	}
+	if _, err = service.CreateTask(context.Background(), input); !errors.Is(err, automationdomain.ErrCreateRequestResultGone) {
+		t.Fatalf("deleted replay error = %v, want ErrCreateRequestResultGone", err)
+	}
+	status, err = service.GetTaskCreateRequestStatus(ownerCtx, input.RequestID)
+	if err != nil {
+		t.Fatalf("GetTaskCreateRequestStatus gone: %v", err)
+	}
+	if status.Status != automationdomain.TaskCreateRequestStatusGone || status.Task != nil {
+		t.Fatalf("gone create status = %+v", status)
+	}
+	missing, err := service.GetTaskCreateRequestStatus(ownerCtx, "request-never-accepted")
+	if err != nil {
+		t.Fatalf("GetTaskCreateRequestStatus missing: %v", err)
+	}
+	if missing.Status != automationdomain.TaskCreateRequestStatusNotFound || missing.Task != nil {
+		t.Fatalf("missing create status = %+v", missing)
 	}
 }
 
@@ -121,6 +203,132 @@ func TestScheduledTaskCASRejectsStaleUpdateAndDelete(t *testing.T) {
 	}
 	if persisted != nil {
 		t.Fatalf("task still exists after versioned delete: %+v", persisted)
+	}
+}
+
+func TestVersionedManualRunRechecksConfigurationBeforeRuntimeClaim(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil, nil, nil, nil)
+	created, err := service.CreateTask(context.Background(), automationConfigurationTaskInput("run-version"))
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	name := "new configuration"
+	if _, err = service.UpdateTaskAtVersion(
+		context.Background(),
+		created.JobID,
+		created.ConfigurationVersion,
+		automationdomain.UpdateJobInput{Name: &name},
+	); err != nil {
+		t.Fatalf("UpdateTaskAtVersion: %v", err)
+	}
+
+	staleVersion := created.ConfigurationVersion
+	result, err := service.startJobExecutionControlledAtVersion(
+		context.Background(),
+		*created,
+		automationdomain.TriggerKindManual,
+		time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC),
+		&staleVersion,
+	)
+	if result != nil || !errors.Is(err, automationdomain.ErrConfigurationVersionConflict) {
+		t.Fatalf("stale manual run = (%+v, %v), want nil/version conflict", result, err)
+	}
+	var runningRunID sql.NullString
+	if err = db.QueryRow(
+		`SELECT running_run_id FROM automation_scheduled_tasks WHERE job_id = ?`,
+		created.JobID,
+	).Scan(&runningRunID); err != nil {
+		t.Fatalf("read runtime after stale run: %v", err)
+	}
+	if runningRunID.Valid && runningRunID.String != "" {
+		t.Fatalf("stale manual run changed running_run_id: %+v", runningRunID)
+	}
+}
+
+func TestScheduledTaskDeleteRollsBackRunFinalizationWhenDeleteFails(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil, nil, nil, nil)
+	task, err := service.CreateTask(context.Background(), automationConfigurationTaskInput("delete-atomic"))
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	activeRunID := "run-delete-active"
+	if err = service.repository.InsertRunPending(context.Background(), automationstore.RunPendingInput{
+		RunID:       activeRunID,
+		JobID:       task.JobID,
+		OwnerUserID: task.OwnerUserID,
+		TriggerKind: automationdomain.TriggerKindManual,
+		Status:      automationdomain.RunStatusPending,
+	}); err != nil {
+		t.Fatalf("InsertRunPending active: %v", err)
+	}
+	if err = service.repository.MarkRunRunning(context.Background(), activeRunID, time.Now().UTC()); err != nil {
+		t.Fatalf("MarkRunRunning: %v", err)
+	}
+	if _, err = db.Exec(
+		`UPDATE automation_scheduled_tasks SET running_run_id = ?, running_started_at = CURRENT_TIMESTAMP WHERE job_id = ?`,
+		activeRunID,
+		task.JobID,
+	); err != nil {
+		t.Fatalf("set active task runtime: %v", err)
+	}
+	deliveryRunID := "run-delete-delivery"
+	if err = service.repository.InsertRunPending(context.Background(), automationstore.RunPendingInput{
+		RunID:          deliveryRunID,
+		JobID:          task.JobID,
+		OwnerUserID:    task.OwnerUserID,
+		TriggerKind:    automationdomain.TriggerKindScheduled,
+		Status:         automationdomain.RunStatusSucceeded,
+		DeliveryMode:   automationdomain.DeliveryModeExplicit,
+		DeliveryStatus: automationdomain.DeliveryStatusFailed,
+	}); err != nil {
+		t.Fatalf("InsertRunPending delivery: %v", err)
+	}
+	if _, err = db.Exec(`
+CREATE TRIGGER fail_atomic_task_delete
+BEFORE DELETE ON automation_scheduled_tasks
+WHEN OLD.job_id = '` + task.JobID + `'
+BEGIN
+    SELECT RAISE(FAIL, 'injected task delete failure');
+END;
+`); err != nil {
+		t.Fatalf("create delete failure trigger: %v", err)
+	}
+
+	if _, err = service.DeleteTaskAtVersion(context.Background(), task.JobID, task.ConfigurationVersion); err == nil {
+		t.Fatal("DeleteTaskAtVersion should fail when delete trigger aborts")
+	} else if !TaskDeletionPrepared(err) {
+		t.Fatalf("delete failure should preserve prepared-stage evidence: %v", err)
+	}
+	persisted, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || persisted == nil {
+		t.Fatalf("durable deletion claim must remain: task=%+v err=%v", persisted, err)
+	}
+	if persisted.DeletionState != automationdomain.TaskDeletionStateDeleting ||
+		persisted.DeletionToken == "" || persisted.Enabled ||
+		persisted.ConfigurationVersion != task.ConfigurationVersion+1 {
+		t.Fatalf("delete failure lost its exact durable claim: %+v", persisted)
+	}
+	activeRun, err := service.repository.GetRun(context.Background(), task.OwnerUserID, task.JobID, activeRunID)
+	if err != nil || activeRun == nil || activeRun.Status != automationdomain.RunStatusRunning {
+		t.Fatalf("active run cancellation must roll back: run=%+v err=%v", activeRun, err)
+	}
+	deliveryRun, err := service.repository.GetRun(context.Background(), task.OwnerUserID, task.JobID, deliveryRunID)
+	if err != nil || deliveryRun == nil ||
+		deliveryRun.DeliveryStatus != automationdomain.DeliveryStatusFailed ||
+		deliveryRun.DeliveryDeadLetterAt != nil {
+		t.Fatalf("delivery dead-letter must roll back: run=%+v err=%v", deliveryRun, err)
+	}
+	if _, err = db.Exec(`DROP TRIGGER fail_atomic_task_delete`); err != nil {
+		t.Fatalf("drop delete failure trigger: %v", err)
+	}
+	if _, err = service.DeleteTaskAtVersion(context.Background(), task.JobID, task.ConfigurationVersion); err != nil {
+		t.Fatalf("repeated DELETE must resume the exact deletion claim: %v", err)
+	}
+	persisted, err = service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || persisted != nil {
+		t.Fatalf("repeated DELETE did not finish durable cleanup: task=%+v err=%v", persisted, err)
 	}
 }
 

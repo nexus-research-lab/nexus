@@ -19,11 +19,15 @@ export type ScheduledTaskDeliveryStatus =
   | "succeeded"
   | "failed"
   | "not_attempted"
-  | "pending";
+  | "pending"
+  // 外部投递已被某次 exact attempt 领取，但最终结果未能可靠落库。
+  // 该状态必须 fail closed，不能被后台当成 failed 自动重试。
+  | "retrying";
 
 export interface ApiScheduledTaskRun {
   run_id: string;
   job_id: string;
+  client_request_id?: string | null;
   status: ScheduledTaskRunLedgerStatus;
   trigger_kind?: string | null;
   session_key?: string | null;

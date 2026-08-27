@@ -1,3 +1,6 @@
+// INPUT: Automation task/run 的持久字段与 service 投影。
+// OUTPUT: HTTP、CLI 与内部编排共享的任务、运行、历史和即时执行结果。
+// POS: Automation read model；client request 只用于 owner-scoped 人工运行对账。
 package types
 
 import "time"
@@ -32,24 +35,45 @@ type ScheduledTask struct {
 	LastError                  *string              `json:"last_error,omitempty"`
 	LastDeliveryStatus         string               `json:"last_delivery_status,omitempty"`
 	ConfigurationVersion       int64                `json:"configuration_version"`
+	DeletionState              string               `json:"deletion_state,omitempty"`
+	DeletionToken              string               `json:"-"`
+	DeletionClaimedAt          *time.Time           `json:"-"`
 	PermissionPolicy           TaskPermissionPolicy `json:"permission_policy"`
 	PermissionState            string               `json:"permission_state"`
 	PendingPermissionRequestID string               `json:"pending_permission_request_id,omitempty"`
 }
 
+const (
+	// TaskCreateRequestStatusNotFound 表示服务端没有受理该创建意图。
+	TaskCreateRequestStatusNotFound = "not_found"
+	// TaskCreateRequestStatusCommitted 表示创建意图已提交且任务仍存在。
+	TaskCreateRequestStatusCommitted = "committed"
+	// TaskCreateRequestStatusGone 表示创建意图已提交，但任务后来被删除。
+	TaskCreateRequestStatusGone = "gone"
+)
+
+// ScheduledTaskCreateRequestStatus 是页面刷新后核对创建结果的 owner-scoped 回执。
+// 它不暴露原始正文或意图摘要。
+type ScheduledTaskCreateRequestStatus struct {
+	RequestID string         `json:"request_id"`
+	Status    string         `json:"status"`
+	Task      *ScheduledTask `json:"task,omitempty"`
+}
+
 // ScheduledTaskRun 表示 run ledger 条目。
 type ScheduledTaskRun struct {
-	RunID        string  `json:"run_id"`
-	JobID        string  `json:"job_id"`
-	OwnerUserID  string  `json:"-"`
-	Status       string  `json:"status"`
-	TriggerKind  string  `json:"trigger_kind,omitempty"`
-	SessionKey   string  `json:"session_key,omitempty"`
-	RoundID      string  `json:"round_id,omitempty"`
-	SessionID    *string `json:"session_id,omitempty"`
-	MessageCount int     `json:"message_count,omitempty"`
-	DeliveryMode string  `json:"delivery_mode,omitempty"`
-	DeliveryTo   string  `json:"delivery_to,omitempty"`
+	RunID           string  `json:"run_id"`
+	JobID           string  `json:"job_id"`
+	OwnerUserID     string  `json:"-"`
+	ClientRequestID string  `json:"client_request_id,omitempty"`
+	Status          string  `json:"status"`
+	TriggerKind     string  `json:"trigger_kind,omitempty"`
+	SessionKey      string  `json:"session_key,omitempty"`
+	RoundID         string  `json:"round_id,omitempty"`
+	SessionID       *string `json:"session_id,omitempty"`
+	MessageCount    int     `json:"message_count,omitempty"`
+	DeliveryMode    string  `json:"delivery_mode,omitempty"`
+	DeliveryTo      string  `json:"delivery_to,omitempty"`
 	// DeliveryTarget 是本次 run 开始时冻结的逻辑投递目标；DeliveryTo 记录实际解析结果摘要。
 	DeliveryTarget           *DeliveryTarget `json:"delivery_target,omitempty"`
 	DeliveryStatus           string          `json:"delivery_status,omitempty"`
@@ -118,25 +142,27 @@ type ScheduledTaskHistoryItem struct {
 
 // ScheduledTaskHealth 表示单个定时任务的可操作健康摘要。
 type ScheduledTaskHealth struct {
-	State                     string   `json:"state"`
-	Signals                   []string `json:"signals,omitempty"`
-	SuggestedTools            []string `json:"suggested_tools,omitempty"`
-	RecoveryAvailable         bool     `json:"recovery_available"`
-	RecoveryRunID             string   `json:"recovery_run_id,omitempty"`
-	ManualRedeliveryAvailable bool     `json:"manual_redelivery_available"`
-	ManualRedeliveryRunIDs    []string `json:"manual_redelivery_run_ids,omitempty"`
-	DeliveryFailedRunCount    int      `json:"delivery_failed_run_count,omitempty"`
-	DeliveryPendingRunCount   int      `json:"delivery_pending_run_count,omitempty"`
-	DeliveryPendingRunIDs     []string `json:"delivery_pending_run_ids,omitempty"`
-	DeliverySkippedRunCount   int      `json:"delivery_skipped_run_count,omitempty"`
-	DeliverySkippedRunIDs     []string `json:"delivery_skipped_run_ids,omitempty"`
-	DeliveryDeadLetterCount   int      `json:"delivery_dead_letter_count,omitempty"`
-	DeliveryDeadLetterRunIDs  []string `json:"delivery_dead_letter_run_ids,omitempty"`
-	FailedRunCount            int      `json:"failed_run_count,omitempty"`
-	ExecutionFailedRunIDs     []string `json:"execution_failed_run_ids,omitempty"`
-	LatestExecutionError      *string  `json:"latest_execution_error,omitempty"`
-	LatestDeliveryError       *string  `json:"latest_delivery_error,omitempty"`
-	RunningForSeconds         int64    `json:"running_for_seconds,omitempty"`
+	State                      string   `json:"state"`
+	Signals                    []string `json:"signals,omitempty"`
+	SuggestedTools             []string `json:"suggested_tools,omitempty"`
+	RecoveryAvailable          bool     `json:"recovery_available"`
+	RecoveryRunID              string   `json:"recovery_run_id,omitempty"`
+	ManualRedeliveryAvailable  bool     `json:"manual_redelivery_available"`
+	ManualRedeliveryRunIDs     []string `json:"manual_redelivery_run_ids,omitempty"`
+	DeliveryFailedRunCount     int      `json:"delivery_failed_run_count,omitempty"`
+	DeliveryUnverifiedRunCount int      `json:"delivery_unverified_run_count,omitempty"`
+	DeliveryUnverifiedRunIDs   []string `json:"delivery_unverified_run_ids,omitempty"`
+	DeliveryPendingRunCount    int      `json:"delivery_pending_run_count,omitempty"`
+	DeliveryPendingRunIDs      []string `json:"delivery_pending_run_ids,omitempty"`
+	DeliverySkippedRunCount    int      `json:"delivery_skipped_run_count,omitempty"`
+	DeliverySkippedRunIDs      []string `json:"delivery_skipped_run_ids,omitempty"`
+	DeliveryDeadLetterCount    int      `json:"delivery_dead_letter_count,omitempty"`
+	DeliveryDeadLetterRunIDs   []string `json:"delivery_dead_letter_run_ids,omitempty"`
+	FailedRunCount             int      `json:"failed_run_count,omitempty"`
+	ExecutionFailedRunIDs      []string `json:"execution_failed_run_ids,omitempty"`
+	LatestExecutionError       *string  `json:"latest_execution_error,omitempty"`
+	LatestDeliveryError        *string  `json:"latest_delivery_error,omitempty"`
+	RunningForSeconds          int64    `json:"running_for_seconds,omitempty"`
 }
 
 // ScheduledTaskStatus 表示单个任务的配置、健康摘要与最近观测记录。
@@ -168,4 +194,5 @@ type ExecutionResult struct {
 	SessionID    *string    `json:"session_id,omitempty"`
 	MessageCount int        `json:"message_count"`
 	ErrorMessage *string    `json:"error_message,omitempty"`
+	Replayed     bool       `json:"-"`
 }

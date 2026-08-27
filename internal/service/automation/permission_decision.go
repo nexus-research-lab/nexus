@@ -67,11 +67,14 @@ func (s *Service) ResolvePermissionRequest(
 	if job == nil {
 		return nil, automationdomain.ErrJobNotFound
 	}
-	ensuredJob, err := s.ensureTaskPermissionPolicy(ctx, *job)
-	if err != nil {
-		return nil, err
+	if strings.TrimSpace(job.DeletionState) != "" {
+		return nil, automationdomain.ErrTaskDeleting
 	}
-	job = &ensuredJob
+	projectedJob := projectTaskPermissionPolicy(*job)
+	job = &projectedJob
+	if job.PermissionPolicy.Revision <= 0 {
+		return nil, automationdomain.ErrPermissionRequestStale
+	}
 	if job.PermissionPolicy.Revision != request.PolicyRevision ||
 		strings.TrimSpace(job.PendingPermissionRequestID) != strings.TrimSpace(request.RequestID) {
 		return nil, automationdomain.ErrPermissionRequestStale
@@ -144,7 +147,7 @@ func (s *Service) ResolvePermissionRequest(
 	if run != nil && !finishDenied {
 		run.PermissionPolicyRevision = job.PermissionPolicy.Revision
 		run.BlockState = runBlockState
-		run.BlockedRequestID = ""
+		run.BlockedRequestID = request.RequestID
 	}
 	job.PermissionState = taskState
 	job.PendingPermissionRequestID = ""
@@ -170,9 +173,9 @@ func (s *Service) ResolvePermissionRequest(
 		Run:     run,
 	}
 	if finishDenied {
-		s.finishDeniedPermissionRun(*job, request.RunID, resolvedAt, deniedMessage)
+		s.finishDeniedPermissionRun(*job)
 		s.notifyAutomationPermissionDecision(ctx, *job, *resolved, "权限请求已拒绝，本次运行已停止。")
-		return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
+		return s.refreshCommittedPermissionDecisionResult(ctx, ownerUserID, result)
 	}
 	if run == nil || !resumeSafe {
 		message := "权限请求已批准。"
@@ -180,7 +183,7 @@ func (s *Service) ResolvePermissionRequest(
 			message = "权限请求已批准；为避免重复外部副作用，请在 Nexus 中显式确认重试。"
 		}
 		s.notifyAutomationPermissionDecision(ctx, *job, *resolved, message)
-		return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
+		return s.refreshCommittedPermissionDecisionResult(ctx, ownerUserID, result)
 	}
 	if resumeErr := s.resumePermissionBlockedRun(ctx, *job, *run, resolved); resumeErr != nil {
 		s.loggerFor(ctx).Warn("权限已批准，但自动恢复 run 失败",
@@ -189,12 +192,29 @@ func (s *Service) ResolvePermissionRequest(
 			"request_id", request.RequestID,
 			"err", resumeErr,
 		)
-		_ = s.repository.SetTaskPermissionState(ctx, ownerUserID, job.JobID, automationdomain.TaskPermissionStateReadyToRetry, request.RequestID)
-		job.PermissionState = automationdomain.TaskPermissionStateReadyToRetry
-		job.PendingPermissionRequestID = request.RequestID
-		s.setJobPermissionState(job.JobID, job.PermissionState, request.RequestID)
+		restored, restoreErr := s.repository.RestoreTaskPermissionRetryState(
+			ctx,
+			ownerUserID,
+			job.JobID,
+			job.PermissionPolicy.Revision,
+			request.RequestID,
+		)
+		if restoreErr != nil {
+			return nil, MarkPermissionDecisionCommitted(errors.Join(resumeErr, fmt.Errorf("restore permission retry state: %w", restoreErr)))
+		}
+		if restored {
+			job.PermissionState = automationdomain.TaskPermissionStateReadyToRetry
+			job.PendingPermissionRequestID = request.RequestID
+			s.setJobPermissionStateAtRequest(
+				job.JobID,
+				request.RequestID,
+				true,
+				job.PermissionState,
+				request.RequestID,
+			)
+		}
 		s.notifyAutomationPermissionDecision(ctx, *job, *resolved, "权限已批准，但自动恢复失败；请在 Nexus 中显式重试。")
-		return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
+		return s.refreshCommittedPermissionDecisionResult(ctx, ownerUserID, result)
 	}
 	result.ResumeStarted = true
 	s.recordTaskEvent(ctx, automationdomain.TaskEventActionPermissionRetry, *job, run.RunID, map[string]any{
@@ -202,7 +222,7 @@ func (s *Service) ResolvePermissionRequest(
 		"automatic":  true,
 	})
 	s.notifyAutomationPermissionDecision(ctx, *job, *resolved, "权限请求已批准，任务已继续运行。")
-	return s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
+	return s.refreshCommittedPermissionDecisionResult(ctx, ownerUserID, result)
 }
 
 // ResumePermissionRun 明确确认重放已产生副作用或启动恢复失败的 logical run。
@@ -226,6 +246,9 @@ func (s *Service) ResumePermissionRun(
 	if job == nil {
 		return nil, automationdomain.ErrJobNotFound
 	}
+	if strings.TrimSpace(job.DeletionState) != "" {
+		return nil, automationdomain.ErrTaskDeleting
+	}
 	run, err := s.repository.GetRun(ctx, ownerUserID, job.JobID, strings.TrimSpace(runID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, automationdomain.ErrRunNotFound
@@ -236,26 +259,114 @@ func (s *Service) ResumePermissionRun(
 	if strings.TrimSpace(run.BlockState) != automationdomain.RunBlockStateReadyToRetry {
 		return nil, automationdomain.ErrPermissionRunNotResumable
 	}
-	if strings.TrimSpace(job.PendingPermissionRequestID) != strings.TrimSpace(input.RequestID) {
-		return nil, automationdomain.ErrPermissionRequestStale
-	}
 	request, err := s.loadPermissionResumeRequest(ctx, *job, *run, input)
 	if err != nil {
 		return nil, err
 	}
-	if err = s.repository.SetTaskPermissionState(ctx, ownerUserID, job.JobID, automationdomain.TaskPermissionStateReady, ""); err != nil {
+	requestID := strings.TrimSpace(input.RequestID)
+	pendingRequestID := strings.TrimSpace(job.PendingPermissionRequestID)
+	if strings.TrimSpace(run.BlockedRequestID) == "" {
+		// Historical ready_to_retry rows kept the exact request only on the task.
+		// Bind it onto the run once before the exact claim path consumes it.
+		if pendingRequestID != requestID {
+			return nil, automationdomain.ErrPermissionRequestStale
+		}
+		bound, bindErr := s.repository.BindRunReadyToRetryRequest(
+			ctx,
+			ownerUserID,
+			job.JobID,
+			run.RunID,
+			requestID,
+		)
+		if bindErr != nil {
+			return nil, bindErr
+		}
+		if !bound {
+			return nil, automationdomain.ErrPermissionRequestStale
+		}
+		run.BlockedRequestID = requestID
+	}
+	if pendingRequestID != requestID {
+		permissionState := strings.TrimSpace(job.PermissionState)
+		if pendingRequestID != "" ||
+			(permissionState != automationdomain.TaskPermissionStateReady &&
+				permissionState != automationdomain.TaskPermissionStateReadyToRetry) {
+			return nil, automationdomain.ErrPermissionRequestStale
+		}
+		// 上一次自动/显式恢复可能已经把 run 留在 exact ready_to_retry，
+		// 但补偿写入在进程或数据库故障时没有完成。用户对同一请求的显式
+		// 操作可以先修复任务投影；非空的其他 request_id 绝不被覆盖。
+		restored, restoreErr := s.repository.RestoreTaskPermissionRetryState(
+			ctx,
+			ownerUserID,
+			job.JobID,
+			job.PermissionPolicy.Revision,
+			requestID,
+		)
+		if restoreErr != nil {
+			return nil, restoreErr
+		}
+		if !restored {
+			return nil, automationdomain.ErrPermissionRequestStale
+		}
+		job.PermissionState = automationdomain.TaskPermissionStateReadyToRetry
+		job.PendingPermissionRequestID = requestID
+		s.setJobPermissionStateAtRequest(
+			job.JobID,
+			requestID,
+			true,
+			job.PermissionState,
+			requestID,
+		)
+	}
+	if err = s.resumePermissionBlockedRun(ctx, *job, *run, request); err != nil {
+		restored, restoreErr := s.repository.RestoreTaskPermissionRetryState(
+			ctx,
+			ownerUserID,
+			job.JobID,
+			job.PermissionPolicy.Revision,
+			requestID,
+		)
+		if restoreErr != nil {
+			err = errors.Join(err, fmt.Errorf("restore permission retry state: %w", restoreErr))
+		}
+		if restored {
+			job.PermissionState = automationdomain.TaskPermissionStateReadyToRetry
+			job.PendingPermissionRequestID = requestID
+			s.setJobPermissionStateAtRequest(
+				job.JobID,
+				requestID,
+				true,
+				job.PermissionState,
+				requestID,
+			)
+		}
 		return nil, err
 	}
-	job.PermissionState = automationdomain.TaskPermissionStateReady
-	s.setJobPermissionState(job.JobID, job.PermissionState, "")
-	if err = s.resumePermissionBlockedRun(ctx, *job, *run, request); err != nil {
-		_ = s.repository.SetTaskPermissionState(ctx, ownerUserID, job.JobID, automationdomain.TaskPermissionStateReadyToRetry, "")
-		job.PermissionState = automationdomain.TaskPermissionStateReadyToRetry
-		s.setJobPermissionState(job.JobID, job.PermissionState, "")
-		return nil, err
+	cleared, clearErr := s.repository.ClearTaskPermissionRetryState(
+		ctx,
+		ownerUserID,
+		job.JobID,
+		job.PermissionPolicy.Revision,
+		requestID,
+	)
+	if clearErr != nil {
+		return nil, clearErr
+	}
+	if cleared {
+		job.PermissionState = automationdomain.TaskPermissionStateReady
+		job.PendingPermissionRequestID = ""
+		s.setJobPermissionStateAtRequest(
+			job.JobID,
+			requestID,
+			false,
+			job.PermissionState,
+			"",
+		)
 	}
 	s.recordTaskEvent(ctx, automationdomain.TaskEventActionPermissionRetry, *job, run.RunID, map[string]any{
-		"automatic": false,
+		"request_id": requestID,
+		"automatic":  false,
 	})
 	result := &automationdomain.PermissionDecisionResult{
 		Task:          *job,
@@ -353,8 +464,13 @@ func validatePermissionResumeRequest(
 	if strings.TrimSpace(request.Decision) == automationdomain.PermissionDecisionAllowTask {
 		revisionMatches = request.PolicyRevision+1 == job.PermissionPolicy.Revision
 	}
+	runRequestID := strings.TrimSpace(run.BlockedRequestID)
+	requestID := strings.TrimSpace(request.RequestID)
+	exactRetryBinding := runRequestID == requestID ||
+		(runRequestID == "" && strings.TrimSpace(job.PendingPermissionRequestID) == requestID)
 	if strings.TrimSpace(request.JobID) != strings.TrimSpace(job.JobID) ||
 		strings.TrimSpace(request.RunID) != strings.TrimSpace(run.RunID) ||
+		!exactRetryBinding ||
 		!revisionMatches ||
 		strings.TrimSpace(request.Status) != automationdomain.PermissionRequestStatusApproved ||
 		strings.TrimSpace(request.Capability.ToolName) == "" {
@@ -394,14 +510,18 @@ func (s *Service) resumePermissionBlockedRun(
 	nextRunAt := cloneTimePointer(state.NextRunAt)
 	s.mu.Unlock()
 	startedAt := s.nowFn()
-	claimed, err := s.repository.ClaimScheduledTaskRuntime(jobCtx, automationstore.JobRuntimeClaimInput{
+	claimExpectation := newRuntimeClaimExpectation(job)
+	claimInput := automationstore.JobRuntimeClaimInput{
+		OwnerUserID:   job.OwnerUserID,
 		JobID:         job.JobID,
 		RunID:         run.RunID,
 		StartedAt:     startedAt,
 		NextRunAt:     nextRunAt,
 		OverlapPolicy: automationdomain.OverlapPolicySkip,
 		AllowDisabled: true,
-	})
+	}
+	claimExpectation.apply(&claimInput)
+	claimed, err := s.repository.ClaimScheduledTaskRuntime(jobCtx, claimInput)
 	if err != nil {
 		return err
 	}
@@ -439,6 +559,7 @@ func (s *Service) resumePermissionBlockedRun(
 	prepared, err := s.repository.PrepareRunResume(jobCtx, automationstore.RunResumeInput{
 		RunID:                    run.RunID,
 		OwnerUserID:              job.OwnerUserID,
+		RequestID:                request.RequestID,
 		RoundID:                  roundID,
 		SessionKey:               sessionKey,
 		StartedAt:                startedAt,
@@ -453,10 +574,11 @@ func (s *Service) resumePermissionBlockedRun(
 	}
 	if automationdomain.NormalizeExecutionKind(job.ExecutionKind) == automationdomain.ExecutionKindScript {
 		if err = s.repository.MarkRunEffectStarted(jobCtx, job.OwnerUserID, run.RunID); err != nil {
-			s.failResumedPermissionRun(job, run.RunID, err)
-			return err
+			return s.restorePreparedPermissionRun(job, run.RunID, roundID, request.RequestID, err)
 		}
-		go s.observeScriptJob(job, run.RunID, anyTimePointer(run.ScheduledFor, startedAt))
+		if err = s.launchScriptObservation(job, run.RunID, anyTimePointer(run.ScheduledFor, startedAt)); err != nil {
+			return s.restorePreparedPermissionRun(job, run.RunID, roundID, request.RequestID, err)
+		}
 		return nil
 	}
 
@@ -468,8 +590,7 @@ func (s *Service) resumePermissionBlockedRun(
 		completeAttempt()
 		cleanup()
 		sink.Close()
-		s.failResumedPermissionRun(job, run.RunID, err)
-		return err
+		return s.restorePreparedPermissionRun(job, run.RunID, roundID, request.RequestID, err)
 	}
 	go s.observeJobRunWithCompletion(
 		job,
@@ -484,6 +605,36 @@ func (s *Service) resumePermissionBlockedRun(
 	return nil
 }
 
+func (s *Service) restorePreparedPermissionRun(
+	job automationdomain.ScheduledTask,
+	runID string,
+	roundID string,
+	requestID string,
+	runErr error,
+) error {
+	restoreErr := s.repository.RestorePreparedRunReadyToRetry(
+		backgroundContextForJobOwner(job),
+		automationstore.RunResumeInput{
+			RunID:                    runID,
+			OwnerUserID:              job.OwnerUserID,
+			RequestID:                requestID,
+			RoundID:                  roundID,
+			PermissionPolicyRevision: job.PermissionPolicy.Revision,
+		},
+		errorPointer(runErr),
+	)
+	if restoreErr != nil {
+		return errors.Join(runErr, fmt.Errorf("restore prepared permission run: %w", restoreErr))
+	}
+	s.pauseJobRuntimeForPermission(
+		job,
+		runID,
+		automationdomain.TaskPermissionStateReadyToRetry,
+		errorPointer(runErr),
+	)
+	return runErr
+}
+
 func (s *Service) queueResumedMainSessionRun(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,
@@ -491,9 +642,14 @@ func (s *Service) queueResumedMainSessionRun(
 	sessionKey string,
 	request *automationdomain.AutomationPermissionRequest,
 ) error {
+	requestID := ""
+	if request != nil {
+		requestID = strings.TrimSpace(request.RequestID)
+	}
 	queued, err := s.repository.QueuePermissionRunForMain(ctx, automationstore.RunResumeInput{
 		RunID:                    run.RunID,
 		OwnerUserID:              job.OwnerUserID,
+		RequestID:                requestID,
 		SessionKey:               sessionKey,
 		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	})
@@ -503,10 +659,6 @@ func (s *Service) queueResumedMainSessionRun(
 		}
 		s.pauseJobRuntimeForPermission(job, run.RunID, automationdomain.TaskPermissionStateReadyToRetry, errorPointer(err))
 		return err
-	}
-	requestID := ""
-	if request != nil {
-		requestID = request.RequestID
 	}
 	requestPolicyRevision := 0
 	if request != nil {
@@ -529,44 +681,28 @@ func (s *Service) queueResumedMainSessionRun(
 	if eventID != "" {
 		_ = s.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
 	}
-	_ = s.repository.RestoreRunReadyToRetry(context.Background(), job.OwnerUserID, run.RunID, errorPointer(err))
+	if restoreErr := s.repository.RestoreRunReadyToRetry(
+		context.Background(),
+		job.OwnerUserID,
+		run.RunID,
+		requestID,
+		errorPointer(err),
+	); restoreErr != nil {
+		return errors.Join(err, fmt.Errorf("restore exact permission retry request: %w", restoreErr))
+	}
 	s.pauseJobRuntimeForPermission(job, run.RunID, automationdomain.TaskPermissionStateReadyToRetry, errorPointer(err))
 	return err
 }
 
 func (s *Service) failResumedPermissionRun(job automationdomain.ScheduledTask, runID string, runErr error) {
-	finishedAt := s.nowFn()
-	message := errorPointer(runErr)
-	_, _ = s.repository.MarkRunFinishedIfActive(context.Background(), automationstore.RunFinishInput{
-		RunID:        runID,
-		Status:       automationdomain.RunStatusFailed,
-		FinishedAt:   finishedAt,
-		ErrorMessage: message,
-	})
-	s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, message)
+	_ = s.commitFailedRunTerminal(backgroundContextForJobOwner(job), job, runID, runErr)
 }
 
-func (s *Service) finishDeniedPermissionRun(
-	job automationdomain.ScheduledTask,
-	runID string,
-	finishedAt time.Time,
-	message string,
-) {
-	s.mu.Lock()
-	state := s.jobStates[job.JobID]
-	if state != nil {
-		state.Job.PermissionState = automationdomain.TaskPermissionStateDenied
-		state.LastRunAt = cloneTimePointer(&finishedAt)
-		state.LastRunStatus = automationdomain.RunStatusFailed
-		state.LastError = stringPointer(message)
-		state.FailureStreak++
-		snapshot := jobRuntimeUpdateFromState(job.JobID, state)
-		s.mu.Unlock()
-		s.persistJobRuntime(context.Background(), snapshot)
-		return
-	}
-	s.mu.Unlock()
-	_ = runID
+func (s *Service) finishDeniedPermissionRun(job automationdomain.ScheduledTask) {
+	// ResolvePermissionRequest already committed the exact run and task summary
+	// in one transaction. Reload that authority instead of issuing a broad
+	// runtime write that could overwrite a newer overlapping completion.
+	s.refreshTaskRuntimeProjection(backgroundContextForJobOwner(job), job)
 }
 
 func (s *Service) refreshPermissionDecisionResult(
@@ -597,4 +733,67 @@ func anyTimePointer(value *time.Time, fallback time.Time) time.Time {
 		return fallback
 	}
 	return value.UTC()
+}
+
+// PermissionDecisionCommittedError 表示审批事务已经提交，后续自动恢复或结果重读失败。
+// Unwrap 保留根因用于日志和状态码兼容，但调用方必须先识别 committed 阶段。
+type PermissionDecisionCommittedError struct {
+	cause error
+}
+
+func (e *PermissionDecisionCommittedError) Error() string {
+	return "权限决定已保存，但后续恢复状态需要重新确认: " + e.cause.Error()
+}
+
+func (e *PermissionDecisionCommittedError) Unwrap() error {
+	return e.cause
+}
+
+// MarkPermissionDecisionCommitted 把审批提交后的错误标记为 committed 阶段。
+func MarkPermissionDecisionCommitted(err error) error {
+	if err == nil || PermissionDecisionCommitted(err) {
+		return err
+	}
+	return &PermissionDecisionCommittedError{cause: err}
+}
+
+// PermissionDecisionCommitted 判断错误是否发生在审批事务提交之后。
+func PermissionDecisionCommitted(err error) bool {
+	var committed *PermissionDecisionCommittedError
+	return errors.As(err, &committed)
+}
+
+func (s *Service) refreshCommittedPermissionDecisionResult(
+	ctx context.Context,
+	ownerUserID string,
+	result *automationdomain.PermissionDecisionResult,
+) (*automationdomain.PermissionDecisionResult, error) {
+	refreshed, err := s.refreshPermissionDecisionResult(ctx, ownerUserID, result)
+	if err != nil {
+		return nil, MarkPermissionDecisionCommitted(err)
+	}
+	return refreshed, nil
+}
+
+func (s *Service) setJobPermissionStateAtRequest(
+	jobID string,
+	expectedRequestID string,
+	allowEmpty bool,
+	permissionState string,
+	requestID string,
+) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.jobStates[strings.TrimSpace(jobID)]
+	if state == nil {
+		return false
+	}
+	currentRequestID := strings.TrimSpace(state.Job.PendingPermissionRequestID)
+	expectedRequestID = strings.TrimSpace(expectedRequestID)
+	if currentRequestID != expectedRequestID && !(allowEmpty && currentRequestID == "") {
+		return false
+	}
+	state.Job.PermissionState = strings.TrimSpace(permissionState)
+	state.Job.PendingPermissionRequestID = strings.TrimSpace(requestID)
+	return true
 }

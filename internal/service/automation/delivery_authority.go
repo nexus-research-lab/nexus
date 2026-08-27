@@ -138,6 +138,9 @@ func (s *Service) authorizedDeliveryJobForTarget(
 		job = *current
 	}
 	job = automationdomain.NormalizeScheduledTaskCompatibility(job)
+	if strings.TrimSpace(job.DeletionState) != "" {
+		return automationdomain.ScheduledTask{}, automationdomain.ErrTaskDeleting
+	}
 	if job.SessionBindingState == automationdomain.TaskSessionBindingStateRebindRequired {
 		return automationdomain.ScheduledTask{}, automationdomain.ErrTaskSessionRebindRequired
 	}

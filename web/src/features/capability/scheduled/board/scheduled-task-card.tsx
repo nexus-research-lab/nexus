@@ -1,6 +1,6 @@
 /**
- * INPUT: 单项定时任务、命令状态与任务动作。
- * OUTPUT: 名称、指令摘要、计划、时间状态和单一注意事项摘要。
+ * INPUT: 单项定时任务、durable 删除/命令状态与任务动作。
+ * OUTPUT: 名称、指令摘要、计划、时间状态与单一注意事项；人工处理额外提供停止确认入口。
  * POS: 定时任务看板卡片；指令用于识别任务，诊断细节延后展示。
  */
 "use client";
@@ -50,11 +50,18 @@ import {
 
 interface ScheduledTaskCardProps {
   isDeleting: boolean;
+  isDeleteUnconfirmed: boolean;
+  isDeletionReviewPending: boolean;
+  isMutationBlocked: boolean;
   isPermissionPending: boolean;
+  isPermissionUnconfirmed: boolean;
   isRunning: boolean;
+  isRunUnconfirmed: boolean;
   isToggling: boolean;
+  isToggleUnconfirmed: boolean;
   onDelete: (task: ScheduledTaskItem) => void;
   onEdit: (task: ScheduledTaskItem) => void;
+  onConfirmDeletionStopped: (task: ScheduledTaskItem) => void;
   onOpenHistory: (task: ScheduledTaskItem) => void;
   onOpenConnector: (connectorId: string) => void;
   onPermissionDecision: (
@@ -62,6 +69,7 @@ interface ScheduledTaskCardProps {
     decision: AutomationPermissionDecision,
   ) => void;
   onPermissionResume: (task: ScheduledTaskItem) => void;
+  onRefresh: () => void;
   onRunNow: (task: ScheduledTaskItem) => void;
   onToggleEnabled: (task: ScheduledTaskItem) => void;
   task: ScheduledTaskItem;
@@ -88,15 +96,23 @@ const TASK_IDENTITY_TONE_CLASS_NAMES: Record<
 
 export function ScheduledTaskCard({
   isDeleting,
+  isDeleteUnconfirmed,
+  isDeletionReviewPending,
+  isMutationBlocked,
   isPermissionPending,
+  isPermissionUnconfirmed,
   isRunning,
+  isRunUnconfirmed,
   isToggling,
+  isToggleUnconfirmed,
   onDelete,
   onEdit,
+  onConfirmDeletionStopped,
   onOpenHistory,
   onOpenConnector,
   onPermissionDecision,
   onPermissionResume,
+  onRefresh,
   onRunNow,
   onToggleEnabled,
   task,
@@ -107,25 +123,36 @@ export function ScheduledTaskCard({
   const closeMenu = useCallback(() => setIsMenuOpen(false), []);
   const presentation = getScheduledTaskCardPresentation(task, {
     isDeleting,
+    isDeleteUnconfirmed,
+    isMutationBlocked,
     isPermissionPending,
+    isPermissionUnconfirmed,
     isRunning,
+    isRunUnconfirmed,
     isToggling,
+    isToggleUnconfirmed,
   });
   const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const permissionRequest = task.pending_permission_request;
   const errorCopy = getScheduledTaskErrorCopy(presentation.lastError);
-  const attentionTitle = presentation.binding?.title
+  const attentionTitle = presentation.deletion?.title
+    ?? presentation.binding?.title
     ?? presentation.permission?.title
     ?? "最近运行异常";
-  const attentionDetail = presentation.binding?.description ?? (presentation.permission
+  const attentionDetail = presentation.deletion?.description
+    ?? presentation.binding?.description ?? (presentation.permission
     ? permissionRequest
       ? getScheduledPermissionCapabilityLabel(permissionRequest)
       : presentation.permission.description
     : errorCopy?.summary ?? null);
-  const hasAttention = Boolean(presentation.binding || presentation.permission || errorCopy);
+  const hasAttention = Boolean(
+    presentation.deletion || presentation.binding || presentation.permission || errorCopy,
+  );
   const hasPermissionActions = presentation.permission !== null
     && hasScheduledTaskPermissionActions(task);
-  const AttentionIcon = presentation.binding
+  const AttentionIcon = presentation.deletion
+    ? Trash2
+    : presentation.binding
     ? Link2Off
     : presentation.permission ? ShieldAlert : CircleAlert;
   const toggleIcon = task.enabled
@@ -133,6 +160,11 @@ export function ScheduledTaskCard({
     : <PlayCircle className="h-3.5 w-3.5" />;
   const menuItems: UiActionMenuItem[] = [
     {
+      description: presentation.deletion
+        ? `${presentation.deletion.title}，任务不再接受修改`
+        : isMutationBlocked && !isToggleUnconfirmed
+        ? "该任务的另一个修改仍在处理或待确认"
+        : isToggleUnconfirmed ? presentation.toggleAction.title : undefined,
       disabled: presentation.toggleAction.disabled,
       icon: toggleIcon,
       label: presentation.toggleAction.label,
@@ -140,11 +172,22 @@ export function ScheduledTaskCard({
       value: "toggle",
     },
     {
+      description: presentation.deletion
+        ? `${presentation.deletion.title}，任务不再接受修改`
+        : isMutationBlocked
+        ? "该任务的另一个修改仍在处理或待确认"
+        : undefined,
+      disabled: isMutationBlocked || presentation.deletion !== null,
       icon: <Pencil className="h-3.5 w-3.5" />,
       label: "编辑任务",
       value: "edit",
     },
     {
+      description: presentation.deletion
+        ? presentation.deletion.nextStep
+        : isDeleteUnconfirmed
+        ? "上次删除请求结果待确认，请先刷新任务状态"
+        : undefined,
       disabled: presentation.deleteDisabled,
       icon: <Trash2 className="h-3.5 w-3.5" />,
       label: "删除任务",
@@ -153,9 +196,15 @@ export function ScheduledTaskCard({
     },
   ];
   const actionHandlers: Record<TaskMenuAction, () => void> = {
-    delete: () => onDelete(task),
-    edit: () => onEdit(task),
-    toggle: () => onToggleEnabled(task),
+    delete: () => {
+      if (!presentation.deletion) onDelete(task);
+    },
+    edit: () => {
+      if (!presentation.deletion) onEdit(task);
+    },
+    toggle: () => {
+      if (!presentation.deletion) onToggleEnabled(task);
+    },
   };
 
   return (
@@ -232,7 +281,7 @@ export function ScheduledTaskCard({
           <div
             className={cn(
               "mt-2 overflow-hidden rounded-[6px] border",
-              presentation.binding || presentation.permission
+              presentation.deletion || presentation.binding || presentation.permission
                 ? "border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]"
                 : "border-[color:color-mix(in_srgb,var(--destructive)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_3%,transparent)]",
             )}
@@ -246,7 +295,7 @@ export function ScheduledTaskCard({
               <AttentionIcon
                 className={cn(
                   "h-3.5 w-3.5 shrink-0",
-                  presentation.binding || presentation.permission
+                  presentation.deletion || presentation.binding || presentation.permission
                     ? "text-(--warning)"
                     : "text-(--destructive)",
                 )}
@@ -270,7 +319,7 @@ export function ScheduledTaskCard({
               <div className="flex items-center gap-1.5 border-t border-[color:color-mix(in_srgb,var(--warning)_18%,var(--divider-subtle-color))] px-2.5 py-2">
                 <ScheduledTaskPermissionActions
                   compact
-                  isPending={isPermissionPending}
+                  isPending={isMutationBlocked || isPermissionPending || isPermissionUnconfirmed}
                   onEdit={onEdit}
                   onOpenConnector={onOpenConnector}
                   onPermissionDecision={onPermissionDecision}
@@ -308,18 +357,30 @@ export function ScheduledTaskCard({
       </article>
 
       <ScheduledTaskAttentionDialog
-        description={presentation.binding?.description ?? presentation.permission?.description ?? null}
+        deletionImpact={presentation.deletion?.impact ?? null}
+        deletionNextStep={presentation.deletion?.nextStep ?? null}
+        description={presentation.deletion?.description
+          ?? presentation.binding?.description
+          ?? presentation.permission?.description
+          ?? null}
         isBindingAttention={presentation.binding !== null}
+        isDeletionAttention={presentation.deletion !== null}
+        isDeletionReviewPending={isDeletionReviewPending}
         isOpen={isAttentionOpen}
-        isPending={isPermissionPending}
+        isPending={isMutationBlocked || isPermissionPending || isPermissionUnconfirmed}
         onClose={() => setIsAttentionOpen(false)}
+        onConfirmDeletionStopped={onConfirmDeletionStopped}
         onEdit={onEdit}
         onOpenConnector={onOpenConnector}
         onOpenHistory={onOpenHistory}
         onPermissionDecision={onPermissionDecision}
         onPermissionResume={onPermissionResume}
+        onRefresh={onRefresh}
         task={task}
-        title={presentation.binding?.title ?? presentation.permission?.title ?? null}
+        title={presentation.deletion?.title
+          ?? presentation.binding?.title
+          ?? presentation.permission?.title
+          ?? null}
       />
     </>
   );

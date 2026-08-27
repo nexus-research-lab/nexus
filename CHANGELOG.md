@@ -12,10 +12,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a backward-compatible FailureCore v1 foundation for machine-readable
   failure facts, transport-only diagnostic IDs, safe user messaging, and
   explicit low-risk adoption without changing existing business identities.
+- Added evidence-based scheduled-task recovery states for loading, stale data,
+  access loss, rejected changes, and outcomes that still need confirmation,
+  including domain-scoped safe replay for page-created tasks.
 - Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
 
 ### Fixed
 
+- Committed each scheduled-task runtime claim and its initial run ledger in one
+  transaction before dispatch. Manual run requests now keep a durable
+  owner-scoped identity, replay the exact accepted run after a lost response,
+  and reject request IDs reused for a different intent.
+- Made Heartbeat wake acceptance durable even without user text, fenced it
+  atomically against configuration changes, and recovered unclaimed accepted
+  wakes after restart. Started claims now fail closed instead of being replayed;
+  command intents remain idempotent and control locks are released before runtime
+  dispatch.
+- Prevented interrupted scheduled-task actions from being repeated implicitly,
+  kept task data available when auxiliary permission status cannot load, and
+  added configuration-version checks for task enable and pause changes. Durable
+  deletion now distinguishes automatic cleanup from administrator review,
+  keeps history readable, requires an explicit stopped-execution confirmation
+  before manual cleanup, and coalesces realtime refreshes without polling.
+- Isolated scheduled-task recovery records by owner and exact intent across
+  windows and app restarts, serialized same-task browser mutations without
+  blocking different tasks, and failed safely before sending in unsupported
+  browser environments. Multiple unconfirmed create intents are preserved and
+  reviewed one by one instead of overwriting each other.
+- Committed scheduled-run terminal state before external delivery, claimed every
+  delivery attempt with an exact durable token, and stopped automatic replay
+  when the receiving system may already have accepted a result. Deleting tasks
+  now suppress late delivery and retain exact execution evidence before cleanup;
+  permission denial or task revision also closes runs with no deliverable result
+  instead of leaving them permanently pending.
+- Made scheduled-task result delivery durable across process interruption:
+  execution completion is committed before sending, concurrent workers claim a
+  single attempt, and uncertain channel outcomes require user verification
+  instead of being replayed automatically. Existing task histories now bind
+  their delivery summary to the exact latest completed run during upgrade, so
+  retrying an older run cannot replace the current task status.
+- Distinguished client cancellation, request timeout, connection loss, and
+  interrupted response bodies without retrying writes whose outcome is unknown.
 - Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
 - Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
 - Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.

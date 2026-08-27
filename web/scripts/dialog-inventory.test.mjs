@@ -23,7 +23,7 @@ test("dialog inventory stays explicit when a modal or dialog overlay is added", 
     }
   }
 
-  assert.equal(modalRoots, 59);
+  assert.equal(modalRoots, 61);
   assert.deepEqual(dialogOverlays.sort(), [
     "web/src/features/conversation/room/surface/history/room-history-menu.tsx",
     "web/src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx",
@@ -36,9 +36,9 @@ test("dialog inventory stays explicit when a modal or dialog overlay is added", 
     path.join(repositoryRoot, "docs/specs/dialog-design-spec.md"),
     "utf8",
   );
-  assert.match(specification, /59 个产品模态根/);
+  assert.match(specification, /61 个产品模态根/);
   assert.match(specification, /5 个 dialog 型浮层/);
-  assert.match(specification, /共 \*\*64 个\*\*/);
+  assert.match(specification, /共 \*\*66 个\*\*/);
 });
 
 async function collectTsxFiles(directory) {

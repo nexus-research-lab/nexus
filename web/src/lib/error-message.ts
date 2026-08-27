@@ -1,7 +1,11 @@
-// INPUT: 任意失败值与当前操作的用户可执行兜底文案。
-// OUTPUT: 保留具体业务错误；收敛内部占位错误；只从 HTTP 事实投影访问失效。
-// POS: Web 错误展示的最小边界；不根据浏览器网络提示猜测请求失败原因。
-import { ApiRequestError, UnauthorizedError } from "@/lib/api/core/http-error";
+// INPUT: 任意失败值、服务端 FailureCore、本地传输事实与当前操作的安全兜底文案。
+// OUTPUT: 资源访问失效和修改结果证据的纯投影；不解释或执行恢复动作。
+// POS: Web 错误语义的最小边界；不根据文案或浏览器网络提示猜测业务结果。
+import {
+  ApiRequestError,
+  ApiTransportError,
+  UnauthorizedError,
+} from "@/lib/api/core/http-error";
 
 const INTERNAL_ERROR_PLACEHOLDERS = new Set([
   "服务内部错误",
@@ -29,6 +33,20 @@ export interface ResourceFailure {
   message: string;
 }
 
+export type MutationFailureEffect =
+  | "accepted"
+  | "committed"
+  | "not_applied"
+  | "unknown";
+
+export interface MutationFailure {
+  category: string | null;
+  code: string | null;
+  effect: MutationFailureEffect;
+  message: string;
+  transportRequestId: string | null;
+}
+
 export function getResourceFailure(
   error: unknown,
   fallback: string,
@@ -37,6 +55,57 @@ export function getResourceFailure(
     access: classifyResourceAccessFailure(error),
     message: getErrorMessage(error, fallback),
   };
+}
+
+/**
+ * 把服务端 FailureCore 或本地传输失败投影为修改结果事实。
+ *
+ * 未识别的 effect 与普通异常一律保守降级为 unknown。这里不解释、更不会执行
+ * resolution.action；具体恢复动作只能由持有领域状态的调用方显式决定。
+ */
+export function projectMutationFailure(
+  error: unknown,
+  fallback: string,
+): MutationFailure {
+  if (error instanceof ApiTransportError) {
+    return {
+      category: error.category,
+      code: null,
+      effect: "unknown",
+      message: getErrorMessage(error, fallback),
+      transportRequestId: error.transportRequestId,
+    };
+  }
+
+  const structured = error instanceof ApiRequestError || error instanceof UnauthorizedError
+    ? error
+    : null;
+  return {
+    category: structured?.failure?.category ?? null,
+    code: structured?.failure?.code ?? null,
+    effect: knownMutationEffect(structured?.failure?.effect),
+    message: getErrorMessage(error, fallback),
+    transportRequestId: structured?.transportRequestId ?? null,
+  };
+}
+
+export function getMutationFailure(
+  error: unknown,
+  fallback: string,
+): MutationFailure {
+  return projectMutationFailure(error, fallback);
+}
+
+function knownMutationEffect(value: string | undefined): MutationFailureEffect {
+  switch (value) {
+    case "accepted":
+    case "committed":
+    case "not_applied":
+    case "unknown":
+      return value;
+    default:
+      return "unknown";
+  }
 }
 
 function classifyResourceAccessFailure(

@@ -45,6 +45,9 @@ func scanScheduledTask(scanner interface {
 		failureStreak              sql.NullInt64
 		lastError                  sql.NullString
 		lastDeliveryStatus         sql.NullString
+		deletionState              sql.NullString
+		deletionToken              sql.NullString
+		deletionClaimedAt          sql.NullTime
 		permissionPolicyJSON       sql.NullString
 		pendingPermissionRequestID sql.NullString
 	)
@@ -94,6 +97,9 @@ func scanScheduledTask(scanner interface {
 		&lastError,
 		&lastDeliveryStatus,
 		&item.ConfigurationVersion,
+		&deletionState,
+		&deletionToken,
+		&deletionClaimedAt,
 		&permissionPolicyJSON,
 		&item.PermissionPolicy.Revision,
 		&item.PermissionState,
@@ -146,6 +152,9 @@ func scanScheduledTask(scanner interface {
 	}
 	item.LastError = nullStringToPointer(lastError)
 	item.LastDeliveryStatus = nullStringValue(lastDeliveryStatus)
+	item.DeletionState = nullStringValue(deletionState)
+	item.DeletionToken = nullStringValue(deletionToken)
+	item.DeletionClaimedAt = nullTimePointer(deletionClaimedAt)
 	if raw := strings.TrimSpace(nullStringValue(permissionPolicyJSON)); raw != "" && raw != "{}" {
 		storedRevision := item.PermissionPolicy.Revision
 		if decodeErr := json.Unmarshal([]byte(raw), &item.PermissionPolicy); decodeErr != nil {
@@ -170,6 +179,7 @@ func scanScheduledTaskRun(scanner interface {
 }) (automationdomain.ScheduledTaskRun, error) {
 	var (
 		item                  automationdomain.ScheduledTaskRun
+		clientRequestID       sql.NullString
 		sessionKey            sql.NullString
 		roundID               sql.NullString
 		sessionID             sql.NullString
@@ -196,6 +206,7 @@ func scanScheduledTaskRun(scanner interface {
 		&item.RunID,
 		&item.JobID,
 		&item.OwnerUserID,
+		&clientRequestID,
 		&item.Status,
 		&item.TriggerKind,
 		&sessionKey,
@@ -231,6 +242,7 @@ func scanScheduledTaskRun(scanner interface {
 		return automationdomain.ScheduledTaskRun{}, err
 	}
 	item.ScheduledFor = nullTimePointer(scheduledFor)
+	item.ClientRequestID = nullStringValue(clientRequestID)
 	item.StartedAt = nullTimePointer(startedAt)
 	item.FinishedAt = nullTimePointer(finishedAt)
 	item.ErrorMessage = nullStringToPointer(errorMessage)

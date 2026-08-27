@@ -12,6 +12,7 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
@@ -44,6 +45,7 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 	}
 
 	protectedRequest := mustNewRequest(t, http.MethodGet, httpServer.URL+"/nexus/v1/agents", nil)
+	protectedRequest.Header.Set("X-Request-ID", "auth-read-attempt")
 	protectedResponse, err := http.DefaultClient.Do(protectedRequest)
 	if err != nil {
 		t.Fatalf("请求受保护路由失败: %v", err)
@@ -52,6 +54,34 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 	if protectedResponse.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("未登录访问受保护路由应返回 401，实际: %d", protectedResponse.StatusCode)
 	}
+	assertAuthenticationRequiredFailure(
+		t,
+		protectedResponse,
+		protocol.FailureEffectNotApplicable,
+		"auth-read-attempt",
+	)
+
+	writeRequest := mustNewRequest(
+		t,
+		http.MethodPost,
+		httpServer.URL+"/nexus/v1/agents",
+		strings.NewReader(`{"name":"must-not-run"}`),
+	)
+	writeRequest.Header.Set("X-Request-ID", "auth-write-attempt")
+	writeResponse, requestErr := http.DefaultClient.Do(writeRequest)
+	if requestErr != nil {
+		t.Fatalf("请求写受保护路由失败: %v", requestErr)
+	}
+	defer func() { _ = writeResponse.Body.Close() }()
+	if writeResponse.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("未登录写受保护路由应返回 401，实际: %d", writeResponse.StatusCode)
+	}
+	assertAuthenticationRequiredFailure(
+		t,
+		writeResponse,
+		protocol.FailureEffectNotApplied,
+		"auth-write-attempt",
+	)
 
 	cookie := loginByHTTP(t, httpServer.URL, "admin", "password123")
 	if cookie == nil || strings.TrimSpace(cookie.Value) == "" {
@@ -61,6 +91,36 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 	statusAfterLogin := getAuthStatus(t, httpServer.URL, []*http.Cookie{cookie})
 	if !statusAfterLogin.Authenticated || statusAfterLogin.Username == nil || *statusAfterLogin.Username != "admin" {
 		t.Fatalf("登录后的 auth 状态不正确: %+v", statusAfterLogin)
+	}
+}
+
+func assertAuthenticationRequiredFailure(
+	t *testing.T,
+	response *http.Response,
+	effect protocol.FailureEffect,
+	requestID string,
+) {
+	t.Helper()
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Success bool   `json:"success"`
+		Data    struct {
+			Detail    string               `json:"detail"`
+			RequestID string               `json:"request_id"`
+			Failure   protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("解析认证失败响应: %v", err)
+	}
+	if payload.Code != "401" || payload.Message != "failed" || payload.Success ||
+		payload.Data.Detail != "未授权" || payload.Data.RequestID != requestID ||
+		payload.Data.Failure.Code != "auth.authentication_required" ||
+		payload.Data.Failure.Category != protocol.FailureCategoryAuthentication ||
+		payload.Data.Failure.Effect != effect ||
+		payload.Data.Failure.TransportRequestID != requestID {
+		t.Fatalf("认证失败事实不正确: %+v", payload)
 	}
 }
 

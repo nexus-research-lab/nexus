@@ -37,9 +37,12 @@ func (a *API) WriteError(
 	spec FailureSpec,
 ) {
 	clientDetail := strings.TrimSpace(spec.Detail)
-	canceled := isCanceledFailure(spec.Cause, clientDetail) && status >= http.StatusInternalServerError
+	canceled := errors.Is(spec.Cause, context.Canceled) && status >= http.StatusInternalServerError
+	timedOut := errors.Is(spec.Cause, context.DeadlineExceeded) && status >= http.StatusInternalServerError
 	if canceled {
 		status = 499
+	} else if timedOut {
+		status = http.StatusGatewayTimeout
 	}
 
 	transportRequestID := ""
@@ -47,23 +50,6 @@ func (a *API) WriteError(
 	if request != nil {
 		transportRequestID = requestID(request.Context())
 		logger = logx.FromContext(request.Context())
-	}
-
-	if spec.Cause != nil || clientDetail != "" {
-		fields := []any{
-			"status", status,
-			"failure_code", strings.TrimSpace(spec.Code),
-		}
-		if spec.Cause != nil {
-			fields = append(fields, "err", spec.Cause)
-		} else {
-			fields = append(fields, "detail", clientDetail)
-		}
-		if status == 499 {
-			logger.Debug("HTTP 请求已取消", fields...)
-		} else {
-			logger.Warn("HTTP 请求失败", fields...)
-		}
 	}
 
 	failure := protocol.FailureCore{
@@ -79,11 +65,32 @@ func (a *API) WriteError(
 	}
 	if canceled {
 		failure.Category = protocol.FailureCategoryCanceled
+	} else if timedOut {
+		failure.Category = protocol.FailureCategoryTimeout
 	} else if failure.Category == "" {
 		failure.Category = failureCategoryForStatus(status)
 	}
 	if failure.Effect == "" {
 		failure.Effect = protocol.FailureEffectUnknown
+	}
+
+	if spec.Cause != nil || clientDetail != "" {
+		fields := []any{
+			"status", status,
+			"failure_code", failure.Code,
+			"failure_category", failure.Category,
+			"failure_effect", failure.Effect,
+		}
+		if spec.Cause != nil {
+			fields = append(fields, "err", spec.Cause)
+		} else {
+			fields = append(fields, "detail", clientDetail)
+		}
+		if status == 499 {
+			logger.Debug("HTTP 请求已取消", fields...)
+		} else {
+			logger.Warn("HTTP 请求失败", fields...)
+		}
 	}
 	if retryAfterMS, ok := failureRetryAfter(status, spec.RetryAfter); ok {
 		failure.RetryAfterMS = retryAfterMS
@@ -92,7 +99,7 @@ func (a *API) WriteError(
 	}
 
 	data := map[string]any{
-		"detail":  GatewayClientErrorDetail(status, clientDetail),
+		"detail":  failureClientDetail(status, clientDetail),
 		"failure": failure,
 	}
 	if transportRequestID != "" {
@@ -106,11 +113,11 @@ func (a *API) WriteError(
 	})
 }
 
-func isCanceledFailure(cause error, detail string) bool {
-	return errors.Is(cause, context.Canceled) ||
-		errors.Is(cause, context.DeadlineExceeded) ||
-		isClientCanceledDetail(detail) ||
-		(cause != nil && isClientCanceledDetail(cause.Error()))
+func failureClientDetail(status int, detail string) string {
+	if status == http.StatusRequestTimeout || status == http.StatusGatewayTimeout {
+		return "请求超时"
+	}
+	return GatewayClientErrorDetail(status, detail)
 }
 
 func failureCategoryForStatus(status int) protocol.FailureCategory {
@@ -135,6 +142,19 @@ func failureCategoryForStatus(status int) protocol.FailureCategory {
 		return protocol.FailureCategoryCanceled
 	default:
 		return protocol.FailureCategoryInternal
+	}
+}
+
+// failureEffectBeforeHandler 只在中间件已经拒绝请求、业务 Handler 尚未执行时使用。
+func failureEffectBeforeHandler(request *http.Request) protocol.FailureEffect {
+	if request == nil {
+		return protocol.FailureEffectNotApplied
+	}
+	switch request.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return protocol.FailureEffectNotApplicable
+	default:
+		return protocol.FailureEffectNotApplied
 	}
 }
 

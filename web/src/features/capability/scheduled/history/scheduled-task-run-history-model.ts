@@ -1,3 +1,7 @@
+// INPUT: Scheduled task/run ledger 快照与 exact 未确认动作。
+// OUTPUT: 运行/投递状态、历史动作与 durable 删除收尾/人工处理的纯展示投影。
+// POS: Scheduled 运行历史纯模型；任一删除态只允许读取，不发起 run/delivery mutation。
+
 import type {
   ScheduledTaskDeliveryStatus,
   ScheduledTaskRunItem,
@@ -25,6 +29,7 @@ const DELIVERY_STATUS_META: Record<ScheduledTaskDeliveryStatus, RunStatusMeta> =
   not_attempted: { label: "未投递", tone: "idle" },
   not_required: { label: "无需投递", tone: "idle" },
   pending: { label: "待投递", tone: "running" },
+  retrying: { label: "投递结果待确认", tone: "default" },
   skipped: { label: "无需投递", tone: "idle" },
   succeeded: { label: "投递成功", tone: "success" },
 };
@@ -59,6 +64,12 @@ export function getDeliveryStatusMeta(
 }
 
 export function getTaskStatusMeta(task: ScheduledTaskItem): RunStatusMeta {
+  if (task.deletion_state?.trim() === "review_required") {
+    return { label: "删除待处理", tone: "idle" };
+  }
+  if (task.deletion_state?.trim()) {
+    return { label: "删除中", tone: "idle" };
+  }
   if (task.running) {
     return { label: "运行中", tone: "running" };
   }
@@ -76,6 +87,12 @@ function isRetryableStatus(status: ScheduledTaskRunLedgerStatus): boolean {
   return status === "failed" || status === "cancelled" || status === "skipped";
 }
 
+function deletionActionLabel(task: ScheduledTaskItem): string {
+  return task.deletion_state?.trim() === "review_required"
+    ? "删除待处理"
+    : "删除收尾中";
+}
+
 export type ScheduledTaskRunActionKind = "recover" | "retry" | "retry_delivery";
 
 interface ScheduledTaskRunActionPresentation {
@@ -87,7 +104,10 @@ interface ScheduledTaskRunActionPresentation {
 }
 
 interface ScheduledTaskRunActionContext {
+  isRecoveryUnconfirmed: boolean;
   isRecovering: boolean;
+  isRetryDeliveryUnconfirmed: boolean;
+  isRetryUnconfirmed: boolean;
   isRetrying: boolean;
   isRetryingDelivery: boolean;
   run: ScheduledTaskRunItem;
@@ -99,6 +119,7 @@ type RunActionBuilder = (
 ) => ScheduledTaskRunActionPresentation | null;
 
 function buildRetryAction({
+  isRetryUnconfirmed,
   isRetrying,
   run,
   task,
@@ -106,32 +127,80 @@ function buildRetryAction({
   if (!isRetryableStatus(run.status)) {
     return null;
   }
+  const taskDeleting = Boolean(task.deletion_state?.trim());
   return {
-    disabled: isRetrying || task.running,
+    disabled: taskDeleting || isRetrying || isRetryUnconfirmed || task.running,
     kind: "retry",
-    label: isRetrying ? "触发中" : "重新运行",
-    title: task.running ? "任务当前正在运行" : "用当前任务配置重新运行一次",
+    label: taskDeleting
+      ? deletionActionLabel(task)
+      : isRetryUnconfirmed ? "运行结果待确认" : isRetrying ? "触发中" : "重新运行",
+    title: taskDeleting
+      ? task.deletion_state?.trim() === "review_required"
+        ? "删除正在等待管理员处理，任务不再接受新的运行"
+        : "删除已受理，任务不再接受新的运行"
+      : isRetryUnconfirmed
+      ? "上次运行请求结果待确认，请先刷新任务状态"
+      : task.running ? "任务当前正在运行" : "用当前任务配置重新运行一次",
     tone: "primary",
   };
 }
 
 function buildRetryDeliveryAction({
+  isRetryDeliveryUnconfirmed,
   isRetryingDelivery,
   run,
+  task,
 }: ScheduledTaskRunActionContext): ScheduledTaskRunActionPresentation | null {
+  const taskDeleting = Boolean(task.deletion_state?.trim());
+  if (run.delivery_status === "retrying") {
+    const hasExactAttempt = typeof run.delivery_attempts === "number";
+    return {
+      disabled: taskDeleting
+        || isRetryingDelivery
+        || isRetryDeliveryUnconfirmed
+        || !hasExactAttempt,
+      kind: "retry_delivery",
+      label: taskDeleting
+        ? deletionActionLabel(task)
+        : isRetryDeliveryUnconfirmed
+        ? "投递结果待确认"
+        : isRetryingDelivery
+          ? "投递中"
+          : hasExactAttempt
+            ? "我已核对，重新投递"
+            : "请刷新后核对",
+      title: taskDeleting
+        ? task.deletion_state?.trim() === "review_required"
+          ? "删除正在等待管理员处理，不会再发起结果投递"
+          : "删除已受理，不会再发起结果投递"
+        : hasExactAttempt
+        ? "这次投递可能已经送达。请先核对接收位置，确认没有收到后再重新投递。"
+        : "当前记录缺少可靠的投递次数，请刷新运行历史后再核对。",
+      tone: "primary",
+    };
+  }
   if (run.delivery_status !== "failed") {
     return null;
   }
   return {
-    disabled: isRetryingDelivery,
+    disabled: taskDeleting || isRetryingDelivery || isRetryDeliveryUnconfirmed,
     kind: "retry_delivery",
-    label: isRetryingDelivery ? "投递中" : "重试投递",
-    title: "只重试这次运行的结果投递，不重新执行任务",
+    label: taskDeleting
+      ? deletionActionLabel(task)
+      : isRetryDeliveryUnconfirmed ? "投递结果待确认" : isRetryingDelivery ? "投递中" : "重试投递",
+    title: taskDeleting
+      ? task.deletion_state?.trim() === "review_required"
+        ? "删除正在等待管理员处理，不会再发起结果投递"
+        : "删除已受理，不会再发起结果投递"
+      : isRetryDeliveryUnconfirmed
+      ? "上次投递请求结果待确认，请先刷新任务状态"
+      : "只重试这次运行的结果投递，不重新执行任务",
     tone: "primary",
   };
 }
 
 function buildRecoverAction({
+  isRecoveryUnconfirmed,
   isRecovering,
   run,
   task,
@@ -140,10 +209,20 @@ function buildRecoverAction({
     return null;
   }
   return {
-    disabled: isRecovering,
+    disabled: Boolean(task.deletion_state?.trim())
+      || isRecovering
+      || isRecoveryUnconfirmed,
     kind: "recover",
-    label: isRecovering ? "释放中" : "释放占用",
-    title: "把该运行标记为取消，并释放任务占用",
+    label: task.deletion_state?.trim()
+      ? deletionActionLabel(task)
+      : isRecoveryUnconfirmed ? "释放结果待确认" : isRecovering ? "释放中" : "释放占用",
+    title: task.deletion_state?.trim()
+      ? task.deletion_state?.trim() === "review_required"
+        ? "删除正在等待管理员处理，不能再手动修改当前运行"
+        : "删除收尾会自动处理当前运行，无需再手动释放"
+      : isRecoveryUnconfirmed
+      ? "上次释放请求结果待确认，请先刷新任务状态"
+      : "把该运行标记为取消，并释放任务占用",
     tone: "danger",
   };
 }

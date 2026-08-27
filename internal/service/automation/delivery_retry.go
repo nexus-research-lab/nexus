@@ -9,7 +9,6 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 func (s *Service) beginDeliveryRetryBatch() bool {
@@ -49,28 +48,40 @@ func (s *Service) retryDueDeliveries(ctx context.Context, now time.Time) {
 }
 
 func (s *Service) retryDueRunDelivery(ctx context.Context, run automationdomain.ScheduledTaskRun) error {
-	job, err := s.repository.GetScheduledTask(ctx, "", strings.TrimSpace(run.JobID))
+	ownerUserID := strings.TrimSpace(run.OwnerUserID)
+	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, strings.TrimSpace(run.JobID))
 	if err != nil {
 		return err
 	}
 	if job == nil {
+		if strings.TrimSpace(run.DeliveryStatus) == automationdomain.DeliveryStatusPending {
+			message := "scheduled task no longer exists; initial delivery was not attempted"
+			deadLetterAt := s.nowFn()
+			return s.repository.DeadLetterOrphanedPendingRunDelivery(
+				ctx,
+				run.OwnerUserID,
+				run.JobID,
+				run.RunID,
+				run.DeliveryAttempts,
+				&message,
+				deadLetterAt,
+			)
+		}
 		message := "scheduled task not found while retrying delivery"
 		deadLetterAt := s.nowFn()
-		return s.repository.MarkRunDelivery(ctx, automationstore.RunDeliveryUpdateInput{
-			RunID:                run.RunID,
-			DeliveryStatus:       automationdomain.DeliveryStatusFailed,
-			DeliveryError:        &message,
-			DeliveryDeadLetterAt: &deadLetterAt,
-		})
+		return s.repository.DeadLetterFailedRunDelivery(
+			ctx, run.OwnerUserID, run.JobID, run.RunID, run.DeliveryAttempts, &message, deadLetterAt,
+		)
+	}
+	if strings.TrimSpace(run.DeliveryStatus) == automationdomain.DeliveryStatusPending {
+		_, deliveryErr := s.deliverPendingRun(contextForJobOwner(ctx, *job), *job, run)
+		return deliveryErr
 	}
 	if !job.Enabled {
 		deadLetterAt := s.nowFn()
-		if err = s.repository.MarkRunDelivery(ctx, automationstore.RunDeliveryUpdateInput{
-			RunID:                run.RunID,
-			DeliveryStatus:       automationdomain.DeliveryStatusFailed,
-			DeliveryError:        run.DeliveryError,
-			DeliveryDeadLetterAt: &deadLetterAt,
-		}); err != nil {
+		if err = s.repository.DeadLetterFailedRunDelivery(
+			ctx, run.OwnerUserID, run.JobID, run.RunID, run.DeliveryAttempts, run.DeliveryError, deadLetterAt,
+		); err != nil {
 			return err
 		}
 		run.DeliveryStatus = automationdomain.DeliveryStatusFailed

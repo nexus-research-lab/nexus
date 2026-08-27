@@ -137,10 +137,11 @@ type Service struct {
 	nowFn     func() time.Time
 	idFactory func(string) string
 
-	// taskControlMu serializes human-control-plane changes with Agent-initiated
-	// task mutations/runs so the script capability check and the real action
-	// observe one process-local task-control order.
+	// taskControlMu serializes short human-control-plane configuration changes.
+	// taskExecutionFences serialize start/delete/recovery/delivery side effects for
+	// one task without making runtime or external dispatch block unrelated tasks.
 	taskControlMu           sync.Mutex
+	taskExecutionFences     [64]sync.Mutex
 	heartbeatControlMu      sync.Mutex
 	mu                      sync.Mutex
 	jobStates               map[string]*automationexec.JobRuntimeState
@@ -148,6 +149,9 @@ type Service struct {
 	wakeRequests            map[string][]automationexec.HeartbeatWakeRequest
 	attemptMu               sync.Mutex
 	physicalAttempts        map[physicalAttemptKey]*physicalAttempt
+	scriptAttemptMu         sync.Mutex
+	scriptAttempts          map[string]*scriptAttempt
+	deletionRecoveries      map[string]string
 	deliveryRetryRunning    bool
 	deliveryRetryDeadline   *time.Time
 	deliveryDeadlineReadAt  time.Time
@@ -206,6 +210,8 @@ func NewService(
 		heartbeatState:        make(map[string]*automationexec.HeartbeatRuntimeState),
 		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
 		physicalAttempts:      make(map[physicalAttemptKey]*physicalAttempt),
+		scriptAttempts:        make(map[string]*scriptAttempt),
+		deletionRecoveries:    make(map[string]string),
 		deliveryDeadlineDirty: true,
 	}
 	service.schedulerLoop = duework.New(duework.Options{

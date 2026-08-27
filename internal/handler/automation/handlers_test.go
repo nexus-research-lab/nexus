@@ -2,6 +2,7 @@ package automation_test
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -227,6 +228,539 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 	if report.Data.JobID != created.Data.JobID || report.Data.Totals.TaskCount != 1 || len(report.Data.Tasks) != 1 {
 		t.Fatalf("日报响应不完整: %+v", report.Data)
 	}
+}
+
+func TestScheduledTaskCreateHTTPUsesDomainRequestIDWithoutChangingLegacyCalls(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	handlertest.CloseServer(t, server)
+
+	payload := []byte(`{
+		"request_id":"page-create-intent-01","name":"幂等页面任务","agent_id":"nexus",
+		"schedule":{"kind":"every","interval_seconds":3600,"timezone":"UTC"},
+		"session_target":{"kind":"isolated"},"delivery":{"mode":"none"},
+		"instruction":"验证页面创建重放","enabled":false
+	}`)
+	firstRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		"/nexus/v1/capability/scheduled/tasks",
+		payload,
+	)
+	secondRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		"/nexus/v1/capability/scheduled/tasks",
+		payload,
+	)
+	if firstRecorder.Code != http.StatusOK || secondRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"同一页面创建意图应可安全重放: first=%d %s second=%d %s",
+			firstRecorder.Code,
+			firstRecorder.Body.String(),
+			secondRecorder.Code,
+			secondRecorder.Body.String(),
+		)
+	}
+	var first, second struct {
+		Data automationdomain.ScheduledTask `json:"data"`
+	}
+	if err = json.Unmarshal(firstRecorder.Body.Bytes(), &first); err != nil {
+		t.Fatalf("解析首次创建响应失败: %v", err)
+	}
+	if err = json.Unmarshal(secondRecorder.Body.Bytes(), &second); err != nil {
+		t.Fatalf("解析重放创建响应失败: %v", err)
+	}
+	if first.Data.JobID == "" || second.Data.JobID != first.Data.JobID {
+		t.Fatalf("相同创建意图产生了重复任务: first=%q second=%q", first.Data.JobID, second.Data.JobID)
+	}
+	receiptRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodGet,
+		"/nexus/v1/capability/scheduled/tasks/create-requests/page-create-intent-01",
+		nil,
+	)
+	if receiptRecorder.Code != http.StatusOK {
+		t.Fatalf("读取创建回执失败: got=%d body=%s", receiptRecorder.Code, receiptRecorder.Body.String())
+	}
+	var receipt struct {
+		Data automationdomain.ScheduledTaskCreateRequestStatus `json:"data"`
+	}
+	if err = json.Unmarshal(receiptRecorder.Body.Bytes(), &receipt); err != nil {
+		t.Fatalf("解析创建回执失败: %v", err)
+	}
+	if receipt.Data.Status != automationdomain.TaskCreateRequestStatusCommitted ||
+		receipt.Data.Task == nil || receipt.Data.Task.JobID != first.Data.JobID {
+		t.Fatalf("创建回执与任务不一致: %+v", receipt.Data)
+	}
+	missingReceiptRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodGet,
+		"/nexus/v1/capability/scheduled/tasks/create-requests/page-create-never-accepted",
+		nil,
+	)
+	var missingReceipt struct {
+		Data automationdomain.ScheduledTaskCreateRequestStatus `json:"data"`
+	}
+	if err = json.Unmarshal(missingReceiptRecorder.Body.Bytes(), &missingReceipt); err != nil {
+		t.Fatalf("解析未受理创建回执失败: %v", err)
+	}
+	if missingReceiptRecorder.Code != http.StatusOK ||
+		missingReceipt.Data.Status != automationdomain.TaskCreateRequestStatusNotFound {
+		t.Fatalf("未受理创建回执不正确: got=%d data=%+v", missingReceiptRecorder.Code, missingReceipt.Data)
+	}
+
+	conflictRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		"/nexus/v1/capability/scheduled/tasks",
+		[]byte(`{
+			"request_id":"page-create-intent-01","name":"不同页面任务","agent_id":"nexus",
+			"schedule":{"kind":"every","interval_seconds":3600,"timezone":"UTC"},
+			"session_target":{"kind":"isolated"},"delivery":{"mode":"none"},
+			"instruction":"同一标识不得换意图","enabled":false
+		}`),
+	)
+	assertAutomationHTTPFailure(
+		t,
+		conflictRecorder,
+		http.StatusConflict,
+		"automation.task_create_conflict",
+		protocol.FailureEffectNotApplied,
+	)
+
+	legacyPayload := []byte(`{
+		"name":"旧页面调用","agent_id":"nexus",
+		"schedule":{"kind":"every","interval_seconds":3600,"timezone":"UTC"},
+		"session_target":{"kind":"isolated"},"delivery":{"mode":"none"},
+		"instruction":"不携带创建标识","enabled":false
+	}`)
+	legacyFirstRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		"/nexus/v1/capability/scheduled/tasks",
+		legacyPayload,
+	)
+	legacySecondRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		"/nexus/v1/capability/scheduled/tasks",
+		legacyPayload,
+	)
+	var legacyFirst, legacySecond struct {
+		Data automationdomain.ScheduledTask `json:"data"`
+	}
+	if err = json.Unmarshal(legacyFirstRecorder.Body.Bytes(), &legacyFirst); err != nil {
+		t.Fatalf("解析旧调用首次响应失败: %v", err)
+	}
+	if err = json.Unmarshal(legacySecondRecorder.Body.Bytes(), &legacySecond); err != nil {
+		t.Fatalf("解析旧调用再次响应失败: %v", err)
+	}
+	if legacyFirst.Data.JobID == "" || legacySecond.Data.JobID == "" ||
+		legacyFirst.Data.JobID == legacySecond.Data.JobID {
+		t.Fatalf("不携带 request_id 的旧调用语义被改变: first=%q second=%q", legacyFirst.Data.JobID, legacySecond.Data.JobID)
+	}
+}
+
+func TestScheduledTaskStatusHTTPUsesOptionalConfigurationVersion(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	handlertest.CloseServer(t, server)
+
+	createRecorder := serveAutomationJSON(t, server, http.MethodPost, "/nexus/v1/capability/scheduled/tasks", []byte(`{
+		"name":"版本栅栏任务","agent_id":"nexus",
+		"schedule":{"kind":"every","interval_seconds":3600,"timezone":"UTC"},
+		"session_target":{"kind":"isolated"},"delivery":{"mode":"none"},
+		"instruction":"验证启停状态","enabled":false
+	}`))
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf("创建任务失败: got=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var created struct {
+		Data automationdomain.ScheduledTask `json:"data"`
+	}
+	if err = json.Unmarshal(createRecorder.Body.Bytes(), &created); err != nil {
+		t.Fatalf("解析创建响应失败: %v", err)
+	}
+	if created.Data.JobID == "" || created.Data.ConfigurationVersion < 1 || created.Data.Enabled {
+		t.Fatalf("创建响应缺少初始版本事实: %+v", created.Data)
+	}
+
+	statusPath := fmt.Sprintf(
+		"/nexus/v1/capability/scheduled/tasks/%s/status",
+		created.Data.JobID,
+	)
+	missingEnabledRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		statusPath,
+		[]byte(`{}`),
+	)
+	assertAutomationHTTPFailure(
+		t,
+		missingEnabledRecorder,
+		http.StatusBadRequest,
+		"automation.task_status_invalid",
+		protocol.FailureEffectNotApplied,
+	)
+	afterMissingRecorder := serveAutomationJSON(t, server, http.MethodGet, statusPath, nil)
+	if afterMissingRecorder.Code != http.StatusOK {
+		t.Fatalf("读取缺少 enabled 后的任务失败: got=%d body=%s", afterMissingRecorder.Code, afterMissingRecorder.Body.String())
+	}
+	var afterMissing struct {
+		Data struct {
+			Job automationdomain.ScheduledTask `json:"job"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(afterMissingRecorder.Body.Bytes(), &afterMissing); err != nil {
+		t.Fatalf("解析缺少 enabled 后的任务失败: %v", err)
+	}
+	if afterMissing.Data.Job.Enabled ||
+		afterMissing.Data.Job.ConfigurationVersion != created.Data.ConfigurationVersion {
+		t.Fatalf("缺少 enabled 不得隐式暂停或推进版本: before=%+v after=%+v", created.Data, afterMissing.Data.Job)
+	}
+
+	enableRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		statusPath,
+		[]byte(fmt.Sprintf(
+			`{"enabled":true,"expected_configuration_version":%d}`,
+			created.Data.ConfigurationVersion,
+		)),
+	)
+	if enableRecorder.Code != http.StatusOK {
+		t.Fatalf("按版本启用任务失败: got=%d body=%s", enableRecorder.Code, enableRecorder.Body.String())
+	}
+	var enabled struct {
+		Data automationdomain.ScheduledTask `json:"data"`
+	}
+	if err = json.Unmarshal(enableRecorder.Body.Bytes(), &enabled); err != nil {
+		t.Fatalf("解析启用响应失败: %v", err)
+	}
+	if !enabled.Data.Enabled || enabled.Data.ConfigurationVersion <= created.Data.ConfigurationVersion {
+		t.Fatalf("启用未推进任务版本: before=%+v after=%+v", created.Data, enabled.Data)
+	}
+
+	staleRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		statusPath,
+		[]byte(fmt.Sprintf(
+			`{"enabled":false,"expected_configuration_version":%d}`,
+			created.Data.ConfigurationVersion,
+		)),
+	)
+	if staleRecorder.Code != http.StatusConflict {
+		t.Fatalf("过期版本应被拒绝: got=%d body=%s", staleRecorder.Code, staleRecorder.Body.String())
+	}
+	var stale struct {
+		Data struct {
+			Failure protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(staleRecorder.Body.Bytes(), &stale); err != nil {
+		t.Fatalf("解析过期版本响应失败: %v", err)
+	}
+	if stale.Data.Failure.Code != "automation.configuration_conflict" ||
+		stale.Data.Failure.Effect != protocol.FailureEffectNotApplied {
+		t.Fatalf("过期版本 FailureCore 不正确: %+v", stale.Data.Failure)
+	}
+
+	getRecorder := serveAutomationJSON(t, server, http.MethodGet, statusPath, nil)
+	if getRecorder.Code != http.StatusOK {
+		t.Fatalf("对账任务状态失败: got=%d body=%s", getRecorder.Code, getRecorder.Body.String())
+	}
+	var current struct {
+		Data struct {
+			Job automationdomain.ScheduledTask `json:"job"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(getRecorder.Body.Bytes(), &current); err != nil {
+		t.Fatalf("解析对账响应失败: %v", err)
+	}
+	if !current.Data.Job.Enabled || current.Data.Job.ConfigurationVersion != enabled.Data.ConfigurationVersion {
+		t.Fatalf("过期请求不应改写已保存状态: enabled=%+v current=%+v", enabled.Data, current.Data.Job)
+	}
+
+	legacyRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPatch,
+		statusPath,
+		[]byte(`{"enabled":false}`),
+	)
+	if legacyRecorder.Code != http.StatusOK {
+		t.Fatalf("旧调用方不携版本仍应兼容: got=%d body=%s", legacyRecorder.Code, legacyRecorder.Body.String())
+	}
+	var legacy struct {
+		Data automationdomain.ScheduledTask `json:"data"`
+	}
+	if err = json.Unmarshal(legacyRecorder.Body.Bytes(), &legacy); err != nil {
+		t.Fatalf("解析兼容更新响应失败: %v", err)
+	}
+	if legacy.Data.Enabled || legacy.Data.ConfigurationVersion <= enabled.Data.ConfigurationVersion {
+		t.Fatalf("旧启停调用没有正常生效: %+v", legacy.Data)
+	}
+
+	deletePath := fmt.Sprintf(
+		"/nexus/v1/capability/scheduled/tasks/%s",
+		created.Data.JobID,
+	)
+	staleDeleteRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodDelete,
+		deletePath,
+		[]byte(fmt.Sprintf(
+			`{"expected_configuration_version":%d}`,
+			enabled.Data.ConfigurationVersion,
+		)),
+	)
+	assertAutomationHTTPFailure(
+		t,
+		staleDeleteRecorder,
+		http.StatusConflict,
+		"automation.delete_configuration_conflict",
+		protocol.FailureEffectNotApplied,
+	)
+	currentDeleteRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodDelete,
+		deletePath,
+		[]byte(fmt.Sprintf(
+			`{"expected_configuration_version":%d}`,
+			legacy.Data.ConfigurationVersion,
+		)),
+	)
+	if currentDeleteRecorder.Code != http.StatusOK {
+		t.Fatalf("按当前版本删除任务失败: got=%d body=%s", currentDeleteRecorder.Code, currentDeleteRecorder.Body.String())
+	}
+}
+
+func TestScheduledTaskDeletionStopConfirmationHTTPIsVersionedAndTokenPrivate(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	handlertest.CloseServer(t, server)
+
+	createRecorder := serveAutomationJSON(t, server, http.MethodPost, "/nexus/v1/capability/scheduled/tasks", []byte(`{
+		"name":"等待停止确认的任务","agent_id":"nexus",
+		"schedule":{"kind":"every","interval_seconds":3600,"timezone":"UTC"},
+		"session_target":{"kind":"isolated"},"delivery":{"mode":"none"},
+		"instruction":"验证停止确认收口","enabled":false
+	}`))
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf("创建任务失败: got=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var created struct {
+		Data automationdomain.ScheduledTask `json:"data"`
+	}
+	if err = json.Unmarshal(createRecorder.Body.Bytes(), &created); err != nil || created.Data.JobID == "" {
+		t.Fatalf("解析创建响应失败: err=%v body=%s", err, createRecorder.Body.String())
+	}
+
+	const privateToken = "server-private-deletion-token"
+	const runID = "review-confirm-http-run"
+	const requestID = "review-confirm-http-request"
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+	if _, err = db.Exec(`UPDATE automation_scheduled_tasks
+SET enabled = 0, next_run_at = NULL, deletion_state = 'review_required',
+    deletion_token = ?, deletion_claimed_at = CURRENT_TIMESTAMP,
+    configuration_version = configuration_version + 1
+WHERE job_id = ?`, privateToken, created.Data.JobID); err != nil {
+		t.Fatalf("准备 review_required 任务失败: %v", err)
+	}
+	var ownerUserID string
+	var reviewVersion int64
+	if err = db.QueryRow(`SELECT owner_user_id, configuration_version
+FROM automation_scheduled_tasks WHERE job_id = ?`, created.Data.JobID).Scan(&ownerUserID, &reviewVersion); err != nil {
+		t.Fatalf("读取 review 快照失败: %v", err)
+	}
+	if _, err = db.Exec(`INSERT INTO automation_task_runs (
+run_id, job_id, owner_user_id, status, trigger_kind, delivery_status, attempts,
+block_state, blocked_request_id, effect_started
+) VALUES (?, ?, ?, 'running', 'scheduled', 'pending', 1, 'awaiting_approval', ?, 1)`,
+		runID, created.Data.JobID, ownerUserID, requestID); err != nil {
+		t.Fatalf("准备活动 run 失败: %v", err)
+	}
+	if _, err = db.Exec(`INSERT INTO automation_permission_requests (
+request_id, owner_user_id, job_id, run_id, policy_revision, kind, status,
+tool_name, effect, input_fingerprint, capability_json, input_summary_json
+) VALUES (?, ?, ?, ?, 1, 'tool', 'pending', 'WebSearch', 'read',
+          'review-confirm-http', '{}', '{}')`,
+		requestID, ownerUserID, created.Data.JobID, runID); err != nil {
+		t.Fatalf("准备待确认权限失败: %v", err)
+	}
+
+	legacyPath := fmt.Sprintf(
+		"/nexus/v1/scheduled/tasks/%s/deletion/confirm-stopped",
+		created.Data.JobID,
+	)
+	missingVersionRecorder := serveAutomationJSON(t, server, http.MethodPost, legacyPath, []byte(`{}`))
+	assertAutomationHTTPFailure(
+		t,
+		missingVersionRecorder,
+		http.StatusBadRequest,
+		"automation.deletion_confirmation_invalid",
+		protocol.FailureEffectNotApplied,
+	)
+
+	capabilityPath := fmt.Sprintf(
+		"/nexus/v1/capability/scheduled/tasks/%s/deletion/confirm-stopped",
+		created.Data.JobID,
+	)
+	staleRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		capabilityPath,
+		[]byte(fmt.Sprintf(`{"expected_configuration_version":%d}`, reviewVersion-1)),
+	)
+	assertAutomationHTTPFailure(
+		t,
+		staleRecorder,
+		http.StatusConflict,
+		"automation.deletion_confirmation_conflict",
+		protocol.FailureEffectNotApplied,
+	)
+
+	confirmRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodPost,
+		capabilityPath,
+		[]byte(fmt.Sprintf(`{"expected_configuration_version":%d}`, reviewVersion)),
+	)
+	if confirmRecorder.Code != http.StatusOK {
+		t.Fatalf("停止确认收口失败: got=%d body=%s", confirmRecorder.Code, confirmRecorder.Body.String())
+	}
+	if strings.Contains(confirmRecorder.Body.String(), privateToken) {
+		t.Fatalf("HTTP 响应泄漏私有 deletion token: %s", confirmRecorder.Body.String())
+	}
+	var confirmed struct {
+		Data automationdomain.DeleteJobResult `json:"data"`
+	}
+	if err = json.Unmarshal(confirmRecorder.Body.Bytes(), &confirmed); err != nil {
+		t.Fatalf("解析停止确认响应失败: %v", err)
+	}
+	if !confirmed.Data.Deleted || !confirmed.Data.CancelledActiveRun ||
+		confirmed.Data.JobID != created.Data.JobID || confirmed.Data.CancelledRunID != runID {
+		t.Fatalf("停止确认响应不完整: %+v", confirmed.Data)
+	}
+
+	var taskCount int
+	if err = db.QueryRow(`SELECT COUNT(1) FROM automation_scheduled_tasks WHERE job_id = ?`, created.Data.JobID).Scan(&taskCount); err != nil || taskCount != 0 {
+		t.Fatalf("任务未删除: count=%d err=%v", taskCount, err)
+	}
+	var runStatus, deliveryStatus, blockState, permissionStatus string
+	var deliveryDeadLetterAt sql.NullTime
+	if err = db.QueryRow(`SELECT status, delivery_status, block_state, delivery_dead_letter_at
+FROM automation_task_runs WHERE run_id = ?`, runID).Scan(
+		&runStatus, &deliveryStatus, &blockState, &deliveryDeadLetterAt,
+	); err != nil {
+		t.Fatalf("读取收口 run 失败: %v", err)
+	}
+	if err = db.QueryRow(`SELECT status FROM automation_permission_requests WHERE request_id = ?`, requestID).Scan(&permissionStatus); err != nil {
+		t.Fatalf("读取收口权限失败: %v", err)
+	}
+	if runStatus != automationdomain.RunStatusCancelled ||
+		deliveryStatus != automationdomain.DeliveryStatusNotAttempted ||
+		blockState != "" || !deliveryDeadLetterAt.Valid ||
+		permissionStatus != automationdomain.PermissionRequestStatusSuperseded {
+		t.Fatalf("停止确认没有原子收口: run=%q delivery=%q block=%q deadletter=%v permission=%q",
+			runStatus, deliveryStatus, blockState, deliveryDeadLetterAt, permissionStatus)
+	}
+	var detailJSON string
+	if err = db.QueryRow(`SELECT detail_json FROM automation_task_events
+WHERE job_id = ? AND action = 'delete' ORDER BY created_at DESC, event_id DESC LIMIT 1`,
+		created.Data.JobID).Scan(&detailJSON); err != nil {
+		t.Fatalf("读取删除审计失败: %v", err)
+	}
+	for _, fact := range []string{
+		`"execution_stop_confirmed_by_owner":true`,
+		`"review_required_finalized":true`,
+		`"external_actions_replayed":false`,
+	} {
+		if !strings.Contains(detailJSON, fact) {
+			t.Fatalf("删除审计缺少 %s: %s", fact, detailJSON)
+		}
+	}
+}
+
+func TestScheduledTaskReadFailuresExposeNotApplicableEffect(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	handlertest.CloseServer(t, server)
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	if _, err = db.Exec(`DROP TABLE automation_permission_requests`); err != nil {
+		t.Fatalf("准备权限列表读失败场景失败: %v", err)
+	}
+	permissionRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodGet,
+		"/nexus/v1/capability/scheduled/permission-requests",
+		nil,
+	)
+	assertAutomationHTTPFailure(
+		t,
+		permissionRecorder,
+		http.StatusInternalServerError,
+		"automation.permission_list_unavailable",
+		protocol.FailureEffectNotApplicable,
+	)
+
+	if _, err = db.Exec(`DROP TABLE automation_scheduled_tasks`); err != nil {
+		t.Fatalf("准备任务列表读失败场景失败: %v", err)
+	}
+	taskRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodGet,
+		"/nexus/v1/capability/scheduled/tasks",
+		nil,
+	)
+	assertAutomationHTTPFailure(
+		t,
+		taskRecorder,
+		http.StatusInternalServerError,
+		"automation.task_list_unavailable",
+		protocol.FailureEffectNotApplicable,
+	)
 }
 
 func TestScheduledTaskHTTPRejectsScriptMutation(t *testing.T) {
@@ -592,6 +1126,36 @@ func serveAutomationJSON(t *testing.T, server *serverapp.Server, method string, 
 	recorder := httptest.NewRecorder()
 	server.Router().ServeHTTP(recorder, request)
 	return recorder
+}
+
+func assertAutomationHTTPFailure(
+	t *testing.T,
+	recorder *httptest.ResponseRecorder,
+	status int,
+	code string,
+	effect protocol.FailureEffect,
+) {
+	t.Helper()
+	if recorder.Code != status {
+		t.Fatalf("失败状态码不正确: got=%d want=%d body=%s", recorder.Code, status, recorder.Body.String())
+	}
+	var response struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Success bool   `json:"success"`
+		Data    struct {
+			Failure protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("解析失败响应失败: %v", err)
+	}
+	if response.Code != fmt.Sprint(status) || response.Message != "failed" || response.Success {
+		t.Fatalf("旧 HTTP envelope 被改变: %+v", response)
+	}
+	if response.Data.Failure.Code != code || response.Data.Failure.Effect != effect {
+		t.Fatalf("FailureCore 不正确: got=%+v want_code=%q want_effect=%q", response.Data.Failure, code, effect)
+	}
 }
 
 func insertHTTPFailedDeliveryRun(t *testing.T, databaseURL string, jobID string, runID string) {

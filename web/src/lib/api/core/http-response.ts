@@ -1,3 +1,7 @@
+// INPUT: HTTP 状态、响应正文与可选 FailureCore。
+// OUTPUT: 用户可读错误正文、结构化 failure 与成功数据；诊断 ID 不拼入用户文案。
+// POS: HTTP 响应解析边界；transport/request identity 只保留在结构化错误对象。
+
 import type { ApiResponse } from "@/types/system/api";
 import type {
   FailureCore,
@@ -60,22 +64,15 @@ export function buildApiErrorMessage(
     return fallback;
   }
 
-  const failure = getApiFailure(payload);
-  // 旧响应继续保留历史文案；新 FailureCore 把诊断 ID 留在 ApiRequestError，
-  // 不把内部关联号混入普通用户的主要错误说明。
-  const requestId = failure === null
-    ? readNestedErrorValue(payload, "request_id")
-    : null;
+  // FailureCore 与旧响应都只返回用户文案；诊断关联号由 ApiRequestError
+  // 单独持有，不能混入普通用户看到的错误说明。
   const candidates = [
     "detail" in payload ? normalizeErrorDetail(payload.detail) : null,
     readNestedErrorValue(payload, "detail"),
     "message" in payload ? normalizeErrorDetail(payload.message) : null,
     fallback,
   ];
-  return appendRequestId(
-    candidates.find((message) => Boolean(message)) ?? fallback,
-    requestId,
-  );
+  return candidates.find((message) => Boolean(message)) ?? fallback;
 }
 
 export function getApiFailure(
@@ -135,7 +132,7 @@ function parseFailureResolution(value: unknown): FailureResolution | null {
 
 function readNestedErrorValue(
   payload: ParsedApiResponse<unknown>,
-  key: "detail" | "request_id",
+  key: "detail",
 ): string | null {
   if (!payload || !("data" in payload)) {
     return null;
@@ -179,8 +176,4 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
     ? value as Record<string, unknown>
     : null;
-}
-
-function appendRequestId(message: string, requestId: string | null): string {
-  return requestId ? `${message}（request_id: ${requestId}）` : message;
 }

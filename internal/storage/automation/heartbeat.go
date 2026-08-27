@@ -1,3 +1,6 @@
+// INPUT: Heartbeat 配置、持久运行时间与可选 configuration_version。
+// OUTPUT: 与 wake acceptance 共用配置事务栅栏的配置写入和纯读取快照。
+// POS: Heartbeat 配置仓储；运行时间写入不推进 configuration_version。
 package automation
 
 import (
@@ -86,19 +89,21 @@ ORDER BY agent_id ASC`)
 
 // UpsertHeartbeatState 创建或更新 heartbeat 配置。
 func (r *Repository) UpsertHeartbeatState(ctx context.Context, stateID string, config automationdomain.HeartbeatConfig, lastHeartbeatAt *time.Time, lastAckAt *time.Time) error {
-	_, err := r.execWithRetry(
-		ctx,
-		r.upsertHeartbeatStateQuery,
-		stateID,
-		config.AgentID,
-		config.Enabled,
-		config.EverySeconds,
-		config.TargetMode,
-		config.AckMaxChars,
-		lastHeartbeatAt,
-		lastAckAt,
-	)
-	return err
+	return r.withHeartbeatConfigurationFence(ctx, config.AgentID, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(
+			ctx,
+			r.upsertHeartbeatStateQuery,
+			stateID,
+			config.AgentID,
+			config.Enabled,
+			config.EverySeconds,
+			config.TargetMode,
+			config.AckMaxChars,
+			lastHeartbeatAt,
+			lastAckAt,
+		)
+		return err
+	})
 }
 
 // UpsertHeartbeatStateAtVersion 以持久版本创建或更新 heartbeat 配置。
@@ -114,14 +119,15 @@ func (r *Repository) UpsertHeartbeatStateAtVersion(
 	if expectedVersion < 0 {
 		return automationdomain.ErrConfigurationVersionConflict
 	}
-	var (
-		result sql.Result
-		err    error
-	)
-	if expectedVersion == 0 {
-		result, err = r.execWithRetry(
-			ctx,
-			`INSERT INTO automation_heartbeat_states (
+	return r.withHeartbeatConfigurationFence(ctx, config.AgentID, func(tx *sql.Tx) error {
+		var (
+			result sql.Result
+			err    error
+		)
+		if expectedVersion == 0 {
+			result, err = tx.ExecContext(
+				ctx,
+				`INSERT INTO automation_heartbeat_states (
     state_id,
     agent_id,
     enabled,
@@ -134,19 +140,19 @@ func (r *Repository) UpsertHeartbeatStateAtVersion(
     updated_at
 ) VALUES (`+r.bindList(8)+`,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
 ON CONFLICT(agent_id) DO NOTHING`,
-			stateID,
-			config.AgentID,
-			config.Enabled,
-			config.EverySeconds,
-			config.TargetMode,
-			config.AckMaxChars,
-			lastHeartbeatAt,
-			lastAckAt,
-		)
-	} else {
-		result, err = r.execWithRetry(
-			ctx,
-			`UPDATE automation_heartbeat_states
+				stateID,
+				config.AgentID,
+				config.Enabled,
+				config.EverySeconds,
+				config.TargetMode,
+				config.AckMaxChars,
+				lastHeartbeatAt,
+				lastAckAt,
+			)
+		} else {
+			result, err = tx.ExecContext(
+				ctx,
+				`UPDATE automation_heartbeat_states
 SET enabled = `+r.bind(1)+`,
     every_seconds = `+r.bind(2)+`,
     target_mode = `+r.bind(3)+`,
@@ -155,25 +161,26 @@ SET enabled = `+r.bind(1)+`,
     updated_at = CURRENT_TIMESTAMP
 WHERE agent_id = `+r.bind(5)+`
   AND configuration_version = `+r.bind(6),
-			config.Enabled,
-			config.EverySeconds,
-			config.TargetMode,
-			config.AckMaxChars,
-			config.AgentID,
-			expectedVersion,
-		)
-	}
-	if err != nil {
-		return err
-	}
-	updated, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if updated != 1 {
-		return automationdomain.ErrConfigurationVersionConflict
-	}
-	return nil
+				config.Enabled,
+				config.EverySeconds,
+				config.TargetMode,
+				config.AckMaxChars,
+				config.AgentID,
+				expectedVersion,
+			)
+		}
+		if err != nil {
+			return err
+		}
+		updated, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if updated != 1 {
+			return automationdomain.ErrConfigurationVersionConflict
+		}
+		return nil
+	})
 }
 
 // PersistHeartbeatRuntimeState 只刷新运行时间，不推进或覆盖配置版本。
@@ -184,17 +191,19 @@ func (r *Repository) PersistHeartbeatRuntimeState(
 	lastHeartbeatAt *time.Time,
 	lastAckAt *time.Time,
 ) error {
-	_, err := r.execWithRetry(
-		ctx,
-		r.persistHeartbeatRuntimeQuery,
-		stateID,
-		config.AgentID,
-		config.Enabled,
-		config.EverySeconds,
-		config.TargetMode,
-		config.AckMaxChars,
-		lastHeartbeatAt,
-		lastAckAt,
-	)
-	return err
+	return r.withHeartbeatConfigurationFence(ctx, config.AgentID, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(
+			ctx,
+			r.persistHeartbeatRuntimeQuery,
+			stateID,
+			config.AgentID,
+			config.Enabled,
+			config.EverySeconds,
+			config.TargetMode,
+			config.AckMaxChars,
+			lastHeartbeatAt,
+			lastAckAt,
+		)
+		return err
+	})
 }

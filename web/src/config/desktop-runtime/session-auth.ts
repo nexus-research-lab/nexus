@@ -10,6 +10,7 @@ import { getDesktopRuntimeConfig, isDesktopRuntime } from "./runtime-config";
 
 const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
 const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
+const DESKTOP_SESSION_TOKEN_INVALID_FAILURE_CODE = "auth.desktop_session_invalid";
 const DESKTOP_SESSION_TOKEN_PROTOCOL_PREFIX = "nexus.desktop.token.";
 const DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX = "nexus:desktop-session-token-reload";
 
@@ -33,8 +34,12 @@ export function applyDesktopRequestHeaders(input: string, headers: Headers): Hea
   return headers;
 }
 
-export function recoverDesktopSessionTokenError(message: string, input: string): boolean {
-  if (!isDesktopSessionTokenError(message)) return false;
+export function recoverDesktopSessionTokenError(
+  message: string,
+  input: string,
+  failureCode?: string | null,
+): boolean {
+  if (!isDesktopSessionTokenError(message, failureCode)) return false;
   const requestPath = desktopRequestPath(input);
   notifyDesktopWebFatal(
     "desktop.session_token_invalid",
@@ -46,8 +51,15 @@ export function recoverDesktopSessionTokenError(message: string, input: string):
   return true;
 }
 
-function isDesktopSessionTokenError(message: string): boolean {
-  return isDesktopRuntime() && message.includes(DESKTOP_SESSION_TOKEN_INVALID_DETAIL);
+function isDesktopSessionTokenError(
+  message: string,
+  failureCode?: string | null,
+): boolean {
+  return isDesktopRuntime() && (
+    failureCode?.trim() === DESKTOP_SESSION_TOKEN_INVALID_FAILURE_CODE
+    // 兼容尚未返回 FailureCore 的旧服务端。
+    || message.includes(DESKTOP_SESSION_TOKEN_INVALID_DETAIL)
+  );
 }
 
 function shouldAttachDesktopSessionToken(input: string): boolean {

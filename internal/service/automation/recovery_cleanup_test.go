@@ -178,6 +178,8 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 	if err = service.repository.MarkRunRunning(context.Background(), runID, startedAt); err != nil {
 		t.Fatalf("预置 running run 失败: %v", err)
 	}
+	completeAttempt := service.registerPhysicalAttempt(runID, roundID)
+	defer completeAttempt()
 	runningJob := *task
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
@@ -319,6 +321,8 @@ func TestDeleteTaskInterruptsActiveRoomRun(t *testing.T) {
 	if err = service.repository.MarkRunRunning(context.Background(), runID, startedAt); err != nil {
 		t.Fatalf("预置 running run 失败: %v", err)
 	}
+	completeAttempt := service.registerPhysicalAttempt(runID, "round-delete-room-active")
+	defer completeAttempt()
 	runningJob := *task
 	runningJob.Running = true
 	runningJob.RunningRunID = runID

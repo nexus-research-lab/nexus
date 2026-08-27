@@ -74,7 +74,7 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	if strings.TrimSpace(job.SessionTarget.Kind) != automationdomain.SessionTargetIsolated {
 		return nil
 	}
-	cleanupCtx := context.WithoutCancel(ctx)
+	cleanupCtx := ctx
 	workspacePath, err := s.resolveAutomationWorkspacePath(cleanupCtx, job.AgentID)
 	if err != nil {
 		return err

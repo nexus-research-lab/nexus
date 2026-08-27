@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Agent、heartbeat 配置 CAS 与手动 wake intent。
+// OUTPUT: 配置状态，或先 durable acceptance 再异步 dispatch 的 wake receipt。
+// POS: Heartbeat 人工控制入口；不持控制锁跨 runtime dispatch。
 package automation
 
 import (
@@ -5,8 +8,8 @@ import (
 	"errors"
 	"strings"
 
-	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 // GetHeartbeatStatus 返回 heartbeat 状态。
@@ -131,9 +134,6 @@ func (s *Service) updateHeartbeat(
 	state.LastHeartbeatAt = cloneTimePointer(persistedHeartbeatAt)
 	state.LastAckAt = cloneTimePointer(persistedAckAt)
 	state.DeliveryError = cloneStringPointer(deliveryError)
-	if !normalized.Enabled {
-		state.PendingWake = false
-	}
 	s.mu.Unlock()
 	s.wakeScheduler()
 	return s.GetHeartbeatStatus(ctx, configValue.AgentID)
@@ -141,7 +141,7 @@ func (s *Service) updateHeartbeat(
 
 // WakeHeartbeat 手动登记一次 heartbeat 唤醒。
 func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request automationdomain.HeartbeatWakeInput) (*automationdomain.HeartbeatWakeResult, error) {
-	return s.wakeHeartbeat(ctx, agentID, request, nil)
+	return s.wakeHeartbeat(ctx, agentID, request, nil, heartbeatWakeIdentity{})
 }
 
 // WakeHeartbeatAtVersion 只按 plan 阶段核对过的 heartbeat 配置登记唤醒。
@@ -151,7 +151,13 @@ func (s *Service) WakeHeartbeatAtVersion(
 	expectedVersion int64,
 	request automationdomain.HeartbeatWakeInput,
 ) (*automationdomain.HeartbeatWakeResult, error) {
-	return s.wakeHeartbeat(ctx, agentID, request, &expectedVersion)
+	return s.wakeHeartbeat(ctx, agentID, request, &expectedVersion, heartbeatWakeIdentity{})
+}
+
+type heartbeatWakeIdentity struct {
+	ownerUserID  string
+	requestID    string
+	intentDigest string
 }
 
 func (s *Service) wakeHeartbeat(
@@ -159,70 +165,70 @@ func (s *Service) wakeHeartbeat(
 	agentID string,
 	request automationdomain.HeartbeatWakeInput,
 	expectedVersion *int64,
+	identity heartbeatWakeIdentity,
 ) (*automationdomain.HeartbeatWakeResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
 	s.heartbeatControlMu.Lock()
-	defer s.heartbeatControlMu.Unlock()
 	targetAgentID := strings.TrimSpace(agentID)
-	if _, err := s.requireAgent(ctx, targetAgentID); err != nil {
+	agentValue, err := s.requireAgent(ctx, targetAgentID)
+	if err != nil {
+		s.heartbeatControlMu.Unlock()
 		return nil, err
+	}
+	identity.ownerUserID = strings.TrimSpace(identity.ownerUserID)
+	identity.requestID = strings.TrimSpace(identity.requestID)
+	identity.intentDigest = strings.TrimSpace(identity.intentDigest)
+	ownerUserID, scoped := scopedOwnerUserID(ctx)
+	if identity.ownerUserID == "" {
+		identity.ownerUserID = strings.TrimSpace(ownerUserID)
+	} else if scoped && strings.TrimSpace(ownerUserID) != identity.ownerUserID {
+		s.heartbeatControlMu.Unlock()
+		return nil, automationdomain.ErrHeartbeatWakeRequestConflict
+	}
+	if agentValue != nil && identity.ownerUserID != "" &&
+		strings.TrimSpace(agentValue.OwnerUserID) != identity.ownerUserID {
+		s.heartbeatControlMu.Unlock()
+		return nil, automationdomain.ErrHeartbeatWakeRequestConflict
 	}
 	mode := strings.TrimSpace(request.Mode)
 	if mode == "" {
 		mode = automationdomain.WakeModeNow
 	}
 	if mode != automationdomain.WakeModeNow && mode != automationdomain.WakeModeNextHeartbeat {
+		s.heartbeatControlMu.Unlock()
 		return nil, errors.New("mode must be one of now, next-heartbeat")
 	}
 
 	state, err := s.ensureHeartbeatState(ctx, targetAgentID)
 	if err != nil {
+		s.heartbeatControlMu.Unlock()
 		return nil, err
 	}
-	s.mu.Lock()
-	currentVersion := state.Config.ConfigurationVersion
-	s.mu.Unlock()
-	if expectedVersion != nil &&
-		(*expectedVersion < 0 || currentVersion != *expectedVersion) {
-		return nil, automationdomain.ErrConfigurationVersionConflict
+	accepted, err := s.repository.AcceptHeartbeatWake(ctx, automationstore.HeartbeatWakeAcceptanceInput{
+		EventID: s.idFactory("evt"), AgentID: targetAgentID,
+		OwnerUserID: identity.ownerUserID, RequestID: identity.requestID,
+		IntentDigest: identity.intentDigest, Mode: mode, Text: request.Text,
+		ExpectedConfigurationVersion: expectedVersion, AcceptedAt: s.nowFn(),
+	})
+	if err != nil {
+		s.heartbeatControlMu.Unlock()
+		return nil, err
 	}
-	if request.Text != nil && strings.TrimSpace(*request.Text) != "" {
-		if err = s.repository.InsertSystemEvent(
-			ctx,
-			s.idFactory("evt"),
-			"heartbeat.wake",
-			"heartbeat",
-			targetAgentID,
-			map[string]any{
-				"agent_id":  targetAgentID,
-				"text":      strings.TrimSpace(*request.Text),
-				"wake_mode": mode,
-			},
-		); err != nil {
-			return nil, err
-		}
-	}
-	sessionKey := automationexec.BuildMainSessionKey(targetAgentID)
-	s.recordWakeRequest(targetAgentID, sessionKey, mode, request.Text)
 
 	s.mu.Lock()
-	switch mode {
-	case automationdomain.WakeModeNow:
-		if state.Running {
-			state.PendingWake = true
-			s.mu.Unlock()
-			return &automationdomain.HeartbeatWakeResult{AgentID: targetAgentID, Mode: mode, Scheduled: true}, nil
-		}
-		state.PendingWake = true
-		s.mu.Unlock()
-		s.dispatchHeartbeat(targetAgentID, "wake-now")
-		return &automationdomain.HeartbeatWakeResult{AgentID: targetAgentID, Mode: mode, Scheduled: true}, nil
-	default:
-		state.PendingWake = true
-		s.mu.Unlock()
-		s.wakeScheduler()
-		return &automationdomain.HeartbeatWakeResult{AgentID: targetAgentID, Mode: mode, Scheduled: false}, nil
+	state.PendingWake = accepted.Event.Status == "new" || accepted.Event.Status == "processing"
+	running := state.Running
+	s.mu.Unlock()
+	s.heartbeatControlMu.Unlock()
+
+	s.wakeScheduler()
+	result := &automationdomain.HeartbeatWakeResult{
+		AgentID: targetAgentID, Mode: mode, Scheduled: mode == automationdomain.WakeModeNow,
 	}
+	if !accepted.Replayed && mode == automationdomain.WakeModeNow && !running {
+		s.dispatchHeartbeat(targetAgentID, "wake-now")
+	}
+	return result, nil
 }

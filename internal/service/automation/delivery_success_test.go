@@ -94,7 +94,8 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].Status == automationdomain.RunStatusSucceeded
+		return items[0].Status == automationdomain.RunStatusSucceeded &&
+			items[0].DeliveryStatus == automationdomain.DeliveryStatusSucceeded
 	})
 
 	sessionValue, _, err := store.FindSession([]string{workspacePath}, sessionKey)
@@ -120,8 +121,9 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 run artifact 失败: %v", err)
 	}
-	if !strings.Contains(string(artifact), "Delivery Target: explicit:websocket:"+sessionKey) {
-		t.Fatalf("run artifact 应记录实际投递目标: %s", string(artifact))
+	if !strings.Contains(string(artifact), "Delivery Status At Completion: pending") ||
+		!strings.Contains(string(artifact), "Frozen Delivery Target: last") {
+		t.Fatalf("run artifact 应记录外投前的 durable pending 与冻结目标，最终结果以 run ledger 为准: %s", string(artifact))
 	}
 }
 

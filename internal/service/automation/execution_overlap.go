@@ -14,7 +14,9 @@ func (s *Service) resultForExternallyClaimedJob(
 	job automationdomain.ScheduledTask,
 	scheduledFor time.Time,
 ) (*automationdomain.ExecutionResult, error) {
-	current, err := s.repository.GetScheduledTask(ctx, "", strings.TrimSpace(job.JobID))
+	current, err := s.repository.GetScheduledTask(
+		ctx, strings.TrimSpace(job.OwnerUserID), strings.TrimSpace(job.JobID),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -58,26 +60,13 @@ func (s *Service) recordSkippedOverlap(
 ) (*automationdomain.ExecutionResult, error) {
 	runID := s.idFactory("run")
 	message := "previous run is still running; overlap_policy=skip"
-	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
-		RunID:          runID,
-		JobID:          job.JobID,
-		OwnerUserID:    job.OwnerUserID,
-		ScheduledFor:   &scheduledFor,
-		TriggerKind:    triggerKind,
-		DeliveryMode:   strings.TrimSpace(job.Delivery.Mode),
-		DeliveryTo:     deliveryTargetSummary(job.Delivery),
-		DeliveryTarget: cloneDeliveryTargetPointer(job.Delivery),
-		Status:         automationdomain.RunStatusSkipped,
-	}); err != nil {
+	finishedAt := s.nowFn()
+	runInput := skippedOverlapRunInput(
+		job, triggerKind, scheduledFor, runID, finishedAt, manualRunIdentity{},
+	)
+	if err := s.repository.InsertRunPending(ctx, runInput); err != nil {
 		return nil, err
 	}
-	finishedAt := s.nowFn()
-	_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
-		RunID:        runID,
-		Status:       automationdomain.RunStatusSkipped,
-		FinishedAt:   finishedAt,
-		ErrorMessage: &message,
-	})
 	if triggerKind == automationdomain.TriggerKindScheduled {
 		if persistRuntime {
 			s.advanceJobRuntimeAfterTrigger(job.JobID, scheduledFor)
@@ -92,4 +81,25 @@ func (s *Service) recordSkippedOverlap(
 		ScheduledFor: cloneTimePointer(&scheduledFor),
 		ErrorMessage: &message,
 	}, nil
+}
+
+func skippedOverlapRunInput(
+	job automationdomain.ScheduledTask,
+	triggerKind string,
+	scheduledFor time.Time,
+	runID string,
+	finishedAt time.Time,
+	request manualRunIdentity,
+) automationstore.RunPendingInput {
+	message := "previous run is still running; overlap_policy=skip"
+	return automationstore.RunPendingInput{
+		RunID: runID, JobID: job.JobID, OwnerUserID: job.OwnerUserID,
+		ScheduledFor: &scheduledFor, TriggerKind: triggerKind,
+		DeliveryMode: strings.TrimSpace(job.Delivery.Mode), DeliveryTo: deliveryTargetSummary(job.Delivery),
+		DeliveryTarget: cloneDeliveryTargetPointer(job.Delivery), Status: automationdomain.RunStatusSkipped,
+		DeliveryStatus: automationdomain.DeliveryStatusNotAttempted,
+		FinishedAt:     &finishedAt, ErrorMessage: &message,
+		PermissionPolicyRevision: job.PermissionPolicy.Revision,
+		ClientRequestID:          strings.TrimSpace(request.RequestID), IntentDigest: strings.TrimSpace(request.IntentDigest),
+	}
 }

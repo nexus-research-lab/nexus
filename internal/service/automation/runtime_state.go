@@ -1,5 +1,5 @@
 // INPUT: 持久化任务定义、调度执行结果与并发运行态读写。
-// OUTPUT: 锁内维护的任务运行态、持久化快照与对外任务视图。
+// OUTPUT: 锁内维护的任务运行态、无持久化副作用的任务投影与显式运行态快照。
 // POS: scheduled task 配置与易变运行态之间的并发安全投影层。
 package automation
 
@@ -16,6 +16,11 @@ import (
 func (s *Service) ensureJobState(job automationdomain.ScheduledTask) *automationexec.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
+	if state != nil && job.ConfigurationVersion > 0 &&
+		state.Job.ConfigurationVersion > job.ConfigurationVersion {
+		s.mu.Unlock()
+		return state
+	}
 	created := state == nil
 	if state == nil {
 		state = &automationexec.JobRuntimeState{}
@@ -44,17 +49,10 @@ func (s *Service) ensureJobState(job automationdomain.ScheduledTask) *automation
 	if state.NextRunAt == nil || !job.Enabled {
 		state.NextRunAt = s.computeJobNext(job, s.nowFn())
 	}
-	// 启动期发现 at-kind 已过期且仍处于启用态时，主动落库为停用，避免反复检查空 NextRunAt 浪费循环。
-	shouldDisable := job.Enabled &&
-		strings.EqualFold(job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
-		state.NextRunAt == nil
-	jobSnapshot := state.Job
 	s.mu.Unlock()
 
-	if shouldDisable {
-		s.disableExpiredJobAsync(jobSnapshot)
-	}
-	s.wakeScheduler()
+	// 这里只更新内存投影；持久写与 scheduler 唤醒均由显式 mutation、
+	// runtime 持久化或 scheduler 入口负责，List/Get 不产生控制面副作用。
 	return state
 }
 
@@ -82,18 +80,10 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 	naturalNext := s.naturalNextRunAt(state, now)
 	applyFinishedRunOutcome(state, status, now, naturalNext)
 
-	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
-	shouldDisable := state.Job.Enabled &&
-		strings.EqualFold(state.Job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
-		state.NextRunAt == nil
-	jobSnapshot := state.Job
 	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
 	s.mu.Unlock()
 
 	s.persistJobRuntime(context.Background(), runtimeSnapshot)
-	if shouldDisable {
-		s.disableExpiredJobAsync(jobSnapshot)
-	}
 	if len(deliveryStatuses) > 0 &&
 		strings.TrimSpace(deliveryStatuses[0]) == automationdomain.DeliveryStatusFailed {
 		s.invalidateDeliveryRetryDeadline()
@@ -164,19 +154,6 @@ func applyFinishedRunOutcome(
 	}
 }
 
-func (s *Service) updateJobLastDeliveryStatus(job automationdomain.ScheduledTask, deliveryStatus string) {
-	status := strings.TrimSpace(deliveryStatus)
-	if status == "" {
-		return
-	}
-	state := s.ensureJobState(job)
-	s.mu.Lock()
-	state.LastDeliveryStatus = status
-	runtimeSnapshot := jobRuntimeUpdateFromState(job.JobID, state)
-	s.mu.Unlock()
-	s.persistJobRuntime(context.Background(), runtimeSnapshot)
-}
-
 func (s *Service) advanceJobRuntimeAfterTrigger(jobID string, scheduledFor time.Time) {
 	s.advanceJobRuntimeAfterTriggerWithPersistence(jobID, scheduledFor, true)
 }
@@ -196,22 +173,29 @@ func (s *Service) advanceJobRuntimeAfterTriggerWithPersistence(jobID string, sch
 	state.LastRunStatus = automationdomain.RunStatusSkipped
 	// 避免允许并发或跳过重叠时，同一个 due tick 被下一秒反复触发。
 	state.NextRunAt = s.computeJobNext(state.Job, scheduledFor.UTC().Add(time.Second))
-	shouldDisable := state.Job.Enabled &&
-		strings.EqualFold(state.Job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
-		state.NextRunAt == nil
-	jobSnapshot := state.Job
 	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
 	s.mu.Unlock()
 
 	if persist {
 		s.persistJobRuntime(context.Background(), runtimeSnapshot)
 	}
-	if persist && shouldDisable {
-		s.disableExpiredJobAsync(jobSnapshot)
-	}
+	s.wakeScheduler()
 }
 
 func (s *Service) replaceJobRuntimeState(job automationdomain.ScheduledTask) *automationexec.JobRuntimeState {
+	return s.replaceJobRuntimeStateWithPersistence(job, true)
+}
+
+// replacePersistedJobRuntimeState 只更新内存镜像；调用方已经在同一领域事务中
+// 提交了 runtime，不能再追加一次会吞错的重复写入。
+func (s *Service) replacePersistedJobRuntimeState(job automationdomain.ScheduledTask) *automationexec.JobRuntimeState {
+	return s.replaceJobRuntimeStateWithPersistence(job, false)
+}
+
+func (s *Service) replaceJobRuntimeStateWithPersistence(
+	job automationdomain.ScheduledTask,
+	persist bool,
+) *automationexec.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	if state == nil {
@@ -238,7 +222,9 @@ func (s *Service) replaceJobRuntimeState(job automationdomain.ScheduledTask) *au
 	runtimeSnapshot := jobRuntimeUpdateFromState(job.JobID, state)
 	s.mu.Unlock()
 
-	s.persistJobRuntime(context.Background(), runtimeSnapshot)
+	if persist {
+		s.persistJobRuntime(context.Background(), runtimeSnapshot)
+	}
 	s.wakeScheduler()
 	return state
 }
@@ -253,6 +239,9 @@ func (s *Service) persistJobRuntime(ctx context.Context, input automationstore.J
 			"err", err,
 		)
 	}
+	// Notify 是有界合并信号；把它放在真实 runtime mutation 后，查询投影便
+	// 不需要借唤醒 scheduler 间接触发配置写入。
+	s.wakeScheduler()
 }
 
 func (s *Service) setJobPermissionState(jobID string, permissionState string, requestID string) {
@@ -272,28 +261,91 @@ func (s *Service) pauseJobRuntimeForPermission(
 	permissionState string,
 	reason *string,
 ) {
+	s.ensureJobState(job)
 	s.mu.Lock()
 	state := s.jobStates[strings.TrimSpace(job.JobID)]
 	if state == nil {
-		state = &automationexec.JobRuntimeState{Job: job}
-		s.jobStates[job.JobID] = state
+		s.mu.Unlock()
+		return
 	}
-	if strings.TrimSpace(state.RunningRunID) == strings.TrimSpace(runID) {
-		if state.RunningCount > 0 {
-			state.RunningCount--
-		}
-		state.Running = state.RunningCount > 0
-		if !state.Running {
-			state.RunningRunID = ""
-			state.RunningStartedAt = nil
-		}
+	currentRunID := strings.TrimSpace(state.RunningRunID)
+	expectedRunID := strings.TrimSpace(runID)
+	if currentRunID != expectedRunID {
+		s.mu.Unlock()
+		return
 	}
-	state.LastRunStatus = strings.TrimSpace(permissionState)
-	state.LastError = cloneStringPointer(reason)
-	state.Job.PermissionState = strings.TrimSpace(permissionState)
-	runtimeSnapshot := jobRuntimeUpdateFromState(job.JobID, state)
+	desiredRunningCount := state.RunningCount
+	if desiredRunningCount > 0 {
+		desiredRunningCount--
+	}
+	desiredRunning := desiredRunningCount > 0
+	desiredRunningRunID := currentRunID
+	desiredRunningStartedAt := cloneTimePointer(state.RunningStartedAt)
+	if !desiredRunning {
+		desiredRunningRunID = ""
+		desiredRunningStartedAt = nil
+	}
+	desiredLastRunStatus := strings.TrimSpace(permissionState)
+	desiredLastError := cloneStringPointer(reason)
 	s.mu.Unlock()
-	s.persistJobRuntime(context.Background(), runtimeSnapshot)
+
+	updated, err := s.repository.PauseScheduledTaskRuntimeForPermission(
+		backgroundContextForJobOwner(job),
+		automationstore.JobRuntimePermissionPauseInput{
+			OwnerUserID:          job.OwnerUserID,
+			JobID:                job.JobID,
+			ExpectedRunID:        expectedRunID,
+			NextRunningRunID:     desiredRunningRunID,
+			NextRunningStartedAt: desiredRunningStartedAt,
+			LastRunStatus:        desiredLastRunStatus,
+			LastError:            desiredLastError,
+		},
+	)
+	if err == nil && updated {
+		s.mu.Lock()
+		state = s.jobStates[strings.TrimSpace(job.JobID)]
+		if state != nil && strings.TrimSpace(state.RunningRunID) == expectedRunID {
+			state.RunningCount = desiredRunningCount
+			state.Running = desiredRunning
+			state.RunningRunID = desiredRunningRunID
+			state.RunningStartedAt = cloneTimePointer(desiredRunningStartedAt)
+			state.LastRunStatus = desiredLastRunStatus
+			state.LastError = cloneStringPointer(desiredLastError)
+			state.Job.PermissionState = desiredLastRunStatus
+		}
+		s.mu.Unlock()
+		s.wakeScheduler()
+		return
+	}
+	if err != nil {
+		s.loggerFor(context.Background()).Warn(
+			"持久化权限暂停运行态失败",
+			"job_id", job.JobID,
+			"run_id", expectedRunID,
+			"err", err,
+		)
+	}
+	current, loadErr := s.repository.GetScheduledTask(
+		backgroundContextForJobOwner(job),
+		job.OwnerUserID,
+		job.JobID,
+	)
+	if loadErr != nil {
+		s.loggerFor(context.Background()).Warn(
+			"刷新权限暂停冲突后的任务运行态失败",
+			"job_id", job.JobID,
+			"run_id", expectedRunID,
+			"err", loadErr,
+		)
+		return
+	}
+	if current == nil {
+		s.mu.Lock()
+		delete(s.jobStates, job.JobID)
+		s.mu.Unlock()
+		return
+	}
+	s.replacePersistedJobRuntimeState(*current)
 }
 
 func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeState) automationstore.JobRuntimeUpdateInput {
@@ -307,6 +359,20 @@ func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeSta
 		FailureStreak:      state.FailureStreak,
 		LastError:          cloneStringPointer(state.LastError),
 		LastDeliveryStatus: strings.TrimSpace(state.LastDeliveryStatus),
+	}
+}
+
+func jobRuntimeUpdateFromTask(job automationdomain.ScheduledTask) automationstore.JobRuntimeUpdateInput {
+	return automationstore.JobRuntimeUpdateInput{
+		JobID:              strings.TrimSpace(job.JobID),
+		NextRunAt:          cloneTimePointer(job.NextRunAt),
+		RunningRunID:       strings.TrimSpace(job.RunningRunID),
+		RunningStartedAt:   cloneTimePointer(job.RunningStartedAt),
+		LastRunAt:          cloneTimePointer(job.LastRunAt),
+		LastRunStatus:      strings.TrimSpace(job.LastRunStatus),
+		FailureStreak:      job.FailureStreak,
+		LastError:          cloneStringPointer(job.LastError),
+		LastDeliveryStatus: strings.TrimSpace(job.LastDeliveryStatus),
 	}
 }
 
@@ -376,30 +442,4 @@ func anyIntPointer(value *int) int {
 		return 0
 	}
 	return *value
-}
-
-func (s *Service) disableExpiredJobAsync(job automationdomain.ScheduledTask) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		updated := job
-		updated.Enabled = false
-		if _, err := s.repository.UpsertScheduledTask(context.Background(), updated); err != nil {
-			s.loggerFor(context.Background()).Warn("at 任务到期自动停用失败",
-				"job_id", job.JobID,
-				"agent_id", job.AgentID,
-				"err", err,
-			)
-			return
-		}
-		s.mu.Lock()
-		if state := s.jobStates[job.JobID]; state != nil {
-			state.Job.Enabled = false
-		}
-		s.mu.Unlock()
-		s.loggerFor(context.Background()).Info("at 任务到期已自动停用",
-			"job_id", job.JobID,
-			"agent_id", job.AgentID,
-		)
-	}()
 }

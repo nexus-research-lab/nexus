@@ -3,8 +3,10 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -245,6 +247,73 @@ func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 	}
 	if !strings.Contains(string(artifactContent), "automation-script-output") {
 		t.Fatalf("脚本运行产物缺少输出: %s", string(artifactContent))
+	}
+}
+
+func TestDeleteTaskCancelsActiveScriptBeforeFinalizing(t *testing.T) {
+	db := newAutomationTestDB(t)
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath, AppMode: "desktop"},
+		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
+	)
+	startedName := "delete-script-started"
+	sideEffectName := "delete-script-side-effect"
+	// The delayed write is performed by a background pipeline, not the shell
+	// itself. Killing only /bin/sh would let that child outlive deletion.
+	script := "touch " + startedName + "; (sleep 1; touch " + sideEffectName + ") | cat >/dev/null & wait"
+	if runtime.GOOS == "windows" {
+		script = "echo started>" + startedName + " & timeout /T 2 /NOBREAK >NUL & echo side-effect>" + sideEffectName
+	}
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name: "cancel active script", AgentID: "agent-1", Instruction: script,
+		ExecutionKind: automationdomain.ExecutionKindScript,
+		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(3600), Timezone: "UTC"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(): %v", err)
+	}
+	result, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil || result == nil || result.RunID == nil {
+		t.Fatalf("RunTaskNow(): result=%+v err=%v", result, err)
+	}
+	startedPath := filepath.Join(workspacePath, startedName)
+	sideEffectPath := filepath.Join(workspacePath, sideEffectName)
+	waitFor(t, 2*time.Second, func() bool {
+		_, statErr := os.Stat(startedPath)
+		return statErr == nil
+	})
+	deleted, err := service.DeleteTaskAtVersion(context.Background(), task.JobID, task.ConfigurationVersion)
+	if err != nil {
+		if !TaskDeletionPrepared(err) || !errors.Is(err, ErrExecutionAttemptOwnershipUnconfirmed) {
+			t.Fatalf("unconfirmed process-tree cancellation must require review: %v", err)
+		}
+		claimed, loadErr := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+		if loadErr != nil || claimed == nil || claimed.DeletionState != automationdomain.TaskDeletionStateReviewRequired {
+			t.Fatalf("uncertain cancellation must retain review claim: task=%+v err=%v", claimed, loadErr)
+		}
+		waitDuration := 1200 * time.Millisecond
+		if runtime.GOOS == "windows" {
+			waitDuration = 2200 * time.Millisecond
+		}
+		time.Sleep(waitDuration)
+		if _, statErr := os.Stat(sideEffectPath); !os.IsNotExist(statErr) {
+			t.Fatalf("cancelled process-tree child continued side effects: stat err=%v", statErr)
+		}
+		return
+	}
+	if deleted == nil || !deleted.CancelledActiveRun || deleted.CancelledRunID != *result.RunID {
+		t.Fatalf("delete result lost the script run stopped by cleanup: %+v", deleted)
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if _, statErr := os.Stat(sideEffectPath); !os.IsNotExist(statErr) {
+		t.Fatalf("script continued side effects after delete: stat err=%v", statErr)
+	}
+	run, err := service.repository.GetRun(context.Background(), task.OwnerUserID, task.JobID, *result.RunID)
+	if err != nil || run == nil || run.Status != automationdomain.RunStatusCancelled {
+		t.Fatalf("deleted script run was not durably cancelled: run=%+v err=%v", run, err)
 	}
 }
 

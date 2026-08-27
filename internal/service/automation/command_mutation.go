@@ -268,7 +268,12 @@ func (s *Service) ApplyRuntimeCommand(
 		if scopeErr != nil {
 			return nil, scopeErr
 		}
-		result.Data, err = s.RunTaskNowAtVersion(ctx, scope.JobID, plan.ObservedConfigurationVersion)
+		result.Data, err = s.runTaskNow(
+			ctx,
+			scope.JobID,
+			&plan.ObservedConfigurationVersion,
+			manualRunIdentity{RequestID: request.RequestID, IntentDigest: intentDigest},
+		)
 	case automationdomain.AutomationCommandOperationRetryDelivery:
 		scope, scopeErr := s.runtimeCommandTaskScope(ctx, actor, plan.Input, true)
 		if scopeErr != nil {
@@ -291,11 +296,14 @@ func (s *Service) ApplyRuntimeCommand(
 		if statusErr != nil {
 			return nil, statusErr
 		}
-		result.Data, err = s.WakeHeartbeatAtVersion(
+		result.Data, err = s.wakeHeartbeat(
 			ctx,
 			plan.Target,
-			plan.ObservedConfigurationVersion,
 			automationdomain.HeartbeatWakeInput{Mode: strings.TrimSpace(plan.Input.Mode), Text: commandOptionalString(plan.Input.Text)},
+			&plan.ObservedConfigurationVersion,
+			heartbeatWakeIdentity{
+				ownerUserID: actor.OwnerUserID, requestID: request.RequestID, intentDigest: intentDigest,
+			},
 		)
 	default:
 		return nil, fmt.Errorf("未知 Automation apply operation %q", plan.Operation)
@@ -355,7 +363,70 @@ func (s *Service) ReplayRuntimeCommand(
 		return nil, false, automationdomain.ErrRuntimeCommandConflict
 	}
 	if record.Status != "applied" {
-		return nil, false, automationdomain.ErrRuntimeCommandUncertain
+		if record.Operation == automationdomain.AutomationCommandOperationRun {
+			run, found, runErr := s.repository.GetRunByClientRequest(
+				ctx, actor.OwnerUserID, "", request.RequestID, intentDigest,
+			)
+			if runErr != nil {
+				return nil, false, runErr
+			}
+			if !found {
+				return nil, false, automationdomain.ErrRuntimeCommandUncertain
+			}
+			runResult := executionResultFromRun(*run, false)
+			encoded, encodeErr := json.Marshal(runResult)
+			if encodeErr != nil {
+				return nil, false, encodeErr
+			}
+			if err = s.repository.CompleteRuntimeCommandFromRun(
+				ctx, actor.OwnerUserID, request.RequestID, intentDigest, string(encoded),
+			); err != nil {
+				return nil, false, err
+			}
+			return &automationdomain.AutomationCommandApplyResult{
+				Operation: record.Operation, Outcome: "replayed", Data: runResult,
+			}, true, nil
+		}
+		if record.Operation != automationdomain.AutomationCommandOperationWake {
+			return nil, false, automationdomain.ErrRuntimeCommandUncertain
+		}
+		wake, wakeErr := s.repository.GetHeartbeatWakeByRequest(ctx, actor.OwnerUserID, request.RequestID)
+		if errors.Is(wakeErr, sql.ErrNoRows) {
+			return nil, false, automationdomain.ErrRuntimeCommandUncertain
+		}
+		if wakeErr != nil {
+			return nil, false, wakeErr
+		}
+		expectedAgentID, agentErr := runtimeCommandAgentID(actor, request.Input.AgentID)
+		if agentErr != nil {
+			return nil, false, agentErr
+		}
+		if wake.IntentDigest != intentDigest || wake.SourceID != expectedAgentID {
+			return nil, false, automationdomain.ErrRuntimeCommandConflict
+		}
+		var wakePayload struct {
+			Mode string `json:"wake_mode"`
+		}
+		if err = json.Unmarshal([]byte(wake.Payload), &wakePayload); err != nil {
+			return nil, false, automationdomain.ErrRuntimeCommandUncertain
+		}
+		wakeResult := &automationdomain.HeartbeatWakeResult{
+			AgentID:   strings.TrimSpace(wake.SourceID),
+			Mode:      strings.TrimSpace(wakePayload.Mode),
+			Scheduled: strings.TrimSpace(wakePayload.Mode) == automationdomain.WakeModeNow,
+		}
+		encoded, encodeErr := json.Marshal(wakeResult)
+		if encodeErr != nil {
+			return nil, false, encodeErr
+		}
+		if err = s.repository.CompleteRuntimeCommandFromHeartbeatWake(
+			ctx, actor.OwnerUserID, request.RequestID, intentDigest, string(encoded),
+		); err != nil {
+			return nil, false, err
+		}
+		return &automationdomain.AutomationCommandApplyResult{
+			Operation: record.Operation, Outcome: "replayed", Data: wakeResult,
+		}, true, nil
 	}
 	data, err := decodeRuntimeAutomationCommandResult(record.Operation, record.ResultJSON)
 	if err != nil {

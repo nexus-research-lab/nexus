@@ -10,8 +10,31 @@ import (
 
 type requestIDContextKey struct{}
 
+const maxDiagnosticRequestIDLength = 128
+
+func normalizeDiagnosticRequestID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > maxDiagnosticRequestIDLength {
+		return ""
+	}
+	for _, character := range value {
+		if (character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') {
+			continue
+		}
+		switch character {
+		case '-', '_', '.', ':':
+			continue
+		default:
+			return ""
+		}
+	}
+	return value
+}
+
 func withRequestID(ctx context.Context, requestID string) context.Context {
-	requestID = strings.TrimSpace(requestID)
+	requestID = normalizeDiagnosticRequestID(requestID)
 	if requestID == "" {
 		return ctx
 	}

@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -270,19 +271,231 @@ func TestSchedulerDisablesExpiredTaskWithoutInterruptingExecution(t *testing.T) 
 	if current.Enabled || current.NextRunAt != nil {
 		t.Fatalf("过期任务应停用并清除下一次执行时间: %+v", current)
 	}
+	if current.ConfigurationVersion != task.ConfigurationVersion+1 {
+		t.Fatalf("自动停用应只推进一次配置版本: got=%d want=%d", current.ConfigurationVersion, task.ConfigurationVersion+1)
+	}
+	if current.Name != task.Name || current.Instruction != task.Instruction ||
+		!sameSchedule(current.Schedule, task.Schedule) {
+		t.Fatalf("自动停用不应改写其他任务配置: before=%+v after=%+v", task, current)
+	}
+	changed, err := service.repository.DisableScheduledTaskAtVersion(
+		context.Background(),
+		task.OwnerUserID,
+		task.JobID,
+		task.ConfigurationVersion,
+	)
+	if err != nil || changed {
+		t.Fatalf("重复提交同一停用意图应幂等: changed=%v err=%v", changed, err)
+	}
 	events, err := service.ListTaskEvents(context.Background(), task.JobID, 10)
 	if err != nil {
 		t.Fatalf("ListTaskEvents 失败: %v", err)
 	}
-	foundExpire := false
+	expireCount := 0
 	for _, event := range events {
 		if event.Action == automationdomain.TaskEventActionExpire {
-			foundExpire = true
+			expireCount++
+		}
+	}
+	if expireCount != 1 {
+		t.Fatalf("应记录 expire 审计事件: %+v", events)
+	}
+
+	service.runDueOnce()
+	repeated, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil {
+		t.Fatalf("重复调度后读取任务失败: %v", err)
+	}
+	if repeated == nil || repeated.ConfigurationVersion != current.ConfigurationVersion {
+		t.Fatalf("重复调度不应再次推进版本: before=%+v after=%+v", current, repeated)
+	}
+	repeatedEvents, err := service.ListTaskEvents(context.Background(), task.JobID, 10)
+	if err != nil {
+		t.Fatalf("重复调度后读取事件失败: %v", err)
+	}
+	repeatedExpireCount := 0
+	for _, event := range repeatedEvents {
+		if event.Action == automationdomain.TaskEventActionExpire {
+			repeatedExpireCount++
+		}
+	}
+	if repeatedExpireCount != 1 {
+		t.Fatalf("重复调度不应重复记录自动停用: %+v", repeatedEvents)
+	}
+}
+
+func TestScheduledTaskReadsDoNotPersistPastOneShotDisable(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
+	)
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	runAt := now.Add(time.Minute)
+	input := schedulerPolicyTaskInput("只读的一次性任务", true)
+	runAtText := runAt.Format(time.RFC3339)
+	input.Schedule = automationdomain.Schedule{
+		Kind:     automationdomain.ScheduleKindAt,
+		RunAt:    &runAtText,
+		Timezone: "UTC",
+	}
+	task, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+	if _, err = db.ExecContext(
+		context.Background(),
+		"UPDATE automation_scheduled_tasks SET next_run_at = NULL WHERE job_id = ?",
+		task.JobID,
+	); err != nil {
+		t.Fatalf("准备无 next_run_at 的持久快照失败: %v", err)
+	}
+	service.mu.Lock()
+	delete(service.jobStates, task.JobID)
+	service.mu.Unlock()
+	now = runAt.Add(time.Second)
+
+	before, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || before == nil {
+		t.Fatalf("读取测试前快照失败: task=%+v err=%v", before, err)
+	}
+	if _, err = service.ListTasks(context.Background(), ""); err != nil {
+		t.Fatalf("ListTasks 失败: %v", err)
+	}
+	if _, err = service.GetTask(context.Background(), task.JobID); err != nil {
+		t.Fatalf("GetTask 失败: %v", err)
+	}
+	// 旧实现会在读取返回前登记异步整行 Upsert；等待后台任务可稳定捕获该回归。
+	service.wg.Wait()
+	after, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || after == nil {
+		t.Fatalf("读取测试后快照失败: task=%+v err=%v", after, err)
+	}
+	if !after.Enabled || after.ConfigurationVersion != before.ConfigurationVersion {
+		t.Fatalf("List/Get 只能投影，不能停用或推进版本: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestScheduledTaskDisableCASPreservesConcurrentConfiguration(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
+	)
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	expiresAt := now.Add(time.Minute)
+	input := schedulerPolicyTaskInput("旧名称", true)
+	input.ExpiresAt = &expiresAt
+	task, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+	stale := *task
+	updatedInput := stale
+	updatedInput.Name = "用户刚保存的新名称"
+	updatedInput.Instruction = "使用新的用户配置执行"
+	updated, err := service.repository.UpdateScheduledTaskAtVersion(
+		context.Background(),
+		updatedInput,
+		stale.ConfigurationVersion,
+	)
+	if err != nil {
+		t.Fatalf("模拟并发配置更新失败: %v", err)
+	}
+	now = expiresAt
+
+	changed, err := service.repository.DisableScheduledTaskAtVersion(
+		context.Background(),
+		stale.OwnerUserID,
+		stale.JobID,
+		stale.ConfigurationVersion,
+	)
+	if changed || !errors.Is(err, automationdomain.ErrConfigurationVersionConflict) {
+		t.Fatalf("旧版本自动停用必须冲突: changed=%v err=%v", changed, err)
+	}
+	if err = service.disableScheduledTaskAtVersion(
+		context.Background(),
+		scheduledTaskDisableCandidate{job: stale, reason: scheduledTaskDisableReasonExpired},
+		now,
+	); err != nil {
+		t.Fatalf("scheduler 应安全吸收版本冲突并刷新投影: %v", err)
+	}
+	current, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || current == nil {
+		t.Fatalf("读取并发更新后的任务失败: task=%+v err=%v", current, err)
+	}
+	if !current.Enabled || current.ConfigurationVersion != updated.ConfigurationVersion ||
+		current.Name != updated.Name || current.Instruction != updated.Instruction {
+		t.Fatalf("旧 scheduler 快照覆盖了用户配置: want=%+v got=%+v", updated, current)
+	}
+	service.mu.Lock()
+	projected := service.jobStates[task.JobID]
+	if projected == nil || projected.Job.ConfigurationVersion != updated.ConfigurationVersion ||
+		projected.Job.Name != updated.Name {
+		service.mu.Unlock()
+		t.Fatalf("冲突后应刷新到权威配置: state=%+v updated=%+v", projected, updated)
+	}
+	service.mu.Unlock()
+
+	service.runDueOnce()
+	resolved, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || resolved == nil {
+		t.Fatalf("读取重新核对后的任务失败: task=%+v err=%v", resolved, err)
+	}
+	if resolved.Enabled || resolved.ConfigurationVersion != updated.ConfigurationVersion+1 ||
+		resolved.Name != updated.Name || resolved.Instruction != updated.Instruction {
+		t.Fatalf("scheduler 应用新版本停用时仍须保留用户配置: updated=%+v resolved=%+v", updated, resolved)
+	}
+}
+
+func TestSchedulerDisablesCompletedOneShotThroughVersionedEntry(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
+	)
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	runAt := now.Add(time.Minute)
+	runAtText := runAt.Format(time.RFC3339)
+	input := schedulerPolicyTaskInput("已经完成的一次性任务", true)
+	input.Schedule = automationdomain.Schedule{
+		Kind:     automationdomain.ScheduleKindAt,
+		RunAt:    &runAtText,
+		Timezone: "UTC",
+	}
+	task, err := service.CreateTask(context.Background(), input)
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+	service.mu.Lock()
+	service.jobStates[task.JobID].NextRunAt = nil
+	service.mu.Unlock()
+
+	service.runDueOnce()
+	current, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
+	if err != nil || current == nil {
+		t.Fatalf("读取自动停用结果失败: task=%+v err=%v", current, err)
+	}
+	if current.Enabled || current.ConfigurationVersion != task.ConfigurationVersion+1 {
+		t.Fatalf("one-shot 完成应由 scheduler 推进一次停用版本: before=%+v after=%+v", task, current)
+	}
+	events, err := service.ListTaskEvents(context.Background(), task.JobID, 10)
+	if err != nil {
+		t.Fatalf("读取 one-shot 事件失败: %v", err)
+	}
+	foundReason := false
+	for _, event := range events {
+		if event.Action == automationdomain.TaskEventActionDisable &&
+			event.Detail["reason"] == scheduledTaskDisableReasonOneShotComplete {
+			foundReason = true
 			break
 		}
 	}
-	if !foundExpire {
-		t.Fatalf("应记录 expire 审计事件: %+v", events)
+	if !foundReason {
+		t.Fatalf("one-shot 自动停用应记录明确原因: %+v", events)
 	}
 }
 
