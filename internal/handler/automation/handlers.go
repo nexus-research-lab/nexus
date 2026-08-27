@@ -9,6 +9,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 
 	"github.com/go-chi/chi/v5"
@@ -375,10 +376,30 @@ func (h *Handlers) HandleListScheduledTaskRuns(writer http.ResponseWriter, reque
 	items, err := h.automation.ListTaskRuns(request.Context(), chi.URLParam(request, "job_id"))
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			h.api.WriteError(writer, request, http.StatusNotFound, handlershared.FailureSpec{
+				Code:     "automation.run_history_not_found",
+				Category: protocol.FailureCategoryNotFound,
+				Effect:   protocol.FailureEffectNotApplicable,
+				Detail:   "资源不存在",
+				Cause:    err,
+				Resolution: &protocol.FailureResolution{
+					Actor:  protocol.FailureRecoveryActorUser,
+					Action: "automation.return_to_tasks",
+				},
+			})
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.api.WriteError(writer, request, http.StatusInternalServerError, handlershared.FailureSpec{
+			Code:     "automation.run_history_unavailable",
+			Category: protocol.FailureCategoryInternal,
+			Effect:   protocol.FailureEffectNotApplicable,
+			Detail:   "运行历史读取失败",
+			Cause:    err,
+			Resolution: &protocol.FailureResolution{
+				Actor:  protocol.FailureRecoveryActorUser,
+				Action: "automation.reload_run_history",
+			},
+		})
 		return
 	}
 	h.api.WriteSuccess(writer, items)

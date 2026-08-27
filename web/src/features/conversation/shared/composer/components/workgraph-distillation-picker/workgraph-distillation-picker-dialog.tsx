@@ -6,12 +6,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
 import { getWorkGraphWorkflowsApi } from "@/lib/api/conversation/execution-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -61,24 +62,29 @@ function OpenWorkGraphDistillationPickerDialog({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ResourceFailure | null>(null);
+  const [loadedLocale, setLoadedLocale] = useState<string | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setFailure((current) => current?.access ? current : null);
     getWorkGraphWorkflowsApi(locale).then((nextItems) => {
       if (!active) return;
       setItems(nextItems);
+      setLoadedLocale(locale);
       setSelectedId(nextItems[0]?.id ?? null);
-      setError(null);
+      setFailure(null);
       window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
     }).catch((reason: unknown) => {
-      if (active) setError(getErrorMessage(reason, t("composer.workgraph_picker_failed")));
+      if (active) setFailure(getResourceFailure(reason, t("composer.workgraph_picker_failed")));
     }).finally(() => {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [locale, t]);
+  }, [loadRevision, locale, t]);
+  const hasSnapshot = loadedLocale === locale;
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -111,12 +117,70 @@ function OpenWorkGraphDistillationPickerDialog({
                 value={query}
               />
             </div>
-            {loading ? (
-              <div className="grid min-h-48 place-items-center"><LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted)" /></div>
-            ) : error ? (
-              <div className="py-10 text-center text-sm text-(--destructive)">{error}</div>
+            {failure && hasSnapshot && !failure.access ? (
+              <UiResourceState
+                className="min-h-0 py-3"
+                description={failure.message}
+                impact={t("state.stale_snapshot_impact")}
+                nextStep={t("state.retry_next_step")}
+                primaryAction={{
+                  icon: <RotateCcw className="h-3.5 w-3.5" />,
+                  label: t("state.retry"),
+                  onClick: () => setLoadRevision((current) => current + 1),
+                }}
+                role="status"
+                size="sm"
+                state="error"
+                title={t("composer.workgraph_picker_failed")}
+                variant="plain"
+              />
+            ) : null}
+            {loading && !hasSnapshot ? (
+              <UiResourceState
+                className="min-h-48"
+                size="sm"
+                state="loading"
+                title={t("capability.workgraph_loading")}
+                variant="plain"
+              />
+            ) : failure && (failure.access || !hasSnapshot) ? (
+              <UiResourceState
+                className="min-h-48"
+                description={failure.message}
+                impact={t(failure.access
+                  ? "state.access_failure_impact"
+                  : "state.read_failure_impact")}
+                nextStep={t(failure.access
+                  ? "state.permission_next_step"
+                  : "state.retry_next_step")}
+                primaryAction={{
+                  icon: <RotateCcw className="h-3.5 w-3.5" />,
+                  label: t("state.retry"),
+                  onClick: () => setLoadRevision((current) => current + 1),
+                }}
+                size="sm"
+                state="error"
+                title={t(failure.access
+                  ? "state.permission_title"
+                  : "composer.workgraph_picker_failed")}
+                variant="plain"
+              />
             ) : filtered.length === 0 ? (
-              <div className="py-10 text-center text-sm text-(--text-muted)">{t("composer.workgraph_picker_empty")}</div>
+              <UiResourceState
+                className="min-h-48"
+                impact={items.length > 0 ? t("state.filter_impact") : undefined}
+                nextStep={items.length > 0
+                  ? t("state.clear_filters_next_step")
+                  : t("capability.workgraph_empty_description")}
+                primaryAction={items.length > 0 ? {
+                  label: t("state.clear_filters"),
+                  onClick: () => setQuery(""),
+                } : undefined}
+                size="sm"
+                state="empty"
+                title={t("composer.workgraph_picker_empty")}
+                variant="plain"
+              />
             ) : (
               <div className="grid min-h-0 flex-1 overflow-hidden rounded-[10px] border border-(--divider-subtle-color) md:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
                 <div className="soft-scrollbar min-h-0 divide-y divide-(--divider-subtle-color) overflow-y-auto md:border-r md:border-(--divider-subtle-color)">

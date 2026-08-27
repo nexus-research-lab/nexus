@@ -43,7 +43,8 @@ test("Scheduled dialogs use task facts instead of subtitles, icons, and internal
   }
   assert.doesNotMatch(attentionDialog, /CircleAlert|Link2Off|ShieldAlert|原任务的名称|>\s*当前状态\s*</);
   assert.doesNotMatch(historyDialog, /Job ID:|\{activeTask\.name\} 运行历史/);
-  assert.match(historyContent, /任务运行后，记录会显示在这里。/);
+  assert.match(historyContent, /capability\.scheduled_history_empty_description/);
+  assert.match(capabilityZh, /"capability\.scheduled_history_empty_description":\s*"这个任务还没有产生运行记录。"/);
   assert.doesNotMatch(capabilityZh, /scheduled_dialog_(new|edit)_subtitle/);
 });
 

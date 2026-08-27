@@ -46,6 +46,9 @@ var (
 	ErrNotFound = errors.New("workgraph workflow not found")
 	// ErrInvalidInput 表示提炼请求不能形成可复用责任图。
 	ErrInvalidInput = errors.New("invalid workgraph workflow input")
+	// ErrRevisionConflict 表示 exact editor revision 已变化，本次请求尚未应用。
+	// 它继续包装 ErrInvalidInput，保留既有调用方的 errors.Is 兼容性。
+	ErrRevisionConflict = fmt.Errorf("%w: workgraph workflow revision conflict", ErrInvalidInput)
 	// ErrNameConflict 表示命名 Slash 已被固定命令或另一个 Workflow 使用。
 	ErrNameConflict = errors.New("workgraph workflow slash name already exists")
 )

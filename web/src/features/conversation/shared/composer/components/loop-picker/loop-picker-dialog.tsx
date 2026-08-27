@@ -72,11 +72,23 @@ function OpenLoopPickerDialog({
                 value={controller.state.category}
               />
             </div>
+            {controller.state.actionError ? (
+              <div
+                className="rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)"
+                role="alert"
+              >
+                {controller.state.actionError} {t("composer.loop_start_failed_next_step")}
+              </div>
+            ) : null}
             <LoopPickerContent
               busySlug={controller.state.busySlug}
               error={controller.state.error}
+              hasCatalogItems={controller.state.hasCatalogItems}
+              hasSnapshot={controller.state.hasSnapshot}
               isLoading={controller.state.isLoading}
               loops={controller.state.filteredLoops}
+              onClearFilters={controller.actions.clearFilters}
+              onRetry={controller.actions.retryLoad}
               onSelect={controller.actions.selectLoop}
             />
           </UiDialogBody>

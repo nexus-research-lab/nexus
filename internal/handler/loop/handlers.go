@@ -1,3 +1,6 @@
+// INPUT: Loop catalog HTTP 查询、slug 与 locale。
+// OUTPUT: 旧成功 envelope，以及显式 FailureCore 的只读失败响应。
+// POS: Loop 只读 HTTP 试点；不参与 Loop 启动、Goal、Session 或任何业务 ID。
 package loop
 
 import (
@@ -8,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 )
 
@@ -31,11 +35,26 @@ func (h *Handlers) HandleListLoops(writer http.ResponseWriter, request *http.Req
 func (h *Handlers) HandleGetLoopDetail(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.loops.GetLoop(request.Context(), chi.URLParam(request, "slug"), localeFromRequest(request))
 	if errors.Is(err, loopsvc.ErrLoopNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		h.api.WriteError(writer, request, http.StatusNotFound, handlershared.FailureSpec{
+			Code:     "loop.not_found",
+			Category: protocol.FailureCategoryNotFound,
+			Effect:   protocol.FailureEffectNotApplicable,
+			Detail:   "资源不存在",
+			Resolution: &protocol.FailureResolution{
+				Actor:  protocol.FailureRecoveryActorUser,
+				Action: "loop.return_to_directory",
+			},
+		})
 		return
 	}
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.api.WriteError(writer, request, http.StatusInternalServerError, handlershared.FailureSpec{
+			Code:     "loop.catalog_unavailable",
+			Category: protocol.FailureCategoryInternal,
+			Effect:   protocol.FailureEffectNotApplicable,
+			Detail:   "服务内部错误",
+			Cause:    err,
+		})
 		return
 	}
 	h.api.WriteSuccess(writer, item)

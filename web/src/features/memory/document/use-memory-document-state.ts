@@ -1,4 +1,5 @@
 import type { MemoryDocument } from "@/types/memory/memory";
+import type { ResourceFailure } from "@/lib/error-message";
 
 import {
   type ScopedMemoryCommit,
@@ -14,7 +15,7 @@ export interface MemoryDocumentState {
   draft: string;
   editing: boolean;
   isLoading: boolean;
-  resourceError: string | null;
+  resourceError: ResourceFailure | null;
   scopeKey: string;
 }
 

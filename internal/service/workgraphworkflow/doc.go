@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - builtins.go：系统内置的双语通用责任拓扑；只进入目录、Slash catalog 与 runtime 展开，不写数据库或携带运行事实。
-//   - service.go / save_dispatch.go：完成图抽取/复用、coordinator 绑定的隔离内部保存调度、受管 CLI 幂等保存、读取/删除、Slash descriptor 投影与 runtime prompt 展开。
+//   - service.go / save_dispatch.go：完成图抽取/复用、coordinator 绑定的隔离内部保存调度、受管 CLI 幂等保存、读取/删除、Slash descriptor 投影与 runtime prompt 展开；exact editor revision 冲突以独立领域错误在写入前关闭。
 //   - slash_name_availability.go：按 owner 与 exact Draft 判断命名 Slash 是否被固定命令或其他命名图占用。
 //   - abstraction.go：把完整源节点/拓扑交给默认对话模型，默认保留结构关键 logical key、抽象具体任务语义，并校验主路径/terminal/关键节点与来源边界。
 //   - draft_state.go / authoring.go：持久 Draft cache 恢复、一个 Session 多来源图目录，以及普通 DM/Room 的查询、提取、完整修订、版本选择和保存能力。

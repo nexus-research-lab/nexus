@@ -101,7 +101,7 @@ func RequestContextMiddleware(baseLogger *slog.Logger) func(http.Handler) http.H
 			writer.Header().Set("X-Request-ID", requestID)
 
 			requestLogger := baseLogger.With("request_id", requestID)
-			ctx := logx.WithLogger(request.Context(), requestLogger)
+			ctx := withRequestID(logx.WithLogger(request.Context(), requestLogger), requestID)
 			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}

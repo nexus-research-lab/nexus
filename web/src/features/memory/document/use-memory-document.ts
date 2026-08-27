@@ -28,6 +28,7 @@ export function useMemoryDocument({
 }: UseMemoryDocumentOptions) {
   const { commit, scopeKey, scopeRef, state } = useMemoryDocumentState(agentId, document);
   const { reload } = useMemoryDocumentResource({
+    accessBlocked: Boolean(state.resourceError?.access),
     commit,
     editing: state.editing,
     fallbackLoadError,

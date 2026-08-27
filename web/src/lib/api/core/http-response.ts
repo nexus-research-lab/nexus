@@ -1,10 +1,16 @@
 import type { ApiResponse } from "@/types/system/api";
+import type {
+  FailureCore,
+  FailureRecoveryActor,
+  FailureResolution,
+} from "@/types/generated/protocol";
 
 interface ApiErrorPayload {
   detail?: unknown;
   message?: unknown;
   data?: {
     detail?: unknown;
+    failure?: unknown;
     request_id?: unknown;
   };
 }
@@ -54,7 +60,12 @@ export function buildApiErrorMessage(
     return fallback;
   }
 
-  const requestId = readNestedErrorValue(payload, "request_id");
+  const failure = getApiFailure(payload);
+  // 旧响应继续保留历史文案；新 FailureCore 把诊断 ID 留在 ApiRequestError，
+  // 不把内部关联号混入普通用户的主要错误说明。
+  const requestId = failure === null
+    ? readNestedErrorValue(payload, "request_id")
+    : null;
   const candidates = [
     "detail" in payload ? normalizeErrorDetail(payload.detail) : null,
     readNestedErrorValue(payload, "detail"),
@@ -65,6 +76,61 @@ export function buildApiErrorMessage(
     candidates.find((message) => Boolean(message)) ?? fallback,
     requestId,
   );
+}
+
+export function getApiFailure(
+  payload: ParsedApiResponse<unknown>,
+): FailureCore | null {
+  if (!payload || !("data" in payload)) {
+    return null;
+  }
+  return parseFailureCore(toRecord(payload.data)?.failure);
+}
+
+// FailureCore 使用开放字符串；新服务端值不能让旧客户端丢失整个失败响应。
+export function parseFailureCore(value: unknown): FailureCore | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const version = readFiniteNumber(record.version);
+  const code = readNonEmptyString(record.code);
+  const category = readNonEmptyString(record.category);
+  const effect = readNonEmptyString(record.effect);
+  if (
+    version === null || version < 1 || code === null ||
+    category === null || effect === null
+  ) {
+    return null;
+  }
+
+  const failure: FailureCore = { version, code, category, effect };
+  const transportRequestID = readNonEmptyString(record.transport_request_id);
+  if (transportRequestID !== null) {
+    failure.transport_request_id = transportRequestID;
+  }
+  const retryAfterMS = readFiniteNumber(record.retry_after_ms);
+  if (retryAfterMS !== null && retryAfterMS > 0) {
+    failure.retry_after_ms = retryAfterMS;
+  }
+  const resolution = parseFailureResolution(record.resolution);
+  if (resolution) {
+    failure.resolution = resolution;
+  }
+  return failure;
+}
+
+function parseFailureResolution(value: unknown): FailureResolution | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const actor = readNonEmptyString(record.actor);
+  const action = readNonEmptyString(record.action);
+  if (actor === null || action === null) {
+    return null;
+  }
+  return { actor: actor as FailureRecoveryActor, action };
 }
 
 function readNestedErrorValue(
@@ -99,6 +165,14 @@ function normalizeNonStringErrorDetail(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function readFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" ? value.trim() || null : null;
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {

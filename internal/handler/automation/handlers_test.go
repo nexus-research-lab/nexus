@@ -110,6 +110,74 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 		t.Fatalf("状态响应不完整: %+v", status.Data)
 	}
 
+	insertHTTPFailedDeliveryRun(t, cfg.DatabaseURL, created.Data.JobID, "run-history-a")
+	insertHTTPFailedDeliveryRun(t, cfg.DatabaseURL, created.Data.JobID, "run-history-b")
+	runsRecorder := serveAutomationJSON(
+		t,
+		server,
+		http.MethodGet,
+		fmt.Sprintf("/nexus/v1/capability/scheduled/tasks/%s/runs", created.Data.JobID),
+		nil,
+	)
+	if runsRecorder.Code != http.StatusOK {
+		t.Fatalf("查询运行历史状态码不正确: got=%d body=%s", runsRecorder.Code, runsRecorder.Body.String())
+	}
+	var runs struct {
+		Code    string                              `json:"code"`
+		Success bool                                `json:"success"`
+		Data    []automationdomain.ScheduledTaskRun `json:"data"`
+	}
+	if err := json.Unmarshal(runsRecorder.Body.Bytes(), &runs); err != nil {
+		t.Fatalf("解析运行历史响应失败: %v", err)
+	}
+	if runs.Code != "0000" || !runs.Success || len(runs.Data) != 2 {
+		t.Fatalf("运行历史成功 envelope 被改变: %+v", runs)
+	}
+	for index, expectedRunID := range []string{"run-history-b", "run-history-a"} {
+		run := runs.Data[index]
+		if run.RunID != expectedRunID ||
+			run.JobID != created.Data.JobID ||
+			run.Status != automationdomain.RunStatusSucceeded ||
+			run.DeliveryStatus != automationdomain.DeliveryStatusFailed ||
+			run.DeliveryAttempts != 1 {
+			t.Fatalf("运行历史身份、阶段或顺序被改变: index=%d run=%+v", index, run)
+		}
+	}
+
+	missingRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/nexus/v1/capability/scheduled/tasks/missing-job/runs",
+		nil,
+	)
+	missingRequest.Header.Set("X-Request-ID", "automation-http-attempt")
+	missingRecorder := httptest.NewRecorder()
+	server.Router().ServeHTTP(missingRecorder, missingRequest)
+	if missingRecorder.Code != http.StatusNotFound {
+		t.Fatalf("缺失任务运行历史状态码不正确: got=%d body=%s", missingRecorder.Code, missingRecorder.Body.String())
+	}
+	var missing struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Success bool   `json:"success"`
+		Data    struct {
+			Detail    string               `json:"detail"`
+			RequestID string               `json:"request_id"`
+			Failure   protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(missingRecorder.Body.Bytes(), &missing); err != nil {
+		t.Fatalf("解析缺失任务运行历史响应失败: %v", err)
+	}
+	if missing.Code != "404" || missing.Message != "failed" || missing.Success || missing.Data.Detail != "资源不存在" {
+		t.Fatalf("运行历史 404 envelope 被改变: %+v", missing)
+	}
+	if missing.Data.RequestID != "automation-http-attempt" ||
+		missing.Data.Failure.TransportRequestID != "automation-http-attempt" ||
+		missing.Data.Failure.Code != "automation.run_history_not_found" ||
+		missing.Data.Failure.Effect != protocol.FailureEffectNotApplicable {
+		t.Fatalf("运行历史 FailureCore 不正确: %+v", missing.Data)
+	}
+
 	eventsRecorder := serveAutomationJSON(
 		t,
 		server,

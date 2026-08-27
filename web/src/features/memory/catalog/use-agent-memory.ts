@@ -4,6 +4,7 @@ import {
   deleteAgentMemoryDocumentApi,
   getAgentMemorySnapshotApi,
 } from "@/lib/api/agent/memory-api";
+import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import type { MemorySnapshot } from "@/types/memory/memory";
 
 import {
@@ -22,7 +23,7 @@ interface AgentMemoryState {
   deleteError: string | null;
   deleteTargetPath: string;
   deletingPath: string;
-  error: string | null;
+  error: ResourceFailure | null;
   filter: MemoryFilter;
   isLoading: boolean;
   query: string;
@@ -53,7 +54,7 @@ export function useAgentMemory(
     requestSequenceRef.current = requestSequence;
     commit(expectedAgentId, (current) => ({
       ...current,
-      error: null,
+      error: current.error?.access ? current.error : null,
       isLoading: true,
     }));
     try {
@@ -74,10 +75,8 @@ export function useAgentMemory(
       }
       commit(expectedAgentId, (current) => ({
         ...current,
-        error: error instanceof Error ? error.message : fallbackError,
+        error: getResourceFailure(error, fallbackError),
         isLoading: false,
-        selectedPath: "",
-        snapshot: null,
       }));
     }
   }, [agentId, commit, fallbackError, scopeRef]);
