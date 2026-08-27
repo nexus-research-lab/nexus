@@ -165,6 +165,115 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 	}
 }
 
+func TestServiceEnsureClientRetriesFreshWhenAutomaticToolSurfaceForkCannotResume(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Enabled:     true,
+	}, "glm-5.1", true)
+
+	client := newFakeDMClient()
+	client.sessionID = "sdk-fresh-after-failed-tool-surface-fork"
+	client.connectErrors = []error{agentclient.ErrNotConnected}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(
+		cfg,
+		agentService,
+		runtimeManager,
+		permissionctx.NewContext(),
+	)
+	service.SetProviderResolver(providerService)
+	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		AgentRuntimeKind: "claude",
+		DefaultAgentOptions: protocol.Options{
+			Provider: "glm",
+			Model:    "glm-5.1",
+		},
+	}})
+
+	ctx := context.Background()
+	agentValue, err := agentService.GetAgent(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取默认 Agent 失败: %v", err)
+	}
+	workspacePath := dmMainWorkspacePath(cfg)
+	staleResumeID := "12121212-1212-4212-8212-121212121212"
+	writeTranscriptFixture(t, workspacePath, staleResumeID, []map[string]any{{
+		"type":      "user",
+		"uuid":      "12000000-0000-4000-8000-000000000001",
+		"sessionId": staleResumeID,
+		"timestamp": "2026-08-27T00:00:00Z",
+		"cwd":       workspacePath,
+		"message": map[string]any{
+			"role":    "user",
+			"content": "旧工具面消息",
+		},
+	}})
+	sessionKey := "agent:nexus:ws:dm:failed-tool-surface-fork-retry"
+	now := time.Now().UTC()
+	sessionItem := protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &staleResumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Failed Tool Surface Fork Retry",
+		Options: map[string]any{
+			protocol.OptionRuntimeKind:                   "claude",
+			protocol.OptionRuntimeProvider:               "glm",
+			protocol.OptionRuntimeModel:                  "glm-5.1",
+			protocol.OptionRuntimeToolSurfaceFingerprint: "stale-tool-surface",
+		},
+		IsActive: true,
+	}
+	if _, err = service.files.UpsertSession(workspacePath, sessionItem); err != nil {
+		t.Fatalf("预写入自动工具面 fork 会话失败: %v", err)
+	}
+
+	preparation, err := service.ensureClient(ctx, sessionKey, agentValue, sessionItem, Request{
+		SessionKey:   sessionKey,
+		RoundID:      "round-failed-tool-surface-fork-retry",
+		AgentRoundID: "agent-round-failed-tool-surface-fork-retry",
+	})
+	if err != nil {
+		t.Fatalf("自动工具面 fork 失效后应创建新 runtime: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
+	if preparation.forkSourceSessionID != "" {
+		t.Fatalf("新 runtime 不应保留失效 fork source: %q", preparation.forkSourceSessionID)
+	}
+
+	firstOptions := factory.OptionAt(0)
+	if firstOptions.Session.ResumeID != staleResumeID || !firstOptions.Session.Fork {
+		t.Fatalf("首次启动应尝试自动工具面 fork: %+v", firstOptions.Session)
+	}
+	retryOptions := factory.OptionAt(1)
+	if retryOptions.Session.ResumeID != "" || retryOptions.Session.ResumeAt != "" || retryOptions.Session.Fork {
+		t.Fatalf("重试应创建全新 SDK session: %+v", retryOptions.Session)
+	}
+
+	updated, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if updated.SessionID != nil {
+		t.Fatalf("失效 resume id 未清除: %+v", updated)
+	}
+	if got := protocol.SessionTranscriptIDs(updated); len(got) != 1 || got[0] != staleResumeID {
+		t.Fatalf("旧 transcript lineage 未保留: %+v", got)
+	}
+}
+
 func TestServiceHandleChatKeepsSDKSessionResumeWhenRuntimeFingerprintMissingAndTranscriptExists(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -871,9 +980,10 @@ func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t
 		AgentID:    cfg.DefaultAgentID,
 		SessionID:  &resumeID,
 		Options: map[string]any{
-			protocol.OptionRuntimeKind:     "nxs",
-			protocol.OptionRuntimeProvider: "glm",
-			protocol.OptionRuntimeModel:    "glm-5.1",
+			protocol.OptionRuntimeKind:                   "nxs",
+			protocol.OptionRuntimeProvider:               "glm",
+			protocol.OptionRuntimeModel:                  "glm-5.1",
+			protocol.OptionRuntimeToolSurfaceFingerprint: "surface-before",
 		},
 	}, "glm", agentclient.Options{
 		Model: "glm-5.1",
@@ -888,7 +998,7 @@ func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t
 		t.Fatalf("runtime 切换存在共享 transcript 时应复用 resume: got=%q want=%q", got, resumeID)
 	}
 	if reset {
-		t.Fatal("工具面未建立 legacy 基线时不应因 runtime 切换强制 fork")
+		t.Fatal("NXS/Claude 共享 transcript 时不应因 runtime 工具面差异强制 fork")
 	}
 }
 

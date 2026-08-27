@@ -565,7 +565,7 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 	}
 
 	client, err := e.connectRuntimeOnce(startup, *runtimeValue)
-	if err != nil && !toolSurfaceFork && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
+	if err != nil && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
 		e.logger.Warn("Room SDK session resume 失效，清除后重试",
 			append(roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err),
 				"sdk_session_id", strings.TrimSpace(runtimeValue.options.Session.ResumeID),
@@ -582,8 +582,11 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 			if clearErr := e.service.clearSlotSDKSessionID(e.ctx, e.slot); clearErr != nil {
 				return nil, clearErr
 			}
+			e.forkSourceSessionID = ""
+			e.runtimeIdentityCommitted = false
 			runtimeValue.options.Session.ResumeID = ""
 			runtimeValue.options.Session.Fork = false
+			runtimeValue.options.Session.ResumeAt = ""
 			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
 				client, err = e.connectRuntimeOnce(startup, *runtimeValue)
 			}
