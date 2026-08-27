@@ -26,6 +26,56 @@ type runtimeAutomationPermissionSender struct {
 	events chan protocol.EventMessage
 }
 
+func TestServerBuilderBindsRoundHumanContextToBridgeCall(t *testing.T) {
+	roundContext := authctx.WithPrincipal(t.Context(), &authctx.Principal{
+		UserID: authctx.SystemUserID, Role: authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
+	roundContext = authctx.WithInteractiveHumanEvidence(
+		roundContext,
+		"desktop_session_token",
+	)
+	var (
+		calledPrincipal *authctx.Principal
+		calledEvidence  authctx.InteractiveHumanEvidence
+	)
+	builder := NewServerBuilder(
+		config.Config{}, nil, nil, nil, nil, nil,
+		func(context.Context, nexusmcp.RoundContext) []sdktool.Tool {
+			return []sdktool.Tool{{
+				Name: "check_round_identity", Description: "test round identity",
+				InputSchema: map[string]any{"type": "object"},
+				Handler: func(ctx context.Context, _ map[string]any) (sdktool.ToolResult, error) {
+					calledPrincipal = authctx.PrincipalFromContext(ctx)
+					calledEvidence, _ = authctx.InteractiveHumanEvidenceFromContext(ctx)
+					return sdktool.ToolResult{}, nil
+				},
+			}}
+		},
+	)
+	servers, err := builder(roundContext, nexusmcp.RoundContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := servers[nexusMCPServerName].(sdkmcp.SDKServerConfig).Instance
+	_, err = server.HandleMessage(context.Background(), map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{
+			"name": "check_round_identity", "arguments": map[string]any{},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calledPrincipal == nil || calledPrincipal.UserID != authctx.SystemUserID ||
+		calledPrincipal.AuthMethod != authctx.AuthMethodLocal {
+		t.Fatalf("bridge call principal = %+v", calledPrincipal)
+	}
+	if calledEvidence.Source != "desktop_session_token" {
+		t.Fatalf("bridge call human evidence = %+v", calledEvidence)
+	}
+}
+
 func TestCommandMCPUsesStructuredInputWithoutStagingFile(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
