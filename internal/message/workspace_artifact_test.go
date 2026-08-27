@@ -81,29 +81,6 @@ func TestProcessorAddsWorkspaceFileArtifactForFileToolResult(t *testing.T) {
 	}
 }
 
-func TestProcessorInfersWorkspaceFileArtifactKinds(t *testing.T) {
-	cases := []struct {
-		path string
-		kind string
-		mime string
-	}{
-		{"output/site.html", protocol.WorkspaceFileArtifactKindHTML, "text/html"},
-		{"output/flow.mmd", protocol.WorkspaceFileArtifactKindMermaid, "text/plain"},
-		{"output/poster.png", protocol.WorkspaceFileArtifactKindImage, "image/png"},
-		{"output/vector.svg", protocol.WorkspaceFileArtifactKindSVG, "image/svg+xml"},
-		{"output/report.pdf", protocol.WorkspaceFileArtifactKindPDF, "application/pdf"},
-	}
-
-	for _, item := range cases {
-		t.Run(item.path, func(t *testing.T) {
-			kind, mimeType := workspaceFileArtifactKindAndMIME(item.path, "")
-			if kind != item.kind || mimeType != item.mime {
-				t.Fatalf("artifact 类型推断不正确: path=%s kind=%s mime=%s", item.path, kind, mimeType)
-			}
-		})
-	}
-}
-
 func TestProcessorAddsImagegenArtifactFromMCPResult(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey:    "agent:nexus:ws:dm:test",

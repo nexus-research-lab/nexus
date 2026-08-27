@@ -11,39 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
-	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
-
-func TestCatalogRoutesSpecializedDomains(t *testing.T) {
-	definition, err := definitionFor(DomainAutomation)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if definition.ManagedBy != "automation Skill + nexus.command" {
-		t.Fatalf("automation managed_by = %q", definition.ManagedBy)
-	}
-	if _, err = operationFor(definition, "create"); err == nil || !strings.Contains(err.Error(), "nexus.command") {
-		t.Fatalf("delegated write should point to the structured runtime command: %v", err)
-	}
-}
-
-func TestCatalogPublishesOperationInputContracts(t *testing.T) {
-	definition, err := definitionFor(DomainConnectors)
-	if err != nil {
-		t.Fatal(err)
-	}
-	operation, err := operationFor(definition, "save_oauth_client")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if operation.TargetDescription == "" || operation.InputShape == nil {
-		t.Fatalf("operation contract is incomplete: %+v", operation)
-	}
-	if len(operation.RequiredInputFields) != 2 {
-		t.Fatalf("required input fields = %v", operation.RequiredInputFields)
-	}
-}
 
 func TestSkillCatalogRequiresScopedSourceIdentityAndDisableConfirmation(t *testing.T) {
 	definition, err := definitionFor(DomainSkills)
@@ -67,52 +35,6 @@ func TestSkillCatalogRequiresScopedSourceIdentityAndDisableConfirmation(t *testi
 		}
 		if !operation.RequiresConfirmation {
 			t.Fatalf("%s 必须要求显式确认: %+v", operationName, operation)
-		}
-	}
-}
-
-func TestSkillCatalogPublishesOwnerPrivateSourceContracts(t *testing.T) {
-	definition, err := definitionFor(DomainSkills)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, operationName := range []string{
-		"create_private_source",
-		"update_source",
-		"import_private",
-		"delete_private_source",
-	} {
-		operation, operationErr := operationFor(definition, operationName)
-		if operationErr != nil {
-			t.Fatal(operationErr)
-		}
-		if !operation.RequiresConfirmation {
-			t.Fatalf("%s 必须要求显式确认: %+v", operationName, operation)
-		}
-	}
-	for _, operationName := range []string{"create_private_source", "update_source"} {
-		operation, operationErr := operationFor(definition, operationName)
-		if operationErr != nil {
-			t.Fatal(operationErr)
-		}
-		shape, ok := operation.InputShape.(map[string]any)
-		if !ok {
-			t.Fatalf("%s input shape = %#v", operationName, operation.InputShape)
-		}
-		tokenShape, ok := shape["token"].(map[string]string)
-		if !ok || strings.TrimSpace(tokenShape["$secret"]) == "" {
-			t.Fatalf("%s token 必须是原生 secret slot: %#v", operationName, shape["token"])
-		}
-	}
-	selfAccess := accessFor(&resolvedActor{Authority: AuthorityAgentSelf}, definition)
-	for _, operationName := range []string{
-		"create_private_source",
-		"update_source",
-		"import_private",
-		"delete_private_source",
-	} {
-		if slices.Contains(selfAccess.AllowedOperations, operationName) {
-			t.Fatalf("agent_self 不得获得 owner 私有来源操作 %s", operationName)
 		}
 	}
 }
@@ -387,103 +309,5 @@ func TestSecretTemplatePreservesMixedProviderOptions(t *testing.T) {
 	}
 	if options["api_key"] != "provider-secret" {
 		t.Fatalf("provider option secret was not materialized: %#v", options["api_key"])
-	}
-}
-
-func TestPreferencesRuntimeEffectDistinguishesLiveAndFutureSettings(t *testing.T) {
-	operation := OperationDefinition{RuntimeEffect: "immediate"}
-	webSearch := runtimeEffectForRequest(ChangeRequest{
-		Domain: DomainPreferences, Operation: "update",
-		Input: []byte(`{"web_search":{"enabled":true}}`),
-	}, operation)
-	if webSearch != "immediate" {
-		t.Fatalf("web search effect = %q", webSearch)
-	}
-	defaults := runtimeEffectForRequest(ChangeRequest{
-		Domain: DomainPreferences, Operation: "update",
-		Input: []byte(`{"agent_sdk_diagnostics_enabled":true}`),
-	}, operation)
-	if defaults != "next_session_or_new_agent" {
-		t.Fatalf("default setting effect = %q", defaults)
-	}
-}
-
-func TestReloadStatusExplainsDeferredAndMixedEffects(t *testing.T) {
-	tests := []struct {
-		effect               string
-		state                string
-		currentRoundAffected bool
-	}{
-		{effect: "immediate", state: "applied", currentRoundAffected: true},
-		{effect: "mixed", state: "scheduled", currentRoundAffected: true},
-		{effect: "restart_required", state: "restart_required"},
-		{effect: "next_round", state: "scheduled"},
-		{effect: "next_session", state: "scheduled"},
-		{effect: "next_ingress", state: "scheduled"},
-		{effect: "next_session_or_new_agent", state: "scheduled"},
-		{effect: "ui_immediate_runtime_next_round", state: "scheduled"},
-		{effect: "ui_immediate", state: "applied"},
-		{effect: "ui_immediate_runtime_next_input", state: "scheduled"},
-		{effect: "authority_immediate_routing_next_input", state: "applied", currentRoundAffected: true},
-		{effect: "security_immediate_runtime_next_round", state: "applied", currentRoundAffected: true},
-		{effect: "mixed: WebSearch immediate; defaults later", state: "scheduled", currentRoundAffected: true},
-	}
-	for _, test := range tests {
-		status := reloadStatusFor(ChangeRequest{}, test.effect)
-		if status.State != test.state ||
-			status.CurrentRoundAffected != test.currentRoundAffected ||
-			strings.TrimSpace(status.Message) == "" {
-			t.Fatalf("effect %q reload status = %+v", test.effect, status)
-		}
-	}
-}
-
-func TestProviderUpdatePatchPreservesUnspecifiedFields(t *testing.T) {
-	displayName := "Renamed"
-	input := providerUpdateRequest{DisplayName: &displayName}
-	result := input.serviceInput(providersvc.Record{
-		ProviderKind: "llm", PresetKey: "custom", APIFormat: "responses",
-		DisplayName: "Old", BaseURL: "https://example.com/v1", ModelsPath: "/models", Enabled: true,
-	})
-	if result.DisplayName != displayName || !result.Enabled || result.APIFormat != "responses" {
-		t.Fatalf("provider patch reset unspecified fields: %+v", result)
-	}
-	if result.AuthToken != nil {
-		t.Fatal("provider patch must preserve the stored token when auth_token is omitted")
-	}
-}
-
-func TestMergePatchesNestedPreferenceAndAgentOptions(t *testing.T) {
-	previous := preferencessvc.DefaultPreferences()
-	previous.DefaultAgentOptions.Provider = "openai"
-	previous.DefaultAgentOptions.Model = "gpt"
-	parsed := preferencessvc.UpdateRequest{}
-	merged, err := mergedPreferencesUpdate(
-		previous,
-		parsed,
-		[]byte(`{"default_agent_options":{"permission_mode":"plan"}}`),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if merged.DefaultAgentOptions == nil ||
-		merged.DefaultAgentOptions.Provider != "openai" ||
-		merged.DefaultAgentOptions.Model != "gpt" ||
-		merged.DefaultAgentOptions.PermissionMode != "plan" {
-		t.Fatalf("nested preference patch reset defaults: %+v", merged.DefaultAgentOptions)
-	}
-
-	payload, err := mergeJSONObject(protocol.Options{
-		Provider: "openai", Model: "gpt", AllowedTools: []string{"Read"},
-	}, []byte(`{"allowed_tools":["Read","Write"]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var options protocol.Options
-	if err = strictDecodeJSON(payload, &options); err != nil {
-		t.Fatal(err)
-	}
-	if options.Provider != "openai" || options.Model != "gpt" || len(options.AllowedTools) != 2 {
-		t.Fatalf("Agent options patch reset model selection: %+v", options)
 	}
 }

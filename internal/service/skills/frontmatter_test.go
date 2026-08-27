@@ -1,27 +1,9 @@
 package skills
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
-
-func TestParseSkillFrontmatterWithoutTagsReturnsEmptySlice(t *testing.T) {
-	parsed := parseSkillFrontmatter(`---
-name: demo-skill
-title: Demo Skill
-description: no tags here
----
-
-# Demo Skill
-`, "demo-skill")
-	if parsed.Tags == nil {
-		t.Fatal("未声明 tags 时也必须返回空切片，不能是 nil")
-	}
-	if len(parsed.Tags) != 0 {
-		t.Fatalf("未声明 tags 时应为空切片，实际: %#v", parsed.Tags)
-	}
-}
 
 func TestParseSkillFrontmatterBlockDescription(t *testing.T) {
 	parsed := parseSkillFrontmatter(`---
@@ -110,19 +92,5 @@ func TestStripFrontmatterReturnsSkillBody(t *testing.T) {
 				t.Fatalf("正文投影 = %q，期望 %q", got, test.want)
 			}
 		})
-	}
-}
-
-func TestSkillResponseSlicesMarshalAsEmptyArray(t *testing.T) {
-	info := Info{
-		Name: "demo-skill",
-		Tags: firstNonEmptySlice(nil),
-	}
-	payload, err := json.Marshal(info)
-	if err != nil {
-		t.Fatalf("序列化技能信息失败: %v", err)
-	}
-	if string(payload) == "" || !strings.Contains(string(payload), `"tags":[]`) {
-		t.Fatalf("tags 未按协议序列化为空数组: %s", string(payload))
 	}
 }

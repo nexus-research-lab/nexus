@@ -43,6 +43,34 @@ func (provider runtimeGraphSubagentHistoryProviderFunc) ListRuntimeGraphSubagent
 	return provider(ctx, ownerUserID, sessionKey)
 }
 
+func graphNodeByID(
+	nodes []protocol.ExecutionGraphNodeView,
+	id string,
+) protocol.ExecutionGraphNodeView {
+	for _, node := range nodes {
+		if node.ID == id {
+			return node
+		}
+	}
+	return protocol.ExecutionGraphNodeView{}
+}
+
+func hasExecutionGraphEdge(
+	edges []protocol.ExecutionGraphEdgeView,
+	kind protocol.ExecutionGraphEdgeKind,
+	sourceID string,
+	targetID string,
+) bool {
+	for _, edge := range edges {
+		if edge.Kind == kind &&
+			edge.SourceNodeID == sourceID &&
+			edge.TargetNodeID == targetID {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphNode(
 	_ context.Context,
 	item protocol.ExecutionRuntimeNodeRun,

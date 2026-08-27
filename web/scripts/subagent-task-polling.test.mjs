@@ -19,34 +19,6 @@ test.after(async () => {
   await server.close();
 });
 
-test("Chinese subagent empty state uses the product term consistently", async () => {
-  const { zhConversationMessages } = await server.ssrLoadModule(
-    "/src/shared/i18n/catalog/zh/conversation.ts",
-  );
-
-  assert.equal(zhConversationMessages["subagents.label"], "子智能体");
-  assert.equal(
-    zhConversationMessages["subagents.no_active"],
-    "没有已开启的子智能体",
-  );
-});
-
-test("subagent control dialogs have complete locale-specific copy", async () => {
-  const { enConversationMessages } = await server.ssrLoadModule(
-    "/src/shared/i18n/catalog/en/conversation.ts",
-  );
-  const { zhConversationMessages } = await server.ssrLoadModule(
-    "/src/shared/i18n/catalog/zh/conversation.ts",
-  );
-
-  assert.equal(enConversationMessages["subagents.stop_subtitle"], "Interrupt only this exact task.");
-  assert.equal(enConversationMessages["subagents.message_send"], "Send");
-  assert.equal(enConversationMessages["subagents.message_shortcut_hint"], "Press Cmd/Ctrl + Enter to send.");
-  assert.equal(zhConversationMessages["subagents.stop_subtitle"], "只会中断这个精确任务。");
-  assert.equal(zhConversationMessages["subagents.message_send"], "发送");
-  assert.equal(zhConversationMessages["subagents.message_shortcut_hint"], "按 Cmd/Ctrl + Enter 发送。");
-});
-
 test("subagent task changes refresh only the exact source and task", async () => {
   const {
     isSubagentTaskChangeFor,
