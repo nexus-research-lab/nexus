@@ -51,6 +51,49 @@ func TestProcessorAddsWorkGraphArtifactForManagedAuthoringResult(t *testing.T) {
 	}
 }
 
+func TestProcessorAddsWorkGraphArtifactForStructuredRuntimeCommand(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test", AgentID: "nexus",
+		RoundID: "round-workgraph-native", ParentID: "round-workgraph-native",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
+				ID: "tool-workgraph-native", Name: "mcp__nexus__command",
+				Input: json.RawMessage(`{"domain":"execution","action":"invoke","operation":"get_workgraph_preview","request_id":"get-preview-native-1","input":{"preview_id":"preview-1"}}`),
+			}},
+		}},
+	})
+	structured := map[string]any{
+		"preview_id": "preview-1", "head_revision": float64(1), "selected_revision": float64(1),
+		"versions": []any{map[string]any{"revision": float64(1)}},
+		"preview": map[string]any{
+			"preview_id": "preview-1", "slash_name": "briefing", "title": "协作简报",
+			"source_execution_id": "execution-1", "source_session_key": "agent:nexus:ws:dm:test",
+			"objective": "形成简报", "expires_at": "2026-08-22T00:00:00Z",
+			"nodes": []any{map[string]any{
+				"logical_key": "draft", "role": "key", "kind": "produce", "subject": "起草",
+				"objective": "起草简报", "deliverable": "简报", "required": true, "terminal": true,
+				"position": float64(0),
+			}},
+		},
+	}
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			ToolUseResult: structured,
+			Message: sdkprotocol.ConversationEnvelope{Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolResultBlock{
+				ToolUseID: "tool-workgraph-native", Content: json.RawMessage(`"updated"`),
+			}}},
+		},
+	})
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 3 || blocks[2]["type"] != protocol.ContentBlockTypeWorkGraphArtifact {
+		t.Fatalf("structured runtime command artifact blocks = %#v", blocks)
+	}
+}
+
 func TestProcessorAddsWorkGraphArtifactForUnquotedManagedArguments(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test", AgentID: "nexus",

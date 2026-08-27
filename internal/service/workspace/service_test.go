@@ -19,7 +19,6 @@ import (
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	t.Setenv(nexusctlCommandPathEnvName, "")
 	t.Setenv(nexuscfgCommandPathEnvName, "")
-	t.Setenv(nexusCommandPathEnvName, "")
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -162,23 +161,6 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexuscfg")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexuscfg shim: %v", err)
 	}
-	nexusShim := filepath.Join(sharedBinDir, "nexus")
-	if info, statErr := os.Stat(nexusShim); statErr != nil {
-		t.Fatalf("共享 nexus shim 未生成: %v", statErr)
-	} else if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
-		t.Fatalf("nexus shim 应可执行: %s", nexusShim)
-	}
-	nexusPayload, err := os.ReadFile(nexusShim)
-	if err != nil {
-		t.Fatalf("读取 nexus shim 失败: %v", err)
-	}
-	if !strings.Contains(string(nexusPayload), protocol.NexusCommandHostEntrypointArgument) ||
-		strings.Contains(string(nexusPayload), "go run ./cmd/nexus") {
-		t.Fatalf("nexus shim 应复用稳定宿主入口，不能在 Agent round 内编译源码: %s", nexusPayload)
-	}
-	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexus")); !os.IsNotExist(err) {
-		t.Fatalf("agent workspace 不应生成独立 nexus shim: %v", err)
-	}
 	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
 	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {
 		t.Fatalf("创建 stale imagegen 目录失败: %v", err)
@@ -204,10 +186,10 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
 	managedSkillContracts := map[string][]string{
 		filepath.Join("automation", "SKILL.md"): {
-			"NEXUS_COMMAND_PATH",
-			"automation contract",
+			"nexus.command",
+			`{"domain":"automation","action":"contract"}`,
 			"inspect → plan → apply → verify",
-			"command_usage",
+			"不要落盘或通过 shell 转码",
 			"原生真人确认",
 			"后台 scheduled run 只有宿主绑定 job/run 的查询权限",
 			"页面或 IM 的 `/y`、`/a`、`/d`",
@@ -261,8 +243,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
-			"--json goal contract",
-			"input_staging",
+			"nexus.command",
+			`{"domain":"goal","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",
 			"references/create-and-retarget.md",
 			"references/complete-and-block.md",
@@ -291,8 +273,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
 			"Goal 管理“什么目标需要跨轮持续追求”",
-			"--json execution contract",
-			"input_staging",
+			"nexus.command",
+			`{"domain":"execution","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",
 			"references/responsibility-and-delivery.md",
 			"references/recovery-and-alignment.md",

@@ -6,7 +6,7 @@ import (
 )
 
 func TestVisualizeExposesOnlyShowWidget(t *testing.T) {
-	tools := buildTools()
+	tools := BuildTools()
 	if len(tools) != 1 || tools[0].Name != "show_widget" {
 		t.Fatalf("visualize tools = %+v", tools)
 	}

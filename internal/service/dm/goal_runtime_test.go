@@ -3,13 +3,14 @@ package dm
 import (
 	"context"
 	"errors"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -212,8 +213,8 @@ func TestDMGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 		goalObjectiveRevision: func() *atomic.Int64 { value := &atomic.Int64{}; value.Store(1); return value }(),
 		responsibilityState:   goalOnly,
 	}
-	stageDMRuntimeCommandReceipt(runner, runtimecommand.Receipt{
-		Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+	stageDMRuntimeCommandReceipt(runner, nexusmcp.CommandReceipt{
+		Domain: command.DomainExecution, Operation: "submit_work",
 		Outcome: string(protocol.MutationResultApplied), GoalBound: false,
 	})
 	runner.recordGoalUsageFromAssistantMessage(message)
@@ -228,8 +229,8 @@ func TestDMGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 		nil,
 	)
 	runner.responsibilityState = bound
-	stageDMRuntimeCommandReceipt(runner, runtimecommand.Receipt{
-		Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+	stageDMRuntimeCommandReceipt(runner, nexusmcp.CommandReceipt{
+		Domain: command.DomainExecution, Operation: "submit_work",
 		Outcome: string(protocol.MutationResultApplied), GoalBound: true,
 	})
 	runner.recordGoalUsageFromAssistantMessage(message)
@@ -555,7 +556,7 @@ func TestDMGoalCreateGuardBecomesConsumedAfterExternalAndModelActivation(t *test
 		{
 			name: "model create",
 			activate: func(runner *roundRunner, _ *runtimectx.Manager, _ string) {
-				stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationCreate, "goal-model", "")
+				stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "goal-model", "")
 				runner.recordGoalUsageFromAssistantMessage(
 					goalToolResultAssistantMessage("tool-create", "create_goal", false, 2, 1),
 				)
@@ -697,7 +698,7 @@ func TestDMExternalActivationBindConflictBeforeModelResultKeepsScopeUnconsumed(t
 
 	// The original model create result can still claim the untouched round-start
 	// baseline and becomes the scope's one consumed Goal.
-	stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationCreate, modelGoal, "")
+	stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, modelGoal, "")
 	runner.recordGoalUsageFromAssistantMessage(
 		goalToolResultAssistantMessage("tool-create", "create_goal", false, 5, 1),
 	)
@@ -933,7 +934,7 @@ func TestRoundRunnerRecordsGoalCompletionCommandMiss(t *testing.T) {
 	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	misses := goalProvider.recordedCompletionMisses()
-	if len(misses) != 1 || !strings.Contains(misses[0], "nexus goal update_goal command receipt") {
+	if len(misses) != 1 || !strings.Contains(misses[0], "nexus.command update_goal receipt") {
 		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
 	}
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
@@ -973,7 +974,7 @@ func TestRoundRunnerFinalizesGoalUsageAfterUpdateGoal(t *testing.T) {
 			goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
 		}
 
-		stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationUpdate, "goal-1", protocol.GoalStatusComplete)
+		stageDMAppliedGoalCommand(runner, command.GoalOperationUpdate, "goal-1", protocol.GoalStatusComplete)
 		runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "Bash", false, 10, 2))
 		runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
 			Usage: sdkprotocol.TokenUsage{
@@ -1121,7 +1122,7 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 			goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
 		}
 
-		stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationCreate, "", "")
+		stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "", "")
 		runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "Bash", false, 5, 1))
 		runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 			Usage: sdkprotocol.TokenUsage{
@@ -1155,9 +1156,9 @@ func TestRoundRunnerBindsModelCreatedGoalThroughTerminalSettlement(t *testing.T)
 		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
 	}
 
-	stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationCreate, "goal-created", "")
+	stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "goal-created", "")
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-create", "Bash", false, 5, 1))
-	stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationUpdate, "goal-created", protocol.GoalStatusComplete)
+	stageDMAppliedGoalCommand(runner, command.GoalOperationUpdate, "goal-created", protocol.GoalStatusComplete)
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-update", "Bash", false, 8, 2))
 	runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
@@ -1480,7 +1481,7 @@ func TestRoundRunnerClaimsPreCreateSubagentUsageAndKeepsChildBoundAfterTerminal(
 	}
 
 	runner.recordSubagentGoalUsage(context.Background(), taskMessage(100))
-	stageDMAppliedGoalCommand(runner, runtimecommand.GoalOperationCreate, "goal-created", "")
+	stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "goal-created", "")
 	runner.recordGoalUsageFromAssistantMessage(
 		goalToolResultAssistantMessage("tool-create", "create_goal", false, 0, 0),
 	)

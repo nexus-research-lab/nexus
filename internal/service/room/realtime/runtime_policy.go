@@ -15,10 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 )
 
-const (
-	roomSendDirectedMessageTool  = "mcp__nexus_room__send_directed_message"
-	roomPublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
-)
+const roomSendMessageTool = "mcp__nexus__send_message"
 
 func roomAllowedTools(values []string, _ bool) []string {
 	// Room policy is a lower layer: it may disable communication, but cannot
@@ -68,7 +65,7 @@ func withRoomPermissionPolicy(
 	allowed := toolpolicy.NormalizeSet(allowedTools)
 	denied := toolpolicy.NormalizeSet(disallowedTools)
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if !isRoomCommunicationTool(request.ToolName) {
+		if !isCurrentRoomMessageRequest(request) {
 			if next == nil {
 				return sdkpermission.Allow(request.Input, nil), nil
 			}
@@ -87,26 +84,22 @@ func withRoomPermissionPolicy(
 	}
 }
 
-func isPrivateMessageTool(toolName string) bool {
-	return isRoomTool(toolName, "send_directed_message")
-}
-
-func isPublicMessageTool(toolName string) bool {
-	return isRoomTool(toolName, "publish_public_message")
-}
-
-func isRoomCommunicationTool(toolName string) bool {
-	return isPrivateMessageTool(toolName) || isPublicMessageTool(toolName)
+func isCurrentRoomMessageRequest(request sdkpermission.Request) bool {
+	if !isRoomTool(request.ToolName, "send_message") {
+		return false
+	}
+	destination, _ := request.Input["destination"].(string)
+	return strings.TrimSpace(destination) == "current_room"
 }
 
 func isRoomTool(toolName string, leaf string) bool {
 	normalized := strings.TrimSpace(toolName)
 	switch normalized {
 	case leaf,
-		"mcp__nexus_room__" + leaf,
-		"nexus_room__" + leaf,
-		"nexus_room." + leaf,
-		"nexus_room/" + leaf:
+		"mcp__nexus__" + leaf,
+		"nexus__" + leaf,
+		"nexus." + leaf,
+		"nexus/" + leaf:
 		return true
 	default:
 		return false

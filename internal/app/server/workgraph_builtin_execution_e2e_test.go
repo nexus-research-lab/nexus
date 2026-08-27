@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync"
 	"testing"
@@ -15,9 +16,10 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -192,7 +194,6 @@ func runBuiltinAdaptiveWorkflowSessionE2E(
 		conversationID,
 		roundID,
 	)
-	t.Cleanup(commandActor.Round.Resources.Close)
 	client := newBuiltinWorkflowE2EClient(func(runCtx context.Context, prompt string) builtinWorkflowE2EOutcome {
 		runResult, runErr := runWorkflowThroughRuntimeCommands(
 			runCtx,
@@ -333,7 +334,7 @@ func builtinWorkflowCommandActor(
 	roomID string,
 	conversationID string,
 	roundID string,
-) runtimecommand.Actor {
+) command.Actor {
 	goalAuthority := runtimectx.NewGoalAuthorityState("", 0, "")
 	responsibility := runtimectx.NewResponsibilityAuthorityState(
 		goalAuthority,
@@ -346,7 +347,7 @@ func builtinWorkflowCommandActor(
 		sourceContextType = "room"
 	}
 	agentRoundID := roundID + ":" + agentValue.AgentID
-	return runtimecommand.Actor{
+	return command.Actor{
 		OwnerUserID:             ownerID,
 		AgentID:                 agentValue.AgentID,
 		SessionKey:              scopeSessionKey,
@@ -357,11 +358,10 @@ func builtinWorkflowCommandActor(
 		SourceContextID:         roomID,
 		GoalMutationAuthority:   goalAuthority,
 		GoalResponsibilityState: responsibility,
-		Round: runtimecommand.RoundContext{
-			SessionKey: scopeSessionKey,
-			RoundID:    roundID,
-			Receipts:   runtimecommand.NewReceiptState(),
-			Resources:  runtimecommand.NewRoundResources(),
+		Round: nexusmcp.RoundContext{
+			SessionKey:      scopeSessionKey,
+			RoundID:         roundID,
+			CommandReceipts: nexusmcp.NewCommandReceiptState(),
 			CommandContext: runtimectx.RuntimeCommandContext{
 				Agent:                   agentValue,
 				ScopeSessionKey:         scopeSessionKey,
@@ -383,13 +383,13 @@ func runWorkflowThroughRuntimeCommands(
 	ctx context.Context,
 	service *orchestrationsvc.Service,
 	repository *orchestrationstore.Repository,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	workflow protocol.WorkGraphWorkflow,
 	scenario builtinAdaptiveWorkflowScenario,
 ) (builtinWorkflowExecutionResult, error) {
-	if _, err := invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-		Domain: runtimecommand.DomainExecution,
-		Action: runtimecommand.ActionInspect,
+	if _, err := invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+		Domain: command.DomainExecution,
+		Action: command.ActionInspect,
 	}); err != nil {
 		return builtinWorkflowExecutionResult{}, fmt.Errorf("inspect fresh Execution: %w", err)
 	}
@@ -397,9 +397,9 @@ func runWorkflowThroughRuntimeCommands(
 	if err != nil {
 		return builtinWorkflowExecutionResult{}, err
 	}
-	prepared, err := invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-		Domain:    runtimecommand.DomainExecution,
-		Action:    runtimecommand.ActionInvoke,
+	prepared, err := invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+		Domain:    command.DomainExecution,
+		Action:    command.ActionInvoke,
 		Operation: "prepare_plan_execution",
 		RequestID: "prepare-builtin-" + scenario.slashName,
 		Input: map[string]any{
@@ -410,9 +410,9 @@ func runWorkflowThroughRuntimeCommands(
 	if err != nil || prepared.StructuredContent["outcome"] != "prepared" {
 		return builtinWorkflowExecutionResult{}, fmt.Errorf("prepare template Plan: result=%#v err=%v", prepared, err)
 	}
-	materialized, err := invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-		Domain:    runtimecommand.DomainExecution,
-		Action:    runtimecommand.ActionInvoke,
+	materialized, err := invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+		Domain:    command.DomainExecution,
+		Action:    command.ActionInvoke,
 		Operation: "plan_execution",
 		RequestID: "materialize-builtin-" + scenario.slashName,
 		Input:     map[string]any{},
@@ -460,9 +460,9 @@ func runWorkflowThroughRuntimeCommands(
 		attemptByLogicalKey[logicalKey]++
 		attemptNumber := attemptByLogicalKey[logicalKey]
 		requestSuffix := fmt.Sprintf("%s-%d", logicalKey, attemptNumber)
-		assigned, assignErr := invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-			Domain:    runtimecommand.DomainExecution,
-			Action:    runtimecommand.ActionInvoke,
+		assigned, assignErr := invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+			Domain:    command.DomainExecution,
+			Action:    command.ActionInvoke,
 			Operation: "assign_work",
 			RequestID: "assign-builtin-" + requestSuffix,
 			Input: map[string]any{
@@ -491,9 +491,9 @@ func runWorkflowThroughRuntimeCommands(
 		if workflowScope(actor) == protocol.ExecutionScopeDM {
 			submitInput["logical_key"] = logicalKey
 		}
-		submitted, submitErr := invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-			Domain:    runtimecommand.DomainExecution,
-			Action:    runtimecommand.ActionInvoke,
+		submitted, submitErr := invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+			Domain:    command.DomainExecution,
+			Action:    command.ActionInvoke,
 			Operation: "submit_work",
 			RequestID: "submit-builtin-" + requestSuffix,
 			Input:     submitInput,
@@ -518,9 +518,9 @@ func runWorkflowThroughRuntimeCommands(
 		if workflowScope(actor) == protocol.ExecutionScopeDM {
 			reviewInput["logical_key"] = logicalKey
 		}
-		reviewed, reviewErr := invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-			Domain:    runtimecommand.DomainExecution,
-			Action:    runtimecommand.ActionInvoke,
+		reviewed, reviewErr := invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+			Domain:    command.DomainExecution,
+			Action:    command.ActionInvoke,
 			Operation: "review_work",
 			RequestID: "review-builtin-" + requestSuffix,
 			Input:     reviewInput,
@@ -541,9 +541,9 @@ func runWorkflowThroughRuntimeCommands(
 				return builtinWorkflowExecutionResult{Snapshot: snapshot}, documentErr
 			}
 			iterationSuffix := fmt.Sprintf("iteration-%d", iteration+1)
-			prepared, err = invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-				Domain:    runtimecommand.DomainExecution,
-				Action:    runtimecommand.ActionInvoke,
+			prepared, err = invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+				Domain:    command.DomainExecution,
+				Action:    command.ActionInvoke,
 				Operation: "prepare_plan_execution",
 				RequestID: "prepare-builtin-" + scenario.slashName + "-" + iterationSuffix,
 				Input: map[string]any{
@@ -554,9 +554,9 @@ func runWorkflowThroughRuntimeCommands(
 			if err != nil || prepared.StructuredContent["outcome"] != "prepared" {
 				return builtinWorkflowExecutionResult{Snapshot: snapshot}, fmt.Errorf("prepare adaptive %s: result=%#v err=%v", iterationSuffix, prepared, err)
 			}
-			materialized, err = invokeBuiltinWorkflowCommand(ctx, service, actor, runtimecommand.Request{
-				Domain:    runtimecommand.DomainExecution,
-				Action:    runtimecommand.ActionInvoke,
+			materialized, err = invokeBuiltinWorkflowCommand(ctx, service, actor, command.Request{
+				Domain:    command.DomainExecution,
+				Action:    command.ActionInvoke,
 				Operation: "plan_execution",
 				RequestID: "materialize-builtin-" + scenario.slashName + "-" + iterationSuffix,
 				Input:     map[string]any{},
@@ -574,16 +574,16 @@ func runWorkflowThroughRuntimeCommands(
 func invokeBuiltinWorkflowCommand(
 	ctx context.Context,
 	service *orchestrationsvc.Service,
-	actor runtimecommand.Actor,
-	request runtimecommand.Request,
-) (runtimecommand.Result, error) {
-	value, err := handleExecutionRuntimeCommand(ctx, service, actor, request)
+	actor command.Actor,
+	request command.Request,
+) (command.Result, error) {
+	value, err := serverruntime.HandleExecutionCommand(ctx, service, actor, request)
 	if err != nil {
-		return runtimecommand.Result{}, err
+		return command.Result{}, err
 	}
-	result, ok := value.(runtimecommand.Result)
+	result, ok := value.(command.Result)
 	if !ok {
-		return runtimecommand.Result{}, fmt.Errorf("runtime command returned %T", value)
+		return command.Result{}, fmt.Errorf("runtime command returned %T", value)
 	}
 	if result.IsError {
 		return result, fmt.Errorf("runtime command returned an error: %#v", result.StructuredContent)
@@ -1028,7 +1028,7 @@ func markParallelWorkflowIterations(
 	}
 }
 
-func workflowScope(actor runtimecommand.Actor) protocol.ExecutionScopeKind {
+func workflowScope(actor command.Actor) protocol.ExecutionScopeKind {
 	if actor.SourceContextType == "room" {
 		return protocol.ExecutionScopeRoom
 	}

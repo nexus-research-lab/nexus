@@ -103,6 +103,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
 	}
+	if options.Env[claudeEmitToolUseSummariesEnvName] != "0" {
+		t.Fatalf("ToolUseSummary 默认开关不正确: %+v", options.Env)
+	}
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
@@ -215,13 +218,13 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 }
 
-func TestToolUseSummaryRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
+func TestBackgroundModelRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
 	mainConfig := &RuntimeConfig{
 		Provider:  "glm",
 		Model:     "glm-main",
 		APIFormat: apiFormatAnthropicMessages,
 	}
-	env := toolUseSummaryRuntimeEnv(
+	env := backgroundModelRuntimeEnv(
 		context.Background(),
 		fakeRuntimeConfigResolver{config: &RuntimeConfig{
 			Provider:  "glm",
@@ -238,12 +241,12 @@ func TestToolUseSummaryRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
 		runtimeKindNXS,
 	)
 	if env[nexusBackgroundModelEnvName] != "glm-air" ||
-		env[claudeEmitToolUseSummariesEnvName] != "1" {
-		t.Fatalf("nxs ToolUseSummary 后台模型环境不正确: %+v", env)
+		env[claudeEmitToolUseSummariesEnvName] != "0" {
+		t.Fatalf("nxs 后台模型环境不正确: %+v", env)
 	}
 }
 
-func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
+func TestBackgroundModelRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
 	mainConfig := &RuntimeConfig{
 		Provider:  "main-provider",
 		Model:     "main-model",
@@ -287,7 +290,7 @@ func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			test.input.Provider = "main-provider"
 			test.input.Model = "main-model"
-			env := toolUseSummaryRuntimeEnv(
+			env := backgroundModelRuntimeEnv(
 				context.Background(),
 				test.resolver,
 				test.input,
@@ -295,20 +298,20 @@ func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
 				runtimeKindNXS,
 			)
 			if env[nexusBackgroundModelEnvName] != "main-model" ||
-				env[claudeEmitToolUseSummariesEnvName] != "1" {
-				t.Fatalf("ToolUseSummary 应回退主模型: %+v", env)
+				env[claudeEmitToolUseSummariesEnvName] != "0" {
+				t.Fatalf("后台模型应回退主模型: %+v", env)
 			}
 		})
 	}
 }
 
-func TestToolUseSummaryRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
+func TestBackgroundModelRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
 	mainConfig := &RuntimeConfig{
 		Provider:  "glm",
 		Model:     "glm-main",
 		APIFormat: apiFormatAnthropicMessages,
 	}
-	env := toolUseSummaryRuntimeEnv(
+	env := backgroundModelRuntimeEnv(
 		context.Background(),
 		fakeRuntimeConfigResolver{config: &RuntimeConfig{
 			Provider:  "glm",
@@ -325,8 +328,8 @@ func TestToolUseSummaryRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
 		runtimeKindClaude,
 	)
 	if env[anthropicSmallFastModelEnvName] != "glm-air" ||
-		env[claudeEmitToolUseSummariesEnvName] != "1" {
-		t.Fatalf("Claude ToolUseSummary 后台模型环境不正确: %+v", env)
+		env[claudeEmitToolUseSummariesEnvName] != "0" {
+		t.Fatalf("Claude 后台模型环境不正确: %+v", env)
 	}
 }
 
@@ -818,7 +821,7 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
 	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
-	t.Setenv(protocol.NexusCommandPathEnvName, "/opt/nexus/bin/nexus")
+	t.Setenv(legacyNexusCommandPathEnvName, "/opt/nexus/bin/nexus")
 	t.Setenv(nexusctlUserIDEnvName, "ambient-owner")
 	t.Setenv(nexusctlWorkspacePathEnvName, "/ambient/workspace")
 	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
@@ -835,55 +838,10 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 		nexusctlWorkspacePathEnvName,
 		protocol.NexusConfigBrokerURLEnvName,
 		protocol.NexusConfigCapabilityTokenEnvName,
-		protocol.NexusCommandPathEnvName,
-		protocol.NexusCommandBrokerURLEnvName,
-		protocol.NexusCommandCapabilityTokenEnvName,
-		protocol.NexusCommandInputPathEnvName,
+		legacyNexusCommandPathEnvName,
 	} {
 		if value := strings.TrimSpace(options.Env[key]); value != "" {
 			t.Fatalf("Agent runtime 泄漏原始 CLI 环境 %s=%q: %+v", key, value, options.Env)
-		}
-	}
-}
-
-func TestBuildAgentClientOptionsExposesRoundScopedNexusRuntimeCLI(t *testing.T) {
-	t.Setenv(protocol.NexusCommandPathEnvName, "/opt/nexus/bin/nexus")
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		OwnerUserID:   "owner-a",
-		WorkspacePath: "/tmp/ordinary-agent",
-		RuntimeCommandEnv: map[string]string{
-			protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/automation",
-			protocol.NexusCommandCapabilityTokenEnvName: "automation-token",
-			protocol.NexusCommandInputPathEnvName:       "/private/round/input.json",
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.Env[protocol.NexusCommandPathEnvName] != "/opt/nexus/bin/nexus" ||
-		options.Env[protocol.NexusCommandCapabilityTokenEnvName] != "automation-token" ||
-		options.Env[protocol.NexusCommandInputPathEnvName] != "/private/round/input.json" {
-		t.Fatalf("ordinary Agent did not receive round-scoped nexus CLI: %+v", options.Env)
-	}
-	if options.Env[nexusctlCommandPathEnvName] != "" || options.Env[nexusctlUserIDEnvName] != "" {
-		t.Fatalf("runtime nexus CLI leaked nexusctl owner authority: %+v", options.Env)
-	}
-	if !slices.Contains(options.AdditionalDirectories, "/private/round") {
-		t.Fatalf("runtime command input directory was not granted to this round: %+v", options.AdditionalDirectories)
-	}
-}
-
-func TestBuildAgentClientOptionsRejectsInvalidRuntimeCommandInputBoundary(t *testing.T) {
-	for _, inputPath := range []string{"", "relative/input.json", "/input.json"} {
-		_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-			RuntimeCommandEnv: map[string]string{
-				protocol.NexusCommandBrokerURLEnvName:       "http://127.0.0.1:8010/nexus/v1/internal/runtime/command",
-				protocol.NexusCommandCapabilityTokenEnvName: "round-token",
-				protocol.NexusCommandInputPathEnvName:       inputPath,
-			},
-		})
-		if err == nil {
-			t.Fatalf("runtime command input path %q should fail closed", inputPath)
 		}
 	}
 }

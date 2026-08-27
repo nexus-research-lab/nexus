@@ -19,7 +19,8 @@ more precise workflow.
   disagreements, and publishes the final answer. Contributors return evidence or
   a concrete result; they do not assume they own final publication.
 - Do not leak private-context information into the public feed. For private
-  collection, use `send_directed_message` with explicit recipients,
+  collection, use `send_message` with `destination=current_room`,
+  `visibility=private`, explicit recipients,
   `wake_policy=immediate`, and `reply_route=private`. Set
   `next_reply_route=public` only when the coordinator should naturally publish
   the synthesized result.

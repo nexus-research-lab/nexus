@@ -184,11 +184,11 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		}
 	}
 	executionCommandDecision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`},
+		ToolName: "mcp__nexus__command",
+		Input:    map[string]any{"domain": "execution", "action": "inspect"},
 	})
 	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("Room runtime did not auto-approve exact Execution CLI: decision=%+v err=%v", executionCommandDecision, decisionErr)
+		t.Fatalf("Room runtime did not auto-approve exact Execution command: decision=%+v err=%v", executionCommandDecision, decisionErr)
 	}
 }
 
@@ -576,7 +576,7 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	memberAgent := createTestAgent(t, agentService, ctx, "非交互助手")
 	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
 		Options: &protocol.Options{
-			DisallowedTools: []string{"nexus_room", "mcp__nexus_room__send_directed_message", "Write"},
+			DisallowedTools: []string{"nexus_communication", "mcp__nexus__send_message", "Write"},
 		},
 	})
 	if err != nil || memberAgent == nil {
@@ -643,8 +643,10 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input:    map[string]any{"command": `"${NEXUS_COMMAND_PATH}" --json goal invoke --operation update_goal --request-id room-goal-complete-1`},
+		ToolName: "mcp__nexus__command",
+		Input: map[string]any{
+			"domain": "goal", "action": "invoke", "operation": "update_goal", "request_id": "room-goal-complete-1",
+		},
 	})
 	if err != nil {
 		t.Fatalf("执行 room Goal 权限处理器失败: %v", err)
@@ -659,7 +661,10 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if decision.Behavior != sdkpermission.BehaviorDeny || len(handledTools) != 1 || handledTools[0] != "Write" {
 		t.Fatalf("room 请求级权限处理器未生效: decision=%+v tools=%+v", decision, handledTools)
 	}
-	roomDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_room__send_directed_message"})
+	roomDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus__send_message",
+		Input:    map[string]any{"destination": "current_room", "visibility": "private"},
+	})
 	if err != nil {
 		t.Fatalf("执行 room 内建通讯工具权限处理器失败: %v", err)
 	}
@@ -668,10 +673,10 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		handledTools[0] != "Write" {
 		t.Fatalf("Room 私信工具默认应直接拒绝: decision=%+v tools=%+v", roomDecision, handledTools)
 	}
-	if !roomTestStringSliceContains(options.Tools.Deny, "nexus_room") {
-		t.Fatalf("Room runtime 必须保留 Agent broad nexus_room deny: %+v", options.Tools.Deny)
+	if !roomTestStringSliceContains(options.Tools.Deny, "nexus_communication") {
+		t.Fatalf("Room runtime 必须保留 Agent broad nexus_communication deny: %+v", options.Tools.Deny)
 	}
-	if !roomTestStringSliceContains(options.Tools.Deny, "mcp__nexus_room__send_directed_message") {
+	if !roomTestStringSliceContains(options.Tools.Deny, "mcp__nexus__send_message") {
 		t.Fatalf("Room 私信工具 deny 配置应保留: %+v", options.Tools.Deny)
 	}
 	if !roomTestStringSliceContains(options.Tools.Deny, "Write") {

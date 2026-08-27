@@ -8,7 +8,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -39,31 +39,18 @@ type roomSlotRuntimeState struct {
 	sdkIdentityOnce     sync.Once
 	sdkSessionIdentity  *runtimectx.SDKSessionIdentityState
 	commandReceiptOnce  sync.Once
-	commandReceipts     *runtimecommand.ReceiptState
-	commandResourceOnce sync.Once
-	commandResources    *runtimecommand.RoundResources
+	commandReceipts     *nexusmcp.CommandReceiptState
 	workBindingOnce     sync.Once
 	workBindingState    *runtimectx.WorkBindingState
 }
 
-func (s *activeRoomSlot) ensureCommandResources() *runtimecommand.RoundResources {
-	if s == nil {
-		return nil
-	}
-	runtimeState := &s.mutable.runtime
-	runtimeState.commandResourceOnce.Do(func() {
-		runtimeState.commandResources = runtimecommand.NewRoundResources()
-	})
-	return runtimeState.commandResources
-}
-
-func (s *activeRoomSlot) ensureCommandReceiptState() *runtimecommand.ReceiptState {
+func (s *activeRoomSlot) ensureCommandReceiptState() *nexusmcp.CommandReceiptState {
 	if s == nil {
 		return nil
 	}
 	runtimeState := &s.mutable.runtime
 	runtimeState.commandReceiptOnce.Do(func() {
-		runtimeState.commandReceipts = runtimecommand.NewReceiptState()
+		runtimeState.commandReceipts = nexusmcp.NewCommandReceiptState()
 	})
 	return runtimeState.commandReceipts
 }
@@ -448,7 +435,6 @@ func (s *Service) finishSlot(slot *activeRoomSlot) {
 		return
 	}
 	s.forgetRoomSlotGuidance(slot)
-	slot.ensureCommandResources().Close()
 	slot.closeDone()
 }
 
@@ -1118,7 +1104,7 @@ func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
 	return protocol.Clone(slot.mutable.goal.lastAssistant)
 }
 
-func (slot *activeRoomSlot) consumeRuntimeCommandReceipts() []runtimecommand.Receipt {
+func (slot *activeRoomSlot) consumeRuntimeCommandReceipts() []nexusmcp.CommandReceipt {
 	if slot == nil {
 		return nil
 	}

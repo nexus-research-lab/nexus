@@ -7,10 +7,14 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 )
 
 // ErrRuntimeSessionClosing 表示 session 正在退出，不能再注册新的运行任务。
 var ErrRuntimeSessionClosing = errors.New("runtime session is closing")
+
+// RoundIdleAbortTimeout 是 round 空闲后中断/断连的共享宽限。
+const RoundIdleAbortTimeout = 5 * time.Second
 
 // sessionCloseTarget 保存关闭期间需要取消、等待和最终移除的 session 状态。
 type sessionCloseTarget struct {

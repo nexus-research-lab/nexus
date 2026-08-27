@@ -302,7 +302,7 @@ func TestServiceListsAddressBookAndPublishesToMemberRoom(t *testing.T) {
 		t.Fatal(err)
 	}
 	if serialized := fmt.Sprint(messages); !strings.Contains(serialized, "同步完成") ||
-		!strings.Contains(serialized, "nexus_comms.send_message") {
+		!strings.Contains(serialized, "nexus.send_message") {
 		t.Fatalf("room history missing platform message: %+v", messages)
 	}
 }

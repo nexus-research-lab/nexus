@@ -1,6 +1,6 @@
 // INPUT: MCP 参数和 service 公开投影。
 // OUTPUT: 严格字符串 map、Authorization request/ref 与 JSON/error result。
-// POS: nexus_connector_auth 无业务逻辑适配层。
+// POS: Nexus Connector 授权工具的无业务逻辑适配层。
 package tool
 
 import (

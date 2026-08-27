@@ -9,16 +9,18 @@
 
 "use client";
 
-import { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 
 export function MessageRail({
   children,
   className: className,
+  ref,
 }: {
   children: ReactNode;
   className?: string;
+  ref?: Ref<HTMLDivElement>;
 }) {
   return (
     <div
@@ -26,6 +28,7 @@ export function MessageRail({
         "min-w-0 max-w-full overflow-hidden border-l-2 pl-4",
         className,
       )}
+      ref={ref}
       style={{ borderColor: "color-mix(in srgb, var(--foreground) 18%, transparent)" }}
     >
       {children}

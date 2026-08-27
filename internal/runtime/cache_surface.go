@@ -200,7 +200,8 @@ func hostSDKToolSurfaceFingerprints(
 	surfaces := make(map[string]string, len(aliases))
 	for _, alias := range aliases {
 		// Only Nexus-owned aliases are safe to invoke during configuration.
-		if !strings.HasPrefix(strings.TrimSpace(alias), "nexus_") {
+		normalizedAlias := strings.TrimSpace(alias)
+		if normalizedAlias != "nexus" && !strings.HasPrefix(normalizedAlias, "nexus_") {
 			hostComplete = false
 			continue
 		}

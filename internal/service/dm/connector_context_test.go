@@ -52,7 +52,7 @@ func TestConnectorRuntimeToolPromptPublishesCurrentTurnQualifiedNames(t *testing
 		[]string{"feishu-docx"},
 		map[string]sdkmcp.ServerConfig{
 			"nexus_feishu_docx": sdkmcp.SDKServerConfig{Name: "nexus_feishu_docx"},
-			"nexus_visualize":   sdkmcp.SDKServerConfig{Name: "nexus_visualize"},
+			"nexus":             sdkmcp.SDKServerConfig{Name: "nexus"},
 		},
 	)
 	for _, want := range []string{

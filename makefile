@@ -68,12 +68,11 @@ gen-protocol-types: ## Generate frontend protocol types from Go protocol definit
 
 prepare-dev-runtime-cli: ## Build current-source runtime CLI binaries for development
 	@mkdir -p "$(DEV_RUNTIME_CLI_BIN_DIR)"
-	go build -o "$(DEV_RUNTIME_CLI_BIN_DIR)/" ./cmd/nexusctl ./cmd/nexuscfg ./cmd/nexus
+	go build -o "$(DEV_RUNTIME_CLI_BIN_DIR)/" ./cmd/nexusctl ./cmd/nexuscfg
 
 run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
 	NEXUSCTL_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexusctl" \
 	NEXUSCFG_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexuscfg" \
-	NEXUS_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexus" \
 	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend

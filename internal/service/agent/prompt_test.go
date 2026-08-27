@@ -176,8 +176,8 @@ func TestServiceBuildRuntimePromptDoesNotDuplicateManagedSkillGuidance(t *testin
 	for _, duplicate := range []string{
 		"Goal Skill 使用要求",
 		"Execution Skill 使用要求",
-		`"${NEXUS_COMMAND_PATH}" --json goal`,
-		`"${NEXUS_COMMAND_PATH}" --json execution`,
+		"use only `nexus.command` with the goal domain",
+		"use only `nexus.command` with the execution domain",
 	} {
 		if strings.Contains(prompt, duplicate) {
 			t.Fatalf("运行时提示词重复注入 managed Skill 指引 %q: %q", duplicate, prompt)

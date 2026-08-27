@@ -90,7 +90,8 @@ func validateAgentMCPServerName(name string, builtIn map[string]sdkmcp.ServerCon
 	if !persistedMCPServerNamePattern.MatchString(normalized) {
 		return agentMCPServerError(name, "名称只能使用 1-64 位字母、数字、点、下划线或连字符，且必须以字母或数字开头")
 	}
-	if strings.HasPrefix(strings.ToLower(normalized), "nexus_") {
+	normalizedLower := strings.ToLower(normalized)
+	if normalizedLower == "nexus" || strings.HasPrefix(normalizedLower, "nexus_") {
 		return agentMCPServerError(name, "不能使用 Nexus 内建 MCP server 命名空间")
 	}
 	if _, exists := reservedAgentMCPServerNames[strings.ToLower(normalized)]; exists {

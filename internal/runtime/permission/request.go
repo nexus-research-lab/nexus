@@ -186,7 +186,7 @@ func (c *Context) buildPermissionDecision(
 	delete(message, "configuration_secrets")
 	defer clear(configurationSecrets)
 	if decision == "allow" {
-		if isRecordedHumanApprovalTool(pending.ToolName) {
+		if isRecordedHumanApprovalTool(pending.ToolName, pending.ToolInput) {
 			c.mu.RLock()
 			recorder := c.approvalRecorder
 			c.mu.RUnlock()

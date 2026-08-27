@@ -79,7 +79,7 @@ test("show_widget 从工具过程提升到最终回复", async () => {
   const widget = {
     type: "tool_use",
     id: "widget-1",
-    name: "mcp__nexus_visualize__show_widget",
+    name: "mcp__nexus__show_widget",
     input: { title: "曲线", widget_code: "<svg />" },
   };
   const result = {
@@ -167,7 +167,7 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
   const toolUse = {
     type: "tool_use",
     id: "widget-render-1",
-    name: "mcp__nexus_visualize__show_widget",
+    name: "mcp__nexus__show_widget",
     input: { title: "曲线", widget_code: "<svg />" },
   };
   const result = {

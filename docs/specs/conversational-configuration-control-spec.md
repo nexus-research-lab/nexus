@@ -20,16 +20,16 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `providers` | 数据库 | `nexuscfg` | 目录与检查立即；模型运行配置下一轮 |
 | `agents` | 数据库 + 派生 workspace settings | `nexuscfg` | 资料/UI 立即；权限即时同步；其他 runtime 设置下一轮 |
 | `emotion` | 当前 Agent workspace 的版本化 `.agents/emotion.json` | `nexuscfg` | 基础/上下文情绪下一轮投影；fatigue 只读 |
-| `channels` | 数据库 + 加密凭据 | `nexuscfg`；扫码/验证码走 `nexus_channel_authorization` | 版本 CAS 后热重载，失败条件回滚 |
-| `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexuscfg`；OAuth/Device 走 `nexus_connector_auth` | 下一会话或重新授权 |
+| `channels` | 数据库 + 加密凭据 | `nexuscfg`；扫码/验证码走 `nexus` MCP Channel 授权工具 | 版本 CAS 后热重载，失败条件回滚 |
+| `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexuscfg`；OAuth/Device 走 `nexus` MCP Connector 授权工具 | 下一会话或重新授权 |
 | `skills` | 数据库 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexuscfg` | 来源、目录和导入结果立即；Agent 在下一轮加载 Skill 内容与安装选择 |
 | `host` | 部署环境 + 原生桌面宿主 | `nexuscfg` 脱敏检查；变更走对应人类控制面 | 外部变更后重启 |
 | `sessions` | owner-confined Agent workspace session meta + owner lifecycle ledger | `nexuscfg` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
 | `rooms` | 数据库 + Room runtime | `nexuscfg` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
-| `automation` | 数据库 + scheduler runtime | Agent task 走内置 Skill + round-scoped `nexus automation`；script task 仅人类控制面 | CLI inspect/plan/apply，后台 run 只读 |
+| `automation` | 数据库 + scheduler runtime | Agent task 走内置 Skill + round-scoped `nexus.command`；script task 仅人类控制面 | structured inspect/plan/apply，后台 run 只读 |
 | `workspaces` | workspace 文件系统 | 主智能体通过 `nexus-manager` Skill 调用 owner-scoped `nexusctl`；当前 Agent 使用原生文件工具 | 当前 workspace 文件写入立即 |
-| `goals` | 数据库 + Goal runtime | 内置 `goal-manager` Skill + round-scoped `nexus goal` | 专用 Goal 生命周期 |
-| `executions` | 数据库 + Execution runtime | 内置 `execution-orchestrator` Skill + round-scoped `nexus execution` | 专用 Plan / WorkGraph 生命周期 |
+| `goals` | 数据库 + Goal runtime | 内置 `goal-manager` Skill + round-scoped `nexus.command` | 专用 Goal 生命周期 |
+| `executions` | 数据库 + Execution runtime | 内置 `execution-orchestrator` Skill + round-scoped `nexus.command` | 专用 Plan / WorkGraph 生命周期 |
 
 部署环境和桌面状态根属于宿主控制面。智能体可以读取脱敏状态、运行确定性检查并解释正确操作方法，但不能把一次文件或数据库写入伪装成已经改变当前进程。服务器 workspace 根只能由部署环境配置；桌面端只迁移完整状态根，并在 sidecar 退出后离线切换和重启。
 
@@ -38,13 +38,12 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 通过内置 `nexus-configuration` Skill 调用宿主按 runtime round 签发的 `nexuscfg`。
 这些 CLI 都调用既有领域服务，不允许模型直接读写数据库。`nexuscfg` 能执行的操作
 由当前可信 DM/Room 身份决定，普通 Agent 只获得自身或当前 Room 范围的配置能力。
-Goal 使用内置 Skill 与 round-scoped `nexus goal` CLI；Automation 使用内置 Skill 与
-round-scoped `nexus automation` CLI，因为两者都不是普通配置 patch。当前 Agent workspace 仍使用
+Goal 与 Automation 使用内置 Skill 和 round-scoped `nexus.command`，因为两者都不是普通配置 patch。当前 Agent workspace 仍使用
 自己的文件工具。
 
-Goal 的创建、读取、明确改写目标和模型终态由 Goal command broker 完成。模型先按需加载
+Goal 的创建、读取、明确改写目标和模型终态由 round-scoped command adapter 完成。模型先按需加载
 `goal-manager`，再通过 `contract → inspect → invoke` 读取精确 operation contract 并提交命令；
-身份和 Goal revision 全部由 round capability 绑定。暂停、恢复、预算和清除会触发 usage
+身份和 Goal revision 全部由 round actor 绑定。暂停、恢复、预算和清除会触发 usage
 结算、continuation 与当前 round 中断，不属于对话工具，只保留给当前认证的人类界面，
 也不得伪装成 `nexuscfg` 普通字段更新。
 
@@ -251,12 +250,12 @@ Token 与 Agent 自定义 MCP 中的秘密仍沿用各自现有存储模型，�
 WebSocket 私有 DM，并绑定 owner、主 Agent、业务 session/root round、真实 runtime
 lease、当前认证 principal/session、启动资源版本和过期时间：
 
-- `nexus_connector_auth` 的启动工具必须先经过当前 permission 卡的真实 `allow`。OAuth
+- `nexus.connector_authorization` 的 `action=start` 必须先经过当前 permission 卡的真实 `allow`。OAuth
   工具结果只返回 Nexus 本地受保护路径；浏览器请求仅携带 opaque `flow_id`，服务端从
   durable flow 恢复全部身份并再次验证认证 session，再 303 到 provider。Provider
   state、PKCE、device code、auth code 和 token 不进入模型。Device Flow 只返回 provider
   明确定义为公开的人类 user code / verification URI。
-- `nexus_channel_authorization` 的模型结果只含 flow 状态。QR payload、verification URL
+- `nexus.channel_authorization` 的 action 结果只含 flow 状态。QR payload、verification URL
   和验证码输入只通过与原始业务 session、同一 principal 绑定的原生 WebSocket 卡片
   展示/提交；验证码会在 wire map 中立即移除，不进入 transcript、MCP 参数、数据库或
   审计。重连、跨 sender、跨 lease、过期 token 和旧进程 generation 均拒绝。

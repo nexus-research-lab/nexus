@@ -202,7 +202,7 @@ export const enCapabilityMessages = {
   "capability.skill_description.pptx": "Read, create, edit, and verify PowerPoint presentations with text, tables, charts, images, and speaker notes.",
   "capability.skill_description.wechat_article_search": "Search WeChat Official Account articles by keyword and organize titles, summaries, publication dates, sources, and links.",
   "capability.skill_description.room_playbook": "Inject shared collaboration rules into a Room so members can work safely and in sequence toward a common goal.",
-  "capability.skill_description.werewolf_6p": "Provide Nexus Room werewolf rules for one host and six players, including public phases, private information, and ordered turns.",
+  "capability.skill_description.werewolf_6p": "Run six-player Werewolf with a permanent Agent host while the user chooses to join the randomized role pool or spectate.",
   "capability.skill_description.xlsx": "Read, create, edit, recalculate, and verify Excel workbooks with formulas, formatting, tables, and charts.",
   "capability.skills_external_loading": "Searching community skills...",
   "capability.skills_external_recommended": "Recommended Skills",

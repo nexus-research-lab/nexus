@@ -1,13 +1,18 @@
 package message
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 // AssistantSegment 维护单段 assistant 输出状态。
@@ -143,6 +148,11 @@ func applyToolInputProjection(block map[string]any, partial string) {
 func isVisualizeShowWidgetTool(name string) bool {
 	switch strings.TrimSpace(name) {
 	case "show_widget",
+		"mcp__nexus__show_widget",
+		"nexus__show_widget",
+		"nexus.show_widget",
+		"nexus/show_widget",
+		// 旧 server 包装名只用于恢复已持久化 transcript。
 		"mcp__nexus_visualize__show_widget",
 		"nexus_visualize__show_widget",
 		"nexus_visualize.show_widget",
@@ -550,4 +560,47 @@ func emptyAssistantBlock(blockType string) map[string]any {
 	default:
 		return map[string]any{"type": "text", "text": ""}
 	}
+}
+
+const maxToolUseSummaryRunes = 240
+
+func (p *Processor) projectToolUseSummary(summary sdkprotocol.ToolUseSummaryMessage) *protocol.Message {
+	text := sanitizeToolUseSummary(summary.Summary)
+	if text == "" {
+		return nil
+	}
+	payload := protocol.Message(baseMessageEnvelope(
+		p.ctx,
+		p.sessionID,
+		toolUseSummaryMessageID(p.ctx),
+		"assistant",
+	))
+	payload["content"] = []map[string]any{{
+		"type":                   "progress_update",
+		"text":                   text,
+		"preceding_tool_use_ids": append([]string(nil), summary.PrecedingToolUseIDs...),
+	}}
+	payload["is_complete"] = false
+	payload["metadata"] = map[string]any{
+		"subtype": "tool_use_summary",
+	}
+	return &payload
+}
+
+func toolUseSummaryMessageID(ctx MessageContext) string {
+	identity := strings.Join([]string{
+		strings.TrimSpace(ctx.RoundID),
+		strings.TrimSpace(ctx.AgentRoundID),
+		strings.TrimSpace(ctx.AgentID),
+	}, "\x00")
+	digest := sha256.Sum256([]byte(identity))
+	return "msg_assistant_progress_" + hex.EncodeToString(digest[:12])
+}
+
+func sanitizeToolUseSummary(value string) string {
+	value = strings.Join(strings.Fields(value), " ")
+	if utf8.RuneCountInString(value) > maxToolUseSummaryRunes {
+		value = string([]rune(value)[:maxToolUseSummaryRunes-1]) + "…"
+	}
+	return strings.TrimSpace(value)
 }

@@ -7,12 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -47,8 +47,7 @@ type dmClientPreparation struct {
 	goalObjectiveRevision  *atomic.Int64
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
 	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
-	commandReceipts        *runtimecommand.ReceiptState
-	commandResources       *runtimecommand.RoundResources
+	commandReceipts        *nexusmcp.CommandReceiptState
 	permissionMode         sdkpermission.Mode
 }
 
@@ -149,8 +148,6 @@ func (s *Service) ensureClient(
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
-	permissionHandler = toolpolicy.WithNexusRuntimeCLIAutoApproval(permissionHandler)
-	permissionHandler = toolpolicy.WithNexusRuntimeCLICompositionDeny(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	var runtimeSkillNames, runtimeDisabledSkillNames []string
 	if !scopedPolicyActive || !scopedPolicy.DisableSkills {
@@ -229,14 +226,7 @@ func (s *Service) ensureClient(
 	sdkSessionIdentity := runtimectx.NewSDKSessionIdentityState(
 		dmdomain.StringPointerValue(sessionItem.SessionID),
 	)
-	commandReceipts := runtimecommand.NewReceiptState()
-	commandResources := runtimecommand.NewRoundResources()
-	commandResourcesTransferred := false
-	defer func() {
-		if !commandResourcesTransferred {
-			commandResources.Close()
-		}
-	}()
+	commandReceipts := nexusmcp.NewCommandReceiptState()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	if scopedPolicyActive {
@@ -278,25 +268,6 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
-	runtimeCommandEnv := map[string]string(nil)
-	if !request.runtimePreparationOnly &&
-		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
-			sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
-		s.runtimeCommandEnv != nil {
-		runtimeCommandEnv, err = s.runtimeCommandEnv(
-			runtimeBuilderContext,
-			runtimecommand.RoundContext{
-				SessionKey: sessionKey, RoundID: request.RoundID,
-				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
-				SourceContextLabel: agentValue.Name,
-				CommandContext:     runtimeCommandContext, Receipts: commandReceipts,
-				Resources: commandResources,
-			},
-		)
-		if err != nil {
-			return dmClientPreparation{}, err
-		}
-	}
 	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
 	enabledConnectorIDs := protocol.EffectiveSessionConnectorIDs(
 		agentValue.Options.ConnectorIDs,
@@ -309,18 +280,17 @@ func (s *Service) ensureClient(
 		dynamicSystemPrompt,
 		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
 	)
+	mcpContext := runtimectx.WithEnabledConnectorIDs(
+		runtimeBuilderContext,
+		enabledConnectorIDs,
+	)
+	mcpContext = runtimectx.WithGoalAuthorityState(mcpContext, goalAuthority)
+	mcpContext = runtimectx.WithResponsibilityAuthorityState(
+		mcpContext,
+		responsibilityState,
+	)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil && !scopedPolicyActive {
-		mcpContext := runtimeBuilderContext
-		mcpContext = runtimectx.WithEnabledConnectorIDs(
-			mcpContext,
-			enabledConnectorIDs,
-		)
-		mcpContext = runtimectx.WithGoalAuthorityState(mcpContext, goalAuthority)
-		mcpContext = runtimectx.WithResponsibilityAuthorityState(
-			mcpContext,
-			responsibilityState,
-		)
 		mcpServers = s.mcpServers(
 			mcpContext,
 			agentValue,
@@ -332,6 +302,28 @@ func (s *Service) ensureClient(
 			goalObjectiveRevision,
 			permissionMode,
 		)
+	}
+	if (!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+		sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
+		s.nexusMCP != nil {
+		runtimeServers, runtimeErr := s.nexusMCP(
+			mcpContext,
+			nexusmcp.RoundContext{
+				SessionKey: sessionKey, RoundID: request.RoundID,
+				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
+				SourceContextLabel: agentValue.Name,
+				CommandContext:     runtimeCommandContext, CommandReceipts: commandReceipts,
+			},
+		)
+		if runtimeErr != nil {
+			return dmClientPreparation{}, runtimeErr
+		}
+		if len(runtimeServers) > 0 && mcpServers == nil {
+			mcpServers = make(map[string]sdkmcp.ServerConfig, len(runtimeServers))
+		}
+		for name, server := range runtimeServers {
+			mcpServers[name] = server
+		}
 	}
 	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
 	dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, connectorTurnContext)
@@ -400,7 +392,6 @@ func (s *Service) ensureClient(
 		MCPServers:                 mcpServers,
 		AgentMCPServers:            agentValue.Options.MCPServers,
 		ConfigurationEnv:           configurationRuntimeEnv,
-		RuntimeCommandEnv:          runtimeCommandEnv,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
@@ -453,6 +444,7 @@ func (s *Service) ensureClient(
 	if forking && resumeID == "" {
 		return dmClientPreparation{}, errors.New("fork source SDK session is unavailable")
 	}
+	conversationFork := forking
 	forking = forking || toolSurfaceFork
 	if request.runtimePreparationOnly && !toolSurfaceFork {
 		return dmClientPreparation{}, nil
@@ -513,7 +505,7 @@ func (s *Service) ensureClient(
 				"cleanup_err", closeErr,
 			)
 		}
-		if forking {
+		if conversationFork {
 			return dmClientPreparation{}, err
 		}
 		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
@@ -528,11 +520,18 @@ func (s *Service) ensureClient(
 		if !retired {
 			return dmClientPreparation{}, err
 		}
-		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
+		if _, clearErr := s.clearReusableSDKSessionID(
+			ctx,
+			agentValue.WorkspacePath,
+			sessionItem,
+		); clearErr != nil {
 			return dmClientPreparation{}, clearErr
 		}
 		sdkSessionIdentity.Set("")
 		options.Session.ResumeID = ""
+		options.Session.ResumeAt = ""
+		options.Session.Fork = false
+		forking = false
 		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
 			return dmClientPreparation{}, err
 		}
@@ -619,10 +618,8 @@ func (s *Service) ensureClient(
 		responsibilityState:    responsibilityState,
 		sdkSessionIdentity:     sdkSessionIdentity,
 		commandReceipts:        commandReceipts,
-		commandResources:       commandResources,
 		permissionMode:         permissionMode,
 	}
-	commandResourcesTransferred = true
 	return preparation, nil
 }
 
@@ -630,10 +627,10 @@ func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "Read", "Write", "Bash", "PowerShell"},
+			AllowedTools: []string{"Skill", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
-				"nexus_visualize", "nexus_imagegen",
+				"mcp__nexus__show_widget", "mcp__nexus__generate_image", "mcp__nexus__edit_image",
 			},
 		},
 		AllowedSkillNames: []string{"execution-orchestrator"},
@@ -853,11 +850,12 @@ func (s *Service) resolveReusableSDKSessionID(
 		(!hasKindFingerprint || actualKind == expectedKind) &&
 		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
 		(!hasModelFingerprint || actualModel == expectedModel)
+	runtimeChanged := hasKindFingerprint && actualKind != expectedKind
 	decision := sessionresumesvc.NewPolicy(
 		s.history.ForOwner(authctx.OwnerUserID(ctx)),
 	).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
-		if sessionresumesvc.RequiresToolSurfaceFork(
+		if !runtimeChanged && sessionresumesvc.RequiresToolSurfaceFork(
 			actualToolSurface,
 			toolSurfaceFingerprint,
 			forkLegacyToolSurface,

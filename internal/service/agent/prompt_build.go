@@ -5,6 +5,7 @@ package agent
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+//go:embed prompt_base.md
+var defaultBaseSystemPrompt string
+
+//go:embed prompt_main_agent.md
+var defaultMainAgentSystemPrompt string
 
 var defaultWorkspacePromptFiles = []string{
 	"AGENTS.md",
@@ -31,6 +38,27 @@ var mainAgentWorkspacePromptFiles = []string{
 
 type promptBuilder struct {
 	config config.Config
+}
+
+// BuildRuntimePrompt 构建运行时附加提示词。
+func (s *Service) BuildRuntimePrompt(ctx context.Context, agentValue *protocol.Agent) (string, error) {
+	if s == nil || s.prompts == nil {
+		return "", nil
+	}
+	return s.prompts.Build(ctx, agentValue)
+}
+
+// BuildRuntimeUserMessageSuffixForContext 按用户偏好构建指定情绪上下文的动态上下文。
+func (s *Service) BuildRuntimeUserMessageSuffixForContext(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+	emotionContextID string,
+	emotionEnabled bool,
+) string {
+	if s == nil || s.prompts == nil || !emotionEnabled {
+		return ""
+	}
+	return s.prompts.BuildUserMessageSuffix(ctx, agentValue, emotionContextID)
 }
 
 type promptBuildScope struct {

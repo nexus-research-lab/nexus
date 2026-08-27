@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,6 +12,45 @@ import (
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
+
+type telegramSendMessageResponse struct {
+	OK          *bool  `json:"ok"`
+	Description string `json:"description,omitempty"`
+	Result      struct {
+		MessageID int64 `json:"message_id"`
+	} `json:"result"`
+}
+
+type telegramUpdatesEnvelope struct {
+	OK          bool             `json:"ok"`
+	Description string           `json:"description,omitempty"`
+	Result      []telegramUpdate `json:"result,omitempty"`
+}
+
+type telegramUpdate struct {
+	UpdateID      int              `json:"update_id"`
+	Message       *telegramMessage `json:"message,omitempty"`
+	EditedMessage *telegramMessage `json:"edited_message,omitempty"`
+}
+
+type telegramMessage struct {
+	MessageID       int           `json:"message_id"`
+	MessageThreadID int           `json:"message_thread_id,omitempty"`
+	Text            string        `json:"text,omitempty"`
+	Caption         string        `json:"caption,omitempty"`
+	From            *telegramUser `json:"from,omitempty"`
+	Chat            telegramChat  `json:"chat"`
+}
+
+type telegramUser struct {
+	ID    int64 `json:"id"`
+	IsBot bool  `json:"is_bot"`
+}
+
+type telegramChat struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"`
+}
 
 type TelegramChannel struct {
 	token       string
@@ -115,4 +155,20 @@ func (c *TelegramChannel) loggerFor(ctx context.Context) *slog.Logger {
 	logger := c.logger
 	c.mu.RUnlock()
 	return logx.Resolve(ctx, logger)
+}
+
+func (c *TelegramChannel) redactError(err error) error {
+	if err == nil {
+		return nil
+	}
+	text := strings.TrimSpace(err.Error())
+	token := strings.TrimSpace(c.token)
+	if token != "" {
+		text = strings.ReplaceAll(text, "/bot"+token+"/", "/bot<redacted>/")
+		text = strings.ReplaceAll(text, "bot"+token, "bot<redacted>")
+	}
+	if text == "" {
+		text = "telegram request failed"
+	}
+	return errors.New(text)
 }

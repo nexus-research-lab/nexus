@@ -55,7 +55,7 @@ func (p *Processor) processToolResultMessage(
 		enrichedBlock := p.enrichToolResultBlock(block, structuredOutput)
 		enrichedBlocks = append(enrichedBlocks, enrichedBlock)
 		enrichedBlocks = append(enrichedBlocks, p.workspaceFileArtifactsForToolResult(enrichedBlock)...)
-		if artifact := p.workGraphArtifactForToolResult(enrichedBlock); artifact != nil {
+		if artifact := p.workGraphArtifactForToolResult(enrichedBlock, structuredOutput); artifact != nil {
 			enrichedBlocks = append(enrichedBlocks, artifact)
 		}
 	}
@@ -254,6 +254,7 @@ func normalizeCompletionSignalText(text string) string {
 
 func mentionsGoalUpdateCommand(text string) bool {
 	for _, marker := range []string{
+		"nexus.command",
 		"nexus goal invoke",
 		"update_goal",
 		"goal update command",

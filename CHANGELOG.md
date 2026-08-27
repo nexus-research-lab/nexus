@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including domain-scoped safe replay for page-created tasks.
 - Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
 
+### Changed
+
+- Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
+- Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
+- Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.
+- Collapsed Connector and Channel authorization into one action-based `nexus` MCP tool per authorization domain while preserving human approval and native secret-entry boundaries.
+- Unified Agent and Room communication under `list_targets` and one context-aware `send_message` tool while preserving private visibility, wake, reply-route, public-feed, and cross-session behavior.
+
 ### Fixed
 
 - Committed each scheduled-task runtime claim and its initial run ledger in one
@@ -53,6 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retrying an older run cannot replace the current task status.
 - Distinguished client cancellation, request timeout, connection loss, and
   interrupted response bodies without retrying writes whose outcome is unknown.
+- Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.
+- Recovered DM and Room conversations with a fresh runtime session when an automatic tool-surface fork references a transcript that the selected runtime cannot resume.
+- Moved Goal, Execution, and Automation model commands to the round-scoped structured `nexus.command` MCP tool, removing temporary JSON input files, shell shims, loopback brokers, command tokens, and extra writable roots while keeping nxs reusable across rounds.
+- Released the held live-feed height when collapsing a streaming Thought, removing the empty space left below its collapsed row.
 - Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
 - Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
 - Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.

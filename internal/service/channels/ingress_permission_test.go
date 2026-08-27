@@ -83,13 +83,13 @@ func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *test
 				t.Fatalf("%s 未签发 paired interactive context: %+v", channelType, handler.requests)
 			}
 			decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-				ToolName: "Bash",
+				ToolName: "mcp__nexus__command",
 				Input: map[string]any{
-					"command": `"${NEXUS_COMMAND_PATH}" --json automation plan --operation create --input-file "${NEXUS_COMMAND_INPUT_PATH}"`,
+					"domain": "automation", "action": "plan", "operation": "create",
 				},
 			})
 			if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
-				t.Fatalf("%s paired DM 未继承同 Agent 的 CLI transport 权限: decision=%+v err=%v", channelType, decision, err)
+				t.Fatalf("%s paired DM 未继承同 Agent 的 runtime command 权限: decision=%+v err=%v", channelType, decision, err)
 			}
 		})
 	}

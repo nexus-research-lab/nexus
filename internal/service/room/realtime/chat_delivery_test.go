@@ -191,11 +191,11 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		"Each turn includes <public_feed>",
 		"Before substantial execution, assess separability",
 		"members may use local subagents",
-		"Directed-message sending is disabled",
+		"Current-Room private messaging is disabled",
 		`"room host default takeover"`,
 		"managed Plan and assign_work through execution-orchestrator",
 		"never substitute raw @",
-		"If a directed message wakes you, answer once in the final reply",
+		"If a private message wakes you, answer once in the final reply",
 		"The final reply may be persisted or projected verbatim",
 		"# Nexus Room Member Directory",
 		"<room_member_directory>",
@@ -206,7 +206,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		}
 	}
 	for _, unexpected := range []string{
-		`nexus_room.send_directed_message`,
+		`nexus.send_message`,
 		"以成员 单聊助手",
 		"<current_room_member>",
 	} {

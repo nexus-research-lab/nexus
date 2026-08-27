@@ -154,8 +154,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"never substitute raw @",
 		"Do not emit the legacy <nexus_room_fanout/> marker",
 		"<nexus_room_no_reply/>",
-		`nexus_room.send_directed_message`,
-		`nexus_room.publish_public_message`,
+		`nexus.send_message`,
+		`destination=current_room`,
+		`visibility=private`,
+		`visibility=public`,
 		"recipients sets visibility",
 		"wake_targets selects who runs",
 		"Runtime routes one final reply per recipient through reply_route",
@@ -293,10 +295,10 @@ func TestBuildRoomVisibleContextIncludesPublicMentionSourceOnlyOnce(t *testing.T
 
 func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
 	systemPrompt := BuildSystemPrompt()
-	if strings.Contains(systemPrompt, "nexus_room.send_directed_message") {
+	if strings.Contains(systemPrompt, "nexus.send_message") {
 		t.Fatalf("Room 默认提示词不应注入私信工具:\n%s", systemPrompt)
 	}
-	if !strings.Contains(systemPrompt, "Directed-message sending is disabled") {
+	if !strings.Contains(systemPrompt, "Current-Room private messaging is disabled") {
 		t.Fatalf("Room 默认提示词应说明私信发送未开启:\n%s", systemPrompt)
 	}
 }

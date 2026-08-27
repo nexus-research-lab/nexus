@@ -3,18 +3,22 @@
 // POS: Connector 授权 MCP 模型参数边界。
 package tool
 
-func startSchema() map[string]any {
+func authorizationSchema() map[string]any {
 	return objectSchema(map[string]any{
+		"action": map[string]any{
+			"type": "string", "enum": []string{actionStart, actionStatus, actionCancel},
+		},
 		"request_id": map[string]any{
 			"type": "string", "minLength": 8, "maxLength": 128,
-			"description": "本次授权的稳定幂等 ID；重试复用，新的授权意图换新 ID",
+			"description": "start 必填；本次授权的稳定幂等 ID，重试复用",
 		},
 		"connector_id": map[string]any{
-			"type": "string", "description": "目标 Connector 目录 ID",
+			"type": "string", "description": "所有 action 必填；目标 Connector 目录 ID",
 		},
 		"method": map[string]any{
-			"type": "string",
-			"enum": []string{"oauth_browser", "device"},
+			"type":        "string",
+			"enum":        []string{"oauth_browser", "device"},
+			"description": "start 必填",
 		},
 		"device_mode": map[string]any{
 			"type":        "string",
@@ -29,20 +33,11 @@ func startSchema() map[string]any {
 			"maxProperties": 16,
 			"description":   "仅 OAuth provider 声明的非秘密定位参数，例如 shop",
 		},
-	}, []string{"request_id", "connector_id", "method"})
-}
-
-func flowRefSchema() map[string]any {
-	return objectSchema(map[string]any{
 		"flow_id": map[string]any{
 			"type":        "string",
-			"description": "start 返回的 opaque flow_id",
+			"description": "status/cancel 必填；start 返回的 opaque flow_id",
 		},
-		"connector_id": map[string]any{
-			"type":        "string",
-			"description": "必须与 flow 启动时 Connector 完全一致",
-		},
-	}, []string{"flow_id", "connector_id"})
+	}, []string{"action", "connector_id"})
 }
 
 func objectSchema(

@@ -2,10 +2,11 @@ import {
   useCallback,
   useLayoutEffect,
   useRef,
-  useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
+
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 
 import { notifyConversationExplicitShrink } from "./conversation-layout-events";
 
@@ -28,12 +29,14 @@ interface UseScrollAnchoredStateReturn {
 
 /**
  * 局部内容展开或收起时保持当前视觉锚点，避免底部附近的内容发生跳动。
+ * resetKey 变化时按新阶段恢复 initialValue，不把旧阶段的选择带入新阶段。
  * 程序驱动的状态变化不自动锚定，由调用方通过 setOpen 明确控制。
  */
 export function useScrollAnchoredState(
   initialValue: boolean,
+  resetKey?: unknown,
 ): UseScrollAnchoredStateReturn {
-  const [isOpen, setOpen] = useState(initialValue);
+  const [isOpen, setOpen] = useResettableState(initialValue, resetKey);
   const anchorRef = useRef<HTMLElement | null>(null);
   const snapshotRef = useRef<ScrollAnchorSnapshot | null>(null);
   const pendingCollapseRef = useRef<PendingCollapseSnapshot | null>(null);
@@ -61,7 +64,7 @@ export function useScrollAnchoredState(
         }
       : null;
     setOpen(!isOpen);
-  }, [isOpen]);
+  }, [isOpen, setOpen]);
 
   useLayoutEffect(() => {
     const pendingCollapse = pendingCollapseRef.current;

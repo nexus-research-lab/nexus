@@ -14,6 +14,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
+// ErrRuntimeVersionConflict 表示 Agent runtime 已被其他写入更新。
+var ErrRuntimeVersionConflict = errors.New("agent runtime version conflict")
+
 // SQLRepository 提供 Agent 仓储的跨方言 SQL 实现。
 type SQLRepository struct {
 	db      *sql.DB

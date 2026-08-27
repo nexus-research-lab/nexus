@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -322,7 +323,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	if messageutil.AssistantMissedGoalCompletionCommand(
 		finalAssistant, slot.hasGoalCompletionCandidate(),
 	) {
-		reason := "assistant claimed goal completion without an applied nexus goal update_goal command receipt"
+		reason := "assistant claimed goal completion without an applied nexus.command update_goal receipt"
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成命令漏调用失败", func() error {
 			_, err := s.goals.RecordContinuationRuntimeCompletionCommandMiss(
 				ctx, goalID, runtimeIdentity, reason, objectiveRevision,
@@ -660,19 +661,19 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 		return
 	}
 	receipts := slot.consumeRuntimeCommandReceipts()
-	if actor != nil && runtimecommand.HasDomain(receipts, runtimecommand.DomainExecution) {
+	if actor != nil && nexusmcp.HasDomain(receipts, command.DomainExecution) {
 		s.observeExecutionRuntimeCommandReceipts(*actor, receipts)
 	}
 	if s.goals == nil || slot.goalRuntimeIgnored() {
 		return
 	}
-	rememberGoalToolProgressForSlot(slot, runtimecommand.HasGoalProgress(receipts))
+	rememberGoalToolProgressForSlot(slot, nexusmcp.HasGoalProgress(receipts))
 	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
-	hasSuccessfulCreate := runtimecommand.HasAppliedOperation(
-		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationCreate,
+	hasSuccessfulCreate := nexusmcp.HasAppliedOperation(
+		receipts, command.DomainGoal, command.GoalOperationCreate,
 	)
-	hasSuccessfulUpdate := runtimecommand.HasAppliedOperation(
-		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationUpdate,
+	hasSuccessfulUpdate := nexusmcp.HasAppliedOperation(
+		receipts, command.DomainGoal, command.GoalOperationUpdate,
 	)
 	if hasSuccessfulCreate {
 		s.startRoomGoalUsageFromRoundStartForScope(ctx, slot, goalSessionKeyForSlot(slot))
@@ -683,7 +684,7 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 		s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
 	}
 	if hasSuccessfulUpdate {
-		if goalID := runtimecommand.SuccessfulGoalCompletionID(
+		if goalID := nexusmcp.SuccessfulGoalCompletionID(
 			receipts,
 			slot.goalIDForUsage(),
 		); goalID != "" {

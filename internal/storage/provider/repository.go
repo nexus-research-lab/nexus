@@ -2,9 +2,19 @@ package provider
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/storage"
+)
+
+var (
+	// ErrProviderNotFound 表示条件写入的 Provider 已不存在。
+	ErrProviderNotFound = errors.New("provider not found")
+	// ErrConfigurationVersionConflict 表示 Provider 聚合已被其他写入推进。
+	ErrConfigurationVersionConflict = errors.New("provider configuration version conflict")
+	// ErrModelNotFound 表示条件写入的模型卡不存在。
+	ErrModelNotFound = errors.New("provider model not found")
 )
 
 // Repository 封装 provider 配置的 SQL 读写。
@@ -30,4 +40,20 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		db:      db,
 		dialect: storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
+}
+
+func (r *Repository) bind(index int) string {
+	return r.dialect.Bind(index)
+}
+
+func (r *Repository) trueValue() string {
+	return r.dialect.TrueValue()
+}
+
+func (r *Repository) falseValue() string {
+	return r.dialect.FalseValue()
+}
+
+func (r *Repository) currentTimestamp() string {
+	return r.dialect.CurrentTimestamp()
 }

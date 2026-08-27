@@ -79,7 +79,6 @@ build_binary() {
 build_binary "nexus-server" "./cmd/nexus-server"
 build_binary "nexusctl" "./cmd/nexusctl"
 build_binary "nexuscfg" "./cmd/nexuscfg"
-build_binary "nexus" "./cmd/nexus"
 
 echo "==> Staging runtime files"
 rsync -a --delete --exclude ".DS_Store" "${ROOT_DIR}/db/" "${STAGE_DIR}/db/"
