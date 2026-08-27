@@ -4,7 +4,7 @@
 
 - `index.ts` 是消费者唯一入口，只重导出稳定的具体函数和类型。
 - `runtime-config.ts` 解析宿主注入配置并设置文档级平台标记。
-- `session-auth.ts` 管理 HTTP header、WebSocket subprotocol 和 token 失效恢复。
+- `session-auth.ts` 管理 HTTP header、WebSocket subprotocol 和 token 失效恢复；恢复优先使用稳定 FailureCore code，并保留旧安全文案兼容。
 - `oauth.ts` 管理连接器 OAuth 回调与桌面回跳地址。
 - `lifecycle.ts` 管理 WebView ready、fatal、health 消息和诊断快照。
 - `desktop-location.ts` 统一 URL 与路径归一化，避免协议各自解释地址。

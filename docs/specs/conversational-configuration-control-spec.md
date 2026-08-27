@@ -206,7 +206,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 | Connector 凭据/连接 | 下一会话或重新授权 | 不把旧会话伪装成已换凭据 |
 | Connector OAuth/Device 授权 | 完成时按启动配置版本 CAS | OAuth URL 由受保护的 `flow_id` 跳转恢复；跨 owner/session、过期或并发变更拒绝 |
 | Skill 来源、导入、更新和安装选择 | 私有来源增删改、搜索、目录和导入结果立即；目标 Agent 下一轮加载内容与选择 | 所有 Settings/API/CLI 功能写共用 owner catalog CAS，Bearer 仅通过 Settings 或人工 CLI secret slot 输入；发布失败原子恢复旧目录或进入明确 reconcile |
-| Scheduled Agent task / Heartbeat | scheduler 读取持久新版本；wake 不改变配置版本 | 更新/删除用版本 CAS 并重读；同 `request_id` 创建只重放同一意图；script task 不开放对话写入 |
+| Scheduled Agent task / Heartbeat | scheduler 读取持久新版本；wake 不改变配置版本 | 更新/删除用版本 CAS 并重读；wake 与配置版本在同一事务栅栏内受理并先写 durable outbox，同 owner/request/intent 只重放同一回执；重启只恢复未领取 wake，已开始但结果未知的 claim 不自动重投；script task 不开放对话写入 |
 | Agent session 标题 | 目录/UI 立即 | 同一 session 资源锁内单调推进版本；写后重读标题 |
 | 删除 Agent session | owner lifecycle ledger 先封锁，meta 删除后保持 tombstone | admission fence 阻止新启动和晚到写回；关闭失败撤销未提交栅栏，提交后 transcript 清理失败保留私有重试引用，由启动/周期 recovery 继续 reconcile |
 | Agent 基础/上下文情绪 | 下一轮稳定投影 | 版本 CAS；只改变当前 Agent 自有状态，不动态改写半轮 prompt |

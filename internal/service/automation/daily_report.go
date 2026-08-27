@@ -257,6 +257,8 @@ func addDailyReportRun(totals *automationdomain.ScheduledTaskDailyReportTotals, 
 		if run.DeliveryDeadLetterAt != nil {
 			totals.DeliveryDeadLetterRunCount++
 		}
+	case automationdomain.DeliveryStatusRetrying:
+		totals.DeliveryUnverifiedRunCount++
 	case automationdomain.DeliveryStatusPending:
 		totals.DeliveryPendingRunCount++
 	case automationdomain.DeliveryStatusSkipped:
@@ -276,6 +278,7 @@ func addDailyReportTotals(target *automationdomain.ScheduledTaskDailyReportTotal
 	target.SkippedRunCount += source.SkippedRunCount
 	target.DeliveredRunCount += source.DeliveredRunCount
 	target.DeliveryFailedRunCount += source.DeliveryFailedRunCount
+	target.DeliveryUnverifiedRunCount += source.DeliveryUnverifiedRunCount
 	target.DeliveryPendingRunCount += source.DeliveryPendingRunCount
 	target.DeliverySkippedRunCount += source.DeliverySkippedRunCount
 	target.DeliveryDeadLetterRunCount += source.DeliveryDeadLetterRunCount

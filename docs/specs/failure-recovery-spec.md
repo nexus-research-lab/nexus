@@ -28,11 +28,12 @@
 | Conversation `client_request_id` | 一次 WebSocket 发送尝试的 ACK / timeout 关联 | 逻辑消息、round 或 durable 输入身份 |
 | Conversation `client_message_id` | 同一逻辑用户输入和 optimistic 消息的稳定身份 | HTTP 诊断、canonical `round_id` |
 | Configuration `request_id` | owner scope 内绑定 plan digest 的审计与幂等身份 | HTTP Request ID 或全产品唯一身份 |
-| Automation create / command `request_id` | 各自领域 ledger 内的可选创建或命令身份 | permission、run 或 HTTP 诊断身份 |
+| Automation create / command `request_id` | 各自领域 ledger 内的可选创建或命令身份 | permission、manual run 或 HTTP 诊断身份 |
+| Automation manual run `request_id` | 同一 owner 下绑定 job、配置版本和启动意图的持久身份 | HTTP 诊断、创建、CLI command 或 permission 身份 |
 | Permission `request_id` | 一次人工介入的持久生命周期与响应路由 | 命令幂等或传输诊断身份 |
 | `run_id`、`round_id`、Goal/Execution receipt identity | 对应领域的权威流程身份 | 每次网络尝试或跨域全局身份 |
 
-当前 HTTP middleware 接受已有 `X-Request-ID`，缺失时生成一次，把同一值写入响应头、request logger 和私有 request context。Failure 写出只能读取该 context，不得从请求正文或领域对象猜测诊断 ID；没有 middleware 的直接调用不另造第二个 ID。
+当前 HTTP middleware 只接受长度不超过 128、由 ASCII 字母、数字、点、下划线、冒号或连字符组成的 `X-Request-ID`；缺失或不合法时静默生成一次，不因此拒绝业务请求。它把同一值写入响应头、request logger 和私有 request context。Failure 写出只能读取该 context，不得从请求正文或领域对象猜测诊断 ID；没有 middleware 的直接调用不另造第二个 ID。
 
 即使两个 POST 使用同一个 `X-Request-ID`，也必须继续执行两次，除非该业务领域本身另有经过验证的幂等合同。
 
@@ -99,7 +100,7 @@
 
 公共 writer 可以做的事只有：
 
-- 复用现有 gateway 安全文案与 499 取消投影；
+- 复用现有 gateway 安全文案；明确的 `context.Canceled` 投影为 499，明确的 `context.DeadlineExceeded` 投影为 504，两者不得按错误文案混淆；
 - 从 request context 读取同一个 HTTP 诊断 ID；
 - 写入 FailureCore v1；
 - 对空 code/category/effect 做安全兜底；
@@ -116,6 +117,15 @@
 
 Web 解析器同时接受旧 `{data:{detail}}` 和新 `{data:{detail,failure}}`。`ApiRequestError` 保留既有 `name`、`message` 和 `status`，只增加可选 FailureCore 与 `transportRequestId`；未知 version、code、category、effect、actor 或 action 不得使响应解析失败。
 
+没有拿到完整 HTTP 响应时，Web 只能生成本地 `ApiTransportError`，不能伪造服务端 FailureCore：
+
+- GET、HEAD、OPTIONS 的传输失败是 `not_applicable`；
+- 其他方法的传输失败是 `unknown`，包括连接阶段和响应体读取阶段的超时或中断；
+- 调用方主动 Abort 保持原取消异常，不进入用户失败面；
+- 通用请求层不重试，也不解释或执行服务端 `resolution.action`。
+
+全局鉴权和桌面会话 token 中间件只有在未调用业务 Handler 时，才可把读取标为 `not_applicable`、把修改标为 `not_applied`。panic 或已经进入业务阶段的错误不得套用此前置结论。
+
 ## 6. 资源、修改和访问状态
 
 接入 FailureCore 的页面必须把下列状态分开：
@@ -128,7 +138,9 @@ Web 解析器同时接受旧 `{data:{detail}}` 和新 `{data:{detail,failure}}`�
 
 同一 scope 内的暂时读取失败可以保留上次成功快照。owner、Agent、Room、Session、资源 scope 或认证代次变化时，旧请求结果必须被丢弃；401、明确权限撤销或资源安全策略要求隐藏时，不能继续展示敏感旧快照。
 
-查询失败不能清空不相关的 mutation 状态，mutation 失败不能清空已有列表。传输中断后的 mutation 必须进入“结果尚未确认”，先对账，不能直接显示“未保存”或“数据仍然保留”。
+查询失败不能清空不相关的 mutation 状态，mutation 失败不能清空已有列表。401/403 需要立即隐藏敏感资源快照，但不构成其他并行动作 `not_applied` 的证据；owner-scoped、无正文的 exact mutation journal 必须保留到重新鉴权后对账，只有当前动作的结构化 effect 可以决定是否清除其自身记录。传输中断后的 mutation 必须进入“结果尚未确认”，先对账，不能直接显示“未保存”或“数据仍然保留”。
+
+结果未知的同一修改目标必须保持锁定，直到该领域的权威读取证明结果，或用户在看过明确风险后主动确认新的意图。后台刷新、WebSocket invalidation、其他资源读取成功和任意页面重新渲染都不能解除该锁。外部投递只允许重试投递阶段，不能重新执行原任务。
 
 ## 7. 不同操作的可靠性强度
 
@@ -154,11 +166,28 @@ Web 解析器同时接受旧 `{data:{detail}}` 和新 `{data:{detail,failure}}`�
 - 普通资源 WebSocket 只发送轻量 invalidation；事件必须包含足以区分 upsert、delete/tombstone、权限撤销或 scope reset 的事实。重复和乱序通知按 revision 去重，缺口后重拉权威快照。
 - Conversation 继续使用自己的 durable replay 与 subscription 协议，不能被普通资源 invalidation 替代。
 
+### 8.1 Automation 的持久恢复阶段
+
+Automation 不把“任务跑完”和“结果送到”当作一次操作，也不用一个通用 operation 表包裹整个产品。当前只在 Automation 自己的 aggregate 中保留六个有证据的阶段：
+
+1. **执行结束**：执行结果、terminal run 和当前 task runtime 按 exact owner/job/run 在一个事务中提交。只有这一步成功后，才允许进入外部投递。
+2. **首次投递**：terminal run 的 pending 投递必须先以内部 attempt token 原子领取，再调用外部 router。两个实例同时处理时只能有一个获得 token。
+3. **投递恢复**：router 明确失败或回执丢失后，结果保持为未确认的 `retrying`，后台不会自动再发。用户核对接收端后，才可用 exact owner/job/run、当前配置版本和 delivery attempts 领取新 attempt；这个动作只重投已保存的结果，不重新执行任务。
+4. **运行领取**：带版本的“立即运行”和权限恢复必须把调用方确认的 `configuration_version`、权限策略修订、权限状态和 exact pending request 一直带到 durable runtime claim 的条件更新；另一实例在中途保存了新配置或推进了权限请求时，本次操作返回冲突，不得静默改用新配置、继续旧权限计划或清除新请求。页面立即运行还要用独立 `request_id + intent digest` 把 task claim 与初始 run 写入同一事务；同一身份只重放同一 run，响应丢失后的显式恢复继续使用原身份，不创建第二次运行。用户从 `denied` 手动重启时，恢复为 `ready` 与领取运行权必须是同一条条件写入。
+5. **删除恢复**：删除先以 exact owner/job/configuration version 领取 deletion token，同时禁用新运行和下一次调度；之后才中断 exact 本地 attempt，收口 run、权限、投递与审计数据，最后删除任务定义。重复 DELETE 复用同一持久 token，不创建第二条删除链。
+6. **主动跟进唤醒**：每次 Heartbeat wake（包括没有附加文本的唤醒）先用 owner-scoped `request_id + intent digest` 在同一配置事务栅栏内写入 durable outbox，提交后才允许派发。跨实例消费者只能领取一次；重启只恢复尚未领取的 `new`，已经开始但 claim 过期的 `processing` 必须保守收口为结果未知，不能自动再次唤醒。
+
+跨实例 scheduler 的低频审计可以批量读取全部 `review_required` 任务的非终态 run，再按 exact owner/job 分组；禁止为每个异常任务追加一条数据库查询。
+
+如果当前实例无法证明原物理执行已终止，删除进入 `review_required`：任务已禁用，但任务定义、运行历史和原数据仍保留；必须等 exact attempt 自然终止或管理员核对，不得因 lease 超时或进程暂时不可见就猜测已停止。删除中的迟到 terminal 只能使用 exact deletion token 走独立的 suppressed commit：保存执行结果作为停止证据，强制投递为 `not_attempted`，不能调用 router，也不能把旧 runtime 写回正在删除的任务。
+
+这些恢复由持久 deadline、索引、合并唤醒和低频审计驱动，不做 per-task 轮询。页面对 WebSocket、focus 和 visibility 的连续刷新只做单飞行请求加一次尾随合并，不增加定时拉取。所有 token、run ID、request ID 和诊断 ID 都只用于内部精确对账，不要求用户复制或理解。
+
 ## 9. 性能与安全不变量
 
 - FailureCore 只在失败响应序列化，不增加成功路径数据库访问。
 - 普通查询默认不增加数据库写入或额外网络往返。
-- 普通 CAS 修改默认保持原事务数量；审计、outbox 或多资源修改属于领域明确例外。
+- 普通 CAS 修改默认保持原事务数量；审计、outbox 或多资源修改属于领域明确例外。Automation 外部投递只占用同任务分片锁并依赖数据库 exact claim，第三方延迟不得占用全局任务配置锁或阻塞其他任务。
 - 不为所有 POST/PATCH/DELETE 建立全局幂等记录。
 - 不保存完整旧响应、秘密、原始请求正文或可绕过新权限的缓存结果。
 - 异步操作复用领域 aggregate，不重复写一份全局 operation ledger。
@@ -170,7 +199,8 @@ Web 解析器同时接受旧 `{data:{detail}}` 和新 `{data:{detail,failure}}`�
 - HTTP：FailureCore v1、TypeScript 生成类型、私有 HTTP request context、显式 `WriteError` 和 Web 宽容解析已经存在；旧 Handler 默认不受影响。
 - Loop：详情查询的 not-found 是首个只读接入样板；状态码、detail 和成功 envelope 保持不变，Loop 启动、Goal 与 Session 链路不参与该试点。
 - WorkGraph：编辑器 Apply 是首个写入接入样板；只把写入前已经证明的 stale revision、无效输入和 scope 内 not-found 标记为 `not_applied`，未分类错误保持 `unknown`。它继续使用既有 `editor_id + revision`，并保留 stale revision 既有的 HTTP 422 合同，不接收、持久化或解释 HTTP 诊断 ID。
-- Automation：运行历史 GET 只增强读取失败；各自 create/command/permission/run 身份、`job_id`、`run_id`、执行状态和投递状态保持原义。投递重试暂不接入公共恢复动作，避免把“任务已执行、结果未送达”误变成重新执行任务。
+- Authentication：全局登录和桌面会话 token 在业务 Handler 之前拒绝请求时返回结构化失败；稳定 code 驱动桌面恢复，安全文案不再承担协议判断。
+- Automation：任务和权限列表读取失败独立表达，权限辅助读取失败不销毁任务主快照。Create/Update/启停/删除/立即运行/审批/恢复/投递重试按各自真实阶段区分 `not_applied` 与 `unknown`；多阶段操作默认保守为 `unknown`。页面启停携带已有 `configuration_version` 做 CAS。页面创建和立即运行分别使用 Automation 自己的 `request_id + intent digest` 安全重放同一次意图；立即运行把 runtime claim 与初始 run 原子提交，刷新运行历史只按 exact `client_request_id` 证明同一次启动已受理，显式恢复复用原 ID。旧调用不携带时仍保持原有行为，且这些 ID 不得来自或转换为 HTTP `X-Request-ID`。页面副作用 journal 按 owner 和已有领域意图身份分别保存非敏感记录，持久跨越标签页和桌面 App 重启；同一 Job 的多个页面通过 Web Lock 在发送前串行，缺少该能力的非支持环境 fail closed，不用带超时的浏览器 lease 猜测互斥。storage event 只同步保护状态，不触发请求；未决副作用不得因时间经过而静默解锁。执行 terminal、结果和任务运行占用先在同一事务提交；需要投递的成功 run 先进入 durable `pending`，再以不公开的 exact attempt token 唯一领取外投。worker 可恢复尚未领取的 `pending` 和明确失败的 `failed`，但 router 已被调用后的任意错误、进程中断或完成写入失败都保持 `retrying`，只提示用户先核对，不进入自动重试或普通 CLI/API 重放。权限拒绝或任务修订取消 blocked run 时没有可投递结果，必须在同一事务把 run 收口为 `not_attempted`、清空 attempt/retry 字段，并且只有 exact 最新 terminal run 可以更新任务摘要。任务的 `last_delivery_status` 只由 exact 最新已完成 run 投影；升级时按 exact owner/job 与 `finished_at DESC, run_id DESC` 回填 succeeded/failed/cancelled 权威 run，排除 active、未完成和 skipped 行，防止历史重投覆盖当前摘要。Heartbeat wake 始终先写 durable outbox，未领取项由现有 deadline 调度恢复，已开始但结果未知的 claim 不重投。删除中的任务只允许 private deletion token 约束的 suppressed terminal 写入，强制 `not_attempted` + dead-letter 且不触发外投。投递重试不得变成重新执行任务。
 - Conversation：继续使用独立 `failure_code`、client request/message identity 和 durable reconcile。
 - Configuration：继续使用领域 request ID、plan digest、revision、审计与 reconcile 状态。
 - 其他页面和 Handler 只有在明确接入、补齐领域证据和兼容测试后，才能使用结构化 effect 或 resolution。

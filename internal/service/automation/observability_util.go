@@ -84,6 +84,11 @@ func addDailyReportTaskRunSignals(task *automationdomain.ScheduledTaskDailyRepor
 			addUniqueString(&task.ManualRedeliveryRunIDs, run.RunID)
 		}
 		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
+	case automationdomain.DeliveryStatusRetrying:
+		addDailyReportTaskSignal(task, "delivery_unverified")
+		addUniqueString(&task.DeliveryUnverifiedRunIDs, run.RunID)
+		addDailyReportTaskSuggestedTool(task, runtimeAutomationInspectSuggestion)
+		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
 	case automationdomain.DeliveryStatusPending:
 		addDailyReportTaskSignal(task, "delivery_pending")
 		addUniqueString(&task.DeliveryPendingRunIDs, run.RunID)

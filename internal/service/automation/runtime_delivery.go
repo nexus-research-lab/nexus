@@ -23,10 +23,11 @@ const (
 )
 
 type jobDeliveryResult struct {
-	Status  string
-	Error   *string
-	Target  *channels.DeliveryTarget
-	Receipt *channelmessage.Receipt
+	Status         string
+	Error          *string
+	Target         *channels.DeliveryTarget
+	Receipt        *channelmessage.Receipt
+	OutcomeUnknown bool
 }
 
 func toChannelDeliveryTarget(target automationdomain.DeliveryTarget) channels.DeliveryTarget {
@@ -69,6 +70,33 @@ func (s *Service) persistedRunDeliveryTarget(
 		return job.Delivery.Normalized()
 	}
 	return deliveryTargetForRun(job, *run)
+}
+
+// initialRunDeliveryStatus 只根据 execution 结果与 run 冻结路由判断是否需要
+// 进入 durable pending；它不做授权检查，也绝不调用外部 router。
+func initialRunDeliveryStatus(
+	target automationdomain.DeliveryTarget,
+	executionSessionKey string,
+	observation automationexec.ExecutionObservation,
+	runStatus string,
+) string {
+	if strings.TrimSpace(runStatus) != automationdomain.RunStatusSucceeded {
+		return automationdomain.DeliveryStatusNotAttempted
+	}
+	target = target.Normalized()
+	if target.Mode == "" || target.Mode == automationdomain.DeliveryModeNone {
+		return automationdomain.DeliveryStatusNotRequired
+	}
+	if firstNonEmpty(observation.ResultText, observation.AssistantText) == "" {
+		return automationdomain.DeliveryStatusSkipped
+	}
+	if target.Mode == automationdomain.DeliveryModeExplicit &&
+		strings.TrimSpace(target.Channel) == "websocket" &&
+		strings.TrimSpace(target.To) != "" &&
+		strings.TrimSpace(target.To) == strings.TrimSpace(executionSessionKey) {
+		return automationdomain.DeliveryStatusSkipped
+	}
+	return automationdomain.DeliveryStatusPending
 }
 
 var deliveryRetryBackoffs = []time.Duration{
@@ -168,9 +196,10 @@ func (s *Service) deliverJobObservationToTarget(
 	}
 	if err != nil {
 		result := jobDeliveryResult{
-			Status:  automationdomain.DeliveryStatusFailed,
-			Error:   errorPointer(err),
-			Receipt: delivered.Receipt,
+			Status:         automationdomain.DeliveryStatusRetrying,
+			Error:          errorPointer(err),
+			Receipt:        delivered.Receipt,
+			OutcomeUnknown: true,
 		}
 		if strings.TrimSpace(delivered.Target.Mode) != "" {
 			result.Target = &delivered.Target

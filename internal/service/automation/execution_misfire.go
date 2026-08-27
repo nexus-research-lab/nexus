@@ -1,6 +1,7 @@
+// INPUT: scheduler 判定的错过窗口任务、触发时间与当前运行态。
+// OUTPUT: 持久 skipped run 与推进后的运行态；配置停用统一交给 scheduler CAS。
+// POS: Automation misfire 结果记录层，不写任务配置定义。
 package automation
-
-// 本文件记录错过调度窗口后的跳过结果，并直接推进到当前时间之后的下一次触发。
 
 import (
 	"context"
@@ -77,15 +78,9 @@ func (s *Service) advanceJobRuntimeAfterMisfire(jobID string, now time.Time) {
 	state.LastRunAt = cloneTimePointer(&now)
 	state.LastRunStatus = automationdomain.RunStatusSkipped
 	state.NextRunAt = s.computeJobNext(state.Job, now)
-	shouldDisable := state.Job.Enabled &&
-		state.Job.Schedule.Kind == automationdomain.ScheduleKindAt &&
-		state.NextRunAt == nil
-	jobSnapshot := state.Job
 	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
 	s.mu.Unlock()
 
 	s.persistJobRuntime(context.Background(), runtimeSnapshot)
-	if shouldDisable {
-		s.disableExpiredJobAsync(jobSnapshot)
-	}
+	s.wakeScheduler()
 }

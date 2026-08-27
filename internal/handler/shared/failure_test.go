@@ -52,6 +52,12 @@ func TestWriteFailureKeepsLegacyCancellationAndSanitization(t *testing.T) {
 		!strings.Contains(internal.Body.String(), "服务内部错误") {
 		t.Fatalf("旧内部错误脱敏被改变: %s", internal.Body.String())
 	}
+
+	legacyGatewayTimeout := httptest.NewRecorder()
+	api.WriteFailure(legacyGatewayTimeout, http.StatusGatewayTimeout, "upstream timeout")
+	if !strings.Contains(legacyGatewayTimeout.Body.String(), "服务内部错误") {
+		t.Fatalf("旧 WriteFailure 的 504 文案不应被新协议改写: %s", legacyGatewayTimeout.Body.String())
+	}
 }
 
 func TestWriteErrorAddsOptionalFailureCoreWithoutChangingEnvelope(t *testing.T) {
@@ -146,6 +152,40 @@ func TestWriteErrorKeepsCancellationStatusAndCategoryConsistent(t *testing.T) {
 	}
 }
 
+func TestWriteErrorKeepsDeadlineDistinctFromClientCancellation(t *testing.T) {
+	api := newFailureTestAPI()
+	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
+	recorder := httptest.NewRecorder()
+
+	api.WriteError(recorder, request, http.StatusInternalServerError, FailureSpec{
+		Code:   "automation.task_update_failed",
+		Effect: protocol.FailureEffectUnknown,
+		Cause:  context.DeadlineExceeded,
+	})
+
+	if recorder.Code != http.StatusGatewayTimeout ||
+		!strings.Contains(recorder.Body.String(), `"category":"timeout"`) ||
+		!strings.Contains(recorder.Body.String(), `"detail":"请求超时"`) ||
+		strings.Contains(recorder.Body.String(), `"category":"canceled"`) {
+		t.Fatalf("截止时间不得投影为客户端取消: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestFailureEffectBeforeHandlerUsesOnlyRequestSemantics(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodOptions} {
+		request := httptest.NewRequest(method, "/resource", nil)
+		if got := failureEffectBeforeHandler(request); got != protocol.FailureEffectNotApplicable {
+			t.Fatalf("%s pre-handler effect=%q", method, got)
+		}
+	}
+	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
+		request := httptest.NewRequest(method, "/resource", nil)
+		if got := failureEffectBeforeHandler(request); got != protocol.FailureEffectNotApplied {
+			t.Fatalf("%s pre-handler effect=%q", method, got)
+		}
+	}
+}
+
 func TestWriteErrorOnlyPublishesRetryAfterForExplicitTransientStatus(t *testing.T) {
 	api := newFailureTestAPI()
 	request := httptest.NewRequest(http.MethodGet, "/loops", nil)
@@ -202,6 +242,41 @@ func TestRequestIDContextAccessorIsDiagnosticOnly(t *testing.T) {
 	ctx := withRequestID(context.Background(), " request-one ")
 	if got := requestID(ctx); got != "request-one" {
 		t.Fatalf("request ID context 读取错误: %q", got)
+	}
+}
+
+func TestDiagnosticRequestIDRejectsUnsafeOrOversizedValuesWithoutRejectingRequest(t *testing.T) {
+	for _, raw := range []string{
+		"request id with spaces",
+		"request/id",
+		strings.Repeat("a", maxDiagnosticRequestIDLength+1),
+	} {
+		if got := normalizeDiagnosticRequestID(raw); got != "" {
+			t.Fatalf("不安全 request ID %q 被接受为 %q", raw, got)
+		}
+	}
+	if got := normalizeDiagnosticRequestID(" trace_01:attempt-2 "); got != "trace_01:attempt-2" {
+		t.Fatalf("合法 request ID 被改变: %q", got)
+	}
+
+	api := newFailureTestAPI()
+	called := false
+	handler := RequestContextMiddleware(api.BaseLogger())(http.HandlerFunc(
+		func(writer http.ResponseWriter, _ *http.Request) {
+			called = true
+			writer.WriteHeader(http.StatusNoContent)
+		},
+	))
+	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
+	request.Header.Set("X-Request-ID", strings.Repeat("a", maxDiagnosticRequestIDLength+1))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if !called || recorder.Code != http.StatusNoContent {
+		t.Fatalf("无效诊断 ID 不得拒绝请求: called=%v status=%d", called, recorder.Code)
+	}
+	generated := recorder.Header().Get("X-Request-ID")
+	if generated == "" || generated == request.Header.Get("X-Request-ID") {
+		t.Fatalf("无效诊断 ID 应静默替换: %q", generated)
 	}
 }
 

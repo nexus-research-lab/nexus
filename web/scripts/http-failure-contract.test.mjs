@@ -9,7 +9,7 @@ const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const httpResponse = await loadTypeScriptModule("src/lib/api/core/http-response.ts");
 const httpError = await loadTypeScriptModule("src/lib/api/core/http-error.ts");
 
-test("legacy HTTP failures keep their existing message projection", async () => {
+test("legacy HTTP failures keep diagnostic IDs out of user messages", async () => {
   const { buildApiErrorMessage, getApiFailure } = httpResponse;
   const payload = {
     data: {
@@ -22,7 +22,7 @@ test("legacy HTTP failures keep their existing message projection", async () => 
   assert.equal(getApiFailure(payload), null);
   assert.equal(
     buildApiErrorMessage({ status: 409, statusText: "Conflict" }, payload),
-    "旧接口错误（request_id: legacy-diagnostic-id）",
+    "旧接口错误",
   );
 });
 

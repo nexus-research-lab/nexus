@@ -103,11 +103,17 @@ type HeartbeatWakeInput struct {
 
 // SystemEvent 表示 heartbeat/main-session 消费的系统事件。
 type SystemEvent struct {
-	EventID    string
-	EventType  string
-	SourceType string
-	SourceID   string
-	Payload    string
-	Status     string
-	CreatedAt  time.Time
+	EventID                      string
+	EventType                    string
+	SourceType                   string
+	SourceID                     string
+	Payload                      string
+	Status                       string
+	OwnerUserID                  string
+	RequestID                    string
+	IntentDigest                 string
+	AcceptedConfigurationVersion int64
+	ClaimToken                   string
+	ClaimExpiresAt               *time.Time
+	CreatedAt                    time.Time
 }

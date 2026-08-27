@@ -54,15 +54,14 @@ var readOnlyPermissionToolNames = map[string]struct{}{
 	"mcp__nexus_feishu_docx__wiki_spaces":     {},
 }
 
+// ensureTaskPermissionPolicy 是启动/执行边界的幂等迁移入口。
+// 交互式查询和配置修改必须分别使用 project/prepare helper，避免隐藏写入。
 func (s *Service) ensureTaskPermissionPolicy(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,
 ) (automationdomain.ScheduledTask, error) {
-	job.PermissionPolicy = normalizeTaskPermissionPolicy(job.PermissionPolicy)
+	job = projectTaskPermissionPolicy(job)
 	if job.PermissionPolicy.Revision > 0 {
-		if strings.TrimSpace(job.PermissionState) == "" || job.PermissionState == automationdomain.TaskPermissionStateUninitialized {
-			job.PermissionState = automationdomain.TaskPermissionStateReady
-		}
 		return job, nil
 	}
 	policy, err := s.buildInitialTaskPermissionPolicy(ctx, job, true, true)
@@ -89,6 +88,44 @@ func (s *Service) ensureTaskPermissionPolicy(
 			return automationdomain.ScheduledTask{}, automationdomain.ErrJobNotFound
 		}
 		return *fresh, nil
+	}
+	job.PermissionPolicy = policy
+	job.PermissionState = automationdomain.TaskPermissionStateReady
+	job.PendingPermissionRequestID = ""
+	return job, nil
+}
+
+// projectTaskPermissionPolicy 只规范化持久快照，不读取 Agent 配置，也不写库。
+// 历史任务在启动期完成幂等回填前仍明确显示 uninitialized，避免 GET 把一次
+// 兼容迁移伪装成只读操作。
+func projectTaskPermissionPolicy(job automationdomain.ScheduledTask) automationdomain.ScheduledTask {
+	job.PermissionPolicy = normalizeTaskPermissionPolicy(job.PermissionPolicy)
+	if job.PermissionPolicy.Revision <= 0 {
+		job.PermissionPolicy.Revision = 0
+		job.PermissionState = automationdomain.TaskPermissionStateUninitialized
+		job.PendingPermissionRequestID = ""
+		return job
+	}
+	if strings.TrimSpace(job.PermissionState) == "" ||
+		job.PermissionState == automationdomain.TaskPermissionStateUninitialized {
+		job.PermissionState = automationdomain.TaskPermissionStateReady
+	}
+	return job
+}
+
+// prepareTaskPermissionPolicyForMutation 为尚未经过启动回填的旧任务构造内存策略。
+// 调用方只能把它随本次显式任务修改一起持久化，不能追加独立的惰性写入。
+func (s *Service) prepareTaskPermissionPolicyForMutation(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+) (automationdomain.ScheduledTask, error) {
+	job = projectTaskPermissionPolicy(job)
+	if job.PermissionPolicy.Revision > 0 {
+		return job, nil
+	}
+	policy, err := s.buildInitialTaskPermissionPolicy(ctx, job, true, true)
+	if err != nil {
+		return automationdomain.ScheduledTask{}, err
 	}
 	job.PermissionPolicy = policy
 	job.PermissionState = automationdomain.TaskPermissionStateReady

@@ -1,3 +1,6 @@
+// INPUT: completed Automation execution observation and its frozen delivery plan.
+// OUTPUT: owner-confined immutable run artifact written before external delivery.
+// POS: Execution/Delivery two-phase boundary; artifact delivery fields are pre-send facts.
 package automation
 
 import (
@@ -137,8 +140,8 @@ func renderRunArtifact(
 	writeArtifactField(&builder, "Round ID", strings.TrimSpace(roundID))
 	writeArtifactField(&builder, "Runtime Session", anyStringPointer(observation.SessionID))
 	writeArtifactField(&builder, "Message Count", fmt.Sprintf("%d", observation.MessageCount))
-	writeArtifactField(&builder, "Delivery Status", strings.TrimSpace(deliveryStatus))
-	writeArtifactField(&builder, "Delivery Target", strings.TrimSpace(deliveryTo))
+	writeArtifactField(&builder, "Delivery Status At Completion", strings.TrimSpace(deliveryStatus))
+	writeArtifactField(&builder, "Frozen Delivery Target", strings.TrimSpace(deliveryTo))
 	if errorMessage != nil {
 		writeArtifactSection(&builder, "Error", *errorMessage)
 	}

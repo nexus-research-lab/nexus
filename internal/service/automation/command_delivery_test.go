@@ -9,7 +9,6 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func TestAutomationCommandCreateFromPairedFeishuDMDefaultsDeliveryToCurrentSession(t *testing.T) {
@@ -75,7 +74,9 @@ func TestAutomationCommandCreateFromPairedFeishuDMDefaultsDeliveryToCurrentSessi
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
-		return err == nil && len(runs) > 0 && runs[0].RunID == runID && runs[0].DeliveryStatus == automationdomain.DeliveryStatusFailed
+		return err == nil && len(runs) > 0 && runs[0].RunID == runID &&
+			runs[0].DeliveryStatus == automationdomain.DeliveryStatusRetrying &&
+			runs[0].DeliveryError != nil
 	})
 	runs, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
 	if err != nil || len(runs) == 0 {
@@ -85,10 +86,10 @@ func TestAutomationCommandCreateFromPairedFeishuDMDefaultsDeliveryToCurrentSessi
 	if run.Status != automationdomain.RunStatusSucceeded ||
 		run.DeliveryTo != "explicit:feishu:oc_group_123" ||
 		run.DeliveryAttempts != 1 ||
-		run.DeliveryNextAttemptAt == nil ||
+		run.DeliveryNextAttemptAt != nil ||
 		run.DeliveryError == nil ||
 		!strings.Contains(*run.DeliveryError, "feishu") {
-		t.Fatalf("飞书未配置时应只标记投递失败并保留可补救 ledger: %+v", run)
+		t.Fatalf("飞书 router 返回后结果未知时应保留待人工核对 ledger: %+v", run)
 	}
 }
 
@@ -141,7 +142,9 @@ func TestAutomationCommandReportAndRetryFailedDeliveryToCurrentSession(t *testin
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
-		return err == nil && len(runs) > 0 && runs[0].RunID == runID && runs[0].DeliveryStatus == automationdomain.DeliveryStatusFailed
+		return err == nil && len(runs) > 0 && runs[0].RunID == runID &&
+			runs[0].DeliveryStatus == automationdomain.DeliveryStatusRetrying &&
+			runs[0].DeliveryError != nil
 	})
 	failedRuns, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
 	if err != nil || len(failedRuns) == 0 {
@@ -151,8 +154,8 @@ func TestAutomationCommandReportAndRetryFailedDeliveryToCurrentSession(t *testin
 	if failedRun.Status != automationdomain.RunStatusSucceeded || failedRun.DeliveryError == nil {
 		t.Fatalf("飞书发送失败不应影响执行成功，但应记录 delivery_error: %+v", failedRun)
 	}
-	if failedRun.DeliveryAttempts != 1 || failedRun.DeliveryNextAttemptAt == nil {
-		t.Fatalf("飞书发送失败应记录投递尝试并安排重试: %+v", failedRun)
+	if failedRun.DeliveryAttempts != 1 || failedRun.DeliveryNextAttemptAt != nil {
+		t.Fatalf("飞书发送结果未知应记录尝试但不得自动重试: %+v", failedRun)
 	}
 
 	reportResult, isError := callAutomationCommand(t, fixture.Service, sctx, "get_scheduled_task_report", map[string]any{
@@ -168,10 +171,11 @@ func TestAutomationCommandReportAndRetryFailedDeliveryToCurrentSession(t *testin
 		t.Fatalf("日报应定位到唯一任务: %+v", report)
 	}
 	taskReport := report.Tasks[0]
-	if !slices.Contains(taskReport.Signals, "delivery_attention") ||
-		!slices.Contains(taskReport.SuggestedTools, runtimeAutomationApplySuggestion) ||
-		!slices.Contains(taskReport.ManualRedeliveryRunIDs, runID) {
-		t.Fatalf("日报应直接指出失败投递 run 和补救工具: %+v", taskReport)
+	if !slices.Contains(taskReport.Signals, "delivery_unverified") ||
+		!slices.Contains(taskReport.SuggestedTools, runtimeAutomationInspectSuggestion) ||
+		!slices.Contains(taskReport.DeliveryUnverifiedRunIDs, runID) ||
+		slices.Contains(taskReport.ManualRedeliveryRunIDs, runID) {
+		t.Fatalf("日报应指出结果未知且先核对、不得建议普通补发: %+v", taskReport)
 	}
 
 	recipientSessionKey := fixture.ServerContext.SessionKey
@@ -195,29 +199,9 @@ func TestAutomationCommandReportAndRetryFailedDeliveryToCurrentSession(t *testin
 		"query":  "飞书新闻投递",
 		"run_id": runID,
 	})
-	if isError {
-		t.Fatalf("repair_scheduled_task by query 不应失败: %s", automationCommandText(t, retryResult))
+	if !isError || !strings.Contains(automationCommandText(t, retryResult), "unverified") {
+		t.Fatalf("普通 Automation CLI 不得重放结果未知的外投: isError=%v result=%s", isError, automationCommandText(t, retryResult))
 	}
-	redelivered := decodeAutomationCommandJSON[automationdomain.ScheduledTaskRun](t, retryResult)
-	if redelivered.RunID != runID ||
-		redelivered.DeliveryStatus != automationdomain.DeliveryStatusSucceeded ||
-		redelivered.DeliveryError != nil ||
-		redelivered.DeliveryTo != "explicit:internal:"+recipientSessionKey {
-		t.Fatalf("重投递应复用原 run 并记录新的实际目标: %+v", redelivered)
-	}
-	if redelivered.DeliveryAttempts != 2 || redelivered.DeliveryNextAttemptAt != nil || redelivered.DeliveryDeadLetterAt != nil {
-		t.Fatalf("重投递成功后应清理重试计划: %+v", redelivered)
-	}
-
-	store := workspacestore.NewSessionFileStore(fixture.WorkspacePath)
-	sessionValue, _, err := store.FindSession([]string{fixture.WorkspacePath}, recipientSessionKey)
-	if err != nil {
-		t.Fatalf("读取重投递真实当前 session 失败: %v", err)
-	}
-	if sessionValue == nil {
-		t.Fatal("重投递应写入真实当前 session")
-	}
-	assertDeliveredAgentMessage(t, fixture.WorkspacePath, *sessionValue, "今日新闻摘要", "重投递真实当前会话")
 
 	statusResult, isError := callAutomationCommand(t, fixture.Service, sctx, "inspect_scheduled_task", map[string]any{
 		"query":     "飞书新闻投递",
@@ -227,10 +211,11 @@ func TestAutomationCommandReportAndRetryFailedDeliveryToCurrentSession(t *testin
 		t.Fatalf("重投递后 inspect_scheduled_task 不应失败: %s", automationCommandText(t, statusResult))
 	}
 	status := decodeAutomationCommandJSON[automationdomain.ScheduledTaskStatus](t, statusResult)
-	if status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded ||
+	if status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusRetrying ||
 		status.Health.ManualRedeliveryAvailable ||
-		status.Health.DeliveryFailedRunCount != 0 {
-		t.Fatalf("重投递成功后状态应清除可手动补投提示: %+v", status)
+		status.Health.DeliveryUnverifiedRunCount != 1 ||
+		!slices.Contains(status.Health.Signals, "delivery_unverified") {
+		t.Fatalf("结果未知时状态必须要求先核对且不开放普通补投: %+v", status)
 	}
 }
 
@@ -282,7 +267,9 @@ func TestAutomationCommandDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T
 	runID := *runNow.RunID
 	waitFor(t, 2*time.Second, func() bool {
 		runs, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
-		return err == nil && len(runs) > 0 && runs[0].RunID == runID && runs[0].DeliveryStatus == automationdomain.DeliveryStatusFailed
+		return err == nil && len(runs) > 0 && runs[0].RunID == runID &&
+			runs[0].DeliveryStatus == automationdomain.DeliveryStatusRetrying &&
+			runs[0].DeliveryError != nil
 	})
 
 	deleteResult, isError := callAutomationCommand(t, fixture.Service, sctx, "delete_scheduled_task", map[string]any{

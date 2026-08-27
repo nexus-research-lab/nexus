@@ -28,6 +28,12 @@ SELECT
     source_id,
     payload,
     status,
+    COALESCE(owner_user_id, ''),
+    COALESCE(request_id, ''),
+    COALESCE(intent_digest, ''),
+    COALESCE(accepted_configuration_version, 0),
+    COALESCE(claim_token, ''),
+    claim_expires_at,
     created_at
 FROM automation_system_events
 WHERE status = 'new'`
@@ -46,16 +52,8 @@ ORDER BY created_at ASC, event_id ASC`
 
 	items := make([]automationdomain.SystemEvent, 0)
 	for rows.Next() {
-		var item automationdomain.SystemEvent
-		if scanErr := rows.Scan(
-			&item.EventID,
-			&item.EventType,
-			&item.SourceType,
-			&item.SourceID,
-			&item.Payload,
-			&item.Status,
-			&item.CreatedAt,
-		); scanErr != nil {
+		item, scanErr := scanHeartbeatWakeEvent(rows)
+		if scanErr != nil {
 			return nil, scanErr
 		}
 		items = append(items, item)

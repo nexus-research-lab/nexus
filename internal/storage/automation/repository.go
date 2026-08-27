@@ -114,7 +114,8 @@ ON CONFLICT(job_id) DO UPDATE SET
     permission_policy_revision = EXCLUDED.permission_policy_revision,
     permission_state = EXCLUDED.permission_state,
     pending_permission_request_id = EXCLUDED.pending_permission_request_id,
-    updated_at = CURRENT_TIMESTAMP`
+    updated_at = CURRENT_TIMESTAMP
+WHERE automation_scheduled_tasks.deletion_state = ''`
 
 // NewRepository 创建自动化仓储。
 func NewRepository(cfg config.Config, db *sql.DB) *Repository {
@@ -138,12 +139,19 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
     delivery_target_json,
     delivery_status,
     scheduled_for,
+    started_at,
+    finished_at,
     attempts,
+    error_message,
     permission_policy_revision,
+    client_request_id,
+    client_intent_digest,
     created_at,
     updated_at
-) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(14),
+) SELECT %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM automation_scheduled_tasks
+WHERE job_id = %s AND owner_user_id = %s AND deletion_state = ''`,
+		repository.bindList(19), repository.bind(20), repository.bind(21),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
 		`UPDATE automation_task_runs
@@ -155,7 +163,13 @@ SET status = %s,
     finished_at = NULL,
     error_message = NULL,
     updated_at = CURRENT_TIMESTAMP
-WHERE run_id = %s`,
+WHERE run_id = %s
+  AND EXISTS (
+    SELECT 1 FROM automation_scheduled_tasks AS task
+    WHERE task.job_id = automation_task_runs.job_id
+      AND task.owner_user_id = automation_task_runs.owner_user_id
+      AND task.deletion_state = ''
+  )`,
 		repository.bind(1), repository.bind(2), repository.bind(3),
 	)
 	repository.markRunFinishedQuery = fmt.Sprintf(

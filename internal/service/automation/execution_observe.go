@@ -6,7 +6,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/storage/automation"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 func (s *Service) observeJobRun(
@@ -57,40 +57,23 @@ func (s *Service) observeJobRunWithCompletion(
 			errorMessage = errorPointer(resumeErr)
 		}
 	}
-	deliveryResult := jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
 	runDelivery := s.persistedRunDeliveryTarget(jobCtx, job, runID)
-	if status == automationdomain.RunStatusSucceeded {
-		deliveryResult = s.deliverJobObservationToTarget(jobCtx, job, runDelivery, sessionKey, observation)
-	}
-	deliveryStatus := deliveryResult.Status
-	deliveryError := deliveryResult.Error
-	deliveryTo := deliveryResult.deliveryTo(runDelivery)
+	deliveryStatus := initialRunDeliveryStatus(runDelivery, sessionKey, observation, status)
+	deliveryTo := deliveryTargetSummary(runDelivery)
 	finishedAt := s.nowFn()
-	deliveredAt := deliveredAtForStatus(deliveryStatus, finishedAt)
-	deliveryAttemptsAfter := 0
-	if deliveryAttempted(deliveryStatus) {
-		deliveryAttemptsAfter = 1
-	}
-	nextDeliveryAttemptAt, deliveryDeadLetterAt := deliveryRetrySchedule(deliveryStatus, deliveryAttemptsAfter, finishedAt)
 	logger := s.loggerFor(jobCtx).With(
 		"job_id", job.JobID,
 		"agent_id", job.AgentID,
 		"run_id", runID,
 		"round_id", roundID,
 	)
-	if errorMessage != nil || deliveryError != nil {
-		logError := ""
-		if errorMessage != nil {
-			logError = *errorMessage
-		} else if deliveryError != nil {
-			logError = *deliveryError
-		}
+	if errorMessage != nil {
 		logger.Error("自动化任务执行结束",
 			"status", status,
 			"delivery_status", deliveryStatus,
 			"message_count", observation.MessageCount,
 			"session_id", anyStringPointer(observation.SessionID),
-			"err", logError,
+			"err", *errorMessage,
 		)
 	} else {
 		logger.Info("自动化任务执行结束",
@@ -103,40 +86,41 @@ func (s *Service) observeJobRunWithCompletion(
 	resultSummary := stringPointer(firstNonEmpty(observation.ResultText, observation.AssistantText))
 	assistantText := stringPointer(observation.AssistantText)
 	resultText := stringPointer(observation.ResultText)
-	artifactPath := s.writeRunArtifact(jobCtx, job, runID, roundID, sessionKey, finishedAt, status, observation, errorMessage, deliveryStatus, deliveryError, deliveryTo)
-	finished, finishErr := s.repository.MarkRunFinishedIfActive(context.Background(), automation.RunFinishInput{
-		RunID:                 runID,
-		Status:                status,
-		FinishedAt:            finishedAt,
-		ErrorMessage:          errorMessage,
-		SessionID:             observation.SessionID,
-		MessageCount:          observation.MessageCount,
-		ResultSummary:         resultSummary,
-		AssistantText:         assistantText,
-		ResultText:            resultText,
-		ArtifactPath:          artifactPath,
-		DeliveryTo:            deliveryTo,
-		DeliveryStatus:        deliveryStatus,
-		DeliveryError:         deliveryError,
-		DeliveredAt:           deliveredAt,
-		DeliveryAttempted:     deliveryAttempted(deliveryStatus),
-		DeliveryNextAttemptAt: nextDeliveryAttemptAt,
-		DeliveryDeadLetterAt:  deliveryDeadLetterAt,
+	artifactPath := s.writeRunArtifact(jobCtx, job, runID, roundID, sessionKey, finishedAt, status, observation, errorMessage, deliveryStatus, nil, deliveryTo)
+	updated, committed, finishErr := s.commitObservedRunTerminal(jobCtx, job, automationstore.RunFinishInput{
+		RunID:          runID,
+		Status:         status,
+		FinishedAt:     finishedAt,
+		ErrorMessage:   errorMessage,
+		SessionID:      observation.SessionID,
+		MessageCount:   observation.MessageCount,
+		ResultSummary:  resultSummary,
+		AssistantText:  assistantText,
+		ResultText:     resultText,
+		ArtifactPath:   artifactPath,
+		DeliveryTo:     deliveryTo,
+		DeliveryStatus: deliveryStatus,
 	})
-	if finishErr != nil {
+	if finishErr != nil && !committed {
 		logger.Warn("自动化任务结束结果写入失败",
 			"status", status,
 			"err", finishErr,
 		)
 		return
 	}
-	if !finished {
+	if !committed {
 		logger.Warn("自动化任务结束结果已忽略，run 不再处于活动状态",
 			"status", status,
 		)
 		return
 	}
-	s.finishJobRuntime(job.JobID, &finishedAt, status, errorMessage, deliveryStatus)
+	if finishErr != nil {
+		deliveryState := automationdomain.DeliveryStatusRetrying
+		if updated != nil && strings.TrimSpace(updated.DeliveryStatus) != "" {
+			deliveryState = updated.DeliveryStatus
+		}
+		logger.Warn("自动化任务已完成，但结果投递需要核对", "delivery_status", deliveryState, "err", finishErr)
+	}
 }
 
 func (s *Service) finishPermissionBlockedObservation(

@@ -1,3 +1,7 @@
+// INPUT: Scheduled 计划表单、提交/对账状态与 mutation failure 投影。
+// OUTPUT: 可编辑计划字段和统一回答事实、数据影响、下一步的失败面。
+// POS: Scheduled 创建/编辑右侧表单；不发请求或自行判断 mutation 结果。
+
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -8,8 +12,10 @@ import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 
+import type { ScheduledTaskMutationFailureProjection } from "../../controller/scheduled-task-mutation-outcome";
 import { DailyTimePicker } from "../../pickers/daily-time-picker";
 import { SingleRunPicker } from "../../pickers/single-run-picker";
 import {
@@ -96,6 +102,13 @@ interface TaskSchedulePanelProps {
     setEnabled: (value: boolean) => void;
     setInstruction: (value: string) => void;
   };
+  isReconciling: boolean;
+  isRestoredCreateIntent: boolean;
+  isMutationReviewed: boolean;
+  mutationFailure: ScheduledTaskMutationFailureProjection | null;
+  onConfirmMutationReviewed: () => void;
+  onReconcile: () => void;
+  onStartNewCreateIntent: () => void;
   refs: Pick<TaskDialogRefs, "dailyPickerAnchorRef" | "singlePickerAnchorRef">;
   schedule: TaskScheduleDraft;
   view: TaskScheduleView;
@@ -128,12 +141,20 @@ export function TaskSchedulePanel({
   errorMessage,
   form,
   formActions,
+  isReconciling,
+  isRestoredCreateIntent,
+  isMutationReviewed,
+  mutationFailure,
+  onConfirmMutationReviewed,
+  onReconcile,
+  onStartNewCreateIntent,
   refs,
   schedule,
   view,
 }: TaskSchedulePanelProps) {
   const { locale, t } = useI18n();
   const instructionLabel = t("capability.scheduled_dialog_instruction");
+  const journalUnavailable = mutationFailure?.code === "scheduled.journal_unavailable";
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -332,7 +353,58 @@ export function TaskSchedulePanel({
         onChange={formActions.setEnabled}
       />
 
-      {errorMessage ? (
+      {mutationFailure ? (
+        <UiResourceState
+          className="min-h-0 py-3"
+          description={errorMessage ?? mutationFailure.message}
+          impact={t(journalUnavailable
+            ? "capability.scheduled_journal_unavailable_impact"
+            : mutationFailure.effect === "not_applied"
+              ? "capability.scheduled_mutation_not_applied_impact"
+            : mutationFailure.effect === "accepted"
+              ? "capability.scheduled_mutation_accepted_impact"
+              : mutationFailure.effect === "committed"
+                ? "capability.scheduled_mutation_committed_impact"
+                : "capability.scheduled_mutation_unknown_impact")}
+          nextStep={t(journalUnavailable
+            ? "capability.scheduled_journal_unavailable_next_step"
+            : mutationFailure.effect === "not_applied"
+              ? "capability.scheduled_mutation_not_applied_next_step"
+            : isRestoredCreateIntent
+              ? "capability.scheduled_dialog_create_restored_next_step"
+              : isMutationReviewed
+                ? "capability.scheduled_dialog_mutation_reviewed_next_step"
+                : "capability.scheduled_dialog_mutation_unknown_next_step")}
+          primaryAction={mutationFailure.blocksRepeat ? {
+            busy: isReconciling,
+            busyLabel: t("capability.scheduled_dialog_reconciling"),
+            label: t("capability.scheduled_dialog_reconcile"),
+            onClick: onReconcile,
+          } : undefined}
+          secondaryAction={mutationFailure.blocksRepeat && isRestoredCreateIntent
+            ? {
+                label: t("capability.scheduled_dialog_create_start_new"),
+                onClick: onStartNewCreateIntent,
+              }
+            : mutationFailure.blocksRepeat && isMutationReviewed
+              ? {
+                  label: t("capability.scheduled_mutation_review_unlock_action"),
+                  onClick: onConfirmMutationReviewed,
+                }
+              : undefined}
+          size="sm"
+          state="error"
+          title={t(journalUnavailable
+            ? "capability.scheduled_journal_unavailable_title"
+            : mutationFailure.effect === "not_applied"
+              ? "capability.scheduled_mutation_not_applied_title"
+            : mutationFailure.effect === "accepted"
+              ? "capability.scheduled_mutation_accepted_title"
+              : mutationFailure.effect === "committed"
+                ? "capability.scheduled_mutation_committed_title"
+                : "capability.scheduled_mutation_unknown_title")}
+        />
+      ) : errorMessage ? (
         <UiStateBlock
           description={errorMessage}
           size="sm"

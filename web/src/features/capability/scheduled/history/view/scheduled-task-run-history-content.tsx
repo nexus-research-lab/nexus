@@ -14,6 +14,12 @@ import { UiSkeletonCardList } from "@/shared/ui/display/skeleton";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
+import {
+  hasScheduledTaskCommandForJob,
+  scheduledTaskCommandTarget,
+  scheduledTaskDeliveryCommandTarget,
+  type ScheduledTaskUnconfirmedCommands,
+} from "../../controller/scheduled-task-directory-model";
 import { ScheduledTaskRunHistoryItem } from "./scheduled-task-run-history-item";
 
 interface ScheduledTaskRunHistoryContentProps {
@@ -31,6 +37,7 @@ interface ScheduledTaskRunHistoryContentProps {
   pendingRetryDeliveries: ReadonlySet<string>;
   runs: ScheduledTaskRunItem[];
   task: ScheduledTaskItem;
+  unconfirmed: ScheduledTaskUnconfirmedCommands;
 }
 
 export function ScheduledTaskRunHistoryContent({
@@ -48,6 +55,7 @@ export function ScheduledTaskRunHistoryContent({
   pendingRetryDeliveries,
   runs,
   task,
+  unconfirmed,
 }: ScheduledTaskRunHistoryContentProps) {
   const { t } = useI18n();
   const accessBlocked = Boolean(failure?.access);
@@ -111,7 +119,22 @@ export function ScheduledTaskRunHistoryContent({
             <ScheduledTaskRunHistoryItem
               defaultOpen={index === 0}
               isCopied={copiedRunId === run.run_id}
+              isRecoveryUnconfirmed={unconfirmed.get("recover")?.has(
+                scheduledTaskCommandTarget(task.job_id, run.run_id),
+              ) ?? false}
               isRecovering={pendingRecoveries.has(run.run_id)}
+              isRetryDeliveryUnconfirmed={unconfirmed.get("retryDelivery")?.has(
+                scheduledTaskDeliveryCommandTarget(
+                  task.job_id,
+                  run.run_id,
+                  run.delivery_attempts,
+                ),
+              ) ?? false}
+              isRetryUnconfirmed={hasScheduledTaskCommandForJob(
+                unconfirmed,
+                "run",
+                task.job_id,
+              )}
               isRetrying={pendingRetries.has(run.run_id)}
               isRetryingDelivery={pendingRetryDeliveries.has(run.run_id)}
               key={run.run_id}

@@ -19,7 +19,10 @@ import {
 interface ScheduledTaskRunHistoryItemProps {
   defaultOpen: boolean;
   isCopied: boolean;
+  isRecoveryUnconfirmed: boolean;
   isRecovering: boolean;
+  isRetryDeliveryUnconfirmed: boolean;
+  isRetryUnconfirmed: boolean;
   isRetrying: boolean;
   isRetryingDelivery: boolean;
   onCopyDiagnostic: (run: ScheduledTaskRunItem) => void | Promise<void>;
@@ -33,7 +36,10 @@ interface ScheduledTaskRunHistoryItemProps {
 export function ScheduledTaskRunHistoryItem({
   defaultOpen,
   isCopied,
+  isRecoveryUnconfirmed,
   isRecovering,
+  isRetryDeliveryUnconfirmed,
+  isRetryUnconfirmed,
   isRetrying,
   isRetryingDelivery,
   onCopyDiagnostic,
@@ -80,7 +86,10 @@ export function ScheduledTaskRunHistoryItem({
             run={run}
           />
           <ScheduledTaskRunActions
+            isRecoveryUnconfirmed={isRecoveryUnconfirmed}
             isRecovering={isRecovering}
+            isRetryDeliveryUnconfirmed={isRetryDeliveryUnconfirmed}
+            isRetryUnconfirmed={isRetryUnconfirmed}
             isRetrying={isRetrying}
             isRetryingDelivery={isRetryingDelivery}
             onRecover={() => onRecover(run)}

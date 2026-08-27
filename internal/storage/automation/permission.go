@@ -1,5 +1,5 @@
 // INPUT: owner-scoped automation capability requests, task policy CAS 与 run 阻塞/恢复状态。
-// OUTPUT: 持久审批请求、原子决策结果和同一 logical run 的重试状态。
+// OUTPUT: 持久审批请求、原子决策结果、无结果终态投递收口和绑定 exact request 的同一 logical run 重试状态。
 // POS: automation 权限事实的 SQL 仓储；不解释具体工具或 connector 语义。
 package automation
 
@@ -41,10 +41,341 @@ type PermissionRequestDecisionStoreInput struct {
 type RunResumeInput struct {
 	RunID                    string
 	OwnerUserID              string
+	RequestID                string
 	RoundID                  string
 	SessionKey               string
 	StartedAt                time.Time
 	PermissionPolicyRevision int
+}
+
+// TaskPermissionBoundaryUpdateInput 把任务定义写入与旧审批/run 失效放在同一事务。
+type TaskPermissionBoundaryUpdateInput struct {
+	Job                  automationdomain.ScheduledTask
+	ExpectedVersion      *int64
+	ExpectedRunningRunID *string
+	CancellationMessage  string
+}
+
+// UpdateTaskAndInvalidatePermissionBoundary 原子提交任务新定义，并使旧 revision
+// 的 pending request 与 blocked run 失效。返回值只用于事务成功后的通知。
+func (r *Repository) UpdateTaskAndInvalidatePermissionBoundary(
+	ctx context.Context,
+	input TaskPermissionBoundaryUpdateInput,
+) (*automationdomain.ScheduledTask, []automationdomain.AutomationPermissionRequest, error) {
+	attempts := automationWriteRetryAttempts
+	if r.isPostgres {
+		attempts = 1
+	}
+	for attempt := 0; attempt < attempts; attempt++ {
+		task, requests, err := r.updateTaskAndInvalidatePermissionBoundaryOnce(ctx, input)
+		if err == nil || !isSQLiteLockedError(err) || attempt == attempts-1 {
+			return task, requests, err
+		}
+		timer := time.NewTimer(automationWriteRetryDelay * time.Duration(attempt+1))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return nil, nil, errors.New("scheduled task permission boundary update retries exhausted")
+}
+
+func (r *Repository) updateTaskAndInvalidatePermissionBoundaryOnce(
+	ctx context.Context,
+	input TaskPermissionBoundaryUpdateInput,
+) (*automationdomain.ScheduledTask, []automationdomain.AutomationPermissionRequest, error) {
+	var (
+		definitionQuery string
+		definitionArgs  []any
+		err             error
+	)
+	if input.ExpectedVersion != nil {
+		definitionQuery, definitionArgs, err = r.scheduledTaskVersionUpdateStatement(
+			input.Job,
+			*input.ExpectedVersion,
+			input.ExpectedRunningRunID,
+		)
+	} else {
+		definitionQuery = r.upsertScheduledTaskQuery
+		definitionArgs, err = scheduledTaskUpsertArgs(input.Job)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	pending, err := r.listPendingPermissionRequestsForTaskTx(
+		ctx,
+		tx,
+		input.Job.OwnerUserID,
+		input.Job.JobID,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	result, err := tx.ExecContext(ctx, definitionQuery, definitionArgs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	count, rowsErr := result.RowsAffected()
+	if rowsErr != nil {
+		return nil, nil, rowsErr
+	}
+	if count != 1 {
+		if input.ExpectedVersion != nil {
+			return nil, nil, automationdomain.ErrConfigurationVersionConflict
+		}
+		return nil, nil, automationdomain.ErrTaskDeleting
+	}
+
+	if _, err = tx.ExecContext(
+		ctx,
+		fmt.Sprintf(
+			`UPDATE automation_permission_requests
+SET status = %s,
+    decision = NULL,
+    resolved_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = %s
+  AND job_id = %s
+  AND status = %s`,
+			r.bind(1), r.bind(2), r.bind(3), r.bind(4),
+		),
+		automationdomain.PermissionRequestStatusSuperseded,
+		strings.TrimSpace(input.Job.OwnerUserID),
+		strings.TrimSpace(input.Job.JobID),
+		automationdomain.PermissionRequestStatusPending,
+	); err != nil {
+		return nil, nil, err
+	}
+	invalidatedRunID, err := r.latestBlockedRunForPermissionInvalidationTx(
+		ctx,
+		tx,
+		input.Job.OwnerUserID,
+		input.Job.JobID,
+		input.Job.PermissionPolicy.Revision,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	runResult, err := tx.ExecContext(
+		ctx,
+		fmt.Sprintf(
+			`UPDATE automation_task_runs
+SET status = %s,
+    finished_at = CURRENT_TIMESTAMP,
+    error_message = %s,
+    delivery_status = %s,
+    delivery_error = NULL,
+    delivered_at = NULL,
+    delivery_attempts = 0,
+    delivery_attempt_id = NULL,
+    delivery_attempt_started_at = NULL,
+    delivery_next_attempt_at = NULL,
+    delivery_dead_letter_at = NULL,
+    block_state = '',
+    blocked_request_id = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = %s
+  AND job_id = %s
+  AND block_state <> ''
+  AND permission_policy_revision <> %s`,
+			r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+		),
+		automationdomain.RunStatusCancelled,
+		nullString(strings.TrimSpace(input.CancellationMessage)),
+		automationdomain.DeliveryStatusNotAttempted,
+		strings.TrimSpace(input.Job.OwnerUserID),
+		strings.TrimSpace(input.Job.JobID),
+		input.Job.PermissionPolicy.Revision,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	invalidatedCount, err := runResult.RowsAffected()
+	if err != nil {
+		return nil, nil, err
+	}
+	if invalidatedCount > 0 && invalidatedRunID != "" {
+		if err = r.projectPermissionTerminalRunSummaryTx(
+			ctx,
+			tx,
+			input.Job.OwnerUserID,
+			input.Job.JobID,
+			invalidatedRunID,
+		); err != nil {
+			return nil, nil, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, nil, err
+	}
+	updated, err := r.GetScheduledTask(
+		ctx,
+		strings.TrimSpace(input.Job.OwnerUserID),
+		strings.TrimSpace(input.Job.JobID),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if updated == nil {
+		return nil, nil, automationdomain.ErrJobNotFound
+	}
+	return updated, pending, nil
+}
+
+// latestBlockedRunForPermissionInvalidationTx selects the deterministic run
+// that will become the newest completion when matching blocked runs are
+// cancelled together. The final projection still compares all terminal runs.
+func (r *Repository) latestBlockedRunForPermissionInvalidationTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	ownerUserID string,
+	jobID string,
+	nextPolicyRevision int,
+) (string, error) {
+	var runID string
+	err := tx.QueryRowContext(
+		ctx,
+		fmt.Sprintf(`SELECT run_id
+FROM automation_task_runs
+WHERE owner_user_id = %s
+  AND job_id = %s
+  AND block_state <> ''
+  AND permission_policy_revision <> %s
+ORDER BY run_id DESC
+LIMIT 1`, r.bind(1), r.bind(2), r.bind(3)),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		nextPolicyRevision,
+	).Scan(&runID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return strings.TrimSpace(runID), err
+}
+
+// projectPermissionTerminalRunSummaryTx updates the task summary only when the
+// exact permission-terminated run is still the latest durable terminal fact.
+func (r *Repository) projectPermissionTerminalRunSummaryTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	ownerUserID string,
+	jobID string,
+	runID string,
+) error {
+	var (
+		status         string
+		finishedAt     time.Time
+		errorMessage   sql.NullString
+		deliveryStatus string
+	)
+	err := tx.QueryRowContext(
+		ctx,
+		fmt.Sprintf(`SELECT status, finished_at, error_message, delivery_status
+FROM automation_task_runs
+WHERE owner_user_id = %s
+  AND job_id = %s
+  AND run_id = %s
+  AND status IN (%s, %s, %s)
+  AND finished_at IS NOT NULL`,
+			r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+		),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		strings.TrimSpace(runID),
+		automationdomain.RunStatusSucceeded,
+		automationdomain.RunStatusFailed,
+		automationdomain.RunStatusCancelled,
+	).Scan(&status, &finishedAt, &errorMessage, &deliveryStatus)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(
+		ctx,
+		fmt.Sprintf(`UPDATE automation_scheduled_tasks
+SET last_run_at = %s,
+    last_run_status = %s,
+    failure_streak = failure_streak + 1,
+    last_error = %s,
+    last_delivery_status = %s,
+    last_completed_run_id = %s,
+    updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = %s
+  AND job_id = %s
+  AND deletion_state = ''
+  AND NOT EXISTS (
+      SELECT 1
+      FROM automation_task_runs newer
+      WHERE newer.owner_user_id = %s
+        AND newer.job_id = %s
+        AND newer.status IN (%s, %s, %s)
+        AND newer.finished_at IS NOT NULL
+        AND (
+            newer.finished_at > %s
+            OR (newer.finished_at = %s AND newer.run_id > %s)
+        )
+  )`,
+			r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5),
+			r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
+			r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15),
+		),
+		finishedAt.UTC(),
+		strings.TrimSpace(status),
+		nullString(errorMessage.String),
+		strings.TrimSpace(deliveryStatus),
+		strings.TrimSpace(runID),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		automationdomain.RunStatusSucceeded,
+		automationdomain.RunStatusFailed,
+		automationdomain.RunStatusCancelled,
+		finishedAt.UTC(),
+		finishedAt.UTC(),
+		strings.TrimSpace(runID),
+	)
+	return err
+}
+
+func (r *Repository) listPendingPermissionRequestsForTaskTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	ownerUserID string,
+	jobID string,
+) ([]automationdomain.AutomationPermissionRequest, error) {
+	query := permissionRequestSelectSQL + fmt.Sprintf(
+		" WHERE owner_user_id = %s AND job_id = %s AND status = %s ORDER BY created_at DESC, request_id DESC",
+		r.bind(1), r.bind(2), r.bind(3),
+	)
+	rows, err := tx.QueryContext(
+		ctx,
+		query,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		automationdomain.PermissionRequestStatusPending,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]automationdomain.AutomationPermissionRequest, 0)
+	for rows.Next() {
+		item, scanErr := scanAutomationPermissionRequest(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, *item)
+	}
+	return items, rows.Err()
 }
 
 // UpdateTaskPermissionPolicyIfRevision 只在修订仍匹配时写入任务授权快照。
@@ -69,7 +400,8 @@ SET permission_policy_json = %s,
     updated_at = CURRENT_TIMESTAMP
 WHERE job_id = %s
   AND owner_user_id = %s
-  AND permission_policy_revision = %s`,
+  AND permission_policy_revision = %s
+  AND deletion_state = ''`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 	)
 	result, err := r.execWithRetry(
@@ -102,10 +434,10 @@ func (r *Repository) SetTaskPermissionState(
 SET permission_state = %s,
     pending_permission_request_id = %s,
     updated_at = CURRENT_TIMESTAMP
-WHERE job_id = %s AND owner_user_id = %s`,
+WHERE job_id = %s AND owner_user_id = %s AND deletion_state = ''`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4),
 	)
-	_, err := r.execWithRetry(
+	result, err := r.execWithRetry(
 		ctx,
 		query,
 		strings.TrimSpace(state),
@@ -113,7 +445,111 @@ WHERE job_id = %s AND owner_user_id = %s`,
 		strings.TrimSpace(jobID),
 		strings.TrimSpace(ownerUserID),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return automationdomain.ErrTaskDeleting
+	}
+	return nil
+}
+
+// ClearTaskPermissionRetryState 只清理调用方持有的 exact retry request。
+// 新请求已替换 pending_request_id 或策略 revision 已推进时返回 false，绝不覆盖。
+func (r *Repository) ClearTaskPermissionRetryState(
+	ctx context.Context,
+	ownerUserID string,
+	jobID string,
+	policyRevision int,
+	requestID string,
+) (bool, error) {
+	query := fmt.Sprintf(
+		`UPDATE automation_scheduled_tasks
+SET permission_state = %s,
+    pending_permission_request_id = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE job_id = %s
+  AND owner_user_id = %s
+  AND permission_policy_revision = %s
+  AND pending_permission_request_id = %s
+  AND deletion_state = ''`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5),
+	)
+	result, err := r.execWithRetry(
+		ctx,
+		query,
+		automationdomain.TaskPermissionStateReady,
+		strings.TrimSpace(jobID),
+		strings.TrimSpace(ownerUserID),
+		policyRevision,
+		strings.TrimSpace(requestID),
+	)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count == 1, err
+}
+
+// RestoreTaskPermissionRetryState 在 task 尚未绑定请求或仍绑定同一请求时恢复。
+// 非空的其他 request_id 是更新的权威事实，必须保留。
+func (r *Repository) RestoreTaskPermissionRetryState(
+	ctx context.Context,
+	ownerUserID string,
+	jobID string,
+	policyRevision int,
+	requestID string,
+) (bool, error) {
+	query := fmt.Sprintf(
+		`UPDATE automation_scheduled_tasks
+SET permission_state = %s,
+    pending_permission_request_id = %s,
+    updated_at = CURRENT_TIMESTAMP
+WHERE job_id = %s
+  AND owner_user_id = %s
+  AND permission_policy_revision = %s
+  AND deletion_state = ''
+  AND (
+    pending_permission_request_id IS NULL
+    OR pending_permission_request_id = ''
+    OR pending_permission_request_id = %s
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM automation_task_runs AS run
+    WHERE run.owner_user_id = %s
+      AND run.job_id = %s
+      AND run.status = %s
+      AND run.block_state = %s
+      AND run.blocked_request_id = %s
+  )`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+		r.bind(7), r.bind(8), r.bind(9), r.bind(10), r.bind(11),
+	)
+	result, err := r.execWithRetry(
+		ctx,
+		query,
+		automationdomain.TaskPermissionStateReadyToRetry,
+		nullString(strings.TrimSpace(requestID)),
+		strings.TrimSpace(jobID),
+		strings.TrimSpace(ownerUserID),
+		policyRevision,
+		strings.TrimSpace(requestID),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		automationdomain.RunStatusPending,
+		automationdomain.RunBlockStateReadyToRetry,
+		strings.TrimSpace(requestID),
+	)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count == 1, err
 }
 
 // SupersedePendingPermissionRequests 使旧任务修订上的未决请求失效。
@@ -273,7 +709,8 @@ SET permission_state = %s,
 WHERE job_id = %s
   AND owner_user_id = %s
   AND permission_policy_revision = %s
-  AND (pending_permission_request_id IS NULL OR pending_permission_request_id = %s)`,
+  AND (pending_permission_request_id IS NULL OR pending_permission_request_id = %s)
+  AND deletion_state = ''`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 	)
 	taskResult, err := tx.ExecContext(
@@ -393,7 +830,29 @@ func (r *Repository) ListPermissionRequests(
 	status string,
 	jobID string,
 ) ([]automationdomain.AutomationPermissionRequest, error) {
-	args := make([]any, 0, 3)
+	query, args := r.permissionRequestListQuery(ownerUserID, status, jobID)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]automationdomain.AutomationPermissionRequest, 0)
+	for rows.Next() {
+		item, scanErr := scanAutomationPermissionRequest(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, *item)
+	}
+	return items, rows.Err()
+}
+
+func (r *Repository) permissionRequestListQuery(
+	ownerUserID string,
+	status string,
+	jobID string,
+) (string, []any) {
+	args := make([]any, 0, 4)
 	conditions := make([]string, 0, 3)
 	if value := strings.TrimSpace(ownerUserID); value != "" {
 		args = append(args, value)
@@ -401,6 +860,16 @@ func (r *Repository) ListPermissionRequests(
 	}
 	if value := strings.TrimSpace(status); value != "" {
 		if value == "actionable" {
+			args = append(
+				args,
+				automationdomain.PermissionRequestStatusPending,
+				automationdomain.PermissionRequestStatusApproved,
+			)
+			conditions = append(conditions, fmt.Sprintf(
+				"status IN (%s, %s)",
+				r.bind(len(args)-1),
+				r.bind(len(args)),
+			))
 			conditions = append(conditions, `EXISTS (
     SELECT 1
     FROM automation_scheduled_tasks AS task
@@ -410,17 +879,23 @@ func (r *Repository) ListPermissionRequests(
      AND run.run_id = automation_permission_requests.run_id
     WHERE task.owner_user_id = automation_permission_requests.owner_user_id
       AND task.job_id = automation_permission_requests.job_id
-      AND task.pending_permission_request_id = automation_permission_requests.request_id
       AND run.status = 'pending'
       AND (
         (
           automation_permission_requests.status = 'pending'
+          AND task.pending_permission_request_id = automation_permission_requests.request_id
           AND run.blocked_request_id = automation_permission_requests.request_id
           AND run.block_state IN ('awaiting_approval', 'awaiting_reauth', 'awaiting_input')
         )
         OR (
           automation_permission_requests.status = 'approved'
-          AND run.blocked_request_id IS NULL
+          AND (
+            run.blocked_request_id = automation_permission_requests.request_id
+            OR (
+              (run.blocked_request_id IS NULL OR run.blocked_request_id = '')
+              AND task.pending_permission_request_id = automation_permission_requests.request_id
+            )
+          )
           AND run.block_state = 'ready_to_retry'
         )
       )
@@ -451,20 +926,56 @@ func (r *Repository) ListPermissionRequests(
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	query += " ORDER BY created_at DESC, request_id DESC"
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	return query, args
+}
+
+// BindRunReadyToRetryRequest 修复旧数据只在 task 上保存 retry request 的投影。
+// 调用方必须先验证 task.pending_permission_request_id 与 request 完全一致。
+func (r *Repository) BindRunReadyToRetryRequest(
+	ctx context.Context,
+	ownerUserID string,
+	jobID string,
+	runID string,
+	requestID string,
+) (bool, error) {
+	query := fmt.Sprintf(
+		`UPDATE automation_task_runs
+SET blocked_request_id = %s,
+    updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = %s
+  AND job_id = %s
+  AND run_id = %s
+  AND status = %s
+  AND block_state = %s
+  AND COALESCE(blocked_request_id, '') = ''
+  AND EXISTS (
+    SELECT 1
+    FROM automation_scheduled_tasks AS task
+    WHERE task.owner_user_id = %s
+      AND task.job_id = %s
+      AND task.pending_permission_request_id = %s
+  )`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+		r.bind(7), r.bind(8), r.bind(9),
+	)
+	result, err := r.execWithRetry(
+		ctx,
+		query,
+		strings.TrimSpace(requestID),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		strings.TrimSpace(runID),
+		automationdomain.RunStatusPending,
+		automationdomain.RunBlockStateReadyToRetry,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(jobID),
+		strings.TrimSpace(requestID),
+	)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	defer rows.Close()
-	items := make([]automationdomain.AutomationPermissionRequest, 0)
-	for rows.Next() {
-		item, scanErr := scanAutomationPermissionRequest(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		items = append(items, *item)
-	}
-	return items, rows.Err()
+	count, err := result.RowsAffected()
+	return count == 1, err
 }
 
 // GetPermissionRequest 读取 owner-scoped 审批请求。
@@ -604,7 +1115,8 @@ SET permission_state = %s,
 WHERE job_id = %s
   AND owner_user_id = %s
   AND permission_policy_revision = %s
-  AND pending_permission_request_id = %s`,
+  AND pending_permission_request_id = %s
+  AND deletion_state = ''`,
 		r.bind(len(taskArgs)-3), r.bind(len(taskArgs)-2), r.bind(len(taskArgs)-1), r.bind(len(taskArgs)),
 	)
 	taskResult, err := tx.ExecContext(ctx, taskUpdate, taskArgs...)
@@ -664,6 +1176,14 @@ WHERE request_id = %s
 SET status = %s,
     finished_at = %s,
     error_message = %s,
+    delivery_status = %s,
+    delivery_error = NULL,
+    delivered_at = NULL,
+    delivery_attempts = 0,
+    delivery_attempt_id = NULL,
+    delivery_attempt_started_at = NULL,
+    delivery_next_attempt_at = NULL,
+    delivery_dead_letter_at = NULL,
     block_state = '',
     blocked_request_id = NULL,
     updated_at = CURRENT_TIMESTAMP
@@ -671,7 +1191,7 @@ WHERE run_id = %s
   AND owner_user_id = %s
   AND blocked_request_id = %s
   AND block_state <> ''`,
-				r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+				r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7),
 			)
 			runResult, runErr := tx.ExecContext(
 				ctx,
@@ -679,6 +1199,7 @@ WHERE run_id = %s
 				automationdomain.RunStatusFailed,
 				input.ResolvedAt.UTC(),
 				nullString(input.DeniedMessage),
+				automationdomain.DeliveryStatusNotAttempted,
 				request.RunID,
 				input.OwnerUserID,
 				request.RequestID,
@@ -692,13 +1213,26 @@ WHERE run_id = %s
 				}
 				return nil, automationdomain.ErrPermissionRequestStale
 			}
+			if runErr = r.projectPermissionTerminalRunSummaryTx(
+				ctx,
+				tx,
+				input.OwnerUserID,
+				request.JobID,
+				request.RunID,
+			); runErr != nil {
+				return nil, runErr
+			}
 		} else {
+			blockedRequestID := ""
+			if input.RunBlockState == automationdomain.RunBlockStateReadyToRetry {
+				blockedRequestID = request.RequestID
+			}
 			runUpdate := fmt.Sprintf(
 				`UPDATE automation_task_runs
 SET status = %s,
     permission_policy_revision = %s,
     block_state = %s,
-    blocked_request_id = NULL,
+    blocked_request_id = %s,
     error_message = NULL,
     finished_at = NULL,
     updated_at = CURRENT_TIMESTAMP
@@ -706,7 +1240,7 @@ WHERE run_id = %s
   AND owner_user_id = %s
   AND blocked_request_id = %s
   AND block_state <> ''`,
-				r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+				r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7),
 			)
 			runResult, runErr := tx.ExecContext(
 				ctx,
@@ -714,6 +1248,7 @@ WHERE run_id = %s
 				automationdomain.RunStatusPending,
 				nextRevision,
 				input.RunBlockState,
+				nullString(blockedRequestID),
 				request.RunID,
 				input.OwnerUserID,
 				request.RequestID,
@@ -753,7 +1288,14 @@ SET status = %s,
 WHERE run_id = %s
   AND owner_user_id = %s
   AND status = %s
-  AND block_state IN (%s, %s)`,
+  AND block_state = %s
+  AND blocked_request_id = %s
+  AND EXISTS (
+    SELECT 1 FROM automation_scheduled_tasks AS task
+    WHERE task.job_id = automation_task_runs.job_id
+      AND task.owner_user_id = automation_task_runs.owner_user_id
+      AND task.deletion_state = ''
+  )`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 		r.bind(7), r.bind(8), r.bind(9), r.bind(10),
 	)
@@ -768,14 +1310,66 @@ WHERE run_id = %s
 		strings.TrimSpace(input.RunID),
 		strings.TrimSpace(input.OwnerUserID),
 		automationdomain.RunStatusPending,
-		automationdomain.RunBlockStateNone,
 		automationdomain.RunBlockStateReadyToRetry,
+		strings.TrimSpace(input.RequestID),
 	)
 	if err != nil {
 		return false, err
 	}
 	count, err := result.RowsAffected()
 	return count > 0, err
+}
+
+// RestorePreparedRunReadyToRetry 补偿已 claim 但尚未成功派发的恢复 attempt。
+// round_id 与 policy revision 共同证明仍是调用方刚准备的物理 attempt；若新请求
+// 或终态已接管 run，则返回 stale，绝不把较新的状态改回旧 request。
+func (r *Repository) RestorePreparedRunReadyToRetry(
+	ctx context.Context,
+	input RunResumeInput,
+	errorMessage *string,
+) error {
+	query := fmt.Sprintf(
+		`UPDATE automation_task_runs
+SET status = %s,
+    finished_at = NULL,
+    error_message = %s,
+    block_state = %s,
+    blocked_request_id = %s,
+    updated_at = CURRENT_TIMESTAMP
+WHERE run_id = %s
+  AND owner_user_id = %s
+  AND status = %s
+  AND permission_policy_revision = %s
+  AND block_state = ''
+  AND COALESCE(blocked_request_id, '') = ''
+  AND COALESCE(round_id, '') = %s`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5),
+		r.bind(6), r.bind(7), r.bind(8), r.bind(9),
+	)
+	result, err := r.execWithRetry(
+		ctx,
+		query,
+		automationdomain.RunStatusPending,
+		nullableString(errorMessage),
+		automationdomain.RunBlockStateReadyToRetry,
+		nullString(strings.TrimSpace(input.RequestID)),
+		strings.TrimSpace(input.RunID),
+		strings.TrimSpace(input.OwnerUserID),
+		automationdomain.RunStatusRunning,
+		input.PermissionPolicyRevision,
+		strings.TrimSpace(input.RoundID),
+	)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return automationdomain.ErrPermissionRequestStale
+	}
+	return nil
 }
 
 // MarkRunEffectStarted 记录 run 已执行过非只读能力，后续不能静默重放。
@@ -787,7 +1381,13 @@ SET effect_started = %s,
 WHERE run_id = %s
   AND owner_user_id = %s
   AND block_state = ''
-  AND status IN (%s, %s, %s)`,
+  AND status IN (%s, %s, %s)
+  AND EXISTS (
+    SELECT 1 FROM automation_scheduled_tasks AS task
+    WHERE task.job_id = automation_task_runs.job_id
+      AND task.owner_user_id = automation_task_runs.owner_user_id
+      AND task.deletion_state = ''
+  )`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 	)
 	result, err := r.execWithRetry(

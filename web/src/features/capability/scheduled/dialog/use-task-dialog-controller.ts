@@ -1,22 +1,57 @@
+// INPUT: Scheduled 创建/编辑表单、owner scope、mutation journal 与 FailureCore。
+// OUTPUT: 表单资源、提交命令、三段式失败事实和显式对账动作。
+// POS: Scheduled 表单控制器；副作用前先持久化恢复记录，结果未知时不自动重放。
+
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   createScheduledTaskApi,
+  getScheduledTaskCreateRequestApi,
   updateScheduledTaskApi,
 } from "@/lib/api/capability/scheduled-task-api";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import { parseSessionKey } from "@/lib/conversation/session-key";
+import {
+  getErrorMessage,
+  getResourceFailure,
+  type ResourceFailure,
+} from "@/lib/error-message";
 import {
   type I18nContextValue,
   useI18n,
 } from "@/shared/i18n/i18n-context";
 import type {
   ScheduledTaskItem,
+  ScheduledTaskCreateRequestStatus,
   UpdateScheduledTaskParams,
 } from "@/types/capability/scheduled-task/task";
 
+import {
+  projectScheduledTaskMutationFailure,
+  type ScheduledTaskMutationFailureProjection,
+} from "../controller/scheduled-task-mutation-outcome";
+import {
+  scheduledTaskConfigurationCommandTarget,
+} from "../controller/scheduled-task-directory-model";
+import {
+  clearScheduledTaskCreateRequestId,
+  loadScheduledTaskCreateRequestId,
+  removeScheduledTaskMutationJournalEntry,
+  saveScheduledTaskCreateRequestId,
+  ScheduledTaskMutationCoordinationUnavailableError,
+  ScheduledTaskMutationLockUnavailableError,
+  upsertScheduledTaskMutationJournalEntry,
+  withScheduledTaskMutationGate,
+} from "../controller/scheduled-task-mutation-journal";
 import {
   buildDefaultTaskDialogInitialState,
   buildTaskDialogInitialState,
@@ -40,12 +75,19 @@ interface TaskDialogControllerOptions {
   initialTask?: ScheduledTaskItem | null;
   isOpen: boolean;
   onClose: () => void;
+  onAccessFailure?: (failure: ResourceFailure) => void;
   onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onCreateIntentResolved?: (status?: ScheduledTaskCreateRequestStatus) => void;
+  onConfirmMutationReviewed?: (command: "update", targetId: string) => void;
+  onIsMutationBlocked?: (jobId: string) => boolean;
+  onReconcile?: () => Promise<void>;
   onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
+  scopeKey: string | null;
 }
 
 interface SubmitTaskDialogOptions {
   context: TaskDialogSubmitContext;
+  createRequestId: string;
   initialTask: ScheduledTaskItem | null;
   onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
   onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
@@ -88,6 +130,7 @@ function buildUpdatePayload(
 
 async function submitTaskDialog({
   context,
+  createRequestId,
   initialTask,
   onCreated,
   onSaved,
@@ -107,7 +150,10 @@ async function submitTaskDialog({
     return;
   }
 
-  const created = await createScheduledTaskApi(payload);
+  const created = await createScheduledTaskApi({
+    ...payload,
+    request_id: createRequestId,
+  });
   await onCreated?.(created);
 }
 
@@ -116,12 +162,24 @@ function getSubmitErrorMessage(
   initialTask: ScheduledTaskItem | null,
   t: I18nContextValue["t"],
 ): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return initialTask
+  return getErrorMessage(error, initialTask
     ? t("capability.scheduled_dialog_save_failed")
-    : t("capability.scheduled_dialog_create_failed");
+    : t("capability.scheduled_dialog_create_failed"));
+}
+
+function notAppliedMutationFailure(
+  message: string,
+  code: string | null = null,
+): ScheduledTaskMutationFailureProjection {
+  return {
+    access: null,
+    blocksRepeat: false,
+    category: null,
+    code,
+    effect: "not_applied",
+    message,
+    transportRequestId: null,
+  };
 }
 
 export function useTaskDialogController({
@@ -130,8 +188,14 @@ export function useTaskDialogController({
   initialTask = null,
   isOpen,
   onClose,
+  onAccessFailure,
   onCreated,
+  onCreateIntentResolved,
+  onConfirmMutationReviewed,
+  onIsMutationBlocked,
+  onReconcile,
   onSaved,
+  scopeKey,
 }: TaskDialogControllerOptions) {
   const { t } = useI18n();
   const initialState = useMemo(
@@ -141,7 +205,17 @@ export function useTaskDialogController({
     [agentId, createPreset, initialTask],
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [createRequestId, setCreateRequestId] = useState(createTaskRequestId);
+  const [isRestoredCreateIntent, setIsRestoredCreateIntent] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
+  const [isMutationReviewed, setIsMutationReviewed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mutationFailure, setMutationFailure] = useState<
+    ScheduledTaskMutationFailureProjection | null
+  >(null);
+  const mutationFailureRef = useRef<ScheduledTaskMutationFailureProjection | null>(null);
+  const activeCreateRequestCheckRef = useRef<string | null>(null);
+  const activeScopeKeyRef = useRef(scopeKey);
   const submitInFlightRef = useRef(false);
   const refs: TaskDialogRefs = {
     dailyPickerAnchorRef: useRef<HTMLButtonElement>(null),
@@ -149,7 +223,42 @@ export function useTaskDialogController({
     singlePickerAnchorRef: useRef<HTMLButtonElement>(null),
   };
 
-  const clearError = useCallback(() => setErrorMessage(null), []);
+  useLayoutEffect(() => {
+    activeScopeKeyRef.current = scopeKey;
+  }, [scopeKey]);
+
+  const updateMutationFailure = useCallback((
+    failure: ScheduledTaskMutationFailureProjection | null,
+  ): void => {
+    mutationFailureRef.current = failure;
+    setMutationFailure(failure);
+  }, []);
+  const restoreCreateIntent = useCallback((requestId: string): void => {
+    const restoredFailure: ScheduledTaskMutationFailureProjection = {
+      access: null,
+      blocksRepeat: true,
+      category: null,
+      code: null,
+      effect: "unknown",
+      message: t("capability.scheduled_dialog_create_restored_message"),
+      transportRequestId: null,
+    };
+    setCreateRequestId(requestId);
+    setIsRestoredCreateIntent(true);
+    updateMutationFailure(restoredFailure);
+    setErrorMessage(restoredFailure.message);
+  }, [t, updateMutationFailure]);
+  const startFreshCreateIntent = useCallback((): void => {
+    setCreateRequestId(createTaskRequestId());
+    setIsRestoredCreateIntent(false);
+    updateMutationFailure(null);
+    setErrorMessage(null);
+  }, [updateMutationFailure]);
+  const clearError = useCallback(() => {
+    if (!mutationFailureRef.current?.blocksRepeat) {
+      setErrorMessage(null);
+    }
+  }, []);
   const form = useTaskForm(initialState.form, clearError);
   const schedule = useTaskSchedule(initialState.schedule, clearError);
   const hydrateForm = form.hydrate;
@@ -185,6 +294,12 @@ export function useTaskDialogController({
   const needsSessionRebind = initialTask?.session_binding_state === "rebind_required"
     || hasUnavailableExternalSession
     || needsLegacyDeliveryRebind(initialTask ?? null);
+  const updateTargetId = initialTask
+    ? scheduledTaskConfigurationCommandTarget(
+        initialTask.job_id,
+        initialTask.configuration_version,
+      )
+    : null;
 
   const submitContext = useMemo<TaskDialogSubmitContext>(() => ({
     defaultDeliveryRoomAgentId: data.defaultDeliveryRoomAgentId,
@@ -206,12 +321,33 @@ export function useTaskDialogController({
     hydrateForm(initialState.form);
     hydrateSchedule(initialState.schedule);
     setErrorMessage(null);
+    setIsReconciling(false);
+    setIsMutationReviewed(false);
     setIsSubmitting(false);
+    updateMutationFailure(null);
+    setIsRestoredCreateIntent(false);
     submitInFlightRef.current = false;
-  }, [hydrateForm, hydrateSchedule, initialState]);
+    if (!initialTask) {
+      const restoredRequestId = loadScheduledTaskCreateRequestId(scopeKey);
+      if (restoredRequestId) {
+        restoreCreateIntent(restoredRequestId);
+      } else {
+        startFreshCreateIntent();
+      }
+    }
+  }, [
+    hydrateForm,
+    hydrateSchedule,
+    initialState,
+    initialTask,
+    restoreCreateIntent,
+    scopeKey,
+    startFreshCreateIntent,
+    updateMutationFailure,
+  ]);
 
   const handleSubmit = useCallback(async () => {
-    if (submitInFlightRef.current) {
+    if (submitInFlightRef.current || mutationFailureRef.current?.blocksRepeat) {
       return;
     }
     const validationError = getTaskDialogValidationError(submitContext, t);
@@ -220,25 +356,404 @@ export function useTaskDialogController({
       return;
     }
 
+    const submissionScopeKey = scopeKey;
     submitInFlightRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
+    updateMutationFailure(null);
+    setIsMutationReviewed(false);
+    const submit = async (): Promise<void> => {
+    let journalReady: boolean;
+    if (!initialTask) {
+      journalReady = saveScheduledTaskCreateRequestId(scopeKey, createRequestId);
+    } else {
+      journalReady = upsertScheduledTaskMutationJournalEntry(scopeKey, {
+        command: "update",
+        expectation: {
+          baseConfigurationVersion: initialTask.configuration_version,
+          jobId: initialTask.job_id,
+          kind: "update",
+        },
+        phase: "pending",
+        targetId: updateTargetId ?? initialTask.job_id,
+        updatedAt: Date.now(),
+      });
+    }
+    if (!journalReady) {
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
+      const failure = notAppliedMutationFailure(
+        t("capability.scheduled_journal_unavailable_message"),
+        "scheduled.journal_unavailable",
+      );
+      setErrorMessage(failure.message);
+      updateMutationFailure(failure);
+      return;
+    }
     try {
       await submitTaskDialog({
         context: submitContext,
+        createRequestId,
         initialTask,
         onCreated,
         onSaved,
         t,
       });
+      if (!initialTask) {
+        clearScheduledTaskCreateRequestId(submissionScopeKey, createRequestId);
+      } else {
+        removeScheduledTaskMutationJournalEntry(
+          submissionScopeKey,
+          "update",
+          updateTargetId ?? initialTask.job_id,
+        );
+      }
+      if (activeScopeKeyRef.current !== submissionScopeKey) {
+        return;
+      }
+      if (!initialTask) {
+        onCreateIntentResolved?.("committed");
+        setCreateRequestId(createTaskRequestId());
+      }
       onClose();
     } catch (error) {
-      setErrorMessage(getSubmitErrorMessage(error, initialTask, t));
+      const projection = projectScheduledTaskMutationFailure(
+        error,
+        getSubmitErrorMessage(error, initialTask, t),
+      );
+      if (projection.access) {
+        if (!initialTask) {
+          if (!projection.blocksRepeat) {
+            clearScheduledTaskCreateRequestId(submissionScopeKey, createRequestId);
+            onCreateIntentResolved?.();
+          }
+        } else if (projection.blocksRepeat) {
+          upsertScheduledTaskMutationJournalEntry(submissionScopeKey, {
+            command: "update",
+            expectation: {
+              baseConfigurationVersion: initialTask.configuration_version,
+              jobId: initialTask.job_id,
+              kind: "update",
+            },
+            phase: "unconfirmed",
+            targetId: updateTargetId ?? initialTask.job_id,
+            updatedAt: Date.now(),
+          });
+        } else {
+          removeScheduledTaskMutationJournalEntry(
+            submissionScopeKey,
+            "update",
+            updateTargetId ?? initialTask.job_id,
+          );
+        }
+        if (activeScopeKeyRef.current === submissionScopeKey) {
+          onAccessFailure?.({
+            access: projection.access,
+            message: projection.message,
+          });
+        }
+        return;
+      }
+      if (projection.blocksRepeat) {
+        setIsMutationReviewed(false);
+        if (initialTask) {
+          upsertScheduledTaskMutationJournalEntry(submissionScopeKey, {
+            command: "update",
+            expectation: {
+              baseConfigurationVersion: initialTask.configuration_version,
+              jobId: initialTask.job_id,
+              kind: "update",
+            },
+            phase: "unconfirmed",
+            targetId: updateTargetId ?? initialTask.job_id,
+            updatedAt: Date.now(),
+          });
+        }
+      } else if (initialTask) {
+        removeScheduledTaskMutationJournalEntry(
+          submissionScopeKey,
+          "update",
+          updateTargetId ?? initialTask.job_id,
+        );
+      } else {
+        // 服务端已明确证明旧创建没有提交；立刻清除旧 request_id，避免
+        // 用户直接关闭后，下一次打开又把它误恢复成“结果未知”。
+        clearScheduledTaskCreateRequestId(submissionScopeKey, createRequestId);
+      }
+      if (activeScopeKeyRef.current !== submissionScopeKey) {
+        return;
+      }
+      if (!projection.blocksRepeat && !initialTask) {
+        const nextRequestId = loadScheduledTaskCreateRequestId(submissionScopeKey);
+        onCreateIntentResolved?.();
+        if (nextRequestId) {
+          // 多页面可能各自留下独立创建意图；证明当前请求未提交后，必须先
+          // 接管下一条未确认 identity，不能直接开放一个新的创建提交。
+          restoreCreateIntent(nextRequestId);
+          return;
+        }
+      }
+      setErrorMessage(projection.message);
+      updateMutationFailure(projection);
+      if (!projection.blocksRepeat && !initialTask) {
+        setCreateRequestId(createTaskRequestId());
+        setIsRestoredCreateIntent(false);
+      }
     } finally {
+      if (activeScopeKeyRef.current === submissionScopeKey) {
+        submitInFlightRef.current = false;
+        setIsSubmitting(false);
+      }
+    }
+    };
+    if (!initialTask) {
+      await submit();
+      return;
+    }
+    try {
+      await withScheduledTaskMutationGate(
+        submissionScopeKey,
+        initialTask.job_id,
+        submit,
+      );
+    } catch (error) {
+      if (
+        !(error instanceof ScheduledTaskMutationLockUnavailableError)
+        && !(error instanceof ScheduledTaskMutationCoordinationUnavailableError)
+      ) {
+        throw error;
+      }
       submitInFlightRef.current = false;
       setIsSubmitting(false);
+      const unavailable = error instanceof ScheduledTaskMutationCoordinationUnavailableError;
+      const failure = notAppliedMutationFailure(
+        t(unavailable
+          ? "capability.scheduled_coordination_unavailable_message"
+          : "capability.scheduled_cross_window_lock_message"),
+        unavailable
+          ? "scheduled.coordination_unavailable"
+          : "scheduled.cross_window_lock",
+      );
+      setErrorMessage(failure.message);
+      updateMutationFailure(failure);
     }
-  }, [initialTask, onClose, onCreated, onSaved, submitContext, t]);
+  }, [
+    createRequestId,
+    initialTask,
+    onClose,
+    onCreated,
+    onCreateIntentResolved,
+    onAccessFailure,
+    onSaved,
+    restoreCreateIntent,
+    scopeKey,
+    submitContext,
+    t,
+    updateTargetId,
+    updateMutationFailure,
+  ]);
+
+  const reconcileCreateRequest = useCallback(async (
+    requestId: string,
+  ): Promise<void> => {
+    const requestScopeKey = scopeKey;
+    const checkKey = `${requestScopeKey ?? "no-scope"}:${requestId}`;
+    if (activeCreateRequestCheckRef.current === checkKey) {
+      return;
+    }
+    activeCreateRequestCheckRef.current = checkKey;
+    try {
+      const result = await getScheduledTaskCreateRequestApi(requestId);
+      if (activeScopeKeyRef.current !== requestScopeKey) {
+        return;
+      }
+      if (
+        result.request_id !== requestId
+        || !["committed", "gone", "not_found"].includes(result.status)
+        || (result.status === "committed" ? !result.task : Boolean(result.task))
+      ) {
+        throw new Error(t("capability.scheduled_dialog_create_status_invalid"));
+      }
+      if (result.status === "committed" && result.task) {
+        clearScheduledTaskCreateRequestId(requestScopeKey, requestId);
+        setCreateRequestId(createTaskRequestId());
+        setIsRestoredCreateIntent(false);
+        updateMutationFailure(null);
+        onCreateIntentResolved?.(result.status);
+        await onCreated?.(result.task);
+        if (activeScopeKeyRef.current === requestScopeKey) {
+          onClose();
+        }
+        return;
+      }
+      if (result.status === "gone") {
+        clearScheduledTaskCreateRequestId(requestScopeKey, requestId);
+        const nextRequestId = loadScheduledTaskCreateRequestId(requestScopeKey);
+        if (nextRequestId) {
+          restoreCreateIntent(nextRequestId);
+          onCreateIntentResolved?.(result.status);
+          return;
+        }
+        setCreateRequestId(createTaskRequestId());
+        setIsRestoredCreateIntent(false);
+        const goneFailure = notAppliedMutationFailure(
+          t("capability.scheduled_dialog_create_gone"),
+        );
+        updateMutationFailure(goneFailure);
+        onCreateIntentResolved?.(result.status);
+        setErrorMessage(goneFailure.message);
+        return;
+      }
+
+      // not_found 只是查询时没有 durable ledger，不能线性化地
+      // 排除另一个已受理请求正在提交。保留 exact request_id 和锁，
+      // 只允许用户在看过重复风险后显式开始新意图。
+      const unresolvedFailure: ScheduledTaskMutationFailureProjection = {
+        access: null,
+        blocksRepeat: true,
+        category: "not_found",
+        code: null,
+        effect: "unknown",
+        message: t("capability.scheduled_dialog_create_not_found"),
+        transportRequestId: null,
+      };
+      setIsRestoredCreateIntent(true);
+      updateMutationFailure(unresolvedFailure);
+      setErrorMessage(unresolvedFailure.message);
+    } catch (error) {
+      if (activeScopeKeyRef.current !== requestScopeKey) {
+        return;
+      }
+      const failure = getResourceFailure(
+        error,
+        t("capability.scheduled_dialog_create_status_failed"),
+      );
+      if (failure.access) {
+        onAccessFailure?.(failure);
+      }
+      setErrorMessage(failure.message);
+      throw error;
+    } finally {
+      if (activeCreateRequestCheckRef.current === checkKey) {
+        activeCreateRequestCheckRef.current = null;
+      }
+    }
+  }, [
+    onAccessFailure,
+    onClose,
+    onCreated,
+    onCreateIntentResolved,
+    restoreCreateIntent,
+    scopeKey,
+    t,
+    updateMutationFailure,
+  ]);
+
+  const startNewCreateIntent = useCallback((): void => {
+    if (initialTask || isReconciling || isSubmitting) {
+      return;
+    }
+    clearScheduledTaskCreateRequestId(scopeKey, createRequestId);
+    onCreateIntentResolved?.();
+    const nextRequestId = loadScheduledTaskCreateRequestId(scopeKey);
+    if (nextRequestId) {
+      restoreCreateIntent(nextRequestId);
+      return;
+    }
+    startFreshCreateIntent();
+  }, [
+    initialTask,
+    createRequestId,
+    isReconciling,
+    isSubmitting,
+    onCreateIntentResolved,
+    restoreCreateIntent,
+    scopeKey,
+    startFreshCreateIntent,
+  ]);
+
+  const confirmReviewedMutation = useCallback((): void => {
+    if (!initialTask || !isMutationReviewed || isReconciling || isSubmitting) {
+      return;
+    }
+    const reviewedScopeKey = scopeKey;
+    const targetId = updateTargetId ?? initialTask.job_id;
+    if (onConfirmMutationReviewed) {
+      onConfirmMutationReviewed("update", targetId);
+    } else {
+      removeScheduledTaskMutationJournalEntry(
+        reviewedScopeKey,
+        "update",
+        targetId,
+      );
+    }
+    if (activeScopeKeyRef.current !== reviewedScopeKey) {
+      return;
+    }
+    updateMutationFailure(null);
+    setErrorMessage(null);
+    setIsMutationReviewed(false);
+    // 当前表单仍基于旧 configuration_version，解除保护后必须重新打开，
+    // 避免用户在旧版本草稿上继续提交。
+    onClose();
+  }, [
+    initialTask,
+    isMutationReviewed,
+    isReconciling,
+    isSubmitting,
+    onClose,
+    onConfirmMutationReviewed,
+    scopeKey,
+    updateTargetId,
+    updateMutationFailure,
+  ]);
+
+  const reconcileMutation = useCallback(async (): Promise<void> => {
+    if (
+      !mutationFailureRef.current?.blocksRepeat
+      || (initialTask && (!onReconcile || !onIsMutationBlocked))
+      || isReconciling
+    ) {
+      return;
+    }
+    const reconcileScopeKey = scopeKey;
+    setIsReconciling(true);
+    try {
+      if (!initialTask) {
+        await reconcileCreateRequest(createRequestId);
+        return;
+      }
+      await onReconcile?.();
+      if (activeScopeKeyRef.current !== reconcileScopeKey) {
+        return;
+      }
+      // 同一版本的权威读取仍不能排除旧请求稍后提交。刷新只完成核对，
+      // 不自动解锁；由用户明确接受重复修改风险后再清 exact journal。
+      setIsMutationReviewed(true);
+      setErrorMessage(t("capability.scheduled_dialog_reconcile_unproven"));
+    } catch (error) {
+      if (activeScopeKeyRef.current !== reconcileScopeKey) {
+        return;
+      }
+      setErrorMessage(getErrorMessage(
+        error,
+        t("capability.scheduled_dialog_reconcile_failed"),
+      ));
+    } finally {
+      if (activeScopeKeyRef.current === reconcileScopeKey) {
+        setIsReconciling(false);
+      }
+    }
+  }, [
+    createRequestId,
+    initialTask,
+    isReconciling,
+    onIsMutationBlocked,
+    onReconcile,
+    reconcileCreateRequest,
+    scopeKey,
+    t,
+  ]);
 
   useEffect(() => {
     resolveSelectedRoomIds({
@@ -252,6 +767,14 @@ export function useTaskDialogController({
   ]);
 
   useEffect(() => {
+    const restoredRequestId = loadScheduledTaskCreateRequestId(scopeKey);
+    if (!restoredRequestId) {
+      return;
+    }
+    void reconcileCreateRequest(restoredRequestId).catch(() => undefined);
+  }, [reconcileCreateRequest, scopeKey]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -260,13 +783,25 @@ export function useTaskDialogController({
 
   return {
     clearError,
+    confirmReviewedMutation,
     data,
     errorMessage,
     form,
     handleSubmit,
+    isCloseBlocked: isSubmitting || isReconciling || Boolean(mutationFailure?.blocksRepeat),
+    isReconciling,
+    isMutationReviewed,
+    isRestoredCreateIntent,
     isSubmitting,
+    mutationFailure,
     needsSessionRebind,
+    reconcileMutation,
     refs,
     schedule,
+    startNewCreateIntent,
   };
+}
+
+function createTaskRequestId(): string {
+  return `web-create:${globalThis.crypto.randomUUID()}`;
 }

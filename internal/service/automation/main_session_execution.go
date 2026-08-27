@@ -13,7 +13,6 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 const scheduledMainSessionEventType = "scheduled_task.trigger"
@@ -142,7 +141,14 @@ func (s *Service) dispatchScheduledMainSessionEvent(
 
 	startedAt := s.nowFn()
 	roundID := s.idFactory("round")
-	started, err := s.repository.StartQueuedMainRun(ctx, ownerUserID, run.RunID, roundID, startedAt)
+	started, err := s.repository.StartQueuedMainRun(
+		ctx,
+		ownerUserID,
+		run.RunID,
+		payload.PermissionRequestID,
+		roundID,
+		startedAt,
+	)
 	if err != nil || !started {
 		if err == nil {
 			err = errors.New("scheduled main-session run is no longer queued")
@@ -207,17 +213,7 @@ func (s *Service) failScheduledMainSessionEvent(
 ) {
 	_ = s.repository.MarkSystemEventStatus(context.Background(), event.EventID, "failed")
 	if job != nil && strings.TrimSpace(runID) != "" {
-		finishedAt := s.nowFn()
-		message := errorPointer(runErr)
-		finished, finishErr := s.repository.MarkRunFinishedIfActive(context.Background(), automationstore.RunFinishInput{
-			RunID:        strings.TrimSpace(runID),
-			Status:       automationdomain.RunStatusFailed,
-			FinishedAt:   finishedAt,
-			ErrorMessage: message,
-		})
-		if finishErr == nil && finished {
-			s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, message)
-		}
+		_ = s.commitFailedRunTerminal(backgroundContextForJobOwner(*job), *job, runID, runErr)
 	}
 	s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(runErr))
 	s.loggerFor(ctx).Error("Main Session 定时任务事件处理失败",
