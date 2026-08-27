@@ -1,4 +1,4 @@
-// INPUT: Nexus Automation CLI 的 UI 对齐 schedule。
+// INPUT: Nexus Automation command 的 UI 对齐 schedule。
 // OUTPUT: 可由 scheduler 持久化且仍可被页面编辑的 Schedule。
 // POS: Automation command plan/apply 共用的唯一调度翻译入口。
 package automation

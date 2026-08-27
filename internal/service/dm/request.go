@@ -375,15 +375,8 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if (strings.TrimSpace(e.request.InputOptions.ToolAccess) != "" ||
 		e.request.InputOptions.MaxOutputTokens > 0) &&
 		!runtimectx.SupportsMessageExecutionPolicy(clientPreparation.client) {
-		clientPreparation.commandResources.Close()
 		return dmRuntimePreparation{}, errors.New("当前 Agent runtime 不支持消息级执行策略")
 	}
-	resourcesTransferred := false
-	defer func() {
-		if !resourcesTransferred {
-			clientPreparation.commandResources.Close()
-		}
-	}()
 	e.session = clientPreparation.session
 	if !runtimeContent.IsEmpty() && !slashInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
@@ -414,7 +407,6 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		atomicInput:         atomicInput,
 		recoveryContext:     recoveryContext,
 	}
-	resourcesTransferred = true
 	return preparation, nil
 }
 
@@ -482,7 +474,6 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.responsibilityState = preparation.responsibilityState
 	r.sdkSessionIdentity = preparation.sdkSessionIdentity
 	r.commandReceipts = preparation.commandReceipts
-	r.commandResources = preparation.commandResources
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
 		strings.TrimSpace(preparation.goalIDForUsage) != "",
 	)

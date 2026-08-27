@@ -6,13 +6,13 @@
 //   - state_layout.go：把旧状态根安全迁入 app 与 users 前置目录，支持跨版本直升。
 //   - workspace_layout.go：按 owner 重排旧 workspace 并同步 Agent 路径。
 //   - skipped_state_layout.go：修复 v0.1.30 根目录迁移缺口并安全合并错误窗口的新数据。
-//   - migration_permissions.go：统一桌面、普通服务与 Linux enforce 的迁移权限职责。
+//   - permissions.go：统一桌面、普通服务与 Linux enforce 的迁移权限职责。
 //   - workspace_files.go：工作区文件迁移账本、顺序执行与完成标记。
 //   - agent_disabled_skill_schema.go：SQLite 旧版 00056 编号冲突的启动前 schema 与 Goose 账本兼容修复。
 //   - private_skill_schema.go：旧版私有 Skill 00061 与 Execution 迁移编号冲突的精确识别、账本迁移与顺序补跑。
 //   - automation_permission_schema.go：旧版定时任务权限 00071 与私有 Skill 00071/权限 00086 的完整 schema 识别、账本修复与顺序补跑。
 //   - goal_schema.go：旧 Goal 分支 00087-00089 与 main 联系人/Automation 迁移的完整 schema 识别、账本映射与顺序补跑。
-//   - execution_identity_claim_schema.go：补齐早期已应用 00061 但缺少 Goal/Execution identity claim table 的启动前兼容修复。
+//   - execution_identity.go：补齐早期已应用 00061 但缺少 Goal/Execution identity claim table 的启动前兼容修复。
 //   - conversation_draft_repair.go：桌面 SQLite 升级期按 canonical 用户输入收口旧空白 Session，并以 started 标记阻止自动重扫。
 //   - runtime_identity.go：Linux owner 到 OS UID/GID、私有组与用户 ACL 的启动同步。
 //   - runtime_identity_hardlinks*.go：Linux 存量跨用户/项目硬链接的 fail-closed 检查。

@@ -143,7 +143,7 @@ func (s *GoalAuthorityState) ObjectiveRevisionState() *atomic.Int64 {
 
 type goalAuthorityContextKey struct{}
 
-// WithGoalAuthorityState 把当前 round 的共享 authority 交给 command broker 与运行图消费者。
+// WithGoalAuthorityState 把当前 round 的共享 authority 交给 command adapter 与运行图消费者。
 func WithGoalAuthorityState(ctx context.Context, state *GoalAuthorityState) context.Context {
 	if state == nil {
 		return ctx

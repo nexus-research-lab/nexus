@@ -1,5 +1,5 @@
 // INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 经统一校验、最小输入目录授权、后台进度模型环境投影与 MCP 名称隔离后的 SDK client options。
+// OUTPUT: 经统一校验、后台进度模型环境投影与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -99,9 +98,7 @@ type AgentClientOptionsInput struct {
 	AgentMCPServers           map[string]any
 	ExtraEnv                  map[string]string
 	// ConfigurationEnv 只接受宿主按当前 runtime round 签发的 nexuscfg broker capability。
-	ConfigurationEnv map[string]string
-	// RuntimeCommandEnv 只接受宿主按当前 runtime round 签发的 Agent-facing nexus CLI capability。
-	RuntimeCommandEnv          map[string]string
+	ConfigurationEnv           map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
 	WebSearch                  WebSearchConfig
@@ -153,7 +150,7 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolUseSummaryRuntimeEnv(
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, backgroundModelRuntimeEnv(
 		ctx,
 		resolver,
 		input,
@@ -177,7 +174,7 @@ func BuildAgentClientOptionsWithConfig(
 		runtimeEnv,
 		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),
 	)
-	if input.IsMainAgent || len(input.ConfigurationEnv) > 0 || len(input.RuntimeCommandEnv) > 0 {
+	if input.IsMainAgent || len(input.ConfigurationEnv) > 0 {
 		runtimeEnv = mergeRuntimeEnv(
 			runtimeEnv,
 			workspaceRuntimeEnv(input.WorkspacePath, input.IsMainAgent),
@@ -190,20 +187,6 @@ func BuildAgentClientOptionsWithConfig(
 			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
 		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
 	}
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.RuntimeCommandEnv)
-	var runtimeCommandInputDirectory string
-	if len(input.RuntimeCommandEnv) > 0 {
-		if strings.TrimSpace(runtimeEnv[protocol.NexusCommandBrokerURLEnvName]) == "" ||
-			strings.TrimSpace(runtimeEnv[protocol.NexusCommandCapabilityTokenEnvName]) == "" {
-			return agentclient.Options{}, nil, errors.New("Nexus runtime command capability 不完整")
-		}
-		runtimeCommandInputDirectory, err = validateRuntimeCommandInputDirectory(
-			runtimeEnv[protocol.NexusCommandInputPathEnvName],
-		)
-		if err != nil {
-			return agentclient.Options{}, nil, err
-		}
-	}
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
@@ -212,8 +195,7 @@ func BuildAgentClientOptionsWithConfig(
 		input.SkillDirectories,
 		input.AdditionalDirectories...,
 	)
-	additionalDirectories = appendDistinctStrings(additionalDirectories, runtimeCommandInputDirectory)
-	writeDirectories := appendDistinctStrings(input.AdditionalDirectories, runtimeCommandInputDirectory)
+	writeDirectories := slices.Clone(input.AdditionalDirectories)
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
@@ -286,9 +268,9 @@ func BuildAgentClientOptionsWithConfig(
 	return options, runtimeConfig, nil
 }
 
-// toolUseSummaryRuntimeEnv 把 owner 后台模型投影给当前 bridge。工具进度是纯展示能力：
+// backgroundModelRuntimeEnv 把 owner 后台模型投影给当前 bridge，并默认关闭纯展示的工具摘要。
 // 后台模型缺失、解析失败或属于另一 Provider 时回退主模型，不能阻断 Agent 启动。
-func toolUseSummaryRuntimeEnv(
+func backgroundModelRuntimeEnv(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
@@ -329,7 +311,7 @@ func toolUseSummaryRuntimeEnv(
 	if selectedModel == "" {
 		return nil
 	}
-	env := map[string]string{claudeEmitToolUseSummariesEnvName: "1"}
+	env := map[string]string{claudeEmitToolUseSummariesEnvName: "0"}
 	if runtimeProfileForKind(runtimeKind).isNXS() {
 		env[nexusBackgroundModelEnvName] = selectedModel
 	} else {
@@ -353,21 +335,6 @@ func firstNonEmptyRuntimeValue(values ...string) string {
 		}
 	}
 	return ""
-}
-
-// validateRuntimeCommandInputDirectory narrows a host-signed input file to its
-// exact per-round parent. Broad roots and relative paths fail closed before the
-// capability reaches either SDK add-dir projection or workspace isolation.
-func validateRuntimeCommandInputDirectory(inputPath string) (string, error) {
-	inputPath = filepath.Clean(strings.TrimSpace(inputPath))
-	if inputPath == "." || !filepath.IsAbs(inputPath) {
-		return "", errors.New("Nexus runtime command input path 必须是绝对文件路径")
-	}
-	directory := filepath.Dir(inputPath)
-	if directory == inputPath || filepath.Dir(directory) == directory {
-		return "", errors.New("Nexus runtime command input path 不能授权文件系统根目录")
-	}
-	return directory, nil
 }
 
 func runtimeAvailableTools(runtimeKind string) []string {

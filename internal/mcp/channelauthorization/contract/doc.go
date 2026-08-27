@@ -1,9 +1,8 @@
-// Package contract defines the server-fixed identity and narrow service surface
-// for nexus_channel_authorization.
+// Package contract 定义 nexus MCP Channel 授权工具的固定身份与窄服务面。
 //
-// L2 | parent: internal/mcp/channelauthorization (L1 in AGENTS.md)
+// L2 | 父级: internal/mcp/channelauthorization（L1 见 AGENTS.md）
 //
-// Exposed: ServerName, ServerContext, Service.
+// 对外暴露：ServerContext、Service。
 //
-// [PROTOCOL]: update this header when the package contract changes.
+// [PROTOCOL]: 包契约变更时更新此头部。
 package contract

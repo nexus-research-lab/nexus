@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/imagegen/contract"
+	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 )
 
@@ -113,7 +114,7 @@ func callImagegenTool(
 	sctx contract.ServerContext,
 ) (map[string]any, bool) {
 	t.Helper()
-	server := NewServer(svc, sctx)
+	server := sdktool.NewSimpleSDKMCPServer("nexus", "1.0.0", BuildTools(svc, sctx))
 	resp, err := server.HandleMessage(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,

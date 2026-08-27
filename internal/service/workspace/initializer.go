@@ -20,6 +20,12 @@ var (
 	workspaceInitializationLocks sync.Map
 )
 
+var defaultDirs = []string{".agents", ".claude"}
+
+func projectRoot() string {
+	return appfs.Root()
+}
+
 const (
 	workspaceInitializationStateDirectory = "workspace-initialization"
 	// 修改模板、托管目录或修复规则时递增，旧 workspace 会在下一次使用前自动升级。
@@ -240,7 +246,7 @@ func workspaceManagedStateReady(rootFS *confinedfs.Root, isMain bool) bool {
 }
 
 func sharedRuntimeCLIShimsReady() bool {
-	for _, name := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd", "nexus", "nexus.cmd"} {
+	for _, name := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd"} {
 		info, err := os.Lstat(filepath.Join(appfs.AgentRuntimeBinDir(), name))
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return false

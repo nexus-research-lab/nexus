@@ -457,22 +457,28 @@ func TestConfigurationPermissionRecorderFailureDeniesTool(t *testing.T) {
 }
 
 func TestRecordedHumanApprovalToolsIncludeConnectorAuthorization(t *testing.T) {
-	tests := map[string]bool{
-		"apply_nexus_configuration_change":                         true,
-		"mcp__nexus_config__apply_nexus_configuration_change":      true,
-		"start_connector_authorization":                            true,
-		"mcp__nexus_connector_auth__start_connector_authorization": true,
-		"get_connector_authorization":                              false,
-		"Read":                                                     false,
+	tests := []struct {
+		name     string
+		toolName string
+		input    map[string]any
+		expected bool
+	}{
+		{"configuration", "apply_nexus_configuration_change", nil, true},
+		{"qualified configuration", "mcp__nexus_config__apply_nexus_configuration_change", nil, true},
+		{"connector start", "connector_authorization", map[string]any{"action": "start"}, true},
+		{"qualified connector start", "mcp__nexus__connector_authorization", map[string]any{"action": "start"}, true},
+		{"connector status", "connector_authorization", map[string]any{"action": "status"}, false},
+		{"read", "Read", nil, false},
 	}
-	for toolName, expected := range tests {
-		t.Run(toolName, func(t *testing.T) {
-			if actual := isRecordedHumanApprovalTool(toolName); actual != expected {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			if actual := isRecordedHumanApprovalTool(testCase.toolName, testCase.input); actual != testCase.expected {
 				t.Fatalf(
-					"isRecordedHumanApprovalTool(%q) = %t, want %t",
-					toolName,
+					"isRecordedHumanApprovalTool(%q, %+v) = %t, want %t",
+					testCase.toolName,
+					testCase.input,
 					actual,
-					expected,
+					testCase.expected,
 				)
 			}
 		})

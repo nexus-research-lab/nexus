@@ -34,25 +34,26 @@ type resolvedAuthorizationActor struct {
 	Agent *protocol.Agent
 }
 
-// IsConnectorAuthorizationStartTool 判断 permission 请求是否为授权启动叶工具。
-func IsConnectorAuthorizationStartTool(toolName string) bool {
+// IsConnectorAuthorizationStartCall 判断 permission 请求是否为统一授权工具的启动 action。
+func IsConnectorAuthorizationStartCall(toolName string, input map[string]any) bool {
 	toolName = strings.TrimSpace(toolName)
-	if toolName == StartConnectorAuthorizationToolName {
-		return true
-	}
-	for _, separator := range []string{"__", ".", "/"} {
-		if strings.HasSuffix(
-			toolName,
-			separator+StartConnectorAuthorizationToolName,
-		) {
-			return true
+	matched := toolName == ConnectorAuthorizationToolName
+	if !matched {
+		for _, separator := range []string{"__", ".", "/"} {
+			if strings.HasSuffix(
+				toolName,
+				separator+ConnectorAuthorizationToolName,
+			) {
+				matched = true
+				break
+			}
 		}
 	}
-	return false
+	return matched && stringToolInput(input, "action") == ConnectorAuthorizationActionStart
 }
 
 // RecordHumanToolApproval 在真实 WebSocket permission allow 后持久保存完整意图。
-// runtime 必须在执行 start_connector_authorization 之前调用本方法。
+// runtime 必须在执行 connector_authorization action=start 之前调用本方法。
 func (c *AuthorizationControl) RecordHumanToolApproval(
 	ctx context.Context,
 	approval permissionctx.HumanToolApproval,
@@ -60,7 +61,7 @@ func (c *AuthorizationControl) RecordHumanToolApproval(
 	if err := c.requireReady(); err != nil {
 		return err
 	}
-	if !IsConnectorAuthorizationStartTool(approval.ToolName) {
+	if !IsConnectorAuthorizationStartCall(approval.ToolName, approval.ToolInput) {
 		return errors.New("人工批准工具与 Connector authorization start 不匹配")
 	}
 	if strings.TrimSpace(approval.PermissionRequestID) == "" {

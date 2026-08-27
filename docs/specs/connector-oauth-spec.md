@@ -83,7 +83,7 @@ Web 的 Connector 详情页支持保存、重新配置和删除 owner-scoped OAu
 
 ## 6. Agent 发起授权
 
-Agent 只能通过 `nexus_connector_auth` 的受控工具发起 OAuth 或 Device Flow。启动动作
+Agent 只能通过 `nexus` MCP 中的 Connector 授权工具发起 OAuth 或 Device Flow。启动动作
 必须来自当前 owner 主智能体的 WebSocket 私有 DM，并绑定真实的人工批准、认证
 principal、runtime session、round、Connector 和配置版本。
 

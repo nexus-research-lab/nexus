@@ -3,24 +3,17 @@
 // POS: app 层唯一 HTTP route composition root。
 package server
 
-import "strings"
+import (
+	"strings"
+
+	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
+)
 
 // mountRoutes 按功能域挂载全部 HTTP 路由。
 func (s *Server) mountRoutes() {
 	s.router.Post(
 		s.prefixPath("/internal/runtime/configuration"),
-		newRuntimeConfigurationHandler(s.services.Configuration),
-	)
-	s.router.Post(
-		s.prefixPath("/internal/runtime/command"),
-		newRuntimeCommandHandler(
-			s.services.RuntimeCommand,
-			s.services.Automation,
-			s.services.GoalCommand,
-			s.services.Orchestration,
-			s.services.Permission,
-			s.services.WorkGraphWorkflow,
-		),
+		serverruntime.NewConfigurationHandler(s.services.Configuration),
 	)
 	if s.handlers.browser != nil {
 		s.router.Get(
@@ -232,7 +225,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/poll"), s.handlers.connector.HandleConnectorDeviceAuthPoll)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
-	mountConnectorAuthorizationRoutes(
+	serverruntime.MountConnectorAuthorizationRoutes(
 		s.router,
 		s.prefixPath,
 		s.services.ConnectorAuthorization,

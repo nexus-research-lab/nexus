@@ -1,6 +1,6 @@
 // INPUT: server 固化的 owner、主智能体 DM、human principal 与 runtime lease。
-// OUTPUT: 不可由模型覆盖的 AuthorizationActor 和三操作窄服务契约。
-// POS: nexus_connector_auth transport 到业务服务的可信身份边界。
+// OUTPUT: 不可由模型覆盖的 AuthorizationActor 和三 action 窄服务契约。
+// POS: nexus MCP Connector 授权工具到业务服务的可信身份边界。
 package contract
 
 import (
@@ -8,9 +8,6 @@ import (
 
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 )
-
-// ServerName 是专用 Connector 对话授权 server 名。
-const ServerName = "nexus_connector_auth"
 
 // ServerContext 全部来自已验证 transport/runtime 记录。
 type ServerContext struct {
@@ -44,7 +41,7 @@ func (s ServerContext) Actor() connectorsvc.AuthorizationActor {
 	}
 }
 
-// Service 是 MCP 唯一可调用的授权业务面。
+// Service 是 MCP action 工具唯一可调用的授权业务面。
 type Service interface {
 	Start(
 		context.Context,

@@ -1,6 +1,6 @@
 // INPUT: round-scoped Automation Actor、只读 operation 与封闭 CLI input。
 // OUTPUT: owner/Agent/job/run/会话范围收紧后的任务、报告或 heartbeat 投影。
-// POS: Nexus Automation CLI 的只读 command service；后台 run 只能读取宿主绑定的当前任务。
+// POS: Nexus Automation command 的只读 service；后台 run 只能读取宿主绑定的当前任务。
 package automation
 
 import (
@@ -11,8 +11,8 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 )
 
 var runtimeAutomationQueryOperations = []string{
@@ -34,7 +34,7 @@ var runtimeAutomationMutationOperations = []string{
 // RuntimeCommandContract 返回当前 Actor 的按需操作目录，不泄漏路由或 capability。
 func (s *Service) RuntimeCommandContract(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 ) (automationdomain.AutomationCommandContract, error) {
 	if s == nil || !actor.Valid() {
 		return automationdomain.AutomationCommandContract{}, errors.New("Automation runtime command Actor 无效")
@@ -57,7 +57,7 @@ func (s *Service) RuntimeCommandContract(
 }
 
 func runtimeAutomationOperationContracts(
-	actor runtimecommand.Actor,
+	actor command.Actor,
 ) map[string]automationdomain.AutomationCommandOperationContract {
 	contracts := map[string]automationdomain.AutomationCommandOperationContract{
 		"list":   {Kind: "query", Optional: []string{"query", "agent_id", "include_active", "include_deleted", "enabled", "limit"}},
@@ -96,7 +96,7 @@ func runtimeAutomationOperationContracts(
 // InspectRuntimeCommand 执行无副作用查询。
 func (s *Service) InspectRuntimeCommand(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	operation string,
 	input automationdomain.AutomationCommandInput,
 ) (any, error) {
@@ -156,7 +156,7 @@ func (s *Service) InspectRuntimeCommand(
 	}
 }
 
-func (s *Service) validateRuntimeCommandActor(ctx context.Context, actor runtimecommand.Actor) error {
+func (s *Service) validateRuntimeCommandActor(ctx context.Context, actor command.Actor) error {
 	if s.agents == nil {
 		return nil
 	}
@@ -180,7 +180,7 @@ type runtimeCommandTaskScope struct {
 
 func (s *Service) runtimeCommandTaskScope(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 	mutation bool,
 ) (runtimeCommandTaskScope, error) {
@@ -222,7 +222,7 @@ func (s *Service) runtimeCommandTaskScope(
 
 func (s *Service) runtimeCommandTaskByID(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	jobID string,
 ) (runtimeCommandTaskScope, error) {
 	job, err := s.GetTask(ctx, strings.TrimSpace(jobID))
@@ -240,7 +240,7 @@ func (s *Service) runtimeCommandTaskByID(
 
 func (s *Service) runtimeCommandHistoryScope(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 ) (runtimeCommandTaskScope, error) {
 	if scope, err := s.runtimeCommandTaskScope(ctx, actor, input, false); err == nil {
@@ -289,7 +289,7 @@ func (s *Service) runtimeCommandHistoryScope(
 
 func (s *Service) runtimeCommandList(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 ) (any, error) {
 	agentID, err := runtimeCommandAgentID(actor, input.AgentID)
@@ -366,7 +366,7 @@ func (s *Service) runtimeCommandList(
 
 func (s *Service) runtimeCommandReport(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 ) (any, error) {
 	agentID, err := runtimeCommandAgentID(actor, input.AgentID)
@@ -399,7 +399,7 @@ func (s *Service) runtimeCommandReport(
 	})
 }
 
-func runtimeAutomationCommandContext(ctx context.Context, actor runtimecommand.Actor) context.Context {
+func runtimeAutomationCommandContext(ctx context.Context, actor command.Actor) context.Context {
 	ctx = automationexec.WithActorAgentID(ctx, strings.TrimSpace(actor.AgentID))
 	return authctx.WithPrincipal(ctx, &authctx.Principal{
 		UserID: strings.TrimSpace(actor.OwnerUserID), Username: strings.TrimSpace(actor.OwnerUserID),

@@ -2,6 +2,8 @@ package workspaceisolation
 
 import (
 	"context"
+	"runtime"
+	"strings"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -36,5 +38,65 @@ func TestApplyOffStillInstallsRawNexusctlDeny(t *testing.T) {
 		output.Continue == nil ||
 		*output.Continue {
 		t.Fatalf("off mode raw nexusctl decision = %#v", output)
+	}
+}
+
+func TestOwnerProcessReaperSkipsNonEnforceModes(t *testing.T) {
+	for _, mode := range []Mode{ModeOff, ModeAudit} {
+		reaper := OwnerProcessReaper{
+			Mode:         mode,
+			LauncherPath: "/does/not/exist",
+		}
+		if err := reaper.ReapOwnerProcesses(context.Background(), "owner-a"); err != nil {
+			t.Fatalf("mode=%s should skip launcher: %v", mode, err)
+		}
+	}
+}
+
+func TestOwnerProcessReaperRejectsUnsafeOwner(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("owner cgroup 仅在 Linux enforce 生效")
+	}
+	reaper := OwnerProcessReaper{
+		Mode:         ModeEnforce,
+		LauncherPath: "/does/not/exist",
+	}
+	if err := reaper.ReapOwnerProcesses(context.Background(), "../owner"); err == nil {
+		t.Fatal("不安全 owner 应被拒绝")
+	}
+}
+
+func TestRunScriptRejectsUnisolatedServerModes(t *testing.T) {
+	for _, mode := range []Mode{ModeOff, ModeAudit} {
+		t.Run(string(mode), func(t *testing.T) {
+			err := RunScript(
+				context.Background(),
+				Config{Mode: mode},
+				ScriptInput{
+					OwnerUserID: "owner-a",
+					CWD:         t.TempDir(),
+					Script:      "echo blocked",
+				},
+				nil,
+				nil,
+			)
+			if err == nil || !strings.Contains(err.Error(), "requires runtime isolation enforce") {
+				t.Fatalf("RunScript() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestScriptLauncherEnvironmentDoesNotAllowTicketOverride(t *testing.T) {
+	environment := scriptLauncherEnvironment("trusted-ticket", map[string]string{
+		LauncherTicketEnvName:     "attacker-ticket",
+		"NEXUS_AUTOMATION_JOB_ID": "job-1",
+	})
+	joined := strings.Join(environment, "\n")
+	if !strings.Contains(joined, LauncherTicketEnvName+"=trusted-ticket") {
+		t.Fatalf("launcher ticket 丢失: %v", environment)
+	}
+	if strings.Contains(joined, "attacker-ticket") {
+		t.Fatalf("调用方环境不能覆盖 launcher ticket: %v", environment)
 	}
 }

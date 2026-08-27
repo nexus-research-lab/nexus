@@ -199,7 +199,7 @@ export const zhCapabilityMessages = {
   "capability.skill_description.pptx": "读取、创建、编辑和校验 PowerPoint，包括正文、表格、图表、图片与演讲者备注。",
   "capability.skill_description.wechat_article_search": "按关键词搜索微信公众号文章，并整理标题、摘要、发布时间、来源公众号和链接。",
   "capability.skill_description.room_playbook": "为 Room 注入共享协作规则，帮助成员围绕共同目标安全、有序地配合。",
-  "capability.skill_description.werewolf_6p": "为一名主持人与六名玩家提供 Nexus Room 狼人杀规则，包括公开阶段、私密信息和顺序唤醒。",
+  "capability.skill_description.werewolf_6p": "由固定上帝主持六人狼人杀，开局询问用户参赛或旁观；参赛时与 Agent 一同随机分配角色。",
   "capability.skill_description.xlsx": "读取、创建、编辑、重算和校验 Excel 工作簿，包括公式、格式、表格与图表。",
   "capability.skills_external_loading": "正在搜索社区技能...",
   "capability.skills_external_recommended": "推荐技能",

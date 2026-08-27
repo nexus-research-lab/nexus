@@ -1039,7 +1039,7 @@ WHERE job_id = ?`, created.Data.JobID)
 	}
 	if len(report.Data.Tasks) != 1 ||
 		!containsString(report.Data.Tasks[0].Signals, "delivery_attention") ||
-		!containsString(report.Data.Tasks[0].SuggestedTools, "nexus automation apply") ||
+		!containsString(report.Data.Tasks[0].SuggestedTools, "nexus.command automation apply") ||
 		!containsString(report.Data.Tasks[0].ManualRedeliveryRunIDs, runID) {
 		t.Fatalf("日报应暴露失败投递的可恢复信号: %+v", report.Data.Tasks)
 	}

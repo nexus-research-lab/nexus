@@ -17,10 +17,27 @@ import (
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 )
 
+// RuntimeConfig 表示运行时使用的 Provider 解析结果。
+type RuntimeConfig struct {
+	Provider    string
+	DisplayName string
+	AuthToken   string
+	BaseURL     string
+	Model       string
+	APIFormat   string
+	// UseMaxCompletionTokens 让 Chat Completions 使用现代 token 上限字段。
+	UseMaxCompletionTokens bool
+	Reasoning              bool
+	Vision                 bool
+	ContextWindow          int
+	MaxOutputTokens        int
+}
+
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 const nexuscfgCommandPathEnvName = "NEXUSCFG_COMMAND_PATH"
+const legacyNexusCommandPathEnvName = "NEXUS_COMMAND_PATH"
 const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
 const claudeConfigDirEnvName = "CLAUDE_CONFIG_DIR"
 const nexusAppRootEnvName = "NEXUS_APP_ROOT"
@@ -40,6 +57,11 @@ const nexusRemoteMemoryDirEnvName = "NEXUS_REMOTE_MEMORY_DIR"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const apiFormatResponses = runtimeprovider.APIFormatResponses
+const nexusNXSCommandPathEnvName = "NEXUS_NXS_COMMAND_PATH"
+const nexusAgentRuntimeKindEnvName = "NEXUS_AGENT_RUNTIME_KIND"
+const nexusAgentRuntimeEnvName = "NEXUS_AGENT_RUNTIME"
+const runtimeKindClaude = runtimeprovider.RuntimeKindClaude
+const runtimeKindNXS = runtimeprovider.RuntimeKindNXS
 const nexusAutoCompactPctOverrideEnvName = "NEXUS_AUTOCOMPACT_PCT_OVERRIDE"
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
 const claudeAutoCompactWindowEnvName = "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
@@ -81,6 +103,51 @@ const (
 	nexusProviderManagedByHostEnvName = "NEXUS_PROVIDER_MANAGED_BY_HOST"
 	claudeDisableCronEnvName          = "CLAUDE_CODE_DISABLE_CRON"
 )
+
+type runtimeProfile struct {
+	kind string
+}
+
+func resolveRuntimeProfile(runtimeKind string, getenv func(string) string) runtimeProfile {
+	return runtimeProfileForKind(resolveRuntimeKind(runtimeKind, getenv))
+}
+
+func runtimeProfileForKind(runtimeKind string) runtimeProfile {
+	if runtimeKind == runtimeKindNXS {
+		return runtimeProfile{kind: runtimeKindNXS}
+	}
+	return runtimeProfile{kind: runtimeKindClaude}
+}
+
+func (p runtimeProfile) isNXS() bool {
+	return p.kind == runtimeKindNXS
+}
+
+func (p runtimeProfile) supportsAPIFormat(apiFormat string) bool {
+	return runtimeprovider.SupportsAPIFormat(p.kind, apiFormat)
+}
+
+func resolveRuntimeKind(runtimeKind string, getenv func(string) string) string {
+	// 调用方显式选择代表本次会话；进程环境只作为未指定时的默认值。
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	for _, value := range []string{
+		runtimeKind,
+		getenv(nexusAgentRuntimeKindEnvName),
+		getenv(nexusAgentRuntimeEnvName),
+	} {
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case runtimeKindNXS, "go", "go-native", "gonative":
+			return runtimeKindNXS
+		case runtimeKindClaude, "claude-code", "claudecode":
+			return runtimeKindClaude
+		case "":
+			continue
+		}
+	}
+	return runtimeKindNXS
+}
 
 func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
 	if runtimeConfig == nil {
@@ -415,45 +482,42 @@ func managedUserRuntimeEnv(
 	homeRoot := filepath.Join(runtimeRoot, "home")
 	workspacePath = strings.TrimSpace(workspacePath)
 	env := map[string]string{
-		appfs.NexusStateRootEnvName:                 "",
-		nexusAppRootEnvName:                         "",
-		nexusConfigDirEnvName:                       runtimeRoot,
-		claudeConfigDirEnvName:                      runtimeRoot,
-		"HOME":                                      homeRoot,
-		"USERPROFILE":                               homeRoot,
-		"APPDATA":                                   filepath.Join(homeRoot, "AppData", "Roaming"),
-		"LOCALAPPDATA":                              filepath.Join(homeRoot, "AppData", "Local"),
-		"XDG_CONFIG_HOME":                           filepath.Join(homeRoot, ".config"),
-		"XDG_CACHE_HOME":                            filepath.Join(runtimeRoot, "cache"),
-		"XDG_DATA_HOME":                             filepath.Join(homeRoot, ".local", "share"),
-		"XDG_STATE_HOME":                            filepath.Join(homeRoot, ".local", "state"),
-		"TMPDIR":                                    filepath.Join(runtimeRoot, "tmp"),
-		"TEMP":                                      filepath.Join(runtimeRoot, "tmp"),
-		"TMP":                                       filepath.Join(runtimeRoot, "tmp"),
-		cacheFileDirEnvName:                         filepath.Join(runtimeRoot, "cache"),
-		logPathEnvName:                              filepath.Join(runtimeRoot, "logs", "runtime.log"),
-		databaseDriverEnvName:                       "",
-		databaseURLEnvName:                          "",
-		connectorCredentialsKeyEnvName:              "",
-		connectorCredentialsKeyFileEnvName:          "",
-		nexusDesktopSessionTokenEnvName:             "",
-		nexusNXSRuntimeCacheDirEnvName:              filepath.Join(runtimeRoot, "cache"),
-		nexusAgentRuntimeKindEnvName:                strings.TrimSpace(runtimeKind),
-		nexusAgentRuntimeEnvName:                    strings.TrimSpace(runtimeKind),
-		nexusNXSCommandPathEnvName:                  "",
-		nexusClaudeCommandPathEnvName:               "",
-		nexusMemoryDirEnvName:                       workspacePath,
-		nexusEnableRemoteMemoryEnvName:              "",
-		nexusRemoteMemoryDirEnvName:                 "",
-		nexusctlCommandPathEnvName:                  "",
-		nexuscfgCommandPathEnvName:                  "",
-		protocol.NexusConfigBrokerURLEnvName:        "",
-		protocol.NexusConfigCapabilityTokenEnvName:  "",
-		protocol.NexusCommandPathEnvName:            "",
-		protocol.NexusCommandBrokerURLEnvName:       "",
-		protocol.NexusCommandCapabilityTokenEnvName: "",
-		protocol.NexusCommandInputPathEnvName:       "",
-		nexusctlWorkspacePathEnvName:                "",
+		appfs.NexusStateRootEnvName:                "",
+		nexusAppRootEnvName:                        "",
+		nexusConfigDirEnvName:                      runtimeRoot,
+		claudeConfigDirEnvName:                     runtimeRoot,
+		"HOME":                                     homeRoot,
+		"USERPROFILE":                              homeRoot,
+		"APPDATA":                                  filepath.Join(homeRoot, "AppData", "Roaming"),
+		"LOCALAPPDATA":                             filepath.Join(homeRoot, "AppData", "Local"),
+		"XDG_CONFIG_HOME":                          filepath.Join(homeRoot, ".config"),
+		"XDG_CACHE_HOME":                           filepath.Join(runtimeRoot, "cache"),
+		"XDG_DATA_HOME":                            filepath.Join(homeRoot, ".local", "share"),
+		"XDG_STATE_HOME":                           filepath.Join(homeRoot, ".local", "state"),
+		"TMPDIR":                                   filepath.Join(runtimeRoot, "tmp"),
+		"TEMP":                                     filepath.Join(runtimeRoot, "tmp"),
+		"TMP":                                      filepath.Join(runtimeRoot, "tmp"),
+		cacheFileDirEnvName:                        filepath.Join(runtimeRoot, "cache"),
+		logPathEnvName:                             filepath.Join(runtimeRoot, "logs", "runtime.log"),
+		databaseDriverEnvName:                      "",
+		databaseURLEnvName:                         "",
+		connectorCredentialsKeyEnvName:             "",
+		connectorCredentialsKeyFileEnvName:         "",
+		nexusDesktopSessionTokenEnvName:            "",
+		nexusNXSRuntimeCacheDirEnvName:             filepath.Join(runtimeRoot, "cache"),
+		nexusAgentRuntimeKindEnvName:               strings.TrimSpace(runtimeKind),
+		nexusAgentRuntimeEnvName:                   strings.TrimSpace(runtimeKind),
+		nexusNXSCommandPathEnvName:                 "",
+		nexusClaudeCommandPathEnvName:              "",
+		nexusMemoryDirEnvName:                      workspacePath,
+		nexusEnableRemoteMemoryEnvName:             "",
+		nexusRemoteMemoryDirEnvName:                "",
+		nexusctlCommandPathEnvName:                 "",
+		nexuscfgCommandPathEnvName:                 "",
+		protocol.NexusConfigBrokerURLEnvName:       "",
+		protocol.NexusConfigCapabilityTokenEnvName: "",
+		legacyNexusCommandPathEnvName:              "",
+		nexusctlWorkspacePathEnvName:               "",
 	}
 	env[workspacePathEnvName] = workspacePath
 	return env
@@ -469,13 +533,8 @@ func workspaceRuntimeEnv(workspacePath string, includeNexusctl bool) map[string]
 	if configurationCommandPath == "" {
 		configurationCommandPath = runtimeCLIShimPath(binDir, "nexuscfg")
 	}
-	runtimeCommandPath := strings.TrimSpace(os.Getenv(protocol.NexusCommandPathEnvName))
-	if runtimeCommandPath == "" {
-		runtimeCommandPath = runtimeCLIShimPath(binDir, "nexus")
-	}
 	env := map[string]string{
-		nexuscfgCommandPathEnvName:       configurationCommandPath,
-		protocol.NexusCommandPathEnvName: runtimeCommandPath,
+		nexuscfgCommandPathEnvName: configurationCommandPath,
 	}
 	if includeNexusctl {
 		commandPath := strings.TrimSpace(os.Getenv(nexusctlCommandPathEnvName))

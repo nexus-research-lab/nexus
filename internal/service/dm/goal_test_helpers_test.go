@@ -2,10 +2,11 @@ package dm
 
 import (
 	"context"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -277,21 +278,21 @@ func goalCompletionCommandMissAssistantMessage() protocol.Message {
 	return protocol.Message{
 		"role": "assistant",
 		"content": []map[string]any{
-			{"type": "text", "text": "任务已经完成，但无法调用 nexus goal invoke --operation update_goal 命令来标记完成。"},
+			{"type": "text", "text": "任务已经完成，但无法通过 nexus.command 调用 update_goal 来标记完成。"},
 		},
 	}
 }
 
-func stageDMRuntimeCommandReceipt(runner *roundRunner, receipt runtimecommand.Receipt) {
+func stageDMRuntimeCommandReceipt(runner *roundRunner, receipt nexusmcp.CommandReceipt) {
 	if runner.commandReceipts == nil {
-		runner.commandReceipts = runtimecommand.NewReceiptState()
+		runner.commandReceipts = nexusmcp.NewCommandReceiptState()
 	}
 	runner.commandReceipts.Record(receipt)
 }
 
 func stageDMAppliedGoalCommand(runner *roundRunner, operation string, goalID string, status protocol.GoalStatus) {
-	stageDMRuntimeCommandReceipt(runner, runtimecommand.Receipt{
-		Domain: runtimecommand.DomainGoal, Operation: operation,
+	stageDMRuntimeCommandReceipt(runner, nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: operation,
 		Outcome: string(protocol.MutationResultApplied), GoalID: goalID,
 		GoalStatus: string(status),
 	})

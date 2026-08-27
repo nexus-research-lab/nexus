@@ -40,7 +40,7 @@ var runtimeGraphSupportingFilesystemToolLeaves = map[string]struct{}{
 
 // These names are the complete Goal/Execution MCP surface that existed before
 // the control plane moved to the round-scoped nexus CLI. They are read-model
-// compatibility facts only: recognizing one never restores an MCP route or grants
+// compatibility facts only: recognizing one never restores an old MCP route or grants
 // authority. Historical rows do not carry the newer command-transport metadata,
 // so the projection must classify their exact semantic identity here or they are
 // mistaken for ordinary external MCP work and leak back onto the canvas.
@@ -66,7 +66,7 @@ var runtimeGraphLegacyManagedTransportOperations = map[string]struct{}{
 
 // 未包装的 Provider 工具只有在名称表达可观察动作时才进入画布；外部 MCP
 // capability 调用默认可见，而本地 filesystem/workspace/tool discovery 服务
-// 留在详情。Goal/Execution CLI 控制 transport 始终留在 direct owner 详情；
+// 留在详情。Goal/Execution command transport 始终留在 direct owner 详情；
 // 其他运行失败、控制边、Artifact 与显式 hint 仍由上层结构事实提升。
 var runtimeGraphVisibleActionPrefixes = []string{
 	"append",

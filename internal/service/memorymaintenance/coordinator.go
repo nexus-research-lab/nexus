@@ -30,6 +30,29 @@ type dreamRunner interface {
 	tryAutoDream(context.Context, protocol.Agent) (agentclient.AutoDreamResult, error)
 }
 
+// autoDreamEnabled 只做宿主侧廉价预检，nxs 仍会再次执行完整 gate 判断。
+func autoDreamEnabled(catalog agentCatalog, agentValue protocol.Agent) (bool, error) {
+	if err := catalog.EnsureRuntimeSettingsProjection(agentValue); err != nil {
+		return false, err
+	}
+	settings, err := catalog.LoadRuntimeSettingsProjection(agentValue)
+	if err != nil {
+		return false, err
+	}
+	if memorySettings, ok := settings["memory"].(map[string]any); ok {
+		if dreamSettings, ok := memorySettings["dream"].(map[string]any); ok {
+			if enabled, ok := dreamSettings["enabled"].(bool); ok {
+				return enabled, nil
+			}
+		}
+		if enabled, ok := memorySettings["dreamEnabled"].(bool); ok {
+			return enabled, nil
+		}
+	}
+	enabled, _ := settings["autoDreamEnabled"].(bool)
+	return enabled, nil
+}
+
 // Coordinator 是 Nexus 托管模式下唯一的 AutoDream 唤醒者。
 type Coordinator struct {
 	agents agentCatalog

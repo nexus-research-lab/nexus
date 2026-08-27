@@ -21,8 +21,10 @@ const (
 	AuthorizationStatusConflict  = "conflict"
 	AuthorizationStatusFailed    = "failed"
 
-	// StartConnectorAuthorizationToolName 是必须由 runtime 真实人工允许的工具叶名。
-	StartConnectorAuthorizationToolName = "start_connector_authorization"
+	// ConnectorAuthorizationToolName 是 Connector 授权的统一 MCP 工具叶名。
+	ConnectorAuthorizationToolName = "connector_authorization"
+	// ConnectorAuthorizationActionStart 是必须由 runtime 真实人工允许的启动 action。
+	ConnectorAuthorizationActionStart = "start"
 )
 
 // AuthorizationActor 只能由 server/runtime 构造，模型参数不得覆盖这些字段。

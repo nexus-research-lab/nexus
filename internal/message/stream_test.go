@@ -206,7 +206,7 @@ func TestProcessorStreamsVisualizeWidgetCodeBeforeInputJSONCompletes(t *testing.
 			"content_block": map[string]any{
 				"type":  "tool_use",
 				"id":    "widget-1",
-				"name":  "mcp__nexus_visualize__show_widget",
+				"name":  "mcp__nexus__show_widget",
 				"input": map[string]any{},
 			},
 		}},

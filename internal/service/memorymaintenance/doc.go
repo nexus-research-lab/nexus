@@ -6,9 +6,8 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - coordinator.go：启动、扫描、并发去重和下一次检查时间。
+//   - coordinator.go：启动、扫描、AutoDream 开关预检、并发去重和下一次检查时间。
 //   - runner.go：解析 Agent/provider/background model，持有认证转场 admission 并同步调用 nxs。
-//   - settings.go：读取 Agent workspace 中的 AutoDream 开关。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package memorymaintenance

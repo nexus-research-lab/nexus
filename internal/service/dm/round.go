@@ -6,6 +6,7 @@ package dm
 import (
 	"context"
 	"errors"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"log/slog"
 	"strings"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -89,8 +89,7 @@ type roundRunner struct {
 	goalObjectiveRevision       *atomic.Int64
 	responsibilityState         *runtimectx.ResponsibilityAuthorityState
 	sdkSessionIdentity          *runtimectx.SDKSessionIdentityState
-	commandReceipts             *runtimecommand.ReceiptState
-	commandResources            *runtimecommand.RoundResources
+	commandReceipts             *nexusmcp.CommandReceiptState
 	commandReceiptSequence      uint64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
@@ -127,7 +126,6 @@ type roundRunner struct {
 }
 
 func (r *roundRunner) run(ctx context.Context) {
-	defer r.commandResources.Close()
 	defer r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
 	logger := r.service.loggerFor(ctx).With(

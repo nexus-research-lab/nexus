@@ -101,6 +101,10 @@ func (s *IngressService) buildPairedDMPermissionHandler(
 		if toolpolicy.Contains(deniedByAgent, toolName) {
 			return sdkpermission.Deny("当前 agent 已禁止该工具", false), nil
 		}
+		if toolpolicy.IsManagedSemanticSkillRequest(toolName, permissionRequest.Input) ||
+			toolpolicy.IsManagedRuntimeCommandTool(toolName) {
+			return sdkpermission.Allow(permissionRequest.Input, nil), nil
+		}
 		if request.autoApproveAll || toolpolicy.Contains(approved, toolName) {
 			return sdkpermission.Allow(permissionRequest.Input, nil), nil
 		}

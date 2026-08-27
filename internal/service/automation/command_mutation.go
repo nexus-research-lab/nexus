@@ -1,6 +1,6 @@
 // INPUT: round-scoped Actor、Automation mutation operation 与 CLI intent。
 // OUTPUT: 不写入的确定性 plan，或经 digest/revision/人工确认后的领域写入结果。
-// POS: Nexus Automation CLI 的唯一变更入口；MCP、CLI flag 和模型文本都不能绕过本层。
+// POS: Nexus Automation command 的唯一变更入口；tool input 和模型文本都不能绕过本层。
 package automation
 
 import (
@@ -16,7 +16,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -30,7 +30,7 @@ type RuntimeCommandApplyOptions struct {
 // PlanRuntimeCommand 解析并验证一次 Automation 变更，但不写入。
 func (s *Service) PlanRuntimeCommand(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	operation string,
 	input automationdomain.AutomationCommandInput,
 ) (*automationdomain.AutomationCommandPlan, error) {
@@ -163,7 +163,7 @@ func (s *Service) PlanRuntimeCommand(
 // ApplyRuntimeCommand 在同一 service 中重新 plan，并执行 revision、digest 和确认栅栏。
 func (s *Service) ApplyRuntimeCommand(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	request automationdomain.AutomationCommandRequest,
 	options RuntimeCommandApplyOptions,
 ) (*automationdomain.AutomationCommandApplyResult, error) {
@@ -332,7 +332,7 @@ func (s *Service) ApplyRuntimeCommand(
 // ReplayRuntimeCommand 在重新 plan 或再次请求确认前，按稳定 intent 查找已完成结果。
 func (s *Service) ReplayRuntimeCommand(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	request automationdomain.AutomationCommandRequest,
 ) (*automationdomain.AutomationCommandApplyResult, bool, error) {
 	if s == nil || !actor.Valid() {
@@ -467,7 +467,7 @@ func decodeRuntimeAutomationCommandResult(operation string, raw string) (any, er
 
 func (s *Service) runtimeCommandCreateInput(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 	requestID string,
 ) (automationdomain.CreateJobInput, automationdomain.AutomationCommandInput, error) {
@@ -536,7 +536,7 @@ func (s *Service) runtimeCommandCreateInput(
 
 func (s *Service) runtimeCommandUpdateInput(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	current automationdomain.ScheduledTask,
 	input automationdomain.AutomationCommandInput,
 ) (automationdomain.UpdateJobInput, automationdomain.AutomationCommandInput, error) {
@@ -687,7 +687,7 @@ func runtimeDeliveryRevision(task automationdomain.ScheduledTask, run automation
 	return fmt.Sprintf("delivery:%s:%d:%s:%d", task.JobID, task.ConfigurationVersion, run.RunID, run.DeliveryAttempts)
 }
 
-func runtimeAutomationPlanDigest(actor runtimecommand.Actor, plan automationdomain.AutomationCommandPlan) (string, error) {
+func runtimeAutomationPlanDigest(actor command.Actor, plan automationdomain.AutomationCommandPlan) (string, error) {
 	payload := struct {
 		OwnerID    string                                  `json:"owner_id"`
 		AgentID    string                                  `json:"agent_id"`
@@ -711,7 +711,7 @@ func runtimeAutomationPlanDigest(actor runtimecommand.Actor, plan automationdoma
 }
 
 func runtimeAutomationIntentDigest(
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	operation string,
 	input automationdomain.AutomationCommandInput,
 ) (string, error) {

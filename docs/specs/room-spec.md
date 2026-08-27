@@ -131,11 +131,15 @@ Room shared 历史由两类行组成：
 
 ### 6.2 Agent 私域输入
 
-Group Room 且 `private_messages_enabled=true` 时，runtime 才获得 Room 协作工具。`send_directed_message` 负责写入私域记录并按策略唤醒；被唤醒成员的 final reply 按 `reply_route` 投影。
+Group Room 的 runtime 使用统一 `send_message`。当 `destination=current_room` 且
+`visibility=private` 时，工具写入私域记录并按策略唤醒；被唤醒成员的 final reply
+按 `reply_route` 投影。`private_messages_enabled` 在每次调用时重新鉴权，不改变工具面。
 
 ### 6.3 公区主动广播
 
-普通公开发言使用当前 round 的 final reply。`publish_public_message` 只用于私域或 tool-driven 流程需要额外发布一条公区事实的场景；成功后当前 slot 不再重复投影默认 final reply。
+普通公开发言使用当前 round 的 final reply。仅在私域或 tool-driven 流程需要额外
+发布一条公区事实时，调用 `send_message` 的 `destination=current_room`、
+`visibility=public`；成功后当前 slot 不再重复投影默认 final reply。
 
 ## 7. 路由键的职责
 

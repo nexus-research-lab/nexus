@@ -12,8 +12,8 @@
 //     的独立 suppressed CAS，强制 not_attempted/dead-letter 且不改任务摘要；人工停止
 //     确认还必须同时匹配 review_required 与当前 configuration_version；scheduler 的 review-required 恢复审计以单次批量查询读取 active runs，不能按任务 N+1 扫描。
 //   - permission.go：任务策略 CAS、owner-scoped 请求决策、原 IM 会话键、run 阻塞与 exact request 绑定的安全重试事务；权限拒绝或策略修订把无结果终态原子收口为 not_attempted，并只投影 exact 最新完成 run 摘要。
-//   - runtime_command.go：Agent-facing Automation CLI 的 durable request/intent claim、结果重放与 uncertain fail-closed ledger；run 可用 exact run acceptance、wake 可用 exact outbox acceptance 对账 ledger 提交间隙。
-//   - scan_automation.go / value_sql.go：行扫描与 SQL 值编码。
+//   - runtime_command.go：Agent-facing Automation command 的 durable request/intent claim、结果重放与 uncertain fail-closed ledger；run 可用 exact run acceptance、wake 可用 exact outbox acceptance 对账 ledger 提交间隙。
+//   - scan.go / value_sql.go：行扫描与 SQL 值编码。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package automation

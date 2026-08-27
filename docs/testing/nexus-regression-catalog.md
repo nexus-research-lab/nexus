@@ -554,7 +554,7 @@ Nexus 功能面定向入口：
 ```bash
 go test ./internal/service/auth ./internal/service/agent ./internal/service/provider ./internal/service/workspace ./internal/service/skills
 go test ./internal/service/connectors ./internal/service/channels/... ./internal/service/automation
-go test ./internal/service/goal/... ./internal/service/orchestration/... ./internal/cli/runtimecommand/...
+go test ./internal/service/goal/... ./internal/service/orchestration/... ./internal/mcp/command/...
 go test ./internal/service/projectpermission ./internal/service/subscription ./internal/service/usage ./internal/service/launcher
 ```
 

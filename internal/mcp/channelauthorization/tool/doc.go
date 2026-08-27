@@ -1,14 +1,12 @@
-// Package tool defines strict, scope-free MCP tools for persistent Channel
-// authorization.
+// Package tool 把持久 Channel 授权适配成单一、严格且不暴露 scope 的 action MCP 工具。
 //
-// L2 | parent: internal/mcp/channelauthorization (L1 in AGENTS.md)
+// L2 | 父级: internal/mcp/channelauthorization（L1 见 AGENTS.md）
 //
-// Members:
-//   - registry.go: owner-main private-DM visibility fence.
-//   - start.go / status.go / cancel.go / submit_code.go: four operations.
-//   - schema.go / helpers.go: strict schemas and transport-only rendering.
+// 成员：
+//   - registry.go：owner-main 私有 DM 可见性与四个 action 的薄适配。
+//   - schema.go / helpers.go：严格 schema 与纯 transport 渲染。
 //
-// Verification code is intentionally absent from every schema.
+// 验证码刻意不出现在任何 schema 中。
 //
-// [PROTOCOL]: update this header when the package contract changes.
+// [PROTOCOL]: 变更时更新此头部，然后检查父级 doc.go（L2）
 package tool

@@ -1,6 +1,6 @@
-// INPUT: owner-scoped Automation 任务查询、配置版本写入与领域目标字段。
-// OUTPUT: 完整 ScheduledTask 快照、带 CAS 的配置持久化结果及不覆盖其他配置的单列停用结果。
-// POS: Automation task repository；SELECT/UPDATE 字段顺序与 scan_automation.go 同构。
+// INPUT: owner-scoped Automation 任务查询、创建 request identity、配置版本写入与领域目标字段。
+// OUTPUT: 完整 ScheduledTask 快照、幂等创建回执、带 CAS 的配置持久化及不覆盖其他配置的单列停用结果。
+// POS: Automation task repository；SELECT/UPDATE 字段顺序与 scan.go 及 migration 同构。
 package automation
 
 import (

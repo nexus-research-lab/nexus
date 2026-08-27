@@ -1,4 +1,4 @@
-// Package visualize 提供对话内生成式交互界面的内建 MCP server。
+// Package visualize 提供 nexus MCP 中的对话内生成式交互工具。
 //
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //

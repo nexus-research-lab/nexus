@@ -6,11 +6,14 @@ package server
 import (
 	"context"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
+	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -71,12 +74,12 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 			goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 			executionRepo := orchestrationstore.NewRepository(cfg, db)
 			executionService := orchestrationsvc.NewService(executionRepo)
-			coordinator := newExplicitGoalExecutionCoordinator(goalService, executionService)
+			coordinator := servergoal.NewExplicitExecutionCoordinator(goalService, executionService)
 			goalService.SetObjectiveRetargetCoordinator(coordinator)
 			executionService.SetExplicitGoalBindingGateway(coordinator)
-			goalService.SetExecutionGoalCompletionReadiness(executionGoalCompletionReadiness{
-				orchestration: executionService,
-			})
+			goalService.SetExecutionGoalCompletionReadiness(
+				servergoal.NewExecutionCompletionReadiness(executionService),
+			)
 
 			ownerID := "owner-product-matrix"
 			agentID := "agent-lead"
@@ -141,14 +144,14 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 						)
 					}
 				} else {
-					commandValue, commandErr := handleGoalRuntimeCommand(
+					commandValue, commandErr := serverruntime.HandleGoalCommand(
 						context.Background(),
 						goalService,
 						commandActor,
-						runtimecommand.Request{
-							Domain:    runtimecommand.DomainGoal,
-							Action:    runtimecommand.ActionInvoke,
-							Operation: runtimecommand.GoalOperationCreate,
+						command.Request{
+							Domain:    command.DomainGoal,
+							Action:    command.ActionInvoke,
+							Operation: command.GoalOperationCreate,
 							RequestID: "goal-create-matrix",
 							Input: map[string]any{
 								"objective": "Complete the product matrix objective",
@@ -186,32 +189,32 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 				if test.bindGoal {
 					intent = orchestrationsvc.PlanGoalBindingCurrent
 				}
-				inspectValue, inspectErr := handleExecutionRuntimeCommand(
+				inspectValue, inspectErr := serverruntime.HandleExecutionCommand(
 					context.Background(), executionService, commandActor,
-					runtimecommand.Request{
-						Domain: runtimecommand.DomainExecution,
-						Action: runtimecommand.ActionInspect,
+					command.Request{
+						Domain: command.DomainExecution,
+						Action: command.ActionInspect,
 					},
 				)
 				inspect := productMatrixCommandResult(t, inspectValue, inspectErr)
 				if inspect.IsError {
 					t.Fatalf("execution inspect result = %#v", inspect)
 				}
-				if _, contractErr := handleExecutionRuntimeCommand(
+				if _, contractErr := serverruntime.HandleExecutionCommand(
 					context.Background(), executionService, commandActor,
-					runtimecommand.Request{
-						Domain:    runtimecommand.DomainExecution,
-						Action:    runtimecommand.ActionContract,
+					command.Request{
+						Domain:    command.DomainExecution,
+						Action:    command.ActionContract,
 						Operation: "prepare_plan_execution",
 					},
 				); contractErr != nil {
 					t.Fatal(contractErr)
 				}
-				preparedValue, preparedErr := handleExecutionRuntimeCommand(
+				preparedValue, preparedErr := serverruntime.HandleExecutionCommand(
 					context.Background(), executionService, commandActor,
-					runtimecommand.Request{
-						Domain:    runtimecommand.DomainExecution,
-						Action:    runtimecommand.ActionInvoke,
+					command.Request{
+						Domain:    command.DomainExecution,
+						Action:    command.ActionInvoke,
 						Operation: "prepare_plan_execution",
 						RequestID: "prepare-" + strings.ReplaceAll(test.name, " ", "-"),
 						Input: map[string]any{
@@ -227,11 +230,11 @@ func TestGoalWorkGraphProductMatrix(t *testing.T) {
 				if prepared.StructuredContent["proposal_bound"] != true {
 					t.Fatalf("prepare_plan_execution did not establish host binding: %#v", prepared)
 				}
-				materializedValue, materializedErr := handleExecutionRuntimeCommand(
+				materializedValue, materializedErr := serverruntime.HandleExecutionCommand(
 					context.Background(), executionService, commandActor,
-					runtimecommand.Request{
-						Domain:    runtimecommand.DomainExecution,
-						Action:    runtimecommand.ActionInvoke,
+					command.Request{
+						Domain:    command.DomainExecution,
+						Action:    command.ActionInvoke,
 						Operation: "plan_execution",
 						RequestID: "materialize-" + strings.ReplaceAll(test.name, " ", "-"),
 						Input:     map[string]any{},
@@ -294,7 +297,7 @@ func productMatrixCommandActor(
 	scope protocol.ExecutionScopeKind,
 	goalAuthority *runtimectx.GoalAuthorityState,
 	responsibility *runtimectx.ResponsibilityAuthorityState,
-) runtimecommand.Actor {
+) command.Actor {
 	sourceContextType := "agent"
 	roomID := ""
 	roundConversationID := ""
@@ -303,11 +306,10 @@ func productMatrixCommandActor(
 		roomID = "room-" + conversationID
 		roundConversationID = conversationID
 	}
-	round := runtimecommand.RoundContext{
-		SessionKey: sessionKey,
-		RoundID:    "round-product-matrix",
-		Receipts:   runtimecommand.NewReceiptState(),
-		Resources:  runtimecommand.NewRoundResources(),
+	round := nexusmcp.RoundContext{
+		SessionKey:      sessionKey,
+		RoundID:         "round-product-matrix",
+		CommandReceipts: nexusmcp.NewCommandReceiptState(),
 		CommandContext: runtimectx.RuntimeCommandContext{
 			Agent:                   &protocol.Agent{AgentID: agentID, OwnerUserID: ownerID},
 			ScopeSessionKey:         sessionKey,
@@ -322,7 +324,7 @@ func productMatrixCommandActor(
 			CoordinatorAgentID:      agentID,
 		},
 	}
-	return runtimecommand.Actor{
+	return command.Actor{
 		OwnerUserID:             ownerID,
 		AgentID:                 agentID,
 		SessionKey:              sessionKey,
@@ -335,12 +337,12 @@ func productMatrixCommandActor(
 	}
 }
 
-func productMatrixCommandResult(t *testing.T, value any, err error) runtimecommand.Result {
+func productMatrixCommandResult(t *testing.T, value any, err error) command.Result {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, ok := value.(runtimecommand.Result)
+	result, ok := value.(command.Result)
 	if !ok {
 		t.Fatalf("runtime command result type = %T", value)
 	}

@@ -86,3 +86,17 @@ func (p Policy) checkTranscript(workspacePath string, sessionID string) Decision
 	}
 	return Decision{SessionID: sessionID, Allowed: false, Reason: ReasonTranscriptMissing}
 }
+
+// RequiresToolSurfaceFork 判断旧 SDK session 是否不能安全复用。
+// 旧会话没有基线或工具面已变化时，必须让分支 Session 从首轮采用当前工具面。
+func RequiresToolSurfaceFork(storedFingerprint, currentFingerprint string, forkLegacy bool) bool {
+	currentFingerprint = strings.TrimSpace(currentFingerprint)
+	if currentFingerprint == "" {
+		return false
+	}
+	storedFingerprint = strings.TrimSpace(storedFingerprint)
+	if storedFingerprint == "" {
+		return forkLegacy
+	}
+	return storedFingerprint != currentFingerprint
+}

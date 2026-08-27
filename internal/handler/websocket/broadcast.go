@@ -76,6 +76,21 @@ func (h *Handler) BroadcastScheduledTaskChanged(ctx context.Context, event autom
 	h.appEventSubs.Broadcast(ctx, message)
 }
 
+// NotifyAutomationPermissionEvent 把 Automation 权限事件投影到 Session 与 Room。
+func (h *Handler) NotifyAutomationPermissionEvent(ctx context.Context, event protocol.EventMessage) {
+	if h == nil {
+		return
+	}
+	if h.permission != nil && strings.TrimSpace(event.SessionKey) != "" {
+		_ = h.permission.BroadcastEvent(ctx, event.SessionKey, event)
+	}
+	if h.roomSubs != nil && strings.TrimSpace(event.RoomID) != "" {
+		roomEvent := event
+		roomEvent.DeliveryMode = protocol.DeliveryModeDurable
+		_ = h.roomSubs.Broadcast(ctx, event.RoomID, roomEvent)
+	}
+}
+
 // RemoveRoom 从 chat 广播注册表中移除目标 room。
 func (h *Handler) RemoveRoom(roomID string) {
 	if h.roomSubs == nil {

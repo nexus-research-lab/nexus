@@ -3,13 +3,14 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"testing"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -137,7 +138,7 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 		AgentRoundID: actor.AgentRoundID, AgentID: actor.AgentID, Name: "Bash",
 		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(-time.Second),
 		UpdatedAt: now.Add(-time.Second), Metadata: map[string]any{
-			runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+			runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 			runtimeGraphCommandOperationMetadataKey: "assign_work",
 			runtimeGraphCommandRequestIDMetadataKey: "assign-request-1",
 		},
@@ -158,15 +159,15 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 	}
 	service := NewService(repository)
 	service.now = func() time.Time { return now }
-	err = service.ObserveRuntimeCommandReceipts(context.Background(), actor, []runtimecommand.Receipt{
+	err = service.ObserveRuntimeCommandReceipts(context.Background(), actor, []nexusmcp.CommandReceipt{
 		{
-			Domain: runtimecommand.DomainExecution, Operation: "assign_work",
+			Domain: command.DomainExecution, Operation: "assign_work",
 			RequestID: "assign-request-1", Outcome: string(protocol.MutationResultApplied),
 			ExecutionID: "execution-1",
 			Changed:     []string{"assignment:assignment-1", "attempt:attempt-1"},
 		},
 		{
-			Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+			Domain: command.DomainExecution, Operation: "submit_work",
 			RequestID: "submit-request-1", Outcome: string(protocol.MutationResultApplied),
 			ExecutionID: "execution-1",
 		},
@@ -322,6 +323,41 @@ func TestRuntimeGraphMarksOnlyExactManagedCLITransportAsDetail(t *testing.T) {
 				t.Fatalf("managed transport = %t, want %t metadata=%+v", marked, test.transport, events[0].Metadata)
 			}
 		})
+	}
+}
+
+func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
+	t.Parallel()
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant", "uuid": "assistant-structured-command",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use", "id": "tool-runtime-1", "name": "mcp__nexus__command",
+				"input": map[string]any{
+					"domain": "execution", "action": "invoke", "operation": "assign_work",
+					"request_id": "assign-structured-1", "input": map[string]any{"work_item_id": "private"},
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := runtimeGraphLifecycleEvents(message)
+	if len(events) != 1 {
+		t.Fatalf("lifecycle events = %+v", events)
+	}
+	metadata := events[0].Metadata
+	if metadata[runtimeGraphCommandTransportMetadataKey] != "true" ||
+		metadata[runtimeGraphCommandDomainMetadataKey] != "execution" ||
+		metadata[runtimeGraphCommandActionMetadataKey] != "invoke" ||
+		metadata[runtimeGraphCommandOperationMetadataKey] != "assign_work" ||
+		metadata[runtimeGraphCommandRequestIDMetadataKey] != "assign-structured-1" {
+		t.Fatalf("structured command metadata = %+v", metadata)
+	}
+	if _, leaked := metadata["input"]; leaked {
+		t.Fatalf("structured command leaked business input: %+v", metadata)
 	}
 }
 
@@ -817,7 +853,7 @@ func TestRuntimeGraphExactReceiptCompanionDoesNotClearDMSegment(t *testing.T) {
 	}
 	receiptMetadata := map[string]any{
 		runtimeGraphCommandTransportMetadataKey: true,
-		runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+		runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 		runtimeGraphCommandOperationMetadataKey: "assign_work",
 		runtimeGraphCommandRequestIDMetadataKey: "assign-a",
 		runtimeGraphSegmentBoundaryKey:          runtimeGraphSegmentBoundaryAssign,
@@ -825,7 +861,7 @@ func TestRuntimeGraphExactReceiptCompanionDoesNotClearDMSegment(t *testing.T) {
 	applyRuntimeExecutionSegment(receiptMetadata, segment)
 	unresolvedCompanionMetadata := map[string]any{
 		runtimeGraphCommandTransportMetadataKey: true,
-		runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+		runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 		runtimeGraphCommandOperationMetadataKey: "assign_work",
 		runtimeGraphCommandRequestIDMetadataKey: "assign-a",
 		runtimeGraphSegmentBoundaryKey:          runtimeGraphSegmentBoundaryUnresolved,
@@ -1084,7 +1120,7 @@ func TestRuntimeGraphViewKeepsBlockedResumeAttemptsAndArtifactsInExactDMSegments
 			UpdatedAt: now.Add(finish), FinishedAt: finishedAt(finish),
 			Metadata: map[string]any{
 				runtimeGraphCommandTransportMetadataKey: true,
-				runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+				runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 				runtimeGraphCommandOperationMetadataKey: "assign_work",
 				runtimeGraphCommandRequestIDMetadataKey: requestID,
 			},
@@ -1098,7 +1134,7 @@ func TestRuntimeGraphViewKeepsBlockedResumeAttemptsAndArtifactsInExactDMSegments
 			UpdatedAt: now.Add(offset), FinishedAt: finishedAt(offset),
 			Metadata: map[string]any{
 				runtimeGraphCommandTransportMetadataKey: true,
-				runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+				runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 				runtimeGraphCommandOperationMetadataKey: "assign_work",
 				runtimeGraphCommandRequestIDMetadataKey: requestID,
 				runtimeGraphCommandVerifiedMetadataKey:  true,

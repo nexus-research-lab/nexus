@@ -1070,38 +1070,6 @@ func TestManagerCloseSessionWaitsForIdleHandlerExit(t *testing.T) {
 	}
 }
 
-func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
-	const serverName = "search"
-	tests := []struct {
-		name    string
-		options agentclient.Options
-		want    bool
-	}{
-		{
-			name: "server config",
-			options: agentclient.Options{MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
-				serverName: sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
-			}}},
-			want: true,
-		},
-		{
-			name: "legacy sdk server",
-			options: agentclient.Options{MCP: agentclient.MCPOptions{SDKServers: map[string]sdkmcp.SDKMCPServer{
-				serverName: fakeSDKMCPServer{},
-			}}},
-			want: true,
-		},
-		{name: "missing", options: agentclient.Options{}, want: false},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := hasMCPServer(test.options, serverName); got != test.want {
-				t.Fatalf("hasMCPServer() = %v, want %v", got, test.want)
-			}
-		})
-	}
-}
-
 func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	stale := &fakeRuntimeClient{
 		reconfigureErr: errors.New("client: send control request failed: process: write payload failed: write |1: The pipe has been ended"),

@@ -66,6 +66,13 @@ func NewService(cfg config.Config, repo Repository) *Service {
 	return service
 }
 
+// SetLogger 注入 Goal 后台恢复与异步 continuation 的结构化日志实例。
+func (s *Service) SetLogger(logger *slog.Logger) {
+	if s != nil {
+		s.logger = logger
+	}
+}
+
 // Create 创建当前 Goal。
 func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
@@ -348,6 +355,33 @@ func (s *Service) CurrentOptionalForOwner(
 		return item, err
 	}
 	return s.authorizeOwnerScopedGoal(ctx, item, ownerUserID)
+}
+
+// GoalByIDForOwner 按宿主签发的 ID 读取 owner 完全匹配的 durable Goal。
+func (s *Service) GoalByIDForOwner(
+	ctx context.Context,
+	goalID string,
+	ownerUserID string,
+) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	goalID = strings.TrimSpace(goalID)
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if goalID == "" || ownerUserID == "" {
+		return nil, ErrGoalInvalidInput
+	}
+	item, err := s.repo.GetGoal(ctx, goalID)
+	if err != nil || item == nil {
+		return item, err
+	}
+	if storedOwner := protocol.GoalMetadataString(
+		item.Metadata,
+		protocol.GoalMetadataOwnerUserID,
+	); storedOwner == "" || storedOwner != ownerUserID {
+		return nil, fmt.Errorf("%w: Goal owner provenance does not match Room handoff", ErrGoalForbidden)
+	}
+	return item, nil
 }
 
 // Update 更新当前 Goal 文本、预算或 metadata。

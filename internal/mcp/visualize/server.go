@@ -1,6 +1,6 @@
 // INPUT: 模型生成的标题与自包含 HTML fragment。
 // OUTPUT: show_widget 接收确认。
-// POS: Nexus 生成式 UI 的单工具入口；生成规则由 visualize Skill 提供，HTML 只由前端沙箱执行。
+// POS: nexus MCP 中的生成式 UI 工具组；生成规则由 visualize Skill 提供，HTML 只由前端沙箱执行。
 package visualize
 
 import (
@@ -10,15 +10,8 @@ import (
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 )
 
-// ServerName 是生成式 UI 内建 MCP server 的注册名。
-const ServerName = "nexus_visualize"
-
-// NewServer 创建对所有 Agent 可用的 nexus_visualize MCP server。
-func NewServer() *sdktool.SimpleSDKMCPServer {
-	return sdktool.NewSimpleSDKMCPServer(ServerName, "1.0.0", buildTools())
-}
-
-func buildTools() []sdktool.Tool {
+// BuildTools 创建对所有 Agent 可用的生成式 UI 工具定义。
+func BuildTools() []sdktool.Tool {
 	return []sdktool.Tool{{
 		Name:        "show_widget",
 		Description: "把自包含 HTML fragment 流式渲染到最终回复。仅在已加载 visualize Skill 且可视化优于正文或表格时调用；传入简短 title 与按短 style、可见内容、script 顺序组织的 widget_code。",

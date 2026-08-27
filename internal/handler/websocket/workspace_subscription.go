@@ -69,6 +69,23 @@ func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender wo
 	return nil
 }
 
+func (r *workspaceSubscriptionRegistry) sendRuntimeSnapshot(sender workspaceEventSender, agentID string) {
+	if r == nil || r.runtimeProvider == nil || sender == nil || sender.IsClosed() {
+		return
+	}
+	_ = sender.SendEvent(context.Background(), runtimeSnapshotEvent(r.runtimeProvider(agentID)))
+}
+
+func runtimeSnapshotEvent(snapshot RuntimeSnapshot) protocol.EventMessage {
+	event := protocol.NewEvent(protocol.EventTypeAgentRuntimeEvent, map[string]any{
+		"agent_id":           snapshot.AgentID,
+		"running_task_count": snapshot.RunningTaskCount,
+		"status":             snapshot.Status,
+	})
+	event.AgentID = snapshot.AgentID
+	return event
+}
+
 func (r *workspaceSubscriptionRegistry) addReference(sender workspaceEventSender, agentID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()

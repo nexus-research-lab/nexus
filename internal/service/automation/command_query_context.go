@@ -1,6 +1,6 @@
 // INPUT: runtime Actor 的结构化 SessionKey、任务来源/执行/投递快照与自然语言查询。
 // OUTPUT: 只属于当前 DM/Room/外部 IM 会话的任务集合和日报聚合。
-// POS: Automation CLI 的会话语义边界；“这里/当前会话”与外部 IM 默认查询不能放大到 Agent 全域。
+// POS: Automation command 的会话语义边界；“这里/当前会话”与外部 IM 默认查询不能放大到 Agent 全域。
 package automation
 
 import (
@@ -11,7 +11,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -33,7 +33,7 @@ var runtimeCurrentConversationQueryTerms = []string{
 	"current scheduled task",
 }
 
-func runtimeTaskContextFromActor(actor runtimecommand.Actor) (runtimeCurrentTaskContext, bool) {
+func runtimeTaskContextFromActor(actor command.Actor) (runtimeCurrentTaskContext, bool) {
 	sessionKey := strings.TrimSpace(actor.SessionKey)
 	if sessionKey == "" {
 		return runtimeCurrentTaskContext{}, false
@@ -61,7 +61,7 @@ func runtimeTaskContextFromActor(actor runtimecommand.Actor) (runtimeCurrentTask
 func runtimeBestMatchingTasks(
 	jobs []automationdomain.ScheduledTask,
 	query string,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 ) []automationdomain.ScheduledTask {
 	current, ok := runtimeTaskContextFromActor(actor)
 	if !ok {
@@ -83,7 +83,7 @@ func runtimeBestMatchingTasks(
 func runtimeFilterTasksForList(
 	jobs []automationdomain.ScheduledTask,
 	query string,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 ) []automationdomain.ScheduledTask {
 	current, ok := runtimeTaskContextFromActor(actor)
 	if !ok {
@@ -225,7 +225,7 @@ func runtimeEventDetailString(detail map[string]any, key string) string {
 
 func (s *Service) runtimeCurrentContextHistoryItems(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	agentID string,
 	query string,
 	includeActive bool,
@@ -318,7 +318,7 @@ func runtimeTaskEventMatchesQuery(event automationdomain.ScheduledTaskEvent, que
 
 func (s *Service) runtimeCurrentConversationReport(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 	agentID string,
 ) (*automationdomain.ScheduledTaskDailyReport, bool, error) {
