@@ -404,6 +404,28 @@ case "${ARTIFACT_FORMAT}" in
         fi
         sleep "${attempt}"
       done
+      # Finder/diskimages-helper can keep the mounted volume busy even after
+      # its window closes. Force-unmount the volume before detaching the image.
+      if command -v diskutil >/dev/null 2>&1; then
+        diskutil unmountDisk force "${device}" >/dev/null 2>&1 || true
+      fi
+      # Force detach can also hit transient EBUSY (e.g. diskimages-helper
+      # still holding the volume after the AppleScript/Finder styling step).
+      # Retry the force path with backoff instead of failing the build on
+      # a single attempt.
+      for attempt in 1 2 3; do
+        if hdiutil detach -force "${device}" >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep "$((attempt * 2))"
+      done
+      if command -v diskutil >/dev/null 2>&1 &&
+        diskutil eject "${device}" >/dev/null 2>&1; then
+        return 0
+      fi
+      # Final attempt: keep stderr visible and dump volume state so CI logs
+      # show which process still holds the device instead of a bare EBUSY.
+      hdiutil info | grep -A5 "${device}" >&2 || true
       hdiutil detach -force "${device}" >/dev/null
     }
     cleanup_dmg_mount() {
