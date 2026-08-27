@@ -674,6 +674,8 @@ test("conversation geometry debt releases without frame-by-frame height animatio
     feedGuard,
     composerGuard,
     localAnchor,
+    thinkingBlock,
+    messageRail,
     navigator,
     activityStyle,
   ] = await Promise.all([
@@ -688,6 +690,14 @@ test("conversation geometry debt releases without frame-by-frame height animatio
     readFile(path.join(
       webRoot,
       "src/features/conversation/shared/timeline/scroll/use-scroll-anchored-state.ts",
+    ), "utf8"),
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/message/blocks/thinking-block.tsx",
+    ), "utf8"),
+    readFile(path.join(
+      webRoot,
+      "src/features/conversation/shared/message/ui/message-rail.tsx",
     ), "utf8"),
     readFile(path.join(
       webRoot,
@@ -708,6 +718,10 @@ test("conversation geometry debt releases without frame-by-frame height animatio
   assert.match(localAnchor, /data-conversation-virtual-feed/);
   assert.match(localAnchor, /notifyConversationExplicitShrink/);
   assert.match(feedGuard, /CONVERSATION_EXPLICIT_SHRINK_EVENT/);
+  assert.match(thinkingBlock, /useScrollAnchoredState\(\s*isStreaming,\s*isStreaming/);
+  assert.match(thinkingBlock, /ref=\{expansion\.anchorRef/);
+  assert.match(thinkingBlock, /onClick=\{expansion\.toggle\}/);
+  assert.match(messageRail, /ref=\{ref\}/);
 });
 
 test("round navigation uses one atomic scroll transaction while data loads", async () => {

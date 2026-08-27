@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
 - Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
 - Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.
 - Collapsed Connector and Channel authorization into one action-based `nexus` MCP tool per authorization domain while preserving human approval and native secret-entry boundaries.
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.
 - Recovered DM and Room conversations with a fresh runtime session when an automatic tool-surface fork references a transcript that the selected runtime cannot resume.
 - Moved Goal, Execution, and Automation model commands to the round-scoped structured `nexus.command` MCP tool, removing temporary JSON input files, shell shims, loopback brokers, command tokens, and extra writable roots while keeping nxs reusable across rounds.
+- Released the held live-feed height when collapsing a streaming Thought, removing the empty space left below its collapsed row.
 - Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
 - Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
 - Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.
