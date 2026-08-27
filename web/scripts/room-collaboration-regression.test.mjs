@@ -2100,6 +2100,7 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
     session_key: `session:${room.id}`,
     status: "active",
     title: room.id,
+    last_reply_preview: `最新回复 ${room.id}`,
   }));
 
   const items = buildConversationItems({
@@ -2118,8 +2119,18 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
   );
   assert.equal(
     items.find((item) => item.roomId === "group-room").summary,
-    "group-room",
-    "聊天行应复用会话标题，不为摘要扫描完整历史",
+    "最新回复 group-room",
+    "聊天行应显示 bootstrap 提供的最新回复预览",
+  );
+  assert.equal(
+    buildConversationItems({
+      agents,
+      conversations: [{ ...conversations[0], last_reply_preview: undefined }],
+      rooms: [rooms[0]],
+      untitledRoomLabel: "未命名 Room",
+    })[0].summary,
+    "",
+    "缺少回复预览时不能用会话标题冒充最新消息",
   );
 
   const { ConversationRow } = await server.ssrLoadModule(

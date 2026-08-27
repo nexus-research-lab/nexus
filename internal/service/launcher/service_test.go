@@ -26,8 +26,11 @@ import (
 )
 
 type recordingDirectorySessionLister struct {
-	items []protocol.Session
-	calls int
+	items        []protocol.Session
+	pages        map[string]*protocol.MessagePage
+	calls        int
+	pageKeys     []string
+	pageRequests []sessionsvc.MessagePageRequest
 }
 
 func (lister *recordingDirectorySessionLister) ListDirectorySessions(
@@ -35,6 +38,19 @@ func (lister *recordingDirectorySessionLister) ListDirectorySessions(
 ) ([]protocol.Session, error) {
 	lister.calls++
 	return lister.items, nil
+}
+
+func (lister *recordingDirectorySessionLister) GetSessionMessagesPage(
+	_ context.Context,
+	sessionKey string,
+	request sessionsvc.MessagePageRequest,
+) (*protocol.MessagePage, error) {
+	lister.pageKeys = append(lister.pageKeys, sessionKey)
+	lister.pageRequests = append(lister.pageRequests, request)
+	if page := lister.pages[sessionKey]; page != nil {
+		return page, nil
+	}
+	return &protocol.MessagePage{Items: []protocol.Message{}}, nil
 }
 
 func TestLauncherQueryAndSuggestions(t *testing.T) {
@@ -176,7 +192,7 @@ func TestLauncherBootstrapEnsuresMainAgentDefaultChat(t *testing.T) {
 	}
 }
 
-func TestLauncherBootstrapOnlyConsumesDirectorySessionMetadata(t *testing.T) {
+func TestLauncherBootstrapProjectsDirectorySessionMetadata(t *testing.T) {
 	cfg := newLauncherTestConfig(t)
 	migrateLauncherSQLite(t, cfg.DatabaseURL)
 
@@ -219,6 +235,94 @@ func TestLauncherBootstrapOnlyConsumesDirectorySessionMetadata(t *testing.T) {
 	)
 	if item == nil || item.Title != "metadata only" || item.MessageCount != 9 {
 		t.Fatalf("bootstrap 未直接投影目录 metadata: %+v", bootstrap.Conversations)
+	}
+}
+
+func TestLauncherBootstrapUsesBoundedLatestReplyPreview(t *testing.T) {
+	cfg := newLauncherTestConfig(t)
+	migrateLauncherSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	roomService := roomsvc.NewService(cfg, agentService, roomrepo.NewSQLRepository("sqlite", db))
+	service := NewService(
+		cfg,
+		agentService,
+		roomService,
+		sessionsvc.NewService(cfg, agentService, sessionrepo.NewSQLRepository("sqlite", db)),
+	)
+	ctx := context.Background()
+	dmContext, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("创建主智能体直聊失败: %v", err)
+	}
+	sessionKey := protocol.BuildRoomAgentSessionKey(
+		dmContext.Conversation.ID,
+		cfg.DefaultAgentID,
+		protocol.RoomTypeDM,
+	)
+	now := time.Date(2026, 8, 27, 9, 30, 0, 0, time.UTC)
+	lister := &recordingDirectorySessionLister{
+		items: []protocol.Session{{
+			SessionKey:     sessionKey,
+			AgentID:        cfg.DefaultAgentID,
+			RoomID:         &dmContext.Room.ID,
+			ConversationID: &dmContext.Conversation.ID,
+			ChannelType:    "ws",
+			ChatType:       protocol.RoomTypeDM,
+			CreatedAt:      now,
+			LastActivity:   now,
+			Title:          "会话标题不能冒充消息",
+			MessageCount:   2,
+		}},
+		pages: map[string]*protocol.MessagePage{
+			sessionKey: {
+				Items: []protocol.Message{{
+					"role": "assistant",
+					"content": []map[string]any{{
+						"type": "text",
+						"text": "  最新回复\n包含多行内容  ",
+					}},
+				}},
+			},
+		},
+	}
+	service.session = lister
+
+	bootstrap, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatalf("读取 launcher bootstrap 失败: %v", err)
+	}
+	item := findBootstrapConversationBySessionKey(bootstrap.Conversations, sessionKey)
+	if item == nil || item.LastReplyPreview != "最新回复 包含多行内容" {
+		t.Fatalf("bootstrap 最新回复预览不正确: %+v", item)
+	}
+	if len(lister.pageKeys) != 1 || lister.pageKeys[0] != sessionKey {
+		t.Fatalf("bootstrap 最新回复读取目标不正确: %+v", lister.pageKeys)
+	}
+	if len(lister.pageRequests) != 1 || lister.pageRequests[0].Limit != 2 {
+		t.Fatalf("bootstrap 必须只读取最近两个 round: %+v", lister.pageRequests)
+	}
+}
+
+func TestPreviewSessionKeyRoutesGroupToSharedHistory(t *testing.T) {
+	group := BootstrapConversation{
+		SessionKey:     "member-session",
+		RoomType:       protocol.RoomTypeGroup,
+		ConversationID: "conversation-1",
+	}
+	if got := previewSessionKey(group); got != protocol.BuildRoomSharedSessionKey("conversation-1") {
+		t.Fatalf("previewSessionKey(group) = %q, want shared history", got)
+	}
+
+	dm := BootstrapConversation{SessionKey: "dm-session", RoomType: protocol.RoomTypeDM}
+	if got := previewSessionKey(dm); got != dm.SessionKey {
+		t.Fatalf("previewSessionKey(dm) = %q, want member history", got)
 	}
 }
 
