@@ -3,13 +3,14 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"testing"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -137,7 +138,7 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 		AgentRoundID: actor.AgentRoundID, AgentID: actor.AgentID, Name: "Bash",
 		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now.Add(-time.Second),
 		UpdatedAt: now.Add(-time.Second), Metadata: map[string]any{
-			runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+			runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 			runtimeGraphCommandOperationMetadataKey: "assign_work",
 			runtimeGraphCommandRequestIDMetadataKey: "assign-request-1",
 		},
@@ -158,15 +159,15 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 	}
 	service := NewService(repository)
 	service.now = func() time.Time { return now }
-	err = service.ObserveRuntimeCommandReceipts(context.Background(), actor, []runtimecommand.Receipt{
+	err = service.ObserveRuntimeCommandReceipts(context.Background(), actor, []nexusmcp.CommandReceipt{
 		{
-			Domain: runtimecommand.DomainExecution, Operation: "assign_work",
+			Domain: command.DomainExecution, Operation: "assign_work",
 			RequestID: "assign-request-1", Outcome: string(protocol.MutationResultApplied),
 			ExecutionID: "execution-1",
 			Changed:     []string{"assignment:assignment-1", "attempt:attempt-1"},
 		},
 		{
-			Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+			Domain: command.DomainExecution, Operation: "submit_work",
 			RequestID: "submit-request-1", Outcome: string(protocol.MutationResultApplied),
 			ExecutionID: "execution-1",
 		},
@@ -852,7 +853,7 @@ func TestRuntimeGraphExactReceiptCompanionDoesNotClearDMSegment(t *testing.T) {
 	}
 	receiptMetadata := map[string]any{
 		runtimeGraphCommandTransportMetadataKey: true,
-		runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+		runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 		runtimeGraphCommandOperationMetadataKey: "assign_work",
 		runtimeGraphCommandRequestIDMetadataKey: "assign-a",
 		runtimeGraphSegmentBoundaryKey:          runtimeGraphSegmentBoundaryAssign,
@@ -860,7 +861,7 @@ func TestRuntimeGraphExactReceiptCompanionDoesNotClearDMSegment(t *testing.T) {
 	applyRuntimeExecutionSegment(receiptMetadata, segment)
 	unresolvedCompanionMetadata := map[string]any{
 		runtimeGraphCommandTransportMetadataKey: true,
-		runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+		runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 		runtimeGraphCommandOperationMetadataKey: "assign_work",
 		runtimeGraphCommandRequestIDMetadataKey: "assign-a",
 		runtimeGraphSegmentBoundaryKey:          runtimeGraphSegmentBoundaryUnresolved,
@@ -1119,7 +1120,7 @@ func TestRuntimeGraphViewKeepsBlockedResumeAttemptsAndArtifactsInExactDMSegments
 			UpdatedAt: now.Add(finish), FinishedAt: finishedAt(finish),
 			Metadata: map[string]any{
 				runtimeGraphCommandTransportMetadataKey: true,
-				runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+				runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 				runtimeGraphCommandOperationMetadataKey: "assign_work",
 				runtimeGraphCommandRequestIDMetadataKey: requestID,
 			},
@@ -1133,7 +1134,7 @@ func TestRuntimeGraphViewKeepsBlockedResumeAttemptsAndArtifactsInExactDMSegments
 			UpdatedAt: now.Add(offset), FinishedAt: finishedAt(offset),
 			Metadata: map[string]any{
 				runtimeGraphCommandTransportMetadataKey: true,
-				runtimeGraphCommandDomainMetadataKey:    runtimecommand.DomainExecution,
+				runtimeGraphCommandDomainMetadataKey:    command.DomainExecution,
 				runtimeGraphCommandOperationMetadataKey: "assign_work",
 				runtimeGraphCommandRequestIDMetadataKey: requestID,
 				runtimeGraphCommandVerifiedMetadataKey:  true,

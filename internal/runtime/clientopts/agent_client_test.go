@@ -103,6 +103,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
 	}
+	if options.Env[claudeEmitToolUseSummariesEnvName] != "0" {
+		t.Fatalf("ToolUseSummary 默认开关不正确: %+v", options.Env)
+	}
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
@@ -215,13 +218,13 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 }
 
-func TestToolUseSummaryRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
+func TestBackgroundModelRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
 	mainConfig := &RuntimeConfig{
 		Provider:  "glm",
 		Model:     "glm-main",
 		APIFormat: apiFormatAnthropicMessages,
 	}
-	env := toolUseSummaryRuntimeEnv(
+	env := backgroundModelRuntimeEnv(
 		context.Background(),
 		fakeRuntimeConfigResolver{config: &RuntimeConfig{
 			Provider:  "glm",
@@ -238,12 +241,12 @@ func TestToolUseSummaryRuntimeEnvUsesSameProviderBackgroundModel(t *testing.T) {
 		runtimeKindNXS,
 	)
 	if env[nexusBackgroundModelEnvName] != "glm-air" ||
-		env[claudeEmitToolUseSummariesEnvName] != "1" {
-		t.Fatalf("nxs ToolUseSummary 后台模型环境不正确: %+v", env)
+		env[claudeEmitToolUseSummariesEnvName] != "0" {
+		t.Fatalf("nxs 后台模型环境不正确: %+v", env)
 	}
 }
 
-func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
+func TestBackgroundModelRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
 	mainConfig := &RuntimeConfig{
 		Provider:  "main-provider",
 		Model:     "main-model",
@@ -287,7 +290,7 @@ func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			test.input.Provider = "main-provider"
 			test.input.Model = "main-model"
-			env := toolUseSummaryRuntimeEnv(
+			env := backgroundModelRuntimeEnv(
 				context.Background(),
 				test.resolver,
 				test.input,
@@ -295,20 +298,20 @@ func TestToolUseSummaryRuntimeEnvFallsBackWithoutBlockingRuntime(t *testing.T) {
 				runtimeKindNXS,
 			)
 			if env[nexusBackgroundModelEnvName] != "main-model" ||
-				env[claudeEmitToolUseSummariesEnvName] != "1" {
-				t.Fatalf("ToolUseSummary 应回退主模型: %+v", env)
+				env[claudeEmitToolUseSummariesEnvName] != "0" {
+				t.Fatalf("后台模型应回退主模型: %+v", env)
 			}
 		})
 	}
 }
 
-func TestToolUseSummaryRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
+func TestBackgroundModelRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
 	mainConfig := &RuntimeConfig{
 		Provider:  "glm",
 		Model:     "glm-main",
 		APIFormat: apiFormatAnthropicMessages,
 	}
-	env := toolUseSummaryRuntimeEnv(
+	env := backgroundModelRuntimeEnv(
 		context.Background(),
 		fakeRuntimeConfigResolver{config: &RuntimeConfig{
 			Provider:  "glm",
@@ -325,8 +328,8 @@ func TestToolUseSummaryRuntimeEnvProjectsClaudeSmallFastModel(t *testing.T) {
 		runtimeKindClaude,
 	)
 	if env[anthropicSmallFastModelEnvName] != "glm-air" ||
-		env[claudeEmitToolUseSummariesEnvName] != "1" {
-		t.Fatalf("Claude ToolUseSummary 后台模型环境不正确: %+v", env)
+		env[claudeEmitToolUseSummariesEnvName] != "0" {
+		t.Fatalf("Claude 后台模型环境不正确: %+v", env)
 	}
 }
 

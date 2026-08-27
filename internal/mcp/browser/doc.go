@@ -1,4 +1,4 @@
-// Package browser 把完整浏览器操作暴露为单个 Nexus MCP 工具。
+// Package browser 把完整浏览器操作暴露为 nexus MCP 中的单个工具。
 //
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //

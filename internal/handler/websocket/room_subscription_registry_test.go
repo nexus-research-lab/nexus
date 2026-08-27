@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 )
 
 type fakeRoomRegistrySender struct {
@@ -25,6 +27,86 @@ func (s *fakeRoomRegistrySender) IsClosed() bool { return false }
 func (s *fakeRoomRegistrySender) SendEvent(_ context.Context, event protocol.EventMessage) error {
 	s.events <- event
 	return nil
+}
+
+func TestNotifyAutomationPermissionEventProjectsToSessionAndRoom(t *testing.T) {
+	permission := permissionctx.NewContext()
+	roomSubs := newRoomSubscriptionRegistry(8)
+	handler := &Handler{permission: permission, roomSubs: roomSubs}
+	sessionSender := newFakeRoomRegistrySender("session-sender")
+	roomSender := newFakeRoomRegistrySender("room-sender")
+	sessionKey := "agent:agent-recipient:ws:dm:conversation-1"
+	permission.BindSession(sessionKey, sessionSender)
+	if err := roomSubs.SubscribeRoom(
+		context.Background(),
+		roomSender,
+		"room-1",
+		"conversation-1",
+		nil,
+	); err != nil {
+		t.Fatalf("SubscribeRoom() error = %v", err)
+	}
+	event := protocol.NewEvent(protocol.EventTypePermissionRequest, map[string]any{
+		"request_id": "automation-permission-1",
+	})
+	event.SessionKey = sessionKey
+	event.RoomID = "room-1"
+	event.ConversationID = "conversation-1"
+
+	handler.NotifyAutomationPermissionEvent(context.Background(), event)
+
+	sessionEvent := readRoomRegistryEvent(t, sessionSender.events)
+	if sessionEvent.EventType != protocol.EventTypePermissionRequest ||
+		sessionEvent.SessionKey != sessionKey || sessionEvent.RoomSeq != nil {
+		t.Fatalf("session event = %+v", sessionEvent)
+	}
+	roomEvent := readRoomRegistryEvent(t, roomSender.events)
+	if roomEvent.EventType != protocol.EventTypePermissionRequest ||
+		roomEvent.DeliveryMode != protocol.DeliveryModeDurable ||
+		roomEvent.RoomSeq == nil || *roomEvent.RoomSeq != 1 {
+		t.Fatalf("room event = %+v", roomEvent)
+	}
+}
+
+func TestActiveChatActivitySourcesAggregatesExactConversationSessions(t *testing.T) {
+	permission := permissionctx.NewContext()
+	runtime := runtimectx.NewManager()
+	handler := &Handler{permission: permission, runtime: runtime}
+
+	bindRunningRound := func(runtimeSessionKey string, dispatchSessionKey string, conversationID string, roundID string) {
+		t.Helper()
+		permission.BindSessionRoute(runtimeSessionKey, permissionctx.RouteContext{
+			DispatchSessionKey: dispatchSessionKey,
+			RoomID:             "room-1",
+			ConversationID:     conversationID,
+		})
+		if err := runtime.StartRound(context.Background(), runtimeSessionKey, roundID, func() {}); err != nil {
+			t.Fatalf("StartRound(%q): %v", runtimeSessionKey, err)
+		}
+	}
+
+	bindRunningRound("agent:cindy:ws:dm:conversation-a", "agent:cindy:ws:dm:conversation-a", "conversation-a", "round-a")
+	bindRunningRound("agent:cindy:ws:dm:conversation-b", "agent:cindy:ws:dm:conversation-b", "conversation-b", "round-b")
+	permission.BindSessionRoute("agent:idle:ws:dm:conversation-idle", permissionctx.RouteContext{
+		DispatchSessionKey: "agent:idle:ws:dm:conversation-idle",
+		RoomID:             "room-1",
+		ConversationID:     "conversation-idle",
+	})
+
+	sources := handler.activeChatActivitySources("room-1")
+	if len(sources) != 2 {
+		t.Fatalf("active source count = %d, want 2: %+v", len(sources), sources)
+	}
+	if sources[0].SessionKey != "agent:cindy:ws:dm:conversation-a" ||
+		sources[0].ConversationID != "conversation-a" ||
+		len(sources[0].RunningRoundIDs) != 1 || sources[0].RunningRoundIDs[0] != "round-a" {
+		t.Fatalf("first source = %+v", sources[0])
+	}
+	if sources[1].SessionKey != "agent:cindy:ws:dm:conversation-b" ||
+		sources[1].ConversationID != "conversation-b" ||
+		len(sources[1].RunningRoundIDs) != 1 || sources[1].RunningRoundIDs[0] != "round-b" {
+		t.Fatalf("second source = %+v", sources[1])
+	}
 }
 
 func TestRoomSubscriptionRegistryReplaysDurableEvents(t *testing.T) {

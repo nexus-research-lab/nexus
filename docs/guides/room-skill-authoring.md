@@ -67,10 +67,10 @@ Skill 必须说明：
 | 普通公开发言 | 直接输出 final reply，不调用 Room 工具。 |
 | 一次性公区会话请求或唤醒 | 在 final reply 中写真实的非代码 @成员；它不建立结构化责任。 |
 | 可追责交付、依赖或验收 | 使用 WorkGraph 与 `assign_work`；后续以 `submit_work` / `review_work` 回交，不用 `@` 冒充。 |
-| 私下发送或多人收集 | 使用 send_directed_message，明确 recipients、是否唤醒和 reply_route。 |
+| 私下发送或多人收集 | 使用 `send_message`，设置 `destination=current_room`、`visibility=private`，并明确 recipients、是否唤醒和 reply_route。 |
 | 私下结果交给主持人 | 使用 reply_route=private，必要时设置 wake_policy=immediate。 |
 | 私下结果需要主持人自然公开推进 | 在 private route 上设置 next_reply_route=public。 |
-| 私域/tool-driven 流程需要额外广播独立事实 | 使用 publish_public_message 一次；普通公区发言不要用它。 |
+| 私域/tool-driven 流程需要额外广播独立事实 | 使用 `send_message`，设置 `destination=current_room`、`visibility=public`；普通公区发言不要用它。 |
 | 被唤醒但没有新工作 | 输出 <nexus_room_no_reply/>，不要制造公区消息。 |
 
 工具中的 Room、conversation、source agent 和因果字段由 runtime 注入，Skill 不应伪造或拼接。

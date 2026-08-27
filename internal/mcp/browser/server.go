@@ -1,6 +1,6 @@
 // INPUT: 当前 runtime Session/round identity、上下文名称与 browser action。
 // OUTPUT: 浏览器状态、标签页、页面/网络数据、交互结果、截图或 PDF MCP content。
-// POS: Browser 的完整浏览器工具适配层。
+// POS: nexus MCP 中的完整浏览器工具组。
 package browser
 
 import (
@@ -15,18 +15,15 @@ import (
 	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 )
 
-// ServerName 是浏览器控制内建 MCP server 的注册名。
-const ServerName = "nexus_browser"
-
-// NewServer 为当前 runtime Session 创建浏览器控制 MCP server。
-func NewServer(
+// BuildTools 为当前 runtime Session 创建浏览器控制工具定义。
+func BuildTools(
 	service *browsersvc.Service,
 	sessionKey string,
 	roundID string,
 	sessionLabel string,
 	resolveCDPAccess func(context.Context) (bool, error),
-) *sdktool.SimpleSDKMCPServer {
-	return sdktool.NewSimpleSDKMCPServer(ServerName, "1.0.0", []sdktool.Tool{{
+) []sdktool.Tool {
+	return []sdktool.Tool{{
 		Name: "browser",
 		Description: "通过 Nexus Browser 完整控制 Chromium。" +
 			"支持标签页、历史、导航、页面内容、可访问性快照、CSS/ref 与坐标交互、" +
@@ -59,7 +56,7 @@ func NewServer(
 			}
 			return renderResult(strings.ToLower(strings.TrimSpace(action)), result), nil
 		},
-	}})
+	}}
 }
 
 func browserSchema() map[string]any {

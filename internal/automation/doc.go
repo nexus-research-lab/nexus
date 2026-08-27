@@ -5,11 +5,9 @@
 //
 // 成员清单：
 //   - schedule.go：ComputeNextRunAt 计算下次触发时间。
-//   - session.go：ResolveSessionKey 解析任务的真实执行会话。
-//   - heartbeat_prompt.go / heartbeat_delivery.go：按解析阶段读取 HEARTBEAT.md 周期任务，并过滤回复外发。
+//   - heartbeat_prompt.go：按解析阶段读取 HEARTBEAT.md 周期任务，并过滤回复外发。
 //   - execution_sink.go：ExecutionSink 按消息、错误与轮次终态收敛执行观测结果。
-//   - runtime_state.go：JobRuntimeState 进程内任务运行态、HeartbeatWakeRequest 内部唤醒命令。
-//   - actor_context.go：标记本次自动化动作的发起 Agent。
+//   - runtime.go：进程内运行态、会话解析与动作发起 Agent 上下文。
 //   - task_search.go：ScheduledTaskMatchesQuery 按口头描述匹配定时任务。
 //
 // 子包：types/（特性域共享类型、枚举、输入校验）。

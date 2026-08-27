@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
@@ -462,7 +463,7 @@ func (s *Server) startGoalResume(ctx context.Context) (func(), error) {
 	}
 	stop, err := s.services.Goal.StartAutoResume(
 		ctx,
-		newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),
+		servergoal.NewContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),
 	)
 	if err != nil {
 		s.api.BaseLogger().Error("启动 Goal durable resume 失败", "err", err)

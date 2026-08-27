@@ -7,12 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -47,7 +47,7 @@ type dmClientPreparation struct {
 	goalObjectiveRevision  *atomic.Int64
 	responsibilityState    *runtimectx.ResponsibilityAuthorityState
 	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
-	commandReceipts        *runtimecommand.ReceiptState
+	commandReceipts        *nexusmcp.CommandReceiptState
 	permissionMode         sdkpermission.Mode
 }
 
@@ -226,7 +226,7 @@ func (s *Service) ensureClient(
 	sdkSessionIdentity := runtimectx.NewSDKSessionIdentityState(
 		dmdomain.StringPointerValue(sessionItem.SessionID),
 	)
-	commandReceipts := runtimecommand.NewReceiptState()
+	commandReceipts := nexusmcp.NewCommandReceiptState()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
 	if scopedPolicyActive {
@@ -280,18 +280,17 @@ func (s *Service) ensureClient(
 		dynamicSystemPrompt,
 		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
 	)
+	mcpContext := runtimectx.WithEnabledConnectorIDs(
+		runtimeBuilderContext,
+		enabledConnectorIDs,
+	)
+	mcpContext = runtimectx.WithGoalAuthorityState(mcpContext, goalAuthority)
+	mcpContext = runtimectx.WithResponsibilityAuthorityState(
+		mcpContext,
+		responsibilityState,
+	)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil && !scopedPolicyActive {
-		mcpContext := runtimeBuilderContext
-		mcpContext = runtimectx.WithEnabledConnectorIDs(
-			mcpContext,
-			enabledConnectorIDs,
-		)
-		mcpContext = runtimectx.WithGoalAuthorityState(mcpContext, goalAuthority)
-		mcpContext = runtimectx.WithResponsibilityAuthorityState(
-			mcpContext,
-			responsibilityState,
-		)
 		mcpServers = s.mcpServers(
 			mcpContext,
 			agentValue,
@@ -304,17 +303,16 @@ func (s *Service) ensureClient(
 			permissionMode,
 		)
 	}
-	if !request.runtimePreparationOnly &&
-		(!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
-			sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
-		s.runtimeCommandMCP != nil {
-		runtimeServers, runtimeErr := s.runtimeCommandMCP(
-			runtimeBuilderContext,
-			runtimecommand.RoundContext{
+	if (!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
+		sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
+		s.nexusMCP != nil {
+		runtimeServers, runtimeErr := s.nexusMCP(
+			mcpContext,
+			nexusmcp.RoundContext{
 				SessionKey: sessionKey, RoundID: request.RoundID,
 				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 				SourceContextLabel: agentValue.Name,
-				CommandContext:     runtimeCommandContext, Receipts: commandReceipts,
+				CommandContext:     runtimeCommandContext, CommandReceipts: commandReceipts,
 			},
 		)
 		if runtimeErr != nil {
@@ -629,10 +627,10 @@ func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "nexus", "mcp__nexus__command"},
+			AllowedTools: []string{"Skill", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
-				"nexus_visualize", "nexus_imagegen",
+				"mcp__nexus__show_widget", "mcp__nexus__generate_image", "mcp__nexus__edit_image",
 			},
 		},
 		AllowedSkillNames: []string{"execution-orchestrator"},

@@ -6,9 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 )
+
+// OAuthClient 表示用户配置的 OAuth 应用凭据。
+type OAuthClient struct {
+	OwnerUserID  string
+	ConnectorID  string
+	ClientID     string
+	ClientSecret string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
 
 // OAuthClientStore 封装 connector OAuth client 的 SQL 读写。
 type OAuthClientStore struct {

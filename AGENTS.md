@@ -17,7 +17,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 ## L1 — 文档地图
 
 代码是机器相，注释是语义相，两相必须同构：任一相变化必须在另一相显现，否则视为未完成。
-本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、runtime command/MCP schema 与 parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
+本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、`nexus.command` MCP schema 与 parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
 
 `nexus` — 用户运行的多 agent 桌面/网页应用；Go 后端 + React web。
 技术栈: Go + net/http + WebSocket + SQLite/goose + React19 + Vite + Zustand
@@ -39,11 +39,9 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   echo/       - 用户级 DM 主动跟进策略、attempt 状态与会话覆盖领域模型
   automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
-  cli/        - 命令子系统；根目录无 Go 包，按信任边界分为两个子包：
-    host/           - nexusctl / nexuscfg 宿主命令行装配（按领域文件组织）
-    runtimecommand/ - Goal/Execution/Automation 的 transport-neutral operation contract、round actor 与 typed receipt
-  app/        - HTTP 服务装配与生命周期
-  mcp/ connectors/ workspace/ - 能力域；Goal/Execution/Automation 模型控制复用内置 Skill 与 round-scoped `nexus.command`，业务输入通过现有 SDK MCP server 直接进入宿主，不落临时 JSON；mcp/communication 提供平台通讯录与消息工具，mcp/feishudocx 提供独立飞书云文档语义工具，mcp/browser 通过单个 browser 工具提供完整浏览器操作、任意 JavaScript、用户启用后的原始 CDP、网络记录、上传、下载、截图与 PDF，支持原生 MCP 的其他 Provider 直接挂载自身 server，不提供通用 REST 路由；mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
+  cli/        - nexusctl / nexuscfg 本地命令行装配（按领域文件组织）；模型侧命令不经过 CLI
+  app/        - HTTP 服务装配与生命周期；server 根包保留进程组合、路由和 worker，goal / execution / workgraph / runtime 子包承载对应功能域适配
+  mcp/ connectors/ workspace/ - 能力域；mcp 根包持有 physical-round 共用可信上下文与 command receipt，mcp/command 持有 Goal/Execution/Automation 的 `nexus.command` 工具协议和操作适配；宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下，各业务包只构建工具定义与固定上下文；模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON；mcp/communication 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯，不再设独立 Room MCP 工具包，mcp/browser 通过单个 browser 工具提供完整浏览器操作，mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；第三方、用户自定义和 Connector 动态 MCP（包括独立的 `nexus_feishu_docx`）保持各自 server 身份、授权与生命周期，支持原生 MCP 的 Provider 直接挂载自身 server，不提供通用 REST 路由；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
 </directory>

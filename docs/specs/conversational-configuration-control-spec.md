@@ -20,8 +20,8 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `providers` | 数据库 | `nexuscfg` | 目录与检查立即；模型运行配置下一轮 |
 | `agents` | 数据库 + 派生 workspace settings | `nexuscfg` | 资料/UI 立即；权限即时同步；其他 runtime 设置下一轮 |
 | `emotion` | 当前 Agent workspace 的版本化 `.agents/emotion.json` | `nexuscfg` | 基础/上下文情绪下一轮投影；fatigue 只读 |
-| `channels` | 数据库 + 加密凭据 | `nexuscfg`；扫码/验证码走 `nexus_channel_authorization` | 版本 CAS 后热重载，失败条件回滚 |
-| `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexuscfg`；OAuth/Device 走 `nexus_connector_auth` | 下一会话或重新授权 |
+| `channels` | 数据库 + 加密凭据 | `nexuscfg`；扫码/验证码走 `nexus` MCP Channel 授权工具 | 版本 CAS 后热重载，失败条件回滚 |
+| `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexuscfg`；OAuth/Device 走 `nexus` MCP Connector 授权工具 | 下一会话或重新授权 |
 | `skills` | 数据库 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexuscfg` | 来源、目录和导入结果立即；Agent 在下一轮加载 Skill 内容与安装选择 |
 | `host` | 部署环境 + 原生桌面宿主 | `nexuscfg` 脱敏检查；变更走对应人类控制面 | 外部变更后重启 |
 | `sessions` | owner-confined Agent workspace session meta + owner lifecycle ledger | `nexuscfg` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
@@ -250,12 +250,12 @@ Token 与 Agent 自定义 MCP 中的秘密仍沿用各自现有存储模型，�
 WebSocket 私有 DM，并绑定 owner、主 Agent、业务 session/root round、真实 runtime
 lease、当前认证 principal/session、启动资源版本和过期时间：
 
-- `nexus_connector_auth` 的启动工具必须先经过当前 permission 卡的真实 `allow`。OAuth
+- `nexus.connector_authorization` 的 `action=start` 必须先经过当前 permission 卡的真实 `allow`。OAuth
   工具结果只返回 Nexus 本地受保护路径；浏览器请求仅携带 opaque `flow_id`，服务端从
   durable flow 恢复全部身份并再次验证认证 session，再 303 到 provider。Provider
   state、PKCE、device code、auth code 和 token 不进入模型。Device Flow 只返回 provider
   明确定义为公开的人类 user code / verification URI。
-- `nexus_channel_authorization` 的模型结果只含 flow 状态。QR payload、verification URL
+- `nexus.channel_authorization` 的 action 结果只含 flow 状态。QR payload、verification URL
   和验证码输入只通过与原始业务 session、同一 principal 绑定的原生 WebSocket 卡片
   展示/提交；验证码会在 wire map 中立即移除，不进入 transcript、MCP 参数、数据库或
   审计。重连、跨 sender、跨 lease、过期 token 和旧进程 generation 均拒绝。

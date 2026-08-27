@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
 
+### Changed
+
+- Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
+- Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.
+- Collapsed Connector and Channel authorization into one action-based `nexus` MCP tool per authorization domain while preserving human approval and native secret-entry boundaries.
+- Unified Agent and Room communication under `list_targets` and one context-aware `send_message` tool while preserving private visibility, wake, reply-route, public-feed, and cross-session behavior.
+
 ### Fixed
 
 - Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.

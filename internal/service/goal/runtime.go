@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"slices"
 	"strings"
 
@@ -212,4 +213,62 @@ func shouldClearRuntimeAccounting(status protocol.GoalStatus) bool {
 	default:
 		return false
 	}
+}
+
+// RuntimeContext 返回当前运行时应计入的 Goal。
+// 普通 active turn 只记账；隐藏 Goal context 仅用于 objective transition。
+func (s *Service) RuntimeContext(ctx context.Context, sessionKey string) (string, *protocol.Goal, error) {
+	item, err := s.CurrentOptional(ctx, sessionKey)
+	if err != nil {
+		return "", nil, err
+	}
+	if item == nil || !protocol.IsRuntimeAccountingGoalStatus(item.Status) {
+		return "", nil, nil
+	}
+	if !protocol.IsRuntimeGoalStatus(item.Status) {
+		return "", item, nil
+	}
+	item, err = s.accountActiveWallClockUsage(ctx, *item)
+	if err != nil {
+		return "", nil, err
+	}
+	return renderPendingObjectiveTransitionContext(*item), item, nil
+}
+
+func renderPendingObjectiveTransitionContext(item protocol.Goal) string {
+	if !GoalObjectiveTransitionPending(item) {
+		return ""
+	}
+	transition, ok := ObjectiveTransitionFromGoal(item)
+	if !ok {
+		return `<nexus_goal_transition pending="true" phase="malformed">` +
+			`Goal objective transition state is malformed. Do not complete, block, or continue this Goal; reload it and require recovery.` +
+			`</nexus_goal_transition>`
+	}
+	action := "prepare_plan_execution"
+	domain := "execution"
+	instruction := "Prepare the complete fresh successor WorkGraph document, then commit its sealed proposal. Do not reuse or mutate the superseded predecessor."
+	if transition.Phase == ObjectiveTransitionPrepared {
+		action = "retarget_goal"
+		domain = "goal"
+		instruction = "Retry retarget_goal with the same requested objective so the durable rebase can finish."
+	}
+	return fmt.Sprintf(
+		`<nexus_goal_transition pending="true" phase="%s" goal_id="%s" objective_revision="%d" successor_execution_id="%s">`+
+			`<required_action domain="%s" operation="%s" requested_objective="%s">%s</required_action>`+
+			`</nexus_goal_transition>`,
+		html.EscapeString(string(transition.Phase)),
+		html.EscapeString(strings.TrimSpace(item.ID)),
+		item.ObjectiveRevision(),
+		html.EscapeString(transition.SuccessorExecutionID),
+		domain,
+		action,
+		html.EscapeString(transition.RequestedObjective),
+		instruction,
+	)
+}
+
+// ShouldIgnoreRuntimeForPermissionMode 对齐 Codex should_ignore_goal_for_mode。
+func ShouldIgnoreRuntimeForPermissionMode(permissionMode string) bool {
+	return strings.TrimSpace(permissionMode) == "plan"
 }

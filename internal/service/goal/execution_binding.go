@@ -226,3 +226,183 @@ func goalMetadataStrings(metadata map[string]any, key string) []string {
 	}
 	return normalizeExecutionCompletionCriteria(result)
 }
+
+type executionGoalCompletionReadiness interface {
+	ExecutionGoalCompletionBlocker(context.Context, protocol.Goal) (string, error)
+}
+
+type executionGoalBindingResolver interface {
+	ResolveGoalExecutionBinding(
+		context.Context,
+		protocol.Goal,
+	) (protocol.GoalExecutionBindingResolution, error)
+}
+
+// SetExecutionGoalCompletionReadiness 注入 WorkGraph 审计，防止提前完成 Goal。
+func (s *Service) SetExecutionGoalCompletionReadiness(readiness executionGoalCompletionReadiness) {
+	s.executionCompletion = readiness
+}
+
+func (s *Service) ensureExecutionGoalCompletionReady(
+	ctx context.Context,
+	item protocol.Goal,
+) error {
+	if GoalObjectiveTransitionPending(item) {
+		transition, valid := ObjectiveTransitionFromGoal(item)
+		if !valid {
+			return fmt.Errorf(
+				"%w: Goal objective transition metadata is malformed",
+				ErrGoalInvalidState,
+			)
+		}
+		return fmt.Errorf(
+			"%w: Goal objective transition %s is %s and has not bound its successor WorkGraph",
+			ErrGoalInvalidState,
+			transition.ID,
+			transition.Phase,
+		)
+	}
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return fmt.Errorf("resolve Goal Execution binding: %w", err)
+	}
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+		return nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConflict:
+		return fmt.Errorf(
+			"%w: Goal Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
+	case protocol.GoalExecutionBindingStateConfirmed:
+	default:
+		return fmt.Errorf("%w: Goal Execution binding state is unknown", ErrGoalInvalidState)
+	}
+	if s.executionCompletion == nil {
+		return fmt.Errorf(
+			"%w: Execution completion audit is unavailable for a Goal with a confirmed managed WorkGraph binding",
+			ErrGoalInvalidState,
+		)
+	}
+	blocker, err := s.executionCompletion.ExecutionGoalCompletionBlocker(ctx, item)
+	if err != nil {
+		return fmt.Errorf("check Execution Goal completion readiness: %w", err)
+	}
+	if blocker = strings.TrimSpace(blocker); blocker != "" {
+		return fmt.Errorf(
+			"%w: %w: Goal still has outstanding Execution work: %s",
+			ErrGoalInvalidState,
+			ErrGoalExecutionNotReady,
+			blocker,
+		)
+	}
+	return nil
+}
+
+func (s *Service) resolveGoalExecutionBinding(
+	ctx context.Context,
+	item protocol.Goal,
+) (protocol.GoalExecutionBindingResolution, error) {
+	if resolver, ok := s.executionCompletion.(executionGoalBindingResolver); ok {
+		return resolver.ResolveGoalExecutionBinding(ctx, item)
+	}
+	resolution := protocol.GoalExecutionBindingResolution{
+		State:               protocol.GoalExecutionBindingStateStandalone,
+		ReservedExecutionID: protocol.GoalReservedExecutionID(item),
+	}
+	switch protocol.GoalExecutionBindingStateFromGoal(item) {
+	case protocol.GoalExecutionBindingStateConfirmed:
+		resolution.State = protocol.GoalExecutionBindingStateConfirmed
+		resolution.ExecutionID = resolution.ReservedExecutionID
+	case protocol.GoalExecutionBindingStatePending:
+		resolution.State = protocol.GoalExecutionBindingStatePending
+	case protocol.GoalExecutionBindingStateReserved:
+		resolution.State = protocol.GoalExecutionBindingStateReserved
+	case protocol.GoalExecutionBindingStateStandalone:
+		// 聚焦 service 测试与旧数据的兼容；生产始终使用数据库 resolver。
+		if resolution.ReservedExecutionID != "" {
+			if len(goalMetadataStrings(item.Metadata, protocol.GoalMetadataCompletionCriteria)) > 0 {
+				resolution.State = protocol.GoalExecutionBindingStateConfirmed
+				resolution.ExecutionID = resolution.ReservedExecutionID
+			} else {
+				resolution.State = protocol.GoalExecutionBindingStateReserved
+			}
+		}
+	case protocol.GoalExecutionBindingStateConflict:
+		resolution.State = protocol.GoalExecutionBindingStateConflict
+	default:
+		resolution.State = protocol.GoalExecutionBindingStateConflict
+	}
+	return resolution, nil
+}
+
+// ExecutionBindingForOwner 从 durable Goal 与 Execution 真相读取当前 binding。
+func (s *Service) ExecutionBindingForOwner(
+	ctx context.Context,
+	goalID string,
+	ownerUserID string,
+) (protocol.GoalExecutionBindingResolution, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return protocol.GoalExecutionBindingResolution{}, err
+	}
+	goalID = strings.TrimSpace(goalID)
+	if goalID == "" {
+		return protocol.GoalExecutionBindingResolution{}, ErrGoalInvalidInput
+	}
+	item, err := s.repo.GetGoal(ctx, goalID)
+	if err != nil {
+		return protocol.GoalExecutionBindingResolution{}, err
+	}
+	if item == nil {
+		return protocol.GoalExecutionBindingResolution{}, ErrGoalNotFound
+	}
+	if err := authorizeGoalReader(*item, ownerUserID); err != nil {
+		return protocol.GoalExecutionBindingResolution{}, err
+	}
+	resolver, ok := s.executionCompletion.(executionGoalBindingResolver)
+	if !ok {
+		return protocol.GoalExecutionBindingResolution{}, fmt.Errorf(
+			"Goal Execution binding resolver is unavailable",
+		)
+	}
+	return resolver.ResolveGoalExecutionBinding(ctx, *item)
+}
+
+func (s *Service) clearGoal(
+	ctx context.Context,
+	item protocol.Goal,
+	source protocol.GoalUpdateSource,
+) (bool, error) {
+	if err := s.ensureGoalClearAllowed(ctx, item); err != nil {
+		return false, err
+	}
+	return s.deleteGoal(ctx, item, source)
+}
+
+func (s *Service) ensureGoalClearAllowed(ctx context.Context, item protocol.Goal) error {
+	resolution, err := s.resolveGoalExecutionBinding(ctx, item)
+	if err != nil {
+		return fmt.Errorf("resolve Goal Execution binding before clear: %w", err)
+	}
+	switch resolution.State {
+	case protocol.GoalExecutionBindingStateStandalone,
+		protocol.GoalExecutionBindingStateReserved:
+		return nil
+	case protocol.GoalExecutionBindingStatePending,
+		protocol.GoalExecutionBindingStateConfirmed,
+		protocol.GoalExecutionBindingStateConflict:
+		return fmt.Errorf(
+			"%w: cannot clear Goal while Execution binding is %s",
+			ErrGoalInvalidState,
+			resolution.State,
+		)
+	default:
+		return fmt.Errorf(
+			"%w: cannot clear Goal with unknown Execution binding state",
+			ErrGoalInvalidState,
+		)
+	}
+}

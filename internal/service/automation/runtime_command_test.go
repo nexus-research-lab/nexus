@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 )
 
 func TestAutomationCommandCronScheduleAcceptsStandardFiveField(t *testing.T) {
@@ -256,7 +256,7 @@ func TestRuntimeCommandReplayDoesNotDuplicateRunOrWake(t *testing.T) {
 func createRuntimeCommandTask(
 	t *testing.T,
 	fixture automationCommandFixture,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	name string,
 	requestID string,
 ) *automationdomain.ScheduledTask {

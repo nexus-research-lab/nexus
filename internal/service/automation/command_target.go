@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func runtimeCommandAgentID(actor runtimecommand.Actor, requested string) (string, error) {
+func runtimeCommandAgentID(actor command.Actor, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)
 	current := strings.TrimSpace(actor.AgentID)
 	if requested == "" || requested == current {
@@ -25,7 +25,7 @@ func runtimeCommandAgentID(actor runtimecommand.Actor, requested string) (string
 	return requested, nil
 }
 
-func runtimeCommandSource(actor runtimecommand.Actor) automationdomain.Source {
+func runtimeCommandSource(actor command.Actor) automationdomain.Source {
 	contextType := "agent"
 	if strings.TrimSpace(actor.SourceContextType) == "room" {
 		contextType = "room"
@@ -50,7 +50,7 @@ func runtimeCommandSource(actor runtimecommand.Actor) automationdomain.Source {
 }
 
 func runtimeCommandTargets(
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 ) (automationdomain.SessionTarget, automationdomain.DeliveryTarget, error) {
 	advanced := strings.TrimSpace(input.ExecutionMode) != "" ||
@@ -103,7 +103,7 @@ func runtimeCommandTargets(
 }
 
 func runtimeCommandSessionTarget(
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 	mode string,
 ) (automationdomain.SessionTarget, error) {
@@ -149,7 +149,7 @@ func runtimeCommandSessionTarget(
 }
 
 func runtimeCommandDelivery(
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 	executionMode string,
 	replyMode string,

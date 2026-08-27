@@ -1,20 +1,17 @@
-// Package server 装配 HTTP 服务、路由、WebSocket、实时链路与各内建 MCP builder。
+// Package server 是 HTTP 进程的组合根，装配路由、生命周期、服务与内建 MCP。
 //
 // L2 | 父级: internal/app（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go / lifecycle.go / app_services.go / core_services.go：服务生命周期与依赖装配；accepted Review completion audit、Execution -> Goal durable confirmation、Goal 会话标题、Plan proposal 各有跨进程恢复器，parent-exit subagent Attempt 按最近 durable deadline 和变更事件唤醒，Assignment、review-return 与 cancellation outbox 由 Room dispatch 恢复器处理。
+//   - server.go / lifecycle.go / app_services.go / core_services.go：HTTP 进程生命周期与总依赖装配；跨进程恢复器和后台 worker 仍由组合根启动。
 //   - runtime_auth_transition.go / agent_deletion_coordinator.go：认证启用前阻断 admission、撤销 system owner runtime 的原子转场，与数据库提交点后立即撤销 Agent runtime 的跨域删除协调。
 //   - routes.go / routes_web.go / http_handlers.go / websocket.go：HTTP/Web 路由、HTTP handlerSet 装配、WS 入口与 orchestration ExecutionInvalidationSink 装配。
-//   - *_mcp.go / channel_authorization.go / connector_authorization.go / runtime_mcp_authority.go：authorization / communication / connector / visualize / imagegen / browser / room 内建 MCP server 按 Session 拓扑稳定装配；Channel/Connector 真人授权 builder 与共享可信身份判定在 *_authorization.go 与 runtime_mcp_authority.go。
-//   - configuration_runtime.go / runtime_command.go：nexuscfg loopback broker，以及 Goal/Execution/Automation 共用的 round-scoped `nexus.command`、命名工作图保存 operation、动态 SDK Session identity 与 typed mutation receipt；结构化业务输入经现有 SDK MCP 通道直达领域服务，不落临时 JSON，也不向 runtime 开放数据库。
-//   - execution_command_context.go / goal_command_context.go：DM/Room runtime 每次 command 原子读取 Goal/Execution/Work/Review identity 的权威装配边界；私有 Goal authority 不泄漏为 Execution authority。
-//   - execution_goal_promotion.go / explicit_goal_execution.go / execution_subagent_history.go：Execution 晋升 adaptive Goal、单域原子的 goal_only create_goal、fresh Plan 只读继承 canonical Goal objective、历史 reservation 恢复、Plan materialization 或 promotion 驱动的 pending/confirmed Goal/Execution 双向幂等 binding、Goal objective revision rebase saga 与受限 Subagent ToolRun 历史适配。
-//   - execution_cancellation.go：把 durable cancellation target 适配到 exact Room slot 或 runtime round，并保留 provider-interrupted、local-cancelled、already-ended 与 unsupported 的真实结果。
-//   - goal_command.go / goal_session_ownership.go / goal_interrupt.go / goal_resume.go / goal_guidance.go：host Goal command 的 DM/Room 路由、Goal create 的 owner-scoped Agent/Room session 证明、Room runtime 成员身份、中断、恢复与 DM/Room steering。
 //   - realtime_invalidation.go / configuration_notifier.go：Session、conversation 标题、定时任务、Agent 与 Room 配置变更到 websocket 实时投影的统一失效通知装配。
-//   - human_tool_approval.go：runtime permission 人工 allow 按工具域路由到 configuration 或 Connector durable approval recorder。
 //   - channel_external_session.go / dm_external_reply.go：外部通道会话与 DM 外部回复。
+//   - goal/：Goal 命令、会话所有权、续跑与 Goal/Execution 绑定。
+//   - execution/：Execution command context、精确取消与 Subagent 历史投影。
+//   - workgraph/：WorkGraph 隐藏编辑 Session 与隔离保存 round。
+//   - runtime/：round-scoped nexus MCP、配置 broker、Connector/Channel 授权与内建 runtime 工具装配。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package server

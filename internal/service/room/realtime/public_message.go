@@ -28,7 +28,7 @@ func (s *Service) HandlePublicMessage(
 	if err != nil {
 		return nil, err
 	}
-	return s.handlePublicMessage(ctx, contextValue, request, "nexus_room.publish_public_message")
+	return s.handlePublicMessage(ctx, contextValue, request, "nexus.send_message")
 }
 
 // HandlePlatformPublicMessage 处理平台通讯能力发起的群消息，不依赖 Room 私域开关。
@@ -42,7 +42,7 @@ func (s *Service) HandlePlatformPublicMessage(
 	if err != nil {
 		return nil, err
 	}
-	return s.handlePublicMessage(ctx, contextValue, request, "nexus_comms.send_message")
+	return s.handlePublicMessage(ctx, contextValue, request, "nexus.send_message")
 }
 
 func (s *Service) handlePublicMessage(

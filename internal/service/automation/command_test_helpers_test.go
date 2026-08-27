@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -27,7 +28,7 @@ type automationCommandFixture struct {
 	DM            *fakeDMRunner
 	Router        *channels.Router
 	Service       *Service
-	ServerContext runtimecommand.Actor
+	ServerContext command.Actor
 }
 
 type allowAutomationDeliveryGrant struct{}
@@ -81,7 +82,7 @@ func newAutomationCommandFixture(t *testing.T, resultText string) automationComm
 		DM:            dm,
 		Router:        router,
 		Service:       service,
-		ServerContext: runtimecommand.Actor{
+		ServerContext: command.Actor{
 			AgentID:            "agent-1",
 			AgentName:          "新闻智能体",
 			OwnerUserID:        "user-1",
@@ -94,8 +95,8 @@ func newAutomationCommandFixture(t *testing.T, resultText string) automationComm
 			RoundID:            "round-test",
 			LeaseSessionKey:    currentSessionKey,
 			LeaseRoundID:       "round-test",
-			Round: runtimecommand.RoundContext{
-				Receipts: runtimecommand.NewReceiptState(),
+			Round: nexusmcp.RoundContext{
+				CommandReceipts: nexusmcp.NewCommandReceiptState(),
 			},
 		},
 	}
@@ -131,7 +132,7 @@ func prepareAutomationDeliverySession(
 func callAutomationCommand(
 	t *testing.T,
 	service *Service,
-	sctx runtimecommand.Actor,
+	sctx command.Actor,
 	name string,
 	args map[string]any,
 ) (map[string]any, bool) {
@@ -148,8 +149,8 @@ func callAutomationCommand(
 	if strings.TrimSpace(sctx.SessionKey) == "" {
 		sctx.SessionKey = sctx.LeaseSessionKey
 	}
-	if sctx.Round.Receipts == nil {
-		sctx.Round.Receipts = runtimecommand.NewReceiptState()
+	if sctx.Round.CommandReceipts == nil {
+		sctx.Round.CommandReceipts = nexusmcp.NewCommandReceiptState()
 	}
 	name, args = automationCommandTestRoute(name, args)
 	if !sctx.CrossAgentAllowed() {

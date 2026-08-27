@@ -6,9 +6,10 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -176,7 +177,7 @@ func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalCommand(t *testing.T) {
 		slot.setGoalBinding(sharedSessionKey, "")
 		slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(false))
 
-		stageRoomAppliedGoalCommand(slot, runtimecommand.GoalOperationCreate, createdGoal.ID, "")
+		stageRoomAppliedGoalCommand(slot, command.GoalOperationCreate, createdGoal.ID, "")
 		service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "Bash", 4, 1))
 		service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
 			Usage: sdkprotocol.TokenUsage{
@@ -251,7 +252,7 @@ func TestRoomGoalCreateStartsUsageForEveryActiveSlot(t *testing.T) {
 		}),
 	}
 
-	stageRoomAppliedGoalCommand(creator, runtimecommand.GoalOperationCreate, createdGoal.ID, "")
+	stageRoomAppliedGoalCommand(creator, command.GoalOperationCreate, createdGoal.ID, "")
 	service.recordGoalUsageFromSlotAssistantMessage(
 		context.Background(),
 		creator,
@@ -338,7 +339,7 @@ func TestRoomGoalCreateBindsEverySlotToSharedGoalID(t *testing.T) {
 		}),
 	}
 
-	stageRoomAppliedGoalCommand(creator, runtimecommand.GoalOperationCreate, "goal-room-created", "")
+	stageRoomAppliedGoalCommand(creator, command.GoalOperationCreate, "goal-room-created", "")
 	service.recordGoalUsageFromSlotAssistantMessage(
 		context.Background(),
 		creator,
@@ -633,7 +634,7 @@ func TestRoomClaimsPreCreateSubagentUsageAndKeepsChildrenBoundAfterSlotTerminal(
 		unrelated,
 		taskMessage("task-unrelated", 70),
 	)
-	stageRoomAppliedGoalCommand(creator, runtimecommand.GoalOperationCreate, "goal-room-created", "")
+	stageRoomAppliedGoalCommand(creator, command.GoalOperationCreate, "goal-room-created", "")
 	service.recordGoalUsageFromSlotAssistantMessage(
 		context.Background(),
 		creator,
@@ -1691,13 +1692,13 @@ func roomGoalCompletionCommandMissAssistantMessage() protocol.Message {
 	}
 }
 
-func stageRoomRuntimeCommandReceipt(slot *activeRoomSlot, receipt runtimecommand.Receipt) {
+func stageRoomRuntimeCommandReceipt(slot *activeRoomSlot, receipt nexusmcp.CommandReceipt) {
 	slot.ensureCommandReceiptState().Record(receipt)
 }
 
 func stageRoomAppliedGoalCommand(slot *activeRoomSlot, operation string, goalID string, status protocol.GoalStatus) {
-	stageRoomRuntimeCommandReceipt(slot, runtimecommand.Receipt{
-		Domain: runtimecommand.DomainGoal, Operation: operation,
+	stageRoomRuntimeCommandReceipt(slot, nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: operation,
 		Outcome: string(protocol.MutationResultApplied), GoalID: goalID,
 		GoalStatus: string(status),
 	})

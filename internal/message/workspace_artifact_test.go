@@ -121,7 +121,7 @@ func TestProcessorAddsImagegenArtifactFromMCPResult(t *testing.T) {
 				Content: []sdkprotocol.ContentBlock{
 					sdkprotocol.ToolUseBlock{
 						ID:    "tool-imagegen-1",
-						Name:  "mcp__nexus_imagegen__generate_image",
+						Name:  "mcp__nexus__generate_image",
 						Input: json.RawMessage(`{"prompt":"fox","file_name":"fox"}`),
 					},
 				},
@@ -160,7 +160,7 @@ func TestProcessorAddsImagegenArtifactFromMCPResult(t *testing.T) {
 		t.Fatalf("imagegen MCP artifact 路径或类型不正确: %+v", artifact)
 	}
 	if artifact["source_tool_use_id"] != "tool-imagegen-1" ||
-		artifact["source_tool_name"] != "mcp__nexus_imagegen__generate_image" {
+		artifact["source_tool_name"] != "mcp__nexus__generate_image" {
 		t.Fatalf("imagegen MCP artifact 来源工具不正确: %+v", artifact)
 	}
 }

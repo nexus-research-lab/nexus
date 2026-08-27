@@ -269,10 +269,10 @@ unavailable_slash_names：%s`, languageRule, record.revision, record.selectedRev
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: prompt,
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "nexus", "mcp__nexus__command"},
+			AllowedTools: []string{"Skill", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
-				"nexus_visualize", "nexus_imagegen",
+				"mcp__nexus__show_widget", "mcp__nexus__generate_image", "mcp__nexus__edit_image",
 			},
 		},
 		AllowedSkillNames: []string{"execution-orchestrator"},

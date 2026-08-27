@@ -1,9 +1,9 @@
-// Package communication 提供 Agent 平台通讯录与消息发送的内建 MCP server。
+// Package communication 提供 nexus MCP 中统一的 DM 与 Room 通讯工具。
 //
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go：严格 Schema、JSON transport 与 list_address_book/send_message 工具。
+//   - server.go：宿主上下文路由、严格 Schema 与 list_targets/send_message 工具。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package communication

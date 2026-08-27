@@ -11,7 +11,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -33,7 +33,7 @@ var runtimeCurrentConversationQueryTerms = []string{
 	"current scheduled task",
 }
 
-func runtimeTaskContextFromActor(actor runtimecommand.Actor) (runtimeCurrentTaskContext, bool) {
+func runtimeTaskContextFromActor(actor command.Actor) (runtimeCurrentTaskContext, bool) {
 	sessionKey := strings.TrimSpace(actor.SessionKey)
 	if sessionKey == "" {
 		return runtimeCurrentTaskContext{}, false
@@ -61,7 +61,7 @@ func runtimeTaskContextFromActor(actor runtimecommand.Actor) (runtimeCurrentTask
 func runtimeBestMatchingTasks(
 	jobs []automationdomain.ScheduledTask,
 	query string,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 ) []automationdomain.ScheduledTask {
 	current, ok := runtimeTaskContextFromActor(actor)
 	if !ok {
@@ -83,7 +83,7 @@ func runtimeBestMatchingTasks(
 func runtimeFilterTasksForList(
 	jobs []automationdomain.ScheduledTask,
 	query string,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 ) []automationdomain.ScheduledTask {
 	current, ok := runtimeTaskContextFromActor(actor)
 	if !ok {
@@ -225,7 +225,7 @@ func runtimeEventDetailString(detail map[string]any, key string) string {
 
 func (s *Service) runtimeCurrentContextHistoryItems(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	agentID string,
 	query string,
 	includeActive bool,
@@ -318,7 +318,7 @@ func runtimeTaskEventMatchesQuery(event automationdomain.ScheduledTaskEvent, que
 
 func (s *Service) runtimeCurrentConversationReport(
 	ctx context.Context,
-	actor runtimecommand.Actor,
+	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 	agentID string,
 ) (*automationdomain.ScheduledTaskDailyReport, bool, error) {

@@ -375,3 +375,119 @@ func TestSetRoomGoalLeadRequiresFreshServerMembershipProof(t *testing.T) {
 		t.Fatalf("membership verification requests = %#v", verified.requests)
 	}
 }
+
+func TestCurrentModelMutationAuthorityUsesRoomLeadAndExactRevision(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.idFactory = sequentialID()
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey:  protocol.BuildRoomSharedSessionKey("owner-authority"),
+		Objective:   "finish the Room work",
+		CreatedBy:   "model",
+		OwnerUserID: "owner-1",
+		AgentID:     "agent-lead",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created.Metadata[protocol.GoalMetadataObjectiveRevision] = int64(3)
+	repo.goals[created.ID] = *created
+
+	granted, err := service.CurrentModelMutationAuthority(
+		context.Background(),
+		created.SessionKey,
+		"owner-1",
+		"agent-lead",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if granted.ID != created.ID || granted.ObjectiveRevision() != 3 {
+		t.Fatalf("granted Goal = %#v, want exact current revision", granted)
+	}
+	if _, err = service.CurrentModelMutationAuthority(
+		context.Background(),
+		created.SessionKey,
+		"owner-1",
+		"agent-peer",
+	); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("peer authority error = %v, want ErrGoalForbidden", err)
+	}
+	if _, err = service.CurrentModelMutationAuthority(
+		context.Background(),
+		created.SessionKey,
+		"owner-2",
+		"agent-lead",
+	); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("foreign owner authority error = %v, want ErrGoalForbidden", err)
+	}
+}
+
+func TestCurrentModelMutationAuthorityUsesDMAgentIdentity(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.idFactory = sequentialID()
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey:  protocol.BuildAgentSessionKey("agent-owner", protocol.SessionChannelWebSocketSegment, "dm", "chat-1", ""),
+		Objective:   "finish the DM work",
+		CreatedBy:   "model",
+		OwnerUserID: "owner-1",
+		AgentID:     "agent-owner",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CurrentModelMutationAuthority(
+		context.Background(),
+		created.SessionKey,
+		"owner-1",
+		"agent-owner",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CurrentModelMutationAuthority(
+		context.Background(),
+		created.SessionKey,
+		"owner-1",
+		"agent-other",
+	); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("other DM Agent error = %v, want ErrGoalForbidden", err)
+	}
+}
+
+func TestServiceGoalByIDForOwnerRequiresExactDurableProvenance(t *testing.T) {
+	repo := newMemoryRepository()
+	repo.goals["goal-owned"] = protocol.Goal{
+		ID:         "goal-owned",
+		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-source"),
+		Objective:  "coordinate across topics",
+		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID: "owner-exact",
+		},
+	}
+	repo.goals["goal-ownerless"] = protocol.Goal{
+		ID:         "goal-ownerless",
+		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-legacy"),
+		Objective:  "legacy goal without durable owner",
+		Status:     protocol.GoalStatusActive,
+	}
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+
+	item, err := service.GoalByIDForOwner(context.Background(), "goal-owned", "owner-exact")
+	if err != nil || item == nil || item.ID != "goal-owned" {
+		t.Fatalf("exact owner read = %+v, %v", item, err)
+	}
+	for name, goalID := range map[string]string{
+		"foreign owner":    "goal-owned",
+		"ownerless legacy": "goal-ownerless",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if item, err := service.GoalByIDForOwner(
+				context.Background(), goalID, "owner-foreign",
+			); item != nil || !errors.Is(err, ErrGoalForbidden) {
+				t.Fatalf("GoalByIDForOwner() = %+v, %v; want forbidden", item, err)
+			}
+		})
+	}
+}

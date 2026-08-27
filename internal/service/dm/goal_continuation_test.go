@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"errors"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -531,10 +531,10 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 		},
 	}
 	service.SetGoalContextProvider(goalProvider)
-	roundContext := make(chan runtimecommand.RoundContext, 1)
-	service.SetRuntimeCommandMCPServerBuilder(func(
+	roundContext := make(chan nexusmcp.RoundContext, 1)
+	service.SetNexusMCPServerBuilder(func(
 		ctx context.Context,
-		round runtimecommand.RoundContext,
+		round nexusmcp.RoundContext,
 	) (map[string]sdkmcp.ServerConfig, error) {
 		goalProvider.mu.Lock()
 		claimCalls := goalProvider.claimCalls
@@ -552,7 +552,7 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	if err := service.DispatchGoalContinuation(context.Background(), plan); err != nil {
 		t.Fatal(err)
 	}
-	var commandRound runtimecommand.RoundContext
+	var commandRound nexusmcp.RoundContext
 	select {
 	case commandRound = <-roundContext:
 	case <-time.After(2 * time.Second):
