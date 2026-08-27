@@ -1,8 +1,9 @@
 "use client";
 
 import { Brain, ChevronRight } from "lucide-react";
+import type { RefObject } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { cn } from "@/shared/ui/class-name";
 
 import { MarkdownRenderer } from "../markdown-renderer";
@@ -45,20 +46,21 @@ export function ThinkingBlock({
   workspaceAgentId,
 }: ThinkingBlockProps) {
   // 流式边界是展开状态的重置域；同一阶段内仍允许用户手动切换。
-  const [isExpanded, setIsExpanded] = useResettableState(
+  const expansion = useScrollAnchoredState(
     isStreaming,
     isStreaming,
   );
+  const isExpanded = expansion.isOpen;
   const presentation = resolveThinkingPresentation(isStreaming);
   if (!thinking) {
     return null;
   }
 
   return (
-    <MessageRail>
+    <MessageRail ref={expansion.anchorRef as RefObject<HTMLDivElement>}>
       <button
         className="flex w-full items-center gap-2 text-left"
-        onClick={() => setIsExpanded((previous) => !previous)}
+        onClick={expansion.toggle}
         type="button"
       >
         <MessageRailLabel active={isStreaming} className="flex-1">
