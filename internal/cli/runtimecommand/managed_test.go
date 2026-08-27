@@ -34,25 +34,3 @@ func TestBindManagedSemanticSkillsCannotBeRemovedOrDisabled(t *testing.T) {
 		t.Fatalf("disabled skills = %#v", disabled)
 	}
 }
-
-func TestBindComputerUseSkillFollowsExplicitOwnerPreference(t *testing.T) {
-	selected, disabled := BindComputerUseSkill(
-		[]string{"private-skill", "COMPUTER-USE"},
-		[]string{"computer-use", "workspace-off"},
-		true,
-	)
-	if !slices.Equal(selected, []string{"private-skill", ComputerUseSkillName}) {
-		t.Fatalf("enabled selected = %#v", selected)
-	}
-	if !slices.Equal(disabled, []string{"workspace-off"}) {
-		t.Fatalf("enabled disabled = %#v", disabled)
-	}
-
-	selected, disabled = BindComputerUseSkill(selected, disabled, false)
-	if !slices.Equal(selected, []string{"private-skill"}) {
-		t.Fatalf("disabled selected = %#v", selected)
-	}
-	if !slices.Equal(disabled, []string{"workspace-off", ComputerUseSkillName}) {
-		t.Fatalf("disabled disabled = %#v", disabled)
-	}
-}

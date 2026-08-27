@@ -83,7 +83,6 @@ export interface UserPreferences {
   agent_sdk_diagnostics_enabled?: boolean;
   emotion_enabled?: boolean;
   browser_cdp_enabled?: boolean;
-  computer_use_enabled?: boolean;
   runtime_settings?: RuntimeSettings;
   web_search?: WebSearchSettings;
   web_search_api_key?: string;
@@ -100,7 +99,6 @@ export interface UpdateUserPreferencesParams {
   agent_sdk_diagnostics_enabled?: boolean;
   emotion_enabled?: boolean;
   browser_cdp_enabled?: boolean;
-  computer_use_enabled?: boolean;
   runtime_settings?: RuntimeSettings;
   web_search?: WebSearchSettings;
   web_search_api_key?: string;

@@ -171,12 +171,6 @@ func (s *Service) ensureClient(
 		if err != nil {
 			return dmClientPreparation{}, err
 		}
-		runtimeSkillNames, runtimeDisabledSkillNames = s.bindComputerUseSkill(
-			ctx,
-			agentValue.OwnerUserID,
-			runtimeSkillNames,
-			runtimeDisabledSkillNames,
-		)
 		if scopedPolicyActive && len(scopedPolicy.AllowedSkillNames) > 0 {
 			allowedSkillNames := make(map[string]struct{}, len(scopedPolicy.AllowedSkillNames))
 			for _, skillName := range scopedPolicy.AllowedSkillNames {

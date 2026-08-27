@@ -173,9 +173,6 @@ func (s *Service) updateLocked(
 	if request.BrowserCDPEnabled != nil {
 		current.BrowserCDPEnabled = *request.BrowserCDPEnabled
 	}
-	if request.ComputerUseEnabled != nil {
-		current.ComputerUseEnabled = *request.ComputerUseEnabled
-	}
 	if request.echoEnabled != nil {
 		current.EchoEnabled = *request.echoEnabled
 	}

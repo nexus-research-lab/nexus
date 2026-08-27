@@ -22,7 +22,6 @@ type Preferences struct {
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	EmotionEnabled                  bool                        `json:"emotion_enabled,omitempty"`
 	BrowserCDPEnabled               bool                        `json:"browser_cdp_enabled,omitempty"`
-	ComputerUseEnabled              bool                        `json:"computer_use_enabled,omitempty"`
 	EchoEnabled                     bool                        `json:"echo_enabled,omitempty"`
 	RuntimeSettings                 RuntimeSettings             `json:"runtime_settings"`
 	WebSearch                       WebSearchSettings           `json:"web_search"`
@@ -40,7 +39,6 @@ type UpdateRequest struct {
 	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	EmotionEnabled                  *bool                        `json:"emotion_enabled,omitempty"`
 	BrowserCDPEnabled               *bool                        `json:"browser_cdp_enabled,omitempty"`
-	ComputerUseEnabled              *bool                        `json:"computer_use_enabled,omitempty"`
 	RuntimeSettings                 *RuntimeSettings             `json:"runtime_settings,omitempty"`
 	WebSearch                       *WebSearchSettings           `json:"web_search,omitempty"`
 	WebSearchAPIKey                 *string                      `json:"web_search_api_key,omitempty"`
@@ -212,7 +210,6 @@ func normalizePreferences(item Preferences) Preferences {
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
 		EmotionEnabled:                  item.EmotionEnabled,
 		BrowserCDPEnabled:               item.BrowserCDPEnabled,
-		ComputerUseEnabled:              item.ComputerUseEnabled,
 		EchoEnabled:                     item.EchoEnabled,
 		RuntimeSettings:                 normalizeRuntimeSettings(item.RuntimeSettings),
 		WebSearch:                       webSearch,
