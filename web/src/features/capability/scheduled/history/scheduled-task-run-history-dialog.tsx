@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
@@ -59,6 +60,13 @@ export function ScheduledTaskRunHistoryDialog({
     refresh: resource.refresh,
     task: activeTask,
   });
+  const accessBlocked = Boolean(resource.failure?.access);
+  const cancelRecovery = actions.cancelRecovery;
+  useEffect(() => {
+    if (accessBlocked) {
+      cancelRecovery();
+    }
+  }, [accessBlocked, cancelRecovery]);
 
   if (!activeTask) {
     return null;
@@ -109,10 +117,12 @@ export function ScheduledTaskRunHistoryDialog({
               ) : null}
               <ScheduledTaskRunHistoryContent
                 copiedRunId={actions.copiedRunId}
-                errorMessage={resource.errorMessage}
+                failure={resource.failure}
+                hasSnapshot={resource.hasSnapshot}
                 isLoading={resource.isLoading}
                 onCopyDiagnostic={actions.copyDiagnostic}
                 onRecover={actions.recover}
+                onRefresh={() => void resource.refresh().catch(() => undefined)}
                 onRetry={actions.retry}
                 onRetryDelivery={actions.retryDelivery}
                 pendingRecoveries={actions.pending.get("recover") ?? EMPTY_PENDING_RUN_IDS}
@@ -127,10 +137,16 @@ export function ScheduledTaskRunHistoryDialog({
       </UiDialogPortal>
       <ConfirmDialog
         confirmText="释放占用"
-        isOpen={actions.recoveryTarget !== null}
+        isOpen={!accessBlocked && actions.recoveryTarget !== null}
         message="这次运行会标记为已取消，任务随后可以重新运行。"
-        onCancel={actions.cancelRecovery}
-        onConfirm={() => void actions.confirmRecovery()}
+        onCancel={cancelRecovery}
+        onConfirm={() => {
+          if (accessBlocked) {
+            cancelRecovery();
+            return;
+          }
+          void actions.confirmRecovery();
+        }}
         title="释放运行占用"
         variant="danger"
       />

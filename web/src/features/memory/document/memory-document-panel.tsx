@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
@@ -61,6 +62,29 @@ export function MemoryDocumentPanel({
 
   if (!document) {
     return <MemoryDocumentEmpty />;
+  }
+  if (controller.resourceError?.access) {
+    return (
+      <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
+        <UiResourceState
+          description={controller.resourceError.message}
+          impact={t("state.access_failure_impact")}
+          nextStep={t("state.permission_next_step")}
+          primaryAction={{
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("state.retry"),
+            onClick: () => void controller.reload(),
+          }}
+          secondaryAction={{
+            label: t("common.back"),
+            onClick: onBack,
+          }}
+          size="sm"
+          state="error"
+          title={t("state.permission_title")}
+        />
+      </div>
+    );
   }
   return (
     <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
@@ -131,7 +155,12 @@ function MemoryDocumentAlerts({
   const staleDays = memoryAgeDays(document.modified_at);
   const stale = staleDays > MEMORY_STALE_AFTER_DAYS;
   const commandError = controller.commandError || externalError;
-  if (!stale && !commandError) {
+  const resourceFailure = controller.resourceError;
+  if (
+    !stale
+    && !commandError
+    && !(resourceFailure && !resourceFailure.access && controller.content)
+  ) {
     return null;
   }
   return (
@@ -145,6 +174,23 @@ function MemoryDocumentAlerts({
         <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--destructive)">
           {commandError}
         </div>
+      ) : null}
+      {resourceFailure && !resourceFailure.access && controller.content ? (
+        <UiResourceState
+          className="min-h-0 py-3"
+          description={resourceFailure.message}
+          impact={t("capability.memory_stale_document_impact")}
+          nextStep={t("state.retry_next_step")}
+          primaryAction={{
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("state.retry"),
+            onClick: () => void controller.reload(),
+          }}
+          role="status"
+          size="sm"
+          state="error"
+          title={t("capability.memory_document_refresh_failed")}
+        />
       ) : null}
     </div>
   );
@@ -168,18 +214,26 @@ function MemoryDocumentBody({
       : [],
     [controller.content, document.kind],
   );
-  if (controller.isLoading) {
+  if (controller.isLoading && !controller.content) {
     return (
       <div className="flex min-h-[260px] items-center justify-center text-(--text-muted)">
         <LoaderCircle className="h-5 w-5 animate-spin" />
       </div>
     );
   }
-  if (controller.resourceError) {
+  if (controller.resourceError && !controller.content) {
     return (
-      <UiStateBlock
-        description={controller.resourceError}
+      <UiResourceState
+        description={controller.resourceError.message}
+        impact={t("state.read_failure_impact")}
+        nextStep={t("state.retry_next_step")}
+        primaryAction={{
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("state.retry"),
+          onClick: () => void controller.reload(),
+        }}
         size="sm"
+        state="error"
         title={t("capability.memory_load_failed")}
       />
     );

@@ -570,6 +570,7 @@ export const zhConversationMessages = {
   "composer.loop_picker_failed": "加载 loops 失败",
   "composer.use_loop": "启动",
   "composer.loop_starting": "启动中...",
+  "composer.loop_start_failed_next_step": "暂时无法确认启动结果；请先查看当前对话状态，再决定是否重试。",
   "composer.open_workgraph_distillations": "工作图",
   "composer.workgraph_picker_title": "工作图",
   "composer.workgraph_search_placeholder": "搜索工作图...",

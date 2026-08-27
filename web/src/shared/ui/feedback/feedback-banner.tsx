@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiButton } from "@/shared/ui/button/button";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
   type FeedbackBannerTone,
@@ -9,30 +11,40 @@ import {
 } from "./feedback-banner-model";
 
 export interface FeedbackBannerProps {
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  impact?: string;
   message: string;
+  nextStep?: string;
   onDismiss?: () => void;
   title: string;
   tone: FeedbackBannerTone;
 }
 
 export function FeedbackBanner({
+  action,
+  impact,
   message,
+  nextStep,
   onDismiss,
   title,
   tone,
 }: FeedbackBannerProps) {
+  const { t } = useI18n();
   const presentation = projectFeedbackBanner(tone, message);
   const Icon = presentation.icon;
 
   useEffect(() => {
-    if (!onDismiss) {
+    if (!onDismiss || action) {
       return;
     }
     const timer = window.setTimeout(onDismiss, presentation.autoDismissMs);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [message, onDismiss, presentation.autoDismissMs, title]);
+  }, [action, message, onDismiss, presentation.autoDismissMs, title]);
 
   return (
     <div
@@ -40,6 +52,7 @@ export function FeedbackBanner({
         "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-(--surface-popover-shadow)",
         presentation.shellClassName,
       )}
+      role={tone === "error" ? "alert" : "status"}
     >
       <div
         className={cn(
@@ -72,6 +85,30 @@ export function FeedbackBanner({
             {message}
           </p>
         )}
+        {impact ? (
+          <p className="mt-1.5 text-2xs leading-4 text-(--text-muted)">
+            <span className="font-semibold text-(--text-default)">{t("state.existing_data")}：</span>
+            {impact}
+          </p>
+        ) : null}
+        {nextStep ? (
+          <p className="mt-0.5 text-2xs leading-4 text-(--text-muted)">
+            <span className="font-semibold text-(--text-default)">{t("state.next_step")}：</span>
+            {nextStep}
+          </p>
+        ) : null}
+        {action ? (
+          <UiButton
+            className="mt-2"
+            onClick={action.onClick}
+            size="xs"
+            tone={tone === "error" ? "danger" : "primary"}
+            variant="text"
+          >
+            {action.label}
+            <ArrowRight className="h-3 w-3" />
+          </UiButton>
+        ) : null}
       </div>
       {onDismiss ? (
         <button

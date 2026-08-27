@@ -481,7 +481,7 @@ func (s *Service) ApplyMetadataEditor(
 		return nil, ErrNotFound
 	}
 	if record.revision != request.Revision {
-		return nil, fmt.Errorf("%w: editor revision changed", ErrInvalidInput)
+		return nil, fmt.Errorf("%w: editor revision changed", ErrRevisionConflict)
 	}
 	previewKey := previewCacheKey(ownerUserID, record.previewID)
 	previewRecord, ok := s.previews[previewKey]

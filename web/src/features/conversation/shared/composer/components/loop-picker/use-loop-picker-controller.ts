@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
+import {
+  getErrorMessage,
+  getResourceFailure,
+  type ResourceFailure,
+} from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
@@ -11,16 +16,22 @@ import {
 } from "./loop-picker-model";
 
 interface LoopPickerResource {
-  error: string | null;
+  error: ResourceFailure | null;
+  hasSnapshot: boolean;
   isLoading: boolean;
   loops: LoopCatalogItem[];
+  scopeKey: string;
 }
 
-const INITIAL_RESOURCE: LoopPickerResource = {
-  error: null,
-  isLoading: true,
-  loops: [],
-};
+function createLoopPickerResource(scopeKey: string): LoopPickerResource {
+  return {
+    error: null,
+    hasSnapshot: false,
+    isLoading: true,
+    loops: [],
+    scopeKey,
+  };
+}
 
 export function useLoopPickerController({
   onClose,
@@ -30,10 +41,12 @@ export function useLoopPickerController({
   onSelect: (loop: LoopCatalogItem) => void | Promise<void>;
 }) {
   const { locale, t } = useI18n();
-  const [resource, setResource] = useState(INITIAL_RESOURCE);
+  const [resource, setResource] = useState(() => createLoopPickerResource(locale));
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(ALL_LOOP_CATEGORIES);
   const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,28 +55,42 @@ export function useLoopPickerController({
 
   useEffect(() => {
     let active = true;
-    setResource(INITIAL_RESOURCE);
+    setResource((current) => current.scopeKey === locale
+      ? {
+          ...current,
+          error: current.error?.access ? current.error : null,
+          isLoading: true,
+        }
+      : createLoopPickerResource(locale));
     void listLoopsApi(locale)
       .then((loops) => {
         if (!active) {
           return;
         }
-        setResource({ error: null, isLoading: false, loops });
+        setResource({
+          error: null,
+          hasSnapshot: true,
+          isLoading: false,
+          loops,
+          scopeKey: locale,
+        });
       })
       .catch((error: unknown) => {
         if (!active) {
           return;
         }
-        setResource({
-          error: getLoopPickerError(error, t("composer.loop_picker_failed")),
-          isLoading: false,
-          loops: [],
-        });
+        setResource((current) => current.scopeKey === locale
+          ? {
+              ...current,
+              error: getResourceFailure(error, t("composer.loop_picker_failed")),
+              isLoading: false,
+            }
+          : current);
       });
     return () => {
       active = false;
     };
-  }, [locale, t]);
+  }, [loadRevision, locale, t]);
 
   const categoryOptions = useMemo(
     () => buildLoopCategoryOptions(
@@ -82,38 +109,40 @@ export function useLoopPickerController({
       return;
     }
     setBusySlug(loop.slug);
-    setResource((current) => ({ ...current, error: null }));
+    setActionError(null);
     try {
       await onSelect(loop);
       onClose();
     } catch (error) {
-      setResource((current) => ({
-        ...current,
-        error: getLoopPickerError(
-          error,
-          t("composer.loop_picker_failed"),
-        ),
-      }));
+      setActionError(getErrorMessage(error, t("composer.loop_picker_failed")));
     } finally {
       setBusySlug(null);
     }
   }, [busySlug, onClose, onSelect, t]);
 
   return {
-    actions: { selectLoop, setCategory, setQuery },
+    actions: {
+      clearFilters: () => {
+        setCategory(ALL_LOOP_CATEGORIES);
+        setQuery("");
+      },
+      retryLoad: () => setLoadRevision((current) => current + 1),
+      selectLoop,
+      setCategory,
+      setQuery,
+    },
     refs: { searchInputRef },
     state: {
       busySlug,
       category,
       categoryOptions,
+      actionError,
       error: resource.error,
       filteredLoops,
+      hasCatalogItems: resource.loops.length > 0,
+      hasSnapshot: resource.hasSnapshot && resource.scopeKey === locale,
       isLoading: resource.isLoading,
       query,
     },
   };
-}
-
-function getLoopPickerError(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }

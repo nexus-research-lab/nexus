@@ -1,5 +1,7 @@
 /** 统一 HTTP 编排边界，只负责 fetch 生命周期和鉴权恢复决策。 */
 
+import type { FailureCore } from "@/types/generated/protocol";
+
 import {
   applyDesktopRequestHeaders,
   recoverDesktopSessionTokenError,
@@ -13,6 +15,7 @@ import {
 } from "./http-request";
 import {
   buildApiErrorMessage,
+  getApiFailure,
   getApiResponseData,
   parseApiResponseBody,
   type ParsedApiResponse,
@@ -51,32 +54,36 @@ export async function requestApi<T>(
 
   if (!response.ok) {
     const message = buildApiErrorMessage(response, payload);
+    const failure = getApiFailure(payload);
     if (response.status === 401) {
       rejectUnauthorized({
+        failure,
         input,
         message,
         notifyOn401: request.notifyOn401,
       });
     }
-    throw new ApiRequestError(message, response.status);
+    throw new ApiRequestError(message, response.status, failure);
   }
   return getApiResponseData(payload);
 }
 
 function rejectUnauthorized({
+  failure,
   input,
   message,
   notifyOn401,
 }: {
+  failure: FailureCore | null;
   input: string;
   message: string;
   notifyOn401: boolean | undefined;
 }): never {
   if (recoverDesktopSessionTokenError(message, input)) {
-    throw new UnauthorizedError(message);
+    throw new UnauthorizedError(message, failure);
   }
   if (notifyOn401 !== false) {
     notifyAuthRequired();
   }
-  throw new UnauthorizedError(message);
+  throw new UnauthorizedError(message, failure);
 }

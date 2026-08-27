@@ -573,6 +573,7 @@ export const enConversationMessages = {
   "composer.loop_picker_failed": "Failed to load loops",
   "composer.use_loop": "Start",
   "composer.loop_starting": "Starting...",
+  "composer.loop_start_failed_next_step": "The start result cannot be confirmed yet. Check the current conversation before deciding whether to retry.",
   "composer.open_workgraph_distillations": "WorkGraphs",
   "composer.workgraph_picker_title": "WorkGraphs",
   "composer.workgraph_search_placeholder": "Search WorkGraphs...",

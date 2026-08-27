@@ -6,7 +6,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Repeat2 } from "lucide-react";
+import { Check, Copy, Repeat2, RotateCcw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -19,10 +19,11 @@ import {
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
+import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -56,22 +57,26 @@ export function LoopsDirectory() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(ALL_CATEGORIES);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ResourceFailure | null>(null);
+  const [loadedLocale, setLoadedLocale] = useState<string | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    setError((current) => current?.access ? current : null);
     listLoopsApi(locale)
       .then((items) => {
         if (!cancelled) {
           setLoops(items);
+          setLoadedLocale(locale);
+          setError(null);
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : t("capability.loops_loading_failed"));
+          setError(getResourceFailure(err, t("capability.loops_loading_failed")));
         }
       })
       .finally(() => {
@@ -82,7 +87,13 @@ export function LoopsDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [locale, t]);
+  }, [loadRevision, locale, t]);
+
+  const retryLoad = () => setLoadRevision((current) => current + 1);
+  const clearFilters = () => {
+    setQuery("");
+    setCategory(ALL_CATEGORIES);
+  };
 
   const categoryOptions = useMemo(() => {
     const categories = Array.from(new Set(loops.map((loop) => loop.category))).sort();
@@ -99,6 +110,7 @@ export function LoopsDirectory() {
       matchesLoop(loop, normalizedQuery),
     );
   }, [category, loops, query]);
+  const hasSnapshot = loadedLocale === locale;
 
   const copyPrompt = async (loop: LoopCatalogItem) => {
     await writeTextToClipboard(loop.kickoff_prompt);
@@ -136,71 +148,128 @@ export function LoopsDirectory() {
             />
           </CapabilityFilterBar>
 
-          {loading ? (
-            <div className="py-10 text-sm text-(--text-muted)">
-              {t("capability.loops_loading")}
-            </div>
-          ) : error ? (
-            <div className="py-10 text-sm text-(--destructive)">{error}</div>
-          ) : filteredLoops.length === 0 ? (
-            <UiStateBlock
+          {loading && !hasSnapshot ? (
+            <UiResourceState
               className="min-h-48"
-              description={t("capability.loops_empty_description")}
-              icon={<Repeat2 className="h-5 w-5 text-(--icon-default)" />}
               size="sm"
-              title={t("capability.loops_empty")}
+              state="loading"
+              title={t("capability.loops_loading")}
+            />
+          ) : error && (error.access || !hasSnapshot) ? (
+            <UiResourceState
+              className="min-h-48"
+              description={error.message}
+              impact={t(error.access
+                ? "state.access_failure_impact"
+                : "state.read_failure_impact")}
+              nextStep={t(error.access
+                ? "state.permission_next_step"
+                : "state.retry_next_step")}
+              primaryAction={{
+                icon: <RotateCcw className="h-3.5 w-3.5" />,
+                label: t("state.retry"),
+                onClick: retryLoad,
+              }}
+              size="sm"
+              state="error"
+              title={t(error.access
+                ? "state.permission_title"
+                : "capability.loops_loading_failed")}
             />
           ) : (
-            <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
-              {filteredLoops.map((loop) => (
-                <UiListRow
-                  className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
-                  key={loop.slug}
-                  onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
-                  leading={(
-                    <UiSeededAvatar seed={loop.slug} size="sm" />
-                  )}
-                  right={(
-                    <UiIconButton
-                      aria-label={t("capability.loops_copy_prompt")}
-                      className="shrink-0"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void copyPrompt(loop);
-                      }}
-                      size="md"
-                      variant="ghost"
-                    >
-                      {copiedSlug === loop.slug
-                        ? <Check className="h-4 w-4" />
-                        : <Copy className="h-4 w-4" />}
-                    </UiIconButton>
-                  )}
+            <>
+              {error ? (
+                <UiResourceState
+                  className="mb-3 min-h-0 py-3"
+                  description={error.message}
+                  impact={t("state.stale_snapshot_impact")}
+                  nextStep={t("state.retry_next_step")}
+                  primaryAction={{
+                    icon: <RotateCcw className="h-3.5 w-3.5" />,
+                    label: t("state.retry"),
+                    onClick: retryLoad,
+                  }}
+                  role="status"
+                  size="sm"
+                  state="error"
+                  title={t("capability.loops_loading_failed")}
+                />
+              ) : null}
+              {filteredLoops.length === 0 ? (
+                <UiResourceState
+                  className="min-h-48"
+                  description={t("capability.loops_empty_description")}
+                  icon={<Repeat2 className="h-5 w-5 text-(--icon-default)" />}
+                  impact={loops.length > 0 ? t("state.filter_impact") : undefined}
+                  nextStep={loops.length > 0
+                    ? t("state.clear_filters_next_step")
+                    : t("state.retry_next_step")}
+                  primaryAction={loops.length > 0 ? {
+                    label: t("state.clear_filters"),
+                    onClick: clearFilters,
+                  } : {
+                    icon: <RotateCcw className="h-3.5 w-3.5" />,
+                    label: t("state.retry"),
+                    onClick: retryLoad,
+                  }}
+                  size="sm"
+                  state="empty"
+                  title={t("capability.loops_empty")}
+                />
+              ) : (
+                <div
+                  aria-busy={loading}
+                  className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}
                 >
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-base font-medium text-(--text-strong)">
-                      {loop.title}
-                    </h3>
-                    <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
-                      {loop.description}
-                    </p>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
-                      <span className="truncate">{loop.category}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="shrink-0">
-                        {getLoopTriggerLabel(loop.trigger_type, t)}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="shrink-0">
-                        {t("capability.loops_step_count", {
-                          count: loop.steps.length,
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </UiListRow>
-              ))}
-            </div>
+                  {filteredLoops.map((loop) => (
+                    <UiListRow
+                      className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
+                      key={loop.slug}
+                      onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
+                      leading={<UiSeededAvatar seed={loop.slug} size="sm" />}
+                      right={(
+                        <UiIconButton
+                          aria-label={t("capability.loops_copy_prompt")}
+                          className="shrink-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void copyPrompt(loop);
+                          }}
+                          size="md"
+                          variant="ghost"
+                        >
+                          {copiedSlug === loop.slug
+                            ? <Check className="h-4 w-4" />
+                            : <Copy className="h-4 w-4" />}
+                        </UiIconButton>
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-base font-medium text-(--text-strong)">
+                          {loop.title}
+                        </h3>
+                        <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+                          {loop.description}
+                        </p>
+                        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
+                          <span className="truncate">{loop.category}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="shrink-0">
+                            {getLoopTriggerLabel(loop.trigger_type, t)}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="shrink-0">
+                            {t("capability.loops_step_count", {
+                              count: loop.steps.length,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </UiListRow>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </CapabilityPageLayout>
       )}

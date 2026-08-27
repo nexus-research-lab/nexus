@@ -4,18 +4,20 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { listScheduledTaskRunsApi } from "@/lib/api/capability/scheduled-task-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 
 interface RunHistoryResourceState {
-  errorMessage: string | null;
+  failure: ResourceFailure | null;
+  hasSnapshot: boolean;
   isLoading: boolean;
   runs: ScheduledTaskRunItem[];
 }
 
 export function useScheduledTaskRunHistoryResource(taskJobId: string | null) {
   const [state, setState] = useResettableState<RunHistoryResourceState>({
-    errorMessage: null,
+    failure: null,
+    hasSnapshot: false,
     isLoading: taskJobId !== null,
     runs: [],
   }, taskJobId ?? "closed");
@@ -30,7 +32,7 @@ export function useScheduledTaskRunHistoryResource(taskJobId: string | null) {
     activeRequestRef.current = request;
     setState((current) => ({
       ...current,
-      errorMessage: null,
+      failure: current.failure?.access ? current.failure : null,
       isLoading: true,
     }));
     try {
@@ -39,7 +41,12 @@ export function useScheduledTaskRunHistoryResource(taskJobId: string | null) {
         activeTaskJobIdRef.current === taskJobId
         && activeRequestRef.current === request
       ) {
-        setState((current) => ({ ...current, runs }));
+        setState((current) => ({
+          ...current,
+          failure: null,
+          hasSnapshot: true,
+          runs,
+        }));
       }
     } catch (error) {
       if (
@@ -48,8 +55,7 @@ export function useScheduledTaskRunHistoryResource(taskJobId: string | null) {
       ) {
         setState((current) => ({
           ...current,
-          errorMessage: getErrorMessage(error, "加载运行历史失败"),
-          runs: [],
+          failure: getResourceFailure(error, "加载运行历史失败"),
         }));
       }
       throw error;

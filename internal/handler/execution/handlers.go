@@ -315,7 +315,12 @@ func (h *Handlers) HandleGetWorkGraphWorkflowEditor(writer http.ResponseWriter, 
 func (h *Handlers) HandleApplyWorkGraphWorkflowEditor(writer http.ResponseWriter, request *http.Request) {
 	editor, ok := h.workflows.(workflowMetadataEditor)
 	if !ok || editor == nil {
-		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图编辑服务不可用")
+		h.api.WriteError(writer, request, http.StatusServiceUnavailable, handlershared.FailureSpec{
+			Code:     "workgraph.editor_unavailable",
+			Category: protocol.FailureCategoryUnavailable,
+			Effect:   protocol.FailureEffectNotApplied,
+			Detail:   "工作图编辑服务不可用",
+		})
 		return
 	}
 	var payload protocol.ApplyWorkGraphWorkflowEditorRequest
@@ -325,7 +330,7 @@ func (h *Handlers) HandleApplyWorkGraphWorkflowEditor(writer http.ResponseWriter
 	payload.EditorID = strings.TrimSpace(chi.URLParam(request, "editor_id"))
 	preview, err := editor.ApplyMetadataEditor(authsvc.OwnerUserID(request.Context()), payload)
 	if err != nil {
-		h.writeWorkflowEditorError(writer, err)
+		h.writeApplyWorkflowEditorError(writer, request, err)
 		return
 	}
 	h.api.WriteSuccess(writer, preview)
@@ -366,6 +371,52 @@ func (h *Handlers) writeWorkflowEditorError(writer http.ResponseWriter, err erro
 	default:
 		h.api.WriteFailure(writer, http.StatusInternalServerError, "工作图编辑失败")
 	}
+}
+
+// writeApplyWorkflowEditorError 只映射 ApplyMetadataEditor 已证明的写入边界。
+// 未分类错误可能发生在未知窗口，不能声称本次请求未应用。
+func (h *Handlers) writeApplyWorkflowEditorError(
+	writer http.ResponseWriter,
+	request *http.Request,
+	err error,
+) {
+	spec := handlershared.FailureSpec{Cause: err}
+	status := http.StatusInternalServerError
+	switch {
+	case errors.Is(err, workgraphworkflowsvc.ErrRevisionConflict):
+		// 保留既有 422 transport 合同；FailureCore 提供精确 conflict 语义。
+		status = http.StatusUnprocessableEntity
+		spec.Code = "workgraph.revision_conflict"
+		spec.Category = protocol.FailureCategoryConflict
+		spec.Effect = protocol.FailureEffectNotApplied
+		spec.Detail = "工作图编辑请求无效或版本已变化"
+		spec.Resolution = &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "workgraph.refresh_editor",
+		}
+	case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
+		status = http.StatusNotFound
+		spec.Code = "workgraph.editor_not_found"
+		spec.Category = protocol.FailureCategoryNotFound
+		spec.Effect = protocol.FailureEffectNotApplied
+		spec.Detail = "工作图编辑会话不存在或已过期"
+		spec.Resolution = &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "workgraph.reopen_editor",
+		}
+	case errors.Is(err, workgraphworkflowsvc.ErrInvalidInput):
+		status = http.StatusUnprocessableEntity
+		spec.Code = "workgraph.editor_invalid_request"
+		spec.Category = protocol.FailureCategoryValidation
+		spec.Effect = protocol.FailureEffectNotApplied
+		spec.Detail = "工作图编辑请求无效或版本已变化"
+	default:
+		spec.Code = "workgraph.editor_apply_failed"
+		spec.Category = protocol.FailureCategoryInternal
+		spec.Effect = protocol.FailureEffectUnknown
+		spec.Detail = "工作图编辑失败"
+	}
+	h.api.WriteError(writer, request, status, spec)
 }
 
 // HandleDeleteWorkGraphWorkflow 删除命名工作图及其 Slash command。
