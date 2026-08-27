@@ -49,6 +49,7 @@ export interface LauncherConversationSummary {
   room_type: "dm" | "room";
   channel_type?: string;
   title: string;
+  last_reply_preview?: string;
   last_activity: string;
   message_count?: number;
 }

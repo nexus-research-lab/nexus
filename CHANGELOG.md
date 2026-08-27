@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Tightened two-line sidebar list typography to stay within the 40px avatar boundary and restored latest reply previews instead of repeating conversation titles.
 - Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
 - Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
 - Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.

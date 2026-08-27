@@ -7,6 +7,19 @@ const readSource = (relativePath) => readFile(
   "utf8",
 );
 
+test("sidebar two-line identity stays within its 40px avatar", async () => {
+  const [listRow, sidebarRow] = await Promise.all([
+    readSource("src/shared/ui/list/list-row.tsx"),
+    readSource("src/features/home/sidebar/sidebar-list-rows.tsx"),
+  ]);
+
+  assert.match(listRow, /text-base font-semibold leading-5/);
+  assert.match(listRow, /mt-0\.5 flex min-w-0 items-center/);
+  assert.match(listRow, /text-compact leading-\[1\.125rem\]/);
+  assert.match(sidebarRow, /relative flex h-5 w-10/);
+  assert.match(sidebarRow, /nexus-sidebar-conversation-summary[^"\n]*leading-\[1\.125rem\]/);
+});
+
 test("contact and Agent directories keep decision information with the familiar sidebar fallback", async () => {
   const [contactCard, contactDirectory, contactSidebar, skillCard, skillDirectoryCard] = await Promise.all([
     readSource("src/features/contacts/contacts-agent-card.tsx"),
