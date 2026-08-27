@@ -446,6 +446,7 @@ func (s *Service) ensureClient(
 	if forking && resumeID == "" {
 		return dmClientPreparation{}, errors.New("fork source SDK session is unavailable")
 	}
+	conversationFork := forking
 	forking = forking || toolSurfaceFork
 	if request.runtimePreparationOnly && !toolSurfaceFork {
 		return dmClientPreparation{}, nil
@@ -506,7 +507,7 @@ func (s *Service) ensureClient(
 				"cleanup_err", closeErr,
 			)
 		}
-		if forking {
+		if conversationFork {
 			return dmClientPreparation{}, err
 		}
 		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
@@ -521,11 +522,18 @@ func (s *Service) ensureClient(
 		if !retired {
 			return dmClientPreparation{}, err
 		}
-		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
+		if _, clearErr := s.clearReusableSDKSessionID(
+			ctx,
+			agentValue.WorkspacePath,
+			sessionItem,
+		); clearErr != nil {
 			return dmClientPreparation{}, clearErr
 		}
 		sdkSessionIdentity.Set("")
 		options.Session.ResumeID = ""
+		options.Session.ResumeAt = ""
+		options.Session.Fork = false
+		forking = false
 		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
 			return dmClientPreparation{}, err
 		}
@@ -844,11 +852,12 @@ func (s *Service) resolveReusableSDKSessionID(
 		(!hasKindFingerprint || actualKind == expectedKind) &&
 		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
 		(!hasModelFingerprint || actualModel == expectedModel)
+	runtimeChanged := hasKindFingerprint && actualKind != expectedKind
 	decision := sessionresumesvc.NewPolicy(
 		s.history.ForOwner(authctx.OwnerUserID(ctx)),
 	).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
-		if sessionresumesvc.RequiresToolSurfaceFork(
+		if !runtimeChanged && sessionresumesvc.RequiresToolSurfaceFork(
 			actualToolSurface,
 			toolSurfaceFingerprint,
 			forkLegacyToolSurface,

@@ -620,6 +620,14 @@ func TestRealtimeServiceDoesNotPersistRoomSDKSessionIDWithoutTranscript(t *testi
 }
 
 func TestRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T) {
+	testRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t, false)
+}
+
+func TestRealtimeServiceRetriesRoomRuntimeWhenAutomaticToolSurfaceForkCannotResume(t *testing.T) {
+	testRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t, true)
+}
+
+func testRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T, toolSurfaceFork bool) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -653,7 +661,16 @@ func TestRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T)
 	defer db.Close()
 
 	staleResumeID := "55555555-5555-5555-5555-555555555555"
-	if _, err = db.Exec(`UPDATE sessions SET sdk_session_id = ? WHERE id = ?`, staleResumeID, roomContext.Sessions[0].ID); err != nil {
+	optionsJSON := `{}`
+	if toolSurfaceFork {
+		optionsJSON = `{"runtime_tool_surface_fingerprint":"stale-tool-surface"}`
+	}
+	if _, err = db.Exec(
+		`UPDATE sessions SET sdk_session_id = ?, options_json = ? WHERE id = ?`,
+		staleResumeID,
+		optionsJSON,
+		roomContext.Sessions[0].ID,
+	); err != nil {
 		t.Fatalf("预写入 room sdk_session_id 失败: %v", err)
 	}
 	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, staleResumeID, []map[string]any{
@@ -731,8 +748,13 @@ func TestRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T)
 	if options[0].Session.ResumeID != staleResumeID {
 		t.Fatalf("首次启动应透传旧 room sdk_session_id: %+v", options[0])
 	}
-	if strings.TrimSpace(options[1].Session.ResumeID) != "" {
-		t.Fatalf("重试启动不应继续携带旧 resume: %+v", options[1])
+	if options[0].Session.Fork != toolSurfaceFork {
+		t.Fatalf("首次启动 fork=%v, want %v: %+v", options[0].Session.Fork, toolSurfaceFork, options[0])
+	}
+	if strings.TrimSpace(options[1].Session.ResumeID) != "" ||
+		strings.TrimSpace(options[1].Session.ResumeAt) != "" ||
+		options[1].Session.Fork {
+		t.Fatalf("重试启动应创建全新 SDK session: %+v", options[1])
 	}
 
 	staleClient.mu.Lock()

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.
+- Recovered DM and Room conversations with a fresh runtime session when an automatic tool-surface fork references a transcript that the selected runtime cannot resume.
 - Moved Goal, Execution, and Automation model commands to the round-scoped structured `nexus.command` MCP tool, removing temporary JSON input files, shell shims, loopback brokers, command tokens, and extra writable roots while keeping nxs reusable across rounds.
 - Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
 - Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
