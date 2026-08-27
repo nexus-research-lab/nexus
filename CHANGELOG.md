@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserved task identity when terminal subagent notifications include full result bodies, preventing the floating Room task strip from expanding across the conversation.
 - Preserved the verified interactive human identity across in-process MCP control callbacks so Connector and Channel authorization can revalidate the active principal.
 - Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.
 - Recovered DM and Room conversations with a fresh runtime session when an automatic tool-surface fork references a transcript that the selected runtime cannot resume.

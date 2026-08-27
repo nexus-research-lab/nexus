@@ -12,6 +12,8 @@ const SYSTEM_TASK_SUBTYPES = new Set([
 
 interface RuntimeTaskCandidate {
   contentCandidates: Array<string | null | undefined>;
+  fallbackContentCandidates?: Array<string | null | undefined>;
+  preserveExistingContent?: boolean;
   resolveStatus: (fallback?: TodoItem["status"]) => TodoItem["status"];
   taskId: string | null;
 }
@@ -78,12 +80,17 @@ function systemRuntimeTaskCandidate(
 
   const patch = metadataRecord(metadata.patch);
   const status = firstMetadataString([metadata.status, patch.status]);
+  const isNotification = subtype === "task_notification";
   return {
     contentCandidates: [
       metadataString(patch.description),
       metadataString(metadata.description),
-      message.content,
     ],
+    fallbackContentCandidates: [
+      metadataString(metadata.summary),
+      isNotification ? null : message.content,
+    ],
+    preserveExistingContent: isNotification,
     resolveStatus: (fallback) =>
       inferSystemTaskStatus(subtype, status, fallback),
     taskId:
@@ -110,8 +117,14 @@ function upsertRuntimeTask(
     return false;
   }
   const existing = tasksById.get(candidate.taskId);
-  const content =
-    firstTaskContent(candidate.contentCandidates) ?? existing?.content;
+  const explicitContent = firstTaskContent(candidate.contentCandidates);
+  const fallbackContent = firstTaskContent(
+    candidate.fallbackContentCandidates ?? [],
+  );
+  // 终态通知只收口状态，不得把结果正文改写成任务身份。
+  const content = candidate.preserveExistingContent
+    ? existing?.content ?? explicitContent ?? fallbackContent
+    : explicitContent ?? existing?.content ?? fallbackContent;
   if (!content) {
     return false;
   }

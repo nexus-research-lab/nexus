@@ -587,6 +587,104 @@ test("TodoWrite normalizes persisted task aliases and rejects malformed items", 
   ]);
 });
 
+test("terminal task notifications settle status without replacing task identity", async () => {
+  const { projectConversationTodos } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const sessionKey = "agent:devin:ws:room:legacy";
+  const longResult = "完整子 Agent 结果不属于任务标题。\n".repeat(800);
+  const todos = projectConversationTodos([
+    {
+      agent_id: "devin",
+      content: "核对并发模型",
+      message_id: "task-started",
+      metadata: {
+        description: "核对并发模型",
+        subtype: "task_started",
+        task_id: "task-1",
+      },
+      role: "system",
+      round_id: "round-1",
+      session_key: sessionKey,
+      timestamp: 1,
+    },
+    {
+      agent_id: "devin",
+      content: "任务状态已更新",
+      message_id: "task-status-updated",
+      metadata: {
+        patch: { status: "in_progress" },
+        subtype: "task_updated",
+        task_id: "task-1",
+      },
+      role: "system",
+      round_id: "round-1",
+      session_key: sessionKey,
+      timestamp: 2,
+    },
+    {
+      agent_id: "devin",
+      content: "任务状态已更新",
+      message_id: "task-description-updated",
+      metadata: {
+        patch: {
+          description: "核对协同调度",
+          status: "in_progress",
+        },
+        subtype: "task_updated",
+        task_id: "task-1",
+      },
+      role: "system",
+      round_id: "round-1",
+      session_key: sessionKey,
+      timestamp: 3,
+    },
+    {
+      agent_id: "devin",
+      content: longResult,
+      message_id: "task-notification",
+      metadata: {
+        status: "completed",
+        subtype: "task_notification",
+        summary: "Agent 调度调研已完成",
+        task_id: "task-1",
+      },
+      role: "system",
+      round_id: "round-1",
+      session_key: sessionKey,
+      timestamp: 4,
+    },
+    {
+      agent_id: "devin",
+      content: longResult,
+      message_id: "orphan-task-notification",
+      metadata: {
+        status: "completed",
+        subtype: "task_notification",
+        summary: "孤立子任务已完成",
+        task_id: "task-2",
+      },
+      role: "system",
+      round_id: "round-1",
+      session_key: sessionKey,
+      timestamp: 5,
+    },
+  ], sessionKey);
+
+  assert.deepEqual(todos, [
+    {
+      active_form: undefined,
+      content: "核对协同调度",
+      status: "completed",
+    },
+    {
+      active_form: undefined,
+      content: "孤立子任务已完成",
+      status: "completed",
+    },
+  ]);
+});
+
 test("a new conversation round hides the previous successful TodoWrite plan", async () => {
   const { projectConversationTodos } = await server.ssrLoadModule(
     "/src/features/conversation/shared/todos/todo-projection-model.ts",
