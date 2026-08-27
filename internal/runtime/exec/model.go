@@ -7,6 +7,13 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+)
+
+// exec 复用 runtime 的最小 SDK 能力与隐藏上下文，避免双向依赖。
+type (
+	Client               = runtimectx.Client
+	ContextualInputBlock = runtimectx.ContextualInputBlock
 )
 
 var (

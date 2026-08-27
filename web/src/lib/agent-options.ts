@@ -66,6 +66,8 @@ const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
   nexus_imagegen: null,
   generate_image: null,
   edit_image: null,
+  mcp__nexus__generate_image: null,
+  mcp__nexus__edit_image: null,
   mcp__nexus_imagegen__generate_image: null,
   mcp__nexus_imagegen__edit_image: null,
 };

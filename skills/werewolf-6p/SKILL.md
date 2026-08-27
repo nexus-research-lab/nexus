@@ -8,27 +8,29 @@ tags: [room, game, werewolf]
 
 # Six-Player Werewolf
 
-This skill layers werewolf game rules on top of the Room communication kernel. The Room system prompt already documents public `@<member>` wake semantics and the built-in `nexus_room` communication tools; this skill only defines the game contract.
+This skill layers werewolf game rules on top of the Room communication kernel. The Room system prompt already documents public `@<member>` wake semantics and the built-in `nexus` Room tools; this skill only defines the game contract.
 
 ## Wake Plumbing
 
 The game has two execution channels:
 
 - **Public feed:** a normal public reply containing a non-code `@<member>` wakes that member. Public phase control is public text with exactly one naked `@`.
-- **Directed message:** use the built-in tool `nexus_room.send_directed_message` for hidden information, hidden collection, and private state. A directed message can be record-only or can wake recipients.
+- **Directed message:** use `nexus.send_message` with `destination=current_room` and `visibility=private` for hidden information, hidden collection, and private state. A directed message can be record-only or can wake recipients.
 
 For ordered public chains, the current handoff is the only naked `@`. Future recipients, examples, and format instructions use names without `@`, or code spans such as `` `@NextPlayer` ``. Do not write "please @Sam next" in the host announcement if Sam is not supposed to act now.
 
 When a hidden handback should wake the host and the host's next natural final reply must be public, set `reply_route.next_reply_route.mode = "public"` on the original directed message. The handback stays private; the host's following final reply enters the public feed and any non-code `@` in that reply wakes normally.
 
-Only use `nexus_room.publish_public_message` for an explicit proactive public broadcast from a private/tool-driven turn. The normal night-to-day transition should use `next_reply_route={mode:"public"}` and a natural host final reply, not publish plus `<nexus_room_no_reply/>`.
+Only use `nexus.send_message` with `destination=current_room` and `visibility=public` for an explicit proactive public broadcast from a private/tool-driven turn. The normal night-to-day transition should use `next_reply_route={mode:"public"}` and a natural host final reply, not publish plus `<nexus_room_no_reply/>`.
 
 Hidden collection must always name the handback route:
 
 ```json
 {
-  "tool": "nexus_room.send_directed_message",
+  "tool": "nexus.send_message",
   "arguments": {
+    "destination": "current_room",
+    "visibility": "private",
     "recipients": ["<player>"],
     "wake_policy": "immediate",
     "reply_route": {
@@ -41,7 +43,7 @@ Hidden collection must always name the handback route:
 }
 ```
 
-The player answers only with the requested plain-text final reply. In a directed-message turn, the player must not call any Room tool or append `<nexus_room_no_reply/>`; runtime already routes that single final reply. Sending the answer again with `send_directed_message` creates a duplicate handback and can advance the host under the wrong route. If the host's next final reply should be public, include `"next_reply_route": {"mode": "public"}` on the original message; otherwise omit it and the host can continue with private tool calls plus `<nexus_room_no_reply/>`.
+The player answers only with the requested plain-text final reply. In a directed-message turn, the player must not call any Room tool or append `<nexus_room_no_reply/>`; runtime already routes that single final reply. Sending the answer again with `send_message` creates a duplicate handback and can advance the host under the wrong route. If the host's next final reply should be public, include `"next_reply_route": {"mode": "public"}` on the original message; otherwise omit it and the host can continue with private tool calls plus `<nexus_room_no_reply/>`.
 
 ### Public Boundary
 
@@ -56,8 +58,10 @@ For small-group visibility, send one directed message to all group members and w
 
 ```json
 {
-  "tool": "nexus_room.send_directed_message",
+  "tool": "nexus.send_message",
   "arguments": {
+    "destination": "current_room",
+    "visibility": "private",
     "recipients": ["<wolfA>", "<wolfB>"],
     "wake_targets": ["<wolfA>"],
     "wake_policy": "immediate",
@@ -79,8 +83,10 @@ Host private state is also a directed message:
 
 ```json
 {
-  "tool": "nexus_room.send_directed_message",
+  "tool": "nexus.send_message",
   "arguments": {
+    "destination": "current_room",
+    "visibility": "private",
     "recipients": ["<host>"],
     "wake_policy": "none",
     "reply_route": {"mode": "none"},

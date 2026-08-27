@@ -1,6 +1,10 @@
-/** 识别 Nexus 内建 show_widget 在不同 runtime 中的稳定包装名。 */
+/** 识别当前 nexus.show_widget 与历史 transcript 中的旧包装名。 */
 const GENERATIVE_UI_TOOL_NAMES = new Set([
   "show_widget",
+  "mcp__nexus__show_widget",
+  "nexus__show_widget",
+  "nexus.show_widget",
+  "nexus/show_widget",
   "mcp__nexus_visualize__show_widget",
   "nexus_visualize__show_widget",
   "nexus_visualize.show_widget",

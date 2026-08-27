@@ -7,11 +7,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 )
 
 func TestBrowserStatusDoesNotRequireExtensionConnection(t *testing.T) {
-	server := NewServer(browsersvc.NewService(), "session-a", "round-a", "Agent A", nil)
+	server := sdktool.NewSimpleSDKMCPServer(
+		"nexus", "1.0.0",
+		BuildTools(browsersvc.NewService(), "session-a", "round-a", "Agent A", nil),
+	)
 	response, err := server.HandleMessage(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,

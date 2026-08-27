@@ -5,15 +5,35 @@ package realtime
 
 import (
 	"context"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
+
+func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
+	if e.slot == nil {
+		return nil
+	}
+	inputs := goalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot))
+	if e.round != nil {
+		inputs = append(runtimectx.AutomationRunContextualInputs(e.round.AutomationRun), inputs...)
+	}
+	if e.round == nil || e.round.Internal {
+		return inputs
+	}
+	switch e.slot.Trigger.TriggerType {
+	case "public_chat", "room_host_default":
+		return append(inputs, conversationsvc.RoundRecoveryContextualInputs(e.history, e.slot.AgentID)...)
+	default:
+		return inputs
+	}
+}
 
 type executionContextProvider interface {
 	RuntimeContext(context.Context, orchestrationsvc.ActorContext) (string, error)
@@ -22,7 +42,7 @@ type executionContextProvider interface {
 type executionRuntimeGraphObserver interface {
 	BeginRuntimeRound(context.Context, orchestrationsvc.ActorContext) error
 	ObserveRuntimeMessage(context.Context, orchestrationsvc.ActorContext, sdkprotocol.ReceivedMessage) error
-	ObserveRuntimeCommandReceipts(context.Context, orchestrationsvc.ActorContext, []runtimecommand.Receipt) error
+	ObserveRuntimeCommandReceipts(context.Context, orchestrationsvc.ActorContext, []nexusmcp.CommandReceipt) error
 	FinishRuntimeRound(context.Context, orchestrationsvc.ActorContext, string, string) error
 }
 
@@ -66,7 +86,7 @@ func (s *Service) observeExecutionRuntimeGraph(
 
 func (s *Service) observeExecutionRuntimeCommandReceipts(
 	actor orchestrationsvc.ActorContext,
-	receipts []runtimecommand.Receipt,
+	receipts []nexusmcp.CommandReceipt,
 ) {
 	observer, ok := s.executionContext.(executionRuntimeGraphObserver)
 	if !ok || observer == nil {

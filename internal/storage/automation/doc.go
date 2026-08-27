@@ -9,7 +9,7 @@
 //     运行、事件、最早投递重试 deadline、运行时与调度租约/expiry 读写；run 在开始时固化首次投递目标。
 //   - permission.go：任务策略 CAS、owner-scoped 请求决策、原 IM 会话键、run 阻塞与安全重试事务。
 //   - runtime_command.go：Agent-facing Automation command 的 durable request/intent claim、结果重放与 uncertain fail-closed ledger。
-//   - scan_automation.go / value_sql.go：行扫描与 SQL 值编码。
+//   - scan.go / value_sql.go：行扫描与 SQL 值编码。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package automation

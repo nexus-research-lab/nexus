@@ -1,4 +1,4 @@
-// Package imagegenmcp 提供 nexus_imagegen MCP server 入口。
+// Package imagegenmcp 提供 nexus MCP 的图片生成工具组。
 //
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
@@ -11,7 +11,7 @@ import (
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 )
 
-// NewServer 根据当前 Agent 会话上下文构建 nexus_imagegen MCP server。
-func NewServer(svc contract.Service, sctx contract.ServerContext) *sdktool.SimpleSDKMCPServer {
-	return sdktool.NewSimpleSDKMCPServer(contract.ServerName, "1.0.0", tool.BuildAll(svc, sctx))
+// BuildTools 根据当前 Agent 会话上下文构建工具定义。
+func BuildTools(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool {
+	return tool.BuildAll(svc, sctx)
 }

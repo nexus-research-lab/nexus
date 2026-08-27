@@ -3,9 +3,19 @@
 // POS: automation 权限协议真相源；session 只记录路由上下文，不承担授权所有权。
 package types
 
-import "time"
+import (
+	"errors"
+	"strings"
+	"time"
+)
 
 const (
+	PermissionModeDefault           = "default"
+	PermissionModePlan              = "plan"
+	PermissionModeAcceptEdits       = "acceptEdits"
+	PermissionModeBypassPermissions = "bypassPermissions"
+	PermissionModeDontAsk           = "dontAsk"
+
 	// TaskPermissionStateUninitialized 表示历史任务尚未生成兼容授权快照。
 	TaskPermissionStateUninitialized = "uninitialized"
 	// TaskPermissionStateReady 表示任务可按计划执行。
@@ -77,6 +87,31 @@ const (
 	// PermissionGrantSourceLegacyCompat 表示为旧任务保留既有行为的迁移授权。
 	PermissionGrantSourceLegacyCompat = "legacy_compat"
 )
+
+// NormalizePermissionMode 返回定时任务 SDK 权限模式的默认值。
+func NormalizePermissionMode(mode string) string {
+	normalized := strings.TrimSpace(mode)
+	if normalized == "" {
+		return PermissionModeDefault
+	}
+	return normalized
+}
+
+func validatePermissionMode(mode string) error {
+	if strings.TrimSpace(mode) == "" {
+		return nil
+	}
+	switch NormalizePermissionMode(mode) {
+	case PermissionModeDefault,
+		PermissionModePlan,
+		PermissionModeAcceptEdits,
+		PermissionModeBypassPermissions,
+		PermissionModeDontAsk:
+		return nil
+	default:
+		return errors.New("permission_mode must be one of default, plan, acceptEdits, bypassPermissions, dontAsk")
+	}
+}
 
 // PermissionCapability 是权限匹配的最小稳定单元。
 // ToolName 是运行时真名；ConnectorID/Effect/ResourceScope 用于收紧任务级授权；

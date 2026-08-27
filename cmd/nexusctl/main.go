@@ -3,17 +3,17 @@ package main
 import (
 	"os"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/host"
+	cli "github.com/nexus-research-lab/nexus/internal/cli"
 )
 
 func main() {
-	command, err := host.New(host.LoadConfig())
+	command, err := cli.New(cli.LoadConfig())
 	if err != nil {
-		host.WriteCommandError(os.Stderr, err, host.RequestedJSON(os.Args[1:]))
-		os.Exit(host.ExitCode(err))
+		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
+		os.Exit(cli.ExitCode(err))
 	}
 	if err = command.Execute(); err != nil {
-		host.WriteCommandError(os.Stderr, err, host.RequestedJSON(os.Args[1:]))
-		os.Exit(host.ExitCode(err))
+		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
+		os.Exit(cli.ExitCode(err))
 	}
 }

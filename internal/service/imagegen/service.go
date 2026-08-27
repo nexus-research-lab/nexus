@@ -23,6 +23,46 @@ const (
 	defaultMaxAttempts  = 3
 )
 
+// GenerateInput 表示图片生成请求。
+type GenerateInput struct {
+	Provider          string
+	Model             string
+	Prompt            string
+	WorkspacePath     string
+	Size              string
+	Quality           string
+	Background        string
+	OutputFormat      string
+	OutputCompression *int
+	FileName          string
+}
+
+// EditInput 表示图片编辑请求。
+type EditInput struct {
+	Provider          string
+	Model             string
+	Prompt            string
+	WorkspacePath     string
+	ImagePath         string
+	MaskPath          string
+	Size              string
+	Quality           string
+	OutputFormat      string
+	OutputCompression *int
+	FileName          string
+}
+
+// Result 表示已落盘的图片生成结果。
+type Result struct {
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	Path          string `json:"path"`
+	MIMEType      string `json:"mime_type"`
+	Size          string `json:"size,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+	Markdown      string `json:"markdown"`
+}
+
 // ProviderResolver 是图片生成服务依赖的 provider 配置解析子集。
 type ProviderResolver interface {
 	ResolveImageConfig(ctx context.Context, provider string) (*providercfg.ImageConfig, error)
@@ -58,6 +98,34 @@ func NewService(providers ProviderResolver, workspaceRoot string) *Service {
 // SetPreferences 注入用户偏好服务，用于解析默认生图模型。
 func (s *Service) SetPreferences(prefs preferencesService) {
 	s.prefs = prefs
+}
+
+func (s *Service) resolveImageConfig(ctx context.Context, provider, model string) (*providercfg.ImageConfig, error) {
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	if provider != "" || model != "" || s.prefs == nil {
+		if model != "" {
+			if resolver, ok := s.providers.(providerModelResolver); ok {
+				return resolver.ResolveImageModelConfig(ctx, provider, model)
+			}
+			return nil, errors.New("图片生成 Provider 不支持显式 model 选择")
+		}
+		return s.providers.ResolveImageConfig(ctx, provider)
+	}
+	prefs, err := s.prefs.Get(ctx, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	selection := prefs.DefaultImageModelSelection
+	selection.Provider = strings.TrimSpace(selection.Provider)
+	selection.Model = strings.TrimSpace(selection.Model)
+	if selection.Provider == "" || selection.Model == "" {
+		return s.providers.ResolveImageConfig(ctx, "")
+	}
+	if resolver, ok := s.providers.(providerModelResolver); ok {
+		return resolver.ResolveImageModelConfig(ctx, selection.Provider, selection.Model)
+	}
+	return s.providers.ResolveImageConfig(ctx, selection.Provider)
 }
 
 // GenerateImage 调用图片生成 Provider 并保存图片。

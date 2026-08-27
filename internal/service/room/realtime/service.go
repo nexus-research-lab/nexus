@@ -10,10 +10,10 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -143,10 +143,10 @@ type ConfigurationRuntimeEnvironmentBuilder func(
 	string,
 ) (map[string]string, error)
 
-// RuntimeCommandMCPServerBuilder 为当前 Room Agent slot 构造结构化 Nexus command server。
-type RuntimeCommandMCPServerBuilder func(
+// NexusMCPServerBuilder 为当前 Room Agent slot 构造唯一 Nexus 内建 MCP server。
+type NexusMCPServerBuilder func(
 	context.Context,
-	runtimecommand.RoundContext,
+	nexusmcp.RoundContext,
 ) (map[string]sdkmcp.ServerConfig, error)
 
 // RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 WorkGraph 沉淀展开为 runtime prompt。
@@ -191,7 +191,7 @@ type Service struct {
 	logger                  *slog.Logger
 	mcpServers              MCPServerBuilder
 	configurationRuntimeEnv ConfigurationRuntimeEnvironmentBuilder
-	runtimeCommandMCP       RuntimeCommandMCPServerBuilder
+	nexusMCP                NexusMCPServerBuilder
 	runtimeSlashExpander    RuntimeSlashExpander
 	titles                  roomTitleScheduler
 
@@ -364,11 +364,11 @@ func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
 	s.configurationRuntimeEnv = builder
 }
 
-// SetRuntimeCommandMCPServerBuilder 注入可信 Nexus runtime command server 工厂。
-func (s *Service) SetRuntimeCommandMCPServerBuilder(
-	builder RuntimeCommandMCPServerBuilder,
+// SetNexusMCPServerBuilder 注入可信的 Nexus 内建 MCP server 工厂。
+func (s *Service) SetNexusMCPServerBuilder(
+	builder NexusMCPServerBuilder,
 ) {
-	s.runtimeCommandMCP = builder
+	s.nexusMCP = builder
 }
 
 // SetRuntimeSlashExpander 注入 owner-scoped WorkGraph 沉淀 prompt 展开器。

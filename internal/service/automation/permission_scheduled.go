@@ -11,7 +11,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -367,7 +367,7 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 func readOnlyAutomationCommandRequest(request sdkpermission.Request) bool {
 	domain, domainOK := request.Input["domain"].(string)
 	action, actionOK := request.Input["action"].(string)
-	if !domainOK || !actionOK || strings.TrimSpace(domain) != runtimecommand.DomainAutomation {
+	if !domainOK || !actionOK || strings.TrimSpace(domain) != command.DomainAutomation {
 		return false
 	}
 	return strings.TrimSpace(action) == automationdomain.AutomationCommandActionContract ||

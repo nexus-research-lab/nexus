@@ -68,7 +68,7 @@ func TestScheduledTaskPermissionHandlerUsesImagegenDefaultTools(t *testing.T) {
 	enabledHandler := scheduledTaskPermissionHandlerForOptions(protocol.Options{
 		AllowedTools: []string{"Read"},
 	}, true)
-	enabledDecision, err := enabledHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_imagegen__generate_image"})
+	enabledDecision, err := enabledHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus__generate_image"})
 	if err != nil {
 		t.Fatalf("图片生成权限处理失败: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestScheduledTaskPermissionHandlerUsesImagegenDefaultTools(t *testing.T) {
 	disabledHandler := scheduledTaskPermissionHandlerForOptions(protocol.Options{
 		AllowedTools: []string{"Read", "nexus_imagegen"},
 	}, false)
-	disabledDecision, err := disabledHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_imagegen__generate_image"})
+	disabledDecision, err := disabledHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus__generate_image"})
 	if err != nil {
 		t.Fatalf("图片生成权限处理失败: %v", err)
 	}

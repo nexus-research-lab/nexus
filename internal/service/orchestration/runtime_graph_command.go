@@ -5,11 +5,12 @@ package orchestration
 
 import (
 	"context"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -28,7 +29,7 @@ const (
 func (s *Service) ObserveRuntimeCommandReceipts(
 	ctx context.Context,
 	actor ActorContext,
-	receipts []runtimecommand.Receipt,
+	receipts []nexusmcp.CommandReceipt,
 ) error {
 	if s == nil {
 		return nil
@@ -84,10 +85,10 @@ func (s *Service) ObserveRuntimeCommandReceipts(
 	return nil
 }
 
-func filterExecutionCommandReceipts(receipts []runtimecommand.Receipt) []runtimecommand.Receipt {
-	result := make([]runtimecommand.Receipt, 0, len(receipts))
+func filterExecutionCommandReceipts(receipts []nexusmcp.CommandReceipt) []nexusmcp.CommandReceipt {
+	result := make([]nexusmcp.CommandReceipt, 0, len(receipts))
 	for _, receipt := range receipts {
-		if receipt.Domain == runtimecommand.DomainExecution &&
+		if receipt.Domain == command.DomainExecution &&
 			strings.TrimSpace(receipt.RequestID) != "" &&
 			strings.TrimSpace(receipt.Operation) != "" {
 			result = append(result, receipt)
@@ -101,7 +102,7 @@ func (s *Service) applyRuntimeCommandReceipt(
 	repository runtimeGraphRepository,
 	actor ActorContext,
 	identity runtimeGraphIdentity,
-	receipt runtimecommand.Receipt,
+	receipt nexusmcp.CommandReceipt,
 	node protocol.ExecutionRuntimeNodeRun,
 	matchedCandidate bool,
 	now time.Time,
@@ -119,7 +120,7 @@ func (s *Service) applyRuntimeCommandReceipt(
 	node.Metadata[runtimeGraphCommandRequestIDMetadataKey] = receipt.RequestID
 	node.Metadata[runtimeGraphCommandVerifiedMetadataKey] = true
 	node.Metadata[runtimeGraphCommandTransportMetadataKey] = true
-	node.Metadata[runtimeGraphCommandActionMetadataKey] = runtimecommand.ActionInvoke
+	node.Metadata[runtimeGraphCommandActionMetadataKey] = command.ActionInvoke
 	if receipt.Outcome != "" {
 		node.Metadata["mutation_outcome"] = receipt.Outcome
 	}
@@ -204,7 +205,7 @@ func runtimeCommandReceiptKey(domain, operation, requestID string) string {
 
 func runtimeCommandFallbackNode(
 	identity runtimeGraphIdentity,
-	receipt runtimecommand.Receipt,
+	receipt nexusmcp.CommandReceipt,
 	now time.Time,
 ) protocol.ExecutionRuntimeNodeRun {
 	subjectID := "runtime-command:" + receipt.RequestID
@@ -221,7 +222,7 @@ func runtimeCommandFallbackNode(
 			runtimeGraphCommandOperationMetadataKey: receipt.Operation,
 			runtimeGraphCommandRequestIDMetadataKey: receipt.RequestID,
 			runtimeGraphCommandTransportMetadataKey: true,
-			runtimeGraphCommandActionMetadataKey:    runtimecommand.ActionInvoke,
+			runtimeGraphCommandActionMetadataKey:    command.ActionInvoke,
 		},
 	}
 }
@@ -230,7 +231,7 @@ func (s *Service) runtimeCommandReceiptSegment(
 	ctx context.Context,
 	actor ActorContext,
 	identity runtimeGraphIdentity,
-	receipt runtimecommand.Receipt,
+	receipt nexusmcp.CommandReceipt,
 ) runtimeExecutionSegment {
 	if !runtimeGraphAssignmentBoundaryOperation(receipt.Operation) || !receipt.Applied() {
 		return runtimeExecutionSegment{}

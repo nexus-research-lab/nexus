@@ -3,15 +3,16 @@ package realtime
 import (
 	"context"
 	"errors"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -1455,8 +1456,8 @@ func TestRoomGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 	)
 	content := message["content"].([]map[string]any)
 	content[1]["content"] = `{"outcome":"applied"}`
-	stageRoomRuntimeCommandReceipt(slot, runtimecommand.Receipt{
-		Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+	stageRoomRuntimeCommandReceipt(slot, nexusmcp.CommandReceipt{
+		Domain: command.DomainExecution, Operation: "submit_work",
 		Outcome: string(protocol.MutationResultApplied), GoalBound: false,
 	})
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, message)
@@ -1471,8 +1472,8 @@ func TestRoomGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 	) {
 		t.Fatal("confirm Goal-bound Execution authority")
 	}
-	stageRoomRuntimeCommandReceipt(slot, runtimecommand.Receipt{
-		Domain: runtimecommand.DomainExecution, Operation: "submit_work",
+	stageRoomRuntimeCommandReceipt(slot, nexusmcp.CommandReceipt{
+		Domain: command.DomainExecution, Operation: "submit_work",
 		Outcome: string(protocol.MutationResultApplied), GoalBound: true,
 	})
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, message)

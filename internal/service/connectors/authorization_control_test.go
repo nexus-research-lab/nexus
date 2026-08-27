@@ -166,6 +166,7 @@ func approveAuthorizationStart(
 		extras[key] = value
 	}
 	input := map[string]any{
+		"action":       ConnectorAuthorizationActionStart,
 		"request_id":   request.RequestID,
 		"connector_id": request.ConnectorID,
 		"method":       request.Method,
@@ -180,11 +181,10 @@ func approveAuthorizationStart(
 		fixture.ctx,
 		permissionctx.HumanToolApproval{
 			PermissionRequestID: "perm-" + request.RequestID,
-			ToolName: "mcp__nexus_connector_auth__" +
-				StartConnectorAuthorizationToolName,
-			ToolInput:          input,
-			RuntimeSessionKey:  fixture.actor.RuntimeLeaseSessionKey,
-			DispatchSessionKey: fixture.actor.BusinessSessionKey,
+			ToolName:            "mcp__nexus__" + ConnectorAuthorizationToolName,
+			ToolInput:           input,
+			RuntimeSessionKey:   fixture.actor.RuntimeLeaseSessionKey,
+			DispatchSessionKey:  fixture.actor.BusinessSessionKey,
 			Route: permissionctx.RouteContext{
 				DispatchSessionKey: fixture.actor.BusinessSessionKey,
 				AgentID:            fixture.actor.AgentID,

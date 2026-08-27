@@ -14,6 +14,41 @@ import (
 
 const hookStoppedDisplayError = "该操作被当前运行时规则拦截，本轮已停止。"
 
+const (
+	contentFilteredTerminalReason = protocol.ProviderFailureContentFiltered
+	contentFilteredDisplayText    = "本轮请求被模型服务的内容安全策略拦截。可能由输入、对话上下文或生成内容触发。您可以调整表述后在当前对话继续；若仍被拦截，再尝试开启新对话。"
+)
+
+type providerErrorProjection struct {
+	result         string
+	terminalReason string
+	errors         []string
+}
+
+func normalizeProviderContentFilterError(
+	result string,
+	terminalReason string,
+	errors []string,
+	additionalSignals ...string,
+) providerErrorProjection {
+	signals := make([]string, 0, 2+len(errors)+len(additionalSignals))
+	signals = append(signals, result, terminalReason)
+	signals = append(signals, errors...)
+	signals = append(signals, additionalSignals...)
+	if !protocol.IsProviderContentFilterError(signals...) {
+		return providerErrorProjection{
+			result:         result,
+			terminalReason: terminalReason,
+			errors:         errors,
+		}
+	}
+	return providerErrorProjection{
+		result:         contentFilteredDisplayText,
+		terminalReason: contentFilteredTerminalReason,
+		errors:         []string{contentFilteredTerminalReason},
+	}
+}
+
 func (p *Processor) buildResultMessage(
 	messageID string,
 	result sdkprotocol.ResultMessage,

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"testing"
 
+	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -28,11 +29,9 @@ func TestStandaloneExplicitGoalRetargetAndCompleteWithoutWorkGraph(t *testing.T)
 
 	goals := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	executions := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
-	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
+	coordinator := servergoal.NewExplicitExecutionCoordinator(goals, executions)
 	goals.SetObjectiveRetargetCoordinator(coordinator)
-	goals.SetExecutionGoalCompletionReadiness(executionGoalCompletionReadiness{
-		orchestration: executions,
-	})
+	goals.SetExecutionGoalCompletionReadiness(servergoal.NewExecutionCompletionReadiness(executions))
 
 	const (
 		sessionKey = "agent:agent-1:ws:dm:standalone-goal-integration"

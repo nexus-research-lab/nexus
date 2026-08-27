@@ -3,10 +3,11 @@ package dm
 import (
 	"context"
 	"encoding/json"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"path/filepath"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -72,14 +73,14 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 }
 
 func TestRoundRunnerDoesNotTreatBlockedGoalUpdateAsCompleted(t *testing.T) {
-	receipts := runtimecommand.NewReceiptState()
+	receipts := nexusmcp.NewCommandReceiptState()
 	runner := &roundRunner{
 		service:         &Service{goals: &fakeGoalContextProvider{}},
 		goalIDForUsage:  "goal-1",
 		commandReceipts: receipts,
 	}
-	receipts.Record(runtimecommand.Receipt{
-		Domain: runtimecommand.DomainGoal, Operation: runtimecommand.GoalOperationUpdate,
+	receipts.Record(nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
 		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
 		GoalStatus: string(protocol.GoalStatusBlocked),
 	})
@@ -87,8 +88,8 @@ func TestRoundRunnerDoesNotTreatBlockedGoalUpdateAsCompleted(t *testing.T) {
 	if runner.goalCompletionCandidateID != "" {
 		t.Fatalf("blocked update created completion candidate %q", runner.goalCompletionCandidateID)
 	}
-	receipts.Record(runtimecommand.Receipt{
-		Domain: runtimecommand.DomainGoal, Operation: runtimecommand.GoalOperationUpdate,
+	receipts.Record(nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
 		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
 		GoalStatus: string(protocol.GoalStatusComplete),
 	})
@@ -99,13 +100,13 @@ func TestRoundRunnerDoesNotTreatBlockedGoalUpdateAsCompleted(t *testing.T) {
 }
 
 func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
-	receipts := runtimecommand.NewReceiptState()
+	receipts := nexusmcp.NewCommandReceiptState()
 	runner := &roundRunner{
 		service:         &Service{goals: &fakeGoalContextProvider{}},
 		commandReceipts: receipts,
 	}
-	receipts.Record(runtimecommand.Receipt{
-		Domain: runtimecommand.DomainGoal, Operation: runtimecommand.GoalOperationUpdate,
+	receipts.Record(nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
 		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-from-receipt",
 		GoalStatus: string(protocol.GoalStatusComplete),
 	})

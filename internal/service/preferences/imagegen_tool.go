@@ -54,10 +54,13 @@ func normalizeImagegenDefaultTool(tools []string, enabled bool) ([]string, bool)
 }
 
 func isImagegenToolName(value string) bool {
+	// 旧 server 包装名只用于清洗已持久化的偏好。
 	switch strings.TrimSpace(value) {
 	case "nexus_imagegen",
 		"generate_image",
 		"edit_image",
+		"mcp__nexus__generate_image",
+		"mcp__nexus__edit_image",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image":
 		return true

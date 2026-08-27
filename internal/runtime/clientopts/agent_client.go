@@ -150,7 +150,7 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolUseSummaryRuntimeEnv(
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, backgroundModelRuntimeEnv(
 		ctx,
 		resolver,
 		input,
@@ -268,9 +268,9 @@ func BuildAgentClientOptionsWithConfig(
 	return options, runtimeConfig, nil
 }
 
-// toolUseSummaryRuntimeEnv 把 owner 后台模型投影给当前 bridge。工具进度是纯展示能力：
+// backgroundModelRuntimeEnv 把 owner 后台模型投影给当前 bridge，并默认关闭纯展示的工具摘要。
 // 后台模型缺失、解析失败或属于另一 Provider 时回退主模型，不能阻断 Agent 启动。
-func toolUseSummaryRuntimeEnv(
+func backgroundModelRuntimeEnv(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
@@ -311,7 +311,7 @@ func toolUseSummaryRuntimeEnv(
 	if selectedModel == "" {
 		return nil
 	}
-	env := map[string]string{claudeEmitToolUseSummariesEnvName: "1"}
+	env := map[string]string{claudeEmitToolUseSummariesEnvName: "0"}
 	if runtimeProfileForKind(runtimeKind).isNXS() {
 		env[nexusBackgroundModelEnvName] = selectedModel
 	} else {

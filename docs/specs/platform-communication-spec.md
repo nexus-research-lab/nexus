@@ -56,17 +56,23 @@ workspace、WorkBinding、ReviewBinding 或其他 capability。普通 Room round
 
 ## 6. 工具
 
-`nexus_comms` 提供两个始终加载的工具：
+`nexus` MCP 中的平台通讯工具组提供两个始终加载的工具：
 
-- `list_address_book`：读取当前 Agent 的好友与群目标。
-- `send_message`：`target_type=agent` 发送好友私信，`target_type=room` 发布群消息。
+- `list_targets`：读取当前 Agent 的好友与群目标。
+- `send_message`：DM/外部 Agent runtime 使用 `destination=contact|room`；Room runtime
+  额外支持宿主绑定的 `destination=current_room`，并以
+  `visibility=private|public` 选择当前 Room 私域或公区。
+
+`send_message` 的工具名保持统一，但 Schema 随可信来源上下文收窄。DM 不暴露当前
+Room 的 recipients、wake 或 reply route；Room 的当前私域发送才接受这些投递参数。
+内部仍复用 directed message 与 public feed 两条 transport，内部方法名不扩张为模型工具。
 
 工具成功只表示消息已经进入对应 Room transport；运行时启动、忙碌排队或 mention handoff 的后续状态仍由 Room 事件与队列真相源表达。消息持久化后若唤醒启动失败，调用必须返回错误，不能把失败伪装成 `queued`。
 
 成功的 `send_message` 本身不算 Goal continuation progress。只有持久化且带 exact
 Goal revision 的 handoff/queue receipt 可以让 continuation 暂缓；真正清零空进展
 只能来自显式 applied Goal mutation，或 exact Goal-bound 的 applied WorkGraph
-mutation。`list_address_book`、普通消息发送和其他 read/list/todo 工具都不能作为
+mutation。`list_targets`、普通消息发送和其他 read/list/todo 工具都不能作为
 续跑存活证据。
 
 ## 7. 用户控制面

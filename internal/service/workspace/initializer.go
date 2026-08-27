@@ -20,6 +20,12 @@ var (
 	workspaceInitializationLocks sync.Map
 )
 
+var defaultDirs = []string{".agents", ".claude"}
+
+func projectRoot() string {
+	return appfs.Root()
+}
+
 const (
 	workspaceInitializationStateDirectory = "workspace-initialization"
 	// 修改模板、托管目录或修复规则时递增，旧 workspace 会在下一次使用前自动升级。

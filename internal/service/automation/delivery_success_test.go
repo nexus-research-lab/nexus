@@ -9,9 +9,9 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -244,7 +244,7 @@ func TestAutomationCommandCreateRunAndInspectDeliversToCurrentSession(t *testing
 		&fakeWorkspaceReader{},
 		router,
 	)
-	sctx := runtimecommand.Actor{
+	sctx := command.Actor{
 		AgentID:            "agent-1",
 		AgentName:          "新闻智能体",
 		OwnerUserID:        "user-1",

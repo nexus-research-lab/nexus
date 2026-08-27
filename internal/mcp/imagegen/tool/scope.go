@@ -25,7 +25,7 @@ func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context
 func requireWorkspacePath(sctx contract.ServerContext) (string, error) {
 	workspacePath := strings.TrimSpace(sctx.WorkspacePath)
 	if workspacePath == "" {
-		return "", errors.New("nexus_imagegen 缺少当前 Agent workspace")
+		return "", errors.New("Nexus 图片生成工具缺少当前 Agent workspace")
 	}
 	return workspacePath, nil
 }

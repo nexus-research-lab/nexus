@@ -1,17 +1,15 @@
-// Package channelauthorization exposes a dedicated owner-main private-DM MCP
-// for persistent Channel QR and verification-code authorization.
+// Package channelauthorization 提供 nexus MCP 中 owner-main 私有 DM 的单一 Channel 授权 action 工具。
 //
-// L2 | parent: internal/mcp (L1 in AGENTS.md)
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
-// Members:
-//   - contract/: server-fixed actor and narrow service interface.
-//   - tool/: start/status/cancel/submit-code-card tools with strict schemas.
-//   - server.go: in-process MCP assembly.
+// 成员清单：
+//   - contract/：server 固定 Actor 与窄服务接口。
+//   - tool/：承载 start/status/cancel/request-verification-code 的单一严格 action 工具。
+//   - server.go：工具定义装配。
 //
-// QR/device payloads and verification codes never appear in MCP results or
-// arguments; they cross only the authenticated native human presentation path.
+// QR/device payload 与验证码永不进入 MCP 结果或参数，只经过已认证的原生人类展示路径。
 //
-// Exposed: NewServer.
+// 对外暴露：BuildTools。
 //
-// [PROTOCOL]: update this header when the package contract changes.
+// [PROTOCOL]: 包契约变更时更新此头部。
 package channelauthorization

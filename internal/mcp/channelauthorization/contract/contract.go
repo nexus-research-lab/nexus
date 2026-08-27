@@ -1,6 +1,6 @@
-// INPUT: server-fixed owner-main DM business identity and live runtime lease.
-// OUTPUT: immutable service Actor and the four safe Channel authorization operations.
-// POS: nexus_channel_authorization trusted transport contract.
+// INPUT: server 固化的 owner-main DM 业务身份与 live runtime lease。
+// OUTPUT: 不可变 service Actor 与四个安全 Channel 授权 action。
+// POS: nexus MCP Channel 授权工具的可信 transport 契约。
 package contract
 
 import (
@@ -9,10 +9,7 @@ import (
 	authorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
 )
 
-const ServerName = "nexus_channel_authorization"
-
-// ServerContext is injected by the app/runtime builder. No field can be
-// supplied or overridden by model tool arguments.
+// ServerContext 由 app/runtime builder 注入，模型工具参数不能提供或覆盖任何字段。
 type ServerContext struct {
 	OwnerUserID       string
 	CurrentAgentID    string

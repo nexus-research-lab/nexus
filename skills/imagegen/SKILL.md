@@ -8,7 +8,7 @@ tags: [image, asset, generation, design]
 
 # Image Generation Skill
 
-为当前 workspace 生成或编辑位图资产。默认使用内置 `nexus_imagegen` MCP 工具；Provider、鉴权、接口兼容和响应解析全部由 Go 服务负责。`nexusctl imagegen generate` 与 `nexusctl imagegen edit` 只作为显式 CLI 兜底和手工调试入口。
+为当前 workspace 生成或编辑位图资产。默认使用 `nexus.generate_image` 与 `nexus.edit_image`；Provider、鉴权、接口兼容和响应解析全部由 Go 服务负责。`nexusctl imagegen generate` 与 `nexusctl imagegen edit` 只作为显式 CLI 兜底和手工调试入口。
 
 ## 快路径
 

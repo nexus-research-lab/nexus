@@ -32,7 +32,7 @@ Public feed 是 Group Room 的公共事实层，只包含：
 - 用户公开消息。
 - 显式创建 Room 后由宿主生成、归因到介绍成员且标记为 `conversation_welcome` 的首次欢迎语。
 - 已完成或已收口的 Agent final reply（错误/中断也以终态投影表示）。
-- publish_public_message 明确发布的公区事实。
+- `send_message(destination=current_room, visibility=public)` 明确发布的公区事实。
 
 stream、thinking、tool_use、未完成/取消/失败的中间输出、独立 runtime result 和 no-reply 标记都不是公区事实。实时状态事件可以广播给订阅者，但不作为 Agent 的公区历史上下文。
 
@@ -63,7 +63,7 @@ Reply route 规定被唤醒 Agent 的单次 final reply 如何投影：
 
 correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI 分组。它不表示阶段、请求状态、完成状态，也不驱动唤醒。
 
-副作用幂等不使用 correlation_id。宿主按 SDK `tool_use_id` 生成不可由模型覆盖的 command identity；bridge 未提供该字段时，使用 source session、Agent、round、工具名与规范化输入生成稳定回退。`send_directed_message` 将该身份派生为确定性 message_id，同一逻辑工具调用的 transport/model retry 只重放第一次持久结果；同 ID 不同语义 fail closed。
+副作用幂等不使用 correlation_id。宿主按 SDK `tool_use_id` 生成不可由模型覆盖的 command identity；bridge 未提供该字段时，使用 source session、Agent、round、工具名与规范化输入生成稳定回退。`send_message` 的当前 Room 私域分支将该身份派生为确定性 message_id，同一逻辑工具调用的 transport/model retry 只重放第一次持久结果；同 ID 不同语义 fail closed。
 
 ### 3.6 Initial welcome
 
@@ -150,7 +150,9 @@ public mention 目标的公开实质终态还必须携带宿主派生的回复�
 
 ### 4.4 主动公区广播
 
-publish_public_message 仅在私域或 tool-driven 流程需要额外广播一条独立公区事实时使用。工具成功后，当前 slot 的默认 final reply 被抑制，避免重复公区消息。
+`send_message(destination=current_room, visibility=public)` 仅在私域或 tool-driven
+流程需要额外广播一条独立公区事实时使用。工具成功后，当前 slot 的默认 final
+reply 被抑制，避免重复公区消息。
 
 ## 5. Directed message
 

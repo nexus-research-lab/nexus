@@ -1,11 +1,16 @@
 package logx
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
 )
+
+type contextKey string
+
+const loggerContextKey contextKey = "logger"
 
 // Options 描述日志构造参数。
 type Options struct {
@@ -35,6 +40,46 @@ func New(options Options) *slog.Logger {
 // NewDiscardLogger 返回一个丢弃输出的 logger，适合测试场景。
 func NewDiscardLogger() *slog.Logger {
 	return New(Options{Output: io.Discard})
+}
+
+// WithLogger 将请求级 logger 绑定到上下文。
+func WithLogger(ctx context.Context, logger *slog.Logger) context.Context {
+	if logger == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, loggerContextKey, logger)
+}
+
+// FromContext 读取请求级 logger。
+func FromContext(ctx context.Context) *slog.Logger {
+	if logger, ok := ctx.Value(loggerContextKey).(*slog.Logger); ok && logger != nil {
+		return logger
+	}
+	return slog.Default()
+}
+
+// Resolve 优先返回上下文 logger，否则回退到显式注入实例。
+func Resolve(ctx context.Context, fallback *slog.Logger) *slog.Logger {
+	if logger, ok := ctx.Value(loggerContextKey).(*slog.Logger); ok && logger != nil {
+		return logger
+	}
+	if fallback != nil {
+		return fallback
+	}
+	return slog.Default()
+}
+
+// PreviewText 将可能很长的用户文本压缩成适合单行日志的预览。
+func PreviewText(value string, maxRunes int) string {
+	normalized := strings.Join(strings.Fields(value), " ")
+	if normalized == "" || maxRunes <= 0 {
+		return normalized
+	}
+	runes := []rune(normalized)
+	if len(runes) <= maxRunes {
+		return normalized
+	}
+	return string(runes[:maxRunes]) + "..."
 }
 
 func buildHandler(options Options, handlerOptions *slog.HandlerOptions) slog.Handler {

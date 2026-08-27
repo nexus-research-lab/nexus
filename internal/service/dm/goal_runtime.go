@@ -6,11 +6,12 @@ package dm
 import (
 	"context"
 	"errors"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -308,19 +309,19 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		return
 	}
 	receipts := r.consumeRuntimeCommandReceipts()
-	if runtimecommand.HasDomain(receipts, runtimecommand.DomainExecution) {
+	if nexusmcp.HasDomain(receipts, command.DomainExecution) {
 		r.service.observeExecutionRuntimeCommandReceipts(r.orchestrationActor(), receipts)
 	}
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
-	r.rememberGoalToolProgress(runtimecommand.HasGoalProgress(receipts))
+	r.rememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
 	snapshot := r.assistantGoalUsageSnapshot(message)
-	hasSuccessfulCreate := runtimecommand.HasAppliedOperation(
-		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationCreate,
+	hasSuccessfulCreate := nexusmcp.HasAppliedOperation(
+		receipts, command.DomainGoal, command.GoalOperationCreate,
 	)
-	hasSuccessfulUpdate := runtimecommand.HasAppliedOperation(
-		receipts, runtimecommand.DomainGoal, runtimecommand.GoalOperationUpdate,
+	hasSuccessfulUpdate := nexusmcp.HasAppliedOperation(
+		receipts, command.DomainGoal, command.GoalOperationUpdate,
 	)
 	if hasSuccessfulCreate {
 		r.goalUsageMu.Lock()
@@ -350,7 +351,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		// 优先使用结果返回的 exact Goal ID；旧 provider 才回退到本 round 固定
 		// binding。保持该绑定直到 terminal usage 完成最终对账后再关闭。
 		r.goalUsageMu.Lock()
-		if goalID := runtimecommand.SuccessfulGoalCompletionID(
+		if goalID := nexusmcp.SuccessfulGoalCompletionID(
 			receipts,
 			r.goalIDForUsage,
 		); goalID != "" {
@@ -363,7 +364,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 }
 
-func (r *roundRunner) consumeRuntimeCommandReceipts() []runtimecommand.Receipt {
+func (r *roundRunner) consumeRuntimeCommandReceipts() []nexusmcp.CommandReceipt {
 	if r == nil || r.commandReceipts == nil {
 		return nil
 	}

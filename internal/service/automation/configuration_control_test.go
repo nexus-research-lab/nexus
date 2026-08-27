@@ -9,8 +9,8 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -497,7 +497,7 @@ func TestAutomationCommandCreateRetryAndHeartbeatControl(t *testing.T) {
 	wakeResult, wakeError := callAutomationCommand(
 		t,
 		fixture.Service,
-		runtimecommand.Actor{
+		command.Actor{
 			AgentID:           fixture.ServerContext.AgentID,
 			OwnerUserID:       fixture.ServerContext.OwnerUserID,
 			SourceContextType: "agent",

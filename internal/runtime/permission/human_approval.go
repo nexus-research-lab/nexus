@@ -28,16 +28,12 @@ type HumanToolApprovalRecorder interface {
 	RecordHumanToolApproval(context.Context, HumanToolApproval) error
 }
 
-func isRecordedHumanApprovalTool(toolName string) bool {
-	for _, leaf := range []string{
-		"apply_nexus_configuration_change",
-		"start_connector_authorization",
-	} {
-		if matchesToolLeaf(toolName, leaf) {
-			return true
-		}
+func isRecordedHumanApprovalTool(toolName string, toolInput map[string]any) bool {
+	if matchesToolLeaf(toolName, "apply_nexus_configuration_change") {
+		return true
 	}
-	return false
+	return matchesToolLeaf(toolName, "connector_authorization") &&
+		normalizeString(toolInput["action"]) == "start"
 }
 
 func matchesToolLeaf(toolName string, leaf string) bool {

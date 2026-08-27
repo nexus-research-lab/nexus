@@ -12,7 +12,7 @@
 //   - marketplace_*.go：外部 marketplace 检索、预览、来源配置、staging 导入与单项/批量更新；
 //     Git / URL / skills.sh / 私有 JSON 注册表提供 expected version 对话入口；私有来源 CRUD/导入与 Web/API 共用 owner catalog CAS，
 //     私有 Bearer 凭据保持加密，健康检查只更新非功能元数据，批量写按项推进 version 并检测部分完成，upload/local path 保持 human-only。
-//   - frontmatter.go / model_skill.go：frontmatter 解析、正文投影、技能模型、AgentSkillState，
+//   - frontmatter.go / model.go：frontmatter 解析、正文投影、技能模型、AgentSkillState，
 //     以及不进入用户目录/手动绑定的内部角色配置 Skill 名单。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

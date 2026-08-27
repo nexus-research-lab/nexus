@@ -29,6 +29,20 @@ type runtimeSettingsPreparationScheduler interface {
 	ScheduleRuntimeSettingsPreparation(context.Context, protocol.Session)
 }
 
+// SQLRepository 定义 Room Session 视图所需的 SQL 读取能力。
+type SQLRepository interface {
+	ListRoomSessions(context.Context, string) ([]protocol.Session, error)
+	ListRoomSessionsByAgent(context.Context, string) ([]protocol.Session, error)
+	GetRoomSessionByKey(context.Context, string, protocol.SessionKey) (*protocol.Session, error)
+	UpdateRoomSessionRuntimeIdentity(context.Context, string, string, string) error
+	UpdateRoomConversationRuntimeSettings(
+		context.Context,
+		string,
+		map[string]any,
+		string,
+	) ([]protocol.Session, error)
+}
+
 var (
 	// ErrSessionNotFound 表示 session 不存在。
 	ErrSessionNotFound = errors.New("session not found")

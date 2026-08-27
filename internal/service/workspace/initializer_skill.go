@@ -17,15 +17,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
-	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation"}, runtimecommand.ManagedSemanticSkillNames()...), "nexus-configuration", "nexus-product-guide")
+	baseSkillNames      = append(append([]string{"imagegen", "visualize", "automation"}, agentsvc.ManagedSemanticSkillNames()...), "nexus-configuration", "nexus-product-guide")
 	mainAgentSkillNames = []string{"nexus-manager"}
 	// createSymlink 仅作为平台能力探针；真正的创建由 confinedfs.Root.Symlink 完成。
 	createSymlink = func(string, string) error { return nil }
@@ -222,7 +222,7 @@ func RuntimeSkillNamesForAgent(
 		return nil, err
 	}
 	defer root.Close()
-	selectedSkillIDs, disabledSkillIDs := runtimecommand.BindManagedSemanticSkills(
+	selectedSkillIDs, disabledSkillIDs := agentsvc.BindManagedSemanticSkills(
 		agentValue.Options.SkillIDs,
 		agentValue.Options.DisabledSkillIDs,
 	)
@@ -241,7 +241,7 @@ func RuntimeDisabledSkillNamesForAgent(
 	cfg config.Config,
 	agentValue protocol.Agent,
 ) ([]string, error) {
-	selectedSkillIDs, disabledSkillIDs := runtimecommand.BindManagedSemanticSkills(
+	selectedSkillIDs, disabledSkillIDs := agentsvc.BindManagedSemanticSkills(
 		agentValue.Options.SkillIDs,
 		agentValue.Options.DisabledSkillIDs,
 	)

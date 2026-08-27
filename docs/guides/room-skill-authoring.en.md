@@ -67,10 +67,10 @@ Nexus does not decide when the discussion is complete and does not automatically
 | Ordinary public reply | Return the final reply directly; do not call a Room tool. |
 | One-off public conversation request or wake | Include a real, non-code `@member` in the final reply; it does not establish tracked responsibility. |
 | Accountable delivery, dependency, or acceptance | Use WorkGraph and `assign_work`; return through `submit_work` / `review_work` instead of using `@` as a substitute. |
-| Private send or multi-member collection | Use `send_directed_message` and specify recipients, wake behavior, and `reply_route`. |
+| Private send or multi-member collection | Use `send_message` with `destination=current_room` and `visibility=private`; specify recipients, wake behavior, and `reply_route`. |
 | Return a private result to the host | Use `reply_route=private`; set `wake_policy=immediate` when needed. |
 | Let the host continue publicly from a private result | Set `next_reply_route=public` on the private route. |
-| Broadcast a separate fact from a private or tool-driven flow | Use `publish_public_message` once; ordinary public replies should not use it. |
+| Broadcast a separate fact from a private or tool-driven flow | Use `send_message` with `destination=current_room` and `visibility=public`; ordinary public replies should not use it. |
 | Woken with no new work | Return `<nexus_room_no_reply/>` instead of creating a public message. |
 
 The runtime injects Room, conversation, source-agent, and causal fields for tools. A Skill must not forge or assemble them.

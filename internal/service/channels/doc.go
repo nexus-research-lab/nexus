@@ -18,7 +18,7 @@
 //     owner + channel 串行写边界。
 //   - external_session_identity.go：把 pairing/account 真相投影为不泄露账号原值的 Session 短标识、当前/历史状态与初始删除资格。
 //   - session_delivery.go / room_delivery.go / automation_delivery.go：会话与房间主动投递；Automation 结果用 run_id 幂等投影到接收 Agent 所属的真实逻辑会话，数据库 Room-backed DM/成员 Session 经统一读模型验证后首次物化 workspace 投影，保留 producer Agent metadata，再发送外部 IM 并关联平台回执；合成收件箱只保留旧任务兼容。
-//   - model_channel.go / model_control.go：通道与控制模型。
+//   - channel.go / control_types.go：通道与控制模型。
 //
 // 具体平台适配见子包 adapters/；通道无关契约见 contract/。
 //

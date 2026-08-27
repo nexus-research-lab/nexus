@@ -13,7 +13,7 @@ type cacheSurfaceMCPServer struct {
 	description string
 }
 
-const cacheSurfaceNexusServerName = "nexus_visualize"
+const cacheSurfaceNexusServerName = "nexus"
 
 type cacheSurfacePanicServer struct{}
 

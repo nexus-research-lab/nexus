@@ -9,9 +9,13 @@ import (
 	"errors"
 	"log/slog"
 
-	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
+	serverexecution "github.com/nexus-research-lab/nexus/internal/app/server/execution"
+	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
+	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
+	serverworkgraph "github.com/nexus-research-lab/nexus/internal/app/server/workgraph"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
@@ -140,7 +144,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	goalService.SetLogger(logger.With("component", "goal"))
-	goalService.SetSessionOwnershipVerifier(newGoalSessionOwnershipVerifier(
+	goalService.SetSessionOwnershipVerifier(servergoal.NewSessionOwnershipVerifier(
 		core.Agent,
 		core.Room,
 	))
@@ -150,15 +154,13 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		orchestrationService,
 	)
 	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
-		executionSubagentToolHistory{sessions: core.Session},
+		serverexecution.NewSubagentToolHistory(core.Session),
 	)
-	explicitGoalCoordinator := newExplicitGoalExecutionCoordinator(goalService, orchestrationService)
+	explicitGoalCoordinator := servergoal.NewExplicitExecutionCoordinator(goalService, orchestrationService)
 	goalService.SetObjectiveRetargetCoordinator(explicitGoalCoordinator)
 	orchestrationService.SetExplicitGoalBindingGateway(explicitGoalCoordinator)
-	orchestrationService.SetGoalPromotionGateway(newExecutionGoalPromotionGateway(cfg, goalService))
-	goalService.SetExecutionGoalCompletionReadiness(executionGoalCompletionReadiness{
-		orchestration: orchestrationService,
-	})
+	orchestrationService.SetGoalPromotionGateway(servergoal.NewExecutionPromotionGateway(cfg, goalService))
+	goalService.SetExecutionGoalCompletionReadiness(servergoal.NewExecutionCompletionReadiness(orchestrationService))
 	preferencesService := preferencessvc.NewService(cfg)
 	workGraphWorkflowService.SetAbstractor(
 		workgraphworkflowsvc.NewLLMAbstractor(providerService, preferencesService),
@@ -267,9 +269,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	core.Room.SetConversationSessionForker(dmService)
-	workGraphWorkflowService.SetEditorSessionManager(workGraphEditorSessionManager{
-		dm: dmService, sessions: core.Session,
-	})
+	workGraphWorkflowService.SetEditorSessionManager(
+		serverworkgraph.NewEditorSessionManager(dmService, core.Session),
+	)
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	echoService := echosvc.NewService(
@@ -306,18 +308,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetQueueAdmissionStore(queueAdmissionRepository)
 	roomRealtime.SetTitleGenerator(titleService)
 	workGraphWorkflowService.SetSaveRoundDispatcher(
-		newWorkGraphSaveRoundDispatcher(dmService),
+		serverworkgraph.NewSaveRoundDispatcher(dmService),
 	)
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
 	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)
-	orchestrationService.SetExecutionCancellationConsumer(executionCancellationConsumer{
-		room:    roomRealtime,
-		runtime: runtimeManager,
-	})
+	orchestrationService.SetExecutionCancellationConsumer(
+		serverexecution.NewCancellationConsumer(roomRealtime, runtimeManager),
+	)
 	goalService.SetRoomGoalCompletionReadiness(roomRealtime)
-	goalService.SetGuidanceDispatcher(goalGuidanceDispatcher{runtime: runtimeManager, room: roomRealtime})
-	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
+	goalService.SetGuidanceDispatcher(servergoal.NewGuidanceDispatcher(runtimeManager, roomRealtime))
+	goalService.SetRuntimeInterrupter(servergoal.NewInterruptDispatcher(dmService, roomRealtime))
 	automationService := automationsvc.NewService(
 		cfg,
 		db,
@@ -338,17 +339,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetTaskReferenceResolver(automationService)
 	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
-	runtimeCommandMCPServerBuilder := newRuntimeCommandMCPServerBuilder(
-		cfg,
-		core.Agent,
-		automationService,
-		explicitGoalCoordinator,
-		orchestrationService,
-		permission,
-		workGraphWorkflowService,
-	)
-	dmService.SetRuntimeCommandMCPServerBuilder(runtimeCommandMCPServerBuilder)
-	roomRealtime.SetRuntimeCommandMCPServerBuilder(runtimeCommandMCPServerBuilder)
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 	configurationService := configurationsvc.NewService(
@@ -365,7 +355,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	configurationService.SetSessionControl(core.Session)
 	configurationService.SetRoomControl(core.Room, roomRealtime)
 	configurationService.SetPrincipalVerifiers(authService, authService)
-	configurationRuntimeEnvironmentBuilder := newConfigurationRuntimeEnvironmentBuilder(
+	configurationRuntimeEnvironmentBuilder := serverruntime.NewConfigurationEnvironmentBuilder(
 		cfg,
 		configurationService,
 		core.Agent,
@@ -399,10 +389,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	if channelAuthorization != nil {
 		channelControl.SetChannelLoginAuthorizationCommitGuard(channelAuthorization)
 	}
-	permission.SetHumanToolApprovalRecorder(humanToolApprovalRouter{
-		configuration: configurationService,
-		connector:     connectorAuthorization,
-	})
+	permission.SetHumanToolApprovalRecorder(serverruntime.NewHumanToolApprovalRouter(
+		configurationService,
+		connectorAuthorization,
+	))
 	slashCommandCatalog := slashcommandsvc.NewCatalog()
 	slashCommandRegistry := slashcommandsvc.NewRegistry()
 	if err := slashcommandsvc.RegisterModelCommand(
@@ -419,40 +409,44 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	}
 	if err := slashcommandsvc.RegisterGoalCommand(
 		slashCommandRegistry,
-		slashcommandsvc.GoalCommandDependencies{Executor: goalCommandRouter{
-			dm:    dmService,
-			room:  roomRealtime,
-			goals: goalService,
-		}},
+		slashcommandsvc.GoalCommandDependencies{
+			Executor: servergoal.NewCommandRouter(dmService, roomRealtime, goalService),
+		},
 	); err != nil {
 		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
 		panic(err)
 	}
 
-	// 把平台通讯、授权、生成式 UI、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
-	// Goal、Execution 与 Automation 共用的 nexus MCP server 由 physical round 单独装配。
+	// 宿主自有工具按 physical round 合并到唯一 nexus MCP；Connector MCP 保持独立生命周期。
 	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
-	communicationBuilder := newCommunicationMCPBuilder(communicationService, core.Agent)
-	connectorBuilder := newConnectorMCPBuilder(connectorService)
-	connectorAuthorizationBuilder := newConnectorAuthorizationMCPBuilder(connectorAuthorization, core.Agent)
-	channelAuthorizationBuilder := newChannelAuthorizationMCPBuilder(channelAuthorization, core.Agent)
-	visualizeBuilder := newVisualizeMCPBuilder()
-	imagegenBuilder := newImagegenMCPBuilder(imagegenService, providerService)
-	browserBuilder := newBrowserMCPBuilder(browserService, preferencesService)
-	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
-	standardMCPBuilder := combinedMCPBuilder(
-		communicationBuilder,
-		connectorBuilder,
-		connectorAuthorizationBuilder,
-		channelAuthorizationBuilder,
-		contextOnlyMCPBuilder(visualizeBuilder),
-		contextOnlyMCPBuilder(imagegenBuilder),
-		roundContextMCPBuilder(browserBuilder),
-		roundContextMCPBuilder(roomBuilder),
+	connectorBuilder := serverruntime.NewConnectorBuilder(connectorService)
+	builtInTools := serverruntime.CombineToolBuilders(
+		serverruntime.NewCommunicationToolBuilder(
+			communicationService,
+			roomRealtime,
+			core.Agent,
+			core.Room.GetRoom,
+		),
+		serverruntime.NewConnectorAuthorizationToolBuilder(connectorAuthorization, core.Agent),
+		serverruntime.NewChannelAuthorizationToolBuilder(channelAuthorization, core.Agent),
+		serverruntime.NewVisualizeToolBuilder(),
+		serverruntime.NewImagegenToolBuilder(imagegenService, providerService),
+		serverruntime.NewBrowserToolBuilder(browserService, preferencesService),
 	)
-	mcpBuilder := standardMCPBuilder
-	dmService.SetMCPServerBuilder(dmsvc.MCPServerBuilder(mcpBuilder))
-	roomRealtime.SetMCPServerBuilder(roomrealtime.MCPServerBuilder(mcpBuilder))
+	nexusMCPBuilder := serverruntime.NewServerBuilder(
+		cfg,
+		core.Agent,
+		automationService,
+		explicitGoalCoordinator,
+		orchestrationService,
+		permission,
+		builtInTools,
+		workGraphWorkflowService,
+	)
+	dmService.SetMCPServerBuilder(dmsvc.MCPServerBuilder(connectorBuilder))
+	roomRealtime.SetMCPServerBuilder(roomrealtime.MCPServerBuilder(connectorBuilder))
+	dmService.SetNexusMCPServerBuilder(nexusMCPBuilder)
+	roomRealtime.SetNexusMCPServerBuilder(nexusMCPBuilder)
 	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
 
 	warnIfProviderMissing(providerService, logger)

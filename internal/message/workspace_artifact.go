@@ -113,9 +113,13 @@ func isImagegenArtifactTool(toolName string) bool {
 		return false
 	}
 	switch normalized {
-	case "Bash", "generate_image", "edit_image", "nexus_imagegen":
+	case "Bash", "generate_image", "edit_image", "nexus_imagegen",
+		"mcp__nexus__generate_image", "mcp__nexus__edit_image",
+		"nexus__generate_image", "nexus__edit_image",
+		"nexus.generate_image", "nexus.edit_image":
 		return true
 	}
+	// 旧 server 包装名只用于读取历史图片 artifact。
 	return strings.HasPrefix(normalized, "mcp__nexus_imagegen__") ||
 		strings.HasPrefix(normalized, "nexus_imagegen__") ||
 		strings.HasPrefix(normalized, "nexus_imagegen.")

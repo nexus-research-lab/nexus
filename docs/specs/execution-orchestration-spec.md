@@ -20,7 +20,7 @@ Only currently implemented control-plane behavior is in scope.
 ### 1.1 Normative truth sources
 
 This specification owns product semantics and cross-component invariants. Exact
-fields, enums, parser rules, and runtime command contracts remain code-generated or
+fields, enums, parser rules, and `nexus.command` MCP contracts remain code-generated or
 code-defined truth:
 
 | Concern | Truth source |
@@ -34,15 +34,15 @@ code-defined truth:
 | Plan Document parsing and normalization | [`internal/service/orchestration/plan_document.go`](../../internal/service/orchestration/plan_document.go) |
 | Parser-backed Plan Document contract | [`internal/service/orchestration/plan_document_contract.go`](../../internal/service/orchestration/plan_document_contract.go) |
 | Proposal sealing and materialization | [`internal/service/orchestration/plan_proposal.go`](../../internal/service/orchestration/plan_proposal.go), [`plan_materialization.go`](../../internal/service/orchestration/plan_materialization.go) |
-| Runtime command envelope, operation contract, and typed receipt | [`internal/cli/runtimecommand/command.go`](../../internal/cli/runtimecommand/command.go), [`receipt.go`](../../internal/cli/runtimecommand/receipt.go) |
-| Execution operation inputs, schemas, and directory | [`internal/cli/runtimecommand/execution/operation/input.go`](../../internal/cli/runtimecommand/execution/operation/input.go), [`schema.go`](../../internal/cli/runtimecommand/execution/operation/schema.go), [`registry.go`](../../internal/cli/runtimecommand/execution/operation/registry.go) |
-| Goal operation directory and contracts | [`internal/cli/runtimecommand/goal/operation/registry.go`](../../internal/cli/runtimecommand/goal/operation/registry.go), [`internal/cli/runtimecommand/goal/contract/contract.go`](../../internal/cli/runtimecommand/goal/contract/contract.go) |
-| Round-scoped structured command adapter | [`internal/app/server/runtime_command.go`](../../internal/app/server/runtime_command.go) |
+| `nexus.command` MCP envelope, operation contract, and typed receipt | [`internal/mcp/command/contract.go`](../../internal/mcp/command/contract.go), [`tool.go`](../../internal/mcp/command/tool.go), [`internal/mcp/round_state.go`](../../internal/mcp/round_state.go) |
+| Execution operation inputs, schemas, and directory | [`internal/mcp/command/execution/operation/input.go`](../../internal/mcp/command/execution/operation/input.go), [`schema.go`](../../internal/mcp/command/execution/operation/schema.go), [`registry.go`](../../internal/mcp/command/execution/operation/registry.go) |
+| Goal operation directory and contracts | [`internal/mcp/command/goal/operation/registry.go`](../../internal/mcp/command/goal/operation/registry.go), [`internal/mcp/command/goal/contract/contract.go`](../../internal/mcp/command/goal/contract/contract.go) |
+| Round-scoped structured command adapter | [`internal/mcp/command/tool.go`](../../internal/mcp/command/tool.go), [`internal/app/server/runtime/command.go`](../../internal/app/server/runtime/command.go) |
 | Runtime responsibility and coordination authority | [`internal/runtime/responsibility_authority.go`](../../internal/runtime/responsibility_authority.go), [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
 | Accepted-review completion recovery receipts | [`internal/storage/orchestration/completion_audit.go`](../../internal/storage/orchestration/completion_audit.go), [`internal/service/orchestration/completion_audit_recovery.go`](../../internal/service/orchestration/completion_audit_recovery.go) |
 | Background dispatch and recovery scheduling | [`internal/infra/duework/loop.go`](../../internal/infra/duework/loop.go), [`internal/service/orchestration/background_coordinator.go`](../../internal/service/orchestration/background_coordinator.go), [`internal/storage/orchestration/background_deadline.go`](../../internal/storage/orchestration/background_deadline.go) |
 | Room collaboration attribution and handoff recovery | [`internal/protocol/room.go`](../../internal/protocol/room.go), [`internal/storage/workspace/room_public_handoff.go`](../../internal/storage/workspace/room_public_handoff.go), [`internal/service/room/realtime/public_handoff.go`](../../internal/service/room/realtime/public_handoff.go) |
-| Host-owned command receipt classification | [`internal/cli/runtimecommand/receipt.go`](../../internal/cli/runtimecommand/receipt.go), [`internal/service/dm/goal_runtime.go`](../../internal/service/dm/goal_runtime.go), [`internal/service/room/realtime/goal_runtime.go`](../../internal/service/room/realtime/goal_runtime.go) |
+| Host-owned command receipt classification | [`internal/mcp/receipt.go`](../../internal/mcp/receipt.go), [`internal/service/dm/goal_runtime.go`](../../internal/service/dm/goal_runtime.go), [`internal/service/room/realtime/goal_runtime.go`](../../internal/service/room/realtime/goal_runtime.go) |
 | UI/Slash Goal command dispatch and durable control history | [`internal/service/slashcommand/goal.go`](../../internal/service/slashcommand/goal.go), [`internal/service/dm/goal_command.go`](../../internal/service/dm/goal_command.go), [`internal/service/room/realtime/goal_command.go`](../../internal/service/room/realtime/goal_command.go) |
 
 Do not copy the complete Plan Document field list or operation input schema into this
@@ -613,7 +613,7 @@ and Room must seal the successor's first Plan as `operation: create` with
 `goal_binding=current`. A one-shot `replan` rejection in this state is a caller
 contract violation, not an expected retry phase.
 
-The managed Goal/Execution Skill catalog is one shared runtime-command truth used
+The managed Goal/Execution Skill catalog is one shared Agent-service truth used
 by Agent defaults, workspace deployment, the Skills catalog, prompts, and permission
 policy. Existing Agents are migrated into that binding and cannot retain an old
 Execution disable. The canonical Agent read model and the final runtime launch
@@ -1004,10 +1004,10 @@ the following layers together:
 - strict Plan Document parser and parser-backed contract;
 - storage transaction and reconciliation behavior;
 - runtime coordination, WorkBinding, ReviewBinding, and Goal authority;
-- runtime command input schemas, operation descriptions, and directory;
+- `nexus.command` MCP input schemas, operation descriptions, and directory;
 - bundled Skills and system prompts;
 - actor-filtered HTTP/WS snapshots and the read-only Execution Graph projection;
-- migrations and focused service/storage/runtime-command/frontend tests.
+- migrations and focused service/storage/MCP-command/frontend tests.
 
 A change is incomplete when one layer advertises authority or state that another
 layer cannot enforce.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"log/slog"
 	"strings"
 	"time"
@@ -15,7 +16,6 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -198,10 +198,11 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 			return preparedSlotRuntime{}, err
 		}
 	}
-	mcpServers := e.runtimeMCPServers(permissionMode)
-	if e.service.runtimeCommandMCP != nil {
-		runtimeServers, runtimeErr := e.service.runtimeCommandMCP(
-			e.runtimeBuilderContext(),
+	mcpContext := e.runtimeMCPContext()
+	mcpServers := e.runtimeMCPServers(mcpContext, permissionMode)
+	if e.service.nexusMCP != nil {
+		runtimeServers, runtimeErr := e.service.nexusMCP(
+			mcpContext,
 			e.runtimeCommandRoundContext(permissionMode),
 		)
 		if runtimeErr != nil {
@@ -366,7 +367,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
 
-func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
+func (e *slotExecution) runtimeMCPContext() context.Context {
 	goalAuthority := e.slot.ensureGoalAuthorityState()
 	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
 	if responsibilityAuthority != nil {
@@ -375,39 +376,43 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 			e.round.ExecutionID,
 		))
 	}
-	var servers map[string]sdkmcp.ServerConfig
-	if e.service.mcpServers != nil {
-		sourceContextType := roomCommandSourceContextType(e.round)
-		mcpContext := runtimectx.WithResponsibilityAuthorityState(
-			runtimectx.WithGoalAuthorityState(
-				e.runtimeBuilderContext(),
-				goalAuthority,
-			),
-			responsibilityAuthority,
-		)
-		mcpContext = runtimectx.WithEnabledConnectorIDs(
-			mcpContext,
-			protocol.EffectiveSessionConnectorIDs(
-				e.agent.Options.ConnectorIDs,
-				roomAgentSessionOptions(e.round, e.agent.AgentID),
-			),
-		)
-		servers = e.service.mcpServers(
-			mcpContext,
-			e.agent,
-			e.round.SessionKey,
-			e.round.RootRoundID,
-			sourceContextType,
-			e.round.RoomID,
-			roomSourceContextLabel(e.round),
-			e.slot.ensureGoalObjectiveRevision(0),
-			permissionMode,
-		)
-	}
-	return servers
+	mcpContext := runtimectx.WithResponsibilityAuthorityState(
+		runtimectx.WithGoalAuthorityState(
+			e.runtimeBuilderContext(),
+			goalAuthority,
+		),
+		responsibilityAuthority,
+	)
+	return runtimectx.WithEnabledConnectorIDs(
+		mcpContext,
+		protocol.EffectiveSessionConnectorIDs(
+			e.agent.Options.ConnectorIDs,
+			roomAgentSessionOptions(e.round, e.agent.AgentID),
+		),
+	)
 }
 
-func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.Mode) runtimecommand.RoundContext {
+func (e *slotExecution) runtimeMCPServers(
+	ctx context.Context,
+	permissionMode sdkpermission.Mode,
+) map[string]sdkmcp.ServerConfig {
+	if e.service.mcpServers == nil {
+		return nil
+	}
+	return e.service.mcpServers(
+		ctx,
+		e.agent,
+		e.round.SessionKey,
+		e.round.RootRoundID,
+		roomCommandSourceContextType(e.round),
+		e.round.RoomID,
+		roomSourceContextLabel(e.round),
+		e.slot.ensureGoalObjectiveRevision(0),
+		permissionMode,
+	)
+}
+
+func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.Mode) nexusmcp.RoundContext {
 	goalAuthority := e.slot.ensureGoalAuthorityState()
 	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
 	if responsibilityAuthority != nil {
@@ -444,11 +449,11 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 		SDKSessionIdentity:      e.slot.ensureSDKSessionIdentityState(),
 		AutomationRun:           cloneAutomationRunContext(e.round.AutomationRun),
 	}
-	return runtimecommand.RoundContext{
+	return nexusmcp.RoundContext{
 		SessionKey: e.round.SessionKey, RoundID: e.round.RootRoundID,
 		SourceContextType: roomCommandSourceContextType(e.round),
 		SourceContextID:   e.round.RoomID, SourceContextLabel: roomSourceContextLabel(e.round),
-		CommandContext: commandContext, Receipts: e.slot.ensureCommandReceiptState(),
+		CommandContext: commandContext, CommandReceipts: e.slot.ensureCommandReceiptState(),
 	}
 }
 
@@ -585,8 +590,8 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 			e.forkSourceSessionID = ""
 			e.runtimeIdentityCommitted = false
 			runtimeValue.options.Session.ResumeID = ""
-			runtimeValue.options.Session.Fork = false
 			runtimeValue.options.Session.ResumeAt = ""
+			runtimeValue.options.Session.Fork = false
 			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
 				client, err = e.connectRuntimeOnce(startup, *runtimeValue)
 			}
