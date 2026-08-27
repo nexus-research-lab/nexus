@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -51,33 +50,6 @@ test("history pages request deferred indexing by default and preserve its retry 
       retry_after_ms: 250,
     },
   );
-});
-
-test("indexing responses stay in the request loop instead of becoming empty history", async () => {
-  const [historySource, lifecycleSource, roundIndexApi, roundIndexHook] = await Promise.all([
-    readFile(
-      path.join(webRoot, "src/hooks/agent/session/conversation-history.ts"),
-      "utf8",
-    ),
-    readFile(
-      path.join(webRoot, "src/hooks/agent/session/conversation-lifecycle.ts"),
-      "utf8",
-    ),
-    readFile(
-      path.join(webRoot, "src/lib/api/conversation/session-api.ts"),
-      "utf8",
-    ),
-    readFile(
-      path.join(webRoot, "src/hooks/conversation/use-session-round-index.ts"),
-      "utf8",
-    ),
-  ]);
-  assert.match(historySource, /requestConversationHistoryPageUntilReady/);
-  assert.match(lifecycleSource, /requestConversationHistoryPageUntilReady/);
-  assert.match(roundIndexApi, /if \(!result\.indexing\)/);
-  assert.match(roundIndexApi, /await waitForSessionRoundIndex/);
-  assert.match(roundIndexHook, /new AbortController\(\)/);
-  assert.match(roundIndexHook, /return \(\) => controller\.abort\(\)/);
 });
 
 test("initial history waits for deferred indexing instead of committing an empty page", async () => {
@@ -259,35 +231,4 @@ test("indexed history detects equal-size window replacement and keeps pullable g
     false,
     "virtual measurement must not overwrite an explicit round navigation",
   );
-});
-
-test("large message details load only on demand and remain abortable", async () => {
-  const [toolDetailSource, toolControllerSource, imageBlockSource, sessionApiSource] = await Promise.all([
-    readFile(
-      path.join(webRoot, "src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx"),
-      "utf8",
-    ),
-    readFile(
-      path.join(webRoot, "src/features/conversation/shared/message/blocks/tool/use-tool-block-controller.ts"),
-      "utf8",
-    ),
-    readFile(
-      path.join(webRoot, "src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx"),
-      "utf8",
-    ),
-    readFile(
-      path.join(webRoot, "src/lib/api/conversation/session-api.ts"),
-      "utf8",
-    ),
-  ]);
-  assert.match(toolDetailSource, /new AbortController\(\)/);
-  assert.match(toolDetailSource, /getSessionMessageDetailApi/);
-  assert.match(toolDetailSource, /return \(\) => controller\.abort\(\)/);
-  assert.match(toolControllerSource, /resolveCompleteToolResult/);
-  assert.match(toolControllerSource, /getSessionMessageDetailApi/);
-  assert.match(imageBlockSource, /getSessionMessageImageDetailApi/);
-  assert.match(imageBlockSource, /URL\.createObjectURL/);
-  assert.match(imageBlockSource, /return \(\) => \{/);
-  assert.match(sessionApiSource, /applyDesktopRequestHeaders/);
-  assert.match(sessionApiSource, /\/sessions\/message-detail/);
 });

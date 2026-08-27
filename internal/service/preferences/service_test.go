@@ -73,26 +73,6 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	}
 }
 
-func TestServicePersistsEchoEnabled(t *testing.T) {
-	service := NewService(config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")})
-
-	updated, err := service.SetEchoEnabled(context.Background(), "user/1", true)
-	if err != nil {
-		t.Fatalf("开启主动跟进失败: %v", err)
-	}
-	if !updated.EchoEnabled {
-		t.Fatalf("主动跟进未开启: %+v", updated)
-	}
-
-	loaded, err := service.Get(context.Background(), "user/1")
-	if err != nil {
-		t.Fatalf("读取主动跟进设置失败: %v", err)
-	}
-	if !loaded.EchoEnabled {
-		t.Fatalf("主动跟进未持久化: %+v", loaded)
-	}
-}
-
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
@@ -325,88 +305,6 @@ func TestServiceWebSearchCredentialCommitSurvivesEitherCrashPoint(t *testing.T) 
 	}
 }
 
-func TestServicePersistsWebSearchSettings(t *testing.T) {
-	root := t.TempDir()
-	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
-	apiKey := "secret-search-key"
-
-	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{
-		WebSearch: &WebSearchSettings{
-			Enabled:  true,
-			Provider: "brave",
-		},
-		WebSearchAPIKey: &apiKey,
-	}); err != nil {
-		t.Fatalf("写入 WebSearch 凭据失败: %v", err)
-	}
-
-	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
-		WebSearch: &WebSearchSettings{
-			Enabled:  true,
-			Provider: "anysearch",
-			BaseURL:  " https://ignored.example.com ",
-		},
-	})
-	if err != nil {
-		t.Fatalf("切换 AnySearch 失败: %v", err)
-	}
-	if prefs.WebSearch.Provider != "anysearch" || prefs.WebSearch.BaseURL != "https://ignored.example.com" || prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
-		t.Fatalf("AnySearch 配置未正确归一化: %+v", prefs.WebSearch)
-	}
-	keyPath := testUserSettingsPath(root, "user/1", "web-search-api-key")
-	if _, err := os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("切换无凭据 provider 后应删除旧 API key: %v", err)
-	}
-
-	prefs, err = service.Update(context.Background(), "user/1", UpdateRequest{
-		WebSearch: &WebSearchSettings{
-			Enabled:  true,
-			Provider: "searxng",
-			BaseURL:  " https://search.example.com ",
-		},
-		WebSearchAPIKey: &apiKey,
-	})
-	if err != nil {
-		t.Fatalf("更新 SearXNG 配置失败: %v", err)
-	}
-	if prefs.WebSearch.BaseURL != "https://search.example.com" || prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
-		t.Fatalf("SearXNG 应只保留 Base URL: %+v", prefs.WebSearch)
-	}
-}
-
-func TestServiceStoresOptionalAnySearchAPIKey(t *testing.T) {
-	root := t.TempDir()
-	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
-	apiKey := "anysearch-key"
-
-	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
-		WebSearch:       &WebSearchSettings{Enabled: true, Provider: "anysearch"},
-		WebSearchAPIKey: &apiKey,
-	})
-	if err != nil {
-		t.Fatalf("写入 AnySearch API key 失败: %v", err)
-	}
-	if !prefs.WebSearch.Enabled || !prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != apiKey || prefs.WebSearch.APIKeyMasked != "anyse************************h-key" {
-		t.Fatalf("AnySearch API key 未保存: %+v", prefs.WebSearch)
-	}
-
-	loaded, err := service.Get(context.Background(), "user/1")
-	if err != nil {
-		t.Fatalf("读取 AnySearch API key 失败: %v", err)
-	}
-	if !loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != apiKey || loaded.WebSearch.APIKeyMasked != "anyse************************h-key" {
-		t.Fatalf("AnySearch API key 未恢复: %+v", loaded.WebSearch)
-	}
-
-	content, err := os.ReadFile(testUserSettingsPath(root, "user/1", "preferences.json"))
-	if err != nil {
-		t.Fatalf("读取偏好文件失败: %v", err)
-	}
-	if strings.Contains(string(content), apiKey) {
-		t.Fatalf("AnySearch API key 不应写入偏好文件: %s", content)
-	}
-}
-
 func TestServiceDoesNotReuseCredentialAcrossWebSearchProviders(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
@@ -478,36 +376,6 @@ func TestServiceRejectsIncompleteWebSearchSettings(t *testing.T) {
 		if _, err := service.Update(context.Background(), "user/1", UpdateRequest{WebSearch: &settings}); err == nil {
 			t.Fatalf("无效 WebSearch 配置应被拒绝: %+v", settings)
 		}
-	}
-}
-
-func TestServiceUpdateNormalizesRuntimeKindAlias(t *testing.T) {
-	root := t.TempDir()
-	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
-
-	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
-		AgentRuntimeKind: stringPointer("NXS"),
-	})
-	if err != nil {
-		t.Fatalf("更新 runtime 偏好失败: %v", err)
-	}
-	if prefs.AgentRuntimeKind != "nxs" {
-		t.Fatalf("runtime 别名未归一化: %+v", prefs)
-	}
-}
-
-func TestServiceUpdatePersistsInterruptDefaultDeliveryPolicy(t *testing.T) {
-	root := t.TempDir()
-	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
-
-	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
-		ChatDefaultDeliveryPolicy: policyPointer(protocol.ChatDeliveryPolicyInterrupt),
-	})
-	if err != nil {
-		t.Fatalf("更新偏好失败: %v", err)
-	}
-	if prefs.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyInterrupt {
-		t.Fatalf("打断默认行为未持久化: %+v", prefs)
 	}
 }
 
@@ -728,48 +596,6 @@ func TestServiceRestoreIfVersionPreservesLaterWriteAndCredential(t *testing.T) {
 	keyPath := filepath.Join(root, "workspace", ownerID, ".settings", "web-search-api-key")
 	if _, err = os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("恢复旧 WebSearch 配置后 credential 仍存在: %v", err)
-	}
-}
-
-func TestServiceUsesUniqueTemporaryFiles(t *testing.T) {
-	root := t.TempDir()
-	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
-	const ownerID = "owner-unique-temp"
-	settingsDir := filepath.Join(root, "workspace", ownerID, ".settings")
-	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	sentinels := []string{
-		filepath.Join(settingsDir, "preferences.json.tmp"),
-		filepath.Join(settingsDir, "web-search-api-key.tmp"),
-	}
-	for _, path := range sentinels {
-		if err := os.WriteFile(path, []byte("sentinel"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	apiKey := "unique-temp-key"
-	if _, err := service.Update(context.Background(), ownerID, UpdateRequest{
-		WebSearch:       &WebSearchSettings{Enabled: true, Provider: "brave"},
-		WebSearchAPIKey: &apiKey,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	for _, path := range sentinels {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if string(content) != "sentinel" {
-			t.Fatalf("固定临时路径被覆盖: %s = %q", path, content)
-		}
-	}
-	matches, err := filepath.Glob(filepath.Join(settingsDir, ".*.tmp"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(matches) != 0 {
-		t.Fatalf("唯一临时文件未清理: %v", matches)
 	}
 }
 

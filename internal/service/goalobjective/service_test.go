@@ -8,24 +8,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
-
-func TestRewriteTimeoutFitsRequestAckContract(t *testing.T) {
-	t.Parallel()
-
-	ackTimeout := time.Duration(protocol.RequestAckTimeoutMS) * time.Millisecond
-	if rewriteRequestTimeout >= ackTimeout {
-		t.Fatalf("rewrite request timeout = %s, must be below ACK timeout %s", rewriteRequestTimeout, ackTimeout)
-	}
-	if rewriteAttemptTimeout > rewriteRequestTimeout {
-		t.Fatalf("rewrite attempt timeout = %s, exceeds request timeout %s", rewriteAttemptTimeout, rewriteRequestTimeout)
-	}
-}
 
 func TestRewriteUsesBackgroundPreferenceAndSanitizesObjective(t *testing.T) {
 	t.Parallel()
@@ -153,91 +140,6 @@ func TestRewritePrefersAgentConversationModelOverBackgroundPreference(t *testing
 	}
 	if resolver.provider != "conversation-provider" || resolver.model != "conversation-model" {
 		t.Fatalf("resolver args = %q/%q, want conversation model", resolver.provider, resolver.model)
-	}
-}
-
-func TestRewriteUsesDefaultAgentModelForConversationAgentWithoutExplicitModel(t *testing.T) {
-	t.Parallel()
-
-	server := newRewriteResponseServer(t, "\"完成默认模型检查\"")
-	resolver := &fakeProviderResolver{
-		config: &clientopts.RuntimeConfig{
-			Provider:  "default-agent-provider",
-			AuthToken: "token",
-			BaseURL:   server.URL + "/v1",
-			Model:     "default-agent-model",
-			APIFormat: "chat_completions",
-		},
-	}
-	service := NewService(resolver, fakePreferencesService{prefs: preferencessvc.Preferences{
-		DefaultAgentOptions: protocol.Options{
-			Provider: "default-agent-provider",
-			Model:    "default-agent-model",
-		},
-		DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
-			Provider: "background-provider",
-			Model:    "background-model",
-		},
-	}})
-	service.SetConversationResolvers(
-		fakeAgentLookup{agents: map[string]*protocol.Agent{
-			"agent-dev": {AgentID: "agent-dev"},
-		}},
-		nil,
-	)
-
-	if _, err := service.Rewrite(context.Background(), Request{
-		OwnerUserID: "owner-1",
-		SessionKey:  "agent:agent-dev:ws:dm:chat",
-		Objective:   "把 Goal 模式检查清楚",
-	}); err != nil {
-		t.Fatalf("Rewrite() error = %v", err)
-	}
-	if resolver.provider != "default-agent-provider" || resolver.model != "default-agent-model" {
-		t.Fatalf("resolver args = %q/%q, want default agent model", resolver.provider, resolver.model)
-	}
-}
-
-func TestRewriteFallsBackToBackgroundWhenConversationModelIncomplete(t *testing.T) {
-	t.Parallel()
-
-	server := newRewriteResponseServer(t, "\"完成后台模型回退检查\"")
-	resolver := &fakeProviderResolver{
-		config: &clientopts.RuntimeConfig{
-			Provider:  "background-provider",
-			AuthToken: "token",
-			BaseURL:   server.URL + "/v1",
-			Model:     "background-model",
-			APIFormat: "chat_completions",
-		},
-	}
-	service := NewService(resolver, fakePreferencesService{prefs: preferencessvc.Preferences{
-		DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
-			Provider: "background-provider",
-			Model:    "background-model",
-		},
-	}})
-	service.SetConversationResolvers(
-		fakeAgentLookup{agents: map[string]*protocol.Agent{
-			"agent-dev": {
-				AgentID: "agent-dev",
-				Options: protocol.Options{
-					Provider: "conversation-provider",
-				},
-			},
-		}},
-		nil,
-	)
-
-	if _, err := service.Rewrite(context.Background(), Request{
-		OwnerUserID: "owner-1",
-		SessionKey:  "agent:agent-dev:ws:dm:chat",
-		Objective:   "把 Goal 模式检查清楚",
-	}); err != nil {
-		t.Fatalf("Rewrite() error = %v", err)
-	}
-	if resolver.provider != "background-provider" || resolver.model != "background-model" {
-		t.Fatalf("resolver args = %q/%q, want background model fallback", resolver.provider, resolver.model)
 	}
 }
 

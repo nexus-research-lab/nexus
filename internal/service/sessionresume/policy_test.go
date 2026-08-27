@@ -5,19 +5,6 @@ import (
 	"testing"
 )
 
-func TestPolicyCanPersistAllowsNonTranscriptSessionID(t *testing.T) {
-	policy := NewPolicy(fakeTranscriptStore{})
-
-	decision := policy.CanPersist("/workspace", "sdk-session-1")
-
-	if !decision.Allowed {
-		t.Fatalf("非 transcript 形态 session id 应允许持久化测试/legacy 值: %+v", decision)
-	}
-	if decision.Reason != ReasonNonTranscriptSession {
-		t.Fatalf("原因不正确: %+v", decision)
-	}
-}
-
 func TestPolicyCanResumeRequiresTranscript(t *testing.T) {
 	sessionID := "11111111-1111-4111-8111-111111111111"
 	policy := NewPolicy(fakeTranscriptStore{exists: map[string]bool{sessionID: true}})

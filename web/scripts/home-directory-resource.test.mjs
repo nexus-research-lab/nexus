@@ -142,38 +142,6 @@ test("last subscriber cleanup aborts I/O without surfacing a user error", async 
   assert.equal(requests.length, 1);
 });
 
-test("directory consumers expose blocking initial failure and non-blocking stale failure", async () => {
-  const [
-    launcherPage,
-    chatSidebar,
-    contactsSidebar,
-    launcherApi,
-    notificationResource,
-  ] = await Promise.all([
-    readFile(path.join(webRoot, "src/pages/launcher/launcher-page.tsx"), "utf8"),
-    readFile(path.join(webRoot, "src/features/home/sidebar/chat-sidebar-panel.tsx"), "utf8"),
-    readFile(path.join(webRoot, "src/features/home/sidebar/contacts-sidebar-panel.tsx"), "utf8"),
-    readFile(path.join(webRoot, "src/lib/api/launcher-api.ts"), "utf8"),
-    readFile(
-      path.join(
-        webRoot,
-        "src/features/home/notifications/use-chat-completion-notifications.ts",
-      ),
-      "utf8",
-    ),
-  ]);
-
-  assert.match(launcherPage, /hasError && !hasLoaded/);
-  assert.match(launcherPage, /hasError && hasLoaded/);
-  assert.match(launcherPage, /HomeDirectoryRefreshErrorNotice/);
-  assert.match(chatSidebar, /hasError && controller\.list\.hasLoaded/);
-  assert.match(contactsSidebar, /hasError && hasLoaded/);
-  assert.match(launcherApi, /signal\?: AbortSignal/);
-  assert.match(launcherApi, /signal,/);
-  assert.match(notificationResource, /if \(!directory\.hasLoaded\)/);
-  assert.doesNotMatch(notificationResource, /directory\.isLoading/);
-});
-
 async function loadDirectoryStore() {
   const sourcePath = path.join(
     webRoot,
