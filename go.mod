@@ -11,7 +11,6 @@ require (
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.2
 	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.30
-	github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20260826095132-764430824aa2
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pressly/goose/v3 v3.27.0
@@ -28,7 +27,6 @@ require (
 )
 
 require (
-	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect

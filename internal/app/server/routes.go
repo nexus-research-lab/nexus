@@ -18,7 +18,6 @@ func (s *Server) mountRoutes() {
 			s.services.Automation,
 			s.services.GoalCommand,
 			s.services.Orchestration,
-			s.services.ComputerUse,
 			s.services.Permission,
 			s.services.WorkGraphWorkflow,
 		),
@@ -93,15 +92,6 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/settings/echo"), s.handlers.echo.HandleGetEcho)
 	s.router.Put(s.prefixPath("/settings/echo"), s.handlers.echo.HandleUpdateEcho)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
-	if s.handlers.computerUse != nil {
-		s.router.Get(s.prefixPath("/settings/computer-use"), s.handlers.computerUse.HandleStatus)
-		s.router.Post(s.prefixPath("/settings/computer-use/install"), s.handlers.computerUse.HandleInstall)
-		s.router.Post(s.prefixPath("/settings/computer-use/update"), s.handlers.computerUse.HandleUpdate)
-		s.router.Post(s.prefixPath("/settings/computer-use/doctor"), s.handlers.computerUse.HandleDoctor)
-		s.router.Post(s.prefixPath("/settings/computer-use/start"), s.handlers.computerUse.HandleStart)
-		s.router.Post(s.prefixPath("/settings/computer-use/stop"), s.handlers.computerUse.HandleStop)
-		s.router.Delete(s.prefixPath("/settings/computer-use/runtime"), s.handlers.computerUse.HandleRemove)
-	}
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
 

@@ -9,10 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added the version-pinned Nexus Computer Use integration: verified package
-  install/update/remove and doctor, supervised sidecar lifecycle, an explicit
-  desktop-only owner switch, the managed `computer-use` Skill, and the
-  round-scoped `nexus computer` workflow backed by the official typed Go SDK.
 - Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
 
 ### Fixed

@@ -29,7 +29,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
-	computerusesvc "github.com/nexus-research-lab/nexus/internal/service/computeruse"
 )
 
 const maxRuntimeCommandRequestBytes = 1 << 20
@@ -63,8 +62,7 @@ func newRuntimeCommandEnvironmentBuilder(
 		actor := runtimecommand.Actor{
 			OwnerUserID: strings.TrimSpace(record.OwnerUserID),
 			AgentID:     agentID, AgentName: strings.TrimSpace(record.Name),
-			WorkspacePath: strings.TrimSpace(record.WorkspacePath),
-			SessionKey:    strings.TrimSpace(round.SessionKey), RoundID: strings.TrimSpace(round.RoundID),
+			SessionKey: strings.TrimSpace(round.SessionKey), RoundID: strings.TrimSpace(round.RoundID),
 			LeaseSessionKey: strings.TrimSpace(lease.SessionKey), LeaseRoundID: strings.TrimSpace(lease.RoundID),
 			SourceContextType:  strings.ToLower(strings.TrimSpace(round.SourceContextType)),
 			SourceContextID:    strings.TrimSpace(round.SourceContextID),
@@ -215,7 +213,6 @@ func newRuntimeCommandHandler(
 	automation *automationsvc.Service,
 	goals goalcontract.Service,
 	execution executioncontract.Service,
-	computer *computerusesvc.Service,
 	permissions *permissionctx.Context,
 	workflowServices ...executioncontract.WorkflowService,
 ) http.HandlerFunc {
@@ -257,8 +254,6 @@ func newRuntimeCommandHandler(
 			result, err = handleExecutionRuntimeCommand(
 				request.Context(), execution, actor, command, workflowServices...,
 			)
-		case runtimecommand.DomainComputer:
-			result, err = handleComputerRuntimeCommand(request.Context(), computer, actor, command)
 		default:
 			err = fmt.Errorf("未知 Nexus runtime command domain %q", command.Domain)
 		}
@@ -268,25 +263,6 @@ func newRuntimeCommandHandler(
 		}
 		writeRuntimeCommandJSON(writer, http.StatusOK, map[string]any{"success": true, "data": result})
 	}
-}
-
-func handleComputerRuntimeCommand(
-	ctx context.Context,
-	service *computerusesvc.Service,
-	actor runtimecommand.Actor,
-	command runtimecommand.Request,
-) (any, error) {
-	if service == nil {
-		return nil, errors.New("Computer Use command service 尚未装配")
-	}
-	return handleSemanticRuntimeCommand(
-		ctx,
-		actor,
-		runtimecommand.DomainComputer,
-		"get_computer",
-		service.Operations(actor),
-		command,
-	)
 }
 
 func handleAutomationRuntimeCommand(

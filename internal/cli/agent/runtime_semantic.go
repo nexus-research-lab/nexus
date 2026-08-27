@@ -128,8 +128,6 @@ func newRuntimeSemanticInspectCommand(domain string) *cobra.Command {
 	stateName := "Execution / WorkGraph"
 	if domain == runtimecommand.DomainGoal {
 		stateName = "Goal"
-	} else if domain == runtimecommand.DomainComputer {
-		stateName = "Computer Use"
 	}
 	command := &cobra.Command{
 		Use: "inspect", Short: "读取当前 actor 的权威 " + stateName + " 状态",

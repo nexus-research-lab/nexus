@@ -141,17 +141,9 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 func TestLoadBrowserDefaultsToDesktopMode(t *testing.T) {
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	t.Setenv("NEXUS_BROWSER_ENABLED", "")
-	t.Setenv("NEXUS_COMPUTER_USE_AVAILABLE", "")
 
-	cfg := Load()
-	if !cfg.BrowserEnabled {
+	if cfg := Load(); !cfg.BrowserEnabled {
 		t.Fatal("desktop 模式应默认启用 Browser")
-	}
-	if !cfg.ComputerUseAvailable {
-		t.Fatal("desktop 模式应默认提供 Computer Use host 能力")
-	}
-	if cfg.ComputerUseVersion != "0.1.0-alpha.1" || cfg.ComputerUseManifestURL == "" {
-		t.Fatalf("Computer Use 固定版本配置不完整: %+v", cfg)
 	}
 }
 

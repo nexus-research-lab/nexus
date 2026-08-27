@@ -17,7 +17,6 @@ const (
 	DomainAutomation = "automation"
 	DomainGoal       = "goal"
 	DomainExecution  = "execution"
-	DomainComputer   = "computer"
 )
 
 const (

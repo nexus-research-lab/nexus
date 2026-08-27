@@ -1,5 +1,3 @@
-github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
-github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/bwmarrin/discordgo v0.29.0 h1:FmWeXFaKUwrcL3Cx65c20bTRW+vOb6k8AnaP+EgjDno=
 github.com/bwmarrin/discordgo v0.29.0/go.mod h1:NJZpH+1AfhIcyQsPeuBKsUtYrRnjkyu0kIVMCHkZtRY=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
@@ -53,8 +51,6 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.30 h1:qsVZmFc4jFgQPXi/OlVMyx+Ze/BuZuIQqjMX23BoiZc=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.30/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
-github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20260826095132-764430824aa2 h1:OeIhozjelB2xbIc65gZxEDXYaGwXXeJpNQIm5GBiwAE=
-github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20260826095132-764430824aa2/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1 h1:Lb/Uzkiw2Ugt2Xf03J5wmv81PdkYOiWbI8CNBi1boC8=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1/go.mod h1:ln3IqPYYocZbYvl9TAOrG/cxGR9xcn4pnZRLdCTEGEU=
 github.com/pelletier/go-toml/v2 v2.4.3 h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=

@@ -39,11 +39,6 @@ type Config struct {
 	AppMode                          string
 	DesktopSessionToken              string
 	BrowserEnabled                   bool
-	ComputerUseAvailable             bool
-	ComputerUseCommandPath           string
-	ComputerUseVersion               string
-	ComputerUseManifestURL           string
-	ComputerUseManifestSHA256        string
 	SkillsAPIURL                     string
 	SkillsSourceURLs                 string
 	SkillsDefaultSourcesEnabled      bool
@@ -139,11 +134,6 @@ func Load() Config {
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	appMode := getEnv("NEXUS_APP_MODE", "")
 	browserEnabled := mustBool(getEnv("NEXUS_BROWSER_ENABLED", strconv.FormatBool(appMode == "desktop")))
-	computerUseAvailable := mustBool(getEnv(
-		"NEXUS_COMPUTER_USE_AVAILABLE",
-		strconv.FormatBool(appMode == "desktop"),
-	))
-	computerUseVersion := getEnv("NEXUS_CUA_VERSION", "0.1.0-alpha.1")
 	return Config{
 		Host:        getEnv("HOST", "0.0.0.0"),
 		Port:        parseIntEnv(getEnv("PORT", "8010"), 8010),
@@ -157,34 +147,25 @@ func Load() Config {
 			"logs",
 			filepath.Join(appRoot, "logs"),
 		),
-		LogStdout:               mustBool(getEnv("LOG_STDOUT", "true")),
-		LogNoColor:              mustBool(getEnv("LOG_NO_COLOR", "false")),
-		LogFileEnabled:          mustBool(getEnv("LOG_FILE_ENABLED", "true")),
-		LogRotateDaily:          mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
-		LogMaxSizeMB:            parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
-		LogMaxAgeDays:           parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
-		LogMaxBackups:           parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
-		LogCompress:             mustBool(getEnv("LOG_COMPRESS", "true")),
-		MessageDebugStreamEvent: mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
-		APIPrefix:               getEnv("API_PREFIX", "/nexus/v1"),
-		WebSocketPath:           getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
-		DefaultAgentID:          getEnv("DEFAULT_AGENT_ID", "nexus"),
-		DefaultTimezone:         getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
-		WorkspacePath:           workspacePath,
-		CacheFileDir:            cacheDir,
-		WebDistDir:              getEnv("WEB_DIST_DIR", ""),
-		AppMode:                 appMode,
-		DesktopSessionToken:     getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
-		BrowserEnabled:          browserEnabled,
-		ComputerUseAvailable:    computerUseAvailable,
-		ComputerUseCommandPath:  getEnv("NEXUS_CUA_COMMAND_PATH", ""),
-		ComputerUseVersion:      computerUseVersion,
-		ComputerUseManifestURL: getEnv(
-			"NEXUS_CUA_MANIFEST_URL",
-			"https://github.com/nexus-research-lab/nexus-cua/releases/download/v"+
-				computerUseVersion+"/nexus-cua-v"+computerUseVersion+"-manifest.json",
-		),
-		ComputerUseManifestSHA256:   getEnv("NEXUS_CUA_MANIFEST_SHA256", ""),
+		LogStdout:                   mustBool(getEnv("LOG_STDOUT", "true")),
+		LogNoColor:                  mustBool(getEnv("LOG_NO_COLOR", "false")),
+		LogFileEnabled:              mustBool(getEnv("LOG_FILE_ENABLED", "true")),
+		LogRotateDaily:              mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
+		LogMaxSizeMB:                parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
+		LogMaxAgeDays:               parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
+		LogMaxBackups:               parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
+		LogCompress:                 mustBool(getEnv("LOG_COMPRESS", "true")),
+		MessageDebugStreamEvent:     mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
+		APIPrefix:                   getEnv("API_PREFIX", "/nexus/v1"),
+		WebSocketPath:               getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
+		DefaultAgentID:              getEnv("DEFAULT_AGENT_ID", "nexus"),
+		DefaultTimezone:             getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
+		WorkspacePath:               workspacePath,
+		CacheFileDir:                cacheDir,
+		WebDistDir:                  getEnv("WEB_DIST_DIR", ""),
+		AppMode:                     appMode,
+		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
+		BrowserEnabled:              browserEnabled,
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),

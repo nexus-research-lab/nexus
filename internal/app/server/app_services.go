@@ -8,12 +8,10 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"path/filepath"
 
 	"github.com/nexus-research-lab/nexus/internal/cli/runtimecommand"
 	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/cli/runtimecommand/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -24,7 +22,6 @@ import (
 	channelauthorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
-	computerusesvc "github.com/nexus-research-lab/nexus/internal/service/computeruse"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
@@ -92,7 +89,6 @@ type AppServices struct {
 	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
 	Browser                *browsersvc.Service
-	ComputerUse            *computerusesvc.Service
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
 	ownsDB                 bool
@@ -115,9 +111,6 @@ func (s *AppServices) Close(ctx context.Context) error {
 	}
 	if s.Browser != nil {
 		s.Browser.Close()
-	}
-	if s.ComputerUse != nil {
-		closeErrors = append(closeErrors, s.ComputerUse.Close(ctx))
 	}
 	if s.ownsDB && s.DB != nil {
 		closeErrors = append(closeErrors, s.DB.Close())
@@ -169,23 +162,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		orchestration: orchestrationService,
 	})
 	preferencesService := preferencessvc.NewService(cfg)
-	computerUsePackages := computerusesvc.NewPackageManager(computerusesvc.PackageConfig{
-		Available:      cfg.ComputerUseAvailable,
-		Root:           filepath.Join(appfs.AppDir(), "computer-use", "packages"),
-		CommandPath:    cfg.ComputerUseCommandPath,
-		TargetVersion:  cfg.ComputerUseVersion,
-		ManifestURL:    cfg.ComputerUseManifestURL,
-		ManifestSHA256: cfg.ComputerUseManifestSHA256,
-	})
-	computerUseSupervisor := computerusesvc.NewSupervisor(computerUsePackages, computerusesvc.SupervisorConfig{
-		Root: filepath.Join(appfs.AppDir(), "computer-use", "sidecar"),
-	})
-	computerUseService := computerusesvc.NewService(
-		cfg.ComputerUseAvailable,
-		preferencesService,
-		computerUsePackages,
-		computerUseSupervisor,
-	)
 	workGraphWorkflowService.SetAbstractor(
 		workgraphworkflowsvc.NewLLMAbstractor(providerService, preferencesService),
 	)
@@ -518,7 +494,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,
 		Browser:                browserService,
-		ComputerUse:            computerUseService,
 		SlashCatalog:           slashCommandCatalog,
 		SlashRegistry:          slashCommandRegistry,
 	}

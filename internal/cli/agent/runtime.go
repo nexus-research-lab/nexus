@@ -62,6 +62,5 @@ func NewRuntime() *App {
 	root.AddCommand(newRuntimeAutomationCommand())
 	root.AddCommand(newRuntimeSemanticCommand("goal", "管理当前 round 的 durable Goal"))
 	root.AddCommand(newRuntimeSemanticCommand("execution", "管理当前 round 的 Execution 与 WorkGraph"))
-	root.AddCommand(newRuntimeSemanticCommand("computer", "观察和操作当前 round 的原生桌面目标"))
 	return &App{command: root}
 }
