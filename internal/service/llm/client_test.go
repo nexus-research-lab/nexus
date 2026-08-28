@@ -326,6 +326,25 @@ func TestGenerateTextSkipsKimiAlwaysThinkingModelDisable(t *testing.T) {
 	}
 }
 
+func TestGLM53SkipsReasoningDisableAcrossAPIFormats(t *testing.T) {
+	t.Parallel()
+
+	config := &clientopts.RuntimeConfig{Provider: "glm", Model: "glm-5.3", Reasoning: true}
+	request := GenerateTextRequest{DisableReasoning: true}
+	chatPayload := chatCompletionsRequest{}
+	responsesPayload := responsesRequest{}
+	anthropicPayload := anthropicMessagesRequest{}
+	applyChatCompletionsReasoningDisableOptions(&chatPayload, config, request)
+	applyResponsesReasoningDisableOptions(&responsesPayload, config, request)
+	applyAnthropicMessagesReasoningDisableOptions(&anthropicPayload, config, request)
+	if chatPayload.Thinking != nil || chatPayload.ReasoningEffort != "" ||
+		responsesPayload.Thinking != nil || responsesPayload.Reasoning != nil ||
+		anthropicPayload.Thinking != nil {
+		t.Fatalf("GLM-5.3 不应收到关闭推理参数: chat=%+v responses=%+v anthropic=%+v",
+			chatPayload, responsesPayload, anthropicPayload)
+	}
+}
+
 func TestGenerateTextDisablesKimiThinkingForAnthropicMessages(t *testing.T) {
 	t.Parallel()
 
