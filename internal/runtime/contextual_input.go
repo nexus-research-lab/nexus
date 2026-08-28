@@ -4,11 +4,13 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"html"
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -17,7 +19,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// ContextualInputBlock 表示运行时拥有、应注入到下一轮模型输入的隐藏上下文。
+// ContextualInputBlock 表示运行时拥有、绑定到下一条 user 且不进入 nxs transcript 的隐藏上下文。
 type ContextualInputBlock struct {
 	Name     string
 	Content  string
@@ -43,12 +45,19 @@ type nextTurnContextClearer interface {
 }
 
 const (
-	contextOnlyTurnTrigger                = "Continue."
+	ContextualInputNameGoal               = "goal"
 	ContextualInputNameRoundRecovery      = "round_recovery"
 	ContextualInputNameExecution          = "execution"
 	ContextualInputNameTransport          = "transport"
 	ContextualInputNameAutomation         = "automation"
 	ContextualInputNameAutomationDelivery = "automation_delivery"
+
+	ContextualInputPriorityExecution          = 600
+	ContextualInputPriorityTransport          = 500
+	ContextualInputPriorityAutomation         = 400
+	ContextualInputPriorityGoal               = 300
+	ContextualInputPriorityAutomationDelivery = 200
+	ContextualInputPriorityRoundRecovery      = 100
 )
 
 func PrepareRoundContentWithContext(
@@ -61,15 +70,12 @@ func PrepareRoundContentWithContext(
 	if len(blocks) == 0 {
 		return content, nil
 	}
-	if isContextOnlyContent(content) {
-		return prependContextualInputBlocks(content, blocks), nil
-	}
 	buffered, err := prepareBufferedContext(ctx, client, blocks)
 	if err != nil {
 		return nil, err
 	}
 	if buffered {
-		return contentWithContextTrigger(content), nil
+		return content, nil
 	}
 	return prependContextualInputBlocks(content, blocks), nil
 }
@@ -101,7 +107,7 @@ func prepareBufferedContext(
 	return true, nil
 }
 
-// PrepareAtomicRoundContent 清空 bridge 的一次性上下文后原样返回命令输入。
+// PrepareAtomicRoundContent 清空 bridge 尚未绑定到 user 消息的内部上下文后原样返回命令输入。
 func PrepareAtomicRoundContent(
 	ctx context.Context,
 	client Client,
@@ -116,21 +122,6 @@ func PrepareAtomicRoundContent(
 		return nil, err
 	}
 	return content, nil
-}
-
-func isContextOnlyContent(content any) bool {
-	value, ok := content.(string)
-	return ok && strings.TrimSpace(value) == ""
-}
-
-func contentWithContextTrigger(content any) any {
-	switch value := content.(type) {
-	case string:
-		if strings.TrimSpace(value) == "" {
-			return contextOnlyTurnTrigger
-		}
-	}
-	return content
 }
 
 func normalizeContextualInputBlocks(blocks []ContextualInputBlock) []ContextualInputBlock {
@@ -155,7 +146,32 @@ func normalizeContextualInputBlocks(blocks []ContextualInputBlock) []ContextualI
 		}
 		result = append(result, block)
 	}
+	slices.SortFunc(result, compareContextualInputBlocks)
 	return result
+}
+
+func compareContextualInputBlocks(left ContextualInputBlock, right ContextualInputBlock) int {
+	if order := cmp.Compare(right.Priority, left.Priority); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(left.Name, right.Name); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(left.Content, right.Content); order != 0 {
+		return order
+	}
+	return cmp.Compare(contextualInputMetadataKey(left.Metadata), contextualInputMetadataKey(right.Metadata))
+}
+
+func contextualInputMetadataKey(metadata map[string]string) string {
+	var builder strings.Builder
+	for _, key := range slices.Sorted(maps.Keys(metadata)) {
+		builder.WriteString(key)
+		builder.WriteByte(0)
+		builder.WriteString(metadata[key])
+		builder.WriteByte(0)
+	}
+	return builder.String()
 }
 
 func renderContextualInputBlocks(blocks []ContextualInputBlock) string {
@@ -181,7 +197,7 @@ func renderContextualInputBlock(block ContextualInputBlock) string {
 
 func internalContextSourceName(name string) string {
 	switch strings.TrimSpace(name) {
-	case "goal", "goal_context":
+	case ContextualInputNameGoal, "goal_context":
 		return "goal"
 	case ContextualInputNameExecution:
 		return ContextualInputNameExecution
@@ -333,7 +349,7 @@ func AutomationRunContextualInputs(binding *protocol.AutomationRunContext) []Con
 		body,
 	)
 	return []ContextualInputBlock{
-		NewContextualInputBlock(ContextualInputNameAutomation, content, 0, map[string]string{
+		NewContextualInputBlock(ContextualInputNameAutomation, content, ContextualInputPriorityAutomation, map[string]string{
 			"job_id": normalized.JobID,
 			"run_id": normalized.RunID,
 		}),

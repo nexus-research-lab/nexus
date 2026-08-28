@@ -760,8 +760,9 @@ successor continuation performs the next command.
 
 Plain `context_status: refresh_required` is a same-round reread instruction and
 never means that the physical round should wait for a successor. Mutation results
-omit observed `runtime_facts` and may remove an optional `graph_digest`; explicit
-Execution inspect keeps the bounded runtime history. Both paths must keep the
+omit observed `runtime_facts` and may remove an optional `graph_digest`; Execution
+inspect uses the same current-state projection and never replays successful tool
+history. Both paths must keep the
 authoritative responsibility/review/action/blocker context even when that wire is
 large; size alone must not fabricate either refresh status or end a round.
 

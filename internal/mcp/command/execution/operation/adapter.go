@@ -153,10 +153,6 @@ type executionRuntimeContextReader interface {
 		context.Context,
 		orchestration.ActorContext,
 	) (string, error)
-	RuntimeInspectionContext(
-		context.Context,
-		orchestration.ActorContext,
-	) (string, error)
 }
 
 const (
@@ -250,7 +246,7 @@ func snapshotResult(
 		}
 	}
 	if reader, ok := any(svc).(executionRuntimeContextReader); ok {
-		if rendered, err := reader.RuntimeInspectionContext(ctx, actor); err == nil &&
+		if rendered, err := reader.RuntimeContext(ctx, actor); err == nil &&
 			strings.TrimSpace(rendered) != "" {
 			if rendered = strings.TrimSpace(rendered); rendered != "" {
 				payload["execution_context"] = rendered
@@ -262,7 +258,7 @@ func snapshotResult(
 }
 
 // compactRuntimeCommandContext keeps the current authority/action contract
-// inline while leaving observed Runtime Graph history to explicit inspect.
+// inline while leaving observed Runtime Graph history outside model context.
 // Re-embedding that history after every mutation makes the result recursively
 // grow until the runtime has to externalize even the small outcome/next_actions
 // control envelope.

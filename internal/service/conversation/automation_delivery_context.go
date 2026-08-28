@@ -95,7 +95,7 @@ func automationDeliveryContextualInput(row protocol.Message) (runtimectx.Context
 	return runtimectx.NewContextualInputBlock(
 		runtimectx.ContextualInputNameAutomationDelivery,
 		content,
-		0,
+		runtimectx.ContextualInputPriorityAutomationDelivery,
 		map[string]string{"job_id": jobID, "run_id": runID},
 	), true
 }

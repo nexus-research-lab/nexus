@@ -19,3 +19,11 @@ func TestDefaultPromptsSeparateAgentControlSurfaces(t *testing.T) {
 		t.Fatal("主智能体提示词应保留 owner 控制面 CLI")
 	}
 }
+
+func TestWorkspacePromptFilesLeaveAgentsToRuntime(t *testing.T) {
+	for _, name := range defaultWorkspacePromptFiles {
+		if name == "AGENTS.md" {
+			t.Fatal("Nexus 不应重复加载由 runtime 管理的 AGENTS.md")
+		}
+	}
+}

@@ -30,7 +30,7 @@ func TestRenderExecutionContextMarksAbnormalHistoricalProjectionTruncation(t *te
 	}
 }
 
-func TestRenderExecutionContextProjectsActionableFactsAndInspectableHistory(t *testing.T) {
+func TestRenderExecutionContextProjectsOnlyActionableRuntimeFacts(t *testing.T) {
 	now := time.Date(2026, 8, 5, 11, 0, 0, 0, time.UTC)
 	failed := protocol.ExecutionRuntimeNodeRun{
 		ID: "runtime-tool-failed", GraphID: "execution:execution-context",
@@ -105,28 +105,6 @@ func TestRenderExecutionContextProjectsActionableFactsAndInspectableHistory(t *t
 	} {
 		if strings.Contains(rendered, forbidden) {
 			t.Fatalf("runtime facts leaked or prescribed %q:\n%s", forbidden, rendered)
-		}
-	}
-
-	inspected := RenderExecutionContext(
-		func() *protocol.ExecutionSnapshot {
-			snapshot := executionContextTestSnapshot()
-			return &snapshot
-		}(),
-		ExecutionContextOptions{
-			ActorAgentID:          "analyst",
-			Role:                  ExecutionActorMember,
-			RuntimeGraph:          &runtimeGraph,
-			RuntimeGraphRelation:  "current_execution",
-			IncludeRuntimeHistory: true,
-		},
-	)
-	for _, expected := range []string{
-		"<successful_nodes>",
-		"<result_summary>The page was retrieved</result_summary>",
-	} {
-		if !strings.Contains(inspected, expected) {
-			t.Fatalf("inspect context missing %q:\n%s", expected, inspected)
 		}
 	}
 }

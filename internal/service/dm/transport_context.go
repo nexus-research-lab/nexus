@@ -27,7 +27,7 @@ func (r *roundRunner) transportContextualInputs() []runtimectx.ContextualInputBl
 		runtimectx.NewContextualInputBlock(
 			runtimectx.ContextualInputNameTransport,
 			content,
-			0,
+			runtimectx.ContextualInputPriorityTransport,
 			nil,
 		),
 	}

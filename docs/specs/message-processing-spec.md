@@ -291,6 +291,11 @@ Room ledger/private transcript 继续是唯一 canonical 真相源；分页索�
 - runtime 的 `is_meta` user、Skill 完整正文、连续的 Execution / Goal
   `<internal_context>` carrier 和其他内部 carrier 必须在可见 round 投影前过滤；
   旧版 `<internal_context source="explicit_skill">` 包装只用于兼容读取，不能重新显示或进入模型历史
+- Nexus 生成的内部上下文块按 priority 降序及 name/content/metadata 确定性排序；
+  bridge 把统一隐藏 reminder 绑定到下一条 runtime user 消息。nxs 在 user 落盘前将其
+  提取到当前 live model history，因此当前进程的后续请求仍能看到已发生的 Goal、
+  Execution、恢复、Automation 与 transport 上下文，但 transcript 只保存干净的 user；
+  Claude Code 通过 `UserPromptSubmit` hook 的 `additionalContext` 生成 attachment
 - marker 对齐按 transcript user 槽位逐个消费；空槽位不能跳过后借用下一轮 marker，
   否则刷新后旧的 unknown/内部消息会窃取新 Slash 的 round 身份
 - runtime command metadata 统一还原为原始 `/name args`；它与 overlay marker 相同
