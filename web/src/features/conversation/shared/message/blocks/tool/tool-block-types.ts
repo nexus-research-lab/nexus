@@ -1,6 +1,6 @@
 /**
  * INPUT: ToolBlock 的工具、结果、权限与运行时状态。
- * OUTPUT: DM/Room 工具卡片共用属性及展示状态契约。
+ * OUTPUT: DM/Room 工具执行行共用属性及展示状态契约。
  * POS: ToolBlock 视图层协议，不承载 Provider 或 Agent 决策。
  */
 import type {
@@ -12,6 +12,8 @@ import type {
   PermissionRiskLevel,
   PermissionUpdate,
 } from "@/types/conversation/interaction/permission";
+
+import type { ExecutionToolVisualKind } from "../../../execution/execution-tool-visual";
 
 export type ToolBlockStatus =
   | "pending"
@@ -38,8 +40,6 @@ export interface ToolPermissionRequest {
 export interface ToolBlockProps {
   toolUse: ToolUseContent;
   toolResult?: ToolResultContent;
-  /** 外层过程组展开时，首次挂载即展示完整输入与结果。 */
-  defaultExpanded?: boolean;
   /** 子智能体进度只属于当前工具执行，不进入独立时间线。 */
   liveProgress?: TaskProgressContent | null;
   status?: ToolBlockStatus;
@@ -83,9 +83,9 @@ export interface ToolBlockViewModel {
   primaryInputDetail: ToolPrimaryInputDetail | null;
   readableSuggestions: ToolPermissionSuggestion[];
   status: ToolBlockStatus;
-  statusBadgeClassName: string;
   statusText: string;
   statusTone: ToolStatusTone;
   toolTitle: string;
+  toolVisualKind: ExecutionToolVisualKind;
   waitingActionHint: string;
 }

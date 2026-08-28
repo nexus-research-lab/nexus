@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Condensed tools, thoughts, and memory events into quiet, tightly spaced single-line activity records with aligned action icons, regular-weight labels, inline thought previews, readable details under one bounded outer scroll owner, and targets, keeping expanded child headers pinned while the audit list scrolls around one continuous timeline without repeated failure labels or scroll jumps; streaming Thought details follow new content until the reader scrolls away, final replies stay aligned with the process lane, and result metadata waits for smooth text output to finish, while single activities remain inline, two or more uninterrupted activities share a latest-action ticker, bounded audit list, and slightly roomier group spacing, and Room activity mirrors the current tool header without exposing provider summaries.
+- Preserved live commentary as the boundary between completed and newly running tool groups, while changing running text shimmer and activity icons from primary blue to neutral contrast and centering animated status dots with their labels.
 - Tightened two-line sidebar list typography to stay within the 40px avatar boundary and restored latest reply previews instead of repeating conversation titles.
+- Opened Room Thread process and activity groups by default, reused DM Thought typography and streaming follow behavior inside the shared bounded detail list, and removed the public Room final-reply rail and nodes while keeping individual tool details collapsed.
 - Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
 - Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
 - Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.

@@ -28,7 +28,7 @@ interface UseScrollAnchoredStateReturn {
 }
 
 /**
- * 局部内容展开或收起时保持当前视觉锚点，避免底部附近的内容发生跳动。
+ * 局部内容展开时保持当前 scrollTop，收起时保持底部视觉锚点并释放高度。
  * resetKey 变化时按新阶段恢复 initialValue，不把旧阶段的选择带入新阶段。
  * 程序驱动的状态变化不自动锚定，由调用方通过 setOpen 明确控制。
  */
@@ -43,7 +43,7 @@ export function useScrollAnchoredState(
 
   const toggle = useCallback(() => {
     const anchor = anchorRef.current;
-    const container = findScrollContainer(anchor);
+    const container = isOpen ? findScrollContainer(anchor) : null;
     if (
       container
       && !anchor?.closest('[data-conversation-virtual-feed="true"]')

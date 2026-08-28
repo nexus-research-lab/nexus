@@ -84,13 +84,15 @@ function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
   const { t } = useI18n();
   return (
     <button
-      className="flex w-full items-center gap-2 py-1.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+      className="flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
       onClick={process.toggle}
       type="button"
     >
-      <Wrench className="h-3 w-3 shrink-0 text-(--icon-muted)" />
-      <div className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-muted)">
-        {formatProcessSummary(process.summary, t)}
+      <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" strokeWidth={1.8} />
+      <div className="min-w-0 flex-1 truncate text-sm font-normal leading-5 text-(--text-muted)">
+        {process.expanded
+          ? t("message.tool_run_history")
+          : formatProcessSummary(process.summary, t)}
       </div>
       <ProcessExpansionIcon expanded={process.expanded} />
     </button>
@@ -211,7 +213,7 @@ function ExpandedProcessContent({
     <div className="pt-1">
       <ContentRenderer
         canRespondToPermissions={environment.canRespondToPermissions}
-        className="ml-1"
+        className="ml-1 space-y-0.5"
         content={process.projection.content}
         fallbackActivityLabel={activity.label}
         fallbackActivityState={activity.state}

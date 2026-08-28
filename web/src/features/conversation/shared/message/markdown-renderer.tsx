@@ -107,6 +107,7 @@ export function MarkdownRenderer({
         MARKDOWN_BODY_CLASS_NAME,
         className,
       )}
+      data-markdown-streaming={shouldRenderStreaming || undefined}
     >
       {contentSegments.map((segment, index) => (
         <MessageMarkdownSegment

@@ -1,56 +1,20 @@
 import type { HTMLAttributes, KeyboardEventHandler } from "react";
-import {
-  CheckCircle,
-  Clock,
-  Loader,
-  Sparkles,
-  Square,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type {
-  ToolBlockStatus,
   ToolBlockViewModel,
   ToolStatusTone,
 } from "../tool-block-types";
+import { ToolActivityIcon } from "../../../ui/activity-icon";
 import { ToolBlockHeaderActions } from "./tool-block-header-actions";
-import {
-  buildToolBlockHeaderProjection,
-  type ToolBlockHeaderProjection,
-} from "./tool-block-header-model";
-
-const TOOL_STATUS_ICON_MAP: Readonly<Record<
-  ToolBlockStatus,
-  { className: string; icon: LucideIcon }
->> = {
-  error: { className: "", icon: XCircle },
-  pending: { className: "", icon: Sparkles },
-  running: { className: "animate-spin", icon: Loader },
-  rejected: { className: "", icon: XCircle },
-  superseded: { className: "", icon: Square },
-  stopped: { className: "", icon: Square },
-  success: { className: "", icon: CheckCircle },
-  waiting_permission: { className: "", icon: Clock },
-};
-
-const TOOL_TONE_STYLES: Readonly<Record<ToolStatusTone, string>> = {
-  default: "text-(--icon-muted)",
-  error: "text-(--destructive)",
-  running: "text-(--primary)",
-  success: "text-(--success)",
-  waiting: "text-(--icon-muted)",
-};
 
 const TOOL_LABEL_STYLES: Readonly<Record<ToolStatusTone, string>> = {
-  default: "text-(--text-default)",
+  default: "text-(--text-soft)",
   error: "text-(--destructive)",
   running: "text-(--primary)",
-  success: "text-(--success)",
-  waiting: "text-(--text-muted)",
+  success: "text-(--text-soft)",
+  waiting: "text-(--text-soft)",
 };
 
 interface ToolBlockHeaderProps {
@@ -76,30 +40,42 @@ export function ToolBlockHeader({
   onDeny,
   onToggle,
 }: ToolBlockHeaderProps) {
-  const { t } = useI18n();
-  const projection = buildToolBlockHeaderProjection(model, isExpanded, t);
-  const toggleProps = buildToggleProps(projection.canToggle, onToggle);
+  const canToggle = model.hasResult;
+  const waitingForPermission = model.status === "waiting_permission";
+  const toggleProps = buildToggleProps(canToggle, onToggle);
   return (
     <div
       {...toggleProps}
       className={cn(
-        "grid min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 radius-control-sm px-1.5 py-1 text-xs transition-colors",
-        projection.canToggle
+        "grid min-h-7 min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-1.5 radius-control-sm px-1.5 py-0.5 text-sm font-normal leading-5 text-(--text-soft) transition-colors",
+        canToggle
           ? "cursor-pointer hover:bg-(--surface-interactive-hover-background)"
           : "cursor-default",
-        projection.stateClassName,
       )}
+      data-activity-row="tool"
+      data-message-detail-sticky-header={isExpanded || undefined}
+      data-tool-block-layout={isExpanded ? "expanded" : "collapsed"}
+      data-tool-block-status={model.status}
     >
-      <ToolStatusIcon model={model} />
-      <ToolBlockHeaderContent model={model} projection={projection} />
+      <ToolSemanticIcon model={model} />
+      <ToolBlockHeaderContent
+        liveStatusText={model.status === "running" ? model.liveStatusText : null}
+        metaText={waitingForPermission
+          ? model.waitingActionHint
+          : model.durationText}
+        model={model}
+      />
       <ToolBlockHeaderActions
+        canCopyResult={model.hasResult && !waitingForPermission}
+        canToggle={canToggle}
         copied={copied}
+        expanded={isExpanded}
         interactionDisabled={interactionDisabled}
         interactionDisabledReason={interactionDisabledReason}
         onAllow={onAllow}
         onCopyResult={onCopyResult}
         onDeny={onDeny}
-        projection={projection}
+        showPermissionActions={waitingForPermission}
       />
     </div>
   );
@@ -109,27 +85,19 @@ function buildToggleProps(
   enabled: boolean,
   onToggle: () => void,
 ): HTMLAttributes<HTMLDivElement> {
-  const rules = [
-    {
-      matches: enabled,
-      value: {
-        onClick: onToggle,
-        onKeyDown: createToggleKeyHandler(onToggle),
-        role: "button",
-        tabIndex: 0,
-      },
-    },
-    { matches: true, value: {} },
-  ];
-  return rules.find((rule) => rule.matches)!.value;
+  return enabled ? {
+    onClick: onToggle,
+    onKeyDown: createToggleKeyHandler(onToggle),
+    role: "button",
+    tabIndex: 0,
+  } : {};
 }
 
 function createToggleKeyHandler(
   onToggle: () => void,
 ): KeyboardEventHandler<HTMLDivElement> {
-  const activationKeys = new Set(["Enter", " "]);
   return (event) => {
-    if (!activationKeys.has(event.key)) {
+    if (event.key !== "Enter" && event.key !== " ") {
       return;
     }
     event.preventDefault();
@@ -137,57 +105,84 @@ function createToggleKeyHandler(
   };
 }
 
-function ToolStatusIcon({ model }: { model: ToolBlockViewModel }) {
-  const statusIcon = TOOL_STATUS_ICON_MAP[model.status];
-  const StatusIcon = statusIcon.icon;
+function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
   return (
     <div
       className={cn(
-        "flex h-5 w-5 items-center justify-center rounded-full",
-        TOOL_TONE_STYLES[model.statusTone],
+        "flex h-5 w-5 items-center justify-center text-(--icon-muted)",
+        model.status === "running" && "text-(--primary)",
       )}
+      data-tool-block-icon={model.toolVisualKind}
       data-timeline-anchor
       data-timeline-anchor-mode="box"
+      title={model.toolTitle}
     >
-      <StatusIcon className={cn("h-3.5 w-3.5", statusIcon.className)} />
+      <ToolActivityIcon className="h-3.5 w-3.5" kind={model.toolVisualKind} />
     </div>
   );
 }
 
 function ToolBlockHeaderContent({
+  liveStatusText,
+  metaText,
   model,
-  projection,
 }: {
+  liveStatusText: string | null;
+  metaText: string | null;
   model: ToolBlockViewModel;
-  projection: ToolBlockHeaderProjection;
 }) {
   return (
-    <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className={cn(
-          "shrink-0 text-xs font-medium",
-          TOOL_LABEL_STYLES[model.statusTone],
-        )}>
-          {model.toolTitle}
-        </span>
-        <span className={cn(
-          "shrink-0 rounded-[6px] px-1.5 py-0.5 text-2xs font-semibold",
-          model.statusBadgeClassName,
-        )}>
-          {model.statusText}
-        </span>
-        <OptionalMetaText text={projection.metaText} />
-      </div>
-      <div className="mt-0.5 min-w-0 text-compact text-(--text-muted)">
-        <span className={cn(
-          "message-cjk-font block",
-          projection.detailClassName,
-        )}>
-          {projection.detailText}
-        </span>
-      </div>
-      <OptionalLiveStatus text={projection.liveStatusText} />
+    <div
+      className={cn(
+        "flex min-w-0 items-baseline gap-1.5",
+        model.status === "running" && "nexus-live-tool-text",
+      )}
+      data-live-tool-text={model.status === "running" || undefined}
+    >
+      <span className={cn(
+        "shrink-0",
+        TOOL_LABEL_STYLES[model.statusTone],
+      )}>
+        {model.toolTitle}
+      </span>
+      <ToolStatusText model={model} />
+      <ToolDetailText text={model.collapsedDetailText} />
+      <OptionalLiveStatus text={liveStatusText} />
+      <OptionalMetaText text={metaText} />
     </div>
+  );
+}
+
+function ToolStatusText({ model }: { model: ToolBlockViewModel }) {
+  const assistiveOnly = model.status === "success" || model.status === "error";
+  return (
+    <span
+      className={cn(
+        assistiveOnly ? "sr-only" : "shrink-0 text-xs",
+        !assistiveOnly && TOOL_LABEL_STYLES[model.statusTone],
+      )}
+      data-tool-block-status-visibility={assistiveOnly ? "assistive" : "visible"}
+    >
+      {model.statusText}
+    </span>
+  );
+}
+
+function ToolDetailText({
+  text,
+}: {
+  text: string | null;
+}) {
+  if (!text) {
+    return null;
+  }
+  return (
+    <span
+      className="message-cjk-font min-w-0 flex-1 truncate text-(--text-soft)"
+      data-tool-block-detail="inline"
+    >
+      {text}
+    </span>
   );
 }
 
@@ -207,8 +202,8 @@ function OptionalLiveStatus({ text }: { text: string | null }) {
     return null;
   }
   return (
-    <div className="mt-0.5 truncate text-xs text-(--text-soft)">
+    <span className="min-w-0 truncate text-xs text-(--text-soft)">
       {text}
-    </div>
+    </span>
   );
 }

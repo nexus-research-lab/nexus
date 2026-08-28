@@ -93,6 +93,14 @@ export function projectRoomAgentActivityState({
   }
 
   const resolvedToolUseIds = collectResolvedToolUseIds(messages);
+  const pendingToolUse = findLatestPendingToolUse(
+    messages,
+    resolvedToolUseIds,
+  );
+  if (pendingToolUse) {
+    // 未收口工具是当前最具体的活动证据，不能被随后到达的流式正文降级为“正在回复”。
+    return resolveToolActivityState(pendingToolUse.name);
+  }
   const liveMessageActivity = resolveLiveMessageActivity(
     messages.at(-1),
     resolvedToolUseIds,
@@ -100,13 +108,7 @@ export function projectRoomAgentActivityState({
   if (liveMessageActivity) {
     return liveMessageActivity;
   }
-  const pendingToolUse = findLatestPendingToolUse(
-    messages,
-    resolvedToolUseIds,
-  );
-  return pendingToolUse
-    ? resolveToolActivityState(pendingToolUse.name)
-    : "thinking";
+  return "thinking";
 }
 
 export function hasRoomAgentTerminalEvidence(
