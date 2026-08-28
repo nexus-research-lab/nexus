@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored Launcher latest-reply previews for DM conversations while continuing to exclude external IM sessions.
 - Updated frontend production dependencies and forced patched `brace-expansion` versions to clear reported production CVEs.
 - Let an Agent discover and address its existing active-paired external DMs from any of its chat transports, including direct messages and scheduled-task delivery, while preserving exact Session, owner, and pairing revalidation through sending, creation, execution, approval, and retry.
 - Deterministically ordered DM and Room internal context while keeping it in the runtime's append-only history and out of Nexus's visible conversation projection.
