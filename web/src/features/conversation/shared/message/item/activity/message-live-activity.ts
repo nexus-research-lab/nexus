@@ -34,6 +34,7 @@ const STREAMING_TEXT_READERS: ReadonlyArray<
 ];
 
 interface LiveActivityContext {
+  explicitActivity: MessageActivityState | null;
   hasVisibleReplyText: boolean;
   permissionActivity: MessageActivityState | null;
   runtimeActivity: MessageActivityState | null;
@@ -45,6 +46,7 @@ const LIVE_ACTIVITY_RESOLVERS: ReadonlyArray<
   (context: LiveActivityContext) => MessageActivityState | null
 > = [
   ({ permissionActivity }) => permissionActivity,
+  ({ explicitActivity }) => explicitActivity,
   ({ runtimeActivity }) => runtimeActivity === "sending" ? "sending" : null,
   ({ streamingActivity }) => streamingActivity,
   ({ hasVisibleReplyText, streamStatus }) => (
@@ -106,12 +108,12 @@ function buildLiveActivityContext({
   streamingBlockIndexes: ReadonlySet<number>;
 }): LiveActivityContext {
   return {
+    explicitActivity: activityState ?? null,
     hasVisibleReplyText: mergedContent.some(
       (block) => block.type === "text" && Boolean(block.text.trim()),
     ),
     permissionActivity: resolvePermissionActivityState(pendingPermissions),
-    runtimeActivity:
-      activityState ?? resolveRuntimeActivityState(runtimePhase),
+    runtimeActivity: resolveRuntimeActivityState(runtimePhase),
     streamingActivity: resolveStreamingBlockActivity(
       mergedContent,
       streamingBlockIndexes,

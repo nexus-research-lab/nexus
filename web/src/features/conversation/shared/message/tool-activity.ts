@@ -119,6 +119,16 @@ export function getLocalizedToolTitle(
   return titleKey ? t(titleKey) : getToolTitle(semanticToolName);
 }
 
+export function getLocalizedToolActivityLabel(
+  toolName: string,
+  t: (key: TranslationKey) => string,
+  input?: unknown,
+): string {
+  const title = getLocalizedToolTitle(toolName, t, input);
+  const detail = getCompactToolInputSummary(input);
+  return detail ? `${title} ${detail}` : title;
+}
+
 export function getToolInputSummary(input: unknown): string | null {
   const record = asRecord(input);
   if (!record) return null;

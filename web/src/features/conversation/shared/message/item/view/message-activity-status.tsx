@@ -172,7 +172,7 @@ function MessageLoadingDots({
     <span
       aria-hidden="true"
       className={cn(
-        "inline-block h-[1em] overflow-hidden select-none whitespace-pre leading-[1em] text-current align-middle text-[1.4em]",
+        "inline-block h-[1em] translate-y-[2px] overflow-hidden select-none whitespace-pre leading-[1em] text-current text-[1.4em]",
         className,
       )}
       style={{ width: `${spinnerWidth}ch` }}

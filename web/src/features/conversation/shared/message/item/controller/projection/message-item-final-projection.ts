@@ -89,21 +89,27 @@ export function resolveMessageItemFinalProjection({
   const generativeUIEntries = resolveGenerativeUIEntries(
     visibleOrderedAssistantEntries,
   );
-  const archivedProcessProjection = buildArchivedProcessProjection({
+  const finalSurfaceAssistantTurn = resolveFinalSurfaceAssistantTurn({
+    assistantContentMode,
     finalAssistantTurn,
+    finalTailEntries,
+    generativeUIEntries,
+  });
+  const archivedProcessProjection = buildArchivedProcessProjection({
+    finalAssistantTurn: finalSurfaceAssistantTurn,
     finalTailEntries,
     generativeUIEntries,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
   });
   const fallbackFinalAssistantContent = resolveFallbackFinalAssistantContent(
-    finalAssistantTurn,
+    finalSurfaceAssistantTurn,
     finalTailEntries,
     generativeUIEntries,
   );
   const fallbackFinalAssistantStreamingIndexes =
     resolveFallbackFinalAssistantStreamingIndexes(
-      finalAssistantTurn,
+      finalSurfaceAssistantTurn,
       finalTailEntries,
       generativeUIEntries,
       streamingBlockIndexes,
@@ -121,7 +127,7 @@ export function resolveMessageItemFinalProjection({
   const finalAssistantContent = resolveFinalAssistantContent({
     assistantContentMode,
     fallbackFinalAssistantContent,
-    finalAssistantTurn,
+    finalAssistantTurn: finalSurfaceAssistantTurn,
     finalTailEntries,
     generativeUIContent: generativeUIEntries.map((entry) => entry.block),
     resultSummary,
@@ -134,7 +140,7 @@ export function resolveMessageItemFinalProjection({
   const finalAssistantText = resolveFinalAssistantText(finalAssistantContent);
   const finalAssistantMentions = resolveFinalAssistantMentions(
     assistantMessages,
-    finalAssistantTurn?.messageId ?? null,
+    finalSurfaceAssistantTurn?.messageId ?? null,
     countLeadingGenerativeUIEntries(generativeUIEntries),
   );
   const finalAssistantHandoffReply = resolveFinalAssistantHandoffReply(
@@ -151,6 +157,40 @@ export function resolveMessageItemFinalProjection({
     finalAssistantMentions,
     finalAssistantHandoffReply,
   };
+}
+
+function resolveFinalSurfaceAssistantTurn({
+  assistantContentMode,
+  finalAssistantTurn,
+  finalTailEntries,
+  generativeUIEntries,
+}: {
+  assistantContentMode: AssistantContentMode;
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  generativeUIEntries: OrderedAssistantEntry[];
+}): AssistantTurnEntry | null {
+  if (
+    assistantContentMode !== "dm_live"
+    || !finalAssistantTurn
+    || finalTailEntries.length > 0
+  ) {
+    return finalAssistantTurn;
+  }
+  const lastTextIndex = finalAssistantTurn.content.findLastIndex(
+    (block) => block.type === "text" && Boolean(block.text.trim()),
+  );
+  if (lastTextIndex < 0) {
+    return finalAssistantTurn;
+  }
+  const promotedBlocks = new Set(
+    generativeUIEntries.map((entry) => entry.block),
+  );
+  const processContinues = finalAssistantTurn.content
+    .slice(lastTextIndex + 1)
+    .some((block) => !promotedBlocks.has(block));
+  // 普通工具跟在正文后时，这段正文是过程边界，必须留在 direct 时间线。
+  return processContinues ? null : finalAssistantTurn;
 }
 
 function resolveFinalAssistantHandoffReply(

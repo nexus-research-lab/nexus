@@ -1153,6 +1153,7 @@ test("Room public activity survives the pause between reply text and tool work",
     1,
     "a pending slot uses the shared activity surface exactly once",
   );
+  assert.match(pendingHtml, /translate-y-\[2px\]/);
 
   const completedPublicTurn = assistantMessage({
     agentId: "agent-public-activity",
@@ -1217,21 +1218,46 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingHtml, /我先搜索产品线信息。/);
   assert.match(
     workingHtml,
-    /搜索产品线资料/,
-    "Room main feed replaces its generic activity copy with ToolUseSummary",
+    /网络搜索 M3 product line/,
+    "Room main feed mirrors the running tool group header",
   );
-  assert.match(workingHtml, /text-primary/);
+  assert.doesNotMatch(workingHtml, /搜索产品线资料/);
+  assert.match(workingHtml, /data-room-tool-activity/);
+  assert.match(workingHtml, /data-process-activity-icon="search"/);
   assert.match(
     workingHtml,
-    /inline-flex min-w-0 items-center gap-2 py-1 text-sm font-medium transition-colors text-primary/,
-    "Room ToolUseSummary stays just below the normal reply size",
+    /text-\(--icon-muted\)[^>]*data-process-activity-icon="search"/,
   );
+  assert.match(workingHtml, /text-primary/);
   assert.doesNotMatch(workingHtml, /data-tool-run-list|data-tool-run-id/);
-  assert.doesNotMatch(workingHtml, /网络搜索|M3 product line/);
   assert.equal(
     workingHtml.match(/message-activity-spinner-track/g)?.length,
-    1,
-    "Room main feed keeps one non-expandable activity surface",
+    undefined,
+    "the running tool header does not add a second loading spinner",
+  );
+
+  const workingAfterReplyHtml = renderShell({
+    messages: [
+      toolContinuation,
+      assistantMessage({
+        agentId: "agent-public-activity",
+        agentRoundId: "agent-round-public-activity",
+        messageId: "assistant-public-reply-after-tool",
+        roundId: "round-public-activity",
+        status: "streaming",
+        text: "先同步当前进度",
+        timestamp: 3,
+      }),
+    ],
+    status: "streaming",
+  });
+  assert.match(workingAfterReplyHtml, /data-room-tool-activity/);
+  assert.match(workingAfterReplyHtml, /网络搜索 M3 product line/);
+  assert.doesNotMatch(workingAfterReplyHtml, /正在回复/);
+  assert.ok(
+    workingAfterReplyHtml.indexOf("先同步当前进度")
+      < workingAfterReplyHtml.indexOf("网络搜索 M3 product line"),
+    "the current Room tool follows the newest visible reply",
   );
 
   const terminalHtml = renderShell({
@@ -1753,6 +1779,33 @@ test("an active Room execution returns to Agent activity after tool completion",
     pendingPermissions: [],
     status: "streaming",
   }), "thinking");
+
+  const pendingToolMessage = {
+    ...message,
+    content: [{
+      type: "tool_use",
+      id: "tool-write-running",
+      name: "Write",
+      input: { file_path: "PLAN.md" },
+    }],
+    is_complete: true,
+    message_id: "assistant-tool-running",
+    stop_reason: "tool_use",
+    stream_status: "done",
+  };
+  const laterReplyMessage = {
+    ...message,
+    content: [{ type: "text", text: "先同步当前进度" }],
+    is_complete: false,
+    message_id: "assistant-reply-after-tool",
+    stop_reason: undefined,
+    timestamp: 2,
+  };
+  assert.equal(projectRoomAgentActivityState({
+    messages: [pendingToolMessage, laterReplyMessage],
+    pendingPermissions: [],
+    status: "streaming",
+  }), "executing");
 });
 
 test("live conversations keep one stable tool segment across consecutive patches", async () => {
@@ -2101,12 +2154,176 @@ test("ToolUseSummary updates the matching uninterrupted tool row and text stays 
   );
 });
 
-test("multi-activity tool groups start collapsed with recent semantic icons", async () => {
+test("live commentary separates completed and active tool groups", async () => {
+  const { AssistantMessageContent } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
+  );
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const {
+    projectionFromOrderedEntries,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/message-item-projection.ts",
+  );
+  const { projectToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const initialThinking = { type: "thinking", thinking: "先查基础数据" };
+  const initialText = { type: "text", text: "EARLIER_REPLY_MARKER" };
+  const oldTool = {
+    type: "tool_use",
+    id: "tool-before-reply",
+    name: "WebSearch",
+    input: { url: "https://old.example.test" },
+  };
+  const oldResult = {
+    type: "tool_result",
+    tool_use_id: oldTool.id,
+    content: "ok",
+  };
+  const nextThinking = { type: "thinking", thinking: "整理后补官方口径" };
+  const commentary = { type: "text", text: "LATEST_REPLY_MARKER" };
+  const activeTool = {
+    type: "tool_use",
+    id: "tool-after-reply",
+    name: "WebFetch",
+    input: { url: "https://latest.example.test" },
+  };
+  const firstMessage = {
+    role: "assistant",
+    message_id: "assistant-before-reply",
+    parent_id: "user-boundary",
+    content: [initialThinking, initialText, oldTool],
+  };
+  const activeMessage = {
+    role: "assistant",
+    message_id: "assistant-after-reply",
+    parent_id: "user-boundary",
+    content: [nextThinking, commentary, activeTool],
+  };
+  const orderedEntries = [
+    ...firstMessage.content.map((block) => ({
+      block,
+      sourceMessageId: firstMessage.message_id,
+      sourceOrder: 0,
+    })),
+    {
+      block: oldResult,
+      sourceMessageId: firstMessage.message_id,
+      sourceOrder: 0,
+    },
+    ...activeMessage.content.map((block) => ({
+      block,
+      sourceMessageId: activeMessage.message_id,
+      sourceOrder: 1,
+    })),
+  ].map((entry, mergedIndex) => ({ ...entry, mergedIndex }));
+  const streamingBlockIndexes = new Set([orderedEntries.length - 1]);
+  const projection = resolveMessageItemFinalProjection({
+    assistantContentMode: "dm_live",
+    assistantMessages: [firstMessage, activeMessage],
+    orderedProjection: projectionFromOrderedEntries(
+      orderedEntries,
+      streamingBlockIndexes,
+    ),
+    resultSummary: undefined,
+    roundId: "round-boundary",
+    userMessageId: "user-boundary",
+    streamingBlockIndexes,
+    visibleAssistantTurns: [
+      {
+        content: [...firstMessage.content, oldResult],
+        messageId: firstMessage.message_id,
+        streamingIndexes: new Set(),
+        textContent: [initialText],
+        textStreamingIndexes: new Set(),
+      },
+      {
+        content: activeMessage.content,
+        messageId: activeMessage.message_id,
+        streamingIndexes: new Set([2]),
+        textContent: [commentary],
+        textStreamingIndexes: new Set(),
+      },
+    ],
+    visibleOrderedAssistantEntries: orderedEntries,
+  });
+  assert.equal(
+    projection.finalAssistantContent,
+    null,
+    "commentary followed by a normal tool remains in the direct timeline",
+  );
+  const segments = projectToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection: projection.directOrderedProjection,
+    responseResumed: false,
+    toolUseSummary: null,
+  });
+  assert.deepEqual(
+    segments.flatMap((segment) => (
+      segment.kind === "tool_run" ? [segment.toolUseIds] : []
+    )),
+    [[oldTool.id], [activeTool.id]],
+  );
+  const html = await renderWithI18n(React.createElement(
+    AssistantMessageContent,
+    {
+      activity: {
+        emptyStreamStatus: null,
+        label: null,
+        showCursor: true,
+        standalone: false,
+        state: "browsing",
+        toolUseSummary: null,
+      },
+      direct: {
+        projection: projection.directOrderedProjection,
+        visible: true,
+      },
+      environment: {
+        canRespondToPermissions: true,
+        hiddenToolNames: [],
+        mode: "dm_live",
+      },
+      final: {
+        content: projection.finalAssistantContent,
+        mentions: [],
+        isStreaming: false,
+        streamingIndexes: projection.finalAssistantStreamingIndexes,
+        visible: false,
+      },
+      permissions: {
+        all: [],
+        matchedByToolUseId: new Map(),
+        owner: "composer",
+        unmatched: [],
+      },
+      process: {
+        anchorRef: { current: null },
+        expanded: false,
+        projection: { content: [], streamingIndexes: new Set() },
+        summary: { kind: "details", latestDetail: null, metrics: [] },
+        toggle: () => {},
+        visible: false,
+      },
+      showMaxTokensWarning: false,
+    },
+  ));
+
+  assert.ok(
+    html.indexOf('data-tool-run-id="tool-run:tool-before-reply"')
+      < html.indexOf("LATEST_REPLY_MARKER"),
+  );
+  assert.ok(html.indexOf("LATEST_REPLY_MARKER") < html.indexOf("latest.example.test"));
+  assert.equal(html.match(/latest\.example\.test/g)?.length, 1);
+  assert.match(html, /data-live-tool-text="true"/);
+});
+
+test("DM activity groups collapse while Room Thread groups expand", async () => {
   const { AssistantToolRuns } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
-  );
-  const { ContentRenderer } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
   );
   const content = Array.from({ length: 4 }, (_, index) => [
     { type: "thinking", thinking: `Thought ${index}` },
@@ -2122,32 +2339,33 @@ test("multi-activity tool groups start collapsed with recent semantic icons", as
       content: "ok",
     },
   ]).flat();
+  const toolRunProps = {
+    activity: {
+      emptyStreamStatus: null,
+      label: null,
+      showCursor: false,
+      standalone: false,
+      state: "executing",
+      toolUseSummary: null,
+    },
+    environment: {
+      canRespondToPermissions: true,
+      hiddenToolNames: [],
+      mode: "dm_live",
+    },
+    generatedFilesLabel: "生成文件",
+    permissions: {
+      all: [],
+      matchedByToolUseId: new Map(),
+      owner: "content",
+      unmatched: [],
+    },
+    projection: { content, streamingIndexes: new Set() },
+    responseResumed: true,
+  };
   const toolRunHtml = await renderWithI18n(React.createElement(
     AssistantToolRuns,
-    {
-      activity: {
-        emptyStreamStatus: null,
-        label: null,
-        showCursor: false,
-        standalone: false,
-        state: "executing",
-        toolUseSummary: null,
-      },
-      environment: {
-        canRespondToPermissions: true,
-        hiddenToolNames: [],
-        mode: "dm_live",
-      },
-      generatedFilesLabel: "生成文件",
-      permissions: {
-        all: [],
-        matchedByToolUseId: new Map(),
-        owner: "content",
-        unmatched: [],
-      },
-      projection: { content, streamingIndexes: new Set() },
-      responseResumed: true,
-    },
+    toolRunProps,
   ));
 
   assert.match(toolRunHtml, /aria-expanded="false"/);
@@ -2165,39 +2383,54 @@ test("multi-activity tool groups start collapsed with recent semantic icons", as
       > toolRunHtml.lastIndexOf("data-process-activity-icon="),
     "the overflow count follows the visible activity icons",
   );
-  assert.match(toolRunHtml, /class="-ml-1 flex shrink-0 items-center/);
+  assert.match(toolRunHtml, /class="flex shrink-0 items-center/);
   assert.doesNotMatch(toolRunHtml, /Thought 0|data-tool-run-detail-list/);
+  assert.match(toolRunHtml, /before:bottom-0/);
+  assert.match(toolRunHtml, /data-timeline-dot/);
+  assert.match(toolRunHtml, /nexus-chat-timeline-block/);
 
-  const answeredQuestion = {
-    type: "tool_use",
-    id: "tool-question-answered",
-    name: "AskUserQuestion",
-    input: { questions: [] },
-  };
-  const archivedHtml = await renderWithI18n(React.createElement(
-    ContentRenderer,
+  const threadHtml = await renderWithI18n(React.createElement(
+    AssistantToolRuns,
     {
-      content: [
-        answeredQuestion,
-        {
-          type: "tool_result",
-          tool_use_id: answeredQuestion.id,
-          content: "answered",
-        },
-        { type: "thinking", thinking: "Continue after the answer" },
-      ],
-      groupProcessActivities: true,
+      ...toolRunProps,
+      environment: {
+        ...toolRunProps.environment,
+        mode: "room_thread_process",
+      },
     },
   ));
-  assert.match(archivedHtml, /data-process-activity-group/);
-  assert.match(archivedHtml, /aria-expanded="false"/);
-  assert.match(archivedHtml, /data-process-activity-icon-count="2"/);
-  assert.doesNotMatch(archivedHtml, /Continue after the answer/);
+  assert.match(threadHtml, /aria-expanded="true"/);
+  assert.match(threadHtml, /data-tool-run-detail-list/);
+  assert.match(threadHtml, /Thought 0/);
+  assert.doesNotMatch(threadHtml, /before:bottom-0/);
+  assert.doesNotMatch(threadHtml, /data-timeline-dot/);
+  assert.doesNotMatch(threadHtml, /nexus-chat-timeline-block/);
+
+  const liveThreadHtml = await renderWithI18n(React.createElement(
+    AssistantToolRuns,
+    {
+      ...toolRunProps,
+      activity: {
+        ...toolRunProps.activity,
+        showCursor: true,
+      },
+      environment: {
+        ...toolRunProps.environment,
+        mode: "room_thread_process",
+      },
+      responseResumed: false,
+    },
+  ));
+  assert.match(liveThreadHtml, /data-message-detail-follow="true"/);
+
 });
 
 test("detail scroll fade follows the remaining scroll directions", async () => {
-  const { resolveMessageDetailFade } = await server.ssrLoadModule(
+  const { MessageDetailScroll } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/ui/message-rail.tsx",
+  );
+  const { isAtScrollBottom, resolveScrollFade } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
   const position = (scrollTop) => ({
     clientHeight: 280,
@@ -2205,14 +2438,46 @@ test("detail scroll fade follows the remaining scroll directions", async () => {
     scrollTop,
   });
 
-  assert.equal(resolveMessageDetailFade({
+  assert.equal(resolveScrollFade({
     clientHeight: 280,
     scrollHeight: 280,
     scrollTop: 0,
   }), "none");
-  assert.equal(resolveMessageDetailFade(position(0)), "bottom");
-  assert.equal(resolveMessageDetailFade(position(140)), "both");
-  assert.equal(resolveMessageDetailFade(position(280)), "top");
+  assert.equal(resolveScrollFade(position(0)), "bottom");
+  assert.equal(resolveScrollFade(position(140)), "both");
+  assert.equal(resolveScrollFade(position(280)), "top");
+  assert.equal(isAtScrollBottom(position(140)), false);
+  assert.equal(isAtScrollBottom(position(280)), true);
+
+  const nestedHtml = renderToStaticMarkup(React.createElement(
+    MessageDetailScroll,
+    null,
+    React.createElement(
+      MessageDetailScroll,
+      null,
+      "Nested detail",
+    ),
+  ));
+  assert.equal(
+    nestedHtml.match(/data-message-detail-scroll/g)?.length,
+    1,
+    "nested details share the outer scroll owner",
+  );
+});
+
+test("Thought detail uses compact tool-detail typography", async () => {
+  const { ThinkingBlock } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/thinking-block.tsx",
+  );
+  const html = await renderWithI18n(React.createElement(ThinkingBlock, {
+    isStreaming: true,
+    thinking: "Compact detail",
+  }));
+
+  assert.match(html, /nexus-message-detail-markdown/);
+  assert.match(html, /data-message-detail-sticky-header="true"/);
+  assert.match(html, /data-message-detail-follow="true"/);
+  assert.match(html, /data-markdown-streaming="true"/);
 });
 
 test("semantic tool rejection stays distinct from transport completion in DM and Room", async () => {
@@ -2506,6 +2771,9 @@ test("DM live and terminal keep the final response on one content surface", asyn
   const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
   );
+  const { AssistantMessageContent } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
+  );
   const message = assistantMessage({
     messageId: "assistant-dm-surface",
     roundId: "round-dm-surface",
@@ -2564,6 +2832,69 @@ test("DM live and terminal keep the final response on one content surface", asyn
     false,
     "the live process track must not duplicate or own the final response text",
   );
+
+  const messageContentProps = {
+    activity: {
+      emptyStreamStatus: null,
+      label: null,
+      showCursor: true,
+      standalone: false,
+      state: "replying",
+      toolUseSummary: null,
+    },
+    direct: {
+      projection: live.directOrderedProjection,
+      visible: true,
+    },
+    environment: {
+      canRespondToPermissions: true,
+      hiddenToolNames: [],
+      mode: "dm_live",
+    },
+    final: {
+      content: live.finalAssistantContent,
+      mentions: [],
+      isStreaming: true,
+      streamingIndexes: live.finalAssistantStreamingIndexes,
+      visible: true,
+    },
+    permissions: {
+      all: [],
+      matchedByToolUseId: new Map(),
+      owner: "composer",
+      unmatched: [],
+    },
+    process: {
+      anchorRef: { current: null },
+      expanded: false,
+      projection: { content: [], streamingIndexes: new Set() },
+      summary: { kind: "details", latestDetail: null, metrics: [] },
+      toggle: () => {},
+      visible: false,
+    },
+    showMaxTokensWarning: false,
+  };
+  const html = await renderWithI18n(React.createElement(
+    AssistantMessageContent,
+    messageContentProps,
+  ));
+  assert.match(
+    html,
+    /nexus-chat-final-content[^\"]*before:left-\[5\.5px\]/,
+    "the final reply must keep the same timeline lane as the process text",
+  );
+
+  const roomHtml = await renderWithI18n(React.createElement(
+    AssistantMessageContent,
+    {
+      ...messageContentProps,
+      environment: {
+        ...messageContentProps.environment,
+        mode: "room_result",
+      },
+    },
+  ));
+  assert.doesNotMatch(roomHtml, /before:left-\[5\.5px\]|data-timeline-dot/);
 });
 
 test("迟到历史用 Goal 完成收据推进同一 assistant 快照", async () => {

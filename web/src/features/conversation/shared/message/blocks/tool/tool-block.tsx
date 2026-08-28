@@ -13,9 +13,9 @@ import type {
 import { useToolBlockController } from "./use-tool-block-controller";
 import { isSubagentToolName } from "../../message-tool-names";
 import { SubagentTaskToolEntry } from "./subagent-task-tool-entry";
+import { MessageDetailFrame } from "../../ui/message-rail";
 
 export function ToolBlock({
-  defaultExpanded = false,
   toolUse,
   toolResult,
   liveProgress,
@@ -30,7 +30,6 @@ export function ToolBlock({
   workspaceAgentId,
 }: ToolBlockProps) {
   const controller = useToolBlockController({
-    defaultExpanded,
     endTime,
     interactionDisabled,
     interactionDisabledReason,
@@ -65,9 +64,9 @@ export function ToolBlock({
       ref={controller.anchorRef as RefObject<HTMLDivElement>}
     >
       <ToolBlockHeader {...controller.header} />
-      <RunningProgress model={controller.model} />
-      <OptionalToolResult
+      <OptionalToolDetails
         isExpanded={controller.isExpanded}
+        model={controller.model}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         toolResult={toolResult}
         workspaceAgentId={workspaceAgentId}
@@ -83,35 +82,47 @@ export function ToolBlock({
   );
 }
 
-function RunningProgress({ model }: { model: ToolBlockViewModel }) {
-  if (model.hasResult || model.status !== "running") {
-    return null;
-  }
-  return (
-    <div className="ml-7 mt-1 h-px overflow-hidden rounded-full bg-primary/15">
-      <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/60" />
-    </div>
-  );
-}
-
-function OptionalToolResult({
+function OptionalToolDetails({
   isExpanded,
+  model,
   onOpenWorkspaceFile,
   toolResult,
   workspaceAgentId,
 }: Pick<
   ToolBlockProps,
   "onOpenWorkspaceFile" | "toolResult" | "workspaceAgentId"
-> & { isExpanded: boolean }) {
-  if (!toolResult || !isExpanded) {
+> & { isExpanded: boolean; model: ToolBlockViewModel }) {
+  if (!isExpanded) {
+    return null;
+  }
+  const inputDetail = model.expandedDetailText !== model.collapsedDetailText
+    ? model.expandedDetailText
+    : null;
+  if (!inputDetail && !toolResult) {
     return null;
   }
   return (
-    <ToolBlockResult
-      onOpenWorkspaceFile={onOpenWorkspaceFile}
-      toolResult={toolResult}
-      workspaceAgentId={workspaceAgentId}
-    />
+    <MessageDetailFrame>
+      <div data-tool-block-details>
+        {inputDetail ? (
+          <pre
+            className="message-cjk-font whitespace-pre-wrap break-all text-xs text-(--text-muted)"
+            data-tool-block-input-detail
+          >
+            {inputDetail}
+          </pre>
+        ) : null}
+        {toolResult ? (
+          <div className={inputDetail ? "mt-1.5" : undefined}>
+            <ToolBlockResult
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              toolResult={toolResult}
+              workspaceAgentId={workspaceAgentId}
+            />
+          </div>
+        ) : null}
+      </div>
+    </MessageDetailFrame>
   );
 }
 

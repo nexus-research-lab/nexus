@@ -4,70 +4,56 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  type LucideIcon,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
-import type { ToolBlockHeaderProjection } from "./tool-block-header-model";
-
 interface ToolBlockHeaderActionsProps {
+  canCopyResult: boolean;
+  canToggle: boolean;
   copied: boolean;
+  expanded: boolean;
   interactionDisabled: boolean;
   interactionDisabledReason?: string;
   onAllow?: () => void;
   onCopyResult: () => void;
   onDeny?: () => void;
-  projection: ToolBlockHeaderProjection;
+  showPermissionActions: boolean;
 }
-
-interface PermissionAction {
-  disabled: boolean;
-  disabledReason?: string;
-  onAllow: () => void;
-  onDeny: () => void;
-}
-
-const COPY_ICON_BY_STATE: ReadonlyArray<LucideIcon> = [Copy, Check];
-const EXPANSION_ICON_BY_STATE: Readonly<Record<
-  ToolBlockHeaderProjection["expansionState"],
-  LucideIcon
->> = {
-  collapsed: ChevronRight,
-  expanded: ChevronDown,
-};
 
 export function ToolBlockHeaderActions({
+  canCopyResult,
+  canToggle,
   copied,
+  expanded,
   interactionDisabled,
   interactionDisabledReason,
   onAllow,
   onCopyResult,
   onDeny,
-  projection,
+  showPermissionActions,
 }: ToolBlockHeaderActionsProps) {
-  const permissionAction = buildPermissionAction({
-    disabled: interactionDisabled,
-    disabledReason: interactionDisabledReason,
-    onAllow,
-    onDeny,
-    visible: projection.showPermissionActions,
-  });
   return (
     <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-      <PermissionActions action={permissionAction} />
+      <PermissionActions
+        disabled={interactionDisabled}
+        disabledReason={interactionDisabledReason}
+        onAllow={onAllow}
+        onDeny={onDeny}
+        visible={showPermissionActions}
+      />
       <CopyResultAction
         copied={copied}
         onCopyResult={onCopyResult}
-        visible={projection.canCopyResult}
+        visible={canCopyResult && expanded}
       />
-      <ExpansionIndicator projection={projection} />
+      <ExpansionIndicator canToggle={canToggle} expanded={expanded} />
     </div>
   );
 }
 
-function buildPermissionAction({
+function PermissionActions({
   disabled,
   disabledReason,
   onAllow,
@@ -79,28 +65,12 @@ function buildPermissionAction({
   onAllow?: () => void;
   onDeny?: () => void;
   visible: boolean;
-}): PermissionAction | null {
-  const rules = [
-    {
-      matches: [visible, Boolean(onAllow), Boolean(onDeny)].every(Boolean),
-      value: {
-        disabled,
-        disabledReason,
-        onAllow: onAllow!,
-        onDeny: onDeny!,
-      },
-    },
-    { matches: true, value: null },
-  ];
-  return rules.find((rule) => rule.matches)!.value;
-}
-
-function PermissionActions({ action }: { action: PermissionAction | null }) {
+}) {
   const { t } = useI18n();
-  if (!action) {
+  if (!visible || !onAllow || !onDeny) {
     return null;
   }
-  const state = getPermissionButtonState(action.disabled, action.disabledReason);
+  const state = getPermissionButtonState(disabled, disabledReason);
   return (
     <>
       <button
@@ -108,8 +78,8 @@ function PermissionActions({ action }: { action: PermissionAction | null }) {
           "radius-control-sm border border-(--divider-subtle-color) px-2 py-1 text-xs font-medium text-(--text-muted) transition-colors",
           state.denyClassName,
         )}
-        disabled={action.disabled}
-        onClick={stopPropagationAndRun(action.onDeny)}
+        disabled={disabled}
+        onClick={stopPropagationAndRun(onDeny)}
         title={state.title}
         type="button"
       >
@@ -120,8 +90,8 @@ function PermissionActions({ action }: { action: PermissionAction | null }) {
           "radius-control-sm border px-2 py-1 text-xs font-medium transition-colors",
           state.allowClassName,
         )}
-        disabled={action.disabled}
-        onClick={stopPropagationAndRun(action.onAllow)}
+        disabled={disabled}
+        onClick={stopPropagationAndRun(onAllow)}
         title={state.title}
         type="button"
       >
@@ -135,19 +105,17 @@ function getPermissionButtonState(
   disabled: boolean,
   disabledReason?: string,
 ) {
-  const states = [
-    {
-      allowClassName: "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
-      denyClassName: "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-      title: undefined,
-    },
-    {
+  return disabled
+    ? {
       allowClassName: "cursor-not-allowed border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
       denyClassName: "cursor-not-allowed opacity-(--disabled-opacity)",
       title: disabledReason,
-    },
-  ];
-  return states[Number(disabled)];
+    }
+    : {
+      allowClassName: "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
+      denyClassName: "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+      title: undefined,
+    };
 }
 
 function CopyResultAction({
@@ -163,24 +131,21 @@ function CopyResultAction({
   if (!visible) {
     return null;
   }
-  const CopyIcon = COPY_ICON_BY_STATE[Number(copied)];
-  const labels = [
-    t("message.tool_copy_result"),
-    t("message.tool_copied_result"),
-  ];
-  const styles = [
-    "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-    "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
-  ];
+  const CopyIcon = copied ? Check : Copy;
+  const label = t(copied
+    ? "message.tool_copied_result"
+    : "message.tool_copy_result");
   return (
     <button
-      aria-label={labels[Number(copied)]}
+      aria-label={label}
       className={cn(
         "inline-flex h-6 w-6 items-center justify-center rounded-[6px] transition-colors",
-        styles[Number(copied)],
+        copied
+          ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
+          : "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
       )}
       onClick={stopPropagationAndRun(onCopyResult)}
-      title={labels[Number(copied)]}
+      title={label}
       type="button"
     >
       <CopyIcon className="h-3.5 w-3.5" />
@@ -189,14 +154,16 @@ function CopyResultAction({
 }
 
 function ExpansionIndicator({
-  projection,
+  canToggle,
+  expanded,
 }: {
-  projection: ToolBlockHeaderProjection;
+  canToggle: boolean;
+  expanded: boolean;
 }) {
-  if (!projection.canToggle) {
+  if (!canToggle) {
     return null;
   }
-  const ExpansionIcon = EXPANSION_ICON_BY_STATE[projection.expansionState];
+  const ExpansionIcon = expanded ? ChevronDown : ChevronRight;
   return (
     <div className="shrink-0 text-(--icon-muted)">
       <ExpansionIcon className="h-3.5 w-3.5" />
