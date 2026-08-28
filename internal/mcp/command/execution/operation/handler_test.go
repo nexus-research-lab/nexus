@@ -15,25 +15,26 @@ import (
 )
 
 type fakeExecutionService struct {
-	current       func() *protocol.ExecutionSnapshot
-	snapshotError error
-	currentReads  int
-	snapshotReads int
-	prepare       func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
-	resolvePlan   func(orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error)
-	materialize   func(orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) orchestration.MutationResult
-	abandon       func(orchestration.AbandonExecutionInput) orchestration.MutationResult
-	assign        func(orchestration.AssignWorkInput) orchestration.MutationResult
-	submit        func(orchestration.SubmitWorkInput) orchestration.MutationResult
-	review        func(orchestration.ReviewWorkInput) orchestration.MutationResult
-	block         func(orchestration.BlockWorkInput) orchestration.MutationResult
-	resume        func(orchestration.ResumeWorkInput) orchestration.MutationResult
-	takeover      func(orchestration.TakeOverWorkInput) orchestration.MutationResult
-	alignment     func(orchestration.AuditExecutionAlignmentInput) orchestration.MutationResult
-	promote       func(orchestration.PromoteExecutionToGoalInput) orchestration.MutationResult
-	context       string
-	contextActor  func(orchestration.ActorContext)
-	activate      func(
+	current        func() *protocol.ExecutionSnapshot
+	snapshotError  error
+	currentReads   int
+	snapshotReads  int
+	prepare        func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
+	resolvePlan    func(orchestration.ActorContext) (*protocol.ExecutionPlanProposal, error)
+	materialize    func(orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) orchestration.MutationResult
+	abandon        func(orchestration.AbandonExecutionInput) orchestration.MutationResult
+	assign         func(orchestration.AssignWorkInput) orchestration.MutationResult
+	submit         func(orchestration.SubmitWorkInput) orchestration.MutationResult
+	review         func(orchestration.ReviewWorkInput) orchestration.MutationResult
+	block          func(orchestration.BlockWorkInput) orchestration.MutationResult
+	resume         func(orchestration.ResumeWorkInput) orchestration.MutationResult
+	takeover       func(orchestration.TakeOverWorkInput) orchestration.MutationResult
+	alignment      func(orchestration.AuditExecutionAlignmentInput) orchestration.MutationResult
+	promote        func(orchestration.PromoteExecutionToGoalInput) orchestration.MutationResult
+	context        string
+	inspectContext string
+	contextActor   func(orchestration.ActorContext)
+	activate       func(
 		orchestration.ActorContext,
 		*protocol.ExecutionSnapshot,
 	) error
@@ -331,6 +332,19 @@ func (s *fakeExecutionService) RuntimeContext(
 	return `<nexus_execution_context execution_version="9"><allowed_actions><action>assign_work</action></allowed_actions></nexus_execution_context>`, nil
 }
 
+func (s *fakeExecutionService) RuntimeInspectionContext(
+	ctx context.Context,
+	actor orchestration.ActorContext,
+) (string, error) {
+	if s.inspectContext == "" {
+		return s.RuntimeContext(ctx, actor)
+	}
+	if s.contextActor != nil {
+		s.contextActor(actor)
+	}
+	return s.inspectContext, nil
+}
+
 func (s *fakeExecutionService) ActivateRuntimeCoordination(
 	_ context.Context,
 	actor orchestration.ActorContext,
@@ -377,6 +391,35 @@ func TestGetExecutionMintsExplicitRuntimeCoordinationCapability(t *testing.T) {
 			activated,
 			contextExecutionID,
 		)
+	}
+}
+
+func TestGetExecutionReturnsRuntimeHistoryOnlyOnExplicitInspect(t *testing.T) {
+	snapshot := executionSnapshot(9)
+	svc := &fakeExecutionService{
+		current: func() *protocol.ExecutionSnapshot { return snapshot },
+		context: `<nexus_execution_context execution_version="9">` +
+			`<allowed_actions><action>assign_work</action></allowed_actions>` +
+			`</nexus_execution_context>`,
+		inspectContext: `<nexus_execution_context execution_version="9">` +
+			`<runtime_facts><successful_nodes><node id="tool-1">` +
+			`<result_summary>finished research</result_summary>` +
+			`</node></successful_nodes></runtime_facts>` +
+			`<allowed_actions><action>assign_work</action></allowed_actions>` +
+			`</nexus_execution_context>`,
+	}
+	result, err := getExecution(svc, executionContext()).ContextHandler(
+		context.Background(),
+		map[string]any{"execution_id": snapshot.Execution.ID},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered, _ := result.StructuredContent["execution_context"].(string)
+	if !strings.Contains(rendered, "finished research") ||
+		!strings.Contains(rendered, "successful_nodes") {
+		t.Fatalf("explicit inspect context = %s", rendered)
 	}
 }
 
