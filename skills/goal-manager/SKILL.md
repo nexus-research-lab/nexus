@@ -15,7 +15,7 @@ Goal 是跨物理 round 持续追求的服务端目标，不是普通聊天、Ta
    {"domain":"goal","action":"inspect"}
    ```
 
-   不要探测命令路径、临时文件或环境变量，不要使用 `nexusctl`、其他管理入口或 `/goal` 文本代替 command。
+   不要探测命令路径、临时文件或环境变量，不要使用其他管理入口或 `/goal` 文本代替 command。
 2. 读取最新 Goal/objective revision 与 completion criteria 后选择 operation；mutation 前读取 fresh exact contract：
 
    ```json

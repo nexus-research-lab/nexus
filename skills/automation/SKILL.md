@@ -8,7 +8,7 @@ tags: [automation, scheduled-task, reminder]
 
 # Nexus 自动化
 
-Automation 使用宿主提供的 `nexus.command`，并绑定当前 owner、Agent、DM/Room/IM Session 与可选 job/run。不要声明或覆盖这些 identity，不调用 `nexusctl automation`，也不要通过 shell 或文件构造命令。
+Automation 使用宿主提供的 `nexus.command`，并绑定当前 owner、Agent、DM/Room/IM Session 与可选 job/run。不要声明或覆盖这些 identity，也不要通过 shell、其他管理入口或文件构造命令。
 
 ## 固定生命周期
 
