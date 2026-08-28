@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { getErrorMessage } from "@/lib/error-message";
@@ -21,7 +21,7 @@ import type {
 import type { RunProviderCommand } from "../use-provider-command";
 
 interface UseProviderModelUpdateOptions {
-  modelApi: Pick<ProviderModelApi, "updateModel">;
+  modelApi: Pick<ProviderModelApi, "deleteModel" | "updateModel">;
   modelOptions: ModelOptionsState | null;
   refreshAll: (preferredProvider?: string | null) => Promise<void>;
   runCommand: RunProviderCommand;
@@ -43,6 +43,13 @@ export function useProviderModelUpdate({
   setModelOptions,
   t,
 }: UseProviderModelUpdateOptions) {
+  const [deleteModelTarget, setDeleteModelTarget] =
+    useState<ProviderModelRecord | null>(null);
+
+  useEffect(() => {
+    setDeleteModelTarget(null);
+  }, [selectedRecord?.provider]);
+
   const handleDefaultModelDisableAttempt = useCallback((
     model: ProviderModelRecord,
   ) => {
@@ -87,6 +94,62 @@ export function useProviderModelUpdate({
     });
   }, [
     handleDefaultModelDisableAttempt,
+    modelApi,
+    refreshAll,
+    runCommand,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    t,
+  ]);
+
+  const handleRequestDeleteModel = useCallback((model: ProviderModelRecord) => {
+    if (!selectedCanManage) {
+      return;
+    }
+    if (model.is_default) {
+      handleDefaultModelDisableAttempt(model);
+      return;
+    }
+    setDeleteModelTarget(model);
+  }, [handleDefaultModelDisableAttempt, selectedCanManage]);
+
+  const handleDeleteModel = useCallback(() => {
+    if (!selectedRecord || !deleteModelTarget || !selectedCanManage) {
+      return;
+    }
+    void runCommand({
+      kind: "delete-model",
+      modelId: deleteModelTarget.model_id,
+    }, async () => {
+      try {
+        await modelApi.deleteModel(
+          selectedRecord.provider,
+          deleteModelTarget.model_id,
+        );
+        setDeleteModelTarget(null);
+        await refreshAll(selectedRecord.provider);
+        setFeedback({
+          tone: "success",
+          title: t("settings.providers.model_deleted_title"),
+          message: t("settings.providers.model_deleted_message", {
+            model: deleteModelTarget.display_name || deleteModelTarget.model_id,
+          }),
+        });
+      } catch (error) {
+        setDeleteModelTarget(null);
+        setFeedback({
+          tone: "error",
+          title: t("settings.providers.model_delete_failed_title"),
+          message: getErrorMessage(
+            error,
+            t("settings.providers.retry_later"),
+          ),
+        });
+      }
+    });
+  }, [
+    deleteModelTarget,
     modelApi,
     refreshAll,
     runCommand,
@@ -149,7 +212,11 @@ export function useProviderModelUpdate({
   ]);
 
   return {
+    closeDeleteModelDialog: () => setDeleteModelTarget(null),
+    deleteModelTarget,
     handleDefaultModelDisableAttempt,
+    handleDeleteModel,
+    handleRequestDeleteModel,
     handleSaveModelOptions,
     handleToggleModel,
   };

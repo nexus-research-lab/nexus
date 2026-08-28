@@ -41,7 +41,7 @@ func (s *Service) getModelByID(ctx context.Context, providerID string, modelID s
 }
 
 func (s *Service) requireProvider(ctx context.Context, provider string) (*providerstore.Entity, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s *Service) getPublicProvider(ctx context.Context, provider string) (strin
 	if err := requirePublicProviderManagement(ctx); err != nil {
 		return "", nil, err
 	}
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return "", nil, err
 	}

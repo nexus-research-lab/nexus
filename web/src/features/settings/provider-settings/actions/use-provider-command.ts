@@ -6,6 +6,7 @@ export type ProviderPendingAction =
   | { kind: "delete-provider" }
   | { kind: "fetch-models" }
   | { kind: "add-model"; modelId: string }
+  | { kind: "delete-model"; modelId: string }
   | { kind: "test-provider" }
   | { kind: "test-model"; modelId: string }
   | { kind: "toggle-model"; modelId: string }

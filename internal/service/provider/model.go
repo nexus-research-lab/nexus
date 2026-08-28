@@ -249,6 +249,12 @@ type UpdateModelInput struct {
 	ProviderOptions      map[string]any    `json:"provider_options"`
 }
 
+// DeleteModelResult 表示模型删除结果。
+type DeleteModelResult struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
 // FetchModelsResult 表示模型拉取结果。
 type FetchModelsResult struct {
 	Provider string        `json:"provider"`

@@ -31,6 +31,15 @@ func NormalizeProvider(provider string, allowEmpty bool) (string, error) {
 	return normalized, nil
 }
 
+// normalizeProviderReference 保留已持久化 Provider 标识，只清理传输层首尾空白。
+func normalizeProviderReference(provider string, allowEmpty bool) (string, error) {
+	trimmed := strings.TrimSpace(provider)
+	if trimmed == "" && !allowEmpty {
+		return "", errors.New("provider 不能为空")
+	}
+	return trimmed, nil
+}
+
 func normalizeProviderKind(providerKind string) string {
 	switch strings.TrimSpace(providerKind) {
 	case "", ProviderKindLLM:
