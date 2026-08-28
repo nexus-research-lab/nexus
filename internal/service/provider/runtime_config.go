@@ -22,7 +22,7 @@ func (s *Service) ResolveRuntimeConfigForRuntime(ctx context.Context, provider s
 		return nil, err
 	}
 	runtimeKind = normalizeRuntimeKind(runtimeKind)
-	targetProvider, err := NormalizeProvider(provider, true)
+	targetProvider, err := normalizeProviderReference(provider, true)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Service) ResolveLLMConfig(ctx context.Context, provider string, model s
 	if err != nil {
 		return nil, err
 	}
-	targetProvider, err := NormalizeProvider(provider, true)
+	targetProvider, err := normalizeProviderReference(provider, true)
 	if err != nil {
 		return nil, err
 	}

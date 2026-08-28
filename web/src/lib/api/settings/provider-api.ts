@@ -6,6 +6,7 @@ import type {
   CCSwitchPreview,
   CCSwitchSyncPayload,
   CCSwitchSyncResult,
+  DeleteProviderModelResponse,
   FetchProviderModelsResponse,
   ProviderConfigPayload,
   ProviderConfigRecord,
@@ -180,6 +181,26 @@ export async function updateSubscriptionProviderModelApi(
       method: "PUT",
       body: JSON.stringify(payload),
     },
+  );
+}
+
+export async function deleteProviderModelApi(
+  provider: string,
+  modelId: string,
+): Promise<DeleteProviderModelResponse> {
+  return requestApi<DeleteProviderModelResponse>(
+    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function deleteSubscriptionProviderModelApi(
+  provider: string,
+  modelId: string,
+): Promise<DeleteProviderModelResponse> {
+  return requestApi<DeleteProviderModelResponse>(
+    `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}`,
+    { method: "DELETE" },
   );
 }
 

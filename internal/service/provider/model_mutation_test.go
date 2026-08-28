@@ -229,4 +229,98 @@ func TestUpdateModelCreatesManualModel(t *testing.T) {
 	if records[0].Models[0].IsDefault {
 		t.Fatalf("手动启用模型不应自动成为默认模型: %+v", records[0].Models[0])
 	}
+
+	deleted, err := service.DeleteModel(ctx, record.Provider, created.ModelID)
+	if err != nil {
+		t.Fatalf("删除手动模型失败: %v", err)
+	}
+	if deleted.Provider != record.Provider || deleted.Model != created.ModelID {
+		t.Fatalf("模型删除结果不正确: %+v", deleted)
+	}
+	updatedRecord, err := service.Get(ctx, record.Provider)
+	if err != nil {
+		t.Fatalf("删除后读取 provider 失败: %v", err)
+	}
+	if len(updatedRecord.Models) != 0 {
+		t.Fatalf("手动模型删除后仍然存在: %+v", updatedRecord.Models)
+	}
+}
+
+func TestProviderReferencePreservesLegacyPunctuation(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	fallback, err := service.Create(ctx, CreateInput{
+		Provider:   "fallback-provider",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatAnthropicMessages,
+		AuthToken:  "fallback-key",
+		BaseURL:    "https://fallback.example.com",
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建回退 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, fallback.Provider, "fallback-model", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置回退模型失败: %v", err)
+	}
+
+	now := service.now()
+	legacy := providerstore.Entity{
+		ID:                   service.idFactory("provider"),
+		OwnerUserID:          ownerUserIDFromContext(ctx),
+		Visibility:           providerstore.VisibilityPrivate,
+		ProviderKind:         ProviderKindLLM,
+		Provider:             "kimi2.6",
+		PresetKey:            presetCustom,
+		APIFormat:            APIFormatAnthropicMessages,
+		DisplayName:          "Kimi 2.6",
+		AuthToken:            "legacy-key",
+		BaseURL:              "https://legacy.example.com",
+		ModelsPath:           "/models",
+		Enabled:              true,
+		ConfigurationVersion: 1,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
+	if err = service.repository.Create(ctx, legacy); err != nil {
+		t.Fatalf("写入旧 Provider 失败: %v", err)
+	}
+
+	updated, err := service.Update(ctx, legacy.Provider, UpdateInput{
+		ProviderKind: legacy.ProviderKind,
+		PresetKey:    legacy.PresetKey,
+		APIFormat:    legacy.APIFormat,
+		DisplayName:  "Kimi Updated",
+		BaseURL:      legacy.BaseURL,
+		ModelsPath:   legacy.ModelsPath,
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("更新带标点 Provider 失败: %v", err)
+	}
+	if updated.Provider != legacy.Provider || updated.DisplayName != "Kimi Updated" {
+		t.Fatalf("Provider 标识被改写: %+v", updated)
+	}
+
+	if _, err = service.UpdateModel(ctx, legacy.Provider, "legacy-model", UpdateModelInput{
+		Enabled: true,
+	}); err != nil {
+		t.Fatalf("给带标点 Provider 添加模型失败: %v", err)
+	}
+	if _, err = service.ResolveRuntimeConfigForRuntime(
+		ctx,
+		legacy.Provider,
+		"legacy-model",
+		"nxs",
+	); err != nil {
+		t.Fatalf("解析带标点 Provider 失败: %v", err)
+	}
+	if _, err = service.Delete(ctx, legacy.Provider, DeleteInput{}); err != nil {
+		t.Fatalf("删除带标点 Provider 失败: %v", err)
+	}
 }
