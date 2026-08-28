@@ -401,6 +401,7 @@ func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsExposesOnlyNexuscfgWithRuntimeCapability(t *testing.T) {
+	t.Setenv("PATH", "/usr/bin")
 	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
 	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
@@ -422,6 +423,9 @@ func TestBuildAgentClientOptionsExposesOnlyNexuscfgWithRuntimeCapability(t *test
 		options.Env[nexusctlWorkspacePathEnvName] != "" ||
 		options.Env[nexusctlUserIDEnvName] != "" {
 		t.Fatalf("普通 Agent 不应获得 nexusctl owner capability: %+v", options.Env)
+	}
+	if pathValue := strings.TrimSpace(options.Env["PATH"]); pathValue != "" {
+		t.Fatalf("普通 Agent 不应通过共享 PATH 发现控制面 CLI: %q", pathValue)
 	}
 }
 
@@ -465,6 +469,7 @@ func TestBuildAgentClientOptionsDoesNotExposeNexusCLIWithoutCapability(t *testin
 }
 
 func TestBuildAgentClientOptionsInjectsControlCLIsForMainAgent(t *testing.T) {
+	t.Setenv("PATH", "/usr/bin")
 	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
 	t.Setenv(nexuscfgCommandPathEnvName, "/opt/nexus/bin/nexuscfg")
 	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "owner-a"})
@@ -483,6 +488,10 @@ func TestBuildAgentClientOptionsInjectsControlCLIsForMainAgent(t *testing.T) {
 		if got := options.Env[key]; got != want {
 			t.Fatalf("主智能体 %s=%q, want %q", key, got, want)
 		}
+	}
+	wantPath := appfs.AgentRuntimeBinDir() + string(os.PathListSeparator) + "/usr/bin"
+	if got := options.Env["PATH"]; got != wantPath {
+		t.Fatalf("主智能体 PATH=%q, want %q", got, wantPath)
 	}
 }
 

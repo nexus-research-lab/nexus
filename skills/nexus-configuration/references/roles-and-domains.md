@@ -32,7 +32,7 @@ target 不能扩大 authority。普通 Agent 的 self operation 固定到当前 
 - scheduled task / heartbeat：使用 `automation` Skill 与 round-scoped `nexus.command`。
 - Goal：使用 `goal-manager` 与 round-scoped `nexus.command`。
 - Execution/WorkGraph：使用 `execution-orchestrator` 与 round-scoped `nexus.command`。
-- 其他 Agent workspace 与平台资源：仅主智能体使用 `nexus-manager` / `nexusctl`；当前 Agent 自己的 workspace 直接用文件工具。
+- 其他 Agent workspace 与平台资源：仅主智能体使用 `nexus-manager`；当前 Agent 自己的 workspace 直接用文件工具。
 
 ## 失败与恢复
 

@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept `nexusctl` exclusive to the main Agent by removing it from ordinary Agent and Room prompts, shared runtime PATH discovery, and shared Skills while retaining round-scoped `nexuscfg` and `nexus.command` capabilities.
 - Kept the browser extension folder visible after reopening the macOS installation windows instead of letting Chrome or Edge cover Finder as their extensions page finishes opening.
 - Stopped ordinary and managed turns from replaying completed Runtime Graph summaries into every model request; explicit Execution inspection still returns bounded successful history, while active failures, artifacts, WorkGraph, Trace, and audit projections remain available.
 - Preserved task identity when terminal subagent notifications include full result bodies, preventing the floating Room task strip from expanding across the conversation.

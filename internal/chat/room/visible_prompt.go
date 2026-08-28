@@ -11,7 +11,7 @@ import (
 
 // BuildSystemPrompt 构建 Room 成员稳定系统提示词。
 func BuildSystemPrompt(privateMessagesEnabled ...bool) string {
-	privateRule := "6. Current-Room private messaging is disabled. Do not simulate it with Bash, nexusctl, skills, or files. If a private message wakes you, answer once in the final reply and let runtime route it."
+	privateRule := "6. Current-Room private messaging is disabled. Do not simulate it with Bash, host control commands, skills, or files. If a private message wakes you, answer once in the final reply and let runtime route it."
 	if len(privateMessagesEnabled) > 0 && privateMessagesEnabled[0] {
 		privateRule = "6. Use nexus.send_message with destination=current_room and visibility=private for private facts: recipients sets visibility and wake_targets selects who runs. Runtime routes one final reply per recipient through reply_route; do not send a second answer. Never publish private content unless required. For an extra public fact from a private or tool-driven turn, use visibility=public once; after success output <nexus_room_no_reply/> unless reply_route requires a final reply."
 	}

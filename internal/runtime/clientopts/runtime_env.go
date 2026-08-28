@@ -536,14 +536,15 @@ func workspaceRuntimeEnv(workspacePath string, includeNexusctl bool) map[string]
 	env := map[string]string{
 		nexuscfgCommandPathEnvName: configurationCommandPath,
 	}
-	if includeNexusctl {
-		commandPath := strings.TrimSpace(os.Getenv(nexusctlCommandPathEnvName))
-		if commandPath == "" {
-			commandPath = runtimeCLIShimPath(binDir, "nexusctl")
-		}
-		env[nexusctlCommandPathEnvName] = commandPath
-		env[nexusctlWorkspacePathEnvName] = trimmedWorkspacePath
+	if !includeNexusctl {
+		return env
 	}
+	commandPath := strings.TrimSpace(os.Getenv(nexusctlCommandPathEnvName))
+	if commandPath == "" {
+		commandPath = runtimeCLIShimPath(binDir, "nexusctl")
+	}
+	env[nexusctlCommandPathEnvName] = commandPath
+	env[nexusctlWorkspacePathEnvName] = trimmedWorkspacePath
 	currentPath := strings.TrimSpace(os.Getenv("PATH"))
 	if currentPath == "" {
 		env["PATH"] = binDir
