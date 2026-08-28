@@ -24,6 +24,8 @@ func TestKnownContextWindow(t *testing.T) {
 		{name: "Claude snapshot", modelID: "claude-sonnet-4-5-20250929", want: 200_000},
 		{name: "Gemini namespace", modelID: "models/gemini-3.1-pro-preview", want: 1_048_576},
 		{name: "DeepSeek V4", modelID: "deepseek-v4-flash", want: 1_000_000},
+		{name: "GLM 5.3", modelID: "glm-5.3", want: 1_000_000},
+		{name: "GLM 5.3 Flash", modelID: "glm-5.3-flash", want: 1_000_000},
 		{name: "GLM 5.2", modelID: "glm-5.2", want: 1_000_000},
 		{name: "GLM coding plan", modelID: "glm-5.1", want: 202_752},
 		{name: "Kimi coding alias", modelID: "kimi-for-coding", want: 262_144},
@@ -62,6 +64,8 @@ func TestKnownVisionCapability(t *testing.T) {
 		{modelID: "claude-sonnet-4-6-20260217", want: true},
 		{modelID: "models/gemini-3.1-pro-preview", want: true},
 		{modelID: "qwen3-vl-plus", want: true},
+		{modelID: "glm-5.3-flash", want: true},
+		{modelID: "glm-5.3", want: false},
 		{modelID: "glm-4v-plus", want: true},
 		{modelID: "kimi-for-coding", want: true},
 		{modelID: "kimi-k2", want: false},
@@ -80,6 +84,27 @@ func TestKnownVisionCapability(t *testing.T) {
 				t.Fatalf("knownVisionCapability(%q) = %v, want unknown", test.modelID, *got)
 			}
 		})
+	}
+}
+
+func TestKnownMaxOutputTokens(t *testing.T) {
+	t.Parallel()
+
+	for _, modelID := range []string{"glm-5.3", "glm-5.3-flash"} {
+		if got := knownMaxOutputTokens(modelID); got == nil || *got != 131_072 {
+			t.Fatalf("knownMaxOutputTokens(%q) = %v, want 131072", modelID, got)
+		}
+	}
+}
+
+func TestKnownGLM53ReasoningCapability(t *testing.T) {
+	t.Parallel()
+
+	for _, modelID := range []string{"glm-5.3", "glm-5.3-flash"} {
+		model := providerstore.ModelEntity{ModelID: modelID}
+		if !modelHasReasoningCapability(model) {
+			t.Fatalf("modelHasReasoningCapability(%q) = false, want true", modelID)
+		}
 	}
 }
 

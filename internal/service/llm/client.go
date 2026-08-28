@@ -163,8 +163,8 @@ func applyChatCompletionsReasoningDisableOptions(
 		payload.ChatTemplateKwargs = map[string]bool{"enable_thinking": false}
 	case shouldUseOpenAIReasoningEffortNone(config):
 		payload.ReasoningEffort = "none"
-	case isKimiAlwaysThinkingModel(config):
-		// Kimi 始终推理模型，不支持关闭 thinking
+	case isAlwaysThinkingModel(config):
+		// 始终推理模型不支持关闭 thinking。
 		return
 	default:
 		// 协议通用 fallback：仅对明确启用推理的模型生效
@@ -186,10 +186,10 @@ func applyResponsesReasoningDisableOptions(
 	switch {
 	case shouldUseEnableThinkingDisable(config):
 		payload.EnableThinking = boolPointer(false)
+	case isAlwaysThinkingModel(config):
+		return
 	case shouldUseThinkingDisable(config):
 		payload.Thinking = map[string]string{"type": "disabled"}
-	case isKimiAlwaysThinkingModel(config):
-		return
 	default:
 		if config.Reasoning {
 			payload.Reasoning = &responsesReasoning{Effort: "none"}
@@ -207,11 +207,11 @@ func applyAnthropicMessagesReasoningDisableOptions(
 	}
 	// anthropic_messages 协议下按 provider 家族分派关闭方式：
 	// 标准是 thinking.type=disabled；Qwen/DashScope 系即便走 anthropic 兼容端点仍用
-	// 非标的 enable_thinking=false；Kimi 始终推理模型无法关闭，仅靠 max_tokens 兜底。
+	// 非标的 enable_thinking=false；始终推理模型无法关闭，仅靠 max_tokens 兜底。
 	switch {
 	case shouldUseEnableThinkingDisable(config):
 		payload.EnableThinking = boolPointer(false)
-	case isKimiAlwaysThinkingModel(config):
+	case isAlwaysThinkingModel(config):
 		return
 	case shouldUseThinkingDisable(config):
 		payload.Thinking = map[string]string{"type": "disabled"}
@@ -247,6 +247,14 @@ func shouldUseOpenAIReasoningEffortNone(config *clientopts.RuntimeConfig) bool {
 		return false
 	}
 	return openAIModelSupportsReasoningEffortNone(config.Model)
+}
+
+// isAlwaysThinkingModel 判断模型是否明确拒绝关闭推理。
+func isAlwaysThinkingModel(config *clientopts.RuntimeConfig) bool {
+	if strings.Contains(normalizeMatchText(config.Model), "glm-5.3") {
+		return true
+	}
+	return isKimiAlwaysThinkingModel(config)
 }
 
 // isKimiAlwaysThinkingModel 判断是否为始终推理且无法关闭的 Kimi 模型。

@@ -96,6 +96,8 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "deepseek-reasoner", Tokens: 1_000_000},
 
 	// 智谱 GLM。Coding Plan 以接口精确 token 上限为准，而不是文档中的 200K 简写。
+	{Family: "glm-5.3-flash", Tokens: 1_000_000, MaxOutputTokens: 131_072},
+	{Family: "glm-5.3", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.2", Tokens: 1_000_000},
 	{Family: "glm-5.1", Tokens: 202_752},
 	{Family: "glm-5-turbo", Tokens: 202_752},
@@ -158,13 +160,22 @@ func knownVisionCapability(modelID string) *bool {
 		return boolPointer(true)
 	case strings.Contains(normalized, "qwen") && strings.Contains(normalized, "vl"):
 		return boolPointer(true)
-	case modelIDMatchesGeneration(normalized, "glm-4v"),
+	case modelIDMatchesGeneration(normalized, "glm-5.3-flash"),
+		modelIDMatchesGeneration(normalized, "glm-4v"),
 		modelIDMatchesGeneration(normalized, "pixtral"),
 		modelIDMatchesGeneration(normalized, "llava"):
 		return boolPointer(true)
 	default:
 		return nil
 	}
+}
+
+// knownReasoningCapability 只补齐官方明确标记为推理模型的模型族。
+func knownReasoningCapability(modelID string) *bool {
+	if modelIDMatchesGeneration(normalizeCatalogModelID(modelID), "glm-5.3") {
+		return boolPointer(true)
+	}
+	return nil
 }
 
 func knownContextWindow(modelID string) *int {
