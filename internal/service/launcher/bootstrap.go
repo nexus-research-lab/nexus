@@ -120,7 +120,7 @@ func (s *Service) attachLatestReplyPreviews(
 	ctx context.Context,
 	items []BootstrapConversation,
 ) {
-	seenRoomIDs := make(map[string]struct{}, len(items))
+	seenPreviewKeys := make(map[string]struct{}, len(items))
 	for index := range items {
 		if ctx.Err() != nil {
 			return
@@ -128,16 +128,20 @@ func (s *Service) attachLatestReplyPreviews(
 		if isExternalLauncherConversation(items[index]) {
 			continue
 		}
-		roomID := strings.TrimSpace(items[index].RoomID)
-		if roomID == "" {
-			continue
-		}
-		if _, exists := seenRoomIDs[roomID]; exists {
-			continue
-		}
-		seenRoomIDs[roomID] = struct{}{}
-
 		sessionKey := previewSessionKey(items[index])
+		roomID := strings.TrimSpace(items[index].RoomID)
+		previewKey := roomID
+		if previewKey == "" {
+			previewKey = strings.TrimSpace(sessionKey)
+		}
+		if previewKey == "" {
+			continue
+		}
+		if _, exists := seenPreviewKeys[previewKey]; exists {
+			continue
+		}
+		seenPreviewKeys[previewKey] = struct{}{}
+
 		page, err := s.session.GetSessionMessagesPage(
 			ctx,
 			sessionKey,
