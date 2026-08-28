@@ -17,6 +17,8 @@ Execution 管理“当前责任如何交付”；Goal 管理“什么目标需�
    ```
 
    明确读取同一可信 scope 的历史图时才传 `input.execution_id`。
+   每轮动态上下文只自动保留运行中、异常、Artifact 和控制回连事实；显式 inspect
+   会附带有界 `successful_nodes`，需要恢复已完成工具结果时先读它，不要盲目重做。
 3. 只从最新 `data.execution_context.allowed_actions` 选择动作。mutation 前读取 fresh exact contract：
 
    ```json

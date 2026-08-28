@@ -153,6 +153,10 @@ type executionRuntimeContextReader interface {
 		context.Context,
 		orchestration.ActorContext,
 	) (string, error)
+	RuntimeInspectionContext(
+		context.Context,
+		orchestration.ActorContext,
+	) (string, error)
 }
 
 const (
@@ -246,9 +250,9 @@ func snapshotResult(
 		}
 	}
 	if reader, ok := any(svc).(executionRuntimeContextReader); ok {
-		if rendered, err := reader.RuntimeContext(ctx, actor); err == nil &&
+		if rendered, err := reader.RuntimeInspectionContext(ctx, actor); err == nil &&
 			strings.TrimSpace(rendered) != "" {
-			if rendered = compactRuntimeCommandContext(rendered); rendered != "" {
+			if rendered = strings.TrimSpace(rendered); rendered != "" {
 				payload["execution_context"] = rendered
 				payload["context_status"] = "authoritative"
 			}
@@ -258,10 +262,10 @@ func snapshotResult(
 }
 
 // compactRuntimeCommandContext keeps the current authority/action contract
-// inline while removing observed Runtime Graph history that is already
-// available through the WorkGraph read model. Re-embedding that history after
-// every mutation makes the result recursively grow until the runtime has to
-// externalize even the small outcome/next_actions control envelope.
+// inline while leaving observed Runtime Graph history to explicit inspect.
+// Re-embedding that history after every mutation makes the result recursively
+// grow until the runtime has to externalize even the small outcome/next_actions
+// control envelope.
 func compactRuntimeCommandContext(rendered string) string {
 	rendered = strings.TrimSpace(removeExecutionContextElement(rendered, "runtime_facts"))
 	if len(rendered) <= executionContextInlineLimit {

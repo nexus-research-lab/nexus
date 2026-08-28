@@ -1,5 +1,5 @@
 // INPUT: 当前 Execution snapshot、current Spec/output claims/Acceptance 与 runtime actor 身份。
-// OUTPUT: 有界、确定序且 XML 安全的 <nexus_execution_context>，异常历史超限显式标记 truncated/total。
+// OUTPUT: 普通轮的紧凑 <nexus_round> 或受管轮的有界 <nexus_execution_context>。
 // POS: DM、Room、compact recovery 与 Goal continuation 共用的动态执行上下文投影。
 package orchestration
 
@@ -23,7 +23,6 @@ const (
 	ExecutionActorSubagent    ExecutionActorRole = "subagent"
 
 	executionGraphDigestEdgeLimit = protocol.ExecutionProjectionCollectionLimit * 4
-	executionActionScope          = "Use only allowed_actions; load execution-orchestrator and follow the exact round-scoped execution contract for the selected action."
 )
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
@@ -40,10 +39,10 @@ type ExecutionContextOptions struct {
 	RuntimeGraph            *protocol.ExecutionRuntimeGraph
 	RuntimeGraphRelation    string
 	RuntimeGraphUnavailable bool
+	IncludeRuntimeHistory   bool
 }
 
-// RenderUnmanagedExecutionContext 明确当前没有权威 WorkGraph，避免模型把缺少
-// 动态块误读成可以抢占 Room coordinator 或自行发明 Assignment。
+// RenderUnmanagedExecutionContext 投影没有权威 WorkGraph 的普通轮状态。
 func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 	role := options.Role
 	if role != ExecutionActorCoordinator &&
@@ -55,87 +54,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 			role = ExecutionActorMember
 		}
 	}
-	allowed := []string{"get_execution"}
-	if !options.PlanMode {
-		allowed = append(allowed, "Agent")
-	}
-	if role == ExecutionActorCoordinator {
-		allowed = append(allowed, "prepare_plan_execution")
-		if !options.PlanMode {
-			allowed = append(allowed, "plan_execution")
-		}
-	}
-	forbidden := []string{
-		"prepare_plan_execution",
-		"plan_execution",
-		"abandon_execution",
-		"assign_work",
-		"submit_work",
-		"review_work",
-		"block_work",
-		"resume_work",
-		"take_over_work",
-		"audit_execution_alignment",
-		"promote_execution_to_goal",
-	}
-	if role != ExecutionActorCoordinator {
-		forbidden = append(forbidden, "create_shared_execution")
-	} else {
-		forbidden = slices.DeleteFunc(forbidden, func(value string) bool {
-			return value == "prepare_plan_execution" ||
-				(!options.PlanMode && value == "plan_execution")
-		})
-	}
-	if options.PlanMode {
-		forbidden = append(forbidden, "execute_work_in_plan_mode", "Agent")
-	}
-
-	var output strings.Builder
-	output.WriteString(`<nexus_execution_context execution_version="0">`)
-	fmt.Fprintf(
-		&output,
-		"\n  <scope type=\"%s\" />",
-		xmlValue(string(options.ScopeKind)),
-	)
-	fmt.Fprintf(
-		&output,
-		"\n  <actor agent_id=\"%s\" role=\"%s\" />",
-		xmlValue(options.ActorAgentID),
-		xmlValue(string(role)),
-	)
-	fmt.Fprintf(
-		&output,
-		"\n  <lane type=\"%s\" />",
-		xmlValue(executionContextLane(role, options)),
-	)
-	fmt.Fprintf(&output, "\n  <mode plan_only=\"%t\" />", options.PlanMode)
-	output.WriteString("\n  <execution state=\"unmanaged\" />")
-	if role == ExecutionActorCoordinator {
-		writeXMLTextElement(
-			&output,
-			2,
-			"boundary",
-			"no authoritative Work Item ownership exists; do direct atomic work or validate a complete Plan before coordinated execution",
-		)
-	} else {
-		writeXMLTextElement(
-			&output,
-			2,
-			"boundary",
-			"no managed Assignment exists; act only on the current legacy Room trigger and do not create shared work",
-		)
-	}
-	renderRuntimeGraphFacts(&output, options)
-	writeXMLTextElement(
-		&output,
-		2,
-		"action_scope",
-		executionActionScope,
-	)
-	renderStringList(&output, "allowed_actions", "action", allowed)
-	renderStringList(&output, "forbidden_actions", "action", forbidden)
-	output.WriteString("\n</nexus_execution_context>")
-	return output.String()
+	return renderRoundContext(executionContextLane(role, options), role, "", options.PlanMode)
 }
 
 // RenderConversationExecutionContext 明确当前 Room round 只属于对话平面。
@@ -152,102 +71,29 @@ func RenderConversationExecutionContext(
 	if options.Role == ExecutionActorCoordinator {
 		role = ExecutionActorCoordinator
 	}
-	allowed := []string{"get_execution"}
-	if !options.PlanMode {
-		allowed = append(allowed, "Agent")
-	}
-	if role == ExecutionActorCoordinator {
-		allowed = append(allowed, "prepare_plan_execution")
-		if !options.PlanMode {
-			allowed = append(allowed, "plan_execution")
-		}
-	}
-	forbidden := []string{
-		"abandon_execution",
-		"assign_work",
-		"submit_work",
-		"review_work",
-		"block_work",
-		"resume_work",
-		"take_over_work",
-		"audit_execution_alignment",
-		"promote_execution_to_goal",
-		"treat_conversation_as_work_evidence",
-	}
-	if options.PlanMode {
-		forbidden = append(forbidden, "Agent")
-	}
-	if role != ExecutionActorCoordinator {
-		forbidden = append([]string{"prepare_plan_execution", "plan_execution"}, forbidden...)
-	} else if options.PlanMode {
-		forbidden = append([]string{"plan_execution"}, forbidden...)
-	}
+	return renderRoundContext("conversation", role, "background", options.PlanMode)
+}
 
+func renderRoundContext(
+	lane string,
+	role ExecutionActorRole,
+	execution string,
+	planOnly bool,
+) string {
 	var output strings.Builder
 	fmt.Fprintf(
 		&output,
-		`<nexus_execution_context execution_version="%d">`,
-		snapshot.Execution.Version,
-	)
-	fmt.Fprintf(
-		&output,
-		"\n  <scope type=\"%s\" session_key=\"%s\" />",
-		xmlValue(string(snapshot.Execution.ScopeKind)),
-		xmlValue(snapshot.Execution.SessionKey),
-	)
-	fmt.Fprintf(
-		&output,
-		"\n  <actor agent_id=\"%s\" role=\"%s\" lane=\"conversation\" />",
-		xmlValue(options.ActorAgentID),
+		`<nexus_round lane="%s" role="%s"`,
+		xmlValue(lane),
 		xmlValue(string(role)),
 	)
-	fmt.Fprintf(&output, "\n  <mode plan_only=\"%t\" />", options.PlanMode)
-	fmt.Fprintf(
-		&output,
-		"\n  <execution id=\"%s\" status=\"%s\" relation=\"background\" />",
-		xmlValue(snapshot.Execution.ID),
-		xmlValue(string(snapshot.Execution.Status)),
-	)
-	writeXMLTextElement(
-		&output,
-		2,
-		"boundary",
-		"this round has no trusted WorkBinding or ReviewBinding; respond only to the conversation trigger and do not perform, claim, submit, block, review, or complete managed work",
-	)
-	if role == ExecutionActorCoordinator {
-		output.WriteString("\n  <coordination_transition available=\"true\">")
-		writeXMLTextElement(
-			&output,
-			4,
-			"rule",
-			"stay in conversation for chat, brainstorming, and untracked one-offs; call get_execution to inspect existing responsibility, or prepare_plan_execution then plan_execution to deliberately enter coordinated accountable delivery",
-		)
-		writeXMLTextElement(
-			&output,
-			4,
-			"trigger",
-			"prepare and commit a Plan only when the request needs multiple tracked deliverables, dependencies, durable handoff, acceptance, or cross-boundary continuation; participant count and raw mentions are never sufficient",
-		)
-		output.WriteString("\n  </coordination_transition>")
-	} else {
-		output.WriteString("\n  <coordination_transition available=\"false\" />")
+	if execution != "" {
+		fmt.Fprintf(&output, ` execution="%s"`, xmlValue(execution))
 	}
-	writeXMLTextElement(
-		&output,
-		2,
-		"handoff",
-		"raw mentions are conversation transport only; accountable work arrives in a separate structured dispatch carrying a WorkBinding, and review arrives with a ReviewBinding",
-	)
-	renderRuntimeGraphFacts(&output, options)
-	writeXMLTextElement(
-		&output,
-		2,
-		"action_scope",
-		executionActionScope,
-	)
-	renderStringList(&output, "allowed_actions", "action", allowed)
-	renderStringList(&output, "forbidden_actions", "action", forbidden)
-	output.WriteString("\n</nexus_execution_context>")
+	if planOnly {
+		output.WriteString(` plan_only="true"`)
+	}
+	output.WriteString(" />")
 	return output.String()
 }
 
@@ -344,12 +190,6 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 			"shared Room WorkGraph observation only; this view grants no assignment, review, submission, plan mutation, or coordination capability",
 		)
 	}
-	writeXMLTextElement(
-		&output,
-		2,
-		"action_scope",
-		executionActionScope,
-	)
 	renderActionBoundary(&output, view, role, options, subagentEligible)
 	renderCompletionBlockers(&output, snapshot.CompletionBlockers)
 	output.WriteString("\n</nexus_execution_context>")

@@ -565,6 +565,12 @@ The adapter validates required fields, closed objects, types, enums, patterns an
 collection bounds before any domain handler or state read, then reuses the existing
 typed result and receipt ledger.
 
+The physical-round Execution context automatically projects only the current
+actor's running or exceptional Runtime Graph nodes, Artifacts and exact control
+returns. Bounded successful Tool/Subagent summaries remain durable but enter the
+model only through explicit Execution `inspect`; ordinary rounds and mutation
+results do not replay them.
+
 ### 5.1 Agent-facing structured command audit
 
 DM and Room use the same tool. Host-bound identity is never accepted from model
@@ -753,10 +759,11 @@ round's authorization provenance; the old round terminates and the host-owned
 successor continuation performs the next command.
 
 Plain `context_status: refresh_required` is a same-round reread instruction and
-never means that the physical round should wait for a successor. Result compaction
-may remove observed `runtime_facts` and an optional `graph_digest`, but it must keep
-the authoritative responsibility/review/action/blocker context even when that wire
-is large; size alone must not fabricate either refresh status or end a round.
+never means that the physical round should wait for a successor. Mutation results
+omit observed `runtime_facts` and may remove an optional `graph_digest`; explicit
+Execution inspect keeps the bounded runtime history. Both paths must keep the
+authoritative responsibility/review/action/blocker context even when that wire is
+large; size alone must not fabricate either refresh status or end a round.
 
 No operation may combine planning, assignment, execution, submission, and acceptance
 into one implicit mutation. Command retries must use their stable request identity and receipt

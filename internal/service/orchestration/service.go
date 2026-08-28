@@ -552,6 +552,22 @@ func (s *Service) runtimeContextSnapshot(
 
 // RuntimeContext 投影当前 actor 每轮需要的有界权威执行状态。
 func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (string, error) {
+	return s.runtimeContext(ctx, actor, false)
+}
+
+// RuntimeInspectionContext 为显式 Execution inspect 补充有界成功历史。
+func (s *Service) RuntimeInspectionContext(
+	ctx context.Context,
+	actor ActorContext,
+) (string, error) {
+	return s.runtimeContext(ctx, actor, true)
+}
+
+func (s *Service) runtimeContext(
+	ctx context.Context,
+	actor ActorContext,
+	includeRuntimeHistory bool,
+) (string, error) {
 	var snapshot *protocol.ExecutionSnapshot
 	var err error
 	if actor.ObservationOnly {
@@ -568,22 +584,26 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	}
 	actor = s.effectiveRuntimeCoordinationActor(actor, snapshot)
 	options := ExecutionContextOptions{
-		ActorAgentID: strings.TrimSpace(actor.AgentID),
-		Role:         actor.Role,
-		ScopeKind:    actor.ScopeKind,
-		WorkBound:    actor.WorkBinding != nil,
-		ReviewBound:  actor.ReviewBinding != nil,
-		PlanMode:     actor.PlanMode,
-		ObserveOnly:  actor.ObservationOnly,
+		ActorAgentID:          strings.TrimSpace(actor.AgentID),
+		Role:                  actor.Role,
+		ScopeKind:             actor.ScopeKind,
+		WorkBound:             actor.WorkBinding != nil,
+		ReviewBound:           actor.ReviewBinding != nil,
+		PlanMode:              actor.PlanMode,
+		ObserveOnly:           actor.ObservationOnly,
+		IncludeRuntimeHistory: includeRuntimeHistory,
 	}
-	s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
 	if snapshot == nil {
 		return RenderUnmanagedExecutionContext(options), nil
 	}
 	options.ScopeKind = snapshot.Execution.ScopeKind
+	renderManagedExecutionContext := func() string {
+		s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
+		return RenderExecutionContext(snapshot, options)
+	}
 	if actor.ObservationOnly {
 		options.Role = ExecutionActorMember
-		return RenderExecutionContext(snapshot, options), nil
+		return renderManagedExecutionContext(), nil
 	}
 	if strings.TrimSpace(actor.GoalID) != "" &&
 		actor.GoalObjectiveRevision > 0 &&
@@ -625,7 +645,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 				[]string(nil),
 				promotion.Blockers...,
 			)
-			return RenderExecutionContext(snapshot, options), nil
+			return renderManagedExecutionContext(), nil
 		}
 		options.Role = ExecutionActorMember
 		if strings.TrimSpace(actor.AgentID) ==
@@ -661,7 +681,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	promotion := EvaluateAdaptiveGoalPromotion(evidence)
 	options.GoalPromotionReasons = activationReasonsForSignals(promotion.Signals)
 	options.GoalPromotionBlockers = append([]string(nil), promotion.Blockers...)
-	return RenderExecutionContext(snapshot, options), nil
+	return renderManagedExecutionContext(), nil
 }
 
 // RuntimeGoalBinding 返回当前 actor 的 exact Work/Review Execution 所绑定的
