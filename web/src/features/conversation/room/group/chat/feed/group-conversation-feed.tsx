@@ -28,7 +28,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed(
     count: source.roundIds.length,
     scopeKey: source.scopeKey,
     threshold: VIRTUAL_ROUND_THRESHOLD,
-  }) && Boolean(refs.scrollRef);
+  }) && props.leadingContent == null && Boolean(refs.scrollRef);
 
   if (shouldVirtualize && refs.scrollRef) {
     return (
@@ -42,6 +42,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed(
   return (
     <StaticGroupConversationFeed
       isMobileLayout={isMobileLayout}
+      leadingContent={props.leadingContent}
       refs={refs}
       renderer={renderer}
       source={source}
@@ -51,6 +52,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed(
 
 function StaticGroupConversationFeed({
   isMobileLayout,
+  leadingContent,
   refs,
   renderer,
   source,
@@ -76,6 +78,7 @@ function StaticGroupConversationFeed({
           : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`
       }
     >
+      {leadingContent}
       {source.roundIds.map((roundId, index) => {
         const state = resolveGroupConversationRound(source, index);
         return (

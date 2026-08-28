@@ -18,11 +18,13 @@ import {
   ConversationPanelViewportArea,
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
+import { ConversationEmptyIntroduction } from "@/features/conversation/shared/conversation-empty-introduction";
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import { ExecutionProcessPanel } from "@/features/conversation/shared/execution/execution-process-panel";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
+import { isMainAgent } from "@/config/runtime-options";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import {
   WorkspaceTaskPanel,
@@ -64,6 +66,29 @@ export function DmChatPanelView({
   const interactionSurface = currentInteraction ? (
     <ComposerInteractionSurface {...model.composerInteraction} />
   ) : undefined;
+  const emptyIntroduction = !model.embedded
+    && model.sessionKey
+    && !model.isSessionLoading
+    && !model.viewport.isHistoryLoading
+    && !model.composer.isLoading
+    && model.composer.inputQueueItems.length === 0
+    && model.feed.source.roundIds.length === 0
+    && model.feed.source.liveRoundIds.length === 0
+    ? (
+        <ConversationEmptyIntroduction
+          agentAvatar={model.feed.renderer.currentAgentAvatar}
+          agentName={model.feed.renderer.currentAgentName}
+          isMain={isMainAgent(model.feed.renderer.workspaceAgentId)}
+          kind="dm"
+          onSelect={(prompt) => {
+            void model.composer.onSendMessage(
+              prompt,
+              model.composer.defaultDeliveryPolicy,
+            );
+          }}
+        />
+      )
+    : undefined;
   return (
     <ConversationPanelLayout>
       <ConversationPanelViewportArea
@@ -84,9 +109,9 @@ export function DmChatPanelView({
         >
           <ConversationFeed
             {...model.feed}
-            leadingContent={model.embeddedIntroduction ? (
-              <EmbeddedEditorIntroduction {...model.embeddedIntroduction} />
-            ) : undefined}
+            leadingContent={model.embeddedIntroduction
+              ? <EmbeddedEditorIntroduction {...model.embeddedIntroduction} />
+              : emptyIntroduction}
           />
         </ConversationPanelViewport>
       </ConversationPanelViewportArea>

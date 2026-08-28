@@ -72,8 +72,6 @@ export function AssistantMessageContent({
         environment={environment}
         final={final}
         permissions={permissions}
-        showTimeline={shouldShowAssistantTimeline(environment.mode)
-          && (direct.visible || process.visible)}
         showTrailingActivity={!direct.visible}
       />
       <RoomResultProcessActivity
@@ -268,14 +266,12 @@ function AssistantFinalContent({
   environment,
   final,
   permissions,
-  showTimeline,
   showTrailingActivity,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
   permissions: AssistantPermissionState;
-  showTimeline: boolean;
   showTrailingActivity: boolean;
 }) {
   if (!final.visible) {
@@ -284,7 +280,7 @@ function AssistantFinalContent({
   return (
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
-      className="nexus-chat-final-content"
+      className="nexus-chat-final-content mt-3.5 first:mt-0"
       content={final.content ?? []}
       fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
@@ -295,7 +291,6 @@ function AssistantFinalContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
-      showTimelineDots={showTimeline}
       showTrailingActivity={showTrailingActivity}
       streamingBlockIndexes={final.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
