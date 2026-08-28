@@ -12,19 +12,18 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { getLocalizedToolTitle } from "../../../tool-activity";
-import { shouldShowAssistantTimeline } from "../../message-item-projection";
 import type {
   ProcessSummaryDetail,
   ProcessSummaryMetricKind,
   ProcessSummaryProjection,
 } from "../../process/message-process-summary";
-import { ContentRenderer } from "../content/content-renderer";
 import type {
   AssistantActivityState,
   AssistantContentEnvironment,
   AssistantPermissionState,
   AssistantProcessState,
 } from "./assistant-message-model";
+import { AssistantToolRuns } from "./assistant-dm-tool-runs";
 
 const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
@@ -63,6 +62,7 @@ export function AssistantProcessCallchain({
       <ExpandedProcessContent
         activity={activity}
         environment={environment}
+        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         process={process}
         visible={process.expanded}
@@ -90,9 +90,7 @@ function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
     >
       <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" strokeWidth={1.8} />
       <div className="min-w-0 flex-1 truncate text-sm font-normal leading-5 text-(--text-muted)">
-        {process.expanded
-          ? t("message.tool_run_history")
-          : formatProcessSummary(process.summary, t)}
+        {formatProcessSummary(process.summary, t)}
       </div>
       <ProcessExpansionIcon expanded={process.expanded} />
     </button>
@@ -196,12 +194,14 @@ function CollapsedProcessArtifacts({
 function ExpandedProcessContent({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   process,
   visible,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
   visible: boolean;
@@ -211,24 +211,13 @@ function ExpandedProcessContent({
   }
   return (
     <div className="pt-1">
-      <ContentRenderer
-        canRespondToPermissions={environment.canRespondToPermissions}
-        className="ml-1 space-y-0.5"
-        content={process.projection.content}
-        fallbackActivityLabel={activity.label}
-        fallbackActivityState={activity.state}
-        hiddenToolNames={environment.hiddenToolNames}
-        isStreaming={activity.showCursor}
-        onOpenSubagentTask={environment.onOpenSubagentTask}
-        onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-        onPermissionResponse={environment.onPermissionResponse}
-        pendingInteractionOwner={permissions.owner}
-        pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
-        permissionReadOnlyReason={environment.permissionReadOnlyReason}
-        showTimelineDots={shouldShowAssistantTimeline(environment.mode)}
-        streamingBlockIndexes={process.projection.streamingIndexes}
-        unresolvedToolStatus={environment.unresolvedToolStatus}
-        workspaceAgentId={environment.workspaceAgentId}
+      <AssistantToolRuns
+        activity={activity}
+        environment={environment}
+        generatedFilesLabel={generatedFilesLabel}
+        permissions={permissions}
+        projection={process.projection}
+        responseResumed={false}
       />
     </div>
   );

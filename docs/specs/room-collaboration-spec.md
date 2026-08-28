@@ -30,7 +30,6 @@ Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。好友与群
 Public feed 是 Group Room 的公共事实层，只包含：
 
 - 用户公开消息。
-- 显式创建 Room 后由宿主生成、归因到介绍成员且标记为 `conversation_welcome` 的首次欢迎语。
 - 已完成或已收口的 Agent final reply（错误/中断也以终态投影表示）。
 - `send_message(destination=current_room, visibility=public)` 明确发布的公区事实。
 
@@ -65,13 +64,9 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 副作用幂等不使用 correlation_id。宿主按 SDK `tool_use_id` 生成不可由模型覆盖的 command identity；bridge 未提供该字段时，使用 source session、Agent、round、工具名与规范化输入生成稳定回退。`send_message` 的当前 Room 私域分支将该身份派生为确定性 message_id，同一逻辑工具调用的 transport/model retry 只重放第一次持久结果；同 ID 不同语义 fail closed。
 
-### 3.6 Initial welcome
+### 3.6 Initial empty state
 
-显式创建 Room 后，宿主异步生成一次简短协作介绍并写入 public feed；它是展示与共享规则事实，不是一次 Agent runtime 执行，不创建 round、handoff、Goal 或 Execution。已设置 `host_agent_id` 时由群主署名，第一句必须同时写出发言成员名称并明确表明“我是该 Room 的群主”；生成结果缺失这一身份事实时失败关闭到宿主静态文案。没有群主时由主 Session 成员署名，但该成员不得因此获得默认接管身份，也不得自称群主。
-
-欢迎语必须准确说明当前路由规则：`host_auto_reply_enabled=true` 时，不带 `@` 的输入由群主接住并协调，用户仍可用 `@AgentName` 指定成员；否则必须提示用户用 `@AgentName` 指定成员。模型不得把“负责介绍”扩张成群主、WorkBinding 或持续唤醒权限。
-
-欢迎语还必须告诉用户可以询问 Nexus 功能、入口和用法。群主自动接管开启时可以邀请用户直接提问；未开启或没有群主时，必须继续使用 `@AgentName` 引导用户指定一位成员，不能为了产品引导绕过 Room 路由规则。
+新 Room 的 public feed 为空时，前端可以静态展示协作建议。该空态不是 public fact，不写入 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。用户选择建议后生成普通公开输入，继续由 `host_auto_reply_enabled`、`@AgentName` 与既有目标解析规则决定接管成员。
 
 ## 4. 公区输入与 Agent handoff
 

@@ -76,7 +76,10 @@ export function filterVisibleTimelineMessages(
   messages: Message[],
 ): Message[] {
   const visible = messages.filter(
-    (message) => message.hidden_from_user !== true,
+    (message) => (
+      message.hidden_from_user !== true
+      && message.metadata?.subtype !== "conversation_welcome"
+    ),
   );
   return visible.length === messages.length ? messages : visible;
 }

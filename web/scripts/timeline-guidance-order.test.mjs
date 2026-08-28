@@ -2322,6 +2322,9 @@ test("live commentary separates completed and active tool groups", async () => {
 });
 
 test("DM activity groups collapse while Room Thread groups expand", async () => {
+  const { AssistantProcessCallchain } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
+  );
   const { AssistantToolRuns } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
   );
@@ -2388,6 +2391,22 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
   assert.match(toolRunHtml, /before:bottom-0/);
   assert.match(toolRunHtml, /data-timeline-dot/);
   assert.match(toolRunHtml, /nexus-chat-timeline-block/);
+  assert.doesNotMatch(toolRunHtml, /正在执行/);
+
+  const liveToolRunHtml = await renderWithI18n(React.createElement(
+    AssistantToolRuns,
+    {
+      ...toolRunProps,
+      activity: {
+        ...toolRunProps.activity,
+        showCursor: true,
+      },
+      responseResumed: false,
+    },
+  ));
+  assert.match(liveToolRunHtml, /aria-expanded="false"/);
+  assert.match(liveToolRunHtml, /正在执行/);
+  assert.match(liveToolRunHtml, /message-activity-spinner-track/);
 
   const threadHtml = await renderWithI18n(React.createElement(
     AssistantToolRuns,
@@ -2423,6 +2442,37 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
   ));
   assert.match(liveThreadHtml, /data-message-detail-follow="true"/);
 
+  const archivedHtml = await renderWithI18n(React.createElement(
+    AssistantProcessCallchain,
+    {
+      activity: toolRunProps.activity,
+      environment: {
+        ...toolRunProps.environment,
+        mode: "dm_archived",
+      },
+      generatedFilesLabel: toolRunProps.generatedFilesLabel,
+      permissions: toolRunProps.permissions,
+      process: {
+        anchorRef: { current: null },
+        expanded: true,
+        projection: toolRunProps.projection,
+        summary: {
+          kind: "details",
+          latestDetail: null,
+          metrics: [
+            { count: 4, kind: "thinking" },
+            { count: 5, kind: "action" },
+          ],
+        },
+        toggle: () => {},
+        visible: true,
+      },
+    },
+  ));
+  assert.match(archivedHtml, /data-tool-run-id=/);
+  assert.match(archivedHtml, /aria-expanded="false"/);
+  assert.match(archivedHtml, /4 段思路 · 5 次动作/);
+  assert.doesNotMatch(archivedHtml, /Thought 0/);
 });
 
 test("detail scroll fade follows the remaining scroll directions", async () => {
@@ -2878,10 +2928,20 @@ test("DM live and terminal keep the final response on one content surface", asyn
     AssistantMessageContent,
     messageContentProps,
   ));
-  assert.match(
+  assert.doesNotMatch(
     html,
     /nexus-chat-final-content[^\"]*before:left-\[5\.5px\]/,
-    "the final reply must keep the same timeline lane as the process text",
+    "the final reply must stay outside the process rail",
+  );
+  assert.match(
+    html,
+    /nexus-chat-final-content mt-3\.5 first:mt-0/,
+    "a final reply after process content matches the footer spacing",
+  );
+  assert.equal(
+    html.match(/data-timeline-dot/g)?.length,
+    1,
+    "only the process Thought keeps a timeline node",
   );
 
   const roomHtml = await renderWithI18n(React.createElement(

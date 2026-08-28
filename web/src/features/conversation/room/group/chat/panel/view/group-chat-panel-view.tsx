@@ -24,6 +24,7 @@ import {
   ConversationPanelViewportArea,
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
+import { ConversationEmptyIntroduction } from "@/features/conversation/shared/conversation-empty-introduction";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import type { Agent } from "@/types/agent/agent";
 
@@ -87,6 +88,24 @@ function ActiveGroupConversation({
   const interactionSurface = currentInteraction ? (
     <ComposerInteractionSurface {...model.composerInteraction} />
   ) : undefined;
+  const emptyIntroduction = !model.isSessionLoading
+    && !model.viewport.isHistoryLoading
+    && !model.composer.isLoading
+    && model.composer.inputQueueItems.length === 0
+    && model.feed.source.roundIds.length === 0
+    && model.feed.source.liveRoundIds.length === 0
+    ? (
+        <ConversationEmptyIntroduction
+          kind="room"
+          onSelect={(prompt) => {
+            void model.composer.onSendMessage(
+              prompt,
+              model.composer.defaultDeliveryPolicy,
+            );
+          }}
+        />
+      )
+    : undefined;
   return (
     <>
       <ConversationPanelViewportArea
@@ -107,7 +126,10 @@ function ActiveGroupConversation({
           viewport={viewport}
         >
           <AgentHandoffStatusProvider statuses={model.handoffStatuses}>
-            <GroupConversationFeed {...model.feed} />
+            <GroupConversationFeed
+              {...model.feed}
+              leadingContent={emptyIntroduction}
+            />
           </AgentHandoffStatusProvider>
         </ConversationPanelViewport>
       </ConversationPanelViewportArea>

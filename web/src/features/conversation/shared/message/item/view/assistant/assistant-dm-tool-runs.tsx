@@ -34,6 +34,7 @@ import {
   TIMELINE_LINE_CLASS_NAME,
   TimelineBlock,
 } from "../content/content-renderer-timeline";
+import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import type {
   AssistantActivityState,
   AssistantContentEnvironment,
@@ -291,12 +292,20 @@ function ToolRun({
             </MessageDetailScroll>
           </div>
         ) : (
-          <WorkspaceFileArtifactList
-            artifacts={artifacts}
-            className="ml-5 pt-1"
-            label={generatedFilesLabel}
-            onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-          />
+          <>
+            <WorkspaceFileArtifactList
+              artifacts={artifacts}
+              className="ml-5 pt-1"
+              label={generatedFilesLabel}
+              onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+            />
+            {streaming && activity.state ? (
+              <LocalizedMessageActivityStatus
+                className="pt-1"
+                state={activity.state}
+              />
+            ) : null}
+          </>
         )}
       </div>
     </TimelineBlock>

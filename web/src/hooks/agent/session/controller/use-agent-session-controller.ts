@@ -80,7 +80,10 @@ export function useAgentSessionController({
     identitySessionKey,
     identitySessionKey,
   );
-  const [isSessionLoading, setIsSessionLoading] = useState(false);
+  const [isSessionLoading, setIsSessionLoading] = useResettableState(
+    Boolean(identitySessionKey),
+    identitySessionKey,
+  );
   const [inputQueueItems, setInputQueueItems] = useState<InputQueueItem[]>([]);
   const activeSessionKeyRef = useRef<string | null>(identitySessionKey);
   const loadAbortControllerRef = useRef<AbortController | null>(null);
