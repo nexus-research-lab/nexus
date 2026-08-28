@@ -330,7 +330,7 @@ func (c *agentClient) SetNextTurnContext(ctx context.Context, blocks []Contextua
 	return session.Control().SetNextTurnContext(ctx, sdkBlocks)
 }
 
-// ClearNextTurnContext 清除 bridge 尚未消费的单轮隐藏上下文。
+// ClearNextTurnContext 清除 bridge 尚未绑定到 user 消息的内部上下文。
 func (c *agentClient) ClearNextTurnContext(ctx context.Context) error {
 	session, err := c.currentSession()
 	if err != nil {

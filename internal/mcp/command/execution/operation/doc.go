@@ -15,9 +15,10 @@
 // preserve exact bound Room work/review reads instead of downgrading them to
 // observation, clear stale WorkBinding context after a successor/abandon
 // transition, and never expose Attempt bookkeeping such as start_work. Command
-// mutation results omit optional runtime facts and may compact graph digests,
-// while explicit inspect returns bounded runtime history; neither may erase
-// responsibility context or fabricate a physical-round refresh. A committed
+// mutation results omit optional runtime facts and may compact graph digests;
+// reads use the same current-state projection without replaying successful tool
+// history. Neither path may erase responsibility context or fabricate a
+// physical-round refresh. A committed
 // Execution -> Goal mutation whose reverse confirmation is still recovering is
 // returned as applied/noop with goal_confirmation_status=pending and an
 // executable retry next_action, never as a transport IsError.

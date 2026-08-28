@@ -16,7 +16,7 @@
 //     round 的 provider interrupt 与 exact local context cancellation，并在 provider interrupt
 //     窗口阻止 successor admission，共享 session 不回退为可能误伤 successor 的 interrupt；
 //     Goal pause 使用 exact Goal/revision→round accounting identity 逐轮取消，不误伤同 session 其他工作。
-//   - guidance.go / contextual_input.go / command_context.go / responsibility_authority.go / work_binding_state.go / goal_authority.go / subagent_hook.go：轮内引导、隐藏上下文与输入选项、runtime lease 与 Connector 选择、Goal/Execution/Work/Review 共用且由宿主 mutation receipt 原子推进的动态 responsibility snapshot（WorkBinding exact fail-close）、provider init/fork 后动态更新且 command 调用时读取的 SDK Session identity、Goal steering 与 mutation fence 分离，以及按 parent round/tool_use_id 冻结 lifecycle callback 的 Agent tool 强准入、迟到事件、固定 grace deadline 持久化、无上限退避 fallback 与重启时 process-cutoff orphan 对账。
+//   - guidance.go / contextual_input.go / command_context.go / responsibility_authority.go / work_binding_state.go / goal_authority.go / subagent_hook.go：轮内引导、按 priority/name/content/metadata 确定性排序并绑定 user、由 nxs 保留在 live model history 而不落 transcript 的隐藏上下文与输入选项、runtime lease 与 Connector 选择、Goal/Execution/Work/Review 共用且由宿主 mutation receipt 原子推进的动态 responsibility snapshot（WorkBinding exact fail-close）、provider init/fork 后动态更新且 command 调用时读取的 SDK Session identity、Goal steering 与 mutation fence 分离，以及按 parent round/tool_use_id 冻结 lifecycle callback 的 Agent tool 强准入、迟到事件、固定 grace deadline 持久化、无上限退避 fallback 与重启时 process-cutoff orphan 对账。
 //   - diagnostics_env.go / cache_surface.go：诊断开关、stderr 归一化，以及不持久化
 //     prompt/tool schema 明文、也不冒充 provider cache key 的宿主 tool surface 脱敏归因；
 //     同一指纹也为不支持会话内动态工具更新的 runtime 提供保守 resume/reset 栅栏。

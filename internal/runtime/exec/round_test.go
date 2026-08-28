@@ -515,7 +515,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+			runtimectx.NewContextualInputBlock("goal", "active goal facts", 0, map[string]string{"goal_id": "goal-1"}),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -525,7 +525,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
-	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "Continue." {
+	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "active goal facts" {
 		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
 	}
 	if client.clearCalls != 1 {
@@ -533,6 +533,40 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	}
 	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "用户输入" {
 		t.Fatalf("queryPrompts = %#v, want unmodified user input", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundDoesNotInventUserTextForContextOnlyTurn(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-context-only",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-only",
+		Result:    &sdkprotocol.ResultMessage{Subtype: "success"},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "",
+		ContextualInputs: []ContextualInputBlock{
+			runtimectx.NewContextualInputBlock("goal", "hidden goal", 0, nil),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.contextInput) != 1 || client.contextInput[0].Content != "hidden goal" {
+		t.Fatalf("contextInput = %#v, want buffered hidden context", client.contextInput)
+	}
+	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "" {
+		t.Fatalf("queryPrompts = %#v, want untouched empty user text", client.queryPrompts)
 	}
 }
 
@@ -555,7 +589,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
+			runtimectx.NewContextualInputBlock("goal", "active goal facts", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -566,7 +600,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
 	if len(client.queryPrompts) != 1 ||
-		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nContinue.\n</internal_context>\n\n") ||
+		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nactive goal facts\n</internal_context>\n\n") ||
 		!strings.Contains(client.queryPrompts[0], "用户输入") {
 		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
 	}

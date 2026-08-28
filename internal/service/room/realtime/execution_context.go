@@ -157,7 +157,7 @@ func (s *Service) executionContextualInputs(
 		runtimectx.NewContextualInputBlock(
 			runtimectx.ContextualInputNameExecution,
 			content,
-			0,
+			runtimectx.ContextualInputPriorityExecution,
 			nil,
 		),
 	}, nil

@@ -39,7 +39,6 @@ type ExecutionContextOptions struct {
 	RuntimeGraph            *protocol.ExecutionRuntimeGraph
 	RuntimeGraphRelation    string
 	RuntimeGraphUnavailable bool
-	IncludeRuntimeHistory   bool
 }
 
 // RenderUnmanagedExecutionContext 投影没有权威 WorkGraph 的普通轮状态。

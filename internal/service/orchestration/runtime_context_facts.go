@@ -1,5 +1,5 @@
 // INPUT: owner/session-scoped Runtime Graph、当前 actor identity 与已授权的 managed Execution snapshot。
-// OUTPUT: 默认只含当前 Agent 的 active/异常/Artifact/control-return；显式 inspect 才附带成功历史。
+// OUTPUT: 只含当前 Agent 的 active/异常/Artifact/control-return，不回放成功工具历史。
 // POS: Runtime Graph 到 <nexus_execution_context> 的有界事实反馈层；不生成路线、重试或工具建议。
 package orchestration
 
@@ -68,8 +68,7 @@ func renderRuntimeGraphFacts(
 		if actorAgentID == "" || strings.TrimSpace(node.AgentID) != actorAgentID {
 			continue
 		}
-		// nexus.command 的结果已经由权威 context/outcome 投影；再次摘要会让
-		// inspect 把上一次 inspect 递归带回模型。
+		// nexus.command 的结果已经由权威 context/outcome 投影，不能再递归带回模型。
 		if node.Kind == protocol.ExecutionRuntimeNodeTool &&
 			runtimeGraphIsCommandTransport(node) {
 			continue
@@ -93,7 +92,6 @@ func renderRuntimeGraphFacts(
 	}
 	active := make([]protocol.ExecutionRuntimeNodeRun, 0)
 	attention := make([]protocol.ExecutionRuntimeNodeRun, 0)
-	succeeded := make([]protocol.ExecutionRuntimeNodeRun, 0)
 	for _, node := range visibleNodes {
 		if node.Kind == protocol.ExecutionRuntimeNodeAgent {
 			continue
@@ -102,9 +100,7 @@ func renderRuntimeGraphFacts(
 		case protocol.ExecutionRuntimeNodeRunning:
 			active = append(active, node)
 		case protocol.ExecutionRuntimeNodeSucceeded:
-			if options.IncludeRuntimeHistory {
-				succeeded = append(succeeded, node)
-			}
+			continue
 		default:
 			attention = append(attention, node)
 		}
@@ -112,9 +108,6 @@ func renderRuntimeGraphFacts(
 	var facts strings.Builder
 	renderRuntimeFactNodes(&facts, "active_nodes", active)
 	renderRuntimeFactNodes(&facts, "attention_nodes", attention)
-	if options.IncludeRuntimeHistory {
-		renderRuntimeFactNodes(&facts, "successful_nodes", succeeded)
-	}
 	renderRuntimeFactArtifacts(&facts, visibleNodes)
 	renderRuntimeFactControlEdges(&facts, graph.Edges, visibleNodeByID)
 	if facts.Len() == 0 {

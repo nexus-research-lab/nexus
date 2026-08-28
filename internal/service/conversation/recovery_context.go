@@ -47,7 +47,7 @@ func RoundRecoveryContextualInputs(history []protocol.Message, agentID string) [
 		runtimectx.NewContextualInputBlock(
 			runtimectx.ContextualInputNameRoundRecovery,
 			recoveryInstruction(reason),
-			0,
+			runtimectx.ContextualInputPriorityRoundRecovery,
 			metadata,
 		),
 	}

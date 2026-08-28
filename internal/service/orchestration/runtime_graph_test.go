@@ -229,7 +229,7 @@ func TestRuntimeContextLoadsRuntimeFactsOnlyForManagedExecution(t *testing.T) {
 	}
 }
 
-func TestRuntimeInspectionContextReadsSuccessfulHistoryOnDemand(t *testing.T) {
+func TestRuntimeContextOmitsSuccessfulHistory(t *testing.T) {
 	snapshot, binding := structuredRoomWorkBindingSnapshot()
 	actor := structuredRoomMemberActor(binding)
 	repository := &runtimeGraphRepositoryFake{
@@ -258,16 +258,8 @@ func TestRuntimeInspectionContextReadsSuccessfulHistoryOnDemand(t *testing.T) {
 		t.Fatalf("automatic context replayed successful history:\n%s", rendered)
 	}
 
-	inspected, err := service.RuntimeInspectionContext(context.Background(), actor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(inspected, "<successful_nodes>") ||
-		!strings.Contains(inspected, "finished research") {
-		t.Fatalf("explicit inspect omitted successful history:\n%s", inspected)
-	}
-	if repository.getGraphCalls != 2 {
-		t.Fatalf("GetRuntimeGraph calls = %d, want 2", repository.getGraphCalls)
+	if repository.getGraphCalls != 1 {
+		t.Fatalf("GetRuntimeGraph calls = %d, want 1", repository.getGraphCalls)
 	}
 }
 

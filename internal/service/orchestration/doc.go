@@ -32,7 +32,7 @@
 //     的跨 domain 稳定 mutation outcome/next-action envelope。
 //   - prompt.go / prompt_policy.md：DM、Room 与 Goal continuation 共用执行提示。
 //
-// 主要暴露接口：NewService 与 Service 的 Ensure/Get*/Read*/RuntimeContext、RuntimeInspectionContext、Plan、work、
+// 主要暴露接口：NewService 与 Service 的 Ensure/Get*/Read*/RuntimeContext、Plan、work、
 // review、Goal binding/promotion、Room WorkGraph/Runtime Graph observation、deadline coordinator 和 recovery 方法；
 // Set*Gateway/Consumer/Sink 只注入 Goal、Room、runtime 与 transport 的消费侧 port。
 //

@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned host-provided internal context with Claude Code attachment semantics: NXS keeps it in non-persistent live history, while the Claude runtime receives it through its native `UserPromptSubmit` hook attachment path.
+- Made the Agent SDK the sole loader for workspace `AGENTS.md` instructions, removing their duplicate Nexus prompt projection.
 - Moved ordinary DM and Room execution policy into the stable cached prompt and reduced each ordinary round to a compact lane marker while preserving the managed Execution, WorkGraph, and Runtime Graph projections.
 - Condensed tools, thoughts, and memory events into quiet, tightly spaced single-line activity records with aligned action icons, regular-weight labels, inline thought previews, readable details under one bounded outer scroll owner, and targets, keeping expanded child headers pinned while the audit list scrolls around one continuous timeline without repeated failure labels or scroll jumps; streaming Thought details follow new content until the reader scrolls away, collapsed live tool groups retain the actual thinking, tool, or reply activity until the final answer begins, archived process summaries stay stable while expanded, final replies remain outside the process rail, and result metadata waits for smooth text output to finish, while single activities remain inline, two or more uninterrupted activities share a latest-action ticker, bounded audit list, and slightly roomier group spacing, and Room activity mirrors the current tool header without exposing provider summaries.
 - Preserved live commentary as the boundary between completed and newly running tool groups, while changing running text shimmer and activity icons from primary blue to neutral contrast and centering animated status dots with their labels.
@@ -28,10 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Deterministically ordered DM and Room internal context while keeping it in the runtime's append-only history and out of Nexus's visible conversation projection.
 - Preserved persisted custom Provider identifiers during save and deletion, and added deletion controls for non-default models.
 - Kept `nexusctl` exclusive to the main Agent by removing it from ordinary Agent and Room prompts, shared runtime PATH discovery, and shared Skills while retaining round-scoped `nexuscfg` and `nexus.command` capabilities.
 - Kept the browser extension folder visible after reopening the macOS installation windows instead of letting Chrome or Edge cover Finder as their extensions page finishes opening.
-- Stopped ordinary and managed turns from replaying completed Runtime Graph summaries into every model request; explicit Execution inspection still returns bounded successful history, while active failures, artifacts, WorkGraph, Trace, and audit projections remain available.
+- Stopped ordinary, managed, and explicit Execution inspection from replaying completed Runtime Graph summaries into model requests, while active failures, artifacts, WorkGraph, Trace, and audit projections remain available.
 - Preserved task identity when terminal subagent notifications include full result bodies, preventing the floating Room task strip from expanding across the conversation.
 - Preserved the verified interactive human identity across in-process MCP control callbacks so Connector and Channel authorization can revalidate the active principal.
 - Kept explicit Room public messages inside their source Agent execution and completed the matching tool activity in Thread without duplicating the public reply.

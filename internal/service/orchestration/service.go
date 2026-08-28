@@ -552,22 +552,6 @@ func (s *Service) runtimeContextSnapshot(
 
 // RuntimeContext 投影当前 actor 每轮需要的有界权威执行状态。
 func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (string, error) {
-	return s.runtimeContext(ctx, actor, false)
-}
-
-// RuntimeInspectionContext 为显式 Execution inspect 补充有界成功历史。
-func (s *Service) RuntimeInspectionContext(
-	ctx context.Context,
-	actor ActorContext,
-) (string, error) {
-	return s.runtimeContext(ctx, actor, true)
-}
-
-func (s *Service) runtimeContext(
-	ctx context.Context,
-	actor ActorContext,
-	includeRuntimeHistory bool,
-) (string, error) {
 	var snapshot *protocol.ExecutionSnapshot
 	var err error
 	if actor.ObservationOnly {
@@ -584,14 +568,13 @@ func (s *Service) runtimeContext(
 	}
 	actor = s.effectiveRuntimeCoordinationActor(actor, snapshot)
 	options := ExecutionContextOptions{
-		ActorAgentID:          strings.TrimSpace(actor.AgentID),
-		Role:                  actor.Role,
-		ScopeKind:             actor.ScopeKind,
-		WorkBound:             actor.WorkBinding != nil,
-		ReviewBound:           actor.ReviewBinding != nil,
-		PlanMode:              actor.PlanMode,
-		ObserveOnly:           actor.ObservationOnly,
-		IncludeRuntimeHistory: includeRuntimeHistory,
+		ActorAgentID: strings.TrimSpace(actor.AgentID),
+		Role:         actor.Role,
+		ScopeKind:    actor.ScopeKind,
+		WorkBound:    actor.WorkBinding != nil,
+		ReviewBound:  actor.ReviewBinding != nil,
+		PlanMode:     actor.PlanMode,
+		ObserveOnly:  actor.ObservationOnly,
 	}
 	if snapshot == nil {
 		return RenderUnmanagedExecutionContext(options), nil
