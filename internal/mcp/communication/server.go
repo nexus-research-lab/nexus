@@ -257,10 +257,11 @@ func sendPublicRoomMessage(
 		sctx.Actor.RoomID,
 		sctx.Actor.ConversationID,
 		protocol.CreateRoomPublicMessageRequest{
-			SourceAgentID: sctx.Actor.AgentID,
-			RootRoundID:   sctx.Actor.RoundID,
-			Content:       stringArg(args, "content"),
-			CorrelationID: stringArg(args, "correlation_id"),
+			SourceAgentID:      sctx.Actor.AgentID,
+			SourceAgentRoundID: strings.TrimSpace(sctx.CurrentAgentRoundID),
+			RootRoundID:        sctx.Actor.RoundID,
+			Content:            stringArg(args, "content"),
+			CorrelationID:      stringArg(args, "correlation_id"),
 			GoalCollaborationBinding: currentGoalCollaborationBinding(
 				sctx.Actor,
 			),

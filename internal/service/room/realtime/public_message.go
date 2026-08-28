@@ -1,5 +1,5 @@
 // INPUT: Group Room 成员、目标 conversation 与公共正文。
-// OUTPUT: 公区持久消息、mention 注解及明确 @ 目标的唤醒。
+// OUTPUT: 归并当前 Agent 轮次的公区持久消息、mention 注解及明确 @ 目标的唤醒。
 // POS: Agent 主动跨上下文群发时复用的 Room public feed 边界。
 package realtime
 
@@ -67,6 +67,7 @@ func (s *Service) handlePublicMessage(
 
 	messageID := newRealtimeID()
 	roundID := protocol.NewRoundID()
+	agentRoundID := strings.TrimSpace(request.SourceAgentRoundID)
 	rootRoundID, causedByRoundID, hopIndex := s.resolveRoomMessageCausality(
 		contextValue.Conversation.ID,
 		sourceAgentID,
@@ -88,6 +89,9 @@ func (s *Service) handlePublicMessage(
 	if causedByRoundID == "" {
 		causedByRoundID = messageID
 	}
+	if agentRoundID != "" {
+		roundID = rootRoundID
+	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID)
 	message := protocol.Message{
 		"message_id":      messageID,
@@ -108,6 +112,9 @@ func (s *Service) handlePublicMessage(
 		"caused_by_round_id":    causedByRoundID,
 		"hop_index":             hopIndex,
 		"timestamp":             time.Now().UnixMilli(),
+	}
+	if agentRoundID != "" {
+		message["agent_round_id"] = agentRoundID
 	}
 	mentions := buildPublicMessageMentionAnnotations(contextValue, sourceAgentID, messageID, content)
 	targetAgentIDs := handoffTargetAgentIDs(mentions)
@@ -167,7 +174,7 @@ func (s *Service) handlePublicMessage(
 }
 
 // MarkPublicMessagePublished 将主动广播写入当前 slot 的运行时状态。
-// 后续 assistant/result 事件仍可被 SDK 发送，但不会再次投影到公区。
+// 后续正文不再投影到公区，对应工具回执仍会作为 Thread 过程事件收口。
 func (s *Service) MarkPublicMessagePublished(
 	_ context.Context,
 	sessionKey string,

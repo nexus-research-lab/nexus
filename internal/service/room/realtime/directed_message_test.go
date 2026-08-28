@@ -129,6 +129,57 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceKeepsPublicMessageInSourceAgentRound(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID: "user-room-public-round", Username: "room-owner", Role: authsvc.RoleOwner,
+	})
+	source := createTestAgent(t, agentService, ctx, "Source")
+	observer := createTestAgent(t, agentService, ctx, "Observer")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:               []string{source.AgentID, observer.AgentID},
+		Name:                   "公开消息归并 Room",
+		PrivateMessagesEnabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := realtimesvc.NewService(
+		cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext(),
+	)
+	broadcaster := &roomDirectedMessageBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	message, err := service.HandlePublicMessage(
+		ctx,
+		roomContext.Room.ID,
+		roomContext.Conversation.ID,
+		protocol.CreateRoomPublicMessageRequest{
+			SourceAgentID:      source.AgentID,
+			SourceAgentRoundID: "agent-round-public-1",
+			RootRoundID:        "root-round-public-1",
+			Content:            "公开结论",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message["round_id"] != "root-round-public-1" ||
+		message["agent_round_id"] != "agent-round-public-1" {
+		t.Fatalf("公开消息未归并到来源 Agent 执行: %+v", message)
+	}
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeMessage)
+	if event.RoundID != "root-round-public-1" || event.AgentRoundID != "agent-round-public-1" {
+		t.Fatalf("公开消息事件身份不正确: %+v", event)
+	}
+}
+
 func TestRealtimeServiceDirectedMessageCommandRetryIsIdempotent(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

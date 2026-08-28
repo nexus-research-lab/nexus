@@ -140,6 +140,7 @@ func TestSendMessageRoutesCurrentRoomPublicAndSuppressesFinal(t *testing.T) {
 		t.Fatalf("Room 公区发送不应失败: %s", extractText(t, result))
 	}
 	if svc.publicRequest.SourceAgentID != "agent-host" ||
+		svc.publicRequest.SourceAgentRoundID != "agent-round-1" ||
 		svc.publicRequest.RootRoundID != "root-round-1" ||
 		!svc.publicMessagePublished {
 		t.Fatalf("Room 公区发送未完整收口: %+v", svc)

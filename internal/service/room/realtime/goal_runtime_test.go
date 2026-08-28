@@ -1883,6 +1883,24 @@ func TestPublishPublicMessageSuppressesTheSameSlotFinalReply(t *testing.T) {
 	if events := slot.eventsReadyForEmission(protocol.EventMessage{EventType: protocol.EventTypeStream}); len(events) != 0 {
 		t.Fatalf("主动广播后不应继续向公区发流事件: %+v", events)
 	}
+	receipt := protocol.EventMessage{
+		DeliveryMode: protocol.DeliveryModeDurable,
+		EventType:    protocol.EventTypeMessage,
+		Data: protocol.Message{
+			"role": "assistant",
+			"content": []map[string]any{
+				{"type": "tool_use", "id": "tool-public-1", "name": "mcp__nexus__send_message"},
+				{"type": "tool_result", "tool_use_id": "tool-public-1"},
+			},
+		},
+	}
+	events := slot.eventsReadyForEmission(receipt)
+	if len(events) != 1 || events[0].DeliveryMode != protocol.DeliveryModeEphemeral {
+		t.Fatalf("公区消息工具回执应仅作为 Thread 过程事件发送: %+v", events)
+	}
+	if events = slot.eventsReadyForEmission(receipt); len(events) != 0 {
+		t.Fatalf("主动广播回执收口后不应放行后续输出: %+v", events)
+	}
 }
 
 // Goal 完成就绪测试。
