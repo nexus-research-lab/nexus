@@ -589,6 +589,7 @@ func automationConfirmationInput(plan automationdomain.AutomationCommandPlan) ma
 	add("agent_id", command.AgentID, strings.TrimSpace(command.AgentID) != "")
 	add("context_mode", command.ContextMode, strings.TrimSpace(command.ContextMode) != "")
 	add("deliver_result", command.DeliverResult, command.DeliverResult != nil)
+	add("delivery_session_key", command.DeliverySessionKey, strings.TrimSpace(command.DeliverySessionKey) != "")
 	add("permission_mode", command.PermissionMode, strings.TrimSpace(command.PermissionMode) != "")
 	add("overlap_policy", command.OverlapPolicy, strings.TrimSpace(command.OverlapPolicy) != "")
 	add("expires_at", command.ExpiresAt, strings.TrimSpace(command.ExpiresAt) != "")

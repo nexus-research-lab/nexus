@@ -33,8 +33,8 @@ Automation 使用宿主提供的 `nexus.command`，并绑定当前 owner、Agent
 
 ## 权限边界
 
-- 普通 Agent 只能管理自身任务；Room 与外部 IM 自动绑定当前可信会话。只有主智能体自己的 Nexus 私有 DM 且 `cross_agent_allowed=true` 时，才能选择其他真实 Agent/Session。
-- channel、account、target、thread、Session、DeliveryGrant、job/run runtime identity 由宿主固定；不要猜、回显或写进输入。外部 IM 的空查询默认只覆盖当前会话。
+- 普通 Agent 只能管理自身任务；Room 自动绑定当前可信会话。外部 IM 默认绑定当前会话，也可以从 Nexus 桌面会话先查询 `delivery_targets`，再选择同一 Agent 的 active-paired 私聊。
+- 不要猜或拼装 channel、account、target、thread、Session 或 DeliveryGrant。`delivery_session_key` 只能原样使用 `delivery_targets` 的当前返回值；它只是宿主验证的选择器，不是授权凭据。外部 IM 的空任务查询仍只覆盖当前会话。
 - 后台 scheduled run 只有宿主绑定 job/run 的查询权限，不得创建、修改、运行或删除任务。
 - apply 的确认只批准管理命令。任务运行时仍服从其 permission mode、工具 allow/deny 快照与持久审批；页面或 IM 的 `/y`、`/a`、`/d` 只恢复对应 logical run，`nexus.command` 不直接批准工具 permission request。
 - `script` task 属于人工控制面，Agent 不创建、修改、删除、修复或立即运行。
