@@ -20,6 +20,7 @@ import (
 
 const (
 	workspacePolicyPublicDenial  = "该操作超出当前用户被授予的工作区范围。"
+	ordinaryAgentNexusctlDenial  = "普通 Agent 不可直接调用 nexusctl；请改用当前回合提供的 nexus.command 或 nexuscfg。"
 	mainAgentNexusctlScopeDenial = "主智能体调用 Nexus 控制面 CLI 时已有宿主注入的 owner 作用域；请移除 --global-scope、--scope-user-id 和作用域环境变量覆盖后重试。"
 )
 
@@ -198,10 +199,19 @@ func withRawNexusctlDenyHook(options agentclient.Options) agentclient.Options {
 				return allowWorkspacePolicyOutput(), nil
 			}
 			command, ok := stringInput(toolInput, "command")
-			if !ok || forbiddenNexusctlScope(Policy{}, command, shellSyntaxFor(toolName)) == "" {
+			reason := ""
+			if ok {
+				reason = forbiddenNexusctlScope(Policy{}, command, shellSyntaxFor(toolName))
+			}
+			if reason == "" {
 				return allowWorkspacePolicyOutput(), nil
 			}
-			return denyWorkspacePolicyOutput(true, ""), nil
+			terminal := reason != ordinaryAgentNexusctlDenial
+			publicReason := ""
+			if !terminal {
+				publicReason = reason
+			}
+			return denyWorkspacePolicyOutput(terminal, publicReason), nil
 		}}},
 	)
 	options.Hooks.Matchers = hooks
@@ -225,7 +235,7 @@ func workspacePolicyCallback(mode Mode, policy Policy) sdkhook.Callback {
 			"is_main_agent", policy.IsMainAgent,
 			"mode", string(mode),
 		)
-		if mode == ModeAudit && !violation.terminal {
+		if mode == ModeAudit && !violation.terminal && !violation.denyInAudit {
 			return allowWorkspacePolicyOutput(), nil
 		}
 		return denyWorkspacePolicyOutput(violation.terminal, violation.publicReason), nil
@@ -237,6 +247,7 @@ type policyViolation struct {
 	path         string
 	publicReason string
 	terminal     bool
+	denyInAudit  bool
 }
 
 func inspectToolAccess(policy Policy, input sdkhook.Input) *policyViolation {
@@ -342,11 +353,15 @@ func inspectShellCommand(
 	syntax := shellSyntaxFor(toolName)
 	windowsSlashRoot := runtime.GOOS == "windows" && toolName != "bash"
 	if reason := forbiddenNexusctlScope(policy, command, syntax); reason != "" {
+		ordinaryNexusctl := reason == ordinaryAgentNexusctlDenial
 		violation := &policyViolation{
-			reason:   reason,
-			terminal: !policy.IsMainAgent,
+			reason:      reason,
+			terminal:    !policy.IsMainAgent && !ordinaryNexusctl,
+			denyInAudit: ordinaryNexusctl,
 		}
-		if policy.IsMainAgent {
+		if ordinaryNexusctl {
+			violation.publicReason = reason
+		} else if policy.IsMainAgent {
 			// 主智能体已经具备当前 owner 的宿主注入作用域。旧会话仍可能
 			// 生成历史 global/scope flags；拒绝该次调用即可，让模型在同一
 			// turn 内按明确反馈移除覆盖并重试，不应把整轮变成 hook_stopped。
@@ -960,11 +975,11 @@ func forbiddenNexusctlScope(policy Policy, command string, syntax shellSyntax) s
 	if !usesNexusctl && !usesNexuscfg {
 		return ""
 	}
-	if usesNexusctl && !policy.IsMainAgent {
-		return "runtime 不向普通 Agent 提供 nexusctl"
-	}
 	if shellCommandOverridesNexusctlScope(parts, command) {
 		return "Nexus 控制面 CLI 必须使用宿主注入的作用域和 capability"
+	}
+	if usesNexusctl && !policy.IsMainAgent {
+		return ordinaryAgentNexusctlDenial
 	}
 	return ""
 }
