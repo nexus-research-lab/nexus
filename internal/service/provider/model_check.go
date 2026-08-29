@@ -141,7 +141,7 @@ func (s *Service) ensureTestedModelReadyInMutation(
 		return err
 	}
 	if model == nil {
-		capabilities, category, contextWindow, maxOutput := defaultModelCard(modelID)
+		capabilities, category, contextWindow, maxOutput := defaultModelCard(modelID, item.ProviderKind)
 		now := s.now()
 		model = &providerstore.ModelEntity{
 			ID:                       s.idFactory("provider_model"),

@@ -8,12 +8,18 @@ import (
 // knownModelLimit 描述官方文档明确给出的模型 token 上限。
 //
 // 目录只负责补齐 Provider 模型列表缺失的字段。远端返回值和用户显式配置始终优先，
-// 未列出的模型保持未知，避免通过相似名称猜测运行时限制。
+// 未列出的 LLM 使用与运行时一致的保守基线，能力仍保持未知。
 type knownModelLimit struct {
 	Family          string
 	Tokens          int
 	MaxOutputTokens int
 }
+
+const (
+	// 缺少模型卡时沿用 nxs 的运行时基线，避免设置页与实际执行分叉。
+	defaultModelContextWindow   = 200_000
+	defaultModelMaxOutputTokens = 32_000
+)
 
 var knownModelLimits = []knownModelLimit{
 	// OpenAI。
@@ -300,6 +306,22 @@ func maxOutputTokensOrKnown(modelID string, maxOutputTokens *int) *int {
 		return maxOutputTokens
 	}
 	return knownMaxOutputTokens(modelID)
+}
+
+func contextWindowOrDefault(modelID string, contextWindow *int) *int {
+	if value := contextWindowOrKnown(modelID, contextWindow); value != nil {
+		return value
+	}
+	value := defaultModelContextWindow
+	return &value
+}
+
+func maxOutputTokensOrDefault(modelID string, maxOutputTokens *int) *int {
+	if value := maxOutputTokensOrKnown(modelID, maxOutputTokens); value != nil {
+		return value
+	}
+	value := defaultModelMaxOutputTokens
+	return &value
 }
 
 func normalizeCatalogModelID(modelID string) string {
