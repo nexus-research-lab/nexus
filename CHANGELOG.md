@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Expanded the built-in model catalog with current OpenAI, Anthropic, Gemini, Grok, Kimi, Qwen, MiniMax, Doubao, ERNIE, Hunyuan, StepFun, Mistral, Llama, Cohere, and Amazon Nova limits and capabilities.
 - Added official GLM-5.3 and GLM-5.3-Flash limits, required reasoning, and GLM-5.3-Flash vision capability to the built-in model catalog.
 - Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
 
