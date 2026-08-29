@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Localized the built-in WorkGraph Slash description according to the current interface language.
 - Preserved actionable default-model guard messages in Provider settings instead of replacing them with a generic request error.
 - Restored Launcher latest-reply previews for DM conversations while continuing to exclude external IM sessions.
 - Updated frontend production dependencies and forced patched `brace-expansion` versions to clear reported production CVEs.

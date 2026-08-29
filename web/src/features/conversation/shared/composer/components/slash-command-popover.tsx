@@ -279,7 +279,9 @@ function SlashCommandList({
               /{command.name}
             </span>
             <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">
-              {command.description || t("composer.slash_command_unavailable")}
+              {command.name === "workgraph"
+                ? t("composer.workgraph_command_description")
+                : command.description || t("composer.slash_command_unavailable")}
             </span>
             {command.argument_hint ? (
               <span className="max-w-[32%] shrink-0 truncate font-mono text-[9px] leading-4 text-(--text-soft)">

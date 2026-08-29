@@ -552,6 +552,7 @@ export const enConversationMessages = {
   "composer.slash_commands_unavailable": "This runtime does not publish slash commands.",
   "composer.slash_commands_empty": "No matching commands",
   "composer.slash_command_unavailable": "This command is not available here.",
+  "composer.workgraph_command_description": "Use WorkGraph collaboration for this request",
   "composer.skills_picker_title": "Skills",
   "composer.skills_search_placeholder": "Search skills",
   "composer.skills_loading": "Loading skills...",

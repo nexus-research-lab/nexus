@@ -549,6 +549,7 @@ export const zhConversationMessages = {
   "composer.slash_commands_unavailable": "当前运行时未公开 Slash 指令。",
   "composer.slash_commands_empty": "没有匹配的指令",
   "composer.slash_command_unavailable": "此指令当前不可用。",
+  "composer.workgraph_command_description": "使用工作图协作处理这个请求",
   "composer.skills_picker_title": "技能",
   "composer.skills_search_placeholder": "搜索技能",
   "composer.skills_loading": "正在加载技能…",
