@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deterministically ordered DM and Room internal context while keeping it in the runtime's append-only history and out of Nexus's visible conversation projection.
 - Preserved persisted custom Provider identifiers during save and deletion, and added deletion controls for non-default models.
 - Kept `nexusctl` exclusive to the main Agent by removing it from ordinary Agent and Room prompts, shared runtime PATH discovery, and shared Skills while retaining round-scoped `nexuscfg` and `nexus.command` capabilities.
+- Returned ordinary Agent `nexusctl` denials to the model as recoverable tool feedback and projected explicit terminal Hook stops as result messages instead of generic execution failures.
 - Kept the browser extension folder visible after reopening the macOS installation windows instead of letting Chrome or Edge cover Finder as their extensions page finishes opening.
 - Stopped ordinary, managed, and explicit Execution inspection from replaying completed Runtime Graph summaries into model requests, while active failures, artifacts, WorkGraph, Trace, and audit projections remain available.
 - Preserved task identity when terminal subagent notifications include full result bodies, preventing the floating Room task strip from expanding across the conversation.

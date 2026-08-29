@@ -239,11 +239,15 @@ func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
 		t.Fatalf("runtime subtype 未保留: %+v", result)
 	}
 	errors, ok := result["errors"].([]string)
-	if !ok || len(errors) != 1 || errors[0] != hookStoppedDisplayError {
+	if !ok || len(errors) != 1 || errors[0] != hookStoppedDisplayText {
 		t.Fatalf("hook stopped 错误未使用友好文案: %+v", result)
 	}
-	if result["result"] != "" {
-		t.Fatalf("hook stopped 不应把内部英文错误投影为正文: %+v", result)
+	if result["result"] != hookStoppedDisplayText {
+		t.Fatalf("hook stopped 应以 result 正文说明终止原因: %+v", result)
+	}
+	projected := ProjectResultMessage(nil, result)
+	if projected == nil || ExtractAssistantDisplayText(projected) != hookStoppedDisplayText {
+		t.Fatalf("hook stopped result 未投影为 assistant 正文: %+v", projected)
 	}
 }
 
