@@ -181,10 +181,10 @@ func (s *Service) runtimeCommandDeliveryTargets(
 	if err != nil {
 		return nil, err
 	}
-	if s.deliveryGrants == nil || s.deliverySessions == nil {
+	if s.deliveryGrants == nil {
 		return nil, errors.New("Automation 投递会话目录尚未装配")
 	}
-	candidates, err := s.deliveryGrants.ListAutomationDeliverySessions(
+	candidates, err := s.deliveryGrants.ListAgentExternalSessions(
 		ctx,
 		actor.OwnerUserID,
 		agentID,
@@ -195,23 +195,10 @@ func (s *Service) runtimeCommandDeliveryTargets(
 	}
 	result := make([]automationdomain.AutomationCommandDeliverySession, 0, len(candidates))
 	for _, candidate := range candidates {
-		stored, resolveErr := s.deliverySessions.ResolveDeliverySession(ctx, candidate.SessionKey)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
-		if stored == nil ||
-			strings.TrimSpace(stored.SessionKey) != strings.TrimSpace(candidate.SessionKey) ||
-			strings.TrimSpace(stored.AgentID) != strings.TrimSpace(agentID) {
-			continue
-		}
-		label := strings.TrimSpace(candidate.Label)
-		if label == "" {
-			label = strings.TrimSpace(stored.Title)
-		}
 		result = append(result, automationdomain.AutomationCommandDeliverySession{
 			SessionKey: strings.TrimSpace(candidate.SessionKey),
 			Channel:    protocol.NormalizeStoredChannelType(candidate.Channel),
-			Label:      label,
+			Label:      strings.TrimSpace(candidate.Label),
 			AgentID:    agentID,
 		})
 	}

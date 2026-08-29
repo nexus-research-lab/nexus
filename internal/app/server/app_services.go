@@ -410,7 +410,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	}
 
 	// 宿主自有工具按 physical round 合并到唯一 nexus MCP；Connector MCP 保持独立生命周期。
-	communicationService := communicationsvc.NewService(core.Agent, core.Room, roomRealtime, runtimeManager)
+	communicationService := communicationsvc.NewService(
+		core.Agent, core.Room, roomRealtime, runtimeManager, channelControl,
+	)
 	connectorBuilder := serverruntime.NewConnectorBuilder(connectorService)
 	builtInTools := serverruntime.CombineToolBuilders(
 		serverruntime.NewCommunicationToolBuilder(

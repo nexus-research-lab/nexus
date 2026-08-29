@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Allowed an Agent to discover and select its existing active-paired external DM as a scheduled-task delivery Session, while preserving exact Session, owner, and pairing revalidation through creation, execution, approval, and retry.
+- Let an Agent discover and address its existing active-paired external DMs from any of its chat transports, including direct messages and scheduled-task delivery, while preserving exact Session, owner, and pairing revalidation through sending, creation, execution, approval, and retry.
 - Deterministically ordered DM and Room internal context while keeping it in the runtime's append-only history and out of Nexus's visible conversation projection.
 - Preserved persisted custom Provider identifiers during save and deletion, and added deletion controls for non-default models.
 - Kept `nexusctl` exclusive to the main Agent by removing it from ordinary Agent and Room prompts, shared runtime PATH discovery, and shared Skills while retaining round-scoped `nexuscfg` and `nexus.command` capabilities.

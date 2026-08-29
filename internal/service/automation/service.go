@@ -65,13 +65,13 @@ type automationResultDeliveryRouter interface {
 }
 
 type deliveryGrantResolver interface {
-	ValidateAutomationDeliveryGrant(context.Context, string, string, string) error
-	ListAutomationDeliverySessions(
+	ValidateExternalSessionGrant(context.Context, string, string, string) error
+	ListAgentExternalSessions(
 		context.Context,
 		string,
 		string,
 		string,
-	) ([]channels.AutomationDeliverySession, error)
+	) ([]channels.AgentExternalSession, error)
 }
 
 type deliverySessionResolver interface {

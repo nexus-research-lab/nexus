@@ -1,6 +1,6 @@
-// INPUT: runtime 固化 Actor、Agent 联系人、Room 成员关系与消息正文。
-// OUTPUT: 当前 Agent 的好友/群通讯录，以及复用 Room transport 的发送回执。
-// POS: 平台 Agent 通讯业务边界；不定义第二套消息、队列或 SDK team 协议。
+// INPUT: runtime 固化 Actor、Agent 联系人、Room 成员关系、外部 Session 与消息正文。
+// OUTPUT: 当前 Agent 的好友/群/外部私聊通讯录，以及现有 transport 的发送回执。
+// POS: 平台 Agent 通讯业务边界；不定义第二套消息、队列、Session 或 SDK team 协议。
 package communication
 
 import (
@@ -15,14 +15,16 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
 const (
-	ContextKindAgent = "agent"
-	ContextKindRoom  = "room"
-	TargetTypeAgent  = "agent"
-	TargetTypeRoom   = "room"
+	ContextKindAgent          = "agent"
+	ContextKindRoom           = "room"
+	TargetTypeAgent           = "agent"
+	TargetTypeRoom            = "room"
+	TargetTypeExternalSession = "external_session"
 	// ponytail: 本地通讯录先复用最近 Room 查询；单个 Agent 超过 300 个活跃群时改成成员游标分页。
 	addressBookRoomLimit = 300
 )
@@ -43,11 +45,12 @@ type Actor struct {
 	GoalCollaborationBinding func() *protocol.GoalCollaborationBinding
 }
 
-// AddressBook 是一个 Agent 当前可寻址的好友与群。
+// AddressBook 是一个 Agent 当前可寻址的好友、群与外部私聊。
 type AddressBook struct {
-	AgentID  string                  `json:"agent_id"`
-	Contacts []protocol.AgentContact `json:"contacts"`
-	Rooms    []RoomContact           `json:"rooms"`
+	AgentID          string                          `json:"agent_id"`
+	Contacts         []protocol.AgentContact         `json:"contacts"`
+	Rooms            []RoomContact                   `json:"rooms"`
+	ExternalSessions []channels.AgentExternalSession `json:"external_sessions"`
 }
 
 // RoomContact 是通讯录中的当前成员群。
@@ -68,7 +71,7 @@ type SendRequest struct {
 	Content        string `json:"content"`
 }
 
-// SendResult 返回复用的 Room transport 定位与接受状态。
+// SendResult 返回现有 Room 或 Channels transport 的定位与接受状态。
 type SendResult struct {
 	MessageID      string `json:"message_id"`
 	Status         string `json:"status"`
@@ -77,6 +80,8 @@ type SendResult struct {
 	RoomID         string `json:"room_id"`
 	ConversationID string `json:"conversation_id"`
 	RoutingSource  string `json:"routing_source,omitempty"`
+	SessionKey     string `json:"session_key,omitempty"`
+	Channel        string `json:"channel,omitempty"`
 }
 
 const (
@@ -94,12 +99,13 @@ type sendContext struct {
 	GoalBinding    *protocol.GoalCollaborationBinding
 }
 
-// Service 组合现有联系人、Room 和 realtime 消息主链。
+// Service 组合现有联系人、Room、Channels 和 realtime 消息主链。
 type Service struct {
 	agents   *agentsvc.Service
 	rooms    *roomsvc.Service
 	realtime messageTransport
 	runtime  roundLeaseVerifier
+	external agentExternalSessionGateway
 	// ponytail: 本地单进程产品先用一把锁避免同一好友对并发创建重复 Room；出现多实例写入时改成数据库 pair lease。
 	directMu sync.Mutex
 }
@@ -113,14 +119,22 @@ type messageTransport interface {
 	HandlePlatformPublicMessage(context.Context, string, string, protocol.CreateRoomPublicMessageRequest) (protocol.Message, error)
 }
 
+type agentExternalSessionGateway interface {
+	ListAgentExternalSessions(context.Context, string, string, string) ([]channels.AgentExternalSession, error)
+	SendAgentExternalSessionMessage(context.Context, string, string, string, string) (channels.DeliveryResult, error)
+}
+
 // NewService 创建平台通讯服务。
 func NewService(
 	agents *agentsvc.Service,
 	rooms *roomsvc.Service,
 	realtime messageTransport,
 	runtime roundLeaseVerifier,
+	external agentExternalSessionGateway,
 ) *Service {
-	return &Service{agents: agents, rooms: rooms, realtime: realtime, runtime: runtime}
+	return &Service{
+		agents: agents, rooms: rooms, realtime: realtime, runtime: runtime, external: external,
+	}
 }
 
 // ListAddressBook 返回当前 Agent 的好友与所在 Group Room。
@@ -137,8 +151,13 @@ func (s *Service) ListAddressBook(ctx context.Context, actor Actor) (*AddressBoo
 	if err != nil {
 		return nil, err
 	}
+	externalSessions, err := s.listExternalSessions(scoped, current.AgentID)
+	if err != nil {
+		return nil, err
+	}
 	result := &AddressBook{
 		AgentID: current.AgentID, Contacts: contacts, Rooms: make([]RoomContact, 0),
+		ExternalSessions: externalSessions,
 	}
 	for _, roomValue := range rooms {
 		if roomValue.Room.RoomType != protocol.RoomTypeGroup ||
@@ -173,9 +192,14 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
-	if strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeAgent) &&
+	if (strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeAgent) ||
+		strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeExternalSession)) &&
 		strings.TrimSpace(request.ConversationID) != "" {
-		return nil, errors.New("conversation_id 只支持 owner 通讯客户端或 room 目标")
+		return nil, errors.New("conversation_id 只支持 room 目标")
+	}
+	if strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeExternalSession) &&
+		strings.TrimSpace(request.TargetID) == strings.TrimSpace(actor.SessionKey) {
+		return nil, errors.New("当前外部私聊请直接使用 final reply")
 	}
 	trusted := sendContext{}
 	if actor.ContextKind == ContextKindRoom {
@@ -246,9 +270,53 @@ func (s *Service) sendMessage(
 		return s.sendToAgent(ctx, sourceAgentID, request, replyWakePolicy, trusted)
 	case TargetTypeRoom:
 		return s.sendToRoom(ctx, sourceAgentID, request, trusted)
+	case TargetTypeExternalSession:
+		return s.sendToExternalSession(ctx, sourceAgentID, request)
 	default:
-		return nil, errors.New("target_type 只支持 agent 或 room")
+		return nil, errors.New("target_type 只支持 agent、room 或 external_session")
 	}
+}
+
+func (s *Service) listExternalSessions(
+	ctx context.Context,
+	agentID string,
+) ([]channels.AgentExternalSession, error) {
+	if s.external == nil {
+		return nil, errors.New("外部会话通讯未装配")
+	}
+	return s.external.ListAgentExternalSessions(
+		ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(agentID), "",
+	)
+}
+
+func (s *Service) sendToExternalSession(
+	ctx context.Context,
+	sourceAgentID string,
+	request SendRequest,
+) (*SendResult, error) {
+	if s.external == nil {
+		return nil, errors.New("外部会话通讯未装配")
+	}
+	result, err := s.external.SendAgentExternalSessionMessage(
+		ctx,
+		authctx.OwnerUserID(ctx),
+		sourceAgentID,
+		request.TargetID,
+		request.Content,
+	)
+	if err != nil {
+		return nil, err
+	}
+	messageID := ""
+	if result.Receipt != nil {
+		messageID = result.Receipt.PrimaryPlatformMessageID
+	}
+	return &SendResult{
+		MessageID: messageID, Status: "delivered",
+		TargetType: TargetTypeExternalSession, TargetID: request.TargetID,
+		SessionKey: result.Target.SessionKey, Channel: result.Target.Channel,
+		RoutingSource: RoutingSourceExplicit,
+	}, nil
 }
 
 func (s *Service) sendToAgent(
