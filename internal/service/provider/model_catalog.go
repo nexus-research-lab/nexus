@@ -17,10 +17,10 @@ type knownModelLimit struct {
 
 var knownModelLimits = []knownModelLimit{
 	// OpenAI。
-	{Family: "gpt-5.6-terra", Tokens: 1_050_000},
-	{Family: "gpt-5.6-luna", Tokens: 1_050_000},
-	{Family: "gpt-5.6-sol", Tokens: 1_050_000},
-	{Family: "gpt-5.6", Tokens: 1_050_000},
+	{Family: "gpt-5.6-terra", Tokens: 1_050_000, MaxOutputTokens: 128_000},
+	{Family: "gpt-5.6-luna", Tokens: 1_050_000, MaxOutputTokens: 128_000},
+	{Family: "gpt-5.6-sol", Tokens: 1_050_000, MaxOutputTokens: 128_000},
+	{Family: "gpt-5.6", Tokens: 1_050_000, MaxOutputTokens: 128_000},
 	{Family: "gpt-5.5-pro", Tokens: 1_050_000},
 	{Family: "gpt-5.5", Tokens: 1_000_000},
 	{Family: "gpt-5.4-mini", Tokens: 400_000},
@@ -53,6 +53,8 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "gpt-4.1", Tokens: 1_047_576},
 	{Family: "gpt-4o-mini", Tokens: 128_000},
 	{Family: "gpt-4o", Tokens: 128_000},
+	{Family: "gpt-oss-120b", Tokens: 131_072, MaxOutputTokens: 131_072},
+	{Family: "gpt-oss-20b", Tokens: 131_072, MaxOutputTokens: 131_072},
 	{Family: "o4-mini", Tokens: 200_000},
 	{Family: "o3-pro", Tokens: 200_000},
 	{Family: "o3-mini", Tokens: 200_000},
@@ -64,15 +66,16 @@ var knownModelLimits = []knownModelLimit{
 
 	// Anthropic。新一代模型默认提供 1M 窗口，旧型号保持各自的标准窗口。
 	{Family: "claude-mythos-5", Tokens: 1_000_000},
-	{Family: "claude-fable-5", Tokens: 1_000_000},
-	{Family: "claude-sonnet-5", Tokens: 1_000_000},
+	{Family: "claude-fable-5", Tokens: 1_000_000, MaxOutputTokens: 128_000},
+	{Family: "claude-opus-5", Tokens: 1_000_000, MaxOutputTokens: 128_000},
+	{Family: "claude-sonnet-5", Tokens: 1_000_000, MaxOutputTokens: 128_000},
 	{Family: "claude-opus-4-8", Tokens: 1_000_000},
 	{Family: "claude-opus-4-7", Tokens: 1_000_000},
 	{Family: "claude-opus-4-6", Tokens: 1_000_000},
 	{Family: "claude-sonnet-4-6", Tokens: 1_000_000},
 	{Family: "claude-opus-4-5", Tokens: 200_000},
 	{Family: "claude-sonnet-4-5", Tokens: 200_000},
-	{Family: "claude-haiku-4-5", Tokens: 200_000},
+	{Family: "claude-haiku-4-5", Tokens: 200_000, MaxOutputTokens: 64_000},
 	{Family: "claude-opus-4-1", Tokens: 200_000},
 	{Family: "claude-opus-4", Tokens: 200_000},
 	{Family: "claude-sonnet-4", Tokens: 200_000},
@@ -82,12 +85,41 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "claude-3-opus", Tokens: 200_000},
 
 	// Google Gemini。
+	{Family: "gemini-3.7-flash", Tokens: 1_048_576, MaxOutputTokens: 65_536},
+	{Family: "gemini-3.5-flash-lite", Tokens: 1_048_576, MaxOutputTokens: 65_536},
+	{Family: "gemini-3.5-flash", Tokens: 1_048_576, MaxOutputTokens: 65_536},
+	{Family: "gemini-3.1-flash-lite", Tokens: 1_048_576, MaxOutputTokens: 65_536},
 	{Family: "gemini-3.1-pro-preview", Tokens: 1_048_576},
 	{Family: "gemini-3.1-flash-lite-preview", Tokens: 1_048_576},
 	{Family: "gemini-3-flash-preview", Tokens: 1_048_576},
 	{Family: "gemini-2.5-pro", Tokens: 1_048_576},
 	{Family: "gemini-2.5-flash", Tokens: 1_048_576},
 	{Family: "gemini-2.5-flash-lite", Tokens: 1_048_576},
+
+	// xAI。
+	{Family: "grok-4.6", Tokens: 500_000},
+
+	// Mistral 开放权重模型。
+	{Family: "mistral-medium-3-5", Tokens: 262_144},
+	{Family: "mistral-small-2603", Tokens: 262_144},
+	{Family: "mistral-large-2512", Tokens: 262_144},
+	{Family: "ministral-14b-2512", Tokens: 262_144},
+	{Family: "ministral-8b-2512", Tokens: 262_144},
+	{Family: "ministral-3b-2512", Tokens: 262_144},
+
+	// Meta Llama 开放权重模型。
+	{Family: "llama-4-scout", Tokens: 10_000_000},
+	{Family: "llama-4-maverick", Tokens: 1_000_000},
+
+	// Cohere。
+	{Family: "command-a-plus-05-2026", Tokens: 128_000, MaxOutputTokens: 64_000},
+
+	// Amazon Nova。Bedrock 的区域前缀属于模型 ID 的一部分。
+	{Family: "amazon.nova-2-lite-v1:0", Tokens: 1_000_000, MaxOutputTokens: 65_536},
+	{Family: "global.amazon.nova-2-lite-v1:0", Tokens: 1_000_000, MaxOutputTokens: 65_536},
+	{Family: "us.amazon.nova-2-lite-v1:0", Tokens: 1_000_000, MaxOutputTokens: 65_536},
+	{Family: "eu.amazon.nova-2-lite-v1:0", Tokens: 1_000_000, MaxOutputTokens: 65_536},
+	{Family: "jp.amazon.nova-2-lite-v1:0", Tokens: 1_000_000, MaxOutputTokens: 65_536},
 
 	// DeepSeek。
 	{Family: "deepseek-v4-pro", Tokens: 1_000_000, MaxOutputTokens: 384_000},
@@ -111,6 +143,7 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "glm-4-long", Tokens: 1_000_000},
 
 	// Moonshot Kimi。
+	{Family: "kimi-k3", Tokens: 1_048_576},
 	{Family: "kimi-for-coding", Tokens: 262_144},
 	{Family: "kimi-k2.7-code-highspeed", Tokens: 262_144},
 	{Family: "kimi-k2.7-code", Tokens: 262_144},
@@ -120,6 +153,8 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "kimi-k2", Tokens: 131_072},
 
 	// 阿里云百炼与 Coding Plan。
+	{Family: "qwen3.8-max", Tokens: 1_000_000, MaxOutputTokens: 131_072},
+	{Family: "qwen3.7-flash", Tokens: 1_000_000},
 	{Family: "qwen3.7-max", Tokens: 1_000_000},
 	{Family: "qwen3.7-plus", Tokens: 1_000_000},
 	{Family: "qwen3.6-plus", Tokens: 1_000_000},
@@ -137,6 +172,14 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "minimax-m2.5", Tokens: 196_608},
 	{Family: "minimax-m2.1", Tokens: 196_608},
 	{Family: "mimo-v2.5-pro", Tokens: 1_000_000},
+
+	// 百度文心。
+	{Family: "ernie-5.1", Tokens: 131_072, MaxOutputTokens: 65_536},
+	{Family: "ernie-5.0", Tokens: 131_072, MaxOutputTokens: 65_536},
+
+	// 腾讯混元与阶跃星辰。
+	{Family: "hy3", Tokens: 262_144},
+	{Family: "step-3.5-flash", Tokens: 262_144},
 }
 
 // knownVisionCapability 只补齐已经稳定支持图片输入的常见模型族。
@@ -154,9 +197,30 @@ func knownVisionCapability(modelID string) *bool {
 		modelIDMatchesGeneration(normalized, "claude-haiku-4"),
 		modelIDMatchesGeneration(normalized, "claude-mythos-5"),
 		modelIDMatchesGeneration(normalized, "claude-fable-5"),
+		modelIDMatchesGeneration(normalized, "claude-opus-5"),
 		modelIDMatchesGeneration(normalized, "claude-sonnet-5"),
 		modelIDMatchesGeneration(normalized, "gemini"),
-		modelIDMatchesGeneration(normalized, "kimi-for-coding"):
+		modelIDMatchesGeneration(normalized, "grok-4.6"),
+		modelIDMatchesGeneration(normalized, "kimi-for-coding"),
+		modelIDMatchesGeneration(normalized, "kimi-k3"),
+		modelIDMatchesGeneration(normalized, "kimi-k2.6"),
+		modelIDMatchesGeneration(normalized, "qwen3.8-max"),
+		modelIDMatchesGeneration(normalized, "qwen3.7-plus"),
+		modelIDMatchesGeneration(normalized, "qwen3.7-flash"),
+		modelIDMatchesGeneration(normalized, "minimax-m3"),
+		modelIDMatchesGeneration(normalized, "doubao-seed-2-0"),
+		modelIDMatchesGeneration(normalized, "ernie-5.0"),
+		modelIDMatchesGeneration(normalized, "step-3.7-flash"),
+		modelIDMatchesGeneration(normalized, "mistral-medium-3-5"),
+		modelIDMatchesGeneration(normalized, "mistral-small-2603"),
+		modelIDMatchesGeneration(normalized, "mistral-large-2512"),
+		modelIDMatchesGeneration(normalized, "ministral-14b-2512"),
+		modelIDMatchesGeneration(normalized, "ministral-8b-2512"),
+		modelIDMatchesGeneration(normalized, "ministral-3b-2512"),
+		modelIDMatchesGeneration(normalized, "llama-4-scout"),
+		modelIDMatchesGeneration(normalized, "llama-4-maverick"),
+		modelIDMatchesGeneration(normalized, "command-a-plus"),
+		strings.Contains(normalized, "amazon.nova-2-lite"):
 		return boolPointer(true)
 	case strings.Contains(normalized, "qwen") && strings.Contains(normalized, "vl"):
 		return boolPointer(true)
@@ -172,10 +236,34 @@ func knownVisionCapability(modelID string) *bool {
 
 // knownReasoningCapability 只补齐官方明确标记为推理模型的模型族。
 func knownReasoningCapability(modelID string) *bool {
-	if modelIDMatchesGeneration(normalizeCatalogModelID(modelID), "glm-5.3") {
+	normalized := normalizeCatalogModelID(modelID)
+	switch {
+	case modelIDMatchesGeneration(normalized, "gpt-5.6"),
+		modelIDMatchesGeneration(normalized, "gpt-oss"),
+		modelIDMatchesGeneration(normalized, "claude-fable-5"),
+		modelIDMatchesGeneration(normalized, "claude-opus-5"),
+		modelIDMatchesGeneration(normalized, "claude-sonnet-5"),
+		modelIDMatchesGeneration(normalized, "gemini-3.7"),
+		modelIDMatchesGeneration(normalized, "gemini-3.5"),
+		modelIDMatchesGeneration(normalized, "gemini-3.1-flash-lite"),
+		modelIDMatchesGeneration(normalized, "grok-4.6"),
+		modelIDMatchesGeneration(normalized, "glm-5.3"),
+		modelIDMatchesGeneration(normalized, "kimi-k3"),
+		modelIDMatchesGeneration(normalized, "kimi-k2.6"),
+		modelIDMatchesGeneration(normalized, "qwen3.8"),
+		modelIDMatchesGeneration(normalized, "qwen3.7"),
+		modelIDMatchesGeneration(normalized, "minimax-m3"),
+		modelIDMatchesGeneration(normalized, "doubao-seed-2-0"),
+		modelIDMatchesGeneration(normalized, "ernie-5.0"),
+		modelIDMatchesGeneration(normalized, "hy3"),
+		modelIDMatchesGeneration(normalized, "step-3.7-flash"),
+		modelIDMatchesGeneration(normalized, "step-3.5-flash"),
+		modelIDMatchesGeneration(normalized, "mistral-small-2603"),
+		modelIDMatchesGeneration(normalized, "command-a-plus"):
 		return boolPointer(true)
+	default:
+		return nil
 	}
-	return nil
 }
 
 func knownContextWindow(modelID string) *int {
@@ -222,6 +310,9 @@ func normalizeCatalogModelID(modelID string) string {
 	normalized = strings.Trim(normalized, "/")
 	if index := strings.LastIndex(normalized, "/"); index >= 0 {
 		normalized = normalized[index+1:]
+	}
+	if index := strings.Index(normalized, "["); index >= 0 {
+		normalized = strings.TrimSpace(normalized[:index])
 	}
 	return normalized
 }
