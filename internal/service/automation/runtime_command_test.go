@@ -13,10 +13,10 @@ import (
 )
 
 type fixedAutomationDeliveryAuthority struct {
-	sessions []channels.AutomationDeliverySession
+	sessions []channels.AgentExternalSession
 }
 
-func (f fixedAutomationDeliveryAuthority) ValidateAutomationDeliveryGrant(
+func (f fixedAutomationDeliveryAuthority) ValidateExternalSessionGrant(
 	context.Context,
 	string,
 	string,
@@ -25,13 +25,13 @@ func (f fixedAutomationDeliveryAuthority) ValidateAutomationDeliveryGrant(
 	return nil
 }
 
-func (f fixedAutomationDeliveryAuthority) ListAutomationDeliverySessions(
+func (f fixedAutomationDeliveryAuthority) ListAgentExternalSessions(
 	context.Context,
 	string,
 	string,
 	string,
-) ([]channels.AutomationDeliverySession, error) {
-	return append([]channels.AutomationDeliverySession(nil), f.sessions...), nil
+) ([]channels.AgentExternalSession, error) {
+	return append([]channels.AgentExternalSession(nil), f.sessions...), nil
 }
 
 type fixedAutomationDeliverySessionResolver map[string]protocol.Session
@@ -157,7 +157,7 @@ func TestRuntimeCommandSelectsSameAgentPairedDMSession(t *testing.T) {
 		"weixin-user",
 		"",
 	)
-	fixture.Service.SetDeliveryGrantResolver(fixedAutomationDeliveryAuthority{sessions: []channels.AutomationDeliverySession{{
+	fixture.Service.SetDeliveryGrantResolver(fixedAutomationDeliveryAuthority{sessions: []channels.AgentExternalSession{{
 		SessionKey: sessionKey,
 		Channel:    protocol.SessionChannelWeixinPersonal,
 		Label:      "捷哥",

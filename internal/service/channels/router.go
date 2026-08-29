@@ -6,6 +6,7 @@ package channels
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -49,6 +50,22 @@ type loggerAwareChannel interface {
 
 type sessionProjectionResolver interface {
 	ResolveDeliverySession(context.Context, string) (*protocol.Session, error)
+}
+
+func (r *Router) resolveDeliverySession(
+	ctx context.Context,
+	sessionKey string,
+) (*protocol.Session, error) {
+	if r == nil {
+		return nil, errors.New("channel router is not configured")
+	}
+	r.mu.RLock()
+	resolver := r.sessions
+	r.mu.RUnlock()
+	if resolver == nil {
+		return nil, errors.New("delivery session resolver is not configured")
+	}
+	return resolver.ResolveDeliverySession(ctx, strings.TrimSpace(sessionKey))
 }
 
 // NewRouter 创建通道路由器。

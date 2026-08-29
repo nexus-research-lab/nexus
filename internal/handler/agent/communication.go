@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
@@ -60,6 +61,8 @@ func (h *Handlers) writeCommunicationFailure(writer http.ResponseWriter, err err
 		errors.Is(err, roomsvc.ErrConversationNotFound),
 		errors.Is(err, roomsvc.ErrRoomMemberNotFound):
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+	case errors.Is(err, channels.ErrExternalSessionGrantUnavailable):
+		h.api.WriteFailure(writer, http.StatusForbidden, "外部私聊已解绑或不属于当前 Agent")
 	case strings.Contains(err.Error(), "不能"),
 		strings.Contains(err.Error(), "不可"),
 		strings.Contains(err.Error(), "不属于"),

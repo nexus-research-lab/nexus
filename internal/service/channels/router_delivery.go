@@ -49,6 +49,32 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 	return result, nil
 }
 
+// deliverAgentSessionMessage 把主动消息先写入目标 Session，再发送到其外部通道。
+// 普通回复继续走 DeliverMessage，避免重复投影 runtime 已经写入的回答。
+func (r *Router) deliverAgentSessionMessage(
+	ctx context.Context,
+	agentID string,
+	text string,
+	sessionKey string,
+) (DeliveryResult, error) {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent ||
+		strings.TrimSpace(parsed.AgentID) != strings.TrimSpace(agentID) ||
+		protocol.NormalizeSessionChatType(parsed.ChatType) != protocol.RoomTypeDM ||
+		isSessionDeliveryChannel(parsed.Channel) {
+		return DeliveryResult{}, errors.New("active-paired external Agent DM is required")
+	}
+	projector := r.sessionProjector(ctx, agentID, ChannelTypeWebSocket)
+	if projector == nil {
+		return DeliveryResult{}, errors.New("external session projector is not configured")
+	}
+	target := DeliveryTarget{Mode: DeliveryModeLast, SessionKey: strings.TrimSpace(sessionKey)}
+	if _, err := projector.SendAgentDeliveryMessage(ctx, agentID, target, text); err != nil {
+		return DeliveryResult{}, err
+	}
+	return r.DeliverMessage(ctx, agentID, text, target)
+}
+
 // DeliverAutomationResult 把一次任务结果同时写入其逻辑 Nexus 会话并发送到目标通道。
 // 外部平台失败时保留已经完成的会话投影，后续重试依靠稳定 run_id 更新同一条消息。
 func (r *Router) DeliverAutomationResult(

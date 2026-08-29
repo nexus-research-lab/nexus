@@ -105,7 +105,7 @@ func (s *Service) deliverAutomationIMNotice(
 		return
 	}
 	ownerCtx := contextForJobOwner(ctx, job)
-	if err := s.deliveryGrants.ValidateAutomationDeliveryGrant(
+	if err := s.deliveryGrants.ValidateExternalSessionGrant(
 		ownerCtx,
 		job.OwnerUserID,
 		job.AgentID,
