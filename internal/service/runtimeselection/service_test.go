@@ -39,6 +39,8 @@ func (resolver fakeRuntimeConfigResolver) ResolveRuntimeConfigForRuntime(
 }
 
 func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
+	autoMemoryEnabled := false
+	autoDreamEnabled := false
 	service := NewService(fakePreferencesService{items: map[string]preferencessvc.Preferences{
 		"owner-1": {
 			AgentRuntimeKind:           "nxs",
@@ -49,7 +51,7 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 				Model:    "background-model",
 			},
 			RuntimeSettings: preferencessvc.RuntimeSettings{
-				"nxs": {ToolSearch: true},
+				"nxs": {AutoMemoryEnabled: &autoMemoryEnabled, AutoDreamEnabled: &autoDreamEnabled, ToolSearch: true},
 			},
 			DefaultAgentOptions: protocol.Options{
 				Provider: "openai",
@@ -80,6 +82,12 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 	}
 	if !selection.ToolSearchEnabled {
 		t.Fatalf("nxs ToolSearch 偏好应透传: %+v", selection)
+	}
+	if !selection.AutoMemoryDisabled {
+		t.Fatalf("nxs 自动记忆偏好应透传: %+v", selection)
+	}
+	if !selection.AutoDreamDisabled {
+		t.Fatalf("nxs AutoDream 偏好应透传: %+v", selection)
 	}
 	if selection.BackgroundProvider != "background-provider" ||
 		selection.BackgroundModel != "background-model" {

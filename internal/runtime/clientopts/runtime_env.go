@@ -82,6 +82,10 @@ const claudeEmitToolUseSummariesEnvName = "CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES"
 const nexusBackgroundModelEnvName = "NEXUS_BACKGROUND_MODEL"
 const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
 const nexusEnableToolSearchEnvName = "NEXUS_ENABLE_TOOL_SEARCH"
+const nexusEnableAutoMemoryExtractionEnvName = "NEXUS_ENABLE_AUTO_MEMORY_EXTRACTION"
+const nexusDisableAutoMemoryExtractionEnvName = "NEXUS_DISABLE_AUTO_MEMORY_EXTRACTION"
+const nexusEnableAutoDreamEnvName = "NEXUS_ENABLE_AUTO_DREAM"
+const nexusDisableAutoDreamEnvName = "NEXUS_DISABLE_AUTO_DREAM"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
@@ -185,6 +189,36 @@ func toolSearchRuntimeEnv(runtimeKind string, enabled bool) map[string]string {
 	return map[string]string{
 		enableToolSearchEnvName:      value,
 		nexusEnableToolSearchEnvName: value,
+	}
+}
+
+// BuildAutoMemoryRuntimeEnv 把用户偏好投影到 nxs 的自动记忆抽取开关。
+func BuildAutoMemoryRuntimeEnv(runtimeKind string, disabled bool) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	enabledValue, disabledValue := "1", "0"
+	if disabled {
+		enabledValue, disabledValue = "0", "1"
+	}
+	return map[string]string{
+		nexusDisableAutoMemoryExtractionEnvName: disabledValue,
+		nexusEnableAutoMemoryExtractionEnvName:  enabledValue,
+	}
+}
+
+// BuildAutoDreamRuntimeEnv 把用户总开关投影到 nxs；开启时仍尊重 Agent 自身设置。
+func BuildAutoDreamRuntimeEnv(runtimeKind string, disabled bool) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	disabledValue := "0"
+	if disabled {
+		disabledValue = "1"
+	}
+	return map[string]string{
+		nexusDisableAutoDreamEnvName: disabledValue,
+		nexusEnableAutoDreamEnvName:  "0",
 	}
 }
 

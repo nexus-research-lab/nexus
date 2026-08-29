@@ -401,8 +401,12 @@ type environmentUpdater interface {
 }
 
 var mutableRuntimeEnvironmentKeys = map[string]struct{}{
-	"NEXUS_WEBSEARCH_API_KEY": {},
-	"NEXUS_WEBSEARCH_CONFIG":  {},
+	"NEXUS_DISABLE_AUTO_MEMORY_EXTRACTION": {},
+	"NEXUS_ENABLE_AUTO_MEMORY_EXTRACTION":  {},
+	"NEXUS_DISABLE_AUTO_DREAM":             {},
+	"NEXUS_ENABLE_AUTO_DREAM":              {},
+	"NEXUS_WEBSEARCH_API_KEY":              {},
+	"NEXUS_WEBSEARCH_CONFIG":               {},
 }
 
 func validateRuntimeEnvironmentUpdate(environment map[string]string) error {
@@ -415,7 +419,7 @@ func validateRuntimeEnvironmentUpdate(environment map[string]string) error {
 	return nil
 }
 
-// UpdateEnvironmentForAgent 将 WebSearch 等运行期环境同步到指定 Agent 的 nxs 会话。
+// UpdateEnvironmentForAgent 将用户运行偏好同步到指定 Agent 的 nxs 会话。
 func (m *Manager) UpdateEnvironmentForAgent(ctx context.Context, agentID string, environment map[string]string) error {
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" || len(environment) == 0 {

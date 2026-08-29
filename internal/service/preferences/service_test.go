@@ -45,6 +45,12 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if prefs.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
 	}
+	if !prefs.AutoMemoryEnabledForRuntime("nxs") {
+		t.Fatalf("nxs 自动记忆默认应开启: %+v", prefs)
+	}
+	if !prefs.AutoDreamEnabledForRuntime("nxs") {
+		t.Fatalf("nxs AutoDream 默认应开启: %+v", prefs)
+	}
 	if !prefs.WebSearch.Enabled || prefs.WebSearch.Provider != "anysearch" {
 		t.Fatalf("WebSearch 默认 provider 应为 anysearch: %+v", prefs.WebSearch)
 	}
@@ -68,6 +74,12 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if normalized.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
 	}
+	if !normalized.AutoMemoryEnabledForRuntime("nxs") {
+		t.Fatalf("空偏好归一化后 nxs 自动记忆应开启: %+v", normalized)
+	}
+	if !normalized.AutoDreamEnabledForRuntime("nxs") {
+		t.Fatalf("空偏好归一化后 nxs AutoDream 应开启: %+v", normalized)
+	}
 	if !normalized.WebSearch.Enabled || normalized.WebSearch.Provider != "anysearch" {
 		t.Fatalf("空偏好归一化后 WebSearch provider 应为 anysearch: %+v", normalized.WebSearch)
 	}
@@ -76,6 +88,8 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	autoMemoryEnabled := false
+	autoDreamEnabled := false
 
 	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
 		ChatDefaultDeliveryPolicy:  policyPointer(protocol.ChatDeliveryPolicyQueue),
@@ -84,7 +98,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		EmotionEnabled:             boolPointer(true),
 		BrowserCDPEnabled:          boolPointer(true),
 		RuntimeSettings: &RuntimeSettings{
-			"nxs":    {ToolSearch: true},
+			"nxs":    {AutoMemoryEnabled: &autoMemoryEnabled, AutoDreamEnabled: &autoDreamEnabled, ToolSearch: true},
 			"claude": {ToolSearch: true},
 		},
 		DefaultAgentOptions: &protocol.Options{
@@ -127,6 +141,12 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if !prefs.ToolSearchEnabledForRuntime("nxs") || prefs.ToolSearchEnabledForRuntime("claude") {
 		t.Fatalf("ToolSearch 应只在 nxs runtime 生效: %+v", prefs.RuntimeSettings)
 	}
+	if prefs.AutoMemoryEnabledForRuntime("nxs") {
+		t.Fatalf("自动记忆关闭状态未持久化: %+v", prefs.RuntimeSettings)
+	}
+	if prefs.AutoDreamEnabledForRuntime("nxs") {
+		t.Fatalf("AutoDream 关闭状态未持久化: %+v", prefs.RuntimeSettings)
+	}
 	if prefs.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("权限模式未持久化: %+v", prefs.DefaultAgentOptions)
 	}
@@ -156,6 +176,8 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		!loaded.EmotionEnabled ||
 		!loaded.BrowserCDPEnabled ||
 		!loaded.ToolSearchEnabledForRuntime("nxs") ||
+		loaded.AutoMemoryEnabledForRuntime("nxs") ||
+		loaded.AutoDreamEnabledForRuntime("nxs") ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}

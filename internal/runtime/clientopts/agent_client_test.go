@@ -164,16 +164,41 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
+func TestBuildAgentClientOptionsProjectsNXSPreferencesByRuntime(t *testing.T) {
+	defaultOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("构建默认 nxs options 失败: %v", err)
+	}
+	if defaultOptions.Env[nexusDisableAutoMemoryExtractionEnvName] != "0" ||
+		defaultOptions.Env[nexusEnableAutoMemoryExtractionEnvName] != "1" {
+		t.Fatalf("nxs 自动记忆默认应开启: %+v", defaultOptions.Env)
+	}
+	if defaultOptions.Env[nexusDisableAutoDreamEnvName] != "0" ||
+		defaultOptions.Env[nexusEnableAutoDreamEnvName] != "0" {
+		t.Fatalf("nxs AutoDream 默认应交给 Agent 设置: %+v", defaultOptions.Env)
+	}
+
 	nxsOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind:       runtimeKindNXS,
-		ToolSearchEnabled: true,
+		RuntimeKind:        runtimeKindNXS,
+		AutoMemoryDisabled: true,
+		AutoDreamDisabled:  true,
+		ToolSearchEnabled:  true,
 	})
 	if err != nil {
 		t.Fatalf("构建 nxs options 失败: %v", err)
 	}
 	if nxsOptions.Env[enableToolSearchEnvName] != "1" || nxsOptions.Env[nexusEnableToolSearchEnvName] != "1" {
 		t.Fatalf("nxs ToolSearch 开关未投影: %+v", nxsOptions.Env)
+	}
+	if nxsOptions.Env[nexusDisableAutoMemoryExtractionEnvName] != "1" ||
+		nxsOptions.Env[nexusEnableAutoMemoryExtractionEnvName] != "0" {
+		t.Fatalf("nxs 自动记忆开关未投影: %+v", nxsOptions.Env)
+	}
+	if nxsOptions.Env[nexusDisableAutoDreamEnvName] != "1" ||
+		nxsOptions.Env[nexusEnableAutoDreamEnvName] != "0" {
+		t.Fatalf("nxs AutoDream 总开关未投影: %+v", nxsOptions.Env)
 	}
 
 	claudeOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
@@ -185,6 +210,18 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 	if _, ok := claudeOptions.Env[enableToolSearchEnvName]; ok {
 		t.Fatalf("Claude runtime 不应接收 nxs ToolSearch 设置: %+v", claudeOptions.Env)
+	}
+	if _, ok := claudeOptions.Env[nexusDisableAutoMemoryExtractionEnvName]; ok {
+		t.Fatalf("Claude runtime 不应接收 nxs 自动记忆设置: %+v", claudeOptions.Env)
+	}
+	if _, ok := claudeOptions.Env[nexusEnableAutoMemoryExtractionEnvName]; ok {
+		t.Fatalf("Claude runtime 不应接收 nxs 自动记忆设置: %+v", claudeOptions.Env)
+	}
+	if _, ok := claudeOptions.Env[nexusDisableAutoDreamEnvName]; ok {
+		t.Fatalf("Claude runtime 不应接收 nxs AutoDream 设置: %+v", claudeOptions.Env)
+	}
+	if _, ok := claudeOptions.Env[nexusEnableAutoDreamEnvName]; ok {
+		t.Fatalf("Claude runtime 不应接收 nxs AutoDream 设置: %+v", claudeOptions.Env)
 	}
 }
 

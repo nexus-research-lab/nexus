@@ -1,5 +1,5 @@
 // INPUT: Preferences merge patch、Provider 模型目录与 runtime manager。
-// OUTPUT: 与 Web 设置一致的持久化默认值、WebSearch 热同步与失败回滚。
+// OUTPUT: 与 Web 设置一致的持久化默认值、运行偏好热同步与失败回滚。
 // POS: configuration 的 Preferences 事务式业务阶段。
 package configuration
 
@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 )
@@ -20,7 +19,8 @@ func (s *Service) updatePreferences(
 	rawInput json.RawMessage,
 	stateVersion int64,
 ) (preferencessvc.Preferences, error) {
-	webSearchChanged := inputContainsField(rawInput, "web_search") ||
+	runtimePreferencesChanged := inputContainsField(rawInput, "runtime_settings") ||
+		inputContainsField(rawInput, "web_search") ||
 		inputContainsField(rawInput, "web_search_api_key")
 	var previous preferencessvc.Preferences
 	updated, err := s.prefs.UpdatePreparedAtVersion(
@@ -39,11 +39,11 @@ func (s *Service) updatePreferences(
 	if err != nil {
 		return preferencessvc.Preferences{}, err
 	}
-	if !webSearchChanged {
+	if !runtimePreferencesChanged {
 		return updated, nil
 	}
 	if s.runtime == nil || s.agents == nil {
-		reconcileErr := errors.New("WebSearch 配置已写入，但活跃 runtime 同步依赖未装配")
+		reconcileErr := errors.New("运行偏好已写入，但活跃 runtime 同步依赖未装配")
 		_, _, restoreErr := s.prefs.RestoreIfVersion(
 			ctx,
 			actor.OwnerUserID,
@@ -52,7 +52,7 @@ func (s *Service) updatePreferences(
 		)
 		return preferencessvc.Preferences{}, errors.Join(reconcileErr, restoreErr)
 	}
-	if err = s.syncWebSearchRuntime(ctx, updated); err == nil {
+	if err = s.syncRuntimePreferences(ctx, updated); err == nil {
 		return updated, nil
 	}
 	restoredValue, restored, restoreErr := s.prefs.RestoreIfVersion(
@@ -66,9 +66,9 @@ func (s *Service) updatePreferences(
 	}
 	var rollbackStateErr error
 	if !restored {
-		rollbackStateErr = errors.New("WebSearch runtime 同步失败后的回滚已跳过：Preferences 已有后续写入")
+		rollbackStateErr = errors.New("运行偏好同步失败后的回滚已跳过：Preferences 已有后续写入")
 	}
-	runtimeRestoreErr := s.syncWebSearchRuntime(ctx, restoredValue)
+	runtimeRestoreErr := s.syncRuntimePreferences(ctx, restoredValue)
 	return preferencessvc.Preferences{}, errors.Join(err, rollbackStateErr, runtimeRestoreErr)
 }
 
@@ -106,13 +106,12 @@ func (s *Service) reconcileProviderPreferenceDefaults(
 	return request, nil
 }
 
-func (s *Service) syncWebSearchRuntime(ctx context.Context, preferences preferencessvc.Preferences) error {
+func (s *Service) syncRuntimePreferences(ctx context.Context, preferences preferencessvc.Preferences) error {
 	agents, err := s.agents.ListAgentRecords(ctx)
 	if err != nil {
 		return err
 	}
-	environment := runtimeselection.WebSearchConfigFromPreferences(preferences.WebSearch)
-	runtimeEnvironment := clientopts.BuildWebSearchRuntimeEnv("nxs", environment)
+	runtimeEnvironment := runtimeselection.RuntimeEnvironmentFromPreferences(preferences)
 	errs := make([]error, 0)
 	for _, item := range agents {
 		if err = s.runtime.UpdateEnvironmentForAgent(ctx, item.AgentID, runtimeEnvironment); err != nil {

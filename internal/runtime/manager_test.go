@@ -513,7 +513,13 @@ func TestManagerUpdateEnvironmentAttemptsEveryMatchingRuntime(t *testing.T) {
 	err := manager.UpdateEnvironmentForAgent(
 		context.Background(),
 		"agent-a",
-		map[string]string{"NEXUS_WEBSEARCH_CONFIG": `{"enabled":false}`},
+		map[string]string{
+			"NEXUS_DISABLE_AUTO_MEMORY_EXTRACTION": "1",
+			"NEXUS_ENABLE_AUTO_MEMORY_EXTRACTION":  "0",
+			"NEXUS_DISABLE_AUTO_DREAM":             "1",
+			"NEXUS_ENABLE_AUTO_DREAM":              "0",
+			"NEXUS_WEBSEARCH_CONFIG":               `{"enabled":false}`,
+		},
 	)
 	if err == nil {
 		t.Fatal("UpdateEnvironmentForAgent should return the failed runtime error")
