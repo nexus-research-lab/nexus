@@ -33,6 +33,7 @@ import type { UnresolvedToolStatus } from "./content-renderer-contract";
 
 export interface ContentBlockRenderContext {
   canRespondToPermissions: boolean;
+  defaultThinkingExpanded?: boolean;
   hiddenToolNames: ReadonlySet<string>;
   onOpenSubagentTask?: (
     toolUseId: string,
@@ -160,6 +161,7 @@ function renderThinkingBlock(
   }
   return (
     <ThinkingBlock
+      defaultExpanded={context.defaultThinkingExpanded}
       initialRevealFromEmpty={hasLiveStreamRevealMarker(block)}
       isStreaming={streaming}
       thinking={block.thinking}

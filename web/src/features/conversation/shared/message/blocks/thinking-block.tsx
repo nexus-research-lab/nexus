@@ -13,6 +13,7 @@ import {
 } from "../ui/message-rail";
 
 interface ThinkingBlockProps {
+  defaultExpanded?: boolean;
   thinking: string;
   initialRevealFromEmpty?: boolean;
   isStreaming?: boolean;
@@ -39,13 +40,17 @@ const THINKING_PRESENTATIONS: Readonly<Record<
 };
 
 export function ThinkingBlock({
+  defaultExpanded,
   thinking,
   initialRevealFromEmpty = false,
   isStreaming = false,
   workspaceAgentId,
 }: ThinkingBlockProps) {
   // 流式边界是展开状态的重置域；同一阶段内仍允许用户手动切换。
-  const expansion = useScrollAnchoredState(isStreaming, isStreaming);
+  const expansion = useScrollAnchoredState(
+    defaultExpanded ?? isStreaming,
+    isStreaming,
+  );
   const isExpanded = expansion.isOpen;
   const presentation = resolveThinkingPresentation(isStreaming);
   const preview = thinking.replace(/\s+/g, " ").trim();
