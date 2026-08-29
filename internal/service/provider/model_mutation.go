@@ -65,7 +65,7 @@ func (s *Service) fetchModelsForItem(
 		if modelID == "" {
 			continue
 		}
-		capabilities, category, contextWindow, maxOutput := model.modelCard()
+		capabilities, category, contextWindow, maxOutput := model.modelCard(item.ProviderKind)
 		entities = append(entities, providerstore.ModelEntity{
 			ID:                       s.idFactory("provider_model"),
 			ProviderID:               item.ID,
@@ -361,7 +361,7 @@ func (u *modelUpdate) persist() error {
 }
 
 func (u *modelUpdate) newModel() *providerstore.ModelEntity {
-	capabilities, category, contextWindow, maxOutput := defaultModelCard(u.modelID)
+	capabilities, category, contextWindow, maxOutput := defaultModelCard(u.modelID, u.item.ProviderKind)
 	contextWindow = modelLimitOrDefault(u.input.ContextWindow, contextWindow)
 	maxOutput = modelLimitOrDefault(u.input.MaxOutputTokens, maxOutput)
 	now := u.service.now()

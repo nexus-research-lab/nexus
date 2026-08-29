@@ -212,6 +212,10 @@ func TestUpdateModelCreatesManualModel(t *testing.T) {
 	if created.ModelID != "claude-manual-1" || !created.Enabled {
 		t.Fatalf("手动模型记录不正确: %+v", created)
 	}
+	if created.ContextWindow == nil || *created.ContextWindow != defaultModelContextWindow ||
+		created.MaxOutputTokens == nil || *created.MaxOutputTokens != defaultModelMaxOutputTokens {
+		t.Fatalf("手动模型缺少卡片信息时未应用默认值: %+v", created)
+	}
 	if created.CapabilitiesOverride.Reasoning == nil || !*created.CapabilitiesOverride.Reasoning {
 		t.Fatalf("手动模型能力覆盖未保存: %+v", created.CapabilitiesOverride)
 	}

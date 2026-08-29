@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Model discovery and manual model addition now fill missing LLM card metadata from the built-in catalog and stable runtime defaults, so settings show concrete limits instead of `auto` whenever the Provider omits them.
 - Aligned host-provided internal context with Claude Code attachment semantics: NXS keeps it in non-persistent live history, while the Claude runtime receives it through its native `UserPromptSubmit` hook attachment path.
 - Made the Agent SDK the sole loader for workspace `AGENTS.md` instructions, removing their duplicate Nexus prompt projection.
 - Moved ordinary DM and Room execution policy into the stable cached prompt and reduced each ordinary round to a compact lane marker while preserving the managed Execution, WorkGraph, and Runtime Graph projections.

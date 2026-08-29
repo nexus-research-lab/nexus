@@ -162,7 +162,7 @@ func TestRemoteModelCardPrefersProviderContextWindow(t *testing.T) {
 
 	providerValue := 321_000
 	model := remoteModel{ID: "glm-5.2", ContextWindow: &providerValue}
-	_, _, contextWindow, _ := model.modelCard()
+	_, _, contextWindow, _ := model.modelCard(ProviderKindLLM)
 	if contextWindow == nil || *contextWindow != providerValue {
 		t.Fatalf("Provider context_window 应覆盖内置目录: %v", contextWindow)
 	}
@@ -173,7 +173,7 @@ func TestRemoteModelCardPrefersProviderMaxOutputTokens(t *testing.T) {
 
 	providerValue := 64_000
 	model := remoteModel{ID: "deepseek-v4-flash", MaxOutputTokens: &providerValue}
-	_, _, _, maxOutputTokens := model.modelCard()
+	_, _, _, maxOutputTokens := model.modelCard(ProviderKindLLM)
 	if maxOutputTokens == nil || *maxOutputTokens != providerValue {
 		t.Fatalf("Provider max_output_tokens 应覆盖内置目录: %v", maxOutputTokens)
 	}
@@ -187,7 +187,7 @@ func TestRemoteModelCardPrefersProviderVisionCapability(t *testing.T) {
 		ID:           "gpt-5.4",
 		Capabilities: ModelCapabilities{Vision: &unsupported},
 	}
-	capabilities, _, _, _ := model.modelCard()
+	capabilities, _, _, _ := model.modelCard(ProviderKindLLM)
 	if capabilities.Vision == nil || *capabilities.Vision {
 		t.Fatalf("Provider vision=false 应覆盖内置目录: %v", capabilities.Vision)
 	}
@@ -222,12 +222,29 @@ func TestRemoteModelFromCardReadsCamelCaseTokenLimits(t *testing.T) {
 	}
 }
 
-func TestDefaultModelCardFillsKnownContextWindow(t *testing.T) {
+func TestDefaultModelCardFillsCatalogAndRuntimeDefaults(t *testing.T) {
 	t.Parallel()
 
-	_, _, contextWindow, _ := defaultModelCard("kimi-for-coding")
+	capabilities, category, contextWindow, maxOutputTokens := defaultModelCard("kimi-for-coding", ProviderKindLLM)
 	if contextWindow == nil || *contextWindow != 262_144 {
 		t.Fatalf("手动添加模型未应用内置上下文窗口: %v", contextWindow)
+	}
+	if maxOutputTokens == nil || *maxOutputTokens != defaultModelMaxOutputTokens {
+		t.Fatalf("模型缺少输出上限时未应用运行时默认值: %v", maxOutputTokens)
+	}
+	if category != "chat" || capabilities.Vision == nil || !*capabilities.Vision {
+		t.Fatalf("手动添加模型未应用内置模型卡: category=%s capabilities=%+v", category, capabilities)
+	}
+
+	_, _, contextWindow, maxOutputTokens = defaultModelCard("private-model-v1", ProviderKindLLM)
+	if contextWindow == nil || *contextWindow != defaultModelContextWindow ||
+		maxOutputTokens == nil || *maxOutputTokens != defaultModelMaxOutputTokens {
+		t.Fatalf("未知 LLM 未应用运行时默认值: context=%v output=%v", contextWindow, maxOutputTokens)
+	}
+
+	_, category, contextWindow, maxOutputTokens = defaultModelCard("image-model-v1", ProviderKindImageGeneration)
+	if category != "image" || contextWindow != nil || maxOutputTokens != nil {
+		t.Fatalf("生图模型不应应用 LLM token 默认值: category=%s context=%v output=%v", category, contextWindow, maxOutputTokens)
 	}
 }
 
@@ -247,6 +264,14 @@ func TestStoredModelWithoutLimitsUsesKnownCatalog(t *testing.T) {
 	}
 	if record.MaxOutputTokens == nil || *record.MaxOutputTokens != 384_000 {
 		t.Fatalf("模型列表未展示内置输出上限: %v", record.MaxOutputTokens)
+	}
+	legacy := toModelRecord(providerstore.ModelEntity{
+		ModelID:              "gpt-5.6-sol",
+		CapabilitiesAutoJSON: "{}",
+	})
+	if legacy.CapabilitiesAuto.Vision == nil || !*legacy.CapabilitiesAuto.Vision ||
+		legacy.CapabilitiesAuto.Reasoning == nil || !*legacy.CapabilitiesAuto.Reasoning {
+		t.Fatalf("模型列表未展示内置能力: %+v", legacy.CapabilitiesAuto)
 	}
 }
 

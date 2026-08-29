@@ -143,7 +143,7 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 		Category:             item.Category,
 		Enabled:              item.Enabled,
 		IsDefault:            item.IsDefault,
-		CapabilitiesAuto:     decodeModelCapabilities(item.CapabilitiesAutoJSON),
+		CapabilitiesAuto:     modelCapabilitiesWithDefaults(modelID, decodeModelCapabilities(item.CapabilitiesAutoJSON)),
 		CapabilitiesOverride: decodeModelCapabilities(item.CapabilitiesOverrideJSON),
 		ContextWindow:        contextWindowOrKnown(modelID, item.ContextWindow),
 		MaxOutputTokens:      maxOutputTokensOrKnown(modelID, item.MaxOutputTokens),
