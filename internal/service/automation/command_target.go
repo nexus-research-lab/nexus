@@ -53,6 +53,10 @@ func runtimeCommandTargets(
 	actor command.Actor,
 	input automationdomain.AutomationCommandInput,
 ) (automationdomain.SessionTarget, automationdomain.DeliveryTarget, error) {
+	if strings.TrimSpace(input.DeliveryChannel) != "" {
+		return automationdomain.SessionTarget{}, automationdomain.DeliveryTarget{},
+			errors.New("delivery_channel 只用于查询 delivery_targets；创建或修改任务请使用宿主返回的 delivery_session_key")
+	}
 	advanced := strings.TrimSpace(input.ExecutionMode) != "" ||
 		strings.TrimSpace(input.ReplyMode) != "" ||
 		strings.TrimSpace(input.SelectedSessionKey) != "" ||
@@ -80,6 +84,17 @@ func runtimeCommandTargets(
 		return automationdomain.SessionTarget{}, automationdomain.DeliveryTarget{}, err
 	}
 	replyMode := strings.TrimSpace(input.ReplyMode)
+	if strings.TrimSpace(input.DeliverySessionKey) != "" {
+		if replyMode != "" {
+			return automationdomain.SessionTarget{}, automationdomain.DeliveryTarget{},
+				errors.New("delivery_session_key 与 reply_mode 不能同时使用")
+		}
+		if input.DeliverResult != nil && !*input.DeliverResult {
+			return automationdomain.SessionTarget{}, automationdomain.DeliveryTarget{},
+				errors.New("delivery_session_key 与 deliver_result=false 不能同时使用")
+		}
+		replyMode = "selected"
+	}
 	if replyMode == "" {
 		deliver := strings.TrimSpace(actor.SessionKey) != ""
 		if input.DeliverResult != nil {
@@ -175,12 +190,18 @@ func runtimeCommandDelivery(
 		}
 		return runtimeCommandDeliveryFromSession(sessionKey), nil
 	case "selected":
-		sessionKey := strings.TrimSpace(input.SelectedReplySessionKey)
+		sessionKey := strings.TrimSpace(input.DeliverySessionKey)
+		if sessionKey == "" {
+			sessionKey = strings.TrimSpace(input.SelectedReplySessionKey)
+		}
 		if sessionKey == "" {
 			sessionKey = strings.TrimSpace(actor.SessionKey)
 		}
 		if sessionKey == "" {
-			return automationdomain.DeliveryTarget{}, errors.New("reply_mode=selected requires selected_reply_session_key")
+			return automationdomain.DeliveryTarget{}, errors.New("selected delivery requires delivery_session_key or selected_reply_session_key")
+		}
+		if _, err := protocol.RequireStructuredSessionKey(sessionKey); err != nil {
+			return automationdomain.DeliveryTarget{}, err
 		}
 		return runtimeCommandDeliveryFromSession(sessionKey), nil
 	case "channel":

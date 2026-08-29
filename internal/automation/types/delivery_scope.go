@@ -13,9 +13,9 @@ import (
 
 // ValidateSelfScopedDeliveryTarget 验证普通 Agent 的投递目标。
 //
-// 自身 Agent session 可用于当前 DM 或已明确选择的真实会话。共享 Room 与
-// 外部 Channel 必须精确匹配创建/最近一次对话修改时保存的可信 source session；
-// 因而仅知道另一个 Agent、群或外部收件人的 ID 不能扩大投递范围。
+// 自身 Agent session 可用于当前 DM 或宿主目录返回的真实会话。共享 Room 必须
+// 精确匹配可信 source；外部 DM 还会在 service 层实时校验 active pairing。
+// 因而仅知道另一个 Agent、群或裸外部收件人的 ID 不能扩大投递范围。
 func ValidateSelfScopedDeliveryTarget(
 	agentID string,
 	grantedSessionKey string,
@@ -80,8 +80,11 @@ func validateSelfScopedRouteSession(
 		if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
 			return nil
 		}
-		if targetSessionKey != strings.TrimSpace(grantedSessionKey) {
-			return errors.New("external automation delivery is limited to the current explicitly granted conversation")
+		if targetSessionKey == strings.TrimSpace(grantedSessionKey) {
+			return nil
+		}
+		if protocol.NormalizeSessionChatType(parsed.ChatType) != protocol.RoomTypeDM {
+			return errors.New("cross-session external automation delivery is limited to an active-paired DM")
 		}
 		return nil
 	default:

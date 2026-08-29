@@ -88,9 +88,10 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 - `context_mode=current|isolated`
 - `deliver_result=true|false`
+- 可选 `delivery_session_key`，但只能原样使用同一 Agent 的 `delivery_targets` 查询返回值
 - 可选 `permission_mode`
 
-在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。普通 tool schema 不暴露 channel、account、target 或 thread 等宿主路由参数；严格结构化解码拒绝未知字段，service 再按 round actor 自动绑定真实路由。只有主智能体自己的 Nexus WebSocket 私有 DM authority 可以使用跨 Agent/Session 高级字段，且目标仍必须是当前 owner 下已存在、可验证的真实 Session，不能创建合成 Agent 收件箱。后台 scheduled run authority 固定为只读并绑定 exact job/run。
+在 active-paired IM 私聊中，`current + deliver_result=true` 表示可信当前 IM Session。用户从 Nexus 桌面会话明确要求投递到同一 Agent 的另一个已配对私聊时，Agent 先按可选 channel 查询 `delivery_targets`，再把返回的结构化 SessionKey 原样作为 `delivery_session_key`；宿主只返回当前 owner、目标 Agent 下仍 active-paired 且已存在的 DM，并在 plan、apply、执行投递、审批和重试阶段重新验证。普通 tool schema 仍不暴露可自行拼装的 account、recipient 或 thread；SessionKey 是选择器，不是授权凭据。共享 Room 仍只能使用可信当前 Room，跨 Agent/Session 高级字段仍只开放给主智能体自己的 Nexus WebSocket 私有 DM。后台 scheduled run authority 固定为只读并绑定 exact job/run。
 
 list/get 的“这里、当前群、当前会话”等词按 Actor 的结构化 SessionKey 匹配任务 source、bound execution Session 和 delivery Session。active-paired 外部 IM 的空 list/report 默认也只覆盖当前会话，零匹配返回空而不能回退到 Agent 全量；外部 IM 不开放 heartbeat 配置查询。已删除任务的 runs/events 仍接受精确 job_id；`enabled` 和会话过滤必须在用户 limit 之前执行。
 

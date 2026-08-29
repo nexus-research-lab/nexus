@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -53,5 +54,46 @@ func TestValidateAutomationDeliveryGrantRequiresExactActivePairing(t *testing.T)
 	}
 	if err = service.ValidateAutomationDeliveryGrant(context.Background(), "owner-a", "agent-a", sessionKey); err == nil {
 		t.Fatal("pairing 不再 active 后 Automation 投递必须立即 fail closed")
+	}
+}
+
+func TestListAutomationDeliverySessionsReturnsOnlyActivePairedDMs(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	activeDM, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType:  ChannelTypeWeixinPersonal,
+		AccountID:    "weixin-account",
+		ChatType:     protocol.RoomTypeDM,
+		ExternalRef:  "weixin-user",
+		ExternalName: "捷哥",
+		AgentID:      "agent-a",
+		Status:       PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range []CreatePairingRequest{
+		{ChannelType: ChannelTypeWeixinPersonal, ChatType: protocol.RoomTypeGroup, ExternalRef: "group", AgentID: "agent-a", Status: PairingStatusActive},
+		{ChannelType: ChannelTypeWeixinPersonal, ChatType: protocol.RoomTypeDM, ExternalRef: "other-agent", AgentID: "agent-b", Status: PairingStatusActive},
+		{ChannelType: ChannelTypeWeixinPersonal, ChatType: protocol.RoomTypeDM, ExternalRef: "disabled", AgentID: "agent-a", Status: PairingStatusDisabled},
+	} {
+		if _, err = service.CreatePairing(context.Background(), "owner-a", request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	items, err := service.ListAutomationDeliverySessions(
+		context.Background(), "owner-a", "agent-a", ChannelTypeWeixinPersonal,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].SessionKey != activeDM.SessionKey || items[0].Label != "捷哥" {
+		t.Fatalf("Automation delivery sessions = %+v", items)
+	}
+	if _, err = service.ListAutomationDeliverySessions(
+		context.Background(), "owner-a", "agent-a", ChannelTypeWebSocket,
+	); !errors.Is(err, ErrExternalSessionGrantUnavailable) {
+		t.Fatalf("non-IM delivery directory error = %v", err)
 	}
 }

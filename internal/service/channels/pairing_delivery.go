@@ -15,6 +15,14 @@ import (
 // ErrExternalSessionGrantUnavailable 表示外部会话当前无法证明持有精确 active pairing。
 var ErrExternalSessionGrantUnavailable = errors.New("external IM pairing grant is unavailable")
 
+// AutomationDeliverySession 是 Automation 可安全选择的 active-paired 私聊。
+type AutomationDeliverySession struct {
+	SessionKey string
+	Channel    string
+	Label      string
+	AgentID    string
+}
+
 func unavailableExternalSessionGrant(reason string) error {
 	return fmt.Errorf("%w: %s", ErrExternalSessionGrantUnavailable, reason)
 }
@@ -27,6 +35,51 @@ func (s *ControlService) ValidateAutomationDeliveryGrant(
 	sessionKey string,
 ) error {
 	return s.ValidateExternalSessionGrant(ctx, ownerUserID, agentID, sessionKey)
+}
+
+// ListAutomationDeliverySessions 列出同 owner、同 Agent 的 active-paired 私聊。
+// 返回结构化 Session，而不是裸 recipient，后续创建与投递仍会再次校验 pairing。
+func (s *ControlService) ListAutomationDeliverySessions(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+	channelType string,
+) ([]AutomationDeliverySession, error) {
+	channelType = normalizeIMChannelType(channelType)
+	if channelType != "" {
+		if _, ok := channelCatalogByType(channelType); !ok ||
+			channelType == ChannelTypeInternal || channelType == ChannelTypeWebSocket {
+			return nil, unavailableExternalSessionGrant("channel is not an external IM transport")
+		}
+	}
+	rows, err := s.listPairingRows(ctx, normalizeChannelOwnerUserID(ownerUserID), PairingQuery{
+		ChannelType: channelType,
+		Status:      PairingStatusActive,
+		AgentID:     strings.TrimSpace(agentID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]AutomationDeliverySession, 0, len(rows))
+	for _, row := range rows {
+		if protocol.NormalizeSessionChatType(row.ChatType) != protocol.RoomTypeDM {
+			continue
+		}
+		result = append(result, AutomationDeliverySession{
+			SessionKey: protocol.BuildAgentAccountSessionKey(
+				row.AgentID,
+				protocol.NormalizeSessionKeyChannelSegment(row.ChannelType),
+				row.ChatType,
+				row.AccountID,
+				row.ExternalRef,
+				row.ThreadID,
+			),
+			Channel: row.ChannelType,
+			Label:   nullStringValue(row.ExternalName),
+			AgentID: row.AgentID,
+		})
+	}
+	return result, nil
 }
 
 // ValidateExternalSessionGrant 验证结构化外部会话仍精确绑定到当前 owner 与 Agent。

@@ -23,6 +23,15 @@ type mutableAutomationDeliveryGrant struct {
 	calls    []string
 }
 
+func (g *mutableAutomationDeliveryGrant) ListAutomationDeliverySessions(
+	context.Context,
+	string,
+	string,
+	string,
+) ([]channels.AutomationDeliverySession, error) {
+	return nil, nil
+}
+
 func (g *mutableAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
 	ctx context.Context,
 	_ string,

@@ -8,7 +8,44 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
+
+type fixedAutomationDeliveryAuthority struct {
+	sessions []channels.AutomationDeliverySession
+}
+
+func (f fixedAutomationDeliveryAuthority) ValidateAutomationDeliveryGrant(
+	context.Context,
+	string,
+	string,
+	string,
+) error {
+	return nil
+}
+
+func (f fixedAutomationDeliveryAuthority) ListAutomationDeliverySessions(
+	context.Context,
+	string,
+	string,
+	string,
+) ([]channels.AutomationDeliverySession, error) {
+	return append([]channels.AutomationDeliverySession(nil), f.sessions...), nil
+}
+
+type fixedAutomationDeliverySessionResolver map[string]protocol.Session
+
+func (f fixedAutomationDeliverySessionResolver) ResolveDeliverySession(
+	_ context.Context,
+	sessionKey string,
+) (*protocol.Session, error) {
+	item, ok := f[sessionKey]
+	if !ok {
+		return nil, nil
+	}
+	return &item, nil
+}
 
 func TestAutomationCommandCronScheduleAcceptsStandardFiveField(t *testing.T) {
 	for _, expression := range []string{"0 9 15 * *", "*/15 9-17 * * 1-5"} {
@@ -106,6 +143,94 @@ func TestRuntimeCommandCreateUsesPlanConfirmationAndIdempotency(t *testing.T) {
 	items, ok := listed.([]automationdomain.ScheduledTask)
 	if !ok || len(items) != 1 || items[0].JobID != created.JobID {
 		t.Fatalf("listed tasks = %#v", listed)
+	}
+}
+
+func TestRuntimeCommandSelectsSameAgentPairedDMSession(t *testing.T) {
+	fixture := newAutomationCommandFixture(t, "ok")
+	actor := fixture.ServerContext
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		actor.AgentID,
+		protocol.SessionChannelWeixinPersonal,
+		protocol.RoomTypeDM,
+		"weixin-account",
+		"weixin-user",
+		"",
+	)
+	fixture.Service.SetDeliveryGrantResolver(fixedAutomationDeliveryAuthority{sessions: []channels.AutomationDeliverySession{{
+		SessionKey: sessionKey,
+		Channel:    protocol.SessionChannelWeixinPersonal,
+		Label:      "捷哥",
+		AgentID:    actor.AgentID,
+	}}})
+	fixture.Service.SetDeliverySessionResolver(fixedAutomationDeliverySessionResolver{
+		sessionKey: {
+			SessionKey:  sessionKey,
+			AgentID:     actor.AgentID,
+			ChannelType: protocol.SessionChannelWeixinPersonal,
+			ChatType:    protocol.RoomTypeDM,
+			Title:       "捷哥",
+		},
+	})
+
+	listed, err := fixture.Service.InspectRuntimeCommand(
+		context.Background(),
+		actor,
+		automationdomain.AutomationCommandOperationDeliveryTargets,
+		automationdomain.AutomationCommandInput{DeliveryChannel: protocol.SessionChannelWeixinPersonal},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, ok := listed.([]automationdomain.AutomationCommandDeliverySession)
+	if !ok || len(targets) != 1 || targets[0].SessionKey != sessionKey || targets[0].Label != "捷哥" {
+		t.Fatalf("delivery_targets = %#v", listed)
+	}
+
+	input := automationdomain.AutomationCommandInput{
+		Name: "微信提醒", Instruction: "提醒捷哥跟进客户",
+		Schedule: &automationdomain.AutomationCommandSchedule{
+			Kind: "daily", DailyTime: "09:00", Timezone: "Asia/Shanghai",
+		},
+		DeliverySessionKey: sessionKey,
+	}
+	plan, err := fixture.Service.PlanRuntimeCommand(
+		context.Background(), actor, automationdomain.AutomationCommandOperationCreate, input,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := fixture.Service.ApplyRuntimeCommand(
+		context.Background(),
+		actor,
+		automationdomain.AutomationCommandRequest{
+			Action: automationdomain.AutomationCommandActionApply, Operation: automationdomain.AutomationCommandOperationCreate,
+			Input: input, RequestID: "runtime-weixin-delivery",
+			ExpectedRevision: plan.CurrentRevision, PlanDigest: plan.PlanDigest,
+		},
+		RuntimeCommandApplyOptions{HumanConfirmed: true, HumanApprovalRequestID: "test-approval"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := result.Data.(*automationdomain.ScheduledTask)
+	if created.Delivery.Mode != automationdomain.DeliveryModeLast ||
+		created.Delivery.SessionKey != sessionKey ||
+		created.DeliveryGrant.SessionKey != actor.SessionKey {
+		t.Fatalf("created delivery = %+v grant=%+v", created.Delivery, created.DeliveryGrant)
+	}
+	otherAgentInput := input
+	otherAgentInput.DeliverySessionKey = protocol.BuildAgentSessionKey(
+		"agent-2",
+		protocol.SessionChannelWeixinPersonal,
+		protocol.RoomTypeDM,
+		"other-user",
+		"",
+	)
+	if _, err = fixture.Service.PlanRuntimeCommand(
+		context.Background(), actor, automationdomain.AutomationCommandOperationCreate, otherAgentInput,
+	); err == nil {
+		t.Fatal("ordinary Agent unexpectedly selected another Agent delivery Session")
 	}
 }
 

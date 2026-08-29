@@ -66,6 +66,12 @@ type automationResultDeliveryRouter interface {
 
 type deliveryGrantResolver interface {
 	ValidateAutomationDeliveryGrant(context.Context, string, string, string) error
+	ListAutomationDeliverySessions(
+		context.Context,
+		string,
+		string,
+		string,
+	) ([]channels.AutomationDeliverySession, error)
 }
 
 type deliverySessionResolver interface {

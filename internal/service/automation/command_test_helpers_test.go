@@ -42,6 +42,15 @@ func (allowAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
 	return nil
 }
 
+func (allowAutomationDeliveryGrant) ListAutomationDeliverySessions(
+	context.Context,
+	string,
+	string,
+	string,
+) ([]channels.AutomationDeliverySession, error) {
+	return nil, nil
+}
+
 func newAutomationCommandFixture(t *testing.T, resultText string) automationCommandFixture {
 	t.Helper()
 	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
