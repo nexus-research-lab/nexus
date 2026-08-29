@@ -376,6 +376,10 @@ function ToolProcessSegmentContent({
       canRespondToPermissions={environment.canRespondToPermissions}
       className="space-y-0.5"
       content={projection.content}
+      defaultThinkingExpanded={
+        environment.mode === "room_thread"
+        || environment.mode === "room_thread_process"
+      }
       fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}

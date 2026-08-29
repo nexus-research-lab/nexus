@@ -38,6 +38,7 @@ export function StructuredContentRenderer(
     canRespondToPermissions,
     className,
     content,
+    defaultThinkingExpanded,
     fallbackActivityLabel,
     fallbackActivityState,
     hiddenToolNames,
@@ -69,6 +70,7 @@ export function StructuredContentRenderer(
   });
   const renderContext: ContentBlockRenderContext = {
     canRespondToPermissions,
+    defaultThinkingExpanded,
     hiddenToolNames: hiddenToolNameSet,
     onOpenSubagentTask,
     onOpenWorkspaceFile,
