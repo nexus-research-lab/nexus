@@ -11,7 +11,6 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	nxsruntimesvc "github.com/nexus-research-lab/nexus/internal/service/nxsruntime"
@@ -138,7 +137,8 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 		return
 	}
 	ownerUserID := currentOwnerUserID(request)
-	webSearchChanged := payload.WebSearch != nil || payload.WebSearchAPIKey != nil
+	runtimePreferencesChanged := payload.RuntimeSettings != nil ||
+		payload.WebSearch != nil || payload.WebSearchAPIKey != nil
 	var previous preferencessvc.Preferences
 	var defaultSelection providercfg.DefaultAgentSelection
 	var defaultSelectionChanged bool
@@ -179,8 +179,8 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 			return
 		}
 	}
-	if webSearchChanged {
-		if err = h.syncWebSearchRuntime(request.Context(), item); err != nil {
+	if runtimePreferencesChanged {
+		if err = h.syncRuntimePreferences(request.Context(), item); err != nil {
 			err = errors.Join(err, h.rollbackPreferencesMutation(
 				request.Context(), ownerUserID, item, previous, defaultSelectionChanged, true,
 			))
@@ -218,12 +218,12 @@ func (h *Handlers) rollbackPreferencesMutation(
 	}
 	var runtimeRestoreErr error
 	if restoreRuntime {
-		runtimeRestoreErr = h.syncWebSearchRuntime(ctx, rollbackValue)
+		runtimeRestoreErr = h.syncRuntimePreferences(ctx, rollbackValue)
 	}
 	return errors.Join(reconcileErr, runtimeRestoreErr)
 }
 
-func (h *Handlers) syncWebSearchRuntime(ctx context.Context, preferences preferencessvc.Preferences) error {
+func (h *Handlers) syncRuntimePreferences(ctx context.Context, preferences preferencessvc.Preferences) error {
 	if h.runtime == nil || h.agents == nil {
 		return nil
 	}
@@ -231,10 +231,7 @@ func (h *Handlers) syncWebSearchRuntime(ctx context.Context, preferences prefere
 	if err != nil {
 		return err
 	}
-	environment := clientopts.BuildWebSearchRuntimeEnv(
-		"nxs",
-		runtimeselectionsvc.WebSearchConfigFromPreferences(preferences.WebSearch),
-	)
+	environment := runtimeselectionsvc.RuntimeEnvironmentFromPreferences(preferences)
 	for _, item := range agents {
 		if err := h.runtime.UpdateEnvironmentForAgent(ctx, item.AgentID, environment); err != nil {
 			return err

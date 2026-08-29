@@ -247,6 +247,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		ExtraEnv:                   extraEnv,
 		ConfigurationEnv:           configurationRuntimeEnv,
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
+		AutoMemoryDisabled:         selection.AutoMemoryDisabled,
+		AutoDreamDisabled:          selection.AutoDreamDisabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,

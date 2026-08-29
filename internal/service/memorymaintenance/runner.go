@@ -16,7 +16,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
@@ -28,10 +27,6 @@ const (
 	autoDreamWakeModeHost       = "host"
 	internalRuntimeCloseTimeout = 10 * time.Second
 )
-
-type preferencesService interface {
-	Get(context.Context, string) (preferencessvc.Preferences, error)
-}
 
 type runtimeDreamRunner struct {
 	config      config.Config
@@ -56,11 +51,24 @@ func NewCoordinator(
 		selector:    runtimeselectionsvc.NewService(preferences),
 		admission:   admission,
 	}
-	return newCoordinator(cfg.MemoryMaintenance, agents, runner)
+	return newCoordinator(cfg.MemoryMaintenance, agents, preferences, runner)
 }
 
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
+	selection, err := r.selector.Resolve(ownerContext, runtimeselectionsvc.Request{
+		Agent:        &agentValue,
+		OwnerUserIDs: []string{agentValue.OwnerUserID},
+	})
+	if err != nil {
+		return agentclient.AutoDreamResult{}, err
+	}
+	if selection.AutoDreamDisabled {
+		return agentclient.AutoDreamResult{
+			Status: agentclient.AutoDreamStatusSkipped,
+			Reason: "gate_closed",
+		}, nil
+	}
 	if err := workspacepkg.EnsureUserSkillLibrary(r.config, agentValue.OwnerUserID); err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
@@ -72,13 +80,6 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		r.config,
 		agentValue,
 	)
-	if err != nil {
-		return agentclient.AutoDreamResult{}, err
-	}
-	selection, err := r.selector.Resolve(ownerContext, runtimeselectionsvc.Request{
-		Agent:        &agentValue,
-		OwnerUserIDs: []string{agentValue.OwnerUserID},
-	})
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
@@ -113,6 +114,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		DisabledSkillIDs:     runtimeDisabledSkillNames,
 		SkillDirectories:     workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
 		SettingSources:       ensureProjectSettingsSource(agentValue.Options.SettingSources),
+		AutoDreamDisabled:    selection.AutoDreamDisabled,
 		ToolSearchEnabled:    selection.ToolSearchEnabled,
 		WebSearch:            selection.WebSearch,
 		RuntimeIsolationMode: r.config.RuntimeIsolationMode,
