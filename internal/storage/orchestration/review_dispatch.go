@@ -21,22 +21,21 @@ func (r *Repository) normalizeReviewDispatch(
 	meta CommandMeta,
 	now time.Time,
 ) (*protocol.ExecutionReviewDispatch, error) {
-	if assignment.Strategy != protocol.AssignmentStrategyRoomMember {
-		if source != nil {
-			return nil, fmt.Errorf(
-				"%w: review-return Dispatch is only valid for Room member Assignment",
-				ErrInvariant,
-			)
-		}
-		return nil, nil
-	}
+	crossAgentReview := strings.TrimSpace(assignment.ReturnToAgentID) !=
+		strings.TrimSpace(assignment.OwnerAgentID)
 	if source == nil {
-		if strings.TrimSpace(assignment.ReturnToAgentID) ==
-			strings.TrimSpace(assignment.OwnerAgentID) {
+		// self 同时用于 DM 与 Room，只有服务层提供的回投才能证明这是 Room 跨 Agent 审核。
+		if assignment.Strategy != protocol.AssignmentStrategyRoomMember || !crossAgentReview {
 			return nil, nil
 		}
 		return nil, fmt.Errorf(
 			"%w: cross-Agent Room Submission requires a review-return Dispatch",
+			ErrInvariant,
+		)
+	}
+	if !crossAgentReview {
+		return nil, fmt.Errorf(
+			"%w: self-review Assignment must not create a review-return Dispatch",
 			ErrInvariant,
 		)
 	}

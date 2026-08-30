@@ -176,6 +176,43 @@ func TestRepositoryRoomSubmitAtomicallyCreatesReviewDispatch(t *testing.T) {
 	}
 }
 
+func TestNormalizeReviewDispatchAllowsSelfAssignmentWithIndependentReviewer(t *testing.T) {
+	repository := &Repository{}
+	submission := protocol.WorkSubmission{
+		ID:           "submission-independent-review",
+		ExecutionID:  "execution-independent-review",
+		PlanID:       "plan-independent-review",
+		WorkItemID:   "work-independent-review",
+		SpecID:       "spec-independent-review",
+		AssignmentID: "assignment-independent-review",
+	}
+	assignment := protocol.WorkAssignment{
+		ID:              submission.AssignmentID,
+		OwnerAgentID:    "agent-coordinator",
+		ReturnToAgentID: "agent-reviewer",
+		Strategy:        protocol.AssignmentStrategySelf,
+	}
+	dispatch, err := repository.normalizeReviewDispatch(
+		&protocol.ExecutionReviewDispatch{
+			ID:            "review-dispatch-independent-review",
+			TargetAgentID: assignment.ReturnToAgentID,
+			Status:        protocol.ExecutionReviewDispatchStatusPending,
+			Instruction:   "review the coordinator deliverable",
+		},
+		submission,
+		assignment,
+		testMeta("submit-independent-review"),
+		time.Now(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dispatch == nil || dispatch.AssignmentID != assignment.ID ||
+		dispatch.TargetAgentID != assignment.ReturnToAgentID {
+		t.Fatalf("independent review Dispatch = %+v", dispatch)
+	}
+}
+
 func TestRepositoryRoomSelfReviewSubmitNeedsNoReviewDispatch(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()

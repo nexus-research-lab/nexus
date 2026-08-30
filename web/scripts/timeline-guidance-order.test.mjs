@@ -1236,6 +1236,37 @@ test("Room public activity survives the pause between reply text and tool work",
     "the running tool header does not add a second loading spinner",
   );
 
+  const toolOnlyContinuation = {
+    ...assistantMessage({
+      agentId: "agent-public-activity",
+      agentRoundId: "agent-round-public-activity",
+      isComplete: true,
+      messageId: "assistant-public-tool-only-turn",
+      roundId: "round-public-activity",
+      status: "done",
+      stopReason: "tool_use",
+      text: "",
+      timestamp: 3,
+    }),
+    content: [{
+      id: "tool-public-write",
+      input: { file_path: "research.md" },
+      name: "Write",
+      type: "tool_use",
+    }],
+  };
+  const persistentReplyHtml = renderShell({
+    messages: [completedPublicTurn, toolOnlyContinuation],
+    status: "streaming",
+  });
+  assert.match(persistentReplyHtml, /我先说明计划，随后继续在/);
+  assert.match(persistentReplyHtml, /写入内容 research\.md/);
+  assert.ok(
+    persistentReplyHtml.indexOf("我先说明计划")
+      < persistentReplyHtml.indexOf("写入内容 research.md"),
+    "a tool-only turn keeps the latest public reply in its fixed slot",
+  );
+
   const workingAfterReplyHtml = renderShell({
     messages: [
       toolContinuation,
@@ -1254,6 +1285,7 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingAfterReplyHtml, /data-room-tool-activity/);
   assert.match(workingAfterReplyHtml, /网络搜索 M3 product line/);
   assert.doesNotMatch(workingAfterReplyHtml, /正在回复/);
+  assert.doesNotMatch(workingAfterReplyHtml, /我先搜索产品线信息。/);
   assert.ok(
     workingAfterReplyHtml.indexOf("先同步当前进度")
       < workingAfterReplyHtml.indexOf("网络搜索 M3 product line"),
@@ -2419,6 +2451,7 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
     },
   ));
   assert.match(threadHtml, /aria-expanded="true"/);
+  assert.match(threadHtml, /aria-expanded="false"/);
   assert.match(threadHtml, /data-tool-run-detail-list/);
   assert.match(threadHtml, /Thought 0/);
   assert.doesNotMatch(threadHtml, /before:bottom-0/);
@@ -2528,6 +2561,22 @@ test("Thought detail uses compact tool-detail typography", async () => {
   assert.match(html, /data-message-detail-sticky-header="true"/);
   assert.match(html, /data-message-detail-follow="true"/);
   assert.match(html, /data-markdown-streaming="true"/);
+});
+
+test("a newer semantic block closes the preceding smooth stream", async () => {
+  const { findLastStreamableBlockIndex } = await server.ssrLoadModule(
+    "/src/hooks/conversation/use-assistant-content-merge.ts",
+  );
+  const thinking = { type: "thinking", thinking: "先确认范围" };
+
+  assert.equal(findLastStreamableBlockIndex([thinking]), 0);
+  assert.equal(
+    findLastStreamableBlockIndex([
+      thinking,
+      { type: "tool_use", id: "tool-after-thinking", name: "Bash", input: {} },
+    ]),
+    -1,
+  );
 });
 
 test("semantic tool rejection stays distinct from transport completion in DM and Room", async () => {
@@ -3642,6 +3691,9 @@ test("Room keeps separate agent_round entries for the same agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
   );
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
   const oldResult = assistantMessage({
     agentRoundId: "agent-round-old",
     isComplete: true,
@@ -3715,6 +3767,57 @@ test("Room keeps separate agent_round entries for the same agent", async () => {
     entries[1]?.assistant_messages.map((message) => message.message_id),
     ["assistant-legacy-new"],
   );
+
+  const interruptedToolTurn = assistantMessage({
+    agentRoundId: "agent-round-interrupted",
+    isComplete: true,
+    messageId: "assistant-interrupted-tool-turn",
+    roundId: "round-root",
+    status: "done",
+    stopReason: "tool_use",
+    text: "旧执行仍在调用工具",
+    timestamp: 30,
+  });
+  const completedRestart = assistantMessage({
+    agentRoundId: "agent-round-restarted",
+    isComplete: true,
+    messageId: "assistant-restarted-result",
+    roundId: "round-root",
+    status: "done",
+    stopReason: "end_turn",
+    text: "重启后的执行已完成",
+    timestamp: 40,
+  });
+  entries = buildRoomAgentRoundEntries([
+    interruptedToolTurn,
+    completedRestart,
+  ]);
+  assert.deepEqual(
+    entries.map(({ agent_round_id, status }) => ({ agent_round_id, status })),
+    [
+      { agent_round_id: "agent-round-interrupted", status: "cancelled" },
+      { agent_round_id: "agent-round-restarted", status: "done" },
+    ],
+    "a historical tool turn superseded by a later execution is stopped",
+  );
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-root", [
+      interruptedToolTurn,
+      completedRestart,
+    ]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-root"],
+  });
+  const interruptedNodeId = projection.roundIds.find((nodeId) => (
+    projection.messageGroups.get(nodeId)?.some(
+      (message) => message.message_id === interruptedToolTurn.message_id,
+    )
+  ));
+  assert.ok(interruptedNodeId);
+  const interruptedNodeStates =
+    projection.roomAgentExecutionStateGroups.get(interruptedNodeId) ?? [];
+  assert.equal(interruptedNodeStates[0]?.status, "cancelled");
 });
 
 test("Room Agent slot order survives live, terminal, and history projections", async () => {
@@ -4579,6 +4682,40 @@ test("Room Assistant turn completion keeps its Agent execution active", async ()
     afterActiveSnapshot[0]?.phase,
     "active",
     "a reconnect snapshot cannot close an already observed live execution",
+  );
+  const afterRestart = syncRoomAgentExecutionsFromMessages(
+    fromDurableTurn,
+    [assistantMessage({
+      agentId: "agent-tool",
+      agentRoundId: "agent-round-completed-restart",
+      isComplete: true,
+      messageId: "assistant-completed-restart",
+      roundId,
+      status: "done",
+      stopReason: "end_turn",
+      text: "重启后的执行已完成",
+      timestamp: 5,
+    })],
+  );
+  assert.deepEqual(
+    afterRestart.map(({ agent_round_id, phase, status }) => ({
+      agent_round_id,
+      phase,
+      status,
+    })),
+    [
+      {
+        agent_round_id: agentRoundId,
+        phase: "terminal",
+        status: "cancelled",
+      },
+      {
+        agent_round_id: "agent-round-completed-restart",
+        phase: "terminal",
+        status: "done",
+      },
+    ],
+    "a completed post-restart execution also settles the orphaned earlier run",
   );
   assert.equal(
     buildRoomAgentRoundEntries(
