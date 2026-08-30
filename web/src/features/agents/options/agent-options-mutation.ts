@@ -16,6 +16,7 @@ export function buildAgentMutationParams(
     name,
     options: pickAgentEditableOptions(options),
     avatar: identity.avatar,
+    business_tags: identity.business_tags,
     description: identity.description,
     vibe_tags: identity.vibe_tags,
   };

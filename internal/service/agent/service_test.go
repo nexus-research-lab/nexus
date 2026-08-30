@@ -56,6 +56,49 @@ func TestServiceKeepsManagedSemanticSkillsBound(t *testing.T) {
 	assertManagedSemanticSkillBindings(t, agentValue)
 }
 
+func TestServiceKeepsBusinessTagsOutOfRuntimeProfile(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _ := newAgentTestService(t, cfg)
+	ctx := context.Background()
+
+	agentValue, err := service.CreateAgent(ctx, protocol.CreateRequest{
+		Name:         "business-tag-agent",
+		BusinessTags: []string{"catalog-enterprise-x9"},
+		VibeTags:     []string{"style-deliberate-y7"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(agentValue.BusinessTags, []string{"catalog-enterprise-x9"}) {
+		t.Fatalf("业务标签未独立持久化: %+v", agentValue.BusinessTags)
+	}
+
+	agentValue, err = service.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{
+		BusinessTags: []string{"Catalog-Retail-Z8", " catalog-retail-z8 ", ""},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(agentValue.BusinessTags, []string{"Catalog-Retail-Z8"}) {
+		t.Fatalf("业务标签应去空并忽略大小写重复: %+v", agentValue.BusinessTags)
+	}
+	if !slices.Equal(agentValue.VibeTags, []string{"style-deliberate-y7"}) {
+		t.Fatalf("更新业务标签不应改写风格标签: %+v", agentValue.VibeTags)
+	}
+
+	prompt, err := service.BuildRuntimePrompt(ctx, agentValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(prompt, "style-deliberate-y7") {
+		t.Fatal("运行时画像应保留风格标签")
+	}
+	if strings.Contains(prompt, "Catalog-Retail-Z8") {
+		t.Fatal("业务标签不应进入运行时提示词")
+	}
+}
+
 func assertManagedSemanticSkillBindings(t *testing.T, agentValue *protocol.Agent) {
 	t.Helper()
 	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {

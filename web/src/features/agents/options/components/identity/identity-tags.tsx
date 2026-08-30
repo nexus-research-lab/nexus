@@ -11,14 +11,14 @@ import {
   type AgentIdentityVariant,
 } from "./identity-layout";
 
-interface VibeTagLayout {
+interface TagLayout {
   addButtonSize: "lg" | "md";
   inputClassName: string;
   inputSize: "md" | "sm";
   rowGapClassName: string;
 }
 
-const VIBE_TAG_LAYOUTS: Record<AgentIdentityVariant, VibeTagLayout> = {
+const TAG_LAYOUTS: Record<AgentIdentityVariant, TagLayout> = {
   dialog: {
     addButtonSize: "lg",
     inputClassName: "h-10 min-w-[132px] flex-1 radius-control-md",
@@ -33,7 +33,7 @@ const VIBE_TAG_LAYOUTS: Record<AgentIdentityVariant, VibeTagLayout> = {
   },
 };
 
-interface IdentityVibeTagsProps {
+interface IdentityTagsProps {
   addLabel: string;
   label: string;
   onChange: (tags: string[]) => void;
@@ -42,16 +42,16 @@ interface IdentityVibeTagsProps {
   variant: AgentIdentityVariant;
 }
 
-export function IdentityVibeTags({
+export function IdentityTags({
   addLabel,
   label,
   onChange,
   resetKey,
   tags,
   variant,
-}: IdentityVibeTagsProps) {
+}: IdentityTagsProps) {
   const [tagInput, setTagInput] = useResettableState("", resetKey);
-  const layout = VIBE_TAG_LAYOUTS[variant];
+  const layout = TAG_LAYOUTS[variant];
   const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
 
   const addTag = useCallback(() => {

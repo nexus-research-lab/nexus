@@ -492,6 +492,7 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 		WorkspacePath:          u.existing.WorkspacePath,
 		Avatar:                 updatedAgentText(u.existing.Avatar, u.request.Avatar),
 		Description:            updatedAgentText(u.existing.Description, u.request.Description),
+		BusinessTagsJSON:       mustJSONString(u.updatedBusinessTags()),
 		VibeTagsJSON:           mustJSONString(u.updatedVibeTags()),
 		Provider:               options.Provider,
 		Model:                  options.Model,
@@ -555,6 +556,13 @@ func (u *agentUpdate) updatedVibeTags() []string {
 		return u.existing.VibeTags
 	}
 	return slices.Clone(u.request.VibeTags)
+}
+
+func (u *agentUpdate) updatedBusinessTags() []string {
+	if u.request.BusinessTags == nil {
+		return u.existing.BusinessTags
+	}
+	return normalizeStringList(u.request.BusinessTags)
 }
 
 func updatedAgentText(current string, requested *string) string {

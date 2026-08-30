@@ -20,6 +20,7 @@ function buildFallbackRoomMemberAgent(
     created_at: 0,
     status: "active",
     avatar: null,
+    business_tags: [],
     description: null,
     vibe_tags: [],
     skills_count: null,

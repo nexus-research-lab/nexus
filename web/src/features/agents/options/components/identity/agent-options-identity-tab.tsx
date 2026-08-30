@@ -14,11 +14,12 @@ import {
 import { AgentProfileFileEditor } from "./agent-profile-file-editor";
 import { IdentityModelSelector } from "./identity-model-selector";
 import { IdentityProfileFields } from "./identity-profile-fields";
-import { IdentityVibeTags } from "./identity-vibe-tags";
+import { IdentityTags } from "./identity-tags";
 
 interface AgentOptionsIdentityTabProps {
   agentId?: string;
   avatar: string;
+  businessTags: string[];
   defaultModel: string;
   defaultProvider: AgentProvider;
   description: string;
@@ -27,6 +28,7 @@ interface AgentOptionsIdentityTabProps {
   model: string;
   nameValidation: AgentNameValidationResult | null;
   onAvatarChange: (value: string) => void;
+  onBusinessTagsChange: (tags: string[]) => void;
   onDescriptionChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onProfileTemplateChange: (value: string) => void;
@@ -50,6 +52,7 @@ interface AgentOptionsIdentityTabProps {
 export function AgentOptionsIdentityTab({
   agentId,
   avatar,
+  businessTags,
   defaultModel,
   defaultProvider,
   description,
@@ -58,6 +61,7 @@ export function AgentOptionsIdentityTab({
   model,
   nameValidation,
   onAvatarChange,
+  onBusinessTagsChange,
   onDescriptionChange,
   onModelChange,
   onProfileTemplateChange,
@@ -124,12 +128,20 @@ export function AgentOptionsIdentityTab({
           />
         </div>
 
-        <div className={layout.secondaryClassName}>
-          <IdentityVibeTags
+        <div className={cn(layout.secondaryClassName, "space-y-4")}>
+          <IdentityTags
+            addLabel={t("agent_options.identity.add_business_tag")}
+            label={t("agent_options.identity.business_tags")}
+            onChange={onBusinessTagsChange}
+            resetKey={`${scopeKey}:business`}
+            tags={businessTags}
+            variant={variant}
+          />
+          <IdentityTags
             addLabel={t("agent_options.identity.add_tag")}
             label={t("agent_options.identity.vibe_tags")}
             onChange={onVibeTagsChange}
-            resetKey={scopeKey}
+            resetKey={`${scopeKey}:vibe`}
             tags={vibeTags}
             variant={variant}
           />

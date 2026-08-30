@@ -56,8 +56,8 @@ func TestRoomConfigurationVersionsPersistAndAdvance(t *testing.T) {
 	if _, err = db.Exec(`
 INSERT INTO agents (
     id, owner_user_id, slug, name, description, definition, status,
-    workspace_path, is_main, vibe_tags
-) VALUES (?, ?, ?, ?, '', '', 'active', ?, 0, '[]')`,
+    workspace_path, is_main, vibe_tags, business_tags
+) VALUES (?, ?, ?, ?, '', '', 'active', ?, 0, '["沉稳"]', '["企业"]')`,
 		"agent-version-test",
 		"owner-version-test",
 		"agent-version-test",
@@ -85,6 +85,13 @@ VALUES (?, ?, 'agent', ?)`,
 	)
 	if err != nil {
 		t.Fatalf("更新 room 共享配置失败: %v", err)
+	}
+	if len(roomContext.MemberAgents) != 1 ||
+		len(roomContext.MemberAgents[0].BusinessTags) != 1 ||
+		roomContext.MemberAgents[0].BusinessTags[0] != "企业" ||
+		len(roomContext.MemberAgents[0].VibeTags) != 1 ||
+		roomContext.MemberAgents[0].VibeTags[0] != "沉稳" {
+		t.Fatalf("Room 成员投影应区分业务标签与风格标签: %+v", roomContext.MemberAgents)
 	}
 	assertStoredRoomVersions(t, roomContext.Room, 2, 1)
 

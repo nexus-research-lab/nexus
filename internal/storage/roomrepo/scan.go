@@ -1,5 +1,5 @@
 // INPUT: Room、成员、Agent、对话与 session SQL 查询行。
-// OUTPUT: 含配置世代及完整成员 Agent runtime 展示字段的 protocol Room 投影。
+// OUTPUT: 含配置世代、业务标签及完整成员 Agent runtime 展示字段的 protocol Room 投影。
 // POS: Room 仓储查询结果到跨边界协议模型的统一扫描层。
 package roomrepo
 
@@ -77,6 +77,7 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 	var (
 		item                 protocol.Agent
 		vibeTagsJSON         string
+		businessTagsJSON     string
 		allowedToolsJSON     string
 		disallowedToolsJSON  string
 		mcpServersJSON       string
@@ -99,6 +100,7 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 		&item.Avatar,
 		&item.Description,
 		&vibeTagsJSON,
+		&businessTagsJSON,
 		&createdAt,
 		&item.Options.Provider,
 		&item.Options.Model,
@@ -120,6 +122,7 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 
 	item.CreatedAt = createdAt
 	item.VibeTags = jsoncodec.ParseStringSlice(vibeTagsJSON)
+	item.BusinessTags = jsoncodec.ParseStringSlice(businessTagsJSON)
 	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)

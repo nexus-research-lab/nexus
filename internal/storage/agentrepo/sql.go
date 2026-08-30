@@ -108,8 +108,8 @@ func (r *SQLRepository) CreateAgent(ctx context.Context, record CreateRecord) (*
 
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
 INSERT INTO agents (
-    id, owner_user_id, slug, name, description, definition, status, workspace_path, is_main, avatar, vibe_tags
-) VALUES (%s, %s, %s, %s, %s, '', %s, %s, %s, %s, %s)`,
+    id, owner_user_id, slug, name, description, definition, status, workspace_path, is_main, avatar, vibe_tags, business_tags
+) VALUES (%s, %s, %s, %s, %s, '', %s, %s, %s, %s, %s, %s)`,
 		r.dialect.Bind(1),
 		r.dialect.Bind(2),
 		r.dialect.Bind(3),
@@ -120,6 +120,7 @@ INSERT INTO agents (
 		r.dialect.Bind(8),
 		r.dialect.Bind(9),
 		r.dialect.JSONValue(10),
+		r.dialect.JSONValue(11),
 	),
 		record.AgentID,
 		record.OwnerUserID,
@@ -131,6 +132,7 @@ INSERT INTO agents (
 		record.IsMain,
 		nullIfEmpty(record.Avatar),
 		record.VibeTagsJSON,
+		record.BusinessTagsJSON,
 	); err != nil {
 		return nil, err
 	}
@@ -188,22 +190,24 @@ func (r *SQLRepository) UpdateAgent(ctx context.Context, record UpdateRecord) (*
 
 	agentResult, err := tx.ExecContext(ctx, fmt.Sprintf(`
 UPDATE agents
-SET name = %s, workspace_path = %s, avatar = %s, description = %s, vibe_tags = %s, updated_at = %s
+SET name = %s, workspace_path = %s, avatar = %s, description = %s, vibe_tags = %s, business_tags = %s, updated_at = %s
 WHERE id = %s AND owner_user_id = %s`,
 		r.dialect.Bind(1),
 		r.dialect.Bind(2),
 		r.dialect.Bind(3),
 		r.dialect.Bind(4),
 		r.dialect.JSONValue(5),
+		r.dialect.JSONValue(6),
 		r.dialect.CurrentTimestamp(),
-		r.dialect.Bind(6),
 		r.dialect.Bind(7),
+		r.dialect.Bind(8),
 	),
 		record.Name,
 		record.WorkspacePath,
 		nullIfEmpty(record.Avatar),
 		record.Description,
 		record.VibeTagsJSON,
+		record.BusinessTagsJSON,
 		record.AgentID,
 		record.OwnerUserID,
 	)
@@ -511,6 +515,7 @@ SELECT
     COALESCE(a.avatar, ''),
     COALESCE(a.description, ''),
     COALESCE(%s, '[]'),
+    COALESCE(%s, '[]'),
     COALESCE(p.display_name, ''),
     COALESCE(p.headline, ''),
     COALESCE(p.profile_markdown, ''),
@@ -530,7 +535,10 @@ SELECT
     COALESCE(rt.runtime_version, 0)
 FROM agents a
 LEFT JOIN profiles p ON p.agent_id = a.id
-LEFT JOIN runtimes rt ON rt.agent_id = a.id`, r.dialect.JSONText("a.vibe_tags"))
+LEFT JOIN runtimes rt ON rt.agent_id = a.id`,
+		r.dialect.JSONText("a.vibe_tags"),
+		r.dialect.JSONText("a.business_tags"),
+	)
 }
 
 func scanAgents(rows *sql.Rows, capacity int) ([]protocol.Agent, error) {
