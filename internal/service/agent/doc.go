@@ -1,4 +1,4 @@
-// Package agent 提供 Agent 业务能力：CRUD、运行时提示词构建、workspace/skills 就绪。
+// Package agent 提供 Agent 业务能力：CRUD、独立业务标签、运行时提示词构建、workspace/skills 就绪。
 //
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //

@@ -23,6 +23,7 @@ export interface AgentEditorInitialOptions extends Partial<AgentConfigOptions> {
 
 export interface AgentOptionsEditorInitialValues {
   avatar: string;
+  businessTags: string[];
   description: string;
   options: AgentEditorInitialOptions;
   profileTemplate?: string;
@@ -54,6 +55,7 @@ export function buildAgentOptionsCreateSource(
   return {
     initial: {
       avatar: getRandomAgentAvatarIconId(),
+      businessTags: [],
       description: "",
       options,
       profileTemplate: "",
@@ -72,6 +74,7 @@ export function buildAgentOptionsEditSource(
     isMain: agent.is_main === true,
     initial: {
       avatar: agent.avatar ?? "",
+      businessTags: agent.business_tags ?? [],
       description: agent.description ?? "",
       options: pickAgentEditableOptions(agent.options),
       title: agent.name,

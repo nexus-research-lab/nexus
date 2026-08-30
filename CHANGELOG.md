@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added grid/list switching and business-tag, Provider, and permission filters to Agent Management, with business-tag-aware search and compact tag summaries for large directories.
 - Added default-on General settings for automatic long-term memory extraction and background memory consolidation across nxs conversations and host maintenance.
 - Expanded the built-in model catalog with current OpenAI, Anthropic, Gemini, Grok, Kimi, Qwen, MiniMax, Doubao, ERNIE, Hunyuan, StepFun, Mistral, Llama, Cohere, and Amazon Nova limits and capabilities.
 - Added official GLM-5.3 and GLM-5.3-Flash limits, required reasoning, and GLM-5.3-Flash vision capability to the built-in model catalog.

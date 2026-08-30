@@ -14,6 +14,7 @@ type CreateRecord struct {
 	IsMain               bool
 	Avatar               string
 	Description          string
+	BusinessTagsJSON     string
 	VibeTagsJSON         string
 	DisplayName          string
 	Headline             string
@@ -43,6 +44,7 @@ type UpdateRecord struct {
 	WorkspacePath          string
 	Avatar                 string
 	Description            string
+	BusinessTagsJSON       string
 	VibeTagsJSON           string
 	Provider               string
 	Model                  string

@@ -44,6 +44,7 @@ export const createAgentApi = async (
       avatar: params.avatar ?? null,
       description: params.description ?? null,
       profile_template: params.profile_template ?? null,
+      business_tags: params.business_tags ?? [],
       vibe_tags: params.vibe_tags ?? [],
     }),
   });
@@ -73,6 +74,7 @@ export const updateAgentApi = async (
         options: params.options || null,
         avatar: params.avatar ?? null,
         description: params.description ?? null,
+        business_tags: params.business_tags,
         vibe_tags: params.vibe_tags ?? [],
       }),
     },
