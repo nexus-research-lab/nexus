@@ -136,9 +136,7 @@ func TestCompletionAuditMigrationBackfillsLegacyAcceptedReview(t *testing.T) {
 
 	// Roll only the new receipt migration back to reproduce the exact legacy
 	// state: accepted active WorkGraph, no durable completion-audit table.
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.DownTo(
 		repository.db,
 		orchestrationMigrationDir(t, "sqlite"),

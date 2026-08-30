@@ -20,9 +20,7 @@ func TestRepositoryPersistsWorkflowAggregateAndOwnerScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}
@@ -82,9 +80,7 @@ func TestRepositoryPersistsRecoverableDraftVersionsAndSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}

@@ -21,9 +21,7 @@ func TestConversationDraftMigrationPreservesLegacyDataAndAddsUniqueDraft(t *test
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	migrationDir := roomRepositoryMigrationDir(t, "sqlite")
 	if err = goose.UpTo(db, migrationDir, 55); err != nil {
 		t.Fatal(err)
