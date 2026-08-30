@@ -128,7 +128,7 @@ export function AgentOptionsIdentityTab({
           />
         </div>
 
-        <div className={cn(layout.secondaryClassName, "space-y-4")}>
+        <div className={layout.tagsClassName}>
           <IdentityTags
             addLabel={t("agent_options.identity.add_business_tag")}
             label={t("agent_options.identity.business_tags")}

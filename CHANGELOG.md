@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Rebuilt Agent identity metadata as a compact form with inline token inputs for business and vibe tags, removing empty tag rails and keeping model and behavior settings close to the identity fields.
 - Aligned WorkGraph prompts, Skill guidance, and submission/review command contracts so Room conversational rounds enter coordination through `get_execution` instead of treating explicit identifiers as mutation authority.
 - Kept the latest Room public assistant text beside the active tool group until a newer assistant text replaces it.
 - Allowed Room coordinators to submit self-assigned WorkGraph deliverables to an independent reviewer without the review-return transaction rejecting the valid Assignment strategy.
