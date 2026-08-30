@@ -129,19 +129,48 @@ function mergeMonotonicStatus(
     : current;
 }
 
+function settleSupersededAgentExecutions(
+  states: RoomAgentExecutionState[],
+  evidence: RoomExecutionEvidence,
+): RoomAgentExecutionState[] {
+  if (evidence.phase !== "active" && evidence.phase !== "terminal") {
+    return states;
+  }
+  let changed = false;
+  const next = states.map((state) => {
+    if (
+      state.round_id !== evidence.roundId
+      || state.agent_id !== evidence.agentId
+      || state.agent_round_id === evidence.agentRoundId
+      || (state.phase !== "active" && state.phase !== "acknowledged")
+      || state.first_seen_at >= evidence.firstSeenAt
+    ) {
+      return state;
+    }
+    changed = true;
+    return {
+      ...state,
+      phase: "terminal" as const,
+      status: "cancelled" as const,
+    };
+  });
+  return changed ? next : states;
+}
+
 function mergeEvidence(
   states: RoomAgentExecutionState[],
   evidence: RoomExecutionEvidence,
 ): RoomAgentExecutionState[] {
+  const reconciled = settleSupersededAgentExecutions(states, evidence);
   const key = buildExecutionKey(evidence.roundId, evidence.agentRoundId);
-  const index = states.findIndex((state) => executionKey(state) === key);
+  const index = reconciled.findIndex((state) => executionKey(state) === key);
   if (index < 0) {
     return [
-      ...states,
+      ...reconciled,
       {
         agent_id: evidence.agentId,
         agent_round_id: evidence.agentRoundId,
-        display_order: resolveNewDisplayOrder(states, evidence),
+        display_order: resolveNewDisplayOrder(reconciled, evidence),
         first_seen_at: evidence.firstSeenAt,
         ...(evidence.handoffId ? { handoff_id: evidence.handoffId } : {}),
         ...(evidence.hiddenFromUser ? { hidden_from_user: true } : {}),
@@ -152,7 +181,7 @@ function mergeEvidence(
     ];
   }
 
-  const current = states[index];
+  const current = reconciled[index];
   const nextPhase = resolveNextPhase(current.phase, evidence.phase);
   const nextStatus = mergeMonotonicStatus(current.status, evidence.status);
   const nextHandoffId = evidence.handoffId ?? current.handoff_id;
@@ -170,9 +199,9 @@ function mergeEvidence(
     && current.phase === nextPhase
     && current.status === nextStatus
   ) {
-    return states;
+    return reconciled;
   }
-  const next = [...states];
+  const next = [...reconciled];
   next[index] = {
     ...current,
     agent_id: evidence.agentId,

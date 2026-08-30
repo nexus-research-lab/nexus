@@ -198,13 +198,12 @@ function getLatestResultSummary(
   return undefined;
 }
 
-function findLastStreamableBlockIndex(blocks: ContentBlock[]): number {
-  for (let index = blocks.length - 1; index >= 0; index -= 1) {
-    const block = blocks[index];
-    if (block.type === "text" || block.type === "thinking" || block.type === "image") {
-      return index;
-    }
-  }
-
-  return -1;
+export function findLastStreamableBlockIndex(blocks: ContentBlock[]): number {
+  const index = blocks.length - 1;
+  const block = blocks[index];
+  // 新语义块一旦出现，前一段正文或思考就必须立即结束流式展示。
+  return block
+    && (block.type === "text" || block.type === "thinking" || block.type === "image")
+    ? index
+    : -1;
 }

@@ -6,7 +6,8 @@
 
 - `execution_id`、`work_item_id`、`logical_key`、`assignment_id`、`submission_id` 都是 opaque locator。多个 locator 同时出现时必须指向同一对象；显式 locator 只确认目标，不授予 authority。
 - 只有 exact trusted WorkBinding 可以为 submit 供应 Work Item/Assignment；只有 exact ReviewBinding，或服务端允许的 self-review WorkBinding，可以为 review 供应目标。`assigned_work`、`current_actor`、coordinator 身份和 observation 都不能替代 binding。
-- 在 DM coordination 或任何 unbound round，按 exact contract 显式提供所需 Work Item/Submission locator；不要靠省略字段试探服务端默认。
+- 在 unbound DM round，按 exact contract 显式提供所需 Work Item/Submission locator；不要靠省略字段试探服务端默认。
+- 在 Room conversational round，显式 locator 不授予 mutation authority。verified coordinator 必须先调用 execution `action=inspect`（`get_execution`）进入 coordination；其他成员必须等待宿主签发 exact WorkBinding 或 ReviewBinding。
 
 ## assign_work
 
@@ -18,7 +19,7 @@
 ## submit_work
 
 - 只由 current Assignment owner 调用。`result_summary` 描述具体交付；`result_refs` 与 `evidence` 只写真实、可复查的引用。
-- exact WorkBinding 可按 contract 省略 locator；unbound round 必须提供 Work Item locator，`assignment_id` 不能单独替代它。所有显式值必须匹配 current Assignment/binding。
+- exact WorkBinding 可按 contract 省略 locator；unbound DM round 必须提供 Work Item locator，`assignment_id` 不能单独替代它。所有显式值必须匹配 current Assignment/binding。
 - `waiting_input` 必须先 resume；已有未审核 Submission 时不重复提交。Submission 建立 immutable Gate，不能通过重交绕过审核。
 
 ## review_work

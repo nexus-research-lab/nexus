@@ -328,6 +328,8 @@ func TestStablePromptDefinesCompactRoundPolicy(t *testing.T) {
 		"`<nexus_round>` is authoritative for an ordinary round",
 		"An absent `execution` means none; `execution=\"background\"` is visible but grants no authority",
 		"an unbound member or subagent may only inspect",
+		"first use execution inspect (`get_execution`) to enter coordination before any mutation",
+		"Explicit locators never replace this transition",
 		"`plan_only=\"true\"` permits inspection and Plan preparation, never execution",
 	} {
 		if !strings.Contains(prompt, expected) {

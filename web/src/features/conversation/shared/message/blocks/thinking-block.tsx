@@ -64,6 +64,7 @@ export function ThinkingBlock({
       ref={expansion.anchorRef as RefObject<HTMLDivElement>}
     >
       <button
+        aria-expanded={isExpanded}
         className="grid min-h-7 w-full min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-1.5 radius-control-sm px-1.5 py-0.5 text-left text-sm font-normal leading-5 text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background)"
         data-activity-row="thinking"
         data-message-detail-sticky-header={isExpanded || undefined}
@@ -108,6 +109,7 @@ export function ThinkingBlock({
         <MessageDetailFrame>
           <MessageDetailScroll followContent={isStreaming}>
             <MarkdownRenderer
+              key={isStreaming ? "streaming" : "complete"}
               className="nexus-message-detail-markdown min-w-0 max-w-full overflow-hidden break-all text-(--text-muted)"
               content={thinking}
               initialRevealFromEmpty={initialRevealFromEmpty}

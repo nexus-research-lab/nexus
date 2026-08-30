@@ -81,6 +81,7 @@ export function resolveMessageItemFinalProjection({
     roundId,
     userMessageId ?? null,
     visibleAssistantTurns,
+    assistantContentMode === "room_result",
   );
   const finalTailEntries = resolveFinalTailEntries(
     finalAssistantTurn,
@@ -296,6 +297,7 @@ function resolveFinalAssistantTurn(
   roundId: string,
   userMessageId: string | null,
   visibleAssistantTurns: AssistantTurnEntry[],
+  preferText: boolean,
 ) {
   // 顶层 assistant 的 parent 指向本轮 user message（旧数据指向 round_id）；
   // 其他 parent（tool_use / slot msg）属于子执行，不能当最终回复。
@@ -303,17 +305,27 @@ function resolveFinalAssistantTurn(
     !parentId ||
     parentId === roundId ||
     (userMessageId != null && parentId === userMessageId);
+  let latestTopLevelTurn: AssistantTurnEntry | null = null;
   for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
     const message = assistantMessages[index] as AssistantMessage;
     if (isTopLevelParent(message.parent_id)) {
-      return (
-        visibleAssistantTurns.find(
-          (turn) => turn.messageId === message.message_id,
-        ) ?? null
-      );
+      const turn = visibleAssistantTurns.find(
+        (candidate) => candidate.messageId === message.message_id,
+      ) ?? null;
+      latestTopLevelTurn ??= turn;
+      if (!preferText || turn?.textContent.length) {
+        return turn;
+      }
     }
   }
-  return visibleAssistantTurns.at(-1) ?? null;
+  if (latestTopLevelTurn) {
+    return latestTopLevelTurn;
+  }
+  return preferText
+    ? visibleAssistantTurns.findLast((turn) => turn.textContent.length > 0)
+      ?? visibleAssistantTurns.at(-1)
+      ?? null
+    : visibleAssistantTurns.at(-1) ?? null;
 }
 
 function resolveFinalTailEntries(
