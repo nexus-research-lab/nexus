@@ -2586,6 +2586,90 @@ test("Thought detail uses compact tool-detail typography", async () => {
   assert.doesNotMatch(collapsedHtml, /nexus-message-detail-markdown/);
 });
 
+test("expanded tool headers do not repeat summaries from their detail body", async () => {
+  const { buildToolBlockViewModel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-model.ts",
+  );
+  const { ToolBlockHeader } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/header/tool-block-header.tsx",
+  );
+  const localization = {
+    locale: "en",
+    t: (key) => key,
+  };
+  const launchResult = "Launching skill: execution-orchestrator";
+  const skillModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolResult: {
+      content: launchResult,
+      tool_use_id: "tool-skill",
+      type: "tool_result",
+    },
+    toolUse: {
+      id: "tool-skill",
+      input: { skill: "execution-orchestrator" },
+      name: "Skill",
+      type: "tool_use",
+    },
+  });
+  assert.equal(skillModel.collapsedDetailText, launchResult);
+  assert.equal(skillModel.expandedInputText, null);
+
+  const renderHeader = (isExpanded, model = skillModel) => (
+    renderWithI18n(React.createElement(ToolBlockHeader, {
+      copied: false,
+      interactionDisabled: false,
+      isExpanded,
+      model,
+      onCopyResult: () => {},
+      onToggle: () => {},
+    }))
+  );
+  const collapsedHtml = await renderHeader(false);
+  const expandedHtml = await renderHeader(true);
+  assert.match(collapsedHtml, /data-tool-block-detail="inline"/);
+  assert.match(collapsedHtml, /Launching skill: execution-orchestrator/);
+  assert.doesNotMatch(expandedHtml, /data-tool-block-detail="inline"/);
+  assert.doesNotMatch(expandedHtml, /Launching skill: execution-orchestrator/);
+
+  const queryModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolResult: {
+      content: "Search complete",
+      tool_use_id: "tool-search",
+      type: "tool_result",
+    },
+    toolUse: {
+      id: "tool-search",
+      input: { query: "A2A protocol" },
+      name: "WebSearch",
+      type: "tool_use",
+    },
+  });
+  assert.equal(queryModel.collapsedDetailText, "A2A protocol");
+  assert.equal(queryModel.expandedInputText, "A2A protocol");
+  assert.doesNotMatch(await renderHeader(true, queryModel), /A2A protocol/);
+
+  const duplicateModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolResult: {
+      content: "Same input and result",
+      tool_use_id: "tool-echo",
+      type: "tool_result",
+    },
+    toolUse: {
+      id: "tool-echo",
+      input: { query: "Same input and result" },
+      name: "WebSearch",
+      type: "tool_use",
+    },
+  });
+  assert.equal(duplicateModel.expandedInputText, null);
+});
+
 test("a newer semantic block closes the preceding smooth stream", async () => {
   const { findLastStreamableBlockIndex } = await server.ssrLoadModule(
     "/src/hooks/conversation/use-assistant-content-merge.ts",
