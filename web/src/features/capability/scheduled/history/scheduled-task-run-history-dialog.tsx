@@ -194,7 +194,7 @@ export function ScheduledTaskRunHistoryDialog({
       <ConfirmDialog
         confirmText="确认未收到，重新投递"
         isOpen={!accessBlocked && !deletionBlocked && actions.deliveryVerificationTarget !== null}
-        message="上一次投递可能已经送达。请先到接收位置核对；只有确认没有收到时才重新发送。这不会重新运行任务。"
+        message="上次投递状态待核对。先到接收位置确认；只有确认未收到时才重新发送。这不会重新运行任务。"
         onCancel={cancelDeliveryVerification}
         onConfirm={() => {
           if (accessBlocked || deletionBlocked) {

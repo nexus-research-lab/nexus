@@ -174,6 +174,7 @@ function TextFileSaveIssueNotice({
         title={t(reviewing
           ? "workspace_file.conflict_review_title"
           : "workspace_file.conflict_title")}
+        tone="warning"
         variant="card"
       />
     );
@@ -196,6 +197,7 @@ function TextFileSaveIssueNotice({
         title={t(issue.reconciliationFailed
           ? "workspace_file.save_check_failed_title"
           : "workspace_file.save_unknown_title")}
+        tone="warning"
         variant="card"
       />
     );
@@ -216,6 +218,7 @@ function TextFileSaveIssueNotice({
         size="sm"
         state="error"
         title={t("workspace_file.save_retry_ready_title")}
+        tone="warning"
         variant="card"
       />
     );

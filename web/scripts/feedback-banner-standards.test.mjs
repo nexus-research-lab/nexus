@@ -139,6 +139,44 @@ test("recovery fallback copy stays aligned in both locales", async () => {
   }
 });
 
+test("recovery copy states uncertainty once instead of listing outcome branches", async () => {
+  const recoveryCopyFiles = [
+    "src/shared/i18n/catalog/zh/agent.ts",
+    "src/shared/i18n/catalog/en/agent.ts",
+    "src/shared/i18n/catalog/zh/capability.ts",
+    "src/shared/i18n/catalog/en/capability.ts",
+    "src/shared/i18n/catalog/zh/conversation.ts",
+    "src/shared/i18n/catalog/en/conversation.ts",
+    "src/shared/i18n/catalog/zh/core.ts",
+    "src/shared/i18n/catalog/en/core.ts",
+    "src/shared/i18n/catalog/zh/navigation.ts",
+    "src/shared/i18n/catalog/en/navigation.ts",
+    "src/shared/i18n/catalog/zh/settings.ts",
+    "src/shared/i18n/catalog/en/settings.ts",
+    "src/features/home/sidebar/room-deletion-recovery.ts",
+    "src/pages/contacts/contacts-page-model.ts",
+    "src/pages/connectors/connector-oauth-callback-page.tsx",
+    "src/features/capability/scheduled/history/scheduled-task-run-history-dialog.tsx",
+    "src/features/capability/scheduled/history/scheduled-task-run-history-model.ts",
+    "src/features/capability/scheduled/history/use-scheduled-task-run-history-actions.ts",
+    "src/features/capability/scheduled/board/scheduled-task-board-model.ts",
+  ];
+
+  for (const file of recoveryCopyFiles) {
+    const source = await read(file);
+    assert.doesNotMatch(
+      source,
+      /可能[^。；\n]{0,80}(?:也可能|或)|可能全部、部分或/,
+      `${file} must not enumerate speculative outcomes`,
+    );
+    assert.doesNotMatch(
+      source,
+      /may or may not|may have[^.\n]{0,100}(?:,? or )|all, some, or none/i,
+      `${file} must not enumerate speculative outcomes`,
+    );
+  }
+});
+
 async function findSourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = await Promise.all(entries.map(async (entry) => {

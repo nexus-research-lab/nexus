@@ -14,6 +14,7 @@ import {
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import type {
   UiStateBlockSize,
   UiStateBlockVariant,
@@ -51,6 +52,7 @@ interface UiResourceLoadingStateProps extends UiResourceStateBaseProps {
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "loading";
+  tone?: never;
 }
 
 interface UiResourceEmptyStateProps extends UiResourceStateBaseProps {
@@ -59,6 +61,7 @@ interface UiResourceEmptyStateProps extends UiResourceStateBaseProps {
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "empty";
+  tone?: never;
 }
 
 interface UiResourceFailureStateProps extends UiResourceStateBaseProps {
@@ -67,6 +70,7 @@ interface UiResourceFailureStateProps extends UiResourceStateBaseProps {
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "error";
+  tone?: "danger" | "warning";
 }
 
 interface UiResourceSuccessStateProps extends UiResourceStateBaseProps {
@@ -75,6 +79,7 @@ interface UiResourceSuccessStateProps extends UiResourceStateBaseProps {
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "success";
+  tone?: never;
 }
 
 export type UiResourceStateProps =
@@ -85,7 +90,7 @@ export type UiResourceStateProps =
 
 const DEFAULT_STATE_ICONS: Record<UiResourceStateKind, ReactNode> = {
   empty: <Inbox className="h-5 w-5 text-(--icon-default)" />,
-  error: <CircleAlert className="h-5 w-5 text-(--destructive)" />,
+  error: <CircleAlert className="h-4 w-4 text-(--destructive)" />,
   loading: <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted) motion-reduce:animate-none" />,
   success: <CheckCircle2 className="h-5 w-5 text-(--success)" />,
 };
@@ -101,29 +106,53 @@ export function UiResourceState({
   size,
   state,
   title,
+  tone = "danger",
   urgency = "polite",
   variant,
   ...props
 }: UiResourceStateProps) {
   const failure = state === "error";
+  const compactFailure = failure && size === "sm";
+  const resolvedIcon = icon ?? (failure && tone === "warning"
+    ? <CircleAlert className="h-4 w-4 text-(--warning)" />
+    : DEFAULT_STATE_ICONS[state]);
 
   return (
     <UiStateBlock
       aria-atomic="true"
       aria-live={urgency}
       aria-busy={state === "loading"}
-      className={className}
+      className={cn(className, compactFailure && "items-start text-left")}
       data-resource-state={state}
-      description={description}
-      icon={icon ?? DEFAULT_STATE_ICONS[state]}
+      description={failure ? undefined : description}
+      icon={compactFailure ? undefined : resolvedIcon}
       role={urgency === "assertive" ? "alert" : "status"}
       size={size}
-      title={title}
-      tone={failure ? "danger" : "default"}
+      title={compactFailure ? (
+        <span className="inline-flex items-center gap-2">
+          {resolvedIcon}
+          <span>{title}</span>
+        </span>
+      ) : title}
+      tone={failure ? tone : "default"}
       variant={variant}
       {...props}
     >
-      {impact || nextStep ? (
+      {failure ? (
+        <RecoverySummary
+          className={cn(
+            "mt-1.5 w-full max-w-md",
+            compactFailure ? "text-left" : "text-center",
+          )}
+          impact={(
+            <>
+              {description ? <span className="text-(--text-default)">{description} </span> : null}
+              <span data-resource-state-impact>{impact}</span>
+            </>
+          )}
+          nextStep={<span data-resource-state-next-step>{nextStep}</span>}
+        />
+      ) : impact || nextStep ? (
         <div className="mt-3 w-full max-w-md space-y-1.5 break-words text-center text-xs leading-5 [overflow-wrap:anywhere]">
           {impact ? (
             <p className="text-(--text-muted)" data-resource-state-impact>
@@ -138,7 +167,14 @@ export function UiResourceState({
         </div>
       ) : null}
       {primaryAction || secondaryAction ? (
-        <div className="mt-4 flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        <div className={cn(
+          "flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
+          compactFailure
+            ? "mt-2.5 flex-row flex-wrap justify-start sm:w-full sm:justify-start"
+            : failure
+              ? "mt-2.5"
+              : "mt-4",
+        )}>
           {primaryAction ? (
             <ResourceStateAction action={primaryAction} primary />
           ) : null}

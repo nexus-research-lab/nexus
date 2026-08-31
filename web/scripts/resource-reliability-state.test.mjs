@@ -436,7 +436,7 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
   );
 });
 
-test("uncertain mutation copy states uncertainty for the affected resource", async () => {
+test("uncertain mutation copy names the affected resource without enumerating outcomes", async () => {
   const [capabilityZh, capabilityEn, conversationZh, conversationEn] = await Promise.all([
     read("src/shared/i18n/catalog/zh/capability.ts"),
     read("src/shared/i18n/catalog/en/capability.ts"),
@@ -447,10 +447,11 @@ test("uncertain mutation copy states uncertainty for the affected resource", asy
 
   assert.match(copy, /无法确认删除是否已经生效/);
   assert.match(copy, /cannot yet confirm whether deletion took effect/);
-  assert.match(copy, /这次“\{action\}”可能已经完成/);
-  assert.match(copy, /“\{action\}” may already have completed/);
-  assert.match(copy, /系统尚未确认是否已经受理/);
-  assert.match(copy, /hasn't confirmed whether it was accepted/);
+  assert.match(copy, /操作结果待核对，同一 Agent、路径和操作已暂停/);
+  assert.match(copy, /operation result needs verification, and the same Agent, path, and action are paused/i);
+  assert.match(copy, /消息仍在；状态待确认/);
+  assert.match(copy, /message remains and its status needs confirmation/i);
+  assert.doesNotMatch(copy, /可能[^。；]*也可能|may or may not/i);
 });
 
 test("Room external tabs and round indexes retain only same-scope read snapshots", async () => {
@@ -485,8 +486,7 @@ test("Room external tabs and round indexes retain only same-scope read snapshots
   assert.match(conversationSessionSource, /roundIndexResource\.error !== null/);
   assert.match(conversationSessionSource, /roundIndexResource\.items/);
   assert.match(noticeSource, /data-read-resource-state/);
-  assert.match(noticeSource, /<p className="mt-0\.5 leading-5">\{impact\}<\/p>/);
-  assert.match(noticeSource, /<p className="leading-5">\{nextStep\}<\/p>/);
+  assert.match(noticeSource, /<RecoverySummary[\s\S]*impact=\{impact\}[\s\S]*nextStep=\{nextStep\}/);
   assert.match(panelLayoutSource, /resource="session-round-index"/);
   assert.match(desktopRoomSource, /resource="room-external-sessions"/);
   assert.match(mobileRoomSource, /resource="room-external-sessions"/);

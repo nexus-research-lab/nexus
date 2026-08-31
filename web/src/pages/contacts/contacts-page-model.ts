@@ -76,7 +76,7 @@ function getAgentDeleteFailurePresentation(
     return failure.directoryCheck === "failed"
       ? {
           title: "成员已删除，列表暂时无法更新",
-          impact: "删除已经提交，但部分关联内容没有完全清理；当前页面仍可能显示旧项。",
+          impact: "删除已经提交，但部分关联内容没有完全清理；当前页面仍显示上次内容。",
           nextStep: "检查网络连接后重新刷新成员列表，不要再次删除。",
         }
       : failure.directoryCheck === "target_present"
@@ -87,7 +87,7 @@ function getAgentDeleteFailurePresentation(
           }
         : {
           title: "成员已删除，关联内容未完全清理",
-          impact: "删除已经提交；部分会话、工作文件或任务仍可能需要处理。",
+          impact: "删除已经提交；部分会话、工作文件或任务仍需处理。",
           nextStep: "刷新成员列表确认最新状态，不要再次删除。",
         };
   }
@@ -106,25 +106,25 @@ function getAgentDeleteFailurePresentation(
           }
         : {
           title: "成员已经不存在",
-          impact: "服务端没有找到这个成员；这次请求没有删除其他内容，当前页面可能仍显示旧项。",
+          impact: "服务端没有找到这个成员；这次请求没有删除其他内容，当前列表尚未核对。",
           nextStep: "刷新成员列表同步最新状态。",
         };
   }
   return failure.directoryCheck === "failed"
     ? {
         title: "成员状态仍无法确认",
-        impact: "删除结果仍未确认，当前页面显示的是上次内容；再次删除可能重复触发清理。",
+        impact: "删除结果未确认，当前页面显示上次内容；重复删除有重复清理风险。",
         nextStep: "检查网络连接后重新刷新成员列表，不要再次删除。",
       }
     : failure.directoryCheck === "target_present"
       ? {
           title: "成员目前仍在列表中，但删除结果没有确认",
-          impact: "当前列表仍包含这个成员，但先前请求可能仍在处理；一次读取不能证明删除没有执行。",
+          impact: "当前列表仍有这个成员，但一次读取不能证明先前删除结果；确认前保持保护。",
           nextStep: "稍后再次刷新成员列表，确认前不要重新删除。",
         }
       : {
         title: "还无法确认成员是否已删除",
-        impact: "当前没有收到完整结果。该智能体及其会话、工作文件和任务可能已被删除，也可能仍然保留。",
+        impact: "未收到完整结果；成员删除结果待核对，系统没有自动再次删除。",
         nextStep: "先刷新成员列表确认状态，不要再次删除。",
       };
 }

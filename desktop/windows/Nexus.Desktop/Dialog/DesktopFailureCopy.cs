@@ -39,20 +39,20 @@ internal static class DesktopFailureCopy
 
     internal static readonly string StateRootMigrationMessage = string.Join(
         Environment.NewLine + Environment.NewLine,
-        "上次数据目录迁移没有完成，Nexus 已继续使用迁移前的数据目录。原目录中的现有数据仍被保留；新目录里可能有尚未启用的副本，不要手动合并或删除。",
+        "上次数据目录迁移没有完成，Nexus 已继续使用原目录，原有数据仍保留。新目录未启用，请勿手动合并或删除其中内容。",
         "先核对最近的会话和文件；需要重试时，从设置中选择一个空目录重新迁移。");
 
     internal static string BridgeMessage(string kind) => kind switch
     {
         "app.relocate_state_root" => string.Join(
             Environment.NewLine + Environment.NewLine,
-            "无法确认数据目录迁移是否已经开始。现有数据状态需要在重新打开 Nexus 后核对；不要移动或删除新旧数据目录。",
+            "数据目录迁移结果待确认。现有数据状态需要在重新打开 Nexus 后核对；不要移动或删除新旧数据目录。",
             "重新打开 Nexus，在设置中确认当前数据目录后，再决定是否重新迁移。"),
         "app.set_persistent_state" or "app.remove_persistent_state"
             or "app.set_global_shortcut_enabled" or "app.set_global_shortcut_accelerator"
             or "app.reset_global_shortcut_accelerator" => string.Join(
                 Environment.NewLine + Environment.NewLine,
-                "无法确认这项桌面设置是否已经生效。对话、任务和文件未被这次设置操作修改。",
+                "桌面设置结果待确认。对话、任务和文件未被这次设置操作修改。",
                 "重新打开设置并核对当前状态，再决定是否重试。"),
         "app.export_logs" => string.Join(
             Environment.NewLine + Environment.NewLine,
@@ -61,7 +61,7 @@ internal static class DesktopFailureCopy
         "app.open_external_url" or "app.start_browser_extension_setup"
             or "app.open_workspace_file" or "app.open_route" => string.Join(
                 Environment.NewLine + Environment.NewLine,
-                "无法确认请求的窗口或页面是否已经打开。Nexus 中已有的会话、任务和文件没有被修改。",
+                "窗口或页面的打开结果待确认。Nexus 中已有的会话、任务和文件没有被修改。",
                 "先检查屏幕上是否已经出现目标窗口或页面；没有出现时再重试。"),
         "app.get_app_version" or "app.get_state_root" or "app.choose_state_root"
             or "app.get_workspace_file_applications" or "app.get_persistent_state"
@@ -71,11 +71,11 @@ internal static class DesktopFailureCopy
                 "保持 Nexus Desktop 运行并重新打开当前页面，然后再试一次。"),
         "app.start_update" => string.Join(
             Environment.NewLine + Environment.NewLine,
-            "更新请求没有完成，是否已经启动更新流程目前无法确认。当前版本、已有会话和文件尚未因此改变。",
+            "更新请求没有及时返回，更新状态待核对。当前版本、已有会话和文件没有因此改变。",
             "先等待原生更新窗口；没有出现时再从应用菜单检查更新。"),
         _ => string.Join(
             Environment.NewLine + Environment.NewLine,
-            "这项桌面操作没有完成，是否已经生效目前无法确认。相关设置或内容是否发生变化也需要核对。",
+            "桌面操作结果待确认。相关设置或内容需要到对应页面核对。",
             "返回相关页面核对当前状态，再决定是否重试。"),
     };
 }

@@ -267,7 +267,7 @@ function getPermissionPresentation(
       title: "权限请求已拒绝",
     },
     ready_to_retry: {
-      description: "此前运行可能已产生副作用，需要确认后才会重试。",
+      description: "此前运行的副作用状态待核对，确认后才会重试。",
       title: "等待确认重试",
     },
   };

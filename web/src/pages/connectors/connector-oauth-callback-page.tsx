@@ -164,7 +164,7 @@ export function ConnectorOAuthCallbackPage() {
                 title: "连接没有完成",
               }
             : {
-                impact: "新的连接可能已经保存，也可能尚未完成；已有连接和应用配置没有被删除。",
+                impact: "已有连接和应用配置没有被删除；新连接结果待核对。",
                 message: failure.message,
                 nextStep: "返回 Nexus 并重新加载连接器状态；确认结果前不要再次授权。",
                 title: "连接结果待确认",

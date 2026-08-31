@@ -29,7 +29,8 @@ test("Agent delete recovery copy follows domain evidence", async () => {
 
   const unknown = present({ directoryCheck: "not_checked", kind: "outcome_unknown" });
   assert.match(unknown.failure.title, /无法确认/);
-  assert.match(unknown.failure.impact, /可能已被删除，也可能仍然保留/);
+  assert.match(unknown.failure.impact, /删除结果待核对/);
+  assert.match(unknown.failure.impact, /没有自动再次删除/);
   assert.match(unknown.failure.nextStep, /不要再次删除/);
   assert.equal(unknown.confirmText, "刷新成员列表");
   assert.equal(unknown.variant, "default");
@@ -47,7 +48,8 @@ test("Agent delete recovery copy follows domain evidence", async () => {
     kind: "outcome_unknown",
   });
   assert.match(stillPresent.failure.title, /仍在列表中/);
-  assert.match(stillPresent.failure.impact, /不能证明删除没有执行/);
+  assert.match(stillPresent.failure.impact, /不能证明先前删除结果/);
+  assert.match(stillPresent.failure.impact, /确认前保持保护/);
   assert.match(stillPresent.failure.nextStep, /不要重新删除/);
 
   assert.doesNotMatch(

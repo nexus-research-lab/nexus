@@ -45,20 +45,22 @@ test("desktop bridge keeps raw causes internal and returns stage-specific safe c
     assert.doesNotMatch(source, /reject\(error\)/);
     assert.doesNotMatch(source, /Desktop bridge request (?:failed|timed out)/);
     assert.match(source, /已有设置、会话、任务和文件未被修改/);
-    assert.match(source, /是否已经生效目前无法确认/);
-    assert.match(source, /确认当前状态，再决定是否重试/);
+    assert.match(source, /桌面操作结果待确认/);
+    assert.match(source, /相关设置或内容需要到对应页面核对/);
     assert.match(source, /timeoutMessage\(request\.kind\)/);
     assert.match(source, /这次读取不会修改已有设置、会话、任务或文件/);
-    assert.match(source, /更新流程可能已经开始/);
+    assert.match(source, /更新状态待核对/);
     assert.match(source, /不要移动或删除新旧数据目录/);
+    assert.doesNotMatch(source, /可能[^。；]*也可能/);
   }
 
   for (const source of [macCopy, windowsCopy]) {
-    assert.match(source, /无法确认数据目录迁移是否已经开始/);
+    assert.match(source, /数据目录迁移结果待确认/);
     assert.match(source, /不要移动或删除新旧数据目录/);
     assert.match(source, /核对当前状态/);
-    assert.match(source, /已继续使用迁移前的数据目录/);
-    assert.match(source, /不要手动合并或删除/);
+    assert.match(source, /已继续使用原目录/);
+    assert.match(source, /新目录未启用/);
+    assert.match(source, /手动合并或删除/);
   }
 });
 

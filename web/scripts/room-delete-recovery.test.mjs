@@ -71,14 +71,16 @@ test("Room deletion recovery copy answers result, impact, and next step", async 
 
   const chineseUnknown = getRoomDeletionRecoveryPresentation(unknown, "zh");
   assert.match(chineseUnknown.failure.title, /无法确认/);
-  assert.match(chineseUnknown.failure.impact, /可能已删除，也可能仍然保留/);
+  assert.match(chineseUnknown.failure.impact, /删除结果待核对/);
+  assert.match(chineseUnknown.failure.impact, /没有自动再次删除/);
   assert.match(chineseUnknown.failure.nextStep, /不要再次删除/);
   assert.equal(chineseUnknown.confirmText, "核对 Room 列表");
   assert.equal(chineseUnknown.variant, "default");
 
   const englishUnknown = getRoomDeletionRecoveryPresentation(unknown, "en");
   assert.match(englishUnknown.failure.title, /can’t confirm/);
-  assert.match(englishUnknown.failure.impact, /may have been deleted/);
+  assert.match(englishUnknown.failure.impact, /deletion result needs verification/i);
+  assert.match(englishUnknown.failure.impact, /did not delete it again/i);
   assert.match(englishUnknown.failure.nextStep, /Don’t delete it again/);
 
   const retry = getRoomDeletionRecoveryPresentation(retryable, "zh");
